@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { X } from 'lucide-react';
+import { User, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip } from './tooltip';
 
@@ -74,7 +74,9 @@ const initials = (s: string) =>
 export function Avatar({ name, color, src, size = 'default', online, tooltip = true, className }: AvatarProps) {
   const cls = cn('av', size !== 'default' && size, !name && 'empty', online && 'presence', className);
   const el = !name ? (
-    <span className={cls} aria-label="Не назначено" role="img" />
+    <span className={cls} aria-label="Не назначено" role="img">
+      <User size={11} />
+    </span>
   ) : (
     <span className={cls} style={{ '--c': color || colorFor(name) } as React.CSSProperties} role="img" aria-label={name}>
       {src ? <img src={src} alt="" className="size-full rounded-full object-cover" /> : name.startsWith('+') ? name : initials(name)}
@@ -83,12 +85,13 @@ export function Avatar({ name, color, src, size = 'default', online, tooltip = t
   return tooltip ? <Tooltip content={name || 'Не назначено'}>{el}</Tooltip> : el;
 }
 
-export function AvatarStack({ names, max = 4, size = 'sm' }: { names: string[]; max?: number; size?: AvatarSize }) {
-  const rest = names.length - max;
+export function AvatarStack({ people, max = 4, size = 'sm' }: { people: (string | { name: string; color?: string })[]; max?: number; size?: AvatarSize }) {
+  const list = people.map(p => (typeof p === 'string' ? { name: p } : p));
+  const rest = list.length - max;
   return (
     <span className="avs">
-      {names.slice(0, max).map(n => (
-        <Avatar key={n} name={n} size={size} />
+      {list.slice(0, max).map(p => (
+        <Avatar key={p.name} name={p.name} color={p.color} size={size} />
       ))}
       {rest > 0 && <Avatar name={`+${rest}`} color="var(--gray)" size={size} tooltip={false} />}
     </span>

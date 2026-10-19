@@ -81,10 +81,11 @@ const DAY = 864e5;
 const sod = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 
 /** Срок: «Сегодня», «Завтра», «3 дн. назад», дата; подсветка просрочки и близкого срока */
-export function DueDate({ date, done, icon = true }: { date: Date; done?: boolean; icon?: boolean }) {
+export function DueDate({ date, done, icon = true, format }: { date: Date; done?: boolean; icon?: boolean; format?: (d: Date) => string }) {
   const n = Math.round((sod(date) - sod(new Date())) / DAY);
-  const text =
-    n === 0 ? 'Сегодня' : n === 1 ? 'Завтра' : n === -1 ? 'Вчера' : n < 0 && n > -7 ? `${-n} дн. назад` : date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+  const text = format
+    ? format(date)
+    : n === 0 ? 'Сегодня' : n === 1 ? 'Завтра' : n === -1 ? 'Вчера' : n < 0 && n > -7 ? `${-n} дн. назад` : date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
   return (
     <span className={cn('due', !done && (n < 0 ? 'over' : n <= 1 && 'soon'))}>
       {icon && <Calendar size={12} />}
