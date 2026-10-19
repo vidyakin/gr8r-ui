@@ -1,7 +1,7 @@
 /* Демо-данные воркспейса — порт data/seed.js из gr8r-studio.
-   Комментарии, файлы, события и настройки аккаунта пока не перенесены: добавятся вместе со страницами, которым они нужны. */
+   Файлы, события и настройки аккаунта пока не перенесены: добавятся вместе со страницами, которым они нужны. */
 import { dOff, minsAgo } from '../lib/dates';
-import type { Activity, LabelId, Member, Notification, Priority, Project, Status, Task, Team, WorkspaceData } from './types';
+import type { Activity, Comment, LabelId, Member, Notification, Priority, Project, Status, Task, Team, WorkspaceData } from './types';
 
 let aid = 0;
 const uid = (p: string) => p + ++aid;
@@ -388,6 +388,31 @@ export function seed(): WorkspaceData {
   const tk = (id: string) => T.find(x => x.id === id)!;
   // completed metadata
   T.filter(x => x.status === 'done').forEach((x, i) => (x.completedAt = minsAgo(60 * (6 + i * 17))));
+  const comments: Comment[] = [
+    {
+      id: 'c1',
+      task: 't3',
+      by: 'm4',
+      at: minsAgo(260),
+      text: 'Tablet layout feels crowded around the logo strip. Could we drop to four logos under 1024px?',
+      re: { '👍': ['m2', 'm3'] },
+    },
+    { id: 'c2', task: 't3', by: 'm2', at: minsAgo(210), text: 'Good call. Updated in v3 — @Tanjim Islam can you review before Thursday?', re: {} },
+    {
+      id: 'c3',
+      task: 't3',
+      by: 'm3',
+      at: minsAgo(95),
+      text: 'Hero spacing maps cleanly to our 8pt scale. No blockers from engineering.',
+      re: { '🎉': ['m2'] },
+    },
+    { id: 'c4', task: 't4', by: 'm3', at: minsAgo(400), text: "Mega-menu content still pending from marketing. I'll stub it for now.", re: {} },
+    { id: 'c5', task: 't4', by: 'm5', at: minsAgo(120), text: '@John Carter content is in the shared doc now — six columns max.', re: { '👍': ['m3'] } },
+    { id: 'c6', task: 't9', by: 'm1', at: minsAgo(55), text: 'This slipped past yesterday — @Emma Wilson anything blocking the permission prompts?', re: {} },
+    { id: 'c7', task: 't24', by: 'm7', at: minsAgo(700), text: 'Face ID fallback to passcode works on iOS 17; testing Android next.', re: {} },
+    { id: 'c8', task: 't34', by: 'm2', at: minsAgo(1500), text: 'Finance needs the channel split before approving.', re: {} },
+    { id: 'c9', task: 't35', by: 'm7', at: minsAgo(200), text: 'Support training moved to Monday. @Tanjim Islam please confirm the status page copy.', re: {} },
+  ];
   const A = (by: string, verb: string, task: string | null, project: string, m: number, extra = ''): Activity => ({ id: uid('a'), by, verb, task, project, at: minsAgo(m), extra });
   const activity: Activity[] = [
     A('m2', 'moved', 't3', 'p1', 38, 'to Review'),
@@ -469,6 +494,7 @@ export function seed(): WorkspaceData {
     members,
     projects,
     tasks: T,
+    comments,
     activity,
     notifs,
     teams: TEAMS_SEED.map(x => ({ ...x })),

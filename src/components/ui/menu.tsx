@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { DropdownMenu as M, ContextMenu as C, Popover as P } from 'radix-ui';
-import { Check } from 'lucide-react';
+import { Check, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /* ---------- dropdown menu ---------- */
@@ -60,6 +60,24 @@ export function MenuRadioItem({ className, icon, children, ...props }: React.Com
         <Check size={14} />
       </M.ItemIndicator>
     </M.RadioItem>
+  );
+}
+
+export function MenuSubTrigger({ className, icon, children, ...props }: React.ComponentProps<typeof M.SubTrigger> & { icon?: React.ReactNode }) {
+  return (
+    <M.SubTrigger className={cn('mi', className)} {...props}>
+      {icon}
+      <span className="flex-1">{children}</span>
+      <ChevronRight size={14} className="text-text-3" />
+    </M.SubTrigger>
+  );
+}
+
+export function MenuSubContent({ className, ...props }: React.ComponentProps<typeof M.SubContent>) {
+  return (
+    <M.Portal>
+      <M.SubContent sideOffset={6} alignOffset={-4} className={cn('pop', className)} {...props} />
+    </M.Portal>
   );
 }
 

@@ -8,9 +8,8 @@ import { PROJECT_TABS, SECTIONS } from '../routes';
 import { MemberAvatar } from '../components/workspace';
 import { ProjectIcon } from '../components/project';
 import { UserMenu } from './UserMenu';
+import { MOD } from '../lib/platform';
 
-const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent);
-export const MOD = isMac ? '⌘' : 'Ctrl';
 
 export interface Crumb {
   label: string;

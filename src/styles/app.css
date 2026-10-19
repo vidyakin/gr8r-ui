@@ -791,9 +791,6 @@ h3.sub {
     z-index: 69;
     animation: fade 0.14s both;
   }
-  :root {
-    --gutter: 16px;
-  }
   .page {
     padding: 20px var(--gutter) 96px;
   }
@@ -809,9 +806,6 @@ h3.sub {
 
 }
 @media (max-width: 640px) {
-  :root {
-    --topbar-h: 50px;
-  }
   .bottomnav {
     display: flex;
     position: fixed;

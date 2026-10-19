@@ -205,3 +205,16 @@
   --row-h: 34px;
   --card-pad: 8px;
 }
+
+/* Адаптивные значения токенов (из responsive.css оригинала). Лежат здесь, вне @layer:
+   правило в слое не может перекрыть токены, объявленные без слоя. */
+@media (max-width: 900px) {
+  :root {
+    --gutter: 16px;
+  }
+}
+@media (max-width: 640px) {
+  :root {
+    --topbar-h: 50px;
+  }
+}

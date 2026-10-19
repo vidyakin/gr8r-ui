@@ -78,10 +78,22 @@ export interface Task {
   created: number;
   updated: number;
   completedAt?: number;
+  /** Статус до последней смены — чтобы «вернуть в работу» туда же */
+  prevStatus?: Status;
   order: number;
   fav: boolean;
   recur: string | null;
   archived?: boolean;
+}
+
+export interface Comment {
+  id: string;
+  task: string;
+  by: string;
+  at: number;
+  text: string;
+  /** Реакции: эмодзи → id участников */
+  re: Record<string, string[]>;
 }
 
 export interface Activity {
@@ -127,6 +139,7 @@ export interface WorkspaceData {
   members: Member[];
   projects: Project[];
   tasks: Task[];
+  comments: Comment[];
   activity: Activity[];
   notifs: Notification[];
   teams: Team[];
