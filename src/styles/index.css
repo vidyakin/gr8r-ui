@@ -1,0 +1,23 @@
+/* Порядок важен: Tailwind (preflight + утилиты), затем токены Gr8r, затем мост к shadcn,
+   затем стили компонентов Gr8r в @layer components — утилиты Tailwind их перекрывают,
+   поэтому любой компонент можно подправить через className. */
+@import 'tailwindcss';
+@import './tokens.css';
+@import './shadcn-bridge.css';
+@import './base.css' layer(base);
+@import './components.css' layer(components);
+@import './overlays.css' layer(components);
+@import './states.css' layer(components);
+@import './domain.css' layer(components);
+
+/* Тёмная тема Gr8r включается атрибутом data-theme, а не классом .dark */
+@custom-variant dark {
+  :root[data-theme='dark'] & {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) & {
+      @slot;
+    }
+  }
+}

@@ -1,0 +1,116 @@
+/* ============================================================
+   МОСТ GR8R → TAILWIND / SHADCN
+   Компоненты shadcn используют классы bg-primary, text-muted-foreground,
+   border-input, bg-accent, ring-ring, rounded-md и т.д. Здесь эти классы
+   привязаны к токенам Gr8r — поэтому всё, что добавлено через
+   `npx shadcn add <component>`, сразу выглядит «как Gr8r» и следует
+   светлой/тёмной теме, акценту и плотности.
+
+   Внимание: в shadcn «accent» — это фон наведения, а в Gr8r --accent —
+   брендовый цвет. Брендовый цвет в shadcn называется primary.
+   ============================================================ */
+@theme inline {
+  --font-sans: var(--font);
+  --font-mono: var(--mono);
+
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--text);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--text);
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--on-accent);
+  --color-secondary: var(--surface-2);
+  --color-secondary-foreground: var(--text);
+  --color-muted: var(--surface-2);
+  --color-muted-foreground: var(--text-3);
+  --color-accent: var(--surface-2);
+  --color-accent-foreground: var(--text);
+  --color-destructive: var(--red);
+  --color-destructive-foreground: #fff;
+  --color-border: var(--border);
+  --color-input: var(--border-strong);
+  --color-ring: var(--accent);
+
+  --color-chart-1: var(--accent);
+  --color-chart-2: var(--teal);
+  --color-chart-3: var(--amber);
+  --color-chart-4: var(--rose);
+  --color-chart-5: var(--violet);
+
+  --color-sidebar: var(--bg-side);
+  --color-sidebar-foreground: var(--text);
+  --color-sidebar-primary: var(--accent);
+  --color-sidebar-primary-foreground: var(--on-accent);
+  --color-sidebar-accent: var(--surface-3);
+  --color-sidebar-accent-foreground: var(--text);
+  --color-sidebar-border: var(--border);
+  --color-sidebar-ring: var(--accent);
+
+  /* Палитра Gr8r как обычные цвета Tailwind: bg-surface-2, text-text-3, text-st-done … */
+  --color-bg: var(--bg);
+  --color-bg-side: var(--bg-side);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-sunken: var(--sunken);
+  --color-divider: var(--divider);
+  --color-border-strong: var(--border-strong);
+  --color-text: var(--text);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+  --color-text-4: var(--text-4);
+  --color-brand: var(--accent);
+  --color-brand-soft: var(--accent-soft);
+  --color-green: var(--green);
+  --color-amber: var(--amber);
+  --color-red: var(--red);
+  --color-blue: var(--blue);
+  --color-violet: var(--violet);
+  --color-teal: var(--teal);
+  --color-rose: var(--rose);
+  --color-orange: var(--orange);
+  --color-gray: var(--gray);
+  --color-st-backlog: var(--st-backlog);
+  --color-st-todo: var(--st-todo);
+  --color-st-progress: var(--st-progress);
+  --color-st-review: var(--st-review);
+  --color-st-done: var(--st-done);
+
+  --radius-xs: var(--r-xs);
+  --radius-sm: var(--r-xs);
+  --radius-md: var(--r-sm);
+  --radius-lg: var(--r);
+  --radius-xl: var(--r-lg);
+
+  --shadow-xs: var(--shadow-sm);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-pop);
+  --shadow-lg: var(--shadow-pop);
+
+  --text-xs: var(--fs-xs);
+  --text-sm: var(--fs);
+  --text-base: var(--fs-md);
+  --text-lg: var(--fs-lg);
+  --text-xl: var(--fs-xl);
+  --text-2xl: var(--fs-2xl);
+
+  --ease-gr8r: var(--ease);
+  --ease-spring: var(--spring);
+}
+
+/* shadcn иногда читает --radius напрямую */
+:root {
+  --radius: var(--r);
+}
+
+/* То, что `shadcn init` кладёт в базовый слой: без этого `border` в Tailwind v4 берёт currentColor */
+@layer base {
+  *,
+  ::before,
+  ::after,
+  ::backdrop {
+    border-color: var(--color-border);
+  }
+}

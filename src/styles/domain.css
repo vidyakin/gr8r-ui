@@ -1,0 +1,107 @@
+/* ============================================================
+   DOMAIN: карточка задачи, дата, стили из views/board.css
+   ============================================================ */
+.kcard {
+  background: var(--surface);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-card);
+  padding: var(--card-pad) calc(var(--card-pad) + 2px);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+  text-align: left;
+  transition:
+    box-shadow var(--dur),
+    transform var(--dur);
+}
+.kcard:hover {
+  box-shadow:
+    0 2px 6px -2px rgba(0, 0, 0, 0.08),
+    0 0 0 1px var(--border-strong);
+}
+.kcard:active {
+  transform: scale(0.99);
+}
+.kcard .top {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+}
+.kcard .top > svg {
+  margin-top: 2px;
+}
+.kcard .title {
+  font-size: var(--fs);
+  line-height: 1.4;
+  font-weight: 450;
+  flex: 1;
+  min-width: 0;
+  word-wrap: break-word;
+}
+.kcard.done .title {
+  color: var(--text-3);
+  text-decoration: line-through;
+}
+.kcard .hacts {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: none;
+  gap: 1px;
+  background: var(--surface);
+  border-radius: var(--r-sm);
+  box-shadow: 0 0 0 1px var(--border);
+  padding: 1px;
+}
+.kcard:hover .hacts,
+.kcard:focus-within .hacts {
+  display: flex;
+}
+.kcard .labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.kcard .meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+.kcard .meta .m {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.kcard .meta .key {
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.kcard .meta > :last-child {
+  margin-left: auto;
+}
+.kcard .subp {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+.due {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.due.soon {
+  color: var(--amber);
+}
+.due.over {
+  color: var(--red);
+}
