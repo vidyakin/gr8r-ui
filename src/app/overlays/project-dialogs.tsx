@@ -11,7 +11,7 @@ import { Modal, ModalTitle } from './modal-shell';
 
 /* ---------- проект: создание и настройки ---------- */
 
-const PICONS = ['globe', 'smartphone', 'megaphone', 'rocket', 'component', 'building-2', 'layout-grid', 'palette', 'code', 'briefcase', 'target', 'layers', 'zap', 'heart', 'folder', 'sparkles'];
+export const PICONS = ['globe', 'smartphone', 'megaphone', 'rocket', 'component', 'building-2', 'layout-grid', 'palette', 'code', 'briefcase', 'target', 'layers', 'zap', 'heart', 'folder', 'sparkles'];
 
 export const TEMPLATES = [
   { id: 'blank', name: 'Blank project', icon: 'file', desc: 'Start from scratch', tasks: [] as string[] },
@@ -420,6 +420,8 @@ export interface ConfirmSpec {
   danger?: boolean;
   /** Для опасных действий — имя, которое нужно ввести */
   typeName?: string;
+  /** Иконка в кружке (по умолчанию корзина для опасных действий, иначе архив) */
+  icon?: React.ComponentType<{ size?: number }>;
   run: () => void;
 }
 
@@ -427,7 +429,7 @@ export function ConfirmModal({ spec, onClose }: { spec: ConfirmSpec; onClose: ()
   const [text, setText] = React.useState('');
   const needs = spec.typeName;
   const ok = !needs || text === needs;
-  const Icon = spec.danger ? Trash2 : Archive;
+  const Icon = spec.icon ?? (spec.danger ? Trash2 : Archive);
   const submit = () => {
     if (!ok) return;
     onClose();

@@ -1,6 +1,6 @@
 /* Верхняя панель — порт renderTopbar() и crumbs() из shell/layout.js */
 import { Link, useLocation, useMatch } from 'react-router';
-import { Bell, Building2, ChevronDown, CircleCheck, FolderPlus, Handshake, Menu as MenuIcon, Plus, Search, UserPlus, ContactRound } from 'lucide-react';
+import { Bell, Building2, ChevronDown, CircleCheck, FolderPlus, Handshake, Menu as MenuIcon, Plus, Search, UserPlus, Users, ContactRound } from 'lucide-react';
 import { Button, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tooltip } from '@/components/ui';
 import { useWorkspace } from '../data/store';
 import { project } from '../data/selectors';
@@ -9,7 +9,7 @@ import { MemberAvatar } from '../components/workspace';
 import { ProjectIcon } from '../components/project';
 import { UserMenu } from './UserMenu';
 import { MOD } from '../lib/platform';
-import { useInvite, usePalette, useProjectForms, useTaskForm } from '../overlays';
+import { useInvite, usePalette, useProjectForms, useTaskForm, useTeamForm } from '../overlays';
 import { useCrm } from '../crm/store';
 import { useCrmUi } from '../crm/ui-context';
 import { company as crmCompany } from '../crm/selectors';
@@ -42,7 +42,8 @@ export function useCrumbs(): Crumb[] {
     ];
   }
   if (a === 'members' && b) return [{ label: 'Members', to: SECTIONS.members.path }, { label: data.members.find(m => m.id === b)?.name ?? 'Member' }];
-  if (a === 'teams' && b) return [{ label: 'Teams' }, { label: data.teams.find(t => t.id === b)?.name ?? 'Team' }];
+  if (a === 'teams' && !b) return [{ label: 'Teams' }];
+  if (a === 'teams' && b) return [{ label: 'Teams', to: '/teams' },{ label: data.teams.find(t => t.id === b)?.name ?? 'Team' }];
   const s = Object.values(SECTIONS).find(x => x.path === pathname);
   return [{ label: s?.name ?? 'Not found' }];
 }
@@ -54,6 +55,7 @@ export function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
   const taskForm = useTaskForm();
   const projectForms = useProjectForms();
   const invite = useInvite();
+  const teamForm = useTeamForm();
   const palette = usePalette();
   const crmUi = useCrmUi();
   const inCrm = !!useMatch('/crm/*');
@@ -125,6 +127,9 @@ export function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
           </MenuItem>
           <MenuItem icon={<FolderPlus size={15} />} shortcut="P" onSelect={() => projectForms.create()}>
             New project
+          </MenuItem>
+          <MenuItem icon={<Users size={15} />} onSelect={() => teamForm.create()}>
+            New team
           </MenuItem>
           <MenuItem icon={<UserPlus size={15} />} onSelect={() => invite.open()}>
             Invite member

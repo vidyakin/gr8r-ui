@@ -5,7 +5,7 @@ import { seed } from './seed';
 import { PROJECT_STATUS, fileKind, fmtHours, statusOf } from './selectors';
 import { addSub, findSub, mapSub, reopenAncestors, removeSub, subPath, subtreeIds, toggleSub, flattenSubs } from './subtasks';
 import { dOff, fmtDate } from '../lib/dates';
-import type { Activity, Member, Notification, Project, ProjectFile, SavedView, Status, StatusDef, Subtask, Task, TimeLog, WorkspaceData } from './types';
+import type { Activity, Member, Notification, Project, ProjectFile, SavedView, Status, StatusDef, Subtask, Task, Team, TimeLog, WorkspaceData } from './types';
 
 export type TaskPatch = Partial<Pick<Task, 'title' | 'status' | 'assignee' | 'priority' | 'due' | 'start' | 'fav' | 'project' | 'planHours' | 'order' | 'archived' | 'labels' | 'deps' | 'recur' | 'desc'>>;
 export type SubtaskPatch = Partial<Pick<Subtask, 'title' | 'assignee' | 'due' | 'note' | 'planHours'>>;
@@ -33,6 +33,8 @@ export type Action =
   | { type: 'notif/markAllRead' }
   | { type: 'task/delete'; ids: string[] }
   | { type: 'task/archive'; id: string }
+  /** Возврат задачи из архива */
+  | { type: 'task/restore'; id: string }
   | { type: 'task/duplicate'; id: string; newId: string }
   | { type: 'task/attach'; id: string; file: { name: string; size: string } }
   | { type: 'task/detach'; id: string; attachment: string }
@@ -57,7 +59,12 @@ export type Action =
   | { type: 'member/invite'; emails: string[]; role: Member['role']; team: string }
   | { type: 'member/setRole'; id: string; role: Member['role'] }
   | { type: 'member/remove'; id: string }
-  | { type: 'member/restore'; member: Member; index: number; tasks: string[]; projects: string[] };
+  | { type: 'member/restore'; member: Member; index: number; tasks: string[]; projects: string[] }
+  /** members — id участников, у которых основная команда становится этой (остальные из неё уходят) */
+  | { type: 'team/create'; team: Team; members: string[] }
+  | { type: 'team/update'; id: string; patch: Partial<Omit<Team, 'id'>>; members: string[] }
+  /** Участники и проекты команды остаются без команды */
+  | { type: 'team/delete'; id: string };
 
 export type ProjectPatch = Partial<Pick<Project, 'status' | 'name' | 'desc' | 'icon' | 'color' | 'team' | 'lead' | 'due' | 'members' | 'perms' | 'access' | 'archived' | 'archivedAt'>>;
 export type ProjectForm = Pick<Project, 'name' | 'desc' | 'icon' | 'color' | 'team' | 'lead' | 'due'>;
@@ -239,6 +246,15 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
         ...d,
         tasks: d.tasks.map(x => (x.id === t.id ? { ...t, archived: true, archivedAt: Date.now(), updated: Date.now() } : x)),
         activity: logActivity(d, 'archived', t),
+      };
+    }
+    case 'task/restore': {
+      const t = d.tasks.find(x => x.id === a.id);
+      if (!t) return d;
+      return {
+        ...d,
+        tasks: d.tasks.map(x => (x.id === t.id ? { ...t, archived: false, archivedAt: null } : x)),
+        activity: logActivity(d, 'restored', t),
       };
     }
     case 'task/duplicate': {
@@ -552,6 +568,21 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
         members: [...d.members.slice(0, a.index), a.member, ...d.members.slice(a.index)],
         tasks: d.tasks.map(t => (a.tasks.includes(t.id) ? { ...t, assignee: a.member.id } : t)),
         projects: d.projects.map(p => (a.projects.includes(p.id) ? { ...p, members: [...p.members, a.member.id] } : p)),
+      };
+    case 'team/create':
+      return { ...d, teams: [...d.teams, a.team], members: d.members.map(m => (a.members.includes(m.id) ? { ...m, team: a.team.id } : m)) };
+    case 'team/update':
+      return {
+        ...d,
+        teams: d.teams.map(t => (t.id === a.id ? { ...t, ...a.patch } : t)),
+        members: d.members.map(m => (a.members.includes(m.id) ? { ...m, team: a.id } : m.team === a.id ? { ...m, team: '' } : m)),
+      };
+    case 'team/delete':
+      return {
+        ...d,
+        teams: d.teams.filter(t => t.id !== a.id),
+        members: d.members.map(m => (m.team === a.id ? { ...m, team: '' } : m)),
+        projects: d.projects.map(p => (p.team === a.id ? { ...p, team: '' } : p)),
       };
   }
 }
