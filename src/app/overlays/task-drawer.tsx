@@ -10,6 +10,7 @@ import { fileSize } from '../data/selectors';
 import { countSubs, findSub } from '../data/subtasks';
 import type { Task } from '../data/types';
 import { DrawerPanel, type UploadItem } from '../components/task-drawer/drawer-panel';
+import { useTaskWindows } from './task-windows';
 import { TaskCommandsCtx, TaskMenuItems, copyText, type TaskCommands } from '../components/task-drawer/task-menu';
 
 export interface TaskDrawerApi {
@@ -19,6 +20,22 @@ export interface TaskDrawerApi {
 }
 
 const Ctx = React.createContext<TaskDrawerApi | null>(null);
+/** Общее для карточки и плавающих окон: черновики комментариев и загрузки живут здесь, чтобы окно и карточка одной задачи их делили */
+export interface PanelShared {
+  uploads: UploadItem[];
+  drafts: Record<string, string>;
+  setDraft(taskId: string, v: string): void;
+  onFiles(files: FileList | null, t: Task): void;
+  /** Открыть карточку задачи в окне через единый путь (с проверкой доступа) */
+  openTask(taskId: string, subId?: string): void;
+}
+export const PanelSharedCtx = React.createContext<PanelShared | null>(null);
+export function usePanelShared() {
+  const c = React.useContext(PanelSharedCtx);
+  if (!c) throw new Error('usePanelShared: нет TaskDrawerProvider');
+  return c;
+}
+
 /** Мост к форме редактирования: форма лежит ниже по дереву и записывает сюда свой edit(), а «Edit» / клавиша E в карточке его вызывают */
 export const TaskEditorCtx = React.createContext<React.RefObject<((taskId: string) => void) | null> | null>(null);
 
@@ -36,6 +53,7 @@ const FOCUSABLE = 'a[href],button:not([disabled]),input:not([type=hidden]):not([
 export function TaskDrawerProvider({ children }: { children: React.ReactNode }) {
   const { data, dispatch } = useWorkspace();
   const navigate = useNavigate();
+  const windows = useTaskWindows();
   const location = useLocation();
   const [st, setSt] = React.useState<DrawerState | null>(null);
   const [drafts, setDrafts] = React.useState<Record<string, string>>({});
@@ -133,7 +151,7 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
       const s = stRef.current;
       if (!s || e.key.toLowerCase() !== 'e' || e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
       const t = e.target as HTMLElement | null;
-      if (t?.closest?.('input, textarea, select, [contenteditable="true"]') || document.querySelector('[role="dialog"]:not(.drawer), [role="menu"]')) return;
+      if (t?.closest?.('input, textarea, select, [contenteditable="true"], .fwin') || document.querySelector('[role="dialog"]:not(.drawer), [role="menu"]')) return;
       e.preventDefault();
       editorRef.current?.(s.taskId);
     };
@@ -147,6 +165,7 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
       const s = stRef.current;
       if (!s || e.key !== 'Escape' || e.defaultPrevented) return;
       const t = e.target as HTMLElement;
+      if (t.closest?.('.fwin')) return;
       if (t.closest?.('input, textarea, [contenteditable="true"]')) t.blur();
       if (s.subId) setSt({ ...s, subId: null });
       else setSt(null);
@@ -159,7 +178,7 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
   React.useEffect(() => {
     const onCtx = (e: MouseEvent) => {
       const t = e.target as HTMLElement;
-      if (t.closest?.('input, textarea, [contenteditable="true"], .drawer')) return;
+      if (t.closest?.('input, textarea, [contenteditable="true"], .drawer, .fwin')) return;
       const el = t.closest?.('[data-ctx="task"], [data-card]');
       const id = el?.getAttribute('data-id') ?? el?.getAttribute('data-card');
       if (!el || !id || !dataRef.current.tasks.some(x => x.id === id)) return;
@@ -213,8 +232,12 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
         toast('Task duplicated', { action: { label: 'Open', onClick: () => open(id) } });
       },
       copyLink: t => copyText(`https://gr8rstudio.com/${dataRef.current.ws.url}/task/${t.key}`),
+      openWindow: t => {
+        if (stRef.current?.taskId === t.id) setSt(null);
+        windows.popOut(t.id);
+      },
     }),
-    [open, dispatch],
+    [open, dispatch, windows],
   );
 
   const deleteTask = (t: Task) => {
@@ -222,6 +245,11 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
     dispatch({ type: 'task/delete', ids: [t.id] });
     toast(`Deleted “${t.title}”`, { action: { label: 'Undo', onClick: () => dispatch({ type: 'data/restore', data: snap }) } });
   };
+
+  const shared = React.useMemo<PanelShared>(
+    () => ({ uploads, drafts, setDraft: (id, v) => setDrafts(d => ({ ...d, [id]: v })), onFiles, openTask: open }),
+    [uploads, drafts, onFiles, open],
+  );
 
   const ctxTask = ctxId ? data.tasks.find(t => t.id === ctxId) : undefined;
   const nComments = confirm ? data.comments.filter(c => c.task === confirm.id).length : 0;
@@ -244,7 +272,9 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
   return (
     <Ctx.Provider value={api}>
       <TaskCommandsCtx.Provider value={commands}>
-        <TaskEditorCtx.Provider value={editorRef}>{children}</TaskEditorCtx.Provider>
+        <PanelSharedCtx.Provider value={shared}>
+          <TaskEditorCtx.Provider value={editorRef}>{children}</TaskEditorCtx.Provider>
+        </PanelSharedCtx.Provider>
         {st && task && (
           <>
             {st.full && <div className={`drawer-scrim full${st.enter ? ' enter' : ''}`} onClick={close} />}
@@ -267,6 +297,10 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
               onProject={p => navigate(`/projects/${p.id}`)}
               onFiles={onFiles}
               onKeyDown={onPanelKey}
+              onPopOut={() => {
+                setSt(null);
+                windows.popOut(task.id);
+              }}
             />
           </>
         )}

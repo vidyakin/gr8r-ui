@@ -30,6 +30,7 @@ import {
   Upload as UploadIcon,
   User,
   X,
+  PictureInPicture2,
   PenTool,
   FileText,
   FolderArchive,
@@ -109,6 +110,10 @@ export interface DrawerPanelProps {
   onProject: (p: Project) => void;
   onFiles: (files: FileList | null, t: Task) => void;
   onKeyDown: (e: React.KeyboardEvent) => void;
+  /** Внутри плавающего окна: без собственной рамки и кнопок закрытия — их даёт шапка окна */
+  inWindow?: boolean;
+  /** Вынести задачу в плавающее окно (кнопка «Pop out» в шапке карточки) */
+  onPopOut?: () => void;
 }
 
 export function DrawerPanel(p: DrawerPanelProps) {
@@ -120,19 +125,19 @@ export function DrawerPanel(p: DrawerPanelProps) {
   const done = t.status === 'done';
   const update = (patch: TaskPatch) => dispatch({ type: 'task/update', id: t.id, patch });
 
+  const Root = p.inWindow ? 'div' : 'aside';
   return (
-    <aside
-      ref={p.panelRef}
-      className={cn('drawer', full && 'full', p.enter && 'enter')}
-      role="dialog"
-      aria-modal={full}
-      aria-labelledby="d-h"
-      tabIndex={-1}
+    <Root
+      ref={p.panelRef as React.Ref<never>}
+      className={cn('drawer', full && 'full', p.enter && 'enter', p.inWindow && 'in-win')}
+      {...(p.inWindow ? {} : { role: 'dialog', 'aria-modal': full, 'aria-labelledby': 'd-h', tabIndex: -1 })}
       onKeyDown={p.onKeyDown}
     >
-      <h2 className="sr" id="d-h">
-        {sub ? `Subtask: ${sub.title}` : `Task: ${t.title}`}
-      </h2>
+      {!p.inWindow && (
+        <h2 className="sr" id="d-h">
+          {sub ? `Subtask: ${sub.title}` : `Task: ${t.title}`}
+        </h2>
+      )}
       <div className="drawer-h">
         {pr && (
           <button className="pillbtn" style={{ fontSize: 12.5 }} onClick={() => p.onProject(pr)}>
@@ -155,9 +160,16 @@ export function DrawerPanel(p: DrawerPanelProps) {
         <IconButton size="sm" label="Copy link" onClick={() => actionsCopy(data.ws.url, t)}>
           <Link2 size={15} />
         </IconButton>
-        <IconButton size="sm" className="hide-m" label={full ? 'Side panel' : 'Full page'} aria-label="Toggle full page" onClick={p.onToggleFull}>
-          {full ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-        </IconButton>
+        {!p.inWindow && p.onPopOut && (
+          <IconButton size="sm" label="Open in floating window" aria-label="Pop out" onClick={p.onPopOut}>
+            <PictureInPicture2 size={15} />
+          </IconButton>
+        )}
+        {!p.inWindow && (
+          <IconButton size="sm" className="hide-m" label={full ? 'Side panel' : 'Full page'} aria-label="Toggle full page" onClick={p.onToggleFull}>
+            {full ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+          </IconButton>
+        )}
         <Menu>
           <MenuTrigger asChild>
             <IconButton size="sm" label="More" tooltip={false}>
@@ -165,12 +177,14 @@ export function DrawerPanel(p: DrawerPanelProps) {
             </IconButton>
           </MenuTrigger>
           <MenuContent align="end">
-            <TaskMenuItems task={t} hideOpen />
+            <TaskMenuItems task={t} hideOpen hideWindow={p.inWindow} />
           </MenuContent>
         </Menu>
-        <IconButton size="sm" label="Close" shortcut="Esc" onClick={p.onClose}>
-          <X size={16} />
-        </IconButton>
+        {!p.inWindow && (
+          <IconButton size="sm" label="Close" shortcut="Esc" onClick={p.onClose}>
+            <X size={16} />
+          </IconButton>
+        )}
       </div>
       <div className="drawer-b">
         {sub ? (
@@ -179,7 +193,7 @@ export function DrawerPanel(p: DrawerPanelProps) {
           <TaskBody {...p} update={update} />
         )}
       </div>
-    </aside>
+    </Root>
   );
 }
 

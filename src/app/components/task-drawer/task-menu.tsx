@@ -1,7 +1,7 @@
 /* Меню задачи — порт ctxMenu('task') из overlays/context-menu.js и действий openTask/dupTask/archiveTask/delTask/copyLink из actions/actions.js.
    Одни и те же пункты показываются в «⋯» карточки и в контекстном меню (правый клик по строке/карточке). */
 import * as React from 'react';
-import { Archive, Check, CircleCheck, CircleDot, Copy, FolderInput, Link2, PanelRightOpen, Pencil, RotateCcw, SignalHigh, Star, Trash2, User } from 'lucide-react';
+import { Archive, Check, CircleCheck, CircleDot, Copy, FolderInput, Link2, PanelRightOpen, Pencil, PictureInPicture2, RotateCcw, SignalHigh, Star, Trash2, User } from 'lucide-react';
 import { ContextMenuItem, ContextMenuSeparator, MenuItem, MenuSeparator, toast, useMenuClose } from '@/components/ui';
 import { StatusIcon } from '@/components/gr8r/task';
 import { PriorityPanel } from '../priority-panel';
@@ -18,6 +18,8 @@ export interface TaskCommands {
   archive(t: Task): void;
   duplicate(t: Task): void;
   copyLink(t: Task): void;
+  /** Открыть задачу в плавающем окне */
+  openWindow(t: Task): void;
 }
 
 export const TaskCommandsCtx = React.createContext<TaskCommands | null>(null);
@@ -30,7 +32,7 @@ export function useTaskCommands() {
 type View = 'root' | 'status' | 'assignee' | 'priority' | 'project';
 
 /** Пункты меню; «Status…», «Assign to…», «Priority…», «Move to project…» заменяют содержимое меню списком выбора (ctxTo) */
-export function TaskMenuItems({ task: t, context, hideOpen }: { task: Task; context?: boolean; hideOpen?: boolean }) {
+export function TaskMenuItems({ task: t, context, hideOpen, hideWindow }: { task: Task; context?: boolean; hideOpen?: boolean; hideWindow?: boolean }) {
   const { data, dispatch } = useWorkspace();
   const cmd = useTaskCommands();
   const closeMenu = useMenuClose();
@@ -108,6 +110,11 @@ export function TaskMenuItems({ task: t, context, hideOpen }: { task: Task; cont
       {!hideOpen && (
         <Item icon={<PanelRightOpen size={15} />} onSelect={() => cmd.open(t)}>
           Open
+        </Item>
+      )}
+      {!hideWindow && (
+        <Item icon={<PictureInPicture2 size={15} />} onSelect={() => cmd.openWindow(t)}>
+          Open in window
         </Item>
       )}
       <Item icon={<Pencil size={15} />} shortcut="E" onSelect={() => cmd.edit(t)}>

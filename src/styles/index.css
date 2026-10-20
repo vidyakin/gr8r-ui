@@ -21,6 +21,7 @@
 @import './members.css' layer(components);
 @import './project-forms.css' layer(components);
 @import './drawer.css' layer(components);
+@import './windows.css' layer(components);
 @import './time-tracking.css' layer(components);
 @import './gr8r-blocks.css' layer(components);
 @import './crm.css' layer(components);

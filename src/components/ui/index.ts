@@ -8,3 +8,4 @@ export * from './dialog';
 export * from './display';
 export * from './feedback';
 export * from './theme';
+export * from './floating-window';

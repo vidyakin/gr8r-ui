@@ -9,7 +9,7 @@ import { useWorkspace } from '../data/store';
 import { SECTIONS, type SectionId } from '../routes';
 import { Sidebar } from './Sidebar';
 import { Topbar, useCrumbs } from './Topbar';
-import { OverlayProviders, PaletteHost } from '../overlays';
+import { OverlayProviders, PaletteHost, TaskWindowsHost } from '../overlays';
 import { CrmOverlays } from '../crm/overlays';
 import { PageBoundary } from '../components/error-states';
 
@@ -99,6 +99,7 @@ export function AppShell() {
         </div>
       </main>
       <BottomNav onMore={() => setMnav(true)} />
+      <TaskWindowsHost />
     </div>
     <PaletteHost />
     </CrmOverlays>

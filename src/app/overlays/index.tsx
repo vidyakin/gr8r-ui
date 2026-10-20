@@ -6,11 +6,13 @@ import { PaletteProvider } from './palette';
 import { ProjectFormsProvider } from './project-forms';
 import { ShortcutsProvider } from './shortcuts';
 import { TaskDrawerProvider } from './task-drawer';
+import { TaskWindowsProvider } from './task-windows';
 import { TaskFormProvider } from './task-form';
 import { TeamFormProvider } from './team-form';
 
 export function OverlayProviders({ children }: { children: React.ReactNode }) {
   return (
+    <TaskWindowsProvider>
     <TaskDrawerProvider>
       <TaskFormProvider>
         <ProjectFormsProvider>
@@ -24,10 +26,12 @@ export function OverlayProviders({ children }: { children: React.ReactNode }) {
         </ProjectFormsProvider>
       </TaskFormProvider>
     </TaskDrawerProvider>
+    </TaskWindowsProvider>
   );
 }
 
 export { useTaskDrawer } from './task-drawer';
+export { TaskWindowsHost, useTaskWindows } from './task-windows';
 export { useTaskForm, type TaskDefaults } from './task-form';
 export { useProjectForms } from './project-forms';
 export { useInvite } from './invite';
