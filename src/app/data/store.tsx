@@ -2,12 +2,13 @@
    Компоненты читают данные через useWorkspace() и меняют их только через dispatch(action). */
 import * as React from 'react';
 import { seed } from './seed';
-import { PROJECT_STATUS, fileKind, fmtHours, statusOf } from './selectors';
+import { PROJECT_STATUS, fileKind, fmtHours, statusOf, visibleProjects } from './selectors';
 import { addSub, findSub, mapSub, reopenAncestors, removeSub, subPath, subtreeIds, toggleSub, flattenSubs } from './subtasks';
-import { dOff, fmtDate } from '../lib/dates';
+import { toast } from '@/components/ui';
+import { dOff, fmtDate, iso, parse } from '../lib/dates';
 import type { Activity, Member, Notification, Project, ProjectFile, SavedView, Status, StatusDef, Subtask, Task, TimeLog, WorkspaceData } from './types';
 
-export type TaskPatch = Partial<Pick<Task, 'title' | 'status' | 'assignee' | 'priority' | 'due' | 'start' | 'fav' | 'project' | 'planHours' | 'order' | 'archived' | 'labels' | 'deps' | 'recur' | 'desc'>>;
+export type TaskPatch = Partial<Pick<Task, 'title' | 'status' | 'assignee' | 'priority' | 'due' | 'start' | 'fav' | 'project' | 'planHours' | 'order' | 'archived' | 'labels' | 'deps' | 'recur' | 'desc' | 'subtasks'>>;
 export type SubtaskPatch = Partial<Pick<Subtask, 'title' | 'assignee' | 'due' | 'note' | 'planHours'>>;
 export type TimeLogPatch = Partial<Pick<TimeLog, 'sub' | 'by' | 'hours' | 'date' | 'note'>>;
 
@@ -21,6 +22,8 @@ export type Action =
   | { type: 'project/create'; id: string; form: ProjectForm; tasks: string[] }
   | { type: 'project/duplicate'; id: string; newId: string }
   | { type: 'project/delete'; id: string }
+  /** Сдвиг проекта в сайдбаре на соседний видимый (projUp / projDown) */
+  | { type: 'project/move'; id: string; dir: -1 | 1 }
   | { type: 'project/inviteMember'; id: string; member: Member; perm: string }
   | { type: 'savedView/create'; view: SavedView }
   /** Уведомление исполнителю о приоритете задачи */
@@ -103,6 +106,45 @@ function patchLog(d: WorkspaceData, t: Task, patch: TaskPatch): [string, string]
     else if (k === 'deps') out.push(['updated dependencies of', '']);
   }
   return out;
+}
+
+/** Шаг повтора в днях (RECUR_DAYS из actions.js) */
+const RECUR_DAYS: Record<string, number> = { Daily: 1, Weekly: 7, 'Every 2 weeks': 14, Monthly: 30 };
+
+/** Следующая задача серии после завершения повторяющейся (applyPatch в actions.js): срок по правилу, To Do, подзадачи сброшены */
+function nextRecurrence(d: WorkspaceData, t: Task): Task | null {
+  if (!t.recur || !t.due) return null;
+  const nd = parse(t.due);
+  nd.setDate(nd.getDate() + (RECUR_DAYS[t.recur] || 7));
+  const due = iso(nd);
+  const reset = (list: Subtask[]): Subtask[] => list.map(x => ({ ...x, done: false, subtasks: reset(x.subtasks) }));
+  const { prevStatus: _p, completedAt: _c, ...rest } = structuredClone(t);
+  return {
+    ...rest,
+    id: uid('t'),
+    key: nextKey(d, t.project),
+    status: 'todo',
+    due,
+    start: due,
+    subtasks: reset(t.subtasks),
+    attachments: [],
+    created: Date.now(),
+    updated: Date.now(),
+    order: Math.max(0, ...d.tasks.map(x => x.order)) + 1,
+    fav: false,
+  };
+}
+
+/** Какая задача станет «выполненной» этим действием — для создания следующей в серии */
+function completedBy(d: WorkspaceData, a: Action): Task | undefined {
+  if (a.type === 'task/toggleDone') {
+    const t = d.tasks.find(x => x.id === a.id);
+    return t && t.status !== 'done' ? t : undefined;
+  }
+  if (a.type === 'task/update' && a.patch.status === 'done') {
+    const t = d.tasks.find(x => x.id === a.id);
+    return t && t.status !== 'done' ? t : undefined;
+  }
 }
 
 export function nextKey(d: WorkspaceData, projectId: string) {
@@ -193,11 +235,13 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
       if (!t) return d;
       const status: Status = t.status === 'done' ? (t.prevStatus && t.prevStatus !== 'done' && statusOf(d, t.prevStatus) ? t.prevStatus : 'todo') : 'done';
       const next = patchTask(t, { status });
-      return {
+      const rec = status === 'done' ? nextRecurrence(d, t) : null;
+      const base = {
         ...d,
-        tasks: d.tasks.map(x => (x.id === t.id ? next : x)),
+        tasks: [...d.tasks.map(x => (x.id === t.id ? next : x)), ...(rec ? [rec] : [])],
         activity: status === 'done' ? logActivity(d, 'completed', t) : d.activity,
       };
+      return rec ? { ...base, activity: logActivity(base, 'created', rec) } : base;
     }
     case 'task/update': {
       const t = d.tasks.find(x => x.id === a.id);
@@ -209,7 +253,10 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
       if (patch.project && patch.project !== t.project) next.key = nextKey(d, patch.project);
       let activity = d.activity;
       for (const [verb, extra] of patchLog(d, t, patch)) activity = [{ id: uid('a'), by: d.me, verb, task: t.id, project: next.project, at: Date.now(), extra }, ...activity];
-      return { ...d, tasks: d.tasks.map(x => (x.id === t.id ? next : x)), activity };
+      // Завершение повторяющейся задачи создаёт следующую
+      const rec = completedBy(d, a) ? nextRecurrence(d, next) : null;
+      if (rec) activity = logActivity({ ...d, activity }, 'created', rec);
+      return { ...d, tasks: [...d.tasks.map(x => (x.id === t.id ? next : x)), ...(rec ? [rec] : [])], activity };
     }
     case 'task/toggleSubtask': {
       const t = d.tasks.find(x => x.id === a.id);
@@ -438,6 +485,17 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
         savedViews: d.savedViews.filter(v => v.project !== a.id),
       };
     }
+    case 'project/move': {
+      const vis = visibleProjects(d).map(p => p.id);
+      const i = vis.indexOf(a.id);
+      const j = i + a.dir;
+      if (i < 0 || j < 0 || j >= vis.length) return d;
+      const o = [...d.projOrder];
+      const x = o.indexOf(vis[i]);
+      const y = o.indexOf(vis[j]);
+      [o[x], o[y]] = [o[y], o[x]];
+      return { ...d, projOrder: o };
+    }
     case 'project/inviteMember':
       return {
         ...d,
@@ -559,8 +617,17 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
 const Ctx = React.createContext<{ data: WorkspaceData; dispatch: React.Dispatch<Action> } | null>(null);
 
 export function WorkspaceProvider({ children, initial }: { children: React.ReactNode; initial?: WorkspaceData }) {
-  const [data, dispatch] = React.useReducer(reducer, initial, i => i ?? seed());
-  const value = React.useMemo(() => ({ data, dispatch }), [data]);
+  const [data, rawDispatch] = React.useReducer(reducer, initial, i => i ?? seed());
+  // Тост «Next … scheduled» — побочный эффект, поэтому не в reducer: решаем по текущим данным до отправки действия
+  const latest = React.useRef(data);
+  latest.current = data;
+  const dispatch = React.useCallback<React.Dispatch<Action>>(a => {
+    const t = completedBy(latest.current, a);
+    const rec = t && nextRecurrence(latest.current, t);
+    rawDispatch(a);
+    if (t && rec) toast.info(`Next “${t.title}” scheduled for ${fmtDate(rec.due!)}`);
+  }, []);
+  const value = React.useMemo(() => ({ data, dispatch }), [data, dispatch]);
   return (
     <Ctx.Provider value={value}>
       <StatusColors statuses={data.statuses} />

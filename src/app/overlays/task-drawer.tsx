@@ -19,6 +19,8 @@ export interface TaskDrawerApi {
 }
 
 const Ctx = React.createContext<TaskDrawerApi | null>(null);
+/** Мост к форме редактирования: форма лежит ниже по дереву и записывает сюда свой edit(), а «Edit» / клавиша E в карточке его вызывают */
+export const TaskEditorCtx = React.createContext<React.RefObject<((taskId: string) => void) | null> | null>(null);
 
 interface DrawerState {
   taskId: string;
@@ -45,6 +47,7 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
   dataRef.current = data;
   const stRef = React.useRef(st);
   stRef.current = st;
+  const editorRef = React.useRef<((taskId: string) => void) | null>(null);
   const panel = React.useRef<HTMLElement>(null);
   const opener = React.useRef<HTMLElement | null>(null);
   const trig = React.useRef<HTMLSpanElement>(null);
@@ -124,6 +127,20 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
     if (window.innerWidth < 900) setSt(null);
   }, [location.pathname]);
 
+  // E при открытой карточке — редактирование задачи (keyboard.js)
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const s = stRef.current;
+      if (!s || e.key.toLowerCase() !== 'e' || e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
+      const t = e.target as HTMLElement | null;
+      if (t?.closest?.('input, textarea, select, [contenteditable="true"]') || document.querySelector('[role="dialog"]:not(.drawer), [role="menu"]')) return;
+      e.preventDefault();
+      editorRef.current?.(s.taskId);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
   // Esc: сначала подзадача, затем карточка. Поповеры и диалоги Radix гасят событие сами (defaultPrevented)
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -182,11 +199,8 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
   const commands = React.useMemo<TaskCommands>(
     () => ({
       open: t => open(t.id),
-      // Форма редактирования — часть формы новой задачи; здесь «Edit» открывает карточку и ставит курсор в заголовок
-      edit: t => {
-        open(t.id);
-        setTimeout(() => document.getElementById('d-title')?.focus(), 60);
-      },
+      // Форма редактирования — режим формы задачи (A.editTask)
+      edit: t => editorRef.current?.(t.id),
       askDelete: t => setConfirm(t),
       archive: t => {
         const snap = dataRef.current;
@@ -230,7 +244,7 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
   return (
     <Ctx.Provider value={api}>
       <TaskCommandsCtx.Provider value={commands}>
-        {children}
+        <TaskEditorCtx.Provider value={editorRef}>{children}</TaskEditorCtx.Provider>
         {st && task && (
           <>
             {st.full && <div className={`drawer-scrim full${st.enter ? ' enter' : ''}`} onClick={close} />}

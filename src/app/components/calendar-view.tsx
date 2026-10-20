@@ -1,15 +1,15 @@
 /* Календарь задач (месяц / неделя) — порт calendarHtml из views/calendar.js.
    Опция events подмешивает события проектов (поповеры event / daylist из overlays/popovers.js).
-   Перетаскивание задач между днями пока не перенесено. */
+   Задачи перетаскиваются между днями (drop type 'cal' из actions/drag-drop.js): меняется срок, начало сдвигается на ту же длину. */
 import * as React from 'react';
 import { useNavigate } from 'react-router';
 import { ArrowUpRight, Calendar, ChevronLeft, ChevronRight, Clock, Folder, Plus, Users } from 'lucide-react';
-import { Button, IconButton, Popover, PopoverContent, PopoverTrigger, Segmented } from '@/components/ui';
+import { Button, IconButton, Popover, PopoverContent, PopoverTrigger, Segmented, toast } from '@/components/ui';
 import { PriorityIcon, StatusIcon } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '../data/store';
 import { project, projectColor } from '../data/selectors';
-import { diffDays, fmtDate, iso, sod, today } from '../lib/dates';
+import { diffDays, fmtDate, iso, parse, sod, today } from '../lib/dates';
 import type { CalendarEvent, Task } from '../data/types';
 import { MemberAvatar, MemberStack, useTaskActions } from './workspace';
 import { ProjectDot } from './project';
@@ -25,11 +25,14 @@ const addDays = (d: Date, n: number) => {
 };
 const startOfWeek = (d: Date) => addDays(sod(d), -((d.getDay() - WEEK_START + 7) % 7));
 
-function Chip({ t }: { t: Task }) {
+/** Свойства источника перетаскивания: карточка задачи в ячейке дня */
+type DragSrc = { draggable: true; onDragStart: (e: React.DragEvent) => void; onDragEnd: () => void };
+
+function Chip({ t, drag }: { t: Task; drag: DragSrc }) {
   const { data } = useWorkspace();
   const { open } = useTaskActions();
   return (
-    <button data-ctx="task" data-id={t.id} className={cn('cev', t.status === 'done' && 'done')} style={{ '--c': projectColor(project(data, t.project)) } as React.CSSProperties} title={t.title} onClick={() => open(t)}>
+    <button data-ctx="task" data-id={t.id} {...drag} className={cn('cev', t.status === 'done' && 'done')} style={{ '--c': projectColor(project(data, t.project)) } as React.CSSProperties} title={t.title} onClick={() => open(t)}>
       {t.status === 'done' ? <StatusIcon status="done" size={11} /> : t.priority != null && <PriorityIcon priority={t.priority} size={11} />}
       <span className="trunc">{t.title}</span>
       <MemberAvatar id={t.assignee} tooltip={false} />
@@ -142,12 +145,12 @@ function DayList({ ds, evs, ts }: { ds: string; evs: CalendarEvent[]; ts: Task[]
   );
 }
 
-function WeekCard({ t }: { t: Task }) {
+function WeekCard({ t, drag }: { t: Task; drag: DragSrc }) {
   const { data } = useWorkspace();
   const { open } = useTaskActions();
   const p = project(data, t.project);
   return (
-    <button data-ctx="task" data-id={t.id} className="wcard" style={{ '--c': projectColor(p) } as React.CSSProperties} onClick={() => open(t)}>
+    <button data-ctx="task" data-id={t.id} {...drag} className="wcard" style={{ '--c': projectColor(p) } as React.CSSProperties} onClick={() => open(t)}>
       <span className="t" style={t.status === 'done' ? { textDecoration: 'line-through', color: 'var(--text-3)' } : undefined}>
         <ProjectDot project={p} />
         {t.title}
@@ -163,9 +166,51 @@ function WeekCard({ t }: { t: Task }) {
 }
 
 export function CalendarView({ tasks, onAdd, events }: { tasks: Task[]; onAdd?: (due: string) => void; events?: CalendarEvent[] }) {
-  const { data } = useWorkspace();
+  const { data, dispatch } = useWorkspace();
   const [mode, setMode] = React.useState<'month' | 'week'>('month');
   const [cur, setCur] = React.useState(today);
+  const [dragId, setDragId] = React.useState<string | null>(null);
+  // День под курсором во время перетаскивания (класс .over)
+  const [overDay, setOverDay] = React.useState<string | null>(null);
+  const endDrag = () => {
+    setDragId(null);
+    setOverDay(null);
+  };
+  const dragSrc = (t: Task): DragSrc => ({
+    draggable: true,
+    onDragStart: e => {
+      e.dataTransfer.effectAllowed = 'move';
+      try {
+        e.dataTransfer.setData('text/plain', t.id);
+      } catch {
+        /* не поддерживается — безопасно пропустить */
+      }
+      setDragId(t.id);
+    },
+    onDragEnd: endDrag,
+  });
+  const dropTarget = (ds: string) => ({
+    onDragOver: (e: React.DragEvent) => {
+      if (!dragId) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      setOverDay(d => (d === ds ? d : ds));
+    },
+    onDragLeave: (e: React.DragEvent) => {
+      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOverDay(d => (d === ds ? null : d));
+    },
+    onDrop: (e: React.DragEvent) => {
+      if (!dragId) return;
+      e.preventDefault();
+      const t = data.tasks.find(x => x.id === dragId);
+      endDrag();
+      if (!t || t.due === ds) return;
+      // Начало сдвигается так, чтобы длина задачи не менялась
+      const len = t.start && t.due ? diffDays(parse(t.due), parse(t.start)) : null;
+      dispatch({ type: 'task/update', id: t.id, patch: { due: ds, ...(len != null ? { start: iso(addDays(parse(ds), -len)) } : {}) } });
+      toast(`Rescheduled “${t.title}” to ${fmtDate(ds)}`, { duration: 2200 });
+    },
+  });
   const on = (ds: string) => tasks.filter(t => t.due === ds);
   const evOn = (ds: string) => (events ?? []).filter(e => e.date === ds);
   const now = today();
@@ -198,7 +243,7 @@ export function CalendarView({ tasks, onAdd, events }: { tasks: Task[]; onAdd?: 
             const total = evs.length + items.length;
             const isToday = diffDays(d, now) === 0;
             return (
-              <div key={ds} className={cn('cday', d.getMonth() !== cur.getMonth() && 'out', isToday && 'today')}>
+              <div key={ds} className={cn('cday', d.getMonth() !== cur.getMonth() && 'out', isToday && 'today', overDay === ds && 'over')} {...dropTarget(ds)}>
                 <span className="dn" aria-current={isToday ? 'date' : undefined}>
                   {d.getDate()}
                 </span>
@@ -211,7 +256,7 @@ export function CalendarView({ tasks, onAdd, events }: { tasks: Task[]; onAdd?: 
                   <EventChip key={e.id} e={e} />
                 ))}
                 {items.slice(0, 3 - Math.min(evs.length, 3)).map(t => (
-                  <Chip key={t.id} t={t} />
+                  <Chip key={t.id} t={t} drag={dragSrc(t)} />
                 ))}
                 {total > 3 &&
                   (events ? (
@@ -251,14 +296,14 @@ export function CalendarView({ tasks, onAdd, events }: { tasks: Task[]; onAdd?: 
                   </IconButton>
                 )}
               </div>
-              <div className="wcol-b">
+              <div className={cn('wcol-b', overDay === ds && 'over')} {...dropTarget(ds)}>
                 {evs.length + items.length ? (
                   <>
                     {evs.map(e => (
                       <EventCard key={e.id} e={e} />
                     ))}
                     {items.map(t => (
-                      <WeekCard key={t.id} t={t} />
+                      <WeekCard key={t.id} t={t} drag={dragSrc(t)} />
                     ))}
                   </>
                 ) : (

@@ -5,7 +5,35 @@ import { cn } from '@/lib/utils';
 
 /* ---------- dropdown menu ---------- */
 
-export const Menu = M.Root;
+/** Закрытие меню изнутри встроенного содержимого (панели, формы): useMenuClose() */
+const MenuCloseCtx = React.createContext<(() => void) | null>(null);
+export function useMenuClose() {
+  return React.useContext(MenuCloseCtx) ?? (() => {});
+}
+
+/** Состояние открытия: управляемое снаружи или своё; close() отдаётся в контекст */
+function useMenuOpen({ open, defaultOpen, onOpenChange }: { open?: boolean; defaultOpen?: boolean; onOpenChange?: (o: boolean) => void }) {
+  const [own, setOwn] = React.useState(defaultOpen ?? false);
+  const isOpen = open ?? own;
+  const change = React.useCallback(
+    (o: boolean) => {
+      setOwn(o);
+      onOpenChange?.(o);
+    },
+    [onOpenChange],
+  );
+  const close = React.useCallback(() => change(false), [change]);
+  return { isOpen, change, close };
+}
+
+export function Menu({ open, defaultOpen, onOpenChange, ...props }: React.ComponentProps<typeof M.Root>) {
+  const { isOpen, change, close } = useMenuOpen({ open, defaultOpen, onOpenChange });
+  return (
+    <MenuCloseCtx.Provider value={close}>
+      <M.Root open={isOpen} onOpenChange={change} {...props} />
+    </MenuCloseCtx.Provider>
+  );
+}
 export const MenuTrigger = M.Trigger;
 export const MenuGroup = M.Group;
 export const MenuSub = M.Sub;
@@ -91,7 +119,14 @@ export function MenuSeparator({ className, ...props }: React.ComponentProps<type
 
 /* ---------- context menu (правый клик) — тот же вид, другой триггер ---------- */
 
-export const ContextMenu = C.Root;
+export function ContextMenu({ open, onOpenChange, ...props }: React.ComponentProps<typeof C.Root>) {
+  const { isOpen, change, close } = useMenuOpen({ open, onOpenChange });
+  return (
+    <MenuCloseCtx.Provider value={close}>
+      <C.Root open={isOpen} onOpenChange={change} {...props} />
+    </MenuCloseCtx.Provider>
+  );
+}
 export const ContextMenuTrigger = C.Trigger;
 export function ContextMenuContent({ className, ...props }: React.ComponentProps<typeof C.Content>) {
   return (

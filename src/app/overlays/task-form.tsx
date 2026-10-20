@@ -1,4 +1,4 @@
-/* Форма новой задачи — порт taskModal / submitTask из overlays/modals.js и actions/actions.js */
+/* Форма задачи (создание и редактирование) — порт taskModal / submitTask / editTask из overlays/modals.js и actions/actions.js */
 import * as React from 'react';
 import { useLocation } from 'react-router';
 import { CircleAlert, Circle, Paperclip, Plus, X } from 'lucide-react';
@@ -9,17 +9,20 @@ import { FILE_TYPES, canSee, fileKind, fileSize, project, visibleProjects } from
 import { MOD } from '../lib/platform';
 import { KindIcon } from '../components/files-view';
 import { FormChips, type TaskFormState } from './task-form-chips';
-import { useTaskDrawer } from './task-drawer';
+import { TaskEditorCtx, useTaskDrawer } from './task-drawer';
 
 export type TaskDefaults = Partial<Pick<Task, 'project' | 'status' | 'assignee' | 'priority' | 'due' | 'labels'>>;
 
 export interface TaskFormApi {
   /** Открыть форму новой задачи с предзаполненными полями */
   open(defaults?: TaskDefaults): void;
+  /** Открыть ту же форму в режиме редактирования существующей задачи */
+  edit(taskId: string): void;
 }
 
 const Ctx = React.createContext<TaskFormApi | null>(null);
 const uid = (p: string) => `${p}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+const plain = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
 export function TaskFormProvider({ children }: { children: React.ReactNode }) {
@@ -31,7 +34,11 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = React.useState<string | null>(null);
   // «Create more» помнится между открытиями, как S.ui.form.more
   const [more, setMore] = React.useState(false);
+  // id редактируемой задачи; null — форма создания
+  const [editId, setEditId] = React.useState<string | null>(null);
+  const editorRef = React.useContext(TaskEditorCtx);
   const titleRef = React.useRef<HTMLInputElement>(null);
+  const openedAt = React.useRef(0);
   const subRef = React.useRef<HTMLInputElement>(null);
   const latest = React.useRef({ data, pathname: location.pathname });
   latest.current = { data, pathname: location.pathname };
@@ -57,9 +64,40 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
       files: [],
     });
     setError(null);
+    setEditId(null);
     setOpen(true);
   }, []);
-  const api = React.useMemo<TaskFormApi>(() => ({ open }), [open]);
+
+  const edit = React.useCallback((taskId: string) => {
+    const t = latest.current.data.tasks.find(x => x.id === taskId);
+    if (!t) return;
+    setForm({
+      title: t.title,
+      desc: plain(t.desc || ''),
+      project: t.project,
+      status: t.status,
+      assignee: t.assignee,
+      priority: t.priority,
+      due: t.due,
+      start: t.start,
+      labels: [...t.labels],
+      recur: t.recur,
+      subtasks: t.subtasks.map(x => ({ id: x.id, title: x.title })),
+      files: [],
+    });
+    setError(null);
+    setEditId(taskId);
+    setOpen(true);
+  }, []);
+  const api = React.useMemo<TaskFormApi>(() => ({ open, edit }), [open, edit]);
+  // «Edit» и клавиша E в карточке задачи вызывают форму через мост из TaskDrawerProvider
+  React.useEffect(() => {
+    if (!editorRef) return;
+    editorRef.current = edit;
+    return () => {
+      editorRef.current = null;
+    };
+  }, [editorRef, edit]);
 
   // Горячая клавиша N — новая задача (не в полях ввода и не поверх другого окна)
   React.useEffect(() => {
@@ -82,6 +120,33 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
     if (!title) {
       setError('Give the task a name');
       titleRef.current?.focus();
+      return;
+    }
+    if (editId) {
+      const t = data.tasks.find(x => x.id === editId);
+      if (!t) return setOpen(false);
+      const same = t.subtasks.length === form.subtasks.length && t.subtasks.every((x, i) => x.id === form.subtasks[i].id);
+      dispatch({
+        type: 'task/update',
+        id: t.id,
+        patch: {
+          title,
+          project: form.project,
+          status: form.status,
+          assignee: form.assignee,
+          priority: form.priority,
+          due: form.due,
+          start: form.start && form.due && form.start > form.due ? form.due : form.start,
+          labels: form.labels,
+          recur: form.recur,
+          // Оставленные подзадачи сохраняют своё состояние и вложенность, новые добавляются открытыми
+          ...(same ? {} : { subtasks: form.subtasks.map(s => t.subtasks.find(x => x.id === s.id) ?? { ...s, done: false, subtasks: [] }) }),
+          ...(form.desc !== plain(t.desc || '') ? { desc: form.desc ? `<p>${esc(form.desc)}</p>` : '' } : {}),
+        },
+      });
+      form.files.forEach(f => dispatch({ type: 'task/attach', id: t.id, file: f }));
+      setOpen(false);
+      toast('Changes saved');
       return;
     }
     const id = uid('t');
@@ -132,11 +197,13 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
       <Dialog open={isOpen} onOpenChange={setOpen}>
         {form && (
           <DialogContent
-            title="New task"
+            title={editId ? 'Edit task' : 'New task'}
+            description={editId ? <span className="mono">{data.tasks.find(x => x.id === editId)?.key}</span> : undefined}
             className="[&>.modal-b]:!gap-3"
             onOpenAutoFocus={e => {
               e.preventDefault();
               titleRef.current?.focus();
+              openedAt.current = Date.now();
             }}
             onKeyDown={e => {
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -146,10 +213,12 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
             }}
             footer={
               <>
-                <label className="row" style={{ gap: 8, fontSize: 12.5, color: 'var(--text-2)', cursor: 'pointer' }}>
-                  <Switch id="f-more" checked={more} onChange={e => setMore(e.target.checked)} />
-                  Create more
-                </label>
+                {!editId && (
+                  <label className="row" style={{ gap: 8, fontSize: 12.5, color: 'var(--text-2)', cursor: 'pointer' }}>
+                    <Switch id="f-more" checked={more} onChange={e => setMore(e.target.checked)} />
+                    Create more
+                  </label>
+                )}
                 <span className="sp" />
                 <span className="faint hide-m" style={{ fontSize: 11.5 }}>
                   <kbd>{MOD}</kbd> <kbd>↵</kbd>
@@ -158,7 +227,7 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
                   <Button variant="secondary">Cancel</Button>
                 </DialogClose>
                 <Button variant="primary" onClick={submit} id="f-submit">
-                  Create task
+                  {editId ? 'Save changes' : 'Create task'}
                 </Button>
               </>
             }
@@ -176,6 +245,11 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
                   aria-describedby="f-title-err"
                   placeholder="Task name"
                   value={form.title}
+                  onFocus={e => {
+                    // Фокус-ловушка Radix выделяет весь текст при возврате фокуса; сразу после открытия редактирования ставим курсор в конец
+                    const el = e.currentTarget;
+                    if (editId && Date.now() - openedAt.current < 600) requestAnimationFrame(() => el.setSelectionRange(el.value.length, el.value.length));
+                  }}
                   style={{ fontSize: 15, fontWeight: 500 }}
                   onChange={e => {
                     set({ title: e.target.value });

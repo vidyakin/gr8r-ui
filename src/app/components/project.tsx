@@ -1,9 +1,9 @@
 import { useNavigate } from 'react-router';
-import { Archive, ArrowUpRight, Calendar, CircleCheck, Clock, Copy, Ellipsis, Link2, Lock, Pencil, Share2, Star, Trash2 } from 'lucide-react';
+import { Archive, ArrowDown, ArrowUp, ArrowUpRight, Calendar, CircleCheck, Clock, Copy, Ellipsis, Link2, Lock, Pencil, Share2, Star, Trash2 } from 'lucide-react';
 import { IconButton, Menu, MenuContent, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger, Progress, Tooltip, toast } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '../data/store';
-import { PROJECT_STATUS, canSee, progressOf, projectColor, tasksOf } from '../data/selectors';
+import { PROJECT_STATUS, canSee, progressOf, projectColor, tasksOf, visibleProjects } from '../data/selectors';
 import { ago, fmtDate, minsAgo } from '../lib/dates';
 import { MemberStack } from './workspace';
 import type { Project, ProjectStatus as PS } from '../data/types';
@@ -62,8 +62,14 @@ export function ProjectStatusMenu({ project: p, children }: { project: Project; 
 
 /** Меню проекта «⋯» (ctxMenu('project') из overlays/context-menu.js) */
 export function ProjectMenu({ project: p, className, style }: { project: Project; className?: string; style?: React.CSSProperties }) {
-  const { dispatch } = useWorkspace();
+  const { data, dispatch } = useWorkspace();
   const navigate = useNavigate();
+  const order = visibleProjects(data).map(x => x.id);
+  const idx = order.indexOf(p.id);
+  const move = (dir: -1 | 1) => {
+    dispatch({ type: 'project/move', id: p.id, dir });
+    toast(`Moved ${p.name} ${dir < 0 ? 'up' : 'down'}`, { duration: 1600 });
+  };
   const projectForms = useProjectForms();
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
   return (
@@ -103,6 +109,17 @@ export function ProjectMenu({ project: p, className, style }: { project: Project
           Duplicate
         </MenuItem>
         <MenuSeparator />
+        {idx > 0 && (
+          <MenuItem icon={<ArrowUp size={15} />} onSelect={() => move(-1)}>
+            Move up in sidebar
+          </MenuItem>
+        )}
+        {idx >= 0 && idx < order.length - 1 && (
+          <MenuItem icon={<ArrowDown size={15} />} onSelect={() => move(1)}>
+            Move down in sidebar
+          </MenuItem>
+        )}
+        {order.length > 1 && <MenuSeparator />}
         <MenuItem icon={<Archive size={15} />} onSelect={() => projectForms.archive(p.id)}>
           {p.status === 'complete' ? 'Archive' : 'Archive project'}
         </MenuItem>

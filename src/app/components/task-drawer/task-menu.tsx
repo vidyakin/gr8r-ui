@@ -2,7 +2,7 @@
    Одни и те же пункты показываются в «⋯» карточки и в контекстном меню (правый клик по строке/карточке). */
 import * as React from 'react';
 import { Archive, Check, CircleCheck, CircleDot, Copy, FolderInput, Link2, PanelRightOpen, Pencil, RotateCcw, SignalHigh, Star, Trash2, User } from 'lucide-react';
-import { ContextMenuItem, ContextMenuSeparator, MenuItem, MenuSeparator, toast } from '@/components/ui';
+import { ContextMenuItem, ContextMenuSeparator, MenuItem, MenuSeparator, toast, useMenuClose } from '@/components/ui';
 import { StatusIcon } from '@/components/gr8r/task';
 import { PriorityPanel } from '../priority-panel';
 import { useWorkspace, type TaskPatch } from '../../data/store';
@@ -33,6 +33,7 @@ type View = 'root' | 'status' | 'assignee' | 'priority' | 'project';
 export function TaskMenuItems({ task: t, context, hideOpen }: { task: Task; context?: boolean; hideOpen?: boolean }) {
   const { data, dispatch } = useWorkspace();
   const cmd = useTaskCommands();
+  const closeMenu = useMenuClose();
   const actions = useTaskActions();
   const [view, setView] = React.useState<View>('root');
   const marker = React.useRef<HTMLSpanElement>(null);
@@ -72,8 +73,7 @@ export function TaskMenuItems({ task: t, context, hideOpen }: { task: Task; cont
             value={t.priority}
             task={t}
             onChange={priority => update({ priority })}
-            // Меню закрываем так же, как после выбора обычного пункта — клавишей Esc
-            onClose={() => document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))}
+            onClose={closeMenu}
           />
         )}
         {view === 'assignee' && (

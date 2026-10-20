@@ -10,7 +10,7 @@ import { countSubs } from '../data/subtasks';
 import { LABELS, STATUS_PALETTE, commentsOf, fmtHours, planOfTask, project as findProject, sortTasks } from '../data/selectors';
 import type { StatusDef, Subtask, Task } from '../data/types';
 import { clipWords, htmlToText } from '../lib/text';
-import { useTaskDrawer } from '../overlays';
+import { useTaskDrawer, useTaskForm } from '../overlays';
 import { AssigneeField, DueField, PriorityField } from './fields';
 import { ProjectDot } from './project';
 import { RowMenu } from './task-list';
@@ -126,6 +126,7 @@ function KSubTree({ task: t, list, depth = 0 }: { task: Task; list: Subtask[]; d
 function KCard({ task: t, showProject, showSubtasks, dragging, onDragStart, onDragEnd }: { task: Task; showProject: boolean; showSubtasks: boolean; dragging: boolean; onDragStart: (e: React.DragEvent) => void; onDragEnd: () => void }) {
   const { data } = useWorkspace();
   const actions = useTaskActions();
+  const form = useTaskForm();
   const cc = commentsOf(data, t.id).length;
   const ac = t.attachments.length;
   const { done: sd, total: st } = countSubs(t.subtasks);
@@ -223,7 +224,7 @@ function KCard({ task: t, showProject, showSubtasks, dragging, onDragStart, onDr
           </button>
         </Tooltip>
         <Tooltip content="Quick edit">
-          <button className="ibtn ibtn-xs" aria-label="Quick edit" onClick={() => actions.open(t)}>
+          <button className="ibtn ibtn-xs" aria-label="Quick edit" onClick={() => form.edit(t.id)}>
             <Pencil size={12} />
           </button>
         </Tooltip>
