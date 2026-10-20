@@ -61,35 +61,35 @@
   align-items: flex-start;
   background: var(--surface);
 }
-.alert .i {
+.alert > svg {
   margin-top: 1px;
 }
 .alert.warn {
   background: var(--amber-soft);
   border-color: transparent;
 }
-.alert.warn .i {
+.alert.warn > svg {
   color: var(--amber);
 }
 .alert.danger {
   background: var(--red-soft);
   border-color: transparent;
 }
-.alert.danger .i {
+.alert.danger > svg {
   color: var(--red);
 }
 .alert.info {
   background: var(--accent-soft);
   border-color: transparent;
 }
-.alert.info .i {
+.alert.info > svg {
   color: var(--accent);
 }
 .alert.ok {
   background: var(--green-soft);
   border-color: transparent;
 }
-.alert.ok .i {
+.alert.ok > svg {
   color: var(--green);
 }
 .alert b {

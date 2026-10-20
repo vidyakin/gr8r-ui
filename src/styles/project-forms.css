@@ -1,0 +1,96 @@
+/* Формы проекта: выбор иконки/цвета/шаблона и мобильный вид модалок — стили из pages/auth.css, pages/settings.css и responsive.css оригинала */
+.opt {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+  background: var(--surface);
+  transition:
+    border-color var(--dur),
+    box-shadow var(--dur),
+    background var(--dur);
+}
+.opt:hover {
+  border-color: var(--border-strong);
+}
+.opt.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.opt svg {
+  color: var(--text-2);
+}
+.opt.on svg {
+  color: var(--accent);
+}
+.opt b {
+  font-weight: 500;
+  font-size: var(--fs);
+}
+.opt span {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.tmpls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.iconpick {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+}
+.iconpick button {
+  height: 32px;
+  border-radius: var(--r-sm);
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
+  border: 1px solid transparent;
+}
+.iconpick button:hover {
+  background: var(--surface-2);
+}
+.iconpick button.on {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.swatches {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sw {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--c);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  transition: transform var(--dur);
+}
+.sw:hover {
+  transform: scale(1.08);
+}
+.sw.on {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--c);
+}
+@media (max-width: 640px) {
+  .tmpls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+/* После входной анимации окно не держит composited-слой с fill-mode forwards: текст на дробной позиции
+   (нижний лист на мобильной ширине) растрируется так же, как в оригинале, где класс .enter снимается */
+.modal[data-state='open'] {
+  animation-fill-mode: backwards;
+}

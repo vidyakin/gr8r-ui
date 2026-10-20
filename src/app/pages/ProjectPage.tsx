@@ -131,7 +131,7 @@ function ProjectView({ project: p, tab }: { project: Project; tab: string }) {
             </Link>
           ))}
           <Tooltip content="Save current filters as a view">
-            <button className="tab" aria-label="Save view" onClick={() => projectForms.saveView(p.id)}>
+            <button className="tab" aria-label="Save view" onClick={() => projectForms.saveView(p.id, api.view.filters)}>
               <Plus size={14} />
             </button>
           </Tooltip>

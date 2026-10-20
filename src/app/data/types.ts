@@ -36,7 +36,12 @@ export interface Project {
   fav: boolean;
   private?: boolean;
   archived?: boolean;
+  archivedAt?: number | null;
   members: string[];
+  /** Права участников по id (форма Share) */
+  perms?: Record<string, string>;
+  /** Общий доступ к проекту */
+  access?: 'private' | 'workspace';
   desc: string;
   milestones: { name: string; date: IsoDate }[];
   last: number;

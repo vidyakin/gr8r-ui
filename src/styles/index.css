@@ -18,6 +18,7 @@
 @import './files.css' layer(components);
 @import './task-form.css' layer(components);
 @import './members.css' layer(components);
+@import './project-forms.css' layer(components);
 
 /* Тёмная тема Gr8r включается атрибутом data-theme, а не классом .dark */
 @custom-variant dark {

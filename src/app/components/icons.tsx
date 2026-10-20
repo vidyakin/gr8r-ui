@@ -5,6 +5,7 @@ import {
   Building2,
   Code,
   Component,
+  File,
   Folder,
   Globe,
   Heart,
@@ -14,6 +15,7 @@ import {
   Palette,
   Rocket,
   Smartphone,
+  Sparkles,
   Target,
   Users,
   Zap,
@@ -36,6 +38,9 @@ const ICONS: Record<string, React.ComponentType<LucideProps>> = {
   zap: Zap,
   heart: Heart,
   users: Users,
+  folder: Folder,
+  file: File,
+  sparkles: Sparkles,
 };
 
 export function NamedIcon({ name, ...props }: { name: string } & LucideProps) {
