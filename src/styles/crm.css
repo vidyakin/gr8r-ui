@@ -1,0 +1,233 @@
+/* ============================================================
+   Демо-модуль CRM (src/app/crm): карточка сделки, лента активностей, воронка и столбцы на дашборде
+   ============================================================ */
+.crm-logo {
+  font-weight: 600;
+  border-radius: calc(var(--sz) * 0.24);
+  line-height: 1;
+}
+.crm-link {
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+  border-radius: 3px;
+  max-width: 100%;
+}
+.crm-link:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+}
+
+/* ---------- карточка сделки на доске ---------- */
+.crm-deal .crm-co {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  min-width: 0;
+  margin-top: -3px;
+}
+.crm-deal .amt {
+  color: var(--text);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+}
+.crm-deal.lost .title {
+  color: var(--text-3);
+}
+.crm-deal .meta .m.trunc {
+  min-width: 0;
+}
+
+/* ---------- лента активностей ---------- */
+.crm-ico {
+  --c: var(--gray);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+  background: color-mix(in srgb, var(--c) 16%, var(--surface));
+  color: var(--c);
+}
+.crm-ico.crm-chk {
+  background: none;
+}
+.crm-act .crm-subj {
+  margin-top: 1px;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.crm-act .crm-subj.done {
+  color: var(--text-3);
+  text-decoration: line-through;
+}
+.crm-act .crm-subj.muted {
+  color: var(--text-2);
+}
+.crm-body {
+  margin: 6px 0 2px;
+  padding: 6px 10px;
+  background: var(--sunken);
+  border-left: 2px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  line-height: 1.5;
+}
+.crm-ctx {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  margin-top: 3px;
+  font-size: var(--fs-xs);
+}
+.crm-ctx .crm-link {
+  color: var(--text-2);
+}
+.crm-over {
+  color: var(--red);
+}
+
+/* ---------- поле суммы в карточке ---------- */
+.crm-inline {
+  width: 150px;
+  max-width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 3px 6px;
+  margin: 0 -6px;
+  border-radius: var(--r-sm);
+}
+.crm-inline:hover {
+  background: var(--surface-2);
+}
+.crm-inline:focus {
+  background: var(--surface-2);
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+
+/* ---------- строки в панелях ---------- */
+.crm-row {
+  height: 32px;
+  gap: 8px;
+  margin: 0 -6px;
+  padding: 0 6px;
+  font-size: 13px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.crm-row:hover {
+  background: var(--surface-2);
+}
+.crm-row .grow {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---------- воронка на дашборде ---------- */
+.crm-funnel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  margin: 0 -6px;
+  padding: 0 6px;
+  font-size: 13px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.crm-funnel:hover {
+  background: var(--surface-2);
+}
+.crm-track {
+  flex: 1;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--surface-3);
+  overflow: hidden;
+  display: block;
+  min-width: 0;
+}
+.crm-fill {
+  display: block;
+  position: relative;
+  height: 100%;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--c) 32%, transparent);
+  transition: width 0.4s var(--ease, ease);
+}
+.crm-fill.solid {
+  background: var(--c);
+}
+.crm-fill > i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 5px;
+  background: var(--c);
+}
+.crm-key {
+  display: inline-block;
+  width: 14px;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--text-2);
+}
+
+/* ---------- выручка по месяцам ---------- */
+.crm-bars {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  height: 172px;
+}
+.crm-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.crm-bar .v {
+  font-size: 11.5px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.crm-bar.cur .v {
+  color: var(--text);
+  font-weight: 600;
+}
+.crm-bar .trk {
+  flex: 1;
+  width: 100%;
+  max-width: 48px;
+  display: flex;
+  align-items: flex-end;
+}
+.crm-bar .trk i {
+  display: block;
+  width: 100%;
+  min-height: 2px;
+  border-radius: 5px 5px 2px 2px;
+  background: color-mix(in srgb, var(--accent) 42%, var(--surface));
+  transition: height 0.4s var(--ease, ease);
+}
+.crm-bar.cur .trk i {
+  background: var(--accent);
+}
+.crm-bar .l {
+  font-size: 11.5px;
+  color: var(--text-3);
+}

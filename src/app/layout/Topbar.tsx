@@ -1,7 +1,7 @@
 /* Верхняя панель — порт renderTopbar() и crumbs() из shell/layout.js */
-import { Link, useLocation } from 'react-router';
-import { Bell, ChevronDown, CircleCheck, FolderPlus, Menu as MenuIcon, Plus, Search, UserPlus } from 'lucide-react';
-import { Button, IconButton, Menu, MenuContent, MenuItem, MenuTrigger, Tooltip, toast } from '@/components/ui';
+import { Link, useLocation, useMatch } from 'react-router';
+import { Bell, Building2, ChevronDown, CircleCheck, FolderPlus, Handshake, Menu as MenuIcon, Plus, Search, UserPlus, ContactRound } from 'lucide-react';
+import { Button, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tooltip, toast } from '@/components/ui';
 import { useWorkspace } from '../data/store';
 import { project } from '../data/selectors';
 import { SECTIONS } from '../routes';
@@ -10,6 +10,9 @@ import { ProjectIcon } from '../components/project';
 import { UserMenu } from './UserMenu';
 import { MOD } from '../lib/platform';
 import { useInvite, useProjectForms, useTaskForm } from '../overlays';
+import { useCrm } from '../crm/store';
+import { useCrmUi } from '../crm/ui-context';
+import { company as crmCompany } from '../crm/selectors';
 
 
 export interface Crumb {
@@ -22,7 +25,14 @@ export interface Crumb {
 export function useCrumbs(): Crumb[] {
   const { pathname } = useLocation();
   const { data } = useWorkspace();
-  const [, a, b] = pathname.split('/');
+  const crm = useCrm();
+  const [, a, b, c] = pathname.split('/');
+  if (a === 'crm') {
+    const sec = Object.values(SECTIONS).find(x => x.path === `/crm${b ? '/' + b : ''}`);
+    const crumbs: Crumb[] = [{ label: 'CRM', to: SECTIONS.crm.path }];
+    if (b === 'companies' && c) return [...crumbs, { label: 'Companies', to: SECTIONS.crmCompanies.path }, { label: crmCompany(crm.data, c)?.name ?? 'Company' }];
+    return [...crumbs, { label: sec?.name ?? 'Not found' }];
+  }
   if (a === 'projects' && b) {
     const p = project(data, b);
     return [
@@ -45,6 +55,8 @@ export function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
   const taskForm = useTaskForm();
   const projectForms = useProjectForms();
   const invite = useInvite();
+  const crmUi = useCrmUi();
+  const inCrm = !!useMatch('/crm/*');
 
   return (
     <header className="topbar">
@@ -94,6 +106,20 @@ export function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
           </Button>
         </MenuTrigger>
         <MenuContent align="end">
+          {inCrm && (
+            <>
+              <MenuItem icon={<Handshake size={15} />} onSelect={() => crmUi.newDeal()}>
+                New deal
+              </MenuItem>
+              <MenuItem icon={<Building2 size={15} />} onSelect={() => crmUi.newCompany()}>
+                New company
+              </MenuItem>
+              <MenuItem icon={<ContactRound size={15} />} onSelect={() => crmUi.newContact()}>
+                New contact
+              </MenuItem>
+              <MenuSeparator />
+            </>
+          )}
           <MenuItem icon={<CircleCheck size={15} />} shortcut="N" onSelect={() => taskForm.open()}>
             New task
           </MenuItem>

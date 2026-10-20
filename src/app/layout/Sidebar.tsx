@@ -69,7 +69,7 @@ function Item({ to, label, icon, count, dot, collapsed, end }: ItemProps) {
 
 function SectionItem({ id, collapsed, count, dot }: { id: SectionId; collapsed: boolean; count?: number; dot?: boolean }) {
   const s = SECTIONS[id];
-  return <Item to={s.path} label={s.name} icon={<s.icon size={16} />} count={count} dot={dot} collapsed={collapsed} end={s.path === '/' || s.path === '/projects' || s.path === '/members'} />;
+  return <Item to={s.path} label={s.name} icon={<s.icon size={16} />} count={count} dot={dot} collapsed={collapsed} end={s.path === '/' || s.path === '/projects' || s.path === '/members' || s.path === '/crm'} />;
 }
 
 const SUB_PAGES = [
@@ -220,6 +220,13 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
         <div className="sgroup">
           <div className="sgroup-h">Workspace</div>
           {(['overview', 'projects', 'tasks', 'calendar', 'timeline', 'members', 'activity'] as const).map(id => (
+            <SectionItem key={id} id={id} collapsed={collapsed} />
+          ))}
+        </div>
+
+        <div className="sgroup">
+          <div className="sgroup-h">CRM</div>
+          {(['crm', 'crmDeals', 'crmCompanies', 'crmContacts', 'crmActivities'] as const).map(id => (
             <SectionItem key={id} id={id} collapsed={collapsed} />
           ))}
         </div>

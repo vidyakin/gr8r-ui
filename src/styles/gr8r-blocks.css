@@ -1,0 +1,133 @@
+/* ============================================================
+   Обобщённые блоки src/components/gr8r: Kanban, DataTable, FilterBar.
+   Основа — те же классы, что у доски и таблицы задач (task-views.css); здесь только то, чего там нет.
+   ============================================================ */
+
+/* ---------- Kanban ---------- */
+.kb-item {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+.kb-item > .kcard {
+  width: 100%;
+}
+.kb-item.dragging {
+  opacity: 0.35;
+}
+.kb-empty {
+  padding: 12px 8px;
+  text-align: center;
+  color: var(--text-4);
+  font-size: var(--fs-xs);
+}
+.bcol-sub {
+  padding: 0 12px 4px;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+.bcol-sub b {
+  color: var(--text);
+  font-weight: 600;
+}
+.bcol-f {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--divider);
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+.bcol-f b {
+  color: var(--text-2);
+  font-weight: 600;
+}
+
+/* ---------- FilterBar ---------- */
+/* в колонке .page.flush панель не должна сжиматься: на телефоне её кнопки переносятся на вторую строку */
+.fb-bar {
+  flex-shrink: 0;
+}
+
+/* ---------- DataTable ---------- */
+.tbl tr.dt-click {
+  cursor: pointer;
+}
+.tbl tr.dt-click:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.tbl td {
+  vertical-align: middle;
+}
+.tbl tfoot td {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  background: var(--sunken);
+  border-top: 1px solid var(--border);
+  border-bottom: 0;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  height: 38px;
+}
+.tbl tfoot td.sticky {
+  z-index: 5;
+}
+.tbl tr:hover td {
+  transition: background var(--dur);
+}
+.dt-cards {
+  padding: 8px var(--gutter) 90px;
+}
+.dt-card {
+  padding: 12px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  cursor: pointer;
+  text-align: left;
+}
+.dt-card-t {
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.dt-card-kv {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 14px;
+  font-size: var(--fs-xs);
+  align-items: center;
+}
+.dt-card-v {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  font-size: var(--fs-sm);
+}
+.dt-mgroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0 6px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-2);
+}
+.dt-mtotal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  padding: 10px 12px;
+  border-radius: var(--r);
+  background: var(--sunken);
+  font-size: var(--fs-sm);
+}
