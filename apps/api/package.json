@@ -1,0 +1,20 @@
+{
+  "name": "@gr8r/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/app.ts", "./client": "./src/client.ts" },
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@gr8r/db": "workspace:*",
+    "@gr8r/shared": "workspace:*",
+    "@hono/zod-validator": "^0.7.0",
+    "drizzle-orm": "^0.44.0",
+    "hono": "^4.9.0",
+    "zod": "^4.1.0"
+  }
+}

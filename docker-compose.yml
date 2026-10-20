@@ -1,0 +1,88 @@
+# Весь стек: postgres 16, minio (S3), миграции, api, worker, web.
+#   docker compose up --build            # поднять
+#   SEED=1 docker compose up --build     # + демо-данные (demo@gr8r.dev / demo1234)
+# Приложение: http://localhost:8080   API напрямую: http://localhost:3000   MinIO: http://localhost:9001
+# Пароли и порты можно переопределить в .env (см. .env.example).
+
+x-db-env: &db-env
+  # Админ-подключение (миграции) и рантайм-подключение (логин-роль gr8r_app без суперправ, входит в app_user/app_worker)
+  ADMIN_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-gr8r}@postgres:5432/gr8r
+  DATABASE_URL: postgres://gr8r_app:${APP_DB_PASSWORD:-gr8r_app}@postgres:5432/gr8r
+  APP_DB_USER: gr8r_app
+  APP_DB_PASSWORD: ${APP_DB_PASSWORD:-gr8r_app}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gr8r}
+      POSTGRES_DB: gr8r
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d gr8r']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Разовая задача: миграции (и сид при SEED=1). api и worker стартуют после неё
+  migrate:
+    build: { context: ., target: migrate }
+    environment:
+      <<: *db-env
+      SEED: ${SEED:-0}
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: 'no'
+
+  api:
+    build: { context: ., target: api }
+    environment:
+      <<: *db-env
+      NODE_ENV: production
+      API_PORT: 3000
+      COOKIE_SECURE: ${COOKIE_SECURE:-0} # на VPS с HTTPS поставьте 1
+      TRUST_PROXY: '1' # за nginx: IP клиента из X-Forwarded-For (для rate-limit)
+      CORS_ORIGINS: http://localhost:8080,http://localhost:5173
+    ports:
+      - '127.0.0.1:3000:3000' # только локально: IP клиента берётся из X-Forwarded-For, наружу порт не публикуйте
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  worker:
+    build: { context: ., target: worker }
+    environment:
+      <<: *db-env
+      NODE_ENV: production
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  web:
+    build: { context: ., target: web }
+    ports:
+      - '${WEB_PORT:-8080}:80'
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  miniodata:

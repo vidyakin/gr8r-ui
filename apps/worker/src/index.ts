@@ -1,0 +1,51 @@
+/* Точка входа воркера: опрос jobs + outbox, ускорение по LISTEN gr8r_events. */
+import { createSql, databaseUrl, EVENTS_CHANNEL, listenChannel } from '@gr8r/db';
+import { defaultOptions, processEventsOnce, processJobsOnce, requeueStale } from './worker';
+
+const pollMs = Number(process.env.WORKER_POLL_MS ?? 1000);
+const o = defaultOptions({ concurrency: Number(process.env.WORKER_CONCURRENCY ?? 4) });
+const sql = createSql(databaseUrl(), { max: 5 });
+
+let stopping = false;
+let wake: (() => void) | null = null;
+const sleep = () => new Promise<void>(res => {
+  const t = setTimeout(res, pollMs);
+  wake = () => {
+    clearTimeout(t);
+    res();
+  };
+});
+
+// Новое событие в outbox → просыпаемся сразу, не дожидаясь следующего опроса
+const stopListening = await listenChannel(databaseUrl(), EVENTS_CHANNEL, () => wake?.());
+o.log(`started as ${o.workerId}, poll ${pollMs} ms, concurrency ${o.concurrency}`);
+
+async function shutdown(signal: string) {
+  if (stopping) return;
+  stopping = true;
+  o.log(`${signal}: shutting down`);
+  wake?.();
+  await stopListening();
+  await sql.end({ timeout: 5 });
+  process.exit(0);
+}
+process.on('SIGINT', () => void shutdown('SIGINT'));
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+
+let lastStaleCheck = 0;
+while (!stopping) {
+  try {
+    if (Date.now() - lastStaleCheck > 60_000) {
+      lastStaleCheck = Date.now();
+      const n = await requeueStale(sql, o);
+      if (n) o.log(`requeued ${n} stale job(s)`);
+    }
+    const events = await processEventsOnce(sql, o);
+    const jobs = await processJobsOnce(sql, o);
+    if (events + jobs > 0) continue; // есть работа — сразу следующий проход
+  } catch (e) {
+    o.log(`loop error: ${e instanceof Error ? e.message : e}`);
+  }
+  await sleep();
+}
+

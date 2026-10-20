@@ -1,34 +1,28 @@
 {
-  "name": "gr8r-ui",
-  "version": "0.1.0",
+  "name": "gr8r",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview",
-    "typecheck": "tsc -b"
-  },
-  "dependencies": {
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "lucide-react": "^1.59.0",
-    "radix-ui": "^1.8.1",
-    "react": "^19.3.1",
-    "react-day-picker": "^10.0.2",
-    "react-dom": "^19.3.1",
-    "react-router": "^8.5.0",
-    "sonner": "^2.0.8",
-    "tailwind-merge": "^3.7.0"
+    "dev": "bun run scripts/dev.ts",
+    "dev:api": "bun run --cwd apps/api dev",
+    "dev:worker": "bun run --cwd apps/worker dev",
+    "dev:web": "bun run --cwd apps/web dev",
+    "build": "bun run --cwd apps/web build",
+    "typecheck": "bun run --filter '*' typecheck",
+    "test": "bun test",
+    "db:generate": "bun run --cwd packages/db generate",
+    "db:migrate": "bun run --cwd packages/db migrate",
+    "db:seed": "bun run --cwd packages/db seed",
+    "db:wipe": "bun run --cwd packages/db wipe",
+    "db:reset": "bun run --cwd packages/db reset"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.3.3",
-    "@types/node": "^26.6.5",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^6.1.2",
-    "tailwindcss": "^4.3.3",
-    "typescript": "^7.0.2",
-    "vite": "^8.3.4"
+    "@types/bun": "^1.4.3",
+    "@gr8r/db": "workspace:*",
+    "@gr8r/shared": "workspace:*"
   }
 }
