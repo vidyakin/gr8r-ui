@@ -50,6 +50,8 @@ export interface FilterBarProps {
   group?: { options: { id: string; name: string; icon?: React.ReactNode }[]; value: string; onChange: (id: string) => void };
   columns?: { options: { id: string; name: string }[]; hidden: string[]; onToggle: (id: string) => void; onReset: () => void };
   extra?: React.ReactNode;
+  /** Контролы перед поиском (например, переключатель видов) */
+  left?: React.ReactNode;
   right?: React.ReactNode;
 }
 
@@ -82,13 +84,14 @@ function FilterMenu({ fields, filters, children }: { fields: FilterField[]; filt
   );
 }
 
-export function FilterBar({ search, fields, filters, sort, group, columns, extra, right }: FilterBarProps) {
+export function FilterBar({ search, fields, filters, sort, group, columns, extra, left, right }: FilterBarProps) {
   const active = fields && filters ? fields.filter(f => (filters.values[f.id] ?? []).length) : [];
   const sortName = sort?.options.find(o => o.id === sort.value)?.name ?? 'Manual';
   const groupName = group?.options.find(o => o.id === group.value)?.name ?? 'None';
   return (
     <>
       <div className="toolbar fb-bar" role="toolbar">
+        {left}
         <Input size="sm" icon={<Search size={13} />} className="!w-[200px]" placeholder={search.placeholder} aria-label={search.placeholder} value={search.value} onChange={e => search.onChange(e.target.value)} />
         {fields && filters && (
           <FilterMenu fields={fields} filters={filters}>

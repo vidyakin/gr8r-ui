@@ -208,10 +208,12 @@ svg.logo {
   margin-left: auto;
   display: none;
 }
-.sitem:hover .hov {
+.sitem:hover .hov,
+.sitem .hov:has([data-state='open']) {
   display: flex;
 }
-.sitem:hover .sdot {
+.sitem:hover .sdot,
+.sitem:has(.hov [data-state='open']) .sdot {
   display: none;
 }
 .sitem.drop-before::before {

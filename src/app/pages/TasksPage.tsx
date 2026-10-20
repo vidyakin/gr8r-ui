@@ -4,7 +4,7 @@ import { List, Plus, SquareKanban, Table2 } from 'lucide-react';
 import { Button, Segmented } from '@/components/ui';
 import { useWorkspace } from '../data/store';
 import { allTasks, applyView, canSee, groupTasks, visibleProjects } from '../data/selectors';
-import { BoardView } from '../components/board-view';
+import { BoardView, ShowSubtasksSwitch, useBoardSubtasks } from '../components/board-view';
 import { BucketIcon, TOGGLE_COLUMNS, TableView } from '../components/table-view';
 import { LIST_OPTIONAL_COLUMNS, TaskList, withTimeColumn, type TaskGroup } from '../components/task-list';
 import { ViewToolbar, useListView } from '../components/view-toolbar';
@@ -16,6 +16,7 @@ export function TasksPage() {
   const { data } = useWorkspace();
   const api = useListView();
   const [mode, setMode] = React.useState<Mode>('list');
+  const [showSubs, setShowSubs] = useBoardSubtasks();
   const defaultProject = visibleProjects(data)[0]?.id ?? 'p1';
   const tasks = applyView(allTasks(data), api.view, data);
 
@@ -49,7 +50,8 @@ export function TasksPage() {
         group={mode !== 'board'}
         columns={mode === 'table' ? TOGGLE_COLUMNS : mode === 'list' ? LIST_OPTIONAL_COLUMNS : undefined}
         resetWidths={mode === 'table'}
-        right={
+        extra={mode === 'board' && <ShowSubtasksSwitch checked={showSubs} onChange={setShowSubs} />}
+        left={
           <Segmented
             aria-label="View"
             value={mode}
@@ -62,7 +64,7 @@ export function TasksPage() {
           />
         }
       />
-      {mode === 'board' && <BoardView tasks={tasks} defaultProject={defaultProject} />}
+      {mode === 'board' && <BoardView tasks={tasks} defaultProject={defaultProject} showSubtasks={showSubs} />}
       {mode === 'table' && <TableView tasks={tasks} api={api} onNewTask={newTask} />}
       {mode === 'list' && (
         <div className="list-wrap">

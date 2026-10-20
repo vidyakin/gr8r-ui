@@ -136,6 +136,8 @@ function FilterMenu({ api, children }: { api: ViewApi; children: React.ReactElem
 
 export interface ViewToolbarProps {
   api: ViewApi;
+  /** Контролы перед поиском (например, переключатель видов) */
+  left?: React.ReactNode;
   right?: React.ReactNode;
   /** Кнопка «Group» */
   group?: boolean;
@@ -147,13 +149,14 @@ export interface ViewToolbarProps {
   extra?: React.ReactNode;
 }
 
-export function ViewToolbar({ api, right, group, columns, resetWidths = true, extra }: ViewToolbarProps) {
+export function ViewToolbar({ api, left, right, group, columns, resetWidths = true, extra }: ViewToolbarProps) {
   const fields = useFields();
   const { view } = api;
   const sortName = SORTS.find(s => s.f === view.sort.f)?.name ?? SORT_NAMES[view.sort.f];
   return (
     <>
       <div className="toolbar" role="toolbar">
+        {left}
         <Input size="sm" icon={<Search size={13} />} className="!w-[200px]" placeholder="Search tasks" aria-label="Search tasks" value={view.q} onChange={e => api.setQuery(e.target.value)} />
         <FilterMenu api={api}>
           <Button variant="ghost" className={view.filters.length ? 'on' : undefined}>

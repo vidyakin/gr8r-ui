@@ -105,7 +105,7 @@ export function DealsPage() {
         sort={{ options: DEAL_SORTS, value: table.sort.id, dir: table.sort.dir, onChange: table.setSort }}
         group={mode === 'table' ? { options: GROUPS, value: group, onChange: g => setGroup(g as GroupId) } : undefined}
         columns={mode === 'table' ? columnsMenu(DEAL_COLUMNS, table) : undefined}
-        right={
+        left={
           <Segmented
             aria-label="View"
             value={mode}

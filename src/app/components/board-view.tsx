@@ -1,14 +1,15 @@
 /* Доска задач по статусам — порт boardHtml / kcard из views/board.js и drag-and-drop карточек из actions/drag-drop.js.
    Используется на странице Tasks и (позже) на странице проекта. Перетаскивание — нативный HTML5 DnD. */
 import * as React from 'react';
-import { ArrowDownWideNarrow, Check, CheckCheck, Archive, FoldHorizontal, ListChecks, MessageSquare, Paperclip, Pencil, Plus, Repeat, RotateCcw, Ellipsis } from 'lucide-react';
-import { Button, Label, Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger, Progress, Tooltip, toast } from '@/components/ui';
+import { ArrowDownWideNarrow, Check, CheckCheck, Archive, ChevronDown, FoldHorizontal, ListChecks, MessageSquare, Paperclip, Pencil, Plus, Repeat, RotateCcw, Ellipsis } from 'lucide-react';
+import { Button, Checkbox, Label, Menu, Switch, MenuContent, MenuItem, MenuLabel, MenuTrigger, Progress, Tooltip, toast } from '@/components/ui';
 import { STATUSES, StatusIcon, type Status } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
 import { useWorkspace, type TaskPatch } from '../data/store';
 import { countSubs } from '../data/subtasks';
 import { LABELS, commentsOf, project as findProject, sortTasks } from '../data/selectors';
-import type { Task } from '../data/types';
+import type { Subtask, Task } from '../data/types';
+import { useTaskDrawer } from '../overlays';
 import { AssigneeField, DueField, PriorityField } from './fields';
 import { ProjectDot } from './project';
 import { RowMenu } from './task-list';
@@ -20,10 +21,65 @@ export interface BoardViewProps {
   defaultProject: string;
   /** Доска одного проекта: новые задачи создаются в нём, точка проекта на карточках скрыта */
   project?: string;
+  /** Подзадачи раскрыты на всех карточках (переключатель «Show subtasks»); каждую карточку можно свернуть отдельно */
+  showSubtasks?: boolean;
+}
+
+const SUBTASKS_KEY = 'gr8r-ui.board-subtasks';
+
+/** Состояние переключателя «Show subtasks» — запоминается между заходами */
+export function useBoardSubtasks() {
+  const [on, setOn] = React.useState(() => {
+    try {
+      return localStorage.getItem(SUBTASKS_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(SUBTASKS_KEY, on ? '1' : '0');
+    } catch {
+      /* хранилище недоступно */
+    }
+  }, [on]);
+  return [on, setOn] as const;
+}
+
+/** Переключатель «Show subtasks» для тулбара доски */
+export function ShowSubtasksSwitch({ checked, onChange }: { checked: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <label className="row cursor-pointer" style={{ fontSize: 12.5, color: 'var(--text-2)', gap: 6, whiteSpace: 'nowrap' }}>
+      <Switch checked={checked} onChange={e => onChange(e.target.checked)} />
+      <span className="hide-m">Show subtasks</span>
+      <span className="only-m">Subtasks</span>
+    </label>
+  );
+}
+
+/** Дерево подзадач на карточке: отметка выполнения и переход в карточку подзадачи */
+function KSubTree({ task: t, list, depth = 0 }: { task: Task; list: Subtask[]; depth?: number }) {
+  const { dispatch } = useWorkspace();
+  const drawer = useTaskDrawer();
+  return (
+    <>
+      {list.map(s => (
+        <React.Fragment key={s.id}>
+          <div className={cn('ksub', s.done && 'done')} style={depth ? { paddingLeft: depth * 16 } : undefined}>
+            <Checkbox checked={s.done} onChange={() => dispatch({ type: 'task/toggleSubtask', id: t.id, subtask: s.id })} aria-label={`Complete subtask ${s.title}`} />
+            <button className="t" onClick={() => drawer.open(t.id, s.id)}>
+              {s.title}
+            </button>
+          </div>
+          {!!s.subtasks.length && <KSubTree task={t} list={s.subtasks} depth={depth + 1} />}
+        </React.Fragment>
+      ))}
+    </>
+  );
 }
 
 /** Карточка задачи (kcard) */
-function KCard({ task: t, showProject, dragging, onDragStart, onDragEnd }: { task: Task; showProject: boolean; dragging: boolean; onDragStart: (e: React.DragEvent) => void; onDragEnd: () => void }) {
+function KCard({ task: t, showProject, showSubtasks, dragging, onDragStart, onDragEnd }: { task: Task; showProject: boolean; showSubtasks: boolean; dragging: boolean; onDragStart: (e: React.DragEvent) => void; onDragEnd: () => void }) {
   const { data } = useWorkspace();
   const actions = useTaskActions();
   const cc = commentsOf(data, t.id).length;
@@ -31,6 +87,9 @@ function KCard({ task: t, showProject, dragging, onDragStart, onDragEnd }: { tas
   const { done: sd, total: st } = countSubs(t.subtasks);
   const p = findProject(data, t.project);
   const done = t.status === 'done';
+  // Своё состояние карточки; общий переключатель перезаписывает его у всех карточек
+  const [open, setOpen] = React.useState(showSubtasks);
+  React.useEffect(() => setOpen(showSubtasks), [showSubtasks]);
   return (
     <div
       className={cn('kcard', done && 'done', dragging && 'dragging')}
@@ -62,13 +121,24 @@ function KCard({ task: t, showProject, dragging, onDragStart, onDragEnd }: { tas
         <div className="title">{t.title}</div>
       </div>
       {st > 0 && (
-        <div className="subp">
-          <ListChecks size={12} />
-          <span className="num">
-            {sd}/{st}
-          </span>
-          <Progress value={Math.round((sd / st) * 100)} tone={sd === st ? 'green' : undefined} />
-        </div>
+        <>
+          <div className="subp">
+            <button className="subt-tg" aria-expanded={open} aria-label={open ? 'Hide subtasks' : 'Show subtasks'} onClick={e => (e.stopPropagation(), setOpen(o => !o))}>
+              <ChevronDown size={12} className="chev" />
+              <ListChecks size={12} />
+              <span className="num">
+                {sd}/{st}
+              </span>
+            </button>
+            <Progress value={Math.round((sd / st) * 100)} tone={sd === st ? 'green' : undefined} />
+          </div>
+          {/* Плавное раскрытие: grid-template-rows 0fr → 1fr */}
+          <div className={cn('ksubs', open && 'open')} inert={!open} onClick={e => e.stopPropagation()}>
+            <div className="ksubs-in">
+              <KSubTree task={t} list={t.subtasks} />
+            </div>
+          </div>
+        </>
       )}
       <div className="meta">
         {showProject && p && (
@@ -156,7 +226,7 @@ function Composer({ onSubmit, onCancel }: { onSubmit: (title: string) => void; o
   );
 }
 
-export function BoardView({ tasks, defaultProject, project }: BoardViewProps) {
+export function BoardView({ tasks, defaultProject, project, showSubtasks = false }: BoardViewProps) {
   const { data, dispatch } = useWorkspace();
   const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>({});
   const [composer, setComposer] = React.useState<Status | null>(null);
@@ -204,7 +274,11 @@ export function BoardView({ tasks, defaultProject, project }: BoardViewProps) {
     if (moved) toast(`Moved “${t.title}” to ${STATUSES.find(s => s.id === col)!.name}`, { duration: 2200 });
   };
 
-  const addTask = (status: Status, title: string) => dispatch({ type: 'task/create', task: { title, project: project ?? defaultProject, status } });
+  // Новая задача встаёт в начало колонки
+  const addTask = (status: Status, title: string) => {
+    const top = Math.min(0, ...tasks.filter(t => t.status === status).map(t => t.order));
+    dispatch({ type: 'task/create', task: { title, project: project ?? defaultProject, status, order: top - 1 } });
+  };
 
   return (
     <div className="board">
@@ -311,12 +385,14 @@ export function BoardView({ tasks, defaultProject, project }: BoardViewProps) {
               </span>
             </div>
             <div className="bcol-b">
+              {addRow}
               {col.map(t => (
                 <React.Fragment key={t.id}>
                   {over && drop?.before === t.id && line}
                   <KCard
                     task={t}
                     showProject={!project}
+                    showSubtasks={showSubtasks}
                     dragging={dragId === t.id}
                     onDragStart={e => {
                       e.dataTransfer.effectAllowed = 'move';
@@ -329,7 +405,6 @@ export function BoardView({ tasks, defaultProject, project }: BoardViewProps) {
                 </React.Fragment>
               ))}
               {over && drop?.before === null && line}
-              {addRow}
             </div>
           </section>
         );

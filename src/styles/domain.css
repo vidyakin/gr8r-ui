@@ -56,7 +56,9 @@
   padding: 1px;
 }
 .kcard:hover .hacts,
-.kcard:focus-within .hacts {
+.kcard:focus-within .hacts,
+/* пока открыто меню «⋯», кнопки остаются на месте — иначе меню теряет точку привязки */
+.kcard .hacts:has([data-state='open']) {
   display: flex;
 }
 .kcard .labels {
@@ -79,6 +81,7 @@
 .kcard .meta .key {
   font-family: var(--mono);
   font-size: 11px;
+  white-space: nowrap;
 }
 .kcard .meta > :last-child {
   margin-left: auto;
@@ -89,6 +92,75 @@
   gap: 6px;
   color: var(--text-3);
   font-size: var(--fs-xs);
+}
+/* Кнопка сворачивания подзадач на карточке доски */
+.kcard .subt-tg {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: -2px -4px;
+  padding: 2px 4px;
+  border-radius: var(--r-xs);
+  color: inherit;
+  flex-shrink: 0;
+}
+.kcard .subt-tg:hover {
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+.kcard .subt-tg .chev {
+  transition: transform 0.18s var(--ease);
+  transform: rotate(-90deg);
+}
+.kcard .subt-tg[aria-expanded='true'] .chev {
+  transform: none;
+}
+.kcard .ksubs {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.2s var(--ease);
+}
+.kcard .ksubs.open {
+  grid-template-rows: 1fr;
+}
+.kcard .ksubs-in {
+  overflow: hidden;
+  min-height: 0;
+}
+.kcard .ksub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.kcard .ksubs.open .ksubs-in > .ksub:first-child {
+  margin-top: 2px;
+}
+.kcard .ksub .t {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  color: inherit;
+}
+.kcard .ksub .t:hover {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.kcard .ksub.done .t {
+  color: var(--text-3);
+  text-decoration: line-through;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kcard .ksubs,
+  .kcard .subt-tg .chev {
+    transition: none;
+  }
 }
 .due {
   font-size: var(--fs-xs);

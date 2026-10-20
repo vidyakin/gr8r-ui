@@ -133,6 +133,12 @@ export function Kanban<T>({ columns, items, getId, getColumn, renderCard, onMove
             </div>
             {c.subtitle && <div className="bcol-sub">{c.subtitle}</div>}
             <div className="bcol-b">
+              {add && (
+                <button className="addcard" onClick={() => add(c.id)}>
+                  <Plus size={14} />
+                  {addLabel}
+                </button>
+              )}
               {col.map(x => {
                 const id = getId(x);
                 return (
@@ -157,12 +163,6 @@ export function Kanban<T>({ columns, items, getId, getColumn, renderCard, onMove
               })}
               {over && drop?.before === null && line}
               {!col.length && !over && <div className="kb-empty">{emptyText}</div>}
-              {add && (
-                <button className="addcard" onClick={() => add(c.id)}>
-                  <Plus size={14} />
-                  {addLabel}
-                </button>
-              )}
             </div>
             {c.footer && <div className="bcol-f">{c.footer}</div>}
           </section>

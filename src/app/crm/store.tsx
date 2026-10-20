@@ -33,7 +33,8 @@ function systemNote(by: string, deal: Deal, subject: string): CrmActivity {
 export function crmReducer(d: CrmData, a: CrmAction): CrmData {
   switch (a.type) {
     case 'deal/create': {
-      const order = Math.max(-1, ...d.deals.map(x => x.order)) + 1;
+      // Новая сделка встаёт в начало своей колонки
+      const order = Math.min(1, ...d.deals.filter(x => x.stage === a.deal.stage).map(x => x.order)) - 1;
       const x: Deal = { contacts: [], ...a.deal, id: a.deal.id ?? uid('d'), created: Date.now(), order };
       const closed = x.stage === 'won' || x.stage === 'lost';
       return { ...d, deals: [...d.deals, closed ? { ...x, closedAt: x.closeDate } : x] };
