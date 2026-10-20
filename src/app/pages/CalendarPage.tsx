@@ -29,7 +29,7 @@ export function CalendarPage() {
         </div>
       </div>
       <ViewToolbar api={api} />
-      <CalendarView tasks={tasks} events={data.events} onAdd={newTask} />
+      <CalendarView tasks={tasks} events={data.events} onAdd={due => taskForm.open({ due })} />
     </div>
   );
 }

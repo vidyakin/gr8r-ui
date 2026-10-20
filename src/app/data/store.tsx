@@ -11,14 +11,14 @@ export type Action =
   | { type: 'task/toggleDone'; id: string }
   | { type: 'task/update'; id: string; patch: TaskPatch }
   | { type: 'task/toggleSubtask'; id: string; subtask: string }
-  | { type: 'task/create'; task: Pick<Task, 'title' | 'project'> & TaskPatch }
+  | { type: 'task/create'; task: Pick<Task, 'title' | 'project'> & TaskPatch & Partial<Pick<Task, 'id' | 'key' | 'labels' | 'recur' | 'subtasks' | 'attachments' | 'desc'>> }
   | { type: 'project/toggleFav'; id: string }
   | { type: 'project/update'; id: string; patch: Partial<Pick<Project, 'status'>> }
   | { type: 'notif/setRead'; id: string; read: boolean }
   | { type: 'notif/markAllRead' }
   | { type: 'comment/add'; task: string; text: string }
   | { type: 'comment/react'; id: string; emoji: string }
-  | { type: 'file/add'; file: Pick<ProjectFile, 'project' | 'name' | 'size'> }
+  | { type: 'file/add'; file: Pick<ProjectFile, 'project' | 'name' | 'size'> & Partial<Pick<ProjectFile, 'task'>> }
   | { type: 'file/rename'; id: string; name: string }
   | { type: 'file/duplicate'; id: string }
   | { type: 'file/delete'; id: string }
@@ -41,7 +41,7 @@ function patchTask(t: Task, patch: TaskPatch): Task {
   return next;
 }
 
-function nextKey(d: WorkspaceData, projectId: string) {
+export function nextKey(d: WorkspaceData, projectId: string) {
   const p = d.projects.find(x => x.id === projectId)!;
   const nums = d.tasks.filter(t => t.project === projectId).map(t => +t.key.split('-')[1] || 0);
   return `${p.key}-${Math.max(100, ...nums) + 1}`;

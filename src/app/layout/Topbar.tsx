@@ -93,7 +93,7 @@ export function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
           </Button>
         </MenuTrigger>
         <MenuContent align="end">
-          <MenuItem icon={<CircleCheck size={15} />} shortcut="C" onSelect={() => taskForm.open()}>
+          <MenuItem icon={<CircleCheck size={15} />} shortcut="N" onSelect={() => taskForm.open()}>
             New task
           </MenuItem>
           <MenuItem icon={<FolderPlus size={15} />} shortcut="P" onSelect={() => projectForms.create()}>
