@@ -1,0 +1,25 @@
+{
+  "name": "@gr8r/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "scripts": {
+    "generate": "drizzle-kit generate",
+    "migrate": "bun src/cli/migrate.ts",
+    "seed": "bun src/cli/seed.ts",
+    "wipe": "bun src/cli/wipe.ts",
+    "reset": "bun src/cli/reset.ts",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@gr8r/shared": "workspace:*",
+    "drizzle-orm": "^0.44.0",
+    "postgres": "^3.4.0"
+  },
+  "devDependencies": { "drizzle-kit": "^0.31.0" }
+}

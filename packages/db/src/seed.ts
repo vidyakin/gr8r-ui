@@ -1,0 +1,308 @@
+/* Сид: демо-воркспейс «Gr8r Studio» со всеми демо-данными фронтенда (генерация живёт в @gr8r/shared/demo —
+   один источник для браузера и БД) и второй воркспейс другого пользователя для проверки изоляции арендаторов.
+   Сид идёт тем же путём, что и приложение: под ролью app_user с настройками RLS (политики проверяют и его). */
+import { eq, sql as dsql } from 'drizzle-orm';
+import type { Subtask } from '@gr8r/shared';
+import { seed as demoWorkspace, seedCrm } from '@gr8r/shared/demo';
+import type { Db, Sql } from './client';
+import { withContext } from './context';
+import { uuidv7 } from './uuid';
+import {
+  activity,
+  calendarEvents,
+  commentReactions,
+  comments,
+  companies,
+  contacts,
+  crmActivities,
+  dealContacts,
+  deals,
+  events,
+  files,
+  invites,
+  members,
+  memberships,
+  notifications,
+  projectMembers,
+  projects,
+  savedViews,
+  statuses,
+  tasks,
+  teams,
+  timeLogs,
+  users,
+  workspaces,
+} from './schema';
+
+export const DEMO_USER = { email: 'demo@gr8r.dev', password: 'demo1234' } as const;
+export const OTHER_USER = { email: 'bob@acme.test', password: 'bob12345', name: 'Bob Marley' } as const;
+
+const hash = (pw: string) => Bun.password.hash(pw, { algorithm: 'argon2id' });
+const ms = (n: number | null | undefined) => (n == null ? null : new Date(n));
+const ago = (mins: number) => new Date(Date.now() - mins * 6e4);
+
+/** «4.2 MB» → байты */
+function parseSize(s: string): number {
+  const m = /^([\d.]+)\s*(B|KB|MB|GB)$/i.exec(s.trim());
+  if (!m) return 0;
+  const k = { B: 1, KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3 }[m[2]!.toUpperCase() as 'B' | 'KB' | 'MB' | 'GB'];
+  return Math.round(parseFloat(m[1]!) * k);
+}
+
+async function insertChunks<T>(rows: T[], fn: (chunk: T[]) => Promise<unknown>, size = 400) {
+  for (let i = 0; i < rows.length; i += size) await fn(rows.slice(i, i + size));
+}
+
+/** Создаёт набор статусов по умолчанию для нового воркспейса (общий код сида и API) */
+export const defaultStatusRows = (workspaceId: string, list: { id: string; name: string; color?: string; builtin?: boolean }[]) =>
+  list.map((s, i) => ({
+    workspaceId,
+    key: s.id,
+    name: s.name,
+    color: s.color ?? `var(--st-${s.id})`,
+    builtin: s.builtin ?? true,
+    sortOrder: i,
+  }));
+
+/** Демо-воркспейс: все данные фронтенда (задачи, проекты, комментарии, CRM…) */
+async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: string, userIds: Map<string, string>, inviteToken: string) {
+  const d = demoWorkspace();
+  const crm = seedCrm();
+  const ids = new Map<string, string>(); // старый id фронтенда → uuid v7
+  const U = (old: string) => {
+    let v = ids.get(old);
+    if (!v) ids.set(old, (v = uuidv7()));
+    return v;
+  };
+  const Uo = (old?: string | null) => (old ? U(old) : null);
+
+  await db.insert(workspaces).values({ id: wsId, name: d.ws.name, slug: d.ws.url, color: d.ws.c, brand: d.ws.brand ?? false, createdBy: ownerUserId });
+  await db.insert(memberships).values(
+    d.members
+      .filter(m => userIds.has(m.id))
+      .map(m => ({ workspaceId: wsId, userId: userIds.get(m.id)!, role: m.role.toLowerCase() as 'owner' })),
+  );
+
+  // Команды
+  const teamId = new Map<string, string>();
+  await db.insert(teams).values(
+    d.teams.map((t, i) => {
+      const id = uuidv7();
+      teamId.set(t.id, id);
+      return { id, workspaceId: wsId, key: t.id, name: t.name, icon: t.icon, color: t.c, description: t.desc, sortOrder: i };
+    }),
+  );
+
+  // Участники (профили)
+  await db.insert(members).values(
+    d.members.map(m => ({
+      id: U(m.id),
+      workspaceId: wsId,
+      userId: userIds.get(m.id) ?? null,
+      email: m.id === 'm1' ? DEMO_USER.email : m.email,
+      name: m.name,
+      title: m.title,
+      color: m.c,
+      teamId: teamId.get(m.team) ?? null,
+      role: m.role.toLowerCase() as 'owner',
+      status: m.status,
+      tz: m.tz,
+      lastSeenAt: m.last == null ? null : ago(m.last),
+    })),
+  );
+  // Приглашённые без аккаунта получают инвайт (токен в сиде не выводится: он нужен только для целостности данных)
+  for (const m of d.members.filter(x => x.status === 'invited')) {
+    await db.insert(invites).values({
+      workspaceId: wsId,
+      email: m.email,
+      role: m.role.toLowerCase() as 'guest',
+      tokenHash: new Bun.CryptoHasher('sha256').update(inviteToken + m.id).digest('hex'),
+      invitedBy: ownerUserId,
+      expiresAt: new Date(Date.now() + 14 * 864e5),
+    });
+  }
+
+  // Статусы (колонки доски)
+  await db.insert(statuses).values(defaultStatusRows(wsId, d.statuses));
+
+  // Проекты
+  const maxNum = new Map<string, number>();
+  for (const t of d.tasks) {
+    const n = parseInt(t.key.split('-').pop()!, 10);
+    maxNum.set(t.project, Math.max(maxNum.get(t.project) ?? 0, n));
+  }
+  await db.insert(projects).values(
+    d.projects.map(p => ({
+      id: U(p.id),
+      workspaceId: wsId,
+      key: p.key,
+      name: p.name,
+      icon: p.icon,
+      color: p.color,
+      status: p.status,
+      teamId: teamId.get(p.team) ?? null,
+      leadId: U(p.lead),
+      startDate: p.start,
+      dueDate: p.due,
+      fav: p.fav,
+      isPrivate: !!p.private,
+      access: p.private ? ('private' as const) : (p.access ?? ('workspace' as const)),
+      description: p.desc,
+      milestones: p.milestones,
+      taskCounter: maxNum.get(p.id) ?? 0,
+      sortOrder: d.projOrder.indexOf(p.id),
+      lastActivityAt: ago(p.last),
+      archivedAt: ms(p.archivedAt),
+    })),
+  );
+  await db.insert(projectMembers).values(
+    d.projects.flatMap(p => p.members.map(m => ({ workspaceId: wsId, projectId: U(p.id), memberId: U(m), permission: p.perms?.[m] ?? (m === p.lead ? 'admin' : 'edit') }))),
+  );
+
+  // Задачи. В подзадачах id участников (assignee) тоже переводим в uuid
+  const mapSubs = (list: Subtask[]): Subtask[] => list.map(s => ({ ...s, assignee: s.assignee ? U(s.assignee) : s.assignee, subtasks: mapSubs(s.subtasks) }));
+  await insertChunks(d.tasks, chunk =>
+    db.insert(tasks).values(
+      chunk.map(t => ({
+        id: U(t.id),
+        workspaceId: wsId,
+        key: t.key,
+        projectId: U(t.project),
+        title: t.title,
+        status: t.status,
+        assigneeId: Uo(t.assignee),
+        priority: t.priority,
+        dueDate: t.due,
+        startDate: t.start,
+        labels: t.labels,
+        subtasks: mapSubs(t.subtasks),
+        deps: t.deps.map(U),
+        description: t.desc,
+        planHours: t.planHours == null ? null : String(t.planHours),
+        prevStatus: t.prevStatus ?? null,
+        sortOrder: t.order,
+        fav: t.fav,
+        recur: t.recur,
+        createdAt: new Date(t.created),
+        updatedAt: new Date(t.updated),
+        completedAt: ms(t.completedAt),
+        archivedAt: ms(t.archivedAt),
+      })),
+    ),
+  );
+
+  // Комментарии и реакции
+  await db.insert(comments).values(d.comments.map(c => ({ id: U(c.id), workspaceId: wsId, taskId: U(c.task), authorId: U(c.by), body: c.text, createdAt: new Date(c.at), updatedAt: new Date(c.at) })));
+  const reactions = d.comments.flatMap(c => Object.entries(c.re).flatMap(([emoji, by]) => by.map(m => ({ workspaceId: wsId, commentId: U(c.id), memberId: U(m), emoji }))));
+  if (reactions.length) await db.insert(commentReactions).values(reactions);
+
+  // Активность, уведомления
+  await db.insert(activity).values(d.activity.map(a => ({ workspaceId: wsId, actorId: U(a.by), verb: a.verb, taskId: Uo(a.task), projectId: Uo(a.project), extra: a.extra, createdAt: new Date(a.at) })));
+  await db.insert(notifications).values(
+    d.notifs.map(n => ({ workspaceId: wsId, recipientId: U(d.me), type: n.type, actorId: Uo(n.by), taskId: Uo(n.task), projectId: Uo(n.project), text: n.text, snippet: n.snippet, read: n.read, createdAt: new Date(n.at) })),
+  );
+
+  // Файлы (метаданные), учёт времени, виды, события календаря
+  await db.insert(files).values(
+    d.files.map(f => ({ workspaceId: wsId, projectId: U(f.project), taskId: Uo(f.task), name: f.name, kind: f.type, sizeBytes: parseSize(f.size), uploadedBy: U(f.by), createdAt: new Date(f.at) })),
+  );
+  await db.insert(timeLogs).values(
+    d.timeLogs.map(l => ({ workspaceId: wsId, taskId: U(l.task), subId: l.sub ?? null, memberId: U(l.by), hours: String(l.hours), logDate: l.date, note: l.note })),
+  );
+  await db.insert(savedViews).values(d.savedViews.map(v => ({ workspaceId: wsId, projectId: U(v.project), ownerId: U(d.me), name: v.name, type: v.type, filters: v.filters })));
+  await db.insert(calendarEvents).values(d.events.map(e => ({ workspaceId: wsId, projectId: Uo(e.project), title: e.title, eventDate: e.date, eventTime: e.time, createdBy: U(d.me) })));
+
+  // CRM
+  await db.insert(companies).values(crm.companies.map(c => ({ id: U(c.id), workspaceId: wsId, name: c.name, industry: c.industry, size: c.size, ownerId: U(c.owner), website: c.website, city: c.city, createdAt: new Date(c.created) })));
+  await db.insert(contacts).values(crm.contacts.map(c => ({ id: U(c.id), workspaceId: wsId, companyId: U(c.company), name: c.name, title: c.title, email: c.email, phone: c.phone, ownerId: U(c.owner), createdAt: new Date(c.created) })));
+  await db.insert(deals).values(
+    crm.deals.map(x => ({
+      id: U(x.id),
+      workspaceId: wsId,
+      name: x.name,
+      companyId: U(x.company),
+      ownerId: U(x.owner),
+      amount: x.amount.toFixed(2),
+      stage: x.stage,
+      closeDate: x.closeDate,
+      closedAt: x.closedAt ?? null,
+      lostReason: x.lostReason ?? null,
+      sortOrder: x.order,
+      createdAt: new Date(x.created),
+    })),
+  );
+  await db.insert(dealContacts).values(crm.deals.flatMap(x => x.contacts.map(c => ({ workspaceId: wsId, dealId: U(x.id), contactId: U(c) }))));
+  await insertChunks(crm.activities, chunk =>
+    db.insert(crmActivities).values(
+      chunk.map(a => ({
+        workspaceId: wsId,
+        type: a.type,
+        subject: a.subject,
+        dealId: Uo(a.deal),
+        companyId: Uo(a.company),
+        contactId: Uo(a.contact),
+        authorId: U(a.by),
+        system: !!a.system,
+        dueDate: a.due ?? null,
+        done: a.done ?? null,
+        body: a.body ?? null,
+        createdAt: new Date(a.at),
+      })),
+    ),
+  );
+
+  await db.insert(events).values({ workspaceId: wsId, type: 'workspace.seeded', entity: 'workspace', recordId: wsId, actorId: U(d.me), payload: { tasks: d.tasks.length, deals: crm.deals.length } });
+  return { tasks: d.tasks.length, projects: d.projects.length, deals: crm.deals.length };
+}
+
+/** Второй арендатор: маленький, чтобы проверять, что демо-пользователь его не видит */
+async function seedOtherWorkspace(db: Db, wsId: string, userId: string) {
+  const memberId = uuidv7();
+  const projectId = uuidv7();
+  const companyId = uuidv7();
+  await db.insert(workspaces).values({ id: wsId, name: 'Acme Corp', slug: 'acme', color: '#C54B78', createdBy: userId });
+  await db.insert(memberships).values({ workspaceId: wsId, userId, role: 'owner' });
+  await db.insert(members).values({ id: memberId, workspaceId: wsId, userId, email: OTHER_USER.email, name: OTHER_USER.name, title: 'Founder', color: '#C54B78', role: 'owner' });
+  await db.insert(statuses).values(defaultStatusRows(wsId, [{ id: 'todo', name: 'To Do' }, { id: 'progress', name: 'In Progress' }, { id: 'done', name: 'Done' }]));
+  await db.insert(projects).values({ id: projectId, workspaceId: wsId, key: 'ACM', name: 'Acme Secret Project', icon: 'lock', color: 'rose', status: 'active', leadId: memberId, taskCounter: 3, description: 'Private data of another tenant' });
+  await db.insert(tasks).values(
+    ['Secret roadmap', 'Confidential pricing', 'Internal memo'].map((title, i) => ({ workspaceId: wsId, key: `ACM-${i + 1}`, projectId, title, status: 'todo', assigneeId: memberId, priority: 5 + i, sortOrder: i })),
+  );
+  await db.insert(companies).values({ id: companyId, workspaceId: wsId, name: 'Acme Customer Ltd', ownerId: memberId });
+  await db.insert(deals).values({ workspaceId: wsId, name: 'Acme secret deal', companyId, ownerId: memberId, amount: '1000000.00', stage: 'negotiation' });
+}
+
+export async function runSeed(sql: Sql, log: (msg: string) => void = console.log) {
+  const exists = await withContext(sql, {}, async db => (await db.select({ id: users.id }).from(users).where(eq(dsql`lower(${users.email})`, DEMO_USER.email)).limit(1))[0]);
+  if (exists) {
+    log('[seed] demo data already present — run `bun run db:reset` to start from scratch');
+    return;
+  }
+  const t0 = performance.now();
+
+  // Пользователи: по одному на активного участника демо-воркспейса (общий пароль) + владелец второго воркспейса
+  const demo = demoWorkspace();
+  const userIds = new Map<string, string>(); // id участника фронтенда → user id
+  const demoHash = await hash(DEMO_USER.password);
+  const userRows = demo.members
+    .filter(m => m.status === 'active')
+    .map(m => {
+      const id = uuidv7();
+      userIds.set(m.id, id);
+      return { id, email: m.id === 'm1' ? DEMO_USER.email : m.email, passwordHash: demoHash, name: m.name };
+    });
+  const otherUserId = uuidv7();
+  await withContext(sql, {}, async db => {
+    await db.insert(users).values(userRows);
+    await db.insert(users).values({ id: otherUserId, email: OTHER_USER.email, passwordHash: await hash(OTHER_USER.password), name: OTHER_USER.name });
+  });
+
+  // Каждый воркспейс — в своей транзакции с контекстом арендатора
+  const demoWs = uuidv7();
+  const stats = await withContext(sql, { userId: userIds.get('m1'), workspaceId: demoWs }, db => seedDemoWorkspace(db, demoWs, userIds.get('m1')!, userIds, uuidv7()));
+  const otherWs = uuidv7();
+  await withContext(sql, { userId: otherUserId, workspaceId: otherWs }, db => seedOtherWorkspace(db, otherWs, otherUserId));
+
+  log(`[seed] done in ${Math.round(performance.now() - t0)} ms: demo workspace (${stats.projects} projects, ${stats.tasks} tasks, ${stats.deals} deals) + Acme workspace`);
+  log(`[seed] demo login: ${DEMO_USER.email} / ${DEMO_USER.password}; other tenant: ${OTHER_USER.email} / ${OTHER_USER.password}`);
+}

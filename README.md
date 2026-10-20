@@ -3,24 +3,126 @@
 Приложение [Gr8r Studio](https://github.com/gr8rstudio/gr8r-studio) (бесплатный шаблон Setproduct), перенесённая на React.
 Внешний вид, токены и CSS взяты из оригинала. Поведение, которое в оригинале было написано вручную (меню, выпадающие списки,
 диалоги, тултипы, табы, фокус и клавиатура), теперь берут на себя примитивы [Radix](https://www.radix-ui.com).
-Проект совместим с [shadcn/ui](https://ui.shadcn.com): компоненты, добавленные через `npx shadcn add …`, сразу выглядят как Gr8r.
+Проект совместим с [shadcn/ui](https://ui.shadcn.com): компоненты, добавленные через `npx shadcn add …` (из `apps/web`), сразу выглядят как Gr8r.
 
 ![Home](docs/preview-home.png)
 
 ## Запуск
 
+Репозиторий — монорепозиторий на Bun workspaces (подробности в [docs/architecture.md](docs/architecture.md)):
+фронтенд в `apps/web`, бэкенд в `apps/api` и `apps/worker`, общий код в `packages/`.
+
 ```bash
-npm install
-npm run dev        # приложение: http://localhost:5173, витрина компонентов — #/design-system
-npm run build      # проверка типов + production-сборка
+bun install
+bun run dev:web    # только фронтенд: http://localhost:5173, витрина компонентов — #/design-system
+bun run build      # проверка типов + production-сборка фронтенда
+bun run typecheck  # tsc во всех пакетах
+bun test           # тесты бэкенда (нужен PostgreSQL, см. «Бэкенд»)
 ```
 
-Стек: React 19, TypeScript, Vite, Tailwind CSS v4, Radix UI, lucide-react, sonner (тосты).
+Фронтенд пока работает на локальных данных (демо-данные в браузере) и не требует бэкенда. Переключение на API — следующий этап.
+
+Стек фронтенда: React 19, TypeScript, Vite, Tailwind CSS v4, Radix UI, lucide-react, sonner (тосты).
+
+## Бэкенд
+
+Этап 1 «Фундамент»: Bun + Hono + PostgreSQL 16 + Drizzle + Zod. Решения и их обоснование — в [docs/architecture.md](docs/architecture.md).
+
+```
+apps/
+  web/        фронтенд (React + Vite)
+  api/        HTTP API (Hono) + WebSocket /ws
+  worker/     фоновый цикл: очередь jobs и outbox events на FOR UPDATE SKIP LOCKED
+packages/
+  shared/     доменные типы, zod-схемы API, константы, демо-данные (их использует и фронтенд, и сид БД)
+  db/         drizzle-схема, SQL-миграции (drizzle/), RLS, uuid v7, сид, утилиты администрирования
+test/         preload для bun test (пересоздаёт тестовую БД)
+scripts/      dev.ts (api + worker + web), smoke.ts (сквозной сценарий против запущенного API)
+docker/       nginx.conf для контейнера web
+docker-compose.yml, Dockerfile, .env.example
+```
+
+### Поднять через Docker
+
+```bash
+docker compose up --build              # postgres, minio, миграции, api, worker, web
+SEED=1 docker compose up --build       # то же + демо-данные
+```
+
+Приложение — http://localhost:8080 (nginx отдаёт фронтенд и проксирует `/api/*` в API, включая WebSocket `/api/ws`),
+API — http://localhost:3000, консоль MinIO — http://localhost:9001. Пароли и порты переопределяются в `.env`.
+`migrate` — разовый сервис: применяет миграции, создаёт логин-роль `gr8r_app` и (при `SEED=1`) наполняет БД; `api` и `worker` стартуют после него.
+
+### Без Docker
+
+Нужен PostgreSQL 16. Создайте `.env` по образцу `.env.example` (админский URL для миграций и URL рантайма) и:
+
+```bash
+bun install
+bun run db:migrate   # создаёт БД (если нет), применяет миграции, создаёт логин-роль приложения (APP_DB_USER/APP_DB_PASSWORD)
+bun run db:seed      # демо-данные
+bun run dev          # api (:3000) + worker + web (:5173) параллельно; Vite проксирует /api → API
+```
+
+| Команда | Что делает |
+| --- | --- |
+| `bun run db:generate` | генерирует SQL-миграцию из изменений схемы `packages/db/src/schema` (drizzle-kit) |
+| `bun run db:migrate` | применяет миграции (под `ADMIN_DATABASE_URL`) |
+| `bun run db:seed` | демо-пользователь, демо-воркспейс и второй воркспейс; повторный запуск ничего не дублирует |
+| `bun run db:wipe` | удаляет схемы `public` и `drizzle` (запрещено при `NODE_ENV=production`) |
+| `bun run db:reset` | wipe → migrate → seed: БД с нуля |
+| `bun test` | тесты на отдельной БД `gr8r_test` (пересоздаётся при каждом запуске; URL — `TEST_ADMIN_DATABASE_URL`, по умолчанию `postgres://postgres@127.0.0.1:5433/gr8r_test`) |
+
+**Демо-вход:** `demo@gr8r.dev` / `demo1234` — владелец воркспейса «Gr8r Studio» со всеми демо-данными фронтенда
+(7 проектов, 49 задач, CRM: 12 компаний, 26 контактов, 32 сделки…). Остальные участники демо-воркспейса входят с тем же паролем
+(например `sarah@gr8rstudio.com`, роль admin). Второй арендатор: `bob@acme.test` / `bob12345` — воркспейс «Acme Corp»;
+им удобно проверять изоляцию: Боб не видит данные демо-воркспейса и наоборот.
+
+### Сквозной сценарий (curl)
+
+```bash
+API=http://localhost:3000
+curl -s -c jar -X POST $API/auth/signup -H 'content-type: application/json' \
+  -d '{"email":"me@example.com","password":"password123","name":"Me"}'
+curl -s -c jar -X POST $API/auth/signin -H 'content-type: application/json' -d '{"email":"me@example.com","password":"password123"}'
+WS=$(curl -s -b jar -X POST $API/workspaces -H 'content-type: application/json' -d '{"name":"My team"}' | jq -r .id)
+P=$(curl -s -b jar -X POST $API/projects -H "X-Workspace-Id: $WS" -H 'content-type: application/json' -d '{"key":"APP","name":"App"}' | jq -r .id)
+curl -s -b jar -X POST $API/tasks -H "X-Workspace-Id: $WS" -H 'content-type: application/json' -d "{\"projectId\":\"$P\",\"title\":\"First task\",\"priority\":8}"
+curl -s -b jar "$API/tasks?projectId=$P&sort=-priority" -H "X-Workspace-Id: $WS"
+```
+
+То же вместе с проверкой события по WebSocket: `bun scripts/smoke.ts [http://localhost:3000]`.
+
+### API
+
+Запросы арендатора несут cookie сессии и заголовок `X-Workspace-Id`. Публичные маршруты: `GET /health`, `POST /auth/signup|signin|signout`, `GET /auth/me`.
+
+| Маршрут | Назначение |
+| --- | --- |
+| `GET/POST /workspaces`, `GET/PATCH /workspaces/:id` | мои воркспейсы, создание (создатель — owner), настройки |
+| `GET/POST /workspaces/:id/invites`, `DELETE …/invites/:inviteId` | приглашения (admin+): токен возвращается один раз, почты пока нет |
+| `POST /invites/accept` | принять приглашение по токену (почта аккаунта должна совпасть с приглашённой) |
+| `PATCH /workspaces/:id/members/:memberId` | смена роли (`owner`/`admin`/`member`/`guest`) |
+| `/projects`, `/statuses`, `/tasks`, `/comments`, `/time-logs`, `/notifications`, `/members`, `/teams`, `/saved-views`, `/calendar-events`, `/files`, `/activity`, `/events` | работа |
+| `/companies`, `/contacts`, `/deals`, `/crm-activities` | CRM |
+| `GET /ws?workspace=<id>[&since=<event id>]` | WebSocket: события воркспейса |
+
+У каждого ресурса: `GET /` (фильтры, `sort=-field`, `limit`/`offset`, `q`, `archived=exclude|include|only` → `{ items, total, limit, offset }`),
+`GET /:id`, `POST /`, `PATCH /:id`, `DELETE /:id` (архив; `?hard=true` — удаление, только admin+), `POST /:id/restore`. Даты — `YYYY-MM-DD`
+(`date`) и ISO 8601 (`timestamptz`); деньги и часы — строками (`numeric`). Ошибки: `{ "error": { "code", "message", "details?", "requestId" } }`.
+Типизированный клиент: `createApiClient` из `@gr8r/api/client` (hono/client поверх `AppType`).
+
+### Как устроена изоляция арендаторов
+
+Каждый запрос арендатора выполняется в одной транзакции: `SET LOCAL ROLE app_user` (без BYPASSRLS), `app.user_id`, проверка членства по
+`X-Workspace-Id` и только затем `app.workspace_id`. На всех таблицах арендатора включены `ENABLE` + `FORCE ROW LEVEL SECURITY` и политика
+по `current_setting('app.workspace_id', true)::uuid`, поэтому забытый фильтр в запросе не вернёт чужие данные
+(это проверяют тесты прямым SQL под `app_user`). Подробности — в [docs/architecture.md](docs/architecture.md).
 
 ## Структура
 
 ```
-src/
+apps/web/src/
   styles/
     tokens.css          токены Gr8r без изменений: цвета, отступы, радиусы, шрифты, тёмная тема, акценты, плотность
     shadcn-bridge.css   привязка классов Tailwind/shadcn (bg-primary, border-input…) к токенам Gr8r
@@ -51,7 +153,7 @@ src/
 с перетаскиванием, таблица), **Calendar** (месяц и неделя, события проектов), **Timeline** (диаграмма Ганта с перетаскиванием полос) и
 **страница проекта** со всеми вкладками: Overview, Board, List, Table, Calendar, Timeline, Files, Activity и
 сохранённые виды, **Activity**, **Members** (с профилем участника). Остальные разделы открывают заглушку; чтобы перенести раздел, замените
-`PlaceholderPage` на его компонент в `src/app/router.tsx`.
+`PlaceholderPage` на его компонент в `apps/web/src/app/router.tsx`.
 
 Чем устройство отличается от оригинала:
 
@@ -61,7 +163,7 @@ src/
 - **Нет ручного восстановления фокуса и прокрутки**: React обновляет только изменившиеся узлы.
 - **Состояние экрана живёт в компоненте** (вкладка «My tasks», свёрнутость сайдбара), а не в общем `S.ui`.
 
-Оверлеи открываются хуками из `src/app/overlays` в любом месте приложения: карточка задачи (`useTaskDrawer`),
+Оверлеи открываются хуками из `apps/web/src/app/overlays` в любом месте приложения: карточка задачи (`useTaskDrawer`),
 форма новой задачи (`useTaskForm`, клавиша N), формы проекта — создание, настройки, Share, сохранение вида
 (`useProjectForms`), приглашение участников (`useInvite`), палитра команд (`usePalette`: клик по поиску в топбаре,
 Ctrl/⌘+K, «/» — поиск, цепочки G + буква — переход по разделам) и страница поиска `/search`.
@@ -83,12 +185,12 @@ Ctrl/⌘+K, «/» — поиск, цепочки G + буква — перехо
 
 ## CRM (демо)
 
-Модуль `src/app/crm` показывает, что на этом UI-ките просто строятся другие бизнес-системы. Маршруты `/crm`, `/crm/deals`,
-`/crm/companies(/:id/:tab)`, `/crm/contacts`, `/crm/activities`; в сайдбаре — группа «CRM». Свои типы, демо-данные (`seed.ts`),
+Модуль `apps/web/src/app/crm` показывает, что на этом UI-ките просто строятся другие бизнес-системы. Маршруты `/crm`, `/crm/deals`,
+`/crm/companies(/:id/:tab)`, `/crm/contacts`, `/crm/activities`; в сайдбаре — группа «CRM». Свои типы, демо-данные (`seed.ts` — реэкспорт из `packages/shared/src/demo`),
 хранилище (`store.tsx`: reducer + context, как `app/data/store.tsx`; провайдер стоит над оболочкой, чтобы им пользовались крошки и меню «New»)
 и чистые селекторы (`selectors.ts`). Владельцы сделок — участники основного воркспейса.
 
-Страницы собраны из обобщённых компонентов `src/components/gr8r` (они не знают ни о задачах, ни о CRM):
+Страницы собраны из обобщённых компонентов `apps/web/src/components/gr8r` (они не знают ни о задачах, ни о CRM):
 
 | Компонент | Что принимает |
 | --- | --- |
@@ -139,7 +241,7 @@ import { Button, Field, Input, toast } from '@/components/ui';
 npx shadcn@latest add calendar      # или dialog, command, sheet, data-table, chart, sidebar…
 ```
 
-`components.json` уже настроен: файлы попадут в `src/components/shadcn/`, а `cn` подключится из `@/lib/utils`.
+`apps/web/components.json` уже настроен: файлы попадут в `apps/web/src/components/shadcn/`, а `cn` подключится из `@/lib/utils`.
 Отдельная настройка темы не нужна: классы, на которые опираются компоненты shadcn, привязаны к токенам в `shadcn-bridge.css`.
 
 | Класс shadcn | Токен Gr8r |
@@ -153,7 +255,7 @@ npx shadcn@latest add calendar      # или dialog, command, sheet, data-table,
 | `bg-destructive` | `--red` |
 | `rounded-md`, `rounded-lg` | `--r-sm`, `--r` |
 
-**Не запускайте `npx shadcn init`**: эта команда перезапишет `src/styles/index.css` своей палитрой.
+**Не запускайте `npx shadcn init`**: эта команда перезапишет `apps/web/src/styles/index.css` своей палитрой.
 Если CLI спросит, можно ли менять CSS, откажитесь.
 
 Палитра Gr8r тоже доступна как обычные цвета Tailwind: `bg-surface-2`, `text-text-3`, `border-border-strong`, `text-st-done`,
@@ -162,11 +264,11 @@ npx shadcn@latest add calendar      # или dialog, command, sheet, data-table,
 ## Как написать свой компонент
 
 1. Если нужно поведение (открытие, фокус, клавиатура), возьмите примитив Radix или компонент shadcn.
-2. Стилизуйте его токенами: либо утилитами Tailwind (`bg-surface text-text-2 rounded-lg`), либо классом в `src/styles/*.css`
+2. Стилизуйте его токенами: либо утилитами Tailwind (`bg-surface text-text-2 rounded-lg`), либо классом в `apps/web/src/styles/*.css`
    внутри `@layer components`, как сделаны базовые компоненты.
 3. Принимайте `className` и склеивайте его через `cn()`: утилиты Tailwind перекрывают классы компонента.
 
-Пример прикладного компонента, собранного из базовых: `src/components/gr8r/task.tsx`.
+Пример прикладного компонента, собранного из базовых: `apps/web/src/components/gr8r/task.tsx`.
 
 ## Тема
 
