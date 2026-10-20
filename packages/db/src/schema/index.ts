@@ -6,3 +6,4 @@ export * from './system';
 export * from './meta';
 export * from './catalog';
 export * from './production';
+export * from './documents';

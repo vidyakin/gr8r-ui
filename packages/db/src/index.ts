@@ -8,3 +8,6 @@ export * as tables from './schema';
 export * from './schema';
 export * from './meta';
 export * from './catalog';
+export * from './errors';
+export * from './documents';
+export * from './stock';

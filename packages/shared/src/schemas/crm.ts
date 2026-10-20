@@ -1,6 +1,7 @@
 /* zod-схемы CRM: компании, контакты, сделки, активности. Деньги — строкой/числом, хранятся numeric(18,2). */
 import { z } from 'zod';
 import { CRM_ACTIVITY_TYPES, DEAL_STAGES } from '../constants';
+import { COMPANY_KINDS } from '../ru';
 import { clientId, decimal, toPatch, isoDate, listQuery, shortText, uuid } from './common';
 import { customData } from './meta';
 
@@ -12,6 +13,13 @@ export const companyCreate = z.object({
   ownerId: uuid.nullish(),
   website: z.string().max(300).default(''),
   city: z.string().max(200).default(''),
+  /** Реквизиты (Россия): тип контрагента, ИНН (контрольная сумма проверяется на сервере вместе с типом), КПП, ОГРН/ОГРНИП, адреса */
+  kind: z.enum(COMPANY_KINDS).default('legal'),
+  inn: z.string().trim().regex(/^(\d{10}|\d{12})?$/, 'INN: 10 or 12 digits').default(''),
+  kpp: z.string().trim().regex(/^([0-9]{4}[0-9A-Z]{2}[0-9]{3})?$/, 'KPP: 9 characters').default(''),
+  ogrn: z.string().trim().regex(/^(\d{13}|\d{15})?$/, 'OGRN: 13 digits, OGRNIP: 15 digits').default(''),
+  legalAddress: z.string().trim().max(500).default(''),
+  actualAddress: z.string().trim().max(500).default(''),
   custom: customData.optional(),
 });
 export const companyUpdate = toPatch(companyCreate.omit({ id: true }));

@@ -1,6 +1,7 @@
 /* Единый формат ошибок: { error: { code, message, details?, requestId } }. Тексты — на английском. */
 import type { ErrorHandler, NotFoundHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
+import { DomainError } from '@gr8r/db';
 import type { ApiError } from '@gr8r/shared';
 import type { AppEnv } from './types';
 
@@ -56,6 +57,7 @@ export const onError: ErrorHandler<AppEnv> = (err, c) => {
   const requestId = c.get('requestId');
   let app: AppError | null = null;
   if (err instanceof AppError) app = err;
+  else if (err instanceof DomainError) app = new AppError(err.status, err.code, err.message, err.details);
   else if (err instanceof HTTPException) {
     const status = err.status as AppError['status'];
     app = new AppError(status, status === 404 ? 'not_found' : 'http_error', err.message || 'Request failed');

@@ -4,6 +4,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { searchRecords, type RecordHit } from '../meta/data';
 import { searchProducts, type Product } from '../catalog/data';
 import { searchItems, type Item } from '../production/data';
+import { searchDocuments, type DocListItem } from '../docs/data';
 import { useSession } from './session';
 import { allTasks, canSee, project, task, visibleProjects } from './selectors';
 import type { Comment, Member, Project, ProjectFile, Task, WorkspaceData } from './types';
@@ -118,4 +119,20 @@ export function useCatalogHits(query: string): CatalogHits {
     placeholderData: keepPreviousData,
   });
   return q && r.data ? r.data : NO_HITS;
+}
+
+/* ---------- документы продаж и закупок: поиск по номеру, контрагенту и комментарию (на сервере) ---------- */
+
+const NO_DOCS: DocListItem[] = [];
+
+export function useDocumentHits(query: string): DocListItem[] {
+  const ws = useSession().active?.id;
+  const q = query.trim();
+  const [debounced, setDebounced] = React.useState(q);
+  React.useEffect(() => {
+    const t = setTimeout(() => setDebounced(q), 180);
+    return () => clearTimeout(t);
+  }, [q]);
+  const r = useQuery({ queryKey: ['ws', ws, 'docs', 'palette', debounced], queryFn: () => searchDocuments(ws!, debounced, 6), enabled: !!ws && debounced.length > 0, staleTime: 10_000, placeholderData: keepPreviousData });
+  return q && r.data ? r.data : NO_DOCS;
 }

@@ -1,7 +1,7 @@
 /* Страница компании — шапка как у страницы проекта и вкладки Overview / Deals / Contacts / Activity */
 import * as React from 'react';
 import { Link, useParams } from 'react-router';
-import { Activity, Briefcase, CircleDollarSign, ExternalLink, Globe, LayoutDashboard, MapPin, Plus, Ruler, User, UserPlus, Users, Clock, type LucideIcon } from 'lucide-react';
+import { Activity, Briefcase, FileText, CircleDollarSign, ExternalLink, Globe, LayoutDashboard, MapPin, Plus, Ruler, User, UserPlus, Users, Clock, type LucideIcon } from 'lucide-react';
 import { Badge, Button, EmptyState, Tooltip } from '@/components/ui';
 import { DataTable, useDataTable } from '@/components/gr8r/data-table';
 import { Panel, Stat } from '@/components/gr8r/panel';
@@ -17,6 +17,7 @@ import { stage } from './stages';
 import { useCrm } from './store';
 import { useCrmUi } from './ui-context';
 import { useCustomRows } from '../meta/custom-fields';
+import { CompanyRequisitesTab } from '../docs/CompanyRequisites';
 import type { Company } from './types';
 
 const TABS: [string, string, LucideIcon][] = [
@@ -24,6 +25,7 @@ const TABS: [string, string, LucideIcon][] = [
   ['deals', 'Deals', CircleDollarSign],
   ['contacts', 'Contacts', Users],
   ['activity', 'Activity', Activity],
+  ['requisites', 'Requisites', FileText],
 ];
 
 export function CompanyPage() {
@@ -119,7 +121,8 @@ function CompanyView({ company: co, tab }: { company: Company; tab: string }) {
         {!acts.length && <p className="faint" style={{ marginTop: 14 }}>No activity yet. Log the first call or note above.</p>}
       </div>
     );
-  } else body = <Overview company={co} />;
+  } else if (tab === 'requisites') body = <CompanyRequisitesTab companyId={co.id} />;
+  else body = <Overview company={co} />;
 
   return (
     <div className="page flush">

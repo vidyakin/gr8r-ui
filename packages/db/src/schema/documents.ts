@@ -1,0 +1,299 @@
+/* Документы продаж и закупок, организации, склады, банковские счета, остатки и движения. Таблицы арендатора (workspace_id + RLS).
+   Связи — составные внешние ключи (workspace_id, id): запись одного арендатора не сошлётся на запись другого. */
+import { sql } from 'drizzle-orm';
+import { bigint, boolean, check, customType, date, foreignKey, index, integer, jsonb, numeric, pgTable, primaryKey, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import type { FileRef } from '@gr8r/shared';
+import { archivedAt, createdAt, money, pk, ts, updatedAt } from './columns';
+import { products, units } from './catalog';
+import { companies } from './crm';
+import { members, wsCol } from './people';
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => 'bytea' });
+
+export const organizations = pgTable(
+  'organizations',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    name: text('name').notNull(),
+    fullName: text('full_name').notNull().default(''),
+    kind: text('kind', { enum: ['legal', 'sole_proprietor', 'individual'] }).notNull().default('legal'),
+    inn: text('inn').notNull().default(''),
+    kpp: text('kpp').notNull().default(''),
+    ogrn: text('ogrn').notNull().default(''),
+    legalAddress: text('legal_address').notNull().default(''),
+    actualAddress: text('actual_address').notNull().default(''),
+    phone: text('phone').notNull().default(''),
+    email: text('email').notNull().default(''),
+    directorName: text('director_name').notNull().default(''),
+    directorTitle: text('director_title').notNull().default('Генеральный директор'),
+    accountantName: text('accountant_name').notNull().default(''),
+    taxSystem: text('tax_system', { enum: ['osn', 'usn'] }).notNull().default('osn'),
+    defaultVatRate: text('default_vat_rate').notNull().default('20'),
+    /** Печать и подписи: пока ссылка и метаданные ({ name, url, size?, mimeType? }); загрузка файлов — с хранилищем S3 */
+    stampFile: jsonb('stamp_file').$type<FileRef>(),
+    directorSignatureFile: jsonb('director_signature_file').$type<FileRef>(),
+    accountantSignatureFile: jsonb('accountant_signature_file').$type<FileRef>(),
+    isDefault: boolean('is_default').notNull().default(false),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    archivedAt: archivedAt(),
+  },
+  t => [
+    unique('organizations_ws_id_uq').on(t.workspaceId, t.id),
+    check('organizations_kind_chk', sql`${t.kind} in ('legal','sole_proprietor','individual')`),
+    check('organizations_tax_chk', sql`${t.taxSystem} in ('osn','usn')`),
+    check('organizations_vat_chk', sql`${t.defaultVatRate} in ('none','0','5','7','10','20')`),
+    // одна организация по умолчанию на воркспейс
+    uniqueIndex('organizations_default_uq').on(t.workspaceId).where(sql`${t.isDefault} and ${t.archivedAt} is null`),
+  ],
+);
+
+/** Банковские счета компании CRM или собственной организации (ровно одно из двух) */
+export const bankAccounts = pgTable(
+  'bank_accounts',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    companyId: uuid('company_id'),
+    organizationId: uuid('organization_id'),
+    bik: text('bik').notNull(),
+    account: text('account').notNull(),
+    corrAccount: text('corr_account').notNull().default(''),
+    bankName: text('bank_name').notNull(),
+    isDefault: boolean('is_default').notNull().default(false),
+    note: text('note').notNull().default(''),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    unique('bank_accounts_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.companyId], foreignColumns: [companies.workspaceId, companies.id], name: 'bank_accounts_company_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.organizationId], foreignColumns: [organizations.workspaceId, organizations.id], name: 'bank_accounts_org_fk' }).onDelete('cascade'),
+    check('bank_accounts_owner_chk', sql`(${t.companyId} is null) <> (${t.organizationId} is null)`),
+    index('bank_accounts_company_idx').on(t.companyId),
+    index('bank_accounts_org_idx').on(t.organizationId),
+  ],
+);
+
+export const warehouses = pgTable(
+  'warehouses',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    name: text('name').notNull(),
+    code: text('code').notNull().default(''),
+    address: text('address').notNull().default(''),
+    isDefault: boolean('is_default').notNull().default(false),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    archivedAt: archivedAt(),
+  },
+  t => [
+    unique('warehouses_ws_id_uq').on(t.workspaceId, t.id),
+    uniqueIndex('warehouses_default_uq').on(t.workspaceId).where(sql`${t.isDefault} and ${t.archivedAt} is null`),
+    uniqueIndex('warehouses_ws_name_uq').on(t.workspaceId, sql`lower(${t.name})`).where(sql`${t.archivedAt} is null`),
+  ],
+);
+
+export const documents = pgTable(
+  'documents',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    type: text('type').notNull(),
+    /** «СЧ-2026-00042»; присваивается при первом проведении и больше не меняется (черновик, ни разу не проведённый, номера не имеет) */
+    number: text('number'),
+    numberYear: integer('number_year'),
+    numberSeq: integer('number_seq'),
+    date: date('date', { mode: 'string' }).notNull(),
+    dueDate: date('due_date', { mode: 'string' }),
+    status: text('status', { enum: ['draft', 'posted', 'cancelled'] }).notNull().default('draft'),
+    organizationId: uuid('organization_id').notNull(),
+    counterpartyId: uuid('counterparty_id'),
+    warehouseId: uuid('warehouse_id'),
+    currency: text('currency').notNull().default('RUB'),
+    /** Цены «НДС в т.ч.» (true) или «НДС сверху» (false) */
+    priceIncludesVat: boolean('price_includes_vat').notNull().default(true),
+    amountNet: money('amount_net').notNull().default('0'),
+    vatTotal: money('vat_total').notNull().default('0'),
+    total: money('total').notNull().default('0'),
+    basedOnId: uuid('based_on_id'),
+    responsibleId: uuid('responsible_id'),
+    comment: text('comment').notNull().default(''),
+    custom: jsonb('custom').$type<Record<string, unknown>>().notNull().default({}),
+    postedAt: ts('posted_at'),
+    postedBy: uuid('posted_by'),
+    createdBy: uuid('created_by'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    unique('documents_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.organizationId], foreignColumns: [organizations.workspaceId, organizations.id], name: 'documents_org_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.counterpartyId], foreignColumns: [companies.workspaceId, companies.id], name: 'documents_counterparty_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.warehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'documents_warehouse_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.basedOnId], foreignColumns: [t.workspaceId, t.id], name: 'documents_based_on_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.responsibleId], foreignColumns: [members.workspaceId, members.id], name: 'documents_responsible_fk' }),
+    check('documents_type_chk', sql`${t.type} in ('quote','customer_order','invoice','realization','act','customer_return','supplier_order','receipt','supplier_return')`),
+    check('documents_status_chk', sql`${t.status} in ('draft','posted','cancelled')`),
+    check('documents_number_chk', sql`(${t.number} is null) = (${t.numberSeq} is null) and (${t.numberSeq} is null) = (${t.numberYear} is null)`),
+    // номер уникален в (организация, тип, год)
+    uniqueIndex('documents_number_uq').on(t.workspaceId, t.organizationId, t.type, t.numberYear, t.numberSeq).where(sql`${t.numberSeq} is not null`),
+    index('documents_ws_type_date_idx').on(t.workspaceId, t.type, t.date),
+    index('documents_counterparty_idx').on(t.counterpartyId),
+    index('documents_based_on_idx').on(t.basedOnId),
+  ],
+);
+
+export const documentLines = pgTable(
+  'document_lines',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    documentId: uuid('document_id').notNull(),
+    sortOrder: integer('sort_order').notNull().default(0),
+    productId: uuid('product_id').notNull(),
+    name: text('name').notNull(),
+    unitCode: text('unit_code').notNull().default('796'),
+    qty: numeric('qty', { precision: 18, scale: 3 }).notNull(),
+    price: money('price').notNull().default('0'),
+    discountPct: numeric('discount_pct', { precision: 7, scale: 2 }).notNull().default('0'),
+    vatRate: text('vat_rate').notNull().default('20'),
+    net: money('net').notNull().default('0'),
+    vatAmount: money('vat_amount').notNull().default('0'),
+    total: money('total').notNull().default('0'),
+    /** Строка, с которой скопирована эта (документ «на основании») */
+    sourceLineId: uuid('source_line_id'),
+    /** Строка исходного заказа: по ней считается остаток к отгрузке / поступлению всей цепочки документов */
+    originLineId: uuid('origin_line_id'),
+    createdAt: createdAt(),
+  },
+  t => [
+    unique('document_lines_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'document_lines_document_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'document_lines_product_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.unitCode], foreignColumns: [units.workspaceId, units.code], name: 'document_lines_unit_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.sourceLineId], foreignColumns: [t.workspaceId, t.id], name: 'document_lines_source_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.originLineId], foreignColumns: [t.workspaceId, t.id], name: 'document_lines_origin_fk' }).onDelete('set null'),
+    check('document_lines_qty_chk', sql`${t.qty} > 0 and ${t.price} >= 0 and ${t.discountPct} >= 0 and ${t.discountPct} <= 100`),
+    check('document_lines_vat_chk', sql`${t.vatRate} in ('none','0','5','7','10','20')`),
+    index('document_lines_doc_idx').on(t.documentId, t.sortOrder),
+    index('document_lines_origin_idx').on(t.originLineId),
+    index('document_lines_source_idx').on(t.sourceLineId),
+    index('document_lines_product_idx').on(t.productId),
+  ],
+);
+
+/** Счётчики нумерации по (организация, тип, год). Строка блокируется инкрементом в транзакции проведения:
+    откат проведения откатывает и счётчик, поэтому номера идут подряд без дыр */
+export const documentCounters = pgTable(
+  'document_counters',
+  {
+    workspaceId: wsCol(),
+    organizationId: uuid('organization_id').notNull(),
+    type: text('type').notNull(),
+    year: integer('year').notNull(),
+    lastNumber: integer('last_number').notNull().default(0),
+  },
+  t => [
+    primaryKey({ columns: [t.organizationId, t.type, t.year] }),
+    foreignKey({ columns: [t.workspaceId, t.organizationId], foreignColumns: [organizations.workspaceId, organizations.id], name: 'document_counters_org_fk' }).onDelete('cascade'),
+  ],
+);
+
+/** Движения склада, записываются при проведении (qty со знаком: приход +, расход −). seq задаёт порядок пересчёта средней */
+export const stockMoves = pgTable(
+  'stock_moves',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    seq: bigint('seq', { mode: 'number' }).generatedAlwaysAsIdentity().notNull(),
+    warehouseId: uuid('warehouse_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    documentId: uuid('document_id').notNull(),
+    documentLineId: uuid('document_line_id'),
+    qty: numeric('qty', { precision: 18, scale: 3 }).notNull(),
+    /** Приход: цена единицы без НДС (или с НДС при УСН); расход: себестоимость по средней на момент списания */
+    cost: numeric('cost', { precision: 18, scale: 4 }).notNull().default('0'),
+    movedAt: date('moved_at', { mode: 'string' }).notNull(),
+    createdAt: createdAt(),
+  },
+  t => [
+    foreignKey({ columns: [t.workspaceId, t.warehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'stock_moves_warehouse_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'stock_moves_product_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'stock_moves_document_fk' }).onDelete('cascade'),
+    check('stock_moves_qty_chk', sql`${t.qty} <> 0`),
+    index('stock_moves_card_idx').on(t.workspaceId, t.warehouseId, t.productId, t.seq),
+    index('stock_moves_product_idx').on(t.workspaceId, t.productId, t.seq),
+    index('stock_moves_document_idx').on(t.documentId),
+  ],
+);
+
+/** Остатки и средняя себестоимость по (склад, товар): обновляются в той же транзакции, что и движения */
+export const stockBalances = pgTable(
+  'stock_balances',
+  {
+    workspaceId: wsCol(),
+    warehouseId: uuid('warehouse_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    qty: numeric('qty', { precision: 18, scale: 3 }).notNull().default('0'),
+    avgCost: numeric('avg_cost', { precision: 18, scale: 4 }).notNull().default('0'),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    primaryKey({ columns: [t.warehouseId, t.productId] }),
+    foreignKey({ columns: [t.workspaceId, t.warehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'stock_balances_warehouse_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'stock_balances_product_fk' }),
+    index('stock_balances_product_idx').on(t.workspaceId, t.productId),
+  ],
+);
+
+/** Резерв под проведённый заказ покупателя: по строке заказа, количество = заказано − отгружено */
+export const stockReservations = pgTable(
+  'stock_reservations',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    documentId: uuid('document_id').notNull(),
+    documentLineId: uuid('document_line_id').notNull(),
+    warehouseId: uuid('warehouse_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    qty: numeric('qty', { precision: 18, scale: 3 }).notNull(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'stock_reservations_document_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.documentLineId], foreignColumns: [documentLines.workspaceId, documentLines.id], name: 'stock_reservations_line_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.warehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'stock_reservations_warehouse_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'stock_reservations_product_fk' }),
+    unique('stock_reservations_line_uq').on(t.documentLineId),
+    check('stock_reservations_qty_chk', sql`${t.qty} > 0`),
+    index('stock_reservations_stock_idx').on(t.workspaceId, t.warehouseId, t.productId),
+  ],
+);
+
+/** Сформированные PDF печатных форм. Файл пока лежит в БД (data); storage_key — заготовка под S3 (см. apps/worker/src/pdf/storage.ts) */
+export const documentFiles = pgTable(
+  'document_files',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    documentId: uuid('document_id').notNull(),
+    form: text('form').notNull(),
+    status: text('status', { enum: ['pending', 'ready', 'failed'] }).notNull().default('pending'),
+    contentType: text('content_type').notNull().default('application/pdf'),
+    size: integer('size').notNull().default(0),
+    data: bytea('data'),
+    storageKey: text('storage_key'),
+    error: text('error'),
+    requestedBy: uuid('requested_by'),
+    createdAt: createdAt(),
+    finishedAt: ts('finished_at'),
+  },
+  t => [
+    foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'document_files_document_fk' }).onDelete('cascade'),
+    check('document_files_status_chk', sql`${t.status} in ('pending','ready','failed')`),
+    index('document_files_document_idx').on(t.documentId, t.createdAt),
+  ],
+);

@@ -19,7 +19,7 @@ export function dec(v: string | number | null | undefined): Dec {
 }
 
 /** Деление целых с округлением половины от нуля */
-function roundDiv(a: bigint, b: bigint): bigint {
+export function roundDiv(a: bigint, b: bigint): bigint {
   if (b === 0n) throw new RangeError('Division by zero');
   const neg = a < 0n !== b < 0n;
   const x = a < 0n ? -a : a;

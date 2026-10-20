@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/worker.ts", "./handlers": "./src/handlers.ts" },
+  "exports": {
+    ".": "./src/worker.ts",
+    "./handlers": "./src/handlers.ts"
+  },
   "scripts": {
     "dev": "bun --watch src/index.ts",
     "start": "bun src/index.ts",
@@ -11,6 +14,8 @@
   },
   "dependencies": {
     "@gr8r/db": "workspace:*",
-    "drizzle-orm": "^0.44.0"
+    "@gr8r/shared": "workspace:*",
+    "drizzle-orm": "^0.44.0",
+    "playwright-core": "1.56.1"
   }
 }

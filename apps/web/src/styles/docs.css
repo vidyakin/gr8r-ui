@@ -1,0 +1,276 @@
+/* Документы продаж и закупок, склад, печатный предпросмотр, реквизиты. Токены и компоненты — общие (.panel, .input, .tabs, .pop). */
+
+/* ---------- журнал ---------- */
+.doc-tabs {
+  padding: 0 var(--gutter);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  flex: none;
+}
+.doc-tabs .tab {
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+/* ---------- форма документа ---------- */
+.doc-page {
+  max-width: 1240px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.doc-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.doc-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.doc-title h1 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: var(--fs-2xl);
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  line-height: 1.2;
+}
+.doc-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.doc-head {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px 14px;
+  padding: 14px;
+}
+.doc-head .doc-wide {
+  grid-column: 1 / -1;
+}
+.doc-ro {
+  min-height: var(--h-md);
+  display: flex;
+  align-items: center;
+}
+.doc-lines {
+  overflow: hidden;
+}
+.table-wrap {
+  overflow-x: auto;
+}
+.dtbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs);
+}
+.dtbl th {
+  text-align: left;
+  font-weight: 500;
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+  padding: 8px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  white-space: nowrap;
+}
+.dtbl td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--divider);
+  vertical-align: middle;
+}
+.dtbl .r {
+  text-align: right;
+}
+.dtbl tbody tr:last-child td {
+  border-bottom: 0;
+}
+.cell-input {
+  height: 30px;
+  padding: 0 8px;
+}
+.cell-input.r {
+  text-align: right;
+}
+.doc-lines .combo .input {
+  height: 30px;
+}
+.doc-lines select.cell-input {
+  padding-right: 4px;
+}
+.doc-add {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--divider);
+}
+.doc-bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 14px;
+  align-items: start;
+}
+.doc-links,
+.doc-totals {
+  padding: 14px;
+}
+.doc-links h2 {
+  font-size: var(--fs);
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+.doc-links p,
+.doc-links ul {
+  margin: 4px 0;
+  padding: 0;
+  list-style: none;
+}
+.doc-links li {
+  padding: 3px 0;
+}
+.doc-ref {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.doc-totals dl {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.doc-totals dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.doc-totals dt {
+  color: var(--text-2);
+}
+.doc-totals dd {
+  margin: 0;
+}
+.doc-totals .grand {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+}
+.doc-totals .grand dt {
+  color: var(--text);
+}
+.doc-words {
+  margin: 10px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+/* ---------- выбор из справочника ---------- */
+.combo {
+  position: relative;
+  width: 100%;
+}
+.combo-pop {
+  max-width: none;
+  padding: 4px;
+}
+.combo-item {
+  gap: 8px;
+}
+.combo-item .grow {
+  min-width: 0;
+}
+
+/* ---------- предпросмотр печати ---------- */
+.print-page {
+  background: var(--surface-3);
+}
+.print-bar {
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  margin: 0;
+  padding-bottom: 12px !important;
+}
+.print-bar .acts .select-btn {
+  min-width: 170px;
+}
+.print-stage {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px var(--gutter) 40px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+.print-frame {
+  border: 0;
+  background: #fff;
+  box-shadow: var(--shadow-pop);
+  max-width: none;
+  flex: none;
+}
+
+/* ---------- реквизиты и банковские счета ---------- */
+.req-row {
+  gap: 10px;
+  align-items: flex-start;
+}
+.bank-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bank-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--surface);
+}
+.bank-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r);
+}
+.org-row .d {
+  white-space: normal;
+}
+.neg {
+  color: var(--red);
+}
+
+@media (max-width: 900px) {
+  .doc-head {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .doc-bottom {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 560px) {
+  .doc-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

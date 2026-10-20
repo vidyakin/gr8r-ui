@@ -5,3 +5,4 @@ export * from './crm';
 export * from './meta';
 export * from './catalog';
 export * from './production';
+export * from './documents';

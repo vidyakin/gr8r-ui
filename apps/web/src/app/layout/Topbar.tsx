@@ -6,6 +6,7 @@ import { useWorkspace } from '../data/store';
 import { project } from '../data/selectors';
 import { SECTIONS } from '../routes';
 import { useCachedItemName } from '../production/data';
+import { useCachedDocTitle } from '../docs/data';
 import { MemberAvatar } from '../components/workspace';
 import { ProjectIcon } from '../components/project';
 import { UserMenu } from './UserMenu';
@@ -31,6 +32,7 @@ export function useCrumbs(): Crumb[] {
   const entities = useEntities();
   const [, a, b, c] = pathname.split('/');
   const itemName = useCachedItemName(a === 'production' ? b : undefined);
+  const docTitle = useCachedDocTitle(a === 'documents' ? b : undefined);
   if (a === 'data' && b) return [{ label: 'Data' }, { label: entities.find(e => e.key === b)?.name ?? 'Not found' }];
   if (a === 'crm') {
     const sec = Object.values(SECTIONS).find(x => x.path === `/crm${b ? '/' + b : ''}`);
@@ -48,6 +50,8 @@ export function useCrumbs(): Crumb[] {
   }
   if (a === 'members' && b) return [{ label: 'Members', to: SECTIONS.members.path }, { label: data.members.find(m => m.id === b)?.name ?? 'Member' }];
   if (a === 'catalog') return [{ label: 'Catalog' }];
+  if (a === 'inventory') return [{ label: 'Inventory' }];
+  if (a === 'documents' && b) return [{ label: 'Documents' }, { label: docTitle ?? 'Document', ...(c === 'print' ? { to: `/documents/${b}` } : {}) }, ...(c === 'print' ? [{ label: 'Print' }] : [])];
   if (a === 'production' && b) return [{ label: 'Production', to: SECTIONS.production.path }, { label: itemName ?? 'Product' }];
   if (a === 'settings') return [{ label: 'Settings' }];
   if (a === 'teams' && !b) return [{ label: 'Teams' }];

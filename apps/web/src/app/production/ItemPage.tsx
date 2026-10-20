@@ -50,7 +50,8 @@ function lineTitle(line: BomLine, c: Ctx) {
 function detail(line: BomLine, c: Ctx) {
   if (line.kind === 'material') {
     const m = c.mats.get(line.productId ?? '');
-    const price = m ? (c.snap.settings.materialPriceSource === 'price' ? m.price : m.purchasePrice) : '0';
+    const src = c.snap.settings.materialPriceSource;
+    const price = m ? (src === 'price' ? m.price : src === 'avg_cost' ? (m.avgCost ?? m.purchasePrice) : m.purchasePrice) : '0';
     return (
       <span className="faint">
         {Number(line.scrapPct) > 0 && <>scrap {trimZeros(line.scrapPct)}% · </>}@ {money(price)}

@@ -193,7 +193,8 @@ export function computeBomCost(items: BomItemInput[], rootId: string, pricing: B
 }
 
 /** Цена материала по источнику из настройки воркспейса. Нулевая цена считается незаданной (null): материал помечается как не оценённый.
-    avg_cost (средняя себестоимость склада) — заготовка до этапа 5: пока склада нет, берётся закупочная цена */
+    avg_cost — средняя себестоимость склада (взвешенная остатком по складам, `loadAvgCosts` в packages/db); пока товара нет на складах
+    (avgCost пуст), берётся закупочная цена */
 export function resolveMaterialPrice(source: MaterialPriceSource, p: { price?: string | null; purchasePrice?: string | null }, avgCost?: string | null): string | null {
   const pick = source === 'price' ? p.price : source === 'avg_cost' ? (avgCost ?? p.purchasePrice) : p.purchasePrice;
   return pick !== null && pick !== undefined && dec(pick) > 0n ? pick : null;

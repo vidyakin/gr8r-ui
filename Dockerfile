@@ -23,6 +23,9 @@ CMD ["bun", "apps/api/src/index.ts"]
 # ---- Воркер (jobs + outbox) ----
 FROM base AS worker
 ENV NODE_ENV=production
+# Chromium для PDF печатных форм (задача document.pdf); шрифты нужны для кириллицы в PDF
+RUN apt-get update && apt-get install -y --no-install-recommends chromium fonts-liberation fonts-dejavu-core && rm -rf /var/lib/apt/lists/*
+ENV CHROMIUM_PATH=/usr/bin/chromium
 USER bun
 CMD ["bun", "apps/worker/src/index.ts"]
 

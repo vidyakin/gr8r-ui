@@ -58,6 +58,8 @@ export interface Material {
   unitCode: string;
   price: string;
   purchasePrice: string;
+  /** Средняя себестоимость склада (взвешенная по складам); null — товара нет на остатках */
+  avgCost?: string | null;
   archived: boolean;
 }
 
@@ -91,7 +93,7 @@ export function makeCosting(snap: Snapshot) {
   const rates = new Map(snap.workCenters.map(w => [w.id, w.hourlyRate]));
   const inputs = snap.items.map(toInput);
   const pricing = {
-    materialPrice: (id: string) => (mats.has(id) ? resolveMaterialPrice(snap.settings.materialPriceSource, mats.get(id)!) : null),
+    materialPrice: (id: string) => (mats.has(id) ? resolveMaterialPrice(snap.settings.materialPriceSource, mats.get(id)!, mats.get(id)!.avgCost) : null),
     workCenterRate: (id: string) => rates.get(id),
   };
   return (itemId: string): Costing => {

@@ -15,6 +15,13 @@ export const companies = pgTable(
     ownerId: uuid('owner_id'),
     website: text('website').notNull().default(''),
     city: text('city').notNull().default(''),
+    /** Реквизиты (Россия): тип контрагента, ИНН (проверяется контрольная сумма), КПП, ОГРН/ОГРНИП, адреса. Банковские счета — таблица bank_accounts */
+    kind: text('kind', { enum: ['legal', 'sole_proprietor', 'individual'] }).notNull().default('legal'),
+    inn: text('inn').notNull().default(''),
+    kpp: text('kpp').notNull().default(''),
+    ogrn: text('ogrn').notNull().default(''),
+    legalAddress: text('legal_address').notNull().default(''),
+    actualAddress: text('actual_address').notNull().default(''),
     custom: jsonb('custom').$type<Record<string, unknown>>().notNull().default({}),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -22,6 +29,7 @@ export const companies = pgTable(
   },
   t => [
     unique('companies_ws_id_uq').on(t.workspaceId, t.id),
+    check('companies_kind_chk', sql`${t.kind} in ('legal','sole_proprietor','individual')`),
     foreignKey({ columns: [t.workspaceId, t.ownerId], foreignColumns: [members.workspaceId, members.id], name: 'companies_owner_fk' }),
   ],
 );

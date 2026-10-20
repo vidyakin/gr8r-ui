@@ -13,6 +13,7 @@ import { Hub } from './realtime';
 import { attributeRoutes, categoryRoutes, productRoutes, unitRoutes } from './routes/catalog';
 import { bomLineRoutes, itemRoutes, productionRoutes, workCenterRoutes } from './routes/production';
 import { companyRoutes, contactRoutes, crmActivityRoutes, dealRoutes } from './routes/crm';
+import { bankAccountRoutes, companyBankRoutes, documentRoutes, organizationBankRoutes, organizationRoutes, stockRoutes, warehouseRoutes } from './routes/documents';
 import { entityRoutes } from './routes/meta';
 import { dataSearchRoutes, recordsRoutes } from './routes/records';
 import {
@@ -42,7 +43,7 @@ export interface AppDeps {
 }
 
 /** Ресурсы арендатора: каждый путь защищён цепочкой «сессия → членство → транзакция с RLS» */
-const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/files', '/activity', '/events', '/companies', '/contacts', '/deals', '/crm-activities', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production'];
+const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/files', '/activity', '/events', '/companies', '/contacts', '/deals', '/crm-activities', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production', '/organizations', '/bank-accounts', '/warehouses', '/documents', '/stock'];
 
 function buildTenantApi() {
   const guarded = new Hono<AppEnv>();
@@ -65,6 +66,7 @@ function buildTenantApi() {
     .route('/activity', activityRoutes)
     .route('/events', eventRoutes)
     .route('/companies', companyRoutes)
+    .route('/companies', companyBankRoutes)
     .route('/contacts', contactRoutes)
     .route('/deals', dealRoutes)
     .route('/crm-activities', crmActivityRoutes)
@@ -78,7 +80,13 @@ function buildTenantApi() {
     .route('/work-centers', workCenterRoutes)
     .route('/manufactured-items', itemRoutes)
     .route('/bom-lines', bomLineRoutes)
-    .route('/production', productionRoutes);
+    .route('/production', productionRoutes)
+    .route('/organizations', organizationRoutes)
+    .route('/organizations', organizationBankRoutes)
+    .route('/bank-accounts', bankAccountRoutes)
+    .route('/warehouses', warehouseRoutes)
+    .route('/documents', documentRoutes)
+    .route('/stock', stockRoutes);
 }
 
 export function createApp(deps: AppDeps) {

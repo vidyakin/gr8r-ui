@@ -261,6 +261,13 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
         </div>
 
         <div className="sgroup">
+          <div className="sgroup-h">Trade</div>
+          {(['sales', 'purchases', 'inventory'] as const).map(id => (
+            <SectionItem key={id} id={id} collapsed={collapsed} />
+          ))}
+        </div>
+
+        <div className="sgroup">
           <div className="sgroup-h">Production</div>
           <Item to={SECTIONS.production.path} label="Production" icon={<SECTIONS.production.icon size={16} />} collapsed={collapsed} />
           <Item to={SECTIONS.workCenters.path} label="Work centers" icon={<SECTIONS.workCenters.icon size={16} />} collapsed={collapsed} />

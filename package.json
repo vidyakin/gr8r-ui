@@ -21,8 +21,9 @@
     "db:reset": "bun run --cwd packages/db reset"
   },
   "devDependencies": {
-    "@types/bun": "^1.4.3",
     "@gr8r/db": "workspace:*",
-    "@gr8r/shared": "workspace:*"
+    "@gr8r/shared": "workspace:*",
+    "@types/bun": "^1.4.3",
+    "playwright-core": "1.56.1"
   }
 }

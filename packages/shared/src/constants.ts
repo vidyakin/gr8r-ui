@@ -73,7 +73,7 @@ export const BOM_KINDS = ['material', 'semi', 'work'] as const;
 export type BomKind = (typeof BOM_KINDS)[number];
 export const MANUFACTURED_KINDS = ['product', 'semi'] as const;
 
-/** Откуда берётся цена материала при расчёте себестоимости. avg_cost (средняя себестоимость склада) — заготовка до этапа 5:
-    пока склада нет, расчёт берёт закупочную цену */
+/** Откуда берётся цена материала при расчёте себестоимости. avg_cost — средняя себестоимость склада (этап 5);
+    пока товара нет на складах, расчёт берёт закупочную цену */
 export const MATERIAL_PRICE_SOURCES = ['purchase', 'price', 'avg_cost'] as const;
 export type MaterialPriceSource = (typeof MATERIAL_PRICE_SOURCES)[number];

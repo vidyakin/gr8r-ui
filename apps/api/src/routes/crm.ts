@@ -20,6 +20,7 @@ import { forbidden } from '../errors';
 import { hasRole } from '../middleware';
 import { customForCreate, customForUpdate } from '../meta/service';
 import { nextOrder } from './helpers';
+import { assertRequisites } from './documents';
 
 export const companyRoutes = crud({
   entity: 'company',
@@ -29,10 +30,17 @@ export const companyRoutes = crud({
   query: companyQuery,
   sortable: { name: companies.name, industry: companies.industry, city: companies.city, createdAt: companies.createdAt },
   defaultSort: 'name',
-  search: [companies.name, companies.industry, companies.city, companies.website],
+  search: [companies.name, companies.industry, companies.city, companies.website, companies.inn],
   filters: q => [q.ownerId ? eq(companies.ownerId, q.ownerId) : undefined, q.industry ? eq(companies.industry, q.industry) : undefined],
-  prepareCreate: async (ctx, body) => ({ ownerId: body.ownerId ?? ctx.memberId, ...(await customForCreate(ctx, 'company', body.custom)) }),
-  prepareUpdate: (ctx, existing, body) => customForUpdate(ctx, 'company', existing.custom, body.custom, existing.id),
+  prepareCreate: async (ctx, body) => {
+    assertRequisites(body);
+    return { ownerId: body.ownerId ?? ctx.memberId, ...(await customForCreate(ctx, 'company', body.custom)) };
+  },
+  prepareUpdate: (ctx, existing, body) => {
+    // реквизиты проверяются по итоговому состоянию: тип, ИНН, КПП и ОГРН зависят друг от друга
+    assertRequisites({ kind: body.kind ?? existing.kind, inn: body.inn ?? existing.inn, kpp: body.kpp ?? existing.kpp, ogrn: body.ogrn ?? existing.ogrn });
+    return customForUpdate(ctx, 'company', existing.custom, body.custom, existing.id);
+  },
 });
 
 export const contactRoutes = crud({

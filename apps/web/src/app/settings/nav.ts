@@ -1,5 +1,5 @@
 /* Разделы настроек — порт SET_NAV и SHORTCUTS из pages/settings.js и overlays/modals.js */
-import { AtSign, Building2, Database, Factory, Clock, CreditCard, FolderKanban, Gem, Keyboard, KeyRound, Languages, Mail, MonitorSmartphone, Palette, Receipt, Shield, ShieldCheck, Smartphone, SlidersHorizontal, User, UserCheck, Users, UsersRound, type LucideIcon } from 'lucide-react';
+import { AtSign, Building2, Warehouse, Database, Factory, Clock, CreditCard, FolderKanban, Gem, Keyboard, KeyRound, Languages, Mail, MonitorSmartphone, Palette, Receipt, Shield, ShieldCheck, Smartphone, SlidersHorizontal, User, UserCheck, Users, UsersRound, type LucideIcon } from 'lucide-react';
 import { MOD } from '../lib/platform';
 
 export const SET_NAV: [string, [id: string, name: string, icon: LucideIcon][]][] = [
@@ -21,6 +21,8 @@ export const SET_NAV: [string, [id: string, name: string, icon: LucideIcon][]][]
       ['permissions', 'Permissions', Shield],
       ['data-model', 'Data model', Database],
       ['production', 'Production', Factory],
+      ['organizations', 'Organizations', Building2],
+      ['warehouses', 'Warehouses', Warehouse],
     ],
   ],
   [

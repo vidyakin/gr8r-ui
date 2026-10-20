@@ -24,6 +24,9 @@ import {
   Factory,
   Package,
   Wrench,
+  Boxes,
+  ReceiptText,
+  ShoppingCart,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -60,6 +63,10 @@ export const SECTIONS = {
   catalog: { path: '/catalog', name: 'Catalog', icon: Package },
   production: { path: '/production', name: 'Production', icon: Factory },
   workCenters: { path: '/work-centers', name: 'Work centers', icon: Wrench },
+  // Документы продаж и закупок, склад
+  sales: { path: '/sales', name: 'Sales', icon: ReceiptText },
+  purchases: { path: '/purchases', name: 'Purchases', icon: ShoppingCart },
+  inventory: { path: '/inventory', name: 'Inventory', icon: Boxes },
 } satisfies Record<string, Section>;
 
 export type SectionId = keyof typeof SECTIONS;

@@ -65,7 +65,7 @@ describe('seed', () => {
     expect(await count('time_logs', w)).toBe(src.timeLogs.length);
     expect(await count('saved_views', w)).toBe(1);
     expect(await count('calendar_events', w)).toBe(6);
-    expect(await count('companies', w)).toBe(crm.companies.length);
+    expect(await count('companies', w)).toBe(crm.companies.length + 1); // + ИП из демо документов
     expect(await count('contacts', w)).toBe(crm.contacts.length);
     expect(await count('deals', w)).toBe(crm.deals.length);
     expect(await count('crm_activities', w)).toBe(crm.activities.length);
@@ -94,6 +94,20 @@ describe('seed', () => {
     expect(await count('products', `where workspace_id = '${acme!.id}'`)).toBe(0);
     expect(await count('units', `where workspace_id = '${acme!.id}'`)).toBeGreaterThanOrEqual(19);
     expect(await count('entities', `where workspace_id = '${acme!.id}' and kind = 'system'`)).toBe(6); // второй арендатор тоже зарегистрирован
+
+    // документы и склад: организация, склады, реквизиты, проведённые цепочки, остатки и резерв
+    expect(await count('organizations', `${w} and name = 'ООО «Гр8р Студия»' and tax_system = 'osn' and default_vat_rate = '20' and is_default`)).toBe(1);
+    expect(await count('warehouses', w)).toBe(2);
+    expect(await count('companies', `${w} and inn <> ''`)).toBe(5);
+    expect(await count('bank_accounts', `${w} and company_id is not null`)).toBe(5);
+    expect(await count('documents', w)).toBe(11);
+    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(11);
+    expect(await count('documents', `${w} and based_on_id is not null`)).toBe(6);
+    expect(await count('stock_balances', `${w} and qty > 0`)).toBe(17);
+    expect(await count('stock_reservations', w)).toBe(1);
+    expect(await count('documents', `where workspace_id = '${acme!.id}'`)).toBe(0);
+    expect(await count('organizations', `where workspace_id = '${acme!.id}'`)).toBe(1);
+    expect(await count('warehouses', `where workspace_id = '${acme!.id}'`)).toBe(1);
 
     // дерево подзадач и зависимости сохранены, id участников в подзадачах — настоящие uuid
     const [wf] = await admin`select subtasks, deps, plan_hours from tasks where title = 'Create homepage wireframes'`;

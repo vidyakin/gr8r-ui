@@ -4,7 +4,7 @@
 import { zValidator } from '@hono/zod-validator';
 import { asc, eq, inArray, isNull, max, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { bomLines, manufacturedItems, products, recordEvent, workCenters, workspaces } from '@gr8r/db';
+import { bomLines, loadAvgCosts, manufacturedItems, products, recordEvent, workCenters, workspaces } from '@gr8r/db';
 import {
   bomLineCreate,
   bomLineUpdate,
@@ -69,7 +69,9 @@ async function loadBomGraph(ctx: Ctx) {
   const centers = await ctx.db.select().from(workCenters);
   const productIds = [...new Set(lines.map(l => l.productId).filter((x): x is string => !!x))];
   const mats = productIds.length ? await ctx.db.select().from(products).where(inArray(products.id, productIds)) : [];
-  return { items, lines, centers, mats };
+  // средняя себестоимость склада (взвешенная остатком по складам) — для источника цены «avg_cost»; нет остатка — нет значения
+  const avg = productIds.length ? await loadAvgCosts(ctx.db, productIds) : new Map<string, string>();
+  return { items, lines, centers, mats, avg };
 }
 
 export const toInput = (item: ItemRow, lines: LineRow[]): BomItemInput => ({
@@ -204,7 +206,7 @@ export const itemRoutes = crud({
     const rates = new Map(g.centers.map(w => [w.id, w.hourlyRate]));
     try {
       const tree = computeBomCost(g.items.map(i => toInput(i, byItem.get(i.id) ?? [])), id, {
-        materialPrice: pid => (prod.has(pid) ? resolveMaterialPrice(settings.materialPriceSource, prod.get(pid)!) : null),
+        materialPrice: pid => (prod.has(pid) ? resolveMaterialPrice(settings.materialPriceSource, prod.get(pid)!, g.avg.get(pid)) : null),
         workCenterRate: wid => rates.get(wid),
       });
       return c.json({ itemId: id, source: settings.materialPriceSource, tree });
@@ -269,7 +271,7 @@ export const productionRoutes = new Hono<AppEnv>()
       settings,
       items: g.items.map(i => ({ ...i, lines: byItem.get(i.id) ?? [] })),
       workCenters: g.centers.filter(w => !w.archivedAt || g.lines.some(l => l.workCenterId === w.id)),
-      materials: g.mats.map(p => ({ id: p.id, name: p.name, sku: p.sku, kind: p.kind, unitCode: p.unitCode, price: p.price, purchasePrice: p.purchasePrice, archived: !!p.archivedAt })),
+      materials: g.mats.map(p => ({ id: p.id, name: p.name, sku: p.sku, kind: p.kind, unitCode: p.unitCode, price: p.price, purchasePrice: p.purchasePrice, avgCost: g.avg.get(p.id) ?? null, archived: !!p.archivedAt })),
     });
   })
   .get('/settings', async c => c.json(await loadSettings(ctxOf(c))))

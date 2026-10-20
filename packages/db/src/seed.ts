@@ -8,6 +8,8 @@ import type { Db, Sql } from './client';
 import { withContext } from './context';
 import { registerBaseUnits } from './catalog';
 import { seedCatalog } from './seed-catalog';
+import { seedDocuments } from './seed-documents';
+import { ensureDocumentDefaults } from './documents';
 import { enqueueFieldIndex, registerSystemEntities } from './meta';
 import { uuidv7 } from './uuid';
 import {
@@ -318,7 +320,10 @@ async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: string, user
     ),
   );
 
-  await db.insert(events).values({ workspaceId: wsId, type: 'workspace.seeded', entity: 'workspace', recordId: wsId, actorId: U(d.me), payload: { tasks: d.tasks.length, deals: crm.deals.length } });
+  // Документы и склад: организация, склады, реквизиты, цепочки закупок и продаж (проводятся настоящими сервисами)
+  const docs = await seedDocuments(db, wsId, U(d.me), { atlas: U('co8'), northwind: U('co1'), quanta: U('co4'), skyline: U('co10') });
+
+  await db.insert(events).values({ workspaceId: wsId, type: 'workspace.seeded', entity: 'workspace', recordId: wsId, actorId: U(d.me), payload: { tasks: d.tasks.length, deals: crm.deals.length, documents: docs.documents } });
   return { tasks: d.tasks.length, projects: d.projects.length, deals: crm.deals.length, metaFields };
 }
 
@@ -332,6 +337,7 @@ async function seedOtherWorkspace(db: Db, wsId: string, userId: string) {
   await db.insert(members).values({ id: memberId, workspaceId: wsId, userId, email: OTHER_USER.email, name: OTHER_USER.name, title: 'Founder', color: '#C54B78', role: 'owner' });
   await registerSystemEntities(db, wsId);
   await registerBaseUnits(db, wsId);
+  await ensureDocumentDefaults(db, wsId, 'Acme Corp');
   await db.insert(statuses).values(defaultStatusRows(wsId, [{ id: 'todo', name: 'To Do' }, { id: 'progress', name: 'In Progress' }, { id: 'done', name: 'Done' }]));
   await db.insert(projects).values({ id: projectId, workspaceId: wsId, key: 'ACM', name: 'Acme Secret Project', icon: 'lock', color: 'rose', status: 'active', leadId: memberId, taskCounter: 3, description: 'Private data of another tenant' });
   await db.insert(tasks).values(

@@ -1,0 +1,188 @@
+/* Демо документов и склада для демо-воркспейса: организация «ООО «Гр8р Студия»» (ОСН, НДС 20%), два склада, реквизиты у пяти компаний CRM
+   и две цепочки документов, проведённые настоящими сервисами (поэтому остатки, резервы и средняя себестоимость — как у живых данных):
+   «заказ поставщику → поступление» и «заказ покупателя → счёт → реализация (УПД)» + акт услуг. Данные — на русском, интерфейс английский. */
+import { accountKeyOk, makeInn, makeOgrn } from '@gr8r/shared';
+import { asc, eq, inArray } from 'drizzle-orm';
+import type { Db } from './client';
+import { createBasedOn, createDocument, postDocument, updateDocument, type DocCtx } from './documents';
+import { bankAccounts, companies, documentLines, organizations, products, warehouses } from './schema';
+
+const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * 864e5).toISOString().slice(0, 10);
+
+/** Расчётный счёт с верным контрольным ключом для БИК (подбирается девятая цифра) */
+function account(bik: string, tail: string, prefix = '40702810'): string {
+  for (let k = 0; k < 10; k++) {
+    const acc = `${prefix}${k}${tail}`;
+    if (accountKeyOk(bik, acc)) return acc;
+  }
+  throw new Error('no valid control key');
+}
+
+const BANKS = {
+  sber: { bik: '044525225', bankName: 'ПАО Сбербанк', corr: '30101810400000000225' },
+  alfa: { bik: '044525593', bankName: 'АО «Альфа-Банк»', corr: '30101810200000000593' },
+  tinkoff: { bik: '044525974', bankName: 'АО «Тинькофф Банк»', corr: '30101810145250000974' },
+} as const;
+
+export interface DemoCompanyIds {
+  /** Поставщик материалов */
+  atlas: string;
+  /** Поставщик готовой мебели */
+  northwind: string;
+  /** Покупатели */
+  quanta: string;
+  skyline: string;
+}
+
+export async function seedDocuments(db: Db, wsId: string, memberId: string, co: DemoCompanyIds) {
+  const ctx: DocCtx = { workspaceId: wsId, memberId };
+
+  /* ---------- организация и склады ---------- */
+  const [org] = await db
+    .insert(organizations)
+    .values({
+      workspaceId: wsId,
+      name: 'ООО «Гр8р Студия»',
+      fullName: 'Общество с ограниченной ответственностью «Гр8р Студия»',
+      kind: 'legal',
+      inn: makeInn('770812345'),
+      kpp: '770801001',
+      ogrn: makeOgrn('102770812345'),
+      legalAddress: '125009, г. Москва, ул. Тверская, д. 12, стр. 1, офис 5',
+      actualAddress: '125009, г. Москва, ул. Тверская, д. 12, стр. 1, офис 5',
+      phone: '+7 (495) 123-45-67',
+      email: 'office@gr8r.example',
+      directorName: 'Соколов Андрей Викторович',
+      directorTitle: 'Генеральный директор',
+      accountantName: 'Кузнецова Марина Олеговна',
+      taxSystem: 'osn',
+      defaultVatRate: '20',
+      isDefault: true,
+    })
+    .returning();
+  await db.insert(bankAccounts).values({ workspaceId: wsId, organizationId: org!.id, bik: BANKS.sber.bik, account: account(BANKS.sber.bik, '00000012345'), corrAccount: BANKS.sber.corr, bankName: BANKS.sber.bankName, isDefault: true });
+  await db.insert(bankAccounts).values({ workspaceId: wsId, organizationId: org!.id, bik: BANKS.alfa.bik, account: account(BANKS.alfa.bik, '00000067890'), corrAccount: BANKS.alfa.corr, bankName: BANKS.alfa.bankName });
+  const [main] = await db.insert(warehouses).values({ workspaceId: wsId, name: 'Основной склад', code: 'MAIN', address: 'Московская обл., г. Химки, ул. Заводская, 7', isDefault: true }).returning();
+  const [fg] = await db.insert(warehouses).values({ workspaceId: wsId, name: 'Склад готовой продукции', code: 'FG', address: 'г. Москва, Алтуфьевское ш., 62' }).returning();
+
+  /* ---------- реквизиты контрагентов (пять компаний) ---------- */
+  const requisites = async (id: string, v: { kind?: 'legal' | 'sole_proprietor'; inn: string; kpp?: string; ogrn: string; legal: string; actual?: string; bank: keyof typeof BANKS; tail: string }) => {
+    await db.update(companies).set({ kind: v.kind ?? 'legal', inn: v.inn, kpp: v.kpp ?? '', ogrn: v.ogrn, legalAddress: v.legal, actualAddress: v.actual ?? v.legal }).where(eq(companies.id, id));
+    const b = BANKS[v.bank];
+    await db.insert(bankAccounts).values({ workspaceId: wsId, companyId: id, bik: b.bik, account: account(b.bik, v.tail), corrAccount: b.corr, bankName: b.bankName, isDefault: true });
+  };
+  await requisites(co.atlas, { inn: makeInn('504711223'), kpp: '504701001', ogrn: makeOgrn('105504711223'), legal: '141400, Московская обл., г. Химки, ул. Заводская, д. 7', bank: 'sber', tail: '00000111111' });
+  await requisites(co.northwind, { inn: makeInn('780214567'), kpp: '780201001', ogrn: makeOgrn('107780214567'), legal: '195197, г. Санкт-Петербург, Кондратьевский пр., д. 15', bank: 'tinkoff', tail: '00000222222' });
+  await requisites(co.quanta, { inn: makeInn('772033445'), kpp: '772001001', ogrn: makeOgrn('109772033445'), legal: '115114, г. Москва, Дербеневская наб., д. 7, стр. 3', actual: '115114, г. Москва, Дербеневская наб., д. 7, стр. 3, этаж 4', bank: 'alfa', tail: '00000333333' });
+  await requisites(co.skyline, { inn: makeInn('773155667'), kpp: '773101001', ogrn: makeOgrn('111773155667'), legal: '121151, г. Москва, наб. Тараса Шевченко, д. 23А', bank: 'sber', tail: '00000444444' });
+  const [ip] = await db
+    .insert(companies)
+    .values({
+      workspaceId: wsId,
+      name: 'ИП Сидоров Алексей Викторович',
+      industry: 'Retail',
+      size: '1–10',
+      city: 'Москва',
+      kind: 'sole_proprietor',
+      inn: makeInn('7731234567'),
+      ogrn: makeOgrn('31577312345678'),
+      legalAddress: '117556, г. Москва, Симферопольский б-р, д. 17, кв. 41',
+      actualAddress: '117556, г. Москва, Симферопольский б-р, д. 17, кв. 41',
+      ownerId: memberId,
+    })
+    .returning();
+  await db.insert(bankAccounts).values({ workspaceId: wsId, companyId: ip!.id, bik: BANKS.tinkoff.bik, account: account(BANKS.tinkoff.bik, '00000555555'), corrAccount: BANKS.tinkoff.corr, bankName: BANKS.tinkoff.bankName, isDefault: true });
+
+  /* ---------- товары ---------- */
+  const bySku = new Map<string, { id: string; purchasePrice: string; price: string }>();
+  const skus = ['MT-OAK-5050', 'MT-OAK-30', 'MT-PLY-18', 'MT-MDF-16', 'MT-EDG-2', 'MT-LAC-1', 'MT-STN-1', 'MT-GLU-1', 'MT-SND-120', 'MT-PKG-1', 'HW-SCR-440', 'HW-BLT-660', 'HW-CAM-15', 'HW-FT-60', 'HW-SHP-5', 'FRN-001', 'FRN-002', 'SV-DLV', 'SV-ASM'];
+  for (const p of await db.select({ id: products.id, sku: products.sku, purchasePrice: products.purchasePrice, price: products.price }).from(products).where(inArray(products.sku, skus))) bySku.set(p.sku, p);
+  const P = (sku: string) => {
+    const p = bySku.get(sku);
+    if (!p) throw new Error(`demo product ${sku} is missing`);
+    return p;
+  };
+  const buy = (sku: string, qty: number) => ({ productId: P(sku).id, qty: String(qty), price: P(sku).purchasePrice, discountPct: '0' });
+  const sell = (sku: string, qty: number, extra: { price?: number; discountPct?: number } = {}) => ({ productId: P(sku).id, qty: String(qty), price: String(extra.price ?? P(sku).price), discountPct: String(extra.discountPct ?? 0) });
+
+  /** Дата документа (черновик) и проведение */
+  const postAt = async (id: string, daysAgo: number) => {
+    await updateDocument(db, ctx, id, { date: iso(daysAgo) });
+    await postDocument(db, ctx, id);
+  };
+
+  /* ---------- закупки: заказ поставщику → поступление ---------- */
+  const so1 = await createDocument(db, ctx, {
+    type: 'supplier_order',
+    counterpartyId: co.atlas,
+    warehouseId: main!.id,
+    date: iso(52),
+    comment: 'Квартальный заказ материалов и фурнитуры',
+    lines: [
+      buy('MT-OAK-5050', 300), buy('MT-OAK-30', 40), buy('MT-PLY-18', 60), buy('MT-MDF-16', 50), buy('MT-EDG-2', 400), buy('MT-LAC-1', 30), buy('MT-STN-1', 20), buy('MT-GLU-1', 25), buy('MT-SND-120', 200), buy('MT-PKG-1', 80),
+      buy('HW-SCR-440', 2000), buy('HW-BLT-660', 600), buy('HW-CAM-15', 800), buy('HW-FT-60', 300), buy('HW-SHP-5', 500),
+    ],
+  });
+  await postAt(so1, 52);
+  const rc1 = await createBasedOn(db, ctx, so1, 'receipt');
+  await postAt(rc1, 45);
+
+  const so2 = await createDocument(db, ctx, {
+    type: 'supplier_order',
+    counterpartyId: co.northwind,
+    warehouseId: fg!.id,
+    date: iso(40),
+    comment: 'Готовая мебель на перепродажу',
+    lines: [buy('FRN-001', 40), buy('FRN-002', 60)],
+  });
+  await postAt(so2, 40);
+  const rc2 = await createBasedOn(db, ctx, so2, 'receipt');
+  await postAt(rc2, 33);
+
+  /* ---------- продажи: заказ покупателя → счёт → реализация (УПД) + акт услуг ---------- */
+  const order = await createDocument(db, ctx, {
+    type: 'customer_order',
+    counterpartyId: co.quanta,
+    warehouseId: fg!.id,
+    date: iso(24),
+    comment: 'Мебель для переговорных, доставка и сборка',
+    lines: [sell('FRN-001', 12), sell('FRN-002', 20, { discountPct: 5 }), sell('SV-DLV', 1), sell('SV-ASM', 6)],
+  });
+  await postAt(order, 24);
+  const invoice = await createBasedOn(db, ctx, order, 'invoice');
+  await updateDocument(db, ctx, invoice, { dueDate: iso(17) });
+  await postAt(invoice, 23);
+  // УПД по счёту: товары и доставка; сборка пойдёт отдельным актом
+  const shipment = await createBasedOn(db, ctx, invoice, 'realization');
+  const shipmentLines = (await db.select().from(documentLines).where(eq(documentLines.documentId, shipment)).orderBy(asc(documentLines.sortOrder))).filter(l => l.productId !== P('SV-ASM').id);
+  await updateDocument(db, ctx, shipment, { lines: shipmentLines.map(l => ({ id: l.id, productId: l.productId, qty: l.qty, price: l.price, discountPct: l.discountPct, vatRate: l.vatRate as never })) });
+  await postAt(shipment, 20);
+  const actDoc = await createBasedOn(db, ctx, order, 'act');
+  await postAt(actDoc, 20);
+
+  // коммерческое предложение → заказ с резервом остатков под отгрузку
+  const quote = await createDocument(db, ctx, {
+    type: 'quote',
+    counterpartyId: co.skyline,
+    date: iso(9),
+    dueDate: iso(-5),
+    comment: 'Стулья для переговорной, действует две недели',
+    lines: [sell('FRN-001', 10, { price: 5600 })],
+  });
+  await postAt(quote, 9);
+  const order2 = await createBasedOn(db, ctx, quote, 'customer_order');
+  await postAt(order2, 6);
+
+  // прямая отгрузка ИП: цены «НДС сверху»
+  const direct = await createDocument(db, ctx, {
+    type: 'realization',
+    counterpartyId: ip!.id,
+    warehouseId: fg!.id,
+    priceIncludesVat: false,
+    date: iso(3),
+    lines: [sell('FRN-002', 8, { price: 2000 })],
+  });
+  await postAt(direct, 3);
+
+  return { documents: 15 };
+}

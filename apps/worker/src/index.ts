@@ -1,5 +1,6 @@
 /* Точка входа воркера: опрос jobs + outbox, ускорение по LISTEN gr8r_events. */
 import { createSql, databaseUrl, ddlDatabaseUrl, EVENTS_CHANNEL, listenChannel } from '@gr8r/db';
+import { closeBrowser } from './pdf/render';
 import { defaultOptions, processEventsOnce, processJobsOnce, requeueStale } from './worker';
 
 const pollMs = Number(process.env.WORKER_POLL_MS ?? 1000);
@@ -30,6 +31,7 @@ async function shutdown(signal: string) {
   o.log(`${signal}: shutting down`);
   wake?.();
   await stopListening();
+  await closeBrowser();
   await ddl?.end({ timeout: 5 });
   await sql.end({ timeout: 5 });
   process.exit(0);

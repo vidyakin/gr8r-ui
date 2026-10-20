@@ -10,7 +10,7 @@ import { SettingsHead } from './parts';
 const OPTIONS: Record<MaterialPriceSource, { title: string; desc: string; disabled?: boolean }> = {
   purchase: { title: 'Purchase price', desc: 'The purchase price from the product card. Best for costing: it is what the material costs you.' },
   price: { title: 'Sale price', desc: 'The sale price from the product card. Useful when you resell materials at list price.' },
-  avg_cost: { title: 'Average warehouse cost', desc: 'Moving average cost of the stock. Available once the warehouse arrives; until then the purchase price is used.', disabled: true },
+  avg_cost: { title: 'Average warehouse cost', desc: 'Moving average cost of the stock, weighted across warehouses. A material that is not in stock yet is priced at its purchase price.' },
 };
 
 export function ProductionSection({ title }: { title: string }) {

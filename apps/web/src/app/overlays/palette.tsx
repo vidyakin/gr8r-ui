@@ -44,7 +44,9 @@ import { StatusIcon } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '../data/store';
 import { PROJECT_STATUS, allTasks, project, sortTasks, task as findTask } from '../data/selectors';
-import { addRecentSearch, searchAll, useCatalogHits, useRecentSearches, useRecordHits, type SearchCat } from '../data/search';
+import { addRecentSearch, searchAll, useCatalogHits, useDocumentHits, useRecentSearches, useRecordHits, type SearchCat } from '../data/search';
+import { STATUS_LABEL, typeLabel } from '../docs/data';
+import { money as fmtMoney } from '../catalog/data';
 import { entityIcon } from '../meta/icons';
 import { SECTIONS, type SectionId } from '../routes';
 import { MOD } from '../lib/platform';
@@ -258,6 +260,7 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
   const [q, setQ] = React.useState(init.q);
   const recordHits = useRecordHits(q);
   const catalogHits = useCatalogHits(q);
+  const docHits = useDocumentHits(q);
   const [mode, setMode] = React.useState<Mode>(init.mode);
   const [scope, setScope] = React.useState<SearchCat>('all');
   const [hl, setHl] = React.useState(0);
@@ -301,6 +304,9 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
     { id: 'c-acts', name: 'Go to CRM Activities', icon: SECTIONS.crmActivities.icon, quiet: true, run: section('crmActivities') },
     { id: 'c-cat', name: 'Go to Catalog', icon: SECTIONS.catalog.icon, quiet: true, run: section('catalog') },
     { id: 'c-prod', name: 'Go to Production', icon: SECTIONS.production.icon, quiet: true, run: section('production') },
+    { id: 'c-sales', name: 'Go to Sales', icon: SECTIONS.sales.icon, quiet: true, run: section('sales') },
+    { id: 'c-purch', name: 'Go to Purchases', icon: SECTIONS.purchases.icon, quiet: true, run: section('purchases') },
+    { id: 'c-stock', name: 'Go to Inventory', icon: SECTIONS.inventory.icon, quiet: true, run: section('inventory') },
     { id: 'c-wc', name: 'Go to Work centers', icon: SECTIONS.workCenters.icon, quiet: true, run: section('workCenters') },
     { id: 'c-set', name: 'Open settings', icon: Settings, kbd: 'G S', run: section('settings') },
     { id: 'c-app', name: 'Appearance settings', icon: Palette, run: () => go(`${SECTIONS.settings.path}/appearance`) },
@@ -412,6 +418,12 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
             items: catalogHits.items.slice(0, lim).map(i => ({ id: 'pi-' + i.id, icon: SECTIONS.production.icon, name: i.name, sub: i.kind === 'semi' ? 'Semi-finished' : 'Product', run: () => go(`${SECTIONS.production.path}/${i.id}`) })),
           });
       }
+      // Документы продаж и закупок: находятся по номеру («СЧ-2026-00012», «00012»), контрагенту и комментарию
+      if (sc === 'all' && docHits.length)
+        groups.push({
+          name: 'Documents',
+          items: docHits.slice(0, lim).map(d => ({ id: 'doc-' + d.id, icon: SECTIONS.sales.icon, name: `${typeLabel(d.type)} ${d.number ?? '(draft)'}`, sub: `${d.counterpartyName ?? 'No counterparty'} · ${STATUS_LABEL[d.status]}`, r: fmtMoney(d.total), run: () => go(`/documents/${d.id}`) })),
+        });
       // CRM — только в общем поиске, после основных групп
       if (sc === 'all' && crmUi) {
         const has = (s: string) => s.toLowerCase().includes(ql);

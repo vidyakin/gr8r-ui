@@ -37,10 +37,14 @@ import { CatalogPage } from './catalog/CatalogPage';
 import { ItemPage } from './production/ItemPage';
 import { ProductionPage } from './production/ProductionPage';
 import { WorkCentersPage } from './production/WorkCentersPage';
+import { JournalPage } from './docs/JournalPage';
+import { DocumentPage } from './docs/DocumentPage';
+import { PrintPage } from './docs/PrintPage';
+import { InventoryPage } from './docs/InventoryPage';
 
 /* Hash-роутинг, как в оригинале: работает на любом статическом хостинге без настройки rewrite.
    Чтобы перенести раздел, замените PlaceholderPage на его компонент. */
-const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.archive, SECTIONS.crm, SECTIONS.crmDeals, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities, SECTIONS.catalog, SECTIONS.production, SECTIONS.workCenters, SECTIONS.settings, SECTIONS.system].map(s => s.path));
+const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.archive, SECTIONS.crm, SECTIONS.crmDeals, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities, SECTIONS.catalog, SECTIONS.production, SECTIONS.workCenters, SECTIONS.sales, SECTIONS.purchases, SECTIONS.inventory, SECTIONS.settings, SECTIONS.system].map(s => s.path));
 
 export const router = createHashRouter([
   {
@@ -84,6 +88,12 @@ export const router = createHashRouter([
       { path: SECTIONS.production.path, element: <ProductionPage /> },
       { path: SECTIONS.workCenters.path, element: <WorkCentersPage /> },
       { path: `${SECTIONS.production.path}/:id`, element: <ItemPage /> },
+      // Документы продаж и закупок, склад
+      { path: SECTIONS.sales.path, element: <JournalPage group="sales" /> },
+      { path: SECTIONS.purchases.path, element: <JournalPage group="purchases" /> },
+      { path: '/documents/:id', element: <DocumentPage /> },
+      { path: '/documents/:id/print/:form', element: <PrintPage /> },
+      { path: `${SECTIONS.inventory.path}/:productId?`, element: <InventoryPage /> },
       // Свои сущности конструктора: экран собирается из метаданных
       { path: '/data/:key/:recordId?', element: <RecordsPage /> },
       // Разделы, которые ещё не перенесены, открывают заглушку
