@@ -6,14 +6,3 @@
   font-size: 12.5px;
 }
 
-/* На телефоне окно — «шторка» снизу на всю ширину (responsive.css оригинала, ≤640px) */
-@media (max-width: 640px) {
-  .modal-wrap {
-    padding: 0;
-    align-items: flex-end;
-  }
-  .modal {
-    max-height: 92vh;
-    border-radius: 14px 14px 0 0;
-  }
-}
