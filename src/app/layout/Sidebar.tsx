@@ -29,7 +29,7 @@ import { WorkspaceLogo } from '../components/brand';
 import { NamedIcon } from '../components/icons';
 import { UserMenu } from './UserMenu';
 import { MemberAvatar } from '../components/workspace';
-import { useProjectForms } from '../overlays';
+import { useProjectForms, useShortcuts } from '../overlays';
 
 const soon = (what: string) => toast.info(`${what} пока не перенесено`);
 
@@ -165,6 +165,7 @@ function ProjectItem({ id, collapsed }: { id: string; collapsed: boolean }) {
 
 export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const { data } = useWorkspace();
+  const shortcuts = useShortcuts();
   const unreadInbox = data.notifs.filter(n => !n.read && n.type !== 'update').length;
   const unreadAll = data.notifs.filter(n => !n.read).length;
   const myDue = allTasks(data).filter(t => t.assignee === data.me && t.status !== 'done' && t.due && diffDays(parse(t.due), today()) <= 0).length;
@@ -269,7 +270,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           </MenuTrigger>
           <MenuContent side="top">
             <MenuItem icon={<BookOpen size={15} />}>Documentation</MenuItem>
-            <MenuItem icon={<Keyboard size={15} />} shortcut="?">
+            <MenuItem icon={<Keyboard size={15} />} shortcut="?" onSelect={() => shortcuts.open()}>
               Keyboard shortcuts
             </MenuItem>
             <MenuItem icon={<MessageCircle size={15} />}>Contact support</MenuItem>

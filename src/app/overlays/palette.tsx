@@ -58,6 +58,8 @@ import { money } from '../crm/format';
 import { company as crmCompany } from '../crm/selectors';
 import { useInvite } from './invite';
 import { useProjectForms } from './project-forms';
+import { useShortcuts } from './shortcuts';
+import { setSignedIn } from '../lib/auth';
 import { useTaskDrawer } from './task-drawer';
 import { useTaskForm } from './task-form';
 
@@ -119,6 +121,7 @@ export function PaletteProvider({ children }: { children: React.ReactNode }) {
   const taskForm = useTaskForm();
   const projectForms = useProjectForms();
   const toggleDark = useToggleDark();
+  const shortcuts = useShortcuts();
   const [st, setSt] = React.useState<PaletteState>({ open: false, mode: 'cmd', q: '', nonce: 0 });
 
   const open = React.useCallback((query = '', mode: Mode = 'cmd') => setSt(s => ({ open: true, mode, q: query, nonce: s.nonce + 1 })), []);
@@ -127,13 +130,13 @@ export function PaletteProvider({ children }: { children: React.ReactNode }) {
   const state = React.useMemo(() => ({ st, close }), [st, close]);
 
   // Свежие значения для обработчика клавиш, чтобы не переподписываться на каждое изменение
-  const latest = React.useRef({ st, taskForm, projectForms, toggleDark });
-  latest.current = { st, taskForm, projectForms, toggleDark };
+  const latest = React.useRef({ st, taskForm, projectForms, toggleDark, shortcuts });
+  latest.current = { st, taskForm, projectForms, toggleDark, shortcuts };
   const gPending = React.useRef(0);
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const { st, taskForm, projectForms, toggleDark } = latest.current;
+      const { st, taskForm, projectForms, toggleDark, shortcuts } = latest.current;
       const mod = e.metaKey || e.ctrlKey;
       const k = e.key.toLowerCase();
       if (mod && k === 'k') {
@@ -171,7 +174,7 @@ export function PaletteProvider({ children }: { children: React.ReactNode }) {
         projectForms.create();
       } else if (e.key === '?') {
         e.preventDefault();
-        toast.info('Keyboard shortcuts пока не перенесено');
+        shortcuts.open();
       }
     };
     document.addEventListener('keydown', onKey);
@@ -244,6 +247,7 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
   const taskForm = useTaskForm();
   const projectForms = useProjectForms();
   const invite = useInvite();
+  const shortcuts = useShortcuts();
   const drawer = useTaskDrawer();
   const dark = useIsDark();
   const toggleDark = useToggleDark();
@@ -296,8 +300,8 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
     { id: 'c-dark', name: dark ? 'Switch to light mode' : 'Switch to dark mode', icon: dark ? Sun : Moon, kbd: `${MOD} ⇧ L`, run: toggleDark },
     { id: 'c-inv', name: 'Invite member', icon: UserPlus, run: () => invite.open() },
     { id: 'c-side', name: 'Toggle sidebar', icon: PanelLeft, kbd: '[', run: toggleSidebar },
-    { id: 'c-keys', name: 'Keyboard shortcuts', icon: Keyboard, kbd: '?', run: () => toast.info('Keyboard shortcuts пока не перенесено') },
-    { id: 'c-out', name: 'Sign out', icon: LogOut, run: () => toast.info('Вход и выход пока не перенесены') },
+    { id: 'c-keys', name: 'Keyboard shortcuts', icon: Keyboard, kbd: '?', run: () => shortcuts.open() },
+    { id: 'c-out', name: 'Sign out', icon: LogOut, run: () => { setSignedIn(false); navigate('/signin'); } },
   ];
 
   const query = q.trim();

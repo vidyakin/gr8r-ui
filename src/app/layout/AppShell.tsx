@@ -11,6 +11,7 @@ import { Sidebar } from './Sidebar';
 import { Topbar, useCrumbs } from './Topbar';
 import { OverlayProviders, PaletteHost } from '../overlays';
 import { CrmOverlays } from '../crm/overlays';
+import { PageBoundary } from '../components/error-states';
 
 const COLLAPSED_KEY = 'gr8r-ui.sidebar-collapsed';
 
@@ -92,7 +93,9 @@ export function AppShell() {
         <Topbar onOpenNav={() => setMnav(true)} />
         {/* key перезапускает анимацию появления при смене страницы */}
         <div key={pageKey} className="content fx-route" id="main-content" tabIndex={-1}>
-          <Outlet />
+          <PageBoundary resetKey={location.pathname}>
+            <Outlet />
+          </PageBoundary>
         </div>
       </main>
       <BottomNav onMore={() => setMnav(true)} />
