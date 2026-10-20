@@ -42,6 +42,7 @@ export function useCrumbs(): Crumb[] {
     ];
   }
   if (a === 'members' && b) return [{ label: 'Members', to: SECTIONS.members.path }, { label: data.members.find(m => m.id === b)?.name ?? 'Member' }];
+  if (a === 'settings') return [{ label: 'Settings' }];
   if (a === 'teams' && b) return [{ label: 'Teams' }, { label: data.teams.find(t => t.id === b)?.name ?? 'Team' }];
   const s = Object.values(SECTIONS).find(x => x.path === pathname);
   return [{ label: s?.name ?? 'Not found' }];

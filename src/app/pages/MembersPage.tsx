@@ -27,7 +27,7 @@ const PERMS: [string, 0 | 1, 0 | 1, 0 | 1, 0 | 1][] = [
   ['Delete workspace', 1, 0, 0, 0],
 ];
 
-function PermsTable() {
+export function PermsTable() {
   return (
     <div className="panel" style={{ overflowX: 'auto' }}>
       <table className="perm-t" style={{ minWidth: 560 }}>
@@ -64,7 +64,7 @@ function PermsTable() {
   );
 }
 
-function TeamsGrid() {
+export function TeamsGrid() {
   const { data } = useWorkspace();
   const navigate = useNavigate();
   const projects = visibleProjects(data);

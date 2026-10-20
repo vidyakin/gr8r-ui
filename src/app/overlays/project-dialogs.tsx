@@ -1,6 +1,6 @@
 /* Окна форм проекта — порт projectModal, shareModal, saveView и confirmModal из overlays/modals.js */
 import * as React from 'react';
-import { Archive, Building2, Check, CircleAlert, Info, Link, Lock, Trash2 } from 'lucide-react';
+import { Archive, Building2, Check, CircleAlert, Info, Link, Lock, Trash2, type LucideIcon } from 'lucide-react';
 import { Button, Input, Textarea, toast } from '@/components/ui';
 import { useWorkspace, uid } from '../data/store';
 import { PROJECT_COLORS, project as findProject } from '../data/selectors';
@@ -420,6 +420,8 @@ export interface ConfirmSpec {
   danger?: boolean;
   /** Для опасных действий — имя, которое нужно ввести */
   typeName?: string;
+  /** Значок вместо стандартного (корзина / архив) */
+  icon?: LucideIcon;
   run: () => void;
 }
 
@@ -427,7 +429,7 @@ export function ConfirmModal({ spec, onClose }: { spec: ConfirmSpec; onClose: ()
   const [text, setText] = React.useState('');
   const needs = spec.typeName;
   const ok = !needs || text === needs;
-  const Icon = spec.danger ? Trash2 : Archive;
+  const Icon = spec.icon ?? (spec.danger ? Trash2 : Archive);
   const submit = () => {
     if (!ok) return;
     onClose();

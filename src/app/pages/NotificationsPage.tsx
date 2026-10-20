@@ -86,7 +86,7 @@ export function NotificationsPage() {
             <CheckCheck size={14} />
             Mark all as read
           </Button>
-          <IconButton label="Notification preferences" onClick={() => navigate(SECTIONS.settings.path)}>
+          <IconButton label="Notification preferences" onClick={() => navigate(`${SECTIONS.settings.path}/notif-email`)}>
             <Settings2 size={16} />
           </IconButton>
         </div>

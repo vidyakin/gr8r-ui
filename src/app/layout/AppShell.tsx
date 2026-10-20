@@ -41,7 +41,7 @@ export function AppShell() {
   const { data } = useWorkspace();
   const location = useLocation();
   // Вкладки проекта не пересоздают страницу: фильтры вида живут, пока открыт тот же проект (как S.views в оригинале)
-  const pageKey = location.pathname.replace(/^(\/projects\/[^/]+)\/.*$/, '$1');
+  const pageKey = location.pathname.replace(/^(\/projects\/[^/]+)\/.*$/, '$1').replace(/^(\/settings)\/.*$/, '$1');
   const crumbs = useCrumbs();
   const [collapsed, setCollapsed] = React.useState(() => {
     try {
