@@ -1,8 +1,10 @@
-/* Обработчики воркера. Реальные обработчики событий появятся с автоматизациями (этап 6), печатью PDF и пересчётами.
-   Задачи jobs: служебная noop и DDL по белому списку (индексы полей конструктора). */
+/* Обработчики воркера. События outbox → запуск автоматизаций (flows/triggers.ts). Задачи jobs: служебная noop, DDL по белому списку
+   (индексы полей конструктора), PDF печатных форм и выполнение запусков автоматизаций (flow.run). */
 import { and, eq } from 'drizzle-orm';
 import { buildPrintData, createFieldIndex, documentFiles, dropFieldIndex, entities, events, fields, isUuid, jobs, withContext, type Db, type Sql } from '@gr8r/db';
 import { DOCUMENT_META, FIELD_TYPES, renderPrintForm, type FieldType, type PrintForm } from '@gr8r/shared';
+import { executeRun } from './flows/engine';
+import { startRunsForEvent } from './flows/triggers';
 import { renderPdf } from './pdf/render';
 import { pdfStoreFromEnv, type PdfStore } from './pdf/storage';
 
@@ -10,9 +12,10 @@ export type EventRow = typeof events.$inferSelect;
 export type JobRow = typeof jobs.$inferSelect;
 
 /** Вызывается для каждого события из outbox внутри транзакции (под ролью app_worker, RLS обходится).
-    Здесь будут: запуск автоматизаций по триггерам, уведомления, лента Activity. Пока намеренно пуст. */
-export async function handleEvent(_event: EventRow, _db: Db): Promise<void> {
-  // no-op
+    Подбирает опубликованные включённые flow с подходящим триггером и ставит их запуски в очередь; сами шаги выполняет задача flow.run
+    под ролью app_user в контексте арендатора. */
+export async function handleEvent(event: EventRow, db: Db): Promise<void> {
+  await startRunsForEvent(db, event);
 }
 
 /** Что получает обработчик задачи. Транзакцию на время долгой операции держать нельзя (CREATE INDEX CONCURRENTLY ждёт
@@ -22,9 +25,11 @@ export interface JobContext {
   read: <T>(fn: (db: Db) => Promise<T>) => Promise<T>;
   /** Подключение роли-владельца (DATABASE_URL_DDL); null — не настроено */
   ddl: Sql | null;
+  /** Пул рантайма: задачи арендатора открывают из него транзакции под app_user */
+  sql: Sql;
 }
 
-export const makeJobContext = (sql: Sql, ddl: Sql | null): JobContext => ({ read: fn => withContext(sql, {}, fn, 'app_worker'), ddl });
+export const makeJobContext = (sql: Sql, ddl: Sql | null): JobContext => ({ read: fn => withContext(sql, {}, fn, 'app_worker'), ddl, sql });
 
 /** Хранилище PDF (PDF_STORE=db по умолчанию; s3 — заготовка); тесты подменяют его */
 export const pdfRuntime: { store: PdfStore; render: typeof renderPdf } = { store: pdfStoreFromEnv(), render: renderPdf };
@@ -66,6 +71,12 @@ export const jobHandlers: Record<string, (job: JobRow, h: JobContext) => Promise
     const { fieldId, eligible } = await loadIndexTarget(job, h);
     if (eligible) return;
     await dropFieldIndex(needDdl(h), fieldId);
+  },
+  /** Выполнение (или продолжение после задержки / повтора) запуска автоматизации */
+  'flow.run': async (job, h) => {
+    const runId = (job.payload as { runId?: unknown }).runId;
+    if (!isUuid(runId)) throw new Error('flow.run job: payload.runId must be a uuid');
+    await executeRun(h.sql, job.workspaceId, runId);
   },
   /** Печатная форма документа → PDF (headless Chromium). Данные и шаблон те же, что у предпросмотра в браузере.
       Ошибка формирования не повторяется вслепую: файл помечается failed с текстом ошибки, форму можно запросить заново */

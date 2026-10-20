@@ -41,10 +41,12 @@ import { JournalPage } from './docs/JournalPage';
 import { DocumentPage } from './docs/DocumentPage';
 import { PrintPage } from './docs/PrintPage';
 import { InventoryPage } from './docs/InventoryPage';
+import { AutomationsPage } from './automations/AutomationsPage';
+import { FlowEditorPage } from './automations/FlowEditorPage';
 
 /* Hash-роутинг, как в оригинале: работает на любом статическом хостинге без настройки rewrite.
    Чтобы перенести раздел, замените PlaceholderPage на его компонент. */
-const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.archive, SECTIONS.crm, SECTIONS.crmDeals, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities, SECTIONS.catalog, SECTIONS.production, SECTIONS.workCenters, SECTIONS.sales, SECTIONS.purchases, SECTIONS.inventory, SECTIONS.settings, SECTIONS.system].map(s => s.path));
+const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.archive, SECTIONS.crm, SECTIONS.crmDeals, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities, SECTIONS.catalog, SECTIONS.production, SECTIONS.workCenters, SECTIONS.sales, SECTIONS.purchases, SECTIONS.inventory, SECTIONS.automations, SECTIONS.settings, SECTIONS.system].map(s => s.path));
 
 export const router = createHashRouter([
   {
@@ -94,6 +96,10 @@ export const router = createHashRouter([
       { path: '/documents/:id', element: <DocumentPage /> },
       { path: '/documents/:id/print/:form', element: <PrintPage /> },
       { path: `${SECTIONS.inventory.path}/:productId?`, element: <InventoryPage /> },
+      // Автоматизации: список и журнал, редактор flow
+      { path: SECTIONS.automations.path, element: <AutomationsPage /> },
+      { path: `${SECTIONS.automations.path}/runs`, element: <AutomationsPage /> },
+      { path: `${SECTIONS.automations.path}/flow/:id/:tab?`, element: <FlowEditorPage /> },
       // Свои сущности конструктора: экран собирается из метаданных
       { path: '/data/:key/:recordId?', element: <RecordsPage /> },
       // Разделы, которые ещё не перенесены, открывают заглушку

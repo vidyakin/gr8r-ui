@@ -87,12 +87,15 @@ export async function processEventsOnce(sql: Sql, o: WorkerOptions, batch = 100)
   return withContext(
     sql,
     {},
-    async db => {
+    async (db, tx) => {
       const rows = await db.select().from(events).where(dsql`${events.processedAt} is null`).orderBy(events.id).limit(batch).for('update', { skipLocked: true });
       for (const ev of rows as EventRow[]) {
         try {
+          await tx.unsafe('savepoint handle_event'); // сбой обработчика не должен «ломать» транзакцию всей пачки
           await handleEvent(ev, db);
+          await tx.unsafe('release savepoint handle_event');
         } catch (e) {
+          await tx.unsafe('rollback to savepoint handle_event');
           const n = (failures.get(ev.id) ?? 0) + 1;
           failures.set(ev.id, n);
           o.log(`event ${ev.id} (${ev.type}) handler failed (${n}): ${e instanceof Error ? e.message : e}`);

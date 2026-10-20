@@ -7,3 +7,4 @@ export * from './bom';
 export * from './ru';
 export * from './documents';
 export * from './print';
+export * from './automations';

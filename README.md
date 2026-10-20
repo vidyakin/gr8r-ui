@@ -27,13 +27,13 @@ bun test           # тесты бэкенда (нужен PostgreSQL, см. «�
 
 ## Бэкенд
 
-Этапы 1–5 (фундамент, фронтенд на API, конструктор сущностей, каталог и производство, документы и склад): Bun + Hono + PostgreSQL 16 + Drizzle + Zod. Решения и их обоснование — в [docs/architecture.md](docs/architecture.md).
+Этапы 1–6 (фундамент, фронтенд на API, конструктор сущностей, каталог и производство, документы и склад, автоматизации): Bun + Hono + PostgreSQL 16 + Drizzle + Zod. Решения и их обоснование — в [docs/architecture.md](docs/architecture.md).
 
 ```
 apps/
   web/        фронтенд (React + Vite)
   api/        HTTP API (Hono) + WebSocket /ws
-  worker/     фоновый цикл: очередь jobs и outbox events на FOR UPDATE SKIP LOCKED
+  worker/     фоновый цикл: очередь jobs и outbox events на FOR UPDATE SKIP LOCKED, движок автоматизаций (src/flows)
 packages/
   shared/     доменные типы, zod-схемы API, схема значений из полей конструктора (fields.ts), константы, демо-данные (их использует и фронтенд, и сид БД)
   db/         drizzle-схема, SQL-миграции (drizzle/), RLS, uuid v7, сид, утилиты администрирования
@@ -111,6 +111,7 @@ curl -s -b jar "$API/tasks?projectId=$P&sort=-priority" -H "X-Workspace-Id: $WS"
 | `/organizations` (+ `/:id/bank-accounts`), `/warehouses`, `/bank-accounts/:id`, `/companies/:id/bank-accounts` | реквизиты: собственные организации, склады, банковские счета организаций и компаний CRM |
 | `/documents` (+ `/:id/post\|unpost\|cancel\|restore\|based-on\|print/:form\|pdf`), `/stock/balances\|moves\|avg-costs\|settings` | документы продаж и закупок, проведение, печатные формы и PDF, остатки и движения склада |
 | `/work-centers`, `/manufactured-items` (+ `/:id/lines`, `/:id/cost`), `/bom-lines/:id`, `/production/snapshot`, `/production/settings` | производство: участки, продукция, спецификации, себестоимость, источник цены материалов |
+| `/flows` (+ `/:id/publish\|run`), `/flow-runs` (+ `/:id` с шагами) | автоматизации: flow с черновиком и версиями, публикация, ручной запуск, журнал запусков |
 | `GET /ws?workspace=<id>[&since=<event id>]` | WebSocket: события воркспейса |
 
 У каждого ресурса: `GET /` (фильтры, `sort=-field`, `limit`/`offset`, `q`, `archived=exclude|include|only` → `{ items, total, limit, offset }`),
@@ -335,3 +336,18 @@ PDF формирует воркер в headless Chromium: он должен ра
 «на основании», проведение и отмена, средняя себестоимость, минус, резервы, изоляция арендаторов, PDF). Сквозной сценарий в браузере (вход → заказ с двумя строками → провести → счёт на основании →
 предпросмотр печати → реализация → остаток уменьшился → отмена проведения вернула) — `WEB=http://localhost:5173 SHOTS=/tmp/shots bun scripts/e2e-docs.mjs` при запущенных api, воркере и web, после `bun run db:reset`
 (нужен Chromium, путь — `CHROMIUM_PATH`; скрипт оставляет в демо-данных свои документы). Правила — в [docs/architecture.md](docs/architecture.md): «Контрагенты и организации», «Документы продаж и закупок», «Склад».
+
+## Автоматизации
+
+Сайдбар, группа **Automation** → **Automations**. Список flow: включение, версия («unpublished changes» — черновик отличается от действующей версии), последний запуск и число ошибок за 7 дней; вкладка **Runs** — общий журнал.
+Редактор (**New automation** или строка списка): палитра узлов слева (клик добавляет шаг после выбранного, перетаскивание — куда угодно), холст React Flow, справа форма параметров выбранного узла (сущность и поля берутся из конструктора,
+меню `{}` вставляет переменные для подстановок `{{trigger.record.title}}`). **Save draft** сохраняет черновик, **Publish** проверяет граф (один триггер, нет висящих узлов, параметры верны) и делает его действующей версией — первая публикация
+сразу включает flow. Вкладка **Runs** у flow: запуски, шаги со входом, выходом и ошибкой каждого. Выполняет всё воркер (`bun run dev` запускает его): события из журнала `events` → подходящие flow → шаги под ролью `app_user` в контексте арендатора.
+В демо-данных две включённые автоматизации: задача перешла в Review → уведомление руководителю проекта; сделка перешла в Won → задача «Kickoff».
+
+**Новый узел** — один файл в `packages/shared/src/automations/nodes/` (описание, zod-схема параметров с подсказками `.meta({ ui })`, исполнитель через порты `NodeRuntime`) и строка в `nodes/index.ts`; форма в редакторе строится из схемы сама.
+Подробности, ограничения и защита (SSRF, зацикливание, лимиты) — в [docs/architecture.md](docs/architecture.md), «Автоматизации». Настройки воркера: `FLOW_MAX_STEPS`, `FLOW_MAX_ATTEMPTS`, `FLOW_RETRY_BASE_SEC`, `FLOW_HTTP_TIMEOUT_MS`, `FLOW_HTTP_ALLOW_PRIVATE` (см. `.env.example`).
+
+Проверки: `bun test packages/shared/test/automations.test.ts apps/api/test/flows.test.ts` (подстановки без eval, cron, SSRF-проверка адресов, проверка графа, цепочка «поле задачи изменилось → условие → обновление поля + уведомление», задержка через jobs, повторы временных ошибок,
+лимит шагов, защита от зацикливания, идемпотентность событий, расписание, права, изоляция арендаторов под RLS). Сквозной сценарий в браузере (вход → собрать в редакторе flow «приоритет изменился → приоритет = 10 → уведомление» → Publish →
+изменить приоритет задачи → успешный запуск в Runs, уведомление пришло) — `WEB=http://localhost:5173 SHOTS=/tmp/shots bun scripts/e2e-automations.mjs` при запущенных api, воркере и web, после `bun run db:reset` (нужен Chromium, путь — `CHROMIUM_PATH`).

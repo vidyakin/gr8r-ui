@@ -9,6 +9,7 @@ import { withContext } from './context';
 import { registerBaseUnits } from './catalog';
 import { seedCatalog } from './seed-catalog';
 import { seedDocuments } from './seed-documents';
+import { seedFlows } from './seed-flows';
 import { ensureDocumentDefaults } from './documents';
 import { enqueueFieldIndex, registerSystemEntities } from './meta';
 import { uuidv7 } from './uuid';
@@ -322,6 +323,9 @@ async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: string, user
 
   // Документы и склад: организация, склады, реквизиты, цепочки закупок и продаж (проводятся настоящими сервисами)
   const docs = await seedDocuments(db, wsId, U(d.me), { atlas: U('co8'), northwind: U('co1'), quanta: U('co4'), skyline: U('co10') });
+
+  // Автоматизации: две демо-flow (задача → Review, сделка → Won)
+  await seedFlows(db, wsId, U(d.me), U('p1'));
 
   await db.insert(events).values({ workspaceId: wsId, type: 'workspace.seeded', entity: 'workspace', recordId: wsId, actorId: U(d.me), payload: { tasks: d.tasks.length, deals: crm.deals.length, documents: docs.documents } });
   return { tasks: d.tasks.length, projects: d.projects.length, deals: crm.deals.length, metaFields };

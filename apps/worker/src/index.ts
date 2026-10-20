@@ -1,6 +1,7 @@
 /* Точка входа воркера: опрос jobs + outbox, ускорение по LISTEN gr8r_events. */
 import { createSql, databaseUrl, ddlDatabaseUrl, EVENTS_CHANNEL, listenChannel } from '@gr8r/db';
 import { closeBrowser } from './pdf/render';
+import { scheduleFlowsOnce } from './flows/triggers';
 import { defaultOptions, processEventsOnce, processJobsOnce, requeueStale } from './worker';
 
 const pollMs = Number(process.env.WORKER_POLL_MS ?? 1000);
@@ -40,12 +41,19 @@ process.on('SIGINT', () => void shutdown('SIGINT'));
 process.on('SIGTERM', () => void shutdown('SIGTERM'));
 
 let lastStaleCheck = 0;
+let lastMinute = 0;
 while (!stopping) {
   try {
     if (Date.now() - lastStaleCheck > 60_000) {
       lastStaleCheck = Date.now();
       const n = await requeueStale(sql, o);
       if (n) o.log(`requeued ${n} stale job(s)`);
+    }
+    const minute = Math.floor(Date.now() / 60_000);
+    if (minute !== lastMinute) {
+      lastMinute = minute;
+      const n = await scheduleFlowsOnce(sql); // автоматизации по расписанию: раз в минуту, повтор той же минуты ничего не создаёт
+      if (n) o.log(`scheduled ${n} flow run(s)`);
     }
     const events = await processEventsOnce(sql, o);
     const jobs = await processJobsOnce(sql, o);

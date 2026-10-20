@@ -7,3 +7,4 @@ export * from './meta';
 export * from './catalog';
 export * from './production';
 export * from './documents';
+export * from './automations';

@@ -11,3 +11,4 @@ export * from './catalog';
 export * from './errors';
 export * from './documents';
 export * from './stock';
+export * from './automations';

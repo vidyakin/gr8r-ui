@@ -49,6 +49,7 @@ export function useCrumbs(): Crumb[] {
     ];
   }
   if (a === 'members' && b) return [{ label: 'Members', to: SECTIONS.members.path }, { label: data.members.find(m => m.id === b)?.name ?? 'Member' }];
+  if (a === 'automations') return b === 'flow' ? [{ label: 'Automations', to: SECTIONS.automations.path }, { label: 'Editor' }] : [{ label: 'Automations' }];
   if (a === 'catalog') return [{ label: 'Catalog' }];
   if (a === 'inventory') return [{ label: 'Inventory' }];
   if (a === 'documents' && b) return [{ label: 'Documents' }, { label: docTitle ?? 'Document', ...(c === 'print' ? { to: `/documents/${b}` } : {}) }, ...(c === 'print' ? [{ label: 'Print' }] : [])];

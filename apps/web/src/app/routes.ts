@@ -24,6 +24,7 @@ import {
   Factory,
   Package,
   Wrench,
+  Workflow,
   Boxes,
   ReceiptText,
   ShoppingCart,
@@ -63,6 +64,8 @@ export const SECTIONS = {
   catalog: { path: '/catalog', name: 'Catalog', icon: Package },
   production: { path: '/production', name: 'Production', icon: Factory },
   workCenters: { path: '/work-centers', name: 'Work centers', icon: Wrench },
+  // Автоматизации
+  automations: { path: '/automations', name: 'Automations', icon: Workflow },
   // Документы продаж и закупок, склад
   sales: { path: '/sales', name: 'Sales', icon: ReceiptText },
   purchases: { path: '/purchases', name: 'Purchases', icon: ShoppingCart },
