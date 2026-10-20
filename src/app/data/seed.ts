@@ -1,7 +1,7 @@
 /* Демо-данные воркспейса — порт data/seed.js из gr8r-studio.
    Файлы, события и настройки аккаунта пока не перенесены: добавятся вместе со страницами, которым они нужны. */
 import { dOff, minsAgo } from '../lib/dates';
-import type { Activity, Comment, LabelId, Member, Notification, Priority, Project, Status, Task, Team, WorkspaceData } from './types';
+import type { Activity, CalendarEvent, Comment, LabelId, Member, Notification, Priority, Project, Status, Task, Team, WorkspaceData } from './types';
 
 let aid = 0;
 const uid = (p: string) => p + ++aid;
@@ -486,6 +486,14 @@ export function seed(): WorkspaceData {
     { id: 'n9', type: 'update', by: 'm3', task: 't18', text: 'completed', snippet: 'Fix broken anchor links on pricing', at: minsAgo(90), read: true },
     { id: 'n10', type: 'update', by: null, task: 't28', text: 'is due today', snippet: 'Triage beta tester feedback', at: minsAgo(20), read: false },
   ];
+  const events: CalendarEvent[] = [
+    { id: 'e1', title: 'Design review', date: dOff(1), time: '10:00', project: 'p1' },
+    { id: 'e2', title: 'Sprint planning', date: dOff(5), time: '09:30', project: 'p2' },
+    { id: 'e3', title: 'Launch sync', date: dOff(0), time: '15:00', project: 'p4' },
+    { id: 'e4', title: 'Stakeholder demo', date: dOff(9), time: '14:00', project: 'p1' },
+    { id: 'e5', title: 'Campaign kickoff', date: dOff(-3), time: '11:00', project: 'p3' },
+    { id: 'e6', title: 'Retro', date: dOff(12), time: '16:00', project: 'p2' },
+  ];
   const tmp = tk('t3');
   tmp.updated = minsAgo(38);
   return {
@@ -498,6 +506,7 @@ export function seed(): WorkspaceData {
     activity,
     notifs,
     teams: TEAMS_SEED.map(x => ({ ...x })),
+    events,
     projOrder: projects.map(p => p.id),
   };
 }

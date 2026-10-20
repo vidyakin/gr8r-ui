@@ -126,6 +126,15 @@ export interface Team {
   desc: string;
 }
 
+/** Событие календаря (встреча проекта) */
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  date: IsoDate;
+  time: string;
+  project: string;
+}
+
 export interface WorkspaceInfo {
   name: string;
   url: string;
@@ -143,5 +152,6 @@ export interface WorkspaceData {
   activity: Activity[];
   notifs: Notification[];
   teams: Team[];
+  events: CalendarEvent[];
   projOrder: string[];
 }

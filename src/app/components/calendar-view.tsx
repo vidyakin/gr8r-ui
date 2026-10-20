@@ -1,15 +1,17 @@
 /* Календарь задач (месяц / неделя) — порт calendarHtml из views/calendar.js.
-   Перетаскивание задач между днями и события пока не перенесены. */
+   Опция events подмешивает события проектов (поповеры event / daylist из overlays/popovers.js).
+   Перетаскивание задач между днями пока не перенесено. */
 import * as React from 'react';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
-import { Button, IconButton, Segmented } from '@/components/ui';
+import { useNavigate } from 'react-router';
+import { ArrowUpRight, Calendar, ChevronLeft, ChevronRight, Clock, Folder, Plus, Users } from 'lucide-react';
+import { Button, IconButton, Popover, PopoverContent, PopoverTrigger, Segmented } from '@/components/ui';
 import { PriorityIcon, StatusIcon } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '../data/store';
 import { project, projectColor } from '../data/selectors';
 import { diffDays, fmtDate, iso, sod, today } from '../lib/dates';
-import type { Task } from '../data/types';
-import { MemberAvatar, useTaskActions } from './workspace';
+import type { CalendarEvent, Task } from '../data/types';
+import { MemberAvatar, MemberStack, useTaskActions } from './workspace';
 import { ProjectDot } from './project';
 
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -35,6 +37,111 @@ function Chip({ t }: { t: Task }) {
   );
 }
 
+/** Поповер события: название, дата, проект, участники (popover «event») */
+function EventPopover({ e, children }: { e: CalendarEvent; children: React.ReactNode }) {
+  const { data } = useWorkspace();
+  const navigate = useNavigate();
+  const p = project(data, e.project);
+  return (
+    <Popover>
+      <PopoverTrigger asChild>{children}</PopoverTrigger>
+      <PopoverContent className="!p-0" style={{ width: 270 }}>
+        <div style={{ padding: '10px 10px 6px' }}>
+          <div className="row" style={{ gap: 8, marginBottom: 6 }}>
+            <span className="pdot" style={{ '--c': projectColor(p), borderRadius: '50%' } as React.CSSProperties} />
+            <b style={{ fontSize: 14, fontWeight: 600 }}>{e.title}</b>
+          </div>
+          <div className="muted" style={{ fontSize: 12.5, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span className="row" style={{ gap: 6 }}>
+              <Calendar size={13} />
+              {fmtDate(e.date, true)} · {e.time}
+            </span>
+            <span className="row" style={{ gap: 6 }}>
+              <Folder size={13} />
+              {p?.name}
+            </span>
+            <span className="row" style={{ gap: 6 }}>
+              <Users size={13} />
+              <MemberStack ids={p?.members ?? []} max={5} />
+            </span>
+          </div>
+        </div>
+        <div className="msep" />
+        <button className="mi" onClick={() => navigate(`/projects/${e.project}`)}>
+          <ArrowUpRight size={14} />
+          Open project
+        </button>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function EventChip({ e }: { e: CalendarEvent }) {
+  const { data } = useWorkspace();
+  return (
+    <EventPopover e={e}>
+      <button className="cev event" style={{ '--c': projectColor(project(data, e.project)) } as React.CSSProperties} title={`${e.title} · ${e.time}`}>
+        <span className="num faint" style={{ fontSize: 11 }}>
+          {e.time}
+        </span>
+        <span className="trunc">{e.title}</span>
+      </button>
+    </EventPopover>
+  );
+}
+
+function EventCard({ e }: { e: CalendarEvent }) {
+  const { data } = useWorkspace();
+  const p = project(data, e.project);
+  return (
+    <EventPopover e={e}>
+      <button className="wcard event" style={{ '--c': projectColor(p) } as React.CSSProperties}>
+        <span className="t">
+          <span className="pdot" style={{ '--c': projectColor(p), borderRadius: '50%' } as React.CSSProperties} />
+          {e.title}
+        </span>
+        <span className="m">
+          <Clock size={11} />
+          {e.time} · {p?.name}
+        </span>
+      </button>
+    </EventPopover>
+  );
+}
+
+/** Поповер «+N more»: события и задачи дня (popover «daylist») */
+function DayList({ ds, evs, ts }: { ds: string; evs: CalendarEvent[]; ts: Task[] }) {
+  const navigate = useNavigate();
+  const { open } = useTaskActions();
+  const n = evs.length + ts.length - 3;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className="cmore">+{n} more</button>
+      </PopoverTrigger>
+      <PopoverContent className="!p-1" style={{ width: 280 }}>
+        <div className="mh">{fmtDate(ds, true)}</div>
+        {evs.map(e => (
+          <button key={e.id} className="mi" onClick={() => navigate(`/projects/${e.project}/calendar`)}>
+            <Clock size={14} />
+            {e.title}
+            <span className="r">{e.time}</span>
+          </button>
+        ))}
+        {ts.map(t => (
+          <button key={t.id} className="mi" onClick={() => open(t)}>
+            <StatusIcon status={t.status} />
+            <span className="trunc">{t.title}</span>
+            <span className="r">
+              <MemberAvatar id={t.assignee} size="sm" tooltip={false} />
+            </span>
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function WeekCard({ t }: { t: Task }) {
   const { data } = useWorkspace();
   const { open } = useTaskActions();
@@ -55,11 +162,12 @@ function WeekCard({ t }: { t: Task }) {
   );
 }
 
-export function CalendarView({ tasks, onAdd }: { tasks: Task[]; onAdd?: (due: string) => void }) {
+export function CalendarView({ tasks, onAdd, events }: { tasks: Task[]; onAdd?: (due: string) => void; events?: CalendarEvent[] }) {
   const { data } = useWorkspace();
   const [mode, setMode] = React.useState<'month' | 'week'>('month');
   const [cur, setCur] = React.useState(today);
   const on = (ds: string) => tasks.filter(t => t.due === ds);
+  const evOn = (ds: string) => (events ?? []).filter(e => e.date === ds);
   const now = today();
 
   const nav = (dir: -1 | 0 | 1) =>
@@ -85,7 +193,9 @@ export function CalendarView({ tasks, onAdd }: { tasks: Task[]; onAdd?: (due: st
         <div className="cal-g" style={{ gridTemplateRows: `repeat(${days.length / 7},minmax(112px,1fr))` }}>
           {days.map(d => {
             const ds = iso(d);
+            const evs = evOn(ds);
             const items = on(ds);
+            const total = evs.length + items.length;
             const isToday = diffDays(d, now) === 0;
             return (
               <div key={ds} className={cn('cday', d.getMonth() !== cur.getMonth() && 'out', isToday && 'today')}>
@@ -97,14 +207,20 @@ export function CalendarView({ tasks, onAdd }: { tasks: Task[]; onAdd?: (due: st
                     <Plus size={13} />
                   </button>
                 )}
-                {items.slice(0, 3).map(t => (
+                {evs.slice(0, 3).map(e => (
+                  <EventChip key={e.id} e={e} />
+                ))}
+                {items.slice(0, 3 - Math.min(evs.length, 3)).map(t => (
                   <Chip key={t.id} t={t} />
                 ))}
-                {items.length > 3 && (
-                  <button className="cmore" onClick={() => (setCur(d), setMode('week'))}>
-                    +{items.length - 3} more
-                  </button>
-                )}
+                {total > 3 &&
+                  (events ? (
+                    <DayList ds={ds} evs={evs} ts={items} />
+                  ) : (
+                    <button className="cmore" onClick={() => (setCur(d), setMode('week'))}>
+                      +{total - 3} more
+                    </button>
+                  ))}
               </div>
             );
           })}
@@ -119,6 +235,7 @@ export function CalendarView({ tasks, onAdd }: { tasks: Task[]; onAdd?: (due: st
       <div className="week">
         {days.map(d => {
           const ds = iso(d);
+          const evs = evOn(ds);
           const items = on(ds);
           return (
             <div key={ds} className="wcol">
@@ -135,8 +252,15 @@ export function CalendarView({ tasks, onAdd }: { tasks: Task[]; onAdd?: (due: st
                 )}
               </div>
               <div className="wcol-b">
-                {items.length ? (
-                  items.map(t => <WeekCard key={t.id} t={t} />)
+                {evs.length + items.length ? (
+                  <>
+                    {evs.map(e => (
+                      <EventCard key={e.id} e={e} />
+                    ))}
+                    {items.map(t => (
+                      <WeekCard key={t.id} t={t} />
+                    ))}
+                  </>
                 ) : (
                   <span className="faint" style={{ fontSize: 12, padding: 4 }}>
                     No tasks

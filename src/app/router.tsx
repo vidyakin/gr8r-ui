@@ -5,13 +5,14 @@ import { DesignSystemPage } from './pages/DesignSystemPage';
 import { InboxPage } from './pages/InboxPage';
 import { MyTasksPage } from './pages/MyTasksPage';
 import { FavoritesPage } from './pages/FavoritesPage';
+import { CalendarPage } from './pages/CalendarPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { NotFoundPage, PlaceholderPage } from './pages/PlaceholderPage';
 import { SECTIONS } from './routes';
 
 /* Hash-роутинг, как в оригинале: работает на любом статическом хостинге без настройки rewrite.
    Чтобы перенести раздел, замените PlaceholderPage на его компонент. */
-const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.system].map(s => s.path));
+const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.calendar, SECTIONS.system].map(s => s.path));
 
 export const router = createHashRouter([
   {
@@ -22,6 +23,7 @@ export const router = createHashRouter([
       { path: SECTIONS.mytasks.path, element: <MyTasksPage /> },
       { path: SECTIONS.favorites.path, element: <FavoritesPage /> },
       { path: SECTIONS.notifications.path, element: <NotificationsPage /> },
+      { path: SECTIONS.calendar.path, element: <CalendarPage /> },
       { path: SECTIONS.system.path, element: <DesignSystemPage /> },
       // Разделы, которые ещё не перенесены, открывают заглушку
       ...Object.values(SECTIONS)
