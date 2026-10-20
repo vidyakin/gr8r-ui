@@ -22,7 +22,6 @@ export type Action =
   | { type: 'project/delete'; id: string }
   | { type: 'project/inviteMember'; id: string; member: Member; perm: string }
   | { type: 'savedView/create'; view: SavedView }
-  | { type: 'workspace/restore'; snapshot: WorkspaceData }
   | { type: 'notif/setRead'; id: string; read: boolean }
   | { type: 'notif/markAllRead' }
   | { type: 'task/delete'; ids: string[] }
@@ -392,8 +391,6 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
       };
     case 'savedView/create':
       return { ...d, savedViews: [...d.savedViews, a.view] };
-    case 'workspace/restore':
-      return a.snapshot;
     case 'notif/setRead':
       return { ...d, notifs: d.notifs.map(n => (n.id === a.id ? { ...n, read: a.read } : n)) };
     case 'notif/markAllRead':

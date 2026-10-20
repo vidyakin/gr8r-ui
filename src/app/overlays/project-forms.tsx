@@ -108,7 +108,7 @@ export function ProjectFormsProvider({ children }: { children: React.ReactNode }
               const snapshot = live.current.data;
               dispatch({ type: 'project/delete', id });
               if (onProjectPage(id)) navigate('/projects');
-              toast(`Deleted ${p.name}`, { action: { label: 'Undo', onClick: () => dispatch({ type: 'workspace/restore', snapshot }) } });
+              toast(`Deleted ${p.name}`, { action: { label: 'Undo', onClick: () => dispatch({ type: 'data/restore', data: snapshot }) } });
             },
           },
         });
