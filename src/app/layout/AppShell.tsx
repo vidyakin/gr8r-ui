@@ -10,6 +10,7 @@ import { SECTIONS, type SectionId } from '../routes';
 import { Sidebar } from './Sidebar';
 import { Topbar, useCrumbs } from './Topbar';
 import { OverlayProviders } from '../overlays';
+import { CrmOverlays } from '../crm/overlays';
 
 const COLLAPSED_KEY = 'gr8r-ui.sidebar-collapsed';
 
@@ -80,6 +81,7 @@ export function AppShell() {
 
   return (
     <OverlayProviders>
+    <CrmOverlays>
     <div className={cn('shell', collapsed && 'collapsed', mnav && 'mnav')}>
       <button className="skip" onClick={() => document.getElementById('main-content')?.focus()}>
         Skip to content
@@ -95,6 +97,7 @@ export function AppShell() {
       </main>
       <BottomNav onMore={() => setMnav(true)} />
     </div>
+    </CrmOverlays>
     </OverlayProviders>
   );
 }

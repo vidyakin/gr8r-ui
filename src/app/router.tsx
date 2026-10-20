@@ -17,14 +17,26 @@ import { MembersPage } from './pages/MembersPage';
 import { MemberPage } from './pages/MemberPage';
 import { NotFoundPage, PlaceholderPage } from './pages/PlaceholderPage';
 import { SECTIONS } from './routes';
+import { CrmProvider } from './crm/store';
+import { DashboardPage as CrmDashboardPage } from './crm/DashboardPage';
+import { DealsPage as CrmDealsPage } from './crm/DealsPage';
+import { CompaniesPage as CrmCompaniesPage } from './crm/CompaniesPage';
+import { CompanyPage as CrmCompanyPage } from './crm/CompanyPage';
+import { ContactsPage as CrmContactsPage } from './crm/ContactsPage';
+import { ActivitiesPage as CrmActivitiesPage } from './crm/ActivitiesPage';
 
 /* Hash-роутинг, как в оригинале: работает на любом статическом хостинге без настройки rewrite.
    Чтобы перенести раздел, замените PlaceholderPage на его компонент. */
-const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.system].map(s => s.path));
+const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.system, SECTIONS.crm, SECTIONS.crmDeals, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities].map(s => s.path));
 
 export const router = createHashRouter([
   {
-    element: <AppShell />,
+    // CRM-хранилище живёт над оболочкой: из него берут данные крошки в топбаре и пункт «New deal»
+    element: (
+      <CrmProvider>
+        <AppShell />
+      </CrmProvider>
+    ),
     children: [
       { index: true, element: <HomePage /> },
       { path: SECTIONS.inbox.path, element: <InboxPage /> },
@@ -40,6 +52,12 @@ export const router = createHashRouter([
       { path: SECTIONS.members.path, element: <MembersPage /> },
       { path: `${SECTIONS.members.path}/:id`, element: <MemberPage /> },
       { path: SECTIONS.system.path, element: <DesignSystemPage /> },
+      { path: SECTIONS.crm.path, element: <CrmDashboardPage /> },
+      { path: SECTIONS.crmDeals.path, element: <CrmDealsPage /> },
+      { path: SECTIONS.crmCompanies.path, element: <CrmCompaniesPage /> },
+      { path: `${SECTIONS.crmCompanies.path}/:id/:tab?`, element: <CrmCompanyPage /> },
+      { path: SECTIONS.crmContacts.path, element: <CrmContactsPage /> },
+      { path: SECTIONS.crmActivities.path, element: <CrmActivitiesPage /> },
       // Разделы, которые ещё не перенесены, открывают заглушку
       ...Object.values(SECTIONS)
         .filter(s => !PORTED.has(s.path))

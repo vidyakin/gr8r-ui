@@ -3,18 +3,23 @@ import {
   Activity,
   Archive,
   Bell,
+  Building2,
   Calendar,
   ChartGantt,
+  ChartNoAxesCombined,
   CircleCheck,
   Component,
   FolderKanban,
+  Handshake,
   House,
   Inbox,
   LayoutDashboard,
   ListChecks,
+  PhoneCall,
   Settings,
   Star,
   Users,
+  ContactRound,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -40,6 +45,12 @@ export const SECTIONS = {
   archive: { path: '/archive', name: 'Archive', icon: Archive },
   settings: { path: '/settings', name: 'Settings', icon: Settings },
   system: { path: '/design-system', name: 'Design system', icon: Component },
+  // Демо-модуль CRM (src/app/crm)
+  crm: { path: '/crm', name: 'Dashboard', icon: ChartNoAxesCombined },
+  crmDeals: { path: '/crm/deals', name: 'Deals', icon: Handshake },
+  crmCompanies: { path: '/crm/companies', name: 'Companies', icon: Building2 },
+  crmContacts: { path: '/crm/contacts', name: 'Contacts', icon: ContactRound },
+  crmActivities: { path: '/crm/activities', name: 'Activities', icon: PhoneCall },
 } satisfies Record<string, Section>;
 
 export type SectionId = keyof typeof SECTIONS;
