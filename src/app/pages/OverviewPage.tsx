@@ -189,8 +189,8 @@ export function OverviewPage() {
                   style={{ height: 30, fontSize: 13, cursor: 'pointer' }}
                   role="button"
                   tabIndex={0}
-                  onClick={() => navigate(SECTIONS.members.path)}
-                  onKeyDown={e => e.key === 'Enter' && navigate(SECTIONS.members.path)}
+                  onClick={() => navigate(`${SECTIONS.members.path}/${l.m.id}`)}
+                  onKeyDown={e => e.key === 'Enter' && navigate(`${SECTIONS.members.path}/${l.m.id}`)}
                 >
                   <MemberAvatar id={l.m.id} size="sm" tooltip={false} />
                   <span style={{ width: 96 }} className="trunc">

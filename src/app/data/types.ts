@@ -13,7 +13,7 @@ export interface Member {
   team: string;
   title: string;
   c: string;
-  status: 'active' | 'invited';
+  status: 'active' | 'invited' | 'deactivated';
   /** Минут с последней активности */
   last: number | null;
   tz: string;

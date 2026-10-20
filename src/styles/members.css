@@ -1,0 +1,19 @@
+/* Участники и окно приглашения: поправки модального окна под оригинал (общие для всех диалогов) */
+
+/* Подзаголовок живёт внутри .modal-h: у оригинала это .muted 12.5px с отступом 2px */
+.modal-h .modal-desc {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+}
+
+/* На телефоне окно — «шторка» снизу на всю ширину (responsive.css оригинала, ≤640px) */
+@media (max-width: 640px) {
+  .modal-wrap {
+    padding: 0;
+    align-items: flex-end;
+  }
+  .modal {
+    max-height: 92vh;
+    border-radius: 14px 14px 0 0;
+  }
+}

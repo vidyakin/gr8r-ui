@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { seed } from './seed';
 import { PROJECT_STATUS, fileKind } from './selectors';
-import type { Activity, Project, ProjectFile, Status, Task, WorkspaceData } from './types';
+import type { Activity, Member, Project, ProjectFile, Status, Task, WorkspaceData } from './types';
 
 export type TaskPatch = Partial<Pick<Task, 'title' | 'status' | 'assignee' | 'priority' | 'due' | 'start' | 'fav' | 'project' | 'estimate' | 'order' | 'archived'>>;
 
@@ -22,7 +22,11 @@ export type Action =
   | { type: 'file/rename'; id: string; name: string }
   | { type: 'file/duplicate'; id: string }
   | { type: 'file/delete'; id: string }
-  | { type: 'file/restore'; file: ProjectFile; index: number };
+  | { type: 'file/restore'; file: ProjectFile; index: number }
+  | { type: 'member/invite'; emails: string[]; role: Member['role']; team: string }
+  | { type: 'member/setRole'; id: string; role: Member['role'] }
+  | { type: 'member/remove'; id: string }
+  | { type: 'member/restore'; member: Member; index: number; tasks: string[]; projects: string[] };
 
 let seq = 0;
 const uid = (p: string) => `${p}${Date.now().toString(36)}${++seq}`;
@@ -149,6 +153,44 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
     }
     case 'file/restore':
       return { ...d, files: [...d.files.slice(0, a.index), a.file, ...d.files.slice(a.index)] };
+    case 'member/invite': {
+      // Приглашённый получает имя из адреса (john.doe@… → John Doe); уже существующие адреса пропускаются
+      const fresh = a.emails.filter((e, i) => a.emails.indexOf(e) === i && !d.members.some(m => m.email === e));
+      const added: Member[] = fresh.map(e => ({
+        id: uid('m'),
+        name: e
+          .split('@')[0]
+          .replace(/[._-]+/g, ' ')
+          .replace(/\b\w/g, c => c.toUpperCase()),
+        email: e,
+        role: a.role,
+        team: a.team,
+        title: a.role,
+        c: '#6B7280',
+        status: 'invited',
+        last: null,
+        tz: '—',
+      }));
+      return { ...d, members: [...d.members, ...added] };
+    }
+    case 'member/setRole':
+      return { ...d, members: d.members.map(m => (m.id === a.id ? { ...m, role: a.role } : m)) };
+    case 'member/remove':
+      // Открытые задачи участника остаются без исполнителя, из проектов он выходит
+      return {
+        ...d,
+        members: d.members.filter(m => m.id !== a.id),
+        tasks: d.tasks.map(t => (t.assignee === a.id ? { ...t, assignee: null } : t)),
+        projects: d.projects.map(p => (p.members.includes(a.id) ? { ...p, members: p.members.filter(x => x !== a.id) } : p)),
+      };
+    case 'member/restore':
+      // Отмена удаления: участник возвращается на прежнее место, в свои задачи и проекты
+      return {
+        ...d,
+        members: [...d.members.slice(0, a.index), a.member, ...d.members.slice(a.index)],
+        tasks: d.tasks.map(t => (a.tasks.includes(t.id) ? { ...t, assignee: a.member.id } : t)),
+        projects: d.projects.map(p => (a.projects.includes(p.id) ? { ...p, members: [...p.members, a.member.id] } : p)),
+      };
   }
 }
 

@@ -13,12 +13,14 @@ import { TasksPage } from './pages/TasksPage';
 import { ProjectPage } from './pages/ProjectPage';
 import { TimelinePage } from './pages/TimelinePage';
 import { ActivityPage } from './pages/ActivityPage';
+import { MembersPage } from './pages/MembersPage';
+import { MemberPage } from './pages/MemberPage';
 import { NotFoundPage, PlaceholderPage } from './pages/PlaceholderPage';
 import { SECTIONS } from './routes';
 
 /* Hash-роутинг, как в оригинале: работает на любом статическом хостинге без настройки rewrite.
    Чтобы перенести раздел, замените PlaceholderPage на его компонент. */
-const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.system].map(s => s.path));
+const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.system].map(s => s.path));
 
 export const router = createHashRouter([
   {
@@ -35,6 +37,8 @@ export const router = createHashRouter([
       { path: SECTIONS.tasks.path, element: <TasksPage /> },
       { path: SECTIONS.timeline.path, element: <TimelinePage /> },
       { path: SECTIONS.activity.path, element: <ActivityPage /> },
+      { path: SECTIONS.members.path, element: <MembersPage /> },
+      { path: `${SECTIONS.members.path}/:id`, element: <MemberPage /> },
       { path: SECTIONS.system.path, element: <DesignSystemPage /> },
       // Разделы, которые ещё не перенесены, открывают заглушку
       ...Object.values(SECTIONS)
