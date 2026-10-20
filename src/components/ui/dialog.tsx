@@ -23,18 +23,18 @@ export function DialogContent({ title, description, size = 'md', footer, classNa
       <div className="modal-wrap">
         <D.Content className={cn('modal', size !== 'md' && size, className)} {...props}>
           <div className="modal-h">
-            <D.Title asChild>
-              <h2>{title}</h2>
-            </D.Title>
+            {/* Подзаголовок внутри шапки, как в оригинале (H(title, sub)): крестик центрируется по обеим строкам */}
+            <div>
+              <D.Title asChild>
+                <h2>{title}</h2>
+              </D.Title>
+              {description && <D.Description className="modal-desc">{description}</D.Description>}
+            </div>
             <D.Close className="ibtn ibtn-sm" aria-label="Закрыть">
-              <X size={15} />
+              <X size={16} />
             </D.Close>
           </div>
-          {description ? (
-            <D.Description className="modal-desc">{description}</D.Description>
-          ) : (
-            <D.Description className="sr-only">{typeof title === 'string' ? title : ''}</D.Description>
-          )}
+          {!description && <D.Description className="sr-only">{typeof title === 'string' ? title : ''}</D.Description>}
           {children && <div className="modal-b">{children}</div>}
           {footer && <div className="modal-f">{footer}</div>}
         </D.Content>

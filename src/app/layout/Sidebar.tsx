@@ -69,7 +69,7 @@ function Item({ to, label, icon, count, dot, collapsed, end }: ItemProps) {
 
 function SectionItem({ id, collapsed, count, dot }: { id: SectionId; collapsed: boolean; count?: number; dot?: boolean }) {
   const s = SECTIONS[id];
-  return <Item to={s.path} label={s.name} icon={<s.icon size={16} />} count={count} dot={dot} collapsed={collapsed} end={s.path === '/' || s.path === '/projects'} />;
+  return <Item to={s.path} label={s.name} icon={<s.icon size={16} />} count={count} dot={dot} collapsed={collapsed} end={s.path === '/' || s.path === '/projects' || s.path === '/members'} />;
 }
 
 const SUB_PAGES = [
