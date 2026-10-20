@@ -2,14 +2,14 @@
 import * as React from 'react';
 import { useNavigate } from 'react-router';
 import { Check, Folder, Minus, Plus, Search, SearchX, UserPlus, Users } from 'lucide-react';
-import { Button, EmptyState, Input, Segmented, Tab, Tabs, TabsContent, TabsList, toast } from '@/components/ui';
+import { Button, EmptyState, Input, Segmented, Tab, Tabs, TabsContent, TabsList } from '@/components/ui';
 import { useWorkspace } from '../data/store';
 import { allTasks, visibleProjects } from '../data/selectors';
 import { ago, minsAgo } from '../lib/dates';
 import { MemberAvatar, MemberStack } from '../components/workspace';
 import { NamedIcon } from '../components/icons';
 import { MemberMenu, MemberStatus, RoleCell, useMemberActions } from '../components/member';
-import { useInvite } from '../overlays';
+import { useInvite, useTeamForm } from '../overlays';
 
 type TabId = 'members' | 'teams' | 'roles';
 const ROLES = ['Owner', 'Admin', 'Member', 'Guest'] as const;
@@ -64,7 +64,7 @@ function PermsTable() {
   );
 }
 
-function TeamsGrid() {
+export function TeamsGrid() {
   const { data } = useWorkspace();
   const navigate = useNavigate();
   const projects = visibleProjects(data);
@@ -106,6 +106,7 @@ export function MembersPage() {
   const { data } = useWorkspace();
   const navigate = useNavigate();
   const invite = useInvite();
+  const teamForm = useTeamForm();
   const actions = useMemberActions();
   const [tab, setTab] = React.useState<TabId>('members');
   const [q, setQ] = React.useState('');
@@ -144,7 +145,7 @@ export function MembersPage() {
               {data.teams.length} teams
             </span>
             <span className="sp" />
-            <Button variant="secondary" size="sm" onClick={() => toast.info('Создание команды пока не перенесено')}>
+            <Button variant="secondary" size="sm" onClick={() => teamForm.create()}>
               <Plus size={13} />
               New team
             </Button>

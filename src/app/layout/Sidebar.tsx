@@ -29,7 +29,7 @@ import { WorkspaceLogo } from '../components/brand';
 import { NamedIcon } from '../components/icons';
 import { UserMenu } from './UserMenu';
 import { MemberAvatar } from '../components/workspace';
-import { useProjectForms } from '../overlays';
+import { useProjectForms, useTeamForm } from '../overlays';
 
 const soon = (what: string) => toast.info(`${what} пока не перенесено`);
 
@@ -172,6 +172,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   const archived = data.tasks.filter(t => t.archived).length + data.projects.filter(p => p.archived).length;
   const me = data.members.find(m => m.id === data.me)!;
   const projectForms = useProjectForms();
+  const teamForm = useTeamForm();
 
   return (
     <nav className="side" aria-label="Main">
@@ -249,7 +250,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           <div className="sgroup-h">
             <span>Teams</span>
             <span className="sp" />
-            <IconButton size="xs" label="New team" onClick={() => soon('Создание команды')}>
+            <IconButton size="xs" label="New team" onClick={() => teamForm.create()}>
               <Plus size={14} />
             </IconButton>
           </div>

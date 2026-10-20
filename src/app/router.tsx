@@ -16,6 +16,8 @@ import { ActivityPage } from './pages/ActivityPage';
 import { MembersPage } from './pages/MembersPage';
 import { MemberPage } from './pages/MemberPage';
 import { SearchPage } from './pages/SearchPage';
+import { ArchivePage } from './pages/ArchivePage';
+import { TeamPage, TeamsPage } from './pages/TeamPage';
 import { NotFoundPage, PlaceholderPage } from './pages/PlaceholderPage';
 import { SECTIONS } from './routes';
 import { CrmProvider } from './crm/store';
@@ -28,7 +30,7 @@ import { ActivitiesPage as CrmActivitiesPage } from './crm/ActivitiesPage';
 
 /* Hash-роутинг, как в оригинале: работает на любом статическом хостинге без настройки rewrite.
    Чтобы перенести раздел, замените PlaceholderPage на его компонент. */
-const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.system, SECTIONS.crm, SECTIONS.crmDeals, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities].map(s => s.path));
+const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.archive, SECTIONS.system, SECTIONS.crm, SECTIONS.crmDeals, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities].map(s => s.path));
 
 export const router = createHashRouter([
   {
@@ -53,6 +55,7 @@ export const router = createHashRouter([
       { path: SECTIONS.members.path, element: <MembersPage /> },
       { path: `${SECTIONS.members.path}/:id`, element: <MemberPage /> },
       { path: SECTIONS.search.path, element: <SearchPage /> },
+      { path: SECTIONS.archive.path, element: <ArchivePage /> },
       { path: SECTIONS.system.path, element: <DesignSystemPage /> },
       { path: SECTIONS.crm.path, element: <CrmDashboardPage /> },
       { path: SECTIONS.crmDeals.path, element: <CrmDealsPage /> },
@@ -65,7 +68,8 @@ export const router = createHashRouter([
         .filter(s => !PORTED.has(s.path))
         .map(s => ({ path: s.path, element: <PlaceholderPage /> })),
       { path: '/projects/:id/:tab?', element: <ProjectPage /> },
-      { path: '/teams/:id', element: <PlaceholderPage /> },
+      { path: '/teams', element: <TeamsPage /> },
+      { path: '/teams/:id', element: <TeamPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },
