@@ -64,7 +64,11 @@ describe('worker: events outbox', () => {
     const wsB = await workspace();
     for (const ws of [wsA, wsB]) await withContext(sql, { workspaceId: ws }, db => recordEvent(db, { workspaceId: ws, type: 'test.happened', entity: 'test' }));
     const o = quiet();
-    expect(await processEventsOnce(sql, o)).toBeGreaterThanOrEqual(2);
+    // Один проход берёт только `batch` событий (по умолчанию 100), а в общей тестовой БД могут
+    // оставаться необработанные события от других файлов — крутим, как настоящий воркер, до опустошения.
+    let taken = 0;
+    for (let n = await processEventsOnce(sql, o); n > 0; n = await processEventsOnce(sql, o)) taken += n;
+    expect(taken).toBeGreaterThanOrEqual(2);
     const rows = await admin`select workspace_id, processed_at from events where type = 'test.happened' and workspace_id in ${admin([wsA, wsB])}`;
     expect(rows).toHaveLength(2);
     expect(rows.every(r => r.processed_at !== null)).toBe(true);
