@@ -19,7 +19,7 @@ export function UserMenu({ children, side = 'bottom', align = 'end' }: { childre
           <div className="text-xs text-text-3">{me.email}</div>
         </div>
         <MenuSeparator />
-        <MenuItem icon={<User size={15} />} onSelect={() => navigate(SECTIONS.settings.path)}>
+        <MenuItem icon={<User size={15} />} onSelect={() => navigate(`${SECTIONS.settings.path}/profile`)}>
           Profile
         </MenuItem>
         <MenuItem icon={<Settings size={15} />} shortcut="G S" onSelect={() => navigate(SECTIONS.settings.path)}>

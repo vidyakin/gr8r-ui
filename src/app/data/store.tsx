@@ -6,7 +6,7 @@ import { PROJECT_STATUS, fileKind, fmtHours, statusOf, visibleProjects } from '.
 import { addSub, findSub, mapSub, reopenAncestors, removeSub, subPath, subtreeIds, toggleSub, flattenSubs } from './subtasks';
 import { toast } from '@/components/ui';
 import { dOff, fmtDate, iso, parse } from '../lib/dates';
-import type { Activity, Member, Notification, Project, ProjectFile, SavedView, Status, StatusDef, Subtask, Task, Team, TimeLog, WorkspaceData } from './types';
+import type { Activity, Member, Notification, Project, ProjectFile, SavedView, Status, StatusDef, Subtask, Task, Team, TimeLog, WorkspaceData, WorkspaceInfo } from './types';
 
 export type TaskPatch = Partial<Pick<Task, 'title' | 'status' | 'assignee' | 'priority' | 'due' | 'start' | 'fav' | 'project' | 'planHours' | 'order' | 'archived' | 'labels' | 'deps' | 'recur' | 'desc' | 'subtasks'>>;
 export type SubtaskPatch = Partial<Pick<Subtask, 'title' | 'assignee' | 'due' | 'note' | 'planHours'>>;
@@ -62,6 +62,10 @@ export type Action =
   | { type: 'member/invite'; emails: string[]; role: Member['role']; team: string }
   | { type: 'member/setRole'; id: string; role: Member['role'] }
   | { type: 'member/remove'; id: string }
+  /** Профиль (имя, должность, цвет аватара) — из Settings → Profile */
+  | { type: 'member/update'; id: string; patch: Partial<Pick<Member, 'name' | 'title' | 'c'>> }
+  /** Название, адрес и цвет воркспейса — из Settings → Workspace */
+  | { type: 'ws/update'; patch: Partial<WorkspaceInfo> }
   | { type: 'member/restore'; member: Member; index: number; tasks: string[]; projects: string[] }
   /** members — id участников, у которых основная команда становится этой (остальные из неё уходят) */
   | { type: 'team/create'; team: Team; members: string[] }
@@ -609,6 +613,10 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
       }));
       return { ...d, members: [...d.members, ...added] };
     }
+    case 'member/update':
+      return { ...d, members: d.members.map(m => (m.id === a.id ? { ...m, ...a.patch } : m)) };
+    case 'ws/update':
+      return { ...d, ws: { ...d.ws, ...a.patch } };
     case 'member/setRole':
       return { ...d, members: d.members.map(m => (m.id === a.id ? { ...m, role: a.role } : m)) };
     case 'member/remove':

@@ -292,7 +292,7 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
     { id: 'c-conts', name: 'Go to Contacts', icon: ContactRound, quiet: true, run: section('crmContacts') },
     { id: 'c-acts', name: 'Go to CRM Activities', icon: SECTIONS.crmActivities.icon, quiet: true, run: section('crmActivities') },
     { id: 'c-set', name: 'Open settings', icon: Settings, kbd: 'G S', run: section('settings') },
-    { id: 'c-app', name: 'Appearance settings', icon: Palette, run: section('settings') },
+    { id: 'c-app', name: 'Appearance settings', icon: Palette, run: () => go(`${SECTIONS.settings.path}/appearance`) },
     { id: 'c-dark', name: dark ? 'Switch to light mode' : 'Switch to dark mode', icon: dark ? Sun : Moon, kbd: `${MOD} ⇧ L`, run: toggleDark },
     { id: 'c-inv', name: 'Invite member', icon: UserPlus, run: () => invite.open() },
     { id: 'c-side', name: 'Toggle sidebar', icon: PanelLeft, kbd: '[', run: toggleSidebar },
