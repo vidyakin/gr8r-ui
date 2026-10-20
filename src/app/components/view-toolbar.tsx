@@ -141,9 +141,11 @@ export interface ViewToolbarProps {
   group?: boolean;
   /** Кнопка «Columns» со списком переключаемых колонок */
   columns?: { id: string; name: string }[];
+  /** Доп. контролы после стандартных кнопок (например, масштаб Timeline) */
+  extra?: React.ReactNode;
 }
 
-export function ViewToolbar({ api, right, group, columns }: ViewToolbarProps) {
+export function ViewToolbar({ api, right, group, columns, extra }: ViewToolbarProps) {
   const fields = useFields();
   const { view } = api;
   const sortName = SORTS.find(s => s.f === view.sort.f)?.name ?? SORT_NAMES[view.sort.f];
@@ -226,6 +228,7 @@ export function ViewToolbar({ api, right, group, columns }: ViewToolbarProps) {
             </MenuContent>
           </Menu>
         )}
+        {extra}
         <span className="sp" />
         {right}
       </div>
