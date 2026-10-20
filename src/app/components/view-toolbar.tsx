@@ -1,11 +1,11 @@
 /* Панель вида списка: поиск, фильтры, сортировка и строка фильтров-чипов — порт viewToolbar / filterChips
    из shell/view-engine.js. Конструктор фильтров упрощён: поле → набор значений (условие «is»). */
 import * as React from 'react';
-import { ArrowUpDown, Calendar, CircleDot, Folder, ListFilter, Plus, Search, SignalHigh, User, X } from 'lucide-react';
-import { Badge, Button, Input, Menu, MenuCheckboxItem, MenuContent, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger } from '@/components/ui';
+import { ArrowUpDown, Calendar, CircleDot, Columns3, Folder, ListFilter, Minus, Plus, RotateCcw, Rows3, Search, SignalHigh, User, X } from 'lucide-react';
+import { Badge, Button, Input, Menu, MenuCheckboxItem, MenuContent, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger } from '@/components/ui';
 import { PRIORITIES, PriorityIcon, STATUSES, StatusIcon } from '@/components/gr8r/task';
 import { useWorkspace } from '../data/store';
-import { canSee, visibleProjects, type Filter, type FilterField, type ListView, type SortField } from '../data/selectors';
+import { canSee, visibleProjects, type Filter, type FilterField, type GroupBy, type ListView, type SortField } from '../data/selectors';
 import { MemberAvatar } from './workspace';
 import { ProjectDot } from './project';
 
@@ -59,11 +59,34 @@ const SORTS: { f: SortField; name: string }[] = [
   { f: 'updated', name: 'Updated' },
 ];
 
+/* Названия полей сортировки, которые выбираются кликом по заголовку таблицы, а не из меню */
+const SORT_NAMES: Partial<Record<SortField, string>> = { assignee: 'Assignee', start: 'Start date', estimate: 'Estimate', project: 'Project' };
+
+const GROUPS: { id: GroupBy; name: string; icon: React.ReactNode }[] = [
+  { id: 'status', name: 'Status', icon: <CircleDot size={15} /> },
+  { id: 'priority', name: 'Priority', icon: <SignalHigh size={15} /> },
+  { id: 'assignee', name: 'Assignee', icon: <User size={15} /> },
+  { id: 'project', name: 'Project', icon: <Folder size={15} /> },
+  { id: 'due', name: 'Due date', icon: <Calendar size={15} /> },
+  { id: 'none', name: 'No grouping', icon: <Minus size={15} /> },
+];
+
 /** Состояние вида списка + операции над ним */
 export function useListView(initial?: Partial<ListView>) {
   const [view, setView] = React.useState<ListView>({ q: '', filters: [], sort: { f: 'manual', dir: 1 }, ...initial });
+  // Группировка и колонки таблицы — только для видов, которые их показывают (Tasks, страница проекта)
+  const [group, setGroup] = React.useState<GroupBy>('status');
+  const [hidden, setHidden] = React.useState<string[]>(['start', 'created', 'deps']);
+  const [colW, setColW] = React.useState<Record<string, number>>({});
   return {
     view,
+    group,
+    setGroup,
+    hidden,
+    toggleColumn: (c: string) => setHidden(h => (h.includes(c) ? h.filter(x => x !== c) : [...h, c])),
+    colW,
+    setColW: (c: string, w: number) => setColW(m => ({ ...m, [c]: w })),
+    resetColW: () => setColW({}),
     setQuery: (q: string) => setView(v => ({ ...v, q })),
     toggleValue: (f: FilterField, id: string) =>
       setView(v => {
@@ -78,7 +101,7 @@ export function useListView(initial?: Partial<ListView>) {
   };
 }
 
-type ViewApi = ReturnType<typeof useListView>;
+export type ViewApi = ReturnType<typeof useListView>;
 
 function FilterMenu({ api, children }: { api: ViewApi; children: React.ReactElement }) {
   const fields = useFields();
@@ -111,10 +134,19 @@ function FilterMenu({ api, children }: { api: ViewApi; children: React.ReactElem
   );
 }
 
-export function ViewToolbar({ api, right }: { api: ViewApi; right?: React.ReactNode }) {
+export interface ViewToolbarProps {
+  api: ViewApi;
+  right?: React.ReactNode;
+  /** Кнопка «Group» */
+  group?: boolean;
+  /** Кнопка «Columns» со списком переключаемых колонок */
+  columns?: { id: string; name: string }[];
+}
+
+export function ViewToolbar({ api, right, group, columns }: ViewToolbarProps) {
   const fields = useFields();
   const { view } = api;
-  const sortName = SORTS.find(s => s.f === view.sort.f)?.name;
+  const sortName = SORTS.find(s => s.f === view.sort.f)?.name ?? SORT_NAMES[view.sort.f];
   return (
     <>
       <div className="toolbar" role="toolbar">
@@ -152,6 +184,48 @@ export function ViewToolbar({ api, right }: { api: ViewApi; right?: React.ReactN
             </MenuRadioGroup>
           </MenuContent>
         </Menu>
+        {group && (
+          <Menu>
+            <MenuTrigger asChild>
+              <Button variant="ghost">
+                <Rows3 size={14} />
+                <span className="hide-m">Group:</span> {GROUPS.find(g => g.id === api.group)?.name === 'No grouping' ? 'None' : GROUPS.find(g => g.id === api.group)?.name}
+              </Button>
+            </MenuTrigger>
+            <MenuContent>
+              <MenuLabel>Group by</MenuLabel>
+              <MenuRadioGroup value={api.group} onValueChange={g => api.setGroup(g as GroupBy)}>
+                {GROUPS.map(g => (
+                  <MenuRadioItem key={g.id} value={g.id} icon={g.icon}>
+                    {g.name}
+                  </MenuRadioItem>
+                ))}
+              </MenuRadioGroup>
+            </MenuContent>
+          </Menu>
+        )}
+        {columns && (
+          <Menu>
+            <MenuTrigger asChild>
+              <Button variant="ghost">
+                <Columns3 size={14} />
+                Columns
+              </Button>
+            </MenuTrigger>
+            <MenuContent>
+              <MenuLabel>Visible columns</MenuLabel>
+              {columns.map(c => (
+                <MenuCheckboxItem key={c.id} checked={!api.hidden.includes(c.id)} onCheckedChange={() => api.toggleColumn(c.id)} onSelect={e => e.preventDefault()}>
+                  {c.name}
+                </MenuCheckboxItem>
+              ))}
+              <MenuSeparator />
+              <MenuItem icon={<RotateCcw size={14} />} onSelect={api.resetColW}>
+                Reset widths
+              </MenuItem>
+            </MenuContent>
+          </Menu>
+        )}
         <span className="sp" />
         {right}
       </div>
