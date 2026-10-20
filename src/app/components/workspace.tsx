@@ -101,12 +101,17 @@ export function ActivityItem({ a, showProject }: { a: Activity; showProject?: bo
   const m = member(data, a.by);
   const t = findTask(data, a.task);
   const p = project(data, a.project);
+  const { open } = useTaskActions();
   return (
     <div className="fitem">
       <MemberAvatar id={a.by} size="sm" />
       <div className="min-w-0 flex-1">
         <b>{m?.id === data.me ? 'You' : m?.name || 'Someone'}</b> <span className="muted">{a.verb}</span>{' '}
-        {t ? <span className="obj">{t.title}</span> : p ? (
+        {t ? (
+          <span className="obj" role="button" tabIndex={0} onClick={() => open(t)} onKeyDown={e => e.key === 'Enter' && open(t)}>
+            {t.title}
+          </span>
+        ) : p ? (
           <Link className="obj" to={`/projects/${p.id}`}>
             {p.name}
           </Link>
