@@ -1,0 +1,70 @@
+/* Страница проекта: шапка с вкладками и список «ключ — значение» (порт .proj-h и .kv из views/projects-files.css) */
+.proj-h {
+  padding: 20px var(--gutter) 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.proj-h .t {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.proj-h h1 {
+  font-size: var(--fs-xl);
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.018em;
+}
+/* вкладки доходят до краёв; первая подпись всё равно стоит на gutter (у вкладки 10px отступа) */
+.proj-h .tabs {
+  margin: 0 calc(-1 * var(--gutter));
+  padding: 0 calc(var(--gutter) - 10px);
+}
+.kv {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  row-gap: 2px;
+  align-items: center;
+  font-size: var(--fs-sm);
+  /* у <dl> в оригинале остаются отступы браузера (в нашем reset их нет) */
+  margin: 1em 0;
+}
+.kv > dt {
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  margin: 0;
+}
+.kv > dd {
+  margin: 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  min-height: 30px;
+}
+.kv > dt svg {
+  color: var(--text-4);
+}
+@media (max-width: 900px) {
+  .proj-h {
+    padding-top: 16px;
+  }
+}
+@media (max-width: 640px) {
+  .kv {
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+}
+/* тело вкладки занимает остаток высоты: календарь и доска растягиваются, список прокручивается страницей */
+.pbody {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}

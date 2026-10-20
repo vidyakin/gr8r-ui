@@ -1,13 +1,13 @@
 /* Редактируемые поля задачи — порт cellStatus / cellAssignee / cellPrio / cellDue из components/task-list.js.
    Кнопка-«таблетка» (.pillbtn) открывает меню выбора; изменение уходит в store через task/update. */
 import * as React from 'react';
-import { Calendar as CalendarIcon } from 'lucide-react';
-import { Menu, MenuContent, MenuRadioGroup, MenuRadioItem, MenuTrigger, Popover, PopoverContent, PopoverTrigger } from '@/components/ui';
+import { Calendar as CalendarIcon, Tag } from 'lucide-react';
+import { Label, Menu, MenuContent, MenuRadioGroup, MenuRadioItem, MenuTrigger, Popover, PopoverContent, PopoverTrigger, toast } from '@/components/ui';
 import { Calendar } from '@/components/shadcn/calendar';
 import { PRIORITIES, PriorityIcon, STATUSES, StatusIcon, type Priority, type Status } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
 import { useWorkspace, type TaskPatch } from '../data/store';
-import { isOverdue, member, project } from '../data/selectors';
+import { LABELS, isOverdue, member, project } from '../data/selectors';
 import { dOff, iso, parse, relDate } from '../lib/dates';
 import type { Task } from '../data/types';
 import { MemberAvatar } from './workspace';
@@ -183,5 +183,32 @@ export function ProjectPill({ task: t }: { task: Task }) {
       <ProjectDot project={p} />
       <span className="trunc">{p?.name}</span>
     </span>
+  );
+}
+
+/** Метки задачи в списке (cellLabels): две первые + «+N»; выбор меток пока не перенесён */
+export function LabelsField({ task: t }: { task: Task }) {
+  return (
+    <button className={cn('pillbtn', !t.labels.length && 'empty')} aria-label="Labels" style={{ gap: 4, overflow: 'hidden' }} onClick={() => toast.info('Выбор меток пока не перенесён')}>
+      {t.labels.length ? (
+        <>
+          {t.labels.slice(0, 2).map(id => (
+            <Label key={id} color={LABELS[id].c}>
+              {LABELS[id].name}
+            </Label>
+          ))}
+          {t.labels.length > 2 && (
+            <span className="faint" style={{ fontSize: 11 }}>
+              +{t.labels.length - 2}
+            </span>
+          )}
+        </>
+      ) : (
+        <>
+          <Tag size={13} />
+          <span>Add</span>
+        </>
+      )}
+    </button>
   );
 }

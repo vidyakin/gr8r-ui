@@ -68,7 +68,7 @@ function Item({ to, label, icon, count, dot, collapsed, end }: ItemProps) {
 
 function SectionItem({ id, collapsed, count, dot }: { id: SectionId; collapsed: boolean; count?: number; dot?: boolean }) {
   const s = SECTIONS[id];
-  return <Item to={s.path} label={s.name} icon={<s.icon size={16} />} count={count} dot={dot} collapsed={collapsed} end={s.path === '/'} />;
+  return <Item to={s.path} label={s.name} icon={<s.icon size={16} />} count={count} dot={dot} collapsed={collapsed} end={s.path === '/' || s.path === '/projects'} />;
 }
 
 const SUB_PAGES = [
@@ -89,7 +89,7 @@ function ProjectItem({ id, collapsed }: { id: string; collapsed: boolean }) {
 
   const row = (
     <div
-      className={cn('sitem', on && !match?.params.tab && 'on')}
+      className={cn('sitem', on && 'on')}
       role="link"
       tabIndex={0}
       onClick={() => navigate(`/projects/${p.id}`)}

@@ -508,5 +508,6 @@ export function seed(): WorkspaceData {
     teams: TEAMS_SEED.map(x => ({ ...x })),
     events,
     projOrder: projects.map(p => p.id),
+    savedViews: [{ id: 'v1', project: 'p1', name: 'High priority', type: 'list', filters: [{ f: 'priority', v: ['urgent', 'high'] }] }],
   };
 }

@@ -135,6 +135,15 @@ export interface CalendarEvent {
   project: string;
 }
 
+/** Сохранённый вид проекта: фильтры + тип вкладки, к которой они применяются */
+export interface SavedView {
+  id: string;
+  project: string;
+  name: string;
+  type: 'list' | 'board' | 'table' | 'calendar' | 'timeline';
+  filters: { f: 'status' | 'assignee' | 'priority' | 'due' | 'project'; v: string[] }[];
+}
+
 export interface WorkspaceInfo {
   name: string;
   url: string;
@@ -154,4 +163,5 @@ export interface WorkspaceData {
   teams: Team[];
   events: CalendarEvent[];
   projOrder: string[];
+  savedViews: SavedView[];
 }

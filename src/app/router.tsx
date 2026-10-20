@@ -10,6 +10,7 @@ import { ProjectsPage } from './pages/ProjectsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { TasksPage } from './pages/TasksPage';
+import { ProjectPage } from './pages/ProjectPage';
 import { NotFoundPage, PlaceholderPage } from './pages/PlaceholderPage';
 import { SECTIONS } from './routes';
 
@@ -35,7 +36,7 @@ export const router = createHashRouter([
       ...Object.values(SECTIONS)
         .filter(s => !PORTED.has(s.path))
         .map(s => ({ path: s.path, element: <PlaceholderPage /> })),
-      { path: '/projects/:id/:tab?', element: <PlaceholderPage /> },
+      { path: '/projects/:id/:tab?', element: <ProjectPage /> },
       { path: '/teams/:id', element: <PlaceholderPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],

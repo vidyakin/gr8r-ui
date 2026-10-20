@@ -4,7 +4,7 @@ import { Bell, ChevronDown, CircleCheck, FolderPlus, Menu as MenuIcon, Plus, Sea
 import { Button, IconButton, Menu, MenuContent, MenuItem, MenuTrigger, Tooltip, toast } from '@/components/ui';
 import { useWorkspace } from '../data/store';
 import { project } from '../data/selectors';
-import { PROJECT_TABS, SECTIONS } from '../routes';
+import { SECTIONS } from '../routes';
 import { MemberAvatar } from '../components/workspace';
 import { ProjectIcon } from '../components/project';
 import { UserMenu } from './UserMenu';
@@ -21,14 +21,13 @@ export interface Crumb {
 export function useCrumbs(): Crumb[] {
   const { pathname } = useLocation();
   const { data } = useWorkspace();
-  const [, a, b, c] = pathname.split('/');
+  const [, a, b] = pathname.split('/');
   if (a === 'projects' && b) {
     const p = project(data, b);
-    const tab = PROJECT_TABS.find(t => t.id === c);
     return [
       { label: 'Projects', to: SECTIONS.projects.path },
-      ...(p ? [{ label: p.name, to: `/projects/${p.id}`, icon: <ProjectIcon project={p} size={11} className="!size-4 !rounded" /> }] : [{ label: 'Not found' }]),
-      ...(tab ? [{ label: tab.name }] : []),
+      // Как в оригинале: вкладка проекта в крошки не попадает, проект — текущая страница
+      ...(p ? [{ label: p.name, icon: <ProjectIcon project={p} size={11} className="!size-4 !rounded" /> }] : []),
     ];
   }
   if (a === 'teams' && b) return [{ label: 'Teams' }, { label: data.teams.find(t => t.id === b)?.name ?? 'Team' }];
@@ -49,12 +48,13 @@ export function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
       </IconButton>
       <nav className="crumbs trunc" aria-label="Breadcrumb">
         {crumbs.map((c, i) => {
-          const last = i === crumbs.length - 1;
+          // Крошка со ссылкой не бывает «текущей» (неизвестный проект: остаётся одна ссылка «Projects», как в оригинале)
+          const last = i === crumbs.length - 1 && !c.to;
           return (
             <span key={i} className="contents">
               {i > 0 && <span className="sep">/</span>}
               {c.to && !last ? (
-                <Link to={c.to} className="inline-flex items-center gap-1.5 whitespace-nowrap py-[3px] transition-colors hover:text-text">
+                <Link to={c.to} className="inline-flex items-center gap-1.5 whitespace-nowrap py-[3px] transition-colors hover:text-text max-sm:hidden">
                   {c.icon}
                   {c.label}
                 </Link>

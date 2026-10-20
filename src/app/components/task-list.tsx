@@ -7,10 +7,10 @@ import { cn } from '@/lib/utils';
 import { useWorkspace, type TaskPatch } from '../data/store';
 import { commentsOf, type SortField } from '../data/selectors';
 import type { Task } from '../data/types';
-import { AssigneeField, DueField, PriorityField, ProjectPill, StatusField } from './fields';
+import { AssigneeField, DueField, LabelsField, PriorityField, ProjectPill, StatusField } from './fields';
 import { useTaskActions } from './workspace';
 
-export type Column = 'project' | 'status' | 'assignee' | 'priority' | 'due';
+export type Column = 'project' | 'status' | 'assignee' | 'priority' | 'due' | 'labels';
 
 const COLUMNS: Record<Column, { name: string; width: string; sort?: SortField; Cell: (p: { task: Task }) => React.ReactNode }> = {
   project: { name: 'Project', width: '160px', Cell: ProjectPill },
@@ -18,6 +18,7 @@ const COLUMNS: Record<Column, { name: string; width: string; sort?: SortField; C
   assignee: { name: 'Assignee', width: '150px', Cell: AssigneeField },
   priority: { name: 'Priority', width: '108px', sort: 'priority', Cell: PriorityField },
   due: { name: 'Due date', width: '104px', sort: 'due', Cell: DueField },
+  labels: { name: 'Labels', width: '168px', sort: 'manual', Cell: LabelsField },
 };
 
 export interface TaskGroup {

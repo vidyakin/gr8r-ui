@@ -20,7 +20,7 @@ function BottomNav({ onMore }: { onMore: () => void }) {
       {(['home', 'mytasks', 'projects', 'inbox'] as SectionId[]).map(id => {
         const s = SECTIONS[id];
         return (
-          <NavLink key={id} to={s.path} end={s.path === '/'} className={({ isActive }) => cn(isActive && 'on')}>
+          <NavLink key={id} to={s.path} end={s.path === '/' || s.path === '/projects'} className={({ isActive }) => cn(isActive && 'on')}>
             <s.icon size={19} />
             <span>{s.name}</span>
             {id === 'inbox' && unread && <span className="bdot" />}
@@ -38,6 +38,8 @@ function BottomNav({ onMore }: { onMore: () => void }) {
 export function AppShell() {
   const { data } = useWorkspace();
   const location = useLocation();
+  // Вкладки проекта не пересоздают страницу: фильтры вида живут, пока открыт тот же проект (как S.views в оригинале)
+  const pageKey = location.pathname.replace(/^(\/projects\/[^/]+)\/.*$/, '$1');
   const crumbs = useCrumbs();
   const [collapsed, setCollapsed] = React.useState(() => {
     try {
@@ -85,7 +87,7 @@ export function AppShell() {
       <main className="main" id="main">
         <Topbar onOpenNav={() => setMnav(true)} />
         {/* key перезапускает анимацию появления при смене страницы */}
-        <div key={location.pathname} className="content fx-route" id="main-content" tabIndex={-1}>
+        <div key={pageKey} className="content fx-route" id="main-content" tabIndex={-1}>
           <Outlet />
         </div>
       </main>

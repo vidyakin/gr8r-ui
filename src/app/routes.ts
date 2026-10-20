@@ -44,10 +44,14 @@ export const SECTIONS = {
 
 export type SectionId = keyof typeof SECTIONS;
 
+/** Вкладки страницы проекта (id — часть адреса /projects/:id/:tab); по умолчанию открывается board */
 export const PROJECT_TABS = [
   { id: 'overview', name: 'Overview' },
   { id: 'board', name: 'Board' },
   { id: 'list', name: 'List' },
+  { id: 'table', name: 'Table' },
+  { id: 'calendar', name: 'Calendar' },
   { id: 'timeline', name: 'Timeline' },
   { id: 'files', name: 'Files' },
+  { id: 'activity', name: 'Activity' },
 ] as const;

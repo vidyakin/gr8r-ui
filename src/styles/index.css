@@ -12,6 +12,7 @@
 @import './app.css' layer(components);
 @import './app-views.css' layer(components);
 @import './projects.css' layer(components);
+@import './project-page.css' layer(components);
 @import './task-views.css' layer(components);
 
 /* Тёмная тема Gr8r включается атрибутом data-theme, а не классом .dark */

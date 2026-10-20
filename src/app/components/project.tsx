@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router';
 import { Archive, ArrowUpRight, Calendar, CircleCheck, Clock, Copy, Ellipsis, Link2, Lock, Pencil, Share2, Star, Trash2 } from 'lucide-react';
-import { IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Progress, Tooltip, toast } from '@/components/ui';
+import { IconButton, Menu, MenuContent, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger, Progress, Tooltip, toast } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '../data/store';
 import { PROJECT_STATUS, canSee, progressOf, projectColor, tasksOf } from '../data/selectors';
@@ -31,6 +31,31 @@ export function ProjectStatus({ status }: { status: PS }) {
       <i />
       {s.name}
     </span>
+  );
+}
+
+/** Выбор статуса проекта (поповер pstatus): children — кнопка-триггер */
+export function ProjectStatusMenu({ project: p, children }: { project: Project; children: React.ReactElement }) {
+  const { dispatch } = useWorkspace();
+  return (
+    <Menu>
+      <MenuTrigger asChild>{children}</MenuTrigger>
+      <MenuContent>
+        <MenuRadioGroup
+          value={p.status}
+          onValueChange={v => {
+            dispatch({ type: 'project/update', id: p.id, patch: { status: v as PS } });
+            toast(`${p.name} marked ${PROJECT_STATUS[v as PS].name}`);
+          }}
+        >
+          {(Object.entries(PROJECT_STATUS) as [PS, { name: string; c: string }][]).map(([k, v]) => (
+            <MenuRadioItem key={k} value={k} icon={<span className="pdot" style={{ '--c': v.c, borderRadius: '50%' } as React.CSSProperties} />}>
+              {v.name}
+            </MenuRadioItem>
+          ))}
+        </MenuRadioGroup>
+      </MenuContent>
+    </Menu>
   );
 }
 

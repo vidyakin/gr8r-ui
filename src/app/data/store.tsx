@@ -2,7 +2,8 @@
    Компоненты читают данные через useWorkspace() и меняют их только через dispatch(action). */
 import * as React from 'react';
 import { seed } from './seed';
-import type { Activity, Status, Task, WorkspaceData } from './types';
+import { PROJECT_STATUS } from './selectors';
+import type { Activity, Project, Status, Task, WorkspaceData } from './types';
 
 export type TaskPatch = Partial<Pick<Task, 'title' | 'status' | 'assignee' | 'priority' | 'due' | 'fav' | 'project' | 'estimate' | 'order' | 'archived'>>;
 
@@ -12,6 +13,7 @@ export type Action =
   | { type: 'task/toggleSubtask'; id: string; subtask: string }
   | { type: 'task/create'; task: Pick<Task, 'title' | 'project'> & TaskPatch }
   | { type: 'project/toggleFav'; id: string }
+  | { type: 'project/update'; id: string; patch: Partial<Pick<Project, 'status'>> }
   | { type: 'notif/setRead'; id: string; read: boolean }
   | { type: 'notif/markAllRead' }
   | { type: 'comment/add'; task: string; text: string }
@@ -86,6 +88,17 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
     }
     case 'project/toggleFav':
       return { ...d, projects: d.projects.map(p => (p.id === a.id ? { ...p, fav: !p.fav } : p)) };
+    case 'project/update': {
+      const p = d.projects.find(x => x.id === a.id);
+      if (!p) return d;
+      const next = { ...p, ...a.patch };
+      // Смена статуса проекта попадает в ленту активности — как в оригинале (popPick → pstatus)
+      const activity: Activity[] =
+        a.patch.status && a.patch.status !== p.status
+          ? [{ id: uid('a'), by: d.me, verb: 'changed status of project', task: null, project: p.id, at: Date.now(), extra: 'to ' + PROJECT_STATUS[a.patch.status].name }, ...d.activity]
+          : d.activity;
+      return { ...d, projects: d.projects.map(x => (x.id === p.id ? next : x)), activity };
+    }
     case 'notif/setRead':
       return { ...d, notifs: d.notifs.map(n => (n.id === a.id ? { ...n, read: a.read } : n)) };
     case 'notif/markAllRead':
