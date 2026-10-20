@@ -62,6 +62,8 @@ export function MiniTaskRow({ task: t, showProject = true, showAssignee = true, 
   return (
     <div
       className={cn('mini', done && 'done')}
+      data-ctx="task"
+      data-id={t.id}
       role="button"
       tabIndex={0}
       onClick={() => onOpen?.(t)}

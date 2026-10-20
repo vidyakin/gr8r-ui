@@ -281,6 +281,8 @@ export function TimelineView({ tasks, project: p, tl, id = 'tl', onNewTask }: Ti
       <React.Fragment key={t.id}>
         <div className="tl-rowbg" style={{ top: y }} />
         <div
+          data-ctx="task"
+          data-id={t.id}
           className={cn('bar', t.status === 'done' && 'done', shift !== 0 && 'dragging')}
           style={{ '--c': c, left: x, top: y + 7, width: w } as React.CSSProperties}
           title={`${t.title} · ${fmtDate(s)} → ${fmtDate(t.due!)}`}

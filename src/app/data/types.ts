@@ -51,6 +51,10 @@ export interface Subtask {
   id: string;
   title: string;
   done: boolean;
+  /** Поля карточки подзадачи (появляются, когда их задают) */
+  assignee?: string | null;
+  due?: IsoDate | null;
+  note?: string;
 }
 
 export interface Attachment {
@@ -89,6 +93,7 @@ export interface Task {
   fav: boolean;
   recur: string | null;
   archived?: boolean;
+  archivedAt?: number | null;
 }
 
 export interface Comment {

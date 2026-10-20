@@ -301,7 +301,7 @@ export function TableView({ tasks, api, onNewTask, project }: TableViewProps) {
                   </tr>
                 )}
                 {g.tasks.map(t => (
-                  <tr key={t.id}>
+                  <tr key={t.id} data-ctx="task" data-id={t.id}>
                     {cols.map(c => (
                       <Cell key={c.id} task={t} col={c.id} edit={edit} setEdit={setEdit} />
                     ))}

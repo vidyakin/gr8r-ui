@@ -78,7 +78,7 @@ function TaskRow({ task: t, columns, template }: { task: Task; columns: Column[]
   const sd = t.subtasks.filter(s => s.done).length;
   return (
     <>
-      <div className={cn('trow', t.status === 'done' && 'done')} style={{ '--cols': template } as React.CSSProperties} role="row">
+      <div className={cn('trow', t.status === 'done' && 'done')} data-ctx="task" data-id={t.id} style={{ '--cols': template } as React.CSSProperties} role="row">
         <div className="handle" aria-hidden />
         <div className="c-check">
           <Checkbox round checked={t.status === 'done'} onChange={() => actions.toggleDone(t)} aria-label={`Mark ${t.title} complete`} />

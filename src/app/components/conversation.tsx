@@ -2,8 +2,8 @@
    комментарий с реакциями, поле ответа. Порт notifText / notifIcon (pages/inbox.js),
    commentHtml (overlays/drawer.js) и fmtComment (ui/helpers.js). */
 import * as React from 'react';
-import { Clock, SmilePlus, TriangleAlert } from 'lucide-react';
-import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@/components/ui';
+import { Clock, SmilePlus, Trash2, TriangleAlert } from 'lucide-react';
+import { Button, IconButton, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '../data/store';
 import { member, notifTarget } from '../data/selectors';
@@ -59,9 +59,10 @@ export function NotifText({ n }: { n: Notification }) {
   );
 }
 
-const EMOJI = ['👍', '🎉', '❤️', '👀', '🚀', '😄'];
+const EMOJI = ['👍', '🎉', '❤️', '👀', '🚀', '✅'];
 
-export function CommentItem({ c }: { c: Comment }) {
+/** onDelete — кнопка «Delete» у собственного комментария (карточка задачи) */
+export function CommentItem({ c, onDelete }: { c: Comment; onDelete?: () => void }) {
   const { data, dispatch } = useWorkspace();
   const m = member(data, c.by);
   const react = (emoji: string) => dispatch({ type: 'comment/react', id: c.id, emoji });
@@ -72,6 +73,14 @@ export function CommentItem({ c }: { c: Comment }) {
         <div className="who">
           <b>{m?.name}</b>
           <time>{ago(c.at)}</time>
+          {onDelete && c.by === data.me && (
+            <>
+              <span className="sp" />
+              <IconButton size="xs" label="Delete" aria-label="Delete comment" onClick={onDelete}>
+                <Trash2 size={12} />
+              </IconButton>
+            </>
+          )}
         </div>
         <div className="txt">
           <MentionText text={c.text} />
