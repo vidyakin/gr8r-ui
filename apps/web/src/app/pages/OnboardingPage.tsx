@@ -1,16 +1,19 @@
 /* Онбординг — порт renderOnboarding из pages/auth.js и действий onbSet/onbNext/onbFinish из actions/actions.js */
 import * as React from 'react';
-import { useNavigate } from 'react-router';
+import { Navigate, useNavigate } from 'react-router';
 import { ArrowLeft, ArrowRight, Building2, Check, CircleCheck, Link, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/ui';
 import { AuthCard, AuthShell, FieldErr } from '../components/auth-shell';
 import { NamedIcon } from '../components/icons';
-import { useWorkspace, uid } from '../data/store';
-import { me as meOf } from '../data/selectors';
+import { makeKey } from '../data/store';
+import { apiFor, errorMessage, ok } from '../data/api';
+import { useSession, type WorkspaceRef } from '../data/session';
 import { TEMPLATES } from '../overlays/project-dialogs';
 import { inviteLink } from '../overlays/invite';
-import { EMAIL_RE, setSignedIn } from '../lib/auth';
+import { EMAIL_RE } from '../lib/auth';
+import { dOff } from '../lib/dates';
+import { uuidv7 } from '../lib/uuid';
 
 const N = 6;
 const USES: [string, string, string, string][] = [
@@ -43,7 +46,8 @@ interface Onb {
 
 export function OnboardingPage() {
   const navigate = useNavigate();
-  const { data, dispatch } = useWorkspace();
+  const session = useSession();
+  const [busy, setBusy] = React.useState(false);
   const [st, setSt] = React.useState(0);
   const [o, setO] = React.useState<Onb>({ use: 'product', team: 'kanban', size: '2-10', ws: '', url: '', proj: 'Website Launch', tmpl: 'web', invites: ['', '', ''] });
   const [wsErr, setWsErr] = React.useState('');
@@ -86,6 +90,11 @@ export function OnboardingPage() {
       box.current?.querySelector<HTMLInputElement>('#o-ws')?.focus();
       return;
     }
+    if (st === 1 && o.url && !/^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(o.url)) {
+      setWsErr('Workspace URL: 3-40 lowercase letters, digits and dashes');
+      box.current?.querySelector<HTMLInputElement>('#o-url')?.focus();
+      return;
+    }
     if (st === 3 && !o.proj.trim()) {
       toast.error('Give your project a name');
       return;
@@ -101,23 +110,63 @@ export function OnboardingPage() {
     setSt(s => s + 1);
   };
 
-  const finish = () => {
+  /** Создаёт воркспейс, стартовый проект с задачами шаблона и приглашения — настоящими запросами к API */
+  const finish = async () => {
+    if (busy) return;
     const tm = TEMPLATES.find(t => t.id === o.tmpl) ?? TEMPLATES[2];
-    if (o.ws.trim()) dispatch({ type: 'onboarding/workspace', name: o.ws.trim(), url: o.url || 'workspace' });
-    const id = uid('p');
-    const meId = data.me;
-    const m = meOf(data);
-    dispatch({
-      type: 'project/create',
-      id,
-      form: { name: o.proj.trim() || tm.name, desc: `Created during setup from the ${tm.name} template.`, icon: tm.icon === 'file' ? 'folder' : tm.icon, color: 'indigo', team: m.team, lead: meId, due: '' },
-      tasks: tm.tasks,
-    });
-    const emails = o.invites.filter(x => EMAIL_RE.test(x));
-    if (emails.length) dispatch({ type: 'member/invite', emails, role: 'Member', team: m.team });
-    setSignedIn(true);
-    navigate(`/projects/${id}/${VIEW_TAB[o.team] ?? 'board'}`, { replace: true });
-    toast(`Welcome to ${o.ws.trim() || data.ws.name}`);
+    setBusy(true);
+    let ws: WorkspaceRef;
+    try {
+      ws = await ok<WorkspaceRef>(apiFor().workspaces.$post({ json: { name: o.ws.trim() || 'My workspace', ...(o.url ? { slug: o.url } : {}) } }));
+    } catch (e) {
+      // Занятый адрес и т. п. — возвращаем на шаг с названием
+      setBusy(false);
+      setWsErr(errorMessage(e));
+      setSt(1);
+      return;
+    }
+    try {
+      const api = apiFor(ws.id);
+      const members = await ok<{ items: { id: string; userId: string | null }[] }>(api.members.$get({ query: { limit: '200' } }));
+      const meId = members.items.find(m => m.userId === session.user?.id)!.id;
+      const id = uuidv7();
+      await ok(
+        api.projects.$post({
+          json: {
+            id,
+            key: makeKey({ projects: [] }, o.proj.trim() || tm.name),
+            name: o.proj.trim() || tm.name,
+            description: `Created during setup from the ${tm.name} template.`,
+            icon: tm.icon === 'file' ? 'folder' : tm.icon,
+            color: 'indigo',
+            leadId: meId,
+            startDate: dOff(0),
+            dueDate: dOff(30),
+            members: [{ memberId: meId, permission: 'admin' }],
+          },
+        }),
+      );
+      for (const [i, title] of tm.tasks.entries()) {
+        await ok(api.tasks.$post({ json: { projectId: id, title, status: i === 0 ? 'todo' : 'backlog', assigneeId: i === 0 ? meId : null, priority: i === 0 ? 8 : 5, dueDate: dOff(5 + i * 5), startDate: dOff(i * 5) } }));
+      }
+      for (const email of o.invites.filter(x => EMAIL_RE.test(x))) {
+        try {
+          await ok(api.workspaces[':id'].invites.$post({ param: { id: ws.id }, json: { email, role: 'member' } }));
+        } catch (e) {
+          toast.error(`${email}: ${errorMessage(e)}`);
+        }
+      }
+      await session.refreshWorkspaces();
+      session.switchWorkspace(ws.id);
+      navigate(`/projects/${id}/${VIEW_TAB[o.team] ?? 'board'}`, { replace: true });
+      toast(`Welcome to ${ws.name}`);
+    } catch (e) {
+      // Воркспейс уже создан — открываем его, остальное можно сделать из интерфейса
+      toast.error(errorMessage(e));
+      await session.refreshWorkspaces();
+      session.switchWorkspace(ws.id);
+      navigate('/', { replace: true });
+    }
   };
 
   const nav = (label = 'Continue', skip = false) => (
@@ -140,6 +189,8 @@ export function OnboardingPage() {
       </button>
     </div>
   );
+
+  if (session.status === 'anon') return <Navigate to="/signin" replace />;
 
   let body: React.ReactNode = null;
   if (st === 0)
@@ -268,7 +319,7 @@ export function OnboardingPage() {
           className="btn btn-ghost btn-sm"
           style={{ alignSelf: 'flex-start' }}
           onClick={() => {
-            navigator.clipboard?.writeText(inviteLink(o.url || data.ws.url)).catch(() => {});
+            navigator.clipboard?.writeText(inviteLink(o.url || 'workspace')).catch(() => {});
             toast('Invite link copied');
           }}
         >
@@ -313,7 +364,7 @@ export function OnboardingPage() {
             </div>
           ))}
         </div>
-        <button type="button" className="btn btn-primary btn-lg btn-block" onClick={finish}>
+        <button type="button" className={cn('btn btn-primary btn-lg btn-block', busy && 'is-loading')} disabled={busy} onClick={() => void finish()}>
           Open workspace
           <ArrowRight size={15} />
         </button>

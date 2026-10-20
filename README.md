@@ -14,19 +14,20 @@
 
 ```bash
 bun install
-bun run dev:web    # только фронтенд: http://localhost:5173, витрина компонентов — #/design-system
+bun run dev        # всё сразу: api (:3000) + worker + web (http://localhost:5173) — нужен PostgreSQL, см. «Бэкенд»
+bun run dev:web    # только фронтенд (ходит в API через прокси Vite /api → VITE_API_PROXY, по умолчанию http://localhost:3000)
 bun run build      # проверка типов + production-сборка фронтенда
 bun run typecheck  # tsc во всех пакетах
 bun test           # тесты бэкенда (нужен PostgreSQL, см. «Бэкенд»)
 ```
 
-Фронтенд пока работает на локальных данных (демо-данные в браузере) и не требует бэкенда. Переключение на API — следующий этап.
+Фронтенд работает на API: вход, воркспейсы, данные и обновления в реальном времени — с сервера (вход после `bun run db:seed`: `demo@gr8r.dev` / `demo1234`). В браузере остаются только настройки просмотра (тема, плотность, свёрнутый сайдбар, плавающие окна). Как это устроено — в [docs/architecture.md](docs/architecture.md), «Фронтенд на сервере».
 
 Стек фронтенда: React 19, TypeScript, Vite, Tailwind CSS v4, Radix UI, lucide-react, sonner (тосты).
 
 ## Бэкенд
 
-Этап 1 «Фундамент»: Bun + Hono + PostgreSQL 16 + Drizzle + Zod. Решения и их обоснование — в [docs/architecture.md](docs/architecture.md).
+Этапы 1–2 (фундамент и фронтенд на API): Bun + Hono + PostgreSQL 16 + Drizzle + Zod. Решения и их обоснование — в [docs/architecture.md](docs/architecture.md).
 
 ```
 apps/
@@ -99,7 +100,7 @@ curl -s -b jar "$API/tasks?projectId=$P&sort=-priority" -H "X-Workspace-Id: $WS"
 
 | Маршрут | Назначение |
 | --- | --- |
-| `GET/POST /workspaces`, `GET/PATCH /workspaces/:id` | мои воркспейсы, создание (создатель — owner), настройки |
+| `GET/POST /workspaces`, `GET/PATCH/DELETE /workspaces/:id` | мои воркспейсы, создание (создатель — owner), настройки, удаление (только owner, данные уходят каскадом) |
 | `GET/POST /workspaces/:id/invites`, `DELETE …/invites/:inviteId` | приглашения (admin+): токен возвращается один раз, почты пока нет |
 | `POST /invites/accept` | принять приглашение по токену (почта аккаунта должна совпасть с приглашённой) |
 | `PATCH /workspaces/:id/members/:memberId` | смена роли (`owner`/`admin`/`member`/`guest`) |
@@ -108,7 +109,7 @@ curl -s -b jar "$API/tasks?projectId=$P&sort=-priority" -H "X-Workspace-Id: $WS"
 | `GET /ws?workspace=<id>[&since=<event id>]` | WebSocket: события воркспейса |
 
 У каждого ресурса: `GET /` (фильтры, `sort=-field`, `limit`/`offset`, `q`, `archived=exclude|include|only` → `{ items, total, limit, offset }`),
-`GET /:id`, `POST /`, `PATCH /:id`, `DELETE /:id` (архив; `?hard=true` — удаление, только admin+), `POST /:id/restore`. Даты — `YYYY-MM-DD`
+`GET /:id`, `POST /`, `PATCH /:id`, `DELETE /:id` (архив; `?hard=true` — удаление, только admin+), `POST /:id/restore`. При создании клиент может передать свой `id` (uuid; занятый — 409), для задачи — ещё и прежний `key` (повторное создание при Undo); `PATCH /tasks/:id {projectId}` переносит задачу в другой проект с новым ключом. Даты — `YYYY-MM-DD`
 (`date`) и ISO 8601 (`timestamptz`); деньги и часы — строками (`numeric`). Ошибки: `{ "error": { "code", "message", "details?", "requestId" } }`.
 Типизированный клиент: `createApiClient` из `@gr8r/api/client` (hono/client поверх `AppType`).
 
@@ -137,7 +138,7 @@ apps/web/src/
     shadcn/             сюда CLI shadcn кладёт добавленные компоненты (сейчас для примера: button, card, calendar)
   lib/utils.ts          cn(): clsx + tailwind-merge
   app/                  приложение Gr8r Studio на этих компонентах
-    data/               типы, демо-данные (seed), функции-выборки, хранилище (reducer + context)
+    data/               типы, функции-выборки, хранилище (reducer + context поверх кэша запросов), синхронизация с API (engine, specs, realtime, session)
     lib/dates.ts        форматирование дат
     components/         компоненты, знающие о данных: аватар участника, строка задачи, лента активности, иконка проекта
     layout/             AppShell, Sidebar, Topbar, UserMenu
@@ -158,7 +159,8 @@ apps/web/src/
 Чем устройство отличается от оригинала:
 
 - **Данные меняются только через `dispatch(action)`** в `app/data/store.tsx`; компоненты читают их через `useWorkspace()`.
-  В оригинале любой модуль мог напрямую менять глобальный объект `S`.
+  В оригинале любой модуль мог напрямую менять глобальный объект `S`. Теперь `dispatch` — ещё и мутации API: reducer считает новое
+  состояние (оптимистично), разница уходит запросами, при ошибке — toast и откат (подробности — в docs/architecture.md).
 - **Выборки — чистые функции** (`app/data/selectors.ts`): их можно тестировать без браузера.
 - **Нет ручного восстановления фокуса и прокрутки**: React обновляет только изменившиеся узлы.
 - **Состояние экрана живёт в компоненте** (вкладка «My tasks», свёрнутость сайдбара), а не в общем `S.ui`.
@@ -186,8 +188,8 @@ Ctrl/⌘+K, «/» — поиск, цепочки G + буква — перехо
 ## CRM (демо)
 
 Модуль `apps/web/src/app/crm` показывает, что на этом UI-ките просто строятся другие бизнес-системы. Маршруты `/crm`, `/crm/deals`,
-`/crm/companies(/:id/:tab)`, `/crm/contacts`, `/crm/activities`; в сайдбаре — группа «CRM». Свои типы, демо-данные (`seed.ts` — реэкспорт из `packages/shared/src/demo`),
-хранилище (`store.tsx`: reducer + context, как `app/data/store.tsx`; провайдер стоит над оболочкой, чтобы им пользовались крошки и меню «New»)
+`/crm/companies(/:id/:tab)`, `/crm/contacts`, `/crm/activities`; в сайдбаре — группа «CRM». Свои типы (`types.ts` — реэкспорт из `packages/shared`; демо-данные в БД попадают сидом из `packages/shared/src/demo`),
+хранилище (`store.tsx`: reducer + context, как `app/data/store.tsx`, данные — с API; провайдер стоит над оболочкой, чтобы им пользовались крошки и меню «New»)
 и чистые селекторы (`selectors.ts`). Владельцы сделок — участники основного воркспейса.
 
 Страницы собраны из обобщённых компонентов `apps/web/src/components/gr8r` (они не знают ни о задачах, ни о CRM):

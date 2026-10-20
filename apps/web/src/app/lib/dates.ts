@@ -17,12 +17,14 @@ export const diffDays = (a: Date, b: Date) => Math.round((sod(a).getTime() - sod
 
 /** «Oct 30», с годом — если год не текущий */
 export function fmtDate(s: IsoDate | Date, long = false) {
+  if (!s) return '—'; // дата не задана (с сервера проект может прийти без сроков)
   const d = typeof s === 'string' ? parse(s) : s;
   return `${MON[d.getMonth()]} ${d.getDate()}${long || d.getFullYear() !== new Date().getFullYear() ? ', ' + d.getFullYear() : ''}`;
 }
 
 /** «Today», «Tomorrow», «Yesterday», день недели на ближайшую неделю, иначе дата */
 export function relDate(s: IsoDate | Date) {
+  if (!s) return '—';
   const d = typeof s === 'string' ? parse(s) : s;
   const n = diffDays(d, today());
   if (n === 0) return 'Today';

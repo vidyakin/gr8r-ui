@@ -4,7 +4,7 @@ import { useLocation } from 'react-router';
 import { CircleAlert, Circle, Paperclip, Plus, X } from 'lucide-react';
 import { Button, Dialog, DialogClose, DialogContent, Input, Switch, Textarea, toast } from '@/components/ui';
 import type { Task } from '../data/types';
-import { nextKey, useWorkspace } from '../data/store';
+import { nextKey, uid, useWorkspace } from '../data/store';
 import { FILE_TYPES, canSee, fileKind, fileSize, project, visibleProjects } from '../data/selectors';
 import { MOD } from '../lib/platform';
 import { KindIcon } from '../components/files-view';
@@ -21,7 +21,6 @@ export interface TaskFormApi {
 }
 
 const Ctx = React.createContext<TaskFormApi | null>(null);
-const uid = (p: string) => `${p}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const plain = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
@@ -46,9 +45,13 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
   const open = React.useCallback((defaults: TaskDefaults = {}) => {
     const { data: d, pathname } = latest.current;
     const visible = visibleProjects(d).filter(p => canSee(d, p));
+    if (!visible.length) {
+      toast.info('Create a project first: tasks live inside projects');
+      return;
+    }
     const cur = pathname.match(/^\/projects\/([^/]+)/)?.[1];
     const want = defaults.project ?? cur ?? visible.find(p => p.status !== 'complete')?.id;
-    const pid = canSee(d, project(d, want)) ? want! : (visible[0]?.id ?? 'p1');
+    const pid = canSee(d, project(d, want)) ? want! : visible[0]!.id;
     setForm({
       title: '',
       desc: '',

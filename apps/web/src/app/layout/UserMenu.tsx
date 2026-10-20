@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger, usePrefs, type ThemeMode } from '@/components/ui';
 import { useWorkspace } from '../data/store';
 import { SECTIONS } from '../routes';
-import { setSignedIn } from '../lib/auth';
+import { useSession } from '../data/session';
 import { useShortcuts } from '../overlays';
 
 /** Меню аккаунта: профиль, тема, настройки. Триггер передаётся дочерним элементом. */
@@ -11,6 +11,7 @@ export function UserMenu({ children, side = 'bottom', align = 'end' }: { childre
   const { data } = useWorkspace();
   const { prefs, setPrefs } = usePrefs();
   const navigate = useNavigate();
+  const session = useSession();
   const shortcuts = useShortcuts();
   const me = data.members.find(m => m.id === data.me)!;
   return (
@@ -48,7 +49,7 @@ export function UserMenu({ children, side = 'bottom', align = 'end' }: { childre
         <MenuItem icon={<Keyboard size={15} />} shortcut="?" onSelect={() => shortcuts.open()}>
           Keyboard shortcuts
         </MenuItem>
-        <MenuItem icon={<LogOut size={15} />} onSelect={() => { setSignedIn(false); navigate('/signin'); }}>
+        <MenuItem icon={<LogOut size={15} />} onSelect={() => void session.signOut().then(() => navigate('/signin'))}>
           Sign out
         </MenuItem>
       </MenuContent>

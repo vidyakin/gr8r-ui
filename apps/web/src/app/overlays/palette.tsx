@@ -59,7 +59,7 @@ import { company as crmCompany } from '../crm/selectors';
 import { useInvite } from './invite';
 import { useProjectForms } from './project-forms';
 import { useShortcuts } from './shortcuts';
-import { setSignedIn } from '../lib/auth';
+import { useSession } from '../data/session';
 import { useTaskDrawer } from './task-drawer';
 import { useTaskForm } from './task-form';
 
@@ -244,6 +244,7 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
   const crm = useCrm();
   const crmUi = React.useContext(CrmUiCtx);
   const navigate = useNavigate();
+  const session = useSession();
   const taskForm = useTaskForm();
   const projectForms = useProjectForms();
   const invite = useInvite();
@@ -301,7 +302,7 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
     { id: 'c-inv', name: 'Invite member', icon: UserPlus, run: () => invite.open() },
     { id: 'c-side', name: 'Toggle sidebar', icon: PanelLeft, kbd: '[', run: toggleSidebar },
     { id: 'c-keys', name: 'Keyboard shortcuts', icon: Keyboard, kbd: '?', run: () => shortcuts.open() },
-    { id: 'c-out', name: 'Sign out', icon: LogOut, run: () => { setSignedIn(false); navigate('/signin'); } },
+    { id: 'c-out', name: 'Sign out', icon: LogOut, run: () => void session.signOut().then(() => navigate('/signin')) },
   ];
 
   const query = q.trim();

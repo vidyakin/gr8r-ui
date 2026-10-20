@@ -5,7 +5,8 @@ import { Archive, Check, CircleCheck, Crown, Monitor, Moon, Sun, UserPlus } from
 import { Badge, Button, Segmented, Tooltip, toast, usePrefs, type Accent, type Density, type Motion, type ThemeMode } from '@/components/ui';
 import { useWorkspace } from '../data/store';
 import { resetSettings, useSettings } from '../data/settings';
-import { seed } from '../data/seed';
+import { apiFor, errorMessage, ok } from '../data/api';
+import { useSession } from '../data/session';
 import { dOff, fmtDate } from '../lib/dates';
 import { WorkspaceLogo } from '../components/brand';
 import { ProjectIcon } from '../components/project';
@@ -32,6 +33,8 @@ export function Swatches({ colors, value, onPick, size, label }: { colors: strin
 
 export function WorkspaceSection({ title }: { title: string }) {
   const { data, dispatch } = useWorkspace();
+  const session = useSession();
+  const navigate = useNavigate();
   const ws = data.ws;
   const [name, setName] = React.useState(ws.name);
   const [url, setUrl] = React.useState(ws.url);
@@ -114,10 +117,19 @@ export function WorkspaceSection({ title }: { title: string }) {
             danger: true,
             typeName: ws.name,
             run: () => {
-              // Как в оригинале: данные сбрасываются к демо-набору
-              dispatch({ type: 'data/restore', data: seed() });
-              resetSettings();
-              toast.info('Workspace deleted. Demo data was restored for this prototype.', { duration: 5000 });
+              // DELETE /workspaces/:id (только owner): данные арендатора уходят каскадом; дальше — другой мой воркспейс или онбординг
+              const id = session.active!.id;
+              apiFor()
+                .workspaces[':id'].$delete({ param: { id } })
+                .then(r => ok(r))
+                .then(async () => {
+                  const rest = (await session.refreshWorkspaces()).filter(w => w.id !== id);
+                  resetSettings();
+                  if (rest[0]) session.switchWorkspace(rest[0].id);
+                  navigate('/');
+                  toast.info(`Workspace “${ws.name}” was deleted`);
+                })
+                .catch(e => toast.error(errorMessage(e)));
             },
           }}
         />

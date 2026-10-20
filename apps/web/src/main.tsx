@@ -1,17 +1,25 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from 'react-router';
 import './styles/index.css';
 import { Gr8rProvider } from '@/components/ui';
-import { WorkspaceProvider } from '@/app/data/store';
+import { SessionProvider } from '@/app/data/session';
 import { router } from '@/app/router';
+
+// Данные воркспейса актуальны, пока их не отметит устаревшими событие realtime или своя мутация (staleTime: Infinity)
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: Infinity } } });
+
+if (import.meta.env.DEV) (window as unknown as { __qc: QueryClient }).__qc = queryClient; // для отладки в консоли браузера
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <Gr8rProvider>
-      <WorkspaceProvider>
-        <RouterProvider router={router} />
-      </WorkspaceProvider>
-    </Gr8rProvider>
+    <QueryClientProvider client={queryClient}>
+      <Gr8rProvider>
+        <SessionProvider>
+          <RouterProvider router={router} />
+        </SessionProvider>
+      </Gr8rProvider>
+    </QueryClientProvider>
   </StrictMode>,
 );

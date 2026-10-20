@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { ROLES } from '../constants';
-import { uuid } from './common';
+import { clientId, uuid } from './common';
 
 const email = z.string().trim().toLowerCase().max(254).pipe(z.email());
 const password = z.string().min(8, 'Password must be at least 8 characters').max(200);
@@ -26,7 +26,12 @@ export const workspaceCreateBody = z.object({
 });
 export const workspaceUpdateBody = workspaceCreateBody.partial();
 
-export const inviteCreateBody = z.object({ email, role: z.enum(['admin', 'member', 'guest']).default('member') });
+export const inviteCreateBody = z.object({
+  email,
+  role: z.enum(['admin', 'member', 'guest']).default('member'),
+  /** Id профиля участника (status invited), если его выбирает клиент: на него сразу можно ссылаться (проекты, задачи) */
+  memberId: clientId,
+});
 export const inviteAcceptBody = z.object({ token: z.string().min(10).max(200) });
 export const roleChangeBody = z.object({ role: z.enum(ROLES) });
 export const workspaceParam = z.object({ id: uuid });

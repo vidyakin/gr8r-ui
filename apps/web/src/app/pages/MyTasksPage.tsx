@@ -15,7 +15,7 @@ export function MyTasksPage() {
   const api = useListView();
   const [mode, setMode] = React.useState<'list' | 'calendar'>('list');
   const now = today();
-  const defaultProject = visibleProjects(data)[0]?.id ?? 'p1';
+  const defaultProject = visibleProjects(data)[0]?.id ?? '';
 
   // «Ручной» порядок для своих задач не имеет смысла — как и в оригинале, сортируем по сроку
   const v = api.view.sort.f === 'manual' ? { ...api.view, sort: { f: 'due' as const, dir: 1 as const } } : api.view;

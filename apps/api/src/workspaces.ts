@@ -33,6 +33,12 @@ export const workspaceRoutes = new Hono<AppEnv>()
     await recordEvent(db, { workspaceId, type: 'workspace.updated', entity: 'workspace', recordId: workspaceId, actorId: memberId, payload: { changes: body } });
     return c.json(ws);
   })
+  // Удаление воркспейса целиком (только owner): все данные арендатора уходят каскадом внешних ключей
+  .delete('/:id', requireRole('owner'), async c => {
+    const { db, workspaceId } = ctxOf(c);
+    await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
+    return c.json({ id: workspaceId, deleted: true as const });
+  })
   // ---- приглашения ----
   .get('/:id/invites', requireRole('admin'), async c => {
     const { db } = ctxOf(c);
@@ -44,7 +50,7 @@ export const workspaceRoutes = new Hono<AppEnv>()
   })
   .post('/:id/invites', requireRole('admin'), zValidator('json', inviteCreateBody, validationHook), async c => {
     const { db, workspaceId, memberId } = ctxOf(c);
-    const { email, role } = c.req.valid('json');
+    const { email, role, memberId: wantedId } = c.req.valid('json');
     const [existing] = await db.select({ id: members.id, status: members.status }).from(members).where(eq(dsql`lower(${members.email})`, email)).limit(1);
     if (existing && existing.status === 'active') throw new AppError(409, 'already_member', 'This person is already a member of the workspace');
     const token = newInviteToken(workspaceId);
@@ -53,10 +59,11 @@ export const workspaceRoutes = new Hono<AppEnv>()
       .values({ workspaceId, email, role, tokenHash: sha256(token), invitedBy: c.get('user').id, expiresAt: new Date(Date.now() + INVITE_TTL_MS) })
       .returning({ id: invites.id, email: invites.email, role: invites.role, expiresAt: invites.expiresAt });
     // Заготовка профиля (статус invited): участник виден в списке до принятия приглашения
-    if (!existing) await db.insert(members).values({ workspaceId, email, name: email.split('@')[0]!, role, status: 'invited' });
+    let profileId = existing?.id;
+    if (!existing) [{ id: profileId }] = (await db.insert(members).values({ ...(wantedId ? { id: wantedId } : {}), workspaceId, email, name: email.split('@')[0]!, role, status: 'invited' }).returning({ id: members.id })) as [{ id: string }];
     await recordEvent(db, { workspaceId, type: 'member.invited', entity: 'invite', recordId: invite!.id, actorId: memberId, payload: { email, role } });
     // Токен отдаётся один раз (почты пока нет — передайте ссылку вручную)
-    return c.json({ invite: invite!, token }, 201);
+    return c.json({ invite: invite!, token, memberId: profileId! }, 201);
   })
   .delete('/:id/invites/:inviteId', requireRole('admin'), async c => {
     const { db, workspaceId, memberId } = ctxOf(c);

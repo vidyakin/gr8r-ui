@@ -1,13 +1,14 @@
 /* Вход, регистрация, восстановление пароля, подтверждение почты — порт renderAuth и действий doLogin/doSignup/doForgot/doReset из pages/auth.js и actions/actions.js */
 import * as React from 'react';
 import { useNavigate } from 'react-router';
-import { ArrowLeft, CircleCheck, Eye, EyeOff, Info, KeyRound, Mail, MailCheck } from 'lucide-react';
+import { ArrowLeft, CircleCheck, Eye, EyeOff, KeyRound, Mail } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/ui';
 import { Logo } from '../components/brand';
-import { AuthCard, AuthShell, FieldErr, SocialButtons, StrengthMeter, useLoading } from '../components/auth-shell';
-import { useWorkspace } from '../data/store';
-import { EMAIL_RE, authForm, pwWeak, setSignedIn } from '../lib/auth';
+import { AuthCard, AuthShell, FieldErr, SocialButtons, StrengthMeter, useBusy, useLoading } from '../components/auth-shell';
+import { errorMessage } from '../data/api';
+import { useSession } from '../data/session';
+import { EMAIL_RE, authForm, pwWeak } from '../lib/auth';
 import { SECTIONS } from '../routes';
 
 /** Иконка в цветной плашке над заголовком (ftype 44×44) */
@@ -21,26 +22,17 @@ const Badge = ({ color, children }: { color: string; children: React.ReactNode }
 
 const PW_RULE = 'Use at least 10 characters, including a number or symbol';
 
-/** Вход в приложение: флаг «вошёл» и переход на главную */
-function useEnterApp() {
-  const navigate = useNavigate();
-  return (msg: string) => {
-    setSignedIn(true);
-    navigate(SECTIONS.home.path, { replace: true });
-    toast(msg);
-  };
-}
+/** Вход через внешних провайдеров (OAuth) появится отдельным этапом */
+const socialSoon = (name: string) => toast.info(`Sign in with ${name} isn't available yet. Use your email and password.`);
 
 export function SignInPage() {
   const navigate = useNavigate();
-  const { data } = useWorkspace();
-  const enter = useEnterApp();
+  const session = useSession();
   const [email, setEmail] = React.useState(authForm.email);
   const [pw, setPw] = React.useState('');
   const [show, setShow] = React.useState(false);
   const [err, setErr] = React.useState<{ email?: string; pw?: string }>({});
-  const [busy, run] = useLoading(750);
-  const [social, setSocial] = React.useState<string | null>(null);
+  const [busy, run] = useBusy();
   const emailRef = React.useRef<HTMLInputElement>(null);
   const pwRef = React.useRef<HTMLInputElement>(null);
 
@@ -57,11 +49,16 @@ export function SignInPage() {
       (x.email ? emailRef : pwRef).current?.focus();
       return;
     }
-    run(() => enter(`Signed in as ${em}`));
-  };
-  const pick = (name: string) => {
-    setSocial(name);
-    window.setTimeout(() => enter(`Signed in with ${name}`), 800);
+    void run(async () => {
+      try {
+        await session.signIn(em, pw);
+        navigate(SECTIONS.home.path, { replace: true });
+        toast(`Signed in as ${em}`);
+      } catch (e) {
+        setErr({ pw: errorMessage(e) });
+        pwRef.current?.focus();
+      }
+    });
   };
 
   return (
@@ -77,7 +74,7 @@ export function SignInPage() {
           <Logo height={30} />
         </div>
         <h1>Welcome back</h1>
-        <p className="sub">Sign in to {data.ws.name}</p>
+        <p className="sub">Sign in to Gr8r</p>
         <div className="field">
           <label className="label" htmlFor="l-email">
             Email
@@ -111,7 +108,7 @@ export function SignInPage() {
           Sign in
         </button>
         <div className="or">or</div>
-        <SocialButtons onPick={pick} busy={social} />
+        <SocialButtons onPick={socialSoon} busy={null} />
         <p className="auth-foot">
           Don't have an account?{' '}
           <button type="button" className="link" onClick={() => navigate('/signup')}>
@@ -125,13 +122,12 @@ export function SignInPage() {
 
 export function SignUpPage() {
   const navigate = useNavigate();
-  const enter = useEnterApp();
+  const session = useSession();
   const [name, setName] = React.useState(authForm.name);
   const [email, setEmail] = React.useState('');
   const [pw, setPw] = React.useState('');
   const [err, setErr] = React.useState<{ name?: string; email?: string; pw?: string }>({});
-  const [busy, run] = useLoading(800);
-  const [social, setSocial] = React.useState<string | null>(null);
+  const [busy, run] = useBusy();
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,11 +141,16 @@ export function SignUpPage() {
     if (pwWeak(pw)) x.pw = PW_RULE;
     setErr(x);
     if (x.name || x.email || x.pw) return;
-    run(() => navigate('/verify'));
-  };
-  const pick = (n: string) => {
-    setSocial(n);
-    window.setTimeout(() => enter(`Signed in with ${n}`), 800);
+    // Аккаунт создаётся сразу и сессия начинается; воркспейс создаётся на онбординге
+    void run(async () => {
+      try {
+        await session.signUp({ email: em, password: pw, name: nm });
+        navigate('/onboarding', { replace: true });
+      } catch (e) {
+        const msg = errorMessage(e);
+        setErr(/email/i.test(msg) ? { email: msg } : { pw: msg });
+      }
+    });
   };
 
   return (
@@ -166,7 +167,7 @@ export function SignUpPage() {
         </div>
         <h1>Create your account</h1>
         <p className="sub">Free for up to 3 members. No credit card required.</p>
-        <SocialButtons onPick={pick} busy={social} />
+        <SocialButtons onPick={socialSoon} busy={null} />
         <div className="or">or sign up with email</div>
         <div className="field">
           <label className="label" htmlFor="s-name">
@@ -217,11 +218,8 @@ const BackToSignIn = ({ onClick }: { onClick: () => void }) => (
 /** Восстановление: форма, затем «Check your email»; ссылка из письма в прототипе — кнопка */
 export function ForgotPage() {
   const navigate = useNavigate();
-  const [sent, setSent] = React.useState(false);
   const [email, setEmail] = React.useState(authForm.email);
   const [err, setErr] = React.useState('');
-  const [busy, run] = useLoading(700);
-
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const em = email.trim();
@@ -231,39 +229,9 @@ export function ForgotPage() {
       return;
     }
     setErr('');
-    run(() => setSent(true));
+    // Писем пока нет (почтовый сервис — отдельный этап), поэтому ссылку для сброса отправить нечем
+    toast.info("Password reset by email isn't available yet. Ask a workspace admin to invite you again.");
   };
-
-  if (sent)
-    return (
-      <AuthShell>
-        <AuthCard>
-          <Badge color="var(--green)">
-            <MailCheck size={20} />
-          </Badge>
-          <h1>Check your email</h1>
-          <p className="sub">
-            We sent a reset link to <b style={{ color: 'var(--text)' }}>{authForm.email}</b>. It expires in 30 minutes.
-          </p>
-          <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => navigate('/reset')}>
-            Open reset link
-          </button>
-          <div className="alert info">
-            <Info size={14} />
-            <span>In this prototype, the button above stands in for the link in your email.</span>
-          </div>
-          <p className="auth-foot">
-            Didn't get it?{' '}
-            <button type="button" className="link" onClick={() => toast(`Reset link sent to ${authForm.email}`)}>
-              Resend email
-            </button>
-          </p>
-          <p className="auth-foot">
-            <BackToSignIn onClick={() => navigate('/signin')} />
-          </p>
-        </AuthCard>
-      </AuthShell>
-    );
 
   return (
     <AuthShell>
@@ -280,7 +248,7 @@ export function ForgotPage() {
           <input className={cn('input input-lg', err && 'is-error')} id="f-email" type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" />
           <FieldErr>{err}</FieldErr>
         </div>
-        <button type="submit" className={cn('btn btn-primary btn-lg btn-block', busy && 'is-loading')} disabled={busy} id="forgot-btn">
+        <button type="submit" className="btn btn-primary btn-lg btn-block" id="forgot-btn">
           Send reset link
         </button>
         <p className="auth-foot">

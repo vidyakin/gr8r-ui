@@ -1,0 +1,82 @@
+/* Realtime: WebSocket /ws воркспейса. Событие журнала (envelope без payload) говорит, какая сущность изменилась;
+   соответствующие коллекции кэша помечаются устаревшими и перечитываются (пока в полёте свои запросы — после них, чтобы
+   не затереть оптимистичное состояние). Обрыв: переподключение с `?since=<id последнего события>`, сервер досылает пропущенное. */
+import * as React from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { apiFor, ok } from './api';
+import { collectionsFor, type Engine } from './engine';
+
+interface EventEnvelope {
+  id: string;
+  workspaceId: string;
+  type: string;
+  entity: string;
+  recordId: string | null;
+  actorId: string | null;
+}
+
+export function useRealtime(ws: string, engine: Engine) {
+  const qc = useQueryClient();
+  React.useEffect(() => {
+    let closed = false;
+    let sock: WebSocket | null = null;
+    let retry = 0;
+    let since = '';
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let pingTimer: ReturnType<typeof setInterval> | undefined;
+    const seen = new Set<string>();
+
+    const onEvent = (e: EventEnvelope) => {
+      if (seen.has(e.id)) return; // дедупликация: событие может прийти и в реальном времени, и в досылке
+      seen.add(e.id);
+      if (seen.size > 2000) seen.delete(seen.values().next().value!);
+      if (e.id > since) since = e.id;
+      engine.refresh(collectionsFor(e.entity));
+      // Название воркспейса, моя роль, состав участников
+      if (e.entity === 'workspace' || e.type.startsWith('member.')) void qc.invalidateQueries({ queryKey: ['session'] });
+    };
+
+    const connect = async () => {
+      if (closed) return;
+      if (!since) {
+        // Точка отсчёта: последнее событие на момент загрузки, всё после него будет доставлено
+        try {
+          const last = await ok<{ items: { id: string }[] }>(apiFor(ws).events.$get({ query: { sort: '-id', limit: '1' } }));
+          since = last.items[0]?.id ?? '';
+        } catch {
+          /* без точки отсчёта подключаемся как есть */
+        }
+        if (closed) return;
+      }
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      sock = new WebSocket(`${proto}//${location.host}/api/ws?workspace=${ws}${since ? `&since=${since}` : ''}`);
+      sock.onopen = () => {
+        retry = 0;
+        pingTimer = setInterval(() => sock?.readyState === WebSocket.OPEN && sock.send('ping'), 25_000);
+      };
+      sock.onmessage = m => {
+        try {
+          const msg = JSON.parse(String(m.data)) as { type: string; event?: EventEnvelope };
+          if (msg.type === 'event' && msg.event) onEvent(msg.event);
+        } catch {
+          /* не наше сообщение */
+        }
+      };
+      sock.onclose = () => {
+        clearInterval(pingTimer);
+        if (closed) return;
+        // После обрыва могли пропасть события и ответы — на всякий случай перечитываем всё
+        engine.refresh(collectionsFor('*'));
+        retryTimer = setTimeout(connect, Math.min(1000 * 2 ** retry++, 15_000));
+      };
+    };
+    void connect();
+
+    return () => {
+      closed = true;
+      clearTimeout(retryTimer);
+      clearInterval(pingTimer);
+      sock?.close();
+    };
+  }, [ws, engine, qc]);
+}

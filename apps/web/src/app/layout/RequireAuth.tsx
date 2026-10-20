@@ -1,7 +1,12 @@
-/* Защита оболочки: без входа открывается экран входа (в оригинале приложение не рисуется, пока S.ui.auth задан) */
+/* Защита оболочки: без сессии открывается экран входа, без воркспейсов — онбординг (создание первого воркспейса) */
 import { Navigate } from 'react-router';
-import { useSignedIn } from '../lib/auth';
+import { useSession } from '../data/session';
+import { LoadingScreen } from '../data/store';
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
-  return useSignedIn() ? children : <Navigate to="/signin" replace />;
+  const { status, workspaces } = useSession();
+  if (status === 'loading') return <LoadingScreen />;
+  if (status === 'anon') return <Navigate to="/signin" replace />;
+  if (!workspaces.length) return <Navigate to="/onboarding" replace />;
+  return children;
 }

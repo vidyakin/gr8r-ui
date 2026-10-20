@@ -27,6 +27,9 @@ export const listQuery = z.object({
 });
 export type ListQuery = z.infer<typeof listQuery>;
 
+/** Идентификатор, который может задать клиент при создании (оптимистичные обновления, повторное создание при Undo) */
+export const clientId = uuid.optional();
+
 export const idParam = z.object({ id: uuid });
 
 /** Ответ списка */

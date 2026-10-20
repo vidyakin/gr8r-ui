@@ -21,7 +21,7 @@ export function TasksPage() {
   const [mode, setMode] = React.useState<Mode>('list');
   const [showSubs, setShowSubs] = useBoardSubtasks();
   const [density, setDensity] = useBoardDensity();
-  const defaultProject = visibleProjects(data)[0]?.id ?? 'p1';
+  const defaultProject = visibleProjects(data)[0]?.id ?? '';
   const tasks = applyView(allTasks(data), api.view, data);
 
   const taskForm = useTaskForm();

@@ -121,6 +121,29 @@ export const statusRoutes = crud({
 });
 
 /* ============================== tasks ============================== */
+/** Ключ задачи WEB-109: атомарно увеличиваем счётчик проекта (строка заблокирована до конца транзакции).
+    `restoreKey` — прежний ключ при повторном создании (Undo удаления): должен принадлежать этому проекту; счётчик не уменьшается. */
+async function issueTaskKey(ctx: ReturnType<typeof ctxOf>, projectId: string, restoreKey?: string): Promise<string> {
+  if (restoreKey) {
+    const [p] = await ctx.db.select({ key: projects.key, n: projects.taskCounter }).from(projects).where(eq(projects.id, projectId)).for('update').limit(1);
+    if (!p) throw new AppError(422, 'invalid_reference', 'Project not found');
+    const cut = restoreKey.lastIndexOf('-');
+    if (restoreKey.slice(0, cut) !== p.key.toUpperCase()) throw new AppError(422, 'invalid_key', `Task key must start with ${p.key}-`);
+    const [taken] = await ctx.db.select({ id: tasks.id }).from(tasks).where(eq(tasks.key, restoreKey)).limit(1);
+    if (taken) throw new AppError(409, 'conflict', 'A task with this key already exists');
+    const num = Number(restoreKey.slice(cut + 1));
+    if (num > p.n) await ctx.db.update(projects).set({ taskCounter: num }).where(eq(projects.id, projectId));
+    return restoreKey;
+  }
+  const [p] = await ctx.db
+    .update(projects)
+    .set({ taskCounter: dsql`${projects.taskCounter} + 1`, lastActivityAt: new Date() })
+    .where(eq(projects.id, projectId))
+    .returning({ key: projects.key, n: projects.taskCounter });
+  if (!p) throw new AppError(422, 'invalid_reference', 'Project not found');
+  return `${p.key}-${p.n}`;
+}
+
 export const taskRoutes = crud({
   entity: 'task',
   table: tasks,
@@ -142,15 +165,9 @@ export const taskRoutes = crud({
   ],
   prepareCreate: async (ctx, body) => {
     await assertTasksExist(ctx, body.deps);
-    // Ключ WEB-109: атомарно увеличиваем счётчик проекта (строка заблокирована до конца транзакции)
-    const [p] = await ctx.db
-      .update(projects)
-      .set({ taskCounter: dsql`${projects.taskCounter} + 1`, lastActivityAt: new Date() })
-      .where(eq(projects.id, body.projectId))
-      .returning({ key: projects.key, n: projects.taskCounter });
-    if (!p) throw new AppError(422, 'invalid_reference', 'Project not found');
+    const key = await issueTaskKey(ctx, body.projectId, body.key);
     return {
-      key: `${p.key}-${p.n}`,
+      key,
       sortOrder: body.sortOrder ?? (await nextOrder(ctx, tasks, eq(tasks.projectId, body.projectId))),
       createdBy: ctx.memberId,
       completedAt: body.status === 'done' ? new Date() : null,
@@ -166,7 +183,8 @@ export const taskRoutes = crud({
       if (body.deps.includes(existing.id)) throw new AppError(422, 'invalid_dependency', 'A task cannot depend on itself');
       await assertTasksExist(ctx, body.deps);
     }
-    if (body.projectId && body.projectId !== existing.projectId) throw new AppError(422, 'immutable_field', 'Moving a task between projects is not supported yet');
+    // Перенос в другой проект: задача получает новый ключ по счётчику целевого проекта
+    if (body.projectId && body.projectId !== existing.projectId) patch.key = await issueTaskKey(ctx, body.projectId);
     if (body.status && body.status !== existing.status) {
       patch.prevStatus = existing.status;
       patch.completedAt = body.status === 'done' ? new Date() : null;
@@ -174,6 +192,7 @@ export const taskRoutes = crud({
     return patch;
   },
   afterUpdate: async (ctx, before, after) => {
+    if (before.projectId !== after.projectId) await addActivity(ctx, { verb: 'moved', taskId: after.id, projectId: after.projectId, extra: `from ${before.key} to ${after.key}` });
     if (before.status !== after.status) {
       const [st] = await ctx.db.select({ name: statuses.name }).from(statuses).where(eq(statuses.key, after.status)).limit(1);
       await addActivity(ctx, after.status === 'done' ? { verb: 'completed', taskId: after.id, projectId: after.projectId } : { verb: 'moved', taskId: after.id, projectId: after.projectId, extra: `to ${st?.name ?? after.status}` });

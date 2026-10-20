@@ -19,10 +19,12 @@ import {
   SquareKanban,
   Star,
 } from 'lucide-react';
-import { IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tooltip, toast } from '@/components/ui';
+import { IconButton, Menu, MenuContent, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger, Tooltip, toast } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { SECTIONS, type SectionId } from '../routes';
 import { useWorkspace } from '../data/store';
+import { useSession } from '../data/session';
+import { NewWorkspaceDialog } from '../overlays/new-workspace';
 import { PROJECT_STATUS, allTasks, projectColor, visibleProjects } from '../data/selectors';
 import { diffDays, parse, today } from '../lib/dates';
 import { WorkspaceLogo } from '../components/brand';
@@ -85,7 +87,7 @@ function ProjectItem({ id, collapsed }: { id: string; collapsed: boolean }) {
   const p = data.projects.find(x => x.id === id)!;
   const match = useMatch('/projects/:id/:tab?');
   const on = match?.params.id === p.id;
-  const [open, setOpen] = React.useState(p.id === 'p1');
+  const [open, setOpen] = React.useState(false);
   const st = PROJECT_STATUS[p.status];
 
   const row = (
@@ -174,9 +176,13 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   const me = data.members.find(m => m.id === data.me)!;
   const projectForms = useProjectForms();
   const teamForm = useTeamForm();
+  const session = useSession();
+  const navigate = useNavigate();
+  const [newWs, setNewWs] = React.useState(false);
 
   return (
     <nav className="side" aria-label="Main">
+      <NewWorkspaceDialog open={newWs} onOpenChange={setNewWs} />
       <div className="side-top">
         <div className="row" style={{ gap: 2 }}>
           <Menu>
@@ -189,10 +195,23 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
                 </span>
               </button>
             </MenuTrigger>
-            <MenuContent>
-              <MenuItem icon={<WorkspaceLogo ws={data.ws} size={18} />}>{data.ws.name}</MenuItem>
+            <MenuContent className="min-w-[220px]">
+              <MenuLabel>Workspaces</MenuLabel>
+              <MenuRadioGroup
+                value={session.active?.id}
+                onValueChange={id => {
+                  session.switchWorkspace(id);
+                  navigate('/');
+                }}
+              >
+                {session.workspaces.map(w => (
+                  <MenuRadioItem key={w.id} value={w.id} icon={<WorkspaceLogo ws={{ name: w.name, url: w.slug, c: w.color, brand: w.brand }} size={18} />}>
+                    {w.name}
+                  </MenuRadioItem>
+                ))}
+              </MenuRadioGroup>
               <MenuSeparator />
-              <MenuItem icon={<Plus size={15} />} onSelect={() => soon('Создание воркспейса')}>
+              <MenuItem icon={<Plus size={15} />} onSelect={() => setNewWs(true)}>
                 Create workspace
               </MenuItem>
             </MenuContent>

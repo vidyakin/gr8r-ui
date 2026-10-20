@@ -122,3 +122,17 @@ export function useLoading(ms: number) {
   };
   return [busy, run] as const;
 }
+
+/** Кнопка в ожидании настоящего ответа сервера: run(async () => …) держит busy, пока промис не завершится */
+export function useBusy() {
+  const [busy, setBusy] = React.useState(false);
+  const run = async (fn: () => Promise<void>) => {
+    setBusy(true);
+    try {
+      await fn();
+    } finally {
+      setBusy(false);
+    }
+  };
+  return [busy, run] as const;
+}

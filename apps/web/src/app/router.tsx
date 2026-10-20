@@ -25,6 +25,7 @@ import { OnboardingPage } from './pages/OnboardingPage';
 import { RequireAuth } from './layout/RequireAuth';
 import { SECTIONS } from './routes';
 import { CrmProvider } from './crm/store';
+import { WorkspaceProvider } from './data/store';
 import { DashboardPage as CrmDashboardPage } from './crm/DashboardPage';
 import { DealsPage as CrmDealsPage } from './crm/DealsPage';
 import { CompaniesPage as CrmCompaniesPage } from './crm/CompaniesPage';
@@ -41,9 +42,11 @@ export const router = createHashRouter([
     // CRM-хранилище живёт над оболочкой: из него берут данные крошки в топбаре и пункт «New deal»
     element: (
       <RequireAuth>
-        <CrmProvider>
-          <AppShell />
-        </CrmProvider>
+        <WorkspaceProvider>
+          <CrmProvider>
+            <AppShell />
+          </CrmProvider>
+        </WorkspaceProvider>
       </RequireAuth>
     ),
     children: [

@@ -1,9 +1,10 @@
 /* zod-схемы CRM: компании, контакты, сделки, активности. Деньги — строкой/числом, хранятся numeric(18,2). */
 import { z } from 'zod';
 import { CRM_ACTIVITY_TYPES, DEAL_STAGES } from '../constants';
-import { decimal, toPatch, isoDate, listQuery, shortText, uuid } from './common';
+import { clientId, decimal, toPatch, isoDate, listQuery, shortText, uuid } from './common';
 
 export const companyCreate = z.object({
+  id: clientId,
   name: shortText,
   industry: z.string().max(200).default(''),
   size: z.string().max(50).default(''),
@@ -11,10 +12,11 @@ export const companyCreate = z.object({
   website: z.string().max(300).default(''),
   city: z.string().max(200).default(''),
 });
-export const companyUpdate = toPatch(companyCreate);
+export const companyUpdate = toPatch(companyCreate.omit({ id: true }));
 export const companyQuery = listQuery.extend({ ownerId: uuid.optional(), industry: z.string().max(200).optional() });
 
 export const contactCreate = z.object({
+  id: clientId,
   companyId: uuid.nullish(),
   name: shortText,
   title: z.string().max(200).default(''),
@@ -22,10 +24,11 @@ export const contactCreate = z.object({
   phone: z.string().max(50).default(''),
   ownerId: uuid.nullish(),
 });
-export const contactUpdate = toPatch(contactCreate);
+export const contactUpdate = toPatch(contactCreate.omit({ id: true }));
 export const contactQuery = listQuery.extend({ companyId: uuid.optional(), ownerId: uuid.optional() });
 
 export const dealCreate = z.object({
+  id: clientId,
   name: shortText,
   companyId: uuid.nullish(),
   ownerId: uuid.nullish(),
@@ -39,7 +42,7 @@ export const dealCreate = z.object({
   /** Контакты сделки (заменяют список целиком) */
   contactIds: z.array(uuid).max(100).optional(),
 });
-export const dealUpdate = toPatch(dealCreate);
+export const dealUpdate = toPatch(dealCreate.omit({ id: true }));
 export const dealQuery = listQuery.extend({
   stage: z.enum(DEAL_STAGES).optional(),
   companyId: uuid.optional(),
@@ -49,6 +52,7 @@ export const dealQuery = listQuery.extend({
 });
 
 export const crmActivityCreate = z.object({
+  id: clientId,
   type: z.enum(CRM_ACTIVITY_TYPES),
   subject: shortText,
   dealId: uuid.nullish(),
@@ -58,7 +62,7 @@ export const crmActivityCreate = z.object({
   done: z.boolean().nullish(),
   body: z.string().max(20_000).nullish(),
 });
-export const crmActivityUpdate = toPatch(crmActivityCreate);
+export const crmActivityUpdate = toPatch(crmActivityCreate.omit({ id: true }));
 export const crmActivityQuery = listQuery.extend({
   type: z.enum(CRM_ACTIVITY_TYPES).optional(),
   dealId: uuid.optional(),

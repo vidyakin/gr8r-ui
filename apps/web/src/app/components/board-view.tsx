@@ -5,7 +5,8 @@ import { ArrowDownWideNarrow, Check, CheckCheck, Archive, ChevronDown, FoldHoriz
 import { Button, Checkbox, ConfirmDialog, IconButton, Input, Label, Menu, Segmented, Switch, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger, Progress, Tooltip, toast } from '@/components/ui';
 import { StatusIcon, type Status } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
-import { newId, useWorkspace, type TaskPatch } from '../data/store';
+import { useWorkspace, type TaskPatch } from '../data/store';
+import { newStatusKey } from '../lib/uuid';
 import { countSubs } from '../data/subtasks';
 import { LABELS, STATUS_PALETTE, commentsOf, fmtHours, planOfTask, project as findProject, sortTasks } from '../data/selectors';
 import type { StatusDef, Subtask, Task } from '../data/types';
@@ -411,7 +412,7 @@ export function BoardView({ tasks, defaultProject, project, showSubtasks = false
 
   const addColumn = (name: string) => {
     const n = statuses.filter(s => !s.builtin).length;
-    dispatch({ type: 'status/add', status: { id: newId('st'), name, color: STATUS_PALETTE[n % STATUS_PALETTE.length] } });
+    dispatch({ type: 'status/add', status: { id: newStatusKey(), name, color: STATUS_PALETTE[n % STATUS_PALETTE.length] } });
     setAdding(false);
   };
   const deleteColumn = (s: StatusDef) => {

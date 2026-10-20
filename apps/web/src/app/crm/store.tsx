@@ -1,9 +1,13 @@
-/* Хранилище CRM — useReducer + context, по образцу app/data/store.tsx.
-   Данные меняются только через dispatch(action); владельцы — id участников основного воркспейса. */
+/* Хранилище CRM — reducer + context, по образцу app/data/store.tsx.
+   Данные меняются только через dispatch(action); владельцы — id участников основного воркспейса.
+   Данные живут на сервере (кэш TanStack Query, коллекции companies / contacts / deals / crmActivities); dispatch — оптимистичные мутации. */
 import * as React from 'react';
+import { useQueries, useQueryClient } from '@tanstack/react-query';
+import { engineFor, type Domain } from '../data/engine';
+import { useSession } from '../data/session';
+import type { CollName } from '../data/specs';
 import { iso, today } from '../lib/dates';
-import { uid } from '../data/store';
-import { seedCrm } from './seed';
+import { LoadingScreen, uid } from '../data/store';
 import { stage } from './stages';
 import type { ActivityType, Company, Contact, CrmActivity, CrmData, Deal, StageId } from './types';
 
@@ -95,11 +99,47 @@ export function crmReducer(d: CrmData, a: CrmAction): CrmData {
   }
 }
 
+const CRM_DOMAIN: Domain<CrmData> = { companies: 'companies', contacts: 'contacts', deals: 'deals', activities: 'crmActivities' };
+const CRM_COLLS = Object.values(CRM_DOMAIN) as CollName[];
+
 const Ctx = React.createContext<{ data: CrmData; dispatch: React.Dispatch<CrmAction> } | null>(null);
 
-export function CrmProvider({ children, initial }: { children: React.ReactNode; initial?: CrmData }) {
-  const [data, dispatch] = React.useReducer(crmReducer, initial, i => i ?? seedCrm());
-  const value = React.useMemo(() => ({ data, dispatch }), [data]);
+export function CrmProvider({ children }: { children: React.ReactNode }) {
+  const { active } = useSession();
+  return active ? <CrmInner key={active.id} ws={active.id}>{children}</CrmInner> : null;
+}
+
+function CrmInner({ ws, children }: { ws: string; children: React.ReactNode }) {
+  const qc = useQueryClient();
+  const engine = engineFor(qc, ws);
+  const results = useQueries({ queries: CRM_COLLS.map(name => ({ queryKey: engine.key(name), queryFn: () => engine.fetch(name), staleTime: Infinity, notifyOnChangeProps: 'all' as const })) });
+  const [companies, contacts, deals, activities] = results.map(r => r.data) as [CrmData['companies'], CrmData['contacts'], CrmData['deals'], CrmData['activities']];
+  // Активности удалённой (архивной) сделки остаются на сервере, но интерфейсу они не нужны
+  const data = React.useMemo(() => {
+    if (!(companies && contacts && deals && activities)) return null;
+    const live = new Set(deals.map(d => d.id));
+    return { companies, contacts, deals, activities: activities.filter(a => !a.deal || live.has(a.deal)) };
+  }, [companies, contacts, deals, activities]);
+  const read = React.useCallback((): CrmData | null => {
+    const [c, k, d, a] = CRM_COLLS.map(n => engine.read(n));
+    if (!(c && k && d && a)) return null;
+    const live = new Set(d.map(x => x.id));
+    return { companies: c, contacts: k, deals: d, activities: (a as CrmData['activities']).filter(x => !x.deal || live.has(x.deal)) } as CrmData;
+  }, [engine]);
+  const dispatch = React.useCallback<React.Dispatch<CrmAction>>(
+    a => {
+      const before = read();
+      if (before) engine.commit(CRM_DOMAIN, before, crmReducer(before, a));
+    },
+    [engine, read],
+  );
+  React.useEffect(() => {
+    if (import.meta.env.DEV) (window as unknown as { __crm: unknown }).__crm = { dispatch, read };
+  }, [dispatch, read]);
+  const value = React.useMemo(() => (data ? { data, dispatch } : null), [data, dispatch]);
+  const failed = results.find(r => r.isError);
+  if (failed) return <LoadingScreen error={String((failed.error as Error).message)} onRetry={() => results.forEach(r => void r.refetch())} />;
+  if (!value) return <LoadingScreen />;
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

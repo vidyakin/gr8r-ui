@@ -1,12 +1,21 @@
 /* Состояние воркспейса: один reducer вместо прямых мутаций глобального объекта S из оригинала.
-   Компоненты читают данные через useWorkspace() и меняют их только через dispatch(action). */
+   Компоненты читают данные через useWorkspace() и меняют их только через dispatch(action).
+
+   Данные живут на сервере: `data` собирается из кэша TanStack Query (коллекции `['ws', id, имя]`), а dispatch считает новое состояние
+   этим же reducer'ом, пишет его в кэш (оптимистично) и отправляет разницу в API (см. engine.ts). */
 import * as React from 'react';
-import { seed } from './seed';
+import { useQueries, useQueryClient } from '@tanstack/react-query';
+import { apiFor, errorMessage, ok } from './api';
+import { engineFor, projOrderOf, reorderProjects, type Domain, type Op } from './engine';
+import { useRealtime } from './realtime';
+import { useSession, type SessionUser, type WorkspaceRef } from './session';
+import type { CollName, MemberRow, ProjectRow } from './specs';
+import { uuidv7 } from '../lib/uuid';
 import { PROJECT_STATUS, fileKind, fmtHours, statusOf, visibleProjects } from './selectors';
 import { addSub, findSub, mapSub, reopenAncestors, removeSub, subPath, subtreeIds, toggleSub, flattenSubs } from './subtasks';
 import { toast } from '@/components/ui';
 import { dOff, fmtDate, iso, parse } from '../lib/dates';
-import type { Activity, Member, Notification, Project, ProjectFile, SavedView, Status, StatusDef, Subtask, Task, Team, TimeLog, WorkspaceData, WorkspaceInfo } from './types';
+import type { Activity, Attachment, Member, Project, ProjectFile, SavedView, Status, StatusDef, Subtask, Task, Team, TimeLog, WorkspaceData, WorkspaceInfo } from './types';
 
 export type TaskPatch = Partial<Pick<Task, 'title' | 'status' | 'assignee' | 'priority' | 'due' | 'start' | 'fav' | 'project' | 'planHours' | 'order' | 'archived' | 'labels' | 'deps' | 'recur' | 'desc' | 'subtasks'>>;
 export type SubtaskPatch = Partial<Pick<Subtask, 'title' | 'assignee' | 'due' | 'note' | 'planHours'>>;
@@ -26,9 +35,7 @@ export type Action =
   | { type: 'project/move'; id: string; dir: -1 | 1 }
   | { type: 'project/inviteMember'; id: string; member: Member; perm: string }
   | { type: 'savedView/create'; view: SavedView }
-  /** Название и адрес воркспейса из онбординга */
-  | { type: 'onboarding/workspace'; name: string; url: string }
-  /** Уведомление исполнителю о приоритете задачи */
+  /** Уведомление исполнителю о приоритете задачи (сервер уведомляет сам; на клиенте — без эффекта) */
   | { type: 'task/notifyPriority'; id: string }
   | { type: 'status/add'; status: StatusDef }
   | { type: 'status/rename'; id: string; name: string }
@@ -78,9 +85,9 @@ export type Action =
 export type ProjectPatch = Partial<Pick<Project, 'status' | 'name' | 'desc' | 'icon' | 'color' | 'team' | 'lead' | 'due' | 'members' | 'perms' | 'access' | 'archived' | 'archivedAt'>>;
 export type ProjectForm = Pick<Project, 'name' | 'desc' | 'icon' | 'color' | 'team' | 'lead' | 'due'>;
 
-let seq = 0;
-export const uid = (p: string) => `${p}${Date.now().toString(36)}${++seq}`;
-/** Идентификатор для новой сущности, который вызывающий код должен знать заранее (например, чтобы открыть её) */
+/** Идентификатор новой сущности (uuid v7). Создаётся на клиенте и принимается сервером как есть, поэтому известен заранее:
+    карточку можно открыть и менять до ответа API. Префикс оставлен для читаемости вызовов. */
+export const uid = (_prefix?: string) => uuidv7();
 export const newId = uid;
 
 function logActivity(d: WorkspaceData, verb: string, t: Task, extra = ''): Activity[] {
@@ -167,7 +174,7 @@ export function nextKey(d: WorkspaceData, projectId: string) {
 }
 
 /** Ключ нового проекта из инициалов названия (makeKey из actions.js); занятые ключи получают суффикс X */
-function makeKey(d: WorkspaceData, name: string) {
+export function makeKey(d: Pick<WorkspaceData, 'projects'>, name: string) {
   let k = name
     .split(/\s+/)
     .map(w => w[0] || '')
@@ -290,6 +297,7 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
         tasks: d.tasks.filter(t => !ids.has(t.id)).map(t => (t.deps.some(x => ids.has(x)) ? { ...t, deps: t.deps.filter(x => !ids.has(x)) } : t)),
         comments: d.comments.filter(c => !ids.has(c.task)),
         timeLogs: d.timeLogs.filter(l => !ids.has(l.task)),
+        files: d.files.filter(f => !f.task || !ids.has(f.task)),
       };
     }
     case 'task/archive': {
@@ -342,6 +350,8 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
       return {
         ...d,
         tasks: d.tasks.map(x => (x.id === t.id ? { ...t, updated: Date.now(), attachments: t.attachments.filter(f => f.id !== a.attachment) } : x)),
+        // Вложение — это файл с taskId: открепить значит удалить файл
+        files: d.files.filter(f => f.id !== a.attachment),
         activity: logActivity(d, 'removed a file from', t),
       };
     }
@@ -443,6 +453,7 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
     case 'timelog/delete':
       return { ...d, timeLogs: d.timeLogs.filter(l => l.id !== a.id) };
     case 'task/create': {
+      if (!d.projects.some(p => p.id === a.task.project)) return d; // задачи живут в проектах
       const t: Task = {
         id: uid('t'),
         key: nextKey(d, a.task.project),
@@ -524,12 +535,8 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
         members: [...d.members, a.member],
         projects: d.projects.map(p => (p.id === a.id ? { ...p, members: [...p.members, a.member.id], perms: { ...p.perms, [a.member.id]: a.perm } } : p)),
       };
-    case 'task/notifyPriority': {
-      const t = d.tasks.find(x => x.id === a.id);
-      if (!t) return d;
-      const n: Notification = { id: uid('n'), type: 'update', by: d.me, task: t.id, project: t.project, text: t.priority == null ? 'cleared the priority of' : `set priority to ${t.priority} on`, snippet: `Priority ${t.priority ?? 'none'} · ${t.key}`, at: Date.now(), read: false };
-      return { ...d, notifs: [n, ...d.notifs] };
-    }
+    case 'task/notifyPriority':
+      return d;
     case 'status/add':
       return { ...d, statuses: [...d.statuses, a.status] };
     case 'status/rename':
@@ -544,8 +551,6 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
         savedViews: d.savedViews.map(v => ({ ...v, filters: v.filters.map(f => (f.f === 'status' ? { ...f, v: f.v.filter(x => x !== a.id) } : f)) })),
       };
     }
-    case 'onboarding/workspace':
-      return { ...d, ws: { ...d.ws, name: a.name, url: a.url, brand: false } };
     case 'savedView/create':
       return { ...d, savedViews: [...d.savedViews, a.view] };
     case 'notif/setRead':
@@ -624,18 +629,18 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
     case 'member/setRole':
       return { ...d, members: d.members.map(m => (m.id === a.id ? { ...m, role: a.role } : m)) };
     case 'member/remove':
-      // Открытые задачи участника остаются без исполнителя, из проектов он выходит
+      // Участник деактивируется (его профиль остаётся в истории); открытые задачи остаются без исполнителя, из проектов он выходит
       return {
         ...d,
-        members: d.members.filter(m => m.id !== a.id),
+        members: d.members.map(m => (m.id === a.id ? { ...m, status: 'deactivated' as const } : m)),
         tasks: d.tasks.map(t => (t.assignee === a.id ? { ...t, assignee: null } : t)),
         projects: d.projects.map(p => (p.members.includes(a.id) ? { ...p, members: p.members.filter(x => x !== a.id) } : p)),
       };
     case 'member/restore':
-      // Отмена удаления: участник возвращается на прежнее место, в свои задачи и проекты
+      // Отмена удаления: участник снова активен, возвращается в свои задачи и проекты
       return {
         ...d,
-        members: [...d.members.slice(0, a.index), a.member, ...d.members.slice(a.index)],
+        members: d.members.map(m => (m.id === a.member.id ? { ...m, ...a.member } : m)),
         tasks: d.tasks.map(t => (a.tasks.includes(t.id) ? { ...t, assignee: a.member.id } : t)),
         projects: d.projects.map(p => (a.projects.includes(p.id) ? { ...p, members: [...p.members, a.member.id] } : p)),
       };
@@ -657,23 +662,166 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
   }
 }
 
+/* ---------- провайдер: данные из кэша запросов, dispatch — мутации ---------- */
+
+/** Коллекции данных воркспейса → коллекции кэша */
+const WS_DOMAIN: Domain<WorkspaceData> = {
+  members: 'members',
+  projects: 'projects',
+  tasks: 'tasks',
+  comments: 'comments',
+  activity: 'activity',
+  notifs: 'notifs',
+  teams: 'teams',
+  events: 'events',
+  files: 'files',
+  timeLogs: 'timeLogs',
+  savedViews: 'savedViews',
+  statuses: 'statuses',
+};
+const WS_COLLS = Object.values(WS_DOMAIN) as CollName[];
+
+/** Состояние «после действия» для снимка, захваченного компонентом до него: Undo откатывает только разницу между ними */
+const afterOf = new WeakMap<object, WorkspaceData>();
+
+const wsInfoOf = (w: WorkspaceRef): WorkspaceInfo => ({ name: w.name, url: w.slug, c: w.color, brand: w.brand || undefined });
+
+/** Данные воркспейса из списков кэша. Вложения задач — файлы с taskId; порядок проектов — из sortOrder */
+function assemble(lists: Record<string, unknown[]>, ws: WorkspaceInfo, user: SessionUser): WorkspaceData {
+  const members = lists.members as MemberRow[];
+  const files = lists.files as ProjectFile[];
+  const projects = lists.projects as ProjectRow[];
+  const byTask = new Map<string, Attachment[]>();
+  for (const f of files) {
+    if (!f.task) continue;
+    const list = byTask.get(f.task) ?? [];
+    list.push({ id: f.id, name: f.name, type: f.type, size: f.size, by: f.by, at: f.at });
+    byTask.set(f.task, list);
+  }
+  const tasks = (lists.tasks as Task[]).map(t => {
+    const att = byTask.get(t.id) ?? [];
+    return att.length === t.attachments.length && att.every((a, i) => a.id === t.attachments[i]!.id && a.name === t.attachments[i]!.name) ? t : { ...t, attachments: att };
+  });
+  return {
+    ws,
+    me: members.find(m => m.userId === user.id)?.id ?? '',
+    members,
+    projects,
+    tasks,
+    comments: lists.comments as WorkspaceData['comments'],
+    activity: lists.activity as WorkspaceData['activity'],
+    notifs: lists.notifs as WorkspaceData['notifs'],
+    teams: lists.teams as WorkspaceData['teams'],
+    events: lists.events as WorkspaceData['events'],
+    files,
+    timeLogs: lists.timeLogs as WorkspaceData['timeLogs'],
+    projOrder: projOrderOf(projects),
+    savedViews: lists.savedViews as WorkspaceData['savedViews'],
+    statuses: lists.statuses as WorkspaceData['statuses'],
+  };
+}
+
 const Ctx = React.createContext<{ data: WorkspaceData; dispatch: React.Dispatch<Action> } | null>(null);
 
-export function WorkspaceProvider({ children, initial }: { children: React.ReactNode; initial?: WorkspaceData }) {
-  const [data, rawDispatch] = React.useReducer(reducer, initial, i => i ?? seed());
-  // Тост «Next … scheduled» — побочный эффект, поэтому не в reducer: решаем по текущим данным до отправки действия
-  const latest = React.useRef(data);
-  latest.current = data;
-  const dispatch = React.useCallback<React.Dispatch<Action>>(a => {
-    const t = completedBy(latest.current, a);
-    const rec = t && nextRecurrence(latest.current, t);
-    rawDispatch(a);
-    if (t && rec) toast.info(`Next “${t.title}” scheduled for ${fmtDate(rec.due!)}`);
-  }, []);
-  const value = React.useMemo(() => ({ data, dispatch }), [data, dispatch]);
+/** Экран ожидания данных воркспейса */
+export function LoadingScreen({ error, onRetry }: { error?: string; onRetry?: () => void }) {
+  return (
+    <div role="status" aria-live="polite" style={{ position: 'fixed', inset: 0, display: 'grid', placeItems: 'center', background: 'var(--bg)', color: 'var(--text-2)', fontSize: 14 }}>
+      <div style={{ textAlign: 'center', display: 'grid', gap: 12 }}>
+        {error ? (
+          <>
+            <b style={{ color: 'var(--text)' }}>Couldn't load the workspace</b>
+            <span>{error}</span>
+            {onRetry && (
+              <button className="btn btn-primary" onClick={onRetry}>
+                Try again
+              </button>
+            )}
+          </>
+        ) : (
+          <>
+            <span className="sk" style={{ width: 120, height: 8, borderRadius: 4, justifySelf: 'center' }} />
+            <span>Loading workspace…</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
+  const { active, user } = useSession();
+  // key: при переключении воркспейса провайдер создаётся заново — без остатков состояния прежнего
+  return active && user ? (
+    <WorkspaceInner key={active.id} ws={active} user={user}>
+      {children}
+    </WorkspaceInner>
+  ) : null;
+}
+
+function WorkspaceInner({ ws, user, children }: { ws: WorkspaceRef; user: SessionUser; children: React.ReactNode }) {
+  const qc = useQueryClient();
+  const engine = engineFor(qc, ws.id);
+  // Данные читаются из кэша напрямую (engine.read), а не из results — поэтому подписка на все изменения, а не на «использованные» поля
+  const results = useQueries({ queries: WS_COLLS.map(name => ({ queryKey: engine.key(name), queryFn: () => engine.fetch(name), staleTime: Infinity, notifyOnChangeProps: 'all' as const })) });
+  useRealtime(ws.id, engine);
+
+  const wsInfo = React.useMemo(() => wsInfoOf(ws), [ws.name, ws.slug, ws.color, ws.brand]); // eslint-disable-line react-hooks/exhaustive-deps
+  const memo = React.useRef<{ inputs: unknown[]; out: WorkspaceData } | null>(null);
+  /** Свежие данные из кэша; объект тот же, пока кэш не менялся (на этом держится Undo по снимку) */
+  const read = React.useCallback((): WorkspaceData | null => {
+    const lists = WS_COLLS.map(n => engine.read(n));
+    if (lists.some(l => !l)) return null;
+    const inputs = [...lists, wsInfo, user.id];
+    if (memo.current && memo.current.inputs.every((v, i) => v === inputs[i])) return memo.current.out;
+    const out = assemble(Object.fromEntries(WS_COLLS.map((n, i) => [n, lists[i]!])), wsInfo, user);
+    memo.current = { inputs, out };
+    return out;
+  }, [engine, wsInfo, user]);
+
+  const dispatch = React.useCallback<React.Dispatch<Action>>(
+    a => {
+      const before = read();
+      if (!before) return;
+      if (a.type === 'data/restore') {
+        const baseline = afterOf.get(a.data);
+        if (baseline) engine.commitRestore(WS_DOMAIN, baseline, a.data);
+        else engine.commit(WS_DOMAIN, before, a.data);
+        return;
+      }
+      // Тост «Next … scheduled» — побочный эффект, поэтому не в reducer: решаем по данным до действия
+      const done = completedBy(before, a);
+      const rec = done && nextRecurrence(before, done);
+      const after = reorderProjects(reducer(before, a));
+      afterOf.set(before, after);
+      const extra: Op[] = [];
+      if (after.ws !== before.ws) {
+        const { name, url, c } = after.ws;
+        qc.setQueryData<{ user: SessionUser; workspaces: WorkspaceRef[] }>(['session'], s => s && { ...s, workspaces: s.workspaces.map(w => (w.id === ws.id ? { ...w, name, slug: url, color: c } : w)) });
+        extra.push({ coll: 'workspace', phase: 1, run: () => ok(apiFor(ws.id).workspaces[':id'].$patch({ param: { id: ws.id }, json: { name, slug: url, color: c } })) });
+      }
+      // «Прочитать всё» — одним запросом, а не по запросу на уведомление
+      if (a.type === 'notif/markAllRead') extra.push({ coll: 'notifs', phase: 1, run: () => ok(apiFor(ws.id).notifications['read-all'].$post()) });
+      engine.commit(WS_DOMAIN, before, after, extra, a.type === 'notif/markAllRead' ? ['notifs'] : []);
+      if (done && rec) toast.info(`Next “${done.title}” scheduled for ${fmtDate(rec.due!)}`);
+    },
+    [engine, read, qc, ws.id],
+  );
+
+  const data = read();
+  // Отладка и браузерные тесты: window.__ws.dispatch(action), window.__ws.read(), await window.__ws.settled()
+  React.useEffect(() => {
+    if (import.meta.env.DEV) (window as unknown as { __ws: unknown }).__ws = { dispatch, read, settled: () => engine.settled() };
+  }, [dispatch, read, engine]);
+  const value = React.useMemo(() => (data ? { data, dispatch } : null), [data, dispatch]);
+
+  const failed = results.find(r => r.isError);
+  if (failed) return <LoadingScreen error={errorMessage(failed.error)} onRetry={() => results.forEach(r => void r.refetch())} />;
+  if (!value) return <LoadingScreen />;
+  if (!value.data.me) return <LoadingScreen error="You are not an active member of this workspace." />;
   return (
     <Ctx.Provider value={value}>
-      <StatusColors statuses={data.statuses} />
+      <StatusColors statuses={value.data.statuses} />
       {children}
     </Ctx.Provider>
   );
