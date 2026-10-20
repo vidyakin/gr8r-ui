@@ -29,7 +29,7 @@ function Chip({ t }: { t: Task }) {
   const { data } = useWorkspace();
   const { open } = useTaskActions();
   return (
-    <button className={cn('cev', t.status === 'done' && 'done')} style={{ '--c': projectColor(project(data, t.project)) } as React.CSSProperties} title={t.title} onClick={() => open(t)}>
+    <button data-ctx="task" data-id={t.id} className={cn('cev', t.status === 'done' && 'done')} style={{ '--c': projectColor(project(data, t.project)) } as React.CSSProperties} title={t.title} onClick={() => open(t)}>
       {t.status === 'done' ? <StatusIcon status="done" size={11} /> : <PriorityIcon priority={t.priority} size={11} />}
       <span className="trunc">{t.title}</span>
       <MemberAvatar id={t.assignee} tooltip={false} />
@@ -147,7 +147,7 @@ function WeekCard({ t }: { t: Task }) {
   const { open } = useTaskActions();
   const p = project(data, t.project);
   return (
-    <button className="wcard" style={{ '--c': projectColor(p) } as React.CSSProperties} onClick={() => open(t)}>
+    <button data-ctx="task" data-id={t.id} className="wcard" style={{ '--c': projectColor(p) } as React.CSSProperties} onClick={() => open(t)}>
       <span className="t" style={t.status === 'done' ? { textDecoration: 'line-through', color: 'var(--text-3)' } : undefined}>
         <ProjectDot project={p} />
         {t.title}

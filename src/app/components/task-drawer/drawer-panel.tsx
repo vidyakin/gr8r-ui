@@ -1,0 +1,757 @@
+/* Панель карточки задачи — порт drawerHtml / commentHtml из overlays/drawer.js.
+   Состояние (какая задача открыта, режим, черновики, загрузки) живёт в TaskDrawerProvider (overlays/task-drawer.tsx). */
+import * as React from 'react';
+import {
+  AtSign,
+  Bold,
+  CalendarArrowUp,
+  Calendar as CalendarIcon,
+  ChevronRight,
+  Circle,
+  CircleCheck,
+  CircleDot,
+  ClockAlert,
+  Ellipsis,
+  Folder,
+  GitBranch,
+  Heading,
+  Italic,
+  Link as LinkIcon,
+  Link2,
+  List,
+  ListOrdered,
+  Maximize2,
+  Minimize2,
+  Paperclip,
+  Plus,
+  Repeat,
+  SignalHigh,
+  Star,
+  Tag,
+  Timer,
+  Upload as UploadIcon,
+  User,
+  X,
+  PenTool,
+  FileText,
+  FolderArchive,
+  Image as ImageIcon,
+  FileSpreadsheet,
+  FileCode,
+  File as FileIcon,
+} from 'lucide-react';
+import { Button, Checkbox, Dialog, DialogClose, DialogContent, IconButton, Label, Menu, MenuContent, MenuTrigger, Progress, Tab, TabsList, Tabs, TabsContent, toast } from '@/components/ui';
+import { StatusIcon } from '@/components/gr8r/task';
+import { cn } from '@/lib/utils';
+import { newId, useWorkspace, type TaskPatch } from '../../data/store';
+import { FILE_TYPES, LABELS, commentsOf, isOverdue, member, project, projectColor, task as findTask, fileKind } from '../../data/selectors';
+import { ago, diffDays, fmtDate, parse, relDate, today } from '../../lib/dates';
+import { MOD } from '../../lib/platform';
+import type { FileKind, LabelId, Project, ProjectFile, Task } from '../../data/types';
+import { AssigneeField, DueField, PriorityField, StatusField } from '../fields';
+import { CommentItem } from '../conversation';
+import { FilePreview } from '../files-view';
+import { ProjectDot } from '../project';
+import { MemberAvatar, useTaskActions } from '../workspace';
+import { AutoTextarea, DatePopover, ListPopover, RichText, runFormat } from './pickers';
+import { SubtaskView } from './subtask-view';
+import { TaskMenuItems } from './task-menu';
+
+export interface UploadItem {
+  id: string;
+  name: string;
+  size: string;
+  task: string;
+  pct: number;
+}
+
+const FILE_ICON: Record<string, typeof FileIcon> = {
+  'pen-tool': PenTool,
+  'file-text': FileText,
+  'folder-archive': FolderArchive,
+  image: ImageIcon,
+  'file-spreadsheet': FileSpreadsheet,
+  'file-code': FileCode,
+  file: FileIcon,
+};
+const KindIcon = ({ kind, size }: { kind: FileKind; size: number }) => {
+  const I = FILE_ICON[FILE_TYPES[kind]?.i ?? 'file'] ?? FileIcon;
+  return <I size={size} />;
+};
+
+const FORMAT = [
+  ['bold', Bold, 'Bold'],
+  ['italic', Italic, 'Italic'],
+  ['insertUnorderedList', List, 'Bulleted list'],
+  ['insertOrderedList', ListOrdered, 'Numbered list'],
+  ['formatBlock:h4', Heading, 'Heading'],
+  ['createLink', LinkIcon, 'Link'],
+] as const;
+
+const RECUR = ['Does not repeat', 'Daily', 'Weekly', 'Every 2 weeks', 'Monthly'];
+const ESTIMATES = ['30m', '1h', '2h', '4h', '1d', '2d', '3d', '5d', '8d'];
+
+export interface DrawerPanelProps {
+  task: Task;
+  subId: string | null;
+  full: boolean;
+  tab: 'comments' | 'activity';
+  enter: boolean;
+  draft: string;
+  uploads: UploadItem[];
+  panelRef: React.Ref<HTMLElement>;
+  onDraft: (v: string) => void;
+  onTab: (t: 'comments' | 'activity') => void;
+  onClose: () => void;
+  onToggleFull: () => void;
+  onOpenSub: (id: string | null) => void;
+  onOpenTask: (id: string) => void;
+  onProject: (p: Project) => void;
+  onFiles: (files: FileList | null, t: Task) => void;
+  onKeyDown: (e: React.KeyboardEvent) => void;
+}
+
+export function DrawerPanel(p: DrawerPanelProps) {
+  const { task: t, full } = p;
+  const { data, dispatch } = useWorkspace();
+  const actions = useTaskActions();
+  const pr = project(data, t.project);
+  const sub = p.subId ? t.subtasks.find(s => s.id === p.subId) : undefined;
+  const done = t.status === 'done';
+  const update = (patch: TaskPatch) => dispatch({ type: 'task/update', id: t.id, patch });
+
+  return (
+    <aside
+      ref={p.panelRef}
+      className={cn('drawer', full && 'full', p.enter && 'enter')}
+      role="dialog"
+      aria-modal={full}
+      aria-labelledby="d-h"
+      tabIndex={-1}
+      onKeyDown={p.onKeyDown}
+    >
+      <h2 className="sr" id="d-h">
+        {sub ? `Subtask: ${sub.title}` : `Task: ${t.title}`}
+      </h2>
+      <div className="drawer-h">
+        {pr && (
+          <button className="pillbtn" style={{ fontSize: 12.5 }} onClick={() => p.onProject(pr)}>
+            <ProjectDot project={pr} />
+            {pr.name}
+          </button>
+        )}
+        <span className="faint">/</span>
+        <span className="mono faint" style={{ fontSize: 11.5, padding: '0 6px' }}>
+          {t.key}
+        </span>
+        <span className="sp" />
+        <button className={cn('btn btn-sm', done ? 'btn-secondary' : 'btn-ghost')} style={done ? { color: 'var(--green)' } : undefined} onClick={() => actions.toggleDone(t)}>
+          {done ? <CircleCheck size={14} /> : <Circle size={14} />}
+          <span className="hide-m">{done ? 'Completed' : 'Mark complete'}</span>
+        </button>
+        <IconButton size="sm" label={t.fav ? 'Unfavorite' : 'Favorite'} aria-label="Favorite" aria-pressed={t.fav} style={t.fav ? { color: 'var(--amber)' } : undefined} onClick={() => actions.toggleFav(t)}>
+          <Star size={15} />
+        </IconButton>
+        <IconButton size="sm" label="Copy link" onClick={() => actionsCopy(data.ws.url, t)}>
+          <Link2 size={15} />
+        </IconButton>
+        <IconButton size="sm" className="hide-m" label={full ? 'Side panel' : 'Full page'} aria-label="Toggle full page" onClick={p.onToggleFull}>
+          {full ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+        </IconButton>
+        <Menu>
+          <MenuTrigger asChild>
+            <IconButton size="sm" label="More" tooltip={false}>
+              <Ellipsis size={15} />
+            </IconButton>
+          </MenuTrigger>
+          <MenuContent align="end">
+            <TaskMenuItems task={t} hideOpen />
+          </MenuContent>
+        </Menu>
+        <IconButton size="sm" label="Close" shortcut="Esc" onClick={p.onClose}>
+          <X size={16} />
+        </IconButton>
+      </div>
+      <div className="drawer-b">
+        {sub ? (
+          <SubtaskView task={t} sub={sub} onClose={() => p.onOpenSub(null)} onOpenSub={p.onOpenSub} onOpenTask={p.onOpenTask} />
+        ) : (
+          <TaskBody {...p} update={update} />
+        )}
+      </div>
+    </aside>
+  );
+}
+
+function actionsCopy(wsUrl: string, t: Task) {
+  const url = `https://gr8rstudio.com/${wsUrl}/task/${t.key}`;
+  Promise.resolve()
+    .then(() => navigator.clipboard.writeText(url))
+    .then(() => toast('Link copied'))
+    .catch(() => toast.info(`Copy isn't available here — ${url}`, { duration: 6000 }));
+}
+
+function Prop({ icon: I, label, children }: { icon: typeof User; label: string; children: React.ReactNode }) {
+  return (
+    <>
+      <dt>
+        <I size={14} />
+        {label}
+      </dt>
+      <dd>{children}</dd>
+    </>
+  );
+}
+
+function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) {
+  const { task: t, full, update } = p;
+  const { data, dispatch } = useWorkspace();
+  const actions = useTaskActions();
+  const pr = project(data, t.project);
+  const cs = commentsOf(data, t.id);
+  const acts = data.activity.filter(a => a.task === t.id);
+  const sd = t.subtasks.filter(s => s.done).length;
+  const ups = p.uploads.filter(u => u.task === t.id);
+  const [added, setAdded] = React.useState<string | null>(null);
+  const [preview, setPreview] = React.useState<ProjectFile | null>(null);
+  const [over, setOver] = React.useState(false);
+  const overdue = isOverdue(t) ? diffDays(today(), parse(t.due!)) : 0;
+  const toFile = (f: Task['attachments'][number]): ProjectFile => ({ ...f, type: f.type as FileKind, project: t.project, task: t.id });
+  const projects = data.projects.filter(x => !x.archived && (!x.private || x.members.includes(data.me)) && x.status !== 'complete');
+  const candidates = data.tasks.filter(x => x.project === t.project && x.id !== t.id && !x.archived);
+
+  return (
+    <>
+      {isDone(t) ? (
+        <div className="alert ok" style={{ marginBottom: 12 }}>
+          <CircleCheck size={15} />
+          <span>
+            Completed {t.completedAt ? ago(t.completedAt) : ''}.{' '}
+            <button className="link" onClick={() => actions.toggleDone(t)}>
+              Reopen task
+            </button>
+          </span>
+        </div>
+      ) : overdue > 0 ? (
+        <div className="alert danger" style={{ marginBottom: 12 }}>
+          <ClockAlert size={15} />
+          <span>
+            Overdue by {overdue} day{overdue > 1 ? 's' : ''}.{' '}
+            <DatePopover value={t.due} onChange={due => update({ due })} trigger={<button className="link">Reschedule</button>} />
+          </span>
+        </div>
+      ) : null}
+      <AutoTextarea
+        key={`${t.id}:${t.title}`}
+        className="ttl-edit"
+        id="d-title"
+        rows={1}
+        defaultValue={t.title}
+        aria-label="Task title"
+        onBlur={e => {
+          const v = e.currentTarget.value.trim();
+          if (v && v !== t.title) update({ title: v });
+          else e.currentTarget.value = t.title;
+        }}
+        onKeyDown={e => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            e.currentTarget.blur();
+          }
+        }}
+      />
+      <dl className="kv" style={{ marginTop: 12, ...(full ? { gridTemplateColumns: '112px minmax(0,1fr) 112px minmax(0,1fr)' } : null) }}>
+        <Prop icon={CircleDot} label="Status">
+          <StatusField task={t} />
+        </Prop>
+        <Prop icon={SignalHigh} label="Priority">
+          <PriorityField task={t} />
+        </Prop>
+        <Prop icon={User} label="Assignee">
+          <AssigneeField task={t} />
+        </Prop>
+        <Prop icon={CalendarIcon} label="Due date">
+          <DueField task={t} />
+        </Prop>
+        <Prop icon={CalendarArrowUp} label="Start date">
+          <DatePopover
+            value={t.start}
+            onChange={start => update({ start })}
+            trigger={
+              <button className={cn('pillbtn', !t.start && 'empty')} aria-label="Start date">
+                <CalendarIcon size={13} />
+                {t.start ? fmtDate(t.start) : 'Set date'}
+              </button>
+            }
+          />
+        </Prop>
+        <Prop icon={Folder} label="Project">
+          <ListPopover
+            search="Move to project…"
+            items={projects.map(x => ({ id: x.id, name: x.name, icon: <span className="pdot" style={{ '--c': projectColor(x) } as React.CSSProperties} />, on: t.project === x.id }))}
+            onPick={id => id !== t.project && update({ project: id })}
+            trigger={
+              <button className="pillbtn" aria-label="Project">
+                <ProjectDot project={pr} />
+                <span className="trunc">{pr?.name}</span>
+              </button>
+            }
+          />
+        </Prop>
+        <Prop icon={Tag} label="Labels">
+          <ListPopover
+            multi
+            search="Filter labels…"
+            items={(Object.entries(LABELS) as [LabelId, { name: string; c: string }][]).map(([id, l]) => ({
+              id,
+              name: l.name,
+              icon: <span className="pdot" style={{ '--c': l.c } as React.CSSProperties} />,
+              on: t.labels.includes(id),
+            }))}
+            onPick={id => update({ labels: t.labels.includes(id as LabelId) ? t.labels.filter(x => x !== id) : [...t.labels, id as LabelId] })}
+            trigger={
+              <button className={cn('pillbtn', !t.labels.length && 'empty')} aria-label="Labels" style={{ flexWrap: 'wrap', height: 'auto', minHeight: 26, padding: '3px 7px' }}>
+                {t.labels.length ? (
+                  t.labels.map(id => (
+                    <Label key={id} color={LABELS[id].c}>
+                      {LABELS[id].name}
+                    </Label>
+                  ))
+                ) : (
+                  <>
+                    <Tag size={13} />
+                    Add labels
+                  </>
+                )}
+              </button>
+            }
+          />
+        </Prop>
+        <Prop icon={Repeat} label="Repeat">
+          <ListPopover
+            items={RECUR.map(x => ({ id: x, name: x, icon: <Repeat size={14} />, on: (t.recur || 'Does not repeat') === x }))}
+            onPick={id => update({ recur: id === 'Does not repeat' ? null : id })}
+            trigger={
+              <button className={cn('pillbtn', !t.recur && 'empty')} aria-label="Repeat">
+                <Repeat size={13} />
+                {t.recur || 'Does not repeat'}
+              </button>
+            }
+          />
+        </Prop>
+        <Prop icon={Timer} label="Estimate">
+          <ListPopover
+            items={[...ESTIMATES.map(x => ({ id: x, name: x, icon: <Timer size={14} />, on: t.estimate === x })), { id: '', name: 'Clear estimate', icon: <X size={14} /> }]}
+            onPick={id => update({ estimate: id || null })}
+            trigger={
+              <button className={cn('pillbtn', !t.estimate && 'empty')} aria-label="Estimate">
+                <Timer size={13} />
+                {t.estimate || 'Add estimate'}
+              </button>
+            }
+          />
+        </Prop>
+        <Prop icon={GitBranch} label="Blocked by">
+          <ListPopover
+            multi
+            search="Blocked by…"
+            width={300}
+            items={candidates.map(x => ({ id: x.id, name: `${x.key}  ${x.title}`, icon: <StatusIcon status={x.status} />, on: t.deps.includes(x.id) }))}
+            onPick={id => update({ deps: t.deps.includes(id) ? t.deps.filter(x => x !== id) : [...t.deps, id] })}
+            trigger={
+              <button className={cn('pillbtn', !t.deps.length && 'empty')} aria-label="Blocked by" style={{ height: 'auto', minHeight: 26, flexWrap: 'wrap' }}>
+                {t.deps.length ? (
+                  t.deps.map(d => {
+                    const x = findTask(data, d);
+                    return x ? (
+                      <React.Fragment key={d}>
+                        <span className="depchip mono" style={{ fontSize: 11, padding: '1px 5px', borderRadius: 4, background: 'var(--surface-3)' }}>
+                          {x.key}
+                        </span>
+                        <span className="trunc" style={{ maxWidth: 160 }}>
+                          {x.title}
+                        </span>
+                      </React.Fragment>
+                    ) : null;
+                  })
+                ) : (
+                  <>
+                    <GitBranch size={13} />
+                    None
+                  </>
+                )}
+              </button>
+            }
+          />
+        </Prop>
+      </dl>
+
+      <div className="dsec">
+        <div className="dsec-h">
+          <h3 id="d-desc-l">Description</h3>
+          <div className="rte-tb" role="toolbar" aria-label="Formatting" aria-controls="d-desc">
+            {FORMAT.map(([cmd, I, name]) => (
+              <IconButton
+                key={cmd}
+                size="xs"
+                label={name}
+                // mousedown не должен забирать выделение у редактора
+                onMouseDown={e => {
+                  e.preventDefault();
+                  const html = runFormat(cmd);
+                  if (html != null) update({ desc: html });
+                }}
+              >
+                <I size={13} />
+              </IconButton>
+            ))}
+          </div>
+        </div>
+        <div className="rte">
+          <RichText html={t.desc} onChange={desc => update({ desc })} labelledBy="d-desc-l" />
+        </div>
+      </div>
+
+      <div className="dsec">
+        <div className="dsec-h">
+          <h3>Subtasks</h3>
+          <span className="cnt num">
+            {sd}/{t.subtasks.length}
+          </span>
+          {t.subtasks.length > 0 && (
+            <span style={{ width: 90, display: 'flex' }}>
+              <Progress value={Math.round((sd / t.subtasks.length) * 100)} tone={sd === t.subtasks.length ? 'green' : undefined} />
+            </span>
+          )}
+        </div>
+        {t.subtasks.map(s => (
+          <div key={s.id} className={cn('subt', s.done && 'done', added === s.id && 'fx-added')}>
+            <Checkbox checked={s.done} onChange={() => dispatch({ type: 'task/toggleSubtask', id: t.id, subtask: s.id })} aria-label={`${s.done ? 'Reopen' : 'Complete'} subtask ${s.title}`} />
+            <button className="s" data-sid={s.id} onClick={() => p.onOpenSub(s.id)}>
+              {s.title}
+            </button>
+            {s.due && (
+              <span className={cn('due', !s.done && diffDays(parse(s.due), today()) < 0 && 'over')}>
+                <CalendarIcon size={12} />
+                {relDate(s.due)}
+              </span>
+            )}
+            {s.assignee && <MemberAvatar id={s.assignee} size="sm" />}
+            <IconButton size="xs" className="x" label="Open subtask details" tooltip={false} tabIndex={-1} onClick={() => p.onOpenSub(s.id)}>
+              <ChevronRight size={14} />
+            </IconButton>
+          </div>
+        ))}
+        <div className="subt" style={{ color: 'var(--text-3)' }}>
+          <Plus size={15} />
+          <input
+            className="inline-in"
+            id="d-sub"
+            placeholder="Add subtask"
+            aria-label="Add subtask"
+            style={{ fontSize: 13.5 }}
+            onKeyDown={e => {
+              if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return;
+              e.preventDefault();
+              const title = e.currentTarget.value.trim();
+              if (!title) return;
+              const id = newId('s');
+              setAdded(id);
+              dispatch({ type: 'subtask/add', id: t.id, sub: id, title });
+              e.currentTarget.value = '';
+            }}
+          />
+        </div>
+      </div>
+
+      <div className="dsec">
+        <div className="dsec-h">
+          <h3>Attachments</h3>
+          <span className="cnt">{t.attachments.length}</span>
+          <div className="acts">
+            <label className="btn btn-sm btn-ghost" style={{ cursor: 'pointer' }}>
+              <UploadIcon size={13} />
+              Upload
+              <input type="file" multiple hidden onChange={e => { p.onFiles(e.target.files, t); e.target.value = ''; }} />
+            </label>
+          </div>
+        </div>
+        {ups.map(u => (
+          <div key={u.id} className="upl" style={{ marginBottom: 6 }}>
+            <span className="ftype" style={{ '--c': FILE_TYPES[fileKindOf(u.name)].c } as React.CSSProperties}>
+              <KindIcon kind={fileKindOf(u.name)} size={14} />
+            </span>
+            <div className="grow">
+              <div className="row">
+                <span className="trunc">{u.name}</span>
+                <span className="sp" />
+                <span className="faint num" style={{ fontSize: 11 }}>
+                  {u.pct}%
+                </span>
+              </div>
+              <Progress value={u.pct} className="mt-[5px]" aria-label={`Uploading ${u.name}`} />
+            </div>
+          </div>
+        ))}
+        {t.attachments.length ? (
+          <div className="att">
+            {t.attachments.map(f => (
+              <div
+                key={f.id}
+                className="attc"
+                role="button"
+                tabIndex={0}
+                onClick={() => setPreview(toFile(f))}
+                onKeyDown={e => {
+                  if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
+                    e.preventDefault();
+                    setPreview(toFile(f));
+                  }
+                }}
+              >
+                <FilePreview file={toFile(f)} />
+                <div className="fi">
+                  <div className="trunc" style={{ fontWeight: 500 }}>
+                    {f.name}
+                  </div>
+                  <div className="faint">
+                    {FILE_TYPES[f.type as FileKind]?.n || 'File'} · {f.size}
+                  </div>
+                </div>
+                <IconButton
+                  size="xs"
+                  className="x"
+                  label="Remove attachment"
+                  tooltip={false}
+                  onClick={e => {
+                    e.stopPropagation();
+                    dispatch({ type: 'task/detach', id: t.id, attachment: f.id });
+                    toast(`Removed ${f.name}`);
+                  }}
+                >
+                  <X size={12} />
+                </IconButton>
+              </div>
+            ))}
+          </div>
+        ) : (
+          !ups.length && (
+            <label
+              className={cn('dropzone', over && 'over')}
+              style={{ padding: 12 }}
+              onDragOver={e => {
+                e.preventDefault();
+                setOver(true);
+              }}
+              onDragLeave={() => setOver(false)}
+              onDrop={e => {
+                e.preventDefault();
+                setOver(false);
+                p.onFiles(e.dataTransfer.files, t);
+              }}
+            >
+              <Paperclip size={15} />
+              <span>Drop files or click to attach</span>
+              <input type="file" multiple hidden onChange={e => { p.onFiles(e.target.files, t); e.target.value = ''; }} />
+            </label>
+          )
+        )}
+      </div>
+
+      <div className="dsec">
+        <Tabs value={p.tab} onValueChange={v => p.onTab(v as 'comments' | 'activity')}>
+          <TabsList style={{ marginBottom: 6 }}>
+            <Tab value="comments" count={cs.length}>
+              Comments
+            </Tab>
+            <Tab value="activity" count={acts.length}>
+              Activity
+            </Tab>
+          </TabsList>
+          <TabsContent value="comments">
+            {cs.length ? (
+              cs.map(c => (
+                <CommentItem
+                  key={c.id}
+                  c={c}
+                  onDelete={() => {
+                    const snap = data;
+                    dispatch({ type: 'comment/delete', id: c.id });
+                    toast('Comment deleted', { action: { label: 'Undo', onClick: () => dispatch({ type: 'data/restore', data: snap }) } });
+                  }}
+                />
+              ))
+            ) : (
+              <p className="faint" style={{ fontSize: 13, margin: '10px 0' }}>
+                No comments yet. Start the conversation.
+              </p>
+            )}
+            <CommentBox task={t} draft={p.draft} onDraft={p.onDraft} onFiles={p.onFiles} />
+          </TabsContent>
+          <TabsContent value="activity">
+            <div style={{ paddingTop: 4 }}>
+              {acts.map(a => {
+                const m = member(data, a.by);
+                return (
+                  <div key={a.id} className="act-line">
+                    <span className="ico">
+                      <MemberAvatar id={a.by} size="sm" tooltip={false} />
+                    </span>
+                    <span className="grow">
+                      <b>{m?.id === data.me ? 'You' : m?.name}</b> {a.verb.replace(/ of$/, '')}
+                      {a.extra ? ' ' + a.extra : ''}
+                    </span>
+                    <time className="faint" style={{ fontSize: 11.5 }}>
+                      {ago(a.at)}
+                    </time>
+                  </div>
+                );
+              })}
+              <div className="act-line">
+                <span className="ico">
+                  <Plus size={13} />
+                </span>
+                <span className="grow">Task created</span>
+                <time className="faint" style={{ fontSize: 11.5 }}>
+                  {ago(t.created)}
+                </time>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      <Dialog open={!!preview} onOpenChange={o => !o && setPreview(null)}>
+        {preview && (
+          <DialogContent
+            size="lg"
+            title={preview.name}
+            description={`${FILE_TYPES[preview.type]?.n ?? 'File'} · ${preview.size} · Uploaded by ${member(data, preview.by)?.name || 'you'} ${ago(preview.at)}`}
+            footer={
+              <>
+                <Button variant="secondary" onClick={() => actionsCopy(data.ws.url, t)}>
+                  <LinkIcon size={14} />
+                  Copy link
+                </Button>
+                <span className="sp" />
+                <DialogClose asChild>
+                  <Button>Close</Button>
+                </DialogClose>
+              </>
+            }
+          >
+            <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
+              <FilePreview file={preview} style={{ aspectRatio: '16/9' }} />
+            </div>
+          </DialogContent>
+        )}
+      </Dialog>
+    </>
+  );
+}
+
+const isDone = (t: Task) => t.status === 'done';
+const fileKindOf = (name: string): FileKind => fileKind(name);
+
+/** Поле комментария: упоминания по «@», ⌘/Ctrl+Enter отправляет */
+function CommentBox({ task: t, draft, onDraft, onFiles }: { task: Task; draft: string; onDraft: (v: string) => void; onFiles: (f: FileList | null, t: Task) => void }) {
+  const { data, dispatch } = useWorkspace();
+  const ref = React.useRef<HTMLTextAreaElement>(null);
+  const [mq, setMq] = React.useState<string | null>(null);
+  const ment =
+    mq == null
+      ? []
+      : data.members
+          .filter(m => m.name.toLowerCase().startsWith(mq.toLowerCase()) || m.name.split(' ')[1]?.toLowerCase().startsWith(mq.toLowerCase()))
+          .slice(0, 5);
+  const setCaretEnd = () =>
+    requestAnimationFrame(() => {
+      const ta = ref.current;
+      if (!ta) return;
+      ta.focus();
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+    });
+  const post = () => {
+    const txt = draft.trim();
+    if (!txt) return ref.current?.focus();
+    dispatch({ type: 'comment/add', task: t.id, text: txt });
+    onDraft('');
+    setMq(null);
+  };
+  return (
+    <div className="row" style={{ alignItems: 'flex-start', gap: 10, marginTop: 8 }}>
+      <MemberAvatar id={data.me} size="md" tooltip={false} />
+      <div className="grow" style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+        <div className="cbox">
+          <AutoTextarea
+            ref={ref}
+            id="d-cmt"
+            rows={2}
+            value={draft}
+            placeholder="Leave a comment… type @ to mention"
+            aria-label="Comment"
+            onChange={e => {
+              onDraft(e.target.value);
+              const m = e.target.value.slice(0, e.target.selectionStart).match(/(?:^|\s)@([A-Za-z]*)$/);
+              setMq(m ? m[1] : null);
+            }}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                post();
+              } else if (e.key === 'Escape' && mq != null) {
+                // первый Esc закрывает список упоминаний, а не карточку
+                e.preventDefault();
+                setMq(null);
+              }
+            }}
+          />
+          <div className="row">
+            <IconButton
+              size="xs"
+              label="Mention someone"
+              aria-label="Mention"
+              onClick={() => {
+                onDraft(draft + (draft && !draft.endsWith(' ') ? ' @' : '@'));
+                setMq('');
+                setCaretEnd();
+              }}
+            >
+              <AtSign size={14} />
+            </IconButton>
+            <label className="ibtn ibtn-xs" title="Attach file" style={{ cursor: 'pointer' }}>
+              <Paperclip size={14} />
+              <input type="file" multiple hidden onChange={e => { onFiles(e.target.files, t); e.target.value = ''; }} />
+            </label>
+            <span className="sp" />
+            <span className="faint hide-m" style={{ fontSize: 11 }}>
+              {MOD}+Enter
+            </span>
+            <Button variant="primary" size="sm" onClick={post}>
+              Comment
+            </Button>
+          </div>
+        </div>
+        {ment.length > 0 && (
+          <div className="pop mention-pop" role="menu">
+            {ment.map(m => (
+              <button
+                key={m.id}
+                className="mi"
+                onClick={() => {
+                  onDraft(draft.replace(/@([A-Za-z]*)$/, '@' + m.name + ' '));
+                  setMq(null);
+                  setCaretEnd();
+                }}
+              >
+                <MemberAvatar id={m.id} size="sm" tooltip={false} />
+                {m.name}
+                <span className="r">{m.title}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
