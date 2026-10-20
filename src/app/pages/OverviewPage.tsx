@@ -6,10 +6,11 @@ import { Button, Progress } from '@/components/ui';
 import { STATUSES, StatusIcon } from '@/components/gr8r/task';
 import { useWorkspace } from '../data/store';
 import { diffDays, fmtDate, parse, relDate, today } from '../lib/dates';
-import { allTasks, canSee, isOverdue, member, progressOf, projectColor, tasksOf, visibleProjects } from '../data/selectors';
+import { allTasks, canSee, fmtHours, isOverdue, member, progressOf, projectColor, tasksOf, totalTime, visibleProjects } from '../data/selectors';
 import { SECTIONS } from '../routes';
 import { ProjectIcon, ProjectStatus } from '../components/project';
 import { MemberAvatar } from '../components/workspace';
+import { TimeTotals } from '../components/time-summary';
 import { useProjectForms } from '../overlays';
 
 function Panel({ title, actions, children }: { title: string; actions?: React.ReactNode; children: React.ReactNode }) {
@@ -55,6 +56,12 @@ export function OverviewPage() {
     .map(m => ({ m, ts: all.filter(t => t.assignee === m.id && t.status !== 'done') }))
     .sort((a, b) => b.ts.length - a.ts.length);
   const maxL = Math.max(...load.map(l => l.ts.length), 1);
+  const time = totalTime(data.timeLogs, all);
+  const byProject = ps
+    .map(p => ({ p, x: totalTime(data.timeLogs, tasksOf(data, p.id)) }))
+    .filter(r => r.x.plan > 0 || r.x.actual > 0)
+    .sort((a, b) => b.x.actual - a.x.actual)
+    .slice(0, 5);
 
   return (
     <div className="page">
@@ -167,6 +174,39 @@ export function OverviewPage() {
                   <span className="num muted">{c.n}</span>
                   <span className="num faint" style={{ width: 36, textAlign: 'right' }}>
                     {Math.round((c.n / total) * 100)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Panel>
+
+          <Panel
+            title="Time"
+            actions={
+              <span className="faint" style={{ fontSize: 11.5 }}>
+                Plan vs. logged hours
+              </span>
+            }
+          >
+            <div className="panel-b">
+              <TimeTotals x={time} />
+              {byProject.map(({ p, x }) => (
+                <div
+                  key={p.id}
+                  className="row"
+                  style={{ height: 30, fontSize: 13, cursor: 'pointer' }}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => navigate(`/projects/${p.id}/overview`)}
+                  onKeyDown={e => e.key === 'Enter' && navigate(`/projects/${p.id}/overview`)}
+                >
+                  <ProjectIcon project={p} size={14} />
+                  <span style={{ width: 84 }} className="trunc">
+                    {p.name}
+                  </span>
+                  <Progress value={x.plan > 0 ? Math.min(x.pct ?? 0, 100) : 0} tone={x.over ? 'red' : undefined} aria-label={`${p.name} hours against plan`} />
+                  <span className="num muted" style={{ width: 84, textAlign: 'right', fontSize: 12, color: x.over ? 'var(--red)' : undefined }}>
+                    {x.plan > 0 ? `${+x.actual.toFixed(1)}/${fmtHours(x.plan)}` : fmtHours(x.actual)}
                   </span>
                 </div>
               ))}

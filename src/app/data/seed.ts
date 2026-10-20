@@ -1,7 +1,7 @@
 /* Демо-данные воркспейса — порт data/seed.js из gr8r-studio.
    Файлы, события и настройки аккаунта пока не перенесены: добавятся вместе со страницами, которым они нужны. */
 import { dOff, minsAgo } from '../lib/dates';
-import type { Activity, CalendarEvent, Comment, LabelId, Member, Notification, Priority, Project, ProjectFile, Status, Task, Team, WorkspaceData } from './types';
+import type { Activity, CalendarEvent, Comment, LabelId, Member, Notification, Priority, Project, ProjectFile, Status, Subtask, Task, Team, TimeLog, WorkspaceData } from './types';
 
 let aid = 0;
 const uid = (p: string) => p + ++aid;
@@ -12,6 +12,19 @@ export const TEAMS_SEED: Team[] = [
   { id: 'mkt', name: 'Marketing', icon: 'megaphone', c: '#C54B78', desc: 'Campaigns, content, and growth' },
   { id: 'product', name: 'Product', icon: 'target', c: '#C48A1E', desc: 'Roadmap, planning, and QA' },
 ];
+
+/** Оценка из старого формата ('3d', '4h', '30m') в часы: день = 8 часов */
+const hoursOf = (e: string) => (e.endsWith('d') ? parseFloat(e) * 8 : e.endsWith('m') ? parseFloat(e) / 60 : parseFloat(e));
+
+/** Подзадача для демо-данных: plan — часы (null — сумма вложенных), kids — вложенные подзадачи */
+const sub = (id: string, title: string, done = false, plan: number | null = null, kids: Subtask[] = [], extra: Partial<Subtask> = {}): Subtask => ({
+  id,
+  title,
+  done,
+  planHours: plan,
+  subtasks: kids,
+  ...extra,
+});
 
 export function seed(): WorkspaceData {
   const members: Member[] = [
@@ -270,7 +283,7 @@ export function seed(): WorkspaceData {
           attachments: [],
           deps: [],
           desc: '',
-          estimate: est || null,
+          planHours: est ? hoursOf(est) : null,
           created: minsAgo(60 * 24 * (age || 12)),
           updated: minsAgo(60 * (upd || 30)),
           order: n,
@@ -290,10 +303,20 @@ export function seed(): WorkspaceData {
     fav: true,
     desc: '<p>Low-fidelity wireframes for the new homepage covering <b>desktop, tablet, and mobile</b> breakpoints.</p><ul><li>Hero with product value proposition</li><li>Customer logos and proof points</li><li>Feature overview linking to product pages</li></ul><p>Reference the navigation audit for IA decisions.</p>',
     subtasks: [
-      { id: 's1', title: 'Desktop layout', done: true },
-      { id: 's2', title: 'Tablet layout', done: true },
-      { id: 's3', title: 'Mobile layout', done: true },
-      { id: 's4', title: 'Annotate interactions', done: false },
+      sub('s1', 'Desktop layout', true, 8),
+      sub('s2', 'Tablet layout', true, 5),
+      sub('s3', 'Mobile layout', true, 5),
+      sub(
+        's4',
+        'Annotate interactions',
+        false,
+        null,
+        [
+          sub('s30', 'Hover & focus states', false, 3, [sub('s31', 'Navigation menu', true, 1.5), sub('s32', 'Buttons & form fields', false, 1.5, [], { assignee: 'm4' })], { assignee: 'm2', due: dOff(1) }),
+          sub('s33', 'Scroll & sticky behavior', false, 2),
+        ],
+        { assignee: 'm2', due: dOff(1), note: 'Annotations go in the Figma file, one frame per breakpoint.' },
+      ),
     ],
     attachments: [
       { id: 'a1', name: 'homepage-wireframes-v3.fig', type: 'fig', size: '4.2 MB', by: 'm2', at: minsAgo(300) },
@@ -304,18 +327,15 @@ export function seed(): WorkspaceData {
     est: '2d',
     len: 4,
     subtasks: [
-      { id: 's5', title: 'Primary nav structure', done: true },
-      { id: 's6', title: 'Mega-menu content', done: false },
-      { id: 's7', title: 'Mobile drawer behavior', done: false },
+      sub('s5', 'Primary nav structure', true, 6),
+      sub('s6', 'Mega-menu content', false, null, [sub('s34', 'Column groupings', true, 3), sub('s35', 'Copy review', false, 2)]),
+      sub('s7', 'Mobile drawer behavior', false, 4),
     ],
   });
   t('p1', 'Design responsive navigation', 'progress', 'm4', 'medium', 3, ['design'], {
     est: '3d',
     len: 6,
-    subtasks: [
-      { id: 's8', title: 'Breakpoint rules', done: true },
-      { id: 's9', title: 'Sticky header states', done: false },
-    ],
+    subtasks: [sub('s8', 'Breakpoint rules', true, 6), sub('s9', 'Sticky header states', false, 4)],
   });
   t('p1', 'Prepare design system tokens', 'todo', 'm1', 'medium', 6, ['design'], { est: '2d', len: 4 });
   t('p1', 'Review responsive layouts', 'todo', 'm4', 'medium', 8, ['qa', 'design'], { est: '1d', len: 3 });
@@ -324,9 +344,9 @@ export function seed(): WorkspaceData {
     est: '3d',
     len: 6,
     subtasks: [
-      { id: 's10', title: 'Welcome screens', done: true },
-      { id: 's11', title: 'Permission prompts', done: false },
-      { id: 's12', title: 'Empty states', done: false },
+      sub('s10', 'Welcome screens', true, 8),
+      sub('s11', 'Permission prompts', false, null, [sub('s36', 'Legal review copy', false, 3), sub('s37', 'Fallback states', false, null, [sub('s38', 'Denied', false, 1.5), sub('s39', 'Restricted by parental controls', false, 1.5)])]),
+      sub('s12', 'Empty states', false, 4),
     ],
   });
   t('p1', 'Write homepage copy', 'backlog', 'm5', 'low', 18, ['content'], { est: '2d' });
@@ -361,10 +381,10 @@ export function seed(): WorkspaceData {
     est: '1d',
     len: 10,
     subtasks: [
-      { id: 's20', title: 'Docs published', done: true },
-      { id: 's21', title: 'Pricing live', done: false },
-      { id: 's22', title: 'Support trained', done: false },
-      { id: 's23', title: 'Status page updated', done: true },
+      sub('s20', 'Docs published', true, 2),
+      sub('s21', 'Pricing live', false, 1),
+      sub('s22', 'Support trained', false, null, [sub('s40', 'Sales team walkthrough', false, 1), sub('s41', 'Support playbook', false, 2)]),
+      sub('s23', 'Status page updated', true, 0.5),
     ],
   });
   t('p4', 'Pricing page update', 'todo', 'm2', 'high', 6, ['design', 'frontend'], { est: '2d' });
@@ -508,6 +528,78 @@ export function seed(): WorkspaceData {
     { id: 'f11', project: 'p3', name: 'campaign-brief.pdf', type: 'pdf', size: '1.1 MB', by: 'm5', at: minsAgo(4000) },
     { id: 'f12', project: 'p4', name: 'launch-plan.docx', type: 'doc', size: '180 KB', by: 'm1', at: minsAgo(6000) },
   ];
+  // Учёт времени: часть задач в плане, у двух (wireframes, mobile onboarding) — перерасход
+  const byTitle = (title: string) => T.find(x => x.title === title)!.id;
+  const timeLogs: TimeLog[] = [];
+  const L = (title: string, sb: string | null, by: string, hours: number, daysAgo: number, note = '') =>
+    timeLogs.push({ id: 'l' + (timeLogs.length + 1), task: byTitle(title), ...(sb ? { sub: sb } : null), by, hours, date: dOff(-daysAgo), note });
+  const WF = 'Create homepage wireframes';
+  L(WF, 's1', 'm2', 6.5, 19, 'First pass of the desktop layout');
+  L(WF, 's1', 'm2', 2.5, 16, 'Revisions after the design review');
+  L(WF, 's2', 'm2', 5, 14);
+  L(WF, 's3', 'm2', 4.5, 12, 'Mobile breakpoints');
+  L(WF, null, 'm2', 3, 8, 'Stakeholder walkthrough');
+  L(WF, null, 'm3', 2, 6, 'Feasibility review with engineering');
+  L(WF, null, 'm4', 1.5, 5, 'Tablet feedback');
+  L(WF, 's31', 'm2', 1.5, 3, 'Nav hover states');
+  L(WF, 's33', 'm2', 1, 2);
+  L(WF, null, 'm2', 2, 1, 'v3 updates');
+  L('Audit existing navigation', null, 'm2', 6, 27, 'Crawled every top-level page');
+  L('Audit existing navigation', null, 'm2', 5, 26);
+  L('Audit existing navigation', null, 'm2', 4.5, 25, 'Findings write-up');
+  L('Summarize stakeholder interviews', null, 'm1', 3, 24);
+  L('Summarize stakeholder interviews', null, 'm1', 3.5, 23, 'Themes and quotes');
+  L('Finalize navigation', 's5', 'm3', 5, 5);
+  L('Finalize navigation', 's5', 'm3', 2, 4);
+  L('Finalize navigation', null, 'm5', 1, 3, 'Content check');
+  L('Finalize navigation', 's34', 'm3', 2.5, 2);
+  L('Finalize navigation', null, 'm3', 3, 1, 'Mega-menu prototype');
+  L('Design responsive navigation', 's8', 'm4', 4, 4);
+  L('Design responsive navigation', 's8', 'm4', 3, 3);
+  L('Design responsive navigation', null, 'm4', 1, 2);
+  L('Design responsive navigation', 's9', 'm4', 2.5, 1);
+  const MO = 'Design mobile onboarding';
+  L(MO, 's10', 'm4', 7, 10);
+  L(MO, 's10', 'm4', 3.5, 9, 'Illustrations');
+  L(MO, null, 'm4', 6, 8, 'Prototype in Figma');
+  L(MO, 's36', 'm4', 3, 6, 'Rewrote after legal comments');
+  L(MO, 's38', 'm4', 2, 5);
+  L(MO, null, 'm4', 5, 4, 'Interaction polish');
+  L(MO, null, 'm1', 1, 2, 'Review');
+  L('Prepare design system tokens', null, 'm1', 2, 1);
+  L('Build hero component', null, 'm3', 4, 2);
+  L('Build hero component', null, 'm3', 2.5, 1, 'Responsive image handling');
+  L('Image optimization pipeline', null, 'm6', 5, 3);
+  L('Image optimization pipeline', null, 'm6', 2, 1, 'Benchmarks');
+  L('Footer and legal pages', null, 'm5', 7.5, 6);
+  L('Fix broken anchor links on pricing', null, 'm3', 2.5, 3, 'Also fixed two redirects');
+  L('Onboarding flow prototype', null, 'm4', 8, 3);
+  L('Onboarding flow prototype', null, 'm4', 6.5, 2);
+  L('Onboarding flow prototype', null, 'm4', 4, 1);
+  L('Push notification service', null, 'm6', 8, 4);
+  L('Push notification service', null, 'm6', 8, 3, 'APNs integration');
+  L('Push notification service', null, 'm6', 6, 2);
+  L('Push notification service', null, 'm6', 5.5, 1);
+  L('Biometric sign-in', null, 'm3', 7, 6);
+  L('Biometric sign-in', null, 'm3', 8, 5, 'Face ID and fingerprint');
+  L('Biometric sign-in', null, 'm3', 6.5, 2, 'Fallback to passcode');
+  L('Crash reporting setup', null, 'm6', 6, 9);
+  L('Offline mode sync', null, 'm3', 8, 1, 'Conflict resolution spike');
+  L('Triage beta tester feedback', null, 'm1', 1.5, 7);
+  L('Triage beta tester feedback', null, 'm1', 2, 0, 'Weekly triage');
+  L('Landing page copy', null, 'm5', 6, 2);
+  L('Landing page copy', null, 'm5', 4.5, 1, 'Second draft');
+  L('Launch readiness checklist', 's20', 'm1', 1.5, 5);
+  L('Launch readiness checklist', 's20', 'm1', 2, 4, 'API reference');
+  L('Launch readiness checklist', 's23', 'm1', 0.5, 3);
+  L('Launch readiness checklist', null, 'm1', 1, 1, 'Go-live review');
+  L('Press release draft', null, 'm5', 5, 2);
+  L('Color tokens v2', null, 'm2', 10, 14);
+  L('Color tokens v2', null, 'm2', 8, 12);
+  L('Color tokens v2', null, 'm2', 7, 10, 'Contrast audit');
+  L('Dark mode palette', null, 'm2', 6, 3);
+  L('Dark mode palette', null, 'm2', 5, 1, 'Tuning surfaces');
+  L('Button component audit', null, 'm2', 3.5, 0);
   const tmp = tk('t3');
   tmp.updated = minsAgo(38);
   return {
@@ -522,6 +614,7 @@ export function seed(): WorkspaceData {
     teams: TEAMS_SEED.map(x => ({ ...x })),
     events,
     files,
+    timeLogs,
     projOrder: projects.map(p => p.id),
     savedViews: [{ id: 'v1', project: 'p1', name: 'High priority', type: 'list', filters: [{ f: 'priority', v: ['urgent', 'high'] }] }],
   };

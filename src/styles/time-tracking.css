@@ -1,0 +1,286 @@
+/* Учёт времени и вложенные подзадачи: блок Time в карточке, дерево подзадач, итоги таблицы.
+   Новая функциональность — собрана из токенов и приёмов .stats, .prog, .subt, .tbl. */
+
+/* ---------- дерево подзадач ---------- */
+.subt.tree {
+  gap: 7px;
+}
+.subt .tg,
+.subt .tg-sp {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.subt .tg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: -4px;
+  border-radius: 4px;
+  color: var(--text-3);
+}
+.subt .tg:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.subt .tg-sp {
+  margin-left: -4px;
+}
+.subt .mini-cnt,
+.subt .tmv {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.subt .tmv.bad {
+  color: var(--red);
+}
+.subt .x + .x {
+  margin-left: 0;
+}
+.crumbs-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1px;
+  margin: -4px 0 14px -7px;
+}
+@media (hover: none) {
+  .subt.tree .x {
+    opacity: 1;
+  }
+}
+/* На телефоне строке нужна ширина под название: счётчик ветки и кнопка «подробнее» (дублирует щелчок по названию) скрываем */
+@media (max-width: 600px) {
+  .subt.tree .mini-cnt,
+  .subt.tree .x:last-child {
+    display: none;
+  }
+}
+
+/* ---------- блок Time ---------- */
+.tm-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+.tm-cell {
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 12px;
+  text-align: left;
+  background: var(--surface);
+  min-width: 0;
+}
+.tm-cell + .tm-cell {
+  border-left: 1px solid var(--border);
+}
+.tm-cell.pl {
+  transition: background var(--dur);
+}
+.tm-cell.pl:hover {
+  background: var(--surface-2);
+}
+.tm-cell .k {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+.tm-cell .k svg {
+  opacity: 0;
+  color: var(--text-3);
+  transition: opacity var(--dur);
+}
+.tm-cell.pl:hover .k svg,
+.tm-cell.pl:focus-visible .k svg {
+  opacity: 1;
+}
+.tm-cell .v {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+.tm-cell .v.bad,
+.tm-bar .bad {
+  color: var(--red);
+}
+.tm-cell.editing {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.tm-in {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.tm-in::placeholder {
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--text-3);
+}
+.tm-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.tm-bar .prog {
+  height: 6px;
+}
+.tm-bar .num {
+  width: 38px;
+  text-align: right;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+.tm-note {
+  margin-top: 8px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.tm-note.warn {
+  color: var(--amber);
+}
+.tm-log {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 34px;
+  padding: 0 6px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs);
+}
+.tm-log:first-of-type {
+  margin-top: 8px;
+}
+.tm-log:hover {
+  background: var(--surface-2);
+}
+.tm-log .h {
+  min-width: 42px;
+  font-weight: 600;
+}
+.tm-log .d {
+  width: 54px;
+  flex-shrink: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.tm-log .n {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.tm-log .x {
+  opacity: 0;
+}
+.tm-log:hover .x,
+.tm-log .x:focus-visible {
+  opacity: 1;
+}
+.tm-log .x + .x {
+  margin-left: 0;
+}
+@media (hover: none) {
+  .tm-log .x {
+    opacity: 1;
+  }
+}
+
+/* Числа в строках подзадач списка не зачёркиваются вместе с названием */
+.subrow.done span.tmv {
+  text-decoration: none;
+}
+
+/* ---------- итоги таблицы ---------- */
+.tbl .grow-row.split td:not(:first-child) {
+  border-right-color: transparent;
+}
+.tbl .tot-row td {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  background: var(--sunken);
+  font-weight: 600;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  height: 34px;
+  border-top: 1px solid var(--border);
+  border-right-color: transparent;
+}
+.tbl .tot-row td.sticky {
+  z-index: 3;
+}
+.tbl tr.tot-row:hover td {
+  background: var(--sunken);
+}
+
+/* ---------- сводки: проект, обзор, профиль ---------- */
+.tm-sum {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 12px;
+}
+.tm-sum .k {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  margin-bottom: 2px;
+}
+.tm-sum .v {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+.tm-sum .v.bad {
+  color: var(--red);
+}
+.tm-week {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 64px;
+  margin: 12px 0 4px;
+}
+.tm-week > div {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+}
+.tm-week i {
+  display: block;
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  background: var(--accent);
+  min-height: 2px;
+}
+.tm-week i.zero {
+  background: var(--surface-3);
+}
+.tm-week span {
+  font-size: 10.5px;
+  color: var(--text-3);
+}

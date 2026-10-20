@@ -5,12 +5,28 @@ import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Ellipsis, Link as LinkIc
 import { Checkbox, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tooltip, toast } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { useWorkspace, type TaskPatch } from '../data/store';
-import { commentsOf, type SortField } from '../data/selectors';
-import type { Task } from '../data/types';
+import { commentsOf, fmtTimePair, subTime, taskTime, type SortField } from '../data/selectors';
+import { countSubs } from '../data/subtasks';
+import type { Subtask, Task } from '../data/types';
+import { useTaskDrawer } from '../overlays';
 import { AssigneeField, DueField, LabelsField, PriorityField, ProjectPill, StatusField } from './fields';
 import { useTaskActions } from './workspace';
 
-export type Column = 'project' | 'status' | 'assignee' | 'priority' | 'due' | 'labels';
+export type Column = 'project' | 'status' | 'assignee' | 'priority' | 'due' | 'labels' | 'time';
+
+/** Колонка Time: «6/8h» — факт и план, красным при перерасходе */
+function TimeCell({ task: t }: { task: Task }) {
+  const { data } = useWorkspace();
+  const x = taskTime(data.timeLogs, t);
+  const v = fmtTimePair(x);
+  return v ? (
+    <span className="num" style={{ fontSize: 'var(--fs-sm)', color: x.over ? 'var(--red)' : 'var(--text-2)' }} title={x.over ? 'Over plan' : 'Actual / plan'}>
+      {v}
+    </span>
+  ) : (
+    <span className="faint">—</span>
+  );
+}
 
 const COLUMNS: Record<Column, { name: string; width: string; sort?: SortField; Cell: (p: { task: Task }) => React.ReactNode }> = {
   project: { name: 'Project', width: '160px', Cell: ProjectPill },
@@ -19,7 +35,14 @@ const COLUMNS: Record<Column, { name: string; width: string; sort?: SortField; C
   priority: { name: 'Priority', width: '108px', sort: 'priority', Cell: PriorityField },
   due: { name: 'Due date', width: '104px', sort: 'due', Cell: DueField },
   labels: { name: 'Labels', width: '168px', sort: 'manual', Cell: LabelsField },
+  time: { name: 'Time', width: '84px', sort: 'actual', Cell: TimeCell },
 };
+
+/** Необязательные колонки списка для меню Columns (переключаются через api.hidden) */
+export const LIST_OPTIONAL_COLUMNS = [{ id: 'time', name: 'Time' }];
+
+/** Колонки списка с учётом скрытых в виде: Time добавляется последней, если включена */
+export const withTimeColumn = (base: Column[], hidden: string[]): Column[] => (hidden.includes('time') ? base : [...base, 'time']);
 
 export interface TaskGroup {
   key: string;
@@ -70,12 +93,54 @@ export function RowMenu({ task: t, xs }: { task: Task; xs?: boolean }) {
   );
 }
 
-function TaskRow({ task: t, columns, template }: { task: Task; columns: Column[]; template: string }) {
+/** Подзадачи под строкой: дерево с отступом по глубине, ветки сворачиваются */
+function SubRows({ task: t, list, depth }: { task: Task; list: Subtask[]; depth: number }) {
   const { data, dispatch } = useWorkspace();
+  const drawer = useTaskDrawer();
+  const [shut, setShut] = React.useState<Record<string, boolean>>({});
+  return (
+    <>
+      {list.map(s => {
+        const kids = s.subtasks.length;
+        const x = subTime(data.timeLogs, t.id, s);
+        const v = fmtTimePair(x);
+        return (
+          <React.Fragment key={s.id}>
+            <div className={cn('subrow', s.done && 'done')} style={depth ? { paddingLeft: 64 + depth * 20 } : undefined}>
+              {kids ? (
+                <span className="ibtn ibtn-xs" role="button" aria-label={`${shut[s.id] ? 'Show' : 'Hide'} nested subtasks`} aria-expanded={!shut[s.id]} style={{ marginLeft: -22, marginRight: -4 }} onClick={() => setShut(m => ({ ...m, [s.id]: !m[s.id] }))}>
+                  {shut[s.id] ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                </span>
+              ) : null}
+              <Checkbox checked={s.done} onChange={() => dispatch({ type: 'task/toggleSubtask', id: t.id, subtask: s.id })} aria-label="Complete subtask" />
+              <span className="grow" style={{ cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => drawer.open(t.id, s.id)} onKeyDown={e => e.key === 'Enter' && drawer.open(t.id, s.id)}>
+                {s.title}
+              </span>
+              {kids > 0 && (
+                <span className="faint num tmv" style={{ fontSize: 11 }}>
+                  {countSubs(s.subtasks).done}/{countSubs(s.subtasks).total}
+                </span>
+              )}
+              {v && (
+                <span className="num tmv" style={{ fontSize: 11, marginRight: 14, color: x.over ? 'var(--red)' : 'var(--text-3)' }}>
+                  {v}
+                </span>
+              )}
+            </div>
+            {kids > 0 && !shut[s.id] && <SubRows task={t} list={s.subtasks} depth={depth + 1} />}
+          </React.Fragment>
+        );
+      })}
+    </>
+  );
+}
+
+function TaskRow({ task: t, columns, template }: { task: Task; columns: Column[]; template: string }) {
+  const { data } = useWorkspace();
   const actions = useTaskActions();
   const [open, setOpen] = React.useState(false);
   const cc = commentsOf(data, t.id).length;
-  const sd = t.subtasks.filter(s => s.done).length;
+  const { done: sd, total: st } = countSubs(t.subtasks);
   return (
     <>
       <div className={cn('trow', t.status === 'done' && 'done')} data-ctx="task" data-id={t.id} style={{ '--cols': template } as React.CSSProperties} role="row">
@@ -113,7 +178,7 @@ function TaskRow({ task: t, columns, template }: { task: Task; columns: Column[]
           {!!t.subtasks.length && (
             <span className="meta-mini">
               <ListChecks size={11} />
-              {sd}/{t.subtasks.length}
+              {sd}/{st}
             </span>
           )}
           {!!cc && (
@@ -137,12 +202,7 @@ function TaskRow({ task: t, columns, template }: { task: Task; columns: Column[]
       </div>
       {open && (
         <div className="subrows">
-          {t.subtasks.map(s => (
-            <div key={s.id} className={cn('subrow', s.done && 'done')}>
-              <Checkbox checked={s.done} onChange={() => dispatch({ type: 'task/toggleSubtask', id: t.id, subtask: s.id })} aria-label="Complete subtask" />
-              <span>{s.title}</span>
-            </div>
-          ))}
+          <SubRows task={t} list={t.subtasks} depth={0} />
         </div>
       )}
     </>

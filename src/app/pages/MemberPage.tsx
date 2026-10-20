@@ -4,10 +4,11 @@ import { useNavigate, useParams } from 'react-router';
 import { Clock, Copy, Crown, ListChecks, Mail, MapPin, Plus } from 'lucide-react';
 import { Badge, Button, EmptyState, Tab, Tabs, TabsList } from '@/components/ui';
 import { useWorkspace } from '../data/store';
-import { allTasks, canSee, isOverdue, member, sortTasks, visibleProjects } from '../data/selectors';
-import { ago, minsAgo } from '../lib/dates';
+import { allTasks, canSee, fmtHours, isOverdue, member, sortTasks, visibleProjects } from '../data/selectors';
+import { ago, dOff, minsAgo } from '../lib/dates';
 import { ActivityItem, MemberAvatar, MiniTaskRow, useTaskActions } from '../components/workspace';
 import { ProjectIcon } from '../components/project';
+import { WeekBars } from '../components/time-summary';
 import { MemberMenu, useMemberActions } from '../components/member';
 import { NotFoundPage } from './PlaceholderPage';
 
@@ -28,6 +29,11 @@ export function MemberPage() {
   const overdue = open.filter(isOverdue).length;
   const ps = visibleProjects(data).filter(p => p.members.includes(m.id) && p.status !== 'complete' && canSee(data, p));
   const acts = data.activity.filter(a => a.by === m.id).slice(0, 8);
+  const visibleIds = new Set(allTasks(data).map(t => t.id));
+  const weekFrom = dOff(-6);
+  const week = data.timeLogs.filter(l => l.by === m.id && l.date >= weekFrom && l.date <= dOff(0) && visibleIds.has(l.task));
+  const weekTotal = week.reduce((a, l) => a + l.hours, 0);
+  const weekTasks = new Set(week.map(l => l.task)).size;
   const team = data.teams.find(t => t.id === m.team);
   const online = m.last != null && m.last < 5;
   const list = tab === 'assigned' ? sortTasks(open, 'due', 1, data) : done;
@@ -130,6 +136,27 @@ export function MemberPage() {
             ) : (
               <div className="panel-b faint">No active projects</div>
             )}
+          </section>
+          <section className="panel">
+            <div className="panel-h">
+              <h2>Time logged</h2>
+              <div className="acts">
+                <span className="faint" style={{ fontSize: 12 }}>
+                  Last 7 days
+                </span>
+              </div>
+            </div>
+            <div className="panel-b">
+              <div className="row" style={{ alignItems: 'baseline', gap: 8 }}>
+                <span style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-.02em' }} className="num">
+                  {fmtHours(weekTotal)}
+                </span>
+                <span className="faint" style={{ fontSize: 12 }}>
+                  across {weekTasks} task{weekTasks === 1 ? '' : 's'}
+                </span>
+              </div>
+              <WeekBars logs={week} />
+            </div>
           </section>
           <section className="panel">
             <div className="panel-h">

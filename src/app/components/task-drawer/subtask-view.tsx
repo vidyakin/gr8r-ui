@@ -1,21 +1,29 @@
-/* Карточка подзадачи внутри карточки задачи — порт subtaskHtml из features/subtasks.js и действий из actions/subtasks.js */
+/* Карточка подзадачи внутри карточки задачи — порт subtaskHtml из features/subtasks.js и действий из actions/subtasks.js.
+   Подзадачи вложенные: сверху хлебные крошки пути, ниже её дети, Previous/Next ходят по соседям одного уровня. */
+import * as React from 'react';
 import { ArrowLeft, ArrowUpRight, Calendar, ChevronLeft, ChevronRight, Folder, Trash2, User } from 'lucide-react';
 import { Button, Checkbox, Textarea, toast } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { newId, nextKey, useWorkspace } from '../../data/store';
 import { member } from '../../data/selectors';
+import { siblingsOf, subPath } from '../../data/subtasks';
 import { relDate } from '../../lib/dates';
 import type { Subtask, Task } from '../../data/types';
 import { MemberAvatar } from '../workspace';
 import { AutoTextarea, DatePopover, ListPopover } from './pickers';
+import { SubtaskSection } from './subtask-tree';
+import { TimeBlock } from './time-block';
 
-export function SubtaskView({ task: t, sub: s, onClose, onOpenSub, onOpenTask }: { task: Task; sub: Subtask; onClose: () => void; onOpenSub: (id: string) => void; onOpenTask: (id: string) => void }) {
+export function SubtaskView({ task: t, sub: s, onClose, onOpenSub, onOpenTask }: { task: Task; sub: Subtask; onClose: () => void; onOpenSub: (id: string | null) => void; onOpenTask: (id: string) => void }) {
   const { data, dispatch } = useWorkspace();
-  const i = t.subtasks.findIndex(x => x.id === s.id);
+  const path = subPath(t.subtasks, s.id);
+  const parent = path.length > 1 ? path[path.length - 2] : undefined;
+  const sibs = siblingsOf(t.subtasks, s.id);
+  const i = sibs.findIndex(x => x.id === s.id);
   const m = member(data, s.assignee);
   const patch = (p: Partial<Pick<Subtask, 'title' | 'assignee' | 'due' | 'note'>>) => dispatch({ type: 'subtask/update', id: t.id, sub: s.id, patch: p });
   const toggle = () => dispatch({ type: 'task/toggleSubtask', id: t.id, subtask: s.id });
-  const go = (d: number) => t.subtasks[i + d] && onOpenSub(t.subtasks[i + d].id);
+  const go = (d: number) => sibs[i + d] && onOpenSub(sibs[i + d].id);
 
   const promote = () => {
     const id = newId('t');
@@ -25,18 +33,33 @@ export function SubtaskView({ task: t, sub: s, onClose, onOpenSub, onOpenTask }:
     toast(`Converted to ${key}`, { action: { label: 'Open', onClick: () => onOpenTask(id) } });
   };
   const remove = () => {
+    const snap = data;
     dispatch({ type: 'subtask/remove', id: t.id, sub: s.id });
-    onClose();
+    onOpenSub(parent?.id ?? null);
+    toast(`Deleted “${s.title}”`, { action: { label: 'Undo', onClick: () => dispatch({ type: 'data/restore', data: snap }) } });
   };
 
   return (
     <div className="subview">
-      <button className="pillbtn" onClick={onClose} style={{ margin: '-4px 0 14px -7px', fontSize: 12.5, color: 'var(--text-2)' }}>
-        <ArrowLeft size={14} />
-        <span className="trunc" style={{ maxWidth: 420 }}>
-          {t.title}
-        </span>
-      </button>
+      {/* Хлебные крошки: задача › родительские подзадачи (текущая — в заголовке ниже) */}
+      <nav className="crumbs-sub" aria-label="Subtask path">
+        <button className="pillbtn" onClick={onClose} style={{ fontSize: 12.5, color: 'var(--text-2)' }}>
+          <ArrowLeft size={14} />
+          <span className="trunc" style={{ maxWidth: 220 }}>
+            {t.title}
+          </span>
+        </button>
+        {path.slice(0, -1).map(a => (
+          <React.Fragment key={a.id}>
+            <ChevronRight size={12} className="faint" aria-hidden />
+            <button className="pillbtn" onClick={() => onOpenSub(a.id)} style={{ fontSize: 12.5, color: 'var(--text-2)' }}>
+              <span className="trunc" style={{ maxWidth: 160 }}>
+                {a.title}
+              </span>
+            </button>
+          </React.Fragment>
+        ))}
+      </nav>
       <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
         <Checkbox round style={{ marginTop: 9 }} checked={s.done} onChange={toggle} aria-label={s.done ? 'Mark subtask not done' : 'Mark subtask done'} />
         <AutoTextarea
@@ -61,7 +84,8 @@ export function SubtaskView({ task: t, sub: s, onClose, onOpenSub, onOpenTask }:
         />
       </div>
       <div className="faint" style={{ fontSize: 12, margin: '4px 0 0 26px' }}>
-        Subtask {i + 1} of {t.subtasks.length} · {s.done ? 'Done' : 'Open'}
+        Subtask {i + 1} of {sibs.length}
+        {path.length > 1 ? ` · Level ${path.length}` : ''} · {s.done ? 'Done' : 'Open'}
       </div>
       <dl className="kv" style={{ marginTop: 16 }}>
         <dt>
@@ -105,14 +129,24 @@ export function SubtaskView({ task: t, sub: s, onClose, onOpenSub, onOpenTask }:
           Parent
         </dt>
         <dd>
-          <button className="pillbtn" onClick={onClose}>
-            <span className="mono faint" style={{ fontSize: 11 }}>
-              {t.key}
-            </span>
-            {t.title}
+          <button className="pillbtn" onClick={() => (parent ? onOpenSub(parent.id) : onClose())}>
+            {parent ? (
+              <span className="trunc" style={{ maxWidth: 300 }}>
+                {parent.title}
+              </span>
+            ) : (
+              <>
+                <span className="mono faint" style={{ fontSize: 11 }}>
+                  {t.key}
+                </span>
+                {t.title}
+              </>
+            )}
           </button>
         </dd>
       </dl>
+      <TimeBlock task={t} sub={s} />
+      <SubtaskSection task={t} list={s.subtasks} parent={s.id} onOpenSub={onOpenSub} />
       <div className="dsec">
         <div className="dsec-h">
           <h3 id="s-note-l">Notes</h3>
@@ -129,7 +163,7 @@ export function SubtaskView({ task: t, sub: s, onClose, onOpenSub, onOpenTask }:
           <ChevronLeft size={14} />
           Previous
         </Button>
-        <Button size="sm" variant="ghost" disabled={i === t.subtasks.length - 1} onClick={() => go(1)} aria-label="Next subtask">
+        <Button size="sm" variant="ghost" disabled={i === sibs.length - 1} onClick={() => go(1)} aria-label="Next subtask">
           Next
           <ChevronRight size={14} />
         </Button>

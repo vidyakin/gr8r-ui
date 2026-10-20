@@ -101,7 +101,7 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
         start: form.start && form.due && form.start > form.due ? form.due : form.start,
         labels: form.labels,
         recur: form.recur,
-        subtasks: form.subtasks.map(s => ({ ...s, done: false })),
+        subtasks: form.subtasks.map(s => ({ ...s, done: false, subtasks: [] })),
         desc: form.desc ? `<p>${esc(form.desc)}</p>` : '',
         attachments,
       },

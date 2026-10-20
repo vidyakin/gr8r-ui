@@ -1,12 +1,12 @@
 /* Таблица задач — порт tableHtml / tcell из views/table.js: сортировка по заголовку, группы, выбор колонок,
-   изменение ширины колонок, правка названия и оценки по двойному клику. Используется на Tasks и (позже) на странице проекта. */
+   изменение ширины колонок, правка названия (двойной клик) и плана в часах (клик); колонки Plan / Actual / Variance с итогами. Используется на Tasks и (позже) на странице проекта. */
 import * as React from 'react';
 import { ArrowDown, ArrowUp, Calendar, Plus, SearchX, Timer } from 'lucide-react';
 import { Button, EmptyState, Label, toast } from '@/components/ui';
 import { PRIORITIES, PriorityIcon, StatusIcon } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '../data/store';
-import { LABELS, groupTasks, isOverdue, member, project as findProject, projectColor, task as findTask, type GroupBy, type SortField, type TaskBucket } from '../data/selectors';
+import { LABELS, fmtHours, groupTasks, isOverdue, member, parseHours, planOfTask, project as findProject, projectColor, task as findTask, taskTime, totalTime, type GroupBy, type SortField, type TaskBucket, type TaskTime } from '../data/selectors';
 import { fmtDate } from '../lib/dates';
 import type { Task } from '../data/types';
 import { AssigneeField, DueField, PriorityField, StatusField } from './fields';
@@ -14,7 +14,7 @@ import { ProjectDot } from './project';
 import type { ViewApi } from './view-toolbar';
 import { MemberAvatar, TaskDue, useTaskActions } from './workspace';
 
-export type TableColumn = 'title' | 'status' | 'priority' | 'assignee' | 'due' | 'start' | 'labels' | 'deps' | 'estimate' | 'created' | 'project';
+export type TableColumn = 'title' | 'status' | 'priority' | 'assignee' | 'due' | 'start' | 'labels' | 'deps' | 'plan' | 'actual' | 'variance' | 'created' | 'project';
 
 /** Колонки таблицы: название и ширина по умолчанию (TCOLS) */
 export const TABLE_COLUMNS: { id: TableColumn; name: string; width: number }[] = [
@@ -26,7 +26,9 @@ export const TABLE_COLUMNS: { id: TableColumn; name: string; width: number }[] =
   { id: 'start', name: 'Start date', width: 112 },
   { id: 'labels', name: 'Labels', width: 180 },
   { id: 'deps', name: 'Dependencies', width: 150 },
-  { id: 'estimate', name: 'Estimate', width: 92 },
+  { id: 'plan', name: 'Plan', width: 92 },
+  { id: 'actual', name: 'Actual', width: 92 },
+  { id: 'variance', name: 'Variance', width: 100 },
   { id: 'created', name: 'Created', width: 112 },
   { id: 'project', name: 'Project', width: 156 },
 ];
@@ -43,7 +45,9 @@ const SORT_OF: Record<TableColumn, SortField> = {
   start: 'start',
   labels: 'manual',
   deps: 'manual',
-  estimate: 'estimate',
+  plan: 'plan',
+  actual: 'actual',
+  variance: 'variance',
   created: 'created',
   project: 'project',
 };
@@ -61,6 +65,24 @@ export function BucketIcon({ group, bucket }: { group: GroupBy; bucket: TaskBuck
 function ProjectDotById({ id }: { id: string }) {
   const { data } = useWorkspace();
   return <ProjectDot project={findProject(data, id)} />;
+}
+
+/** Колонки учёта времени: для них в строках групп и внизу считаются итоги */
+const TIME_COLUMNS: TableColumn[] = ['plan', 'actual', 'variance'];
+
+/** Отклонение: «+5.5h» красным при перерасходе, «−2h» приглушённо при запасе */
+function Variance({ x }: { x: Pick<TaskTime, 'variance'> }) {
+  const v = x.variance;
+  if (v == null) return <span className="faint">—</span>;
+  if (Math.abs(v) < 0.005) return <span className="muted">0h</span>;
+  return <span style={{ color: v > 0 ? 'var(--red)' : 'var(--text-3)' }}>{v > 0 ? '+' : '−'}{fmtHours(Math.abs(v))}</span>;
+}
+
+/** Ячейка итогов (строка группы и общий итог) */
+function TotalCell({ col, x }: { col: TableColumn; x: TaskTime }) {
+  if (col === 'plan') return <>{x.plan > 0 ? fmtHours(x.plan) : <span className="faint">—</span>}</>;
+  if (col === 'actual') return <>{x.actual > 0 ? fmtHours(x.actual) : <span className="faint">—</span>}</>;
+  return <Variance x={x} />;
 }
 
 const notPorted = () => toast.info('Редактирование этого поля пока не перенесено');
@@ -91,12 +113,12 @@ function CellInput({ value, placeholder, label, onCommit, onCancel }: { value: s
   );
 }
 
-function Cell({ task: t, col, edit, setEdit }: { task: Task; col: TableColumn; edit: { id: string; f: 'title' | 'estimate' } | null; setEdit: (e: { id: string; f: 'title' | 'estimate' } | null) => void }) {
+function Cell({ task: t, col, edit, setEdit }: { task: Task; col: TableColumn; edit: { id: string; f: 'title' | 'plan' } | null; setEdit: (e: { id: string; f: 'title' | 'plan' } | null) => void }) {
   const { data, dispatch } = useWorkspace();
   const actions = useTaskActions();
   const editing = edit?.id === t.id && edit.f === col;
   const faint = <span className="faint">—</span>;
-  const save = (patch: { title?: string; estimate?: string | null }) => {
+  const save = (patch: { title?: string; planHours?: number | null }) => {
     dispatch({ type: 'task/update', id: t.id, patch });
     setEdit(null);
   };
@@ -177,14 +199,40 @@ function Cell({ task: t, col, edit, setEdit }: { task: Task; col: TableColumn; e
         </td>
       );
     }
-    case 'estimate':
+    case 'plan': {
+      const plan = planOfTask(t);
       return editing ? (
         <td className="editing">
-          <CellInput label="Estimate" placeholder="e.g. 2d" value={t.estimate ?? ''} onCommit={v => save({ estimate: v || null })} onCancel={() => setEdit(null)} />
+          <CellInput
+            label="Plan in hours"
+            placeholder="e.g. 8 or 1d"
+            value={t.planHours != null ? String(t.planHours) : ''}
+            onCommit={v => {
+              const h = parseHours(v);
+              if (!v) save({ planHours: null });
+              else if (h != null) save({ planHours: h });
+              else {
+                toast.error('Enter hours, e.g. 4, 1.5 or 2d');
+                setEdit(null);
+              }
+            }}
+            onCancel={() => setEdit(null)}
+          />
         </td>
       ) : (
-        <td className="cellbtn num" title="Click to edit" onClick={() => setEdit({ id: t.id, f: 'estimate' })}>
-          {t.estimate ?? faint}
+        <td className="cellbtn num" title={t.planHours == null && plan > 0 ? 'Sum of subtasks — click to set a plan' : 'Click to edit'} onClick={() => setEdit({ id: t.id, f: 'plan' })}>
+          {plan > 0 ? <span style={t.planHours == null ? { color: 'var(--text-2)', fontStyle: 'italic' } : undefined}>{fmtHours(plan)}</span> : faint}
+        </td>
+      );
+    }
+    case 'actual': {
+      const x = taskTime(data.timeLogs, t);
+      return <td className="num">{x.actual > 0 ? fmtHours(x.actual) : faint}</td>;
+    }
+    case 'variance':
+      return (
+        <td className="num">
+          <Variance x={taskTime(data.timeLogs, t)} />
         </td>
       );
     case 'created':
@@ -216,12 +264,13 @@ export interface TableViewProps {
 export function TableView({ tasks, api, onNewTask, project }: TableViewProps) {
   const { data } = useWorkspace();
   const actions = useTaskActions();
-  const [edit, setEdit] = React.useState<{ id: string; f: 'title' | 'estimate' } | null>(null);
+  const [edit, setEdit] = React.useState<{ id: string; f: 'title' | 'plan' } | null>(null);
   const { view } = api;
   const cols = TABLE_COLUMNS.filter(c => c.id === 'title' || (!api.hidden.includes(c.id) && !(project && c.id === 'project')));
   const width = (c: (typeof cols)[number]) => api.colW[c.id] ?? c.width;
   const totalW = cols.reduce((a, c) => a + width(c), 0);
   const groups = groupTasks(data, tasks, api.group);
+  const hasTime = cols.some(c => TIME_COLUMNS.includes(c.id));
 
   if (!tasks.length)
     return (
@@ -288,8 +337,8 @@ export function TableView({ tasks, api, onNewTask, project }: TableViewProps) {
             {groups.map(g => (
               <React.Fragment key={g.key}>
                 {api.group !== 'none' && (
-                  <tr className="grow-row">
-                    <td className="sticky" colSpan={cols.length}>
+                  <tr className={cn('grow-row', hasTime && 'split')}>
+                    <td className="sticky" colSpan={hasTime ? 1 : cols.length}>
                       <span className="row" style={{ gap: 6 }}>
                         <BucketIcon group={api.group} bucket={g} />
                         {g.name}
@@ -298,6 +347,13 @@ export function TableView({ tasks, api, onNewTask, project }: TableViewProps) {
                         </span>
                       </span>
                     </td>
+                    {/* Итоги группы стоят под колонками времени, остальные ячейки пустые */}
+                    {hasTime &&
+                      cols.slice(1).map(c => (
+                        <td key={c.id} className="num">
+                          {TIME_COLUMNS.includes(c.id) && <TotalCell col={c.id} x={totalTime(data.timeLogs, g.tasks)} />}
+                        </td>
+                      ))}
                   </tr>
                 )}
                 {g.tasks.map(t => (
@@ -317,6 +373,23 @@ export function TableView({ tasks, api, onNewTask, project }: TableViewProps) {
                 </span>
               </td>
             </tr>
+            {hasTime && (
+              <tr className="tot-row">
+                <td className="sticky">
+                  <span className="row" style={{ gap: 6 }}>
+                    Total
+                    <span className="faint" style={{ fontWeight: 500 }}>
+                      {tasks.length}
+                    </span>
+                  </span>
+                </td>
+                {cols.slice(1).map(c => (
+                  <td key={c.id} className="num">
+                    {TIME_COLUMNS.includes(c.id) && <TotalCell col={c.id} x={totalTime(data.timeLogs, tasks)} />}
+                  </td>
+                ))}
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -340,9 +413,9 @@ export function TableView({ tasks, api, onNewTask, project }: TableViewProps) {
               <MemberAvatar id={t.assignee} size="sm" tooltip={false} />
               <span className="muted">{member(data, t.assignee)?.name ?? 'Unassigned'}</span>
               <TaskDue task={t} />
-              {t.estimate && (
+              {planOfTask(t) > 0 && (
                 <span className="faint">
-                  <Timer size={12} /> {t.estimate}
+                  <Timer size={12} /> {fmtHours(planOfTask(t))}
                 </span>
               )}
             </div>

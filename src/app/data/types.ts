@@ -55,6 +55,21 @@ export interface Subtask {
   assignee?: string | null;
   due?: IsoDate | null;
   note?: string;
+  /** План в часах; если не задан, считается суммой плана вложенных подзадач */
+  planHours?: number | null;
+  /** Вложенные подзадачи — дерево любой глубины */
+  subtasks: Subtask[];
+}
+
+/** Запись учёта времени (факт). sub — подзадача, к которой относятся часы; без неё — задача целиком */
+export interface TimeLog {
+  id: string;
+  task: string;
+  sub?: string;
+  by: string;
+  hours: number;
+  date: IsoDate;
+  note: string;
 }
 
 export interface Attachment {
@@ -83,7 +98,8 @@ export interface Task {
   attachments: Attachment[];
   deps: string[];
   desc: string;
-  estimate: string | null;
+  /** План в часах; если не задан, считается суммой плана подзадач */
+  planHours: number | null;
   created: number;
   updated: number;
   completedAt?: number;
@@ -187,6 +203,7 @@ export interface WorkspaceData {
   teams: Team[];
   events: CalendarEvent[];
   files: ProjectFile[];
+  timeLogs: TimeLog[];
   projOrder: string[];
   savedViews: SavedView[];
 }

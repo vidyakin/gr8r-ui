@@ -7,6 +7,7 @@ import { StatusIcon } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '../data/store';
 import { applyView, canSee, groupTasks, projectColor, project as findProject, task as findTask, tasksOf, visibleProjects, type GroupBy } from '../data/selectors';
+import { countSubs } from '../data/subtasks';
 import { diffDays, fmtDate, iso, parse, today } from '../lib/dates';
 import type { Project, Task } from '../data/types';
 import { MemberAvatar, useTaskActions } from './workspace';
@@ -74,7 +75,8 @@ const startOfWeek = (d: Date) => addDays(d, -((d.getDay() - WEEK_START + 7) % 7)
 /** Прогресс полосы (taskProg из core/store.js) */
 const taskProg = (t: Task) => {
   if (t.status === 'done') return 100;
-  if (t.subtasks.length) return Math.round((t.subtasks.filter(s => s.done).length / t.subtasks.length) * 100);
+  const sc = countSubs(t.subtasks);
+  if (sc.total) return Math.round((sc.done / sc.total) * 100);
   return ({ backlog: 0, todo: 5, progress: 45, review: 80 } as Record<string, number>)[t.status] ?? 0;
 };
 
@@ -362,7 +364,7 @@ export function TimelineView({ tasks, project: p, tl, id = 'tl', onNewTask }: Ti
                 </span>
                 {!!t.subtasks.length && (
                   <span className="faint num" style={{ fontSize: 11 }}>
-                    {t.subtasks.filter(s => s.done).length}/{t.subtasks.length}
+                    {countSubs(t.subtasks).done}/{countSubs(t.subtasks).total}
                   </span>
                 )}
                 <MemberAvatar id={t.assignee} size="sm" />

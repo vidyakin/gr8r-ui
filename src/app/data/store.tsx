@@ -3,12 +3,14 @@
 import * as React from 'react';
 import { seed } from './seed';
 import { PRIORITIES, STATUSES } from '@/components/gr8r/task';
-import { PROJECT_STATUS, fileKind } from './selectors';
+import { PROJECT_STATUS, fileKind, fmtHours } from './selectors';
+import { addSub, findSub, mapSub, reopenAncestors, removeSub, subPath, subtreeIds, toggleSub, flattenSubs } from './subtasks';
 import { dOff, fmtDate } from '../lib/dates';
-import type { Activity, Member, Project, ProjectFile, SavedView, Status, Subtask, Task, WorkspaceData } from './types';
+import type { Activity, Member, Project, ProjectFile, SavedView, Status, Subtask, Task, TimeLog, WorkspaceData } from './types';
 
-export type TaskPatch = Partial<Pick<Task, 'title' | 'status' | 'assignee' | 'priority' | 'due' | 'start' | 'fav' | 'project' | 'estimate' | 'order' | 'archived' | 'labels' | 'deps' | 'recur' | 'desc'>>;
-export type SubtaskPatch = Partial<Pick<Subtask, 'title' | 'assignee' | 'due' | 'note'>>;
+export type TaskPatch = Partial<Pick<Task, 'title' | 'status' | 'assignee' | 'priority' | 'due' | 'start' | 'fav' | 'project' | 'planHours' | 'order' | 'archived' | 'labels' | 'deps' | 'recur' | 'desc'>>;
+export type SubtaskPatch = Partial<Pick<Subtask, 'title' | 'assignee' | 'due' | 'note' | 'planHours'>>;
+export type TimeLogPatch = Partial<Pick<TimeLog, 'sub' | 'by' | 'hours' | 'date' | 'note'>>;
 
 export type Action =
   | { type: 'task/toggleDone'; id: string }
@@ -29,10 +31,14 @@ export type Action =
   | { type: 'task/duplicate'; id: string; newId: string }
   | { type: 'task/attach'; id: string; file: { name: string; size: string } }
   | { type: 'task/detach'; id: string; attachment: string }
-  | { type: 'subtask/add'; id: string; sub: string; title: string }
+  /** parent — id подзадачи, в которую вкладывается новая; без него — подзадача первого уровня */
+  | { type: 'subtask/add'; id: string; sub: string; title: string; parent?: string }
   | { type: 'subtask/remove'; id: string; sub: string }
   | { type: 'subtask/update'; id: string; sub: string; patch: SubtaskPatch }
   | { type: 'subtask/promote'; id: string; sub: string; newId: string }
+  | { type: 'timelog/add'; log: TimeLog }
+  | { type: 'timelog/update'; id: string; patch: TimeLogPatch }
+  | { type: 'timelog/delete'; id: string }
   | { type: 'comment/add'; task: string; text: string }
   | { type: 'comment/delete'; id: string }
   | { type: 'comment/react'; id: string; emoji: string }
@@ -88,7 +94,7 @@ function patchLog(d: WorkspaceData, t: Task, patch: TaskPatch): [string, string]
     else if (k === 'labels') out.push(['updated labels on', '']);
     else if (k === 'title') out.push(['renamed', `to “${nv}”`]);
     else if (k === 'recur') out.push(['set repeat on', nv ? String(nv).toLowerCase() : 'off']);
-    else if (k === 'estimate') out.push(['estimated', (nv as string) || 'none']);
+    else if (k === 'planHours') out.push(['changed plan of', nv == null ? '(cleared)' : `to ${fmtHours(nv as number)}`]);
     else if (k === 'deps') out.push(['updated dependencies of', '']);
   }
   return out;
@@ -130,7 +136,7 @@ function blankTask(d: WorkspaceData, extra: Partial<Task> & Pick<Task, 'project'
     attachments: [],
     deps: [],
     desc: '',
-    estimate: null,
+    planHours: null,
     created: Date.now(),
     updated: Date.now(),
     order: Math.max(0, ...tasks.map(x => x.order)) + 1,
@@ -202,12 +208,14 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
     }
     case 'task/toggleSubtask': {
       const t = d.tasks.find(x => x.id === a.id);
-      const sub = t?.subtasks.find(s => s.id === a.subtask);
+      const sub = findSub(t?.subtasks ?? [], a.subtask);
       if (!t || !sub) return d;
+      // Закрытие закрывает всё поддерево, открытие — саму подзадачу и её предков (см. toggleSub)
+      const nested = sub.done ? 0 : flattenSubs(sub.subtasks).filter(x => !x.sub.done).length;
       return {
         ...d,
-        tasks: d.tasks.map(x => (x.id === t.id ? { ...t, updated: Date.now(), subtasks: t.subtasks.map(s => (s.id === sub.id ? { ...s, done: !s.done } : s)) } : x)),
-        activity: logActivity(d, sub.done ? 'reopened subtask on' : 'completed subtask on', t, `“${sub.title}”`),
+        tasks: d.tasks.map(x => (x.id === t.id ? { ...t, updated: Date.now(), subtasks: toggleSub(t.subtasks, sub.id) } : x)),
+        activity: logActivity(d, sub.done ? 'reopened subtask on' : 'completed subtask on', t, `“${sub.title}”${nested ? ` and ${nested} nested` : ''}`),
       };
     }
     case 'task/delete': {
@@ -216,6 +224,7 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
         ...d,
         tasks: d.tasks.filter(t => !ids.has(t.id)).map(t => (t.deps.some(x => ids.has(x)) ? { ...t, deps: t.deps.filter(x => !ids.has(x)) } : t)),
         comments: d.comments.filter(c => !ids.has(c.task)),
+        timeLogs: d.timeLogs.filter(l => !ids.has(l.task)),
       };
     }
     case 'task/archive': {
@@ -264,35 +273,56 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
     }
     case 'subtask/add': {
       const t = d.tasks.find(x => x.id === a.id);
-      if (!t) return d;
+      if (!t || (a.parent && !findSub(t.subtasks, a.parent))) return d;
+      const sub: Subtask = { id: a.sub, title: a.title, done: false, subtasks: [] };
+      // Новая открытая подзадача не может лежать в закрытой ветке — предки открываются
+      let subtasks = addSub(t.subtasks, a.parent ?? null, sub);
+      if (a.parent) subtasks = reopenAncestors(subtasks, a.sub);
+      const parent = findSub(t.subtasks, a.parent);
       return {
         ...d,
-        tasks: d.tasks.map(x => (x.id === t.id ? { ...t, updated: Date.now(), subtasks: [...t.subtasks, { id: a.sub, title: a.title, done: false }] } : x)),
-        activity: logActivity(d, 'added subtask to', t, `“${a.title}”`),
+        tasks: d.tasks.map(x => (x.id === t.id ? { ...t, updated: Date.now(), subtasks } : x)),
+        activity: logActivity(d, 'added subtask to', t, `“${a.title}”${parent ? ` under “${parent.title}”` : ''}`),
       };
     }
-    case 'subtask/remove':
-      return { ...d, tasks: d.tasks.map(t => (t.id === a.id ? { ...t, subtasks: t.subtasks.filter(s => s.id !== a.sub) } : t)) };
+    case 'subtask/remove': {
+      const t = d.tasks.find(x => x.id === a.id);
+      const path = subPath(t?.subtasks ?? [], a.sub);
+      const sub = path[path.length - 1];
+      if (!t || !sub) return d;
+      // Списанные часы не пропадают: записи удалённой ветки переходят к её родителю (или к задаче целиком)
+      const gone = subtreeIds(sub);
+      const parent = path.length > 1 ? path[path.length - 2].id : undefined;
+      return {
+        ...d,
+        tasks: d.tasks.map(x => (x.id === t.id ? { ...t, subtasks: removeSub(t.subtasks, a.sub) } : x)),
+        timeLogs: d.timeLogs.map(l => (l.task === t.id && l.sub && gone.has(l.sub) ? { ...l, sub: parent } : l)),
+      };
+    }
     case 'subtask/update': {
       const t = d.tasks.find(x => x.id === a.id);
-      const sub = t?.subtasks.find(s => s.id === a.sub);
+      const sub = findSub(t?.subtasks ?? [], a.sub);
       if (!t || !sub) return d;
       let activity = d.activity;
       if ('assignee' in a.patch && (a.patch.assignee ?? null) !== (sub.assignee ?? null))
         activity = logActivity({ ...d, activity }, 'assigned a subtask on', t, a.patch.assignee ? `to ${d.members.find(m => m.id === a.patch.assignee)?.name}` : '(unassigned)');
       if ('due' in a.patch && (a.patch.due ?? null) !== (sub.due ?? null))
         activity = logActivity({ ...d, activity }, 'set a subtask due date on', t, a.patch.due ? fmtDate(a.patch.due) : '(cleared)');
+      if ('planHours' in a.patch && (a.patch.planHours ?? null) !== (sub.planHours ?? null))
+        activity = logActivity({ ...d, activity }, 'changed plan of a subtask on', t, `“${sub.title}” ${a.patch.planHours == null ? '(cleared)' : `to ${fmtHours(a.patch.planHours)}`}`);
       return {
         ...d,
-        tasks: d.tasks.map(x => (x.id === t.id ? { ...t, updated: Date.now(), subtasks: t.subtasks.map(s => (s.id === sub.id ? { ...s, ...a.patch } : s)) } : x)),
+        tasks: d.tasks.map(x => (x.id === t.id ? { ...t, updated: Date.now(), subtasks: mapSub(t.subtasks, sub.id, s => ({ ...s, ...a.patch })) } : x)),
         activity,
       };
     }
     case 'subtask/promote': {
       const t = d.tasks.find(x => x.id === a.id);
-      const sub = t?.subtasks.find(s => s.id === a.sub);
+      const sub = findSub(t?.subtasks ?? [], a.sub);
       if (!t || !sub) return d;
       const esc = (v: string) => v.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+      // Подзадача уходит в новую задачу вместе с детьми и своими часами
+      const moved = subtreeIds(sub);
       const n: Task = {
         id: a.newId,
         key: nextKey(d, t.project),
@@ -304,21 +334,40 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
         due: sub.due || null,
         start: null,
         labels: [...t.labels],
-        subtasks: [],
+        subtasks: sub.subtasks,
         attachments: [],
         deps: [],
         desc: sub.note ? `<p>${esc(sub.note)}</p>` : '',
-        estimate: null,
+        planHours: sub.planHours ?? null,
         created: Date.now(),
         updated: Date.now(),
         order: Math.max(0, ...d.tasks.map(x => x.order)) + 1,
         fav: false,
         recur: null,
       };
-      const base = { ...d, tasks: [...d.tasks.map(x => (x.id === t.id ? { ...t, subtasks: t.subtasks.filter(s => s.id !== sub.id) } : x)), n] };
+      const base = {
+        ...d,
+        tasks: [...d.tasks.map(x => (x.id === t.id ? { ...t, subtasks: removeSub(t.subtasks, sub.id) } : x)), n],
+        timeLogs: d.timeLogs.map(l => (l.task === t.id && l.sub && moved.has(l.sub) ? { ...l, task: n.id, sub: l.sub === sub.id ? undefined : l.sub } : l)),
+      };
       const created = { ...base, activity: logActivity(base, 'created', n) };
       return { ...created, activity: logActivity(created, 'converted a subtask of', t, `into ${n.key}`) };
     }
+    case 'timelog/add': {
+      const t = d.tasks.find(x => x.id === a.log.task);
+      if (!t) return d;
+      const s = findSub(t.subtasks, a.log.sub);
+      return {
+        ...d,
+        timeLogs: [...d.timeLogs, a.log],
+        tasks: d.tasks.map(x => (x.id === t.id ? { ...t, updated: Date.now() } : x)),
+        activity: [{ id: uid('a'), by: a.log.by, verb: `logged ${fmtHours(a.log.hours)} on`, task: t.id, project: t.project, at: Date.now(), extra: s ? `in “${s.title}”` : '' }, ...d.activity],
+      };
+    }
+    case 'timelog/update':
+      return { ...d, timeLogs: d.timeLogs.map(l => (l.id === a.id ? { ...l, ...a.patch } : l)) };
+    case 'timelog/delete':
+      return { ...d, timeLogs: d.timeLogs.filter(l => l.id !== a.id) };
     case 'task/create': {
       const t: Task = {
         id: uid('t'),
@@ -333,7 +382,7 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
         attachments: [],
         deps: [],
         desc: '',
-        estimate: null,
+        planHours: null,
         created: Date.now(),
         updated: Date.now(),
         order: Math.max(0, ...d.tasks.map(x => x.order)) + 1,
@@ -379,6 +428,7 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
         projOrder: d.projOrder.filter(x => x !== a.id),
         tasks: d.tasks.filter(t => !ids.has(t.id)).map(t => (t.deps.some(x => ids.has(x)) ? { ...t, deps: t.deps.filter(x => !ids.has(x)) } : t)),
         comments: d.comments.filter(c => !ids.has(c.task)),
+        timeLogs: d.timeLogs.filter(l => !ids.has(l.task)),
         files: d.files.filter(f => f.project !== a.id),
         savedViews: d.savedViews.filter(v => v.project !== a.id),
       };

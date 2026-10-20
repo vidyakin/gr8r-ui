@@ -7,6 +7,7 @@ import { ConfirmDialog, ContextMenu, ContextMenuContent, ContextMenuTrigger, toa
 import { newId, useWorkspace } from '../data/store';
 import { canSee, project as findProject } from '../data/selectors';
 import { fileSize } from '../data/selectors';
+import { countSubs, findSub } from '../data/subtasks';
 import type { Task } from '../data/types';
 import { DrawerPanel, type UploadItem } from '../components/task-drawer/drawer-panel';
 import { TaskCommandsCtx, TaskMenuItems, copyText, type TaskCommands } from '../components/task-drawer/task-menu';
@@ -64,7 +65,7 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
     if (!prev || !a?.closest('.drawer')) opener.current = a && a !== document.body ? a : opener.current;
     setSt({
       taskId,
-      subId: subId && t.subtasks.some(s => s.id === subId) ? subId : null,
+      subId: subId && findSub(t.subtasks, subId) ? subId : null,
       full: !!prev && prev.taskId === taskId && prev.full,
       tab: prev?.tab ?? 'comments',
       enter: !prev || prev.taskId !== taskId,
@@ -270,7 +271,7 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
             confirm && (
               <>
                 <b>{confirm.title}</b>
-                {confirm.subtasks.length ? `, its ${confirm.subtasks.length} subtasks,` : ''} and {nComments} comment{nComments === 1 ? '' : 's'} will be permanently deleted.
+                {confirm.subtasks.length ? `, its ${countSubs(confirm.subtasks).total} subtasks,` : ''} and {nComments} comment{nComments === 1 ? '' : 's'} will be permanently deleted.
               </>
             )
           }

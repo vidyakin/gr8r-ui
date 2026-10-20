@@ -60,7 +60,7 @@ const SORTS: { f: SortField; name: string }[] = [
 ];
 
 /* Названия полей сортировки, которые выбираются кликом по заголовку таблицы, а не из меню */
-const SORT_NAMES: Partial<Record<SortField, string>> = { assignee: 'Assignee', start: 'Start date', estimate: 'Estimate', project: 'Project' };
+const SORT_NAMES: Partial<Record<SortField, string>> = { assignee: 'Assignee', start: 'Start date', plan: 'Plan', actual: 'Actual', variance: 'Variance', project: 'Project' };
 
 const GROUPS: { id: GroupBy; name: string; icon: React.ReactNode }[] = [
   { id: 'status', name: 'Status', icon: <CircleDot size={15} /> },
@@ -76,7 +76,7 @@ export function useListView(initial?: Partial<ListView>) {
   const [view, setView] = React.useState<ListView>({ q: '', filters: [], sort: { f: 'manual', dir: 1 }, ...initial });
   // Группировка и колонки таблицы — только для видов, которые их показывают (Tasks, страница проекта)
   const [group, setGroup] = React.useState<GroupBy>('status');
-  const [hidden, setHidden] = React.useState<string[]>(['start', 'created', 'deps']);
+  const [hidden, setHidden] = React.useState<string[]>(['start', 'created', 'deps', 'actual', 'variance', 'time']);
   const [colW, setColW] = React.useState<Record<string, number>>({});
   return {
     view,
@@ -141,11 +141,13 @@ export interface ViewToolbarProps {
   group?: boolean;
   /** Кнопка «Columns» со списком переключаемых колонок */
   columns?: { id: string; name: string }[];
+  /** Пункт «Reset widths» в меню колонок (у списка ширины не меняются) */
+  resetWidths?: boolean;
   /** Доп. контролы после стандартных кнопок (например, масштаб Timeline) */
   extra?: React.ReactNode;
 }
 
-export function ViewToolbar({ api, right, group, columns, extra }: ViewToolbarProps) {
+export function ViewToolbar({ api, right, group, columns, resetWidths = true, extra }: ViewToolbarProps) {
   const fields = useFields();
   const { view } = api;
   const sortName = SORTS.find(s => s.f === view.sort.f)?.name ?? SORT_NAMES[view.sort.f];
@@ -221,10 +223,14 @@ export function ViewToolbar({ api, right, group, columns, extra }: ViewToolbarPr
                   {c.name}
                 </MenuCheckboxItem>
               ))}
-              <MenuSeparator />
-              <MenuItem icon={<RotateCcw size={14} />} onSelect={api.resetColW}>
-                Reset widths
-              </MenuItem>
+              {resetWidths && (
+                <>
+                  <MenuSeparator />
+                  <MenuItem icon={<RotateCcw size={14} />} onSelect={api.resetColW}>
+                    Reset widths
+                  </MenuItem>
+                </>
+              )}
             </MenuContent>
           </Menu>
         )}

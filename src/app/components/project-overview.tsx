@@ -4,12 +4,13 @@ import { Activity, Calendar, CircleCheck, CircleDot, ClockAlert, Flag, Pencil, U
 import { Badge, Button, EmptyState } from '@/components/ui';
 import { STATUSES, StatusIcon } from '@/components/gr8r/task';
 import { useWorkspace } from '../data/store';
-import { dayBucket, isOverdue, member, progressOf, projectColor, sortTasks, task as findTask, tasksOf } from '../data/selectors';
+import { dayBucket, fmtHours, isOverdue, member, progressOf, projectColor, sortTasks, task as findTask, taskTime, tasksOf, totalTime } from '../data/selectors';
 import type { Activity as ActivityRec, Project, Status } from '../data/types';
 import { diffDays, fmtDate, parse, today } from '../lib/dates';
 import { NamedIcon } from './icons';
 import { ProjectStatus, ProjectStatusMenu } from './project';
 import { ActivityItem, MemberAvatar, MemberStack, MiniTaskRow, useTaskActions } from './workspace';
+import { TimeTotals } from './time-summary';
 import { useProjectForms } from '../overlays';
 
 interface OverviewProps {
@@ -34,6 +35,12 @@ export function ProjectOverview({ project: p, onTab, onStatusList }: OverviewPro
     1,
   ).slice(0, 6);
   const acts = data.activity.filter(a => a.project === p.id).slice(0, 6);
+  const time = totalTime(data.timeLogs, ts);
+  const overPlan = ts
+    .map(t => ({ t, x: taskTime(data.timeLogs, t) }))
+    .filter(r => r.x.over)
+    .sort((a, b) => b.x.variance! - a.x.variance!)
+    .slice(0, 3);
   const daysLeft = diffDays(parse(p.due), today());
   const lead = member(data, p.lead);
   const team = data.teams.find(t => t.id === p.team);
@@ -96,6 +103,38 @@ export function ProjectOverview({ project: p, onTab, onStatusList }: OverviewPro
                   </button>
                 ))}
               </div>
+            </div>
+          </section>
+          <section className="panel">
+            <div className="panel-h">
+              <h2>Time</h2>
+              <div className="acts">
+                <span className="faint" style={{ fontSize: 12 }}>
+                  Plan vs. logged hours
+                </span>
+              </div>
+            </div>
+            <div className="panel-b">
+              <TimeTotals x={time} />
+              {overPlan.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <div className="faint" style={{ fontSize: 12, marginBottom: 2 }}>
+                    Over plan
+                  </div>
+                  {overPlan.map(({ t, x }) => (
+                    <div key={t.id} className="row" style={{ height: 30, fontSize: 13, cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => open(t)} onKeyDown={e => e.key === 'Enter' && open(t)}>
+                      <StatusIcon status={t.status} />
+                      <span className="grow trunc">{t.title}</span>
+                      <span className="num muted">
+                        {fmtHours(x.actual)}/{fmtHours(x.plan)}
+                      </span>
+                      <span className="num" style={{ color: 'var(--red)', width: 52, textAlign: 'right' }}>
+                        +{fmtHours(x.variance!)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </section>
           <section className="panel">

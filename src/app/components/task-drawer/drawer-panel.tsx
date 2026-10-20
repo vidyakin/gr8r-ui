@@ -6,7 +6,6 @@ import {
   Bold,
   CalendarArrowUp,
   Calendar as CalendarIcon,
-  ChevronRight,
   Circle,
   CircleCheck,
   CircleDot,
@@ -28,7 +27,6 @@ import {
   SignalHigh,
   Star,
   Tag,
-  Timer,
   Upload as UploadIcon,
   User,
   X,
@@ -40,12 +38,12 @@ import {
   FileCode,
   File as FileIcon,
 } from 'lucide-react';
-import { Button, Checkbox, Dialog, DialogClose, DialogContent, IconButton, Label, Menu, MenuContent, MenuTrigger, Progress, Tab, TabsList, Tabs, TabsContent, toast } from '@/components/ui';
+import { Button, Dialog, DialogClose, DialogContent, IconButton, Label, Menu, MenuContent, MenuTrigger, Progress, Tab, TabsList, Tabs, TabsContent, toast } from '@/components/ui';
 import { StatusIcon } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
-import { newId, useWorkspace, type TaskPatch } from '../../data/store';
+import { useWorkspace, type TaskPatch } from '../../data/store';
 import { FILE_TYPES, LABELS, commentsOf, isOverdue, member, project, projectColor, task as findTask, fileKind } from '../../data/selectors';
-import { ago, diffDays, fmtDate, parse, relDate, today } from '../../lib/dates';
+import { ago, diffDays, fmtDate, parse, today } from '../../lib/dates';
 import { MOD } from '../../lib/platform';
 import type { FileKind, LabelId, Project, ProjectFile, Task } from '../../data/types';
 import { AssigneeField, DueField, PriorityField, StatusField } from '../fields';
@@ -55,6 +53,9 @@ import { ProjectDot } from '../project';
 import { MemberAvatar, useTaskActions } from '../workspace';
 import { AutoTextarea, DatePopover, ListPopover, RichText, runFormat } from './pickers';
 import { SubtaskView } from './subtask-view';
+import { SubtaskSection } from './subtask-tree';
+import { TimeBlock } from './time-block';
+import { findSub } from '../../data/subtasks';
 import { TaskMenuItems } from './task-menu';
 
 export interface UploadItem {
@@ -89,7 +90,6 @@ const FORMAT = [
 ] as const;
 
 const RECUR = ['Does not repeat', 'Daily', 'Weekly', 'Every 2 weeks', 'Monthly'];
-const ESTIMATES = ['30m', '1h', '2h', '4h', '1d', '2d', '3d', '5d', '8d'];
 
 export interface DrawerPanelProps {
   task: Task;
@@ -116,7 +116,7 @@ export function DrawerPanel(p: DrawerPanelProps) {
   const { data, dispatch } = useWorkspace();
   const actions = useTaskActions();
   const pr = project(data, t.project);
-  const sub = p.subId ? t.subtasks.find(s => s.id === p.subId) : undefined;
+  const sub = findSub(t.subtasks, p.subId);
   const done = t.status === 'done';
   const update = (patch: TaskPatch) => dispatch({ type: 'task/update', id: t.id, patch });
 
@@ -210,9 +210,7 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
   const pr = project(data, t.project);
   const cs = commentsOf(data, t.id);
   const acts = data.activity.filter(a => a.task === t.id);
-  const sd = t.subtasks.filter(s => s.done).length;
   const ups = p.uploads.filter(u => u.task === t.id);
-  const [added, setAdded] = React.useState<string | null>(null);
   const [preview, setPreview] = React.useState<ProjectFile | null>(null);
   const [over, setOver] = React.useState(false);
   const overdue = isOverdue(t) ? diffDays(today(), parse(t.due!)) : 0;
@@ -339,18 +337,6 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
             }
           />
         </Prop>
-        <Prop icon={Timer} label="Estimate">
-          <ListPopover
-            items={[...ESTIMATES.map(x => ({ id: x, name: x, icon: <Timer size={14} />, on: t.estimate === x })), { id: '', name: 'Clear estimate', icon: <X size={14} /> }]}
-            onPick={id => update({ estimate: id || null })}
-            trigger={
-              <button className={cn('pillbtn', !t.estimate && 'empty')} aria-label="Estimate">
-                <Timer size={13} />
-                {t.estimate || 'Add estimate'}
-              </button>
-            }
-          />
-        </Prop>
         <Prop icon={GitBranch} label="Blocked by">
           <ListPopover
             multi
@@ -386,6 +372,8 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
         </Prop>
       </dl>
 
+      <TimeBlock task={t} />
+
       <div className="dsec">
         <div className="dsec-h">
           <h3 id="d-desc-l">Description</h3>
@@ -412,57 +400,7 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
         </div>
       </div>
 
-      <div className="dsec">
-        <div className="dsec-h">
-          <h3>Subtasks</h3>
-          <span className="cnt num">
-            {sd}/{t.subtasks.length}
-          </span>
-          {t.subtasks.length > 0 && (
-            <span style={{ width: 90, display: 'flex' }}>
-              <Progress value={Math.round((sd / t.subtasks.length) * 100)} tone={sd === t.subtasks.length ? 'green' : undefined} />
-            </span>
-          )}
-        </div>
-        {t.subtasks.map(s => (
-          <div key={s.id} className={cn('subt', s.done && 'done', added === s.id && 'fx-added')}>
-            <Checkbox checked={s.done} onChange={() => dispatch({ type: 'task/toggleSubtask', id: t.id, subtask: s.id })} aria-label={`${s.done ? 'Reopen' : 'Complete'} subtask ${s.title}`} />
-            <button className="s" data-sid={s.id} onClick={() => p.onOpenSub(s.id)}>
-              {s.title}
-            </button>
-            {s.due && (
-              <span className={cn('due', !s.done && diffDays(parse(s.due), today()) < 0 && 'over')}>
-                <CalendarIcon size={12} />
-                {relDate(s.due)}
-              </span>
-            )}
-            {s.assignee && <MemberAvatar id={s.assignee} size="sm" />}
-            <IconButton size="xs" className="x" label="Open subtask details" tooltip={false} tabIndex={-1} onClick={() => p.onOpenSub(s.id)}>
-              <ChevronRight size={14} />
-            </IconButton>
-          </div>
-        ))}
-        <div className="subt" style={{ color: 'var(--text-3)' }}>
-          <Plus size={15} />
-          <input
-            className="inline-in"
-            id="d-sub"
-            placeholder="Add subtask"
-            aria-label="Add subtask"
-            style={{ fontSize: 13.5 }}
-            onKeyDown={e => {
-              if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return;
-              e.preventDefault();
-              const title = e.currentTarget.value.trim();
-              if (!title) return;
-              const id = newId('s');
-              setAdded(id);
-              dispatch({ type: 'subtask/add', id: t.id, sub: id, title });
-              e.currentTarget.value = '';
-            }}
-          />
-        </div>
-      </div>
+      <SubtaskSection task={t} list={t.subtasks} onOpenSub={p.onOpenSub} />
 
       <div className="dsec">
         <div className="dsec-h">

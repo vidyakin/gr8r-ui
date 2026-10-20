@@ -13,7 +13,7 @@ import { Page404, StateDenied } from '../components/error-states';
 import { ProjectActivity, ProjectOverview } from '../components/project-overview';
 import { ProjectIcon, ProjectMenu, ProjectStatusMenu } from '../components/project';
 import { BucketIcon, TOGGLE_COLUMNS, TableView } from '../components/table-view';
-import { TaskList, type TaskGroup } from '../components/task-list';
+import { LIST_OPTIONAL_COLUMNS, TaskList, withTimeColumn, type TaskGroup } from '../components/task-list';
 import { ProjectTimelineTab } from '../components/timeline-view';
 import { ProjectFilesTab } from '../components/files-view';
 import { ViewToolbar, useListView, type ViewApi } from '../components/view-toolbar';
@@ -215,14 +215,14 @@ function TaskViewBody({ type, project: p, api }: { type: string; project: Projec
     }));
     return (
       <>
-        <ViewToolbar api={api} group right={addBtn} />
+        <ViewToolbar api={api} group columns={LIST_OPTIONAL_COLUMNS} resetWidths={false} right={addBtn} />
         <div className="list-wrap">
           {noTasks ? (
             emptyAll
           ) : !ts.length ? (
             emptyFilter
           ) : (
-            <TaskList groups={groups} columns={['status', 'assignee', 'priority', 'due', 'labels']} defaultProject={p.id} sort={api.view.sort.f === 'manual' ? undefined : api.view.sort} onSort={f => api.setSort(f)} />
+            <TaskList groups={groups} columns={withTimeColumn(['status', 'assignee', 'priority', 'due', 'labels'], api.hidden)} defaultProject={p.id} sort={api.view.sort.f === 'manual' ? undefined : api.view.sort} onSort={f => api.setSort(f)} />
           )}
         </div>
       </>

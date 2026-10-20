@@ -6,7 +6,7 @@ import { useWorkspace } from '../data/store';
 import { allTasks, applyView, canSee, groupTasks, visibleProjects } from '../data/selectors';
 import { BoardView } from '../components/board-view';
 import { BucketIcon, TOGGLE_COLUMNS, TableView } from '../components/table-view';
-import { TaskList, type TaskGroup } from '../components/task-list';
+import { LIST_OPTIONAL_COLUMNS, TaskList, withTimeColumn, type TaskGroup } from '../components/task-list';
 import { ViewToolbar, useListView } from '../components/view-toolbar';
 import { useTaskForm } from '../overlays';
 
@@ -47,7 +47,8 @@ export function TasksPage() {
       <ViewToolbar
         api={api}
         group={mode !== 'board'}
-        columns={mode === 'table' ? TOGGLE_COLUMNS : undefined}
+        columns={mode === 'table' ? TOGGLE_COLUMNS : mode === 'list' ? LIST_OPTIONAL_COLUMNS : undefined}
+        resetWidths={mode === 'table'}
         right={
           <Segmented
             aria-label="View"
@@ -65,7 +66,7 @@ export function TasksPage() {
       {mode === 'table' && <TableView tasks={tasks} api={api} onNewTask={newTask} />}
       {mode === 'list' && (
         <div className="list-wrap">
-          <TaskList groups={groups} columns={['status', 'assignee', 'priority', 'due', 'project']} defaultProject={defaultProject} sort={api.view.sort.f === 'manual' ? undefined : api.view.sort} onSort={f => api.setSort(f)} />
+          <TaskList groups={groups} columns={withTimeColumn(['status', 'assignee', 'priority', 'due', 'project'], api.hidden)} defaultProject={defaultProject} sort={api.view.sort.f === 'manual' ? undefined : api.view.sort} onSort={f => api.setSort(f)} />
         </div>
       )}
     </div>

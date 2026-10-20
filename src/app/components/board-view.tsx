@@ -6,6 +6,7 @@ import { Button, Label, Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger, Pro
 import { STATUSES, StatusIcon, type Status } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
 import { useWorkspace, type TaskPatch } from '../data/store';
+import { countSubs } from '../data/subtasks';
 import { LABELS, commentsOf, project as findProject, sortTasks } from '../data/selectors';
 import type { Task } from '../data/types';
 import { AssigneeField, DueField, PriorityField } from './fields';
@@ -27,7 +28,7 @@ function KCard({ task: t, showProject, dragging, onDragStart, onDragEnd }: { tas
   const actions = useTaskActions();
   const cc = commentsOf(data, t.id).length;
   const ac = t.attachments.length;
-  const sd = t.subtasks.filter(s => s.done).length;
+  const { done: sd, total: st } = countSubs(t.subtasks);
   const p = findProject(data, t.project);
   const done = t.status === 'done';
   return (
@@ -60,13 +61,13 @@ function KCard({ task: t, showProject, dragging, onDragStart, onDragEnd }: { tas
         )}
         <div className="title">{t.title}</div>
       </div>
-      {!!t.subtasks.length && (
+      {st > 0 && (
         <div className="subp">
           <ListChecks size={12} />
           <span className="num">
-            {sd}/{t.subtasks.length}
+            {sd}/{st}
           </span>
-          <Progress value={Math.round((sd / t.subtasks.length) * 100)} tone={sd === t.subtasks.length ? 'green' : undefined} />
+          <Progress value={Math.round((sd / st) * 100)} tone={sd === st ? 'green' : undefined} />
         </div>
       )}
       <div className="meta">

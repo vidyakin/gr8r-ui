@@ -2,7 +2,8 @@
    Не зависят от React: их легко тестировать и переиспользовать на сервере. */
 import { PRIORITIES, STATUSES } from '@/components/gr8r/task';
 import { diffDays, parse, today } from '../lib/dates';
-import type { FileKind, LabelId, Notification, Project, ProjectColor, ProjectStatus, Task, WorkspaceData } from './types';
+import { flattenSubs, subtreeIds } from './subtasks';
+import type { FileKind, LabelId, Notification, Project, ProjectColor, ProjectStatus, Subtask, Task, TimeLog, WorkspaceData } from './types';
 
 export const PROJECT_COLORS: Record<ProjectColor, string> = {
   indigo: '#5A67D8',
@@ -62,10 +63,12 @@ export function progressOf(d: WorkspaceData, pid: string) {
   return Math.round((ts.filter(t => t.status === 'done').length / ts.length) * 100);
 }
 
-export type SortField = 'manual' | 'title' | 'due' | 'priority' | 'status' | 'created' | 'updated' | 'assignee' | 'start' | 'estimate' | 'project';
+export type SortField = 'manual' | 'title' | 'due' | 'priority' | 'status' | 'created' | 'updated' | 'assignee' | 'start' | 'plan' | 'actual' | 'variance' | 'project';
 
 /** Для сортировки по исполнителю и проекту нужны данные воркспейса (d); без них эти поля падают на ручной порядок */
 export function sortTasks(ts: Task[], f: SortField, dir: 1 | -1 = 1, d?: WorkspaceData) {
+  // Часы: задачи без значения всегда в конце, в каком бы направлении ни шла сортировка
+  const hours = (pick: (x: TaskTime) => number | null) => (t: Task) => pick(taskTime(d?.timeLogs ?? [], t)) ?? (dir > 0 ? Infinity : -Infinity);
   const key: (t: Task) => string | number = {
     manual: (t: Task) => t.order,
     title: (t: Task) => t.title.toLowerCase(),
@@ -75,7 +78,9 @@ export function sortTasks(ts: Task[], f: SortField, dir: 1 | -1 = 1, d?: Workspa
     created: (t: Task) => -t.created,
     updated: (t: Task) => -t.updated,
     start: (t: Task) => t.start || '9999',
-    estimate: (t: Task) => t.estimate || 'zzz',
+    plan: hours(x => (x.plan > 0 ? x.plan : null)),
+    actual: hours(x => (x.actual > 0 ? x.actual : null)),
+    variance: hours(x => x.variance),
     assignee: (t: Task) => (d ? member(d, t.assignee)?.name : undefined) || 'zzz',
     project: (t: Task) => (d ? project(d, t.project)?.name : undefined) ?? t.order,
   }[f];
@@ -133,7 +138,9 @@ export interface ListView {
 
 export function applyView(ts: Task[], v: ListView, d?: WorkspaceData) {
   const q = v.q.trim().toLowerCase();
-  const out = ts.filter(t => v.filters.every(f => matchFilter(t, f)) && (!q || t.title.toLowerCase().includes(q) || t.key.toLowerCase().includes(q)));
+  // Поиск заглядывает и в подзадачи любой глубины
+  const hit = (t: Task) => t.title.toLowerCase().includes(q) || t.key.toLowerCase().includes(q) || flattenSubs(t.subtasks).some(x => x.sub.title.toLowerCase().includes(q));
+  const out = ts.filter(t => v.filters.every(f => matchFilter(t, f)) && (!q || hit(t)));
   return sortTasks(out, v.sort.f, v.sort.dir, d);
 }
 
@@ -207,4 +214,82 @@ export function fileSize(b: number) {
   if (b < 1024) return b + ' B';
   if (b < 1048576) return Math.round(b / 1024) + ' KB';
   return (b / 1048576).toFixed(1) + ' MB';
+}
+
+/* ---------- учёт времени: план, факт, отклонение ---------- */
+
+/** Часы для подписи: 3.5h, 8h, 0.25h */
+export const fmtHours = (h: number) => `${+h.toFixed(2)}h`;
+
+/** Часы из строки: «2», «1.5», «2h», «1d» (= 8h), «30m»; null, если не разобрать */
+export function parseHours(v: string): number | null {
+  const m = v.trim().toLowerCase().replace(',', '.').match(/^(\d+(?:\.\d+)?)\s*(h|d|m)?$/);
+  if (!m) return null;
+  const n = parseFloat(m[1]);
+  return m[2] === 'd' ? n * 8 : m[2] === 'm' ? n / 60 : n;
+}
+
+/** План подзадачи: свой, если задан, иначе сумма плана вложенных */
+export function planOfSub(s: Subtask): number {
+  return s.planHours ?? s.subtasks.reduce((a, c) => a + planOfSub(c), 0);
+}
+
+/** План задачи: свой, если задан, иначе сумма плана подзадач первого уровня */
+export function planOfTask(t: Pick<Task, 'planHours' | 'subtasks'>): number {
+  return t.planHours ?? t.subtasks.reduce((a, c) => a + planOfSub(c), 0);
+}
+
+export interface TaskTime {
+  plan: number;
+  actual: number;
+  /** Сколько осталось по плану (не меньше нуля) */
+  remaining: number;
+  /** Отклонение: факт − план; плюс — перерасход. null, если нет ни плана, ни факта */
+  variance: number | null;
+  /** Факт в процентах от плана (null, если плана нет) */
+  pct: number | null;
+  over: boolean;
+}
+
+function timeOf(plan: number, actual: number): TaskTime {
+  return {
+    plan,
+    actual,
+    remaining: Math.max(plan - actual, 0),
+    variance: plan || actual ? actual - plan : null,
+    pct: plan > 0 ? Math.round((actual / plan) * 100) : null,
+    over: actual > plan + 1e-9,
+  };
+}
+
+const sum = (logs: TimeLog[]) => logs.reduce((a, l) => a + l.hours, 0);
+
+/** «6/8h»: факт и план; без плана — только факт, без обоих — пусто */
+export const fmtTimePair = (x: Pick<TaskTime, 'plan' | 'actual'>) => (x.plan > 0 ? `${+x.actual.toFixed(2)}/${fmtHours(x.plan)}` : x.actual > 0 ? fmtHours(x.actual) : '');
+
+/** Время задачи: факт — записи по самой задаче и всем её подзадачам */
+export const taskTime = (logs: TimeLog[], t: Pick<Task, 'id' | 'planHours' | 'subtasks'>): TaskTime =>
+  timeOf(planOfTask(t), sum(logs.filter(l => l.task === t.id)));
+
+/** Время подзадачи: факт — записи по ней и по всему её поддереву */
+export function subTime(logs: TimeLog[], taskId: string, s: Subtask): TaskTime {
+  const ids = subtreeIds(s);
+  return timeOf(planOfSub(s), sum(logs.filter(l => l.task === taskId && l.sub && ids.has(l.sub))));
+}
+
+/** Записи по задаче (новые сверху); со sub — только по этой подзадаче и её потомкам */
+export function logsOf(logs: TimeLog[], taskId: string, s?: Subtask) {
+  const ids = s ? subtreeIds(s) : null;
+  return logs
+    .filter(l => l.task === taskId && (!ids || (l.sub && ids.has(l.sub))))
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+}
+
+/** Сумма по набору задач — для итогов таблицы и сводок */
+export function totalTime(logs: TimeLog[], ts: Pick<Task, 'id' | 'planHours' | 'subtasks'>[]): TaskTime {
+  const ids = new Set(ts.map(t => t.id));
+  return timeOf(
+    ts.reduce((a, t) => a + planOfTask(t), 0),
+    sum(logs.filter(l => ids.has(l.task))),
+  );
 }
