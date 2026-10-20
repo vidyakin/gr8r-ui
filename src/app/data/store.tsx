@@ -11,6 +11,7 @@ export type Action =
   | { type: 'task/update'; id: string; patch: TaskPatch }
   | { type: 'task/toggleSubtask'; id: string; subtask: string }
   | { type: 'task/create'; task: Pick<Task, 'title' | 'project'> & TaskPatch }
+  | { type: 'project/toggleFav'; id: string }
   | { type: 'notif/setRead'; id: string; read: boolean }
   | { type: 'notif/markAllRead' }
   | { type: 'comment/add'; task: string; text: string }
@@ -83,6 +84,8 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
       };
       return { ...d, tasks: [...d.tasks, t], activity: logActivity(d, 'created', t) };
     }
+    case 'project/toggleFav':
+      return { ...d, projects: d.projects.map(p => (p.id === a.id ? { ...p, fav: !p.fav } : p)) };
     case 'notif/setRead':
       return { ...d, notifs: d.notifs.map(n => (n.id === a.id ? { ...n, read: a.read } : n)) };
     case 'notif/markAllRead':

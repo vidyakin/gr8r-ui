@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router';
-import { Calendar, CircleCheck, Clock, Lock, Star } from 'lucide-react';
-import { Progress, Tooltip } from '@/components/ui';
+import { Archive, ArrowUpRight, Calendar, CircleCheck, Clock, Copy, Ellipsis, Link2, Lock, Pencil, Share2, Star, Trash2 } from 'lucide-react';
+import { IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Progress, Tooltip, toast } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '../data/store';
 import { PROJECT_STATUS, canSee, progressOf, projectColor, tasksOf } from '../data/selectors';
@@ -31,6 +31,63 @@ export function ProjectStatus({ status }: { status: PS }) {
       <i />
       {s.name}
     </span>
+  );
+}
+
+/** Меню проекта «⋯» (ctxMenu('project') из overlays/context-menu.js); часть пунктов пока заглушки */
+export function ProjectMenu({ project: p, className, style }: { project: Project; className?: string; style?: React.CSSProperties }) {
+  const { dispatch } = useWorkspace();
+  const navigate = useNavigate();
+  const stub = (what: string) => toast.info(`${what} пока не перенесено`);
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+  return (
+    <Menu>
+      <MenuTrigger asChild>
+        <IconButton size="sm" label="Project options" tooltip={false} className={className} style={style} onClick={stop} onKeyDown={stop}>
+          <Ellipsis size={14} />
+        </IconButton>
+      </MenuTrigger>
+      {/* Портал всплывает событиями в карточку — гасим, чтобы клик по пункту не открывал проект */}
+      <MenuContent align="end" onClick={stop} onKeyDown={stop}>
+        <MenuItem icon={<ArrowUpRight size={15} />} onSelect={() => navigate(`/projects/${p.id}`)}>
+          Open
+        </MenuItem>
+        <MenuItem
+          icon={<Star size={15} />}
+          onSelect={() => {
+            dispatch({ type: 'project/toggleFav', id: p.id });
+            toast.info(p.fav ? 'Removed from favorites' : 'Added to favorites', { duration: 1800 });
+          }}
+        >
+          {p.fav ? 'Remove from favorites' : 'Add to favorites'}
+        </MenuItem>
+        <MenuItem icon={<Pencil size={15} />} onSelect={() => stub('Редактирование проекта')}>
+          Rename &amp; edit
+        </MenuItem>
+        <MenuItem icon={<Share2 size={15} />} onSelect={() => stub('Шаринг')}>
+          Share
+        </MenuItem>
+        <MenuItem
+          icon={<Link2 size={15} />}
+          onSelect={() => {
+            navigator.clipboard?.writeText(`${location.origin}${location.pathname}#/projects/${p.id}`).catch(() => {});
+            toast.info('Link copied', { duration: 1800 });
+          }}
+        >
+          Copy link
+        </MenuItem>
+        <MenuItem icon={<Copy size={15} />} onSelect={() => stub('Дублирование проекта')}>
+          Duplicate
+        </MenuItem>
+        <MenuSeparator />
+        <MenuItem icon={<Archive size={15} />} onSelect={() => stub('Архивирование проекта')}>
+          {p.status === 'complete' ? 'Archive' : 'Archive project'}
+        </MenuItem>
+        <MenuItem icon={<Trash2 size={15} />} danger onSelect={() => stub('Удаление проекта')}>
+          Delete project
+        </MenuItem>
+      </MenuContent>
+    </Menu>
   );
 }
 
@@ -98,6 +155,7 @@ export function ProjectCard({ project: p }: { project: Project }) {
         <span className="sp" />
         <MemberStack ids={p.members} max={3} />
       </div>
+      <ProjectMenu project={p} className="more" style={{ background: 'var(--surface)', boxShadow: '0 0 0 1px var(--border)' }} />
     </div>
   );
 }
