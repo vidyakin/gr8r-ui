@@ -1,7 +1,7 @@
 /* Демо-данные воркспейса — порт data/seed.js из gr8r-studio.
    Файлы, события и настройки аккаунта пока не перенесены: добавятся вместе со страницами, которым они нужны. */
 import { dOff, minsAgo } from '../lib/dates';
-import type { Activity, CalendarEvent, Comment, LabelId, Member, Notification, Priority, Project, Status, Task, Team, WorkspaceData } from './types';
+import type { Activity, CalendarEvent, Comment, LabelId, Member, Notification, Priority, Project, ProjectFile, Status, Task, Team, WorkspaceData } from './types';
 
 let aid = 0;
 const uid = (p: string) => p + ++aid;
@@ -494,6 +494,20 @@ export function seed(): WorkspaceData {
     { id: 'e5', title: 'Campaign kickoff', date: dOff(-3), time: '11:00', project: 'p3' },
     { id: 'e6', title: 'Retro', date: dOff(12), time: '16:00', project: 'p2' },
   ];
+  const files: ProjectFile[] = [
+    { id: 'f1', project: 'p1', name: 'homepage-wireframes-v3.fig', type: 'fig', size: '4.2 MB', by: 'm2', at: minsAgo(300), task: 't3' },
+    { id: 'f2', project: 'p1', name: 'nav-audit-findings.pdf', type: 'pdf', size: '860 KB', by: 'm2', at: minsAgo(8000), task: 't3' },
+    { id: 'f3', project: 'p1', name: 'brand-photography-set.zip', type: 'zip', size: '128 MB', by: 'm4', at: minsAgo(3000) },
+    { id: 'f4', project: 'p1', name: 'hero-exploration.png', type: 'img', size: '2.1 MB', by: 'm4', at: minsAgo(1400) },
+    { id: 'f5', project: 'p1', name: 'content-inventory.xlsx', type: 'sheet', size: '310 KB', by: 'm5', at: minsAgo(9000) },
+    { id: 'f6', project: 'p1', name: 'sitemap-v2.pdf', type: 'pdf', size: '540 KB', by: 'm1', at: minsAgo(12000) },
+    { id: 'f7', project: 'p1', name: 'interview-notes.docx', type: 'doc', size: '96 KB', by: 'm1', at: minsAgo(20000) },
+    { id: 'f8', project: 'p1', name: 'analytics-events.json', type: 'code', size: '12 KB', by: 'm6', at: minsAgo(700) },
+    { id: 'f9', project: 'p2', name: 'onboarding-flow.fig', type: 'fig', size: '6.8 MB', by: 'm4', at: minsAgo(500) },
+    { id: 'f10', project: 'p2', name: 'beta-feedback.xlsx', type: 'sheet', size: '220 KB', by: 'm1', at: minsAgo(900) },
+    { id: 'f11', project: 'p3', name: 'campaign-brief.pdf', type: 'pdf', size: '1.1 MB', by: 'm5', at: minsAgo(4000) },
+    { id: 'f12', project: 'p4', name: 'launch-plan.docx', type: 'doc', size: '180 KB', by: 'm1', at: minsAgo(6000) },
+  ];
   const tmp = tk('t3');
   tmp.updated = minsAgo(38);
   return {
@@ -507,6 +521,7 @@ export function seed(): WorkspaceData {
     notifs,
     teams: TEAMS_SEED.map(x => ({ ...x })),
     events,
+    files,
     projOrder: projects.map(p => p.id),
   };
 }

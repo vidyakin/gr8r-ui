@@ -2,7 +2,8 @@
    Компоненты читают данные через useWorkspace() и меняют их только через dispatch(action). */
 import * as React from 'react';
 import { seed } from './seed';
-import type { Activity, Status, Task, WorkspaceData } from './types';
+import { fileKind } from './selectors';
+import type { Activity, ProjectFile, Status, Task, WorkspaceData } from './types';
 
 export type TaskPatch = Partial<Pick<Task, 'title' | 'status' | 'assignee' | 'priority' | 'due' | 'fav' | 'project' | 'estimate' | 'order' | 'archived'>>;
 
@@ -15,7 +16,12 @@ export type Action =
   | { type: 'notif/setRead'; id: string; read: boolean }
   | { type: 'notif/markAllRead' }
   | { type: 'comment/add'; task: string; text: string }
-  | { type: 'comment/react'; id: string; emoji: string };
+  | { type: 'comment/react'; id: string; emoji: string }
+  | { type: 'file/add'; file: Pick<ProjectFile, 'project' | 'name' | 'size'> }
+  | { type: 'file/rename'; id: string; name: string }
+  | { type: 'file/duplicate'; id: string }
+  | { type: 'file/delete'; id: string }
+  | { type: 'file/restore'; file: ProjectFile; index: number };
 
 let seq = 0;
 const uid = (p: string) => `${p}${Date.now().toString(36)}${++seq}`;
@@ -108,6 +114,29 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
           return { ...c, re: { ...c.re, [a.emoji]: list.includes(d.me) ? list.filter(x => x !== d.me) : [...list, d.me] } };
         }),
       };
+    case 'file/add':
+      return { ...d, files: [{ id: uid('f'), type: fileKind(a.file.name), by: d.me, at: Date.now(), task: null, ...a.file }, ...d.files] };
+    case 'file/rename':
+      return { ...d, files: d.files.map(f => (f.id === a.id ? { ...f, name: a.name, type: fileKind(a.name) } : f)) };
+    case 'file/duplicate': {
+      const i = d.files.findIndex(f => f.id === a.id);
+      if (i < 0) return d;
+      const f = d.files[i];
+      const copy: ProjectFile = { ...f, id: uid('f'), name: f.name.replace(/(\.[^.]+)$/, ' copy$1'), at: Date.now(), by: d.me };
+      return { ...d, files: [...d.files.slice(0, i + 1), copy, ...d.files.slice(i + 1)] };
+    }
+    case 'file/delete': {
+      const f = d.files.find(x => x.id === a.id);
+      if (!f) return d;
+      // Файл, прикреплённый к задаче, пропадает и из её вложений
+      return {
+        ...d,
+        files: d.files.filter(x => x.id !== a.id),
+        tasks: f.task ? d.tasks.map(t => (t.id === f.task ? { ...t, attachments: t.attachments.filter(x => x.name !== f.name) } : t)) : d.tasks,
+      };
+    }
+    case 'file/restore':
+      return { ...d, files: [...d.files.slice(0, a.index), a.file, ...d.files.slice(a.index)] };
   }
 }
 

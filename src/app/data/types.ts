@@ -142,6 +142,20 @@ export interface WorkspaceInfo {
   brand?: boolean;
 }
 
+export type FileKind = 'fig' | 'pdf' | 'zip' | 'img' | 'sheet' | 'doc' | 'code' | 'other';
+
+/** Файл проекта (вкладка Files) */
+export interface ProjectFile {
+  id: string;
+  project: string;
+  name: string;
+  type: FileKind;
+  size: string;
+  by: string;
+  at: number;
+  task?: string | null;
+}
+
 export interface WorkspaceData {
   ws: WorkspaceInfo;
   me: string;
@@ -153,5 +167,6 @@ export interface WorkspaceData {
   notifs: Notification[];
   teams: Team[];
   events: CalendarEvent[];
+  files: ProjectFile[];
   projOrder: string[];
 }
