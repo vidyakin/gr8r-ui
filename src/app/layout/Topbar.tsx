@@ -1,7 +1,7 @@
 /* Верхняя панель — порт renderTopbar() и crumbs() из shell/layout.js */
 import { Link, useLocation, useMatch } from 'react-router';
 import { Bell, Building2, ChevronDown, CircleCheck, FolderPlus, Handshake, Menu as MenuIcon, Plus, Search, UserPlus, ContactRound } from 'lucide-react';
-import { Button, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tooltip, toast } from '@/components/ui';
+import { Button, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tooltip } from '@/components/ui';
 import { useWorkspace } from '../data/store';
 import { project } from '../data/selectors';
 import { SECTIONS } from '../routes';
@@ -9,7 +9,7 @@ import { MemberAvatar } from '../components/workspace';
 import { ProjectIcon } from '../components/project';
 import { UserMenu } from './UserMenu';
 import { MOD } from '../lib/platform';
-import { useInvite, useProjectForms, useTaskForm } from '../overlays';
+import { useInvite, usePalette, useProjectForms, useTaskForm } from '../overlays';
 import { useCrm } from '../crm/store';
 import { useCrmUi } from '../crm/ui-context';
 import { company as crmCompany } from '../crm/selectors';
@@ -51,10 +51,10 @@ export function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
   const { data } = useWorkspace();
   const crumbs = useCrumbs();
   const unread = data.notifs.some(n => !n.read);
-  const soon = (what: string) => toast.info(`${what} пока не перенесено`);
   const taskForm = useTaskForm();
   const projectForms = useProjectForms();
   const invite = useInvite();
+  const palette = usePalette();
   const crmUi = useCrmUi();
   const inCrm = !!useMatch('/crm/*');
 
@@ -86,7 +86,7 @@ export function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
         })}
       </nav>
       <span className="sp" />
-      <button className="topsearch" aria-label="Search and commands" onClick={() => soon('Поиск и палитра команд')}>
+      <button className="topsearch" aria-label="Search and commands" onClick={() => palette.open()}>
         <Search size={14} />
         <span className="lbltxt">Search or jump to…</span>
         <span className="kbd">{MOD}K</span>

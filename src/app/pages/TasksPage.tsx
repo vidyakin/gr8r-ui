@@ -1,5 +1,6 @@
 /* Задачи — порт pageTasks из pages/tasks.js */
 import * as React from 'react';
+import { useLocation } from 'react-router';
 import { List, Plus, SquareKanban, Table2 } from 'lucide-react';
 import { Button, Segmented } from '@/components/ui';
 import { useWorkspace } from '../data/store';
@@ -14,7 +15,9 @@ type Mode = 'list' | 'board' | 'table';
 
 export function TasksPage() {
   const { data } = useWorkspace();
-  const api = useListView();
+  // Палитра открывает «Overdue tasks» через state перехода
+  const preset = useLocation().state?.filter === 'overdue';
+  const api = useListView(preset ? { filters: [{ f: 'due', v: ['overdue'] }] } : undefined);
   const [mode, setMode] = React.useState<Mode>('list');
   const [showSubs, setShowSubs] = useBoardSubtasks();
   const [density, setDensity] = useBoardDensity();

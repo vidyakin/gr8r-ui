@@ -16,6 +16,7 @@ import {
   LayoutDashboard,
   ListChecks,
   PhoneCall,
+  Search,
   Settings,
   Star,
   Users,
@@ -43,6 +44,7 @@ export const SECTIONS = {
   members: { path: '/members', name: 'Members', icon: Users },
   activity: { path: '/activity', name: 'Activity', icon: Activity },
   archive: { path: '/archive', name: 'Archive', icon: Archive },
+  search: { path: '/search', name: 'Search', icon: Search },
   settings: { path: '/settings', name: 'Settings', icon: Settings },
   system: { path: '/design-system', name: 'Design system', icon: Component },
   // Демо-модуль CRM (src/app/crm)

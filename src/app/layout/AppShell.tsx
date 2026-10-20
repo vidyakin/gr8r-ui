@@ -9,7 +9,7 @@ import { useWorkspace } from '../data/store';
 import { SECTIONS, type SectionId } from '../routes';
 import { Sidebar } from './Sidebar';
 import { Topbar, useCrumbs } from './Topbar';
-import { OverlayProviders } from '../overlays';
+import { OverlayProviders, PaletteHost } from '../overlays';
 import { CrmOverlays } from '../crm/overlays';
 
 const COLLAPSED_KEY = 'gr8r-ui.sidebar-collapsed';
@@ -97,6 +97,7 @@ export function AppShell() {
       </main>
       <BottomNav onMore={() => setMnav(true)} />
     </div>
+    <PaletteHost />
     </CrmOverlays>
     </OverlayProviders>
   );
