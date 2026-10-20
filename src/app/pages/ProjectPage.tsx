@@ -239,7 +239,7 @@ function TaskViewBody({ type, project: p, api }: { type: string; project: Projec
     return (
       <>
         <ViewToolbar api={api} right={addBtn} />
-        <CalendarView tasks={ts} events={data.events.filter(e => e.project === p.id)} onAdd={newTask} />
+        <CalendarView tasks={ts} events={data.events.filter(e => e.project === p.id)} onAdd={due => taskForm.open({ due, project: p.id })} />
       </>
     );
   return <Page404 />;

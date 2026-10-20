@@ -317,3 +317,15 @@
 .toast .ta:hover {
   background: color-mix(in srgb, var(--text-inv) 14%, transparent);
 }
+
+/* Мобильная ширина: окно — шторка снизу (responsive.css оригинала) */
+@media (max-width: 640px) {
+  .modal-wrap {
+    padding: 0;
+    align-items: flex-end;
+  }
+  .modal {
+    max-height: 92vh;
+    border-radius: 14px 14px 0 0;
+  }
+}

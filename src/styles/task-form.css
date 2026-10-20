@@ -1,0 +1,57 @@
+/* Строки подзадач — из overlays.css оригинала (используются в форме новой задачи) */
+.subt {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 32px;
+  padding: 0 6px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs);
+}
+.subt:hover {
+  background: var(--surface-2);
+}
+.subt.done .s {
+  color: var(--text-3);
+  text-decoration: line-through;
+}
+.subt .x {
+  opacity: 0;
+  margin-left: auto;
+}
+.subt:hover .x {
+  opacity: 1;
+}
+.subt .s {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 4px 0;
+  border-radius: 4px;
+}
+.subt .s:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+}
+.subt .due {
+  flex-shrink: 0;
+}
+
+/* Поле поиска в списках-поповерах (.pop .pin) */
+.pop .pin {
+  border-bottom: 1px solid var(--divider);
+  margin: -4px -4px 4px;
+  padding: 8px;
+}
+.pop .pin input {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  width: 100%;
+  font-size: var(--fs);
+  padding: 0 4px;
+}

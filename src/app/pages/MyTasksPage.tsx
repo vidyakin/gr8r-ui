@@ -80,7 +80,7 @@ export function MyTasksPage() {
       </div>
       <ViewToolbar api={api} />
       {mode === 'calendar' ? (
-        <CalendarView tasks={mine} onAdd={newTask} />
+        <CalendarView tasks={mine} onAdd={due => taskForm.open({ due, assignee: data.me })} />
       ) : (
         <div className="list-wrap">
           <TaskList groups={groups} columns={['project', 'status', 'priority', 'due']} defaultProject={defaultProject} sort={api.view.sort.f === 'manual' ? undefined : api.view.sort} onSort={f => api.setSort(f)} />

@@ -18,7 +18,7 @@ const KIND_ICON: Record<string, typeof File> = {
   file: File,
 };
 
-function KindIcon({ kind, size }: { kind: FileKind; size: number }) {
+export function KindIcon({ kind, size }: { kind: FileKind; size: number }) {
   const I = KIND_ICON[FILE_TYPES[kind].i] ?? File;
   return <I size={size} />;
 }
