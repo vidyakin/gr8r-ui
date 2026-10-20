@@ -19,7 +19,7 @@ function useUpdate(t: Task) {
 }
 
 /** Общая обёртка: таблетка-триггер + меню с радио-пунктами */
-function PillMenu<V extends string>({
+export function PillMenu<V extends string>({
   label,
   trigger,
   empty,
@@ -27,6 +27,7 @@ function PillMenu<V extends string>({
   options,
   onChange,
   className,
+  plain,
 }: {
   label: string;
   trigger: React.ReactNode;
@@ -35,11 +36,13 @@ function PillMenu<V extends string>({
   options: { value: V; label: string; icon: React.ReactNode }[];
   onChange: (v: V) => void;
   className?: string;
+  /** Без оформления «таблетки» — для ячеек таблицы и карточек доски */
+  plain?: boolean;
 }) {
   return (
     <Menu>
       <MenuTrigger asChild>
-        <button className={cn('pillbtn', empty && 'empty', className)} aria-label={label} onClick={e => e.stopPropagation()}>
+        <button className={cn(!plain && 'pillbtn', empty && 'empty', className)} aria-label={label} onClick={e => e.stopPropagation()}>
           {trigger}
         </button>
       </MenuTrigger>
@@ -56,12 +59,17 @@ function PillMenu<V extends string>({
   );
 }
 
-export function StatusField({ task: t }: { task: Task }) {
+/** Вид поля: «таблетка» (список), ячейка таблицы (иконка + название без рамки) или только иконка (карточка доски) */
+export type FieldVariant = 'pill' | 'cell' | 'icon';
+const variantProps = (v: FieldVariant) => ({ plain: v !== 'pill', className: v === 'cell' ? 'cp' : v === 'icon' ? 'm' : undefined });
+
+export function StatusField({ task: t, variant = 'pill' }: { task: Task; variant?: FieldVariant }) {
   const update = useUpdate(t);
   const st = STATUSES.find(s => s.id === t.status)!;
   return (
     <PillMenu<Status>
       label={`Status: ${st.name}`}
+      {...variantProps(variant)}
       value={t.status}
       onChange={status => update({ status })}
       options={STATUSES.map(s => ({ value: s.id, label: s.name, icon: <StatusIcon status={s.id} /> }))}
@@ -75,34 +83,36 @@ export function StatusField({ task: t }: { task: Task }) {
   );
 }
 
-export function PriorityField({ task: t }: { task: Task }) {
+export function PriorityField({ task: t, variant = 'pill' }: { task: Task; variant?: FieldVariant }) {
   const update = useUpdate(t);
   const pr = PRIORITIES.find(p => p.id === t.priority)!;
   return (
     <PillMenu<Priority>
-      label="Priority"
-      empty={t.priority === 'none'}
+      label={variant === 'icon' ? `Priority: ${pr.name}` : 'Priority'}
+      {...variantProps(variant)}
+      empty={variant === 'pill' && t.priority === 'none'}
       value={t.priority}
       onChange={priority => update({ priority })}
       options={PRIORITIES.map(p => ({ value: p.id, label: p.name, icon: <PriorityIcon priority={p.id} /> }))}
       trigger={
         <>
-          <PriorityIcon priority={t.priority} />
-          <span>{pr.name}</span>
+          <PriorityIcon priority={t.priority} size={variant === 'icon' ? 13 : 14} />
+          {variant !== 'icon' && <span>{pr.name}</span>}
         </>
       }
     />
   );
 }
 
-export function AssigneeField({ task: t }: { task: Task }) {
+export function AssigneeField({ task: t, variant = 'pill' }: { task: Task; variant?: FieldVariant }) {
   const { data } = useWorkspace();
   const update = useUpdate(t);
   const m = member(data, t.assignee);
   return (
     <PillMenu<string>
       label="Assignee"
-      empty={!m}
+      {...variantProps(variant)}
+      empty={variant === 'pill' && !m}
       value={t.assignee ?? 'none'}
       onChange={v => update({ assignee: v === 'none' ? null : v })}
       options={[
@@ -112,7 +122,7 @@ export function AssigneeField({ task: t }: { task: Task }) {
       trigger={
         <>
           <MemberAvatar id={t.assignee} size="sm" tooltip={false} />
-          <span className="trunc">{m ? m.name : 'Unassigned'}</span>
+          {variant !== 'icon' && <span className={cn('trunc', variant === 'cell' && !m && 'faint')}>{m ? m.name : 'Unassigned'}</span>}
         </>
       }
     />
@@ -125,7 +135,8 @@ const QUICK_DATES = [
   ['Next week', 7],
 ] as const;
 
-export function DueField({ task: t }: { task: Task }) {
+/** trigger — своё содержимое кнопки (тогда она без оформления «таблетки», стили задаёт className) */
+export function DueField({ task: t, trigger, className }: { task: Task; trigger?: React.ReactNode; className?: string }) {
   const update = useUpdate(t);
   const [open, setOpen] = React.useState(false);
   const set = (due: string | null) => {
@@ -135,9 +146,13 @@ export function DueField({ task: t }: { task: Task }) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button className={cn('pillbtn', t.due ? isOverdue(t) && 'over' : 'empty')} aria-label="Due date" onClick={e => e.stopPropagation()}>
-          <CalendarIcon size={13} />
-          {t.due ? <span className="num">{relDate(t.due)}</span> : <span>Set date</span>}
+        <button className={cn(!trigger && 'pillbtn', !trigger && (t.due ? isOverdue(t) && 'over' : 'empty'), className)} aria-label="Due date" onClick={e => e.stopPropagation()}>
+          {trigger ?? (
+            <>
+              <CalendarIcon size={13} />
+              {t.due ? <span className="num">{relDate(t.due)}</span> : <span>Set date</span>}
+            </>
+          )}
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" collisionPadding={8} className="!max-w-none !p-1" onClick={e => e.stopPropagation()}>

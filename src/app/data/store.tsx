@@ -4,7 +4,7 @@ import * as React from 'react';
 import { seed } from './seed';
 import type { Activity, Status, Task, WorkspaceData } from './types';
 
-export type TaskPatch = Partial<Pick<Task, 'title' | 'status' | 'assignee' | 'priority' | 'due' | 'fav'>>;
+export type TaskPatch = Partial<Pick<Task, 'title' | 'status' | 'assignee' | 'priority' | 'due' | 'fav' | 'project' | 'estimate' | 'order' | 'archived'>>;
 
 export type Action =
   | { type: 'task/toggleDone'; id: string }

@@ -39,14 +39,15 @@ export interface TaskListProps {
   onSort?: (f: SortField) => void;
 }
 
-function RowMenu({ task: t }: { task: Task }) {
+/** xs — компактная кнопка для карточки доски */
+export function RowMenu({ task: t, xs }: { task: Task; xs?: boolean }) {
   const actions = useTaskActions();
   const done = t.status === 'done';
   return (
     <Menu>
       <MenuTrigger asChild>
-        <button className="ibtn ibtn-sm" aria-label="More actions">
-          <Ellipsis size={15} />
+        <button className={xs ? 'ibtn ibtn-xs' : 'ibtn ibtn-sm'} aria-label="More actions">
+          <Ellipsis size={xs ? 13 : 15} />
         </button>
       </MenuTrigger>
       <MenuContent align="end">
