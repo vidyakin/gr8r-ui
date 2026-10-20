@@ -1,0 +1,144 @@
+/* Файлы проекта — порт блока files из styles/views/projects-files.css */
+.fgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+.fcard {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--surface);
+  transition: border-color var(--dur);
+  text-align: left;
+  position: relative;
+}
+.fcard:hover {
+  border-color: var(--border-strong);
+}
+.fprev {
+  aspect-ratio: 16/10;
+  display: grid;
+  place-items: center;
+  background: var(--sunken);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+  max-width: 100%;
+}
+.fprev .art {
+  position: absolute;
+  inset: 14px 18px;
+  border-radius: 4px;
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.fprev .art i {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-3);
+}
+.fprev .art i.h {
+  height: 7px;
+  width: 55%;
+  background: var(--border-strong);
+}
+.fprev .ext {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--c);
+  color: #fff;
+  text-transform: uppercase;
+}
+.fcard .fi {
+  padding: 9px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.fcard .fn {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+.fcard .fm {
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
+}
+.fcard .more {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  opacity: 0;
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+}
+.fcard:hover .more {
+  opacity: 1;
+}
+.ftype {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--c) 13%, transparent);
+  color: var(--c);
+  flex-shrink: 0;
+}
+.upl {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  font-size: var(--fs-sm);
+}
+.dropzone {
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--r-lg);
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  transition:
+    background var(--dur),
+    border-color var(--dur);
+  cursor: pointer;
+}
+.dropzone:hover,
+.dropzone.over {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: var(--text);
+}
+
+/* .grow (base.css оригинала) перекрывается утилитой Tailwind, поэтому для строки загрузки задаём явно */
+.upl .grow {
+  flex: 1;
+  min-width: 0;
+}
+/* ссылка в тексте (pages/auth.css оригинала) */
+.link {
+  color: var(--accent);
+  font-weight: 500;
+}
+.link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

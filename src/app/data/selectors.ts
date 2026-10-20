@@ -2,7 +2,7 @@
    Не зависят от React: их легко тестировать и переиспользовать на сервере. */
 import { PRIORITIES, STATUSES } from '@/components/gr8r/task';
 import { diffDays, parse, today } from '../lib/dates';
-import type { LabelId, Notification, Project, ProjectColor, ProjectStatus, Task, WorkspaceData } from './types';
+import type { FileKind, LabelId, Notification, Project, ProjectColor, ProjectStatus, Task, WorkspaceData } from './types';
 
 export const PROJECT_COLORS: Record<ProjectColor, string> = {
   indigo: '#5A67D8',
@@ -175,4 +175,36 @@ export function groupTasks(d: WorkspaceData, ts: Task[], g: GroupBy): TaskBucket
     }),
   }));
   return g === 'status' || g === 'priority' ? out : out.filter(G => G.tasks.length);
+}
+
+/* Типы файлов (FT / fileType из ui/helpers.js): цвет, название и имя иконки lucide */
+export const FILE_TYPES: Record<FileKind, { c: string; i: string; n: string }> = {
+  fig: { c: '#8662C9', i: 'pen-tool', n: 'Figma' },
+  pdf: { c: '#C4473A', i: 'file-text', n: 'PDF' },
+  zip: { c: '#6B7280', i: 'folder-archive', n: 'Archive' },
+  img: { c: '#23918A', i: 'image', n: 'Image' },
+  sheet: { c: '#3D8E5F', i: 'file-spreadsheet', n: 'Spreadsheet' },
+  doc: { c: '#3B82C4', i: 'file-text', n: 'Document' },
+  code: { c: '#C48A1E', i: 'file-code', n: 'Code' },
+  other: { c: '#6B7280', i: 'file', n: 'File' },
+};
+
+/** Тип файла по расширению */
+export function fileKind(name: string): FileKind {
+  const e = (name.split('.').pop() || '').toLowerCase();
+  if (e === 'fig') return 'fig';
+  if (e === 'pdf') return 'pdf';
+  if (['zip', 'rar', '7z'].includes(e)) return 'zip';
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'heic'].includes(e)) return 'img';
+  if (['xlsx', 'xls', 'csv', 'numbers'].includes(e)) return 'sheet';
+  if (['doc', 'docx', 'txt', 'md', 'pages', 'rtf'].includes(e)) return 'doc';
+  if (['js', 'ts', 'json', 'html', 'css', 'py'].includes(e)) return 'code';
+  return 'other';
+}
+
+/** Размер файла для подписи (fsize) */
+export function fileSize(b: number) {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return Math.round(b / 1024) + ' KB';
+  return (b / 1048576).toFixed(1) + ' MB';
 }

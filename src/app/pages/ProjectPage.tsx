@@ -15,6 +15,7 @@ import { ProjectIcon, ProjectMenu, ProjectStatusMenu } from '../components/proje
 import { BucketIcon, TOGGLE_COLUMNS, TableView } from '../components/table-view';
 import { TaskList, type TaskGroup } from '../components/task-list';
 import { ProjectTimelineTab } from '../components/timeline-view';
+import { ProjectFilesTab } from '../components/files-view';
 import { ViewToolbar, useListView, type ViewApi } from '../components/view-toolbar';
 import { MemberStack } from '../components/workspace';
 
@@ -66,8 +67,7 @@ function ProjectView({ project: p, tab }: { project: Project; tab: string }) {
       />
     );
   } else if (tab === 'files') {
-    // TODO: ProjectFilesTab
-    body = <EmptyState icon={<Paperclip />} title="Files">Вкладка Files подключается отдельно.</EmptyState>;
+    body = <ProjectFilesTab project={p} />;
   } else if (tab === 'timeline') {
     body = <ProjectTimelineTab project={p} api={api} />;
   } else if (tab === 'activity') body = <ProjectActivity project={p} />;
