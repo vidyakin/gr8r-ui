@@ -60,11 +60,10 @@ export function ProjectStatusMenu({ project: p, children }: { project: Project; 
   );
 }
 
-/** Меню проекта «⋯» (ctxMenu('project') из overlays/context-menu.js); часть пунктов пока заглушки */
+/** Меню проекта «⋯» (ctxMenu('project') из overlays/context-menu.js) */
 export function ProjectMenu({ project: p, className, style }: { project: Project; className?: string; style?: React.CSSProperties }) {
   const { dispatch } = useWorkspace();
   const navigate = useNavigate();
-  const stub = (what: string) => toast.info(`${what} пока не перенесено`);
   const projectForms = useProjectForms();
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
   return (
@@ -96,21 +95,18 @@ export function ProjectMenu({ project: p, className, style }: { project: Project
         </MenuItem>
         <MenuItem
           icon={<Link2 size={15} />}
-          onSelect={() => {
-            navigator.clipboard?.writeText(`${location.origin}${location.pathname}#/projects/${p.id}`).catch(() => {});
-            toast.info('Link copied', { duration: 1800 });
-          }}
+          onSelect={() => projectForms.copyLink(p.id)}
         >
           Copy link
         </MenuItem>
-        <MenuItem icon={<Copy size={15} />} onSelect={() => stub('Дублирование проекта')}>
+        <MenuItem icon={<Copy size={15} />} onSelect={() => projectForms.duplicate(p.id)}>
           Duplicate
         </MenuItem>
         <MenuSeparator />
-        <MenuItem icon={<Archive size={15} />} onSelect={() => stub('Архивирование проекта')}>
+        <MenuItem icon={<Archive size={15} />} onSelect={() => projectForms.archive(p.id)}>
           {p.status === 'complete' ? 'Archive' : 'Archive project'}
         </MenuItem>
-        <MenuItem icon={<Trash2 size={15} />} danger onSelect={() => stub('Удаление проекта')}>
+        <MenuItem icon={<Trash2 size={15} />} danger onSelect={() => projectForms.remove(p.id)}>
           Delete project
         </MenuItem>
       </MenuContent>
