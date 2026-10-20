@@ -283,6 +283,12 @@ table.tbl {
 .only-m {
   display: none;
 }
+/* Доска не должна уходить под нижнюю навигацию */
+@media (max-width: 900px) {
+  .board {
+    padding-bottom: 90px;
+  }
+}
 @media (max-width: 640px) {
   .only-m {
     display: block;

@@ -803,7 +803,6 @@ h3.sub {
   .stat:nth-child(n + 3) {
     border-top: 1px solid var(--border);
   }
-
 }
 @media (max-width: 640px) {
   .bottomnav {
@@ -852,5 +851,37 @@ h3.sub {
   .ph .acts {
     margin-left: 0;
     width: 100%;
+  }
+  .topsearch {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    width: var(--h-md);
+    justify-content: center;
+  }
+  .crumbs button:not(.cur),
+  .crumbs .sep {
+    display: none;
+  }
+  .crumbs .cur {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .crumbs .cur > span {
+    display: none !important;
+  }
+  .panel-h {
+    flex-wrap: wrap;
+  }
+  .panel-h h2 {
+    white-space: nowrap;
+  }
+  .topbar .ibtn,
+  .topbar .btn,
+  .topsearch {
+    min-width: 40px;
+    min-height: 40px;
   }
 }
