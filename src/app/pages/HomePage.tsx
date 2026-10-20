@@ -22,7 +22,7 @@ import { allTasks, canSee, isOverdue, me, progressOf, project, sortTasks, visibl
 import type { Task } from '../data/types';
 import { SECTIONS } from '../routes';
 import { ProjectDot, ProjectIcon, ProjectStatus } from '../components/project';
-import { ActivityItem, MemberAvatar, MemberStack, MiniTaskRow } from '../components/workspace';
+import { ActivityItem, MemberAvatar, MemberStack, MiniTaskRow, useTaskActions } from '../components/workspace';
 
 type Tab = 'upcoming' | 'overdue' | 'completed';
 const MAX_ROWS = 7;
@@ -63,7 +63,7 @@ export function HomePage() {
   const navigate = useNavigate();
   const [tab, setTab] = React.useState<Tab>('upcoming');
   const soon = (what: string) => toast.info(`${what} пока не перенесено`);
-  const openTask = (t: Task) => toast.info(`Карточка задачи ${t.key} пока не перенесена`);
+  const openTask = useTaskActions().open;
 
   const now = today();
   const all = allTasks(data);

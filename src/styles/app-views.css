@@ -1,0 +1,670 @@
+/* ============================================================
+   APP VIEWS: список задач, тулбар фильтров, календарь, карточки проектов,
+   комментарии. Из views/list.css, board.css, calendar.css, projects-files.css,
+   overlays.css и responsive.css оригинала.
+   ============================================================ */
+/* ============================================================
+   TASK ROWS (list)
+   ============================================================ */
+/* no top border: the toolbar above already draws that line (it doubled up before) */
+.tlist {
+  border-top: 0;
+}
+.thead,
+.trow {
+  display: grid;
+  grid-template-columns: var(--cols);
+  align-items: center;
+  min-height: var(--row-h);
+  gap: 0;
+}
+.thead {
+  min-height: 32px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  font-weight: 500;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 2;
+}
+.thead > div {
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.trow {
+  border-bottom: 1px solid var(--divider);
+  position: relative;
+  transition: background var(--dur);
+}
+.trow:hover {
+  background: var(--surface-2);
+}
+.trow.sel {
+  background: var(--accent-soft);
+}
+.trow.drop-before {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+.trow.drop-after {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.trow.dragging {
+  opacity: 0.4;
+}
+.trow > div {
+  padding: 0 8px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.trow .handle {
+  opacity: 0;
+  cursor: grab;
+  color: var(--text-4);
+  width: 16px;
+  justify-content: center;
+  padding: 0;
+}
+.trow:hover .handle {
+  opacity: 1;
+}
+.trow .ttl {
+  font-size: var(--fs);
+  cursor: pointer;
+  gap: 8px;
+}
+.trow .ttl .tt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trow .ttl:hover .tt {
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+}
+.trow.done .tt {
+  color: var(--text-3);
+  text-decoration: line-through;
+  text-decoration-color: var(--text-3);
+}
+.trow .key {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+.trow .meta-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--text-3);
+  font-size: var(--fs-2xs);
+}
+.grp {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 8px 0 22px;
+  margin-top: 10px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+}
+.grp .cnt {
+  color: var(--text-3);
+  font-weight: 500;
+}
+.grp .ibtn {
+  opacity: 0.6;
+}
+.grp:hover .ibtn {
+  opacity: 1;
+}
+.subrows {
+  background: var(--sunken);
+}
+.subrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding-left: 64px;
+  border-bottom: 1px solid var(--divider);
+  font-size: var(--fs-sm);
+}
+.subrow.done span {
+  color: var(--text-3);
+  text-decoration: line-through;
+}
+.inline-in {
+  border: 0;
+  background: transparent;
+  height: 100%;
+  width: 100%;
+  font-size: var(--fs);
+  padding: 0;
+  outline: none;
+}
+.bulkbar {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 6px 6px 14px;
+  border-radius: var(--r-lg);
+  background: var(--text);
+  color: var(--text-inv);
+  box-shadow: var(--shadow-pop);
+  z-index: 40;
+  font-size: var(--fs-sm);
+}
+.bulkbar.enter {
+  animation: popUp 0.28s var(--spring);
+}
+.bulkbar .btn {
+  color: var(--text-inv);
+  opacity: 0.85;
+}
+.bulkbar .btn:hover {
+  background: color-mix(in srgb, var(--text-inv) 14%, transparent);
+  opacity: 1;
+}
+.bulkbar .sep {
+  width: 1px;
+  height: 18px;
+  background: color-mix(in srgb, var(--text-inv) 20%, transparent);
+  margin: 0 4px;
+}
+@keyframes popUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.list-wrap {
+  padding: 0 var(--gutter) 90px calc(var(--gutter) - 26px);
+}
+/* ---------- toolbar (views/board.css) ---------- */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px var(--gutter);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  min-height: 44px;
+}
+.toolbar .btn-ghost {
+  height: var(--h-sm);
+  font-size: var(--fs-xs);
+  padding: 0 8px;
+}
+.chipsbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px var(--gutter);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+/* ============================================================
+   CALENDAR
+   ============================================================ */
+.cal {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.cal-h {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border-bottom: 1px solid var(--border);
+}
+.cal-h div {
+  padding: 8px 10px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  font-weight: 500;
+}
+.cal-g {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-auto-rows: minmax(112px, 1fr);
+  flex: 1;
+}
+.cday {
+  border-right: 1px solid var(--divider);
+  border-bottom: 1px solid var(--divider);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  transition: background var(--dur);
+  position: relative;
+}
+.cday:nth-child(7n) {
+  border-right: 0;
+}
+.cday.out {
+  background: var(--sunken);
+}
+.cday.out .dn {
+  color: var(--text-3);
+}
+.cday.over {
+  background: var(--accent-soft);
+}
+.cday .dn {
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--text-2);
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-variant-numeric: tabular-nums;
+}
+.cday.today .dn {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.cday .add {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  opacity: 0;
+}
+.cday:hover .add {
+  opacity: 1;
+}
+.cev {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 5px;
+  font-size: var(--fs-xs);
+  background: color-mix(in srgb, var(--c) 11%, var(--surface));
+  color: var(--text);
+  cursor: pointer;
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--c) 22%, transparent);
+  text-align: left;
+  width: 100%;
+}
+.cev:hover {
+  background: color-mix(in srgb, var(--c) 18%, var(--surface));
+}
+.cev .trunc {
+  flex: 1;
+}
+.cev.done {
+  opacity: 0.55;
+}
+.cev.done .trunc {
+  text-decoration: line-through;
+}
+.cev.event {
+  background: transparent;
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--c) 45%, transparent);
+}
+.cev .av {
+  --sz: 16px;
+  font-size: 7.5px;
+}
+.cmore {
+  font-size: var(--fs-2xs);
+  color: var(--text-2);
+  padding: 0 6px;
+  text-align: left;
+}
+.cmore:hover {
+  color: var(--text);
+}
+.week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  flex: 1;
+  min-height: 0;
+}
+.wcol {
+  border-right: 1px solid var(--divider);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.wcol:last-child {
+  border-right: 0;
+}
+.wcol-h {
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.wcol-h .n {
+  font-size: var(--fs-xl);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.wcol-h.today .n {
+  color: var(--accent);
+}
+.wcol-b {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  overflow-y: auto;
+}
+.wcol-b.over {
+  background: var(--accent-soft);
+}
+.wcard {
+  border-radius: var(--r-sm);
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  text-align: left;
+}
+.wcard:hover {
+  border-color: var(--border-strong);
+}
+.wcard .t {
+  display: flex;
+  gap: 7px;
+  align-items: baseline;
+}
+.wcard .t .pdot {
+  transform: translateY(-1px);
+}
+.wcard.event {
+  background: color-mix(in srgb, var(--c) 8%, var(--surface));
+}
+.wcard .t {
+  font-weight: 500;
+  line-height: 1.3;
+}
+.wcard .m {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
+}
+/* ---------- project cards, day header (views/projects-files.css) ---------- */
+/* ============================================================
+   PROJECT CARDS / MISC
+   ============================================================ */
+.pgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 12px;
+}
+.pcard {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  cursor: pointer;
+  background: var(--surface);
+  transition:
+    border-color var(--dur),
+    box-shadow var(--dur);
+  text-align: left;
+  position: relative;
+}
+.pcard:hover {
+  border-color: var(--border-strong);
+  box-shadow: 0 4px 12px -6px rgba(0, 0, 0, 0.1);
+}
+.pcard .desc {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 2.9em;
+  line-height: 1.45;
+}
+.pcard .foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  padding-top: 10px;
+  border-top: 1px solid var(--divider);
+}
+.pcard .more {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  opacity: 0;
+}
+.pcard:hover .more {
+  opacity: 1;
+}
+.day-h {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-3);
+  padding: 14px 0 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+/* ---------- inbox (panels.css) ---------- */
+/* Inbox list works as a secondary sidebar: no visible scrollbar (it narrowed the rows), and the
+   tab labels start on the gutter with tighter spacing so all five categories fit without clipping. */
+.inbox-list {
+  overflow-y: auto;
+  flex: 1;
+  scrollbar-width: none;
+}
+.inbox-list::-webkit-scrollbar {
+  display: none;
+}
+.inbox-tabs {
+  margin-top: 8px;
+  padding: 0 var(--gutter);
+  gap: 16px;
+}
+.inbox-tabs .tab {
+  padding: 0;
+}
+.inbox-tabs .tab.on::after,
+.inbox-tabs .tab[data-state='active']::after {
+  left: 0;
+  right: 0;
+}
+/* ---------- comments (overlays.css) ---------- */
+.cmt {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0;
+}
+.cmt .body {
+  flex: 1;
+  min-width: 0;
+}
+.cmt .who {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: var(--fs-sm);
+}
+.cmt .who b {
+  font-weight: 600;
+}
+.cmt .who time {
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+.cmt .txt {
+  font-size: var(--fs);
+  margin-top: 3px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.mention {
+  color: var(--accent);
+  font-weight: 500;
+  background: var(--accent-soft);
+  padding: 0 3px;
+  border-radius: 4px;
+}
+.reacts {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.react {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 11px;
+  border: 1px solid var(--border);
+  font-size: var(--fs-xs);
+  background: var(--surface);
+  transition:
+    background var(--dur),
+    border-color var(--dur);
+}
+.react:hover {
+  background: var(--surface-2);
+}
+.react.mine {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+.cbox {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition:
+    border-color var(--dur),
+    box-shadow var(--dur);
+  background: var(--surface);
+}
+.cbox:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.cbox textarea {
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: transparent;
+  font-size: var(--fs);
+  min-height: 40px;
+  padding: 0;
+  line-height: 1.5;
+}
+/* ---------- responsive ---------- */
+@media (max-width: 640px) {
+  /* list & table become stacked cards */
+  .list-wrap {
+    padding-left: var(--gutter);
+  }
+  .tlist .thead {
+    display: none;
+  }
+  .tlist .trow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+    padding: 10px 6px;
+    min-height: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    margin: 6px 0;
+  }
+  .tlist .trow > div {
+    padding: 0;
+  }
+  .tlist .trow .handle {
+    display: none;
+  }
+  .tlist .trow .ttl {
+    flex: 1 1 calc(100% - 30px);
+    order: 1;
+  }
+  .tlist .trow .c-check {
+    order: 0;
+  }
+  .tlist .trow .c-meta {
+    order: 2;
+  }
+  .tlist .trow > div.c-lbl:empty {
+    display: none;
+  }
+}
+@media (max-width: 640px) {
+  .cal-g {
+    grid-auto-rows: minmax(72px, 1fr);
+  }
+  .cev .trunc,
+  .cev .av {
+    display: none;
+  }
+  .cev {
+    height: 8px;
+    padding: 0;
+    border-radius: 3px;
+    background: var(--c);
+  }
+  .week {
+    grid-template-columns: minmax(0, 1fr);
+    overflow-y: auto;
+  }
+  .wcol {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+}
+/* В тулбаре поиск с иконкой не растягивается (в формах .inwrap занимает всю ширину) */
+.toolbar .inwrap {
+  width: auto;
+}

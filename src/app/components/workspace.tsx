@@ -1,6 +1,6 @@
 /* Компоненты, которые знают о данных воркспейса: аватар участника, строка задачи, запись активности. */
 import { Link } from 'react-router';
-import { Avatar, AvatarStack, Checkbox, Tooltip, type AvatarSize } from '@/components/ui';
+import { Avatar, AvatarStack, Checkbox, Tooltip, toast, type AvatarSize } from '@/components/ui';
 import { DueDate, PRIORITIES, PriorityIcon, STATUSES, StatusIcon } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
 import { ago, parse, relDate } from '../lib/dates';
@@ -8,6 +8,26 @@ import { member, project, task as findTask } from '../data/selectors';
 import { useWorkspace } from '../data/store';
 import type { Activity, Task } from '../data/types';
 import { ProjectDot } from './project';
+
+/** Общие действия над задачей. Карточка задачи (drawer) ещё не перенесена — открытие показывает уведомление. */
+export function useTaskActions() {
+  const { data, dispatch } = useWorkspace();
+  return {
+    toggleDone(t: Task) {
+      const wasDone = t.status === 'done';
+      dispatch({ type: 'task/toggleDone', id: t.id });
+      if (!wasDone) toast(`Completed “${t.title}”`, { action: { label: 'Undo', onClick: () => dispatch({ type: 'task/update', id: t.id, patch: { status: t.status } }) } });
+    },
+    toggleFav(t: Task) {
+      dispatch({ type: 'task/update', id: t.id, patch: { fav: !t.fav } });
+      toast.info(t.fav ? 'Removed from favorites' : 'Added to favorites', { duration: 1800 });
+    },
+    open(t: Task) {
+      toast.info(`Карточка задачи ${t.key} пока не перенесена`);
+    },
+    data,
+  };
+}
 
 export function MemberAvatar({ id, size = 'default', online, tooltip = true }: { id: string | null | undefined; size?: AvatarSize; online?: boolean; tooltip?: boolean }) {
   const { data } = useWorkspace();
@@ -31,7 +51,8 @@ export function TaskDue({ task, icon = true }: { task: Task; icon?: boolean }) {
 
 /** Компактная строка задачи для дашборда (miniRow из components/task-list.js) */
 export function MiniTaskRow({ task: t, showProject = true, showAssignee = true, onOpen }: { task: Task; showProject?: boolean; showAssignee?: boolean; onOpen?: (t: Task) => void }) {
-  const { data, dispatch } = useWorkspace();
+  const { data } = useWorkspace();
+  const actions = useTaskActions();
   const p = project(data, t.project);
   const done = t.status === 'done';
   const st = STATUSES.find(s => s.id === t.status)!;
@@ -46,7 +67,7 @@ export function MiniTaskRow({ task: t, showProject = true, showAssignee = true, 
         if (e.target === e.currentTarget && e.key === 'Enter') onOpen?.(t);
       }}
     >
-      <Checkbox round checked={done} onChange={() => dispatch({ type: 'task/toggleDone', id: t.id })} onClick={e => e.stopPropagation()} aria-label={`Complete ${t.title}`} />
+      <Checkbox round checked={done} onChange={() => actions.toggleDone(t)} onClick={e => e.stopPropagation()} aria-label={`Complete ${t.title}`} />
       <Tooltip content={st.name}>
         <span>
           <StatusIcon status={t.status} />
