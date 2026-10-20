@@ -44,7 +44,7 @@ import { StatusIcon } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '../data/store';
 import { PROJECT_STATUS, allTasks, project, sortTasks, task as findTask } from '../data/selectors';
-import { addRecentSearch, searchAll, useRecentSearches, useRecordHits, type SearchCat } from '../data/search';
+import { addRecentSearch, searchAll, useCatalogHits, useRecentSearches, useRecordHits, type SearchCat } from '../data/search';
 import { entityIcon } from '../meta/icons';
 import { SECTIONS, type SectionId } from '../routes';
 import { MOD } from '../lib/platform';
@@ -257,6 +257,7 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
 
   const [q, setQ] = React.useState(init.q);
   const recordHits = useRecordHits(q);
+  const catalogHits = useCatalogHits(q);
   const [mode, setMode] = React.useState<Mode>(init.mode);
   const [scope, setScope] = React.useState<SearchCat>('all');
   const [hl, setHl] = React.useState(0);
@@ -298,6 +299,9 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
     { id: 'c-comps', name: 'Go to Companies', icon: Building2, quiet: true, run: section('crmCompanies') },
     { id: 'c-conts', name: 'Go to Contacts', icon: ContactRound, quiet: true, run: section('crmContacts') },
     { id: 'c-acts', name: 'Go to CRM Activities', icon: SECTIONS.crmActivities.icon, quiet: true, run: section('crmActivities') },
+    { id: 'c-cat', name: 'Go to Catalog', icon: SECTIONS.catalog.icon, quiet: true, run: section('catalog') },
+    { id: 'c-prod', name: 'Go to Production', icon: SECTIONS.production.icon, quiet: true, run: section('production') },
+    { id: 'c-wc', name: 'Go to Work centers', icon: SECTIONS.workCenters.icon, quiet: true, run: section('workCenters') },
     { id: 'c-set', name: 'Open settings', icon: Settings, kbd: 'G S', run: section('settings') },
     { id: 'c-app', name: 'Appearance settings', icon: Palette, run: () => go(`${SECTIONS.settings.path}/appearance`) },
     { id: 'c-dark', name: dark ? 'Switch to light mode' : 'Switch to dark mode', icon: dark ? Sun : Moon, kbd: `${MOD} ⇧ L`, run: toggleDark },
@@ -395,6 +399,19 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
           const hs = recordHits.filter(h => h.entityKey === key);
           groups.push({ name: hs[0]!.entityName, items: hs.slice(0, lim).map(h => ({ id: 'rec-' + h.id, icon: entityIcon(h.icon), name: h.title || 'Untitled', sub: h.entityName, run: () => go(`/data/${h.entityKey}/${h.id}`) })) });
         }
+      // Каталог и производство: товары, услуги, изделия и полуфабрикаты
+      if (sc === 'all') {
+        if (catalogHits.products.length)
+          groups.push({
+            name: 'Products',
+            items: catalogHits.products.slice(0, lim).map(p => ({ id: 'pr-' + p.id, icon: p.kind === 'service' ? SECTIONS.workCenters.icon : SECTIONS.catalog.icon, name: p.name, sub: p.sku || (p.kind === 'service' ? 'Service' : 'Goods'), run: () => go(`${SECTIONS.catalog.path}/${p.id}`) })),
+          });
+        if (catalogHits.items.length)
+          groups.push({
+            name: 'Production',
+            items: catalogHits.items.slice(0, lim).map(i => ({ id: 'pi-' + i.id, icon: SECTIONS.production.icon, name: i.name, sub: i.kind === 'semi' ? 'Semi-finished' : 'Product', run: () => go(`${SECTIONS.production.path}/${i.id}`) })),
+          });
+      }
       // CRM — только в общем поиске, после основных групп
       if (sc === 'all' && crmUi) {
         const has = (s: string) => s.toLowerCase().includes(ql);

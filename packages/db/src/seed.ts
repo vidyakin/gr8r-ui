@@ -6,7 +6,9 @@ import type { FieldType, Subtask } from '@gr8r/shared';
 import { seed as demoWorkspace, seedCrm } from '@gr8r/shared/demo';
 import type { Db, Sql } from './client';
 import { withContext } from './context';
-import { createFieldIndex, registerSystemEntities } from './meta';
+import { registerBaseUnits } from './catalog';
+import { seedCatalog } from './seed-catalog';
+import { enqueueFieldIndex, registerSystemEntities } from './meta';
 import { uuidv7 } from './uuid';
 import {
   activity,
@@ -216,6 +218,8 @@ async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: string, user
   // Конструктор сущностей: системные сущности, пользовательские поля задач, сущность «Suppliers»
   const sysEntity = await registerSystemEntities(db, wsId);
   const metaFields = await seedMeta(db, wsId, sysEntity, d.me ? U(d.me) : null);
+  // Каталог и производство: категории, товары, услуги, участки, изделия со спецификациями
+  await seedCatalog(db, wsId);
   const taskCustom = (_id: string, i: number): Record<string, unknown> => ({
     story_points: [1, 2, 3, 5, 8, 13][i % 6],
     ...(i % 4 === 0 ? { client: U(crm.companies[i % crm.companies.length]!.id) } : {}),
@@ -327,6 +331,7 @@ async function seedOtherWorkspace(db: Db, wsId: string, userId: string) {
   await db.insert(memberships).values({ workspaceId: wsId, userId, role: 'owner' });
   await db.insert(members).values({ id: memberId, workspaceId: wsId, userId, email: OTHER_USER.email, name: OTHER_USER.name, title: 'Founder', color: '#C54B78', role: 'owner' });
   await registerSystemEntities(db, wsId);
+  await registerBaseUnits(db, wsId);
   await db.insert(statuses).values(defaultStatusRows(wsId, [{ id: 'todo', name: 'To Do' }, { id: 'progress', name: 'In Progress' }, { id: 'done', name: 'Done' }]));
   await db.insert(projects).values({ id: projectId, workspaceId: wsId, key: 'ACM', name: 'Acme Secret Project', icon: 'lock', color: 'rose', status: 'active', leadId: memberId, taskCounter: 3, description: 'Private data of another tenant' });
   await db.insert(tasks).values(
@@ -367,8 +372,10 @@ export async function runSeed(sql: Sql, log: (msg: string) => void = console.log
   const otherWs = uuidv7();
   await withContext(sql, { userId: otherUserId, workspaceId: otherWs }, db => seedOtherWorkspace(db, otherWs, otherUserId));
 
-  // Индексы по полям с флагом filterable: CREATE INDEX CONCURRENTLY нельзя внутри транзакции, поэтому после коммита сида
-  for (const t of stats.metaFields) await createFieldIndex(sql, t);
+  // Индексы по полям с флагом filterable строит воркер (DDL у API и сида нет): ставим задачи в очередь
+  await withContext(sql, { workspaceId: demoWs }, async db => {
+    for (const t of stats.metaFields) await enqueueFieldIndex(db, demoWs, 'create', t.fieldId);
+  });
 
   log(`[seed] done in ${Math.round(performance.now() - t0)} ms: demo workspace (${stats.projects} projects, ${stats.tasks} tasks, ${stats.deals} deals) + Acme workspace`);
   log(`[seed] demo login: ${DEMO_USER.email} / ${DEMO_USER.password}; other tenant: ${OTHER_USER.email} / ${OTHER_USER.password}`);

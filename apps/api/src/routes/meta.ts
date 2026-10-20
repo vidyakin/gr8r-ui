@@ -7,13 +7,13 @@ import { zValidator } from '@hono/zod-validator';
 import { and, asc, eq, isNull, max, ne, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { entities, fields, recordEvent, records, SYSTEM_TABLES } from '@gr8r/db';
-import { destroyQuery, entityCreate, entityQuery, entityUpdate, fieldCreate, fieldsReorder, fieldUpdate, keyFromName, uuid, type FieldType } from '@gr8r/shared';
+import { destroyQuery, entityCreate, entityQuery, entityUpdate, fieldCreate, fieldsReorder, fieldUpdate, keyFromName, uuid } from '@gr8r/shared';
 import { z } from 'zod';
 import { ctxOf, validationHook } from '../crud';
 import { AppError, badRequest, notFound } from '../errors';
 import { requireRole } from '../middleware';
-import { buildIndexAfterCommit, dropIndexAfterCommit } from '../meta/indexes';
-import { loadEntity, loadFields, type EntityRow, type FieldRow } from '../meta/service';
+import { buildIndex, dropIndex } from '../meta/indexes';
+import { loadEntity, loadFields } from '../meta/service';
 import type { AppEnv } from '../types';
 
 const admin = requireRole('admin');
@@ -21,7 +21,6 @@ const refParam = z.object({ ref: z.string().min(1).max(64) });
 const fieldParam = z.object({ ref: z.string().min(1).max(64), fieldId: uuid });
 const flag = (v: string | undefined) => v === 'true' || v === '1';
 
-const target = (e: EntityRow, f: FieldRow) => ({ fieldId: f.id, key: f.key, type: f.type as FieldType, entityId: e.id, entityKey: e.key });
 
 /** Подтверждение необратимого действия: ?confirm=<ключ> */
 function requireConfirm(given: string | undefined, key: string, what: string) {
@@ -94,7 +93,7 @@ export const entityRoutes = new Hono<AppEnv>()
       const fs = await loadFields(ctx, e.id, { archived: true });
       const [{ n }] = await ctx.db.select({ n: sql<number>`count(*)::int` }).from(records).where(eq(records.entityId, e.id));
       await ctx.db.delete(entities).where(eq(entities.id, e.id)); // fields и records уходят каскадом
-      for (const f of fs) dropIndexAfterCommit(c, f.id);
+      for (const f of fs) await dropIndex(ctx, f.id);
       await recordEvent(ctx.db, { workspaceId: ctx.workspaceId, type: 'entity.deleted', entity: 'entity', recordId: e.id, actorId: ctx.memberId, payload: { key: e.key, records: n } });
       return c.json({ id: e.id, archived: false as const, purged: true as const, records: n });
     }
@@ -132,7 +131,7 @@ export const entityRoutes = new Hono<AppEnv>()
       .insert(fields)
       .values({ ...(body.id ? { id: body.id } : {}), workspaceId: ctx.workspaceId, entityId: e.id, key, name: body.name, type: body.type, required: body.required, unique: body.unique, filterable: body.filterable, options: body.options, sortOrder: Number(ord?.m ?? -1) + 1 })
       .returning();
-    if (row!.filterable) buildIndexAfterCommit(c, target(e, row!));
+    if (row!.filterable) await buildIndex(ctx, row!.id);
     await recordEvent(ctx.db, { workspaceId: ctx.workspaceId, type: 'field.created', entity: 'field', recordId: row!.id, actorId: ctx.memberId, payload: { entity: e.key, key } });
     return c.json(row!, 201);
   })
@@ -169,8 +168,8 @@ export const entityRoutes = new Hono<AppEnv>()
       .where(eq(fields.id, f.id))
       .returning();
     if (body.filterable !== undefined && body.filterable !== f.filterable && !f.archivedAt) {
-      if (body.filterable) buildIndexAfterCommit(c, target(e, row!));
-      else dropIndexAfterCommit(c, f.id);
+      if (body.filterable) await buildIndex(ctx, row!.id);
+      else await dropIndex(ctx, f.id);
     }
     await recordEvent(ctx.db, { workspaceId: ctx.workspaceId, type: 'field.updated', entity: 'field', recordId: f.id, actorId: ctx.memberId, payload: { entity: e.key, changes: Object.keys(body) } });
     return c.json(row!);
@@ -191,13 +190,13 @@ export const entityRoutes = new Hono<AppEnv>()
       const table = SYSTEM_TABLES[e.key];
       const res = table ? await ctx.db.execute(sql`update ${sql.raw(table)} set custom = custom - ${f.key}::text where jsonb_exists(custom, ${f.key}::text)`) : await ctx.db.execute(sql`update records set data = data - ${f.key}::text where entity_id = ${e.id} and jsonb_exists(data, ${f.key}::text)`);
       await ctx.db.delete(fields).where(eq(fields.id, f.id));
-      dropIndexAfterCommit(c, f.id);
+      await dropIndex(ctx, f.id);
       await recordEvent(ctx.db, { workspaceId: ctx.workspaceId, type: 'field.deleted', entity: 'field', recordId: f.id, actorId: ctx.memberId, payload: { entity: e.key, key: f.key, cleared: res.count } });
       return c.json({ id: f.id, archived: false as const, purged: true as const, cleared: res.count });
     }
     if (!f.archivedAt) {
       await ctx.db.update(fields).set({ archivedAt: new Date(), updatedAt: new Date() }).where(eq(fields.id, f.id));
-      if (f.filterable) dropIndexAfterCommit(c, f.id);
+      if (f.filterable) await dropIndex(ctx, f.id);
       await recordEvent(ctx.db, { workspaceId: ctx.workspaceId, type: 'field.archived', entity: 'field', recordId: f.id, actorId: ctx.memberId, payload: { entity: e.key, key: f.key } });
     }
     return c.json({ id: f.id, archived: true as const, purged: false as const, dataRetained: true as const });
@@ -209,7 +208,7 @@ export const entityRoutes = new Hono<AppEnv>()
     const [f] = await ctx.db.select().from(fields).where(and(eq(fields.id, fieldId), eq(fields.entityId, e.id))).limit(1).for('update');
     if (!f) throw notFound('field');
     const [row] = await ctx.db.update(fields).set({ archivedAt: null, updatedAt: new Date() }).where(eq(fields.id, f.id)).returning();
-    if (row!.filterable && f.archivedAt) buildIndexAfterCommit(c, target(e, row!));
+    if (row!.filterable && f.archivedAt) await buildIndex(ctx, row!.id);
     await recordEvent(ctx.db, { workspaceId: ctx.workspaceId, type: 'field.restored', entity: 'field', recordId: f.id, actorId: ctx.memberId, payload: { entity: e.key, key: f.key } });
     return c.json(row!);
   });

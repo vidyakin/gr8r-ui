@@ -71,15 +71,29 @@ describe('seed', () => {
     expect(await count('crm_activities', w)).toBe(crm.activities.length);
 
     // конструктор сущностей: системные сущности, пользовательские поля задач, «Suppliers» с записями и индексами по filterable-полям
-    expect(await count('entities', `${w} and kind = 'system'`)).toBe(5);
+    expect(await count('entities', `${w} and kind = 'system'`)).toBe(6);
     const [sup] = await admin`select id from entities where workspace_id = ${demo!.id} and key = 'suppliers'`;
     expect(await count('records', `where entity_id = '${sup!.id}'`)).toBe(8);
     expect(await count('fields', `where entity_id = '${sup!.id}'`)).toBe(6);
     expect(await count('tasks', `${w} and custom ? 'story_points'`)).toBe(src.tasks.length);
     expect(await count('tasks', `${w} and custom ? 'client'`)).toBeGreaterThan(5);
-    expect(await count("fields f join pg_indexes i on i.indexname = 'idx_cf_' || replace(f.id::text, '-', '')", `where f.workspace_id = '${demo!.id}' and f.filterable`)).toBe(3);
-    const [acme] = await admin`select id from workspaces where slug = 'acme'`;
-    expect(await count('entities', `where workspace_id = '${acme!.id}' and kind = 'system'`)).toBe(5); // второй арендатор тоже зарегистрирован
+    const [acmeRow] = await admin`select id from workspaces where slug = 'acme'`;
+    const acme = acmeRow;
+    // индексы по filterable-полям строит воркер: сид только ставит задачи (DDL у него нет)
+    expect(await count('jobs', `where workspace_id = '${demo!.id}' and type = 'index.create' and status = 'queued'`)).toBe(3);
+
+    // каталог и производство
+    expect(await count('units', w)).toBeGreaterThanOrEqual(19);
+    expect(await count('product_categories', w)).toBe(5);
+    expect(await count('products', `${w} and kind = 'goods'`)).toBe(20);
+    expect(await count('products', `${w} and kind = 'service'`)).toBe(3);
+    expect(await count('work_centers', w)).toBe(2);
+    expect(await count('manufactured_items', `${w} and kind = 'product'`)).toBe(2);
+    expect(await count('manufactured_items', `${w} and kind = 'semi'`)).toBe(4);
+    expect(await count('bom_lines', `${w} and kind = 'semi'`)).toBe(4);
+    expect(await count('products', `where workspace_id = '${acme!.id}'`)).toBe(0);
+    expect(await count('units', `where workspace_id = '${acme!.id}'`)).toBeGreaterThanOrEqual(19);
+    expect(await count('entities', `where workspace_id = '${acme!.id}' and kind = 'system'`)).toBe(6); // второй арендатор тоже зарегистрирован
 
     // дерево подзадач и зависимости сохранены, id участников в подзадачах — настоящие uuid
     const [wf] = await admin`select subtasks, deps, plan_hours from tasks where title = 'Create homepage wireframes'`;

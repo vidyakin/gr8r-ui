@@ -21,7 +21,7 @@ export const fieldOptions = z
   .strict();
 
 /** Согласованность типа и параметров: у select — варианты, у ref — целевая сущность */
-function checkOptions(type: FieldType | undefined, options: z.infer<typeof fieldOptions> | undefined, ctx: z.RefinementCtx) {
+export function checkFieldOptions(type: FieldType | undefined, options: z.infer<typeof fieldOptions> | undefined, ctx: z.RefinementCtx) {
   if (!type || !options) return;
   if (type === 'select' || type === 'multi_select') {
     const list = options.choices ?? [];
@@ -47,7 +47,7 @@ export const fieldCreate = z
     filterable: z.boolean().default(false),
     options: fieldOptions.default({}),
   })
-  .superRefine((v, ctx) => checkOptions(v.type, v.options, ctx));
+  .superRefine((v, ctx) => checkFieldOptions(v.type, v.options, ctx));
 
 /** Ключ и тип поля не меняются: от них зависят уже записанные данные */
 export const fieldUpdate = z

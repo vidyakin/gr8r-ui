@@ -49,6 +49,9 @@ services:
     build: { context: ., target: migrate }
     environment:
       <<: *db-env
+      # Роль-владелец для DDL воркера (индексы полей конструктора): её создаёт migrate; пароль знают только migrate и worker, у api его нет
+      DDL_DB_USER: gr8r_ddl
+      DDL_DB_PASSWORD: ${DDL_DB_PASSWORD:-gr8r_ddl}
       SEED: ${SEED:-0}
     depends_on:
       postgres: { condition: service_healthy }
@@ -72,6 +75,7 @@ services:
     build: { context: ., target: worker }
     environment:
       <<: *db-env
+      DATABASE_URL_DDL: postgres://gr8r_ddl:${DDL_DB_PASSWORD:-gr8r_ddl}@postgres:5432/gr8r
       NODE_ENV: production
     depends_on:
       migrate: { condition: service_completed_successfully }

@@ -29,6 +29,13 @@
       "when": 1792477040352,
       "tag": "0003_meta",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792478757308,
+      "tag": "0004_catalog",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,195 @@
+/* Добавление и правка строки спецификации: материал (товар каталога), полуфабрикат (другая продукция), работа (участок). */
+import * as React from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Check, Package, Search } from 'lucide-react';
+import { bomLineCreate } from '@gr8r/shared';
+import { Button, Dialog, DialogClose, DialogContent, Field, Input, toast } from '@/components/ui';
+import { uuidv7 } from '../lib/uuid';
+import { searchProducts, unitSymbol, useUnits, type Product } from '../catalog/data';
+import { useWsId } from '../meta/data';
+import { canInclude, type BomLine, type Item, type Material, type ProductionMutations, type Snapshot } from './data';
+
+const toMaterial = (p: Product): Material => ({ id: p.id, name: p.name, sku: p.sku, kind: p.kind, unitCode: p.unitCode, price: p.price, purchasePrice: p.purchasePrice, archived: false });
+
+/** Поиск товара (только товары, не услуги): поле + список результатов */
+function ProductPicker({ value, onChange, invalid }: { value: Material | null; onChange: (m: Material) => void; invalid?: boolean }) {
+  const ws = useWsId();
+  const units = useUnits();
+  const [q, setQ] = React.useState('');
+  const [debounced, setDebounced] = React.useState('');
+  React.useEffect(() => {
+    const t = setTimeout(() => setDebounced(q.trim()), 200);
+    return () => clearTimeout(t);
+  }, [q]);
+  const results = useQuery({ queryKey: ['ws', ws, 'catalog', 'picker', debounced], queryFn: () => searchProducts(ws, debounced, 'goods', 8), staleTime: 5_000 });
+  return (
+    <div className="picker">
+      <Input icon={<Search size={14} />} aria-label="Search products" placeholder="Search goods by name, SKU or barcode" invalid={invalid} value={q} onChange={e => setQ(e.target.value)} autoFocus />
+      <div className="picker-list" role="listbox" aria-label="Products">
+        {results.data?.map(p => (
+          <button type="button" key={p.id} role="option" aria-selected={value?.id === p.id} className={value?.id === p.id ? 'mi on' : 'mi'} onClick={() => onChange(toMaterial(p))}>
+            <Package size={14} className="faint" />
+            <span className="trunc" style={{ flex: 1, textAlign: 'left' }}>
+              {p.name}
+            </span>
+            {p.sku && <span className="mono faint">{p.sku}</span>}
+            <span className="faint">{unitSymbol(units.data, p.unitCode)}</span>
+            {value?.id === p.id && <Check size={14} />}
+          </button>
+        ))}
+        {results.data && !results.data.length && <div className="faint" style={{ padding: 8, fontSize: 12.5 }}>Nothing found</div>}
+        {results.isPending && <div className="faint" style={{ padding: 8, fontSize: 12.5 }}>Loading…</div>}
+      </div>
+      {value && (
+        <div className="picker-chosen">
+          Selected: <b>{value.name}</b>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLine['kind']; item: Item; line?: BomLine; snap: Snapshot; m: ProductionMutations; onClose: () => void }) {
+  const units = useUnits();
+  const edit = !!line;
+  const [material, setMaterial] = React.useState<Material | null>(() => (line?.productId ? (snap.materials.find(x => x.id === line.productId) ?? null) : null));
+  const [childId, setChildId] = React.useState(line?.childItemId ?? '');
+  const [qty, setQty] = React.useState(line ? line.qty.replace(/\.?0+$/, '') : '1');
+  const [scrap, setScrap] = React.useState(line ? line.scrapPct.replace(/\.?0+$/, '') : '0');
+  const [operation, setOperation] = React.useState(line?.operation ?? '');
+  const [center, setCenter] = React.useState(line?.workCenterId ?? '');
+  const [hours, setHours] = React.useState(line ? line.hours.replace(/\.?0+$/, '') : '1');
+  const [rate, setRate] = React.useState(line?.rate ? line.rate.replace(/\.00$/, '') : '');
+  const [fixed, setFixed] = React.useState(line?.fixedCost ? line.fixedCost.replace(/\.00$/, '') : '');
+  const [err, setErr] = React.useState<Record<string, string>>({});
+  const [busy, setBusy] = React.useState(false);
+
+  const candidates = snap.items.filter(i => i.id !== item.id && (i.id === line?.childItemId || canInclude(snap.items, item.id, i.id)));
+  const centerObj = snap.workCenters.find(w => w.id === center);
+  const title = `${edit ? 'Edit' : 'Add'} ${kind === 'material' ? 'material' : kind === 'semi' ? 'semi-finished product' : 'work operation'}`;
+
+  const submit = async () => {
+    const num = (v: string) => (v.trim() === '' ? undefined : Number(v));
+    const body: Record<string, unknown> =
+      kind === 'material'
+        ? { kind, productId: material?.id, qty: num(qty), scrapPct: num(scrap) ?? 0 }
+        : kind === 'semi'
+          ? { kind, childItemId: childId || undefined, qty: num(qty) }
+          : { kind, operation: operation.trim(), workCenterId: center || null, hours: num(hours) ?? 0, rate: rate.trim() === '' ? null : Number(rate), fixedCost: fixed.trim() === '' ? null : Number(fixed) };
+    const parsed = bomLineCreate.safeParse(body);
+    if (!parsed.success) {
+      const out: Record<string, string> = {};
+      for (const i of parsed.error.issues) out[String(i.path[0])] ??= i.message;
+      return setErr(out);
+    }
+    setBusy(true);
+    try {
+      if (edit) {
+        const { kind: _k, ...patch } = body;
+        await m.updateLine.mutateAsync({ id: line!.id, itemId: item.id, patch });
+      } else await m.addLine.mutateAsync({ itemId: item.id, id: uuidv7(), body, material: kind === 'material' ? (material ?? undefined) : undefined });
+      toast(edit ? 'Line saved' : 'Line added');
+      onClose();
+    } catch {
+      setBusy(false); // тост с ошибкой показал хук мутации
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={o => !o && onClose()}>
+      <DialogContent
+        title={title}
+        description={`In “${item.name}”`}
+        footer={
+          <>
+            <span className="sp" />
+            <DialogClose asChild>
+              <Button variant="secondary">Cancel</Button>
+            </DialogClose>
+            <Button variant="primary" disabled={busy} onClick={submit}>
+              {edit ? 'Save line' : 'Add line'}
+            </Button>
+          </>
+        }
+      >
+        <form
+          className="contents"
+          noValidate
+          onSubmit={e => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          {kind === 'material' && (
+            <>
+              <Field label="Material" error={err.productId}>
+                {() => <ProductPicker value={material} onChange={mat => (setMaterial(mat), setErr({}))} invalid={!!err.productId} />}
+              </Field>
+              <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
+                <Field label={`Quantity${material ? `, ${unitSymbol(units.data, material.unitCode)}` : ''}`} className="grow" error={err.qty}>
+                  {p => <Input {...p} inputMode="decimal" value={qty} onChange={e => setQty(e.target.value)} />}
+                </Field>
+                <Field label="Scrap, %" className="grow" hint="Extra material lost in production." error={err.scrapPct}>
+                  {p => <Input {...p} inputMode="decimal" value={scrap} onChange={e => setScrap(e.target.value)} />}
+                </Field>
+              </div>
+            </>
+          )}
+          {kind === 'semi' && (
+            <>
+              <Field label="Product to include" error={err.childItemId} hint="Products that already contain this one are not offered: a bill of materials cannot loop.">
+                {p => (
+                  <select className="select" id={p.id} value={childId} onChange={e => (setChildId(e.target.value), setErr({}))}>
+                    <option value="">Choose a product…</option>
+                    {candidates.map(i => (
+                      <option key={i.id} value={i.id}>
+                        {i.name}
+                        {i.code ? ` (${i.code})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </Field>
+              <Field label="Quantity" error={err.qty}>
+                {p => <Input {...p} inputMode="decimal" value={qty} onChange={e => setQty(e.target.value)} />}
+              </Field>
+            </>
+          )}
+          {kind === 'work' && (
+            <>
+              <Field label="Operation" error={err.operation}>
+                {p => <Input {...p} autoFocus placeholder="e.g. Assembly" value={operation} onChange={e => (setOperation(e.target.value), setErr({}))} />}
+              </Field>
+              <Field label="Work center" hint={centerObj ? `Rate of the center: ${Number(centerObj.hourlyRate).toFixed(2)} per hour.` : 'Optional: without a center, set the rate below.'}>
+                {p => (
+                  <select className="select" id={p.id} value={center} onChange={e => setCenter(e.target.value)}>
+                    <option value="">No work center</option>
+                    {snap.workCenters
+                      .filter(w => !w.archivedAt || w.id === line?.workCenterId)
+                      .map(w => (
+                        <option key={w.id} value={w.id}>
+                          {w.name}
+                        </option>
+                      ))}
+                  </select>
+                )}
+              </Field>
+              <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
+                <Field label="Hours" className="grow" error={err.hours}>
+                  {p => <Input {...p} inputMode="decimal" value={hours} onChange={e => (setHours(e.target.value), setErr({}))} />}
+                </Field>
+                <Field label="Rate per hour" className="grow" hint="Empty: the rate of the work center.">
+                  {p => <Input {...p} inputMode="decimal" value={rate} onChange={e => setRate(e.target.value)} />}
+                </Field>
+                <Field label="Fixed cost" className="grow" hint="Added to hours × rate.">
+                  {p => <Input {...p} inputMode="decimal" value={fixed} onChange={e => setFixed(e.target.value)} />}
+                </Field>
+              </div>
+            </>
+          )}
+          <button type="submit" hidden />
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

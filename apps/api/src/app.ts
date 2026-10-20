@@ -10,6 +10,8 @@ import { loadConfig } from './env';
 import { AppError, forbidden, onError, onNotFound } from './errors';
 import { requireSession, requestLogger, tenant } from './middleware';
 import { Hub } from './realtime';
+import { attributeRoutes, categoryRoutes, productRoutes, unitRoutes } from './routes/catalog';
+import { bomLineRoutes, itemRoutes, productionRoutes, workCenterRoutes } from './routes/production';
 import { companyRoutes, contactRoutes, crmActivityRoutes, dealRoutes } from './routes/crm';
 import { entityRoutes } from './routes/meta';
 import { dataSearchRoutes, recordsRoutes } from './routes/records';
@@ -40,7 +42,7 @@ export interface AppDeps {
 }
 
 /** Ресурсы арендатора: каждый путь защищён цепочкой «сессия → членство → транзакция с RLS» */
-const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/files', '/activity', '/events', '/companies', '/contacts', '/deals', '/crm-activities', '/entities', '/data', '/data-search'];
+const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/files', '/activity', '/events', '/companies', '/contacts', '/deals', '/crm-activities', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production'];
 
 function buildTenantApi() {
   const guarded = new Hono<AppEnv>();
@@ -68,7 +70,15 @@ function buildTenantApi() {
     .route('/crm-activities', crmActivityRoutes)
     .route('/entities', entityRoutes)
     .route('/data-search', dataSearchRoutes)
-    .route('/data', recordsRoutes);
+    .route('/data', recordsRoutes)
+    .route('/units', unitRoutes)
+    .route('/product-categories', categoryRoutes)
+    .route('/attribute-defs', attributeRoutes)
+    .route('/products', productRoutes)
+    .route('/work-centers', workCenterRoutes)
+    .route('/manufactured-items', itemRoutes)
+    .route('/bom-lines', bomLineRoutes)
+    .route('/production', productionRoutes);
 }
 
 export function createApp(deps: AppDeps) {

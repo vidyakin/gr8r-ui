@@ -3,3 +3,5 @@ export * from './auth';
 export * from './work';
 export * from './crm';
 export * from './meta';
+export * from './catalog';
+export * from './production';

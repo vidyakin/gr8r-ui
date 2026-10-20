@@ -4,3 +4,5 @@ export * from './work';
 export * from './crm';
 export * from './system';
 export * from './meta';
+export * from './catalog';
+export * from './production';

@@ -7,3 +7,4 @@ export * from './migrate';
 export * as tables from './schema';
 export * from './schema';
 export * from './meta';
+export * from './catalog';

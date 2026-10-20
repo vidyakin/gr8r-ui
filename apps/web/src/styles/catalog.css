@@ -1,0 +1,416 @@
+/* Каталог и производство: дерево категорий + таблица товаров, редактор характеристик, дерево спецификации (BOM) и итоги.
+   Использует токены Gr8r; таблицы, карточка и фильтры — готовые компоненты components/gr8r. */
+
+/* ---------- Каталог ---------- */
+.cat-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  border-top: 1px solid var(--border);
+}
+.cat-side {
+  border-right: 1px solid var(--border);
+  background: var(--bg-side);
+  overflow: auto;
+  padding: 10px 8px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cat-main {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+.cat-attrs-btn {
+  justify-content: flex-start;
+  text-align: left;
+  white-space: normal;
+  height: auto;
+  padding: 6px 8px;
+  color: var(--text-2);
+}
+.ctree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ctree-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 30px;
+  padding-right: 4px;
+  border-radius: var(--r);
+  color: var(--text-2);
+}
+.ctree-row:hover {
+  background: var(--surface-3);
+}
+.ctree-row.on {
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  color: var(--text);
+  font-weight: 500;
+}
+.ctree-chev {
+  width: 20px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  color: var(--text-4);
+}
+.ctree-chev.none {
+  visibility: hidden;
+}
+.ctree-chev .chev {
+  transition: transform var(--dur);
+}
+.ctree-chev .chev.open {
+  transform: rotate(90deg);
+}
+.ctree-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-align: left;
+  height: 30px;
+  color: inherit;
+  font-weight: inherit;
+}
+.ctree-name .ct {
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+}
+.ctree-more {
+  opacity: 0;
+}
+.ctree-row:hover .ctree-more,
+.ctree-more:focus-visible,
+.ctree-more[data-state='open'] {
+  opacity: 1;
+}
+.ctree-add {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 6px;
+  height: 30px;
+  padding: 0 8px 0 26px;
+  border-radius: var(--r);
+  color: var(--text-3);
+  text-align: left;
+}
+.ctree-add:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+/* ---------- Характеристики ---------- */
+.attr-h {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin: 4px 0 6px;
+}
+.attr-list {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+.attr-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1.3fr) minmax(0, 0.8fr) minmax(0, 1.4fr) 56px;
+  gap: 10px;
+  align-items: center;
+  min-height: 40px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--divider);
+}
+.attr-row:last-child {
+  border-bottom: 0;
+}
+.attr-fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 12px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.attr-fieldset legend {
+  padding: 0 6px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ---------- Выбор товара ---------- */
+.picker-list {
+  margin-top: 6px;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--surface);
+}
+.picker-list .mi {
+  width: 100%;
+  gap: 8px;
+}
+.picker-list .mi.on {
+  background: var(--accent-soft);
+}
+.picker-chosen {
+  margin-top: 6px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+/* ---------- Производство: спецификация ---------- */
+.bom-page {
+  padding-bottom: 96px;
+}
+.bom-crumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  margin-bottom: 8px;
+}
+.bom-title {
+  font-size: var(--fs-2xl);
+  letter-spacing: -0.022em;
+  padding: 2px 6px;
+}
+.bom-params {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.bom-params label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.bom-params .label {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  font-weight: 500;
+}
+.bom {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+.bom-row {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) 112px 64px minmax(120px, 0.8fr) 120px 76px;
+  gap: 10px;
+  align-items: center;
+  min-height: 42px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--divider);
+}
+.bom-row:last-child {
+  border-bottom: 0;
+}
+.bom-row .r {
+  text-align: right;
+  justify-self: end;
+}
+.bom-row.head {
+  min-height: 32px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  font-weight: 500;
+  background: var(--surface-2);
+}
+.bom-row.nested {
+  background: var(--sunken);
+  color: var(--text-2);
+  min-height: 36px;
+}
+.bom-row.nested .bom-ico {
+  opacity: 0.85;
+}
+.bom-row.dragging {
+  opacity: 0.45;
+}
+.bom-row.drag-over {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+.bom-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.bom-ico {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-sm);
+  display: inline-grid;
+  place-items: center;
+  color: var(--c, var(--text-2));
+  background: color-mix(in srgb, var(--c, var(--text-2)) 12%, transparent);
+}
+.bom-ico.material {
+  --c: var(--blue);
+}
+.bom-ico.semi {
+  --c: var(--violet);
+}
+.bom-ico.work {
+  --c: var(--orange);
+}
+.bom-qty {
+  width: 96px;
+  text-align: right;
+  height: var(--h-sm);
+  padding: 0 8px;
+}
+.bom-link {
+  color: var(--accent);
+  margin-left: 8px;
+  font-weight: 500;
+}
+.bom-link:hover {
+  text-decoration: underline;
+}
+.bom-empty {
+  padding: 12px;
+}
+.bom-row .chev {
+  transition: transform var(--dur);
+  color: var(--text-4);
+}
+.bom-row .chev.open {
+  transform: rotate(90deg);
+}
+
+/* ---------- Итог ---------- */
+.bom-total {
+  position: sticky;
+  bottom: 12px;
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: center;
+  padding: 16px 20px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+}
+.bom-sum {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs);
+}
+.bom-sum th,
+.bom-sum td {
+  padding: 5px 0;
+  font-weight: 400;
+  text-align: left;
+}
+.bom-sum thead th {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  font-weight: 500;
+}
+.bom-sum .r {
+  text-align: right;
+}
+.bom-sum tr.sum th,
+.bom-sum tr.sum td {
+  border-top: 1px solid var(--border);
+  font-weight: 600;
+  padding-top: 8px;
+}
+.bom-sum tbody th {
+  color: var(--text-2);
+}
+.bom-unit {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+}
+.bom-unit b {
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  font-weight: 600;
+}
+.bom-warn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  color: var(--amber);
+  font-size: var(--fs-sm);
+}
+
+@media (max-width: 900px) {
+  .bom-params {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .bom-total {
+    grid-template-columns: minmax(0, 1fr);
+    position: static;
+  }
+}
+@media (max-width: 760px) {
+  .cat-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .cat-side {
+    max-height: 220px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .bom {
+    overflow-x: auto;
+  }
+  .bom-row {
+    min-width: 640px;
+    grid-template-columns: minmax(200px, 1fr) 96px 48px 110px 76px;
+  }
+  .bom-row .hide-s {
+    display: none;
+  }
+  .attr-row {
+    grid-template-columns: 20px minmax(0, 1fr) 56px;
+  }
+  .attr-row > :nth-child(3),
+  .attr-row > :nth-child(4) {
+    display: none;
+  }
+}

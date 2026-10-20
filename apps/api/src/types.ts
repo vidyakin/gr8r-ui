@@ -38,7 +38,5 @@ export interface AppEnv {
     workspaceId: string;
     memberId: string;
     role: Role;
-    /** Задачи, которые выполняются после коммита транзакции арендатора (например CREATE INDEX CONCURRENTLY) */
-    afterCommit: (() => Promise<unknown>)[];
   };
 }

@@ -29,3 +29,8 @@ export function databaseUrl(): string {
 export function adminDatabaseUrl(): string {
   return process.env.ADMIN_DATABASE_URL ?? process.env.DATABASE_URL ?? DEFAULT_ADMIN;
 }
+
+/** Подключение воркера для DDL (индексы полей конструктора): роль-владелец таблиц. Только у воркера — у API его нет */
+export function ddlDatabaseUrl(): string | null {
+  return process.env.DATABASE_URL_DDL ?? null;
+}

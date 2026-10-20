@@ -32,5 +32,48 @@ export const SYSTEM_ENTITIES = [
   { key: 'deal', name: 'Deals', icon: 'handshake', titleField: 'name' },
   { key: 'company', name: 'Companies', icon: 'building-2', titleField: 'name' },
   { key: 'contact', name: 'Contacts', icon: 'contact-round', titleField: 'name' },
+  { key: 'product', name: 'Products', icon: 'package', titleField: 'name' },
 ] as const;
 export type SystemEntityKey = (typeof SYSTEM_ENTITIES)[number]['key'];
+
+/* ---------------- каталог и производство ---------------- */
+
+export const PRODUCT_KINDS = ['goods', 'service'] as const;
+export type ProductKind = (typeof PRODUCT_KINDS)[number];
+
+/** Ставки НДС: 'none' — без НДС */
+export const VAT_RATES = ['none', '0', '5', '7', '10', '20'] as const;
+export type VatRate = (typeof VAT_RATES)[number];
+export const VAT_LABELS: Record<VatRate, string> = { none: 'No VAT', '0': '0%', '5': '5%', '7': '7%', '10': '10%', '20': '20%' };
+
+/** Базовый набор единиц ОКЕИ (код, название по справочнику, обозначение). Воркспейс получает его при создании и может добавлять свои */
+export const OKEI_UNITS = [
+  { code: '796', name: 'Штука', symbol: 'шт' },
+  { code: '778', name: 'Упаковка', symbol: 'упак' },
+  { code: '704', name: 'Набор', symbol: 'набор' },
+  { code: '625', name: 'Лист', symbol: 'лист' },
+  { code: '736', name: 'Рулон', symbol: 'рул' },
+  { code: '166', name: 'Килограмм', symbol: 'кг' },
+  { code: '163', name: 'Грамм', symbol: 'г' },
+  { code: '168', name: 'Тонна', symbol: 'т' },
+  { code: '112', name: 'Литр', symbol: 'л' },
+  { code: '111', name: 'Миллилитр', symbol: 'мл' },
+  { code: '006', name: 'Метр', symbol: 'м' },
+  { code: '004', name: 'Сантиметр', symbol: 'см' },
+  { code: '003', name: 'Миллиметр', symbol: 'мм' },
+  { code: '055', name: 'Квадратный метр', symbol: 'м²' },
+  { code: '113', name: 'Кубический метр', symbol: 'м³' },
+  { code: '356', name: 'Час', symbol: 'ч' },
+  { code: '359', name: 'Сутки', symbol: 'сут' },
+  { code: '362', name: 'Месяц', symbol: 'мес' },
+  { code: '876', name: 'Условная единица', symbol: 'усл. ед' },
+] as const;
+
+export const BOM_KINDS = ['material', 'semi', 'work'] as const;
+export type BomKind = (typeof BOM_KINDS)[number];
+export const MANUFACTURED_KINDS = ['product', 'semi'] as const;
+
+/** Откуда берётся цена материала при расчёте себестоимости. avg_cost (средняя себестоимость склада) — заготовка до этапа 5:
+    пока склада нет, расчёт берёт закупочную цену */
+export const MATERIAL_PRICE_SOURCES = ['purchase', 'price', 'avg_cost'] as const;
+export type MaterialPriceSource = (typeof MATERIAL_PRICE_SOURCES)[number];

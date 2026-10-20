@@ -5,6 +5,7 @@ import { Button, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTri
 import { useWorkspace } from '../data/store';
 import { project } from '../data/selectors';
 import { SECTIONS } from '../routes';
+import { useCachedItemName } from '../production/data';
 import { MemberAvatar } from '../components/workspace';
 import { ProjectIcon } from '../components/project';
 import { UserMenu } from './UserMenu';
@@ -29,6 +30,7 @@ export function useCrumbs(): Crumb[] {
   const crm = useCrm();
   const entities = useEntities();
   const [, a, b, c] = pathname.split('/');
+  const itemName = useCachedItemName(a === 'production' ? b : undefined);
   if (a === 'data' && b) return [{ label: 'Data' }, { label: entities.find(e => e.key === b)?.name ?? 'Not found' }];
   if (a === 'crm') {
     const sec = Object.values(SECTIONS).find(x => x.path === `/crm${b ? '/' + b : ''}`);
@@ -45,6 +47,8 @@ export function useCrumbs(): Crumb[] {
     ];
   }
   if (a === 'members' && b) return [{ label: 'Members', to: SECTIONS.members.path }, { label: data.members.find(m => m.id === b)?.name ?? 'Member' }];
+  if (a === 'catalog') return [{ label: 'Catalog' }];
+  if (a === 'production' && b) return [{ label: 'Production', to: SECTIONS.production.path }, { label: itemName ?? 'Product' }];
   if (a === 'settings') return [{ label: 'Settings' }];
   if (a === 'teams' && !b) return [{ label: 'Teams' }];
   if (a === 'teams' && b) return [{ label: 'Teams', to: '/teams' },{ label: data.teams.find(t => t.id === b)?.name ?? 'Team' }];

@@ -6,7 +6,6 @@ import { createMiddleware } from 'hono/factory';
 import { drizzleOf, isUuid, memberships, members, sessions, setContext, users, type Tx } from '@gr8r/db';
 import { ROLES, type Role } from '@gr8r/shared';
 import { AppError, Rollback, forbidden, unauthorized } from './errors';
-import { runMaintenance } from './meta/indexes';
 import type { AppEnv } from './types';
 
 export const SESSION_COOKIE = 'gr8r_session';
@@ -65,7 +64,6 @@ export const tenant = (source: 'header' | 'param' = 'header') =>
     if (!isUuid(raw)) throw new AppError(400, 'workspace_invalid', 'Workspace id is not a valid UUID');
     const wsId = raw.toLowerCase();
     const user = c.get('user');
-    c.set('afterCommit', []);
     try {
       await c.get('sql').begin(async tx => {
         const t = tx as Tx;
@@ -86,8 +84,6 @@ export const tenant = (source: 'header' | 'param' = 'header') =>
         // Ошибка обработчика не бросается через next() — Hono превращает её в ответ; откатываем сами
         if (c.error || c.res.status >= 400) throw new Rollback();
       });
-      // Транзакция зафиксирована: запускаем отложенное (DDL вне транзакции)
-      for (const job of c.get('afterCommit')) runMaintenance(job);
     } catch (e) {
       if (!(e instanceof Rollback)) throw e;
     }

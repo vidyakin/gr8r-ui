@@ -2,6 +2,8 @@
 import * as React from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { searchRecords, type RecordHit } from '../meta/data';
+import { searchProducts, type Product } from '../catalog/data';
+import { searchItems, type Item } from '../production/data';
 import { useSession } from './session';
 import { allTasks, canSee, project, task, visibleProjects } from './selectors';
 import type { Comment, Member, Project, ProjectFile, Task, WorkspaceData } from './types';
@@ -85,4 +87,35 @@ export function useRecordHits(query: string): RecordHit[] {
   }, [q]);
   const r = useQuery({ queryKey: ['ws', ws, 'record-hits', debounced], queryFn: () => searchRecords(ws!, debounced, 5), enabled: !!ws && debounced.length > 0, staleTime: 10_000, placeholderData: keepPreviousData });
   return q && r.data ? r.data : [];
+}
+
+/* ---------- товары каталога и продукция производства: ищет сервер, как и записи конструктора ---------- */
+
+export interface CatalogHits {
+  products: Product[];
+  items: Item[];
+}
+
+const NO_HITS: CatalogHits = { products: [], items: [] };
+
+/** Совпадения в каталоге (товары и услуги) и в производстве (изделия и полуфабрикаты); запрос уходит после паузы в наборе */
+export function useCatalogHits(query: string): CatalogHits {
+  const ws = useSession().active?.id;
+  const q = query.trim();
+  const [debounced, setDebounced] = React.useState(q);
+  React.useEffect(() => {
+    const t = setTimeout(() => setDebounced(q), 180);
+    return () => clearTimeout(t);
+  }, [q]);
+  const r = useQuery({
+    queryKey: ['ws', ws, 'catalog', 'palette', debounced],
+    queryFn: async (): Promise<CatalogHits> => {
+      const [products, items] = await Promise.all([searchProducts(ws!, debounced, undefined, 5), searchItems(ws!, debounced, 5)]);
+      return { products, items };
+    },
+    enabled: !!ws && debounced.length > 0,
+    staleTime: 10_000,
+    placeholderData: keepPreviousData,
+  });
+  return q && r.data ? r.data : NO_HITS;
 }

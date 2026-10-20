@@ -28,6 +28,7 @@
 @import './palette.css' layer(components);
 @import './settings.css' layer(components);
 @import './data-model.css' layer(components);
+@import './catalog.css' layer(components);
 @import './auth.css' layer(components);
 
 /* Тёмная тема Gr8r включается атрибутом data-theme, а не классом .dark */

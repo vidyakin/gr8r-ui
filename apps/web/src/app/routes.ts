@@ -21,6 +21,9 @@ import {
   Star,
   Users,
   ContactRound,
+  Factory,
+  Package,
+  Wrench,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -53,6 +56,10 @@ export const SECTIONS = {
   crmCompanies: { path: '/crm/companies', name: 'Companies', icon: Building2 },
   crmContacts: { path: '/crm/contacts', name: 'Contacts', icon: ContactRound },
   crmActivities: { path: '/crm/activities', name: 'Activities', icon: PhoneCall },
+  // Каталог и производство
+  catalog: { path: '/catalog', name: 'Catalog', icon: Package },
+  production: { path: '/production', name: 'Production', icon: Factory },
+  workCenters: { path: '/work-centers', name: 'Work centers', icon: Wrench },
 } satisfies Record<string, Section>;
 
 export type SectionId = keyof typeof SECTIONS;

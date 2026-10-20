@@ -1,7 +1,7 @@
 /* Конструктор сущностей: загрузка метаданных и проверка значений по полям (типы, ссылки, уникальность).
    Используется маршрутами /entities, /data и записью custom у системных сущностей (задачи, сделки, компании, контакты). */
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { companies, contacts, deals, entities, fields, isUuid, members, projects, records, SYSTEM_TABLES, tasks } from '@gr8r/db';
+import { companies, contacts, deals, entities, fields, isUuid, members, products, projects, records, SYSTEM_TABLES, tasks } from '@gr8r/db';
 import { buildRecordSchema, isBlank, type FieldDef, type FieldType, type RecordData, type RecordMode } from '@gr8r/shared';
 import type { Ctx } from '../crud';
 import { AppError, notFound } from '../errors';
@@ -9,7 +9,7 @@ import { AppError, notFound } from '../errors';
 export type EntityRow = typeof entities.$inferSelect;
 export type FieldRow = typeof fields.$inferSelect;
 
-const SYSTEM_TABLE_REFS = { task: tasks, project: projects, deal: deals, company: companies, contact: contacts } as const;
+const SYSTEM_TABLE_REFS = { task: tasks, project: projects, deal: deals, company: companies, contact: contacts, product: products } as const;
 
 /** Сущность по ключу или id. Удалённая (archived) пользовательская сущность не находится, пока явно не разрешено */
 export async function loadEntity(ctx: Ctx, ref: string, opts: { archived?: boolean } = {}): Promise<EntityRow> {

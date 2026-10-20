@@ -1,11 +1,14 @@
 /* Помощники тестов API: общее приложение на тестовой БД и «браузер» с cookie-банкой. */
 import { adminDatabaseUrl, createSql, databaseUrl, uuidv7 } from '@gr8r/db';
+import { defaultOptions, processJobsOnce } from '../../worker/src/worker';
 import { createApp } from '../src/app';
 import type { AppConfig } from '../src/types';
 
 export const sql = createSql(databaseUrl(), { max: 8 });
 /** Суперпользовательское соединение — только для подготовки/проверки данных в тестах (мимо RLS) */
 export const admin = createSql(adminDatabaseUrl(), { max: 2 });
+/** Подключение воркера для DDL (роль-владелец): как в проде, им пользуется только воркер, не API */
+export const ddl = createSql(process.env.DATABASE_URL_DDL!, { max: 2 });
 export const { app, hub } = createApp({ sql, config: { logRequests: false } });
 
 export const uniq = () => uuidv7().slice(-12);
@@ -77,3 +80,15 @@ export class Client {
 }
 
 export const testConfig = (over: Partial<AppConfig>) => ({ logRequests: false, ...over });
+
+/** Прогоняет очередь jobs воркером (с DDL-подключением), пока в ней есть готовые задачи: так в тестах появляются индексы полей */
+export async function drainJobs(): Promise<number> {
+  const o = defaultOptions({ log: () => {}, concurrency: 10, ddl });
+  let total = 0;
+  for (let i = 0; i < 100; i++) {
+    const n = await processJobsOnce(sql, o);
+    if (!n) break;
+    total += n;
+  }
+  return total;
+}

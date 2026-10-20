@@ -35,6 +35,9 @@ export function useRealtime(ws: string, engine: Engine) {
       // Конструктор сущностей: метаданные и записи пользовательских сущностей живут в отдельных запросах
       if (e.entity === 'entity' || e.entity === 'field') void qc.invalidateQueries({ queryKey: ['ws', ws, 'meta'] });
       if (e.entity === 'record') for (const k of ['records', 'record', 'ref-title', 'ref-search']) void qc.invalidateQueries({ queryKey: ['ws', ws, k] });
+      // Каталог и производство: отдельные запросы ['ws', id, 'catalog' | 'production', …]
+      if (['unit', 'product_category', 'attribute_def', 'product'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'catalog'] });
+      if (['work_center', 'manufactured_item', 'bom_line', 'product', 'workspace'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'production'] });
       // Название воркспейса, моя роль, состав участников
       if (e.entity === 'workspace' || e.type.startsWith('member.')) void qc.invalidateQueries({ queryKey: ['session'] });
     };

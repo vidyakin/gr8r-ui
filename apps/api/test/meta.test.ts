@@ -1,8 +1,7 @@
 /* Конструктор сущностей: метаданные (admin+), проверка значений по типам полей, изоляция арендаторов,
    фильтры/сортировка/поиск по data, custom у системных сущностей, индексы filterable, удаление с подтверждением. */
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { Client, admin, sql as appSql } from './helpers';
-import { settleMaintenance } from '../src/meta/indexes';
+import { Client, admin, drainJobs, sql as appSql } from './helpers';
 import { SYSTEM_ENTITIES } from '@gr8r/shared';
 
 let owner: Client;
@@ -237,7 +236,7 @@ describe('filters, sorting and search over data', () => {
       { name: '100% Legit_Co', category: 'sw' },
     ];
     for (const d of data) expect((await owner.post('/data/sup', { data: d })).status).toBe(201);
-    await settleMaintenance();
+    await drainJobs();
     rows = (await owner.get('/data/sup')).body.items;
   });
 
@@ -305,6 +304,7 @@ describe('filters, sorting and search over data', () => {
     const category = e.fields.find((f: any) => f.key === 'category');
     const rating = e.fields.find((f: any) => f.key === 'rating');
     const since = e.fields.find((f: any) => f.key === 'since');
+    await drainJobs(); // индексы строит воркер из очереди
     const idx = await indexes('idx_cf_%');
     const catIdx = idx.find(i => i.indexname === `idx_cf_${category.id.replace(/-/g, '')}`);
     const ratIdx = idx.find(i => i.indexname === `idx_cf_${rating.id.replace(/-/g, '')}`);
@@ -317,10 +317,10 @@ describe('filters, sorting and search over data', () => {
     expect(invalid.length).toBe(0);
     // включение и выключение флага
     expect((await owner.patch(`/entities/sup/fields/${since.id}`, { filterable: true })).status).toBe(200);
-    await settleMaintenance();
+    await drainJobs();
     expect((await indexes(`idx_cf_${since.id.replace(/-/g, '')}`)).length).toBe(1);
     expect((await owner.patch(`/entities/sup/fields/${since.id}`, { filterable: false })).status).toBe(200);
-    await settleMaintenance();
+    await drainJobs();
     expect((await indexes(`idx_cf_${since.id.replace(/-/g, '')}`)).length).toBe(0);
     // запрос с индексным выражением использует индекс (на малой таблице планировщик предпочёл бы seq scan — отключаем его в сессии)
     const plan = await admin.begin(async tx => {
@@ -334,8 +334,9 @@ describe('filters, sorting and search over data', () => {
     const before = (await indexes('idx_cf_%')).length;
     const bad = await owner.post('/entities/sup/fields', { name: 'Bad', type: 'select', filterable: true }); // валидация: нет вариантов
     expect(bad.status).toBe(400);
-    await settleMaintenance();
+    await drainJobs();
     expect((await indexes('idx_cf_%')).length).toBe(before);
+    expect((await admin`select 1 from jobs where type like 'index.%' and status = 'queued'`).length).toBe(0); // откат запроса отменил и задачу
   });
 });
 
@@ -350,7 +351,7 @@ describe('custom fields of system entities', () => {
     await field('deal', { name: 'Source', type: 'select', options: { choices: [{ value: 'web', label: 'Web' }, { value: 'ref', label: 'Referral' }] } });
     await field('company', { name: 'Segment', type: 'text' });
     await field('contact', { name: 'Birthday', type: 'date' });
-    await settleMaintenance();
+    await drainJobs();
   });
 
   test('task: custom is validated on create/patch, merges, null removes, other keys survive', async () => {
@@ -401,7 +402,7 @@ describe('deleting fields and entities', () => {
     await owner.post('/entities', { name: 'Parts', key: 'parts' });
     const color = await field('parts', { name: 'Color', type: 'text', filterable: true });
     const rec = await owner.post('/data/parts', { data: { name: 'Bolt', color: 'red' } });
-    await settleMaintenance();
+    await drainJobs();
     const idxName = `idx_cf_${color.id.replace(/-/g, '')}`;
     expect(await indexes(idxName)).toHaveLength(1);
 
@@ -410,7 +411,7 @@ describe('deleting fields and entities', () => {
     expect((await member.del(`/entities/parts/fields/${color.id}?confirm=color`)).status).toBe(403);
     const soft = await owner.del(`/entities/parts/fields/${color.id}?confirm=color`);
     expect(soft.body).toMatchObject({ archived: true, purged: false, dataRetained: true });
-    await settleMaintenance();
+    await drainJobs();
     expect(await indexes(idxName)).toHaveLength(0); // индекс убран сразу
 
     // поле скрыто и не принимает значений, а в jsonb значение всё ещё лежит
@@ -422,13 +423,13 @@ describe('deleting fields and entities', () => {
 
     // возврат поля возвращает и значения, и индекс
     expect((await owner.post(`/entities/parts/fields/${color.id}/restore`)).body.archivedAt).toBeNull();
-    await settleMaintenance();
+    await drainJobs();
     expect(await indexes(idxName)).toHaveLength(1);
     expect((await owner.post('/data/parts', { data: { name: 'Nut', color: 'blue' } })).status).toBe(201);
 
     const purge = await owner.del(`/entities/parts/fields/${color.id}?confirm=color&purge=true`);
     expect(purge.body).toMatchObject({ purged: true, cleared: 2 });
-    await settleMaintenance();
+    await drainJobs();
     const after = (await admin.unsafe(`select data from records where entity_id = '${(await owner.get('/entities/parts')).body.id}'`)) as any[];
     expect(after.every(r => !('color' in r.data))).toBe(true);
     expect((await owner.post('/entities/parts/fields', { name: 'Color', type: 'text' })).status).toBe(201); // ключ свободен

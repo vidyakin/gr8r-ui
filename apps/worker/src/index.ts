@@ -1,10 +1,13 @@
 /* Точка входа воркера: опрос jobs + outbox, ускорение по LISTEN gr8r_events. */
-import { createSql, databaseUrl, EVENTS_CHANNEL, listenChannel } from '@gr8r/db';
+import { createSql, databaseUrl, ddlDatabaseUrl, EVENTS_CHANNEL, listenChannel } from '@gr8r/db';
 import { defaultOptions, processEventsOnce, processJobsOnce, requeueStale } from './worker';
 
 const pollMs = Number(process.env.WORKER_POLL_MS ?? 1000);
-const o = defaultOptions({ concurrency: Number(process.env.WORKER_CONCURRENCY ?? 4) });
 const sql = createSql(databaseUrl(), { max: 5 });
+// DDL (индексы полей конструктора) — отдельное подключение роли-владельца; у API его нет
+const ddlUrl = ddlDatabaseUrl();
+const ddl = ddlUrl ? createSql(ddlUrl, { max: 2 }) : null;
+const o = defaultOptions({ concurrency: Number(process.env.WORKER_CONCURRENCY ?? 4), ddl });
 
 let stopping = false;
 let wake: (() => void) | null = null;
@@ -18,6 +21,7 @@ const sleep = () => new Promise<void>(res => {
 
 // Новое событие в outbox → просыпаемся сразу, не дожидаясь следующего опроса
 const stopListening = await listenChannel(databaseUrl(), EVENTS_CHANNEL, () => wake?.());
+if (!ddl) o.log('DATABASE_URL_DDL is not set: DDL jobs (field indexes) will fail until it is configured');
 o.log(`started as ${o.workerId}, poll ${pollMs} ms, concurrency ${o.concurrency}`);
 
 async function shutdown(signal: string) {
@@ -26,6 +30,7 @@ async function shutdown(signal: string) {
   o.log(`${signal}: shutting down`);
   wake?.();
   await stopListening();
+  await ddl?.end({ timeout: 5 });
   await sql.end({ timeout: 5 });
   process.exit(0);
 }

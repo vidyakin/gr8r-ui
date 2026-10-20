@@ -42,9 +42,24 @@ export async function ensureAppLogin(url: string, user: string, password: string
     // PG16: параметры членства задаются при выдаче; пересоздаём, чтобы старая выдача с INHERIT не осталась
     await sql.unsafe(`revoke app_user, app_worker, app_owner from ${q!.ident}`);
     await sql.unsafe(`grant app_user, app_worker to ${q!.ident} with inherit false, set true`);
-    // app_owner — только для обслуживающего DDL вне транзакции запроса (CREATE INDEX CONCURRENTLY по полям конструктора,
-    // см. apps/api/src/meta/indexes.ts): `SET ROLE app_owner` в отдельном соединении, обычные запросы под ним не идут
-    await sql.unsafe(`grant app_owner to ${q!.ident} with inherit false, set true`);
+    // app_owner логин-роли API НЕ выдаётся: DDL (индексы полей конструктора) выполняет воркер через отдельную роль, см. ensureDdlLogin
+  } finally {
+    await sql.end();
+  }
+}
+
+/** Создаёт (или обновляет пароль) логин-роль для DDL воркера: наследует права app_owner (владельца таблиц) и больше ничего.
+    Её URL (DATABASE_URL_DDL) знает только воркер; API и обычные запросы под ней не идут. Операции — белый список в apps/worker/src/handlers.ts */
+export async function ensureDdlLogin(url: string, user: string, password: string): Promise<void> {
+  const sql = postgres(url, { max: 1, onnotice: () => {} });
+  try {
+    const [q] = await sql<{ ident: string; lit: string }[]>`select format('%I', ${user}::text) as ident, format('%L', ${password}::text) as lit`;
+    const [exists] = await sql`select 1 as ok from pg_roles where rolname = ${user}`;
+    const attrs = 'login nosuperuser nobypassrls nocreatedb nocreaterole';
+    if (exists) await sql.unsafe(`alter role ${q!.ident} ${attrs} password ${q!.lit}`);
+    else await sql.unsafe(`create role ${q!.ident} ${attrs} password ${q!.lit}`);
+    await sql.unsafe(`revoke app_user, app_worker, app_owner from ${q!.ident}`);
+    await sql.unsafe(`grant app_owner to ${q!.ident} with inherit true, set false`);
   } finally {
     await sql.end();
   }
@@ -69,4 +84,7 @@ export async function migrateAll(adminUrl: string): Promise<void> {
   const user = process.env.APP_DB_USER;
   const password = process.env.APP_DB_PASSWORD;
   if (user && password) await ensureAppLogin(adminUrl, user, password);
+  const ddlUser = process.env.DDL_DB_USER;
+  const ddlPassword = process.env.DDL_DB_PASSWORD;
+  if (ddlUser && ddlPassword) await ensureDdlLogin(adminUrl, ddlUser, ddlPassword);
 }

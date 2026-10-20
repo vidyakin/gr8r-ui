@@ -255,6 +255,17 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           ))}
         </div>
 
+        <div className="sgroup">
+          <div className="sgroup-h">Catalog</div>
+          <Item to={SECTIONS.catalog.path} label="Catalog" icon={<SECTIONS.catalog.icon size={16} />} collapsed={collapsed} />
+        </div>
+
+        <div className="sgroup">
+          <div className="sgroup-h">Production</div>
+          <Item to={SECTIONS.production.path} label="Production" icon={<SECTIONS.production.icon size={16} />} collapsed={collapsed} />
+          <Item to={SECTIONS.workCenters.path} label="Work centers" icon={<SECTIONS.workCenters.icon size={16} />} collapsed={collapsed} />
+        </div>
+
         {!!customEntities.length && (
           <div className="sgroup">
             <div className="sgroup-h">Data</div>

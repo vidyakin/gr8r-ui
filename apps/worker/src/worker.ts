@@ -2,7 +2,7 @@
    Воркер ходит под ролью app_worker (BYPASSRLS): задачи и события относятся ко всем арендаторам. */
 import { sql as dsql } from 'drizzle-orm';
 import { events, withContext, type Sql } from '@gr8r/db';
-import { handleEvent, jobHandlers, type EventRow, type JobRow } from './handlers';
+import { handleEvent, jobHandlers, makeJobContext, type EventRow, type JobRow } from './handlers';
 
 export interface WorkerOptions {
   workerId: string;
@@ -10,6 +10,8 @@ export interface WorkerOptions {
   /** Через сколько секунд «зависшая» running-задача возвращается в очередь */
   staleAfterSec: number;
   log: (msg: string) => void;
+  /** Подключение роли-владелец для DDL (DATABASE_URL_DDL); без него DDL-задачи завершаются ошибкой и повторяются */
+  ddl?: Sql | null;
 }
 
 export const defaultOptions = (over: Partial<WorkerOptions> = {}): WorkerOptions => ({
@@ -47,7 +49,7 @@ async function runJob(sql: Sql, job: JobRow, o: WorkerOptions): Promise<void> {
   try {
     const handler = jobHandlers[job.type];
     if (!handler) throw new Error(`no handler for job type "${job.type}"`);
-    await withContext(sql, {}, db => handler(job, db), 'app_worker');
+    await handler(job, makeJobContext(sql, o.ddl ?? null));
     await withContext(sql, {}, async db => db.execute(dsql`update jobs set status = 'done', finished_at = now(), last_error = null where id = ${job.id}`), 'app_worker');
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

@@ -33,10 +33,14 @@ import { CompanyPage as CrmCompanyPage } from './crm/CompanyPage';
 import { ContactsPage as CrmContactsPage } from './crm/ContactsPage';
 import { ActivitiesPage as CrmActivitiesPage } from './crm/ActivitiesPage';
 import { RecordsPage } from './meta/RecordsPage';
+import { CatalogPage } from './catalog/CatalogPage';
+import { ItemPage } from './production/ItemPage';
+import { ProductionPage } from './production/ProductionPage';
+import { WorkCentersPage } from './production/WorkCentersPage';
 
 /* Hash-роутинг, как в оригинале: работает на любом статическом хостинге без настройки rewrite.
    Чтобы перенести раздел, замените PlaceholderPage на его компонент. */
-const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.archive, SECTIONS.crm, SECTIONS.crmDeals, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities, SECTIONS.settings, SECTIONS.system].map(s => s.path));
+const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.archive, SECTIONS.crm, SECTIONS.crmDeals, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities, SECTIONS.catalog, SECTIONS.production, SECTIONS.workCenters, SECTIONS.settings, SECTIONS.system].map(s => s.path));
 
 export const router = createHashRouter([
   {
@@ -75,6 +79,11 @@ export const router = createHashRouter([
       { path: `${SECTIONS.crmCompanies.path}/:id/:tab?`, element: <CrmCompanyPage /> },
       { path: SECTIONS.crmContacts.path, element: <CrmContactsPage /> },
       { path: SECTIONS.crmActivities.path, element: <CrmActivitiesPage /> },
+      // Каталог и производство
+      { path: `${SECTIONS.catalog.path}/:productId?`, element: <CatalogPage /> },
+      { path: SECTIONS.production.path, element: <ProductionPage /> },
+      { path: SECTIONS.workCenters.path, element: <WorkCentersPage /> },
+      { path: `${SECTIONS.production.path}/:id`, element: <ItemPage /> },
       // Свои сущности конструктора: экран собирается из метаданных
       { path: '/data/:key/:recordId?', element: <RecordsPage /> },
       // Разделы, которые ещё не перенесены, открывают заглушку
