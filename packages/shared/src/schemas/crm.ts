@@ -2,6 +2,7 @@
 import { z } from 'zod';
 import { CRM_ACTIVITY_TYPES, DEAL_STAGES } from '../constants';
 import { clientId, decimal, toPatch, isoDate, listQuery, shortText, uuid } from './common';
+import { customData } from './meta';
 
 export const companyCreate = z.object({
   id: clientId,
@@ -11,6 +12,7 @@ export const companyCreate = z.object({
   ownerId: uuid.nullish(),
   website: z.string().max(300).default(''),
   city: z.string().max(200).default(''),
+  custom: customData.optional(),
 });
 export const companyUpdate = toPatch(companyCreate.omit({ id: true }));
 export const companyQuery = listQuery.extend({ ownerId: uuid.optional(), industry: z.string().max(200).optional() });
@@ -23,6 +25,7 @@ export const contactCreate = z.object({
   email: z.string().trim().max(254).default(''),
   phone: z.string().max(50).default(''),
   ownerId: uuid.nullish(),
+  custom: customData.optional(),
 });
 export const contactUpdate = toPatch(contactCreate.omit({ id: true }));
 export const contactQuery = listQuery.extend({ companyId: uuid.optional(), ownerId: uuid.optional() });
@@ -41,6 +44,7 @@ export const dealCreate = z.object({
   sortOrder: z.number().optional(),
   /** Контакты сделки (заменяют список целиком) */
   contactIds: z.array(uuid).max(100).optional(),
+  custom: customData.optional(),
 });
 export const dealUpdate = toPatch(dealCreate.omit({ id: true }));
 export const dealQuery = listQuery.extend({

@@ -17,7 +17,7 @@ import { toast } from '@/components/ui';
 import { dOff, fmtDate, iso, parse } from '../lib/dates';
 import type { Activity, Attachment, Member, Project, ProjectFile, SavedView, Status, StatusDef, Subtask, Task, Team, TimeLog, WorkspaceData, WorkspaceInfo } from './types';
 
-export type TaskPatch = Partial<Pick<Task, 'title' | 'status' | 'assignee' | 'priority' | 'due' | 'start' | 'fav' | 'project' | 'planHours' | 'order' | 'archived' | 'labels' | 'deps' | 'recur' | 'desc' | 'subtasks'>>;
+export type TaskPatch = Partial<Pick<Task, 'title' | 'status' | 'assignee' | 'priority' | 'due' | 'start' | 'fav' | 'project' | 'planHours' | 'order' | 'archived' | 'labels' | 'deps' | 'recur' | 'desc' | 'subtasks' | 'custom'>>;
 export type SubtaskPatch = Partial<Pick<Subtask, 'title' | 'assignee' | 'due' | 'note' | 'planHours'>>;
 export type TimeLogPatch = Partial<Pick<TimeLog, 'sub' | 'by' | 'hours' | 'date' | 'note'>>;
 

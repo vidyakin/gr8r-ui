@@ -114,6 +114,8 @@ export interface Task {
   recur: string | null;
   archived?: boolean;
   archivedAt?: number | null;
+  /** Пользовательские поля (конструктор сущностей): ключ поля → значение */
+  custom?: Record<string, unknown>;
 }
 
 export interface Comment {
@@ -236,6 +238,7 @@ export interface Company {
   website: string;
   city: string;
   created: number;
+  custom?: Record<string, unknown>;
 }
 
 export interface Contact {
@@ -247,6 +250,7 @@ export interface Contact {
   phone: string;
   owner: string;
   created: number;
+  custom?: Record<string, unknown>;
 }
 
 export interface Deal {
@@ -265,6 +269,7 @@ export interface Deal {
   lostReason?: string;
   /** Порядок карточки внутри колонки воронки */
   order: number;
+  custom?: Record<string, unknown>;
 }
 
 export type ActivityType = 'call' | 'email' | 'meeting' | 'note' | 'task';

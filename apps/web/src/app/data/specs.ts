@@ -234,8 +234,10 @@ export function buildSpecs(ws: string, statusIds: Map<string, string>) {
       recur: r.recur,
       archived: !!r.archivedAt,
       archivedAt: r.archivedAt ? ms(r.archivedAt) : null,
+      custom: r.custom as Record<string, unknown>,
     })) as never,
     fields: {
+      custom: v => ({ custom: v }),
       title: v => ({ title: v }),
       status: v => ({ status: v }),
       assignee: v => ({ assigneeId: orNull(v) }),
@@ -340,16 +342,16 @@ export function buildSpecs(ws: string, statusIds: Map<string, string>) {
   const companies = list<Company>({
     name: 'companies',
     query: { sort: 'name' },
-    from: ((r: Rows['companies']): Company => ({ id: r.id, name: r.name, industry: r.industry, size: r.size, owner: r.ownerId ?? '', website: r.website, city: r.city, created: ms(r.createdAt) })) as never,
-    fields: { name: v => ({ name: v }), industry: v => ({ industry: v }), size: v => ({ size: v }), owner: v => ({ ownerId: orNull(v) }), website: v => ({ website: v }), city: v => ({ city: v }) },
+    from: ((r: Rows['companies']): Company => ({ id: r.id, name: r.name, industry: r.industry, size: r.size, owner: r.ownerId ?? '', website: r.website, city: r.city, created: ms(r.createdAt), custom: r.custom as Record<string, unknown> })) as never,
+    fields: { custom: v => ({ custom: v }), name: v => ({ name: v }), industry: v => ({ industry: v }), size: v => ({ size: v }), owner: v => ({ ownerId: orNull(v) }), website: v => ({ website: v }), city: v => ({ city: v }) },
     remove: 'soft',
   });
 
   const contacts = list<Contact>({
     name: 'contacts',
     query: { sort: 'name' },
-    from: ((r: Rows['contacts']): Contact => ({ id: r.id, company: r.companyId ?? '', name: r.name, title: r.title, email: r.email, phone: r.phone, owner: r.ownerId ?? '', created: ms(r.createdAt) })) as never,
-    fields: { company: v => ({ companyId: orNull(v) }), name: v => ({ name: v }), title: v => ({ title: v }), email: v => ({ email: v }), phone: v => ({ phone: v }), owner: v => ({ ownerId: orNull(v) }) },
+    from: ((r: Rows['contacts']): Contact => ({ id: r.id, company: r.companyId ?? '', name: r.name, title: r.title, email: r.email, phone: r.phone, owner: r.ownerId ?? '', created: ms(r.createdAt), custom: r.custom as Record<string, unknown> })) as never,
+    fields: { custom: v => ({ custom: v }), company: v => ({ companyId: orNull(v) }), name: v => ({ name: v }), title: v => ({ title: v }), email: v => ({ email: v }), phone: v => ({ phone: v }), owner: v => ({ ownerId: orNull(v) }) },
     remove: 'soft',
   });
 
@@ -369,8 +371,10 @@ export function buildSpecs(ws: string, statusIds: Map<string, string>) {
       closedAt: r.closedAt ?? undefined,
       lostReason: r.lostReason ?? undefined,
       order: r.sortOrder,
+      custom: r.custom as Record<string, unknown>,
     })) as never,
     fields: {
+      custom: v => ({ custom: v }),
       name: v => ({ name: v }),
       company: v => ({ companyId: orNull(v) }),
       contacts: v => ({ contactIds: v }),

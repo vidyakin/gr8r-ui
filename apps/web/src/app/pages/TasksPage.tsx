@@ -6,7 +6,7 @@ import { Button, Segmented } from '@/components/ui';
 import { useWorkspace } from '../data/store';
 import { allTasks, applyView, canSee, groupTasks, visibleProjects } from '../data/selectors';
 import { BoardOptions, BoardView, useBoardDensity, useBoardSubtasks } from '../components/board-view';
-import { BucketIcon, TOGGLE_COLUMNS, TableView } from '../components/table-view';
+import { BucketIcon, TableView, useTaskColumns } from '../components/table-view';
 import { LIST_OPTIONAL_COLUMNS, TaskList, withTimeColumn, type TaskGroup } from '../components/task-list';
 import { ViewToolbar, useListView } from '../components/view-toolbar';
 import { useTaskForm } from '../overlays';
@@ -24,6 +24,7 @@ export function TasksPage() {
   const defaultProject = visibleProjects(data)[0]?.id ?? '';
   const tasks = applyView(allTasks(data), api.view, data);
 
+  const taskColumns = useTaskColumns();
   const taskForm = useTaskForm();
   const newTask = () => taskForm.open();
 
@@ -52,7 +53,7 @@ export function TasksPage() {
       <ViewToolbar
         api={api}
         group={mode !== 'board'}
-        columns={mode === 'table' ? TOGGLE_COLUMNS : mode === 'list' ? LIST_OPTIONAL_COLUMNS : undefined}
+        columns={mode === 'table' ? taskColumns.toggle : mode === 'list' ? LIST_OPTIONAL_COLUMNS : undefined}
         resetWidths={mode === 'table'}
         extra={mode === 'board' && <BoardOptions density={density} onDensity={setDensity} showSubtasks={showSubs} onShowSubtasks={setShowSubs} />}
         left={

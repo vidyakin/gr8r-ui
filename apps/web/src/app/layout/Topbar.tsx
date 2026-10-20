@@ -13,6 +13,7 @@ import { useInvite, usePalette, useProjectForms, useTaskForm, useTeamForm } from
 import { useCrm } from '../crm/store';
 import { useCrmUi } from '../crm/ui-context';
 import { company as crmCompany } from '../crm/selectors';
+import { useEntities } from '../meta/data';
 
 
 export interface Crumb {
@@ -26,7 +27,9 @@ export function useCrumbs(): Crumb[] {
   const { pathname } = useLocation();
   const { data } = useWorkspace();
   const crm = useCrm();
+  const entities = useEntities();
   const [, a, b, c] = pathname.split('/');
+  if (a === 'data' && b) return [{ label: 'Data' }, { label: entities.find(e => e.key === b)?.name ?? 'Not found' }];
   if (a === 'crm') {
     const sec = Object.values(SECTIONS).find(x => x.path === `/crm${b ? '/' + b : ''}`);
     const crumbs: Crumb[] = [{ label: 'CRM', to: SECTIONS.crm.path }];

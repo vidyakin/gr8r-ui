@@ -1,6 +1,7 @@
 /* zod-схемы сущностей этапа 1: работа. Поля называются как колонки drizzle-схемы (camelCase). */
 import { z } from 'zod';
 import { FILE_KINDS, MEMBER_STATUSES, NOTIFICATION_TYPES, PROJECT_COLORS, PROJECT_STATUSES, VIEW_TYPES } from '../constants';
+import { customData } from './meta';
 import { clientId, color, decimal, toPatch, hhmm, isoDate, listQuery, queryBool, shortText, uuid } from './common';
 
 /* ---------- projects ---------- */
@@ -30,6 +31,7 @@ export const projectCreate = z.object({
   sortOrder: z.number().int().optional(),
   /** Участники и права (заменяют текущий список целиком) */
   members: z.array(projectMemberInput).max(500).optional(),
+  custom: customData.optional(),
 });
 export const projectUpdate = toPatch(projectCreate.omit({ key: true, id: true }));
 export const projectQuery = listQuery.extend({
@@ -87,6 +89,7 @@ export const taskCreate = z.object({
   sortOrder: z.number().optional(),
   fav: z.boolean().default(false),
   recur: z.string().max(64).nullish(),
+  custom: customData.optional(),
 });
 export const taskUpdate = toPatch(taskCreate.omit({ id: true, key: true }));
 export const taskQuery = listQuery.extend({

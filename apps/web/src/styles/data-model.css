@@ -1,0 +1,160 @@
+/* Конструктор сущностей: раздел Settings → Data model и экраны пользовательских сущностей */
+.set-in:has(.dm) {
+  max-width: 1060px;
+}
+.dm {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.dm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dm-list .gh {
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  padding: 10px 8px 4px;
+}
+.dm-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: var(--r);
+  color: var(--text-2);
+  text-align: left;
+  width: 100%;
+}
+.dm-item:hover {
+  background: var(--surface-3);
+}
+.dm-item.on {
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  color: var(--text);
+  font-weight: 500;
+}
+.dm-item .ct {
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+.dm-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.dm-head h2 {
+  margin: 0;
+  font-size: var(--fs-lg, 16px);
+  font-weight: 600;
+}
+.dm-fields {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+.dm-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1.2fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 42px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--divider);
+}
+.dm-row:last-child {
+  border-bottom: 0;
+}
+.dm-row.head {
+  min-height: 32px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  font-weight: 500;
+  background: var(--surface-2, transparent);
+}
+.dm-row.drag-over {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+.dm-row.dragging {
+  opacity: 0.45;
+}
+.dm-grip {
+  cursor: grab;
+  color: var(--text-3);
+  display: inline-flex;
+}
+.dm-removed {
+  margin-top: 22px;
+}
+.dm-removed h3 {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  margin: 0 0 6px;
+}
+.dm-choice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px auto;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.dm-icons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dm-icons button {
+  width: 34px;
+  height: 34px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--r);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+}
+.dm-icons button.on {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+@media (max-width: 760px) {
+  .dm {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .dm-row {
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+  }
+  .dm-row .hide-s {
+    display: none;
+  }
+}
+
+/* Экран пользовательской сущности */
+.ent-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+}
+.ent-card .t {
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+.ent-card .kvs {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 3px 10px;
+  font-size: var(--fs-sm);
+}
+.ent-card .kvs > .k {
+  color: var(--text-3);
+}

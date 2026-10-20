@@ -61,6 +61,7 @@ import { z } from 'zod';
 import { crud, ctxOf, validationHook } from '../crud';
 import { AppError, forbidden, notFound } from '../errors';
 import { hasRole } from '../middleware';
+import { customForCreate, customForUpdate } from '../meta/service';
 import { addActivity, assertTasksExist, nextOrder, notify } from './helpers';
 
 /* ============================== projects ============================== */
@@ -74,7 +75,8 @@ export const projectRoutes = crud({
   defaultSort: 'sortOrder',
   search: [projects.name, projects.key, projects.description],
   filters: q => [q.status ? eq(projects.status, q.status) : undefined, q.teamId ? eq(projects.teamId, q.teamId) : undefined, q.leadId ? eq(projects.leadId, q.leadId) : undefined, q.fav != null ? eq(projects.fav, q.fav) : undefined],
-  prepareCreate: async (ctx, body) => ({ sortOrder: body.sortOrder ?? (await nextOrder(ctx, projects)) }),
+  prepareCreate: async (ctx, body) => ({ sortOrder: body.sortOrder ?? (await nextOrder(ctx, projects)), ...(await customForCreate(ctx, 'project', body.custom)) }),
+  prepareUpdate: (ctx, existing, body) => customForUpdate(ctx, 'project', existing.custom, body.custom, existing.id),
   afterCreate: async (ctx, row, body) => {
     await setProjectMembers(ctx, row.id, body.members ?? [{ memberId: ctx.memberId, permission: 'admin' }]);
     await addActivity(ctx, { verb: 'created project', projectId: row.id });
@@ -171,6 +173,7 @@ export const taskRoutes = crud({
       sortOrder: body.sortOrder ?? (await nextOrder(ctx, tasks, eq(tasks.projectId, body.projectId))),
       createdBy: ctx.memberId,
       completedAt: body.status === 'done' ? new Date() : null,
+      ...(await customForCreate(ctx, 'task', body.custom)),
     };
   },
   afterCreate: async (ctx, row) => {
@@ -178,7 +181,7 @@ export const taskRoutes = crud({
     await notify(ctx, { to: row.assigneeId, type: 'assign', text: 'assigned you', snippet: row.title, taskId: row.id, projectId: row.projectId });
   },
   prepareUpdate: async (ctx, existing, body) => {
-    const patch: Record<string, unknown> = {};
+    const patch: Record<string, unknown> = { ...(await customForUpdate(ctx, 'task', existing.custom, body.custom, existing.id)) };
     if (body.deps) {
       if (body.deps.includes(existing.id)) throw new AppError(422, 'invalid_dependency', 'A task cannot depend on itself');
       await assertTasksExist(ctx, body.deps);

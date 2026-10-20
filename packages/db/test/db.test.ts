@@ -70,6 +70,17 @@ describe('seed', () => {
     expect(await count('deals', w)).toBe(crm.deals.length);
     expect(await count('crm_activities', w)).toBe(crm.activities.length);
 
+    // конструктор сущностей: системные сущности, пользовательские поля задач, «Suppliers» с записями и индексами по filterable-полям
+    expect(await count('entities', `${w} and kind = 'system'`)).toBe(5);
+    const [sup] = await admin`select id from entities where workspace_id = ${demo!.id} and key = 'suppliers'`;
+    expect(await count('records', `where entity_id = '${sup!.id}'`)).toBe(8);
+    expect(await count('fields', `where entity_id = '${sup!.id}'`)).toBe(6);
+    expect(await count('tasks', `${w} and custom ? 'story_points'`)).toBe(src.tasks.length);
+    expect(await count('tasks', `${w} and custom ? 'client'`)).toBeGreaterThan(5);
+    expect(await count("fields f join pg_indexes i on i.indexname = 'idx_cf_' || replace(f.id::text, '-', '')", `where f.workspace_id = '${demo!.id}' and f.filterable`)).toBe(3);
+    const [acme] = await admin`select id from workspaces where slug = 'acme'`;
+    expect(await count('entities', `where workspace_id = '${acme!.id}' and kind = 'system'`)).toBe(5); // второй арендатор тоже зарегистрирован
+
     // дерево подзадач и зависимости сохранены, id участников в подзадачах — настоящие uuid
     const [wf] = await admin`select subtasks, deps, plan_hours from tasks where title = 'Create homepage wireframes'`;
     expect(wf!.subtasks).toHaveLength(4);

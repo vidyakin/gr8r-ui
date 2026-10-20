@@ -24,3 +24,13 @@ export const VIEW_TYPES = ['list', 'board', 'table', 'calendar', 'timeline'] as 
 export const FILE_KINDS = ['fig', 'pdf', 'zip', 'img', 'sheet', 'doc', 'code', 'other'] as const;
 export const DEAL_STAGES = ['lead', 'qualified', 'proposal', 'negotiation', 'won', 'lost'] as const;
 export const CRM_ACTIVITY_TYPES = ['call', 'email', 'meeting', 'note', 'task'] as const;
+
+/** Системные сущности конструктора: у их таблиц есть колонка custom jsonb. Регистрируются в entities при создании воркспейса */
+export const SYSTEM_ENTITIES = [
+  { key: 'task', name: 'Tasks', icon: 'list-checks', titleField: 'title' },
+  { key: 'project', name: 'Projects', icon: 'folder-kanban', titleField: 'name' },
+  { key: 'deal', name: 'Deals', icon: 'handshake', titleField: 'name' },
+  { key: 'company', name: 'Companies', icon: 'building-2', titleField: 'name' },
+  { key: 'contact', name: 'Contacts', icon: 'contact-round', titleField: 'name' },
+] as const;
+export type SystemEntityKey = (typeof SYSTEM_ENTITIES)[number]['key'];

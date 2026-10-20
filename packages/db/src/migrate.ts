@@ -40,8 +40,11 @@ export async function ensureAppLogin(url: string, user: string, password: string
     if (exists) await sql.unsafe(`alter role ${q!.ident} login password ${q!.lit} nosuperuser nobypassrls noinherit`);
     else await sql.unsafe(`create role ${q!.ident} login password ${q!.lit} nosuperuser nobypassrls noinherit`);
     // PG16: параметры членства задаются при выдаче; пересоздаём, чтобы старая выдача с INHERIT не осталась
-    await sql.unsafe(`revoke app_user, app_worker from ${q!.ident}`);
+    await sql.unsafe(`revoke app_user, app_worker, app_owner from ${q!.ident}`);
     await sql.unsafe(`grant app_user, app_worker to ${q!.ident} with inherit false, set true`);
+    // app_owner — только для обслуживающего DDL вне транзакции запроса (CREATE INDEX CONCURRENTLY по полям конструктора,
+    // см. apps/api/src/meta/indexes.ts): `SET ROLE app_owner` в отдельном соединении, обычные запросы под ним не идут
+    await sql.unsafe(`grant app_owner to ${q!.ident} with inherit false, set true`);
   } finally {
     await sql.end();
   }

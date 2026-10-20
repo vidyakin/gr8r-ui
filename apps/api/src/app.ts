@@ -11,6 +11,8 @@ import { AppError, forbidden, onError, onNotFound } from './errors';
 import { requireSession, requestLogger, tenant } from './middleware';
 import { Hub } from './realtime';
 import { companyRoutes, contactRoutes, crmActivityRoutes, dealRoutes } from './routes/crm';
+import { entityRoutes } from './routes/meta';
+import { dataSearchRoutes, recordsRoutes } from './routes/records';
 import {
   activityRoutes,
   calendarEventRoutes,
@@ -38,7 +40,7 @@ export interface AppDeps {
 }
 
 /** Ресурсы арендатора: каждый путь защищён цепочкой «сессия → членство → транзакция с RLS» */
-const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/files', '/activity', '/events', '/companies', '/contacts', '/deals', '/crm-activities'];
+const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/files', '/activity', '/events', '/companies', '/contacts', '/deals', '/crm-activities', '/entities', '/data', '/data-search'];
 
 function buildTenantApi() {
   const guarded = new Hono<AppEnv>();
@@ -63,7 +65,10 @@ function buildTenantApi() {
     .route('/companies', companyRoutes)
     .route('/contacts', contactRoutes)
     .route('/deals', dealRoutes)
-    .route('/crm-activities', crmActivityRoutes);
+    .route('/crm-activities', crmActivityRoutes)
+    .route('/entities', entityRoutes)
+    .route('/data-search', dataSearchRoutes)
+    .route('/data', recordsRoutes);
 }
 
 export function createApp(deps: AppDeps) {

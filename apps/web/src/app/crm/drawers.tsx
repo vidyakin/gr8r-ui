@@ -11,6 +11,7 @@ import { activitiesOfContact, activitiesOfDeal, company as findCompany, contact 
 import { isOpen, stage } from './stages';
 import { useCrm, type DealPatch } from './store';
 import { useCrmUi } from './ui-context';
+import { useCustomRows } from '../meta/custom-fields';
 
 /** Сумма сделки: поле ввода без рамки, сохраняется по Enter или потере фокуса */
 function AmountInput({ value, onCommit }: { value: number; onCommit: (v: number) => void }) {
@@ -56,6 +57,7 @@ export function DealDrawer({ id }: { id: string }) {
   const people = d.contacts.filter(c => findContact(data, c));
   const companyPeople = contactsOfCompany(data, d.company);
   const update = (patch: DealPatch) => dispatch({ type: 'deal/update', id: d.id, patch });
+  const customRows = useCustomRows('deal', d.custom, patch => update({ custom: { ...d.custom, ...patch } }));
 
   const banner =
     d.stage === 'won' ? (
@@ -204,6 +206,7 @@ export function DealDrawer({ id }: { id: string }) {
           },
           { icon: User, label: 'Owner', value: <OwnerField value={d.owner} onChange={owner => update({ owner })} /> },
           { icon: Clock, label: 'Created', value: <span className="muted num">{fmtDate(new Date(d.created))}</span> },
+          ...customRows.map(r => ({ icon: r.icon, label: r.label, value: r.node })),
         ]}
         tabs={[
           {
@@ -278,6 +281,7 @@ export function ContactDrawer({ id }: { id: string }) {
   const co = findCompany(data, c.company);
   const ds = dealsOfContact(data, c.id);
   const acts = activitiesOfContact(data, c.id);
+  const customRows = useCustomRows('contact', c.custom, patch => dispatch({ type: 'contact/update', id: c.id, patch: { custom: { ...c.custom, ...patch } } }));
   return (
     <EntityDrawer
       label={`Contact: ${c.name}`}
@@ -311,6 +315,7 @@ export function ContactDrawer({ id }: { id: string }) {
         { icon: Mail, label: 'Email', value: c.email ? <a className="crm-link" href={`mailto:${c.email}`}>{c.email}</a> : <span className="faint">—</span> },
         { icon: Phone, label: 'Phone', value: c.phone ? <span className="num">{c.phone}</span> : <span className="faint">—</span> },
         { icon: User, label: 'Owner', value: <OwnerField value={c.owner} onChange={owner => dispatch({ type: 'contact/update', id: c.id, patch: { owner } })} /> },
+        ...customRows.map(r => ({ icon: r.icon, label: r.label, value: r.node })),
       ]}
       tabs={[
         {

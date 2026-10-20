@@ -44,7 +44,8 @@ import { StatusIcon } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '../data/store';
 import { PROJECT_STATUS, allTasks, project, sortTasks, task as findTask } from '../data/selectors';
-import { addRecentSearch, searchAll, useRecentSearches, type SearchCat } from '../data/search';
+import { addRecentSearch, searchAll, useRecentSearches, useRecordHits, type SearchCat } from '../data/search';
+import { entityIcon } from '../meta/icons';
 import { SECTIONS, type SectionId } from '../routes';
 import { MOD } from '../lib/platform';
 import { Logo } from '../components/brand';
@@ -255,6 +256,7 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
   const recent = useRecentSearches();
 
   const [q, setQ] = React.useState(init.q);
+  const recordHits = useRecordHits(q);
   const [mode, setMode] = React.useState<Mode>(init.mode);
   const [scope, setScope] = React.useState<SearchCat>('all');
   const [hl, setHl] = React.useState(0);
@@ -387,6 +389,12 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
             run: () => drawer.open(c.task),
           })),
         });
+      // Записи своих сущностей (конструктор): по группе на сущность
+      if (sc === 'all')
+        for (const key of [...new Set(recordHits.map(h => h.entityKey))]) {
+          const hs = recordHits.filter(h => h.entityKey === key);
+          groups.push({ name: hs[0]!.entityName, items: hs.slice(0, lim).map(h => ({ id: 'rec-' + h.id, icon: entityIcon(h.icon), name: h.title || 'Untitled', sub: h.entityName, run: () => go(`/data/${h.entityKey}/${h.id}`) })) });
+        }
       // CRM — только в общем поиске, после основных групп
       if (sc === 'all' && crmUi) {
         const has = (s: string) => s.toLowerCase().includes(ql);

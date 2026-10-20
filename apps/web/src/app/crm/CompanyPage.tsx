@@ -16,6 +16,7 @@ import { activitiesOfCompany, companyStats, contactRows, dealRows, dealsOfCompan
 import { stage } from './stages';
 import { useCrm } from './store';
 import { useCrmUi } from './ui-context';
+import { useCustomRows } from '../meta/custom-fields';
 import type { Company } from './types';
 
 const TABS: [string, string, LucideIcon][] = [
@@ -165,6 +166,7 @@ function CompanyView({ company: co, tab }: { company: Company; tab: string }) {
 function Overview({ company: co }: { company: Company }) {
   const { data, dispatch } = useCrm();
   const ui = useCrmUi();
+  const customRows = useCustomRows('company', co.custom, patch => dispatch({ type: 'company/update', id: co.id, patch: { custom: { ...co.custom, ...patch } } }));
   const stats = companyStats(data, co.id);
   const open = openDeals(dealsOfCompany(data, co.id)).sort((a, b) => (a.closeDate > b.closeDate ? 1 : -1));
   const people = data.contacts.filter(c => c.company === co.id);
@@ -251,6 +253,15 @@ function Overview({ company: co }: { company: Company }) {
                   Added
                 </dt>
                 <dd className="muted num">{fmtDate(new Date(co.created))}</dd>
+                {customRows.map(r => (
+                  <React.Fragment key={r.field.key}>
+                    <dt>
+                      <r.icon size={14} />
+                      {r.label}
+                    </dt>
+                    <dd>{r.node}</dd>
+                  </React.Fragment>
+                ))}
               </dl>
             </div>
           </Panel>

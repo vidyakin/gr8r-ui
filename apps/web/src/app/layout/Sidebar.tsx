@@ -32,6 +32,8 @@ import { NamedIcon } from '../components/icons';
 import { UserMenu } from './UserMenu';
 import { MemberAvatar } from '../components/workspace';
 import { useProjectForms, useShortcuts, useTeamForm } from '../overlays';
+import { useCustomEntities } from '../meta/data';
+import { entityIcon } from '../meta/icons';
 
 const soon = (what: string) => toast.info(`${what} пока не перенесено`);
 
@@ -179,6 +181,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   const session = useSession();
   const navigate = useNavigate();
   const [newWs, setNewWs] = React.useState(false);
+  const customEntities = useCustomEntities();
 
   return (
     <nav className="side" aria-label="Main">
@@ -251,6 +254,16 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
             <SectionItem key={id} id={id} collapsed={collapsed} />
           ))}
         </div>
+
+        {!!customEntities.length && (
+          <div className="sgroup">
+            <div className="sgroup-h">Data</div>
+            {customEntities.map(e => {
+              const I = entityIcon(e.icon);
+              return <Item key={e.key} to={`/data/${e.key}`} label={e.name} icon={<I size={16} />} collapsed={collapsed} />;
+            })}
+          </div>
+        )}
 
         <div className="sgroup">
           <div className="sgroup-h">

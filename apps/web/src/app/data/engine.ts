@@ -383,7 +383,12 @@ export function collectionsFor(entity: string): CollName[] {
     case 'crm_activity':
       return ['crmActivities'];
     case 'workspace':
+    case 'entity':
+    case 'record':
       return [];
+    case 'field':
+      // очистка поля стирает значения в custom системных записей
+      return ['tasks', 'projects', 'deals', 'companies', 'contacts'];
     default:
       return ALL;
   }

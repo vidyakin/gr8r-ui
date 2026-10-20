@@ -48,6 +48,7 @@ import { ago, diffDays, fmtDate, parse, today } from '../../lib/dates';
 import { MOD } from '../../lib/platform';
 import type { FileKind, LabelId, Project, ProjectFile, Task } from '../../data/types';
 import { AssigneeField, DueField, PriorityField, StatusField } from '../fields';
+import { useCustomRows } from '../../meta/custom-fields';
 import { CommentItem } from '../conversation';
 import { FilePreview } from '../files-view';
 import { ProjectDot } from '../project';
@@ -221,6 +222,7 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
   const { task: t, full, update } = p;
   const { data, dispatch } = useWorkspace();
   const actions = useTaskActions();
+  const customRows = useCustomRows('task', t.custom, patch => update({ custom: { ...t.custom, ...patch } }));
   const pr = project(data, t.project);
   const cs = commentsOf(data, t.id);
   const acts = data.activity.filter(a => a.task === t.id);
@@ -384,6 +386,11 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
             }
           />
         </Prop>
+        {customRows.map(r => (
+          <Prop key={r.field.key} icon={r.icon} label={r.label}>
+            {r.node}
+          </Prop>
+        ))}
       </dl>
 
       <TimeBlock task={t} />

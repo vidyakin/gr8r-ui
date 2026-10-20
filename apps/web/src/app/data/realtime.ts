@@ -32,6 +32,9 @@ export function useRealtime(ws: string, engine: Engine) {
       if (seen.size > 2000) seen.delete(seen.values().next().value!);
       if (e.id > since) since = e.id;
       engine.refresh(collectionsFor(e.entity));
+      // Конструктор сущностей: метаданные и записи пользовательских сущностей живут в отдельных запросах
+      if (e.entity === 'entity' || e.entity === 'field') void qc.invalidateQueries({ queryKey: ['ws', ws, 'meta'] });
+      if (e.entity === 'record') for (const k of ['records', 'record', 'ref-title', 'ref-search']) void qc.invalidateQueries({ queryKey: ['ws', ws, k] });
       // Название воркспейса, моя роль, состав участников
       if (e.entity === 'workspace' || e.type.startsWith('member.')) void qc.invalidateQueries({ queryKey: ['session'] });
     };

@@ -18,6 +18,7 @@ import {
 import { crud, type Ctx } from '../crud';
 import { forbidden } from '../errors';
 import { hasRole } from '../middleware';
+import { customForCreate, customForUpdate } from '../meta/service';
 import { nextOrder } from './helpers';
 
 export const companyRoutes = crud({
@@ -30,7 +31,8 @@ export const companyRoutes = crud({
   defaultSort: 'name',
   search: [companies.name, companies.industry, companies.city, companies.website],
   filters: q => [q.ownerId ? eq(companies.ownerId, q.ownerId) : undefined, q.industry ? eq(companies.industry, q.industry) : undefined],
-  prepareCreate: (ctx, body) => ({ ownerId: body.ownerId ?? ctx.memberId }),
+  prepareCreate: async (ctx, body) => ({ ownerId: body.ownerId ?? ctx.memberId, ...(await customForCreate(ctx, 'company', body.custom)) }),
+  prepareUpdate: (ctx, existing, body) => customForUpdate(ctx, 'company', existing.custom, body.custom, existing.id),
 });
 
 export const contactRoutes = crud({
@@ -43,7 +45,8 @@ export const contactRoutes = crud({
   defaultSort: 'name',
   search: [contacts.name, contacts.email, contacts.phone, contacts.title],
   filters: q => [q.companyId ? eq(contacts.companyId, q.companyId) : undefined, q.ownerId ? eq(contacts.ownerId, q.ownerId) : undefined],
-  prepareCreate: (ctx, body) => ({ ownerId: body.ownerId ?? ctx.memberId }),
+  prepareCreate: async (ctx, body) => ({ ownerId: body.ownerId ?? ctx.memberId, ...(await customForCreate(ctx, 'contact', body.custom)) }),
+  prepareUpdate: (ctx, existing, body) => customForUpdate(ctx, 'contact', existing.custom, body.custom, existing.id),
 });
 
 const CLOSED = ['won', 'lost'];
@@ -74,12 +77,13 @@ export const dealRoutes = crud({
     ownerId: body.ownerId ?? ctx.memberId,
     sortOrder: body.sortOrder ?? (await nextOrder(ctx, deals, eq(deals.stage, body.stage))),
     closedAt: CLOSED.includes(body.stage) ? (body.closedAt ?? new Date().toISOString().slice(0, 10)) : null,
+    ...(await customForCreate(ctx, 'deal', body.custom)),
   }),
   afterCreate: async (ctx, row, body) => {
     if (body.contactIds) await setDealContacts(ctx, row.id, body.contactIds);
   },
   prepareUpdate: async (ctx, existing, body) => {
-    const patch: Record<string, unknown> = {};
+    const patch: Record<string, unknown> = { ...(await customForUpdate(ctx, 'deal', existing.custom, body.custom, existing.id)) };
     if (body.stage && body.stage !== existing.stage) {
       // Переход в won/lost фиксирует дату закрытия; возврат в открытый этап — сбрасывает её и причину отказа
       if (CLOSED.includes(body.stage)) patch.closedAt = body.closedAt ?? new Date().toISOString().slice(0, 10);

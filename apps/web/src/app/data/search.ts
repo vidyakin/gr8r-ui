@@ -1,5 +1,8 @@
 /* Поиск по воркспейсу и недавние запросы — порт searchAll из pages/search.js и recentSearches из core/store.js */
 import * as React from 'react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { searchRecords, type RecordHit } from '../meta/data';
+import { useSession } from './session';
 import { allTasks, canSee, project, task, visibleProjects } from './selectors';
 import type { Comment, Member, Project, ProjectFile, Task, WorkspaceData } from './types';
 
@@ -67,4 +70,19 @@ export function useRecentSearches() {
     },
     load,
   );
+}
+
+/* ---------- записи своих сущностей (конструктор): ищет сервер, результат приходит отдельно от локального поиска ---------- */
+
+/** Совпадения в записях пользовательских сущностей; запрос уходит после паузы в наборе */
+export function useRecordHits(query: string): RecordHit[] {
+  const ws = useSession().active?.id;
+  const q = query.trim();
+  const [debounced, setDebounced] = React.useState(q);
+  React.useEffect(() => {
+    const t = setTimeout(() => setDebounced(q), 180);
+    return () => clearTimeout(t);
+  }, [q]);
+  const r = useQuery({ queryKey: ['ws', ws, 'record-hits', debounced], queryFn: () => searchRecords(ws!, debounced, 5), enabled: !!ws && debounced.length > 0, staleTime: 10_000, placeholderData: keepPreviousData });
+  return q && r.data ? r.data : [];
 }

@@ -12,9 +12,13 @@ import type { Task } from '../data/types';
 import { AssigneeField, DueField, PriorityField, StatusField } from './fields';
 import { ProjectDot } from './project';
 import type { ViewApi } from './view-toolbar';
+import { CustomCell, isCustomColumn, useCustomColumns } from '../meta/custom-fields';
+import type { MetaField } from '../meta/data';
 import { MemberAvatar, TaskDue, useTaskActions } from './workspace';
 
-export type TableColumn = 'title' | 'status' | 'priority' | 'assignee' | 'due' | 'start' | 'labels' | 'deps' | 'plan' | 'actual' | 'variance' | 'created' | 'project';
+export type BuiltinColumn = 'title' | 'status' | 'priority' | 'assignee' | 'due' | 'start' | 'labels' | 'deps' | 'plan' | 'actual' | 'variance' | 'created' | 'project';
+/** Пользовательские поля задач приходят колонками cf:<ключ> (конструктор сущностей) */
+export type TableColumn = BuiltinColumn | `cf:${string}`;
 
 /** Колонки таблицы: название и ширина по умолчанию (TCOLS) */
 export const TABLE_COLUMNS: { id: TableColumn; name: string; width: number }[] = [
@@ -36,7 +40,16 @@ export const TABLE_COLUMNS: { id: TableColumn; name: string; width: number }[] =
 /** Колонки, которые можно скрывать (всё, кроме названия) */
 export const TOGGLE_COLUMNS = TABLE_COLUMNS.filter(c => c.id !== 'title');
 
-const SORT_OF: Record<TableColumn, SortField> = {
+/** Колонки пользовательских полей задач: показываются по умолчанию, скрываются в меню Columns */
+export function useTaskColumns() {
+  const custom = useCustomColumns('task');
+  return React.useMemo(() => {
+    const extra = custom.map(c => ({ id: c.id as TableColumn, name: c.name, width: c.width }));
+    return { all: [...TABLE_COLUMNS, ...extra] as { id: TableColumn; name: string; width: number }[], toggle: [...TOGGLE_COLUMNS, ...extra] as { id: TableColumn; name: string; width: number }[], fields: new Map(custom.map(c => [c.id, c.field] as const)) };
+  }, [custom]);
+}
+
+const SORT_OF: Record<BuiltinColumn, SortField> = {
   title: 'title',
   status: 'status',
   priority: 'priority',
@@ -113,7 +126,7 @@ function CellInput({ value, placeholder, label, onCommit, onCancel }: { value: s
   );
 }
 
-function Cell({ task: t, col, edit, setEdit }: { task: Task; col: TableColumn; edit: { id: string; f: 'title' | 'plan' } | null; setEdit: (e: { id: string; f: 'title' | 'plan' } | null) => void }) {
+function Cell({ task: t, col, edit, setEdit, cf }: { task: Task; col: TableColumn; edit: { id: string; f: 'title' | 'plan' } | null; setEdit: (e: { id: string; f: 'title' | 'plan' } | null) => void; cf?: MetaField }) {
   const { data, dispatch } = useWorkspace();
   const actions = useTaskActions();
   const editing = edit?.id === t.id && edit.f === col;
@@ -122,6 +135,7 @@ function Cell({ task: t, col, edit, setEdit }: { task: Task; col: TableColumn; e
     dispatch({ type: 'task/update', id: t.id, patch });
     setEdit(null);
   };
+  if (isCustomColumn(col)) return <td>{cf ? <CustomCell field={cf} custom={t.custom} /> : faint}</td>;
   switch (col) {
     case 'title':
       return editing ? (
@@ -266,7 +280,8 @@ export function TableView({ tasks, api, onNewTask, project }: TableViewProps) {
   const actions = useTaskActions();
   const [edit, setEdit] = React.useState<{ id: string; f: 'title' | 'plan' } | null>(null);
   const { view } = api;
-  const cols = TABLE_COLUMNS.filter(c => c.id === 'title' || (!api.hidden.includes(c.id) && !(project && c.id === 'project')));
+  const { all, fields: cfFields } = useTaskColumns();
+  const cols = all.filter(c => c.id === 'title' || (!api.hidden.includes(c.id) && !(project && c.id === 'project')));
   const width = (c: (typeof cols)[number]) => api.colW[c.id] ?? c.width;
   const totalW = cols.reduce((a, c) => a + width(c), 0);
   const groups = groupTasks(data, tasks, api.group);
@@ -318,12 +333,12 @@ export function TableView({ tasks, api, onNewTask, project }: TableViewProps) {
           <thead>
             <tr>
               {cols.map(c => {
-                const f = SORT_OF[c.id];
-                const on = view.sort.f === c.id;
+                const f = isCustomColumn(c.id) ? null : SORT_OF[c.id as BuiltinColumn];
+                const on = (view.sort.f as string) === c.id;
                 const SortIcon = view.sort.dir > 0 ? ArrowUp : ArrowDown;
                 return (
                   <th key={c.id} className={c.id === 'title' ? 'sticky' : undefined} style={{ position: 'sticky' }} scope="col" aria-sort={on ? (view.sort.dir > 0 ? 'ascending' : 'descending') : undefined}>
-                    <div className="thi" onClick={() => api.setSort(f)}>
+                    <div className="thi" style={f ? undefined : { cursor: 'default' }} onClick={f ? () => api.setSort(f) : undefined}>
                       {c.name}
                       {on && <SortIcon size={11} />}
                     </div>
@@ -359,7 +374,7 @@ export function TableView({ tasks, api, onNewTask, project }: TableViewProps) {
                 {g.tasks.map(t => (
                   <tr key={t.id} data-ctx="task" data-id={t.id}>
                     {cols.map(c => (
-                      <Cell key={c.id} task={t} col={c.id} edit={edit} setEdit={setEdit} />
+                      <Cell key={c.id} task={t} col={c.id} edit={edit} setEdit={setEdit} cf={cfFields.get(c.id)} />
                     ))}
                   </tr>
                 ))}

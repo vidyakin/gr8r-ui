@@ -32,6 +32,7 @@ import { CompaniesPage as CrmCompaniesPage } from './crm/CompaniesPage';
 import { CompanyPage as CrmCompanyPage } from './crm/CompanyPage';
 import { ContactsPage as CrmContactsPage } from './crm/ContactsPage';
 import { ActivitiesPage as CrmActivitiesPage } from './crm/ActivitiesPage';
+import { RecordsPage } from './meta/RecordsPage';
 
 /* Hash-роутинг, как в оригинале: работает на любом статическом хостинге без настройки rewrite.
    Чтобы перенести раздел, замените PlaceholderPage на его компонент. */
@@ -74,6 +75,8 @@ export const router = createHashRouter([
       { path: `${SECTIONS.crmCompanies.path}/:id/:tab?`, element: <CrmCompanyPage /> },
       { path: SECTIONS.crmContacts.path, element: <CrmContactsPage /> },
       { path: SECTIONS.crmActivities.path, element: <CrmActivitiesPage /> },
+      // Свои сущности конструктора: экран собирается из метаданных
+      { path: '/data/:key/:recordId?', element: <RecordsPage /> },
       // Разделы, которые ещё не перенесены, открывают заглушку
       ...Object.values(SECTIONS)
         .filter(s => !PORTED.has(s.path))

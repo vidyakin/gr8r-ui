@@ -2,10 +2,11 @@
    один источник для браузера и БД) и второй воркспейс другого пользователя для проверки изоляции арендаторов.
    Сид идёт тем же путём, что и приложение: под ролью app_user с настройками RLS (политики проверяют и его). */
 import { eq, sql as dsql } from 'drizzle-orm';
-import type { Subtask } from '@gr8r/shared';
+import type { FieldType, Subtask } from '@gr8r/shared';
 import { seed as demoWorkspace, seedCrm } from '@gr8r/shared/demo';
 import type { Db, Sql } from './client';
 import { withContext } from './context';
+import { createFieldIndex, registerSystemEntities } from './meta';
 import { uuidv7 } from './uuid';
 import {
   activity,
@@ -17,7 +18,9 @@ import {
   crmActivities,
   dealContacts,
   deals,
+  entities,
   events,
+  fields,
   files,
   invites,
   members,
@@ -25,6 +28,7 @@ import {
   notifications,
   projectMembers,
   projects,
+  records,
   savedViews,
   statuses,
   tasks,
@@ -63,6 +67,56 @@ export const defaultStatusRows = (workspaceId: string, list: { id: string; name:
     builtin: s.builtin ?? true,
     sortOrder: i,
   }));
+
+/** Демо конструктора: поля «Story points» (number) и «Client» (ref → companies) у задач и сущность «Suppliers» с 8 записями.
+    Возвращает поля с флагом filterable — индексы по ним создаются после коммита (CREATE INDEX CONCURRENTLY вне транзакции) */
+async function seedMeta(db: Db, wsId: string, sys: Map<string, string>, creator: string | null) {
+  const taskEntity = sys.get('task')!;
+  await db.insert(fields).values([
+    { workspaceId: wsId, entityId: taskEntity, key: 'story_points', name: 'Story points', type: 'number', filterable: true, options: { min: 0, max: 100 }, sortOrder: 0 },
+    { workspaceId: wsId, entityId: taskEntity, key: 'client', name: 'Client', type: 'ref', options: { refEntity: 'company' }, sortOrder: 1 },
+  ]);
+
+  const supplierEntity = uuidv7();
+  await db.insert(entities).values({ id: supplierEntity, workspaceId: wsId, key: 'suppliers', name: 'Suppliers', kind: 'custom', icon: 'truck', titleField: 'name', sortOrder: 10 });
+  const choice = (value: string, color: string) => ({ value, label: value, color });
+  const supplierFields = [
+    { key: 'name', name: 'Name', type: 'text', required: true, options: {} },
+    { key: 'category', name: 'Category', type: 'select', filterable: true, options: { choices: [choice('Hardware', 'blue'), choice('Software', 'violet'), choice('Logistics', 'amber'), choice('Materials', 'teal'), choice('Services', 'green')] } },
+    { key: 'rating', name: 'Rating', type: 'number', filterable: true, options: { min: 0, max: 5 } },
+    { key: 'contact_email', name: 'Contact email', type: 'email', options: {} },
+    { key: 'website', name: 'Website', type: 'url', options: {} },
+    { key: 'notes', name: 'Notes', type: 'long_text', options: {} },
+  ] as const;
+  const inserted = await db
+    .insert(fields)
+    .values(supplierFields.map((f, i) => ({ workspaceId: wsId, entityId: supplierEntity, sortOrder: i, ...f, options: f.options as never })))
+    .returning({ id: fields.id, key: fields.key, type: fields.type, filterable: fields.filterable });
+  const rows: [string, string, number, string, string, string][] = [
+    ['Northwind Components', 'Hardware', 4.5, 'sales@northwind.example', 'https://northwind.example', 'Main source of PCBs and connectors. Net 30.'],
+    ['Cloudline Hosting', 'Software', 4.8, 'support@cloudline.example', 'https://cloudline.example', 'Managed Kubernetes and object storage.'],
+    ['Fastlane Freight', 'Logistics', 3.9, 'dispatch@fastlane.example', 'https://fastlane.example', 'Pallet shipping across the EU. Occasional delays at customs.'],
+    ['Green Pack Materials', 'Materials', 4.2, 'orders@greenpack.example', 'https://greenpack.example', 'Recycled packaging, minimum order 500 units.'],
+    ['Pixel Foundry', 'Services', 4.7, 'hello@pixelfoundry.example', 'https://pixelfoundry.example', 'Contract illustration and motion design.'],
+    ['Ironside Metalworks', 'Materials', 3.5, 'quotes@ironside.example', 'https://ironside.example', 'Custom brackets; lead time 3 weeks.'],
+    ['Lumen Displays', 'Hardware', 4.1, 'b2b@lumen.example', 'https://lumen.example', 'Touch panels for kiosks.'],
+    ['Quill Legal', 'Services', 4.9, 'desk@quill.example', 'https://quill.example', 'Contracts and compliance reviews.'],
+  ];
+  await db.insert(records).values(
+    rows.map(([name, category, rating, contact_email, website, notes], i) => ({
+      workspaceId: wsId,
+      entityId: supplierEntity,
+      data: { name, category, rating, contact_email, website, notes },
+      createdBy: creator,
+      createdAt: ago(600 - i * 20),
+    })),
+  );
+  const taskFields = await db.select({ id: fields.id, key: fields.key, type: fields.type, filterable: fields.filterable }).from(fields).where(eq(fields.entityId, taskEntity));
+  return [
+    ...taskFields.filter(f => f.filterable).map(f => ({ fieldId: f.id, key: f.key, type: f.type as FieldType, entityId: taskEntity, entityKey: 'task' })),
+    ...inserted.filter(f => f.filterable).map(f => ({ fieldId: f.id, key: f.key, type: f.type as FieldType, entityId: supplierEntity, entityKey: 'suppliers' })),
+  ];
+}
 
 /** Демо-воркспейс: все данные фронтенда (задачи, проекты, комментарии, CRM…) */
 async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: string, userIds: Map<string, string>, inviteToken: string) {
@@ -159,6 +213,14 @@ async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: string, user
     d.projects.flatMap(p => p.members.map(m => ({ workspaceId: wsId, projectId: U(p.id), memberId: U(m), permission: p.perms?.[m] ?? (m === p.lead ? 'admin' : 'edit') }))),
   );
 
+  // Конструктор сущностей: системные сущности, пользовательские поля задач, сущность «Suppliers»
+  const sysEntity = await registerSystemEntities(db, wsId);
+  const metaFields = await seedMeta(db, wsId, sysEntity, d.me ? U(d.me) : null);
+  const taskCustom = (_id: string, i: number): Record<string, unknown> => ({
+    story_points: [1, 2, 3, 5, 8, 13][i % 6],
+    ...(i % 4 === 0 ? { client: U(crm.companies[i % crm.companies.length]!.id) } : {}),
+  });
+
   // Задачи. В подзадачах id участников (assignee) тоже переводим в uuid
   const mapSubs = (list: Subtask[]): Subtask[] => list.map(s => ({ ...s, assignee: s.assignee ? U(s.assignee) : s.assignee, subtasks: mapSubs(s.subtasks) }));
   await insertChunks(d.tasks, chunk =>
@@ -183,6 +245,7 @@ async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: string, user
         sortOrder: t.order,
         fav: t.fav,
         recur: t.recur,
+        custom: taskCustom(t.id, d.tasks.indexOf(t)),
         createdAt: new Date(t.created),
         updatedAt: new Date(t.updated),
         completedAt: ms(t.completedAt),
@@ -252,7 +315,7 @@ async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: string, user
   );
 
   await db.insert(events).values({ workspaceId: wsId, type: 'workspace.seeded', entity: 'workspace', recordId: wsId, actorId: U(d.me), payload: { tasks: d.tasks.length, deals: crm.deals.length } });
-  return { tasks: d.tasks.length, projects: d.projects.length, deals: crm.deals.length };
+  return { tasks: d.tasks.length, projects: d.projects.length, deals: crm.deals.length, metaFields };
 }
 
 /** Второй арендатор: маленький, чтобы проверять, что демо-пользователь его не видит */
@@ -263,6 +326,7 @@ async function seedOtherWorkspace(db: Db, wsId: string, userId: string) {
   await db.insert(workspaces).values({ id: wsId, name: 'Acme Corp', slug: 'acme', color: '#C54B78', createdBy: userId });
   await db.insert(memberships).values({ workspaceId: wsId, userId, role: 'owner' });
   await db.insert(members).values({ id: memberId, workspaceId: wsId, userId, email: OTHER_USER.email, name: OTHER_USER.name, title: 'Founder', color: '#C54B78', role: 'owner' });
+  await registerSystemEntities(db, wsId);
   await db.insert(statuses).values(defaultStatusRows(wsId, [{ id: 'todo', name: 'To Do' }, { id: 'progress', name: 'In Progress' }, { id: 'done', name: 'Done' }]));
   await db.insert(projects).values({ id: projectId, workspaceId: wsId, key: 'ACM', name: 'Acme Secret Project', icon: 'lock', color: 'rose', status: 'active', leadId: memberId, taskCounter: 3, description: 'Private data of another tenant' });
   await db.insert(tasks).values(
@@ -302,6 +366,9 @@ export async function runSeed(sql: Sql, log: (msg: string) => void = console.log
   const stats = await withContext(sql, { userId: userIds.get('m1'), workspaceId: demoWs }, db => seedDemoWorkspace(db, demoWs, userIds.get('m1')!, userIds, uuidv7()));
   const otherWs = uuidv7();
   await withContext(sql, { userId: otherUserId, workspaceId: otherWs }, db => seedOtherWorkspace(db, otherWs, otherUserId));
+
+  // Индексы по полям с флагом filterable: CREATE INDEX CONCURRENTLY нельзя внутри транзакции, поэтому после коммита сида
+  for (const t of stats.metaFields) await createFieldIndex(sql, t);
 
   log(`[seed] done in ${Math.round(performance.now() - t0)} ms: demo workspace (${stats.projects} projects, ${stats.tasks} tasks, ${stats.deals} deals) + Acme workspace`);
   log(`[seed] demo login: ${DEMO_USER.email} / ${DEMO_USER.password}; other tenant: ${OTHER_USER.email} / ${OTHER_USER.password}`);

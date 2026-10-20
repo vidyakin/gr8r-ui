@@ -12,7 +12,7 @@ import { CalendarView } from '../components/calendar-view';
 import { Page404, StateDenied } from '../components/error-states';
 import { ProjectActivity, ProjectOverview } from '../components/project-overview';
 import { ProjectIcon, ProjectMenu, ProjectStatusMenu } from '../components/project';
-import { BucketIcon, TOGGLE_COLUMNS, TableView } from '../components/table-view';
+import { BucketIcon, TableView, useTaskColumns } from '../components/table-view';
 import { LIST_OPTIONAL_COLUMNS, TaskList, withTimeColumn, type TaskGroup } from '../components/task-list';
 import { ProjectTimelineTab } from '../components/timeline-view';
 import { ProjectFilesTab } from '../components/files-view';
@@ -150,6 +150,7 @@ function SavedViewBody({ view, project: p }: { view: SavedView; project: Project
 
 /** Панель вида + содержимое для board / list / table / calendar */
 function TaskViewBody({ type, project: p, api }: { type: string; project: Project; api: ViewApi }) {
+  const taskColumns = useTaskColumns();
   const { data } = useWorkspace();
   const all = tasksOf(data, p.id);
   const ts = applyView(all, api.view, data);
@@ -233,7 +234,7 @@ function TaskViewBody({ type, project: p, api }: { type: string; project: Projec
   if (type === 'table')
     return (
       <>
-        <ViewToolbar api={api} group columns={TOGGLE_COLUMNS} right={addBtn} />
+        <ViewToolbar api={api} group columns={taskColumns.toggle} right={addBtn} />
         {noTasks ? emptyAll : <TableView tasks={ts} api={api} onNewTask={newTask} project={p.id} />}
       </>
     );

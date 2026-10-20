@@ -27,7 +27,7 @@ bun test           # тесты бэкенда (нужен PostgreSQL, см. «�
 
 ## Бэкенд
 
-Этапы 1–2 (фундамент и фронтенд на API): Bun + Hono + PostgreSQL 16 + Drizzle + Zod. Решения и их обоснование — в [docs/architecture.md](docs/architecture.md).
+Этапы 1–3 (фундамент, фронтенд на API, конструктор сущностей): Bun + Hono + PostgreSQL 16 + Drizzle + Zod. Решения и их обоснование — в [docs/architecture.md](docs/architecture.md).
 
 ```
 apps/
@@ -35,7 +35,7 @@ apps/
   api/        HTTP API (Hono) + WebSocket /ws
   worker/     фоновый цикл: очередь jobs и outbox events на FOR UPDATE SKIP LOCKED
 packages/
-  shared/     доменные типы, zod-схемы API, константы, демо-данные (их использует и фронтенд, и сид БД)
+  shared/     доменные типы, zod-схемы API, схема значений из полей конструктора (fields.ts), константы, демо-данные (их использует и фронтенд, и сид БД)
   db/         drizzle-схема, SQL-миграции (drizzle/), RLS, uuid v7, сид, утилиты администрирования
 test/         preload для bun test (пересоздаёт тестовую БД)
 scripts/      dev.ts (api + worker + web), smoke.ts (сквозной сценарий против запущенного API)
@@ -75,7 +75,7 @@ bun run dev          # api (:3000) + worker + web (:5173) параллельно
 | `bun test` | тесты на отдельной БД `gr8r_test` (пересоздаётся при каждом запуске; URL — `TEST_ADMIN_DATABASE_URL`, по умолчанию `postgres://postgres@127.0.0.1:5433/gr8r_test`) |
 
 **Демо-вход:** `demo@gr8r.dev` / `demo1234` — владелец воркспейса «Gr8r Studio» со всеми демо-данными фронтенда
-(7 проектов, 49 задач, CRM: 12 компаний, 26 контактов, 32 сделки…). Остальные участники демо-воркспейса входят с тем же паролем
+(7 проектов, 49 задач, CRM: 12 компаний, 26 контактов, 32 сделки…), сущностью «Suppliers» (8 записей) и пользовательскими полями задач «Story points» и «Client». Остальные участники демо-воркспейса входят с тем же паролем
 (например `sarah@gr8rstudio.com`, роль admin). Второй арендатор: `bob@acme.test` / `bob12345` — воркспейс «Acme Corp»;
 им удобно проверять изоляцию: Боб не видит данные демо-воркспейса и наоборот.
 
@@ -281,3 +281,18 @@ npx shadcn@latest add calendar      # или dialog, command, sheet, data-table,
 ```css
 :root[data-accent='orange'] { --acc-l: #c0612b; --acc-d: #e3925f; }
 ```
+
+## Конструктор сущностей
+
+Settings → **Data model** (admin и выше): свои сущности (название, значок, поле-заголовок) и пользовательские поля у задач,
+сделок, компаний и контактов — типы text, long text, number, money, percent, date, datetime, checkbox, select и
+multi-select (с цветами), member, reference и references (выбор записи с поиском и ссылка-переход), URL, email, phone;
+обязательность, уникальность, флаг «Filterable» (индекс по выражению), порядок перетаскиванием. Своя сущность получает
+раздел в сайдбаре (группа «Data») с таблицей, доской по полю select, фильтрами, карточкой и формой создания; её записи
+находит поиск (`Ctrl/⌘+K`). Удаление поля или сущности спрашивает подтверждение: по умолчанию данные остаются в БД
+(можно вернуть), «Delete permanently» стирает их. Устройство и решения — в [docs/architecture.md](docs/architecture.md),
+«Конструктор сущностей».
+
+Миграция `0003_meta` создаёт `entities`, `fields`, `records` (RLS как у остальных таблиц) и регистрирует системные сущности
+в существующих воркспейсах; `bun run db:migrate` также выдаёт логин-роли приложения право `SET ROLE app_owner` — оно нужно,
+чтобы строить индексы полей вне транзакции запроса (`CREATE INDEX CONCURRENTLY`).

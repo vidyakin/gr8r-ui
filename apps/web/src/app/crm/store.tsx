@@ -11,7 +11,7 @@ import { LoadingScreen, uid } from '../data/store';
 import { stage } from './stages';
 import type { ActivityType, Company, Contact, CrmActivity, CrmData, Deal, StageId } from './types';
 
-export type DealPatch = Partial<Pick<Deal, 'name' | 'amount' | 'owner' | 'closeDate' | 'company' | 'contacts'>>;
+export type DealPatch = Partial<Pick<Deal, 'name' | 'amount' | 'owner' | 'closeDate' | 'company' | 'contacts' | 'custom'>>;
 export type NewDeal = Pick<Deal, 'name' | 'company' | 'owner' | 'amount' | 'stage' | 'closeDate'> & Partial<Pick<Deal, 'id' | 'contacts'>>;
 export type NewActivity = { type: ActivityType; subject: string; by: string; deal?: string; company?: string; contact?: string; due?: string; body?: string };
 
@@ -22,9 +22,9 @@ export type CrmAction =
   | { type: 'deal/move'; id: string; stage: StageId; before?: string | null; by: string; lostReason?: string }
   | { type: 'deal/delete'; id: string }
   | { type: 'company/create'; company: Pick<Company, 'name' | 'industry' | 'size' | 'owner'> & Partial<Pick<Company, 'id' | 'website' | 'city'>> }
-  | { type: 'company/update'; id: string; patch: Partial<Pick<Company, 'name' | 'industry' | 'size' | 'owner' | 'website' | 'city'>> }
+  | { type: 'company/update'; id: string; patch: Partial<Pick<Company, 'name' | 'industry' | 'size' | 'owner' | 'website' | 'city' | 'custom'>> }
   | { type: 'contact/create'; contact: Pick<Contact, 'name' | 'company' | 'owner'> & Partial<Pick<Contact, 'id' | 'title' | 'email' | 'phone'>> }
-  | { type: 'contact/update'; id: string; patch: Partial<Pick<Contact, 'name' | 'title' | 'email' | 'phone' | 'owner' | 'company'>> }
+  | { type: 'contact/update'; id: string; patch: Partial<Pick<Contact, 'name' | 'title' | 'email' | 'phone' | 'owner' | 'company' | 'custom'>> }
   | { type: 'activity/add'; activity: NewActivity }
   | { type: 'activity/toggle'; id: string };
 
