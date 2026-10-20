@@ -64,9 +64,12 @@
 .tip.tip-rich span {
   font-weight: 400;
   opacity: 0.85;
+  /* абзацы и пункты списка из описания — с новой строки */
+  white-space: pre-line;
 }
-/* Во время перетаскивания подсказки не мешают */
-body.card-dragging .tip-rich {
+/* Во время перетаскивания и пока открыта панель приоритета или меню на карточке, подсказка не мешает */
+body.card-dragging .tip-rich,
+body:has(.pprio, [role='menu']) .tip-rich {
   display: none;
 }
 
