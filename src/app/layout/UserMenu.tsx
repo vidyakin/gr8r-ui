@@ -1,14 +1,17 @@
-import { Component, LogOut, Moon, Settings, Sun, SunMoon, User } from 'lucide-react';
+import { Component, Keyboard, LogOut, Moon, Settings, Sun, SunMoon, User } from 'lucide-react';
 import { useNavigate } from 'react-router';
-import { Menu, MenuContent, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger, toast, usePrefs, type ThemeMode } from '@/components/ui';
+import { Menu, MenuContent, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger, usePrefs, type ThemeMode } from '@/components/ui';
 import { useWorkspace } from '../data/store';
 import { SECTIONS } from '../routes';
+import { setSignedIn } from '../lib/auth';
+import { useShortcuts } from '../overlays';
 
 /** Меню аккаунта: профиль, тема, настройки. Триггер передаётся дочерним элементом. */
 export function UserMenu({ children, side = 'bottom', align = 'end' }: { children: React.ReactElement; side?: 'top' | 'bottom'; align?: 'start' | 'end' }) {
   const { data } = useWorkspace();
   const { prefs, setPrefs } = usePrefs();
   const navigate = useNavigate();
+  const shortcuts = useShortcuts();
   const me = data.members.find(m => m.id === data.me)!;
   return (
     <Menu>
@@ -42,8 +45,11 @@ export function UserMenu({ children, side = 'bottom', align = 'end' }: { childre
           </MenuRadioItem>
         </MenuRadioGroup>
         <MenuSeparator />
-        <MenuItem icon={<LogOut size={15} />} onSelect={() => toast.info('Вход и выход пока не перенесены')}>
-          Log out
+        <MenuItem icon={<Keyboard size={15} />} shortcut="?" onSelect={() => shortcuts.open()}>
+          Keyboard shortcuts
+        </MenuItem>
+        <MenuItem icon={<LogOut size={15} />} onSelect={() => { setSignedIn(false); navigate('/signin'); }}>
+          Sign out
         </MenuItem>
       </MenuContent>
     </Menu>

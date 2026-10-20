@@ -26,6 +26,8 @@ export type Action =
   | { type: 'project/move'; id: string; dir: -1 | 1 }
   | { type: 'project/inviteMember'; id: string; member: Member; perm: string }
   | { type: 'savedView/create'; view: SavedView }
+  /** Название и адрес воркспейса из онбординга */
+  | { type: 'onboarding/workspace'; name: string; url: string }
   /** Уведомление исполнителю о приоритете задачи */
   | { type: 'task/notifyPriority'; id: string }
   | { type: 'status/add'; status: StatusDef }
@@ -542,6 +544,8 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
         savedViews: d.savedViews.map(v => ({ ...v, filters: v.filters.map(f => (f.f === 'status' ? { ...f, v: f.v.filter(x => x !== a.id) } : f)) })),
       };
     }
+    case 'onboarding/workspace':
+      return { ...d, ws: { ...d.ws, name: a.name, url: a.url, brand: false } };
     case 'savedView/create':
       return { ...d, savedViews: [...d.savedViews, a.view] };
     case 'notif/setRead':

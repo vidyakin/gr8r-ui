@@ -20,6 +20,9 @@ import { ArchivePage } from './pages/ArchivePage';
 import { TeamPage, TeamsPage } from './pages/TeamPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { NotFoundPage, PlaceholderPage } from './pages/PlaceholderPage';
+import { ForgotPage, ResetPage, SignInPage, SignUpPage, VerifyPage } from './pages/AuthPages';
+import { OnboardingPage } from './pages/OnboardingPage';
+import { RequireAuth } from './layout/RequireAuth';
 import { SECTIONS } from './routes';
 import { CrmProvider } from './crm/store';
 import { DashboardPage as CrmDashboardPage } from './crm/DashboardPage';
@@ -37,9 +40,11 @@ export const router = createHashRouter([
   {
     // CRM-хранилище живёт над оболочкой: из него берут данные крошки в топбаре и пункт «New deal»
     element: (
-      <CrmProvider>
-        <AppShell />
-      </CrmProvider>
+      <RequireAuth>
+        <CrmProvider>
+          <AppShell />
+        </CrmProvider>
+      </RequireAuth>
     ),
     children: [
       { index: true, element: <HomePage /> },
@@ -76,4 +81,11 @@ export const router = createHashRouter([
       { path: '*', element: <NotFoundPage /> },
     ],
   },
+  // Экраны входа и онбординга живут вне оболочки
+  { path: '/signin', element: <SignInPage /> },
+  { path: '/signup', element: <SignUpPage /> },
+  { path: '/forgot', element: <ForgotPage /> },
+  { path: '/reset', element: <ResetPage /> },
+  { path: '/verify', element: <VerifyPage /> },
+  { path: '/onboarding', element: <OnboardingPage /> },
 ]);
