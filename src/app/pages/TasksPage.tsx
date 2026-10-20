@@ -1,13 +1,14 @@
 /* Задачи — порт pageTasks из pages/tasks.js */
 import * as React from 'react';
 import { List, Plus, SquareKanban, Table2 } from 'lucide-react';
-import { Button, Segmented, toast } from '@/components/ui';
+import { Button, Segmented } from '@/components/ui';
 import { useWorkspace } from '../data/store';
 import { allTasks, applyView, canSee, groupTasks, visibleProjects } from '../data/selectors';
 import { BoardView } from '../components/board-view';
 import { BucketIcon, TOGGLE_COLUMNS, TableView } from '../components/table-view';
 import { TaskList, type TaskGroup } from '../components/task-list';
 import { ViewToolbar, useListView } from '../components/view-toolbar';
+import { useTaskForm } from '../overlays';
 
 type Mode = 'list' | 'board' | 'table';
 
@@ -18,8 +19,8 @@ export function TasksPage() {
   const defaultProject = visibleProjects(data)[0]?.id ?? 'p1';
   const tasks = applyView(allTasks(data), api.view, data);
 
-  // Форма новой задачи ещё не перенесена; быстрое добавление работает в списке и на доске
-  const newTask = () => toast.info('Форма новой задачи пока не перенесена — используйте «Add task» в списке или на доске');
+  const taskForm = useTaskForm();
+  const newTask = () => taskForm.open();
 
   const groups: TaskGroup[] = groupTasks(data, tasks, api.group).map(g => ({
     key: g.key,

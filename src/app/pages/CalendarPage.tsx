@@ -1,17 +1,18 @@
 /* Календарь — порт pageWsCalendar из views/calendar.js */
 import { Plus } from 'lucide-react';
-import { Button, toast } from '@/components/ui';
+import { Button } from '@/components/ui';
 import { useWorkspace } from '../data/store';
 import { allTasks, applyView } from '../data/selectors';
 import { CalendarView } from '../components/calendar-view';
 import { ViewToolbar, useListView } from '../components/view-toolbar';
+import { useTaskForm } from '../overlays';
 
 export function CalendarPage() {
   const { data } = useWorkspace();
   const api = useListView();
   const tasks = applyView(allTasks(data), api.view);
-  // Форма новой задачи ещё не перенесена
-  const newTask = () => toast.info('Форма новой задачи пока не перенесена');
+  const taskForm = useTaskForm();
+  const newTask = () => taskForm.open();
 
   return (
     <div className="page flush">

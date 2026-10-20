@@ -1,7 +1,7 @@
 /* Вкладки Overview и Activity страницы проекта — порт projOverview / projActivity из views/project-overview.js */
 import { useNavigate } from 'react-router';
 import { Activity, Calendar, CircleCheck, CircleDot, ClockAlert, Flag, Pencil, User, UserPlus, Users } from 'lucide-react';
-import { Badge, Button, EmptyState, toast } from '@/components/ui';
+import { Badge, Button, EmptyState } from '@/components/ui';
 import { STATUSES, StatusIcon } from '@/components/gr8r/task';
 import { useWorkspace } from '../data/store';
 import { dayBucket, isOverdue, member, progressOf, projectColor, sortTasks, task as findTask, tasksOf } from '../data/selectors';
@@ -10,6 +10,7 @@ import { diffDays, fmtDate, parse, today } from '../lib/dates';
 import { NamedIcon } from './icons';
 import { ProjectStatus, ProjectStatusMenu } from './project';
 import { ActivityItem, MemberAvatar, MemberStack, MiniTaskRow, useTaskActions } from './workspace';
+import { useProjectForms } from '../overlays';
 
 interface OverviewProps {
   project: Project;
@@ -36,7 +37,8 @@ export function ProjectOverview({ project: p, onTab, onStatusList }: OverviewPro
   const daysLeft = diffDays(parse(p.due), today());
   const lead = member(data, p.lead);
   const team = data.teams.find(t => t.id === p.team);
-  const share = () => toast.info('Шаринг пока не перенесён');
+  const projectForms = useProjectForms();
+  const share = () => projectForms.share(p.id);
 
   return (
     <div className="page" style={{ maxWidth: 1160, paddingTop: 22 }}>
@@ -46,7 +48,7 @@ export function ProjectOverview({ project: p, onTab, onStatusList }: OverviewPro
             <div className="panel-h">
               <h2>About</h2>
               <div className="acts">
-                <Button size="sm" variant="ghost" onClick={() => toast.info('Редактирование проекта пока не перенесено')}>
+                <Button size="sm" variant="ghost" onClick={() => projectForms.edit(p.id)}>
                   <Pencil size={13} />
                   Edit
                 </Button>

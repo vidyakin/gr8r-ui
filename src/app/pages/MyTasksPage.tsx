@@ -1,13 +1,14 @@
 /* Мои задачи — порт pageMyTasks из pages/my-tasks.js */
 import * as React from 'react';
 import { Calendar, CalendarDays, CircleCheck, ClockAlert, List, Plus, Sun } from 'lucide-react';
-import { Button, Segmented, toast } from '@/components/ui';
+import { Button, Segmented } from '@/components/ui';
 import { useWorkspace } from '../data/store';
 import { allTasks, applyView, isOverdue, visibleProjects } from '../data/selectors';
 import { dOff, diffDays, parse, today } from '../lib/dates';
 import { TaskList, type TaskGroup } from '../components/task-list';
 import { CalendarView } from '../components/calendar-view';
 import { ViewToolbar, useListView } from '../components/view-toolbar';
+import { useTaskForm } from '../overlays';
 
 export function MyTasksPage() {
   const { data } = useWorkspace();
@@ -49,8 +50,8 @@ export function MyTasksPage() {
     },
   ];
 
-  // Форма новой задачи ещё не перенесена; быстрое добавление работает через «Add task» в группах списка
-  const newTask = () => toast.info('Форма новой задачи пока не перенесена — используйте «Add task» в списке');
+  const taskForm = useTaskForm();
+  const newTask = () => taskForm.open({ assignee: data.me });
 
   return (
     <div className="page flush">

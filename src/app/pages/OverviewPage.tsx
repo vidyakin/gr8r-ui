@@ -2,7 +2,7 @@
 import * as React from 'react';
 import { useNavigate } from 'react-router';
 import { ChartGantt, Plus } from 'lucide-react';
-import { Button, Progress, toast } from '@/components/ui';
+import { Button, Progress } from '@/components/ui';
 import { STATUSES, StatusIcon } from '@/components/gr8r/task';
 import { useWorkspace } from '../data/store';
 import { diffDays, fmtDate, parse, relDate, today } from '../lib/dates';
@@ -10,6 +10,7 @@ import { allTasks, canSee, isOverdue, member, progressOf, projectColor, tasksOf,
 import { SECTIONS } from '../routes';
 import { ProjectIcon, ProjectStatus } from '../components/project';
 import { MemberAvatar } from '../components/workspace';
+import { useProjectForms } from '../overlays';
 
 function Panel({ title, actions, children }: { title: string; actions?: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -34,6 +35,7 @@ function Stat({ label, value, note }: { label: string; value: React.ReactNode; n
 }
 
 export function OverviewPage() {
+  const projectForms = useProjectForms();
   const { data } = useWorkspace();
   const navigate = useNavigate();
 
@@ -66,7 +68,7 @@ export function OverviewPage() {
             <ChartGantt size={14} />
             Timeline
           </Button>
-          <Button variant="primary" onClick={() => toast.info('Создание проекта пока не перенесено')}>
+          <Button variant="primary" onClick={() => projectForms.create()}>
             <Plus size={14} />
             New project
           </Button>

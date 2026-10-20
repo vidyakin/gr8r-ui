@@ -29,6 +29,7 @@ import { WorkspaceLogo } from '../components/brand';
 import { NamedIcon } from '../components/icons';
 import { UserMenu } from './UserMenu';
 import { MemberAvatar } from '../components/workspace';
+import { useProjectForms } from '../overlays';
 
 const soon = (what: string) => toast.info(`${what} пока не перенесено`);
 
@@ -170,6 +171,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   const projects = visibleProjects(data).filter(p => p.status !== 'complete');
   const archived = data.tasks.filter(t => t.archived).length + data.projects.filter(p => p.archived).length;
   const me = data.members.find(m => m.id === data.me)!;
+  const projectForms = useProjectForms();
 
   return (
     <nav className="side" aria-label="Main">
@@ -226,7 +228,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           <div className="sgroup-h">
             <span>Projects</span>
             <span className="sp" />
-            <IconButton size="xs" label="New project" shortcut="P" onClick={() => soon('Создание проекта')}>
+            <IconButton size="xs" label="New project" shortcut="P" onClick={() => projectForms.create()}>
               <Plus size={14} />
             </IconButton>
           </div>

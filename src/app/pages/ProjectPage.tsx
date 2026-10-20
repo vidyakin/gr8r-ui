@@ -18,6 +18,7 @@ import { ProjectTimelineTab } from '../components/timeline-view';
 import { ProjectFilesTab } from '../components/files-view';
 import { ViewToolbar, useListView, type ViewApi } from '../components/view-toolbar';
 import { MemberStack } from '../components/workspace';
+import { useProjectForms, useTaskForm } from '../overlays';
 
 const PTABS: [string, string, LucideIcon][] = [
   ['overview', 'Overview', LayoutDashboard],
@@ -45,7 +46,7 @@ function ProjectView({ project: p, tab }: { project: Project; tab: string }) {
   const navigate = useNavigate();
   const api = useListView();
   const views = data.savedViews.filter(v => v.project === p.id);
-  const soon = (what: string) => toast.info(`${what} пока не перенесено`);
+  const projectForms = useProjectForms();
   const goTab = (t: string) => navigate(`/projects/${p.id}/${t}`);
 
   let body: React.ReactNode;
@@ -100,17 +101,17 @@ function ProjectView({ project: p, tab }: { project: Project; tab: string }) {
           </ProjectStatusMenu>
           <span className="sp" />
           <div className="row" style={{ gap: 4 }}>
-            <button className="row" aria-label="Members" style={{ gap: 0 }} onClick={() => soon('Шаринг')}>
+            <button className="row" aria-label="Members" style={{ gap: 0 }} onClick={() => projectForms.share(p.id)}>
               <MemberStack ids={p.members} max={5} size="md" />
             </button>
-            <IconButton size="sm" label="Add member" onClick={() => soon('Шаринг')}>
+            <IconButton size="sm" label="Add member" onClick={() => projectForms.share(p.id)}>
               <UserPlus size={15} />
             </IconButton>
-            <Button size="sm" className="hide-m" onClick={() => soon('Шаринг')}>
+            <Button size="sm" className="hide-m" onClick={() => projectForms.share(p.id)}>
               <Share2 size={13} />
               Share
             </Button>
-            <IconButton size="sm" label="Project settings" onClick={() => soon('Настройки проекта')}>
+            <IconButton size="sm" label="Project settings" onClick={() => projectForms.edit(p.id)}>
               <Settings size={15} />
             </IconButton>
             <ProjectMenu project={p} />
@@ -130,7 +131,7 @@ function ProjectView({ project: p, tab }: { project: Project; tab: string }) {
             </Link>
           ))}
           <Tooltip content="Save current filters as a view">
-            <button className="tab" aria-label="Save view" onClick={() => soon('Сохранение вида')}>
+            <button className="tab" aria-label="Save view" onClick={() => projectForms.saveView(p.id)}>
               <Plus size={14} />
             </button>
           </Tooltip>
@@ -153,7 +154,8 @@ function TaskViewBody({ type, project: p, api }: { type: string; project: Projec
   const all = tasksOf(data, p.id);
   const ts = applyView(all, api.view, data);
   const noTasks = !all.length;
-  const newTask = () => toast.info('Форма новой задачи пока не перенесена — используйте «Add task» в списке или на доске');
+  const taskForm = useTaskForm();
+  const newTask = () => taskForm.open({ project: p.id });
 
   const addBtn = (
     <Button size="sm" variant="primary" onClick={newTask}>

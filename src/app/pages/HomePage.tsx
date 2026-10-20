@@ -14,7 +14,7 @@ import {
   Plus,
   UserPlus,
 } from 'lucide-react';
-import { Button, EmptyState, IconButton, Progress, Segmented, toast } from '@/components/ui';
+import { Button, EmptyState, IconButton, Progress, Segmented } from '@/components/ui';
 import { PriorityIcon } from '@/components/gr8r/task';
 import { useWorkspace } from '../data/store';
 import { DAY, diffDays, fmtDate, parse, today } from '../lib/dates';
@@ -23,6 +23,7 @@ import type { Task } from '../data/types';
 import { SECTIONS } from '../routes';
 import { ProjectDot, ProjectIcon, ProjectStatus } from '../components/project';
 import { ActivityItem, MemberAvatar, MemberStack, MiniTaskRow, useTaskActions } from '../components/workspace';
+import { useInvite, useProjectForms, useTaskForm } from '../overlays';
 
 type Tab = 'upcoming' | 'overdue' | 'completed';
 const MAX_ROWS = 7;
@@ -62,7 +63,9 @@ export function HomePage() {
   const { data } = useWorkspace();
   const navigate = useNavigate();
   const [tab, setTab] = React.useState<Tab>('upcoming');
-  const soon = (what: string) => toast.info(`${what} пока не перенесено`);
+  const taskForm = useTaskForm();
+  const projectForms = useProjectForms();
+  const invite = useInvite();
   const openTask = useTaskActions().open;
 
   const now = today();
@@ -113,15 +116,15 @@ export function HomePage() {
           </p>
         </div>
         <div className="acts">
-          <Button className="hide-m" onClick={() => soon('Приглашение участников')}>
+          <Button className="hide-m" onClick={() => invite.open()}>
             <UserPlus size={14} />
             Invite member
           </Button>
-          <Button className="hide-m" onClick={() => soon('Создание проекта')}>
+          <Button className="hide-m" onClick={() => projectForms.create()}>
             <FolderPlus size={14} />
             New project
           </Button>
-          <Button variant="primary" onClick={() => soon('Создание задачи')}>
+          <Button variant="primary" onClick={() => taskForm.open()}>
             <Plus size={14} />
             New task
           </Button>

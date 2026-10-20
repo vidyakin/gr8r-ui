@@ -8,6 +8,7 @@ import { ago, fmtDate, minsAgo } from '../lib/dates';
 import { MemberStack } from './workspace';
 import type { Project, ProjectStatus as PS } from '../data/types';
 import { NamedIcon } from './icons';
+import { useProjectForms } from '../overlays';
 
 /** Квадратная иконка проекта в его цвете (pIcon) */
 export function ProjectIcon({ project, size = 15, className }: { project: Project; size?: number; className?: string }) {
@@ -64,6 +65,7 @@ export function ProjectMenu({ project: p, className, style }: { project: Project
   const { dispatch } = useWorkspace();
   const navigate = useNavigate();
   const stub = (what: string) => toast.info(`${what} пока не перенесено`);
+  const projectForms = useProjectForms();
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
   return (
     <Menu>
@@ -86,10 +88,10 @@ export function ProjectMenu({ project: p, className, style }: { project: Project
         >
           {p.fav ? 'Remove from favorites' : 'Add to favorites'}
         </MenuItem>
-        <MenuItem icon={<Pencil size={15} />} onSelect={() => stub('Редактирование проекта')}>
+        <MenuItem icon={<Pencil size={15} />} onSelect={() => projectForms.edit(p.id)}>
           Rename &amp; edit
         </MenuItem>
-        <MenuItem icon={<Share2 size={15} />} onSelect={() => stub('Шаринг')}>
+        <MenuItem icon={<Share2 size={15} />} onSelect={() => projectForms.share(p.id)}>
           Share
         </MenuItem>
         <MenuItem

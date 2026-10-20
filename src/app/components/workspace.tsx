@@ -8,10 +8,12 @@ import { member, project, task as findTask } from '../data/selectors';
 import { useWorkspace } from '../data/store';
 import type { Activity, Task } from '../data/types';
 import { ProjectDot } from './project';
+import { useTaskDrawer } from '../overlays';
 
-/** Общие действия над задачей. Карточка задачи (drawer) ещё не перенесена — открытие показывает уведомление. */
+/** Общие действия над задачей; open открывает карточку задачи (drawer). */
 export function useTaskActions() {
   const { data, dispatch } = useWorkspace();
+  const drawer = useTaskDrawer();
   return {
     toggleDone(t: Task) {
       const wasDone = t.status === 'done';
@@ -23,7 +25,7 @@ export function useTaskActions() {
       toast.info(t.fav ? 'Removed from favorites' : 'Added to favorites', { duration: 1800 });
     },
     open(t: Task) {
-      toast.info(`Карточка задачи ${t.key} пока не перенесена`);
+      drawer.open(t.id);
     },
     data,
   };

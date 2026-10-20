@@ -12,6 +12,7 @@ import type { Project, Task } from '../data/types';
 import { MemberAvatar, useTaskActions } from './workspace';
 import { BucketIcon } from './table-view';
 import { ViewToolbar, useListView, type ViewApi } from './view-toolbar';
+import { useTaskForm } from '../overlays';
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MONL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -427,8 +428,8 @@ export function ProjectTimelineTab({ project, api: shared }: { project: Project;
   const own = useListView();
   const api = shared ?? own;
   const tl = useTimeline('status');
-  // Форма новой задачи ещё не перенесена
-  const newTask = () => toast.info('Форма новой задачи пока не перенесена');
+  const taskForm = useTaskForm();
+  const newTask = () => taskForm.open({ project: project.id });
   const tasks = applyView(tasksOf(data, project.id), api.view, data);
   return (
     <>

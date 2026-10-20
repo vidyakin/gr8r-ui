@@ -9,6 +9,7 @@ import { MemberAvatar } from '../components/workspace';
 import { ProjectIcon } from '../components/project';
 import { UserMenu } from './UserMenu';
 import { MOD } from '../lib/platform';
+import { useInvite, useProjectForms, useTaskForm } from '../overlays';
 
 
 export interface Crumb {
@@ -40,6 +41,9 @@ export function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
   const crumbs = useCrumbs();
   const unread = data.notifs.some(n => !n.read);
   const soon = (what: string) => toast.info(`${what} пока не перенесено`);
+  const taskForm = useTaskForm();
+  const projectForms = useProjectForms();
+  const invite = useInvite();
 
   return (
     <header className="topbar">
@@ -89,13 +93,13 @@ export function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
           </Button>
         </MenuTrigger>
         <MenuContent align="end">
-          <MenuItem icon={<CircleCheck size={15} />} shortcut="C" onSelect={() => soon('Создание задачи')}>
+          <MenuItem icon={<CircleCheck size={15} />} shortcut="C" onSelect={() => taskForm.open()}>
             New task
           </MenuItem>
-          <MenuItem icon={<FolderPlus size={15} />} shortcut="P" onSelect={() => soon('Создание проекта')}>
+          <MenuItem icon={<FolderPlus size={15} />} shortcut="P" onSelect={() => projectForms.create()}>
             New project
           </MenuItem>
-          <MenuItem icon={<UserPlus size={15} />} onSelect={() => soon('Приглашение участников')}>
+          <MenuItem icon={<UserPlus size={15} />} onSelect={() => invite.open()}>
             Invite member
           </MenuItem>
         </MenuContent>

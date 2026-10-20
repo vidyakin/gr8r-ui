@@ -2,13 +2,14 @@
 import * as React from 'react';
 import { useNavigate } from 'react-router';
 import { FolderKanban, LayoutGrid, List, Lock, Plus, Search, SearchX, Table2 } from 'lucide-react';
-import { Button, EmptyState, Input, Progress, Segmented, toast } from '@/components/ui';
+import { Button, EmptyState, Input, Progress, Segmented } from '@/components/ui';
 import { useWorkspace } from '../data/store';
 import { PROJECT_STATUS, member, progressOf, tasksOf, visibleProjects } from '../data/selectors';
 import type { Project } from '../data/types';
 import { ago, fmtDate, minsAgo } from '../lib/dates';
 import { MemberAvatar, MemberStack } from '../components/workspace';
 import { ProjectCard, ProjectIcon, ProjectMenu, ProjectStatus } from '../components/project';
+import { useProjectForms } from '../overlays';
 
 type Layout = 'grid' | 'list' | 'table';
 type Sort = 'recent' | 'name' | 'due' | 'progress';
@@ -36,7 +37,8 @@ export function ProjectsPage() {
     .filter(p => (status === 'all' || p.status === status) && (!needle || p.name.toLowerCase().includes(needle) || p.desc.toLowerCase().includes(needle)))
     .sort((a, b) => (sorter[sort](a) > sorter[sort](b) ? 1 : -1));
 
-  const newProject = () => toast.info('Форма нового проекта пока не перенесена');
+  const projectForms = useProjectForms();
+  const newProject = () => projectForms.create();
   const go = (p: Project) => navigate(`/projects/${p.id}`);
   const onKey = (p: Project) => (e: React.KeyboardEvent) => e.key === 'Enter' && e.target === e.currentTarget && go(p);
 
