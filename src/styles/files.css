@@ -142,3 +142,9 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* В оригинале .page.wide внутри flex-колонки .pbody сжимается до ширины содержимого
+   (margin: 0 auto), и файлы встают узкой колонкой по одному. Растягиваем на всю ширину. */
+.pbody > .page.wide {
+  width: 100%;
+}

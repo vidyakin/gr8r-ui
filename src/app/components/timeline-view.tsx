@@ -2,7 +2,7 @@
    Полосы задач перетаскиваются по оси времени (сдвиг start/due через task/update). */
 import * as React from 'react';
 import { Crosshair, Diamond, Plus, ChartGantt } from 'lucide-react';
-import { Button, EmptyState, Segmented, Select, toast } from '@/components/ui';
+import { Button, EmptyState, Segmented, Select, Tooltip, toast } from '@/components/ui';
 import { StatusIcon } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '../data/store';
@@ -101,14 +101,16 @@ function MilestoneLane({ ms, X, dw, y }: { ms: Milestone[]; X: (ds: string) => n
         const name = first.name + (pt.list.length > 1 ? ` +${pt.list.length - 1}` : '');
         const tip = pt.list.map(m => m.name + (m.p ? ` (${m.p.name})` : '')).join(' · ') + ' · ' + fmtDate(pt.date);
         return (
-          <div key={pt.date} className="ms-w" style={{ left: pt.x - 6, top: y + 9 }} data-tip={tip} tabIndex={0} aria-label={`Milestone: ${tip}`}>
-            <span className="ms" style={first.p ? { background: projectColor(first.p) } : undefined} />
-            {room >= 28 && (
-              <span className="ms-l" style={{ maxWidth: Number.isFinite(room) ? Math.round(room) : 'none' }}>
-                {name}
-              </span>
-            )}
-          </div>
+          <Tooltip key={pt.date} content={tip} side="top">
+            <div className="ms-w" style={{ left: pt.x - 6, top: y + 9 }} tabIndex={0} aria-label={`Milestone: ${tip}`}>
+              <span className="ms" style={first.p ? { background: projectColor(first.p) } : undefined} />
+              {room >= 28 && (
+                <span className="ms-l" style={{ maxWidth: Number.isFinite(room) ? Math.round(room) : 'none' }}>
+                  {name}
+                </span>
+              )}
+            </div>
+          </Tooltip>
         );
       })}
     </>
