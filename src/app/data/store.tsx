@@ -5,7 +5,7 @@ import { seed } from './seed';
 import { PROJECT_STATUS } from './selectors';
 import type { Activity, Project, Status, Task, WorkspaceData } from './types';
 
-export type TaskPatch = Partial<Pick<Task, 'title' | 'status' | 'assignee' | 'priority' | 'due' | 'fav' | 'project' | 'estimate' | 'order' | 'archived'>>;
+export type TaskPatch = Partial<Pick<Task, 'title' | 'status' | 'assignee' | 'priority' | 'due' | 'start' | 'fav' | 'project' | 'estimate' | 'order' | 'archived'>>;
 
 export type Action =
   | { type: 'task/toggleDone'; id: string }
