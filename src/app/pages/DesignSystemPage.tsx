@@ -100,14 +100,15 @@ function Section({ id, title, children, note }: { id: string; title: string; not
 }
 const Row = ({ children }: { children: React.ReactNode }) => <div className="flex flex-wrap items-center gap-2">{children}</div>;
 
-function TopBar() {
+function PageHeader() {
   const { prefs, setPrefs } = usePrefs();
   return (
-    <header className="sticky top-0 z-10 flex h-[var(--topbar-h)] items-center gap-3 border-b border-border bg-bg/90 px-[var(--gutter)] backdrop-blur">
-      <img src="/favicon.svg" alt="" className="size-5" />
-      <b className="font-semibold">Gr8r UI</b>
-      <Badge tone="accent">React + Radix</Badge>
-      <span className="sp" />
+    <div className="ph items-center!">
+      <div>
+        <h1>Design system</h1>
+        <p>Компоненты Gr8r UI на React + Radix. Тема, акцент и плотность применяются ко всему приложению.</p>
+      </div>
+      <div className="acts">
       <Segmented
         aria-label="Тема"
         value={prefs.theme}
@@ -140,11 +141,12 @@ function TopBar() {
           { value: 'compact', label: 'Плотно' },
         ]}
       />
-    </header>
+      </div>
+    </div>
   );
 }
 
-export default function App() {
+export function DesignSystemPage() {
   const [prio, setPrio] = React.useState('high');
   const [view, setView] = React.useState<'list' | 'board'>('board');
   const [confirm, setConfirm] = React.useState(false);
@@ -156,9 +158,9 @@ export default function App() {
   const toggleDone = (t: Task) => setTasks(ts => ts.map(x => (x.id === t.id ? { ...x, status: x.status === 'done' ? 'todo' : 'done' } : x)));
 
   return (
-    <>
-      <TopBar />
-      <main className="mx-auto max-w-5xl px-[var(--gutter)] pb-24">
+    <div className="page">
+      <PageHeader />
+      <div>
         <Section id="buttons" title="Кнопки" note="Button: primary / secondary / ghost / danger / danger-ghost, размеры sm/md/lg, loading, asChild. IconButton всегда с подписью — она же тултип.">
           <Row>
             <Button variant="primary">
@@ -319,7 +321,7 @@ export default function App() {
             <Avatar name="Олег Иванов" size="lg" />
             <Avatar name="Tanjim Islam" size="xl" />
             <Avatar />
-            <AvatarStack names={['Анна Смирнова', 'Игорь Петров', 'Мария Ким', 'Олег Иванов', 'Нина Ли', 'Павел Орлов']} />
+            <AvatarStack people={['Анна Смирнова', 'Игорь Петров', 'Мария Ким', 'Олег Иванов', 'Нина Ли', 'Павел Орлов']} />
           </Row>
           <div className="grid max-w-md gap-3">
             <Progress value={62} aria-label="Прогресс проекта" />
@@ -495,7 +497,7 @@ export default function App() {
               <CardContent className="flex flex-col gap-3 text-sm">
                 <span>Выбрана дата: {day ? day.toLocaleDateString('ru-RU') : '—'}</span>
                 <Progress value={62} />
-                <AvatarStack names={['Анна Смирнова', 'Игорь Петров', 'Мария Ким']} />
+                <AvatarStack people={['Анна Смирнова', 'Игорь Петров', 'Мария Ким']} />
               </CardContent>
             </Card>
           </div>
@@ -511,7 +513,7 @@ export default function App() {
             <button className="rounded-md border border-input bg-background px-3 py-2 text-left text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30">focus-visible:ring-ring</button>
           </div>
         </Section>
-      </main>
-    </>
+      </div>
+    </div>
   );
 }
