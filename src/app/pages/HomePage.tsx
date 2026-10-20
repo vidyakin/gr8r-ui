@@ -284,7 +284,7 @@ export function HomePage() {
                         >
                           <ProjectDot project={project(data, t.project)} />
                           <span className="trunc flex-1">{t.title}</span>
-                          <PriorityIcon priority={t.priority} size={13} />
+                          {t.priority != null && <PriorityIcon priority={t.priority} size={13} />}
                           <MemberAvatar id={t.assignee} size="sm" />
                         </div>
                       ))}

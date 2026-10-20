@@ -4,7 +4,7 @@ import { List, Plus, SquareKanban, Table2 } from 'lucide-react';
 import { Button, Segmented } from '@/components/ui';
 import { useWorkspace } from '../data/store';
 import { allTasks, applyView, canSee, groupTasks, visibleProjects } from '../data/selectors';
-import { BoardView, ShowSubtasksSwitch, useBoardSubtasks } from '../components/board-view';
+import { BoardOptions, BoardView, useBoardDensity, useBoardSubtasks } from '../components/board-view';
 import { BucketIcon, TOGGLE_COLUMNS, TableView } from '../components/table-view';
 import { LIST_OPTIONAL_COLUMNS, TaskList, withTimeColumn, type TaskGroup } from '../components/task-list';
 import { ViewToolbar, useListView } from '../components/view-toolbar';
@@ -17,6 +17,7 @@ export function TasksPage() {
   const api = useListView();
   const [mode, setMode] = React.useState<Mode>('list');
   const [showSubs, setShowSubs] = useBoardSubtasks();
+  const [density, setDensity] = useBoardDensity();
   const defaultProject = visibleProjects(data)[0]?.id ?? 'p1';
   const tasks = applyView(allTasks(data), api.view, data);
 
@@ -50,7 +51,7 @@ export function TasksPage() {
         group={mode !== 'board'}
         columns={mode === 'table' ? TOGGLE_COLUMNS : mode === 'list' ? LIST_OPTIONAL_COLUMNS : undefined}
         resetWidths={mode === 'table'}
-        extra={mode === 'board' && <ShowSubtasksSwitch checked={showSubs} onChange={setShowSubs} />}
+        extra={mode === 'board' && <BoardOptions density={density} onDensity={setDensity} showSubtasks={showSubs} onShowSubtasks={setShowSubs} />}
         left={
           <Segmented
             aria-label="View"
@@ -64,7 +65,7 @@ export function TasksPage() {
           />
         }
       />
-      {mode === 'board' && <BoardView tasks={tasks} defaultProject={defaultProject} showSubtasks={showSubs} />}
+      {mode === 'board' && <BoardView tasks={tasks} defaultProject={defaultProject} showSubtasks={showSubs} density={density} />}
       {mode === 'table' && <TableView tasks={tasks} api={api} onNewTask={newTask} />}
       {mode === 'list' && (
         <div className="list-wrap">

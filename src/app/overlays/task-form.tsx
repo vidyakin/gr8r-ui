@@ -48,7 +48,7 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
       project: pid,
       status: defaults.status ?? 'todo',
       assignee: defaults.assignee !== undefined ? defaults.assignee : d.me,
-      priority: defaults.priority ?? 'medium',
+      priority: defaults.priority === undefined ? 5 : defaults.priority,
       due: defaults.due ?? null,
       start: null,
       labels: defaults.labels ?? [],

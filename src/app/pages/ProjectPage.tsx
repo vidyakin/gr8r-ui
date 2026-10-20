@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { useWorkspace } from '../data/store';
 import { PROJECT_STATUS, applyView, canSee, groupTasks, project as findProject, tasksOf } from '../data/selectors';
 import type { Project, SavedView } from '../data/types';
-import { BoardView, ShowSubtasksSwitch, useBoardSubtasks } from '../components/board-view';
+import { BoardOptions, BoardView, useBoardDensity, useBoardSubtasks } from '../components/board-view';
 import { CalendarView } from '../components/calendar-view';
 import { Page404, StateDenied } from '../components/error-states';
 import { ProjectActivity, ProjectOverview } from '../components/project-overview';
@@ -157,6 +157,7 @@ function TaskViewBody({ type, project: p, api }: { type: string; project: Projec
   const taskForm = useTaskForm();
   const newTask = () => taskForm.open({ project: p.id });
   const [showSubs, setShowSubs] = useBoardSubtasks();
+  const [density, setDensity] = useBoardDensity();
 
   const addBtn = (
     <Button size="sm" variant="primary" onClick={newTask}>
@@ -201,8 +202,8 @@ function TaskViewBody({ type, project: p, api }: { type: string; project: Projec
   if (type === 'board')
     return (
       <>
-        <ViewToolbar api={api} right={addBtn} extra={<ShowSubtasksSwitch checked={showSubs} onChange={setShowSubs} />} />
-        {noTasks ? emptyAll : <BoardView tasks={ts} defaultProject={p.id} project={p.id} showSubtasks={showSubs} />}
+        <ViewToolbar api={api} right={addBtn} extra={<BoardOptions density={density} onDensity={setDensity} showSubtasks={showSubs} onShowSubtasks={setShowSubs} />} />
+        {noTasks ? emptyAll : <BoardView tasks={ts} defaultProject={p.id} project={p.id} showSubtasks={showSubs} density={density} />}
       </>
     );
   if (type === 'list') {

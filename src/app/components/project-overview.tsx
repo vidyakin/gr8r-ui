@@ -2,7 +2,7 @@
 import { useNavigate } from 'react-router';
 import { Activity, Calendar, CircleCheck, CircleDot, ClockAlert, Flag, Pencil, User, UserPlus, Users } from 'lucide-react';
 import { Badge, Button, EmptyState } from '@/components/ui';
-import { STATUSES, StatusIcon } from '@/components/gr8r/task';
+import { StatusIcon } from '@/components/gr8r/task';
 import { useWorkspace } from '../data/store';
 import { dayBucket, fmtHours, isOverdue, member, progressOf, projectColor, sortTasks, task as findTask, taskTime, tasksOf, totalTime } from '../data/selectors';
 import type { Activity as ActivityRec, Project, Status } from '../data/types';
@@ -27,7 +27,7 @@ export function ProjectOverview({ project: p, onTab, onStatusList }: OverviewPro
   const { open } = useTaskActions();
   const ts = tasksOf(data, p.id);
   const pr = progressOf(data, p.id);
-  const cnt = STATUSES.map(s => ({ s, n: ts.filter(t => t.status === s.id).length }));
+  const cnt = data.statuses.map(s => ({ s, n: ts.filter(t => t.status === s.id).length }));
   const over = ts.filter(isOverdue);
   const soon = sortTasks(
     ts.filter(t => t.status !== 'done' && t.due),

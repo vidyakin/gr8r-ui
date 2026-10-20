@@ -3,7 +3,7 @@ import * as React from 'react';
 import { useNavigate } from 'react-router';
 import { ChartGantt, Plus } from 'lucide-react';
 import { Button, Progress } from '@/components/ui';
-import { STATUSES, StatusIcon } from '@/components/gr8r/task';
+import { StatusIcon } from '@/components/gr8r/task';
 import { useWorkspace } from '../data/store';
 import { diffDays, fmtDate, parse, relDate, today } from '../lib/dates';
 import { allTasks, canSee, fmtHours, isOverdue, member, progressOf, projectColor, tasksOf, totalTime, visibleProjects } from '../data/selectors';
@@ -44,7 +44,7 @@ export function OverviewPage() {
   const all = allTasks(data);
   const total = Math.max(all.length, 1);
   const done = all.filter(t => t.status === 'done').length;
-  const counts = STATUSES.map(s => ({ s, n: all.filter(t => t.status === s.id).length }));
+  const counts = data.statuses.map(s => ({ s, n: all.filter(t => t.status === s.id).length }));
   const now = today();
   const ms = ps
     .flatMap(p => p.milestones.map(m => ({ ...m, p })))
@@ -238,7 +238,7 @@ export function OverviewPage() {
                   </span>
                   <span className="grow" style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: 'var(--surface-3)' }}>
                     <span style={{ display: 'flex', width: `${(l.ts.length / maxL) * 100}%` }}>
-                      {STATUSES.filter(s => s.id !== 'done').map(s => {
+                      {data.statuses.filter(s => s.id !== 'done').map(s => {
                         const n = l.ts.filter(t => t.status === s.id).length;
                         return n ? <i key={s.id} style={{ display: 'block', flex: n, background: `var(--st-${s.id})` }} /> : null;
                       })}

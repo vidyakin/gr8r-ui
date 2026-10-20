@@ -4,13 +4,14 @@ import * as React from 'react';
 import { Calendar as CalendarIcon, Tag } from 'lucide-react';
 import { Label, Menu, MenuContent, MenuRadioGroup, MenuRadioItem, MenuTrigger, Popover, PopoverContent, PopoverTrigger, toast } from '@/components/ui';
 import { Calendar } from '@/components/shadcn/calendar';
-import { PRIORITIES, PriorityIcon, STATUSES, StatusIcon, type Priority, type Status } from '@/components/gr8r/task';
+import { PriorityIcon, StatusIcon, priorityName, type Status } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
 import { useWorkspace, type TaskPatch } from '../data/store';
-import { LABELS, isOverdue, member, project } from '../data/selectors';
+import { LABELS, isOverdue, member, project, statusOf } from '../data/selectors';
 import { dOff, iso, parse, relDate } from '../lib/dates';
 import type { Task } from '../data/types';
 import { MemberAvatar } from './workspace';
+import { PriorityPopover } from './priority-panel';
 import { ProjectDot } from './project';
 
 function useUpdate(t: Task) {
@@ -65,14 +66,15 @@ const variantProps = (v: FieldVariant) => ({ plain: v !== 'pill', className: v =
 
 export function StatusField({ task: t, variant = 'pill' }: { task: Task; variant?: FieldVariant }) {
   const update = useUpdate(t);
-  const st = STATUSES.find(s => s.id === t.status)!;
+  const { data } = useWorkspace();
+  const st = statusOf(data, t.status) ?? { name: t.status };
   return (
     <PillMenu<Status>
       label={`Status: ${st.name}`}
       {...variantProps(variant)}
       value={t.status}
       onChange={status => update({ status })}
-      options={STATUSES.map(s => ({ value: s.id, label: s.name, icon: <StatusIcon status={s.id} /> }))}
+      options={data.statuses.map(s => ({ value: s.id, label: s.name, icon: <StatusIcon status={s.id} /> }))}
       trigger={
         <>
           <StatusIcon status={t.status} />
@@ -85,19 +87,19 @@ export function StatusField({ task: t, variant = 'pill' }: { task: Task; variant
 
 export function PriorityField({ task: t, variant = 'pill' }: { task: Task; variant?: FieldVariant }) {
   const update = useUpdate(t);
-  const pr = PRIORITIES.find(p => p.id === t.priority)!;
+  const name = priorityName(t.priority);
+  const vp = variantProps(variant);
   return (
-    <PillMenu<Priority>
-      label={variant === 'icon' ? `Priority: ${pr.name}` : 'Priority'}
-      {...variantProps(variant)}
-      empty={variant === 'pill' && t.priority === 'none'}
+    <PriorityPopover
+      task={t}
+      label={variant === 'icon' ? `Priority: ${name}` : 'Priority'}
+      className={cn(!vp.plain && 'pillbtn', variant === 'pill' && t.priority == null && 'empty', vp.className)}
       value={t.priority}
       onChange={priority => update({ priority })}
-      options={PRIORITIES.map(p => ({ value: p.id, label: p.name, icon: <PriorityIcon priority={p.id} /> }))}
       trigger={
         <>
           <PriorityIcon priority={t.priority} size={variant === 'icon' ? 13 : 14} />
-          {variant !== 'icon' && <span>{pr.name}</span>}
+          {variant !== 'icon' && <span>{name}</span>}
         </>
       }
     />

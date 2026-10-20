@@ -1,9 +1,16 @@
 /* Чистые функции над данными воркспейса — порт «lookups» из core/store.js.
    Не зависят от React: их легко тестировать и переиспользовать на сервере. */
-import { PRIORITIES, STATUSES } from '@/components/gr8r/task';
+import { PRIORITIES, priorityName } from '@/components/gr8r/task';
 import { diffDays, parse, today } from '../lib/dates';
 import { flattenSubs, subtreeIds } from './subtasks';
-import type { FileKind, LabelId, Notification, Project, ProjectColor, ProjectStatus, Subtask, Task, TimeLog, WorkspaceData } from './types';
+import type { FileKind, LabelId, Notification, Project, ProjectColor, ProjectStatus, StatusDef, Subtask, Task, TimeLog, WorkspaceData } from './types';
+
+/** Статусы воркспейса в порядке колонок доски */
+export const statusesOf = (d: Pick<WorkspaceData, 'statuses'>): StatusDef[] => d.statuses;
+export const statusOf = (d: Pick<WorkspaceData, 'statuses'>, id: string): StatusDef | undefined => d.statuses.find(s => s.id === id);
+
+/** Палитра цветов новых колонок (по кругу) */
+export const STATUS_PALETTE = ['var(--blue)', 'var(--teal)', 'var(--rose)', 'var(--orange)', 'var(--violet)', 'var(--green)'];
 
 export const PROJECT_COLORS: Record<ProjectColor, string> = {
   indigo: '#5A67D8',
@@ -73,8 +80,8 @@ export function sortTasks(ts: Task[], f: SortField, dir: 1 | -1 = 1, d?: Workspa
     manual: (t: Task) => t.order,
     title: (t: Task) => t.title.toLowerCase(),
     due: (t: Task) => t.due || '9999',
-    priority: (t: Task) => -PRIORITIES.find(p => p.id === t.priority)!.w,
-    status: (t: Task) => STATUSES.findIndex(s => s.id === t.status),
+    priority: (t: Task) => (t.priority == null ? 1 : -t.priority),
+    status: (t: Task) => d?.statuses.findIndex(s => s.id === t.status) ?? 0,
     created: (t: Task) => -t.created,
     updated: (t: Task) => -t.updated,
     start: (t: Task) => t.start || '9999',
@@ -127,6 +134,7 @@ export function matchFilter(t: Task, f: Filter) {
       const n = diffDays(parse(t.due), today());
       return v === 'overdue' ? isOverdue(t) : v === 'today' ? n === 0 : v === 'week' ? n >= 0 && n <= 7 : n > 7;
     });
+  if (f.f === 'priority') return f.v.includes(t.priority == null ? 'none' : String(t.priority));
   return f.v.includes(t[f.f]);
 }
 
@@ -167,8 +175,8 @@ const DUE_BUCKETS = [
 export function groupTasks(d: WorkspaceData, ts: Task[], g: GroupBy): TaskBucket[] {
   if (g === 'none') return [{ key: 'all', name: 'All tasks', tasks: ts }];
   let groups: Omit<TaskBucket, 'tasks'>[];
-  if (g === 'status') groups = STATUSES.map(s => ({ key: s.id, name: s.name, set: { status: s.id } }));
-  else if (g === 'priority') groups = PRIORITIES.map(p => ({ key: p.id, name: p.name, set: { priority: p.id } }));
+  if (g === 'status') groups = statusesOf(d).map(s => ({ key: s.id, name: s.name, set: { status: s.id } }));
+  else if (g === 'priority') groups = [...PRIORITIES.map(p => ({ key: String(p), name: priorityName(p), set: { priority: p as number | null } })), { key: 'none', name: priorityName(null), set: { priority: null } }];
   else if (g === 'assignee')
     groups = [...d.members.map(m => ({ key: m.id, name: m.name, set: { assignee: m.id } })), { key: 'none', name: 'Unassigned', set: { assignee: null } }];
   else if (g === 'project') groups = visibleProjects(d).filter(p => canSee(d, p)).map(p => ({ key: p.id, name: p.name, set: { project: p.id } }));
@@ -178,6 +186,7 @@ export function groupTasks(d: WorkspaceData, ts: Task[], g: GroupBy): TaskBucket
     tasks: ts.filter(t => {
       if (g === 'assignee') return (t.assignee || 'none') === G.key;
       if (g === 'due') return matchFilter(t, { f: 'due', v: [G.key] });
+      if (g === 'priority') return (t.priority == null ? 'none' : String(t.priority)) === G.key;
       return t[g] === G.key;
     }),
   }));

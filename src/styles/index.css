@@ -14,6 +14,7 @@
 @import './projects.css' layer(components);
 @import './project-page.css' layer(components);
 @import './task-views.css' layer(components);
+@import './board-columns.css' layer(components);
 @import './timeline.css' layer(components);
 @import './files.css' layer(components);
 @import './task-form.css' layer(components);

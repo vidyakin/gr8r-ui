@@ -2,11 +2,10 @@
    Компоненты читают данные через useWorkspace() и меняют их только через dispatch(action). */
 import * as React from 'react';
 import { seed } from './seed';
-import { PRIORITIES, STATUSES } from '@/components/gr8r/task';
-import { PROJECT_STATUS, fileKind, fmtHours } from './selectors';
+import { PROJECT_STATUS, fileKind, fmtHours, statusOf } from './selectors';
 import { addSub, findSub, mapSub, reopenAncestors, removeSub, subPath, subtreeIds, toggleSub, flattenSubs } from './subtasks';
 import { dOff, fmtDate } from '../lib/dates';
-import type { Activity, Member, Project, ProjectFile, SavedView, Status, Subtask, Task, TimeLog, WorkspaceData } from './types';
+import type { Activity, Member, Notification, Project, ProjectFile, SavedView, Status, StatusDef, Subtask, Task, TimeLog, WorkspaceData } from './types';
 
 export type TaskPatch = Partial<Pick<Task, 'title' | 'status' | 'assignee' | 'priority' | 'due' | 'start' | 'fav' | 'project' | 'planHours' | 'order' | 'archived' | 'labels' | 'deps' | 'recur' | 'desc'>>;
 export type SubtaskPatch = Partial<Pick<Subtask, 'title' | 'assignee' | 'due' | 'note' | 'planHours'>>;
@@ -24,6 +23,12 @@ export type Action =
   | { type: 'project/delete'; id: string }
   | { type: 'project/inviteMember'; id: string; member: Member; perm: string }
   | { type: 'savedView/create'; view: SavedView }
+  /** Уведомление исполнителю о приоритете задачи */
+  | { type: 'task/notifyPriority'; id: string }
+  | { type: 'status/add'; status: StatusDef }
+  | { type: 'status/rename'; id: string; name: string }
+  /** Задачи удалённой колонки уходят в «To Do» */
+  | { type: 'status/delete'; id: string }
   | { type: 'notif/setRead'; id: string; read: boolean }
   | { type: 'notif/markAllRead' }
   | { type: 'task/delete'; ids: string[] }
@@ -84,10 +89,10 @@ function patchLog(d: WorkspaceData, t: Task, patch: TaskPatch): [string, string]
     const nv = patch[k];
     if (JSON.stringify(t[k]) === JSON.stringify(nv)) continue;
     if (k === 'status') {
-      const name = (id: Status) => STATUSES.find(x => x.id === id)?.name;
+      const name = (id: Status) => statusOf(d, id)?.name;
       out.push(nv === 'done' ? ['completed', ''] : ['moved', `from ${name(t.status)} to ${name(nv as Status)}`]);
     } else if (k === 'assignee') out.push(['assigned', nv ? `to ${who(nv as string)}` : '(unassigned)']);
-    else if (k === 'priority') out.push(['changed priority of', `to ${PRIORITIES.find(x => x.id === nv)?.name}`]);
+    else if (k === 'priority') out.push(['changed priority of', `to ${nv ?? 'none'}`]);
     else if (k === 'due') out.push(['changed due date of', nv ? `to ${fmtDate(nv as string)}` : '(cleared)']);
     else if (k === 'start') out.push(['changed start date of', nv ? `to ${fmtDate(nv as string)}` : '(cleared)']);
     else if (k === 'project') out.push(['moved', `to ${d.projects.find(p => p.id === nv)?.name}`]);
@@ -128,7 +133,7 @@ function blankTask(d: WorkspaceData, extra: Partial<Task> & Pick<Task, 'project'
     title: 'Untitled',
     status: 'todo',
     assignee: null,
-    priority: 'none',
+    priority: null,
     due: null,
     start: null,
     labels: [],
@@ -170,7 +175,7 @@ function addProject(d: WorkspaceData, id: string, f: ProjectForm, starter: strin
   starter.forEach((title, i) => {
     tasks = [
       ...tasks,
-      blankTask(withP, { project: id, title, status: i === 0 ? 'todo' : 'backlog', assignee: i === 0 ? d.me : null, priority: i === 0 ? 'high' : 'medium', due: dOff(5 + i * 5), start: dOff(i * 5) }, tasks),
+      blankTask(withP, { project: id, title, status: i === 0 ? 'todo' : 'backlog', assignee: i === 0 ? d.me : null, priority: i === 0 ? 8 : 5, due: dOff(5 + i * 5), start: dOff(i * 5) }, tasks),
     ];
   });
   return {
@@ -186,7 +191,7 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
     case 'task/toggleDone': {
       const t = d.tasks.find(x => x.id === a.id);
       if (!t) return d;
-      const status: Status = t.status === 'done' ? (t.prevStatus && t.prevStatus !== 'done' ? t.prevStatus : 'todo') : 'done';
+      const status: Status = t.status === 'done' ? (t.prevStatus && t.prevStatus !== 'done' && statusOf(d, t.prevStatus) ? t.prevStatus : 'todo') : 'done';
       const next = patchTask(t, { status });
       return {
         ...d,
@@ -374,7 +379,7 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
         key: nextKey(d, a.task.project),
         status: 'todo',
         assignee: null,
-        priority: 'none',
+        priority: null,
         due: null,
         start: null,
         labels: [],
@@ -439,6 +444,26 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
         members: [...d.members, a.member],
         projects: d.projects.map(p => (p.id === a.id ? { ...p, members: [...p.members, a.member.id], perms: { ...p.perms, [a.member.id]: a.perm } } : p)),
       };
+    case 'task/notifyPriority': {
+      const t = d.tasks.find(x => x.id === a.id);
+      if (!t) return d;
+      const n: Notification = { id: uid('n'), type: 'update', by: d.me, task: t.id, project: t.project, text: t.priority == null ? 'cleared the priority of' : `set priority to ${t.priority} on`, snippet: `Priority ${t.priority ?? 'none'} · ${t.key}`, at: Date.now(), read: false };
+      return { ...d, notifs: [n, ...d.notifs] };
+    }
+    case 'status/add':
+      return { ...d, statuses: [...d.statuses, a.status] };
+    case 'status/rename':
+      return { ...d, statuses: d.statuses.map(s => (s.id === a.id && !s.builtin ? { ...s, name: a.name } : s)) };
+    case 'status/delete': {
+      const st = statusOf(d, a.id);
+      if (!st || st.builtin) return d;
+      return {
+        ...d,
+        statuses: d.statuses.filter(s => s.id !== a.id),
+        tasks: d.tasks.map(t => (t.status === a.id ? { ...t, status: 'todo', updated: Date.now() } : t.prevStatus === a.id ? { ...t, prevStatus: undefined } : t)),
+        savedViews: d.savedViews.map(v => ({ ...v, filters: v.filters.map(f => (f.f === 'status' ? { ...f, v: f.v.filter(x => x !== a.id) } : f)) })),
+      };
+    }
     case 'savedView/create':
       return { ...d, savedViews: [...d.savedViews, a.view] };
     case 'notif/setRead':
@@ -536,7 +561,26 @@ const Ctx = React.createContext<{ data: WorkspaceData; dispatch: React.Dispatch<
 export function WorkspaceProvider({ children, initial }: { children: React.ReactNode; initial?: WorkspaceData }) {
   const [data, dispatch] = React.useReducer(reducer, initial, i => i ?? seed());
   const value = React.useMemo(() => ({ data, dispatch }), [data]);
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={value}>
+      <StatusColors statuses={data.statuses} />
+      {children}
+    </Ctx.Provider>
+  );
+}
+
+/** Цвета пользовательских статусов как CSS-переменные --st-<id>: так StatusIcon везде рисует их по одному id */
+function StatusColors({ statuses }: { statuses: StatusDef[] }) {
+  const css = statuses
+    .filter(s => !s.builtin)
+    .map(s => `--st-${s.id}:${s.color};`)
+    .join('');
+  return css ? <style>{`:root{${css}}`}</style> : null;
+}
+
+/** Статусы воркспейса (колонки доски) */
+export function useStatuses() {
+  return useWorkspace().data.statuses;
 }
 
 export function useWorkspace() {

@@ -30,7 +30,7 @@ function Chip({ t }: { t: Task }) {
   const { open } = useTaskActions();
   return (
     <button data-ctx="task" data-id={t.id} className={cn('cev', t.status === 'done' && 'done')} style={{ '--c': projectColor(project(data, t.project)) } as React.CSSProperties} title={t.title} onClick={() => open(t)}>
-      {t.status === 'done' ? <StatusIcon status="done" size={11} /> : <PriorityIcon priority={t.priority} size={11} />}
+      {t.status === 'done' ? <StatusIcon status="done" size={11} /> : t.priority != null && <PriorityIcon priority={t.priority} size={11} />}
       <span className="trunc">{t.title}</span>
       <MemberAvatar id={t.assignee} tooltip={false} />
     </button>
@@ -154,7 +154,7 @@ function WeekCard({ t }: { t: Task }) {
       </span>
       <span className="m">
         <StatusIcon status={t.status} size={11} />
-        <PriorityIcon priority={t.priority} size={11} />
+        {t.priority != null && <PriorityIcon priority={t.priority} size={11} />}
         <span className="trunc min-w-0 flex-1">{p?.name}</span>
         <MemberAvatar id={t.assignee} size="sm" tooltip={false} />
       </span>

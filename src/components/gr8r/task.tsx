@@ -4,6 +4,7 @@ import { Calendar, Check, Ellipsis, ListChecks, MessageSquare, Paperclip, Pencil
 import { cn } from '@/lib/utils';
 import { Avatar, IconButton, Label, Progress, Tooltip } from '@/components/ui';
 
+/** Набор статусов по умолчанию: сид воркспейса и страница дизайн-системы. Актуальный список — WorkspaceData.statuses */
 export const STATUSES = [
   { id: 'backlog', name: 'Backlog' },
   { id: 'todo', name: 'To Do' },
@@ -11,16 +12,15 @@ export const STATUSES = [
   { id: 'review', name: 'Review' },
   { id: 'done', name: 'Done' },
 ] as const;
-export type Status = (typeof STATUSES)[number]['id'];
+/** Идентификатор статуса: пять встроенных + пользовательские колонки доски (см. WorkspaceData.statuses) */
+export type Status = string;
 
-export const PRIORITIES = [
-  { id: 'urgent', name: 'Urgent', w: 4 },
-  { id: 'high', name: 'High', w: 3 },
-  { id: 'medium', name: 'Medium', w: 2 },
-  { id: 'low', name: 'Low', w: 1 },
-  { id: 'none', name: 'No priority', w: 0 },
-] as const;
-export type Priority = (typeof PRIORITIES)[number]['id'];
+/** Приоритет — шкала 1–10 (10 — самый срочный); null — без приоритета */
+export type Priority = number | null;
+/** Значения от высшего к низшему: порядок в фильтрах и группировке */
+export const PRIORITIES: number[] = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+export const priorityColor = (p: number) => `var(--pr-${p})`;
+export const priorityName = (p: Priority) => (p == null ? 'No priority' : `Priority ${p}`);
 
 export function StatusIcon({ status, size = 14 }: { status: Status; size?: number }) {
   const c = `var(--st-${status})`;
@@ -41,6 +41,7 @@ export function StatusIcon({ status, size = 14 }: { status: Status; size?: numbe
           <path d="M7 3.4A3.6 3.6 0 1 1 3.4 7L7 7Z" fill={c} />
         </>
       )}
+      {!['backlog', 'todo', 'progress', 'review', 'done'].includes(status) && <circle cx="7" cy="7" r="5" fill={c} />}
       {status === 'done' && (
         <>
           <circle cx="7" cy="7" r="6.2" fill={c} />
@@ -51,29 +52,17 @@ export function StatusIcon({ status, size = 14 }: { status: Status; size?: numbe
   );
 }
 
+/** Бейдж приоритета: число в скруглённом квадрате цвета приоритета; без приоритета — пунктирный пустой квадрат */
 export function PriorityIcon({ priority, size = 14 }: { priority: Priority; size?: number }) {
-  if (priority === 'urgent')
-    return (
-      <svg width={size} height={size} viewBox="0 0 14 14" aria-hidden className="shrink-0">
-        <rect x="1" y="1" width="12" height="12" rx="3" fill="var(--red)" />
-        <path d="M7 3.8v4" stroke="#fff" strokeWidth="1.7" strokeLinecap="round" />
-        <circle cx="7" cy="10.1" r=".95" fill="#fff" />
-      </svg>
-    );
-  if (priority === 'none')
-    return (
-      <svg width={size} height={size} viewBox="0 0 14 14" aria-hidden className="shrink-0">
-        <path d="M2.5 7h2M6 7h2M9.5 7h2" stroke="var(--text-3)" strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-    );
-  const w = PRIORITIES.find(p => p.id === priority)!.w;
-  const bar = (x: number, h: number, on: boolean) => <rect x={x} y={12 - h} width="2.6" height={h} rx="1" fill={on ? 'var(--text-2)' : 'var(--border-strong)'} />;
+  const px = Math.max(16, size + 2);
   return (
-    <svg width={size} height={size} viewBox="0 0 14 14" aria-hidden className="shrink-0">
-      {bar(1.8, 4.5, w >= 1)}
-      {bar(5.7, 7.5, w >= 2)}
-      {bar(9.6, 10.5, w >= 3)}
-    </svg>
+    <span
+      className={cn('prio', priority == null && 'none')}
+      aria-hidden
+      style={{ width: px, height: px, fontSize: px <= 16 ? 10.5 : 11.5, ...(priority != null ? { background: priorityColor(priority) } : null) }}
+    >
+      {priority}
+    </span>
   );
 }
 
@@ -119,7 +108,7 @@ export interface TaskCardProps {
 /** Карточка задачи для доски (kcard из views/board.js) */
 export function TaskCard({ task: t, onOpen, onToggleDone, onEdit, onMore }: TaskCardProps) {
   const done = t.status === 'done';
-  const pr = PRIORITIES.find(p => p.id === t.priority)!;
+  const prName = priorityName(t.priority);
   return (
     <div
       className={cn('kcard', done && 'done')}
@@ -158,8 +147,8 @@ export function TaskCard({ task: t, onOpen, onToggleDone, onEdit, onMore }: Task
       )}
       <div className="meta">
         <span className="key">{t.key}</span>
-        <Tooltip content={pr.name}>
-          <span className="m" role="img" aria-label={`Приоритет: ${pr.name}`}>
+        <Tooltip content={prName}>
+          <span className="m" role="img" aria-label={`Приоритет: ${prName}`}>
             <PriorityIcon priority={t.priority} size={13} />
           </span>
         </Tooltip>

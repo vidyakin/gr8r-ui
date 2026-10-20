@@ -70,14 +70,14 @@ import {
 } from '@/components/ui';
 import { Calendar } from '@/components/shadcn/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/shadcn/card';
-import { PRIORITIES, PriorityIcon, STATUSES, StatusIcon, TaskCard, type Task } from '@/components/gr8r/task';
+import { PRIORITIES, PriorityIcon, priorityName, STATUSES, StatusIcon, TaskCard, type Task } from '@/components/gr8r/task';
 
 const d = (n: number) => new Date(Date.now() + n * 864e5);
 const TASKS: Task[] = [
-  { id: '1', key: 'WEB-12', title: 'Собрать дизайн-систему на React', status: 'progress', priority: 'high', assignee: 'Анна Смирнова', due: d(1), labels: [{ name: 'Design', color: 'var(--violet)' }], subtasks: { done: 3, total: 5 }, comments: 4 },
-  { id: '2', key: 'WEB-14', title: 'Подключить shadcn/ui и проверить темы', status: 'todo', priority: 'medium', assignee: 'Игорь Петров', due: d(4), labels: [{ name: 'Frontend', color: 'var(--blue)' }], attachments: 2 },
-  { id: '3', key: 'WEB-9', title: 'Исправить контраст в тёмной теме', status: 'todo', priority: 'urgent', due: d(-2), labels: [{ name: 'Bug', color: 'var(--red)' }] },
-  { id: '4', key: 'WEB-7', title: 'Описать токены в README', status: 'done', priority: 'low', assignee: 'Мария Ким', due: d(-1), subtasks: { done: 2, total: 2 } },
+  { id: '1', key: 'WEB-12', title: 'Собрать дизайн-систему на React', status: 'progress', priority: 8, assignee: 'Анна Смирнова', due: d(1), labels: [{ name: 'Design', color: 'var(--violet)' }], subtasks: { done: 3, total: 5 }, comments: 4 },
+  { id: '2', key: 'WEB-14', title: 'Подключить shadcn/ui и проверить темы', status: 'todo', priority: 5, assignee: 'Игорь Петров', due: d(4), labels: [{ name: 'Frontend', color: 'var(--blue)' }], attachments: 2 },
+  { id: '3', key: 'WEB-9', title: 'Исправить контраст в тёмной теме', status: 'todo', priority: 10, due: d(-2), labels: [{ name: 'Bug', color: 'var(--red)' }] },
+  { id: '4', key: 'WEB-7', title: 'Описать токены в README', status: 'done', priority: 3, assignee: 'Мария Ким', due: d(-1), subtasks: { done: 2, total: 2 } },
 ];
 
 const ACCENTS: { id: Accent; c: string }[] = [
@@ -147,7 +147,7 @@ function PageHeader() {
 }
 
 export function DesignSystemPage() {
-  const [prio, setPrio] = React.useState('high');
+  const [prio, setPrio] = React.useState('8');
   const [view, setView] = React.useState<'list' | 'board'>('board');
   const [confirm, setConfirm] = React.useState(false);
   const [showDone, setShowDone] = React.useState(true);
@@ -215,7 +215,7 @@ export function DesignSystemPage() {
                   {...p}
                   value={prio}
                   onValueChange={setPrio}
-                  options={PRIORITIES.map(x => ({ value: x.id, label: x.name, icon: <PriorityIcon priority={x.id} /> }))}
+                  options={PRIORITIES.map(x => ({ value: String(x), label: priorityName(x), icon: <PriorityIcon priority={x} /> }))}
                 />
               )}
             </Field>

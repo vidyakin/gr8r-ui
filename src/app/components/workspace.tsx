@@ -1,10 +1,10 @@
 /* Компоненты, которые знают о данных воркспейса: аватар участника, строка задачи, запись активности. */
 import { Link } from 'react-router';
 import { Avatar, AvatarStack, Checkbox, Tooltip, toast, type AvatarSize } from '@/components/ui';
-import { DueDate, PRIORITIES, PriorityIcon, STATUSES, StatusIcon } from '@/components/gr8r/task';
+import { DueDate, PriorityIcon, StatusIcon, priorityName } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
 import { ago, parse, relDate } from '../lib/dates';
-import { member, project, task as findTask } from '../data/selectors';
+import { member, project, statusOf, task as findTask } from '../data/selectors';
 import { useWorkspace } from '../data/store';
 import type { Activity, Task } from '../data/types';
 import { ProjectDot } from './project';
@@ -57,8 +57,7 @@ export function MiniTaskRow({ task: t, showProject = true, showAssignee = true, 
   const actions = useTaskActions();
   const p = project(data, t.project);
   const done = t.status === 'done';
-  const st = STATUSES.find(s => s.id === t.status)!;
-  const pr = PRIORITIES.find(x => x.id === t.priority)!;
+  const st = statusOf(data, t.status) ?? { name: t.status };
   return (
     <div
       className={cn('mini', done && 'done')}
@@ -84,11 +83,13 @@ export function MiniTaskRow({ task: t, showProject = true, showAssignee = true, 
           <span className="trunc">{p.name}</span>
         </span>
       )}
-      <Tooltip content={`${pr.name} priority`}>
-        <span>
-          <PriorityIcon priority={t.priority} />
-        </span>
-      </Tooltip>
+      {t.priority != null && (
+        <Tooltip content={priorityName(t.priority)}>
+          <span>
+            <PriorityIcon priority={t.priority} />
+          </span>
+        </Tooltip>
+      )}
       <span className="hide-m" style={{ width: 74, textAlign: 'right' }}>
         <TaskDue task={t} icon={false} />
       </span>

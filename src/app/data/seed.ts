@@ -1,7 +1,11 @@
 /* Демо-данные воркспейса — порт data/seed.js из gr8r-studio.
    Файлы, события и настройки аккаунта пока не перенесены: добавятся вместе со страницами, которым они нужны. */
+import { STATUSES } from '@/components/gr8r/task';
 import { dOff, minsAgo } from '../lib/dates';
 import type { Activity, CalendarEvent, Comment, LabelId, Member, Notification, Priority, Project, ProjectFile, Status, Subtask, Task, Team, TimeLog, WorkspaceData } from './types';
+
+/** Прежние пять уровней приоритета → шкала 1–10 */
+const PRIO_SCALE: Record<'urgent' | 'high' | 'medium' | 'low' | 'none', Priority> = { urgent: 10, high: 8, medium: 5, low: 3, none: null };
 
 let aid = 0;
 const uid = (p: string) => p + ++aid;
@@ -262,7 +266,7 @@ export function seed(): WorkspaceData {
   ];
   let n = 0;
   const T: Task[] = [];
-  const t = (p: string, title: string, status: Status, a: string | null, prio: Priority, due: number | null, labels: LabelId[] = [], x: Partial<Task> & { len?: number; est?: string; age?: number; upd?: number } = {}) => {
+  const t = (p: string, title: string, status: Status, a: string | null, prio: 'urgent' | 'high' | 'medium' | 'low' | 'none', due: number | null, labels: LabelId[] = [], x: Partial<Task> & { len?: number; est?: string; age?: number; upd?: number } = {}) => {
     const proj = projects.find(q => q.id === p)!;
     const { len, est, age, upd, ...rest } = x;
     const count = T.filter(q => q.project === p).length + 1;
@@ -275,7 +279,7 @@ export function seed(): WorkspaceData {
           title,
           status,
           assignee: a,
-          priority: prio,
+          priority: PRIO_SCALE[prio],
           due: due == null ? null : dOff(due),
           start: due == null ? null : dOff(due - (len || 4)),
           labels,
@@ -438,7 +442,7 @@ export function seed(): WorkspaceData {
     A('m2', 'moved', 't3', 'p1', 38, 'to Review'),
     A('m3', 'completed', 't18', 'p1', 90),
     A('m4', 'commented on', 't19', 'p2', 140),
-    A('m1', 'changed priority of', 't9', 'p1', 180, 'to Urgent'),
+    A('m1', 'changed priority of', 't9', 'p1', 180, 'to 10'),
     A('m6', 'added a file to', 't14', 'p1', 260),
     A('m5', 'created', 't30', 'p3', 330),
     A('m2', 'assigned', 't8', 'p1', 420, 'to Sarah Chen'),
@@ -460,7 +464,7 @@ export function seed(): WorkspaceData {
       at: minsAgo(210),
       read: false,
     },
-    { id: 'n2', type: 'assign', by: 'm3', task: 't28', text: 'assigned you', snippet: 'Due today · Medium priority', at: minsAgo(300), read: false },
+    { id: 'n2', type: 'assign', by: 'm3', task: 't28', text: 'assigned you', snippet: 'Due today · Priority 5', at: minsAgo(300), read: false },
     {
       id: 'n3',
       type: 'comment',
@@ -616,6 +620,7 @@ export function seed(): WorkspaceData {
     files,
     timeLogs,
     projOrder: projects.map(p => p.id),
-    savedViews: [{ id: 'v1', project: 'p1', name: 'High priority', type: 'list', filters: [{ f: 'priority', v: ['urgent', 'high'] }] }],
+    statuses: STATUSES.map(s => ({ id: s.id, name: s.name, color: `var(--st-${s.id})`, builtin: true })),
+    savedViews: [{ id: 'v1', project: 'p1', name: 'High priority', type: 'list', filters: [{ f: 'priority', v: ['10', '8'] }] }],
   };
 }

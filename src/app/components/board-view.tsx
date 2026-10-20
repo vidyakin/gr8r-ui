@@ -1,14 +1,15 @@
 /* Доска задач по статусам — порт boardHtml / kcard из views/board.js и drag-and-drop карточек из actions/drag-drop.js.
    Используется на странице Tasks и (позже) на странице проекта. Перетаскивание — нативный HTML5 DnD. */
 import * as React from 'react';
-import { ArrowDownWideNarrow, Check, CheckCheck, Archive, ChevronDown, FoldHorizontal, ListChecks, MessageSquare, Paperclip, Pencil, Plus, Repeat, RotateCcw, Ellipsis } from 'lucide-react';
-import { Button, Checkbox, Label, Menu, Switch, MenuContent, MenuItem, MenuLabel, MenuTrigger, Progress, Tooltip, toast } from '@/components/ui';
-import { STATUSES, StatusIcon, type Status } from '@/components/gr8r/task';
+import { ArrowDownWideNarrow, Check, CheckCheck, Archive, ChevronDown, FoldHorizontal, ListChecks, MessageSquare, Paperclip, Pencil, Plus, Repeat, RotateCcw, Ellipsis, Trash2, X } from 'lucide-react';
+import { Button, Checkbox, ConfirmDialog, IconButton, Input, Label, Menu, Segmented, Switch, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger, Progress, Tooltip, toast } from '@/components/ui';
+import { StatusIcon, type Status } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
-import { useWorkspace, type TaskPatch } from '../data/store';
+import { newId, useWorkspace, type TaskPatch } from '../data/store';
 import { countSubs } from '../data/subtasks';
-import { LABELS, commentsOf, project as findProject, sortTasks } from '../data/selectors';
-import type { Subtask, Task } from '../data/types';
+import { LABELS, STATUS_PALETTE, commentsOf, fmtHours, planOfTask, project as findProject, sortTasks } from '../data/selectors';
+import type { StatusDef, Subtask, Task } from '../data/types';
+import { clipWords, htmlToText } from '../lib/text';
 import { useTaskDrawer } from '../overlays';
 import { AssigneeField, DueField, PriorityField } from './fields';
 import { ProjectDot } from './project';
@@ -23,7 +24,11 @@ export interface BoardViewProps {
   project?: string;
   /** Подзадачи раскрыты на всех карточках (переключатель «Show subtasks»); каждую карточку можно свернуть отдельно */
   showSubtasks?: boolean;
+  /** Full — обычные карточки, Compact — заголовок и план в часах */
+  density?: BoardDensity;
 }
+
+export type BoardDensity = 'full' | 'compact';
 
 const SUBTASKS_KEY = 'gr8r-ui.board-subtasks';
 
@@ -44,6 +49,45 @@ export function useBoardSubtasks() {
     }
   }, [on]);
   return [on, setOn] as const;
+}
+
+const DENSITY_KEY = 'gr8r-ui.board-density';
+
+/** Режим Full / Compact — общий для всех досок, запоминается между заходами */
+export function useBoardDensity() {
+  const [d, setD] = React.useState<BoardDensity>(() => {
+    try {
+      return localStorage.getItem(DENSITY_KEY) === 'compact' ? 'compact' : 'full';
+    } catch {
+      return 'full';
+    }
+  });
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(DENSITY_KEY, d);
+    } catch {
+      /* хранилище недоступно */
+    }
+  }, [d]);
+  return [d, setD] as const;
+}
+
+/** Параметры доски для слота extra тулбара: Full | Compact и «Show subtasks» */
+export function BoardOptions({ density, onDensity, showSubtasks, onShowSubtasks }: { density: BoardDensity; onDensity: (d: BoardDensity) => void; showSubtasks: boolean; onShowSubtasks: (on: boolean) => void }) {
+  return (
+    <>
+      <Segmented
+        aria-label="Card density"
+        value={density}
+        onValueChange={onDensity}
+        items={[
+          { value: 'full', label: 'Full' },
+          { value: 'compact', label: 'Compact' },
+        ]}
+      />
+      <ShowSubtasksSwitch checked={showSubtasks} onChange={onShowSubtasks} />
+    </>
+  );
 }
 
 /** Переключатель «Show subtasks» для тулбара доски */
@@ -189,6 +233,118 @@ function KCard({ task: t, showProject, showSubtasks, dragging, onDragStart, onDr
   );
 }
 
+/** Компактная карточка: заголовок (до 2 строк) и план в часах; описание — в подсказке */
+function KCardCompact({ task: t, showSubtasks, dragging, onDragStart, onDragEnd }: { task: Task; showSubtasks: boolean; dragging: boolean; onDragStart: (e: React.DragEvent) => void; onDragEnd: () => void }) {
+  const actions = useTaskActions();
+  const plan = planOfTask(t);
+  const { done: sd, total: st } = countSubs(t.subtasks);
+  // Своё состояние карточки; общий переключатель перезаписывает его у всех карточек
+  const [open, setOpen] = React.useState(showSubtasks);
+  React.useEffect(() => setOpen(showSubtasks), [showSubtasks]);
+  const desc = React.useMemo(() => clipWords(htmlToText(t.desc), 500), [t.desc]);
+  return (
+    <Tooltip
+      side="right"
+      className="tip-rich"
+      content={
+        <>
+          <b>{t.title}</b>
+          {desc && <span>{desc}</span>}
+        </>
+      }
+    >
+      <div
+        className={cn('kcard compact', t.status === 'done' && 'done', dragging && 'dragging')}
+        draggable
+        data-card={t.id}
+        role="button"
+        tabIndex={0}
+        aria-label={t.title}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onClick={() => actions.open(t)}
+        onKeyDown={e => e.key === 'Enter' && e.target === e.currentTarget && actions.open(t)}
+      >
+        <div className="crow">
+          <div className="title">{t.title}</div>
+          {st > 0 && (
+            <button className="subt-tg" aria-expanded={open} aria-label={open ? 'Hide subtasks' : 'Show subtasks'} onClick={e => (e.stopPropagation(), setOpen(o => !o))}>
+              <ChevronDown size={11} className="chev" />
+              <span className="num">
+                {sd}/{st}
+              </span>
+            </button>
+          )}
+          {plan > 0 && <span className="plan num">{fmtHours(plan)}</span>}
+          {t.priority != null && <PriorityField task={t} variant="icon" />}
+          {t.assignee && <AssigneeField task={t} variant="icon" />}
+        </div>
+        {!!t.labels.length && (
+          <div className="labels">
+            {t.labels.map(id => (
+              <Label key={id} color={LABELS[id].c}>
+                {LABELS[id].name}
+              </Label>
+            ))}
+          </div>
+        )}
+        {st > 0 && (
+          <div className={cn('ksubs', open && 'open')} inert={!open} onClick={e => e.stopPropagation()}>
+            <div className="ksubs-in">
+              <KSubTree task={t} list={t.subtasks} />
+            </div>
+          </div>
+        )}
+      </div>
+    </Tooltip>
+  );
+}
+
+/** Поле названия колонки в шапке: Enter/кнопка — сохранить, Esc/крестик — отмена. Пустое и повторяющееся имя не сохраняется */
+function ColumnNameField({ initial = '', statuses, selfId, onSave, onCancel }: { initial?: string; statuses: StatusDef[]; selfId?: string; onSave: (name: string) => void; onCancel: () => void }) {
+  const [v, setV] = React.useState(initial);
+  const [err, setErr] = React.useState('');
+  const save = () => {
+    const name = v.trim();
+    if (!name) return setErr('Enter a column name');
+    if (statuses.some(s => s.id !== selfId && s.name.toLowerCase() === name.toLowerCase())) return setErr('A column with this name already exists');
+    onSave(name);
+  };
+  return (
+    <>
+      <div className="bcol-h editing">
+        <Input
+          autoFocus
+          size="sm"
+          className="bcol-name"
+          value={v}
+          maxLength={40}
+          placeholder="Column name"
+          aria-label="Column name"
+          invalid={!!err}
+          onFocus={e => e.currentTarget.select()}
+          onChange={e => (setV(e.target.value), setErr(''))}
+          onKeyDown={e => {
+            if (e.key === 'Enter') save();
+            if (e.key === 'Escape') onCancel();
+          }}
+        />
+        <IconButton size="sm" label="Save column" onClick={save}>
+          <Check size={14} />
+        </IconButton>
+        <IconButton size="sm" label="Cancel" onClick={onCancel}>
+          <X size={14} />
+        </IconButton>
+      </div>
+      {err && (
+        <div className="err bcol-err" role="alert">
+          {err}
+        </div>
+      )}
+    </>
+  );
+}
+
 /** Поле быстрого добавления в колонке: Enter — создать, Esc — отмена */
 function Composer({ onSubmit, onCancel }: { onSubmit: (title: string) => void; onCancel: () => void }) {
   const [v, setV] = React.useState('');
@@ -226,8 +382,14 @@ function Composer({ onSubmit, onCancel }: { onSubmit: (title: string) => void; o
   );
 }
 
-export function BoardView({ tasks, defaultProject, project, showSubtasks = false }: BoardViewProps) {
+export function BoardView({ tasks, defaultProject, project, showSubtasks = false, density = 'full' }: BoardViewProps) {
   const { data, dispatch } = useWorkspace();
+  const statuses = data.statuses;
+  const compact = density === 'compact';
+  // Новая колонка (поле имени справа), переименование и удаление пользовательских колонок
+  const [adding, setAdding] = React.useState(false);
+  const [renaming, setRenaming] = React.useState<string | null>(null);
+  const [deleting, setDeleting] = React.useState<StatusDef | null>(null);
   const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>({});
   const [composer, setComposer] = React.useState<Status | null>(null);
   const [dragId, setDragId] = React.useState<string | null>(null);
@@ -240,6 +402,23 @@ export function BoardView({ tasks, defaultProject, project, showSubtasks = false
     setDragId(null);
     setDrop(null);
   };
+  // Во время перетаскивания подсказки компактных карточек скрыты
+  React.useEffect(() => {
+    document.body.classList.toggle('card-dragging', !!dragId);
+    return () => document.body.classList.remove('card-dragging');
+  }, [dragId]);
+
+  const addColumn = (name: string) => {
+    const n = statuses.filter(s => !s.builtin).length;
+    dispatch({ type: 'status/add', status: { id: newId('st'), name, color: STATUS_PALETTE[n % STATUS_PALETTE.length] } });
+    setAdding(false);
+  };
+  const deleteColumn = (s: StatusDef) => {
+    const snap = data;
+    dispatch({ type: 'status/delete', id: s.id });
+    toast(`Deleted column “${s.name}”`, { action: { label: 'Undo', onClick: () => dispatch({ type: 'data/restore', data: snap }) } });
+  };
+  const inColumn = (id: string) => data.tasks.filter(t => t.status === id).length;
 
   const onDragOver = (e: React.DragEvent<HTMLElement>, col: Status) => {
     if (!dragId) return;
@@ -271,7 +450,7 @@ export function BoardView({ tasks, defaultProject, project, showSubtasks = false
     } else order = colTs.length ? colTs[colTs.length - 1].order + 1 : t.order;
     const moved = t.status !== col;
     patch(t.id, moved ? { order, status: col } : { order });
-    if (moved) toast(`Moved “${t.title}” to ${STATUSES.find(s => s.id === col)!.name}`, { duration: 2200 });
+    if (moved) toast(`Moved “${t.title}” to ${statuses.find(s => s.id === col)?.name}`, { duration: 2200 });
   };
 
   // Новая задача встаёт в начало колонки
@@ -280,9 +459,19 @@ export function BoardView({ tasks, defaultProject, project, showSubtasks = false
     dispatch({ type: 'task/create', task: { title, project: project ?? defaultProject, status, order: top - 1 } });
   };
 
+  const dragProps = (t: Task) => ({
+    onDragStart: (e: React.DragEvent) => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', t.id);
+      // Класс .dragging ставим после старта, иначе браузер снимет «призрак» уже полупрозрачным
+      setTimeout(() => setDragId(t.id), 0);
+    },
+    onDragEnd: clearDrag,
+  });
+
   return (
     <div className="board">
-      {STATUSES.map(s => {
+      {statuses.map(s => {
         const col = tasks.filter(t => t.status === s.id).sort((a, b) => a.order - b.order);
         const over = drop?.col === s.id;
         if (collapsed[s.id])
@@ -325,9 +514,21 @@ export function BoardView({ tasks, defaultProject, project, showSubtasks = false
         const doneAll = s.id !== 'done';
         return (
           <section key={s.id} className={cn('bcol', over && 'over')} aria-label={s.name} onDragOver={e => onDragOver(e, s.id)} onDragLeave={e => !e.currentTarget.contains(e.relatedTarget as Node) && setDrop(null)} onDrop={onDrop}>
+            {renaming === s.id ? (
+              <ColumnNameField
+                initial={s.name}
+                statuses={statuses}
+                selfId={s.id}
+                onCancel={() => setRenaming(null)}
+                onSave={name => {
+                  dispatch({ type: 'status/rename', id: s.id, name });
+                  setRenaming(null);
+                }}
+              />
+            ) : (
             <div className="bcol-h">
               <StatusIcon status={s.id} />
-              <span>{s.name}</span>
+              <span className="trunc">{s.name}</span>
               <span className="cnt">{col.length}</span>
               <span className="acts">
                 <Tooltip content="Add task">
@@ -380,28 +581,28 @@ export function BoardView({ tasks, defaultProject, project, showSubtasks = false
                     >
                       Sort by priority
                     </MenuItem>
+                    {!s.builtin && (
+                      <>
+                        <MenuSeparator />
+                        <MenuItem icon={<Pencil size={15} />} onSelect={() => setRenaming(s.id)}>
+                          Rename
+                        </MenuItem>
+                        <MenuItem icon={<Trash2 size={15} />} danger onSelect={() => (inColumn(s.id) ? setDeleting(s) : deleteColumn(s))}>
+                          Delete column
+                        </MenuItem>
+                      </>
+                    )}
                   </MenuContent>
                 </Menu>
               </span>
             </div>
+            )}
             <div className="bcol-b">
               {addRow}
               {col.map(t => (
                 <React.Fragment key={t.id}>
                   {over && drop?.before === t.id && line}
-                  <KCard
-                    task={t}
-                    showProject={!project}
-                    showSubtasks={showSubtasks}
-                    dragging={dragId === t.id}
-                    onDragStart={e => {
-                      e.dataTransfer.effectAllowed = 'move';
-                      e.dataTransfer.setData('text/plain', t.id);
-                      // Класс .dragging ставим после старта, иначе браузер снимет «призрак» уже полупрозрачным
-                      setTimeout(() => setDragId(t.id), 0);
-                    }}
-                    onDragEnd={clearDrag}
-                  />
+                  {compact ? <KCardCompact task={t} showSubtasks={showSubtasks} dragging={dragId === t.id} {...dragProps(t)} /> : <KCard task={t} showProject={!project} showSubtasks={showSubtasks} dragging={dragId === t.id} {...dragProps(t)} />}
                 </React.Fragment>
               ))}
               {over && drop?.before === null && line}
@@ -409,6 +610,28 @@ export function BoardView({ tasks, defaultProject, project, showSubtasks = false
           </section>
         );
       })}
+      {adding ? (
+        <section className="bcol bcol-new" aria-label="New column">
+          <ColumnNameField statuses={statuses} onCancel={() => setAdding(false)} onSave={addColumn} />
+          <div className="bcol-b" />
+        </section>
+      ) : (
+        <Tooltip content="Add column">
+          <button className="bcol-add" aria-label="Add column" onClick={() => setAdding(true)}>
+            <Plus size={16} />
+          </button>
+        </Tooltip>
+      )}
+      <ConfirmDialog
+        open={!!deleting}
+        onOpenChange={o => !o && setDeleting(null)}
+        danger
+        title={`Delete “${deleting?.name ?? ''}”?`}
+        description={deleting && `${inColumn(deleting.id)} ${inColumn(deleting.id) === 1 ? 'task' : 'tasks'} will move to To Do.`}
+        confirmLabel="Delete column"
+        cancelLabel="Cancel"
+        onConfirm={() => deleting && deleteColumn(deleting)}
+      />
     </div>
   );
 }

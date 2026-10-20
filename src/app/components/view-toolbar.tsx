@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { ArrowUpDown, Calendar, CircleDot, Columns3, Folder, ListFilter, Minus, Plus, RotateCcw, Rows3, Search, SignalHigh, User, X } from 'lucide-react';
 import { Badge, Button, Input, Menu, MenuCheckboxItem, MenuContent, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger } from '@/components/ui';
-import { PRIORITIES, PriorityIcon, STATUSES, StatusIcon } from '@/components/gr8r/task';
+import { PRIORITIES, PriorityIcon, StatusIcon } from '@/components/gr8r/task';
 import { useWorkspace } from '../data/store';
 import { canSee, visibleProjects, type Filter, type FilterField, type GroupBy, type ListView, type SortField } from '../data/selectors';
 import { MemberAvatar } from './workspace';
@@ -18,7 +18,7 @@ interface Option {
 function useFields(): Record<FilterField, { name: string; icon: React.ReactNode; options: Option[] }> {
   const { data } = useWorkspace();
   return {
-    status: { name: 'Status', icon: <CircleDot size={15} />, options: STATUSES.map(s => ({ id: s.id, name: s.name, icon: <StatusIcon status={s.id} /> })) },
+    status: { name: 'Status', icon: <CircleDot size={15} />, options: data.statuses.map(s => ({ id: s.id, name: s.name, icon: <StatusIcon status={s.id} /> })) },
     assignee: {
       name: 'Assignee',
       icon: <User size={15} />,
@@ -27,7 +27,7 @@ function useFields(): Record<FilterField, { name: string; icon: React.ReactNode;
         ...data.members.map(m => ({ id: m.id, name: m.name + (m.id === data.me ? ' (you)' : ''), icon: <MemberAvatar id={m.id} size="sm" tooltip={false} /> })),
       ],
     },
-    priority: { name: 'Priority', icon: <SignalHigh size={15} />, options: PRIORITIES.map(p => ({ id: p.id, name: p.name, icon: <PriorityIcon priority={p.id} /> })) },
+    priority: { name: 'Priority', icon: <SignalHigh size={15} />, options: [...PRIORITIES, null].map(p => ({ id: p == null ? 'none' : String(p), name: p == null ? 'No priority' : String(p), icon: <PriorityIcon priority={p} /> })) },
     due: {
       name: 'Due date',
       icon: <Calendar size={15} />,

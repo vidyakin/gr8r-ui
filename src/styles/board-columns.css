@@ -1,0 +1,222 @@
+/* ============================================================
+   ДОСКА: компактные карточки (Full / Compact) и свои колонки-статусы.
+   Новый функционал, в оригинале его нет — стили строятся на токенах .bcol / .kcard.
+   ============================================================ */
+.board .kcard.compact {
+  gap: 0;
+  padding: 6px 10px;
+}
+.board .kcard.compact .crow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.board .kcard.compact .subt-tg {
+  margin: 0 -2px;
+  padding: 1px 3px;
+  font-size: var(--fs-2xs);
+  line-height: 1.35;
+  color: var(--text-3);
+  margin-top: 0;
+}
+.board .kcard.compact .ksub {
+  padding: 1px 0;
+  font-size: var(--fs-xs);
+}
+.board .kcard.compact .ksubs.open .ksubs-in > .ksub:first-child {
+  margin-top: 4px;
+}
+.board .kcard.compact .title {
+  font-size: var(--fs-sm);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.board .kcard.compact .plan {
+  flex-shrink: 0;
+  margin-top: 1px;
+  font-family: var(--mono);
+  font-size: var(--fs-2xs);
+  line-height: 1.35;
+  color: var(--text-3);
+}
+
+/* Подсказка компактной карточки: заголовок и описание, перенос по словам */
+.tip.tip-rich {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 24px));
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+  padding: 7px 9px;
+}
+.tip.tip-rich b {
+  font-weight: 600;
+}
+.tip.tip-rich span {
+  font-weight: 400;
+  opacity: 0.85;
+}
+/* Во время перетаскивания подсказки не мешают */
+body.card-dragging .tip-rich {
+  display: none;
+}
+
+/* Кнопка «+» справа от последней колонки */
+.bcol-add {
+  flex: 0 0 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-lg);
+  border: 1px dashed var(--border-strong);
+  color: var(--text-3);
+  transition:
+    background var(--dur),
+    color var(--dur);
+}
+.bcol-add:hover {
+  background: var(--sunken);
+  color: var(--text);
+}
+
+/* Шапка с полем названия (новая колонка и переименование) */
+.bcol-h.editing {
+  padding: 8px 8px 6px 10px;
+  gap: 4px;
+}
+.bcol-h.editing .bcol-name {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+.bcol-err {
+  padding: 0 12px 4px;
+}
+.bcol-new {
+  border-color: var(--accent-line);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.bcol-new .bcol-b {
+  min-height: 80px;
+}
+
+/* Компактная карточка: метки под заголовком, приоритет и аватар справа */
+.board .kcard.compact .labels {
+  margin-top: 4px;
+}
+.board .kcard.compact .crow > .m {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  cursor: pointer;
+}
+.board .kcard.compact .plan {
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0;
+}
+.board .kcard.compact .subt-tg {
+  height: 18px;
+}
+
+/* ============================================================
+   ПРИОРИТЕТ 1–10: бейдж и панель выбора
+   ============================================================ */
+.prio {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 5px;
+  color: #fff;
+  font-weight: 650;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.prio.none {
+  background: transparent;
+  border: 1.5px dashed var(--border-strong);
+}
+.pprio {
+  width: 236px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pprio .pp-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pp-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  padding: 4px 6px 6px;
+  justify-items: center;
+}
+.pp-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: var(--fs-sm);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  display: grid;
+  place-items: center;
+  transition:
+    transform var(--dur),
+    box-shadow var(--dur);
+}
+.pp-dot:hover {
+  transform: scale(1.08);
+}
+.pp-dot.on {
+  transform: scale(1.12);
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--text);
+}
+.pp-dot:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.pp-sep {
+  height: 1px;
+  background: var(--divider);
+  margin: 0 -6px;
+}
+.pp-notify-wrap {
+  display: block;
+}
+.pp-notify {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.pp-notify:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.pp-notify:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

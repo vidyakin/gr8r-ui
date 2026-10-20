@@ -3,7 +3,8 @@
 import * as React from 'react';
 import { Archive, Check, CircleCheck, CircleDot, Copy, FolderInput, Link2, PanelRightOpen, Pencil, RotateCcw, SignalHigh, Star, Trash2, User } from 'lucide-react';
 import { ContextMenuItem, ContextMenuSeparator, MenuItem, MenuSeparator, toast } from '@/components/ui';
-import { PRIORITIES, STATUSES, PriorityIcon, StatusIcon } from '@/components/gr8r/task';
+import { StatusIcon } from '@/components/gr8r/task';
+import { PriorityPanel } from '../priority-panel';
 import { useWorkspace, type TaskPatch } from '../../data/store';
 import { canSee, projectColor } from '../../data/selectors';
 import type { Task } from '../../data/types';
@@ -60,19 +61,21 @@ export function TaskMenuItems({ task: t, context, hideOpen }: { task: Task; cont
       <>
         <span ref={marker} hidden />
         {view === 'status' &&
-          STATUSES.map((s, i) => (
-            <Item key={s.id} icon={<StatusIcon status={s.id} />} shortcut={String(i + 1)} onSelect={() => update({ status: s.id })}>
+          data.statuses.map((s, i) => (
+            <Item key={s.id} icon={<StatusIcon status={s.id} />} shortcut={i < 9 ? String(i + 1) : undefined} onSelect={() => update({ status: s.id })}>
               {s.name}
               {ck(t.status === s.id)}
             </Item>
           ))}
-        {view === 'priority' &&
-          PRIORITIES.map(p => (
-            <Item key={p.id} icon={<PriorityIcon priority={p.id} />} onSelect={() => update({ priority: p.id })}>
-              {p.name}
-              {ck(t.priority === p.id)}
-            </Item>
-          ))}
+        {view === 'priority' && (
+          <PriorityPanel
+            value={t.priority}
+            task={t}
+            onChange={priority => update({ priority })}
+            // Меню закрываем так же, как после выбора обычного пункта — клавишей Esc
+            onClose={() => document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))}
+          />
+        )}
         {view === 'assignee' && (
           <>
             <Item icon={<MemberAvatar id={null} size="sm" tooltip={false} />} onSelect={() => update({ assignee: null })}>

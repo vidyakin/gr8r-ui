@@ -3,10 +3,11 @@ import * as React from 'react';
 import { Calendar as CalendarIcon, CalendarArrowUp, Check, Repeat, Tag } from 'lucide-react';
 import { Label, Popover, PopoverContent, PopoverTrigger } from '@/components/ui';
 import { Calendar } from '@/components/shadcn/calendar';
-import { PRIORITIES, PriorityIcon, STATUSES, StatusIcon, type Priority, type Status } from '@/components/gr8r/task';
+import { PriorityIcon, StatusIcon, priorityName, type Priority, type Status } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '../data/store';
-import { LABELS, canSee, member, project, visibleProjects } from '../data/selectors';
+import { PriorityPopover } from '../components/priority-panel';
+import { LABELS, canSee, member, project, statusOf, visibleProjects } from '../data/selectors';
 import type { IsoDate, LabelId } from '../data/types';
 import { dOff, fmtDate, iso, parse } from '../lib/dates';
 import { PillMenu } from '../components/fields';
@@ -145,8 +146,7 @@ function PickPop({
 export function FormChips({ form, set }: { form: TaskFormState; set: (patch: Partial<TaskFormState>) => void }) {
   const { data } = useWorkspace();
   const p = project(data, form.project);
-  const st = STATUSES.find(s => s.id === form.status)!;
-  const pr = PRIORITIES.find(x => x.id === form.priority)!;
+  const st = statusOf(data, form.status) ?? { name: form.status };
   const m = member(data, form.assignee);
   const projects = visibleProjects(data).filter(q => canSee(data, q) && q.status !== 'complete');
   const toggleLabel = (id: LabelId) => set({ labels: form.labels.includes(id) ? form.labels.filter(x => x !== id) : [...form.labels, id] });
@@ -169,7 +169,7 @@ export function FormChips({ form, set }: { form: TaskFormState; set: (patch: Par
         className="bordered"
         value={form.status}
         onChange={v => set({ status: v })}
-        options={STATUSES.map(s => ({ value: s.id, label: s.name, icon: <StatusIcon status={s.id} /> }))}
+        options={data.statuses.map(s => ({ value: s.id, label: s.name, icon: <StatusIcon status={s.id} /> }))}
         trigger={
           <>
             <StatusIcon status={form.status} />
@@ -192,16 +192,14 @@ export function FormChips({ form, set }: { form: TaskFormState; set: (patch: Par
           </>
         }
       />
-      <PillMenu<Priority>
-        label="Priority"
-        className="bordered"
+      <PriorityPopover
+        className="pillbtn bordered"
         value={form.priority}
         onChange={v => set({ priority: v })}
-        options={PRIORITIES.map(x => ({ value: x.id, label: x.name, icon: <PriorityIcon priority={x.id} /> }))}
         trigger={
           <>
             <PriorityIcon priority={form.priority} />
-            <span>{pr.name}</span>
+            <span>{priorityName(form.priority)}</span>
           </>
         }
       />

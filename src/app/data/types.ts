@@ -170,6 +170,15 @@ export interface SavedView {
   filters: { f: 'status' | 'assignee' | 'priority' | 'due' | 'project'; v: string[] }[];
 }
 
+/** Статус задачи = колонка доски. Встроенные (builtin) нельзя переименовать и удалить */
+export interface StatusDef {
+  id: Status;
+  name: string;
+  /** Цвет значка: токен вроде var(--blue) */
+  color: string;
+  builtin?: boolean;
+}
+
 export interface WorkspaceInfo {
   name: string;
   url: string;
@@ -206,4 +215,6 @@ export interface WorkspaceData {
   timeLogs: TimeLog[];
   projOrder: string[];
   savedViews: SavedView[];
+  /** Статусы в порядке колонок доски */
+  statuses: StatusDef[];
 }

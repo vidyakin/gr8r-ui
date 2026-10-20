@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { ArrowDown, ArrowUp, Calendar, Plus, SearchX, Timer } from 'lucide-react';
 import { Button, EmptyState, Label, toast } from '@/components/ui';
-import { PRIORITIES, PriorityIcon, StatusIcon } from '@/components/gr8r/task';
+import { PriorityIcon, StatusIcon, priorityName } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '../data/store';
 import { LABELS, fmtHours, groupTasks, isOverdue, member, parseHours, planOfTask, project as findProject, projectColor, task as findTask, taskTime, totalTime, type GroupBy, type SortField, type TaskBucket, type TaskTime } from '../data/selectors';
@@ -54,8 +54,8 @@ const SORT_OF: Record<TableColumn, SortField> = {
 
 /** Значок группы (поле html из groupTasks оригинала) */
 export function BucketIcon({ group, bucket }: { group: GroupBy; bucket: TaskBucket }) {
-  if (group === 'status') return <StatusIcon status={bucket.key as never} />;
-  if (group === 'priority') return <PriorityIcon priority={bucket.key as never} />;
+  if (group === 'status') return <StatusIcon status={bucket.key} />;
+  if (group === 'priority') return <PriorityIcon priority={bucket.key === 'none' ? null : +bucket.key} />;
   if (group === 'assignee') return <MemberAvatar id={bucket.key === 'none' ? null : bucket.key} size="sm" tooltip={false} />;
   if (group === 'project') return <ProjectDotById id={bucket.key} />;
   if (group === 'due') return <Calendar size={14} />;
@@ -409,7 +409,7 @@ export function TableView({ tasks, api, onNewTask, project }: TableViewProps) {
             <div className={cn('row muted')} style={{ flexWrap: 'wrap', gap: 10, fontSize: 12 }}>
               {/* значок и название — прямые дети flex-строки, поэтому между ними тот же зазор 10px, что в оригинале */}
               <PriorityIcon priority={t.priority} />
-              <span>{PRIORITIES.find(p => p.id === t.priority)!.name}</span>
+              <span>{priorityName(t.priority)}</span>
               <MemberAvatar id={t.assignee} size="sm" tooltip={false} />
               <span className="muted">{member(data, t.assignee)?.name ?? 'Unassigned'}</span>
               <TaskDue task={t} />
