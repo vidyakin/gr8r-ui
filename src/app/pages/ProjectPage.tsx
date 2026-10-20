@@ -14,6 +14,7 @@ import { ProjectActivity, ProjectOverview } from '../components/project-overview
 import { ProjectIcon, ProjectMenu, ProjectStatusMenu } from '../components/project';
 import { BucketIcon, TOGGLE_COLUMNS, TableView } from '../components/table-view';
 import { TaskList, type TaskGroup } from '../components/task-list';
+import { ProjectTimelineTab } from '../components/timeline-view';
 import { ViewToolbar, useListView, type ViewApi } from '../components/view-toolbar';
 import { MemberStack } from '../components/workspace';
 
@@ -68,8 +69,7 @@ function ProjectView({ project: p, tab }: { project: Project; tab: string }) {
     // TODO: ProjectFilesTab
     body = <EmptyState icon={<Paperclip />} title="Files">Вкладка Files подключается отдельно.</EmptyState>;
   } else if (tab === 'timeline') {
-    // TODO: ProjectTimelineTab
-    body = <EmptyState icon={<ChartGantt />} title="Timeline">Вкладка Timeline подключается отдельно.</EmptyState>;
+    body = <ProjectTimelineTab project={p} api={api} />;
   } else if (tab === 'activity') body = <ProjectActivity project={p} />;
   else body = <TaskViewBody type={tab} project={p} api={api} />;
 

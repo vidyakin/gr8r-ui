@@ -11,7 +11,7 @@ import { diffDays, fmtDate, iso, parse, today } from '../lib/dates';
 import type { Project, Task } from '../data/types';
 import { MemberAvatar, useTaskActions } from './workspace';
 import { BucketIcon } from './table-view';
-import { ViewToolbar, useListView } from './view-toolbar';
+import { ViewToolbar, useListView, type ViewApi } from './view-toolbar';
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MONL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -419,9 +419,11 @@ export function TimelineView({ tasks, project: p, tl, id = 'tl', onNewTask }: Ti
 }
 
 /** Вкладка Timeline страницы проекта (taskViewBody('timeline')): тулбар с контролами, «New task» и диаграмма */
-export function ProjectTimelineTab({ project }: { project: Project }) {
+/* api — общее состояние вида страницы проекта: фильтры сохраняются при переключении вкладок */
+export function ProjectTimelineTab({ project, api: shared }: { project: Project; api?: ViewApi }) {
   const { data } = useWorkspace();
-  const api = useListView();
+  const own = useListView();
+  const api = shared ?? own;
   const tl = useTimeline('status');
   // Форма новой задачи ещё не перенесена
   const newTask = () => toast.info('Форма новой задачи пока не перенесена');
