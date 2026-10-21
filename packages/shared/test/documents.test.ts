@@ -78,10 +78,24 @@ describe('document types', () => {
     expect(new Set(DOCUMENT_TYPES.map(t => DOCUMENT_META[t].prefix)).size).toBe(DOCUMENT_TYPES.length);
   });
   test('chains', () => {
-    expect(basedOnTargets('customer_order')).toEqual(['invoice', 'realization', 'act']);
+    expect(basedOnTargets('customer_order')).toEqual(['invoice', 'realization', 'act', 'production_order', 'production']);
     expect(basedOnTargets('invoice')).toEqual(['realization', 'act']);
     expect(basedOnTargets('supplier_order')).toEqual(['receipt']);
     expect(basedOnTargets('act')).toEqual([]);
+    expect(basedOnTargets('production_order')).toEqual(['production']);
+  });
+  test('production documents: no counterparty, states apart from posting', () => {
+    expect(documentTypesOf('production')).toEqual(['production_order', 'production']);
+    expect(DOCUMENT_META.production_order.party).toBeNull();
+    expect(DOCUMENT_META.production.party).toBeNull();
+    expect(DOCUMENT_META.production_order.states?.map(s => s.key)).toEqual(['planned', 'in_progress', 'done', 'closed']);
+    expect(DOCUMENT_META.production_order.operation).toBe('assembly');
+    expect(DOCUMENT_META.production.production).toBe(true);
+    // состояние заказа: переходы по списку, из конечного выхода нет
+    const meta = DOCUMENT_META.production_order;
+    expect(stateTransitions(meta, null)).toEqual(['planned', 'in_progress', 'done']);
+    expect(stateTransitions(meta, 'planned')).toEqual(['in_progress']);
+    expect(stateTransitions(meta, 'closed')).toEqual([]);
   });
   test('stock direction', () => {
     expect(DOCUMENT_META.realization.stock).toBe('out');

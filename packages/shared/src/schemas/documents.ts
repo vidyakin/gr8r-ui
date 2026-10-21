@@ -113,6 +113,8 @@ export const documentLineInput = z.object({
   discountPct: pct.default('0'),
   /** Пусто — ставка товара */
   vatRate: z.enum(VAT_RATES).optional(),
+  /** Роль строки выпуска (производства): материал — расход, продукция — приход. У остальных типов её задаёт сервер */
+  stockRole: z.enum(['in', 'out']).optional(),
 });
 export type DocumentLineInput = z.infer<typeof documentLineInput>;
 

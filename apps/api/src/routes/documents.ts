@@ -16,6 +16,9 @@ import {
   costItems,
   createBasedOn,
   createDocument,
+  createProductionFromCustomerOrder,
+  createProductionFromOrder,
+  createProductionOrderFromCustomerOrder,
   defaultPostingCost,
   deleteDocument,
   documentCosts,
@@ -28,6 +31,7 @@ import {
   organizations,
   postDocument,
   products,
+  productionDetail,
   recordEvent,
   restoreDocument,
   stockBalances,
@@ -306,13 +310,30 @@ export const documentRoutes = new Hono<AppEnv>()
   .get('/:id', zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
     const detail = await documentDetail(ctx.db, c.req.valid('param').id);
+    // производственный документ: добавляем изготовителя, позиции и состав
+    if (detail.type === 'production' || detail.type === 'production_order') {
+      const prod = await productionDetail(ctx.db, detail.id);
+      const seeCost = canSeeCost(ctx.role);
+      return c.json({
+        ...detail,
+        workCenter: prod.workCenter,
+        plannedStart: prod.plannedStart,
+        plannedEnd: prod.plannedEnd,
+        items: prod.items,
+        components: seeCost ? prod.components : prod.components.map(c => ({ ...c, plannedCost: null, actualCost: null })),
+        outputs: prod.outputs,
+      });
+    }
     // цена оприходования и стоимость по себестоимости — member и guest их не видят
     if (isInternal(detail.type) && !canSeeCost(ctx.role)) return c.json({ ...detail, lines: detail.lines.map(l => ({ ...l, price: '0.00' })), costTotal: null });
     return c.json(detail);
   })
   .post('/', write, zValidator('json', documentCreate, validationHook), async c => {
     const ctx = ctxOf(c);
-    const id = await createDocument(ctx.db, docCtx(ctx), c.req.valid('json'));
+    const body = c.req.valid('json');
+    // производственные документы создаются своим сервисом: у них позиции и состав, а не строки товаров
+    if (body.type === 'production' || body.type === 'production_order') throw new AppError(422, 'production_api_only', 'Production documents are created in the Production section');
+    const id = await createDocument(ctx.db, docCtx(ctx), body);
     return c.json(await documentDetail(ctx.db, id), 201);
   })
   .patch('/:id', write, zValidator('param', idParam, validationHook), zValidator('json', documentUpdate, validationHook), async c => {
@@ -353,8 +374,28 @@ export const documentRoutes = new Hono<AppEnv>()
   })
   .post('/:id/based-on', write, zValidator('param', idParam, validationHook), zValidator('json', basedOnCreate, validationHook), async c => {
     const ctx = ctxOf(c);
-    const id = await createBasedOn(ctx.db, docCtx(ctx), c.req.valid('param').id, c.req.valid('json').type);
-    return c.json(await documentDetail(ctx.db, id), 201);
+    const id = c.req.valid('param').id;
+    const type = c.req.valid('json').type;
+    // производство создаётся своим сервисом: заказ на производство и выпуск из заказа покупателя
+    if (type === 'production_order') {
+      const orderId = await createProductionOrderFromCustomerOrder(ctx.db, docCtx(ctx), { customerOrderId: id });
+      return c.json(await documentDetail(ctx.db, orderId), 201);
+    }
+    if (type === 'production') {
+      const [src] = await ctx.db.select({ type: documents.type }).from(documents).where(eq(documents.id, id)).limit(1);
+      if (src?.type === 'production_order') {
+        // выпуск по заказу на производство: остаток к выпуску по его позициям
+        const order = await productionDetail(ctx.db, id);
+        const lines = order.items.map(i => ({ orderItemId: i.id, qty: String(Math.max(0, Number(i.qty) - Number(i.produced))) })).filter(l => Number(l.qty) > 0);
+        if (!lines.length) throw new AppError(422, 'nothing_to_create', 'Everything from this production order is already produced');
+        const docId = await createProductionFromOrder(ctx.db, docCtx(ctx), id, { lines });
+        return c.json(await documentDetail(ctx.db, docId), 201);
+      }
+      const docId = await createProductionFromCustomerOrder(ctx.db, docCtx(ctx), { customerOrderId: id, lines: [] });
+      return c.json(await documentDetail(ctx.db, docId), 201);
+    }
+    const created = await createBasedOn(ctx.db, docCtx(ctx), id, type);
+    return c.json(await documentDetail(ctx.db, created), 201);
   })
   // состояние документа (отдельно от проведения): переход проверяется по метаданным типа
   .post('/:id/state', write, zValidator('param', idParam, validationHook), zValidator('json', documentStateChange, validationHook), async c => {

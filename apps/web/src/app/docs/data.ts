@@ -96,6 +96,11 @@ export interface DocDetail extends Omit<DocListItem, 'organizationName' | 'count
   children: DocLink[];
   lines: DocLine[];
   postedAt: string | null;
+  /** Производственный документ: изготовитель, плановые сроки, позиции и состав */
+  workCenter?: { id: string; name: string } | null;
+  plannedStart?: string | null;
+  plannedEnd?: string | null;
+  components?: { id: string; kind: 'material' | 'semi' | 'work'; operation: string; qty: string; hours: string; plannedCost: string | null; actualCost: string | null }[];
 }
 
 export interface DocListParams {

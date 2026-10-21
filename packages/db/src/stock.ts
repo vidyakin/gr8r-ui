@@ -5,7 +5,7 @@ import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { dec, fmt, replayMoves, stockIn, stockOut, weightedAvgCost, DOCUMENT_META, DOCUMENT_TYPES, type Dec, type DocumentType, type InventorySettings, type StockState } from '@gr8r/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
-import { documentLines, documents, products, stockBalances, stockMoves, stockReservations, workspaces } from './schema';
+import { documentLines, documents, productionItems, products, stockBalances, stockMoves, stockReservations, workspaces } from './schema';
 
 export interface StockKey {
   warehouseId: string;
@@ -55,9 +55,11 @@ export interface MoveRequest extends StockKey {
 
 /** Записывает движения документа и обновляет остатки (в той же транзакции). Расход списывается по текущей средней; приход
     пересчитывает среднюю. Расходы пишутся раньше приходов: цена прихода перемещения — фактическая цена расхода той же строки.
-    Уход в минус запрещён, пока воркспейс не разрешил его настройкой */
-export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: string; date: string }, reqs: MoveRequest[], settings: InventorySettings): Promise<void> {
-  if (!reqs.length) return;
+    Уход в минус запрещён, пока воркспейс не разрешил его настройкой.
+    `opts.inCost` считает цену прихода после расходов (выпуск: себестоимость партии из списанных материалов и работ).
+    Возвращает фактическую цену расхода по каждой строке */
+export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: string; date: string }, reqs: MoveRequest[], settings: InventorySettings, opts?: { inCost?: (lineId: string, outCost: Map<string, Dec>) => Dec | undefined }): Promise<Map<string, Dec>> {
+  if (!reqs.length) return new Map();
   const state = await lockBalances(db, workspaceId, reqs);
   const rows: (typeof stockMoves.$inferInsert)[] = [];
   const need = new Map<string, Dec>();
@@ -67,7 +69,7 @@ export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: st
     const k = keyOf(r);
     const s = state.get(k)!;
     if (r.direction === 'in') {
-      const cost = r.cost ?? (r.costFromLine ? outCost.get(r.lineId) : undefined) ?? s.avg;
+      const cost = opts?.inCost?.(r.lineId, outCost) ?? r.cost ?? (r.costFromLine ? outCost.get(r.lineId) : undefined) ?? s.avg;
       const next = stockIn(s, r.qty, cost);
       state.set(k, next);
       rows.push({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentId: doc.id, documentLineId: r.lineId, qty: fmt(r.qty, 3), cost: fmt(cost, 4), movedAt: doc.date });
@@ -100,6 +102,7 @@ export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: st
     const [warehouseId, productId] = k.split(':') as [string, string];
     await db.update(stockBalances).set({ qty: fmt(s.qty, 3), avgCost: fmt(s.avg, 4), updatedAt: new Date() }).where(and(eq(stockBalances.warehouseId, warehouseId), eq(stockBalances.productId, productId)));
   }
+  return outCost;
 }
 
 /** Себестоимость единицы прихода по умолчанию (для оприходования): текущая средняя склада, иначе последняя закупочная цена */
@@ -213,14 +216,33 @@ export async function syncReservations(db: Db, workspaceId: string, orderLineIds
         .groupBy(documentLines.originLineId)
     : [];
   const shipped = new Map(shippedRows.map(r => [r.origin!, dec(r.qty)]));
+  /** Сколько ещё можно держать в резерве выпущенной под строку продукции: остаток строки к отгрузке */
+  const leftForProduction = new Map<string, Dec>();
   for (const l of lines) {
     const reserves = DOCUMENT_META[l.type as DocumentType].reserves === true;
-    const want = reserves && l.status === 'posted' && l.warehouseId && l.kind === 'goods' ? dec(l.qty) - (shipped.get(l.id) ?? 0n) : 0n;
+    const open = reserves && l.status === 'posted' && l.kind === 'goods' ? dec(l.qty) - (shipped.get(l.id) ?? 0n) : 0n;
+    const want = l.warehouseId ? open : 0n;
+    leftForProduction.set(l.id, open > 0n ? open : 0n);
     if (want > 0n) {
       await db
         .insert(stockReservations)
         .values({ workspaceId, documentId: l.documentId, documentLineId: l.id, warehouseId: l.warehouseId!, productId: l.productId, qty: fmt(want, 3) })
         .onConflictDoUpdate({ target: stockReservations.documentLineId, set: { qty: fmt(want, 3), warehouseId: l.warehouseId!, updatedAt: new Date() } });
     } else await db.delete(stockReservations).where(eq(stockReservations.documentLineId, l.id));
+  }
+  // Резерв продукции, выпущенной под заказ (production_line_id): отгрузка уменьшает его, отмена заказа снимает.
+  // Сначала урезаются самые поздние выпуски
+  const prodRes = await db
+    .select({ id: stockReservations.id, qty: stockReservations.qty, orderLineId: productionItems.customerOrderLineId })
+    .from(stockReservations)
+    .innerJoin(productionItems, eq(productionItems.documentLineId, stockReservations.productionLineId))
+    .where(inArray(productionItems.customerOrderLineId, ids))
+    .orderBy(asc(stockReservations.updatedAt));
+  for (const r of prodRes) {
+    const left = leftForProduction.get(r.orderLineId!) ?? 0n;
+    const keep = dec(r.qty) < left ? dec(r.qty) : left;
+    leftForProduction.set(r.orderLineId!, left - keep);
+    if (keep <= 0n) await db.delete(stockReservations).where(eq(stockReservations.id, r.id));
+    else if (keep < dec(r.qty)) await db.update(stockReservations).set({ qty: fmt(keep, 3), updatedAt: new Date() }).where(eq(stockReservations.id, r.id));
   }
 }

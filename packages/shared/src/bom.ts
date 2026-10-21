@@ -221,6 +221,10 @@ export interface ExplosionWork {
   operation: string;
   workCenterId: string | null;
   hours: string;
+  /** Ставка за час из строки спецификации; пусто — ставка участка */
+  rate: string | null;
+  /** Фиксированная стоимость работы */
+  fixedCost: string | null;
 }
 
 /** Полуфабрикат в режиме `stock`: его списывают со склада, а если не хватает — выпускают */
@@ -300,7 +304,7 @@ export function explodeBom(items: BomItemInput[], rootId: string, qty: string): 
         const q = mul(dec(l.qty), scale);
         materials.push({ productId: l.productId!, qty: fmt(withPct(q, dec(l.scrapPct)), 3), unitCode: l.unitCode ?? null });
       } else if (l.kind === 'work') {
-        works.push({ operation: l.operation ?? '', workCenterId: l.workCenterId ?? null, hours: fmt(mul(dec(l.hours), scale), 3) });
+        works.push({ operation: l.operation ?? '', workCenterId: l.workCenterId ?? null, hours: fmt(mul(dec(l.hours), scale), 3), rate: l.rate ?? null, fixedCost: l.fixedCost ?? null });
       } else {
         const child = l.childItemId ? byId.get(l.childItemId) : undefined;
         if (!child) continue;
@@ -428,4 +432,50 @@ export function computeNeeds(explosion: Explosion, availability: Record<string, 
 export function resolveMaterialPrice(source: MaterialPriceSource, p: { price?: string | null; purchasePrice?: string | null }, avgCost?: string | null): string | null {
   const pick = source === 'price' ? p.price : source === 'avg_cost' ? (avgCost ?? p.purchasePrice) : p.purchasePrice;
   return pick !== null && pick !== undefined && dec(pick) > 0n ? pick : null;
+}
+
+/* ---------------- себестоимость выпуска ----------------
+
+   Себестоимость партии выпуска: материалы и полуфабрикаты (по факту или по плану) + работы + накладные.
+   План и факт считает одна функция: для факта заполняется actualCost, для плана — unitCost. */
+
+/** Строка состава выпуска: материал, полуфабрикат или работа */
+export interface ProductionCostLine {
+  kind: 'material' | 'semi' | 'work';
+  /** Количество (материал, полуфабрикат) */
+  qty: string;
+  /** Себестоимость единицы (материал, полуфабрикат) */
+  unitCost?: string | null;
+  /** Часы работы */
+  hours?: string | null;
+  /** Ставка за час */
+  rate?: string | null;
+  /** Фиксированная стоимость работы */
+  fixedCost?: string | null;
+  /** Фактическая стоимость строки: если задана, плановая не используется */
+  actualCost?: string | null;
+}
+
+/** Себестоимость состава выпуска: материалы, работы, накладные и итог */
+export interface ProductionCost {
+  materials: string;
+  works: string;
+  overhead: string;
+  total: string;
+}
+
+/** Себестоимость состава выпуска. Накладные — процент от прямых затрат (материалы + работы), как в computeBomCost */
+export function computeProductionCost(lines: ProductionCostLine[], overheadPct: string | number): ProductionCost {
+  let materials = 0n;
+  let works = 0n;
+  for (const l of lines) {
+    if (l.kind === 'work') {
+      works += add(mul(dec(l.hours ?? '0'), dec(l.rate ?? '0')), dec(l.fixedCost ?? '0'));
+      continue;
+    }
+    const actual = l.actualCost ?? null;
+    materials += actual !== null && actual !== undefined ? dec(actual) : mul(dec(l.qty), dec(l.unitCost ?? '0'));
+  }
+  const overhead = pctOf(materials + works, dec(overheadPct));
+  return { materials: fmt(materials), works: fmt(works), overhead: fmt(overhead), total: fmt(materials + works + overhead) };
 }

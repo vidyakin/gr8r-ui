@@ -12,6 +12,7 @@ import { requireSession, requestLogger, tenant } from './middleware';
 import { Hub } from './realtime';
 import { attributeRoutes, categoryRoutes, productRoutes, unitRoutes } from './routes/catalog';
 import { bomLineRoutes, itemRoutes, productionRoutes, workCenterRoutes } from './routes/production';
+import { productionOrderRoutes } from './routes/production-orders';
 import { companyRoutes, contactRoutes, crmActivityRoutes, dealRoutes } from './routes/crm';
 import { bankAccountRoutes, companyBankRoutes, costItemRoutes, documentRoutes, organizationBankRoutes, organizationRoutes, stockRoutes, warehouseRoutes } from './routes/documents';
 import { flowRoutes, flowRunRoutes } from './routes/flows';
@@ -44,7 +45,7 @@ export interface AppDeps {
 }
 
 /** Ресурсы арендатора: каждый путь защищён цепочкой «сессия → членство → транзакция с RLS» */
-const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/files', '/activity', '/events', '/companies', '/contacts', '/deals', '/crm-activities', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production', '/organizations', '/bank-accounts', '/warehouses', '/cost-items', '/documents', '/stock', '/flows', '/flow-runs'];
+const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/files', '/activity', '/events', '/companies', '/contacts', '/deals', '/crm-activities', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production', '/production-orders', '/organizations', '/bank-accounts', '/warehouses', '/cost-items', '/documents', '/stock', '/flows', '/flow-runs'];
 
 function buildTenantApi() {
   const guarded = new Hono<AppEnv>();
@@ -82,6 +83,7 @@ function buildTenantApi() {
     .route('/manufactured-items', itemRoutes)
     .route('/bom-lines', bomLineRoutes)
     .route('/production', productionRoutes)
+    .route('/production-orders', productionOrderRoutes)
     .route('/organizations', organizationRoutes)
     .route('/organizations', organizationBankRoutes)
     .route('/bank-accounts', bankAccountRoutes)

@@ -1,7 +1,7 @@
 /* zod-схемы производства: участки, продукция (изделия и полуфабрикаты), строки спецификации, настройки. */
 import { z } from 'zod';
-import { BOM_KINDS, MANUFACTURED_KINDS, MATERIAL_PRICE_SOURCES, SEMI_MODES } from '../constants';
-import { clientId, decimal, listQuery, shortText, toPatch, uuid } from './common';
+import { BOM_KINDS, MANUFACTURED_KINDS, MATERIAL_PRICE_SOURCES, REPLENISHMENT_MODES, SEMI_MODES } from '../constants';
+import { clientId, decimal, isoDate, isoDateTime, listQuery, shortText, toPatch, uuid } from './common';
 
 const nonNeg = (max = 1e12) => decimal.refine(v => Number(v) >= 0 && Number(v) < max, 'Must not be negative');
 const positive = (max = 1e12) => decimal.refine(v => Number(v) > 0 && Number(v) < max, 'Must be greater than zero');
@@ -16,6 +16,10 @@ export const workCenterCreate = z.object({
   hourlyRate: nonNeg().default('0'),
   /** Склад-цех участка: материалы передаются на него обычным перемещением */
   warehouseId: uuid.nullish(),
+  /** Склад готовой продукции: куда участок выпускает продукцию */
+  outputWarehouseId: uuid.nullish(),
+  /** Склад отходов: куда уходят отходы производства */
+  wasteWarehouseId: uuid.nullish(),
   note: z.string().max(1000).default(''),
 });
 export const workCenterUpdate = toPatch(workCenterCreate.omit({ id: true }));
@@ -107,3 +111,100 @@ export const productionSettingsUpdate = z.object({ materialPriceSource: z.enum(M
 export interface ProductionSettings {
   materialPriceSource: (typeof MATERIAL_PRICE_SOURCES)[number];
 }
+
+/* ---------------- заказ на производство и выпуск ---------------- */
+
+/** Строка заказа на производство: что выпускаем */
+export const productionOrderItemInput = z.object({
+  /** Продукция (изделие или полуфабрикат) */
+  itemId: uuid,
+  qty: positive(1e9),
+  /** Строка заказа покупателя, которую выполняет эта позиция */
+  customerOrderLineId: uuid.optional(),
+});
+export type ProductionOrderItemInput = z.infer<typeof productionOrderItemInput>;
+
+export const productionOrderCreate = z.object({
+  id: clientId,
+  /** Участок-изготовитель */
+  workCenterId: uuid.nullish(),
+  /** Склад материалов (списывать из) */
+  warehouseId: uuid.nullish(),
+  /** Склад готовой продукции (продукция в) */
+  targetWarehouseId: uuid.nullish(),
+  /** Пусто — сегодня */
+  date: isoDate.optional(),
+  /** Плановый старт и финиш */
+  plannedStart: isoDateTime.optional(),
+  plannedEnd: isoDateTime.optional(),
+  comment: z.string().max(5000).default(''),
+  /** Родительский заказ на производство (дочерний заказ на полуфабрикат) */
+  parentDocumentId: uuid.nullish(),
+  items: z.array(productionOrderItemInput).max(200).default([]),
+});
+export const productionOrderUpdate = toPatch(productionOrderCreate.omit({ id: true }));
+
+export const productionOrderQuery = listQuery.extend({
+  /** Состояние заказа (planned | in_progress | done | closed) */
+  state: z.string().trim().regex(/^[a-z][a-z0-9_]*$/).optional(),
+  /** Плановый старт: с даты */
+  from: isoDate.optional(),
+  /** Плановый финиш: по дату */
+  to: isoDate.optional(),
+});
+
+/** Выпуск по заказу на производство: что производим */
+export const productionCreate = z.object({
+  /** Дата выпуска (по умолчанию сегодня) */
+  date: isoDate.optional(),
+  /** Участок-изготовитель */
+  workCenterId: uuid.nullish(),
+  /** Склад материалов (списывать из) */
+  warehouseId: uuid.nullish(),
+  /** Склад готовой продукции (продукция в) */
+  targetWarehouseId: uuid.nullish(),
+  /** Позиции заказа на производство, которые выпускаем */
+  lines: z
+    .array(
+      z.object({
+        /** Позиция заказа на производство */
+        orderItemId: uuid.optional(),
+        /** Количество */
+        qty: positive(1e9),
+      }),
+    )
+    .min(1)
+    .max(200),
+});
+
+/** Выпуск прямо из заказа покупателя */
+export const productionFromCustomerOrder = z.object({
+  customerOrderId: uuid,
+  date: isoDate.optional(),
+  workCenterId: uuid.nullish(),
+  warehouseId: uuid.nullish(),
+  targetWarehouseId: uuid.nullish(),
+  lines: z
+    .array(z.object({ customerOrderLineId: uuid, qty: positive(1e9) }))
+    .min(1)
+    .max(200),
+});
+
+/** Заказ на производство по заказу покупателя */
+export const productionOrderFromCustomerOrder = z.object({
+  customerOrderId: uuid,
+  date: isoDate.optional(),
+  workCenterId: uuid.nullish(),
+  warehouseId: uuid.nullish(),
+  targetWarehouseId: uuid.nullish(),
+});
+
+/** Способ пополнения товара и спецификация по умолчанию */
+export const productManufacturingUpdate = z.object({
+  /** Способ пополнения: закупить или выпустить */
+  replenishment: z.enum(REPLENISHMENT_MODES),
+  /** Что выпускаем вместо закупки */
+  defaultItemId: uuid.nullish(),
+});
+/** Запись справочника пополнения: товар и его способ пополнения */
+export const productManufacturingSet = productManufacturingUpdate.extend({ productId: uuid });

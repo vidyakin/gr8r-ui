@@ -83,6 +83,8 @@ export async function seedCatalog(db: Db, wsId: string) {
 
   // Готовая мебель, купленная для перепродажи
   await goods('chair', { name: 'Стул обеденный «Классик»', sku: 'FRN-001', category: furniture.id, price: 5900, purchase: 3200, attrs: { brand: 'Loft&Co', color: 'Чёрный' } });
+  // Стул собственного производства: из него делается заказ на производство
+  await goods('chairLoft', { name: 'Стул обеденный «Лофт»', sku: 'FRN-003', category: furniture.id, price: 6900, purchase: 0, attrs: { brand: 'Gr8r Home', color: 'Натуральный' } });
   await goods('stool', { name: 'Табурет «Мини»', sku: 'FRN-002', category: furniture.id, price: 2400, purchase: 1300, attrs: { brand: 'Loft&Co', color: 'Белый' } });
 
   // Фурнитура
@@ -192,5 +194,14 @@ export async function seedCatalog(db: Db, wsId: string) {
     { kind: 'work', op: 'Сборка', center: 'assembly', hours: 0.7 },
   ]);
 
-  return { products: 20, services: 3 };
+  // Изделие 3: стул «Лофт» — простое изделие для заказа на производство
+  await item('loftChair', { name: 'Стул «Лофт»', code: 'FG-LOFT', kind: 'product', productId: ids.chairLoft, overheadPct: 10 });
+  await bom('loftChair', [
+    { kind: 'material', product: 'oakBeam', qty: 4, scrap: 8 },
+    { kind: 'material', product: 'screw', qty: 8 },
+    { kind: 'material', product: 'packaging', qty: 1 },
+    { kind: 'work', op: 'Сборка стула', center: 'assembly', hours: 0.5 },
+  ]);
+
+  return { products: 21, services: 3 };
 }
