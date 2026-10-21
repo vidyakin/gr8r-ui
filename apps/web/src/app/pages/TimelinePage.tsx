@@ -1,6 +1,6 @@
 /* Timeline — порт pageWsTimeline из views/timeline.js */
 import { useWorkspace } from '../data/store';
-import { allTasks, applyView } from '../data/selectors';
+import { allTasks, applyView, generalScope } from '../data/selectors';
 import { TimelineControls, TimelineView, useTimeline } from '../components/timeline-view';
 import { ViewToolbar, useListView } from '../components/view-toolbar';
 import { useTaskForm } from '../overlays';
@@ -10,7 +10,7 @@ export function TimelinePage() {
   const api = useListView();
   const tl = useTimeline('project');
   const taskForm = useTaskForm();
-  const tasks = applyView(allTasks(data), api.view, data);
+  const tasks = applyView(generalScope(allTasks(data), api.view), api.view, data);
   return (
     <div className="page flush">
       <div className="ph">

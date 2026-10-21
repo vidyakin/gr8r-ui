@@ -1,6 +1,8 @@
 import { useNavigate } from 'react-router';
 import { Archive, ArrowDown, ArrowUp, ArrowUpRight, Calendar, CircleCheck, Clock, Copy, Ellipsis, Link2, Lock, Pencil, Share2, Star, Trash2 } from 'lucide-react';
+import { TASK_MODULE_LABELS } from '@gr8r/shared';
 import { IconButton, Menu, MenuContent, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger, Progress, Tooltip, toast } from '@/components/ui';
+import { Badge } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '../data/store';
 import { PROJECT_STATUS, canSee, progressOf, projectColor, tasksOf, visibleProjects } from '../data/selectors';
@@ -154,6 +156,7 @@ export function ProjectCard({ project: p }: { project: Project }) {
                 <Star size={12} />
               </span>
             )}
+            {p.module !== 'general' && <Badge tone="accent">{TASK_MODULE_LABELS[p.module]}</Badge>}
             {p.private && (
               <Tooltip content="Private project">
                 <span className="faint">

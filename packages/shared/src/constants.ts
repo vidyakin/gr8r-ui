@@ -17,6 +17,13 @@ export const ROLES = ['owner', 'admin', 'member', 'guest'] as const;
 export type Role = (typeof ROLES)[number];
 
 export const PROJECT_STATUSES = ['planning', 'active', 'risk', 'hold', 'complete'] as const;
+
+/** Модуль задач: general — обычные задачи, production — производство, services — услуги.
+    Модуль задачи совпадает с модулем проекта, в котором она лежит (у каждого модуля свой системный проект) */
+export const TASK_MODULES = ['general', 'production', 'services'] as const;
+export type TaskModule = (typeof TASK_MODULES)[number];
+export const TASK_MODULE_LABELS: Record<TaskModule, string> = { general: 'General', production: 'Production', services: 'Services' };
+
 export const PROJECT_COLORS = ['indigo', 'blue', 'violet', 'teal', 'rose', 'amber', 'green', 'slate'] as const;
 export const MEMBER_STATUSES = ['active', 'invited', 'deactivated'] as const;
 export const NOTIFICATION_TYPES = ['mention', 'assign', 'comment', 'update'] as const;

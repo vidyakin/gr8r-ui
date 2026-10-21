@@ -53,7 +53,7 @@ describe('seed', () => {
     const [demo] = await admin`select id from workspaces where slug = 'gr8rstudio'`;
     const w = `where workspace_id = '${demo!.id}'`;
     expect(await count('members', w)).toBe(src.members.length);
-    expect(await count('projects', w)).toBe(7);
+    expect(await count('projects', w)).toBe(9); // 7 демо + системные проекты модулей (production, services)
     expect(await count('tasks', w)).toBe(src.tasks.length);
     expect(await count('statuses', w)).toBe(5);
     expect(await count('teams', w)).toBe(4);

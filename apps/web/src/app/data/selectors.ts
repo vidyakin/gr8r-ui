@@ -62,6 +62,11 @@ export const tasksOf = (d: WorkspaceData, pid: string) => d.tasks.filter(t => t.
 /** Все неархивные задачи из проектов, которые видит текущий пользователь */
 export const allTasks = (d: WorkspaceData) => d.tasks.filter(t => !t.archived && canSee(d, project(d, t.project)));
 
+/** Общие списки задач по всем проектам: задачи модулей (производство, услуги) живут отдельно от обычных и видны
+    только с фильтром «Module». «Мои задачи» и страница проекта этим не пользуются — там модульные задачи видны всегда */
+export const generalScope = (ts: Task[], v: Pick<ListView, 'filters'>) =>
+  v.filters.some(f => f.f === 'module' && f.v.length) ? ts : ts.filter(t => t.module === 'general');
+
 export const isOverdue = (t: Task) => !!t.due && t.status !== 'done' && diffDays(parse(t.due), today()) < 0;
 
 export function progressOf(d: WorkspaceData, pid: string) {
@@ -118,7 +123,7 @@ export function dayBucket(ts: number) {
 
 /* ---------- фильтры списков (порт shell/view-engine.js) ---------- */
 
-export type FilterField = 'status' | 'assignee' | 'priority' | 'due' | 'project';
+export type FilterField = 'status' | 'assignee' | 'priority' | 'due' | 'project' | 'module';
 export interface Filter {
   f: FilterField;
   v: string[];
@@ -127,6 +132,7 @@ export interface Filter {
 export function matchFilter(t: Task, f: Filter) {
   if (!f.v.length) return true;
   if (f.f === 'assignee') return f.v.includes(t.assignee || 'none');
+  if (f.f === 'module') return f.v.includes(t.module);
   if (f.f === 'due')
     return f.v.some(v => {
       if (v === 'nodate') return !t.due;

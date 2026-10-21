@@ -2,7 +2,7 @@
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { useWorkspace } from '../data/store';
-import { allTasks, applyView } from '../data/selectors';
+import { allTasks, applyView, generalScope } from '../data/selectors';
 import { CalendarView } from '../components/calendar-view';
 import { ViewToolbar, useListView } from '../components/view-toolbar';
 import { useTaskForm } from '../overlays';
@@ -10,7 +10,7 @@ import { useTaskForm } from '../overlays';
 export function CalendarPage() {
   const { data } = useWorkspace();
   const api = useListView();
-  const tasks = applyView(allTasks(data), api.view);
+  const tasks = applyView(generalScope(allTasks(data), api.view), api.view);
   const taskForm = useTaskForm();
   const newTask = () => taskForm.open();
 
