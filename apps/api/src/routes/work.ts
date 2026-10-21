@@ -74,7 +74,7 @@ export const projectRoutes = crud({
   sortable: { name: projects.name, key: projects.key, status: projects.status, dueDate: projects.dueDate, startDate: projects.startDate, sortOrder: projects.sortOrder, createdAt: projects.createdAt, updatedAt: projects.updatedAt, lastActivityAt: projects.lastActivityAt },
   defaultSort: 'sortOrder',
   search: [projects.name, projects.key, projects.description],
-  filters: q => [q.status ? eq(projects.status, q.status) : undefined, q.teamId ? eq(projects.teamId, q.teamId) : undefined, q.leadId ? eq(projects.leadId, q.leadId) : undefined, q.fav != null ? eq(projects.fav, q.fav) : undefined],
+  filters: q => [q.status ? eq(projects.status, q.status) : undefined, q.teamId ? eq(projects.teamId, q.teamId) : undefined, q.leadId ? eq(projects.leadId, q.leadId) : undefined, q.fav != null ? eq(projects.fav, q.fav) : undefined, q.module ? eq(projects.module, q.module) : undefined],
   prepareCreate: async (ctx, body) => ({ sortOrder: body.sortOrder ?? (await nextOrder(ctx, projects)), ...(await customForCreate(ctx, 'project', body.custom)) }),
   prepareUpdate: (ctx, existing, body) => customForUpdate(ctx, 'project', existing.custom, body.custom, existing.id),
   afterCreate: async (ctx, row, body) => {
@@ -87,6 +87,10 @@ export const projectRoutes = crud({
       await recordEvent(ctx.db, { workspaceId: ctx.workspaceId, type: 'project.members_changed', entity: 'project', recordId: after.id, actorId: ctx.memberId, payload: { members: body.members } });
     }
     if (before.status !== after.status) await addActivity(ctx, { verb: 'changed status of project', projectId: after.id, extra: `to ${after.status}` });
+  },
+  // системный проект модуля — часть инфраструктуры: его нельзя удалить или в архив (в нём лежат задачи модуля)
+  beforeDelete: (_ctx, row) => {
+    if (row.module !== 'general') throw new AppError(422, 'module_project_protected', 'A module project cannot be deleted or archived');
   },
   decorate: async (ctx, rows) => {
     if (!rows.length) return [];
@@ -123,6 +127,12 @@ export const statusRoutes = crud({
 });
 
 /* ============================== tasks ============================== */
+/** Модуль проекта: задача наследует модуль проекта, поэтому указанный клиентом модуль должен совпадать с ним */
+async function projectModuleOf(ctx: ReturnType<typeof ctxOf>, projectId: string) {
+  const [p] = await ctx.db.select({ module: projects.module }).from(projects).where(eq(projects.id, projectId)).limit(1);
+  if (!p) throw new AppError(422, 'invalid_reference', 'Project not found');
+  return p.module;
+}
 /** Ключ задачи WEB-109: атомарно увеличиваем счётчик проекта (строка заблокирована до конца транзакции).
     `restoreKey` — прежний ключ при повторном создании (Undo удаления): должен принадлежать этому проекту; счётчик не уменьшается. */
 async function issueTaskKey(ctx: ReturnType<typeof ctxOf>, projectId: string, restoreKey?: string): Promise<string> {
@@ -157,6 +167,7 @@ export const taskRoutes = crud({
   search: [tasks.title, tasks.key, tasks.description],
   filters: q => [
     q.projectId ? eq(tasks.projectId, q.projectId) : undefined,
+    q.module ? eq(tasks.module, q.module) : undefined,
     q.status ? eq(tasks.status, q.status) : undefined,
     q.assigneeId === 'none' ? isNull(tasks.assigneeId) : q.assigneeId ? eq(tasks.assigneeId, q.assigneeId) : undefined,
     q.priority ? eq(tasks.priority, q.priority) : undefined,
@@ -168,8 +179,11 @@ export const taskRoutes = crud({
   prepareCreate: async (ctx, body) => {
     await assertTasksExist(ctx, body.deps);
     const key = await issueTaskKey(ctx, body.projectId, body.key);
+    const module = await projectModuleOf(ctx, body.projectId);
+    if (body.module && body.module !== module) throw new AppError(422, 'module_mismatch', 'A task must be in a project of the same module');
     return {
       key,
+      module,
       sortOrder: body.sortOrder ?? (await nextOrder(ctx, tasks, eq(tasks.projectId, body.projectId))),
       createdBy: ctx.memberId,
       completedAt: body.status === 'done' ? new Date() : null,
@@ -186,8 +200,12 @@ export const taskRoutes = crud({
       if (body.deps.includes(existing.id)) throw new AppError(422, 'invalid_dependency', 'A task cannot depend on itself');
       await assertTasksExist(ctx, body.deps);
     }
-    // Перенос в другой проект: задача получает новый ключ по счётчику целевого проекта
-    if (body.projectId && body.projectId !== existing.projectId) patch.key = await issueTaskKey(ctx, body.projectId);
+    // Перенос в другой проект: задача получает новый ключ по счётчику целевого проекта и его модуль
+    if (body.projectId && body.projectId !== existing.projectId) {
+      patch.key = await issueTaskKey(ctx, body.projectId);
+      patch.module = await projectModuleOf(ctx, body.projectId);
+    }
+    if (body.module !== undefined && body.module !== (patch.module ?? existing.module)) throw new AppError(422, 'module_mismatch', 'A task must be in a project of the same module');
     if (body.status && body.status !== existing.status) {
       patch.prevStatus = existing.status;
       patch.completedAt = body.status === 'done' ? new Date() : null;

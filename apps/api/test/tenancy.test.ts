@@ -52,7 +52,9 @@ describe('HTTP: tenant boundary', () => {
     const deals = (await A.c.get('/deals')).body;
     expect(deals.items.map((d: any) => d.name)).toEqual(['Alpha deal']);
     const projects = (await A.c.get('/projects')).body;
-    expect(projects.items.map((p: any) => p.key)).toEqual(['ALP']);
+    // кроме проекта арендатора в списке — системные проекты модулей (production, services)
+    expect(projects.items.map((p: any) => p.key).sort()).toEqual(['ALP', 'PROD', 'SERV']);
+    expect(projects.items.every((p: any) => p.workspaceId === A.ws)).toBe(true);
     // поиск по строке чужих данных ничего не находит
     expect((await A.c.get('/tasks?q=Beta')).body.total).toBe(0);
   });

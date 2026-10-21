@@ -12,5 +12,6 @@ export * from './errors';
 export * from './documents';
 export * from './stock';
 export * from './cost';
+export * from './modules';
 export * from './automations';
 export * from './production';

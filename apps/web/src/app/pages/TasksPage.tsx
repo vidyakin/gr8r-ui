@@ -4,7 +4,7 @@ import { useLocation } from 'react-router';
 import { List, Plus, SquareKanban, Table2 } from 'lucide-react';
 import { Button, Segmented } from '@/components/ui';
 import { useWorkspace } from '../data/store';
-import { allTasks, applyView, canSee, groupTasks, visibleProjects } from '../data/selectors';
+import { allTasks, applyView, generalScope, canSee, groupTasks, visibleProjects } from '../data/selectors';
 import { BoardOptions, BoardView, useBoardDensity, useBoardSubtasks } from '../components/board-view';
 import { BucketIcon, TableView, useTaskColumns } from '../components/table-view';
 import { LIST_OPTIONAL_COLUMNS, TaskList, withTimeColumn, type TaskGroup } from '../components/task-list';
@@ -22,7 +22,7 @@ export function TasksPage() {
   const [showSubs, setShowSubs] = useBoardSubtasks();
   const [density, setDensity] = useBoardDensity();
   const defaultProject = visibleProjects(data)[0]?.id ?? '';
-  const tasks = applyView(allTasks(data), api.view, data);
+  const tasks = applyView(generalScope(allTasks(data), api.view), api.view, data);
 
   const taskColumns = useTaskColumns();
   const taskForm = useTaskForm();
