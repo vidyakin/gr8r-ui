@@ -46,7 +46,7 @@ import { FlowEditorPage } from './automations/FlowEditorPage';
 
 /* Hash-роутинг, как в оригинале: работает на любом статическом хостинге без настройки rewrite.
    Чтобы перенести раздел, замените PlaceholderPage на его компонент. */
-const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.archive, SECTIONS.crm, SECTIONS.crmDeals, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities, SECTIONS.catalog, SECTIONS.production, SECTIONS.workCenters, SECTIONS.sales, SECTIONS.purchases, SECTIONS.inventory, SECTIONS.automations, SECTIONS.settings, SECTIONS.system].map(s => s.path));
+const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.archive, SECTIONS.crm, SECTIONS.crmDeals, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities, SECTIONS.catalog, SECTIONS.production, SECTIONS.workCenters, SECTIONS.sales, SECTIONS.purchases, SECTIONS.stockDocs, SECTIONS.inventory, SECTIONS.automations, SECTIONS.settings, SECTIONS.system].map(s => s.path));
 
 export const router = createHashRouter([
   {
@@ -93,6 +93,7 @@ export const router = createHashRouter([
       // Документы продаж и закупок, склад
       { path: SECTIONS.sales.path, element: <JournalPage group="sales" /> },
       { path: SECTIONS.purchases.path, element: <JournalPage group="purchases" /> },
+      { path: SECTIONS.stockDocs.path, element: <JournalPage group="stock" /> },
       { path: '/documents/:id', element: <DocumentPage /> },
       { path: '/documents/:id/print/:form', element: <PrintPage /> },
       { path: `${SECTIONS.inventory.path}/:productId?`, element: <InventoryPage /> },

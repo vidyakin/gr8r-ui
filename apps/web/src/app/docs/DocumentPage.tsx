@@ -8,10 +8,10 @@ import { Ban, CircleAlert, ChevronDown, Copy, Ellipsis, FileText, Plus, Printer,
 import { amountInWordsRu, basedOnTargets, computeDocument, DOCUMENT_META, PRINT_FORM_LABELS, VAT_LABELS, VAT_RATES, type DocumentType, type VatRate } from '@gr8r/shared';
 import { Badge, Button, ConfirmDialog, EmptyState, Field, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Segmented, Select, Skeleton, toast } from '@/components/ui';
 import { useCanWrite } from '../meta/custom-fields';
-import { money, unitSymbol, useUnits, type Product } from '../catalog/data';
+import { money, unitSymbol, useIsAdmin, useUnits, type Product } from '../catalog/data';
 import { uuidv7 } from '../lib/uuid';
 import { fmtDate } from '../lib/dates';
-import { STATUS_LABEL, STATUS_TONE, docTitle, docsKey, typeLabel, useDocsApi, useDocument, useOrganizations, useWarehouses, type DocDetail, type DocLink } from './data';
+import { STATUS_LABEL, STATUS_TONE, docTitle, docsKey, typeLabel, useCostItems, useDocsApi, useDocument, useOrganizations, useWarehouses, type DocDetail, type DocLink } from './data';
 import { CounterpartyPicker, ProductPicker } from './pickers';
 import { useWsId } from '../meta/data';
 
@@ -31,6 +31,8 @@ interface Form {
   counterpartyId: string | null;
   counterpartyName: string;
   warehouseId: string | null;
+  targetWarehouseId: string | null;
+  costItemId: string | null;
   date: string;
   dueDate: string;
   priceIncludesVat: boolean;
@@ -40,12 +42,17 @@ interface Form {
 
 const trimNum = (s: string) => (s.includes('.') ? s.replace(/0+$/, '').replace(/\.$/, '') : s);
 
+/** Адрес журнала группы: продажи, закупки или складские документы */
+const groupPath = (g: string) => (g === 'sales' ? '/sales' : g === 'purchases' ? '/purchases' : '/stock-docs');
+
 function toForm(d: DocDetail): Form {
   return {
     organizationId: d.organizationId,
     counterpartyId: d.counterpartyId,
     counterpartyName: d.counterparty?.name ?? '',
     warehouseId: d.warehouseId,
+    targetWarehouseId: d.targetWarehouseId,
+    costItemId: d.costItemId,
     date: d.date,
     dueDate: d.dueDate ?? '',
     priceIncludesVat: d.priceIncludesVat,
@@ -68,6 +75,8 @@ function toPayload(f: Form) {
     organizationId: f.organizationId,
     counterpartyId: f.counterpartyId,
     warehouseId: f.warehouseId,
+    targetWarehouseId: f.targetWarehouseId,
+    costItemId: f.costItemId,
     date: f.date,
     dueDate: f.dueDate || null,
     priceIncludesVat: f.priceIncludesVat,
@@ -115,14 +124,19 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     [rawApi, qc, ws, doc.id],
   );
   const canWrite = useCanWrite();
+  const isAdmin = useIsAdmin();
   const orgs = useOrganizations();
   const warehouses = useWarehouses();
+  const costItems = useCostItems();
   const units = useUnits();
   const meta = DOCUMENT_META[doc.type];
   const editable = canWrite && doc.status === 'draft';
-  const usesWarehouse = !!meta.stock || doc.type === 'customer_order';
-  const isOrder = doc.type === 'customer_order' || doc.type === 'supplier_order';
+  /** Внутренний документ: без контрагента, свой склад и статья затрат */
+  const internal = meta.party === null;
+  const usesWarehouse = !!meta.stock || !!meta.stockRole || doc.type === 'customer_order';
+  const isOrder = !!meta.isOrder;
   const priceField = meta.party === 'supplier' ? 'purchasePrice' : 'price';
+  const whOptions = (warehouses.data ?? []).filter(w => (!w.archivedAt || w.id === form.warehouseId) && w.kind !== 'transit');
 
   const [form, setForm] = React.useState<Form>(() => toForm(doc));
   const [save, setSave] = React.useState<SaveState>('saved');
@@ -182,7 +196,8 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     edit(f => ({ ...f, lines: [...f.lines.slice(0, index), line, ...f.lines.slice(index)] }));
   };
   const pickProduct = (key: string, row: number, p: Product) => {
-    patchLine(key, { productId: p.id, name: p.name, unitCode: p.unitCode, vatRate: p.vatRate, price: trimNum(p[priceField]) || '0', qty: latest.current.lines.find(l => l.key === key)?.qty || '1' });
+    // у внутренних документов цена — себестоимость: её подставляет сервер
+    patchLine(key, { productId: p.id, name: p.name, unitCode: p.unitCode, vatRate: p.vatRate, price: internal ? '0' : trimNum(p[priceField]) || '0', qty: latest.current.lines.find(l => l.key === key)?.qty || '1' });
     focusReq.current = { row, col: 1 };
   };
 
@@ -244,7 +259,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     const r = await api('DELETE', `/documents/${doc.id}`);
     if (r) {
       toast('Draft deleted');
-      navigate(meta.group === 'sales' ? '/sales' : '/purchases');
+      navigate(groupPath(meta.group));
     }
   };
 
@@ -258,11 +273,11 @@ function DocumentView({ doc }: { doc: DocDetail }) {
       <div className="doc-bar">
         <div className="doc-title">
           <nav className="muted" style={{ fontSize: 12.5 }} aria-label="Document type">
-            <Link to={meta.group === 'sales' ? '/sales' : '/purchases'} className="crm-link">
-              {meta.group === 'sales' ? 'Sales' : 'Purchases'}
+            <Link to={groupPath(meta.group)} className="crm-link">
+              {meta.group === 'sales' ? 'Sales' : meta.group === 'purchases' ? 'Purchases' : 'Stock documents'}
             </Link>
             {' / '}
-            <Link to={`${meta.group === 'sales' ? '/sales' : '/purchases'}?type=${doc.type}`} className="crm-link">
+            <Link to={`${groupPath(meta.group)}?type=${doc.type}`} className="crm-link">
               {typeLabel(doc.type)}
             </Link>
           </nav>
@@ -377,26 +392,60 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             />
           )}
         </Field>
-        <Field label={meta.party === 'customer' ? 'Customer' : 'Supplier'}>
-          {p =>
-            editable ? (
-              <CounterpartyPicker id={p.id} value={form.counterpartyName} invalid={save === 'invalid' && !form.counterpartyId} onPick={c => edit(f => ({ ...f, counterpartyId: c.id, counterpartyName: c.name }))} />
-            ) : (
-              <div className="doc-ro">{doc.counterparty ? <Link className="crm-link" to={`/crm/companies/${doc.counterparty.id}`}>{doc.counterparty.name}</Link> : '—'}</div>
-            )
-          }
-        </Field>
+        {!internal && (
+          <Field label={meta.party === 'customer' ? 'Customer' : 'Supplier'}>
+            {p =>
+              editable ? (
+                <CounterpartyPicker id={p.id} value={form.counterpartyName} invalid={save === 'invalid' && !form.counterpartyId} onPick={c => edit(f => ({ ...f, counterpartyId: c.id, counterpartyName: c.name }))} />
+              ) : (
+                <div className="doc-ro">{doc.counterparty ? <Link className="crm-link" to={`/crm/companies/${doc.counterparty.id}`}>{doc.counterparty.name}</Link> : '—'}</div>
+              )
+            }
+          </Field>
+        )}
         {usesWarehouse && (
-          <Field label="Warehouse">
+          <Field label={internal ? 'From warehouse' : 'Warehouse'}>
             {p => (
               <Select
                 id={p.id}
                 disabled={!editable}
                 value={form.warehouseId ?? ''}
                 onValueChange={v => edit(f => ({ ...f, warehouseId: v }))}
-                options={(warehouses.data ?? []).filter(w => !w.archivedAt || w.id === form.warehouseId).map(w => ({ value: w.id, label: w.name }))}
+                options={whOptions.map(w => ({ value: w.id, label: w.name }))}
                 placeholder="Select warehouse"
                 aria-label="Warehouse"
+              />
+            )}
+          </Field>
+        )}
+        {meta.stockRole === 'transfer' && (
+          <Field label="To warehouse">
+            {p => (
+              <Select
+                id={p.id}
+                disabled={!editable}
+                value={form.targetWarehouseId ?? ''}
+                onValueChange={v => edit(f => ({ ...f, targetWarehouseId: v }))}
+                options={whOptions.filter(w => w.id !== form.warehouseId).map(w => ({ value: w.id, label: w.name }))}
+                placeholder="Select warehouse"
+                aria-label="Target warehouse"
+              />
+            )}
+          </Field>
+        )}
+        {meta.costItemKind && (
+          <Field label={meta.costItemKind === 'expense' ? 'Cost item' : 'Income item'} hint="Written off to this item">
+            {p => (
+              <Select
+                id={p.id}
+                disabled={!editable}
+                value={form.costItemId ?? ''}
+                onValueChange={v => edit(f => ({ ...f, costItemId: v }))}
+                options={(costItems.data ?? [])
+                  .filter(c => !c.archivedAt && c.kind === meta.costItemKind)
+                  .map(c => ({ value: c.id, label: c.name }))}
+                placeholder="Select item"
+                aria-label="Cost item"
               />
             )}
           </Field>
@@ -410,19 +459,21 @@ function DocumentView({ doc }: { doc: DocDetail }) {
         <Field label="Number" hint={hasNumber ? undefined : 'Assigned when the document is posted'}>
           {p => <Input {...p} readOnly value={doc.number ?? ''} placeholder="—" className="mono" />}
         </Field>
-        <Field label="Prices">
-          {() => (
-            <Segmented
-              aria-label="Price type"
-              value={form.priceIncludesVat ? 'incl' : 'excl'}
-              onValueChange={v => editable && edit(f => ({ ...f, priceIncludesVat: v === 'incl' }))}
-              items={[
-                { value: 'incl', label: 'VAT included' },
-                { value: 'excl', label: 'VAT on top' },
-              ]}
-            />
-          )}
-        </Field>
+        {!internal && (
+          <Field label="Prices">
+            {() => (
+              <Segmented
+                aria-label="Price type"
+                value={form.priceIncludesVat ? 'incl' : 'excl'}
+                onValueChange={v => editable && edit(f => ({ ...f, priceIncludesVat: v === 'incl' }))}
+                items={[
+                  { value: 'incl', label: 'VAT included' },
+                  { value: 'excl', label: 'VAT on top' },
+                ]}
+              />
+            )}
+          </Field>
+        )}
         <Field label="Comment" className="doc-wide">
           {p => <Input {...p} disabled={!editable} value={form.comment} placeholder="Internal note or payment terms" onChange={e => edit(f => ({ ...f, comment: e.target.value }))} />}
         </Field>
@@ -450,17 +501,21 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                   </>
                 )}
                 <th style={{ width: 112 }} className="r">
-                  Price
+                  {internal ? 'Cost' : 'Price'}
                 </th>
-                <th style={{ width: 72 }} className="r">
-                  Disc. %
-                </th>
-                <th style={{ width: 84 }}>VAT</th>
-                <th style={{ width: 104 }} className="r">
-                  VAT amount
-                </th>
+                {!internal && (
+                  <>
+                    <th style={{ width: 72 }} className="r">
+                      Disc. %
+                    </th>
+                    <th style={{ width: 84 }}>VAT</th>
+                    <th style={{ width: 104 }} className="r">
+                      VAT amount
+                    </th>
+                  </>
+                )}
                 <th style={{ width: 120 }} className="r">
-                  Total
+                  {internal ? 'Amount' : 'Total'}
                 </th>
                 <th style={{ width: 36 }} />
               </tr>
@@ -494,21 +549,33 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       </>
                     )}
                     <td className="r">
-                      <NumCell value={l.price} disabled={!editable} invalid={!!err.price} label="Price" cell={`${i}:2`} onKeyDown={cellKey(i, 2)} onChange={v => patchLine(l.key, { price: v })} />
+                      <NumCell
+                        value={l.price}
+                        disabled={!editable || (doc.type === 'stock_posting' && !isAdmin)}
+                        invalid={!!err.price}
+                        label={internal ? 'Cost' : 'Price'}
+                        cell={`${i}:2`}
+                        onKeyDown={cellKey(i, 2)}
+                        onChange={v => patchLine(l.key, { price: v })}
+                      />
                     </td>
-                    <td className="r">
-                      <NumCell value={l.discountPct} disabled={!editable} invalid={!!err.discountPct} label="Discount percent" cell={`${i}:3`} onKeyDown={cellKey(i, 3)} onChange={v => patchLine(l.key, { discountPct: v })} />
-                    </td>
-                    <td>
-                      <select className="input cell-input" aria-label="VAT rate" disabled={!editable} value={l.vatRate} onChange={e => patchLine(l.key, { vatRate: e.target.value as VatRate })}>
-                        {VAT_RATES.map(r => (
-                          <option key={r} value={r}>
-                            {VAT_LABELS[r]}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="r num muted">{a ? money(a.vatAmount) : '—'}</td>
+                    {!internal && (
+                      <>
+                        <td className="r">
+                          <NumCell value={l.discountPct} disabled={!editable} invalid={!!err.discountPct} label="Discount percent" cell={`${i}:3`} onKeyDown={cellKey(i, 3)} onChange={v => patchLine(l.key, { discountPct: v })} />
+                        </td>
+                        <td>
+                          <select className="input cell-input" aria-label="VAT rate" disabled={!editable} value={l.vatRate} onChange={e => patchLine(l.key, { vatRate: e.target.value as VatRate })}>
+                            {VAT_RATES.map(r => (
+                              <option key={r} value={r}>
+                                {VAT_LABELS[r]}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="r num muted">{a ? money(a.vatAmount) : '—'}</td>
+                      </>
+                    )}
                     <td className="r num" style={{ fontWeight: 500 }}>
                       {a ? money(a.total) : '—'}
                     </td>
@@ -569,42 +636,59 @@ function DocumentView({ doc }: { doc: DocDetail }) {
           )}
         </section>
         <section className="doc-totals panel" aria-label="Totals">
-          <dl>
-            <div>
-              <dt>Lines</dt>
-              <dd className="num">{lineCount}</dd>
-            </div>
-            <div>
-              <dt>Amount without VAT</dt>
-              <dd className="num" data-testid="total-net">
-                {money(calc.totals.net)}
-              </dd>
-            </div>
-            {noVatOnly ? (
+          {internal ? (
+            <dl>
               <div>
-                <dt>VAT</dt>
-                <dd className="num">No VAT</dd>
+                <dt>Lines</dt>
+                <dd className="num">{lineCount}</dd>
               </div>
-            ) : (
-              calc.totals.byRate
-                .filter(r => r.rate !== 'none')
-                .map(r => (
-                  <div key={r.rate}>
-                    <dt>VAT {VAT_LABELS[r.rate as VatRate]}</dt>
-                    <dd className="num">{money(r.vat)}</dd>
-                  </div>
-                ))
-            )}
-            <div className="grand">
-              <dt>Total{form.priceIncludesVat ? ' (VAT included)' : ''}</dt>
-              <dd className="num" data-testid="total-sum">
-                {money(calc.totals.total)} ₽
-              </dd>
-            </div>
-          </dl>
-          <p className="doc-words" lang="ru">
-            {amountInWordsRu(calc.totals.total)}
-          </p>
+              <div className="grand">
+                <dt>Cost at average price</dt>
+                <dd className="num" data-testid="total-sum">
+                  {doc.costTotal === null || doc.costTotal === undefined ? '—' : money(doc.costTotal)}
+                </dd>
+              </div>
+            </dl>
+          ) : (
+            <dl>
+              <div>
+                <dt>Lines</dt>
+                <dd className="num">{lineCount}</dd>
+              </div>
+              <div>
+                <dt>Amount without VAT</dt>
+                <dd className="num" data-testid="total-net">
+                  {money(calc.totals.net)}
+                </dd>
+              </div>
+              {noVatOnly ? (
+                <div>
+                  <dt>VAT</dt>
+                  <dd className="num">No VAT</dd>
+                </div>
+              ) : (
+                calc.totals.byRate
+                  .filter(r => r.rate !== 'none')
+                  .map(r => (
+                    <div key={r.rate}>
+                      <dt>VAT {VAT_LABELS[r.rate as VatRate]}</dt>
+                      <dd className="num">{money(r.vat)}</dd>
+                    </div>
+                  ))
+              )}
+              <div className="grand">
+                <dt>Total{form.priceIncludesVat ? ' (VAT included)' : ''}</dt>
+                <dd className="num" data-testid="total-sum">
+                  {money(calc.totals.total)} ₽
+                </dd>
+              </div>
+            </dl>
+          )}
+          {!internal && (
+            <p className="doc-words" lang="ru">
+              {amountInWordsRu(calc.totals.total)}
+            </p>
+          )}
         </section>
       </div>
 

@@ -39,7 +39,7 @@ export function useRealtime(ws: string, engine: Engine) {
       if (['unit', 'product_category', 'attribute_def', 'product'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'catalog'] });
       if (['work_center', 'manufactured_item', 'bom_line', 'product', 'workspace'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'production'] });
       // Документы, организации, склады, счета, остатки: запросы ['ws', id, 'docs', …]; проведение меняет и среднюю себестоимость в производстве
-      if (['document', 'organization', 'warehouse', 'bank_account', 'product', 'company', 'unit'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'docs'] });
+      if (['document', 'organization', 'warehouse', 'bank_account', 'product', 'company', 'unit', 'cost_item'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'docs'] });
       if (e.entity === 'document') void qc.invalidateQueries({ queryKey: ['ws', ws, 'production'] });
       // Автоматизации: flow и журнал запусков
       if (e.entity === 'flow' || e.entity === 'flow_run') void qc.invalidateQueries({ queryKey: ['ws', ws, 'automations'] });

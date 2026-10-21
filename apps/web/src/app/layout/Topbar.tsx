@@ -52,6 +52,7 @@ export function useCrumbs(): Crumb[] {
   if (a === 'automations') return b === 'flow' ? [{ label: 'Automations', to: SECTIONS.automations.path }, { label: 'Editor' }] : [{ label: 'Automations' }];
   if (a === 'catalog') return [{ label: 'Catalog' }];
   if (a === 'inventory') return [{ label: 'Inventory' }];
+  if (a === 'stock-docs') return [{ label: 'Stock documents' }];
   if (a === 'documents' && b) return [{ label: 'Documents' }, { label: docTitle ?? 'Document', ...(c === 'print' ? { to: `/documents/${b}` } : {}) }, ...(c === 'print' ? [{ label: 'Print' }] : [])];
   if (a === 'production' && b) return [{ label: 'Production', to: SECTIONS.production.path }, { label: itemName ?? 'Product' }];
   if (a === 'settings') return [{ label: 'Settings' }];

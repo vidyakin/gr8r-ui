@@ -2,6 +2,7 @@
 import {
   Activity,
   Archive,
+  ArrowLeftRight,
   Bell,
   Building2,
   Calendar,
@@ -69,6 +70,7 @@ export const SECTIONS = {
   // Документы продаж и закупок, склад
   sales: { path: '/sales', name: 'Sales', icon: ReceiptText },
   purchases: { path: '/purchases', name: 'Purchases', icon: ShoppingCart },
+  stockDocs: { path: '/stock-docs', name: 'Stock documents', icon: ArrowLeftRight },
   inventory: { path: '/inventory', name: 'Inventory', icon: Boxes },
 } satisfies Record<string, Section>;
 

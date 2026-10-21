@@ -41,8 +41,8 @@ export function InventoryPage() {
       { id: 'qty', header: 'On hand', width: 112, align: 'right', value: r => Number(r.qty), cell: r => <span className={Number(r.qty) < 0 ? 'num neg' : 'num'}>{qty(r.qty)} <span className="faint">{unitSymbol(units.data, r.unitCode)}</span></span> },
       { id: 'reserved', header: 'Reserved', width: 104, align: 'right', value: r => Number(r.reserved), cell: r => (Number(r.reserved) ? <span className="num">{qty(r.reserved)}</span> : <span className="faint">—</span>) },
       { id: 'available', header: 'Available', width: 108, align: 'right', value: r => Number(r.available), cell: r => <span className="num" style={{ fontWeight: 500 }}>{qty(r.available)}</span> },
-      { id: 'avg', header: 'Average cost', width: 124, align: 'right', value: r => Number(r.avgCost), cell: r => <span className="num muted">{money(r.avgCost)}</span> },
-      { id: 'value', header: 'Value', width: 132, align: 'right', value: r => Number(r.value), cell: r => <span className="num">{money(r.value)}</span>, total: () => (list.data ? <span className="num" style={{ fontWeight: 600 }}>{money(list.data.value)}</span> : null) },
+      { id: 'avg', header: 'Average cost', width: 124, align: 'right', value: r => Number(r.avgCost), cell: r => <span className="num muted">{r.avgCost === null ? <span className="faint">—</span> : money(r.avgCost)}</span> },
+      { id: 'value', header: 'Value', width: 132, align: 'right', value: r => Number(r.value), cell: r => <span className="num">{r.value === null ? <span className="faint">—</span> : money(r.value)}</span>, total: () => (list.data?.value ? <span className="num" style={{ fontWeight: 600 }}>{money(list.data.value)}</span> : null) },
     ],
     [units.data, list.data],
   );
@@ -67,7 +67,7 @@ export function InventoryPage() {
         </div>
       </div>
       <div className="stats" style={{ padding: '0 16px 12px' }}>
-        <Stat label="Stock value" value={list.data ? money(list.data.value) : '—'} note="at average cost" />
+        <Stat label="Stock value" value={list.data?.value === null ? '—' : list.data ? money(list.data.value) : '—'} note="at average cost" />
         <Stat label="Positions" value={list.data?.total ?? '—'} note={wh ? 'in the selected warehouse' : 'across all warehouses'} />
         <Stat label="With reserves" value={reservedRows} note="held for customer orders" />
       </div>
@@ -115,7 +115,8 @@ function ProductCard({ productId, row, onClose }: { productId: string; row?: Sto
   const mine = (all.data?.items ?? []).filter(b => b.productId === productId);
   const first = mine[0] ?? row;
   const total = mine.reduce((s, b) => s + Number(b.qty), 0);
-  const value = mine.reduce((s, b) => s + Number(b.value), 0);
+  const value = mine.reduce((s, b) => s + Number(b.value ?? 0), 0);
+  const seeCost = mine.some(b => b.value !== null);
   return (
     <EntityDrawer
       label={`Stock card: ${first?.name ?? 'product'}`}
@@ -124,7 +125,7 @@ function ProductCard({ productId, row, onClose }: { productId: string; row?: Sto
       subtitle={
         <span className="muted">
           {first?.sku ? <span className="mono">{first.sku} · </span> : null}
-          {qty(String(total))} {first ? unitSymbol(units.data, first.unitCode) : ''} in stock · {money(value)} at average cost
+          {qty(String(total))} {first ? unitSymbol(units.data, first.unitCode) : ''} in stock{seeCost ? ` · ${money(value)} at average cost` : ''}
         </span>
       }
       onClose={onClose}
@@ -146,7 +147,7 @@ function ProductCard({ productId, row, onClose }: { productId: string; row?: Sto
                   <td>{b.warehouseName}</td>
                   <td className="r num">{qty(b.qty)}</td>
                   <td className="r num muted">{Number(b.reserved) ? qty(b.reserved) : '—'}</td>
-                  <td className="r num muted">{money(b.avgCost)}</td>
+                  <td className="r num muted">{b.avgCost === null ? '—' : money(b.avgCost)}</td>
                 </tr>
               ))}
             </tbody>
@@ -183,7 +184,7 @@ function ProductCard({ productId, row, onClose }: { productId: string; row?: Sto
                   <td className="r num">
                     <Badge tone={Number(m.qty) > 0 ? 'green' : 'amber'}>{Number(m.qty) > 0 ? '+' : ''}{qty(m.qty)}</Badge>
                   </td>
-                  <td className="r num muted">{money(m.cost)}</td>
+                  <td className="r num muted">{m.cost === null ? '—' : money(m.cost)}</td>
                   <td className="r num">{qty(m.balance)}</td>
                 </tr>
               ))}

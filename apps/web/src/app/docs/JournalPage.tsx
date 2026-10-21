@@ -16,6 +16,7 @@ import { STATUS_LABEL, STATUS_TONE, typeLabel, useDocsApi, useDocuments, useOrga
 const TITLES: Record<DocumentGroup, { title: string; lead: string }> = {
   sales: { title: 'Sales', lead: 'Quotes, customer orders, invoices, shipments (UPD), service acts and returns.' },
   purchases: { title: 'Purchases', lead: 'Supplier orders, goods receipts and returns to suppliers.' },
+  stock: { title: 'Stock documents', lead: 'Transfers between warehouses, write-offs and postings. The amount shown is the cost at average price.' },
 };
 
 export function JournalPage({ group }: { group: DocumentGroup }) {
@@ -56,21 +57,31 @@ export function JournalPage({ group }: { group: DocumentGroup }) {
     if (r) navigate(`/documents/${r.id}`);
   };
 
-  const columns = React.useMemo<Column<DocListItem>[]>(
-    () => [
-      { id: 'number', header: 'Number', width: 150, value: d => d.number ?? '', cell: d => (d.number ? <span className="mono" style={{ fontWeight: 450 }}>{d.number}</span> : <span className="faint">Draft</span>) },
-      { id: 'type', header: 'Type', width: 150, value: d => typeLabel(d.type), cell: d => <span className="muted">{typeLabel(d.type)}</span> },
-      { id: 'date', header: 'Date', width: 112, value: d => d.date, cell: d => <span className="num muted">{fmtDate(parse(d.date))}</span> },
-      { id: 'counterparty', header: DOCUMENT_META[types[0]!].party === 'customer' ? 'Customer' : 'Supplier', width: 260, value: d => d.counterpartyName ?? '', cell: d => (d.counterpartyName ? <span className="trunc">{d.counterpartyName}</span> : <span className="faint">—</span>) },
-      { id: 'warehouse', header: 'Warehouse', width: 170, defaultHidden: true, value: d => d.warehouseName ?? '', cell: d => <span className="trunc muted">{d.warehouseName ?? '—'}</span> },
-      { id: 'org', header: 'Organization', width: 190, defaultHidden: true, value: d => d.organizationName, cell: d => <span className="trunc muted">{d.organizationName}</span> },
-      { id: 'status', header: 'Status', width: 112, value: d => STATUS_LABEL[d.status], cell: d => <Badge tone={STATUS_TONE[d.status]} dot>{STATUS_LABEL[d.status]}</Badge> },
-      { id: 'net', header: 'Without VAT', width: 124, align: 'right', defaultHidden: true, value: d => Number(d.amountNet), cell: d => <span className="num muted">{money(d.amountNet)}</span>, total: () => (sum ? <span className="num">{money(sum.net)}</span> : null) },
-      { id: 'vat', header: 'VAT', width: 110, align: 'right', value: d => Number(d.vatTotal), cell: d => <span className="num muted">{money(d.vatTotal)}</span>, total: () => (sum ? <span className="num">{money(sum.vat)}</span> : null) },
-      { id: 'total', header: 'Total', width: 132, align: 'right', value: d => Number(d.total), cell: d => <span className="num" style={{ fontWeight: 500 }}>{money(d.total)}</span>, total: () => (sum ? <span className="num" style={{ fontWeight: 600 }}>{money(sum.total)}</span> : null) },
-    ],
-    [sum, types],
-  );
+  // складские документы: вместо контрагента — склады, вместо сумм — стоимость по себестоимости
+  const stockCols: Column<DocListItem>[] = [
+    { id: 'warehouse', header: 'From warehouse', width: 170, value: d => d.warehouseName ?? '', cell: d => <span className="trunc muted">{d.warehouseName ?? '—'}</span> },
+    { id: 'target', header: 'To warehouse', width: 170, value: d => d.targetWarehouseName ?? '', cell: d => <span className="trunc muted">{d.targetWarehouseName ?? '—'}</span> },
+  ];
+  const partyCols: Column<DocListItem>[] = [
+    { id: 'counterparty', header: DOCUMENT_META[types[0]!].party === 'customer' ? 'Customer' : 'Supplier', width: 260, value: d => d.counterpartyName ?? '', cell: d => (d.counterpartyName ? <span className="trunc">{d.counterpartyName}</span> : <span className="faint">—</span>) },
+    { id: 'warehouse', header: 'Warehouse', width: 170, defaultHidden: true, value: d => d.warehouseName ?? '', cell: d => <span className="trunc muted">{d.warehouseName ?? '—'}</span> },
+  ];
+  const costCol: Column<DocListItem> = { id: 'cost', header: 'Cost', width: 140, align: 'right', value: d => Number(d.costTotal ?? 0), cell: d => <span className="num" style={{ fontWeight: 500 }}>{d.costTotal === null || d.costTotal === undefined ? '—' : money(d.costTotal)}</span>, total: () => (sum?.cost ? <span className="num" style={{ fontWeight: 600 }}>{money(sum.cost)}</span> : null) };
+  const sumCols: Column<DocListItem>[] = [
+    { id: 'net', header: 'Without VAT', width: 124, align: 'right', defaultHidden: true, value: d => Number(d.amountNet), cell: d => <span className="num muted">{money(d.amountNet)}</span>, total: () => (sum ? <span className="num">{money(sum.net)}</span> : null) },
+    { id: 'vat', header: 'VAT', width: 110, align: 'right', value: d => Number(d.vatTotal), cell: d => <span className="num muted">{money(d.vatTotal)}</span>, total: () => (sum ? <span className="num">{money(sum.vat)}</span> : null) },
+    { id: 'total', header: 'Total', width: 132, align: 'right', value: d => Number(d.total), cell: d => <span className="num" style={{ fontWeight: 500 }}>{money(d.total)}</span>, total: () => (sum ? <span className="num" style={{ fontWeight: 600 }}>{money(sum.total)}</span> : null) },
+  ];
+
+  const columns: Column<DocListItem>[] = [
+    { id: 'number', header: 'Number', width: 150, value: d => d.number ?? '', cell: d => (d.number ? <span className="mono" style={{ fontWeight: 450 }}>{d.number}</span> : <span className="faint">Draft</span>) },
+    { id: 'type', header: 'Type', width: 150, value: d => typeLabel(d.type), cell: d => <span className="muted">{typeLabel(d.type)}</span> },
+    { id: 'date', header: 'Date', width: 112, value: d => d.date, cell: d => <span className="num muted">{fmtDate(parse(d.date))}</span> },
+    ...(group === 'stock' ? stockCols : partyCols),
+    { id: 'org', header: 'Organization', width: 190, defaultHidden: true, value: d => d.organizationName, cell: d => <span className="trunc muted">{d.organizationName}</span> },
+    { id: 'status', header: 'Status', width: 112, value: d => STATUS_LABEL[d.status], cell: d => <Badge tone={STATUS_TONE[d.status]} dot>{STATUS_LABEL[d.status]}</Badge> },
+    ...(group === 'stock' ? [costCol] : sumCols),
+  ];
   const table = useDataTable(columns, { sort: { id: 'date', dir: -1 } });
 
   const filterFields: FilterField[] = [
@@ -117,7 +128,7 @@ export function JournalPage({ group }: { group: DocumentGroup }) {
         ))}
       </nav>
       <FilterBar
-        search={{ value: filters.q, onChange: filters.setQ, placeholder: 'Search by number, customer or comment' }}
+        search={{ value: filters.q, onChange: filters.setQ, placeholder: group === 'stock' ? 'Search by number or comment' : 'Search by number, customer or comment' }}
         fields={filterFields}
         filters={filters}
         sort={{ options: columns.filter(c => c.value).map(c => ({ id: c.id, name: c.header })), value: table.sort.id, dir: table.sort.dir, onChange: table.setSort }}
@@ -153,7 +164,7 @@ export function JournalPage({ group }: { group: DocumentGroup }) {
             }
           />
           <p className="faint" style={{ padding: '8px 16px', fontSize: 12 }}>
-            Totals do not include cancelled documents.
+            {group === 'stock' ? 'The cost is the average cost of the goods moved. Only admins and owners see it.' : 'Totals do not include cancelled documents.'}
             {list.data && list.data.total > rows.length && ` Showing the latest ${rows.length} of ${list.data.total} documents: narrow the list with filters or search.`}
           </p>
         </>

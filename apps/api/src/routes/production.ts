@@ -4,7 +4,7 @@
 import { zValidator } from '@hono/zod-validator';
 import { asc, eq, inArray, isNull, max, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { bomLines, loadAvgCosts, manufacturedItems, products, recordEvent, workCenters, workspaces } from '@gr8r/db';
+import { bomLines, loadAvgCosts, manufacturedItems, products, recordEvent, warehouses, workCenters, workspaces } from '@gr8r/db';
 import {
   bomLineCreate,
   bomLineUpdate,
@@ -48,6 +48,14 @@ export async function loadSettings(ctx: Ctx): Promise<ProductionSettings> {
 
 /* ---------------- участки ---------------- */
 
+/** Участок привязан к складу-цеху: материалы передаются на него обычным перемещением */
+async function assertWorkshopWarehouse(ctx: Ctx, warehouseId: string | null | undefined) {
+  if (!warehouseId) return;
+  const [w] = await ctx.db.select({ id: warehouses.id, kind: warehouses.kind, archivedAt: warehouses.archivedAt }).from(warehouses).where(eq(warehouses.id, warehouseId)).limit(1);
+  if (!w || w.archivedAt) throw new AppError(422, 'invalid_reference', 'The warehouse does not exist', { issues: [{ path: 'warehouseId', message: 'Warehouse not found' }] });
+  if (w.kind !== 'workshop') throw new AppError(422, 'invalid_warehouse_kind', 'A work center can only be tied to a workshop warehouse', { issues: [{ path: 'warehouseId', message: 'Choose a warehouse of the "workshop" kind' }] });
+}
+
 export const workCenterRoutes = crud({
   entity: 'work_center',
   table: workCenters,
@@ -58,6 +66,14 @@ export const workCenterRoutes = crud({
   defaultSort: 'name',
   search: [workCenters.name, workCenters.code],
   writeRole: 'admin',
+  prepareCreate: async (ctx, body) => {
+    await assertWorkshopWarehouse(ctx, body.warehouseId);
+    return {};
+  },
+  prepareUpdate: async (ctx, existing, body) => {
+    if (body.warehouseId !== undefined && body.warehouseId !== existing.warehouseId) await assertWorkshopWarehouse(ctx, body.warehouseId);
+    return {};
+  },
 });
 
 /* ---------------- расчёт ---------------- */

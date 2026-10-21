@@ -3,7 +3,7 @@
    Суммы строк и итоги документа в форме считает та же чистая функция, что и сервер при проведении (computeDocument из @gr8r/shared). */
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { DOCUMENT_META, type CompanyKind, type DocumentGroup, type DocumentStatus, type DocumentType, type FileRef, type TaxSystem, type VatRate } from '@gr8r/shared';
+import { DOCUMENT_META, type CompanyKind, type CostItemKind, type DocumentGroup, type DocumentStatus, type DocumentType, type FileRef, type TaxSystem, type VatRate, type WarehouseKind } from '@gr8r/shared';
 import { toast } from '@/components/ui';
 import type { Tone } from '@/components/ui';
 import { errorMessage } from '../data/api';
@@ -35,6 +35,8 @@ export interface DocLine {
   returned: string;
   sourceLineId: string | null;
   originLineId: string | null;
+  /** Роль строки внутреннего документа: приход или расход */
+  stockRole: 'in' | 'out' | null;
 }
 
 export interface DocListItem {
@@ -44,16 +46,23 @@ export interface DocListItem {
   date: string;
   dueDate: string | null;
   status: DocumentStatus;
+  /** Состояние документа (отдельно от проведения) */
+  state: string | null;
   organizationId: string;
   organizationName: string;
   counterpartyId: string | null;
   counterpartyName: string | null;
   warehouseId: string | null;
   warehouseName: string | null;
+  targetWarehouseId: string | null;
+  targetWarehouseName?: string | null;
+  costItemId: string | null;
   priceIncludesVat: boolean;
   amountNet: string;
   vatTotal: string;
   total: string;
+  /** Стоимость по себестоимости (внутренние документы); member и guest её не видят (null) */
+  costTotal?: string | null;
   basedOnId: string | null;
   comment: string;
   createdAt: string;
@@ -76,6 +85,13 @@ export interface DocDetail extends Omit<DocListItem, 'organizationName' | 'count
   organization: { id: string; name: string } | null;
   counterparty: { id: string; name: string; inn: string } | null;
   warehouse: { id: string; name: string } | null;
+  /** Склад-получатель (перемещение) */
+  targetWarehouse: { id: string; name: string; kind: WarehouseKind } | null;
+  /** Статья затрат или доходов */
+  costItem: { id: string; name: string; kind: CostItemKind } | null;
+  operation: string | null;
+  /** Стоимость по себестоимости (внутренние документы) */
+  costTotal?: string;
   basedOn: DocLink | null;
   children: DocLink[];
   lines: DocLine[];
@@ -96,7 +112,7 @@ export interface DocList {
   items: DocListItem[];
   total: number;
   limit: number;
-  sum: { net: string; vat: string; total: string };
+  sum: { net: string; vat: string; total: string; cost?: string | null };
 }
 
 export function useDocuments(params: DocListParams) {
@@ -183,7 +199,16 @@ export interface Warehouse {
   name: string;
   code: string;
   address: string;
+  kind: WarehouseKind;
   isDefault: boolean;
+  archivedAt: string | null;
+}
+
+export interface CostItem {
+  id: string;
+  name: string;
+  kind: CostItemKind;
+  systemKey: string | null;
   archivedAt: string | null;
 }
 
@@ -207,6 +232,16 @@ export function useOrganizations() {
 export function useWarehouses() {
   const ws = useWsId();
   return useQuery({ queryKey: docsKey(ws, 'warehouses'), queryFn: async () => (await call<{ items: Warehouse[] }>(ws, 'GET', '/warehouses?limit=100')).items, staleTime: Infinity });
+}
+
+/** Статьи затрат и доходов: справочник для списаний и оприходований */
+export function useCostItems(kind?: CostItemKind) {
+  const ws = useWsId();
+  return useQuery({
+    queryKey: docsKey(ws, 'cost-items', kind ?? 'all'),
+    queryFn: async () => (await call<{ items: CostItem[] }>(ws, 'GET', `/cost-items?limit=200${kind ? `&kind=${kind}` : ''}`)).items,
+    staleTime: Infinity,
+  });
 }
 
 export function useBankAccounts(owner: 'companies' | 'organizations', id: string | undefined) {
@@ -275,7 +310,7 @@ export function useStockBalances(params: { warehouseId?: string; q?: string; non
       if (params.warehouseId) sp.set('warehouseId', params.warehouseId);
       if (params.q) sp.set('q', params.q);
       if (params.nonZero) sp.set('nonZero', 'true');
-      return call<{ items: StockBalance[]; total: number; value: string }>(ws, 'GET', `/stock/balances?${sp}`);
+      return call<{ items: StockBalance[]; total: number; value: string | null }>(ws, 'GET', `/stock/balances?${sp}`);
     },
     staleTime: Infinity,
     placeholderData: prev => prev,
