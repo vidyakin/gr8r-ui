@@ -73,6 +73,11 @@ export const BOM_KINDS = ['material', 'semi', 'work'] as const;
 export type BomKind = (typeof BOM_KINDS)[number];
 export const MANUFACTURED_KINDS = ['product', 'semi'] as const;
 
+/** Режим полуфабриката в строке BOM: stock — полуфабрикат выпускается отдельно и списывается со склада,
+    explode — разворачивается до материалов и работ в том же выпуске */
+export const SEMI_MODES = ['stock', 'explode'] as const;
+export type SemiMode = (typeof SEMI_MODES)[number];
+
 /** Откуда берётся цена материала при расчёте себестоимости. avg_cost — средняя себестоимость склада (этап 5);
     пока товара нет на складах, расчёт берёт закупочную цену */
 export const MATERIAL_PRICE_SOURCES = ['purchase', 'price', 'avg_cost'] as const;

@@ -3,7 +3,7 @@
    (той же, что на сервере), поэтому любая правка строки пересчитывает дерево и итоги мгновенно, не дожидаясь ответа сервера. */
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BomCycleError, computeBomCost, resolveMaterialPrice, wouldCreateCycle, type BomItemInput, type CostNode, type MaterialPriceSource, type ProductKind } from '@gr8r/shared';
+import { BomCycleError, computeBomCost, resolveMaterialPrice, wouldCreateCycle, type BomItemInput, type CostNode, type MaterialPriceSource, type ProductKind, type SemiMode } from '@gr8r/shared';
 import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';
@@ -16,6 +16,8 @@ export interface BomLine {
   sortOrder: number;
   productId: string | null;
   childItemId: string | null;
+  /** Режим полуфабриката: stock — списать со склада, explode — развернуть до материалов */
+  semiMode: SemiMode;
   qty: string;
   unitCode: string | null;
   scrapPct: string;
@@ -78,6 +80,42 @@ export function useSnapshot() {
 }
 
 export const PRICE_SOURCE_LABEL: Record<MaterialPriceSource, string> = { purchase: 'purchase price', price: 'sale price', avg_cost: 'average warehouse cost' };
+
+/** Строка потребности: сколько нужно, сколько доступно и сколько не хватает */
+export interface NeedRow {
+  kind: 'material' | 'semi';
+  productId: string | null;
+  itemId: string | null;
+  name: string;
+  unitCode: string | null;
+  qty: string;
+  available: string;
+  deficit: string;
+  /** Сколько нужно выпустить (полуфабрикат) */
+  produce: string;
+}
+
+/** Развёртка спецификации на количество: потребность в материалах, работах и полуфабрикатах */
+export interface Explosion {
+  itemId: string;
+  qty: string;
+  batchQty: string;
+  warehouseId: string | null;
+  materials: NeedRow[];
+  semis: NeedRow[];
+  works: { operation: string; workCenterId: string | null; hours: string }[];
+}
+
+/** Потребность по развёртке: остатки считает сервер, поэтому запрос отдельный */
+export function useExplosion(itemId: string | undefined, qty: string, warehouseId: string | null) {
+  const ws = useWsId();
+  return useQuery({
+    queryKey: productionKey(ws, 'explode', itemId ?? '', qty, warehouseId ?? ''),
+    queryFn: () => call<Explosion>(ws, 'GET', `/manufactured-items/${itemId}/explode?qty=${encodeURIComponent(qty)}${warehouseId ? `&warehouseId=${warehouseId}` : ''}`),
+    enabled: !!itemId,
+    staleTime: 30_000,
+  });
+}
 
 const toInput = (i: Item): BomItemInput => ({ ...i, lines: i.lines });
 
@@ -192,6 +230,7 @@ export function useProductionMutations() {
             sortOrder: i.lines.length,
             productId: (b.productId as string) ?? null,
             childItemId: (b.childItemId as string) ?? null,
+            semiMode: (b.semiMode as SemiMode) ?? 'stock',
             qty: String(b.qty ?? '1'),
             unitCode: mat?.unitCode ?? child?.unitCode ?? null,
             scrapPct: String(b.scrapPct ?? '0'),

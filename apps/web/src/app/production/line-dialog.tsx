@@ -54,6 +54,7 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
   const edit = !!line;
   const [material, setMaterial] = React.useState<Material | null>(() => (line?.productId ? (snap.materials.find(x => x.id === line.productId) ?? null) : null));
   const [childId, setChildId] = React.useState(line?.childItemId ?? '');
+  const [mode, setMode] = React.useState<'stock' | 'explode'>(line?.semiMode ?? 'stock');
   const [qty, setQty] = React.useState(line ? line.qty.replace(/\.?0+$/, '') : '1');
   const [scrap, setScrap] = React.useState(line ? line.scrapPct.replace(/\.?0+$/, '') : '0');
   const [operation, setOperation] = React.useState(line?.operation ?? '');
@@ -74,7 +75,7 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
       kind === 'material'
         ? { kind, productId: material?.id, qty: num(qty), scrapPct: num(scrap) ?? 0 }
         : kind === 'semi'
-          ? { kind, childItemId: childId || undefined, qty: num(qty) }
+          ? { kind, childItemId: childId || undefined, qty: num(qty), semiMode: mode }
           : { kind, operation: operation.trim(), workCenterId: center || null, hours: num(hours) ?? 0, rate: rate.trim() === '' ? null : Number(rate), fixedCost: fixed.trim() === '' ? null : Number(fixed) };
     const parsed = bomLineCreate.safeParse(body);
     if (!parsed.success) {
@@ -152,6 +153,14 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
               </Field>
               <Field label="Quantity" error={err.qty}>
                 {p => <Input {...p} inputMode="decimal" value={qty} onChange={e => setQty(e.target.value)} />}
+              </Field>
+              <Field label="Mode" hint="Stock: the semi-finished product is produced separately and taken from the warehouse. Explode: it is expanded into its materials and works in the same release.">
+                {p => (
+                  <select className="select" id={p.id} value={mode} onChange={e => setMode(e.target.value as 'stock' | 'explode')}>
+                    <option value="stock">Take from stock</option>
+                    <option value="explode">Expand to materials</option>
+                  </select>
+                )}
               </Field>
             </>
           )}

@@ -1,6 +1,6 @@
 /* zod-схемы производства: участки, продукция (изделия и полуфабрикаты), строки спецификации, настройки. */
 import { z } from 'zod';
-import { BOM_KINDS, MANUFACTURED_KINDS, MATERIAL_PRICE_SOURCES } from '../constants';
+import { BOM_KINDS, MANUFACTURED_KINDS, MATERIAL_PRICE_SOURCES, SEMI_MODES } from '../constants';
 import { clientId, decimal, listQuery, shortText, toPatch, uuid } from './common';
 
 const nonNeg = (max = 1e12) => decimal.refine(v => Number(v) >= 0 && Number(v) < max, 'Must not be negative');
@@ -48,6 +48,8 @@ export const bomLineCreate = z
     productId: uuid.nullish(),
     scrapPct: nonNeg(1000).optional(),
     childItemId: uuid.nullish(),
+    /** semi: режим полуфабриката — stock (списывается со склада) или explode (разворачивается до материалов) */
+    semiMode: z.enum(SEMI_MODES).optional(),
     operation: z.string().trim().max(200).optional(),
     workCenterId: uuid.nullish(),
     hours: nonNeg(1e6).optional(),
@@ -61,12 +63,14 @@ export const bomLineCreate = z
     if (v.kind === 'material') {
       need(!!v.productId, 'productId', 'Choose a product');
       need(v.qty !== undefined, 'qty', 'Quantity is required');
+      need(v.semiMode === undefined, 'semiMode', 'Not applicable to a material line');
     } else if (v.kind === 'semi') {
       need(!!v.childItemId, 'childItemId', 'Choose a product to include');
       need(v.qty !== undefined, 'qty', 'Quantity is required');
     } else {
       need(!!v.operation, 'operation', 'Name the operation');
       need((v.hours !== undefined && Number(v.hours) > 0) || (v.fixedCost != null && Number(v.fixedCost) > 0), 'hours', 'Set hours or a fixed cost');
+      need(v.semiMode === undefined, 'semiMode', 'Not applicable to a work line');
     }
   });
 /** Тип строки не меняется. Проверка полей по типу — в обработчике (после слияния с имеющимися значениями) */
@@ -76,6 +80,8 @@ export const bomLineUpdate = z
     productId: uuid.optional(),
     scrapPct: nonNeg(1000).optional(),
     childItemId: uuid.optional(),
+    /** semi: режим полуфабриката */
+    semiMode: z.enum(SEMI_MODES).optional(),
     operation: z.string().trim().min(1).max(200).optional(),
     workCenterId: uuid.nullish(),
     hours: nonNeg(1e6).optional(),
@@ -85,6 +91,13 @@ export const bomLineUpdate = z
   })
   .strict();
 export const bomReorder = z.object({ ids: z.array(uuid).min(1).max(500) });
+
+/** Развёртка спецификации на количество: сколько единиц изделия и по какому складу считаем потребность */
+export const explodeQuery = z.object({
+  qty: positive(1e9).default('1'),
+  /** Склад: остатки только его; без склада — по всем складам воркспейса */
+  warehouseId: uuid.optional(),
+});
 
 /* ---------------- настройки ---------------- */
 

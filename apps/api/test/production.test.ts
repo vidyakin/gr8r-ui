@@ -258,3 +258,91 @@ describe('tenant isolation', () => {
     await owner.patch('/production/settings', { materialPriceSource: 'purchase' });
   });
 });
+
+describe('explosion and needs', () => {
+  let whId: string;
+  let supplier: string;
+  let boardProduct: string;
+
+  beforeAll(async () => {
+    whId = (await owner.get('/warehouses')).body.items[0].id;
+    supplier = (await mk(owner, '/companies', { name: 'ООО «Поставщик»', inn: '7728168971' })).id;
+    boardProduct = (await mk(owner, '/products', { name: 'Доска на складе', price: 300 })).id;
+    // приходуем брус: 10 штук на основном складе
+    const rc = await mk(owner, '/documents', { type: 'receipt', counterpartyId: supplier, lines: [{ productId: wood, qty: 10, price: 100 }] });
+    expect((await owner.post(`/documents/${rc.id}/post`)).status).toBe(200);
+  });
+
+  test('развёртка на количество: нормы пропорциональны qty / batch_qty', async () => {
+    const board = await item('Доска развёртка', { kind: 'semi', batchQty: 10, productId: boardProduct });
+    await line(board.id, { kind: 'material', productId: wood, qty: 2, scrapPct: 10 });
+    const table = await item('Стол развёртка', { batchQty: 10 });
+    const sl = await line(table.id, { kind: 'semi', childItemId: board.id, qty: 1 });
+    await line(table.id, { kind: 'material', productId: screw, qty: 4 });
+    expect(sl).toMatchObject({ kind: 'semi', semiMode: 'stock' });
+    const r = await owner.get(`/manufactured-items/${table.id}/explode?qty=13`);
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ itemId: table.id, qty: '13.000', batchQty: '10.000', warehouseId: null });
+    // стол: 13 штук при партии 10 -> 1.3 столешницы; шурупы 5.2; доски не хватает — её надо выпустить, брус 2.2 × 0.13 = 0.286
+    expect(r.body.materials.map((m: any) => [m.productId, m.qty, m.available, m.deficit])).toEqual([
+      [screw, '5.200', '0.000', '5.200'],
+      [wood, '0.286', '10.000', '0.000'],
+    ]);
+    expect(r.body.semis.map((s: any) => [s.itemId, s.name, s.qty, s.available, s.deficit, s.produce])).toEqual([[board.id, 'Доска развёртка', '1.300', '0.000', '1.300', '1.300']]);
+    expect(r.body.works).toEqual([]);
+    // количество должно быть больше нуля
+    expect((await owner.get(`/manufactured-items/${table.id}/explode?qty=0`)).status).toBe(400);
+    expect((await owner.get(`/manufactured-items/${table.id}/explode?qty=abc`)).status).toBe(400);
+  });
+
+  test('остаток полуфабриката покрывает потребность: его материалы не нужны', async () => {
+    const board = await item('Доска со склада', { kind: 'semi', batchQty: 10, productId: boardProduct });
+    await line(board.id, { kind: 'material', productId: noPrice, qty: 2 });
+    const table = await item('Стол со склада', { batchQty: 1 });
+    await line(table.id, { kind: 'semi', childItemId: board.id, qty: 1 });
+    // кладём доску на склад
+    const rc = await mk(owner, '/documents', { type: 'receipt', counterpartyId: supplier, lines: [{ productId: boardProduct, qty: 5, price: 300 }] });
+    expect((await owner.post(`/documents/${rc.id}/post`)).status).toBe(200);
+    const r = await owner.get(`/manufactured-items/${table.id}/explode?qty=1`);
+    expect(r.body.semis.map((s: any) => [s.qty, s.available, s.deficit, s.produce])).toEqual([['1.000', '5.000', '0.000', '0.000']]);
+    expect(r.body.materials).toEqual([]);
+  });
+
+  test('режим полуфабриката: stock — списать со склада, explode — развернуть до материалов', async () => {
+    const board = await item('Доска фантом', { kind: 'semi', batchQty: 10, productId: boardProduct });
+    await line(board.id, { kind: 'material', productId: screw, qty: 2 });
+    const table = await item('Стол фантом', { batchQty: 1 });
+    const sl = await line(table.id, { kind: 'semi', childItemId: board.id, qty: 1 });
+    // по умолчанию stock
+    let r = await owner.get(`/manufactured-items/${table.id}/explode?qty=1`);
+    expect(r.body.semis.map((s: any) => s.itemId)).toEqual([board.id]);
+    expect(r.body.materials.map((m: any) => m.productId)).toEqual([]);
+    // переключаем режим
+    expect((await owner.patch(`/bom-lines/${sl.id}`, { semiMode: 'explode' })).body).toMatchObject({ semiMode: 'explode' });
+    r = await owner.get(`/manufactured-items/${table.id}/explode?qty=1`);
+    expect(r.body.semis).toEqual([]);
+    expect(r.body.materials.map((m: any) => [m.productId, m.qty])).toEqual([[screw, '0.200']]);
+    // режим задаётся только для строки-полуфабриката
+    const mat = await line(table.id, { kind: 'material', productId: wood, qty: 1 });
+    expect((await owner.patch(`/bom-lines/${mat.id}`, { semiMode: 'stock' })).status).toBe(400);
+    expect((await owner.patch(`/bom-lines/${sl.id}`, { semiMode: 'bogus' })).status).toBe(400);
+    expect((await owner.post(`/manufactured-items/${table.id}/lines`, { kind: 'semi', childItemId: board.id, qty: 1, semiMode: 'explode' })).body).toMatchObject({ semiMode: 'explode' });
+    // режим полуфабриката — только для строки-полуфабриката
+    expect((await owner.post(`/manufactured-items/${table.id}/lines`, { kind: 'material', productId: wood, qty: 1, semiMode: 'stock' })).status).toBe(400);
+  });
+
+  test('потребность по складу: без склада — по всем складам', async () => {
+    const board = await item('Доска по складам', { kind: 'semi', batchQty: 10, productId: boardProduct });
+    await line(board.id, { kind: 'material', productId: screw, qty: 1 });
+    const table = await item('Стол по складам', { batchQty: 1 });
+    await line(table.id, { kind: 'semi', childItemId: board.id, qty: 1 });
+    const all = await owner.get(`/manufactured-items/${table.id}/explode?qty=1`);
+    expect(all.body.semis[0].available).toBe('5.000');
+    const wh = await owner.get(`/manufactured-items/${table.id}/explode?qty=1&warehouseId=${whId}`);
+    expect(wh.body.semis[0].available).toBe('5.000');
+    expect((await owner.get(`/manufactured-items/${table.id}/explode?qty=1&warehouseId=${crypto.randomUUID()}`)).status).toBe(404);
+    // участник читает, чужой воркспейс не видит
+    expect((await member.get(`/manufactured-items/${table.id}/explode?qty=1`)).status).toBe(200);
+    expect((await other.get(`/manufactured-items/${table.id}/explode?qty=1`)).status).toBe(404);
+  });
+});
