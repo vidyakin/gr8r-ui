@@ -14,6 +14,8 @@ export const workCenterCreate = z.object({
   name: shortText,
   /** Ставка за час по умолчанию */
   hourlyRate: nonNeg().default('0'),
+  /** Склад-цех участка: материалы передаются на него обычным перемещением */
+  warehouseId: uuid.nullish(),
   note: z.string().max(1000).default(''),
 });
 export const workCenterUpdate = toPatch(workCenterCreate.omit({ id: true }));

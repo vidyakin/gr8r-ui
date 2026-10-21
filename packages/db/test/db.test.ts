@@ -100,10 +100,12 @@ describe('seed', () => {
     expect(await count('warehouses', w)).toBe(2);
     expect(await count('companies', `${w} and inn <> ''`)).toBe(5);
     expect(await count('bank_accounts', `${w} and company_id is not null`)).toBe(5);
-    expect(await count('documents', w)).toBe(11);
-    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(11);
+    expect(await count('documents', w)).toBe(13);
+    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(13);
     expect(await count('documents', `${w} and based_on_id is not null`)).toBe(6);
-    expect(await count('stock_balances', `${w} and qty > 0`)).toBe(17);
+    expect(await count('documents', `${w} and type in ('stock_transfer','write_off')`)).toBe(2);
+    expect(await count('cost_items', w)).toBe(6);
+    expect(await count('stock_balances', `${w} and qty > 0`)).toBe(18);
     expect(await count('stock_reservations', w)).toBe(1);
     expect(await count('documents', `where workspace_id = '${acme!.id}'`)).toBe(0);
     expect(await count('organizations', `where workspace_id = '${acme!.id}'`)).toBe(1);

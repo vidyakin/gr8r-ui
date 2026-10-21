@@ -46,6 +46,8 @@ export interface WorkCenter {
   code: string;
   name: string;
   hourlyRate: string;
+  /** Склад-цех участка */
+  warehouseId: string | null;
   note: string;
   archivedAt: string | null;
 }

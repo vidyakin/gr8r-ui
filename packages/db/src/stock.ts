@@ -1,8 +1,8 @@
 /* Склад: движения, остатки, средняя скользящая себестоимость, резервы. Всё пишется в транзакции проведения документа.
    Остаток по (склад, товар) блокируется строкой stock_balances (FOR UPDATE, в порядке ключей — без взаимных блокировок),
    поэтому параллельные проведения не могут уйти в минус одновременно и порядок движений (seq) совпадает с порядком блокировок. */
-import { and, asc, eq, inArray, or, sql } from 'drizzle-orm';
-import { dec, fmt, replayMoves, stockIn, stockOut, weightedAvgCost, type Dec, type InventorySettings, type StockState } from '@gr8r/shared';
+import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
+import { dec, fmt, replayMoves, stockIn, stockOut, weightedAvgCost, DOCUMENT_META, DOCUMENT_TYPES, type Dec, type DocumentType, type InventorySettings, type StockState } from '@gr8r/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { documentLines, documents, products, stockBalances, stockMoves, stockReservations, workspaces } from './schema';
@@ -49,37 +49,44 @@ export interface MoveRequest extends StockKey {
   direction: 'in' | 'out';
   /** Приход: цена единицы; без неё берётся текущая средняя склада */
   cost?: Dec;
+  /** Приход по цене фактического расхода той же строки (перемещение между складами) */
+  costFromLine?: boolean;
 }
 
 /** Записывает движения документа и обновляет остатки (в той же транзакции). Расход списывается по текущей средней; приход
-    пересчитывает среднюю. Уход в минус запрещён, пока воркспейс не разрешил его настройкой */
+    пересчитывает среднюю. Расходы пишутся раньше приходов: цена прихода перемещения — фактическая цена расхода той же строки.
+    Уход в минус запрещён, пока воркспейс не разрешил его настройкой */
 export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: string; date: string }, reqs: MoveRequest[], settings: InventorySettings): Promise<void> {
   if (!reqs.length) return;
   const state = await lockBalances(db, workspaceId, reqs);
   const rows: (typeof stockMoves.$inferInsert)[] = [];
-  const shortages = new Map<string, { key: StockKey; available: Dec; needed: Dec }>();
   const need = new Map<string, Dec>();
-  for (const r of reqs) {
+  /** Фактическая цена расхода по строке документа — ею оценивается приход перемещения */
+  const outCost = new Map<string, Dec>();
+  const apply = (r: MoveRequest) => {
     const k = keyOf(r);
     const s = state.get(k)!;
     if (r.direction === 'in') {
-      const next = stockIn(s, r.qty, r.cost ?? s.avg);
+      const cost = r.cost ?? (r.costFromLine ? outCost.get(r.lineId) : undefined) ?? s.avg;
+      const next = stockIn(s, r.qty, cost);
       state.set(k, next);
-      rows.push({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentId: doc.id, documentLineId: r.lineId, qty: fmt(r.qty, 3), cost: fmt(r.cost ?? s.avg, 4), movedAt: doc.date });
+      rows.push({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentId: doc.id, documentLineId: r.lineId, qty: fmt(r.qty, 3), cost: fmt(cost, 4), movedAt: doc.date });
     } else {
       need.set(k, (need.get(k) ?? 0n) + r.qty);
       const o = stockOut(s, r.qty);
       state.set(k, o.state);
+      outCost.set(r.lineId, o.cost);
       rows.push({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentId: doc.id, documentLineId: r.lineId, qty: fmt(-r.qty, 3), cost: fmt(o.cost, 4), movedAt: doc.date });
     }
-  }
+  };
+  for (const r of reqs) if (r.direction === 'out') apply(r);
   if (!settings.allowNegativeStock) {
+    const shortages = new Map<string, { key: StockKey; available: Dec; needed: Dec }>();
     for (const [k, s] of state) {
-      if (s.qty < 0n) {
-        const [warehouseId, productId] = k.split(':') as [string, string];
-        const needed = need.get(k) ?? 0n;
-        shortages.set(k, { key: { warehouseId, productId }, available: s.qty + needed, needed });
-      }
+      const needed = need.get(k);
+      if (needed === undefined || s.qty >= 0n) continue;
+      const [warehouseId, productId] = k.split(':') as [string, string];
+      shortages.set(k, { key: { warehouseId, productId }, available: s.qty + needed, needed });
     }
     if (shortages.size) {
       const names = await productNames(db, [...shortages.values()].map(s => s.key.productId));
@@ -87,11 +94,48 @@ export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: st
       throw new DomainError(422, 'insufficient_stock', `Not enough stock: ${items.map(i => `${i.name} (available ${i.available}, needed ${i.needed})`).join('; ')}`, { items });
     }
   }
+  for (const r of reqs) if (r.direction === 'in') apply(r);
   await db.insert(stockMoves).values(rows);
   for (const [k, s] of state) {
     const [warehouseId, productId] = k.split(':') as [string, string];
     await db.update(stockBalances).set({ qty: fmt(s.qty, 3), avgCost: fmt(s.avg, 4), updatedAt: new Date() }).where(and(eq(stockBalances.warehouseId, warehouseId), eq(stockBalances.productId, productId)));
   }
+}
+
+/** Себестоимость единицы прихода по умолчанию (для оприходования): текущая средняя склада, иначе последняя закупочная цена */
+export async function defaultPostingCost(db: Db, warehouseId: string | null, productId: string): Promise<{ cost: string; source: 'avg' | 'last_receipt' | 'purchase' }> {
+  if (warehouseId) {
+    const [b] = await db.select({ avgCost: stockBalances.avgCost }).from(stockBalances).where(and(eq(stockBalances.warehouseId, warehouseId), eq(stockBalances.productId, productId))).limit(1);
+    if (b && dec(b.avgCost) > 0n) return { cost: fmt(dec(b.avgCost), 2), source: 'avg' };
+  }
+  // последняя закупочная цена: цена последнего проведённого поступления по товару
+  const [m] = await db
+    .select({ cost: stockMoves.cost })
+    .from(stockMoves)
+    .innerJoin(documents, eq(documents.id, stockMoves.documentId))
+    .where(and(eq(stockMoves.productId, productId), eq(documents.type, 'receipt'), eq(documents.status, 'posted'), sql`${stockMoves.qty} > 0`))
+    .orderBy(desc(stockMoves.seq))
+    .limit(1);
+  if (m && dec(m.cost) > 0n) return { cost: fmt(dec(m.cost), 2), source: 'last_receipt' };
+  const [p] = await db.select({ purchasePrice: products.purchasePrice }).from(products).where(eq(products.id, productId)).limit(1);
+  return { cost: p?.purchasePrice ?? '0', source: 'purchase' };
+}
+
+/** Стоимость документов по движениям: сумма qty × cost. У перемещения есть расход и приход — берётся только расходная
+    сторона (иначе они взаимно сократились бы), у списания — расход, у оприходования — приход */
+export async function documentCosts(db: Db, documentIds: string[]): Promise<Map<string, string>> {
+  if (!documentIds.length) return new Map();
+  const rows = await db
+    .select({
+      documentId: stockMoves.documentId,
+      hasOut: sql<boolean>`bool_or(${stockMoves.qty} < 0)`,
+      out: sql<string>`coalesce(sum(case when ${stockMoves.qty} < 0 then -${stockMoves.qty} * ${stockMoves.cost} else 0 end), 0)::text`,
+      in: sql<string>`coalesce(sum(case when ${stockMoves.qty} > 0 then ${stockMoves.qty} * ${stockMoves.cost} else 0 end), 0)::text`,
+    })
+    .from(stockMoves)
+    .where(inArray(stockMoves.documentId, documentIds))
+    .groupBy(stockMoves.documentId);
+  return new Map(rows.map(r => [r.documentId, fmt(dec(r.hasOut ? r.out : r.in), 2)]));
 }
 
 /** Удаляет движения документа и пересчитывает остатки и среднюю по оставшимся движениям (отмена проведения).
@@ -158,15 +202,20 @@ export async function syncReservations(db: Db, workspaceId: string, orderLineIds
     .innerJoin(documents, eq(documents.id, documentLines.documentId))
     .innerJoin(products, eq(products.id, documentLines.productId))
     .where(inArray(documentLines.id, ids));
-  const shippedRows = await db
-    .select({ origin: documentLines.originLineId, qty: sql<string>`sum(${documentLines.qty})` })
-    .from(documentLines)
-    .innerJoin(documents, eq(documents.id, documentLines.documentId))
-    .where(and(inArray(documentLines.originLineId, ids), eq(documents.status, 'posted'), eq(documents.type, 'realization')))
-    .groupBy(documentLines.originLineId);
+  // резерв снимают документы-исполнители, перечисленные в метаданных типа заказа
+  const releasers = [...new Set(DOCUMENT_TYPES.filter(t => DOCUMENT_META[t].reserves).flatMap(t => DOCUMENT_META[t].reservedUntil ?? []))];
+  const shippedRows = releasers.length
+    ? await db
+        .select({ origin: documentLines.originLineId, qty: sql<string>`sum(${documentLines.qty})` })
+        .from(documentLines)
+        .innerJoin(documents, eq(documents.id, documentLines.documentId))
+        .where(and(inArray(documentLines.originLineId, ids), eq(documents.status, 'posted'), inArray(documents.type, releasers)))
+        .groupBy(documentLines.originLineId)
+    : [];
   const shipped = new Map(shippedRows.map(r => [r.origin!, dec(r.qty)]));
   for (const l of lines) {
-    const want = l.type === 'customer_order' && l.status === 'posted' && l.warehouseId && l.kind === 'goods' ? dec(l.qty) - (shipped.get(l.id) ?? 0n) : 0n;
+    const reserves = DOCUMENT_META[l.type as DocumentType].reserves === true;
+    const want = reserves && l.status === 'posted' && l.warehouseId && l.kind === 'goods' ? dec(l.qty) - (shipped.get(l.id) ?? 0n) : 0n;
     if (want > 0n) {
       await db
         .insert(stockReservations)

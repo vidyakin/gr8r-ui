@@ -1,7 +1,7 @@
 /* zod-схемы документов, организаций, складов, банковских счетов и склада (остатки, движения, настройки). */
 import { z } from 'zod';
 import { VAT_RATES } from '../constants';
-import { DOCUMENT_GROUPS, DOCUMENT_STATUSES, DOCUMENT_TYPES, PRINT_FORMS } from '../documents';
+import { COST_ITEM_KINDS, DOCUMENT_GROUPS, DOCUMENT_STATUSES, DOCUMENT_TYPES, PRINT_FORMS, WAREHOUSE_KINDS } from '../documents';
 import { COMPANY_KINDS, TAX_SYSTEMS } from '../ru';
 import { clientId, decimal, isoDate, listQuery, queryBool, shortText, toPatch, uuid } from './common';
 import { customData } from './meta';
@@ -77,10 +77,23 @@ export const warehouseCreate = z.object({
   name: shortText,
   code: z.string().trim().max(32).default(''),
   address: z.string().trim().max(500).default(''),
+  /** Вид склада: обычный склад, цех участка или служебный «в пути» */
+  kind: z.enum(WAREHOUSE_KINDS).default('warehouse'),
   isDefault: z.boolean().optional(),
 });
 export const warehouseUpdate = toPatch(warehouseCreate.omit({ id: true }));
 export const warehouseQuery = listQuery;
+
+/* ---------------- статьи затрат и доходов ---------------- */
+
+export const costItemCreate = z.object({
+  id: clientId,
+  name: shortText,
+  /** Статья затрат (expense) или доходов (income) */
+  kind: z.enum(COST_ITEM_KINDS).default('expense'),
+});
+export const costItemUpdate = toPatch(costItemCreate.omit({ id: true }));
+export const costItemQuery = listQuery.extend({ kind: z.enum(COST_ITEM_KINDS).optional() });
 
 /* ---------------- документы ---------------- */
 
@@ -110,6 +123,10 @@ export const documentCreate = z.object({
   organizationId: uuid.nullish(),
   counterpartyId: uuid.nullish(),
   warehouseId: uuid.nullish(),
+  /** Склад-получатель (перемещение между складами) */
+  targetWarehouseId: uuid.nullish(),
+  /** Статья затрат или доходов (списание, оприходование) */
+  costItemId: uuid.nullish(),
   /** Пусто — сегодня */
   date: isoDate.optional(),
   dueDate: isoDate.nullish(),
@@ -137,6 +154,8 @@ export const documentQuery = listQuery.extend({
 });
 
 export const basedOnCreate = z.object({ type: z.enum(DOCUMENT_TYPES) });
+/** Смена состояния документа (отдельно от проведения) */
+export const documentStateChange = z.object({ state: z.string().trim().regex(/^[a-z][a-z0-9_]*$/, 'State key: lowercase letters, digits and underscores') });
 export const pdfRequest = z.object({ form: z.enum(PRINT_FORMS) });
 export const printParam = z.object({ id: uuid, form: z.enum(PRINT_FORMS) });
 

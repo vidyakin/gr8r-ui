@@ -262,7 +262,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
 
         <div className="sgroup">
           <div className="sgroup-h">Trade</div>
-          {(['sales', 'purchases', 'inventory'] as const).map(id => (
+          {(['sales', 'purchases', 'stockDocs', 'inventory'] as const).map(id => (
             <SectionItem key={id} id={id} collapsed={collapsed} />
           ))}
         </div>

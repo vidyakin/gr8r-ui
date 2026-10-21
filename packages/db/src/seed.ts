@@ -10,7 +10,7 @@ import { registerBaseUnits } from './catalog';
 import { seedCatalog } from './seed-catalog';
 import { seedDocuments } from './seed-documents';
 import { seedFlows } from './seed-flows';
-import { ensureDocumentDefaults } from './documents';
+import { ensureCostItems, ensureDocumentDefaults } from './documents';
 import { enqueueFieldIndex, registerSystemEntities } from './meta';
 import { uuidv7 } from './uuid';
 import {
@@ -323,6 +323,7 @@ async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: string, user
 
   // Документы и склад: организация, склады, реквизиты, цепочки закупок и продаж (проводятся настоящими сервисами)
   const docs = await seedDocuments(db, wsId, U(d.me), { atlas: U('co8'), northwind: U('co1'), quanta: U('co4'), skyline: U('co10') });
+  await ensureCostItems(db, wsId);
 
   // Автоматизации: две демо-flow (задача → Review, сделка → Won)
   await seedFlows(db, wsId, U(d.me), U('p1'));
@@ -342,6 +343,7 @@ async function seedOtherWorkspace(db: Db, wsId: string, userId: string) {
   await registerSystemEntities(db, wsId);
   await registerBaseUnits(db, wsId);
   await ensureDocumentDefaults(db, wsId, 'Acme Corp');
+  await ensureCostItems(db, wsId);
   await db.insert(statuses).values(defaultStatusRows(wsId, [{ id: 'todo', name: 'To Do' }, { id: 'progress', name: 'In Progress' }, { id: 'done', name: 'Done' }]));
   await db.insert(projects).values({ id: projectId, workspaceId: wsId, key: 'ACM', name: 'Acme Secret Project', icon: 'lock', color: 'rose', status: 'active', leadId: memberId, taskCounter: 3, description: 'Private data of another tenant' });
   await db.insert(tasks).values(

@@ -2,10 +2,10 @@
    и две цепочки документов, проведённые настоящими сервисами (поэтому остатки, резервы и средняя себестоимость — как у живых данных):
    «заказ поставщику → поступление» и «заказ покупателя → счёт → реализация (УПД)» + акт услуг. Данные — на русском, интерфейс английский. */
 import { accountKeyOk, makeInn, makeOgrn } from '@gr8r/shared';
-import { asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { Db } from './client';
-import { createBasedOn, createDocument, postDocument, updateDocument, type DocCtx } from './documents';
-import { bankAccounts, companies, documentLines, organizations, products, warehouses } from './schema';
+import { createBasedOn, createDocument, ensureCostItems, postDocument, updateDocument, type DocCtx } from './documents';
+import { bankAccounts, companies, costItems, documentLines, organizations, products, warehouses } from './schema';
 
 const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * 864e5).toISOString().slice(0, 10);
 
@@ -184,5 +184,27 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
   });
   await postAt(direct, 3);
 
-  return { documents: 15 };
+  /* ---------- складские документы: перемещение между складами и списание ---------- */
+  await ensureCostItems(db, wsId);
+  const [brak] = await db.select({ id: costItems.id }).from(costItems).where(and(eq(costItems.workspaceId, wsId), eq(costItems.systemKey, 'brak')));
+  const transfer = await createDocument(db, ctx, {
+    type: 'stock_transfer',
+    warehouseId: main!.id,
+    targetWarehouseId: fg!.id,
+    date: iso(12),
+    comment: 'Фурнитура на склад готовой продукции',
+    lines: [buy('HW-SCR-440', 120)],
+  });
+  await postAt(transfer, 12);
+  const writeOff = await createDocument(db, ctx, {
+    type: 'write_off',
+    warehouseId: main!.id,
+    costItemId: brak!.id,
+    date: iso(5),
+    comment: 'Брак при раскрое фанеры',
+    lines: [buy('MT-PLY-18', 4)],
+  });
+  await postAt(writeOff, 5);
+
+  return { documents: 17 };
 }

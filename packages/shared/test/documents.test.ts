@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { basedOnTargets, computeDocument, computeLine, computeTotals, dec, DOCUMENT_META, DOCUMENT_TYPES, documentTypesOf, fmt, formatDocumentNumber, replayMoves, stockIn, stockOut, weightedAvgCost } from '../src';
+import { basedOnTargets, canChangeState, computeDocument, computeLine, computeTotals, dec, DOCUMENT_META, DOCUMENT_TYPES, documentTypesOf, fmt, formatDocumentNumber, lineRole, replayMoves, stateTransitions, stockIn, stockOut, stockPlan, weightedAvgCost } from '../src';
 
 const line = (qty: string, price: string, vatRate: string, discountPct = '0') => ({ qty, price, vatRate, discountPct });
 
@@ -89,6 +89,53 @@ describe('document types', () => {
     expect(DOCUMENT_META.customer_return.stock).toBe('in');
     expect(DOCUMENT_META.supplier_return.stock).toBe('out');
     expect(DOCUMENT_META.act.stock).toBeNull();
+  });
+  test('internal documents: no counterparty, their own line role', () => {
+    expect(documentTypesOf('stock')).toEqual(['stock_transfer', 'write_off', 'stock_posting']);
+    expect(DOCUMENT_META.stock_transfer.party).toBeNull();
+    expect(DOCUMENT_META.write_off.costItemKind).toBe('expense');
+    expect(DOCUMENT_META.stock_posting.costItemKind).toBe('income');
+    expect(lineRole('write_off')).toBe('out');
+    expect(lineRole('stock_posting')).toBe('in');
+    expect(lineRole('stock_transfer')).toBeNull(); // обе стороны задаёт шапка
+    expect(lineRole('invoice')).toBeNull();
+  });
+  test('states are separate from posting: a type without states has no transitions', () => {
+    expect(stateTransitions(DOCUMENT_META.invoice, null)).toEqual([]);
+    const meta = { ...DOCUMENT_META.stock_transfer, states: [{ key: 'draft', label: 'Draft' }, { key: 'shipped', label: 'Shipped', next: ['received'] }, { key: 'received', label: 'Received', final: true }] };
+    expect(stateTransitions(meta, null)).toEqual(['draft', 'shipped']);
+    expect(stateTransitions(meta, 'shipped')).toEqual(['received']);
+    expect(stateTransitions(meta, 'received')).toEqual([]);
+    expect(canChangeState(meta, 'shipped', 'received')).toBe(true);
+    expect(canChangeState(meta, 'shipped', 'draft')).toBe(false);
+  });
+});
+
+describe('stock plan', () => {
+  const line = { id: 'l1', productId: 'p1', qty: '5', stockRole: null };
+  test('sales and purchases: the type sets the direction', () => {
+    expect(stockPlan({ type: 'realization', warehouseId: 'w1', targetWarehouseId: null }, [line])).toEqual([{ lineId: 'l1', productId: 'p1', warehouseId: 'w1', qty: '5', direction: 'out', role: 'out' }]);
+    expect(stockPlan({ type: 'receipt', warehouseId: 'w1', targetWarehouseId: null }, [line])).toEqual([{ lineId: 'l1', productId: 'p1', warehouseId: 'w1', qty: '5', direction: 'in', role: 'in' }]);
+    expect(stockPlan({ type: 'invoice', warehouseId: 'w1', targetWarehouseId: null }, [line])).toEqual([]); // счёт склад не двигает
+    expect(stockPlan({ type: 'realization', warehouseId: null, targetWarehouseId: null }, [line])).toEqual([]); // без склада движений нет
+  });
+  test('transfer: two sides per line — out of the header warehouse and into the target', () => {
+    expect(stockPlan({ type: 'stock_transfer', warehouseId: 'w1', targetWarehouseId: 'w2' }, [line])).toEqual([
+      { lineId: 'l1', productId: 'p1', warehouseId: 'w1', qty: '5', direction: 'out', role: 'out' },
+      { lineId: 'l1', productId: 'p1', warehouseId: 'w2', qty: '5', direction: 'in', role: 'in' },
+    ]);
+  });
+  test('write-off and posting: the role of the type', () => {
+    expect(stockPlan({ type: 'write_off', warehouseId: 'w1', targetWarehouseId: null }, [line])).toEqual([{ lineId: 'l1', productId: 'p1', warehouseId: 'w1', qty: '5', direction: 'out', role: 'out' }]);
+    expect(stockPlan({ type: 'stock_posting', warehouseId: 'w1', targetWarehouseId: null }, [line])).toEqual([{ lineId: 'l1', productId: 'p1', warehouseId: 'w1', qty: '5', direction: 'in', role: 'in' }]);
+  });
+  test('the role of the line wins over the type (release of a production order)', () => {
+    const out = { ...line, stockRole: 'out' as const };
+    const inn = { ...line, id: 'l2', stockRole: 'in' as const };
+    expect(stockPlan({ type: 'stock_posting', warehouseId: 'w1', targetWarehouseId: 'w2' }, [out, inn])).toEqual([
+      { lineId: 'l1', productId: 'p1', warehouseId: 'w1', qty: '5', direction: 'out', role: 'out' },
+      { lineId: 'l2', productId: 'p1', warehouseId: 'w2', qty: '5', direction: 'in', role: 'in' },
+    ]);
   });
 });
 

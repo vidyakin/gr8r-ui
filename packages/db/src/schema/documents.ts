@@ -84,6 +84,8 @@ export const warehouses = pgTable(
     name: text('name').notNull(),
     code: text('code').notNull().default(''),
     address: text('address').notNull().default(''),
+    /** Вид склада: обычный склад, склад-цех участка, служебный склад «в пути» */
+    kind: text('kind', { enum: ['warehouse', 'workshop', 'transit'] }).notNull().default('warehouse'),
     isDefault: boolean('is_default').notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -93,6 +95,29 @@ export const warehouses = pgTable(
     unique('warehouses_ws_id_uq').on(t.workspaceId, t.id),
     uniqueIndex('warehouses_default_uq').on(t.workspaceId).where(sql`${t.isDefault} and ${t.archivedAt} is null`),
     uniqueIndex('warehouses_ws_name_uq').on(t.workspaceId, sql`lower(${t.name})`).where(sql`${t.archivedAt} is null`),
+  ],
+);
+
+/** Статьи затрат и доходов: корреспонденция списаний и оприходований */
+export const costItems = pgTable(
+  'cost_items',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    name: text('name').notNull(),
+    /** Статья затрат (expense) или доходов (income) */
+    kind: text('kind', { enum: ['expense', 'income'] }).notNull().default('expense'),
+    /** Ключ системной статьи (Брак, Недостача…): свои статьи имеют null */
+    systemKey: text('system_key'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    archivedAt: archivedAt(),
+  },
+  t => [
+    unique('cost_items_ws_id_uq').on(t.workspaceId, t.id),
+    check('cost_items_kind_chk', sql`${t.kind} in ('expense','income')`),
+    uniqueIndex('cost_items_ws_name_uq').on(t.workspaceId, sql`lower(${t.name})`).where(sql`${t.archivedAt} is null`),
+    uniqueIndex('cost_items_system_uq').on(t.workspaceId, t.systemKey).where(sql`${t.systemKey} is not null`),
   ],
 );
 
@@ -109,9 +134,17 @@ export const documents = pgTable(
     date: date('date', { mode: 'string' }).notNull(),
     dueDate: date('due_date', { mode: 'string' }),
     status: text('status', { enum: ['draft', 'posted', 'cancelled'] }).notNull().default('draft'),
+    /** Состояние документа отдельно от проведения (у типов без состояний — null) */
+    state: text('state'),
+    /** Вид операции внутреннего документа */
+    operation: text('operation'),
     organizationId: uuid('organization_id').notNull(),
     counterpartyId: uuid('counterparty_id'),
     warehouseId: uuid('warehouse_id'),
+    /** Склад-получатель (перемещение между складами) */
+    targetWarehouseId: uuid('target_warehouse_id'),
+    /** Статья затрат или доходов (списание, оприходование) */
+    costItemId: uuid('cost_item_id'),
     currency: text('currency').notNull().default('RUB'),
     /** Цены «НДС в т.ч.» (true) или «НДС сверху» (false) */
     priceIncludesVat: boolean('price_includes_vat').notNull().default(true),
@@ -133,10 +166,16 @@ export const documents = pgTable(
     foreignKey({ columns: [t.workspaceId, t.organizationId], foreignColumns: [organizations.workspaceId, organizations.id], name: 'documents_org_fk' }),
     foreignKey({ columns: [t.workspaceId, t.counterpartyId], foreignColumns: [companies.workspaceId, companies.id], name: 'documents_counterparty_fk' }),
     foreignKey({ columns: [t.workspaceId, t.warehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'documents_warehouse_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.targetWarehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'documents_target_warehouse_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.costItemId], foreignColumns: [costItems.workspaceId, costItems.id], name: 'documents_cost_item_fk' }),
     foreignKey({ columns: [t.workspaceId, t.basedOnId], foreignColumns: [t.workspaceId, t.id], name: 'documents_based_on_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.responsibleId], foreignColumns: [members.workspaceId, members.id], name: 'documents_responsible_fk' }),
-    check('documents_type_chk', sql`${t.type} in ('quote','customer_order','invoice','realization','act','customer_return','supplier_order','receipt','supplier_return')`),
+    check('documents_type_chk', sql`${t.type} in ('quote','customer_order','invoice','realization','act','customer_return','supplier_order','receipt','supplier_return','stock_transfer','write_off','stock_posting')`),
     check('documents_status_chk', sql`${t.status} in ('draft','posted','cancelled')`),
+    check('documents_state_chk', sql`${t.state} is null or ${t.state} ~ '^[a-z][a-z0-9_]*$'`),
+    check('documents_operation_chk', sql`${t.operation} is null or ${t.operation} in ('transfer','in_transit','to_operation','from_operation')`),
+    // перемещение: склад-получатель задан и отличается от склада-источника
+    check('documents_transfer_chk', sql`${t.type} <> 'stock_transfer' or (${t.targetWarehouseId} is not null and ${t.targetWarehouseId} <> ${t.warehouseId})`),
     check('documents_number_chk', sql`(${t.number} is null) = (${t.numberSeq} is null) and (${t.numberSeq} is null) = (${t.numberYear} is null)`),
     // номер уникален в (организация, тип, год)
     uniqueIndex('documents_number_uq').on(t.workspaceId, t.organizationId, t.type, t.numberYear, t.numberSeq).where(sql`${t.numberSeq} is not null`),
@@ -167,6 +206,8 @@ export const documentLines = pgTable(
     sourceLineId: uuid('source_line_id'),
     /** Строка исходного заказа: по ней считается остаток к отгрузке / поступлению всей цепочки документов */
     originLineId: uuid('origin_line_id'),
+    /** Роль строки внутреннего документа: приход или расход (у продаж и закупок — null) */
+    stockRole: text('stock_role', { enum: ['in', 'out'] }),
     createdAt: createdAt(),
   },
   t => [
@@ -178,6 +219,7 @@ export const documentLines = pgTable(
     foreignKey({ columns: [t.workspaceId, t.originLineId], foreignColumns: [t.workspaceId, t.id], name: 'document_lines_origin_fk' }).onDelete('set null'),
     check('document_lines_qty_chk', sql`${t.qty} > 0 and ${t.price} >= 0 and ${t.discountPct} >= 0 and ${t.discountPct} <= 100`),
     check('document_lines_vat_chk', sql`${t.vatRate} in ('none','0','5','7','10','20')`),
+    check('document_lines_stock_role_chk', sql`${t.stockRole} is null or ${t.stockRole} in ('in','out')`),
     index('document_lines_doc_idx').on(t.documentId, t.sortOrder),
     index('document_lines_origin_idx').on(t.originLineId),
     index('document_lines_source_idx').on(t.sourceLineId),

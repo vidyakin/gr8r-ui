@@ -7,7 +7,7 @@ import { DEFAULT_SECTION, SET_NAV, SET_SECTIONS } from '../settings/nav';
 import { AppearanceSection, DateTimeSection, LanguageSection, MembersSection, PermissionsSection, ProjectsSection, TeamsSection, WorkspaceSection } from '../settings/general';
 import { DataModelSection } from '../settings/data-model';
 import { ProductionSection } from '../settings/production';
-import { OrganizationsSection, WarehousesSection } from '../settings/documents';
+import { CostItemsSection, OrganizationsSection, WarehousesSection } from '../settings/documents';
 import { NotificationsSection, PreferencesSection, ProfileSection, ShortcutsSection } from '../settings/personal';
 import { InvoicesSection, PasswordSection, PaymentSection, PlanSection, SessionsSection, TwoFactorSection } from '../settings/account';
 import { NotFoundPage } from './PlaceholderPage';
@@ -38,6 +38,8 @@ function Body({ sec, title }: { sec: string; title: string }) {
       return <OrganizationsSection title={title} />;
     case 'warehouses':
       return <WarehousesSection title={title} />;
+    case 'cost-items':
+      return <CostItemsSection title={title} />;
     case 'notif-email':
     case 'notif-push':
     case 'notif-mentions':

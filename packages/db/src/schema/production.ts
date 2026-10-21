@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import { check, foreignKey, index, integer, numeric, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { archivedAt, createdAt, money, pk, updatedAt } from './columns';
 import { products, units } from './catalog';
+import { warehouses } from './documents';
 import { wsCol } from './people';
 
 export const workCenters = pgTable(
@@ -14,12 +15,18 @@ export const workCenters = pgTable(
     name: text('name').notNull(),
     /** Ставка за час по умолчанию */
     hourlyRate: money('hourly_rate').notNull().default('0'),
+    /** Склад-цех участка: материалы передаются на него обычным перемещением */
+    warehouseId: uuid('warehouse_id'),
     note: text('note').notNull().default(''),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
     archivedAt: archivedAt(),
   },
-  t => [unique('work_centers_ws_id_uq').on(t.workspaceId, t.id), check('work_centers_rate_chk', sql`${t.hourlyRate} >= 0`)],
+  t => [
+    unique('work_centers_ws_id_uq').on(t.workspaceId, t.id),
+    check('work_centers_rate_chk', sql`${t.hourlyRate} >= 0`),
+    foreignKey({ columns: [t.workspaceId, t.warehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'work_centers_warehouse_fk' }),
+  ],
 );
 
 export const manufacturedItems = pgTable(
