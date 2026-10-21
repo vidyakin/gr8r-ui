@@ -13,3 +13,4 @@ export * from './documents';
 export * from './stock';
 export * from './cost';
 export * from './automations';
+export * from './production';

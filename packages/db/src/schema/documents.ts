@@ -170,10 +170,10 @@ export const documents = pgTable(
     foreignKey({ columns: [t.workspaceId, t.costItemId], foreignColumns: [costItems.workspaceId, costItems.id], name: 'documents_cost_item_fk' }),
     foreignKey({ columns: [t.workspaceId, t.basedOnId], foreignColumns: [t.workspaceId, t.id], name: 'documents_based_on_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.responsibleId], foreignColumns: [members.workspaceId, members.id], name: 'documents_responsible_fk' }),
-    check('documents_type_chk', sql`${t.type} in ('quote','customer_order','invoice','realization','act','customer_return','supplier_order','receipt','supplier_return','stock_transfer','write_off','stock_posting')`),
+    check('documents_type_chk', sql`${t.type} in ('quote','customer_order','invoice','realization','act','customer_return','supplier_order','receipt','supplier_return','stock_transfer','write_off','stock_posting','production_order','production')`),
     check('documents_status_chk', sql`${t.status} in ('draft','posted','cancelled')`),
     check('documents_state_chk', sql`${t.state} is null or ${t.state} ~ '^[a-z][a-z0-9_]*$'`),
-    check('documents_operation_chk', sql`${t.operation} is null or ${t.operation} in ('transfer','in_transit','to_operation','from_operation')`),
+    check('documents_operation_chk', sql`${t.operation} is null or ${t.operation} in ('transfer','in_transit','to_operation','from_operation','assembly')`),
     // перемещение: склад-получатель задан и отличается от склада-источника
     check('documents_transfer_chk', sql`${t.type} <> 'stock_transfer' or (${t.targetWarehouseId} is not null and ${t.targetWarehouseId} <> ${t.warehouseId})`),
     check('documents_number_chk', sql`(${t.number} is null) = (${t.numberSeq} is null) and (${t.numberSeq} is null) = (${t.numberYear} is null)`),
@@ -291,14 +291,17 @@ export const stockBalances = pgTable(
   ],
 );
 
-/** Резерв под проведённый заказ покупателя: по строке заказа, количество = заказано − отгружено */
+/** Резерв под проведённый заказ покупателя: по строке заказа, количество = заказано − отгружено.
+    Резерв выпущенной продукции — по строке выпуска (production_line_id): продукция, выпущенная под заказ покупателя, закреплена за ним */
 export const stockReservations = pgTable(
   'stock_reservations',
   {
     id: pk(),
     workspaceId: wsCol(),
     documentId: uuid('document_id').notNull(),
-    documentLineId: uuid('document_line_id').notNull(),
+    documentLineId: uuid('document_line_id'),
+    /** Строка выпуска (продукция под заказ покупателя) */
+    productionLineId: uuid('production_line_id'),
     warehouseId: uuid('warehouse_id').notNull(),
     productId: uuid('product_id').notNull(),
     qty: numeric('qty', { precision: 18, scale: 3 }).notNull(),
@@ -307,9 +310,12 @@ export const stockReservations = pgTable(
   t => [
     foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'stock_reservations_document_fk' }).onDelete('cascade'),
     foreignKey({ columns: [t.workspaceId, t.documentLineId], foreignColumns: [documentLines.workspaceId, documentLines.id], name: 'stock_reservations_line_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.productionLineId], foreignColumns: [documentLines.workspaceId, documentLines.id], name: 'stock_reservations_production_line_fk' }).onDelete('cascade'),
     foreignKey({ columns: [t.workspaceId, t.warehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'stock_reservations_warehouse_fk' }),
     foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'stock_reservations_product_fk' }),
     unique('stock_reservations_line_uq').on(t.documentLineId),
+    unique('stock_reservations_production_line_uq').on(t.productionLineId),
+    check('stock_reservations_owner_chk', sql`(${t.documentLineId} is not null) <> (${t.productionLineId} is not null)`),
     check('stock_reservations_qty_chk', sql`${t.qty} > 0`),
     index('stock_reservations_stock_idx').on(t.workspaceId, t.warehouseId, t.productId),
   ],

@@ -5,7 +5,9 @@ import { accountKeyOk, makeInn, makeOgrn } from '@gr8r/shared';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { Db } from './client';
 import { createBasedOn, createDocument, ensureCostItems, postDocument, updateDocument, type DocCtx } from './documents';
-import { bankAccounts, companies, costItems, documentLines, organizations, products, warehouses } from './schema';
+import { bankAccounts, companies, costItems, documentLines, organizations, products, warehouses, workCenters, manufacturedItems } from './schema';
+import { createProductionFromOrder, createProductionOrder, fillOrderFromBom } from './production';
+import { productionItems } from './schema';
 
 const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * 864e5).toISOString().slice(0, 10);
 
@@ -64,6 +66,9 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
   await db.insert(bankAccounts).values({ workspaceId: wsId, organizationId: org!.id, bik: BANKS.alfa.bik, account: account(BANKS.alfa.bik, '00000067890'), corrAccount: BANKS.alfa.corr, bankName: BANKS.alfa.bankName });
   const [main] = await db.insert(warehouses).values({ workspaceId: wsId, name: 'Основной склад', code: 'MAIN', address: 'Московская обл., г. Химки, ул. Заводская, 7', isDefault: true }).returning();
   const [fg] = await db.insert(warehouses).values({ workspaceId: wsId, name: 'Склад готовой продукции', code: 'FG', address: 'г. Москва, Алтуфьевское ш., 62' }).returning();
+  // склад-цех: материалы передаются на него перемещением, участок выпускает продукцию на склад готовой продукции
+  const [shop] = await db.insert(warehouses).values({ workspaceId: wsId, name: 'Цех столярный', code: 'SHOP', address: 'Московская обл., г. Химки, ул. Заводская, 7, цех', kind: 'workshop' }).returning();
+  await db.update(workCenters).set({ warehouseId: shop!.id, outputWarehouseId: fg!.id }).where(eq(workCenters.workspaceId, wsId));
 
   /* ---------- реквизиты контрагентов (пять компаний) ---------- */
   const requisites = async (id: string, v: { kind?: 'legal' | 'sole_proprietor'; inn: string; kpp?: string; ogrn: string; legal: string; actual?: string; bank: keyof typeof BANKS; tail: string }) => {
@@ -206,5 +211,31 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
   });
   await postAt(writeOff, 5);
 
-  return { documents: 17 };
+  /* ---------- производство: материалы на цех, заказ на производство и выпуск ---------- */
+  const toShop = await createDocument(db, ctx, {
+    type: 'stock_transfer',
+    warehouseId: main!.id,
+    targetWarehouseId: shop!.id,
+    date: iso(4),
+    comment: 'Материалы на столярный цех',
+    lines: [buy('MT-OAK-5050', 60), buy('HW-SCR-440', 400), buy('MT-PKG-1', 40)],
+  });
+  await postAt(toShop, 4);
+
+  const [loft] = await db.select().from(manufacturedItems).where(eq(manufacturedItems.code, 'FG-LOFT')).limit(1);
+  const [assemblyCenter] = await db.select().from(workCenters).where(eq(workCenters.code, 'WS-2')).limit(1);
+  const prodOrder = await createProductionOrder(db, ctx, {
+    workCenterId: assemblyCenter!.id,
+    warehouseId: shop!.id,
+    targetWarehouseId: fg!.id,
+    date: iso(3),
+    comment: 'Стулья «Лофт» партией',
+    items: [{ itemId: loft!.id, qty: '6' }],
+  });
+  await fillOrderFromBom(db, ctx, prodOrder);
+  await postAt(prodOrder, 3);
+  const release = await createProductionFromOrder(db, ctx, prodOrder, { date: iso(2), lines: [{ orderItemId: (await db.select().from(productionItems).where(eq(productionItems.documentId, prodOrder))).map(i => i.id)[0]!, qty: '4' }] });
+  await postAt(release, 2);
+
+  return { documents: 20 };
 }

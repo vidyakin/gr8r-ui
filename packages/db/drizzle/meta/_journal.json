@@ -64,6 +64,13 @@
       "when": 1792598466546,
       "tag": "0008_bom_semi_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792605310871,
+      "tag": "0009_production_orders",
+      "breakpoints": true
     }
   ]
 }

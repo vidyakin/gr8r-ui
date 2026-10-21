@@ -82,3 +82,7 @@ export type SemiMode = (typeof SEMI_MODES)[number];
     пока товара нет на складах, расчёт берёт закупочную цену */
 export const MATERIAL_PRICE_SOURCES = ['purchase', 'price', 'avg_cost'] as const;
 export type MaterialPriceSource = (typeof MATERIAL_PRICE_SOURCES)[number];
+
+/** Способ пополнения товара: закупить на склад или выпустить своим производством */
+export const REPLENISHMENT_MODES = ['purchase', 'production'] as const;
+export type ReplenishmentMode = (typeof REPLENISHMENT_MODES)[number];

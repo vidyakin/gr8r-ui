@@ -6,11 +6,11 @@ import type { VatRate } from './constants';
 
 /* ---------------- типы и статусы ---------------- */
 
-export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting'] as const;
+export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'production_order', 'production'] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 export const DOCUMENT_STATUSES = ['draft', 'posted', 'cancelled'] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
-export const DOCUMENT_GROUPS = ['sales', 'purchases', 'stock'] as const;
+export const DOCUMENT_GROUPS = ['sales', 'purchases', 'stock', 'production'] as const;
 export type DocumentGroup = (typeof DOCUMENT_GROUPS)[number];
 export const PRINT_FORMS = ['invoice', 'upd', 'act', 'torg12'] as const;
 export type PrintForm = (typeof PRINT_FORMS)[number];
@@ -23,7 +23,7 @@ export type WarehouseKind = (typeof WAREHOUSE_KINDS)[number];
 export const COST_ITEM_KINDS = ['expense', 'income'] as const;
 export type CostItemKind = (typeof COST_ITEM_KINDS)[number];
 /** Вид операции внутреннего документа */
-export const DOCUMENT_OPERATIONS = ['transfer', 'in_transit', 'to_operation', 'from_operation'] as const;
+export const DOCUMENT_OPERATIONS = ['transfer', 'in_transit', 'to_operation', 'from_operation', 'assembly'] as const;
 export type DocumentOperation = (typeof DOCUMENT_OPERATIONS)[number];
 /** Роль строки внутреннего документа: приход или расход */
 export const STOCK_ROLES = ['in', 'out'] as const;
@@ -72,7 +72,17 @@ export interface DocumentTypeMeta {
   states?: DocumentStateDef[];
   /** Вид операции внутреннего документа */
   operation?: DocumentOperation;
+  /** Тип производства: в шапке два склада (материалы и продукция), роль строки задаёт каждая строка */
+  production?: boolean;
 }
+
+/** Состояния заказа на производство (отдельно от проведения) */
+export const PRODUCTION_ORDER_STATES: DocumentStateDef[] = [
+  { key: 'planned', label: 'Planned', next: ['in_progress'] },
+  { key: 'in_progress', label: 'In progress', next: ['done'] },
+  { key: 'done', label: 'Done', next: ['closed'] },
+  { key: 'closed', label: 'Closed', final: true },
+];
 
 export const DOCUMENT_META: Record<DocumentType, DocumentTypeMeta> = {
   quote: { label: 'Quote', group: 'sales', prefix: 'КП', stock: null, party: 'customer', basedOn: [], fulfils: false, forms: ['invoice'] },
@@ -88,6 +98,9 @@ export const DOCUMENT_META: Record<DocumentType, DocumentTypeMeta> = {
   stock_transfer: { label: 'Stock transfer', group: 'stock', prefix: 'ПМ', stock: null, party: null, basedOn: [], fulfils: false, forms: [], stockRole: 'transfer', operation: 'transfer' },
   write_off: { label: 'Write-off', group: 'stock', prefix: 'СП', stock: null, party: null, basedOn: [], fulfils: false, forms: [], stockRole: 'out', costItemKind: 'expense' },
   stock_posting: { label: 'Goods posting', group: 'stock', prefix: 'ОП', stock: null, party: null, basedOn: [], fulfils: false, forms: [], stockRole: 'in', costItemKind: 'income' },
+  // производство: заказ на производство и выпуск (списание материалов + приход продукции)
+  production_order: { label: 'Production order', group: 'production', prefix: 'ЗП', stock: null, party: null, basedOn: ['customer_order'], fulfils: false, forms: [], states: PRODUCTION_ORDER_STATES, operation: 'assembly', production: true },
+  production: { label: 'Production', group: 'production', prefix: 'ПР', stock: null, party: null, basedOn: ['production_order', 'customer_order'], fulfils: false, forms: [], operation: 'assembly', production: true },
 };
 
 /** Типы документов, исполняющих заказ (остаток к отгрузке / поступлению) */
@@ -120,6 +133,8 @@ export const DOCUMENT_LABELS_RU: Record<DocumentType, string> = {
   stock_transfer: 'Перемещение между складами',
   write_off: 'Списание',
   stock_posting: 'Оприходование',
+  production_order: 'Заказ на производство',
+  production: 'Производство (выпуск)',
 };
 
 export const documentTypesOf = (group: DocumentGroup): DocumentType[] => DOCUMENT_TYPES.filter(t => DOCUMENT_META[t].group === group);

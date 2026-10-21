@@ -7,6 +7,7 @@ import {
   Building2,
   Calendar,
   ChartGantt,
+  ClipboardList,
   ChartNoAxesCombined,
   CircleCheck,
   Component,
@@ -64,6 +65,7 @@ export const SECTIONS = {
   // Каталог и производство
   catalog: { path: '/catalog', name: 'Catalog', icon: Package },
   production: { path: '/production', name: 'Production', icon: Factory },
+  productionOrders: { path: '/production/orders', name: 'Production orders', icon: ClipboardList },
   workCenters: { path: '/work-centers', name: 'Work centers', icon: Wrench },
   // Автоматизации
   automations: { path: '/automations', name: 'Automations', icon: Workflow },

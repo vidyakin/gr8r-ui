@@ -43,7 +43,8 @@ interface Form {
 const trimNum = (s: string) => (s.includes('.') ? s.replace(/0+$/, '').replace(/\.$/, '') : s);
 
 /** Адрес журнала группы: продажи, закупки или складские документы */
-const groupPath = (g: string) => (g === 'sales' ? '/sales' : g === 'purchases' ? '/purchases' : '/stock-docs');
+const groupPath = (g: string) => (g === 'sales' ? '/sales' : g === 'purchases' ? '/purchases' : g === 'production' ? '/production/orders' : '/stock-docs');
+const groupLabel = (g: string) => (g === 'sales' ? 'Sales' : g === 'purchases' ? 'Purchases' : g === 'production' ? 'Production orders' : 'Stock documents');
 
 function toForm(d: DocDetail): Form {
   return {
@@ -133,7 +134,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const editable = canWrite && doc.status === 'draft';
   /** Внутренний документ: без контрагента, свой склад и статья затрат */
   const internal = meta.party === null;
-  const usesWarehouse = !!meta.stock || !!meta.stockRole || doc.type === 'customer_order';
+  const usesWarehouse = !!meta.stock || !!meta.stockRole || meta.production || doc.type === 'customer_order';
   const isOrder = !!meta.isOrder;
   const priceField = meta.party === 'supplier' ? 'purchasePrice' : 'price';
   const whOptions = (warehouses.data ?? []).filter(w => (!w.archivedAt || w.id === form.warehouseId) && w.kind !== 'transit');
@@ -274,7 +275,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
         <div className="doc-title">
           <nav className="muted" style={{ fontSize: 12.5 }} aria-label="Document type">
             <Link to={groupPath(meta.group)} className="crm-link">
-              {meta.group === 'sales' ? 'Sales' : meta.group === 'purchases' ? 'Purchases' : 'Stock documents'}
+              {groupLabel(meta.group)}
             </Link>
             {' / '}
             <Link to={`${groupPath(meta.group)}?type=${doc.type}`} className="crm-link">
@@ -404,7 +405,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
           </Field>
         )}
         {usesWarehouse && (
-          <Field label={internal ? 'From warehouse' : 'Warehouse'}>
+          <Field label={internal ? (meta.production ? 'Materials warehouse' : 'From warehouse') : 'Warehouse'}>
             {p => (
               <Select
                 id={p.id}
@@ -418,8 +419,8 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             )}
           </Field>
         )}
-        {meta.stockRole === 'transfer' && (
-          <Field label="To warehouse">
+        {(meta.stockRole === 'transfer' || meta.production) && (
+          <Field label={meta.production ? 'Finished goods warehouse' : 'To warehouse'}>
             {p => (
               <Select
                 id={p.id}
@@ -500,6 +501,9 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                     </th>
                   </>
                 )}
+                {meta.production && (
+                  <th style={{ width: 96 }}>Role</th>
+                )}
                 <th style={{ width: 112 }} className="r">
                   {internal ? 'Cost' : 'Price'}
                 </th>
@@ -547,6 +551,11 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                         <td className="r num muted">{trimNum(srv?.shipped ?? '0') || '0'}</td>
                         <td className="r num">{trimNum(String(Math.max(0, Number(l.qty) - shipped).toFixed(3))) || '0'}</td>
                       </>
+                    )}
+                    {meta.production && (
+                      <td>
+                        <span className="muted">{srv?.stockRole === 'in' ? 'Product' : 'Material'}</span>
+                      </td>
                     )}
                     <td className="r">
                       <NumCell

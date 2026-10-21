@@ -17,6 +17,7 @@ const TITLES: Record<DocumentGroup, { title: string; lead: string }> = {
   sales: { title: 'Sales', lead: 'Quotes, customer orders, invoices, shipments (UPD), service acts and returns.' },
   purchases: { title: 'Purchases', lead: 'Supplier orders, goods receipts and returns to suppliers.' },
   stock: { title: 'Stock documents', lead: 'Transfers between warehouses, write-offs and postings. The amount shown is the cost at average price.' },
+  production: { title: 'Production', lead: 'Production orders and releases. The amount shown is the cost at average price.' },
 };
 
 export function JournalPage({ group }: { group: DocumentGroup }) {
