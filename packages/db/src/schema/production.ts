@@ -71,6 +71,8 @@ export const bomLines = pgTable(
     productId: uuid('product_id'),
     /** semi */
     childItemId: uuid('child_item_id'),
+    /** semi: режим полуфабриката — stock (выпускается отдельно и списывается со склада) или explode (разворачивается до материалов) */
+    semiMode: text('semi_mode', { enum: ['stock', 'explode'] }),
     /** Количество на партию (material, semi) */
     qty: numeric('qty', { precision: 18, scale: 3 }).notNull().default('0'),
     /** Единица строки: единица товара / продукции, заполняет сервер */
@@ -101,6 +103,7 @@ export const bomLines = pgTable(
         or (${t.kind} = 'work' and ${t.productId} is null and ${t.childItemId} is null)`,
     ),
     check('bom_lines_nonneg_chk', sql`${t.qty} >= 0 and ${t.scrapPct} >= 0 and ${t.hours} >= 0`),
+    check('bom_lines_semi_mode_chk', sql`(${t.kind} = 'semi' and ${t.semiMode} is not null and ${t.semiMode} in ('stock','explode')) or (${t.kind} <> 'semi' and ${t.semiMode} is null)`),
     index('bom_lines_item_idx').on(t.itemId, t.sortOrder),
     index('bom_lines_child_idx').on(t.childItemId),
     index('bom_lines_product_idx').on(t.productId),

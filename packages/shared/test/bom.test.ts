@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'bun:test';
-import { BomCycleError, computeBomCost, dec, fmt, findBomCycle, wouldCreateCycle, type BomItemInput, type BomLineInput } from '../src';
+import { BomCycleError, computeBomCost, computeNeeds, dec, explodeBom, fmt, findBomCycle, wouldCreateCycle, type BomItemInput, type BomLineInput } from '../src';
 
 const prices: Record<string, string | null> = { wood: '100', screw: '2', paint: '50', fabric: null };
 const rates: Record<string, string> = { carpentry: '600', assembly: '400' };
 const pricing = { materialPrice: (id: string) => prices[id], workCenterRate: (id: string) => rates[id] };
 
 const mat = (id: string, productId: string, qty: string, scrapPct = '0'): BomLineInput => ({ id, kind: 'material', productId, qty, scrapPct });
-const semi = (id: string, childItemId: string, qty: string): BomLineInput => ({ id, kind: 'semi', childItemId, qty });
+const semi = (id: string, childItemId: string, qty: string, semiMode?: 'stock' | 'explode'): BomLineInput => ({ id, kind: 'semi', childItemId, qty, ...(semiMode ? { semiMode } : {}) });
 const work = (id: string, over: Partial<BomLineInput>): BomLineInput => ({ id, kind: 'work', qty: '1', operation: 'Op', ...over });
 const item = (id: string, over: Partial<BomItemInput>): BomItemInput => ({ id, name: id, batchQty: '1', overheadPct: '0', lines: [], ...over });
 
@@ -102,5 +102,112 @@ describe('computeBomCost', () => {
 
   test('invalid batch quantity is rejected', () => {
     expect(() => computeBomCost([item('x', { batchQty: '0' })], 'x', pricing)).toThrow(RangeError);
+  });
+});
+
+describe('explodeBom', () => {
+  // Доска (полуфабрикат, партия 10): брус 2 с отходом 10% + работа 1 ч столярного
+  const board = () => item('board', { batchQty: '10', productId: 'boardProduct', lines: [mat('b1', 'wood', '2', '10'), work('b2', { workCenterId: 'carpentry', hours: '1' })] });
+  // Столешница: 2 доски + краска 0.5
+  const top = (mode?: 'stock' | 'explode') => item('top', { productId: 'topProduct', lines: [semi('t1', 'board', '2', mode), mat('t2', 'paint', '0.5')] });
+  // Стол (партия 10): столешница + 4 шурупа + сборка 1 ч
+  const table = (mode?: 'stock' | 'explode') => item('table', { batchQty: '10', lines: [semi('x1', 'top', '1', mode), mat('x2', 'screw', '4'), work('x3', { workCenterId: 'assembly', hours: '1' })] });
+
+  test('количество пропорционально qty / batch_qty: кратности партиям нет', () => {
+    const items = [table(), top(), board()];
+    const one = explodeBom(items, 'table', '1');
+    expect(one.qty).toBe('1.000');
+    expect(one.materials.map(m => [m.productId, m.qty])).toEqual([['screw', '0.400']]);
+    expect(one.works.map(w => [w.operation, w.hours])).toEqual([['Op', '0.100']]);
+    expect(one.semis.map(s => [s.itemId, s.qty])).toEqual([['top', '0.100']]);
+    // 13 штук при партии 10: нормы × 1.3
+    const thirteen = explodeBom(items, 'table', '13');
+    expect(thirteen.materials.map(m => [m.productId, m.qty])).toEqual([['screw', '5.200']]);
+    expect(thirteen.works.map(w => w.hours)).toEqual(['1.300']);
+    expect(thirteen.semis.map(s => [s.itemId, s.qty])).toEqual([['top', '1.300']]);
+    // разложение полуфабриката — на его партию: 2 доски, краска 0.5, а в доске брус 2.2 (с отходом)
+    const child = thirteen.semis[0]!.child!;
+    expect(child.materials.map(m => [m.productId, m.qty])).toEqual([['paint', '0.500']]);
+    expect(child.semis.map(s => [s.itemId, s.qty])).toEqual([['board', '2.000']]);
+    expect(child.semis[0]!.child!.materials.map(m => [m.productId, m.qty])).toEqual([['wood', '2.200']]);
+  });
+
+  test('полуфабрикат в режиме stock — строка на списание, в режиме explode — разворачивается до материалов', () => {
+    const stock = explodeBom([table('stock'), top('stock'), board()], 'table', '1');
+    expect(stock.semis.map(s => s.itemId)).toEqual(['top']);
+    expect(stock.materials.map(m => m.productId)).toEqual(['screw']);
+    const phantom = explodeBom([table('explode'), top('explode'), board()], 'table', '1');
+    expect(phantom.semis).toEqual([]);
+    // стол (партия 10) на 1 штуку: 0.1 столешницы -> 0.2 доски -> 0.02 партии досок: брус 0.044 (с отходом), краска 0.05
+    expect(phantom.materials.map(m => [m.productId, m.qty])).toEqual([
+      ['wood', '0.044'],
+      ['paint', '0.050'],
+      ['screw', '0.400'],
+    ]);
+  });
+
+  test('цикл в спецификации — BomCycleError', () => {
+    const a = item('a', { lines: [semi('1', 'b', '1')] });
+    const b = item('b', { lines: [semi('2', 'a', '1')] });
+    expect(() => explodeBom([a, b], 'a', '1')).toThrow(BomCycleError);
+  });
+});
+
+describe('computeNeeds', () => {
+  const board = () => item('board', { batchQty: '10', productId: 'boardProduct', lines: [mat('b1', 'wood', '2', '10'), work('b2', { workCenterId: 'carpentry', hours: '1' })] });
+  const top = () => item('top', { productId: 'topProduct', lines: [semi('t1', 'board', '2'), mat('t2', 'paint', '0.5')] });
+  const table = () => item('table', { batchQty: '10', lines: [semi('x1', 'top', '1'), mat('x2', 'screw', '4'), work('x3', { workCenterId: 'assembly', hours: '1' })] });
+  const chain = () => [table(), top(), board()];
+
+  test('нужно, доступно и дефицит по материалам', () => {
+    const x = item('x', { lines: [mat('m1', 'screw', '4'), mat('m2', 'wood', '2')] });
+    const needs = computeNeeds(explodeBom([x], 'x', '1'), { screw: '3' });
+    expect(needs.materials.map(m => [m.productId, m.qty, m.available, m.deficit])).toEqual([
+      ['screw', '4.000', '3.000', '1.000'],
+      ['wood', '2.000', '0.000', '2.000'],
+    ]);
+    expect(needs.semis).toEqual([]);
+  });
+
+  test('дефицит полуфабриката в режиме stock разворачивается до его материалов и работ', () => {
+    const needs = computeNeeds(explodeBom(chain(), 'table', '13'), {});
+    // стол: 13 штук при партии 10 -> 1.3 столешницы -> 2.6 доски -> 0.26 партии досок -> брус 0.572
+    expect(needs.semis.map(s => [s.itemId, s.qty, s.available, s.deficit, s.produce])).toEqual([
+      ['top', '1.300', '0.000', '1.300', '1.300'],
+      ['board', '2.600', '0.000', '2.600', '2.600'],
+    ]);
+    expect(needs.materials.map(m => [m.productId, m.qty])).toEqual([
+      ['screw', '5.200'],
+      ['paint', '0.650'],
+      ['wood', '0.572'],
+    ]);
+    expect(needs.works.map(w => w.hours)).toEqual(['1.300', '0.260']);
+  });
+
+  test('полуфабриката хватает на складе — его материалы не нужны', () => {
+    const needs = computeNeeds(explodeBom(chain(), 'table', '13'), { topProduct: '5', boardProduct: '10' });
+    expect(needs.semis.map(s => [s.itemId, s.qty, s.deficit, s.produce])).toEqual([['top', '1.300', '0.000', '0.000']]);
+    expect(needs.materials.map(m => m.productId)).toEqual(['screw']);
+    expect(needs.works.map(w => w.hours)).toEqual(['1.300']);
+  });
+
+  test('полуфабрикат в режиме explode в потребности не появляется', () => {
+    const items = [item('table', { batchQty: '10', lines: [semi('x1', 'top', '1', 'explode'), mat('x2', 'screw', '4')] }), top(), board()];
+    const needs = computeNeeds(explodeBom(items, 'table', '13'), {});
+    // столешница развёрнута до материалов, поэтому её нет среди полуфабрикатов; доска внутри неё — обычный складской материал
+    expect(needs.semis.map(s => s.itemId)).toEqual(['board']);
+    expect(needs.materials.map(m => [m.productId, m.qty])).toEqual([
+      ['paint', '0.650'],
+      ['screw', '5.200'],
+      ['wood', '0.572'],
+    ]);
+  });
+
+  test('один и тот же товар на разных уровнях агрегируется: остаток не списывается дважды', () => {
+    // стол: 4 шурупа напрямую + 2 шурупа в доске, которую нужно выпустить; шурупов на складе 5
+    const items = [item('table', { batchQty: '1', lines: [mat('m1', 'screw', '4'), semi('s1', 'board', '1')] }), item('board', { batchQty: '1', productId: 'boardProduct', lines: [mat('b1', 'screw', '2')] })];
+    const needs = computeNeeds(explodeBom(items, 'table', '1'), { screw: '5' });
+    expect(needs.materials.map(m => [m.productId, m.qty, m.available, m.deficit])).toEqual([['screw', '6.000', '5.000', '1.000']]);
+    expect(needs.semis.map(s => [s.itemId, s.qty, s.produce])).toEqual([['board', '1.000', '1.000']]);
   });
 });

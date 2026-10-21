@@ -4,12 +4,15 @@
 import { zValidator } from '@hono/zod-validator';
 import { asc, eq, inArray, isNull, max, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { bomLines, loadAvgCosts, manufacturedItems, products, recordEvent, warehouses, workCenters, workspaces } from '@gr8r/db';
+import { bomLines, loadAvgCosts, manufacturedItems, products, recordEvent, stockBalances, stockReservations, warehouses, workCenters, workspaces } from '@gr8r/db';
 import {
   bomLineCreate,
   bomLineUpdate,
   bomReorder,
   computeBomCost,
+  computeNeeds,
+  explodeBom,
+  explodeQuery,
   idParam,
   itemCreate,
   itemQuery,
@@ -23,6 +26,7 @@ import {
   workCenterUpdate,
   BomCycleError,
   type BomItemInput,
+  type Explosion,
   type MaterialPriceSource,
   type ProductionSettings,
 } from '@gr8r/shared';
@@ -94,9 +98,10 @@ export const toInput = (item: ItemRow, lines: LineRow[]): BomItemInput => ({
   id: item.id,
   name: item.name,
   unitCode: item.unitCode,
+  productId: item.productId,
   batchQty: item.batchQty,
   overheadPct: item.overheadPct,
-  lines: lines.map(l => ({ id: l.id, kind: l.kind, qty: l.qty, productId: l.productId, scrapPct: l.scrapPct, childItemId: l.childItemId, operation: l.operation, workCenterId: l.workCenterId, hours: l.hours, rate: l.rate, fixedCost: l.fixedCost })),
+  lines: lines.map(l => ({ id: l.id, kind: l.kind, qty: l.qty, productId: l.productId, scrapPct: l.scrapPct, unitCode: l.unitCode, childItemId: l.childItemId, semiMode: l.semiMode, operation: l.operation, workCenterId: l.workCenterId, hours: l.hours, rate: l.rate, fixedCost: l.fixedCost })),
 });
 
 /* ---------------- продукция и спецификации ---------------- */
@@ -170,7 +175,7 @@ export const itemRoutes = crud({
     const ctx = ctxOf(c);
     const body = c.req.valid('json');
     const item = await loadItem(ctx, c.req.valid('param').id);
-    const base = { kind: body.kind, productId: body.kind === 'material' ? (body.productId ?? null) : null, childItemId: body.kind === 'semi' ? (body.childItemId ?? null) : null, workCenterId: body.kind === 'work' ? (body.workCenterId ?? null) : null, operation: body.operation ?? '' };
+    const base = { kind: body.kind, productId: body.kind === 'material' ? (body.productId ?? null) : null, childItemId: body.kind === 'semi' ? (body.childItemId ?? null) : null, semiMode: body.kind === 'semi' ? (body.semiMode ?? 'stock') : null, workCenterId: body.kind === 'work' ? (body.workCenterId ?? null) : null, operation: body.operation ?? '' };
     const { unitCode } = await checkLine(ctx, item.id, base);
     const [ord] = await ctx.db.select({ m: max(bomLines.sortOrder) }).from(bomLines).where(eq(bomLines.itemId, item.id));
     const [row] = await ctx.db
@@ -230,6 +235,46 @@ export const itemRoutes = crud({
       if (e instanceof BomCycleError) throw new AppError(422, 'bom_cycle', e.message, { path: e.path });
       throw e;
     }
+  })
+  // развёртка спецификации на количество и потребность с учётом остатков: нужно / доступно / дефицит
+  .get('/:id/explode', zValidator('param', idParam, validationHook), zValidator('query', explodeQuery, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    const q = c.req.valid('query');
+    await loadItem(ctx, id);
+    if (q.warehouseId) {
+      const [w] = await ctx.db.select({ id: warehouses.id }).from(warehouses).where(eq(warehouses.id, q.warehouseId)).limit(1);
+      if (!w) throw notFound('warehouse');
+    }
+    const g = await loadBomGraph(ctx);
+    const byItem = new Map<string, LineRow[]>();
+    for (const l of g.lines) byItem.set(l.itemId, [...(byItem.get(l.itemId) ?? []), l]);
+    let explosion: Explosion;
+    try {
+      explosion = explodeBom(g.items.map(i => toInput(i, byItem.get(i.id) ?? [])), id, q.qty);
+    } catch (e) {
+      if (e instanceof BomCycleError) throw new AppError(422, 'bom_cycle', e.message, { path: e.path });
+      throw e;
+    }
+    // Доступно: остаток склада минус резерв под заказы покупателей (по одному складу или по всем сразу)
+    const reserved = sql<string>`coalesce((select sum(r.qty) from ${stockReservations} r where r.warehouse_id = ${stockBalances.warehouseId} and r.product_id = ${stockBalances.productId}), 0)`;
+    const rows = await ctx.db
+      .select({ productId: stockBalances.productId, available: sql<string>`sum((${stockBalances.qty} - ${reserved}))::numeric(18,3)::text` })
+      .from(stockBalances)
+      .where(q.warehouseId ? eq(stockBalances.warehouseId, q.warehouseId) : undefined)
+      .groupBy(stockBalances.productId);
+    const needs = computeNeeds(explosion, new Map(rows.map(r => [r.productId, r.available])));
+    const prod = new Map(g.mats.map(p => [p.id, p]));
+    const items = new Map(g.items.map(i => [i.id, i]));
+    return c.json({
+      itemId: id,
+      qty: explosion.qty,
+      batchQty: explosion.batchQty,
+      warehouseId: q.warehouseId ?? null,
+      materials: needs.materials.map(m => ({ ...m, name: prod.get(m.productId ?? '')?.name ?? m.productId, unitCode: prod.get(m.productId ?? '')?.unitCode ?? null })),
+      semis: needs.semis.map(s => ({ ...s, name: items.get(s.itemId ?? '')?.name ?? s.itemId, unitCode: items.get(s.itemId ?? '')?.unitCode ?? null })),
+      works: needs.works,
+    });
   });
 
 async function loadItem(ctx: Ctx, id: string): Promise<ItemRow> {
@@ -248,7 +293,7 @@ export const bomLineRoutes = new Hono<AppEnv>()
     const [line] = await ctx.db.select().from(bomLines).where(eq(bomLines.id, c.req.valid('param').id)).limit(1).for('update');
     if (!line) throw notFound('bom_line');
     // Поля, чужие для типа строки, отклоняются: тип не меняется
-    const foreign: Record<LineRow['kind'], string[]> = { material: ['childItemId', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], semi: ['productId', 'scrapPct', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], work: ['productId', 'childItemId', 'qty', 'scrapPct'] };
+    const foreign: Record<LineRow['kind'], string[]> = { material: ['childItemId', 'semiMode', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], semi: ['productId', 'scrapPct', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], work: ['productId', 'childItemId', 'semiMode', 'qty', 'scrapPct'] };
     const bad = foreign[line.kind].find(k => (body as Record<string, unknown>)[k] !== undefined);
     if (bad) throw new AppError(400, 'validation_error', `${bad}: not applicable to a ${line.kind} line`, { issues: [{ path: bad, message: `Not applicable to a ${line.kind} line` }] });
     const next = { ...line, ...Object.fromEntries(Object.entries(body).filter(([, v]) => v !== undefined)) } as LineRow;

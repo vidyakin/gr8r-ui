@@ -3,7 +3,7 @@
    расчёт идёт на клиенте функцией computeBomCost, сервер подтверждает запись следом. */
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { ArrowDown, ArrowUp, ChevronRight, CircleAlert, Ellipsis, ExternalLink, GripVertical, Layers, Package, Pencil, Plus, Trash2, Wrench } from 'lucide-react';
+import { ArrowDown, ArrowUp, Boxes, ChevronRight, CircleAlert, Ellipsis, ExternalLink, GripVertical, Layers, Package, Pencil, Plus, Trash2, Wrench } from 'lucide-react';
 import { dec, div, fmt, mul, type CostLine, type CostNode } from '@gr8r/shared';
 import { Alert, Badge, Button, ConfirmDialog, EmptyState, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Skeleton, toast } from '@/components/ui';
 import { cn } from '@/lib/utils';
@@ -11,7 +11,7 @@ import { NotFoundPage } from '../pages/PlaceholderPage';
 import { useCanWrite } from '../meta/custom-fields';
 import { money, unitSymbol, useUnits, type Unit } from '../catalog/data';
 import { UnitSelect } from '../catalog/product-ui';
-import { PRICE_SOURCE_LABEL, useCosting, useProductionMutations, useSnapshot, type BomLine, type Item, type Material, type ProductionMutations, type Snapshot, type WorkCenter } from './data';
+import { PRICE_SOURCE_LABEL, useCosting, useExplosion, useProductionMutations, useSnapshot, type BomLine, type Item, type Material, type NeedRow, type ProductionMutations, type Snapshot, type WorkCenter } from './data';
 import { LineDialog } from './line-dialog';
 
 const trimZeros = (s: string) => (s.includes('.') ? s.replace(/\.?0+$/, '') : s);
@@ -108,6 +108,8 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
   const [dialog, setDialog] = React.useState<{ kind: BomLine['kind']; line?: BomLine } | null>(null);
   const [removing, setRemoving] = React.useState<BomLine | null>(null);
   const [deleting, setDeleting] = React.useState(false);
+  const [needOn, setNeedOn] = React.useState(false);
+  const [needQty, setNeedQty] = React.useState('1');
   const [open, setOpen] = React.useState<Set<string>>(() => new Set(item.lines.filter(l => l.kind === 'semi').map(l => l.id)));
   const [dragId, setDragId] = React.useState<string | null>(null);
   const [overId, setOverId] = React.useState<string | null>(null);
@@ -116,6 +118,10 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
     () => ({ snap, units: unitsQ.data, mats: new Map(snap.materials.map(x => [x.id, x])), centers: new Map(snap.workCenters.map(x => [x.id, x])), items: new Map(snap.items.map(x => [x.id, x])) }),
     [snap, unitsQ.data],
   );
+
+  // Потребность в материалах: остатки считает сервер, поэтому запрос отдельный
+  const need = useExplosion(needOn ? item.id : undefined, needQty, null);
+  const needRows: NeedRow[] = React.useMemo(() => (need.data ? [...need.data.materials, ...need.data.semis] : []), [need.data]);
 
   // Плоский список видимых строк: корневые строки и раскрытые полуфабрикаты (только чтение)
   const flat = React.useMemo(() => {
@@ -224,41 +230,47 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
             )}
           </p>
         </div>
-        {canWrite && (
-          <div className="acts">
-            <Menu>
-              <MenuTrigger asChild>
-                <Button variant="primary">
-                  <Plus size={14} />
-                  Add line
-                </Button>
-              </MenuTrigger>
-              <MenuContent align="end">
-                <MenuItem icon={<Package size={15} />} onSelect={() => setDialog({ kind: 'material' })}>
-                  Material
-                </MenuItem>
-                <MenuItem icon={<Layers size={15} />} onSelect={() => setDialog({ kind: 'semi' })}>
-                  Semi-finished product
-                </MenuItem>
-                <MenuItem icon={<Wrench size={15} />} onSelect={() => setDialog({ kind: 'work' })}>
-                  Work operation
-                </MenuItem>
-              </MenuContent>
-            </Menu>
-            <Menu>
-              <MenuTrigger asChild>
-                <IconButton label="More" tooltip={false}>
-                  <Ellipsis size={16} />
-                </IconButton>
-              </MenuTrigger>
-              <MenuContent align="end">
-                <MenuItem icon={<Trash2 size={15} />} danger onSelect={() => setDeleting(true)}>
-                  Archive product
-                </MenuItem>
-              </MenuContent>
-            </Menu>
-          </div>
-        )}
+        <div className="acts">
+          <Button variant={needOn ? 'primary' : 'secondary'} aria-pressed={needOn} onClick={() => setNeedOn(v => !v)}>
+            <Boxes size={14} />
+            Needs
+          </Button>
+          {canWrite && (
+            <>
+              <Menu>
+                <MenuTrigger asChild>
+                  <Button variant="primary">
+                    <Plus size={14} />
+                    Add line
+                  </Button>
+                </MenuTrigger>
+                <MenuContent align="end">
+                  <MenuItem icon={<Package size={15} />} onSelect={() => setDialog({ kind: 'material' })}>
+                    Material
+                  </MenuItem>
+                  <MenuItem icon={<Layers size={15} />} onSelect={() => setDialog({ kind: 'semi' })}>
+                    Semi-finished product
+                  </MenuItem>
+                  <MenuItem icon={<Wrench size={15} />} onSelect={() => setDialog({ kind: 'work' })}>
+                    Work operation
+                  </MenuItem>
+                </MenuContent>
+              </Menu>
+              <Menu>
+                <MenuTrigger asChild>
+                  <IconButton label="More" tooltip={false}>
+                    <Ellipsis size={16} />
+                  </IconButton>
+                </MenuTrigger>
+                <MenuContent align="end">
+                  <MenuItem icon={<Trash2 size={15} />} danger onSelect={() => setDeleting(true)}>
+                    Archive product
+                  </MenuItem>
+                </MenuContent>
+              </Menu>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="bom-params" aria-label="Parameters">
@@ -284,6 +296,10 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
         <label>
           <span className="label">Overhead, %</span>
           <ParamInput label="Overhead" numeric value={trimZeros(Number(item.overheadPct).toFixed(2))} disabled={!canWrite} onCommit={v => Number(v) >= 0 && m.updateItem.mutate({ id: item.id, patch: { overheadPct: Number(v) } })} />
+        </label>
+        <label>
+          <span className="label">Need for</span>
+          <ParamInput label="Need for" numeric value={needQty} onCommit={v => Number(v) > 0 && setNeedQty(v)} />
         </label>
       </div>
 
@@ -441,6 +457,62 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
           </div>
         )}
       </div>
+
+      {needOn && (
+        <section className="bom needs" aria-label="Material requirements">
+          <div className="bom-row head" role="row">
+            <span>Requirement</span>
+            <span className="r">Needed</span>
+            <span>Unit</span>
+            <span className="hide-s">Available</span>
+            <span className="r">Deficit</span>
+            <span />
+          </div>
+          {need.isPending && (
+            <div className="bom-row">
+              <span className="faint">Calculating…</span>
+            </div>
+          )}
+          {needRows.map(r => (
+            <div key={`${r.kind}:${r.itemId ?? r.productId}`} className="bom-row" data-kind={r.kind}>
+              <span className="bom-name">
+                <span className={cn('bom-ico', r.kind)} title={r.kind === 'material' ? 'Material' : 'Semi-finished'}>
+                  {r.kind === 'material' ? <Package size={13} /> : <Layers size={13} />}
+                </span>
+                <span className="trunc">{r.name}</span>
+                {r.kind === 'semi' && Number(r.produce) > 0 && <Badge tone="amber">Produce {qtyText(r.produce)}</Badge>}
+              </span>
+              <span className="r num">{qtyText(r.qty)}</span>
+              <span className="muted">{unitSymbol(unitsQ.data, r.unitCode ?? '')}</span>
+              <span className="hide-s num">{qtyText(r.available)}</span>
+              <span className={cn('r num', Number(r.deficit) > 0 && 'need-deficit')}>{qtyText(r.deficit)}</span>
+              <span />
+            </div>
+          ))}
+          {(need.data?.works ?? []).map((w, i) => (
+            <div key={`w:${i}`} className="bom-row" data-kind="work">
+              <span className="bom-name">
+                <span className="bom-ico work" title="Work">
+                  <Wrench size={13} />
+                </span>
+                <span className="trunc">{w.operation}</span>
+              </span>
+              <span className="r num">{qtyText(w.hours)}</span>
+              <span className="muted">h</span>
+              <span className="hide-s" />
+              <span className="r" />
+              <span />
+            </div>
+          ))}
+          {need.data && !needRows.length && !need.data.works.length && (
+            <div className="bom-empty">
+              <EmptyState icon={<Boxes size={20} />} size="sm" title="Nothing is required">
+                Add materials, semi-finished products and work operations to the bill of materials.
+              </EmptyState>
+            </div>
+          )}
+        </section>
+      )}
 
       {tree && (
         <section className="bom-total" aria-label="Cost summary">

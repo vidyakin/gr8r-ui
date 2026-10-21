@@ -133,7 +133,7 @@ export async function seedCatalog(db: Db, wsId: string) {
           const unit = ({ oakBeam: '006', oakBoard: '055', plywood: '625', mdf: '625', edge: '006', lacquer: '112', stain: '112', glue: '166', sandpaper: '625' } as Record<string, string>)[l.product] ?? '796';
           return { ...base, productId: ids[l.product]!, qty: String(l.qty), unitCode: unit, scrapPct: String(l.scrap ?? 0) };
         }
-        if (l.kind === 'semi') return { ...base, childItemId: ids[l.item]!, qty: String(l.qty), unitCode: '796' };
+        if (l.kind === 'semi') return { ...base, childItemId: ids[l.item]!, qty: String(l.qty), unitCode: '796', semiMode: 'stock' as const };
         return { ...base, operation: l.op, workCenterId: l.center === 'assembly' ? assembly : carpentry, hours: String(l.hours ?? 0), rate: l.rate !== undefined ? l.rate.toFixed(2) : null, fixedCost: l.fixed !== undefined ? l.fixed.toFixed(2) : null, qty: '1' };
       }),
     );
