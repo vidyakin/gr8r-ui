@@ -6,6 +6,7 @@ import {
   calendarEvents,
   commentReactions,
   comments,
+  companies,
   events,
   files,
   issueTaskKey as issueTaskKeyInDb,
@@ -134,6 +135,14 @@ async function projectModuleOf(ctx: ReturnType<typeof ctxOf>, projectId: string)
   if (!p) throw new AppError(422, 'invalid_reference', 'Project not found');
   return p.module;
 }
+/** Заказчик у задачи бывает только у задач модуля services: по нему пишут время без заказ-наряда */
+async function assertTaskCompany(ctx: ReturnType<typeof ctxOf>, companyId: string | null | undefined, module: string): Promise<void> {
+  if (companyId === undefined || companyId === null) return;
+  if (module !== 'services') throw new AppError(422, 'company_not_allowed', 'A customer can be set only for a task of the Services module');
+  const [c] = await ctx.db.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId)).limit(1);
+  if (!c) throw new AppError(422, 'invalid_reference', 'The company does not exist');
+}
+
 /** Ключ задачи WEB-109: атомарно увеличиваем счётчик проекта (строка заблокирована до конца транзакции).
     `restoreKey` — прежний ключ при повторном создании (Undo удаления): должен принадлежать этому проекту; счётчик не уменьшается. */
 async function issueTaskKey(ctx: ReturnType<typeof ctxOf>, projectId: string, restoreKey?: string): Promise<string> {
@@ -176,6 +185,7 @@ export const taskRoutes = crud({
     const key = await issueTaskKey(ctx, body.projectId, body.key);
     const module = await projectModuleOf(ctx, body.projectId);
     if (body.module && body.module !== module) throw new AppError(422, 'module_mismatch', 'A task must be in a project of the same module');
+    await assertTaskCompany(ctx, body.companyId, module);
     return {
       key,
       module,
@@ -201,6 +211,9 @@ export const taskRoutes = crud({
       patch.module = await projectModuleOf(ctx, body.projectId);
     }
     if (body.module !== undefined && body.module !== (patch.module ?? existing.module)) throw new AppError(422, 'module_mismatch', 'A task must be in a project of the same module');
+    await assertTaskCompany(ctx, body.companyId, (patch.module as string) ?? existing.module);
+    // задача ушла из модуля services — заказчик у неё не нужен (его допускает только services)
+    if (patch.module && patch.module !== 'services' && existing.companyId && body.companyId === undefined) patch.companyId = null;
     if (body.status && body.status !== existing.status) {
       patch.prevStatus = existing.status;
       patch.completedAt = body.status === 'done' ? new Date() : null;

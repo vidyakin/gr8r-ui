@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { CircleAlert, CircleDot, ClipboardList, FilePlus, Plus, Trash2 } from 'lucide-react';
-import { WORK_ORDER_CATEGORY_LABELS, type WorkOrderStateCategory } from '@gr8r/shared';
+import { WORK_ORDER_BILLING_LABELS, WORK_ORDER_BILLING_MODES, WORK_ORDER_CATEGORY_LABELS, type WorkOrderBillingMode, type WorkOrderStateCategory } from '@gr8r/shared';
 import type { Tone } from '@/components/ui';
 import { Badge, Button, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton } from '@/components/ui';
 import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/gr8r/data-table';
@@ -12,7 +12,7 @@ import { useCanWrite } from '../meta/custom-fields';
 import { money } from '../catalog/data';
 import { fmtDate, parse } from '../lib/dates';
 import { useWorkspace } from '../data/store';
-import { STATUS_LABEL, STATUS_TONE, docsKey, useDocsApi, useDocumentStates, useWorkOrderKinds, useWorkOrders, type DocDetail, type WorkOrderListItem } from './data';
+import { STATUS_LABEL, STATUS_TONE, docsKey, useDocsApi, useDocumentStates, useWorkOrderKinds, useWorkOrderTime, useWorkOrders, type DocDetail, type WorkOrderListItem } from './data';
 import { useQueryClient } from '@tanstack/react-query';
 import { useWsId } from '../meta/data';
 
@@ -142,6 +142,7 @@ export function WorkOrderPanel({ doc }: { doc: DocDetail }) {
   const canWrite = useCanWrite();
   const members = useWorkspace().data.members;
   const kinds = useWorkOrderKinds();
+  const time = useWorkOrderTime(doc.id);
   const [reason, setReason] = React.useState('');
   const [cancelOpen, setCancelOpen] = React.useState(false);
   const [pending, setPending] = React.useState<string | null>(null);
@@ -189,6 +190,16 @@ export function WorkOrderPanel({ doc }: { doc: DocDetail }) {
     if (r) qc.invalidateQueries({ queryKey: docsKey(ws, 'doc', doc.id) });
   };
 
+  // способ выставления строки работы: по норме или по фактическим часам (список строк заменяется целиком)
+  const saveBilling = async (lineId: string, billing: WorkOrderBillingMode) => {
+    const lines = (time.data?.lines ?? []).map(l => ({ lineId: l.lineId, billing: l.lineId === lineId ? billing : l.billing }));
+    const r = await api('POST', `/work-orders/${doc.id}/billing`, { lines });
+    if (r) {
+      qc.invalidateQueries({ queryKey: docsKey(ws, 'wo-time', doc.id) });
+      qc.invalidateQueries({ queryKey: docsKey(ws, 'doc', doc.id) });
+    }
+  };
+
   const editable = canWrite && doc.status === 'draft';
 
   return (
@@ -218,6 +229,59 @@ export function WorkOrderPanel({ doc }: { doc: DocDetail }) {
             />
           )}
         </Field>
+      </section>
+
+      <section className="doc-lines panel" aria-label="Works">
+        <h2>Works</h2>
+        <div className="table-wrap">
+          <table className="dtbl" aria-label="Work lines of the work order">
+            <thead>
+              <tr>
+                <th>Work</th>
+                <th style={{ width: 90 }} className="r">
+                  Qty
+                </th>
+                <th style={{ width: 170 }}>Billing</th>
+                <th style={{ width: 90 }} className="r">
+                  Hours
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {(time.data?.lines ?? []).map(l => {
+                const line = (doc.lines ?? []).find(x => x.id === l.lineId);
+                return (
+                  <tr key={l.lineId}>
+                    <td>{l.name}</td>
+                    <td className="r num">{line?.qty ?? '—'}</td>
+                    <td>
+                      <Select
+                        aria-label={`Billing of ${l.name}`}
+                        disabled={!editable}
+                        value={l.billing}
+                        onValueChange={v => void saveBilling(l.lineId, v as WorkOrderBillingMode)}
+                        options={WORK_ORDER_BILLING_MODES.map(m => ({ value: m, label: WORK_ORDER_BILLING_LABELS[m] }))}
+                      />
+                    </td>
+                    <td className="r num">{l.actualHours}</td>
+                  </tr>
+                );
+              })}
+              {!(time.data?.lines ?? []).length && (
+                <tr>
+                  <td colSpan={4} className="faint" style={{ textAlign: 'center', padding: 18 }}>
+                    No works in the work order: add a line of the “Work” type.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {editable && (
+          <p className="faint" style={{ margin: '8px 0 0' }}>
+            A work billed by actual hours takes the logged time of its assignments as the quantity — the order is recalculated before it is posted.
+          </p>
+        )}
       </section>
 
       <section className="doc-lines panel" aria-label="Materials">
@@ -277,31 +341,38 @@ export function WorkOrderPanel({ doc }: { doc: DocDetail }) {
                 <th>Task</th>
                 <th style={{ width: 170 }}>Assignee</th>
                 <th style={{ width: 70 }} className="r">
-                  Hours
+                  Plan
+                </th>
+                <th style={{ width: 70 }} className="r">
+                  Actual
                 </th>
                 <th style={{ width: 36 }} />
               </tr>
             </thead>
             <tbody>
-              {(doc.assignments ?? []).map(a => (
-                <tr key={a.id}>
-                  <td>
-                    <span className="muted">{a.title}</span> <span className="mono faint">{a.taskKey}</span>
-                  </td>
-                  <td>{a.assigneeName ?? '—'}</td>
-                  <td className="r num">{a.plannedHours ?? '—'}</td>
-                  <td>
-                    {editable && (
-                      <IconButton size="xs" label="Remove assignee" onClick={() => void removeAssignment(a.taskId)}>
-                        <Trash2 size={13} />
-                      </IconButton>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {(doc.assignments ?? []).map(a => {
+                const t = (time.data?.assignments ?? []).find(x => x.taskId === a.taskId);
+                return (
+                  <tr key={a.id}>
+                    <td>
+                      <span className="muted">{a.title}</span> <span className="mono faint">{a.taskKey}</span>
+                    </td>
+                    <td>{a.assigneeName ?? '—'}</td>
+                    <td className="r num">{t?.plannedHours ?? a.plannedHours ?? '—'}</td>
+                    <td className="r num">{t?.actualHours ?? '—'}</td>
+                    <td>
+                      {editable && (
+                        <IconButton size="xs" label="Remove assignee" onClick={() => void removeAssignment(a.taskId)}>
+                          <Trash2 size={13} />
+                        </IconButton>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
               {!(doc.assignments ?? []).length && (
                 <tr>
-                  <td colSpan={4} className="faint" style={{ textAlign: 'center', padding: 18 }}>
+                  <td colSpan={5} className="faint" style={{ textAlign: 'center', padding: 18 }}>
                     No assignees: every assignee gets a task of the Services module.
                   </td>
                 </tr>

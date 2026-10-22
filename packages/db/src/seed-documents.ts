@@ -6,9 +6,11 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { Db } from './client';
 import { changeDocumentState, createBasedOn, createDocument, ensureCostItems, postDocument, updateDocument, type DocCtx } from './documents';
 import { createWorkOrderAssignment, saveWorkOrderMaterials } from './work-orders';
+import { saveWorkOrderBilling } from './services';
+import { ensureModuleProject, issueTaskKey } from './modules';
 import { fillCountSheet } from './inventory';
 import './internal-ops';
-import { bankAccounts, companies, costItems, documentLines, organizations, productManufacturing, products, warehouses, workCenters, manufacturedItems } from './schema';
+import { bankAccounts, companies, costItems, documentLines, organizations, productManufacturing, products, tasks, timeLogs, warehouses, workCenters, manufacturedItems } from './schema';
 import { createProductionFromOrder, createProductionOrder, fillOrderFromBom } from './production';
 import { assignOperations, createPieceworkOrder } from './piecework';
 import { productionComponents, productionItems, productionOperations } from './schema';
@@ -203,8 +205,31 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
     lines: [sell('WR-MNT', 4), sell('HW-CAM-15', 6)],
   });
   await saveWorkOrderMaterials(db, ctx, workOrder, [{ productId: P('HW-BLT-660').id, qty: '12' }]);
-  await createWorkOrderAssignment(db, ctx, workOrder, { assigneeId: memberId, title: 'Монтаж и наладка на объекте', startDate: iso(1), dueDate: iso(-2), plannedHours: '6' });
+  // Строка работы: назначение получает плановые часы из нормы (4 × 1,5 ч), работа выставляется по фактическим часам
+  const [workLine] = await db.select().from(documentLines).where(and(eq(documentLines.documentId, workOrder), eq(documentLines.productId, P('WR-MNT').id))).limit(1);
+  const workAssignment = await createWorkOrderAssignment(db, ctx, workOrder, { assigneeId: memberId, title: 'Монтаж и наладка на объекте', startDate: iso(1), dueDate: iso(-2), lineId: workLine!.id });
+  await saveWorkOrderBilling(db, ctx, workOrder, [{ lineId: workLine!.id, billing: 'hours' }]);
+  await db.insert(timeLogs).values({ workspaceId: wsId, taskId: workAssignment.taskId, memberId, hours: '6.500', logDate: iso(1), note: 'Монтаж и наладка на объекте' });
   await changeDocumentState(db, ctx, workOrder, 'in_progress');
+
+  // Время по заказчику без заказ-наряда: консультация по договору — задача модуля services с заказчиком
+  const servicesProject = await ensureModuleProject(db, wsId, 'services');
+  const consultation = await db
+    .insert(tasks)
+    .values({
+      workspaceId: wsId,
+      key: await issueTaskKey(db, servicesProject),
+      projectId: servicesProject,
+      module: 'services',
+      title: 'Консультация по договору обслуживания',
+      status: 'done',
+      assigneeId: memberId,
+      companyId: co.quanta,
+      description: 'Время записано по заказчику: заказ-наряда на эту консультацию нет',
+      createdBy: memberId,
+    })
+    .returning({ id: tasks.id });
+  await db.insert(timeLogs).values({ workspaceId: wsId, taskId: consultation![0].id, memberId, hours: '1.500', logDate: iso(3), note: 'Консультация по договору' });
 
   /* ---------- складские документы: перемещение между складами и списание ---------- */
   await ensureCostItems(db, wsId);

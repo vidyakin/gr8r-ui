@@ -201,6 +201,11 @@ export const WORK_ORDER_CATEGORY_LABELS: Record<WorkOrderStateCategory, string> 
 /** Категории, в которых заказ-наряд ещё в работе: из них он может уйти назад и отменить проведение */
 export const WORK_ORDER_OPEN_CATEGORIES: WorkOrderStateCategory[] = ['new', 'scheduled', 'in_progress'];
 
+/** Способы выставления строки работы заказ-наряда: norm — количество × цена, hours — по фактическим часам */
+export const WORK_ORDER_BILLING_MODES = ['norm', 'hours'] as const;
+export type WorkOrderBillingMode = (typeof WORK_ORDER_BILLING_MODES)[number];
+export const WORK_ORDER_BILLING_LABELS: Record<WorkOrderBillingMode, string> = { norm: 'By norm', hours: 'By actual hours' };
+
 export interface WorkOrderStateDef {
   key: string;
   label: string;

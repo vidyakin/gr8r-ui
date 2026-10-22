@@ -2,7 +2,7 @@
 import * as React from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Clock, Copy, Crown, ListChecks, Mail, MapPin, Plus } from 'lucide-react';
-import { Badge, Button, EmptyState, Tab, Tabs, TabsList } from '@/components/ui';
+import { Badge, Button, EmptyState, Select, Tab, Tabs, TabsList } from '@/components/ui';
 import { useWorkspace } from '../data/store';
 import { allTasks, canSee, fmtHours, isOverdue, member, sortTasks, visibleProjects } from '../data/selectors';
 import { ago, dOff, minsAgo } from '../lib/dates';
@@ -19,6 +19,7 @@ export function MemberPage() {
   const taskActions = useTaskActions();
   const actions = useMemberActions();
   const [tab, setTab] = React.useState<'assigned' | 'completed'>('assigned');
+  const [mod, setMod] = React.useState<'all' | 'general' | 'production' | 'services'>('all');
 
   const m = member(data, id);
   if (!m) return <NotFoundPage />;
@@ -30,8 +31,9 @@ export function MemberPage() {
   const ps = visibleProjects(data).filter(p => p.members.includes(m.id) && p.status !== 'complete' && canSee(data, p));
   const acts = data.activity.filter(a => a.by === m.id).slice(0, 8);
   const visibleIds = new Set(allTasks(data).map(t => t.id));
+  const taskModule = new Map(data.tasks.map(t => [t.id, t.module]));
   const weekFrom = dOff(-6);
-  const week = data.timeLogs.filter(l => l.by === m.id && l.date >= weekFrom && l.date <= dOff(0) && visibleIds.has(l.task));
+  const week = data.timeLogs.filter(l => l.by === m.id && l.date >= weekFrom && l.date <= dOff(0) && visibleIds.has(l.task) && (mod === 'all' || taskModule.get(l.task) === mod));
   const weekTotal = week.reduce((a, l) => a + l.hours, 0);
   const weekTasks = new Set(week.map(l => l.task)).size;
   const team = data.teams.find(t => t.id === m.team);
@@ -144,6 +146,17 @@ export function MemberPage() {
                 <span className="faint" style={{ fontSize: 12 }}>
                   Last 7 days
                 </span>
+                <Select
+                  aria-label="Module"
+                  value={mod}
+                  onValueChange={v => setMod(v as typeof mod)}
+                  options={[
+                    { value: 'all', label: 'All modules' },
+                    { value: 'general', label: 'General' },
+                    { value: 'production', label: 'Production' },
+                    { value: 'services', label: 'Services' },
+                  ]}
+                />
               </div>
             </div>
             <div className="panel-b">
