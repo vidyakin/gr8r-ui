@@ -2,7 +2,7 @@
    и две цепочки документов, проведённые настоящими сервисами (поэтому остатки, резервы и средняя себестоимость — как у живых данных):
    «заказ поставщику → поступление» и «заказ покупателя → счёт → реализация (УПД)» + акт услуг. Данные — на русском, интерфейс английский. */
 import { accountKeyOk, makeInn, makeOgrn } from '@gr8r/shared';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { Db } from './client';
 import { changeDocumentState, createBasedOn, createDocument, ensureCostItems, postDocument, updateDocument, type DocCtx } from './documents';
 import { createWorkOrderAssignment, saveWorkOrderMaterials } from './work-orders';
@@ -11,7 +11,7 @@ import { ensureModuleProject, issueTaskKey } from './modules';
 import { fillCountSheet } from './inventory';
 import './internal-ops';
 import { bankAccounts, companies, costItems, documentLines, organizations, productManufacturing, products, tasks, timeLogs, warehouses, workCenters, manufacturedItems } from './schema';
-import { createProductionFromOrder, createProductionOrder, fillOrderFromBom } from './production';
+import { createProductionFromOrder, createProductionOrder, createSupplierOrdersForOrder, fillOrderFromBom } from './production';
 import { assignOperations, createPieceworkOrder } from './piecework';
 import { productionComponents, productionItems, productionOperations } from './schema';
 
@@ -365,5 +365,21 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
   await fillOrderFromBom(db, ctx, officeOrder);
   await postAt(officeOrder, 1);
 
-  return { documents: 24 };
+  /* ---------- этап 3: обеспечение материалов — частичный резерв и размещение (заказ поставщику) ---------- */
+  // поставщик материалов по умолчанию: заказы поставщикам по потребности создаются на него
+  await db.update(products).set({ defaultSupplierId: co.atlas }).where(sql`${products.sku} like 'MT-%' or ${products.sku} like 'HW-%'`);
+  // партия больше остатка на цехе: резерв частичный, не обеспеченное закрывается заказом поставщику (размещение)
+  const bigOrder = await createProductionOrder(db, ctx, {
+    workCenterId: assemblyCenter!.id,
+    warehouseId: shop!.id,
+    targetWarehouseId: fg!.id,
+    date: iso(1),
+    comment: 'Партия стульев «Лофт» под новый заказ',
+    items: [{ itemId: loft!.id, qty: '40' }],
+  });
+  await fillOrderFromBom(db, ctx, bigOrder);
+  await postAt(bigOrder, 1);
+  await createSupplierOrdersForOrder(db, ctx, bigOrder, {});
+
+  return { documents: 25 };
 }

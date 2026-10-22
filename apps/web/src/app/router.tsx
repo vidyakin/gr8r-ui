@@ -42,6 +42,7 @@ import { ProductionOrderPage } from './production/ProductionOrderPage';
 import { ProductionStagesPage } from './production/ProductionStagesPage';
 import { PieceworkPage } from './production/PieceworkPage';
 import { ProductionWorkbenchPage } from './production/ProductionWorkbenchPage';
+import { ProductionNeedsPage } from './production/ProductionNeedsPage';
 import { PlannerPage } from './production/PlannerPage';
 import { ResourcesPage } from './production/ResourcesPage';
 import { JournalPage } from './docs/JournalPage';
@@ -57,7 +58,7 @@ import { FlowEditorPage } from './automations/FlowEditorPage';
 
 /* Hash-роутинг, как в оригинале: работает на любом статическом хостинге без настройки rewrite.
    Чтобы перенести раздел, замените PlaceholderPage на его компонент. */
-const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.archive, SECTIONS.crm, SECTIONS.crmDeals, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities, SECTIONS.catalog, SECTIONS.production, SECTIONS.productionOrders, SECTIONS.productionWorkbench, SECTIONS.productionStages, SECTIONS.workOrders, SECTIONS.servicesTimesheet, SECTIONS.servicesPlanner, SECTIONS.workCenters, SECTIONS.sales, SECTIONS.purchases, SECTIONS.stockDocs, SECTIONS.inventory, SECTIONS.inUse, SECTIONS.automations, SECTIONS.settings, SECTIONS.system, SECTIONS.productionPiecework, SECTIONS.productionPlanner, SECTIONS.productionResources].map(s => s.path));
+const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.archive, SECTIONS.crm, SECTIONS.crmDeals, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities, SECTIONS.catalog, SECTIONS.production, SECTIONS.productionOrders, SECTIONS.productionWorkbench, SECTIONS.productionNeeds, SECTIONS.productionStages, SECTIONS.workOrders, SECTIONS.servicesTimesheet, SECTIONS.servicesPlanner, SECTIONS.workCenters, SECTIONS.sales, SECTIONS.purchases, SECTIONS.stockDocs, SECTIONS.inventory, SECTIONS.inUse, SECTIONS.automations, SECTIONS.settings, SECTIONS.system, SECTIONS.productionPiecework, SECTIONS.productionPlanner, SECTIONS.productionResources].map(s => s.path));
 
 export const router = createHashRouter([
   {
@@ -103,6 +104,7 @@ export const router = createHashRouter([
       { path: SECTIONS.productionOrders.path, element: <ProductionOrdersPage /> },
       { path: `${SECTIONS.productionOrders.path}/:id`, element: <ProductionOrderPage /> },
       { path: SECTIONS.productionWorkbench.path, element: <ProductionWorkbenchPage /> },
+      { path: SECTIONS.productionNeeds.path, element: <ProductionNeedsPage /> },
       { path: SECTIONS.productionStages.path, element: <ProductionStagesPage /> },
       { path: SECTIONS.productionPiecework.path, element: <PieceworkPage /> },
       { path: SECTIONS.productionPlanner.path, element: <PlannerPage /> },

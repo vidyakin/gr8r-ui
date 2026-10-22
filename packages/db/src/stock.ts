@@ -233,7 +233,29 @@ export async function loadAvgCosts(db: Db, productIds?: string[]): Promise<Map<s
   return out;
 }
 
-/** Резервы под проведённые заказы покупателей: по каждой строке заказа резерв = заказано − отгружено (проведёнными реализациями).
+/** Свободное количество по складам: остаток минус резерв (все резервы: заказов покупателей, выпущенной продукции и материалов заказов на производство).
+    Строки остатков блокируются — два заказа не займут одно и то же количество */
+export async function lockFreeStock(db: Db, workspaceId: string, keys: StockKey[]): Promise<Map<string, { qty: Dec; reserved: Dec; free: Dec }>> {
+  const uniq = uniqueKeys(keys);
+  const out = new Map<string, { qty: Dec; reserved: Dec; free: Dec }>();
+  if (!uniq.length) return out;
+  const state = await lockBalances(db, workspaceId, uniq);
+  const rows = await db
+    .select({ warehouseId: stockReservations.warehouseId, productId: stockReservations.productId, qty: sql<string>`sum(${stockReservations.qty})` })
+    .from(stockReservations)
+    .where(or(...uniq.map(k => and(eq(stockReservations.warehouseId, k.warehouseId), eq(stockReservations.productId, k.productId))))!)
+    .groupBy(stockReservations.warehouseId, stockReservations.productId);
+  const reserved = new Map(rows.map(r => [`${r.warehouseId}:${r.productId}`, dec(r.qty)]));
+  for (const k of uniq) {
+    const key = keyOf(k);
+    const qty = state.get(key)?.qty ?? 0n;
+    const res = reserved.get(key) ?? 0n;
+    out.set(key, { qty, reserved: res, free: qty - res });
+  }
+  return out;
+}
+
+/** Резервы заказа покупателя: по каждой строке заказа резерв = заказано − отгружено (проведёнными реализациями).
     Пересчитывается для переданных строк заказов; вызывается после проведения и отмены проведения заказов и отгрузок */
 export async function syncReservations(db: Db, workspaceId: string, orderLineIds: string[]): Promise<void> {
   const ids = [...new Set(orderLineIds)];

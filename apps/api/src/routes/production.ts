@@ -4,7 +4,7 @@
 import { zValidator } from '@hono/zod-validator';
 import { asc, eq, inArray, isNull, max, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { bomLines, listProductionKinds, loadAvgCosts, manufacturedItems, productionKinds, productionStages, products, recordEvent, stockBalances, stockReservations, warehouses, workCenters, workspaces } from '@gr8r/db';
+import { bomLines, createNeedsSupplierOrders, listProductionKinds, loadAvgCosts, manufacturedItems, productionKinds, productionNeeds, productionStages, products, recordEvent, stockBalances, stockReservations, warehouses, workCenters, workspaces } from '@gr8r/db';
 import {
   bomLineCreate,
   bomLineUpdate,
@@ -18,6 +18,8 @@ import {
   itemQuery,
   itemUpdate,
   MATERIAL_PRICE_SOURCES,
+  needsSupplierOrdersCreate,
+  productionNeedsQuery,
   productionSettingsUpdate,
   resolveMaterialPrice,
   wouldCreateCycle,
@@ -370,6 +372,19 @@ export const productionRoutes = new Hono<AppEnv>()
     });
   })
   .get('/settings', async c => c.json(await loadSettings(ctxOf(c))))
+  // сводная потребность по материалам заказов на производство
+  .get('/needs', zValidator('query', productionNeedsQuery, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const q = c.req.valid('query');
+    return c.json({ items: await productionNeeds(ctx.db, ctx.workspaceId, { productionOrderId: q.productionOrderId, productId: q.productId }) });
+  })
+  // заказы поставщикам по сводной потребности: черновики по поставщику, строки без поставщика — отдельно
+  .post('/needs/supplier-orders', write, zValidator('json', needsSupplierOrdersCreate, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const body = c.req.valid('json');
+    const res = await createNeedsSupplierOrders(ctx.db, { workspaceId: ctx.workspaceId, memberId: ctx.memberId, role: ctx.role }, { date: body.date, comment: body.comment, lines: body.lines });
+    return c.json(res, 201);
+  })
   .patch('/settings', admin, zValidator('json', productionSettingsUpdate, validationHook), async c => {
     const ctx = ctxOf(c);
     const body = c.req.valid('json');

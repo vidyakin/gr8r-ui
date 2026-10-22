@@ -3,6 +3,7 @@
    заказы и выпуски — member и выше. Правила — packages/db/src/production.ts. */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
+import { z } from 'zod';
 import {
   canSeeCost,
   changeDocumentState,
@@ -10,18 +11,23 @@ import {
   createProductionFromOrder,
   createProductionOrder,
   createProductionOrderFromCustomerOrder,
+  createSemiOrders,
+  createSupplierOrdersForOrder,
   deleteDocument,
   documentDetail,
   fillOrderFromBom,
   listProductionOrders,
+  materialRows,
   productManufacturing,
   productionDetail,
   scheduleProductionOrder,
+  setMaterialReservation,
   updateProductionOrder,
 } from '@gr8r/db';
 import {
   documentStateChange,
   idParam,
+  materialReservationUpdate,
   productionCreate,
   productionFromCustomerOrder,
   productionOrderCreate,
@@ -29,6 +35,8 @@ import {
   productionOrderQuery,
   productionOrderUpdate,
   productManufacturingSet,
+  semiOrdersCreate,
+  supplierOrdersCreate,
 } from '@gr8r/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError } from '../errors';
@@ -37,6 +45,8 @@ import type { AppEnv } from '../types';
 
 const write = requireRole('member');
 const docCtx = (ctx: Ctx) => ({ workspaceId: ctx.workspaceId, memberId: ctx.memberId, role: ctx.role });
+/** Параметры строки материала заказа: заказ и строка состава */
+const materialParam = z.object({ id: idParam.shape.id, componentId: idParam.shape.id });
 
 /** Карточка заказа или выпуска: документ + производственные данные */
 async function detail(ctx: Ctx, id: string) {
@@ -129,6 +139,36 @@ export const productionOrderRoutes = new Hono<AppEnv>()
     const ctx = ctxOf(c);
     await fillOrderFromBom(ctx.db, docCtx(ctx), c.req.valid('param').id);
     return c.json(await detail(ctx, c.req.valid('param').id));
+  })
+  // обеспечение материалов заказа: покрытие по строкам состава и расшифровки (резервы, размещение, к поступлению)
+  .get('/:id/materials', zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    await documentDetail(ctx.db, id); // чужой заказ — 404
+    const items = await materialRows(ctx.db, id);
+    return c.json({ items });
+  })
+  // правка резерва строки материала: сколько в резерв и на каком складе
+  .patch('/:id/materials/:componentId/reservation', write, zValidator('param', materialParam, validationHook), zValidator('json', materialReservationUpdate, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const { id, componentId } = c.req.valid('param');
+    const body = c.req.valid('json');
+    await documentDetail(ctx.db, id); // чужой заказ — 404
+    await setMaterialReservation(ctx.db, ctx.workspaceId, id, componentId, { qty: body.qty, warehouseId: body.warehouseId });
+    return c.json({ items: await materialRows(ctx.db, id) });
+  })
+  // дочерние заказы на полуфабрикаты по дефициту
+  .post('/:id/semi-orders', write, zValidator('param', idParam, validationHook), zValidator('json', semiOrdersCreate, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const res = await createSemiOrders(ctx.db, docCtx(ctx), c.req.valid('param').id, { date: c.req.valid('json').date });
+    return c.json(res, 201);
+  })
+  // заказы поставщику по не обеспеченным материалам (размещение)
+  .post('/:id/supplier-orders', write, zValidator('param', idParam, validationHook), zValidator('json', supplierOrdersCreate, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const body = c.req.valid('json');
+    const res = await createSupplierOrdersForOrder(ctx.db, docCtx(ctx), c.req.valid('param').id, { date: body.date, supplierId: body.supplierId ?? null, comment: body.comment });
+    return c.json(res, 201);
   })
   // выпуск по заказу на производство
   .post('/:id/production', write, zValidator('param', idParam, validationHook), zValidator('json', productionCreate, validationHook), async c => {

@@ -4,6 +4,7 @@ import { sql } from 'drizzle-orm';
 import { boolean, check, foreignKey, index, integer, jsonb, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import type { FieldOptions } from '@gr8r/shared';
 import { archivedAt, createdAt, money, pk, updatedAt } from './columns';
+import { companies } from './crm';
 import { wsCol } from './people';
 
 /** Справочник единиц: базовый набор ОКЕИ воркспейс получает при создании, свои единицы добавляются рядом */
@@ -83,6 +84,8 @@ export const products = pgTable(
     price: money('price').notNull().default('0'),
     purchasePrice: money('purchase_price').notNull().default('0'),
     categoryId: uuid('category_id'),
+    /** Поставщик по умолчанию: заказы поставщикам по потребности создаются на него */
+    defaultSupplierId: uuid('default_supplier_id'),
     /** Значения характеристик категории (по схеме категории с унаследованными) */
     attrs: jsonb('attrs').$type<Record<string, unknown>>().notNull().default({}),
     isActive: boolean('is_active').notNull().default(true),
@@ -95,6 +98,7 @@ export const products = pgTable(
     unique('products_ws_id_uq').on(t.workspaceId, t.id),
     foreignKey({ columns: [t.workspaceId, t.categoryId], foreignColumns: [productCategories.workspaceId, productCategories.id], name: 'products_category_fk' }),
     foreignKey({ columns: [t.workspaceId, t.unitCode], foreignColumns: [units.workspaceId, units.code], name: 'products_unit_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.defaultSupplierId], foreignColumns: [companies.workspaceId, companies.id], name: 'products_default_supplier_fk' }),
     check('products_kind_chk', sql`${t.kind} in ('goods','service','work','operation')`),
     check('products_vat_chk', sql`${t.vatRate} in ('none','0','5','7','10','20')`),
     check('products_price_chk', sql`${t.price} >= 0 and ${t.purchasePrice} >= 0`),

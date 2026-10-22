@@ -56,6 +56,8 @@ export interface Product {
   price: string;
   purchasePrice: string;
   categoryId: string | null;
+  /** Поставщик по умолчанию: заказы поставщикам по потребности создаются на него */
+  defaultSupplierId: string | null;
   attrs: Record<string, unknown>;
   isActive: boolean;
   custom: Record<string, unknown>;
@@ -75,6 +77,12 @@ export const catalogKey = (ws: string, ...rest: unknown[]) => ['ws', ws, 'catalo
 
 /** Деньги: «1 234,50» — строка из API → число для показа. Расчёты идут на сервере и в @gr8r/shared (BigInt), здесь только вывод */
 export const money = (v: string | number | null | undefined) => Number(v ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** Контрагенты: поставщик по умолчанию для товара */
+export function useCompanies() {
+  const ws = useWsId();
+  return useQuery({ queryKey: catalogKey(ws, 'companies'), queryFn: async () => (await call<{ items: { id: string; name: string }[] }>(ws, 'GET', '/companies?limit=200')).items, staleTime: Infinity });
+}
 
 export function useUnits() {
   const ws = useWsId();

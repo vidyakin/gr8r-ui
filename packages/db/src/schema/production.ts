@@ -286,6 +286,8 @@ export const productionComponents = pgTable(
     actualCost: numeric('actual_cost', { precision: 18, scale: 4 }),
     /** Строка документа, по которой материал списывается */
     documentLineId: uuid('document_line_id'),
+    /** Строка состава заказа, из которой эта строка взята (выпуск наследует состав заказа) */
+    sourceComponentId: uuid('source_component_id'),
     /** Этап, на котором расходуется материал или выполняется работа (снимок строки спецификации) */
     stageId: uuid('stage_id'),
     sortOrder: integer('sort_order').notNull().default(0),
@@ -298,6 +300,7 @@ export const productionComponents = pgTable(
     foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'production_components_product_fk' }),
     foreignKey({ columns: [t.workspaceId, t.workCenterId], foreignColumns: [workCenters.workspaceId, workCenters.id], name: 'production_components_work_center_fk' }),
     foreignKey({ columns: [t.workspaceId, t.documentLineId], foreignColumns: [documentLines.workspaceId, documentLines.id], name: 'production_components_line_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.sourceComponentId], foreignColumns: [t.workspaceId, t.id], name: 'production_components_source_fk' }),
     foreignKey({ columns: [t.workspaceId, t.stageId], foreignColumns: [productionStages.workspaceId, productionStages.id], name: 'production_components_stage_fk' }),
     check(
       'production_components_shape_chk',
@@ -306,6 +309,38 @@ export const productionComponents = pgTable(
     check('production_components_nonneg_chk', sql`${t.qty} >= 0 and ${t.hours} >= 0`),
     index('production_components_document_idx').on(t.documentId, t.sortOrder),
     index('production_components_item_idx').on(t.itemId),
+    index('production_components_source_idx').on(t.sourceComponentId),
+  ],
+);
+
+/** Размещение: сколько материала заказа на производство заказано поставщику или дочерним заказом на полуфабрикат.
+    Строка заказа поставщику привязывается к строке состава заказа на производство (document_line_id), дочерний заказ — к строке
+    состава родителя (document_line_id пусто). При поступлении по привязанному заказу товар резервируется под заказ на производство */
+export const productionPlacements = pgTable(
+  'production_placements',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    /** Строка состава заказа на производство */
+    componentId: uuid('component_id').notNull(),
+    /** Документ: заказ поставщику, поступление или дочерний заказ на производство */
+    documentId: uuid('document_id').notNull(),
+    /** Строка документа (заказ поставщику или поступление); у дочернего заказа — пусто */
+    documentLineId: uuid('document_line_id'),
+    /** Размещённое количество */
+    qty: numeric('qty', { precision: 18, scale: 3 }).notNull().default('0'),
+    createdAt: createdAt(),
+  },
+  t => [
+    unique('production_placements_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.componentId], foreignColumns: [productionComponents.workspaceId, productionComponents.id], name: 'production_placements_component_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'production_placements_document_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.documentLineId], foreignColumns: [documentLines.workspaceId, documentLines.id], name: 'production_placements_line_fk' }).onDelete('cascade'),
+    check('production_placements_qty_chk', sql`${t.qty} > 0`),
+    uniqueIndex('production_placements_line_uq').on(t.workspaceId, t.documentLineId).where(sql`${t.documentLineId} is not null`),
+    uniqueIndex('production_placements_document_uq').on(t.workspaceId, t.componentId, t.documentId).where(sql`${t.documentLineId} is null`),
+    index('production_placements_component_idx').on(t.workspaceId, t.componentId),
+    index('production_placements_document_idx').on(t.workspaceId, t.documentId),
   ],
 );
 

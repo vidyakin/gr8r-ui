@@ -102,15 +102,15 @@ describe('seed', () => {
     expect(await count('warehouses', w)).toBe(4); // основной, цех, склад готовой продукции и служебный «в пути»
     expect(await count('companies', `${w} and inn <> ''`)).toBe(5);
     expect(await count('bank_accounts', `${w} and company_id is not null`)).toBe(5);
-    expect(await count('documents', w)).toBe(23);
-    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(22);
-    expect(await count('documents', `${w} and based_on_id is not null`)).toBe(7);
+    expect(await count('documents', w)).toBe(25);
+    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(23);
+    expect(await count('documents', `${w} and based_on_id is not null`)).toBe(8);
     expect(await count('documents', `${w} and type in ('stock_transfer','write_off','inventory_count')`)).toBe(6);
     // производство: заказ на производство и выпуск со списанием материалов
-    expect(await count('documents', `${w} and type = 'production_order'`)).toBe(2);
+    expect(await count('documents', `${w} and type = 'production_order'`)).toBe(3);
     expect(await count('documents', `${w} and type = 'production'`)).toBe(1);
-    expect(await count('production_items', w)).toBe(3);
-    expect(await count('production_components', `${w} and kind = 'material'`)).toBe(12);
+    expect(await count('production_items', w)).toBe(4);
+    expect(await count('production_components', `${w} and kind = 'material'`)).toBe(15);
     // операции, исполнители и сдельный наряд: назначение операции, задача исполнителя и наряд за день
     expect(await count('operations', w)).toBe(3); // операция сборки + нормы двух работ
     expect(await count('operation_rates', w)).toBe(2);
@@ -136,7 +136,10 @@ describe('seed', () => {
     expect(await count('work_order_assignments', w)).toBe(1);
     expect(await count('cost_items', w)).toBe(6);
     expect(await count('stock_balances', `${w} and qty > 0`)).toBe(23);
-    expect(await count('stock_reservations', w)).toBe(2);
+    // резервы: заказ покупателя, продукция под заказ и материалы заказов на производство
+    expect(await count('stock_reservations', w)).toBe(10);
+    expect(await count('stock_reservations', `${w} and production_component_id is not null`)).toBe(8);
+    expect(await count('production_placements', w)).toBe(3);
     expect(await count('documents', `where workspace_id = '${acme!.id}'`)).toBe(0);
     expect(await count('organizations', `where workspace_id = '${acme!.id}'`)).toBe(1);
     expect(await count('warehouses', `where workspace_id = '${acme!.id}'`)).toBe(1);

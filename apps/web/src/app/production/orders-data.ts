@@ -69,6 +69,78 @@ export const STATE_TONE: Record<string, 'gray' | 'accent' | 'green' | 'neutral'>
 
 export const ordersKey = (ws: string, ...rest: unknown[]) => ['ws', ws, 'production-orders', ...rest] as const;
 
+/** Строка обеспечения материала заказа на производство */
+export interface MaterialCoverageRow {
+  componentId: string;
+  productId: string;
+  productName: string;
+  unitCode: string;
+  kind: 'material' | 'semi';
+  /** Нужно по заказу */
+  need: string;
+  /** Списано выпусками */
+  written: string;
+  /** Осталось обеспечить */
+  required: string;
+  /** Зарезервировано под заказ */
+  reserved: string;
+  /** Размещено: заказано поставщикам и дочерним заказам */
+  placed: string;
+  /** К поступлению */
+  incoming: string;
+  /** Не обеспечено */
+  notEnsured: string;
+  /** Свободно (всего) */
+  free: string;
+  /** Статус обеспечения */
+  status: 'full' | 'partial' | 'none';
+  /** Склад резерва */
+  reserveWarehouseId: string | null;
+  /** Свободно для резерва на складе резерва */
+  freeAtReserve: string;
+  /** Резервы по складам */
+  reserves: { warehouseId: string; warehouseName: string; qty: string; orderNumber: string | null }[];
+  /** Размещение по документам */
+  placements: { documentId: string; documentType: string; number: string | null; date: string; qty: string }[];
+  /** К поступлению по документам */
+  incomingDocs: { documentId: string; documentType: string; number: string | null; date: string; qty: string }[];
+}
+
+/** Обеспечение материалов заказа: покрытие по строкам состава и расшифровки */
+export function useOrderMaterials(id: string | undefined) {
+  const ws = useWsId();
+  return useQuery({ queryKey: ordersKey(ws, 'materials', id), queryFn: () => call<{ items: MaterialCoverageRow[] }>(ws, 'GET', `/production-orders/${id}/materials`), enabled: !!id, staleTime: Infinity });
+}
+
+/** Строка сводной потребности (экран Needs) */
+export interface NeedsRow {
+  productId: string;
+  productName: string;
+  unitCode: string;
+  need: string;
+  reserved: string;
+  placed: string;
+  free: string;
+  incoming: string;
+  deficit: string;
+  supplierId: string | null;
+  supplierName: string | null;
+  orders: { orderId: string; number: string | null; need: string }[];
+}
+
+export const needsKey = (ws: string, ...rest: unknown[]) => ['ws', ws, 'production-needs', ...rest] as const;
+
+export function useProductionNeeds() {
+  const ws = useWsId();
+  return useQuery({ queryKey: needsKey(ws, 'list'), queryFn: () => call<{ items: NeedsRow[] }>(ws, 'GET', '/production/needs'), staleTime: Infinity, placeholderData: prev => prev });
+}
+
+/** Заказы поставщикам по потребности: черновики по поставщику, строки без поставщика — отдельно */
+export interface SupplierOrdersResult {
+  orders: { id: string; supplierId: string; supplierName: string; lines: { productId: string; productName: string; qty: string }[] }[];
+  withoutSupplier: { productId: string; productName: string; qty: string }[];
+}
+
 export function useProductionOrders(params: { state?: string; q?: string } = {}) {
   const ws = useWsId();
   return useQuery({
@@ -152,5 +224,32 @@ export function useProductionOrderApi() {
     },
     onError: e => toast.error(errorMessage(e)),
   });
-  return { run, create, update, fill, produce, setState, schedule };
+  // правка резерва строки материала: сколько в резерв и на каком складе
+  const reserve = useMutation({
+    mutationFn: (v: { id: string; componentId: string; qty: string; warehouseId: string }) => call<{ items: MaterialCoverageRow[] }>(ws, 'PATCH', `/production-orders/${v.id}/materials/${v.componentId}/reservation`, { qty: v.qty, warehouseId: v.warehouseId }),
+    onSuccess: () => {
+      toast('The reserve is saved');
+      settle();
+    },
+    onError: e => toast.error(errorMessage(e)),
+  });
+  // дочерние заказы на полуфабрикаты по дефициту
+  const semiOrders = useMutation({
+    mutationFn: (id: string) => call<{ created: { id: string; itemName: string; qty: string }[]; skipped: { productName: string; qty: string }[] }>(ws, 'POST', `/production-orders/${id}/semi-orders`, {}),
+    onSuccess: r => {
+      toast(r.created.length ? `Semi-finished orders created: ${r.created.length}` : 'There is no deficit of semi-finished goods');
+      settle();
+    },
+    onError: e => toast.error(errorMessage(e)),
+  });
+  // заказы поставщику по не обеспеченным материалам
+  const supplierOrders = useMutation({
+    mutationFn: (v: { id: string; supplierId?: string | null; comment?: string }) => call<SupplierOrdersResult>(ws, 'POST', `/production-orders/${v.id}/supplier-orders`, { supplierId: v.supplierId ?? null, comment: v.comment ?? '' }),
+    onSuccess: r => {
+      toast(r.orders.length ? `Supplier orders created: ${r.orders.length}` : 'There is nothing to order');
+      settle();
+    },
+    onError: e => toast.error(errorMessage(e)),
+  });
+  return { run, create, update, fill, produce, setState, schedule, reserve, semiOrders, supplierOrders };
 }
