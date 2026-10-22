@@ -5,7 +5,7 @@
    Модель: заказ на производство (`production_order`) и выпуск (`production`) — обычные документы, а производственные данные
    лежат рядом: production_items (что выпускаем), production_components (снимок состава), production_headers (изготовитель и сроки).
    Правила — в docs/architecture.md, раздел «Производство». */
-import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, ne, notInArray, or, sql } from 'drizzle-orm';
 import { computeBomCost, dec, div, explodeBom, fmt, FULFIL_TYPES, mul, resolveMaterialPrice, roundDiv, type BomItemInput, type Explosion } from '@gr8r/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
@@ -13,7 +13,7 @@ import { DOCUMENT_HOOKS } from './document-hooks';
 import { createDocument, postDocument, unpostDocument, type DocCtx } from './documents';
 import { recordEvent } from './events';
 import { applyStockMoves, loadAvgCosts, loadInventorySettings, type MoveRequest } from './stock';
-import { bomLines, documentLines, documents, manufacturedItems, productManufacturing, productionComponents, productionHeaders, productionItems, products, stockReservations, warehouses, workCenters, workspaces } from './schema';
+import { bomLines, companies, documentLines, documents, manufacturedItems, productManufacturing, productionComponents, productionHeaders, productionItems, products, stockReservations, warehouses, workCenters, workspaces } from './schema';
 import { uuidv7 } from './uuid';
 
 export type ItemRow = typeof manufacturedItems.$inferSelect;
@@ -287,25 +287,58 @@ export interface ProductionInput {
   lines: ProductionLineInput[];
 }
 
+/** План выпуска: что производим (продукция и количество) и из чего (состав) */
+export interface ProductionPlan {
+  itemId: string;
+  qty: string;
+  /** Позиция заказа на производство, которую выполняет выпуск */
+  sourceItemId: string | null;
+  /** Строка заказа покупателя, которую выполняет выпуск */
+  customerOrderLineId: string | null;
+  components: PlannedComponent[];
+}
+
 /** Выпуск по заказу на производство: одна позиция заказа — одна продукция выпуска */
 export async function createProductionFromOrder(db: Db, ctx: DocCtx, orderId: string, input: ProductionInput): Promise<string> {
   const [order] = await db.select().from(documents).where(eq(documents.id, orderId)).limit(1);
   if (!order) throw new DomainError(404, 'not_found', 'document not found');
   if (order.type !== 'production_order') throw new DomainError(422, 'invalid_type', 'This is not a production order');
   if (order.status !== 'posted') throw new DomainError(422, 'base_not_posted', 'Post the production order first');
+  const [header] = await db.select().from(productionHeaders).where(eq(productionHeaders.documentId, orderId)).limit(1);
+  const plans = await orderPlans(db, ctx, orderId, input.lines.map(l => ({ orderItemId: l.orderItemId ?? '', qty: l.qty })));
+  return createOrAppendProduction(db, ctx, {
+    date: input.date ?? order.date,
+    workCenterId: input.workCenterId ?? header?.workCenterId ?? null,
+    warehouseId: input.warehouseId ?? null,
+    targetWarehouseId: input.targetWarehouseId ?? null,
+    fallbackWarehouseId: order.warehouseId,
+    fallbackTargetWarehouseId: order.targetWarehouseId,
+    basedOnId: orderId,
+    plans,
+  });
+}
+
+/** Планы выпуска по позициям заказа на производство: состав — снимок заказа (пропорционально количеству) или развёртка спецификации.
+    Без количества — весь остаток к выпуску */
+async function orderPlans(db: Db, ctx: DocCtx, orderId: string, requested: { orderItemId: string; qty?: string }[]): Promise<ProductionPlan[]> {
+  const [order] = await db.select().from(documents).where(eq(documents.id, orderId)).limit(1);
+  if (!order) throw new DomainError(404, 'not_found', 'document not found');
+  if (order.type !== 'production_order') throw new DomainError(422, 'invalid_type', 'This is not a production order');
+  if (order.status !== 'posted') throw new DomainError(422, 'base_not_posted', 'Post the production order first');
   const orderItems = await db.select().from(productionItems).where(eq(productionItems.documentId, orderId)).orderBy(asc(productionItems.sortOrder));
   const byId = new Map(orderItems.map(i => [i.id, i]));
-  const [header] = await db.select().from(productionHeaders).where(eq(productionHeaders.documentId, orderId)).limit(1);
   const snapshot = await db.select().from(productionComponents).where(eq(productionComponents.documentId, orderId)).orderBy(asc(productionComponents.sortOrder));
   const produced = await producedQty(db, ctx.workspaceId, orderItems.map(i => i.id));
-  const plans: { itemId: string; qty: string; sourceItemId: string | null; customerOrderLineId: string | null; components: PlannedComponent[] }[] = [];
-  for (const l of input.lines) {
+  const plans: ProductionPlan[] = [];
+  for (const l of requested) {
     const src = l.orderItemId ? byId.get(l.orderItemId) : undefined;
     if (!src) throw new DomainError(422, 'invalid_reference', 'The position does not belong to this production order');
     const left = dec(src.qty) - (produced.get(src.id) ?? 0n);
-    if (dec(l.qty) > left) throw new DomainError(422, 'over_fulfilment', `“${src.itemId}”: only ${fmt(left, 3)} of ${fmt(dec(src.qty), 3)} is left to produce`);
+    const qty = l.qty ? dec(l.qty) : left;
+    if (qty <= 0n) continue;
+    if (qty > left) throw new DomainError(422, 'over_fulfilment', `“${src.itemId}”: only ${fmt(left, 3)} of ${fmt(dec(src.qty), 3)} is left to produce`);
     // состав: снимок заказа (пропорционально количеству) или развёртка спецификации
-    const scale = div(dec(l.qty), dec(src.qty));
+    const scale = div(qty, dec(src.qty));
     const own = snapshot.filter(c => c.itemId === src.id);
     const components: PlannedComponent[] = own.length
       ? own.map(c => ({
@@ -321,45 +354,21 @@ export async function createProductionFromOrder(db: Db, ctx: DocCtx, orderId: st
           fixedCost: c.fixedCost,
           plannedCost: fmt(mul(dec(c.plannedCost), scale)),
         }))
-      : await planComponents(db, ctx.workspaceId, src.itemId, l.qty);
-    plans.push({ itemId: src.itemId, qty: l.qty, sourceItemId: src.id, customerOrderLineId: src.customerOrderLineId, components });
+      : await planComponents(db, ctx.workspaceId, src.itemId, fmt(qty, 3));
+    plans.push({ itemId: src.itemId, qty: fmt(qty, 3), sourceItemId: src.id, customerOrderLineId: src.customerOrderLineId, components });
   }
-  return createOrAppendProduction(db, ctx, {
-    date: input.date ?? order.date,
-    workCenterId: input.workCenterId ?? header?.workCenterId ?? null,
-    warehouseId: input.warehouseId ?? null,
-    targetWarehouseId: input.targetWarehouseId ?? null,
-    fallbackWarehouseId: order.warehouseId,
-    fallbackTargetWarehouseId: order.targetWarehouseId,
-    basedOnId: orderId,
-    plans,
-  });
+  return plans;
 }
+
 /** Выпуск прямо из заказа покупателя: товар с способом пополнения «производство» */
 export async function createProductionFromCustomerOrder(db: Db, ctx: DocCtx, input: ProductionInput & { customerOrderId: string }): Promise<string> {
   const [order] = await db.select().from(documents).where(eq(documents.id, input.customerOrderId)).limit(1);
   if (!order) throw new DomainError(404, 'not_found', 'document not found');
   if (order.type !== 'customer_order') throw new DomainError(422, 'invalid_type', 'This is not a customer order');
   if (order.status !== 'posted') throw new DomainError(422, 'base_not_posted', 'Post the customer order first');
-  const lines = await db.select().from(documentLines).where(eq(documentLines.documentId, order.id));
-  const byId = new Map(lines.map(l => [l.id, l]));
-  const produced = await producedByCustomerLine(db, ctx.workspaceId, lines.map(l => l.id));
-  const shipped = await shippedQty(db, ctx.workspaceId, lines.map(l => l.id));
   // строки по умолчанию — все производимые строки заказа, по остатку
   const wanted = input.lines.length ? input.lines : await producibleLines(db, ctx, order.id);
-  const plans: { itemId: string; qty: string; sourceItemId: string | null; customerOrderLineId: string | null; components: PlannedComponent[] }[] = [];
-  for (const l of wanted) {
-    const src = l.customerOrderLineId ? byId.get(l.customerOrderLineId) : undefined;
-    if (!src) throw new DomainError(422, 'invalid_reference', 'The line does not belong to this customer order');
-    const [setting] = await db.select().from(productManufacturing).where(eq(productManufacturing.productId, src.productId)).limit(1);
-    if (!setting || setting.replenishment !== 'production' || !setting.defaultItemId) throw new DomainError(422, 'not_produced', `“${src.name}” is not produced: set the way it is replenished and the default specification`);
-    const left = dec(src.qty) - (shipped.get(src.id) ?? 0n) - (produced.get(src.id) ?? 0n);
-    const qty = l.qty ? dec(l.qty) : left;
-    if (qty <= 0n) continue;
-    if (qty > left) throw new DomainError(422, 'over_fulfilment', `“${src.name}”: only ${fmt(left, 3)} of ${fmt(dec(src.qty), 3)} is left to produce`);
-    const components = await planComponents(db, ctx.workspaceId, setting.defaultItemId, fmt(qty, 3));
-    plans.push({ itemId: setting.defaultItemId, qty: fmt(qty, 3), sourceItemId: null, customerOrderLineId: src.id, components });
-  }
+  const plans = await customerPlans(db, ctx, order.id, wanted.map(l => ({ customerOrderLineId: l.customerOrderLineId ?? '', qty: l.qty })));
   if (!plans.length) throw new DomainError(422, 'nothing_to_create', 'Everything from this customer order is already produced');
   return createOrAppendProduction(db, ctx, {
     date: input.date ?? order.date,
@@ -370,6 +379,34 @@ export async function createProductionFromCustomerOrder(db: Db, ctx: DocCtx, inp
     basedOnId: order.id,
     plans,
   });
+}
+
+/** Планы выпуска по строкам заказа покупателя: производится товар со способом пополнения «производство» */
+async function customerPlans(db: Db, ctx: DocCtx, customerOrderId: string, requested: { customerOrderLineId: string; qty?: string }[]): Promise<ProductionPlan[]> {
+  const [order] = await db.select().from(documents).where(eq(documents.id, customerOrderId)).limit(1);
+  if (!order) throw new DomainError(404, 'not_found', 'document not found');
+  if (order.type !== 'customer_order') throw new DomainError(422, 'invalid_type', 'This is not a customer order');
+  if (order.status !== 'posted') throw new DomainError(422, 'base_not_posted', 'Post the customer order first');
+  const lines = await db.select().from(documentLines).where(eq(documentLines.documentId, order.id));
+  const byId = new Map(lines.map(l => [l.id, l]));
+  const produced = await producedByCustomerLine(db, ctx.workspaceId, lines.map(l => l.id));
+  const shipped = await shippedQty(db, ctx.workspaceId, lines.map(l => l.id));
+  const settings = await db.select().from(productManufacturing);
+  const byProduct = new Map(settings.map(s => [s.productId, s]));
+  const plans: ProductionPlan[] = [];
+  for (const l of requested) {
+    const src = l.customerOrderLineId ? byId.get(l.customerOrderLineId) : undefined;
+    if (!src) throw new DomainError(422, 'invalid_reference', 'The line does not belong to this customer order');
+    const setting = byProduct.get(src.productId);
+    if (!setting || setting.replenishment !== 'production' || !setting.defaultItemId) throw new DomainError(422, 'not_produced', `“${src.name}” is not produced: set the way it is replenished and the default specification`);
+    const left = dec(src.qty) - (shipped.get(src.id) ?? 0n) - (produced.get(src.id) ?? 0n);
+    const qty = l.qty ? dec(l.qty) : left;
+    if (qty <= 0n) continue;
+    if (qty > left) throw new DomainError(422, 'over_fulfilment', `“${src.name}”: only ${fmt(left, 3)} of ${fmt(dec(src.qty), 3)} is left to produce`);
+    const components = await planComponents(db, ctx.workspaceId, setting.defaultItemId, fmt(qty, 3));
+    plans.push({ itemId: setting.defaultItemId, qty: fmt(qty, 3), sourceItemId: null, customerOrderLineId: src.id, components });
+  }
+  return plans;
 }
 
 /** Строки заказа покупателя, которые производятся: товар с пополнением «производство» и остаток к выпуску */
@@ -435,7 +472,7 @@ async function writeProduction(
     fallbackWarehouseId?: string | null;
     fallbackTargetWarehouseId?: string | null;
     basedOnId: string | null;
-    plans: { itemId: string; qty: string; sourceItemId: string | null; customerOrderLineId: string | null; components: PlannedComponent[] }[];
+    plans: ProductionPlan[];
   },
 ): Promise<string> {
   if (!input.plans.length) throw new DomainError(422, 'no_items', 'Add products to produce');
@@ -465,7 +502,7 @@ async function writeProduction(
 /** Строки выпуска: продукция (приход), материалы (расход) и работы */
 async function buildProductionRows(
   db: Db,
-  plans: { itemId: string; qty: string; sourceItemId: string | null; customerOrderLineId: string | null; components: PlannedComponent[] }[],
+  plans: ProductionPlan[],
 ): Promise<{
   warehouseId: string | null;
   targetWarehouseId: string | null;
@@ -541,7 +578,7 @@ async function appendProduction(
   db: Db,
   ctx: DocCtx,
   docId: string,
-  input: { date?: string; workCenterId?: string | null; warehouseId?: string | null; targetWarehouseId?: string | null; plans: { itemId: string; qty: string; sourceItemId: string | null; customerOrderLineId: string | null; components: PlannedComponent[] }[] },
+  input: { date?: string; workCenterId?: string | null; warehouseId?: string | null; targetWarehouseId?: string | null; plans: ProductionPlan[] },
 ): Promise<void> {
   const [doc] = await db.select().from(documents).where(eq(documents.id, docId)).limit(1).for('update');
   if (!doc) throw new DomainError(404, 'not_found', 'document not found');
@@ -585,7 +622,7 @@ async function appendProduction(
 async function createOrAppendProduction(
   db: Db,
   ctx: DocCtx,
-  input: { date?: string; workCenterId?: string | null; warehouseId?: string | null; targetWarehouseId?: string | null; fallbackWarehouseId?: string | null; fallbackTargetWarehouseId?: string | null; basedOnId: string | null; plans: { itemId: string; qty: string; sourceItemId: string | null; customerOrderLineId: string | null; components: PlannedComponent[] }[] },
+  input: { date?: string; workCenterId?: string | null; warehouseId?: string | null; targetWarehouseId?: string | null; fallbackWarehouseId?: string | null; fallbackTargetWarehouseId?: string | null; basedOnId: string | null; plans: ProductionPlan[] },
 ): Promise<string> {
   const date = input.date ?? new Date().toISOString().slice(0, 10);
   const existing = await findDayDocument(db, ctx.workspaceId, date, input.workCenterId ?? null);
@@ -594,6 +631,278 @@ async function createOrAppendProduction(
     return existing;
   }
   return writeProduction(db, ctx, { ...input, date });
+}
+
+/* ---------------- рабочее место «Выпуск продукции» ---------------- */
+
+/** Строка рабочего места: что и сколько осталось выпустить */
+export interface WorkbenchRow {
+  /** Строка заказа: позиция заказа на производство или строка заказа покупателя */
+  id: string;
+  /** Источник строки */
+  source: 'customer_order' | 'production_order';
+  /** Заказ, которому строка принадлежит */
+  orderId: string;
+  /** Товар каталога */
+  productId: string;
+  /** Название товара */
+  productName: string;
+  /** Продукция (спецификация), которую выпускаем */
+  itemId: string;
+  /** Название продукции */
+  itemName: string;
+  unitCode: string;
+  /** Заказано */
+  qty: string;
+  /** Уже выпущено */
+  produced: string;
+  /** Отгружено покупателю (у заказа покупателя) */
+  shipped: string;
+  /** Осталось к выпуску */
+  remaining: string;
+  /** Этап выпуска: пока один — «Завершение производства» */
+  stage: 'final';
+}
+
+/** Заказ рабочего места с его строками */
+export interface WorkbenchOrder {
+  id: string;
+  type: 'customer_order' | 'production_order';
+  number: string | null;
+  date: string;
+  state: string | null;
+  comment: string;
+  counterparty: { id: string; name: string } | null;
+  /** Плановый срок: у заказа покупателя — срок, у заказа на производство — плановый финиш */
+  dueDate: string | null;
+  /** Участок-изготовитель (у заказа на производство) */
+  workCenterId: string | null;
+  workCenterName: string | null;
+  rows: WorkbenchRow[];
+}
+
+export interface WorkbenchFilters {
+  customerOrderId?: string;
+  productionOrderId?: string;
+  counterpartyId?: string;
+  productId?: string;
+  state?: string;
+  from?: string;
+  to?: string;
+  q?: string;
+  limit: number;
+  offset: number;
+}
+
+/** Заказы рабочего места: заказы покупателей и заказы на производство с остатком к выпуску */
+export async function listWorkbench(db: Db, workspaceId: string, filters: WorkbenchFilters) {
+  const centers = await db.select({ id: workCenters.id, name: workCenters.name }).from(workCenters).where(isNull(workCenters.archivedAt));
+  const byCenter = new Map(centers.map(c => [c.id, c.name]));
+  const items = await db.select().from(manufacturedItems);
+  const byItem = new Map(items.map(i => [i.id, i]));
+  // производимые товары: пополнение «производство» со спецификацией по умолчанию
+  const settings = await db.select().from(productManufacturing).where(eq(productManufacturing.replenishment, 'production'));
+  const producible = new Map(settings.filter(s => s.defaultItemId).map(s => [s.productId, s.defaultItemId!]));
+  const orders: WorkbenchOrder[] = [];
+
+  /* --- заказы покупателей --- */
+  const customerDocs = await db.select().from(documents).where(and(eq(documents.type, 'customer_order'), eq(documents.status, 'posted')));
+  const customerIds = customerDocs.map(d => d.id);
+  const customerLines = customerIds.length ? await db.select().from(documentLines).where(inArray(documentLines.documentId, customerIds)) : [];
+  const producedByLine = await producedByCustomerLine(db, workspaceId, customerLines.map(l => l.id));
+  const shippedByLine = await shippedQty(db, workspaceId, customerLines.map(l => l.id));
+  const coveredByLine = await coveredByOrders(db, workspaceId, customerLines.map(l => l.id));
+  const counterparties = new Map((await db.select({ id: companies.id, name: companies.name }).from(companies)).map(c => [c.id, c.name]));
+  for (const doc of customerDocs) {
+    if (filters.customerOrderId && doc.id !== filters.customerOrderId) continue;
+    if (filters.counterpartyId && doc.counterpartyId !== filters.counterpartyId) continue;
+    if (filters.productionOrderId) continue;
+    if (filters.state) continue; // состояние — только у заказа на производство
+    if (filters.q && !`${doc.number ?? ''} ${doc.comment}`.toLowerCase().includes(filters.q.toLowerCase())) continue;
+    if (filters.from && !(doc.dueDate && doc.dueDate >= filters.from)) continue;
+    if (filters.to && !(doc.dueDate && doc.dueDate <= filters.to)) continue;
+    const rows: WorkbenchRow[] = [];
+    for (const line of customerLines.filter(l => l.documentId === doc.id)) {
+      const itemId = producible.get(line.productId);
+      if (!itemId) continue;
+      const item = byItem.get(itemId);
+      if (!item?.productId) continue; // изделие без товара каталога на склад не приходуется
+      const produced = producedByLine.get(line.id) ?? 0n;
+      const shipped = shippedByLine.get(line.id) ?? 0n;
+      const covered = coveredByLine.get(line.id) ?? 0n;
+      const left = dec(line.qty) - produced - shipped - covered;
+      if (left <= 0n) continue;
+      if (filters.productId && line.productId !== filters.productId) continue;
+      rows.push({
+        id: line.id,
+        source: 'customer_order',
+        orderId: doc.id,
+        productId: line.productId,
+        productName: line.name,
+        itemId,
+        itemName: item.name,
+        unitCode: line.unitCode,
+        qty: fmt(dec(line.qty), 3),
+        produced: fmt(produced, 3),
+        shipped: fmt(shipped, 3),
+        remaining: fmt(left, 3),
+        stage: 'final',
+      });
+    }
+    if (!rows.length) continue;
+    orders.push({
+      id: doc.id,
+      type: 'customer_order',
+      number: doc.number,
+      date: doc.date,
+      state: null,
+      comment: doc.comment,
+      counterparty: doc.counterpartyId ? { id: doc.counterpartyId, name: counterparties.get(doc.counterpartyId) ?? '' } : null,
+      dueDate: doc.dueDate,
+      workCenterId: null,
+      workCenterName: null,
+      rows,
+    });
+  }
+
+  /* --- заказы на производство --- */
+  const orderDocs = await db.select().from(documents).where(and(eq(documents.type, 'production_order'), eq(documents.status, 'posted')));
+  const orderIds = orderDocs.map(d => d.id);
+  const headers = orderIds.length ? await db.select().from(productionHeaders).where(inArray(productionHeaders.documentId, orderIds)) : [];
+  const byHeader = new Map(headers.map(h => [h.documentId, h]));
+  const orderItems = orderIds.length ? await db.select().from(productionItems).where(inArray(productionItems.documentId, orderIds)) : [];
+  const producedByItem = await producedQty(db, workspaceId, orderItems.map(i => i.id));
+  for (const doc of orderDocs) {
+    if (filters.customerOrderId) continue;
+    if (filters.productionOrderId && doc.id !== filters.productionOrderId) continue;
+    if (filters.counterpartyId) continue;
+    if (filters.state ? doc.state !== filters.state : doc.state === 'done' || doc.state === 'closed') continue;
+    if (filters.q && !`${doc.number ?? ''} ${doc.comment}`.toLowerCase().includes(filters.q.toLowerCase())) continue;
+    const header = byHeader.get(doc.id);
+    const plannedEnd = header?.plannedEnd ? new Date(header.plannedEnd).toISOString().slice(0, 10) : null;
+    if (filters.from && !(plannedEnd && plannedEnd >= filters.from)) continue;
+    if (filters.to && !(plannedEnd && plannedEnd <= filters.to)) continue;
+    const rows: WorkbenchRow[] = [];
+    for (const item of orderItems.filter(i => i.documentId === doc.id)) {
+      const made = byItem.get(item.itemId);
+      if (!made?.productId) continue;
+      const produced = producedByItem.get(item.id) ?? 0n;
+      const left = dec(item.qty) - produced;
+      if (left <= 0n) continue;
+      if (filters.productId && made.productId !== filters.productId) continue;
+      rows.push({
+        id: item.id,
+        source: 'production_order',
+        orderId: doc.id,
+        productId: made.productId,
+        productName: made.name,
+        itemId: made.id,
+        itemName: made.name,
+        unitCode: item.unitCode,
+        qty: fmt(dec(item.qty), 3),
+        produced: fmt(produced, 3),
+        shipped: '0.000',
+        remaining: fmt(left, 3),
+        stage: 'final',
+      });
+    }
+    if (!rows.length) continue;
+    orders.push({
+      id: doc.id,
+      type: 'production_order',
+      number: doc.number,
+      date: doc.date,
+      state: doc.state,
+      comment: doc.comment,
+      counterparty: null,
+      dueDate: plannedEnd,
+      workCenterId: header?.workCenterId ?? null,
+      workCenterName: header?.workCenterId ? (byCenter.get(header.workCenterId) ?? null) : null,
+      rows,
+    });
+  }
+
+  orders.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.id < b.id ? 1 : -1));
+  const total = orders.length;
+  const page = orders.slice(filters.offset, filters.offset + filters.limit);
+  return { orders: page, total, workCenters: centers };
+}
+
+/** Сколько закрыто открытыми заказами на производство: строка заказа покупателя не показывается дважды */
+async function coveredByOrders(db: Db, _workspaceId: string, customerLineIds: string[]): Promise<Map<string, bigint>> {
+  if (!customerLineIds.length) return new Map();
+  const rows = await db
+    .select({ line: productionItems.customerOrderLineId, qty: sql<string>`sum(${productionItems.qty})` })
+    .from(productionItems)
+    .innerJoin(documents, eq(documents.id, productionItems.documentId))
+    .where(and(inArray(productionItems.customerOrderLineId, customerLineIds), eq(documents.type, 'production_order'), eq(documents.status, 'posted'), notInArray(documents.state, ['done', 'closed'])))
+    .groupBy(productionItems.customerOrderLineId);
+  return new Map(rows.map(r => [r.line!, dec(r.qty)]));
+}
+
+/** Строка рабочего места, которую надо выпустить */
+export interface WorkbenchExecuteRow {
+  orderId: string;
+  source: 'customer_order' | 'production_order';
+  lineId: string;
+  /** Количество (расширенный режим); пусто — весь остаток */
+  qty?: string;
+  /** Участок-изготовитель; пусто — участок заказа на производство */
+  workCenterId?: string | null;
+}
+
+/** Выполнение рабочего места: на участок и дату — один документ выпуска, строки — из отмеченных заказов */
+export async function executeWorkbench(
+  db: Db,
+  ctx: DocCtx,
+  input: { date?: string; mode: 'simple' | 'extended'; rows: WorkbenchExecuteRow[] },
+): Promise<{ id: string; number: string | null; workCenterId: string; qty: string }[]> {
+  const date = input.date ?? new Date().toISOString().slice(0, 10);
+  // группируем строки по участку: на участок и дату — один документ выпуска
+  const groups = new Map<string, WorkbenchExecuteRow[]>();
+  for (const row of input.rows) {
+    const centerId = row.workCenterId ?? (await orderWorkCenter(db, row)) ?? null;
+    if (!centerId) throw new DomainError(422, 'work_center_required', 'Choose a work center for every line');
+    await assertWorkCenter(db, centerId);
+    groups.set(centerId, [...(groups.get(centerId) ?? []), row]);
+  }
+  const out: { id: string; number: string | null; workCenterId: string; qty: string }[] = [];
+  // строка заказа покупателя, закрытая открытым заказом на производство, в выпуск не идёт
+  const customerRows = input.rows.filter(r => r.source === 'customer_order');
+  if (customerRows.length) {
+    const covered = await coveredByOrders(db, ctx.workspaceId, customerRows.map(r => r.lineId));
+    if (customerRows.some(r => (covered.get(r.lineId) ?? 0n) > 0n)) throw new DomainError(422, 'already_ordered', 'The line is already covered by a production order: release it from that order');
+  }
+  for (const [centerId, rows] of groups) {
+    const plans: ProductionPlan[] = [];
+    const orderIds = [...new Set(rows.map(r => `${r.orderId}:${r.source}`))];
+    for (const key of orderIds) {
+      const [orderId, source] = key.split(':');
+      const own = rows.filter(r => r.orderId === orderId && r.source === source);
+      const qty = (r: WorkbenchExecuteRow) => {
+        if (input.mode !== 'extended') return undefined;
+        if (!r.qty) throw new DomainError(422, 'quantity_required', 'Set the quantity of every line in the extended mode');
+        return r.qty;
+      };
+      if (source === 'production_order') plans.push(...(await orderPlans(db, ctx, orderId, own.map(r => ({ orderItemId: r.lineId, qty: qty(r) })))));
+      else plans.push(...(await customerPlans(db, ctx, orderId, own.map(r => ({ customerOrderLineId: r.lineId, qty: qty(r) })))));
+    }
+    if (!plans.length) continue;
+    const docId = await createOrAppendProduction(db, ctx, { date, workCenterId: centerId, basedOnId: rows[0]?.orderId ?? null, plans });
+    const [doc] = await db.select({ status: documents.status, number: documents.number }).from(documents).where(eq(documents.id, docId)).limit(1);
+    // документ дня мог быть уже проведён — дописывание перепроводит его само
+    if (doc?.status === 'draft') await postDocument(db, ctx, docId);
+    const [after] = await db.select({ number: documents.number }).from(documents).where(eq(documents.id, docId)).limit(1);
+    out.push({ id: docId, number: after?.number ?? null, workCenterId: centerId, qty: fmt(plans.reduce((sum, p) => sum + dec(p.qty), 0n), 3) });
+  }
+  return out;
+}
+
+/** Участок заказа на производство: участок строки рабочего места по умолчанию */
+async function orderWorkCenter(db: Db, row: WorkbenchExecuteRow): Promise<string | null> {
+  if (row.source !== 'production_order') return null;
+  const [header] = await db.select({ workCenterId: productionHeaders.workCenterId }).from(productionHeaders).where(eq(productionHeaders.documentId, row.orderId)).limit(1);
+  return header?.workCenterId ?? null;
 }
 
 /* ---------------- помощники ---------------- */

@@ -18,6 +18,7 @@ import {
   LayoutDashboard,
   ListChecks,
   PhoneCall,
+  Play,
   Search,
   Settings,
   Star,
@@ -67,6 +68,7 @@ export const SECTIONS = {
   catalog: { path: '/catalog', name: 'Catalog', icon: Package },
   production: { path: '/production', name: 'Production', icon: Factory },
   productionOrders: { path: '/production/orders', name: 'Production orders', icon: ClipboardList },
+  productionWorkbench: { path: '/production/workbench', name: 'Production release', icon: Play },
   workCenters: { path: '/work-centers', name: 'Work centers', icon: Wrench },
   // Автоматизации
   automations: { path: '/automations', name: 'Automations', icon: Workflow },

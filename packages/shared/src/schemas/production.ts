@@ -112,6 +112,55 @@ export interface ProductionSettings {
   materialPriceSource: (typeof MATERIAL_PRICE_SOURCES)[number];
 }
 
+/* ---------------- рабочее место «Выпуск продукции» ---------------- */
+
+/** Отбор заказов рабочего места */
+export const workbenchQuery = listQuery.extend({
+  /** Заказ покупателя */
+  customerOrderId: uuid.optional(),
+  /** Заказ на производство */
+  productionOrderId: uuid.optional(),
+  /** Заказчик */
+  counterpartyId: uuid.optional(),
+  /** Товар каталога */
+  productId: uuid.optional(),
+  /** Состояние заказа на производство */
+  state: z.string().trim().regex(/^[a-z][a-z0-9_]*$/).optional(),
+  /** Плановый срок: с даты */
+  from: isoDate.optional(),
+  /** Плановый срок: по дату */
+  to: isoDate.optional(),
+});
+
+/** Режим выполнения: простой — весь остаток, расширенный — своё количество */
+export const WORKBENCH_MODES = ['simple', 'extended'] as const;
+export type WorkbenchMode = (typeof WORKBENCH_MODES)[number];
+
+/** Выполнение рабочего места: строки заказов и их количество */
+export const workbenchExecute = z.object({
+  /** Дата документов выпуска (по умолчанию сегодня) */
+  date: isoDate.optional(),
+  /** Режим: простой — весь остаток, расширенный — количество из строки */
+  mode: z.enum(WORKBENCH_MODES).default('simple'),
+  rows: z
+    .array(
+      z.object({
+        /** Заказ: покупателя или на производство */
+        orderId: uuid,
+        /** Источник строки */
+        source: z.enum(['customer_order', 'production_order']),
+        /** Строка заказа: позиция заказа на производство или строка заказа покупателя */
+        lineId: uuid,
+        /** Количество (расширенный режим) */
+        qty: positive(1e9).optional(),
+        /** Участок-изготовитель */
+        workCenterId: uuid.optional(),
+      }),
+    )
+    .min(1)
+    .max(500),
+});
+
 /* ---------------- заказ на производство и выпуск ---------------- */
 
 /** Строка заказа на производство: что выпускаем */

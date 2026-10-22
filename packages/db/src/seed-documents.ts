@@ -7,7 +7,7 @@ import type { Db } from './client';
 import { createBasedOn, createDocument, ensureCostItems, postDocument, updateDocument, type DocCtx } from './documents';
 import { fillCountSheet } from './inventory';
 import './internal-ops';
-import { bankAccounts, companies, costItems, documentLines, organizations, products, warehouses, workCenters, manufacturedItems } from './schema';
+import { bankAccounts, companies, costItems, documentLines, organizations, productManufacturing, products, warehouses, workCenters, manufacturedItems } from './schema';
 import { createProductionFromOrder, createProductionOrder, fillOrderFromBom } from './production';
 import { productionItems } from './schema';
 
@@ -102,7 +102,7 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
 
   /* ---------- товары ---------- */
   const bySku = new Map<string, { id: string; purchasePrice: string; price: string }>();
-  const skus = ['MT-OAK-5050', 'MT-OAK-30', 'MT-PLY-18', 'MT-MDF-16', 'MT-EDG-2', 'MT-LAC-1', 'MT-STN-1', 'MT-GLU-1', 'MT-SND-120', 'MT-PKG-1', 'HW-SCR-440', 'HW-BLT-660', 'HW-CAM-15', 'HW-FT-60', 'HW-SHP-5', 'FRN-001', 'FRN-002', 'SV-DLV', 'SV-ASM'];
+  const skus = ['MT-OAK-5050', 'MT-OAK-30', 'MT-PLY-18', 'MT-MDF-16', 'MT-EDG-2', 'MT-LAC-1', 'MT-STN-1', 'MT-GLU-1', 'MT-SND-120', 'MT-PKG-1', 'HW-SCR-440', 'HW-BLT-660', 'HW-CAM-15', 'HW-FT-60', 'HW-SHP-5', 'FRN-001', 'FRN-002', 'FRN-003', 'SV-DLV', 'SV-ASM'];
   for (const p of await db.select({ id: products.id, sku: products.sku, purchasePrice: products.purchasePrice, price: products.price }).from(products).where(inArray(products.sku, skus))) bySku.set(p.sku, p);
   const P = (sku: string) => {
     const p = bySku.get(sku);
@@ -272,5 +272,17 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
   });
   await postAt(toUse, 1);
 
-  return { documents: 23 };
+  // товар производится: способ пополнения и спецификация по умолчанию — рабочее место «Выпуск продукции» видит такой заказ
+  await db.insert(productManufacturing).values({ workspaceId: wsId, productId: P('FRN-003').id, replenishment: 'production', defaultItemId: loft!.id }).onConflictDoNothing();
+  const chairOrder = await createDocument(db, ctx, {
+    type: 'customer_order',
+    counterpartyId: co.quanta,
+    warehouseId: fg!.id,
+    date: iso(1),
+    comment: 'Стулья «Лофт» под заказ',
+    lines: [sell('FRN-003', 5)],
+  });
+  await postAt(chairOrder, 1);
+
+  return { documents: 24 };
 }

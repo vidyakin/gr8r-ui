@@ -93,6 +93,10 @@ export const PRODUCTION_ORDER_STATES: DocumentStateDef[] = [
   { key: 'closed', label: 'Closed', final: true },
 ];
 
+/** Этапы выпуска: пока один — «Завершение производства». Виды производства и список этапов — этап 4б */
+export const PRODUCTION_STAGES = [{ key: 'final', label: 'Completion of production', isFinal: true }] as const;
+export type ProductionStageKey = (typeof PRODUCTION_STAGES)[number]['key'];
+
 export const DOCUMENT_META: Record<DocumentType, DocumentTypeMeta> = {
   quote: { label: 'Quote', group: 'sales', prefix: 'КП', stock: null, party: 'customer', basedOn: [], fulfils: false, forms: ['invoice'] },
   customer_order: { label: 'Customer order', group: 'sales', prefix: 'ЗК', stock: null, party: 'customer', basedOn: ['quote'], fulfils: false, forms: ['invoice'], reserves: true, isOrder: true, reservedUntil: ['realization'] },
