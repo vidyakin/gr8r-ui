@@ -32,6 +32,8 @@ export interface TimeGridProps {
   today?: string;
   /** Подсвечивать выходные */
   markWeekends?: boolean;
+  /** Часовые линии сетки (масштаб часа): день делится на часы */
+  hourTicks?: boolean;
   /** Содержимое сетки: полосы и линии (абсолютные позиции) */
   children?: React.ReactNode;
   /** Обработчик прокрутки правой панели */
@@ -76,6 +78,7 @@ export function TimeGrid({
   height,
   today,
   markWeekends = true,
+  hourTicks = false,
   children,
   onScroll,
   scrollRef,
@@ -121,6 +124,10 @@ export function TimeGrid({
           {days.map((d, i) => (
             <div key={`gl${d}`} className="tl-gl" style={{ left: i * dayWidth }} />
           ))}
+          {hourTicks &&
+            days.map((d, i) =>
+              Array.from({ length: 23 }, (_, h) => <div key={`h${d}${h}`} className="tl-hour" style={{ left: i * dayWidth + ((h + 1) * dayWidth) / 24 }} />),
+            )}
           {todayIndex >= 0 && <div className="tl-today" style={{ left: todayIndex * dayWidth + dayWidth / 2 }} title="Today" />}
           {children}
         </div>

@@ -1,7 +1,7 @@
 /* zod-схемы заказ-наряда: виды заказ-нарядов, настраиваемые состояния, материалы и назначения (исполнители). */
 import { z } from 'zod';
 import { WORK_ORDER_BILLING_MODES, WORK_ORDER_STATE_CATEGORIES } from '../documents';
-import { clientId, color, decimal, isoDate, listQuery, shortText, toPatch, uuid } from './common';
+import { clientId, color, decimal, isoDate, isoDateTime, listQuery, shortText, toPatch, uuid } from './common';
 
 const positive = decimal.refine(v => Number(v) > 0, 'Must be greater than zero');
 
@@ -63,6 +63,10 @@ export const workOrderAssignmentCreate = z.object({
   plannedHours: decimal.optional(),
   /** Участок (work_center) */
   workCenterId: uuid.nullish(),
+  /** Интервал работы по часам: начало */
+  startAt: isoDateTime.nullish(),
+  /** Интервал работы по часам: конец */
+  endAt: isoDateTime.nullish(),
 });
 export const workOrderAssignmentUpdate = toPatch(workOrderAssignmentCreate);
 
@@ -91,3 +95,15 @@ export const workNormSet = z.object({
 
 /** Табель сотрудника: неделя, строки по заказчику и виду работ */
 export const timesheetQuery = listQuery.extend({ memberId: uuid.optional(), from: isoDate.optional(), to: isoDate.optional() });
+
+/* ---------------- часовой план услуг ---------------- */
+
+/** Часовой план: период и строки — сотрудники или ресурсы */
+export const serviceScheduleQuery = z.object({
+  /** Начало периода (ISO 8601 с часовым поясом) */
+  from: isoDateTime,
+  /** Конец периода (ISO 8601 с часовым поясом) */
+  to: isoDateTime,
+  /** Строки плана: сотрудники или ресурсы */
+  resource: z.enum(['member', 'resource']).default('member'),
+});

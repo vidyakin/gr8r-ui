@@ -149,8 +149,9 @@ export const workOrderAssignmentRoutes = new Hono<AppEnv>()
   .patch('/:taskId', write, zValidator('param', taskParam, validationHook), zValidator('json', workOrderAssignmentUpdate, validationHook), async c => {
     const ctx = ctxOf(c);
     const taskId = c.req.valid('param').taskId;
-    await updateWorkOrderAssignment(ctx.db, docCtx(ctx), taskId, c.req.valid('json'));
-    return c.json({ id: taskId, updated: true as const });
+    // перегрузка и работа вне смены — предупреждение: план сохраняется
+    const { warnings } = await updateWorkOrderAssignment(ctx.db, docCtx(ctx), taskId, c.req.valid('json'));
+    return c.json({ id: taskId, updated: true as const, warnings });
   })
   .delete('/:taskId', write, zValidator('param', taskParam, validationHook), async c => {
     const ctx = ctxOf(c);

@@ -84,6 +84,7 @@ export const SECTIONS = {
   sales: { path: '/sales', name: 'Sales', icon: ReceiptText },
   workOrders: { path: '/work-orders', name: 'Work orders', icon: ClipboardList },
   servicesTimesheet: { path: '/services/timesheet', name: 'Timesheet', icon: CalendarClock },
+  servicesPlanner: { path: '/services/planner', name: 'Service planner', icon: CalendarRange },
   purchases: { path: '/purchases', name: 'Purchases', icon: ShoppingCart },
   stockDocs: { path: '/stock-docs', name: 'Stock documents', icon: ArrowLeftRight },
   inventory: { path: '/inventory', name: 'Inventory', icon: Boxes },

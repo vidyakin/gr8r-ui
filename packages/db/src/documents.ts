@@ -29,6 +29,7 @@ import { DomainError } from './errors';
 import { DOCUMENT_HOOKS, DOCUMENT_CREATED_HOOKS, STATE_HOOKS, STATE_PROVIDERS, type StatePayload } from './document-hooks';
 import { recordEvent } from './events';
 import { applyStockMoves, defaultPostingCost, documentCosts, documentLineCosts, loadInventorySettings, revertStockMoves, sourceMoveCosts, syncReservations, type MoveRequest } from './stock';
+import { syncWorkOrderResources } from './planning';
 import { bankAccounts, companies, costItems, documentCounters, documentLines, documentStates, documents, members, organizations, products, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials } from './schema';
 import { uuidv7 } from './uuid';
 
@@ -322,6 +323,8 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
     })
     .returning();
   if (input.lines?.length) await saveLines(db, ctx, row!, input.lines, row!.priceIncludesVat);
+  // ресурсы строк-работ заказ-наряда подставляются из норматива работ
+  if (input.type === 'work_order') await syncWorkOrderResources(db, ctx, row!.id);
   await DOCUMENT_CREATED_HOOKS[input.type]?.(db, ctx, row!);
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.created', entity: 'document', recordId: row!.id, actorId: ctx.memberId, payload: { documentType: input.type } });
   return row!.id;
@@ -412,8 +415,11 @@ export async function updateDocument(db: Db, ctx: DocCtx, id: string, patch: Doc
   if (patch.responsibleId !== undefined) set.responsibleId = patch.responsibleId;
   if (patch.custom) set.custom = { ...doc.custom, ...patch.custom };
   const [after] = await db.update(documents).set(set).where(eq(documents.id, id)).returning();
-  if (patch.lines) await saveLines(db, ctx, after!, patch.lines, after!.priceIncludesVat);
-  else if (patch.priceIncludesVat !== undefined && patch.priceIncludesVat !== doc.priceIncludesVat) await recalcLines(db, after!);
+  if (patch.lines) {
+    await saveLines(db, ctx, after!, patch.lines, after!.priceIncludesVat);
+    // ресурсы строк-работ заказ-наряда подставляются из норматива работ
+    if (type === 'work_order') await syncWorkOrderResources(db, ctx, id);
+  } else if (patch.priceIncludesVat !== undefined && patch.priceIncludesVat !== doc.priceIncludesVat) await recalcLines(db, after!);
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.updated', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { changes: Object.keys(patch) } });
 }
 

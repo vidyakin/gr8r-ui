@@ -2,7 +2,7 @@
    Все таблицы арендаторские (workspace_id + RLS), связи внутри арендатора — составные внешние ключи (workspace_id, id). */
 import { sql } from 'drizzle-orm';
 import { check, foreignKey, index, integer, numeric, pgTable, primaryKey, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import { createdAt, pk, updatedAt } from './columns';
+import { createdAt, pk, ts, updatedAt } from './columns';
 import { products } from './catalog';
 import { documentLines, documents, warehouses, workOrderKinds } from './documents';
 import { tasks } from './work';
@@ -101,6 +101,10 @@ export const workOrderAssignments = pgTable(
     workCenterId: uuid('work_center_id'),
     /** Плановые часы: пусто — норма работы (этап 2) */
     plannedHours: numeric('planned_hours', { precision: 10, scale: 3 }),
+    /** Интервал работы по часам: начало (timestamptz) */
+    startAt: ts('start_at'),
+    /** Интервал работы по часам: конец (timestamptz) */
+    endAt: ts('end_at'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -111,6 +115,7 @@ export const workOrderAssignments = pgTable(
     foreignKey({ columns: [t.workspaceId, t.taskId], foreignColumns: [tasks.workspaceId, tasks.id], name: 'work_order_assignments_task_fk' }).onDelete('cascade'),
     foreignKey({ columns: [t.workspaceId, t.lineId], foreignColumns: [documentLines.workspaceId, documentLines.id], name: 'work_order_assignments_line_fk' }),
     foreignKey({ columns: [t.workspaceId, t.workCenterId], foreignColumns: [workCenters.workspaceId, workCenters.id], name: 'work_order_assignments_work_center_fk' }),
+    check('work_order_assignments_interval_chk', sql`${t.endAt} is null or ${t.startAt} is null or ${t.endAt} > ${t.startAt}`),
     index('work_order_assignments_document_idx').on(t.documentId),
   ],
 );

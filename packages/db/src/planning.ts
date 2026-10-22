@@ -3,12 +3,19 @@
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import {
   autoSchedule,
+  computeHourlyLoad,
   computeLoad,
   dec,
+  fmt,
+  mul,
+  zonedInstant,
   type BusyLoad,
   type CalendarDef,
   type CalendarException,
   type ExceptionsByScope,
+  type HourlyEntry,
+  type HourlyLoadResult,
+  type HourlyRow,
   type LoadEntry,
   type LoadRow,
   type LoadRowResult,
@@ -20,12 +27,12 @@ import { DomainError } from './errors';
 import { recordEvent } from './events';
 import type { DocCtx } from './documents';
 import { uuidv7 } from './uuid';
-import { calendarExceptions, documentResources, productResources, resources, workCalendars, workspaceHolidays } from './schema';
+import { calendarExceptions, documentLines, documentResources, productResources, products, resources, workCalendars, workspaceHolidays } from './schema';
 import { members } from './schema/people';
 import { pieceworkLines, productionOperations, productionComponents, productionHeaders, productionStages, workCenters } from './schema/production';
 import { tasks } from './schema/work';
 import { workOrderAssignments } from './schema/services';
-import { documents } from './schema/documents';
+import { documents, workspaces } from './schema';
 
 /* ---------------- справочники графиков ---------------- */
 
@@ -644,4 +651,199 @@ function addDaysLocal(date: string, n: number): string {
   const d = new Date(`${date.slice(0, 10)}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
+}
+
+/* ---------------- часовой план услуг ---------------- */
+
+/** Часовой план: период (ISO) и строки — сотрудники или ресурсы */
+export interface ServiceScheduleQuery {
+  from: string;
+  to: string;
+  rowType: 'member' | 'resource';
+}
+
+/** Пояс воркспейса: часы смены считаются в нём. Пояса воркспейса пока нет (этап 8 услуг) — берём UTC */
+export async function workspaceTimeZone(db: Db, workspaceId: string): Promise<string> {
+  const [ws] = await db.select({ settings: workspaces.settings }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
+  const tz = ws?.settings?.timezone;
+  return typeof tz === 'string' && tz ? tz : 'UTC';
+}
+
+/** Часовые строки: сотрудники или ресурсы */
+export async function hourlyRows(db: Db, workspaceId: string, rowType: 'member' | 'resource', ctx: CalendarContext): Promise<HourlyRow[]> {
+  if (rowType === 'member') {
+    const rows = await db.select().from(members).where(and(eq(members.workspaceId, workspaceId), eq(members.status, 'active'))).orderBy(asc(members.name));
+    return rows.map(m => ({
+      id: m.id,
+      rowType: 'member' as const,
+      name: m.name,
+      capacityUnits: 1,
+      calendar: (m.calendarId ? ctx.calendars.get(m.calendarId) : null) ?? ctx.defaultCalendar,
+    }));
+  }
+  const rows = await db.select().from(resources).where(and(eq(resources.workspaceId, workspaceId), isNull(resources.archivedAt))).orderBy(asc(resources.name));
+  return rows.map(r => ({
+    id: r.id,
+    rowType: 'resource' as const,
+    name: r.name,
+    capacityUnits: r.capacityUnits,
+    calendar: (r.calendarId ? ctx.calendars.get(r.calendarId) : null) ?? ctx.defaultCalendar,
+  }));
+}
+
+/** Границы дня в поясе воркспейса: начало и конец (вclusive) */
+function dayBounds(date: string, timeZone: string): { start: Date; end: Date } {
+  return { start: zonedInstant(date, 0, 0, timeZone), end: zonedInstant(date, 23, 59, timeZone) };
+}
+
+/** Записи часового плана: назначения заказ-нарядов и работы их ресурсов */
+export async function hourlyEntries(db: Db, workspaceId: string, from: string, to: string, timeZone: string): Promise<HourlyEntry[]> {
+  const entries: HourlyEntry[] = [];
+  const fromMs = new Date(from).getTime();
+  const toMs = new Date(to).getTime();
+
+  // назначения заказ-нарядов: интервал по часам, у старых — даты задачи
+  const assignments = await db
+    .select({
+      id: workOrderAssignments.id,
+      taskId: workOrderAssignments.taskId,
+      documentId: workOrderAssignments.documentId,
+      startAt: workOrderAssignments.startAt,
+      endAt: workOrderAssignments.endAt,
+      startDate: tasks.startDate,
+      dueDate: tasks.dueDate,
+      hours: tasks.planHours,
+      title: tasks.title,
+      memberId: tasks.assigneeId,
+    })
+    .from(workOrderAssignments)
+    .innerJoin(tasks, eq(tasks.id, workOrderAssignments.taskId))
+    .where(eq(workOrderAssignments.workspaceId, workspaceId));
+  for (const a of assignments) {
+    if (!a.memberId) continue;
+    let start = a.startAt;
+    let end = a.endAt;
+    // без часового интервала назначение запланировано по дням: полоса на дни задачи, без часовой загрузки
+    const allDay = !start || !end;
+    if (allDay) {
+      start = a.startDate ? dayBounds(a.startDate, timeZone).start : null;
+      end = a.dueDate ? dayBounds(a.dueDate, timeZone).end : null;
+    }
+    if (!start || !end) continue;
+    if (end.getTime() <= fromMs || start.getTime() >= toMs) continue;
+    entries.push({
+      id: `as:${a.id}`,
+      kind: 'assignment',
+      title: a.title ?? 'Assignment',
+      rowType: 'member',
+      rowId: a.memberId,
+      startAt: start.toISOString(),
+      endAt: end.toISOString(),
+      hours: a.hours ?? '0',
+      documentId: a.documentId,
+      taskId: a.taskId,
+      memberId: a.memberId,
+      allDay,
+    });
+  }
+
+  // ресурсы заказ-нарядов: закладка «Ресурсы» с интервалом работы
+  const docRes = await db
+    .select({
+      id: documentResources.id,
+      documentId: documentResources.documentId,
+      lineId: documentResources.lineId,
+      resourceId: documentResources.resourceId,
+      startAt: documentResources.startAt,
+      endAt: documentResources.endAt,
+      hours: documentResources.hours,
+      type: documents.type,
+    })
+    .from(documentResources)
+    .innerJoin(documents, eq(documents.id, documentResources.documentId))
+    .where(eq(documentResources.workspaceId, workspaceId));
+  for (const d of docRes) {
+    if (d.type !== 'work_order' || !d.startAt || !d.endAt) continue;
+    if (d.endAt.getTime() <= fromMs || d.startAt.getTime() >= toMs) continue;
+    entries.push({
+      id: `res:${d.id}`,
+      kind: 'resource',
+      title: 'Resource',
+      rowType: 'resource',
+      rowId: d.resourceId,
+      startAt: d.startAt.toISOString(),
+      endAt: d.endAt.toISOString(),
+      hours: d.hours,
+      documentId: d.documentId,
+      resourceId: d.resourceId,
+    });
+  }
+  return entries;
+}
+
+/** Часовой план услуг: загрузка по часам, перегрузка и работа вне смены */
+export async function servicesSchedule(db: Db, workspaceId: string, query: ServiceScheduleQuery): Promise<HourlyLoadResult> {
+  const timeZone = await workspaceTimeZone(db, workspaceId);
+  const ctx = await calendarContext(db, workspaceId);
+  const rows = await hourlyRows(db, workspaceId, query.rowType, ctx);
+  const entries = await hourlyEntries(db, workspaceId, query.from, query.to, timeZone);
+  const result = computeHourlyLoad(rows, entries, query.from, query.to, { timeZone, holidays: ctx.holidays, exceptionsByScope: ctx.exceptionsByScope });
+  return { ...result, timeZone };
+}
+
+/** Предупреждения по назначению заказ-наряда: перегрузка и работа вне смены вокруг его интервала */
+export async function assignmentWarnings(db: Db, workspaceId: string, assignmentId: string): Promise<HourlyLoadResult['warnings']> {
+  const [row] = await db.select().from(workOrderAssignments).where(eq(workOrderAssignments.id, assignmentId)).limit(1);
+  if (!row) return [];
+  const timeZone = await workspaceTimeZone(db, workspaceId);
+  const start = row.startAt ?? (row.endAt ? new Date(row.endAt.getTime() - 3_600_000) : new Date());
+  const end = row.endAt ?? new Date(start.getTime() + 3_600_000);
+  const ctx = await calendarContext(db, workspaceId);
+  const from = new Date(start.getTime() - 86_400_000).toISOString();
+  const to = new Date(end.getTime() + 86_400_000).toISOString();
+  const entryId = `as:${row.id}`;
+  const entries = await hourlyEntries(db, workspaceId, from, to, timeZone);
+  // ресурсы того же заказ-наряда: их перегрузка — тоже следствие этого назначения
+  const docResourceIds = new Set(entries.filter(e => e.kind === 'resource' && e.documentId === row.documentId).map(e => e.id));
+  const warnings: HourlyLoadResult['warnings'] = [];
+  for (const rowType of ['member', 'resource'] as const) {
+    const rows = await hourlyRows(db, workspaceId, rowType, ctx);
+    const result = computeHourlyLoad(rows, entries, from, to, { timeZone, holidays: ctx.holidays, exceptionsByScope: ctx.exceptionsByScope });
+    warnings.push(...result.warnings.filter(w => w.entryIds.some(id => id === entryId || docResourceIds.has(id))));
+  }
+  return warnings;
+}
+
+/**
+ * Ресурсы заказ-наряда по нормативу работ: у каждой строки-работы появляются ресурсы из product_resources.
+ * Свои правки пользователя не трогаем — добавляются только недостающие строки.
+ */
+export async function syncWorkOrderResources(db: Db, ctx: DocCtx, documentId: string): Promise<void> {
+  const lines = await db
+    .select({ id: documentLines.id, productId: documentLines.productId, qty: documentLines.qty })
+    .from(documentLines)
+    .innerJoin(products, eq(products.id, documentLines.productId))
+    .where(and(eq(documentLines.documentId, documentId), eq(products.kind, 'work')));
+  if (!lines.length) return;
+  const existing = await db.select({ lineId: documentResources.lineId, resourceId: documentResources.resourceId }).from(documentResources).where(eq(documentResources.documentId, documentId));
+  const have = new Set(existing.map(e => `${e.lineId ?? ''}:${e.resourceId}`));
+  const productIds = [...new Set(lines.map(l => l.productId))];
+  const norms = await db.select().from(productResources).where(inArray(productResources.productId, productIds));
+  let sortOrder = existing.length;
+  for (const line of lines) {
+    for (const n of norms.filter(x => x.productId === line.productId)) {
+      if (have.has(`${line.id}:${n.resourceId}`)) continue;
+      const hours = mul(dec(n.hoursPerUnit), dec(line.qty));
+      await db.insert(documentResources).values({
+        id: uuidv7(),
+        workspaceId: ctx.workspaceId,
+        documentId,
+        lineId: line.id,
+        resourceId: n.resourceId,
+        hours: fmt(hours, 3),
+        sortOrder: sortOrder++,
+      });
+      have.add(`${line.id}:${n.resourceId}`);
+    }
+  }
 }

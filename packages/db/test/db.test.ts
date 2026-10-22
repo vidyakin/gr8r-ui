@@ -126,7 +126,8 @@ describe('seed', () => {
     expect(await count('work_calendars', `${w} and is_default`)).toBe(1);
     expect(await count('workspace_holidays', w)).toBe(2);
     expect(await count('resources', w)).toBe(3);
-    expect(await count('product_resources', w)).toBe(1);
+    expect(await count('product_resources', w)).toBe(2); // операция сборки и работа «Монтаж»
+    expect(await count('document_resources', w)).toBe(1); // ресурс работы в закладке «Ресурсы» заказ-наряда
     // заказ-наряд: вид по умолчанию с состояниями, материалы и назначение
     expect(await count('documents', `${w} and type = 'work_order'`)).toBe(1);
     expect(await count('work_order_kinds', w)).toBe(1);

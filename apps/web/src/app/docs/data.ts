@@ -402,6 +402,9 @@ export interface WorkOrderAssignment {
   plannedHours: string | null;
   startDate: string | null;
   dueDate: string | null;
+  /** Интервал работы по часам */
+  startAt: string | null;
+  endAt: string | null;
 }
 
 export interface WorkOrderListItem extends DocListItem {

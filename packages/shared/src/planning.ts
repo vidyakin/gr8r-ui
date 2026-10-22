@@ -37,6 +37,9 @@ export interface CalendarDef {
 /** График по умолчанию: пятидневка, 8 часов (когда график не назначен) */
 export const DEFAULT_CALENDAR: CalendarDef = { id: null, kind: 'weekly', pattern: { weekdays: [1, 2, 3, 4, 5] }, cycleStart: null, hoursPerDay: '8' };
 
+/** Начало смены по умолчанию, если график его не задал */
+export const DEFAULT_SHIFT_START = 9;
+
 /** Исключение из графика: нерабочие дни (отпуск, больничный, ремонт) */
 export interface CalendarException {
   scope: 'member' | 'work_center' | 'resource';
@@ -359,3 +362,336 @@ export function autoSchedule(units: ScheduleUnit[], rows: LoadRow[], from: strin
 
 /** Часы работы ресурса на единицу: норматив умножается на количество */
 export const resourceHours = (hoursPerUnit: string, qty: string): Dec => mul(dec(hoursPerUnit), dec(qty));
+
+/* ---------------- часовой масштаб (услуги) ---------------- */
+
+/** Часы смены: начало и конец в часах от полуночи. Конец не больше начала — смена через полночь */
+export interface ShiftWindow {
+  startHour: number;
+  endHour: number;
+}
+
+/** Часы смены графика: из шаблона (startHour/endHour), иначе 09:00 и hours_per_day */
+export function shiftOf(cal: CalendarDef | null): ShiftWindow {
+  const c = cal ?? DEFAULT_CALENDAR;
+  const start = c.pattern.startHour ?? DEFAULT_SHIFT_START;
+  const hours = Number(c.hoursPerDay ?? '8');
+  const length = Number.isFinite(hours) && hours > 0 ? hours : 0;
+  const end = c.pattern.endHour ?? Math.min(24, start + length);
+  return { startHour: start, endHour: end };
+}
+
+/** Смена переходит через полночь (вечерняя или ночная) */
+export const shiftCrossesMidnight = (sh: ShiftWindow): boolean => sh.endHour <= sh.startHour;
+
+/** Локальные дата и час момента в поясе (IANA) */
+export function zonedParts(instant: Date, timeZone: string): { date: string; hour: number; minute: number } {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(instant);
+  const get = (t: string) => parts.find(p => p.type === t)?.value ?? '';
+  return { date: `${get('year')}-${get('month')}-${get('day')}`, hour: Number(get('hour')), minute: Number(get('minute')) };
+}
+
+/** Момент времени по локальной дате и часу в поясе (обратная задача к zonedParts) */
+export function zonedInstant(date: string, hour: number, minute: number, timeZone: string): Date {
+  const [y, m, d] = date.split('-').map(Number);
+  const base = Date.UTC(y, m - 1, d, hour, minute);
+  let guess = base;
+  // смещение пояса уточняем дважды: вокруг перехода на летнее время одна итерация не хватает
+  for (let i = 0; i < 2; i++) {
+    const p = zonedParts(new Date(guess), timeZone);
+    const asUtc = Date.UTC(Number(p.date.slice(0, 4)), Number(p.date.slice(5, 7)) - 1, Number(p.date.slice(8, 10)), p.hour, p.minute);
+    guess += base - asUtc;
+  }
+  return new Date(guess);
+}
+
+/** Смена дня: начало и конец в моментах времени */
+export interface ShiftSpan {
+  start: Date;
+  end: Date;
+}
+
+/** Смена, начавшаяся в этот день. Смена через полночь заканчивается в следующем дне */
+export function shiftSpan(cal: CalendarDef | null, date: string, timeZone: string): ShiftSpan {
+  const sh = shiftOf(cal);
+  const start = zonedInstant(date, sh.startHour, 0, timeZone);
+  const crosses = shiftCrossesMidnight(sh);
+  const endDay = crosses || sh.endHour >= 24 ? addDays(date, 1) : date;
+  const endHour = sh.endHour >= 24 ? 0 : sh.endHour;
+  return { start, end: zonedInstant(endDay, endHour, 0, timeZone) };
+}
+
+/** Смены, покрывающие локальный день: своя смена и хвост смены предыдущего дня (ночная смена) */
+export function spansForDay(
+  cal: CalendarDef | null,
+  date: string,
+  timeZone: string,
+  holidays: string[] = [],
+  exceptions: CalendarException[] = [],
+): ShiftSpan[] {
+  const spans: ShiftSpan[] = [];
+  if (isWorkingDayWith(cal, date, holidays, exceptions)) spans.push(shiftSpan(cal, date, timeZone));
+  const prev = addDays(date, -1);
+  if (isWorkingDayWith(cal, prev, holidays, exceptions)) {
+    const s = shiftSpan(cal, prev, timeZone);
+    // хвост вчерашней смены живёт в сегодняшнем дне
+    if (s.end > zonedInstant(date, 0, 0, timeZone)) spans.push(s);
+  }
+  return spans;
+}
+
+/** Строка часовой загрузки: сотрудник или ресурс */
+export interface HourlyRow {
+  id: string;
+  rowType: 'member' | 'resource';
+  name: string;
+  /** Сколько единиц доступно одновременно: у сотрудника 1, у ресурса — его мощность */
+  capacityUnits: number;
+  /** График: рабочие дни и часы смены */
+  calendar: CalendarDef | null;
+}
+
+/** Запись часовой загрузки: назначение заказ-наряда или работа ресурса */
+export interface HourlyEntry {
+  id: string;
+  kind: 'assignment' | 'resource';
+  title: string;
+  rowType: 'member' | 'resource';
+  rowId: string;
+  /** Интервал работы (ISO 8601 с часовым поясом) */
+  startAt: string;
+  endAt: string;
+  /** Плановые часы */
+  hours: string;
+  documentId?: string | null;
+  taskId?: string | null;
+  memberId?: string | null;
+  resourceId?: string | null;
+  /** Назначение запланировано по дням, без часов (даты задачи): показывается, но в часовую загрузку не входит */
+  allDay?: boolean;
+}
+
+/** Слот часовой загрузки */
+export interface HourlySlot {
+  /** Начало слота (ISO 8601) */
+  start: string;
+  /** Конец слота (ISO 8601) */
+  end: string;
+  /** Занято часов в слоте */
+  used: string;
+  /** Доступно часов в слоте (ноль — нерабочее время) */
+  capacity: string;
+  /** Слот внутри смены */
+  working: boolean;
+  /** Перегрузка — предупреждение, не запрет */
+  overloaded: boolean;
+}
+
+/** Предупреждение о перегрузке */
+export interface HourlyWarning {
+  code: 'member_overlap' | 'resource_overload' | 'outside_shift' | 'over_capacity';
+  rowType: 'member' | 'resource';
+  rowId: string;
+  /** Записи, которых касается предупреждение */
+  entryIds: string[];
+  message: string;
+}
+
+export interface HourlyRowResult {
+  rowId: string;
+  rowType: 'member' | 'resource';
+  name: string;
+  capacityUnits: number;
+  slots: HourlySlot[];
+  /** Плановые часы записей за период */
+  totalHours: string;
+  /** Занятое время (пересечения интервалов), ч */
+  bookedHours: string;
+  overloaded: boolean;
+}
+
+export interface HourlyLoadResult {
+  rows: HourlyRowResult[];
+  entries: HourlyEntry[];
+  warnings: HourlyWarning[];
+  /** Пояс, в котором считаются смены */
+  timeZone: string;
+}
+
+export interface HourlyLoadOptions {
+  /** Пояс воркспейса: часы смены и границы дней считаются в нём */
+  timeZone?: string;
+  holidays?: string[];
+  exceptionsByScope?: ExceptionsByScope;
+  /** Длина слота, минут (60 — час, 30 — полчаса) */
+  slotMinutes?: number;
+}
+
+const hours2 = (n: number): string => (Math.round(n * 100) / 100).toFixed(2);
+const MS_MIN = 60_000;
+const MS_HOUR = 3_600_000;
+
+/** Пересечение двух интервалов в минутах */
+function overlapMinutes(aStart: number, aEnd: number, bStart: number, bEnd: number): number {
+  return Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart));
+}
+
+/**
+ * Часовая загрузка: пересечения интервалов исполнителя и ресурсов, перегрузка и работа вне смены.
+ * Перегрузка — предупреждение: план сохраняется в любом случае.
+ */
+export function computeHourlyLoad(rows: HourlyRow[], entries: HourlyEntry[], from: string, to: string, opts: HourlyLoadOptions = {}): HourlyLoadResult {
+  const timeZone = opts.timeZone ?? 'UTC';
+  const holidays = opts.holidays ?? [];
+  const exceptionsByScope = opts.exceptionsByScope ?? {};
+  const slotMinutes = opts.slotMinutes ?? 60;
+  const fromMs = new Date(from).getTime();
+  const toMs = new Date(to).getTime();
+  const warnings: HourlyWarning[] = [];
+  const results: HourlyRowResult[] = [];
+
+  const dayFrom = zonedParts(new Date(fromMs), timeZone).date;
+  const dayTo = zonedParts(new Date(toMs), timeZone).date;
+  const days = dateRange(dayFrom, dayTo);
+  const slotsPerHour = Math.max(1, Math.round(60 / slotMinutes));
+
+  for (const row of rows) {
+    const exc = exceptionsFor(exceptionsByScope, row.rowType, row.id);
+    const rowEntries = entries.filter(e => e.rowType === row.rowType && e.rowId === row.id);
+    // записи дневного плана (без часов) в часовую загрузку и предупреждения не входят
+    const parsed = rowEntries
+      .filter(e => !e.allDay)
+      .map(e => ({ entry: e, start: new Date(e.startAt).getTime(), end: new Date(e.endAt).getTime() }))
+      .filter(e => Number.isFinite(e.start) && Number.isFinite(e.end) && e.end > e.start && e.end > fromMs && e.start < toMs);
+
+    // смены по дням: свои и хвосты ночных смен предыдущих дней
+    const spansByDay = new Map<string, ShiftSpan[]>();
+    /** Своя смена дня — по ней считаем занятость смены */
+    const ownSpans = new Map<string, ShiftSpan>();
+    for (const day of [addDays(dayFrom, -1), ...days]) {
+      const spans = spansForDay(row.calendar, day, timeZone, holidays, exc);
+      spansByDay.set(day, spans);
+      if (isWorkingDayWith(row.calendar, day, holidays, exc)) ownSpans.set(day, shiftSpan(row.calendar, day, timeZone));
+    }
+
+    const slots: HourlySlot[] = [];
+    let bookedMs = 0;
+
+    for (const day of days) {
+      const spans = spansByDay.get(day) ?? [];
+      for (let h = 0; h < 24; h++) {
+        for (let s = 0; s < slotsPerHour; s++) {
+          const slotStart = zonedInstant(day, h, s * slotMinutes, timeZone).getTime();
+          const slotEnd = slotStart + slotMinutes * MS_MIN;
+          if (slotEnd <= fromMs || slotStart >= toMs) continue;
+          const working = spans.some(sp => sp.start.getTime() <= slotStart && slotEnd <= sp.end.getTime());
+          let usedMs = 0;
+          for (const e of parsed) usedMs += overlapMinutes(slotStart, slotEnd, e.start, e.end);
+          const capacityHours = working ? (slotMinutes / 60) * row.capacityUnits : 0;
+          const usedHours = usedMs / MS_HOUR;
+          slots.push({
+            start: new Date(slotStart).toISOString(),
+            end: new Date(slotEnd).toISOString(),
+            used: hours2(usedHours),
+            capacity: hours2(capacityHours),
+            working,
+            overloaded: usedHours > capacityHours + 1e-9,
+          });
+        }
+      }
+    }
+
+    // занятое время по сменам и работа вне смены
+    for (const e of parsed) {
+      const start = Math.max(e.start, fromMs);
+      const end = Math.min(e.end, toMs);
+      // интервал может переходить через полночь — покрытие считаем по сменам
+      let covered = 0;
+      for (const [, sp] of ownSpans) covered += overlapMinutes(start, end, sp.start.getTime(), sp.end.getTime());
+      bookedMs += covered;
+      if (covered < end - start) {
+        warnings.push({
+          code: 'outside_shift',
+          rowType: row.rowType,
+          rowId: row.id,
+          entryIds: [e.entry.id],
+          message: `${e.entry.title} is planned outside the working hours of ${row.name}`,
+        });
+      }
+    }
+
+    // две записи одного сотрудника в одно время; ресурс занят больше своей мощности
+    for (let i = 0; i < parsed.length; i++) {
+      for (let j = i + 1; j < parsed.length; j++) {
+        if (overlapMinutes(parsed[i]!.start, parsed[i]!.end, parsed[j]!.start, parsed[j]!.end) <= 0) continue;
+        if (row.rowType === 'member') {
+          warnings.push({
+            code: 'member_overlap',
+            rowType: row.rowType,
+            rowId: row.id,
+            entryIds: [parsed[i]!.entry.id, parsed[j]!.entry.id],
+            message: `${parsed[i]!.entry.title} and ${parsed[j]!.entry.title} overlap: ${row.name} is booked twice at the same time`,
+          });
+        }
+      }
+    }
+    if (row.rowType === 'resource') {
+      // одновременно идущих работ больше мощности ресурса: проход по началам и концам интервалов
+      const points = parsed.flatMap(e => [{ at: e.start, delta: 1, e }, { at: e.end, delta: -1, e }]).sort((a, b) => a.at - b.at || a.delta - b.delta);
+      const running = new Set<(typeof parsed)[number]>();
+      let group: Set<(typeof parsed)[number]> | null = null;
+      let peak = 0;
+      const flush = () => {
+        if (!group) return;
+        warnings.push({
+          code: 'resource_overload',
+          rowType: row.rowType,
+          rowId: row.id,
+          entryIds: [...group].map(x => x.entry.id),
+          message: `${row.name} is busy with ${peak} works at once, its capacity is ${row.capacityUnits}`,
+        });
+        group = null;
+        peak = 0;
+      };
+      for (const p of points) {
+        if (p.delta > 0) running.add(p.e);
+        else running.delete(p.e);
+        if (running.size > row.capacityUnits) {
+          group ??= new Set();
+          for (const x of running) group.add(x);
+          peak = Math.max(peak, running.size);
+        } else flush();
+      }
+      flush();
+    }
+
+    // плановое время больше длительности смены
+    for (const [day, sp] of ownSpans) {
+      const booked = parsed.reduce((sum, e) => sum + overlapMinutes(Math.max(e.start, fromMs), Math.min(e.end, toMs), sp.start.getTime(), sp.end.getTime()), 0);
+      const capacityMs = (sp.end.getTime() - sp.start.getTime()) * row.capacityUnits;
+      if (booked > capacityMs + MS_MIN / 2) {
+        warnings.push({
+          code: 'over_capacity',
+          rowType: row.rowType,
+          rowId: row.id,
+          entryIds: parsed.filter(e => overlapMinutes(Math.max(e.start, fromMs), Math.min(e.end, toMs), sp.start.getTime(), sp.end.getTime()) > 0).map(e => e.entry.id),
+          message: `${row.name} is booked for ${hours2(booked / MS_HOUR)} h on ${day}, the shift is ${hours2(capacityMs / MS_HOUR)} h`,
+        });
+      }
+    }
+
+    const totalHours = parsed.reduce((sum, e) => sum + Number(e.entry.hours || 0), 0);
+    results.push({
+      rowId: row.id,
+      rowType: row.rowType,
+      name: row.name,
+      capacityUnits: row.capacityUnits,
+      slots,
+      totalHours: hours2(totalHours),
+      bookedHours: hours2(bookedMs / MS_HOUR),
+      overloaded: slots.some(s => s.overloaded) || warnings.some(w => w.rowId === row.id),
+    });
+  }
+
+  return { rows: results, entries, warnings, timeZone };
+}

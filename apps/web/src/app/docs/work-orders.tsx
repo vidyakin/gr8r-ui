@@ -5,14 +5,14 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { CircleAlert, CircleDot, ClipboardList, FilePlus, Plus, Trash2 } from 'lucide-react';
 import { WORK_ORDER_BILLING_LABELS, WORK_ORDER_BILLING_MODES, WORK_ORDER_CATEGORY_LABELS, type WorkOrderBillingMode, type WorkOrderStateCategory } from '@gr8r/shared';
 import type { Tone } from '@/components/ui';
-import { Badge, Button, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton } from '@/components/ui';
+import { Badge, Button, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
 import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/gr8r/data-table';
 import { FilterBar, useFilterState } from '@/components/gr8r/filter-bar';
 import { useCanWrite } from '../meta/custom-fields';
 import { money } from '../catalog/data';
 import { fmtDate, parse } from '../lib/dates';
 import { useWorkspace } from '../data/store';
-import { STATUS_LABEL, STATUS_TONE, docsKey, useDocsApi, useDocumentStates, useWorkOrderKinds, useWorkOrderTime, useWorkOrders, type DocDetail, type WorkOrderListItem } from './data';
+import { STATUS_LABEL, STATUS_TONE, docsKey, useDocsApi, useDocumentStates, useWorkOrderKinds, useWorkOrderTime, useWorkOrders, type DocDetail, type WorkOrderAssignment, type WorkOrderListItem } from './data';
 import { useQueryClient } from '@tanstack/react-query';
 import { useWsId } from '../meta/data';
 import { DocumentResourcesPanel } from '../production/ProductionOrderPage';
@@ -191,6 +191,31 @@ export function WorkOrderPanel({ doc }: { doc: DocDetail }) {
     if (r) qc.invalidateQueries({ queryKey: docsKey(ws, 'doc', doc.id) });
   };
 
+  // часовой интервал назначения: перегрузка и работа вне смены — предупреждение
+  const saveInterval = async (a: WorkOrderAssignment, startAt: string, endAt: string) => {
+    const r = await api<{ warnings: { message: string }[] }>('PATCH', `/work-order-assignments/${a.taskId}`, { startAt, endAt });
+    if (r) {
+      qc.invalidateQueries({ queryKey: docsKey(ws, 'doc', doc.id) });
+      for (const w of r.warnings ?? []) toast.info(w.message, { duration: 6000 });
+    }
+  };
+
+  /** Локальное значение datetime-local из ISO */
+  const toLocalInput = (iso: string | null) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  /** Новая пара «начало–конец» после правки одного края */
+  const interval = (a: WorkOrderAssignment, edge: 'start' | 'end', value: string) => {
+    const hours = Number(a.plannedHours ?? 0) || 2;
+    const start = edge === 'start' ? new Date(value) : a.startAt ? new Date(a.startAt) : new Date(new Date(value).getTime() - hours * 3_600_000);
+    const end = edge === 'end' ? new Date(value) : a.endAt ? new Date(a.endAt) : new Date(start.getTime() + hours * 3_600_000);
+    return { startAt: start.toISOString(), endAt: end.toISOString() };
+  };
+
   // способ выставления строки работы: по норме или по фактическим часам (список строк заменяется целиком)
   const saveBilling = async (lineId: string, billing: WorkOrderBillingMode) => {
     const lines = (time.data?.lines ?? []).map(l => ({ lineId: l.lineId, billing: l.lineId === lineId ? billing : l.billing }));
@@ -346,6 +371,8 @@ export function WorkOrderPanel({ doc }: { doc: DocDetail }) {
               <tr>
                 <th>Task</th>
                 <th style={{ width: 170 }}>Assignee</th>
+                <th style={{ width: 190 }}>From</th>
+                <th style={{ width: 190 }}>To</th>
                 <th style={{ width: 70 }} className="r">
                   Plan
                 </th>
@@ -363,7 +390,51 @@ export function WorkOrderPanel({ doc }: { doc: DocDetail }) {
                     <td>
                       <span className="muted">{a.title}</span> <span className="mono faint">{a.taskKey}</span>
                     </td>
-                    <td>{a.assigneeName ?? '—'}</td>
+                    <td>
+                      {editable ? (
+                        <Select
+                          aria-label={`Assignee of ${a.title}`}
+                          value={a.assigneeId ?? ''}
+                          onValueChange={v => void api('PATCH', `/work-order-assignments/${a.taskId}`, { assigneeId: v }).then(() => qc.invalidateQueries({ queryKey: docsKey(ws, 'doc', doc.id) }))}
+                          options={members.filter(m => m.status === 'active').map(m => ({ value: m.id, label: m.name }))}
+                          placeholder="Not assigned"
+                        />
+                      ) : (
+                        a.assigneeName ?? '—'
+                      )}
+                    </td>
+                    <td>
+                      {editable ? (
+                        <Input
+                          aria-label={`Start of ${a.title}`}
+                          type="datetime-local"
+                          value={toLocalInput(a.startAt)}
+                          onChange={e => {
+                            if (!e.target.value) return;
+                            const { startAt, endAt } = interval(a, 'start', e.target.value);
+                            void saveInterval(a, startAt, endAt);
+                          }}
+                        />
+                      ) : (
+                        <span className="num">{a.startAt ? toLocalInput(a.startAt).replace('T', ' ') : '—'}</span>
+                      )}
+                    </td>
+                    <td>
+                      {editable ? (
+                        <Input
+                          aria-label={`End of ${a.title}`}
+                          type="datetime-local"
+                          value={toLocalInput(a.endAt)}
+                          onChange={e => {
+                            if (!e.target.value) return;
+                            const { startAt, endAt } = interval(a, 'end', e.target.value);
+                            void saveInterval(a, startAt, endAt);
+                          }}
+                        />
+                      ) : (
+                        <span className="num">{a.endAt ? toLocalInput(a.endAt).replace('T', ' ') : '—'}</span>
+                      )}
+                    </td>
                     <td className="r num">{t?.plannedHours ?? a.plannedHours ?? '—'}</td>
                     <td className="r num">{t?.actualHours ?? '—'}</td>
                     <td>
@@ -378,7 +449,7 @@ export function WorkOrderPanel({ doc }: { doc: DocDetail }) {
               })}
               {!(doc.assignments ?? []).length && (
                 <tr>
-                  <td colSpan={5} className="faint" style={{ textAlign: 'center', padding: 18 }}>
+                  <td colSpan={7} className="faint" style={{ textAlign: 'center', padding: 18 }}>
                     No assignees: every assignee gets a task of the Services module.
                   </td>
                 </tr>
