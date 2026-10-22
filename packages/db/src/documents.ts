@@ -14,6 +14,7 @@ import {
   addDays,
   basedOnTargets,
   lineRole,
+  paramFields,
   stockPlan,
   FULFIL_TYPES,
   TRANSFER_OPERATIONS,
@@ -34,6 +35,8 @@ import { syncWorkOrderResources } from './planning';
 import { assertPeriodOpen, assertServiceCostItems, clearPeriodCosts, syncPeriodCosts } from './cost-closing';
 import { bankAccounts, companies, contracts, costItems, documentCounters, documentLines, documentStates, documents, members, organizations, products, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials } from './schema';
 import { assertContractOfCompany, contractDocumentProducts, contractPlanProductIds, defaultContract } from './contracts';
+import { ensureVariant, specParamsOfProduct } from './variants';
+import { checkParamValues, loadCategoryAttributeDefs } from './specs';
 import { uuidv7 } from './uuid';
 
 export interface DocCtx {
@@ -135,6 +138,8 @@ interface ResolvedLine {
   costItemId: string | null;
   /** Участок строки-услуги поступления */
   workCenterId: string | null;
+  /** Значения параметров спецификации изделия (замеры, цвет): по ним считается состав выпуска */
+  params: Record<string, unknown>;
 }
 
 /** Подставляет из товара название, единицу и ставку НДС, которых нет в строке; новые строки — только по действующим товарам.
@@ -163,8 +168,31 @@ async function resolveLines(db: Db, inputs: DocumentLineInput[], existingIds: Se
       receivedQty: l.receivedQty ?? (type === 'stock_transfer' ? l.qty : '0'),
       costItemId: l.costItemId ?? null,
       workCenterId: l.workCenterId ?? null,
+      params: l.params ?? {},
     };
   });
+}
+
+/** Вариант товара для строки заказа: комбинация параметров с флажком «разрез склада» даёт отдельную складскую позицию.
+    Значения проверяются по описанию параметров спецификации товара. Строка, уже ссылающаяся на вариант, при смене
+    значений переходит на вариант той же основы; без значений «разреза склада» товар строки не меняется */
+async function resolveLineVariants(db: Db, ctx: DocCtx, lines: ResolvedLine[]): Promise<void> {
+  for (const l of lines) {
+    if (!Object.keys(l.params).length) continue;
+    const [row] = await db.select().from(products).where(eq(products.id, l.productId)).limit(1);
+    if (!row) continue;
+    // основа варианта: у варианта — его родитель
+    const base = row.parentProductId ? ((await db.select().from(products).where(eq(products.id, row.parentProductId)).limit(1))[0] ?? row) : row;
+    // параметры товара (по ним же строятся варианты) и характеристики его категории
+    const params = await specParamsOfProduct(db, ctx.workspaceId, base.id);
+    const attrs = (await loadCategoryAttributeDefs(db, [base.id])).get(base.id) ?? [];
+    l.params = checkParamValues([...paramFields(params), ...attrs], l.params);
+    const variant = await ensureVariant(db, ctx.workspaceId, base, params, l.params);
+    if (!variant || variant.id === l.productId) continue;
+    // название строки — от товара: у прежнего варианта оно было его названием
+    if (!l.name || l.name === row.name) l.name = variant.name;
+    l.productId = variant.id;
+  }
 }
 
 const amounts = (l: { qty: string; price: string; discountPct: string; vatRate: string }, includesVat: boolean) => computeLine(l, includesVat);
@@ -206,6 +234,9 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
   const prevCostItem = new Map(existing.map(e => [e.id, e.costItemId]));
   const prevCenter = new Map(existing.map(e => [e.id, e.workCenterId]));
   const resolved = await resolveLines(db, inputs, existingIds, type);
+  // заказ покупателя: комбинация значений параметров с флажком «разрез склада» даёт вариант товара.
+  // Вариант создаётся лениво (первый заказ комбинации) и заменяет товар в строке: склад, резервы и документы работают по нему
+  if (type === 'customer_order') await resolveLineVariants(db, ctx, resolved);
   await assertRefs(db, { costItemId: resolved.find(l => l.costItemId)?.costItemId ?? null, workCenterId: resolved.find(l => l.workCenterId)?.workCenterId ?? null });
   const keep = new Set(resolved.map(l => l.id));
   const drop = [...existingIds].filter(id => !keep.has(id));
@@ -229,6 +260,7 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
       // статья и участок строки-услуги (поступление) клиент присылает сам; у прочих типов документов сохраняем прежние
       costItemId: l.costItemId ?? prevCostItem.get(l.id) ?? null,
       workCenterId: l.workCenterId ?? prevCenter.get(l.id) ?? null,
+      params: l.params ?? {},
     };
     if (meta.party === null) {
       // внутренний документ: без НДС и продажной цены, роль строки проставляет сервер

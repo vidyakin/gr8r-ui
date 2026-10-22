@@ -211,3 +211,45 @@ describe('computeNeeds', () => {
     expect(needs.semis.map(s => [s.itemId, s.qty, s.produce])).toEqual([['board', '1.000', '1.000']]);
   });
 });
+
+describe('параметрическая спецификация (этап 7)', () => {
+  const glass: BomLineInput = { id: 'g', kind: 'material', productId: 'glass', qty: '1', scrapPct: '0', qtyExpr: 'width * height / 1000000 * 1.05' };
+  const paint: BomLineInput = { id: 'p', kind: 'material', productId: 'paint', qty: '1', scrapPct: '0', condition: "color = 'white'" };
+  const expense: BomLineInput = { id: 'e', kind: 'expense', productId: 'painting', qty: '1', scrapPct: '0' };
+  const window: BomItemInput = { id: 'window', name: 'Окно', batchQty: '1', overheadPct: '0', paramKeys: ['width', 'height', 'color'], lines: [glass, paint, expense] };
+
+  test('количество строки считается формулой, условие исключает строку из состава', () => {
+    const white = explodeBom([{ ...window, params: { width: 1200, height: 1400, color: 'white' } }], 'window', '1');
+    expect(white.materials.map(m => [m.productId, m.qty])).toEqual([
+      ['glass', '1.764'],
+      ['paint', '1.000'],
+      ['painting', '1.000'],
+    ]);
+    const black = explodeBom([{ ...window, params: { width: 1200, height: 1400, color: 'black' } }], 'window', '1');
+    expect(black.materials.map(m => m.productId)).toEqual(['glass', 'painting']);
+  });
+
+  test('расход подрядчику входит в развёртку, но не в потребность', () => {
+    const needs = computeNeeds(explodeBom([{ ...window, params: { width: 1200, height: 1400, color: 'white' } }], 'window', '1'), {});
+    expect(needs.materials.map(m => m.productId)).toEqual(['glass', 'paint']);
+  });
+
+  test('себестоимость: расход идёт в материалы, условие отключает строку', () => {
+    const p = { materialPrice: (id: string) => (id === 'glass' ? '100' : id === 'paint' ? '50' : '300'), workCenterRate: () => undefined };
+    const t = computeBomCost([{ ...window, params: { width: 1200, height: 1400, color: 'white' } }], 'window', p);
+    expect(t.batch.materials).toBe('526.4000'); // 1.764*100 + 50 (краска) + 300 (расход)
+    const black = computeBomCost([{ ...window, params: { width: 1200, height: 1400, color: 'black' } }], 'window', p);
+    expect(black.batch.materials).toBe('476.4000'); // без краски
+  });
+
+  test('параметры передаются вложенной продукции по совпадающим ключам', () => {
+    const frame: BomItemInput = { id: 'frame', name: 'Рама', batchQty: '1', overheadPct: '0', paramKeys: ['color'], lines: [{ id: 'f', kind: 'material', productId: 'wood', qty: '1', scrapPct: '0', qtyExpr: "if(color = 'white', 2, 4)" }] };
+    const parent: BomItemInput = { id: 'parent', name: 'Изделие', batchQty: '1', overheadPct: '0', paramKeys: ['color'], params: { color: 'white' }, lines: [{ id: 's', kind: 'semi', childItemId: 'frame', qty: '1', semiMode: 'explode' }] };
+    expect(explodeBom([parent, frame], 'parent', '1').materials.map(m => m.qty)).toEqual(['2.000']);
+  });
+
+  test('без параметров поведение строго прежнее', () => {
+    const plain = item('plain', { lines: [mat('m1', 'wood', '2')] });
+    expect(computeBomCost([plain], 'plain', pricing).batch.materials).toBe('200.0000');
+  });
+});

@@ -1,8 +1,11 @@
 /* zod-схемы производства: участки, продукция (изделия и полуфабрикаты), строки спецификации, настройки. */
 import { z } from 'zod';
-import { BOM_KINDS, MANUFACTURED_KINDS, MATERIAL_PRICE_SOURCES, NEEDS_METHODS, OPERATION_RATE_UNITS, PLAN_STEPS, PLAN_STATUSES, REPLENISHMENT_MODES, SEMI_MODES, STOCK_REPLENISHMENT } from '../constants';
+import { BOM_KINDS, MANUFACTURED_KINDS, MATERIAL_PRICE_SOURCES, NEEDS_METHODS, OPERATION_RATE_UNITS, PARAM_TYPES, PLAN_STEPS, PLAN_STATUSES, REPLENISHMENT_MODES, SEMI_MODES, STOCK_REPLENISHMENT } from '../constants';
 import { CALENDAR_KINDS, LOAD_ROW_TYPES } from '../planning';
+import { PARAM_KEY_RE } from '../parameters';
 import { clientId, decimal, isoDate, isoDateTime, listQuery, shortText, toPatch, uuid } from './common';
+import { paramValues } from './documents';
+import { checkFieldOptions, fieldOptions } from './meta';
 
 const nonNeg = (max = 1e12) => decimal.refine(v => Number(v) >= 0 && Number(v) < max, 'Must not be negative');
 const positive = (max = 1e12) => decimal.refine(v => Number(v) > 0 && Number(v) < max, 'Must be greater than zero');
@@ -50,6 +53,22 @@ export const productionKindQuery = listQuery;
 
 /* ---------------- продукция ---------------- */
 
+/** Параметр спецификации: описание значения (те же описания полей, что у характеристик категории) + флажок «разрез склада» */
+export const specParamInput = z.object({
+  key: z.string().trim().regex(PARAM_KEY_RE, 'Key: lowercase letters, digits and underscores'),
+  name: shortText,
+  type: z.enum(PARAM_TYPES),
+  required: z.boolean().default(false),
+  options: fieldOptions.default({}),
+  /** Разрез склада: комбинация таких параметров даёт вариант товара */
+  stockDimension: z.boolean().default(false),
+})
+  // те же правила вариантов и границ, что у полей конструктора (выборы, min/max, maxLength)
+  .superRefine((v, ctx) => checkFieldOptions(v.type as never, v.options, ctx));
+
+/** Параметры спецификации: до 20 параметров */
+export const specParams = z.array(specParamInput).max(20);
+
 export const itemCreate = z.object({
   id: clientId,
   code: z.string().trim().max(32).default(''),
@@ -64,11 +83,19 @@ export const itemCreate = z.object({
   overheadPct: nonNeg(1000).default('0'),
   /** Вид производства: этапы выпуска (без вида — единственный этап «Завершение производства») */
   productionKindId: uuid.nullish(),
+  /** Параметры спецификации: к ним добавляются характеристики категории товара */
+  params: specParams.default([]),
+  /** Недействительна: устаревшая спецификация — в новых документах не предлагается */
+  isInvalid: z.boolean().default(false),
   /** Дней на изготовление (рабочих): дата запуска = дата выпуска минус это число по рабочему календарю */
   leadDays: z.coerce.number().int().min(0).max(365).default(0),
 });
 export const itemUpdate = toPatch(itemCreate.omit({ id: true }));
-export const itemQuery = listQuery.extend({ kind: z.enum(MANUFACTURED_KINDS).optional() });
+export const itemQuery = listQuery.extend({
+  kind: z.enum(MANUFACTURED_KINDS).optional(),
+  /** Фильтр списка «Содержит материал/операцию»: товар (материал, расход) или операция есть в строках спецификации */
+  contains: uuid.optional(),
+});
 
 /* ---------------- строки спецификации ---------------- */
 
@@ -83,6 +110,10 @@ export const bomLineCreate = z
     childItemId: uuid.nullish(),
     /** semi: режим полуфабриката — stock (списывается со склада) или explode (разворачивается до материалов) */
     semiMode: z.enum(SEMI_MODES).optional(),
+    /** Формула количества строки над параметрами спецификации (пусто — обычное qty) */
+    qtyExpr: z.string().trim().max(500).nullish(),
+    /** Условие строки (пусто — строка всегда; ложное условие исключает строку из состава) */
+    condition: z.string().trim().max(500).nullish(),
     /** Этап, на котором расходуется материал или выполняется операция */
     stageId: uuid.nullish(),
     operation: z.string().trim().max(200).optional(),
@@ -99,6 +130,11 @@ export const bomLineCreate = z
       need(!!v.productId, 'productId', 'Choose a product');
       need(v.qty !== undefined, 'qty', 'Quantity is required');
       need(v.semiMode === undefined, 'semiMode', 'Not applicable to a material line');
+    } else if (v.kind === 'expense') {
+      // расход: услуга подрядчика — в себестоимость, но не на склад
+      need(!!v.productId, 'productId', 'Choose a service');
+      need(v.qty !== undefined, 'qty', 'Quantity is required');
+      need(v.semiMode === undefined, 'semiMode', 'Not applicable to an expense line');
     } else if (v.kind === 'semi') {
       need(!!v.childItemId, 'childItemId', 'Choose a product to include');
       need(v.qty !== undefined, 'qty', 'Quantity is required');
@@ -118,6 +154,10 @@ export const bomLineUpdate = z
     childItemId: uuid.optional(),
     /** semi: режим полуфабриката */
     semiMode: z.enum(SEMI_MODES).optional(),
+    /** Формула количества строки над параметрами спецификации */
+    qtyExpr: z.string().trim().max(500).nullish(),
+    /** Условие строки */
+    condition: z.string().trim().max(500).nullish(),
     /** Этап, на котором расходуется материал или выполняется операция */
     stageId: uuid.nullish(),
     operation: z.string().trim().min(1).max(200).optional(),
@@ -135,7 +175,27 @@ export const explodeQuery = z.object({
   qty: positive(1e9).default('1'),
   /** Склад: остатки только его; без склада — по всем складам воркспейса */
   warehouseId: uuid.optional(),
+  /** Значения параметров изделия JSON-объектом (предпросмотр формул в интерфейсе) */
+  params: z.string().trim().max(4000).optional(),
 });
+/** Печатные формы спецификации: кратко (свои строки) и развёрнуто (все переделы до исходных материалов) */
+export const BOM_PRINT_FORMS = ['short', 'expanded'] as const;
+export type BomPrintForm = (typeof BOM_PRINT_FORMS)[number];
+export const bomPrintParam = z.object({ id: uuid, form: z.enum(BOM_PRINT_FORMS) });
+
+/** Значения параметров из строки запроса (JSON-объект) */
+export function parseParamJson(raw: string | undefined): Record<string, unknown> | null {
+  if (!raw) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new z.ZodError([{ code: 'custom', path: ['params'], message: 'Not a JSON object' }]);
+  }
+  const res = paramValues.safeParse(parsed);
+  if (!res.success) throw new z.ZodError([{ code: 'custom', path: ['params'], message: 'Parameter values: numbers, strings or true/false' }]);
+  return res.data;
+}
 
 /* ---------------- настройки ---------------- */
 
@@ -540,6 +600,8 @@ export const productionOrderItemInput = z.object({
   qty: positive(1e9),
   /** Строка заказа покупателя, которую выполняет эта позиция */
   customerOrderLineId: uuid.optional(),
+  /** Значения параметров спецификации изделия (замеры, цвет): состав считается формулами строк */
+  params: paramValues.optional(),
 });
 export type ProductionOrderItemInput = z.infer<typeof productionOrderItemInput>;
 

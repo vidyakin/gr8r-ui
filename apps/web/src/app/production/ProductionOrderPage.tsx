@@ -124,7 +124,7 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
           {editable && (
             <Button disabled={busy} onClick={() => void api.fill.mutateAsync(order.id)}>
               <Wand2 size={14} />
-              Fill from BOM
+              Recalculate composition
             </Button>
           )}
           {canWrite && (

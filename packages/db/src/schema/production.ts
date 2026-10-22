@@ -2,6 +2,7 @@
    Таблицы арендатора. Связи — составные внешние ключи (workspace_id, id). */
 import { sql } from 'drizzle-orm';
 import { boolean, check, date, foreignKey, index, integer, jsonb, numeric, pgTable, primaryKey, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import type { SpecParamDef } from '@gr8r/shared';
 import { archivedAt, createdAt, money, pk, ts, updatedAt } from './columns';
 import { products, units } from './catalog';
 import { costItems, documentLines, documents, stockMoves, warehouses } from './documents';
@@ -110,6 +111,11 @@ export const manufacturedItems = pgTable(
     overheadPct: numeric('overhead_pct', { precision: 7, scale: 2 }).notNull().default('0'),
     /** Вид производства: этапы выпуска (без вида — единственный этап «Завершение производства») */
     productionKindId: uuid('production_kind_id'),
+    /** Параметры спецификации: описание значений (те же описания полей, что у характеристик категории)
+        + флажок «разрез склада» — комбинация таких параметров даёт вариант товара */
+    params: jsonb('params').$type<SpecParamDef[]>().notNull().default([]),
+    /** Недействительна: устаревшая спецификация — в новых документах не предлагается и по умолчанию не выбирается */
+    isInvalid: boolean('is_invalid').notNull().default(false),
     /** Дней на изготовление (рабочих, по календарю воркспейса): дата запуска = дата выпуска минус lead_days */
     leadDays: integer('lead_days').notNull().default(0),
     createdAt: createdAt(),
@@ -134,7 +140,9 @@ export const bomLines = pgTable(
     id: pk(),
     workspaceId: wsCol(),
     itemId: uuid('item_id').notNull(),
-    kind: text('kind', { enum: ['material', 'semi', 'work'] }).notNull(),
+    /** expense — расход: услуга подрядчика (окраска, вырубка). Входит в плановую себестоимость и калькуляцию,
+        но со склада не списывается и в потребности не попадает */
+    kind: text('kind', { enum: ['material', 'semi', 'work', 'expense'] }).notNull(),
     sortOrder: integer('sort_order').notNull().default(0),
     /** material */
     productId: uuid('product_id'),
@@ -142,8 +150,12 @@ export const bomLines = pgTable(
     childItemId: uuid('child_item_id'),
     /** semi: режим полуфабриката — stock (выпускается отдельно и списывается со склада) или explode (разворачивается до материалов) */
     semiMode: text('semi_mode', { enum: ['stock', 'explode'] }),
-    /** Количество на партию (material, semi) */
+    /** Количество на партию (material, semi, expense) */
     qty: numeric('qty', { precision: 18, scale: 3 }).notNull().default('0'),
+    /** Формула количества строки над параметрами спецификации (пусто — обычное qty) */
+    qtyExpr: text('qty_expr'),
+    /** Условие строки над параметрами (пусто — строка всегда; ложное условие исключает строку из состава) */
+    condition: text('condition'),
     /** Единица строки: единица товара / продукции, заполняет сервер */
     unitCode: text('unit_code'),
     /** Отход, % (material) */
@@ -167,13 +179,16 @@ export const bomLines = pgTable(
     foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'bom_lines_product_fk' }),
     foreignKey({ columns: [t.workspaceId, t.childItemId], foreignColumns: [manufacturedItems.workspaceId, manufacturedItems.id], name: 'bom_lines_child_fk' }),
     foreignKey({ columns: [t.workspaceId, t.workCenterId], foreignColumns: [workCenters.workspaceId, workCenters.id], name: 'bom_lines_work_center_fk' }),
-    check('bom_lines_kind_chk', sql`${t.kind} in ('material','semi','work')`),
+    check('bom_lines_kind_chk', sql`${t.kind} in ('material','semi','work','expense')`),
     check(
       'bom_lines_shape_chk',
       sql`(${t.kind} = 'material' and ${t.productId} is not null and ${t.childItemId} is null)
+        or (${t.kind} = 'expense' and ${t.productId} is not null and ${t.childItemId} is null)
         or (${t.kind} = 'semi' and ${t.childItemId} is not null and ${t.productId} is null and ${t.childItemId} <> ${t.itemId})
         or (${t.kind} = 'work' and ${t.childItemId} is null)`,
     ),
+    // формулы и условия считает expr.ts: длина ограничена там же (EXPR_MAX_LENGTH)
+    check('bom_lines_expr_chk', sql`length(coalesce(${t.qtyExpr}, '')) <= 500 and length(coalesce(${t.condition}, '')) <= 500`),
     check('bom_lines_nonneg_chk', sql`${t.qty} >= 0 and ${t.scrapPct} >= 0 and ${t.hours} >= 0`),
     check('bom_lines_semi_mode_chk', sql`(${t.kind} = 'semi' and ${t.semiMode} is not null and ${t.semiMode} in ('stock','explode')) or (${t.kind} <> 'semi' and ${t.semiMode} is null)`),
     index('bom_lines_item_idx').on(t.itemId, t.sortOrder),
@@ -330,6 +345,10 @@ export const productionItems = pgTable(
     qty: numeric('qty', { precision: 18, scale: 3 }).notNull().default('0'),
     /** Единица: единица продукции */
     unitCode: text('unit_code').notNull().default('796'),
+    /** Значения параметров спецификации изделия (замеры, цвет): состав считается формулами строк */
+    params: jsonb('params').$type<Record<string, unknown>>().notNull().default({}),
+    /** Вариант товара, который выпускается (создан по значениям параметров с флажком «разрез склада») */
+    productVariantId: uuid('product_variant_id'),
     /** Плановая себестоимость единицы */
     plannedUnitCost: numeric('planned_unit_cost', { precision: 18, scale: 4 }),
     /** Строка заказа покупателя, которую выполняет позиция */
@@ -351,6 +370,7 @@ export const productionItems = pgTable(
     unique('production_items_ws_id_uq').on(t.workspaceId, t.id),
     foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'production_items_document_fk' }).onDelete('cascade'),
     foreignKey({ columns: [t.workspaceId, t.itemId], foreignColumns: [manufacturedItems.workspaceId, manufacturedItems.id], name: 'production_items_item_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.productVariantId], foreignColumns: [products.workspaceId, products.id], name: 'production_items_variant_fk' }),
     foreignKey({ columns: [t.workspaceId, t.customerOrderLineId], foreignColumns: [documentLines.workspaceId, documentLines.id], name: 'production_items_customer_line_fk' }),
     foreignKey({ columns: [t.workspaceId, t.sourceItemId], foreignColumns: [t.workspaceId, t.id], name: 'production_items_source_fk' }),
     foreignKey({ columns: [t.workspaceId, t.stageId], foreignColumns: [productionStages.workspaceId, productionStages.id], name: 'production_items_stage_fk' }),
@@ -374,8 +394,8 @@ export const productionComponents = pgTable(
     documentId: uuid('document_id').notNull(),
     /** Позиция документа, к которой относится строка состава */
     itemId: uuid('item_id'),
-    /** Тип строки состава */
-    kind: text('kind', { enum: ['material', 'semi', 'work'] }).notNull(),
+    /** Тип строки состава: expense — расход подрядчику (услуга), в себестоимость входит, со склада не списывается */
+    kind: text('kind', { enum: ['material', 'semi', 'work', 'expense'] }).notNull(),
     /** Материал или полуфабрикат на складе */
     productId: uuid('product_id'),
     /** Участок (работа) */
@@ -414,6 +434,7 @@ export const productionComponents = pgTable(
     foreignKey({ columns: [t.workspaceId, t.documentLineId], foreignColumns: [documentLines.workspaceId, documentLines.id], name: 'production_components_line_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.sourceComponentId], foreignColumns: [t.workspaceId, t.id], name: 'production_components_source_fk' }),
     foreignKey({ columns: [t.workspaceId, t.stageId], foreignColumns: [productionStages.workspaceId, productionStages.id], name: 'production_components_stage_fk' }),
+    check('production_components_kind_chk', sql`${t.kind} in ('material','semi','work','expense')`),
     check(
       'production_components_shape_chk',
       sql`${t.kind} = 'work' or (${t.kind} <> 'work' and ${t.productId} is not null)`,

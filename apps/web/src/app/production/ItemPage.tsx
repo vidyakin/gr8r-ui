@@ -3,16 +3,19 @@
    расчёт идёт на клиенте функцией computeBomCost, сервер подтверждает запись следом. */
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { ArrowDown, ArrowUp, Boxes, ChevronRight, CircleAlert, Ellipsis, ExternalLink, GripVertical, Layers, Package, Pencil, Plus, Trash2, Wrench } from 'lucide-react';
+import { ArrowDown, ArrowUp, Boxes, ChevronRight, CircleAlert, Ellipsis, ExternalLink, GripVertical, Layers, Package, Pencil, Plus, Printer, Trash2, Wrench } from 'lucide-react';
 import { dec, div, fmt, mul, type CostLine, type CostNode } from '@gr8r/shared';
 import { Alert, Badge, Button, ConfirmDialog, EmptyState, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Skeleton, toast } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { NotFoundPage } from '../pages/PlaceholderPage';
 import { useCanWrite } from '../meta/custom-fields';
+import { API_BASE } from '../data/api';
+import { useWsId } from '../meta/data';
 import { money, unitSymbol, useUnits, type Unit } from '../catalog/data';
 import { UnitSelect } from '../catalog/product-ui';
 import { PRICE_SOURCE_LABEL, useCosting, useExplosion, useProductionMutations, useSnapshot, type BomLine, type Item, type Material, type NeedRow, type ProductionMutations, type Snapshot, type WorkCenter } from './data';
 import { LineDialog } from './line-dialog';
+import { ParamEditor } from './params-editor';
 
 const trimZeros = (s: string) => (s.includes('.') ? s.replace(/\.?0+$/, '') : s);
 const qtyText = (v: string) => trimZeros(Number(v).toFixed(3));
@@ -42,19 +45,21 @@ interface Flat {
 }
 
 function lineTitle(line: BomLine, c: Ctx) {
-  if (line.kind === 'material') return c.mats.get(line.productId ?? '')?.name ?? 'Unknown material';
+  if (line.kind === 'material' || line.kind === 'expense') return c.mats.get(line.productId ?? '')?.name ?? 'Unknown material';
   if (line.kind === 'semi') return c.items.get(line.childItemId ?? '')?.name ?? 'Unknown product';
   return line.operation || 'Operation';
 }
 
 function detail(line: BomLine, c: Ctx) {
-  if (line.kind === 'material') {
+  if (line.kind === 'material' || line.kind === 'expense') {
     const m = c.mats.get(line.productId ?? '');
     const src = c.snap.settings.materialPriceSource;
     const price = m ? (src === 'price' ? m.price : src === 'avg_cost' ? (m.avgCost ?? m.purchasePrice) : m.purchasePrice) : '0';
     return (
       <span className="faint">
         {Number(line.scrapPct) > 0 && <>scrap {trimZeros(line.scrapPct)}% · </>}@ {money(price)}
+        {line.qtyExpr && <> · formula {line.qtyExpr}</>}
+        {line.condition && <> · if {line.condition}</>}
       </span>
     );
   }
@@ -73,8 +78,30 @@ function detail(line: BomLine, c: Ctx) {
   );
 }
 
-const KIND_ICON = { material: Package, semi: Layers, work: Wrench } as const;
-const KIND_LABEL = { material: 'Material', semi: 'Semi-finished', work: 'Work' } as const;
+const KIND_ICON = { material: Package, semi: Layers, work: Wrench, expense: Package } as const;
+const KIND_LABEL = { material: 'Material', semi: 'Semi-finished', work: 'Work', expense: 'Expense' } as const;
+
+/** Печатная форма спецификации: готовая HTML-страница открывается в новом окне и печатается */
+export function printSpec(ws: string, itemId: string, form: 'short' | 'expanded') {
+  const win = window.open('', '_blank');
+  if (!win) return;
+  win.document.write('<p style="font:13px sans-serif">Loading…</p>');
+  fetch(`${API_BASE()}/manufactured-items/${itemId}/print/${form}`, { credentials: 'include', headers: { 'X-Workspace-Id': ws } })
+    .then(async r => {
+      if (!r.ok) throw new Error((await r.json().catch(() => null))?.error?.message ?? `Request failed (${r.status})`);
+      return r.text();
+    })
+    .then(html => {
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      setTimeout(() => win.print(), 300);
+    })
+    .catch(e => {
+      win.document.write(`<p style="font:13px sans-serif">${e instanceof Error ? e.message : String(e)}</p>`);
+    });
+}
 
 export function ItemPage() {
   const { id } = useParams();
@@ -101,6 +128,7 @@ export function ItemPage() {
 function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
   const navigate = useNavigate();
   const canWrite = useCanWrite();
+  const ws = useWsId();
   const unitsQ = useUnits();
   const m = useProductionMutations();
   const costing = useCosting(snap)!;
@@ -257,6 +285,9 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
                   <MenuItem icon={<Wrench size={15} />} onSelect={() => setDialog({ kind: 'work' })}>
                     Work operation
                   </MenuItem>
+                  <MenuItem icon={<Package size={15} />} onSelect={() => setDialog({ kind: 'expense' })}>
+                    Expense (contractor service)
+                  </MenuItem>
                 </MenuContent>
               </Menu>
               <Menu>
@@ -266,6 +297,13 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
                   </IconButton>
                 </MenuTrigger>
                 <MenuContent align="end">
+                  <MenuItem icon={<Printer size={15} />} onSelect={() => printSpec(ws, item.id, 'short')}>
+                    Print (short)
+                  </MenuItem>
+                  <MenuItem icon={<Printer size={15} />} onSelect={() => printSpec(ws, item.id, 'expanded')}>
+                    Print (expanded)
+                  </MenuItem>
+                  <MenuSeparator />
                   <MenuItem icon={<Trash2 size={15} />} danger onSelect={() => setDeleting(true)}>
                     Archive product
                   </MenuItem>
@@ -319,7 +357,13 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
           <span className="label">Need for</span>
           <ParamInput label="Need for" numeric value={needQty} onCommit={v => Number(v) > 0 && setNeedQty(v)} />
         </label>
+        <label>
+          <span className="label">Invalid</span>
+          <input type="checkbox" aria-label="Invalid" checked={!!item.isInvalid} disabled={!canWrite} onChange={e => m.updateItem.mutate({ id: item.id, patch: { isInvalid: e.currentTarget.checked } })} />
+        </label>
       </div>
+
+      <ParamEditor item={item} canWrite={canWrite} />
 
       {error && <Alert tone="danger" title="The cost cannot be calculated">{error}</Alert>}
 

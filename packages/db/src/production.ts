@@ -6,7 +6,7 @@
    лежат рядом: production_items (что выпускаем), production_components (снимок состава), production_headers (изготовитель и сроки).
    Правила — в docs/architecture.md, раздел «Производство». */
 import { and, asc, desc, eq, inArray, isNull, ne, notInArray, or, sql } from 'drizzle-orm';
-import { computeBomCost, dec, div, explodeBom, fmt, FULFIL_TYPES, mul, resolveMaterialPrice, roundDiv, type BomItemInput, type Explosion } from '@gr8r/shared';
+import { computeBomCost, dec, div, explodeBom, fmt, FULFIL_TYPES, mul, resolveMaterialPrice, roundDiv, BomFormulaError, type BomItemInput, type SpecParamDef, type Explosion } from '@gr8r/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { DOCUMENT_HOOKS, STATE_HOOKS } from './document-hooks';
@@ -16,15 +16,17 @@ import { applyStockMoves, loadAvgCosts, loadInventorySettings, revalueMove, type
 import { materialRows, reduceReservation, releaseOrderMaterials, reserveChildOutput, reserveOrderMaterials, restoreReservation, supplierForProduct } from './materials';
 import { bomLines, companies, documentLines, documents, manufacturedItems, pieceworkLines, productionOperations, productManufacturing, productionComponents, productionHeaders, productionItems, productionPlacements, productionStages, products, stockMoves, stockReservations, warehouses, workCenters, workspaces } from './schema';
 import { FINAL_STAGE, itemStagePlan, listProductionKinds, stageDef, stageKey, type StageDef } from './production-stages';
+import { checkParamValues, loadSpecParams, resolveSpecForProduct, specParamFields } from './specs';
+import { ensureVariant, isVariant } from './variants';
 import { uuidv7 } from './uuid';
 
 export type ItemRow = typeof manufacturedItems.$inferSelect;
 
 /* ---------------- справочники и план ---------------- */
 
-/** Строка состава выпуска: материал, полуфабрикат или работа */
+/** Строка состава выпуска: материал, полуфабрикат, работа или расход */
 export interface PlannedComponent {
-  kind: 'material' | 'semi' | 'work';
+  kind: 'material' | 'semi' | 'work' | 'expense';
   /** Материал или полуфабрикат на складе */
   productId: string | null;
   /** Продукция (для полуфабриката) */
@@ -65,6 +67,7 @@ export async function loadProductionGraph(db: Db) {
   const avg = productIds.length ? await loadAvgCosts(db, productIds) : new Map<string, string>();
   const byItem = new Map<string, typeof bomLines.$inferSelect[]>();
   for (const l of lines) byItem.set(l.itemId, [...(byItem.get(l.itemId) ?? []), l]);
+  const specParams = await loadSpecParams(db);
   const inputs: BomItemInput[] = items.map(i => ({
     id: i.id,
     name: i.name,
@@ -72,17 +75,21 @@ export async function loadProductionGraph(db: Db) {
     productId: i.productId,
     batchQty: i.batchQty,
     overheadPct: i.overheadPct,
-    lines: (byItem.get(i.id) ?? []).map(l => ({ id: l.id, kind: l.kind, qty: l.qty, productId: l.productId, scrapPct: l.scrapPct, unitCode: l.unitCode, childItemId: l.childItemId, semiMode: l.semiMode, operation: l.operation, workCenterId: l.workCenterId, hours: l.hours, rate: l.rate, fixedCost: l.fixedCost, stageId: l.stageId })),
+    // ключи, доступные в формулах строк: параметры спецификации и характеристики категории товара
+    paramKeys: specParams.get(i.id)?.keys ?? [],
+    lines: (byItem.get(i.id) ?? []).map(l => ({ id: l.id, kind: l.kind, qty: l.qty, productId: l.productId, scrapPct: l.scrapPct, unitCode: l.unitCode, childItemId: l.childItemId, semiMode: l.semiMode, operation: l.operation, workCenterId: l.workCenterId, hours: l.hours, rate: l.rate, fixedCost: l.fixedCost, stageId: l.stageId, qtyExpr: l.qtyExpr, condition: l.condition })),
   }));
   return { items, byItem, centers, mats, avg, inputs };
 }
 
 /** Себестоимость единицы изделия по спецификации (плановая) */
-function unitCost(graph: Awaited<ReturnType<typeof loadProductionGraph>>, itemId: string, source: 'purchase' | 'price' | 'avg_cost'): string | null {
+function unitCost(graph: Awaited<ReturnType<typeof loadProductionGraph>>, itemId: string, source: 'purchase' | 'price' | 'avg_cost', params?: Record<string, unknown> | null): string | null {
   try {
     const prod = new Map(graph.mats.map(p => [p.id, p]));
     const rates = new Map(graph.centers.map(w => [w.id, w.hourlyRate]));
-    const tree = computeBomCost(graph.inputs, itemId, {
+    // значения параметров позиции считают формулы строк её спецификации
+    const inputs = params === undefined ? graph.inputs : graph.inputs.map(i => (i.id === itemId ? { ...i, params } : i));
+    const tree = computeBomCost(inputs, itemId, {
       materialPrice: pid => (prod.has(pid) ? resolveMaterialPrice(source, prod.get(pid)!, graph.avg.get(pid)) : null),
       workCenterRate: wid => rates.get(wid),
     });
@@ -92,23 +99,29 @@ function unitCost(graph: Awaited<ReturnType<typeof loadProductionGraph>>, itemId
   }
 }
 
-/** План состава выпуска: развёртка спецификации на количество с плановыми стоимостями */
-export async function planComponents(db: Db, workspaceId: string, itemId: string, qty: string): Promise<PlannedComponent[]> {
+/** План состава выпуска: развёртка спецификации на количество с плановыми стоимостями.
+    Значения параметров изделия (`params`) считают формулы количества и условия строк */
+export async function planComponents(db: Db, workspaceId: string, itemId: string, qty: string, params?: Record<string, unknown> | null): Promise<PlannedComponent[]> {
   const graph = await loadProductionGraph(db);
   const source = await loadPriceSource(db, workspaceId);
   const prod = new Map(graph.mats.map(p => [p.id, p]));
   const rates = new Map(graph.centers.map(w => [w.id, w.hourlyRate]));
+  // значения параметров — только у изделия, чья спецификация разворачивается: вложенной продукции
+  // передаются по совпадающим ключам
+  const inputs = params === undefined ? graph.inputs : graph.inputs.map(i => (i.id === itemId ? { ...i, params } : i));
   let explosion: Explosion;
   try {
-    explosion = explodeBom(graph.inputs, itemId, qty);
+    explosion = explodeBom(inputs, itemId, qty);
   } catch (e) {
+    if (e instanceof BomFormulaError) throw new DomainError(422, 'formula_error', e.message);
     throw new DomainError(422, 'bom_cycle', e instanceof Error ? e.message : 'The bill of materials cannot be expanded');
   }
   const out: PlannedComponent[] = [];
   for (const m of explosion.materials) {
     const p = prod.get(m.productId);
     const price = p ? resolveMaterialPrice(source, p, graph.avg.get(m.productId)) : null;
-    out.push({ kind: 'material', productId: m.productId, itemId: null, workCenterId: null, operation: '', operationId: null, qty: m.qty, hours: '0', rate: null, fixedCost: null, plannedCost: fmt(mul(dec(m.qty), dec(price ?? '0'))), stageId: m.stageId ?? null });
+    // расход подрядчику: в себестоимость входит, но со склада не списывается
+    out.push({ kind: m.expense ? 'expense' : 'material', productId: m.productId, itemId: null, workCenterId: null, operation: '', operationId: null, qty: m.qty, hours: '0', rate: null, fixedCost: null, plannedCost: fmt(mul(dec(m.qty), dec(price ?? '0'))), stageId: m.stageId ?? null });
   }
   for (const s of explosion.semis) {
     // полуфабрикат в режиме stock списывается со склада: нужен товар каталога
@@ -254,7 +267,28 @@ export interface ProductionOrderInput {
   plannedEnd?: string | null;
   comment?: string;
   parentDocumentId?: string | null;
-  items: { itemId: string; qty: string; customerOrderLineId?: string | null; planLineId?: string | null }[];
+  items: { itemId: string; qty: string; customerOrderLineId?: string | null; planLineId?: string | null; params?: Record<string, unknown> | null }[];
+}
+
+/** Вариант товара по строке заказа покупателя: строка ссылается на вариант — выпускается он */
+async function variantOfLine(db: Db, customerOrderLineId: string | null): Promise<string | null> {
+  if (!customerOrderLineId) return null;
+  const [line] = await db.select({ productId: documentLines.productId }).from(documentLines).where(eq(documentLines.id, customerOrderLineId)).limit(1);
+  if (!line) return null;
+  return (await isVariant(db, line.productId)) ? line.productId : null;
+}
+
+/** Позиция заказа на производство с параметрами: значения проверяются по описанию параметров спецификации,
+    выпускаемый вариант — по строке заказа покупателя, иначе по значениям «разреза склада» (создаётся лениво) */
+async function itemParams(db: Db, ctx: DocCtx, item: ItemRow, i: { params?: Record<string, unknown> | null; customerOrderLineId?: string | null }): Promise<{ params: Record<string, unknown>; variantId: string | null }> {
+  const params = i.params && Object.keys(i.params).length ? checkParamValues(await specParamFields(db, item.id), i.params) : {};
+  const fromLine = await variantOfLine(db, i.customerOrderLineId ?? null);
+  if (fromLine || !item.productId || !Object.keys(params).length) return { params, variantId: fromLine };
+  const [product] = await db.select().from(products).where(eq(products.id, item.productId)).limit(1);
+  // спецификация самого варианта выпускает его как товар спецификации
+  if (!product || product.parentProductId) return { params, variantId: null };
+  const variant = await ensureVariant(db, ctx.workspaceId, product, (item.params ?? []) as SpecParamDef[], params);
+  return { params, variantId: variant?.id ?? null };
 }
 
 /** Позиции заказа: что выпускаем */
@@ -293,6 +327,9 @@ export async function createProductionOrder(db: Db, ctx: DocCtx, input: Producti
   // новый заказ сразу в состоянии «запланирован»
   await db.update(documents).set({ state: 'planned' }).where(eq(documents.id, id));
   if (input.items.length) {
+    // значения параметров и вариант товара: по строке заказа покупателя или по значениям «разреза склада»
+    const resolved: { params: Record<string, unknown>; variantId: string | null }[] = [];
+    for (const i of input.items) resolved.push(await itemParams(db, ctx, byItem.get(i.itemId)!, i));
     await db.insert(productionItems).values(
       input.items.map((i, n) => ({
         workspaceId: ctx.workspaceId,
@@ -302,6 +339,8 @@ export async function createProductionOrder(db: Db, ctx: DocCtx, input: Producti
         unitCode: byItem.get(i.itemId)!.unitCode,
         customerOrderLineId: i.customerOrderLineId ?? null,
         planLineId: i.planLineId ?? null,
+        params: resolved[n]!.params,
+        productVariantId: resolved[n]!.variantId,
         sortOrder: n,
       })),
     );
@@ -319,7 +358,7 @@ export interface ProductionOrderPatch {
   plannedEnd?: string | null;
   comment?: string;
   parentDocumentId?: string | null;
-  items?: { itemId: string; qty: string; customerOrderLineId?: string | null; planLineId?: string | null }[];
+  items?: { itemId: string; qty: string; customerOrderLineId?: string | null; planLineId?: string | null; params?: Record<string, unknown> | null }[];
 }
 
 /** Правка заказа на производство: шапка и позиции */
@@ -351,6 +390,8 @@ export async function updateProductionOrder(db: Db, ctx: DocCtx, id: string, pat
       if (!byItem.has(i.itemId)) throw new DomainError(422, 'invalid_reference', 'The product does not exist');
       if (i.customerOrderLineId) await assertCustomerOrderLine(db, i.customerOrderLineId);
     }
+    const resolved: { params: Record<string, unknown>; variantId: string | null }[] = [];
+    for (const i of patch.items) resolved.push(await itemParams(db, ctx, byItem.get(i.itemId)!, i));
     await db.delete(productionItems).where(eq(productionItems.documentId, id));
     if (patch.items.length)
       await db.insert(productionItems).values(
@@ -362,6 +403,8 @@ export async function updateProductionOrder(db: Db, ctx: DocCtx, id: string, pat
           unitCode: byItem.get(i.itemId)!.unitCode,
           customerOrderLineId: i.customerOrderLineId ?? null,
           planLineId: i.planLineId ?? null,
+          params: resolved[n]!.params,
+          productVariantId: resolved[n]!.variantId,
           sortOrder: n,
         })),
       );
@@ -376,7 +419,8 @@ export async function fillOrderFromBom(db: Db, ctx: DocCtx, id: string): Promise
   const [doc] = await db.select().from(documents).where(eq(documents.id, id)).limit(1);
   if (!doc) throw new DomainError(404, 'not_found', 'document not found');
   if (doc.type !== 'production_order') throw new DomainError(422, 'invalid_type', 'This is not a production order');
-  if (doc.status !== 'draft') throw new DomainError(409, 'not_draft', 'A posted document cannot be edited: unpost it first');
+  // пересчёт снимка — только в черновике: в проведённом сначала отменяют проведение
+  if (doc.status !== 'draft') throw new DomainError(422, 'not_draft', 'The composition can only be recalculated in a draft: unpost the order first');
   const items = await db.select().from(productionItems).where(eq(productionItems.documentId, id)).orderBy(asc(productionItems.sortOrder));
   if (!items.length) throw new DomainError(422, 'no_items', 'Add products to produce first');
   // снимок пересобирается: ссылки выпусков на прежние строки состава снимаем
@@ -387,10 +431,10 @@ export async function fillOrderFromBom(db: Db, ctx: DocCtx, id: string): Promise
   const source = await loadPriceSource(db, ctx.workspaceId);
   const rows: (typeof productionComponents.$inferInsert)[] = [];
   for (const it of items) {
-    const plan = await planComponents(db, ctx.workspaceId, it.itemId, it.qty);
+    const plan = await planComponents(db, ctx.workspaceId, it.itemId, it.qty, it.params);
     await assertPlanStages(db, it.itemId, plan);
     for (const c of plan) rows.push({ workspaceId: ctx.workspaceId, documentId: id, itemId: it.id, kind: c.kind, productId: c.kind === 'work' ? c.operationId : c.productId, workCenterId: c.workCenterId, operation: c.operation, qty: c.qty, hours: c.hours, rate: c.rate, fixedCost: c.fixedCost, plannedCost: c.plannedCost, stageId: c.stageId, sortOrder: rows.length });
-    const cost = unitCost(graph, it.itemId, source);
+    const cost = unitCost(graph, it.itemId, source, it.params);
     if (cost) await db.update(productionItems).set({ plannedUnitCost: cost }).where(eq(productionItems.id, it.id));
   }
   if (rows.length) await db.insert(productionComponents).values(rows);
@@ -431,6 +475,8 @@ export interface ProductionPlan {
   customerOrderLineId: string | null;
   /** Этап выпуска; пусто — предопределённый «Завершение производства» */
   stageId: string | null;
+  /** Товар, который выпускается: у варианта — сам вариант, иначе товар спецификации */
+  productId?: string | null;
   components: PlannedComponent[];
 }
 
@@ -497,8 +543,8 @@ async function orderPlans(db: Db, ctx: DocCtx, orderId: string, requested: { ord
           stageId: c.stageId ?? null,
           sourceComponentId: c.id,
         }))
-      : (await planComponents(db, ctx.workspaceId, src.itemId, fmt(qty, 3))).filter(c => componentStage(c, stagePlan.stages) === stage.id);
-    plans.push({ itemId: src.itemId, qty: fmt(qty, 3), sourceItemId: src.id, customerOrderLineId: src.customerOrderLineId, stageId: stage.id, components });
+      : (await planComponents(db, ctx.workspaceId, src.itemId, fmt(qty, 3), src.params)).filter(c => componentStage(c, stagePlan.stages) === stage.id);
+    plans.push({ itemId: src.itemId, qty: fmt(qty, 3), sourceItemId: src.id, customerOrderLineId: src.customerOrderLineId, stageId: stage.id, components, productId: src.productVariantId ?? null });
   }
   return plans;
 }
@@ -547,19 +593,25 @@ async function customerPlans(db: Db, ctx: DocCtx, customerOrderId: string, reque
   for (const l of requested) {
     const src = l.customerOrderLineId ? byId.get(l.customerOrderLineId) : undefined;
     if (!src) throw new DomainError(422, 'invalid_reference', 'The line does not belong to this customer order');
-    const setting = byProduct.get(src.productId);
-    if (!setting || setting.replenishment !== 'production' || !setting.defaultItemId) throw new DomainError(422, 'not_produced', `“${src.name}” is not produced: set the way it is replenished and the default specification`);
+    // спецификация товара: своя (варианта) или по умолчанию родителя
+    const choice = await resolveSpecForProduct(db, ctx.workspaceId, src.productId);
+    const setting = choice ? byProduct.get(choice.rootProductId) : undefined;
+    if (!choice || !setting || setting.replenishment !== 'production') throw new DomainError(422, 'not_produced', `“${src.name}” is not produced: set the way it is replenished and the default specification`);
+    const specId = choice.itemId;
     const source: StageSource = { sourceItemId: null, customerOrderLineId: src.id };
-    const stage = await resolveStage(db, setting.defaultItemId, l.stageId ?? null);
-    const stagePlan = await itemStagePlan(db, setting.defaultItemId);
+    const stage = await resolveStage(db, specId, l.stageId ?? null);
+    const stagePlan = await itemStagePlan(db, specId);
     const ordered = dec(src.qty) - (shipped.get(src.id) ?? 0n);
-    const limit = await stageLimit(db, { itemId: setting.defaultItemId, stage, ordered, source, totals });
+    const limit = await stageLimit(db, { itemId: specId, stage, ordered, source, totals });
     const left = limit.cap - limit.done;
     const qty = l.qty ? dec(l.qty) : left;
     if (qty <= 0n) continue;
     if (qty > left) throw stageError(limit, stage, left, ordered);
-    const components = (await planComponents(db, ctx.workspaceId, setting.defaultItemId, fmt(qty, 3))).filter(c => componentStage(c, stagePlan.stages) === stage.id);
-    plans.push({ itemId: setting.defaultItemId, qty: fmt(qty, 3), sourceItemId: null, customerOrderLineId: src.id, stageId: stage.id, components });
+    // значения параметров строки заказа: по ним считаются формулы состава
+    const components = (await planComponents(db, ctx.workspaceId, specId, fmt(qty, 3), src.params)).filter(c => componentStage(c, stagePlan.stages) === stage.id);
+    // выпускается вариант товара, если строка заказа ссылается на вариант
+    const variant = (await isVariant(db, src.productId)) ? src.productId : null;
+    plans.push({ itemId: specId, qty: fmt(qty, 3), sourceItemId: null, customerOrderLineId: src.id, stageId: stage.id, components, productId: variant });
   }
   return plans;
 }
@@ -573,8 +625,9 @@ async function producibleLines(db: Db, ctx: DocCtx, customerOrderId: string): Pr
   const shipped = await shippedQty(db, ctx.workspaceId, lines.map(l => l.id));
   const out: { customerOrderLineId: string; qty: string; stageId: string | null }[] = [];
   for (const l of lines) {
-    const s = byProduct.get(l.productId);
-    if (!s || s.replenishment !== 'production' || !s.defaultItemId) continue;
+    const choice = await resolveSpecForProduct(db, ctx.workspaceId, l.productId);
+    const s = choice ? byProduct.get(choice.rootProductId) : undefined;
+    if (!s || s.replenishment !== 'production') continue;
     const left = dec(l.qty) - (shipped.get(l.id) ?? 0n) - (produced.get(l.id) ?? 0n);
     if (left <= 0n) continue;
     out.push({ customerOrderLineId: l.id, qty: fmt(left, 3), stageId: null });
@@ -594,16 +647,16 @@ export async function createProductionOrderFromCustomerOrder(
   if (order.status !== 'posted') throw new DomainError(422, 'base_not_posted', 'Post the customer order first');
   const lines = await producibleLines(db, ctx, input.customerOrderId);
   if (!lines.length) throw new DomainError(422, 'nothing_to_create', 'None of the products of this customer order is produced: set the way it is replenished and the default specification');
-  const settings = await db.select().from(productManufacturing);
-  const byProduct = new Map(settings.map(s => [s.productId, s]));
   const docLines = await db.select().from(documentLines).where(eq(documentLines.documentId, input.customerOrderId));
   const byLine = new Map(docLines.map(l => [l.id, l]));
-  const items = lines.flatMap(l => {
+  const items: { itemId: string; qty: string; customerOrderLineId: string; params: Record<string, unknown> }[] = [];
+  for (const l of lines) {
     const src = byLine.get(l.customerOrderLineId);
-    const s = src ? byProduct.get(src.productId) : undefined;
-    if (!s?.defaultItemId) return [];
-    return [{ itemId: s.defaultItemId, qty: l.qty, customerOrderLineId: l.customerOrderLineId }];
-  });
+    if (!src) continue;
+    const choice = await resolveSpecForProduct(db, ctx.workspaceId, src.productId);
+    if (!choice) continue;
+    items.push({ itemId: choice.itemId, qty: l.qty, customerOrderLineId: l.customerOrderLineId, params: src.params ?? {} });
+  }
   return createProductionOrder(db, ctx, {
     workCenterId: input.workCenterId,
     warehouseId: input.warehouseId ?? order.warehouseId,
@@ -646,7 +699,7 @@ async function writeProduction(
   });
   await db.insert(productionHeaders).values({ workspaceId: ctx.workspaceId, documentId: docId, workCenterId: input.workCenterId ?? null, plannedStart: null, plannedEnd: null, parentDocumentId: null, stageId: input.stageId });
   const itemRows = await db.insert(productionItems).values(
-    rows.itemLines.map((l, n) => ({ workspaceId: ctx.workspaceId, documentId: docId, itemId: l.itemId, qty: l.qty, unitCode: l.unitCode, customerOrderLineId: l.customerOrderLineId, sourceItemId: l.sourceItemId, stageId: input.stageId, documentLineId: l.documentLineId, sortOrder: n })),
+    rows.itemLines.map((l, n) => ({ workspaceId: ctx.workspaceId, documentId: docId, itemId: l.itemId, qty: l.qty, unitCode: l.unitCode, customerOrderLineId: l.customerOrderLineId, sourceItemId: l.sourceItemId, stageId: input.stageId, documentLineId: l.documentLineId, productVariantId: l.variantId, sortOrder: n })),
   ).returning();
   // связь состава с позицией: строки плана и позиции идут в одном порядке
   const itemIdByLine = new Map(rows.itemLines.map((l, n) => [l.id, itemRows[n].id]));
@@ -674,8 +727,8 @@ async function buildProductionRows(
   warehouseId: string | null;
   targetWarehouseId: string | null;
   docLines: { id: string; productId: string; name: string; unitCode: string; qty: string; stockRole: 'in' | 'out' }[];
-  itemLines: { id: string; documentLineId: string | null; itemId: string; qty: string; sourceItemId: string | null; customerOrderLineId: string | null; productId: string; name: string; unitCode: string }[];
-  componentLines: { id: string; itemId: string; kind: 'material' | 'semi' | 'work'; productId: string | null; workCenterId: string | null; operation: string; qty: string; hours: string; rate: string | null; fixedCost: string | null; plannedCost: string; documentLineId: string | null; stageId: string | null; sourceComponentId?: string | null }[];
+  itemLines: { id: string; documentLineId: string | null; itemId: string; qty: string; sourceItemId: string | null; customerOrderLineId: string | null; productId: string; name: string; unitCode: string; variantId: string | null }[];
+  componentLines: { id: string; itemId: string; kind: 'material' | 'semi' | 'work' | 'expense'; productId: string | null; workCenterId: string | null; operation: string; qty: string; hours: string; rate: string | null; fixedCost: string | null; plannedCost: string; documentLineId: string | null; stageId: string | null; sourceComponentId?: string | null }[];
 }> {
   const itemIds = [...new Set(plans.map(p => p.itemId))];
   const products_ = await db.select().from(manufacturedItems).where(inArray(manufacturedItems.id, itemIds));
@@ -686,17 +739,28 @@ async function buildProductionRows(
     if (!it.productId) throw new DomainError(422, 'item_not_stockable', `“${it.name}” has no product of the catalogue: it cannot be produced to stock`);
   }
   const docLines: { id: string; productId: string; name: string; unitCode: string; qty: string; stockRole: 'in' | 'out' }[] = [];
-  const itemLines: { id: string; documentLineId: string | null; itemId: string; qty: string; sourceItemId: string | null; customerOrderLineId: string | null; productId: string; name: string; unitCode: string }[] = [];
-  const componentLines: { id: string; itemId: string; kind: 'material' | 'semi' | 'work'; productId: string | null; workCenterId: string | null; operation: string; qty: string; hours: string; rate: string | null; fixedCost: string | null; plannedCost: string; documentLineId: string | null; stageId: string | null; sourceComponentId?: string | null }[] = [];
+  const itemLines: { id: string; documentLineId: string | null; itemId: string; qty: string; sourceItemId: string | null; customerOrderLineId: string | null; productId: string; name: string; unitCode: string; variantId: string | null }[] = [];
+  const componentLines: { id: string; itemId: string; kind: 'material' | 'semi' | 'work' | 'expense'; productId: string | null; workCenterId: string | null; operation: string; qty: string; hours: string; rate: string | null; fixedCost: string | null; plannedCost: string; documentLineId: string | null; stageId: string | null; sourceComponentId?: string | null }[] = [];
   for (const p of plans) {
     const it = byItem.get(p.itemId)!;
     const lineId = uuidv7();
     // продукция приходуется только финальным этапом: на промежуточном строки продукции в документе нет
-    if (isFinal) docLines.push({ id: lineId, productId: it.productId!, name: it.name, unitCode: it.unitCode, qty: p.qty, stockRole: 'in' });
-    itemLines.push({ id: lineId, documentLineId: isFinal ? lineId : null, itemId: p.itemId, qty: p.qty, sourceItemId: p.sourceItemId, customerOrderLineId: p.customerOrderLineId, productId: it.productId!, name: it.name, unitCode: it.unitCode });
+    // у варианта выпускается сам вариант, а не товар спецификации
+    const outProductId = p.productId ?? it.productId!;
+    const outName = p.productId ? (await db.select({ name: products.name }).from(products).where(eq(products.id, outProductId)).limit(1))[0]?.name ?? it.name : it.name;
+    // выпускаемый товар — вариант (у него есть родитель): он и приходуется на склад
+    const variantRow = p.productId ? (await db.select({ parentProductId: products.parentProductId }).from(products).where(eq(products.id, outProductId)).limit(1))[0] : undefined;
+    const variantId = variantRow?.parentProductId ? outProductId : null;
+    if (isFinal) docLines.push({ id: lineId, productId: outProductId, name: outName, unitCode: it.unitCode, qty: p.qty, stockRole: 'in' });
+    itemLines.push({ id: lineId, documentLineId: isFinal ? lineId : null, itemId: p.itemId, qty: p.qty, sourceItemId: p.sourceItemId, customerOrderLineId: p.customerOrderLineId, productId: outProductId, name: outName, unitCode: it.unitCode, variantId });
     for (const c of p.components) {
       if (c.kind === 'work') {
         componentLines.push({ id: uuidv7(), itemId: lineId, kind: 'work', productId: c.operationId, workCenterId: c.workCenterId, operation: c.operation, qty: '0', hours: c.hours, rate: c.rate, fixedCost: c.fixedCost, plannedCost: c.plannedCost, documentLineId: null, stageId: c.stageId, sourceComponentId: c.sourceComponentId ?? null });
+        continue;
+      }
+      // расход подрядчику: в себестоимость входит, со склада не списывается — строки документа у него нет
+      if (c.kind === 'expense') {
+        componentLines.push({ id: uuidv7(), itemId: lineId, kind: 'expense', productId: c.productId, workCenterId: null, operation: '', qty: c.qty, hours: '0', rate: null, fixedCost: null, plannedCost: c.plannedCost, documentLineId: null, stageId: c.stageId, sourceComponentId: c.sourceComponentId ?? null });
         continue;
       }
       const materialLineId = uuidv7();
@@ -786,7 +850,7 @@ async function appendProduction(
   const [lastItem] = await db.select({ m: sql<number>`coalesce(max(${productionItems.sortOrder}), -1)` }).from(productionItems).where(eq(productionItems.documentId, docId));
   const itemRows = await db
     .insert(productionItems)
-    .values(rows.itemLines.map((l, n) => ({ workspaceId: ctx.workspaceId, documentId: docId, itemId: l.itemId, qty: l.qty, unitCode: l.unitCode, customerOrderLineId: l.customerOrderLineId, sourceItemId: l.sourceItemId, stageId: input.stageId, documentLineId: l.documentLineId, sortOrder: Number(lastItem?.m ?? -1) + 1 + n })))
+    .values(rows.itemLines.map((l, n) => ({ workspaceId: ctx.workspaceId, documentId: docId, itemId: l.itemId, qty: l.qty, unitCode: l.unitCode, customerOrderLineId: l.customerOrderLineId, sourceItemId: l.sourceItemId, stageId: input.stageId, documentLineId: l.documentLineId, productVariantId: l.variantId, sortOrder: Number(lastItem?.m ?? -1) + 1 + n })))
     .returning();
   // связь состава с позицией: строки плана и позиции идут в одном порядке
   const itemIdByLine = new Map(rows.itemLines.map((l, n) => [l.id, itemRows[n].id]));

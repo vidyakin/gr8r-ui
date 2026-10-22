@@ -3,7 +3,7 @@
    (той же, что на сервере), поэтому любая правка строки пересчитывает дерево и итоги мгновенно, не дожидаясь ответа сервера. */
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BomCycleError, computeBomCost, resolveMaterialPrice, wouldCreateCycle, type BomItemInput, type CostNode, type MaterialPriceSource, type ProductKind, type SemiMode } from '@gr8r/shared';
+import { BomCycleError, BomFormulaError, computeBomCost, resolveMaterialPrice, wouldCreateCycle, type BomItemInput, type CostNode, type MaterialPriceSource, type ProductKind, type SemiMode, type SpecParamDef } from '@gr8r/shared';
 import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';
@@ -12,7 +12,7 @@ import { uuidv7 } from '../lib/uuid';
 export interface BomLine {
   id: string;
   itemId: string;
-  kind: 'material' | 'semi' | 'work';
+  kind: 'material' | 'semi' | 'work' | 'expense';
   sortOrder: number;
   /** Этап, на котором расходуется материал или выполняется операция */
   stageId: string | null;
@@ -21,6 +21,10 @@ export interface BomLine {
   /** Режим полуфабриката: stock — списать со склада, explode — развернуть до материалов */
   semiMode: SemiMode;
   qty: string;
+  /** Формула количества над параметрами спецификации (пусто — обычное количество) */
+  qtyExpr: string | null;
+  /** Условие строки над параметрами (пусто — строка всегда) */
+  condition: string | null;
   unitCode: string | null;
   scrapPct: string;
   operation: string;
@@ -44,6 +48,10 @@ export interface Item {
   leadDays: number;
   /** Вид производства: этапы выпуска (пусто — единственный этап «Завершение производства») */
   productionKindId: string | null;
+  /** Параметры спецификации: замеры, варианты и флажок «разрез склада» */
+  params: SpecParamDef[];
+  /** Недействительная спецификация: в новых документах не предлагается */
+  isInvalid: boolean;
   createdAt: string;
   updatedAt: string;
   lines: BomLine[];
@@ -150,7 +158,16 @@ export function useExplosion(itemId: string | undefined, qty: string, warehouseI
   });
 }
 
-const toInput = (i: Item): BomItemInput => ({ ...i, lines: i.lines });
+const toInput = (i: Item): BomItemInput => ({
+  id: i.id,
+  name: i.name,
+  unitCode: i.unitCode,
+  productId: i.productId,
+  batchQty: i.batchQty,
+  overheadPct: i.overheadPct,
+  paramKeys: (i.params ?? []).map(p => p.key),
+  lines: i.lines,
+});
 
 export interface Costing {
   /** Дерево себестоимости изделия; null — расчёт невозможен (циклы) */
@@ -171,7 +188,8 @@ export function makeCosting(snap: Snapshot) {
     try {
       return { tree: computeBomCost(inputs, itemId, pricing), error: null };
     } catch (e) {
-      return { tree: null, error: e instanceof BomCycleError ? e.message : errorMessage(e) };
+      // формулы строк требуют значений параметров — без них себестоимость не считается
+      return { tree: null, error: e instanceof BomCycleError ? e.message : e instanceof BomFormulaError ? e.message : errorMessage(e) };
     }
   };
 }
@@ -266,6 +284,8 @@ export function useProductionMutations() {
             childItemId: (b.childItemId as string) ?? null,
             semiMode: (b.semiMode as SemiMode) ?? 'stock',
             qty: String(b.qty ?? '1'),
+            qtyExpr: (b.qtyExpr as string) ?? null,
+            condition: (b.condition as string) ?? null,
             unitCode: mat?.unitCode ?? child?.unitCode ?? null,
             scrapPct: String(b.scrapPct ?? '0'),
             operation: String(b.operation ?? ''),

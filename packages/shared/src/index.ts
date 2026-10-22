@@ -4,6 +4,8 @@ export * from './schemas';
 export * from './fields';
 export * from './decimal';
 export * from './bom';
+export * from './expr';
+export * from './parameters';
 export * from './supply';
 export * from './planning';
 export * from './replenishment';

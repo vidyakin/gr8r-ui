@@ -1,7 +1,7 @@
 /* Карточка товара (EntityDrawer) и форма создания. Характеристики категории рисуются теми же FieldInput / FieldValue и
    проверяются той же zod-схемой (validateRecord), что и поля конструктора. */
 import * as React from 'react';
-import { Barcode, Building2, CircleAlert, CircleDollarSign, FolderTree, Hash, Package, Percent, Power, Ruler, Tag, Timer, Trash2, Wrench, type LucideIcon } from 'lucide-react';
+import { Barcode, Building2, CircleAlert, CircleDollarSign, FolderTree, Hash, Layers, Package, Percent, Power, Ruler, Tag, Timer, Trash2, Wrench, type LucideIcon } from 'lucide-react';
 import { PRODUCT_KINDS, VAT_LABELS, VAT_RATES, validateRecord, type ProductKind } from '@gr8r/shared';
 import { Button, ConfirmDialog, Dialog, DialogClose, DialogContent, Field, Input, MenuItem, Segmented, Switch, toast } from '@/components/ui';
 import { DrawerSection, EntityDrawer } from '@/components/gr8r/entity-drawer';
@@ -9,7 +9,7 @@ import { fmtDate } from '../lib/dates';
 import { useCanWrite, useCustomRows } from '../meta/custom-fields';
 import { FieldInput, FieldValue } from '../meta/field-ui';
 import type { MetaField } from '../meta/data';
-import { attributeAsField, flattenTree, useAttributes, useCompanies, useProductMutations, useSaveWorkNorm, useUnits, useWorkCenters, useWorkNorms, type CategoryNode, type Product } from './data';
+import { attributeAsField, flattenTree, useAttributes, useCompanies, useGenerateVariants, useProductMutations, useSaveWorkNorm, useUnits, useVariants, useWorkCenters, useWorkNorms, type CategoryNode, type Product } from './data';
 import { StockLevelsTab } from './stock-levels';
 
 /** Служебное «поле» для обычной колонки товара, чтобы редактировать её тем же FieldInput */
@@ -92,6 +92,8 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
     save({ attrs: { [a.key]: v ?? null } });
   };
   const custom = useCustomRows('product', p.custom, patch => save({ custom: patch }));
+  const variants = useVariants(p.id);
+  const gen = useGenerateVariants();
   const attrFields = (attrs.data ?? []).map(attributeAsField);
   const KindIcon = p.kind === 'service' ? Wrench : Package;
 
@@ -224,6 +226,38 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
           )}
         </DrawerSection>
         <StockLevelsTab productId={p.id} />
+        {!p.parentProductId && (
+          <DrawerSection title="Variants" count={variants.data?.length || undefined}>
+            <p className="muted" style={{ margin: '0 0 8px' }}>
+              Variants are combinations of the specification parameters marked as “stock dimension”. They are ordinary stock positions: warehouses, prices and documents work with them as usual.
+            </p>
+            {canWrite && (
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={gen.isPending}
+                onClick={() =>
+                  gen.mutate(p.id, {
+                    onSuccess: r => toast(`Variants created: ${r.created} of ${r.total}`),
+                    onError: e => toast.error(e instanceof Error ? e.message : String(e)),
+                  })
+                }
+              >
+                <Layers size={14} />
+                Generate all combinations
+              </Button>
+            )}
+            {!!variants.data?.length && (
+              <ul className="muted" style={{ margin: '8px 0 0', paddingLeft: 18 }}>
+                {variants.data.map(v => (
+                  <li key={v.id}>
+                    {v.name} <span className="faint mono">{v.sku}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </DrawerSection>
+        )}
         {!!custom.length && (
           <DrawerSection title="Custom fields">
             <dl className="kv">

@@ -61,6 +61,10 @@ export interface Product {
   /** Поставщик по умолчанию: заказы поставщикам по потребности создаются на него */
   defaultSupplierId: string | null;
   attrs: Record<string, unknown>;
+  /** Товар-родитель: вариант товара (комбинация параметров с флажком «разрез склада») */
+  parentProductId: string | null;
+  /** Значения параметров, дающих вариант: { color: 'white' } */
+  variantValues: Record<string, string>;
   isActive: boolean;
   custom: Record<string, unknown>;
   createdAt: string;
@@ -137,6 +141,22 @@ export function useProducts(params: ProductParams = {}) {
 
 export function useProduct(id: string | undefined) {
   const ws = useWsId();  return useQuery({ queryKey: catalogKey(ws, 'product', id), queryFn: () => call<Product>(ws, 'GET', `/products/${id}`), enabled: !!id, staleTime: 30_000, retry: false });
+}
+
+/** Варианты товара: комбинации значений параметров с флажком «разрез склада» */
+export function useVariants(productId: string | undefined) {
+  const ws = useWsId();
+  return useQuery({ queryKey: catalogKey(ws, 'variants', productId), queryFn: async () => (await call<{ items: Product[] }>(ws, 'GET', `/products/${productId}/variants`)).items, enabled: !!productId, staleTime: 30_000 });
+}
+
+/** Генератор «создать все комбинации»: по select-параметрам с флажком «разрез склада» */
+export function useGenerateVariants() {
+  const ws = useWsId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (productId: string) => call<{ created: number; total: number }>(ws, 'POST', `/products/${productId}/variants/generate`),
+    onSettled: () => qc.invalidateQueries({ queryKey: catalogKey(ws) }),
+  });
 }
 
 /** Поиск товаров для выбора в формах (материал в спецификации, товар изделия) */

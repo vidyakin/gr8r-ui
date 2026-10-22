@@ -85,12 +85,12 @@ describe('seed', () => {
     // каталог и производство
     expect(await count('units', w)).toBeGreaterThanOrEqual(19);
     expect(await count('product_categories', w)).toBe(5);
-    expect(await count('products', `${w} and kind = 'goods'`)).toBe(21);
-    expect(await count('products', `${w} and kind = 'service'`)).toBe(3);
+    expect(await count('products', `${w} and kind = 'goods'`)).toBe(26); // + стекло, профиль, краска, окно и его вариант
+    expect(await count('products', `${w} and kind = 'service'`)).toBe(4); // + окраска подрядчиком
     expect(await count('products', `${w} and kind = 'work'`)).toBe(2);
     expect(await count('products', `${w} and kind = 'operation'`)).toBe(1);
     expect(await count('work_centers', w)).toBe(2);
-    expect(await count('manufactured_items', `${w} and kind = 'product'`)).toBe(3);
+    expect(await count('manufactured_items', `${w} and kind = 'product'`)).toBe(4); // + окно по замерам
     expect(await count('manufactured_items', `${w} and kind = 'semi'`)).toBe(4);
     expect(await count('bom_lines', `${w} and kind = 'semi'`)).toBe(3);
     expect(await count('products', `where workspace_id = '${acme!.id}'`)).toBe(0);
@@ -102,8 +102,8 @@ describe('seed', () => {
     expect(await count('warehouses', w)).toBe(4); // основной, цех, склад готовой продукции и служебный «в пути»
     expect(await count('companies', `${w} and inn <> ''`)).toBe(5);
     expect(await count('bank_accounts', `${w} and company_id is not null`)).toBe(5);
-    expect(await count('documents', w)).toBe(27);
-    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(25);
+    expect(await count('documents', w)).toBe(28); // + заказ покупателя на окно
+    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(26);
     expect(await count('documents', `${w} and based_on_id is not null`)).toBe(8);
     expect(await count('documents', `${w} and type in ('stock_transfer','write_off','inventory_count')`)).toBe(6);
     // производство: заказ на производство и выпуск со списанием материалов
@@ -111,6 +111,14 @@ describe('seed', () => {
     expect(await count('documents', `${w} and type = 'production'`)).toBe(1);
     expect(await count('production_items', w)).toBe(4);
     expect(await count('production_components', `${w} and kind = 'material'`)).toBe(15);
+    // этап 7: параметры спецификации, вариант товара и калькуляция заказа
+    expect(await count('products', `${w} and parent_product_id is not null`)).toBe(1); // вариант окна
+    expect(await count('bom_lines', `${w} and kind = 'expense'`)).toBe(1); // расход подрядчику
+    expect(await count('bom_lines', `${w} and qty_expr is not null`)).toBe(2); // формулы количества
+    expect(await count('bom_lines', `${w} and condition is not null`)).toBe(1); // условие строки
+    expect(await count('manufactured_items', `${w} and jsonb_array_length(params) > 0`)).toBe(1); // окно по замерам
+    expect(await count('order_calculations', w)).toBe(1); // калькуляция заказа на окно
+    expect(await count('order_calculation_lines', w)).toBe(6); // стекло, профиль, краска, расход, работа и накладные
     // операции, исполнители и сдельный наряд: назначение операции, задача исполнителя и наряд за день
     expect(await count('operations', w)).toBe(3); // операция сборки + нормы двух работ
     expect(await count('operation_rates', w)).toBe(2);
@@ -157,7 +165,7 @@ describe('seed', () => {
     expect(await count('cost_items', w)).toBe(8); // 6 системных + электроэнергия и аренда демо
     expect(await count('stock_balances', `${w} and qty > 0`)).toBe(23);
     // резервы: заказ покупателя, продукция под заказ и материалы заказов на производство
-    expect(await count('stock_reservations', w)).toBe(10);
+    expect(await count('stock_reservations', w)).toBe(11); // + резерв под заказ окна
     expect(await count('stock_reservations', `${w} and production_component_id is not null`)).toBe(8);
     expect(await count('production_placements', w)).toBe(3);
     expect(await count('documents', `where workspace_id = '${acme!.id}'`)).toBe(0);

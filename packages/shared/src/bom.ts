@@ -10,13 +10,19 @@
        свои накладные, поэтому накладные родителя на него не начисляются (нет двойного счёта);
      - разбивка «материалы / работы / накладные» собирается по всему дереву: затраты полуфабриката входят в разбивку родителя
        по своим статьям;
-     - цикл (изделие прямо или косвенно входит само в себя) — BomCycleError с цепочкой id. */
+     - цикл (изделие прямо или косвенно входит само в себя) — BomCycleError с цепочкой id;
+     - expense: расход — услуга подрядчика (окраска, вырубка): входит в плановую себестоимость как материал, но со склада не списывается;
+     - параметрическая спецификация: количество строки считается формулой `qtyExpr` над параметрами, строка исключается
+       из состава по условию `condition`. Без параметров поведение строго прежнее. */
 import type { MaterialPriceSource, SemiMode } from './constants';
 import { add, dec, div, fmt, mul, pctOf, withPct, type Dec } from './decimal';
+import { compileExpr, ExprError } from './expr';
 
 export interface BomLineInput {
   id: string;
-  kind: 'material' | 'semi' | 'work';
+  /** material — закупаемый товар, semi — полуфабрикат, work — операция, expense — расход (услуга подрядчика):
+      входит в плановую себестоимость, но со склада не списывается */
+  kind: 'material' | 'semi' | 'work' | 'expense';
   qty: string;
   /** material */
   productId?: string | null;
@@ -36,6 +42,10 @@ export interface BomLineInput {
   fixedCost?: string | null;
   /** Этап, на котором расходуется материал или выполняется операция */
   stageId?: string | null;
+  /** Формула количества строки над параметрами (material, semi, expense); пусто — обычное qty */
+  qtyExpr?: string | null;
+  /** Условие строки (пусто — строка всегда; ложное условие исключает строку из состава) */
+  condition?: string | null;
 }
 
 export interface BomItemInput {
@@ -47,6 +57,10 @@ export interface BomItemInput {
   batchQty: string;
   overheadPct: string;
   lines: BomLineInput[];
+  /** Ключи параметров спецификации: по ним проверяются формулы строк */
+  paramKeys?: string[];
+  /** Значения параметров изделия (заказ покупателя или заказ на производство); пусто — формулы строк не применяются */
+  params?: Record<string, unknown> | null;
 }
 
 export interface BomPricing {
@@ -98,6 +112,69 @@ interface Parts {
   o: Dec;
 }
 
+/* ---------------- формулы строк спецификации ----------------
+
+   Строка спецификации может считать количество формулой над параметрами (`qtyExpr`) и исключаться из состава
+   по условию (`condition`). Без параметров и формул поведение строго прежнее: qty берётся как есть, условий нет.
+   Формулы читают вычислитель expr.ts (свой разбор, без eval) — он же проверяет идентификаторы по ключам параметров. */
+
+/** Ошибка вычисления формулы строки: неизвестный или незаполненный параметр, деление на ноль, нечисловой результат, отрицательное количество */
+export class BomFormulaError extends Error {
+  constructor(
+    message: string,
+    public lineId: string,
+    public code: string,
+  ) {
+    super(message);
+    this.name = 'BomFormulaError';
+  }
+}
+
+const formulaError = (lineId: string, e: unknown): BomFormulaError => {
+  if (e instanceof ExprError) {
+    const code = e.code === 'unknown_param' || e.code === 'missing_param' ? 'formula_param' : e.code;
+    return new BomFormulaError(`Line ${lineId}: ${e.message}`, lineId, code);
+  }
+  return new BomFormulaError(`Line ${lineId}: the formula cannot be calculated`, lineId, 'formula_error');
+};
+
+/** Количество строки: формула `qtyExpr` над параметрами изделия, иначе обычное `qty` */
+export function lineQty(l: BomLineInput, params: Record<string, unknown> | null | undefined, keys: string[], lineId = l.id): Dec {
+  const expr = l.qtyExpr?.trim();
+  if (!expr) return dec(l.qty);
+  if (!params) throw new BomFormulaError(`Line ${lineId}: the specification has parameters — fill their values in the order`, lineId, 'formula_param');
+  try {
+    const v = compileExpr(expr, keys).run(params as never);
+    if (typeof v !== 'number') throw new ExprError('type', `the formula “${expr}” is not a number`);
+    if (dec(v) < 0n) throw new ExprError('domain', `the formula “${expr}” gives a negative quantity`);
+    return dec(v);
+  } catch (e) {
+    throw formulaError(lineId, e);
+  }
+}
+
+/** Условие строки: пустое условие — строка всегда; ложное — строка исключается из состава */
+export function lineEnabled(l: BomLineInput, params: Record<string, unknown> | null | undefined, keys: string[], lineId = l.id): boolean {
+  const cond = l.condition?.trim();
+  if (!cond) return true;
+  if (!params) throw new BomFormulaError(`Line ${lineId}: the specification has parameters — fill their values in the order`, lineId, 'formula_param');
+  try {
+    const v = compileExpr(cond, keys).run(params as never);
+    if (typeof v !== 'boolean') throw new ExprError('type', `the condition “${cond}” is not true or false`);
+    return v;
+  } catch (e) {
+    throw formulaError(lineId, e);
+  }
+}
+
+/** Значения параметров для вложенной продукции: по совпадающим ключам (у полуфабриката свой список параметров) */
+export function passParams(params: Record<string, unknown> | null | undefined, keys: string[]): Record<string, unknown> | null {
+  if (!params) return null;
+  const out: Record<string, unknown> = {};
+  for (const k of keys) if (params[k] !== undefined && params[k] !== null) out[k] = params[k];
+  return out;
+}
+
 const out = (p: Parts): CostBreakdown => ({ materials: fmt(p.m), works: fmt(p.w), overhead: fmt(p.o), total: fmt(p.m + p.w + p.o) });
 
 /** Цепочка id, если по ссылкам на полуфабрикаты можно вернуться в ту же продукцию (от `startId` или в любом месте графа); иначе null */
@@ -142,35 +219,43 @@ export function wouldCreateCycle(edges: Map<string, string[]>, itemId: string, c
   return false;
 }
 
-/** Дерево себестоимости изделия `rootId`. Полуфабрикат, которого нет в `items`, считается нулевым */
+/** Дерево себестоимости изделия `rootId`. Полуфабрикат, которого нет в `items`, считается нулевым.
+    Параметрическая спецификация: значения `params` у изделия определяют формулы его строк, а вложенной продукции
+    передаются по совпадающим ключам — поэтому узел считается отдельно для каждого набора значений */
 export function computeBomCost(items: BomItemInput[], rootId: string, pricing: BomPricing): CostNode {
   const byId = new Map(items.map(i => [i.id, i]));
   const memo = new Map<string, CostNode>();
   /** Точные (до 6 знаков) затраты единицы: родитель берёт их, а не округлённые строки результата */
   const exact = new Map<string, Parts>();
   const stack: string[] = [];
+  /** Ключ узла: с параметрами — id и набор значений (порядок ключей фиксирован) */
+  const nodeKey = (id: string, params: Record<string, unknown> | null | undefined): string => (params ? `${id}::${JSON.stringify(Object.entries(params).sort(([a], [b]) => a.localeCompare(b)))}` : id);
 
-  const node = (id: string): CostNode => {
-    const hit = memo.get(id);
+  const node = (id: string, override?: Record<string, unknown> | null): CostNode => {
+    const item = byId.get(id);
+    const params = override === undefined ? item?.params : override;
+    const memoKey = nodeKey(id, params);
+    const hit = memo.get(memoKey);
     if (hit) return hit;
     if (stack.includes(id)) throw new BomCycleError([...stack.slice(stack.indexOf(id)), id]);
-    const item = byId.get(id);
     if (!item) throw new Error(`Item ${id} not found`);
     const batchQty = dec(item.batchQty);
     if (batchQty <= 0n) throw new RangeError(`Batch quantity of "${item.name}" must be positive`);
+    const keys = item.paramKeys ?? [];
     stack.push(id);
 
     const total: Parts = { m: 0n, w: 0n, o: 0n };
     let direct = 0n;
     const lines: CostLine[] = [];
     for (const l of item.lines) {
-      const qty = dec(l.qty);
-      if (l.kind === 'material') {
+      if (!lineEnabled(l, params, keys)) continue;
+      const qty = lineQty(l, params, keys);
+      if (l.kind === 'material' || l.kind === 'expense') {
         const price = l.productId ? pricing.materialPrice(l.productId) : null;
         const cost = withPct(mul(qty, dec(price)), dec(l.scrapPct));
         total.m += cost;
         direct += cost;
-        lines.push({ id: l.id, kind: 'material', cost: fmt(cost), ...(price === null || price === undefined ? { missingPrice: true } : {}) });
+        lines.push({ id: l.id, kind: l.kind, cost: fmt(cost), ...(price === null || price === undefined ? { missingPrice: true } : {}) });
       } else if (l.kind === 'work') {
         const own = l.rate !== null && l.rate !== undefined && l.rate !== '';
         const rate = own ? l.rate : l.workCenterId ? pricing.workCenterRate(l.workCenterId) : null;
@@ -179,8 +264,9 @@ export function computeBomCost(items: BomItemInput[], rootId: string, pricing: B
         direct += cost;
         lines.push({ id: l.id, kind: 'work', cost: fmt(cost) });
       } else {
-        const child = l.childItemId && byId.has(l.childItemId) ? node(l.childItemId) : undefined;
-        const cu = child ? exact.get(child.itemId) : undefined;
+        const childItem = l.childItemId ? byId.get(l.childItemId) : undefined;
+        const child = l.childItemId && childItem ? node(l.childItemId, passParams(params, childItem.paramKeys ?? [])) : undefined;
+        const cu = child ? exact.get(nodeKey(l.childItemId!, passParams(params, childItem?.paramKeys ?? []))) : undefined;
         if (cu) {
           total.m += mul(qty, cu.m);
           total.w += mul(qty, cu.w);
@@ -194,8 +280,8 @@ export function computeBomCost(items: BomItemInput[], rootId: string, pricing: B
 
     const unit: Parts = { m: div(total.m, batchQty), w: div(total.w, batchQty), o: div(total.o, batchQty) };
     const res: CostNode = { itemId: id, name: item.name, batchQty: item.batchQty, overheadPct: item.overheadPct, lines, batch: out(total), unit: out(unit) };
-    memo.set(id, res);
-    exact.set(id, unit);
+    memo.set(memoKey, res);
+    exact.set(memoKey, unit);
     return res;
   };
   return node(rootId);
@@ -219,6 +305,8 @@ export interface ExplosionMaterial {
   unitCode?: string | null;
   /** Этап, на котором материал расходуется */
   stageId?: string | null;
+  /** Расход подрядчику: услуга, которая входит в себестоимость, но со склада не списывается */
+  expense?: boolean;
 }
 
 /** Работа в развёртке: часы на выпуск */
@@ -293,7 +381,9 @@ export interface Needs {
   works: NeedWork[];
 }
 
-/** Развёртка спецификации изделия на `qty` единиц. Полуфабрикат без спецификации считается пустым */
+/** Развёртка спецификации изделия на `qty` единиц. Полуфабрикат без спецификации считается пустым.
+    Параметрическая спецификация: `items[rootId].params` — значения параметров изделия (формулы количества и условия строк),
+    вложенной продукции передаются по совпадающим ключам */
 export function explodeBom(items: BomItemInput[], rootId: string, qty: string): Explosion {
   const byId = new Map(items.map(i => [i.id, i]));
   const root = byId.get(rootId);
@@ -303,36 +393,43 @@ export function explodeBom(items: BomItemInput[], rootId: string, qty: string): 
   /** Требования изделия на `units` единиц: строки спецификации заданы на партию, поэтому нормы умножаются на units / batchQty */
   /** `forcedStage` задан у развёрнутого «фантома»: его требования относятся к этапу строки-полуфабриката,
       а не к этапам другого вида производства */
-  const node = (item: BomItemInput, units: Dec, forcedStage?: string | null): Explosion => {
+  /** `override` — значения параметров вложенной продукции (по совпадающим ключам) */
+  const node = (item: BomItemInput, units: Dec, forcedStage?: string | null, override?: Record<string, unknown> | null): Explosion => {
     if (stack.includes(item.id)) throw new BomCycleError([...stack.slice(stack.indexOf(item.id)), item.id]);
     const batchQty = dec(item.batchQty);
     if (batchQty <= 0n) throw new RangeError(`Batch quantity of "${item.name}" must be positive`);
     stack.push(item.id);
     const scale = div(units, batchQty);
+    const keys = item.paramKeys ?? [];
+    const params = override === undefined ? item.params : override;
     const materials: ExplosionMaterial[] = [];
     const works: ExplosionWork[] = [];
     const semis: ExplosionSemi[] = [];
     for (const l of item.lines) {
+      // строка с ложным условием в состав не входит
+      if (!lineEnabled(l, params, keys)) continue;
       // этап строки: у «фантома» — этап строки-полуфабриката, иначе этап самой строки спецификации
       const stage = forcedStage !== undefined ? forcedStage : (l.stageId ?? null);
-      if (l.kind === 'material') {
-        const q = mul(dec(l.qty), scale);
-        materials.push({ productId: l.productId!, qty: fmt(withPct(q, dec(l.scrapPct)), 3), unitCode: l.unitCode ?? null, stageId: stage });
+      if (l.kind === 'material' || l.kind === 'expense') {
+        // формула количества считается на партию, поэтому дальше домножается на тот же масштаб
+        const q = mul(lineQty(l, params, keys), scale);
+        materials.push({ productId: l.productId!, qty: fmt(withPct(q, dec(l.scrapPct)), 3), unitCode: l.unitCode ?? null, stageId: stage, ...(l.kind === 'expense' ? { expense: true } : {}) });
       } else if (l.kind === 'work') {
         works.push({ operation: l.operation ?? '', operationId: l.productId ?? null, workCenterId: l.workCenterId ?? null, hours: fmt(mul(dec(l.hours), scale), 3), rate: l.rate ?? null, fixedCost: l.fixedCost ?? null, stageId: stage });
       } else {
         const child = l.childItemId ? byId.get(l.childItemId) : undefined;
         if (!child) continue;
-        const need = mul(dec(l.qty), scale);
+        const need = mul(lineQty(l, params, keys), scale);
+        const childParams = passParams(params, child.paramKeys ?? []);
         if ((l.semiMode ?? 'stock') === 'explode') {
           // «Фантом»: полуфабрикат не лежит на складе — разворачиваем его материалы и работы в этот же выпуск.
           // Этапы полуфабриката — этапы другого вида производства, поэтому требования относятся к этапу строки-полуфабриката
-          const cn = node(child, need, stage);
+          const cn = node(child, need, stage, childParams);
           materials.push(...cn.materials);
           works.push(...cn.works);
           semis.push(...cn.semis);
         } else {
-          semis.push({ itemId: child.id, name: child.name, productId: child.productId ?? null, unitCode: child.unitCode ?? null, batchQty: child.batchQty, qty: fmt(need, 3), stageId: stage, child: node(child, dec(child.batchQty)) });
+          semis.push({ itemId: child.id, name: child.name, productId: child.productId ?? null, unitCode: child.unitCode ?? null, batchQty: child.batchQty, qty: fmt(need, 3), stageId: stage, child: node(child, dec(child.batchQty), undefined, childParams) });
         }
       }
     }
@@ -361,7 +458,11 @@ export function computeNeeds(explosion: Explosion, availability: Record<string, 
   const expanded = new Map<string, Dec>();
 
   const collect = (node: Explosion, scale: Dec) => {
-    for (const m of node.materials) materials.set(m.productId, (materials.get(m.productId) ?? 0n) + mul(dec(m.qty), scale));
+    // расходы подрядчику в потребность не входят: со склада они не списываются и закупаются как услуга
+    for (const m of node.materials) {
+      if (m.expense) continue;
+      materials.set(m.productId, (materials.get(m.productId) ?? 0n) + mul(dec(m.qty), scale));
+    }
     for (const w of node.works) {
       const key = `${w.operation}|${w.workCenterId ?? ''}`;
       const cur = works.get(key) ?? { operation: w.operation, workCenterId: w.workCenterId, hours: 0n };
@@ -455,9 +556,9 @@ export function resolveMaterialPrice(source: MaterialPriceSource, p: { price?: s
    Себестоимость партии выпуска: материалы и полуфабрикаты (по факту или по плану) + работы + накладные.
    План и факт считает одна функция: для факта заполняется actualCost, для плана — unitCost. */
 
-/** Строка состава выпуска: материал, полуфабрикат или работа */
+/** Строка состава выпуска: материал, полуфабрикат, работа или расход */
 export interface ProductionCostLine {
-  kind: 'material' | 'semi' | 'work';
+  kind: 'material' | 'semi' | 'work' | 'expense';
   /** Количество (материал, полуфабрикат) */
   qty: string;
   /** Себестоимость единицы (материал, полуфабрикат) */
@@ -480,7 +581,8 @@ export interface ProductionCost {
   total: string;
 }
 
-/** Себестоимость состава выпуска. Накладные — процент от прямых затрат (материалы + работы), как в computeBomCost */
+/** Себестоимость состава выпуска. Расходы (expense) входят в прямые затраты, как материалы; накладные —
+    процент от прямых затрат (материалы + работы + расходы), как в computeBomCost */
 export function computeProductionCost(lines: ProductionCostLine[], overheadPct: string | number): ProductionCost {
   let materials = 0n;
   let works = 0n;
