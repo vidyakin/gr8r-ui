@@ -6,8 +6,8 @@ import { Button, Segmented } from '@/components/ui';
 import { useWorkspace } from '../data/store';
 import { allTasks, applyView, generalScope, canSee, groupTasks, visibleProjects } from '../data/selectors';
 import { BoardOptions, BoardView, useBoardDensity, useBoardSubtasks } from '../components/board-view';
-import { BucketIcon, TableView, useTaskColumns } from '../components/table-view';
-import { LIST_OPTIONAL_COLUMNS, TaskList, withTimeColumn, type TaskGroup } from '../components/task-list';
+import { BucketIcon, CUSTOMER_COLUMN, TableView, useTaskColumns } from '../components/table-view';
+import { LIST_OPTIONAL_COLUMNS, TaskList, withCustomerColumn, withTimeColumn, type TaskGroup } from '../components/task-list';
 import { ViewToolbar, useListView } from '../components/view-toolbar';
 import { useTaskForm } from '../overlays';
 
@@ -23,6 +23,8 @@ export function TasksPage() {
   const [density, setDensity] = useBoardDensity();
   const defaultProject = visibleProjects(data)[0]?.id ?? '';
   const tasks = applyView(generalScope(allTasks(data), api.view), api.view, data);
+  // заказчик бывает только у задач модуля services — колонка Customer нужна, когда список services
+  const services = api.view.filters.some(f => f.f === 'module' && f.v.includes('services'));
 
   const taskColumns = useTaskColumns();
   const taskForm = useTaskForm();
@@ -53,7 +55,7 @@ export function TasksPage() {
       <ViewToolbar
         api={api}
         group={mode !== 'board'}
-        columns={mode === 'table' ? taskColumns.toggle : mode === 'list' ? LIST_OPTIONAL_COLUMNS : undefined}
+        columns={mode === 'table' ? (services ? [...taskColumns.toggle, CUSTOMER_COLUMN] : taskColumns.toggle) : mode === 'list' ? LIST_OPTIONAL_COLUMNS : undefined}
         resetWidths={mode === 'table'}
         extra={mode === 'board' && <BoardOptions density={density} onDensity={setDensity} showSubtasks={showSubs} onShowSubtasks={setShowSubs} />}
         left={
@@ -70,10 +72,10 @@ export function TasksPage() {
         }
       />
       {mode === 'board' && <BoardView tasks={tasks} defaultProject={defaultProject} showSubtasks={showSubs} density={density} />}
-      {mode === 'table' && <TableView tasks={tasks} api={api} onNewTask={newTask} />}
+      {mode === 'table' && <TableView tasks={tasks} api={api} onNewTask={newTask} customer={services} />}
       {mode === 'list' && (
         <div className="list-wrap">
-          <TaskList groups={groups} columns={withTimeColumn(['status', 'assignee', 'priority', 'due', 'project'], api.hidden)} defaultProject={defaultProject} sort={api.view.sort.f === 'manual' ? undefined : api.view.sort} onSort={f => api.setSort(f)} />
+          <TaskList groups={groups} columns={withCustomerColumn(withTimeColumn(['status', 'assignee', 'priority', 'due', 'project'], api.hidden), services)} defaultProject={defaultProject} sort={api.view.sort.f === 'manual' ? undefined : api.view.sort} onSort={f => api.setSort(f)} />
         </div>
       )}
     </div>

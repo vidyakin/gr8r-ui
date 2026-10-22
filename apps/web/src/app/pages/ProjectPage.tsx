@@ -12,8 +12,8 @@ import { CalendarView } from '../components/calendar-view';
 import { Page404, StateDenied } from '../components/error-states';
 import { ProjectActivity, ProjectOverview } from '../components/project-overview';
 import { ProjectIcon, ProjectMenu, ProjectStatusMenu } from '../components/project';
-import { BucketIcon, TableView, useTaskColumns } from '../components/table-view';
-import { LIST_OPTIONAL_COLUMNS, TaskList, withTimeColumn, type TaskGroup } from '../components/task-list';
+import { BucketIcon, CUSTOMER_COLUMN, TableView, useTaskColumns } from '../components/table-view';
+import { LIST_OPTIONAL_COLUMNS, TaskList, withCustomerColumn, withTimeColumn, type TaskGroup } from '../components/task-list';
 import { ProjectTimelineTab } from '../components/timeline-view';
 import { ProjectFilesTab } from '../components/files-view';
 import { ViewToolbar, useListView, type ViewApi } from '../components/view-toolbar';
@@ -225,7 +225,7 @@ function TaskViewBody({ type, project: p, api }: { type: string; project: Projec
           ) : !ts.length ? (
             emptyFilter
           ) : (
-            <TaskList groups={groups} columns={withTimeColumn(['status', 'assignee', 'priority', 'due', 'labels'], api.hidden)} defaultProject={p.id} sort={api.view.sort.f === 'manual' ? undefined : api.view.sort} onSort={f => api.setSort(f)} />
+            <TaskList groups={groups} columns={withCustomerColumn(withTimeColumn(['status', 'assignee', 'priority', 'due', 'labels'], api.hidden), p.module === 'services')} defaultProject={p.id} sort={api.view.sort.f === 'manual' ? undefined : api.view.sort} onSort={f => api.setSort(f)} />
           )}
         </div>
       </>
@@ -234,8 +234,8 @@ function TaskViewBody({ type, project: p, api }: { type: string; project: Projec
   if (type === 'table')
     return (
       <>
-        <ViewToolbar api={api} group columns={taskColumns.toggle} right={addBtn} />
-        {noTasks ? emptyAll : <TableView tasks={ts} api={api} onNewTask={newTask} project={p.id} />}
+        <ViewToolbar api={api} group columns={p.module === 'services' ? [...taskColumns.toggle, CUSTOMER_COLUMN] : taskColumns.toggle} right={addBtn} />
+        {noTasks ? emptyAll : <TableView tasks={ts} api={api} onNewTask={newTask} project={p.id} customer={p.module === 'services'} />}
       </>
     );
   if (type === 'calendar')

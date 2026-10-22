@@ -202,6 +202,39 @@ describe('customer of a task', () => {
     expect(r.status).toBe(422);
     expect(r.body.error.code).toBe('invalid_reference');
   });
+
+  test('the customer of a task is changed and cleared through PATCH', async () => {
+    const task = await mk(owner, '/tasks', { projectId: servicesProject, title: 'Работа по договору' });
+    expect(task.companyId).toBeNull();
+
+    const set = await owner.patch(`/tasks/${task.id}`, { companyId: customer });
+    expect(set.status).toBe(200);
+    expect(set.body.companyId).toBe(customer);
+
+    const clear = await owner.patch(`/tasks/${task.id}`, { companyId: null });
+    expect(clear.status).toBe(200);
+    expect(clear.body.companyId).toBeNull();
+
+    // значение сохранилось на сервере, а не только в ответе
+    const row = (await owner.get(`/tasks/${task.id}`)).body;
+    expect(row.companyId).toBeNull();
+  });
+
+  test('PATCH of a task of another module with a customer is rejected', async () => {
+    const project = await owner.project('GEN', 'Обычный проект');
+    const task = await mk(owner, '/tasks', { projectId: project.id, title: 'Обычная задача' });
+    const r = await owner.patch(`/tasks/${task.id}`, { companyId: customer });
+    expect(r.status).toBe(422);
+    expect(r.body.error.code).toBe('company_not_allowed');
+  });
+
+  test('PATCH with a customer of another workspace is rejected', async () => {
+    const foreign = (await mk(other, '/companies', { name: 'Чужая компания' })).id;
+    const task = await mk(owner, '/tasks', { projectId: servicesProject, title: 'Работа по договору' });
+    const r = await owner.patch(`/tasks/${task.id}`, { companyId: foreign });
+    expect(r.status).toBe(422);
+    expect(r.body.error.code).toBe('invalid_reference');
+  });
 });
 
 describe('checks found in review', () => {
