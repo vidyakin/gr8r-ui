@@ -85,6 +85,13 @@
       "when": 1792626909368,
       "tag": "0011_stage_0b_stock_ops",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792633890002,
+      "tag": "0012_work_orders",
+      "breakpoints": true
     }
   ]
 }

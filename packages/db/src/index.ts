@@ -17,3 +17,4 @@ export * from './automations';
 export * from './production';
 export * from './inventory';
 export * from './internal-ops';
+export * from './work-orders';

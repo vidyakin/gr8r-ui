@@ -67,7 +67,7 @@ export const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
   ],
   product: [f('name', 'Name', 'text'), f('sku', 'SKU', 'text'), f('description', 'Description', 'long_text'), f('price', 'Price', 'money', true, { min: 0 }), f('purchasePrice', 'Purchase price', 'money', true, { min: 0 })],
   // Документами управляют проведение и отмена: поля только для чтения (триггеры «поле изменилось», условия, подстановки)
-  document: [f('status', 'Status', 'select', false, choices(['draft', 'posted', 'cancelled'])), f('state', 'State', 'text', false), f('number', 'Number', 'text', false), f('date', 'Date', 'date', false), f('total', 'Total', 'money', false)],
+  document: [f('status', 'Status', 'select', false, choices(['draft', 'posted', 'cancelled'])), f('state', 'State', 'text', false), f('number', 'Number', 'text', false), f('date', 'Date', 'date', false), f('total', 'Total', 'money', false), f('responsibleId', 'Responsible', 'user', false)],
 };
 
 /** Таблица записей системной сущности (имена колонок — как в схеме БД; сопоставление с Drizzle-таблицей — в воркере) */

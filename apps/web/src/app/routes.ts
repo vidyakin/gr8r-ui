@@ -74,6 +74,7 @@ export const SECTIONS = {
   automations: { path: '/automations', name: 'Automations', icon: Workflow },
   // Документы продаж и закупок, склад
   sales: { path: '/sales', name: 'Sales', icon: ReceiptText },
+  workOrders: { path: '/work-orders', name: 'Work orders', icon: ClipboardList },
   purchases: { path: '/purchases', name: 'Purchases', icon: ShoppingCart },
   stockDocs: { path: '/stock-docs', name: 'Stock documents', icon: ArrowLeftRight },
   inventory: { path: '/inventory', name: 'Inventory', icon: Boxes },

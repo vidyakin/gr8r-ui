@@ -121,6 +121,27 @@ export const costItems = pgTable(
   ],
 );
 
+/** Виды заказ-нарядов: у каждого вида свой набор состояний (таблица document_states) */
+export const workOrderKinds = pgTable(
+  'work_order_kinds',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    name: text('name').notNull(),
+    /** Вид по умолчанию: его получают новые заказ-наряды */
+    isDefault: boolean('is_default').notNull().default(false),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    unique('work_order_kinds_ws_id_uq').on(t.workspaceId, t.id),
+    uniqueIndex('work_order_kinds_ws_name_uq').on(t.workspaceId, sql`lower(${t.name})`),
+    // вид по умолчанию — один на воркспейс
+    uniqueIndex('work_order_kinds_default_uq').on(t.workspaceId).where(sql`${t.isDefault}`),
+  ],
+);
+
 export const documents = pgTable(
   'documents',
   {
@@ -145,6 +166,10 @@ export const documents = pgTable(
     targetWarehouseId: uuid('target_warehouse_id'),
     /** Статья затрат или доходов (списание, оприходование) */
     costItemId: uuid('cost_item_id'),
+    /** Вид заказ-наряда (только у work_order): у каждого вида свои состояния */
+    workOrderKindId: uuid('work_order_kind_id'),
+    /** Причина отмены заказ-наряда (состояние категории «cancelled») */
+    cancelReason: text('cancel_reason'),
     /** Получатель имущества в эксплуатацию: участник воркспейса */
     inUseMemberId: uuid('in_use_member_id'),
     /** Получатель имущества в эксплуатацию: участок (внешний ключ не ставим: схема участков ссылается на документы) */
@@ -172,10 +197,11 @@ export const documents = pgTable(
     foreignKey({ columns: [t.workspaceId, t.warehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'documents_warehouse_fk' }),
     foreignKey({ columns: [t.workspaceId, t.targetWarehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'documents_target_warehouse_fk' }),
     foreignKey({ columns: [t.workspaceId, t.costItemId], foreignColumns: [costItems.workspaceId, costItems.id], name: 'documents_cost_item_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.workOrderKindId], foreignColumns: [workOrderKinds.workspaceId, workOrderKinds.id], name: 'documents_work_order_kind_fk' }),
     foreignKey({ columns: [t.workspaceId, t.inUseMemberId], foreignColumns: [members.workspaceId, members.id], name: 'documents_in_use_member_fk' }),
     foreignKey({ columns: [t.workspaceId, t.basedOnId], foreignColumns: [t.workspaceId, t.id], name: 'documents_based_on_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.responsibleId], foreignColumns: [members.workspaceId, members.id], name: 'documents_responsible_fk' }),
-    check('documents_type_chk', sql`${t.type} in ('quote','customer_order','invoice','realization','act','customer_return','supplier_order','receipt','supplier_return','stock_transfer','write_off','stock_posting','inventory_count','production_order','production')`),
+    check('documents_type_chk', sql`${t.type} in ('quote','customer_order','invoice','realization','act','customer_return','supplier_order','receipt','supplier_return','stock_transfer','write_off','stock_posting','inventory_count','production_order','production','work_order')`),
     check('documents_status_chk', sql`${t.status} in ('draft','posted','cancelled')`),
     check('documents_state_chk', sql`${t.state} is null or ${t.state} ~ '^[a-z][a-z0-9_]*$'`),
     check('documents_operation_chk', sql`${t.operation} is null or ${t.operation} in ('transfer','in_transit','to_operation','from_operation','assembly')`),

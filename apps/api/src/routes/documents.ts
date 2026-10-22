@@ -44,9 +44,11 @@ import {
   updateDocument,
   warehouses,
   workspaces,
+  workCenters,
+  workOrderDetail,
+  assertWorkOrderPostingByState,
   inUseBalances,
   members,
-  workCenters,
 } from '@gr8r/db';
 import {
   bankAccountCreate,
@@ -246,6 +248,13 @@ const SORTABLE = {
 /** Внутренний документ: без контрагента, направление движения задаёт роль строки */
 const isInternal = (t: string) => DOCUMENT_META[t as DocumentType]?.party === null;
 
+/** Тип документа по id: нужен там, где поведение документа зависит от его типа */
+async function documentTypeOf(ctx: Ctx, id: string): Promise<string> {
+  const [doc] = await ctx.db.select({ type: documents.type }).from(documents).where(eq(documents.id, id)).limit(1);
+  if (!doc) throw notFound('document');
+  return doc.type;
+}
+
 /** Склад-получатель (перемещение) — отдельным алиасом, чтобы не путать со складом шапки */
 const targetWh = alias(warehouses, 'target_wh');
 
@@ -316,6 +325,11 @@ export const documentRoutes = new Hono<AppEnv>()
   .get('/:id', zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
     const detail = await documentDetail(ctx.db, c.req.valid('param').id);
+    // заказ-наряд: добавляем вид, состояния, материалы и назначения
+    if (detail.type === 'work_order') {
+      const wo = await workOrderDetail(ctx.db, detail.id);
+      return c.json({ ...detail, ...wo });
+    }
     // производственный документ: добавляем изготовителя, позиции и состав
     if (detail.type === 'production' || detail.type === 'production_order') {
       const prod = await productionDetail(ctx.db, detail.id);
@@ -340,7 +354,10 @@ export const documentRoutes = new Hono<AppEnv>()
     // производственные документы создаются своим сервисом: у них позиции и состав, а не строки товаров
     if (body.type === 'production' || body.type === 'production_order') throw new AppError(422, 'production_api_only', 'Production documents are created in the Production section');
     const id = await createDocument(ctx.db, docCtx(ctx), body);
-    return c.json(await documentDetail(ctx.db, id), 201);
+    const detail = await documentDetail(ctx.db, id);
+    // заказ-наряд: карточка сразу с видом, состояниями, материалами и назначениями
+    if (detail.type === 'work_order') return c.json({ ...detail, ...(await workOrderDetail(ctx.db, id)) }, 201);
+    return c.json(detail, 201);
   })
   .patch('/:id', write, zValidator('param', idParam, validationHook), zValidator('json', documentUpdate, validationHook), async c => {
     const ctx = ctxOf(c);
@@ -357,12 +374,15 @@ export const documentRoutes = new Hono<AppEnv>()
   .post('/:id/post', write, zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;
+    // заказ-наряд проводит состояние «выполнен», вручную его не проводят
+    assertWorkOrderPostingByState((await documentTypeOf(ctx, id)) as DocumentType);
     await postDocument(ctx.db, docCtx(ctx), id);
     return c.json(await documentDetail(ctx.db, id));
   })
   .post('/:id/unpost', write, zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;
+    assertWorkOrderPostingByState((await documentTypeOf(ctx, id)) as DocumentType);
     await unpostDocument(ctx.db, docCtx(ctx), id);
     return c.json(await documentDetail(ctx.db, id));
   })
@@ -416,7 +436,7 @@ export const documentRoutes = new Hono<AppEnv>()
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;
     const body = c.req.valid('json');
-    await changeDocumentState(ctx.db, docCtx(ctx), id, body.state, body.received ? { received: body.received } : undefined);
+    await changeDocumentState(ctx.db, docCtx(ctx), id, body.state, { received: body.received, cancelReason: body.cancelReason });
     return c.json(await documentDetail(ctx.db, id));
   })
   // заполнить строки инвентаризации по остаткам склада

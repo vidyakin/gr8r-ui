@@ -266,6 +266,44 @@ ${person('Главный (старший) бухгалтер', o.accountantName 
   );
 }
 
+/* ---------------- заказ-наряд (бланк приёма заказа) ---------------- */
+
+function workOrderForm(d: PrintData): string {
+  const o = d.organization;
+  const t = d.totals;
+  const w = d.workOrder;
+  const rows = d.lines
+    .map(l => `<tr><td class="center">${l.n}</td><td>${l.sku ? `<span class="small">${esc(l.sku)}</span> ` : ''}${esc(l.name)}</td><td class="right">${qtyRu(l.qty)}</td><td class="center">${esc(l.unitSymbol)}</td><td class="right">${unitEff(l, d.priceIncludesVat)}</td><td class="right">${moneyRu(d.priceIncludesVat ? l.total : l.net)}</td></tr>`)
+    .join('');
+  const materials = (w?.materials ?? []).map(m => `<tr><td class="center">${m.n}</td><td>${esc(m.name)}</td><td class="right">${qtyRu(m.qty)}</td><td class="center">${esc(m.unitSymbol)}</td></tr>`).join('');
+  const assignees = (w?.assignees ?? []).map(a => `<tr><td>${esc(a.name)}</td><td>${esc(a.workCenterName ?? '—')}</td><td class="right">${a.plannedHours ? qtyRu(a.plannedHours) : '—'}</td><td class="center">${a.startDate ? esc(dateRu(a.startDate)) : '—'}</td><td class="center">${a.dueDate ? esc(dateRu(a.dueDate)) : '—'}</td></tr>`).join('');
+  const vatText = d.lines.every(l => l.vatRate === 'none') ? 'Без НДС' : moneyRu(t.vat);
+  return html(
+    d,
+    'portrait',
+    `<h1 class="center">${numberTitle(d, 'Заказ-наряд')}</h1>
+<table class="plain">
+<tr><td style="width:150px">Исполнитель</td><td>${partyLine(o)}</td></tr>
+<tr><td>Заказчик</td><td>${partyLine(d.party)}</td></tr>
+<tr><td>Вид заказ-наряда</td><td>${esc(w?.kindName ?? '—')}</td></tr>
+<tr><td>Состояние</td><td>${esc(w?.stateLabel ?? '—')}</td></tr>
+<tr><td>Склад</td><td>${esc(d.warehouseName ?? '—')}</td></tr>
+<tr><td>Плановые работы</td><td>с ${w?.plannedStart ? esc(dateRu(w.plannedStart)) : '—'} по ${w?.plannedEnd ? esc(dateRu(w.plannedEnd)) : '—'}</td></tr>
+</table>
+<table class="grid" style="margin-top:8px"><thead><tr><th style="width:28px">№</th><th>Работы, услуги и товары</th><th style="width:56px">Кол-во</th><th style="width:40px">Ед.</th><th style="width:84px">Цена</th><th style="width:92px">Сумма</th></tr></thead><tbody>${rows}</tbody></table>
+<table class="totals" style="margin-top:4px"><tr><td class="bold">${d.priceIncludesVat ? 'Итого' : 'Итого (без НДС)'}:</td><td class="bold" style="width:100px">${moneyRu(d.priceIncludesVat ? t.total : t.net)}</td></tr>
+<tr><td class="bold">${d.priceIncludesVat ? 'В том числе НДС' : 'Сумма НДС'}:</td><td class="bold">${vatText}</td></tr>
+<tr><td class="bold">Всего:</td><td class="bold">${moneyRu(t.total)}</td></tr></table>
+${materials ? `<h2 style="margin-top:10px">Материалы</h2><table class="grid"><thead><tr><th style="width:28px">№</th><th>Наименование</th><th style="width:60px">Кол-во</th><th style="width:44px">Ед.</th></tr></thead><tbody>${materials}</tbody></table>` : ''}
+${assignees ? `<h2 style="margin-top:10px">Исполнители</h2><table class="grid"><thead><tr><th>Сотрудник</th><th style="width:120px">Участок</th><th style="width:60px">Часы</th><th style="width:80px">Начало</th><th style="width:80px">Окончание</th></tr></thead><tbody>${assignees}</tbody></table>` : ''}
+<div class="words">Всего наименований ${d.lines.length}, на сумму ${moneyRu(t.total)} руб.<br><b>${esc(amountInWordsRu(t.total))}</b></div>
+${d.comment ? `<div class="party small">${esc(d.comment)}</div>` : ''}
+<table class="sign plain" style="margin-top:18px"><tr>
+<td style="width:50%"><b>ИСПОЛНИТЕЛЬ</b><br>${esc(o.fullName || o.name)}<br><br><span class="line">${image(o.directorSignatureFile, 'sig', 'Подпись')}</span> / ${esc(o.directorName)} /</td>
+<td style="width:50%"><b>ЗАКАЗЧИК</b><br>${esc(d.party.fullName || d.party.name)}<br><br><span class="line"></span> / ______________ /</td></tr></table>`,
+  );
+}
+
 export function printOrientation(form: PrintForm): 'portrait' | 'landscape' {
   return form === 'upd' || form === 'torg12' || form === 'torg13' ? 'landscape' : 'portrait';
 }
@@ -401,5 +439,7 @@ export function renderPrintForm(form: PrintForm, data: PrintData): string {
       return torg16Form(data);
     case 'torg13':
       return torg13Form(data);
+    case 'work_order':
+      return workOrderForm(data);
   }
 }

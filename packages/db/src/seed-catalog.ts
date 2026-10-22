@@ -113,6 +113,12 @@ export async function seedCatalog(db: Db, wsId: string) {
   await service('Сборка мебели на месте', 'SV-ASM', '356', 1800);
   await service('Замер и консультация', 'SV-MSR', '876', 0, 'none');
 
+  // Работы (вид номенклатуры «Работа»): заказ-наряд продаёт работу, к ней идут материалы и исполнители
+  const work = async (name: string, sku: string, unit: string, price: number, vat = '20') =>
+    db.insert(products).values({ workspaceId: wsId, kind: 'work', sku, name, unitCode: unit, vatRate: vat, price: price.toFixed(2), purchasePrice: '0', categoryId: services.id });
+  await work('Монтаж и наладка оборудования', 'WR-MNT', '356', 2400);
+  await work('Сервисное обслуживание', 'WR-SRV', '356', 3200);
+
   /* ---------- участки ---------- */
   const carpentry = uuidv7();
   const assembly = uuidv7();

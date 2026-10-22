@@ -1,7 +1,7 @@
 /* Модули задач: у каждого модуля (production, services) в воркспейсе есть свой системный проект.
    Задача модуля обязана лежать в проекте того же модуля — иначе её не найти ни в одном списке.
    Системный проект создаётся лениво: при первом обращении к модулю (создание задачи, проверка). */
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { ProjectColor, TaskModule } from '@gr8r/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
@@ -47,4 +47,16 @@ export async function projectModule(db: Db, projectId: string): Promise<TaskModu
 /** Модуль задачи должен совпадать с модулем её проекта */
 export function assertTaskModule(taskModule: TaskModule, projectModule: TaskModule): void {
   if (taskModule !== projectModule) throw new DomainError(422, 'module_mismatch', `A task of the ${taskModule} module must be in a project of the same module`);
+}
+
+/** Ключ задачи (SERV-3): счётчик проекта увеличивается атомарно (строка блокируется до конца транзакции),
+    поэтому ключи не повторяются и идут подряд. Ключ принадлежит проекту: SERV-1 — первая задача модуля services */
+export async function issueTaskKey(db: Db, projectId: string): Promise<string> {
+  const [p] = await db
+    .update(projects)
+    .set({ taskCounter: sql`${projects.taskCounter} + 1`, lastActivityAt: new Date() })
+    .where(eq(projects.id, projectId))
+    .returning({ key: projects.key, n: projects.taskCounter });
+  if (!p) throw new DomainError(422, 'invalid_reference', 'Project not found');
+  return `${p.key}-${p.n}`;
 }

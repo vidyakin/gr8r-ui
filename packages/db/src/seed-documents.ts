@@ -4,7 +4,8 @@
 import { accountKeyOk, makeInn, makeOgrn } from '@gr8r/shared';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { Db } from './client';
-import { createBasedOn, createDocument, ensureCostItems, postDocument, updateDocument, type DocCtx } from './documents';
+import { changeDocumentState, createBasedOn, createDocument, ensureCostItems, postDocument, updateDocument, type DocCtx } from './documents';
+import { createWorkOrderAssignment, saveWorkOrderMaterials } from './work-orders';
 import { fillCountSheet } from './inventory';
 import './internal-ops';
 import { bankAccounts, companies, costItems, documentLines, organizations, productManufacturing, products, warehouses, workCenters, manufacturedItems } from './schema';
@@ -102,7 +103,7 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
 
   /* ---------- товары ---------- */
   const bySku = new Map<string, { id: string; purchasePrice: string; price: string }>();
-  const skus = ['MT-OAK-5050', 'MT-OAK-30', 'MT-PLY-18', 'MT-MDF-16', 'MT-EDG-2', 'MT-LAC-1', 'MT-STN-1', 'MT-GLU-1', 'MT-SND-120', 'MT-PKG-1', 'HW-SCR-440', 'HW-BLT-660', 'HW-CAM-15', 'HW-FT-60', 'HW-SHP-5', 'FRN-001', 'FRN-002', 'FRN-003', 'SV-DLV', 'SV-ASM'];
+  const skus = ['MT-OAK-5050', 'MT-OAK-30', 'MT-PLY-18', 'MT-MDF-16', 'MT-EDG-2', 'MT-LAC-1', 'MT-STN-1', 'MT-GLU-1', 'MT-SND-120', 'MT-PKG-1', 'HW-SCR-440', 'HW-BLT-660', 'HW-CAM-15', 'HW-FT-60', 'HW-SHP-5', 'FRN-001', 'FRN-002', 'FRN-003', 'SV-DLV', 'SV-ASM', 'WR-MNT', 'WR-SRV'];
   for (const p of await db.select({ id: products.id, sku: products.sku, purchasePrice: products.purchasePrice, price: products.price }).from(products).where(inArray(products.sku, skus))) bySku.set(p.sku, p);
   const P = (sku: string) => {
     const p = bySku.get(sku);
@@ -190,6 +191,19 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
     lines: [sell('FRN-002', 8, { price: 2000 })],
   });
   await postAt(direct, 3);
+
+  /* ---------- заказ-наряд: работа и товар, материалы и исполнитель ---------- */
+  const workOrder = await createDocument(db, ctx, {
+    type: 'work_order',
+    counterpartyId: co.quanta,
+    warehouseId: main!.id,
+    date: iso(2),
+    comment: 'Монтаж и наладка оборудования на объекте',
+    lines: [sell('WR-MNT', 4), sell('HW-CAM-15', 6)],
+  });
+  await saveWorkOrderMaterials(db, ctx, workOrder, [{ productId: P('HW-BLT-660').id, qty: '12' }]);
+  await createWorkOrderAssignment(db, ctx, workOrder, { assigneeId: memberId, title: 'Монтаж и наладка на объекте', startDate: iso(1), dueDate: iso(-2), plannedHours: '6' });
+  await changeDocumentState(db, ctx, workOrder, 'in_progress');
 
   /* ---------- складские документы: перемещение между складами и списание ---------- */
   await ensureCostItems(db, wsId);

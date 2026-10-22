@@ -78,4 +78,14 @@ export interface PrintData {
   holderName?: string;
   /** Вид операции документа (перемещение) */
   operation?: string;
+  /** Заказ-наряд: вид, состояние, материалы и исполнители */
+  workOrder?: {
+    kindName: string;
+    stateLabel: string;
+    /** Плановые начало и окончание работ */
+    plannedStart?: string | null;
+    plannedEnd?: string | null;
+    materials: { n: number; name: string; unitCode: string; unitSymbol: string; qty: string }[];
+    assignees: { name: string; workCenterName: string | null; plannedHours: string | null; startDate: string | null; dueDate: string | null }[];
+  };
 }
