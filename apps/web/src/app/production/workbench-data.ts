@@ -23,8 +23,29 @@ export interface WorkbenchRow {
   shipped: string;
   /** Осталось к выпуску */
   remaining: string;
-  /** Этап выпуска */
-  stage: 'final';
+  /** Этап выпуска по умолчанию (финальный) */
+  stage: string;
+  /** Вид производства изделия */
+  productionKindId: string | null;
+  productionKindName: string | null;
+  /** Этапы выпуска изделия */
+  stages: WorkbenchStage[];
+}
+
+/** Этап выпуска в рабочем месте */
+export interface WorkbenchStage {
+  /** Этап; пусто — предопределённый «Завершение производства» */
+  id: string | null;
+  name: string;
+  sortOrder: number;
+  /** Финальный этап: продукция приходуется только им */
+  isFinal: boolean;
+  /** Выполнено на этапе */
+  done: string;
+  /** Осталось на этапе */
+  remaining: string;
+  /** Сколько можно выполнить сейчас: предыдущий этап ограничивает */
+  available: string;
 }
 
 export interface WorkbenchOrder {
@@ -82,8 +103,8 @@ export function useWorkbenchExecute() {
   const ws = useWsId();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { date?: string; mode: WorkbenchMode; rows: { orderId: string; source: 'customer_order' | 'production_order'; lineId: string; qty?: string; workCenterId?: string }[] }) =>
-      call<{ documents: { id: string; number: string | null; workCenterId: string; qty: string }[] }>(ws, 'POST', '/production/workbench/execute', body),
+    mutationFn: (body: { date?: string; mode: WorkbenchMode; rows: { orderId: string; source: 'customer_order' | 'production_order'; lineId: string; stageId?: string | null; qty?: string; workCenterId?: string }[] }) =>
+      call<{ documents: { id: string; number: string | null; workCenterId: string; qty: string; stageId: string | null }[] }>(ws, 'POST', '/production/workbench/execute', body),
     onSuccess: r => {
       const docs = r.documents ?? [];
       toast(docs.length === 1 ? `Production ${docs[0].number ?? ''} is released` : `${docs.length} production documents are released`);

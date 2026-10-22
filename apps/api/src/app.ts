@@ -13,6 +13,7 @@ import { Hub } from './realtime';
 import { attributeRoutes, categoryRoutes, productRoutes, unitRoutes } from './routes/catalog';
 import { bomLineRoutes, itemRoutes, productionRoutes, workCenterRoutes } from './routes/production';
 import { productionOrderRoutes } from './routes/production-orders';
+import { productionStageRoutes } from './routes/production-stages';
 import { productionWorkbenchRoutes } from './routes/production-workbench';
 import { companyRoutes, contactRoutes, crmActivityRoutes, dealRoutes } from './routes/crm';
 import { bankAccountRoutes, companyBankRoutes, costItemRoutes, documentRoutes, organizationBankRoutes, organizationRoutes, stockRoutes, warehouseRoutes } from './routes/documents';
@@ -85,6 +86,7 @@ function buildTenantApi() {
     .route('/bom-lines', bomLineRoutes)
     .route('/production', productionRoutes)
     .route('/production', productionWorkbenchRoutes)
+    .route('/production', productionStageRoutes)
     .route('/production-orders', productionOrderRoutes)
     .route('/organizations', organizationRoutes)
     .route('/organizations', organizationBankRoutes)

@@ -59,6 +59,7 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
   const [scrap, setScrap] = React.useState(line ? line.scrapPct.replace(/\.?0+$/, '') : '0');
   const [operation, setOperation] = React.useState(line?.operation ?? '');
   const [center, setCenter] = React.useState(line?.workCenterId ?? '');
+  const [stageId, setStageId] = React.useState(line?.stageId ?? '');
   const [hours, setHours] = React.useState(line ? line.hours.replace(/\.?0+$/, '') : '1');
   const [rate, setRate] = React.useState(line?.rate ? line.rate.replace(/\.00$/, '') : '');
   const [fixed, setFixed] = React.useState(line?.fixedCost ? line.fixedCost.replace(/\.00$/, '') : '');
@@ -66,17 +67,21 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
   const [busy, setBusy] = React.useState(false);
 
   const candidates = snap.items.filter(i => i.id !== item.id && (i.id === line?.childItemId || canInclude(snap.items, item.id, i.id)));
+  // вид производства изделия: этап, на котором расходуется материал или выполняется операция
+  const prodKind = snap.kinds.find(k => k.id === item.productionKindId) ?? null;
   const centerObj = snap.workCenters.find(w => w.id === center);
   const title = `${edit ? 'Edit' : 'Add'} ${kind === 'material' ? 'material' : kind === 'semi' ? 'semi-finished product' : 'work operation'}`;
 
   const submit = async () => {
     const num = (v: string) => (v.trim() === '' ? undefined : Number(v));
-    const body: Record<string, unknown> =
-      kind === 'material'
+    const body: Record<string, unknown> = {
+      stageId: prodKind ? stageId || null : null,
+      ...(kind === 'material'
         ? { kind, productId: material?.id, qty: num(qty), scrapPct: num(scrap) ?? 0 }
         : kind === 'semi'
           ? { kind, childItemId: childId || undefined, qty: num(qty), semiMode: mode }
-          : { kind, operation: operation.trim(), workCenterId: center || null, hours: num(hours) ?? 0, rate: rate.trim() === '' ? null : Number(rate), fixedCost: fixed.trim() === '' ? null : Number(fixed) };
+          : { kind, operation: operation.trim(), workCenterId: center || null, hours: num(hours) ?? 0, rate: rate.trim() === '' ? null : Number(rate), fixedCost: fixed.trim() === '' ? null : Number(fixed) }),
+    };
     const parsed = bomLineCreate.safeParse(body);
     if (!parsed.success) {
       const out: Record<string, string> = {};
@@ -121,6 +126,20 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
             void submit();
           }}
         >
+          {prodKind && (
+            <Field label="Stage" hint="The stage of the production kind where the material is used or the operation is performed." error={err.stageId}>
+              {p => (
+                <select className="select" id={p.id} value={stageId} onChange={e => (setStageId(e.target.value), setErr({}))}>
+                  <option value="">Choose a stage…</option>
+                  {prodKind.stages.map(st => (
+                    <option key={st.id} value={st.id}>
+                      {st.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
+          )}
           {kind === 'material' && (
             <>
               <Field label="Material" error={err.productId}>

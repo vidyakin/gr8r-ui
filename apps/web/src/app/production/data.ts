@@ -14,6 +14,8 @@ export interface BomLine {
   itemId: string;
   kind: 'material' | 'semi' | 'work';
   sortOrder: number;
+  /** Этап, на котором расходуется материал или выполняется операция */
+  stageId: string | null;
   productId: string | null;
   childItemId: string | null;
   /** Режим полуфабриката: stock — списать со склада, explode — развернуть до материалов */
@@ -38,9 +40,28 @@ export interface Item {
   productId: string | null;
   batchQty: string;
   overheadPct: string;
+  /** Вид производства: этапы выпуска (пусто — единственный этап «Завершение производства») */
+  productionKindId: string | null;
   createdAt: string;
   updatedAt: string;
   lines: BomLine[];
+}
+
+/** Этап вида производства */
+export interface ProductionStage {
+  id: string;
+  name: string;
+  sortOrder: number;
+  /** Финальный этап: продукция приходуется только им */
+  isFinal: boolean;
+}
+
+/** Вид производства: наименование и упорядоченные этапы */
+export interface ProductionKind {
+  id: string;
+  name: string;
+  note: string;
+  stages: ProductionStage[];
 }
 
 export interface WorkCenter {
@@ -72,6 +93,8 @@ export interface Snapshot {
   items: Item[];
   workCenters: WorkCenter[];
   materials: Material[];
+  /** Виды производства с этапами */
+  kinds: ProductionKind[];
 }
 
 export const productionKey = (ws: string, ...rest: unknown[]) => ['ws', ws, 'production', ...rest] as const;
@@ -79,6 +102,12 @@ export const productionKey = (ws: string, ...rest: unknown[]) => ['ws', ws, 'pro
 export function useSnapshot() {
   const ws = useWsId();
   return useQuery({ queryKey: productionKey(ws, 'snapshot'), queryFn: () => call<Snapshot>(ws, 'GET', '/production/snapshot'), staleTime: Infinity });
+}
+
+/** Виды производства с этапами — справочник «Этапы» */
+export function useProductionKinds() {
+  const ws = useWsId();
+  return useQuery({ queryKey: productionKey(ws, 'kinds'), queryFn: () => call<{ items: ProductionKind[] }>(ws, 'GET', '/production/kinds'), staleTime: Infinity });
 }
 
 export const PRICE_SOURCE_LABEL: Record<MaterialPriceSource, string> = { purchase: 'purchase price', price: 'sale price', avg_cost: 'average warehouse cost' };
@@ -230,6 +259,7 @@ export function useProductionMutations() {
             itemId: v.itemId,
             kind: b.kind as BomLine['kind'],
             sortOrder: i.lines.length,
+            stageId: (b.stageId as string) ?? null,
             productId: (b.productId as string) ?? null,
             childItemId: (b.childItemId as string) ?? null,
             semiMode: (b.semiMode as SemiMode) ?? 'stock',

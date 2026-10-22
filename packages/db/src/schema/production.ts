@@ -1,7 +1,7 @@
 /* Производство: участки, продукция (изделия и полуфабрикаты) и строки спецификации (BOM), заказы на производство и выпуск.
    Таблицы арендатора. Связи — составные внешние ключи (workspace_id, id). */
 import { sql } from 'drizzle-orm';
-import { check, foreignKey, index, integer, numeric, pgTable, primaryKey, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, foreignKey, index, integer, numeric, pgTable, primaryKey, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { archivedAt, createdAt, money, pk, ts, updatedAt } from './columns';
 import { products, units } from './catalog';
 import { documentLines, documents, warehouses } from './documents';
@@ -36,6 +36,55 @@ export const workCenters = pgTable(
   ],
 );
 
+/* ---------------- виды производства и этапы ----------------
+
+   Справочник «Этапы»: для каждого вида производства — упорядоченный список этапов. Последний этап — финальный
+   («Завершение производства»): продукция приходуется только им. Спецификация без вида производства работает
+   как раньше — единственный предопределённый этап «Завершение производства». */
+
+/** Вид производства: настройка этапов */
+export const productionKinds = pgTable(
+  'production_kinds',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    name: text('name').notNull(),
+    note: text('note').notNull().default(''),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    archivedAt: archivedAt(),
+  },
+  t => [
+    unique('production_kinds_ws_id_uq').on(t.workspaceId, t.id),
+    uniqueIndex('production_kinds_ws_name_uq').on(t.workspaceId, sql`lower(${t.name})`).where(sql`${t.archivedAt} is null`),
+  ],
+);
+
+/** Этап вида производства */
+export const productionStages = pgTable(
+  'production_stages',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    /** Вид производства */
+    kindId: uuid('kind_id').notNull(),
+    /** Порядок выполнения */
+    sortOrder: integer('sort_order').notNull().default(0),
+    name: text('name').notNull(),
+    /** Финальный этап: продукция приходуется только им */
+    isFinal: boolean('is_final').notNull().default(false),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    unique('production_stages_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.kindId], foreignColumns: [productionKinds.workspaceId, productionKinds.id], name: 'production_stages_kind_fk' }).onDelete('cascade'),
+    index('production_stages_kind_idx').on(t.kindId, t.sortOrder),
+    // финальный этап у вида производства один
+    uniqueIndex('production_stages_kind_final_uq').on(t.workspaceId, t.kindId).where(sql`${t.isFinal}`),
+  ],
+);
+
 export const manufacturedItems = pgTable(
   'manufactured_items',
   {
@@ -52,6 +101,8 @@ export const manufacturedItems = pgTable(
     batchQty: numeric('batch_qty', { precision: 18, scale: 3 }).notNull().default('1'),
     /** Накладные, % от прямых затрат */
     overheadPct: numeric('overhead_pct', { precision: 7, scale: 2 }).notNull().default('0'),
+    /** Вид производства: этапы выпуска (без вида — единственный этап «Завершение производства») */
+    productionKindId: uuid('production_kind_id'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
     archivedAt: archivedAt(),
@@ -59,6 +110,7 @@ export const manufacturedItems = pgTable(
   t => [
     unique('manufactured_items_ws_id_uq').on(t.workspaceId, t.id),
     foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'manufactured_items_product_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.productionKindId], foreignColumns: [productionKinds.workspaceId, productionKinds.id], name: 'manufactured_items_kind_fk' }),
     foreignKey({ columns: [t.workspaceId, t.unitCode], foreignColumns: [units.workspaceId, units.code], name: 'manufactured_items_unit_fk' }),
     check('manufactured_items_kind_chk', sql`${t.kind} in ('product','semi')`),
     check('manufactured_items_batch_chk', sql`${t.batchQty} > 0 and ${t.overheadPct} >= 0`),
@@ -93,12 +145,15 @@ export const bomLines = pgTable(
     /** Ставка за час; пусто — ставка участка */
     rate: money('rate'),
     fixedCost: money('fixed_cost'),
+    /** Этап, на котором расходуется материал или выполняется операция */
+    stageId: uuid('stage_id'),
     note: text('note').notNull().default(''),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   t => [
     foreignKey({ columns: [t.workspaceId, t.itemId], foreignColumns: [manufacturedItems.workspaceId, manufacturedItems.id], name: 'bom_lines_item_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.stageId], foreignColumns: [productionStages.workspaceId, productionStages.id], name: 'bom_lines_stage_fk' }),
     foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'bom_lines_product_fk' }),
     foreignKey({ columns: [t.workspaceId, t.childItemId], foreignColumns: [manufacturedItems.workspaceId, manufacturedItems.id], name: 'bom_lines_child_fk' }),
     foreignKey({ columns: [t.workspaceId, t.workCenterId], foreignColumns: [workCenters.workspaceId, workCenters.id], name: 'bom_lines_work_center_fk' }),
@@ -166,6 +221,10 @@ export const productionItems = pgTable(
     customerOrderLineId: uuid('customer_order_line_id'),
     /** Позиция заказа на производство, которую выполняет эта (выпуск по заказу) */
     sourceItemId: uuid('source_item_id'),
+    /** Этап выпуска, к которому относится позиция */
+    stageId: uuid('stage_id'),
+    /** Фактическая себестоимость позиции на этом этапе (материалы + работы + накладные) */
+    stageCost: numeric('stage_cost', { precision: 18, scale: 4 }),
     /** Строка документа с продукцией (у выпуска) */
     documentLineId: uuid('document_line_id'),
     sortOrder: integer('sort_order').notNull().default(0),
@@ -177,6 +236,7 @@ export const productionItems = pgTable(
     foreignKey({ columns: [t.workspaceId, t.itemId], foreignColumns: [manufacturedItems.workspaceId, manufacturedItems.id], name: 'production_items_item_fk' }),
     foreignKey({ columns: [t.workspaceId, t.customerOrderLineId], foreignColumns: [documentLines.workspaceId, documentLines.id], name: 'production_items_customer_line_fk' }),
     foreignKey({ columns: [t.workspaceId, t.sourceItemId], foreignColumns: [t.workspaceId, t.id], name: 'production_items_source_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.stageId], foreignColumns: [productionStages.workspaceId, productionStages.id], name: 'production_items_stage_fk' }),
     foreignKey({ columns: [t.workspaceId, t.documentLineId], foreignColumns: [documentLines.workspaceId, documentLines.id], name: 'production_items_line_fk' }).onDelete('set null'),
     check('production_items_qty_chk', sql`${t.qty} > 0`),
     index('production_items_document_idx').on(t.documentId, t.sortOrder),
@@ -219,6 +279,8 @@ export const productionComponents = pgTable(
     actualCost: numeric('actual_cost', { precision: 18, scale: 4 }),
     /** Строка документа, по которой материал списывается */
     documentLineId: uuid('document_line_id'),
+    /** Этап, на котором расходуется материал или выполняется работа (снимок строки спецификации) */
+    stageId: uuid('stage_id'),
     sortOrder: integer('sort_order').notNull().default(0),
     createdAt: createdAt(),
   },
@@ -229,6 +291,7 @@ export const productionComponents = pgTable(
     foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'production_components_product_fk' }),
     foreignKey({ columns: [t.workspaceId, t.workCenterId], foreignColumns: [workCenters.workspaceId, workCenters.id], name: 'production_components_work_center_fk' }),
     foreignKey({ columns: [t.workspaceId, t.documentLineId], foreignColumns: [documentLines.workspaceId, documentLines.id], name: 'production_components_line_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.stageId], foreignColumns: [productionStages.workspaceId, productionStages.id], name: 'production_components_stage_fk' }),
     check(
       'production_components_shape_chk',
       sql`(${t.kind} = 'work' and ${t.productId} is null) or (${t.kind} <> 'work' and ${t.productId} is not null)`,
@@ -254,6 +317,8 @@ export const productionHeaders = pgTable(
     plannedEnd: ts('planned_end'),
     /** Родительский заказ на производство (дочерний заказ на полуфабрикат) */
     parentDocumentId: uuid('parent_document_id'),
+    /** Этап выпуска (у заказа на производство — пусто: этапы выбирают при выпуске) */
+    stageId: uuid('stage_id'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -262,5 +327,6 @@ export const productionHeaders = pgTable(
     foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'production_headers_document_fk' }).onDelete('cascade'),
     foreignKey({ columns: [t.workspaceId, t.workCenterId], foreignColumns: [workCenters.workspaceId, workCenters.id], name: 'production_headers_work_center_fk' }),
     foreignKey({ columns: [t.workspaceId, t.parentDocumentId], foreignColumns: [documents.workspaceId, documents.id], name: 'production_headers_parent_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.stageId], foreignColumns: [productionStages.workspaceId, productionStages.id], name: 'production_headers_stage_fk' }),
   ],
 );

@@ -3,7 +3,7 @@
    Названия товаров — данные (на русском), интерфейс остаётся английским. */
 import type { Db } from './client';
 import { registerBaseUnits } from './catalog';
-import { bomLines, attributeDefs, manufacturedItems, productCategories, products, workCenters } from './schema';
+import { bomLines, attributeDefs, manufacturedItems, productCategories, productionKinds, productionStages, products, workCenters } from './schema';
 import { uuidv7 } from './uuid';
 
 /** EAN-13 с контрольной цифрой из 12 цифр */
@@ -121,16 +121,30 @@ export async function seedCatalog(db: Db, wsId: string) {
     { id: assembly, workspaceId: wsId, code: 'WS-2', name: 'Сборочный участок', hourlyRate: '450.00', note: 'Сборка и упаковка' },
   ]);
 
+  /* ---------- виды производства и этапы ---------- */
+  // Вид «Мебельное производство»: распил → сборка → завершение производства
+  const furnitureKind = uuidv7();
+  await db.insert(productionKinds).values({ id: furnitureKind, workspaceId: wsId, name: 'Мебельное производство', note: 'Распил, сборка и упаковка' });
+  const stageCut = uuidv7();
+  const stageAssembly = uuidv7();
+  const stageFinal = uuidv7();
+  await db.insert(productionStages).values([
+    { id: stageCut, workspaceId: wsId, kindId: furnitureKind, sortOrder: 0, name: 'Распил', isFinal: false },
+    { id: stageAssembly, workspaceId: wsId, kindId: furnitureKind, sortOrder: 1, name: 'Сборка', isFinal: false },
+    { id: stageFinal, workspaceId: wsId, kindId: furnitureKind, sortOrder: 2, name: 'Завершение производства', isFinal: true },
+  ]);
+  const stages = { cut: stageCut, assembly: stageAssembly, final: stageFinal } as const;
+
   /* ---------- продукция и спецификации ---------- */
-  const item = async (key: string, i: { name: string; code: string; kind: 'product' | 'semi'; productId?: string; batchQty?: number; overheadPct: number }) => {
+  const item = async (key: string, i: { name: string; code: string; kind: 'product' | 'semi'; productId?: string; batchQty?: number; overheadPct: number; kindId?: string }) => {
     ids[key] = uuidv7();
-    await db.insert(manufacturedItems).values({ id: ids[key], workspaceId: wsId, code: i.code, name: i.name, kind: i.kind, unitCode: '796', productId: i.productId ?? null, batchQty: String(i.batchQty ?? 1), overheadPct: String(i.overheadPct) });
+    await db.insert(manufacturedItems).values({ id: ids[key], workspaceId: wsId, code: i.code, name: i.name, kind: i.kind, unitCode: '796', productId: i.productId ?? null, batchQty: String(i.batchQty ?? 1), overheadPct: String(i.overheadPct), productionKindId: i.kindId ?? null });
   };
-  type Line = { kind: 'material'; product: string; qty: number; scrap?: number } | { kind: 'semi'; item: string; qty: number } | { kind: 'work'; op: string; center?: string; hours?: number; rate?: number; fixed?: number };
+  type Line = { kind: 'material'; product: string; qty: number; scrap?: number; stage?: keyof typeof stages } | { kind: 'semi'; item: string; qty: number; stage?: keyof typeof stages } | { kind: 'work'; op: string; center?: string; hours?: number; rate?: number; fixed?: number; stage?: keyof typeof stages };
   const bom = async (itemKey: string, lines: Line[]) => {
     await db.insert(bomLines).values(
       lines.map((l, i) => {
-        const base = { workspaceId: wsId, itemId: ids[itemKey]!, kind: l.kind, sortOrder: i };
+        const base = { workspaceId: wsId, itemId: ids[itemKey]!, kind: l.kind, sortOrder: i, stageId: l.stage ? stages[l.stage] : null };
         if (l.kind === 'material') {
           const unit = ({ oakBeam: '006', oakBoard: '055', plywood: '625', mdf: '625', edge: '006', lacquer: '112', stain: '112', glue: '166', sandpaper: '625' } as Record<string, string>)[l.product] ?? '796';
           return { ...base, productId: ids[l.product]!, qty: String(l.qty), unitCode: unit, scrapPct: String(l.scrap ?? 0) };
@@ -185,13 +199,16 @@ export async function seedCatalog(db: Db, wsId: string) {
     { kind: 'material', product: 'edge', qty: 3.6, scrap: 5 },
     { kind: 'work', op: 'Раскрой и кромление', center: 'carpentry', hours: 0.8 },
   ]);
-  await item('desk', { name: 'Стол письменный «Офис»', code: 'FG-OFFICE', kind: 'product', productId: ids.tableOffice, overheadPct: 10 });
+  // Изделие с видом производства: материалы и операции распределены по этапам
+  await item('desk', { name: 'Стол письменный «Офис»', code: 'FG-OFFICE', kind: 'product', productId: ids.tableOffice, overheadPct: 10, kindId: furnitureKind });
   await bom('desk', [
-    { kind: 'semi', item: 'officeTop', qty: 1 },
-    { kind: 'material', product: 'foot', qty: 4 },
-    { kind: 'material', product: 'plywood', qty: 0.25, scrap: 10 },
-    { kind: 'material', product: 'screw', qty: 12 },
-    { kind: 'work', op: 'Сборка', center: 'assembly', hours: 0.7 },
+    { kind: 'material', product: 'mdf', qty: 0.5, scrap: 10, stage: 'cut' },
+    { kind: 'material', product: 'edge', qty: 3.6, scrap: 5, stage: 'cut' },
+    { kind: 'material', product: 'plywood', qty: 0.25, scrap: 10, stage: 'cut' },
+    { kind: 'material', product: 'foot', qty: 4, stage: 'assembly' },
+    { kind: 'material', product: 'screw', qty: 12, stage: 'assembly' },
+    { kind: 'material', product: 'packaging', qty: 1, stage: 'final' },
+    { kind: 'work', op: 'Сборка', center: 'assembly', hours: 0.7, stage: 'assembly' },
   ]);
 
   // Изделие 3: стул «Лофт» — простое изделие для заказа на производство

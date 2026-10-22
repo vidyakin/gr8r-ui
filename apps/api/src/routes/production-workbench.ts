@@ -16,7 +16,22 @@ export const productionWorkbenchRoutes = new Hono<AppEnv>()
   .get('/workbench', zValidator('query', workbenchQuery, validationHook), async c => {
     const ctx = ctxOf(c);
     const q = c.req.valid('query');
-    return c.json(await listWorkbench(ctx.db, ctx.workspaceId, { customerOrderId: q.customerOrderId, productionOrderId: q.productionOrderId, counterpartyId: q.counterpartyId, productId: q.productId, state: q.state, from: q.from, to: q.to, q: q.q, limit: q.limit, offset: q.offset }));
+    return c.json(
+      await listWorkbench(ctx.db, ctx.workspaceId, {
+        customerOrderId: q.customerOrderId,
+        productionOrderId: q.productionOrderId,
+        counterpartyId: q.counterpartyId,
+        productId: q.productId,
+        state: q.state,
+        from: q.from,
+        to: q.to,
+        q: q.q,
+        productionKindId: q.productionKindId,
+        staged: q.staged,
+        limit: q.limit,
+        offset: q.offset,
+      }),
+    );
   })
   // выполнение: отмеченные строки заказов превращаются в документы выпуска (по участку и дате — один документ)
   .post('/workbench/execute', write, zValidator('json', workbenchExecute, validationHook), async c => {
@@ -25,7 +40,7 @@ export const productionWorkbenchRoutes = new Hono<AppEnv>()
     const documents = await executeWorkbench(ctx.db, { workspaceId: ctx.workspaceId, memberId: ctx.memberId, role: ctx.role }, {
       date: body.date,
       mode: body.mode,
-      rows: body.rows.map(r => ({ orderId: r.orderId, source: r.source, lineId: r.lineId, qty: r.qty, workCenterId: r.workCenterId })),
+      rows: body.rows.map(r => ({ orderId: r.orderId, source: r.source, lineId: r.lineId, stageId: r.stageId ?? null, qty: r.qty, workCenterId: r.workCenterId })),
     });
     return c.json({ documents }, 201);
   });

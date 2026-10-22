@@ -33,6 +33,8 @@ export interface BomLineInput {
   hours?: string | null;
   rate?: string | null;
   fixedCost?: string | null;
+  /** Этап, на котором расходуется материал или выполняется операция */
+  stageId?: string | null;
 }
 
 export interface BomItemInput {
@@ -214,6 +216,8 @@ export interface ExplosionMaterial {
   productId: string;
   qty: string;
   unitCode?: string | null;
+  /** Этап, на котором материал расходуется */
+  stageId?: string | null;
 }
 
 /** Работа в развёртке: часы на выпуск */
@@ -225,6 +229,8 @@ export interface ExplosionWork {
   rate: string | null;
   /** Фиксированная стоимость работы */
   fixedCost: string | null;
+  /** Этап, на котором выполняется операция */
+  stageId?: string | null;
 }
 
 /** Полуфабрикат в режиме `stock`: его списывают со склада, а если не хватает — выпускают */
@@ -238,6 +244,8 @@ export interface ExplosionSemi {
   batchQty: string;
   /** Сколько полуфабрикатов нужно */
   qty: string;
+  /** Этап, на котором расходуется полуфабрикат */
+  stageId?: string | null;
   /** Разложение полуфабриката на одну партию — из него считается, чего не хватает */
   child: Explosion | null;
 }
@@ -290,7 +298,9 @@ export function explodeBom(items: BomItemInput[], rootId: string, qty: string): 
   const stack: string[] = [];
 
   /** Требования изделия на `units` единиц: строки спецификации заданы на партию, поэтому нормы умножаются на units / batchQty */
-  const node = (item: BomItemInput, units: Dec): Explosion => {
+  /** `forcedStage` задан у развёрнутого «фантома»: его требования относятся к этапу строки-полуфабриката,
+      а не к этапам другого вида производства */
+  const node = (item: BomItemInput, units: Dec, forcedStage?: string | null): Explosion => {
     if (stack.includes(item.id)) throw new BomCycleError([...stack.slice(stack.indexOf(item.id)), item.id]);
     const batchQty = dec(item.batchQty);
     if (batchQty <= 0n) throw new RangeError(`Batch quantity of "${item.name}" must be positive`);
@@ -300,23 +310,26 @@ export function explodeBom(items: BomItemInput[], rootId: string, qty: string): 
     const works: ExplosionWork[] = [];
     const semis: ExplosionSemi[] = [];
     for (const l of item.lines) {
+      // этап строки: у «фантома» — этап строки-полуфабриката, иначе этап самой строки спецификации
+      const stage = forcedStage !== undefined ? forcedStage : (l.stageId ?? null);
       if (l.kind === 'material') {
         const q = mul(dec(l.qty), scale);
-        materials.push({ productId: l.productId!, qty: fmt(withPct(q, dec(l.scrapPct)), 3), unitCode: l.unitCode ?? null });
+        materials.push({ productId: l.productId!, qty: fmt(withPct(q, dec(l.scrapPct)), 3), unitCode: l.unitCode ?? null, stageId: stage });
       } else if (l.kind === 'work') {
-        works.push({ operation: l.operation ?? '', workCenterId: l.workCenterId ?? null, hours: fmt(mul(dec(l.hours), scale), 3), rate: l.rate ?? null, fixedCost: l.fixedCost ?? null });
+        works.push({ operation: l.operation ?? '', workCenterId: l.workCenterId ?? null, hours: fmt(mul(dec(l.hours), scale), 3), rate: l.rate ?? null, fixedCost: l.fixedCost ?? null, stageId: stage });
       } else {
         const child = l.childItemId ? byId.get(l.childItemId) : undefined;
         if (!child) continue;
         const need = mul(dec(l.qty), scale);
         if ((l.semiMode ?? 'stock') === 'explode') {
-          // «Фантом»: полуфабрикат не лежит на складе — разворачиваем его материалы и работы в этот же выпуск
-          const cn = node(child, need);
+          // «Фантом»: полуфабрикат не лежит на складе — разворачиваем его материалы и работы в этот же выпуск.
+          // Этапы полуфабриката — этапы другого вида производства, поэтому требования относятся к этапу строки-полуфабриката
+          const cn = node(child, need, stage);
           materials.push(...cn.materials);
           works.push(...cn.works);
           semis.push(...cn.semis);
         } else {
-          semis.push({ itemId: child.id, name: child.name, productId: child.productId ?? null, unitCode: child.unitCode ?? null, batchQty: child.batchQty, qty: fmt(need, 3), child: node(child, dec(child.batchQty)) });
+          semis.push({ itemId: child.id, name: child.name, productId: child.productId ?? null, unitCode: child.unitCode ?? null, batchQty: child.batchQty, qty: fmt(need, 3), stageId: stage, child: node(child, dec(child.batchQty)) });
         }
       }
     }

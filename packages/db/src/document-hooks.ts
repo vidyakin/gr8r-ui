@@ -9,6 +9,8 @@ export interface DocumentHooks {
   check?: (db: Db, ctx: DocCtx, doc: DocumentRow, lines: DocumentLineRow[]) => Promise<void>;
   /** Проведение целиком: движения склада и себестоимость */
   post?: (db: Db, ctx: DocCtx, doc: DocumentRow, lines: DocumentLineRow[]) => Promise<void>;
+  /** Проверки до отмены проведения: свой документ решает, можно ли его снимать (этап 4б: промежуточный этап) */
+  beforeUnpost?: (db: Db, ctx: DocCtx, doc: DocumentRow) => Promise<void>;
   /** После проведения: резервы, записи о факте */
   afterPost?: (db: Db, ctx: DocCtx, doc: DocumentRow, lines: DocumentLineRow[]) => Promise<void>;
   /** После отмены проведения: снятие резервов, записи о факте */

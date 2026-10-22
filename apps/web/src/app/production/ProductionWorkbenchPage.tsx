@@ -1,24 +1,28 @@
 /* Рабочее место «Выпуск продукции»: заказы покупателей и заказы на производство с остатком к выпуску.
-   Мастера отмечает строки, выбирает участок-изготовителя и жмёт «Выполнить» — на участок и дату создаётся
-   (или дополняется) документ выпуска. Этап выпуска пока один — «Завершение производства». */
+   Мастера отмечает строки и этапы, выбирает участок-изготовителя и жмёт «Выполнить» — на участок, дату и этап
+   создаётся (или дополняется) документ выпуска. */
 import * as React from 'react';
 import { CircleAlert, Factory, ListChecks, PanelRightClose, PanelRightOpen, Play, RefreshCw, X } from 'lucide-react';
-import { PRODUCTION_STAGES } from '@gr8r/shared';
 import { Badge, Button, Checkbox, EmptyState, Field, IconButton, Input, Segmented, Select, Skeleton } from '@/components/ui';
 import { useCanWrite } from '../meta/custom-fields';
 import { STATE_LABEL, STATE_TONE } from './orders-data';
 import { useWorkbench, useWorkbenchExecute, type WorkbenchMode, type WorkbenchOrder, type WorkbenchRow } from './workbench-data';
 
-interface RowState {
-  /** Отмечена ли строка к выпуску */
+/** Состояние этапа строки: отмечен ли и сколько выпустить */
+interface StageState {
   checked: boolean;
-  /** Количество (расширенный режим) */
   qty: string;
+}
+
+interface RowState {
+  /** Этапы строки по ключу этапа */
+  stages: Record<string, StageState>;
   /** Участок-изготовитель */
   workCenterId: string;
 }
 
 const key = (o: WorkbenchOrder, r: WorkbenchRow) => `${o.id}:${r.id}`;
+const stageKey = (id: string | null) => id ?? 'final';
 const today = () => new Date().toISOString().slice(0, 10);
 
 export function ProductionWorkbenchPage() {
@@ -37,25 +41,58 @@ export function ProductionWorkbenchPage() {
   const orders = list.data?.orders ?? [];
   const centers = list.data?.workCenters ?? [];
 
+  // колонки этапов: объединение этапов всех строк (по порядку первого появления)
+  const stageColumns = React.useMemo(() => {
+    const map = new Map<string, { id: string | null; name: string }>();
+    for (const o of orders)
+      for (const r of o.rows)
+        for (const st of r.stages) if (!map.has(stageKey(st.id))) map.set(stageKey(st.id), { id: st.id, name: st.name });
+    return [...map.values()];
+  }, [orders]);
+
   // состояние строк по умолчанию: остаток и участок заказа (или участок по умолчанию из панели)
   const stateOf = (o: WorkbenchOrder, r: WorkbenchRow): RowState => {
     const k = key(o, r);
     const saved = rows[k];
     if (saved) return saved;
-    return { checked: false, qty: r.remaining, workCenterId: o.workCenterId ?? defaultCenter };
+    const stages: Record<string, StageState> = {};
+    for (const st of r.stages) stages[stageKey(st.id)] = { checked: false, qty: r.remaining };
+    return { stages, workCenterId: o.workCenterId ?? defaultCenter };
   };
   const patch = (o: WorkbenchOrder, r: WorkbenchRow, p: Partial<RowState>) => setRows(prev => ({ ...prev, [key(o, r)]: { ...stateOf(o, r), ...p } }));
+  const patchStage = (o: WorkbenchOrder, r: WorkbenchRow, stage: string, p: Partial<StageState>) =>
+    setRows(prev => {
+      const cur = stateOf(o, r);
+      return { ...prev, [key(o, r)]: { ...cur, stages: { ...cur.stages, [stage]: { ...cur.stages[stage], ...p } } } };
+    });
 
   // строка изменилась, если её состояние отличается от исходного
   const changed = React.useMemo(
-    () => orders.some(o => o.rows.some(r => { const s = stateOf(o, r); return s.checked || s.qty !== r.remaining || s.workCenterId !== (o.workCenterId ?? defaultCenter); })),
+    () =>
+      orders.some(o =>
+        o.rows.some(r => {
+          const s = stateOf(o, r);
+          return Object.values(s.stages).some(x => x.checked) || s.workCenterId !== (o.workCenterId ?? defaultCenter);
+        }),
+      ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [orders, rows, defaultCenter],
   );
 
+  // «Fill» отмечает следующий доступный этап каждой строки — тот, который можно выполнить сейчас
   const fill = () => {
     const next: Record<string, RowState> = {};
-    for (const o of orders) for (const r of o.rows) next[key(o, r)] = { checked: true, qty: r.remaining, workCenterId: o.workCenterId ?? defaultCenter };
+    for (const o of orders)
+      for (const r of o.rows) {
+        const stages: Record<string, StageState> = {};
+        for (const st of r.stages) {
+          const k = stageKey(st.id);
+          const ready = Number(st.available) > 0;
+          const already = r.stages.slice(0, r.stages.indexOf(st)).some(x => Number(x.available) > 0);
+          stages[k] = { checked: ready && !already, qty: r.remaining };
+        }
+        next[key(o, r)] = { stages, workCenterId: o.workCenterId ?? defaultCenter };
+      }
     setRows(next);
   };
   const clear = () => setRows({});
@@ -64,8 +101,11 @@ export function ProductionWorkbenchPage() {
     const payload = orders.flatMap(o =>
       o.rows.flatMap(r => {
         const s = stateOf(o, r);
-        if (!s.checked) return [];
-        return [{ orderId: o.id, source: r.source, lineId: r.id, qty: mode === 'extended' ? s.qty : undefined, workCenterId: s.workCenterId || undefined }];
+        return r.stages.flatMap(st => {
+          const state = s.stages[stageKey(st.id)];
+          if (!state?.checked) return [];
+          return [{ orderId: o.id, source: r.source, lineId: r.id, stageId: st.id, qty: mode === 'extended' ? state.qty : undefined, workCenterId: s.workCenterId || undefined }];
+        });
       }),
     );
     if (!payload.length) return;
@@ -75,14 +115,14 @@ export function ProductionWorkbenchPage() {
     );
   };
 
-  const marked = orders.reduce((n, o) => n + o.rows.filter(r => stateOf(o, r).checked).length, 0);
+  const marked = orders.reduce((n, o) => n + o.rows.reduce((m, r) => m + Object.values(stateOf(o, r).stages).filter(x => x.checked).length, 0), 0);
 
   return (
     <div className="page flush">
       <div className="ph">
         <div>
           <h1>Production release</h1>
-          <p>Orders waiting to be produced. Pick the lines, choose the work center and release them into one production document per work center and date.</p>
+          <p>Orders waiting to be produced. Pick the lines and the stages, choose the work center and release them into one production document per work center, date and stage.</p>
         </div>
         <div className="acts">
           <Segmented
@@ -142,13 +182,12 @@ export function ProductionWorkbenchPage() {
                     <th style={{ width: 96 }} className="r">
                       Remaining
                     </th>
-                    <th style={{ width: 160 }}>Stage</th>
-                    <th style={{ width: 190 }}>Work center</th>
-                    {mode === 'extended' && (
-                      <th style={{ width: 110 }} className="r">
-                        Qty
+                    {stageColumns.map(st => (
+                      <th key={stageKey(st.id)} style={{ width: 150 }}>
+                        {st.name}
                       </th>
-                    )}
+                    ))}
+                    <th style={{ width: 190 }}>Work center</th>
                     <th style={{ width: 44 }} />
                   </tr>
                 </thead>
@@ -157,8 +196,10 @@ export function ProductionWorkbenchPage() {
                     <OrderGroup
                       key={o.id}
                       order={o}
+                      stageColumns={stageColumns}
                       stateOf={stateOf}
                       patch={patch}
+                      patchStage={patchStage}
                       mode={mode}
                       centers={centers}
                       canWrite={canWrite}
@@ -217,7 +258,7 @@ export function ProductionWorkbenchPage() {
                 </Button>
               </div>
               <p className="faint" style={{ fontSize: 12, margin: 0 }}>
-                “Whole remainder” releases everything that is left, “By quantity” lets you release part of it. The stage is “{PRODUCTION_STAGES[0].label}” — the only one so far.
+                “Whole remainder” releases everything that is left, “By quantity” lets you release part of it. A stage becomes available when the previous one is done; the finished goods arrive on the warehouse only after the final stage.
               </p>
             </div>
           </aside>
@@ -230,27 +271,31 @@ export function ProductionWorkbenchPage() {
 /** Заказ рабочего места: заголовок заказа и его строки */
 function OrderGroup({
   order,
+  stageColumns,
   stateOf,
   patch,
+  patchStage,
   mode,
   centers,
   canWrite,
   onPatchAll,
 }: {
   order: WorkbenchOrder;
+  stageColumns: { id: string | null; name: string }[];
   stateOf: (o: WorkbenchOrder, r: WorkbenchRow) => RowState;
   patch: (o: WorkbenchOrder, r: WorkbenchRow, p: Partial<RowState>) => void;
+  patchStage: (o: WorkbenchOrder, r: WorkbenchRow, stage: string, p: Partial<StageState>) => void;
   mode: WorkbenchMode;
   centers: { id: string; name: string }[];
   canWrite: boolean;
   onPatchAll: (p: Partial<RowState>, rows: WorkbenchRow[]) => void;
 }) {
-  const all = order.rows.every(r => stateOf(order, r).checked);
   const center = stateOf(order, order.rows[0]).workCenterId;
+  const all = order.rows.every(r => r.stages.every(st => stateOf(order, r).stages[stageKey(st.id)]?.checked));
   return (
     <>
       <tr>
-        <td colSpan={mode === 'extended' ? 9 : 8} style={{ background: 'var(--surface-2, rgba(127,127,127,0.06))', padding: '6px 10px' }}>
+        <td colSpan={6 + stageColumns.length} style={{ background: 'var(--surface-2, rgba(127,127,127,0.06))', padding: '6px 10px' }}>
           <div className="row" style={{ gap: 8, alignItems: 'center' }}>
             <strong style={{ fontWeight: 550 }}>{order.number ?? 'Draft'}</strong>
             <span className="faint">{order.type === 'customer_order' ? 'Customer order' : 'Production order'}</span>
@@ -268,7 +313,13 @@ function OrderGroup({
                   options={[{ value: '', label: 'No work center' }, ...centers.map(c => ({ value: c.id, label: c.name }))]}
                   className="w-auto"
                 />
-                <Button size="sm" variant="ghost" onClick={() => onPatchAll({ checked: !all }, order.rows)}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    for (const r of order.rows) for (const st of r.stages) patchStage(order, r, stageKey(st.id), { checked: !all });
+                  }}
+                >
                   {all ? 'Uncheck all' : 'Check all'}
                 </Button>
               </div>
@@ -281,17 +332,51 @@ function OrderGroup({
         return (
           <tr key={r.id}>
             <td>
-              {canWrite ? <Checkbox aria-label={`Release ${r.productName}`} checked={s.checked} onChange={e => patch(order, r, { checked: e.target.checked })} /> : <span className="faint">{r.stage === 'final' ? '✓' : ''}</span>}
+              {canWrite ? (
+                <Checkbox
+                  aria-label={`Release ${r.productName}`}
+                  checked={r.stages.length > 0 && r.stages.every(st => s.stages[stageKey(st.id)]?.checked)}
+                  onChange={e => {
+                    for (const st of r.stages) patchStage(order, r, stageKey(st.id), { checked: e.target.checked });
+                  }}
+                />
+              ) : (
+                <span className="faint">{r.stages.length && r.stages.every(st => Number(st.done) > 0) ? '✓' : ''}</span>
+              )}
             </td>
             <td>
               <span className="trunc">{r.productName}</span>
+              {r.productionKindName && <span className="faint" style={{ marginLeft: 6 }}>{r.productionKindName}</span>}
             </td>
             <td className="r num">{r.qty}</td>
             <td className="r num muted">{r.produced}</td>
             <td className="r num">{r.remaining}</td>
-            <td>
-              <Badge tone="accent">{PRODUCTION_STAGES[0].label}</Badge>
-            </td>
+            {stageColumns.map(col => {
+              const st = r.stages.find(x => stageKey(x.id) === stageKey(col.id));
+              if (!st) return <td key={stageKey(col.id)} />;
+              const state = s.stages[stageKey(col.id)] ?? { checked: false, qty: r.remaining };
+              return (
+                <td key={stageKey(col.id)}>
+                  {canWrite ? (
+                    <div className="row" style={{ gap: 6 }}>
+                      <Checkbox
+                        aria-label={`Release the stage ${st.name} of ${r.productName}`}
+                        checked={state.checked}
+                        disabled={Number(st.available) <= 0}
+                        onChange={e => patchStage(order, r, stageKey(col.id), { checked: e.target.checked })}
+                      />
+                      {mode === 'extended' ? (
+                        <Input aria-label={`Quantity of the stage ${st.name}`} inputMode="decimal" value={state.qty} onChange={e => patchStage(order, r, stageKey(col.id), { qty: e.target.value })} />
+                      ) : (
+                        <span className="num faint">{st.remaining}</span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="num faint">{st.remaining}</span>
+                  )}
+                </td>
+              );
+            })}
             <td>
               {canWrite ? (
                 <Select
@@ -305,11 +390,6 @@ function OrderGroup({
                 <span className="faint">—</span>
               )}
             </td>
-            {mode === 'extended' && (
-              <td className="r">
-                {canWrite ? <Input aria-label="Quantity" inputMode="decimal" value={s.qty} onChange={e => patch(order, r, { qty: e.target.value })} /> : <span className="num">{s.qty}</span>}
-              </td>
-            )}
             <td />
           </tr>
         );

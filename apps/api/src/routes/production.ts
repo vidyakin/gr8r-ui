@@ -4,7 +4,7 @@
 import { zValidator } from '@hono/zod-validator';
 import { asc, eq, inArray, isNull, max, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { bomLines, loadAvgCosts, manufacturedItems, products, recordEvent, stockBalances, stockReservations, warehouses, workCenters, workspaces } from '@gr8r/db';
+import { bomLines, listProductionKinds, loadAvgCosts, manufacturedItems, productionKinds, productionStages, products, recordEvent, stockBalances, stockReservations, warehouses, workCenters, workspaces } from '@gr8r/db';
 import {
   bomLineCreate,
   bomLineUpdate,
@@ -51,6 +51,27 @@ export async function loadSettings(ctx: Ctx): Promise<ProductionSettings> {
 }
 
 /* ---------------- участки ---------------- */
+
+/** Вид производства изделия должен существовать */
+async function assertProductionKind(ctx: Ctx, kindId: string | null | undefined) {
+  if (!kindId) return;
+  const [kind] = await ctx.db.select({ id: productionKinds.id, archivedAt: productionKinds.archivedAt }).from(productionKinds).where(eq(productionKinds.id, kindId)).limit(1);
+  if (!kind || kind.archivedAt) throw new AppError(422, 'invalid_reference', 'The production kind does not exist', { issues: [{ path: 'productionKindId', message: 'Production kind not found' }] });
+}
+
+/** Этап строки спецификации: должен принадлежать виду производства изделия */
+async function assertStageOfItem(ctx: Ctx, itemId: string, stageId: string | null | undefined) {
+  const [item] = await ctx.db.select({ kindId: manufacturedItems.productionKindId }).from(manufacturedItems).where(eq(manufacturedItems.id, itemId)).limit(1);
+  const kindId = item?.kindId ?? null;
+  if (!stageId) {
+    if (kindId) throw new AppError(422, 'stage_required', 'Set the stage of every line of the bill of materials', { issues: [{ path: 'stageId', message: 'Choose the stage of the line' }] });
+    return;
+  }
+  if (!kindId) throw new AppError(422, 'stage_mismatch', 'The product has no production kind: the stage of its lines is not needed', { issues: [{ path: 'stageId', message: 'Not applicable: the product has no production kind' }] });
+  const [stage] = await ctx.db.select({ kindId: productionStages.kindId }).from(productionStages).where(eq(productionStages.id, stageId)).limit(1);
+  if (!stage) throw new AppError(422, 'invalid_reference', 'The stage does not exist', { issues: [{ path: 'stageId', message: 'Stage not found' }] });
+  if (stage.kindId !== kindId) throw new AppError(422, 'stage_mismatch', 'The stage belongs to another production kind', { issues: [{ path: 'stageId', message: 'Choose a stage of the production kind of the product' }] });
+}
 
 /** Участок привязан к складу-цеху: материалы передаются на него обычным перемещением */
 async function assertWorkshopWarehouse(ctx: Ctx, warehouseId: string | null | undefined) {
@@ -109,7 +130,8 @@ export const toInput = (item: ItemRow, lines: LineRow[]): BomItemInput => ({
 const lineParam = idParam;
 
 /** Проверка строки перед записью: ссылки, единица, запрет циклов. Возвращает колонки, которые определяет сервер */
-async function checkLine(ctx: Ctx, itemId: string, l: Pick<LineRow, 'kind' | 'productId' | 'childItemId' | 'workCenterId' | 'operation'>): Promise<{ unitCode: string | null }> {
+async function checkLine(ctx: Ctx, itemId: string, l: Pick<LineRow, 'kind' | 'productId' | 'childItemId' | 'workCenterId' | 'operation'> & { stageId?: string | null }): Promise<{ unitCode: string | null }> {
+  await assertStageOfItem(ctx, itemId, l.stageId ?? null);
   if (l.kind === 'material') {
     const [p] = await ctx.db.select({ unitCode: products.unitCode, kind: products.kind }).from(products).where(eq(products.id, l.productId ?? '')).limit(1);
     if (!p) throw new AppError(422, 'invalid_reference', 'The product does not exist', { issues: [{ path: 'productId', message: 'Product not found' }] });
@@ -147,10 +169,12 @@ export const itemRoutes = crud({
   filters: q => [q.kind ? eq(manufacturedItems.kind, q.kind) : undefined],
   prepareCreate: async (ctx, body) => {
     await assertUnit(ctx, body.unitCode);
+    await assertProductionKind(ctx, body.productionKindId);
     return {};
   },
   prepareUpdate: async (ctx, existing, body) => {
     if (body.unitCode !== undefined && body.unitCode !== existing.unitCode) await assertUnit(ctx, body.unitCode);
+    if (body.productionKindId !== undefined) await assertProductionKind(ctx, body.productionKindId);
     return {};
   },
   // Продукцию, которая входит в чужие спецификации, нельзя убрать: сначала уберите её оттуда
@@ -175,7 +199,7 @@ export const itemRoutes = crud({
     const ctx = ctxOf(c);
     const body = c.req.valid('json');
     const item = await loadItem(ctx, c.req.valid('param').id);
-    const base = { kind: body.kind, productId: body.kind === 'material' ? (body.productId ?? null) : null, childItemId: body.kind === 'semi' ? (body.childItemId ?? null) : null, semiMode: body.kind === 'semi' ? (body.semiMode ?? 'stock') : null, workCenterId: body.kind === 'work' ? (body.workCenterId ?? null) : null, operation: body.operation ?? '' };
+    const base = { kind: body.kind, productId: body.kind === 'material' ? (body.productId ?? null) : null, childItemId: body.kind === 'semi' ? (body.childItemId ?? null) : null, semiMode: body.kind === 'semi' ? (body.semiMode ?? 'stock') : null, workCenterId: body.kind === 'work' ? (body.workCenterId ?? null) : null, operation: body.operation ?? '', stageId: body.stageId ?? null };
     const { unitCode } = await checkLine(ctx, item.id, base);
     const [ord] = await ctx.db.select({ m: max(bomLines.sortOrder) }).from(bomLines).where(eq(bomLines.itemId, item.id));
     const [row] = await ctx.db
@@ -330,6 +354,7 @@ export const productionRoutes = new Hono<AppEnv>()
     for (const l of g.lines) byItem.set(l.itemId, [...(byItem.get(l.itemId) ?? []), l]);
     return c.json({
       settings,
+      kinds: await listProductionKinds(ctx.db, ctx.workspaceId),
       items: g.items.map(i => ({ ...i, lines: byItem.get(i.id) ?? [] })),
       workCenters: g.centers.filter(w => !w.archivedAt || g.lines.some(l => l.workCenterId === w.id)),
       materials: g.mats.map(p => ({ id: p.id, name: p.name, sku: p.sku, kind: p.kind, unitCode: p.unitCode, price: p.price, purchasePrice: p.purchasePrice, avgCost: g.avg.get(p.id) ?? null, archived: !!p.archivedAt })),
