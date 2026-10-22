@@ -12,8 +12,8 @@ import { DomainError } from './errors';
 import { DOCUMENT_HOOKS } from './document-hooks';
 import { createDocument, postDocument, unpostDocument, type DocCtx } from './documents';
 import { recordEvent } from './events';
-import { applyStockMoves, loadAvgCosts, loadInventorySettings, type MoveRequest } from './stock';
-import { bomLines, companies, documentLines, documents, manufacturedItems, productManufacturing, productionComponents, productionHeaders, productionItems, productionStages, products, stockReservations, warehouses, workCenters, workspaces } from './schema';
+import { applyStockMoves, loadAvgCosts, loadInventorySettings, revalueMove, type MoveRequest } from './stock';
+import { bomLines, companies, documentLines, documents, manufacturedItems, pieceworkLines, productionOperations, productManufacturing, productionComponents, productionHeaders, productionItems, productionStages, products, stockMoves, stockReservations, warehouses, workCenters, workspaces } from './schema';
 import { FINAL_STAGE, itemStagePlan, listProductionKinds, stageDef, stageKey, type StageDef } from './production-stages';
 import { uuidv7 } from './uuid';
 
@@ -32,6 +32,8 @@ export interface PlannedComponent {
   workCenterId: string | null;
   /** Название работы */
   operation: string;
+  /** Операция (товар каталога) — работа спецификации может ссылаться на операцию */
+  operationId: string | null;
   qty: string;
   hours: string;
   /** Ставка за час из строки спецификации; пусто — ставка участка */
@@ -103,18 +105,18 @@ export async function planComponents(db: Db, workspaceId: string, itemId: string
   for (const m of explosion.materials) {
     const p = prod.get(m.productId);
     const price = p ? resolveMaterialPrice(source, p, graph.avg.get(m.productId)) : null;
-    out.push({ kind: 'material', productId: m.productId, itemId: null, workCenterId: null, operation: '', qty: m.qty, hours: '0', rate: null, fixedCost: null, plannedCost: fmt(mul(dec(m.qty), dec(price ?? '0'))), stageId: m.stageId ?? null });
+    out.push({ kind: 'material', productId: m.productId, itemId: null, workCenterId: null, operation: '', operationId: null, qty: m.qty, hours: '0', rate: null, fixedCost: null, plannedCost: fmt(mul(dec(m.qty), dec(price ?? '0'))), stageId: m.stageId ?? null });
   }
   for (const s of explosion.semis) {
     // полуфабрикат в режиме stock списывается со склада: нужен товар каталога
     if (!s.productId) throw new DomainError(422, 'item_not_stockable', `“${s.name}” has no product of the catalogue: it cannot be written off from stock`);
     const cost = unitCost(graph, s.itemId, source);
-    out.push({ kind: 'semi', productId: s.productId, itemId: s.itemId, workCenterId: null, operation: '', qty: s.qty, hours: '0', rate: null, fixedCost: null, plannedCost: fmt(mul(dec(s.qty), dec(cost ?? '0'))), stageId: s.stageId ?? null });
+    out.push({ kind: 'semi', productId: s.productId, itemId: s.itemId, workCenterId: null, operation: '', operationId: null, qty: s.qty, hours: '0', rate: null, fixedCost: null, plannedCost: fmt(mul(dec(s.qty), dec(cost ?? '0'))), stageId: s.stageId ?? null });
   }
   for (const w of explosion.works) {
     const rate = w.rate ?? (w.workCenterId ? (rates.get(w.workCenterId) ?? null) : null);
     const cost = mul(dec(w.hours), dec(rate ?? '0')) + dec(w.fixedCost ?? '0');
-    out.push({ kind: 'work', productId: null, itemId: null, workCenterId: w.workCenterId, operation: w.operation, qty: '0', hours: w.hours, rate, fixedCost: w.fixedCost, plannedCost: fmt(cost), stageId: w.stageId ?? null });
+    out.push({ kind: 'work', productId: null, itemId: null, workCenterId: w.workCenterId, operation: w.operation, operationId: w.operationId ?? null, qty: '0', hours: w.hours, rate, fixedCost: w.fixedCost, plannedCost: fmt(cost), stageId: w.stageId ?? null });
   }
   return out;
 }
@@ -379,7 +381,7 @@ export async function fillOrderFromBom(db: Db, ctx: DocCtx, id: string): Promise
   for (const it of items) {
     const plan = await planComponents(db, ctx.workspaceId, it.itemId, it.qty);
     await assertPlanStages(db, it.itemId, plan);
-    for (const c of plan) rows.push({ workspaceId: ctx.workspaceId, documentId: id, itemId: it.id, kind: c.kind, productId: c.productId, workCenterId: c.workCenterId, operation: c.operation, qty: c.qty, hours: c.hours, rate: c.rate, fixedCost: c.fixedCost, plannedCost: c.plannedCost, stageId: c.stageId, sortOrder: rows.length });
+    for (const c of plan) rows.push({ workspaceId: ctx.workspaceId, documentId: id, itemId: it.id, kind: c.kind, productId: c.kind === 'work' ? c.operationId : c.productId, workCenterId: c.workCenterId, operation: c.operation, qty: c.qty, hours: c.hours, rate: c.rate, fixedCost: c.fixedCost, plannedCost: c.plannedCost, stageId: c.stageId, sortOrder: rows.length });
     const cost = unitCost(graph, it.itemId, source);
     if (cost) await db.update(productionItems).set({ plannedUnitCost: cost }).where(eq(productionItems.id, it.id));
   }
@@ -473,10 +475,11 @@ async function orderPlans(db: Db, ctx: DocCtx, orderId: string, requested: { ord
     const components: PlannedComponent[] = own.length
       ? own.filter(c => componentStage(c, stagePlan.stages) === stage.id).map(c => ({
           kind: c.kind,
-          productId: c.productId,
+          productId: c.kind === 'work' ? null : c.productId,
           itemId: null,
           workCenterId: c.workCenterId,
           operation: c.operation,
+          operationId: c.kind === 'work' ? c.productId : null,
           qty: c.kind === 'work' ? c.qty : fmt(mul(dec(c.qty), scale), 3),
           // часы работы тоже пропорциональны количеству
           hours: c.kind === 'work' ? fmt(mul(dec(c.hours), scale), 3) : c.hours,
@@ -684,7 +687,7 @@ async function buildProductionRows(
     itemLines.push({ id: lineId, documentLineId: isFinal ? lineId : null, itemId: p.itemId, qty: p.qty, sourceItemId: p.sourceItemId, customerOrderLineId: p.customerOrderLineId, productId: it.productId!, name: it.name, unitCode: it.unitCode });
     for (const c of p.components) {
       if (c.kind === 'work') {
-        componentLines.push({ id: uuidv7(), itemId: lineId, kind: 'work', productId: null, workCenterId: c.workCenterId, operation: c.operation, qty: '0', hours: c.hours, rate: c.rate, fixedCost: c.fixedCost, plannedCost: c.plannedCost, documentLineId: null, stageId: c.stageId });
+        componentLines.push({ id: uuidv7(), itemId: lineId, kind: 'work', productId: c.operationId, workCenterId: c.workCenterId, operation: c.operation, qty: '0', hours: c.hours, rate: c.rate, fixedCost: c.fixedCost, plannedCost: c.plannedCost, documentLineId: null, stageId: c.stageId });
         continue;
       }
       const materialLineId = uuidv7();
@@ -1108,6 +1111,8 @@ export interface WorkbenchExecuteRow {
   qty?: string;
   /** Участок-изготовитель; пусто — участок заказа на производство */
   workCenterId?: string | null;
+  /** Отметка мастера: кто и сколько выполнил (строки сдельных нарядов исполнителей) */
+  assignments?: { assignmentId: string; qty: string }[];
 }
 
 /** Выполнение рабочего места: на участок и дату — один документ выпуска, строки — из отмеченных заказов */
@@ -1115,7 +1120,7 @@ export async function executeWorkbench(
   db: Db,
   ctx: DocCtx,
   input: { date?: string; mode: 'simple' | 'extended'; rows: WorkbenchExecuteRow[] },
-): Promise<{ id: string; number: string | null; workCenterId: string; qty: string; stageId: string | null }[]> {
+): Promise<{ id: string; number: string | null; workCenterId: string; qty: string; stageId: string | null; assignments: { assignmentId: string; qty: string }[] }[]> {
   const date = input.date ?? new Date().toISOString().slice(0, 10);
   // группируем строки по участку: на участок и дату — один документ выпуска
   const groups = new Map<string, WorkbenchExecuteRow[]>();
@@ -1125,7 +1130,7 @@ export async function executeWorkbench(
     await assertWorkCenter(db, centerId);
     groups.set(centerId, [...(groups.get(centerId) ?? []), row]);
   }
-  const out: { id: string; number: string | null; workCenterId: string; qty: string; stageId: string | null }[] = [];
+  const out: { id: string; number: string | null; workCenterId: string; qty: string; stageId: string | null; assignments: { assignmentId: string; qty: string }[] }[] = [];
   // строка заказа покупателя, закрытая открытым заказом на производство, в выпуск не идёт
   const customerRows = input.rows.filter(r => r.source === 'customer_order');
   if (customerRows.length) {
@@ -1150,13 +1155,25 @@ export async function executeWorkbench(
     // на участок, дату и этап — один документ выпуска
     const byStage = new Map<string, ProductionPlan[]>();
     for (const p of plans) byStage.set(stageKey(p.stageId), [...(byStage.get(stageKey(p.stageId)) ?? []), p]);
-    for (const [, stagePlans] of byStage) {
+    // отметки мастера идут в выпуск этапа своей операции; отметка без этапа — в первый документ группы
+    const marks = rows.flatMap(r => r.assignments ?? []);
+    const markStage = new Map<string, string>();
+    if (marks.length) {
+      const ops = await db.select({ id: productionOperations.id, stageId: productionOperations.stageId }).from(productionOperations).where(inArray(productionOperations.id, marks.map(m => m.assignmentId)));
+      for (const op of ops) markStage.set(op.id, stageKey(op.stageId));
+    }
+    const stageKeys = [...byStage.keys()];
+    const marksOf = (key: string) => marks.filter(m => {
+      const k = markStage.get(m.assignmentId);
+      return k !== undefined && stageKeys.includes(k) ? k === key : key === stageKeys[0];
+    });
+    for (const [key, stagePlans] of byStage) {
       const docId = await createOrAppendProduction(db, ctx, { date, workCenterId: centerId, stageId: stagePlans[0].stageId, basedOnId: rows[0]?.orderId ?? null, plans: stagePlans });
       const [doc] = await db.select({ status: documents.status, number: documents.number }).from(documents).where(eq(documents.id, docId)).limit(1);
       // документ дня мог быть уже проведён — дописывание перепроводит его само
       if (doc?.status === 'draft') await postDocument(db, ctx, docId);
       const [after] = await db.select({ number: documents.number }).from(documents).where(eq(documents.id, docId)).limit(1);
-      out.push({ id: docId, number: after?.number ?? null, workCenterId: centerId, qty: fmt(stagePlans.reduce((sum, p) => sum + dec(p.qty), 0n), 3), stageId: stagePlans[0].stageId });
+      out.push({ id: docId, number: after?.number ?? null, workCenterId: centerId, qty: fmt(stagePlans.reduce((sum, p) => sum + dec(p.qty), 0n), 3), stageId: stagePlans[0].stageId, assignments: marksOf(key) });
     }
   }
   return out;
@@ -1278,14 +1295,16 @@ async function loadPlan(db: Db, documentId: string) {
   return { items, components };
 }
 
-/** Себестоимость позиции выпуска: материалы (факт — по списанной строке) + работы + накладные */
-function itemCost(item: typeof productionItems.$inferSelect, components: (typeof productionComponents.$inferSelect)[], outCost: Map<string, bigint>, overheadPct: bigint, lineQty: Map<string, bigint>): bigint {
+/** Себестоимость позиции выпуска: материалы (факт — по списанной строке) + работы + накладные.
+    Работы берутся фактические (сумма проведённых нарядов), если по строке состава есть наряд; иначе — оценка нормы */
+function itemCost(item: typeof productionItems.$inferSelect, components: (typeof productionComponents.$inferSelect)[], outCost: Map<string, bigint>, overheadPct: bigint, lineQty: Map<string, bigint>, workCosts?: Map<string, bigint>): bigint {
   const own = components.filter(c => c.itemId === item.id);
   let materials = 0n;
   let works = 0n;
   for (const c of own) {
     if (c.kind === 'work') {
-      works += mul(dec(c.hours), dec(c.rate ?? '0')) + dec(c.fixedCost ?? '0');
+      const actual = workCosts?.get(c.id);
+      works += actual !== undefined ? actual : mul(dec(c.hours), dec(c.rate ?? '0')) + dec(c.fixedCost ?? '0');
       continue;
     }
     // фактическое количество — по строке документа (её и списывают), плановое — из снимка
@@ -1295,6 +1314,95 @@ function itemCost(item: typeof productionItems.$inferSelect, components: (typeof
   }
   const overhead = roundDiv((materials + works) * overheadPct, 100n * 1_000_000n);
   return materials + works + overhead;
+}
+
+/** Фактическая стоимость работ по выпуску: сумма проведённых сдельных нарядов по каждой строке состава */
+async function releaseWorkCosts(db: Db, releaseId: string): Promise<Map<string, bigint>> {
+  const rows = await db
+    .select({ componentId: pieceworkLines.componentId, amount: sql<string>`coalesce(sum(${pieceworkLines.amount}), 0)` })
+    .from(pieceworkLines)
+    .innerJoin(documents, eq(documents.id, pieceworkLines.documentId))
+    .where(and(eq(pieceworkLines.releaseDocumentId, releaseId), eq(documents.status, 'posted'), sql`${pieceworkLines.componentId} is not null`))
+    .groupBy(pieceworkLines.componentId);
+  return new Map(rows.map(r => [r.componentId!, dec(r.amount)]));
+}
+
+/** Продукция выпуска уже отгружена: себестоимость пересчитывать нельзя (корректировка — этап 6) */
+async function assertNotShipped(db: Db, move: { seq: number; warehouseId: string; productId: string }): Promise<void> {
+  const [row] = await db
+    .select({ id: stockMoves.id, number: documents.number })
+    .from(stockMoves)
+    .innerJoin(documents, eq(documents.id, stockMoves.documentId))
+    .where(and(eq(stockMoves.warehouseId, move.warehouseId), eq(stockMoves.productId, move.productId), sql`${stockMoves.qty} < 0`, sql`${stockMoves.seq} > ${move.seq}`))
+    .limit(1);
+  if (row) throw new DomainError(422, 'cost_locked', `The produced goods are already shipped (${row.number ?? 'document'}): their cost cannot be recalculated, adjust it when closing the period`);
+}
+
+/** Пересчёт себестоимости проведённого выпуска по фактическим работам (после проведения наряда).
+    Цена прихода продукции и средняя склада пересчитываются в той же транзакции; если продукцию уже отгрузили — ошибка. */
+export async function recalcReleaseCost(db: Db, ctx: DocCtx, releaseId: string): Promise<void> {
+  const [doc] = await db.select().from(documents).where(eq(documents.id, releaseId)).limit(1);
+  if (!doc || doc.type !== 'production' || doc.status !== 'posted') return; // черновик посчитается при проведении
+  const { items, components } = await loadPlan(db, releaseId);
+  if (!items.length) return;
+  const moves = await db
+    .select({ id: stockMoves.id, lineId: stockMoves.documentLineId, qty: stockMoves.qty, cost: stockMoves.cost, warehouseId: stockMoves.warehouseId, productId: stockMoves.productId, seq: stockMoves.seq })
+    .from(stockMoves)
+    .where(eq(stockMoves.documentId, releaseId));
+  const outCost = new Map<string, bigint>();
+  const lineQty = new Map<string, bigint>();
+  const incoming = new Map<string, (typeof moves)[number]>();
+  for (const m of moves) {
+    if (!m.lineId) continue;
+    const qty = dec(m.qty) < 0n ? -dec(m.qty) : dec(m.qty);
+    lineQty.set(m.lineId, qty);
+    if (dec(m.qty) < 0n) outCost.set(m.lineId, dec(m.cost));
+    else incoming.set(m.lineId, m);
+  }
+  const prodIds = [...new Set(items.map(i => i.itemId))];
+  const overheads = prodIds.length ? await db.select({ id: manufacturedItems.id, overheadPct: manufacturedItems.overheadPct }).from(manufacturedItems).where(inArray(manufacturedItems.id, prodIds)) : [];
+  const overheadByItem = new Map(overheads.map(o => [o.id, dec(o.overheadPct)]));
+  // незавершённое производство: стоимость выполненных промежуточных этапов на единицу
+  const wipByItem = new Map<string, bigint>();
+  for (const it of items) {
+    const source: StageSource = { sourceItemId: it.sourceItemId, customerOrderLineId: it.customerOrderLineId };
+    if (!source.sourceItemId && !source.customerOrderLineId) continue;
+    const plan = await itemStagePlan(db, it.itemId);
+    const totals = await stageTotals(db, [source]);
+    wipByItem.set(it.id, await wipUnitCost(source, plan.stages, totals));
+  }
+  const workCosts = await releaseWorkCosts(db, releaseId);
+  const [header] = await db.select({ stageId: productionHeaders.stageId }).from(productionHeaders).where(eq(productionHeaders.documentId, releaseId)).limit(1);
+  const stage = await stageDef(db, header?.stageId ?? null);
+  for (const it of items) {
+    if (!it.documentLineId) {
+      // промежуточный этап: продукции нет, меняется только затрата этапа (НЗП); если следующий этап уже выпущен, НЗП учтено в нём
+      const source: StageSource = { sourceItemId: it.sourceItemId, customerOrderLineId: it.customerOrderLineId };
+      if (source.sourceItemId || source.customerOrderLineId) {
+        const later = await laterStageRelease(db, it.itemId, source, stage.sortOrder);
+        if (later) throw new DomainError(422, 'cost_locked', `The stage “${later.name}” is already released: the cost of the stage “${stage.name}” cannot be recalculated, adjust it when closing the period`);
+      }
+      await db.update(productionItems).set({ stageCost: fmt(itemCost(it, components, outCost, overheadByItem.get(it.itemId) ?? 0n, lineQty, workCosts)) }).where(eq(productionItems.id, it.id));
+      continue;
+    }
+    const move = incoming.get(it.documentLineId);
+    if (!move) continue;
+    const qty = lineQty.get(it.documentLineId) ?? dec(it.qty);
+    if (qty <= 0n) continue;
+    await assertNotShipped(db, move);
+    const cost = itemCost(it, components, outCost, overheadByItem.get(it.itemId) ?? 0n, lineQty, workCosts);
+    const wip = wipByItem.get(it.id) ?? 0n;
+    const unit = div(cost + mul(wip, qty), qty);
+    await revalueMove(db, ctx.workspaceId, move.id, unit);
+    await db.update(productionItems).set({ stageCost: fmt(cost) }).where(eq(productionItems.id, it.id));
+  }
+}
+
+/** Пересчёт себестоимости выпусков, к которым относится сдельный наряд (после его проведения) */
+export async function recalcPieceworkReleases(db: Db, ctx: DocCtx, pieceworkId: string): Promise<void> {
+  const lines = await db.select({ releaseId: pieceworkLines.releaseDocumentId }).from(pieceworkLines).where(eq(pieceworkLines.documentId, pieceworkId));
+  const ids = [...new Set(lines.map(l => l.releaseId).filter((x): x is string => !!x))];
+  for (const id of ids) await recalcReleaseCost(db, ctx, id);
 }
 
 DOCUMENT_HOOKS.production_order = {
@@ -1362,6 +1470,8 @@ DOCUMENT_HOOKS.production = {
     const overheads = prodIds.length ? await db.select({ id: manufacturedItems.id, overheadPct: manufacturedItems.overheadPct }).from(manufacturedItems).where(inArray(manufacturedItems.id, prodIds)) : [];
     const overheadByItem = new Map(overheads.map(o => [o.id, dec(o.overheadPct)]));
     const lineQty = new Map(lines.map(l => [l.id, dec(l.qty)]));
+    // фактические работы: сумма проведённых сдельных нарядов по строкам состава (иначе — оценка нормы)
+    const workCosts = await releaseWorkCosts(db, doc.id);
     // незавершённое производство: стоимость выполненных промежуточных этапов на единицу
     const wipByItem = new Map<string, bigint>();
     for (const it of items) {
@@ -1375,7 +1485,7 @@ DOCUMENT_HOOKS.production = {
       inCost: (lineId, costs) => {
         const it = lineId ? itemByLine.get(lineId) : undefined;
         if (!it) return undefined;
-        const cost = itemCost(it, components, costs, overheadByItem.get(it.itemId) ?? 0n, lineQty);
+        const cost = itemCost(it, components, costs, overheadByItem.get(it.itemId) ?? 0n, lineQty, workCosts);
         const qty = qtyByItem.get(it.id) ?? 0n;
         if (qty <= 0n) return undefined;
         // себестоимость продукции = затраты этапа + незавершённое производство предыдущих этапов
@@ -1396,7 +1506,7 @@ DOCUMENT_HOOKS.production = {
     }
     // себестоимость этапа по позиции: материалы + работы + накладные (без затрат предыдущих этапов)
     for (const it of items) {
-      const cost = itemCost(it, components, outCost, overheadByItem.get(it.itemId) ?? 0n, lineQty);
+      const cost = itemCost(it, components, outCost, overheadByItem.get(it.itemId) ?? 0n, lineQty, workCosts);
       await db.update(productionItems).set({ stageCost: fmt(cost) }).where(eq(productionItems.id, it.id));
     }
   },

@@ -1,11 +1,12 @@
 /* Производство: участки, продукция (изделия и полуфабрикаты) и строки спецификации (BOM), заказы на производство и выпуск.
    Таблицы арендатора. Связи — составные внешние ключи (workspace_id, id). */
 import { sql } from 'drizzle-orm';
-import { boolean, check, foreignKey, index, integer, numeric, pgTable, primaryKey, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, date, foreignKey, index, integer, numeric, pgTable, primaryKey, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { archivedAt, createdAt, money, pk, ts, updatedAt } from './columns';
 import { products, units } from './catalog';
 import { documentLines, documents, warehouses } from './documents';
-import { wsCol } from './people';
+import { members, wsCol } from './people';
+import { tasks } from './work';
 
 export const workCenters = pgTable(
   'work_centers',
@@ -162,7 +163,7 @@ export const bomLines = pgTable(
       'bom_lines_shape_chk',
       sql`(${t.kind} = 'material' and ${t.productId} is not null and ${t.childItemId} is null)
         or (${t.kind} = 'semi' and ${t.childItemId} is not null and ${t.productId} is null and ${t.childItemId} <> ${t.itemId})
-        or (${t.kind} = 'work' and ${t.productId} is null and ${t.childItemId} is null)`,
+        or (${t.kind} = 'work' and ${t.childItemId} is null)`,
     ),
     check('bom_lines_nonneg_chk', sql`${t.qty} >= 0 and ${t.scrapPct} >= 0 and ${t.hours} >= 0`),
     check('bom_lines_semi_mode_chk', sql`(${t.kind} = 'semi' and ${t.semiMode} is not null and ${t.semiMode} in ('stock','explode')) or (${t.kind} <> 'semi' and ${t.semiMode} is null)`),
@@ -294,7 +295,7 @@ export const productionComponents = pgTable(
     foreignKey({ columns: [t.workspaceId, t.stageId], foreignColumns: [productionStages.workspaceId, productionStages.id], name: 'production_components_stage_fk' }),
     check(
       'production_components_shape_chk',
-      sql`(${t.kind} = 'work' and ${t.productId} is null) or (${t.kind} <> 'work' and ${t.productId} is not null)`,
+      sql`${t.kind} = 'work' or (${t.kind} <> 'work' and ${t.productId} is not null)`,
     ),
     check('production_components_nonneg_chk', sql`${t.qty} >= 0 and ${t.hours} >= 0`),
     index('production_components_document_idx').on(t.documentId, t.sortOrder),
@@ -328,5 +329,177 @@ export const productionHeaders = pgTable(
     foreignKey({ columns: [t.workspaceId, t.workCenterId], foreignColumns: [workCenters.workspaceId, workCenters.id], name: 'production_headers_work_center_fk' }),
     foreignKey({ columns: [t.workspaceId, t.parentDocumentId], foreignColumns: [documents.workspaceId, documents.id], name: 'production_headers_parent_fk' }),
     foreignKey({ columns: [t.workspaceId, t.stageId], foreignColumns: [productionStages.workspaceId, productionStages.id], name: 'production_headers_stage_fk' }),
+  ],
+);
+
+/* ---------------- операции, исполнители и сдельный наряд ----------------
+
+   Операция — вид номенклатуры (`products.kind = 'operation'`): норма времени на единицу, участок по умолчанию
+   и история расценок. Строка работ спецификации ссылается на операцию; когда исполнителю назначена часть
+   операции, появляется задача модуля production и строка сдельного наряда (на исполнителя за день). */
+
+/** Операция: норма времени на единицу продукции и участок по умолчанию */
+export const operations = pgTable(
+  'operations',
+  {
+    workspaceId: wsCol(),
+    /** Товар каталога с видом «операция» */
+    productId: uuid('product_id').notNull(),
+    /** Норма времени на единицу продукции, ч */
+    normHours: numeric('norm_hours', { precision: 10, scale: 3 }).notNull().default('0'),
+    /** Участок по умолчанию */
+    workCenterId: uuid('work_center_id'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    primaryKey({ columns: [t.workspaceId, t.productId] }),
+    foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'operations_product_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.workCenterId], foreignColumns: [workCenters.workspaceId, workCenters.id], name: 'operations_work_center_fk' }),
+    check('operations_norm_chk', sql`${t.normHours} >= 0`),
+  ],
+);
+
+/** Расценка операции: история с датой начала действия (в наряд идёт расценка на дату наряда) */
+export const operationRates = pgTable(
+  'operation_rates',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    /** Операция (товар каталога) */
+    productId: uuid('product_id').notNull(),
+    /** Дата начала действия расценки */
+    validFrom: date('valid_from').notNull(),
+    /** Расценка: за единицу продукции или за час */
+    rate: numeric('rate', { precision: 18, scale: 2 }).notNull().default('0'),
+    /** Способ расчёта: per_unit (за единицу) или per_hour (по норме времени) */
+    unit: text('unit', { enum: ['per_unit', 'per_hour'] }).notNull().default('per_unit'),
+    createdAt: createdAt(),
+  },
+  t => [
+    unique('operation_rates_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'operation_rates_product_fk' }).onDelete('cascade'),
+    check('operation_rates_rate_chk', sql`${t.rate} >= 0`),
+    index('operation_rates_product_idx').on(t.productId, t.validFrom),
+  ],
+);
+
+/** Назначение операции исполнителю: часть операции в заказе на производство и задача исполнителя */
+export const productionOperations = pgTable(
+  'production_operations',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    /** Заказ на производство */
+    documentId: uuid('document_id').notNull(),
+    /** Позиция заказа */
+    itemId: uuid('item_id').notNull(),
+    /** Строка состава — работа */
+    componentId: uuid('component_id').notNull(),
+    /** Операция (товар каталога) */
+    operationId: uuid('operation_id'),
+    /** Исполнитель — участник воркспейса */
+    memberId: uuid('member_id').notNull(),
+    /** Задача модуля production */
+    taskId: uuid('task_id'),
+    /** Этап, на котором выполняется операция */
+    stageId: uuid('stage_id'),
+    /** Участок-исполнитель */
+    workCenterId: uuid('work_center_id'),
+    /** Назначенное количество (в единицах продукции) */
+    plannedQty: numeric('planned_qty', { precision: 18, scale: 3 }).notNull().default('0'),
+    /** Плановые нормочасы */
+    plannedHours: numeric('planned_hours', { precision: 10, scale: 3 }).notNull().default('0'),
+    /** Выполнено по проведённым нарядам */
+    doneQty: numeric('done_qty', { precision: 18, scale: 3 }).notNull().default('0'),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: createdAt(),
+  },
+  t => [
+    unique('production_operations_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'production_operations_document_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.itemId], foreignColumns: [productionItems.workspaceId, productionItems.id], name: 'production_operations_item_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.componentId], foreignColumns: [productionComponents.workspaceId, productionComponents.id], name: 'production_operations_component_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.operationId], foreignColumns: [products.workspaceId, products.id], name: 'production_operations_operation_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.memberId], foreignColumns: [members.workspaceId, members.id], name: 'production_operations_member_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.taskId], foreignColumns: [tasks.workspaceId, tasks.id], name: 'production_operations_task_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.stageId], foreignColumns: [productionStages.workspaceId, productionStages.id], name: 'production_operations_stage_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.workCenterId], foreignColumns: [workCenters.workspaceId, workCenters.id], name: 'production_operations_work_center_fk' }),
+    check('production_operations_qty_chk', sql`${t.plannedQty} > 0 and ${t.doneQty} >= 0`),
+    index('production_operations_document_idx').on(t.documentId),
+    index('production_operations_item_idx').on(t.itemId),
+    index('production_operations_member_idx').on(t.memberId),
+  ],
+);
+
+/** Шапка сдельного наряда: исполнитель и участок (один наряд на исполнителя за день) */
+export const pieceworkHeaders = pgTable(
+  'piecework_headers',
+  {
+    workspaceId: wsCol(),
+    /** Документ наряда */
+    documentId: uuid('document_id').notNull(),
+    /** Исполнитель — участник воркспейса */
+    memberId: uuid('member_id').notNull(),
+    /** Участок */
+    workCenterId: uuid('work_center_id'),
+    createdAt: createdAt(),
+  },
+  t => [
+    primaryKey({ columns: [t.workspaceId, t.documentId] }),
+    foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'piecework_headers_document_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.memberId], foreignColumns: [members.workspaceId, members.id], name: 'piecework_headers_member_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.workCenterId], foreignColumns: [workCenters.workspaceId, workCenters.id], name: 'piecework_headers_work_center_fk' }),
+  ],
+);
+
+/** Строка сдельного наряда: выполненная операция, расценка на дату наряда и сумма */
+export const pieceworkLines = pgTable(
+  'piecework_lines',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    /** Документ наряда */
+    documentId: uuid('document_id').notNull(),
+    /** Операция (товар каталога) */
+    operationId: uuid('operation_id').notNull(),
+    /** Продукция, которую делали */
+    productId: uuid('product_id'),
+    /** Заказ на производство */
+    orderDocumentId: uuid('order_document_id'),
+    /** Выпуск, к которому относится работа */
+    releaseDocumentId: uuid('release_document_id'),
+    /** Назначение операции исполнителю */
+    assignmentId: uuid('assignment_id'),
+    /** Строка состава выпуска (работа) */
+    componentId: uuid('component_id'),
+    /** План: сколько назначено испнителю */
+    planQty: numeric('plan_qty', { precision: 18, scale: 3 }).notNull().default('0'),
+    /** Факт: сколько выполнено */
+    qty: numeric('qty', { precision: 18, scale: 3 }).notNull().default('0'),
+    /** Нормочасы */
+    hours: numeric('hours', { precision: 10, scale: 3 }).notNull().default('0'),
+    /** Расценка на дату наряда */
+    rate: numeric('rate', { precision: 18, scale: 2 }).notNull().default('0'),
+    /** Способ расчёта: за единицу или по норме времени */
+    unit: text('unit', { enum: ['per_unit', 'per_hour'] }).notNull().default('per_unit'),
+    /** Сумма строки */
+    amount: numeric('amount', { precision: 18, scale: 2 }).notNull().default('0'),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: createdAt(),
+  },
+  t => [
+    unique('piecework_lines_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'piecework_lines_document_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.operationId], foreignColumns: [products.workspaceId, products.id], name: 'piecework_lines_operation_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'piecework_lines_product_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.orderDocumentId], foreignColumns: [documents.workspaceId, documents.id], name: 'piecework_lines_order_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.releaseDocumentId], foreignColumns: [documents.workspaceId, documents.id], name: 'piecework_lines_release_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.assignmentId], foreignColumns: [productionOperations.workspaceId, productionOperations.id], name: 'piecework_lines_assignment_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.componentId], foreignColumns: [productionComponents.workspaceId, productionComponents.id], name: 'piecework_lines_component_fk' }),
+    check('piecework_lines_qty_chk', sql`${t.qty} > 0 and ${t.rate} >= 0 and ${t.amount} >= 0`),
+    index('piecework_lines_document_idx').on(t.documentId, t.sortOrder),
+    index('piecework_lines_assignment_idx').on(t.assignmentId),
+    index('piecework_lines_release_idx').on(t.releaseDocumentId),
   ],
 );

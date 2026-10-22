@@ -52,6 +52,12 @@ export interface PrintLine {
   diffQty?: string;
   /** Себестоимость единицы по документу (внутренние документы) */
   cost?: string;
+  /** План по строке (сдельный наряд) */
+  planQty?: string;
+  /** Нормочасы по строке (сдельный наряд) */
+  hours?: string;
+  /** Расценка по строке (сдельный наряд) */
+  rate?: string;
 }
 
 export interface PrintData {
@@ -88,4 +94,8 @@ export interface PrintData {
     materials: { n: number; name: string; unitCode: string; unitSymbol: string; qty: string }[];
     assignees: { name: string; workCenterName: string | null; plannedHours: string | null; startDate: string | null; dueDate: string | null }[];
   };
+  /** Исполнитель сдельного наряда */
+  executorName?: string;
+  /** Участок сдельного наряда */
+  workCenterName?: string;
 }

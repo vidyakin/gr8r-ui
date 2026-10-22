@@ -45,11 +45,15 @@ export type SystemEntityKey = (typeof SYSTEM_ENTITIES)[number]['key'];
 
 /* ---------------- каталог и производство ---------------- */
 
-/** Виды номенклатуры: товар, услуга и работа (заказ-наряд). Список расширяют осторожно —
+/** Виды номенклатуры: товар, услуга, работа (заказ-наряд) и операция (работа производства: не продаётся и склад не двигает). Список расширяют осторожно —
     CHECK в БД (products_kind_chk) перечисляет те же значения, их добавляют вместе с миграцией */
-export const PRODUCT_KINDS = ['goods', 'service', 'work'] as const;
+export const PRODUCT_KINDS = ['goods', 'service', 'work', 'operation'] as const;
 export type ProductKind = (typeof PRODUCT_KINDS)[number];
-export const PRODUCT_KIND_LABELS: Record<ProductKind, string> = { goods: 'Goods', service: 'Service', work: 'Work' };
+export const PRODUCT_KIND_LABELS: Record<ProductKind, string> = { goods: 'Goods', service: 'Service', work: 'Work', operation: 'Operation' };
+
+/** Способ расчёта стоимости операции: за единицу продукции или по норме времени */
+export const OPERATION_RATE_UNITS = ['per_unit', 'per_hour'] as const;
+export type OperationRateUnit = (typeof OPERATION_RATE_UNITS)[number];
 
 /** Ставки НДС: 'none' — без НДС */
 export const VAT_RATES = ['none', '0', '5', '7', '10', '20'] as const;

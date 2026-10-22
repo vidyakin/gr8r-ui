@@ -150,9 +150,18 @@ async function checkLine(ctx: Ctx, itemId: string, l: Pick<LineRow, 'kind' | 'pr
     if (wouldCreateCycle(edges, itemId, l.childItemId!)) throw new AppError(422, 'bom_cycle', 'A product cannot include itself, directly or through its semi-finished products', { issues: [{ path: 'childItemId', message: 'This would create a cycle' }] });
     return { unitCode: child.unitCode };
   }
-  if (l.workCenterId) {
-    const [wc] = await ctx.db.select({ id: workCenters.id }).from(workCenters).where(eq(workCenters.id, l.workCenterId)).limit(1);
-    if (!wc) throw new AppError(422, 'invalid_reference', 'The work center does not exist', { issues: [{ path: 'workCenterId', message: 'Work center not found' }] });
+  if (l.kind === 'work') {
+    // работа может ссылаться на операцию (вид номенклатуры «операция»)
+    if (l.productId) {
+      const [p] = await ctx.db.select({ kind: products.kind }).from(products).where(eq(products.id, l.productId)).limit(1);
+      if (!p) throw new AppError(422, 'invalid_reference', 'The operation does not exist', { issues: [{ path: 'productId', message: 'Operation not found' }] });
+      if (p.kind !== 'operation') throw new AppError(422, 'not_operation', 'Only a product of the "operation" kind can be an operation', { issues: [{ path: 'productId', message: 'Choose an operation' }] });
+    }
+    if (l.workCenterId) {
+      const [wc] = await ctx.db.select({ id: workCenters.id }).from(workCenters).where(eq(workCenters.id, l.workCenterId)).limit(1);
+      if (!wc) throw new AppError(422, 'invalid_reference', 'The work center does not exist', { issues: [{ path: 'workCenterId', message: 'Work center not found' }] });
+    }
+    return { unitCode: null };
   }
   return { unitCode: null };
 }
@@ -199,7 +208,7 @@ export const itemRoutes = crud({
     const ctx = ctxOf(c);
     const body = c.req.valid('json');
     const item = await loadItem(ctx, c.req.valid('param').id);
-    const base = { kind: body.kind, productId: body.kind === 'material' ? (body.productId ?? null) : null, childItemId: body.kind === 'semi' ? (body.childItemId ?? null) : null, semiMode: body.kind === 'semi' ? (body.semiMode ?? 'stock') : null, workCenterId: body.kind === 'work' ? (body.workCenterId ?? null) : null, operation: body.operation ?? '', stageId: body.stageId ?? null };
+    const base = { kind: body.kind, productId: body.kind === 'material' ? (body.productId ?? null) : body.kind === 'work' ? (body.productId ?? null) : null, childItemId: body.kind === 'semi' ? (body.childItemId ?? null) : null, semiMode: body.kind === 'semi' ? (body.semiMode ?? 'stock') : null, workCenterId: body.kind === 'work' ? (body.workCenterId ?? null) : null, operation: body.operation ?? '', stageId: body.stageId ?? null };
     const { unitCode } = await checkLine(ctx, item.id, base);
     const [ord] = await ctx.db.select({ m: max(bomLines.sortOrder) }).from(bomLines).where(eq(bomLines.itemId, item.id));
     const [row] = await ctx.db
@@ -317,11 +326,11 @@ export const bomLineRoutes = new Hono<AppEnv>()
     const [line] = await ctx.db.select().from(bomLines).where(eq(bomLines.id, c.req.valid('param').id)).limit(1).for('update');
     if (!line) throw notFound('bom_line');
     // Поля, чужие для типа строки, отклоняются: тип не меняется
-    const foreign: Record<LineRow['kind'], string[]> = { material: ['childItemId', 'semiMode', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], semi: ['productId', 'scrapPct', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], work: ['productId', 'childItemId', 'semiMode', 'qty', 'scrapPct'] };
+    const foreign: Record<LineRow['kind'], string[]> = { material: ['childItemId', 'semiMode', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], semi: ['productId', 'scrapPct', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], work: ['childItemId', 'semiMode', 'qty', 'scrapPct'] };
     const bad = foreign[line.kind].find(k => (body as Record<string, unknown>)[k] !== undefined);
     if (bad) throw new AppError(400, 'validation_error', `${bad}: not applicable to a ${line.kind} line`, { issues: [{ path: bad, message: `Not applicable to a ${line.kind} line` }] });
     const next = { ...line, ...Object.fromEntries(Object.entries(body).filter(([, v]) => v !== undefined)) } as LineRow;
-    if (line.kind === 'work' && !(Number(next.hours) > 0 || Number(next.fixedCost ?? 0) > 0)) throw new AppError(400, 'validation_error', 'hours: Set hours or a fixed cost', { issues: [{ path: 'hours', message: 'Set hours or a fixed cost' }] });
+    if (line.kind === 'work' && !(Number(next.hours) > 0 || Number(next.fixedCost ?? 0) > 0) && !next.productId) throw new AppError(400, 'validation_error', 'hours: Set hours or a fixed cost', { issues: [{ path: 'hours', message: 'Set hours or a fixed cost' }] });
     const refChanged = next.productId !== line.productId || next.childItemId !== line.childItemId || next.workCenterId !== line.workCenterId;
     const { unitCode } = refChanged ? await checkLine(ctx, line.itemId, next) : { unitCode: line.unitCode };
     const [row] = await ctx.db

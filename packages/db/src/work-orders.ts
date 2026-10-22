@@ -147,7 +147,7 @@ export async function listWorkOrderAssignments(db: Db, documentId: string): Prom
   }));
 }
 
-export interface AssignmentInput {
+export interface WorkOrderAssignmentInput {
   lineId?: string | null;
   assigneeId?: string | null;
   title?: string;
@@ -158,7 +158,7 @@ export interface AssignmentInput {
 }
 
 /** Назначение — задача в системном проекте модуля services плюс строка назначения заказ-наряда */
-export async function createWorkOrderAssignment(db: Db, ctx: DocCtx, documentId: string, input: AssignmentInput): Promise<{ assignmentId: string; taskId: string; projectId: string }> {
+export async function createWorkOrderAssignment(db: Db, ctx: DocCtx, documentId: string, input: WorkOrderAssignmentInput): Promise<{ assignmentId: string; taskId: string; projectId: string }> {
   const [doc] = await db.select().from(documents).where(eq(documents.id, documentId)).limit(1);
   if (!doc) throw new DomainError(404, 'not_found', 'document not found');
   let title = input.title?.trim();
@@ -217,7 +217,7 @@ export async function createWorkOrderAssignment(db: Db, ctx: DocCtx, documentId:
 }
 
 /** Правка назначения: строка, участок и плановые часы; остальное — обычными роутами задач */
-export async function updateWorkOrderAssignment(db: Db, ctx: DocCtx, taskId: string, patch: AssignmentInput): Promise<void> {
+export async function updateWorkOrderAssignment(db: Db, ctx: DocCtx, taskId: string, patch: WorkOrderAssignmentInput): Promise<void> {
   const [row] = await db.select().from(workOrderAssignments).where(eq(workOrderAssignments.taskId, taskId)).limit(1);
   if (!row) throw new DomainError(404, 'not_found', 'assignment not found');
   if (patch.assigneeId) {

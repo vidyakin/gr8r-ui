@@ -54,7 +54,7 @@ describe('seed', () => {
     const w = `where workspace_id = '${demo!.id}'`;
     expect(await count('members', w)).toBe(src.members.length);
     expect(await count('projects', w)).toBe(9); // 7 демо + системные проекты модулей (production, services)
-    expect(await count('tasks', w)).toBe(src.tasks.length + 1); // + задача-назначение заказ-наряда
+    expect(await count('tasks', w)).toBe(src.tasks.length + 2); // + задача-назначение заказ-наряда и задача операции производства
     expect(await count('statuses', w)).toBe(5);
     expect(await count('teams', w)).toBe(4);
     expect(await count('comments', w)).toBe(src.comments.length);
@@ -88,6 +88,7 @@ describe('seed', () => {
     expect(await count('products', `${w} and kind = 'goods'`)).toBe(21);
     expect(await count('products', `${w} and kind = 'service'`)).toBe(3);
     expect(await count('products', `${w} and kind = 'work'`)).toBe(2);
+    expect(await count('products', `${w} and kind = 'operation'`)).toBe(1);
     expect(await count('work_centers', w)).toBe(2);
     expect(await count('manufactured_items', `${w} and kind = 'product'`)).toBe(3);
     expect(await count('manufactured_items', `${w} and kind = 'semi'`)).toBe(4);
@@ -101,8 +102,8 @@ describe('seed', () => {
     expect(await count('warehouses', w)).toBe(4); // основной, цех, склад готовой продукции и служебный «в пути»
     expect(await count('companies', `${w} and inn <> ''`)).toBe(5);
     expect(await count('bank_accounts', `${w} and company_id is not null`)).toBe(5);
-    expect(await count('documents', w)).toBe(22);
-    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(21);
+    expect(await count('documents', w)).toBe(23);
+    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(22);
     expect(await count('documents', `${w} and based_on_id is not null`)).toBe(7);
     expect(await count('documents', `${w} and type in ('stock_transfer','write_off','inventory_count')`)).toBe(6);
     // производство: заказ на производство и выпуск со списанием материалов
@@ -110,6 +111,12 @@ describe('seed', () => {
     expect(await count('documents', `${w} and type = 'production'`)).toBe(1);
     expect(await count('production_items', w)).toBe(3);
     expect(await count('production_components', `${w} and kind = 'material'`)).toBe(12);
+    // операции, исполнители и сдельный наряд: назначение операции, задача исполнителя и наряд за день
+    expect(await count('operations', w)).toBe(1);
+    expect(await count('operation_rates', w)).toBe(2);
+    expect(await count('production_operations', w)).toBe(1);
+    expect(await count('documents', `${w} and type = 'piecework_order'`)).toBe(1);
+    expect(await count('piecework_lines', w)).toBe(1);
     // виды производства и этапы: пример с тремя этапами
     expect(await count('production_kinds', w)).toBe(1);
     expect(await count('production_stages', w)).toBe(3);

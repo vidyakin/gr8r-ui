@@ -20,6 +20,7 @@ export interface BomLineInput {
   qty: string;
   /** material */
   productId?: string | null;
+  /** work: операция (товар каталога вида «операция») */
   scrapPct?: string | null;
   /** Единица строки: единица товара / продукции */
   unitCode?: string | null;
@@ -223,6 +224,8 @@ export interface ExplosionMaterial {
 /** Работа в развёртке: часы на выпуск */
 export interface ExplosionWork {
   operation: string;
+  /** Операция (товар каталога) — у работы спецификации может быть своя операция */
+  operationId?: string | null;
   workCenterId: string | null;
   hours: string;
   /** Ставка за час из строки спецификации; пусто — ставка участка */
@@ -316,7 +319,7 @@ export function explodeBom(items: BomItemInput[], rootId: string, qty: string): 
         const q = mul(dec(l.qty), scale);
         materials.push({ productId: l.productId!, qty: fmt(withPct(q, dec(l.scrapPct)), 3), unitCode: l.unitCode ?? null, stageId: stage });
       } else if (l.kind === 'work') {
-        works.push({ operation: l.operation ?? '', workCenterId: l.workCenterId ?? null, hours: fmt(mul(dec(l.hours), scale), 3), rate: l.rate ?? null, fixedCost: l.fixedCost ?? null, stageId: stage });
+        works.push({ operation: l.operation ?? '', operationId: l.productId ?? null, workCenterId: l.workCenterId ?? null, hours: fmt(mul(dec(l.hours), scale), 3), rate: l.rate ?? null, fixedCost: l.fixedCost ?? null, stageId: stage });
       } else {
         const child = l.childItemId ? byId.get(l.childItemId) : undefined;
         if (!child) continue;
