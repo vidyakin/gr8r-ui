@@ -15,6 +15,8 @@ export * from './cost';
 export * from './modules';
 export * from './automations';
 export * from './production';
+export * from './materials';
+export * from './needs';
 export * from './production-stages';
 export * from './inventory';
 export * from './internal-ops';

@@ -4,6 +4,7 @@ export * from './schemas';
 export * from './fields';
 export * from './decimal';
 export * from './bom';
+export * from './supply';
 export * from './planning';
 export * from './ru';
 export * from './documents';

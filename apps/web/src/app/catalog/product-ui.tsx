@@ -1,7 +1,7 @@
 /* Карточка товара (EntityDrawer) и форма создания. Характеристики категории рисуются теми же FieldInput / FieldValue и
    проверяются той же zod-схемой (validateRecord), что и поля конструктора. */
 import * as React from 'react';
-import { Barcode, CircleAlert, CircleDollarSign, FolderTree, Hash, Package, Percent, Power, Ruler, Tag, Timer, Trash2, Wrench, type LucideIcon } from 'lucide-react';
+import { Barcode, Building2, CircleAlert, CircleDollarSign, FolderTree, Hash, Package, Percent, Power, Ruler, Tag, Timer, Trash2, Wrench, type LucideIcon } from 'lucide-react';
 import { PRODUCT_KINDS, VAT_LABELS, VAT_RATES, validateRecord, type ProductKind } from '@gr8r/shared';
 import { Button, ConfirmDialog, Dialog, DialogClose, DialogContent, Field, Input, MenuItem, Segmented, Switch, toast } from '@/components/ui';
 import { DrawerSection, EntityDrawer } from '@/components/gr8r/entity-drawer';
@@ -9,7 +9,7 @@ import { fmtDate } from '../lib/dates';
 import { useCanWrite, useCustomRows } from '../meta/custom-fields';
 import { FieldInput, FieldValue } from '../meta/field-ui';
 import type { MetaField } from '../meta/data';
-import { attributeAsField, flattenTree, useAttributes, useProductMutations, useSaveWorkNorm, useUnits, useWorkCenters, useWorkNorms, type CategoryNode, type Product } from './data';
+import { attributeAsField, flattenTree, useAttributes, useCompanies, useProductMutations, useSaveWorkNorm, useUnits, useWorkCenters, useWorkNorms, type CategoryNode, type Product } from './data';
 
 /** Служебное «поле» для обычной колонки товара, чтобы редактировать её тем же FieldInput */
 const col = (key: string, name: string, type: MetaField['type']): MetaField => ({
@@ -96,6 +96,7 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
   // норма времени и участок по умолчанию — только у работ (вид номенклатуры «Работа»)
   const norms = useWorkNorms();
   const centers = useWorkCenters();
+  const companies = useCompanies();
   const saveNorm = useSaveWorkNorm();
   const norm = p.kind === 'work' ? (norms.data?.items ?? []).find(n => n.productId === p.id) : undefined;
   const centerName = (id: string | null | undefined) => (centers.data?.items ?? []).find(c => c.id === id)?.name ?? '';
@@ -151,6 +152,24 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
           row(Percent, 'VAT', <VatSelect value={p.vatRate} onChange={vatRate => save({ vatRate })} />, VAT_LABELS[p.vatRate]),
           row(CircleDollarSign, 'Sale price', <FieldInput field={F.price} value={Number(p.price)} onChange={v => save({ price: v ?? 0 })} />, p.price),
           row(CircleDollarSign, 'Purchase price', <FieldInput field={F.purchasePrice} value={Number(p.purchasePrice)} onChange={v => save({ purchasePrice: v ?? 0 })} />, p.purchasePrice),
+          {
+            icon: Building2,
+            label: 'Default supplier',
+            value: canWrite ? (
+              <select className="select" aria-label="Default supplier" value={p.defaultSupplierId ?? ''} onChange={e => save({ defaultSupplierId: e.target.value || null })}>
+                <option value="">No supplier</option>
+                {(companies.data ?? []).map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            ) : p.defaultSupplierId ? (
+              <span className="muted">{(companies.data ?? []).find(c => c.id === p.defaultSupplierId)?.name ?? '—'}</span>
+            ) : (
+              <span className="faint">—</span>
+            ),
+          },
           row(Power, 'Active', <Switch checked={p.isActive} aria-label="Active" onChange={e => save({ isActive: e.target.checked })} />, p.isActive ? 'Yes' : 'No'),
           ...(p.kind === 'work'
             ? [

@@ -4,9 +4,9 @@ import { zValidator } from '@hono/zod-validator';
 import { asc, eq, inArray, max, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { attributeDefs, productCategories, products, recordEvent, units, uuidv7 } from '@gr8r/db';
+import { attributeDefs, companies, productCategories, products, recordEvent, units, uuidv7 } from '@gr8r/db';
 import { attributeCreate, attributeUpdate, categoryCreate, categoryQuery, categoryUpdate, destroyQuery, idParam, keyFromName, productCreate, productQuery, productUpdate, unitCreate, unitQuery, unitUpdate, type RecordData } from '@gr8r/shared';
-import { crud, ctxOf, validationHook } from '../crud';
+import { crud, ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError, notFound } from '../errors';
 import { requireRole } from '../middleware';
 import { assertAttributeKeyFree, assertUnit, chainIds, effectiveAttributes, loadCategory, subtreeWhere, validateAttrs } from '../catalog/service';
@@ -172,6 +172,12 @@ export const attributeRoutes = new Hono<AppEnv>()
 
 /* ---------------- товары и услуги ---------------- */
 
+/** Поставщик по умолчанию: контрагент должен существовать в этом же арендаторе */
+const assertSupplier = async (ctx: Ctx, id: string) => {
+  const [c] = await ctx.db.select({ id: companies.id }).from(companies).where(eq(companies.id, id)).limit(1);
+  if (!c) throw new AppError(422, 'invalid_reference', 'The supplier does not exist');
+};
+
 export const productRoutes = crud({
   entity: 'product',
   table: products,
@@ -192,12 +198,14 @@ export const productRoutes = crud({
   ],
   prepareCreate: async (ctx, body) => {
     await assertUnit(ctx, body.unitCode);
+    if (body.defaultSupplierId) await assertSupplier(ctx, body.defaultSupplierId);
     const cat = body.categoryId ? await loadCategory(ctx, body.categoryId) : null;
     const attrs = validateAttrs(cat ? await effectiveAttributes(ctx, cat) : [], body.attrs, 'create');
     return { attrs, ...(await customForCreate(ctx, 'product', body.custom)) };
   },
   prepareUpdate: async (ctx, existing, body) => {
     if (body.unitCode !== undefined && body.unitCode !== existing.unitCode) await assertUnit(ctx, body.unitCode);
+    if (body.defaultSupplierId) await assertSupplier(ctx, body.defaultSupplierId);
     const out: Record<string, unknown> = { ...(await customForUpdate(ctx, 'product', existing.custom, body.custom, existing.id)) };
     const categoryChanged = body.categoryId !== undefined && (body.categoryId ?? null) !== existing.categoryId;
     if (categoryChanged || body.attrs !== undefined) {

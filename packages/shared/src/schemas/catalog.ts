@@ -75,6 +75,8 @@ export const productCreate = z.object({
   price: money.default('0'),
   purchasePrice: money.default('0'),
   categoryId: uuid.nullish(),
+  /** Поставщик по умолчанию: заказы поставщикам по потребности создаются на него */
+  defaultSupplierId: uuid.nullish(),
   /** Значения характеристик категории; проверяются по схеме категории (с унаследованными) */
   attrs: z.record(z.string(), z.unknown()).optional(),
   isActive: z.boolean().default(true),

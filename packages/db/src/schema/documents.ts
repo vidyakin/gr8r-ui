@@ -347,6 +347,8 @@ export const stockReservations = pgTable(
     documentLineId: uuid('document_line_id'),
     /** Строка выпуска (продукция под заказ покупателя) */
     productionLineId: uuid('production_line_id'),
+    /** Строка состава заказа на производство (материал под заказ) */
+    productionComponentId: uuid('production_component_id'),
     warehouseId: uuid('warehouse_id').notNull(),
     productId: uuid('product_id').notNull(),
     qty: numeric('qty', { precision: 18, scale: 3 }).notNull(),
@@ -360,9 +362,12 @@ export const stockReservations = pgTable(
     foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'stock_reservations_product_fk' }),
     unique('stock_reservations_line_uq').on(t.documentLineId),
     unique('stock_reservations_production_line_uq').on(t.productionLineId),
-    check('stock_reservations_owner_chk', sql`(${t.documentLineId} is not null) <> (${t.productionLineId} is not null)`),
+    // владелец резерва ровно один: строка заказа покупателя, строка выпуска или строка состава заказа на производство
+    check('stock_reservations_owner_chk', sql`num_nonnulls(${t.documentLineId}, ${t.productionLineId}, ${t.productionComponentId}) = 1`),
     check('stock_reservations_qty_chk', sql`${t.qty} > 0`),
+    uniqueIndex('stock_reservations_component_uq').on(t.workspaceId, t.productionComponentId, t.warehouseId).where(sql`${t.productionComponentId} is not null`),
     index('stock_reservations_stock_idx').on(t.workspaceId, t.warehouseId, t.productId),
+    index('stock_reservations_component_idx').on(t.workspaceId, t.productionComponentId),
   ],
 );
 

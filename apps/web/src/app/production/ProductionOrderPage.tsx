@@ -14,6 +14,8 @@ import { useSnapshot } from './data';
 import { STATE_LABEL, STATE_TONE, useProductionOrder, useProductionOrderApi, type ProductionOrderDetail } from './orders-data';
 import { useOrderOperations, usePieceworkApi, type AssignmentRow } from './piecework-data';
 import { useDocumentResources, usePlanningApi, useResources } from './planning-data';
+import { MaterialStockBlock, ReserveDialog, StockToggle, SupplyButtons } from './material-stock';
+import type { MaterialCoverageRow } from './orders-data';
 
 export function ProductionOrderPage() {
   const { id } = useParams();
@@ -45,6 +47,8 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
   const snap = useSnapshot();
   const [busy, setBusy] = React.useState(false);
   const [confirm, setConfirm] = React.useState(false);
+  const [showStock, setShowStock] = React.useState(false);
+  const [editing, setEditing] = React.useState<MaterialCoverageRow | null>(null);
   const editable = canWrite && order.status === 'draft';
 
   const products = snap.data?.items ?? [];
@@ -257,7 +261,13 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
       <div className="doc-bottom">
         <section className="doc-links panel" aria-label="Composition">
           <h2>Bill of materials</h2>
-          {!order.components.length ? (
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', flexWrap: 'wrap', marginBottom: 8 }}>
+            <StockToggle on={showStock} onToggle={() => setShowStock(v => !v)} />
+            <SupplyButtons orderId={order.id} />
+          </div>
+          {showStock ? (
+            <MaterialStockBlock orderId={order.id} canWrite={canWrite} onEdit={setEditing} />
+          ) : !order.components.length ? (
             <p className="faint">The composition is empty: use “Fill from BOM” to copy the specification of each product.</p>
           ) : (
             <table className="dtbl" aria-label="Composition">
@@ -289,6 +299,7 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
               </tbody>
             </table>
           )}
+          {editing && <ReserveDialog row={editing} orderId={order.id} onClose={() => setEditing(null)} />}
         </section>
         <section className="doc-links panel" aria-label="Operations">
           <h2>Operations</h2>

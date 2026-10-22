@@ -199,6 +199,61 @@ export const workbenchExecute = z.object({
     .max(500),
 });
 
+/* ---------------- обеспечение материалов ---------------- */
+
+/** Правка резерва материала в строке заказа на производство: сколько в резерв и на каком складе */
+export const materialReservationUpdate = z.object({
+  /** Сколько зарезервировать (всего по строке) */
+  qty: nonNeg(1e9),
+  /** Склад резерва */
+  warehouseId: uuid,
+});
+
+/** Создание дочерних заказов на полуфабрикаты по дефициту */
+export const semiOrdersCreate = z.object({
+  /** Дата заказов (по умолчанию сегодня) */
+  date: isoDate.optional(),
+});
+
+/** Создание заказа поставщику по материалам заказа на производство (размещение) */
+export const supplierOrdersCreate = z.object({
+  /** Дата заказов (по умолчанию сегодня) */
+  date: isoDate.optional(),
+  /** Поставщик: пусто — берётся поставщик товара по умолчанию */
+  supplierId: uuid.nullish(),
+  /** Комментарий к заказу */
+  comment: z.string().max(5000).default(''),
+});
+
+/** Сводная потребность по материалам заказов на производство */
+export const productionNeedsQuery = listQuery.extend({
+  /** Заказ на производство: только его потребность */
+  productionOrderId: uuid.optional(),
+  /** Товар каталога */
+  productId: uuid.optional(),
+});
+
+/** Заказы поставщикам по сводной потребности */
+export const needsSupplierOrdersCreate = z.object({
+  /** Дата заказов (по умолчанию сегодня) */
+  date: isoDate.optional(),
+  /** Комментарий к заказам */
+  comment: z.string().max(5000).default(''),
+  lines: z
+    .array(
+      z.object({
+        /** Товар каталога */
+        productId: uuid,
+        /** Сколько заказать */
+        qty: positive(1e9),
+        /** Поставщик: пусто — поставщик товара по умолчанию или последнего поступления */
+        supplierId: uuid.nullish(),
+      }),
+    )
+    .min(1)
+    .max(500),
+});
+
 /* ---------------- операции, исполнители и сдельный наряд ---------------- */
 
 /** Операция — вид номенклатуры: норма времени на единицу и участок по умолчанию */

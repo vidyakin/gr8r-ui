@@ -134,6 +134,13 @@
       "when": 1792678549123,
       "tag": "0018_contracts_billing",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792680141094,
+      "tag": "0019_production_materials",
+      "breakpoints": true
     }
   ]
 }
