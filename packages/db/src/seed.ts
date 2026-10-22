@@ -11,6 +11,7 @@ import { seedCatalog } from './seed-catalog';
 import { seedDocuments } from './seed-documents';
 import { seedFlows } from './seed-flows';
 import { seedPlanning } from './seed-planning';
+import { seedContracts } from './seed-contracts';
 import { ensureCostItems, ensureDocumentDefaults } from './documents';
 import { ensureModuleProjects } from './modules';
 import { ensureWorkOrderKind } from './work-orders';
@@ -34,6 +35,7 @@ import {
   members,
   memberships,
   notifications,
+  organizations,
   projectMembers,
   projects,
   records,
@@ -328,6 +330,9 @@ async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: string, user
 
   // Документы и склад: организация, склады, реквизиты, цепочки закупок и продаж (проводятся настоящими сервисами)
   const docs = await seedDocuments(db, wsId, U(d.me), { atlas: U('co8'), northwind: U('co1'), quanta: U('co4'), skyline: U('co10') });
+  // Договоры и тарифные планы: договор обслуживания демо-клиента
+  const [demoOrg] = await db.select({ id: organizations.id }).from(organizations).where(eq(organizations.workspaceId, wsId)).limit(1);
+  await seedContracts(db, wsId, demoOrg!.id, U('co4'), docs.workOrder);
   await ensureCostItems(db, wsId);
   // Модули задач: системные проекты производства и услуг
   await ensureModuleProjects(db, wsId);

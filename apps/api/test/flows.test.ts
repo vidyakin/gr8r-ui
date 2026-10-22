@@ -385,6 +385,8 @@ describe('flows: loop protection', () => {
 
 describe('flows: schedule', () => {
   test('cron trigger fires once per matching minute', async () => {
+    // расписание живёт в часовом поясе арендатора: переводим его в UTC, чтобы «9:00» осталось 9:00 UTC
+    await owner.patch('/billing/timezone', { timezone: 'UTC' });
     const flowId = await makeFlow(owner, 'Morning', graph([['t', 'trigger.schedule', { cron: '0 9 * * 1-5' }], ['n', 'action.notify', { recipientId: me, text: 'Good morning {{trigger.scheduledFor}}' }]], [['t', 'n']]));
     const monday9 = new Date('2026-01-05T09:00:30Z');
     expect(await scheduleFlowsOnce(sql, new Date('2026-01-05T09:01:00Z'))).toBe(0);
@@ -395,6 +397,19 @@ describe('flows: schedule', () => {
     const [run] = await runsOf(owner, flowId);
     expect(run).toMatchObject({ status: 'succeeded', triggerKind: 'schedule' });
     expect((await owner.get('/notifications?q=Good morning')).body.items[0].text).toBe('Good morning 2026-01-05T09:00:00.000Z');
+  });
+
+  test('cron trigger fires in the time zone of the workspace', async () => {
+    // Europe/Moscow: 9:00 по Москве — это 6:00 UTC
+    await owner.patch('/billing/timezone', { timezone: 'Europe/Moscow' });
+    const flowId = await makeFlow(owner, 'Moscow morning', graph([['t', 'trigger.schedule', { cron: '0 9 * * 1-5' }], ['n', 'action.notify', { recipientId: me, text: 'Moscow morning {{trigger.scheduledFor}}' }]], [['t', 'n']]));
+    expect(await scheduleFlowsOnce(sql, new Date('2026-01-05T06:00:30Z'))).toBe(1);
+    expect(await scheduleFlowsOnce(sql, new Date('2026-01-05T09:00:30Z'))).toBe(0); // 12:00 по Москве — не 9:00
+    await drain();
+    const [run] = await runsOf(owner, flowId);
+    expect(run).toMatchObject({ status: 'succeeded', triggerKind: 'schedule' });
+    expect((await owner.get('/notifications?q=Moscow morning')).body.items[0].text).toBe('Moscow morning 2026-01-05T09:00:00.000Z');
+    await owner.patch('/billing/timezone', { timezone: 'UTC' });
   });
 });
 

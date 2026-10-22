@@ -23,6 +23,7 @@ import {
 import type { Subtask } from '@gr8r/shared';
 import { archivedAt, createdAt, hours, pk, ts, updatedAt } from './columns';
 import { companies } from './crm';
+import { products } from './catalog';
 import { members, teams, wsCol } from './people';
 
 export const projects = pgTable(
@@ -121,6 +122,8 @@ export const tasks = pgTable(
     assigneeId: uuid('assignee_id'),
     /** Заказчик: только у задач модуля services (время можно записать по заказчику без заказ-наряда) */
     companyId: uuid('company_id'),
+    /** Вид работ (номенклатура): по нему время по заказчику без заказ-наряда попадает в биллинг */
+    workProductId: uuid('work_product_id'),
     /** Шкала 1–10 (10 — самый срочный); null — без приоритета */
     priority: smallint('priority'),
     dueDate: date('due_date', { mode: 'string' }),
@@ -150,6 +153,7 @@ export const tasks = pgTable(
     foreignKey({ columns: [t.workspaceId, t.projectId], foreignColumns: [projects.workspaceId, projects.id], name: 'tasks_project_fk' }),
     foreignKey({ columns: [t.workspaceId, t.assigneeId], foreignColumns: [members.workspaceId, members.id], name: 'tasks_assignee_fk' }),
     foreignKey({ columns: [t.workspaceId, t.companyId], foreignColumns: [companies.workspaceId, companies.id], name: 'tasks_company_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.workProductId], foreignColumns: [products.workspaceId, products.id], name: 'tasks_work_product_fk' }),
     foreignKey({ columns: [t.workspaceId, t.status], foreignColumns: [statuses.workspaceId, statuses.key], name: 'tasks_status_fk' }),
     check('tasks_priority_chk', sql`${t.priority} is null or ${t.priority} between 1 and 10`),
     check('tasks_module_chk', sql`${t.module} in ('general','production','services')`),

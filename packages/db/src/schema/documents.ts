@@ -166,6 +166,8 @@ export const documents = pgTable(
     targetWarehouseId: uuid('target_warehouse_id'),
     /** Статья затрат или доходов (списание, оприходование) */
     costItemId: uuid('cost_item_id'),
+    /** Договор (составной внешний ключ (workspace_id, contract_id) → contracts добавляется миграцией) */
+    contractId: uuid('contract_id'),
     /** Вид заказ-наряда (только у work_order): у каждого вида свои состояния */
     workOrderKindId: uuid('work_order_kind_id'),
     /** Причина отмены заказ-наряда (состояние категории «cancelled») */
@@ -215,6 +217,7 @@ export const documents = pgTable(
     uniqueIndex('documents_number_uq').on(t.workspaceId, t.organizationId, t.type, t.numberYear, t.numberSeq).where(sql`${t.numberSeq} is not null`),
     index('documents_ws_type_date_idx').on(t.workspaceId, t.type, t.date),
     index('documents_counterparty_idx').on(t.counterpartyId),
+    index('documents_contract_idx').on(t.workspaceId, t.contractId),
     index('documents_based_on_idx').on(t.basedOnId),
   ],
 );

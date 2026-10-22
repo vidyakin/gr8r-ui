@@ -127,6 +127,13 @@
       "when": 1792672497068,
       "tag": "0017_service_schedule",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792678549123,
+      "tag": "0018_contracts_billing",
+      "breakpoints": true
     }
   ]
 }

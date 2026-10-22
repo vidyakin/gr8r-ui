@@ -662,11 +662,10 @@ export interface ServiceScheduleQuery {
   rowType: 'member' | 'resource';
 }
 
-/** Пояс воркспейса: часы смены считаются в нём. Пояса воркспейса пока нет (этап 8 услуг) — берём UTC */
+/** Пояс воркспейса (`workspaces.timezone`, этап 8 услуг): часы смены и границы дней считаются в нём */
 export async function workspaceTimeZone(db: Db, workspaceId: string): Promise<string> {
-  const [ws] = await db.select({ settings: workspaces.settings }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
-  const tz = ws?.settings?.timezone;
-  return typeof tz === 'string' && tz ? tz : 'UTC';
+  const [ws] = await db.select({ timezone: workspaces.timezone }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
+  return ws?.timezone || 'UTC';
 }
 
 /** Часовые строки: сотрудники или ресурсы */

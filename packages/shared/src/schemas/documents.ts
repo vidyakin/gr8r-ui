@@ -130,6 +130,8 @@ export const documentCreate = z.object({
   /** Пусто — организация по умолчанию */
   organizationId: uuid.nullish(),
   counterpartyId: uuid.nullish(),
+  /** Договор: пусто — договор по умолчанию контрагента */
+  contractId: uuid.nullish(),
   warehouseId: uuid.nullish(),
   /** Склад-получатель (перемещение между складами) */
   targetWarehouseId: uuid.nullish(),
@@ -162,6 +164,8 @@ export const documentQuery = listQuery.extend({
   status: csv(z.enum(DOCUMENT_STATUSES)).optional(),
   organizationId: uuid.optional(),
   counterpartyId: uuid.optional(),
+  /** Договор документа */
+  contractId: uuid.optional(),
   warehouseId: uuid.optional(),
   basedOnId: uuid.optional(),
   from: isoDate.optional(),

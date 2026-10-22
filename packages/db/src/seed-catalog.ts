@@ -111,7 +111,7 @@ export async function seedCatalog(db: Db, wsId: string) {
     db.insert(products).values({ workspaceId: wsId, kind: 'service', sku, name, unitCode: unit, vatRate: vat, price: price.toFixed(2), purchasePrice: '0', categoryId: services.id });
   await service('Доставка по городу', 'SV-DLV', '876', 1500);
   await service('Сборка мебели на месте', 'SV-ASM', '356', 1800);
-  await service('Замер и консультация', 'SV-MSR', '876', 0, 'none');
+  await service('Замер и консультация', 'SV-MSR', '876', 1200, 'none');
 
   // Работы (вид номенклатуры «Работа»): заказ-наряд продаёт работу, к ней идут материалы и исполнители
   const work = async (key: string, name: string, sku: string, unit: string, price: number, vat = '20') => {

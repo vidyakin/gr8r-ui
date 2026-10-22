@@ -153,6 +153,20 @@ describe('service schedule: the hourly plan', () => {
     expect(a.endAt).toBe('2026-03-04T12:00:00.000Z');
   });
 
+  test('the shift is counted in the time zone of the workspace', async () => {
+    // 07:00–08:00 UTC — 10:00–11:00 по Москве: внутри смены 09:00–17:00 по Москве, вне её по UTC
+    const productId = await work('Пояс воркспейса');
+    const doc = await workOrder([{ productId, qty: 1, price: 300 }]);
+    const created = await mk(owner, `/work-orders/${doc.id}/assignments`, { assigneeId: memberId, lineId: doc.lines[0].id });
+    const interval = { startAt: '2026-03-04T07:00:00Z', endAt: '2026-03-04T08:00:00Z' };
+    expect((await owner.patch('/billing/timezone', { timezone: 'Europe/Moscow' })).status).toBe(200);
+    const moscow = await owner.patch(`/work-order-assignments/${created.taskId}`, interval);
+    expect(moscow.body.warnings.some((w: any) => w.code === 'outside_shift')).toBe(false);
+    expect((await owner.patch('/billing/timezone', { timezone: 'UTC' })).status).toBe(200);
+    const utc = await owner.patch(`/work-order-assignments/${created.taskId}`, interval);
+    expect(utc.body.warnings.some((w: any) => w.code === 'outside_shift')).toBe(true);
+  });
+
   test('the plan of another workspace is empty', async () => {
     const res = await other.get(`/services/schedule?from=${MON}T00:00:00Z&to=${MON}T23:59:59Z&resource=member`);
     expect(res.status).toBe(200);
