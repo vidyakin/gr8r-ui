@@ -39,6 +39,7 @@ import { ProductionPage } from './production/ProductionPage';
 import { WorkCentersPage } from './production/WorkCentersPage';
 import { ProductionOrdersPage } from './production/ProductionOrdersPage';
 import { ProductionOrderPage } from './production/ProductionOrderPage';
+import { ProductionWorkbenchPage } from './production/ProductionWorkbenchPage';
 import { JournalPage } from './docs/JournalPage';
 import { DocumentPage } from './docs/DocumentPage';
 import { PrintPage } from './docs/PrintPage';
@@ -48,7 +49,7 @@ import { FlowEditorPage } from './automations/FlowEditorPage';
 
 /* Hash-роутинг, как в оригинале: работает на любом статическом хостинге без настройки rewrite.
    Чтобы перенести раздел, замените PlaceholderPage на его компонент. */
-const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.archive, SECTIONS.crm, SECTIONS.crmDeals, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities, SECTIONS.catalog, SECTIONS.production, SECTIONS.productionOrders, SECTIONS.workCenters, SECTIONS.sales, SECTIONS.purchases, SECTIONS.stockDocs, SECTIONS.inventory, SECTIONS.automations, SECTIONS.settings, SECTIONS.system].map(s => s.path));
+const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.archive, SECTIONS.crm, SECTIONS.crmDeals, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities, SECTIONS.catalog, SECTIONS.production, SECTIONS.productionOrders, SECTIONS.productionWorkbench, SECTIONS.workCenters, SECTIONS.sales, SECTIONS.purchases, SECTIONS.stockDocs, SECTIONS.inventory, SECTIONS.automations, SECTIONS.settings, SECTIONS.system].map(s => s.path));
 
 export const router = createHashRouter([
   {
@@ -93,6 +94,7 @@ export const router = createHashRouter([
       { path: SECTIONS.workCenters.path, element: <WorkCentersPage /> },
       { path: SECTIONS.productionOrders.path, element: <ProductionOrdersPage /> },
       { path: `${SECTIONS.productionOrders.path}/:id`, element: <ProductionOrderPage /> },
+      { path: SECTIONS.productionWorkbench.path, element: <ProductionWorkbenchPage /> },
       { path: `${SECTIONS.production.path}/:id`, element: <ItemPage /> },
       // Документы продаж и закупок, склад
       { path: SECTIONS.sales.path, element: <JournalPage group="sales" /> },
