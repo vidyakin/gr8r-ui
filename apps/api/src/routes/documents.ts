@@ -14,8 +14,10 @@ import {
   changeDocumentState,
   companies,
   costItems,
+  countSheet,
   createBasedOn,
   createDocument,
+  createInventoryBasedOn,
   createProductionFromCustomerOrder,
   createProductionFromOrder,
   createProductionOrderFromCustomerOrder,
@@ -25,6 +27,7 @@ import {
   documentDetail,
   documentFiles,
   documents,
+  fillCountSheet,
   jobs,
   loadAvgCosts,
   loadInventorySettings,
@@ -41,6 +44,9 @@ import {
   updateDocument,
   warehouses,
   workspaces,
+  inUseBalances,
+  members,
+  workCenters,
 } from '@gr8r/db';
 import {
   bankAccountCreate,
@@ -376,6 +382,14 @@ export const documentRoutes = new Hono<AppEnv>()
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;
     const type = c.req.valid('json').type;
+    // списание и оприходование по результатам инвентаризации: строго по разнице
+    if (type === 'write_off' || type === 'stock_posting') {
+      const [src] = await ctx.db.select({ type: documents.type }).from(documents).where(eq(documents.id, id)).limit(1);
+      if (src?.type === 'inventory_count') {
+        const created = await createInventoryBasedOn(ctx.db, docCtx(ctx), id, type);
+        return c.json(await documentDetail(ctx.db, created), 201);
+      }
+    }
     // производство создаётся своим сервисом: заказ на производство и выпуск из заказа покупателя
     if (type === 'production_order') {
       const orderId = await createProductionOrderFromCustomerOrder(ctx.db, docCtx(ctx), { customerOrderId: id });
@@ -401,7 +415,15 @@ export const documentRoutes = new Hono<AppEnv>()
   .post('/:id/state', write, zValidator('param', idParam, validationHook), zValidator('json', documentStateChange, validationHook), async c => {
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;
-    await changeDocumentState(ctx.db, docCtx(ctx), id, c.req.valid('json').state);
+    const body = c.req.valid('json');
+    await changeDocumentState(ctx.db, docCtx(ctx), id, body.state, body.received ? { received: body.received } : undefined);
+    return c.json(await documentDetail(ctx.db, id));
+  })
+  // заполнить строки инвентаризации по остаткам склада
+  .post('/:id/fill-count-sheet', write, zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    await fillCountSheet(ctx.db, docCtx(ctx), id);
     return c.json(await documentDetail(ctx.db, id));
   })
   // печатная форма: готовая HTML-страница (A4); та же, что превращается в PDF в воркере
@@ -563,6 +585,41 @@ export const stockRoutes = new Hono<AppEnv>()
     if (!p) throw notFound('product');
     const cost = await defaultPostingCost(ctx.db, warehouseId ?? null, productId);
     return c.json({ productId, warehouseId: warehouseId ?? null, cost: canSeeCost(ctx.role) ? cost.cost : null, source: cost.source });
+  })
+  // опись склада для инвентаризации: текущие остатки (учётное количество)
+  .get('/count-sheet', zValidator('query', z.object({ warehouseId: uuid }), validationHook), async c => {
+    const ctx = ctxOf(c);
+    const { warehouseId } = c.req.valid('query');
+    const [w] = await ctx.db.select({ id: warehouses.id }).from(warehouses).where(eq(warehouses.id, warehouseId)).limit(1);
+    if (!w) throw notFound('warehouse');
+    const items = await countSheet(ctx.db, ctx.workspaceId, warehouseId);
+    return c.json({ warehouseId, items });
+  })
+  // имущество в эксплуатации: у какого сотрудника или участка оно лежит
+  .get('/in-use', async c => {
+    const ctx = ctxOf(c);
+    const rows = await ctx.db
+      .select({
+        productId: inUseBalances.productId,
+        name: products.name,
+        sku: products.sku,
+        unitCode: products.unitCode,
+        qty: inUseBalances.qty,
+        memberId: inUseBalances.memberId,
+        workCenterId: inUseBalances.workCenterId,
+      })
+      .from(inUseBalances)
+      .innerJoin(products, eq(products.id, inUseBalances.productId))
+      .where(sql`${inUseBalances.qty} <> 0`)
+      .orderBy(asc(products.name));
+    const memberIds = [...new Set(rows.map(r => r.memberId).filter((x): x is string => !!x))];
+    const centerIds = [...new Set(rows.map(r => r.workCenterId).filter((x): x is string => !!x))];
+    const memberRows = memberIds.length ? await ctx.db.select({ id: members.id, name: members.name }).from(members).where(inArray(members.id, memberIds)) : [];
+    const centerRows = centerIds.length ? await ctx.db.select({ id: workCenters.id, name: workCenters.name }).from(workCenters).where(inArray(workCenters.id, centerIds)) : [];
+    const memberNames = new Map(memberRows.map(m => [m.id, m.name]));
+    const centerNames = new Map(centerRows.map(w => [w.id, w.name]));
+    const items = rows.map(r => ({ ...r, memberName: r.memberId ? (memberNames.get(r.memberId) ?? null) : null, workCenterName: r.workCenterId ? (centerNames.get(r.workCenterId) ?? null) : null }));
+    return c.json({ items, total: items.length });
   })
   .get('/settings', async c => c.json(await loadInventorySettings(ctxOf(c).db, ctxOf(c).workspaceId)))
   .patch('/settings', admin, zValidator('json', inventorySettingsUpdate, validationHook), async c => {

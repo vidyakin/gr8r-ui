@@ -4,16 +4,21 @@
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Ban, CircleAlert, ChevronDown, Copy, Ellipsis, FileText, Plus, Printer, RotateCcw, Send, Trash2, Undo2 } from 'lucide-react';
-import { amountInWordsRu, basedOnTargets, computeDocument, DOCUMENT_META, PRINT_FORM_LABELS, VAT_LABELS, VAT_RATES, type DocumentType, type VatRate } from '@gr8r/shared';
+import { Ban, CircleAlert, ChevronDown, ClipboardList, Copy, Ellipsis, FileText, PackageCheck, Plus, Printer, RotateCcw, Send, Trash2, Undo2 } from 'lucide-react';
+import { amountInWordsRu, basedOnTargets, computeDocument, DOCUMENT_META, PRINT_FORM_LABELS, TRANSFER_OPERATIONS, VAT_LABELS, VAT_RATES, type DocumentType, type VatRate } from '@gr8r/shared';
 import { Badge, Button, ConfirmDialog, EmptyState, Field, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Segmented, Select, Skeleton, toast } from '@/components/ui';
 import { useCanWrite } from '../meta/custom-fields';
 import { money, unitSymbol, useIsAdmin, useUnits, type Product } from '../catalog/data';
 import { uuidv7 } from '../lib/uuid';
 import { fmtDate } from '../lib/dates';
+import { useWorkspace } from '../data/store';
+import { useSnapshot } from '../production/data';
 import { STATUS_LABEL, STATUS_TONE, docTitle, docsKey, typeLabel, useCostItems, useDocsApi, useDocument, useOrganizations, useWarehouses, type DocDetail, type DocLink } from './data';
 import { CounterpartyPicker, ProductPicker } from './pickers';
 import { useWsId } from '../meta/data';
+
+/** Виды перемещения между складами */
+const OPERATION_LABEL: Record<string, string> = { transfer: 'Direct transfer', in_transit: 'In transit', to_operation: 'To operation', from_operation: 'From operation' };
 
 interface FormLine {
   key: string;
@@ -24,6 +29,10 @@ interface FormLine {
   price: string;
   discountPct: string;
   vatRate: VatRate;
+  /** Учётное количество по остаткам (инвентаризация) */
+  bookQty: string;
+  /** Принятое количество (перемещение «в пути») */
+  receivedQty: string;
 }
 
 interface Form {
@@ -33,6 +42,10 @@ interface Form {
   warehouseId: string | null;
   targetWarehouseId: string | null;
   costItemId: string | null;
+  /** Вид перемещения: сразу, «в пути», в эксплуатацию или обратно */
+  operation: string;
+  inUseMemberId: string | null;
+  inUseWorkCenterId: string | null;
   date: string;
   dueDate: string;
   priceIncludesVat: boolean;
@@ -54,22 +67,26 @@ function toForm(d: DocDetail): Form {
     warehouseId: d.warehouseId,
     targetWarehouseId: d.targetWarehouseId,
     costItemId: d.costItemId,
+    operation: d.operation ?? 'transfer',
+    inUseMemberId: d.inUseMember?.id ?? null,
+    inUseWorkCenterId: d.inUseWorkCenter?.id ?? null,
     date: d.date,
     dueDate: d.dueDate ?? '',
     priceIncludesVat: d.priceIncludesVat,
     comment: d.comment,
-    lines: d.lines.map(l => ({ key: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, qty: trimNum(l.qty), price: l.price, discountPct: trimNum(l.discountPct), vatRate: l.vatRate })),
+    lines: d.lines.map(l => ({ key: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, qty: trimNum(l.qty), price: l.price, discountPct: trimNum(l.discountPct), vatRate: l.vatRate, bookQty: trimNum(l.bookQty), receivedQty: trimNum(l.receivedQty) })),
   };
 }
 
 const isNum = (s: string) => s.trim() !== '' && /^\d+([.,]\d+)?$/.test(s.trim());
 const num = (s: string) => s.trim().replace(',', '.');
-const lineErrors = (l: FormLine): { qty?: boolean; price?: boolean; discountPct?: boolean } => ({
-  qty: !(isNum(l.qty) && Number(num(l.qty)) > 0) || undefined,
+/** Нулевое количество допустимо только у строки инвентаризации: там qty — фактическое */
+const lineErrors = (l: FormLine, allowZero = false): { qty?: boolean; price?: boolean; discountPct?: boolean } => ({
+  qty: !(isNum(l.qty) && (allowZero ? Number(num(l.qty)) >= 0 : Number(num(l.qty)) > 0)) || undefined,
   price: !isNum(l.price) || undefined,
   discountPct: !(l.discountPct.trim() === '' || (isNum(l.discountPct) && Number(num(l.discountPct)) <= 100)) || undefined,
 });
-const lineOk = (l: FormLine) => !Object.values(lineErrors(l)).some(Boolean);
+const lineOk = (l: FormLine, allowZero = false) => !Object.values(lineErrors(l, allowZero)).some(Boolean);
 
 function toPayload(f: Form) {
   return {
@@ -78,11 +95,16 @@ function toPayload(f: Form) {
     warehouseId: f.warehouseId,
     targetWarehouseId: f.targetWarehouseId,
     costItemId: f.costItemId,
+    operation: f.operation,
+    inUseMemberId: f.inUseMemberId,
+    inUseWorkCenterId: f.inUseWorkCenterId,
     date: f.date,
     dueDate: f.dueDate || null,
     priceIncludesVat: f.priceIncludesVat,
     comment: f.comment,
-    lines: f.lines.filter(l => l.productId).map(l => ({ id: l.key, productId: l.productId!, name: l.name, unitCode: l.unitCode, qty: num(l.qty), price: num(l.price), discountPct: num(l.discountPct || '0'), vatRate: l.vatRate })),
+    lines: f.lines
+      .filter(l => l.productId)
+      .map(l => ({ id: l.key, productId: l.productId!, name: l.name, unitCode: l.unitCode, qty: num(l.qty), price: num(l.price), discountPct: num(l.discountPct || '0'), vatRate: l.vatRate, bookQty: num(l.bookQty || '0'), receivedQty: num(l.receivedQty || '0') })),
   };
 }
 
@@ -130,16 +152,27 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const warehouses = useWarehouses();
   const costItems = useCostItems();
   const units = useUnits();
+  const members = useWorkspace().data.members;
+  const workCenters = useSnapshot().data?.workCenters ?? [];
   const meta = DOCUMENT_META[doc.type];
   const editable = canWrite && doc.status === 'draft';
   /** Внутренний документ: без контрагента, свой склад и статья затрат */
   const internal = meta.party === null;
   const usesWarehouse = !!meta.stock || !!meta.stockRole || meta.production || doc.type === 'customer_order';
   const isOrder = !!meta.isOrder;
+  /** Инвентаризация: количество строки — фактическое, рядом учётное */
+  const isCount = doc.type === 'inventory_count';
+  /** Перемещение: вид операции задаёт, что делает документ */
+  const isTransfer = doc.type === 'stock_transfer';
+  const inTransit = isTransfer && doc.operation === 'in_transit';
+  const toOperation = isTransfer && doc.operation === 'to_operation';
+  const fromOperation = isTransfer && doc.operation === 'from_operation';
   const priceField = meta.party === 'supplier' ? 'purchasePrice' : 'price';
   const whOptions = (warehouses.data ?? []).filter(w => (!w.archivedAt || w.id === form.warehouseId) && w.kind !== 'transit');
 
   const [form, setForm] = React.useState<Form>(() => toForm(doc));
+  /** Принятое количество по строкам (перемещение «в пути»): редактируется при приёмке */
+  const [received, setReceived] = React.useState<Record<string, string>>(() => Object.fromEntries(doc.lines.map(l => [l.id, trimNum(l.receivedQty) || trimNum(l.qty)])));
   const [save, setSave] = React.useState<SaveState>('saved');
   const [confirm, setConfirm] = React.useState<'cancel' | 'delete' | null>(null);
   const [busy, setBusy] = React.useState(false);
@@ -162,7 +195,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     clearTimeout(timer.current);
     if (!dirty.current) return true;
     const f = latest.current;
-    if (!f.organizationId || f.lines.some(l => l.productId && !lineOk(l))) {
+    if (!f.organizationId || f.lines.some(l => l.productId && !lineOk(l, isCount))) {
       setSave('invalid');
       return false;
     }
@@ -191,7 +224,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   };
   const patchLine = (key: string, patch: Partial<FormLine>) => edit(f => ({ ...f, lines: f.lines.map(l => (l.key === key ? { ...l, ...patch } : l)) }));
   const addLine = (at?: number) => {
-    const line: FormLine = { key: uuidv7(), productId: null, name: '', unitCode: '796', qty: '1', price: '', discountPct: '', vatRate: '20' };
+    const line: FormLine = { key: uuidv7(), productId: null, name: '', unitCode: '796', qty: '1', price: '', discountPct: '', vatRate: '20', bookQty: '0', receivedQty: '0' };
     const index = at ?? latest.current.lines.length;
     focusReq.current = { row: index, col: 0 };
     edit(f => ({ ...f, lines: [...f.lines.slice(0, index), line, ...f.lines.slice(index)] }));
@@ -228,7 +261,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   };
 
   const calc = React.useMemo(() => {
-    const valid = form.lines.filter(l => l.productId && lineOk(l));
+    const valid = form.lines.filter(l => l.productId && lineOk(l, isCount));
     try {
       const r = computeDocument(valid.map(l => ({ qty: num(l.qty), price: num(l.price), discountPct: num(l.discountPct || '0'), vatRate: l.vatRate })), form.priceIncludesVat);
       return { byKey: new Map(valid.map((l, i) => [l.key, r.lines[i]!])), totals: r.totals };
@@ -264,6 +297,37 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     }
   };
 
+  /** Заполнить строки инвентаризации по остаткам склада */
+  const fillCount = async () => {
+    setBusy(true);
+    try {
+      const r = await api<DocDetail>('POST', `/documents/${doc.id}/fill-count-sheet`);
+      if (r) toast('Lines filled by the stock balances');
+    } finally {
+      setBusy(false);
+    }
+  };
+  /** Приёмка перемещения «в пути»: принимаемое количество по каждой строке */
+  const receiveGoods = async () => {
+    setBusy(true);
+    try {
+      const r = await api<DocDetail>('POST', `/documents/${doc.id}/state`, { state: 'received', received: doc.lines.map(l => ({ id: l.id, qty: num(received[l.id] ?? l.qty) })) });
+      if (r) toast('Goods accepted');
+    } finally {
+      setBusy(false);
+    }
+  };
+  /** Отмена приёмки: товар остаётся «в пути» */
+  const cancelReception = async () => {
+    setBusy(true);
+    try {
+      const r = await api<DocDetail>('POST', `/documents/${doc.id}/state`, { state: 'shipped' });
+      if (r) toast('Acceptance cancelled: the goods stay in transit');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const targets = basedOnTargets(doc.type);
   const lineCount = form.lines.filter(l => l.productId).length;
   const hasNumber = doc.numberSeq !== null;
@@ -287,12 +351,31 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             <Badge tone={STATUS_TONE[doc.status]} dot>
               {STATUS_LABEL[doc.status]}
             </Badge>
+            {doc.state && <Badge tone="violet">{meta.states?.find(s => s.key === doc.state)?.label ?? doc.state}</Badge>}
           </h1>
           <span className="faint" style={{ fontSize: 12 }} aria-live="polite" data-testid="save-state">
             {doc.status !== 'draft' ? (doc.postedAt ? `Posted ${fmtDate(new Date(doc.postedAt))}` : '') : save === 'saving' ? 'Saving…' : save === 'dirty' ? 'Unsaved changes' : save === 'invalid' ? 'Fix the highlighted fields to save' : save === 'error' ? 'Not saved' : 'All changes saved'}
           </span>
         </div>
         <div className="doc-actions">
+          {canWrite && isCount && doc.status === 'draft' && (
+            <Button disabled={busy} onClick={() => void fillCount()}>
+              <ClipboardList size={14} />
+              Fill by stock
+            </Button>
+          )}
+          {canWrite && inTransit && doc.status === 'posted' && doc.state === 'shipped' && (
+            <Button variant="primary" disabled={busy} onClick={() => void receiveGoods()}>
+              <PackageCheck size={14} />
+              Receive
+            </Button>
+          )}
+          {canWrite && inTransit && doc.status === 'posted' && doc.state === 'received' && (
+            <Button disabled={busy} onClick={() => void cancelReception()}>
+              <Undo2 size={14} />
+              Cancel reception
+            </Button>
+          )}
           {canWrite && doc.status === 'draft' && (
             <Button variant="primary" disabled={busy} onClick={() => void run('post')}>
               <Send size={14} />
@@ -404,8 +487,8 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             }
           </Field>
         )}
-        {usesWarehouse && (
-          <Field label={internal ? (meta.production ? 'Materials warehouse' : 'From warehouse') : 'Warehouse'}>
+        {usesWarehouse && !(isTransfer && form.operation === 'from_operation') && (
+          <Field label={internal ? (meta.production ? 'Materials warehouse' : isCount ? 'Warehouse' : 'From warehouse') : 'Warehouse'}>
             {p => (
               <Select
                 id={p.id}
@@ -419,7 +502,21 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             )}
           </Field>
         )}
-        {(meta.stockRole === 'transfer' || meta.production) && (
+        {isTransfer && (
+          <Field label="Kind of transfer">
+            {p => (
+              <Select
+                id={p.id}
+                disabled={!editable}
+                value={form.operation}
+                onValueChange={v => edit(f => ({ ...f, operation: v }))}
+                options={TRANSFER_OPERATIONS.map(o => ({ value: o, label: OPERATION_LABEL[o] ?? o }))}
+                aria-label="Kind of transfer"
+              />
+            )}
+          </Field>
+        )}
+        {(meta.stockRole === 'transfer' || meta.production) && (!isTransfer || form.operation === 'transfer' || form.operation === 'in_transit') && (
           <Field label={meta.production ? 'Finished goods warehouse' : 'To warehouse'}>
             {p => (
               <Select
@@ -434,8 +531,28 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             )}
           </Field>
         )}
-        {meta.costItemKind && (
-          <Field label={meta.costItemKind === 'expense' ? 'Cost item' : 'Income item'} hint="Written off to this item">
+        {(toOperation || fromOperation) && (
+          <>
+            <Field label="Holder" hint="Member or work center">
+              {p => (
+                <Select
+                  id={p.id}
+                  disabled={!editable}
+                  value={form.inUseMemberId ?? form.inUseWorkCenterId ?? ''}
+                  onValueChange={v => edit(f => (members.some(m => m.id === v) ? { ...f, inUseMemberId: v, inUseWorkCenterId: null } : { ...f, inUseMemberId: null, inUseWorkCenterId: v }))}
+                  options={[
+                    ...members.filter(m => m.status === 'active').map(m => ({ value: m.id, label: m.name })),
+                    ...workCenters.filter(w => !w.archivedAt).map(w => ({ value: w.id, label: w.name })),
+                  ]}
+                  placeholder="Select holder"
+                  aria-label="Holder"
+                />
+              )}
+            </Field>
+          </>
+        )}
+        {(meta.costItemKind || toOperation) && (
+          <Field label={(meta.costItemKind ?? 'expense') === 'expense' ? 'Cost item' : 'Income item'} hint="Written off to this item">
             {p => (
               <Select
                 id={p.id}
@@ -443,7 +560,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                 value={form.costItemId ?? ''}
                 onValueChange={v => edit(f => ({ ...f, costItemId: v }))}
                 options={(costItems.data ?? [])
-                  .filter(c => !c.archivedAt && c.kind === meta.costItemKind)
+                  .filter(c => !c.archivedAt && c.kind === (meta.costItemKind ?? 'expense'))
                   .map(c => ({ value: c.id, label: c.name }))}
                 placeholder="Select item"
                 aria-label="Cost item"
@@ -488,9 +605,24 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                 <th style={{ width: 34 }}>#</th>
                 <th>Product or service</th>
                 <th style={{ width: 56 }}>Unit</th>
+                {isCount && (
+                  <th style={{ width: 96 }} className="r">
+                    Book
+                  </th>
+                )}
                 <th style={{ width: 96 }} className="r">
-                  Qty
+                  {isCount ? 'Actual' : inTransit ? 'Shipped' : 'Qty'}
                 </th>
+                {inTransit && (
+                  <th style={{ width: 96 }} className="r">
+                    Received
+                  </th>
+                )}
+                {isCount && (
+                  <th style={{ width: 96 }} className="r">
+                    Diff
+                  </th>
+                )}
                 {isOrder && doc.status !== 'draft' && (
                   <>
                     <th style={{ width: 84 }} className="r">
@@ -527,9 +659,10 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             <tbody>
               {form.lines.map((l, i) => {
                 const a = calc.byKey.get(l.key);
-                const err = l.productId ? lineErrors(l) : {};
+                const err = l.productId ? lineErrors(l, isCount) : {};
                 const srv = serverLine.get(l.key);
                 const shipped = Number(srv?.shipped ?? 0);
+                const diff = Number(num(l.qty || '0')) - Number(num(srv?.bookQty ?? '0'));
                 return (
                   <tr key={l.key} data-row={i}>
                     <td className="faint num">{i + 1}</td>
@@ -543,9 +676,28 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       )}
                     </td>
                     <td className="muted">{unitSymbol(units.data, l.unitCode)}</td>
+                    {isCount && <td className="r num muted">{trimNum(srv?.bookQty ?? '0') || '0'}</td>}
                     <td className="r">
                       <NumCell value={l.qty} disabled={!editable} invalid={!!err.qty} label="Quantity" cell={`${i}:1`} onKeyDown={cellKey(i, 1)} onChange={v => patchLine(l.key, { qty: v })} />
                     </td>
+                    {inTransit && (
+                      <td className="r">
+                        <NumCell
+                          value={received[l.key] ?? '0'}
+                          disabled={doc.status !== 'posted' || doc.state !== 'shipped'}
+                          invalid={false}
+                          label="Accepted quantity"
+                          cell={`${i}:2`}
+                          onKeyDown={() => {}}
+                          onChange={v => setReceived(r => ({ ...r, [l.key]: v }))}
+                        />
+                      </td>
+                    )}
+                    {isCount && (
+                      <td className="r num" style={{ fontWeight: 500 }}>
+                        {diff === 0 ? '—' : diff > 0 ? `+${trimNum(String(diff))}` : trimNum(String(diff))}
+                      </td>
+                    )}
                     {isOrder && doc.status !== 'draft' && (
                       <>
                         <td className="r num muted">{trimNum(srv?.shipped ?? '0') || '0'}</td>
@@ -645,7 +797,22 @@ function DocumentView({ doc }: { doc: DocDetail }) {
           )}
         </section>
         <section className="doc-totals panel" aria-label="Totals">
-          {internal ? (
+          {isCount ? (
+            <dl>
+              <div>
+                <dt>Lines</dt>
+                <dd className="num">{lineCount}</dd>
+              </div>
+              <div>
+                <dt>Shortage</dt>
+                <dd className="num">{countDiff(form.lines, serverLine).shortage}</dd>
+              </div>
+              <div>
+                <dt>Surplus</dt>
+                <dd className="num">{countDiff(form.lines, serverLine).surplus}</dd>
+              </div>
+            </dl>
+          ) : internal ? (
             <dl>
               <div>
                 <dt>Lines</dt>
@@ -714,6 +881,19 @@ function DocumentView({ doc }: { doc: DocDetail }) {
       <ConfirmDialog open={confirm === 'delete'} onOpenChange={o => !o && setConfirm(null)} title="Delete this draft?" description="The draft has never been posted and has no number, so it is removed completely." confirmLabel="Delete" cancelLabel="Keep" danger onConfirm={() => void remove()} />
     </div>
   );
+}
+
+/** Инвентаризация: сколько позиций с недостачей и сколько с излишком */
+function countDiff(lines: FormLine[], server: Map<string, { bookQty: string }>): { shortage: number; surplus: number } {
+  let shortage = 0;
+  let surplus = 0;
+  for (const l of lines) {
+    if (!l.productId) continue;
+    const diff = Number(num(l.qty || '0')) - Number(num(server.get(l.key)?.bookQty ?? '0'));
+    if (diff < 0) shortage++;
+    else if (diff > 0) surplus++;
+  }
+  return { shortage, surplus };
 }
 
 function NumCell({ value, onChange, disabled, invalid, label, cell, onKeyDown }: { value: string; onChange: (v: string) => void; disabled: boolean; invalid: boolean; label: string; cell: string; onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void }) {

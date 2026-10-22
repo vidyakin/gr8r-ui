@@ -37,6 +37,10 @@ export interface DocLine {
   originLineId: string | null;
   /** Роль строки внутреннего документа: приход или расход */
   stockRole: 'in' | 'out' | null;
+  /** Учётное количество по остаткам (инвентаризация) */
+  bookQty: string;
+  /** Принятое количество (перемещение «в пути») */
+  receivedQty: string;
 }
 
 export interface DocListItem {
@@ -90,6 +94,10 @@ export interface DocDetail extends Omit<DocListItem, 'organizationName' | 'count
   /** Статья затрат или доходов */
   costItem: { id: string; name: string; kind: CostItemKind } | null;
   operation: string | null;
+  /** Получатель имущества в эксплуатацию: сотрудник */
+  inUseMember: { id: string; name: string } | null;
+  /** Получатель имущества в эксплуатацию: участок */
+  inUseWorkCenter: { id: string; name: string } | null;
   /** Стоимость по себестоимости (внутренние документы) */
   costTotal?: string;
   basedOn: DocLink | null;
@@ -325,6 +333,24 @@ export function useStockBalances(params: { warehouseId?: string; q?: string; non
 export function useStockMoves(productId: string | undefined) {
   const ws = useWsId();
   return useQuery({ queryKey: docsKey(ws, 'moves', productId), queryFn: async () => (await call<{ items: StockMove[] }>(ws, 'GET', `/stock/moves?productId=${productId}&limit=200`)).items, enabled: !!productId, staleTime: Infinity });
+}
+
+/** Имущество в эксплуатации: у какого сотрудника или участка оно лежит */
+export interface InUseBalance {
+  productId: string;
+  name: string;
+  sku: string;
+  unitCode: string;
+  qty: string;
+  memberId: string | null;
+  memberName: string | null;
+  workCenterId: string | null;
+  workCenterName: string | null;
+}
+
+export function useInUseBalances() {
+  const ws = useWsId();
+  return useQuery({ queryKey: docsKey(ws, 'in-use'), queryFn: async () => (await call<{ items: InUseBalance[] }>(ws, 'GET', '/stock/in-use')).items, staleTime: Infinity });
 }
 
 /* ---------------- поиск ---------------- */

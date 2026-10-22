@@ -1,13 +1,12 @@
 /* zod-схемы документов, организаций, складов, банковских счетов и склада (остатки, движения, настройки). */
 import { z } from 'zod';
 import { VAT_RATES } from '../constants';
-import { COST_ITEM_KINDS, DOCUMENT_GROUPS, DOCUMENT_STATUSES, DOCUMENT_TYPES, PRINT_FORMS, WAREHOUSE_KINDS } from '../documents';
+import { COST_ITEM_KINDS, DOCUMENT_GROUPS, DOCUMENT_STATUSES, DOCUMENT_TYPES, PRINT_FORMS, TRANSFER_OPERATIONS, WAREHOUSE_KINDS } from '../documents';
 import { COMPANY_KINDS, TAX_SYSTEMS } from '../ru';
 import { clientId, decimal, isoDate, listQuery, queryBool, shortText, toPatch, uuid } from './common';
 import { customData } from './meta';
 
 const nonNeg = (max = 1e13) => decimal.refine(v => Number(v) >= 0 && Number(v) < max, 'Must not be negative');
-const positive = (max = 1e10) => decimal.refine(v => Number(v) > 0 && Number(v) < max, 'Must be greater than zero');
 const pct = decimal.refine(v => Number(v) >= 0 && Number(v) <= 100, 'Percent must be between 0 and 100');
 
 /* ---------------- файлы печати и подписи (пока ссылка + метаданные) ---------------- */
@@ -97,25 +96,32 @@ export const costItemQuery = listQuery.extend({ kind: z.enum(COST_ITEM_KINDS).op
 
 /* ---------------- документы ---------------- */
 
-export const documentLineInput = z.object({
-  /** Свой id нужен, чтобы при правке документа ссылки «на основании» не терялись */
-  id: clientId,
-  productId: uuid,
-  /** Название на момент добавления; пусто — берётся из товара */
-  name: z.string().trim().max(500).optional(),
-  unitCode: z
-    .string()
-    .trim()
-    .regex(/^\d{3,4}$/)
-    .optional(),
-  qty: positive(),
-  price: nonNeg(),
-  discountPct: pct.default('0'),
-  /** Пусто — ставка товара */
-  vatRate: z.enum(VAT_RATES).optional(),
-  /** Роль строки выпуска (производства): материал — расход, продукция — приход. У остальных типов её задаёт сервер */
-  stockRole: z.enum(['in', 'out']).optional(),
-});
+export const documentLineInput = z
+  .object({
+    /** Свой id нужен, чтобы при правке документа ссылки «на основании» не терялись */
+    id: clientId,
+    productId: uuid,
+    /** Название на момент добавления; пусто — берётся из товара */
+    name: z.string().trim().max(500).optional(),
+    unitCode: z
+      .string()
+      .trim()
+      .regex(/^\d{3,4}$/)
+      .optional(),
+    qty: nonNeg(),
+    price: nonNeg(),
+    discountPct: pct.default('0'),
+    /** Пусто — ставка товара */
+    vatRate: z.enum(VAT_RATES).optional(),
+    /** Учётное количество по остаткам (инвентаризация): разница с qty — недостача или излишек */
+    bookQty: nonNeg().optional(),
+    /** Принятое количество (перемещение «в пути»): не больше отправленного */
+    receivedQty: nonNeg().optional(),
+    /** Роль строки выпуска (производства): материал — расход, продукция — приход. У остальных типов её задаёт сервер */
+    stockRole: z.enum(['in', 'out']).optional(),
+  })
+  // нулевое количество допустимо только у строки инвентаризации: там qty — фактическое, учётное лежит в bookQty
+  .refine(l => Number(l.qty) !== 0 || l.bookQty !== undefined, { message: 'Must be greater than zero', path: ['qty'] });
 export type DocumentLineInput = z.infer<typeof documentLineInput>;
 
 export const documentCreate = z.object({
@@ -127,6 +133,11 @@ export const documentCreate = z.object({
   warehouseId: uuid.nullish(),
   /** Склад-получатель (перемещение между складами) */
   targetWarehouseId: uuid.nullish(),
+  /** Вид перемещения: сразу, «в пути», в эксплуатацию или обратно (только у перемещения) */
+  operation: z.enum(TRANSFER_OPERATIONS).optional(),
+  /** Получатель в эксплуатацию: участник или участок (ровно один) */
+  inUseMemberId: uuid.nullish(),
+  inUseWorkCenterId: uuid.nullish(),
   /** Статья затрат или доходов (списание, оприходование) */
   costItemId: uuid.nullish(),
   /** Пусто — сегодня */
@@ -157,7 +168,14 @@ export const documentQuery = listQuery.extend({
 
 export const basedOnCreate = z.object({ type: z.enum(DOCUMENT_TYPES) });
 /** Смена состояния документа (отдельно от проведения) */
-export const documentStateChange = z.object({ state: z.string().trim().regex(/^[a-z][a-z0-9_]*$/, 'State key: lowercase letters, digits and underscores') });
+export const documentStateChange = z.object({
+  state: z.string().trim().regex(/^[a-z][a-z0-9_]*$/, 'State key: lowercase letters, digits and underscores'),
+  /** Принятые количества по строкам (перемещение «в пути»): не больше отправленного */
+  received: z
+    .array(z.object({ id: uuid, qty: nonNeg() }))
+    .max(500)
+    .optional(),
+});
 export const pdfRequest = z.object({ form: z.enum(PRINT_FORMS) });
 export const printParam = z.object({ id: uuid, form: z.enum(PRINT_FORMS) });
 

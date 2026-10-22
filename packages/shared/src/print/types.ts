@@ -46,6 +46,12 @@ export interface PrintLine {
   net: string;
   vatAmount: string;
   total: string;
+  /** Учётное количество по остаткам (инвентаризация) */
+  bookQty?: string;
+  /** Разница фактического и учётного количества (инвентаризация) */
+  diffQty?: string;
+  /** Себестоимость единицы по документу (внутренние документы) */
+  cost?: string;
 }
 
 export interface PrintData {
@@ -62,4 +68,14 @@ export interface PrintData {
   totals: DocumentTotals;
   basedOn: { type: DocumentType; number: string | null; date: string } | null;
   comment: string;
+  /** Склад документа (внутренние документы) */
+  warehouseName?: string;
+  /** Склад-получатель (перемещение) */
+  targetWarehouseName?: string;
+  /** Статья затрат или доходов (списание, оприходование, передача в эксплуатацию) */
+  costItemName?: string;
+  /** Получатель имущества в эксплуатацию: сотрудник или участок */
+  holderName?: string;
+  /** Вид операции документа (перемещение) */
+  operation?: string;
 }
