@@ -6,6 +6,8 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 import {
   canChangeWorkOrderState,
   dec,
+  fmt,
+  mul,
   WORK_ORDER_OPEN_CATEGORIES,
   type DocumentType,
   type WorkOrderStateCategory,
@@ -20,6 +22,7 @@ import { documentLines, documents, documentStates, members, products, tasks, war
 import { issueTaskKey } from './modules';
 import { ensureModuleProject } from './modules';
 import { applyDocumentMoves, postDocument, unpostDocument, type DocCtx, type DocumentRow } from './documents';
+import { applyWorkOrderBilling, workNorm } from './services';
 import { uuidv7 } from './uuid';
 
 /* ---------------- виды и состояния ---------------- */
@@ -162,15 +165,21 @@ export async function createWorkOrderAssignment(db: Db, ctx: DocCtx, documentId:
   const [doc] = await db.select().from(documents).where(eq(documents.id, documentId)).limit(1);
   if (!doc) throw new DomainError(404, 'not_found', 'document not found');
   let title = input.title?.trim();
+  let plannedHours = input.plannedHours ?? null;
+  let workCenterId = input.workCenterId ?? null;
   if (input.lineId) {
     // строка работы должна принадлежать этому заказ-наряду
     const [line] = await db
-      .select({ name: documentLines.name, documentId: documentLines.documentId })
+      .select({ name: documentLines.name, documentId: documentLines.documentId, productId: documentLines.productId, qty: documentLines.qty })
       .from(documentLines)
       .where(eq(documentLines.id, input.lineId))
       .limit(1);
     if (!line || line.documentId !== documentId) throw new DomainError(422, 'invalid_reference', 'The line of the work order does not exist');
     if (!title) title = line.name;
+    // норма работы: плановые часы = количество × норма, участок — по умолчанию из нормы
+    const norm = await workNorm(db, ctx.workspaceId, line.productId);
+    if (plannedHours === null && dec(norm.normHours) > 0n) plannedHours = fmt(mul(dec(line.qty), dec(norm.normHours)), 3);
+    if (!workCenterId && norm.workCenterId) workCenterId = norm.workCenterId;
   }
   if (!title) throw new DomainError(422, 'invalid_reference', 'Enter the name of the assignment');
   // исполнитель должен быть участником этого воркспейса: чужих участников составной внешний ключ не примет
@@ -194,9 +203,11 @@ export async function createWorkOrderAssignment(db: Db, ctx: DocCtx, documentId:
       title,
       status: 'todo',
       assigneeId: input.assigneeId ?? null,
+      // заказчик задачи — контрагент заказ-наряда: по нему видно, кому отработано
+      companyId: doc.counterpartyId ?? null,
       startDate: input.startDate ?? null,
       dueDate: input.dueDate ?? null,
-      planHours: input.plannedHours ?? null,
+      planHours: plannedHours,
       description: `Work order ${doc.number ?? '(draft)'}`,
       createdBy: ctx.memberId,
     })
@@ -208,8 +219,8 @@ export async function createWorkOrderAssignment(db: Db, ctx: DocCtx, documentId:
       documentId,
       taskId: task!.id,
       lineId: input.lineId ?? null,
-      workCenterId: input.workCenterId ?? null,
-      plannedHours: input.plannedHours ?? null,
+      workCenterId,
+      plannedHours,
     })
     .returning({ id: workOrderAssignments.id });
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'task.created', entity: 'task', recordId: task!.id, actorId: ctx.memberId, payload: { documentId } });
@@ -324,6 +335,8 @@ STATE_HOOKS.work_order = async (db, ctx, doc, from, to, payload?: StatePayload) 
   if (toState.category === 'cancelled') await db.update(documents).set({ cancelReason: payload!.cancelReason!.trim() }).where(eq(documents.id, doc.id));
   else if (fromState?.category === 'cancelled') await db.update(documents).set({ cancelReason: null }).where(eq(documents.id, doc.id));
   if (toState.category === 'done') {
+    // строки, выставляемые по часам, пересчитываются по фактическому времени до проведения
+    await applyWorkOrderBilling(db, doc.id);
     // заказ-наряд сам проводится как продажа: выручка, долг клиента, расход товаров и материалов
     if (doc.status === 'draft') await postDocument(db, ctx, doc.id);
     return;

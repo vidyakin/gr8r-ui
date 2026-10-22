@@ -54,7 +54,7 @@ describe('seed', () => {
     const w = `where workspace_id = '${demo!.id}'`;
     expect(await count('members', w)).toBe(src.members.length);
     expect(await count('projects', w)).toBe(9); // 7 демо + системные проекты модулей (production, services)
-    expect(await count('tasks', w)).toBe(src.tasks.length + 2); // + задача-назначение заказ-наряда и задача операции производства
+    expect(await count('tasks', w)).toBe(src.tasks.length + 3); // + задача-назначение заказ-наряда, задача операции производства и консультация по договору
     expect(await count('statuses', w)).toBe(5);
     expect(await count('teams', w)).toBe(4);
     expect(await count('comments', w)).toBe(src.comments.length);
@@ -62,7 +62,7 @@ describe('seed', () => {
     expect(await count('activity', w)).toBe(src.activity.length);
     expect(await count('notifications', w)).toBe(src.notifs.length);
     expect(await count('files', w)).toBe(src.files.length);
-    expect(await count('time_logs', w)).toBe(src.timeLogs.length);
+    expect(await count('time_logs', w)).toBe(src.timeLogs.length + 2); // + время по заказ-наряду и по консультации
     expect(await count('saved_views', w)).toBe(1);
     expect(await count('calendar_events', w)).toBe(6);
     expect(await count('companies', w)).toBe(crm.companies.length + 1); // + ИП из демо документов
@@ -112,7 +112,7 @@ describe('seed', () => {
     expect(await count('production_items', w)).toBe(3);
     expect(await count('production_components', `${w} and kind = 'material'`)).toBe(12);
     // операции, исполнители и сдельный наряд: назначение операции, задача исполнителя и наряд за день
-    expect(await count('operations', w)).toBe(1);
+    expect(await count('operations', w)).toBe(3); // операция сборки + нормы двух работ
     expect(await count('operation_rates', w)).toBe(2);
     expect(await count('production_operations', w)).toBe(1);
     expect(await count('documents', `${w} and type = 'piecework_order'`)).toBe(1);

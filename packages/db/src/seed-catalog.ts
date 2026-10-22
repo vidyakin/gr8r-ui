@@ -114,10 +114,13 @@ export async function seedCatalog(db: Db, wsId: string) {
   await service('Замер и консультация', 'SV-MSR', '876', 0, 'none');
 
   // Работы (вид номенклатуры «Работа»): заказ-наряд продаёт работу, к ней идут материалы и исполнители
-  const work = async (name: string, sku: string, unit: string, price: number, vat = '20') =>
-    db.insert(products).values({ workspaceId: wsId, kind: 'work', sku, name, unitCode: unit, vatRate: vat, price: price.toFixed(2), purchasePrice: '0', categoryId: services.id });
-  await work('Монтаж и наладка оборудования', 'WR-MNT', '356', 2400);
-  await work('Сервисное обслуживание', 'WR-SRV', '356', 3200);
+  const work = async (key: string, name: string, sku: string, unit: string, price: number, vat = '20') => {
+    const id = (ids[key] = uuidv7());
+    await db.insert(products).values({ id, workspaceId: wsId, kind: 'work', sku, name, unitCode: unit, vatRate: vat, price: price.toFixed(2), purchasePrice: '0', categoryId: services.id });
+    return id;
+  };
+  await work('workMnt', 'Монтаж и наладка оборудования', 'WR-MNT', '356', 2400);
+  await work('workSrv', 'Сервисное обслуживание', 'WR-SRV', '356', 3200);
   // Операция — вид номенклатуры: не продаётся и склад не двигает, только норма времени и расценки
   const operationId = (ids.assemblyOperation = uuidv7());
   await db.insert(products).values({ id: operationId, workspaceId: wsId, kind: 'operation', sku: 'OP-ASM', name: 'Сборка стула', unitCode: '356', vatRate: 'none', price: '0', purchasePrice: '0', categoryId: services.id });
@@ -132,6 +135,11 @@ export async function seedCatalog(db: Db, wsId: string) {
 
   /* ---------- операции: норма времени и история расценок ---------- */
   await db.insert(operations).values({ workspaceId: wsId, productId: ids.assemblyOperation!, normHours: '0.500', workCenterId: assembly });
+  // Нормы работ (вид номенклатуры «Работа»): норма на единицу и участок по умолчанию — та же таблица operations
+  await db.insert(operations).values([
+    { workspaceId: wsId, productId: ids.workMnt!, normHours: '1.500', workCenterId: assembly },
+    { workspaceId: wsId, productId: ids.workSrv!, normHours: '2.000', workCenterId: assembly },
+  ]);
   await db.insert(operationRates).values([
     { workspaceId: wsId, productId: ids.assemblyOperation!, validFrom: '2026-01-01', rate: '900.00', unit: 'per_unit' },
     { workspaceId: wsId, productId: ids.assemblyOperation!, validFrom: '2026-07-01', rate: '1100.00', unit: 'per_unit' },

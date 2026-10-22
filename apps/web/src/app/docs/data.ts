@@ -3,7 +3,7 @@
    Суммы строк и итоги документа в форме считает та же чистая функция, что и сервер при проведении (computeDocument из @gr8r/shared). */
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { DOCUMENT_META, type CompanyKind, type CostItemKind, type DocumentGroup, type DocumentStatus, type DocumentType, type FileRef, type TaxSystem, type VatRate, type WarehouseKind, type WorkOrderStateCategory } from '@gr8r/shared';
+import { DOCUMENT_META, type CompanyKind, type CostItemKind, type DocumentGroup, type DocumentStatus, type DocumentType, type FileRef, type TaxSystem, type VatRate, type WarehouseKind, type WorkOrderBillingMode, type WorkOrderStateCategory } from '@gr8r/shared';
 import { toast } from '@/components/ui';
 import type { Tone } from '@/components/ui';
 import { errorMessage } from '../data/api';
@@ -29,7 +29,7 @@ export interface DocLine {
   vatAmount: string;
   total: string;
   sku: string;
-  kind: 'goods' | 'service';
+  kind: 'goods' | 'service' | 'work' | 'operation';
   shipped: string;
   planned: string;
   returned: string;
@@ -427,9 +427,58 @@ export function useWorkOrders(params: { state?: string; status?: string; q?: str
   });
 }
 
-/** Виды заказ-нарядов воркспейса */
-export function useWorkOrderKinds() {
+/** Табель сотрудника: время по задачам модуля services (строки по заказчику и виду работ) */
+export interface TimesheetRow {
+  logDate: string;
+  hours: string;
+  memberId: string;
+  memberName: string;
+  taskId: string;
+  taskKey: string;
+  title: string;
+  companyId: string | null;
+  companyName: string | null;
+  workName: string | null;
+  documentId: string | null;
+  documentNumber: string | null;
+}
+
+export interface Timesheet {
+  items: TimesheetRow[];
+  totals: { hours: string; byMember: { memberId: string; memberName: string; hours: string }[] };
+}
+
+export function useTimesheet(params: { memberId?: string; from?: string; to?: string }) {
   const ws = useWsId();
+  return useQuery({
+    queryKey: docsKey(ws, 'timesheet', params),
+    queryFn: () => {
+      const sp = new URLSearchParams();
+      if (params.memberId) sp.set('memberId', params.memberId);
+      if (params.from) sp.set('from', params.from);
+      if (params.to) sp.set('to', params.to);
+      return call<Timesheet>(ws, 'GET', `/services/timesheet?${sp}`);
+    },
+    staleTime: Infinity,
+    placeholderData: prev => prev,
+  });
+}
+
+/** Время заказ-наряда: план и факт по назначениям, способ выставления строк работ */
+export interface WorkOrderTime {
+  assignments: { assignmentId: string; taskId: string; taskKey: string; title: string; assigneeName: string | null; lineId: string | null; lineName: string | null; plannedHours: string; actualHours: string }[];
+  lines: { lineId: string; name: string; billing: WorkOrderBillingMode; actualHours: string }[];
+  members: { memberId: string | null; memberName: string | null; plannedHours: string; actualHours: string }[];
+  totals: { plannedHours: string; actualHours: string };
+}
+
+export function useWorkOrderTime(id: string | undefined) {
+  const ws = useWsId();
+  return useQuery({ queryKey: docsKey(ws, 'wo-time', id), queryFn: () => call<WorkOrderTime>(ws, 'GET', `/work-orders/${id}/time`), enabled: !!id, staleTime: Infinity });
+}
+
+/** Виды заказ-нарядов воркспейса */
+export function useWorkOrderKinds() {  const ws = useWsId();
   return useQuery({ queryKey: docsKey(ws, 'work-order-kinds'), queryFn: async () => (await call<{ items: WorkOrderKind[] }>(ws, 'GET', '/work-order-kinds?limit=100')).items, staleTime: Infinity });
 }
 

@@ -126,8 +126,7 @@ export function useProducts(params: ProductParams = {}) {
 }
 
 export function useProduct(id: string | undefined) {
-  const ws = useWsId();
-  return useQuery({ queryKey: catalogKey(ws, 'product', id), queryFn: () => call<Product>(ws, 'GET', `/products/${id}`), enabled: !!id, staleTime: 30_000, retry: false });
+  const ws = useWsId();  return useQuery({ queryKey: catalogKey(ws, 'product', id), queryFn: () => call<Product>(ws, 'GET', `/products/${id}`), enabled: !!id, staleTime: 30_000, retry: false });
 }
 
 /** Поиск товаров для выбора в формах (материал в спецификации, товар изделия) */
@@ -216,6 +215,43 @@ export function useProductMutations() {
   });
   const restore = useMutation({ mutationFn: (id: string) => call(ws, 'POST', `/products/${id}/restore`), onSettled: settle });
   return { create, update, remove, restore };
+}
+
+/* ---------------- нормы времени работ ---------------- */
+
+/** Норма времени работы: норма на единицу и участок по умолчанию (таблица operations) */
+export interface WorkNorm {
+  productId: string;
+  name: string;
+  sku: string;
+  unitCode: string;
+  archived: boolean;
+  /** Норма времени на единицу работы, ч */
+  normHours: string;
+  /** Участок по умолчанию */
+  workCenterId: string | null;
+}
+
+export function useWorkNorms() {
+  const ws = useWsId();
+  return useQuery({ queryKey: catalogKey(ws, 'work-norms'), queryFn: () => call<{ items: WorkNorm[] }>(ws, 'GET', '/services/work-norms'), staleTime: Infinity });
+}
+
+/** Норма времени работы и участок по умолчанию */
+export function useSaveWorkNorm() {
+  const ws = useWsId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { productId: string; normHours: string; workCenterId?: string | null }) => call(ws, 'PUT', `/services/work-norms/${v.productId}`, { normHours: v.normHours, workCenterId: v.workCenterId ?? null }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: catalogKey(ws, 'work-norms') }),
+    onError: e => toast.error(errorMessage(e)),
+  });
+}
+
+/** Участки: список для выбора участка по умолчанию у работы */
+export function useWorkCenters() {
+  const ws = useWsId();
+  return useQuery({ queryKey: catalogKey(ws, 'work-centers'), queryFn: () => call<{ items: { id: string; name: string }[] }>(ws, 'GET', '/work-centers?limit=200'), staleTime: Infinity });
 }
 
 /* ---------------- дерево категорий ---------------- */

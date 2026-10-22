@@ -1,6 +1,6 @@
 /* zod-схемы заказ-наряда: виды заказ-нарядов, настраиваемые состояния, материалы и назначения (исполнители). */
 import { z } from 'zod';
-import { WORK_ORDER_STATE_CATEGORIES } from '../documents';
+import { WORK_ORDER_BILLING_MODES, WORK_ORDER_STATE_CATEGORIES } from '../documents';
 import { clientId, color, decimal, isoDate, listQuery, shortText, toPatch, uuid } from './common';
 
 const positive = decimal.refine(v => Number(v) > 0, 'Must be greater than zero');
@@ -65,3 +65,29 @@ export const workOrderAssignmentCreate = z.object({
   workCenterId: uuid.nullish(),
 });
 export const workOrderAssignmentUpdate = toPatch(workOrderAssignmentCreate);
+
+/* ---------------- выставление строк работ ---------------- */
+
+export const workOrderBillingInput = z.object({
+  /** Строка заказ-наряда (работа) */
+  lineId: uuid,
+  /** Способ выставления: по норме (количество × цена) или по фактическим часам */
+  billing: z.enum(WORK_ORDER_BILLING_MODES),
+});
+export type WorkOrderBillingInput = z.infer<typeof workOrderBillingInput>;
+export const workOrderBillingUpdate = z.object({ lines: z.array(workOrderBillingInput).max(500) });
+
+/* ---------------- нормы работ ---------------- */
+
+/** Норма времени работы и участок по умолчанию */
+export const workNormSet = z.object({
+  /** Норма времени на единицу работы, ч */
+  normHours: decimal.refine(v => Number(v) >= 0, 'The norm cannot be negative'),
+  /** Участок по умолчанию: пусто — участок назначают вручную */
+  workCenterId: uuid.nullish(),
+});
+
+/* ---------------- табель времени ---------------- */
+
+/** Табель сотрудника: неделя, строки по заказчику и виду работ */
+export const timesheetQuery = listQuery.extend({ memberId: uuid.optional(), from: isoDate.optional(), to: isoDate.optional() });

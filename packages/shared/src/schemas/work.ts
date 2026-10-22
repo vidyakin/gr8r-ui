@@ -81,6 +81,8 @@ export const taskCreate = z.object({
   module: z.enum(TASK_MODULES).optional(),
   status: z.string().min(1).max(32).default('todo'),
   assigneeId: uuid.nullish(),
+  /** Заказчик: только у задач модуля services (время по заказчику без заказ-наряда) */
+  companyId: uuid.nullish(),
   priority: z.number().int().min(1).max(10).nullish(),
   dueDate: isoDate.nullish(),
   startDate: isoDate.nullish(),

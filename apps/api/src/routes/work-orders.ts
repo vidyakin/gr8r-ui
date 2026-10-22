@@ -11,10 +11,12 @@ import {
   documentDetail,
   documentStates,
   documents,
+  saveWorkOrderBilling,
   saveWorkOrderMaterials,
   updateWorkOrderAssignment,
   workOrderDetail,
   workOrderKinds,
+  workOrderTime,
 } from '@gr8r/db';
 import {
   documentStateCreate,
@@ -24,6 +26,7 @@ import {
   uuid,
   workOrderAssignmentCreate,
   workOrderAssignmentUpdate,
+  workOrderBillingUpdate,
   workOrderKindCreate,
   workOrderKindQuery,
   workOrderKindUpdate,
@@ -110,6 +113,22 @@ export const workOrderRoutes = new Hono<AppEnv>()
     await saveWorkOrderMaterials(ctx.db, docCtx(ctx), id, c.req.valid('json').materials);
     return c.json(await workOrderDetail(ctx.db, id));
   })
+  // время по назначениям: план (planned_hours) и факт (time_logs), сводка по исполнителям
+  .get('/:id/time', zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    const [doc] = await ctx.db.select({ type: documents.type }).from(documents).where(eq(documents.id, id)).limit(1);
+    if (!doc || doc.type !== 'work_order') throw notFound('work_order');
+    return c.json(await workOrderTime(ctx.db, id));
+  })
+  // способ выставления строк работ: по норме или по фактическим часам
+  .post('/:id/billing', write, zValidator('param', idParam, validationHook), zValidator('json', workOrderBillingUpdate, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    await assertEditable(ctx, id);
+    await saveWorkOrderBilling(ctx.db, docCtx(ctx), id, c.req.valid('json').lines);
+    return c.json(await workOrderTime(ctx.db, id));
+  })
   // назначение: задача модуля services на строку работы
   .post('/:id/assignments', write, zValidator('param', idParam, validationHook), zValidator('json', workOrderAssignmentCreate, validationHook), async c => {
     const ctx = ctxOf(c);
@@ -119,7 +138,7 @@ export const workOrderRoutes = new Hono<AppEnv>()
     const { assignmentId, taskId, projectId } = await createWorkOrderAssignment(ctx.db, docCtx(ctx), id, body);
     // исполнитель получает уведомление о назначении (как при обычном назначении задачи)
     await notify(ctx, { to: body.assigneeId ?? null, type: 'assign', text: 'assigned you', snippet: body.title ?? 'Work order assignment', taskId, projectId });
-    return c.json(await workOrderDetail(ctx.db, id).then(d => ({ ...d, assignmentId })), 201);
+    return c.json(await workOrderDetail(ctx.db, id).then(d => ({ ...d, assignmentId, taskId })), 201);
   });
 
 /** Назначения заказ-наряда: правка и удаление (строка, участок, плановые часы) */
