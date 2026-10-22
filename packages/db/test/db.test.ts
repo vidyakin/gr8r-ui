@@ -54,7 +54,7 @@ describe('seed', () => {
     const w = `where workspace_id = '${demo!.id}'`;
     expect(await count('members', w)).toBe(src.members.length);
     expect(await count('projects', w)).toBe(9); // 7 демо + системные проекты модулей (production, services)
-    expect(await count('tasks', w)).toBe(src.tasks.length);
+    expect(await count('tasks', w)).toBe(src.tasks.length + 1); // + задача-назначение заказ-наряда
     expect(await count('statuses', w)).toBe(5);
     expect(await count('teams', w)).toBe(4);
     expect(await count('comments', w)).toBe(src.comments.length);
@@ -87,6 +87,7 @@ describe('seed', () => {
     expect(await count('product_categories', w)).toBe(5);
     expect(await count('products', `${w} and kind = 'goods'`)).toBe(21);
     expect(await count('products', `${w} and kind = 'service'`)).toBe(3);
+    expect(await count('products', `${w} and kind = 'work'`)).toBe(2);
     expect(await count('work_centers', w)).toBe(2);
     expect(await count('manufactured_items', `${w} and kind = 'product'`)).toBe(3);
     expect(await count('manufactured_items', `${w} and kind = 'semi'`)).toBe(4);
@@ -100,7 +101,7 @@ describe('seed', () => {
     expect(await count('warehouses', w)).toBe(4); // основной, цех, склад готовой продукции и служебный «в пути»
     expect(await count('companies', `${w} and inn <> ''`)).toBe(5);
     expect(await count('bank_accounts', `${w} and company_id is not null`)).toBe(5);
-    expect(await count('documents', w)).toBe(21);
+    expect(await count('documents', w)).toBe(22);
     expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(21);
     expect(await count('documents', `${w} and based_on_id is not null`)).toBe(7);
     expect(await count('documents', `${w} and type in ('stock_transfer','write_off','inventory_count')`)).toBe(6);
@@ -113,6 +114,12 @@ describe('seed', () => {
     expect(await count('production_kinds', w)).toBe(1);
     expect(await count('production_stages', w)).toBe(3);
     expect(await count('production_stages', `${w} and is_final`)).toBe(1);
+    // заказ-наряд: вид по умолчанию с состояниями, материалы и назначение
+    expect(await count('documents', `${w} and type = 'work_order'`)).toBe(1);
+    expect(await count('work_order_kinds', w)).toBe(1);
+    expect(await count('document_states', w)).toBe(6);
+    expect(await count('work_order_materials', w)).toBe(1);
+    expect(await count('work_order_assignments', w)).toBe(1);
     expect(await count('cost_items', w)).toBe(6);
     expect(await count('stock_balances', `${w} and qty > 0`)).toBe(23);
     expect(await count('stock_reservations', w)).toBe(2);

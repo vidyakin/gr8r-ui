@@ -45,8 +45,11 @@ export type SystemEntityKey = (typeof SYSTEM_ENTITIES)[number]['key'];
 
 /* ---------------- каталог и производство ---------------- */
 
-export const PRODUCT_KINDS = ['goods', 'service'] as const;
+/** Виды номенклатуры: товар, услуга и работа (заказ-наряд). Список расширяют осторожно —
+    CHECK в БД (products_kind_chk) перечисляет те же значения, их добавляют вместе с миграцией */
+export const PRODUCT_KINDS = ['goods', 'service', 'work'] as const;
 export type ProductKind = (typeof PRODUCT_KINDS)[number];
+export const PRODUCT_KIND_LABELS: Record<ProductKind, string> = { goods: 'Goods', service: 'Service', work: 'Work' };
 
 /** Ставки НДС: 'none' — без НДС */
 export const VAT_RATES = ['none', '0', '5', '7', '10', '20'] as const;

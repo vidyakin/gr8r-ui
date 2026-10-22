@@ -6,15 +6,15 @@ import type { VatRate } from './constants';
 
 /* ---------------- типы и статусы ---------------- */
 
-export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'inventory_count', 'production_order', 'production'] as const;
+export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'inventory_count', 'production_order', 'production', 'work_order'] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 export const DOCUMENT_STATUSES = ['draft', 'posted', 'cancelled'] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
 export const DOCUMENT_GROUPS = ['sales', 'purchases', 'stock', 'production'] as const;
 export type DocumentGroup = (typeof DOCUMENT_GROUPS)[number];
-export const PRINT_FORMS = ['invoice', 'upd', 'act', 'torg12', 'inv3', 'torg16', 'torg13'] as const;
+export const PRINT_FORMS = ['invoice', 'upd', 'act', 'torg12', 'inv3', 'torg16', 'torg13', 'work_order'] as const;
 export type PrintForm = (typeof PRINT_FORMS)[number];
-export const PRINT_FORM_LABELS: Record<PrintForm, string> = { invoice: 'Invoice for payment', upd: 'UPD', act: 'Service act', torg12: 'TORG-12', inv3: 'INV-3 (inventory list)', torg16: 'TORG-16 (write-off act)', torg13: 'TORG-13 (internal transfer)' };
+export const PRINT_FORM_LABELS: Record<PrintForm, string> = { invoice: 'Invoice for payment', upd: 'UPD', act: 'Service act', torg12: 'TORG-12', inv3: 'INV-3 (inventory list)', torg16: 'TORG-16 (write-off act)', torg13: 'TORG-13 (internal transfer)', work_order: 'Work order (job sheet)' };
 
 /** Вид склада: обычный склад, цех участка и служебный склад «в пути» */
 export const WAREHOUSE_KINDS = ['warehouse', 'workshop', 'transit'] as const;
@@ -101,7 +101,7 @@ export type ProductionStageKey = (typeof PRODUCTION_STAGES)[number]['key'];
 export const DOCUMENT_META: Record<DocumentType, DocumentTypeMeta> = {
   quote: { label: 'Quote', group: 'sales', prefix: 'КП', stock: null, party: 'customer', basedOn: [], fulfils: false, forms: ['invoice'] },
   customer_order: { label: 'Customer order', group: 'sales', prefix: 'ЗК', stock: null, party: 'customer', basedOn: ['quote'], fulfils: false, forms: ['invoice'], reserves: true, isOrder: true, reservedUntil: ['realization'] },
-  invoice: { label: 'Invoice', group: 'sales', prefix: 'СЧ', stock: null, party: 'customer', basedOn: ['quote', 'customer_order'], fulfils: false, forms: ['invoice'] },
+  invoice: { label: 'Invoice', group: 'sales', prefix: 'СЧ', stock: null, party: 'customer', basedOn: ['quote', 'customer_order', 'work_order'], fulfils: false, forms: ['invoice'] },
   realization: { label: 'Shipment (UPD)', group: 'sales', prefix: 'РТ', stock: 'out', party: 'customer', basedOn: ['customer_order', 'invoice'], fulfils: true, forms: ['upd', 'torg12'] },
   act: { label: 'Service act', group: 'sales', prefix: 'АКТ', stock: null, party: 'customer', basedOn: ['customer_order', 'invoice'], fulfils: true, forms: ['act'] },
   customer_return: { label: 'Customer return', group: 'sales', prefix: 'ВК', stock: 'in', party: 'customer', basedOn: ['realization'], fulfils: false, forms: [], isReturn: true },
@@ -117,6 +117,9 @@ export const DOCUMENT_META: Record<DocumentType, DocumentTypeMeta> = {
   // производство: заказ на производство и выпуск (списание материалов + приход продукции)
   production_order: { label: 'Production order', group: 'production', prefix: 'ЗП', stock: null, party: null, basedOn: ['customer_order'], fulfils: false, forms: [], states: PRODUCTION_ORDER_STATES, operation: 'assembly', production: true },
   production: { label: 'Production', group: 'production', prefix: 'ПР', stock: null, party: null, basedOn: ['production_order', 'customer_order'], fulfils: false, forms: [], operation: 'assembly', production: true },
+  // заказ-наряд: сам является продажей — при входе в состояние категории «done» он проводится целиком
+  // (выручка, долг клиента, расход товаров и материалов), частичной отгрузки нет
+  work_order: { label: 'Work order', group: 'sales', prefix: 'ЗН', stock: 'out', party: 'customer', basedOn: ['quote', 'customer_order'], fulfils: true, forms: ['work_order', 'act', 'upd', 'torg12', 'invoice'] },
 };
 
 /** Типы документов, исполняющих заказ (остаток к отгрузке / поступлению) */
@@ -152,6 +155,7 @@ export const DOCUMENT_LABELS_RU: Record<DocumentType, string> = {
   inventory_count: 'Инвентаризация',
   production_order: 'Заказ на производство',
   production: 'Производство (выпуск)',
+  work_order: 'Заказ-наряд',
 };
 
 export const documentTypesOf = (group: DocumentGroup): DocumentType[] => DOCUMENT_TYPES.filter(t => DOCUMENT_META[t].group === group);
@@ -176,6 +180,42 @@ export function stateTransitions(meta: DocumentTypeMeta, from: string | null): s
 
 /** Можно ли перевести документ из одного состояния в другое */
 export const canChangeState = (meta: DocumentTypeMeta, from: string | null, to: string): boolean => stateTransitions(meta, from).includes(to);
+
+/* ---------------- состояния заказ-наряда ---------------- */
+
+/** Категории состояний заказ-наряда. Логика привязана к категории, а не к ключу: воркспейс
+    переименовывает состояния и добавляет свои, но «выполнен» всегда узнаётся по категории */
+export const WORK_ORDER_STATE_CATEGORIES = ['new', 'scheduled', 'in_progress', 'done', 'delivered', 'cancelled'] as const;
+export type WorkOrderStateCategory = (typeof WORK_ORDER_STATE_CATEGORIES)[number];
+export const WORK_ORDER_CATEGORY_LABELS: Record<WorkOrderStateCategory, string> = {
+  new: 'New',
+  scheduled: 'Scheduled',
+  in_progress: 'In progress',
+  done: 'Done',
+  delivered: 'Delivered',
+  cancelled: 'Cancelled',
+};
+/** Категории, в которых заказ-наряд ещё в работе: из них он может уйти назад и отменить проведение */
+export const WORK_ORDER_OPEN_CATEGORIES: WorkOrderStateCategory[] = ['new', 'scheduled', 'in_progress'];
+
+export interface WorkOrderStateDef {
+  key: string;
+  label: string;
+  category: WorkOrderStateCategory;
+  color?: string;
+}
+
+/** Конечные категории: из них выходят только admin и выше */
+export const isFinalCategory = (category: WorkOrderStateCategory): boolean => category === 'delivered' || category === 'cancelled';
+
+/** Можно ли перевести заказ-наряд из одного состояния в другое: между рабочими состояниями — любой переход,
+    из завершённых — только admin и выше (иначе работа закрыта) */
+export function canChangeWorkOrderState(from: WorkOrderStateDef | null, to: WorkOrderStateDef, isAdmin: boolean): boolean {
+  if (!to.key) return false;
+  if (from && from.key === to.key) return false;
+  if (from && isFinalCategory(from.category) && !isAdmin) return false;
+  return true;
+}
 
 /* ---------------- склад: план движений ---------------- */
 

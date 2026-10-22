@@ -34,7 +34,7 @@ const F = {
   purchasePrice: col('purchasePrice', 'Purchase price', 'number'),
 };
 
-const KIND_LABEL: Record<ProductKind, string> = { goods: 'Goods', service: 'Service' };
+const KIND_LABEL: Record<ProductKind, string> = { goods: 'Goods', service: 'Service', work: 'Work' };
 
 export function CategorySelect({ tree, value, onChange, id, label = 'Category', allowNone = true }: { tree: CategoryNode[]; value: string | null; onChange: (v: string | null) => void; id?: string; label?: string; allowNone?: boolean }) {
   return (

@@ -15,6 +15,7 @@ import { useWorkspace } from '../data/store';
 import { useSnapshot } from '../production/data';
 import { STATUS_LABEL, STATUS_TONE, docTitle, docsKey, typeLabel, useCostItems, useDocsApi, useDocument, useOrganizations, useWarehouses, type DocDetail, type DocLink } from './data';
 import { CounterpartyPicker, ProductPicker } from './pickers';
+import { WorkOrderPanel } from './work-orders';
 import { useWsId } from '../meta/data';
 
 /** Виды перемещения между складами */
@@ -162,6 +163,8 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const isOrder = !!meta.isOrder;
   /** Инвентаризация: количество строки — фактическое, рядом учётное */
   const isCount = doc.type === 'inventory_count';
+  /** Заказ-наряд: его проводит состояние «выполнен», а не кнопка Post */
+  const isWorkOrder = doc.type === 'work_order';
   /** Перемещение: вид операции задаёт, что делает документ */
   const isTransfer = doc.type === 'stock_transfer';
   const inTransit = isTransfer && doc.operation === 'in_transit';
@@ -376,13 +379,13 @@ function DocumentView({ doc }: { doc: DocDetail }) {
               Cancel reception
             </Button>
           )}
-          {canWrite && doc.status === 'draft' && (
+          {canWrite && doc.status === 'draft' && !isWorkOrder && (
             <Button variant="primary" disabled={busy} onClick={() => void run('post')}>
               <Send size={14} />
               Post
             </Button>
           )}
-          {canWrite && doc.status === 'posted' && (
+          {canWrite && doc.status === 'posted' && !isWorkOrder && (
             <Button disabled={busy} onClick={() => void run('unpost')}>
               <Undo2 size={14} />
               Unpost
@@ -772,6 +775,8 @@ function DocumentView({ doc }: { doc: DocDetail }) {
           </div>
         )}
       </section>
+
+      {isWorkOrder && <WorkOrderPanel doc={doc} />}
 
       <div className="doc-bottom">
         <section className="doc-links panel" aria-label="Related documents">

@@ -8,6 +8,7 @@ import {
   comments,
   events,
   files,
+  issueTaskKey as issueTaskKeyInDb,
   members,
   notifications,
   projectMembers,
@@ -147,13 +148,7 @@ async function issueTaskKey(ctx: ReturnType<typeof ctxOf>, projectId: string, re
     if (num > p.n) await ctx.db.update(projects).set({ taskCounter: num }).where(eq(projects.id, projectId));
     return restoreKey;
   }
-  const [p] = await ctx.db
-    .update(projects)
-    .set({ taskCounter: dsql`${projects.taskCounter} + 1`, lastActivityAt: new Date() })
-    .where(eq(projects.id, projectId))
-    .returning({ key: projects.key, n: projects.taskCounter });
-  if (!p) throw new AppError(422, 'invalid_reference', 'Project not found');
-  return `${p.key}-${p.n}`;
+  return issueTaskKeyInDb(ctx.db, projectId);
 }
 
 export const taskRoutes = crud({

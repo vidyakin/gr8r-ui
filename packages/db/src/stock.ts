@@ -43,7 +43,8 @@ async function productNames(db: Db, ids: string[]): Promise<Map<string, string>>
 }
 
 export interface MoveRequest extends StockKey {
-  lineId: string;
+  /** Строка документа; у материалов заказ-наряда строки нет — null */
+  lineId: string | null;
   /** Положительное количество */
   qty: Dec;
   direction: 'in' | 'out';
@@ -60,7 +61,7 @@ export interface MoveRequest extends StockKey {
     Уход в минус запрещён, пока воркспейс не разрешил его настройкой.
     `opts.inCost` считает цену прихода после расходов (выпуск: себестоимость партии из списанных материалов и работ).
     Возвращает фактическую цену расхода по каждой строке */
-export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: string; date: string }, reqs: MoveRequest[], settings: InventorySettings, opts?: { inCost?: (lineId: string, outCost: Map<string, Dec>) => Dec | undefined }): Promise<Map<string, Dec>> {
+export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: string; date: string }, reqs: MoveRequest[], settings: InventorySettings, opts?: { inCost?: (lineId: string | null, outCost: Map<string, Dec>) => Dec | undefined }): Promise<Map<string, Dec>> {
   if (!reqs.length) return new Map();
   const state = await lockBalances(db, workspaceId, reqs);
   const rows: (typeof stockMoves.$inferInsert)[] = [];
@@ -71,7 +72,7 @@ export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: st
     const k = keyOf(r);
     const s = state.get(k)!;
     if (r.direction === 'in') {
-      const cost = opts?.inCost?.(r.lineId, outCost) ?? r.cost ?? (r.costFromLine ? outCost.get(r.lineId) : undefined) ?? s.avg;
+      const cost = opts?.inCost?.(r.lineId, outCost) ?? r.cost ?? (r.costFromLine && r.lineId ? outCost.get(r.lineId) : undefined) ?? s.avg;
       const next = stockIn(s, r.qty, cost);
       state.set(k, next);
       rows.push({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentId: doc.id, documentLineId: r.lineId, qty: fmt(r.qty, 3), cost: fmt(cost, 4), movedAt: doc.date, phase: r.phase ?? 1 });
@@ -79,7 +80,7 @@ export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: st
       need.set(k, (need.get(k) ?? 0n) + r.qty);
       const o = stockOut(s, r.qty);
       state.set(k, o.state);
-      outCost.set(r.lineId, o.cost);
+      if (r.lineId) outCost.set(r.lineId, o.cost);
       rows.push({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentId: doc.id, documentLineId: r.lineId, qty: fmt(-r.qty, 3), cost: fmt(o.cost, 4), movedAt: doc.date, phase: r.phase ?? 1 });
     }
   };

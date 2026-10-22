@@ -3,7 +3,7 @@
    Суммы строк и итоги документа в форме считает та же чистая функция, что и сервер при проведении (computeDocument из @gr8r/shared). */
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { DOCUMENT_META, type CompanyKind, type CostItemKind, type DocumentGroup, type DocumentStatus, type DocumentType, type FileRef, type TaxSystem, type VatRate, type WarehouseKind } from '@gr8r/shared';
+import { DOCUMENT_META, type CompanyKind, type CostItemKind, type DocumentGroup, type DocumentStatus, type DocumentType, type FileRef, type TaxSystem, type VatRate, type WarehouseKind, type WorkOrderStateCategory } from '@gr8r/shared';
 import { toast } from '@/components/ui';
 import type { Tone } from '@/components/ui';
 import { errorMessage } from '../data/api';
@@ -104,6 +104,12 @@ export interface DocDetail extends Omit<DocListItem, 'organizationName' | 'count
   children: DocLink[];
   lines: DocLine[];
   postedAt: string | null;
+  /** Заказ-наряд: вид, набор состояний, материалы и назначения */
+  kindId?: string | null;
+  kindName?: string | null;
+  states?: WorkOrderState[];
+  materials?: WorkOrderMaterial[];
+  assignments?: WorkOrderAssignment[];
   /** Производственный документ: изготовитель, плановые сроки, позиции и состав */
   workCenter?: { id: string; name: string } | null;
   plannedStart?: string | null;
@@ -351,6 +357,94 @@ export interface InUseBalance {
 export function useInUseBalances() {
   const ws = useWsId();
   return useQuery({ queryKey: docsKey(ws, 'in-use'), queryFn: async () => (await call<{ items: InUseBalance[] }>(ws, 'GET', '/stock/in-use')).items, staleTime: Infinity });
+}
+
+/* ---------------- заказ-наряды ---------------- */
+
+/** Состояние заказ-наряда: набор задаёт воркспейс, логика — по категории */
+export interface WorkOrderState {
+  key: string;
+  label: string;
+  category: WorkOrderStateCategory;
+  color?: string;
+}
+
+export interface WorkOrderKind {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  sortOrder: number;
+}
+
+/** Материал заказ-наряда: израсходован на работу, списывается при выполнении */
+export interface WorkOrderMaterial {
+  id: string;
+  productId: string;
+  name: string;
+  unitCode: string;
+  qty: string;
+  warehouseId: string | null;
+  warehouseName: string | null;
+}
+
+/** Назначение: исполнитель — задача модуля services */
+export interface WorkOrderAssignment {
+  id: string;
+  taskId: string;
+  taskKey: string;
+  title: string;
+  status: string;
+  assigneeId: string | null;
+  assigneeName: string | null;
+  lineId: string | null;
+  workCenterId: string | null;
+  workCenterName: string | null;
+  plannedHours: string | null;
+  startDate: string | null;
+  dueDate: string | null;
+}
+
+export interface WorkOrderListItem extends DocListItem {
+  kindName: string | null;
+  stateLabel: string | null;
+  stateColor: string | null;
+  category: WorkOrderStateCategory | null;
+}
+
+export function useWorkOrders(params: { state?: string; status?: string; q?: string }) {
+  const ws = useWsId();
+  return useQuery({
+    queryKey: docsKey(ws, 'work-orders', params),
+    queryFn: () => {
+      const sp = new URLSearchParams({ limit: '200' });
+      if (params.state) sp.set('state', params.state);
+      if (params.status) sp.set('status', params.status);
+      if (params.q) sp.set('q', params.q);
+      return call<{ items: WorkOrderListItem[]; total: number; sum: { net: string; vat: string; total: string } }>(ws, 'GET', `/work-orders?${sp}`);
+    },
+    staleTime: Infinity,
+    placeholderData: prev => prev,
+  });
+}
+
+/** Виды заказ-нарядов воркспейса */
+export function useWorkOrderKinds() {
+  const ws = useWsId();
+  return useQuery({ queryKey: docsKey(ws, 'work-order-kinds'), queryFn: async () => (await call<{ items: WorkOrderKind[] }>(ws, 'GET', '/work-order-kinds?limit=100')).items, staleTime: Infinity });
+}
+
+/** Состояния заказ-наряда (по видам) */
+export function useDocumentStates(kindId?: string) {
+  const ws = useWsId();
+  return useQuery({
+    queryKey: docsKey(ws, 'document-states', kindId ?? 'all'),
+    queryFn: async () => {
+      const sp = new URLSearchParams({ limit: '200' });
+      if (kindId) sp.set('kindId', kindId);
+      return (await call<{ items: (WorkOrderState & { id: string; kindId: string })[] }>(ws, 'GET', `/document-states?${sp}`)).items;
+    },
+    staleTime: Infinity,
+  });
 }
 
 /* ---------------- поиск ---------------- */

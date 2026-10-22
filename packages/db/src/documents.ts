@@ -26,10 +26,10 @@ import {
 } from '@gr8r/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
-import { DOCUMENT_HOOKS, STATE_HOOKS, type StatePayload } from './document-hooks';
+import { DOCUMENT_HOOKS, DOCUMENT_CREATED_HOOKS, STATE_HOOKS, STATE_PROVIDERS, type StatePayload } from './document-hooks';
 import { recordEvent } from './events';
 import { applyStockMoves, defaultPostingCost, documentCosts, documentLineCosts, loadInventorySettings, revertStockMoves, sourceMoveCosts, syncReservations, type MoveRequest } from './stock';
-import { bankAccounts, companies, costItems, documentCounters, documentLines, documents, members, organizations, products, units, warehouses, workCenters } from './schema';
+import { bankAccounts, companies, costItems, documentCounters, documentLines, documentStates, documents, members, organizations, products, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials } from './schema';
 import { uuidv7 } from './uuid';
 
 export interface DocCtx {
@@ -224,6 +224,8 @@ async function internalPrice(db: Db, ctx: DocCtx, doc: DocumentRow, l: ResolvedL
 export interface DocumentCreateInput {
   id?: string;
   type: DocumentType;
+  /** Вид заказ-наряда (только у work_order): пусто — вид по умолчанию */
+  workOrderKindId?: string | null;
   organizationId?: string | null;
   counterpartyId?: string | null;
   warehouseId?: string | null;
@@ -288,6 +290,8 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
   const targetWarehouseId = meta.production ? input.targetWarehouseId ?? null : meta.stockRole === 'transfer' ? (needsTargetWarehouse(operation) ? input.targetWarehouseId ?? null : null) : null;
   const needsCostItem = !!meta.costItemKind || operation === 'to_operation';
   const costItemId = needsCostItem ? input.costItemId ?? null : null;
+  // вид заказ-наряда: только у work_order, пусто — вид по умолчанию (его поставит хук создания)
+  const workOrderKindId = input.type === 'work_order' ? input.workOrderKindId ?? null : null;
   await assertRefs(db, { organizationId, counterpartyId, warehouseId, targetWarehouseId, costItemId, responsibleId: input.responsibleId });
   if (needsTargetWarehouse(operation) && (!targetWarehouseId || targetWarehouseId === warehouseId)) throw new DomainError(422, 'target_warehouse_required', 'Select another warehouse to move the goods to');
   if (operation === 'to_operation' || operation === 'from_operation') await assertInUseHolder(db, inUseMemberId, inUseWorkCenterId);
@@ -307,6 +311,7 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
       warehouseId,
       targetWarehouseId,
       costItemId,
+      workOrderKindId,
       inUseMemberId,
       inUseWorkCenterId,
       priceIncludesVat: input.priceIncludesVat ?? true,
@@ -317,12 +322,15 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
     })
     .returning();
   if (input.lines?.length) await saveLines(db, ctx, row!, input.lines, row!.priceIncludesVat);
+  await DOCUMENT_CREATED_HOOKS[input.type]?.(db, ctx, row!);
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.created', entity: 'document', recordId: row!.id, actorId: ctx.memberId, payload: { documentType: input.type } });
   return row!.id;
 }
 
 export interface DocumentPatch {
   organizationId?: string | null;
+  /** Вид заказ-наряда (только у work_order) */
+  workOrderKindId?: string | null;
   counterpartyId?: string | null;
   warehouseId?: string | null;
   targetWarehouseId?: string | null;
@@ -384,6 +392,19 @@ export async function updateDocument(db: Db, ctx: DocCtx, id: string, patch: Doc
   if (patch.targetWarehouseId !== undefined && (meta.stockRole === 'transfer' || meta.production)) set.targetWarehouseId = patch.targetWarehouseId;
   if (meta.stockRole === 'transfer' && !needsTargetWarehouse(operation)) set.targetWarehouseId = null;
   if (patch.costItemId !== undefined && (meta.costItemKind || operation === 'to_operation')) set.costItemId = patch.costItemId;
+  if (patch.workOrderKindId !== undefined && type === 'work_order') {
+    // закрытый или отменённый заказ-наряд сменой вида не переоткрыть: возврат в работу — сменой состояния (admin+)
+    if (patch.workOrderKindId !== doc.workOrderKindId && doc.state) {
+      const [cur] = await db.select({ category: documentStates.category }).from(documentStates).where(and(eq(documentStates.kindId, doc.workOrderKindId!), eq(documentStates.key, doc.state))).limit(1);
+      if (cur && (cur.category === 'delivered' || cur.category === 'cancelled')) throw new DomainError(422, 'invalid_state', 'A closed work order keeps its kind: move it back to work first');
+    }
+    // смена вида меняет и набор состояний: документ встаёт в первое состояние нового вида
+    set.workOrderKindId = patch.workOrderKindId;
+    if (patch.workOrderKindId && patch.workOrderKindId !== doc.workOrderKindId) {
+      const [first] = await db.select({ key: documentStates.key }).from(documentStates).where(and(eq(documentStates.kindId, patch.workOrderKindId), eq(documentStates.category, 'new'))).limit(1);
+      set.state = first?.key ?? null;
+    }
+  }
   if (patch.date) set.date = patch.date;
   if (patch.dueDate !== undefined) set.dueDate = patch.dueDate;
   if (patch.priceIncludesVat !== undefined) set.priceIncludesVat = patch.priceIncludesVat;
@@ -421,17 +442,29 @@ export async function restoreDocument(db: Db, ctx: DocCtx, id: string): Promise<
 
 /* ---------------- состояние документа ---------------- */
 
-/** Смена состояния документа (отдельно от проведения). Переход проверяется по метаданным типа; событие пишется как
-    document.updated с changes.state — автоматизация «поле изменилось» срабатывает без нового триггера.
-    Хук типа выполняет побочные действия (перемещение «в пути»: приёмка и её отмена) */
+/** Смена состояния документа (отдельно от проведения). Переход проверяется по метаданным типа (или по состояниям воркспейса,
+    если тип их задаёт сам — так у заказ-наряда); событие пишется как document.updated с changes.state —
+    автоматизация «поле изменилось» срабатывает без нового триггера.
+    Хук типа выполняет побочные действия (перемещение «в пути»: приёмка и её отмена; заказ-наряд: продажа при «выполнен») */
 export async function changeDocumentState(db: Db, ctx: DocCtx, id: string, state: string, payload?: StatePayload): Promise<void> {
   const doc = await loadDoc(db, id, true);
   const type = doc.type as DocumentType;
   const meta = DOCUMENT_META[type];
-  if (!meta.states?.length) throw new DomainError(422, 'state_not_allowed', `A ${meta.label.toLowerCase()} has no states`);
-  // состояния есть только у перемещения «в пути»: у обычного перемещения их нет
-  if (type === 'stock_transfer' && doc.operation !== 'in_transit') throw new DomainError(422, 'state_not_allowed', 'Only a transfer in transit has states');
-  if (!canChangeState(meta, doc.state, state)) throw new DomainError(422, 'invalid_state', `Cannot change the state from "${doc.state ?? 'none'}" to "${state}"`);
+  const provider = STATE_PROVIDERS[type];
+  if (!provider) {
+    if (!meta.states?.length) throw new DomainError(422, 'state_not_allowed', `A ${meta.label.toLowerCase()} has no states`);
+    // состояния есть только у перемещения «в пути»: у обычного перемещения их нет
+    if (type === 'stock_transfer' && doc.operation !== 'in_transit') throw new DomainError(422, 'state_not_allowed', 'Only a transfer in transit has states');
+    if (!canChangeState(meta, doc.state, state)) throw new DomainError(422, 'invalid_state', `Cannot change the state from "${doc.state ?? 'none'}" to "${state}"`);
+  } else {
+    // состояния задаёт воркспейс: набор и правила перехода — из провайдера типа
+    const states = await provider.states(db, ctx, doc);
+    const from = doc.state ? states.find(s => s.key === doc.state) ?? null : null;
+    const to = states.find(s => s.key === state);
+    if (!to) throw new DomainError(422, 'invalid_state', `Unknown state "${state}"`);
+    const verdict = provider.canTransition(from, to, ctx);
+    if (!verdict.ok) throw new DomainError(422, 'invalid_state', verdict.message ?? `Cannot change the state from "${doc.state ?? 'none'}" to "${state}"`);
+  }
   const from = doc.state;
   await db.update(documents).set({ state, updatedAt: new Date() }).where(eq(documents.id, id));
   await STATE_HOOKS[type]?.(db, ctx, doc, from, state, payload);
@@ -493,8 +526,9 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<voi
   if (meta.party && !doc.counterpartyId) throw new DomainError(422, 'counterparty_required', meta.party === 'customer' ? 'Select a customer before posting' : 'Select a supplier before posting');
   await assertRefs(db, { organizationId: doc.organizationId, warehouseId: doc.warehouseId, targetWarehouseId: doc.targetWarehouseId, costItemId: doc.costItemId });
   if (doc.basedOnId) {
-    const [base] = await db.select({ status: documents.status, number: documents.number }).from(documents).where(eq(documents.id, doc.basedOnId)).limit(1);
-    if (base && base.status !== 'posted') throw new DomainError(422, 'base_not_posted', `Post the basis document${base.number ? ` ${base.number}` : ''} first`);
+    const [base] = await db.select({ status: documents.status, number: documents.number, type: documents.type }).from(documents).where(eq(documents.id, doc.basedOnId)).limit(1);
+    // заказ-наряд — исключение: счёт по нему выставляют до выполнения (предоплата)
+    if (base && base.status !== 'posted' && base.type !== 'work_order') throw new DomainError(422, 'base_not_posted', `Post the basis document${base.number ? ` ${base.number}` : ''} first`);
   }
   const lines = await recalcLines(db, doc);
   const hook = DOCUMENT_HOOKS[type];
@@ -652,7 +686,7 @@ export async function createBasedOn(db: Db, ctx: DocCtx, sourceId: string, targe
 
 export interface DocumentLineView extends DocumentLineRow {
   sku: string;
-  kind: 'goods' | 'service';
+  kind: 'goods' | 'service' | 'work';
   /** Для строк заказов: исполнено проведёнными документами (отгружено / получено) и запланировано (с черновиками) */
   shipped: string;
   planned: string;
@@ -714,6 +748,34 @@ async function defaultBank(db: Db, owner: { companyId?: string; organizationId?:
   return b ? { bik: b.bik, account: b.account, corrAccount: b.corrAccount, bankName: b.bankName } : null;
 }
 
+/** Данные заказ-наряда для печатной формы: вид, состояние, материалы и исполнители */
+async function workOrderPrintData(db: Db, d: DocumentRow): Promise<NonNullable<PrintData['workOrder']>> {
+  const [kind] = d.workOrderKindId ? await db.select({ name: workOrderKinds.name }).from(workOrderKinds).where(eq(workOrderKinds.id, d.workOrderKindId)).limit(1) : [];
+  // ключ состояния уникален только внутри вида
+  const [state] = d.state && d.workOrderKindId ? await db.select({ label: documentStates.label }).from(documentStates).where(and(eq(documentStates.kindId, d.workOrderKindId), eq(documentStates.key, d.state))).limit(1) : [];
+  const materials = await db
+    .select({ name: products.name, unitCode: workOrderMaterials.unitCode, symbol: units.symbol, qty: workOrderMaterials.qty })
+    .from(workOrderMaterials)
+    .innerJoin(products, eq(products.id, workOrderMaterials.productId))
+    .leftJoin(units, eq(units.code, workOrderMaterials.unitCode))
+    .where(eq(workOrderMaterials.documentId, d.id))
+    .orderBy(asc(workOrderMaterials.createdAt));
+  const assignees = await db
+    .select({ name: members.name, centerName: workCenters.name, plannedHours: workOrderAssignments.plannedHours, startDate: tasks.startDate, dueDate: tasks.dueDate })
+    .from(workOrderAssignments)
+    .innerJoin(tasks, eq(tasks.id, workOrderAssignments.taskId))
+    .leftJoin(members, eq(members.id, tasks.assigneeId))
+    .leftJoin(workCenters, eq(workCenters.id, workOrderAssignments.workCenterId))
+    .where(eq(workOrderAssignments.documentId, d.id))
+    .orderBy(asc(workOrderAssignments.createdAt));
+  return {
+    kindName: kind?.name ?? '',
+    stateLabel: state?.label ?? '',
+    materials: materials.map((m, i) => ({ n: i + 1, name: m.name, unitCode: m.unitCode, unitSymbol: m.symbol ?? m.unitCode, qty: m.qty })),
+    assignees: assignees.map(a => ({ name: a.name ?? '', workCenterName: a.centerName, plannedHours: a.plannedHours, startDate: a.startDate, dueDate: a.dueDate })),
+  };
+}
+
 /** Всё, что нужно шаблону печатной формы (счёт, УПД, акт, ТОРГ-12): документ, обе стороны с реквизитами и банком, строки с единицами */
 export async function buildPrintData(db: Db, id: string): Promise<PrintData> {
   const d = await documentDetail(db, id);
@@ -769,6 +831,7 @@ export async function buildPrintData(db: Db, id: string): Promise<PrintData> {
       ...(lineCosts.has(l.id) ? { cost: lineCosts.get(l.id)! } : {}),
     })),
     totals: d.totals,
+    ...(d.type === 'work_order' ? { workOrder: await workOrderPrintData(db, d) } : {}),
     basedOn: d.basedOn ? { type: d.basedOn.type as DocumentType, number: d.basedOn.number, date: d.basedOn.date } : null,
     comment: d.comment,
     warehouseName: d.warehouse?.name,

@@ -8,6 +8,7 @@ import { AppearanceSection, DateTimeSection, LanguageSection, MembersSection, Pe
 import { DataModelSection } from '../settings/data-model';
 import { ProductionSection } from '../settings/production';
 import { CostItemsSection, OrganizationsSection, WarehousesSection } from '../settings/documents';
+import { WorkOrderKindsSection } from '../settings/work-orders';
 import { NotificationsSection, PreferencesSection, ProfileSection, ShortcutsSection } from '../settings/personal';
 import { InvoicesSection, PasswordSection, PaymentSection, PlanSection, SessionsSection, TwoFactorSection } from '../settings/account';
 import { NotFoundPage } from './PlaceholderPage';
@@ -40,6 +41,8 @@ function Body({ sec, title }: { sec: string; title: string }) {
       return <WarehousesSection title={title} />;
     case 'cost-items':
       return <CostItemsSection title={title} />;
+    case 'work-orders':
+      return <WorkOrderKindsSection title={title} />;
     case 'notif-email':
     case 'notif-push':
     case 'notif-mentions':

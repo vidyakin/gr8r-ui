@@ -73,16 +73,18 @@ describe('document types', () => {
   test('numbering format and groups', () => {
     expect(formatDocumentNumber('invoice', 2026, 42)).toBe('СЧ-2026-00042');
     expect(formatDocumentNumber('receipt', 2027, 123456)).toBe('ПТ-2027-123456');
-    expect(documentTypesOf('sales')).toEqual(['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return']);
+    expect(documentTypesOf('sales')).toEqual(['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'work_order']);
     expect(documentTypesOf('purchases')).toEqual(['supplier_order', 'receipt', 'supplier_return']);
     expect(new Set(DOCUMENT_TYPES.map(t => DOCUMENT_META[t].prefix)).size).toBe(DOCUMENT_TYPES.length);
   });
   test('chains', () => {
-    expect(basedOnTargets('customer_order')).toEqual(['invoice', 'realization', 'act', 'production_order', 'production']);
+    expect(basedOnTargets('customer_order')).toEqual(['invoice', 'realization', 'act', 'production_order', 'production', 'work_order']);
     expect(basedOnTargets('invoice')).toEqual(['realization', 'act']);
     expect(basedOnTargets('supplier_order')).toEqual(['receipt']);
     expect(basedOnTargets('act')).toEqual([]);
     expect(basedOnTargets('production_order')).toEqual(['production']);
+    // заказ-наряд: счёт можно выставить на основании заказ-наряда (предоплата), акта и реализации — нет
+    expect(basedOnTargets('work_order')).toEqual(['invoice']);
   });
   test('production documents: no counterparty, states apart from posting', () => {
     expect(documentTypesOf('production')).toEqual(['production_order', 'production']);

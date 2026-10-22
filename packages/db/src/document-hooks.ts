@@ -28,6 +28,34 @@ export type StateHook = (db: Db, ctx: DocCtx, doc: DocumentRow, from: string | n
 export interface StatePayload {
   /** Принятое количество по строкам документа */
   received?: { id: string; qty: string }[];
+  /** Причина отмены заказ-наряда (обязательна для состояния категории «cancelled») */
+  cancelReason?: string;
 }
 
 export const STATE_HOOKS: Partial<Record<DocumentType, StateHook>> = {};
+
+/** Состояние документа, заданное воркспейсом (у заказ-наряда — из таблицы document_states) */
+export interface DynamicStateDef {
+  key: string;
+  label: string;
+  /** Категория состояния: по ней решается, что происходит с документом */
+  category?: string;
+  color?: string;
+  /** Конечное состояние: из него переходов нет */
+  final?: boolean;
+}
+
+/** Провайдер состояний типа: у типов с состояниями по умолчанию берутся метаданные типа */
+export interface StateProvider {
+  /** Состояния типа */
+  states: (db: Db, ctx: DocCtx, doc: DocumentRow) => Promise<DynamicStateDef[]>;
+  /** Проверка перехода по правилам воркспейса */
+  canTransition: (from: DynamicStateDef | null, to: DynamicStateDef, ctx: DocCtx) => { ok: boolean; message?: string };
+}
+
+export const STATE_PROVIDERS: Partial<Record<DocumentType, StateProvider>> = {};
+
+/** Хук создания документа: вид и состояние заказ-наряда задаёт воркспейс */
+export type DocumentCreatedHook = (db: Db, ctx: DocCtx, doc: DocumentRow) => Promise<void>;
+
+export const DOCUMENT_CREATED_HOOKS: Partial<Record<DocumentType, DocumentCreatedHook>> = {};

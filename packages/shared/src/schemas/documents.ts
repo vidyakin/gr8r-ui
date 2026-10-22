@@ -140,6 +140,8 @@ export const documentCreate = z.object({
   inUseWorkCenterId: uuid.nullish(),
   /** Статья затрат или доходов (списание, оприходование) */
   costItemId: uuid.nullish(),
+  /** Вид заказ-наряда (только у work_order): пусто — вид по умолчанию */
+  workOrderKindId: uuid.nullish(),
   /** Пусто — сегодня */
   date: isoDate.optional(),
   dueDate: isoDate.nullish(),
@@ -175,6 +177,8 @@ export const documentStateChange = z.object({
     .array(z.object({ id: uuid, qty: nonNeg() }))
     .max(500)
     .optional(),
+  /** Причина отмены заказ-наряда: обязательна для состояния категории «cancelled» */
+  cancelReason: z.string().trim().max(1000).optional(),
 });
 export const pdfRequest = z.object({ form: z.enum(PRINT_FORMS) });
 export const printParam = z.object({ id: uuid, form: z.enum(PRINT_FORMS) });

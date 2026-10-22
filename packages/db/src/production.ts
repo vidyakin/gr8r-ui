@@ -1373,7 +1373,7 @@ DOCUMENT_HOOKS.production = {
     }
     const outCost = await applyStockMoves(db, ctx.workspaceId, { id: doc.id, date: doc.date }, reqs, await loadInventorySettings(db, ctx.workspaceId), {
       inCost: (lineId, costs) => {
-        const it = itemByLine.get(lineId);
+        const it = lineId ? itemByLine.get(lineId) : undefined;
         if (!it) return undefined;
         const cost = itemCost(it, components, costs, overheadByItem.get(it.itemId) ?? 0n, lineQty);
         const qty = qtyByItem.get(it.id) ?? 0n;
