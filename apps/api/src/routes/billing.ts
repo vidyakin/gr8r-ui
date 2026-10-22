@@ -1,9 +1,9 @@
-/* Биллинг договоров обслуживания: предпросмотр, запуск, отчёт по договору, выгрузка PDF и часовой пояс арендатора.
+/* Биллинг договоров обслуживания: предпросмотр, запуск, отчёт по договору, выгрузка PDF архивом и часовой пояс арендатора.
    Ручной запуск и выгрузка — admin и выше; предпросмотр и отчёт — любой участник. */
 import { zValidator } from '@hono/zod-validator';
 import { and, eq, inArray } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { billingBreakdowns, contractReport, documentFiles, documents, jobs, previewBilling, runBilling, workspaceTimezone, workspaces } from '@gr8r/db';
+import { billingBreakdowns, contractReport, documentExports, documents, jobs, previewBilling, runBilling, workspaceTimezone, workspaces } from '@gr8r/db';
 import { billingExportRequest, billingPreviewQuery, billingReportQuery, billingRunRequest, idParam, isValidTimezone, supportedTimezones } from '@gr8r/shared';
 import { z } from 'zod';
 import { AppError } from '../errors';
@@ -46,18 +46,32 @@ export const billingRoutes = new Hono<AppEnv>()
     const q = c.req.valid('query' as never) as { from?: string; to?: string; contractId?: string };
     return c.json({ items: await contractReport(ctx.db, ctx.workspaceId, q) });
   })
-  /** Выгрузка счетов периода: PDF печатных форм отдельными файлами (задачи воркера) */
+  /** Выгрузка счетов периода одним ZIP-архивом (задача воркера billing.export_zip). Ответ — id выгрузки:
+      статус и скачивание архива — GET /billing/export/:id */
   .post('/export', admin, zValidator('json', billingExportRequest, validationHook), async c => {
     const ctx = ctxOf(c);
     const body = c.req.valid('json' as never) as { documentIds: string[] };
-    const docs = await ctx.db.select({ id: documents.id, number: documents.number, type: documents.type }).from(documents).where(and(inArray(documents.id, body.documentIds), eq(documents.workspaceId, ctx.workspaceId)));
-    const items: { documentId: string; number: string | null; fileId: string | null }[] = [];
-    for (const d of docs) {
-      const [file] = await ctx.db.insert(documentFiles).values({ workspaceId: ctx.workspaceId, documentId: d.id, form: 'invoice', status: 'pending', requestedBy: ctx.memberId }).returning();
-      await ctx.db.insert(jobs).values({ workspaceId: ctx.workspaceId, type: 'document.pdf', payload: { fileId: file!.id } });
-      items.push({ documentId: d.id, number: d.number, fileId: file!.id });
-    }
-    return c.json({ items, count: items.length });
+    const ids = [...new Set(body.documentIds)];
+    if (!ids.length) throw new AppError(422, 'no_documents', 'Select at least one invoice to export');
+    const docs = await ctx.db.select({ id: documents.id, number: documents.number, type: documents.type }).from(documents).where(and(inArray(documents.id, ids), eq(documents.workspaceId, ctx.workspaceId)));
+    if (docs.length !== ids.length) throw new AppError(422, 'document_not_found', 'Some documents do not exist in this workspace');
+    const foreign = docs.filter(d => d.type !== 'invoice');
+    if (foreign.length) throw new AppError(422, 'not_an_invoice', 'Only invoices can be exported: the archive holds the invoice print forms', { documentIds: foreign.map(d => d.id) });
+    const name = `invoices-${new Date().toISOString().slice(0, 10)}.zip`;
+    const [row] = await ctx.db.insert(documentExports).values({ workspaceId: ctx.workspaceId, name, documentIds: ids, requestedBy: ctx.memberId }).returning({ id: documentExports.id, name: documentExports.name, status: documentExports.status });
+    await ctx.db.insert(jobs).values({ workspaceId: ctx.workspaceId, type: 'billing.export_zip', payload: { exportId: row!.id } });
+    return c.json({ id: row!.id, name: row!.name, status: row!.status, count: ids.length }, 202);
+  })
+  /** Статус выгрузки и скачивание архива (как у файлов печатных форм: ?download=1) */
+  .get('/export/:id', admin, zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    const [row] = await ctx.db.select().from(documentExports).where(and(eq(documentExports.id, id), eq(documentExports.workspaceId, ctx.workspaceId))).limit(1);
+    if (!row) throw new AppError(404, 'not_found', 'Export not found');
+    const meta = { id: row.id, name: row.name, status: row.status, size: row.size, error: row.error, count: row.documentIds.length };
+    if (c.req.query('download') !== '1') return c.json(meta);
+    if (row.status !== 'ready' || !row.data) throw new AppError(409, 'not_ready', row.status === 'failed' ? `Export failed: ${row.error}` : 'The archive is not ready yet');
+    return new Response(new Uint8Array(row.data), { headers: { 'content-type': row.contentType, 'content-disposition': `attachment; filename="${row.name}"`, 'content-length': String(row.data.length), 'x-content-type-options': 'nosniff' } });
   })
   /** Расшифровка биллинга счёта (вкладка «Billing breakdown») */
   .get('/breakdown/:id', zValidator('param', idParam, validationHook), async c => {

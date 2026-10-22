@@ -395,3 +395,30 @@ export const documentFiles = pgTable(
     index('document_files_document_idx').on(t.documentId, t.createdAt),
   ],
 );
+
+/** Выгрузка документов одним архивом (ZIP со счетами периода). Файл лежит в БД (data), как и PDF печатных форм.
+    Документы выгрузки перечислены в document_ids — по ним воркер собирает архив (задача billing.export_zip) */
+export const documentExports = pgTable(
+  'document_exports',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    /** Имя файла архива (например invoices-2026-10.zip) */
+    name: text('name').notNull(),
+    contentType: text('content_type').notNull().default('application/zip'),
+    status: text('status', { enum: ['pending', 'ready', 'failed'] }).notNull().default('pending'),
+    size: integer('size').notNull().default(0),
+    data: bytea('data'),
+    storageKey: text('storage_key'),
+    error: text('error'),
+    /** Счета выгрузки (id документов) — из них воркер собирает архив */
+    documentIds: jsonb('document_ids').$type<string[]>().notNull().default([]),
+    requestedBy: uuid('requested_by'),
+    createdAt: createdAt(),
+    finishedAt: ts('finished_at'),
+  },
+  t => [
+    check('document_exports_status_chk', sql`${t.status} in ('pending','ready','failed')`),
+    index('document_exports_ws_idx').on(t.workspaceId, t.createdAt),
+  ],
+);
