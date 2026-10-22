@@ -127,6 +127,13 @@ describe('seed', () => {
     expect(await count('workspace_holidays', w)).toBe(2);
     expect(await count('resources', w)).toBe(3);
     expect(await count('product_resources', w)).toBe(1);
+    // договоры и тарифные планы: договор обслуживания с тарифным планом
+    expect(await count('tariff_plans', w)).toBe(1);
+    expect(await count('tariff_plan_lines', w)).toBe(2);
+    expect(await count('tariff_plan_lines', `${w} and is_subscription`)).toBe(1);
+    expect(await count('contracts', w)).toBe(1);
+    expect(await count('contracts', `${w} and is_service and periodicity = 'month' and billing_day = 1`)).toBe(1);
+    expect(await count('documents', `${w} and contract_id is not null`)).toBe(1);
     // заказ-наряд: вид по умолчанию с состояниями, материалы и назначение
     expect(await count('documents', `${w} and type = 'work_order'`)).toBe(1);
     expect(await count('work_order_kinds', w)).toBe(1);

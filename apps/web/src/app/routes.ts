@@ -36,6 +36,7 @@ import {
   ReceiptText,
   ShoppingCart,
   CalendarRange,
+  FileSignature,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -88,6 +89,10 @@ export const SECTIONS = {
   stockDocs: { path: '/stock-docs', name: 'Stock documents', icon: ArrowLeftRight },
   inventory: { path: '/inventory', name: 'Inventory', icon: Boxes },
   inUse: { path: '/stock/in-use', name: 'In use', icon: PackageCheck },
+  // Договоры и биллинг
+  contracts: { path: '/contracts', name: 'Contracts', icon: FileSignature },
+  tariffPlans: { path: '/tariff-plans', name: 'Tariff plans', icon: ListChecks },
+  billing: { path: '/billing', name: 'Billing', icon: ReceiptText },
 } satisfies Record<string, Section>;
 
 export type SectionId = keyof typeof SECTIONS;

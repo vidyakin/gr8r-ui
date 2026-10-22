@@ -11,6 +11,7 @@ import {
   div,
   fmt,
   formatDocumentNumber,
+  addDays,
   basedOnTargets,
   lineRole,
   stockPlan,
@@ -29,7 +30,8 @@ import { DomainError } from './errors';
 import { DOCUMENT_HOOKS, DOCUMENT_CREATED_HOOKS, STATE_HOOKS, STATE_PROVIDERS, type StatePayload } from './document-hooks';
 import { recordEvent } from './events';
 import { applyStockMoves, defaultPostingCost, documentCosts, documentLineCosts, loadInventorySettings, revertStockMoves, sourceMoveCosts, syncReservations, type MoveRequest } from './stock';
-import { bankAccounts, companies, costItems, documentCounters, documentLines, documentStates, documents, members, organizations, products, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials } from './schema';
+import { bankAccounts, companies, contracts, costItems, documentCounters, documentLines, documentStates, documents, members, organizations, products, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials } from './schema';
+import { assertContractOfCompany, contractDocumentProducts, contractPlanProductIds, defaultContract } from './contracts';
 import { uuidv7 } from './uuid';
 
 export interface DocCtx {
@@ -228,6 +230,8 @@ export interface DocumentCreateInput {
   workOrderKindId?: string | null;
   organizationId?: string | null;
   counterpartyId?: string | null;
+  /** Договор: пусто — договор по умолчанию контрагента (если он есть) */
+  contractId?: string | null;
   warehouseId?: string | null;
   targetWarehouseId?: string | null;
   costItemId?: string | null;
@@ -292,6 +296,18 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
   const costItemId = needsCostItem ? input.costItemId ?? null : null;
   // вид заказ-наряда: только у work_order, пусто — вид по умолчанию (его поставит хук создания)
   const workOrderKindId = input.type === 'work_order' ? input.workOrderKindId ?? null : null;
+  // договор: заданный или по умолчанию у контрагента; его условия подставляются в документ
+  let contractId: string | null = null;
+  let contract: Awaited<ReturnType<typeof defaultContract>> = null;
+  if (meta.party !== null && counterpartyId) {
+    if (input.contractId) {
+      contract = await assertContractOfCompany(db, input.contractId, counterpartyId);
+      contractId = contract.id;
+    } else {
+      contract = await defaultContract(db, counterpartyId);
+      contractId = contract?.id ?? null;
+    }
+  }
   await assertRefs(db, { organizationId, counterpartyId, warehouseId, targetWarehouseId, costItemId, responsibleId: input.responsibleId });
   if (needsTargetWarehouse(operation) && (!targetWarehouseId || targetWarehouseId === warehouseId)) throw new DomainError(422, 'target_warehouse_required', 'Select another warehouse to move the goods to');
   if (operation === 'to_operation' || operation === 'from_operation') await assertInUseHolder(db, inUseMemberId, inUseWorkCenterId);
@@ -303,11 +319,12 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
       workspaceId: ctx.workspaceId,
       type: input.type,
       date: input.date ?? today(),
-      dueDate: input.dueDate ?? null,
+      dueDate: input.dueDate ?? (contract && contract.paymentDays ? addDays(input.date ?? today(), contract.paymentDays) : null),
       state: null,
       operation,
       organizationId,
       counterpartyId,
+      contractId,
       warehouseId,
       targetWarehouseId,
       costItemId,
@@ -332,6 +349,8 @@ export interface DocumentPatch {
   /** Вид заказ-наряда (только у work_order) */
   workOrderKindId?: string | null;
   counterpartyId?: string | null;
+  /** Договор документа */
+  contractId?: string | null;
   warehouseId?: string | null;
   targetWarehouseId?: string | null;
   costItemId?: string | null;
@@ -385,6 +404,12 @@ export async function updateDocument(db: Db, ctx: DocCtx, id: string, patch: Doc
   const set: Partial<typeof documents.$inferInsert> = { updatedAt: new Date() };
   if (patch.organizationId) set.organizationId = patch.organizationId;
   if (patch.counterpartyId !== undefined) set.counterpartyId = meta.party === null ? null : patch.counterpartyId;
+  if (patch.contractId !== undefined && meta.party !== null) {
+    if (patch.contractId) {
+      const c = await assertContractOfCompany(db, patch.contractId, patch.counterpartyId ?? doc.counterpartyId);
+      set.contractId = c.id;
+    } else set.contractId = null;
+  }
   if (patch.warehouseId !== undefined) set.warehouseId = patch.warehouseId;
   if (patch.operation !== undefined && type === 'stock_transfer') set.operation = operation;
   if (patch.inUseMemberId !== undefined && type === 'stock_transfer') set.inUseMemberId = patch.inUseMemberId;
@@ -524,6 +549,22 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<voi
   const meta = DOCUMENT_META[type];
   if (doc.status !== 'draft') throw new DomainError(409, 'invalid_status', doc.status === 'posted' ? 'The document is already posted' : 'A cancelled document cannot be posted: restore it first');
   if (meta.party && !doc.counterpartyId) throw new DomainError(422, 'counterparty_required', meta.party === 'customer' ? 'Select a customer before posting' : 'Select a supplier before posting');
+  // договор: должен быть того же контрагента и организации и действовать на дату документа
+  const contractWarnings: string[] = [];
+  if (doc.contractId) {
+    const c = await assertContractOfCompany(db, doc.contractId, doc.counterpartyId);
+    if (c.organizationId !== doc.organizationId) throw new DomainError(422, 'contract_mismatch', 'The contract belongs to another organization');
+    if (doc.date < c.validFrom || (c.validTo && doc.date > c.validTo)) throw new DomainError(422, 'contract_not_valid', `The contract is not valid on ${doc.date}`);
+    if (c.isService) {
+      // номенклатура вне тарифного плана: разрешить, предупредить или запретить
+      const planProducts = await contractPlanProductIds(db, doc.contractId);
+      const outside = (await contractDocumentProducts(db, id)).filter(l => !planProducts.includes(l.productId));
+      if (outside.length) {
+        if (c.extraProductPolicy === 'forbid') throw new DomainError(422, 'extra_product_forbidden', `«${outside[0]!.name}» is not in the tariff plan: selling it under this contract is forbidden`);
+        if (c.extraProductPolicy === 'warn') contractWarnings.push(`«${outside.map(l => l.name).join('», «')}» is not in the tariff plan`);
+      }
+    }
+  }
   await assertRefs(db, { organizationId: doc.organizationId, warehouseId: doc.warehouseId, targetWarehouseId: doc.targetWarehouseId, costItemId: doc.costItemId });
   if (doc.basedOnId) {
     const [base] = await db.select({ status: documents.status, number: documents.number, type: documents.type }).from(documents).where(eq(documents.id, doc.basedOnId)).limit(1);
@@ -563,7 +604,7 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<voi
   await syncAfterChange(db, ctx, doc, lines);
   await hook?.afterPost?.(db, ctx, doc, lines);
   const [after] = await db.select({ number: documents.number, total: documents.total }).from(documents).where(eq(documents.id, id)).limit(1);
-  await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.posted', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { documentType: type, number: after!.number, total: after!.total } });
+  await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.posted', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { documentType: type, number: after!.number, total: after!.total, warnings: contractWarnings } });
 }
 
 /** Движения склада по документу (общий путь): план строк → расходы и приходы. Продажи, закупки и обычное перемещение.
@@ -700,6 +741,7 @@ export async function documentDetail(db: Db, id: string) {
   const [org] = await db.select({ id: organizations.id, name: organizations.name }).from(organizations).where(eq(organizations.id, doc.organizationId)).limit(1);
   const [cp] = doc.counterpartyId ? await db.select({ id: companies.id, name: companies.name, inn: companies.inn }).from(companies).where(eq(companies.id, doc.counterpartyId)).limit(1) : [];
   const [wh] = doc.warehouseId ? await db.select({ id: warehouses.id, name: warehouses.name }).from(warehouses).where(eq(warehouses.id, doc.warehouseId)).limit(1) : [];
+  const [contract] = doc.contractId ? await db.select({ id: contracts.id, number: contracts.number, companyId: contracts.companyId, companyName: companies.name, validFrom: contracts.validFrom, validTo: contracts.validTo, isService: contracts.isService }).from(contracts).innerJoin(companies, eq(companies.id, contracts.companyId)).where(eq(contracts.id, doc.contractId)).limit(1) : [];
   const [base] = doc.basedOnId ? await db.select({ id: documents.id, type: documents.type, number: documents.number, status: documents.status, date: documents.date }).from(documents).where(eq(documents.id, doc.basedOnId)).limit(1) : [];
   const children = await db
     .select({ id: documents.id, type: documents.type, number: documents.number, status: documents.status, date: documents.date, total: documents.total })
@@ -737,7 +779,7 @@ export async function documentDetail(db: Db, id: string) {
   const [inUseWorkCenter] = doc.inUseWorkCenterId ? await db.select({ id: workCenters.id, name: workCenters.name }).from(workCenters).where(eq(workCenters.id, doc.inUseWorkCenterId)).limit(1) : [];
   // внутренний документ: стоимость по себестоимости (сумма qty × cost движений)
   const costs = DOCUMENT_META[type].party === null ? await documentCosts(db, [id]) : new Map<string, string>();
-  return { ...doc, organization: org ?? null, counterparty: cp ?? null, warehouse: wh ?? null, targetWarehouse: targetWh ?? null, costItem: costItem ?? null, inUseMember: inUseMember ?? null, inUseWorkCenter: inUseWorkCenter ?? null, costTotal: costs.get(id) ?? '0.00', basedOn: base ?? null, children, lines, totals };
+  return { ...doc, organization: org ?? null, counterparty: cp ?? null, contract: contract ?? null, warehouse: wh ?? null, targetWarehouse: targetWh ?? null, costItem: costItem ?? null, inUseMember: inUseMember ?? null, inUseWorkCenter: inUseWorkCenter ?? null, costTotal: costs.get(id) ?? '0.00', basedOn: base ?? null, children, lines, totals };
 }
 
 /* ---------------- данные для печатной формы ---------------- */

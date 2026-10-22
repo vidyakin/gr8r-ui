@@ -56,6 +56,8 @@ export interface DocListItem {
   organizationName: string;
   counterpartyId: string | null;
   counterpartyName: string | null;
+  /** Договор документа */
+  contractId: string | null;
   warehouseId: string | null;
   warehouseName: string | null;
   targetWarehouseId: string | null;
@@ -88,6 +90,8 @@ export interface DocDetail extends Omit<DocListItem, 'organizationName' | 'count
   currency: string;
   organization: { id: string; name: string } | null;
   counterparty: { id: string; name: string; inn: string } | null;
+  /** Договор документа */
+  contract: { id: string; number: string; companyName: string; validFrom: string; validTo: string | null } | null;
   warehouse: { id: string; name: string } | null;
   /** Склад-получатель (перемещение) */
   targetWarehouse: { id: string; name: string; kind: WarehouseKind } | null;

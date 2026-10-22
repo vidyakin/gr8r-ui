@@ -22,3 +22,5 @@ export * from './work-orders';
 export * from './piecework';
 export * from './services';
 export * from './planning';
+export * from './contracts';
+export * from './billing';

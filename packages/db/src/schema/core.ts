@@ -51,6 +51,8 @@ export const workspaces = pgTable(
     color: text('color').notNull().default('#1D1C1A'),
     brand: boolean('brand').notNull().default(false),
     settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
+    /** Часовой пояс арендатора (IANA): в нём считаются день и период биллинга и расписания автоматизаций */
+    timezone: text('timezone').notNull().default('Europe/Moscow'),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

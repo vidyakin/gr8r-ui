@@ -106,7 +106,7 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
 
   /* ---------- товары ---------- */
   const bySku = new Map<string, { id: string; purchasePrice: string; price: string }>();
-  const skus = ['MT-OAK-5050', 'MT-OAK-30', 'MT-PLY-18', 'MT-MDF-16', 'MT-EDG-2', 'MT-LAC-1', 'MT-STN-1', 'MT-GLU-1', 'MT-SND-120', 'MT-PKG-1', 'HW-SCR-440', 'HW-BLT-660', 'HW-CAM-15', 'HW-FT-60', 'HW-SHP-5', 'FRN-001', 'FRN-002', 'FRN-003', 'SV-DLV', 'SV-ASM', 'WR-MNT', 'WR-SRV'];
+  const skus = ['MT-OAK-5050', 'MT-OAK-30', 'MT-PLY-18', 'MT-MDF-16', 'MT-EDG-2', 'MT-LAC-1', 'MT-STN-1', 'MT-GLU-1', 'MT-SND-120', 'MT-PKG-1', 'HW-SCR-440', 'HW-BLT-660', 'HW-CAM-15', 'HW-FT-60', 'HW-SHP-5', 'FRN-001', 'FRN-002', 'FRN-003', 'SV-DLV', 'SV-ASM', 'SV-MSR', 'WR-MNT', 'WR-SRV'];
   for (const p of await db.select({ id: products.id, sku: products.sku, purchasePrice: products.purchasePrice, price: products.price }).from(products).where(inArray(products.sku, skus))) bySku.set(p.sku, p);
   const P = (sku: string) => {
     const p = bySku.get(sku);
@@ -225,6 +225,7 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
       status: 'done',
       assigneeId: memberId,
       companyId: co.quanta,
+      workProductId: P('SV-MSR').id,
       description: 'Время записано по заказчику: заказ-наряда на эту консультацию нет',
       createdBy: memberId,
     })
@@ -354,5 +355,5 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
   await fillOrderFromBom(db, ctx, officeOrder);
   await postAt(officeOrder, 1);
 
-  return { documents: 24 };
+  return { documents: 24, workOrder };
 }

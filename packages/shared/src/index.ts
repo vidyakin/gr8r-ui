@@ -7,5 +7,6 @@ export * from './bom';
 export * from './planning';
 export * from './ru';
 export * from './documents';
+export * from './billing';
 export * from './print';
 export * from './automations';

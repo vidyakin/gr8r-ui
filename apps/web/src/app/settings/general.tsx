@@ -2,7 +2,7 @@
 import * as React from 'react';
 import { useNavigate } from 'react-router';
 import { Archive, Check, CircleCheck, Crown, Monitor, Moon, Sun, UserPlus } from 'lucide-react';
-import { Badge, Button, Segmented, Tooltip, toast, usePrefs, type Accent, type Density, type Motion, type ThemeMode } from '@/components/ui';
+import { Badge, Button, Segmented, Select, Tooltip, toast, usePrefs, type Accent, type Density, type Motion, type ThemeMode } from '@/components/ui';
 import { useWorkspace } from '../data/store';
 import { resetSettings, useSettings } from '../data/settings';
 import { apiFor, errorMessage, ok } from '../data/api';
@@ -16,6 +16,8 @@ import { useInvite, useProjectForms } from '../overlays';
 import { ConfirmModal } from '../overlays/project-dialogs';
 import { SECTIONS } from '../routes';
 import { PermsTable, TeamsGrid } from '../pages/MembersPage';
+import { useBillingApi, useWorkspaceTimezone } from '../docs/billing-data';
+import { useIsAdmin } from '../catalog/data';
 import { PrefSelect, SRow, SettingsHead, Toggle } from './parts';
 
 const WS_COLORS = ['#2F2E2A', '#5A67D8', '#3B82C4', '#23918A', '#C54B78', '#C48A1E'];
@@ -28,6 +30,32 @@ export function Swatches({ colors, value, onPick, size, label }: { colors: strin
         <button key={c} type="button" className={`sw ${value === c ? 'on' : ''}`} style={{ '--c': c, ...(size ? { width: size, height: size } : {}) } as React.CSSProperties} onClick={() => onPick(c)} aria-label={`${label} ${c}`} />
       ))}
     </div>
+  );
+}
+
+/** Часовой пояс арендатора (IANA): в нём считаются период биллинга и расписания автоматизаций. Меняет admin и выше */
+function WorkspaceTimeZone() {
+  const zone = useWorkspaceTimezone();
+  const api = useBillingApi();
+  const isAdmin = useIsAdmin();
+  const [value, setValue] = React.useState('');
+  React.useEffect(() => {
+    if (zone.data) setValue(zone.data.timezone);
+  }, [zone.data?.timezone]);
+  return (
+    <SRow t="Workspace time zone" d="Billing periods and automation schedules are counted in this time zone.">
+      <Select
+        value={value}
+        disabled={!isAdmin}
+        onValueChange={async v => {
+          setValue(v);
+          const r = await api('PATCH', '/billing/timezone', { timezone: v });
+          if (r) toast('Time zone saved');
+        }}
+        options={(zone.data?.options ?? ['UTC', 'Europe/Moscow']).map(tz => ({ value: tz, label: tz }))}
+        aria-label="Workspace time zone"
+      />
+    </SRow>
   );
 }
 
@@ -278,6 +306,7 @@ export function DateTimeSection({ title }: { title: string }) {
   return (
     <>
       <SettingsHead title={title} lead="How dates and times appear across the workspace." />
+      <WorkspaceTimeZone />
       <SRow t="Time zone" d="Used for due dates and reminders.">
         <PrefSelect label="tz" value={s.tz} options={['(GMT-08:00) Pacific Time', '(GMT-05:00) Eastern Time', '(GMT+00:00) London', '(GMT+01:00) Berlin', '(GMT+08:00) Singapore']} onChange={tz => set({ tz })} />
       </SRow>

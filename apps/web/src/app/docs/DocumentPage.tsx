@@ -15,6 +15,7 @@ import { useWorkspace } from '../data/store';
 import { useSnapshot } from '../production/data';
 import { STATUS_LABEL, STATUS_TONE, docTitle, docsKey, typeLabel, useCostItems, useDocsApi, useDocument, useOrganizations, useWarehouses, type DocDetail, type DocLink } from './data';
 import { CounterpartyPicker, ProductPicker } from './pickers';
+import { useBillingBreakdown, useContracts } from './billing-data';
 import { WorkOrderPanel } from './work-orders';
 import { useWsId } from '../meta/data';
 
@@ -40,6 +41,8 @@ interface Form {
   organizationId: string;
   counterpartyId: string | null;
   counterpartyName: string;
+  /** Договор документа */
+  contractId: string | null;
   warehouseId: string | null;
   targetWarehouseId: string | null;
   costItemId: string | null;
@@ -65,6 +68,7 @@ function toForm(d: DocDetail): Form {
     organizationId: d.organizationId,
     counterpartyId: d.counterpartyId,
     counterpartyName: d.counterparty?.name ?? '',
+    contractId: d.contractId ?? null,
     warehouseId: d.warehouseId,
     targetWarehouseId: d.targetWarehouseId,
     costItemId: d.costItemId,
@@ -93,6 +97,7 @@ function toPayload(f: Form) {
   return {
     organizationId: f.organizationId,
     counterpartyId: f.counterpartyId,
+    contractId: f.contractId,
     warehouseId: f.warehouseId,
     targetWarehouseId: f.targetWarehouseId,
     costItemId: f.costItemId,
@@ -152,10 +157,14 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const orgs = useOrganizations();
   const warehouses = useWarehouses();
   const costItems = useCostItems();
+  const contracts = useContracts({ companyId: doc.counterpartyId ?? undefined });
+  const breakdown = useBillingBreakdown(doc.type === 'invoice' ? doc.id : undefined);
   const units = useUnits();
   const members = useWorkspace().data.members;
   const workCenters = useSnapshot().data?.workCenters ?? [];
   const meta = DOCUMENT_META[doc.type];
+  /** Договоры контрагента: в документе выбирается один */
+  const contractOptions = (contracts.data?.items ?? []).map(c => ({ value: c.id, label: c.number ? `${c.number}${c.isService ? ' · service' : ''}` : c.companyName }));
   const editable = canWrite && doc.status === 'draft';
   /** Внутренний документ: без контрагента, свой склад и статья затрат */
   const internal = meta.party === null;
@@ -483,9 +492,28 @@ function DocumentView({ doc }: { doc: DocDetail }) {
           <Field label={meta.party === 'customer' ? 'Customer' : 'Supplier'}>
             {p =>
               editable ? (
-                <CounterpartyPicker id={p.id} value={form.counterpartyName} invalid={save === 'invalid' && !form.counterpartyId} onPick={c => edit(f => ({ ...f, counterpartyId: c.id, counterpartyName: c.name }))} />
+                <CounterpartyPicker id={p.id} value={form.counterpartyName} invalid={save === 'invalid' && !form.counterpartyId} onPick={c => edit(f => ({ ...f, counterpartyId: c.id, counterpartyName: c.name, contractId: null }))} />
               ) : (
                 <div className="doc-ro">{doc.counterparty ? <Link className="crm-link" to={`/crm/companies/${doc.counterparty.id}`}>{doc.counterparty.name}</Link> : '—'}</div>
+              )
+            }
+          </Field>
+        )}
+        {!internal && (
+          <Field label="Contract" hint="The default contract of the customer is set automatically">
+            {p =>
+              editable ? (
+                <Select
+                  id={p.id}
+                  disabled={!form.counterpartyId}
+                  value={form.contractId ?? ''}
+                  onValueChange={v => edit(f => ({ ...f, contractId: v || null }))}
+                  options={contractOptions}
+                  placeholder="Select contract"
+                  aria-label="Contract"
+                />
+              ) : (
+                <div className="doc-ro">{doc.contract ? <span className="mono">{doc.contract.number}</span> : '—'}</div>
               )
             }
           </Field>
@@ -779,6 +807,34 @@ function DocumentView({ doc }: { doc: DocDetail }) {
       {isWorkOrder && <WorkOrderPanel doc={doc} />}
 
       <div className="doc-bottom">
+        {breakdown.data && (
+          <section className="doc-links panel" aria-label="Billing breakdown">
+            <h2>Billing breakdown</h2>
+            <p className="faint" style={{ fontSize: 12 }}>
+              Period {breakdown.data.subscriptionPeriod} · works by fact {breakdown.data.factPeriod}. The original lines of the billing are kept here; the invoice shows the grouped positions.
+            </p>
+            {breakdown.data.warnings.map((w, i) => (
+              <div key={i} className="faint" style={{ fontSize: 12 }}>
+                {w}
+              </div>
+            ))}
+            {breakdown.data.lines.map((l, i) => (
+              <div key={i} style={{ marginTop: 8 }}>
+                <div className="row" style={{ justifyContent: 'space-between' }}>
+                  <span>{l.name}</span>
+                  <span className="num muted">
+                    {l.qty} × {money(l.price)}
+                  </span>
+                </div>
+                {l.rows.map((r, j) => (
+                  <div key={j} className="faint" style={{ fontSize: 12, paddingLeft: 12 }}>
+                    {r.source}: {r.name} — {r.qty} × {r.price} = {money(r.amount)}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </section>
+        )}
         <section className="doc-links panel" aria-label="Related documents">
           <h2>Related documents</h2>
           {doc.basedOn ? (
