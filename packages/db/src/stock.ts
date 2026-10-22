@@ -51,6 +51,8 @@ export interface MoveRequest extends StockKey {
   cost?: Dec;
   /** Приход по цене фактического расхода той же строки (перемещение между складами) */
   costFromLine?: boolean;
+  /** Фаза движения: 1 — основная, 2 — приёмка (перемещение «в пути») */
+  phase?: number;
 }
 
 /** Записывает движения документа и обновляет остатки (в той же транзакции). Расход списывается по текущей средней; приход
@@ -72,13 +74,13 @@ export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: st
       const cost = opts?.inCost?.(r.lineId, outCost) ?? r.cost ?? (r.costFromLine ? outCost.get(r.lineId) : undefined) ?? s.avg;
       const next = stockIn(s, r.qty, cost);
       state.set(k, next);
-      rows.push({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentId: doc.id, documentLineId: r.lineId, qty: fmt(r.qty, 3), cost: fmt(cost, 4), movedAt: doc.date });
+      rows.push({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentId: doc.id, documentLineId: r.lineId, qty: fmt(r.qty, 3), cost: fmt(cost, 4), movedAt: doc.date, phase: r.phase ?? 1 });
     } else {
       need.set(k, (need.get(k) ?? 0n) + r.qty);
       const o = stockOut(s, r.qty);
       state.set(k, o.state);
       outCost.set(r.lineId, o.cost);
-      rows.push({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentId: doc.id, documentLineId: r.lineId, qty: fmt(-r.qty, 3), cost: fmt(o.cost, 4), movedAt: doc.date });
+      rows.push({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentId: doc.id, documentLineId: r.lineId, qty: fmt(-r.qty, 3), cost: fmt(o.cost, 4), movedAt: doc.date, phase: r.phase ?? 1 });
     }
   };
   for (const r of reqs) if (r.direction === 'out') apply(r);
@@ -142,13 +144,15 @@ export async function documentCosts(db: Db, documentIds: string[]): Promise<Map<
 }
 
 /** Удаляет движения документа и пересчитывает остатки и среднюю по оставшимся движениям (отмена проведения).
-    Расходы после отменённого прихода переоцениваются по новой средней; если после этого остаток уходит в минус — отмена запрещена */
-export async function revertStockMoves(db: Db, workspaceId: string, documentId: string, settings: InventorySettings): Promise<void> {
-  const own = await db.select({ warehouseId: stockMoves.warehouseId, productId: stockMoves.productId }).from(stockMoves).where(eq(stockMoves.documentId, documentId));
+    Расходы после отменённого прихода переоцениваются по новой средней; если после этого остаток уходит в минус — отмена запрещена.
+    `phase` — отменить только одну фазу (перемещение «в пути»: отмена приёмки) */
+export async function revertStockMoves(db: Db, workspaceId: string, documentId: string, settings: InventorySettings, phase?: number): Promise<void> {
+  const scope = phase ? and(eq(stockMoves.documentId, documentId), eq(stockMoves.phase, phase)) : eq(stockMoves.documentId, documentId);
+  const own = await db.select({ warehouseId: stockMoves.warehouseId, productId: stockMoves.productId }).from(stockMoves).where(scope);
   if (!own.length) return;
   const keys = uniqueKeys(own);
   await lockBalances(db, workspaceId, keys);
-  await db.delete(stockMoves).where(eq(stockMoves.documentId, documentId));
+  await db.delete(stockMoves).where(scope);
   const bad: StockKey[] = [];
   for (const k of keys) {
     const moves = await db
@@ -168,6 +172,19 @@ export async function revertStockMoves(db: Db, workspaceId: string, documentId: 
     const names = await productNames(db, bad.map(b => b.productId));
     throw new DomainError(422, 'stock_conflict', `Cannot unpost: later stock movements need these items (${bad.map(b => names.get(b.productId) ?? b.productId).join(', ')}). Unpost the dependent documents first.`, { productIds: bad.map(b => b.productId) });
   }
+}
+
+/** Себестоимость единицы по каждой строке документа: расходная сторона (у перемещения — цена ушедшего товара) */
+export async function documentLineCosts(db: Db, documentId: string): Promise<Map<string, string>> {
+  const rows = await db.select({ lineId: stockMoves.documentLineId, qty: stockMoves.qty, cost: stockMoves.cost }).from(stockMoves).where(eq(stockMoves.documentId, documentId));
+  const out = new Map<string, string>();
+  const incoming = new Map<string, string>();
+  for (const r of rows) {
+    if (!r.lineId) continue;
+    if (dec(r.qty) < 0n) out.set(r.lineId, r.cost);
+    else incoming.set(r.lineId, r.cost);
+  }
+  return new Map([...incoming, ...out]);
 }
 
 /** Цена прихода по строке возврата: себестоимость исходного движения (если строка скопирована с реализации или поступления) */

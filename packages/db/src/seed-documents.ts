@@ -5,6 +5,8 @@ import { accountKeyOk, makeInn, makeOgrn } from '@gr8r/shared';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { Db } from './client';
 import { createBasedOn, createDocument, ensureCostItems, postDocument, updateDocument, type DocCtx } from './documents';
+import { fillCountSheet } from './inventory';
+import './internal-ops';
 import { bankAccounts, companies, costItems, documentLines, organizations, products, warehouses, workCenters, manufacturedItems } from './schema';
 import { createProductionFromOrder, createProductionOrder, fillOrderFromBom } from './production';
 import { productionItems } from './schema';
@@ -237,5 +239,38 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
   const release = await createProductionFromOrder(db, ctx, prodOrder, { date: iso(2), lines: [{ orderItemId: (await db.select().from(productionItems).where(eq(productionItems.documentId, prodOrder))).map(i => i.id)[0]!, qty: '4' }] });
   await postAt(release, 2);
 
-  return { documents: 20 };
+  /* ---------- этап 0б: инвентаризация, перемещение «в пути», передача в эксплуатацию ---------- */
+  const count = await createDocument(db, ctx, {
+    type: 'inventory_count',
+    warehouseId: main!.id,
+    date: iso(2),
+    comment: 'Инвентаризация основного склада',
+    lines: [],
+  });
+  await fillCountSheet(db, ctx, count);
+  await postAt(count, 2);
+  const inTransit = await createDocument(db, ctx, {
+    type: 'stock_transfer',
+    operation: 'in_transit',
+    warehouseId: main!.id,
+    targetWarehouseId: fg!.id,
+    date: iso(1),
+    comment: 'Фурнитура в пути на склад готовой продукции',
+    lines: [buy('HW-SCR-440', 60)],
+  });
+  await postAt(inTransit, 1);
+  const [exploitation] = await db.select({ id: costItems.id }).from(costItems).where(and(eq(costItems.workspaceId, wsId), eq(costItems.systemKey, 'v_expluaciatsiyu')));
+  const toUse = await createDocument(db, ctx, {
+    type: 'stock_transfer',
+    operation: 'to_operation',
+    warehouseId: main!.id,
+    inUseMemberId: memberId,
+    costItemId: exploitation!.id,
+    date: iso(1),
+    comment: 'Оснастка в эксплуатацию',
+    lines: [buy('HW-SCR-440', 5)],
+  });
+  await postAt(toUse, 1);
+
+  return { documents: 23 };
 }

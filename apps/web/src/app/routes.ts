@@ -28,6 +28,7 @@ import {
   Wrench,
   Workflow,
   Boxes,
+  PackageCheck,
   ReceiptText,
   ShoppingCart,
   type LucideIcon,
@@ -74,6 +75,7 @@ export const SECTIONS = {
   purchases: { path: '/purchases', name: 'Purchases', icon: ShoppingCart },
   stockDocs: { path: '/stock-docs', name: 'Stock documents', icon: ArrowLeftRight },
   inventory: { path: '/inventory', name: 'Inventory', icon: Boxes },
+  inUse: { path: '/stock/in-use', name: 'In use', icon: PackageCheck },
 } satisfies Record<string, Section>;
 
 export type SectionId = keyof typeof SECTIONS;

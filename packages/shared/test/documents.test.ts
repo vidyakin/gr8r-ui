@@ -105,7 +105,7 @@ describe('document types', () => {
     expect(DOCUMENT_META.act.stock).toBeNull();
   });
   test('internal documents: no counterparty, their own line role', () => {
-    expect(documentTypesOf('stock')).toEqual(['stock_transfer', 'write_off', 'stock_posting']);
+    expect(documentTypesOf('stock')).toEqual(['stock_transfer', 'write_off', 'stock_posting', 'inventory_count']);
     expect(DOCUMENT_META.stock_transfer.party).toBeNull();
     expect(DOCUMENT_META.write_off.costItemKind).toBe('expense');
     expect(DOCUMENT_META.stock_posting.costItemKind).toBe('income');

@@ -6,15 +6,15 @@ import type { VatRate } from './constants';
 
 /* ---------------- типы и статусы ---------------- */
 
-export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'production_order', 'production'] as const;
+export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'inventory_count', 'production_order', 'production'] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 export const DOCUMENT_STATUSES = ['draft', 'posted', 'cancelled'] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
 export const DOCUMENT_GROUPS = ['sales', 'purchases', 'stock', 'production'] as const;
 export type DocumentGroup = (typeof DOCUMENT_GROUPS)[number];
-export const PRINT_FORMS = ['invoice', 'upd', 'act', 'torg12'] as const;
+export const PRINT_FORMS = ['invoice', 'upd', 'act', 'torg12', 'inv3', 'torg16', 'torg13'] as const;
 export type PrintForm = (typeof PRINT_FORMS)[number];
-export const PRINT_FORM_LABELS: Record<PrintForm, string> = { invoice: 'Invoice for payment', upd: 'UPD', act: 'Service act', torg12: 'TORG-12' };
+export const PRINT_FORM_LABELS: Record<PrintForm, string> = { invoice: 'Invoice for payment', upd: 'UPD', act: 'Service act', torg12: 'TORG-12', inv3: 'INV-3 (inventory list)', torg16: 'TORG-16 (write-off act)', torg13: 'TORG-13 (internal transfer)' };
 
 /** Вид склада: обычный склад, цех участка и служебный склад «в пути» */
 export const WAREHOUSE_KINDS = ['warehouse', 'workshop', 'transit'] as const;
@@ -25,6 +25,9 @@ export type CostItemKind = (typeof COST_ITEM_KINDS)[number];
 /** Вид операции внутреннего документа */
 export const DOCUMENT_OPERATIONS = ['transfer', 'in_transit', 'to_operation', 'from_operation', 'assembly'] as const;
 export type DocumentOperation = (typeof DOCUMENT_OPERATIONS)[number];
+/** Виды перемещения между складами: сразу, «в пути», в эксплуатацию и обратно */
+export const TRANSFER_OPERATIONS = ['transfer', 'in_transit', 'to_operation', 'from_operation'] as const;
+export type TransferOperation = (typeof TRANSFER_OPERATIONS)[number];
 /** Роль строки внутреннего документа: приход или расход */
 export const STOCK_ROLES = ['in', 'out'] as const;
 export type StockRole = (typeof STOCK_ROLES)[number];
@@ -77,6 +80,12 @@ export interface DocumentTypeMeta {
 }
 
 /** Состояния заказа на производство (отдельно от проведения) */
+/** Состояния перемещения «в пути»: отправлено → принято (возврат назад отменяет приёмку) */
+export const TRANSIT_STATES: DocumentStateDef[] = [
+  { key: 'shipped', label: 'Shipped', next: ['received'] },
+  { key: 'received', label: 'Received', next: ['shipped'] },
+];
+
 export const PRODUCTION_ORDER_STATES: DocumentStateDef[] = [
   { key: 'planned', label: 'Planned', next: ['in_progress'] },
   { key: 'in_progress', label: 'In progress', next: ['done'] },
@@ -95,9 +104,11 @@ export const DOCUMENT_META: Record<DocumentType, DocumentTypeMeta> = {
   receipt: { label: 'Goods receipt', group: 'purchases', prefix: 'ПТ', stock: 'in', party: 'supplier', basedOn: ['supplier_order'], fulfils: true, forms: [] },
   supplier_return: { label: 'Supplier return', group: 'purchases', prefix: 'ВС', stock: 'out', party: 'supplier', basedOn: ['receipt'], fulfils: false, forms: [], isReturn: true },
   // внутренние документы: контрагента нет, направление движения задаёт роль строки
-  stock_transfer: { label: 'Stock transfer', group: 'stock', prefix: 'ПМ', stock: null, party: null, basedOn: [], fulfils: false, forms: [], stockRole: 'transfer', operation: 'transfer' },
-  write_off: { label: 'Write-off', group: 'stock', prefix: 'СП', stock: null, party: null, basedOn: [], fulfils: false, forms: [], stockRole: 'out', costItemKind: 'expense' },
-  stock_posting: { label: 'Goods posting', group: 'stock', prefix: 'ОП', stock: null, party: null, basedOn: [], fulfils: false, forms: [], stockRole: 'in', costItemKind: 'income' },
+  stock_transfer: { label: 'Stock transfer', group: 'stock', prefix: 'ПМ', stock: null, party: null, basedOn: [], fulfils: false, forms: ['torg13'], stockRole: 'transfer', operation: 'transfer', states: TRANSIT_STATES },
+  write_off: { label: 'Write-off', group: 'stock', prefix: 'СП', stock: null, party: null, basedOn: ['inventory_count'], fulfils: false, forms: ['torg16'], stockRole: 'out', costItemKind: 'expense' },
+  stock_posting: { label: 'Goods posting', group: 'stock', prefix: 'ОП', stock: null, party: null, basedOn: ['inventory_count'], fulfils: false, forms: [], stockRole: 'in', costItemKind: 'income' },
+  // инвентаризация: остатки не двигает, результат оформляется списанием и оприходованием на основании
+  inventory_count: { label: 'Inventory count', group: 'stock', prefix: 'ИНВ', stock: null, party: null, basedOn: [], fulfils: false, forms: ['inv3'], isOrder: true },
   // производство: заказ на производство и выпуск (списание материалов + приход продукции)
   production_order: { label: 'Production order', group: 'production', prefix: 'ЗП', stock: null, party: null, basedOn: ['customer_order'], fulfils: false, forms: [], states: PRODUCTION_ORDER_STATES, operation: 'assembly', production: true },
   production: { label: 'Production', group: 'production', prefix: 'ПР', stock: null, party: null, basedOn: ['production_order', 'customer_order'], fulfils: false, forms: [], operation: 'assembly', production: true },
@@ -133,6 +144,7 @@ export const DOCUMENT_LABELS_RU: Record<DocumentType, string> = {
   stock_transfer: 'Перемещение между складами',
   write_off: 'Списание',
   stock_posting: 'Оприходование',
+  inventory_count: 'Инвентаризация',
   production_order: 'Заказ на производство',
   production: 'Производство (выпуск)',
 };

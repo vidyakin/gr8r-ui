@@ -78,6 +78,13 @@
       "when": 1792625472042,
       "tag": "0010_task_modules",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792626909368,
+      "tag": "0011_stage_0b_stock_ops",
+      "breakpoints": true
     }
   ]
 }

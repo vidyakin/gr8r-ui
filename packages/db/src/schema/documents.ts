@@ -145,6 +145,10 @@ export const documents = pgTable(
     targetWarehouseId: uuid('target_warehouse_id'),
     /** Статья затрат или доходов (списание, оприходование) */
     costItemId: uuid('cost_item_id'),
+    /** Получатель имущества в эксплуатацию: участник воркспейса */
+    inUseMemberId: uuid('in_use_member_id'),
+    /** Получатель имущества в эксплуатацию: участок (внешний ключ не ставим: схема участков ссылается на документы) */
+    inUseWorkCenterId: uuid('in_use_work_center_id'),
     currency: text('currency').notNull().default('RUB'),
     /** Цены «НДС в т.ч.» (true) или «НДС сверху» (false) */
     priceIncludesVat: boolean('price_includes_vat').notNull().default(true),
@@ -168,14 +172,18 @@ export const documents = pgTable(
     foreignKey({ columns: [t.workspaceId, t.warehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'documents_warehouse_fk' }),
     foreignKey({ columns: [t.workspaceId, t.targetWarehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'documents_target_warehouse_fk' }),
     foreignKey({ columns: [t.workspaceId, t.costItemId], foreignColumns: [costItems.workspaceId, costItems.id], name: 'documents_cost_item_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.inUseMemberId], foreignColumns: [members.workspaceId, members.id], name: 'documents_in_use_member_fk' }),
     foreignKey({ columns: [t.workspaceId, t.basedOnId], foreignColumns: [t.workspaceId, t.id], name: 'documents_based_on_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.responsibleId], foreignColumns: [members.workspaceId, members.id], name: 'documents_responsible_fk' }),
-    check('documents_type_chk', sql`${t.type} in ('quote','customer_order','invoice','realization','act','customer_return','supplier_order','receipt','supplier_return','stock_transfer','write_off','stock_posting','production_order','production')`),
+    check('documents_type_chk', sql`${t.type} in ('quote','customer_order','invoice','realization','act','customer_return','supplier_order','receipt','supplier_return','stock_transfer','write_off','stock_posting','inventory_count','production_order','production')`),
     check('documents_status_chk', sql`${t.status} in ('draft','posted','cancelled')`),
     check('documents_state_chk', sql`${t.state} is null or ${t.state} ~ '^[a-z][a-z0-9_]*$'`),
     check('documents_operation_chk', sql`${t.operation} is null or ${t.operation} in ('transfer','in_transit','to_operation','from_operation','assembly')`),
-    // перемещение: склад-получатель задан и отличается от склада-источника
-    check('documents_transfer_chk', sql`${t.type} <> 'stock_transfer' or (${t.targetWarehouseId} is not null and ${t.targetWarehouseId} <> ${t.warehouseId})`),
+    // перемещение с получателем: склад-получатель задан и отличается от склада-источника
+    // (у передачи в эксплуатацию и возврата из неё склада-получателя нет)
+    check('documents_transfer_chk', sql`${t.operation} not in ('transfer','in_transit') or (${t.targetWarehouseId} is not null and ${t.targetWarehouseId} <> ${t.warehouseId})`),
+    // передача в эксплуатацию и возврат из неё: получатель ровно один — сотрудник или участок
+    check('documents_in_use_chk', sql`${t.operation} not in ('to_operation','from_operation') or ((${t.inUseMemberId} is not null) <> (${t.inUseWorkCenterId} is not null))`),
     check('documents_number_chk', sql`(${t.number} is null) = (${t.numberSeq} is null) and (${t.numberSeq} is null) = (${t.numberYear} is null)`),
     // номер уникален в (организация, тип, год)
     uniqueIndex('documents_number_uq').on(t.workspaceId, t.organizationId, t.type, t.numberYear, t.numberSeq).where(sql`${t.numberSeq} is not null`),
@@ -208,6 +216,10 @@ export const documentLines = pgTable(
     originLineId: uuid('origin_line_id'),
     /** Роль строки внутреннего документа: приход или расход (у продаж и закупок — null) */
     stockRole: text('stock_role', { enum: ['in', 'out'] }),
+    /** Учётное количество по остаткам (инвентаризация): разница с qty — недостача или излишек */
+    bookQty: numeric('book_qty', { precision: 18, scale: 3 }).notNull().default('0'),
+    /** Принятое количество (перемещение «в пути»): не больше отправленного */
+    receivedQty: numeric('received_qty', { precision: 18, scale: 3 }).notNull().default('0'),
     createdAt: createdAt(),
   },
   t => [
@@ -217,7 +229,8 @@ export const documentLines = pgTable(
     foreignKey({ columns: [t.workspaceId, t.unitCode], foreignColumns: [units.workspaceId, units.code], name: 'document_lines_unit_fk' }),
     foreignKey({ columns: [t.workspaceId, t.sourceLineId], foreignColumns: [t.workspaceId, t.id], name: 'document_lines_source_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.originLineId], foreignColumns: [t.workspaceId, t.id], name: 'document_lines_origin_fk' }).onDelete('set null'),
-    check('document_lines_qty_chk', sql`${t.qty} > 0 and ${t.price} >= 0 and ${t.discountPct} >= 0 and ${t.discountPct} <= 100`),
+    check('document_lines_qty_chk', sql`${t.qty} >= 0 and ${t.price} >= 0 and ${t.discountPct} >= 0 and ${t.discountPct} <= 100`),
+    check('document_lines_book_qty_chk', sql`${t.bookQty} >= 0 and ${t.receivedQty} >= 0`),
     check('document_lines_vat_chk', sql`${t.vatRate} in ('none','0','5','7','10','20')`),
     check('document_lines_stock_role_chk', sql`${t.stockRole} is null or ${t.stockRole} in ('in','out')`),
     index('document_lines_doc_idx').on(t.documentId, t.sortOrder),
@@ -258,6 +271,8 @@ export const stockMoves = pgTable(
     qty: numeric('qty', { precision: 18, scale: 3 }).notNull(),
     /** Приход: цена единицы без НДС (или с НДС при УСН); расход: себестоимость по средней на момент списания */
     cost: numeric('cost', { precision: 18, scale: 4 }).notNull().default('0'),
+    /** Фаза движения: 1 — основная (отправка), 2 — приёмка (перемещение «в пути») */
+    phase: integer('phase').notNull().default(1),
     movedAt: date('moved_at', { mode: 'string' }).notNull(),
     createdAt: createdAt(),
   },
@@ -266,6 +281,7 @@ export const stockMoves = pgTable(
     foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'stock_moves_product_fk' }),
     foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'stock_moves_document_fk' }).onDelete('cascade'),
     check('stock_moves_qty_chk', sql`${t.qty} <> 0`),
+    check('stock_moves_phase_chk', sql`${t.phase} in (1,2)`),
     index('stock_moves_card_idx').on(t.workspaceId, t.warehouseId, t.productId, t.seq),
     index('stock_moves_product_idx').on(t.workspaceId, t.productId, t.seq),
     index('stock_moves_document_idx').on(t.documentId),

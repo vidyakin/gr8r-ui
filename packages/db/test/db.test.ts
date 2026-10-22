@@ -97,20 +97,20 @@ describe('seed', () => {
 
     // документы и склад: организация, склады, реквизиты, проведённые цепочки, остатки и резерв
     expect(await count('organizations', `${w} and name = 'ООО «Гр8р Студия»' and tax_system = 'osn' and default_vat_rate = '20' and is_default`)).toBe(1);
-    expect(await count('warehouses', w)).toBe(3);
+    expect(await count('warehouses', w)).toBe(4); // основной, цех, склад готовой продукции и служебный «в пути»
     expect(await count('companies', `${w} and inn <> ''`)).toBe(5);
     expect(await count('bank_accounts', `${w} and company_id is not null`)).toBe(5);
-    expect(await count('documents', w)).toBe(16);
-    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(16);
+    expect(await count('documents', w)).toBe(19);
+    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(19);
     expect(await count('documents', `${w} and based_on_id is not null`)).toBe(7);
-    expect(await count('documents', `${w} and type in ('stock_transfer','write_off')`)).toBe(3);
+    expect(await count('documents', `${w} and type in ('stock_transfer','write_off','inventory_count')`)).toBe(6);
     // производство: заказ на производство и выпуск со списанием материалов
     expect(await count('documents', `${w} and type = 'production_order'`)).toBe(1);
     expect(await count('documents', `${w} and type = 'production'`)).toBe(1);
     expect(await count('production_items', w)).toBe(2);
     expect(await count('production_components', `${w} and kind = 'material'`)).toBe(6);
     expect(await count('cost_items', w)).toBe(6);
-    expect(await count('stock_balances', `${w} and qty > 0`)).toBe(22);
+    expect(await count('stock_balances', `${w} and qty > 0`)).toBe(23);
     expect(await count('stock_reservations', w)).toBe(1);
     expect(await count('documents', `where workspace_id = '${acme!.id}'`)).toBe(0);
     expect(await count('organizations', `where workspace_id = '${acme!.id}'`)).toBe(1);
