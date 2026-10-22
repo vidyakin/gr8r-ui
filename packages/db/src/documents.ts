@@ -652,7 +652,7 @@ export async function createBasedOn(db: Db, ctx: DocCtx, sourceId: string, targe
 
 export interface DocumentLineView extends DocumentLineRow {
   sku: string;
-  kind: 'goods' | 'service';
+  kind: 'goods' | 'service' | 'operation';
   /** Для строк заказов: исполнено проведёнными документами (отгружено / получено) и запланировано (с черновиками) */
   shipped: string;
   planned: string;

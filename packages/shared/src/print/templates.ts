@@ -384,6 +384,41 @@ ${person('Главный (старший) бухгалтер', o.accountantName 
   );
 }
 
+/* ---------------- сдельный наряд ---------------- */
+
+function pieceworkForm(d: PrintData): string {
+  const o = d.organization;
+  const rows = d.lines
+    .map(
+      l =>
+        `<tr><td class="center">${l.n}</td><td>${esc(l.name)}</td><td class="center">${esc(l.sku)}</td><td class="right">${qtyRu(l.planQty ?? '0')}</td><td class="right">${qtyRu(l.qty)}</td><td class="right">${qtyRu(l.hours ?? '0')}</td><td class="right">${moneyRu(l.rate ?? '0')}</td><td class="right">${moneyRu(l.total)}</td></tr>`,
+    )
+    .join('');
+  const total = d.lines.reduce((s, l) => s + dec(l.total), 0n);
+  const person = (label: string, name: string) => `<td><b>${label}</b><br><span class="line"></span> / ${esc(name)} /<br><span class="small">(подпись) (расшифровка подписи)</span></td>`;
+  return html(
+    d,
+    'landscape',
+    `<h1 class="center">${numberTitle(d, 'Сдельный наряд')}</h1>
+<table class="plain">
+<tr><td style="width:150px">Организация</td><td>${partyLine(o, true)}</td></tr>
+<tr><td>Исполнитель</td><td>${esc(d.executorName ?? '')}</td></tr>
+<tr><td>Участок</td><td>${esc(d.workCenterName ?? '')}</td></tr>
+<tr><td>Дата выполнения</td><td>${esc(dateRu(d.date))}</td></tr>
+</table>
+<table class="grid" style="margin-top:6px"><thead>
+<tr><th style="width:30px">№ п/п</th><th>Операция</th><th style="width:70px">Код</th><th style="width:80px">Количество (план)</th><th style="width:80px">Количество (факт)</th><th style="width:80px">Нормочасы</th><th style="width:90px">Расценка</th><th style="width:100px">Сумма</th></tr>
+</thead><tbody>${rows}
+<tr class="bold"><td colspan="4" class="right">Итого</td><td class="right">${qtyRu(fmt(d.lines.reduce((s, l) => s + dec(l.qty), 0n), 3))}</td><td></td><td></td><td class="right">${moneyRu(fmt(total, 2))}</td></tr>
+</tbody></table>
+<p>Выполнено операций: ${d.lines.length}. Сумма к оплате: <b>${moneyRu(fmt(total, 2))}</b> руб.</p>
+<table class="sign plain"><tr>
+${person('Исполнитель', d.executorName ?? '')}
+${person('Мастер (проверил)', o.directorName)}
+</tr></table>`,
+  );
+}
+
 /** Страница печатной формы целиком: <!doctype html>… */
 export function renderPrintForm(form: PrintForm, data: PrintData): string {
   switch (form) {
@@ -401,5 +436,7 @@ export function renderPrintForm(form: PrintForm, data: PrintData): string {
       return torg16Form(data);
     case 'torg13':
       return torg13Form(data);
+    case 'piecework':
+      return pieceworkForm(data);
   }
 }

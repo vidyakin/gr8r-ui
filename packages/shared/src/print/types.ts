@@ -52,6 +52,12 @@ export interface PrintLine {
   diffQty?: string;
   /** Себестоимость единицы по документу (внутренние документы) */
   cost?: string;
+  /** План по строке (сдельный наряд) */
+  planQty?: string;
+  /** Нормочасы по строке (сдельный наряд) */
+  hours?: string;
+  /** Расценка по строке (сдельный наряд) */
+  rate?: string;
 }
 
 export interface PrintData {
@@ -78,4 +84,8 @@ export interface PrintData {
   holderName?: string;
   /** Вид операции документа (перемещение) */
   operation?: string;
+  /** Исполнитель сдельного наряда */
+  executorName?: string;
+  /** Участок сдельного наряда */
+  workCenterName?: string;
 }

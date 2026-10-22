@@ -174,6 +174,27 @@ export async function revertStockMoves(db: Db, workspaceId: string, documentId: 
   }
 }
 
+/** Переоценка прихода: цена движения меняется, средняя склада и оценка последующих расходов пересчитываются по цепочке.
+    Используется, когда фактическая стоимость работ меняет себестоимость уже проведённого выпуска. */
+export async function revalueMove(db: Db, workspaceId: string, moveId: string, cost: Dec): Promise<void> {
+  const [move] = await db.select().from(stockMoves).where(eq(stockMoves.id, moveId)).limit(1);
+  if (!move) return;
+  const key = { warehouseId: move.warehouseId, productId: move.productId };
+  await lockBalances(db, workspaceId, [key]);
+  await db.update(stockMoves).set({ cost: fmt(cost, 4) }).where(eq(stockMoves.id, moveId));
+  const moves = await db
+    .select({ id: stockMoves.id, qty: stockMoves.qty, cost: stockMoves.cost })
+    .from(stockMoves)
+    .where(and(eq(stockMoves.warehouseId, key.warehouseId), eq(stockMoves.productId, key.productId)))
+    .orderBy(asc(stockMoves.seq));
+  const r = replayMoves(moves.map(m => ({ qty: dec(m.qty), cost: dec(m.cost) })));
+  for (const [i, m] of moves.entries()) {
+    const c = fmt(r.moves[i]!.cost, 4);
+    if (dec(m.qty) < 0n && c !== m.cost) await db.update(stockMoves).set({ cost: c }).where(eq(stockMoves.id, m.id));
+  }
+  await db.update(stockBalances).set({ qty: fmt(r.state.qty, 3), avgCost: fmt(r.state.avg, 4), updatedAt: new Date() }).where(and(eq(stockBalances.warehouseId, key.warehouseId), eq(stockBalances.productId, key.productId)));
+}
+
 /** Себестоимость единицы по каждой строке документа: расходная сторона (у перемещения — цена ушедшего товара) */
 export async function documentLineCosts(db: Db, documentId: string): Promise<Map<string, string>> {
   const rows = await db.select({ lineId: stockMoves.documentLineId, qty: stockMoves.qty, cost: stockMoves.cost }).from(stockMoves).where(eq(stockMoves.documentId, documentId));

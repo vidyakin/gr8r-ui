@@ -57,6 +57,7 @@ import { AutoTextarea, DatePopover, ListPopover, RichText, runFormat } from './p
 import { SubtaskView } from './subtask-view';
 import { SubtaskSection } from './subtask-tree';
 import { TimeBlock } from './time-block';
+import { OperationBlock } from '../../production/OperationBlock';
 import { findSub } from '../../data/subtasks';
 import { TaskMenuItems } from './task-menu';
 
@@ -219,6 +220,8 @@ function Prop({ icon: I, label, children }: { icon: typeof User; label: string; 
 }
 
 function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) {
+  // задача операции производства: исполнитель отмечает выполненное в своей задаче
+  const operationId = typeof p.task.custom?.productionOperationId === 'string' ? p.task.custom.productionOperationId : null;
   const { task: t, full, update } = p;
   const { data, dispatch } = useWorkspace();
   const actions = useTaskActions();
@@ -394,6 +397,8 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
       </dl>
 
       <TimeBlock task={t} />
+
+      {!!operationId && <OperationBlock assignmentId={operationId} />}
 
       <div className="dsec">
         <div className="dsec-h">

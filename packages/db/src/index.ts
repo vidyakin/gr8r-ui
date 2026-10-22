@@ -18,3 +18,4 @@ export * from './production';
 export * from './production-stages';
 export * from './inventory';
 export * from './internal-ops';
+export * from './piecework';

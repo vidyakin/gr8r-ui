@@ -1,6 +1,6 @@
 /* zod-схемы производства: участки, продукция (изделия и полуфабрикаты), строки спецификации, настройки. */
 import { z } from 'zod';
-import { BOM_KINDS, MANUFACTURED_KINDS, MATERIAL_PRICE_SOURCES, REPLENISHMENT_MODES, SEMI_MODES } from '../constants';
+import { BOM_KINDS, MANUFACTURED_KINDS, MATERIAL_PRICE_SOURCES, OPERATION_RATE_UNITS, REPLENISHMENT_MODES, SEMI_MODES } from '../constants';
 import { clientId, decimal, isoDate, isoDateTime, listQuery, shortText, toPatch, uuid } from './common';
 
 const nonNeg = (max = 1e12) => decimal.refine(v => Number(v) >= 0 && Number(v) < max, 'Must not be negative');
@@ -100,8 +100,9 @@ export const bomLineCreate = z
       need(!!v.childItemId, 'childItemId', 'Choose a product to include');
       need(v.qty !== undefined, 'qty', 'Quantity is required');
     } else {
-      need(!!v.operation, 'operation', 'Name the operation');
-      need((v.hours !== undefined && Number(v.hours) > 0) || (v.fixedCost != null && Number(v.fixedCost) > 0), 'hours', 'Set hours or a fixed cost');
+      // работа: операция (товар каталога) или текстовое название; часы и ставка — норма строки
+      need(!!v.operation || !!v.productId, 'operation', 'Name the operation or choose one from the catalogue');
+      need((v.hours !== undefined && Number(v.hours) > 0) || (v.fixedCost != null && Number(v.fixedCost) > 0) || !!v.productId, 'hours', 'Set hours or a fixed cost');
       need(v.semiMode === undefined, 'semiMode', 'Not applicable to a work line');
     }
   });
@@ -189,10 +190,118 @@ export const workbenchExecute = z.object({
         qty: positive(1e9).optional(),
         /** Участок-изготовитель */
         workCenterId: uuid.optional(),
+        /** Отметка мастера: кто и сколько выполнил (строки сдельных нарядов исполнителей) */
+        assignments: z.array(z.object({ assignmentId: uuid, qty: positive(1e9) })).max(50).optional(),
       }),
     )
     .min(1)
     .max(500),
+});
+
+/* ---------------- операции, исполнители и сдельный наряд ---------------- */
+
+/** Операция — вид номенклатуры: норма времени на единицу и участок по умолчанию */
+export const operationSet = z.object({
+  /** Товар каталога с видом «операция» */
+  productId: uuid,
+  /** Норма времени на единицу продукции, ч */
+  normHours: nonNeg(1e6).default('0'),
+  /** Участок по умолчанию */
+  workCenterId: uuid.nullish(),
+});
+
+/** Расценка операции: история с датой начала действия (в наряд идёт расценка на дату наряда) */
+export const operationRateCreate = z.object({
+  productId: uuid,
+  /** Дата начала действия расценки */
+  validFrom: isoDate,
+  /** Расценка: за единицу продукции или за час */
+  rate: nonNeg(1e9),
+  /** Способ расчёта: за единицу или по норме времени */
+  unit: z.enum(OPERATION_RATE_UNITS).default('per_unit'),
+});
+export const operationRateQuery = z.object({ productId: uuid.optional() });
+
+/** Назначение операции исполнителю: часть операции в заказе на производство */
+export const operationAssignmentInput = z.object({
+  /** Строка состава — работа */
+  componentId: uuid,
+  /** Исполнитель — участник воркспейса */
+  memberId: uuid,
+  /** Назначенное количество (в единицах продукции) */
+  qty: positive(1e9),
+});
+export const productionAssignments = z.object({ assignments: z.array(operationAssignmentInput).max(500).default([]) });
+
+/** Отметка выполнения операции исполнителем: сколько выполнено */
+export const operationDone = z.object({
+  /** Выполнено сейчас */
+  qty: positive(1e9),
+  /** Дата наряда (по умолчанию сегодня) */
+  date: isoDate.optional(),
+});
+
+/** Строка сдельного наряда: выполненная операция */
+export const pieceworkLineInput = z.object({
+  /** Операция (товар каталога) */
+  operationId: uuid,
+  /** Продукция, которую делали */
+  productId: uuid.nullish(),
+  /** Заказ на производство */
+  orderDocumentId: uuid.nullish(),
+  /** Выпуск, к которому относится работа */
+  releaseDocumentId: uuid.nullish(),
+  /** Назначение операции исполнителю */
+  assignmentId: uuid.nullish(),
+  /** План: сколько назначено исполнителю */
+  planQty: nonNeg(1e9).optional(),
+  /** Факт: сколько выполнено */
+  qty: positive(1e9),
+  /** Нормочасы */
+  hours: nonNeg(1e6).optional(),
+  /** Расценка (по умолчанию — действующая на дату наряда) */
+  rate: nonNeg(1e9).optional(),
+});
+export const pieceworkCreate = z.object({
+  /** Дата наряда (по умолчанию сегодня) */
+  date: isoDate.optional(),
+  /** Исполнитель */
+  memberId: uuid,
+  /** Участок */
+  workCenterId: uuid.nullish(),
+  comment: z.string().max(5000).default(''),
+  lines: z.array(pieceworkLineInput).min(1).max(200),
+});
+export const pieceworkUpdate = z.object({
+  date: isoDate.optional(),
+  comment: z.string().max(5000).optional(),
+  /** Строки наряда: сумма правится до проведения */
+  lines: z.array(pieceworkLineInput.extend({ id: clientId })).max(200).optional(),
+});
+/** Наряд на основании документа: заказ на производство, выпуск или заказ покупателя */
+export const pieceworkFromDocument = z.object({
+  /** Документ-основание */
+  documentId: uuid,
+  /** Дата наряда (по умолчанию сегодня) */
+  date: isoDate.optional(),
+});
+
+export const pieceworkQuery = listQuery.extend({
+  /** Исполнитель */
+  memberId: uuid.optional(),
+  /** Дата наряда: с даты */
+  from: isoDate.optional(),
+  /** Дата наряда: по дату */
+  to: isoDate.optional(),
+  /** Статус: draft | posted */
+  status: z.enum(['draft', 'posted']).optional(),
+});
+/** Отчёт выработки: кто, что и сколько заработал за период */
+export const pieceworkReportQuery = z.object({
+  from: isoDate.optional(),
+  to: isoDate.optional(),
+  /** Исполнитель */
+  memberId: uuid.optional(),
 });
 
 /* ---------------- заказ на производство и выпуск ---------------- */

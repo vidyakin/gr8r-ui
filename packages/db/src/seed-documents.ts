@@ -9,7 +9,8 @@ import { fillCountSheet } from './inventory';
 import './internal-ops';
 import { bankAccounts, companies, costItems, documentLines, organizations, productManufacturing, products, warehouses, workCenters, manufacturedItems } from './schema';
 import { createProductionFromOrder, createProductionOrder, fillOrderFromBom } from './production';
-import { productionItems } from './schema';
+import { assignOperations, createPieceworkOrder } from './piecework';
+import { productionComponents, productionItems, productionOperations } from './schema';
 
 const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * 864e5).toISOString().slice(0, 10);
 
@@ -238,6 +239,22 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
   await postAt(prodOrder, 3);
   const release = await createProductionFromOrder(db, ctx, prodOrder, { date: iso(2), lines: [{ orderItemId: (await db.select().from(productionItems).where(eq(productionItems.documentId, prodOrder))).map(i => i.id)[0]!, qty: '4' }] });
   await postAt(release, 2);
+
+  /* ---------- этап 4в: назначение операции исполнителю и сдельный наряд ---------- */
+  // Операция «Сборка стула» назначена сотруднику: у него появляется задача модуля production
+  const [assemblyLine] = await db.select().from(productionComponents).where(and(eq(productionComponents.documentId, prodOrder), eq(productionComponents.kind, 'work'))).limit(1);
+  await assignOperations(db, ctx, prodOrder, [{ componentId: assemblyLine!.id, memberId, qty: '4' }]);
+  const [assignment] = await db.select().from(productionOperations).where(eq(productionOperations.documentId, prodOrder)).limit(1);
+  const [releaseLine] = await db.select().from(productionComponents).where(and(eq(productionComponents.documentId, release), eq(productionComponents.kind, 'work'))).limit(1);
+  const [operation] = await db.select().from(products).where(eq(products.sku, 'OP-ASM')).limit(1);
+  const piecework = await createPieceworkOrder(db, ctx, {
+    date: iso(2),
+    memberId,
+    workCenterId: assemblyCenter!.id,
+    comment: 'Сборка стульев «Лофт»',
+    lines: [{ operationId: operation!.id, qty: '4', planQty: '4', hours: '2', assignmentId: assignment!.id, releaseDocumentId: release, componentId: releaseLine!.id }],
+  });
+  await postAt(piecework, 2);
 
   /* ---------- этап 0б: инвентаризация, перемещение «в пути», передача в эксплуатацию ---------- */
   const count = await createDocument(db, ctx, {

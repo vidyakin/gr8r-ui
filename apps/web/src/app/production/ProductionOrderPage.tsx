@@ -4,13 +4,15 @@ import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { CircleAlert, FileText, Plus, Send, Trash2, Undo2, Wand2 } from 'lucide-react';
 import { PRODUCTION_ORDER_STATES } from '@gr8r/shared';
-import { Badge, Button, ConfirmDialog, EmptyState, Field, IconButton, Input, Select, Skeleton } from '@/components/ui';
+import { Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
 import { fmtDate } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';
 import { money } from '../catalog/data';
+import { useWorkspace } from '../data/store';
 import { STATUS_LABEL, STATUS_TONE, useDocsApi } from '../docs/data';
 import { useSnapshot } from './data';
-import { STATE_LABEL, STATE_TONE, useProductionOrder, useProductionOrderApi } from './orders-data';
+import { STATE_LABEL, STATE_TONE, useProductionOrder, useProductionOrderApi, type ProductionOrderDetail } from './orders-data';
+import { useOrderOperations, usePieceworkApi, type AssignmentRow } from './piecework-data';
 
 export function ProductionOrderPage() {
   const { id } = useParams();
@@ -281,6 +283,10 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
             </table>
           )}
         </section>
+        <section className="doc-links panel" aria-label="Operations">
+          <h2>Operations</h2>
+          <OrderOperations order={order} />
+        </section>
         <section className="doc-links panel" aria-label="Releases">
           <h2>Releases</h2>
           {!order.outputs.length ? (
@@ -302,5 +308,171 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
 
       <ConfirmDialog open={confirm} onOpenChange={o => !o && setConfirm(false)} title="Delete this draft?" description="The draft has never been posted and has no number, so it is removed completely." confirmLabel="Delete" cancelLabel="Keep" danger onConfirm={() => setConfirm(false)} />
     </div>
+  );
+}
+
+/* Операции заказа: назначения исполнителей. Назначение создаёт задачу модуля production,
+   выполнение отмечает исполнитель (в своей задаче) или мастер (в рабочем месте). */
+function OrderOperations({ order }: { order: ProductionOrderDetail }) {
+  const canWrite = useCanWrite();
+  const { data: ws } = useWorkspace();
+  const ops = useOrderOperations(order.id);
+  const api = usePieceworkApi();
+  const [editing, setEditing] = React.useState<{ componentId: string; name: string } | null>(null);
+  const works = order.components.filter(c => c.kind === 'work');
+  const rows = ops.data?.items ?? [];
+
+  if (!works.length) return <p className="faint">The composition has no work operations: fill it from the bill of materials.</p>;
+  if (!rows.length && !canWrite) return <p className="faint">No executors are assigned to the operations yet.</p>;
+
+  return (
+    <>
+      <table className="dtbl" aria-label="Operations">
+        <thead>
+          <tr>
+            <th>Operation</th>
+            <th>Executor</th>
+            <th style={{ width: 90 }} className="r">
+              Planned
+            </th>
+            <th style={{ width: 90 }} className="r">
+              Done
+            </th>
+            <th style={{ width: 90 }} className="r">
+              Left
+            </th>
+            {canWrite && <th style={{ width: 90 }} />}
+          </tr>
+        </thead>
+        <tbody>
+          {works.map(c => {
+            const own = rows.filter(r => r.componentId === c.id);
+            return (
+              <tr key={c.id}>
+                <td className="trunc">{c.operation || 'Work'}</td>
+                <td className="trunc">{own.length ? own.map(r => r.memberName).join(', ') : <span className="faint">Not assigned</span>}</td>
+                <td className="r num">{own.length ? own.reduce((s, r) => s + Number(r.plannedQty), 0).toFixed(3) : '—'}</td>
+                <td className="r num">{own.length ? own.reduce((s, r) => s + Number(r.doneQty), 0).toFixed(3) : '—'}</td>
+                <td className="r num">{own.length ? own.reduce((s, r) => s + Number(r.leftQty), 0).toFixed(3) : '—'}</td>
+                {canWrite && (
+                  <td className="r">
+                    <Button size="sm" variant="ghost" onClick={() => setEditing({ componentId: c.id, name: c.operation || 'Work' })}>
+                      Assign
+                    </Button>
+                  </td>
+                )}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {editing && (
+        <AssignDialog
+          componentId={editing.componentId}
+          name={editing.name}
+          members={(ws?.members ?? []).filter(m => m.status === 'active')}
+          current={rows.filter(r => r.componentId === editing.componentId)}
+          all={rows}
+          onClose={() => setEditing(null)}
+          onSave={assignments => api.assign.mutate({ orderId: order.id, assignments })}
+        />
+      )}
+    </>
+  );
+}
+
+/** Назначение операции исполнителю: участник и количество (часть операции) */
+function AssignDialog({
+  componentId,
+  name,
+  members,
+  current,
+  all,
+  onClose,
+  onSave,
+}: {
+  componentId: string;
+  name: string;
+  members: { id: string; name: string }[];
+  current: AssignmentRow[];
+  all: AssignmentRow[];
+  onClose: () => void;
+  onSave: (assignments: { componentId: string; memberId: string; qty: string }[]) => void;
+}) {
+  const [memberId, setMemberId] = React.useState(members[0]?.id ?? '');
+  const [qty, setQty] = React.useState('');
+  const [err, setErr] = React.useState<Record<string, string>>({});
+  const [busy, setBusy] = React.useState(false);
+  const used = current.reduce((s, r) => s + Number(r.plannedQty), 0);
+
+  const submit = () => {
+    const errs: Record<string, string> = {};
+    if (!memberId) errs.memberId = 'Choose an executor';
+    if (!qty.trim() || Number(qty) <= 0) errs.qty = 'Enter the quantity';
+    setErr(errs);
+    if (Object.keys(errs).length) return;
+    const assignments = all.map(r => ({ componentId: r.componentId, memberId: r.memberId, qty: r.plannedQty }));
+    const rest = assignments.filter(a => a.componentId !== componentId);
+    const same = current.find(r => r.memberId === memberId);
+    if (same) {
+      const idx = rest.findIndex(a => a.memberId === memberId);
+      if (idx >= 0) rest[idx] = { ...rest[idx], qty };
+      else rest.push({ componentId, memberId, qty });
+    } else rest.push({ componentId, memberId, qty });
+    setBusy(true);
+    onSave(rest);
+    setBusy(false);
+    toast(`The executor of “${name}” is saved`);
+    onClose();
+  };
+
+  return (
+    <Dialog open onOpenChange={o => !o && onClose()}>
+      <DialogContent
+        title={`Executors of “${name}”`}
+        description="An operation can be shared between several executors: the sum of the assigned quantities cannot exceed the ordered one. Every executor gets a task in the Production module."
+        footer={
+          <>
+            <span className="sp" />
+            <DialogClose asChild>
+              <Button variant="secondary">Cancel</Button>
+            </DialogClose>
+            <Button variant="primary" disabled={busy} onClick={submit}>
+              Save
+            </Button>
+          </>
+        }
+      >
+        <form
+          className="contents"
+          noValidate
+          onSubmit={e => {
+            e.preventDefault();
+            submit();
+          }}
+        >
+          <Field label="Executor" error={err.memberId}>
+            {p => (
+              <Select
+                id={p.id}
+                value={memberId}
+                onValueChange={v => (setMemberId(v), setErr({}))}
+                options={members.map(m => ({ value: m.id, label: m.name }))}
+                placeholder="Choose an executor"
+              />
+            )}
+          </Field>
+          <Field label="Quantity" error={err.qty} hint={`Already assigned: ${used.toFixed(3)}`}>
+            {p => <Input {...p} inputMode="decimal" value={qty} onChange={e => (setQty(e.target.value), setErr({}))} />}
+          </Field>
+          {current.length > 0 && (
+            <p className="faint" style={{ margin: 0, fontSize: 12.5 }}>
+              {current.map(r => `${r.memberName}: ${r.plannedQty}`).join('; ')}
+            </p>
+          )}
+          <button type="submit" hidden />
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

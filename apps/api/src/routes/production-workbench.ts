@@ -3,7 +3,7 @@
    Правила — packages/db/src/production.ts. */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
-import { executeWorkbench, listWorkbench } from '@gr8r/db';
+import { executeWorkbench, listWorkbench, markOperationDone } from '@gr8r/db';
 import { workbenchExecute, workbenchQuery } from '@gr8r/shared';
 import { ctxOf, validationHook } from '../crud';
 import { requireRole } from '../middleware';
@@ -37,10 +37,15 @@ export const productionWorkbenchRoutes = new Hono<AppEnv>()
   .post('/workbench/execute', write, zValidator('json', workbenchExecute, validationHook), async c => {
     const ctx = ctxOf(c);
     const body = c.req.valid('json');
-    const documents = await executeWorkbench(ctx.db, { workspaceId: ctx.workspaceId, memberId: ctx.memberId, role: ctx.role }, {
+    const docCtx = { workspaceId: ctx.workspaceId, memberId: ctx.memberId, role: ctx.role };
+    const documents = await executeWorkbench(ctx.db, docCtx, {
       date: body.date,
       mode: body.mode,
-      rows: body.rows.map(r => ({ orderId: r.orderId, source: r.source, lineId: r.lineId, stageId: r.stageId ?? null, qty: r.qty, workCenterId: r.workCenterId })),
+      rows: body.rows.map(r => ({ orderId: r.orderId, source: r.source, lineId: r.lineId, stageId: r.stageId ?? null, qty: r.qty, workCenterId: r.workCenterId, assignments: r.assignments })),
     });
+    // отметки мастера: строки сдельных нарядов исполнителей (по одному наряду на исполнителя за день)
+    for (const doc of documents) {
+      for (const a of doc.assignments) await markOperationDone(ctx.db, docCtx, { assignmentId: a.assignmentId, qty: a.qty, date: body.date, releaseDocumentId: doc.id });
+    }
     return c.json({ documents }, 201);
   });

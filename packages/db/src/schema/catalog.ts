@@ -70,7 +70,7 @@ export const products = pgTable(
   {
     id: pk(),
     workspaceId: wsCol(),
-    kind: text('kind', { enum: ['goods', 'service'] }).notNull().default('goods'),
+    kind: text('kind', { enum: ['goods', 'service', 'operation'] }).notNull().default('goods'),
     sku: text('sku').notNull().default(''),
     name: text('name').notNull(),
     description: text('description').notNull().default(''),
@@ -94,7 +94,7 @@ export const products = pgTable(
     unique('products_ws_id_uq').on(t.workspaceId, t.id),
     foreignKey({ columns: [t.workspaceId, t.categoryId], foreignColumns: [productCategories.workspaceId, productCategories.id], name: 'products_category_fk' }),
     foreignKey({ columns: [t.workspaceId, t.unitCode], foreignColumns: [units.workspaceId, units.code], name: 'products_unit_fk' }),
-    check('products_kind_chk', sql`${t.kind} in ('goods','service')`),
+    check('products_kind_chk', sql`${t.kind} in ('goods','service','operation')`),
     check('products_vat_chk', sql`${t.vatRate} in ('none','0','5','7','10','20')`),
     check('products_price_chk', sql`${t.price} >= 0 and ${t.purchasePrice} >= 0`),
     uniqueIndex('products_ws_sku_uq').on(t.workspaceId, sql`lower(${t.sku})`).where(sql`${t.sku} <> ''`),

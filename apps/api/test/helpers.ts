@@ -53,6 +53,7 @@ export class Client {
   }
   get = <T = any>(path: string, ws?: string | null) => this.req<T>('GET', path, { ws });
   post = <T = any>(path: string, json?: unknown, ws?: string | null) => this.req<T>('POST', path, { json: json ?? {}, ws });
+  put = <T = any>(path: string, json: unknown, ws?: string | null) => this.req<T>('PUT', path, { json, ws });
   patch = <T = any>(path: string, json: unknown, ws?: string | null) => this.req<T>('PATCH', path, { json, ws });
   del = <T = any>(path: string, ws?: string | null) => this.req<T>('DELETE', path, { ws });
 

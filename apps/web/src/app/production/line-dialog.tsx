@@ -51,13 +51,24 @@ function ProductPicker({ value, onChange, invalid }: { value: Material | null; o
 
 export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLine['kind']; item: Item; line?: BomLine; snap: Snapshot; m: ProductionMutations; onClose: () => void }) {
   const units = useUnits();
+  const ws = useWsId();
   const edit = !!line;
   const [material, setMaterial] = React.useState<Material | null>(() => (line?.productId ? (snap.materials.find(x => x.id === line.productId) ?? null) : null));
+  const [opProduct, setOpProduct] = React.useState<string>('');
+  // операции каталога: работа спецификации может ссылаться на операцию (норма времени и расценки)
+  const operations = useQuery({ queryKey: ['ws', ws, 'catalog', 'operations'], queryFn: () => searchProducts(ws, '', 'operation', 100), staleTime: 60_000 });
   const [childId, setChildId] = React.useState(line?.childItemId ?? '');
   const [mode, setMode] = React.useState<'stock' | 'explode'>(line?.semiMode ?? 'stock');
   const [qty, setQty] = React.useState(line ? line.qty.replace(/\.?0+$/, '') : '1');
   const [scrap, setScrap] = React.useState(line ? line.scrapPct.replace(/\.?0+$/, '') : '0');
   const [operation, setOperation] = React.useState(line?.operation ?? '');
+  React.useEffect(() => {
+    // у работы с операцией её название берётся из товара каталога
+    if (kind === 'work' && !opProduct) {
+      const found = operations.data?.find(p => p.id === line?.productId);
+      if (found) setOpProduct(found.id);
+    }
+  }, [operations.data, kind, line?.productId, opProduct]);
   const [center, setCenter] = React.useState(line?.workCenterId ?? '');
   const [stageId, setStageId] = React.useState(line?.stageId ?? '');
   const [hours, setHours] = React.useState(line ? line.hours.replace(/\.?0+$/, '') : '1');
@@ -80,7 +91,7 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
         ? { kind, productId: material?.id, qty: num(qty), scrapPct: num(scrap) ?? 0 }
         : kind === 'semi'
           ? { kind, childItemId: childId || undefined, qty: num(qty), semiMode: mode }
-          : { kind, operation: operation.trim(), workCenterId: center || null, hours: num(hours) ?? 0, rate: rate.trim() === '' ? null : Number(rate), fixedCost: fixed.trim() === '' ? null : Number(fixed) }),
+          : { kind, operation: operation.trim(), productId: opProduct || null, workCenterId: center || null, hours: num(hours) ?? 0, rate: rate.trim() === '' ? null : Number(rate), fixedCost: fixed.trim() === '' ? null : Number(fixed) }),
     };
     const parsed = bomLineCreate.safeParse(body);
     if (!parsed.success) {
@@ -185,7 +196,30 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
           )}
           {kind === 'work' && (
             <>
-              <Field label="Operation" error={err.operation}>
+              <Field label="Operation" hint="An operation is a product of the “Operation” kind: it carries the norm of time and the history of rates." error={err.operation}>
+                {p => (
+                  <select
+                    className="select"
+                    id={p.id}
+                    value={opProduct}
+                    onChange={e => {
+                      setOpProduct(e.target.value);
+                      const found = operations.data?.find(x => x.id === e.target.value);
+                      if (found) setOperation(found.name);
+                      setErr({});
+                    }}
+                  >
+                    <option value="">No operation (text work)</option>
+                    {(operations.data ?? []).map(o => (
+                      <option key={o.id} value={o.id}>
+                        {o.name}
+                        {o.sku ? ` (${o.sku})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </Field>
+              <Field label="Name of the work" error={err.operation}>
                 {p => <Input {...p} autoFocus placeholder="e.g. Assembly" value={operation} onChange={e => (setOperation(e.target.value), setErr({}))} />}
               </Field>
               <Field label="Work center" hint={centerObj ? `Rate of the center: ${Number(centerObj.hourlyRate).toFixed(2)} per hour.` : 'Optional: without a center, set the rate below.'}>

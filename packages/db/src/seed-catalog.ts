@@ -3,7 +3,7 @@
    Названия товаров — данные (на русском), интерфейс остаётся английским. */
 import type { Db } from './client';
 import { registerBaseUnits } from './catalog';
-import { bomLines, attributeDefs, manufacturedItems, productCategories, productionKinds, productionStages, products, workCenters } from './schema';
+import { bomLines, attributeDefs, manufacturedItems, operationRates, operations, productCategories, productionKinds, productionStages, products, workCenters } from './schema';
 import { uuidv7 } from './uuid';
 
 /** EAN-13 с контрольной цифрой из 12 цифр */
@@ -113,12 +113,23 @@ export async function seedCatalog(db: Db, wsId: string) {
   await service('Сборка мебели на месте', 'SV-ASM', '356', 1800);
   await service('Замер и консультация', 'SV-MSR', '876', 0, 'none');
 
+  // Операция — вид номенклатуры: не продаётся и склад не двигает, только норма времени и расценки
+  const operationId = (ids.assemblyOperation = uuidv7());
+  await db.insert(products).values({ id: operationId, workspaceId: wsId, kind: 'operation', sku: 'OP-ASM', name: 'Сборка стула', unitCode: '356', vatRate: 'none', price: '0', purchasePrice: '0', categoryId: services.id });
+
   /* ---------- участки ---------- */
   const carpentry = uuidv7();
   const assembly = uuidv7();
   await db.insert(workCenters).values([
     { id: carpentry, workspaceId: wsId, code: 'WS-1', name: 'Столярный цех', hourlyRate: '650.00', note: 'Распил, склейка, шлифовка, покрытие' },
     { id: assembly, workspaceId: wsId, code: 'WS-2', name: 'Сборочный участок', hourlyRate: '450.00', note: 'Сборка и упаковка' },
+  ]);
+
+  /* ---------- операции: норма времени и история расценок ---------- */
+  await db.insert(operations).values({ workspaceId: wsId, productId: ids.assemblyOperation!, normHours: '0.500', workCenterId: assembly });
+  await db.insert(operationRates).values([
+    { workspaceId: wsId, productId: ids.assemblyOperation!, validFrom: '2026-01-01', rate: '900.00', unit: 'per_unit' },
+    { workspaceId: wsId, productId: ids.assemblyOperation!, validFrom: '2026-07-01', rate: '1100.00', unit: 'per_unit' },
   ]);
 
   /* ---------- виды производства и этапы ---------- */
@@ -140,7 +151,7 @@ export async function seedCatalog(db: Db, wsId: string) {
     ids[key] = uuidv7();
     await db.insert(manufacturedItems).values({ id: ids[key], workspaceId: wsId, code: i.code, name: i.name, kind: i.kind, unitCode: '796', productId: i.productId ?? null, batchQty: String(i.batchQty ?? 1), overheadPct: String(i.overheadPct), productionKindId: i.kindId ?? null });
   };
-  type Line = { kind: 'material'; product: string; qty: number; scrap?: number; stage?: keyof typeof stages } | { kind: 'semi'; item: string; qty: number; stage?: keyof typeof stages } | { kind: 'work'; op: string; center?: string; hours?: number; rate?: number; fixed?: number; stage?: keyof typeof stages };
+  type Line = { kind: 'material'; product: string; qty: number; scrap?: number; stage?: keyof typeof stages } | { kind: 'semi'; item: string; qty: number; stage?: keyof typeof stages } | { kind: 'work'; op: string; center?: string; hours?: number; rate?: number; fixed?: number; stage?: keyof typeof stages; operation?: string };
   const bom = async (itemKey: string, lines: Line[]) => {
     await db.insert(bomLines).values(
       lines.map((l, i) => {
@@ -150,7 +161,7 @@ export async function seedCatalog(db: Db, wsId: string) {
           return { ...base, productId: ids[l.product]!, qty: String(l.qty), unitCode: unit, scrapPct: String(l.scrap ?? 0) };
         }
         if (l.kind === 'semi') return { ...base, childItemId: ids[l.item]!, qty: String(l.qty), unitCode: '796', semiMode: 'stock' as const };
-        return { ...base, operation: l.op, workCenterId: l.center === 'assembly' ? assembly : carpentry, hours: String(l.hours ?? 0), rate: l.rate !== undefined ? l.rate.toFixed(2) : null, fixedCost: l.fixed !== undefined ? l.fixed.toFixed(2) : null, qty: '1' };
+        return { ...base, productId: l.operation ? ids[l.operation]! : null, operation: l.op, workCenterId: l.center === 'assembly' ? assembly : carpentry, hours: String(l.hours ?? 0), rate: l.rate !== undefined ? l.rate.toFixed(2) : null, fixedCost: l.fixed !== undefined ? l.fixed.toFixed(2) : null, qty: '1' };
       }),
     );
   };
@@ -217,8 +228,8 @@ export async function seedCatalog(db: Db, wsId: string) {
     { kind: 'material', product: 'oakBeam', qty: 4, scrap: 8 },
     { kind: 'material', product: 'screw', qty: 8 },
     { kind: 'material', product: 'packaging', qty: 1 },
-    { kind: 'work', op: 'Сборка стула', center: 'assembly', hours: 0.5 },
+    { kind: 'work', op: 'Сборка стула', operation: 'assemblyOperation', center: 'assembly', hours: 0.5 },
   ]);
 
-  return { products: 21, services: 3 };
+  return { products: 21, services: 3, operations: 1 };
 }

@@ -45,8 +45,13 @@ export type SystemEntityKey = (typeof SYSTEM_ENTITIES)[number]['key'];
 
 /* ---------------- каталог и производство ---------------- */
 
-export const PRODUCT_KINDS = ['goods', 'service'] as const;
+/** Вид товара: товар, услуга или операция (работа производства — не продаётся и склад не двигает) */
+export const PRODUCT_KINDS = ['goods', 'service', 'operation'] as const;
 export type ProductKind = (typeof PRODUCT_KINDS)[number];
+
+/** Способ расчёта стоимости операции: за единицу продукции или по норме времени */
+export const OPERATION_RATE_UNITS = ['per_unit', 'per_hour'] as const;
+export type OperationRateUnit = (typeof OPERATION_RATE_UNITS)[number];
 
 /** Ставки НДС: 'none' — без НДС */
 export const VAT_RATES = ['none', '0', '5', '7', '10', '20'] as const;

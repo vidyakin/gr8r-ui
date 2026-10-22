@@ -85,9 +85,12 @@ describe('document types', () => {
     expect(basedOnTargets('production_order')).toEqual(['production']);
   });
   test('production documents: no counterparty, states apart from posting', () => {
-    expect(documentTypesOf('production')).toEqual(['production_order', 'production']);
+    expect(documentTypesOf('production')).toEqual(['production_order', 'production', 'piecework_order']);
     expect(DOCUMENT_META.production_order.party).toBeNull();
     expect(DOCUMENT_META.production.party).toBeNull();
+    // сдельный наряд: тоже внутренний документ, без контрагента и без состояний
+    expect(DOCUMENT_META.piecework_order.party).toBeNull();
+    expect(DOCUMENT_META.piecework_order.states).toBeUndefined();
     expect(DOCUMENT_META.production_order.states?.map(s => s.key)).toEqual(['planned', 'in_progress', 'done', 'closed']);
     expect(DOCUMENT_META.production_order.operation).toBe('assembly');
     expect(DOCUMENT_META.production.production).toBe(true);
