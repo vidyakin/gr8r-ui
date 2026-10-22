@@ -55,6 +55,8 @@ export interface Product {
   vatRate: VatRate;
   price: string;
   purchasePrice: string;
+  /** Срок поставки, дней (в расчёте потребностей) */
+  leadDays: number;
   categoryId: string | null;
   /** Поставщик по умолчанию: заказы поставщикам по потребности создаются на него */
   defaultSupplierId: string | null;

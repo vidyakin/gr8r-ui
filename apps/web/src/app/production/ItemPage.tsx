@@ -301,6 +301,10 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
           <ParamInput label="Overhead" numeric value={trimZeros(Number(item.overheadPct).toFixed(2))} disabled={!canWrite} onCommit={v => Number(v) >= 0 && m.updateItem.mutate({ id: item.id, patch: { overheadPct: Number(v) } })} />
         </label>
         <label>
+          <span className="label">Lead days</span>
+          <ParamInput label="Lead days" numeric value={String(item.leadDays ?? 0)} disabled={!canWrite} onCommit={v => Number(v) >= 0 && m.updateItem.mutate({ id: item.id, patch: { leadDays: Number(v) } })} />
+        </label>
+        <label>
           <span className="label">Production kind</span>
           <select className="select" value={item.productionKindId ?? ''} disabled={!canWrite} aria-label="Production kind" onChange={e => m.updateItem.mutate({ id: item.id, patch: { productionKindId: e.target.value || null } })}>
             <option value="">No stages</option>

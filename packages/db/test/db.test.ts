@@ -124,6 +124,12 @@ describe('seed', () => {
     expect(await count('period_costs', w)).toBe(3); // услуга со статьёй + две строки прочих затрат
     expect(await count('production_cost_closings', `${w} and status = 'done'`)).toBe(1);
     expect(await count('stock_cost_adjustments', w)).toBe(1);
+    // план производства и нормы запаса: демо-план с недельными периодами и четыре строки норм
+    expect(await count('production_plans', w)).toBe(1);
+    expect(await count('production_plan_lines', w)).toBe(3);
+    expect(await count('stock_levels', w)).toBe(4);
+    expect(await count('stock_levels', `${w} and warehouse_id is null`)).toBe(1);
+    expect(await count('stock_levels', `${w} and replenishment = 'transfer'`)).toBe(1);
     // виды производства и этапы: пример с тремя этапами
     expect(await count('production_kinds', w)).toBe(1);
     expect(await count('production_stages', w)).toBe(3);

@@ -77,6 +77,8 @@ export const SECTIONS = {
   productionOrders: { path: '/production/orders', name: 'Production orders', icon: ClipboardList },
   productionWorkbench: { path: '/production/workbench', name: 'Production release', icon: Play },
   productionNeeds: { path: '/production/needs', name: 'Needs', icon: PackageSearch },
+  productionPlans: { path: '/production/plans', name: 'Production plans', icon: CalendarRange },
+  productionPlanOrders: { path: '/production/plan-orders', name: 'Orders by plan', icon: ClipboardList },
   productionStages: { path: '/production/stages', name: 'Production stages', icon: Layers },
   productionPiecework: { path: '/production/piecework', name: 'Piecework', icon: Hammer },
   productionPlanner: { path: '/production/planner', name: 'Resource planner', icon: CalendarRange },

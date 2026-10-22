@@ -40,6 +40,8 @@ export interface Item {
   productId: string | null;
   batchQty: string;
   overheadPct: string;
+  /** Дней на изготовление (рабочих): дата запуска = дата выпуска минус это число */
+  leadDays: number;
   /** Вид производства: этапы выпуска (пусто — единственный этап «Завершение производства») */
   productionKindId: string | null;
   createdAt: string;

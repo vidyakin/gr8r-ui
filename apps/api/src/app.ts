@@ -13,6 +13,8 @@ import { Hub } from './realtime';
 import { attributeRoutes, categoryRoutes, productRoutes, unitRoutes } from './routes/catalog';
 import { bomLineRoutes, itemRoutes, productionRoutes, workCenterRoutes } from './routes/production';
 import { productionOrderRoutes } from './routes/production-orders';
+import { productionPlanRoutes } from './routes/production-plans';
+import { stockLevelRoutes } from './routes/stock-levels';
 import { pieceworkRoutes, operationAssignmentRoutes } from './routes/piecework';
 import { productionStageRoutes } from './routes/production-stages';
 import { planningRoutes } from './routes/planning';
@@ -54,7 +56,7 @@ export interface AppDeps {
 }
 
 /** Ресурсы арендатора: каждый путь защищён цепочкой «сессия → членство → транзакция с RLS» */
-const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/files', '/activity', '/events', '/companies', '/contacts', '/deals', '/crm-activities', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production', '/production-orders', '/organizations', '/bank-accounts', '/warehouses', '/cost-items', '/documents', '/stock', '/flows', '/flow-runs', '/work-orders', '/work-order-assignments', '/work-order-kinds', '/document-states', '/services', '/contracts', '/tariff-plans', '/billing', '/other-costs'];
+const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/files', '/activity', '/events', '/companies', '/contacts', '/deals', '/crm-activities', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production', '/production-orders', '/production-plans', '/stock-levels', '/organizations', '/bank-accounts', '/warehouses', '/cost-items', '/documents', '/stock', '/flows', '/flow-runs', '/work-orders', '/work-order-assignments', '/work-order-kinds', '/document-states', '/services', '/contracts', '/tariff-plans', '/billing', '/other-costs'];
 
 function buildTenantApi() {
   const guarded = new Hono<AppEnv>();
@@ -99,6 +101,8 @@ function buildTenantApi() {
     .route('/production', productionClosingRoutes)
     .route('/production-orders', productionOrderRoutes)
     .route('/production-orders', operationAssignmentRoutes)
+    .route('/production-plans', productionPlanRoutes)
+    .route('/stock-levels', stockLevelRoutes)
     .route('/organizations', organizationRoutes)
     .route('/organizations', organizationBankRoutes)
     .route('/bank-accounts', bankAccountRoutes)

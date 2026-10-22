@@ -148,6 +148,13 @@
       "when": 1792690204893,
       "tag": "0020_production_closing",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792699495671,
+      "tag": "0021_production_plans",
+      "breakpoints": true
     }
   ]
 }
