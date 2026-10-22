@@ -9,14 +9,14 @@ import { useWorkspace } from '../data/store';
 import { LABELS, fmtHours, groupTasks, isOverdue, member, parseHours, planOfTask, project as findProject, projectColor, task as findTask, taskTime, totalTime, type GroupBy, type SortField, type TaskBucket, type TaskTime } from '../data/selectors';
 import { fmtDate } from '../lib/dates';
 import type { Task } from '../data/types';
-import { AssigneeField, DueField, PriorityField, StatusField } from './fields';
+import { AssigneeField, CustomerCell, DueField, PriorityField, StatusField } from './fields';
 import { ProjectDot } from './project';
 import type { ViewApi } from './view-toolbar';
 import { CustomCell, isCustomColumn, useCustomColumns } from '../meta/custom-fields';
 import type { MetaField } from '../meta/data';
 import { MemberAvatar, TaskDue, useTaskActions } from './workspace';
 
-export type BuiltinColumn = 'title' | 'status' | 'priority' | 'assignee' | 'due' | 'start' | 'labels' | 'deps' | 'plan' | 'actual' | 'variance' | 'created' | 'project';
+export type BuiltinColumn = 'title' | 'status' | 'priority' | 'assignee' | 'due' | 'start' | 'labels' | 'deps' | 'plan' | 'actual' | 'variance' | 'created' | 'project' | 'customer';
 /** Пользовательские поля задач приходят колонками cf:<ключ> (конструктор сущностей) */
 export type TableColumn = BuiltinColumn | `cf:${string}`;
 
@@ -39,6 +39,9 @@ export const TABLE_COLUMNS: { id: TableColumn; name: string; width: number }[] =
 
 /** Колонки, которые можно скрывать (всё, кроме названия) */
 export const TOGGLE_COLUMNS = TABLE_COLUMNS.filter(c => c.id !== 'title');
+
+/** Колонка заказчика — только у списков задач модуля services (добавляется по месту, не в общий набор) */
+export const CUSTOMER_COLUMN: { id: TableColumn; name: string; width: number } = { id: 'customer', name: 'Customer', width: 160 };
 
 /** Колонки пользовательских полей задач: показываются по умолчанию, скрываются в меню Columns */
 export function useTaskColumns() {
@@ -63,6 +66,7 @@ const SORT_OF: Record<BuiltinColumn, SortField> = {
   variance: 'variance',
   created: 'created',
   project: 'project',
+  customer: 'manual',
 };
 
 /** Значок группы (поле html из groupTasks оригинала) */
@@ -262,6 +266,12 @@ function Cell({ task: t, col, edit, setEdit, cf }: { task: Task; col: TableColum
         </td>
       );
     }
+    case 'customer':
+      return (
+        <td className="cellbtn">
+          <CustomerCell task={t} />
+        </td>
+      );
   }
 }
 
@@ -273,15 +283,20 @@ export interface TableViewProps {
   onNewTask: () => void;
   /** Таблица одного проекта: колонка Project скрыта */
   project?: string;
+  /** Показывать колонку Customer — только у списков задач модуля services */
+  customer?: boolean;
 }
 
-export function TableView({ tasks, api, onNewTask, project }: TableViewProps) {
+export function TableView({ tasks, api, onNewTask, project, customer }: TableViewProps) {
   const { data } = useWorkspace();
   const actions = useTaskActions();
   const [edit, setEdit] = React.useState<{ id: string; f: 'title' | 'plan' } | null>(null);
   const { view } = api;
   const { all, fields: cfFields } = useTaskColumns();
-  const cols = all.filter(c => c.id === 'title' || (!api.hidden.includes(c.id) && !(project && c.id === 'project')));
+  const cols = [
+    ...all.filter(c => c.id === 'title' || (!api.hidden.includes(c.id) && !(project && c.id === 'project'))),
+    ...(customer && !api.hidden.includes('customer') ? [CUSTOMER_COLUMN] : []),
+  ];
   const width = (c: (typeof cols)[number]) => api.colW[c.id] ?? c.width;
   const totalW = cols.reduce((a, c) => a + width(c), 0);
   const groups = groupTasks(data, tasks, api.group);

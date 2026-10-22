@@ -4,6 +4,7 @@ import * as React from 'react';
 import {
   AtSign,
   Bold,
+  Building2,
   CalendarArrowUp,
   Calendar as CalendarIcon,
   Circle,
@@ -47,7 +48,7 @@ import { FILE_TYPES, LABELS, commentsOf, isOverdue, member, project, projectColo
 import { ago, diffDays, fmtDate, parse, today } from '../../lib/dates';
 import { MOD } from '../../lib/platform';
 import type { FileKind, LabelId, Project, ProjectFile, Task } from '../../data/types';
-import { AssigneeField, DueField, PriorityField, StatusField } from '../fields';
+import { AssigneeField, CustomerField, DueField, PriorityField, StatusField } from '../fields';
 import { useCustomRows } from '../../meta/custom-fields';
 import { CommentItem } from '../conversation';
 import { FilePreview } from '../files-view';
@@ -287,6 +288,12 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
         <Prop icon={User} label="Assignee">
           <AssigneeField task={t} />
         </Prop>
+        {/* Заказчик бывает только у задач модуля services (время по заказчику без заказ-наряда) */}
+        {t.module === 'services' && (
+          <Prop icon={Building2} label="Customer">
+            <CustomerField task={t} />
+          </Prop>
+        )}
         <Prop icon={CalendarIcon} label="Due date">
           <DueField task={t} />
         </Prop>

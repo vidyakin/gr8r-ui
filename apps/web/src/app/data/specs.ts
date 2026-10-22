@@ -226,6 +226,7 @@ export function buildSpecs(ws: string, statusIds: Map<string, string>) {
       attachments: [], // собираются из файлов с taskId (assemble)
       deps: r.deps,
       desc: r.description,
+      company: r.companyId ?? null,
       planHours: num(r.planHours),
       created: ms(r.createdAt),
       updated: ms(r.updatedAt),
@@ -250,6 +251,7 @@ export function buildSpecs(ws: string, statusIds: Map<string, string>) {
       subtasks: v => ({ subtasks: v }),
       deps: v => ({ deps: v }),
       desc: v => ({ description: v }),
+      company: v => ({ companyId: v ?? null }),
       planHours: v => ({ planHours: v ?? null }),
       fav: v => ({ fav: v }),
       recur: v => ({ recur: v ?? null }),

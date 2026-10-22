@@ -108,6 +108,8 @@ export interface Task {
   attachments: Attachment[];
   deps: string[];
   desc: string;
+  /** Заказчик (id компании) — только у задач модуля services */
+  company?: string | null;
   /** План в часах; если не задан, считается суммой плана подзадач */
   planHours: number | null;
   created: number;

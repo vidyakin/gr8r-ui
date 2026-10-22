@@ -1,7 +1,7 @@
 /* Редактируемые поля задачи — порт cellStatus / cellAssignee / cellPrio / cellDue из components/task-list.js.
    Кнопка-«таблетка» (.pillbtn) открывает меню выбора; изменение уходит в store через task/update. */
 import * as React from 'react';
-import { Calendar as CalendarIcon, Tag } from 'lucide-react';
+import { Calendar as CalendarIcon, Tag, X } from 'lucide-react';
 import { Label, Menu, MenuContent, MenuRadioGroup, MenuRadioItem, MenuTrigger, Popover, PopoverContent, PopoverTrigger, toast } from '@/components/ui';
 import { Calendar } from '@/components/shadcn/calendar';
 import { PriorityIcon, StatusIcon, priorityName, type Status } from '@/components/gr8r/task';
@@ -13,6 +13,8 @@ import type { Task } from '../data/types';
 import { MemberAvatar } from './workspace';
 import { PriorityPopover } from './priority-panel';
 import { ProjectDot } from './project';
+import { useCompanyRequisites } from '../docs/data';
+import { CounterpartyPicker } from '../docs/pickers';
 
 function useUpdate(t: Task) {
   const { dispatch } = useWorkspace();
@@ -174,6 +176,31 @@ export function DueField({ task: t, trigger, className }: { task: Task; trigger?
         <Calendar mode="single" weekStartsOn={1} selected={t.due ? parse(t.due) : undefined} defaultMonth={t.due ? parse(t.due) : undefined} onSelect={d => d && set(iso(d))} />
       </PopoverContent>
     </Popover>
+  );
+}
+
+/** Название заказчика задачи (только у задач модуля services) */
+export function CustomerCell({ task: t }: { task: Task }) {
+  const co = useCompanyRequisites(t.company ?? undefined);
+  if (!t.company) return <span className="faint">—</span>;
+  return <span className="trunc">{co.data?.name ?? '…'}</span>;
+}
+
+/** Заказчик у задачи модуля services: выбор компании из справочника (с поиском) и очистка */
+export function CustomerField({ task: t }: { task: Task }) {
+  const update = useUpdate(t);
+  const co = useCompanyRequisites(t.company ?? undefined);
+  return (
+    <div className="row" style={{ gap: 6, width: '100%' }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <CounterpartyPicker value={co.data?.name ?? ''} placeholder="Search customer…" onPick={c => update({ company: c.id })} />
+      </div>
+      {t.company && (
+        <button className="btn btn-sm btn-ghost" aria-label="Clear customer" onClick={() => update({ company: null })}>
+          <X size={13} />
+        </button>
+      )}
+    </div>
   );
 }
 
