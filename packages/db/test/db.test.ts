@@ -121,6 +121,12 @@ describe('seed', () => {
     expect(await count('production_kinds', w)).toBe(1);
     expect(await count('production_stages', w)).toBe(3);
     expect(await count('production_stages', `${w} and is_final`)).toBe(1);
+    // планирование загрузки: сменные графики, праздники, ключевые ресурсы и норматив
+    expect(await count('work_calendars', w)).toBe(2);
+    expect(await count('work_calendars', `${w} and is_default`)).toBe(1);
+    expect(await count('workspace_holidays', w)).toBe(2);
+    expect(await count('resources', w)).toBe(3);
+    expect(await count('product_resources', w)).toBe(1);
     // заказ-наряд: вид по умолчанию с состояниями, материалы и назначение
     expect(await count('documents', `${w} and type = 'work_order'`)).toBe(1);
     expect(await count('work_order_kinds', w)).toBe(1);

@@ -13,10 +13,10 @@ import type { Project, Task } from '../data/types';
 import { MemberAvatar, useTaskActions } from './workspace';
 import { BucketIcon } from './table-view';
 import { ViewToolbar, useListView, type ViewApi } from './view-toolbar';
+import { TimeGrid } from './time-grid';
 import { useTaskForm } from '../overlays';
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const MONL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const WEEK_START = 1;
 const RH = 36;
 
@@ -208,19 +208,6 @@ export function TimelineView({ tasks, project: p, tl, id = 'tl', onNewTask }: Ti
     if (r.type === 't') rowY[r.t.id] = i * RH + RH / 2;
   });
 
-  // Шапка: месяцы и дни/недели
-  const months: { d: Date; n: number }[] = [];
-  let cm: string | null = null;
-  for (let i = 0; i < nDays; i++) {
-    const d = addDays(rs, i);
-    const k = d.getMonth() + '-' + d.getFullYear();
-    if (k !== cm) {
-      months.push({ d, n: 0 });
-      cm = k;
-    }
-    months[months.length - 1].n++;
-  }
-
   const onScroll = () => {
     const r = rightRef.current;
     if (!r) return;
@@ -329,11 +316,33 @@ export function TimelineView({ tasks, project: p, tl, id = 'tl', onNewTask }: Ti
       }),
   );
 
+  const dayList = Array.from({ length: nDays }, (_, i) => {
+    const d = addDays(rs, i);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
+  const todayKey = `${TODAY.getFullYear()}-${String(TODAY.getMonth() + 1).padStart(2, '0')}-${String(TODAY.getDate()).padStart(2, '0')}`;
+  const headerCells =
+    zoom === 'week'
+      ? dayList.map(d => ({ label: Number(d.slice(8)), span: 1, className: d === todayKey ? 'today' : undefined }))
+      : Array.from({ length: nDays / 7 }, (_, i) => {
+          const d = addDays(rs, i * 7);
+          return { label: `${MON[d.getMonth()]} ${d.getDate()}`, span: 7 };
+        });
+
   return (
-    <div className="tl">
-      <div className="tl-left">
-        <div className="tl-head">Task</div>
-        <div className="tl-rows" ref={leftRef}>
+    <TimeGrid
+      days={dayList}
+      dayWidth={dw}
+      headerCells={headerCells}
+      leftTitle="Task"
+      rowHeight={RH}
+      height={H + 40}
+      today={todayKey}
+      onScroll={onScroll}
+      scrollRef={rightRef}
+      leftRef={leftRef}
+      leftRows={
+        <>
           {rows.map((r, i) => {
             if (r.type === 'ms')
               return (
@@ -372,56 +381,14 @@ export function TimelineView({ tasks, project: p, tl, id = 'tl', onNewTask }: Ti
             );
           })}
           <div style={{ height: 40 }} />
-        </div>
-      </div>
-      <div className="tl-right" ref={rightRef} onScroll={onScroll}>
-        <div className="tl-head" style={{ width: W }}>
-          <div className="tl-months">
-            {months.map(m => (
-              <div key={m.d.getTime()} style={{ width: m.n * dw }}>
-                <span>
-                  {MONL[m.d.getMonth()]} {m.d.getFullYear()}
-                </span>
-              </div>
-            ))}
-          </div>
-          <div className="tl-days">
-            {zoom === 'week'
-              ? Array.from({ length: nDays }, (_, i) => {
-                  const d = addDays(rs, i);
-                  return (
-                    <div key={i} style={{ width: dw }} className={diffDays(d, TODAY) === 0 ? 'today' : ''}>
-                      {d.getDate()}
-                    </div>
-                  );
-                })
-              : Array.from({ length: nDays / 7 }, (_, i) => {
-                  const d = addDays(rs, i * 7);
-                  return (
-                    <div key={i} style={{ width: dw * 7 }}>
-                      {MON[d.getMonth()]} {d.getDate()}
-                    </div>
-                  );
-                })}
-          </div>
-        </div>
-        <div className="tl-grid" style={{ width: W, height: H + 40 }}>
-          {zoom === 'week' &&
-            Array.from({ length: nDays }, (_, i) => {
-              const wd = addDays(rs, i).getDay();
-              return wd === 0 || wd === 6 ? <div key={i} className="tl-we" style={{ left: i * dw, width: dw }} /> : null;
-            })}
-          {Array.from({ length: nDays / 7 }, (_, i) => (
-            <div key={i} className="tl-gl" style={{ left: i * 7 * dw }} />
-          ))}
-          <div className="tl-today" style={{ left: todayX + dw / 2 }} title="Today" />
-          {bars}
-          <svg className="tl-deps" width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
-            {deps}
-          </svg>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    >
+      {bars}
+      <svg className="tl-deps" width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
+        {deps}
+      </svg>
+    </TimeGrid>
   );
 }
 

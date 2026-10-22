@@ -7,6 +7,7 @@ import { products, units } from './catalog';
 import { documentLines, documents, warehouses } from './documents';
 import { members, wsCol } from './people';
 import { tasks } from './work';
+import { workCalendars } from './calendars';
 
 export const workCenters = pgTable(
   'work_centers',
@@ -17,6 +18,10 @@ export const workCenters = pgTable(
     name: text('name').notNull(),
     /** Ставка за час по умолчанию */
     hourlyRate: money('hourly_rate').notNull().default('0'),
+    /** Мощность участка: сколько часов в день он может принять (пусто — по графику) */
+    capacityHoursPerDay: numeric('capacity_hours_per_day', { precision: 10, scale: 3 }),
+    /** Рабочий график участка (пусто — график воркспейса по умолчанию) */
+    calendarId: uuid('calendar_id'),
     /** Склад-цех участка: материалы передаются на него обычным перемещением */
     warehouseId: uuid('warehouse_id'),
     /** Склад готовой продукции: куда участок выпускает продукцию */
@@ -34,6 +39,7 @@ export const workCenters = pgTable(
     foreignKey({ columns: [t.workspaceId, t.warehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'work_centers_warehouse_fk' }),
     foreignKey({ columns: [t.workspaceId, t.outputWarehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'work_centers_output_warehouse_fk' }),
     foreignKey({ columns: [t.workspaceId, t.wasteWarehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'work_centers_waste_warehouse_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.calendarId], foreignColumns: [workCalendars.workspaceId, workCalendars.id], name: 'work_centers_calendar_fk' }),
   ],
 );
 
@@ -412,6 +418,11 @@ export const productionOperations = pgTable(
     plannedHours: numeric('planned_hours', { precision: 10, scale: 3 }).notNull().default('0'),
     /** Выполнено по проведённым нарядам */
     doneQty: numeric('done_qty', { precision: 18, scale: 3 }).notNull().default('0'),
+    /** Плановые даты операции (расставлены автопланированием или вручную в планировщике) */
+    plannedStart: date('planned_start', { mode: 'string' }),
+    plannedEnd: date('planned_end', { mode: 'string' }),
+    /** Даты проставлены автопланированием: ручные даты автопланирование не двигает */
+    autoPlanned: boolean('auto_planned').notNull().default(false),
     sortOrder: integer('sort_order').notNull().default(0),
     createdAt: createdAt(),
   },

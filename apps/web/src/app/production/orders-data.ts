@@ -144,5 +144,13 @@ export function useProductionOrderApi() {
     onSuccess: settle,
     onError: e => toast.error(errorMessage(e)),
   });
-  return { run, create, update, fill, produce, setState };
+  const schedule = useMutation({
+    mutationFn: (id: string) => call<{ assignments: { id: string; start: string | null; end: string | null; scheduled: boolean }[]; forecastEnd: string | null }>(ws, 'POST', `/production-orders/${id}/schedule`),
+    onSuccess: r => {
+      toast(r.forecastEnd ? `The plan is ready · finishes ${r.forecastEnd}` : 'The plan is ready');
+      settle();
+    },
+    onError: e => toast.error(errorMessage(e)),
+  });
+  return { run, create, update, fill, produce, setState, schedule };
 }
