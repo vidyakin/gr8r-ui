@@ -2,6 +2,7 @@
    закрытия, настройки даты запрета и документы «Прочие затраты». */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { COST_DISTRIBUTION_LABELS, type CostDistribution, type DocumentStatus } from '@gr8r/shared';
+import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';
 
@@ -85,8 +86,10 @@ export function usePeriodSettings() {
   const ws = useWsId();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { closedThrough?: string | null; closeMovesLock?: boolean }) => call<PeriodLock>(ws, 'PATCH', '/production/periods/settings', body),
-    onSuccess: async () => {
+    mutationFn: (body: { closedThrough?: string | null; closeMovesLock?: boolean }) => call<PeriodLock & { reopened: string[] }>(ws, 'PATCH', '/production/periods/settings', body),
+    onSuccess: async r => {
+      // сдвиг даты запрета назад снимает закрытия месяцев после неё — сообщаем, какие
+      if (r.reopened.length) toast(`Closings reopened: ${r.reopened.join(', ')}`);
       await qc.invalidateQueries({ queryKey: closingKey(ws) });
     },
     onError: e => {

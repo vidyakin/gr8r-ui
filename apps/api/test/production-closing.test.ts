@@ -701,6 +701,30 @@ describe('review fixes (stage 6)', () => {
     for (const r of rows) expect(Number(r.qty)).toBe(Number(r.moved));
   });
 
+  test('moving the closed-through date back reopens the closings of the months after it, latest first', async () => {
+    const product = await makeProduct('Табурет 5');
+    const item = await makeItem('Табурет 5', '1', product.id);
+    for (const m of ['2029-02', '2029-03', '2029-04']) await release(item, '1', m);
+    await owner.post('/production/periods/2029-02/close', { through: '2029-04' });
+    await runWorker();
+    await owner.patch('/production/periods/settings', { closedThrough: '2029-04-30' });
+    // дата посреди марта: март снова открыт частично — его закрытие тоже снимается, февраль остаётся закрытым
+    const back = await owner.patch('/production/periods/settings', { closedThrough: '2029-03-15' });
+    expect(back.status).toBe(200);
+    expect(back.body.reopened).toEqual(['2029-03', '2029-04']);
+    await runWorker();
+    expect((await closingOf('2029-02')).status).toBe('done');
+    expect((await closingOf('2029-03')).status).toBe('reopened');
+    expect((await closingOf('2029-04')).status).toBe('reopened');
+    // снятие даты целиком открывает и февраль
+    const cleared = await owner.patch('/production/periods/settings', { closedThrough: null });
+    // (в общем воркспейсе снимаются и закрытия предыдущих тестов; март и апрель уже открыты)
+    expect(cleared.body.reopened).toContain('2029-02');
+    expect(cleared.body.reopened).not.toContain('2029-03');
+    await runWorker();
+    expect((await closingOf('2029-02')).status).toBe('reopened');
+  });
+
   test('clearing the closed-through date is moving it back: owner only, and it really clears', async () => {
     await owner.patch('/production/periods/settings', { closedThrough: '2026-01-31' });
     expect((await adminUser.patch('/production/periods/settings', { closedThrough: null })).status).toBe(403);

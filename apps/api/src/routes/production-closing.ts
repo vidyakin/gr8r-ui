@@ -6,7 +6,7 @@
    Суммы закрытия видят admin и owner. Правила — packages/db/src/cost-closing.ts. */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
-import { and, desc, eq, gt } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   canSeeCost,
@@ -118,14 +118,36 @@ export const productionClosingRoutes = new Hono<AppEnv>()
     const ctx = ctxOf(c);
     const body = c.req.valid('json');
     const lock = await loadPeriodLock(ctx.db, ctx.workspaceId);
+    /** Месяцы, закрытия которых сняты сдвигом даты запрета назад */
+    let reopened: string[] = [];
     if (body.closedThrough !== undefined) {
       // вперёд (позже месяц) сдвигает admin и выше, назад или снятие даты (null) — только owner: открытый месяц пересчитывает следующее закрытие
       const back = lock.closedThrough !== null && (body.closedThrough === null || body.closedThrough < lock.closedThrough);
       if (back && !hasRole(c, 'owner')) throw new AppError(403, 'owner_required', 'Only the owner can move the closed-through date back');
       await ctx.db.update(workspaces).set({ closedThrough: body.closedThrough, updatedAt: new Date() }).where(eq(workspaces.id, ctx.workspaceId));
+      // открытие периода сбрасывает закрытия затронутых месяцев: месяц, который снова можно править хотя бы частично
+      // (конец месяца позже новой даты), отменяется вместе со всеми поздними — от последнего к раннему, задачей воркера
+      if (back) {
+        const after = await ctx.db
+          .select({ period: productionCostClosings.period })
+          .from(productionCostClosings)
+          .where(
+            and(
+              eq(productionCostClosings.workspaceId, ctx.workspaceId),
+              eq(productionCostClosings.status, 'done'),
+              body.closedThrough === null ? undefined : sql`(${productionCostClosings.period} + interval '1 month' - interval '1 day')::date > ${body.closedThrough}::date`,
+            ),
+          )
+          .orderBy(asc(productionCostClosings.period));
+        reopened = after.map(r => r.period.slice(0, 7));
+        if (reopened.length) {
+          for (const m of reopened) await markClosing(ctx, m);
+          await ctx.db.insert(jobs).values({ workspaceId: ctx.workspaceId, queue: 'production', type: 'production.close_period', payload: { month: reopened[0]!, through: reopened[reopened.length - 1], reopen: true } });
+        }
+      }
     }
     if (body.closeMovesLock !== undefined) await ctx.db.update(workspaces).set({ closeMovesLock: body.closeMovesLock, updatedAt: new Date() }).where(eq(workspaces.id, ctx.workspaceId));
-    return c.json(await loadPeriodLock(ctx.db, ctx.workspaceId));
+    return c.json({ ...(await loadPeriodLock(ctx.db, ctx.workspaceId)), reopened });
   });
 
 /* ---------------- прочие затраты ---------------- */

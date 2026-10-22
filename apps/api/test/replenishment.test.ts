@@ -409,6 +409,28 @@ describe('review fixes (stage 5)', () => {
     expect(res.body.orders[0].date).toBe(shift(5));
   });
 
+  test('planning edits: the work center of a line and a later date are kept', async () => {
+    const other = (await mk(owner, '/work-centers', { name: `Второй цех ${uniq()}`, hourlyRate: 500, outputWarehouseId: main })).id;
+    const res = await owner.post('/production/needs/orders', {
+      replenishment: 'production',
+      lines: [{ productId: product, warehouseId: main, qty: '2', date: shift(20), workCenterId: other }],
+    });
+    expect(res.status).toBe(201);
+    const order = (await owner.get(`/production-orders/${res.body.orders[0].id}`)).body;
+    expect(order.workCenter.id).toBe(other);
+    expect(order.plannedEnd.slice(0, 10)).toBe(shift(20));
+  });
+
+  test('a transfer without a target warehouse is skipped, not created', async () => {
+    const res = await owner.post('/production/needs/orders', {
+      replenishment: 'transfer',
+      lines: [{ productId: material, warehouseId: null, sourceWarehouseId: shop, qty: '1', date: today() }],
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.orders).toEqual([]);
+    expect(res.body.skipped[0].reason).toBe('no_target_warehouse');
+  });
+
   test('purchase drafts: each line goes to its own supplier and to its warehouse', async () => {
     const supplier2 = (await mk(owner, '/companies', { name: `Второй поставщик ${uniq()}` })).id;
     const a = (await mk(owner, '/products', { name: `Свой A ${uniq()}`, unitCode: '006', price: 100, purchasePrice: 80, vatRate: 'none', defaultSupplierId: supplier })).id;

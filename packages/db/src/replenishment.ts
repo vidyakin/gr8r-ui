@@ -449,7 +449,7 @@ export interface NeedsDraftLine {
 
 export interface NeedsDraftsResult {
   orders: { id: string; type: string; number: string | null; supplierId: string | null; date: string; lines: { productId: string; productName: string; qty: string }[] }[];
-  skipped: { productId: string; productName: string; qty: string; reason: 'no_supplier' | 'no_specification' | 'no_source_warehouse' }[];
+  skipped: { productId: string; productName: string; qty: string; reason: 'no_supplier' | 'no_specification' | 'no_source_warehouse' | 'no_target_warehouse' }[];
 }
 
 /** Черновики по рассчитанной потребности: закупка → заказ поставщику, производство → заказ на производство,
@@ -566,6 +566,11 @@ export async function createNeedsDrafts(
       const source = lines[0]!.sourceWarehouseId;
       if (!source) {
         for (const l of lines) skipped.push({ productId: l.productId, productName: nameOf.get(l.productId) ?? l.productId, qty: l.qty, reason: 'no_source_warehouse' });
+        continue;
+      }
+      // перемещение — на конкретный склад: строка расчёта по компании склада-получателя не знает
+      if (!lines[0]!.warehouseId) {
+        for (const l of lines) skipped.push({ productId: l.productId, productName: nameOf.get(l.productId) ?? l.productId, qty: l.qty, reason: 'no_target_warehouse' });
         continue;
       }
       const id = await createDocument(db, ctx, {

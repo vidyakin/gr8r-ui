@@ -11,6 +11,7 @@ import { useCanWrite } from '../meta/custom-fields';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { NEEDS_METHOD_LABELS, STOCK_REPLENISHMENT_LABELS, type NeedsMethod, type StockReplenishment } from '@gr8r/shared';
 import { useWarehouses } from '../docs/data';
+import { useWorkCenters } from '../catalog/data';
 import { fmtDate, parse } from '../lib/dates';
 import { needsKey, useProductionNeeds, type NeedsRow as ProductionNeedsRow, type SupplierOrdersResult } from './orders-data';
 import { calcKey, useNeedsCalculation, useNeedsDraftsApi, type NeedsCalcParams, type NeedsCalcRow } from './plans-data';
@@ -22,6 +23,17 @@ const STEPS: { id: Step; name: string }[] = [
   { id: 'orders', name: 'Orders' },
 ];
 const SOURCE_LABEL: Record<string, string> = { customer_order: 'Customer order', supplier_order: 'Supplier order', production_order: 'Production order', plan: 'Plan' };
+
+/** Правки строки на шаге Planning: способ пополнения, дата поступления и источник (участок или склад-источник) */
+interface LineEdit {
+  replenishment?: StockReplenishment;
+  date?: string;
+  workCenterId?: string;
+  sourceWarehouseId?: string;
+}
+
+/** Самая ранняя дата поступления строки: сегодня + срок (у перемещения срока нет) — сервер ставит так же */
+const earliestDate = (r: NeedsCalcRow, mode: StockReplenishment): string => new Date(Date.now() + (mode === 'transfer' ? 0 : r.leadDays) * 864e5).toISOString().slice(0, 10);
 
 const DEFAULT_PARAMS: NeedsCalcParams = {
   replenishment: 'all',
@@ -39,6 +51,7 @@ export function ProductionNeedsPage() {
   const qc = useQueryClient();
   const canWrite = useCanWrite();
   const warehouses = useWarehouses();
+  const workCenters = useWorkCenters();
   const drafts = useNeedsDraftsApi();
   const [tab, setTab] = React.useState<'stock' | 'production'>('stock');
   const [step, setStep] = React.useState<Step>('recommendations');
@@ -48,6 +61,7 @@ export function ProductionNeedsPage() {
   const [qty, setQty] = React.useState<Record<string, string>>({});
   /** Поставщик строки, выбранный на шаге Planning (по умолчанию — поставщик товара) */
   const [supplier, setSupplier] = React.useState<Record<string, string>>({});
+  const [edits, setEdits] = React.useState<Record<string, LineEdit>>({});
   const [singleDate, setSingleDate] = React.useState(false);
   const [perCustomerOrder, setPerCustomerOrder] = React.useState(false);
   const [created, setCreated] = React.useState<{ id: string; type: string; number: string | null; date: string }[]>([]);
@@ -60,6 +74,15 @@ export function ProductionNeedsPage() {
   const set = (patch: Partial<NeedsCalcParams>) => setParams(p => ({ ...p, ...patch }));
   const qtyOf = (r: NeedsCalcRow) => qty[keyOf(r)] ?? r.recommendation;
   const supplierOf = (r: NeedsCalcRow) => supplier[keyOf(r)] ?? r.supplierId;
+  const editOf = (r: NeedsCalcRow): LineEdit => edits[keyOf(r)] ?? {};
+  const modeOf = (r: NeedsCalcRow): StockReplenishment => editOf(r).replenishment ?? r.replenishment;
+  /** Дата строки: правка или дата дефицита, но не раньше «сегодня + срок» */
+  const dateOf = (r: NeedsCalcRow): string => {
+    const want = editOf(r).date ?? r.dueDate ?? '';
+    const min = earliestDate(r, modeOf(r));
+    return want && want > min ? want : min;
+  };
+  const edit = (r: NeedsCalcRow, patch: LineEdit) => setEdits(s => ({ ...s, [keyOf(r)]: { ...s[keyOf(r)], ...patch } }));
 
   const fillByDeficit = () => {
     const next: Record<string, string> = {};
@@ -73,7 +96,22 @@ export function ProductionNeedsPage() {
     for (const r of selected) {
       const q = qtyOf(r);
       if (Number(q) <= 0) continue;
-      byMode.set(r.replenishment, [...(byMode.get(r.replenishment) ?? []), { productId: r.productId, warehouseId: r.warehouseId, sourceWarehouseId: r.sourceWarehouseId, workCenterId: null, qty: q, date: r.dueDate, customerOrderId: r.customerOrderId, price: null, supplierId: r.replenishment === 'purchase' ? supplierOf(r) : null }]);
+      const mode = modeOf(r);
+      const e = editOf(r);
+      byMode.set(mode, [
+        ...(byMode.get(mode) ?? []),
+        {
+          productId: r.productId,
+          warehouseId: r.warehouseId,
+          sourceWarehouseId: mode === 'transfer' ? (e.sourceWarehouseId ?? r.sourceWarehouseId) : null,
+          workCenterId: mode === 'production' ? (e.workCenterId ?? null) : null,
+          qty: q,
+          date: dateOf(r),
+          customerOrderId: r.customerOrderId,
+          price: null,
+          supplierId: mode === 'purchase' ? supplierOf(r) : null,
+        },
+      ]);
     }
     let all: { id: string; type: string; number: string | null; date: string }[] = [];
     for (const [replenishment, lines] of byMode) {
@@ -85,6 +123,7 @@ export function ProductionNeedsPage() {
     setSel({});
     setQty({});
     setSupplier({});
+    setEdits({});
   };
 
   const postAll = async () => {
@@ -245,7 +284,7 @@ export function ProductionNeedsPage() {
                     <th style={{ width: 100 }} className="r">
                       Amount
                     </th>
-                    <th style={{ width: 150 }}>Supplier</th>
+                    <th style={{ width: 150 }}>{step === 'planning' ? 'Source' : 'Supplier'}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -261,7 +300,19 @@ export function ProductionNeedsPage() {
                           )}
                           <td className="trunc">{r.productName}</td>
                           <td className="trunc muted">{r.warehouseName ?? 'Company'}</td>
-                          <td className="muted">{STOCK_REPLENISHMENT_LABELS[r.replenishment]}</td>
+                          <td className="muted">
+                            {step === 'planning' && canWrite ? (
+                              <select className="select" aria-label={`Replenishment for ${r.productName}`} value={modeOf(r)} onChange={e => edit(r, { replenishment: e.target.value as StockReplenishment })}>
+                                {(Object.keys(STOCK_REPLENISHMENT_LABELS) as StockReplenishment[]).map(m => (
+                                  <option key={m} value={m}>
+                                    {STOCK_REPLENISHMENT_LABELS[m]}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              STOCK_REPLENISHMENT_LABELS[r.replenishment]
+                            )}
+                          </td>
                           <td className="r num">{r.balance}</td>
                           <td className="r num muted">{r.reserved}</td>
                           <td className="r num muted">
@@ -283,10 +334,39 @@ export function ProductionNeedsPage() {
                             )}
                           </td>
                           <td className="r num">{Number(r.overdue) > 0 ? <span className="num">{r.overdue}</span> : <span className="faint">—</span>}</td>
-                          <td className="num muted">{r.dueDate ? fmtDate(parse(r.dueDate)) : '—'}</td>
+                          <td className="num muted">
+                            {step === 'planning' && canWrite ? (
+                              // дата поступления: правится, но не раньше «сегодня + срок»
+                              <input className="inp" type="date" aria-label={`Date for ${r.productName}`} min={earliestDate(r, modeOf(r))} value={dateOf(r)} onChange={e => edit(r, { date: e.target.value })} />
+                            ) : r.dueDate ? (
+                              fmtDate(parse(r.dueDate))
+                            ) : (
+                              '—'
+                            )}
+                          </td>
                           <td className="r num">{r.amount ?? <span className="faint">—</span>}</td>
                           <td className="trunc muted">
-                            {step === 'planning' && canWrite && r.replenishment === 'purchase' && r.suppliers.length > 0 ? (
+                            {step === 'planning' && canWrite && modeOf(r) === 'production' ? (
+                              <select className="select" aria-label={`Work center for ${r.productName}`} value={editOf(r).workCenterId ?? ''} onChange={e => edit(r, { workCenterId: e.target.value || undefined })}>
+                                <option value="">Work center…</option>
+                                {(workCenters.data?.items ?? []).map(w => (
+                                  <option key={w.id} value={w.id}>
+                                    {w.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : step === 'planning' && canWrite && modeOf(r) === 'transfer' ? (
+                              <select className="select" aria-label={`Source warehouse for ${r.productName}`} value={editOf(r).sourceWarehouseId ?? r.sourceWarehouseId ?? ''} onChange={e => edit(r, { sourceWarehouseId: e.target.value || undefined })}>
+                                <option value="">Source warehouse…</option>
+                                {(warehouses.data ?? [])
+                                  .filter(w => w.id !== r.warehouseId)
+                                  .map(w => (
+                                    <option key={w.id} value={w.id}>
+                                      {w.name}
+                                    </option>
+                                  ))}
+                              </select>
+                            ) : step === 'planning' && canWrite && modeOf(r) === 'purchase' && r.suppliers.length > 0 ? (
                               // поставщик строки — из тех, у кого товар покупали: цена и дата последнего поступления для сравнения
                               <select className="select" aria-label={`Supplier for ${r.productName}`} value={supplierOf(r) ?? ''} onChange={e => setSupplier(s => ({ ...s, [k]: e.target.value }))}>
                                 {!r.suppliers.some(x => x.supplierId === r.supplierId) && r.supplierId && <option value={r.supplierId}>{r.supplierName ?? 'Default supplier'}</option>}
