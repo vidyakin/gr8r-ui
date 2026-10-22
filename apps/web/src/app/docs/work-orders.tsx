@@ -15,6 +15,7 @@ import { useWorkspace } from '../data/store';
 import { STATUS_LABEL, STATUS_TONE, docsKey, useDocsApi, useDocumentStates, useWorkOrderKinds, useWorkOrders, type DocDetail, type WorkOrderListItem } from './data';
 import { useQueryClient } from '@tanstack/react-query';
 import { useWsId } from '../meta/data';
+import { DocumentResourcesPanel } from '../production/ProductionOrderPage';
 
 /** Тон бейджа по категории состояния */
 const CATEGORY_TONE: Record<WorkOrderStateCategory, Tone> = {
@@ -266,6 +267,11 @@ export function WorkOrderPanel({ doc }: { doc: DocDetail }) {
             }}
           />
         )}
+      </section>
+
+      <section className="doc-links panel" aria-label="Resources">
+        <h2>Resources</h2>
+        <DocumentResourcesPanel orderId={doc.id} />
       </section>
 
       <section className="doc-lines panel" aria-label="Assignees">

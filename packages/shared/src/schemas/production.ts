@@ -1,6 +1,7 @@
 /* zod-схемы производства: участки, продукция (изделия и полуфабрикаты), строки спецификации, настройки. */
 import { z } from 'zod';
 import { BOM_KINDS, MANUFACTURED_KINDS, MATERIAL_PRICE_SOURCES, OPERATION_RATE_UNITS, REPLENISHMENT_MODES, SEMI_MODES } from '../constants';
+import { CALENDAR_KINDS, LOAD_ROW_TYPES } from '../planning';
 import { clientId, decimal, isoDate, isoDateTime, listQuery, shortText, toPatch, uuid } from './common';
 
 const nonNeg = (max = 1e12) => decimal.refine(v => Number(v) >= 0 && Number(v) < max, 'Must not be negative');
@@ -402,3 +403,113 @@ export const productManufacturingUpdate = z.object({
 });
 /** Запись справочника пополнения: товар и его способ пополнения */
 export const productManufacturingSet = productManufacturingUpdate.extend({ productId: uuid });
+
+/* ---------------- планирование: ресурсы, графики, загрузка ---------------- */
+
+/** Виды ресурсов: equipment — оборудование, other — прочий ключевой ресурс */
+export const RESOURCE_KINDS = ['equipment', 'other'] as const;
+export type ResourceKind = (typeof RESOURCE_KINDS)[number];
+
+/** Шаблон графика: недельный (дни недели и часы) или циклический (дни цикла от даты начала) */
+export const calendarPattern = z
+  .object({
+    /** Недельный: дни недели (1 — понедельник … 7 — воскресенье) */
+    weekdays: z.array(z.number().int().min(1).max(7)).max(7).optional(),
+    startHour: z.number().min(0).max(24).optional(),
+    endHour: z.number().min(0).max(24).optional(),
+    /** Циклический: 1 — рабочий день, 0 — выходной */
+    cycle: z.array(z.number().int().min(0).max(1)).min(1).max(31).optional(),
+  })
+  .passthrough();
+
+/** Рабочий график: недельный или циклический (2/2, сутки через трое) */
+export const workCalendarCreate = z.object({
+  id: clientId,
+  name: shortText,
+  kind: z.enum(CALENDAR_KINDS).default('weekly'),
+  pattern: calendarPattern.default({}),
+  /** Дата начала цикла (циклический график) */
+  cycleStart: isoDate.nullish(),
+  /** Рабочих часов в день */
+  hoursPerDay: nonNeg(1e4).default('8'),
+  /** График воркспейса по умолчанию */
+  isDefault: z.boolean().default(false),
+  note: z.string().max(1000).default(''),
+});
+export const workCalendarUpdate = toPatch(workCalendarCreate.omit({ id: true }));
+
+/** Праздник воркспейса */
+export const holidayInput = z.object({
+  date: isoDate,
+  name: z.string().trim().max(200).default(''),
+});
+
+/** Исключение из графика: отпуск, больничный, ремонт */
+export const calendarExceptionInput = z.object({
+  scope: z.enum(['member', 'work_center', 'resource']),
+  /** Сотрудник, участок или ресурс */
+  scopeId: uuid,
+  dateFrom: isoDate,
+  dateTo: isoDate,
+  note: z.string().max(500).default(''),
+});
+
+/** Ключевой ресурс: оборудование или прочий ресурс */
+export const resourceCreate = z.object({
+  id: clientId,
+  code: z.string().trim().max(32).default(''),
+  name: shortText,
+  kind: z.enum(RESOURCE_KINDS).default('equipment'),
+  /** Участок, в котором ресурс работает */
+  workCenterId: uuid.nullish(),
+  /** Сколько единиц ресурса доступно одновременно */
+  capacityUnits: z.number().int().min(1).max(1000).default(1),
+  /** Рабочий график ресурса */
+  calendarId: uuid.nullish(),
+  note: z.string().max(1000).default(''),
+});
+export const resourceUpdate = toPatch(resourceCreate.omit({ id: true }));
+
+/** Норматив потребности в ресурсах: у операции или работы */
+export const productResourcesSet = z.object({
+  productId: uuid,
+  resources: z.array(z.object({ resourceId: uuid, hoursPerUnit: nonNeg(1e6) })).max(50).default([]),
+});
+
+/** Ресурсы документа: закладка «Ресурсы» заказа на производство и заказ-наряда */
+export const documentResourcesSet = z.object({
+  documentId: uuid,
+  items: z
+    .array(
+      z.object({
+        id: clientId,
+        /** Строка документа */
+        lineId: uuid.nullish(),
+        resourceId: uuid,
+        /** Интервал работы ресурса */
+        startAt: isoDateTime.nullish(),
+        endAt: isoDateTime.nullish(),
+        hours: nonNeg(1e6).default('0'),
+      }),
+    )
+    .max(200)
+    .default([]),
+});
+
+/** Загрузка за период */
+export const loadQuery = z.object({
+  from: isoDate,
+  to: isoDate,
+  /** Строки загрузки: сотрудники, участки или ресурсы */
+  rowType: z.enum(LOAD_ROW_TYPES).default('member'),
+});
+
+/** Сдвиг операции в планировщике */
+export const moveOperationInput = z.object({
+  start: isoDate.nullish(),
+  end: isoDate.nullish(),
+  /** Новый исполнитель */
+  memberId: uuid.nullish(),
+  /** Новый участок */
+  workCenterId: uuid.nullish(),
+});

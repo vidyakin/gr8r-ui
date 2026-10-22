@@ -2,13 +2,11 @@
 import { sql } from 'drizzle-orm';
 import { check, foreignKey, index, integer, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { createdAt, pk, ts, updatedAt } from './columns';
-import { users, workspaces } from './core';
+import { users } from './core';
+import { workCalendars } from './calendars';
+import { wsCol } from './tenant';
 
-/** Колонка workspace_id арендатора — в каждой таблице данных */
-export const wsCol = () =>
-  uuid('workspace_id')
-    .notNull()
-    .references(() => workspaces.id, { onDelete: 'cascade' });
+export { wsCol };
 
 export const teams = pgTable(
   'teams',
@@ -44,6 +42,8 @@ export const members = pgTable(
     role: text('role', { enum: ['owner', 'admin', 'member', 'guest'] }).notNull().default('member'),
     status: text('status', { enum: ['active', 'invited', 'deactivated'] }).notNull().default('active'),
     tz: text('tz').notNull().default(''),
+    /** Рабочий график сотрудника (пусто — график воркспейса по умолчанию) */
+    calendarId: uuid('calendar_id'),
     lastSeenAt: ts('last_seen_at'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -53,6 +53,7 @@ export const members = pgTable(
     uniqueIndex('members_ws_email_uq').on(t.workspaceId, sql`lower(${t.email})`),
     uniqueIndex('members_ws_user_uq').on(t.workspaceId, t.userId),
     foreignKey({ columns: [t.workspaceId, t.teamId], foreignColumns: [teams.workspaceId, teams.id], name: 'members_team_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.calendarId], foreignColumns: [workCalendars.workspaceId, workCalendars.id], name: 'members_calendar_fk' }),
     check('members_role_chk', sql`${t.role} in ('owner','admin','member','guest')`),
     check('members_status_chk', sql`${t.status} in ('active','invited','deactivated')`),
     index('members_user_idx').on(t.userId),

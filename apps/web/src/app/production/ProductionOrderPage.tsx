@@ -2,7 +2,7 @@
    «заполнить по спецификации», «создать выпуск», состояние заказа и проведение. */
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { CircleAlert, FileText, Plus, Send, Trash2, Undo2, Wand2 } from 'lucide-react';
+import { CalendarRange, CircleAlert, FileText, Plus, Send, Trash2, Undo2, Wand2 } from 'lucide-react';
 import { PRODUCTION_ORDER_STATES } from '@gr8r/shared';
 import { Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
 import { fmtDate } from '../lib/dates';
@@ -13,6 +13,7 @@ import { STATUS_LABEL, STATUS_TONE, useDocsApi } from '../docs/data';
 import { useSnapshot } from './data';
 import { STATE_LABEL, STATE_TONE, useProductionOrder, useProductionOrderApi, type ProductionOrderDetail } from './orders-data';
 import { useOrderOperations, usePieceworkApi, type AssignmentRow } from './piecework-data';
+import { useDocumentResources, usePlanningApi, useResources } from './planning-data';
 
 export function ProductionOrderPage() {
   const { id } = useParams();
@@ -120,6 +121,12 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
             <Button disabled={busy} onClick={() => void api.fill.mutateAsync(order.id)}>
               <Wand2 size={14} />
               Fill from BOM
+            </Button>
+          )}
+          {canWrite && (
+            <Button disabled={busy} onClick={() => void api.schedule.mutateAsync(order.id)}>
+              <CalendarRange size={14} />
+              Schedule
             </Button>
           )}
           {canWrite && order.status === 'posted' && (
@@ -286,6 +293,10 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
         <section className="doc-links panel" aria-label="Operations">
           <h2>Operations</h2>
           <OrderOperations order={order} />
+        </section>
+        <section className="doc-links panel" aria-label="Resources">
+          <h2>Resources</h2>
+          <DocumentResourcesPanel orderId={order.id} />
         </section>
         <section className="doc-links panel" aria-label="Releases">
           <h2>Releases</h2>
@@ -472,6 +483,148 @@ function AssignDialog({
           )}
           <button type="submit" hidden />
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* Ресурсы документа (заказа на производство или заказ-наряда): подставляются по нормативу операций
+   и правятся вручную — закладка «Ресурсы». */
+export function DocumentResourcesPanel({ orderId }: { orderId: string }) {
+  const canWrite = useCanWrite();
+  const api = usePlanningApi();
+  const resources = useResources();
+  const docRes = useDocumentResources(orderId);
+  const [editing, setEditing] = React.useState(false);
+  const items = docRes.data?.items ?? [];
+
+  const save = async (rows: { resourceId: string; startAt: string | null; endAt: string | null; hours: string }[]) => {
+    const r = await api('PUT', '/production/document-resources', {
+      documentId: orderId,
+      items: rows.map(x => ({ resourceId: x.resourceId, startAt: x.startAt, endAt: x.endAt, hours: x.hours })),
+    });
+    if (r) {
+      toast('Resources saved');
+      setEditing(false);
+    }
+  };
+
+  if (!items.length)
+    return (
+      <p className="faint">
+        No resources yet. Schedule the order — the resources of its operations are filled in by the norm of the operation.
+      </p>
+    );
+
+  return (
+    <>
+      <table className="dtbl" aria-label="Resources">
+        <thead>
+          <tr>
+            <th>Resource</th>
+            <th>Hours</th>
+            <th>From</th>
+            <th>To</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map(r => (
+            <tr key={r.id}>
+              <td>{resources.data?.items.find(x => x.id === r.resourceId)?.name ?? '—'}</td>
+              <td className="num">{r.hours}</td>
+              <td className="num">{r.startAt ? r.startAt.slice(0, 10) : '—'}</td>
+              <td className="num">{r.endAt ? r.endAt.slice(0, 10) : '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {canWrite && (
+        <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+          Edit resources
+        </Button>
+      )}
+      {editing && <ResourcesDialog orderId={orderId} onClose={() => setEditing(false)} onSave={save} />}
+    </>
+  );
+}
+
+/** Правка ресурсов заказа: ресурс, часы и интервал работы */
+function ResourcesDialog({ orderId, onClose, onSave }: { orderId: string; onClose: () => void; onSave: (rows: { resourceId: string; startAt: string | null; endAt: string | null; hours: string }[]) => void }) {
+  const resources = useResources();
+  const docRes = useDocumentResources(orderId);
+  const [rows, setRows] = React.useState(
+    (docRes.data?.items ?? []).map(r => ({
+      resourceId: r.resourceId,
+      hours: r.hours,
+      startAt: r.startAt ? r.startAt.slice(0, 10) : '',
+      endAt: r.endAt ? r.endAt.slice(0, 10) : '',
+    })),
+  );
+  const [busy, setBusy] = React.useState(false);
+
+  const submit = () => {
+    setBusy(true);
+    void Promise.resolve(
+      onSave(
+        rows.map(r => ({
+          resourceId: r.resourceId,
+          hours: r.hours,
+          startAt: r.startAt ? `${r.startAt}T00:00:00Z` : null,
+          endAt: r.endAt ? `${r.endAt}T23:59:59Z` : null,
+        })),
+      ),
+    ).finally(() => setBusy(false));
+  };
+
+  return (
+    <Dialog open onOpenChange={o => !o && onClose()}>
+      <DialogContent
+        title="Resources of the order"
+        description="The resources of the operations, their hours and the interval they are busy."
+        footer={
+          <>
+            <span className="sp" />
+            <DialogClose asChild>
+              <Button variant="secondary">Cancel</Button>
+            </DialogClose>
+            <Button variant="primary" disabled={busy} onClick={submit}>
+              Save
+            </Button>
+          </>
+        }
+      >
+        <div style={{ display: 'grid', gap: 8 }}>
+          {rows.map((r, i) => (
+            <div key={i} className="row" style={{ gap: 8 }}>
+              <select
+                className="select !h-[30px] !text-xs"
+                aria-label="Resource"
+                value={r.resourceId}
+                onChange={e => setRows(prev => prev.map((x, n) => (n === i ? { ...x, resourceId: e.target.value } : x)))}
+              >
+                {(resources.data?.items ?? []).map(x => (
+                  <option key={x.id} value={x.id}>
+                    {x.name}
+                  </option>
+                ))}
+              </select>
+              <Input aria-label="Hours" value={r.hours} onChange={e => setRows(prev => prev.map((x, n) => (n === i ? { ...x, hours: e.target.value } : x)))} style={{ width: 90 }} />
+              <Input aria-label="From" type="date" value={r.startAt} onChange={e => setRows(prev => prev.map((x, n) => (n === i ? { ...x, startAt: e.target.value } : x)))} style={{ width: 150 }} />
+              <Input aria-label="To" type="date" value={r.endAt} onChange={e => setRows(prev => prev.map((x, n) => (n === i ? { ...x, endAt: e.target.value } : x)))} style={{ width: 150 }} />
+              <button type="button" className="ibtn ibtn-xs" aria-label="Remove resource" onClick={() => setRows(prev => prev.filter((_, n) => n !== i))}>
+                <Trash2 size={13} />
+              </button>
+            </div>
+          ))}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setRows(prev => [...prev, { resourceId: resources.data?.items[0]?.id ?? '', hours: '0', startAt: '', endAt: '' }])}
+          >
+            <Plus size={13} />
+            Add resource
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

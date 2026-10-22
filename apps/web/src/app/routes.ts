@@ -34,6 +34,7 @@ import {
   PackageCheck,
   ReceiptText,
   ShoppingCart,
+  CalendarRange,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -73,6 +74,8 @@ export const SECTIONS = {
   productionWorkbench: { path: '/production/workbench', name: 'Production release', icon: Play },
   productionStages: { path: '/production/stages', name: 'Production stages', icon: Layers },
   productionPiecework: { path: '/production/piecework', name: 'Piecework', icon: Hammer },
+  productionPlanner: { path: '/production/planner', name: 'Resource planner', icon: CalendarRange },
+  productionResources: { path: '/production/resources', name: 'Resources', icon: Hammer },
   workCenters: { path: '/work-centers', name: 'Work centers', icon: Wrench },
   // Автоматизации
   automations: { path: '/automations', name: 'Automations', icon: Workflow },

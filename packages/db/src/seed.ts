@@ -10,6 +10,7 @@ import { registerBaseUnits } from './catalog';
 import { seedCatalog } from './seed-catalog';
 import { seedDocuments } from './seed-documents';
 import { seedFlows } from './seed-flows';
+import { seedPlanning } from './seed-planning';
 import { ensureCostItems, ensureDocumentDefaults } from './documents';
 import { ensureModuleProjects } from './modules';
 import { ensureWorkOrderKind } from './work-orders';
@@ -225,6 +226,8 @@ async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: string, user
   const metaFields = await seedMeta(db, wsId, sysEntity, d.me ? U(d.me) : null);
   // Каталог и производство: категории, товары, услуги, участки, изделия со спецификациями
   await seedCatalog(db, wsId);
+  // Планирование загрузки: графики, праздники, ключевые ресурсы
+  await seedPlanning(db, wsId);
   const taskCustom = (_id: string, i: number): Record<string, unknown> => ({
     story_points: [1, 2, 3, 5, 8, 13][i % 6],
     ...(i % 4 === 0 ? { client: U(crm.companies[i % crm.companies.length]!.id) } : {}),

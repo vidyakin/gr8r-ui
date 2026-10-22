@@ -16,6 +16,7 @@ import {
   listProductionOrders,
   productManufacturing,
   productionDetail,
+  scheduleProductionOrder,
   updateProductionOrder,
 } from '@gr8r/db';
 import {
@@ -141,6 +142,12 @@ export const productionOrderRoutes = new Hono<AppEnv>()
       lines: body.lines.map(l => ({ orderItemId: l.orderItemId, stageId: l.stageId ?? null, qty: l.qty })),
     });
     return c.json(await detail(ctx, id), 201);
+  })
+  // автопланирование: операции расставляются от даты старта по порядку этапов в пределах свободной мощности
+  .post('/:id/schedule', write, zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const res = await scheduleProductionOrder(ctx.db, docCtx(ctx), c.req.valid('param').id);
+    return c.json(res);
   })
   // состояние заказа (отдельно от проведения)
   .post('/:id/state', write, zValidator('param', idParam, validationHook), zValidator('json', documentStateChange, validationHook), async c => {
