@@ -410,7 +410,7 @@ async function demandFlows(db: Db, productIds: string[], query: NeedsQuery): Pro
           continue; // цикл в спецификации — план в расчёт потребностей не попадает
         }
         // материалы плана списывает склад участка-диспетчера (без участка — склад по умолчанию)
-        for (const m of explosion.materials) if (productIds.includes(m.productId)) out.push({ productId: m.productId, warehouseId: l.materialsWarehouseId, date: l.line.periodStart, qty: m.qty, source: 'plan', documentId: null, label: l.name });
+        for (const m of explosion.materials) if (!m.expense && productIds.includes(m.productId)) out.push({ productId: m.productId, warehouseId: l.materialsWarehouseId, date: l.line.periodStart, qty: m.qty, source: 'plan', documentId: null, label: l.name });
         for (const s of explosion.semis) if (s.productId && productIds.includes(s.productId)) out.push({ productId: s.productId, warehouseId: l.materialsWarehouseId, date: l.line.periodStart, qty: s.qty, source: 'plan', documentId: null, label: l.name });
       }
     }

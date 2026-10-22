@@ -106,7 +106,7 @@ export const productionOrderRoutes = new Hono<AppEnv>()
       plannedEnd: body.plannedEnd,
       comment: body.comment,
       parentDocumentId: body.parentDocumentId,
-      items: body.items.map(i => ({ itemId: i.itemId, qty: i.qty, customerOrderLineId: i.customerOrderLineId })),
+      items: body.items.map(i => ({ itemId: i.itemId, qty: i.qty, customerOrderLineId: i.customerOrderLineId, params: i.params })),
     });
     return c.json(await detail(ctx, id), 201);
   })
@@ -122,7 +122,7 @@ export const productionOrderRoutes = new Hono<AppEnv>()
       plannedEnd: body.plannedEnd,
       comment: body.comment,
       parentDocumentId: body.parentDocumentId,
-      items: body.items?.map(i => ({ itemId: i.itemId, qty: i.qty, customerOrderLineId: i.customerOrderLineId })),
+      items: body.items?.map(i => ({ itemId: i.itemId, qty: i.qty, customerOrderLineId: i.customerOrderLineId, params: i.params })),
     });
     return c.json(await detail(ctx, c.req.valid('param').id));
   })

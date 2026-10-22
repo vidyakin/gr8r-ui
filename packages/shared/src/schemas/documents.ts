@@ -97,6 +97,11 @@ export const costItemCreate = z.object({
 export const costItemUpdate = toPatch(costItemCreate.omit({ id: true }));
 export const costItemQuery = listQuery.extend({ kind: z.enum(COST_ITEM_KINDS).optional() });
 
+/* ---------------- параметры спецификации (значения в строке документа) ---------------- */
+
+/** Значения параметров изделия в строке документа: число, строка варианта или истина/ложь */
+export const paramValues = z.record(z.string().max(40), z.union([z.number().finite(), z.string().max(200), z.boolean()]));
+
 /* ---------------- документы ---------------- */
 
 export const documentLineInput = z
@@ -126,6 +131,8 @@ export const documentLineInput = z
     costItemId: uuid.nullish(),
     /** Участок строки-услуги (поступление): участные затраты идут на выпуск своего участка */
     workCenterId: uuid.nullish(),
+    /** Значения параметров спецификации изделия (заказ покупателя): состав выпуска считается формулами строк спецификации */
+    params: paramValues.optional(),
   })
   // нулевое количество допустимо только у строки инвентаризации: там qty — фактическое, учётное лежит в bookQty
   .refine(l => Number(l.qty) !== 0 || l.bookQty !== undefined, { message: 'Must be greater than zero', path: ['qty'] });

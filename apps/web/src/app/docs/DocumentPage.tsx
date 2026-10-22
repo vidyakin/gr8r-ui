@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Ban, CircleAlert, ChevronDown, ClipboardList, Copy, Ellipsis, FileText, PackageCheck, Plus, Printer, RotateCcw, Send, Trash2, Undo2 } from 'lucide-react';
+import { Ban, Calculator, ChevronDown, CircleAlert, ClipboardList, Copy, Ellipsis, FileText, PackageCheck, Plus, Printer, RotateCcw, Send, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
 import { amountInWordsRu, basedOnTargets, computeDocument, DOCUMENT_META, PRINT_FORM_LABELS, TRANSFER_OPERATIONS, VAT_LABELS, VAT_RATES, type DocumentType, type VatRate } from '@gr8r/shared';
 import { Badge, Button, ConfirmDialog, EmptyState, Field, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Segmented, Select, Skeleton, toast } from '@/components/ui';
 import { useCanWrite } from '../meta/custom-fields';
@@ -14,6 +14,7 @@ import { fmtDate } from '../lib/dates';
 import { useWorkspace } from '../data/store';
 import { useSnapshot } from '../production/data';
 import { STATUS_LABEL, STATUS_TONE, docTitle, docsKey, typeLabel, useCostItems, useDocsApi, useDocument, useOrganizations, useWarehouses, type DocDetail, type DocLink } from './data';
+import { CalculationDialog, ParamsDialog } from './calculation';
 import { CounterpartyPicker, ProductPicker } from './pickers';
 import { useBillingBreakdown, useContracts } from './billing-data';
 import { WorkOrderPanel } from './work-orders';
@@ -39,6 +40,8 @@ interface FormLine {
   costItemId: string | null;
   /** Участок строки-услуги поступления */
   workCenterId: string | null;
+  /** Значения параметров спецификации изделия (замеры, цвет): по ним считается состав выпуска */
+  params: Record<string, unknown>;
 }
 
 interface Form {
@@ -86,7 +89,7 @@ function toForm(d: DocDetail): Form {
     dueDate: d.dueDate ?? '',
     priceIncludesVat: d.priceIncludesVat,
     comment: d.comment,
-    lines: d.lines.map(l => ({ key: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, qty: trimNum(l.qty), price: l.price, discountPct: trimNum(l.discountPct), vatRate: l.vatRate, bookQty: trimNum(l.bookQty), receivedQty: trimNum(l.receivedQty), costItemId: l.costItemId, workCenterId: l.workCenterId })),
+    lines: d.lines.map(l => ({ key: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, qty: trimNum(l.qty), price: l.price, discountPct: trimNum(l.discountPct), vatRate: l.vatRate, bookQty: trimNum(l.bookQty), receivedQty: trimNum(l.receivedQty), costItemId: l.costItemId, workCenterId: l.workCenterId, params: (l as { params?: Record<string, unknown> }).params ?? {} })),
   };
 }
 
@@ -118,7 +121,7 @@ function toPayload(f: Form) {
     comment: f.comment,
     lines: f.lines
       .filter(l => l.productId)
-      .map(l => ({ id: l.key, productId: l.productId!, name: l.name, unitCode: l.unitCode, qty: num(l.qty), price: num(l.price), discountPct: num(l.discountPct || '0'), vatRate: l.vatRate, bookQty: num(l.bookQty || '0'), receivedQty: num(l.receivedQty || '0'), costItemId: l.costItemId, workCenterId: l.workCenterId })),
+      .map(l => ({ id: l.key, productId: l.productId!, name: l.name, unitCode: l.unitCode, qty: num(l.qty), price: num(l.price), discountPct: num(l.discountPct || '0'), vatRate: l.vatRate, bookQty: num(l.bookQty || '0'), receivedQty: num(l.receivedQty || '0'), costItemId: l.costItemId, workCenterId: l.workCenterId, params: l.params ?? {} })),
   };
 }
 
@@ -197,6 +200,9 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const [received, setReceived] = React.useState<Record<string, string>>(() => Object.fromEntries(doc.lines.map(l => [l.id, trimNum(l.receivedQty) || trimNum(l.qty)])));
   const [save, setSave] = React.useState<SaveState>('saved');
   const [confirm, setConfirm] = React.useState<'cancel' | 'delete' | null>(null);
+  // параметры строки заказа и калькуляция заказа покупателя
+  const [paramsLine, setParamsLine] = React.useState<string | null>(null);
+  const [calcOpen, setCalcOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const latest = React.useRef(form);
   latest.current = form;
@@ -246,7 +252,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   };
   const patchLine = (key: string, patch: Partial<FormLine>) => edit(f => ({ ...f, lines: f.lines.map(l => (l.key === key ? { ...l, ...patch } : l)) }));
   const addLine = (at?: number) => {
-    const line: FormLine = { key: uuidv7(), productId: null, name: '', unitCode: '796', qty: '1', price: '', discountPct: '', vatRate: '20', bookQty: '0', receivedQty: '0', costItemId: null, workCenterId: null };
+    const line: FormLine = { key: uuidv7(), productId: null, name: '', unitCode: '796', qty: '1', price: '', discountPct: '', vatRate: '20', bookQty: '0', receivedQty: '0', costItemId: null, workCenterId: null, params: {} };
     const index = at ?? latest.current.lines.length;
     focusReq.current = { row: index, col: 0 };
     edit(f => ({ ...f, lines: [...f.lines.slice(0, index), line, ...f.lines.slice(index)] }));
@@ -457,6 +463,18 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                 ))}
               </MenuContent>
             </Menu>
+          )}
+          {doc.type === 'customer_order' && (
+            <Button
+              onClick={() => {
+                void (async () => {
+                  if (await flush()) setCalcOpen(true);
+                })();
+              }}
+            >
+              <Calculator size={14} />
+              Calculation
+            </Button>
           )}
           {canWrite && doc.status !== 'posted' && (
             <Menu>
@@ -839,6 +857,11 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       {a ? money(a.total) : '—'}
                     </td>
                     <td>
+                      {editable && doc.type === 'customer_order' && l.productId && (
+                        <IconButton size="xs" label="Parameters of the product" onClick={() => setParamsLine(l.key)}>
+                          <SlidersHorizontal size={13} />
+                        </IconButton>
+                      )}
                       {editable && (
                         <IconButton size="xs" label="Remove line" onClick={() => edit(f => ({ ...f, lines: f.lines.filter(x => x.key !== l.key) }))}>
                           <Trash2 size={13} />
@@ -1007,6 +1030,13 @@ function DocumentView({ doc }: { doc: DocDetail }) {
         onConfirm={() => void run('cancel')}
       />
       <ConfirmDialog open={confirm === 'delete'} onOpenChange={o => !o && setConfirm(null)} title="Delete this draft?" description="The draft has never been posted and has no number, so it is removed completely." confirmLabel="Delete" cancelLabel="Keep" danger onConfirm={() => void remove()} />
+      {paramsLine &&
+        (() => {
+          const l = form.lines.find(x => x.key === paramsLine);
+          if (!l?.productId) return null;
+          return <ParamsDialog productId={l.productId} productName={l.name} values={l.params ?? {}} onChange={v => patchLine(l.key, { params: v })} onClose={() => setParamsLine(null)} />;
+        })()}
+      {calcOpen && <CalculationDialog documentId={doc.id} onClose={() => setCalcOpen(false)} onApplied={() => void api('GET', `/documents/${doc.id}`)} />}
     </div>
   );
 }

@@ -83,9 +83,32 @@ export const OKEI_UNITS = [
   { code: '876', name: 'Условная единица', symbol: 'усл. ед' },
 ] as const;
 
-export const BOM_KINDS = ['material', 'semi', 'work'] as const;
+export const BOM_KINDS = ['material', 'semi', 'work', 'expense'] as const;
 export type BomKind = (typeof BOM_KINDS)[number];
+/** expense — расход: услуга подрядчика входит в плановую себестоимость, но со склада не списывается (строка 8.1.1 УНФ) */
+export const BOM_KIND_LABELS: Record<BomKind, string> = { material: 'Material', semi: 'Semi-finished product', work: 'Work operation', expense: 'Expense' };
 export const MANUFACTURED_KINDS = ['product', 'semi'] as const;
+
+/** Типы значений параметра спецификации: число (замер), вариант (цвет) и флажок */
+export const PARAM_TYPES = ['number', 'select', 'boolean'] as const;
+export type ParamType = (typeof PARAM_TYPES)[number];
+
+/** Предел числа комбинаций в генераторе «Создать все комбинации» */
+export const VARIANT_MAX_COMBINATIONS = 200;
+
+/** Источник цены себестоимости в калькуляции заказа: средняя склада, последняя цена закупки или закупочная цена товара */
+export const COST_PRICE_SOURCES = ['avg', 'last_purchase', 'purchase_price'] as const;
+export type CostPriceSource = (typeof COST_PRICE_SOURCES)[number];
+export const COST_PRICE_SOURCE_LABELS: Record<CostPriceSource, string> = {
+  avg: 'Average warehouse cost',
+  last_purchase: 'Last purchase price',
+  purchase_price: 'Purchase price of the product',
+};
+
+/** Типы строк калькуляции заказа: состав изделия и разовые расходы (доставка и т. п.) */
+export const CALC_LINE_TYPES = ['material', 'semi', 'work', 'expense', 'extra'] as const;
+export type CalcLineType = (typeof CALC_LINE_TYPES)[number];
+export const CALC_LINE_LABELS: Record<CalcLineType, string> = { material: 'Material', semi: 'Semi-finished product', work: 'Work operation', expense: 'Expense', extra: 'One-off expense' };
 
 /** Режим полуфабриката в строке BOM: stock — полуфабрикат выпускается отдельно и списывается со склада,
     explode — разворачивается до материалов и работ в том же выпуске */

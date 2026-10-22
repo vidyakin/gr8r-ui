@@ -4,11 +4,13 @@
 import { zValidator } from '@hono/zod-validator';
 import { asc, eq, inArray, isNull, max, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { bomLines, calculateNeeds, createNeedsDrafts, createNeedsSupplierOrders, listProductionKinds, loadAvgCosts, manufacturedItems, postNeedsDrafts, productionKinds, productionNeeds, productionStages, products, recordEvent, stockBalances, stockReservations, warehouses, workCenters, workspaces } from '@gr8r/db';
+import { bomLines, calculateNeeds, createNeedsDrafts, createNeedsSupplierOrders, listProductionKinds, loadAvgCosts, manufacturedItems, postNeedsDrafts, productCategories, productionKinds, productionNeeds, productionStages, products, recordEvent, stockBalances, stockReservations, warehouses, workCenters, workspaces } from '@gr8r/db';
 import {
   bomLineCreate,
   bomLineUpdate,
+  bomPrintParam,
   bomReorder,
+  compileExpr,
   computeBomCost,
   computeNeeds,
   explodeBom,
@@ -22,6 +24,7 @@ import {
   needsCalculateQuery,
   needsOrdersCreate,
   needsPostCreate,
+  parseParamJson,
   productionNeedsQuery,
   productionSettingsUpdate,
   resolveMaterialPrice,
@@ -30,6 +33,11 @@ import {
   workCenterQuery,
   workCenterUpdate,
   BomCycleError,
+  BomFormulaError,
+  ExprError,
+  bomPrintHtml,
+  type BomPrintData,
+  type BomPrintRow,
   type BomItemInput,
   type Explosion,
   type MaterialPriceSource,
@@ -38,7 +46,8 @@ import {
 import { crud, ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError, notFound } from '../errors';
 import { requireRole } from '../middleware';
-import { assertUnit } from '../catalog/service';
+import { assertUnit, effectiveAttributes } from '../catalog/service';
+import { loadSpecParams } from '@gr8r/db';
 import type { AppEnv } from '../types';
 
 const admin = requireRole('admin');
@@ -120,14 +129,16 @@ async function loadBomGraph(ctx: Ctx) {
   return { items, lines, centers, mats, avg };
 }
 
-export const toInput = (item: ItemRow, lines: LineRow[]): BomItemInput => ({
+export const toInput = (item: ItemRow, lines: LineRow[], paramKeys: string[] = [], params?: Record<string, unknown> | null): BomItemInput => ({
   id: item.id,
   name: item.name,
   unitCode: item.unitCode,
   productId: item.productId,
   batchQty: item.batchQty,
   overheadPct: item.overheadPct,
-  lines: lines.map(l => ({ id: l.id, kind: l.kind, qty: l.qty, productId: l.productId, scrapPct: l.scrapPct, unitCode: l.unitCode, childItemId: l.childItemId, semiMode: l.semiMode, operation: l.operation, workCenterId: l.workCenterId, hours: l.hours, rate: l.rate, fixedCost: l.fixedCost })),
+  paramKeys,
+  params,
+  lines: lines.map(l => ({ id: l.id, kind: l.kind, qty: l.qty, productId: l.productId, scrapPct: l.scrapPct, unitCode: l.unitCode, childItemId: l.childItemId, semiMode: l.semiMode, operation: l.operation, workCenterId: l.workCenterId, hours: l.hours, rate: l.rate, fixedCost: l.fixedCost, qtyExpr: l.qtyExpr, condition: l.condition })),
 });
 
 /* ---------------- продукция и спецификации ---------------- */
@@ -155,6 +166,13 @@ async function checkLine(ctx: Ctx, itemId: string, l: Pick<LineRow, 'kind' | 'pr
     if (wouldCreateCycle(edges, itemId, l.childItemId!)) throw new AppError(422, 'bom_cycle', 'A product cannot include itself, directly or through its semi-finished products', { issues: [{ path: 'childItemId', message: 'This would create a cycle' }] });
     return { unitCode: child.unitCode };
   }
+  if (l.kind === 'expense') {
+    // расход: услуга подрядчика — в себестоимость, но не на склад
+    const [p] = await ctx.db.select({ unitCode: products.unitCode, kind: products.kind }).from(products).where(eq(products.id, l.productId ?? '')).limit(1);
+    if (!p) throw new AppError(422, 'invalid_reference', 'The service does not exist', { issues: [{ path: 'productId', message: 'Service not found' }] });
+    if (p.kind !== 'service') throw new AppError(422, 'invalid_expense', 'An expense line is a service of a contractor', { issues: [{ path: 'productId', message: 'Choose a service' }] });
+    return { unitCode: p.unitCode };
+  }
   if (l.kind === 'work') {
     // работа может ссылаться на операцию (вид номенклатуры «операция»)
     if (l.productId) {
@@ -171,6 +189,39 @@ async function checkLine(ctx: Ctx, itemId: string, l: Pick<LineRow, 'kind' | 'pr
   return { unitCode: null };
 }
 
+/** Ключи, доступные в формулах строк спецификации: параметры спецификации и характеристики категории товара */
+async function specKeys(ctx: Ctx, itemId: string): Promise<string[]> {
+  const specs = await loadSpecParams(ctx.db, ctx.workspaceId);
+  return specs.get(itemId)?.keys ?? [];
+}
+
+/** Ключ параметра спецификации не должен совпадать с ключом характеристики категории товара */
+async function assertParamsFree(ctx: Ctx, productId: string | null | undefined, params: { key: string }[]): Promise<void> {
+  if (!productId || !params.length) return;
+  const [p] = await ctx.db.select({ categoryId: products.categoryId }).from(products).where(eq(products.id, productId)).limit(1);
+  if (!p?.categoryId) return;
+  const [cat] = await ctx.db.select().from(productCategories).where(eq(productCategories.id, p.categoryId)).limit(1);
+  if (!cat) return;
+  const attrs = await effectiveAttributes(ctx, cat);
+  const attrKeys = attrs.map(a => a.key);
+  const clash = params.map(x => x.key).find(k => attrKeys.includes(k));
+  if (clash) throw new AppError(422, 'param_key_clash', `The key “${clash}” is already used by a characteristic of the product category`, { issues: [{ path: 'params', message: `The key “${clash}” is already used by a characteristic of the product category` }] });
+}
+
+/** Проверка формул строки спецификации при сохранении: неизвестный параметр, синтаксическая ошибка, лимиты — 422 */
+async function assertFormulas(ctx: Ctx, itemId: string, body: { qtyExpr?: string | null; condition?: string | null }): Promise<void> {
+  const keys = await specKeys(ctx, itemId);
+  for (const [field, src] of [['qtyExpr', body.qtyExpr], ['condition', body.condition]] as const) {
+    if (!src?.trim()) continue;
+    try {
+      compileExpr(src, keys);
+    } catch (e) {
+      if (e instanceof ExprError) throw new AppError(422, 'invalid_expression', `${field}: ${e.message}`, { issues: [{ path: field, message: e.message }] });
+      throw e;
+    }
+  }
+}
+
 export const itemRoutes = crud({
   entity: 'manufactured_item',
   table: manufacturedItems,
@@ -180,15 +231,21 @@ export const itemRoutes = crud({
   sortable: { name: manufacturedItems.name, code: manufacturedItems.code, kind: manufacturedItems.kind, createdAt: manufacturedItems.createdAt, updatedAt: manufacturedItems.updatedAt },
   defaultSort: 'name',
   search: [manufacturedItems.name, manufacturedItems.code],
-  filters: q => [q.kind ? eq(manufacturedItems.kind, q.kind) : undefined],
+  filters: (q, ctx) => [
+    q.kind ? eq(manufacturedItems.kind, q.kind) : undefined,
+    // «содержит материал/операцию»: товар или операция есть в строках спецификации (у работы — операция строки)
+    q.contains ? inArray(manufacturedItems.id, ctx.db.select({ id: bomLines.itemId }).from(bomLines).where(eq(bomLines.productId, q.contains))) : undefined,
+  ],
   prepareCreate: async (ctx, body) => {
     await assertUnit(ctx, body.unitCode);
     await assertProductionKind(ctx, body.productionKindId);
+    await assertParamsFree(ctx, body.productId, body.params ?? []);
     return {};
   },
   prepareUpdate: async (ctx, existing, body) => {
     if (body.unitCode !== undefined && body.unitCode !== existing.unitCode) await assertUnit(ctx, body.unitCode);
     if (body.productionKindId !== undefined) await assertProductionKind(ctx, body.productionKindId);
+    if (body.params !== undefined) await assertParamsFree(ctx, body.productId ?? existing.productId, body.params);
     return {};
   },
   // Продукцию, которая входит в чужие спецификации, нельзя убрать: сначала уберите её оттуда
@@ -213,8 +270,9 @@ export const itemRoutes = crud({
     const ctx = ctxOf(c);
     const body = c.req.valid('json');
     const item = await loadItem(ctx, c.req.valid('param').id);
-    const base = { kind: body.kind, productId: body.kind === 'material' ? (body.productId ?? null) : body.kind === 'work' ? (body.productId ?? null) : null, childItemId: body.kind === 'semi' ? (body.childItemId ?? null) : null, semiMode: body.kind === 'semi' ? (body.semiMode ?? 'stock') : null, workCenterId: body.kind === 'work' ? (body.workCenterId ?? null) : null, operation: body.operation ?? '', stageId: body.stageId ?? null };
+    const base = { kind: body.kind, productId: body.kind === 'material' || body.kind === 'expense' ? (body.productId ?? null) : body.kind === 'work' ? (body.productId ?? null) : null, childItemId: body.kind === 'semi' ? (body.childItemId ?? null) : null, semiMode: body.kind === 'semi' ? (body.semiMode ?? 'stock') : null, workCenterId: body.kind === 'work' ? (body.workCenterId ?? null) : null, operation: body.operation ?? '', stageId: body.stageId ?? null };
     const { unitCode } = await checkLine(ctx, item.id, base);
+    await assertFormulas(ctx, item.id, body);
     const [ord] = await ctx.db.select({ m: max(bomLines.sortOrder) }).from(bomLines).where(eq(bomLines.itemId, item.id));
     const [row] = await ctx.db
       .insert(bomLines)
@@ -230,6 +288,8 @@ export const itemRoutes = crud({
         hours: body.kind === 'work' ? (body.hours ?? '0') : '0',
         rate: body.kind === 'work' ? (body.rate ?? null) : null,
         fixedCost: body.kind === 'work' ? (body.fixedCost ?? null) : null,
+        qtyExpr: body.qtyExpr ?? null,
+        condition: body.condition ?? null,
         note: body.note ?? '',
       })
       .returning();
@@ -263,18 +323,74 @@ export const itemRoutes = crud({
     for (const l of g.lines) byItem.set(l.itemId, [...(byItem.get(l.itemId) ?? []), l]);
     const prod = new Map(g.mats.map(p => [p.id, p]));
     const rates = new Map(g.centers.map(w => [w.id, w.hourlyRate]));
+    const specs = await loadSpecParams(ctx.db, ctx.workspaceId);
     try {
-      const tree = computeBomCost(g.items.map(i => toInput(i, byItem.get(i.id) ?? [])), id, {
+      const tree = computeBomCost(g.items.map(i => toInput(i, byItem.get(i.id) ?? [], specs.get(i.id)?.keys ?? [])), id, {
         materialPrice: pid => (prod.has(pid) ? resolveMaterialPrice(settings.materialPriceSource, prod.get(pid)!, g.avg.get(pid)) : null),
         workCenterRate: wid => rates.get(wid),
       });
       return c.json({ itemId: id, source: settings.materialPriceSource, tree });
     } catch (e) {
       if (e instanceof BomCycleError) throw new AppError(422, 'bom_cycle', e.message, { path: e.path });
+      // формулы строк требуют значений параметров изделия: без них себестоимость спецификации не считается
+      if (e instanceof BomFormulaError) throw new AppError(422, 'formula_error', e.message);
       throw e;
     }
   })
   // развёртка спецификации на количество и потребность с учётом остатков: нужно / доступно / дефицит
+  // печатная форма спецификации: кратко (свои строки) и развёрнуто (переделы до исходных материалов)
+  .get('/:id/print/:form', zValidator('param', bomPrintParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const { id, form } = c.req.valid('param');
+    const item = await loadItem(ctx, id);
+    const g = await loadBomGraph(ctx);
+    const byItem = new Map<string, LineRow[]>();
+    for (const l of g.lines) byItem.set(l.itemId, [...(byItem.get(l.itemId) ?? []), l]);
+    const prod = new Map(g.mats.map(p => [p.id, p]));
+    const items = new Map(g.items.map(i => [i.id, i]));
+    const specs = await loadSpecParams(ctx.db, ctx.workspaceId);
+    const params = parseParamJson(c.req.query('params'));
+    const kindLabel: Record<string, string> = { material: 'Материал', semi: 'Полуфабрикат', work: 'Работа', expense: 'Расход' };
+    let n = 0;
+    // строки спецификации: в краткой форме — свои, в развёрнутой — с переделами
+    const build = (itemId: string, deep: boolean): BomPrintRow[] => {
+      const out: BomPrintRow[] = [];
+      for (const l of byItem.get(itemId) ?? []) {
+        n++;
+        const child = l.kind === 'semi' && l.childItemId ? items.get(l.childItemId) : undefined;
+        const name = l.kind === 'material' || l.kind === 'expense' ? (prod.get(l.productId ?? '')?.name ?? '') : l.kind === 'work' ? l.operation ?? '' : (child?.name ?? '');
+        const row: BomPrintRow = {
+          n,
+          kind: kindLabel[l.kind] ?? l.kind,
+          name,
+          product: l.kind === 'material' || l.kind === 'expense' ? (prod.get(l.productId ?? '')?.sku ?? '') : '',
+          unitCode: l.unitCode ?? '',
+          qty: l.qty,
+          note: l.note ?? '',
+        };
+        if (deep && child) row.children = build(child.id, true);
+        out.push(row);
+      }
+      return out;
+    };
+    const spec = specs.get(item.id);
+    const values = spec?.params.map(p => ({ name: p.name, value: String((params ?? {})[p.key] ?? '') })).filter(x => x.value !== '') ?? [];
+    const data: BomPrintData = {
+      form,
+      name: item.name,
+      code: item.code,
+      productName: item.productId ? (prod.get(item.productId)?.name ?? null) : null,
+      unitCode: item.unitCode,
+      batchQty: item.batchQty,
+      overheadPct: item.overheadPct,
+      date: new Date().toISOString().slice(0, 10),
+      params: values,
+      rows: build(item.id, form === 'expanded'),
+    };
+    c.header('Content-Security-Policy', "default-src 'none'; img-src * data:; style-src 'unsafe-inline'");
+    c.header('X-Content-Type-Options', 'nosniff');
+    return c.html(bomPrintHtml(data));
+  })
   .get('/:id/explode', zValidator('param', idParam, validationHook), zValidator('query', explodeQuery, validationHook), async c => {
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;
@@ -287,11 +403,15 @@ export const itemRoutes = crud({
     const g = await loadBomGraph(ctx);
     const byItem = new Map<string, LineRow[]>();
     for (const l of g.lines) byItem.set(l.itemId, [...(byItem.get(l.itemId) ?? []), l]);
+    const specs = await loadSpecParams(ctx.db, ctx.workspaceId);
+    // значения параметров изделия: формулы количества и условия строк
+    const params = parseParamJson(q.params);
     let explosion: Explosion;
     try {
-      explosion = explodeBom(g.items.map(i => toInput(i, byItem.get(i.id) ?? [])), id, q.qty);
+      explosion = explodeBom(g.items.map(i => toInput(i, byItem.get(i.id) ?? [], specs.get(i.id)?.keys ?? [], i.id === id ? params : undefined)), id, q.qty);
     } catch (e) {
       if (e instanceof BomCycleError) throw new AppError(422, 'bom_cycle', e.message, { path: e.path });
+      if (e instanceof BomFormulaError) throw new AppError(422, 'formula_error', e.message);
       throw e;
     }
     // Доступно: остаток склада минус резерв под заказы покупателей (по одному складу или по всем сразу)
@@ -310,6 +430,8 @@ export const itemRoutes = crud({
       batchQty: explosion.batchQty,
       warehouseId: q.warehouseId ?? null,
       materials: needs.materials.map(m => ({ ...m, name: prod.get(m.productId ?? '')?.name ?? m.productId, unitCode: prod.get(m.productId ?? '')?.unitCode ?? null })),
+      // расходы подрядчику: в себестоимость входят, но в потребность (остатки склада) не попадают
+      expenses: explosion.materials.filter(m => m.expense).map(m => ({ productId: m.productId, name: prod.get(m.productId ?? '')?.name ?? m.productId, unitCode: prod.get(m.productId ?? '')?.unitCode ?? null, qty: m.qty })),
       semis: needs.semis.map(s => ({ ...s, name: items.get(s.itemId ?? '')?.name ?? s.itemId, unitCode: items.get(s.itemId ?? '')?.unitCode ?? null })),
       works: needs.works,
     });
@@ -331,13 +453,14 @@ export const bomLineRoutes = new Hono<AppEnv>()
     const [line] = await ctx.db.select().from(bomLines).where(eq(bomLines.id, c.req.valid('param').id)).limit(1).for('update');
     if (!line) throw notFound('bom_line');
     // Поля, чужие для типа строки, отклоняются: тип не меняется
-    const foreign: Record<LineRow['kind'], string[]> = { material: ['childItemId', 'semiMode', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], semi: ['productId', 'scrapPct', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], work: ['childItemId', 'semiMode', 'qty', 'scrapPct'] };
+    const foreign: Record<LineRow['kind'], string[]> = { material: ['childItemId', 'semiMode', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], semi: ['productId', 'scrapPct', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], work: ['childItemId', 'semiMode', 'qty', 'scrapPct'], expense: ['childItemId', 'semiMode', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'] };
     const bad = foreign[line.kind].find(k => (body as Record<string, unknown>)[k] !== undefined);
     if (bad) throw new AppError(400, 'validation_error', `${bad}: not applicable to a ${line.kind} line`, { issues: [{ path: bad, message: `Not applicable to a ${line.kind} line` }] });
     const next = { ...line, ...Object.fromEntries(Object.entries(body).filter(([, v]) => v !== undefined)) } as LineRow;
     if (line.kind === 'work' && !(Number(next.hours) > 0 || Number(next.fixedCost ?? 0) > 0) && !next.productId) throw new AppError(400, 'validation_error', 'hours: Set hours or a fixed cost', { issues: [{ path: 'hours', message: 'Set hours or a fixed cost' }] });
     const refChanged = next.productId !== line.productId || next.childItemId !== line.childItemId || next.workCenterId !== line.workCenterId;
     const { unitCode } = refChanged ? await checkLine(ctx, line.itemId, next) : { unitCode: line.unitCode };
+    await assertFormulas(ctx, line.itemId, body);
     const [row] = await ctx.db
       .update(bomLines)
       .set({ ...body, unitCode, updatedAt: new Date() })

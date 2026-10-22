@@ -475,7 +475,8 @@ export async function productionPlanNeeds(db: Db, id: string) {
       continue;
     }
     if (l.isSemi) produced.set(l.itemId, (produced.get(l.itemId) ?? 0n) + dec(l.qty));
-    for (const m of explosion.materials) mats.set(m.productId, (mats.get(m.productId) ?? 0n) + dec(m.qty));
+    // расход подрядчику — услуга: со склада не списывается, в потребность материалов не входит
+    for (const m of explosion.materials) if (!m.expense) mats.set(m.productId, (mats.get(m.productId) ?? 0n) + dec(m.qty));
     for (const s of explosion.semis) consumed.set(s.itemId, (consumed.get(s.itemId) ?? 0n) + dec(s.qty));
     const byCenter = hoursByPeriod.get(l.periodStart) ?? new Map<string, Dec>();
     for (const w of explosion.works) {
