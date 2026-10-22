@@ -100,3 +100,23 @@ export type MaterialPriceSource = (typeof MATERIAL_PRICE_SOURCES)[number];
 /** Способ пополнения товара: закупить на склад или выпустить своим производством */
 export const REPLENISHMENT_MODES = ['purchase', 'production'] as const;
 export type ReplenishmentMode = (typeof REPLENISHMENT_MODES)[number];
+
+/** Способ пополнения по норме запаса: закупить, выпустить или переместить с другого склада */
+export const STOCK_REPLENISHMENT = ['purchase', 'production', 'transfer'] as const;
+export type StockReplenishment = (typeof STOCK_REPLENISHMENT)[number];
+export const STOCK_REPLENISHMENT_LABELS: Record<StockReplenishment, string> = { purchase: 'Purchase', production: 'Production', transfer: 'Transfer' };
+
+/** План производства: шаг периодов (неделя или месяц) и состояние (черновик → утверждён) */
+export const PLAN_STEPS = ['week', 'month'] as const;
+export type PlanStep = (typeof PLAN_STEPS)[number];
+export const PLAN_STATUSES = ['draft', 'approved'] as const;
+export type PlanStatus = (typeof PLAN_STATUSES)[number];
+
+/** Методики расчёта потребностей: по заказам с правилом мин./макс. и по продажам */
+export const NEEDS_METHODS = ['orders', 'sales_minmax', 'sales_statistics'] as const;
+export type NeedsMethod = (typeof NEEDS_METHODS)[number];
+export const NEEDS_METHOD_LABELS: Record<NeedsMethod, string> = {
+  orders: 'By orders, min/max',
+  sales_minmax: 'By sales, min/max',
+  sales_statistics: 'By sales statistics',
+};

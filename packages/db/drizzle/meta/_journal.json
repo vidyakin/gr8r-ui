@@ -141,6 +141,13 @@
       "when": 1792680141094,
       "tag": "0019_production_materials",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792689648884,
+      "tag": "0020_production_plans",
+      "breakpoints": true
     }
   ]
 }

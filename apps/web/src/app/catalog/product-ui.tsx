@@ -10,6 +10,7 @@ import { useCanWrite, useCustomRows } from '../meta/custom-fields';
 import { FieldInput, FieldValue } from '../meta/field-ui';
 import type { MetaField } from '../meta/data';
 import { attributeAsField, flattenTree, useAttributes, useCompanies, useProductMutations, useSaveWorkNorm, useUnits, useWorkCenters, useWorkNorms, type CategoryNode, type Product } from './data';
+import { StockLevelsTab } from './stock-levels';
 
 /** Служебное «поле» для обычной колонки товара, чтобы редактировать её тем же FieldInput */
 const col = (key: string, name: string, type: MetaField['type']): MetaField => ({
@@ -33,6 +34,7 @@ const F = {
   price: col('price', 'Price', 'number'),
   purchasePrice: col('purchasePrice', 'Purchase price', 'number'),
   normHours: col('normHours', 'Norm hours', 'number'),
+  leadDays: col('leadDays', 'Lead days', 'number'),
 };
 
 const KIND_LABEL: Record<ProductKind, string> = { goods: 'Goods', service: 'Service', work: 'Work', operation: 'Operation' };
@@ -152,6 +154,7 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
           row(Percent, 'VAT', <VatSelect value={p.vatRate} onChange={vatRate => save({ vatRate })} />, VAT_LABELS[p.vatRate]),
           row(CircleDollarSign, 'Sale price', <FieldInput field={F.price} value={Number(p.price)} onChange={v => save({ price: v ?? 0 })} />, p.price),
           row(CircleDollarSign, 'Purchase price', <FieldInput field={F.purchasePrice} value={Number(p.purchasePrice)} onChange={v => save({ purchasePrice: v ?? 0 })} />, p.purchasePrice),
+          row(Timer, 'Lead days', <FieldInput field={F.leadDays} value={p.leadDays ?? 0} onChange={v => save({ leadDays: v ?? 0 })} />, String(p.leadDays ?? 0)),
           {
             icon: Building2,
             label: 'Default supplier',
@@ -220,6 +223,7 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
             </dl>
           )}
         </DrawerSection>
+        <StockLevelsTab productId={p.id} />
         {!!custom.length && (
           <DrawerSection title="Custom fields">
             <dl className="kv">

@@ -110,6 +110,8 @@ export const manufacturedItems = pgTable(
     overheadPct: numeric('overhead_pct', { precision: 7, scale: 2 }).notNull().default('0'),
     /** Вид производства: этапы выпуска (без вида — единственный этап «Завершение производства») */
     productionKindId: uuid('production_kind_id'),
+    /** Дней на изготовление (рабочих, по календарю воркспейса): дата запуска = дата выпуска минус lead_days */
+    leadDays: integer('lead_days').notNull().default(0),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
     archivedAt: archivedAt(),
@@ -121,6 +123,7 @@ export const manufacturedItems = pgTable(
     foreignKey({ columns: [t.workspaceId, t.unitCode], foreignColumns: [units.workspaceId, units.code], name: 'manufactured_items_unit_fk' }),
     check('manufactured_items_kind_chk', sql`${t.kind} in ('product','semi')`),
     check('manufactured_items_batch_chk', sql`${t.batchQty} > 0 and ${t.overheadPct} >= 0`),
+    check('manufactured_items_lead_chk', sql`${t.leadDays} >= 0`),
     uniqueIndex('manufactured_items_ws_code_uq').on(t.workspaceId, sql`lower(${t.code})`).where(sql`${t.code} <> ''`),
   ],
 );
@@ -179,6 +182,111 @@ export const bomLines = pgTable(
   ],
 );
 
+/* ---------------- план производства и нормы запаса ----------------
+
+   План — объём выпуска по периодам (неделя или месяц) в разрезе склада готовой продукции и, необязательно,
+   участка-диспетчера. Строка — «изделие × период»: дата начала периода = дата выпуска, количество — сколько
+   выпустить к этой дате. Полуфабрикаты планируются кнопкой и помечаются флагом is_semi. */
+
+/** План производства: диапазон дат, шаг периодов и склад готовой продукции */
+export const productionPlans = pgTable(
+  'production_plans',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    name: text('name').notNull(),
+    periodFrom: date('period_from', { mode: 'string' }).notNull(),
+    periodTo: date('period_to', { mode: 'string' }).notNull(),
+    /** Шаг периодов: неделя или месяц */
+    step: text('step', { enum: ['week', 'month'] }).notNull().default('week'),
+    /** Состояние: черновик → утверждён (заказы создаются только по утверждённым) */
+    status: text('status', { enum: ['draft', 'approved'] }).notNull().default('draft'),
+    /** Склад готовой продукции (обязателен) */
+    warehouseId: uuid('warehouse_id').notNull(),
+    /** Участок-диспетчер (необязателен) */
+    workCenterId: uuid('work_center_id'),
+    /** Продукция правилась после последнего расчёта полуфабрикатов — нужно перепланировать */
+    semiDirty: boolean('semi_dirty').notNull().default(false),
+    comment: text('comment').notNull().default(''),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    archivedAt: archivedAt(),
+  },
+  t => [
+    unique('production_plans_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.warehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'production_plans_warehouse_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.workCenterId], foreignColumns: [workCenters.workspaceId, workCenters.id], name: 'production_plans_work_center_fk' }),
+    check('production_plans_dates_chk', sql`${t.periodTo} >= ${t.periodFrom}`),
+    check('production_plans_step_chk', sql`${t.step} in ('week','month')`),
+    check('production_plans_status_chk', sql`${t.status} in ('draft','approved')`),
+    index('production_plans_period_idx').on(t.workspaceId, t.periodFrom, t.periodTo),
+  ],
+);
+
+/** Строка плана: сколько изделия (или полуфабриката) выпустить к началу периода */
+export const productionPlanLines = pgTable(
+  'production_plan_lines',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    planId: uuid('plan_id').notNull(),
+    /** Продукция (изделие или полуфабрикат) */
+    itemId: uuid('item_id').notNull(),
+    /** Начало периода = дата выпуска */
+    periodStart: date('period_start', { mode: 'string' }).notNull(),
+    /** Сколько выпустить к этой дате */
+    qty: numeric('qty', { precision: 18, scale: 3 }).notNull().default('0'),
+    /** Строка полуфабриката (добавляется кнопкой «Запланировать полуфабрикаты») */
+    isSemi: boolean('is_semi').notNull().default(false),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    unique('production_plan_lines_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.planId], foreignColumns: [productionPlans.workspaceId, productionPlans.id], name: 'production_plan_lines_plan_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.itemId], foreignColumns: [manufacturedItems.workspaceId, manufacturedItems.id], name: 'production_plan_lines_item_fk' }),
+    check('production_plan_lines_qty_chk', sql`${t.qty} >= 0`),
+    index('production_plan_lines_plan_idx').on(t.planId, t.sortOrder),
+    index('production_plan_lines_item_idx').on(t.itemId, t.periodStart),
+  ],
+);
+
+/** Норма запаса товара: строка по складу или строка без склада (норма по компании) */
+export const stockLevels = pgTable(
+  'stock_levels',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    productId: uuid('product_id').notNull(),
+    /** Склад; пусто — норма по компании (действует, если для склада своей строки нет) */
+    warehouseId: uuid('warehouse_id'),
+    minQty: numeric('min_qty', { precision: 18, scale: 3 }).notNull().default('0'),
+    maxQty: numeric('max_qty', { precision: 18, scale: 3 }).notNull().default('0'),
+    /** Способ пополнения: закупить, выпустить или переместить с другого склада */
+    replenishment: text('replenishment', { enum: ['purchase', 'production', 'transfer'] }).notNull().default('purchase'),
+    /** Склад-источник (только для перемещения) */
+    sourceWarehouseId: uuid('source_warehouse_id'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    unique('stock_levels_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'stock_levels_product_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.warehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'stock_levels_warehouse_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.sourceWarehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'stock_levels_source_fk' }),
+    check('stock_levels_qty_chk', sql`${t.minQty} >= 0 and ${t.maxQty} >= ${t.minQty}`),
+    check('stock_levels_replenishment_chk', sql`${t.replenishment} in ('purchase','production','transfer')`),
+    // перемещению нужен склад-источник, отличный от склада-получателя
+    // перемещение — только на конкретный склад: у нормы по компании склада-получателя нет
+    check('stock_levels_transfer_chk', sql`${t.replenishment} <> 'transfer' or (${t.warehouseId} is not null and ${t.sourceWarehouseId} is not null and ${t.sourceWarehouseId} <> ${t.warehouseId})`),
+    uniqueIndex('stock_levels_wh_uq').on(t.workspaceId, t.productId, t.warehouseId).where(sql`${t.warehouseId} is not null`),
+    // норма по компании — одна на товар
+    uniqueIndex('stock_levels_company_uq').on(t.workspaceId, t.productId).where(sql`${t.warehouseId} is null`),
+    index('stock_levels_product_idx').on(t.workspaceId, t.productId),
+  ],
+);
+
 /* ---------------- заказы на производство и выпуск ----------------
 
    Производственные данные лежат рядом с документом, а не в document_lines: строка документа — всегда товар каталога,
@@ -230,6 +338,8 @@ export const productionItems = pgTable(
     sourceItemId: uuid('source_item_id'),
     /** Этап выпуска, к которому относится позиция */
     stageId: uuid('stage_id'),
+    /** Строка плана производства, из которой позиция заказа (заказы по плану не дублируются) */
+    planLineId: uuid('plan_line_id'),
     /** Фактическая себестоимость позиции на этом этапе (материалы + работы + накладные) */
     stageCost: numeric('stage_cost', { precision: 18, scale: 4 }),
     /** Строка документа с продукцией (у выпуска) */
@@ -245,9 +355,11 @@ export const productionItems = pgTable(
     foreignKey({ columns: [t.workspaceId, t.sourceItemId], foreignColumns: [t.workspaceId, t.id], name: 'production_items_source_fk' }),
     foreignKey({ columns: [t.workspaceId, t.stageId], foreignColumns: [productionStages.workspaceId, productionStages.id], name: 'production_items_stage_fk' }),
     foreignKey({ columns: [t.workspaceId, t.documentLineId], foreignColumns: [documentLines.workspaceId, documentLines.id], name: 'production_items_line_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.planLineId], foreignColumns: [productionPlanLines.workspaceId, productionPlanLines.id], name: 'production_items_plan_line_fk' }).onDelete('set null'),
     check('production_items_qty_chk', sql`${t.qty} > 0`),
     index('production_items_document_idx').on(t.documentId, t.sortOrder),
     index('production_items_source_idx').on(t.sourceItemId),
+    index('production_items_plan_line_idx').on(t.planLineId),
     index('production_items_customer_line_idx').on(t.customerOrderLineId),
   ],
 );

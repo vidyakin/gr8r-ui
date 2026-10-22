@@ -86,6 +86,8 @@ export const products = pgTable(
     categoryId: uuid('category_id'),
     /** Поставщик по умолчанию: заказы поставщикам по потребности создаются на него */
     defaultSupplierId: uuid('default_supplier_id'),
+    /** Срок поставки, дней (для закупки): дата поступления в расчёте потребностей */
+    leadDays: integer('lead_days').notNull().default(0),
     /** Значения характеристик категории (по схеме категории с унаследованными) */
     attrs: jsonb('attrs').$type<Record<string, unknown>>().notNull().default({}),
     isActive: boolean('is_active').notNull().default(true),
@@ -102,6 +104,7 @@ export const products = pgTable(
     check('products_kind_chk', sql`${t.kind} in ('goods','service','work','operation')`),
     check('products_vat_chk', sql`${t.vatRate} in ('none','0','5','7','10','20')`),
     check('products_price_chk', sql`${t.price} >= 0 and ${t.purchasePrice} >= 0`),
+    check('products_lead_chk', sql`${t.leadDays} >= 0`),
     uniqueIndex('products_ws_sku_uq').on(t.workspaceId, sql`lower(${t.sku})`).where(sql`${t.sku} <> ''`),
     uniqueIndex('products_ws_barcode_uq').on(t.workspaceId, t.barcode).where(sql`${t.barcode} <> ''`),
     index('products_ws_category_idx').on(t.workspaceId, t.categoryId),

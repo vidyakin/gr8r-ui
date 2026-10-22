@@ -4,7 +4,7 @@
 import { zValidator } from '@hono/zod-validator';
 import { asc, eq, inArray, isNull, max, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { bomLines, createNeedsSupplierOrders, listProductionKinds, loadAvgCosts, manufacturedItems, productionKinds, productionNeeds, productionStages, products, recordEvent, stockBalances, stockReservations, warehouses, workCenters, workspaces } from '@gr8r/db';
+import { bomLines, calculateNeeds, createNeedsDrafts, createNeedsSupplierOrders, listProductionKinds, loadAvgCosts, manufacturedItems, postNeedsDrafts, productionKinds, productionNeeds, productionStages, products, recordEvent, stockBalances, stockReservations, warehouses, workCenters, workspaces } from '@gr8r/db';
 import {
   bomLineCreate,
   bomLineUpdate,
@@ -19,6 +19,9 @@ import {
   itemUpdate,
   MATERIAL_PRICE_SOURCES,
   needsSupplierOrdersCreate,
+  needsCalculateQuery,
+  needsOrdersCreate,
+  needsPostCreate,
   productionNeedsQuery,
   productionSettingsUpdate,
   resolveMaterialPrice,
@@ -377,6 +380,51 @@ export const productionRoutes = new Hono<AppEnv>()
     const ctx = ctxOf(c);
     const q = c.req.valid('query');
     return c.json({ items: await productionNeeds(ctx.db, ctx.workspaceId, { productionOrderId: q.productionOrderId, productId: q.productId }) });
+  })
+  // общий расчёт потребностей (обработка УНФ «Расчёт потребностей в запасах»): рекомендации по периодам
+  .get('/needs/calculate', zValidator('query', needsCalculateQuery, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const q = c.req.valid('query');
+    return c.json(
+      await calculateNeeds(
+        ctx.db,
+        ctx.role,
+        {
+          replenishment: q.replenishment as 'purchase' | 'production' | 'transfer' | 'all',
+          method: q.method as 'orders' | 'sales_minmax' | 'sales_statistics',
+          step: q.step as 'day' | 'week' | 'month',
+          periods: q.periods,
+          from: q.from ?? new Date().toISOString().slice(0, 10),
+          byWarehouse: q.byWarehouse,
+          warehouseId: q.warehouseId,
+          source: q.source as 'all' | 'orders' | 'plan',
+          productId: q.productId,
+        },
+        { safetyDays: q.safetyDays, safetyPct: q.safetyPct === undefined ? undefined : String(q.safetyPct), historyPeriods: q.historyPeriods },
+      ),
+    );
+  })
+  // черновики по потребности: закупка → заказ поставщику, производство → заказ на производство, перемещение → перемещение
+  .post('/needs/orders', write, zValidator('json', needsOrdersCreate, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const body = c.req.valid('json');
+    const res = await createNeedsDrafts(ctx.db, { workspaceId: ctx.workspaceId, memberId: ctx.memberId, role: ctx.role }, {
+      replenishment: body.replenishment,
+      supplierId: body.supplierId ?? null,
+      workCenterId: body.workCenterId ?? null,
+      date: body.date ?? null,
+      singleDate: body.singleDate,
+      perCustomerOrder: body.perCustomerOrder,
+      comment: body.comment,
+      lines: body.lines.map(l => ({ productId: l.productId, warehouseId: l.warehouseId ?? null, sourceWarehouseId: l.sourceWarehouseId ?? null, workCenterId: l.workCenterId ?? null, qty: l.qty, date: l.date ?? null, customerOrderId: l.customerOrderId ?? null, price: l.price ?? null, supplierId: l.supplierId ?? null })),
+    });
+    return c.json(res, 201);
+  })
+  // массовое проведение созданных черновиков
+  .post('/needs/post', write, zValidator('json', needsPostCreate, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const res = await postNeedsDrafts(ctx.db, { workspaceId: ctx.workspaceId, memberId: ctx.memberId, role: ctx.role }, c.req.valid('json').documentIds);
+    return c.json(res);
   })
   // заказы поставщикам по сводной потребности: черновики по поставщику, строки без поставщика — отдельно
   .post('/needs/supplier-orders', write, zValidator('json', needsSupplierOrdersCreate, validationHook), async c => {

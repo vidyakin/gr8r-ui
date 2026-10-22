@@ -1,6 +1,6 @@
 /* zod-схемы производства: участки, продукция (изделия и полуфабрикаты), строки спецификации, настройки. */
 import { z } from 'zod';
-import { BOM_KINDS, MANUFACTURED_KINDS, MATERIAL_PRICE_SOURCES, OPERATION_RATE_UNITS, REPLENISHMENT_MODES, SEMI_MODES } from '../constants';
+import { BOM_KINDS, MANUFACTURED_KINDS, MATERIAL_PRICE_SOURCES, NEEDS_METHODS, OPERATION_RATE_UNITS, PLAN_STEPS, PLAN_STATUSES, REPLENISHMENT_MODES, SEMI_MODES, STOCK_REPLENISHMENT } from '../constants';
 import { CALENDAR_KINDS, LOAD_ROW_TYPES } from '../planning';
 import { clientId, decimal, isoDate, isoDateTime, listQuery, shortText, toPatch, uuid } from './common';
 
@@ -64,6 +64,8 @@ export const itemCreate = z.object({
   overheadPct: nonNeg(1000).default('0'),
   /** Вид производства: этапы выпуска (без вида — единственный этап «Завершение производства») */
   productionKindId: uuid.nullish(),
+  /** Дней на изготовление (рабочих): дата запуска = дата выпуска минус это число по рабочему календарю */
+  leadDays: z.coerce.number().int().min(0).max(365).default(0),
 });
 export const itemUpdate = toPatch(itemCreate.omit({ id: true }));
 export const itemQuery = listQuery.extend({ kind: z.enum(MANUFACTURED_KINDS).optional() });
@@ -253,6 +255,175 @@ export const needsSupplierOrdersCreate = z.object({
     .min(1)
     .max(500),
 });
+
+/* ---------------- план производства ---------------- */
+
+/** Строка плана: изделие, период (начало периода = дата выпуска) и количество */
+export const productionPlanLineInput = z.object({
+  id: clientId,
+  itemId: uuid,
+  /** Начало периода = дата выпуска */
+  periodStart: isoDate,
+  /** Сколько выпустить к этой дате */
+  qty: nonNeg(1e9),
+  /** Строка полуфабриката (добавлена кнопкой «Plan semi-finished») */
+  isSemi: z.boolean().default(false),
+});
+
+export const productionPlanCreate = z.object({
+  id: clientId,
+  name: shortText,
+  periodFrom: isoDate,
+  periodTo: isoDate,
+  /** Шаг периодов: неделя или месяц */
+  step: z.enum(PLAN_STEPS).default('week'),
+  /** Состояние: черновик или утверждён */
+  status: z.enum(PLAN_STATUSES).default('draft'),
+  /** Склад готовой продукции */
+  warehouseId: uuid,
+  /** Участок-диспетчер (необязателен) */
+  workCenterId: uuid.nullish(),
+  comment: z.string().max(5000).default(''),
+  lines: z.array(productionPlanLineInput).max(500).default([]),
+});
+export const productionPlanUpdate = toPatch(productionPlanCreate.omit({ id: true }));
+export const productionPlanQuery = listQuery.extend({
+  status: z.enum(PLAN_STATUSES).optional(),
+  from: isoDate.optional(),
+  to: isoDate.optional(),
+  warehouseId: uuid.optional(),
+  workCenterId: uuid.optional(),
+});
+
+/** Источник автозаполнения плана */
+export const PLAN_FILL_SOURCES = ['output', 'sales', 'customer_orders'] as const;
+export type PlanFillSource = (typeof PLAN_FILL_SOURCES)[number];
+
+/** Заполнение плана: вручную, по статистике выпуска, по статистике продаж или по заказам покупателей */
+export const productionPlanFill = z.object({
+  source: z.enum(PLAN_FILL_SOURCES),
+  /** Заменить строки продукции или добавить к ним */
+  mode: z.enum(['replace', 'add']).default('replace'),
+  /** Сколько прошлых периодов взять для статистики выпуска и продаж */
+  periods: z.coerce.number().int().min(1).max(60).default(6),
+});
+
+/** Полуфабрикаты к плану: строки добавляются пропорционально продукции, сдвиг — на срок изготовления */
+export const productionPlanSemi = z.object({
+  /** Только строки этих изделий (пусто — все строки продукции) */
+  itemIds: z.array(uuid).max(200).default([]),
+});
+
+/** Заказы на производство по плану: остаток «план − уже заказано» черновиками */
+export const productionPlanOrders = z.object({
+  /** Период: строки этого периода (пусто — все строки плана) */
+  periodStart: isoDate.nullish(),
+  /** Строки плана: пусто — все строки периода с остатком */
+  lineIds: z.array(uuid).max(500).default([]),
+  /** Дата заказов (по умолчанию сегодня) */
+  date: isoDate.optional(),
+  comment: z.string().max(5000).default(''),
+});
+
+/** Рабочее место «Заказы по плану»: период и участок */
+export const planWorkbenchQuery = z.object({
+  /** Период (начало периода плана) */
+  periodStart: isoDate.optional(),
+  workCenterId: uuid.optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+
+/* ---------------- нормы запаса ---------------- */
+
+/** Норма запаса товара: строка по складу или строка без склада (норма по компании) */
+export const stockLevelInput = z.object({
+  warehouseId: uuid.nullish(),
+  minQty: nonNeg(1e9),
+  maxQty: nonNeg(1e9),
+  replenishment: z.enum(STOCK_REPLENISHMENT),
+  /** Склад-источник: обязателен для перемещения */
+  sourceWarehouseId: uuid.nullish(),
+});
+/** Нормы запаса товара заменяются целиком: строка без склада — норма по компании */
+export const stockLevelsSet = z.object({
+  productId: uuid,
+  rows: z.array(stockLevelInput).max(100).default([]),
+});
+export const stockLevelsQuery = z.object({ productId: uuid });
+
+/* ---------------- общий расчёт потребностей ---------------- */
+
+/** Параметры расчёта потребностей: три шага — рекомендации, планирование, заказы */
+export const needsCalculateQuery = z.object({
+    /** Способ пополнения: закупка, производство, перемещение или все */
+    replenishment: z.enum([...STOCK_REPLENISHMENT, 'all']).default('all'),
+    /** Методика: по заказам с мин./макс. или по продажам */
+    method: z.enum(NEEDS_METHODS).default('orders'),
+    /** Шаг периода: день, неделя или месяц */
+    step: z.enum(['day', 'week', 'month']).default('week'),
+    /** Сколько периодов в горизонте */
+    periods: z.coerce.number().int().min(1).max(60).default(8),
+    /** Начало горизонта (по умолчанию сегодня) */
+    from: isoDate.optional(),
+    /** Учитывать потребность по складам (false — по компании в целом) */
+    byWarehouse: z.stringbool().default(true),
+    /** Склад (по складам); без склада — суммы по всем складам */
+    warehouseId: uuid.optional(),
+    /** Заказы поставщикам, на производство и планы: товары-источники потребления */
+    source: z.enum(['all', 'orders', 'plan']).default('all'),
+    /** Только заданные нормы (по умолчанию — все товары с нормой) */
+    productId: uuid.optional(),
+    /** Страховой запас по дням поставки (методика «по статистике продаж») */
+    safetyDays: z.coerce.number().int().min(0).max(365).default(0),
+    /** Страховой запас в процентах от плановой потребности; может быть отрицательным */
+    safetyPct: z.coerce.number().min(-100).max(1000).optional(),
+    /** Сколько прошлых периодов брать для средних продаж */
+    historyPeriods: z.coerce.number().int().min(1).max(60).default(6),
+  });
+
+/** Черновики заказов по рассчитанной потребности */
+export const needsOrdersCreate = z.object({
+  /** Способ пополнения: закупка, производство или перемещение */
+  replenishment: z.enum(STOCK_REPLENISHMENT).default('purchase'),
+  /** Поставщик или участок: пусто — по умолчанию (поставщик товара, участок плана) */
+  supplierId: uuid.nullish(),
+  workCenterId: uuid.nullish(),
+  /** Дата поступления (по умолчанию — дата дефицита) */
+  date: isoDate.nullish(),
+  /** Поставка одной датой, а не на каждый период дефицита */
+  singleDate: z.boolean().default(false),
+  /** Отдельный заказ под каждый заказ покупателя */
+  perCustomerOrder: z.boolean().default(false),
+  comment: z.string().max(5000).default(''),
+  lines: z
+    .array(
+      z.object({
+        /** Товар каталога */
+        productId: uuid,
+        /** Склад-получатель */
+        warehouseId: uuid.nullish(),
+        /** Склад-источник (для перемещения) */
+        sourceWarehouseId: uuid.nullish(),
+        /** Участок-производитель (для производства) */
+        workCenterId: uuid.nullish(),
+        /** Поставщик строки (для закупки): пусто — поставщик товара по умолчанию */
+        supplierId: uuid.nullish(),
+        /** Сколько заказать */
+        qty: positive(1e9),
+        /** Дата потребности (поступления) */
+        date: isoDate.nullish(),
+        /** Заказ покупателя, ради которого заказываем (для «отдельно под каждый заказ») */
+        customerOrderId: uuid.nullish(),
+        /** Цена за единицу: пусто — последняя цена поставщика */
+        price: nonNeg(1e9).nullish(),
+      }),
+    )
+    .min(1)
+    .max(500),
+});
+
+/** Массовое проведение созданных черновиков */
+export const needsPostCreate = z.object({ documentIds: z.array(uuid).min(1).max(200) });
 
 /* ---------------- операции, исполнители и сдельный наряд ---------------- */
 

@@ -254,7 +254,7 @@ export interface ProductionOrderInput {
   plannedEnd?: string | null;
   comment?: string;
   parentDocumentId?: string | null;
-  items: { itemId: string; qty: string; customerOrderLineId?: string | null }[];
+  items: { itemId: string; qty: string; customerOrderLineId?: string | null; planLineId?: string | null }[];
 }
 
 /** Позиции заказа: что выпускаем */
@@ -301,6 +301,7 @@ export async function createProductionOrder(db: Db, ctx: DocCtx, input: Producti
         qty: i.qty,
         unitCode: byItem.get(i.itemId)!.unitCode,
         customerOrderLineId: i.customerOrderLineId ?? null,
+        planLineId: i.planLineId ?? null,
         sortOrder: n,
       })),
     );
@@ -318,7 +319,7 @@ export interface ProductionOrderPatch {
   plannedEnd?: string | null;
   comment?: string;
   parentDocumentId?: string | null;
-  items?: { itemId: string; qty: string; customerOrderLineId?: string | null }[];
+  items?: { itemId: string; qty: string; customerOrderLineId?: string | null; planLineId?: string | null }[];
 }
 
 /** Правка заказа на производство: шапка и позиции */
@@ -360,6 +361,7 @@ export async function updateProductionOrder(db: Db, ctx: DocCtx, id: string, pat
           qty: i.qty,
           unitCode: byItem.get(i.itemId)!.unitCode,
           customerOrderLineId: i.customerOrderLineId ?? null,
+          planLineId: i.planLineId ?? null,
           sortOrder: n,
         })),
       );

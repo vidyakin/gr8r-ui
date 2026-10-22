@@ -10,7 +10,9 @@ import { saveWorkOrderBilling } from './services';
 import { ensureModuleProject, issueTaskKey } from './modules';
 import { fillCountSheet } from './inventory';
 import './internal-ops';
-import { bankAccounts, companies, costItems, documentLines, organizations, productManufacturing, products, tasks, timeLogs, warehouses, workCenters, manufacturedItems } from './schema';
+import { bankAccounts, companies, costItems, documentLines, organizations, productManufacturing, products, stockLevels, tasks, timeLogs, warehouses, workCenters, manufacturedItems } from './schema';
+import { productionPlanLines, productionPlans } from './schema';
+import { planPeriods } from '@gr8r/shared';
 import { createProductionFromOrder, createProductionOrder, createSupplierOrdersForOrder, fillOrderFromBom } from './production';
 import { assignOperations, createPieceworkOrder } from './piecework';
 import { productionComponents, productionItems, productionOperations } from './schema';
@@ -381,6 +383,36 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
   await fillOrderFromBom(db, ctx, bigOrder);
   await postAt(bigOrder, 1);
   await createSupplierOrdersForOrder(db, ctx, bigOrder, {});
+
+  /* ---------- этап 5: план производства и нормы запаса ---------- */
+  // нормы запаса: материалы закупаются (норма по компании), стулья производятся, деревянные панели перемещаются с цеха
+  await db.insert(stockLevels).values([
+    { workspaceId: wsId, productId: P('MT-OAK-5050').id, minQty: '20', maxQty: '60', replenishment: 'purchase' },
+    { workspaceId: wsId, productId: P('MT-OAK-5050').id, warehouseId: shop!.id, minQty: '10', maxQty: '30', replenishment: 'purchase' },
+    { workspaceId: wsId, productId: P('FRN-003').id, warehouseId: fg!.id, minQty: '5', maxQty: '20', replenishment: 'production' },
+    { workspaceId: wsId, productId: P('MT-PLY-18').id, warehouseId: shop!.id, minQty: '10', maxQty: '40', replenishment: 'transfer', sourceWarehouseId: fg!.id },
+  ]);
+  // план производства на четыре недели: неделями, склад продукции и участок-диспетчер
+  const periods = planPeriods(iso(0), iso(-35), 'week');
+  await db.insert(productionPlans).values({
+    workspaceId: wsId,
+    name: 'План производства на месяц',
+    periodFrom: periods[0]!,
+    periodTo: periods[periods.length - 1]!,
+    step: 'week',
+    status: 'draft',
+    warehouseId: fg!.id,
+    workCenterId: assemblyCenter!.id,
+    comment: 'Стулья «Лофт» и столы «Офис» по неделям',
+  });
+  const [plan] = await db.select().from(productionPlans).where(eq(productionPlans.workspaceId, wsId)).limit(1);
+  if (plan) {
+    await db.insert(productionPlanLines).values([
+      { workspaceId: wsId, planId: plan.id, itemId: loft!.id, periodStart: periods[0]!, qty: '12', isSemi: false, sortOrder: 0 },
+      { workspaceId: wsId, planId: plan.id, itemId: loft!.id, periodStart: periods[1]!, qty: '10', isSemi: false, sortOrder: 1 },
+      { workspaceId: wsId, planId: plan.id, itemId: office!.id, periodStart: periods[1]!, qty: '4', isSemi: false, sortOrder: 2 },
+    ]);
+  }
 
   return { documents: 25, workOrder };
 }

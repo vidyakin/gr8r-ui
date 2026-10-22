@@ -6,6 +6,7 @@ export * from './decimal';
 export * from './bom';
 export * from './supply';
 export * from './planning';
+export * from './replenishment';
 export * from './ru';
 export * from './documents';
 export * from './billing';

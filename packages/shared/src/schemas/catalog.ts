@@ -77,6 +77,8 @@ export const productCreate = z.object({
   categoryId: uuid.nullish(),
   /** Поставщик по умолчанию: заказы поставщикам по потребности создаются на него */
   defaultSupplierId: uuid.nullish(),
+  /** Срок поставки, дней (в расчёте потребностей) */
+  leadDays: z.coerce.number().int().min(0).max(365).default(0),
   /** Значения характеристик категории; проверяются по схеме категории (с унаследованными) */
   attrs: z.record(z.string(), z.unknown()).optional(),
   isActive: z.boolean().default(true),

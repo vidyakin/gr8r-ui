@@ -117,6 +117,12 @@ describe('seed', () => {
     expect(await count('production_operations', w)).toBe(1);
     expect(await count('documents', `${w} and type = 'piecework_order'`)).toBe(1);
     expect(await count('piecework_lines', w)).toBe(1);
+    // план производства и нормы запаса: демо-план с недельными периодами и четыре строки норм
+    expect(await count('production_plans', w)).toBe(1);
+    expect(await count('production_plan_lines', w)).toBe(3);
+    expect(await count('stock_levels', w)).toBe(4);
+    expect(await count('stock_levels', `${w} and warehouse_id is null`)).toBe(1);
+    expect(await count('stock_levels', `${w} and replenishment = 'transfer'`)).toBe(1);
     // виды производства и этапы: пример с тремя этапами
     expect(await count('production_kinds', w)).toBe(1);
     expect(await count('production_stages', w)).toBe(3);
