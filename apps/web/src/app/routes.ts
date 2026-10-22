@@ -37,6 +37,7 @@ import {
   ReceiptText,
   ShoppingCart,
   CalendarRange,
+  CalendarCheck,
   FileSignature,
   type LucideIcon,
 } from 'lucide-react';
@@ -80,6 +81,8 @@ export const SECTIONS = {
   productionPiecework: { path: '/production/piecework', name: 'Piecework', icon: Hammer },
   productionPlanner: { path: '/production/planner', name: 'Resource planner', icon: CalendarRange },
   productionResources: { path: '/production/resources', name: 'Resources', icon: Hammer },
+  productionClosing: { path: '/production/closing', name: 'Month closing', icon: CalendarCheck },
+  otherCosts: { path: '/other-costs', name: 'Other costs', icon: ReceiptText },
   workCenters: { path: '/work-centers', name: 'Work centers', icon: Wrench },
   // Автоматизации
   automations: { path: '/automations', name: 'Automations', icon: Workflow },

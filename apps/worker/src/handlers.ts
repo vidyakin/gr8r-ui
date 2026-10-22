@@ -1,8 +1,10 @@
 /* Обработчики воркера. События outbox → запуск автоматизаций (flows/triggers.ts). Задачи jobs: служебная noop, DDL по белому списку
-   (индексы полей конструктора), PDF печатных форм и выполнение запусков автоматизаций (flow.run). */
+   (индексы полей конструктора), PDF печатных форм, закрытие периода (production.close_period) и выполнение запусков
+   автоматизаций (flow.run). */
 import { and, eq } from 'drizzle-orm';
 import { buildPrintData, createFieldIndex, documentFiles, dropFieldIndex, entities, events, fields, isUuid, jobs, withContext, type Db, type Sql } from '@gr8r/db';
 import { DOCUMENT_META, FIELD_TYPES, renderPrintForm, type FieldType, type PrintForm } from '@gr8r/shared';
+import { runClosePeriod } from './production-closing';
 import { executeRun } from './flows/engine';
 import { startRunsForEvent } from './flows/triggers';
 import { renderPdf } from './pdf/render';
@@ -77,6 +79,12 @@ export const jobHandlers: Record<string, (job: JobRow, h: JobContext) => Promise
     const runId = (job.payload as { runId?: unknown }).runId;
     if (!isUuid(runId)) throw new Error('flow.run job: payload.runId must be a uuid');
     await executeRun(h.sql, job.workspaceId, runId);
+  },
+  /** Закрытие периода: косвенные затраты распределяются на выпуски, себестоимость цепочки пересчитывается.
+      Результат и предупреждения — в production_cost_closings.totals; ошибка месяца не мешает остальным месяцам периода */
+  'production.close_period': async (job, h) => {
+    const payload = job.payload as { month?: unknown; through?: unknown; reopen?: unknown };
+    await runClosePeriod(h.sql, job.workspaceId, { month: payload.month as string, through: payload.through as string | undefined, reopen: payload.reopen === true });
   },
   /** Печатная форма документа → PDF (headless Chromium). Данные и шаблон те же, что у предпросмотра в браузере.
       Ошибка формирования не повторяется вслепую: файл помечается failed с текстом ошибки, форму можно запросить заново */

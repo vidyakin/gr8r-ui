@@ -38,6 +38,7 @@ import {
   recordEvent,
   restoreDocument,
   stockBalances,
+  stockCostAdjustments,
   stockMoves,
   stockReservations,
   unpostDocument,
@@ -353,7 +354,8 @@ export const documentRoutes = new Hono<AppEnv>()
     const ctx = ctxOf(c);
     const body = c.req.valid('json');
     // производственные документы создаются своим сервисом: у них позиции и состав, а не строки товаров
-    if (body.type === 'production' || body.type === 'production_order') throw new AppError(422, 'production_api_only', 'Production documents are created in the Production section');
+    // производственные документы и прочие затраты создаются своим сервисом: у них позиции и состав, а не строки товаров
+    if (body.type === 'production' || body.type === 'production_order' || body.type === 'other_costs') throw new AppError(422, 'production_api_only', 'This document type is created in its own section of Production');
     const id = await createDocument(ctx.db, docCtx(ctx), body);
     const detail = await documentDetail(ctx.db, id);
     // заказ-наряд: карточка сразу с видом, состояниями, материалами и назначениями
@@ -556,11 +558,13 @@ export const stockRoutes = new Hono<AppEnv>()
         productId: stockMoves.productId,
         documentId: stockMoves.documentId,
         qty: stockMoves.qty,
-        cost: stockMoves.cost,
+        // себестоимость движения с корректировкой закрытия периода
+        cost: sql<string>`(${stockMoves.cost} + coalesce(${stockCostAdjustments.deltaCost}, 0))::numeric(18,4)::text`.as('cost'),
         movedAt: stockMoves.movedAt,
         balance: running.as('balance'),
       })
       .from(stockMoves)
+      .leftJoin(stockCostAdjustments, and(eq(stockCostAdjustments.workspaceId, stockMoves.workspaceId), eq(stockCostAdjustments.moveId, stockMoves.id)))
       .where(and(q.warehouseId ? eq(stockMoves.warehouseId, q.warehouseId) : undefined, q.productId ? eq(stockMoves.productId, q.productId) : undefined))
       .as('m');
     const rows = await ctx.db

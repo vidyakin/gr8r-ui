@@ -26,3 +26,5 @@ export * from './services';
 export * from './planning';
 export * from './contracts';
 export * from './billing';
+export * from './cost-closing';
+export * from './other-costs';

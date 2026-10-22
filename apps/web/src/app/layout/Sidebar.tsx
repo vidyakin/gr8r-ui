@@ -287,6 +287,8 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           <Item to={SECTIONS.productionPiecework.path} label="Piecework" icon={<SECTIONS.productionPiecework.icon size={16} />} collapsed={collapsed} />
           <Item to={SECTIONS.productionPlanner.path} label="Resource planner" icon={<SECTIONS.productionPlanner.icon size={16} />} collapsed={collapsed} />
           <Item to={SECTIONS.productionResources.path} label="Resources" icon={<SECTIONS.productionResources.icon size={16} />} collapsed={collapsed} />
+          <Item to={SECTIONS.productionClosing.path} label="Month closing" icon={<SECTIONS.productionClosing.icon size={16} />} collapsed={collapsed} />
+          <Item to={SECTIONS.otherCosts.path} label="Other costs" icon={<SECTIONS.otherCosts.icon size={16} />} collapsed={collapsed} />
           <Item to={SECTIONS.workCenters.path} label="Work centers" icon={<SECTIONS.workCenters.icon size={16} />} collapsed={collapsed} />
         </div>
 

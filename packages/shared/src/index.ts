@@ -9,5 +9,6 @@ export * from './planning';
 export * from './ru';
 export * from './documents';
 export * from './billing';
+export * from './cost-closing';
 export * from './print';
 export * from './automations';

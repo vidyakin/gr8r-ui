@@ -568,3 +568,50 @@ export const moveOperationInput = z.object({
   /** Новый участок */
   workCenterId: uuid.nullish(),
 });
+
+/* ---------------- закрытие периода ---------------- */
+
+/** Ключ месяца закрытия «2026-10» */
+export const monthKey = z.string().trim().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Month key: YYYY-MM');
+
+/** Закрытие месяца или периода: помесячно (по одному месяцу) или «за период» — месяцы идут по очереди */
+export const periodCloseInput = z.object({
+  /** Последний месяц режима «за период» (по умолчанию — тот же месяц) */
+  through: monthKey.optional(),
+});
+
+/** Дата запрета редактирования и настройка её переноса при закрытии */
+export const periodSettingsInput = z.object({
+  /** Новая дата запрета (вперёд — admin и выше, назад — только owner) */
+  closedThrough: isoDate.nullish(),
+  /** Переносить дату запрета на конец закрываемого месяца */
+  closeMovesLock: z.boolean().optional(),
+});
+
+/* ---------------- прочие затраты ---------------- */
+
+/** Документ «Прочие затраты»: строки — статья, участок, сумма и комментарий (товара и склада нет) */
+export const otherCostLineInput = z.object({
+  id: clientId,
+  costItemId: uuid,
+  /** Участок: пусто — затрата идёт на общий выпуск месяца */
+  workCenterId: uuid.nullish(),
+  amount: positive(),
+  comment: z.string().trim().max(500).default(''),
+});
+
+export const otherCostsCreate = z.object({
+  id: clientId,
+  /** Пусто — организация по умолчанию */
+  organizationId: uuid.nullish(),
+  date: isoDate.optional(),
+  comment: z.string().max(5000).default(''),
+  lines: z.array(otherCostLineInput).min(1).max(200),
+});
+export const otherCostsUpdate = z.object({
+  organizationId: uuid.nullish(),
+  date: isoDate.optional(),
+  comment: z.string().max(5000).optional(),
+  lines: z.array(otherCostLineInput).min(1).max(200).optional(),
+});
+export const otherCostsQuery = listQuery.extend({ from: isoDate.optional(), to: isoDate.optional(), q: z.string().trim().max(200).optional() });

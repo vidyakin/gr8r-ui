@@ -1,6 +1,7 @@
 /* zod-схемы документов, организаций, складов, банковских счетов и склада (остатки, движения, настройки). */
 import { z } from 'zod';
 import { VAT_RATES } from '../constants';
+import { COST_DISTRIBUTIONS } from '../cost-closing';
 import { COST_ITEM_KINDS, DOCUMENT_GROUPS, DOCUMENT_STATUSES, DOCUMENT_TYPES, PRINT_FORMS, TRANSFER_OPERATIONS, WAREHOUSE_KINDS } from '../documents';
 import { COMPANY_KINDS, TAX_SYSTEMS } from '../ru';
 import { clientId, decimal, isoDate, listQuery, queryBool, shortText, toPatch, uuid } from './common';
@@ -90,6 +91,8 @@ export const costItemCreate = z.object({
   name: shortText,
   /** Статья затрат (expense) или доходов (income) */
   kind: z.enum(COST_ITEM_KINDS).default('expense'),
+  /** База распределения косвенной затраты при закрытии периода */
+  distributionMethod: z.enum(COST_DISTRIBUTIONS).default('none'),
 });
 export const costItemUpdate = toPatch(costItemCreate.omit({ id: true }));
 export const costItemQuery = listQuery.extend({ kind: z.enum(COST_ITEM_KINDS).optional() });
@@ -119,6 +122,10 @@ export const documentLineInput = z
     receivedQty: nonNeg().optional(),
     /** Роль строки выпуска (производства): материал — расход, продукция — приход. У остальных типов её задаёт сервер */
     stockRole: z.enum(['in', 'out']).optional(),
+    /** Статья косвенных затрат строки-услуги (поступление) */
+    costItemId: uuid.nullish(),
+    /** Участок строки-услуги (поступление): участные затраты идут на выпуск своего участка */
+    workCenterId: uuid.nullish(),
   })
   // нулевое количество допустимо только у строки инвентаризации: там qty — фактическое, учётное лежит в bookQty
   .refine(l => Number(l.qty) !== 0 || l.bookQty !== undefined, { message: 'Must be greater than zero', path: ['qty'] });
@@ -142,6 +149,8 @@ export const documentCreate = z.object({
   inUseWorkCenterId: uuid.nullish(),
   /** Статья затрат или доходов (списание, оприходование) */
   costItemId: uuid.nullish(),
+  /** Участок списания: себестоимость уходит в косвенные затраты участка (только у write_off) */
+  workCenterId: uuid.nullish(),
   /** Вид заказ-наряда (только у work_order): пусто — вид по умолчанию */
   workOrderKindId: uuid.nullish(),
   /** Пусто — сегодня */
