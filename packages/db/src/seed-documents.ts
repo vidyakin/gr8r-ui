@@ -207,7 +207,18 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
   await saveWorkOrderMaterials(db, ctx, workOrder, [{ productId: P('HW-BLT-660').id, qty: '12' }]);
   // Строка работы: назначение получает плановые часы из нормы (4 × 1,5 ч), работа выставляется по фактическим часам
   const [workLine] = await db.select().from(documentLines).where(and(eq(documentLines.documentId, workOrder), eq(documentLines.productId, P('WR-MNT').id))).limit(1);
-  const workAssignment = await createWorkOrderAssignment(db, ctx, workOrder, { assigneeId: memberId, title: 'Монтаж и наладка на объекте', startDate: iso(1), dueDate: iso(-2), lineId: workLine!.id });
+  // часовой интервал назначения: сегодня с 10:00 до 13:30 — его видно в планировщике услуг
+  const shiftStart = new Date(`${iso(0)}T10:00:00Z`);
+  const shiftEnd = new Date(`${iso(0)}T13:30:00Z`);
+  const workAssignment = await createWorkOrderAssignment(db, ctx, workOrder, {
+    assigneeId: memberId,
+    title: 'Монтаж и наладка на объекте',
+    startDate: iso(1),
+    dueDate: iso(-2),
+    startAt: shiftStart.toISOString(),
+    endAt: shiftEnd.toISOString(),
+    lineId: workLine!.id,
+  });
   await saveWorkOrderBilling(db, ctx, workOrder, [{ lineId: workLine!.id, billing: 'hours' }]);
   await db.insert(timeLogs).values({ workspaceId: wsId, taskId: workAssignment.taskId, memberId, hours: '6.500', logDate: iso(1), note: 'Монтаж и наладка на объекте' });
   await changeDocumentState(db, ctx, workOrder, 'in_progress');

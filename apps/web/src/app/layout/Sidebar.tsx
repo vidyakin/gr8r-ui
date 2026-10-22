@@ -271,6 +271,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           <div className="sgroup-h">Services</div>
           <Item to={SECTIONS.workOrders.path} label="Work orders" icon={<SECTIONS.workOrders.icon size={16} />} collapsed={collapsed} />
           <Item to={SECTIONS.servicesTimesheet.path} label="Timesheet" icon={<SECTIONS.servicesTimesheet.icon size={16} />} collapsed={collapsed} />
+          <Item to={SECTIONS.servicesPlanner.path} label="Service planner" icon={<SECTIONS.servicesPlanner.icon size={16} />} collapsed={collapsed} />
         </div>
 
         <div className="sgroup">

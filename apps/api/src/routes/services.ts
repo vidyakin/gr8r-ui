@@ -2,8 +2,8 @@
    и табель сотрудника — отчёт по времени задач модуля services. Читает любой участник, нормы меняет member и выше. */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
-import { canSeeCost, listWorkNorms, servicesTimesheet, setWorkNorm } from '@gr8r/db';
-import { idParam, timesheetQuery, workNormSet } from '@gr8r/shared';
+import { canSeeCost, listWorkNorms, servicesSchedule, servicesTimesheet, setWorkNorm } from '@gr8r/db';
+import { idParam, serviceScheduleQuery, timesheetQuery, workNormSet } from '@gr8r/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';
@@ -32,4 +32,10 @@ export const serviceRoutes = new Hono<AppEnv>()
     const q = c.req.valid('query');
     const memberId = canSeeCost(ctx.role) ? q.memberId : (ctx.memberId ?? undefined);
     return c.json(await servicesTimesheet(ctx.db, ctx.workspaceId, { memberId, from: q.from, to: q.to }));
+  })
+  // часовой план услуг: загрузка по часам (исполнители или ресурсы), перегрузка и работа вне смены
+  .get('/schedule', zValidator('query', serviceScheduleQuery, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const q = c.req.valid('query');
+    return c.json(await servicesSchedule(ctx.db, ctx.workspaceId, { from: q.from, to: q.to, rowType: q.resource }));
   });

@@ -7,7 +7,11 @@ import {
   capacityOf,
   isWorkingDay,
   isWorkingDayWith,
+  computeHourlyLoad,
+  shiftOf,
   type CalendarDef,
+  type HourlyEntry,
+  type HourlyRow,
   type LoadEntry,
   type LoadRow,
 } from '../src/planning';
@@ -167,5 +171,123 @@ describe('checks found in review', () => {
     const [row] = computeLoad(rows, entries, '2026-10-23', '2026-10-26');
     expect(row.days.map(d => d.hours)).toEqual(['8.00', '0.00', '0.00', '8.00']);
     expect(row.overloaded).toBe(false);
+  });
+});
+
+/* ---------------- часовой масштаб (этап 5 услуг) ---------------- */
+
+describe('hourly load', () => {
+  const shift: CalendarDef = { id: 'c1', kind: 'weekly', pattern: { weekdays: [1, 2, 3, 4, 5], startHour: 9, endHour: 17 }, cycleStart: null, hoursPerDay: '8' };
+  const night: CalendarDef = { id: 'c3', kind: 'cycle', pattern: { cycle: [1, 1, 0, 0], startHour: 22, endHour: 6 }, cycleStart: '2026-01-05', hoursPerDay: '8' };
+
+  const memberRow: HourlyRow = { id: 'm1', rowType: 'member', name: 'Иван', capacityUnits: 1, calendar: shift };
+  const resourceRow: HourlyRow = { id: 'r1', rowType: 'resource', name: 'Верстак', capacityUnits: 1, calendar: shift };
+  const bench: HourlyRow = { id: 'r2', rowType: 'resource', name: 'Стол', capacityUnits: 2, calendar: shift };
+
+  const assignment = (id: string, startAt: string, endAt: string, rowId = 'm1'): HourlyEntry => ({
+    id,
+    kind: 'assignment',
+    title: 'Монтаж',
+    rowType: 'member',
+    rowId,
+    startAt,
+    endAt,
+    hours: '2',
+  });
+
+  test('the shift of the calendar comes from the pattern, otherwise from the hours of the day', () => {
+    expect(shiftOf(shift)).toEqual({ startHour: 9, endHour: 17 });
+    expect(shiftOf({ id: 'c4', kind: 'weekly', pattern: { weekdays: [1] }, cycleStart: null, hoursPerDay: '12' })).toEqual({ startHour: 9, endHour: 21 });
+    expect(shiftOf(null)).toEqual({ startHour: 9, endHour: 17 });
+  });
+
+  test('the hours of the shift are working, the rest of the day is not', () => {
+    const res = computeHourlyLoad([memberRow], [assignment('e1', '2026-10-19T09:00:00Z', '2026-10-19T11:00:00Z')], '2026-10-19T00:00:00Z', '2026-10-20T00:00:00Z');
+    const slots = res.rows[0]!.slots;
+    expect(slots.find(s => s.start === '2026-10-19T09:00:00.000Z')).toMatchObject({ working: true, used: '1.00', capacity: '1.00', overloaded: false });
+    expect(slots.find(s => s.start === '2026-10-19T12:00:00.000Z')).toMatchObject({ working: true, used: '0.00' });
+    expect(slots.find(s => s.start === '2026-10-19T08:00:00.000Z')).toMatchObject({ working: false, capacity: '0.00' });
+  });
+
+  test('two assignments of one executor at the same time are a warning', () => {
+    const res = computeHourlyLoad([memberRow], [assignment('e1', '2026-10-19T09:00:00Z', '2026-10-19T11:00:00Z'), assignment('e2', '2026-10-19T10:00:00Z', '2026-10-19T12:00:00Z')], '2026-10-19T00:00:00Z', '2026-10-20T00:00:00Z');
+    expect(res.warnings.filter(w => w.code === 'member_overlap')).toHaveLength(1);
+    expect(res.rows[0]!.slots.find(s => s.start === '2026-10-19T10:00:00.000Z')).toMatchObject({ used: '2.00', capacity: '1.00', overloaded: true });
+  });
+
+  test('assignments one after another do not overlap', () => {
+    const res = computeHourlyLoad([memberRow], [assignment('e1', '2026-10-19T09:00:00Z', '2026-10-19T11:00:00Z'), assignment('e2', '2026-10-19T11:00:00Z', '2026-10-19T13:00:00Z')], '2026-10-19T00:00:00Z', '2026-10-20T00:00:00Z');
+    expect(res.warnings.filter(w => w.code === 'member_overlap')).toHaveLength(0);
+    expect(res.rows[0]!.slots.some(s => s.overloaded)).toBe(false);
+  });
+
+  test('a resource is busy with more works than its capacity', () => {
+    const work = (id: string, rowId: string): HourlyEntry => ({ id, kind: 'resource', title: 'Работа', rowType: 'resource', rowId, startAt: '2026-10-19T09:00:00Z', endAt: '2026-10-19T11:00:00Z', hours: '2' });
+    const res = computeHourlyLoad([resourceRow], [work('e1', 'r1'), work('e2', 'r1')], '2026-10-19T00:00:00Z', '2026-10-20T00:00:00Z');
+    expect(res.warnings.filter(w => w.code === 'resource_overload')).toHaveLength(1);
+    // у верстака на две смены — две работы одновременно не перегруз
+    const res2 = computeHourlyLoad([bench], [work('e1', 'r2'), work('e2', 'r2')], '2026-10-19T00:00:00Z', '2026-10-20T00:00:00Z');
+    expect(res2.warnings.filter(w => w.code === 'resource_overload')).toHaveLength(0);
+  });
+
+  test('a resource is overloaded only when more works than its capacity go at the same moment', () => {
+    const work = (id: string, startAt: string, endAt: string): HourlyEntry => ({ id, kind: 'resource', title: 'Работа', rowType: 'resource', rowId: 'r2', startAt, endAt, hours: '1' });
+    // длинная работа пересекается с двумя короткими, но короткие идут одна после другой: одновременно не больше двух
+    const res = computeHourlyLoad(
+      [bench],
+      [work('long', '2026-10-19T09:00:00Z', '2026-10-19T12:00:00Z'), work('a', '2026-10-19T09:00:00Z', '2026-10-19T10:00:00Z'), work('b', '2026-10-19T11:00:00Z', '2026-10-19T12:00:00Z')],
+      '2026-10-19T00:00:00Z',
+      '2026-10-20T00:00:00Z',
+    );
+    expect(res.warnings.filter(w => w.code === 'resource_overload')).toHaveLength(0);
+    // третья работа в то же время — перегрузка, одно предупреждение на все три
+    const res2 = computeHourlyLoad(
+      [bench],
+      [work('long', '2026-10-19T09:00:00Z', '2026-10-19T12:00:00Z'), work('a', '2026-10-19T09:00:00Z', '2026-10-19T10:00:00Z'), work('c', '2026-10-19T09:30:00Z', '2026-10-19T10:30:00Z')],
+      '2026-10-19T00:00:00Z',
+      '2026-10-20T00:00:00Z',
+    );
+    const w = res2.warnings.filter(x => x.code === 'resource_overload');
+    expect(w).toHaveLength(1);
+    expect([...w[0]!.entryIds].sort()).toEqual(['a', 'c', 'long']);
+  });
+
+  test('assignments planned by days without hours do not give hourly warnings', () => {
+    // назначения без часового интервала (только даты задачи) — дневной план, не часовой: ни наложения, ни «вне смены»
+    const day = (id: string): HourlyEntry => ({ ...assignment(id, '2026-10-19T00:00:00Z', '2026-10-19T23:59:00Z'), allDay: true });
+    const res = computeHourlyLoad([memberRow], [day('d1'), day('d2')], '2026-10-19T00:00:00Z', '2026-10-20T00:00:00Z');
+    expect(res.warnings).toHaveLength(0);
+    expect(res.rows[0]!.slots.some(s => s.overloaded)).toBe(false);
+    expect(res.entries.map(e => e.id)).toEqual(['d1', 'd2']);
+  });
+
+  test('work outside the shift and on a day off is a warning', () => {
+    const res = computeHourlyLoad([memberRow], [assignment('e1', '2026-10-19T19:00:00Z', '2026-10-19T20:00:00Z')], '2026-10-19T00:00:00Z', '2026-10-20T00:00:00Z');
+    expect(res.warnings.filter(w => w.code === 'outside_shift')).toHaveLength(1);
+    // суббота — выходной
+    const res2 = computeHourlyLoad([memberRow], [assignment('e1', '2026-10-24T10:00:00Z', '2026-10-24T12:00:00Z')], '2026-10-24T00:00:00Z', '2026-10-25T00:00:00Z');
+    expect(res2.warnings.filter(w => w.code === 'outside_shift')).toHaveLength(1);
+  });
+
+  test('the night shift goes through midnight', () => {
+    const row: HourlyRow = { id: 'm2', rowType: 'member', name: 'Пётр', capacityUnits: 1, calendar: night };
+    // цикл начинается в понедельник 2026-01-05: рабочие дни 5 и 6 января
+    const res = computeHourlyLoad([row], [assignment('e1', '2026-01-05T22:00:00Z', '2026-01-06T02:00:00Z')], '2026-01-05T00:00:00Z', '2026-01-07T00:00:00Z');
+    const slots = res.rows[0]!.slots;
+    expect(slots.find(s => s.start === '2026-01-05T22:00:00.000Z')).toMatchObject({ working: true });
+    expect(slots.find(s => s.start === '2026-01-05T23:00:00.000Z')).toMatchObject({ working: true });
+    expect(slots.find(s => s.start === '2026-01-06T01:00:00.000Z')).toMatchObject({ working: true });
+    expect(slots.find(s => s.start === '2026-01-06T12:00:00.000Z')).toMatchObject({ working: false });
+    expect(res.warnings.filter(w => w.code === 'outside_shift')).toHaveLength(0);
+  });
+
+  test('the shift of the workspace is counted in its own time zone', () => {
+    // смена 09:00–17:00 по Москве: в UTC это 06:00–14:00
+    const res = computeHourlyLoad([memberRow], [assignment('e1', '2026-10-19T07:00:00Z', '2026-10-19T09:00:00Z')], '2026-10-19T00:00:00Z', '2026-10-20T00:00:00Z', { timeZone: 'Europe/Moscow' });
+    expect(res.warnings.filter(w => w.code === 'outside_shift')).toHaveLength(0);
+    expect(res.rows[0]!.slots.find(s => s.start === '2026-10-19T07:00:00.000Z')).toMatchObject({ working: true });
+    // в UTC этот же интервал — до начала смены
+    const res2 = computeHourlyLoad([memberRow], [assignment('e1', '2026-10-19T07:00:00Z', '2026-10-19T09:00:00Z')], '2026-10-19T00:00:00Z', '2026-10-20T00:00:00Z', { timeZone: 'UTC' });
+    expect(res2.warnings.filter(w => w.code === 'outside_shift')).toHaveLength(1);
   });
 });

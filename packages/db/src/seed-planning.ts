@@ -27,10 +27,10 @@ export async function seedPlanning(db: Db, wsId: string) {
       workspaceId: wsId,
       name: 'Сменный 2/2',
       kind: 'cycle',
-      pattern: { cycle: [1, 1, 0, 0] },
+      pattern: { cycle: [1, 1, 0, 0], startHour: 22, endHour: 6 },
       cycleStart: '2026-01-05',
       hoursPerDay: '8',
-      note: 'Два рабочих дня, два выходных',
+      note: 'Два рабочих дня, два выходных; ночная смена через полночь',
     },
   ]);
 
@@ -57,13 +57,19 @@ export async function seedPlanning(db: Db, wsId: string) {
     { id: bench, workspaceId: wsId, code: 'EQ-3', name: 'Сборочный верстак', kind: 'other', workCenterId: assembly?.id ?? null, capacityUnits: 2, calendarId: shift, note: 'Две смены по графику 2/2' },
   ]);
 
-  /* ---------- норматив: операция «Сборка стула» нуждается в сборочном верстаке ---------- */
+  /* ---------- норматив: операция «Сборка стула» и работа «Монтаж» нуждаются в сборочном верстаке ---------- */
   const [operation] = await db
     .select({ id: products.id })
     .from(products)
     .where(and(eq(products.workspaceId, wsId), eq(products.kind, 'operation')))
     .limit(1);
   if (operation) await db.insert(productResources).values({ workspaceId: wsId, productId: operation.id, resourceId: bench, hoursPerUnit: '0.500' });
+  const [work] = await db
+    .select({ id: products.id })
+    .from(products)
+    .where(and(eq(products.workspaceId, wsId), eq(products.kind, 'work')))
+    .limit(1);
+  if (work) await db.insert(productResources).values({ workspaceId: wsId, productId: work.id, resourceId: bench, hoursPerUnit: '0.500' });
 
   return { calendars: 2, holidays: 2, resources: 3 };
 }

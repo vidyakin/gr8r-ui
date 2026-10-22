@@ -85,6 +85,67 @@ export type LoadRowType = 'member' | 'work_center' | 'resource';
 
 export const planningKey = (ws: string, ...rest: unknown[]) => ['ws', ws, 'planning', ...rest] as const;
 
+/* ---------------- часовой план услуг ---------------- */
+
+/** Слот часовой загрузки (час) */
+export interface ServiceSlot {
+  start: string;
+  end: string;
+  /** Занято часов в слоте */
+  used: string;
+  /** Доступно часов в слоте (ноль — нерабочее время) */
+  capacity: string;
+  working: boolean;
+  overloaded: boolean;
+}
+
+/** Строка часового плана: сотрудник или ресурс */
+export interface ServiceScheduleRow {
+  rowId: string;
+  rowType: 'member' | 'resource';
+  name: string;
+  capacityUnits: number;
+  slots: ServiceSlot[];
+  totalHours: string;
+  bookedHours: string;
+  overloaded: boolean;
+}
+
+/** Полоса часового плана: назначение заказ-наряда или работа ресурса */
+export interface ServiceScheduleEntry {
+  id: string;
+  kind: 'assignment' | 'resource';
+  title: string;
+  rowType: 'member' | 'resource';
+  rowId: string;
+  startAt: string;
+  endAt: string;
+  hours: string;
+  documentId: string | null;
+  taskId: string | null;
+  memberId: string | null;
+  resourceId: string | null;
+}
+
+/** Предупреждение о перегрузке */
+export interface ServiceWarning {
+  code: 'member_overlap' | 'resource_overload' | 'outside_shift' | 'over_capacity';
+  rowType: 'member' | 'resource';
+  rowId: string;
+  entryIds: string[];
+  message: string;
+}
+
+/** Часовой план услуг: строки, полосы и предупреждения */
+export function useServiceSchedule(from: string, to: string, resource: 'member' | 'resource') {
+  const ws = useWsId();
+  return useQuery({
+    queryKey: planningKey(ws, 'schedule', from, to, resource),
+    queryFn: () => call<{ rows: ServiceScheduleRow[]; entries: ServiceScheduleEntry[]; warnings: ServiceWarning[]; timeZone: string }>(ws, 'GET', `/services/schedule?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&resource=${resource}`),
+    staleTime: 15_000,
+  });
+}
+
 /** Загрузка за период: строки с часами по дням и полосы плана */
 export function useLoad(from: string, to: string, rowType: LoadRowType) {
   const ws = useWsId();

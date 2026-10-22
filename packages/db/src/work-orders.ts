@@ -2,7 +2,7 @@
    модуля services) и главное — проведение заказ-наряда: при входе в состояние категории «done» он сам становится продажей
    (выручка, долг клиента, расход товаров и материалов), частичной отгрузки нет. Выход из «done» отменяет проведение.
    Правила — в docs/architecture.md, раздел «Заказ-наряд: работы, материалы и состояния». */
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm';
 import {
   canChangeWorkOrderState,
   dec,
@@ -10,15 +10,18 @@ import {
   mul,
   WORK_ORDER_OPEN_CATEGORIES,
   type DocumentType,
+  type HourlyWarning,
   type WorkOrderStateCategory,
   type WorkOrderStateDef,
+  zonedParts,
 } from '@gr8r/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { DOCUMENT_CREATED_HOOKS, DOCUMENT_HOOKS, STATE_HOOKS, STATE_PROVIDERS, type StatePayload } from './document-hooks';
 import { recordEvent } from './events';
 import { applyStockMoves, loadInventorySettings, type MoveRequest } from './stock';
-import { documentLines, documents, documentStates, members, products, tasks, warehouses, workOrderAssignments, workOrderKinds, workOrderMaterials, workCenters } from './schema';
+import { documentLines, documents, documentResources, documentStates, members, products, tasks, timeLogs, warehouses, workOrderAssignments, workOrderKinds, workOrderMaterials, workCenters } from './schema';
+import { assignmentWarnings, workspaceTimeZone } from './planning';
 import { issueTaskKey } from './modules';
 import { ensureModuleProject } from './modules';
 import { applyDocumentMoves, postDocument, unpostDocument, type DocCtx, type DocumentRow } from './documents';
@@ -120,6 +123,9 @@ export interface WorkOrderAssignmentView {
   plannedHours: string | null;
   startDate: string | null;
   dueDate: string | null;
+  /** Интервал работы по часам (ISO 8601) */
+  startAt: string | null;
+  endAt: string | null;
 }
 
 /** Назначения заказ-наряда: задача модуля services + её исполнитель и сроки */
@@ -147,6 +153,8 @@ export async function listWorkOrderAssignments(db: Db, documentId: string): Prom
     plannedHours: r.a.plannedHours,
     startDate: r.startDate,
     dueDate: r.dueDate,
+    startAt: r.a.startAt?.toISOString() ?? null,
+    endAt: r.a.endAt?.toISOString() ?? null,
   }));
 }
 
@@ -158,6 +166,9 @@ export interface WorkOrderAssignmentInput {
   dueDate?: string | null;
   plannedHours?: string | null;
   workCenterId?: string | null;
+  /** Интервал работы по часам (ISO 8601) */
+  startAt?: string | null;
+  endAt?: string | null;
 }
 
 /** Назначение — задача в системном проекте модуля services плюс строка назначения заказ-наряда */
@@ -182,6 +193,13 @@ export async function createWorkOrderAssignment(db: Db, ctx: DocCtx, documentId:
     if (!workCenterId && norm.workCenterId) workCenterId = norm.workCenterId;
   }
   if (!title) throw new DomainError(422, 'invalid_reference', 'Enter the name of the assignment');
+  // часовой интервал: начало раньше конца
+  if (input.startAt && input.endAt) {
+    const start = new Date(input.startAt);
+    const end = new Date(input.endAt);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) throw new DomainError(422, 'invalid_dates', 'The interval of the assignment is not a date and time');
+    if (end.getTime() <= start.getTime()) throw new DomainError(422, 'invalid_dates', 'The start of the assignment must not be after its end');
+  }
   // исполнитель должен быть участником этого воркспейса: чужих участников составной внешний ключ не примет
   if (input.assigneeId) {
     const [m] = await db.select({ id: members.id }).from(members).where(eq(members.id, input.assigneeId)).limit(1);
@@ -221,19 +239,69 @@ export async function createWorkOrderAssignment(db: Db, ctx: DocCtx, documentId:
       lineId: input.lineId ?? null,
       workCenterId,
       plannedHours,
+      startAt: input.startAt ? new Date(input.startAt) : null,
+      endAt: input.endAt ? new Date(input.endAt) : null,
     })
     .returning({ id: workOrderAssignments.id });
+  // ресурсы строки следуют за интервалом назначения
+  if (input.lineId && input.startAt && input.endAt) {
+    await db
+      .update(documentResources)
+      .set({ startAt: new Date(input.startAt), endAt: new Date(input.endAt) })
+      .where(and(eq(documentResources.documentId, documentId), eq(documentResources.lineId, input.lineId)));
+  }
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'task.created', entity: 'task', recordId: task!.id, actorId: ctx.memberId, payload: { documentId } });
   return { assignmentId: assignment!.id, taskId: task!.id, projectId };
 }
 
 /** Правка назначения: строка, участок и плановые часы; остальное — обычными роутами задач */
-export async function updateWorkOrderAssignment(db: Db, ctx: DocCtx, taskId: string, patch: WorkOrderAssignmentInput): Promise<void> {
+export async function updateWorkOrderAssignment(db: Db, ctx: DocCtx, taskId: string, patch: WorkOrderAssignmentInput): Promise<{ warnings: HourlyWarning[] }> {
   const [row] = await db.select().from(workOrderAssignments).where(eq(workOrderAssignments.taskId, taskId)).limit(1);
   if (!row) throw new DomainError(404, 'not_found', 'assignment not found');
-  if (patch.assigneeId) {
-    const [m] = await db.select({ id: members.id }).from(members).where(eq(members.id, patch.assigneeId)).limit(1);
-    if (!m) throw new DomainError(422, 'invalid_reference', 'The member does not exist in this workspace');
+  // закрытый или отменённый заказ-наряд не перепланируют
+  const [doc] = await db.select({ state: documents.state, kindId: documents.workOrderKindId }).from(documents).where(eq(documents.id, row.documentId)).limit(1);
+  if (!doc) throw new DomainError(404, 'not_found', 'document not found');
+  if (doc.state && doc.kindId) {
+    const [st] = await db.select({ category: documentStates.category }).from(documentStates).where(and(eq(documentStates.kindId, doc.kindId), eq(documentStates.key, doc.state))).limit(1);
+    if (st && (st.category === 'delivered' || st.category === 'cancelled')) throw new DomainError(422, 'invalid_state', 'A closed work order is not rescheduled: move it back to work first');
+  }
+  // интервал по часам: начало и конец задаются вместе
+  let startAt = row.startAt;
+  let endAt = row.endAt;
+  let movedByDays = false;
+  if (patch.startAt !== undefined || patch.endAt !== undefined) {
+    if ((patch.startAt === undefined) !== (patch.endAt === undefined)) throw new DomainError(422, 'invalid_dates', 'Set the start and the end of the interval');
+    if (patch.startAt && patch.endAt) {
+      startAt = new Date(patch.startAt);
+      endAt = new Date(patch.endAt);
+      if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) throw new DomainError(422, 'invalid_dates', 'The interval of the assignment is not a date and time');
+      if (endAt.getTime() <= startAt.getTime()) throw new DomainError(422, 'invalid_dates', 'The start of the assignment must not be after its end');
+    } else {
+      startAt = null;
+      endAt = null;
+    }
+  } else if (row.startAt && row.endAt && (patch.startDate || patch.dueDate)) {
+    // перенос по дням (дневной планировщик): часы интервала сохраняются, меняются дни
+    const timeZone = await workspaceTimeZone(db, ctx.workspaceId);
+    const shift = (at: Date, day: string | null | undefined) => {
+      if (!day) return at;
+      const p = zonedParts(at, timeZone);
+      return new Date(at.getTime() + (Date.parse(day) - Date.parse(p.date)));
+    };
+    startAt = shift(row.startAt, patch.startDate);
+    endAt = shift(row.endAt, patch.dueDate);
+    if (endAt.getTime() <= startAt.getTime()) throw new DomainError(422, 'invalid_dates', 'The start of the assignment must not be after its end');
+    movedByDays = true;
+  }
+  const [task] = await db.select({ assigneeId: tasks.assigneeId }).from(tasks).where(eq(tasks.id, taskId)).limit(1);
+  if (patch.assigneeId !== undefined && patch.assigneeId !== task?.assigneeId) {
+    // исполнителя назначения, по которому уже записано время, не меняют: время привязано к нему
+    const [log] = await db.select({ id: timeLogs.id }).from(timeLogs).where(eq(timeLogs.taskId, taskId)).limit(1);
+    if (log) throw new DomainError(422, 'assignment_has_time', 'The time of this assignment is already logged: its executor cannot be changed');
+    if (patch.assigneeId) {
+      const [m] = await db.select({ id: members.id }).from(members).where(eq(members.id, patch.assigneeId)).limit(1);
+      if (!m) throw new DomainError(422, 'invalid_reference', 'The member does not exist in this workspace');
+    }
   }
   if (patch.workCenterId) {
     const [w] = await db.select({ id: workCenters.id }).from(workCenters).where(eq(workCenters.id, patch.workCenterId)).limit(1);
@@ -243,14 +311,35 @@ export async function updateWorkOrderAssignment(db: Db, ctx: DocCtx, taskId: str
   if (patch.lineId !== undefined) set.lineId = patch.lineId;
   if (patch.workCenterId !== undefined) set.workCenterId = patch.workCenterId;
   if (patch.plannedHours !== undefined) set.plannedHours = patch.plannedHours;
+  if (patch.startAt !== undefined) set.startAt = startAt;
+  if (patch.endAt !== undefined) set.endAt = endAt;
+  if (movedByDays) Object.assign(set, { startAt, endAt });
   await db.update(workOrderAssignments).set(set).where(eq(workOrderAssignments.id, row.id));
   const taskSet: Partial<typeof tasks.$inferInsert> = { updatedAt: new Date() };
   if (patch.assigneeId !== undefined) taskSet.assigneeId = patch.assigneeId;
   if (patch.startDate !== undefined) taskSet.startDate = patch.startDate;
   if (patch.dueDate !== undefined) taskSet.dueDate = patch.dueDate;
   if (patch.plannedHours !== undefined) taskSet.planHours = patch.plannedHours;
+  // даты задачи согласованы с часовым интервалом
+  if (startAt && endAt) {
+    const timeZone = await workspaceTimeZone(db, ctx.workspaceId);
+    taskSet.startDate = zonedParts(startAt, timeZone).date;
+    taskSet.dueDate = zonedParts(endAt, timeZone).date;
+  }
   await db.update(tasks).set(taskSet).where(eq(tasks.id, taskId));
+  // ресурсы строки следуют за интервалом назначения (свою вручную заданную дату ресурс сохраняет)
+  if (row.lineId && (patch.startAt !== undefined || patch.endAt !== undefined || movedByDays)) {
+    const same = row.startAt ? eq(documentResources.startAt, row.startAt) : isNull(documentResources.startAt);
+    await db
+      .update(documentResources)
+      .set({ startAt, endAt })
+      .where(and(eq(documentResources.documentId, row.documentId), eq(documentResources.lineId, row.lineId), or(same, isNull(documentResources.startAt))));
+  }
+  await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'task.updated', entity: 'task', recordId: taskId, actorId: ctx.memberId, payload: { changes: { assignment: { from: null, to: startAt?.toISOString() ?? null } } } });
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.updated', entity: 'document', recordId: row.documentId, actorId: ctx.memberId, payload: { changes: { assignment: { from: null, to: taskId } } } });
+  // перегрузка и работа вне смены — предупреждение, не запрет
+  const warnings = await assignmentWarnings(db, ctx.workspaceId, row.id);
+  return { warnings };
 }
 
 /** Назначение удаляется вместе с задачей-назначением */

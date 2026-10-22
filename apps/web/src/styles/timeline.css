@@ -112,6 +112,30 @@
   width: 1px;
   background: var(--divider);
 }
+/* часовые линии масштаба часа */
+.tl-hour {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--divider);
+  opacity: 0.55;
+}
+/* нерабочие часы смены */
+.tl-off {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--sunken);
+  opacity: 0.6;
+}
+/* перегруженный час */
+.tl-over {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--red) 16%, transparent);
+}
 .tl-we {
   position: absolute;
   top: 0;
