@@ -93,7 +93,8 @@ export const PRODUCTION_ORDER_STATES: DocumentStateDef[] = [
   { key: 'closed', label: 'Closed', final: true },
 ];
 
-/** Этапы выпуска: пока один — «Завершение производства». Виды производства и список этапов — этап 4б */
+/** Этап выпуска по умолчанию: «Завершение производства». Виды производства и список этапов — справочник (этап 4б);
+    спецификация без вида производства работает как раньше — единственный этот этап */
 export const PRODUCTION_STAGES = [{ key: 'final', label: 'Completion of production', isFinal: true }] as const;
 export type ProductionStageKey = (typeof PRODUCTION_STAGES)[number]['key'];
 

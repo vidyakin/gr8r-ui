@@ -284,5 +284,19 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
   });
   await postAt(chairOrder, 1);
 
+  // Заказ на производство изделия с этапами: в рабочем месте видны колонки этапов
+  const [office] = await db.select().from(manufacturedItems).where(eq(manufacturedItems.code, 'FG-OFFICE')).limit(1);
+  const [carpentry] = await db.select().from(workCenters).where(eq(workCenters.code, 'WS-1')).limit(1);
+  const officeOrder = await createProductionOrder(db, ctx, {
+    workCenterId: carpentry!.id,
+    warehouseId: shop!.id,
+    targetWarehouseId: fg!.id,
+    date: iso(1),
+    comment: 'Столы «Офис» по этапам',
+    items: [{ itemId: office!.id, qty: '3' }],
+  });
+  await fillOrderFromBom(db, ctx, officeOrder);
+  await postAt(officeOrder, 1);
+
   return { documents: 24 };
 }

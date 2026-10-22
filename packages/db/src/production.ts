@@ -13,7 +13,8 @@ import { DOCUMENT_HOOKS } from './document-hooks';
 import { createDocument, postDocument, unpostDocument, type DocCtx } from './documents';
 import { recordEvent } from './events';
 import { applyStockMoves, loadAvgCosts, loadInventorySettings, type MoveRequest } from './stock';
-import { bomLines, companies, documentLines, documents, manufacturedItems, productManufacturing, productionComponents, productionHeaders, productionItems, products, stockReservations, warehouses, workCenters, workspaces } from './schema';
+import { bomLines, companies, documentLines, documents, manufacturedItems, productManufacturing, productionComponents, productionHeaders, productionItems, productionStages, products, stockReservations, warehouses, workCenters, workspaces } from './schema';
+import { FINAL_STAGE, itemStagePlan, listProductionKinds, stageDef, stageKey, type StageDef } from './production-stages';
 import { uuidv7 } from './uuid';
 
 export type ItemRow = typeof manufacturedItems.$inferSelect;
@@ -38,6 +39,8 @@ export interface PlannedComponent {
   fixedCost: string | null;
   /** Плановая стоимость строки */
   plannedCost: string;
+  /** Этап, на котором расходуется материал или выполняется работа; пусто — этап изделия не задан */
+  stageId: string | null;
 }
 
 /** Источник цены материала — настройка воркспейса */
@@ -64,7 +67,7 @@ export async function loadProductionGraph(db: Db) {
     productId: i.productId,
     batchQty: i.batchQty,
     overheadPct: i.overheadPct,
-    lines: (byItem.get(i.id) ?? []).map(l => ({ id: l.id, kind: l.kind, qty: l.qty, productId: l.productId, scrapPct: l.scrapPct, unitCode: l.unitCode, childItemId: l.childItemId, semiMode: l.semiMode, operation: l.operation, workCenterId: l.workCenterId, hours: l.hours, rate: l.rate, fixedCost: l.fixedCost })),
+    lines: (byItem.get(i.id) ?? []).map(l => ({ id: l.id, kind: l.kind, qty: l.qty, productId: l.productId, scrapPct: l.scrapPct, unitCode: l.unitCode, childItemId: l.childItemId, semiMode: l.semiMode, operation: l.operation, workCenterId: l.workCenterId, hours: l.hours, rate: l.rate, fixedCost: l.fixedCost, stageId: l.stageId })),
   }));
   return { items, byItem, centers, mats, avg, inputs };
 }
@@ -100,20 +103,138 @@ export async function planComponents(db: Db, workspaceId: string, itemId: string
   for (const m of explosion.materials) {
     const p = prod.get(m.productId);
     const price = p ? resolveMaterialPrice(source, p, graph.avg.get(m.productId)) : null;
-    out.push({ kind: 'material', productId: m.productId, itemId: null, workCenterId: null, operation: '', qty: m.qty, hours: '0', rate: null, fixedCost: null, plannedCost: fmt(mul(dec(m.qty), dec(price ?? '0'))) });
+    out.push({ kind: 'material', productId: m.productId, itemId: null, workCenterId: null, operation: '', qty: m.qty, hours: '0', rate: null, fixedCost: null, plannedCost: fmt(mul(dec(m.qty), dec(price ?? '0'))), stageId: m.stageId ?? null });
   }
   for (const s of explosion.semis) {
     // полуфабрикат в режиме stock списывается со склада: нужен товар каталога
     if (!s.productId) throw new DomainError(422, 'item_not_stockable', `“${s.name}” has no product of the catalogue: it cannot be written off from stock`);
     const cost = unitCost(graph, s.itemId, source);
-    out.push({ kind: 'semi', productId: s.productId, itemId: s.itemId, workCenterId: null, operation: '', qty: s.qty, hours: '0', rate: null, fixedCost: null, plannedCost: fmt(mul(dec(s.qty), dec(cost ?? '0'))) });
+    out.push({ kind: 'semi', productId: s.productId, itemId: s.itemId, workCenterId: null, operation: '', qty: s.qty, hours: '0', rate: null, fixedCost: null, plannedCost: fmt(mul(dec(s.qty), dec(cost ?? '0'))), stageId: s.stageId ?? null });
   }
   for (const w of explosion.works) {
     const rate = w.rate ?? (w.workCenterId ? (rates.get(w.workCenterId) ?? null) : null);
     const cost = mul(dec(w.hours), dec(rate ?? '0')) + dec(w.fixedCost ?? '0');
-    out.push({ kind: 'work', productId: null, itemId: null, workCenterId: w.workCenterId, operation: w.operation, qty: '0', hours: w.hours, rate, fixedCost: w.fixedCost, plannedCost: fmt(cost) });
+    out.push({ kind: 'work', productId: null, itemId: null, workCenterId: w.workCenterId, operation: w.operation, qty: '0', hours: w.hours, rate, fixedCost: w.fixedCost, plannedCost: fmt(cost), stageId: w.stageId ?? null });
   }
   return out;
+}
+
+/* ---------------- этапы производства ---------------- */
+
+/** Источник позиции: заказ на производство или строка заказа покупателя */
+export interface StageSource {
+  sourceItemId: string | null;
+  customerOrderLineId: string | null;
+}
+
+/** Итоги по этапу: сколько выпущено и во что обошлось */
+export interface StageTotal {
+  qty: bigint;
+  cost: bigint;
+}
+
+/** Ключ источника в итогах по этапам */
+const sourceKey = (s: StageSource): string => (s.sourceItemId ? `s:${s.sourceItemId}` : `c:${s.customerOrderLineId}`);
+
+/** Сколько выпущено по позиции на каждом этапе и сколько это стоило (проведённые выпуски) */
+async function stageTotals(db: Db, sources: StageSource[]): Promise<Map<string, StageTotal>> {
+  const itemIds = sources.map(s => s.sourceItemId).filter((x): x is string => !!x);
+  const lineIds = sources.map(s => s.customerOrderLineId).filter((x): x is string => !!x);
+  if (!itemIds.length && !lineIds.length) return new Map();
+  const rows = await db
+    .select({
+      source: productionItems.sourceItemId,
+      customer: productionItems.customerOrderLineId,
+      stageId: productionHeaders.stageId,
+      qty: sql<string>`sum(${productionItems.qty})`,
+      cost: sql<string>`coalesce(sum(${productionItems.stageCost}), 0)`,
+    })
+    .from(productionItems)
+    .innerJoin(documents, eq(documents.id, productionItems.documentId))
+    .leftJoin(productionHeaders, eq(productionHeaders.documentId, documents.id))
+    .where(
+      and(
+        eq(documents.type, 'production'),
+        eq(documents.status, 'posted'),
+        or(itemIds.length ? inArray(productionItems.sourceItemId, itemIds) : undefined, lineIds.length ? inArray(productionItems.customerOrderLineId, lineIds) : undefined),
+      ),
+    )
+    .groupBy(productionItems.sourceItemId, productionItems.customerOrderLineId, productionHeaders.stageId);
+  const out = new Map<string, StageTotal>();
+  for (const r of rows) {
+    const key = `${r.source ? `s:${r.source}` : `c:${r.customer}`}|${stageKey(r.stageId)}`;
+    const cur = out.get(key) ?? { qty: 0n, cost: 0n };
+    cur.qty += dec(r.qty);
+    cur.cost += dec(r.cost);
+    out.set(key, cur);
+  }
+  return out;
+}
+
+/** Этап выпуска изделия: по виду производства; без вида — предопределённый «Завершение производства» */
+async function resolveStage(db: Db, itemId: string, stageId: string | null): Promise<StageDef> {
+  const plan = await itemStagePlan(db, itemId);
+  if (!plan.kindId) {
+    if (stageId) throw new DomainError(422, 'stage_mismatch', 'The product has no production kind: it is produced in one stage');
+    return FINAL_STAGE;
+  }
+  const id = stageId ?? (plan.stages.find(s => s.isFinal)?.id ?? plan.stages[plan.stages.length - 1].id);
+  const st = plan.stages.find(s => s.id === id);
+  if (!st) throw new DomainError(422, 'stage_mismatch', 'The stage belongs to another production kind');
+  return st;
+}
+
+/** Предел этапа: сколько уже выполнено и сколько можно выполнить (предыдущий этап ограничивает) */
+interface StageLimit {
+  /** Выполнено на этом этапе */
+  done: bigint;
+  /** Сколько всего можно выполнить на этом этапе */
+  cap: bigint;
+  /** Предел задан предыдущим этапом, а не заказом */
+  byStage: boolean;
+}
+
+async function stageLimit(db: Db, opts: { itemId: string; stage: StageDef; ordered: bigint; source: StageSource; totals: Map<string, StageTotal> }): Promise<StageLimit> {
+  const plan = await itemStagePlan(db, opts.itemId);
+  const idx = plan.stages.findIndex(s => s.id === opts.stage.id);
+  const prev = idx > 0 ? plan.stages[idx - 1] : null;
+  const done = opts.totals.get(`${sourceKey(opts.source)}|${stageKey(opts.stage.id)}`)?.qty ?? 0n;
+  if (!prev) return { done, cap: opts.ordered, byStage: false };
+  const prevDone = opts.totals.get(`${sourceKey(opts.source)}|${stageKey(prev.id)}`)?.qty ?? 0n;
+  return { done, cap: prevDone < opts.ordered ? prevDone : opts.ordered, byStage: prevDone < opts.ordered };
+}
+
+/** Себестоимость незавершённого производства на единицу: средняя по выполненным промежуточным этапам */
+async function wipUnitCost(source: StageSource, stages: StageDef[], totals: Map<string, StageTotal>): Promise<bigint> {
+  let unit = 0n;
+  for (const st of stages) {
+    if (st.isFinal) continue;
+    const t = totals.get(`${sourceKey(source)}|${stageKey(st.id)}`);
+    if (!t || t.qty <= 0n) continue;
+    unit += div(t.cost, t.qty);
+  }
+  return unit;
+}
+
+/** Этап строки состава: строка без этапа или с этапом другого вида (вид назначен или сменён после спецификации и заказа)
+    относится к финальному этапу, чтобы её материалы не потерялись */
+function componentStage(c: { stageId: string | null }, stages: StageDef[]): string | null {
+  if (stages.some(s => s.id === c.stageId)) return c.stageId;
+  return (stages.find(s => s.isFinal) ?? stages[stages.length - 1]).id;
+}
+
+/** Состав изделия должен быть привязан к этапам его вида производства */
+async function assertPlanStages(db: Db, itemId: string, components: PlannedComponent[]): Promise<void> {
+  const plan = await itemStagePlan(db, itemId);
+  const ids = new Set(plan.stages.map(s => s.id));
+  for (const c of components) {
+    if (!plan.kindId) {
+      if (c.stageId) throw new DomainError(422, 'stage_mismatch', 'The product has no production kind: the stage of its lines is not needed');
+      continue;
+    }
+    if (!c.stageId) throw new DomainError(422, 'stage_required', 'Set the stage of every line of the bill of materials');
+    if (!ids.has(c.stageId)) throw new DomainError(422, 'stage_mismatch', 'The stage of a line belongs to another production kind');
+  }
 }
 
 /* ---------------- заказ на производство ---------------- */
@@ -257,7 +378,8 @@ export async function fillOrderFromBom(db: Db, ctx: DocCtx, id: string): Promise
   const rows: (typeof productionComponents.$inferInsert)[] = [];
   for (const it of items) {
     const plan = await planComponents(db, ctx.workspaceId, it.itemId, it.qty);
-    for (const c of plan) rows.push({ workspaceId: ctx.workspaceId, documentId: id, itemId: it.id, kind: c.kind, productId: c.productId, workCenterId: c.workCenterId, operation: c.operation, qty: c.qty, hours: c.hours, rate: c.rate, fixedCost: c.fixedCost, plannedCost: c.plannedCost, sortOrder: rows.length });
+    await assertPlanStages(db, it.itemId, plan);
+    for (const c of plan) rows.push({ workspaceId: ctx.workspaceId, documentId: id, itemId: it.id, kind: c.kind, productId: c.productId, workCenterId: c.workCenterId, operation: c.operation, qty: c.qty, hours: c.hours, rate: c.rate, fixedCost: c.fixedCost, plannedCost: c.plannedCost, stageId: c.stageId, sortOrder: rows.length });
     const cost = unitCost(graph, it.itemId, source);
     if (cost) await db.update(productionItems).set({ plannedUnitCost: cost }).where(eq(productionItems.id, it.id));
   }
@@ -272,6 +394,8 @@ export interface ProductionLineInput {
   orderItemId?: string | null;
   /** Строка заказа покупателя (выпуск прямо из заказа покупателя) */
   customerOrderLineId?: string | null;
+  /** Этап выпуска; пусто — «Завершение производства» */
+  stageId?: string | null;
   qty: string;
 }
 
@@ -295,6 +419,8 @@ export interface ProductionPlan {
   sourceItemId: string | null;
   /** Строка заказа покупателя, которую выполняет выпуск */
   customerOrderLineId: string | null;
+  /** Этап выпуска; пусто — предопределённый «Завершение производства» */
+  stageId: string | null;
   components: PlannedComponent[];
 }
 
@@ -305,8 +431,8 @@ export async function createProductionFromOrder(db: Db, ctx: DocCtx, orderId: st
   if (order.type !== 'production_order') throw new DomainError(422, 'invalid_type', 'This is not a production order');
   if (order.status !== 'posted') throw new DomainError(422, 'base_not_posted', 'Post the production order first');
   const [header] = await db.select().from(productionHeaders).where(eq(productionHeaders.documentId, orderId)).limit(1);
-  const plans = await orderPlans(db, ctx, orderId, input.lines.map(l => ({ orderItemId: l.orderItemId ?? '', qty: l.qty })));
-  return createOrAppendProduction(db, ctx, {
+  const plans = await orderPlans(db, ctx, orderId, input.lines.map(l => ({ orderItemId: l.orderItemId ?? '', qty: l.qty, stageId: l.stageId ?? null })));
+  return createProductionDocuments(db, ctx, {
     date: input.date ?? order.date,
     workCenterId: input.workCenterId ?? header?.workCenterId ?? null,
     warehouseId: input.warehouseId ?? null,
@@ -319,8 +445,8 @@ export async function createProductionFromOrder(db: Db, ctx: DocCtx, orderId: st
 }
 
 /** Планы выпуска по позициям заказа на производство: состав — снимок заказа (пропорционально количеству) или развёртка спецификации.
-    Без количества — весь остаток к выпуску */
-async function orderPlans(db: Db, ctx: DocCtx, orderId: string, requested: { orderItemId: string; qty?: string }[]): Promise<ProductionPlan[]> {
+    Без количества — весь остаток к выпуску на выбранном этапе */
+async function orderPlans(db: Db, ctx: DocCtx, orderId: string, requested: { orderItemId: string; qty?: string; stageId?: string | null }[]): Promise<ProductionPlan[]> {
   const [order] = await db.select().from(documents).where(eq(documents.id, orderId)).limit(1);
   if (!order) throw new DomainError(404, 'not_found', 'document not found');
   if (order.type !== 'production_order') throw new DomainError(422, 'invalid_type', 'This is not a production order');
@@ -328,20 +454,24 @@ async function orderPlans(db: Db, ctx: DocCtx, orderId: string, requested: { ord
   const orderItems = await db.select().from(productionItems).where(eq(productionItems.documentId, orderId)).orderBy(asc(productionItems.sortOrder));
   const byId = new Map(orderItems.map(i => [i.id, i]));
   const snapshot = await db.select().from(productionComponents).where(eq(productionComponents.documentId, orderId)).orderBy(asc(productionComponents.sortOrder));
-  const produced = await producedQty(db, ctx.workspaceId, orderItems.map(i => i.id));
+  const totals = await stageTotals(db, orderItems.map(i => ({ sourceItemId: i.id, customerOrderLineId: null })));
   const plans: ProductionPlan[] = [];
   for (const l of requested) {
     const src = l.orderItemId ? byId.get(l.orderItemId) : undefined;
     if (!src) throw new DomainError(422, 'invalid_reference', 'The position does not belong to this production order');
-    const left = dec(src.qty) - (produced.get(src.id) ?? 0n);
+    const source: StageSource = { sourceItemId: src.id, customerOrderLineId: null };
+    const stage = await resolveStage(db, src.itemId, l.stageId ?? null);
+    const stagePlan = await itemStagePlan(db, src.itemId);
+    const limit = await stageLimit(db, { itemId: src.itemId, stage, ordered: dec(src.qty), source, totals });
+    const left = limit.cap - limit.done;
     const qty = l.qty ? dec(l.qty) : left;
     if (qty <= 0n) continue;
-    if (qty > left) throw new DomainError(422, 'over_fulfilment', `“${src.itemId}”: only ${fmt(left, 3)} of ${fmt(dec(src.qty), 3)} is left to produce`);
+    if (qty > left) throw stageError(limit, stage, left, dec(src.qty));
     // состав: снимок заказа (пропорционально количеству) или развёртка спецификации
     const scale = div(qty, dec(src.qty));
     const own = snapshot.filter(c => c.itemId === src.id);
     const components: PlannedComponent[] = own.length
-      ? own.map(c => ({
+      ? own.filter(c => componentStage(c, stagePlan.stages) === stage.id).map(c => ({
           kind: c.kind,
           productId: c.productId,
           itemId: null,
@@ -353,11 +483,19 @@ async function orderPlans(db: Db, ctx: DocCtx, orderId: string, requested: { ord
           rate: c.rate,
           fixedCost: c.fixedCost,
           plannedCost: fmt(mul(dec(c.plannedCost), scale)),
+          stageId: c.stageId ?? null,
         }))
-      : await planComponents(db, ctx.workspaceId, src.itemId, fmt(qty, 3));
-    plans.push({ itemId: src.itemId, qty: fmt(qty, 3), sourceItemId: src.id, customerOrderLineId: src.customerOrderLineId, components });
+      : (await planComponents(db, ctx.workspaceId, src.itemId, fmt(qty, 3))).filter(c => componentStage(c, stagePlan.stages) === stage.id);
+    plans.push({ itemId: src.itemId, qty: fmt(qty, 3), sourceItemId: src.id, customerOrderLineId: src.customerOrderLineId, stageId: stage.id, components });
   }
   return plans;
+}
+
+/** Ошибка превышения: этап ограничен предыдущим или заказом */
+function stageError(limit: StageLimit, stage: StageDef, left: bigint, ordered: bigint): DomainError {
+  if (limit.byStage)
+    return new DomainError(422, 'stage_order', `The stage “${stage.name}” waits for the previous one: only ${fmt(left, 3)} of ${fmt(limit.cap, 3)} are ready`);
+  return new DomainError(422, 'over_fulfilment', `Only ${fmt(left, 3)} of ${fmt(ordered, 3)} is left to produce`);
 }
 
 /** Выпуск прямо из заказа покупателя: товар с способом пополнения «производство» */
@@ -368,9 +506,9 @@ export async function createProductionFromCustomerOrder(db: Db, ctx: DocCtx, inp
   if (order.status !== 'posted') throw new DomainError(422, 'base_not_posted', 'Post the customer order first');
   // строки по умолчанию — все производимые строки заказа, по остатку
   const wanted = input.lines.length ? input.lines : await producibleLines(db, ctx, order.id);
-  const plans = await customerPlans(db, ctx, order.id, wanted.map(l => ({ customerOrderLineId: l.customerOrderLineId ?? '', qty: l.qty })));
+  const plans = await customerPlans(db, ctx, order.id, wanted.map(l => ({ customerOrderLineId: l.customerOrderLineId ?? '', qty: l.qty, stageId: l.stageId ?? null })));
   if (!plans.length) throw new DomainError(422, 'nothing_to_create', 'Everything from this customer order is already produced');
-  return createOrAppendProduction(db, ctx, {
+  return createProductionDocuments(db, ctx, {
     date: input.date ?? order.date,
     workCenterId: input.workCenterId ?? null,
     warehouseId: input.warehouseId ?? null,
@@ -382,15 +520,15 @@ export async function createProductionFromCustomerOrder(db: Db, ctx: DocCtx, inp
 }
 
 /** Планы выпуска по строкам заказа покупателя: производится товар со способом пополнения «производство» */
-async function customerPlans(db: Db, ctx: DocCtx, customerOrderId: string, requested: { customerOrderLineId: string; qty?: string }[]): Promise<ProductionPlan[]> {
+async function customerPlans(db: Db, ctx: DocCtx, customerOrderId: string, requested: { customerOrderLineId: string; qty?: string; stageId?: string | null }[]): Promise<ProductionPlan[]> {
   const [order] = await db.select().from(documents).where(eq(documents.id, customerOrderId)).limit(1);
   if (!order) throw new DomainError(404, 'not_found', 'document not found');
   if (order.type !== 'customer_order') throw new DomainError(422, 'invalid_type', 'This is not a customer order');
   if (order.status !== 'posted') throw new DomainError(422, 'base_not_posted', 'Post the customer order first');
   const lines = await db.select().from(documentLines).where(eq(documentLines.documentId, order.id));
   const byId = new Map(lines.map(l => [l.id, l]));
-  const produced = await producedByCustomerLine(db, ctx.workspaceId, lines.map(l => l.id));
   const shipped = await shippedQty(db, ctx.workspaceId, lines.map(l => l.id));
+  const totals = await stageTotals(db, lines.map(l => ({ sourceItemId: null, customerOrderLineId: l.id })));
   const settings = await db.select().from(productManufacturing);
   const byProduct = new Map(settings.map(s => [s.productId, s]));
   const plans: ProductionPlan[] = [];
@@ -399,30 +537,35 @@ async function customerPlans(db: Db, ctx: DocCtx, customerOrderId: string, reque
     if (!src) throw new DomainError(422, 'invalid_reference', 'The line does not belong to this customer order');
     const setting = byProduct.get(src.productId);
     if (!setting || setting.replenishment !== 'production' || !setting.defaultItemId) throw new DomainError(422, 'not_produced', `“${src.name}” is not produced: set the way it is replenished and the default specification`);
-    const left = dec(src.qty) - (shipped.get(src.id) ?? 0n) - (produced.get(src.id) ?? 0n);
+    const source: StageSource = { sourceItemId: null, customerOrderLineId: src.id };
+    const stage = await resolveStage(db, setting.defaultItemId, l.stageId ?? null);
+    const stagePlan = await itemStagePlan(db, setting.defaultItemId);
+    const ordered = dec(src.qty) - (shipped.get(src.id) ?? 0n);
+    const limit = await stageLimit(db, { itemId: setting.defaultItemId, stage, ordered, source, totals });
+    const left = limit.cap - limit.done;
     const qty = l.qty ? dec(l.qty) : left;
     if (qty <= 0n) continue;
-    if (qty > left) throw new DomainError(422, 'over_fulfilment', `“${src.name}”: only ${fmt(left, 3)} of ${fmt(dec(src.qty), 3)} is left to produce`);
-    const components = await planComponents(db, ctx.workspaceId, setting.defaultItemId, fmt(qty, 3));
-    plans.push({ itemId: setting.defaultItemId, qty: fmt(qty, 3), sourceItemId: null, customerOrderLineId: src.id, components });
+    if (qty > left) throw stageError(limit, stage, left, ordered);
+    const components = (await planComponents(db, ctx.workspaceId, setting.defaultItemId, fmt(qty, 3))).filter(c => componentStage(c, stagePlan.stages) === stage.id);
+    plans.push({ itemId: setting.defaultItemId, qty: fmt(qty, 3), sourceItemId: null, customerOrderLineId: src.id, stageId: stage.id, components });
   }
   return plans;
 }
 
 /** Строки заказа покупателя, которые производятся: товар с пополнением «производство» и остаток к выпуску */
-async function producibleLines(db: Db, ctx: DocCtx, customerOrderId: string): Promise<{ customerOrderLineId: string; qty: string }[]> {
+async function producibleLines(db: Db, ctx: DocCtx, customerOrderId: string): Promise<{ customerOrderLineId: string; qty: string; stageId: string | null }[]> {
   const lines = await db.select().from(documentLines).where(eq(documentLines.documentId, customerOrderId));
   const settings = await db.select().from(productManufacturing);
   const byProduct = new Map(settings.map(s => [s.productId, s]));
   const produced = await producedByCustomerLine(db, ctx.workspaceId, lines.map(l => l.id));
   const shipped = await shippedQty(db, ctx.workspaceId, lines.map(l => l.id));
-  const out: { customerOrderLineId: string; qty: string }[] = [];
+  const out: { customerOrderLineId: string; qty: string; stageId: string | null }[] = [];
   for (const l of lines) {
     const s = byProduct.get(l.productId);
     if (!s || s.replenishment !== 'production' || !s.defaultItemId) continue;
     const left = dec(l.qty) - (shipped.get(l.id) ?? 0n) - (produced.get(l.id) ?? 0n);
     if (left <= 0n) continue;
-    out.push({ customerOrderLineId: l.id, qty: fmt(left, 3) });
+    out.push({ customerOrderLineId: l.id, qty: fmt(left, 3), stageId: null });
   }
   return out;
 }
@@ -471,13 +614,16 @@ async function writeProduction(
     /** Склад заказа — запасной вариант, если участок своих складов не задал */
     fallbackWarehouseId?: string | null;
     fallbackTargetWarehouseId?: string | null;
+    /** Этап выпуска; пусто — «Завершение производства» */
+    stageId: string | null;
     basedOnId: string | null;
     plans: ProductionPlan[];
   },
 ): Promise<string> {
   if (!input.plans.length) throw new DomainError(422, 'no_items', 'Add products to produce');
   const { warehouseId, targetWarehouseId } = await resolveWarehouses(db, input.workCenterId, input.warehouseId, input.targetWarehouseId, input.fallbackWarehouseId, input.fallbackTargetWarehouseId);
-  const rows = await buildProductionRows(db, input.plans);
+  const isFinal = await isFinalStage(db, input.stageId);
+  const rows = await buildProductionRows(db, input.plans, isFinal);
   const docId = await createDocument(db, ctx, {
     type: 'production',
     organizationId: null,
@@ -486,13 +632,14 @@ async function writeProduction(
     date: input.date,
     lines: rows.docLines.map(l => ({ id: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, qty: l.qty, price: '0', discountPct: '0', vatRate: 'none' as const, stockRole: l.stockRole })),
   });
-  await db.insert(productionHeaders).values({ workspaceId: ctx.workspaceId, documentId: docId, workCenterId: input.workCenterId ?? null, plannedStart: null, plannedEnd: null, parentDocumentId: null });
+  await db.insert(productionHeaders).values({ workspaceId: ctx.workspaceId, documentId: docId, workCenterId: input.workCenterId ?? null, plannedStart: null, plannedEnd: null, parentDocumentId: null, stageId: input.stageId });
   const itemRows = await db.insert(productionItems).values(
-    rows.itemLines.map((l, n) => ({ workspaceId: ctx.workspaceId, documentId: docId, itemId: l.itemId, qty: l.qty, unitCode: l.unitCode, customerOrderLineId: l.customerOrderLineId, sourceItemId: l.sourceItemId, documentLineId: l.id, sortOrder: n })),
+    rows.itemLines.map((l, n) => ({ workspaceId: ctx.workspaceId, documentId: docId, itemId: l.itemId, qty: l.qty, unitCode: l.unitCode, customerOrderLineId: l.customerOrderLineId, sourceItemId: l.sourceItemId, stageId: input.stageId, documentLineId: l.documentLineId, sortOrder: n })),
   ).returning();
-  const itemIdByLine = new Map(itemRows.map(i => [i.documentLineId!, i.id]));
-  await db.insert(productionComponents).values(
-    rows.componentLines.map((c, n) => ({ workspaceId: ctx.workspaceId, documentId: docId, itemId: itemIdByLine.get(c.itemId) ?? null, kind: c.kind, productId: c.productId, workCenterId: c.workCenterId, operation: c.operation, qty: c.qty, hours: c.hours, rate: c.rate, fixedCost: c.fixedCost, plannedCost: c.plannedCost, documentLineId: c.documentLineId, sortOrder: n })),
+  // связь состава с позицией: строки плана и позиции идут в одном порядке
+  const itemIdByLine = new Map(rows.itemLines.map((l, n) => [l.id, itemRows[n].id]));
+  if (rows.componentLines.length) await db.insert(productionComponents).values(
+    rows.componentLines.map((c, n) => ({ workspaceId: ctx.workspaceId, documentId: docId, itemId: itemIdByLine.get(c.itemId) ?? null, kind: c.kind, productId: c.productId, workCenterId: c.workCenterId, operation: c.operation, qty: c.qty, hours: c.hours, rate: c.rate, fixedCost: c.fixedCost, plannedCost: c.plannedCost, documentLineId: c.documentLineId, stageId: c.stageId ?? input.stageId, sortOrder: n })),
   );
   if (input.basedOnId) await db.update(documents).set({ basedOnId: input.basedOnId }).where(eq(documents.id, docId));
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.created', entity: 'document', recordId: docId, actorId: ctx.memberId, payload: { documentType: 'production' } });
@@ -500,15 +647,23 @@ async function writeProduction(
 }
 
 /** Строки выпуска: продукция (приход), материалы (расход) и работы */
+/** Финальный этап: продукция приходуется только им */
+async function isFinalStage(db: Db, stageId: string | null): Promise<boolean> {
+  if (!stageId) return true;
+  const [row] = await db.select({ isFinal: productionStages.isFinal }).from(productionStages).where(eq(productionStages.id, stageId)).limit(1);
+  return row?.isFinal ?? true;
+}
+
 async function buildProductionRows(
   db: Db,
   plans: ProductionPlan[],
+  isFinal: boolean,
 ): Promise<{
   warehouseId: string | null;
   targetWarehouseId: string | null;
   docLines: { id: string; productId: string; name: string; unitCode: string; qty: string; stockRole: 'in' | 'out' }[];
-  itemLines: { id: string; itemId: string; qty: string; sourceItemId: string | null; customerOrderLineId: string | null; productId: string; name: string; unitCode: string }[];
-  componentLines: { id: string; itemId: string; kind: 'material' | 'semi' | 'work'; productId: string | null; workCenterId: string | null; operation: string; qty: string; hours: string; rate: string | null; fixedCost: string | null; plannedCost: string; documentLineId: string | null }[];
+  itemLines: { id: string; documentLineId: string | null; itemId: string; qty: string; sourceItemId: string | null; customerOrderLineId: string | null; productId: string; name: string; unitCode: string }[];
+  componentLines: { id: string; itemId: string; kind: 'material' | 'semi' | 'work'; productId: string | null; workCenterId: string | null; operation: string; qty: string; hours: string; rate: string | null; fixedCost: string | null; plannedCost: string; documentLineId: string | null; stageId: string | null }[];
 }> {
   const itemIds = [...new Set(plans.map(p => p.itemId))];
   const products_ = await db.select().from(manufacturedItems).where(inArray(manufacturedItems.id, itemIds));
@@ -519,22 +674,23 @@ async function buildProductionRows(
     if (!it.productId) throw new DomainError(422, 'item_not_stockable', `“${it.name}” has no product of the catalogue: it cannot be produced to stock`);
   }
   const docLines: { id: string; productId: string; name: string; unitCode: string; qty: string; stockRole: 'in' | 'out' }[] = [];
-  const itemLines: { id: string; itemId: string; qty: string; sourceItemId: string | null; customerOrderLineId: string | null; productId: string; name: string; unitCode: string }[] = [];
-  const componentLines: { id: string; itemId: string; kind: 'material' | 'semi' | 'work'; productId: string | null; workCenterId: string | null; operation: string; qty: string; hours: string; rate: string | null; fixedCost: string | null; plannedCost: string; documentLineId: string | null }[] = [];
+  const itemLines: { id: string; documentLineId: string | null; itemId: string; qty: string; sourceItemId: string | null; customerOrderLineId: string | null; productId: string; name: string; unitCode: string }[] = [];
+  const componentLines: { id: string; itemId: string; kind: 'material' | 'semi' | 'work'; productId: string | null; workCenterId: string | null; operation: string; qty: string; hours: string; rate: string | null; fixedCost: string | null; plannedCost: string; documentLineId: string | null; stageId: string | null }[] = [];
   for (const p of plans) {
     const it = byItem.get(p.itemId)!;
     const lineId = uuidv7();
-    docLines.push({ id: lineId, productId: it.productId!, name: it.name, unitCode: it.unitCode, qty: p.qty, stockRole: 'in' });
-    itemLines.push({ id: lineId, itemId: p.itemId, qty: p.qty, sourceItemId: p.sourceItemId, customerOrderLineId: p.customerOrderLineId, productId: it.productId!, name: it.name, unitCode: it.unitCode });
+    // продукция приходуется только финальным этапом: на промежуточном строки продукции в документе нет
+    if (isFinal) docLines.push({ id: lineId, productId: it.productId!, name: it.name, unitCode: it.unitCode, qty: p.qty, stockRole: 'in' });
+    itemLines.push({ id: lineId, documentLineId: isFinal ? lineId : null, itemId: p.itemId, qty: p.qty, sourceItemId: p.sourceItemId, customerOrderLineId: p.customerOrderLineId, productId: it.productId!, name: it.name, unitCode: it.unitCode });
     for (const c of p.components) {
       if (c.kind === 'work') {
-        componentLines.push({ id: uuidv7(), itemId: lineId, kind: 'work', productId: null, workCenterId: c.workCenterId, operation: c.operation, qty: '0', hours: c.hours, rate: c.rate, fixedCost: c.fixedCost, plannedCost: c.plannedCost, documentLineId: null });
+        componentLines.push({ id: uuidv7(), itemId: lineId, kind: 'work', productId: null, workCenterId: c.workCenterId, operation: c.operation, qty: '0', hours: c.hours, rate: c.rate, fixedCost: c.fixedCost, plannedCost: c.plannedCost, documentLineId: null, stageId: c.stageId });
         continue;
       }
       const materialLineId = uuidv7();
       const prod = await db.select({ name: products.name, unitCode: products.unitCode }).from(products).where(eq(products.id, c.productId!)).limit(1);
       docLines.push({ id: materialLineId, productId: c.productId!, name: prod[0]?.name ?? '', unitCode: prod[0]?.unitCode ?? '796', qty: c.qty, stockRole: 'out' });
-      componentLines.push({ id: uuidv7(), itemId: lineId, kind: c.kind, productId: c.productId, workCenterId: null, operation: '', qty: c.qty, hours: '0', rate: null, fixedCost: null, plannedCost: c.plannedCost, documentLineId: materialLineId });
+      componentLines.push({ id: uuidv7(), itemId: lineId, kind: c.kind, productId: c.productId, workCenterId: null, operation: '', qty: c.qty, hours: '0', rate: null, fixedCost: null, plannedCost: c.plannedCost, documentLineId: materialLineId, stageId: c.stageId });
     }
   }
   return { warehouseId: null, targetWarehouseId: null, docLines, itemLines, componentLines };
@@ -560,14 +716,22 @@ async function resolveWarehouses(db: Db, workCenterId: string | null | undefined
   return { warehouseId: from, targetWarehouseId: to };
 }
 
-/** Документ выпуска за эту дату и участок: в него дописываются новые строки (как в 1С — один документ за день) */
-async function findDayDocument(db: Db, _workspaceId: string, date: string, workCenterId: string | null): Promise<string | null> {
+/** Документ выпуска за эту дату, участок и этап: в него дописываются новые строки (как в 1С — один документ за день) */
+async function findDayDocument(db: Db, _workspaceId: string, date: string, workCenterId: string | null, stageId: string | null): Promise<string | null> {
   if (!workCenterId) return null;
   const [row] = await db
     .select({ id: documents.id })
     .from(documents)
     .innerJoin(productionHeaders, eq(productionHeaders.documentId, documents.id))
-    .where(and(eq(documents.type, 'production'), eq(documents.date, date), eq(productionHeaders.workCenterId, workCenterId), ne(documents.status, 'cancelled')))
+    .where(
+      and(
+        eq(documents.type, 'production'),
+        eq(documents.date, date),
+        eq(productionHeaders.workCenterId, workCenterId),
+        stageId ? eq(productionHeaders.stageId, stageId) : isNull(productionHeaders.stageId),
+        ne(documents.status, 'cancelled'),
+      ),
+    )
     .orderBy(asc(documents.createdAt))
     .limit(1);
   return row?.id ?? null;
@@ -578,16 +742,17 @@ async function appendProduction(
   db: Db,
   ctx: DocCtx,
   docId: string,
-  input: { date?: string; workCenterId?: string | null; warehouseId?: string | null; targetWarehouseId?: string | null; plans: ProductionPlan[] },
+  input: { date?: string; workCenterId?: string | null; warehouseId?: string | null; targetWarehouseId?: string | null; stageId: string | null; plans: ProductionPlan[] },
 ): Promise<void> {
   const [doc] = await db.select().from(documents).where(eq(documents.id, docId)).limit(1).for('update');
   if (!doc) throw new DomainError(404, 'not_found', 'document not found');
   const wasPosted = doc.status === 'posted';
-  if (wasPosted) await unpostDocument(db, ctx, docId);
-  const rows = await buildProductionRows(db, input.plans);
+  // прежние позиции документа не меняются, поэтому запрет отмены промежуточного этапа здесь не нужен
+  if (wasPosted) await unpostDocument(db, ctx, docId, { repost: true });
+  const rows = await buildProductionRows(db, input.plans, await isFinalStage(db, input.stageId));
   const [last] = await db.select({ m: sql<number>`coalesce(max(${documentLines.sortOrder}), -1)` }).from(documentLines).where(eq(documentLines.documentId, docId));
   const sortOrder = Number(last?.m ?? -1) + 1;
-  await db.insert(documentLines).values(
+  if (rows.docLines.length) await db.insert(documentLines).values(
     rows.docLines.map((l, n) => ({
       id: l.id,
       workspaceId: ctx.workspaceId,
@@ -609,28 +774,43 @@ async function appendProduction(
   const [lastItem] = await db.select({ m: sql<number>`coalesce(max(${productionItems.sortOrder}), -1)` }).from(productionItems).where(eq(productionItems.documentId, docId));
   const itemRows = await db
     .insert(productionItems)
-    .values(rows.itemLines.map((l, n) => ({ workspaceId: ctx.workspaceId, documentId: docId, itemId: l.itemId, qty: l.qty, unitCode: l.unitCode, customerOrderLineId: l.customerOrderLineId, sourceItemId: l.sourceItemId, documentLineId: l.id, sortOrder: Number(lastItem?.m ?? -1) + 1 + n })))
+    .values(rows.itemLines.map((l, n) => ({ workspaceId: ctx.workspaceId, documentId: docId, itemId: l.itemId, qty: l.qty, unitCode: l.unitCode, customerOrderLineId: l.customerOrderLineId, sourceItemId: l.sourceItemId, stageId: input.stageId, documentLineId: l.documentLineId, sortOrder: Number(lastItem?.m ?? -1) + 1 + n })))
     .returning();
-  const itemIdByLine = new Map(itemRows.map(i => [i.documentLineId!, i.id]));
-  await db.insert(productionComponents).values(
-    rows.componentLines.map((c, n) => ({ workspaceId: ctx.workspaceId, documentId: docId, itemId: itemIdByLine.get(c.itemId) ?? null, kind: c.kind, productId: c.productId, workCenterId: c.workCenterId, operation: c.operation, qty: c.qty, hours: c.hours, rate: c.rate, fixedCost: c.fixedCost, plannedCost: c.plannedCost, documentLineId: c.documentLineId, sortOrder: n })),
+  // связь состава с позицией: строки плана и позиции идут в одном порядке
+  const itemIdByLine = new Map(rows.itemLines.map((l, n) => [l.id, itemRows[n].id]));
+  if (rows.componentLines.length) await db.insert(productionComponents).values(
+    rows.componentLines.map((c, n) => ({ workspaceId: ctx.workspaceId, documentId: docId, itemId: itemIdByLine.get(c.itemId) ?? null, kind: c.kind, productId: c.productId, workCenterId: c.workCenterId, operation: c.operation, qty: c.qty, hours: c.hours, rate: c.rate, fixedCost: c.fixedCost, plannedCost: c.plannedCost, documentLineId: c.documentLineId, stageId: c.stageId ?? input.stageId, sortOrder: n })),
   );
   if (wasPosted) await postDocument(db, ctx, docId);
 }
 
-/** Выпуск за дату и участок: дописывается в существующий документ дня или создаётся новый */
+/** Выпуск за дату, участок и этап: дописывается в существующий документ дня или создаётся новый */
 async function createOrAppendProduction(
   db: Db,
   ctx: DocCtx,
-  input: { date?: string; workCenterId?: string | null; warehouseId?: string | null; targetWarehouseId?: string | null; fallbackWarehouseId?: string | null; fallbackTargetWarehouseId?: string | null; basedOnId: string | null; plans: ProductionPlan[] },
+  input: { date?: string; workCenterId?: string | null; warehouseId?: string | null; targetWarehouseId?: string | null; fallbackWarehouseId?: string | null; fallbackTargetWarehouseId?: string | null; stageId: string | null; basedOnId: string | null; plans: ProductionPlan[] },
 ): Promise<string> {
   const date = input.date ?? new Date().toISOString().slice(0, 10);
-  const existing = await findDayDocument(db, ctx.workspaceId, date, input.workCenterId ?? null);
+  const existing = await findDayDocument(db, ctx.workspaceId, date, input.workCenterId ?? null, input.stageId);
   if (existing) {
     await appendProduction(db, ctx, existing, { ...input, date });
     return existing;
   }
   return writeProduction(db, ctx, { ...input, date });
+}
+
+/** Выпуск: планы разных этапов идут в разные документы (на участок, дату и этап — один документ) */
+async function createProductionDocuments(
+  db: Db,
+  ctx: DocCtx,
+  input: { date?: string; workCenterId?: string | null; warehouseId?: string | null; targetWarehouseId?: string | null; fallbackWarehouseId?: string | null; fallbackTargetWarehouseId?: string | null; basedOnId: string | null; plans: ProductionPlan[] },
+): Promise<string> {
+  if (!input.plans.length) throw new DomainError(422, 'no_items', 'Add products to produce');
+  const groups = new Map<string, ProductionPlan[]>();
+  for (const p of input.plans) groups.set(stageKey(p.stageId), [...(groups.get(stageKey(p.stageId)) ?? []), p]);
+  const ids: string[] = [];
+  for (const [, plans] of groups) ids.push(await createOrAppendProduction(db, ctx, { ...input, stageId: plans[0].stageId, plans }));
+  return ids[0];
 }
 
 /* ---------------- рабочее место «Выпуск продукции» ---------------- */
@@ -660,8 +840,29 @@ export interface WorkbenchRow {
   shipped: string;
   /** Осталось к выпуску */
   remaining: string;
-  /** Этап выпуска: пока один — «Завершение производства» */
-  stage: 'final';
+  /** Этап выпуска по умолчанию (финальный): у изделия без вида производства — «Завершение производства» */
+  stage: string;
+  /** Вид производства изделия */
+  productionKindId: string | null;
+  productionKindName: string | null;
+  /** Этапы выпуска изделия: у каждого сколько выполнено и сколько осталось */
+  stages: WorkbenchStage[];
+}
+
+/** Этап выпуска в рабочем месте */
+export interface WorkbenchStage {
+  /** Этап; пусто — предопределённый «Завершение производства» */
+  id: string | null;
+  name: string;
+  sortOrder: number;
+  /** Финальный этап: продукция приходуется только им */
+  isFinal: boolean;
+  /** Выполнено на этапе */
+  done: string;
+  /** Осталось на этапе */
+  remaining: string;
+  /** Сколько можно выполнить сейчас: предыдущий этап ограничивает */
+  available: string;
 }
 
 /** Заказ рабочего места с его строками */
@@ -690,6 +891,10 @@ export interface WorkbenchFilters {
   from?: string;
   to?: string;
   q?: string;
+  /** Вид производства */
+  productionKindId?: string;
+  /** Только продукция с этапами */
+  staged?: boolean;
   limit: number;
   offset: number;
 }
@@ -733,6 +938,7 @@ export async function listWorkbench(db: Db, workspaceId: string, filters: Workbe
       const left = dec(line.qty) - produced - shipped - covered;
       if (left <= 0n) continue;
       if (filters.productId && line.productId !== filters.productId) continue;
+      if (!matchKind(filters, item)) continue;
       rows.push({
         id: line.id,
         source: 'customer_order',
@@ -747,6 +953,9 @@ export async function listWorkbench(db: Db, workspaceId: string, filters: Workbe
         shipped: fmt(shipped, 3),
         remaining: fmt(left, 3),
         stage: 'final',
+        productionKindId: null,
+        productionKindName: null,
+        stages: [],
       });
     }
     if (!rows.length) continue;
@@ -790,6 +999,7 @@ export async function listWorkbench(db: Db, workspaceId: string, filters: Workbe
       const left = dec(item.qty) - produced;
       if (left <= 0n) continue;
       if (filters.productId && made.productId !== filters.productId) continue;
+      if (!matchKind(filters, made)) continue;
       rows.push({
         id: item.id,
         source: 'production_order',
@@ -804,6 +1014,9 @@ export async function listWorkbench(db: Db, workspaceId: string, filters: Workbe
         shipped: '0.000',
         remaining: fmt(left, 3),
         stage: 'final',
+        productionKindId: null,
+        productionKindName: null,
+        stages: [],
       });
     }
     if (!rows.length) continue;
@@ -822,10 +1035,54 @@ export async function listWorkbench(db: Db, workspaceId: string, filters: Workbe
     });
   }
 
+  // этапы выпуска: по каждой строке — сколько выполнено на этапе и сколько осталось
+  const kinds = await listProductionKinds(db, workspaceId);
+  const stagesByKind = new Map(kinds.map(k => [k.id, k.stages]));
+  const kindName = new Map(kinds.map(k => [k.id, k.name]));
+  const sources: StageSource[] = [];
+  for (const o of orders)
+    for (const r of o.rows) sources.push(r.source === 'customer_order' ? { sourceItemId: null, customerOrderLineId: r.id } : { sourceItemId: r.id, customerOrderLineId: null });
+  const totals = await stageTotals(db, sources);
+  for (const o of orders) {
+    for (const r of o.rows) {
+      const item = byItem.get(r.itemId);
+      const kindId = item?.productionKindId ?? null;
+      const stages = kindId ? (stagesByKind.get(kindId) ?? []) : [FINAL_STAGE];
+      const source: StageSource = r.source === 'customer_order' ? { sourceItemId: null, customerOrderLineId: r.id } : { sourceItemId: r.id, customerOrderLineId: null };
+      // сколько изделий планируется выпустить: остаток плюс уже выпущенное
+      const planned = dec(r.remaining) + dec(r.produced);
+      r.productionKindId = kindId;
+      r.productionKindName = kindId ? (kindName.get(kindId) ?? null) : null;
+      r.stage = stageKey(stages[stages.length - 1]?.id ?? null);
+      r.stages = stages.map((st, i) => {
+        const done = totals.get(`${sourceKey(source)}|${stageKey(st.id)}`)?.qty ?? 0n;
+        const prev = i > 0 ? stages[i - 1] : null;
+        const prevDone = prev ? (totals.get(`${sourceKey(source)}|${stageKey(prev.id)}`)?.qty ?? 0n) : null;
+        const cap = prevDone !== null && prevDone < planned ? prevDone : planned;
+        return {
+          id: st.id,
+          name: st.name,
+          sortOrder: st.sortOrder,
+          isFinal: st.isFinal,
+          done: fmt(done, 3),
+          remaining: fmt(planned > done ? planned - done : 0n, 3),
+          available: fmt(cap > done ? cap - done : 0n, 3),
+        };
+      });
+    }
+  }
+
   orders.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.id < b.id ? 1 : -1));
   const total = orders.length;
   const page = orders.slice(filters.offset, filters.offset + filters.limit);
   return { orders: page, total, workCenters: centers };
+}
+
+/** Отбор по виду производства: вид изделия и «только продукция с этапами» */
+function matchKind(filters: WorkbenchFilters, item: { productionKindId: string | null }): boolean {
+  if (filters.productionKindId && item.productionKindId !== filters.productionKindId) return false;
+  if (filters.staged && !item.productionKindId) return false;
+  return true;
 }
 
 /** Сколько закрыто открытыми заказами на производство: строка заказа покупателя не показывается дважды */
@@ -845,6 +1102,8 @@ export interface WorkbenchExecuteRow {
   orderId: string;
   source: 'customer_order' | 'production_order';
   lineId: string;
+  /** Этап выпуска; пусто — «Завершение производства» */
+  stageId?: string | null;
   /** Количество (расширенный режим); пусто — весь остаток */
   qty?: string;
   /** Участок-изготовитель; пусто — участок заказа на производство */
@@ -856,7 +1115,7 @@ export async function executeWorkbench(
   db: Db,
   ctx: DocCtx,
   input: { date?: string; mode: 'simple' | 'extended'; rows: WorkbenchExecuteRow[] },
-): Promise<{ id: string; number: string | null; workCenterId: string; qty: string }[]> {
+): Promise<{ id: string; number: string | null; workCenterId: string; qty: string; stageId: string | null }[]> {
   const date = input.date ?? new Date().toISOString().slice(0, 10);
   // группируем строки по участку: на участок и дату — один документ выпуска
   const groups = new Map<string, WorkbenchExecuteRow[]>();
@@ -866,7 +1125,7 @@ export async function executeWorkbench(
     await assertWorkCenter(db, centerId);
     groups.set(centerId, [...(groups.get(centerId) ?? []), row]);
   }
-  const out: { id: string; number: string | null; workCenterId: string; qty: string }[] = [];
+  const out: { id: string; number: string | null; workCenterId: string; qty: string; stageId: string | null }[] = [];
   // строка заказа покупателя, закрытая открытым заказом на производство, в выпуск не идёт
   const customerRows = input.rows.filter(r => r.source === 'customer_order');
   if (customerRows.length) {
@@ -884,16 +1143,21 @@ export async function executeWorkbench(
         if (!r.qty) throw new DomainError(422, 'quantity_required', 'Set the quantity of every line in the extended mode');
         return r.qty;
       };
-      if (source === 'production_order') plans.push(...(await orderPlans(db, ctx, orderId, own.map(r => ({ orderItemId: r.lineId, qty: qty(r) })))));
-      else plans.push(...(await customerPlans(db, ctx, orderId, own.map(r => ({ customerOrderLineId: r.lineId, qty: qty(r) })))));
+      if (source === 'production_order') plans.push(...(await orderPlans(db, ctx, orderId, own.map(r => ({ orderItemId: r.lineId, qty: qty(r), stageId: r.stageId ?? null })))));
+      else plans.push(...(await customerPlans(db, ctx, orderId, own.map(r => ({ customerOrderLineId: r.lineId, qty: qty(r), stageId: r.stageId ?? null })))));
     }
     if (!plans.length) continue;
-    const docId = await createOrAppendProduction(db, ctx, { date, workCenterId: centerId, basedOnId: rows[0]?.orderId ?? null, plans });
-    const [doc] = await db.select({ status: documents.status, number: documents.number }).from(documents).where(eq(documents.id, docId)).limit(1);
-    // документ дня мог быть уже проведён — дописывание перепроводит его само
-    if (doc?.status === 'draft') await postDocument(db, ctx, docId);
-    const [after] = await db.select({ number: documents.number }).from(documents).where(eq(documents.id, docId)).limit(1);
-    out.push({ id: docId, number: after?.number ?? null, workCenterId: centerId, qty: fmt(plans.reduce((sum, p) => sum + dec(p.qty), 0n), 3) });
+    // на участок, дату и этап — один документ выпуска
+    const byStage = new Map<string, ProductionPlan[]>();
+    for (const p of plans) byStage.set(stageKey(p.stageId), [...(byStage.get(stageKey(p.stageId)) ?? []), p]);
+    for (const [, stagePlans] of byStage) {
+      const docId = await createOrAppendProduction(db, ctx, { date, workCenterId: centerId, stageId: stagePlans[0].stageId, basedOnId: rows[0]?.orderId ?? null, plans: stagePlans });
+      const [doc] = await db.select({ status: documents.status, number: documents.number }).from(documents).where(eq(documents.id, docId)).limit(1);
+      // документ дня мог быть уже проведён — дописывание перепроводит его само
+      if (doc?.status === 'draft') await postDocument(db, ctx, docId);
+      const [after] = await db.select({ number: documents.number }).from(documents).where(eq(documents.id, docId)).limit(1);
+      out.push({ id: docId, number: after?.number ?? null, workCenterId: centerId, qty: fmt(stagePlans.reduce((sum, p) => sum + dec(p.qty), 0n), 3), stageId: stagePlans[0].stageId });
+    }
   }
   return out;
 }
@@ -924,26 +1188,71 @@ async function assertCustomerOrderLine(db: Db, lineId: string): Promise<void> {
   if (row.status !== 'posted') throw new DomainError(422, 'base_not_posted', 'Post the customer order first');
 }
 
+/** Заказанное количество по позиции: заказ на производство или строка заказа покупателя */
+async function orderedQty(db: Db, ws: string, source: StageSource): Promise<bigint> {
+  if (source.sourceItemId) {
+    const [row] = await db.select({ qty: productionItems.qty }).from(productionItems).where(eq(productionItems.id, source.sourceItemId)).limit(1);
+    return dec(row?.qty);
+  }
+  if (source.customerOrderLineId) {
+    const [row] = await db.select({ qty: documentLines.qty }).from(documentLines).where(eq(documentLines.id, source.customerOrderLineId)).limit(1);
+    const shipped = (await shippedQty(db, ws, [source.customerOrderLineId])).get(source.customerOrderLineId) ?? 0n;
+    return dec(row?.qty) - shipped;
+  }
+  return 0n;
+}
+
+/** Выполнен ли более поздний этап по той же позиции: промежуточный этап тогда нельзя отменить */
+async function laterStageRelease(db: Db, itemId: string, source: StageSource, sortOrder: number): Promise<{ name: string } | null> {
+  const plan = await itemStagePlan(db, itemId);
+  // позже — любой этап с большим номером, включая финальный
+  const later = plan.stages.filter(s => s.sortOrder > sortOrder && s.id);
+  if (!later.length) return null;
+  const rows = await db
+    .select({ stageId: productionHeaders.stageId })
+    .from(productionItems)
+    .innerJoin(documents, eq(documents.id, productionItems.documentId))
+    .leftJoin(productionHeaders, eq(productionHeaders.documentId, documents.id))
+    .where(
+      and(
+        eq(documents.type, 'production'),
+        eq(documents.status, 'posted'),
+        inArray(productionHeaders.stageId, later.map(s => s.id!)),
+        source.sourceItemId ? eq(productionItems.sourceItemId, source.sourceItemId) : eq(productionItems.customerOrderLineId, source.customerOrderLineId!),
+      ),
+    )
+    .limit(1);
+  if (!rows.length) return null;
+  const st = later.find(s => s.id === rows[0].stageId);
+  return { name: st?.name ?? '' };
+}
+
 /** Сколько уже выпущено по позициям заказа на производство */
+/** Сколько уже выпущено по позициям заказа на производство: приём продукции — только финальным этапом */
 async function producedQty(db: Db, _workspaceId: string, orderItemIds: string[]): Promise<Map<string, bigint>> {
   if (!orderItemIds.length) return new Map();
   const rows = await db
     .select({ source: productionItems.sourceItemId, qty: sql<string>`sum(${productionItems.qty})` })
     .from(productionItems)
     .innerJoin(documents, eq(documents.id, productionItems.documentId))
-    .where(and(inArray(productionItems.sourceItemId, orderItemIds), eq(documents.status, 'posted')))
+    .leftJoin(productionHeaders, eq(productionHeaders.documentId, documents.id))
+    .leftJoin(productionStages, eq(productionStages.id, productionHeaders.stageId))
+    .where(and(inArray(productionItems.sourceItemId, orderItemIds), eq(documents.status, 'posted'), sql`(${productionHeaders.stageId} is null or ${productionStages.isFinal} is true)`))
     .groupBy(productionItems.sourceItemId);
   return new Map(rows.map(r => [r.source!, dec(r.qty)]));
 }
 
 /** Сколько уже выпущено по строкам заказа покупателя */
+/** Сколько уже выпущено по строкам заказа покупателя: приём продукции — только финальным этапом */
 async function producedByCustomerLine(db: Db, _workspaceId: string, customerLineIds: string[]): Promise<Map<string, bigint>> {
   if (!customerLineIds.length) return new Map();
   const rows = await db
     .select({ line: productionItems.customerOrderLineId, qty: sql<string>`sum(${productionItems.qty})` })
     .from(productionItems)
     .innerJoin(documents, eq(documents.id, productionItems.documentId))
-    .where(and(inArray(productionItems.customerOrderLineId, customerLineIds), eq(documents.status, 'posted')))
+    .leftJoin(productionHeaders, eq(productionHeaders.documentId, documents.id))
+    .leftJoin(productionStages, eq(productionStages.id, productionHeaders.stageId))
+    .where(and(inArray(productionItems.customerOrderLineId, customerLineIds), eq(documents.status, 'posted'), sql`(${productionHeaders.stageId} is null or ${productionStages.isFinal} is true)`))
     .groupBy(productionItems.customerOrderLineId);
   return new Map(rows.map(r => [r.line!, dec(r.qty)]));
 }
@@ -996,7 +1305,7 @@ DOCUMENT_HOOKS.production_order = {
 };
 
 DOCUMENT_HOOKS.production = {
-  /** Проверки до проведения: состав документа и превышение заказанного */
+  /** Проверки до проведения: состав документа, порядок этапов и превышение заказанного */
   check: async (db, ctx, doc, lines) => {
     const { items } = await loadPlan(db, doc.id);
     if (!items.length) throw new DomainError(422, 'no_items', 'Add products to produce before posting');
@@ -1005,7 +1314,11 @@ DOCUMENT_HOOKS.production = {
       if (l.stockRole !== 'in') continue;
       if (!producedLines.includes(l.id)) throw new DomainError(422, 'production_item_required', 'The produced line must belong to a position of the production document');
     }
-    if (!doc.targetWarehouseId) throw new DomainError(422, 'warehouse_required', 'Select a warehouse for the finished goods before posting');
+    const [header] = await db.select({ stageId: productionHeaders.stageId }).from(productionHeaders).where(eq(productionHeaders.documentId, doc.id)).limit(1);
+    const stageId = header?.stageId ?? null;
+    const final = await isFinalStage(db, stageId);
+    // склад продукции нужен только финальному этапу: промежуточный этап продукцию не приходует
+    if (final && !doc.targetWarehouseId) throw new DomainError(422, 'warehouse_required', 'Select a warehouse for the finished goods before posting');
     if (lines.some(l => l.stockRole === 'out') && !doc.warehouseId) throw new DomainError(422, 'warehouse_required', 'Select a warehouse for the materials before posting');
     // продукция должна быть складским товаром
     const prodIds = [...new Set(lines.filter(l => l.stockRole === 'in').map(l => l.productId))];
@@ -1014,36 +1327,22 @@ DOCUMENT_HOOKS.production = {
       const bad = kinds.find(p => p.kind !== 'goods');
       if (bad) throw new DomainError(422, 'item_not_stockable', 'Only goods can be produced to stock');
     }
-    // нельзя выпустить больше заказанного
-    const sources = items.map(i => i.sourceItemId).filter((x): x is string => !!x);
-    const customers = items.map(i => i.customerOrderLineId).filter((x): x is string => !!x);
-    if (sources.length || customers.length) {
-      const rows = await db
-        .select({ source: productionItems.sourceItemId, customer: productionItems.customerOrderLineId, qty: sql<string>`sum(${productionItems.qty})` })
-        .from(productionItems)
-        .innerJoin(documents, eq(documents.id, productionItems.documentId))
-        .where(and(eq(documents.status, 'posted'), ne(documents.id, doc.id), or(inArray(productionItems.sourceItemId, sources), inArray(productionItems.customerOrderLineId, customers))))
-        .groupBy(productionItems.sourceItemId, productionItems.customerOrderLineId);
-      const done = new Map<string, bigint>();
-      for (const r of rows) {
-        if (r.source) done.set(`s:${r.source}`, (done.get(`s:${r.source}`) ?? 0n) + dec(r.qty));
-        if (r.customer) done.set(`c:${r.customer}`, (done.get(`c:${r.customer}`) ?? 0n) + dec(r.qty));
-      }
-      for (const it of items) {
-        if (it.sourceItemId) {
-          const [src] = await db.select({ qty: productionItems.qty }).from(productionItems).where(eq(productionItems.id, it.sourceItemId)).limit(1);
-          const total = (done.get(`s:${it.sourceItemId}`) ?? 0n) + dec(it.qty);
-          if (src && total > dec(src.qty)) throw new DomainError(422, 'over_fulfilment', 'More is produced than ordered');
-        } else if (it.customerOrderLineId) {
-          const [src] = await db.select({ qty: documentLines.qty, name: documentLines.name }).from(documentLines).where(eq(documentLines.id, it.customerOrderLineId)).limit(1);
-          const shipped = (await shippedQty(db, ctx.workspaceId, [it.customerOrderLineId])).get(it.customerOrderLineId) ?? 0n;
-          const total = (done.get(`c:${it.customerOrderLineId}`) ?? 0n) + dec(it.qty) + shipped;
-          if (src && total > dec(src.qty)) throw new DomainError(422, 'over_fulfilment', `“${src.name}”: more is produced than ordered`);
-        }
+    // порядок этапов и заказанное количество
+    for (const it of items) {
+      const source: StageSource = { sourceItemId: it.sourceItemId, customerOrderLineId: it.customerOrderLineId };
+      if (!source.sourceItemId && !source.customerOrderLineId) continue;
+      const ordered = await orderedQty(db, ctx.workspaceId, source);
+      const totals = await stageTotals(db, [source]);
+      const stage = await resolveStage(db, it.itemId, stageId);
+      const limit = await stageLimit(db, { itemId: it.itemId, stage, ordered, source, totals });
+      const qty = dec(it.qty);
+      if (limit.done + qty > limit.cap) {
+        if (limit.byStage) throw new DomainError(422, 'stage_order', `The stage “${stage.name}” waits for the previous one: only ${fmt(limit.cap, 3)} of ${fmt(ordered, 3)} are ready`);
+        throw new DomainError(422, 'over_fulfilment', 'More is produced than ordered');
       }
     }
   },
-  /** Проведение: списание материалов по средней и приход продукции по себестоимости */
+  /** Проведение: списание материалов по средней и приход продукции по себестоимости (на финальном этапе) */
   post: async (db, ctx, doc, lines) => {
     const { items, components } = await loadPlan(db, doc.id);
     const reqs: MoveRequest[] = [];
@@ -1063,6 +1362,15 @@ DOCUMENT_HOOKS.production = {
     const overheads = prodIds.length ? await db.select({ id: manufacturedItems.id, overheadPct: manufacturedItems.overheadPct }).from(manufacturedItems).where(inArray(manufacturedItems.id, prodIds)) : [];
     const overheadByItem = new Map(overheads.map(o => [o.id, dec(o.overheadPct)]));
     const lineQty = new Map(lines.map(l => [l.id, dec(l.qty)]));
+    // незавершённое производство: стоимость выполненных промежуточных этапов на единицу
+    const wipByItem = new Map<string, bigint>();
+    for (const it of items) {
+      const source: StageSource = { sourceItemId: it.sourceItemId, customerOrderLineId: it.customerOrderLineId };
+      if (!source.sourceItemId && !source.customerOrderLineId) continue;
+      const plan = await itemStagePlan(db, it.itemId);
+      const totals = await stageTotals(db, [source]);
+      wipByItem.set(it.id, await wipUnitCost(source, plan.stages, totals));
+    }
     const outCost = await applyStockMoves(db, ctx.workspaceId, { id: doc.id, date: doc.date }, reqs, await loadInventorySettings(db, ctx.workspaceId), {
       inCost: (lineId, costs) => {
         const it = itemByLine.get(lineId);
@@ -1070,20 +1378,48 @@ DOCUMENT_HOOKS.production = {
         const cost = itemCost(it, components, costs, overheadByItem.get(it.itemId) ?? 0n, lineQty);
         const qty = qtyByItem.get(it.id) ?? 0n;
         if (qty <= 0n) return undefined;
-        return div(cost, qty);
+        // себестоимость продукции = затраты этапа + незавершённое производство предыдущих этапов
+        const wip = wipByItem.get(it.id) ?? 0n;
+        return div(cost + mul(wip, qty), qty);
       },
     });
     // факт по составу: списанное количество и себестоимость строки
     for (const c of components) {
-      if (c.kind === 'work' || !c.documentLineId) continue;
+      if (c.kind === 'work') {
+        await db.update(productionComponents).set({ actualQty: c.hours, actualCost: fmt(mul(dec(c.hours), dec(c.rate ?? '0')) + dec(c.fixedCost ?? '0')) }).where(eq(productionComponents.id, c.id));
+        continue;
+      }
+      if (!c.documentLineId) continue;
       const qty = lineQty.get(c.documentLineId) ?? dec(c.qty);
       const unit = outCost.get(c.documentLineId) ?? 0n;
       await db.update(productionComponents).set({ actualQty: fmt(qty), actualCost: fmt(mul(qty, unit)) }).where(eq(productionComponents.id, c.id));
     }
+    // себестоимость этапа по позиции: материалы + работы + накладные (без затрат предыдущих этапов)
+    for (const it of items) {
+      const cost = itemCost(it, components, outCost, overheadByItem.get(it.itemId) ?? 0n, lineQty);
+      await db.update(productionItems).set({ stageCost: fmt(cost) }).where(eq(productionItems.id, it.id));
+    }
   },
-  /** После проведения: выпущенная продукция резервируется под связанный заказ покупателя */
+  /** Отмена проведения промежуточного этапа, если следующий этап уже выполнен, запрещена */
+  beforeUnpost: async (db, _ctx, doc) => {
+    const { items } = await loadPlan(db, doc.id);
+    const [header] = await db.select({ stageId: productionHeaders.stageId }).from(productionHeaders).where(eq(productionHeaders.documentId, doc.id)).limit(1);
+    const stageId = header?.stageId ?? null;
+    if (!stageId) return; // предопределённый финальный этап
+    const stage = await stageDef(db, stageId);
+    if (stage.isFinal) return;
+    for (const it of items) {
+      const source: StageSource = { sourceItemId: it.sourceItemId, customerOrderLineId: it.customerOrderLineId };
+      if (!source.sourceItemId && !source.customerOrderLineId) continue;
+      const later = await laterStageRelease(db, it.itemId, source, stage.sortOrder);
+      if (later) throw new DomainError(409, 'stage_conflict', `The stage “${stage.name}” cannot be unposted: the stage “${later.name}” is already released`);
+    }
+  },
+  /** После проведения: выпущенная продукция резервируется под связанный заказ покупателя (только финальный этап) */
   afterPost: async (db, ctx, doc) => {
     const { items } = await loadPlan(db, doc.id);
+    const [header] = await db.select({ stageId: productionHeaders.stageId }).from(productionHeaders).where(eq(productionHeaders.documentId, doc.id)).limit(1);
+    if (!(await isFinalStage(db, header?.stageId ?? null))) return;
     const customerLines = items.filter(i => i.customerOrderLineId && i.documentLineId);
     if (!customerLines.length) return;
     const already = await producedByCustomerLine(db, ctx.workspaceId, customerLines.map(i => i.customerOrderLineId!));
@@ -1115,6 +1451,7 @@ DOCUMENT_HOOKS.production = {
     const ids = items.map(i => i.documentLineId).filter((x): x is string => !!x);
     if (ids.length) await db.delete(stockReservations).where(inArray(stockReservations.productionLineId, ids));
     for (const c of components) if (c.actualQty !== null || c.actualCost !== null) await db.update(productionComponents).set({ actualQty: null, actualCost: null }).where(eq(productionComponents.id, c.id));
+    for (const it of items) if (it.stageCost !== null) await db.update(productionItems).set({ stageCost: null }).where(eq(productionItems.id, it.id));
   },
 };
 

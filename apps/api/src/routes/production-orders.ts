@@ -138,7 +138,7 @@ export const productionOrderRoutes = new Hono<AppEnv>()
       workCenterId: body.workCenterId,
       warehouseId: body.warehouseId,
       targetWarehouseId: body.targetWarehouseId,
-      lines: body.lines.map(l => ({ orderItemId: l.orderItemId, qty: l.qty })),
+      lines: body.lines.map(l => ({ orderItemId: l.orderItemId, stageId: l.stageId ?? null, qty: l.qty })),
     });
     return c.json(await detail(ctx, id), 201);
   })
@@ -158,7 +158,7 @@ export const productionOrderRoutes = new Hono<AppEnv>()
       workCenterId: body.workCenterId,
       warehouseId: body.warehouseId,
       targetWarehouseId: body.targetWarehouseId,
-      lines: body.lines.map(l => ({ customerOrderLineId: l.customerOrderLineId, qty: l.qty })),
+      lines: body.lines.map(l => ({ customerOrderLineId: l.customerOrderLineId, stageId: l.stageId ?? null, qty: l.qty })),
     });
     return c.json(await detail(ctx, id), 201);
   })

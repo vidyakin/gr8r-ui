@@ -15,6 +15,7 @@ import {
   Handshake,
   House,
   Inbox,
+  Layers,
   LayoutDashboard,
   ListChecks,
   PhoneCall,
@@ -69,6 +70,7 @@ export const SECTIONS = {
   production: { path: '/production', name: 'Production', icon: Factory },
   productionOrders: { path: '/production/orders', name: 'Production orders', icon: ClipboardList },
   productionWorkbench: { path: '/production/workbench', name: 'Production release', icon: Play },
+  productionStages: { path: '/production/stages', name: 'Production stages', icon: Layers },
   workCenters: { path: '/work-centers', name: 'Work centers', icon: Wrench },
   // Автоматизации
   automations: { path: '/automations', name: 'Automations', icon: Workflow },

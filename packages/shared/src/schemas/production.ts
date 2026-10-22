@@ -25,6 +25,28 @@ export const workCenterCreate = z.object({
 export const workCenterUpdate = toPatch(workCenterCreate.omit({ id: true }));
 export const workCenterQuery = listQuery;
 
+/* ---------------- виды производства и этапы ---------------- */
+
+/** Этап вида производства: последний этап списка — финальный («Завершение производства») */
+export const productionStageInput = z.object({
+  id: clientId,
+  name: shortText,
+});
+
+/** Вид производства: наименование и упорядоченный список этапов */
+export const productionKindCreate = z.object({
+  id: clientId,
+  name: shortText,
+  note: z.string().max(1000).default(''),
+  stages: z.array(productionStageInput).min(1).max(20),
+});
+export const productionKindUpdate = z.object({
+  name: shortText.optional(),
+  note: z.string().max(1000).optional(),
+  stages: z.array(productionStageInput).min(1).max(20).optional(),
+});
+export const productionKindQuery = listQuery;
+
 /* ---------------- продукция ---------------- */
 
 export const itemCreate = z.object({
@@ -39,6 +61,8 @@ export const itemCreate = z.object({
   batchQty: positive(1e9).default('1'),
   /** Накладные, % от прямых затрат */
   overheadPct: nonNeg(1000).default('0'),
+  /** Вид производства: этапы выпуска (без вида — единственный этап «Завершение производства») */
+  productionKindId: uuid.nullish(),
 });
 export const itemUpdate = toPatch(itemCreate.omit({ id: true }));
 export const itemQuery = listQuery.extend({ kind: z.enum(MANUFACTURED_KINDS).optional() });
@@ -56,6 +80,8 @@ export const bomLineCreate = z
     childItemId: uuid.nullish(),
     /** semi: режим полуфабриката — stock (списывается со склада) или explode (разворачивается до материалов) */
     semiMode: z.enum(SEMI_MODES).optional(),
+    /** Этап, на котором расходуется материал или выполняется операция */
+    stageId: uuid.nullish(),
     operation: z.string().trim().max(200).optional(),
     workCenterId: uuid.nullish(),
     hours: nonNeg(1e6).optional(),
@@ -88,6 +114,8 @@ export const bomLineUpdate = z
     childItemId: uuid.optional(),
     /** semi: режим полуфабриката */
     semiMode: z.enum(SEMI_MODES).optional(),
+    /** Этап, на котором расходуется материал или выполняется операция */
+    stageId: uuid.nullish(),
     operation: z.string().trim().min(1).max(200).optional(),
     workCenterId: uuid.nullish(),
     hours: nonNeg(1e6).optional(),
@@ -130,6 +158,10 @@ export const workbenchQuery = listQuery.extend({
   from: isoDate.optional(),
   /** Плановый срок: по дату */
   to: isoDate.optional(),
+  /** Вид производства */
+  productionKindId: uuid.optional(),
+  /** Только продукция с этапами */
+  staged: z.stringbool().optional(),
 });
 
 /** Режим выполнения: простой — весь остаток, расширенный — своё количество */
@@ -151,6 +183,8 @@ export const workbenchExecute = z.object({
         source: z.enum(['customer_order', 'production_order']),
         /** Строка заказа: позиция заказа на производство или строка заказа покупателя */
         lineId: uuid,
+        /** Этап выпуска: пусто — «Завершение производства» */
+        stageId: uuid.nullish(),
         /** Количество (расширенный режим) */
         qty: positive(1e9).optional(),
         /** Участок-изготовитель */
@@ -218,6 +252,8 @@ export const productionCreate = z.object({
       z.object({
         /** Позиция заказа на производство */
         orderItemId: uuid.optional(),
+        /** Этап выпуска: пусто — «Завершение производства» */
+        stageId: uuid.nullish(),
         /** Количество */
         qty: positive(1e9),
       }),
@@ -234,7 +270,7 @@ export const productionFromCustomerOrder = z.object({
   warehouseId: uuid.nullish(),
   targetWarehouseId: uuid.nullish(),
   lines: z
-    .array(z.object({ customerOrderLineId: uuid, qty: positive(1e9) }))
+    .array(z.object({ customerOrderLineId: uuid, stageId: uuid.nullish(), qty: positive(1e9) }))
     .min(1)
     .max(200),
 });

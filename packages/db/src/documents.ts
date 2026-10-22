@@ -556,13 +556,16 @@ export async function applyDocumentMoves(db: Db, ctx: DocCtx, doc: DocumentRow, 
   await applyStockMoves(db, ctx.workspaceId, { id: doc.id, date: doc.date }, reqs, await loadInventorySettings(db, ctx.workspaceId));
 }
 
-export async function unpostDocument(db: Db, ctx: DocCtx, id: string): Promise<void> {
+/** repost — документ снимается, чтобы сразу провести заново (дописывание в документ дня): свои запреты отмены не проверяются */
+export async function unpostDocument(db: Db, ctx: DocCtx, id: string, opts: { repost?: boolean } = {}): Promise<void> {
   const doc = await loadDoc(db, id, true);
   const type = doc.type as DocumentType;
   if (doc.status !== 'posted') throw new DomainError(409, 'invalid_status', 'Only a posted document can be unposted');
   const kids = await db.select({ id: documents.id, type: documents.type, number: documents.number }).from(documents).where(and(eq(documents.basedOnId, id), eq(documents.status, 'posted')));
   if (kids.length)
     throw new DomainError(409, 'has_posted_children', `Unpost the documents created from this one first: ${kids.map(k => k.number ?? DOCUMENT_META[k.type as DocumentType].label).join(', ')}`, { documents: kids });
+  // свои проверки типа документа: например, промежуточный этап нельзя снимать, если следующий уже выполнен
+  if (!opts.repost) await DOCUMENT_HOOKS[type]?.beforeUnpost?.(db, ctx, doc);
   // отмена проведения возвращает движения склада (у внутренних документов — обе стороны перемещения)
   await revertStockMoves(db, ctx.workspaceId, id, await loadInventorySettings(db, ctx.workspaceId));
   await db.update(documents).set({ status: 'draft', postedAt: null, postedBy: null, updatedAt: new Date() }).where(eq(documents.id, id));

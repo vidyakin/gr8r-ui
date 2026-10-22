@@ -105,6 +105,9 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
   const m = useProductionMutations();
   const costing = useCosting(snap)!;
   const { tree, error } = costing(item.id);
+  // вид производства изделия: этапы, на которых расходуются материалы и выполняются операции
+  const kind = snap.kinds.find(k => k.id === item.productionKindId) ?? null;
+  const stageName = (id: string | null) => (id ? (kind?.stages.find(x => x.id === id)?.name ?? null) : null);
   const [dialog, setDialog] = React.useState<{ kind: BomLine['kind']; line?: BomLine } | null>(null);
   const [removing, setRemoving] = React.useState<BomLine | null>(null);
   const [deleting, setDeleting] = React.useState(false);
@@ -298,6 +301,17 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
           <ParamInput label="Overhead" numeric value={trimZeros(Number(item.overheadPct).toFixed(2))} disabled={!canWrite} onCommit={v => Number(v) >= 0 && m.updateItem.mutate({ id: item.id, patch: { overheadPct: Number(v) } })} />
         </label>
         <label>
+          <span className="label">Production kind</span>
+          <select className="select" value={item.productionKindId ?? ''} disabled={!canWrite} aria-label="Production kind" onChange={e => m.updateItem.mutate({ id: item.id, patch: { productionKindId: e.target.value || null } })}>
+            <option value="">No stages</option>
+            {snap.kinds.map(k => (
+              <option key={k.id} value={k.id}>
+                {k.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
           <span className="label">Need for</span>
           <ParamInput label="Need for" numeric value={needQty} onCommit={v => Number(v) > 0 && setNeedQty(v)} />
         </label>
@@ -397,6 +411,7 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
                       <CircleAlert size={11} /> No price
                     </Badge>
                   )}
+                  {root && l.stageId && stageName(l.stageId) && <Badge tone="gray">{stageName(l.stageId)}</Badge>}
                 </span>
                 <span className="r num">
                   {editable ? (
