@@ -6,7 +6,7 @@ import type { VatRate } from './constants';
 
 /* ---------------- типы и статусы ---------------- */
 
-export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'inventory_count', 'production_order', 'production', 'work_order', 'piecework_order'] as const;
+export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'inventory_count', 'production_order', 'production', 'work_order', 'piecework_order', 'other_costs'] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 export const DOCUMENT_STATUSES = ['draft', 'posted', 'cancelled'] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
@@ -77,6 +77,8 @@ export interface DocumentTypeMeta {
   operation?: DocumentOperation;
   /** Тип производства: в шапке два склада (материалы и продукция), роль строки задаёт каждая строка */
   production?: boolean;
+  /** Тип со своими строками вне document_lines (строки без товара: «Прочие затраты») */
+  ownLines?: boolean;
 }
 
 /** Состояния заказа на производство (отдельно от проведения) */
@@ -122,6 +124,8 @@ export const DOCUMENT_META: Record<DocumentType, DocumentTypeMeta> = {
   work_order: { label: 'Work order', group: 'sales', prefix: 'ЗН', stock: 'out', party: 'customer', basedOn: ['quote', 'customer_order'], fulfils: true, forms: ['work_order', 'act', 'upd', 'torg12', 'invoice'] },
   // сдельный наряд: выполненные операции исполнителя за день (зарплата не начисляется — только отчёт к оплате)
   piecework_order: { label: 'Piecework order', group: 'production', prefix: 'СН', stock: null, party: null, basedOn: [], fulfils: false, forms: ['piecework'] },
+  // прочие затраты: косвенные затраты периода без склада (строки — статья, участок, сумма; своего товара у них нет)
+  other_costs: { label: 'Other costs', group: 'production', prefix: 'ПЗ', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true },
 };
 
 /** Типы документов, исполняющих заказ (остаток к отгрузке / поступлению) */
@@ -159,6 +163,7 @@ export const DOCUMENT_LABELS_RU: Record<DocumentType, string> = {
   production: 'Производство (выпуск)',
   work_order: 'Заказ-наряд',
   piecework_order: 'Сдельный наряд',
+  other_costs: 'Прочие затраты',
 };
 
 export const documentTypesOf = (group: DocumentGroup): DocumentType[] => DOCUMENT_TYPES.filter(t => DOCUMENT_META[t].group === group);

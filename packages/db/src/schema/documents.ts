@@ -109,6 +109,8 @@ export const costItems = pgTable(
     kind: text('kind', { enum: ['expense', 'income'] }).notNull().default('expense'),
     /** Ключ системной статьи (Брак, Недостача…): свои статьи имеют null */
     systemKey: text('system_key'),
+    /** Способ распределения косвенной затраты при закрытии периода: не распределять, по объёму выпуска, по прямым затратам, по часам работ */
+    distributionMethod: text('distribution_method', { enum: ['none', 'output_qty', 'direct_costs', 'work_hours'] }).notNull().default('none'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
     archivedAt: archivedAt(),
@@ -116,6 +118,7 @@ export const costItems = pgTable(
   t => [
     unique('cost_items_ws_id_uq').on(t.workspaceId, t.id),
     check('cost_items_kind_chk', sql`${t.kind} in ('expense','income')`),
+    check('cost_items_distribution_chk', sql`${t.distributionMethod} in ('none','output_qty','direct_costs','work_hours')`),
     uniqueIndex('cost_items_ws_name_uq').on(t.workspaceId, sql`lower(${t.name})`).where(sql`${t.archivedAt} is null`),
     uniqueIndex('cost_items_system_uq').on(t.workspaceId, t.systemKey).where(sql`${t.systemKey} is not null`),
   ],
@@ -176,6 +179,8 @@ export const documents = pgTable(
     inUseMemberId: uuid('in_use_member_id'),
     /** Получатель имущества в эксплуатацию: участок (внешний ключ не ставим: схема участков ссылается на документы) */
     inUseWorkCenterId: uuid('in_use_work_center_id'),
+    /** Участок-получатель списания (стоимость уходит в косвенные затраты участка): внешний ключ не ставим (см. inUseWorkCenterId) */
+    workCenterId: uuid('work_center_id'),
     currency: text('currency').notNull().default('RUB'),
     /** Цены «НДС в т.ч.» (true) или «НДС сверху» (false) */
     priceIncludesVat: boolean('price_includes_vat').notNull().default(true),
@@ -203,7 +208,7 @@ export const documents = pgTable(
     foreignKey({ columns: [t.workspaceId, t.inUseMemberId], foreignColumns: [members.workspaceId, members.id], name: 'documents_in_use_member_fk' }),
     foreignKey({ columns: [t.workspaceId, t.basedOnId], foreignColumns: [t.workspaceId, t.id], name: 'documents_based_on_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.responsibleId], foreignColumns: [members.workspaceId, members.id], name: 'documents_responsible_fk' }),
-    check('documents_type_chk', sql`${t.type} in ('quote','customer_order','invoice','realization','act','customer_return','supplier_order','receipt','supplier_return','stock_transfer','write_off','stock_posting','inventory_count','production_order','production','work_order','piecework_order')`),
+    check('documents_type_chk', sql`${t.type} in ('quote','customer_order','invoice','realization','act','customer_return','supplier_order','receipt','supplier_return','stock_transfer','write_off','stock_posting','inventory_count','production_order','production','work_order','piecework_order','other_costs')`),
     check('documents_status_chk', sql`${t.status} in ('draft','posted','cancelled')`),
     check('documents_state_chk', sql`${t.state} is null or ${t.state} ~ '^[a-z][a-z0-9_]*$'`),
     check('documents_operation_chk', sql`${t.operation} is null or ${t.operation} in ('transfer','in_transit','to_operation','from_operation','assembly')`),
@@ -245,6 +250,10 @@ export const documentLines = pgTable(
     originLineId: uuid('origin_line_id'),
     /** Роль строки внутреннего документа: приход или расход (у продаж и закупок — null) */
     stockRole: text('stock_role', { enum: ['in', 'out'] }),
+    /** Статья косвенных затрат строки-услуги (поступление): сумма строки уходит в косвенные затраты месяца */
+    costItemId: uuid('cost_item_id'),
+    /** Участок строки-услуги (поступление): внешний ключ не ставим (схема участков ссылается на документы) */
+    workCenterId: uuid('work_center_id'),
     /** Учётное количество по остаткам (инвентаризация): разница с qty — недостача или излишек */
     bookQty: numeric('book_qty', { precision: 18, scale: 3 }).notNull().default('0'),
     /** Принятое количество (перемещение «в пути»): не больше отправленного */
@@ -256,6 +265,7 @@ export const documentLines = pgTable(
     foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'document_lines_document_fk' }).onDelete('cascade'),
     foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'document_lines_product_fk' }),
     foreignKey({ columns: [t.workspaceId, t.unitCode], foreignColumns: [units.workspaceId, units.code], name: 'document_lines_unit_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.costItemId], foreignColumns: [costItems.workspaceId, costItems.id], name: 'document_lines_cost_item_fk' }),
     foreignKey({ columns: [t.workspaceId, t.sourceLineId], foreignColumns: [t.workspaceId, t.id], name: 'document_lines_source_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.originLineId], foreignColumns: [t.workspaceId, t.id], name: 'document_lines_origin_fk' }).onDelete('set null'),
     check('document_lines_qty_chk', sql`${t.qty} >= 0 and ${t.price} >= 0 and ${t.discountPct} >= 0 and ${t.discountPct} <= 100`),
@@ -266,6 +276,7 @@ export const documentLines = pgTable(
     index('document_lines_origin_idx').on(t.originLineId),
     index('document_lines_source_idx').on(t.sourceLineId),
     index('document_lines_product_idx').on(t.productId),
+    index('document_lines_cost_item_idx').on(t.costItemId),
   ],
 );
 
@@ -306,6 +317,8 @@ export const stockMoves = pgTable(
     createdAt: createdAt(),
   },
   t => [
+    // составной ключ нужен корректировкам себестоимости закрытия (stock_cost_adjustments ссылается на (workspace_id, id))
+    unique('stock_moves_ws_id_uq').on(t.workspaceId, t.id),
     foreignKey({ columns: [t.workspaceId, t.warehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'stock_moves_warehouse_fk' }),
     foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'stock_moves_product_fk' }),
     foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'stock_moves_document_fk' }).onDelete('cascade'),

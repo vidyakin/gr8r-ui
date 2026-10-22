@@ -3,7 +3,7 @@
    Суммы строк и итоги документа в форме считает та же чистая функция, что и сервер при проведении (computeDocument из @gr8r/shared). */
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { DOCUMENT_META, type CompanyKind, type CostItemKind, type DocumentGroup, type DocumentStatus, type DocumentType, type FileRef, type TaxSystem, type VatRate, type WarehouseKind, type WorkOrderBillingMode, type WorkOrderStateCategory } from '@gr8r/shared';
+import { DOCUMENT_META, type CompanyKind, type CostDistribution, type CostItemKind, type DocumentGroup, type DocumentStatus, type DocumentType, type FileRef, type TaxSystem, type VatRate, type WarehouseKind, type WorkOrderBillingMode, type WorkOrderStateCategory } from '@gr8r/shared';
 import { toast } from '@/components/ui';
 import type { Tone } from '@/components/ui';
 import { errorMessage } from '../data/api';
@@ -41,6 +41,10 @@ export interface DocLine {
   bookQty: string;
   /** Принятое количество (перемещение «в пути») */
   receivedQty: string;
+  /** Статья косвенных затрат строки-услуги поступления */
+  costItemId: string | null;
+  /** Участок строки-услуги поступления */
+  workCenterId: string | null;
 }
 
 export interface DocListItem {
@@ -63,6 +67,9 @@ export interface DocListItem {
   targetWarehouseId: string | null;
   targetWarehouseName?: string | null;
   costItemId: string | null;
+  /** Участок списания (себестоимость уходит в косвенные затраты участка) */
+  workCenterId: string | null;
+  workCenter?: { id: string; name: string } | null;
   priceIncludesVat: boolean;
   amountNet: string;
   vatTotal: string;
@@ -232,6 +239,8 @@ export interface CostItem {
   name: string;
   kind: CostItemKind;
   systemKey: string | null;
+  /** База распределения косвенной затраты при закрытии периода */
+  distributionMethod: CostDistribution;
   archivedAt: string | null;
 }
 

@@ -31,6 +31,7 @@ import { DOCUMENT_HOOKS, DOCUMENT_CREATED_HOOKS, STATE_HOOKS, STATE_PROVIDERS, t
 import { recordEvent } from './events';
 import { applyStockMoves, defaultPostingCost, documentCosts, documentLineCosts, loadInventorySettings, revertStockMoves, sourceMoveCosts, syncReservations, type MoveRequest } from './stock';
 import { syncWorkOrderResources } from './planning';
+import { assertPeriodOpen, assertServiceCostItems, clearPeriodCosts, syncPeriodCosts } from './cost-closing';
 import { bankAccounts, companies, contracts, costItems, documentCounters, documentLines, documentStates, documents, members, organizations, products, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials } from './schema';
 import { assertContractOfCompany, contractDocumentProducts, contractPlanProductIds, defaultContract } from './contracts';
 import { uuidv7 } from './uuid';
@@ -86,7 +87,7 @@ async function loadDoc(db: Db, id: string, lock = false): Promise<DocumentRow> {
 
 const linesOf = (db: Db, documentId: string) => db.select().from(documentLines).where(eq(documentLines.documentId, documentId)).orderBy(asc(documentLines.sortOrder), asc(documentLines.createdAt));
 
-async function assertRefs(db: Db, h: { organizationId?: string | null; counterpartyId?: string | null; warehouseId?: string | null; targetWarehouseId?: string | null; costItemId?: string | null; responsibleId?: string | null }) {
+async function assertRefs(db: Db, h: { organizationId?: string | null; counterpartyId?: string | null; warehouseId?: string | null; targetWarehouseId?: string | null; costItemId?: string | null; workCenterId?: string | null; responsibleId?: string | null }) {
   if (h.organizationId) {
     const [o] = await db.select({ id: organizations.id, archivedAt: organizations.archivedAt }).from(organizations).where(eq(organizations.id, h.organizationId)).limit(1);
     if (!o || o.archivedAt) throw new DomainError(422, 'invalid_reference', 'Organization does not exist or is archived');
@@ -107,6 +108,10 @@ async function assertRefs(db: Db, h: { organizationId?: string | null; counterpa
     const [c] = await db.select({ id: costItems.id, kind: costItems.kind, archivedAt: costItems.archivedAt }).from(costItems).where(eq(costItems.id, h.costItemId)).limit(1);
     if (!c || c.archivedAt) throw new DomainError(422, 'invalid_reference', 'The cost item does not exist or is archived');
   }
+  if (h.workCenterId) {
+    const [w] = await db.select({ id: workCenters.id, archivedAt: workCenters.archivedAt }).from(workCenters).where(eq(workCenters.id, h.workCenterId)).limit(1);
+    if (!w || w.archivedAt) throw new DomainError(422, 'invalid_reference', 'The work center does not exist or is archived');
+  }
 }
 
 /* ---------------- строки и суммы ---------------- */
@@ -126,6 +131,10 @@ interface ResolvedLine {
   bookQty: string;
   /** Принятое количество (перемещение «в пути») */
   receivedQty: string;
+  /** Статья косвенных затрат строки-услуги поступления */
+  costItemId: string | null;
+  /** Участок строки-услуги поступления */
+  workCenterId: string | null;
 }
 
 /** Подставляет из товара название, единицу и ставку НДС, которых нет в строке; новые строки — только по действующим товарам.
@@ -152,6 +161,8 @@ async function resolveLines(db: Db, inputs: DocumentLineInput[], existingIds: Se
       stockRole: l.stockRole,
       bookQty: l.bookQty ?? '0',
       receivedQty: l.receivedQty ?? (type === 'stock_transfer' ? l.qty : '0'),
+      costItemId: l.costItemId ?? null,
+      workCenterId: l.workCenterId ?? null,
     };
   });
 }
@@ -185,17 +196,40 @@ async function recalcLines(db: Db, doc: DocumentRow): Promise<DocumentLineRow[]>
 async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: DocumentLineInput[], includesVat: boolean): Promise<void> {
   const type = doc.type as DocumentType;
   const meta = DOCUMENT_META[type];
-  const existing = await db.select({ id: documentLines.id, price: documentLines.price, stockRole: documentLines.stockRole }).from(documentLines).where(eq(documentLines.documentId, doc.id));
+  const existing = await db
+    .select({ id: documentLines.id, price: documentLines.price, stockRole: documentLines.stockRole, costItemId: documentLines.costItemId, workCenterId: documentLines.workCenterId })
+    .from(documentLines)
+    .where(eq(documentLines.documentId, doc.id));
   const existingIds = new Set(existing.map(e => e.id));
   const prevPrice = new Map(existing.map(e => [e.id, e.price]));
   const prevRole = new Map(existing.map(e => [e.id, e.stockRole]));
+  const prevCostItem = new Map(existing.map(e => [e.id, e.costItemId]));
+  const prevCenter = new Map(existing.map(e => [e.id, e.workCenterId]));
   const resolved = await resolveLines(db, inputs, existingIds, type);
+  await assertRefs(db, { costItemId: resolved.find(l => l.costItemId)?.costItemId ?? null, workCenterId: resolved.find(l => l.workCenterId)?.workCenterId ?? null });
   const keep = new Set(resolved.map(l => l.id));
   const drop = [...existingIds].filter(id => !keep.has(id));
   if (drop.length) await db.delete(documentLines).where(inArray(documentLines.id, drop));
   for (const [i, l] of resolved.entries()) {
     const a = amounts(l, includesVat);
-    const values = { name: l.name, unitCode: l.unitCode, qty: l.qty, price: l.price, discountPct: l.discountPct, vatRate: l.vatRate, net: a.net, vatAmount: a.vatAmount, total: a.total, sortOrder: i, productId: l.productId, bookQty: l.bookQty, receivedQty: l.receivedQty };
+    const values = {
+      name: l.name,
+      unitCode: l.unitCode,
+      qty: l.qty,
+      price: l.price,
+      discountPct: l.discountPct,
+      vatRate: l.vatRate,
+      net: a.net,
+      vatAmount: a.vatAmount,
+      total: a.total,
+      sortOrder: i,
+      productId: l.productId,
+      bookQty: l.bookQty,
+      receivedQty: l.receivedQty,
+      // статья и участок строки-услуги (поступление) клиент присылает сам; у прочих типов документов сохраняем прежние
+      costItemId: l.costItemId ?? prevCostItem.get(l.id) ?? null,
+      workCenterId: l.workCenterId ?? prevCenter.get(l.id) ?? null,
+    };
     if (meta.party === null) {
       // внутренний документ: без НДС и продажной цены, роль строки проставляет сервер
       // у выпуска роль задаёт каждая строка (материал — расход, продукция — приход): её сохраняем при правке
@@ -236,6 +270,8 @@ export interface DocumentCreateInput {
   warehouseId?: string | null;
   targetWarehouseId?: string | null;
   costItemId?: string | null;
+  /** Участок списания: стоимость уходит в косвенные затраты участка (только у списания) */
+  workCenterId?: string | null;
   /** Вид перемещения: сразу, «в пути», в эксплуатацию или обратно (только у перемещения между складами) */
   operation?: string;
   /** Получатель в эксплуатацию: участник или участок (ровно один) */
@@ -295,6 +331,8 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
   const targetWarehouseId = meta.production ? input.targetWarehouseId ?? null : meta.stockRole === 'transfer' ? (needsTargetWarehouse(operation) ? input.targetWarehouseId ?? null : null) : null;
   const needsCostItem = !!meta.costItemKind || operation === 'to_operation';
   const costItemId = needsCostItem ? input.costItemId ?? null : null;
+  // участок списания: себестоимость списанного уходит в косвенные затраты участка (у остальных типов он не нужен)
+  const workCenterId = input.type === 'write_off' ? input.workCenterId ?? null : null;
   // вид заказ-наряда: только у work_order, пусто — вид по умолчанию (его поставит хук создания)
   const workOrderKindId = input.type === 'work_order' ? input.workOrderKindId ?? null : null;
   // договор: заданный или по умолчанию у контрагента; его условия подставляются в документ
@@ -309,7 +347,7 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
       contractId = contract?.id ?? null;
     }
   }
-  await assertRefs(db, { organizationId, counterpartyId, warehouseId, targetWarehouseId, costItemId, responsibleId: input.responsibleId });
+  await assertRefs(db, { organizationId, counterpartyId, warehouseId, targetWarehouseId, costItemId, workCenterId, responsibleId: input.responsibleId });
   if (needsTargetWarehouse(operation) && (!targetWarehouseId || targetWarehouseId === warehouseId)) throw new DomainError(422, 'target_warehouse_required', 'Select another warehouse to move the goods to');
   if (operation === 'to_operation' || operation === 'from_operation') await assertInUseHolder(db, inUseMemberId, inUseWorkCenterId);
   if (costItemId) await assertCostItemKind(db, input.type, costItemId, operation === 'to_operation' ? 'expense' : undefined);
@@ -329,6 +367,7 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
       warehouseId,
       targetWarehouseId,
       costItemId,
+      workCenterId,
       workOrderKindId,
       inUseMemberId,
       inUseWorkCenterId,
@@ -357,6 +396,8 @@ export interface DocumentPatch {
   warehouseId?: string | null;
   targetWarehouseId?: string | null;
   costItemId?: string | null;
+  /** Участок списания: стоимость уходит в косвенные затраты участка (только у списания) */
+  workCenterId?: string | null;
   /** Вид перемещения (только у перемещения между складами) */
   operation?: string;
   /** Получатель в эксплуатацию: участник или участок */
@@ -393,7 +434,7 @@ export async function updateDocument(db: Db, ctx: DocCtx, id: string, patch: Doc
     if (orgChanged) throw new DomainError(422, 'number_locked', 'The document already has a number from this organization: it cannot move to another organization');
     if (patch.date && Number(patch.date.slice(0, 4)) !== doc.numberYear) throw new DomainError(422, 'number_locked', `The document is numbered in ${doc.numberYear}: its date must stay in that year`);
   }
-  await assertRefs(db, { organizationId: orgChanged ? patch.organizationId : undefined, counterpartyId: patch.counterpartyId, warehouseId: patch.warehouseId, targetWarehouseId: patch.targetWarehouseId, costItemId: patch.costItemId, responsibleId: patch.responsibleId });
+  await assertRefs(db, { organizationId: orgChanged ? patch.organizationId : undefined, counterpartyId: patch.counterpartyId, warehouseId: patch.warehouseId, targetWarehouseId: patch.targetWarehouseId, costItemId: patch.costItemId, workCenterId: patch.workCenterId, responsibleId: patch.responsibleId });
   const operation = patch.operation !== undefined ? operationOf(type, patch.operation) : doc.operation;
   const inUseMemberId = patch.inUseMemberId !== undefined ? patch.inUseMemberId : doc.inUseMemberId;
   const inUseWorkCenterId = patch.inUseWorkCenterId !== undefined ? patch.inUseWorkCenterId : doc.inUseWorkCenterId;
@@ -420,6 +461,9 @@ export async function updateDocument(db: Db, ctx: DocCtx, id: string, patch: Doc
   if (patch.targetWarehouseId !== undefined && (meta.stockRole === 'transfer' || meta.production)) set.targetWarehouseId = patch.targetWarehouseId;
   if (meta.stockRole === 'transfer' && !needsTargetWarehouse(operation)) set.targetWarehouseId = null;
   if (patch.costItemId !== undefined && (meta.costItemKind || operation === 'to_operation')) set.costItemId = patch.costItemId;
+  if (patch.workCenterId !== undefined && type === 'write_off') set.workCenterId = patch.workCenterId;
+  // смена даты черновика в закрытый период запрещена: иначе документ нельзя будет провести
+  if (patch.date) await assertPeriodOpen(db, ctx.workspaceId, patch.date);
   if (patch.workOrderKindId !== undefined && type === 'work_order') {
     // закрытый или отменённый заказ-наряд сменой вида не переоткрыть: возврат в работу — сменой состояния (admin+)
     if (patch.workOrderKindId !== doc.workOrderKindId && doc.state) {
@@ -481,6 +525,7 @@ export async function changeDocumentState(db: Db, ctx: DocCtx, id: string, state
   const doc = await loadDoc(db, id, true);
   const type = doc.type as DocumentType;
   const meta = DOCUMENT_META[type];
+  await assertPeriodOpen(db, ctx.workspaceId, doc.date);
   const provider = STATE_PROVIDERS[type];
   if (!provider) {
     if (!meta.states?.length) throw new DomainError(422, 'state_not_allowed', `A ${meta.label.toLowerCase()} has no states`);
@@ -554,6 +599,7 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<voi
   const type = doc.type as DocumentType;
   const meta = DOCUMENT_META[type];
   if (doc.status !== 'draft') throw new DomainError(409, 'invalid_status', doc.status === 'posted' ? 'The document is already posted' : 'A cancelled document cannot be posted: restore it first');
+  await assertPeriodOpen(db, ctx.workspaceId, doc.date);
   if (meta.party && !doc.counterpartyId) throw new DomainError(422, 'counterparty_required', meta.party === 'customer' ? 'Select a customer before posting' : 'Select a supplier before posting');
   // договор: должен быть того же контрагента и организации и действовать на дату документа
   const contractWarnings: string[] = [];
@@ -578,6 +624,8 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<voi
     if (base && base.status !== 'posted' && base.type !== 'work_order') throw new DomainError(422, 'base_not_posted', `Post the basis document${base.number ? ` ${base.number}` : ''} first`);
   }
   const lines = await recalcLines(db, doc);
+  // статью затрат несут только строки-услуги поступления — товар двигает склад, услуга становится косвенной затратой
+  await assertServiceCostItems(db, type, lines);
   const hook = DOCUMENT_HOOKS[type];
   if (hook?.check) await hook.check(db, ctx, doc, lines);
   else if (!lines.length) throw new DomainError(422, 'no_lines', 'Add at least one line before posting');
@@ -607,7 +655,7 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<voi
     .set({ status: 'posted', postedAt: new Date(), postedBy: ctx.memberId, updatedAt: new Date(), ...(num ? { number: num.number, numberYear: num.year, numberSeq: num.seq } : {}) })
     .where(eq(documents.id, id));
 
-  await syncAfterChange(db, ctx, doc, lines);
+  await syncAfterChange(db, ctx, doc, lines, true);
   await hook?.afterPost?.(db, ctx, doc, lines);
   const [after] = await db.select({ number: documents.number, total: documents.total }).from(documents).where(eq(documents.id, id)).limit(1);
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.posted', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { documentType: type, number: after!.number, total: after!.total, warnings: contractWarnings } });
@@ -642,6 +690,7 @@ export async function unpostDocument(db: Db, ctx: DocCtx, id: string, opts: { re
   const doc = await loadDoc(db, id, true);
   const type = doc.type as DocumentType;
   if (doc.status !== 'posted') throw new DomainError(409, 'invalid_status', 'Only a posted document can be unposted');
+  await assertPeriodOpen(db, ctx.workspaceId, doc.date);
   const kids = await db.select({ id: documents.id, type: documents.type, number: documents.number }).from(documents).where(and(eq(documents.basedOnId, id), eq(documents.status, 'posted')));
   if (kids.length)
     throw new DomainError(409, 'has_posted_children', `Unpost the documents created from this one first: ${kids.map(k => k.number ?? DOCUMENT_META[k.type as DocumentType].label).join(', ')}`, { documents: kids });
@@ -650,16 +699,22 @@ export async function unpostDocument(db: Db, ctx: DocCtx, id: string, opts: { re
   // отмена проведения возвращает движения склада (у внутренних документов — обе стороны перемещения)
   await revertStockMoves(db, ctx.workspaceId, id, await loadInventorySettings(db, ctx.workspaceId));
   await db.update(documents).set({ status: 'draft', postedAt: null, postedBy: null, updatedAt: new Date() }).where(eq(documents.id, id));
-  await syncAfterChange(db, ctx, { ...doc, status: 'draft' }, await linesOf(db, id));
+  await syncAfterChange(db, ctx, { ...doc, status: 'draft' }, await linesOf(db, id), false);
   await DOCUMENT_HOOKS[doc.type as DocumentType]?.afterUnpost?.(db, ctx, { ...doc, status: 'draft' }, await linesOf(db, id));
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.unposted', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { documentType: type, number: doc.number } });
 }
 
-/** Резервы затронутых заказов: сам заказ (его строки) или заказы, которые исполняет документ (по originLineId) */
-async function syncAfterChange(db: Db, ctx: DocCtx, doc: DocumentRow, lines: DocumentLineRow[]): Promise<void> {
+/** Резервы затронутых заказов: сам заказ (его строки) или заказы, которые исполняет документ (по originLineId).
+    Здесь же косвенные затраты периода: при проведении они набираются, при отмене — очищаются */
+async function syncAfterChange(db: Db, ctx: DocCtx, doc: DocumentRow, lines: DocumentLineRow[], posted: boolean): Promise<void> {
   const reserves = DOCUMENT_META[doc.type as DocumentType].reserves;
   const ids = reserves ? lines.map(l => l.id) : lines.map(l => l.originLineId).filter((x): x is string => !!x);
   if (ids.length) await syncReservations(db, ctx.workspaceId, ids);
+  // косвенные затраты периода: набираются при проведении и очищаются при отмене.
+  // У «Прочих затрат» строк товаров нет — их набирает хук проведения этого типа
+  if (doc.type === 'other_costs') return;
+  if (posted) await syncPeriodCosts(db, ctx, doc, lines);
+  else await clearPeriodCosts(db, ctx.workspaceId, doc.id);
 }
 
 /* ---------------- на основании ---------------- */
@@ -783,9 +838,11 @@ export async function documentDetail(db: Db, id: string) {
   // получатель имущества в эксплуатацию: сотрудник или участок
   const [inUseMember] = doc.inUseMemberId ? await db.select({ id: members.id, name: members.name }).from(members).where(eq(members.id, doc.inUseMemberId)).limit(1) : [];
   const [inUseWorkCenter] = doc.inUseWorkCenterId ? await db.select({ id: workCenters.id, name: workCenters.name }).from(workCenters).where(eq(workCenters.id, doc.inUseWorkCenterId)).limit(1) : [];
+  // участок списания: себестоимость списанного уходит в косвенные затраты участка (закрытие периода)
+  const [workCenter] = doc.workCenterId ? await db.select({ id: workCenters.id, name: workCenters.name }).from(workCenters).where(eq(workCenters.id, doc.workCenterId)).limit(1) : [];
   // внутренний документ: стоимость по себестоимости (сумма qty × cost движений)
   const costs = DOCUMENT_META[type].party === null ? await documentCosts(db, [id]) : new Map<string, string>();
-  return { ...doc, organization: org ?? null, counterparty: cp ?? null, contract: contract ?? null, warehouse: wh ?? null, targetWarehouse: targetWh ?? null, costItem: costItem ?? null, inUseMember: inUseMember ?? null, inUseWorkCenter: inUseWorkCenter ?? null, costTotal: costs.get(id) ?? '0.00', basedOn: base ?? null, children, lines, totals };
+  return { ...doc, organization: org ?? null, counterparty: cp ?? null, contract: contract ?? null, warehouse: wh ?? null, targetWarehouse: targetWh ?? null, costItem: costItem ?? null, workCenter: workCenter ?? null, inUseMember: inUseMember ?? null, inUseWorkCenter: inUseWorkCenter ?? null, costTotal: costs.get(id) ?? '0.00', basedOn: base ?? null, children, lines, totals };
 }
 
 /* ---------------- данные для печатной формы ---------------- */

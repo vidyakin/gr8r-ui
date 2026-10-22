@@ -2,7 +2,7 @@
    ссылкой), склады — места хранения; здесь же настройка «разрешить отрицательный остаток». Меняет admin и выше. */
 import * as React from 'react';
 import { Archive, Building2, Pencil, Plus, Star, Tags, Warehouse as WarehouseIcon } from 'lucide-react';
-import { TAX_SYSTEMS, TAX_SYSTEM_LABELS, VAT_LABELS, VAT_RATES, type CostItemKind, type FileRef, type TaxSystem, type VatRate, type WarehouseKind } from '@gr8r/shared';
+import { COST_DISTRIBUTIONS, COST_DISTRIBUTION_LABELS, TAX_SYSTEMS, TAX_SYSTEM_LABELS, VAT_LABELS, VAT_RATES, type CostDistribution, type CostItemKind, type FileRef, type TaxSystem, type VatRate, type WarehouseKind } from '@gr8r/shared';
 import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Input, Skeleton, toast } from '@/components/ui';
 import { useIsAdmin } from '../catalog/data';
 import { BankAccountsEditor, RequisitesFields, checkRequisites, type RequisitesValue } from '../docs/requisites';
@@ -280,8 +280,11 @@ export function CostItemsSection({ title }: { title: string }) {
                 <div style={{ minWidth: 0 }}>
                   <div className="t">
                     {c.name} <Badge tone={c.kind === 'expense' ? 'gray' : 'accent'}>{COST_ITEM_KIND_LABEL[c.kind]}</Badge>
+                    {c.kind === 'expense' && c.distributionMethod !== 'none' && <Badge tone="accent">{COST_DISTRIBUTION_LABELS[c.distributionMethod]}</Badge>}
                   </div>
-                  <div className="d">{c.kind === 'expense' ? 'Write-offs are recorded against this item' : 'Postings are recorded against this item'}</div>
+                  <div className="d">
+                    {c.kind === 'expense' ? (c.distributionMethod === 'none' ? 'Write-offs are recorded against this item; at closing it stays undistributed' : `Write-offs and service receipts go to indirect costs; at closing they are allocated ${COST_DISTRIBUTION_LABELS[c.distributionMethod].toLowerCase()}`) : 'Postings are recorded against this item'}
+                  </div>
                 </div>
                 {isAdmin && (
                   <div className="row" style={{ gap: 2 }}>
@@ -320,12 +323,13 @@ function CostItemDialog({ item, onClose }: { item?: CostItem; onClose: () => voi
   const api = useDocsApi();
   const [name, setName] = React.useState(item?.name ?? '');
   const [kind, setKind] = React.useState<CostItemKind>(item?.kind ?? 'expense');
+  const [method, setMethod] = React.useState<CostDistribution>(item?.distributionMethod ?? 'none');
   const [err, setErr] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const submit = async () => {
     if (!name.trim()) return setErr('Enter a name');
     setBusy(true);
-    const body = { name: name.trim(), kind };
+    const body = { name: name.trim(), kind, distributionMethod: kind === 'expense' ? method : 'none' };
     const r = item ? await api('PATCH', `/cost-items/${item.id}`, body) : await api('POST', '/cost-items', body);
     setBusy(false);
     if (!r) return;
@@ -367,6 +371,19 @@ function CostItemDialog({ item, onClose }: { item?: CostItem; onClose: () => voi
               </select>
             )}
           </Field>
+          {kind === 'expense' && (
+            <Field label="Allocation base" hint="How the indirect costs of this item are split between the releases of the month">
+              {p => (
+                <select className="select" id={p.id} value={method} onChange={e => setMethod(e.target.value as CostDistribution)}>
+                  {COST_DISTRIBUTIONS.map(m => (
+                    <option key={m} value={m}>
+                      {COST_DISTRIBUTION_LABELS[m]}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
+          )}
           <button type="submit" hidden />
         </form>
       </DialogContent>

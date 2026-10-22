@@ -1,7 +1,7 @@
 /* Демо документов и склада для демо-воркспейса: организация «ООО «Гр8р Студия»» (ОСН, НДС 20%), два склада, реквизиты у пяти компаний CRM
    и две цепочки документов, проведённые настоящими сервисами (поэтому остатки, резервы и средняя себестоимость — как у живых данных):
    «заказ поставщику → поступление» и «заказ покупателя → счёт → реализация (УПД)» + акт услуг. Данные — на русском, интерфейс английский. */
-import { accountKeyOk, makeInn, makeOgrn } from '@gr8r/shared';
+import { accountKeyOk, makeInn, makeOgrn, monthPeriod } from '@gr8r/shared';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { Db } from './client';
 import { changeDocumentState, createBasedOn, createDocument, ensureCostItems, postDocument, updateDocument, type DocCtx } from './documents';
@@ -10,8 +10,10 @@ import { saveWorkOrderBilling } from './services';
 import { ensureModuleProject, issueTaskKey } from './modules';
 import { fillCountSheet } from './inventory';
 import './internal-ops';
-import { bankAccounts, companies, costItems, documentLines, organizations, productManufacturing, products, tasks, timeLogs, warehouses, workCenters, manufacturedItems } from './schema';
+import { bankAccounts, companies, costItems, documentLines, organizations, productManufacturing, products, tasks, timeLogs, warehouses, workCenters, workspaces, manufacturedItems } from './schema';
 import { createProductionFromOrder, createProductionOrder, createSupplierOrdersForOrder, fillOrderFromBom } from './production';
+import { createOtherCosts } from './other-costs';
+import { closePeriodMonth } from './cost-closing';
 import { assignOperations, createPieceworkOrder } from './piecework';
 import { productionComponents, productionItems, productionOperations } from './schema';
 
@@ -382,5 +384,44 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
   await postAt(bigOrder, 1);
   await createSupplierOrdersForOrder(db, ctx, bigOrder, {});
 
-  return { documents: 25, workOrder };
+  /* ---------- закрытие периода: косвенные затраты, «Прочие затраты» и закрытый месяц ---------- */
+  // статьи затрат с базой распределения: электричество делится по объёму выпуска, аренда остаётся нераспределённой
+  const overheadItems = await db
+    .insert(costItems)
+    .values([
+      { workspaceId: wsId, name: 'Электроэнергия цеха', kind: 'expense', distributionMethod: 'output_qty' },
+      { workspaceId: wsId, name: 'Аренда цеха', kind: 'expense', distributionMethod: 'none' },
+    ])
+    .onConflictDoNothing()
+    .returning({ id: costItems.id, name: costItems.name });
+  const el = overheadItems.find(i => i.name === 'Электроэнергия цеха')!;
+  const rentItem = overheadItems.find(i => i.name === 'Аренда цеха')!;
+  // поступление услуги со статьёй и участком — сумма строки становится косвенными затратами месяца
+  const power = await createDocument(db, ctx, {
+    type: 'receipt',
+    counterpartyId: co.atlas,
+    warehouseId: main!.id,
+    date: iso(2),
+    comment: 'Электроэнергия и отопление цеха',
+    lines: [{ productId: P('SV-DLV').id, qty: '1', price: '24000', discountPct: '0', costItemId: el.id, workCenterId: assemblyCenter!.id }],
+  });
+  await postAt(power, 2);
+  // документ «Прочие затраты»: аренда цеха и обслуживание оборудования
+  const otherCosts = await createOtherCosts(db, ctx, {
+    date: iso(2),
+    comment: 'Прочие затраты месяца',
+    lines: [
+      { costItemId: rentItem.id, workCenterId: assemblyCenter!.id, amount: '90000', comment: 'Аренда цеха' },
+      { costItemId: el.id, amount: '6000', comment: 'Обслуживание станков' },
+    ],
+  });
+  await postDocument(db, ctx, otherCosts);
+  // закрытый месяц: закрываем месяц выпуска — косвенные затраты распределяются, средняя склада пересчитывается
+  const closedMonth = iso(3).slice(0, 7);
+  await closePeriodMonth(db, ctx, closedMonth);
+  // дата запрета — на конец закрытого месяца: документы этого месяца уже нельзя проводить и править
+  const { end } = monthPeriod(closedMonth);
+  await db.update(workspaces).set({ closedThrough: end, closeMovesLock: false }).where(eq(workspaces.id, wsId));
+
+  return { documents: 27, workOrder, closedMonth };
 }

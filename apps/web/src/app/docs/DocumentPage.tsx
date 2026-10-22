@@ -35,6 +35,10 @@ interface FormLine {
   bookQty: string;
   /** Принятое количество (перемещение «в пути») */
   receivedQty: string;
+  /** Статья косвенных затрат строки-услуги поступления */
+  costItemId: string | null;
+  /** Участок строки-услуги поступления */
+  workCenterId: string | null;
 }
 
 interface Form {
@@ -46,6 +50,8 @@ interface Form {
   warehouseId: string | null;
   targetWarehouseId: string | null;
   costItemId: string | null;
+  /** Участок списания: себестоимость уходит в косвенные затраты участка */
+  workCenterId: string | null;
   /** Вид перемещения: сразу, «в пути», в эксплуатацию или обратно */
   operation: string;
   inUseMemberId: string | null;
@@ -72,6 +78,7 @@ function toForm(d: DocDetail): Form {
     warehouseId: d.warehouseId,
     targetWarehouseId: d.targetWarehouseId,
     costItemId: d.costItemId,
+    workCenterId: d.workCenterId,
     operation: d.operation ?? 'transfer',
     inUseMemberId: d.inUseMember?.id ?? null,
     inUseWorkCenterId: d.inUseWorkCenter?.id ?? null,
@@ -79,7 +86,7 @@ function toForm(d: DocDetail): Form {
     dueDate: d.dueDate ?? '',
     priceIncludesVat: d.priceIncludesVat,
     comment: d.comment,
-    lines: d.lines.map(l => ({ key: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, qty: trimNum(l.qty), price: l.price, discountPct: trimNum(l.discountPct), vatRate: l.vatRate, bookQty: trimNum(l.bookQty), receivedQty: trimNum(l.receivedQty) })),
+    lines: d.lines.map(l => ({ key: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, qty: trimNum(l.qty), price: l.price, discountPct: trimNum(l.discountPct), vatRate: l.vatRate, bookQty: trimNum(l.bookQty), receivedQty: trimNum(l.receivedQty), costItemId: l.costItemId, workCenterId: l.workCenterId })),
   };
 }
 
@@ -101,6 +108,7 @@ function toPayload(f: Form) {
     warehouseId: f.warehouseId,
     targetWarehouseId: f.targetWarehouseId,
     costItemId: f.costItemId,
+    workCenterId: f.workCenterId,
     operation: f.operation,
     inUseMemberId: f.inUseMemberId,
     inUseWorkCenterId: f.inUseWorkCenterId,
@@ -110,7 +118,7 @@ function toPayload(f: Form) {
     comment: f.comment,
     lines: f.lines
       .filter(l => l.productId)
-      .map(l => ({ id: l.key, productId: l.productId!, name: l.name, unitCode: l.unitCode, qty: num(l.qty), price: num(l.price), discountPct: num(l.discountPct || '0'), vatRate: l.vatRate, bookQty: num(l.bookQty || '0'), receivedQty: num(l.receivedQty || '0') })),
+      .map(l => ({ id: l.key, productId: l.productId!, name: l.name, unitCode: l.unitCode, qty: num(l.qty), price: num(l.price), discountPct: num(l.discountPct || '0'), vatRate: l.vatRate, bookQty: num(l.bookQty || '0'), receivedQty: num(l.receivedQty || '0'), costItemId: l.costItemId, workCenterId: l.workCenterId })),
   };
 }
 
@@ -180,6 +188,8 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const toOperation = isTransfer && doc.operation === 'to_operation';
   const fromOperation = isTransfer && doc.operation === 'from_operation';
   const priceField = meta.party === 'supplier' ? 'purchasePrice' : 'price';
+  /** Поступление: у строк-услуг можно указать статью косвенных затрат и участок */
+  const isReceipt = doc.type === 'receipt';
   const whOptions = (warehouses.data ?? []).filter(w => (!w.archivedAt || w.id === form.warehouseId) && w.kind !== 'transit');
 
   const [form, setForm] = React.useState<Form>(() => toForm(doc));
@@ -236,14 +246,14 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   };
   const patchLine = (key: string, patch: Partial<FormLine>) => edit(f => ({ ...f, lines: f.lines.map(l => (l.key === key ? { ...l, ...patch } : l)) }));
   const addLine = (at?: number) => {
-    const line: FormLine = { key: uuidv7(), productId: null, name: '', unitCode: '796', qty: '1', price: '', discountPct: '', vatRate: '20', bookQty: '0', receivedQty: '0' };
+    const line: FormLine = { key: uuidv7(), productId: null, name: '', unitCode: '796', qty: '1', price: '', discountPct: '', vatRate: '20', bookQty: '0', receivedQty: '0', costItemId: null, workCenterId: null };
     const index = at ?? latest.current.lines.length;
     focusReq.current = { row: index, col: 0 };
     edit(f => ({ ...f, lines: [...f.lines.slice(0, index), line, ...f.lines.slice(index)] }));
   };
   const pickProduct = (key: string, row: number, p: Product) => {
     // у внутренних документов цена — себестоимость: её подставляет сервер
-    patchLine(key, { productId: p.id, name: p.name, unitCode: p.unitCode, vatRate: p.vatRate, price: internal ? '0' : trimNum(p[priceField]) || '0', qty: latest.current.lines.find(l => l.key === key)?.qty || '1' });
+    patchLine(key, { productId: p.id, name: p.name, unitCode: p.unitCode, vatRate: p.vatRate, price: internal ? '0' : trimNum(p[priceField]) || '0', qty: latest.current.lines.find(l => l.key === key)?.qty || '1', costItemId: p.kind === 'service' ? (latest.current.lines.find(l => l.key === key)?.costItemId ?? null) : null, workCenterId: p.kind === 'service' ? (latest.current.lines.find(l => l.key === key)?.workCenterId ?? null) : null });
     focusReq.current = { row, col: 1 };
   };
 
@@ -582,6 +592,21 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             </Field>
           </>
         )}
+        {doc.type === 'write_off' && (
+          <Field label="Work center" hint="The cost of the write-off becomes indirect costs of the work center">
+            {p => (
+              <Select
+                id={p.id}
+                disabled={!editable}
+                value={form.workCenterId ?? ''}
+                onValueChange={v => edit(f => ({ ...f, workCenterId: v || null }))}
+                options={workCenters.filter(w => !w.archivedAt).map(w => ({ value: w.id, label: w.name }))}
+                placeholder="Not set"
+                aria-label="Work center"
+              />
+            )}
+          </Field>
+        )}
         {(meta.costItemKind || toOperation) && (
           <Field label={(meta.costItemKind ?? 'expense') === 'expense' ? 'Cost item' : 'Income item'} hint="Written off to this item">
             {p => (
@@ -667,6 +692,12 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                 {meta.production && (
                   <th style={{ width: 96 }}>Role</th>
                 )}
+                {isReceipt && (
+                  <>
+                    <th style={{ width: 170 }}>Cost item</th>
+                    <th style={{ width: 160 }}>Work center</th>
+                  </>
+                )}
                 <th style={{ width: 112 }} className="r">
                   {internal ? 'Cost' : 'Price'}
                 </th>
@@ -739,6 +770,42 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       <td>
                         <span className="muted">{srv?.stockRole === 'in' ? 'Product' : 'Material'}</span>
                       </td>
+                    )}
+                    {isReceipt && (
+                      <>
+                        <td>
+                          {srv?.kind === 'service' ? (
+                            <Select
+                              aria-label="Cost item"
+                              disabled={!editable}
+                              value={l.costItemId ?? ''}
+                              onValueChange={v => patchLine(l.key, { costItemId: v || null })}
+                              options={(costItems.data ?? [])
+                                .filter(c => !c.archivedAt && c.kind === 'expense')
+                                .map(c => ({ value: c.id, label: c.name }))}
+                              placeholder="—"
+                            />
+                          ) : (
+                            <span className="faint" title="Only service lines become indirect costs">
+                              —
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {srv?.kind === 'service' ? (
+                            <Select
+                              aria-label="Work center"
+                              disabled={!editable}
+                              value={l.workCenterId ?? ''}
+                              onValueChange={v => patchLine(l.key, { workCenterId: v || null })}
+                              options={workCenters.filter(w => !w.archivedAt).map(w => ({ value: w.id, label: w.name }))}
+                              placeholder="—"
+                            />
+                          ) : (
+                            <span className="faint">—</span>
+                          )}
+                        </td>
+                      </>
                     )}
                     <td className="r">
                       <NumCell

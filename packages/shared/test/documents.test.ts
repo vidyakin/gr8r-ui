@@ -87,9 +87,13 @@ describe('document types', () => {
     expect(basedOnTargets('work_order')).toEqual(['invoice']);
   });
   test('production documents: no counterparty, states apart from posting', () => {
-    expect(documentTypesOf('production')).toEqual(['production_order', 'production', 'piecework_order']);
+    expect(documentTypesOf('production')).toEqual(['production_order', 'production', 'piecework_order', 'other_costs']);
     expect(DOCUMENT_META.production_order.party).toBeNull();
     expect(DOCUMENT_META.production.party).toBeNull();
+    // прочие затраты: внутренний документ без склада и без строк товаров (своя таблица строк)
+    expect(DOCUMENT_META.other_costs.party).toBeNull();
+    expect(DOCUMENT_META.other_costs.ownLines).toBe(true);
+    expect(DOCUMENT_META.other_costs.states).toBeUndefined();
     // сдельный наряд: тоже внутренний документ, без контрагента и без состояний
     expect(DOCUMENT_META.piecework_order.party).toBeNull();
     expect(DOCUMENT_META.piecework_order.states).toBeUndefined();

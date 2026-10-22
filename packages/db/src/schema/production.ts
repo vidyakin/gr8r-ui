@@ -1,10 +1,10 @@
 /* Производство: участки, продукция (изделия и полуфабрикаты) и строки спецификации (BOM), заказы на производство и выпуск.
    Таблицы арендатора. Связи — составные внешние ключи (workspace_id, id). */
 import { sql } from 'drizzle-orm';
-import { boolean, check, date, foreignKey, index, integer, numeric, pgTable, primaryKey, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, date, foreignKey, index, integer, jsonb, numeric, pgTable, primaryKey, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { archivedAt, createdAt, money, pk, ts, updatedAt } from './columns';
 import { products, units } from './catalog';
-import { documentLines, documents, warehouses } from './documents';
+import { costItems, documentLines, documents, stockMoves, warehouses } from './documents';
 import { members, wsCol } from './people';
 import { tasks } from './work';
 import { workCalendars } from './calendars';
@@ -547,5 +547,130 @@ export const pieceworkLines = pgTable(
     index('piecework_lines_document_idx').on(t.documentId, t.sortOrder),
     index('piecework_lines_assignment_idx').on(t.assignmentId),
     index('piecework_lines_release_idx').on(t.releaseDocumentId),
+  ],
+);
+
+/* ---------------- закрытие периода: косвенные затраты, корректировки, результат ----------------
+
+   Косвенные затраты месяца (`period_costs`) набираются при проведении документов: строки-услуги поступления со
+   статьёй и участком, списание материалов на участок, документ «Прочие затраты». Закрытие периода (задача воркера
+   `production.close_period`) распределяет их на выпуски месяца по базе статьи и записывает корректировки
+   (`stock_cost_adjustments`: сколько добавилось к себестоимости движения) — остаток продукции дорожает,
+   а у уже списанного (в том числе проданного) движения себестоимость увеличивается. */
+
+/** Косвенные затраты периода: статья, участок, сумма и источник-документ */
+export const periodCosts = pgTable(
+  'period_costs',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    /** Первый день месяца затрат */
+    period: date('period', { mode: 'string' }).notNull(),
+    /** Статья затрат (её способ распределения задаёт базу) */
+    costItemId: uuid('cost_item_id').notNull(),
+    /** Участок: затраты сначала идут на выпуск своего участка, иначе — на общий выпуск */
+    workCenterId: uuid('work_center_id'),
+    /** Сумма затрат */
+    amount: money('amount').notNull().default('0'),
+    /** Источник: поступление (строка-услуга), списание на участок, прочие затраты */
+    source: text('source', { enum: ['receipt', 'write_off', 'other_costs'] }).notNull(),
+    documentId: uuid('document_id'),
+    /** Строка документа (поступление) — по ней запись однозначна и перезаписывается при повторном проведении */
+    documentLineId: uuid('document_line_id'),
+    createdAt: createdAt(),
+  },
+  t => [
+    unique('period_costs_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.costItemId], foreignColumns: [costItems.workspaceId, costItems.id], name: 'period_costs_item_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.workCenterId], foreignColumns: [workCenters.workspaceId, workCenters.id], name: 'period_costs_work_center_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'period_costs_document_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.documentLineId], foreignColumns: [documentLines.workspaceId, documentLines.id], name: 'period_costs_line_fk' }).onDelete('cascade'),
+    check('period_costs_amount_chk', sql`${t.amount} > 0`),
+    // одна запись на строку документа: повторное проведение перезаписывает, а не дублирует
+    uniqueIndex('period_costs_line_uq').on(t.workspaceId, t.documentLineId).where(sql`${t.documentLineId} is not null`),
+    index('period_costs_period_idx').on(t.workspaceId, t.period),
+    index('period_costs_document_idx').on(t.documentId),
+  ],
+);
+
+/** Корректировка себестоимости движения (закрытие периода): сколько добавилось к цене движения.
+    Движений с нулевым количеством не бывает (CHECK stock_moves_qty_chk), поэтому корректировка живёт отдельно */
+export const stockCostAdjustments = pgTable(
+  'stock_cost_adjustments',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    /** Движение склада, которому меняют себестоимость */
+    moveId: uuid('move_id').notNull(),
+    /** Итоговая прибавка к себестоимости единицы (может быть отрицательной): своя часть + пришедшее по цепочке */
+    deltaCost: numeric('delta_cost', { precision: 18, scale: 4 }).notNull().default('0'),
+    /** Своя часть — косвенные затраты, распределённые закрытием на приход продукции. Остальное (deltaCost − ownDelta)
+        пересчитывается по цепочке движений (recomputeStockCosts) и хранится только как кэш */
+    ownDelta: numeric('own_delta', { precision: 18, scale: 4 }).notNull().default('0'),
+    /** Закрытие периода, которому принадлежит своя часть (её отмена обнуляет ownDelta) */
+    closingId: uuid('closing_id'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    unique('stock_cost_adjustments_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.moveId], foreignColumns: [stockMoves.workspaceId, stockMoves.id], name: 'stock_cost_adjustments_move_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.closingId], foreignColumns: [productionCostClosings.workspaceId, productionCostClosings.id], name: 'stock_cost_adjustments_closing_fk' }).onDelete('cascade'),
+    check('stock_cost_adjustments_delta_chk', sql`${t.deltaCost} <> 0 or ${t.ownDelta} <> 0`),
+    uniqueIndex('stock_cost_adjustments_move_uq').on(t.workspaceId, t.moveId),
+    index('stock_cost_adjustments_closing_idx').on(t.closingId),
+  ],
+);
+
+/** Результат закрытия периода: статус, сводка распределения (jsonb) и время прогона.
+    Один закрытый месяц на воркспейс — уникальный индекс: повторное закрытие обновляет запись, а не плодит новую */
+export const productionCostClosings = pgTable(
+  'production_cost_closings',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    /** Первый день закрываемого месяца */
+    period: date('period', { mode: 'string' }).notNull(),
+    /** Закрыт / открыт заново / выполняется / ошибка */
+    status: text('status', { enum: ['running', 'done', 'reopened', 'failed'] }).notNull().default('running'),
+    /** Распределено по статьям, участкам и выпускам; нераспределённое; предупреждения */
+    totals: jsonb('totals').$type<Record<string, unknown>>().notNull().default({}),
+    error: text('error'),
+    runAt: ts('run_at').notNull().defaultNow(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    unique('production_cost_closings_ws_id_uq').on(t.workspaceId, t.id),
+    uniqueIndex('production_cost_closings_period_uq').on(t.workspaceId, t.period),
+    check('production_cost_closings_status_chk', sql`${t.status} in ('running','done','reopened','failed')`),
+    index('production_cost_closings_period_idx').on(t.period),
+  ],
+);
+
+/** Строка документа «Прочие затраты»: статья, участок, сумма и комментарий (товара у строки нет — склад не двигается) */
+export const otherCostLines = pgTable(
+  'other_cost_lines',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    documentId: uuid('document_id').notNull(),
+    sortOrder: integer('sort_order').notNull().default(0),
+    /** Статья затрат */
+    costItemId: uuid('cost_item_id').notNull(),
+    /** Участок: необязателен (затраты без участка идут на общий выпуск) */
+    workCenterId: uuid('work_center_id'),
+    /** Сумма затрат */
+    amount: money('amount').notNull().default('0'),
+    comment: text('comment').notNull().default(''),
+    createdAt: createdAt(),
+  },
+  t => [
+    unique('other_cost_lines_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'other_cost_lines_document_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.costItemId], foreignColumns: [costItems.workspaceId, costItems.id], name: 'other_cost_lines_item_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.workCenterId], foreignColumns: [workCenters.workspaceId, workCenters.id], name: 'other_cost_lines_work_center_fk' }),
+    check('other_cost_lines_amount_chk', sql`${t.amount} > 0`),
+    index('other_cost_lines_document_idx').on(t.documentId, t.sortOrder),
   ],
 );

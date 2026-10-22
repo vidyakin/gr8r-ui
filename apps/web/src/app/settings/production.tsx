@@ -2,10 +2,11 @@
 import * as React from 'react';
 import { Link } from 'react-router';
 import { MATERIAL_PRICE_SOURCES, type MaterialPriceSource } from '@gr8r/shared';
-import { Alert, Radio, Skeleton, toast } from '@/components/ui';
+import { Alert, Button, Field, Input, Radio, Skeleton, toast } from '@/components/ui';
 import { useIsAdmin } from '../catalog/data';
 import { useProductionApi, useSnapshot } from '../production/data';
-import { SettingsHead } from './parts';
+import { usePeriods, usePeriodSettings } from '../production/closing-data';
+import { SettingsHead, Toggle } from './parts';
 
 const OPTIONS: Record<MaterialPriceSource, { title: string; desc: string; disabled?: boolean }> = {
   purchase: { title: 'Purchase price', desc: 'The purchase price from the product card. Best for costing: it is what the material costs you.' },
@@ -17,6 +18,8 @@ export function ProductionSection({ title }: { title: string }) {
   const isAdmin = useIsAdmin();
   const snap = useSnapshot();
   const api = useProductionApi();
+  const periods = usePeriods();
+  const lock = usePeriodSettings();
   const saved = snap.data?.settings.materialPriceSource;
   // Выбор виден сразу, не дожидаясь ответа сервера; при ошибке возвращается сохранённое значение
   const [picked, setPicked] = React.useState<MaterialPriceSource | null>(null);
@@ -60,6 +63,41 @@ export function ProductionSection({ title }: { title: string }) {
             Only admins can change this setting.
           </Alert>
         )}
+      </div>
+      <div className="sblock">
+        <h2>Period closing</h2>
+        <p className="muted" style={{ margin: '4px 0 12px' }}>
+          Documents dated not later than the closed-through date cannot be posted, unposted or edited. Admins move the date forward, only the owner can move it back and cancel a closing.
+        </p>
+        <div className="stack" style={{ gap: 10 }}>
+          <Field label="Documents up to this date are locked">
+            {p => (
+              <div className="row" style={{ gap: 8 }}>
+                <Input {...p} type="date" value={periods.data?.closedThrough ?? ''} disabled={!isAdmin} onChange={e => void lock.mutateAsync({ closedThrough: e.target.value || null }).catch(err => toast.error(err.message))} />
+                <Button size="sm" disabled={!isAdmin || !periods.data?.closedThrough} onClick={() => void lock.mutateAsync({ closedThrough: null }).then(() => toast('Period unlocked', { duration: 1500 }))}>
+                  Unlock
+                </Button>
+              </div>
+            )}
+          </Field>
+          <label className="srow">
+            <div>
+              <div className="t">Move the locked date when a month is closed</div>
+              <div className="d">A successful closing moves the date to the last day of the closed month</div>
+            </div>
+            <Toggle
+              checked={periods.data?.closeMovesLock ?? false}
+              label="Move the locked date when a month is closed"
+              onChange={v => void lock.mutateAsync({ closeMovesLock: v }).then(() => toast('Saved', { duration: 1200 }))}
+            />
+          </label>
+        </div>
+        <p className="muted" style={{ margin: '10px 0 0' }}>
+          <Link to="/production/closing" className="crm-link">
+            Production → Month closing
+          </Link>{' '}
+          — close a month or a period, see the allocation of indirect costs and cancel a closing.
+        </p>
       </div>
       <div className="sblock">
         <h2>Work centers</h2>
