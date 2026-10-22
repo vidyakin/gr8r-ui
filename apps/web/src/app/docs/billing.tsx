@@ -1,12 +1,14 @@
 /* Billing: the invoice of the period for service contracts. The page shows a preview (subscription for the current
    period and the works by fact for the previous one), runs the billing and shows the result. */
 import * as React from 'react';
-import { CircleAlert, FileDown, ReceiptText } from 'lucide-react';
+import { CircleAlert, Download, FileDown, ReceiptText } from 'lucide-react';
 import { Badge, Button, EmptyState, Field, Select, Skeleton, toast } from '@/components/ui';
 import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
 import { money } from '../catalog/data';
 import { useBillingApi, useBillingPreview, useContractReport, type BillingPreviewItem, type BillingRunItem } from './billing-data';
 import { useIsAdmin } from '../catalog/data';
+import { API_BASE } from '../data/api';
+import { call, useWsId } from '../meta/data';
 
 /** Варианты периода: последние 12 месяцев, кварталы и год */
 function periodOptions(): { value: string; label: string }[] {
@@ -32,8 +34,11 @@ function currentPeriodKey(): string {
 export function BillingPage() {
   const isAdmin = useIsAdmin();
   const api = useBillingApi();
+  const ws = useWsId();
   const [period, setPeriod] = React.useState(currentPeriodKey);
   const [result, setResult] = React.useState<BillingRunItem[] | null>(null);
+  /** Состояние выгрузки PDF (ZIP): задача воркера, статус и ссылка на скачивание */
+  const [exported, setExported] = React.useState<{ id: string; name: string; status: string; error?: string } | null>(null);
   const preview = useBillingPreview(period);
   const report = useContractReport();
 
@@ -48,12 +53,36 @@ export function BillingPage() {
 
   const items = preview.data?.items ?? [];
 
-  /** Выгрузка счетов периода: PDF печатных форм (задачи воркера) */
+  /** Выгрузка счетов периода одним ZIP-архивом: задача воркера, статус и ссылка на скачивание */
   const exportPdf = async () => {
     const ids = items.map(i => i.existingDocumentId).filter((id): id is string => !!id);
     if (!ids.length) return toast.error('There are no issued invoices for this period');
-    const r = await api<{ count: number }>('POST', '/billing/export', { documentIds: ids });
-    if (r) toast(`PDF export requested for ${r.count} invoice(s)`);
+    const r = await api<{ id: string; name: string; count: number }>('POST', '/billing/export', { documentIds: ids });
+    if (!r) return;
+    setExported({ id: r.id, name: r.name, status: 'pending' });
+    toast(`PDF export requested for ${r.count} invoice(s)`);
+    for (let i = 0; i < 60; i++) {
+      await new Promise(res => setTimeout(res, 1000));
+      const st = await call<{ status: string; error?: string }>(ws, 'GET', `/billing/export/${r.id}`).catch(() => null);
+      if (!st) return;
+      setExported(e => (e && e.id === r.id ? { ...e, status: st.status, error: st.error } : e));
+      if (st.status === 'ready') return toast('The archive is ready to download');
+      if (st.status === 'failed') return toast.error(st.error || 'The export failed');
+    }
+    toast.error('The export is taking too long: is the worker running?');
+  };
+
+  /** Скачивание архива */
+  const downloadArchive = async () => {
+    if (!exported) return;
+    const res = await fetch(`${API_BASE()}/billing/export/${exported.id}?download=1`, { credentials: 'include', headers: { 'X-Workspace-Id': ws } });
+    if (!res.ok) return toast.error('Could not download the archive');
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = exported.name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
   };
 
   return (
@@ -67,7 +96,7 @@ export function BillingPage() {
           {isAdmin && (
             <Button variant="ghost" disabled={preview.isFetching} onClick={() => void exportPdf()}>
               <FileDown size={14} />
-              Export PDFs
+              Export PDF (ZIP)
             </Button>
           )}
           {isAdmin && (
@@ -107,6 +136,23 @@ export function BillingPage() {
                   {i.skipped ? <span className="faint">{i.reason}</span> : <Badge tone="green">{i.number ?? 'Draft'}</Badge>}
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+        {exported && (
+          <div style={{ marginTop: 16 }}>
+            <h2>PDF export</h2>
+            <div className="row" style={{ justifyContent: 'space-between', marginTop: 8 }}>
+              <span>
+                {exported.name} ·{' '}
+                {exported.status === 'pending' ? 'preparing…' : exported.status === 'ready' ? 'ready' : exported.status === 'failed' ? `failed: ${exported.error ?? 'unknown error'}` : exported.status}
+              </span>
+              {exported.status === 'ready' && (
+                <Button variant="secondary" onClick={() => void downloadArchive()}>
+                  <Download size={14} />
+                  Download
+                </Button>
+              )}
             </div>
           </div>
         )}

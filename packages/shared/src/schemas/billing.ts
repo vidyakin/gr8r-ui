@@ -91,5 +91,5 @@ export const billingReportQuery = z.object({
   to: isoDate.optional(),
   contractId: uuid.optional(),
 });
-/** Выгрузка счетов периода архивом */
-export const billingExportRequest = z.object({ documentIds: z.array(uuid).min(1).max(200) });
+/** Выгрузка счетов периода архивом. Пустой список — не ошибка схемы, а 422 no_documents в маршруте */
+export const billingExportRequest = z.object({ documentIds: z.array(uuid).max(200) });

@@ -1,14 +1,15 @@
 /* Обработчики воркера. События outbox → запуск автоматизаций (flows/triggers.ts). Задачи jobs: служебная noop, DDL по белому списку
-   (индексы полей конструктора), PDF печатных форм, закрытие периода (production.close_period) и выполнение запусков
-   автоматизаций (flow.run). */
-import { and, eq } from 'drizzle-orm';
-import { buildPrintData, createFieldIndex, documentFiles, dropFieldIndex, entities, events, fields, isUuid, jobs, withContext, type Db, type Sql } from '@gr8r/db';
+   (индексы полей конструктора), PDF печатных форм, ZIP-архив выгрузки счетов, закрытие периода (production.close_period)
+   и выполнение запусков автоматизаций (flow.run). */
+import { and, eq, inArray } from 'drizzle-orm';
+import { buildPrintData, createFieldIndex, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, isUuid, jobs, withContext, type Db, type Sql } from '@gr8r/db';
 import { DOCUMENT_META, FIELD_TYPES, renderPrintForm, type FieldType, type PrintForm } from '@gr8r/shared';
 import { runClosePeriod } from './production-closing';
 import { executeRun } from './flows/engine';
 import { startRunsForEvent } from './flows/triggers';
 import { renderPdf } from './pdf/render';
-import { pdfStoreFromEnv, type PdfStore } from './pdf/storage';
+import { archiveStoreFromEnv, pdfStoreFromEnv, type PdfStore } from './pdf/storage';
+import { createZip, type ZipEntry } from './pdf/zip';
 
 export type EventRow = typeof events.$inferSelect;
 export type JobRow = typeof jobs.$inferSelect;
@@ -35,6 +36,19 @@ export const makeJobContext = (sql: Sql, ddl: Sql | null): JobContext => ({ read
 
 /** Хранилище PDF (PDF_STORE=db по умолчанию; s3 — заготовка); тесты подменяют его */
 export const pdfRuntime: { store: PdfStore; render: typeof renderPdf } = { store: pdfStoreFromEnv(), render: renderPdf };
+
+/** Хранилище архивов выгрузки (ZIP) — тот же bytea, что у PDF, но своя таблица (document_exports) */
+export const archiveRuntime: { store: PdfStore } = { store: archiveStoreFromEnv() };
+
+/** Имя файла счёта внутри архива: номер счёта без небезопасных символов (буквы любого алфавита остаются);
+    одинаковые номера не сливаются — к второму добавляется порядковый номер */
+export function archiveFileName(number: string | null, documentId: string, used: Set<string>): string {
+  const base = (number ?? '').trim().replace(/[^\p{L}\p{N}._-]+/gu, '_') || `invoice-${documentId.slice(0, 8)}`;
+  let name = `${base}.pdf`;
+  for (let i = 2; used.has(name); i++) name = `${base}-${i}.pdf`;
+  used.add(name);
+  return name;
+}
 
 /** Поле, по которому строится индекс, — по метаданным из БД, а не по содержимому задачи: из payload берётся только uuid поля */
 async function loadIndexTarget(job: JobRow, h: JobContext) {
@@ -104,6 +118,37 @@ export const jobHandlers: Record<string, (job: JobRow, h: JobContext) => Promise
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       await h.read(db => db.update(documentFiles).set({ status: 'failed', error: msg.slice(0, 1000), finishedAt: new Date() }).where(eq(documentFiles.id, file.id)));
+    }
+  },
+  /** Выгрузка счетов одним ZIP-архивом: PDF печатных форм (та же печать, что у document.pdf) складываются в архив.
+      Ошибка формирования не повторяется вслепую: архив помечается failed с текстом ошибки, выгрузку можно заказать заново */
+  'billing.export_zip': async (job, h) => {
+    const exportId = (job.payload as { exportId?: unknown }).exportId;
+    if (!isUuid(exportId)) throw new Error('billing.export_zip job: payload.exportId must be a uuid');
+    const row = await h.read(async db => (await db.select().from(documentExports).where(eq(documentExports.id, exportId)).limit(1))[0]);
+    if (!row) return; // выгрузка удалена
+    if (!row.documentIds.length) {
+      await h.read(db => archiveRuntime.store.save(db, { id: row.id, workspaceId: row.workspaceId }, createZip([])));
+      return;
+    }
+    try {
+      const docs = await h.read(async db =>
+        db.select({ id: documents.id, number: documents.number }).from(documents).where(and(eq(documents.workspaceId, row.workspaceId), inArray(documents.id, row.documentIds))),
+      );
+      const byId = new Map(docs.map(d => [d.id, d]));
+      const used = new Set<string>();
+      const entries: ZipEntry[] = [];
+      for (const id of row.documentIds) {
+        const doc = byId.get(id);
+        if (!doc) continue; // счёт удалён после заказа выгрузки
+        const html = await h.read(async db => renderPrintForm('invoice', await buildPrintData(db, doc.id)));
+        const bytes = await pdfRuntime.render(html, 'invoice');
+        entries.push({ name: archiveFileName(doc.number, doc.id, used), data: bytes });
+      }
+      await h.read(db => archiveRuntime.store.save(db, { id: row.id, workspaceId: row.workspaceId }, createZip(entries)));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await h.read(db => db.update(documentExports).set({ status: 'failed', error: msg.slice(0, 1000), finishedAt: new Date() }).where(eq(documentExports.id, row.id)));
     }
   },
 };
