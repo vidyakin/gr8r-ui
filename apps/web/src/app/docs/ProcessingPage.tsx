@@ -7,6 +7,7 @@ import { CircleAlert, FilePlus, PackageSearch } from 'lucide-react';
 import { Badge, Button, EmptyState, Skeleton } from '@/components/ui';
 import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/gr8r/data-table';
 import { FilterBar, useFilterState } from '@/components/gr8r/filter-bar';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { money, unitSymbol, useUnits } from '../catalog/data';
 import { fmtDate, parse } from '../lib/dates';
@@ -15,11 +16,11 @@ import { JournalPage } from './JournalPage';
 import { STATUS_LABEL, STATUS_TONE, useCustomerBalances, useDocsApi, useProcessingOrders, type CustomerBalance, type DocDetail, type ProcessingOrderItem } from './data';
 
 const TABS = [
-  { id: 'orders', name: 'Orders' },
-  { id: 'receipts', name: 'Receipts' },
-  { id: 'reports', name: 'Reports' },
-  { id: 'journal', name: 'Journal' },
-  { id: 'balances', name: 'Stock received for processing' },
+  { id: 'orders' },
+  { id: 'receipts' },
+  { id: 'reports' },
+  { id: 'journal' },
+  { id: 'balances' },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -30,6 +31,7 @@ export function ProcessingPage() {
   const [params, setParams] = useSearchParams();
   const raw = params.get('tab');
   const tab: TabId = (TABS.find(t => t.id === raw)?.id ?? 'orders') as TabId;
+  const t = useT();
   const setTab = (id: TabId) =>
     setParams(
       p => {
@@ -44,14 +46,14 @@ export function ProcessingPage() {
     <div className="page flush">
       <div className="ph">
         <div>
-          <h1>Documents of processing</h1>
-          <p>Customer raw materials are tracked by quantity only and do not change our stock or average cost. Our revenue is the processing service, its cost — our own materials, works and overhead.</p>
+          <h1>{t('docs.processing.title')}</h1>
+          <p>{t('docs.processing.lead')}</p>
         </div>
       </div>
-      <nav className="tabs doc-tabs" aria-label="Processing documents">
-        {TABS.map(t => (
-          <button key={t.id} type="button" className={cn('tab', tab === t.id && 'on')} aria-current={tab === t.id ? 'page' : undefined} onClick={() => setTab(t.id)}>
-            {t.name}
+      <nav className="tabs doc-tabs" aria-label={t('docs.processing.ariaLabel')}>
+        {TABS.map(tt => (
+          <button key={tt.id} type="button" className={cn('tab', tab === tt.id && 'on')} aria-current={tab === tt.id ? 'page' : undefined} onClick={() => setTab(tt.id)}>
+            {t(`docs.processing.tabs.${tt.id}`)}
           </button>
         ))}
       </nav>
@@ -70,10 +72,11 @@ function OrdersTab() {
   const api = useDocsApi();
   const canWrite = useCanWrite();
   const filters = useFilterState();
+  const t = useT();
   const [q, setQ] = React.useState('');
   React.useEffect(() => {
-    const t = setTimeout(() => setQ(filters.q.trim()), 250);
-    return () => clearTimeout(t);
+    const tt = setTimeout(() => setQ(filters.q.trim()), 250);
+    return () => clearTimeout(tt);
   }, [filters.q]);
   const list = useProcessingOrders({ q: q || undefined });
   const rows = list.data?.items ?? [];
@@ -85,36 +88,36 @@ function OrdersTab() {
 
   const columns = React.useMemo<Column<ProcessingOrderItem>[]>(
     () => [
-      { id: 'number', header: 'Number', width: 150, value: d => d.number ?? '', cell: d => (d.number ? <span className="mono">{d.number}</span> : <span className="faint">Draft</span>) },
-      { id: 'date', header: 'Date', width: 112, value: d => d.date, cell: d => <span className="num muted">{fmtDate(parse(d.date))}</span> },
-      { id: 'owner', header: 'Customer', width: 240, value: d => d.counterpartyName ?? '', cell: d => <span className="trunc">{d.counterpartyName ?? d.ownerName ?? '—'}</span> },
-      { id: 'total', header: 'Service price', width: 140, align: 'right', value: d => Number(d.total), cell: d => <span className="num">{money(d.total)}</span> },
+      { id: 'number', header: t('docs.processing.col.number'), width: 150, value: d => d.number ?? '', cell: d => (d.number ? <span className="mono">{d.number}</span> : <span className="faint">{t('docs.processing.draft')}</span>) },
+      { id: 'date', header: t('docs.processing.col.date'), width: 112, value: d => d.date, cell: d => <span className="num muted">{fmtDate(parse(d.date))}</span> },
+      { id: 'owner', header: t('docs.processing.col.customer'), width: 240, value: d => d.counterpartyName ?? '', cell: d => <span className="trunc">{d.counterpartyName ?? d.ownerName ?? '—'}</span> },
+      { id: 'total', header: t('docs.processing.col.servicePrice'), width: 140, align: 'right', value: d => Number(d.total), cell: d => <span className="num">{money(d.total)}</span> },
       {
         id: 'cost',
-        header: 'Service cost',
+        header: t('docs.processing.col.serviceCost'),
         width: 150,
         align: 'right',
         defaultHidden: true,
         value: d => Number(d.serviceCost ?? 0),
         cell: d => <span className="num muted">{d.serviceCost === null ? '—' : money(d.serviceCost)}</span>,
       },
-      { id: 'status', header: 'Status', width: 112, value: d => STATUS_LABEL[d.status], cell: d => <Badge tone={STATUS_TONE[d.status]} dot>{STATUS_LABEL[d.status]}</Badge> },
+      { id: 'status', header: t('common.status'), width: 112, value: d => STATUS_LABEL[d.status], cell: d => <Badge tone={STATUS_TONE[d.status]} dot>{STATUS_LABEL[d.status]}</Badge> },
     ],
-    [],
+    [t],
   );
   const table = useDataTable(columns, { sort: { id: 'date', dir: -1 } });
 
   return (
     <>
       <FilterBar
-        search={{ value: filters.q, onChange: filters.setQ, placeholder: 'Search by number or comment' }}
+        search={{ value: filters.q, onChange: filters.setQ, placeholder: t('docs.processing.searchPlaceholder') }}
         fields={[]}
         filters={filters}
         sort={{ options: columns.filter(c => c.value).map(c => ({ id: c.id, name: c.header })), value: table.sort.id, dir: table.sort.dir, onChange: table.setSort }}
         columns={columnsMenu(columns, table)}
       />
       {list.isError ? (
-        <EmptyState icon={<CircleAlert size={20} />} error title="Could not load the processing orders" action={<Button size="sm" onClick={() => list.refetch()}>Retry</Button>}>
+        <EmptyState icon={<CircleAlert size={20} />} error title={t('docs.processing.loadError')} action={<Button size="sm" onClick={() => list.refetch()}>{t('common.retry')}</Button>}>
           {(list.error as Error).message}
         </EmptyState>
       ) : list.isPending ? (
@@ -123,7 +126,7 @@ function OrdersTab() {
         </div>
       ) : (
         <DataTable
-          aria-label="Processing orders"
+          aria-label={t('docs.processing.ordersAria')}
           columns={columns}
           rows={rows}
           table={table}
@@ -132,10 +135,10 @@ function OrdersTab() {
           empty={
             <EmptyState
               icon={<FilePlus size={20} />}
-              title="No processing orders yet"
-              action={canWrite ? <Button size="sm" variant="primary" onClick={() => void create()}>New processing order</Button> : undefined}
+              title={t('docs.processing.emptyTitle')}
+              action={canWrite ? <Button size="sm" variant="primary" onClick={() => void create()}>{t('docs.processing.newOrder')}</Button> : undefined}
             >
-              A processing order is a customer order with the processing kind of operation: what to make and the price of the service.
+              {t('docs.processing.emptyHint')}
             </EmptyState>
           }
         />
@@ -150,10 +153,11 @@ function BalancesTab() {
   const filters = useFilterState();
   const list = useCustomerBalances();
   const rows = list.data ?? [];
+  const t = useT();
   const [q, setQ] = React.useState('');
   React.useEffect(() => {
-    const t = setTimeout(() => setQ(filters.q.trim()), 250);
-    return () => clearTimeout(t);
+    const tt = setTimeout(() => setQ(filters.q.trim()), 250);
+    return () => clearTimeout(tt);
   }, [filters.q]);
 
   const filtered = React.useMemo(() => {
@@ -164,27 +168,27 @@ function BalancesTab() {
 
   const columns = React.useMemo<Column<CustomerBalance>[]>(
     () => [
-      { id: 'owner', header: 'Customer', width: 240, value: r => r.ownerName, cell: r => <span className="trunc">{r.ownerName}</span> },
-      { id: 'name', header: 'Product', width: 280, value: r => r.name, cell: r => <span className="trunc" style={{ fontWeight: 450 }}>{r.name}</span> },
-      { id: 'warehouse', header: 'Warehouse', width: 200, value: r => r.warehouseName, cell: r => <span className="trunc muted">{r.warehouseName}</span> },
-      { id: 'order', header: 'Processing order', width: 170, value: r => r.processingOrderNumber ?? '', cell: r => (r.processingOrderNumber ? <span className="mono">{r.processingOrderNumber}</span> : <span className="faint">General</span>) },
-      { id: 'qty', header: 'Quantity', width: 130, align: 'right', value: r => Number(r.qty), cell: r => <span className="num" style={{ fontWeight: 500 }}>{qtyText(r.qty)} <span className="faint">{unitSymbol(units.data, r.unitCode)}</span></span> },
+      { id: 'owner', header: t('docs.processing.col.customer'), width: 240, value: r => r.ownerName, cell: r => <span className="trunc">{r.ownerName}</span> },
+      { id: 'name', header: t('docs.processing.col.product'), width: 280, value: r => r.name, cell: r => <span className="trunc" style={{ fontWeight: 450 }}>{r.name}</span> },
+      { id: 'warehouse', header: t('docs.processing.col.warehouse'), width: 200, value: r => r.warehouseName, cell: r => <span className="trunc muted">{r.warehouseName}</span> },
+      { id: 'order', header: t('docs.processing.col.order'), width: 170, value: r => r.processingOrderNumber ?? '', cell: r => (r.processingOrderNumber ? <span className="mono">{r.processingOrderNumber}</span> : <span className="faint">{t('docs.processing.general')}</span>) },
+      { id: 'qty', header: t('docs.processing.col.qty'), width: 130, align: 'right', value: r => Number(r.qty), cell: r => <span className="num" style={{ fontWeight: 500 }}>{qtyText(r.qty)} <span className="faint">{unitSymbol(units.data, r.unitCode)}</span></span> },
     ],
-    [units.data],
+    [units.data, t],
   );
   const table = useDataTable(columns, { sort: { id: 'owner', dir: 1 } });
 
   return (
     <>
       <FilterBar
-        search={{ value: filters.q, onChange: filters.setQ, placeholder: 'Search by product, SKU or customer' }}
+        search={{ value: filters.q, onChange: filters.setQ, placeholder: t('docs.processing.searchBalances') }}
         fields={[]}
         filters={filters}
         sort={{ options: columns.filter(c => c.value).map(c => ({ id: c.id, name: c.header })), value: table.sort.id, dir: table.sort.dir, onChange: table.setSort }}
         columns={columnsMenu(columns, table)}
       />
       {list.isError ? (
-        <EmptyState icon={<CircleAlert size={20} />} error title="Could not load the customer balances" action={<Button size="sm" onClick={() => list.refetch()}>Retry</Button>}>
+        <EmptyState icon={<CircleAlert size={20} />} error title={t('docs.processing.balancesLoadError')} action={<Button size="sm" onClick={() => list.refetch()}>{t('common.retry')}</Button>}>
           {(list.error as Error).message}
         </EmptyState>
       ) : list.isPending ? (
@@ -193,14 +197,14 @@ function BalancesTab() {
         </div>
       ) : (
         <DataTable
-          aria-label="Stock received for processing"
+          aria-label={t('docs.processing.balancesAria')}
           columns={columns}
           rows={filtered}
           table={table}
           getId={r => `${r.warehouseId}:${r.productId}:${r.ownerCompanyId}:${r.processingOrderId ?? ''}`}
           empty={
-            <EmptyState icon={<PackageSearch size={20} />} title={q ? 'No results found' : 'No customer materials yet'}>
-              {q ? 'No customer materials match this search.' : 'Post a receipt for processing to see the accepted raw materials here.'}
+            <EmptyState icon={<PackageSearch size={20} />} title={q ? t('docs.processing.emptyBalancesSearch') : t('docs.processing.emptyBalances')}>
+              {q ? t('docs.processing.emptyBalancesSearchHint') : t('docs.processing.emptyBalancesHint')}
             </EmptyState>
           }
         />

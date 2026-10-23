@@ -7,6 +7,7 @@ import { CALC_LINE_LABELS, COST_PRICE_SOURCE_LABELS, type CostPriceSource, type 
 import { Alert, Button, Dialog, DialogClose, DialogContent, EmptyState, Field, Input, Skeleton, toast } from '@/components/ui';
 import { call, useWsId } from '../meta/data';
 import { errorMessage } from '../data/api';
+import { useT } from '@/i18n';
 
 /** Параметры спецификации товара: по ним считаются формулы строк */
 export function useSpecParams(productId: string | null | undefined) {
@@ -16,18 +17,19 @@ export function useSpecParams(productId: string | null | undefined) {
 
 /** Диалог значений параметров строки заказа */
 export function ParamsDialog({ productId, productName, values, onChange, onClose }: { productId: string; productName: string; values: Record<string, unknown>; onChange: (v: Record<string, unknown>) => void; onClose: () => void }) {
+  const t = useT();
   const params = useSpecParams(productId);
   const list = params.data ?? [];
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
-        title="Parameters"
+        title={t('docs.calculation.dialog.paramsTitle')}
         description={productName}
         footer={
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Close</Button>
+              <Button variant="secondary">{t('docs.calculation.dialog.close')}</Button>
             </DialogClose>
           </>
         }
@@ -36,12 +38,12 @@ export function ParamsDialog({ productId, productName, values, onChange, onClose
           <Skeleton w="100%" h={28} />
         ) : !list.length ? (
           <p className="muted" style={{ margin: 0 }}>
-            This product has no parameters: the composition is the same for every order.
+            {t('docs.calculation.dialog.noParams')}
           </p>
         ) : (
           <div className="contents">
             {list.map(p => (
-              <Field key={p.key} label={p.name} hint={p.stockDimension ? 'Stock dimension: the combination of such parameters gives a variant of the product.' : undefined}>
+              <Field key={p.key} label={p.name} hint={p.stockDimension ? t('docs.calculation.dialog.stockDim') : undefined}>
                 {f => (
                   <>
                     {p.type === 'boolean' ? (
@@ -100,6 +102,7 @@ export interface Calculation {
 
 /** Калькуляция заказа покупателя: состав по спецификациям, наценка и применение цены к строкам */
 export function CalculationDialog({ documentId, onClose, onApplied }: { documentId: string; onClose: () => void; onApplied: () => void }) {
+  const t = useT();
   const ws = useWsId();
   const qc = useQueryClient();
   const [busy, setBusy] = React.useState(false);
@@ -118,7 +121,7 @@ export function CalculationDialog({ documentId, onClose, onApplied }: { document
   const apply = useMutation({
     mutationFn: () => call(ws, 'POST', `/order-calculations/${calc.data?.id}/apply`, { documentId }),
     onSuccess: () => {
-      toast('Prices applied to the order lines');
+      toast(t('docs.calculation.dialog.applied'));
       onApplied();
       qc.invalidateQueries({ queryKey: ['ws', ws, 'calculation', documentId] });
     },
@@ -130,19 +133,19 @@ export function CalculationDialog({ documentId, onClose, onApplied }: { document
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
         size="lg"
-        title="Calculation"
-        description="Planned cost of the order by the specifications of the products"
+        title={t('docs.calculation.dialogTitle')}
+        description={t('docs.calculation.dialogLead')}
         footer={
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Close</Button>
+              <Button variant="secondary">{t('docs.calculation.dialog.close')}</Button>
             </DialogClose>
             <Button variant="secondary" disabled={busy || recalc.isPending} onClick={() => (setBusy(true), recalc.mutate({}))}>
-              Recalculate
+              {t('docs.calculation.dialog.recalculate')}
             </Button>
             <Button variant="primary" disabled={busy || apply.isPending || !c} onClick={() => (setBusy(true), apply.mutate())}>
-              Apply price to lines
+              {t('docs.calculation.dialog.apply')}
             </Button>
           </>
         }
@@ -150,17 +153,17 @@ export function CalculationDialog({ documentId, onClose, onApplied }: { document
         {calc.isPending ? (
           <Skeleton w="100%" h={120} />
         ) : calc.isError ? (
-          <Alert tone="danger" title="Could not load the calculation">
+          <Alert tone="danger" title={t('docs.calculation.dialog.loadError')}>
             {(calc.error as Error).message}
           </Alert>
         ) : !c ? (
-          <EmptyState icon={<Calculator size={20} />} title="No calculation yet" action={<Button size="sm" onClick={() => recalc.mutate({})}>Calculate</Button>}>
-            Calculate the planned cost of the order by the specifications of its products.
+          <EmptyState icon={<Calculator size={20} />} title={t('docs.calculation.dialog.emptyTitle')} action={<Button size="sm" onClick={() => recalc.mutate({})}>{t('docs.calculation.dialog.calculate')}</Button>}>
+            {t('docs.calculation.dialog.emptyHint')}
           </EmptyState>
         ) : (
           <div className="contents">
             <div className="row" style={{ gap: 10 }}>
-              <Field label="Cost price source" className="grow">
+              <Field label={t('docs.calculation.dialog.priceSource')} className="grow">
                 {f => (
                   <select
                     className="select"
@@ -176,18 +179,18 @@ export function CalculationDialog({ documentId, onClose, onApplied }: { document
                   </select>
                 )}
               </Field>
-              <Field label="Markup, %" className="grow">
+              <Field label={t('docs.calculation.dialog.markup')} className="grow">
                 {f => <Input {...f} inputMode="decimal" value={c.markupPct} onChange={e => patch.mutate({ markupPct: e.target.value })} />}
               </Field>
             </div>
             <table className="grid">
               <thead>
                 <tr>
-                  <th>Item</th>
-                  <th>Type</th>
-                  <th className="right">Qty</th>
-                  <th className="right">Price</th>
-                  <th className="right">Amount</th>
+                  <th>{t('docs.calculation.dialog.col.item')}</th>
+                  <th>{t('docs.calculation.dialog.col.type')}</th>
+                  <th className="right">{t('docs.calculation.dialog.col.qty')}</th>
+                  <th className="right">{t('docs.calculation.dialog.col.price')}</th>
+                  <th className="right">{t('docs.calculation.dialog.col.amount')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -203,12 +206,12 @@ export function CalculationDialog({ documentId, onClose, onApplied }: { document
               </tbody>
             </table>
             <div className="row" style={{ gap: 16, justifyContent: 'flex-end' }}>
-              <span className="muted">Cost: {c.costTotal ?? '—'}</span>
-              <span className="muted">Price of the lines: {c.priceTotal ?? '—'}</span>
+              <span className="muted">{t('docs.calculation.dialog.cost')}: {c.costTotal ?? '—'}</span>
+              <span className="muted">{t('docs.calculation.dialog.priceTotal')}: {c.priceTotal ?? '—'}</span>
             </div>
             {c.costTotal === null && (
-              <Alert tone="info" title="Cost is hidden">
-                <CircleAlert size={14} /> Your role does not show the cost of the order.
+              <Alert tone="info" title={t('docs.calculation.dialog.costHidden')}>
+                <CircleAlert size={14} /> {t('docs.calculation.dialog.costHiddenHint')}
               </Alert>
             )}
           </div>

@@ -8,6 +8,7 @@ import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/
 import { FilterBar, useFilterState, type FilterField } from '@/components/gr8r/filter-bar';
 import { DrawerSection, EntityDrawer } from '@/components/gr8r/entity-drawer';
 import { Stat } from '@/components/gr8r/panel';
+import { useT } from '@/i18n';
 import { money, unitSymbol, useUnits } from '../catalog/data';
 import { fmtDate, parse } from '../lib/dates';
 import { typeLabel, useStockBalances, useStockMoves, useWarehouses, type StockBalance } from './data';
@@ -21,11 +22,12 @@ export function InventoryPage() {
   const warehouses = useWarehouses();
   const units = useUnits();
   const filters = useFilterState();
+  const t = useT();
   const [q, setQ] = React.useState('');
   const [hideZero, setHideZero] = React.useState(true);
   React.useEffect(() => {
-    const t = setTimeout(() => setQ(filters.q.trim()), 250);
-    return () => clearTimeout(t);
+    const tt = setTimeout(() => setQ(filters.q.trim()), 250);
+    return () => clearTimeout(tt);
   }, [filters.q]);
   const wh = (filters.values.warehouse ?? [])[0] ?? sp.get('warehouse') ?? undefined;
 
@@ -35,19 +37,19 @@ export function InventoryPage() {
 
   const columns = React.useMemo<Column<StockBalance>[]>(
     () => [
-      { id: 'name', header: 'Product', width: 300, value: r => r.name, cell: r => <span className="trunc" style={{ fontWeight: 450 }}>{r.name}</span> },
-      { id: 'sku', header: 'SKU', width: 130, value: r => r.sku, cell: r => (r.sku ? <span className="mono">{r.sku}</span> : <span className="faint">—</span>) },
-      { id: 'warehouse', header: 'Warehouse', width: 200, value: r => r.warehouseName, cell: r => <span className="trunc muted">{r.warehouseName}</span> },
-      { id: 'qty', header: 'On hand', width: 112, align: 'right', value: r => Number(r.qty), cell: r => <span className={Number(r.qty) < 0 ? 'num neg' : 'num'}>{qty(r.qty)} <span className="faint">{unitSymbol(units.data, r.unitCode)}</span></span> },
-      { id: 'reserved', header: 'Reserved', width: 104, align: 'right', value: r => Number(r.reserved), cell: r => (Number(r.reserved) ? <span className="num">{qty(r.reserved)}</span> : <span className="faint">—</span>) },
-      { id: 'available', header: 'Available', width: 108, align: 'right', value: r => Number(r.available), cell: r => <span className="num" style={{ fontWeight: 500 }}>{qty(r.available)}</span> },
-      { id: 'avg', header: 'Average cost', width: 124, align: 'right', value: r => Number(r.avgCost), cell: r => <span className="num muted">{r.avgCost === null ? <span className="faint">—</span> : money(r.avgCost)}</span> },
-      { id: 'value', header: 'Value', width: 132, align: 'right', value: r => Number(r.value), cell: r => <span className="num">{r.value === null ? <span className="faint">—</span> : money(r.value)}</span>, total: () => (list.data?.value ? <span className="num" style={{ fontWeight: 600 }}>{money(list.data.value)}</span> : null) },
+      { id: 'name', header: t('docs.inventory.col.product'), width: 300, value: r => r.name, cell: r => <span className="trunc" style={{ fontWeight: 450 }}>{r.name}</span> },
+      { id: 'sku', header: t('docs.inventory.col.sku'), width: 130, value: r => r.sku, cell: r => (r.sku ? <span className="mono">{r.sku}</span> : <span className="faint">—</span>) },
+      { id: 'warehouse', header: t('docs.inventory.col.warehouse'), width: 200, value: r => r.warehouseName, cell: r => <span className="trunc muted">{r.warehouseName}</span> },
+      { id: 'qty', header: t('docs.inventory.col.onHand'), width: 112, align: 'right', value: r => Number(r.qty), cell: r => <span className={Number(r.qty) < 0 ? 'num neg' : 'num'}>{qty(r.qty)} <span className="faint">{unitSymbol(units.data, r.unitCode)}</span></span> },
+      { id: 'reserved', header: t('docs.inventory.col.reserved'), width: 104, align: 'right', value: r => Number(r.reserved), cell: r => (Number(r.reserved) ? <span className="num">{qty(r.reserved)}</span> : <span className="faint">—</span>) },
+      { id: 'available', header: t('docs.inventory.col.available'), width: 108, align: 'right', value: r => Number(r.available), cell: r => <span className="num" style={{ fontWeight: 500 }}>{qty(r.available)}</span> },
+      { id: 'avg', header: t('docs.inventory.col.avgCost'), width: 124, align: 'right', value: r => Number(r.avgCost), cell: r => <span className="num muted">{r.avgCost === null ? <span className="faint">—</span> : money(r.avgCost)}</span> },
+      { id: 'value', header: t('docs.inventory.col.value'), width: 132, align: 'right', value: r => Number(r.value), cell: r => <span className="num">{r.value === null ? <span className="faint">—</span> : money(r.value)}</span>, total: () => (list.data?.value ? <span className="num" style={{ fontWeight: 600 }}>{money(list.data.value)}</span> : null) },
     ],
-    [units.data, list.data],
+    [units.data, list.data, t],
   );
   const table = useDataTable(columns, { sort: { id: 'name', dir: 1 } });
-  const filterFields: FilterField[] = [{ id: 'warehouse', name: 'Warehouse', icon: <WarehouseIcon size={15} />, options: (warehouses.data ?? []).map(w => ({ id: w.id, name: w.name })) }];
+  const filterFields: FilterField[] = [{ id: 'warehouse', name: t('docs.inventory.col.warehouse'), icon: <WarehouseIcon size={15} />, options: (warehouses.data ?? []).map(w => ({ id: w.id, name: w.name })) }];
 
   const open = (r: StockBalance) => navigate({ pathname: `/inventory/${r.productId}`, search: sp.toString() });
   const selected = rows.find(r => r.productId === productId);
@@ -56,30 +58,30 @@ export function InventoryPage() {
     <div className="page flush">
       <div className="ph">
         <div>
-          <h1>Inventory</h1>
-          <p>Stock by warehouse and product. Documents change it when they are posted.</p>
+          <h1>{t('docs.inventory.title')}</h1>
+          <p>{t('docs.inventory.lead')}</p>
         </div>
         <div className="acts">
           <Button onClick={() => setHideZero(v => !v)} aria-pressed={!hideZero}>
             {hideZero ? <Eye size={14} /> : <EyeOff size={14} />}
-            {hideZero ? 'Show zero stock' : 'Hide zero stock'}
+            {hideZero ? t('docs.inventory.showZero') : t('docs.inventory.hideZero')}
           </Button>
         </div>
       </div>
       <div className="stats" style={{ padding: '0 16px 12px' }}>
-        <Stat label="Stock value" value={list.data?.value === null ? '—' : list.data ? money(list.data.value) : '—'} note="at average cost" />
-        <Stat label="Positions" value={list.data?.total ?? '—'} note={wh ? 'in the selected warehouse' : 'across all warehouses'} />
-        <Stat label="With reserves" value={reservedRows} note="held for customer orders" />
+        <Stat label={t('docs.inventory.stockValue')} value={list.data?.value === null ? '—' : list.data ? money(list.data.value) : '—'} note={t('docs.inventory.atAvgCost')} />
+        <Stat label={t('docs.inventory.positions')} value={list.data?.total ?? '—'} note={wh ? t('docs.inventory.positionsFiltered') : t('docs.inventory.positionsAll')} />
+        <Stat label={t('docs.inventory.withReserves')} value={reservedRows} note={t('docs.inventory.reservesNote')} />
       </div>
       <FilterBar
-        search={{ value: filters.q, onChange: filters.setQ, placeholder: 'Search by product or SKU' }}
+        search={{ value: filters.q, onChange: filters.setQ, placeholder: t('docs.inventory.searchPlaceholder') }}
         fields={filterFields}
         filters={filters}
         sort={{ options: columns.filter(c => c.value).map(c => ({ id: c.id, name: c.header })), value: table.sort.id, dir: table.sort.dir, onChange: table.setSort }}
         columns={columnsMenu(columns, table)}
       />
       {list.isError ? (
-        <EmptyState icon={<CircleAlert size={20} />} error title="Could not load stock" action={<Button size="sm" onClick={() => list.refetch()}>Retry</Button>}>
+        <EmptyState icon={<CircleAlert size={20} />} error title={t('docs.inventory.loadError')} action={<Button size="sm" onClick={() => list.refetch()}>{t('common.retry')}</Button>}>
           {(list.error as Error).message}
         </EmptyState>
       ) : list.isPending ? (
@@ -88,7 +90,7 @@ export function InventoryPage() {
         </div>
       ) : (
         <DataTable
-          aria-label="Stock balances"
+          aria-label={t('docs.inventory.ariaBalances')}
           columns={columns}
           rows={rows}
           table={table}
@@ -96,8 +98,8 @@ export function InventoryPage() {
           onRowClick={open}
           showTotals
           empty={
-            <EmptyState icon={<Boxes size={20} />} title={filters.count || q ? 'No results found' : 'No stock yet'} action={filters.count || q ? <Button size="sm" onClick={() => (filters.reset(), setQ(''))}>Clear filters</Button> : <Link to="/purchases" className="btn btn-secondary">Go to Purchases</Link>}>
-              {filters.count || q ? 'No stock matches these filters.' : 'Post a goods receipt and the items appear here.'}
+            <EmptyState icon={<Boxes size={20} />} title={filters.count || q ? t('common.noResults') : t('docs.inventory.emptyTitle')} action={filters.count || q ? <Button size="sm" onClick={() => (filters.reset(), setQ(''))}>{t('common.clearFilters')}</Button> : <Link to="/purchases" className="btn btn-secondary">{t('docs.inventory.goToPurchases')}</Link>}>
+              {filters.count || q ? t('docs.inventory.emptyFilteredHint') : t('docs.inventory.emptyHint')}
             </EmptyState>
           }
         />
@@ -112,6 +114,7 @@ function ProductCard({ productId, row, onClose }: { productId: string; row?: Sto
   const all = useStockBalances({});
   const moves = useStockMoves(productId);
   const units = useUnits();
+  const t = useT();
   const mine = (all.data?.items ?? []).filter(b => b.productId === productId);
   const first = mine[0] ?? row;
   const total = mine.reduce((s, b) => s + Number(b.qty), 0);
@@ -119,26 +122,26 @@ function ProductCard({ productId, row, onClose }: { productId: string; row?: Sto
   const seeCost = mine.some(b => b.value !== null);
   return (
     <EntityDrawer
-      label={`Stock card: ${first?.name ?? 'product'}`}
-      crumb={<span className="muted">Stock card</span>}
-      title={first?.name ?? 'Product'}
+      label={t('docs.inventory.cardLabel', { name: first?.name ?? t('docs.inventory.productFallback') })}
+      crumb={t('docs.inventory.crumb')}
+      title={first?.name ?? t('docs.inventory.productFallback')}
       subtitle={
         <span className="muted">
           {first?.sku ? <span className="mono">{first.sku} · </span> : null}
-          {qty(String(total))} {first ? unitSymbol(units.data, first.unitCode) : ''} in stock{seeCost ? ` · ${money(value)} at average cost` : ''}
+          {qty(String(total))} {first ? unitSymbol(units.data, first.unitCode) : ''} {t('docs.inventory.inStock')}{seeCost ? ` · ${money(value)} ${t('docs.inventory.atAvgCost')}` : ''}
         </span>
       }
       onClose={onClose}
     >
-      <DrawerSection title="By warehouse" count={mine.length}>
+      <DrawerSection title={t('docs.inventory.byWarehouse')} count={mine.length}>
         {mine.length ? (
-          <table className="dtbl" aria-label="Stock by warehouse">
+          <table className="dtbl" aria-label={t('docs.inventory.ariaByWarehouse')}>
             <thead>
               <tr>
-                <th>Warehouse</th>
-                <th className="r">On hand</th>
-                <th className="r">Reserved</th>
-                <th className="r">Avg. cost</th>
+                <th>{t('docs.inventory.col.warehouse')}</th>
+                <th className="r">{t('docs.inventory.col.onHand')}</th>
+                <th className="r">{t('docs.inventory.col.reserved')}</th>
+                <th className="r">{t('docs.inventory.col.avgCost')}</th>
               </tr>
             </thead>
             <tbody>
@@ -153,22 +156,22 @@ function ProductCard({ productId, row, onClose }: { productId: string; row?: Sto
             </tbody>
           </table>
         ) : (
-          <p className="faint">No stock</p>
+          <p className="faint">{t('docs.inventory.noStock')}</p>
         )}
       </DrawerSection>
-      <DrawerSection title="Movements" count={moves.data?.length}>
+      <DrawerSection title={t('docs.inventory.movements')} count={moves.data?.length}>
         {moves.isPending ? (
           <Skeleton w="100%" h={60} />
         ) : moves.data?.length ? (
-          <table className="dtbl" aria-label="Stock movements">
+          <table className="dtbl" aria-label={t('docs.inventory.ariaMovements')}>
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Document</th>
-                <th>Warehouse</th>
-                <th className="r">Qty</th>
-                <th className="r">Cost</th>
-                <th className="r">Balance</th>
+                <th>{t('docs.inventory.col.date')}</th>
+                <th>{t('docs.inventory.col.document')}</th>
+                <th>{t('docs.inventory.col.warehouse')}</th>
+                <th className="r">{t('docs.inventory.col.qty')}</th>
+                <th className="r">{t('docs.inventory.col.cost')}</th>
+                <th className="r">{t('docs.inventory.col.balance')}</th>
               </tr>
             </thead>
             <tbody>
@@ -191,10 +194,9 @@ function ProductCard({ productId, row, onClose }: { productId: string; row?: Sto
             </tbody>
           </table>
         ) : (
-          <p className="faint">No movements yet</p>
+          <p className="faint">{t('docs.inventory.noMovements')}</p>
         )}
       </DrawerSection>
     </EntityDrawer>
   );
 }
-

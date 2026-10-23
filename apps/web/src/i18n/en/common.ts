@@ -22,6 +22,7 @@ export const common = {
   enterName: 'Enter a name',
   linkCopied: 'Link copied',
   notMovedYet: '{what} is not available yet',
+  unknownError: 'unknown error',
   items: { one: '{count} item', other: '{count} items' },
 };
 

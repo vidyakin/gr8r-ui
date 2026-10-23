@@ -24,6 +24,7 @@ export const common: Widen<typeof C> = {
   enterName: 'Введите название',
   linkCopied: 'Ссылка скопирована',
   notMovedYet: '{what}: пока недоступно',
+  unknownError: 'неизвестная ошибка',
   items: { one: '{count} позиция', few: '{count} позиции', many: '{count} позиций', other: '{count} позиции' },
 };
 

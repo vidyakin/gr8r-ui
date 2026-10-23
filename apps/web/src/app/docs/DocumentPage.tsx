@@ -19,12 +19,13 @@ import { CounterpartyPicker, ProductPicker } from './pickers';
 import { useBillingBreakdown, useContracts } from './billing-data';
 import { WorkOrderPanel } from './work-orders';
 import { DocTabs, type DocTab } from './doc-tabs';
-import { t } from '@/i18n';
+import { hasKey, t, useT, type TKey } from '@/i18n';
 import { handleNumericArrow } from '@/lib/numeric-step';
 import { useWsId } from '../meta/data';
 
 /** Виды перемещения между складами */
-const OPERATION_LABEL: Record<string, string> = { transfer: 'Direct transfer', in_transit: 'In transit', to_operation: 'To operation', from_operation: 'From operation', assembly: 'Assembly', disassembly: 'Disassembly', processing: 'Processing' };
+/** Вид операции документа на текущем языке; неизвестный код — как есть */
+const operationLabel = (op: string) => (hasKey(`docs.operations.${op}`) ? t(`docs.operations.${op}` as TKey) : op);
 
 interface FormLine {
   key: string;
@@ -77,7 +78,8 @@ const trimNum = (s: string) => (s.includes('.') ? s.replace(/0+$/, '').replace(/
 
 /** Адрес журнала группы: продажи, закупки или складские документы */
 const groupPath = (g: string) => (g === 'sales' ? '/sales' : g === 'purchases' ? '/purchases' : g === 'production' ? '/production/orders' : '/stock-docs');
-const groupLabel = (g: string) => (g === 'sales' ? 'Sales' : g === 'purchases' ? 'Purchases' : g === 'production' ? 'Production orders' : 'Stock documents');
+type TFunc = (key: import('@/i18n').TKey, params?: Record<string, string | number>) => string;
+const groupLabel = (t: TFunc, g: string) => (g === 'sales' ? t('docs.document.groupSales') : g === 'purchases' ? t('docs.document.groupPurchases') : g === 'production' ? t('docs.document.groupProduction') : t('docs.document.groupStock'));
 
 function toForm(d: DocDetail): Form {
   return {
@@ -135,6 +137,7 @@ function toPayload(f: Form) {
 }
 
 export function DocumentPage() {
+  const t = useT();
   const { id } = useParams();
   const q = useDocument(id);
   if (q.isPending)
@@ -148,8 +151,8 @@ export function DocumentPage() {
   if (q.isError || !q.data)
     return (
       <div className="page flush">
-        <EmptyState icon={<CircleAlert size={20} />} error title="Document not found" action={<Link to="/sales" className="btn btn-secondary">Back to Sales</Link>}>
-          This document does not exist or belongs to another workspace.
+        <EmptyState icon={<CircleAlert size={20} />} error title={t('docs.document.notFound')} action={<Link to="/sales" className="btn btn-secondary">{t('docs.document.back')}</Link>}>
+          {t('docs.document.notFoundHint')}
         </EmptyState>
       </div>
     );
@@ -159,6 +162,7 @@ export function DocumentPage() {
 type SaveState = 'saved' | 'dirty' | 'saving' | 'invalid' | 'error';
 
 function DocumentView({ doc }: { doc: DocDetail }) {
+  const t = useT();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const ws = useWsId();
@@ -185,7 +189,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const processingOrders = useProcessingOrders();
   const meta = DOCUMENT_META[doc.type];
   /** Договоры контрагента: в документе выбирается один */
-  const contractOptions = (contracts.data?.items ?? []).map(c => ({ value: c.id, label: c.number ? `${c.number}${c.isService ? ' · service' : ''}` : c.companyName }));
+  const contractOptions = (contracts.data?.items ?? []).map(c => ({ value: c.id, label: c.number ? `${c.number}${c.isService ? ` · ${t('docs.serviceContract')}` : ''}` : c.companyName }));
   const editable = canWrite && doc.status === 'draft';
   /** Внутренний документ: без контрагента, свой склад и статья затрат */
   const internal = meta.party === null;
@@ -250,7 +254,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     const r = await api<DocDetail>('PATCH', `/documents/${doc.id}`, toPayload(f), { quiet: true });
     if (!r) {
       setSave('error');
-      toast.error('Could not save the document. Check the highlighted fields and try again');
+      toast.error(t('docs.document.saveErrorFix'));
       return false;
     }
     if (version.current === v) {
@@ -323,7 +327,16 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     try {
       if (action === 'post' && !(await flush())) return;
       const r = await api<DocDetail>('POST', `/documents/${doc.id}/${action}`);
-      if (r) toast(action === 'post' ? `Posted${r.number ? ` ${r.number}` : ''}` : action === 'unpost' ? 'Unposted: the document is a draft again' : action === 'cancel' ? 'Document cancelled' : 'Document restored');
+      if (r)
+        toast(
+          action === 'post'
+            ? t('docs.document.toastPosted', { number: r.number ? t('docs.document.toastPostedNumber', { number: r.number }) : '' })
+            : action === 'unpost'
+              ? t('docs.document.toastUnposted')
+              : action === 'cancel'
+                ? t('docs.document.toastCancelled')
+                : t('docs.document.toastRestored'),
+        );
     } finally {
       setBusy(false);
     }
@@ -332,14 +345,14 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     if (!(await flush())) return;
     const r = await api<DocDetail>('POST', `/documents/${doc.id}/based-on`, { type });
     if (r) {
-      toast(`Created ${typeLabel(type).toLowerCase()} from ${doc.number ?? 'draft'}`);
+      toast(t('docs.document.toastCreatedFrom', { type: typeLabel(type).toLowerCase(), source: doc.number ?? t('docs.document.toastCreatedFromDraft') }));
       navigate(`/documents/${r.id}`);
     }
   };
   const remove = async () => {
     const r = await api('DELETE', `/documents/${doc.id}`);
     if (r) {
-      toast('Draft deleted');
+      toast(t('docs.document.toastDraftDeleted'));
       navigate(groupPath(meta.group));
     }
   };
@@ -349,7 +362,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     setBusy(true);
     try {
       const r = await api<DocDetail>('POST', `/documents/${doc.id}/fill-count-sheet`);
-      if (r) toast('Lines filled by the stock balances');
+      if (r) toast(t('docs.document.toastFillCount'));
     } finally {
       setBusy(false);
     }
@@ -359,7 +372,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     setBusy(true);
     try {
       const r = await api<DocDetail>('POST', `/documents/${doc.id}/state`, { state: 'received', received: doc.lines.map(l => ({ id: l.id, qty: num(received[l.id] ?? l.qty) })) });
-      if (r) toast('Goods accepted');
+      if (r) toast(t('docs.document.toastReceiveGoods'));
     } finally {
       setBusy(false);
     }
@@ -369,7 +382,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     setBusy(true);
     try {
       const r = await api<DocDetail>('POST', `/documents/${doc.id}/state`, { state: 'shipped' });
-      if (r) toast('Acceptance cancelled: the goods stay in transit');
+      if (r) toast(t('docs.document.toastCancelReception'));
     } finally {
       setBusy(false);
     }
@@ -387,70 +400,70 @@ function DocumentView({ doc }: { doc: DocDetail }) {
       label: t('docs.tabs.lines'),
       count: lineCount,
       content: (
-        <section className="doc-lines panel" aria-label="Lines">
+        <section className="doc-lines panel" aria-label={t('docs.lines.addRow')}>
           <div className="table-wrap">
-            <table className="dtbl" aria-label="Document lines">
+            <table className="dtbl" aria-label={t('docs.document.tableLines')}>
               <thead>
                 <tr>
-                  <th style={{ width: 34 }}>#</th>
-                  <th>Product or service</th>
-                  <th style={{ width: 56 }}>Unit</th>
+                  <th style={{ width: 34 }}>{t('docs.document.colNum')}</th>
+                  <th>{t('docs.document.colProduct')}</th>
+                  <th style={{ width: 56 }}>{t('docs.document.colUnit')}</th>
                   {isCount && (
                     <th style={{ width: 96 }} className="r">
-                      Book
+                      {t('docs.document.colBook')}
                     </th>
                   )}
                   <th style={{ width: 96 }} className="r">
-                    {isCount ? 'Actual' : inTransit ? 'Shipped' : 'Qty'}
+                    {isCount ? t('docs.document.colActual') : inTransit ? t('docs.document.colShipped') : t('docs.document.colQty')}
                   </th>
                   {inTransit && (
                     <th style={{ width: 96 }} className="r">
-                      Received
+                      {t('docs.document.colReceived')}
                     </th>
                   )}
                   {isCount && (
                     <th style={{ width: 96 }} className="r">
-                      Diff
+                      {t('docs.document.colDiff')}
                     </th>
                   )}
                   {isOrder && doc.status !== 'draft' && (
                     <>
                       <th style={{ width: 84 }} className="r">
-                        {doc.type === 'customer_order' ? 'Shipped' : 'Received'}
+                        {doc.type === 'customer_order' ? t('docs.document.colShipped') : t('docs.document.colReceived')}
                       </th>
                       <th style={{ width: 84 }} className="r">
-                        Remaining
+                        {t('docs.document.colRemaining')}
                       </th>
                     </>
                   )}
                   {meta.production && (
-                    <th style={{ width: 96 }}>Role</th>
+                    <th style={{ width: 96 }}>{t('docs.document.colRole')}</th>
                   )}
                   {doc.type === 'tolling_report' && (
-                    <th style={{ width: 150 }}>Section</th>
+                    <th style={{ width: 150 }}>{t('docs.document.colSection')}</th>
                   )}
                   {isReceipt && (
                     <>
-                      <th style={{ width: 170 }}>Cost item</th>
-                      <th style={{ width: 160 }}>Work center</th>
+                      <th style={{ width: 170 }}>{t('docs.document.colCostItem')}</th>
+                      <th style={{ width: 160 }}>{t('docs.document.colWorkCenter')}</th>
                     </>
                   )}
                   <th style={{ width: 112 }} className="r">
-                    {internal ? 'Cost' : 'Price'}
+                    {internal ? t('docs.document.colCost') : t('docs.document.colPrice')}
                   </th>
                   {!internal && (
                     <>
                       <th style={{ width: 72 }} className="r">
-                        Disc. %
+                        {t('docs.document.colDiscPct')}
                       </th>
-                      <th style={{ width: 84 }}>VAT</th>
+                      <th style={{ width: 84 }}>{t('docs.document.colVat')}</th>
                       <th style={{ width: 104 }} className="r">
-                        VAT amount
+                        {t('docs.document.colVatAmount')}
                       </th>
                     </>
                   )}
                   <th style={{ width: 120 }} className="r">
-                    {internal ? 'Amount' : 'Total'}
+                    {internal ? t('docs.document.colAmount') : t('docs.document.colTotal')}
                   </th>
                   <th style={{ width: 36 }} />
                 </tr>
@@ -477,7 +490,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       <td className="muted">{unitSymbol(units.data, l.unitCode)}</td>
                       {isCount && <td className="r num muted">{trimNum(srv?.bookQty ?? '0') || '0'}</td>}
                       <td className="r">
-                        <NumCell value={l.qty} disabled={!editable} invalid={!!err.qty} label="Quantity" cell={`${i}:1`} onKeyDown={cellKey(i, 1)} onChange={v => patchLine(l.key, { qty: v })} />
+                        <NumCell value={l.qty} disabled={!editable} invalid={!!err.qty} label={t('docs.document.cellQty')} cell={`${i}:1`} onKeyDown={cellKey(i, 1)} onChange={v => patchLine(l.key, { qty: v })} />
                       </td>
                       {inTransit && (
                         <td className="r">
@@ -485,7 +498,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                             value={received[l.key] ?? '0'}
                             disabled={doc.status !== 'posted' || doc.state !== 'shipped'}
                             invalid={false}
-                            label="Accepted quantity"
+                            label={t('docs.document.cellAccepted')}
                             cell={`${i}:2`}
                             onKeyDown={() => {}}
                             onChange={v => setReceived(r => ({ ...r, [l.key]: v }))}
@@ -505,13 +518,13 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       )}
                       {meta.production && (
                         <td>
-                          <span className="muted">{srv?.stockRole === 'in' ? (disassembly ? 'Output' : 'Product') : disassembly ? 'To disassemble' : 'Material'}</span>
+                          <span className="muted">{srv?.stockRole === 'in' ? (disassembly ? t('docs.document.roleOutput') : t('docs.document.roleProduct')) : disassembly ? t('docs.document.roleToDisassemble') : t('docs.document.roleMaterial')}</span>
                         </td>
                       )}
                       {doc.type === 'tolling_report' && (
                         <td>
                           <Select
-                            aria-label="Section"
+                            aria-label={t('docs.document.colSection')}
                             disabled={!editable}
                             value={l.tollingRole ?? 'product'}
                             onValueChange={v => patchLine(l.key, { tollingRole: v as TollingRole })}
@@ -524,7 +537,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                           <td>
                             {srv?.kind === 'service' ? (
                               <Select
-                                aria-label="Cost item"
+                                aria-label={t('docs.document.colCostItem')}
                                 disabled={!editable}
                                 value={l.costItemId ?? ''}
                                 onValueChange={v => patchLine(l.key, { costItemId: v || null })}
@@ -534,7 +547,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                                 placeholder="—"
                               />
                             ) : (
-                              <span className="faint" title="Only service lines become indirect costs">
+                              <span className="faint" title={t('docs.document.serviceOnlyCostHint')}>
                                 —
                               </span>
                             )}
@@ -542,7 +555,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                           <td>
                             {srv?.kind === 'service' ? (
                               <Select
-                                aria-label="Work center"
+                                aria-label={t('docs.document.colWorkCenter')}
                                 disabled={!editable}
                                 value={l.workCenterId ?? ''}
                                 onValueChange={v => patchLine(l.key, { workCenterId: v || null })}
@@ -560,7 +573,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                           value={l.price}
                           disabled={!editable || (doc.type === 'stock_posting' && !isAdmin)}
                           invalid={!!err.price}
-                          label={internal ? 'Cost' : 'Price'}
+                          label={internal ? t('docs.document.cellCost') : t('docs.document.cellPrice')}
                           cell={`${i}:2`}
                           onKeyDown={cellKey(i, 2)}
                           onChange={v => patchLine(l.key, { price: v })}
@@ -569,10 +582,10 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       {!internal && (
                         <>
                           <td className="r">
-                            <NumCell value={l.discountPct} disabled={!editable} invalid={!!err.discountPct} label="Discount percent" cell={`${i}:3`} onKeyDown={cellKey(i, 3)} onChange={v => patchLine(l.key, { discountPct: v })} />
+                            <NumCell value={l.discountPct} disabled={!editable} invalid={!!err.discountPct} label={t('docs.document.cellDiscPct')} cell={`${i}:3`} onKeyDown={cellKey(i, 3)} onChange={v => patchLine(l.key, { discountPct: v })} />
                           </td>
                           <td>
-                            <select className="input cell-input" aria-label="VAT rate" disabled={!editable} value={l.vatRate} onChange={e => patchLine(l.key, { vatRate: e.target.value as VatRate })}>
+                            <select className="input cell-input" aria-label={t('docs.document.cellVat')} disabled={!editable} value={l.vatRate} onChange={e => patchLine(l.key, { vatRate: e.target.value as VatRate })}>
                               {VAT_RATES.map(r => (
                                 <option key={r} value={r}>
                                   {VAT_LABELS[r]}
@@ -588,12 +601,12 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       </td>
                       <td>
                         {editable && doc.type === 'customer_order' && l.productId && (
-                          <IconButton size="xs" label="Parameters of the product" onClick={() => setParamsLine(l.key)}>
+                          <IconButton size="xs" label={t('docs.document.parameters')} onClick={() => setParamsLine(l.key)}>
                             <SlidersHorizontal size={13} />
                           </IconButton>
                         )}
                         {editable && (
-                          <IconButton size="xs" label="Remove line" onClick={() => edit(f => ({ ...f, lines: f.lines.filter(x => x.key !== l.key) }))}>
+                          <IconButton size="xs" label={t('docs.lines.removeLineAria')} onClick={() => edit(f => ({ ...f, lines: f.lines.filter(x => x.key !== l.key) }))}>
                             <Trash2 size={13} />
                           </IconButton>
                         )}
@@ -604,7 +617,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                 {!form.lines.length && (
                   <tr>
                     <td colSpan={12} className="faint" style={{ textAlign: 'center', padding: 22 }}>
-                      No lines yet.{editable ? ' Add the first product or service.' : ''}
+                      {t('docs.document.emptyLines')}{editable ? t('docs.document.emptyLinesAdd') : ''}
                     </td>
                   </tr>
                 )}
@@ -615,7 +628,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             <div className="doc-add">
               <Button size="sm" variant="ghost" onClick={() => addLine()}>
                 <Plus size={13} />
-                Add line
+                {t('docs.lines.addRow')}
               </Button>
               <span className="faint" style={{ fontSize: 12 }}>
                 {t('docs.keysHint')}
@@ -629,9 +642,9 @@ function DocumentView({ doc }: { doc: DocDetail }) {
       id: 'billing',
       label: t('docs.tabs.billing'),
       content: breakdown.data && (
-          <section className="doc-links panel" aria-label="Billing breakdown">
+          <section className="doc-links panel" aria-label={t('docs.tabs.billing')}>
           <p className="faint" style={{ fontSize: 12 }}>
-            Period {breakdown.data.subscriptionPeriod} · works by fact {breakdown.data.factPeriod}. The original lines of the billing are kept here; the invoice shows the grouped positions.
+            {t('docs.document.billingPeriod', { period: breakdown.data.subscriptionPeriod, fact: breakdown.data.factPeriod })}. {/* Исходные строки биллинга здесь; в счёте — сводные позиции. */}
           </p>
           {breakdown.data.warnings.map((w, i) => (
             <div key={i} className="faint" style={{ fontSize: 12 }}>
@@ -661,29 +674,29 @@ function DocumentView({ doc }: { doc: DocDetail }) {
       label: t('docs.tabs.composition'),
       count: doc.components.length,
       content: (
-          <section className="doc-links panel" aria-label="Composition">
+          <section className="doc-links panel" aria-label={t('docs.document.composition')}>
             {doc.processingOrderId && (
               <p className="faint" style={{ fontSize: 12 }}>
-                Release for a processing order: customer materials are written off from the owner&apos;s balance, our own ones from the warehouse at average cost. The product goes to the owner&apos;s balance; our costs are the cost of the processing service.
+                {t('docs.document.compositionLead')}
               </p>
             )}
-            <table className="dtbl" aria-label="Composition">
+            <table className="dtbl" aria-label={t('docs.document.composition')}>
               <thead>
                 <tr>
-                  <th>Material or work</th>
-                  <th style={{ width: 120 }}>Owner</th>
+                  <th>{t('docs.document.colProduct')}</th>
+                  <th style={{ width: 120 }}>{t('docs.document.colRole')}</th>
                   <th style={{ width: 100 }} className="r">
-                    Qty
+                    {t('docs.document.colQty')}
                   </th>
                   <th style={{ width: 120 }} className="r">
-                    Cost
+                    {t('docs.document.colCost')}
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {doc.components.map(c => (
                   <tr key={c.id}>
-                    <td className="trunc">{c.kind === 'work' ? c.operation || 'Work' : c.kind === 'expense' ? 'Expense' : c.kind === 'semi' ? 'Semi-finished product' : 'Material'}</td>
+                    <td className="trunc">{c.kind === 'work' ? c.operation || t('docs.document.workKind') : c.kind === 'expense' ? t('docs.document.expenseKind') : c.kind === 'semi' ? t('docs.document.semiKind') : t('docs.document.materialKind')}</td>
                     <td>
                       <Badge tone={c.ownerKind === 'customer' ? 'accent' : 'gray'}>{MATERIAL_OWNER_LABELS[c.ownerKind]}</Badge>
                     </td>
@@ -702,9 +715,9 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     <div className="page doc-page">
       <div className="doc-bar">
         <div className="doc-title">
-          <nav className="muted" style={{ fontSize: 12.5 }} aria-label="Document type">
+          <nav className="muted" style={{ fontSize: 12.5 }} aria-label={t('docs.document.headerAria')}>
             <Link to={groupPath(meta.group)} className="crm-link">
-              {groupLabel(meta.group)}
+              {groupLabel(t, meta.group)}
             </Link>
             {' / '}
             <Link to={`${groupPath(meta.group)}?type=${doc.type}`} className="crm-link">
@@ -712,51 +725,51 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             </Link>
           </nav>
           <h1>
-            {typeLabel(doc.type)} {doc.number ?? <span className="faint">draft</span>}
+            {typeLabel(doc.type)} {doc.number ?? <span className="faint">{t('docs.document.draftNumber')}</span>}
             <Badge tone={STATUS_TONE[doc.status]} dot>
               {STATUS_LABEL[doc.status]}
             </Badge>
             {doc.state && <Badge tone="violet">{meta.states?.find(s => s.key === doc.state)?.label ?? doc.state}</Badge>}
           </h1>
           <span className="faint" style={{ fontSize: 12 }} aria-live="polite" data-testid="save-state">
-            {doc.status !== 'draft' ? (doc.postedAt ? `Posted ${fmtDate(new Date(doc.postedAt))}` : '') : save === 'saving' ? 'Saving…' : save === 'dirty' ? 'Unsaved changes' : save === 'invalid' ? 'Fix the highlighted fields to save' : save === 'error' ? 'Not saved' : 'All changes saved'}
+            {doc.status !== 'draft' ? (doc.postedAt ? `${t('docs.status.posted')} ${fmtDate(new Date(doc.postedAt))}` : '') : save === 'saving' ? t('docs.document.save.saving') : save === 'dirty' ? t('docs.document.save.dirty') : save === 'invalid' ? t('docs.document.save.invalid') : save === 'error' ? t('docs.document.save.error') : t('docs.document.save.saved')}
           </span>
         </div>
         <div className="doc-actions">
           {canWrite && isCount && doc.status === 'draft' && (
             <Button disabled={busy} onClick={() => void fillCount()}>
               <ClipboardList size={14} />
-              Fill by stock
+              {t('docs.document.fillByStock')}
             </Button>
           )}
           {canWrite && inTransit && doc.status === 'posted' && doc.state === 'shipped' && (
             <Button variant="primary" disabled={busy} onClick={() => void receiveGoods()}>
               <PackageCheck size={14} />
-              Receive
+              {t('docs.document.receive')}
             </Button>
           )}
           {canWrite && inTransit && doc.status === 'posted' && doc.state === 'received' && (
             <Button disabled={busy} onClick={() => void cancelReception()}>
               <Undo2 size={14} />
-              Cancel reception
+              {t('docs.document.cancelReception')}
             </Button>
           )}
           {canWrite && doc.status === 'draft' && !isWorkOrder && (
             <Button variant="primary" disabled={busy} onClick={() => void run('post')}>
               <Send size={14} />
-              Post
+              {t('docs.document.post')}
             </Button>
           )}
           {canWrite && doc.status === 'posted' && !isWorkOrder && (
             <Button disabled={busy} onClick={() => void run('unpost')}>
               <Undo2 size={14} />
-              Unpost
+              {t('docs.document.unpost')}
             </Button>
           )}
           {canWrite && doc.status === 'cancelled' && (
             <Button disabled={busy} onClick={() => void run('restore')}>
               <RotateCcw size={14} />
-              Restore
+              {t('docs.document.restore')}
             </Button>
           )}
           {canWrite && !!targets.length && doc.status !== 'cancelled' && (
@@ -764,7 +777,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
               <MenuTrigger asChild>
                 <Button>
                   <Copy size={14} />
-                  Create based on
+                  {t('docs.document.createBasedOnDoc')}
                   <ChevronDown size={12} />
                 </Button>
               </MenuTrigger>
@@ -785,14 +798,14 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                   const r = await api<DocDetail>('POST', `/processing/reports/${doc.id}/act`, {});
                   setBusy(false);
                   if (r) {
-                    toast('Created the service act');
+                    toast(t('docs.document.toastActCreated'));
                     navigate(`/documents/${r.id}`);
                   }
                 })();
               }}
             >
               <FileSignature size={14} />
-              Create service act
+              {t('docs.document.createServiceAct')}
             </Button>
           )}
           {!!meta.forms.length && (
@@ -800,7 +813,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
               <MenuTrigger asChild>
                 <Button>
                   <Printer size={14} />
-                  Print
+                  {t('docs.document.print')}
                   <ChevronDown size={12} />
                 </Button>
               </MenuTrigger>
@@ -828,27 +841,27 @@ function DocumentView({ doc }: { doc: DocDetail }) {
               }}
             >
               <Calculator size={14} />
-              Calculation
+              {t('docs.document.calcBtn')}
             </Button>
           )}
           {canWrite && doc.status !== 'posted' && (
             <Menu>
               <MenuTrigger asChild>
-                <IconButton label="More actions">
+                <IconButton label={t('docs.document.moreActions')}>
                   <Ellipsis size={16} />
                 </IconButton>
               </MenuTrigger>
               <MenuContent align="end">
                 {doc.status === 'draft' && (
                   <MenuItem icon={<Ban size={15} />} onSelect={() => setConfirm('cancel')}>
-                    Cancel document
+                    {t('docs.document.cancelDocument')}
                   </MenuItem>
                 )}
                 {doc.status === 'draft' && !hasNumber && (
                   <>
                     <MenuSeparator />
                     <MenuItem icon={<Trash2 size={15} />} danger onSelect={() => setConfirm('delete')}>
-                      Delete draft
+                      {t('docs.document.deleteDraft')}
                     </MenuItem>
                   </>
                 )}
@@ -858,8 +871,8 @@ function DocumentView({ doc }: { doc: DocDetail }) {
         </div>
       </div>
 
-      <section className="doc-head panel" aria-label="Document header">
-        <Field label="Organization">
+      <section className="doc-head panel" aria-label={t('docs.document.headerAria')}>
+        <Field label={t('docs.document.organization')}>
           {p => (
             <Select
               id={p.id}
@@ -867,12 +880,12 @@ function DocumentView({ doc }: { doc: DocDetail }) {
               value={form.organizationId}
               onValueChange={v => edit(f => ({ ...f, organizationId: v }))}
               options={(orgs.data ?? []).filter(o => !o.archivedAt || o.id === form.organizationId).map(o => ({ value: o.id, label: o.name }))}
-              aria-label="Organization"
+              aria-label={t('docs.document.organization')}
             />
           )}
         </Field>
         {!internal && (
-          <Field label={meta.party === 'customer' ? 'Customer' : 'Supplier'}>
+          <Field label={meta.party === 'customer' ? t('docs.document.customer') : t('docs.document.supplier')}>
             {p =>
               editable ? (
                 <CounterpartyPicker id={p.id} value={form.counterpartyName} invalid={save === 'invalid' && !form.counterpartyId} onPick={c => edit(f => ({ ...f, counterpartyId: c.id, counterpartyName: c.name, contractId: null }))} />
@@ -883,7 +896,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
           </Field>
         )}
         {!internal && (
-          <Field label="Contract" hint="The default contract of the customer is set automatically">
+          <Field label={t('docs.header.contract')} hint={t('docs.document.contractHint')}>
             {p =>
               editable ? (
                 <Select
@@ -892,8 +905,8 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                   value={form.contractId ?? ''}
                   onValueChange={v => edit(f => ({ ...f, contractId: v || null }))}
                   options={contractOptions}
-                  placeholder="Select contract"
-                  aria-label="Contract"
+                  placeholder={t('docs.document.contractPlaceholder')}
+                  aria-label={t('docs.header.contract')}
                 />
               ) : (
                 <div className="doc-ro">{doc.contract ? <span className="mono">{doc.contract.number}</span> : '—'}</div>
@@ -902,7 +915,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
           </Field>
         )}
         {usesWarehouse && !(isTransfer && form.operation === 'from_operation') && (
-          <Field label={internal ? (meta.production ? 'Materials warehouse' : isCount ? 'Warehouse' : 'From warehouse') : 'Warehouse'}>
+          <Field label={internal ? (meta.production ? t('docs.document.materialsWarehouse') : isCount ? t('docs.header.warehouse') : t('docs.document.fromWarehouse')) : t('docs.header.warehouse')}>
             {p => (
               <Select
                 id={p.id}
@@ -910,33 +923,33 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                 value={form.warehouseId ?? ''}
                 onValueChange={v => edit(f => ({ ...f, warehouseId: v }))}
                 options={whOptions.map(w => ({ value: w.id, label: w.name }))}
-                placeholder="Select warehouse"
-                aria-label="Warehouse"
+                placeholder={t('docs.document.selectWarehouse')}
+                aria-label={t('docs.header.warehouse')}
               />
             )}
           </Field>
         )}
         {isTransfer && (
-          <Field label="Kind of transfer">
+          <Field label={t('docs.document.kindOfTransfer')}>
             {p => (
               <Select
                 id={p.id}
                 disabled={!editable}
                 value={form.operation}
                 onValueChange={v => edit(f => ({ ...f, operation: v }))}
-                options={TRANSFER_OPERATIONS.map(o => ({ value: o, label: OPERATION_LABEL[o] ?? o }))}
-                aria-label="Kind of transfer"
+                options={TRANSFER_OPERATIONS.map(o => ({ value: o, label: operationLabel(o) }))}
+                aria-label={t('docs.document.kindOfTransfer')}
               />
             )}
           </Field>
         )}
         {meta.production && (
-          <Field label="Operation" hint={disassembly ? 'Disassembly: the goods are taken apart into the outputs' : 'Assembly: the product is made of the materials'}>
-            {p => <div className="doc-ro" id={p.id}>{OPERATION_LABEL[doc.operation ?? 'assembly'] ?? doc.operation}</div>}
+          <Field label={t('docs.header.operation')} hint={disassembly ? t('docs.document.operationHintDisassembly') : t('docs.document.operationHintAssembly')}>
+            {p => <div className="doc-ro" id={p.id}>{operationLabel(doc.operation ?? 'assembly')}</div>}
           </Field>
         )}
         {(doc.type === 'customer_order' || doc.type === 'supplier_order') && (
-          <Field label="Kind of operation">
+          <Field label={t('docs.document.kindOfOperation')}>
             {p => (
               <Select
                 id={p.id}
@@ -944,31 +957,31 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                 value={form.operation === 'processing' ? 'processing' : 'default'}
                 onValueChange={v => edit(f => ({ ...f, operation: v === 'processing' ? 'processing' : '' }))}
                 options={[
-                  { value: 'default', label: doc.type === 'customer_order' ? 'Sale' : 'Purchase' },
-                  { value: 'processing', label: 'Processing' },
+                  { value: 'default', label: doc.type === 'customer_order' ? t('docs.document.sale') : t('docs.document.purchase') },
+                  { value: 'processing', label: t('docs.document.processing') },
                 ]}
-                aria-label="Kind of operation"
+                aria-label={t('docs.document.kindOfOperation')}
               />
             )}
           </Field>
         )}
         {isTolling && (
-          <Field label="Processing order" hint="The owner of the materials is taken from it">
+          <Field label={t('docs.document.processingOrder')} hint={t('docs.document.processingOrderHint')}>
             {p => (
               <Select
                 id={p.id}
                 disabled={!editable}
                 value={form.tollingOrderId ?? ''}
                 onValueChange={v => edit(f => ({ ...f, tollingOrderId: v || null }))}
-                options={(processingOrders.data?.items ?? []).filter(o => o.status !== 'cancelled').map(o => ({ value: o.id, label: o.number ? `${o.number} · ${o.counterpartyName ?? o.ownerName ?? ''}` : 'Draft' }))}
-                placeholder="Select processing order"
-                aria-label="Processing order"
+                options={(processingOrders.data?.items ?? []).filter(o => o.status !== 'cancelled').map(o => ({ value: o.id, label: o.number ? `${o.number} · ${o.counterpartyName ?? o.ownerName ?? ''}` : t('docs.document.draftNumber') }))}
+                placeholder={t('docs.document.processingOrderPlaceholder')}
+                aria-label={t('docs.document.processingOrder')}
               />
             )}
           </Field>
         )}
         {(meta.stockRole === 'transfer' || meta.production) && (!isTransfer || form.operation === 'transfer' || form.operation === 'in_transit') && (
-          <Field label={meta.production ? 'Finished goods warehouse' : 'To warehouse'}>
+          <Field label={meta.production ? t('docs.document.finishedWarehouse') : t('docs.document.toWarehouse')}>
             {p => (
               <Select
                 id={p.id}
@@ -976,15 +989,15 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                 value={form.targetWarehouseId ?? ''}
                 onValueChange={v => edit(f => ({ ...f, targetWarehouseId: v }))}
                 options={whOptions.filter(w => w.id !== form.warehouseId).map(w => ({ value: w.id, label: w.name }))}
-                placeholder="Select warehouse"
-                aria-label="Target warehouse"
+                placeholder={t('docs.document.selectWarehouse')}
+                aria-label={t('docs.document.toWarehouse')}
               />
             )}
           </Field>
         )}
         {(toOperation || fromOperation) && (
           <>
-            <Field label="Holder" hint="Member or work center">
+            <Field label={t('docs.document.holder')} hint={t('docs.document.holderHint')}>
               {p => (
                 <Select
                   id={p.id}
@@ -995,15 +1008,15 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                     ...members.filter(m => m.status === 'active').map(m => ({ value: m.id, label: m.name })),
                     ...workCenters.filter(w => !w.archivedAt).map(w => ({ value: w.id, label: w.name })),
                   ]}
-                  placeholder="Select holder"
-                  aria-label="Holder"
+                  placeholder={t('docs.document.holderPlaceholder')}
+                  aria-label={t('docs.document.holder')}
                 />
               )}
             </Field>
           </>
         )}
         {doc.type === 'write_off' && (
-          <Field label="Work center" hint="The cost of the write-off becomes indirect costs of the work center">
+          <Field label={t('docs.header.workCenter')} hint={t('docs.document.workCenterHint')}>
             {p => (
               <Select
                 id={p.id}
@@ -1011,14 +1024,14 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                 value={form.workCenterId ?? ''}
                 onValueChange={v => edit(f => ({ ...f, workCenterId: v || null }))}
                 options={workCenters.filter(w => !w.archivedAt).map(w => ({ value: w.id, label: w.name }))}
-                placeholder="Not set"
-                aria-label="Work center"
+                placeholder={t('docs.document.notSet')}
+                aria-label={t('docs.header.workCenter')}
               />
             )}
           </Field>
         )}
         {(meta.costItemKind || toOperation) && (
-          <Field label={(meta.costItemKind ?? 'expense') === 'expense' ? 'Cost item' : 'Income item'} hint="Written off to this item">
+          <Field label={(meta.costItemKind ?? 'expense') === 'expense' ? t('docs.header.costItem') : t('docs.document.incomeItem')} hint={t('docs.document.costItemHint')}>
             {p => (
               <Select
                 id={p.id}
@@ -1028,31 +1041,31 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                 options={(costItems.data ?? [])
                   .filter(c => !c.archivedAt && c.kind === (meta.costItemKind ?? 'expense'))
                   .map(c => ({ value: c.id, label: c.name }))}
-                placeholder="Select item"
-                aria-label="Cost item"
+                placeholder={t('docs.document.selectItem')}
+                aria-label={t('docs.header.costItem')}
               />
             )}
           </Field>
         )}
-        <Field label="Date">{p => <Input {...p} type="date" disabled={!editable} value={form.date} onChange={e => edit(f => ({ ...f, date: e.target.value }))} />}</Field>
+        <Field label={t('docs.header.date')}>{p => <Input {...p} type="date" disabled={!editable} value={form.date} onChange={e => edit(f => ({ ...f, date: e.target.value }))} />}</Field>
         {(doc.type === 'invoice' || doc.type === 'quote' || doc.type === 'customer_order') && (
-          <Field label={doc.type === 'quote' ? 'Valid until' : doc.type === 'invoice' ? 'Pay by' : 'Due date'}>
+          <Field label={doc.type === 'quote' ? t('docs.document.validUntil') : doc.type === 'invoice' ? t('docs.document.payBy') : t('docs.document.dueDate')}>
             {p => <Input {...p} type="date" disabled={!editable} value={form.dueDate} onChange={e => edit(f => ({ ...f, dueDate: e.target.value }))} />}
           </Field>
         )}
-        <Field label="Number" hint={hasNumber ? undefined : 'Assigned when the document is posted'}>
+        <Field label={t('docs.header.number')} hint={hasNumber ? undefined : t('docs.document.numberHintAuto')}>
           {p => <Input {...p} readOnly value={doc.number ?? ''} placeholder="—" className="mono" />}
         </Field>
         {!internal && (
-          <Field label="Prices">
+          <Field label={t('docs.document.prices')}>
             {() => (
               <Segmented
-                aria-label="Price type"
+                aria-label={t('docs.document.prices')}
                 value={form.priceIncludesVat ? 'incl' : 'excl'}
                 onValueChange={v => editable && edit(f => ({ ...f, priceIncludesVat: v === 'incl' }))}
                 items={[
-                  { value: 'incl', label: 'VAT included' },
-                  { value: 'excl', label: 'VAT on top' },
+                  { value: 'incl', label: t('docs.document.vatIncluded') },
+                  { value: 'excl', label: t('docs.document.vatOnTop') },
                 ]}
               />
             )}
@@ -1063,15 +1076,15 @@ function DocumentView({ doc }: { doc: DocDetail }) {
       {isWorkOrder ? <WorkOrderPanel doc={doc} lead={docTabs} /> : <DocTabs label={t('docs.tabsLabel')} tabs={docTabs} />}
 
       <div className="doc-bottom">
-        <section className="doc-links panel" aria-label="Related documents">
-          <h2>Related documents</h2>
+        <section className="doc-links panel" aria-label={t('docs.document.related')}>
+          <h2>{t('docs.document.related')}</h2>
           {doc.basedOn ? (
             <p>
-              <span className="muted">Based on </span>
+              <span className="muted">{t('docs.document.basedOnHeader')} </span>
               <DocRef d={doc.basedOn} />
             </p>
           ) : (
-            <p className="faint">Not created from another document</p>
+            <p className="faint">{t('docs.document.notBasedOn')}</p>
           )}
           {doc.children.length ? (
             <ul>
@@ -1082,33 +1095,33 @@ function DocumentView({ doc }: { doc: DocDetail }) {
               ))}
             </ul>
           ) : (
-            <p className="faint">Nothing created from this document yet</p>
+            <p className="faint">{t('docs.document.noChildren')}</p>
           )}
         </section>
-        <section className="doc-totals panel" aria-label="Totals">
+        <section className="doc-totals panel" aria-label={t('docs.document.totals.total')}>
           {isCount ? (
             <dl>
               <div>
-                <dt>Lines</dt>
+                <dt>{t('docs.document.totals.lines')}</dt>
                 <dd className="num">{lineCount}</dd>
               </div>
               <div>
-                <dt>Shortage</dt>
+                <dt>{t('docs.document.totals.shortage')}</dt>
                 <dd className="num">{countDiff(form.lines, serverLine).shortage}</dd>
               </div>
               <div>
-                <dt>Surplus</dt>
+                <dt>{t('docs.document.totals.surplus')}</dt>
                 <dd className="num">{countDiff(form.lines, serverLine).surplus}</dd>
               </div>
             </dl>
           ) : internal ? (
             <dl>
               <div>
-                <dt>Lines</dt>
+                <dt>{t('docs.document.totals.lines')}</dt>
                 <dd className="num">{lineCount}</dd>
               </div>
               <div className="grand">
-                <dt>Cost at average price</dt>
+                <dt>{t('docs.document.totals.costAtAverage')}</dt>
                 <dd className="num" data-testid="total-sum">
                   {doc.costTotal === null || doc.costTotal === undefined ? '—' : money(doc.costTotal)}
                 </dd>
@@ -1117,11 +1130,11 @@ function DocumentView({ doc }: { doc: DocDetail }) {
           ) : processingKind ? (
             <dl>
               <div>
-                <dt>Lines</dt>
+                <dt>{t('docs.document.totals.lines')}</dt>
                 <dd className="num">{lineCount}</dd>
               </div>
               <div className="grand">
-                <dt>Service cost</dt>
+                <dt>{t('docs.document.totals.serviceCost')}</dt>
                 <dd className="num" data-testid="total-sum">
                   {doc.serviceCost === null || doc.serviceCost === undefined ? '—' : money(doc.serviceCost)}
                 </dd>
@@ -1130,32 +1143,32 @@ function DocumentView({ doc }: { doc: DocDetail }) {
           ) : (
             <dl>
               <div>
-                <dt>Lines</dt>
+                <dt>{t('docs.document.totals.lines')}</dt>
                 <dd className="num">{lineCount}</dd>
               </div>
               <div>
-                <dt>Amount without VAT</dt>
+                <dt>{t('docs.document.totals.amountWithoutVat')}</dt>
                 <dd className="num" data-testid="total-net">
                   {money(calc.totals.net)}
                 </dd>
               </div>
               {noVatOnly ? (
                 <div>
-                  <dt>VAT</dt>
-                  <dd className="num">No VAT</dd>
+                  <dt>{t('docs.document.totals.vat')}</dt>
+                  <dd className="num">{t('docs.document.totals.noVat')}</dd>
                 </div>
               ) : (
                 calc.totals.byRate
                   .filter(r => r.rate !== 'none')
                   .map(r => (
                     <div key={r.rate}>
-                      <dt>VAT {VAT_LABELS[r.rate as VatRate]}</dt>
+                      <dt>{t('docs.document.totals.vatRate', { rate: VAT_LABELS[r.rate as VatRate] })}</dt>
                       <dd className="num">{money(r.vat)}</dd>
                     </div>
                   ))
               )}
               <div className="grand">
-                <dt>Total{form.priceIncludesVat ? ' (VAT included)' : ''}</dt>
+                <dt>{t('docs.document.totals.total')}{form.priceIncludesVat ? t('docs.document.totals.totalIncluded').replace(t('docs.document.totals.total'), '') : ''}</dt>
                 <dd className="num" data-testid="total-sum">
                   {money(calc.totals.total)} ₽
                 </dd>
@@ -1179,14 +1192,14 @@ function DocumentView({ doc }: { doc: DocDetail }) {
       <ConfirmDialog
         open={confirm === 'cancel'}
         onOpenChange={o => !o && setConfirm(null)}
-        title="Cancel this document?"
-        description={hasNumber ? `${docTitle(doc)} keeps its number. You can restore it later.` : 'You can restore it later.'}
-        confirmLabel="Cancel document"
-        cancelLabel="Keep"
+        title={t('docs.document.cancelTitle')}
+        description={hasNumber ? t('docs.document.cancelKeepNumber', { title: docTitle(doc) }) : t('docs.document.cancelNoNumber')}
+        confirmLabel={t('docs.document.cancelConfirm')}
+        cancelLabel={t('docs.document.cancelKeep')}
         danger
         onConfirm={() => void run('cancel')}
       />
-      <ConfirmDialog open={confirm === 'delete'} onOpenChange={o => !o && setConfirm(null)} title="Delete this draft?" description="The draft has never been posted and has no number, so it is removed completely." confirmLabel="Delete" cancelLabel="Keep" danger onConfirm={() => void remove()} />
+      <ConfirmDialog open={confirm === 'delete'} onOpenChange={o => !o && setConfirm(null)} title={t('docs.document.deleteTitleDoc')} description={t('docs.document.deleteHintDoc')} confirmLabel={t('docs.document.deleteConfirm')} cancelLabel={t('docs.document.cancelKeep')} danger onConfirm={() => void remove()} />
       {paramsLine &&
         (() => {
           const l = form.lines.find(x => x.key === paramsLine);

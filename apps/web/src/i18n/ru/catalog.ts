@@ -154,6 +154,7 @@ export const catalog: Widen<typeof C> = {
 
 export const enums: Widen<typeof E> = {
   vat: { none: 'Без НДС' },
+  periodicity: { month: 'Месяц', quarter: 'Квартал', year: 'Год' },
   replenishment: { purchase: 'Закупка', production: 'Производство', transfer: 'Перемещение' },
   fieldType: {
     text: 'Текст',
