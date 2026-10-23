@@ -2,12 +2,14 @@
 import * as React from 'react';
 import { useNavigate } from 'react-router';
 import { Button, Dialog, DialogClose, DialogContent, Field, Input, toast } from '@/components/ui';
+import { useT } from '@/i18n';
 import { apiFor, errorMessage, ok } from '../data/api';
 import { useSession, type WorkspaceRef } from '../data/session';
 
 export function NewWorkspaceDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const session = useSession();
   const navigate = useNavigate();
+  const t = useT();
   const [name, setName] = React.useState('');
   const [error, setError] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -23,7 +25,7 @@ export function NewWorkspaceDialog({ open, onOpenChange }: { open: boolean; onOp
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const n = name.trim();
-    if (!n) return setError('Name your workspace to continue');
+    if (!n) return setError(t('overlays.newWorkspace.nameRequired'));
     setBusy(true);
     try {
       const created = await ok<WorkspaceRef>(apiFor().workspaces.$post({ json: { name: n } }));
@@ -31,7 +33,7 @@ export function NewWorkspaceDialog({ open, onOpenChange }: { open: boolean; onOp
       session.switchWorkspace(created.id);
       onOpenChange(false);
       navigate('/');
-      toast(`Switched to ${created.name}`);
+      toast(t('overlays.newWorkspace.switched', { name: created.name }));
     } catch (err) {
       setError(errorMessage(err));
       setBusy(false);
@@ -42,23 +44,23 @@ export function NewWorkspaceDialog({ open, onOpenChange }: { open: boolean; onOp
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         size="sm"
-        title="Create workspace"
-        description="A separate space with its own projects, tasks, CRM and members. You will be its owner."
+        title={t('overlays.newWorkspace.title')}
+        description={t('overlays.newWorkspace.description')}
         footer={
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="ghost">Cancel</Button>
+              <Button variant="ghost">{t('common.cancel')}</Button>
             </DialogClose>
             <Button variant="primary" type="submit" form="new-workspace-form" loading={busy}>
-              Create workspace
+              {t('overlays.newWorkspace.create')}
             </Button>
           </>
         }
       >
         <form id="new-workspace-form" onSubmit={submit} noValidate>
-          <Field label="Workspace name" error={error}>
-            {p => <Input {...p} autoFocus value={name} placeholder="e.g. Acme Corp" onChange={e => setName(e.target.value)} />}
+          <Field label={t('overlays.newWorkspace.nameLabel')} error={error}>
+            {p => <Input {...p} autoFocus value={name} placeholder={t('overlays.newWorkspace.namePlaceholder')} onChange={e => setName(e.target.value)} />}
           </Field>
         </form>
       </DialogContent>

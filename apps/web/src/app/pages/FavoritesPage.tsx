@@ -7,40 +7,42 @@ import { allTasks, canSee, visibleProjects } from '../data/selectors';
 import { SECTIONS } from '../routes';
 import { ProjectCard } from '../components/project';
 import { MiniTaskRow, useTaskActions } from '../components/workspace';
+import { useT } from '@/i18n';
 
 export function FavoritesPage() {
+  const t = useT();
   const { data } = useWorkspace();
   const navigate = useNavigate();
   const { open } = useTaskActions();
   const projects = visibleProjects(data).filter(p => p.fav && canSee(data, p));
-  const tasks = allTasks(data).filter(t => t.fav);
+  const tasks = allTasks(data).filter(t2 => t2.fav);
 
   return (
     <div className="page wide">
       <div className="ph">
         <div>
-          <h1>Favorites</h1>
-          <p>Projects and tasks you've starred for quick access.</p>
+          <h1>{t('pages.favorites.title')}</h1>
+          <p>{t('pages.favorites.subline')}</p>
         </div>
       </div>
       {!projects.length && !tasks.length ? (
         <div className="panel">
           <EmptyState
             icon={<Star />}
-            title="No favorites yet"
+            title={t('pages.favorites.emptyTitle')}
             action={
               <Button size="sm" onClick={() => navigate(SECTIONS.projects.path)}>
-                Browse projects
+                {t('pages.favorites.browseProjects')}
               </Button>
             }
           >
-            Star a project or task to pin it here.
+            {t('pages.favorites.emptyHint')}
           </EmptyState>
         </div>
       ) : (
         <>
           <h2 className="sec" style={{ marginBottom: 10 }}>
-            Projects{' '}
+            {t('pages.favorites.projectsTitle')}{' '}
             <span className="faint" style={{ fontWeight: 500 }}>
               {projects.length}
             </span>
@@ -53,23 +55,23 @@ export function FavoritesPage() {
             </div>
           ) : (
             <p className="faint" style={{ marginBottom: 28 }}>
-              No favorite projects.
+              {t('pages.favorites.noFavoriteProjects')}
             </p>
           )}
           <h2 className="sec" style={{ marginBottom: 6 }}>
-            Tasks{' '}
+            {t('pages.favorites.tasksTitle')}{' '}
             <span className="faint" style={{ fontWeight: 500 }}>
               {tasks.length}
             </span>
           </h2>
           {tasks.length ? (
             <div className="panel" style={{ overflow: 'hidden' }}>
-              {tasks.map(t => (
-                <MiniTaskRow key={t.id} task={t} onOpen={open} />
+              {tasks.map(t2 => (
+                <MiniTaskRow key={t2.id} task={t2} onOpen={open} />
               ))}
             </div>
           ) : (
-            <p className="faint">Open a task and click the star to add it here.</p>
+            <p className="faint">{t('pages.favorites.noFavoriteTasks')}</p>
           )}
         </>
       )}

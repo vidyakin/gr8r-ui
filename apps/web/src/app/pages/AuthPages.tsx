@@ -10,6 +10,7 @@ import { errorMessage } from '../data/api';
 import { useSession } from '../data/session';
 import { EMAIL_RE, authForm, pwWeak } from '../lib/auth';
 import { SECTIONS } from '../routes';
+import { useT } from '@/i18n';
 
 /** Иконка в цветной плашке над заголовком (ftype 44×44) */
 const Badge = ({ color, children }: { color: string; children: React.ReactNode }) => (
@@ -20,12 +21,13 @@ const Badge = ({ color, children }: { color: string; children: React.ReactNode }
   </div>
 );
 
-const PW_RULE = 'Use at least 10 characters, including a number or symbol';
-
 /** Вход через внешних провайдеров (OAuth) появится отдельным этапом */
-const socialSoon = (name: string) => toast.info(`Sign in with ${name} isn't available yet. Use your email and password.`);
+const useSocialSoon = (tr: ReturnType<typeof useT>) => (name: string) =>
+  toast.info(tr('pages.auth.socialSoon', { name }));
 
 export function SignInPage() {
+  const tr = useT();
+  const socialSoon = useSocialSoon(tr);
   const navigate = useNavigate();
   const session = useSession();
   const [email, setEmail] = React.useState(authForm.email);
@@ -41,9 +43,9 @@ export function SignInPage() {
     const em = email.trim();
     const x: typeof err = {};
     authForm.email = em;
-    if (!em) x.email = 'Enter your email address';
-    else if (!EMAIL_RE.test(em)) x.email = 'Enter a valid email, like name@company.com';
-    if (!pw) x.pw = 'Enter your password';
+    if (!em) x.email = tr('pages.auth.err.emailMissing');
+    else if (!EMAIL_RE.test(em)) x.email = tr('pages.auth.err.emailInvalid');
+    if (!pw) x.pw = tr('pages.auth.err.pwMissing');
     setErr(x);
     if (x.email || x.pw) {
       (x.email ? emailRef : pwRef).current?.focus();
@@ -53,7 +55,7 @@ export function SignInPage() {
       try {
         await session.signIn(em, pw);
         navigate(SECTIONS.home.path, { replace: true });
-        toast(`Signed in as ${em}`);
+        toast(tr('pages.auth.signedIn', { email: em }));
       } catch (e) {
         setErr({ pw: errorMessage(e) });
         pwRef.current?.focus();
@@ -65,7 +67,7 @@ export function SignInPage() {
     <AuthShell
       topRight={
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => navigate('/signup')}>
-          Sign up
+          {tr('pages.auth.signUp')}
         </button>
       }
     >
@@ -73,11 +75,11 @@ export function SignInPage() {
         <div style={{ display: 'flex', justifyContent: 'center' }}>
           <Logo height={30} />
         </div>
-        <h1>Welcome back</h1>
-        <p className="sub">Sign in to Gr8r</p>
+        <h1>{tr('pages.auth.welcomeBack')}</h1>
+        <p className="sub">{tr('pages.auth.signInSub')}</p>
         <div className="field">
           <label className="label" htmlFor="l-email">
-            Email
+            {tr('pages.auth.email')}
           </label>
           <input ref={emailRef} className={cn('input input-lg', err.email && 'is-error')} id="l-email" type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" aria-invalid={!!err.email} aria-describedby="email-err" />
           <FieldErr id="email-err">{err.email}</FieldErr>
@@ -85,16 +87,16 @@ export function SignInPage() {
         <div className="field">
           <div className="row">
             <label className="label" htmlFor="l-pw">
-              Password
+              {tr('pages.auth.password')}
             </label>
             <span className="sp"></span>
             <button type="button" className="link" style={{ fontSize: 12.5 }} onClick={() => navigate('/forgot')}>
-              Forgot password?
+              {tr('pages.auth.forgot')}
             </button>
           </div>
           <div className="inwrap">
             <input ref={pwRef} className={cn('input input-lg', err.pw && 'is-error')} id="l-pw" type={show ? 'text' : 'password'} value={pw} onChange={e => setPw(e.target.value)} autoComplete="current-password" style={{ paddingRight: 38 }} aria-invalid={!!err.pw} />
-            <button type="button" className="ibtn ibtn-sm" style={{ position: 'absolute', right: 5 }} aria-label={`${show ? 'Hide' : 'Show'} password`} onClick={() => setShow(s => !s)}>
+            <button type="button" className="ibtn ibtn-sm" style={{ position: 'absolute', right: 5 }} aria-label={`${show ? tr('pages.auth.hidePw') : tr('pages.auth.showPw')}`} onClick={() => setShow(s => !s)}>
               {show ? <EyeOff size={15} /> : <Eye size={15} />}
             </button>
           </div>
@@ -102,17 +104,17 @@ export function SignInPage() {
         </div>
         <label className="row" style={{ fontSize: 13, gap: 8, cursor: 'pointer' }}>
           <input type="checkbox" className="check" id="l-rem" defaultChecked />
-          Remember me for 30 days
+          {tr('pages.auth.remember')}
         </label>
         <button type="submit" className={cn('btn btn-primary btn-lg btn-block', busy && 'is-loading')} disabled={busy} id="login-btn">
-          Sign in
+          {tr('pages.auth.signIn')}
         </button>
-        <div className="or">or</div>
+        <div className="or">{tr('pages.auth.or')}</div>
         <SocialButtons onPick={socialSoon} busy={null} />
         <p className="auth-foot">
-          Don't have an account?{' '}
+          {tr('pages.auth.noAccount')}{' '}
           <button type="button" className="link" onClick={() => navigate('/signup')}>
-            Sign up
+            {tr('pages.auth.signUp')}
           </button>
         </p>
       </AuthCard>
@@ -121,6 +123,8 @@ export function SignInPage() {
 }
 
 export function SignUpPage() {
+  const tr = useT();
+  const socialSoon = useSocialSoon(tr);
   const navigate = useNavigate();
   const session = useSession();
   const [name, setName] = React.useState(authForm.name);
@@ -136,12 +140,11 @@ export function SignUpPage() {
     const x: typeof err = {};
     authForm.name = nm;
     authForm.email = em;
-    if (!nm) x.name = 'Enter your name';
-    if (!EMAIL_RE.test(em)) x.email = 'Enter a valid work email';
-    if (pwWeak(pw)) x.pw = PW_RULE;
+    if (!nm) x.name = tr('pages.auth.err.nameMissing');
+    if (!EMAIL_RE.test(em)) x.email = tr('pages.auth.err.emailInvalidWork');
+    if (pwWeak(pw)) x.pw = tr('pages.auth.pwRule');
     setErr(x);
     if (x.name || x.email || x.pw) return;
-    // Аккаунт создаётся сразу и сессия начинается; воркспейс создаётся на онбординге
     void run(async () => {
       try {
         await session.signUp({ email: em, password: pw, name: nm });
@@ -157,7 +160,7 @@ export function SignUpPage() {
     <AuthShell
       topRight={
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => navigate('/signin')}>
-          Log in
+          {tr('pages.auth.signIn')}
         </button>
       }
     >
@@ -165,42 +168,42 @@ export function SignUpPage() {
         <div style={{ display: 'flex', justifyContent: 'center' }}>
           <Logo height={30} />
         </div>
-        <h1>Create your account</h1>
-        <p className="sub">Free for up to 3 members. No credit card required.</p>
+        <h1>{tr('pages.auth.createAccount')}</h1>
+        <p className="sub">{tr('pages.auth.signUpSub')}</p>
         <SocialButtons onPick={socialSoon} busy={null} />
-        <div className="or">or sign up with email</div>
+        <div className="or">{tr('pages.auth.orSignUpEmail')}</div>
         <div className="field">
           <label className="label" htmlFor="s-name">
-            Full name
+            {tr('pages.auth.fullName')}
           </label>
-          <input className={cn('input input-lg', err.name && 'is-error')} id="s-name" value={name} onChange={e => setName(e.target.value)} autoComplete="name" placeholder="Tanjim Islam" />
+          <input className={cn('input input-lg', err.name && 'is-error')} id="s-name" value={name} onChange={e => setName(e.target.value)} autoComplete="name" placeholder={tr('pages.auth.fullNamePlaceholder')} />
           <FieldErr>{err.name}</FieldErr>
         </div>
         <div className="field">
           <label className="label" htmlFor="s-email">
-            Work email
+            {tr('pages.auth.workEmail')}
           </label>
-          <input className={cn('input input-lg', err.email && 'is-error')} id="s-email" type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" placeholder="you@company.com" />
+          <input className={cn('input input-lg', err.email && 'is-error')} id="s-email" type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" placeholder={tr('pages.auth.workEmailPlaceholder')} />
           <FieldErr>{err.email}</FieldErr>
         </div>
         <div className="field">
           <label className="label" htmlFor="s-pw">
-            Password
+            {tr('pages.auth.password')}
           </label>
           <input className={cn('input input-lg', err.pw && 'is-error')} id="s-pw" type="password" value={pw} onChange={e => setPw(e.target.value)} autoComplete="new-password" />
           <StrengthMeter pw={pw} />
-          {err.pw ? <FieldErr>{err.pw}</FieldErr> : <span className="hint">At least 10 characters with a number or symbol.</span>}
+          {err.pw ? <FieldErr>{err.pw}</FieldErr> : <span className="hint">{tr('pages.auth.pwHint')}</span>}
         </div>
         <button type="submit" className={cn('btn btn-primary btn-lg btn-block', busy && 'is-loading')} disabled={busy} id="signup-btn">
-          Create account
+          {tr('pages.auth.createAccountBtn')}
         </button>
         <p className="hint" style={{ textAlign: 'center' }}>
-          By creating an account you agree to the Terms and Privacy Policy.
+          {tr('pages.auth.termsNotice')}
         </p>
         <p className="auth-foot">
-          Already have an account?{' '}
+          {tr('pages.auth.haveAccount')}{' '}
           <button type="button" className="link" onClick={() => navigate('/signin')}>
-            Sign in
+            {tr('pages.auth.signIn')}
           </button>
         </p>
       </AuthCard>
@@ -208,15 +211,15 @@ export function SignUpPage() {
   );
 }
 
-const BackToSignIn = ({ onClick }: { onClick: () => void }) => (
+const BackToSignIn = ({ onClick, label }: { onClick: () => void; label: string }) => (
   <button type="button" className="link row" style={{ display: 'inline-flex', gap: 6 }} onClick={onClick}>
     <ArrowLeft size={14} />
-    Back to sign in
+    {label}
   </button>
 );
 
-/** Восстановление: форма, затем «Check your email»; ссылка из письма в прототипе — кнопка */
 export function ForgotPage() {
+  const tr = useT();
   const navigate = useNavigate();
   const [email, setEmail] = React.useState(authForm.email);
   const [err, setErr] = React.useState('');
@@ -225,12 +228,11 @@ export function ForgotPage() {
     const em = email.trim();
     authForm.email = em;
     if (!EMAIL_RE.test(em)) {
-      setErr('Enter the email you use to sign in');
+      setErr(tr('pages.auth.err.emailNoAccount'));
       return;
     }
     setErr('');
-    // Писем пока нет (почтовый сервис — отдельный этап), поэтому ссылку для сброса отправить нечем
-    toast.info("Password reset by email isn't available yet. Ask a workspace admin to invite you again.");
+    toast.info(tr('pages.auth.resetUnavailable'));
   };
 
   return (
@@ -239,28 +241,28 @@ export function ForgotPage() {
         <Badge color="var(--accent)">
           <KeyRound size={20} />
         </Badge>
-        <h1>Reset your password</h1>
-        <p className="sub">Enter your account email and we'll send you a reset link.</p>
+        <h1>{tr('pages.auth.resetTitle')}</h1>
+        <p className="sub">{tr('pages.auth.resetSub')}</p>
         <div className="field">
           <label className="label" htmlFor="f-email">
-            Email
+            {tr('pages.auth.email')}
           </label>
           <input className={cn('input input-lg', err && 'is-error')} id="f-email" type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" />
           <FieldErr>{err}</FieldErr>
         </div>
         <button type="submit" className="btn btn-primary btn-lg btn-block" id="forgot-btn">
-          Send reset link
+          {tr('pages.auth.sendReset')}
         </button>
         <p className="auth-foot">
-          <BackToSignIn onClick={() => navigate('/signin')} />
+          <BackToSignIn onClick={() => navigate('/signin')} label={tr('pages.auth.backToSignIn')} />
         </p>
       </AuthCard>
     </AuthShell>
   );
 }
 
-/** Новый пароль: форма, затем «Password updated» */
 export function ResetPage() {
+  const tr = useT();
   const navigate = useNavigate();
   const [done, setDone] = React.useState(false);
   const [pw, setPw] = React.useState('');
@@ -271,8 +273,8 @@ export function ResetPage() {
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const x: typeof err = {};
-    if (pwWeak(pw)) x.pw = PW_RULE;
-    if (pw !== pw2) x.pw2 = "Passwords don't match";
+    if (pwWeak(pw)) x.pw = tr('pages.auth.pwRule');
+    if (pw !== pw2) x.pw2 = tr('pages.auth.err.pwMismatch');
     setErr(x);
     if (x.pw || x.pw2) return;
     run(() => setDone(true));
@@ -285,10 +287,10 @@ export function ResetPage() {
           <Badge color="var(--green)">
             <CircleCheck size={20} />
           </Badge>
-          <h1>Password updated</h1>
-          <p className="sub">You can now sign in with your new password.</p>
+          <h1>{tr('pages.auth.passwordUpdated')}</h1>
+          <p className="sub">{tr('pages.auth.passwordUpdatedSub')}</p>
           <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => navigate('/signin')}>
-            Sign in
+            {tr('pages.auth.signIn')}
           </button>
         </AuthCard>
       </AuthShell>
@@ -300,11 +302,11 @@ export function ResetPage() {
         <div style={{ display: 'flex', justifyContent: 'center' }}>
           <Logo height={30} />
         </div>
-        <h1>Choose a new password</h1>
-        <p className="sub">for {authForm.email}</p>
+        <h1>{tr('pages.auth.chooseNewPw')}</h1>
+        <p className="sub">{tr('pages.auth.chooseNewPwSub', { email: authForm.email })}</p>
         <div className="field">
           <label className="label" htmlFor="r-pw">
-            New password
+            {tr('pages.auth.newPassword')}
           </label>
           <input className={cn('input input-lg', err.pw && 'is-error')} id="r-pw" type="password" value={pw} onChange={e => setPw(e.target.value)} autoComplete="new-password" />
           <StrengthMeter pw={pw} />
@@ -312,21 +314,21 @@ export function ResetPage() {
         </div>
         <div className="field">
           <label className="label" htmlFor="r-pw2">
-            Confirm password
+            {tr('pages.auth.confirmPassword')}
           </label>
           <input className={cn('input input-lg', err.pw2 && 'is-error')} id="r-pw2" type="password" value={pw2} onChange={e => setPw2(e.target.value)} autoComplete="new-password" />
           <FieldErr>{err.pw2}</FieldErr>
         </div>
         <button type="submit" className={cn('btn btn-primary btn-lg btn-block', busy && 'is-loading')} disabled={busy} id="reset-btn">
-          Reset password
+          {tr('pages.auth.resetPassword')}
         </button>
       </AuthCard>
     </AuthShell>
   );
 }
 
-/** Подтверждение почты после регистрации; повторная отправка доступна через 30 с */
 export function VerifyPage() {
+  const tr = useT();
   const navigate = useNavigate();
   const [left, setLeft] = React.useState(30);
   React.useEffect(() => {
@@ -341,18 +343,18 @@ export function VerifyPage() {
         <Badge color="var(--accent)">
           <Mail size={20} />
         </Badge>
-        <h1>Verify your email</h1>
+        <h1>{tr('pages.auth.verifyTitle')}</h1>
         <p className="sub">
-          We sent a verification link to <b style={{ color: 'var(--text)' }}>{authForm.email}</b>. Click it to activate your account.
+          {tr('pages.auth.verifySubBefore')} <b style={{ color: 'var(--text)' }}>{authForm.email}</b>{' '}{tr('pages.auth.verifySubAfter')}
         </p>
         <div className="panel" style={{ padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'center' }}>
           <span className="sk" style={{ width: 8, height: 8, borderRadius: '50%', animationDuration: '1.1s' }}></span>
           <span className="muted" style={{ fontSize: 13 }}>
-            Waiting for verification…
+            {tr('pages.auth.waitingVerify')}
           </span>
         </div>
         <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => navigate('/onboarding')}>
-          I've verified my email
+          {tr('pages.auth.verified')}
         </button>
         <button
           type="button"
@@ -360,21 +362,21 @@ export function VerifyPage() {
           disabled={left > 0}
           onClick={() => {
             setLeft(30);
-            toast(`Verification email sent to ${authForm.email}`);
+            toast(tr('pages.auth.resentEmail', { email: authForm.email }));
           }}
         >
           {left > 0 ? (
             <>
-              Resend email in <span className="num">{left}</span>s
+              {tr('pages.auth.resendIn')} <span className="num">{left}</span>{tr('pages.auth.seconds')}
             </>
           ) : (
-            'Resend email'
+            tr('pages.auth.resend')
           )}
         </button>
         <p className="auth-foot">
-          Wrong email?{' '}
+          {tr('pages.auth.wrongEmail')}{' '}
           <button type="button" className="link" onClick={() => navigate('/signup')}>
-            Change it
+            {tr('pages.auth.changeIt')}
           </button>
         </p>
       </AuthCard>

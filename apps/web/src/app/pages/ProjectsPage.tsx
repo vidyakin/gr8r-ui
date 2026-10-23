@@ -10,18 +10,15 @@ import { ago, fmtDate, minsAgo } from '../lib/dates';
 import { MemberAvatar, MemberStack } from '../components/workspace';
 import { ProjectCard, ProjectIcon, ProjectMenu, ProjectStatus } from '../components/project';
 import { useProjectForms } from '../overlays';
+import { useT } from '@/i18n';
 
 type Layout = 'grid' | 'list' | 'table';
 type Sort = 'recent' | 'name' | 'due' | 'progress';
 
-const SORTS: [Sort, string][] = [
-  ['recent', 'Recently active'],
-  ['name', 'Name'],
-  ['due', 'Due date'],
-  ['progress', 'Progress'],
-];
+const SORTS: Sort[] = ['recent', 'name', 'due', 'progress'];
 
 export function ProjectsPage() {
+  const tr = useT();
   const { data } = useWorkspace();
   const navigate = useNavigate();
   const [q, setQ] = React.useState('');
@@ -48,15 +45,15 @@ export function ProjectsPage() {
       <div className="panel">
         <EmptyState
           icon={<FolderKanban />}
-          title="No projects yet"
+          title={tr('pages.projects.empty.title')}
           action={
             <Button size="sm" onClick={newProject}>
               <Plus size={14} />
-              Create project
+              {tr('pages.projects.empty.action')}
             </Button>
           }
         >
-          Create your first project to start organizing your work.
+          {tr('pages.projects.empty.hint')}
         </EmptyState>
       </div>
     );
@@ -65,7 +62,7 @@ export function ProjectsPage() {
       <div className="panel">
         <EmptyState
           icon={<SearchX />}
-          title="No results found"
+          title={tr('pages.projects.noResults.title')}
           action={
             <Button
               variant="secondary"
@@ -75,11 +72,11 @@ export function ProjectsPage() {
                 setStatus('all');
               }}
             >
-              Clear filters
+              {tr('common.clearFilters')}
             </Button>
           }
         >
-          No projects match your search or filters. Try a different term.
+          {tr('pages.projects.noResults.hint')}
         </EmptyState>
       </div>
     );
@@ -133,15 +130,15 @@ export function ProjectsPage() {
         <table className="perm-t" style={{ minWidth: 860 }}>
           <thead>
             <tr>
-              <th style={{ paddingLeft: 14 }}>Project</th>
-              <th style={{ textAlign: 'left' }}>Status</th>
-              <th style={{ textAlign: 'left' }}>Lead</th>
-              <th style={{ textAlign: 'left' }}>Team</th>
-              <th style={{ textAlign: 'left', width: '16%' }}>Progress</th>
-              <th>Tasks</th>
-              <th style={{ textAlign: 'left' }}>Start</th>
-              <th style={{ textAlign: 'left' }}>Due</th>
-              <th style={{ textAlign: 'left' }}>Last activity</th>
+              <th style={{ paddingLeft: 14 }}>{tr('pages.projects.cols.project')}</th>
+              <th style={{ textAlign: 'left' }}>{tr('pages.projects.cols.status')}</th>
+              <th style={{ textAlign: 'left' }}>{tr('pages.projects.cols.lead')}</th>
+              <th style={{ textAlign: 'left' }}>{tr('pages.projects.cols.team')}</th>
+              <th style={{ textAlign: 'left', width: '16%' }}>{tr('pages.projects.cols.progress')}</th>
+              <th>{tr('pages.projects.cols.tasks')}</th>
+              <th style={{ textAlign: 'left' }}>{tr('pages.projects.cols.start')}</th>
+              <th style={{ textAlign: 'left' }}>{tr('pages.projects.cols.due')}</th>
+              <th style={{ textAlign: 'left' }}>{tr('pages.projects.cols.lastActivity')}</th>
               <th />
             </tr>
           </thead>
@@ -168,7 +165,7 @@ export function ProjectsPage() {
                     </span>
                   </td>
                   <td style={{ textAlign: 'left' }} className="muted">
-                    {data.teams.find(t => t.id === p.team)?.name}
+                    {data.teams.find(team => team.id === p.team)?.name}
                   </td>
                   <td>
                     <span className="row">
@@ -203,46 +200,49 @@ export function ProjectsPage() {
     <div className="page wide">
       <div className="ph">
         <div>
-          <h1>Projects</h1>
+          <h1>{tr('pages.projects.title')}</h1>
           <p>
-            {all.filter(p => p.status !== 'complete').length} active · {all.filter(p => p.status === 'complete').length} completed
+            {tr('pages.projects.summary', {
+              active: all.filter(p => p.status !== 'complete').length,
+              done: all.filter(p => p.status === 'complete').length,
+            })}
           </p>
         </div>
         <div className="acts">
           <Button variant="primary" onClick={newProject}>
             <Plus size={14} />
-            New project
+            {tr('pages.projects.newAction')}
           </Button>
         </div>
       </div>
       <div className="row" style={{ marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
         <div style={{ width: 200 }}>
-          <Input size="sm" icon={<Search size={13} />} placeholder="Search projects" aria-label="Search projects" value={q} onChange={e => setQ(e.target.value)} />
+          <Input size="sm" icon={<Search size={13} />} placeholder={tr('pages.projects.search')} aria-label={tr('pages.projects.search')} value={q} onChange={e => setQ(e.target.value)} />
         </div>
-        <select className="select" style={{ height: 26, width: 'auto', fontSize: 12 }} aria-label="Filter by status" value={status} onChange={e => setStatus(e.target.value)}>
-          <option value="all">All statuses</option>
+        <select className="select" style={{ height: 26, width: 'auto', fontSize: 12 }} aria-label={tr('pages.projects.filterStatus')} value={status} onChange={e => setStatus(e.target.value)}>
+          <option value="all">{tr('pages.projects.allStatuses')}</option>
           {Object.entries(PROJECT_STATUS).map(([k, v]) => (
             <option key={k} value={k}>
               {v.name}
             </option>
           ))}
         </select>
-        <select className="select" style={{ height: 26, width: 'auto', fontSize: 12 }} aria-label="Sort" value={sort} onChange={e => setSort(e.target.value as Sort)}>
-          {SORTS.map(([k, n]) => (
+        <select className="select" style={{ height: 26, width: 'auto', fontSize: 12 }} aria-label={tr('pages.projects.sort')} value={sort} onChange={e => setSort(e.target.value as Sort)}>
+          {SORTS.map(k => (
             <option key={k} value={k}>
-              Sort: {n}
+              {tr('pages.projects.sortPrefix')}{' '}{tr(`pages.projects.sortLabel.${k}` as 'pages.projects.sortLabel.recent')}
             </option>
           ))}
         </select>
         <span className="sp" />
         <Segmented
-          aria-label="Layout"
+          aria-label={tr('pages.projects.layout')}
           value={view}
           onValueChange={setView}
           items={[
-            { value: 'grid', label: <span className="hide-m">Grid</span>, icon: <LayoutGrid size={13} />, 'aria-label': 'Grid' },
-            { value: 'list', label: <span className="hide-m">List</span>, icon: <List size={13} />, 'aria-label': 'List' },
-            { value: 'table', label: <span className="hide-m">Table</span>, icon: <Table2 size={13} />, 'aria-label': 'Table' },
+            { value: 'grid', label: <span className="hide-m">{tr('pages.projects.viewGrid')}</span>, icon: <LayoutGrid size={13} />, 'aria-label': tr('pages.projects.viewGrid') },
+            { value: 'list', label: <span className="hide-m">{tr('pages.projects.viewList')}</span>, icon: <List size={13} />, 'aria-label': tr('pages.projects.viewList') },
+            { value: 'table', label: <span className="hide-m">{tr('pages.projects.viewTable')}</span>, icon: <Table2 size={13} />, 'aria-label': tr('pages.projects.viewTable') },
           ]}
         />
       </div>

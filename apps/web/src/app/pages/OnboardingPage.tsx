@@ -14,6 +14,7 @@ import { inviteLink } from '../overlays/invite';
 import { EMAIL_RE } from '../lib/auth';
 import { dOff } from '../lib/dates';
 import { uuidv7 } from '../lib/uuid';
+import { useT } from '@/i18n';
 
 const N = 6;
 const USES: [string, string, string, string][] = [
@@ -45,6 +46,7 @@ interface Onb {
 }
 
 export function OnboardingPage() {
+  const tr = useT();
   const navigate = useNavigate();
   const session = useSession();
   const [busy, setBusy] = React.useState(false);
@@ -86,24 +88,24 @@ export function OnboardingPage() {
 
   const next = (skip = false) => {
     if (st === 1 && !o.ws.trim()) {
-      setWsErr('Name your workspace to continue');
+      setWsErr(tr('pages.onboarding.err.wsMissing'));
       box.current?.querySelector<HTMLInputElement>('#o-ws')?.focus();
       return;
     }
     if (st === 1 && o.url && !/^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(o.url)) {
-      setWsErr('Workspace URL: 3-40 lowercase letters, digits and dashes');
+      setWsErr(tr('pages.onboarding.err.urlFormat'));
       box.current?.querySelector<HTMLInputElement>('#o-url')?.focus();
       return;
     }
     if (st === 3 && !o.proj.trim()) {
-      toast.error('Give your project a name');
+      toast.error(tr('pages.onboarding.err.projMissing'));
       return;
     }
     if (st === 4 && skip) set({ invites: ['', '', ''] });
     if (st === 4 && !skip) {
       const bad = o.invites.filter(x => x && !EMAIL_RE.test(x));
       if (bad.length) {
-        toast.error(`${bad[0]} isn't a valid email address`);
+        toast.error(tr('pages.onboarding.err.emailInvalid', { email: bad[0] }));
         return;
       }
     }
@@ -159,7 +161,7 @@ export function OnboardingPage() {
       await session.refreshWorkspaces();
       session.switchWorkspace(ws.id);
       navigate(`/projects/${id}/${VIEW_TAB[o.team] ?? 'board'}`, { replace: true });
-      toast(`Welcome to ${ws.name}`);
+      toast(tr('pages.onboarding.welcome', { name: ws.name }));
     } catch (e) {
       // Воркспейс уже создан — открываем его, остальное можно сделать из интерфейса
       toast.error(errorMessage(e));
@@ -169,18 +171,18 @@ export function OnboardingPage() {
     }
   };
 
-  const nav = (label = 'Continue', skip = false) => (
+  const nav = (label = tr('pages.onboarding.continue'), skip = false) => (
     <div className="row" style={{ marginTop: 6 }}>
       {st > 0 && st < 5 && (
         <button type="button" className="btn btn-ghost" onClick={() => setSt(s => Math.max(0, s - 1))}>
           <ArrowLeft size={14} />
-          Back
+          {tr('pages.onboarding.back')}
         </button>
       )}
       <span className="sp"></span>
       {skip && (
         <button type="button" className="btn btn-ghost" onClick={() => next(true)}>
-          Skip for now
+          {tr('pages.onboarding.skip')}
         </button>
       )}
       <button type="submit" className="btn btn-primary btn-lg" id="onb-next">
@@ -196,8 +198,8 @@ export function OnboardingPage() {
   if (st === 0)
     body = (
       <>
-        <h1>What are you working on?</h1>
-        <p className="sub">We'll tailor templates and views to fit. You can change this later.</p>
+        <h1>{tr('pages.onboarding.step0Title')}</h1>
+        <p className="sub">{tr('pages.onboarding.step0Sub')}</p>
         <div className="opts" role="radiogroup">
           {USES.map(x => opt('use', ...x))}
         </div>
@@ -207,11 +209,11 @@ export function OnboardingPage() {
   if (st === 1)
     body = (
       <>
-        <h1>Create your workspace</h1>
-        <p className="sub">A workspace is where your team's projects live.</p>
+        <h1>{tr('pages.onboarding.step1Title')}</h1>
+        <p className="sub">{tr('pages.onboarding.step1Sub')}</p>
         <div className="field">
           <label className="label" htmlFor="o-ws">
-            Workspace name
+            {tr('pages.onboarding.workspaceName')}
           </label>
           <input
             className={cn('input input-lg', wsErr && 'is-error')}
@@ -229,7 +231,7 @@ export function OnboardingPage() {
         </div>
         <div className="field">
           <label className="label" htmlFor="o-url">
-            Workspace URL
+            {tr('pages.onboarding.workspaceUrl')}
           </label>
           <div className="row" style={{ gap: 0 }}>
             <span className="input input-lg" style={{ width: 'auto', background: 'var(--surface-2)', borderRight: 0, borderRadius: '6px 0 0 6px', display: 'flex', alignItems: 'center', color: 'var(--text-2)' }}>
@@ -250,7 +252,7 @@ export function OnboardingPage() {
           {o.url && (
             <span className="hint" style={{ color: 'var(--green)', display: 'flex', gap: 4, alignItems: 'center' }}>
               <Check size={12} />
-              gr8rstudio.com/{o.url} is available
+              {tr('pages.onboarding.urlAvailable', { url: o.url })}
             </span>
           )}
         </div>
@@ -260,13 +262,13 @@ export function OnboardingPage() {
   if (st === 2)
     body = (
       <>
-        <h1>How does your team work?</h1>
-        <p className="sub">We'll set your default project view.</p>
+        <h1>{tr('pages.onboarding.step2Title')}</h1>
+        <p className="sub">{tr('pages.onboarding.step2Sub')}</p>
         <div className="opts" role="radiogroup" style={{ gridTemplateColumns: 'repeat(2,minmax(0,1fr))' }}>
           {TEAMS.map(x => opt('team', ...x))}
         </div>
         <div className="field">
-          <span className="label">Team size</span>
+          <span className="label">{tr('pages.onboarding.teamSize')}</span>
           <div className="seg" style={{ width: 'fit-content' }}>
             {['Just me', '2-10', '11-50', '51-200', '200+'].map(s => (
               <button key={s} type="button" className={o.size === s ? 'on' : ''} onClick={() => set({ size: s })}>
@@ -281,11 +283,11 @@ export function OnboardingPage() {
   if (st === 3)
     body = (
       <>
-        <h1>Create your first project</h1>
-        <p className="sub">Start from a template or a blank project.</p>
+        <h1>{tr('pages.onboarding.step3Title')}</h1>
+        <p className="sub">{tr('pages.onboarding.step3Sub')}</p>
         <div className="field">
           <label className="label" htmlFor="o-proj">
-            Project name
+            {tr('pages.onboarding.projectName')}
           </label>
           <input
             className="input input-lg"
@@ -307,11 +309,11 @@ export function OnboardingPage() {
   if (st === 4)
     body = (
       <>
-        <h1>Invite your team</h1>
-        <p className="sub">Gr8r works best with your teammates. They'll get an email invite.</p>
+        <h1>{tr('pages.onboarding.step4Title')}</h1>
+        <p className="sub">{tr('pages.onboarding.step4Sub')}</p>
         <div className="col" style={{ gap: 8 }}>
           {[0, 1, 2].map(i => (
-            <input key={i} className="input input-lg" id={`o-inv-${i}`} placeholder="teammate@company.com" type="email" value={o.invites[i]} aria-label={`Teammate email ${i + 1}`} onChange={e => set({ invites: o.invites.map((v, j) => (j === i ? e.target.value.trim() : v)) })} />
+            <input key={i} className="input input-lg" id={`o-inv-${i}`} placeholder={tr('pages.onboarding.invitePlaceholder')} type="email" value={o.invites[i]} aria-label={tr('pages.onboarding.inviteAria', { n: i + 1 })} onChange={e => set({ invites: o.invites.map((v, j) => (j === i ? e.target.value.trim() : v)) })} />
           ))}
         </div>
         <button
@@ -320,22 +322,22 @@ export function OnboardingPage() {
           style={{ alignSelf: 'flex-start' }}
           onClick={() => {
             navigator.clipboard?.writeText(inviteLink(o.url || 'workspace')).catch(() => {});
-            toast('Invite link copied');
+            toast(tr('pages.onboarding.inviteLinkCopied'));
           }}
         >
           <Link size={13} />
-          Copy invite link instead
+          {tr('pages.onboarding.copyInvite')}
         </button>
-        {nav('Send invites', true)}
+        {nav(tr('pages.onboarding.sendInvites'), true)}
       </>
     );
   if (st === 5) {
     const n = o.invites.filter(x => x.includes('@')).length;
     const tm = TEMPLATES.find(t => t.id === o.tmpl);
     const rows: [React.ReactNode, string, string][] = [
-      [<Building2 size={14} />, `Workspace “${o.ws || 'My Workspace'}”`, 'gr8rstudio.com/' + (o.url || 'workspace')],
-      [<NamedIcon name={tm?.icon || 'folder'} size={14} />, `Project “${o.proj}”`, `${tm?.tasks.length || 0} starter tasks · ${VIEW_NAME[o.team]} view`],
-      [<UserPlus size={14} />, n ? `${n} invite${n > 1 ? 's' : ''} sent` : 'No invites yet', n ? "They'll appear in Members once they join" : 'Invite people any time from the sidebar'],
+      [<Building2 size={14} />, tr('pages.onboarding.rowWs', { name: o.ws || 'My Workspace' }), 'gr8rstudio.com/' + (o.url || 'workspace')],
+      [<NamedIcon name={tm?.icon || 'folder'} size={14} />, tr('pages.onboarding.rowProject', { name: o.proj }), tr('pages.onboarding.rowProjectSub', { tasks: tm?.tasks.length || 0, view: VIEW_NAME[o.team] })],
+      [<UserPlus size={14} />, n ? tr('pages.onboarding.invitesCount', { count: n }) : tr('pages.onboarding.invitesNone'), n ? tr('pages.onboarding.invitesHintSent') : tr('pages.onboarding.invitesHintNone')],
     ];
     body = (
       <>
@@ -344,8 +346,8 @@ export function OnboardingPage() {
             <CircleCheck size={22} />
           </span>
         </div>
-        <h1>Your workspace is ready</h1>
-        <p className="sub">Here's what we set up for you.</p>
+        <h1>{tr('pages.onboarding.step5Title')}</h1>
+        <p className="sub">{tr('pages.onboarding.step5Sub')}</p>
         <div className="panel">
           {rows.map(([icon, t, s], i) => (
             <div key={i} className="row ready-row" style={{ padding: '12px 14px', borderTop: '1px solid var(--divider)', gap: 12 }}>
@@ -365,7 +367,7 @@ export function OnboardingPage() {
           ))}
         </div>
         <button type="button" className={cn('btn btn-primary btn-lg btn-block', busy && 'is-loading')} disabled={busy} onClick={() => void finish()}>
-          Open workspace
+          {tr('pages.onboarding.openWorkspace')}
           <ArrowRight size={15} />
         </button>
       </>
@@ -376,7 +378,7 @@ export function OnboardingPage() {
     <AuthShell
       topRight={
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => navigate('/', { replace: true })}>
-          Exit setup
+          {tr('pages.onboarding.exitSetup')}
         </button>
       }
     >
@@ -397,13 +399,13 @@ export function OnboardingPage() {
                 },
               })}
         >
-          <div className="steps" aria-label={`Step ${st + 1} of ${N}`}>
+          <div className="steps" aria-label={tr('pages.onboarding.stepOf', { cur: st + 1, total: N })}>
             {Array.from({ length: N }, (_, i) => (
               <i key={i} className={cn(i <= st && 'on', i === st && 'cur')} />
             ))}
           </div>
           <div className="faint" style={{ textAlign: 'center', fontSize: 12 }}>
-            Step {st + 1} of {N}
+            {tr('pages.onboarding.stepOf', { cur: st + 1, total: N })}
           </div>
           {body}
         </AuthCard>

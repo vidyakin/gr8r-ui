@@ -4,8 +4,10 @@ import { allTasks, applyView, generalScope } from '../data/selectors';
 import { TimelineControls, TimelineView, useTimeline } from '../components/timeline-view';
 import { ViewToolbar, useListView } from '../components/view-toolbar';
 import { useTaskForm } from '../overlays';
+import { useT } from '@/i18n';
 
 export function TimelinePage() {
+  const t = useT();
   const { data } = useWorkspace();
   const api = useListView();
   const tl = useTimeline('project');
@@ -15,8 +17,8 @@ export function TimelinePage() {
     <div className="page flush">
       <div className="ph">
         <div>
-          <h1>Timeline</h1>
-          <p>Schedules, dependencies, and milestones across projects.</p>
+          <h1>{t('pages.timeline.title')}</h1>
+          <p>{t('pages.timeline.subline')}</p>
         </div>
       </div>
       <ViewToolbar api={api} group={false} extra={<TimelineControls tl={tl} />} />

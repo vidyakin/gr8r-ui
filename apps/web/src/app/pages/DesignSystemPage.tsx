@@ -71,7 +71,7 @@ import {
 import { Calendar } from '@/components/shadcn/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/shadcn/card';
 import { PRIORITIES, PriorityIcon, priorityName, STATUSES, StatusIcon, TaskCard, type Task } from '@/components/gr8r/task';
-import { fmtDateTimeIntl } from '@/i18n';
+import { fmtDateTimeIntl, useT } from '@/i18n';
 
 const d = (n: number) => new Date(Date.now() + n * 864e5);
 const TASKS: Task[] = [
@@ -103,11 +103,12 @@ const Row = ({ children }: { children: React.ReactNode }) => <div className="fle
 
 function PageHeader() {
   const { prefs, setPrefs } = usePrefs();
+  const tr = useT();
   return (
     <div className="ph items-center!">
       <div>
-        <h1>Design system</h1>
-        <p>Компоненты Gr8r UI на React + Radix. Тема, акцент и плотность применяются ко всему приложению.</p>
+        <h1>{tr('pages.designSystem.title')}</h1>
+        <p>{tr('pages.designSystem.sub')}</p>
       </div>
       <div className="acts">
       <Segmented

@@ -10,10 +10,12 @@ import { BucketIcon, CUSTOMER_COLUMN, TableView, useTaskColumns } from '../compo
 import { LIST_OPTIONAL_COLUMNS, TaskList, withCustomerColumn, withTimeColumn, type TaskGroup } from '../components/task-list';
 import { ViewToolbar, useListView } from '../components/view-toolbar';
 import { useTaskForm } from '../overlays';
+import { useT } from '@/i18n';
 
 type Mode = 'list' | 'board' | 'table';
 
 export function TasksPage() {
+  const t = useT();
   const { data } = useWorkspace();
   // Палитра открывает «Overdue tasks» через state перехода
   const preset = useLocation().state?.filter === 'overdue';
@@ -42,13 +44,13 @@ export function TasksPage() {
     <div className="page flush">
       <div className="ph">
         <div>
-          <h1>Tasks</h1>
-          <p>Every task across {visibleProjects(data).filter(p => canSee(data, p)).length} projects.</p>
+          <h1>{t('pages.tasks.title')}</h1>
+          <p>{t('pages.tasks.subline', { count: visibleProjects(data).filter(p => canSee(data, p)).length })}</p>
         </div>
         <div className="acts">
           <Button variant="primary" onClick={newTask}>
             <Plus size={14} />
-            New task
+            {t('pages.tasks.newTask')}
           </Button>
         </div>
       </div>
@@ -60,13 +62,13 @@ export function TasksPage() {
         extra={mode === 'board' && <BoardOptions density={density} onDensity={setDensity} showSubtasks={showSubs} onShowSubtasks={setShowSubs} />}
         left={
           <Segmented
-            aria-label="View"
+            aria-label={t('pages.tasks.viewLabel')}
             value={mode}
             onValueChange={setMode}
             items={[
-              { value: 'list', label: <span className="hide-m">List</span>, icon: <List size={13} />, 'aria-label': 'List' },
-              { value: 'board', label: <span className="hide-m">Board</span>, icon: <SquareKanban size={13} />, 'aria-label': 'Board' },
-              { value: 'table', label: <span className="hide-m">Table</span>, icon: <Table2 size={13} />, 'aria-label': 'Table' },
+              { value: 'list', label: <span className="hide-m">{t('pages.tasks.modeList')}</span>, icon: <List size={13} />, 'aria-label': t('pages.tasks.modeList') },
+              { value: 'board', label: <span className="hide-m">{t('pages.tasks.modeBoard')}</span>, icon: <SquareKanban size={13} />, 'aria-label': t('pages.tasks.modeBoard') },
+              { value: 'table', label: <span className="hide-m">{t('pages.tasks.modeTable')}</span>, icon: <Table2 size={13} />, 'aria-label': t('pages.tasks.modeTable') },
             ]}
           />
         }

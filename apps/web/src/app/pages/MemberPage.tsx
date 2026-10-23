@@ -11,8 +11,10 @@ import { ProjectIcon } from '../components/project';
 import { WeekBars } from '../components/time-summary';
 import { MemberMenu, useMemberActions } from '../components/member';
 import { NotFoundPage } from './PlaceholderPage';
+import { useT } from '@/i18n';
 
 export function MemberPage() {
+  const t = useT();
   const { id } = useParams();
   const { data } = useWorkspace();
   const navigate = useNavigate();
@@ -51,7 +53,7 @@ export function MemberPage() {
               {m.role === 'Owner' && <Crown size={11} />}
               {m.role}
             </Badge>
-            {m.status === 'invited' && <Badge tone="amber">Invite pending</Badge>}
+            {m.status === 'invited' && <Badge tone="amber">{t('pages.member.invitePending')}</Badge>}
           </div>
           <div className="muted" style={{ marginTop: 3 }}>
             {m.title}
@@ -68,37 +70,37 @@ export function MemberPage() {
             </span>
             <span className="row" style={{ gap: 5 }}>
               <Clock size={13} />
-              {m.last == null ? 'Never signed in' : online ? 'Online now' : 'Active ' + ago(minsAgo(m.last))}
+              {m.last == null ? t('pages.member.neverSignedIn') : online ? t('pages.member.onlineNow') : t('pages.member.activeAgo', { ago: ago(minsAgo(m.last)) })}
             </span>
           </div>
         </div>
         <div className="row">
           <Button variant="secondary" onClick={() => actions.copyEmail(m)}>
             <Copy size={14} />
-            Copy email
+            {t('pages.member.copyEmail')}
           </Button>
           <Button variant="primary" onClick={() => actions.assign(m)}>
             <Plus size={14} />
-            Assign task
+            {t('pages.member.assignTask')}
           </Button>
-          <MemberMenu m={m} actions={actions} size="md" iconSize={16} label="More" />
+          <MemberMenu m={m} actions={actions} size="md" iconSize={16} label={t('pages.member.more')} />
         </div>
       </div>
       <div className="stats" style={{ marginBottom: 18 }}>
         <div className="stat">
-          <span className="k">Active projects</span>
+          <span className="k">{t('pages.member.activeProjects')}</span>
           <span className="v">{ps.length}</span>
         </div>
         <div className="stat">
-          <span className="k">Assigned tasks</span>
+          <span className="k">{t('pages.member.assignedTasks')}</span>
           <span className="v">{open.length}</span>
         </div>
         <div className="stat">
-          <span className="k">Completed tasks</span>
+          <span className="k">{t('pages.member.completedTasks')}</span>
           <span className="v">{done.length}</span>
         </div>
         <div className="stat">
-          <span className="k">Overdue</span>
+          <span className="k">{t('pages.member.overdue')}</span>
           <span className="v" style={overdue ? { color: 'var(--red)' } : undefined}>
             {overdue}
           </span>
@@ -108,22 +110,26 @@ export function MemberPage() {
         <section className="panel">
           <Tabs value={tab} onValueChange={v => setTab(v as 'assigned' | 'completed')}>
             <TabsList style={{ padding: '0 8px' }}>
-              <Tab value="assigned">Assigned · {open.length}</Tab>
-              <Tab value="completed">Completed · {done.length}</Tab>
+              <Tab value="assigned">
+                {t('pages.member.tabAssigned')} · {open.length}
+              </Tab>
+              <Tab value="completed">
+                {t('pages.member.tabCompleted')} · {done.length}
+              </Tab>
             </TabsList>
           </Tabs>
           {list.length ? (
-            list.map(t => <MiniTaskRow key={t.id} task={t} showAssignee={false} onOpen={taskActions.open} />)
+            list.map(x => <MiniTaskRow key={x.id} task={x} showAssignee={false} onOpen={taskActions.open} />)
           ) : (
-            <EmptyState size="sm" icon={<ListChecks />} title="No tasks here">
-              Nothing to show in this list.
+            <EmptyState size="sm" icon={<ListChecks />} title={t('pages.member.noTasksTitle')}>
+              {t('pages.member.noTasksHint')}
             </EmptyState>
           )}
         </section>
         <div className="stack">
           <section className="panel">
             <div className="panel-h">
-              <h2>Active projects</h2>
+              <h2>{t('pages.member.activeProjects')}</h2>
             </div>
             {ps.length ? (
               ps.map(p => (
@@ -131,30 +137,30 @@ export function MemberPage() {
                   <ProjectIcon project={p} size={14} />
                   <span className="tt">{p.name}</span>
                   <span className="faint" style={{ fontSize: 12 }}>
-                    {p.lead === m.id ? 'Lead' : 'Member'}
+                    {p.lead === m.id ? t('pages.member.roleLead') : t('pages.member.roleMember')}
                   </span>
                 </div>
               ))
             ) : (
-              <div className="panel-b faint">No active projects</div>
+              <div className="panel-b faint">{t('pages.member.noActiveProjects')}</div>
             )}
           </section>
           <section className="panel">
             <div className="panel-h">
-              <h2>Time logged</h2>
+              <h2>{t('pages.member.timeLogged')}</h2>
               <div className="acts">
                 <span className="faint" style={{ fontSize: 12 }}>
-                  Last 7 days
+                  {t('pages.member.last7days')}
                 </span>
                 <Select
-                  aria-label="Module"
+                  aria-label={t('pages.member.module')}
                   value={mod}
                   onValueChange={v => setMod(v as typeof mod)}
                   options={[
-                    { value: 'all', label: 'All modules' },
-                    { value: 'general', label: 'General' },
-                    { value: 'production', label: 'Production' },
-                    { value: 'services', label: 'Services' },
+                    { value: 'all', label: t('pages.member.moduleAll') },
+                    { value: 'general', label: t('pages.member.moduleGeneral') },
+                    { value: 'production', label: t('pages.member.moduleProduction') },
+                    { value: 'services', label: t('pages.member.moduleServices') },
                   ]}
                 />
               </div>
@@ -165,7 +171,7 @@ export function MemberPage() {
                   {fmtHours(weekTotal)}
                 </span>
                 <span className="faint" style={{ fontSize: 12 }}>
-                  across {weekTasks} task{weekTasks === 1 ? '' : 's'}
+                  {t('pages.member.acrossTasks', { count: weekTasks })}
                 </span>
               </div>
               <WeekBars logs={week} />
@@ -173,10 +179,10 @@ export function MemberPage() {
           </section>
           <section className="panel">
             <div className="panel-h">
-              <h2>Recent activity</h2>
+              <h2>{t('pages.member.recentActivity')}</h2>
             </div>
             <div className="panel-b feed">
-              {acts.length ? acts.map(a => <ActivityItem key={a.id} a={a} />) : <span className="faint">No recent activity</span>}
+              {acts.length ? acts.map(a => <ActivityItem key={a.id} a={a} />) : <span className="faint">{t('pages.member.noRecentActivity')}</span>}
             </div>
           </section>
         </div>

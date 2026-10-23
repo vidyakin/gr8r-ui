@@ -4,6 +4,7 @@
 import * as React from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { ConfirmDialog, ContextMenu, ContextMenuContent, ContextMenuTrigger, toast } from '@/components/ui';
+import { useT } from '@/i18n';
 import { newId, useWorkspace } from '../data/store';
 import { canSee, project as findProject } from '../data/selectors';
 import { fileSize } from '../data/selectors';
@@ -55,6 +56,7 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
   const navigate = useNavigate();
   const windows = useTaskWindows();
   const location = useLocation();
+  const t = useT();
   const [st, setSt] = React.useState<DrawerState | null>(null);
   const [drafts, setDrafts] = React.useState<Record<string, string>>({});
   const [uploads, setUploads] = React.useState<UploadItem[]>([]);
@@ -74,10 +76,10 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
 
   const open = React.useCallback((taskId: string, subId?: string) => {
     const d = dataRef.current;
-    const t = d.tasks.find(x => x.id === taskId);
-    if (!t) return;
-    if (!canSee(d, findProject(d, t.project))) {
-      toast.error("You don't have access to that task");
+    const task = d.tasks.find(x => x.id === taskId);
+    if (!task) return;
+    if (!canSee(d, findProject(d, task.project))) {
+      toast.error(t('overlays.taskDrawer.noAccess'));
       return;
     }
     const prev = stRef.current;
@@ -86,7 +88,7 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
     if (!prev || !a?.closest('.drawer')) opener.current = a && a !== document.body ? a : opener.current;
     setSt({
       taskId,
-      subId: subId && findSub(t.subtasks, subId) ? subId : null,
+      subId: subId && findSub(task.subtasks, subId) ? subId : null,
       full: !!prev && prev.taskId === taskId && prev.full,
       tab: prev?.tab ?? 'comments',
       enter: !prev || prev.taskId !== taskId,
@@ -195,10 +197,10 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
 
   // Загрузка файлов — имитация прогресса, по завершении файл прикрепляется к задаче (handleFiles)
   const onFiles = React.useCallback(
-    (files: FileList | null, t: Task) => {
+    (files: FileList | null, task: Task) => {
       if (!files || !files.length) return;
       [...files].forEach(file => {
-        const up: UploadItem = { id: newId('u'), name: file.name, size: fileSize(file.size), task: t.id, pct: 0 };
+        const up: UploadItem = { id: newId('u'), name: file.name, size: fileSize(file.size), task: task.id, pct: 0 };
         setUploads(u => [...u, up]);
         let pct = 0;
         const iv = window.setInterval(() => {
@@ -206,44 +208,44 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
           if (pct < 100) return setUploads(u => u.map(x => (x.id === up.id ? { ...x, pct } : x)));
           clearInterval(iv);
           setUploads(u => u.filter(x => x.id !== up.id));
-          dispatch({ type: 'task/attach', id: t.id, file: { name: up.name, size: up.size } });
-          toast(`Uploaded ${up.name}`);
+          dispatch({ type: 'task/attach', id: task.id, file: { name: up.name, size: up.size } });
+          toast(t('overlays.taskDrawer.uploaded', { name: up.name }));
         }, 220);
         timers.current.push(iv);
       });
     },
-    [dispatch],
+    [dispatch, t],
   );
 
   const commands = React.useMemo<TaskCommands>(
     () => ({
-      open: t => open(t.id),
+      open: task => open(task.id),
       // Форма редактирования — режим формы задачи (A.editTask)
-      edit: t => editorRef.current?.(t.id),
-      askDelete: t => setConfirm(t),
-      archive: t => {
+      edit: task => editorRef.current?.(task.id),
+      askDelete: task => setConfirm(task),
+      archive: task => {
         const snap = dataRef.current;
-        dispatch({ type: 'task/archive', id: t.id });
-        toast(`Archived “${t.title}”`, { action: { label: 'Undo', onClick: () => dispatch({ type: 'data/restore', data: snap }) } });
+        dispatch({ type: 'task/archive', id: task.id });
+        toast(t('overlays.taskDrawer.archived', { title: task.title }), { action: { label: t('common.undo'), onClick: () => dispatch({ type: 'data/restore', data: snap }) } });
       },
-      duplicate: t => {
+      duplicate: task => {
         const id = newId('t');
-        dispatch({ type: 'task/duplicate', id: t.id, newId: id });
-        toast('Task duplicated', { action: { label: 'Open', onClick: () => open(id) } });
+        dispatch({ type: 'task/duplicate', id: task.id, newId: id });
+        toast(t('overlays.taskDrawer.duplicated'), { action: { label: t('common.undo'), onClick: () => open(id) } });
       },
-      copyLink: t => copyText(`https://gr8rstudio.com/${dataRef.current.ws.url}/task/${t.key}`),
-      openWindow: t => {
-        if (stRef.current?.taskId === t.id) setSt(null);
-        windows.popOut(t.id);
+      copyLink: task => copyText(`https://gr8rstudio.com/${dataRef.current.ws.url}/task/${task.key}`),
+      openWindow: task => {
+        if (stRef.current?.taskId === task.id) setSt(null);
+        windows.popOut(task.id);
       },
     }),
-    [open, dispatch, windows],
+    [open, dispatch, windows, t],
   );
 
-  const deleteTask = (t: Task) => {
+  const deleteTask = (task: Task) => {
     const snap = dataRef.current;
-    dispatch({ type: 'task/delete', ids: [t.id] });
-    toast(`Deleted “${t.title}”`, { action: { label: 'Undo', onClick: () => dispatch({ type: 'data/restore', data: snap }) } });
+    dispatch({ type: 'task/delete', ids: [task.id] });
+    toast(t('overlays.taskDrawer.deleted', { title: task.title }), { action: { label: t('common.undo'), onClick: () => dispatch({ type: 'data/restore', data: snap }) } });
   };
 
   const shared = React.useMemo<PanelShared>(
@@ -314,17 +316,17 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
           open={!!confirm}
           onOpenChange={o => !o && setConfirm(null)}
           danger
-          title="Delete task?"
+          title={t('overlays.taskDrawer.deleteTitle')}
           description={
             confirm && (
               <>
                 <b>{confirm.title}</b>
-                {confirm.subtasks.length ? `, its ${countSubs(confirm.subtasks).total} subtasks,` : ''} and {nComments} comment{nComments === 1 ? '' : 's'} will be permanently deleted.
+                {confirm.subtasks.length ? t('overlays.taskDrawer.deleteBodySubs', { subs: countSubs(confirm.subtasks).total, comments: nComments }) : t('overlays.taskDrawer.deleteBodyNoSubs', { comments: nComments })}
               </>
             )
           }
-          confirmLabel="Delete task"
-          cancelLabel="Cancel"
+          confirmLabel={t('overlays.taskDrawer.deleteConfirm')}
+          cancelLabel={t('common.cancel')}
           onConfirm={() => confirm && deleteTask(confirm)}
         />
       </TaskCommandsCtx.Provider>

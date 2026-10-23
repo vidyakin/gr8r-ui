@@ -42,6 +42,8 @@ import {
 import { EmptyState, toast, usePrefs } from '@/components/ui';
 import { StatusIcon } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
+import { tOEnum } from './enums';
 import { useWorkspace } from '../data/store';
 import { PROJECT_STATUS, allTasks, project, sortTasks, task as findTask } from '../data/selectors';
 import { addRecentSearch, searchAll, useCatalogHits, useDocumentHits, useRecentSearches, useRecordHits, type SearchCat } from '../data/search';
@@ -109,11 +111,12 @@ function useIsDark() {
 
 function useToggleDark() {
   const { setPrefs } = usePrefs();
+  const t = useT();
   const dark = useIsDark();
   return React.useCallback(() => {
     setPrefs({ theme: dark ? 'light' : 'dark' });
-    toast.info(dark ? 'Light mode on' : 'Dark mode on', { duration: 1800 });
-  }, [dark, setPrefs]);
+    toast.info(t(dark ? 'overlays.palette.toast.lightOn' : 'overlays.palette.toast.darkOn'), { duration: 1800 });
+  }, [dark, setPrefs, t]);
 }
 
 /** Сворачивание сайдбара живёт в AppShell и слушает «[» — отправляем ему эту клавишу */
@@ -212,6 +215,8 @@ interface Item {
   kbd?: string;
   /** Не закрывать палитру после выбора */
   keep?: boolean;
+  /** Переход в раздел (не зависит от подписи на языке) */
+  nav?: boolean;
   /** CRM-разделы показываются только при вводе, чтобы пустая палитра совпадала с оригиналом */
   quiet?: boolean;
   run(): void;
@@ -221,13 +226,13 @@ interface Group {
   items: Item[];
 }
 
-const SCOPES: [SearchCat, string, LucideIcon][] = [
-  ['all', 'All', Layers],
-  ['tasks', 'Tasks', CircleCheck],
-  ['projects', 'Projects', Folder],
-  ['people', 'People', Users],
-  ['files', 'Files', Paperclip],
-  ['comments', 'Comments', MessageSquare],
+const SCOPES: [SearchCat, LucideIcon][] = [
+  ['all', Layers],
+  ['tasks', CircleCheck],
+  ['projects', Folder],
+  ['people', Users],
+  ['files', Paperclip],
+  ['comments', MessageSquare],
 ];
 
 /** Окно палитры. Монтируется один раз внутри CrmOverlays */
@@ -256,6 +261,7 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
   const dark = useIsDark();
   const toggleDark = useToggleDark();
   const recent = useRecentSearches();
+  const t = useT();
 
   const [q, setQ] = React.useState(init.q);
   const recordHits = useRecordHits(q);
@@ -274,11 +280,11 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
   const section = (id: SectionId) => () => go(SECTIONS[id].path);
 
   const commands: Item[] = [
-    { id: 'c-task', name: 'Create task', icon: Plus, kbd: 'N', run: () => taskForm.open() },
-    { id: 'c-proj', name: 'Create project', icon: FolderPlus, kbd: 'P', run: () => projectForms.create() },
+    { id: 'c-task', name: t('overlays.palette.cmd.createTask'), icon: Plus, kbd: 'N', run: () => taskForm.open() },
+    { id: 'c-proj', name: t('overlays.palette.cmd.createProject'), icon: FolderPlus, kbd: 'P', run: () => projectForms.create() },
     {
       id: 'c-search',
-      name: 'Search workspace',
+      name: t('overlays.palette.cmd.searchWorkspace'),
       icon: Search,
       kbd: '/',
       keep: true,
@@ -289,32 +295,32 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
         setHl(0);
       },
     },
-    { id: 'c-home', name: 'Go to Home', icon: House, kbd: 'G H', run: section('home') },
-    { id: 'c-inbox', name: 'Go to Inbox', icon: Inbox, kbd: 'G I', run: section('inbox') },
-    { id: 'c-my', name: 'Go to My Tasks', icon: CircleCheck, kbd: 'G T', run: section('mytasks') },
-    { id: 'c-projs', name: 'Go to Projects', icon: FolderKanban, kbd: 'G P', run: section('projects') },
-    { id: 'c-cal', name: 'Go to Calendar', icon: Calendar, kbd: 'G C', run: section('calendar') },
-    { id: 'c-tl', name: 'Go to Timeline', icon: ChartGantt, run: section('timeline') },
-    { id: 'c-mem', name: 'Go to Members', icon: Users, run: section('members') },
+    { id: 'c-home', name: t('overlays.palette.cmd.goHome'), icon: House, kbd: 'G H', nav: true, run: section('home') },
+    { id: 'c-inbox', name: t('overlays.palette.cmd.goInbox'), icon: Inbox, kbd: 'G I', nav: true, run: section('inbox') },
+    { id: 'c-my', name: t('overlays.palette.cmd.goMyTasks'), icon: CircleCheck, kbd: 'G T', nav: true, run: section('mytasks') },
+    { id: 'c-projs', name: t('overlays.palette.cmd.goProjects'), icon: FolderKanban, kbd: 'G P', nav: true, run: section('projects') },
+    { id: 'c-cal', name: t('overlays.palette.cmd.goCalendar'), icon: Calendar, kbd: 'G C', nav: true, run: section('calendar') },
+    { id: 'c-tl', name: t('overlays.palette.cmd.goTimeline'), icon: ChartGantt, nav: true, run: section('timeline') },
+    { id: 'c-mem', name: t('overlays.palette.cmd.goMembers'), icon: Users, nav: true, run: section('members') },
     // Разделы CRM (их нет в оригинале)
-    { id: 'c-crm', name: 'Go to CRM Dashboard', icon: SECTIONS.crm.icon, quiet: true, run: section('crm') },
-    { id: 'c-deals', name: 'Go to Deals', icon: Handshake, quiet: true, run: section('crmDeals') },
-    { id: 'c-comps', name: 'Go to Companies', icon: Building2, quiet: true, run: section('crmCompanies') },
-    { id: 'c-conts', name: 'Go to Contacts', icon: ContactRound, quiet: true, run: section('crmContacts') },
-    { id: 'c-acts', name: 'Go to CRM Activities', icon: SECTIONS.crmActivities.icon, quiet: true, run: section('crmActivities') },
-    { id: 'c-cat', name: 'Go to Catalog', icon: SECTIONS.catalog.icon, quiet: true, run: section('catalog') },
-    { id: 'c-prod', name: 'Go to Production', icon: SECTIONS.production.icon, quiet: true, run: section('production') },
-    { id: 'c-sales', name: 'Go to Sales', icon: SECTIONS.sales.icon, quiet: true, run: section('sales') },
-    { id: 'c-purch', name: 'Go to Purchases', icon: SECTIONS.purchases.icon, quiet: true, run: section('purchases') },
-    { id: 'c-stock', name: 'Go to Inventory', icon: SECTIONS.inventory.icon, quiet: true, run: section('inventory') },
-    { id: 'c-wc', name: 'Go to Work centers', icon: SECTIONS.workCenters.icon, quiet: true, run: section('workCenters') },
-    { id: 'c-set', name: 'Open settings', icon: Settings, kbd: 'G S', run: section('settings') },
-    { id: 'c-app', name: 'Appearance settings', icon: Palette, run: () => go(`${SECTIONS.settings.path}/appearance`) },
-    { id: 'c-dark', name: dark ? 'Switch to light mode' : 'Switch to dark mode', icon: dark ? Sun : Moon, kbd: `${MOD} ⇧ L`, run: toggleDark },
-    { id: 'c-inv', name: 'Invite member', icon: UserPlus, run: () => invite.open() },
-    { id: 'c-side', name: 'Toggle sidebar', icon: PanelLeft, kbd: '[', run: toggleSidebar },
-    { id: 'c-keys', name: 'Keyboard shortcuts', icon: Keyboard, kbd: '?', run: () => shortcuts.open() },
-    { id: 'c-out', name: 'Sign out', icon: LogOut, run: () => void session.signOut().then(() => navigate('/signin')) },
+    { id: 'c-crm', name: t('overlays.palette.cmd.goCrm'), icon: SECTIONS.crm.icon, nav: true, quiet: true, run: section('crm') },
+    { id: 'c-deals', name: t('overlays.palette.cmd.goDeals'), icon: Handshake, nav: true, quiet: true, run: section('crmDeals') },
+    { id: 'c-comps', name: t('overlays.palette.cmd.goCompanies'), icon: Building2, nav: true, quiet: true, run: section('crmCompanies') },
+    { id: 'c-conts', name: t('overlays.palette.cmd.goContacts'), icon: ContactRound, nav: true, quiet: true, run: section('crmContacts') },
+    { id: 'c-acts', name: t('overlays.palette.cmd.goCrmActivities'), icon: SECTIONS.crmActivities.icon, nav: true, quiet: true, run: section('crmActivities') },
+    { id: 'c-cat', name: t('overlays.palette.cmd.goCatalog'), icon: SECTIONS.catalog.icon, nav: true, quiet: true, run: section('catalog') },
+    { id: 'c-prod', name: t('overlays.palette.cmd.goProduction'), icon: SECTIONS.production.icon, nav: true, quiet: true, run: section('production') },
+    { id: 'c-sales', name: t('overlays.palette.cmd.goSales'), icon: SECTIONS.sales.icon, nav: true, quiet: true, run: section('sales') },
+    { id: 'c-purch', name: t('overlays.palette.cmd.goPurchases'), icon: SECTIONS.purchases.icon, nav: true, quiet: true, run: section('purchases') },
+    { id: 'c-stock', name: t('overlays.palette.cmd.goInventory'), icon: SECTIONS.inventory.icon, nav: true, quiet: true, run: section('inventory') },
+    { id: 'c-wc', name: t('overlays.palette.cmd.goWorkCenters'), icon: SECTIONS.workCenters.icon, nav: true, quiet: true, run: section('workCenters') },
+    { id: 'c-set', name: t('overlays.palette.cmd.openSettings'), icon: Settings, kbd: 'G S', nav: true, run: section('settings') },
+    { id: 'c-app', name: t('overlays.palette.cmd.appearance'), icon: Palette, run: () => go(`${SECTIONS.settings.path}/appearance`) },
+    { id: 'c-dark', name: t(dark ? 'overlays.palette.cmd.darkOn' : 'overlays.palette.cmd.darkOff'), icon: dark ? Sun : Moon, kbd: `${MOD} ⇧ L`, run: toggleDark },
+    { id: 'c-inv', name: t('overlays.palette.cmd.inviteMember'), icon: UserPlus, run: () => invite.open() },
+    { id: 'c-side', name: t('overlays.palette.cmd.toggleSidebar'), icon: PanelLeft, kbd: '[', run: toggleSidebar },
+    { id: 'c-keys', name: t('overlays.palette.cmd.keyboardShortcuts'), icon: Keyboard, kbd: '?', run: () => shortcuts.open() },
+    { id: 'c-out', name: t('overlays.palette.cmd.signOut'), icon: LogOut, run: () => void session.signOut().then(() => navigate('/signin')) },
   ];
 
   const query = q.trim();
@@ -333,16 +339,16 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
     const cmds = commands.filter(c => !query || c.name.toLowerCase().includes(ql));
     if (!query) {
       const visible = commands.filter(c => !c.quiet);
-      groups.push({ name: 'Suggestions', items: visible.slice(0, 3).concat(visible.filter(c => c.id === 'c-dark')) });
+      groups.push({ name: t('overlays.palette.group.suggestions'), items: visible.slice(0, 3).concat(visible.filter(c => c.id === 'c-dark')) });
       const recentTasks = sortTasks(
         allTasks(data).filter(t => t.assignee === data.me || t.fav),
         'updated',
         1,
         data,
       ).slice(0, 4);
-      groups.push({ name: 'Recent tasks', items: recentTasks.map(taskItem) });
-      groups.push({ name: 'Navigation', items: visible.filter(c => c.name.startsWith('Go to')) });
-    } else if (cmds.length) groups.push({ name: 'Commands', items: cmds.slice(0, 5) });
+      groups.push({ name: t('overlays.palette.group.recentTasks'), items: recentTasks.map(taskItem) });
+      groups.push({ name: t('overlays.palette.group.navigation'), items: visible.filter(c => c.nav) });
+    } else if (cmds.length) groups.push({ name: t('overlays.palette.group.commands'), items: cmds.slice(0, 5) });
   }
   const sc = mode === 'search' ? scope : 'all';
   if (!(mode === 'cmd' && !query)) {
@@ -350,7 +356,7 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
     const lim = sc === 'all' ? 4 : 12;
     if (mode === 'search' && !query) {
       groups.push({
-        name: 'Recent searches',
+        name: t('overlays.palette.group.recentSearches'),
         items: recent.map(s => ({
           id: 'r-' + s,
           icon: History,
@@ -363,39 +369,39 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
         })),
       });
       groups.push({
-        name: 'Suggested',
+        name: t('overlays.palette.group.suggested'),
         items: [
-          { id: 's-over', icon: ClockAlert, name: 'Overdue tasks', run: () => go(SECTIONS.tasks.path, { filter: 'overdue' }) },
-          { id: 's-mine', icon: User, name: 'Tasks assigned to me', run: section('mytasks') },
-          { id: 's-high', icon: SignalHigh, name: 'High priority in Website Redesign', run: () => go('/projects/p1/v:v1') },
-          { id: 's-files', icon: Paperclip, name: 'Files in Website Redesign', run: () => go('/projects/p1/files') },
+          { id: 's-over', icon: ClockAlert, name: t('overlays.palette.suggested.overdue'), run: () => go(SECTIONS.tasks.path, { filter: 'overdue' }) },
+          { id: 's-mine', icon: User, name: t('overlays.palette.suggested.mine'), run: section('mytasks') },
+          { id: 's-high', icon: SignalHigh, name: t('overlays.palette.suggested.highPriority'), run: () => go('/projects/p1/v:v1') },
+          { id: 's-files', icon: Paperclip, name: t('overlays.palette.suggested.files'), run: () => go('/projects/p1/files') },
         ],
       });
     } else if (query) {
-      if (sc === 'all' || sc === 'tasks') groups.push({ name: 'Tasks', items: r.tasks.slice(0, lim).map(taskItem) });
+      if (sc === 'all' || sc === 'tasks') groups.push({ name: t('overlays.palette.group.tasks'), items: r.tasks.slice(0, lim).map(taskItem) });
       if (sc === 'all' || sc === 'projects')
         groups.push({
-          name: 'Projects',
+          name: t('overlays.palette.group.projects'),
           items: r.projects.slice(0, lim).map(p => ({ id: 'p-' + p.id, lead: <ProjectDot project={p} />, name: p.name, sub: PROJECT_STATUS[p.status].name, run: () => go(`/projects/${p.id}`) })),
         });
       if (sc === 'all' || sc === 'people')
         groups.push({
-          name: 'People',
+          name: t('overlays.palette.group.people'),
           items: r.people.slice(0, lim).map(m => ({ id: 'm-' + m.id, lead: <MemberAvatar id={m.id} size="sm" tooltip={false} />, name: m.name, sub: m.title, run: () => go(`${SECTIONS.members.path}/${m.id}`) })),
         });
       if (sc === 'all' || sc === 'files')
         groups.push({
-          name: 'Files',
+          name: t('overlays.palette.group.files'),
           items: r.files.slice(0, lim).map(f => ({ id: 'f-' + f.id, lead: <KindIcon kind={f.type} size={15} />, name: f.name, sub: project(data, f.project)?.name, r: f.size, run: () => go(`/projects/${f.project}/files`) })),
         });
       if (sc === 'all' || sc === 'comments')
         groups.push({
-          name: 'Comments',
+          name: t('overlays.palette.group.comments'),
           items: r.comments.slice(0, lim).map(c => ({
             id: 'cm-' + c.id,
             lead: <MemberAvatar id={c.by} size="sm" tooltip={false} />,
             name: c.text,
-            sub: 'on ' + (findTask(data, c.task)?.title ?? ''),
+            sub: t('overlays.palette.commentSub', { title: findTask(data, c.task)?.title ?? '' }),
             run: () => drawer.open(c.task),
           })),
         });
@@ -403,46 +409,46 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
       if (sc === 'all')
         for (const key of [...new Set(recordHits.map(h => h.entityKey))]) {
           const hs = recordHits.filter(h => h.entityKey === key);
-          groups.push({ name: hs[0]!.entityName, items: hs.slice(0, lim).map(h => ({ id: 'rec-' + h.id, icon: entityIcon(h.icon), name: h.title || 'Untitled', sub: h.entityName, run: () => go(`/data/${h.entityKey}/${h.id}`) })) });
+          groups.push({ name: hs[0]!.entityName, items: hs.slice(0, lim).map(h => ({ id: 'rec-' + h.id, icon: entityIcon(h.icon), name: h.title || t('overlays.palette.untitled'), sub: h.entityName, run: () => go(`/data/${h.entityKey}/${h.id}`) })) });
         }
       // Каталог и производство: товары, услуги, изделия и полуфабрикаты
       if (sc === 'all') {
         if (catalogHits.products.length)
           groups.push({
-            name: 'Products',
-            items: catalogHits.products.slice(0, lim).map(p => ({ id: 'pr-' + p.id, icon: p.kind === 'service' ? SECTIONS.workCenters.icon : SECTIONS.catalog.icon, name: p.name, sub: p.sku || (p.kind === 'service' ? 'Service' : 'Goods'), run: () => go(`${SECTIONS.catalog.path}/${p.id}`) })),
+            name: t('overlays.palette.group.products'),
+            items: catalogHits.products.slice(0, lim).map(p => ({ id: 'pr-' + p.id, icon: p.kind === 'service' ? SECTIONS.workCenters.icon : SECTIONS.catalog.icon, name: p.name, sub: p.sku || t(p.kind === 'service' ? 'overlays.palette.productSub.service' : 'overlays.palette.productSub.goods'), run: () => go(`${SECTIONS.catalog.path}/${p.id}`) })),
           });
         if (catalogHits.items.length)
           groups.push({
-            name: 'Production',
-            items: catalogHits.items.slice(0, lim).map(i => ({ id: 'pi-' + i.id, icon: SECTIONS.production.icon, name: i.name, sub: i.kind === 'semi' ? 'Semi-finished' : 'Product', run: () => go(`${SECTIONS.production.path}/${i.id}`) })),
+            name: t('overlays.palette.group.production'),
+            items: catalogHits.items.slice(0, lim).map(i => ({ id: 'pi-' + i.id, icon: SECTIONS.production.icon, name: i.name, sub: t(i.kind === 'semi' ? 'overlays.palette.productionSub.semi' : 'overlays.palette.productionSub.product'), run: () => go(`${SECTIONS.production.path}/${i.id}`) })),
           });
       }
       // Документы продаж и закупок: находятся по номеру («СЧ-2026-00012», «00012»), контрагенту и комментарию
       if (sc === 'all' && docHits.length)
         groups.push({
-          name: 'Documents',
-          items: docHits.slice(0, lim).map(d => ({ id: 'doc-' + d.id, icon: SECTIONS.sales.icon, name: `${typeLabel(d.type)} ${d.number ?? '(draft)'}`, sub: `${d.counterpartyName ?? 'No counterparty'} · ${STATUS_LABEL[d.status]}`, r: fmtMoney(d.total), run: () => go(`/documents/${d.id}`) })),
+          name: t('overlays.palette.group.documents'),
+          items: docHits.slice(0, lim).map(d => ({ id: 'doc-' + d.id, icon: SECTIONS.sales.icon, name: `${tOEnum('documentType', d.type, typeLabel(d.type))} ${d.number ?? `(${t('overlays.palette.draftNumber')})`}`, sub: `${d.counterpartyName ?? t('overlays.palette.noCounterparty')} · ${tOEnum('documentStatus', d.status, STATUS_LABEL[d.status])}`, r: fmtMoney(d.total), run: () => go(`/documents/${d.id}`) })),
         });
       // CRM — только в общем поиске, после основных групп
       if (sc === 'all' && crmUi) {
         const has = (s: string) => s.toLowerCase().includes(ql);
         groups.push({
-          name: 'Deals',
+          name: t('overlays.palette.group.deals'),
           items: crm.data.deals
             .filter(d => has(d.name))
             .slice(0, lim)
             .map(d => ({ id: 'd-' + d.id, icon: Handshake, name: d.name, sub: crmCompany(crm.data, d.company)?.name, r: money(d.amount), run: () => crmUi.openDeal(d.id) })),
         });
         groups.push({
-          name: 'Companies',
+          name: t('overlays.palette.group.companies'),
           items: crm.data.companies
             .filter(c => has(c.name) || has(c.industry))
             .slice(0, lim)
             .map(c => ({ id: 'co-' + c.id, icon: Building2, name: c.name, sub: c.industry, run: () => go(`${SECTIONS.crmCompanies.path}/${c.id}`) })),
         });
         groups.push({
-          name: 'Contacts',
+          name: t('overlays.palette.group.contacts'),
           items: crm.data.contacts
             .filter(c => has(c.name) || has(c.email))
             .slice(0, lim)
@@ -460,7 +466,7 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
         {
           id: 'all',
           icon: Search,
-          name: `View all results for “${query}”`,
+          name: t('overlays.palette.viewAll', { query }),
           run: () => {
             addRecentSearch(query);
             go(`${SECTIONS.search.path}?q=${encodeURIComponent(query)}&cat=${sc}`);
@@ -502,14 +508,14 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
     }
   };
 
-  const ph = mode === 'search' ? 'Search tasks, projects, people, files, comments…' : 'Type a command or search…';
+  const ph = mode === 'search' ? t('overlays.palette.placeholder.search') : t('overlays.palette.placeholder.cmd');
   let idx = 0;
   return (
     <D.Portal>
       <D.Overlay className="scrim" style={{ zIndex: 89 }} />
       <D.Content
         className="palette"
-        aria-label="Command menu"
+        aria-label={t('overlays.palette.title')}
         aria-describedby={undefined}
         onOpenAutoFocus={e => {
           e.preventDefault();
@@ -522,12 +528,12 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
         }}
         onKeyDown={onKeyDown}
       >
-        <D.Title className="sr-only">Command menu</D.Title>
+        <D.Title className="sr-only">{t('overlays.palette.title')}</D.Title>
         <div className="pal-in">
           {mode === 'search' ? <Search size={17} /> : <Command size={17} />}
           {mode !== 'cmd' && (
             <span className="badge" style={{ flexShrink: 0 }}>
-              Search
+              {t('overlays.palette.badge')}
             </span>
           )}
           <input
@@ -549,7 +555,7 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
         </div>
         {mode === 'search' && (
           <div className="pal-scope" role="tablist">
-            {SCOPES.map(([k, name, Icon]) => (
+            {SCOPES.map(([k, Icon]) => (
               <button
                 key={k}
                 role="tab"
@@ -562,7 +568,7 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
                 }}
               >
                 <Icon size={12} />
-                {name}
+                {t(`overlays.palette.scope.${k}`)}
               </button>
             ))}
           </div>
@@ -600,26 +606,30 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
               </div>
             ))
           ) : (
-            <EmptyState size="sm" icon={<SearchX size={18} />} title="No results found">
-              Try a different keyword, or press Tab to search everything.
+            <EmptyState size="sm" icon={<SearchX size={18} />} title={t('overlays.palette.emptyTitle')}>
+              {t('overlays.palette.emptyText')}
             </EmptyState>
           )}
         </div>
         <div className="pal-f">
           <span>
             <kbd>↑</kbd>
-            <kbd>↓</kbd>navigate
+            <kbd>↓</kbd>
+            {t('overlays.palette.footer.navigate')}
           </span>
           <span>
-            <kbd>↵</kbd>select
+            <kbd>↵</kbd>
+            {t('overlays.palette.footer.select')}
           </span>
           {mode === 'cmd' ? (
             <span>
-              <kbd>Tab</kbd>search mode
+              <kbd>Tab</kbd>
+              {t('overlays.palette.footer.searchMode')}
             </span>
           ) : (
             <span>
-              <kbd>⌫</kbd>back to commands
+              <kbd>⌫</kbd>
+              {t('overlays.palette.footer.backToCommands')}
             </span>
           )}
           <span className="sp" style={{ flex: 1 }} />

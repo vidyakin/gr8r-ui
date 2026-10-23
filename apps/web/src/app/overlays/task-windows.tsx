@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router';
 import { Maximize2, Minus, PanelRightOpen, X } from 'lucide-react';
 import { FloatingWindow, IconButton, clampGeometry, toast, type WindowGeometry } from '@/components/ui';
 import { StatusIcon } from '@/components/gr8r/task';
+import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { canSee, project as findProject } from '../data/selectors';
 import { findSub } from '../data/subtasks';
@@ -84,6 +85,7 @@ function load(): { wins: TaskWindow[]; seq: number } {
 }
 
 export function TaskWindowsProvider({ children }: { children: React.ReactNode }) {
+  const t = useT();
   const { data } = useWorkspace();
   const [state, setState] = React.useState(load);
   const dataRef = React.useRef(data);
@@ -121,15 +123,15 @@ export function TaskWindowsProvider({ children }: { children: React.ReactNode })
       list: wins,
       popOut(taskId, subId) {
         const d = dataRef.current;
-        const t = d.tasks.find(x => x.id === taskId);
-        if (!t || t.archived) return;
-        if (!canSee(d, findProject(d, t.project))) {
-          toast.error("You don't have access to that task");
+        const task = d.tasks.find(x => x.id === taskId);
+        if (!task || task.archived) return;
+        if (!canSee(d, findProject(d, task.project))) {
+          toast.error(t('overlays.taskWindows.noAccess'));
           return;
         }
         focusReq.current = taskId;
         mut(s => {
-          const sub = subId && findSub(t.subtasks, subId) ? subId : null;
+          const sub = subId && findSub(task.subtasks, subId) ? subId : null;
           const seq = s.seq + 1;
           const old = s.wins.find(w => w.id === taskId);
           if (old) return { seq, wins: [...s.wins.filter(w => w !== old), { ...old, min: false, sub: sub ?? old.sub }] };
@@ -151,7 +153,7 @@ export function TaskWindowsProvider({ children }: { children: React.ReactNode })
       },
       patch: (id, p) => upd(id, () => p),
     };
-  }, [wins]);
+  }, [wins, t]);
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }
@@ -195,11 +197,12 @@ function TaskWindowView({ win: w, z }: { win: TaskWindow; z: number }) {
   const shared = React.useContext(PanelSharedCtx)!;
   const drawer = useTaskDrawer();
   const navigate = useNavigate();
+  const t = useT();
   const { data } = useWorkspace();
   const ref = React.useRef<HTMLElement>(null);
   const noRef = React.useRef<HTMLElement>(null);
-  const t = data.tasks.find(x => x.id === w.id)!;
-  const sub = findSub(t.subtasks, w.sub) ? w.sub : null;
+  const task = data.tasks.find(x => x.id === w.id)!;
+  const sub = findSub(task.subtasks, w.sub) ? w.sub : null;
 
   // При появлении окна (в том числе после разворота) фокус переходит в него
   React.useEffect(() => {
@@ -213,7 +216,7 @@ function TaskWindowView({ win: w, z }: { win: TaskWindow; z: number }) {
     drawer.open(w.id, sub ?? undefined);
     api.close(w.id);
   };
-  const label = `Task window: ${t.key} ${t.title}`;
+  const label = t('overlays.taskWindows.windowLabel', { key: task.key, title: task.title });
 
   return (
     <FloatingWindow
@@ -226,20 +229,20 @@ function TaskWindowView({ win: w, z }: { win: TaskWindow; z: number }) {
       onReset={() => api.patch(w.id, defaultGeometry(w.n))}
       title={
         <>
-          <StatusIcon status={t.status} />
-          <span className="mono faint fwin-key">{t.key}</span>
-          <span className="fwin-ttl">{t.title}</span>
+          <StatusIcon status={task.status} />
+          <span className="mono faint fwin-key">{task.key}</span>
+          <span className="fwin-ttl">{task.title}</span>
         </>
       }
       actions={
         <>
-          <IconButton size="sm" label="Minimize" onClick={() => api.minimize(w.id)}>
+          <IconButton size="sm" label={t('overlays.taskWindows.minimize')} onClick={() => api.minimize(w.id)}>
             <Minus size={16} />
           </IconButton>
-          <IconButton size="sm" label="Open in panel" onClick={panel}>
+          <IconButton size="sm" label={t('overlays.taskWindows.openInPanel')} onClick={panel}>
             <PanelRightOpen size={15} />
           </IconButton>
-          <IconButton size="sm" label="Close" onClick={() => api.close(w.id)}>
+          <IconButton size="sm" label={t('overlays.taskWindows.close')} onClick={() => api.close(w.id)}>
             <X size={16} />
           </IconButton>
         </>
@@ -247,15 +250,15 @@ function TaskWindowView({ win: w, z }: { win: TaskWindow; z: number }) {
     >
       <DrawerPanel
         inWindow
-        task={t}
+        task={task}
         subId={sub}
         full={false}
         tab={w.tab}
         enter={false}
-        draft={shared.drafts[t.id] ?? ''}
+        draft={shared.drafts[task.id] ?? ''}
         uploads={shared.uploads}
         panelRef={noRef}
-        onDraft={v => shared.setDraft(t.id, v)}
+        onDraft={v => shared.setDraft(task.id, v)}
         onTab={tab => api.patch(w.id, { tab })}
         onClose={() => api.close(w.id)}
         onToggleFull={() => {}}
@@ -272,24 +275,25 @@ function TaskWindowView({ win: w, z }: { win: TaskWindow; z: number }) {
 /** Док: свёрнутые окна стопкой, видны только шапки. Самое раннее свёрнутое — внизу, новые наращивают стопку вверх */
 function Dock({ wins }: { wins: TaskWindow[] }) {
   const api = useInternal();
+  const t = useT();
   const { data } = useWorkspace();
   return (
-    <nav className="fdock" aria-label="Minimized task windows">
+    <nav className="fdock" aria-label={t('overlays.taskWindows.dockAria')}>
       <ul className="fdock-stack">
         {wins.map(w => {
-          const t = data.tasks.find(x => x.id === w.id);
-          if (!t) return null;
+          const task = data.tasks.find(x => x.id === w.id);
+          if (!task) return null;
           return (
             <li key={w.id} className="fdock-i">
-              <button type="button" className="fdock-main" aria-label={`Restore window: ${t.key} ${t.title}`} onClick={() => api.restore(w.id)}>
-                <StatusIcon status={t.status} />
-                <span className="mono faint fwin-key">{t.key}</span>
-                <span className="fwin-ttl">{t.title}</span>
+              <button type="button" className="fdock-main" aria-label={t('overlays.taskWindows.restoreLabel', { key: task.key, title: task.title })} onClick={() => api.restore(w.id)}>
+                <StatusIcon status={task.status} />
+                <span className="mono faint fwin-key">{task.key}</span>
+                <span className="fwin-ttl">{task.title}</span>
               </button>
-              <IconButton size="xs" label="Expand window" onClick={() => api.restore(w.id)}>
+              <IconButton size="xs" label={t('overlays.taskWindows.expand')} onClick={() => api.restore(w.id)}>
                 <Maximize2 size={13} />
               </IconButton>
-              <IconButton size="xs" label="Close window" onClick={() => api.close(w.id)}>
+              <IconButton size="xs" label={t('overlays.taskWindows.close')} onClick={() => api.close(w.id)}>
                 <X size={14} />
               </IconButton>
             </li>

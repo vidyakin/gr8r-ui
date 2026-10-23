@@ -3,6 +3,8 @@ export const common = {
   cancel: 'Cancel',
   save: 'Save',
   done: 'Done',
+  undo: 'Undo',
+  open: 'Open',
   retry: 'Retry',
   loading: 'Loading…',
   yes: 'Yes',

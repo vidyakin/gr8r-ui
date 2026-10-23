@@ -1,5 +1,6 @@
 /* Оболочка модального окна — разметка H()/wrap() из overlays/modals.js (заголовок, подпись, крестик) на Radix Dialog */
 import * as React from 'react';
+import { t } from '@/i18n';
 import { Dialog as D } from 'radix-ui';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -28,7 +29,7 @@ export function Modal({ title, sub, size, onClose, formId, children }: ModalProp
               // как autofocus в оригинале: первое поле с data-af, иначе первое поле формы
               e.preventDefault();
               const el = e.currentTarget as HTMLElement;
-              (el.querySelector<HTMLElement>('[data-af]') ?? el.querySelector<HTMLElement>('input,textarea,button:not([aria-label="Close"])'))?.focus();
+              (el.querySelector<HTMLElement>('[data-af]') ?? el.querySelector<HTMLElement>('input,textarea,button:not([data-close])'))?.focus();
             }}
             onKeyDown={e => {
               if (formId && e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -49,7 +50,7 @@ export function Modal({ title, sub, size, onClose, formId, children }: ModalProp
                     </div>
                   )}
                 </div>
-                <D.Close className="ibtn ibtn-sm" aria-label="Close">
+                <D.Close className="ibtn ibtn-sm" aria-label={t('overlays.close')} data-close>
                   <X size={16} />
                 </D.Close>
               </div>

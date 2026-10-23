@@ -12,6 +12,7 @@ import { ProjectIcon, ProjectStatus } from '../components/project';
 import { MemberAvatar } from '../components/workspace';
 import { TimeTotals } from '../components/time-summary';
 import { useProjectForms } from '../overlays';
+import { useT } from '@/i18n';
 
 function Panel({ title, actions, children }: { title: string; actions?: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -36,6 +37,7 @@ function Stat({ label, value, note }: { label: string; value: React.ReactNode; n
 }
 
 export function OverviewPage() {
+  const tr = useT();
   const projectForms = useProjectForms();
   const { data } = useWorkspace();
   const navigate = useNavigate();
@@ -67,41 +69,41 @@ export function OverviewPage() {
     <div className="page">
       <div className="ph">
         <div>
-          <h1>Workspace overview</h1>
-          <p>Health of every project in {data.ws.name}.</p>
+          <h1>{tr('pages.overview.title')}</h1>
+          <p>{tr('pages.overview.subline', { name: data.ws.name })}</p>
         </div>
         <div className="acts">
           <Button onClick={() => navigate(SECTIONS.timeline.path)}>
             <ChartGantt size={14} />
-            Timeline
+            {tr('pages.overview.timeline')}
           </Button>
           <Button variant="primary" onClick={() => projectForms.create()}>
             <Plus size={14} />
-            New project
+            {tr('pages.overview.newProject')}
           </Button>
         </div>
       </div>
 
       <div className="stats" style={{ marginBottom: 16 }}>
-        <Stat label="Projects" value={ps.length} note={`${ps.filter(p => p.status === 'complete').length} completed`} />
-        <Stat label="Tasks" value={all.length} note={`${all.length - done} open`} />
-        <Stat label="Completion rate" value={`${Math.round((done / total) * 100)}%`} note="across all projects" />
-        <Stat label="Members" value={data.members.length} note={`${data.members.filter(m => m.status === 'invited').length} pending invite`} />
+        <Stat label={tr('pages.overview.statProjects')} value={ps.length} note={tr('pages.overview.statProjectsNote', { count: ps.filter(p => p.status === 'complete').length })} />
+        <Stat label={tr('pages.overview.statTasks')} value={all.length} note={tr('pages.overview.statTasksNote', { count: all.length - done })} />
+        <Stat label={tr('pages.overview.statCompletion')} value={`${Math.round((done / total) * 100)}%`} note={tr('pages.overview.statCompletionNote')} />
+        <Stat label={tr('pages.overview.statMembers')} value={data.members.length} note={tr('pages.overview.statMembersNote', { count: data.members.filter(m => m.status === 'invited').length })} />
       </div>
 
       <div className="grid2">
-        <Panel title="Portfolio">
+        <Panel title={tr('pages.overview.portfolio')}>
           <div style={{ overflowX: 'auto' }}>
             <table className="perm-t" style={{ minWidth: 600 }}>
               <thead>
                 <tr>
-                  <th style={{ paddingLeft: 14 }}>Project</th>
-                  <th style={{ textAlign: 'left' }}>Lead</th>
-                  <th style={{ textAlign: 'left' }}>Status</th>
-                  <th style={{ textAlign: 'left', width: '22%' }}>Progress</th>
-                  <th>Open</th>
-                  <th>Overdue</th>
-                  <th style={{ textAlign: 'left' }}>Due</th>
+                  <th style={{ paddingLeft: 14 }}>{tr('pages.overview.colProject')}</th>
+                  <th style={{ textAlign: 'left' }}>{tr('pages.overview.colLead')}</th>
+                  <th style={{ textAlign: 'left' }}>{tr('pages.overview.colStatus')}</th>
+                  <th style={{ textAlign: 'left', width: '22%' }}>{tr('pages.overview.colProgress')}</th>
+                  <th>{tr('pages.overview.colOpen')}</th>
+                  <th>{tr('pages.overview.colOverdue')}</th>
+                  <th style={{ textAlign: 'left' }}>{tr('pages.overview.colDue')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -160,7 +162,7 @@ export function OverviewPage() {
         </Panel>
 
         <div className="stack">
-          <Panel title="Tasks by status">
+          <Panel title={tr('pages.overview.tasksByStatus')}>
             <div className="panel-b">
               <div className="stackbar" style={{ height: 10, marginBottom: 12 }}>
                 {counts.map(c => (
@@ -181,10 +183,10 @@ export function OverviewPage() {
           </Panel>
 
           <Panel
-            title="Time"
+            title={tr('pages.overview.time')}
             actions={
               <span className="faint" style={{ fontSize: 11.5 }}>
-                Plan vs. logged hours
+                {tr('pages.overview.timeNote')}
               </span>
             }
           >
@@ -214,10 +216,10 @@ export function OverviewPage() {
           </Panel>
 
           <Panel
-            title="Workload"
+            title={tr('pages.overview.workload')}
             actions={
               <span className="faint" style={{ fontSize: 11.5 }}>
-                Open tasks per person
+                {tr('pages.overview.workloadNote')}
               </span>
             }
           >
@@ -252,7 +254,7 @@ export function OverviewPage() {
             </div>
           </Panel>
 
-          <Panel title="Upcoming milestones">
+          <Panel title={tr('pages.overview.milestones')}>
             <div className="panel-b">
               {ms.length ? (
                 ms.map(m => (
@@ -273,7 +275,7 @@ export function OverviewPage() {
                   </div>
                 ))
               ) : (
-                <div className="faint">No upcoming milestones</div>
+                <div className="faint">{tr('pages.overview.noMilestones')}</div>
               )}
             </div>
           </Panel>
