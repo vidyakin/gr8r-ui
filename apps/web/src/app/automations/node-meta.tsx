@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import type { AnyNodeDef, NodeCategory } from '@gr8r/shared';
 import { nodeParamsJsonSchema } from '@gr8r/shared';
+import { t } from '@/i18n';
 
 /** Иконки узлов: имя из `icon` описания узла (kebab-case lucide). Неизвестное имя — молния */
 const ICONS: Record<string, LucideIcon> = {
@@ -48,6 +49,9 @@ export const CATEGORY_COLOR: Record<NodeCategory, string> = {
   flow: 'var(--teal)',
   action: 'var(--blue)',
 };
+
+/** Название категории узла в интерфейсе */
+export const nodeCategoryName = (cat: NodeCategory) => t(`automations.editor.nodeCategory.${cat}` as any);
 
 type Prop = { title?: string; type?: string; ui?: string };
 

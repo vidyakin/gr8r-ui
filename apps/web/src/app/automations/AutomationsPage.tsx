@@ -5,13 +5,14 @@ import { CircleAlert, Plus, Trash2, Zap } from 'lucide-react';
 import { getNodeDef } from '@gr8r/shared';
 import { Badge, Button, ConfirmDialog, EmptyState, Skeleton, Tab, Tabs, TabsList, toast } from '@/components/ui';
 import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
+import { useT, type TKey } from '@/i18n';
 import { useIsAdmin } from '../catalog/data';
 import { ago } from '../lib/dates';
 import { useFlowApi, useFlows, type FlowSummary } from './data';
 import { RunsView, RunStatus } from './RunsView';
 
-export function triggerText(t: FlowSummary['trigger']): string {
-  if (!t) return 'No trigger';
+export function triggerText(t: FlowSummary['trigger'], tFn: (key: TKey, params?: Record<string, string | number | null | undefined>) => string): string {
+  if (!t) return tFn('automations.list.noTrigger');
   const def = getNodeDef(t.type);
   const p = t.params as Record<string, string | undefined>;
   const detail = t.type === 'trigger.schedule' ? p.cron : [p.entity, p.field && `.${p.field}`, p.to && ` → ${p.to}`].filter(Boolean).join('');
@@ -24,6 +25,7 @@ export function AutomationsPage() {
   const isAdmin = useIsAdmin();
   const flows = useFlows();
   const api = useFlowApi();
+  const t = useT();
   const [removing, setRemoving] = React.useState<FlowSummary | null>(null);
   const [busy, setBusy] = React.useState(false);
   const rows = flows.data ?? [];
@@ -31,7 +33,7 @@ export function AutomationsPage() {
   const create = async () => {
     setBusy(true);
     try {
-      const f = await api.create({ name: 'New automation' });
+      const f = await api.create({ name: t('automations.list.defaultName') });
       navigate(`/automations/flow/${f.id}`);
     } finally {
       setBusy(false);
@@ -42,7 +44,7 @@ export function AutomationsPage() {
     () => [
       {
         id: 'name',
-        header: 'Name',
+        header: t('automations.list.col.name'),
         width: 320,
         value: f => f.name,
         cell: f => (
@@ -52,10 +54,10 @@ export function AutomationsPage() {
           </span>
         ),
       },
-      { id: 'trigger', header: 'Trigger', width: 250, value: f => triggerText(f.trigger), cell: f => <span className="trunc muted">{triggerText(f.trigger)}</span> },
+      { id: 'trigger', header: t('automations.list.col.trigger'), width: 250, value: f => triggerText(f.trigger, t), cell: f => <span className="trunc muted">{triggerText(f.trigger, t)}</span> },
       {
         id: 'enabled',
-        header: 'Enabled',
+        header: t('automations.list.col.enabled'),
         width: 100,
         value: f => (f.enabled ? 1 : 0),
         cell: f => (
@@ -64,33 +66,33 @@ export function AutomationsPage() {
               type="checkbox"
               role="switch"
               className="toggle"
-              aria-label={`${f.enabled ? 'Disable' : 'Enable'} ${f.name}`}
+              aria-label={f.enabled ? t('automations.list.disableAria', { name: f.name }) : t('automations.list.enableAria', { name: f.name })}
               checked={f.enabled}
               disabled={!isAdmin || f.publishedVersion === null}
-              title={f.publishedVersion === null ? 'Publish the automation first' : undefined}
-              onChange={e => void api.save(f.id, { enabled: e.target.checked }).then(() => toast(e.target.checked ? `“${f.name}” is on` : `“${f.name}” is off`))}
+              title={f.publishedVersion === null ? t('automations.list.publishFirstTitle') : undefined}
+              onChange={e => void api.save(f.id, { enabled: e.target.checked }).then(() => toast(e.target.checked ? t('automations.list.onToast', { name: f.name }) : t('automations.list.offToast', { name: f.name })))}
             />
           </span>
         ),
       },
       {
         id: 'version',
-        header: 'Version',
+        header: t('automations.list.col.version'),
         width: 190,
         value: f => f.publishedVersion ?? 0,
         cell: f =>
           f.publishedVersion === null ? (
-            <Badge tone="gray">Draft</Badge>
+            <Badge tone="gray">{t('automations.list.draft')}</Badge>
           ) : (
             <span className="row" style={{ gap: 6 }}>
               <span className="mono">v{f.publishedVersion}</span>
-              {f.hasDraftChanges && <Badge tone="amber">unpublished changes</Badge>}
+              {f.hasDraftChanges && <Badge tone="amber">{t('automations.list.unpublishedChanges')}</Badge>}
             </span>
           ),
       },
       {
         id: 'last',
-        header: 'Last run',
+        header: t('automations.list.col.lastRun'),
         width: 200,
         value: f => (f.lastRun ? new Date(f.lastRun.createdAt).getTime() : 0),
         cell: f =>
@@ -100,12 +102,12 @@ export function AutomationsPage() {
               <span className="faint">{ago(new Date(f.lastRun.createdAt).getTime())}</span>
             </span>
           ) : (
-            <span className="faint">Never</span>
+            <span className="faint">{t('automations.list.never')}</span>
           ),
       },
       {
         id: 'errors',
-        header: 'Errors (7d)',
+        header: t('automations.list.col.errors'),
         width: 110,
         align: 'right',
         value: f => f.failedRuns7d,
@@ -120,21 +122,21 @@ export function AutomationsPage() {
         cell: f =>
           isAdmin ? (
             <span className="row" style={{ justifyContent: 'flex-end' }} onClick={e => e.stopPropagation()}>
-              <button type="button" className="ibtn ibtn-xs" aria-label={`Delete ${f.name}`} onClick={() => setRemoving(f)}>
+              <button type="button" className="ibtn ibtn-xs" aria-label={t('automations.list.deleteAria', { name: f.name })} onClick={() => setRemoving(f)}>
                 <Trash2 size={13} />
               </button>
             </span>
           ) : null,
       },
     ],
-    [isAdmin, api],
+    [isAdmin, api, t],
   );
   const table = useDataTable(columns, { hidden: [] });
 
   const newBtn = isAdmin && (
     <Button variant="primary" loading={busy} onClick={create}>
       <Plus size={14} />
-      New automation
+      {t('automations.list.newAutomation')}
     </Button>
   );
 
@@ -142,23 +144,23 @@ export function AutomationsPage() {
     <div className="page flush">
       <div className="ph">
         <div>
-          <h1>Automations</h1>
-          <p>When something happens in the workspace — a task changes, a deal is won, the clock strikes — run a chain of steps.</p>
+          <h1>{t('automations.list.title')}</h1>
+          <p>{t('automations.list.subtitle')}</p>
         </div>
         <div className="acts">{newBtn}</div>
       </div>
       <Tabs value={tab} onValueChange={v => navigate(v === 'flows' ? '/automations' : '/automations/runs')} className="auto-tabs">
         <TabsList>
           <Tab value="flows" count={rows.length || undefined}>
-            Automations
+            {t('automations.list.tabFlows')}
           </Tab>
-          <Tab value="runs">Runs</Tab>
+          <Tab value="runs">{t('automations.list.tabRuns')}</Tab>
         </TabsList>
       </Tabs>
       {tab === 'runs' ? (
         <RunsView onOpenFlow={id => navigate(`/automations/flow/${id}`)} />
       ) : flows.isError ? (
-        <EmptyState icon={<CircleAlert size={20} />} error title="Could not load automations" action={<Button size="sm" onClick={() => flows.refetch()}>Retry</Button>}>
+        <EmptyState icon={<CircleAlert size={20} />} error title={t('automations.list.loadFailed')} action={<Button size="sm" onClick={() => flows.refetch()}>{t('common.retry')}</Button>}>
           {(flows.error as Error).message}
         </EmptyState>
       ) : flows.isPending ? (
@@ -167,7 +169,7 @@ export function AutomationsPage() {
         </div>
       ) : (
         <DataTable
-          aria-label="Automations table"
+          aria-label={t('automations.list.table')}
           columns={columns}
           rows={rows}
           table={table}
@@ -175,8 +177,8 @@ export function AutomationsPage() {
           showTotals={false}
           onRowClick={f => navigate(`/automations/flow/${f.id}`)}
           empty={
-            <EmptyState icon={<Zap size={20} />} title="No automations yet" action={newBtn || undefined}>
-              Build a flow from a trigger, conditions and actions.
+            <EmptyState icon={<Zap size={20} />} title={t('automations.list.empty')} action={newBtn || undefined}>
+              {t('automations.list.emptyHint')}
             </EmptyState>
           }
         />
@@ -185,14 +187,14 @@ export function AutomationsPage() {
         open={!!removing}
         onOpenChange={o => !o && setRemoving(null)}
         danger
-        title="Delete automation?"
-        description={removing ? <><b>{removing.name}</b> and its run history will be deleted.</> : undefined}
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
+        title={t('automations.list.deleteTitle')}
+        description={removing ? t('automations.list.deleteDesc', { name: removing.name }) : undefined}
+        confirmLabel={t('automations.list.deleteBtn')}
+        cancelLabel={t('automations.list.cancel')}
         onConfirm={async () => {
           if (removing) {
             await api.remove(removing.id);
-            toast(`Deleted “${removing.name}”`);
+            toast(t('automations.toast.deletedName', { name: removing.name }));
           }
           setRemoving(null);
         }}

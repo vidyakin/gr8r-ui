@@ -9,20 +9,22 @@ import { ActivityComposer, ActivityFeed, ActivityRow, CompanyLink, CompanyLogo, 
 import { money, pct } from './format';
 import { activitiesOfContact, activitiesOfDeal, company as findCompany, contact as findContact, contactsOfCompany, dealsOfContact, deal as findDeal, isOverdueDeal, probability, weighted } from './selectors';
 import { isOpen, stage } from './stages';
+import { lostReasonName, stageName } from './labels';
 import { useCrm, type DealPatch } from './store';
 import { useCrmUi } from './ui-context';
 import { useCustomRows } from '../meta/custom-fields';
-import { parseNumber } from '@/i18n';
+import { parseNumber, useT } from '@/i18n';
 
 /** Сумма сделки: поле ввода без рамки, сохраняется по Enter или потере фокуса */
 function AmountInput({ value, onCommit }: { value: number; onCommit: (v: number) => void }) {
+  const t = useT();
   return (
     <input
       key={value}
       className="crm-inline"
       inputMode="decimal"
       defaultValue={money(value)}
-      aria-label="Amount in USD"
+      aria-label={t('crm.deals.drawer.amountAria')}
       onFocus={e => {
         e.currentTarget.value = String(value);
         e.currentTarget.select();
@@ -47,6 +49,7 @@ export function DealDrawer({ id }: { id: string }) {
   const { data, dispatch } = useCrm();
   const ui = useCrmUi();
   const navigate = useNavigate();
+  const t = useT();
   const d = findDeal(data, id);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   if (!d) return null;
@@ -65,9 +68,9 @@ export function DealDrawer({ id }: { id: string }) {
       <div className="alert ok">
         <CircleCheck size={15} />
         <span>
-          Won {d.closedAt ? `on ${fmtDate(d.closedAt)}` : ''} for {money(d.amount)}.{' '}
+          {d.closedAt ? t('crm.deals.drawer.wonBannerDate', { date: fmtDate(d.closedAt), amount: money(d.amount) }) : t('crm.deals.drawer.wonBanner', { amount: money(d.amount) })}{' '}
           <button className="link" onClick={() => ui.moveDeal(d.id, 'negotiation')}>
-            Reopen deal
+            {t('crm.deals.drawer.reopen')}
           </button>
         </span>
       </div>
@@ -75,10 +78,10 @@ export function DealDrawer({ id }: { id: string }) {
       <div className="alert danger">
         <X size={15} />
         <span>
-          Lost{d.closedAt ? ` on ${fmtDate(d.closedAt)}` : ''}
-          {d.lostReason ? `: ${d.lostReason}` : ''}.{' '}
+          {d.closedAt ? t('crm.deals.drawer.lostBannerDate', { date: fmtDate(d.closedAt) }) : t('crm.deals.drawer.lostBanner')}
+          {d.lostReason ? `: ${lostReasonName(d.lostReason, d.lostReason)}` : ''}.{' '}
           <button className="link" onClick={() => ui.moveDeal(d.id, 'qualified')}>
-            Reopen deal
+            {t('crm.deals.drawer.reopen')}
           </button>
         </span>
       </div>
@@ -86,7 +89,7 @@ export function DealDrawer({ id }: { id: string }) {
       <div className="alert danger">
         <ClockAlert size={15} />
         <span>
-          Expected close date passed {overdueDays} day{overdueDays > 1 ? 's' : ''} ago. Pick a new date below.
+          {t('crm.deals.drawer.overdueBanner', { count: overdueDays })}
         </span>
       </div>
     ) : null;
@@ -94,7 +97,7 @@ export function DealDrawer({ id }: { id: string }) {
   return (
     <>
       <EntityDrawer
-        label={`Deal: ${d.name}`}
+        label={t('crm.deals.drawer.dealLabel', { name: d.name })}
         onClose={ui.closeDrawer}
         crumb={
           <>
@@ -106,7 +109,7 @@ export function DealDrawer({ id }: { id: string }) {
             )}
             <span className="faint">/</span>
             <span className="faint" style={{ fontSize: 12, padding: '0 6px' }}>
-              Deal
+              {t('crm.deals.drawer.crumbDeal')}
             </span>
           </>
         }
@@ -114,12 +117,12 @@ export function DealDrawer({ id }: { id: string }) {
           open ? (
             <Button size="sm" variant="ghost" onClick={() => ui.moveDeal(d.id, 'won')}>
               <CircleCheck size={14} />
-              <span className="hide-m">Mark won</span>
+              <span className="hide-m">{t('crm.deals.markWonBtn')}</span>
             </Button>
           ) : (
             <Button size="sm" variant="ghost" onClick={() => ui.moveDeal(d.id, d.stage === 'won' ? 'negotiation' : 'qualified')}>
               <RotateCcw size={14} />
-              <span className="hide-m">Reopen</span>
+              <span className="hide-m">{t('crm.deals.drawer.reopenBtn')}</span>
             </Button>
           )
         }
@@ -127,15 +130,15 @@ export function DealDrawer({ id }: { id: string }) {
           <>
             {open && (
               <MenuItem icon={<X size={15} />} onSelect={() => ui.moveDeal(d.id, 'lost')}>
-                Mark as lost
+                {t('crm.deals.drawer.markLost')}
               </MenuItem>
             )}
             <MenuItem icon={<Building2 size={15} />} onSelect={() => navigate(`/crm/companies/${d.company}`)}>
-              Open company
+              {t('crm.deals.drawer.openCompany')}
             </MenuItem>
             <MenuSeparator />
             <MenuItem icon={<Trash2 size={15} />} danger onSelect={() => setConfirmDelete(true)}>
-              Delete deal
+              {t('crm.deals.drawer.deleteDeal')}
             </MenuItem>
           </>
         }
@@ -143,32 +146,32 @@ export function DealDrawer({ id }: { id: string }) {
         title={d.name}
         onTitleChange={name => update({ name })}
         fields={[
-          { icon: Layers, label: 'Stage', value: <StageField deal={d} /> },
-          { icon: CircleDollarSign, label: 'Amount', value: <AmountInput value={d.amount} onCommit={amount => update({ amount })} /> },
+          { icon: Layers, label: t('crm.deals.col.stage'), value: <StageField deal={d} /> },
+          { icon: CircleDollarSign, label: t('crm.deals.col.amount'), value: <AmountInput value={d.amount} onCommit={amount => update({ amount })} /> },
           {
             icon: Percent,
-            label: 'Probability',
+            label: t('crm.deals.drawer.probability'),
             value: open ? (
               <span className="row" style={{ gap: 8, flex: 1, maxWidth: 280 }}>
                 <span className="num">{pct(probability(d))}</span>
-                <Progress value={probability(d) * 100} aria-label="Win probability" />
+                <Progress value={probability(d) * 100} aria-label={t('crm.deals.drawer.probabilityAria')} />
                 <span className="faint num" style={{ fontSize: 11.5, whiteSpace: 'nowrap' }}>
-                  {money(weighted(d))} weighted
+                  {t('crm.deals.drawer.weighted', { amount: money(weighted(d)) })}
                 </span>
               </span>
             ) : (
-              <span className="muted">{d.stage === 'won' ? '100% — closed won' : '0% — closed lost'}</span>
+              <span className="muted">{d.stage === 'won' ? t('crm.deals.drawer.probWon') : t('crm.deals.drawer.probLost')}</span>
             ),
           },
           {
             icon: CalendarIcon,
-            label: open ? 'Expected close' : 'Closed on',
-            value: open ? <DateField value={d.closeDate} onChange={closeDate => update({ closeDate })} label="Expected close date" /> : <span className="num">{fmtDate(d.closedAt ?? d.closeDate)}</span>,
+            label: open ? t('crm.deals.drawer.expectedClose') : t('crm.deals.drawer.closedOn'),
+            value: open ? <DateField value={d.closeDate} onChange={closeDate => update({ closeDate })} label={t('crm.deals.drawer.expectedCloseAria')} /> : <span className="num">{fmtDate(d.closedAt ?? d.closeDate)}</span>,
           },
-          { icon: Building2, label: 'Company', value: <CompanyLink id={d.company} logo /> },
+          { icon: Building2, label: t('crm.deals.col.company'), value: <CompanyLink id={d.company} logo /> },
           {
             icon: Users,
-            label: 'Contacts',
+            label: t('crm.deals.drawer.contacts'),
             value: (
               <span className="row" style={{ gap: 4, flexWrap: 'wrap' }}>
                 {people.map((c, i) => (
@@ -179,9 +182,9 @@ export function DealDrawer({ id }: { id: string }) {
                 ))}
                 <Menu>
                   <MenuTrigger asChild>
-                    <button className={people.length ? 'ibtn ibtn-xs' : 'pillbtn empty'} aria-label="Edit contacts">
+                    <button className={people.length ? 'ibtn ibtn-xs' : 'pillbtn empty'} aria-label={t('crm.deals.drawer.editContacts')}>
                       <UserPlus size={13} />
-                      {!people.length && 'Add contacts'}
+                      {!people.length && t('crm.deals.drawer.addContacts')}
                     </button>
                   </MenuTrigger>
                   <MenuContent>
@@ -198,21 +201,21 @@ export function DealDrawer({ id }: { id: string }) {
                         </MenuCheckboxItem>
                       ))
                     ) : (
-                      <MenuItem disabled>No contacts at this company</MenuItem>
+                      <MenuItem disabled>{t('crm.deals.drawer.noContacts')}</MenuItem>
                     )}
                   </MenuContent>
                 </Menu>
               </span>
             ),
           },
-          { icon: User, label: 'Owner', value: <OwnerField value={d.owner} onChange={owner => update({ owner })} /> },
-          { icon: Clock, label: 'Created', value: <span className="muted num">{fmtDate(new Date(d.created))}</span> },
+          { icon: User, label: t('crm.deals.col.owner'), value: <OwnerField value={d.owner} onChange={owner => update({ owner })} /> },
+          { icon: Clock, label: t('crm.deals.drawer.created'), value: <span className="muted num">{fmtDate(new Date(d.created))}</span> },
           ...customRows.map(r => ({ icon: r.icon, label: r.label, value: r.node })),
         ]}
         tabs={[
           {
             id: 'activity',
-            label: 'Activity',
+            label: t('crm.deals.drawer.tabActivity'),
             count: acts.length,
             content: (
               <>
@@ -223,7 +226,7 @@ export function DealDrawer({ id }: { id: string }) {
           },
           {
             id: 'followups',
-            label: 'Follow-ups',
+            label: t('crm.deals.drawer.tabFollowups'),
             count: follow.filter(a => !a.done).length,
             content: follow.length ? (
               <div className="feed">
@@ -233,7 +236,7 @@ export function DealDrawer({ id }: { id: string }) {
               </div>
             ) : (
               <p className="faint" style={{ fontSize: 13, margin: '10px 0' }}>
-                No follow-ups yet. Choose “Follow-up” in the composer on the Activity tab.
+                {t('crm.deals.drawer.noFollowups')}
               </p>
             ),
           },
@@ -247,7 +250,7 @@ export function DealDrawer({ id }: { id: string }) {
         onConfirm={() => {
           dispatch({ type: 'deal/delete', id: d.id });
           ui.closeDrawer();
-          toast(`Deleted “${d.name}”`);
+          toast(t('crm.deals.deleted', { name: d.name }));
         }}
       />
     </>
@@ -255,19 +258,20 @@ export function DealDrawer({ id }: { id: string }) {
 }
 
 function DeleteDealConfirm({ open, name, count, onCancel, onConfirm }: { open: boolean; name: string; count: number; onCancel: () => void; onConfirm: () => void }) {
+  const t = useT();
   return (
     <ConfirmDialog
       open={open}
       onOpenChange={o => !o && onCancel()}
       danger
-      title="Delete deal?"
+      title={t('crm.deals.drawer.deleteTitle')}
       description={
         <>
-          <b>{name}</b> and its {count} activit{count === 1 ? 'y' : 'ies'} will be permanently deleted.
+          <b>{name}</b> {t('crm.deals.drawer.deleteDesc', { count })}
         </>
       }
-      confirmLabel="Delete deal"
-      cancelLabel="Cancel"
+      confirmLabel={t('crm.deals.drawer.deleteDeal')}
+      cancelLabel={t('crm.common.cancel')}
       onConfirm={onConfirm}
     />
   );
@@ -277,6 +281,7 @@ export function ContactDrawer({ id }: { id: string }) {
   const { data, dispatch } = useCrm();
   const ui = useCrmUi();
   const navigate = useNavigate();
+  const t = useT();
   const c = findContact(data, id);
   if (!c) return null;
   const co = findCompany(data, c.company);
@@ -285,7 +290,7 @@ export function ContactDrawer({ id }: { id: string }) {
   const customRows = useCustomRows('contact', c.custom, patch => dispatch({ type: 'contact/update', id: c.id, patch: { custom: { ...c.custom, ...patch } } }));
   return (
     <EntityDrawer
-      label={`Contact: ${c.name}`}
+      label={t('crm.contacts.drawer.contactLabel', { name: c.name })}
       onClose={ui.closeDrawer}
       crumb={
         <>
@@ -297,31 +302,31 @@ export function ContactDrawer({ id }: { id: string }) {
           )}
           <span className="faint">/</span>
           <span className="faint" style={{ fontSize: 12, padding: '0 6px' }}>
-            Contact
+            {t('crm.contacts.drawer.crumbContact')}
           </span>
         </>
       }
       actions={
         <Button size="sm" variant="ghost" onClick={() => ui.newDeal({ company: c.company, owner: c.owner })}>
           <CircleDollarSign size={14} />
-          <span className="hide-m">New deal</span>
+          <span className="hide-m">{t('crm.deals.newDeal')}</span>
         </Button>
       }
       title={c.name}
       onTitleChange={name => dispatch({ type: 'contact/update', id: c.id, patch: { name } })}
       subtitle={c.title}
       fields={[
-        { icon: Building2, label: 'Company', value: <CompanyLink id={c.company} logo /> },
-        { icon: Briefcase, label: 'Title', value: c.title ? <span>{c.title}</span> : <span className="faint">—</span> },
-        { icon: Mail, label: 'Email', value: c.email ? <a className="crm-link" href={`mailto:${c.email}`}>{c.email}</a> : <span className="faint">—</span> },
-        { icon: Phone, label: 'Phone', value: c.phone ? <span className="num">{c.phone}</span> : <span className="faint">—</span> },
-        { icon: User, label: 'Owner', value: <OwnerField value={c.owner} onChange={owner => dispatch({ type: 'contact/update', id: c.id, patch: { owner } })} /> },
+        { icon: Building2, label: t('crm.companies.col.company'), value: <CompanyLink id={c.company} logo /> },
+        { icon: Briefcase, label: t('crm.contacts.col.title'), value: c.title ? <span>{c.title}</span> : <span className="faint">—</span> },
+        { icon: Mail, label: t('crm.contacts.col.email'), value: c.email ? <a className="crm-link" href={`mailto:${c.email}`}>{c.email}</a> : <span className="faint">—</span> },
+        { icon: Phone, label: t('crm.contacts.col.phone'), value: c.phone ? <span className="num">{c.phone}</span> : <span className="faint">—</span> },
+        { icon: User, label: t('crm.deals.col.owner'), value: <OwnerField value={c.owner} onChange={owner => dispatch({ type: 'contact/update', id: c.id, patch: { owner } })} /> },
         ...customRows.map(r => ({ icon: r.icon, label: r.label, value: r.node })),
       ]}
       tabs={[
         {
           id: 'activity',
-          label: 'Activity',
+          label: t('crm.deals.drawer.tabActivity'),
           count: acts.length,
           content: (
             <>
@@ -332,7 +337,7 @@ export function ContactDrawer({ id }: { id: string }) {
         },
         {
           id: 'deals',
-          label: 'Deals',
+          label: t('crm.deals.drawer.tabDeals'),
           count: ds.length,
           content: ds.length ? (
             <div>
@@ -344,14 +349,14 @@ export function ContactDrawer({ id }: { id: string }) {
                   </span>
                   <span className="num muted">{money(x.amount)}</span>
                   <span className="muted hide-m" style={{ width: 84 }}>
-                    {stage(x.stage).name}
+                    {stageName(x.stage, stage(x.stage).name)}
                   </span>
                 </div>
               ))}
             </div>
           ) : (
             <p className="faint" style={{ fontSize: 13, margin: '10px 0' }}>
-              This contact isn’t linked to any deals yet.
+              {t('crm.contacts.drawer.noDeals')}
             </p>
           ),
         },

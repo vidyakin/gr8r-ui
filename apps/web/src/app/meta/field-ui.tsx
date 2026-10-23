@@ -7,6 +7,7 @@ import { AtSign, Calendar, CalendarClock, CircleDollarSign, Check, CheckSquare, 
 import type { FieldChoice, FieldType } from '@gr8r/shared';
 import { Checkbox, Input, Label, Popover, PopoverContent, PopoverTrigger, Textarea } from '@/components/ui';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { fmtDate } from '../lib/dates';
 import { useEntities, searchRefs, useRefTitle, useWsId, type MetaField } from './data';
@@ -65,10 +66,11 @@ export function refPath(entityKey: string, id: string): string | null {
 }
 
 function RefLink({ entityKey, id }: { entityKey: string; id: string }) {
+  const t = useT();
   const title = useRefTitle(entityKey, id);
   const path = refPath(entityKey, id);
   if (title === undefined) return <span className="faint">…</span>;
-  const label = <span className="trunc">{title || 'Untitled'}</span>;
+  const label = <span className="trunc">{title || t('meta.field.untitled')}</span>;
   return path ? (
     <Link to={path} className="crm-link" onClick={e => e.stopPropagation()}>
       {label}
@@ -79,6 +81,7 @@ function RefLink({ entityKey, id }: { entityKey: string; id: string }) {
 }
 
 function MemberName({ id }: { id: string }) {
+  const t = useT();
   const { data } = useWorkspace();
   const m = data.members.find(x => x.id === id);
   return m ? (
@@ -86,17 +89,18 @@ function MemberName({ id }: { id: string }) {
       {m.name}
     </Link>
   ) : (
-    <span className="faint">Unknown member</span>
+    <span className="faint">{t('meta.field.unknownMember')}</span>
   );
 }
 
 /* ---------------- значение (чтение) ---------------- */
 
 export function FieldValue({ field: f, value }: { field: Pick<MetaField, 'type' | 'options'>; value: unknown }) {
+  const t = useT();
   if (isBlank(value) && f.type !== 'boolean') return dash;
   switch (f.type) {
     case 'boolean':
-      return value ? <Check size={14} aria-label="Yes" /> : dash;
+      return value ? <Check size={14} aria-label={t('meta.field.yes')} /> : dash;
     case 'select': {
       const c = choiceOf(f, value);
       return c ? <ChoiceLabel choice={c} /> : <span>{String(value)}</span>;
@@ -156,6 +160,7 @@ export function FieldValue({ field: f, value }: { field: Pick<MetaField, 'type' 
 /* ---------------- выбор записи (ref / refs) ---------------- */
 
 function RefPicker({ field: f, value, onChange, multi, id }: { field: MetaField; value: unknown; onChange: (v: unknown) => void; multi: boolean; id?: string }) {
+  const t = useT();
   const ws = useWsId();
   const entities = useEntities();
   const target = f.options.refEntity ?? '';
@@ -177,7 +182,7 @@ function RefPicker({ field: f, value, onChange, multi, id }: { field: MetaField;
       {ids.map(rid => (
         <span key={rid} className="row" style={{ gap: 4 }}>
           <RefLink entityKey={target} id={rid} />
-          <button type="button" className="ibtn ibtn-xs" aria-label="Remove" onClick={() => onChange(multi ? ids.filter(x => x !== rid) : null)}>
+          <button type="button" className="ibtn ibtn-xs" aria-label={t('meta.field.remove')} onClick={() => onChange(multi ? ids.filter(x => x !== rid) : null)}>
             <X size={12} />
           </button>
         </span>
@@ -190,24 +195,24 @@ function RefPicker({ field: f, value, onChange, multi, id }: { field: MetaField;
         }}
       >
         <PopoverTrigger asChild>
-          <button type="button" id={id} className={cn('pillbtn', !ids.length && 'empty')} aria-label={`Choose ${f.name}`}>
+          <button type="button" id={id} className={cn('pillbtn', !ids.length && 'empty')} aria-label={t('meta.field.chooseNamed', { name: f.name })}>
             <Icon size={13} />
-            {multi ? 'Add' : ids.length ? 'Change' : 'Choose'}
+            {multi ? t('meta.field.add') : ids.length ? t('meta.field.change') : t('meta.field.choose')}
           </button>
         </PopoverTrigger>
         <PopoverContent className="min-w-[240px]">
-          <Input size="sm" autoFocus placeholder={`Search ${entity?.name.toLowerCase() ?? 'records'}…`} aria-label="Search records" value={q} onChange={e => setQ(e.target.value)} />
+          <Input size="sm" autoFocus placeholder={t('meta.field.searchPlaceholder', { name: entity?.name.toLowerCase() ?? t('meta.field.records') })} aria-label={t('meta.field.searchRecords')} value={q} onChange={e => setQ(e.target.value)} />
           <div style={{ maxHeight: 240, overflow: 'auto', marginTop: 6 }}>
             {results.data?.map(r => (
               <button type="button" key={r.id} className="mi" style={{ width: '100%' }} onClick={() => pick(r.id)}>
                 <span className="trunc" style={{ flex: 1, textAlign: 'left' }}>
-                  {r.title || 'Untitled'}
+                  {r.title || t('meta.field.untitled')}
                 </span>
                 {ids.includes(r.id) && <Check size={14} />}
               </button>
             ))}
-            {results.data && !results.data.length && <div className="faint" style={{ padding: 8, fontSize: 12.5 }}>Nothing found</div>}
-            {results.isPending && <div className="faint" style={{ padding: 8, fontSize: 12.5 }}>Loading…</div>}
+            {results.data && !results.data.length && <div className="faint" style={{ padding: 8, fontSize: 12.5 }}>{t('meta.field.nothingFound')}</div>}
+            {results.isPending && <div className="faint" style={{ padding: 8, fontSize: 12.5 }}>{t('meta.field.loading')}</div>}
           </div>
         </PopoverContent>
       </Popover>

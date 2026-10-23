@@ -4,6 +4,7 @@
    Данные живут на сервере: `data` собирается из кэша TanStack Query (коллекции `['ws', id, имя]`), а dispatch считает новое состояние
    этим же reducer'ом, пишет его в кэш (оптимистично) и отправляет разницу в API (см. engine.ts). */
 import * as React from 'react';
+import { t } from '@/i18n';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { apiFor, errorMessage, ok } from './api';
 import { engineFor, projOrderOf, reorderProjects, type Domain, type Op } from './engine';
@@ -738,18 +739,18 @@ export function LoadingScreen({ error, onRetry }: { error?: string; onRetry?: ()
       <div style={{ textAlign: 'center', display: 'grid', gap: 12 }}>
         {error ? (
           <>
-            <b style={{ color: 'var(--text)' }}>Couldn't load the workspace</b>
+            <b style={{ color: 'var(--text)' }}>{t('meta.workspace.loadFailed')}</b>
             <span>{error}</span>
             {onRetry && (
               <button className="btn btn-primary" onClick={onRetry}>
-                Try again
+                {t('meta.workspace.retry')}
               </button>
             )}
           </>
         ) : (
           <>
             <span className="sk" style={{ width: 120, height: 8, borderRadius: 4, justifySelf: 'center' }} />
-            <span>Loading workspace…</span>
+            <span>{t('meta.workspace.loading')}</span>
           </>
         )}
       </div>
@@ -811,7 +812,7 @@ function WorkspaceInner({ ws, user, children }: { ws: WorkspaceRef; user: Sessio
       // «Прочитать всё» — одним запросом, а не по запросу на уведомление
       if (a.type === 'notif/markAllRead') extra.push({ coll: 'notifs', phase: 1, run: () => ok(apiFor(ws.id).notifications['read-all'].$post()) });
       engine.commit(WS_DOMAIN, before, after, extra, a.type === 'notif/markAllRead' ? ['notifs'] : []);
-      if (done && rec) toast.info(`Next “${done.title}” scheduled for ${fmtDate(rec.due!)}`);
+      if (done && rec) toast.info(t('meta.workspace.nextScheduled', { title: done.title, date: fmtDate(rec.due!) }));
     },
     [engine, read, qc, ws.id],
   );

@@ -4,6 +4,7 @@ import * as React from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { validateRecord } from '@gr8r/shared';
 import { toast } from '@/components/ui';
+import { useT } from '@/i18n';
 import { useSession } from '../data/session';
 import { FIELD_ICONS, FieldInput, FieldValue } from './field-ui';
 import { useEntityFields, type MetaField } from './data';
@@ -28,10 +29,11 @@ export function useCustomRows(entityKey: string, custom: Custom, save: (patch: R
   const fields = useEntityFields(entityKey);
   const canWrite = useCanWrite();
   return fields.map(f => {
+    const t = useT();
     const value = custom?.[f.key];
     const change = (v: unknown) => {
       const check = validateRecord([f], { [f.key]: v }, 'patch');
-      if (!check.ok) return void toast.error(check.errors[f.key] ?? 'Invalid value');
+      if (!check.ok) return void toast.error(check.errors[f.key] ?? t('meta.field.invalidValue'));
       save({ [f.key]: v ?? null });
     };
     return { field: f, label: f.name, icon: FIELD_ICONS[f.type], node: canWrite ? <FieldInput field={f} value={value} onChange={change} /> : <FieldValue field={f} value={value} /> };

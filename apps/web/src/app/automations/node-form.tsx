@@ -5,6 +5,7 @@ import * as React from 'react';
 import { Braces } from 'lucide-react';
 import { AUTOMATION_SYSTEM_ENTITIES, BUILTIN_FIELDS, nodeParamsJsonSchema, type AnyNodeDef, type FieldOptions, type FieldType } from '@gr8r/shared';
 import { IconButton, Input, Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger, Select, Switch, Textarea } from '@/components/ui';
+import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { activeFields, useEntities, type MetaEntity } from '../meta/data';
 import { humanize } from './node-meta';
@@ -69,27 +70,29 @@ export function useFormEnv(triggerEntity: string | undefined, stepIds: FormEnv['
 
 /** Переменные, доступные шаблонам `{{…}}` в этом flow */
 export function templateVariables(env: FormEnv, triggerField?: string): { group: string; items: string[] }[] {
+  const t = useT();
   const out: { group: string; items: string[] }[] = [];
   const e = env.entities.find(x => x.key === env.triggerEntity);
   const trig = ['trigger.recordId', 'trigger.entity'];
   if (triggerField) trig.push(`trigger.changes.${triggerField}.from`, `trigger.changes.${triggerField}.to`);
-  out.push({ group: 'Trigger', items: trig });
+  out.push({ group: t('automations.nodeForm.varGroups.trigger'), items: trig });
   if (e) {
     const system = e.key !== undefined && e.fields.some(f => f.builtin);
-    out.push({ group: `Record (${e.name})`, items: e.fields.map(f => (f.builtin || !system ? `trigger.record.${f.key}` : `trigger.record.custom.${f.key}`)) });
-    if (e.key === 'task') out.push({ group: 'Project of the task', items: ['trigger.project.name', 'trigger.project.key', 'trigger.project.leadId'] });
+    out.push({ group: t('automations.nodeForm.varGroups.record', { name: e.name }), items: e.fields.map(f => (f.builtin || !system ? `trigger.record.${f.key}` : `trigger.record.custom.${f.key}`)) });
+    if (e.key === 'task') out.push({ group: t('automations.nodeForm.varGroups.projectOfTask'), items: ['trigger.project.name', 'trigger.project.key', 'trigger.project.leadId'] });
   }
-  if (env.stepIds.length) out.push({ group: 'Previous steps', items: env.stepIds.map(s => `steps.${s.id}.`) });
-  out.push({ group: 'Flow', items: ['flow.name', 'run.id', 'now'] });
+  if (env.stepIds.length) out.push({ group: t('automations.nodeForm.varGroups.previousSteps'), items: env.stepIds.map(s => `steps.${s.id}.`) });
+  out.push({ group: t('automations.nodeForm.varGroups.flow'), items: ['flow.name', 'run.id', 'now'] });
   return out;
 }
 
 function VarMenu({ env, triggerField, onPick }: { env: FormEnv; triggerField?: string; onPick: (v: string) => void }) {
-  const groups = React.useMemo(() => templateVariables(env, triggerField), [env, triggerField]);
+  const t = useT();
+  const groups = React.useMemo(() => templateVariables(env, triggerField), [env, triggerField, t]);
   return (
     <Menu>
       <MenuTrigger asChild>
-        <IconButton size="xs" label="Insert variable" type="button">
+        <IconButton size="xs" label={t('automations.nodeForm.insertVariable')} type="button">
           <Braces size={13} />
         </IconButton>
       </MenuTrigger>
@@ -115,6 +118,7 @@ const CUSTOM = '__custom__';
 
 /** Выбор из списка или своё значение (идентификатор / подстановка {{…}}) */
 function PickOrType({ id, value, options, onChange, placeholder, env, label, triggerField }: { id: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void; placeholder?: string; env: FormEnv; label: string; triggerField?: string }) {
+  const t = useT();
   const known = options.some(o => o.value === value);
   const [custom, setCustom] = React.useState(!!value && !known);
   const showInput = custom || (!!value && !known);
@@ -132,12 +136,12 @@ function PickOrType({ id, value, options, onChange, placeholder, env, label, tri
           setCustom(false);
           onChange(v);
         }}
-        placeholder={placeholder ?? 'Choose…'}
-        options={[...options, { value: CUSTOM, label: 'Custom value / {{variable}}' }]}
+        placeholder={placeholder ?? t('automations.nodeForm.chooseGeneric')}
+        options={[...options, { value: CUSTOM, label: t('automations.nodeForm.customValue') }]}
       />
       {showInput && (
         <div className="row" style={{ gap: 4 }}>
-          <Input className="mono" aria-label={`${label} (custom)`} value={value} placeholder="ID or {{variable}}" onChange={e => onChange(e.target.value)} />
+          <Input className="mono" aria-label={`${label} (custom)`} value={value} placeholder={t('automations.nodeForm.idPlaceholder')} onChange={e => onChange(e.target.value)} />
           <VarMenu env={env} triggerField={triggerField} onPick={v => onChange(value + v)} />
         </div>
       )}
@@ -158,12 +162,12 @@ function TextWithVars({ id, value, onChange, env, multiline, placeholder, invali
   );
 }
 
-const CRON_PRESETS = [
-  ['0 9 * * 1-5', 'Weekdays 09:00'],
-  ['0 * * * *', 'Every hour'],
-  ['*/15 * * * *', 'Every 15 min'],
-  ['0 0 * * *', 'Daily 00:00'],
-] as const;
+const CRON_PRESETS = (t: (k: any) => string): [string, string][] => [
+  ['0 9 * * 1-5', t('automations.nodeForm.cronPresets.weekdays9')],
+  ['0 * * * *', t('automations.nodeForm.cronPresets.hour')],
+  ['*/15 * * * *', t('automations.nodeForm.cronPresets.every15')],
+  ['0 0 * * *', t('automations.nodeForm.cronPresets.daily')],
+];
 
 interface FormProps {
   def: AnyNodeDef;
@@ -176,6 +180,7 @@ interface FormProps {
 }
 
 export function ParamsForm({ def, params, env, onChange, errors = {}, readOnly }: FormProps) {
+  const t = useT();
   const schema = nodeParamsJsonSchema(def) as { properties?: Record<string, Prop>; required?: string[] };
   const props = Object.entries(schema.properties ?? {});
   const required = new Set(schema.required ?? []);
@@ -189,6 +194,7 @@ export function ParamsForm({ def, params, env, onChange, errors = {}, readOnly }
     onChange(next);
   };
   const triggerField = typeof params.field === 'string' && def.category === 'trigger' ? params.field : undefined;
+  const cronPresets = React.useMemo(() => CRON_PRESETS(t), [t]);
 
   return (
     <fieldset disabled={readOnly} className="pform">
@@ -209,9 +215,9 @@ export function ParamsForm({ def, params, env, onChange, errors = {}, readOnly }
               aria-label={label}
               value={str || (optional ? '__none__' : '')}
               onValueChange={v => set(key, v === '__none__' ? undefined : v)}
-              placeholder="Choose entity"
+              placeholder={t('automations.nodeForm.chooseEntity')}
               invalid={!!err}
-              options={[...(optional ? [{ value: '__none__', label: 'None' }] : []), ...env.entities.map(e => ({ value: e.key, label: e.name }))]}
+              options={[...(optional ? [{ value: '__none__', label: t('automations.nodeForm.noneOption') }] : []), ...env.entities.map(e => ({ value: e.key, label: e.name }))]}
             />
           );
         } else if (p.ui === 'field') {
@@ -223,10 +229,10 @@ export function ParamsForm({ def, params, env, onChange, errors = {}, readOnly }
               aria-label={label}
               value={str}
               onValueChange={v => set(key, v)}
-              placeholder={ent ? 'Choose field' : 'Choose entity first'}
+              placeholder={ent ? t('automations.nodeForm.chooseField') : t('automations.nodeForm.chooseEntityFirst')}
               invalid={!!err}
               disabled={!ent}
-              options={list.map(f => ({ value: f.key, label: f.builtin ? f.name : `${f.name} · custom` }))}
+              options={list.map(f => ({ value: f.key, label: f.builtin ? f.name : `${f.name} · ${t('automations.nodeForm.customField')}` }))}
             />
           );
         } else if (p.ui === 'value') {
@@ -235,30 +241,30 @@ export function ParamsForm({ def, params, env, onChange, errors = {}, readOnly }
           const f = ent?.fields.find(x => x.key === fkey);
           let options: { value: string; label: string }[] | null = null;
           if (f?.options.choices?.length && (f.type === 'select' || f.type === 'multi_select')) options = f.options.choices.map(c => ({ value: c.value, label: c.label }));
-          else if (f?.type === 'boolean') options = [{ value: 'true', label: 'Yes' }, { value: 'false', label: 'No' }];
+          else if (f?.type === 'boolean') options = [{ value: 'true', label: t('automations.nodeForm.yesValue') }, { value: 'false', label: t('automations.nodeForm.noValue') }];
           else if (f?.type === 'user') options = env.members.map(m => ({ value: m.id, label: m.name }));
           else if (ent?.key === 'task' && fkey === 'status') options = env.statuses.map(s => ({ value: s.id, label: s.name }));
           control = options && f?.type !== 'multi_select' ? (
-            <PickOrType id={id} value={str} options={options} onChange={v => set(key, v)} env={env} label={label} placeholder="Choose value" />
+            <PickOrType id={id} value={str} options={options} onChange={v => set(key, v)} env={env} label={label} placeholder={t('automations.nodeForm.chooseValue')} />
           ) : (
-            <TextWithVars id={id} value={str} onChange={v => set(key, v)} env={env} invalid={!!err} placeholder={f?.type === 'date' ? 'YYYY-MM-DD' : f?.type === 'multi_select' ? 'a, b, c' : undefined} />
+            <TextWithVars id={id} value={str} onChange={v => set(key, v)} env={env} invalid={!!err} placeholder={f?.type === 'date' ? t('automations.nodeForm.datePlaceholder') : f?.type === 'multi_select' ? t('automations.nodeForm.multiPlaceholder') : undefined} />
           );
         } else if (p.ui === 'member') {
           const presets = [
-            { value: '{{trigger.project.leadId}}', label: 'Project lead (task trigger)' },
-            { value: '{{trigger.record.assigneeId}}', label: 'Task assignee' },
-            { value: '{{trigger.record.ownerId}}', label: 'Record owner (deal, company…)' },
+            { value: '{{trigger.project.leadId}}', label: t('automations.nodeForm.memberPresets.projectLead') },
+            { value: '{{trigger.record.assigneeId}}', label: t('automations.nodeForm.memberPresets.taskAssignee') },
+            { value: '{{trigger.record.ownerId}}', label: t('automations.nodeForm.memberPresets.recordOwner') },
           ];
-          control = <PickOrType id={id} value={str} options={[...presets, ...env.members.map(m => ({ value: m.id, label: m.name }))]} onChange={v => set(key, v)} env={env} label={label} placeholder="Choose member" />;
+          control = <PickOrType id={id} value={str} options={[...presets, ...env.members.map(m => ({ value: m.id, label: m.name }))]} onChange={v => set(key, v)} env={env} label={label} placeholder={t('automations.nodeForm.chooseMember')} />;
         } else if (p.ui === 'project') {
-          const presets = [{ value: '{{trigger.record.projectId}}', label: 'Project of the trigger task' }];
-          control = <PickOrType id={id} value={str} options={[...presets, ...env.projects.map(pr => ({ value: pr.id, label: `${pr.key} · ${pr.name}` }))]} onChange={v => set(key, v)} env={env} label={label} placeholder="Choose project" />;
+          const presets = [{ value: '{{trigger.record.projectId}}', label: t('automations.nodeForm.projectPresets.fromTask') }];
+          control = <PickOrType id={id} value={str} options={[...presets, ...env.projects.map(pr => ({ value: pr.id, label: `${pr.key} · ${pr.name}` }))]} onChange={v => set(key, v)} env={env} label={label} placeholder={t('automations.nodeForm.chooseProject')} />;
         } else if (p.ui === 'cron') {
           control = (
             <div className="col" style={{ gap: 6 }}>
               <Input id={id} className="mono" value={str} invalid={!!err} onChange={e => set(key, e.target.value)} />
               <div className="row wrap" style={{ gap: 4 }}>
-                {CRON_PRESETS.map(([c, name]) => (
+                {cronPresets.map(([c, name]) => (
                   <button key={c} type="button" className="chip-btn" onClick={() => set(key, c)}>
                     {name}
                   </button>
