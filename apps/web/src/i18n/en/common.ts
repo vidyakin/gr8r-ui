@@ -10,6 +10,7 @@ export const common = {
   more: 'More',
   choose: 'Choose',
   notFound: 'Not found',
+  all: 'All',
   noResults: 'No results found',
   clearFilters: 'Clear filters',
   name: 'Name',

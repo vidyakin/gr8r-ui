@@ -6,14 +6,16 @@ import { Badge, Button, Dialog, DialogClose, DialogContent, EmptyState, Field, I
 import { useCanWrite } from '../meta/custom-fields';
 import { STATUS_LABEL, STATUS_TONE } from '../docs/data';
 import { useOperations, useOperationRates, usePieceworkApi, usePieceworkOrders, usePieceworkReport, type OperationRow } from './piecework-data';
+import { t, useT } from '@/i18n';
 
 const TABS = [
-  { id: 'orders', name: 'Piecework orders' },
-  { id: 'output', name: 'Output' },
-  { id: 'rates', name: 'Rates' },
+  { id: 'orders', name: 'piecework.tab.orders' },
+  { id: 'output', name: 'piecework.tab.output' },
+  { id: 'rates', name: 'piecework.tab.rates' },
 ] as const;
 
 export function PieceworkPage() {
+  const tt = useT();
   const [tab, setTab] = React.useState<(typeof TABS)[number]['id']>('orders');
   const canWrite = useCanWrite();
 
@@ -21,16 +23,14 @@ export function PieceworkPage() {
     <div className="page flush">
       <div className="ph">
         <div>
-          <h1>Piecework</h1>
-          <p>
-            A piecework order records the operations an executor has done during a day. The master checks and posts it — the amount becomes the actual cost of the work in the cost of the released goods.
-          </p>
+          <h1>{tt('production.piecework.title')}</h1>
+          <p>{tt('production.piecework.subtitle')}</p>
         </div>
       </div>
-      <nav className="tabs doc-tabs" aria-label="Piecework sections">
-        {TABS.map(t => (
-          <button key={t.id} type="button" className={`tab${tab === t.id ? ' on' : ''}`} aria-current={tab === t.id ? 'page' : undefined} onClick={() => setTab(t.id)}>
-            {t.name}
+      <nav className="tabs doc-tabs" aria-label={tt('production.piecework.sectionsAria')}>
+        {TABS.map(t0 => (
+          <button key={t0.id} type="button" className={`tab${tab === t0.id ? ' on' : ''}`} aria-current={tab === t0.id ? 'page' : undefined} onClick={() => setTab(t0.id)}>
+            {tt(`production.${t0.name}`)}
           </button>
         ))}
       </nav>
@@ -44,6 +44,7 @@ export function PieceworkPage() {
 /* ---------------- журнал нарядов ---------------- */
 
 function OrdersTab({ canWrite }: { canWrite: boolean }) {
+  const tt = useT();
   const [from, setFrom] = React.useState('');
   const [to, setTo] = React.useState('');
   const list = usePieceworkOrders({ from: from || undefined, to: to || undefined });
@@ -52,11 +53,11 @@ function OrdersTab({ canWrite }: { canWrite: boolean }) {
   return (
     <>
       <div className="row" style={{ gap: 8, padding: '0 var(--gutter) 12px' }}>
-        <Field label="From">{p => <Input {...p} type="date" value={from} onChange={e => setFrom(e.target.value)} />}</Field>
-        <Field label="To">{p => <Input {...p} type="date" value={to} onChange={e => setTo(e.target.value)} />}</Field>
+        <Field label={tt('production.common.from')}>{p => <Input {...p} type="date" value={from} onChange={e => setFrom(e.target.value)} />}</Field>
+        <Field label={tt('production.common.to')}>{p => <Input {...p} type="date" value={to} onChange={e => setTo(e.target.value)} />}</Field>
       </div>
       {list.isError ? (
-        <EmptyState icon={<CircleAlert size={20} />} error title="Could not load the piecework orders" action={<Button size="sm" onClick={() => list.refetch()}>Retry</Button>}>
+        <EmptyState icon={<CircleAlert size={20} />} error title={tt('production.piecework.orders.loadFailed')} action={<Button size="sm" onClick={() => list.refetch()}>{tt('production.common.retry')}</Button>}>
           {(list.error as Error).message}
         </EmptyState>
       ) : list.isPending ? (
@@ -64,37 +65,37 @@ function OrdersTab({ canWrite }: { canWrite: boolean }) {
           <Skeleton w="100%" h={36} />
         </div>
       ) : !rows.length ? (
-        <EmptyState icon={<ClipboardList size={20} />} title="No piecework orders yet">
-          An executor marks the work as done in their task, and the master checks the order of the day and posts it.
+        <EmptyState icon={<ClipboardList size={20} />} title={tt('production.piecework.orders.empty')}>
+          {tt('production.piecework.orders.emptyHint')}
         </EmptyState>
       ) : (
         <div className="table-wrap" style={{ padding: '0 var(--gutter) 24px' }}>
-          <table className="dtbl" aria-label="Piecework orders">
+          <table className="dtbl" aria-label={tt('production.piecework.orders.table')}>
             <thead>
               <tr>
-                <th style={{ width: 150 }}>Number</th>
-                <th style={{ width: 112 }}>Date</th>
-                <th>Executor</th>
+                <th style={{ width: 150 }}>{tt('production.piecework.orders.col.number')}</th>
+                <th style={{ width: 112 }}>{tt('production.piecework.orders.col.date')}</th>
+                <th>{tt('production.piecework.orders.col.executor')}</th>
                 <th style={{ width: 90 }} className="r">
-                  Operations
+                  {tt('production.piecework.orders.col.lines')}
                 </th>
                 <th style={{ width: 110 }} className="r">
-                  Amount
+                  {tt('production.piecework.orders.col.amount')}
                 </th>
-                <th style={{ width: 112 }}>Status</th>
+                <th style={{ width: 112 }}>{tt('production.piecework.orders.col.status')}</th>
               </tr>
             </thead>
             <tbody>
               {rows.map(r => (
                 <tr key={r.id}>
-                  <td className="mono">{r.number ?? <span className="faint">Draft</span>}</td>
+                  <td className="mono">{r.number ?? <span className="faint">{tt('production.common.draft')}</span>}</td>
                   <td className="num muted">{r.date}</td>
                   <td className="trunc">{r.memberName}</td>
                   <td className="r num">{r.lineCount}</td>
                   <td className="r num">{r.amount ?? <span className="faint">—</span>}</td>
                   <td>
                     <Badge tone={STATUS_TONE[r.status]} dot>
-                      {STATUS_LABEL[r.status]}
+                      {tEnum('docStatus', r.status, STATUS_LABEL[r.status])}
                     </Badge>
                   </td>
                 </tr>
@@ -103,7 +104,7 @@ function OrdersTab({ canWrite }: { canWrite: boolean }) {
           </table>
         </div>
       )}
-      {!canWrite && <p className="faint" style={{ padding: '0 var(--gutter) 24px' }}>Only managers post the piecework orders.</p>}
+      {!canWrite && <p className="faint" style={{ padding: '0 var(--gutter) 24px' }}>{tt('production.piecework.orders.readOnly')}</p>}
     </>
   );
 }
@@ -111,6 +112,7 @@ function OrdersTab({ canWrite }: { canWrite: boolean }) {
 /* ---------------- отчёт выработки ---------------- */
 
 function OutputTab() {
+  const tt = useT();
   const [from, setFrom] = React.useState('');
   const [to, setTo] = React.useState('');
   const report = usePieceworkReport({ from: from || undefined, to: to || undefined });
@@ -119,32 +121,32 @@ function OutputTab() {
   return (
     <>
       <div className="row" style={{ gap: 8, padding: '0 var(--gutter) 12px' }}>
-        <Field label="From">{p => <Input {...p} type="date" value={from} onChange={e => setFrom(e.target.value)} />}</Field>
-        <Field label="To">{p => <Input {...p} type="date" value={to} onChange={e => setTo(e.target.value)} />}</Field>
+        <Field label={tt('production.common.from')}>{p => <Input {...p} type="date" value={from} onChange={e => setFrom(e.target.value)} />}</Field>
+        <Field label={tt('production.common.to')}>{p => <Input {...p} type="date" value={to} onChange={e => setTo(e.target.value)} />}</Field>
       </div>
       {report.isPending ? (
         <div style={{ padding: 16 }}>
           <Skeleton w="100%" h={36} />
         </div>
       ) : !rows.length ? (
-        <EmptyState icon={<Receipt size={20} />} title="No output for this period">
-          The report shows what each executor has done and how much it is worth.
+        <EmptyState icon={<Receipt size={20} />} title={tt('production.piecework.output.empty')}>
+          {tt('production.piecework.output.emptyHint')}
         </EmptyState>
       ) : (
         <div className="table-wrap" style={{ padding: '0 var(--gutter) 24px' }}>
-          <table className="dtbl" aria-label="Output by executor">
+          <table className="dtbl" aria-label={tt('production.piecework.output.table')}>
             <thead>
               <tr>
-                <th>Executor</th>
-                <th>Operation</th>
+                <th>{tt('production.piecework.output.col.executor')}</th>
+                <th>{tt('production.piecework.output.col.operation')}</th>
                 <th style={{ width: 100 }} className="r">
-                  Qty
+                  {tt('production.piecework.output.col.qty')}
                 </th>
                 <th style={{ width: 100 }} className="r">
-                  Hours
+                  {tt('production.piecework.output.col.hours')}
                 </th>
                 <th style={{ width: 120 }} className="r">
-                  Amount
+                  {tt('production.piecework.output.col.amount')}
                 </th>
               </tr>
             </thead>
@@ -169,6 +171,7 @@ function OutputTab() {
 /* ---------------- расценки операций ---------------- */
 
 function RatesTab({ canWrite }: { canWrite: boolean }) {
+  const tt = useT();
   const operations = useOperations();
   const rates = useOperationRates();
   const api = usePieceworkApi();
@@ -181,8 +184,8 @@ function RatesTab({ canWrite }: { canWrite: boolean }) {
       {operations.isPending ? (
         <Skeleton w="100%" h={36} />
       ) : !items.length ? (
-        <EmptyState icon={<Receipt size={20} />} title="No operations in the catalogue yet">
-          An operation is a product of the “Operation” kind: it carries the norm of time and the rate of the work.
+        <EmptyState icon={<Receipt size={20} />} title={tt('production.piecework.rates.empty')}>
+          {tt('production.piecework.rates.emptyHint')}
         </EmptyState>
       ) : (
         items.map(op => (
@@ -191,25 +194,25 @@ function RatesTab({ canWrite }: { canWrite: boolean }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 550 }}>{op.name}</div>
                 <div className="faint" style={{ fontSize: 12.5 }}>
-                  Norm: {op.normHours} h per unit
+                  {tt('production.piecework.rates.norm')}: {op.normHours} {tt('production.piecework.rates.hoursPerUnit')}
                 </div>
               </div>
               {canWrite && (
                 <Button size="sm" variant="secondary" onClick={() => setDialog(op)}>
                   <Plus size={13} />
-                  Add rate
+                  {tt('production.piecework.rates.add')}
                 </Button>
               )}
             </div>
             {allRates.filter(r => r.productId === op.productId).length ? (
-              <table className="dtbl" style={{ marginTop: 8 }} aria-label={`Rates of ${op.name}`}>
+              <table className="dtbl" style={{ marginTop: 8 }} aria-label={tt('production.piecework.rates.tableFor', { name: op.name })}>
                 <thead>
                   <tr>
-                    <th style={{ width: 130 }}>Valid from</th>
+                    <th style={{ width: 130 }}>{tt('production.piecework.rates.col.validFrom')}</th>
                     <th style={{ width: 120 }} className="r">
-                      Rate
+                      {tt('production.piecework.rates.col.rate')}
                     </th>
-                    <th>Unit</th>
+                    <th>{tt('production.piecework.rates.col.unit')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -219,13 +222,13 @@ function RatesTab({ canWrite }: { canWrite: boolean }) {
                       <tr key={r.id}>
                         <td className="num muted">{r.validFrom}</td>
                         <td className="r num">{r.rate}</td>
-                        <td className="muted">{r.unit === 'per_hour' ? 'per hour' : 'per unit'}</td>
+                        <td className="muted">{r.unit === 'per_hour' ? tt('production.piecework.rates.perHour') : tt('production.piecework.rates.perUnit')}</td>
                       </tr>
                     ))}
                 </tbody>
               </table>
             ) : (
-              <p className="faint" style={{ margin: '8px 0 0' }}>No rates yet: the piecework order takes the rate valid on its date.</p>
+              <p className="faint" style={{ margin: '8px 0 0' }}>{tt('production.piecework.rates.noRates')}</p>
             )}
           </section>
         ))
@@ -237,6 +240,7 @@ function RatesTab({ canWrite }: { canWrite: boolean }) {
 
 /** Новая расценка операции: действует с указанной даты */
 function RateDialog({ operation, onClose, onSave }: { operation: OperationRow; onClose: () => void; onSave: (v: { productId: string; validFrom: string; rate: string; unit: 'per_unit' | 'per_hour' }) => void }) {
+  const tt = useT();
   const [validFrom, setValidFrom] = React.useState(new Date().toISOString().slice(0, 10));
   const [rate, setRate] = React.useState('');
   const [unit, setUnit] = React.useState<'per_unit' | 'per_hour'>('per_unit');
@@ -245,30 +249,30 @@ function RateDialog({ operation, onClose, onSave }: { operation: OperationRow; o
 
   const submit = async () => {
     const errs: Record<string, string> = {};
-    if (!validFrom) errs.validFrom = 'Choose the date the rate starts from';
-    if (!rate.trim() || Number(rate) < 0) errs.rate = 'Enter the rate';
+    if (!validFrom) errs.validFrom = tt('production.piecework.rates.errValidFrom');
+    if (!rate.trim() || Number(rate) < 0) errs.rate = tt('production.piecework.rates.errRate');
     setErr(errs);
     if (Object.keys(errs).length) return;
     setBusy(true);
     onSave({ productId: operation.productId, validFrom, rate: rate.trim(), unit });
     setBusy(false);
-    toast(`The rate of “${operation.name}” is added`);
+    toast(tt('production.piecework.rates.added', { name: operation.name }));
     onClose();
   };
 
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
-        title={`New rate — ${operation.name}`}
-        description="The piecework order takes the rate that is valid on its date. A new rate does not change the orders already created."
+        title={tt('production.piecework.rates.dialogTitle', { name: operation.name })}
+        description={tt('production.piecework.rates.dialogDesc')}
         footer={
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{tt('production.common.cancel')}</Button>
             </DialogClose>
             <Button variant="primary" disabled={busy} onClick={submit}>
-              Add rate
+              {tt('production.piecework.rates.add')}
             </Button>
           </>
         }
@@ -281,21 +285,21 @@ function RateDialog({ operation, onClose, onSave }: { operation: OperationRow; o
             void submit();
           }}
         >
-          <Field label="Valid from" error={err.validFrom}>
+          <Field label={tt('production.piecework.rates.validFrom')} error={err.validFrom}>
             {p => <Input {...p} type="date" value={validFrom} onChange={e => (setValidFrom(e.target.value), setErr({}))} />}
           </Field>
-          <Field label="Rate" error={err.rate} hint="Per unit of the product or per hour of work">
+          <Field label={tt('production.piecework.rates.rate')} error={err.rate} hint={tt('production.piecework.rates.rateHint')}>
             {p => <Input {...p} inputMode="decimal" value={rate} onChange={e => (setRate(e.target.value), setErr({}))} />}
           </Field>
-          <Field label="Unit">
+          <Field label={tt('production.piecework.rates.unit')}>
             {p => (
               <Select
                 id={p.id}
                 value={unit}
                 onValueChange={v => setUnit(v as 'per_unit' | 'per_hour')}
                 options={[
-                  { value: 'per_unit', label: 'Per unit' },
-                  { value: 'per_hour', label: 'Per hour' },
+                  { value: 'per_unit', label: tt('production.piecework.rates.perUnit') },
+                  { value: 'per_hour', label: tt('production.piecework.rates.perHour') },
                 ]}
               />
             )}
@@ -305,4 +309,12 @@ function RateDialog({ operation, onClose, onSave }: { operation: OperationRow; o
       </DialogContent>
     </Dialog>
   );
+}
+
+/** локальная обёртка tEnum без циклических импортов (catalog/enums.docStatus) */
+function tEnum(group: string, value: string, fallback: string): string {
+  // обходим через t: enums.<group>.<value>
+  const key = `enums.${group}.${value}` as Parameters<typeof t>[0];
+  const out = t(key);
+  return out === key ? fallback : out;
 }

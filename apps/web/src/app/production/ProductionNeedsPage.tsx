@@ -16,6 +16,7 @@ import { useWorkCenters } from '../catalog/data';
 import { fmtDate, parse } from '../lib/dates';
 import { needsKey, useProductionNeeds, type NeedsRow as ProductionNeedsRow, type SupplierOrdersResult } from './orders-data';
 import { calcKey, useNeedsCalculation, useNeedsDraftsApi, type NeedsCalcParams, type NeedsCalcRow } from './plans-data';
+import { tProductionEnum, useT } from '@/i18n';
 
 type Step = 'recommendations' | 'planning' | 'orders';
 const STEPS: { id: Step; name: string }[] = [
@@ -51,6 +52,7 @@ export function ProductionNeedsPage() {
   const ws = useWsId();
   const qc = useQueryClient();
   const canWrite = useCanWrite();
+  const tt = useT();
   const warehouses = useWarehouses();
   const workCenters = useWorkCenters();
   const drafts = useNeedsDraftsApi();
@@ -116,7 +118,7 @@ export function ProductionNeedsPage() {
     }
     let all: { id: string; type: string; number: string | null; date: string }[] = [];
     for (const [replenishment, lines] of byMode) {
-      const res = await drafts.create.mutateAsync({ replenishment, lines, singleDate, perCustomerOrder, comment: 'Stock needs' });
+      const res = await drafts.create.mutateAsync({ replenishment, lines, singleDate, perCustomerOrder, comment: tt('production.needs.comment') });
       if (res) all = [...all, ...res.orders.map(o => ({ id: o.id, type: o.type, number: o.number, date: o.date }))];
     }
     setCreated(all);
@@ -130,7 +132,7 @@ export function ProductionNeedsPage() {
   const postAll = async () => {
     const res = await drafts.post.mutateAsync(created.map(o => o.id));
     if (res) {
-      toast(`Posted: ${res.posted.length}${res.failed.length ? ` · failed: ${res.failed.length}` : ''}`);
+      toast(tt('production.needs.postResult', { posted: res.posted.length, failed: res.failed.length }));
       setCreated([]);
       void qc.invalidateQueries({ queryKey: calcKey(ws) });
     }
@@ -140,51 +142,49 @@ export function ProductionNeedsPage() {
     <div className="page flush">
       <div className="ph">
         <div>
-          <h1>Stock needs</h1>
-          <p>
-            What the stock levels ask for: open customer orders, supplier and production orders and approved plans. Three steps: recommendations, planning, orders.
-          </p>
+          <h1>{tt('production.needs.title')}</h1>
+          <p>{tt('production.needs.subtitle')}</p>
         </div>
         <div className="acts">
           {canWrite && (
             <Button onClick={() => void calc.refetch()}>
               <RotateCw size={14} />
-              Recalculate
+              {tt('production.needs.recalculate')}
             </Button>
           )}
           {step === 'planning' && canWrite && (
             <Button variant="primary" disabled={!selected.length} onClick={() => void create()}>
               <Send size={14} />
-              Create orders
+              {tt('production.needs.createOrders')}
             </Button>
           )}
         </div>
       </div>
 
-      <nav className="tabs doc-tabs" aria-label="Needs sections">
+      <nav className="tabs doc-tabs" aria-label={tt('production.needs.tabs')}>
         <button type="button" className={`tab${tab === 'stock' ? ' on' : ''}`} aria-current={tab === 'stock' ? 'page' : undefined} onClick={() => setTab('stock')}>
-          Stock needs
+          {tt('production.needs.tabStock')}
         </button>
         <button type="button" className={`tab${tab === 'production' ? ' on' : ''}`} aria-current={tab === 'production' ? 'page' : undefined} onClick={() => setTab('production')}>
-          Production orders
+          {tt('production.needs.tabProduction')}
         </button>
       </nav>
 
       {tab === 'production' ? <ProductionOrdersNeeds /> : (
         <>
-          <nav className="tabs doc-tabs" aria-label="Steps">
+          <nav className="tabs doc-tabs" aria-label={tt('production.needs.stepsLabel')}>
             {STEPS.map(s => (
               <button key={s.id} type="button" className={`tab${step === s.id ? ' on' : ''}`} aria-current={step === s.id ? 'page' : undefined} onClick={() => setStep(s.id)}>
-                {s.name}
+                {tt(`production.needs.steps.${s.id}`)}
               </button>
             ))}
           </nav>
 
           <div className="panel" style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
             <label className="fld" style={{ maxWidth: 180 }}>
-              <span className="lbl">Replenishment</span>
-              <select className="select" aria-label="Replenishment" value={params.replenishment} onChange={e => set({ replenishment: e.target.value as NeedsCalcParams['replenishment'] })}>
-                <option value="all">All</option>
+              <span className="lbl">{tt('production.needs.replenishment')}</span>
+              <select className="select" aria-label={tt('production.needs.replenishment')} value={params.replenishment} onChange={e => set({ replenishment: e.target.value as NeedsCalcParams['replenishment'] })}>
+                <option value="all">{tt('production.needs.sourceAll')}</option>
                 {Object.entries(STOCK_REPLENISHMENT_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
@@ -193,8 +193,8 @@ export function ProductionNeedsPage() {
               </select>
             </label>
             <label className="fld" style={{ maxWidth: 200 }}>
-              <span className="lbl">Method</span>
-              <select className="select" aria-label="Method" value={params.method} onChange={e => set({ method: e.target.value as NeedsMethod })}>
+              <span className="lbl">{tt('production.needs.method')}</span>
+              <select className="select" aria-label={tt('production.needs.method')} value={params.method} onChange={e => set({ method: e.target.value as NeedsMethod })}>
                 {Object.entries(NEEDS_METHOD_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
@@ -203,25 +203,25 @@ export function ProductionNeedsPage() {
               </select>
             </label>
             <label className="fld" style={{ maxWidth: 130 }}>
-              <span className="lbl">Step</span>
-              <select className="select" aria-label="Step" value={params.step} onChange={e => set({ step: e.target.value as NeedsCalcParams['step'] })}>
-                <option value="day">Day</option>
-                <option value="week">Week</option>
-                <option value="month">Month</option>
+              <span className="lbl">{tt('production.needs.step')}</span>
+              <select className="select" aria-label={tt('production.needs.step')} value={params.step} onChange={e => set({ step: e.target.value as NeedsCalcParams['step'] })}>
+                <option value="day">{tt('production.needs.stepDay')}</option>
+                <option value="week">{tt('production.needs.stepWeek')}</option>
+                <option value="month">{tt('production.needs.stepMonth')}</option>
               </select>
             </label>
             <label className="fld" style={{ width: 90 }}>
-              <span className="lbl">Periods</span>
-              <input className="inp num" type="number" min="1" max="60" aria-label="Periods" value={params.periods} onChange={e => set({ periods: Number(e.target.value) || 1 })} />
+              <span className="lbl">{tt('production.needs.periods')}</span>
+              <input className="inp num" type="number" min="1" max="60" aria-label={tt('production.needs.periods')} value={params.periods} onChange={e => set({ periods: Number(e.target.value) || 1 })} />
             </label>
             <label className="fld" style={{ maxWidth: 160 }}>
-              <span className="lbl">From</span>
-              <input className="inp" type="date" aria-label="From" value={from} onChange={e => { setFrom(e.target.value); set({ from: e.target.value }); }} />
+              <span className="lbl">{tt('production.needs.from')}</span>
+              <input className="inp" type="date" aria-label={tt('production.needs.from')} value={from} onChange={e => { setFrom(e.target.value); set({ from: e.target.value }); }} />
             </label>
             <label className="fld" style={{ maxWidth: 180 }}>
-              <span className="lbl">Warehouse</span>
-              <select className="select" aria-label="Warehouse" value={params.warehouseId ?? ''} disabled={!params.byWarehouse} onChange={e => set({ warehouseId: e.target.value || undefined })}>
-                <option value="">All warehouses</option>
+              <span className="lbl">{tt('production.needs.warehouseLabel')}</span>
+              <select className="select" aria-label={tt('production.needs.warehouseLabel')} value={params.warehouseId ?? ''} disabled={!params.byWarehouse} onChange={e => set({ warehouseId: e.target.value || undefined })}>
+                <option value="">{tt('production.needs.warehouseAny')}</option>
                 {(warehouses.data ?? []).map(w => (
                   <option key={w.id} value={w.id}>
                     {w.name}
@@ -230,21 +230,21 @@ export function ProductionNeedsPage() {
               </select>
             </label>
             <label className="fld" style={{ width: 60 }}>
-              <span className="lbl">By warehouse</span>
-              <input type="checkbox" className="check" aria-label="By warehouse" checked={params.byWarehouse} onChange={e => set({ byWarehouse: e.target.checked })} />
+              <span className="lbl">{tt('production.needs.byWarehouse')}</span>
+              <input type="checkbox" className="check" aria-label={tt('production.needs.byWarehouse')} checked={params.byWarehouse} onChange={e => set({ byWarehouse: e.target.checked })} />
             </label>
             <label className="fld" style={{ width: 120 }}>
-              <span className="lbl">Safety days</span>
-              <input className="inp num" type="number" min="0" max="365" aria-label="Safety days" value={params.safetyDays} onChange={e => set({ safetyDays: Number(e.target.value) || 0 })} />
+              <span className="lbl">{tt('production.needs.safetyDays')}</span>
+              <input className="inp num" type="number" min="0" max="365" aria-label={tt('production.needs.safetyDays')} value={params.safetyDays} onChange={e => set({ safetyDays: Number(e.target.value) || 0 })} />
             </label>
             <label className="fld" style={{ width: 120 }}>
-              <span className="lbl">Safety %</span>
-              <input className="inp num" type="number" min="-100" max="1000" aria-label="Safety percent" value={params.safetyPct ?? ''} placeholder="0" onChange={e => set({ safetyPct: e.target.value === '' ? undefined : e.target.value })} />
+              <span className="lbl">{tt('production.needs.safetyPct')}</span>
+              <input className="inp num" type="number" min="-100" max="1000" aria-label={tt('production.needs.safetyPct')} value={params.safetyPct ?? ''} placeholder={'0'} onChange={e => set({ safetyPct: e.target.value === '' ? undefined : e.target.value })} />
             </label>
           </div>
 
           {calc.isError ? (
-            <EmptyState icon={<CircleAlert size={20} />} error title="Could not calculate the needs" action={<Button size="sm" onClick={() => calc.refetch()}>Retry</Button>}>
+            <EmptyState icon={<CircleAlert size={20} />} error title={tt('production.needs.loadFailed')} action={<Button size="sm" onClick={() => calc.refetch()}>{tt('production.common.retry')}</Button>}>
               {(calc.error as Error).message}
             </EmptyState>
           ) : calc.isPending ? (
@@ -252,40 +252,40 @@ export function ProductionNeedsPage() {
               <Skeleton w="100%" h={36} />
             </div>
           ) : !rows.length ? (
-            <EmptyState icon={<PackageSearch size={20} />} title="No stock levels">
-              The calculation uses the minimum and maximum stock of a product. Set them in the product card, on the Stock levels tab.
+            <EmptyState icon={<PackageSearch size={20} />} title={tt('production.needs.emptyTitle')}>
+              {tt('production.needs.emptyHint')}
             </EmptyState>
           ) : step === 'orders' ? (
             <OrdersStep drafts={created} onPost={() => void postAll()} />
           ) : (
             <div className="table-wrap">
-              <table className="dtbl" aria-label="Stock needs">
+              <table className="dtbl" aria-label={tt('production.needs.table')}>
                 <thead>
                   <tr>
                     {step === 'planning' && <th style={{ width: 34 }} />}
-                    <th>Product</th>
-                    <th style={{ width: 150 }}>Warehouse</th>
-                    <th style={{ width: 110 }}>Replenishment</th>
+                    <th>{tt('production.needs.col.product')}</th>
+                    <th style={{ width: 150 }}>{tt('production.needs.col.warehouse')}</th>
+                    <th style={{ width: 110 }}>{tt('production.needs.col.replenishment')}</th>
                     <th style={{ width: 90 }} className="r">
-                      Balance
+                      {tt('production.needs.col.balance')}
                     </th>
                     <th style={{ width: 80 }} className="r">
-                      Reserved
+                      {tt('production.needs.col.reserved')}
                     </th>
                     <th style={{ width: 90 }} className="r">
-                      Min / max
+                      {tt('production.needs.col.minmax')}
                     </th>
                     <th style={{ width: 110 }} className="r">
-                      {step === 'planning' ? 'Order' : 'Recommendation'}
+                      {step === 'planning' ? tt('production.needs.col.order') : tt('production.needs.col.recommendation')}
                     </th>
                     <th style={{ width: 90 }} className="r">
-                      Overdue
+                      {tt('production.needs.col.overdue')}
                     </th>
-                    <th style={{ width: 110 }}>Due</th>
+                    <th style={{ width: 110 }}>{tt('production.needs.col.due')}</th>
                     <th style={{ width: 100 }} className="r">
-                      Amount
+                      {tt('production.needs.col.amount')}
                     </th>
-                    <th style={{ width: 150 }}>{step === 'planning' ? 'Source' : 'Supplier'}</th>
+                    <th style={{ width: 150 }}>{step === 'planning' ? tt('production.needs.col.source') : tt('production.needs.col.supplier')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -296,14 +296,14 @@ export function ProductionNeedsPage() {
                         <tr data-row={Number(r.recommendation) > 0 ? 'deficit' : undefined}>
                           {step === 'planning' && (
                             <td>
-                              {Number(r.recommendation) > 0 && canWrite && <input type="checkbox" className="check" aria-label={`Select ${r.productName}`} checked={!!sel[k]} onChange={() => setSel(s => ({ ...s, [k]: !s[k] }))} />}
+                              {Number(r.recommendation) > 0 && canWrite && <input type="checkbox" className="check" aria-label={tt('production.needs.selectRow', { name: r.productName })} checked={!!sel[k]} onChange={() => setSel(s => ({ ...s, [k]: !s[k] }))} />}
                             </td>
                           )}
                           <td className="trunc">{r.productName}</td>
-                          <td className="trunc muted">{r.warehouseName ?? 'Company'}</td>
+                          <td className="trunc muted">{r.warehouseName ?? tt('production.needs.company')}</td>
                           <td className="muted">
                             {step === 'planning' && canWrite ? (
-                              <select className="select" aria-label={`Replenishment for ${r.productName}`} value={modeOf(r)} onChange={e => edit(r, { replenishment: e.target.value as StockReplenishment })}>
+                              <select className="select" aria-label={tt('production.needs.replenishmentFor', { name: r.productName })} value={modeOf(r)} onChange={e => edit(r, { replenishment: e.target.value as StockReplenishment })}>
                                 {(Object.keys(STOCK_REPLENISHMENT_LABELS) as StockReplenishment[]).map(m => (
                                   <option key={m} value={m}>
                                     {STOCK_REPLENISHMENT_LABELS[m]}
@@ -322,7 +322,7 @@ export function ProductionNeedsPage() {
                           <td className="r num">
                             {step === 'planning' ? (
                               canWrite ? (
-                                <input className="inp num" style={{ width: 90, textAlign: 'right' }} aria-label={`Order ${r.productName}`} inputMode="decimal" value={qtyOf(r)} onChange={e => setQty(s => ({ ...s, [k]: e.target.value }))} onKeyDown={handleNumericArrow} />
+                                <input className="inp num" style={{ width: 90, textAlign: 'right' }} aria-label={tt('production.needs.orderFor', { name: r.productName })} inputMode="decimal" value={qtyOf(r)} onChange={e => setQty(s => ({ ...s, [k]: e.target.value }))} onKeyDown={handleNumericArrow} />
                               ) : (
                                 <span className="num">{r.recommendation}</span>
                               )
@@ -338,7 +338,7 @@ export function ProductionNeedsPage() {
                           <td className="num muted">
                             {step === 'planning' && canWrite ? (
                               // дата поступления: правится, но не раньше «сегодня + срок»
-                              <input className="inp" type="date" aria-label={`Date for ${r.productName}`} min={earliestDate(r, modeOf(r))} value={dateOf(r)} onChange={e => edit(r, { date: e.target.value })} />
+                              <input className="inp" type="date" aria-label={tt('production.needs.dateFor', { name: r.productName })} min={earliestDate(r, modeOf(r))} value={dateOf(r)} onChange={e => edit(r, { date: e.target.value })} />
                             ) : r.dueDate ? (
                               fmtDate(parse(r.dueDate))
                             ) : (
@@ -348,8 +348,8 @@ export function ProductionNeedsPage() {
                           <td className="r num">{r.amount ?? <span className="faint">—</span>}</td>
                           <td className="trunc muted">
                             {step === 'planning' && canWrite && modeOf(r) === 'production' ? (
-                              <select className="select" aria-label={`Work center for ${r.productName}`} value={editOf(r).workCenterId ?? ''} onChange={e => edit(r, { workCenterId: e.target.value || undefined })}>
-                                <option value="">Work center…</option>
+                              <select className="select" aria-label={tt('production.needs.workCenterFor', { name: r.productName })} value={editOf(r).workCenterId ?? ''} onChange={e => edit(r, { workCenterId: e.target.value || undefined })}>
+                                <option value="">{tt('production.needs.workCenterPlaceholder')}</option>
                                 {(workCenters.data?.items ?? []).map(w => (
                                   <option key={w.id} value={w.id}>
                                     {w.name}
@@ -357,8 +357,8 @@ export function ProductionNeedsPage() {
                                 ))}
                               </select>
                             ) : step === 'planning' && canWrite && modeOf(r) === 'transfer' ? (
-                              <select className="select" aria-label={`Source warehouse for ${r.productName}`} value={editOf(r).sourceWarehouseId ?? r.sourceWarehouseId ?? ''} onChange={e => edit(r, { sourceWarehouseId: e.target.value || undefined })}>
-                                <option value="">Source warehouse…</option>
+                              <select className="select" aria-label={tt('production.needs.sourceWarehouseFor', { name: r.productName })} value={editOf(r).sourceWarehouseId ?? r.sourceWarehouseId ?? ''} onChange={e => edit(r, { sourceWarehouseId: e.target.value || undefined })}>
+                                <option value="">{tt('production.needs.sourceWarehousePlaceholder')}</option>
                                 {(warehouses.data ?? [])
                                   .filter(w => w.id !== r.warehouseId)
                                   .map(w => (
@@ -369,8 +369,8 @@ export function ProductionNeedsPage() {
                               </select>
                             ) : step === 'planning' && canWrite && modeOf(r) === 'purchase' && r.suppliers.length > 0 ? (
                               // поставщик строки — из тех, у кого товар покупали: цена и дата последнего поступления для сравнения
-                              <select className="select" aria-label={`Supplier for ${r.productName}`} value={supplierOf(r) ?? ''} onChange={e => setSupplier(s => ({ ...s, [k]: e.target.value }))}>
-                                {!r.suppliers.some(x => x.supplierId === r.supplierId) && r.supplierId && <option value={r.supplierId}>{r.supplierName ?? 'Default supplier'}</option>}
+                              <select className="select" aria-label={tt('production.needs.supplierFor', { name: r.productName })} value={supplierOf(r) ?? ''} onChange={e => setSupplier(s => ({ ...s, [k]: e.target.value }))}>
+                                {!r.suppliers.some(x => x.supplierId === r.supplierId) && r.supplierId && <option value={r.supplierId}>{r.supplierName ?? tt('production.needs.defaultSupplier')}</option>}
                                 {r.suppliers.map(x => (
                                   <option key={x.supplierId} value={x.supplierId}>
                                     {x.name}
@@ -380,7 +380,7 @@ export function ProductionNeedsPage() {
                                 ))}
                               </select>
                             ) : (
-                              (r.supplierName ?? <span className="faint">No supplier</span>)
+                              (r.supplierName ?? <span className="faint">{tt('production.needs.noSupplier')}</span>)
                             )}
                           </td>
                         </tr>
@@ -389,18 +389,18 @@ export function ProductionNeedsPage() {
                             <td colSpan={12}>
                               <details>
                                 <summary>
-                                  Documents: {r.incoming.length} incoming · {r.demand.length} consumption
+                                  {tt('production.needs.docsSummary', { incoming: r.incoming.length, demand: r.demand.length })}
                                 </summary>
                                 <ul className="muted" style={{ margin: '4px 0 0', paddingLeft: 18, fontSize: 12.5 }}>
                                   {r.incoming.map((f, i) => (
                                     <li key={`i${i}`}>
-                                      {f.date} · +{f.qty} · {SOURCE_LABEL[f.source] ?? f.source}
+                                      {f.date} · +{f.qty} · {tProductionEnum('needSource', f.source, SOURCE_LABEL[f.source] ?? f.source)}
                                       {f.label ? ` ${f.label}` : ''}
                                     </li>
                                   ))}
                                   {r.demand.map((f, i) => (
                                     <li key={`d${i}`}>
-                                      {f.date} · −{f.qty} · {SOURCE_LABEL[f.source] ?? f.source}
+                                      {f.date} · −{f.qty} · {tProductionEnum('needSource', f.source, SOURCE_LABEL[f.source] ?? f.source)}
                                       {f.label ? ` ${f.label}` : ''}
                                     </li>
                                   ))}
@@ -417,15 +417,15 @@ export function ProductionNeedsPage() {
               {step === 'planning' && (
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: 12, flexWrap: 'wrap' }}>
                   <Button size="sm" onClick={fillByDeficit}>
-                    Fill by deficit
+                    {tt('production.needs.fillByDeficit')}
                   </Button>
                   <label className="row" style={{ gap: 6, fontSize: 12.5 }}>
                     <input type="checkbox" className="check" checked={singleDate} onChange={e => setSingleDate(e.target.checked)} />
-                    One date for the whole delivery
+                    {tt('production.needs.singleDate')}
                   </label>
                   <label className="row" style={{ gap: 6, fontSize: 12.5 }}>
                     <input type="checkbox" className="check" checked={perCustomerOrder} onChange={e => setPerCustomerOrder(e.target.checked)} />
-                    Separate orders per customer order
+                    {tt('production.needs.perCustomerOrder')}
                   </label>
                 </div>
               )}
@@ -440,37 +440,38 @@ export function ProductionNeedsPage() {
 /** Шаг «Orders»: созданные черновики и массовое проведение */
 function OrdersStep({ drafts, onPost }: { drafts: { id: string; type: string; number: string | null; date: string }[]; onPost: () => void }) {
   const canWrite = useCanWrite();
+  const tt = useT();
   const list = useDraftList(drafts.map(d => d.id));
   const docs = list.data?.items ?? [];
   return (
-    <section className="panel" aria-label="Created drafts">
+    <section className="panel" aria-label={tt('production.needs.draftsLabel')}>
       <div className="ph" style={{ padding: '12px 14px 8px' }}>
         <div>
-          <h2 style={{ fontSize: 15 }}>Drafts</h2>
+          <h2 style={{ fontSize: 15 }}>{tt('production.needs.draftsTitle')}</h2>
           <span className="faint" style={{ fontSize: 12 }}>
-            Documents are created without posting. Post them all at once or open a document to edit it.
+            {tt('production.needs.draftsHint')}
           </span>
         </div>
         {canWrite && docs.length > 0 && (
           <Button variant="primary" onClick={onPost}>
             <Send size={14} />
-            Post all
+            {tt('production.needs.postAll')}
           </Button>
         )}
       </div>
       {!drafts.length ? (
         <p className="muted" style={{ padding: 14, margin: 0 }}>
-          No drafts yet. Mark the lines on the Planning step and create the orders.
+          {tt('production.needs.noDrafts')}
         </p>
       ) : (
         <div className="table-wrap">
-          <table className="dtbl" aria-label="Drafts">
+          <table className="dtbl" aria-label={tt('production.needs.draftsTable')}>
             <thead>
               <tr>
-                <th>Type</th>
-                <th>Number</th>
-                <th>Date</th>
-                <th>Status</th>
+                <th>{tt('production.needs.col.type')}</th>
+                <th>{tt('production.needs.col.number')}</th>
+                <th>{tt('production.needs.col.date')}</th>
+                <th>{tt('production.needs.col.status')}</th>
               </tr>
             </thead>
             <tbody>
@@ -479,13 +480,13 @@ function OrdersStep({ drafts, onPost }: { drafts: { id: string; type: string; nu
                   <td>{d.type}</td>
                   <td>
                     <a className="crm-link" href={`/documents/${d.id}`}>
-                      {d.number ?? 'draft'}
+                      {d.number ?? tt('production.common.draft')}
                     </a>
                   </td>
                   <td className="num muted">{d.date}</td>
                   <td>
                     <Badge tone={d.status === 'posted' ? 'green' : 'gray'} dot>
-                      {d.status}
+                      {tProductionEnum('docStatus', d.status, d.status)}
                     </Badge>
                   </td>
                 </tr>
@@ -518,6 +519,7 @@ function ProductionOrdersNeeds() {
   const ws = useWsId();
   const qc = useQueryClient();
   const canWrite = useCanWrite();
+  const tt = useT();
   const needs = useProductionNeeds();
   const [sel, setSel] = React.useState<Record<string, boolean>>({});
   const [busy, setBusy] = React.useState(false);
@@ -531,7 +533,7 @@ function ProductionOrdersNeeds() {
     try {
       const res = await call<SupplierOrdersResult>(ws, 'POST', '/production/needs/supplier-orders', { lines: selected.map(r => ({ productId: r.productId, qty: r.deficit, supplierId: r.supplierId })) });
       const without = res.withoutSupplier.length;
-      toast(`Supplier orders created: ${res.orders.length}${without ? ` · ${without} without a supplier` : ''}`);
+      toast(tt('production.needs.supplierOrdersResult', { count: res.orders.length, without }));
       setSel({});
       void qc.invalidateQueries({ queryKey: needsKey(ws) });
     } catch (e) {
@@ -547,46 +549,46 @@ function ProductionOrdersNeeds() {
         <div style={{ padding: 12 }}>
           <Button variant="primary" disabled={busy || !selected.length} onClick={() => void create()}>
             <Truck size={14} />
-            Create supplier orders
+            {tt('production.needs.createSupplierOrders')}
           </Button>
         </div>
       )}
       {!rows.length ? (
-        <EmptyState icon={<Factory size={20} />} title="No materials are needed">
-          The needs appear when a production order is posted and its materials are not covered by the stock.
+        <EmptyState icon={<Factory size={20} />} title={tt('production.needs.noMaterialsTitle')}>
+          {tt('production.needs.noMaterialsHint')}
         </EmptyState>
       ) : (
-        <table className="dtbl" aria-label="Production order needs">
+        <table className="dtbl" aria-label={tt('production.needs.poTable')}>
           <thead>
             <tr>
               <th style={{ width: 34 }} />
-              <th>Material</th>
+              <th>{tt('production.needs.col.material')}</th>
               <th style={{ width: 100 }} className="r">
-                Needed
+                {tt('production.needs.col.needed')}
               </th>
               <th style={{ width: 100 }} className="r">
-                Reserved
+                {tt('production.needs.col.reserved')}
               </th>
               <th style={{ width: 100 }} className="r">
-                Placed
+                {tt('production.needs.col.placed')}
               </th>
               <th style={{ width: 100 }} className="r">
-                Free
+                {tt('production.needs.col.free')}
               </th>
               <th style={{ width: 100 }} className="r">
-                Incoming
+                {tt('production.needs.col.incoming')}
               </th>
               <th style={{ width: 110 }} className="r">
-                Deficit
+                {tt('production.needs.col.deficit')}
               </th>
-              <th style={{ width: 170 }}>Supplier</th>
+              <th style={{ width: 170 }}>{tt('production.needs.col.supplier')}</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r: ProductionNeedsRow) => (
               <tr key={r.productId} data-row={Number(r.deficit) > 0 ? 'deficit' : undefined}>
                 <td>
-                  {Number(r.deficit) > 0 && canWrite && <input type="checkbox" className="check" aria-label={`Select ${r.productName}`} checked={!!sel[r.productId]} onChange={() => setSel(prev => ({ ...prev, [r.productId]: !prev[r.productId] }))} />}
+                  {Number(r.deficit) > 0 && canWrite && <input type="checkbox" className="check" aria-label={tt('production.needs.selectRow', { name: r.productName })} checked={!!sel[r.productId]} onChange={() => setSel(prev => ({ ...prev, [r.productId]: !prev[r.productId] }))} />}
                 </td>
                 <td className="trunc">{r.productName}</td>
                 <td className="r num">{r.need}</td>
@@ -595,7 +597,7 @@ function ProductionOrdersNeeds() {
                 <td className="r num muted">{r.free}</td>
                 <td className="r num muted">{r.incoming}</td>
                 <td className="r num">{Number(r.deficit) > 0 ? <Badge tone="amber" dot>{r.deficit}</Badge> : <span className="muted">—</span>}</td>
-                <td className="trunc muted">{r.supplierName ?? <span className="faint">No supplier</span>}</td>
+                <td className="trunc muted">{r.supplierName ?? <span className="faint">{tt('production.needs.noSupplier')}</span>}</td>
               </tr>
             ))}
           </tbody>

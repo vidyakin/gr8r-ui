@@ -5,14 +5,14 @@ import { Plus, Trash2 } from 'lucide-react';
 import { paramKeyFromName, type SpecParamDef } from '@gr8r/shared';
 import { Button, IconButton, Input, toast } from '@/components/ui';
 import { useProductionMutations, type Item } from './data';
-
-const TYPE_LABEL: Record<string, string> = { number: 'Number', select: 'Select', boolean: 'Checkbox' };
+import { useT } from '@/i18n';
 
 /** Пустой параметр: ключ из названия */
 const emptyParam = (): SpecParamDef => ({ key: '', name: '', type: 'number', required: false, stockDimension: false, options: {} });
 
 export function ParamEditor({ item, canWrite }: { item: Item; canWrite: boolean }) {
   const m = useProductionMutations();
+  const tt = useT();
   const params = item.params ?? [];
   const [draft, setDraft] = React.useState<SpecParamDef[] | null>(null);
   const rows = draft ?? params;
@@ -29,25 +29,25 @@ export function ParamEditor({ item, canWrite }: { item: Item; canWrite: boolean 
 
   if (!rows.length)
     return (
-      <div className="bom-params" aria-label="Specification parameters">
-        <span className="faint">No parameters: the composition of the product is the same for every order.</span>
+      <div className="bom-params" aria-label={tt('production.params.title')}>
+        <span className="faint">{tt('production.params.noParamsHint')}</span>
         {canWrite && (
           <Button size="sm" variant="secondary" onClick={() => save([emptyParam()])}>
             <Plus size={14} />
-            Add parameter
+            {tt('production.params.add')}
           </Button>
         )}
       </div>
     );
 
   return (
-    <div className="bom-params" aria-label="Specification parameters">
+    <div className="bom-params" aria-label={tt('production.params.title')}>
       {rows.map((p, i) => (
         <React.Fragment key={i}>
           <label>
-            <span className="label">Name</span>
+            <span className="label">{tt('production.field.name')}</span>
             <Input
-              aria-label="Parameter name"
+              aria-label={tt('production.params.fields.name')}
               value={p.name}
               disabled={!canWrite}
               onChange={e => {
@@ -57,33 +57,33 @@ export function ParamEditor({ item, canWrite }: { item: Item; canWrite: boolean 
             />
           </label>
           <label>
-            <span className="label">Key</span>
-            <Input aria-label="Parameter key" value={p.key} disabled={!canWrite} onChange={e => patch(i, { key: e.target.value })} />
+            <span className="label">{tt('production.params.fields.key')}</span>
+            <Input aria-label={tt('production.params.fields.key')} value={p.key} disabled={!canWrite} onChange={e => patch(i, { key: e.target.value })} />
           </label>
           <label>
-            <span className="label">Type</span>
-            <select className="select" aria-label="Parameter type" value={p.type} disabled={!canWrite} onChange={e => patch(i, { type: e.target.value as SpecParamDef['type'] })}>
-              {Object.entries(TYPE_LABEL).map(([v, l]) => (
+            <span className="label">{tt('production.params.fields.type')}</span>
+            <select className="select" aria-label={tt('production.params.fields.type')} value={p.type} disabled={!canWrite} onChange={e => patch(i, { type: e.target.value as SpecParamDef['type'] })}>
+              {(['number', 'select', 'boolean'] as const).map(v => (
                 <option key={v} value={v}>
-                  {l}
+                  {tt(`productionEnums.paramType.${v}`)}
                 </option>
               ))}
             </select>
           </label>
           <label>
-            <span className="label">Required</span>
-            <input type="checkbox" aria-label="Required" checked={!!p.required} disabled={!canWrite} onChange={e => patch(i, { required: e.target.checked })} />
+            <span className="label">{tt('production.params.fields.required')}</span>
+            <input type="checkbox" aria-label={tt('production.params.fields.required')} checked={!!p.required} disabled={!canWrite} onChange={e => patch(i, { required: e.target.checked })} />
           </label>
           <label>
-            <span className="label">Stock dimension</span>
-            <input type="checkbox" aria-label="Stock dimension" checked={!!p.stockDimension} disabled={!canWrite} onChange={e => patch(i, { stockDimension: e.target.checked })} />
+            <span className="label">{tt('production.params.fields.stockDimension')}</span>
+            <input type="checkbox" aria-label={tt('production.params.fields.stockDimension')} checked={!!p.stockDimension} disabled={!canWrite} onChange={e => patch(i, { stockDimension: e.target.checked })} />
           </label>
           {p.type === 'select' && (
             <label>
-              <span className="label">Variants</span>
+              <span className="label">{tt('production.params.fields.values')}</span>
               <Input
-                aria-label="Variants"
-                placeholder="white, black"
+                aria-label={tt('production.params.fields.values')}
+                placeholder={tt('production.params.fields.valuesPlaceholder')}
                 value={(p.options?.choices ?? []).map(c => c.value).join(', ')}
                 disabled={!canWrite}
                 onChange={e => {
@@ -99,11 +99,11 @@ export function ParamEditor({ item, canWrite }: { item: Item; canWrite: boolean 
           )}
           {canWrite && (
             <IconButton
-              label="Remove parameter"
+              label={tt('production.params.fields.remove')}
               onClick={() => {
                 const next = rows.filter((_, n) => n !== i);
                 save(next);
-                toast('Parameter removed');
+                toast(tt('production.params.deleted'));
               }}
             >
               <Trash2 size={15} />
@@ -114,7 +114,7 @@ export function ParamEditor({ item, canWrite }: { item: Item; canWrite: boolean 
       {canWrite && (
         <Button size="sm" variant="secondary" onClick={() => save([...rows, emptyParam()])}>
           <Plus size={14} />
-          Add parameter
+          {tt('production.params.add')}
         </Button>
       )}
     </div>

@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { ArrowDown, ArrowUp, CircleAlert, Layers, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, Input, Skeleton, toast } from '@/components/ui';
+import { t, useT } from '@/i18n';
 import { useIsAdmin } from '../catalog/data';
 import { useProductionApi, useProductionKinds, type ProductionKind, type ProductionStage } from './data';
 
@@ -23,23 +24,21 @@ export function ProductionStagesPage() {
     <div className="page flush">
       <div className="ph">
         <div>
-          <h1>Production stages</h1>
-          <p>
-            A production kind is a list of stages your products go through. The last stage is the final one — the finished goods arrive on the warehouse only then. A product without a kind is produced in one step.
-          </p>
+          <h1>{t('production.stages.title')}</h1>
+          <p>{t('production.stages.subtitle')}</p>
         </div>
         <div className="acts">
           {isAdmin && (
             <Button variant="primary" onClick={() => setDialog({})}>
               <Plus size={14} />
-              New production kind
+              {t('production.stages.kind.new')}
             </Button>
           )}
         </div>
       </div>
 
       {kinds.isError ? (
-        <EmptyState icon={<CircleAlert size={20} />} error title="Could not load the production stages" action={<Button size="sm" onClick={() => kinds.refetch()}>Retry</Button>}>
+        <EmptyState icon={<CircleAlert size={20} />} error title={t('production.stages.title')} action={<Button size="sm" onClick={() => kinds.refetch()}>{t('production.common.retry')}</Button>}>
           {(kinds.error as Error).message}
         </EmptyState>
       ) : kinds.isPending ? (
@@ -49,17 +48,17 @@ export function ProductionStagesPage() {
       ) : !items.length ? (
         <EmptyState
           icon={<Layers size={20} />}
-          title="No production kinds yet"
+          title={t('production.stages.kind.noKinds')}
           action={
             isAdmin ? (
               <Button variant="primary" onClick={() => setDialog({})}>
                 <Plus size={14} />
-                New production kind
+                {t('production.stages.kind.new')}
               </Button>
             ) : undefined
           }
         >
-          Add a kind to split the production into stages: cutting, assembly, completion.
+          {t('production.stages.kind.noKindsHint')}
         </EmptyState>
       ) : (
         <div style={{ display: 'grid', gap: 12, padding: '0 var(--gutter) 24px' }}>
@@ -72,10 +71,10 @@ export function ProductionStagesPage() {
                 </div>
                 {isAdmin && (
                   <div className="row" style={{ gap: 2 }}>
-                    <button type="button" className="ibtn ibtn-xs" aria-label={`Edit ${k.name}`} onClick={() => setDialog({ kind: k })}>
+                    <button type="button" className="ibtn ibtn-xs" aria-label={`${t('production.common.edit')} ${k.name}`} onClick={() => setDialog({ kind: k })}>
                       <Pencil size={13} />
                     </button>
-                    <button type="button" className="ibtn ibtn-xs" aria-label={`Delete ${k.name}`} onClick={() => setRemoving(k)}>
+                    <button type="button" className="ibtn ibtn-xs" aria-label={`${t('production.common.delete')} ${k.name}`} onClick={() => setRemoving(k)}>
                       <Trash2 size={13} />
                     </button>
                   </div>
@@ -87,7 +86,7 @@ export function ProductionStagesPage() {
                     <span>{s.name}</span>
                     {s.isFinal && (
                       <Badge tone="accent" style={{ marginLeft: 8 }}>
-                        Final
+                        {t('production.stages.stage.final')}
                       </Badge>
                     )}
                   </li>
@@ -104,12 +103,12 @@ export function ProductionStagesPage() {
         open={!!removing}
         onOpenChange={o => !o && setRemoving(null)}
         danger
-        title="Delete production kind?"
-        description={removing ? <><b>{removing.name}</b> will be archived. A kind used by a product cannot be deleted.</> : undefined}
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
+        title={t('production.stages.kind.new')}
+        description={removing ? <><b>{removing.name}</b></> : undefined}
+        confirmLabel={t('production.common.delete')}
+        cancelLabel={t('production.common.cancel')}
         onConfirm={async () => {
-          if (removing && (await api('DELETE', `/production/kinds/${removing.id}`))) toast(`Deleted “${removing.name}”`);
+          if (removing && (await api('DELETE', `/production/kinds/${removing.id}`))) toast(t('production.stages.deleted'));
           setRemoving(null);
         }}
       />
@@ -119,6 +118,7 @@ export function ProductionStagesPage() {
 
 /** Форма вида производства: наименование и список этапов по порядку */
 function KindDialog({ kind, onClose }: { kind?: ProductionKind; onClose: () => void }) {
+  const tt = useT();
   const api = useProductionApi();
   const [name, setName] = React.useState(kind?.name ?? '');
   const [note, setNote] = React.useState(kind?.note ?? '');
@@ -136,8 +136,8 @@ function KindDialog({ kind, onClose }: { kind?: ProductionKind; onClose: () => v
 
   const submit = async () => {
     const errs: Record<string, string> = {};
-    if (!name.trim()) errs.name = 'Enter a name';
-    if (!stages.length || stages.some(s => !s.name.trim())) errs.stages = 'Every stage needs a name';
+    if (!name.trim()) errs.name = tt('common.enterName');
+    if (!stages.length || stages.some(s => !s.name.trim())) errs.stages = tt('production.stages.stage.name');
     setErr(errs);
     if (Object.keys(errs).length) return;
     setBusy(true);
@@ -145,23 +145,23 @@ function KindDialog({ kind, onClose }: { kind?: ProductionKind; onClose: () => v
     const r = kind ? await api('PATCH', `/production/kinds/${kind.id}`, body) : await api('POST', '/production/kinds', body);
     setBusy(false);
     if (!r) return;
-    toast(kind ? `Saved “${body.name}”` : `Added “${body.name}”`);
+    toast(t('production.stages.saved'));
     onClose();
   };
 
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
-        title={kind ? 'Edit production kind' : 'New production kind'}
-        description="The stages go in order. The last one is the final stage: the finished goods arrive on the warehouse only then."
+        title={kind ? tt('production.stages.kind.new') : tt('production.stages.kind.new')}
+        description={tt('production.stages.subtitle')}
         footer={
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{tt('production.common.cancel')}</Button>
             </DialogClose>
             <Button variant="primary" disabled={busy} onClick={submit}>
-              {kind ? 'Save' : 'Create kind'}
+              {kind ? tt('production.common.save') : tt('production.common.create')}
             </Button>
           </>
         }
@@ -174,30 +174,30 @@ function KindDialog({ kind, onClose }: { kind?: ProductionKind; onClose: () => v
             void submit();
           }}
         >
-          <Field label="Name" error={err.name}>
+          <Field label={tt('production.field.name')} error={err.name}>
             {p => <Input {...p} autoFocus value={name} onChange={e => (setName(e.target.value), setErr({}))} />}
           </Field>
-          <Field label="Note">{p => <Input {...p} value={note} onChange={e => setNote(e.target.value)} />}</Field>
-          <Field label="Stages" error={err.stages} hint="The last stage is the final one.">
+          <Field label={tt('production.field.note')}>{p => <Input {...p} value={note} onChange={e => setNote(e.target.value)} />}</Field>
+          <Field label={tt('production.stages.kind.col.stages')} error={err.stages} hint={tt('production.stages.stage.final')}>
             {() => (
               <div style={{ display: 'grid', gap: 6 }}>
                 {stages.map((s, i) => (
                   <div key={s.id ?? i} className="row" style={{ gap: 6 }}>
-                    <Input aria-label={`Stage ${i + 1}`} value={s.name} onChange={e => setStages(prev => prev.map((x, n) => (n === i ? { ...x, name: e.target.value } : x)))} />
-                    <button type="button" className="ibtn ibtn-xs" aria-label="Move the stage up" disabled={i === 0} onClick={() => move(i, -1)}>
+                    <Input aria-label={tt('production.stages.stage.name') + ` ${i + 1}`} value={s.name} onChange={e => setStages(prev => prev.map((x, n) => (n === i ? { ...x, name: e.target.value } : x)))} />
+                    <button type="button" className="ibtn ibtn-xs" aria-label={tt('production.stages.stage.moveUp')} disabled={i === 0} onClick={() => move(i, -1)}>
                       <ArrowUp size={13} />
                     </button>
-                    <button type="button" className="ibtn ibtn-xs" aria-label="Move the stage down" disabled={i === stages.length - 1} onClick={() => move(i, 1)}>
+                    <button type="button" className="ibtn ibtn-xs" aria-label={tt('production.stages.stage.moveDown')} disabled={i === stages.length - 1} onClick={() => move(i, 1)}>
                       <ArrowDown size={13} />
                     </button>
-                    <button type="button" className="ibtn ibtn-xs" aria-label="Remove the stage" disabled={stages.length === 1} onClick={() => setStages(prev => prev.filter((_, n) => n !== i))}>
+                    <button type="button" className="ibtn ibtn-xs" aria-label={tt('production.stages.stage.remove')} disabled={stages.length === 1} onClick={() => setStages(prev => prev.filter((_, n) => n !== i))}>
                       <Trash2 size={13} />
                     </button>
                   </div>
                 ))}
                 <Button size="sm" variant="ghost" onClick={() => setStages(prev => [...prev, { name: '' }])}>
                   <Plus size={13} />
-                  Add stage
+                  {tt('production.stages.stage.add')}
                 </Button>
               </div>
             )}

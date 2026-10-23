@@ -5,6 +5,7 @@ import { CalendarDays, CircleAlert, Hammer, Plus, Trash2 } from 'lucide-react';
 import { Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, Input, Segmented, Skeleton, toast } from '@/components/ui';
 import { useIsAdmin } from '../catalog/data';
 import { usePlanningApi, useCalendarExceptions, useCalendars, useHolidays, useResources, type WorkCalendar } from './planning-data';
+import { useT } from '@/i18n';
 
 type Tab = 'resources' | 'calendars' | 'holidays' | 'exceptions';
 
@@ -12,6 +13,7 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export function ResourcesPage() {
   const isAdmin = useIsAdmin();
+  const tt = useT();
   const [tab, setTab] = React.useState<Tab>('resources');
   const api = usePlanningApi();
   const resources = useResources();
@@ -23,25 +25,25 @@ export function ResourcesPage() {
     <div className="page flush">
       <div className="ph">
         <div>
-          <h1>Resources and calendars</h1>
-          <p>Equipment that work needs, shift calendars (weekly or cyclic like 2/2), holidays of the workspace and exceptions — vacation, sick leave, repair.</p>
+          <h1>{tt('production.resources.title')}</h1>
+          <p>{tt('production.resources.subtitle')}</p>
         </div>
         <div className="acts">
           <Segmented
-            aria-label="Section"
+            aria-label={tt('production.resources.section')}
             value={tab}
             onValueChange={v => setTab(v as Tab)}
             items={[
-              { value: 'resources', label: 'Resources' },
-              { value: 'calendars', label: 'Work calendars' },
-              { value: 'holidays', label: 'Holidays' },
-              { value: 'exceptions', label: 'Exceptions' },
+              { value: 'resources', label: tt('production.resources.tab.resources') },
+              { value: 'calendars', label: tt('production.resources.tab.calendars') },
+              { value: 'holidays', label: tt('production.resources.tab.holidays') },
+              { value: 'exceptions', label: tt('production.resources.tab.exceptions') },
             ]}
           />
           {isAdmin && (tab === 'resources' || tab === 'calendars') && (
             <Button variant="primary" onClick={() => setDialog({ kind: tab === 'resources' ? 'resource' : 'calendar' })}>
               <Plus size={14} />
-              {tab === 'resources' ? 'New resource' : 'New work calendar'}
+              {tab === 'resources' ? tt('production.resources.newResource') : tt('production.resources.newCalendar')}
             </Button>
           )}
         </div>
@@ -50,14 +52,14 @@ export function ResourcesPage() {
       {tab === 'resources' && (
         <div style={{ padding: '0 var(--gutter) 24px' }}>
           {resources.isError ? (
-            <EmptyState icon={<CircleAlert size={20} />} error title="Could not load the resources" action={<Button size="sm" onClick={() => resources.refetch()}>Retry</Button>}>
+            <EmptyState icon={<CircleAlert size={20} />} error title={tt('production.resources.loadFailed')} action={<Button size="sm" onClick={() => resources.refetch()}>{tt('production.common.retry')}</Button>}>
               {(resources.error as Error).message}
             </EmptyState>
           ) : resources.isPending ? (
             <Skeleton w="100%" h={36} />
           ) : !resources.data?.items.length ? (
-            <EmptyState icon={<Hammer size={20} />} title="No resources yet">
-              Add the equipment a work needs — a table saw, a press, a welding booth.
+            <EmptyState icon={<Hammer size={20} />} title={tt('production.resources.emptyResources')}>
+              {tt('production.resources.emptyResourcesHint')}
             </EmptyState>
           ) : (
             <div className="panel" style={{ padding: 14, display: 'grid', gap: 10 }}>
@@ -66,17 +68,17 @@ export function ResourcesPage() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 550 }}>{r.name}</div>
                     <div className="faint" style={{ fontSize: 12.5 }}>
-                      {r.kind === 'equipment' ? 'Equipment' : 'Other resource'}
-                      {r.capacityUnits > 1 ? ` · ${r.capacityUnits} units` : ''}
+                      {r.kind === 'equipment' ? tt('production.resources.equipment') : tt('production.resources.otherResource')}
+                      {r.capacityUnits > 1 ? ` · ${r.capacityUnits} ${tt('production.resources.units')}` : ''}
                       {r.code ? ` · ${r.code}` : ''}
                     </div>
                   </div>
                   {isAdmin && (
                     <div className="row" style={{ gap: 2 }}>
-                      <button type="button" className="ibtn ibtn-xs" aria-label={`Edit ${r.name}`} onClick={() => setDialog({ kind: 'resource', id: r.id })}>
+                      <button type="button" className="ibtn ibtn-xs" aria-label={tt('production.common.fill', { name: r.name })} onClick={() => setDialog({ kind: 'resource', id: r.id })}>
                         <Plus size={13} style={{ transform: 'rotate(45deg)' }} />
                       </button>
-                      <button type="button" className="ibtn ibtn-xs" aria-label={`Delete ${r.name}`} onClick={() => setRemoving({ kind: 'resource', id: r.id, name: r.name })}>
+                      <button type="button" className="ibtn ibtn-xs" aria-label={tt('production.resources.deleteResource', { name: r.name })} onClick={() => setRemoving({ kind: 'resource', id: r.id, name: r.name })}>
                         <Trash2 size={13} />
                       </button>
                     </div>
@@ -91,8 +93,8 @@ export function ResourcesPage() {
       {tab === 'calendars' && (
         <div style={{ padding: '0 var(--gutter) 24px', display: 'grid', gap: 12 }}>
           {!calendars.data?.items.length ? (
-            <EmptyState icon={<CalendarDays size={20} />} title="No work calendars yet">
-              A calendar tells when a resource or an employee works: five days a week, or a cycle like 2/2.
+            <EmptyState icon={<CalendarDays size={20} />} title={tt('production.resources.emptyCalendars')}>
+              {tt('production.resources.emptyCalendarsHint')}
             </EmptyState>
           ) : (
             calendars.data.items.map(c => (
@@ -101,17 +103,17 @@ export function ResourcesPage() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 550 }}>{c.name}</div>
                     <div className="faint" style={{ fontSize: 12.5 }}>
-                      {c.kind === 'weekly' ? 'Weekly' : 'Cyclic'} · {c.hoursPerDay} h/day
-                      {c.kind === 'cycle' && c.cycleStart ? ` · from ${c.cycleStart}` : ''}
+                      {c.kind === 'weekly' ? tt('production.resources.weekly') : tt('production.resources.cyclic')} · {c.hoursPerDay} {tt('production.resources.hoursPerDay')}
+                      {c.kind === 'cycle' && c.cycleStart ? ` · ${tt('production.resources.cycleFrom')} ${c.cycleStart}` : ''}
                     </div>
                   </div>
-                  {c.isDefault && <Badge tone="accent">Default</Badge>}
+                  {c.isDefault && <Badge tone="accent">{tt('production.resources.defaultBadge')}</Badge>}
                   {isAdmin && (
                     <div className="row" style={{ gap: 2 }}>
-                      <button type="button" className="ibtn ibtn-xs" aria-label={`Edit ${c.name}`} onClick={() => setDialog({ kind: 'calendar', id: c.id })}>
+                      <button type="button" className="ibtn ibtn-xs" aria-label={tt('production.common.fill', { name: c.name })} onClick={() => setDialog({ kind: 'calendar', id: c.id })}>
                         <Plus size={13} style={{ transform: 'rotate(45deg)' }} />
                       </button>
-                      <button type="button" className="ibtn ibtn-xs" aria-label={`Delete ${c.name}`} onClick={() => setRemoving({ kind: 'calendar', id: c.id, name: c.name })}>
+                      <button type="button" className="ibtn ibtn-xs" aria-label={tt('production.resources.deleteCalendar', { name: c.name })} onClick={() => setRemoving({ kind: 'calendar', id: c.id, name: c.name })}>
                         <Trash2 size={13} />
                       </button>
                     </div>
@@ -119,11 +121,11 @@ export function ResourcesPage() {
                 </div>
                 {c.kind === 'weekly' ? (
                   <div className="faint" style={{ fontSize: 12.5, marginTop: 6 }}>
-                    {WEEKDAYS.filter((_, i) => (c.pattern.weekdays ?? [1, 2, 3, 4, 5]).includes(i + 1)).join(', ') || 'No working days'}
+                    {WEEKDAYS.filter((_, i) => (c.pattern.weekdays ?? [1, 2, 3, 4, 5]).includes(i + 1)).join(', ') || tt('production.resources.noWorkingDays')}
                   </div>
                 ) : (
                   <div className="faint" style={{ fontSize: 12.5, marginTop: 6 }}>
-                    Cycle: {(c.pattern.cycle ?? []).map(d => (d ? 'W' : '–')).join(' ')}
+                    {tt('production.resources.cycle')}: {(c.pattern.cycle ?? []).map(d => (d ? 'W' : '–')).join(' ')}
                   </div>
                 )}
               </div>
@@ -143,14 +145,14 @@ export function ResourcesPage() {
         open={!!removing}
         onOpenChange={o => !o && setRemoving(null)}
         danger
-        title={removing?.kind === 'resource' ? 'Delete resource?' : 'Delete work calendar?'}
-        description={removing ? <><b>{removing.name}</b> will be archived.</> : undefined}
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
+        title={removing?.kind === 'resource' ? tt('production.resources.confirmDeleteResource') : tt('production.resources.confirmDeleteCalendar')}
+        description={removing ? <><b>{removing.name}</b> {tt('production.resources.willArchive')}</> : undefined}
+        confirmLabel={tt('production.common.document') === tt('production.resources.deleteBtn') ? tt('production.resources.deleteBtn') : 'Delete'}
+        cancelLabel={tt('production.common.cancel')}
         onConfirm={async () => {
           if (!removing) return;
           const path = removing.kind === 'resource' ? `/production/resources/${removing.id}` : `/production/calendars/${removing.id}`;
-          if (await api('DELETE', path)) toast(`Deleted “${removing.name}”`);
+          if (await api('DELETE', path)) toast(tt('production.resources.deleted', { name: removing.name }));
           setRemoving(null);
         }}
       />
@@ -161,6 +163,7 @@ export function ResourcesPage() {
 /** Праздники воркспейса: общий календарь нерабочих дней */
 function HolidaysTab() {
   const isAdmin = useIsAdmin();
+  const tt = useT();
   const holidays = useHolidays();
   const api = usePlanningApi();
   const [date, setDate] = React.useState('');
@@ -169,7 +172,7 @@ function HolidaysTab() {
   const add = async () => {
     if (!date) return;
     if (await api('POST', '/production/holidays', { date, name })) {
-      toast('Holiday added');
+      toast(tt('production.resources.holidayAdded'));
       setDate('');
       setName('');
     }
@@ -179,17 +182,17 @@ function HolidaysTab() {
     <div style={{ padding: '0 var(--gutter) 24px', display: 'grid', gap: 12 }}>
       {isAdmin && (
         <div className="row" style={{ gap: 8 }}>
-          <Input aria-label="Holiday date" type="date" value={date} onChange={e => setDate(e.target.value)} style={{ width: 180 }} />
-          <Input aria-label="Holiday name" placeholder="New Year" value={name} onChange={e => setName(e.target.value)} style={{ width: 240 }} />
+          <Input aria-label={tt('production.resources.holidayDate')} type="date" value={date} onChange={e => setDate(e.target.value)} style={{ width: 180 }} />
+          <Input aria-label={tt('production.resources.holidayName')} placeholder={tt('production.resources.holidayPlaceholder')} value={name} onChange={e => setName(e.target.value)} style={{ width: 240 }} />
           <Button onClick={add} disabled={!date}>
             <Plus size={14} />
-            Add holiday
+            {tt('production.resources.addHoliday')}
           </Button>
         </div>
       )}
       {!holidays.data?.items.length ? (
-        <EmptyState icon={<CalendarDays size={20} />} title="No holidays yet">
-          Holidays of the workspace are non-working days for everyone.
+        <EmptyState icon={<CalendarDays size={20} />} title={tt('production.resources.emptyHolidays')}>
+          {tt('production.resources.emptyHolidaysHint')}
         </EmptyState>
       ) : (
         <div className="panel" style={{ padding: 14, display: 'grid', gap: 8 }}>
@@ -200,7 +203,7 @@ function HolidaysTab() {
               </span>
               <span className="grow">{h.name}</span>
               {isAdmin && (
-                <button type="button" className="ibtn ibtn-xs" aria-label={`Delete ${h.date}`} onClick={() => api('DELETE', `/production/holidays/${h.date}`)}>
+                <button type="button" className="ibtn ibtn-xs" aria-label={tt('production.resources.deleteDate', { date: h.date })} onClick={() => api('DELETE', `/production/holidays/${h.date}`)}>
                   <Trash2 size={13} />
                 </button>
               )}
@@ -215,6 +218,7 @@ function HolidaysTab() {
 /** Исключения из графика: отпуск, больничный, ремонт */
 function ExceptionsTab() {
   const isAdmin = useIsAdmin();
+  const tt = useT();
   const exceptions = useCalendarExceptions();
   const resources = useResources();
   const api = usePlanningApi();
@@ -226,7 +230,7 @@ function ExceptionsTab() {
   const add = async () => {
     if (!scopeId || !dateFrom) return;
     if (await api('POST', '/production/calendar-exceptions', { scope, scopeId, dateFrom, dateTo: dateTo || dateFrom })) {
-      toast('Exception added');
+      toast(tt('production.resources.exceptionAdded'));
       setScopeId('');
       setDateFrom('');
       setDateTo('');
@@ -238,20 +242,20 @@ function ExceptionsTab() {
       {isAdmin && (
         <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
           <Segmented
-            aria-label="Scope"
+            aria-label={tt('production.resources.scope')}
             value={scope}
             onValueChange={v => {
               setScope(v as typeof scope);
               setScopeId('');
             }}
             items={[
-              { value: 'resource', label: 'Resource' },
-              { value: 'work_center', label: 'Work center' },
-              { value: 'member', label: 'Employee' },
+              { value: 'resource', label: tt('production.resources.scopeResource') },
+              { value: 'work_center', label: tt('production.resources.scopeCenter') },
+              { value: 'member', label: tt('production.resources.scopeMember') },
             ]}
           />
-          <select className="select !h-[30px] !w-auto !text-xs" aria-label="Object" value={scopeId} onChange={e => setScopeId(e.target.value)}>
-            <option value="">Choose…</option>
+          <select className="select !h-[30px] !w-auto !text-xs" aria-label={tt('production.resources.object')} value={scopeId} onChange={e => setScopeId(e.target.value)}>
+            <option value="">{tt('production.resources.choose')}</option>
             {scope === 'resource' &&
               (resources.data?.items ?? []).map(r => (
                 <option key={r.id} value={r.id}>
@@ -259,17 +263,17 @@ function ExceptionsTab() {
                 </option>
               ))}
           </select>
-          <Input aria-label="From" type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ width: 160 }} />
-          <Input aria-label="To" type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ width: 160 }} />
+          <Input aria-label={tt('production.resources.from')} type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ width: 160 }} />
+          <Input aria-label={tt('production.resources.to')} type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ width: 160 }} />
           <Button onClick={add} disabled={!scopeId || !dateFrom}>
             <Plus size={14} />
-            Add exception
+            {tt('production.resources.addException')}
           </Button>
         </div>
       )}
       {!exceptions.data?.items.length ? (
-        <EmptyState icon={<CalendarDays size={20} />} title="No exceptions yet">
-          Vacation, sick leave or a repair — days when the resource does not work.
+        <EmptyState icon={<CalendarDays size={20} />} title={tt('production.resources.emptyExceptions')}>
+          {tt('production.resources.emptyExceptionsHint')}
         </EmptyState>
       ) : (
         <div className="panel" style={{ padding: 14, display: 'grid', gap: 8 }}>
@@ -280,7 +284,7 @@ function ExceptionsTab() {
               </span>
               <span className="faint">{e.scope}</span>
               {isAdmin && (
-                <button type="button" className="ibtn ibtn-xs" aria-label="Delete exception" onClick={() => api('DELETE', `/production/calendar-exceptions/${e.id}`)}>
+                <button type="button" className="ibtn ibtn-xs" aria-label={tt('production.resources.deleteException')} onClick={() => api('DELETE', `/production/calendar-exceptions/${e.id}`)}>
                   <Trash2 size={13} />
                 </button>
               )}
@@ -295,6 +299,7 @@ function ExceptionsTab() {
 /** Форма ресурса */
 function ResourceDialog({ id, onClose }: { id?: string; onClose: () => void }) {
   const api = usePlanningApi();
+  const tt = useT();
   const resources = useResources();
   const calendars = useCalendars();
   const current = resources.data?.items.find(r => r.id === id);
@@ -308,7 +313,7 @@ function ResourceDialog({ id, onClose }: { id?: string; onClose: () => void }) {
 
   const submit = async () => {
     if (!name.trim()) {
-      setErr({ name: 'Enter a name' });
+      setErr({ name: tt('production.resources.errName') });
       return;
     }
     setBusy(true);
@@ -316,23 +321,23 @@ function ResourceDialog({ id, onClose }: { id?: string; onClose: () => void }) {
     const r = current ? await api('PATCH', `/production/resources/${current.id}`, body) : await api('POST', '/production/resources', body);
     setBusy(false);
     if (!r) return;
-    toast(current ? 'Saved' : 'Resource added');
+    toast(current ? tt('production.resources.saved') : tt('production.resources.resourceAdded'));
     onClose();
   };
 
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
-        title={current ? 'Edit resource' : 'New resource'}
-        description="Equipment or another resource that a work needs. Several resources may be needed for one work."
+        title={current ? tt('production.resources.editResource') : tt('production.resources.newResource')}
+        description={tt('production.resources.resourceDialogDesc')}
         footer={
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{tt('production.common.cancel')}</Button>
             </DialogClose>
             <Button variant="primary" disabled={busy} onClick={submit}>
-              {current ? 'Save' : 'Create'}
+              {current ? tt('production.resources.save') : tt('production.resources.create')}
             </Button>
           </>
         }
@@ -345,30 +350,30 @@ function ResourceDialog({ id, onClose }: { id?: string; onClose: () => void }) {
             void submit();
           }}
         >
-          <Field label="Name" error={err.name}>
+          <Field label={tt('production.resources.name')} error={err.name}>
             {p => <Input {...p} autoFocus value={name} onChange={e => (setName(e.target.value), setErr({}))} />}
           </Field>
-          <Field label="Code">{p => <Input {...p} value={code} onChange={e => setCode(e.target.value)} />}</Field>
-          <Field label="Kind">
+          <Field label={tt('production.resources.code')}>{p => <Input {...p} value={code} onChange={e => setCode(e.target.value)} />}</Field>
+          <Field label={tt('production.resources.kind')}>
             {() => (
               <Segmented
-                aria-label="Kind"
+                aria-label={tt('production.resources.kind')}
                 value={kind}
                 onValueChange={v => setKind(v as 'equipment' | 'other')}
                 items={[
-                  { value: 'equipment', label: 'Equipment' },
-                  { value: 'other', label: 'Other' },
+                  { value: 'equipment', label: tt('production.resources.equipment') },
+                  { value: 'other', label: tt('production.resources.otherKind') },
                 ]}
               />
             )}
           </Field>
-          <Field label="Units available at once">
+          <Field label={tt('production.resources.unitsAvailable')}>
             {p => <Input {...p} type="number" min={1} value={capacity} onChange={e => setCapacity(e.target.value)} />}
           </Field>
-          <Field label="Work calendar" hint="Without a calendar the default calendar of the workspace is used.">
+          <Field label={tt('production.resources.calendar')} hint={tt('production.resources.calendarHint')}>
             {() => (
-              <select className="select" aria-label="Work calendar" value={calendarId} onChange={e => setCalendarId(e.target.value)}>
-                <option value="">Default</option>
+              <select className="select" aria-label={tt('production.resources.calendar')} value={calendarId} onChange={e => setCalendarId(e.target.value)}>
+                <option value="">{tt('production.resources.defaultOption')}</option>
                 {(calendars.data?.items ?? []).map(c => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -387,6 +392,7 @@ function ResourceDialog({ id, onClose }: { id?: string; onClose: () => void }) {
 /** Форма сменного графика */
 function CalendarDialog({ id, onClose }: { id?: string; onClose: () => void }) {
   const api = usePlanningApi();
+  const tt = useT();
   const calendars = useCalendars();
   const current: WorkCalendar | undefined = calendars.data?.items.find(c => c.id === id);
   const [name, setName] = React.useState(current?.name ?? '');
@@ -401,8 +407,8 @@ function CalendarDialog({ id, onClose }: { id?: string; onClose: () => void }) {
 
   const submit = async () => {
     const errs: Record<string, string> = {};
-    if (!name.trim()) errs.name = 'Enter a name';
-    if (kind === 'cycle' && !cycleStart) errs.cycleStart = 'Set the date the cycle starts from';
+    if (!name.trim()) errs.name = tt('production.resources.errName');
+    if (kind === 'cycle' && !cycleStart) errs.cycleStart = tt('production.resources.errCycleStart');
     setErr(errs);
     if (Object.keys(errs).length) return;
     setBusy(true);
@@ -417,23 +423,23 @@ function CalendarDialog({ id, onClose }: { id?: string; onClose: () => void }) {
     const r = current ? await api('PATCH', `/production/calendars/${current.id}`, body) : await api('POST', '/production/calendars', body);
     setBusy(false);
     if (!r) return;
-    toast(current ? 'Saved' : 'Calendar added');
+    toast(current ? tt('production.resources.saved') : tt('production.resources.calendarAdded'));
     onClose();
   };
 
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
-        title={current ? 'Edit work calendar' : 'New work calendar'}
-        description="A weekly calendar lists the working days of the week; a cyclic one repeats a pattern of days from the start date (2/2, four days on, four days off)."
+        title={current ? tt('production.resources.editCalendar') : tt('production.resources.newCalendar')}
+        description={tt('production.resources.calendarDialogDesc')}
         footer={
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{tt('production.common.cancel')}</Button>
             </DialogClose>
             <Button variant="primary" disabled={busy} onClick={submit}>
-              {current ? 'Save' : 'Create'}
+              {current ? tt('production.resources.save') : tt('production.resources.create')}
             </Button>
           </>
         }
@@ -446,24 +452,24 @@ function CalendarDialog({ id, onClose }: { id?: string; onClose: () => void }) {
             void submit();
           }}
         >
-          <Field label="Name" error={err.name}>
+          <Field label={tt('production.resources.name')} error={err.name}>
             {p => <Input {...p} autoFocus value={name} onChange={e => (setName(e.target.value), setErr({}))} />}
           </Field>
-          <Field label="Kind">
+          <Field label={tt('production.resources.kind')}>
             {() => (
               <Segmented
-                aria-label="Kind"
+                aria-label={tt('production.resources.kind')}
                 value={kind}
                 onValueChange={v => setKind(v as 'weekly' | 'cycle')}
                 items={[
-                  { value: 'weekly', label: 'Weekly' },
-                  { value: 'cycle', label: 'Cyclic' },
+                  { value: 'weekly', label: tt('production.resources.weekly') },
+                  { value: 'cycle', label: tt('production.resources.cyclic') },
                 ]}
               />
             )}
           </Field>
           {kind === 'weekly' ? (
-            <Field label="Working days">
+            <Field label={tt('production.resources.workingDays')}>
               {() => (
                 <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
                   {WEEKDAYS.map((d, i) => (
@@ -481,22 +487,22 @@ function CalendarDialog({ id, onClose }: { id?: string; onClose: () => void }) {
             </Field>
           ) : (
             <>
-              <Field label="Pattern" hint="1 — working day, 0 — day off. For 2/2: 1100.">
+              <Field label={tt('production.resources.pattern')} hint={tt('production.resources.patternHint')}>
                 {p => <Input {...p} value={cycle} onChange={e => setCycle(e.target.value.replace(/[^01]/g, ''))} />}
               </Field>
-              <Field label="Cycle starts from" error={err.cycleStart}>
+              <Field label={tt('production.resources.cycleStarts')} error={err.cycleStart}>
                 {p => <Input {...p} type="date" value={cycleStart} onChange={e => (setCycleStart(e.target.value), setErr({}))} />}
               </Field>
             </>
           )}
-          <Field label="Hours per day">
+          <Field label={tt('production.resources.hoursPerDayField')}>
             {p => <Input {...p} value={hoursPerDay} onChange={e => setHoursPerDay(e.target.value)} />}
           </Field>
-          <Field label="Default calendar of the workspace">
+          <Field label={tt('production.resources.defaultCalendar')}>
             {() => (
               <label className="row" style={{ gap: 6, fontSize: 13 }}>
                 <input type="checkbox" checked={isDefault} onChange={e => setIsDefault(e.target.checked)} />
-                Use it when a calendar is not assigned
+                {tt('production.resources.defaultHint')}
               </label>
             )}
           </Field>

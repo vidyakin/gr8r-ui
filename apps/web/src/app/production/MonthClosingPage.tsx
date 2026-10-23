@@ -10,14 +10,14 @@ import { useIsAdmin } from '../catalog/data';
 import { errorMessage } from '../data/api';
 import { useSession } from '../data/session';
 import { usePeriodPreview, usePeriods, useClosePeriod, type Closing } from './closing-data';
-import { fmtDateTime } from '@/i18n';
+import { fmtDateTime, useT } from '@/i18n';
 
 /** Ключ месяца текущей даты: «2026-10» */
 const currentMonth = () => new Date().toISOString().slice(0, 7);
 const STATUS_TONE: Record<Closing['status'], 'green' | 'gray' | 'neutral' | 'amber'> = { done: 'green', running: 'amber', reopened: 'gray', failed: 'amber' };
-const STATUS_LABEL: Record<Closing['status'], string> = { done: 'Closed', running: 'Running', reopened: 'Reopened', failed: 'Failed' };
 
 export function MonthClosingPage() {
+  const tt = useT();
   const isAdmin = useIsAdmin();
   const { active } = useSession();
   const isOwner = active?.role === 'owner';
@@ -33,11 +33,17 @@ export function MonthClosingPage() {
   const lock = periods.data;
   const closings = periods.data?.items ?? [];
 
+  const statusLabel = (s: Closing['status']) => tt(`production.closing.status.${s}`);
+
   const run = async (reopen: boolean, target: { month: string; through?: string }) => {
     const count = target.through && target.through > target.month ? monthRange(target.month, target.through).length : 1;
     try {
       await close.mutateAsync(target);
-      toast(`${reopen ? 'Cancelling the closing of' : 'Closing'} ${count === 1 ? monthLabel(target.month) : `${count} months`}…`);
+      if (reopen) {
+        toast(tt('production.closing.toast.reopening', { count, label: count === 1 ? monthLabel(target.month) : tt('production.closing.monthsCount', { count }) }));
+      } else {
+        toast(tt('production.closing.toast.closing', { count, label: count === 1 ? monthLabel(target.month) : tt('production.closing.monthsCount', { count }) }));
+      }
     } catch (e) {
       toast.error(errorMessage(e));
     }
@@ -47,53 +53,53 @@ export function MonthClosingPage() {
     <div className="page flush">
       <div className="ph">
         <div>
-          <h1>Month closing</h1>
-          <p>Indirect costs of the month (service receipts, write-offs to a work center and other costs) are allocated to the releases of the month, and the cost of everything that left the stock afterwards is recalculated.</p>
+          <h1>{tt('production.closing.title')}</h1>
+          <p>{tt('production.closing.subtitle')}</p>
         </div>
       </div>
 
-      <section className="panel" style={{ margin: '0 var(--gutter) 16px' }} aria-label="Closing parameters">
+      <section className="panel" style={{ margin: '0 var(--gutter) 16px' }} aria-label={tt('production.closing.paramsAria')}>
         <div className="row" style={{ gap: 12, alignItems: 'flex-end' }}>
-          <Field label="Month">{p => <Input {...p} type="month" value={month} onChange={e => setMonth(e.target.value || currentMonth())} />}</Field>
-          <Field label="Mode">
+          <Field label={tt('production.closing.month')}>{p => <Input {...p} type="month" value={month} onChange={e => setMonth(e.target.value || currentMonth())} />}</Field>
+          <Field label={tt('production.closing.mode')}>
             {p => (
               <Select
                 {...p}
                 value={mode}
                 onValueChange={v => setMode(v as 'month' | 'period')}
                 options={[
-                  { value: 'month', label: 'Single month' },
-                  { value: 'period', label: 'For a period' },
+                  { value: 'month', label: tt('production.closing.modeMonth') },
+                  { value: 'period', label: tt('production.closing.modePeriod') },
                 ]}
               />
             )}
           </Field>
           {mode === 'period' && (
-            <Field label="Through" hint={months.length > 1 ? `${months.length} months, in order` : undefined}>
+            <Field label={tt('production.closing.through')} hint={months.length > 1 ? tt('production.closing.monthsHint', { count: months.length }) : undefined}>
               {p => <Input {...p} type="month" value={through} min={month} onChange={e => setThrough(e.target.value)} />}
             </Field>
           )}
           <div className="row" style={{ gap: 8, marginLeft: 'auto' }}>
             <Button variant="primary" disabled={!isAdmin || close.isPending} onClick={() => void run(false, { month, through: mode === 'period' ? through : undefined })}>
               <CalendarCheck size={14} />
-              Close {mode === 'period' && months.length > 1 ? `${months.length} months` : monthLabel(month)}
+              {tt('production.closing.runButton', { label: mode === 'period' && months.length > 1 ? tt('production.closing.monthsCount', { count: months.length }) : monthLabel(month) })}
             </Button>
             <Button disabled={!isOwner || close.isPending || closing?.status !== 'done'} onClick={() => setConfirmReopen(closing!)}>
               <RotateCcw size={14} />
-              Cancel closing
+              {tt('production.closing.reopenButton')}
             </Button>
           </div>
         </div>
-        {!isAdmin && <Alert tone="info" className="mt-3">Only admins can close a period. The owner can also cancel a closing.</Alert>}
+        {!isAdmin && <Alert tone="info" className="mt-3">{tt('production.closing.adminOnly')}</Alert>}
         {lock && (
           <p className="faint" style={{ fontSize: 12, marginTop: 12 }}>
-            Documents up to {lock.closedThrough ?? 'no date'} can be edited{lock.closeMovesLock ? '; the date moves forward automatically when a month is closed' : ''}. The setting is in Settings → Production.
+            {tt('production.closing.lockHint', { date: lock.closedThrough ?? tt('production.closing.noDate'), moves: lock.closeMovesLock ? tt('production.closing.lockMovesOn') : '' })}
           </p>
         )}
       </section>
 
       {periods.isError ? (
-        <EmptyState icon={<CircleAlert size={20} />} error title="Could not load the closings" action={<Button size="sm" onClick={() => periods.refetch()}>Retry</Button>}>
+        <EmptyState icon={<CircleAlert size={20} />} error title={tt('production.closing.loadFailed')} action={<Button size="sm" onClick={() => periods.refetch()}>{tt('production.common.retry')}</Button>}>
           {(periods.error as Error).message}
         </EmptyState>
       ) : periods.isPending ? (
@@ -107,23 +113,23 @@ export function MonthClosingPage() {
         </div>
       )}
 
-      <section className="panel" style={{ margin: '0 var(--gutter) 24px' }} aria-label="Closed months">
-        <h2 style={{ margin: '0 0 8px', fontSize: 14 }}>Closed months</h2>
+      <section className="panel" style={{ margin: '0 var(--gutter) 24px' }} aria-label={tt('production.closing.historyAria')}>
+        <h2 style={{ margin: '0 0 8px', fontSize: 14 }}>{tt('production.closing.historyTitle')}</h2>
         {!closings.length ? (
-          <p className="faint" style={{ fontSize: 12 }}>No period has been closed yet.</p>
+          <p className="faint" style={{ fontSize: 12 }}>{tt('production.closing.emptyHistory')}</p>
         ) : (
-          <table className="dtbl" aria-label="Closed months">
+          <table className="dtbl" aria-label={tt('production.closing.historyTable')}>
             <thead>
               <tr>
-                <th>Month</th>
-                <th style={{ width: 120 }}>Status</th>
+                <th>{tt('production.closing.col.month')}</th>
+                <th style={{ width: 120 }}>{tt('production.closing.col.status')}</th>
                 <th style={{ width: 150 }} className="r">
-                  Indirect costs
+                  {tt('production.closing.col.indirect')}
                 </th>
                 <th style={{ width: 150 }} className="r">
-                  Undistributed
+                  {tt('production.closing.col.undistributed')}
                 </th>
-                <th style={{ width: 170 }}>Closed at</th>
+                <th style={{ width: 170 }}>{tt('production.closing.col.closedAt')}</th>
               </tr>
             </thead>
             <tbody>
@@ -136,7 +142,7 @@ export function MonthClosingPage() {
                   </td>
                   <td>
                     <Badge tone={STATUS_TONE[c.status]} dot>
-                      {STATUS_LABEL[c.status]}
+                      {statusLabel(c.status)}
                     </Badge>
                   </td>
                   <td className="r num">{c.totals.total ?? <span className="muted">—</span>}</td>
@@ -155,15 +161,15 @@ export function MonthClosingPage() {
         <ConfirmDialog
           open
           danger
-          title="Cancel the closing?"
-          confirmLabel="Cancel closing"
+          title={tt('production.closing.reopenTitle')}
+          confirmLabel={tt('production.closing.reopenButton')}
           onOpenChange={open => !open && setConfirmReopen(null)}
           onConfirm={() => {
             const target = { month: confirmReopen.month };
             setConfirmReopen(null);
             void run(true, target);
           }}
-          description={`The costs of ${confirmReopen.label} will return to their previous values: the allocations are dropped and the stock movements are recalculated back. Only the owner can cancel a closing.`}
+          description={tt('production.closing.reopenDesc', { label: confirmReopen.label })}
         />
       )}
     </div>
@@ -173,13 +179,14 @@ export function MonthClosingPage() {
 /* ---------------- предварительный анализ ---------------- */
 
 function PreviewPanel({ month }: { month: string }) {
+  const tt = useT();
   const preview = usePeriodPreview(month);
   return (
-    <section className="panel" style={{ flex: 1, minWidth: 0 }} aria-label="Preview">
+    <section className="panel" style={{ flex: 1, minWidth: 0 }} aria-label={tt('production.closing.previewAria')}>
       <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
-        <h2 style={{ margin: 0, fontSize: 14 }}>Before closing {monthLabel(month)}</h2>
+        <h2 style={{ margin: 0, fontSize: 14 }}>{tt('production.closing.previewTitle', { label: monthLabel(month) })}</h2>
         <span className="faint" style={{ fontSize: 12 }}>
-          Total: {preview.data?.total ?? '—'}
+          {tt('production.closing.totalLabel')}: {preview.data?.total ?? '—'}
         </span>
       </div>
       {preview.isPending ? (
@@ -195,7 +202,7 @@ function PreviewPanel({ month }: { month: string }) {
                     l.documentId ? (
                       <div key={j} style={{ fontSize: 12 }}>
                         <Link to={`/documents/${l.documentId}`} className="crm-link">
-                          {l.number ?? 'Draft'} · {l.date}
+                          {l.number ?? tt('production.common.draft')} · {l.date}
                         </Link>
                       </div>
                     ) : (
@@ -204,19 +211,19 @@ function PreviewPanel({ month }: { month: string }) {
                       </div>
                     ),
                   )}
-                  {issue.links.length > 6 && <div className="faint" style={{ fontSize: 12 }}>…and {issue.links.length - 6} more</div>}
+                  {issue.links.length > 6 && <div className="faint" style={{ fontSize: 12 }}>{tt('production.closing.moreCount', { count: issue.links.length - 6 })}</div>}
                 </Alert>
               ))}
             </div>
           )}
-          <table className="dtbl" aria-label="Indirect costs of the month">
+          <table className="dtbl" aria-label={tt('production.closing.previewTable')}>
             <thead>
               <tr>
-                <th>Cost item</th>
-                <th style={{ width: 150 }}>Work center</th>
-                <th style={{ width: 150 }}>Allocation base</th>
+                <th>{tt('production.closing.col.costItem')}</th>
+                <th style={{ width: 150 }}>{tt('production.closing.col.workCenter')}</th>
+                <th style={{ width: 150 }}>{tt('production.closing.col.base')}</th>
                 <th style={{ width: 110 }} className="r">
-                  Amount
+                  {tt('production.closing.col.amount')}
                 </th>
               </tr>
             </thead>
@@ -225,14 +232,14 @@ function PreviewPanel({ month }: { month: string }) {
                 <tr key={`${c.costItemId}-${i}`}>
                   <td className="trunc">{c.name}</td>
                   <td className="trunc muted">{c.workCenterName ?? '—'}</td>
-                  <td className="muted">{c.method === 'none' ? 'Do not allocate' : c.method === 'output_qty' ? 'By output quantity' : c.method === 'direct_costs' ? 'By direct costs' : 'By work hours'}</td>
+                  <td className="muted">{c.method === 'none' ? tt('production.closing.method.none') : c.method === 'output_qty' ? tt('production.closing.method.outputQty') : c.method === 'direct_costs' ? tt('production.closing.method.directCosts') : tt('production.closing.method.workHours')}</td>
                   <td className="r num">{c.amount ?? <span className="muted">—</span>}</td>
                 </tr>
               ))}
               {!preview.data.costs.length && (
                 <tr>
                   <td colSpan={4} className="faint">
-                    No indirect costs this month.
+                    {tt('production.closing.noCosts')}
                   </td>
                 </tr>
               )}
@@ -240,7 +247,7 @@ function PreviewPanel({ month }: { month: string }) {
           </table>
           {preview.data.targets.length > 0 && (
             <p className="faint" style={{ fontSize: 12, marginTop: 8 }}>
-              {preview.data.targets.length} release position(s) will receive the indirect costs.
+              {tt('production.closing.targetsHint', { count: preview.data.targets.length })}
             </p>
           )}
         </>
@@ -252,43 +259,45 @@ function PreviewPanel({ month }: { month: string }) {
 /* ---------------- результат закрытия ---------------- */
 
 function ResultPanel({ closing }: { closing: Closing | null }) {
+  const tt = useT();
+  const statusLabel = (s: Closing['status']) => tt(`production.closing.status.${s}`);
   if (!closing) return null;
-  const t = closing.totals;
+  const t0 = closing.totals;
   return (
-    <section className="panel" style={{ flex: 1, minWidth: 0 }} aria-label="Closing result">
+    <section className="panel" style={{ flex: 1, minWidth: 0 }} aria-label={tt('production.closing.resultAria')}>
       <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
         <h2 style={{ margin: 0, fontSize: 14 }}>
           <Lock size={13} style={{ verticalAlign: -2, marginRight: 6 }} />
-          Result of {closing.label}
+          {tt('production.closing.resultTitle', { label: closing.label })}
         </h2>
         <Badge tone={STATUS_TONE[closing.status]} dot>
-          {STATUS_LABEL[closing.status]}
+          {statusLabel(closing.status)}
         </Badge>
       </div>
       {closing.error && <Alert tone="warn">{closing.error}</Alert>}
-      {t.warnings?.map((w, i) => (
+      {t0.warnings?.map((w, i) => (
         <Alert key={i} tone="info" className="mb-2">
           {w}
         </Alert>
       ))}
-      {!!t.byCostItem?.length && (
+      {!!t0.byCostItem?.length && (
         <>
-          <h3 style={{ fontSize: 12, margin: '8px 0 4px' }}>By cost item</h3>
-          <table className="dtbl" aria-label="Allocation by cost item">
+          <h3 style={{ fontSize: 12, margin: '8px 0 4px' }}>{tt('production.closing.byCostItem')}</h3>
+          <table className="dtbl" aria-label={tt('production.closing.byCostItemTable')}>
             <thead>
               <tr>
-                <th>Cost item</th>
-                <th style={{ width: 120 }}>Work center</th>
+                <th>{tt('production.closing.col.costItem')}</th>
+                <th style={{ width: 120 }}>{tt('production.closing.col.workCenter')}</th>
                 <th style={{ width: 100 }} className="r">
-                  Amount
+                  {tt('production.closing.col.amount')}
                 </th>
                 <th style={{ width: 110 }} className="r">
-                  Allocated
+                  {tt('production.closing.col.allocated')}
                 </th>
               </tr>
             </thead>
             <tbody>
-              {t.byCostItem.map((g, i) => (
+              {t0.byCostItem.map((g, i) => (
                 <tr key={i}>
                   <td className="trunc">{g.costItemName}</td>
                   <td className="trunc muted">{g.workCenterName ?? '—'}</td>
@@ -300,26 +309,26 @@ function ResultPanel({ closing }: { closing: Closing | null }) {
           </table>
         </>
       )}
-      {!!t.byRelease?.length && (
+      {!!t0.byRelease?.length && (
         <>
-          <h3 style={{ fontSize: 12, margin: '10px 0 4px' }}>By release</h3>
-          <table className="dtbl" aria-label="Allocation by release">
+          <h3 style={{ fontSize: 12, margin: '10px 0 4px' }}>{tt('production.closing.byRelease')}</h3>
+          <table className="dtbl" aria-label={tt('production.closing.byReleaseTable')}>
             <thead>
               <tr>
-                <th>Product</th>
+                <th>{tt('production.closing.col.product')}</th>
                 <th style={{ width: 90 }} className="r">
-                  Qty
+                  {tt('production.closing.col.qty')}
                 </th>
                 <th style={{ width: 100 }} className="r">
-                  Direct
+                  {tt('production.closing.col.direct')}
                 </th>
                 <th style={{ width: 100 }} className="r">
-                  Allocated
+                  {tt('production.closing.col.allocated')}
                 </th>
               </tr>
             </thead>
             <tbody>
-              {t.byRelease.map((r, i) => (
+              {t0.byRelease.map((r, i) => (
                 <tr key={r.itemId + i}>
                   <td className="trunc">{r.name}</td>
                   <td className="r num">{r.qty}</td>
@@ -332,7 +341,7 @@ function ResultPanel({ closing }: { closing: Closing | null }) {
         </>
       )}
       <p className="faint" style={{ fontSize: 12, marginTop: 10 }}>
-        Undistributed: <b>{t.undistributed ?? '—'}</b> · stock movements recalculated: {t.adjustedMoves ?? 0}
+        {tt('production.closing.resultFootnote', { undistributed: t0.undistributed ?? '—', adjusted: t0.adjustedMoves ?? 0 })}
       </p>
     </section>
   );

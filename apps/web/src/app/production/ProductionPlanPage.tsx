@@ -13,13 +13,14 @@ import { useWorkCenters } from '../catalog/data';
 import { useSnapshot } from './data';
 import { useProductionPlan, useProductionPlanApi, useProductionPlanNeeds, type PlanDetail, type PlanLine } from './plans-data';
 import { DocTabs } from '../docs/doc-tabs';
-import { t } from '@/i18n';
+import { t, tProductionEnum, useT } from '@/i18n';
 
 const SOURCE_LABEL: Record<string, string> = { output: 'Output statistics', sales: 'Sales statistics', customer_orders: 'Customer orders' };
 
 export function ProductionPlanPage() {
   const { id } = useParams();
   const q = useProductionPlan(id);
+  const tt = useT();
   if (q.isPending)
     return (
       <div className="page flush">
@@ -31,8 +32,8 @@ export function ProductionPlanPage() {
   if (q.isError || !q.data)
     return (
       <div className="page flush">
-        <EmptyState icon={<CircleAlert size={20} />} error title="Production plan not found" action={<Link to="/production/plans" className="btn btn-secondary">Back to plans</Link>}>
-          This plan does not exist or belongs to another workspace.
+        <EmptyState icon={<CircleAlert size={20} />} error title={tt('production.plan.notFound')} action={<Link to="/production/plans" className="btn btn-secondary">{tt('production.plan.backToPlans')}</Link>}>
+          {tt('production.plan.notFoundHint')}
         </EmptyState>
       </div>
     );
@@ -43,6 +44,7 @@ function PlanView({ plan }: { plan: PlanDetail }) {
   const navigate = useNavigate();
   const canWrite = useCanWrite();
   const api = useProductionPlanApi();
+  const tt = useT();
   const warehouses = useWarehouses();
   const centers = useWorkCenters();
   const snap = useSnapshot();
@@ -74,7 +76,7 @@ function PlanView({ plan }: { plan: PlanDetail }) {
   const removeGroup = (g: { key: string }) => setLines(plan.lines.filter(l => `${l.itemId}|${l.isSemi ? 'semi' : 'product'}` !== g.key).map(l => ({ id: l.id, itemId: l.itemId, periodStart: l.periodStart, qty: l.qty, isSemi: l.isSemi })));
   const addLine = (periodStart: string) => {
     const item = items.find(i => !products.some(l => l.itemId === i.id)) ?? items[0];
-    if (!item) return toast.error('Add a product to the production catalogue first');
+    if (!item) return toast.error(tt('production.plan.noItems'));
     addCell(item.id, false, periodStart);
   };
 
@@ -82,15 +84,15 @@ function PlanView({ plan }: { plan: PlanDetail }) {
     <div className="page doc-page">
       <div className="doc-bar">
         <div className="doc-title">
-          <nav className="muted" style={{ fontSize: 12.5 }} aria-label="Section">
+          <nav className="muted" style={{ fontSize: 12.5 }} aria-label={tt('production.plan.section')}>
             <Link to="/production/plans" className="crm-link">
-              Production plans
+              {tt('production.plans.title')}
             </Link>
           </nav>
           <h1>
             {plan.name}
             <Badge tone={plan.status === 'approved' ? 'green' : 'gray'} dot>
-              {plan.status === 'approved' ? 'Approved' : 'Draft'}
+              {tProductionEnum('planStatus', plan.status, plan.status)}
             </Badge>
           </h1>
           <span className="faint" style={{ fontSize: 12 }}>
@@ -101,41 +103,41 @@ function PlanView({ plan }: { plan: PlanDetail }) {
           {canWrite && (
             <Button onClick={() => setFill(true)}>
               <Wand2 size={14} />
-              Fill
+              {tt('production.plan.fill')}
             </Button>
           )}
           {canWrite && (
             <Button onClick={() => void api.semi.mutateAsync(plan.id)}>
               <Layers size={14} />
-              Plan semi-finished
+              {tt('production.plan.planSemi')}
             </Button>
           )}
           {canWrite && semis.length > 0 && (
             <Button onClick={() => void api.removeSemi.mutateAsync(plan.id)}>
               <X size={14} />
-              Remove semi-finished
+              {tt('production.plan.removeSemi')}
             </Button>
           )}
           {canWrite && plan.status !== 'approved' && (
             <Button variant="primary" onClick={() => save({ status: 'approved' })}>
               <Send size={14} />
-              Approve
+              {tt('production.plan.approve')}
             </Button>
           )}
           {canWrite && plan.status === 'approved' && (
-            <Button onClick={() => save({ status: 'draft' })}>Back to draft</Button>
+            <Button onClick={() => save({ status: 'draft' })}>{tt('production.plan.backToDraft')}</Button>
           )}
           {canWrite && (
-            <IconButton label="Archive plan" onClick={() => setConfirm(true)}>
+            <IconButton label={tt('production.plan.archive')} onClick={() => setConfirm(true)}>
               <Trash2 size={15} />
             </IconButton>
           )}
         </div>
       </div>
 
-      <section className="doc-head panel" aria-label="Plan header">
-        <Field label="Name">{p => <Input {...p} disabled={!canWrite} value={plan.name} onChange={e => save({ name: e.target.value })} />}</Field>
-        <Field label="Step">
+      <section className="doc-head panel" aria-label={tt('production.plan.header')}>
+        <Field label={tt('production.plan.name')}>{p => <Input {...p} disabled={!canWrite} value={plan.name} onChange={e => save({ name: e.target.value })} />}</Field>
+        <Field label={tt('production.plan.step')}>
           {p => (
             <Select
               id={p.id}
@@ -143,16 +145,16 @@ function PlanView({ plan }: { plan: PlanDetail }) {
               value={plan.step}
               onValueChange={v => save({ step: v })}
               options={[
-                { value: 'week', label: 'Week' },
-                { value: 'month', label: 'Month' },
+                { value: 'week', label: tt('production.plan.stepWeek') },
+                { value: 'month', label: tt('production.plan.stepMonth') },
               ]}
-              aria-label="Step"
+              aria-label={tt('production.plan.step')}
             />
           )}
         </Field>
-        <Field label="From">{p => <Input {...p} type="date" disabled={!canWrite} value={plan.periodFrom} onChange={e => save({ periodFrom: e.target.value })} />}</Field>
-        <Field label="To">{p => <Input {...p} type="date" disabled={!canWrite} value={plan.periodTo} onChange={e => save({ periodTo: e.target.value })} />}</Field>
-        <Field label="Warehouse" hint="Finished goods warehouse">
+        <Field label={tt('production.plan.periodFrom')}>{p => <Input {...p} type="date" disabled={!canWrite} value={plan.periodFrom} onChange={e => save({ periodFrom: e.target.value })} />}</Field>
+        <Field label={tt('production.plan.periodTo')}>{p => <Input {...p} type="date" disabled={!canWrite} value={plan.periodTo} onChange={e => save({ periodTo: e.target.value })} />}</Field>
+        <Field label={tt('production.plan.warehouse')} hint={tt('production.plan.warehouseHint')}>
           {p => (
             <Select
               id={p.id}
@@ -160,11 +162,11 @@ function PlanView({ plan }: { plan: PlanDetail }) {
               value={plan.warehouseId}
               onValueChange={v => save({ warehouseId: v })}
               options={(warehouses.data ?? []).filter(w => w.kind !== 'transit').map(w => ({ value: w.id, label: w.name }))}
-              aria-label="Warehouse"
+              aria-label={tt('production.plan.warehouse')}
             />
           )}
         </Field>
-        <Field label="Work center" hint="Dispatcher work center (optional)">
+        <Field label={tt('production.plan.workCenter')} hint={tt('production.plan.workCenterHint')}>
           {p => (
             <Select
               id={p.id}
@@ -172,8 +174,8 @@ function PlanView({ plan }: { plan: PlanDetail }) {
               value={plan.workCenterId ?? ''}
               onValueChange={v => save({ workCenterId: v })}
               options={(centers.data?.items ?? []).map(c => ({ value: c.id, label: c.name }))}
-              placeholder="Any work center"
-              aria-label="Work center"
+              placeholder={tt('production.plan.anyWorkCenter')}
+              aria-label={tt('production.plan.workCenter')}
             />
           )}
         </Field>
@@ -182,7 +184,7 @@ function PlanView({ plan }: { plan: PlanDetail }) {
       {plan.semiDirty && (
         <div className="panel" role="status" style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '10px 12px', color: 'var(--warn, #b45309)' }}>
           <TriangleAlert size={16} />
-          <span>The products changed after the semi-finished lines were planned. Plan semi-finished again.</span>
+          <span>{tt('production.plan.semiDirty')}</span>
         </div>
       )}
 
@@ -194,19 +196,19 @@ function PlanView({ plan }: { plan: PlanDetail }) {
             label: t('docs.tabs.planLines'),
             count: plan.lines.length,
             content: (
-              <section className="doc-lines panel" aria-label="Plan lines">
+              <section className="doc-lines panel" aria-label={tt('production.plan.linesLabel')}>
                 <div className="table-wrap">
-                  <table className="dtbl" aria-label="Plan lines">
+                  <table className="dtbl" aria-label={tt('production.plan.linesTable')}>
                     <thead>
                       <tr>
-                        <th style={{ width: 200 }}>Product</th>
+                        <th style={{ width: 200 }}>{tt('production.plan.col.product')}</th>
                         {plan.periods.map(p => (
                           <th key={p} className="r" style={{ width: 110 }}>
                             {fmtDate(parse(p))}
                           </th>
                         ))}
                         <th style={{ width: 120 }} className="r">
-                          Total
+                          {tt('production.plan.col.total')}
                         </th>
                         <th style={{ width: 34 }} />
                       </tr>
@@ -216,7 +218,7 @@ function PlanView({ plan }: { plan: PlanDetail }) {
                         <tr key={g.key} data-row={g.isSemi ? 'semi' : undefined}>
                           <td className="trunc">
                             {g.itemName}
-                            {g.isSemi && <span className="faint"> · semi-finished</span>}
+                            {g.isSemi && <span className="faint"> · {tt('production.plan.semiFinished')}</span>}
                           </td>
                           {plan.periods.map(p => {
                             const cell = g.cells.find(x => x.periodStart === p);
@@ -224,12 +226,12 @@ function PlanView({ plan }: { plan: PlanDetail }) {
                               <td key={p} className="r num">
                                 {cell ? (
                                   canWrite ? (
-                                    <Input aria-label={`${g.itemName} ${p}`} inputMode="decimal" value={cell.qty} onChange={e => setQty(cell.id, e.target.value)} style={{ textAlign: 'right' }} />
+                                    <Input aria-label={tt('production.plan.cellAria', { name: g.itemName, period: p })} inputMode="decimal" value={cell.qty} onChange={e => setQty(cell.id, e.target.value)} style={{ textAlign: 'right' }} />
                                   ) : (
                                     cell.qty
                                   )
                                 ) : canWrite ? (
-                                  <Button size="sm" onClick={() => addCell(g.itemId, g.isSemi, p)} aria-label={`Add ${g.itemName} to ${p}`}>
+                                  <Button size="sm" onClick={() => addCell(g.itemId, g.isSemi, p)} aria-label={tt('production.plan.addAria', { name: g.itemName, period: p })}>
                                     +
                                   </Button>
                                 ) : (
@@ -239,15 +241,15 @@ function PlanView({ plan }: { plan: PlanDetail }) {
                             );
                           })}
                           <td className="r num">{g.total.toFixed(3)}</td>
-                          <td>{canWrite && <IconButton label={`Remove ${g.itemName}`} onClick={() => removeGroup(g)}><X size={14} /></IconButton>}</td>
+                          <td>{canWrite && <IconButton label={tt('production.plan.removeRow', { name: g.itemName })} onClick={() => removeGroup(g)}><X size={14} /></IconButton>}</td>
                         </tr>
                       ))}
                       {canWrite && (
                         <tr>
-                          <td className="faint">Add a product</td>
+                          <td className="faint">{tt('production.plan.addProduct')}</td>
                           {plan.periods.map(p => (
                             <td key={p} className="r">
-                              <Button size="sm" aria-label={`Add a line to ${p}`} onClick={() => addLine(p)}>
+                              <Button size="sm" aria-label={tt('production.plan.addLineAria', { period: p })} onClick={() => addLine(p)}>
                                 +
                               </Button>
                             </td>
@@ -261,7 +263,7 @@ function PlanView({ plan }: { plan: PlanDetail }) {
                 </div>
                 {!products.length && (
                   <p className="muted" style={{ padding: 12, margin: 0 }}>
-                    The plan is empty. Fill it by statistics, by customer orders or add a line by hand.
+                    {tt('production.plan.empty')}
                   </p>
                 )}
               </section>
@@ -272,17 +274,17 @@ function PlanView({ plan }: { plan: PlanDetail }) {
             id: 'fact',
             label: t('docs.tabs.planVsFact'),
             content: (
-              <section className="panel" aria-label="Plan vs fact">
+              <section className="panel" aria-label={tt('production.plan.fact')}>
                 <div className="table-wrap">
-                  <table className="dtbl" aria-label="Plan vs fact">
+                  <table className="dtbl" aria-label={tt('production.plan.factTable')}>
                     <thead>
                       <tr>
-                        <th>Product</th>
-                        <th>Period</th>
-                        <th className="r">Planned</th>
-                        <th className="r">Ordered</th>
-                        <th className="r">Produced</th>
-                        <th>Start</th>
+                        <th>{tt('production.plan.col.product')}</th>
+                        <th>{tt('production.plan.col.period')}</th>
+                        <th className="r">{tt('production.plan.col.planned')}</th>
+                        <th className="r">{tt('production.plan.col.ordered')}</th>
+                        <th className="r">{tt('production.plan.col.produced')}</th>
+                        <th>{tt('production.plan.col.start')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -309,10 +311,10 @@ function PlanView({ plan }: { plan: PlanDetail }) {
       <ConfirmDialog
         open={confirm}
         onOpenChange={o => !o && setConfirm(false)}
-        title="Archive this plan?"
-        description="The plan is hidden from the journal; production orders created from it stay."
-        confirmLabel="Archive"
-        cancelLabel="Keep"
+        title={tt('production.plan.archiveTitle')}
+        description={tt('production.plan.archiveDesc')}
+        confirmLabel={tt('production.plan.archive')}
+        cancelLabel={tt('production.common.cancel')}
         danger
         onConfirm={() => {
           setConfirm(false);
@@ -327,6 +329,7 @@ function PlanView({ plan }: { plan: PlanDetail }) {
 /** Потребности плана: материалы, полуфабрикаты, часы участков против мощности, трудозатраты */
 function NeedsTabs({ plan, needs, pending }: { plan: PlanDetail; needs: ReturnType<typeof useProductionPlanNeeds>['data']; pending: boolean }) {
   const [tab, setTab] = React.useState<'materials' | 'semis' | 'load' | 'labor'>('materials');
+  const tt = useT();
   if (pending)
     return (
       <section className="panel">
@@ -334,14 +337,14 @@ function NeedsTabs({ plan, needs, pending }: { plan: PlanDetail; needs: ReturnTy
       </section>
     );
   return (
-    <section className="panel" aria-label="Plan needs">
-      <nav className="tabs doc-tabs" aria-label="Need sections">
+    <section className="panel" aria-label={tt('production.plan.needs')}>
+      <nav className="tabs doc-tabs" aria-label={tt('production.plan.needSections')}>
         {(
           [
-            ['materials', 'Materials'],
-            ['semis', 'Semi-finished'],
-            ['load', 'Work centers'],
-            ['labor', 'Labor'],
+            ['materials', tt('production.plan.materials')],
+            ['semis', tt('production.plan.semiTab')],
+            ['load', tt('production.plan.workCenters')],
+            ['labor', tt('production.plan.labor')],
           ] as const
         ).map(([id, label]) => (
           <button key={id} type="button" className={`tab${tab === id ? ' on' : ''}`} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}>
@@ -351,11 +354,11 @@ function NeedsTabs({ plan, needs, pending }: { plan: PlanDetail; needs: ReturnTy
       </nav>
       <div className="table-wrap">
         {tab === 'materials' && (
-          <table className="dtbl" aria-label="Materials">
+          <table className="dtbl" aria-label={tt('production.plan.materials')}>
             <thead>
               <tr>
-                <th>Material</th>
-                <th className="r">Needed</th>
+                <th>{tt('production.plan.col.material')}</th>
+                <th className="r">{tt('production.plan.col.needed')}</th>
               </tr>
             </thead>
             <tbody>
@@ -369,13 +372,13 @@ function NeedsTabs({ plan, needs, pending }: { plan: PlanDetail; needs: ReturnTy
           </table>
         )}
         {tab === 'semis' && (
-          <table className="dtbl" aria-label="Semi-finished">
+          <table className="dtbl" aria-label={tt('production.plan.semiTab')}>
             <thead>
               <tr>
-                <th>Semi-finished</th>
-                <th className="r">Consumed</th>
-                <th className="r">Produced</th>
-                <th className="r">Balance</th>
+                <th>{tt('production.plan.col.semi')}</th>
+                <th className="r">{tt('production.plan.col.consumed')}</th>
+                <th className="r">{tt('production.plan.col.produced')}</th>
+                <th className="r">{tt('production.plan.col.balance')}</th>
               </tr>
             </thead>
             <tbody>
@@ -395,14 +398,14 @@ function NeedsTabs({ plan, needs, pending }: { plan: PlanDetail; needs: ReturnTy
           </table>
         )}
         {tab === 'load' && (
-          <table className="dtbl" aria-label="Work center load">
+          <table className="dtbl" aria-label={tt('production.plan.workCenterLoad')}>
             <thead>
               <tr>
-                <th>Period</th>
-                <th>Work center</th>
-                <th className="r">Hours</th>
-                <th className="r">Capacity</th>
-                <th className="r">Shortage</th>
+                <th>{tt('production.plan.col.period')}</th>
+                <th>{tt('production.plan.col.workCenter')}</th>
+                <th className="r">{tt('production.plan.col.hours')}</th>
+                <th className="r">{tt('production.plan.col.capacity')}</th>
+                <th className="r">{tt('production.plan.col.shortage')}</th>
               </tr>
             </thead>
             <tbody>
@@ -419,12 +422,12 @@ function NeedsTabs({ plan, needs, pending }: { plan: PlanDetail; needs: ReturnTy
           </table>
         )}
         {tab === 'labor' && (
-          <table className="dtbl" aria-label="Labor">
+          <table className="dtbl" aria-label={tt('production.plan.labor')}>
             <thead>
               <tr>
-                <th>Work center</th>
-                <th className="r">Hours</th>
-                <th className="r">Amount</th>
+                <th>{tt('production.plan.col.workCenter')}</th>
+                <th className="r">{tt('production.plan.col.hours')}</th>
+                <th className="r">{tt('production.plan.col.amount')}</th>
               </tr>
             </thead>
             <tbody>
@@ -439,9 +442,9 @@ function NeedsTabs({ plan, needs, pending }: { plan: PlanDetail; needs: ReturnTy
           </table>
         )}
       </div>
-      {!needs && <p className="muted" style={{ padding: 12, margin: 0 }}>The plan has no lines yet.</p>}
+      {!needs && <p className="muted" style={{ padding: 12, margin: 0 }}>{tt('production.plan.noLines')}</p>}
       <p className="faint" style={{ padding: 12, margin: 0, fontSize: 12 }}>
-        Materials of the approved plans also come into the needs screen as the “Plan” source. Periods: {plan.periods.length}.
+        {tt('production.plan.needsFootnote', { count: plan.periods.length })}
       </p>
     </section>
   );
@@ -452,40 +455,41 @@ function FillDialog({ open, onClose, onFill }: { open: boolean; onClose: () => v
   const [source, setSource] = React.useState<'output' | 'sales' | 'customer_orders'>('output');
   const [mode, setMode] = React.useState<'replace' | 'add'>('replace');
   const [periods, setPeriods] = React.useState('6');
+  const tt = useT();
   return (
     <Dialog open={open} onOpenChange={o => !o && onClose()}>
-      <DialogContent title="Fill the plan">
-        <Field label="Source">
+      <DialogContent title={tt('production.plan.fillTitle')}>
+        <Field label={tt('production.plan.source')}>
           {p => (
             <Select
               id={p.id}
               value={source}
               onValueChange={v => setSource(v as typeof source)}
-              options={Object.entries(SOURCE_LABEL).map(([value, label]) => ({ value, label }))}
-              aria-label="Source"
+              options={Object.entries(SOURCE_LABEL).map(([value, label]) => ({ value, label: tProductionEnum('planSource', value, label) }))}
+              aria-label={tt('production.plan.source')}
             />
           )}
         </Field>
-        <Field label="Past periods" hint="How many periods the statistics are averaged over">
+        <Field label={tt('production.plan.pastPeriods')} hint={tt('production.plan.pastPeriodsHint')}>
           {p => <Input {...p} type="number" min="1" max="60" value={periods} onChange={e => setPeriods(e.target.value)} />}
         </Field>
-        <Field label="Mode" hint="Replace the product lines or add to them">
+        <Field label={tt('production.plan.fillMode')} hint={tt('production.plan.fillModeHint')}>
           {p => (
             <Select
               id={p.id}
               value={mode}
               onValueChange={v => setMode(v as typeof mode)}
               options={[
-                { value: 'replace', label: 'Replace' },
-                { value: 'add', label: 'Add' },
+                { value: 'replace', label: tt('production.plan.fillReplace') },
+                { value: 'add', label: tt('production.plan.fillAdd') },
               ]}
-              aria-label="Mode"
+              aria-label={tt('production.plan.fillMode')}
             />
           )}
         </Field>
         <div className="row" style={{ justifyContent: 'flex-end', gap: 8 }}>
           <DialogClose asChild>
-            <Button>Cancel</Button>
+            <Button>{tt('production.common.cancel')}</Button>
           </DialogClose>
           <Button
             variant="primary"
@@ -494,7 +498,7 @@ function FillDialog({ open, onClose, onFill }: { open: boolean; onClose: () => v
               onClose();
             }}
           >
-            Fill
+            {tt('production.plan.fill')}
           </Button>
         </div>
       </DialogContent>

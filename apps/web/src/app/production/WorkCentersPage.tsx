@@ -3,11 +3,13 @@ import * as React from 'react';
 import { CircleAlert, Factory, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, Input, Skeleton, toast } from '@/components/ui';
 import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
+import { t, useT } from '@/i18n';
 import { money, useIsAdmin } from '../catalog/data';
 import { useWarehouses } from '../docs/data';
 import { useProductionApi, useSnapshot, type WorkCenter } from './data';
 
 export function WorkCentersPage() {
+  const tt = useT();
   const isAdmin = useIsAdmin();
   const snap = useSnapshot();
   const api = useProductionApi();
@@ -19,11 +21,11 @@ export function WorkCentersPage() {
 
   const columns = React.useMemo<Column<WorkCenter>[]>(
     () => [
-      { id: 'name', header: 'Name', width: 280, value: w => w.name, cell: w => <span style={{ fontWeight: 450 }}>{w.name}</span> },
-      { id: 'code', header: 'Code', width: 120, value: w => w.code, cell: w => (w.code ? <span className="mono">{w.code}</span> : <span className="faint">—</span>) },
-      { id: 'rate', header: 'Rate per hour', width: 140, align: 'right', value: w => Number(w.hourlyRate), cell: w => <span className="num">{money(w.hourlyRate)}</span> },
-      { id: 'warehouse', header: 'Workshop warehouse', width: 190, defaultHidden: true, value: w => w.warehouseId ?? '', cell: w => <span className="trunc muted">{w.warehouseId ? (workshops.find(x => x.id === w.warehouseId)?.name ?? '—') : '—'}</span> },
-      { id: 'note', header: 'Note', width: 320, value: w => w.note, cell: w => <span className="trunc muted">{w.note || '—'}</span> },
+      { id: 'name', header: tt('production.workCenters.col.name'), width: 280, value: w => w.name, cell: w => <span style={{ fontWeight: 450 }}>{w.name}</span> },
+      { id: 'code', header: tt('production.workCenters.col.code'), width: 120, value: w => w.code, cell: w => (w.code ? <span className="mono">{w.code}</span> : <span className="faint">—</span>) },
+      { id: 'rate', header: tt('production.workCenters.col.rate'), width: 140, align: 'right', value: w => Number(w.hourlyRate), cell: w => <span className="num">{money(w.hourlyRate)}</span> },
+      { id: 'warehouse', header: tt('production.workCenters.col.warehouse'), width: 190, defaultHidden: true, value: w => w.warehouseId ?? '', cell: w => <span className="trunc muted">{w.warehouseId ? (workshops.find(x => x.id === w.warehouseId)?.name ?? '—') : '—'}</span> },
+      { id: 'note', header: tt('production.workCenters.col.comment'), width: 320, value: w => w.note, cell: w => <span className="trunc muted">{w.note || '—'}</span> },
       {
         id: 'actions',
         header: '',
@@ -33,23 +35,23 @@ export function WorkCentersPage() {
         cell: w =>
           isAdmin ? (
             <span className="row" style={{ gap: 2, justifyContent: 'flex-end' }} onClick={e => e.stopPropagation()}>
-              <button type="button" className="ibtn ibtn-xs" aria-label={`Edit ${w.name}`} onClick={() => setDialog({ wc: w })}>
+              <button type="button" className="ibtn ibtn-xs" aria-label={t('production.workCenters.edit') + ' ' + w.name} onClick={() => setDialog({ wc: w })}>
                 <Pencil size={13} />
               </button>
-              <button type="button" className="ibtn ibtn-xs" aria-label={`Delete ${w.name}`} onClick={() => setRemoving(w)}>
+              <button type="button" className="ibtn ibtn-xs" aria-label={t('production.common.delete') + ' ' + w.name} onClick={() => setRemoving(w)}>
                 <Trash2 size={13} />
               </button>
             </span>
           ) : null,
       },
     ],
-    [isAdmin, workshops],
+    [isAdmin, workshops, tt],
   );
   const table = useDataTable(columns, { hidden: [] });
   const newBtn = isAdmin && (
     <Button variant="primary" onClick={() => setDialog({})}>
       <Plus size={14} />
-      New work center
+      {t('production.workCenters.new')}
     </Button>
   );
 
@@ -57,13 +59,13 @@ export function WorkCentersPage() {
     <div className="page flush">
       <div className="ph">
         <div>
-          <h1>Work centers</h1>
-          <p>Shops and crews with an hourly rate. Work operations in a bill of materials take their rate from here.</p>
+          <h1>{t('production.workCenters.title')}</h1>
+          <p>{t('production.workCenters.subtitle')}</p>
         </div>
         <div className="acts">{newBtn}</div>
       </div>
       {snap.isError ? (
-        <EmptyState icon={<CircleAlert size={20} />} error title="Could not load work centers" action={<Button size="sm" onClick={() => snap.refetch()}>Retry</Button>}>
+        <EmptyState icon={<CircleAlert size={20} />} error title={t('production.workCenters.table')} action={<Button size="sm" onClick={() => snap.refetch()}>{t('production.common.retry')}</Button>}>
           {(snap.error as Error).message}
         </EmptyState>
       ) : snap.isPending ? (
@@ -72,17 +74,17 @@ export function WorkCentersPage() {
         </div>
       ) : (
         <DataTable
-          aria-label="Work centers table"
+          aria-label={t('production.workCenters.table')}
           columns={columns}
           rows={rows}
           table={table}
           getId={w => w.id}
           showTotals={false}
           onNew={isAdmin ? () => setDialog({}) : undefined}
-          newLabel="New work center"
+          newLabel={t('production.workCenters.new')}
           empty={
-            <EmptyState icon={<Factory size={20} />} title="No work centers yet" action={newBtn || undefined}>
-              Add the shops where your products are made.
+            <EmptyState icon={<Factory size={20} />} title={t('production.workCenters.noCenters')} action={newBtn || undefined}>
+              {t('production.workCenters.noCentersHint')}
             </EmptyState>
           }
         />
@@ -92,12 +94,12 @@ export function WorkCentersPage() {
         open={!!removing}
         onOpenChange={o => !o && setRemoving(null)}
         danger
-        title="Delete work center?"
-        description={removing ? <><b>{removing.name}</b> will be deleted. A work center used in a bill of materials cannot be deleted.</> : undefined}
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
+        title={t('production.common.delete') + ' ' + t('production.workCenters.title')}
+        description={removing ? <><b>{removing.name}</b></> : undefined}
+        confirmLabel={t('production.common.delete')}
+        cancelLabel={t('production.common.cancel')}
         onConfirm={async () => {
-          if (removing && (await api('DELETE', `/work-centers/${removing.id}?hard=true`))) toast(`Deleted “${removing.name}”`);
+          if (removing && (await api('DELETE', `/work-centers/${removing.id}?hard=true`))) toast(t('production.workCenters.deleted'));
           setRemoving(null);
         }}
       />
@@ -106,6 +108,7 @@ export function WorkCentersPage() {
 }
 
 function CenterDialog({ wc, workshops, onClose }: { wc?: WorkCenter; workshops: { id: string; name: string }[]; onClose: () => void }) {
+  const tt = useT();
   const api = useProductionApi();
   const [name, setName] = React.useState(wc?.name ?? '');
   const [code, setCode] = React.useState(wc?.code ?? '');
@@ -116,8 +119,8 @@ function CenterDialog({ wc, workshops, onClose }: { wc?: WorkCenter; workshops: 
   const [busy, setBusy] = React.useState(false);
   const submit = async () => {
     const errs: Record<string, string> = {};
-    if (!name.trim()) errs.name = 'Enter a name';
-    if (rate.trim() !== '' && !(Number(rate) >= 0)) errs.rate = 'Enter a non-negative number';
+    if (!name.trim()) errs.name = tt('common.enterName');
+    if (rate.trim() !== '' && !(Number(rate) >= 0)) errs.rate = tt('catalog.product.nonNegative');
     setErr(errs);
     if (Object.keys(errs).length) return;
     setBusy(true);
@@ -125,21 +128,21 @@ function CenterDialog({ wc, workshops, onClose }: { wc?: WorkCenter; workshops: 
     const r = wc ? await api('PATCH', `/work-centers/${wc.id}`, body) : await api('POST', '/work-centers', body);
     setBusy(false);
     if (!r) return;
-    toast(wc ? `Saved “${body.name}”` : `Added “${body.name}”`);
+    toast(t('production.common.saved'));
     onClose();
   };
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
-        title={wc ? 'Edit work center' : 'New work center'}
+        title={wc ? tt('production.workCenters.edit') : tt('production.workCenters.newTitle')}
         footer={
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{tt('production.common.cancel')}</Button>
             </DialogClose>
             <Button variant="primary" disabled={busy} onClick={submit}>
-              {wc ? 'Save' : 'Create work center'}
+              {wc ? tt('production.common.save') : tt('production.common.create')}
             </Button>
           </>
         }
@@ -152,21 +155,21 @@ function CenterDialog({ wc, workshops, onClose }: { wc?: WorkCenter; workshops: 
             void submit();
           }}
         >
-          <Field label="Name" error={err.name}>
+          <Field label={tt('production.workCenters.fields.name')} error={err.name}>
             {p => <Input {...p} autoFocus value={name} onChange={e => (setName(e.target.value), setErr({}))} />}
           </Field>
           <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
-            <Field label="Code" className="grow">
+            <Field label={tt('production.workCenters.fields.code')} className="grow">
               {p => <Input {...p} value={code} onChange={e => setCode(e.target.value)} />}
             </Field>
-            <Field label="Rate per hour" className="grow" error={err.rate}>
+            <Field label={tt('production.workCenters.fields.rate')} className="grow" error={err.rate}>
               {p => <Input {...p} inputMode="decimal" value={rate} onChange={e => setRate(e.target.value)} />}
             </Field>
           </div>
-          <Field label="Workshop warehouse" hint="Materials are moved to this warehouse when they go to the shop">
+          <Field label={tt('production.workCenters.fields.warehouse')} hint="">
             {p => (
               <select className="select" id={p.id} value={warehouseId} onChange={e => setWarehouseId(e.target.value)}>
-                <option value="">Not set</option>
+                <option value="">{tt('production.common.notChosen')}</option>
                 {workshops.map(w => (
                   <option key={w.id} value={w.id}>
                     {w.name}
@@ -175,7 +178,7 @@ function CenterDialog({ wc, workshops, onClose }: { wc?: WorkCenter; workshops: 
               </select>
             )}
           </Field>
-          <Field label="Note">{p => <Input {...p} value={note} onChange={e => setNote(e.target.value)} />}</Field>
+          <Field label={tt('production.workCenters.fields.comment')}>{p => <Input {...p} value={note} onChange={e => setNote(e.target.value)} />}</Field>
           <button type="submit" hidden />
         </form>
       </DialogContent>

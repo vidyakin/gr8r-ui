@@ -155,6 +155,7 @@ export const catalog: Widen<typeof C> = {
 export const enums: Widen<typeof E> = {
   vat: { none: 'Без НДС' },
   replenishment: { purchase: 'Закупка', production: 'Производство', transfer: 'Перемещение' },
+  docStatus: { draft: 'Черновик', posted: 'Проведён', cancelled: 'Отменён' },
   fieldType: {
     text: 'Текст',
     long_text: 'Длинный текст',
