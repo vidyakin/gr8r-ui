@@ -61,6 +61,7 @@ async function detail(ctx: Ctx, id: string) {
     plannedStart: prod.plannedStart,
     plannedEnd: prod.plannedEnd,
     parentDocumentId: prod.parentDocumentId,
+    processingOrderId: prod.processingOrderId,
     items: prod.items,
     components: seeCost ? prod.components : prod.components.map(c => ({ ...c, plannedCost: null, actualCost: null })),
     outputs: prod.outputs,
@@ -116,6 +117,7 @@ export const productionOrderRoutes = new Hono<AppEnv>()
       plannedEnd: body.plannedEnd,
       comment: body.comment,
       parentDocumentId: body.parentDocumentId,
+      processingOrderId: body.processingOrderId ?? null,
       items: body.items.map(i => ({ itemId: i.itemId, qty: i.qty, customerOrderLineId: i.customerOrderLineId, params: i.params })),
     });
     return c.json(await detail(ctx, id), 201);

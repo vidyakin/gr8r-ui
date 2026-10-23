@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Archive, Building2, Pencil, Plus, Star, Tags, Warehouse as WarehouseIcon } from 'lucide-react';
 import { COST_DISTRIBUTIONS, COST_DISTRIBUTION_LABELS, TAX_SYSTEMS, TAX_SYSTEM_LABELS, VAT_LABELS, VAT_RATES, type CostDistribution, type CostItemKind, type FileRef, type TaxSystem, type VatRate, type WarehouseKind } from '@gr8r/shared';
 import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Input, Skeleton, toast } from '@/components/ui';
-import { useIsAdmin } from '../catalog/data';
+import { useCompanies, useIsAdmin } from '../catalog/data';
 import { BankAccountsEditor, RequisitesFields, checkRequisites, type RequisitesValue } from '../docs/requisites';
 import { useCostItems, useDocsApi, useInventorySettings, useOrganizations, useWarehouses, type CostItem, type Organization, type Warehouse } from '../docs/data';
 import { SettingsHead, SRow, Toggle } from './parts';
@@ -427,7 +427,7 @@ export function WarehousesSection({ title }: { title: string }) {
               <div key={w.id} className="srow">
                 <div style={{ minWidth: 0 }}>
                   <div className="t">
-                    {w.name} {w.code && <span className="mono faint">{w.code}</span>} {w.isDefault && <Badge tone="accent">Default</Badge>} {w.kind !== 'warehouse' && <Badge tone="gray">{WAREHOUSE_KIND_LABEL[w.kind]}</Badge>}
+                    {w.name} {w.code && <span className="mono faint">{w.code}</span>} {w.isDefault && <Badge tone="accent">Default</Badge>} {w.kind !== 'warehouse' && <Badge tone="gray">{WAREHOUSE_KIND_LABEL[w.kind]}</Badge>} {w.counterpartyId && <Badge tone="accent">Counterparty</Badge>}
                   </div>
                   <div className="d">{w.address || 'No address'}</div>
                 </div>
@@ -489,16 +489,19 @@ export function WarehousesSection({ title }: { title: string }) {
 
 function WarehouseDialog({ wh, onClose }: { wh?: Warehouse; onClose: () => void }) {
   const api = useDocsApi();
+  const companies = useCompanies();
   const [name, setName] = React.useState(wh?.name ?? '');
   const [code, setCode] = React.useState(wh?.code ?? '');
   const [address, setAddress] = React.useState(wh?.address ?? '');
   const [kind, setKind] = React.useState<WarehouseKind>(wh?.kind ?? 'warehouse');
+  // склад контрагента: на стороне переработчика хранятся наши материалы, отданные ему в переработку
+  const [counterpartyId, setCounterpartyId] = React.useState(wh?.counterpartyId ?? '');
   const [err, setErr] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const submit = async () => {
     if (!name.trim()) return setErr('Enter a name');
     setBusy(true);
-    const body = { name: name.trim(), code: code.trim(), address: address.trim(), kind };
+    const body = { name: name.trim(), code: code.trim(), address: address.trim(), kind, counterpartyId: counterpartyId || null };
     const r = wh ? await api('PATCH', `/warehouses/${wh.id}`, body) : await api('POST', '/warehouses', body);
     setBusy(false);
     if (!r) return;
@@ -540,6 +543,18 @@ function WarehouseDialog({ wh, onClose }: { wh?: Warehouse; onClose: () => void 
                 <option value="warehouse">Warehouse</option>
                 <option value="workshop">Workshop</option>
                 <option value="transit">In transit</option>
+              </select>
+            )}
+          </Field>
+          <Field label="Counterparty warehouse" hint="A storage place at the counterparty: our materials handed over for processing there">
+            {p => (
+              <select className="select" id={p.id} value={counterpartyId} onChange={e => setCounterpartyId(e.target.value)}>
+                <option value="">No</option>
+                {(companies.data ?? []).map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
               </select>
             )}
           </Field>

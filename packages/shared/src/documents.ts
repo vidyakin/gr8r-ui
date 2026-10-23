@@ -6,11 +6,11 @@ import type { VatRate } from './constants';
 
 /* ---------------- типы и статусы ---------------- */
 
-export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'inventory_count', 'production_order', 'production', 'work_order', 'piecework_order', 'other_costs'] as const;
+export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'inventory_count', 'production_order', 'production', 'work_order', 'piecework_order', 'other_costs', 'tolling_receipt', 'tolling_report', 'tolling_return'] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 export const DOCUMENT_STATUSES = ['draft', 'posted', 'cancelled'] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
-export const DOCUMENT_GROUPS = ['sales', 'purchases', 'stock', 'production'] as const;
+export const DOCUMENT_GROUPS = ['sales', 'purchases', 'stock', 'production', 'tolling'] as const;
 export type DocumentGroup = (typeof DOCUMENT_GROUPS)[number];
 export const PRINT_FORMS = ['invoice', 'upd', 'act', 'torg12', 'inv3', 'torg16', 'torg13', 'work_order', 'piecework'] as const;
 export type PrintForm = (typeof PRINT_FORMS)[number];
@@ -23,7 +23,7 @@ export type WarehouseKind = (typeof WAREHOUSE_KINDS)[number];
 export const COST_ITEM_KINDS = ['expense', 'income'] as const;
 export type CostItemKind = (typeof COST_ITEM_KINDS)[number];
 /** Вид операции внутреннего документа */
-export const DOCUMENT_OPERATIONS = ['transfer', 'in_transit', 'to_operation', 'from_operation', 'assembly', 'disassembly'] as const;
+export const DOCUMENT_OPERATIONS = ['transfer', 'in_transit', 'to_operation', 'from_operation', 'assembly', 'disassembly', 'processing'] as const;
 export type DocumentOperation = (typeof DOCUMENT_OPERATIONS)[number];
 /** Виды операции производственных документов: сборка и разборка */
 export const PRODUCTION_OPERATIONS = ['assembly', 'disassembly'] as const;
@@ -34,6 +34,14 @@ export type TransferOperation = (typeof TRANSFER_OPERATIONS)[number];
 /** Роль строки внутреннего документа: приход или расход */
 export const STOCK_ROLES = ['in', 'out'] as const;
 export type StockRole = (typeof STOCK_ROLES)[number];
+/** Чей материал в строке выпуска: наш или давальца (учитывается только количественно) */
+export const MATERIAL_OWNERS = ['own', 'customer'] as const;
+export type MaterialOwner = (typeof MATERIAL_OWNERS)[number];
+export const MATERIAL_OWNER_LABELS: Record<MaterialOwner, string> = { own: 'Own', customer: "Customer's" };
+/** Вкладка строки отчёта о переработке: продукция, использованное сырьё или отходы */
+export const TOLLING_ROLES = ['product', 'material', 'waste'] as const;
+export type TollingRole = (typeof TOLLING_ROLES)[number];
+export const TOLLING_ROLE_LABELS: Record<TollingRole, string> = { product: 'Products', material: 'Materials', waste: 'Waste' };
 
 /** Состояние документа (отдельно от проведения): «в работе», «выполнен» и т. п. */
 export interface DocumentStateDef {
@@ -78,6 +86,10 @@ export interface DocumentTypeMeta {
   states?: DocumentStateDef[];
   /** Вид операции внутреннего документа */
   operation?: DocumentOperation;
+  /** Документ переработки: приём, отчёт или возврат давальческого сырья */
+  tolling?: 'receipt' | 'report' | 'return';
+  /** Документ без цен: приём и возврат давальческого сырья ничего не продают */
+  noPrice?: boolean;
   /** Тип производства: в шапке два склада (материалы и продукция), роль строки задаёт каждая строка */
   production?: boolean;
   /** Тип со своими строками вне document_lines (строки без товара: «Прочие затраты») */
@@ -129,6 +141,18 @@ export const DOCUMENT_META: Record<DocumentType, DocumentTypeMeta> = {
   piecework_order: { label: 'Piecework order', group: 'production', prefix: 'СН', stock: null, party: null, basedOn: [], fulfils: false, forms: ['piecework'] },
   // прочие затраты: косвенные затраты периода без склада (строки — статья, участок, сумма; своего товара у них нет)
   other_costs: { label: 'Other costs', group: 'production', prefix: 'ПЗ', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true },
+  // переработка давальческого сырья (мы — переработчик): приём сырья заказчика, отчёт перед ним и возврат остатков
+  tolling_receipt: { label: 'Receipt for processing', group: 'tolling', prefix: 'ППР', stock: null, party: 'customer', basedOn: ['customer_order'], fulfils: false, forms: [], tolling: 'receipt', noPrice: true },
+  tolling_report: { label: 'Processing report', group: 'tolling', prefix: 'ОРП', stock: null, party: 'customer', basedOn: ['customer_order'], fulfils: false, forms: ['act'], tolling: 'report' },
+  tolling_return: { label: 'Return of unused materials', group: 'tolling', prefix: 'ВПР', stock: null, party: 'customer', basedOn: ['customer_order'], fulfils: false, forms: [], tolling: 'return', noPrice: true },
+};
+
+/** Виды операции, которые выбирает пользователь (у остальных типов вид задают метаданные).
+    Пусто — вид операции документ не имеет */
+export const DOCUMENT_OPERATION_CHOICES: Partial<Record<DocumentType, DocumentOperation[]>> = {
+  customer_order: ['processing'],
+  supplier_order: ['processing'],
+  production: ['processing'],
 };
 
 /** Типы документов, исполняющих заказ (остаток к отгрузке / поступлению) */
@@ -137,6 +161,8 @@ export const FULFIL_TYPES: DocumentType[] = DOCUMENT_TYPES.filter(t => DOCUMENT_
 export const ORDER_TYPES: DocumentType[] = DOCUMENT_TYPES.filter(t => DOCUMENT_META[t].isOrder);
 /** Внутренние документы: без контрагента, со своей ролью строки */
 export const INTERNAL_TYPES: DocumentType[] = DOCUMENT_TYPES.filter(t => DOCUMENT_META[t].party === null);
+/** Документы переработки давальческого сырья */
+export const TOLLING_TYPES: DocumentType[] = DOCUMENT_TYPES.filter(t => DOCUMENT_META[t].tolling);
 
 /** Роль строки по типу документа: у внутренних документов её проставляет сервер (у перемещения обе стороны задаёт шапка) */
 export const lineRole = (type: DocumentType): StockRole | null => {
@@ -164,6 +190,9 @@ export const DOCUMENT_LABELS_RU: Record<DocumentType, string> = {
   inventory_count: 'Инвентаризация',
   production_order: 'Заказ на производство',
   production: 'Производство (выпуск)',
+  tolling_receipt: 'Приём в переработку',
+  tolling_report: 'Отчёт о переработке',
+  tolling_return: 'Возврат давальческого сырья',
   work_order: 'Заказ-наряд',
   piecework_order: 'Сдельный наряд',
   other_costs: 'Прочие затраты',

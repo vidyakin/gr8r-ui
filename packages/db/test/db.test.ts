@@ -99,22 +99,32 @@ describe('seed', () => {
 
     // документы и склад: организация, склады, реквизиты, проведённые цепочки, остатки и резерв
     expect(await count('organizations', `${w} and name = 'ООО «Гр8р Студия»' and tax_system = 'osn' and default_vat_rate = '20' and is_default`)).toBe(1);
-    expect(await count('warehouses', w)).toBe(4); // основной, цех, склад готовой продукции и служебный «в пути»
+    expect(await count('warehouses', w)).toBe(5); // основной, цех, склад готовой продукции, служебный «в пути» и склад переработчика
     expect(await count('companies', `${w} and inn <> ''`)).toBe(5);
     expect(await count('bank_accounts', `${w} and company_id is not null`)).toBe(5);
-    expect(await count('documents', w)).toBe(32); // + заказ покупателя на окно и цепочка разборки
-    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(30);
-    expect(await count('documents', `${w} and based_on_id is not null`)).toBe(9);
-    expect(await count('documents', `${w} and type in ('stock_transfer','write_off','inventory_count')`)).toBe(7);
+    expect(await count('documents', w)).toBe(40); // + заказ покупателя на окно, цепочка разборки и документы переработки
+    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(38);
+    expect(await count('documents', `${w} and based_on_id is not null`)).toBe(13);
+    expect(await count('documents', `${w} and type in ('stock_transfer','write_off','inventory_count')`)).toBe(8); // + брусья в цех и передача переработчику
     // производство: заказ на производство и выпуск со списанием материалов
-    expect(await count('documents', `${w} and type = 'production_order'`)).toBe(4);
-    expect(await count('documents', `${w} and type = 'production'`)).toBe(2);
-    expect(await count('production_items', w)).toBe(6);
-    expect(await count('production_components', `${w} and kind = 'material'`)).toBe(17);
+    expect(await count('documents', `${w} and type = 'production_order'`)).toBe(5);
+    expect(await count('documents', `${w} and type = 'production'`)).toBe(4);
+    expect(await count('production_items', w)).toBe(9); // + разборка и переработка (заказ, выпуск, отчёт переработчика)
+    expect(await count('production_components', `${w} and kind = 'material'`)).toBe(24);
     // разборка: спецификация разборки, выходные продукты в заказе и выпуске
     expect(await count('manufactured_items', `${w} and mode = 'disassembly'`)).toBe(1);
     expect(await count('bom_lines', `${w} and kind = 'output'`)).toBe(2);
     expect(await count('production_components', `${w} and kind = 'output'`)).toBe(4);
+    // этап 8: переработка давальческого сырья — заказ, приём, выпуск, отчёт и остатки давальцев
+    expect(await count('documents', `${w} and type = 'tolling_receipt'`)).toBe(1);
+    expect(await count('documents', `${w} and type = 'tolling_report'`)).toBe(1);
+    expect(await count('documents', `${w} and type = 'customer_order' and operation = 'processing'`)).toBe(1);
+    expect(await count('documents', `${w} and type = 'supplier_order' and operation = 'processing'`)).toBe(1);
+    expect(await count('customer_stock_balances', w)).toBe(3); // давальческое сырьё и продукция по заказу на переработку
+    expect(await count('customer_stock_moves', w)).toBe(8); // приём 2, выпуск 5, отчёт 1
+    expect(await count('processing_service_costs', w)).toBe(2); // себестоимость услуги у отчёта и доля косвенных закрытого месяца на выпуск переработки
+    expect(await count('warehouses', `${w} and counterparty_id is not null`)).toBe(1); // склад переработчика
+    expect(await count('production_components', `${w} and owner_kind = 'customer'`)).toBe(4); // сырьё давальца в снимке заказа и в выпуске
     // этап 7: параметры спецификации, вариант товара и калькуляция заказа
     expect(await count('products', `${w} and parent_product_id is not null`)).toBe(1); // вариант окна
     expect(await count('bom_lines', `${w} and kind = 'expense'`)).toBe(1); // расход подрядчику
@@ -135,7 +145,7 @@ describe('seed', () => {
     expect(await count('other_cost_lines', w)).toBe(2);
     expect(await count('period_costs', w)).toBe(3); // услуга со статьёй + две строки прочих затрат
     expect(await count('production_cost_closings', `${w} and status = 'done'`)).toBe(1);
-    expect(await count('stock_cost_adjustments', w)).toBe(3); // + корректировки приходов выходных продуктов разборки
+    expect(await count('stock_cost_adjustments', w)).toBe(4); // + корректировки приходов выходных продуктов разборки и продукции переработчика
     // план производства и нормы запаса: демо-план с недельными периодами и четыре строки норм
     expect(await count('production_plans', w)).toBe(1);
     expect(await count('production_plan_lines', w)).toBe(3);
@@ -167,7 +177,7 @@ describe('seed', () => {
     expect(await count('work_order_materials', w)).toBe(1);
     expect(await count('work_order_assignments', w)).toBe(1);
     expect(await count('cost_items', w)).toBe(8); // 6 системных + электроэнергия и аренда демо
-    expect(await count('stock_balances', `${w} and qty > 0`)).toBe(26);
+    expect(await count('stock_balances', `${w} and qty > 0`)).toBe(27);
     // резервы: заказ покупателя, продукция под заказ и материалы заказов на производство
     expect(await count('stock_reservations', w)).toBe(11); // + резерв под заказ окна
     expect(await count('stock_reservations', `${w} and production_component_id is not null`)).toBe(8);

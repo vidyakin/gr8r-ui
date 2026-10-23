@@ -7,6 +7,7 @@ import {
   computeLine,
   computeTotals,
   DOCUMENT_META,
+  DOCUMENT_OPERATION_CHOICES,
   dec,
   div,
   fmt,
@@ -25,6 +26,7 @@ import {
   type PrintData,
   type PrintParty,
   type Role,
+  type TollingRole,
   type VatRate,
 } from '@gr8r/shared';
 import type { Db } from './client';
@@ -135,6 +137,8 @@ interface ResolvedLine {
   bookQty: string;
   /** Принятое количество (перемещение «в пути») */
   receivedQty: string;
+  /** Вкладка строки отчёта о переработке: продукция, использованное сырьё или отходы */
+  tollingRole: TollingRole | null;
   /** Статья косвенных затрат строки-услуги поступления */
   costItemId: string | null;
   /** Участок строки-услуги поступления */
@@ -169,6 +173,7 @@ async function resolveLines(db: Db, inputs: DocumentLineInput[], existingIds: Se
       receivedQty: l.receivedQty ?? (type === 'stock_transfer' ? l.qty : '0'),
       costItemId: l.costItemId ?? null,
       workCenterId: l.workCenterId ?? null,
+      tollingRole: l.tollingRole ?? null,
       params: l.params ?? {},
     };
   });
@@ -220,6 +225,13 @@ async function recalcLines(db: Db, doc: DocumentRow): Promise<DocumentLineRow[]>
   return out;
 }
 
+/** Заказ на переработку: заказ покупателя с видом операции «Переработка» — по нему хранится давальческое сырьё */
+export async function assertProcessingOrder(db: Db, id: string): Promise<DocumentRow> {
+  const [row] = await db.select().from(documents).where(eq(documents.id, id)).limit(1);
+  if (!row || row.type !== 'customer_order' || row.operation !== 'processing') throw new DomainError(422, 'invalid_tolling_order', 'Select a customer order with the processing kind of operation');
+  return row;
+}
+
 /** Строки документа заменяются списком: существующие (по id) обновляются, новые добавляются, отсутствующие удаляются.
     Ссылки «на основании» у потомков остаются на сохранённых строках */
 async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: DocumentLineInput[], includesVat: boolean): Promise<void> {
@@ -261,8 +273,15 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
       // статья и участок строки-услуги (поступление) клиент присылает сам; у прочих типов документов сохраняем прежние
       costItemId: l.costItemId ?? prevCostItem.get(l.id) ?? null,
       workCenterId: l.workCenterId ?? prevCenter.get(l.id) ?? null,
+      // вкладка строки отчёта о переработке: продукция, использованное сырьё или отходы
+      tollingRole: l.tollingRole ?? null,
       params: l.params ?? {},
     };
+    // приём и возврат давальческого сырья ничего не продают: цена строки нулевая, НДС нет
+    if (meta.noPrice) {
+      const b = amounts({ ...l, price: '0', vatRate: 'none' }, includesVat);
+      Object.assign(values, { price: '0', vatRate: 'none', net: b.net, vatAmount: b.vatAmount, total: b.total });
+    }
     if (meta.party === null) {
       // внутренний документ: без НДС и продажной цены, роль строки проставляет сервер
       // у выпуска роль задаёт каждая строка (материал — расход, продукция — приход): её сохраняем при правке
@@ -296,6 +315,8 @@ export interface DocumentCreateInput {
   type: DocumentType;
   /** Вид заказ-наряда (только у work_order): пусто — вид по умолчанию */
   workOrderKindId?: string | null;
+  /** Заказ на переработку (приём, отчёт о переработке и возврат): по нему берётся давалец */
+  tollingOrderId?: string | null;
   organizationId?: string | null;
   counterpartyId?: string | null;
   /** Договор: пусто — договор по умолчанию контрагента (если он есть) */
@@ -319,12 +340,20 @@ export interface DocumentCreateInput {
   custom?: Record<string, unknown>;
 }
 
-/** Вид операции документа: у перемещения — из запроса, у производственных — сборка или разборка, у остальных типов — из метаданных */
+/** Вид операции документа: у перемещения и у заказов переработки — из запроса, у производственных — сборка или разборка
+    (выпуск по заказу на переработку — «processing»), у остальных типов — из метаданных */
 function operationOf(type: DocumentType, input?: string | null): string | null {
   if (type === 'production_order' || type === 'production') {
     const op = input ?? 'assembly';
-    if (!PRODUCTION_OPERATIONS.includes(op as (typeof PRODUCTION_OPERATIONS)[number])) throw new DomainError(422, 'invalid_operation', 'Unknown kind of production operation');
+    const allowed: readonly string[] = [...PRODUCTION_OPERATIONS, ...(DOCUMENT_OPERATION_CHOICES[type] ?? [])];
+    if (!allowed.includes(op)) throw new DomainError(422, 'invalid_operation', 'Unknown kind of production operation');
     return op;
+  }
+  const choices = DOCUMENT_OPERATION_CHOICES[type];
+  if (choices) {
+    const op = input ?? null;
+    if (op !== null && !choices.includes(op as never)) throw new DomainError(422, 'invalid_operation', 'Unknown kind of operation');
+    return op ?? DOCUMENT_META[type].operation ?? null;
   }
   if (type !== 'stock_transfer') return DOCUMENT_META[type].operation ?? null;
   const op = input ?? 'transfer';
@@ -373,6 +402,9 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
   const workCenterId = input.type === 'write_off' ? input.workCenterId ?? null : null;
   // вид заказ-наряда: только у work_order, пусто — вид по умолчанию (его поставит хук создания)
   const workOrderKindId = input.type === 'work_order' ? input.workOrderKindId ?? null : null;
+  // заказ на переработку: только у документов переработки (приём, отчёт, возврат)
+  const tollingOrderId = meta.tolling ? (input.tollingOrderId ?? null) : null;
+  if (tollingOrderId) await assertProcessingOrder(db, tollingOrderId);
   // договор: заданный или по умолчанию у контрагента; его условия подставляются в документ
   let contractId: string | null = null;
   let contract: Awaited<ReturnType<typeof defaultContract>> = null;
@@ -409,6 +441,7 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
       workOrderKindId,
       inUseMemberId,
       inUseWorkCenterId,
+      tollingOrderId,
       priceIncludesVat: input.priceIncludesVat ?? true,
       comment: input.comment ?? '',
       responsibleId: input.responsibleId ?? ctx.memberId,
@@ -428,6 +461,8 @@ export interface DocumentPatch {
   organizationId?: string | null;
   /** Вид заказ-наряда (только у work_order) */
   workOrderKindId?: string | null;
+  /** Заказ на переработку (приём, отчёт о переработке, возврат) */
+  tollingOrderId?: string | null;
   counterpartyId?: string | null;
   /** Договор документа */
   contractId?: string | null;
@@ -493,7 +528,11 @@ export async function updateDocument(db: Db, ctx: DocCtx, id: string, patch: Doc
     } else set.contractId = null;
   }
   if (patch.warehouseId !== undefined) set.warehouseId = patch.warehouseId;
-  if (patch.operation !== undefined && (type === 'stock_transfer' || type === 'production_order' || type === 'production')) set.operation = operation;
+  if (patch.operation !== undefined && (type === 'stock_transfer' || type === 'production_order' || type === 'production' || DOCUMENT_OPERATION_CHOICES[type])) set.operation = operation;
+  if (patch.tollingOrderId !== undefined && meta.tolling) {
+    if (patch.tollingOrderId) await assertProcessingOrder(db, patch.tollingOrderId);
+    set.tollingOrderId = patch.tollingOrderId;
+  }
   if (patch.inUseMemberId !== undefined && type === 'stock_transfer') set.inUseMemberId = patch.inUseMemberId;
   if (patch.inUseWorkCenterId !== undefined && type === 'stock_transfer') set.inUseWorkCenterId = patch.inUseWorkCenterId;
   if (patch.targetWarehouseId !== undefined && (meta.stockRole === 'transfer' || meta.production)) set.targetWarehouseId = patch.targetWarehouseId;

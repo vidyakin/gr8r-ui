@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { CalendarRange, CircleAlert, FileText, Plus, Send, Trash2, Undo2, Wand2 } from 'lucide-react';
-import { PRODUCTION_ORDER_STATES } from '@gr8r/shared';
+import { MATERIAL_OWNERS, MATERIAL_OWNER_LABELS, PRODUCTION_ORDER_STATES } from '@gr8r/shared';
 import { Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
 import { fmtDate } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';
@@ -287,6 +287,9 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
                   <th style={{ width: 100 }} className="r">
                     Qty
                   </th>
+                  {order.processingOrderId && (
+                    <th style={{ width: 150 }}>Owner</th>
+                  )}
                   <th style={{ width: 90 }} className="r">
                     Hours
                   </th>
@@ -302,6 +305,21 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
                       <span className="trunc">{c.kind === 'work' ? c.operation : c.kind === 'semi' ? 'Semi-finished product' : c.kind === 'output' ? 'Output' : 'Material'}</span>
                     </td>
                     <td className="r num">{c.kind === 'work' ? '—' : c.qty}</td>
+                    {order.processingOrderId && (
+                      <td>
+                        {c.kind === 'work' || c.kind === 'expense' ? (
+                          <span className="muted">{MATERIAL_OWNER_LABELS.own}</span>
+                        ) : (
+                          <Select
+                            aria-label="Owner"
+                            disabled={!canWrite || order.status !== 'draft'}
+                            value={c.ownerKind}
+                            onValueChange={v => void api.run('PATCH', `/production-orders/${order.id}/components/${c.id}`, { ownerKind: v })}
+                            options={MATERIAL_OWNERS.map(o => ({ value: o, label: MATERIAL_OWNER_LABELS[o] }))}
+                          />
+                        )}
+                      </td>
+                    )}
                     <td className="r num">{c.kind === 'work' ? c.hours : '—'}</td>
                     <td className="r num">{c.plannedCost === null ? '—' : money(c.plannedCost)}</td>
                   </tr>

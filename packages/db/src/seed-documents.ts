@@ -13,7 +13,8 @@ import './internal-ops';
 import { bankAccounts, companies, costItems, documentLines, organizations, productManufacturing, products, stockLevels, tasks, timeLogs, warehouses, workCenters, workspaces, manufacturedItems } from './schema';
 import { productionPlanLines, productionPlans } from './schema';
 import { planPeriods } from '@gr8r/shared';
-import { createProductionFromOrder, createProductionOrder, createSupplierOrdersForOrder, fillOrderFromBom } from './production';
+import { createProductionFromOrder, createProductionOrder, createSupplierOrdersForOrder, fillOrderFromBom, setComponentOwner } from './production';
+import { createProcessorReport, createProcessorTransfer } from './tolling';
 import { createOtherCosts } from './other-costs';
 import { closePeriodMonth } from './cost-closing';
 import { assignOperations, createPieceworkOrder } from './piecework';
@@ -500,6 +501,91 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
     ],
   });
   await postDocument(db, ctx, otherCosts);
+  /* ---------- этап 8: переработка давальческого сырья и свой склад переработчика ---------- */
+  // заказ на переработку: заказ покупателя с видом операции «Переработка» (давалец — ООО «Кванта»)
+  const processingOrder = await createDocument(db, ctx, {
+    type: 'customer_order',
+    operation: 'processing',
+    counterpartyId: co.quanta,
+    warehouseId: shop!.id,
+    date: iso(2),
+    comment: 'Партия стульев «Лофт» из сырья заказчика',
+    lines: [{ productId: P('SV-ASM').id, qty: '6', price: '18000', discountPct: '0' }],
+  });
+  await postAt(processingOrder, 2);
+  // приём давальческого сырья: количество на остаток давальца, свой склад и средняя не меняются
+  const tollingReceipt = await createDocument(db, ctx, {
+    type: 'tolling_receipt',
+    counterpartyId: co.quanta,
+    warehouseId: shop!.id,
+    tollingOrderId: processingOrder,
+    date: iso(2),
+    comment: 'Приём дуба и фурнитуры заказчика',
+    lines: [buy('MT-OAK-5050', 24), buy('HW-SCR-440', 96)],
+  });
+  await postAt(tollingReceipt, 2);
+  // заказ на производство по заказу на переработку и выпуск: давальское сырьё списывается, продукция — давальцу
+  const tollingProdOrder = await createProductionOrder(db, ctx, {
+    processingOrderId: processingOrder,
+    workCenterId: assemblyCenter!.id,
+    warehouseId: shop!.id,
+    targetWarehouseId: shop!.id,
+    date: iso(1),
+    comment: 'Стулья «Лофт» из сырья заказчика',
+    items: [{ itemId: loft!.id, qty: '4' }],
+  });
+  await fillOrderFromBom(db, ctx, tollingProdOrder);
+  // упаковка своя — в одном выпуске можно смешать давальческое сырьё и своё
+  const tollingPack = (await db.select({ id: productionComponents.id }).from(productionComponents).where(and(eq(productionComponents.documentId, tollingProdOrder), eq(productionComponents.productId, P('MT-PKG-1').id)))).at(0);
+  if (tollingPack) await setComponentOwner(db, ctx, tollingProdOrder, tollingPack.id, 'own');
+  await postAt(tollingProdOrder, 1);
+  // склад продукции указываем явно: иначе выпуск приходует её на склад участка, а не туда, где числится сырьё давальца
+  const tollingRelease = await createProductionFromOrder(db, ctx, tollingProdOrder, { date: iso(1), targetWarehouseId: shop!.id, lines: [{ orderItemId: (await db.select().from(productionItems).where(eq(productionItems.documentId, tollingProdOrder))).map(i => i.id)[0]!, qty: '4' }] });
+  await postAt(tollingRelease, 1);
+  // отчёт о переработке: продукция отдана давальцу, использованное сырьё списано, отходы вернулись
+  const tollingReport = await createDocument(db, ctx, {
+    type: 'tolling_report',
+    counterpartyId: co.quanta,
+    warehouseId: shop!.id,
+    tollingOrderId: processingOrder,
+    date: iso(1),
+    comment: 'Отчёт о переработке партии',
+    lines: [
+      { productId: P('FRN-003').id, qty: '4', price: '18000', discountPct: '0', vatRate: '20', tollingRole: 'product' },
+      { productId: P('MT-OAK-5050').id, qty: '4', price: '0', discountPct: '0', vatRate: 'none', tollingRole: 'material' },
+      { productId: P('MT-OAK-5050').id, qty: '1', price: '0', discountPct: '0', vatRate: 'none', tollingRole: 'waste' },
+    ],
+  });
+  await postAt(tollingReport, 1);
+
+  // свой склад переработчика: склад контрагента + заказ поставщику на переработку и передача сырья
+  const [procWh] = await db.insert(warehouses).values({ workspaceId: wsId, name: 'Склад переработчика «Вихрь»', code: 'VIKHR', address: 'г. Москва, ул. Складочная, 3', counterpartyId: co.atlas }).returning();
+  const procOrder = await createDocument(db, ctx, {
+    type: 'supplier_order',
+    operation: 'processing',
+    counterpartyId: co.atlas,
+    warehouseId: main!.id,
+    date: iso(1),
+    comment: 'Передача деталей в обработку',
+    lines: [buy('MT-EDG-2', 120)],
+  });
+  await postAt(procOrder, 1);
+  const procTransfer = await createProcessorTransfer(db, ctx, procOrder, { date: iso(1) });
+  await postAt(procTransfer, 1);
+  // отчёт переработчика: материалы с его склада и услуга окраски — в себестоимость продукции
+  const procReport = await createProcessorReport(db, ctx, {
+    itemId: loft!.id,
+    qty: '4',
+    processorWarehouseId: procWh!.id,
+    warehouseId: fg!.id,
+    workCenterId: assemblyCenter!.id,
+    date: iso(1),
+    basedOnId: procOrder,
+    materials: [{ productId: P('MT-EDG-2').id, qty: '24' }],
+    services: [{ productId: P('SV-ASM').id, qty: '4', price: '350' }],
+  });
+  await postAt(procReport, 1);
+
   // закрытый месяц: закрываем месяц выпуска — косвенные затраты распределяются, средняя склада пересчитывается
   const closedMonth = iso(3).slice(0, 7);
   await closePeriodMonth(db, ctx, closedMonth);
@@ -507,5 +593,5 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
   const { end } = monthPeriod(closedMonth);
   await db.update(workspaces).set({ closedThrough: end, closeMovesLock: false }).where(eq(workspaces.id, wsId));
 
-  return { documents: 27, workOrder, closedMonth };
+  return { documents: 34, workOrder, closedMonth, processingOrder };
 }

@@ -2,7 +2,7 @@
 import { z } from 'zod';
 import { VAT_RATES } from '../constants';
 import { COST_DISTRIBUTIONS } from '../cost-closing';
-import { COST_ITEM_KINDS, DOCUMENT_GROUPS, DOCUMENT_STATUSES, DOCUMENT_TYPES, PRINT_FORMS, TRANSFER_OPERATIONS, WAREHOUSE_KINDS } from '../documents';
+import { COST_ITEM_KINDS, DOCUMENT_GROUPS, DOCUMENT_OPERATIONS, DOCUMENT_STATUSES, DOCUMENT_TYPES, PRINT_FORMS, TOLLING_ROLES, TRANSFER_OPERATIONS, WAREHOUSE_KINDS } from '../documents';
 import { COMPANY_KINDS, TAX_SYSTEMS } from '../ru';
 import { clientId, decimal, isoDate, listQuery, queryBool, shortText, toPatch, uuid } from './common';
 import { customData } from './meta';
@@ -79,6 +79,8 @@ export const warehouseCreate = z.object({
   address: z.string().trim().max(500).default(''),
   /** Вид склада: обычный склад, цех участка или служебный «в пути» */
   kind: z.enum(WAREHOUSE_KINDS).default('warehouse'),
+  /** Склад контрагента: место хранения на стороне контрагента (склад переработчика) */
+  counterpartyId: uuid.nullish(),
   isDefault: z.boolean().optional(),
 });
 export const warehouseUpdate = toPatch(warehouseCreate.omit({ id: true }));
@@ -131,6 +133,8 @@ export const documentLineInput = z
     costItemId: uuid.nullish(),
     /** Участок строки-услуги (поступление): участные затраты идут на выпуск своего участка */
     workCenterId: uuid.nullish(),
+    /** Вкладка строки отчёта о переработке: продукция, использованное сырьё или отходы */
+    tollingRole: z.enum(TOLLING_ROLES).optional(),
     /** Значения параметров спецификации изделия (заказ покупателя): состав выпуска считается формулами строк спецификации */
     params: paramValues.optional(),
   })
@@ -149,8 +153,10 @@ export const documentCreate = z.object({
   warehouseId: uuid.nullish(),
   /** Склад-получатель (перемещение между складами) */
   targetWarehouseId: uuid.nullish(),
-  /** Вид перемещения: сразу, «в пути», в эксплуатацию или обратно (только у перемещения) */
-  operation: z.enum(TRANSFER_OPERATIONS).optional(),
+  /** Вид операции документа: вид перемещения у перемещения, «Переработка» у заказов и выпуска */
+  operation: z.enum([...TRANSFER_OPERATIONS, ...DOCUMENT_OPERATIONS]).optional(),
+  /** Заказ на переработку (приём, отчёт о переработке, возврат остатков) */
+  tollingOrderId: uuid.nullish(),
   /** Получатель в эксплуатацию: участник или участок (ровно один) */
   inUseMemberId: uuid.nullish(),
   inUseWorkCenterId: uuid.nullish(),

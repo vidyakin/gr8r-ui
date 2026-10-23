@@ -2,7 +2,7 @@
    Данные лежат в кэше TanStack Query под ключом ['ws', id, 'production-orders', …]. */
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PRODUCTION_ORDER_STATES, type DocumentStatus } from '@gr8r/shared';
+import { PRODUCTION_ORDER_STATES, type DocumentStatus, type MaterialOwner } from '@gr8r/shared';
 import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';
@@ -28,6 +28,8 @@ export interface ProductionComponent {
   documentId: string;
   itemId: string | null;
   kind: 'material' | 'semi' | 'work' | 'expense' | 'output';
+  /** Чей материал: наш (списывается по средней) или давальца (с остатка давальца) */
+  ownerKind: MaterialOwner;
   productId: string | null;
   workCenterId: string | null;
   operation: string;
@@ -66,6 +68,8 @@ export interface ProductionOrderDetail extends ProductionOrderListItem {
   outputs: { id: string; number: string | null; status: DocumentStatus; date: string }[];
   warehouseId: string | null;
   targetWarehouseId: string | null;
+  /** Заказ на переработку: выпуск делается из давальческого сырья */
+  processingOrderId: string | null;
 }
 
 export const STATE_LABEL: Record<string, string> = Object.fromEntries(PRODUCTION_ORDER_STATES.map(s => [s.key, s.label]));
@@ -80,6 +84,8 @@ export interface MaterialCoverageRow {
   productName: string;
   unitCode: string;
   kind: 'material' | 'semi';
+  /** Чей материал: наш или давальца (у давальца потребность обеспечивает сам давалец) */
+  ownerKind: MaterialOwner;
   /** Нужно по заказу */
   need: string;
   /** Списано выпусками */

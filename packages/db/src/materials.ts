@@ -1,11 +1,12 @@
 /* Обеспечение материалов заказа на производство: резерв под заказ, размещение (заказы поставщикам и дочерние
    заказы на полуфабрикаты) и покрытие строки материала. Правила — docs/architecture.md, раздел «Склад». */
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
-import { dec, fmt, materialCoverage, type Dec, type MaterialCoverage } from '@gr8r/shared';
+import { dec, fmt, materialCoverage, type Dec, type MaterialCoverage, type MaterialOwner } from '@gr8r/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { DOCUMENT_HOOKS } from './document-hooks';
-import { documentLines, documents, products, productionComponents, productionPlacements, stockBalances, stockMoves, stockReservations, warehouses } from './schema';
+import { documentLines, documents, products, productionComponents, productionHeaders, productionPlacements, stockBalances, stockMoves, stockReservations, warehouses } from './schema';
+import { customerStockBalances } from './schema';
 import { lockFreeStock } from './stock';
 
 const key = (warehouseId: string, productId: string) => `${warehouseId}:${productId}`;
@@ -44,7 +45,21 @@ async function reservedByComponent(db: Db, componentIds: string[]): Promise<Map<
   return new Map(rows.map(r => [r.component!, dec(r.qty)]));
 }
 
-/* ---------------- размещение ---------------- */
+/** Остаток давальца по (склад, товар): сколько сырья заказа на переработку доступно под выпуск.
+    Строки материала, которые даёт давалец, не считаются дефицитом — они обеспечены давальцем */
+async function customerAvailability(db: Db, orderId: string, productIds: string[]): Promise<Map<string, Dec>> {
+  const [header] = await db.select({ processingOrderId: productionHeaders.processingOrderId }).from(productionHeaders).where(eq(productionHeaders.documentId, orderId)).limit(1);
+  const processingOrderId = header?.processingOrderId ?? null;
+  if (!processingOrderId) return new Map();
+  const [order] = await db.select({ counterpartyId: documents.counterpartyId, warehouseId: documents.warehouseId }).from(documents).where(eq(documents.id, processingOrderId)).limit(1);
+  if (!order?.counterpartyId || !order.warehouseId || !productIds.length) return new Map();
+  const rows = await db
+    .select({ productId: customerStockBalances.productId, qty: sql<string>`sum(${customerStockBalances.qty})::text` })
+    .from(customerStockBalances)
+    .where(and(eq(customerStockBalances.warehouseId, order.warehouseId), eq(customerStockBalances.ownerCompanyId, order.counterpartyId), eq(customerStockBalances.processingOrderId, processingOrderId), inArray(customerStockBalances.productId, productIds)))
+    .groupBy(customerStockBalances.productId);
+  return new Map(rows.map(r => [r.productId, dec(r.qty)]));
+}
 
 /** Размещение строки материала: заказы поставщикам (по строке заказа) и дочерние заказы на полуфабрикаты */
 export interface PlacementRow {
@@ -138,6 +153,8 @@ export interface MaterialRow extends MaterialCoverage {
   productName: string;
   unitCode: string;
   kind: 'material' | 'semi';
+  /** Чей материал: наш или давальца (у давальца потребность обеспечивает сам давалец) */
+  ownerKind: MaterialOwner;
   /** Склад резерва (если резерв есть) */
   reserveWarehouseId: string | null;
   /** Свободно для резерва на складе резерва */
@@ -159,6 +176,9 @@ export async function materialRows(db: Db, orderId: string): Promise<MaterialRow
   const prodRows = await db.select({ id: products.id, name: products.name, unitCode: products.unitCode }).from(products).where(inArray(products.id, productIds));
   const byProduct = new Map(prodRows.map(p => [p.id, p]));
   const [written, reserved, placements] = await Promise.all([writtenByComponent(db, ids), reservedByComponent(db, ids), placementsByComponent(db, ids)]);
+  // давальское сырьё заказа на переработку обеспечивает давалец: свой резерв и дефицит по нему не считаем
+  const customerQty = await customerAvailability(db, orderId, productIds);
+  const customerComponents = new Set(comps.filter(c => c.ownerKind === 'customer').map(c => c.id));
   // остатки и резерв по товарам
   const balances = await db.select({ warehouseId: stockBalances.warehouseId, productId: stockBalances.productId, qty: stockBalances.qty }).from(stockBalances).where(inArray(stockBalances.productId, productIds));
   const allRes = await db.select({ warehouseId: stockReservations.warehouseId, productId: stockReservations.productId, qty: sql<string>`sum(${stockReservations.qty})` }).from(stockReservations).where(inArray(stockReservations.productId, productIds)).groupBy(stockReservations.warehouseId, stockReservations.productId);
@@ -181,11 +201,13 @@ export async function materialRows(db: Db, orderId: string): Promise<MaterialRow
     const placed = list.reduce((s, p) => s + (p.documentLineId ? (p.qty > p.received ? p.qty - p.received : 0n) : p.qty), 0n);
     const incomingRows = await incomingByProduct(db, c.productId!);
     const incoming = incomingRows.reduce((s, p) => s + p.qty, 0n);
-    const res = reserved.get(c.id) ?? 0n;
-    const own = resRows.filter(r => r.r.productionComponentId === c.id);
+    const res = customerComponents.has(c.id) ? 0n : (reserved.get(c.id) ?? 0n);
+    const own = customerComponents.has(c.id) ? [] : resRows.filter(r => r.r.productionComponentId === c.id);
     const totalHand = [...onHand.entries()].filter(([k]) => k.endsWith(`:${c.productId}`)).reduce((s, [, v]) => s + v, 0n);
+    // потребность давальческого сырья уменьшается на остаток давальца по этому заказу
+    const need = customerComponents.has(c.id) ? (dec(c.qty) > (customerQty.get(c.productId!) ?? 0n) ? dec(c.qty) - (customerQty.get(c.productId!) ?? 0n) : 0n) : dec(c.qty);
     const coverage = materialCoverage({
-      need: c.qty,
+      need: fmt(need, 3),
       written: fmt(written.get(c.id) ?? 0n, 3),
       reserved: fmt(res, 3),
       placed: fmt(placed, 3),
@@ -205,6 +227,7 @@ export async function materialRows(db: Db, orderId: string): Promise<MaterialRow
       productName: byProduct.get(c.productId!)?.name ?? '',
       unitCode: byProduct.get(c.productId!)?.unitCode ?? '796',
       kind: c.kind as 'material' | 'semi',
+      ownerKind: (c.ownerKind ?? 'own') as MaterialOwner,
       reserveWarehouseId,
       freeAtReserve: fmt(freeAtReserve, 3),
       reserves: own.map(r => ({ warehouseId: r.r.warehouseId, warehouseName: whName.get(r.r.warehouseId) ?? '', qty: fmt(dec(r.r.qty), 3), orderNumber: r.doc.number })),
@@ -222,7 +245,8 @@ export async function materialRows(db: Db, orderId: string): Promise<MaterialRow
 export async function reserveOrderMaterials(db: Db, workspaceId: string, orderId: string): Promise<void> {
   const [doc] = await db.select().from(documents).where(eq(documents.id, orderId)).limit(1);
   if (!doc || !doc.warehouseId) return;
-  const comps = (await orderMaterialComponents(db, orderId)).filter(c => c.productId);
+  // давальское сырьё со своего склада не резервируется: его обеспечивает давалец
+  const comps = (await orderMaterialComponents(db, orderId)).filter(c => c.productId && c.ownerKind !== 'customer');
   if (!comps.length) return;
   const free = await lockFreeStock(db, workspaceId, comps.map(c => ({ warehouseId: doc.warehouseId!, productId: c.productId! })));
   for (const c of comps) {

@@ -176,6 +176,13 @@
       "when": 1792712763860,
       "tag": "0024_disassembly",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792724391156,
+      "tag": "0025_stage8_tolling",
+      "breakpoints": true
     }
   ]
 }

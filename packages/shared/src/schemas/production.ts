@@ -1,6 +1,7 @@
 /* zod-схемы производства: участки, продукция (изделия и полуфабрикаты), строки спецификации, настройки. */
 import { z } from 'zod';
 import { BOM_KINDS, MANUFACTURED_KINDS, MATERIAL_PRICE_SOURCES, NEEDS_METHODS, OPERATION_RATE_UNITS, PARAM_TYPES, PLAN_STEPS, PLAN_STATUSES, REPLENISHMENT_MODES, SEMI_MODES, SPEC_MODES, STOCK_REPLENISHMENT } from '../constants';
+import { MATERIAL_OWNERS } from '../documents';
 import { CALENDAR_KINDS, LOAD_ROW_TYPES } from '../planning';
 import { PARAM_KEY_RE } from '../parameters';
 import { clientId, decimal, isoDate, isoDateTime, listQuery, shortText, toPatch, uuid } from './common';
@@ -635,6 +636,8 @@ export const productionOrderCreate = z.object({
   comment: z.string().max(5000).default(''),
   /** Родительский заказ на производство (дочерний заказ на полуфабрикат) */
   parentDocumentId: uuid.nullish(),
+  /** Заказ на переработку: выпуск из давальческого сырья, продукция уходит на остаток давальца */
+  processingOrderId: uuid.nullish(),
   items: z.array(productionOrderItemInput).max(200).default([]),
 });
 export const productionOrderUpdate = toPatch(productionOrderCreate.omit({ id: true }));
@@ -862,3 +865,42 @@ export const otherCostsUpdate = z.object({
   lines: z.array(otherCostLineInput).min(1).max(200).optional(),
 });
 export const otherCostsQuery = listQuery.extend({ from: isoDate.optional(), to: isoDate.optional(), q: z.string().trim().max(200).optional() });
+
+/* ---------------- переработка давальческого сырья ---------------- */
+
+/** Журнал заказов на переработку (заказы покупателей с видом операции «Переработка») */
+export const processingOrderQuery = listQuery.extend({
+  status: z.enum(['draft', 'posted', 'cancelled']).optional(),
+});
+
+/** Отчёт «Stock received for processing»: остатки давальцев по складу, товару, давальцу и заказу */
+export const customerBalanceQuery = z.object({
+  warehouseId: uuid.optional(),
+  productId: uuid.optional(),
+  ownerCompanyId: uuid.optional(),
+  processingOrderId: uuid.optional(),
+  q: z.string().trim().max(200).optional(),
+});
+
+/** Признак «чей материал» у строки состава заказа на производство */
+export const materialOwnerUpdate = z.object({ ownerKind: z.enum(MATERIAL_OWNERS) });
+
+/** Отчёт переработчика: выпуск на складе переработчика — что вернул, какие материалы потратил и услуги */
+export const processorReportCreate = z.object({
+  /** Изделие, которое вернул переработчик */
+  itemId: uuid,
+  qty: positive(1e12),
+  /** Склад переработчика (склад контрагента): оттуда списываются наши материалы */
+  processorWarehouseId: uuid,
+  /** Наш склад: куда приходит продукция */
+  warehouseId: uuid,
+  workCenterId: uuid.nullish(),
+  date: isoDate.optional(),
+  comment: z.string().max(5000).default(''),
+  /** Заказ поставщику с видом операции «Переработка» (основание отчёта) */
+  basedOnId: uuid.nullish(),
+  /** Услуги переработчика: цена идёт в себестоимость продукции */
+  services: z.array(z.object({ productId: uuid, qty: positive(1e12), price: nonNeg() })).max(20).optional(),
+  /** Материалы по факту; без них берётся спецификация изделия */
+  materials: z.array(z.object({ productId: uuid, qty: positive(1e12) })).max(200).optional(),
+});
