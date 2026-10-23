@@ -15,6 +15,7 @@ import { useWsId } from '../meta/data';
 import { money, unitSymbol, useUnits, type Unit } from '../catalog/data';
 import { UnitSelect } from '../catalog/product-ui';
 import { PRICE_SOURCE_LABEL, useCosting, useExplosion, useProductionMutations, useSnapshot, type BomLine, type Item, type Material, type NeedRow, type ProductionMutations, type Snapshot, type WorkCenter } from './data';
+import { t, useT } from '@/i18n';
 import { LineDialog } from './line-dialog';
 import { ParamEditor } from './params-editor';
 
@@ -27,6 +28,7 @@ interface Ctx {
   mats: Map<string, Material>;
   centers: Map<string, WorkCenter>;
   items: Map<string, Item>;
+  tt: ReturnType<typeof useT>;
 }
 
 /** Строка дерева: стоимость и количество приведены к вкладу в партию корневого изделия */
@@ -46,18 +48,18 @@ interface Flat {
 }
 
 function lineTitle(line: BomLine, c: Ctx) {
-  if (line.kind === 'material' || line.kind === 'expense' || line.kind === 'output') return c.mats.get(line.productId ?? '')?.name ?? 'Unknown material';
-  if (line.kind === 'semi') return c.items.get(line.childItemId ?? '')?.name ?? 'Unknown product';
-  return line.operation || 'Operation';
+  if (line.kind === 'material' || line.kind === 'expense' || line.kind === 'output') return c.mats.get(line.productId ?? '')?.name ?? c.tt('production.item.unknownMaterial');
+  if (line.kind === 'semi') return c.items.get(line.childItemId ?? '')?.name ?? c.tt('production.item.unknownProduct');
+  return line.operation || c.tt('production.item.operationLabel');
 }
 
 function detail(line: BomLine, c: Ctx) {
   if (line.kind === 'output') {
     return (
       <span className="faint">
-        {line.costShare ? <>cost share {trimZeros(line.costShare)}%</> : <>cost share: by sale price</>}
-        {line.qtyExpr && <> · formula {line.qtyExpr}</>}
-        {line.condition && <> · if {line.condition}</>}
+        {line.costShare ? c.tt('production.item.costShare', { pct: trimZeros(line.costShare) }) : c.tt('production.item.costShareSale')}
+        {line.qtyExpr && <> · {c.tt('production.item.formula', { expr: line.qtyExpr })}</>}
+        {line.condition && <> · {c.tt('production.item.condIf', { cond: line.condition })}</>}
       </span>
     );
   }
@@ -67,29 +69,28 @@ function detail(line: BomLine, c: Ctx) {
     const price = m ? (src === 'price' ? m.price : src === 'avg_cost' ? (m.avgCost ?? m.purchasePrice) : m.purchasePrice) : '0';
     return (
       <span className="faint">
-        {Number(line.scrapPct) > 0 && <>scrap {trimZeros(line.scrapPct)}% · </>}@ {money(price)}
-        {line.qtyExpr && <> · formula {line.qtyExpr}</>}
-        {line.condition && <> · if {line.condition}</>}
+        {Number(line.scrapPct) > 0 && <>{c.tt('production.item.scrap', { pct: trimZeros(line.scrapPct) })} · </>}{c.tt('production.item.atPrice', { price: money(price) })}
+        {line.qtyExpr && <> · {c.tt('production.item.formula', { expr: line.qtyExpr })}</>}
+        {line.condition && <> · {c.tt('production.item.condIf', { cond: line.condition })}</>}
       </span>
     );
   }
   if (line.kind === 'semi') {
     const child = c.items.get(line.childItemId ?? '');
-    return <span className="faint">batch of {child ? qtyText(child.batchQty) : '?'}</span>;
+    return <span className="faint">{c.tt('production.item.bomBatchOf', { qty: child ? qtyText(child.batchQty) : '?' })}</span>;
   }
   const rate = line.rate ?? c.centers.get(line.workCenterId ?? '')?.hourlyRate ?? '0';
   const center = c.centers.get(line.workCenterId ?? '');
   return (
     <span className="faint">
       {center && <>{center.name} · </>}
-      {Number(line.hours) > 0 && <>{money(rate)}/h</>}
-      {Number(line.fixedCost ?? 0) > 0 && <>{Number(line.hours) > 0 ? ' + ' : ''}fixed {money(line.fixedCost)}</>}
+      {Number(line.hours) > 0 && <>{t('production.common.perHour', { amount: money(rate) })}</>}
+      {Number(line.fixedCost ?? 0) > 0 && <>{Number(line.hours) > 0 ? ' + ' : ''}{c.tt('production.item.fixedCost', { amount: money(line.fixedCost) })}</>}
     </span>
   );
 }
 
 const KIND_ICON = { material: Package, semi: Layers, work: Wrench, expense: Package, output: Package } as const;
-const KIND_LABEL = { material: 'Material', semi: 'Semi-finished', work: 'Work', expense: 'Expense', output: 'Output' } as const;
 
 /** Печатная форма спецификации: готовая HTML-страница открывается в новом окне и печатается */
 export function printSpec(ws: string, itemId: string, form: 'short' | 'expanded') {
@@ -125,7 +126,7 @@ export function ItemPage() {
   if (snap.isError)
     return (
       <div className="page wide">
-        <EmptyState icon={<CircleAlert size={20} />} error title="Could not load production data" action={<Button size="sm" onClick={() => snap.refetch()}>Retry</Button>}>
+        <EmptyState icon={<CircleAlert size={20} />} error title={t('production.item.loadFailed')} action={<Button size="sm" onClick={() => snap.refetch()}>{t('production.common.retry')}</Button>}>
           {(snap.error as Error).message}
         </EmptyState>
       </div>
@@ -141,6 +142,7 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
   const ws = useWsId();
   const unitsQ = useUnits();
   const m = useProductionMutations();
+  const tt = useT();
   const costing = useCosting(snap)!;
   const { tree, error } = costing(item.id);
   // вид производства изделия: этапы, на которых расходуются материалы и выполняются операции
@@ -156,8 +158,8 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
   const [overId, setOverId] = React.useState<string | null>(null);
 
   const ctx: Ctx = React.useMemo(
-    () => ({ snap, units: unitsQ.data, mats: new Map(snap.materials.map(x => [x.id, x])), centers: new Map(snap.workCenters.map(x => [x.id, x])), items: new Map(snap.items.map(x => [x.id, x])) }),
-    [snap, unitsQ.data],
+    () => ({ snap, units: unitsQ.data, mats: new Map(snap.materials.map(x => [x.id, x])), centers: new Map(snap.workCenters.map(x => [x.id, x])), items: new Map(snap.items.map(x => [x.id, x])), tt }),
+    [snap, unitsQ.data, tt],
   );
 
   // Потребность в материалах: остатки считает сервер, поэтому запрос отдельный
@@ -233,16 +235,16 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
     <div className="page wide bom-page">
       <div className="bom-crumb">
         <Link to="/production" className="crm-link">
-          Production
+          {tt('production.section.production')}
         </Link>
         <ChevronRight size={13} className="faint" />
-        <span className="muted">{item.kind === 'semi' ? 'Semi-finished' : 'Product'}</span>
+        <span className="muted">{item.kind === 'semi' ? tt('production.line.kind.semi') : tt('production.line.kind.material')}</span>
       </div>
       <div className="ph" style={{ marginBottom: 12 }}>
         <div className="grow" style={{ minWidth: 260 }}>
           <input
             className="ttl-edit bom-title"
-            aria-label="Name"
+            aria-label={tt('production.field.name')}
             defaultValue={item.name}
             readOnly={!canWrite}
             onBlur={e => {
@@ -254,11 +256,11 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
           />
           <p>
             {item.code && <span className="mono">{item.code} · </span>}
-            Bill of materials for {qtyText(item.batchQty)} {unit}
+            {tt('production.item.bomForBatch', { qty: qtyText(item.batchQty), unit })}
             {parents.length > 0 && (
               <>
-                {' '}
-                · used in{' '}
+                {' · '}
+                {tt('production.item.bomUsedIn')}{' '}
                 {parents.map((p, i) => (
                   <React.Fragment key={p.id}>
                     {i > 0 && ', '}
@@ -274,7 +276,7 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
         <div className="acts">
           <Button variant={needOn ? 'primary' : 'secondary'} aria-pressed={needOn} onClick={() => setNeedOn(v => !v)}>
             <Boxes size={14} />
-            Needs
+            {tt('production.section.needs')}
           </Button>
           {canWrite && (
             <>
@@ -282,32 +284,32 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
                 <MenuTrigger asChild>
                   <Button variant="primary">
                     <Plus size={14} />
-                    Add line
+                    {tt('production.item.addLine')}
                   </Button>
                 </MenuTrigger>
                 <MenuContent align="end">
                   {item.mode === 'disassembly' ? (
                     <>
                       <MenuItem icon={<Package size={15} />} onSelect={() => setDialog({ kind: 'output' })}>
-                        Output product
+                        {tt('production.line.kind.output')}
                       </MenuItem>
                       <MenuItem icon={<Wrench size={15} />} onSelect={() => setDialog({ kind: 'work' })}>
-                        Work operation
+                        {tt('production.line.kind.work')}
                       </MenuItem>
                     </>
                   ) : (
                     <>
                       <MenuItem icon={<Package size={15} />} onSelect={() => setDialog({ kind: 'material' })}>
-                        Material
+                        {tt('production.line.kind.material')}
                       </MenuItem>
                       <MenuItem icon={<Layers size={15} />} onSelect={() => setDialog({ kind: 'semi' })}>
-                        Semi-finished product
+                        {tt('production.line.kind.semi')}
                       </MenuItem>
                       <MenuItem icon={<Wrench size={15} />} onSelect={() => setDialog({ kind: 'work' })}>
-                        Work operation
+                        {tt('production.line.kind.work')}
                       </MenuItem>
                       <MenuItem icon={<Package size={15} />} onSelect={() => setDialog({ kind: 'expense' })}>
-                        Expense (contractor service)
+                        {tt('production.line.kind.expense')}
                       </MenuItem>
                     </>
                   )}
@@ -315,20 +317,20 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
               </Menu>
               <Menu>
                 <MenuTrigger asChild>
-                  <IconButton label="More" tooltip={false}>
+                  <IconButton label={tt('production.item.more')} tooltip={false}>
                     <Ellipsis size={16} />
                   </IconButton>
                 </MenuTrigger>
                 <MenuContent align="end">
                   <MenuItem icon={<Printer size={15} />} onSelect={() => printSpec(ws, item.id, 'short')}>
-                    Print (short)
+                    {tt('production.item.printShort')}
                   </MenuItem>
                   <MenuItem icon={<Printer size={15} />} onSelect={() => printSpec(ws, item.id, 'expanded')}>
-                    Print (expanded)
+                    {tt('production.item.printExpanded')}
                   </MenuItem>
                   <MenuSeparator />
                   <MenuItem icon={<Trash2 size={15} />} danger onSelect={() => setDeleting(true)}>
-                    Archive product
+                    {tt('production.item.archive')}
                   </MenuItem>
                 </MenuContent>
               </Menu>
@@ -337,45 +339,45 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
         </div>
       </div>
 
-      <div className="bom-params" aria-label="Parameters">
+      <div className="bom-params" aria-label={tt('production.params.title')}>
         <label>
-          <span className="label">Type</span>
-          <select className="select" value={item.kind} disabled={!canWrite} aria-label="Type" onChange={e => m.updateItem.mutate({ id: item.id, patch: { kind: e.target.value } })}>
-            <option value="product">Product</option>
-            <option value="semi">Semi-finished</option>
+          <span className="label">{tt('production.field.type')}</span>
+          <select className="select" value={item.kind} disabled={!canWrite} aria-label={tt('production.field.type')} onChange={e => m.updateItem.mutate({ id: item.id, patch: { kind: e.target.value } })}>
+            <option value="product">{tt('production.line.kind.material')}</option>
+            <option value="semi">{tt('production.line.kind.semi')}</option>
           </select>
         </label>
         <label>
-          <span className="label">Kind of specification</span>
-          <select className="select" value={item.mode ?? 'assembly'} disabled={!canWrite} aria-label="Kind of specification" onChange={e => m.updateItem.mutate({ id: item.id, patch: { mode: e.target.value } })}>
-            <option value="assembly">Assembly</option>
-            <option value="disassembly">Disassembly</option>
+          <span className="label">{tt('production.line.fields.kind')}</span>
+          <select className="select" value={item.mode ?? 'assembly'} disabled={!canWrite} aria-label={tt('production.line.fields.kind')} onChange={e => m.updateItem.mutate({ id: item.id, patch: { mode: e.target.value } })}>
+            <option value="assembly">{tt('productionEnums.operation.assembly')}</option>
+            <option value="disassembly">{tt('productionEnums.operation.disassembly')}</option>
           </select>
         </label>
         <label>
-          <span className="label">Code</span>
-          <ParamInput label="Code" value={item.code} disabled={!canWrite} onCommit={v => m.updateItem.mutate({ id: item.id, patch: { code: v } })} />
+          <span className="label">{tt('production.field.code')}</span>
+          <ParamInput label={tt('production.field.code')} value={item.code} disabled={!canWrite} onCommit={v => m.updateItem.mutate({ id: item.id, patch: { code: v } })} />
         </label>
         <label>
-          <span className="label">Unit</span>
+          <span className="label">{tt('production.field.unit')}</span>
           {canWrite ? <UnitSelect value={item.unitCode} onChange={unitCode => m.updateItem.mutate({ id: item.id, patch: { unitCode } })} /> : <span>{unit}</span>}
         </label>
         <label>
-          <span className="label">Batch quantity</span>
-          <ParamInput label="Batch quantity" numeric value={qtyText(item.batchQty)} disabled={!canWrite} onCommit={v => Number(v) > 0 && m.updateItem.mutate({ id: item.id, patch: { batchQty: Number(v) } })} />
+          <span className="label">{tt('production.item.batchQty')}</span>
+          <ParamInput label={tt('production.item.batchQty')} numeric value={qtyText(item.batchQty)} disabled={!canWrite} onCommit={v => Number(v) > 0 && m.updateItem.mutate({ id: item.id, patch: { batchQty: Number(v) } })} />
         </label>
         <label>
-          <span className="label">Overhead, %</span>
-          <ParamInput label="Overhead" numeric value={trimZeros(Number(item.overheadPct).toFixed(2))} disabled={!canWrite} onCommit={v => Number(v) >= 0 && m.updateItem.mutate({ id: item.id, patch: { overheadPct: Number(v) } })} />
+          <span className="label">{tt('productionEnums.componentKind.material')}, %</span>
+          <ParamInput label={tt('productionEnums.componentKind.material')} numeric value={trimZeros(Number(item.overheadPct).toFixed(2))} disabled={!canWrite} onCommit={v => Number(v) >= 0 && m.updateItem.mutate({ id: item.id, patch: { overheadPct: Number(v) } })} />
         </label>
         <label>
-          <span className="label">Lead days</span>
-          <ParamInput label="Lead days" numeric value={String(item.leadDays ?? 0)} disabled={!canWrite} onCommit={v => Number(v) >= 0 && m.updateItem.mutate({ id: item.id, patch: { leadDays: Number(v) } })} />
+          <span className="label">{tt('production.item.bomLeadDays')}</span>
+          <ParamInput label={tt('production.item.bomLeadDays')} numeric value={String(item.leadDays ?? 0)} disabled={!canWrite} onCommit={v => Number(v) >= 0 && m.updateItem.mutate({ id: item.id, patch: { leadDays: Number(v) } })} />
         </label>
         <label>
-          <span className="label">Production kind</span>
-          <select className="select" value={item.productionKindId ?? ''} disabled={!canWrite} aria-label="Production kind" onChange={e => m.updateItem.mutate({ id: item.id, patch: { productionKindId: e.target.value || null } })}>
-            <option value="">No stages</option>
+          <span className="label">{tt('production.stages.title')}</span>
+          <select className="select" value={item.productionKindId ?? ''} disabled={!canWrite} aria-label={tt('production.stages.title')} onChange={e => m.updateItem.mutate({ id: item.id, patch: { productionKindId: e.target.value || null } })}>
+            <option value="">{tt('production.item.bomNoStages')}</option>
             {snap.kinds.map(k => (
               <option key={k.id} value={k.id}>
                 {k.name}
@@ -384,33 +386,33 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
           </select>
         </label>
         <label>
-          <span className="label">Need for</span>
-          <ParamInput label="Need for" numeric value={needQty} onCommit={v => Number(v) > 0 && setNeedQty(v)} />
+          <span className="label">{tt('production.item.bomNeedFor')}</span>
+          <ParamInput label={tt('production.item.bomNeedFor')} numeric value={needQty} onCommit={v => Number(v) > 0 && setNeedQty(v)} />
         </label>
         <label>
-          <span className="label">Invalid</span>
-          <input type="checkbox" aria-label="Invalid" checked={!!item.isInvalid} disabled={!canWrite} onChange={e => m.updateItem.mutate({ id: item.id, patch: { isInvalid: e.currentTarget.checked } })} />
+          <span className="label">{tt('production.item.bomInvalid')}</span>
+          <input type="checkbox" aria-label={tt('production.item.bomInvalid')} checked={!!item.isInvalid} disabled={!canWrite} onChange={e => m.updateItem.mutate({ id: item.id, patch: { isInvalid: e.currentTarget.checked } })} />
         </label>
       </div>
 
       <ParamEditor item={item} canWrite={canWrite} />
 
-      {error && <Alert tone="danger" title="The cost cannot be calculated">{error}</Alert>}
+      {error && <Alert tone="danger" title={tt('production.item.bomCostLine')}>{error}</Alert>}
 
-      <div className="bom" role="treegrid" aria-label="Bill of materials">
+      <div className="bom" role="treegrid" aria-label={tt('production.item.bom')}>
         <div className="bom-row head" role="row">
           <span>
-            Line{' '}
+            {tt('production.item.bomLine')}{' '}
             {allKeys().length > 0 && (
               <button type="button" className="bom-link" onClick={() => setOpen(s => (allKeys().every(k => s.has(k)) ? new Set() : new Set(allKeys())))}>
-                {allKeys().every(k => open.has(k)) ? 'Collapse all' : 'Expand all'}
+                {allKeys().every(k => open.has(k)) ? tt('production.item.bomCollapseAll') : tt('production.item.bomExpandAll')}
               </button>
             )}
           </span>
-          <span className="r">Quantity</span>
-          <span>Unit</span>
-          <span className="hide-s">Details</span>
-          <span className="r">Cost</span>
+          <span className="r">{tt('production.field.quantity')}</span>
+          <span>{tt('production.field.unit')}</span>
+          <span className="hide-s">{tt('production.field.note')}</span>
+          <span className="r">{tt('production.field.cost')}</span>
           <span />
         </div>
         {flat.map(f => {
@@ -421,7 +423,7 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
                   <span style={{ width: 14 }} />
                   <span style={{ width: 22 }} />
                   <span className="faint">
-                    Overhead of {f.child.name}, {trimZeros(Number(f.child.overheadPct).toFixed(2))}%
+                    {tt('production.item.bomOverheadOf', { name: f.child.name, pct: trimZeros(Number(f.child.overheadPct).toFixed(2)) })}
                   </span>
                 </span>
                 <span />
@@ -438,6 +440,14 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
           const scaledQty = fmt(mul(dec(l.kind === 'work' ? l.hours : l.qty), f.scale), 3);
           const scaledCost = fmt(mul(dec(f.cost.cost), f.scale), 2);
           const editable = root && canWrite;
+          const kindLabelKey: Record<typeof l.kind, string> = {
+            material: 'productionEnums.componentKind.material',
+            semi: 'productionEnums.componentKind.semi',
+            work: 'productionEnums.componentKind.work',
+            expense: 'productionEnums.componentKind.expense',
+            output: 'productionEnums.componentKind.output',
+          };
+          const kindLabel = t(kindLabelKey[l.kind] as any);
           return (
             <React.Fragment key={f.key}>
               <div
@@ -468,25 +478,25 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
                 }}
               >
                 <span className="bom-name" style={{ paddingLeft: f.depth * 22 }}>
-                  <span className="dm-grip" aria-hidden style={editable ? undefined : { visibility: 'hidden' }} title={editable ? 'Drag to reorder' : undefined}>
+                  <span className="dm-grip" aria-hidden style={editable ? undefined : { visibility: 'hidden' }} title={editable ? tt('production.item.bomDragToReorder') : undefined}>
                     <GripVertical size={14} />
                   </span>
                   {f.expandable ? (
-                    <button type="button" className="ibtn ibtn-xs" aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${lineTitle(l, ctx)}`} onClick={() => toggle(f.key)}>
+                    <button type="button" className="ibtn ibtn-xs" aria-label={t(isOpen ? 'production.common.collapse' : 'production.common.expand', { name: lineTitle(l, ctx) })} onClick={() => toggle(f.key)}>
                       <ChevronRight size={13} className={cn('chev', isOpen && 'open')} />
                     </button>
                   ) : (
                     <span style={{ width: 22 }} />
                   )}
-                  <span className={cn('bom-ico', l.kind)} title={KIND_LABEL[l.kind]}>
-                    <I size={13} aria-label={KIND_LABEL[l.kind]} />
+                  <span className={cn('bom-ico', l.kind)} title={kindLabel}>
+                    <I size={13} aria-label={kindLabel} />
                   </span>
                   <span className="trunc" style={{ fontWeight: root ? 450 : 400 }}>
                     {lineTitle(l, ctx)}
                   </span>
                   {f.cost.missingPrice && (
-                    <Badge tone="amber" title={`No ${PRICE_SOURCE_LABEL[snap.settings.materialPriceSource]} in the catalog: this material is counted as free`}>
-                      <CircleAlert size={11} /> No price
+                    <Badge tone="amber" title={tt('production.item.bomMissingPriceHint', { source: PRICE_SOURCE_LABEL[snap.settings.materialPriceSource] })}>
+                      <CircleAlert size={11} /> {tt('production.item.bomMissingPrice')}
                     </Badge>
                   )}
                   {root && l.stageId && stageName(l.stageId) && <Badge tone="gray">{stageName(l.stageId)}</Badge>}
@@ -494,7 +504,7 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
                 <span className="r num">
                   {editable ? (
                     <QtyInput
-                      label={`${l.kind === 'work' ? 'Hours' : 'Quantity'} of ${lineTitle(l, ctx)}`}
+                      label={l.kind === 'work' ? tt('production.item.bomHoursOf', { name: lineTitle(l, ctx) }) : tt('production.item.bomQtyOf', { name: lineTitle(l, ctx) })}
                       value={qtyText(l.kind === 'work' ? l.hours : l.qty)}
                       onCommit={v => m.updateLine.mutate({ id: l.id, itemId: item.id, patch: l.kind === 'work' ? { hours: v } : { qty: v } })}
                     />
@@ -502,37 +512,37 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
                     trimZeros(scaledQty)
                   )}
                 </span>
-                <span className="muted">{l.kind === 'work' ? 'h' : unitSymbol(unitsQ.data, l.unitCode ?? '')}</span>
+                <span className="muted">{l.kind === 'work' ? t('production.common.hoursShort') : unitSymbol(unitsQ.data, l.unitCode ?? '')}</span>
                 <span className="hide-s trunc">{detail(l, ctx)}</span>
                 <span className="r num" style={{ fontWeight: root ? 500 : 400 }}>
                   {l.kind === 'output' ? <span className="faint">—</span> : root ? money(f.cost.cost) : money(scaledCost)}
                 </span>
                 <span className="row" style={{ gap: 2, justifyContent: 'flex-end' }}>
                   {l.kind === 'semi' && l.childItemId && (
-                    <Link to={`/production/${l.childItemId}`} className="ibtn ibtn-xs" aria-label={`Open ${lineTitle(l, ctx)}`} title="Open its bill of materials">
+                    <Link to={`/production/${l.childItemId}`} className="ibtn ibtn-xs" aria-label={tt('production.item.openProductBom', { name: lineTitle(l, ctx) })} title={tt('production.item.bomOpenLine')}>
                       <ExternalLink size={13} />
                     </Link>
                   )}
                   {editable && (
                     <Menu>
                       <MenuTrigger asChild>
-                        <button type="button" className="ibtn ibtn-xs" aria-label={`Options for ${lineTitle(l, ctx)}`}>
+                        <button type="button" className="ibtn ibtn-xs" aria-label={`${tt('production.item.bomLineEdit')}: ${lineTitle(l, ctx)}`}>
                           <Ellipsis size={14} />
                         </button>
                       </MenuTrigger>
                       <MenuContent align="end">
                         <MenuItem icon={<Pencil size={15} />} onSelect={() => setDialog({ kind: l.kind, line: l })}>
-                          Edit line
+                          {tt('production.item.bomLineEdit')}
                         </MenuItem>
                         <MenuItem icon={<ArrowUp size={15} />} onSelect={() => move(l.id, -1)}>
-                          Move up
+                          {tt('production.item.bomLineMoveUp')}
                         </MenuItem>
                         <MenuItem icon={<ArrowDown size={15} />} onSelect={() => move(l.id, 1)}>
-                          Move down
+                          {tt('production.item.bomLineMoveDown')}
                         </MenuItem>
                         <MenuSeparator />
                         <MenuItem icon={<Trash2 size={15} />} danger onSelect={() => setRemoving(l)}>
-                          Remove line
+                          {tt('production.item.bomLineRemove')}
                         </MenuItem>
                       </MenuContent>
                     </Menu>
@@ -547,38 +557,38 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
             <EmptyState
               icon={<Layers size={20} />}
               size="sm"
-              title="No lines yet"
-              action={canWrite ? <Button size="sm" onClick={() => setDialog({ kind: item.mode === 'disassembly' ? 'output' : 'material' })}>{item.mode === 'disassembly' ? 'Add an output' : 'Add a material'}</Button> : undefined}
+              title={tt('production.item.bomEmpty')}
+              action={canWrite ? <Button size="sm" onClick={() => setDialog({ kind: item.mode === 'disassembly' ? 'output' : 'material' })}>{item.mode === 'disassembly' ? tt('production.item.bomAddOutput') : tt('production.item.bomAddMaterial')}</Button> : undefined}
             >
-              {item.mode === 'disassembly' ? 'Add the outputs of the disassembly and the work operations to get the cost.' : 'Add materials, semi-finished products and work operations to get the cost.'}
+              {item.mode === 'disassembly' ? tt('production.item.bomDisassembly') : tt('production.item.bomAssembly')}
             </EmptyState>
           </div>
         )}
       </div>
 
       {needOn && (
-        <section className="bom needs" aria-label="Material requirements">
+        <section className="bom needs" aria-label={tt('production.item.bomNeeds')}>
           <div className="bom-row head" role="row">
-            <span>Requirement</span>
-            <span className="r">Needed</span>
-            <span>Unit</span>
-            <span className="hide-s">Available</span>
-            <span className="r">Deficit</span>
+            <span>{tt('production.field.need')}</span>
+            <span className="r">{tt('production.field.need')}</span>
+            <span>{tt('production.field.unit')}</span>
+            <span className="hide-s">{tt('production.field.available')}</span>
+            <span className="r">{tt('production.field.deficit')}</span>
             <span />
           </div>
           {need.isPending && (
             <div className="bom-row">
-              <span className="faint">Calculating…</span>
+              <span className="faint">{tt('production.item.bomNeedsCalc')}</span>
             </div>
           )}
           {needRows.map(r => (
             <div key={`${r.kind}:${r.itemId ?? r.productId}`} className="bom-row" data-kind={r.kind}>
               <span className="bom-name">
-                <span className={cn('bom-ico', r.kind)} title={r.kind === 'material' ? 'Material' : 'Semi-finished'}>
+                <span className={cn('bom-ico', r.kind)} title={r.kind === 'material' ? tt('productionEnums.componentKind.material') : tt('productionEnums.componentKind.semi')}>
                   {r.kind === 'material' ? <Package size={13} /> : <Layers size={13} />}
                 </span>
                 <span className="trunc">{r.name}</span>
-                {r.kind === 'semi' && Number(r.produce) > 0 && <Badge tone="amber">Produce {qtyText(r.produce)}</Badge>}
+                {r.kind === 'semi' && Number(r.produce) > 0 && <Badge tone="amber">{tt('production.item.bomNeedsProduce', { qty: qtyText(r.produce) })}</Badge>}
               </span>
               <span className="r num">{qtyText(r.qty)}</span>
               <span className="muted">{unitSymbol(unitsQ.data, r.unitCode ?? '')}</span>
@@ -590,13 +600,13 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
           {(need.data?.works ?? []).map((w, i) => (
             <div key={`w:${i}`} className="bom-row" data-kind="work">
               <span className="bom-name">
-                <span className="bom-ico work" title="Work">
+                <span className="bom-ico work" title={tt('productionEnums.componentKind.work')}>
                   <Wrench size={13} />
                 </span>
                 <span className="trunc">{w.operation}</span>
               </span>
               <span className="r num">{qtyText(w.hours)}</span>
-              <span className="muted">h</span>
+              <span className="muted">{t('production.common.hoursShort')}</span>
               <span className="hide-s" />
               <span className="r" />
               <span />
@@ -604,8 +614,8 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
           ))}
           {need.data && !needRows.length && !need.data.works.length && (
             <div className="bom-empty">
-              <EmptyState icon={<Boxes size={20} />} size="sm" title="Nothing is required">
-                Add materials, semi-finished products and work operations to the bill of materials.
+              <EmptyState icon={<Boxes size={20} />} size="sm" title={tt('production.item.bomNeedsNothing')}>
+                {tt('production.item.bomNeedsNothingHint')}
               </EmptyState>
             </div>
           )}
@@ -613,25 +623,25 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
       )}
 
       {tree && (
-        <section className="bom-total" aria-label="Cost summary">
+        <section className="bom-total" aria-label={tt('production.item.bomCostSumTitle')}>
           <table className="bom-sum">
             <thead>
               <tr>
                 <th scope="col" />
                 <th scope="col" className="r">
-                  Batch of {qtyText(item.batchQty)} {unit}
+                  {tt('production.item.bomCostSumHeaderBatch', { qty: qtyText(item.batchQty), unit })}
                 </th>
                 <th scope="col" className="r">
-                  Per 1 {unit}
+                  {tt('production.item.bomCostSumHeaderUnit', { unit })}
                 </th>
               </tr>
             </thead>
             <tbody>
               {(
                 [
-                  ['Materials', 'materials'],
-                  ['Works', 'works'],
-                  ['Overhead', 'overhead'],
+                  [tt('production.item.bomCostPartMaterials'), 'materials'],
+                  [tt('production.item.bomCostPartWorks'), 'works'],
+                  [tt('production.item.bomCostPartOverhead'), 'overhead'],
                 ] as const
               ).map(([label, k]) => (
                 <tr key={k} data-part={k}>
@@ -641,24 +651,25 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
                 </tr>
               ))}
               <tr className="sum">
-                <th scope="row">Total</th>
+                <th scope="row">{tt('production.item.bomCostTotal')}</th>
                 <td className="r num">{money(tree.batch.total)}</td>
                 <td className="r num">{money(tree.unit.total)}</td>
               </tr>
             </tbody>
           </table>
           <div className="bom-unit" aria-live="polite">
-            <span className="muted">Cost of 1 {unit}</span>
+            <span className="muted">{tt('production.item.bomCostOfUnit', { unit })}</span>
             <b data-testid="unit-cost" className="num">
               {money(tree.unit.total)}
             </b>
-            {batch !== 1 && <span className="faint">batch of {qtyText(item.batchQty)} costs {money(tree.batch.total)}</span>}
+            {batch !== 1 && <span className="faint">{tt('production.item.bomBatchCosts', { qty: qtyText(item.batchQty), amount: money(tree.batch.total) })}</span>}
             <span className="faint">
-              Material prices: {PRICE_SOURCE_LABEL[snap.settings.materialPriceSource]}. <Link to="/settings/production" className="crm-link">Change</Link>
+              {tt('production.item.bomPriceSource', { source: PRICE_SOURCE_LABEL[snap.settings.materialPriceSource] })}{' '}
+              <Link to="/settings/production" className="crm-link">{tt('production.item.bomChangePriceSource')}</Link>
             </span>
             {missing > 0 && (
               <span className="bom-warn">
-                <CircleAlert size={13} /> {missing} material{missing === 1 ? ' has' : 's have'} no price and {missing === 1 ? 'is' : 'are'} counted as free
+                <CircleAlert size={13} /> {missing === 1 ? tt('production.item.bomNoPriceLabel', { count: missing }) : tt('production.item.bomNoPriceLabelPlural', { count: missing })}
               </span>
             )}
           </div>
@@ -670,10 +681,10 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
         open={!!removing}
         onOpenChange={o => !o && setRemoving(null)}
         danger
-        title="Remove line?"
-        description={removing ? <><b>{lineTitle(removing, ctx)}</b> will be removed from this bill of materials.</> : undefined}
-        confirmLabel="Remove line"
-        cancelLabel="Cancel"
+        title={tt('production.item.bomLineRemoveTitle')}
+        description={removing ? <><b>{lineTitle(removing, ctx)}</b> {tt('production.item.willBeRemoved')}.</> : undefined}
+        confirmLabel={tt('production.item.bomLineRemove')}
+        cancelLabel={tt('production.common.cancel')}
         onConfirm={() => {
           if (removing) m.removeLine.mutate({ id: removing.id, itemId: item.id });
           setRemoving(null);
@@ -683,14 +694,14 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
         open={deleting}
         onOpenChange={setDeleting}
         danger
-        title="Archive product?"
-        description={<><b>{item.name}</b> will be archived. Products that include it must drop it first.</>}
-        confirmLabel="Archive product"
-        cancelLabel="Cancel"
+        title={tt('production.item.archiveTitle')}
+        description={<><b>{item.name}</b> {tt('production.item.willBeArchived')}.</>}
+        confirmLabel={tt('production.item.archive')}
+        cancelLabel={tt('production.common.cancel')}
         onConfirm={async () => {
           try {
             await m.removeItem.mutateAsync(item.id);
-            toast(`Archived “${item.name}”`);
+            toast(tt('production.item.archived', { name: item.name }));
             navigate('/production');
           } catch (e) {
             toast.error(e instanceof Error ? e.message : String(e));

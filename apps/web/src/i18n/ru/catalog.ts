@@ -156,6 +156,7 @@ export const enums: Widen<typeof E> = {
   vat: { none: 'Без НДС' },
   periodicity: { month: 'Месяц', quarter: 'Квартал', year: 'Год' },
   replenishment: { purchase: 'Закупка', production: 'Производство', transfer: 'Перемещение' },
+  docStatus: { draft: 'Черновик', posted: 'Проведён', cancelled: 'Отменён' },
   fieldType: {
     text: 'Текст',
     long_text: 'Длинный текст',

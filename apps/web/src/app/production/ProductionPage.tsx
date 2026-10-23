@@ -6,6 +6,7 @@ import { MANUFACTURED_KINDS } from '@gr8r/shared';
 import { Badge, Button, Dialog, DialogClose, DialogContent, EmptyState, Field, Input, Segmented, Skeleton, toast } from '@/components/ui';
 import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/gr8r/data-table';
 import { FilterBar, useFilterState, type FilterField } from '@/components/gr8r/filter-bar';
+import { t } from '@/i18n';
 import { fmtDate } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';
 import { money, unitSymbol, useUnits } from '../catalog/data';
@@ -42,25 +43,25 @@ export function ProductionPage() {
     () => [
       {
         id: 'name',
-        header: 'Name',
+        header: t('production.field.name'),
         width: 300,
         value: i => i.name,
         cell: i => (
           <span className="row" style={{ gap: 8, minWidth: 0 }}>
-            {i.kind === 'semi' ? <Layers size={14} className="faint" aria-label="Semi-finished" /> : <Package size={14} className="faint" aria-label="Product" />}
+            {i.kind === 'semi' ? <Layers size={14} className="faint" aria-label={t('production.item.kind.semi')} /> : <Package size={14} className="faint" aria-label={t('production.item.kind.product')} />}
             <span className="trunc" style={{ fontWeight: 450 }}>
               {i.name}
             </span>
           </span>
         ),
       },
-      { id: 'code', header: 'Code', width: 130, value: i => i.code, cell: i => (i.code ? <span className="mono">{i.code}</span> : <span className="faint">—</span>) },
-      { id: 'kind', header: 'Type', width: 130, value: i => KIND_LABEL[i.kind], cell: i => <Badge tone={i.kind === 'semi' ? 'violet' : 'accent'}>{KIND_LABEL[i.kind]}</Badge> },
-      { id: 'lines', header: 'Lines', width: 80, align: 'right', value: i => i.lines.length },
-      { id: 'batch', header: 'Batch', width: 100, align: 'right', value: i => Number(i.batchQty), cell: i => <span className="num">{Number(i.batchQty)} {unitSymbol(units.data, i.unitCode)}</span> },
+      { id: 'code', header: t('production.field.code'), width: 130, value: i => i.code, cell: i => (i.code ? <span className="mono">{i.code}</span> : <span className="faint">—</span>) },
+      { id: 'kind', header: t('production.field.type'), width: 130, value: i => KIND_LABEL[i.kind], cell: i => <Badge tone={i.kind === 'semi' ? 'violet' : 'accent'}>{KIND_LABEL[i.kind]}</Badge> },
+      { id: 'lines', header: t('production.item.col.lineNo'), width: 80, align: 'right', value: i => i.lines.length },
+      { id: 'batch', header: t('production.item.batch'), width: 100, align: 'right', value: i => Number(i.batchQty), cell: i => <span className="num">{Number(i.batchQty)} {unitSymbol(units.data, i.unitCode)}</span> },
       {
         id: 'cost',
-        header: 'Cost per unit',
+        header: t('production.item.cost'),
         width: 140,
         align: 'right',
         value: i => Number(costing?.(i.id).tree?.unit.total ?? NaN) || null,
@@ -69,7 +70,7 @@ export function ProductionPage() {
           return c?.tree ? <span className="num">{money(c.tree.unit.total)}</span> : <span className="faint">—</span>;
         },
       },
-      { id: 'updated', header: 'Updated', width: 112, value: i => Date.parse(i.updatedAt), cell: i => <span className="muted num">{fmtDate(new Date(i.updatedAt))}</span> },
+      { id: 'updated', header: t('production.order.updated'), width: 112, value: i => Date.parse(i.updatedAt), cell: i => <span className="muted num">{fmtDate(new Date(i.updatedAt))}</span> },
     ],
     [costing, units.data],
   );
@@ -81,13 +82,13 @@ export function ProductionPage() {
     return (snap.data?.materials ?? []).filter(m => used.has(m.id)).map(m => ({ id: m.id, name: m.name })).sort((a, b) => a.name.localeCompare(b.name));
   }, [snap.data]);
   const filterFields: FilterField[] = [
-    { id: 'kind', name: 'Type', icon: <Layers size={15} />, options: MANUFACTURED_KINDS.map(k => ({ id: k, name: KIND_LABEL[k] })) },
+    { id: 'kind', name: t('production.field.type'), icon: <Layers size={15} />, options: MANUFACTURED_KINDS.map(k => ({ id: k, name: KIND_LABEL[k] })) },
     { id: 'contains', name: 'Contains', icon: <Package size={15} />, options: containsOptions },
   ];
   const newBtn = canWrite && (
     <Button variant="primary" onClick={() => setCreating(true)}>
       <Plus size={14} />
-      New product
+      {t('production.list.newProduct')}
     </Button>
   );
 
@@ -95,22 +96,20 @@ export function ProductionPage() {
     <div className="page flush">
       <div className="ph">
         <div>
-          <h1>Production</h1>
-          <p>
-            {rows.length} product{rows.length === 1 ? '' : 's'} and semi-finished product{rows.length === 1 ? '' : 's'}
-          </p>
+          <h1>{t('production.list.title')}</h1>
+          <p>{t('production.list.summary', { count: rows.length })}</p>
         </div>
         <div className="acts">{newBtn}</div>
       </div>
       <FilterBar
-        search={{ value: filters.q, onChange: filters.setQ, placeholder: 'Search by name or code' }}
+        search={{ value: filters.q, onChange: filters.setQ, placeholder: t('production.list.searchPlaceholder') }}
         fields={filterFields}
         filters={filters}
         sort={{ options: columns.filter(c => c.value).map(c => ({ id: c.id, name: c.header })), value: table.sort.id, dir: table.sort.dir, onChange: table.setSort }}
         columns={columnsMenu(columns, table)}
       />
       {snap.isError ? (
-        <EmptyState icon={<CircleAlert size={20} />} error title="Could not load production data" action={<Button size="sm" onClick={() => snap.refetch()}>Retry</Button>}>
+        <EmptyState icon={<CircleAlert size={20} />} error title={t('production.list.loadFailed')} action={<Button size="sm" onClick={() => snap.refetch()}>{t('production.common.retry')}</Button>}>
           {(snap.error as Error).message}
         </EmptyState>
       ) : snap.isPending ? (
@@ -118,12 +117,12 @@ export function ProductionPage() {
           <Skeleton w="100%" h={36} />
         </div>
       ) : !snap.data.items.length ? (
-        <EmptyState icon={<Factory size={20} />} title="No products yet" action={newBtn || undefined}>
-          Describe what you make: a bill of materials with materials, semi-finished products and work gives the cost of one unit.
+        <EmptyState icon={<Factory size={20} />} title={t('production.list.noProducts')} action={newBtn || undefined}>
+          {t('production.list.noProductsHint')}
         </EmptyState>
       ) : (
         <DataTable
-          aria-label="Products table"
+          aria-label={t('production.list.table')}
           columns={columns}
           rows={rows}
           table={table}
@@ -131,10 +130,10 @@ export function ProductionPage() {
           onRowClick={i => navigate(`/production/${i.id}`)}
           showTotals={false}
           onNew={canWrite ? () => setCreating(true) : undefined}
-          newLabel="New product"
+          newLabel={t('production.list.newProduct')}
           empty={
-            <EmptyState icon={<Factory size={20} />} title="No results found" action={<Button size="sm" onClick={() => filters.reset()}>Clear filters</Button>}>
-              No products match these filters.
+            <EmptyState icon={<Factory size={20} />} title={t('production.list.noMatch')} action={<Button size="sm" onClick={() => filters.reset()}>{t('common.clearFilters')}</Button>}>
+              {t('production.list.noMatch')}
             </EmptyState>
           }
         />
@@ -165,15 +164,15 @@ function NewItemDialog({ onClose, onCreated }: { onClose: () => void; onCreated:
 
   const submit = async () => {
     const errs: Record<string, string> = {};
-    if (!name.trim()) errs.name = 'Enter a name';
-    if (!(Number(batch) > 0)) errs.batch = 'Must be greater than zero';
-    if (!(Number(overhead) >= 0)) errs.overhead = 'Must not be negative';
+    if (!name.trim()) errs.name = t('common.enterName');
+    if (!(Number(batch) > 0)) errs.batch = t('common.required');
+    if (!(Number(overhead) >= 0)) errs.overhead = t('catalog.product.nonNegative');
     setErr(errs);
     if (Object.keys(errs).length) return;
     setBusy(true);
     try {
       const row = await m.createItem.mutateAsync({ name: name.trim(), code: code.trim(), kind, unitCode, batchQty: Number(batch), overheadPct: Number(overhead) });
-      toast(`Added “${row.name}”`);
+      toast(t('catalog.product.added', { name: row.name }));
       onCreated(row);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
@@ -184,16 +183,16 @@ function NewItemDialog({ onClose, onCreated }: { onClose: () => void; onCreated:
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
-        title="New product"
-        description="Create the product first, then build its bill of materials."
+        title={t('production.list.newProduct')}
+        description={t('production.item.bomEmptyHint')}
         footer={
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{t('production.common.cancel')}</Button>
             </DialogClose>
             <Button variant="primary" disabled={busy} onClick={submit}>
-              Create product
+              {t('production.common.create')}
             </Button>
           </>
         }
@@ -206,23 +205,23 @@ function NewItemDialog({ onClose, onCreated }: { onClose: () => void; onCreated:
             void submit();
           }}
         >
-          <Segmented aria-label="Type" value={kind} onValueChange={setKind} items={MANUFACTURED_KINDS.map(k => ({ value: k, label: KIND_LABEL[k] }))} />
-          <Field label="Name" error={err.name}>
+          <Segmented aria-label={t('production.field.type')} value={kind} onValueChange={setKind} items={MANUFACTURED_KINDS.map(k => ({ value: k, label: KIND_LABEL[k] }))} />
+          <Field label={t('production.field.name')} error={err.name}>
             {p => <Input {...p} autoFocus value={name} onChange={e => (setName(e.target.value), setErr({}))} />}
           </Field>
           <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
-            <Field label="Code" className="grow">
+            <Field label={t('production.field.code')} className="grow">
               {p => <Input {...p} value={code} onChange={e => setCode(e.target.value)} />}
             </Field>
-            <Field label="Unit" className="grow">
+            <Field label={t('production.field.unit')} className="grow">
               {p => <UnitSelect value={unitCode} onChange={setUnitCode} id={p.id} />}
             </Field>
           </div>
           <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
-            <Field label="Batch quantity" className="grow" hint="The bill of materials is written for this many units." error={err.batch}>
+            <Field label={t('production.item.batch')} className="grow" error={err.batch}>
               {p => <Input {...p} inputMode="decimal" value={batch} onChange={e => setBatch(e.target.value)} />}
             </Field>
-            <Field label="Overhead, %" className="grow" hint="Of direct costs." error={err.overhead}>
+            <Field label="Overhead, %" className="grow" error={err.overhead}>
               {p => <Input {...p} inputMode="decimal" value={overhead} onChange={e => setOverhead(e.target.value)} />}
             </Field>
           </div>

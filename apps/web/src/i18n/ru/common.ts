@@ -12,6 +12,7 @@ export const common: Widen<typeof C> = {
   more: 'Ещё',
   choose: 'Выберите',
   notFound: 'Не найдено',
+  all: 'Все',
   noResults: 'Ничего не найдено',
   clearFilters: 'Сбросить фильтры',
   name: 'Название',

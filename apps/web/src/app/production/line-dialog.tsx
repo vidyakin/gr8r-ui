@@ -7,6 +7,7 @@ import { Button, Dialog, DialogClose, DialogContent, Field, Input, toast } from 
 import { uuidv7 } from '../lib/uuid';
 import { searchProducts, unitSymbol, useUnits, type Product } from '../catalog/data';
 import { useWsId } from '../meta/data';
+import { useT } from '@/i18n';
 import { canInclude, type BomLine, type Item, type Material, type ProductionMutations, type Snapshot } from './data';
 
 const toMaterial = (p: Product): Material => ({ id: p.id, name: p.name, sku: p.sku, kind: p.kind, unitCode: p.unitCode, price: p.price, purchasePrice: p.purchasePrice, archived: false });
@@ -15,6 +16,7 @@ const toMaterial = (p: Product): Material => ({ id: p.id, name: p.name, sku: p.s
 function ProductPicker({ value, onChange, invalid, kind = 'goods' }: { value: Material | null; onChange: (m: Material) => void; invalid?: boolean; kind?: 'goods' | 'service' }) {
   const ws = useWsId();
   const units = useUnits();
+  const tt = useT();
   const [q, setQ] = React.useState('');
   const [debounced, setDebounced] = React.useState('');
   React.useEffect(() => {
@@ -24,8 +26,8 @@ function ProductPicker({ value, onChange, invalid, kind = 'goods' }: { value: Ma
   const results = useQuery({ queryKey: ['ws', ws, 'catalog', 'picker', debounced, kind], queryFn: () => searchProducts(ws, debounced, kind, 8), staleTime: 5_000 });
   return (
     <div className="picker">
-      <Input icon={<Search size={14} />} aria-label="Search products" placeholder={kind === 'service' ? 'Search services by name or SKU' : 'Search goods by name, SKU or barcode'} invalid={invalid} value={q} onChange={e => setQ(e.target.value)} autoFocus />
-      <div className="picker-list" role="listbox" aria-label="Products">
+      <Input icon={<Search size={14} />} aria-label={tt('production.line.fields.productSearchPlaceholder')} placeholder={kind === 'service' ? tt('production.line.fields.productSearchPlaceholder') : tt('production.line.fields.productSearchPlaceholder')} invalid={invalid} value={q} onChange={e => setQ(e.target.value)} autoFocus />
+      <div className="picker-list" role="listbox" aria-label={tt('production.line.fields.product')}>
         {results.data?.map(p => (
           <button type="button" key={p.id} role="option" aria-selected={value?.id === p.id} className={value?.id === p.id ? 'mi on' : 'mi'} onClick={() => onChange(toMaterial(p))}>
             <Package size={14} className="faint" />
@@ -37,12 +39,12 @@ function ProductPicker({ value, onChange, invalid, kind = 'goods' }: { value: Ma
             {value?.id === p.id && <Check size={14} />}
           </button>
         ))}
-        {results.data && !results.data.length && <div className="faint" style={{ padding: 8, fontSize: 12.5 }}>Nothing found</div>}
-        {results.isPending && <div className="faint" style={{ padding: 8, fontSize: 12.5 }}>Loading…</div>}
+        {results.data && !results.data.length && <div className="faint" style={{ padding: 8, fontSize: 12.5 }}>{tt('common.noResults')}</div>}
+        {results.isPending && <div className="faint" style={{ padding: 8, fontSize: 12.5 }}>{tt('common.loading')}</div>}
       </div>
       {value && (
         <div className="picker-chosen">
-          Selected: <b>{value.name}</b>
+          {tt('production.line.chosen')}: <b>{value.name}</b>
         </div>
       )}
     </div>
@@ -52,6 +54,7 @@ function ProductPicker({ value, onChange, invalid, kind = 'goods' }: { value: Ma
 export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLine['kind']; item: Item; line?: BomLine; snap: Snapshot; m: ProductionMutations; onClose: () => void }) {
   const units = useUnits();
   const ws = useWsId();
+  const tt = useT();
   const edit = !!line;
   const [material, setMaterial] = React.useState<Material | null>(() => (line?.productId ? (snap.materials.find(x => x.id === line.productId) ?? null) : null));
   const [opProduct, setOpProduct] = React.useState<string>('');
@@ -87,7 +90,8 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
   // вид производства изделия: этап, на котором расходуется материал или выполняется операция
   const prodKind = snap.kinds.find(k => k.id === item.productionKindId) ?? null;
   const centerObj = snap.workCenters.find(w => w.id === center);
-  const title = `${edit ? 'Edit' : 'Add'} ${kind === 'material' ? 'material' : kind === 'semi' ? 'semi-finished product' : kind === 'expense' ? 'expense' : kind === 'output' ? 'output' : 'work operation'}`;
+  const kindKey = kind === 'material' ? 'material' : kind === 'semi' ? 'semi' : kind === 'expense' ? 'expense' : kind === 'output' ? 'output' : 'work';
+  const title = `${edit ? tt('production.common.edit') : tt('production.common.add')} ${tt(`production.line.kind.${kindKey}`)}`;
 
   /** Ошибка выражения видна сразу: ключи параметров спецификации известны */
   const exprError = (src: string): string | undefined => {
@@ -96,7 +100,7 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
       compileExpr(src, paramKeys);
       return undefined;
     } catch (e) {
-      return e instanceof ExprError ? e.message : 'Invalid expression';
+      return e instanceof ExprError ? e.message : tt('production.line.exprErrorInvalid');
     }
   };
   const qtyExprError = exprError(qtyExpr);
@@ -130,7 +134,7 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
         const { kind: _k, ...patch } = body;
         await m.updateLine.mutateAsync({ id: line!.id, itemId: item.id, patch });
       } else await m.addLine.mutateAsync({ itemId: item.id, id: uuidv7(), body, material: kind === 'material' || kind === 'expense' || kind === 'output' ? (material ?? undefined) : undefined });
-      toast(edit ? 'Line saved' : 'Line added');
+      toast(edit ? tt('production.line.saved') : tt('production.line.added'));
       onClose();
     } catch {
       setBusy(false); // тост с ошибкой показал хук мутации
@@ -141,15 +145,15 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
         title={title}
-        description={`In “${item.name}”`}
+        description={tt('production.line.inItem', { name: item.name })}
         footer={
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{tt('production.common.cancel')}</Button>
             </DialogClose>
             <Button variant="primary" disabled={busy} onClick={submit}>
-              {edit ? 'Save line' : 'Add line'}
+              {edit ? tt('production.line.saveLine') : tt('production.item.addLine')}
             </Button>
           </>
         }
@@ -163,10 +167,10 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
           }}
         >
           {prodKind && (
-            <Field label="Stage" hint="The stage of the production kind where the material is used or the operation is performed." error={err.stageId}>
+            <Field label={tt('production.line.fields.stage')} hint={tt('production.line.hints.stage')} error={err.stageId}>
               {p => (
                 <select className="select" id={p.id} value={stageId} onChange={e => (setStageId(e.target.value), setErr({}))}>
-                  <option value="">Choose a stage…</option>
+                  <option value="">{tt('production.line.chooseStage')}</option>
                   {prodKind.stages.map(st => (
                     <option key={st.id} value={st.id}>
                       {st.name}
@@ -178,14 +182,14 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
           )}
           {kind === 'material' && (
             <>
-              <Field label="Material" error={err.productId}>
+              <Field label={tt('production.line.fields.product')} error={err.productId}>
                 {() => <ProductPicker value={material} onChange={mat => (setMaterial(mat), setErr({}))} invalid={!!err.productId} />}
               </Field>
               <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
-                <Field label={`Quantity${material ? `, ${unitSymbol(units.data, material.unitCode)}` : ''}`} className="grow" error={err.qty}>
+                <Field label={material ? tt('production.line.fields.qtyUnit', { unit: unitSymbol(units.data, material.unitCode) }) : tt('production.field.quantity')} className="grow" error={err.qty}>
                   {p => <Input {...p} inputMode="decimal" value={qty} onChange={e => setQty(e.target.value)} />}
                 </Field>
-                <Field label="Scrap, %" className="grow" hint="Extra material lost in production." error={err.scrapPct}>
+                <Field label={tt('production.line.fields.scrap')} className="grow" hint={tt('production.line.hints.scrap')} error={err.scrapPct}>
                   {p => <Input {...p} inputMode="decimal" value={scrap} onChange={e => setScrap(e.target.value)} />}
                 </Field>
               </div>
@@ -193,10 +197,10 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
           )}
           {kind === 'semi' && (
             <>
-              <Field label="Product to include" error={err.childItemId} hint="Products that already contain this one are not offered: a bill of materials cannot loop.">
+              <Field label={tt('production.line.fields.product')} error={err.childItemId} hint={tt('production.line.hints.semi')}>
                 {p => (
                   <select className="select" id={p.id} value={childId} onChange={e => (setChildId(e.target.value), setErr({}))}>
-                    <option value="">Choose a product…</option>
+                    <option value="">{tt('production.line.chooseProduct')}</option>
                     {candidates.map(i => (
                       <option key={i.id} value={i.id}>
                         {i.name}
@@ -206,14 +210,14 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
                   </select>
                 )}
               </Field>
-              <Field label="Quantity" error={err.qty}>
+              <Field label={tt('production.field.quantity')} error={err.qty}>
                 {p => <Input {...p} inputMode="decimal" value={qty} onChange={e => setQty(e.target.value)} />}
               </Field>
-              <Field label="Mode" hint="Stock: the semi-finished product is produced separately and taken from the warehouse. Explode: it is expanded into its materials and works in the same release.">
+              <Field label={tt('production.line.fields.mode')} hint={tt('production.line.hints.semiMode')}>
                 {p => (
                   <select className="select" id={p.id} value={mode} onChange={e => setMode(e.target.value as 'stock' | 'explode')}>
-                    <option value="stock">Take from stock</option>
-                    <option value="explode">Expand to materials</option>
+                    <option value="stock">{tt('production.line.mode.stock')}</option>
+                    <option value="explode">{tt('production.line.mode.explode')}</option>
                   </select>
                 )}
               </Field>
@@ -221,42 +225,42 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
           )}
           {kind === 'expense' && (
             <>
-              <Field label="Service" hint="A service of a contractor: it is included in the planned cost, but it is not taken from stock." error={err.productId}>
+              <Field label={tt('production.line.fields.productService')} hint={tt('production.line.hints.expense')} error={err.productId}>
                 {() => <ProductPicker kind="service" value={material} onChange={mat => (setMaterial(mat), setErr({}))} invalid={!!err.productId} />}
               </Field>
-              <Field label="Quantity" error={err.qty}>
+              <Field label={tt('production.field.quantity')} error={err.qty}>
                 {p => <Input {...p} inputMode="decimal" value={qty} onChange={e => setQty(e.target.value)} />}
               </Field>
             </>
           )}
           {kind === 'output' && (
             <>
-              <Field label="Output product" hint="The goods received from the disassembly. Only goods of the catalogue can be an output." error={err.productId}>
+              <Field label={tt('production.line.fields.outputProduct')} hint={tt('production.line.hints.output')} error={err.productId}>
                 {() => <ProductPicker value={material} onChange={mat => (setMaterial(mat), setErr({}))} invalid={!!err.productId} />}
               </Field>
               <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
-                <Field label={`Quantity${material ? `, ${unitSymbol(units.data, material.unitCode)}` : ''}`} className="grow" error={err.qty}>
+                <Field label={material ? tt('production.line.fields.qtyUnit', { unit: unitSymbol(units.data, material.unitCode) }) : tt('production.field.quantity')} className="grow" error={err.qty}>
                   {p => <Input {...p} inputMode="decimal" value={qty} onChange={e => setQty(e.target.value)} />}
                 </Field>
-                <Field label="Cost share, %" className="grow" hint="The share of the cost of the goods being disassembled. If it is set for one output, it is set for all of them and adds up to 100%." error={err.costShare}>
-                  {p => <Input {...p} inputMode="decimal" placeholder="e.g. 60" value={costShare} onChange={e => setCostShare(e.target.value)} />}
+                <Field label={tt('production.line.fields.costShare')} className="grow" hint={tt('production.line.hints.costShare')} error={err.costShare}>
+                  {p => <Input {...p} inputMode="decimal" placeholder={'60'} value={costShare} onChange={e => setCostShare(e.target.value)} />}
                 </Field>
               </div>
             </>
           )}
           {(kind === 'material' || kind === 'semi' || kind === 'expense' || kind === 'output') && paramKeys.length > 0 && (
             <>
-              <Field label="Quantity formula" hint="Counted over the parameters of the product. Empty: the quantity above." error={err.qtyExpr ?? qtyExprError}>
-                {p => <Input {...p} placeholder="e.g. width * height / 1000000 * 1.05" value={qtyExpr} onChange={e => setQtyExpr(e.target.value)} invalid={!!(err.qtyExpr ?? qtyExprError)} />}
+              <Field label={tt('production.line.fields.expr')} hint={tt('production.line.fields.exprHint', { example: 'width * height / 1000000 * 1.05' })} error={err.qtyExpr ?? qtyExprError}>
+                {p => <Input {...p} placeholder={'width * height / 1000000 * 1.05'} value={qtyExpr} onChange={e => setQtyExpr(e.target.value)} invalid={!!(err.qtyExpr ?? qtyExprError)} />}
               </Field>
-              <Field label="Condition" hint="The line is included in the composition only when the condition is true. Empty: the line is always included." error={err.condition ?? conditionError}>
-                {p => <Input {...p} placeholder="e.g. color = 'white'" value={condition} onChange={e => setCondition(e.target.value)} invalid={!!(err.condition ?? conditionError)} />}
+              <Field label={tt('production.line.fields.condition')} hint={tt('production.line.hints.condition')} error={err.condition ?? conditionError}>
+                {p => <Input {...p} placeholder={`color = 'white'`} value={condition} onChange={e => setCondition(e.target.value)} invalid={!!(err.condition ?? conditionError)} />}
               </Field>
             </>
           )}
           {kind === 'work' && (
             <>
-              <Field label="Operation" hint="An operation is a product of the “Operation” kind: it carries the norm of time and the history of rates." error={err.operation}>
+              <Field label={tt('production.line.fields.operation')} hint={tt('production.line.hints.operation')} error={err.operation}>
                 {p => (
                   <select
                     className="select"
@@ -269,7 +273,7 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
                       setErr({});
                     }}
                   >
-                    <option value="">No operation (text work)</option>
+                    <option value="">{tt('production.line.operationNone')}</option>
                     {(operations.data ?? []).map(o => (
                       <option key={o.id} value={o.id}>
                         {o.name}
@@ -279,13 +283,13 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
                   </select>
                 )}
               </Field>
-              <Field label="Name of the work" error={err.operation}>
-                {p => <Input {...p} autoFocus placeholder="e.g. Assembly" value={operation} onChange={e => (setOperation(e.target.value), setErr({}))} />}
+              <Field label={tt('production.line.fields.operationName')} error={err.operation}>
+                {p => <Input {...p} autoFocus placeholder={tt('production.line.operationPlaceholder')} value={operation} onChange={e => (setOperation(e.target.value), setErr({}))} />}
               </Field>
-              <Field label="Work center" hint={centerObj ? `Rate of the center: ${Number(centerObj.hourlyRate).toFixed(2)} per hour.` : 'Optional: without a center, set the rate below.'}>
+              <Field label={tt('production.line.fields.workCenter')} hint={centerObj ? tt('production.line.hints.centerRate', { rate: Number(centerObj.hourlyRate).toFixed(2) }) : tt('production.line.hints.workCenterNo')}>
                 {p => (
                   <select className="select" id={p.id} value={center} onChange={e => setCenter(e.target.value)}>
-                    <option value="">No work center</option>
+                    <option value="">{tt('production.line.noWorkCenter')}</option>
                     {snap.workCenters
                       .filter(w => !w.archivedAt || w.id === line?.workCenterId)
                       .map(w => (
@@ -297,13 +301,13 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
                 )}
               </Field>
               <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
-                <Field label="Hours" className="grow" error={err.hours}>
+                <Field label={tt('production.field.hours')} className="grow" error={err.hours}>
                   {p => <Input {...p} inputMode="decimal" value={hours} onChange={e => (setHours(e.target.value), setErr({}))} />}
                 </Field>
-                <Field label="Rate per hour" className="grow" hint="Empty: the rate of the work center.">
+                <Field label={tt('production.line.fields.ratePerHour')} className="grow" hint={tt('production.line.hints.rate')}>
                   {p => <Input {...p} inputMode="decimal" value={rate} onChange={e => setRate(e.target.value)} />}
                 </Field>
-                <Field label="Fixed cost" className="grow" hint="Added to hours × rate.">
+                <Field label={tt('production.line.fields.fixed')} className="grow" hint={tt('production.line.hints.fixed')}>
                   {p => <Input {...p} inputMode="decimal" value={fixed} onChange={e => setFixed(e.target.value)} />}
                 </Field>
               </div>

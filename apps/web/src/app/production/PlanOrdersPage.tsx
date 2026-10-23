@@ -8,11 +8,13 @@ import { fmtDate, parse } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';
 import { useWorkCenters } from '../catalog/data';
 import { usePlanWorkbench, useProductionPlanApi, type PlanLine } from './plans-data';
+import { useT } from '@/i18n';
 
 export function PlanOrdersPage() {
   const navigate = useNavigate();
   const canWrite = useCanWrite();
   const api = useProductionPlanApi();
+  const tt = useT();
   const centers = useWorkCenters();
   const [period, setPeriod] = React.useState<string>('');
   const [center, setCenter] = React.useState<string>('');
@@ -41,14 +43,14 @@ export function PlanOrdersPage() {
       created += res?.created.length ?? 0;
       skipped += res?.skipped.length ?? 0;
     }
-    toast(`Orders created: ${created}${skipped ? ` · already ordered: ${skipped}` : ''}`);
+    toast(tt('production.planOrders.result', { created, skipped }));
     setSel({});
   };
 
   const lineRow = (planId: string, l: PlanLine & { remainder: string }) => (
     <tr key={`${planId}:${l.id}`} data-row={Number(l.remainder) > 0 ? 'deficit' : undefined}>
       <td style={{ width: 34 }}>
-        {Number(l.remainder) > 0 && canWrite && <input type="checkbox" className="check" aria-label={`Select ${l.itemName}`} checked={!!sel[`${planId}:${l.id}`]} onChange={() => setSel(s => ({ ...s, [`${planId}:${l.id}`]: !s[`${planId}:${l.id}`] }))} />}
+        {Number(l.remainder) > 0 && canWrite && <input type="checkbox" className="check" aria-label={tt('production.planOrders.selectRow', { name: l.itemName })} checked={!!sel[`${planId}:${l.id}`]} onChange={() => setSel(s => ({ ...s, [`${planId}:${l.id}`]: !s[`${planId}:${l.id}`] }))} />}
       </td>
       <td className="trunc">{l.itemName}</td>
       <td className="num muted">{fmtDate(parse(l.periodStart))}</td>
@@ -65,24 +67,24 @@ export function PlanOrdersPage() {
     <div className="page flush">
       <div className="ph">
         <div>
-          <h1>Orders by plan</h1>
-          <p>Approved plans by period. Pick the lines to create draft production orders for the “planned − already ordered” remainder.</p>
+          <h1>{tt('production.planOrders.title')}</h1>
+          <p>{tt('production.planOrders.subtitle')}</p>
         </div>
         <div className="acts">
-          <Button onClick={() => navigate('/production/plans')}>Production plans</Button>
+          <Button onClick={() => navigate('/production/plans')}>{tt('production.planOrders.toPlans')}</Button>
           {canWrite && (
             <Button variant="primary" disabled={!selected.length} onClick={() => void create()}>
               <ClipboardList size={14} />
-              Create orders
+              {tt('production.planOrders.createOrders')}
             </Button>
           )}
         </div>
       </div>
       <div className="panel" style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
         <label className="fld" style={{ maxWidth: 200 }}>
-          <span className="lbl">Period</span>
-          <select className="select" aria-label="Period" value={period} onChange={e => setPeriod(e.target.value)}>
-            <option value="">All periods</option>
+          <span className="lbl">{tt('production.planOrders.period')}</span>
+          <select className="select" aria-label={tt('production.planOrders.period')} value={period} onChange={e => setPeriod(e.target.value)}>
+            <option value="">{tt('production.planOrders.allPeriods')}</option>
             {periods.map(p => (
               <option key={p} value={p}>
                 {fmtDate(parse(p))}
@@ -91,9 +93,9 @@ export function PlanOrdersPage() {
           </select>
         </label>
         <label className="fld" style={{ maxWidth: 220 }}>
-          <span className="lbl">Work center</span>
-          <select className="select" aria-label="Work center" value={center} onChange={e => setCenter(e.target.value)}>
-            <option value="">Any work center</option>
+          <span className="lbl">{tt('production.planOrders.workCenter')}</span>
+          <select className="select" aria-label={tt('production.planOrders.workCenter')} value={center} onChange={e => setCenter(e.target.value)}>
+            <option value="">{tt('production.planOrders.anyWorkCenter')}</option>
             {(centers.data?.items ?? []).map(c => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -103,7 +105,7 @@ export function PlanOrdersPage() {
         </label>
       </div>
       {workbench.isError ? (
-        <EmptyState icon={<CircleAlert size={20} />} error title="Could not load the plans" action={<Button size="sm" onClick={() => workbench.refetch()}>Retry</Button>}>
+        <EmptyState icon={<CircleAlert size={20} />} error title={tt('production.planOrders.loadFailed')} action={<Button size="sm" onClick={() => workbench.refetch()}>{tt('production.common.retry')}</Button>}>
           {(workbench.error as Error).message}
         </EmptyState>
       ) : workbench.isPending ? (
@@ -111,8 +113,8 @@ export function PlanOrdersPage() {
           <Skeleton w="100%" h={36} />
         </div>
       ) : !rows.length ? (
-        <EmptyState icon={<Factory size={20} />} title="No approved plans">
-          Orders are created from approved plans only. <Link to="/production/plans">Open the plans</Link> and approve the plan you need.
+        <EmptyState icon={<Factory size={20} />} title={tt('production.planOrders.noApproved')}>
+          {tt('production.planOrders.noApprovedHint')}
         </EmptyState>
       ) : (
         rows.map(r => (
@@ -135,18 +137,18 @@ export function PlanOrdersPage() {
                 <thead>
                   <tr>
                     <th style={{ width: 34 }} />
-                    <th>Product</th>
-                    <th style={{ width: 110 }}>Period</th>
+                    <th>{tt('production.planOrders.col.product')}</th>
+                    <th style={{ width: 110 }}>{tt('production.planOrders.col.period')}</th>
                     <th style={{ width: 90 }} className="r">
-                      Planned
+                      {tt('production.planOrders.col.planned')}
                     </th>
                     <th style={{ width: 90 }} className="r">
-                      Ordered
+                      {tt('production.planOrders.col.ordered')}
                     </th>
                     <th style={{ width: 100 }} className="r">
-                      Left
+                      {tt('production.planOrders.col.left')}
                     </th>
-                    <th style={{ width: 110 }}>Start</th>
+                    <th style={{ width: 110 }}>{tt('production.planOrders.col.start')}</th>
                   </tr>
                 </thead>
                 <tbody>{r.lines.map(l => lineRow(r.plan.id, l))}</tbody>

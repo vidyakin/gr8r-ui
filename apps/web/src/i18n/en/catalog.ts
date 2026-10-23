@@ -151,6 +151,7 @@ export const enums = {
   /** Периодичность биллинга по договору (месяц / квартал / год) — см. BILLING_PERIODICITY_LABELS в @gr8r/shared */
   periodicity: { month: 'Month', quarter: 'Quarter', year: 'Year' },
   replenishment: { purchase: 'Purchase', production: 'Production', transfer: 'Transfer' },
+  docStatus: { draft: 'Draft', posted: 'Posted', cancelled: 'Cancelled' },
   fieldType: {
     text: 'Text',
     long_text: 'Long text',

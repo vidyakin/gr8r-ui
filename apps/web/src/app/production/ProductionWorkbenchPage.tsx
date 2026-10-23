@@ -7,6 +7,7 @@ import { Badge, Button, Checkbox, EmptyState, Field, IconButton, Input, Segmente
 import { useCanWrite } from '../meta/custom-fields';
 import { STATE_LABEL, STATE_TONE } from './orders-data';
 import { useWorkbench, useWorkbenchExecute, type WorkbenchMode, type WorkbenchOrder, type WorkbenchRow } from './workbench-data';
+import { tProductionEnum, useT } from '@/i18n';
 
 /** Состояние этапа строки: отмечен ли и сколько выпустить */
 interface StageState {
@@ -27,6 +28,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 export function ProductionWorkbenchPage() {
   const canWrite = useCanWrite();
+  const tt = useT();
   const [mode, setMode] = React.useState<WorkbenchMode>('simple');
   const [date, setDate] = React.useState(today());
   const [q, setQ] = React.useState('');
@@ -121,30 +123,30 @@ export function ProductionWorkbenchPage() {
     <div className="page flush">
       <div className="ph">
         <div>
-          <h1>Production release</h1>
-          <p>Orders waiting to be produced. Pick the lines and the stages, choose the work center and release them into one production document per work center, date and stage.</p>
+          <h1>{tt('production.workbench.title')}</h1>
+          <p>{tt('production.workbench.subtitle')}</p>
         </div>
         <div className="acts">
           <Segmented
-            aria-label="Mode"
+            aria-label={tt('production.workbench.modeLabel')}
             value={mode}
             onValueChange={v => setMode(v as WorkbenchMode)}
             items={[
-              { value: 'simple', label: 'Whole remainder' },
-              { value: 'extended', label: 'By quantity' },
+              { value: 'simple', label: tt('production.workbench.mode.simple') },
+              { value: 'extended', label: tt('production.workbench.mode.extended') },
             ]}
           />
-          <Input aria-label="Document date" type="date" value={date} onChange={e => setDate(e.target.value)} style={{ width: 150 }} />
-          <Button onClick={() => void list.refetch()} title="Refresh">
+          <Input aria-label={tt('production.workbench.date')} type="date" value={date} onChange={e => setDate(e.target.value)} style={{ width: 150 }} />
+          <Button onClick={() => void list.refetch()} title={tt('production.common.refresh')}>
             <RefreshCw size={14} />
           </Button>
-          <IconButton label={panelOpen ? 'Hide the panel' : 'Show the panel'} onClick={() => setPanelOpen(v => !v)}>
+          <IconButton label={panelOpen ? tt('production.workbench.hidePanel') : tt('production.workbench.showPanel')} onClick={() => setPanelOpen(v => !v)}>
             {panelOpen ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
           </IconButton>
           {canWrite && (
             <Button variant="primary" disabled={!marked || execute.isPending} onClick={() => run()}>
               <Play size={14} />
-              Release{marked ? ` (${marked})` : ''}
+              {marked ? tt('production.workbench.releaseCount', { count: marked }) : tt('production.workbench.release')}
             </Button>
           )}
         </div>
@@ -153,7 +155,7 @@ export function ProductionWorkbenchPage() {
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', padding: '0 var(--gutter) 24px', minHeight: 0, flex: 1 }}>
         <section className="panel" style={{ flex: 1, minWidth: 0, padding: 0 }}>
           {list.isError ? (
-            <EmptyState icon={<CircleAlert size={20} />} error title="Could not load the workbench" action={<Button size="sm" onClick={() => list.refetch()}>Retry</Button>}>
+            <EmptyState icon={<CircleAlert size={20} />} error title={tt('production.workbench.loadFailed')} action={<Button size="sm" onClick={() => list.refetch()}>{tt('production.common.retry')}</Button>}>
               {(list.error as Error).message}
             </EmptyState>
           ) : list.isPending ? (
@@ -161,33 +163,33 @@ export function ProductionWorkbenchPage() {
               <Skeleton w="100%" h={36} />
             </div>
           ) : !orders.length ? (
-            <EmptyState icon={<Factory size={20} />} title="Nothing to release">
-              The workbench shows customer orders and production orders whose products are made to order. Nothing is waiting right now.
+            <EmptyState icon={<Factory size={20} />} title={tt('production.workbench.nothingToRelease')}>
+              {tt('production.workbench.nothingToReleaseHint')}
             </EmptyState>
           ) : (
             <div className="table-wrap">
-              <table className="dtbl" aria-label="Orders to release">
+              <table className="dtbl" aria-label={tt('production.workbench.table')}>
                 <thead>
                   <tr>
                     <th style={{ width: 34 }}>
                       <span className="faint">#</span>
                     </th>
-                    <th>Product</th>
+                    <th>{tt('production.field.product')}</th>
                     <th style={{ width: 96 }} className="r">
-                      Ordered
+                      {tt('production.workbench.col.ordered')}
                     </th>
                     <th style={{ width: 96 }} className="r">
-                      Produced
+                      {tt('production.workbench.col.produced')}
                     </th>
                     <th style={{ width: 96 }} className="r">
-                      Remaining
+                      {tt('production.workbench.col.remaining')}
                     </th>
                     {stageColumns.map(st => (
                       <th key={stageKey(st.id)} style={{ width: 150 }}>
                         {st.name}
                       </th>
                     ))}
-                    <th style={{ width: 190 }}>Work center</th>
+                    <th style={{ width: 190 }}>{tt('production.field.workCenter')}</th>
                     <th style={{ width: 44 }} />
                   </tr>
                 </thead>
@@ -215,50 +217,50 @@ export function ProductionWorkbenchPage() {
         {panelOpen && (
           <aside className="panel" style={{ width: 280, flex: '0 0 280px' }}>
             <div className="panel-h">
-              <h2>Filters and settings</h2>
-              {changed && <Badge tone="accent">Changed</Badge>}
+              <h2>{tt('production.workbench.panel.title')}</h2>
+              {changed && <Badge tone="accent">{tt('production.workbench.panel.changed')}</Badge>}
             </div>
             <div style={{ padding: 12, display: 'grid', gap: 12 }}>
-              <Field label="Search" hint="Order number or comment">
-                {p => <Input {...p} value={q} placeholder="Number or comment" onChange={e => setQ(e.target.value)} />}
+              <Field label={tt('production.workbench.panel.search')} hint={tt('production.workbench.panel.searchHint')}>
+                {p => <Input {...p} value={q} placeholder={tt('production.workbench.panel.searchPlaceholder')} onChange={e => setQ(e.target.value)} />}
               </Field>
-              <Field label="Order state">
+              <Field label={tt('production.workbench.panel.state')}>
                 {p => (
                   <Select
                     id={p.id}
-                    aria-label="Order state"
+                    aria-label={tt('production.workbench.panel.state')}
                     value={state}
                     onValueChange={v => setState(v)}
-                    options={[{ value: '', label: 'Any state' }, ...Object.entries(STATE_LABEL).map(([value, label]) => ({ value, label }))]}
+                    options={[{ value: '', label: tt('production.workbench.panel.anyState') }, ...Object.entries(STATE_LABEL).map(([value, label]) => ({ value, label: tProductionEnum('productionOrderState', value, label) }))]}
                   />
                 )}
               </Field>
-              <Field label="Planned until" hint="Planned end of the production order or the due date of the customer order">
+              <Field label={tt('production.workbench.panel.plannedUntil')} hint={tt('production.workbench.panel.plannedUntilHint')}>
                 {p => <Input {...p} type="date" value={to} onChange={e => setTo(e.target.value)} />}
               </Field>
-              <Field label="Default work center" hint="Used for the lines without a work center of their own">
+              <Field label={tt('production.workbench.panel.defaultCenter')} hint={tt('production.workbench.panel.defaultCenterHint')}>
                 {p => (
                   <Select
                     id={p.id}
-                    aria-label="Default work center"
+                    aria-label={tt('production.workbench.panel.defaultCenter')}
                     value={defaultCenter}
                     onValueChange={v => setDefaultCenter(v)}
-                    options={[{ value: '', label: 'Not chosen' }, ...centers.map(c => ({ value: c.id, label: c.name }))]}
+                    options={[{ value: '', label: tt('production.workbench.panel.notChosen') }, ...centers.map(c => ({ value: c.id, label: c.name }))]}
                   />
                 )}
               </Field>
               <div className="row" style={{ gap: 6 }}>
                 <Button size="sm" onClick={fill}>
                   <ListChecks size={13} />
-                  Fill
+                  {tt('production.workbench.panel.fill')}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={clear} disabled={!Object.keys(rows).length}>
                   <X size={13} />
-                  Clear
+                  {tt('production.workbench.panel.clear')}
                 </Button>
               </div>
               <p className="faint" style={{ fontSize: 12, margin: 0 }}>
-                “Whole remainder” releases everything that is left, “By quantity” lets you release part of it. A stage becomes available when the previous one is done; the finished goods arrive on the warehouse only after the final stage.
+                {tt('production.workbench.panel.modeHint')}
               </p>
             </div>
           </aside>
@@ -290,6 +292,7 @@ function OrderGroup({
   canWrite: boolean;
   onPatchAll: (p: Partial<RowState>, rows: WorkbenchRow[]) => void;
 }) {
+  const tt = useT();
   const center = stateOf(order, order.rows[0]).workCenterId;
   const all = order.rows.every(r => r.stages.every(st => stateOf(order, r).stages[stageKey(st.id)]?.checked));
   return (
@@ -297,20 +300,20 @@ function OrderGroup({
       <tr>
         <td colSpan={6 + stageColumns.length} style={{ background: 'var(--surface-2, rgba(127,127,127,0.06))', padding: '6px 10px' }}>
           <div className="row" style={{ gap: 8, alignItems: 'center' }}>
-            <strong style={{ fontWeight: 550 }}>{order.number ?? 'Draft'}</strong>
-            <span className="faint">{order.type === 'customer_order' ? 'Customer order' : 'Production order'}</span>
-            {order.state && <Badge tone={STATE_TONE[order.state] ?? 'gray'}>{STATE_LABEL[order.state] ?? order.state}</Badge>}
+            <strong style={{ fontWeight: 550 }}>{order.number ?? tt('production.common.draft')}</strong>
+            <span className="faint">{order.type === 'customer_order' ? tt('production.workbench.customerOrder') : tt('production.workbench.productionOrder')}</span>
+            {order.state && <Badge tone={STATE_TONE[order.state] ?? 'gray'}>{tProductionEnum('productionOrderState', order.state, STATE_LABEL[order.state] ?? order.state)}</Badge>}
             {order.counterparty && <span className="muted">{order.counterparty.name}</span>}
             {order.workCenterName && <span className="faint">· {order.workCenterName}</span>}
             {order.dueDate && <span className="faint">· {order.dueDate}</span>}
             {canWrite && (
               <div className="row" style={{ gap: 8, marginLeft: 'auto', alignItems: 'center' }}>
                 <Select
-                  aria-label="Work center for the order"
+                  aria-label={tt('production.workbench.forOrder')}
                   size="sm"
                   value={center}
                   onValueChange={v => onPatchAll({ workCenterId: v }, order.rows)}
-                  options={[{ value: '', label: 'No work center' }, ...centers.map(c => ({ value: c.id, label: c.name }))]}
+                  options={[{ value: '', label: tt('production.workbench.noWorkCenter') }, ...centers.map(c => ({ value: c.id, label: c.name }))]}
                   className="w-auto"
                 />
                 <Button
@@ -320,7 +323,7 @@ function OrderGroup({
                     for (const r of order.rows) for (const st of r.stages) patchStage(order, r, stageKey(st.id), { checked: !all });
                   }}
                 >
-                  {all ? 'Uncheck all' : 'Check all'}
+                  {all ? tt('production.workbench.uncheckAll') : tt('production.workbench.checkAll')}
                 </Button>
               </div>
             )}
@@ -334,7 +337,7 @@ function OrderGroup({
             <td>
               {canWrite ? (
                 <Checkbox
-                  aria-label={`Release ${r.productName}`}
+                  aria-label={tt('production.workbench.releaseLine', { name: r.productName })}
                   checked={r.stages.length > 0 && r.stages.every(st => s.stages[stageKey(st.id)]?.checked)}
                   onChange={e => {
                     for (const st of r.stages) patchStage(order, r, stageKey(st.id), { checked: e.target.checked });
@@ -360,13 +363,13 @@ function OrderGroup({
                   {canWrite ? (
                     <div className="row" style={{ gap: 6 }}>
                       <Checkbox
-                        aria-label={`Release the stage ${st.name} of ${r.productName}`}
+                        aria-label={tt('production.workbench.releaseStage', { stage: st.name, name: r.productName })}
                         checked={state.checked}
                         disabled={Number(st.available) <= 0}
                         onChange={e => patchStage(order, r, stageKey(col.id), { checked: e.target.checked })}
                       />
                       {mode === 'extended' ? (
-                        <Input aria-label={`Quantity of the stage ${st.name}`} inputMode="decimal" value={state.qty} onChange={e => patchStage(order, r, stageKey(col.id), { qty: e.target.value })} />
+                        <Input aria-label={tt('production.workbench.qtyStage', { stage: st.name })} inputMode="decimal" value={state.qty} onChange={e => patchStage(order, r, stageKey(col.id), { qty: e.target.value })} />
                       ) : (
                         <span className="num faint">{st.remaining}</span>
                       )}
@@ -380,11 +383,11 @@ function OrderGroup({
             <td>
               {canWrite ? (
                 <Select
-                  aria-label="Work center"
+                  aria-label={tt('production.field.workCenter')}
                   size="sm"
                   value={s.workCenterId}
                   onValueChange={v => patch(order, r, { workCenterId: v })}
-                  options={[{ value: '', label: 'No work center' }, ...centers.map(c => ({ value: c.id, label: c.name }))]}
+                  options={[{ value: '', label: tt('production.workbench.noWorkCenter') }, ...centers.map(c => ({ value: c.id, label: c.name }))]}
                 />
               ) : (
                 <span className="faint">—</span>

@@ -53,6 +53,12 @@ export function tEnum(group: keyof typeof en.enums, value: string, fallback: str
   return hasKey(key) ? t(key) : fallback;
 }
 
+/** Подпись значения из productionEnums (состояния заказов, планов, покрытия и т. п.); нет перевода — fallback */
+export function tProductionEnum(group: keyof typeof en.productionEnums, value: string, fallback: string): string {
+  const key = `productionEnums.${group}.${value}`;
+  return hasKey(key) ? t(key as TKey) : fallback;
+}
+
 /** Есть ли ключ в словаре (для перевода по динамическим кодам, например кодам ошибок API) */
 export const hasKey = (key: string): key is TKey => lookup(en, key) != null;
 

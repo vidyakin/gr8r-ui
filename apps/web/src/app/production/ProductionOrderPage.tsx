@@ -17,11 +17,12 @@ import { useDocumentResources, usePlanningApi, useResources } from './planning-d
 import { MaterialStockBlock, ReserveDialog, StockToggle, SupplyButtons } from './material-stock';
 import type { MaterialCoverageRow } from './orders-data';
 import { DocTabs } from '../docs/doc-tabs';
-import { t } from '@/i18n';
+import { t, tProductionEnum, useT } from '@/i18n';
 
 export function ProductionOrderPage() {
-  const { id } = useParams();
+  const { id = '' } = useParams();
   const q = useProductionOrder(id);
+  const tt = useT();
   if (q.isPending)
     return (
       <div className="page flush">
@@ -33,8 +34,8 @@ export function ProductionOrderPage() {
   if (q.isError || !q.data)
     return (
       <div className="page flush">
-        <EmptyState icon={<CircleAlert size={20} />} error title="Production order not found" action={<Link to="/production/orders" className="btn btn-secondary">Back to orders</Link>}>
-          This order does not exist or belongs to another workspace.
+        <EmptyState icon={<CircleAlert size={20} />} error title={tt('production.order.notFound')} action={<Link to="/production/orders" className="btn btn-secondary">{tt('production.order.backToOrders')}</Link>}>
+          {tt('production.order.notFoundHint')}
         </EmptyState>
       </div>
     );
@@ -47,8 +48,9 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
   const api = useProductionOrderApi();
   const docs = useDocsApi();
   const snap = useSnapshot();
+  const tt = useT();
   const [busy, setBusy] = React.useState(false);
-  const [confirm, setConfirm] = React.useState(false);
+  const [confirm] = React.useState(false);
   const [showStock, setShowStock] = React.useState(false);
   const [editing, setEditing] = React.useState<MaterialCoverageRow | null>(null);
   const editable = canWrite && order.status === 'draft';
@@ -106,19 +108,19 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
     <div className="page doc-page">
       <div className="doc-bar">
         <div className="doc-title">
-          <nav className="muted" style={{ fontSize: 12.5 }} aria-label="Section">
+          <nav className="muted" style={{ fontSize: 12.5 }} aria-label={tt('production.section.orders')}>
             <Link to="/production/orders" className="crm-link">
-              Production orders
+              {tt('production.section.orders')}
             </Link>
           </nav>
           <h1>
-            Production order {order.number ?? <span className="faint">draft</span>}
+            {tt('production.order.titlePrefix')} {order.number ?? <span className="faint">{tt('production.common.draft')}</span>}
             <Badge tone={STATUS_TONE[order.status]} dot>
-              {STATUS_LABEL[order.status]}
+              {tProductionEnum('docStatus', order.status, STATUS_LABEL[order.status])}
             </Badge>
             {order.state && (
               <Badge tone={STATE_TONE[order.state] ?? 'gray'}>
-                {STATE_LABEL[order.state] ?? order.state}
+                {tProductionEnum('productionOrderState', order.state, STATE_LABEL[order.state] ?? order.state)}
               </Badge>
             )}
           </h1>
@@ -128,56 +130,56 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
           {editable && (
             <Button disabled={busy} onClick={() => void api.fill.mutateAsync(order.id)}>
               <Wand2 size={14} />
-              Recalculate composition
+              {tt('production.order.recalculate')}
             </Button>
           )}
           {canWrite && (
             <Button disabled={busy} onClick={() => void api.schedule.mutateAsync(order.id)}>
               <CalendarRange size={14} />
-              Schedule
+              {tt('production.order.actions.schedule')}
             </Button>
           )}
           {canWrite && order.status === 'posted' && (
             <Button disabled={busy} onClick={() => void createProduction()}>
               <FileText size={14} />
-              Create production
+              {tt('production.order.actions.createProduction')}
             </Button>
           )}
           {canWrite && order.status === 'draft' && (
             <Button variant="primary" disabled={busy} onClick={() => void post()}>
               <Send size={14} />
-              Post
+              {tt('production.common.post')}
             </Button>
           )}
           {canWrite && order.status === 'posted' && (
             <Button disabled={busy} onClick={() => void unpost()}>
               <Undo2 size={14} />
-              Unpost
+              {tt('production.common.unpost')}
             </Button>
           )}
           {canWrite && (
             <Select
-              aria-label="State"
+              aria-label={tt('production.field.state')}
               value={order.state ?? ''}
               onValueChange={v => api.setState.mutate({ id: order.id, state: v })}
-              options={PRODUCTION_ORDER_STATES.filter(s => s.key !== order.state).map(s => ({ value: s.key, label: s.label }))}
-              placeholder="State"
+              options={PRODUCTION_ORDER_STATES.filter(s => s.key !== order.state).map(s => ({ value: s.key, label: tProductionEnum('productionOrderState', s.key, s.label) }))}
+              placeholder={tt('production.field.state')}
               className="w-auto"
             />
           )}
         </div>
       </div>
 
-      <section className="doc-head panel" aria-label="Order header">
-        <Field label="Operation" hint={disassembly ? 'Disassembly: the goods of the product are taken apart into the outputs' : 'Assembly: the product is made of the materials'}>
+      <section className="doc-head panel" aria-label={tt('production.order.headerAria')}>
+        <Field label={tt('production.field.operation')} hint={disassembly ? tt('production.order.hint.disassembly') : tt('production.order.hint.assembly')}>
           {p => (
-            <select className="select" id={p.id} disabled={!editable} value={order.operation ?? 'assembly'} aria-label="Operation" onChange={e => save({ operation: e.target.value })}>
-              <option value="assembly">Assembly</option>
-              <option value="disassembly">Disassembly</option>
+            <select className="select" id={p.id} disabled={!editable} value={order.operation ?? 'assembly'} aria-label={tt('production.field.operation')} onChange={e => save({ operation: e.target.value })}>
+              <option value="assembly">{tt('production.order.op.assembly')}</option>
+              <option value="disassembly">{tt('production.order.op.disassembly')}</option>
             </select>
           )}
         </Field>
-        <Field label="Work center" hint="Who makes the products">
+        <Field label={tt('production.field.workCenter')} hint={tt('production.order.hint.workCenter')}>
           {p => (
             <Select
               id={p.id}
@@ -185,13 +187,13 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
               value={order.workCenter?.id ?? ''}
               onValueChange={v => save({ workCenterId: v })}
               options={(snap.data?.workCenters ?? []).map(w => ({ value: w.id, label: w.name }))}
-              placeholder="Select work center"
-              aria-label="Work center"
+              placeholder={tt('production.order.chooseWorkCenter')}
+              aria-label={tt('production.field.workCenter')}
             />
           )}
         </Field>
-        <Field label="Planned start">{p => <Input {...p} type="date" disabled={!editable} value={order.plannedStart ? order.plannedStart.slice(0, 10) : ''} onChange={e => save({ plannedStart: e.target.value ? new Date(e.target.value).toISOString() : null })} />}</Field>
-        <Field label="Planned end">{p => <Input {...p} type="date" disabled={!editable} value={order.plannedEnd ? order.plannedEnd.slice(0, 10) : ''} onChange={e => save({ plannedEnd: e.target.value ? new Date(e.target.value).toISOString() : null })} />}</Field>
+        <Field label={tt('production.field.plannedStart')}>{p => <Input {...p} type="date" disabled={!editable} value={order.plannedStart ? order.plannedStart.slice(0, 10) : ''} onChange={e => save({ plannedStart: e.target.value ? new Date(e.target.value).toISOString() : null })} />}</Field>
+        <Field label={tt('production.field.plannedEnd')}>{p => <Input {...p} type="date" disabled={!editable} value={order.plannedEnd ? order.plannedEnd.slice(0, 10) : ''} onChange={e => save({ plannedEnd: e.target.value ? new Date(e.target.value).toISOString() : null })} />}</Field>
       </section>
 
       <DocTabs
@@ -202,21 +204,21 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
             label: t(disassembly ? 'docs.tabs.disassembled' : 'docs.tabs.products'),
             count: order.items.length,
             content: (
-              <section className="doc-lines panel" aria-label={disassembly ? 'What we disassemble' : 'Products to produce'}>
+              <section className="doc-lines panel" aria-label={disassembly ? tt('production.order.tabs.disassemble') : tt('production.order.tabs.products')}>
                 <div className="table-wrap">
-                  <table className="dtbl" aria-label="Order items">
+                  <table className="dtbl" aria-label={tt('production.order.itemsTable')}>
                     <thead>
                       <tr>
                         <th style={{ width: 34 }}>#</th>
-                        <th>{disassembly ? 'What we disassemble' : 'Product'}</th>
+                        <th>{disassembly ? tt('production.order.disassembleWhat') : tt('production.field.product')}</th>
                         <th style={{ width: 110 }} className="r">
-                          Qty
+                          {tt('production.field.quantity')}
                         </th>
                         <th style={{ width: 100 }} className="r">
-                          Produced
+                          {tt('production.field.produced')}
                         </th>
                         <th style={{ width: 100 }} className="r">
-                          Remaining
+                          {tt('production.field.remaining')}
                         </th>
                         <th style={{ width: 36 }} />
                       </tr>
@@ -228,7 +230,7 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
                           <td>
                             {editable ? (
                               <Select
-                                aria-label="Product"
+                                aria-label={tt('production.field.product')}
                                 value={it.itemId}
                                 onValueChange={v => changeItem(n, { itemId: v })}
                                 options={products.map(p => ({ value: p.id, label: p.name }))}
@@ -239,7 +241,7 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
                           </td>
                           <td className="r">
                             {editable ? (
-                              <Input aria-label="Quantity" inputMode="decimal" value={it.qty} onChange={e => changeItem(n, { qty: e.target.value })} />
+                              <Input aria-label={tt('production.field.quantity')} inputMode="decimal" value={it.qty} onChange={e => changeItem(n, { qty: e.target.value })} />
                             ) : (
                               <span className="num">{it.qty}</span>
                             )}
@@ -248,7 +250,7 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
                           <td className="r num">{remaining[n]}</td>
                           <td>
                             {editable && (
-                              <IconButton size="xs" label="Remove product" onClick={() => removeItem(n)}>
+                              <IconButton size="xs" label={tt('production.order.removeProduct')} onClick={() => removeItem(n)}>
                                 <Trash2 size={13} />
                               </IconButton>
                             )}
@@ -258,7 +260,8 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
                       {!order.items.length && (
                         <tr>
                           <td colSpan={6} className="faint" style={{ textAlign: 'center', padding: 22 }}>
-                            {disassembly ? 'No goods to disassemble yet.' : 'No products yet.'} {editable ? (disassembly ? ' Add what to disassemble.' : ' Add what to produce.') : ''}
+                            {disassembly ? tt('production.order.noDisassembleYet') : tt('production.order.noProductsYet')}
+                            {editable ? (disassembly ? ' ' + tt('production.order.addWhat') : ' ' + tt('production.order.addProduct')) : ''}
                           </td>
                         </tr>
                       )}
@@ -269,7 +272,7 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
                   <div className="doc-add">
                     <Button size="sm" variant="ghost" onClick={addItem}>
                       <Plus size={13} />
-                      Add product
+                      {tt('production.order.addProduct')}
                     </Button>
                   </div>
                 )}
@@ -281,7 +284,7 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
             label: t(disassembly ? 'docs.tabs.outputs' : 'docs.tabs.bom'),
             count: order.components.length,
             content: (
-              <section className="doc-links panel" aria-label="Composition">
+              <section className="doc-links panel" aria-label={tt('production.order.compositionAria')}>
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', flexWrap: 'wrap', marginBottom: 8 }}>
                   <StockToggle on={showStock} onToggle={() => setShowStock(v => !v)} />
                   <SupplyButtons orderId={order.id} />
@@ -289,23 +292,23 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
                 {showStock ? (
                   <MaterialStockBlock orderId={order.id} canWrite={canWrite} onEdit={setEditing} />
                 ) : !order.components.length ? (
-                  <p className="faint">The composition is empty: use “Fill from BOM” to copy the specification of each product.</p>
+                  <p className="faint">{tt('production.order.emptyComposition')}</p>
                 ) : (
-                  <table className="dtbl" aria-label="Composition">
+                  <table className="dtbl" aria-label={tt('production.order.compositionTable')}>
                     <thead>
                       <tr>
-                        <th>{disassembly ? 'Output or work' : 'Material or work'}</th>
+                        <th>{disassembly ? tt('production.order.outputOrWork') : tt('production.order.materialOrWork')}</th>
                         <th style={{ width: 100 }} className="r">
-                          Qty
+                          {tt('production.field.quantity')}
                         </th>
                         {order.processingOrderId && (
-                          <th style={{ width: 150 }}>Owner</th>
+                          <th style={{ width: 150 }}>{tt('production.field.owner')}</th>
                         )}
                         <th style={{ width: 90 }} className="r">
-                          Hours
+                          {tt('production.field.hours')}
                         </th>
                         <th style={{ width: 120 }} className="r">
-                          Cost
+                          {tt('production.field.cost')}
                         </th>
                       </tr>
                     </thead>
@@ -313,20 +316,20 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
                       {order.components.map(c => (
                         <tr key={c.id}>
                           <td>
-                            <span className="trunc">{c.kind === 'work' ? c.operation : c.kind === 'semi' ? 'Semi-finished product' : c.kind === 'output' ? 'Output' : 'Material'}</span>
+                            <span className="trunc">{c.kind === 'work' ? c.operation : tProductionEnum('componentKind', c.kind, c.kind)}</span>
                           </td>
                           <td className="r num">{c.kind === 'work' ? '—' : c.qty}</td>
                           {order.processingOrderId && (
                             <td>
                               {c.kind === 'work' || c.kind === 'expense' ? (
-                                <span className="muted">{MATERIAL_OWNER_LABELS.own}</span>
+                                <span className="muted">{tProductionEnum('materialOwner', 'own', MATERIAL_OWNER_LABELS.own)}</span>
                               ) : (
                                 <Select
-                                  aria-label="Owner"
+                                  aria-label={tt('production.field.owner')}
                                   disabled={!canWrite || order.status !== 'draft'}
                                   value={c.ownerKind}
                                   onValueChange={v => void api.run('PATCH', `/production-orders/${order.id}/components/${c.id}`, { ownerKind: v })}
-                                  options={MATERIAL_OWNERS.map(o => ({ value: o, label: MATERIAL_OWNER_LABELS[o] }))}
+                                  options={MATERIAL_OWNERS.map(o => ({ value: o, label: tProductionEnum('materialOwner', o, MATERIAL_OWNER_LABELS[o]) }))}
                                 />
                               )}
                             </td>
@@ -346,7 +349,7 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
             id: 'operations',
             label: t('docs.tabs.operations'),
             content: (
-              <section className="doc-links panel" aria-label="Operations">
+              <section className="doc-links panel" aria-label={tt('production.order.operationsAria')}>
                 <OrderOperations order={order} />
               </section>
             ),
@@ -355,7 +358,7 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
             id: 'resources',
             label: t('docs.tabs.resources'),
             content: (
-              <section className="doc-links panel" aria-label="Resources">
+              <section className="doc-links panel" aria-label={tt('production.order.resourcesAria')}>
                 <DocumentResourcesPanel orderId={order.id} />
               </section>
             ),
@@ -364,18 +367,18 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
       />
 
       <div className="doc-bottom">
-        <section className="doc-links panel" aria-label="Releases">
-          <h2>Releases</h2>
+        <section className="doc-links panel" aria-label={tt('production.order.releases')}>
+          <h2>{tt('production.order.releasesTitle')}</h2>
           {!order.outputs.length ? (
-            <p className="faint">Nothing has been released from this order yet.</p>
+            <p className="faint">{tt('production.order.noReleases')}</p>
           ) : (
             <ul>
               {order.outputs.map(o => (
                 <li key={o.id}>
                   <Link className="crm-link" to={`/documents/${o.id}`}>
-                    Production {o.number ?? '(draft)'}
+                    {tt('production.order.productionDoc')} {o.number ?? `(${tt('production.common.draft')})`}
                   </Link>{' '}
-                  <Badge tone={STATUS_TONE[o.status]}>{STATUS_LABEL[o.status]}</Badge> <span className="faint">{fmtDate(new Date(o.date))}</span>
+                  <Badge tone={STATUS_TONE[o.status]}>{tProductionEnum('docStatus', o.status, STATUS_LABEL[o.status])}</Badge> <span className="faint">{fmtDate(new Date(o.date))}</span>
                 </li>
               ))}
             </ul>
@@ -389,7 +392,7 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
         </Field>
       </section>
 
-      <ConfirmDialog open={confirm} onOpenChange={o => !o && setConfirm(false)} title="Delete this draft?" description="The draft has never been posted and has no number, so it is removed completely." confirmLabel="Delete" cancelLabel="Keep" danger onConfirm={() => setConfirm(false)} />
+      <ConfirmDialog open={confirm} onOpenChange={o => !o && undefined} title={tt('production.order.deleteDraft')} description={tt('production.order.deleteDraftHint')} confirmLabel={tt('production.common.delete')} cancelLabel={tt('production.order.keep')} danger onConfirm={() => undefined} />
     </div>
   );
 }
@@ -398,6 +401,7 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
    выполнение отмечает исполнитель (в своей задаче) или мастер (в рабочем месте). */
 function OrderOperations({ order }: { order: ProductionOrderDetail }) {
   const canWrite = useCanWrite();
+  const tt = useT();
   const { data: ws } = useWorkspace();
   const ops = useOrderOperations(order.id);
   const api = usePieceworkApi();
@@ -405,24 +409,24 @@ function OrderOperations({ order }: { order: ProductionOrderDetail }) {
   const works = order.components.filter(c => c.kind === 'work');
   const rows = ops.data?.items ?? [];
 
-  if (!works.length) return <p className="faint">The composition has no work operations: fill it from the bill of materials.</p>;
-  if (!rows.length && !canWrite) return <p className="faint">No executors are assigned to the operations yet.</p>;
+  if (!works.length) return <p className="faint">{tt('production.order.noWorks')}</p>;
+  if (!rows.length && !canWrite) return <p className="faint">{tt('production.order.noExecutors')}</p>;
 
   return (
     <>
-      <table className="dtbl" aria-label="Operations">
+      <table className="dtbl" aria-label={tt('production.order.operationsTable')}>
         <thead>
           <tr>
-            <th>Operation</th>
-            <th>Executor</th>
+            <th>{tt('production.field.operation')}</th>
+            <th>{tt('production.field.executor')}</th>
             <th style={{ width: 90 }} className="r">
-              Planned
+              {tt('production.field.planned')}
             </th>
             <th style={{ width: 90 }} className="r">
-              Done
+              {tt('production.field.done')}
             </th>
             <th style={{ width: 90 }} className="r">
-              Left
+              {tt('production.field.left')}
             </th>
             {canWrite && <th style={{ width: 90 }} />}
           </tr>
@@ -432,15 +436,15 @@ function OrderOperations({ order }: { order: ProductionOrderDetail }) {
             const own = rows.filter(r => r.componentId === c.id);
             return (
               <tr key={c.id}>
-                <td className="trunc">{c.operation || 'Work'}</td>
-                <td className="trunc">{own.length ? own.map(r => r.memberName).join(', ') : <span className="faint">Not assigned</span>}</td>
+                <td className="trunc">{c.operation || tt('production.field.work')}</td>
+                <td className="trunc">{own.length ? own.map(r => r.memberName).join(', ') : <span className="faint">{tt('production.order.notAssigned')}</span>}</td>
                 <td className="r num">{own.length ? own.reduce((s, r) => s + Number(r.plannedQty), 0).toFixed(3) : '—'}</td>
                 <td className="r num">{own.length ? own.reduce((s, r) => s + Number(r.doneQty), 0).toFixed(3) : '—'}</td>
                 <td className="r num">{own.length ? own.reduce((s, r) => s + Number(r.leftQty), 0).toFixed(3) : '—'}</td>
                 {canWrite && (
                   <td className="r">
-                    <Button size="sm" variant="ghost" onClick={() => setEditing({ componentId: c.id, name: c.operation || 'Work' })}>
-                      Assign
+                    <Button size="sm" variant="ghost" onClick={() => setEditing({ componentId: c.id, name: c.operation || tt('production.field.work') })}>
+                      {tt('production.field.assign')}
                     </Button>
                   </td>
                 )}
@@ -482,6 +486,7 @@ function AssignDialog({
   onClose: () => void;
   onSave: (assignments: { componentId: string; memberId: string; qty: string }[]) => void;
 }) {
+  const tt = useT();
   const [memberId, setMemberId] = React.useState(members[0]?.id ?? '');
   const [qty, setQty] = React.useState('');
   const [err, setErr] = React.useState<Record<string, string>>({});
@@ -490,8 +495,8 @@ function AssignDialog({
 
   const submit = () => {
     const errs: Record<string, string> = {};
-    if (!memberId) errs.memberId = 'Choose an executor';
-    if (!qty.trim() || Number(qty) <= 0) errs.qty = 'Enter the quantity';
+    if (!memberId) errs.memberId = tt('production.field.chooseExecutor');
+    if (!qty.trim() || Number(qty) <= 0) errs.qty = tt('production.order.enterQuantity');
     setErr(errs);
     if (Object.keys(errs).length) return;
     const assignments = all.map(r => ({ componentId: r.componentId, memberId: r.memberId, qty: r.plannedQty }));
@@ -505,23 +510,23 @@ function AssignDialog({
     setBusy(true);
     onSave(rest);
     setBusy(false);
-    toast(`The executor of “${name}” is saved`);
+    toast(tt('production.order.executorSaved', { name }));
     onClose();
   };
 
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
-        title={`Executors of “${name}”`}
-        description="An operation can be shared between several executors: the sum of the assigned quantities cannot exceed the ordered one. Every executor gets a task in the Production module."
+        title={tt('production.order.executorsOf', { name })}
+        description={tt('production.order.executorsHint')}
         footer={
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{tt('production.common.cancel')}</Button>
             </DialogClose>
             <Button variant="primary" disabled={busy} onClick={submit}>
-              Save
+              {tt('production.common.save')}
             </Button>
           </>
         }
@@ -534,18 +539,18 @@ function AssignDialog({
             submit();
           }}
         >
-          <Field label="Executor" error={err.memberId}>
+          <Field label={tt('production.field.executor')} error={err.memberId}>
             {p => (
               <Select
                 id={p.id}
                 value={memberId}
                 onValueChange={v => (setMemberId(v), setErr({}))}
                 options={members.map(m => ({ value: m.id, label: m.name }))}
-                placeholder="Choose an executor"
+                placeholder={tt('production.field.chooseExecutor')}
               />
             )}
           </Field>
-          <Field label="Quantity" error={err.qty} hint={`Already assigned: ${used.toFixed(3)}`}>
+          <Field label={tt('production.field.quantity')} error={err.qty} hint={tt('production.order.alreadyAssigned', { qty: used.toFixed(3) })}>
             {p => <Input {...p} inputMode="decimal" value={qty} onChange={e => (setQty(e.target.value), setErr({}))} />}
           </Field>
           {current.length > 0 && (
@@ -564,6 +569,7 @@ function AssignDialog({
    и правятся вручную — закладка «Ресурсы». */
 export function DocumentResourcesPanel({ orderId }: { orderId: string }) {
   const canWrite = useCanWrite();
+  const tt = useT();
   const api = usePlanningApi();
   const resources = useResources();
   const docRes = useDocumentResources(orderId);
@@ -576,7 +582,7 @@ export function DocumentResourcesPanel({ orderId }: { orderId: string }) {
       items: rows.map(x => ({ resourceId: x.resourceId, startAt: x.startAt, endAt: x.endAt, hours: x.hours })),
     });
     if (r) {
-      toast('Resources saved');
+      toast(tt('production.order.resourcesSaved'));
       setEditing(false);
     }
   };
@@ -584,19 +590,19 @@ export function DocumentResourcesPanel({ orderId }: { orderId: string }) {
   if (!items.length)
     return (
       <p className="faint">
-        No resources yet. Schedule the order — the resources of its operations are filled in by the norm of the operation.
+        {tt('production.order.noResources')}
       </p>
     );
 
   return (
     <>
-      <table className="dtbl" aria-label="Resources">
+      <table className="dtbl" aria-label={tt('production.order.resourcesTable')}>
         <thead>
           <tr>
-            <th>Resource</th>
-            <th>Hours</th>
-            <th>From</th>
-            <th>To</th>
+            <th>{tt('production.field.resource')}</th>
+            <th>{tt('production.field.hours')}</th>
+            <th>{tt('production.order.from')}</th>
+            <th>{tt('production.order.to')}</th>
           </tr>
         </thead>
         <tbody>
@@ -612,7 +618,7 @@ export function DocumentResourcesPanel({ orderId }: { orderId: string }) {
       </table>
       {canWrite && (
         <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
-          Edit resources
+          {tt('production.order.editResources')}
         </Button>
       )}
       {editing && <ResourcesDialog orderId={orderId} onClose={() => setEditing(false)} onSave={save} />}
@@ -622,6 +628,7 @@ export function DocumentResourcesPanel({ orderId }: { orderId: string }) {
 
 /** Правка ресурсов заказа: ресурс, часы и интервал работы */
 function ResourcesDialog({ orderId, onClose, onSave }: { orderId: string; onClose: () => void; onSave: (rows: { resourceId: string; startAt: string | null; endAt: string | null; hours: string }[]) => void }) {
+  const tt = useT();
   const resources = useResources();
   const docRes = useDocumentResources(orderId);
   const [rows, setRows] = React.useState(
@@ -651,16 +658,16 @@ function ResourcesDialog({ orderId, onClose, onSave }: { orderId: string; onClos
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
-        title="Resources of the order"
-        description="The resources of the operations, their hours and the interval they are busy."
+        title={tt('production.order.resourcesDialogTitle')}
+        description={tt('production.order.resourcesDialogDesc')}
         footer={
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{tt('production.common.cancel')}</Button>
             </DialogClose>
             <Button variant="primary" disabled={busy} onClick={submit}>
-              Save
+              {tt('production.common.save')}
             </Button>
           </>
         }
@@ -670,7 +677,7 @@ function ResourcesDialog({ orderId, onClose, onSave }: { orderId: string; onClos
             <div key={i} className="row" style={{ gap: 8 }}>
               <select
                 className="select !h-[30px] !text-xs"
-                aria-label="Resource"
+                aria-label={tt('production.field.resource')}
                 value={r.resourceId}
                 onChange={e => setRows(prev => prev.map((x, n) => (n === i ? { ...x, resourceId: e.target.value } : x)))}
               >
@@ -680,10 +687,10 @@ function ResourcesDialog({ orderId, onClose, onSave }: { orderId: string; onClos
                   </option>
                 ))}
               </select>
-              <Input aria-label="Hours" inputMode="decimal" value={r.hours} onChange={e => setRows(prev => prev.map((x, n) => (n === i ? { ...x, hours: e.target.value } : x)))} style={{ width: 90 }} />
-              <Input aria-label="From" type="date" value={r.startAt} onChange={e => setRows(prev => prev.map((x, n) => (n === i ? { ...x, startAt: e.target.value } : x)))} style={{ width: 150 }} />
-              <Input aria-label="To" type="date" value={r.endAt} onChange={e => setRows(prev => prev.map((x, n) => (n === i ? { ...x, endAt: e.target.value } : x)))} style={{ width: 150 }} />
-              <button type="button" className="ibtn ibtn-xs" aria-label="Remove resource" onClick={() => setRows(prev => prev.filter((_, n) => n !== i))}>
+              <Input aria-label={tt('production.field.hours')} inputMode="decimal" value={r.hours} onChange={e => setRows(prev => prev.map((x, n) => (n === i ? { ...x, hours: e.target.value } : x)))} style={{ width: 90 }} />
+              <Input aria-label={tt('production.order.from')} type="date" value={r.startAt} onChange={e => setRows(prev => prev.map((x, n) => (n === i ? { ...x, startAt: e.target.value } : x)))} style={{ width: 150 }} />
+              <Input aria-label={tt('production.order.to')} type="date" value={r.endAt} onChange={e => setRows(prev => prev.map((x, n) => (n === i ? { ...x, endAt: e.target.value } : x)))} style={{ width: 150 }} />
+              <button type="button" className="ibtn ibtn-xs" aria-label={tt('production.order.removeResource')} onClick={() => setRows(prev => prev.filter((_, n) => n !== i))}>
                 <Trash2 size={13} />
               </button>
             </div>
@@ -694,7 +701,7 @@ function ResourcesDialog({ orderId, onClose, onSave }: { orderId: string; onClos
             onClick={() => setRows(prev => [...prev, { resourceId: resources.data?.items[0]?.id ?? '', hours: '0', startAt: '', endAt: '' }])}
           >
             <Plus size={13} />
-            Add resource
+            {tt('production.order.addResource')}
           </Button>
         </div>
       </DialogContent>

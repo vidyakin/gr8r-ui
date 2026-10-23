@@ -8,12 +8,13 @@ import { useCanWrite } from '../meta/custom-fields';
 import { useCostItems } from '../docs/data';
 import { useSnapshot } from './data';
 import { useOtherCosts, useOtherCostsApi, useOtherCostsDocument, type OtherCostsLineInput } from './closing-data';
-import { t } from '@/i18n';
+import { t, tProductionEnum, useT } from '@/i18n';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const newLine = (): OtherCostsLineInput => ({ id: crypto.randomUUID(), costItemId: '', workCenterId: null, amount: '0', comment: '' });
 
 export function OtherCostsPage() {
+  const tt = useT();
   const canWrite = useCanWrite();
   const navigate = useNavigate();
   const [q, setQ] = React.useState('');
@@ -24,23 +25,23 @@ export function OtherCostsPage() {
     <div className="page flush">
       <div className="ph">
         <div>
-          <h1>Other costs</h1>
-          <p>Indirect costs of the month without goods: rent, utilities, depreciation of the shop. Each line carries a cost item and, optionally, a work center — at closing they are allocated to the releases.</p>
+          <h1>{t('production.otherCosts.title')}</h1>
+          <p>{t('production.otherCosts.subtitle')}</p>
         </div>
         <div className="acts">
           {canWrite && (
             <Button variant="primary" onClick={() => void navigate('/other-costs/new')}>
               <FilePlus2 size={14} />
-              New other costs
+              {t('production.otherCosts.new')}
             </Button>
           )}
         </div>
       </div>
       <div className="row" style={{ gap: 8, padding: '0 var(--gutter) 12px' }}>
-        <Field label="Search">{p => <Input {...p} value={q} placeholder="Comment of the document or of a line" onChange={e => setQ(e.target.value)} />}</Field>
+        <Field label={tt('production.common.search')}>{p => <Input {...p} value={q} onChange={e => setQ(e.target.value)} />}</Field>
       </div>
       {list.isError ? (
-        <EmptyState icon={<CircleAlert size={20} />} error title="Could not load the other costs" action={<Button size="sm" onClick={() => list.refetch()}>Retry</Button>}>
+        <EmptyState icon={<CircleAlert size={20} />} error title={t('production.otherCosts.title')} action={<Button size="sm" onClick={() => list.refetch()}>{t('production.common.retry')}</Button>}>
           {(list.error as Error).message}
         </EmptyState>
       ) : list.isPending ? (
@@ -48,24 +49,20 @@ export function OtherCostsPage() {
           <Skeleton w="100%" h={36} />
         </div>
       ) : !rows.length ? (
-        <EmptyState icon={<FilePlus2 size={20} />} title="No other costs yet">
-          Other costs become indirect costs of the month and are allocated to the releases when the period is closed.
+        <EmptyState icon={<FilePlus2 size={20} />} title={t('production.otherCosts.noCosts')}>
+          {t('production.otherCosts.noCostsHint')}
         </EmptyState>
       ) : (
         <div className="table-wrap" style={{ padding: '0 var(--gutter) 24px' }}>
-          <table className="dtbl" aria-label="Other costs">
+          <table className="dtbl" aria-label={t('production.otherCosts.table')}>
             <thead>
               <tr>
-                <th style={{ width: 150 }}>Number</th>
-                <th style={{ width: 120 }}>Date</th>
-                <th style={{ width: 110 }}>Status</th>
-                <th>Comment</th>
-                <th style={{ width: 90 }} className="r">
-                  Lines
-                </th>
-                <th style={{ width: 130 }} className="r">
-                  Total
-                </th>
+                <th style={{ width: 150 }}>{t('production.field.number')}</th>
+                <th style={{ width: 120 }}>{t('production.field.date')}</th>
+                <th style={{ width: 110 }}>{t('production.field.status')}</th>
+                <th>{t('production.field.comment')}</th>
+                <th style={{ width: 90 }} className="r">{t('production.field.lines', { count: 1 })}</th>
+                <th style={{ width: 130 }} className="r">{t('production.field.total')}</th>
               </tr>
             </thead>
             <tbody>
@@ -73,13 +70,13 @@ export function OtherCostsPage() {
                 <tr key={r.id}>
                   <td className="mono">
                     <Link to={`/other-costs/${r.id}`} className="crm-link">
-                      {r.number ?? 'Draft'}
+                      {r.number ?? t('production.workbench.draft')}
                     </Link>
                   </td>
                   <td className="muted">{r.date}</td>
                   <td>
                     <Badge tone={r.status === 'posted' ? 'green' : r.status === 'cancelled' ? 'neutral' : 'gray'} dot>
-                      {r.status === 'posted' ? 'Posted' : r.status === 'cancelled' ? 'Cancelled' : 'Draft'}
+                      {tProductionEnum('docStatus', r.status, r.status)}
                     </Badge>
                   </td>
                   <td className="trunc">{r.comment}</td>
@@ -91,7 +88,7 @@ export function OtherCostsPage() {
           </table>
           {list.data?.amount !== null && list.data?.amount !== undefined && (
             <p className="faint" style={{ fontSize: 12, marginTop: 8 }}>
-              Total of the selection: {list.data.amount}
+              {t('production.field.total')}: {list.data.amount}
             </p>
           )}
         </div>
@@ -103,6 +100,7 @@ export function OtherCostsPage() {
 /* ---------------- карточка документа ---------------- */
 
 export function OtherCostsDocumentPage() {
+  const tt = useT();
   const { id } = useParams();
   const isNew = !id || id === 'new';
   const canWrite = useCanWrite();
@@ -136,7 +134,7 @@ export function OtherCostsDocumentPage() {
     try {
       const body = { date, comment, lines };
       const saved = detail ? await api.update(detail.id, body) : await api.save(body);
-      toast(detail ? 'Other costs saved' : `Other costs ${saved.number ?? 'created'}`, { duration: 1500 });
+      toast(detail ? tt('production.otherCosts.saved') : tt('production.otherCosts.saved'), { duration: 1500 });
       await navigate(`/other-costs/${saved.id}`, { replace: true });
     } catch (e) {
       toast.error((e as Error).message);
@@ -151,7 +149,7 @@ export function OtherCostsDocumentPage() {
     try {
       if (!valid) await api.update(detail.id, { date, comment, lines });
       await api.post(detail.id);
-      toast('Other costs posted — they became indirect costs of the month', { duration: 2000 });
+      toast(t('production.order.actions.repost'), { duration: 2000 });
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -172,30 +170,30 @@ export function OtherCostsDocumentPage() {
     <div className="page flush">
       <div className="ph">
         <div>
-          <h1>{detail?.number ?? 'New other costs'}</h1>
-          <p>{detail ? (detail.status === 'posted' ? 'Posted — the costs are in the month and are allocated at closing' : 'Draft — nothing is counted until the document is posted') : 'Indirect costs without goods'}</p>
+          <h1>{detail?.number ?? t('production.otherCosts.newTitle')}</h1>
+          <p>{detail ? (detail.status === 'posted' ? t('docs.commentHint.document') : '') : t('production.otherCosts.subtitle')}</p>
         </div>
         <div className="acts">
           {editable && (
             <Button variant="primary" disabled={busy || !valid} onClick={() => void (detail ? void save() : void save())}>
-              {detail ? 'Save' : 'Create'}
+              {detail ? t('production.common.save') : t('production.common.create')}
             </Button>
           )}
           {detail && (
             <>
               {detail.status === 'draft' && (
                 <Button disabled={busy || !valid} onClick={() => void post()}>
-                  Post
+                  {t('production.piecework.post')}
                 </Button>
               )}
               {detail.status === 'posted' && (
-                <Button disabled={busy} onClick={() => void api.unpost(detail.id).then(() => toast('Posting cancelled', { duration: 1500 }))}>
-                  Unpost
+                <Button disabled={busy} onClick={() => void api.unpost(detail.id).then(() => toast(t('production.common.unpost'), { duration: 1500 }))}>
+                  {t('production.common.unpost')}
                 </Button>
               )}
               {detail.status === 'draft' && (
                 <Button variant="ghost" onClick={() => setRemoving(true)}>
-                  Delete
+                  {t('production.common.delete')}
                 </Button>
               )}
             </>
@@ -203,22 +201,20 @@ export function OtherCostsDocumentPage() {
         </div>
       </div>
 
-      <section className="panel doc-head" aria-label="Header">
-        <Field label="Date">{p => <Input {...p} type="date" disabled={!editable} value={date} onChange={e => setDate(e.target.value)} />}</Field>
+      <section className="panel doc-head" aria-label={t('production.field.date')}>
+        <Field label={t('production.otherCosts.fields.date')}>{p => <Input {...p} type="date" disabled={!editable} value={date} onChange={e => setDate(e.target.value)} />}</Field>
       </section>
 
-      <section className="doc-lines panel" aria-label="Lines">
+      <section className="doc-lines panel" aria-label={t('production.otherCosts.table')}>
         <div className="table-wrap">
-          <table className="dtbl" aria-label="Cost lines">
+          <table className="dtbl" aria-label={t('production.otherCosts.table')}>
             <thead>
               <tr>
                 <th style={{ width: 34 }}>#</th>
-                <th style={{ width: 220 }}>Cost item</th>
-                <th style={{ width: 200 }}>Work center</th>
-                <th style={{ width: 130 }} className="r">
-                  Amount
-                </th>
-                <th>Comment</th>
+                <th style={{ width: 220 }}>{t('production.otherCosts.fields.costItem')}</th>
+                <th style={{ width: 200 }}>{t('production.otherCosts.fields.workCenter')}</th>
+                <th style={{ width: 130 }} className="r">{t('production.otherCosts.fields.amount')}</th>
+                <th>{t('production.otherCosts.fields.comment')}</th>
                 <th style={{ width: 36 }} />
               </tr>
             </thead>
@@ -228,32 +224,31 @@ export function OtherCostsDocumentPage() {
                   <td className="faint num">{i + 1}</td>
                   <td>
                     <Select
-                      aria-label="Cost item"
+                      aria-label={t('production.otherCosts.fields.costItem')}
                       disabled={!editable}
                       value={l.costItemId}
                       onValueChange={v => setLines(prev => prev.map((x, j) => (j === i ? { ...x, costItemId: v } : x)))}
                       options={items.map(c => ({ value: c.id, label: c.name }))}
-                      placeholder="Select item"
                     />
                   </td>
                   <td>
                     <Select
-                      aria-label="Work center"
+                      aria-label={t('production.otherCosts.fields.workCenter')}
                       disabled={!editable}
                       value={l.workCenterId ?? ''}
                       onValueChange={v => setLines(prev => prev.map((x, j) => (j === i ? { ...x, workCenterId: v || null } : x)))}
-                      options={[{ value: '', label: '—' }, ...centers.map(w => ({ value: w.id, label: w.name }))]}
+                      options={[{ value: '', label: t('production.common.empty') }, ...centers.map(w => ({ value: w.id, label: w.name }))]}
                     />
                   </td>
                   <td className="r">
-                    <Input aria-label="Amount" inputMode="decimal" disabled={!editable} value={l.amount} onChange={e => setLines(prev => prev.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)))} />
+                    <Input aria-label={t('production.otherCosts.fields.amount')} inputMode="decimal" disabled={!editable} value={l.amount} onChange={e => setLines(prev => prev.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)))} />
                   </td>
                   <td>
-                    <Input aria-label="Line comment" disabled={!editable} value={l.comment} onChange={e => setLines(prev => prev.map((x, j) => (j === i ? { ...x, comment: e.target.value } : x)))} />
+                    <Input aria-label={t('production.otherCosts.fields.comment')} disabled={!editable} value={l.comment} onChange={e => setLines(prev => prev.map((x, j) => (j === i ? { ...x, comment: e.target.value } : x)))} />
                   </td>
                   <td>
                     {editable && (
-                      <IconButton size="xs" label="Remove line" onClick={() => setLines(prev => prev.filter((_, j) => j !== i))}>
+                      <IconButton size="xs" label={t('production.common.remove')} onClick={() => setLines(prev => prev.filter((_, j) => j !== i))}>
                         <Trash2 size={13} />
                       </IconButton>
                     )}
@@ -267,13 +262,13 @@ export function OtherCostsDocumentPage() {
           <div className="doc-add">
             <Button size="sm" variant="ghost" onClick={() => setLines(prev => [...prev, newLine()])}>
               <Plus size={13} />
-              Add line
+              {t('production.common.add')}
             </Button>
           </div>
         )}
         <div className="doc-totals panel" style={{ border: 0 }}>
           <div className="trow grand">
-            <span>Total</span>
+            <span>{t('production.field.total')}</span>
             <span className="num">{total.toFixed(2)}</span>
           </div>
         </div>
@@ -289,15 +284,15 @@ export function OtherCostsDocumentPage() {
         <ConfirmDialog
           open
           danger
-          title="Delete the draft?"
-          confirmLabel="Delete"
+          title={t('production.common.delete')}
+          confirmLabel={t('production.common.delete')}
           onOpenChange={open => !open && setRemoving(false)}
           onConfirm={async () => {
             setRemoving(false);
             await api.remove(detail.id);
             await navigate('/other-costs', { replace: true });
           }}
-          description="The draft with its lines will be removed. A posted document cannot be deleted — unpost it first."
+          description=""
         />
       )}
     </div>
