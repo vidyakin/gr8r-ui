@@ -309,6 +309,16 @@ describe('based-on chains and fulfilment', () => {
     expect((await act(owner, order.id, 'unpost')).status).toBe(200);
   });
 
+  test('deleting a draft basis keeps the derived draft and clears its links', async () => {
+    const order = await doc(owner, 'customer_order', [line(wood, 2, 100)]);
+    const inv = (await act(owner, order.id, 'based-on', { type: 'invoice' })).body;
+    expect(inv.lines[0]).toMatchObject({ sourceLineId: order.lines[0].id, originLineId: order.lines[0].id });
+    expect((await owner.del(`/documents/${order.id}`)).status).toBe(200);
+    const after = (await owner.get(`/documents/${inv.id}`)).body;
+    expect(after).toMatchObject({ basedOnId: null, status: 'draft' });
+    expect(after.lines[0]).toMatchObject({ sourceLineId: null, originLineId: null });
+  });
+
   test('purchases: supplier order → receipt → supplier return; return limited by the receipt', async () => {
     const so = await doc(owner, 'supplier_order', [line(wood, 20, 80)]);
     await post(so.id);
