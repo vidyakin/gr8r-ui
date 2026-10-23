@@ -167,6 +167,15 @@
   flex-direction: column;
   gap: 6px;
 }
+/* подпись слева от поля, в одну линию (фильтры периода) */
+.field-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.field-row > .label {
+  white-space: nowrap;
+}
 .label {
   font-size: var(--fs-sm);
   font-weight: 500;

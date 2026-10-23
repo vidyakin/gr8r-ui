@@ -21,7 +21,8 @@ import {
 } from 'lucide-react';
 import { IconButton, Menu, MenuContent, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger, Tooltip, toast } from '@/components/ui';
 import { cn } from '@/lib/utils';
-import { SECTIONS, type SectionId } from '../routes';
+import { NAV_GROUPS, SECTIONS, type NavGroupId, type SectionId } from '../routes';
+import { groupPanelId, useSidePanel } from './SidePanel';
 import { useWorkspace } from '../data/store';
 import { useSession } from '../data/session';
 import { NewWorkspaceDialog } from '../overlays/new-workspace';
@@ -75,6 +76,37 @@ function Item({ to, label, icon, count, dot, collapsed, end }: ItemProps) {
 function SectionItem({ id, collapsed, count, dot }: { id: SectionId; collapsed: boolean; count?: number; dot?: boolean }) {
   const s = SECTIONS[id];
   return <Item to={s.path} label={s.name} icon={<s.icon size={16} />} count={count} dot={dot} collapsed={collapsed} end={s.path === '/' || s.path === '/projects' || s.path === '/members' || s.path === '/crm'} />;
+}
+
+/** Строка группы меню: подпункты открываются во второй панели. Подсвечена, если текущий адрес — в этой группе. */
+function GroupRow({ id, collapsed }: { id: NavGroupId; collapsed: boolean }) {
+  const panel = useSidePanel();
+  const t = useT();
+  const pid = groupPanelId(id);
+  const expanded = panel.open && panel.id === pid;
+  const label = t(`nav.groups.${id}`);
+  const Icon = NAV_GROUPS[id].icon;
+  const row = (
+    <button
+      className={cn('sitem', panel.routeGroup === id && 'on', expanded && 'expanded')}
+      aria-expanded={expanded}
+      aria-controls="side-panel"
+      aria-label={collapsed ? label : undefined}
+      data-side-panel-trigger
+      onClick={() => panel.toggle(pid)}
+    >
+      <Icon size={16} />
+      <span className="trunc">{label}</span>
+      <ChevronRight size={14} className="ct chev" />
+    </button>
+  );
+  return collapsed ? (
+    <Tooltip content={label} side="right">
+      {row}
+    </Tooltip>
+  ) : (
+    row
+  );
 }
 
 const SUB_PAGES = [
@@ -265,40 +297,11 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           {item('catalog')}
         </div>
 
+        {/* торговля, услуги и производство — одной строкой, подпункты во второй панели */}
         <div className="sgroup">
-          <div className="sgroup-h">{t('nav.groups.trade')}</div>
-          {(['sales', 'purchases', 'stockDocs', 'processingDocs', 'inventory', 'inUse'] as const).map(id => (
-            <SectionItem key={id} id={id} collapsed={collapsed} />
+          {(['trade', 'services', 'production'] as const).map(id => (
+            <GroupRow key={id} id={id} collapsed={collapsed} />
           ))}
-          {/* расчёт потребностей открывается из закупок и склада — тот же экран, что и в производстве */}
-          {item('productionNeeds', t('nav.stockNeeds'))}
-        </div>
-
-        <div className="sgroup">
-          <div className="sgroup-h">{t('nav.groups.services')}</div>
-          {item('workOrders')}
-          {item('servicesTimesheet')}
-          {item('servicesPlanner')}
-          {item('contracts')}
-          {item('tariffPlans')}
-          {item('billing')}
-        </div>
-
-        <div className="sgroup">
-          <div className="sgroup-h">{t('nav.groups.production')}</div>
-          {item('production')}
-          {item('productionWorkbench')}
-          {item('productionOrders')}
-          {item('productionNeeds')}
-          {item('productionPlans')}
-          {item('productionPlanOrders')}
-          {item('productionStages')}
-          {item('productionPiecework')}
-          {item('productionPlanner')}
-          {item('productionResources')}
-          {item('productionClosing')}
-          {item('otherCosts')}
-          {item('workCenters')}
         </div>
 
         <div className="sgroup">

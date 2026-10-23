@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { useWorkspace } from '../data/store';
 import { SECTIONS, type SectionId } from '../routes';
 import { Sidebar } from './Sidebar';
+import { SidePanel, SidePanelProvider, useSidePanelState } from './SidePanel';
 import { Topbar, useCrumbs } from './Topbar';
 import { OverlayProviders, PaletteHost, TaskWindowsHost } from '../overlays';
 import { CrmOverlays } from '../crm/overlays';
@@ -53,6 +54,7 @@ export function AppShell() {
     }
   });
   const [mnav, setMnav] = React.useState(false);
+  const panel = useSidePanelState();
 
   const toggle = React.useCallback(() => setCollapsed(c => !c), []);
   React.useEffect(() => {
@@ -76,6 +78,11 @@ export function AppShell() {
 
   // Смена раздела закрывает мобильное меню; прокрутка сбрасывается сама — .content пересоздаётся по key
   React.useEffect(() => setMnav(false), [location.pathname]);
+  // закрытое мобильное меню в следующий раз открывается с основного списка, а не со второй панели
+  const { back } = panel;
+  React.useEffect(() => {
+    if (!mnav) back();
+  }, [mnav, back]);
   const title = `${crumbs.map(c => c.label).join(' · ')} · ${data.ws.name}`;
   React.useEffect(() => {
     document.title = title;
@@ -84,11 +91,13 @@ export function AppShell() {
   return (
     <OverlayProviders>
     <CrmOverlays>
-    <div className={cn('shell', collapsed && 'collapsed', mnav && 'mnav')}>
+    <SidePanelProvider value={panel}>
+    <div className={cn('shell', collapsed && 'collapsed', mnav && 'mnav', panel.open && panel.id && 'panel-open', panel.drill && 'drill')}>
       <button className="skip" onClick={() => document.getElementById('main-content')?.focus()}>
         {t('nav.skipToContent')}
       </button>
       <Sidebar collapsed={collapsed} onToggle={toggle} />
+      <SidePanel />
       {mnav && <div className="side-scrim" onClick={() => setMnav(false)} />}
       <main className="main" id="main">
         <Topbar onOpenNav={() => setMnav(true)} />
@@ -102,6 +111,7 @@ export function AppShell() {
       <BottomNav onMore={() => setMnav(true)} />
       <TaskWindowsHost />
     </div>
+    </SidePanelProvider>
     <PaletteHost />
     </CrmOverlays>
     </OverlayProviders>

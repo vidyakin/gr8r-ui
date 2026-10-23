@@ -128,6 +128,12 @@
 .shell.collapsed .fdock {
   left: 64px;
 }
+.shell.panel-open .fdock {
+  left: calc(var(--side-w) + var(--side2-w) + 12px);
+}
+.shell.collapsed.panel-open .fdock {
+  left: calc(64px + var(--side2-w));
+}
 .fdock-stack {
   list-style: none;
   margin: 0;
@@ -187,7 +193,8 @@
   .fdock {
     left: 12px;
   }
-  .shell.collapsed .fdock {
+  .shell.collapsed .fdock,
+  .shell.panel-open .fdock {
     left: 12px;
   }
 }

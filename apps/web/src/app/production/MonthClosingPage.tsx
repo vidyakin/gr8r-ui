@@ -58,7 +58,7 @@ export function MonthClosingPage() {
         </div>
       </div>
 
-      <section className="panel" style={{ margin: '0 var(--gutter) 16px' }} aria-label={tt('production.closing.paramsAria')}>
+      <section className="panel plain" style={{ margin: '0 var(--gutter) 16px' }} aria-label={tt('production.closing.paramsAria')}>
         <div className="row" style={{ gap: 12, alignItems: 'flex-end' }}>
           <Field label={tt('production.closing.month')}>{p => <Input {...p} type="month" value={month} onChange={e => setMonth(e.target.value || currentMonth())} />}</Field>
           <Field label={tt('production.closing.mode')}>
@@ -113,7 +113,7 @@ export function MonthClosingPage() {
         </div>
       )}
 
-      <section className="panel" style={{ margin: '0 var(--gutter) 24px' }} aria-label={tt('production.closing.historyAria')}>
+      <section className="panel plain" style={{ margin: '0 var(--gutter) 24px' }} aria-label={tt('production.closing.historyAria')}>
         <h2 style={{ margin: '0 0 8px', fontSize: 14 }}>{tt('production.closing.historyTitle')}</h2>
         {!closings.length ? (
           <p className="faint" style={{ fontSize: 12 }}>{tt('production.closing.emptyHistory')}</p>
@@ -182,7 +182,7 @@ function PreviewPanel({ month }: { month: string }) {
   const tt = useT();
   const preview = usePeriodPreview(month);
   return (
-    <section className="panel" style={{ flex: 1, minWidth: 0 }} aria-label={tt('production.closing.previewAria')}>
+    <section className="panel plain" style={{ flex: 1, minWidth: 0 }} aria-label={tt('production.closing.previewAria')}>
       <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
         <h2 style={{ margin: 0, fontSize: 14 }}>{tt('production.closing.previewTitle', { label: monthLabel(month) })}</h2>
         <span className="faint" style={{ fontSize: 12 }}>
@@ -264,7 +264,7 @@ function ResultPanel({ closing }: { closing: Closing | null }) {
   if (!closing) return null;
   const t0 = closing.totals;
   return (
-    <section className="panel" style={{ flex: 1, minWidth: 0 }} aria-label={tt('production.closing.resultAria')}>
+    <section className="panel plain" style={{ flex: 1, minWidth: 0 }} aria-label={tt('production.closing.resultAria')}>
       <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
         <h2 style={{ margin: 0, fontSize: 14 }}>
           <Lock size={13} style={{ verticalAlign: -2, marginRight: 6 }} />

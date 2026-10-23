@@ -78,6 +78,10 @@ export const nav = {
     projects: 'Projects',
     teams: 'Teams',
   },
+  panel: {
+    close: 'Close panel',
+    back: 'Back to menu',
+  },
   stockNeeds: 'Stock needs',
   favorites: 'Favorites',
   switchWorkspace: 'Switch workspace',

@@ -79,6 +79,10 @@ export const nav: Widen<typeof N> = {
     projects: 'Проекты',
     teams: 'Команды',
   },
+  panel: {
+    close: 'Закрыть панель',
+    back: 'Назад к меню',
+  },
   stockNeeds: 'Потребности',
   favorites: 'Избранное',
   switchWorkspace: 'Сменить воркспейс',

@@ -10,12 +10,18 @@
   height: 100%;
 }
 .shell {
+  /* средняя колонка — вторая панель (layout/SidePanel.tsx); число колонок постоянно, чтобы ширина анимировалась */
+  --panel-w: 0px;
   display: grid;
-  grid-template-columns: var(--side-w) minmax(0, 1fr);
+  grid-template-columns: var(--side-w) var(--panel-w) minmax(0, 1fr);
   height: 100%;
+  transition: grid-template-columns 0.22s var(--ease);
 }
 .shell.collapsed {
-  grid-template-columns: 52px minmax(0, 1fr);
+  grid-template-columns: 52px var(--panel-w) minmax(0, 1fr);
+}
+.shell.panel-open {
+  --panel-w: var(--side2-w);
 }
 .side-scrim {
   display: none;
@@ -245,28 +251,69 @@ svg.logo {
 .sitem .chev.open {
   transform: rotate(90deg);
 }
+.sitem.expanded {
+  background: var(--surface-3);
+}
+/* вторая панель: внутренний блок фиксированной ширины, внешний обрезается колонкой грида */
+.side2 {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-side);
+  outline: none;
+  user-select: none;
+}
+.side2-in {
+  width: var(--side2-w);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+}
+.side2-h {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 43px;
+  padding: 8px 8px 4px 16px;
+  flex-shrink: 0;
+}
+.side2-title {
+  font-weight: 600;
+  font-size: var(--fs);
+}
+.side2-back {
+  display: none !important;
+}
+.side2-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 8px 12px;
+  scrollbar-width: thin;
+}
 .side-bot {
   padding: 6px 8px 8px;
   border-top: 1px solid var(--border);
 }
-.collapsed .sitem {
+/* только основной сайдбар: вторая панель в свёрнутом режиме остаётся с подписями */
+.collapsed .side .sitem {
   justify-content: center;
   padding: 0;
 }
-.collapsed .sitem > span:not(.pico),
-.collapsed .sitem .ct,
-.collapsed .sgroup-h,
+.collapsed .side .sitem > span:not(.pico),
+.collapsed .side .sitem .ct,
+.collapsed .side .sgroup-h,
 .collapsed .ws-name,
 .collapsed .ws .chev-d,
-.collapsed .sitem .sdot,
-.collapsed .sitem .fav,
-.collapsed .sitem .hov,
+.collapsed .side .sitem .sdot,
+.collapsed .side .sitem .fav,
+.collapsed .side .sitem .hov,
 .collapsed .sub,
 .collapsed .side-search,
-.collapsed .sitem .chev {
+.collapsed .side .sitem .chev {
   display: none !important;
 }
-.collapsed .sgroup {
+.collapsed .side .sgroup {
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--border);
@@ -744,6 +791,10 @@ h3.sub {
   animation: riseIn 0.4s var(--ease) both;
 }
 @media (prefers-reduced-motion: reduce) {
+  .shell,
+  .side2 {
+    transition: none !important;
+  }
   .fx-route *,
   .fx-route > .page > * {
     animation: none !important;
@@ -780,6 +831,38 @@ h3.sub {
   }
   .shell.mnav .side {
     transform: none;
+  }
+  /* вторая панель на телефоне — поверх выехавшего меню, с кнопкой «назад» */
+  .side2 {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 280px;
+    z-index: 71;
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition:
+      transform 0.22s var(--ease),
+      visibility 0s 0.22s;
+  }
+  .shell.mnav.drill .side2.open {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.22s var(--ease);
+  }
+  .side2-in {
+    width: 100%;
+    border-right: 0;
+  }
+  .side2-h {
+    padding-left: 8px;
+  }
+  .side2-back {
+    display: inline-flex !important;
+  }
+  .side2-x {
+    display: none !important;
   }
   .shell.collapsed .side .sitem {
     justify-content: flex-start;
@@ -886,4 +969,10 @@ h3.sub {
     min-width: 40px;
     min-height: 40px;
   }
+}
+
+/* группа без рамки и фона (закрытие месяца): отступы как у .panel */
+.panel.plain {
+  border: 0;
+  background: none;
 }

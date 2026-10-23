@@ -52,9 +52,9 @@ function OrdersTab({ canWrite }: { canWrite: boolean }) {
 
   return (
     <>
-      <div className="row" style={{ gap: 8, padding: '0 var(--gutter) 12px' }}>
-        <Field label={tt('production.common.from')}>{p => <Input {...p} type="date" value={from} onChange={e => setFrom(e.target.value)} />}</Field>
-        <Field label={tt('production.common.to')}>{p => <Input {...p} type="date" value={to} onChange={e => setTo(e.target.value)} />}</Field>
+      <div className="row" style={{ gap: 16, padding: '0 var(--gutter) 12px' }}>
+        <Field className="field-row" label={tt('production.common.from')}>{p => <Input {...p} type="date" value={from} onChange={e => setFrom(e.target.value)} />}</Field>
+        <Field className="field-row" label={tt('production.common.to')}>{p => <Input {...p} type="date" value={to} onChange={e => setTo(e.target.value)} />}</Field>
       </div>
       {list.isError ? (
         <EmptyState icon={<CircleAlert size={20} />} error title={tt('production.piecework.orders.loadFailed')} action={<Button size="sm" onClick={() => list.refetch()}>{tt('production.common.retry')}</Button>}>
@@ -120,9 +120,9 @@ function OutputTab() {
 
   return (
     <>
-      <div className="row" style={{ gap: 8, padding: '0 var(--gutter) 12px' }}>
-        <Field label={tt('production.common.from')}>{p => <Input {...p} type="date" value={from} onChange={e => setFrom(e.target.value)} />}</Field>
-        <Field label={tt('production.common.to')}>{p => <Input {...p} type="date" value={to} onChange={e => setTo(e.target.value)} />}</Field>
+      <div className="row" style={{ gap: 16, padding: '0 var(--gutter) 12px' }}>
+        <Field className="field-row" label={tt('production.common.from')}>{p => <Input {...p} type="date" value={from} onChange={e => setFrom(e.target.value)} />}</Field>
+        <Field className="field-row" label={tt('production.common.to')}>{p => <Input {...p} type="date" value={to} onChange={e => setTo(e.target.value)} />}</Field>
       </div>
       {report.isPending ? (
         <div style={{ padding: 16 }}>

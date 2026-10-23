@@ -39,9 +39,11 @@ import {
   CalendarRange,
   CalendarCheck,
   FileSignature,
+  Store,
+  BriefcaseBusiness,
   type LucideIcon,
 } from 'lucide-react';
-import { hasKey, t } from '@/i18n';
+import { hasKey, t, type TKey } from '@/i18n';
 
 export interface Section {
   path: string;
@@ -106,6 +108,67 @@ export const SECTIONS = {
 } satisfies Record<string, Section>;
 
 export type SectionId = keyof typeof SECTIONS;
+
+/* Группы меню, которые в сайдбаре сведены в одну строку, а подпункты показываются во второй панели (layout/SidePanel.tsx).
+   label — ключ словаря, если подпись пункта в группе отличается от названия раздела. */
+export interface NavGroupItem {
+  id: SectionId;
+  label?: TKey;
+}
+export interface NavGroup {
+  icon: LucideIcon;
+  items: NavGroupItem[];
+}
+
+export const NAV_GROUPS = {
+  production: {
+    icon: Factory,
+    items: (
+      [
+        'production',
+        'productionWorkbench',
+        'productionOrders',
+        'productionNeeds',
+        'productionPlans',
+        'productionPlanOrders',
+        'productionStages',
+        'productionPiecework',
+        'productionPlanner',
+        'productionResources',
+        'productionClosing',
+        'otherCosts',
+        'workCenters',
+      ] as const
+    ).map(id => ({ id })),
+  },
+  trade: {
+    icon: Store,
+    // расчёт потребностей открывается из закупок и склада — тот же экран, что и в производстве
+    items: [{ id: 'sales' }, { id: 'purchases' }, { id: 'stockDocs' }, { id: 'processingDocs' }, { id: 'inventory' }, { id: 'inUse' }, { id: 'productionNeeds', label: 'nav.stockNeeds' }],
+  },
+  services: {
+    icon: BriefcaseBusiness,
+    items: [{ id: 'workOrders' }, { id: 'servicesTimesheet' }, { id: 'servicesPlanner' }, { id: 'contracts' }, { id: 'tariffPlans' }, { id: 'billing' }],
+  },
+} satisfies Record<string, NavGroup>;
+
+export type NavGroupId = keyof typeof NAV_GROUPS;
+
+const within = (pathname: string, path: string) => pathname === path || pathname.startsWith(path + '/');
+
+/** Группа, к которой относится адрес: по самому длинному совпадению пути пункта.
+    prefer — уже показанная группа: если адрес есть и в ней (потребности — и в торговле, и в производстве), она и остаётся. */
+export function navGroupOf(pathname: string, prefer?: NavGroupId | null): NavGroupId | null {
+  let best: NavGroupId | null = null;
+  let len = 0;
+  for (const [gid, g] of Object.entries(NAV_GROUPS) as [NavGroupId, NavGroup][]) {
+    for (const it of g.items) {
+      const path = SECTIONS[it.id].path;
+      if (within(pathname, path) && (path.length > len || (path.length === len && gid === prefer))) [best, len] = [gid, path.length];
+    }
+  }
+  return best;
+}
 
 /** Вкладки страницы проекта (id — часть адреса /projects/:id/:tab); по умолчанию открывается board */
 export const PROJECT_TABS = [
