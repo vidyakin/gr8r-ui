@@ -112,7 +112,7 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
 
   /* ---------- товары ---------- */
   const bySku = new Map<string, { id: string; purchasePrice: string; price: string }>();
-  const skus = ['MT-OAK-5050', 'MT-OAK-30', 'MT-PLY-18', 'MT-MDF-16', 'MT-EDG-2', 'MT-LAC-1', 'MT-STN-1', 'MT-GLU-1', 'MT-SND-120', 'MT-PKG-1', 'HW-SCR-440', 'HW-BLT-660', 'HW-CAM-15', 'HW-FT-60', 'HW-SHP-5', 'FRN-001', 'FRN-002', 'FRN-003', 'SV-DLV', 'SV-ASM', 'SV-MSR', 'WR-MNT', 'WR-SRV', 'MT-GLS-4', 'MT-PRF-PVC', 'MT-PNT-1', 'WIN-001', 'SV-PNT'];
+  const skus = ['MT-OAK-5050', 'MT-OAK-30', 'MT-PLY-18', 'MT-MDF-16', 'MT-EDG-2', 'MT-LAC-1', 'MT-STN-1', 'MT-GLU-1', 'MT-SND-120', 'MT-PKG-1', 'HW-SCR-440', 'HW-BLT-660', 'HW-CAM-15', 'HW-FT-60', 'HW-SHP-5', 'FRN-001', 'FRN-002', 'FRN-003', 'SV-DLV', 'SV-ASM', 'SV-MSR', 'WR-MNT', 'WR-SRV', 'MT-GLS-4', 'MT-PRF-PVC', 'MT-PNT-1', 'WIN-001', 'SV-PNT', 'MT-LOG-150', 'MT-BLK-001', 'MT-OFC-001'];
   for (const p of await db.select({ id: products.id, sku: products.sku, purchasePrice: products.purchasePrice, price: products.price }).from(products).where(inArray(products.sku, skus))) bySku.set(p.sku, p);
   const P = (sku: string) => {
     const p = bySku.get(sku);
@@ -296,6 +296,41 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
   await postAt(prodOrder, 3);
   const release = await createProductionFromOrder(db, ctx, prodOrder, { date: iso(2), lines: [{ orderItemId: (await db.select().from(productionItems).where(eq(productionItems.documentId, prodOrder))).map(i => i.id)[0]!, qty: '4' }] });
   await postAt(release, 2);
+
+  /* ---------- разборка: брусы делятся на заготовки и обрезки ---------- */
+  const [logItem] = await db.select().from(manufacturedItems).where(eq(manufacturedItems.code, 'DIS-LOG')).limit(1);
+  const [carpentryCenter] = await db.select().from(workCenters).where(eq(workCenters.code, 'WS-1')).limit(1);
+  const logReceipt = await createDocument(db, ctx, {
+    type: 'receipt',
+    counterpartyId: co.atlas,
+    warehouseId: main!.id,
+    date: iso(9),
+    comment: 'Брусы на раскрой',
+    lines: [buy('MT-LOG-150', 30)],
+  });
+  await postAt(logReceipt, 9);
+  const logsToShop = await createDocument(db, ctx, {
+    type: 'stock_transfer',
+    warehouseId: main!.id,
+    targetWarehouseId: shop!.id,
+    date: iso(8),
+    comment: 'Брусы на столярный цех',
+    lines: [buy('MT-LOG-150', 30)],
+  });
+  await postAt(logsToShop, 8);
+  const disOrder = await createProductionOrder(db, ctx, {
+    operation: 'disassembly',
+    workCenterId: carpentryCenter!.id,
+    warehouseId: shop!.id,
+    targetWarehouseId: fg!.id,
+    date: iso(7),
+    comment: 'Разборка брусов на заготовки',
+    items: [{ itemId: logItem!.id, qty: '10' }],
+  });
+  await fillOrderFromBom(db, ctx, disOrder);
+  await postAt(disOrder, 7);
+  const disRelease = await createProductionFromOrder(db, ctx, disOrder, { date: iso(6), lines: [{ orderItemId: (await db.select().from(productionItems).where(eq(productionItems.documentId, disOrder))).map(i => i.id)[0]!, qty: '10' }] });
+  await postAt(disRelease, 6);
 
   /* ---------- этап 4в: назначение операции исполнителю и сдельный наряд ---------- */
   // Операция «Сборка стула» назначена сотруднику: у него появляется задача модуля production

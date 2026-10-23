@@ -21,7 +21,7 @@ import { WorkOrderPanel } from './work-orders';
 import { useWsId } from '../meta/data';
 
 /** Виды перемещения между складами */
-const OPERATION_LABEL: Record<string, string> = { transfer: 'Direct transfer', in_transit: 'In transit', to_operation: 'To operation', from_operation: 'From operation' };
+const OPERATION_LABEL: Record<string, string> = { transfer: 'Direct transfer', in_transit: 'In transit', to_operation: 'To operation', from_operation: 'From operation', assembly: 'Assembly', disassembly: 'Disassembly' };
 
 interface FormLine {
   key: string;
@@ -187,6 +187,8 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const isWorkOrder = doc.type === 'work_order';
   /** Перемещение: вид операции задаёт, что делает документ */
   const isTransfer = doc.type === 'stock_transfer';
+  /** Выпуск с видом операции «разборка»: исходный товар списывается, выходные продукты приходуются */
+  const disassembly = meta.production && doc.operation === 'disassembly';
   const inTransit = isTransfer && doc.operation === 'in_transit';
   const toOperation = isTransfer && doc.operation === 'to_operation';
   const fromOperation = isTransfer && doc.operation === 'from_operation';
@@ -575,6 +577,11 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             )}
           </Field>
         )}
+        {meta.production && (
+          <Field label="Operation" hint={disassembly ? 'Disassembly: the goods are taken apart into the outputs' : 'Assembly: the product is made of the materials'}>
+            {p => <div className="doc-ro" id={p.id}>{OPERATION_LABEL[doc.operation ?? 'assembly'] ?? doc.operation}</div>}
+          </Field>
+        )}
         {(meta.stockRole === 'transfer' || meta.production) && (!isTransfer || form.operation === 'transfer' || form.operation === 'in_transit') && (
           <Field label={meta.production ? 'Finished goods warehouse' : 'To warehouse'}>
             {p => (
@@ -786,7 +793,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                     )}
                     {meta.production && (
                       <td>
-                        <span className="muted">{srv?.stockRole === 'in' ? 'Product' : 'Material'}</span>
+                        <span className="muted">{srv?.stockRole === 'in' ? (disassembly ? 'Output' : 'Product') : disassembly ? 'To disassemble' : 'Material'}</span>
                       </td>
                     )}
                     {isReceipt && (

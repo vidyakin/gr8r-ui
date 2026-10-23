@@ -245,6 +245,45 @@ export async function recomputeStockCosts(db: Db, workspaceId: string): Promise<
     .where(and(eq(documentLines.workspaceId, workspaceId), eq(documents.type, 'customer_return'), sql`${documentLines.sourceLineId} is not null`));
   const sourceOf = new Map(returns.map(r => [r.id, r.sourceLineId!]));
 
+  // разборка: удорожание идёт в другую сторону — от списанного исходного товара к приходу выходных продуктов.
+  // База — распределение, сделанное при проведении (стоимость прихода выхода, `actual_cost`): цены продажи
+  // могли поменяться после выпуска, а удорожание должно делиться так же, как делилась исходная стоимость
+  const disRows = await db
+    .select({
+      itemId: productionComponents.itemId,
+      kind: productionComponents.kind,
+      lineId: productionComponents.documentLineId,
+      qty: documentLines.qty,
+      actualCost: productionComponents.actualCost,
+      pct: manufacturedItems.overheadPct,
+    })
+    .from(productionComponents)
+    .innerJoin(productionItems, eq(productionItems.id, productionComponents.itemId))
+    .innerJoin(manufacturedItems, eq(manufacturedItems.id, productionItems.itemId))
+    .innerJoin(documents, eq(documents.id, productionComponents.documentId))
+    .innerJoin(documentLines, eq(documentLines.id, productionComponents.documentLineId))
+    .where(and(eq(productionComponents.workspaceId, workspaceId), eq(documents.type, 'production'), eq(documents.operation, 'disassembly'), inArray(productionComponents.kind, ['material', 'output'])));
+  const disByItem = new Map<string, { sourceLine: string; sourceQty: Dec; pct: Dec; outputs: { lineId: string; qty: Dec; cost: Dec }[] }>();
+  for (const r of disRows) {
+    const itemId = r.itemId ?? '';
+    if (!itemId) continue;
+    const cur = disByItem.get(itemId) ?? { sourceLine: '', sourceQty: 0n, pct: dec(r.pct), outputs: [] };
+    if (r.kind === 'material') {
+      cur.sourceLine = r.lineId ?? '';
+      cur.sourceQty = dec(r.qty);
+    } else cur.outputs.push({ lineId: r.lineId ?? '', qty: dec(r.qty), cost: dec(r.actualCost ?? '0') });
+    disByItem.set(itemId, cur);
+  }
+  /** Приход выходного продукта разборки: строка документа → исходный товар, база и доля */
+  const disOutputs = new Map<string, { sourceLine: string; sourceQty: Dec; pct: Dec; base: Dec; totalBase: Dec; qty: Dec }>();
+  for (const cur of disByItem.values()) {
+    // без стоимости приходов (всё нулевое) — по количеству
+    const byCost = cur.outputs.some(o => o.cost > 0n);
+    const bases = cur.outputs.map(o => (byCost ? o.cost : o.qty));
+    const totalBase = bases.reduce((s, b) => s + b, 0n);
+    cur.outputs.forEach((o, i) => disOutputs.set(o.lineId, { sourceLine: cur.sourceLine, sourceQty: cur.sourceQty, pct: cur.pct, base: bases[i]!, totalBase, qty: o.qty }));
+  }
+
   const r4 = (a: Dec) => dec(fmt(a, 4));
   const state = new Map<string, StockState>();
   /** Удорожание единицы последнего расхода по строке документа */
@@ -265,7 +304,13 @@ export async function recomputeStockCosts(db: Db, workspaceId: string): Promise<
     } else {
       let chain = 0n;
       const rel = m.type === 'production' && m.lineId ? releaseLines.get(m.lineId) : undefined;
-      if (rel && rel.qty > 0n) {
+      const dis = m.type === 'production' && m.lineId ? disOutputs.get(m.lineId) : undefined;
+      if (dis && dis.totalBase > 0n) {
+        // разборка: удорожание списанного исходного товара (с накладными) делится между выходами
+        const dTotal = mul(outDelta.get(dis.sourceLine) ?? 0n, dis.sourceQty);
+        const withOverhead = dTotal + pctOf(dTotal, dis.pct);
+        chain = div(div(mul(withOverhead, dis.base), dis.totalBase), dis.qty);
+      } else if (rel && rel.qty > 0n) {
         const materials = rel.materials.reduce((sum, x) => sum + mul(outDelta.get(x.lineId) ?? 0n, x.qty), 0n);
         chain = div(materials + pctOf(materials, rel.pct), rel.qty);
       } else if (m.lineId && outDelta.has(m.lineId)) chain = outDelta.get(m.lineId)!; // приход по цене расхода той же строки: перемещение, в том числе «в пути»

@@ -5,7 +5,7 @@ import { esc, moneyRu, qtyRu, dateRu } from './templates';
 
 export interface BomPrintRow {
   n: number;
-  /** Тип строки: Материал, Полуфабрикат, Работа, Расход */
+  /** Тип строки: Материал, Полуфабрикат, Работа, Расход, Выходной продукт */
   kind: string;
   name: string;
   /** Товар каталога */
@@ -13,16 +13,20 @@ export interface BomPrintRow {
   unitCode: string;
   qty: string;
   note: string;
+  /** Доля стоимости, % (выходной продукт разборки) */
+  costShare?: string | null;
   /** Вложенные строки (развёрнутая форма) */
   children?: BomPrintRow[];
 }
 
 export interface BomPrintData {
   form: 'short' | 'expanded';
+  /** Вид спецификации: сборка или разборка (у разборки товар — исходный) */
+  mode?: 'assembly' | 'disassembly';
   /** Название спецификации */
   name: string;
   code: string;
-  /** Товар, который выпускается */
+  /** Товар, который выпускается (у разборки — исходный, что разбирают) */
   productName: string | null;
   unitCode: string;
   /** Количество на партию */
@@ -51,27 +55,31 @@ tr{break-inside:avoid;page-break-inside:avoid}
 
 /** Печатная форма спецификации: короткая (свои строки) или развёрнутая (с переделами) */
 export function bomPrintHtml(d: BomPrintData): string {
+  const disassembly = d.mode === 'disassembly';
   const title = d.form === 'short' ? 'Спецификация (кратко)' : 'Спецификация (развёрнуто)';
-  const rowsHtml = d.rows.map(r => rowHtml(r)).join('');
+  const rowsHtml = d.rows.map(r => rowHtml(r, disassembly)).join('');
   const paramsHtml = d.params.length
     ? `<table class="params"><tr>${d.params.map(p => `<td><b>${esc(p.name)}:</b> ${esc(p.value)}</td>`).join('')}</tr></table>`
     : '';
+  const shareHead = disassembly ? '<th style="width:70px">Доля, %</th>' : '';
+  const productLabel = disassembly ? 'Исходный товар' : 'Товар';
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${BASE_CSS}@page{size:A4;margin:12mm}</style></head><body>
 <h1>${esc(title)}: ${esc(d.name)}</h1>
 <table class="params">
-<tr><td><b>Код:</b> ${esc(d.code)}</td><td><b>Товар:</b> ${esc(d.productName ?? '')}</td><td><b>Партия:</b> ${esc(qtyRu(d.batchQty))} ${esc(d.unitCode)}</td></tr>
+<tr><td><b>Код:</b> ${esc(d.code)}</td><td><b>${esc(productLabel)}:</b> ${esc(d.productName ?? '')}</td><td><b>Партия:</b> ${esc(qtyRu(d.batchQty))} ${esc(d.unitCode)}</td></tr>
 <tr><td><b>Накладные, %:</b> ${esc(d.overheadPct)}</td><td><b>Дата:</b> ${esc(dateRu(d.date))}</td></tr>
 </table>
 ${paramsHtml}
 <table>
-<thead><tr><th style="width:30px">№</th><th>Наименование</th><th>Товар</th><th style="width:80px">Кол-во</th><th style="width:50px">Ед.</th><th style="width:90px">Сумма</th></tr></thead>
+<thead><tr><th style="width:30px">№</th><th>Наименование</th><th>Товар</th><th style="width:80px">Кол-во</th><th style="width:50px">Ед.</th>${shareHead}<th style="width:90px">Сумма</th></tr></thead>
 <tbody>${rowsHtml}</tbody>
 </table>
 </body></html>`;
 }
 
 /** Строка печатной формы со вложенными строками переделов */
-function rowHtml(r: BomPrintRow): string {
-  const children = r.children?.length ? r.children.map(c => rowHtml(c)).join('') : '';
-  return `<tr><td class="right">${r.n}</td><td>${esc(r.kind)}: ${esc(r.name)}${r.note ? ` <i>(${esc(r.note)})</i>` : ''}</td><td>${esc(r.product)}</td><td class="right">${esc(qtyRu(r.qty))}</td><td>${esc(r.unitCode)}</td><td class="right">${esc(moneyRu('0'))}</td></tr>${children}`;
+function rowHtml(r: BomPrintRow, disassembly = false): string {
+  const children = r.children?.length ? r.children.map(c => rowHtml(c, disassembly)).join('') : '';
+  const share = disassembly ? `<td class="right">${esc(r.costShare ?? '')}</td>` : '';
+  return `<tr><td class="right">${r.n}</td><td>${esc(r.kind)}: ${esc(r.name)}${r.note ? ` <i>(${esc(r.note)})</i>` : ''}</td><td>${esc(r.product)}</td><td class="right">${esc(qtyRu(r.qty))}</td><td>${esc(r.unitCode)}</td>${share}<td class="right">${esc(moneyRu('0'))}</td></tr>${children}`;
 }

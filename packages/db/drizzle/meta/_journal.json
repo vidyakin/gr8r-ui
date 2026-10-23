@@ -169,6 +169,13 @@
       "when": 1792706583113,
       "tag": "0023_stage7_parametric_specs",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792712763860,
+      "tag": "0024_disassembly",
+      "breakpoints": true
     }
   ]
 }

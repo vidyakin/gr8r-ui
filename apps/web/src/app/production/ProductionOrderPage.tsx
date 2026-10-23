@@ -51,7 +51,9 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
   const [editing, setEditing] = React.useState<MaterialCoverageRow | null>(null);
   const editable = canWrite && order.status === 'draft';
 
-  const products = snap.data?.items ?? [];
+  const products = (snap.data?.items ?? []).filter(p => (p.mode ?? 'assembly') === (order.operation === 'disassembly' ? 'disassembly' : 'assembly'));
+  // вид операции: сборка или разборка — от него зависят подписи и состав заказа
+  const disassembly = order.operation === 'disassembly';
   const save = (patch: Record<string, unknown>) => api.update.mutate({ id: order.id, body: patch });
 
   const setItems = (items: { itemId: string; qty: string; customerOrderLineId?: string | null }[]) => save({ items });
@@ -165,6 +167,14 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
       </div>
 
       <section className="doc-head panel" aria-label="Order header">
+        <Field label="Operation" hint={disassembly ? 'Disassembly: the goods of the product are taken apart into the outputs' : 'Assembly: the product is made of the materials'}>
+          {p => (
+            <select className="select" id={p.id} disabled={!editable} value={order.operation ?? 'assembly'} aria-label="Operation" onChange={e => save({ operation: e.target.value })}>
+              <option value="assembly">Assembly</option>
+              <option value="disassembly">Disassembly</option>
+            </select>
+          )}
+        </Field>
         <Field label="Work center" hint="Who makes the products">
           {p => (
             <Select
@@ -185,13 +195,13 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
         </Field>
       </section>
 
-      <section className="doc-lines panel" aria-label="Products to produce">
+      <section className="doc-lines panel" aria-label={disassembly ? 'What we disassemble' : 'Products to produce'}>
         <div className="table-wrap">
           <table className="dtbl" aria-label="Order items">
             <thead>
               <tr>
                 <th style={{ width: 34 }}>#</th>
-                <th>Product</th>
+                <th>{disassembly ? 'What we disassemble' : 'Product'}</th>
                 <th style={{ width: 110 }} className="r">
                   Qty
                 </th>
@@ -241,7 +251,7 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
               {!order.items.length && (
                 <tr>
                   <td colSpan={6} className="faint" style={{ textAlign: 'center', padding: 22 }}>
-                    No products yet.{editable ? ' Add what to produce.' : ''}
+                    {disassembly ? 'No goods to disassemble yet.' : 'No products yet.'} {editable ? (disassembly ? ' Add what to disassemble.' : ' Add what to produce.') : ''}
                   </td>
                 </tr>
               )}
@@ -260,7 +270,7 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
 
       <div className="doc-bottom">
         <section className="doc-links panel" aria-label="Composition">
-          <h2>Bill of materials</h2>
+          <h2>{disassembly ? 'Outputs' : 'Bill of materials'}</h2>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', flexWrap: 'wrap', marginBottom: 8 }}>
             <StockToggle on={showStock} onToggle={() => setShowStock(v => !v)} />
             <SupplyButtons orderId={order.id} />
@@ -273,7 +283,7 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
             <table className="dtbl" aria-label="Composition">
               <thead>
                 <tr>
-                  <th>Material or work</th>
+                  <th>{disassembly ? 'Output or work' : 'Material or work'}</th>
                   <th style={{ width: 100 }} className="r">
                     Qty
                   </th>
@@ -289,7 +299,7 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
                 {order.components.map(c => (
                   <tr key={c.id}>
                     <td>
-                      <span className="trunc">{c.kind === 'work' ? c.operation : c.kind === 'semi' ? 'Semi-finished product' : 'Material'}</span>
+                      <span className="trunc">{c.kind === 'work' ? c.operation : c.kind === 'semi' ? 'Semi-finished product' : c.kind === 'output' ? 'Output' : 'Material'}</span>
                     </td>
                     <td className="r num">{c.kind === 'work' ? '—' : c.qty}</td>
                     <td className="r num">{c.kind === 'work' ? c.hours : '—'}</td>

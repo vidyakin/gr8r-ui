@@ -292,6 +292,18 @@ export async function seedCatalog(db: Db, wsId: string) {
     { workspaceId: wsId, itemId: ids.windowItem!, kind: 'work', sortOrder: 4, operation: 'Сборка окна', workCenterId: assembly, hours: '2', rate: null, fixedCost: null, qty: '1' },
   ]);
 
+  // Разборка: исходный товар (брус) делится на выходные продукты (заготовки и обрезки) с долями стоимости
+  await goods('logBeam', { name: 'Брус сосновый 150×150', sku: 'MT-LOG-150', category: materials.id, unit: '006', price: 0, purchase: 1800 });
+  await goods('blank', { name: 'Заготовка деталь', sku: 'MT-BLK-001', category: materials.id, unit: '796', price: 1400, purchase: 0 });
+  await goods('offcut', { name: 'Обрезок', sku: 'MT-OFC-001', category: materials.id, unit: '796', price: 300, purchase: 0 });
+  ids.logItem = uuidv7();
+  await db.insert(manufacturedItems).values({ id: ids.logItem, workspaceId: wsId, code: 'DIS-LOG', name: 'Разборка бруса', kind: 'product', mode: 'disassembly', unitCode: '796', productId: ids.logBeam!, batchQty: '1', overheadPct: '10' });
+  await db.insert(bomLines).values([
+    { workspaceId: wsId, itemId: ids.logItem!, kind: 'output', sortOrder: 0, productId: ids.blank!, qty: '4', unitCode: '796', costShare: '80.00' },
+    { workspaceId: wsId, itemId: ids.logItem!, kind: 'output', sortOrder: 1, productId: ids.offcut!, qty: '1', unitCode: '796', costShare: '20.00' },
+    { workspaceId: wsId, itemId: ids.logItem!, kind: 'work', sortOrder: 2, operation: 'Распил бруса', workCenterId: carpentry, hours: '1', rate: '650.00', fixedCost: null, qty: '1' },
+  ]);
+
   // Изделие 3: стул «Лофт» — простое изделие для заказа на производство
   await item('loftChair', { name: 'Стул «Лофт»', code: 'FG-LOFT', kind: 'product', productId: ids.chairLoft, overheadPct: 10 });
   await bom('loftChair', [
@@ -301,5 +313,5 @@ export async function seedCatalog(db: Db, wsId: string) {
     { kind: 'work', op: 'Сборка стула', operation: 'assemblyOperation', center: 'assembly', hours: 0.5 },
   ]);
 
-  return { products: 25, services: 4, operations: 1 };
+  return { products: 28, services: 4, operations: 1 };
 }

@@ -20,7 +20,7 @@ import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { DOCUMENT_HOOKS } from './document-hooks';
 import { recomputeStockCosts } from './stock';
-import { costItems, documents, manufacturedItems, organizations, otherCostLines, periodCosts, products, productionCostClosings, productionHeaders, productionItems, stockBalances, stockCostAdjustments, stockMoves, warehouses, workCenters, workspaces } from './schema';
+import { costItems, documents, documentLines, manufacturedItems, organizations, otherCostLines, periodCosts, products, productionComponents, productionCostClosings, productionHeaders, productionItems, stockBalances, stockCostAdjustments, stockMoves, warehouses, workCenters, workspaces } from './schema';
 import type { DocCtx, DocumentLineRow, DocumentRow } from './documents';
 
 /* ---------------- дата запрета ---------------- */
@@ -128,8 +128,31 @@ export async function loadReleaseTargets(db: Db, workspaceId: string, month: str
     .innerJoin(documents, eq(documents.id, productionItems.documentId))
     .innerJoin(manufacturedItems, eq(manufacturedItems.id, productionItems.itemId))
     .leftJoin(productionHeaders, and(eq(productionHeaders.workspaceId, workspaceId), eq(productionHeaders.documentId, productionItems.documentId)))
-    .where(and(eq(productionItems.workspaceId, workspaceId), eq(documents.type, 'production'), eq(documents.status, 'posted'), gte(documents.date, start), lte(documents.date, end)))
+    .where(and(eq(productionItems.workspaceId, workspaceId), eq(documents.type, 'production'), eq(documents.status, 'posted'), sql`${documents.operation} is distinct from 'disassembly'`, gte(documents.date, start), lte(documents.date, end)))
     .orderBy(asc(productionItems.sortOrder));
+  // разборка: получателями косвенных затрат являются выходные продукты (приходы), а не позиция выпуска
+  const disRows = await db
+    .select({
+      itemId: productionComponents.id,
+      positionId: productionItems.id,
+      releaseId: productionComponents.documentId,
+      qty: documentLines.qty,
+      stageCost: productionComponents.actualCost,
+      documentLineId: productionComponents.documentLineId,
+      name: products.name,
+      workCenterId: productionHeaders.workCenterId,
+      hours: sql<string>`coalesce((
+        select sum(case when pc.actual_qty is not null then pc.actual_qty else pc.hours end)
+        from production_components pc where pc.item_id = ${productionItems.id} and pc.kind = 'work'), 0)::text`,
+    })
+    .from(productionComponents)
+    .innerJoin(productionItems, eq(productionItems.id, productionComponents.itemId))
+    .innerJoin(documents, eq(documents.id, productionComponents.documentId))
+    .innerJoin(documentLines, eq(documentLines.id, productionComponents.documentLineId))
+    .leftJoin(products, eq(products.id, productionComponents.productId))
+    .leftJoin(productionHeaders, and(eq(productionHeaders.workspaceId, workspaceId), eq(productionHeaders.documentId, productionComponents.documentId)))
+    .where(and(eq(productionComponents.workspaceId, workspaceId), eq(documents.type, 'production'), eq(documents.status, 'posted'), eq(documents.operation, 'disassembly'), eq(productionComponents.kind, 'output'), gte(documents.date, start), lte(documents.date, end)))
+    .orderBy(asc(productionComponents.sortOrder));
   // прямые затраты — с удорожанием по цепочке (материалы и полуфабрикаты, подорожавшие при закрытии), без своей части
   const lineIds = rows.map(r => r.documentLineId).filter((x): x is string => !!x);
   const chain = lineIds.length
@@ -140,7 +163,19 @@ export async function loadReleaseTargets(db: Db, workspaceId: string, month: str
         .where(and(eq(stockCostAdjustments.workspaceId, workspaceId), inArray(stockMoves.documentLineId, lineIds), sql`${stockMoves.qty} > 0`))
     : [];
   const chainByLine = new Map(chain.map(c => [c.lineId!, mul(dec(c.chain), dec(c.qty))]));
-  return rows.map(r => ({ itemId: r.itemId, releaseId: r.releaseId, name: r.name, workCenterId: r.workCenterId, documentLineId: r.documentLineId, qty: dec(r.qty), directCost: dec(r.stageCost) + (r.documentLineId ? (chainByLine.get(r.documentLineId) ?? 0n) : 0n), workHours: dec(r.hours) }));
+  // часы работ разборки относятся к позиции выпуска, а получателей у неё несколько (выходы): часы делятся между
+  // выходами по их стоимости (без стоимости — поровну), иначе база «по часам работ» считала бы их по разу на каждый выход
+  const disTotals = new Map<string, { cost: Dec; n: number }>();
+  for (const r of disRows) {
+    const t = disTotals.get(r.positionId) ?? { cost: 0n, n: 0 };
+    disTotals.set(r.positionId, { cost: t.cost + dec(r.stageCost ?? '0'), n: t.n + 1 });
+  }
+  const disHours = (r: (typeof disRows)[number]): Dec => {
+    const t = disTotals.get(r.positionId)!;
+    return t.cost > 0n ? div(mul(dec(r.hours), dec(r.stageCost ?? '0')), t.cost) : div(dec(r.hours), dec(t.n));
+  };
+  const targets = [...rows.map(r => ({ itemId: r.itemId, releaseId: r.releaseId, name: r.name, workCenterId: r.workCenterId, documentLineId: r.documentLineId, qty: dec(r.qty), directCost: dec(r.stageCost) + (r.documentLineId ? (chainByLine.get(r.documentLineId) ?? 0n) : 0n), workHours: dec(r.hours) })), ...disRows.map(r => ({ itemId: r.itemId, releaseId: r.releaseId, name: r.name ?? '', workCenterId: r.workCenterId, documentLineId: r.documentLineId, qty: dec(r.qty), directCost: dec(r.stageCost ?? '0') + (r.documentLineId ? (chainByLine.get(r.documentLineId) ?? 0n) : 0n), workHours: disHours(r) }))];
+  return targets;
 }
 
 /** Косвенные затраты месяца по статьям и участкам (способ распределения задаёт статья) */

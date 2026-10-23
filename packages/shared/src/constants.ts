@@ -83,11 +83,17 @@ export const OKEI_UNITS = [
   { code: '876', name: 'Условная единица', symbol: 'усл. ед' },
 ] as const;
 
-export const BOM_KINDS = ['material', 'semi', 'work', 'expense'] as const;
+export const BOM_KINDS = ['material', 'semi', 'work', 'expense', 'output'] as const;
 export type BomKind = (typeof BOM_KINDS)[number];
-/** expense — расход: услуга подрядчика входит в плановую себестоимость, но со склада не списывается (строка 8.1.1 УНФ) */
-export const BOM_KIND_LABELS: Record<BomKind, string> = { material: 'Material', semi: 'Semi-finished product', work: 'Work operation', expense: 'Expense' };
+/** expense — расход: услуга подрядчика входит в плановую себестоимость, но со склада не списывается (строка 8.1.1 УНФ);
+    output — выходной продукт разборки: он не расходуется, а приходуется (спецификация разборки) */
+export const BOM_KIND_LABELS: Record<BomKind, string> = { material: 'Material', semi: 'Semi-finished product', work: 'Work operation', expense: 'Expense', output: 'Output' };
 export const MANUFACTURED_KINDS = ['product', 'semi'] as const;
+
+/** Вид спецификации: сборка (изделие из материалов) или разборка (исходный товар делится на выходные продукты) */
+export const SPEC_MODES = ['assembly', 'disassembly'] as const;
+export type SpecMode = (typeof SPEC_MODES)[number];
+export const SPEC_MODE_LABELS: Record<SpecMode, string> = { assembly: 'Assembly', disassembly: 'Disassembly' };
 
 /** Типы значений параметра спецификации: число (замер), вариант (цвет) и флажок */
 export const PARAM_TYPES = ['number', 'select', 'boolean'] as const;
