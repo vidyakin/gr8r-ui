@@ -936,4 +936,32 @@ export const docs = {
     tolling: { title: 'Processing', lead: 'Receipts of customer materials, processing reports and returns of unused materials.' },
   },
   serviceContract: 'service',
+
+  /** Названия типов документов (DOCUMENT_META.label — запасной вариант) */
+  types: {
+    quote: 'Quote',
+    customer_order: 'Customer order',
+    invoice: 'Invoice',
+    realization: 'Shipment (UPD)',
+    act: 'Service act',
+    customer_return: 'Customer return',
+    supplier_order: 'Supplier order',
+    receipt: 'Goods receipt',
+    supplier_return: 'Supplier return',
+    stock_transfer: 'Stock transfer',
+    write_off: 'Write-off',
+    stock_posting: 'Goods posting',
+    inventory_count: 'Inventory count',
+    production_order: 'Production order',
+    production: 'Production',
+    work_order: 'Work order',
+    piecework_order: 'Piecework order',
+    other_costs: 'Other costs',
+    tolling_receipt: 'Receipt for processing',
+    tolling_report: 'Processing report',
+    tolling_return: 'Return of unused materials',
+  },
+  draftSuffix: '(draft)',
+  /** Статус документа (STATUS_LABEL) */
+  docStatus: { draft: 'Draft', posted: 'Posted', cancelled: 'Cancelled' },
 };

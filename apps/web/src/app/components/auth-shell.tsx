@@ -58,9 +58,11 @@ export function FieldErr({ id, children }: { id?: string; children?: React.React
 }
 
 export function SocialButtons({ onPick, busy }: { onPick: (name: string) => void; busy: string | null }) {
+  const tt = useT();
   const b = (name: string, icon: React.ReactNode) => (
     <button type="button" className={cn('btn btn-secondary btn-lg', busy === name && 'is-loading')} disabled={!!busy} onClick={() => onPick(name)}>
-      {icon}Continue with {name}
+      {icon}
+      {tt('views.auth.continueWith', { name })}
     </button>
   );
   return (

@@ -8,6 +8,7 @@ import { ago } from '../lib/dates';
 import { useRun, useRuns, type RunRow, type StepRow } from './data';
 import { NodeIcon } from './node-meta';
 import { fmtDateTime, useT } from '@/i18n';
+import { nodeLabel } from './node-i18n';
 
 const RUN_TONE: Record<FlowRunStatus, Tone> = { succeeded: 'green', failed: 'red', waiting: 'amber', running: 'accent', queued: 'gray', skipped: 'gray' };
 const STEP_TONE: Record<FlowStepStatus, Tone> = { succeeded: 'green', failed: 'red', waiting: 'amber', retrying: 'amber', running: 'accent' };
@@ -156,7 +157,7 @@ function StepItem({ step }: { step: StepRow }) {
         <span className="step-ico">
           <NodeIcon name={def?.icon ?? 'zap'} size={13} />
         </span>
-        <span className="step-t trunc">{def?.label ?? step.nodeType}</span>
+        <span className="step-t trunc">{def ? nodeLabel(def) : step.nodeType}</span>
         <span className="faint mono trunc step-id">{step.nodeId}</span>
         <span className="sp" />
         {step.attempt > 1 && <span className="faint">{t('automations.runs.attempt', { n: step.attempt })}</span>}

@@ -660,6 +660,8 @@ export const views: Widen<typeof V> = {
   },
 
   auth: {
+
+    continueWith: 'Продолжить с {name}',
     strength: { one: 'Слишком короткий', two: 'Слабый', three: 'Средний', four: 'Хороший', five: 'Надёжный' },
   },
 

@@ -10,13 +10,14 @@ import { useIsAdmin } from '../catalog/data';
 import { ago } from '../lib/dates';
 import { useFlowApi, useFlows, type FlowSummary } from './data';
 import { RunsView, RunStatus } from './RunsView';
+import { nodeLabel } from './node-i18n';
 
 export function triggerText(t: FlowSummary['trigger'], tFn: (key: TKey, params?: Record<string, string | number | null | undefined>) => string): string {
   if (!t) return tFn('automations.list.noTrigger');
   const def = getNodeDef(t.type);
   const p = t.params as Record<string, string | undefined>;
   const detail = t.type === 'trigger.schedule' ? p.cron : [p.entity, p.field && `.${p.field}`, p.to && ` → ${p.to}`].filter(Boolean).join('');
-  return `${def?.label ?? t.type}${detail ? ` · ${detail}` : ''}`;
+  return `${def ? nodeLabel(def) : t.type}${detail ? ` · ${detail}` : ''}`;
 }
 
 export function AutomationsPage() {

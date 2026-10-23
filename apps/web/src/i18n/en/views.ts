@@ -722,6 +722,7 @@ export const views = {
 
   /* Auth shell — strength meter */
   auth: {
+    continueWith: 'Continue with {name}',
     strength: { one: 'Too short', two: 'Weak', three: 'Fair', four: 'Good', five: 'Strong' },
   },
 

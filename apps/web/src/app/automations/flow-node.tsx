@@ -5,6 +5,7 @@ import { getNodeDef, nodeOutputs } from '@gr8r/shared';
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
 import { CATEGORY_COLOR, NodeIcon, paramSummary } from './node-meta';
+import { nodeLabel } from './node-i18n';
 
 export interface FlowNodeData extends Record<string, unknown> {
   nodeType: string;
@@ -37,7 +38,7 @@ export function FlowNodeView({ id, data, selected }: NodeProps<RFNode>) {
         <span className="fn-ico">
           <NodeIcon name={def.icon} size={13} />
         </span>
-        <span className="fn-t trunc">{def.label}</span>
+        <span className="fn-t trunc">{nodeLabel(def)}</span>
       </div>
       {summary.length > 0 && (
         <div className="fn-s">

@@ -9,6 +9,7 @@ import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { activeFields, useEntities, type MetaEntity } from '../meta/data';
 import { humanize } from './node-meta';
+import { paramTitle } from './node-i18n';
 
 interface Prop {
   type?: string;
@@ -202,7 +203,7 @@ export function ParamsForm({ def, params, env, onChange, errors = {}, readOnly }
         const id = `${uid}-${key}`;
         const raw = params[key];
         const str = typeof raw === 'string' ? raw : raw === undefined || raw === null ? '' : String(raw);
-        const label = (p.title ?? humanize(key)) + (required.has(key) && p.default === undefined ? ' *' : '');
+        const label = paramTitle(def.type, key, p.title ?? humanize(key)) + (required.has(key) && p.default === undefined ? ' *' : '');
         const hint = p.description;
         const err = errors[key];
         let control: React.ReactNode;

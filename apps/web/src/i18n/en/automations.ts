@@ -1,5 +1,123 @@
 /* Automations: список сценариев, история запусков, редактор сценариев (ноды, палитра, инспектор, валидация) */
 export const automations = {
+  /** Тексты узлов сценария по типу (точка в типе заменена на _): название, описание, подписи параметров */
+  nodes: {
+    trigger_record_created: {
+      label: 'Record created',
+      description: 'Starts when a record of the chosen entity is created.',
+      params: {
+        entity: 'Entity',
+      },
+    },
+    trigger_record_updated: {
+      label: 'Record updated',
+      description: 'Starts when any field of a record of the chosen entity changes.',
+      params: {
+        entity: 'Entity',
+      },
+    },
+    trigger_field_changed: {
+      label: 'Field changed',
+      description: 'Starts when a field of a record changes, optionally to a specific value.',
+      params: {
+        entity: 'Entity',
+        field: 'Field',
+        from: 'Changed from (optional)',
+        to: 'Changed to (optional)',
+      },
+    },
+    trigger_schedule: {
+      label: 'Schedule',
+      description: 'Starts on a cron schedule (UTC, checked once a minute).',
+      params: {
+        cron: 'Schedule (cron, UTC)',
+      },
+    },
+    trigger_manual: {
+      label: 'Manual run',
+      description: 'Starts when someone runs the flow by hand (optionally on a chosen record).',
+      params: {
+        entity: 'Entity of the record to run on (optional)',
+      },
+    },
+    logic_condition: {
+      label: 'Condition',
+      description: 'Compares a value and continues down the “true” or “false” output.',
+      params: {
+        left: 'Value',
+        operator: 'Operator',
+        right: 'Compare with',
+      },
+    },
+    flow_delay: {
+      label: 'Delay',
+      description: 'Pauses the run, then continues. The wait does not occupy a worker.',
+      params: {
+        amount: 'Wait for',
+        unit: 'Unit',
+      },
+    },
+    flow_branch: {
+      label: 'Branch',
+      description: 'Chooses one of several paths by the value (like a switch).',
+      params: {
+        value: 'Value to switch on',
+        cases: 'Cases (one value per line)',
+      },
+    },
+    action_update_field: {
+      label: 'Update field',
+      description: 'Sets the value of a field of a record (the value is validated like in the entity builder).',
+      params: {
+        entity: 'Entity',
+        recordId: 'Record ID',
+        field: 'Field',
+        value: 'New value',
+      },
+    },
+    action_create_task: {
+      label: 'Create task',
+      description: 'Creates a task in a project.',
+      params: {
+        projectId: 'Project',
+        title: 'Title',
+        description: 'Description',
+        assigneeId: 'Assignee (optional)',
+        priority: 'Priority 1–10 (optional)',
+        status: 'Status key',
+        dueDate: 'Due date YYYY-MM-DD (optional)',
+      },
+    },
+    action_notify: {
+      label: 'Notify member',
+      description: 'Sends an in-app notification to a workspace member.',
+      params: {
+        recipientId: 'Recipient',
+        text: 'Message',
+        snippet: 'Details (optional)',
+        taskId: 'Link to task (optional)',
+      },
+    },
+    action_http_request: {
+      label: 'HTTP request',
+      description: 'Calls a webhook. Timeouts and 5xx responses are retried; private addresses are blocked.',
+      params: {
+        method: 'Method',
+        url: 'URL',
+        headers: 'Headers (Name: value per line)',
+        body: 'Body',
+      },
+    },
+    action_add_comment: {
+      label: 'Add comment',
+      description: 'Writes a comment on a task, or a note on a deal.',
+      params: {
+        entity: 'Comment on',
+        recordId: 'Record ID',
+        body: 'Comment',
+      },
+    },
+  },
   list: {
     title: 'Automations',
     subtitle: 'When something happens in the workspace — a task changes, a deal is won, the clock strikes — run a chain of steps.',

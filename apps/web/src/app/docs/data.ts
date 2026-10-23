@@ -4,6 +4,7 @@
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { DOCUMENT_META, type CompanyKind, type CostDistribution, type CostItemKind, type DocumentGroup, type DocumentStatus, type DocumentType, type FileRef, type MaterialOwner, type TaxSystem, type TollingRole, type VatRate, type WarehouseKind, type WorkOrderBillingMode, type WorkOrderStateCategory } from '@gr8r/shared';
+import { hasKey, t, type TKey } from '@/i18n';
 import { toast } from '@/components/ui';
 import type { Tone } from '@/components/ui';
 import { errorMessage } from '../data/api';
@@ -11,10 +12,22 @@ import { call, useWsId } from '../meta/data';
 
 export const docsKey = (ws: string, ...rest: unknown[]) => ['ws', ws, 'docs', ...rest] as const;
 
-export const STATUS_LABEL: Record<DocumentStatus, string> = { draft: 'Draft', posted: 'Posted', cancelled: 'Cancelled' };
+/** Подписи статуса документа на текущем языке (геттеры: язык читается при каждом обращении) */
+export const STATUS_LABEL: Record<DocumentStatus, string> = {
+  get draft() {
+    return t('docs.docStatus.draft');
+  },
+  get posted() {
+    return t('docs.docStatus.posted');
+  },
+  get cancelled() {
+    return t('docs.docStatus.cancelled');
+  },
+};
 export const STATUS_TONE: Record<DocumentStatus, Tone> = { draft: 'gray', posted: 'green', cancelled: 'red' };
-export const typeLabel = (t: string) => DOCUMENT_META[t as DocumentType]?.label ?? t;
-export const docTitle = (d: { type: string; number: string | null }) => `${typeLabel(d.type)}${d.number ? ` ${d.number}` : ' (draft)'}`;
+/** Название типа документа на текущем языке; нет перевода — английская подпись из DOCUMENT_META */
+export const typeLabel = (type: string) => (hasKey(`docs.types.${type}`) ? t(`docs.types.${type}` as TKey) : (DOCUMENT_META[type as DocumentType]?.label ?? type));
+export const docTitle = (d: { type: string; number: string | null }) => `${typeLabel(d.type)}${d.number ? ` ${d.number}` : ` ${t('docs.draftSuffix')}`}`;
 
 export interface DocLine {
   id: string;

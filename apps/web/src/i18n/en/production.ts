@@ -1275,6 +1275,12 @@ export const production = {
 
   /** Закрытие месяца (этап 6) */
   closing: {
+    /** Предупреждения анализа закрытия по виду (issue.kind); count — число позиций */
+    issue: {
+      negative_stock: { one: 'Negative stock in {count} position — fix the documents before closing', other: 'Negative stock in {count} positions — fix the documents before closing' },
+      unposted: { one: '{count} document of the month is not posted — post it or move its date out of the period', other: '{count} documents of the month are not posted — post them or move their date out of the period' },
+      no_release: 'There are no releases this month: indirect costs will stay undistributed',
+    },
     title: 'Month closing',
     subtitle: 'Indirect costs of the month (service receipts, write-offs to a work center and other costs) are allocated to the releases of the month, and the cost of everything that left the stock afterwards is recalculated.',
     monthLabel: 'Closing month',

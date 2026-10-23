@@ -41,6 +41,7 @@ import { FlowNodeView, IssuesContext, type RFNode } from './flow-node';
 import { ParamsForm, templateVariables, useFormEnv } from './node-form';
 import { CATEGORY_COLOR, NodeIcon, nodeCategoryName } from './node-meta';
 import { RunsView } from './RunsView';
+import { nodeDescription, nodeLabel } from './node-i18n';
 
 const nodeTypes = { gr8r: FlowNodeView };
 const DRAG_TYPE = 'application/x-gr8r-node';
@@ -108,7 +109,7 @@ function Editor({ flow, tab }: { flow: FlowDetail; tab: 'editor' | 'runs' }) {
   const triggerDef = trigger && getNodeDef(trigger.data.nodeType);
   const triggerEntity = typeof trigger?.data.params.entity === 'string' ? trigger.data.params.entity : undefined;
   const stepIds = React.useMemo(
-    () => nodes.filter(n => n.id !== selected?.id && getNodeDef(n.data.nodeType)?.category !== 'trigger').map(n => ({ id: n.id, label: getNodeDef(n.data.nodeType)?.label ?? n.id })),
+    () => nodes.filter(n => n.id !== selected?.id && getNodeDef(n.data.nodeType)?.category !== 'trigger').map(n => ({ id: n.id, label: (d => (d ? nodeLabel(d) : n.id))(getNodeDef(n.data.nodeType)) })),
     [nodes, selected?.id],
   );
   const env = useFormEnv(triggerEntity, stepIds);
@@ -293,7 +294,7 @@ function Editor({ flow, tab }: { flow: FlowDetail; tab: 'editor' | 'runs' }) {
                     className="pal-item"
                     draggable={!readOnly}
                     disabled={readOnly}
-                    title={d.description}
+                    title={nodeDescription(d)}
                     data-node-type={d.type}
                     style={{ '--fn-c': CATEGORY_COLOR[cat] } as React.CSSProperties}
                     onDragStart={e => e.dataTransfer.setData(DRAG_TYPE, d.type)}
@@ -302,7 +303,7 @@ function Editor({ flow, tab }: { flow: FlowDetail; tab: 'editor' | 'runs' }) {
                     <span className="fn-ico">
                       <NodeIcon name={d.icon} size={13} />
                     </span>
-                    <span className="trunc">{d.label}</span>
+                    <span className="trunc">{nodeLabel(d)}</span>
                   </button>
                 ))}
               </section>
@@ -381,8 +382,8 @@ function NodePanel({ nodeId, def, params, env, readOnly, issues, onChange, onRem
           <NodeIcon name={def.icon} size={14} />
         </span>
         <div>
-          <h2>{def.label}</h2>
-          <p className="faint">{def.description}</p>
+          <h2>{nodeLabel(def)}</h2>
+          <p className="faint">{nodeDescription(def)}</p>
         </div>
       </div>
       <ParamsForm def={def} params={params} env={env} errors={errors} readOnly={readOnly} onChange={onChange} />

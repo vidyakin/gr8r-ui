@@ -729,7 +729,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             <Badge tone={STATUS_TONE[doc.status]} dot>
               {STATUS_LABEL[doc.status]}
             </Badge>
-            {doc.state && <Badge tone="violet">{meta.states?.find(s => s.key === doc.state)?.label ?? doc.state}</Badge>}
+            {doc.state && <Badge tone="violet">{(doc.states ?? meta.states)?.find(s => s.key === doc.state)?.label ?? doc.state}</Badge>}
           </h1>
           <span className="faint" style={{ fontSize: 12 }} aria-live="polite" data-testid="save-state">
             {doc.status !== 'draft' ? (doc.postedAt ? `${t('docs.status.posted')} ${fmtDate(new Date(doc.postedAt))}` : '') : save === 'saving' ? t('docs.document.save.saving') : save === 'dirty' ? t('docs.document.save.dirty') : save === 'invalid' ? t('docs.document.save.invalid') : save === 'error' ? t('docs.document.save.error') : t('docs.document.save.saved')}

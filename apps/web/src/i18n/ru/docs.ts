@@ -937,4 +937,32 @@ export const docs: Widen<typeof D> = {
     tolling: { title: 'Переработка', lead: 'Поступления давальческого сырья, отчёты о переработке и возврат неиспользованного сырья.' },
   },
   serviceContract: 'услуга',
+
+  /** Названия типов документов (DOCUMENT_META.label — запасной вариант) */
+  types: {
+    quote: 'Коммерческое предложение',
+    customer_order: 'Заказ покупателя',
+    invoice: 'Счёт на оплату',
+    realization: 'Реализация (УПД)',
+    act: 'Акт выполненных работ',
+    customer_return: 'Возврат от покупателя',
+    supplier_order: 'Заказ поставщику',
+    receipt: 'Поступление товаров',
+    supplier_return: 'Возврат поставщику',
+    stock_transfer: 'Перемещение товаров',
+    write_off: 'Списание товаров',
+    stock_posting: 'Оприходование товаров',
+    inventory_count: 'Инвентаризация',
+    production_order: 'Заказ на производство',
+    production: 'Производство',
+    work_order: 'Заказ-наряд',
+    piecework_order: 'Сдельный наряд',
+    other_costs: 'Прочие затраты',
+    tolling_receipt: 'Поступление в переработку',
+    tolling_report: 'Отчёт о переработке',
+    tolling_return: 'Возврат давальческого сырья',
+  },
+  draftSuffix: '(черновик)',
+  /** Статус документа (STATUS_LABEL) */
+  docStatus: { draft: 'Черновик', posted: 'Проведён', cancelled: 'Отменён' },
 };

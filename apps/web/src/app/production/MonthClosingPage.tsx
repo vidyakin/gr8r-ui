@@ -10,7 +10,7 @@ import { useIsAdmin } from '../catalog/data';
 import { errorMessage } from '../data/api';
 import { useSession } from '../data/session';
 import { usePeriodPreview, usePeriods, useClosePeriod, type Closing } from './closing-data';
-import { fmtDateTime, useT } from '@/i18n';
+import { fmtDateTime, hasKey, useT, type TKey } from '@/i18n';
 
 /** Ключ месяца текущей даты: «2026-10» */
 const currentMonth = () => new Date().toISOString().slice(0, 7);
@@ -197,7 +197,7 @@ function PreviewPanel({ month }: { month: string }) {
             <div className="stack" style={{ gap: 6, marginBottom: 12 }}>
               {preview.data.issues.map((issue, i) => (
                 <Alert key={i} tone={issue.kind === 'no_release' ? 'info' : 'warn'}>
-                  <div>{issue.message}</div>
+                  <div>{hasKey(`production.closing.issue.${issue.kind}`) ? tt(`production.closing.issue.${issue.kind}` as TKey, { count: issue.links.length }) : issue.message}</div>
                   {issue.links.slice(0, 6).map((l, j) =>
                     l.documentId ? (
                       <div key={j} style={{ fontSize: 12 }}>
