@@ -2,11 +2,13 @@
 import * as React from 'react';
 import { CircleAlert, DollarSign } from 'lucide-react';
 import { Button, Checkbox, Dialog, DialogClose, DialogContent, Input } from '@/components/ui';
+import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { dOff } from '../lib/dates';
 import { MOD } from '../lib/platform';
 import { INDUSTRIES, OPEN_STAGES, SIZES } from './stages';
 import { company as findCompany, contactsOfCompany } from './selectors';
+import { industryName, sizeName } from './labels';
 import { newCrmId, useCrm } from './store';
 import type { DealDefaults } from './ui-context';
 import type { StageId } from './types';
@@ -31,6 +33,7 @@ function FormField({ id, label, error, grow, children }: { id: string; label: st
 
 function OwnerSelect({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
   const { data } = useWorkspace();
+  const t = useT();
   return (
     <select className="select" id={id} value={value} onChange={e => onChange(e.target.value)}>
       {data.members
@@ -38,7 +41,7 @@ function OwnerSelect({ id, value, onChange }: { id: string; value: string; onCha
         .map(m => (
           <option key={m.id} value={m.id}>
             {m.name}
-            {m.id === data.me ? ' (you)' : ''}
+            {m.id === data.me ? t('crm.deals.you') : ''}
           </option>
         ))}
     </select>
@@ -47,6 +50,7 @@ function OwnerSelect({ id, value, onChange }: { id: string; value: string; onCha
 
 /** Каркас окна: заголовок, форма (Enter и Ctrl/Cmd+Enter отправляют) и подвал с кнопками */
 function FormDialog({ title, description, submitLabel, onSubmit, onClose, children }: { title: string; description: string; submitLabel: string; onSubmit: () => void; onClose: () => void; children: React.ReactNode }) {
+  const t = useT();
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
@@ -70,7 +74,7 @@ function FormDialog({ title, description, submitLabel, onSubmit, onClose, childr
               <kbd>{MOD}</kbd> <kbd>↵</kbd>
             </span>
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{t('crm.common.cancel')}</Button>
             </DialogClose>
             <Button variant="primary" onClick={onSubmit}>
               {submitLabel}
@@ -100,6 +104,7 @@ function FormDialog({ title, description, submitLabel, onSubmit, onClose, childr
 export function DealFormDialog({ defaults, onClose, onCreated }: { defaults: DealDefaults; onClose: () => void; onCreated: (id: string) => void }) {
   const { data: ws } = useWorkspace();
   const { data, dispatch } = useCrm();
+  const t = useT();
   const [f, setF] = React.useState({
     name: '',
     company: defaults.company ?? '',
@@ -115,10 +120,10 @@ export function DealFormDialog({ defaults, onClose, onCreated }: { defaults: Dea
 
   const submit = () => {
     const e: typeof err = {};
-    if (!f.name.trim()) e.name = 'Give the deal a name';
-    if (!f.company) e.company = 'Choose a company';
+    if (!f.name.trim()) e.name = t('crm.deals.form.errName');
+    if (!f.company) e.company = t('crm.deals.form.errCompany');
     const amount = Number(f.amount);
-    if (!(amount > 0)) e.amount = 'Enter an amount above zero';
+    if (!(amount > 0)) e.amount = t('crm.deals.form.errAmount');
     setErr(e);
     if (Object.keys(e).length) return;
     const id = newCrmId('d');
@@ -128,19 +133,19 @@ export function DealFormDialog({ defaults, onClose, onCreated }: { defaults: Dea
   };
 
   return (
-    <FormDialog title="New deal" description="Deals move through the pipeline from Lead to Won." submitLabel="Create deal" onSubmit={submit} onClose={onClose}>
-      <FormField id="nd-name" label="Deal name" error={err.name}>
-        <Input id="nd-name" data-af size="lg" invalid={!!err.name} placeholder="e.g. Fleet analytics rollout" value={f.name} style={{ fontSize: 15, fontWeight: 500 }} onChange={e => set('name', e.target.value)} />
+    <FormDialog title={t('crm.deals.form.titleNew')} description={t('crm.deals.form.desc')} submitLabel={t('crm.deals.form.submitCreate')} onSubmit={submit} onClose={onClose}>
+      <FormField id="nd-name" label={t('crm.deals.form.fieldName')} error={err.name}>
+        <Input id="nd-name" data-af size="lg" invalid={!!err.name} placeholder={t('crm.deals.form.placeholderName')} value={f.name} style={{ fontSize: 15, fontWeight: 500 }} onChange={e => set('name', e.target.value)} />
       </FormField>
       <div className="row" style={{ gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <FormField id="nd-company" label="Company" error={err.company} grow>
+        <FormField id="nd-company" label={t('crm.deals.form.fieldCompany')} error={err.company} grow>
           <select
             className={`select${err.company ? ' is-error' : ''}`}
             id="nd-company"
             value={f.company}
             onChange={e => setF(s => ({ ...s, company: e.target.value, contacts: [], owner: findCompany(data, e.target.value)?.owner ?? s.owner }))}
           >
-            <option value="">Select a company…</option>
+            <option value="">{t('crm.deals.form.chooseCompany')}</option>
             {[...data.companies]
               .sort((a, b) => a.name.localeCompare(b.name))
               .map(c => (
@@ -150,12 +155,12 @@ export function DealFormDialog({ defaults, onClose, onCreated }: { defaults: Dea
               ))}
           </select>
         </FormField>
-        <FormField id="nd-amount" label="Amount (USD)" error={err.amount} grow>
-          <Input id="nd-amount" type="number" min={0} step={500} icon={<DollarSign size={14} />} invalid={!!err.amount} placeholder="0" value={f.amount} onChange={e => set('amount', e.target.value)} />
+        <FormField id="nd-amount" label={t('crm.deals.form.fieldAmount')} error={err.amount} grow>
+          <Input id="nd-amount" type="number" min={0} step={500} icon={<DollarSign size={14} />} invalid={!!err.amount} placeholder={t('crm.deals.form.placeholderAmount')} value={f.amount} onChange={e => set('amount', e.target.value)} />
         </FormField>
       </div>
       <div className="row" style={{ gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <FormField id="nd-stage" label="Stage" grow>
+        <FormField id="nd-stage" label={t('crm.deals.form.fieldStage')} grow>
           <select className="select" id="nd-stage" value={f.stage} onChange={e => set('stage', e.target.value as StageId)}>
             {OPEN_STAGES.map(s => (
               <option key={s.id} value={s.id}>
@@ -164,16 +169,16 @@ export function DealFormDialog({ defaults, onClose, onCreated }: { defaults: Dea
             ))}
           </select>
         </FormField>
-        <FormField id="nd-close" label="Expected close" grow>
+        <FormField id="nd-close" label={t('crm.deals.form.fieldCloseDate')} grow>
           <input type="date" className="input" id="nd-close" value={f.close} onChange={e => e.target.value && set('close', e.target.value)} />
         </FormField>
-        <FormField id="nd-owner" label="Owner" grow>
+        <FormField id="nd-owner" label={t('crm.deals.form.fieldOwner')} grow>
           <OwnerSelect id="nd-owner" value={f.owner} onChange={v => set('owner', v)} />
         </FormField>
       </div>
       {!!people.length && (
         <div className="field">
-          <span className="label">Contacts</span>
+          <span className="label">{t('crm.deals.form.contacts')}</span>
           <div className="row" style={{ gap: 14, flexWrap: 'wrap' }}>
             {people.map(p => (
               <label key={p.id} className="row" style={{ gap: 7, cursor: 'pointer', fontSize: 13 }}>
@@ -193,13 +198,14 @@ export function DealFormDialog({ defaults, onClose, onCreated }: { defaults: Dea
 export function CompanyFormDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const { data: ws } = useWorkspace();
   const { dispatch } = useCrm();
+  const t = useT();
   const [f, setF] = React.useState({ name: '', industry: INDUSTRIES[0], size: SIZES[2], owner: ws.me, website: '', city: '' });
   const [err, setErr] = React.useState<string>();
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF(s => ({ ...s, [k]: v }));
 
   const submit = () => {
     const name = f.name.trim();
-    if (!name) return setErr('Give the company a name');
+    if (!name) return setErr(t('crm.companies.form.errName'));
     const id = newCrmId('co');
     dispatch({ type: 'company/create', company: { id, name, industry: f.industry, size: f.size, owner: f.owner, website: f.website.trim() || undefined, city: f.city.trim() } });
     onClose();
@@ -207,14 +213,14 @@ export function CompanyFormDialog({ onClose, onCreated }: { onClose: () => void;
   };
 
   return (
-    <FormDialog title="New company" description="Companies group the contacts and deals you work on together." submitLabel="Create company" onSubmit={submit} onClose={onClose}>
-      <FormField id="nc-name" label="Company name" error={err}>
+    <FormDialog title={t('crm.companies.form.titleNew')} description={t('crm.companies.form.desc')} submitLabel={t('crm.companies.form.submitCreate')} onSubmit={submit} onClose={onClose}>
+      <FormField id="nc-name" label={t('crm.companies.form.fieldName')} error={err}>
         <Input
           id="nc-name"
           data-af
           size="lg"
           invalid={!!err}
-          placeholder="e.g. Northwind Logistics"
+          placeholder={t('crm.companies.form.placeholderName')}
           value={f.name}
           style={{ fontSize: 15, fontWeight: 500 }}
           onChange={e => {
@@ -224,30 +230,30 @@ export function CompanyFormDialog({ onClose, onCreated }: { onClose: () => void;
         />
       </FormField>
       <div className="row" style={{ gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <FormField id="nc-industry" label="Industry" grow>
+        <FormField id="nc-industry" label={t('crm.companies.form.fieldIndustry')} grow>
           <select className="select" id="nc-industry" value={f.industry} onChange={e => set('industry', e.target.value)}>
             {INDUSTRIES.map(i => (
-              <option key={i}>{i}</option>
+              <option key={i}>{industryName(i, i)}</option>
             ))}
           </select>
         </FormField>
-        <FormField id="nc-size" label="Size" grow>
+        <FormField id="nc-size" label={t('crm.companies.form.fieldSize')} grow>
           <select className="select" id="nc-size" value={f.size} onChange={e => set('size', e.target.value)}>
             {SIZES.map(i => (
-              <option key={i}>{i}</option>
+              <option key={i}>{sizeName(i, i)}</option>
             ))}
           </select>
         </FormField>
-        <FormField id="nc-owner" label="Owner" grow>
+        <FormField id="nc-owner" label={t('crm.companies.form.fieldOwner')} grow>
           <OwnerSelect id="nc-owner" value={f.owner} onChange={v => set('owner', v)} />
         </FormField>
       </div>
       <div className="row" style={{ gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <FormField id="nc-web" label="Website" grow>
-          <Input id="nc-web" placeholder="company.com" value={f.website} onChange={e => set('website', e.target.value)} />
+        <FormField id="nc-web" label={t('crm.companies.form.fieldWebsite')} grow>
+          <Input id="nc-web" placeholder={t('crm.companies.form.placeholderWebsite')} value={f.website} onChange={e => set('website', e.target.value)} />
         </FormField>
-        <FormField id="nc-city" label="City" grow>
-          <Input id="nc-city" placeholder="e.g. Berlin" value={f.city} onChange={e => set('city', e.target.value)} />
+        <FormField id="nc-city" label={t('crm.companies.form.fieldCity')} grow>
+          <Input id="nc-city" placeholder={t('crm.companies.form.placeholderCity')} value={f.city} onChange={e => set('city', e.target.value)} />
         </FormField>
       </div>
     </FormDialog>
@@ -259,14 +265,15 @@ export function CompanyFormDialog({ onClose, onCreated }: { onClose: () => void;
 export function ContactFormDialog({ defaults, onClose, onCreated }: { defaults: { company?: string }; onClose: () => void; onCreated: (id: string) => void }) {
   const { data: ws } = useWorkspace();
   const { data, dispatch } = useCrm();
+  const t = useT();
   const [f, setF] = React.useState({ name: '', company: defaults.company ?? '', title: '', email: '', phone: '', owner: findCompany(data, defaults.company)?.owner ?? ws.me });
   const [err, setErr] = React.useState<{ name?: string; company?: string }>({});
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF(s => ({ ...s, [k]: v }));
 
   const submit = () => {
     const e: typeof err = {};
-    if (!f.name.trim()) e.name = 'Enter the contact’s name';
-    if (!f.company) e.company = 'Choose a company';
+    if (!f.name.trim()) e.name = t('crm.contacts.form.errName');
+    if (!f.company) e.company = t('crm.contacts.form.errCompany');
     setErr(e);
     if (Object.keys(e).length) return;
     const id = newCrmId('ct');
@@ -276,19 +283,19 @@ export function ContactFormDialog({ defaults, onClose, onCreated }: { defaults: 
   };
 
   return (
-    <FormDialog title="New contact" description="People you talk to at a company." submitLabel="Create contact" onSubmit={submit} onClose={onClose}>
-      <FormField id="nk-name" label="Full name" error={err.name}>
-        <Input id="nk-name" data-af size="lg" invalid={!!err.name} placeholder="e.g. Henrik Visser" value={f.name} style={{ fontSize: 15, fontWeight: 500 }} onChange={e => set('name', e.target.value)} />
+    <FormDialog title={t('crm.contacts.form.titleNew')} description={t('crm.contacts.form.desc')} submitLabel={t('crm.contacts.form.submitCreate')} onSubmit={submit} onClose={onClose}>
+      <FormField id="nk-name" label={t('crm.contacts.form.fieldName')} error={err.name}>
+        <Input id="nk-name" data-af size="lg" invalid={!!err.name} placeholder={t('crm.contacts.form.placeholderName')} value={f.name} style={{ fontSize: 15, fontWeight: 500 }} onChange={e => set('name', e.target.value)} />
       </FormField>
       <div className="row" style={{ gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <FormField id="nk-company" label="Company" error={err.company} grow>
+        <FormField id="nk-company" label={t('crm.contacts.form.fieldCompany')} error={err.company} grow>
           <select
             className={`select${err.company ? ' is-error' : ''}`}
             id="nk-company"
             value={f.company}
             onChange={e => setF(s => ({ ...s, company: e.target.value, owner: findCompany(data, e.target.value)?.owner ?? s.owner }))}
           >
-            <option value="">Select a company…</option>
+            <option value="">{t('crm.contacts.form.chooseCompany')}</option>
             {[...data.companies]
               .sort((a, b) => a.name.localeCompare(b.name))
               .map(c => (
@@ -298,18 +305,18 @@ export function ContactFormDialog({ defaults, onClose, onCreated }: { defaults: 
               ))}
           </select>
         </FormField>
-        <FormField id="nk-title" label="Job title" grow>
-          <Input id="nk-title" placeholder="e.g. VP Operations" value={f.title} onChange={e => set('title', e.target.value)} />
+        <FormField id="nk-title" label={t('crm.contacts.form.fieldTitle')} grow>
+          <Input id="nk-title" placeholder={t('crm.contacts.form.placeholderTitle')} value={f.title} onChange={e => set('title', e.target.value)} />
         </FormField>
       </div>
       <div className="row" style={{ gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <FormField id="nk-email" label="Email" grow>
-          <Input id="nk-email" type="email" placeholder="name@company.com" value={f.email} onChange={e => set('email', e.target.value)} />
+        <FormField id="nk-email" label={t('crm.contacts.form.fieldEmail')} grow>
+          <Input id="nk-email" type="email" placeholder={t('crm.contacts.form.placeholderEmail')} value={f.email} onChange={e => set('email', e.target.value)} />
         </FormField>
-        <FormField id="nk-phone" label="Phone" grow>
-          <Input id="nk-phone" placeholder="+1 555 0100" value={f.phone} onChange={e => set('phone', e.target.value)} />
+        <FormField id="nk-phone" label={t('crm.contacts.form.fieldPhone')} grow>
+          <Input id="nk-phone" placeholder={t('crm.contacts.form.placeholderPhone')} value={f.phone} onChange={e => set('phone', e.target.value)} />
         </FormField>
-        <FormField id="nk-owner" label="Owner" grow>
+        <FormField id="nk-owner" label={t('crm.contacts.form.fieldOwner')} grow>
           <OwnerSelect id="nk-owner" value={f.owner} onChange={v => set('owner', v)} />
         </FormField>
       </div>

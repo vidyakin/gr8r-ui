@@ -3,6 +3,7 @@ import * as React from 'react';
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
 import { getNodeDef, nodeOutputs } from '@gr8r/shared';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 import { CATEGORY_COLOR, NodeIcon, paramSummary } from './node-meta';
 
 export interface FlowNodeData extends Record<string, unknown> {
@@ -15,13 +16,14 @@ export type RFNode = Node<FlowNodeData, 'gr8r'>;
 export const IssuesContext = React.createContext<Map<string, string[]>>(new Map());
 
 export function FlowNodeView({ id, data, selected }: NodeProps<RFNode>) {
+  const t = useT();
   const issues = React.useContext(IssuesContext).get(id) ?? [];
   const def = getNodeDef(data.nodeType);
   if (!def) {
     return (
       <div className="fn bad">
         <Handle type="target" position={Position.Left} id="in" />
-        <div className="fn-h">Unknown node “{data.nodeType}”</div>
+        <div className="fn-h">{t('automations.editor.unknownNode', { type: data.nodeType })}</div>
       </div>
     );
   }

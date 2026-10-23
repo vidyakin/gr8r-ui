@@ -9,6 +9,7 @@ import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/
 import { EntityDrawer } from '@/components/gr8r/entity-drawer';
 import { FilterBar, useFilterState, type FilterField } from '@/components/gr8r/filter-bar';
 import { Kanban, type KanbanColumn } from '@/components/gr8r/kanban';
+import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { MemberAvatar } from '../components/workspace';
 import { fmtDate } from '../lib/dates';
@@ -38,10 +39,11 @@ export function RecordsPage() {
 }
 
 /** Строка таблицы/карточка: заголовок записи */
-const titleOf = (e: MetaEntity, r: DataRecord) => String(r.data[e.titleField] ?? '') || 'Untitled';
+const titleOf = (e: MetaEntity, r: DataRecord) => String(r.data[e.titleField] ?? '') || '';
 
 function EntityScreen({ entity, recordId }: { entity: MetaEntity; recordId?: string }) {
   const navigate = useNavigate();
+  const t = useT();
   const { data: ws } = useWorkspace();
   const canWrite = useCanWrite();
   const fields = activeFields(entity);
@@ -99,9 +101,9 @@ function EntityScreen({ entity, recordId }: { entity: MetaEntity; recordId?: str
     return [
       ...(title ? [col(title, true)] : []),
       ...rest.map(f => col(f)),
-      { id: '__created', header: 'Created', width: 112, defaultHidden: true, value: r => Date.parse(r.createdAt), cell: r => <span className="muted num">{fmtDate(new Date(r.createdAt))}</span> },
+      { id: '__created', header: t('meta.records.colCreated'), width: 112, defaultHidden: true, value: r => Date.parse(r.createdAt), cell: r => <span className="muted num">{fmtDate(new Date(r.createdAt))}</span> },
     ];
-  }, [fields, entity]);
+  }, [fields, entity, t]);
   const table = useDataTable(columns);
 
   const filterFields: FilterField[] = fields
@@ -114,18 +116,22 @@ function EntityScreen({ entity, recordId }: { entity: MetaEntity; recordId?: str
         f.type === 'select'
           ? (f.options.choices ?? []).map(c => ({ id: c.value, name: c.label }))
           : f.type === 'boolean'
-            ? [{ id: 'true', name: 'Yes' }, { id: 'false', name: 'No' }]
+            ? [{ id: 'true', name: t('meta.records.yesValue') }, { id: 'false', name: t('meta.records.noValue') }]
             : ws.members.filter(x => x.status === 'active').map(x => ({ id: x.id, name: x.name, icon: <MemberAvatar id={x.id} size="sm" tooltip={false} /> })),
     }));
 
   const groupField = selects.find(f => f.key === group);
   const groupBy = groupField
-    ? { key: (r: DataRecord) => String(r.data[groupField.key] ?? NONE), order: [...(groupField.options.choices ?? []).map(c => c.value), NONE], label: (k: string) => (choiceOf(groupField, k) ? <ChoiceLabel choice={choiceOf(groupField, k)!} /> : <span className="muted">No {groupField.name.toLowerCase()}</span>) }
+    ? {
+        key: (r: DataRecord) => String(r.data[groupField.key] ?? NONE),
+        order: [...(groupField.options.choices ?? []).map(c => c.value), NONE],
+        label: (k: string) => (choiceOf(groupField, k) ? <ChoiceLabel choice={choiceOf(groupField, k)!} /> : <span className="muted">{t('meta.records.noField', { field: groupField.name.toLowerCase() })}</span>),
+      }
     : undefined;
 
   const boardField = selects.find(f => f.key === boardKey) ?? selects[0];
   const boardCols: KanbanColumn[] = boardField
-    ? [...(boardField.options.choices ?? []).map(c => ({ id: c.value, title: c.label, name: c.label, icon: <span className="pdot" style={{ '--c': `var(--${c.color === 'gray' ? 'text-3' : c.color === 'indigo' ? 'accent' : c.color})` } as React.CSSProperties} /> })), { id: NONE, title: `No ${boardField.name.toLowerCase()}`, name: `No ${boardField.name}` }]
+    ? [...(boardField.options.choices ?? []).map(c => ({ id: c.value, title: c.label, name: c.label, icon: <span className="pdot" style={{ '--c': `var(--${c.color === 'gray' ? 'text-3' : c.color === 'indigo' ? 'accent' : c.color})` } as React.CSSProperties} /> })), { id: NONE, title: t('meta.records.noField', { field: boardField.name.toLowerCase() }), name: t('meta.records.noField', { field: boardField.name }) }]
     : [];
 
   const open = (r: DataRecord) => navigate(`/data/${entity.key}/${r.id}`);
@@ -133,7 +139,7 @@ function EntityScreen({ entity, recordId }: { entity: MetaEntity; recordId?: str
   const newBtn = canWrite && (
     <Button variant="primary" onClick={() => setCreating({})}>
       <Plus size={14} />
-      New record
+      {t('meta.records.newRecord')}
     </Button>
   );
 
@@ -143,38 +149,38 @@ function EntityScreen({ entity, recordId }: { entity: MetaEntity; recordId?: str
         <div>
           <h1>{entity.name}</h1>
           <p>
-            {rows.length} record{rows.length === 1 ? '' : 's'}
-            {filters.count || q ? ' match' : ''}
+            {t('meta.records.total', { count: rows.length })}
+            {filters.count || q ? ` · ${t('meta.records.match')}` : ''}
           </p>
         </div>
         <div className="acts">{newBtn}</div>
       </div>
       <FilterBar
-        search={{ value: filters.q, onChange: filters.setQ, placeholder: `Search ${entity.name.toLowerCase()}` }}
+        search={{ value: filters.q, onChange: filters.setQ, placeholder: t('meta.records.searchPlaceholder', { name: entity.name.toLowerCase() }) }}
         fields={filterFields}
         filters={filters}
         sort={mode === 'table' ? { options: columns.filter(c => c.value).map(c => ({ id: c.id, name: c.header })), value: table.sort.id, dir: table.sort.dir, onChange: table.setSort } : undefined}
-        group={mode === 'table' && selects.length ? { options: [{ id: 'none', name: 'None' }, ...selects.map(f => ({ id: f.key, name: f.name, icon: <CircleDot size={15} /> }))], value: group, onChange: setGroup } : undefined}
+        group={mode === 'table' && selects.length ? { options: [{ id: 'none', name: t('meta.records.none') }, ...selects.map(f => ({ id: f.key, name: f.name, icon: <CircleDot size={15} /> }))], value: group, onChange: setGroup } : undefined}
         columns={mode === 'table' ? columnsMenu(columns, table) : undefined}
         left={
           selects.length ? (
             <Segmented
-              aria-label="View"
+              aria-label={t('meta.records.viewModeAria')}
               value={mode}
               onValueChange={setMode}
               items={[
-                { value: 'table', label: <span className="hide-m">Table</span>, icon: <Table2 size={13} />, 'aria-label': 'Table' },
-                { value: 'board', label: <span className="hide-m">Board</span>, icon: <SquareKanban size={13} />, 'aria-label': 'Board' },
+                { value: 'table', label: <span className="hide-m">{t('meta.records.table')}</span>, icon: <Table2 size={13} />, 'aria-label': t('meta.records.table') },
+                { value: 'board', label: <span className="hide-m">{t('meta.records.board')}</span>, icon: <SquareKanban size={13} />, 'aria-label': t('meta.records.board') },
               ]}
             />
           ) : undefined
         }
         extra={
           mode === 'board' && selects.length > 1 ? (
-            <select className="select" style={{ width: 'auto' }} aria-label="Board columns by" value={boardField?.key} onChange={e => setBoardKey(e.target.value)}>
+            <select className="select" style={{ width: 'auto' }} aria-label={t('meta.records.boardColumnsByAria')} value={boardField?.key} onChange={e => setBoardKey(e.target.value)}>
               {selects.map(f => (
                 <option key={f.key} value={f.key}>
-                  By {f.name}
+                  {t('meta.records.boardColumnsBy', { name: f.name })}
                 </option>
               ))}
             </select>
@@ -182,7 +188,7 @@ function EntityScreen({ entity, recordId }: { entity: MetaEntity; recordId?: str
         }
       />
       {list.isError ? (
-        <EmptyState icon={<CircleAlert size={20} />} error title="Could not load records" action={<Button size="sm" onClick={() => list.refetch()}>Retry</Button>}>
+        <EmptyState icon={<CircleAlert size={20} />} error title={t('meta.records.loadFailed')} action={<Button size="sm" onClick={() => list.refetch()}>{t('common.retry')}</Button>}>
           {(list.error as Error).message}
         </EmptyState>
       ) : list.isPending ? (
@@ -190,12 +196,12 @@ function EntityScreen({ entity, recordId }: { entity: MetaEntity; recordId?: str
           <Skeleton w="100%" h={36} />
         </div>
       ) : !rows.length && !filters.count && !q ? (
-        <EmptyState icon={<Icon size={20} />} title={`No ${entity.name.toLowerCase()} yet`} action={newBtn || undefined}>
-          Records you add show up here as a table{selects.length ? ' and a board' : ''}.
+        <EmptyState icon={<Icon size={20} />} title={t('meta.records.empty', { name: entity.name.toLowerCase() })} action={newBtn || undefined}>
+          {selects.length ? t('meta.records.emptyHintBoard') : t('meta.records.emptyHintTable')}
         </EmptyState>
       ) : mode === 'board' && boardField ? (
         <Kanban
-          aria-label={`${entity.name} board`}
+          aria-label={t('meta.records.boardAria', { name: entity.name })}
           columns={boardCols}
           items={rows}
           getId={r => r.id}
@@ -203,11 +209,11 @@ function EntityScreen({ entity, recordId }: { entity: MetaEntity; recordId?: str
           renderCard={r => <RecordCard entity={entity} record={r} onOpen={() => open(r)} />}
           onMove={canWrite ? (r, col) => (String(r.data[boardField.key] ?? NONE) !== col ? m.update.mutate({ id: r.id, data: { [boardField.key]: col === NONE ? null : col } }) : undefined) : undefined}
           onAdd={canWrite ? col => setCreating(col === NONE ? {} : { [boardField.key]: col }) : undefined}
-          addLabel="Add record"
+          addLabel={t('meta.records.addRecord')}
         />
       ) : (
         <DataTable
-          aria-label={`${entity.name} table`}
+          aria-label={t('meta.records.tableAria', { name: entity.name })}
           columns={columns}
           rows={rows}
           table={table}
@@ -215,10 +221,10 @@ function EntityScreen({ entity, recordId }: { entity: MetaEntity; recordId?: str
           onRowClick={open}
           groupBy={groupBy}
           onNew={canWrite ? () => setCreating({}) : undefined}
-          newLabel="New record"
+          newLabel={t('meta.records.newRecord')}
           empty={
-            <EmptyState icon={<Icon size={20} />} title="No results found" action={<Button size="sm" onClick={() => (filters.reset(), setQ(''))}>Clear filters</Button>}>
-              No records match these filters.
+            <EmptyState icon={<Icon size={20} />} title={t('meta.records.noResults')} action={<Button size="sm" onClick={() => (filters.reset(), setQ(''))}>{t('meta.records.clearFilters')}</Button>}>
+              {t('meta.records.noResultsHint')}
             </EmptyState>
           }
         />
@@ -230,7 +236,7 @@ function EntityScreen({ entity, recordId }: { entity: MetaEntity; recordId?: str
           onClose={() => setCreating(null)}
           onSubmit={async data => {
             const row = await m.create.mutateAsync(data);
-            toast(`Added “${titleOf(entity, row)}”`);
+            toast(t('meta.records.toastAdded', { name: titleOf(entity, row) }));
             setCreating(null);
             open(row);
           }}
@@ -287,6 +293,7 @@ function FormRow({ field: f, error, children }: { field: MetaField; error?: stri
 }
 
 function RecordFormDialog({ entity, initial, onClose, onSubmit }: { entity: MetaEntity; initial: Record<string, unknown>; onClose: () => void; onSubmit: (data: Record<string, unknown>) => Promise<void> }) {
+  const t = useT();
   const fields = activeFields(entity);
   const [values, setValues] = React.useState<Record<string, unknown>>(initial);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
@@ -306,16 +313,16 @@ function RecordFormDialog({ entity, initial, onClose, onSubmit }: { entity: Meta
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
-        title={`New record — ${entity.name}`}
+        title={t('meta.records.newRecordOf', { name: entity.name })}
         className="[&>.modal-b]:!gap-3"
         footer={
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{t('common.cancel')}</Button>
             </DialogClose>
             <Button variant="primary" disabled={busy} onClick={submit}>
-              Create record
+              {t('meta.records.createRecord')}
             </Button>
           </>
         }
@@ -352,6 +359,7 @@ function RecordFormDialog({ entity, initial, onClose, onSubmit }: { entity: Meta
 /* ---------------- карточка записи ---------------- */
 
 function RecordDrawer({ entity, id, rows, onClose }: { entity: MetaEntity; id: string; rows: DataRecord[]; onClose: () => void }) {
+  const t = useT();
   const canWrite = useCanWrite();
   const m = useRecordMutations(entity.key);
   const inList = rows.find(r => r.id === id);
@@ -363,7 +371,7 @@ function RecordDrawer({ entity, id, rows, onClose }: { entity: MetaEntity; id: s
 
   const save = (f: MetaField, v: unknown) => {
     const check = validateRecord([f], { [f.key]: v }, 'patch');
-    if (!check.ok) return void toast.error(check.errors[f.key] ?? 'Invalid value');
+    if (!check.ok) return void toast.error(check.errors[f.key] ?? t('meta.records.invalidValue'));
     m.update.mutate({ id, data: { [f.key]: v ?? null } });
   };
   const rest = activeFields(entity).filter(f => f.key !== entity.titleField);
@@ -373,7 +381,7 @@ function RecordDrawer({ entity, id, rows, onClose }: { entity: MetaEntity; id: s
   return (
     <>
       <EntityDrawer
-        label={`${entity.name}: ${title}`}
+        label={t('meta.records.drawerLabel', { entity: entity.name, title })}
         onClose={onClose}
         crumb={
           <>
@@ -385,11 +393,11 @@ function RecordDrawer({ entity, id, rows, onClose }: { entity: MetaEntity; id: s
         }
         title={title}
         onTitleChange={canWrite && titleField ? v => save(titleField, v) : undefined}
-        subtitle={<span className="faint">Created {fmtDate(new Date(record.createdAt))}</span>}
+        subtitle={<span className="faint">{t('meta.records.created', { date: fmtDate(new Date(record.createdAt)) })}</span>}
         menu={
           canWrite ? (
             <MenuItem icon={<Trash2 size={15} />} danger onSelect={() => setConfirm(true)}>
-              Delete record
+              {t('meta.records.deleteRecord')}
             </MenuItem>
           ) : undefined
         }
@@ -403,17 +411,17 @@ function RecordDrawer({ entity, id, rows, onClose }: { entity: MetaEntity; id: s
         open={confirm}
         onOpenChange={setConfirm}
         danger
-        title="Delete record?"
+        title={t('meta.records.deleteRecordTitle')}
         description={
           <>
-            <b>{title}</b> will be moved out of {entity.name}. An admin can restore it from the API.
+            <b>{title}</b> {t('meta.records.deleteRecordDesc', { entity: entity.name })}
           </>
         }
-        confirmLabel="Delete record"
-        cancelLabel="Cancel"
+        confirmLabel={t('meta.records.deleteRecord')}
+        cancelLabel={t('common.cancel')}
         onConfirm={() => {
           m.remove.mutate(id);
-          toast(`Deleted “${title}”`);
+          toast(t('meta.records.toastDeleted', { name: title }));
           onClose();
         }}
       />
@@ -422,9 +430,10 @@ function RecordDrawer({ entity, id, rows, onClose }: { entity: MetaEntity; id: s
 }
 
 function NotFoundDrawer({ onClose }: { onClose: () => void }) {
+  const t = useT();
   return (
-    <EntityDrawer label="Record not found" title="Record not found" onClose={onClose}>
-      <p className="muted">This record does not exist or was deleted.</p>
+    <EntityDrawer label={t('meta.records.notFound')} title={t('meta.records.notFound')} onClose={onClose}>
+      <p className="muted">{t('meta.records.notFoundHint')}</p>
     </EntityDrawer>
   );
 }

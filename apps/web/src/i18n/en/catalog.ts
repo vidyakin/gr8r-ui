@@ -170,4 +170,6 @@ export const enums = {
     email: 'Email',
     phone: 'Phone',
   },
+  /** Подписи этапов CRM */
+  stage: { lead: 'Lead', qualified: 'Qualified', proposal: 'Proposal', negotiation: 'Negotiation', won: 'Won', lost: 'Lost' },
 };

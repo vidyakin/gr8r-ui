@@ -5,29 +5,30 @@ import { Activity, Briefcase, FileSignature, FileText, CircleDollarSign, Externa
 import { Badge, Button, EmptyState, Tooltip } from '@/components/ui';
 import { DataTable, useDataTable } from '@/components/gr8r/data-table';
 import { Panel, Stat } from '@/components/gr8r/panel';
+import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { dayBucket } from '../data/selectors';
 import { ago, fmtDate } from '../lib/dates';
 import { NotFoundPage } from '../pages/PlaceholderPage';
 import { ActivityComposer, ActivityRow, CloseDate, CompanyLogo, OwnerField, PersonCell, StageIcon, useOwnerName } from './components';
-import { CONTACT_COLUMNS_IN_COMPANY, DEAL_COLUMNS_IN_COMPANY } from './columns';
+import { contactColumnsInCompany, dealColumnsInCompany } from './columns';
 import { money } from './format';
 import { activitiesOfCompany, companyStats, contactRows, dealRows, dealsOfCompany, company as findCompany, openDeals } from './selectors';
-import { stage } from './stages';
 import { useCrm } from './store';
 import { useCrmUi } from './ui-context';
 import { useCustomRows } from '../meta/custom-fields';
 import { CompanyRequisitesTab } from '../docs/CompanyRequisites';
 import { CompanyContractsTab } from '../docs/CompanyContracts';
+import { industryName, sizeName, stageName } from './labels';
 import type { Company } from './types';
 
-const TABS: [string, string, LucideIcon][] = [
-  ['overview', 'Overview', LayoutDashboard],
-  ['deals', 'Deals', CircleDollarSign],
-  ['contacts', 'Contacts', Users],
-  ['activity', 'Activity', Activity],
-  ['requisites', 'Requisites', FileText],
-  ['contracts', 'Contracts', FileSignature],
+const TABS: [string, LucideIcon][] = [
+  ['overview', LayoutDashboard],
+  ['deals', CircleDollarSign],
+  ['contacts', Users],
+  ['activity', Activity],
+  ['requisites', FileText],
+  ['contracts', FileSignature],
 ];
 
 export function CompanyPage() {
@@ -42,8 +43,11 @@ function CompanyView({ company: co, tab }: { company: Company; tab: string }) {
   const { data, dispatch } = useCrm();
   const ui = useCrmUi();
   const ownerName = useOwnerName();
-  const dealTable = useDataTable(DEAL_COLUMNS_IN_COMPANY);
-  const contactTable = useDataTable(CONTACT_COLUMNS_IN_COMPANY);
+  const t = useT();
+  const dealCols = React.useMemo(() => dealColumnsInCompany(t), [t]);
+  const contactCols = React.useMemo(() => contactColumnsInCompany(t), [t]);
+  const dealTable = useDataTable(dealCols);
+  const contactTable = useDataTable(contactCols);
   const stats = companyStats(data, co.id);
   const deals = dealsOfCompany(data, co.id);
   const acts = activitiesOfCompany(data, co.id);
@@ -55,24 +59,24 @@ function CompanyView({ company: co, tab }: { company: Company; tab: string }) {
       <>
         <div className="toolbar">
           <span className="muted" style={{ fontSize: 12.5 }}>
-            {deals.length} deals · {money(stats.pipeline)} open · {money(stats.won)} won
+            {t('crm.companies.page.dealsCount', { count: deals.length, pipeline: money(stats.pipeline), won: money(stats.won) })}
           </span>
           <span className="sp" />
           <Button size="sm" variant="primary" onClick={() => ui.newDeal({ company: co.id, owner: co.owner })}>
             <Plus size={13} />
-            New deal
+            {t('crm.deals.newDeal')}
           </Button>
         </div>
         <DataTable
           aria-label={`${co.name} deals`}
-          columns={DEAL_COLUMNS_IN_COMPANY}
+          columns={dealCols}
           rows={dealRows(data, ownerName, deals)}
           table={dealTable}
           getId={r => r.id}
           onRowClick={r => ui.openDeal(r.id)}
           empty={
-            <EmptyState icon={<CircleDollarSign size={20} />} title="No deals yet" action={<Button size="sm" variant="primary" onClick={() => ui.newDeal({ company: co.id, owner: co.owner })}><Plus size={14} />New deal</Button>}>
-              Create a deal to start tracking revenue from {co.name}.
+            <EmptyState icon={<CircleDollarSign size={20} />} title={t('crm.companies.page.noDeals')} action={<Button size="sm" variant="primary" onClick={() => ui.newDeal({ company: co.id, owner: co.owner })}><Plus size={14} />{t('crm.deals.newDeal')}</Button>}>
+              {t('crm.companies.page.noDealsHint', { name: co.name })}
             </EmptyState>
           }
         />
@@ -82,23 +86,23 @@ function CompanyView({ company: co, tab }: { company: Company; tab: string }) {
     body = (
       <>
         <div className="toolbar">
-          <span className="muted" style={{ fontSize: 12.5 }}>{stats.contacts} people at {co.name}</span>
+          <span className="muted" style={{ fontSize: 12.5 }}>{t('crm.companies.page.people', { count: stats.contacts, name: co.name })}</span>
           <span className="sp" />
           <Button size="sm" variant="primary" onClick={() => ui.newContact({ company: co.id })}>
             <UserPlus size={13} />
-            New contact
+            {t('crm.contacts.newContact')}
           </Button>
         </div>
         <DataTable
           aria-label={`${co.name} contacts`}
-          columns={CONTACT_COLUMNS_IN_COMPANY}
+          columns={contactCols}
           rows={contactRows(data, ownerName).filter(r => r.company === co.id)}
           table={contactTable}
           getId={r => r.id}
           onRowClick={r => ui.openContact(r.id)}
           empty={
-            <EmptyState icon={<Users size={20} />} title="No contacts yet" action={<Button size="sm" variant="primary" onClick={() => ui.newContact({ company: co.id })}><UserPlus size={14} />New contact</Button>}>
-              Add the people you talk to at {co.name}.
+            <EmptyState icon={<Users size={20} />} title={t('crm.companies.page.noContacts')} action={<Button size="sm" variant="primary" onClick={() => ui.newContact({ company: co.id })}><UserPlus size={14} />{t('crm.contacts.newContact')}</Button>}>
+              {t('crm.companies.page.noContactsHint', { name: co.name })}
             </EmptyState>
           }
         />
@@ -120,7 +124,7 @@ function CompanyView({ company: co, tab }: { company: Company; tab: string }) {
             </div>
           </React.Fragment>
         ))}
-        {!acts.length && <p className="faint" style={{ marginTop: 14 }}>No activity yet. Log the first call or note above.</p>}
+        {!acts.length && <p className="faint" style={{ marginTop: 14 }}>{t('crm.companies.page.noActivity')}</p>}
       </div>
     );
   } else if (tab === 'requisites') body = <CompanyRequisitesTab companyId={co.id} />;
@@ -133,32 +137,32 @@ function CompanyView({ company: co, tab }: { company: Company; tab: string }) {
         <div className="t">
           <CompanyLogo name={co.name} size={36} className="lg" />
           <h1>{co.name}</h1>
-          <Badge>{co.industry}</Badge>
-          <Badge tone="gray">{co.size} people</Badge>
+          <Badge>{industryName(co.industry, co.industry)}</Badge>
+          <Badge tone="gray">{sizeName(co.size, co.size)} {t('crm.companies.overview.sizeUnit')}</Badge>
           <span className="sp" />
           <div className="row" style={{ gap: 4 }}>
-            <span className="muted hide-m" style={{ fontSize: 12.5 }}>Owner</span>
+            <span className="muted hide-m" style={{ fontSize: 12.5 }}>{t('crm.companies.header.ownerLabel')}</span>
             <OwnerField value={co.owner} onChange={owner => dispatch({ type: 'company/update', id: co.id, patch: { owner } })} />
             <Tooltip content={co.website}>
-              <a className="ibtn ibtn-sm" href={`https://${co.website}`} target="_blank" rel="noreferrer" aria-label={`Open ${co.website}`}>
+              <a className="ibtn ibtn-sm" href={`https://${co.website}`} target="_blank" rel="noreferrer" aria-label={t('crm.companies.openWebsite', { website: co.website })}>
                 <ExternalLink size={15} />
               </a>
             </Tooltip>
             <Button size="sm" className="hide-m" onClick={() => ui.newContact({ company: co.id })}>
               <UserPlus size={13} />
-              New contact
+              {t('crm.companies.header.newContact')}
             </Button>
             <Button size="sm" variant="primary" onClick={() => ui.newDeal({ company: co.id, owner: co.owner })}>
               <Plus size={13} />
-              <span className="hide-m">New deal</span>
+              <span className="hide-m">{t('crm.companies.header.newDeal')}</span>
             </Button>
           </div>
         </div>
-        <nav className="tabs" aria-label="Company views">
-          {TABS.map(([k, name, Icon]) => (
+        <nav className="tabs" aria-label={t('crm.companies.title')}>
+          {TABS.map(([k, Icon]) => (
             <Link key={k} to={`/crm/companies/${co.id}/${k}`} className={cn('tab', tab === k && 'on')} aria-current={tab === k ? 'page' : undefined}>
               <Icon size={14} />
-              {name}
+              {t(`crm.companies.tabs.${k}` as any)}
               {counts[k] != null && <span className="cnt">{counts[k]}</span>}
             </Link>
           ))}
@@ -172,6 +176,7 @@ function CompanyView({ company: co, tab }: { company: Company; tab: string }) {
 function Overview({ company: co }: { company: Company }) {
   const { data, dispatch } = useCrm();
   const ui = useCrmUi();
+  const t = useT();
   const customRows = useCustomRows('company', co.custom, patch => dispatch({ type: 'company/update', id: co.id, patch: { custom: { ...co.custom, ...patch } } }));
   const stats = companyStats(data, co.id);
   const open = openDeals(dealsOfCompany(data, co.id)).sort((a, b) => (a.closeDate > b.closeDate ? 1 : -1));
@@ -181,31 +186,31 @@ function Overview({ company: co }: { company: Company }) {
   return (
     <div className="page" style={{ maxWidth: 1160, paddingTop: 22 }}>
       <div className="stats" style={{ marginBottom: 16 }}>
-        <Stat label="Open deals" value={stats.open} note={`${dealsOfCompany(data, co.id).length} deals in total`} />
-        <Stat label="In pipeline" value={money(stats.pipeline)} note="open deal value" />
-        <Stat label="Won revenue" value={money(stats.won)} note={`${wonCount} closed won`} tone={stats.won ? 'up' : undefined} />
-        <Stat label="Last activity" value={stats.lastActivity ? ago(stats.lastActivity) : '—'} note={`${stats.contacts} contacts`} />
+        <Stat label={t('crm.companies.overview.statOpenDeals')} value={stats.open} note={t('crm.companies.overview.statOpenDealsNote', { total: dealsOfCompany(data, co.id).length })} />
+        <Stat label={t('crm.companies.overview.statPipeline')} value={money(stats.pipeline)} note={t('crm.companies.overview.statPipelineNote')} />
+        <Stat label={t('crm.companies.overview.statWon')} value={money(stats.won)} note={t('crm.companies.overview.statWonNote', { count: wonCount })} tone={stats.won ? 'up' : undefined} />
+        <Stat label={t('crm.companies.overview.statLastActivity')} value={stats.lastActivity ? ago(stats.lastActivity) : '—'} note={t('crm.companies.overview.statLastActivityNote', { count: stats.contacts })} />
       </div>
       <div className="grid2">
         <div className="stack">
-          <Panel title="Open deals" actions={<Button size="sm" variant="ghost" onClick={() => ui.newDeal({ company: co.id, owner: co.owner })}><Plus size={13} />New deal</Button>}>
+          <Panel title={t('crm.companies.overview.openDeals')} actions={<Button size="sm" variant="ghost" onClick={() => ui.newDeal({ company: co.id, owner: co.owner })}><Plus size={13} />{t('crm.companies.overview.newDeal')}</Button>}>
             <div className="panel-b">
               {open.length ? (
                 open.map(d => (
                   <div key={d.id} className="row crm-row" role="button" tabIndex={0} onClick={() => ui.openDeal(d.id)} onKeyDown={e => e.key === 'Enter' && ui.openDeal(d.id)}>
                     <StageIcon stage={d.stage} />
                     <span className="grow trunc">{d.name}</span>
-                    <span className="faint hide-m" style={{ width: 84 }}>{stage(d.stage).name}</span>
+                    <span className="faint hide-m" style={{ width: 84 }}>{stageName(d.stage, d.stage)}</span>
                     <span className="hide-m" style={{ width: 90 }}><CloseDate deal={d} /></span>
                     <span className="num" style={{ width: 84, textAlign: 'right' }}>{money(d.amount)}</span>
                   </div>
                 ))
               ) : (
-                <div className="faint">No open deals</div>
+                <div className="faint">{t('crm.companies.overview.noOpenDeals')}</div>
               )}
             </div>
           </Panel>
-          <Panel title="Recent activity">
+          <Panel title={t('crm.companies.overview.recentActivity')}>
             <div className="panel-b">
               {acts.length ? (
                 <div className="feed lined">
@@ -214,28 +219,28 @@ function Overview({ company: co }: { company: Company }) {
                   ))}
                 </div>
               ) : (
-                <div className="faint">Nothing logged yet</div>
+                <div className="faint">{t('crm.companies.overview.nothingLogged')}</div>
               )}
             </div>
           </Panel>
         </div>
         <div className="stack">
-          <Panel title="About">
+          <Panel title={t('crm.companies.overview.about')}>
             <div className="panel-b">
               <dl className="kv" style={{ margin: 0 }}>
                 <dt>
                   <Briefcase size={14} />
-                  Industry
+                  {t('crm.companies.overview.industry')}
                 </dt>
-                <dd>{co.industry}</dd>
+                <dd>{industryName(co.industry, co.industry)}</dd>
                 <dt>
                   <Ruler size={14} />
-                  Size
+                  {t('crm.companies.overview.size')}
                 </dt>
-                <dd>{co.size} people</dd>
+                <dd>{sizeName(co.size, co.size)} {t('crm.companies.overview.sizeUnit')}</dd>
                 <dt>
                   <Globe size={14} />
-                  Website
+                  {t('crm.companies.overview.website')}
                 </dt>
                 <dd>
                   <a className="crm-link" href={`https://${co.website}`} target="_blank" rel="noreferrer">
@@ -244,19 +249,19 @@ function Overview({ company: co }: { company: Company }) {
                 </dd>
                 <dt>
                   <MapPin size={14} />
-                  City
+                  {t('crm.companies.overview.city')}
                 </dt>
                 <dd>{co.city || <span className="faint">—</span>}</dd>
                 <dt>
                   <User size={14} />
-                  Owner
+                  {t('crm.companies.overview.owner')}
                 </dt>
                 <dd>
                   <OwnerField value={co.owner} onChange={owner => dispatch({ type: 'company/update', id: co.id, patch: { owner } })} />
                 </dd>
                 <dt>
                   <Clock size={14} />
-                  Added
+                  {t('crm.companies.overview.added')}
                 </dt>
                 <dd className="muted num">{fmtDate(new Date(co.created))}</dd>
                 {customRows.map(r => (
@@ -271,7 +276,7 @@ function Overview({ company: co }: { company: Company }) {
               </dl>
             </div>
           </Panel>
-          <Panel title="Contacts" actions={<Button size="sm" variant="ghost" onClick={() => ui.newContact({ company: co.id })}><UserPlus size={13} />Add</Button>}>
+          <Panel title={t('crm.companies.overview.contacts')} actions={<Button size="sm" variant="ghost" onClick={() => ui.newContact({ company: co.id })}><UserPlus size={13} />{t('crm.companies.header.add')}</Button>}>
             <div className="panel-b">
               {people.length ? (
                 people.map(p => (
@@ -282,7 +287,7 @@ function Overview({ company: co }: { company: Company }) {
                   </div>
                 ))
               ) : (
-                <div className="faint">No contacts yet</div>
+                <div className="faint">{t('crm.companies.overview.noContacts')}</div>
               )}
             </div>
           </Panel>

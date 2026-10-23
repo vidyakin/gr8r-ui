@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { Button, Dialog, DialogClose, DialogContent, Textarea, toast } from '@/components/ui';
+import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { useTaskDrawer } from '../overlays';
 import { ContactDrawer, DealDrawer } from './drawers';
@@ -10,6 +11,7 @@ import { CompanyFormDialog, ContactFormDialog, DealFormDialog } from './forms';
 import { money } from './format';
 import { deal as findDeal } from './selectors';
 import { LOST_REASONS, stage } from './stages';
+import { lostReasonName, stageName } from './labels';
 import { useCrm } from './store';
 import { CrmUiCtx, type CrmUi, type DealDefaults } from './ui-context';
 import type { StageId } from './types';
@@ -25,6 +27,7 @@ type Dlg =
 /** Закрытие сделки: Won — подтверждение, Lost — причина проигрыша */
 function CloseDealDialog({ id, to, onCancel, onConfirm }: { id: string; to: 'won' | 'lost'; onCancel: () => void; onConfirm: (reason?: string) => void }) {
   const { data } = useCrm();
+  const t = useT();
   const d = findDeal(data, id);
   const [reason, setReason] = React.useState(LOST_REASONS[0]);
   const [note, setNote] = React.useState('');
@@ -34,21 +37,21 @@ function CloseDealDialog({ id, to, onCancel, onConfirm }: { id: string; to: 'won
     <Dialog open onOpenChange={o => !o && onCancel()}>
       <DialogContent
         size="sm"
-        title={won ? 'Mark deal as won?' : 'Why was this deal lost?'}
+        title={won ? t('crm.deals.markWonConfirm') : t('crm.deals.drawer.lostTitle')}
         description={
           <>
             <b>{d.name}</b> · {money(d.amount)}
-            {won ? '. The close date is set to today and the amount counts toward revenue.' : ''}
+            {won ? '. ' + t('crm.deals.drawer.markWonDesc') : ''}
           </>
         }
         footer={
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="ghost">Cancel</Button>
+              <Button variant="ghost">{t('crm.common.cancel')}</Button>
             </DialogClose>
             <Button variant={won ? 'primary' : 'danger'} onClick={() => onConfirm(won ? undefined : note.trim() ? `${reason}: ${note.trim()}` : reason)}>
-              {won ? 'Mark as won' : 'Mark as lost'}
+              {won ? t('crm.deals.markWonBtn') : t('crm.deals.markLostBtn')}
             </Button>
           </>
         }
@@ -57,19 +60,19 @@ function CloseDealDialog({ id, to, onCancel, onConfirm }: { id: string; to: 'won
           <div className="col" style={{ gap: 12 }}>
             <div className="field">
               <label className="label" htmlFor="lost-reason">
-                Reason
+                {t('crm.deals.lostReasonLabel')}
               </label>
               <select className="select" id="lost-reason" data-af value={reason} onChange={e => setReason(e.target.value)}>
                 {LOST_REASONS.map(r => (
-                  <option key={r}>{r}</option>
+                  <option key={r}>{lostReasonName(r, r)}</option>
                 ))}
               </select>
             </div>
             <div className="field">
               <label className="label" htmlFor="lost-note">
-                Details (optional)
+                {t('crm.deals.lostDetailsLabel')}
               </label>
-              <Textarea id="lost-note" rows={2} placeholder="Anything the team should remember?" value={note} onChange={e => setNote(e.target.value)} />
+              <Textarea id="lost-note" rows={2} placeholder={t('crm.deals.lostDetailsPlaceholder')} value={note} onChange={e => setNote(e.target.value)} />
             </div>
           </div>
         )}
@@ -83,6 +86,7 @@ export function CrmOverlays({ children }: { children: React.ReactNode }) {
   const { data, dispatch } = useCrm();
   const taskDrawer = useTaskDrawer();
   const navigate = useNavigate();
+  const t = useT();
   const { pathname } = useLocation();
   const [drawer, setDrawer] = React.useState<Drawer>(null);
   const [dlg, setDlg] = React.useState<Dlg>(null);
@@ -120,7 +124,7 @@ export function CrmOverlays({ children }: { children: React.ReactNode }) {
       const x = findDeal(d, id);
       if (!x) return;
       dispatch({ type: 'deal/move', id, stage: to, before, by: me, lostReason });
-      if (x.stage !== to) toast(`Moved “${x.name}” to ${stage(to).name}`, { duration: 2200 });
+      if (x.stage !== to) toast(t('crm.deals.moved', { name: x.name, stage: stageName(to, stage(to).name) }), { duration: 2200 });
     };
     return {
       openDeal: id => openDrawer({ kind: 'deal', id }),
@@ -136,7 +140,7 @@ export function CrmOverlays({ children }: { children: React.ReactNode }) {
         else doMove(id, to, before);
       },
     };
-  }, [dispatch, openDrawer]);
+  }, [dispatch, openDrawer, t]);
 
   const closeDlg = () => setDlg(null);
 
@@ -151,7 +155,7 @@ export function CrmOverlays({ children }: { children: React.ReactNode }) {
           onClose={closeDlg}
           onCreated={id => {
             const name = latest.current.data.deals.find(x => x.id === id)?.name;
-            toast(`Created deal${name ? ` “${name}”` : ''}`, { action: { label: 'Open', onClick: () => api.openDeal(id) } });
+            toast(t('crm.deals.createdToast', { name: name ?? '' }), { action: { label: t('crm.common.open'), onClick: () => api.openDeal(id) } });
           }}
         />
       )}
@@ -159,7 +163,7 @@ export function CrmOverlays({ children }: { children: React.ReactNode }) {
         <CompanyFormDialog
           onClose={closeDlg}
           onCreated={id => {
-            toast('Company created', { action: { label: 'Open', onClick: () => navigate(`/crm/companies/${id}`) } });
+            toast(t('crm.companies.openCompanyToast'), { action: { label: t('crm.common.add'), onClick: () => navigate(`/crm/companies/${id}`) } });
           }}
         />
       )}
@@ -168,7 +172,7 @@ export function CrmOverlays({ children }: { children: React.ReactNode }) {
           defaults={dlg.defaults}
           onClose={closeDlg}
           onCreated={id => {
-            toast('Contact created', { action: { label: 'Open', onClick: () => api.openContact(id) } });
+            toast(t('crm.contacts.createdToast'), { action: { label: t('crm.common.open'), onClick: () => api.openContact(id) } });
           }}
         />
       )}
@@ -182,7 +186,7 @@ export function CrmOverlays({ children }: { children: React.ReactNode }) {
             closeDlg();
             const x = findDeal(latest.current.data, id);
             dispatch({ type: 'deal/move', id, stage: to, before, by: latest.current.me, lostReason: reason });
-            if (x) toast(to === 'won' ? `Won “${x.name}” — ${money(x.amount)}` : `Marked “${x.name}” as lost`, { duration: 2600 });
+            if (x) toast(to === 'won' ? t('crm.deals.wonToast', { name: x.name, amount: money(x.amount) }) : t('crm.deals.lostToast', { name: x.name }), { duration: 2600 });
           }}
         />
       )}

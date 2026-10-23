@@ -175,4 +175,6 @@ export const enums: Widen<typeof E> = {
     email: 'Email',
     phone: 'Телефон',
   },
+  /** Подписи этапов CRM */
+  stage: { lead: 'Лид', qualified: 'Квалифицирован', proposal: 'Предложение', negotiation: 'Переговоры', won: 'Выиграна', lost: 'Проиграна' },
 };

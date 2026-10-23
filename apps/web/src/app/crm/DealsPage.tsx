@@ -7,23 +7,25 @@ import { FilterBar, useFilterState, type FilterField } from '@/components/gr8r/f
 import { Kanban } from '@/components/gr8r/kanban';
 import { useWorkspace } from '../data/store';
 import { MemberAvatar } from '../components/workspace';
+import { useT } from '@/i18n';
 import { CompanyLink, CompanyLogo, DealCard, OwnerCell, StageIcon, StageLabel, useOwnerName } from './components';
-import { DEAL_COLUMNS, DEAL_SORTS } from './columns';
+import { dealColumns, dealSorts } from './columns';
 import { money, pct } from './format';
 import { dealRows, filterDeals, pipeline, sumAmount, sumWeighted, type DealRow } from './selectors';
 import { STAGES, isOpen } from './stages';
 import { useCrm } from './store';
 import { useCrmUi } from './ui-context';
+import { stageName, dealGroupName } from './labels';
 import type { StageId } from './types';
 
 type Mode = 'board' | 'table';
 type GroupId = 'stage' | 'owner' | 'company' | 'none';
 
-const GROUPS: { id: GroupId; name: string; icon?: React.ReactNode }[] = [
-  { id: 'stage', name: 'Stage', icon: <CircleDot size={15} /> },
-  { id: 'owner', name: 'Owner', icon: <User size={15} /> },
-  { id: 'company', name: 'Company', icon: <Building2 size={15} /> },
-  { id: 'none', name: 'None' },
+const GROUPS: { id: GroupId; icon?: React.ReactNode }[] = [
+  { id: 'stage', icon: <CircleDot size={15} /> },
+  { id: 'owner', icon: <User size={15} /> },
+  { id: 'company', icon: <Building2 size={15} /> },
+  { id: 'none' },
 ];
 
 export function DealsPage() {
@@ -31,22 +33,26 @@ export function DealsPage() {
   const { data: ws } = useWorkspace();
   const ui = useCrmUi();
   const ownerName = useOwnerName();
+  const t = useT();
   const filters = useFilterState();
   const [mode, setMode] = React.useState<Mode>('board');
   const [group, setGroup] = React.useState<GroupId>('stage');
-  const table = useDataTable(DEAL_COLUMNS);
+  const columns = React.useMemo(() => dealColumns(t), [t]);
+  const table = useDataTable(columns);
 
   const all = React.useMemo(() => dealRows(data, ownerName), [data, ownerName]);
   const rows = React.useMemo(() => filterDeals(data, all, { q: filters.q, owner: filters.values.owner, company: filters.values.company, stage: filters.values.stage }).sort((a, b) => a.order - b.order), [data, all, filters.q, filters.values]);
   // Порядок карточек на доске: ручной (order) или по выбранному полю сортировки
-  const ordered = React.useMemo(() => sortRows(rows, DEAL_COLUMNS, table.sort), [rows, table.sort]);
+  const ordered = React.useMemo(() => sortRows(rows, columns, table.sort), [rows, columns, table.sort]);
   const total = pipeline(data.deals);
 
   const fields: FilterField[] = [
-    { id: 'owner', name: 'Owner', icon: <User size={15} />, options: ws.members.filter(m => m.status === 'active').map(m => ({ id: m.id, name: m.name + (m.id === ws.me ? ' (you)' : ''), icon: <MemberAvatar id={m.id} size="sm" tooltip={false} /> })) },
-    { id: 'company', name: 'Company', icon: <Building2 size={15} />, options: [...data.companies].sort((a, b) => a.name.localeCompare(b.name)).map(c => ({ id: c.id, name: c.name, icon: <CompanyLogo name={c.name} size={14} /> })) },
-    { id: 'stage', name: 'Stage', icon: <CircleDot size={15} />, options: STAGES.map(s => ({ id: s.id, name: s.name, icon: <StageIcon stage={s.id} /> })) },
+    { id: 'owner', name: t('crm.deals.col.owner'), icon: <User size={15} />, options: ws.members.filter(m => m.status === 'active').map(m => ({ id: m.id, name: m.name + (m.id === ws.me ? t('crm.deals.you') : ''), icon: <MemberAvatar id={m.id} size="sm" tooltip={false} /> })) },
+    { id: 'company', name: t('crm.deals.col.company'), icon: <Building2 size={15} />, options: [...data.companies].sort((a, b) => a.name.localeCompare(b.name)).map(c => ({ id: c.id, name: c.name, icon: <CompanyLogo name={c.name} size={14} /> })) },
+    { id: 'stage', name: t('crm.deals.col.stage'), icon: <CircleDot size={15} />, options: STAGES.map(s => ({ id: s.id, name: stageName(s.id, s.name), icon: <StageIcon stage={s.id} /> })) },
   ];
+
+  const groupOptions = GROUPS.map(g => ({ id: g.id, name: dealGroupName(g.id, g.id), icon: g.icon }));
 
   const groupBy =
     group === 'none'
@@ -57,12 +63,12 @@ export function DealsPage() {
           ? { key: (r: DealRow) => r.owner, label: (k: string) => <OwnerCell id={k} /> }
           : { key: (r: DealRow) => r.company, label: (k: string) => <CompanyLink id={k} logo /> };
 
-  const columns = STAGES.map(s => {
+  const kanbanColumns = STAGES.map(s => {
     const list = rows.filter(r => r.stage === s.id);
     const open = isOpen(s.id);
     return {
       id: s.id,
-      title: s.name,
+      title: stageName(s.id, s.name),
       icon: <StageIcon stage={s.id} />,
       subtitle: (
         <>
@@ -72,7 +78,7 @@ export function DealsPage() {
       footer: open ? (
         <>
           <span>
-            Weighted · {pct(s.p)}
+            {t('crm.deals.weightedFoot', { pct: pct(s.p) })}
           </span>
           <b className="num">{money(sumWeighted(list))}</b>
         </>
@@ -86,45 +92,43 @@ export function DealsPage() {
     <div className="page flush">
       <div className="ph">
         <div>
-          <h1>Deals</h1>
-          <p>
-            {total.count} open deals · {money(total.amount)} in pipeline · {money(total.weighted)} weighted
-          </p>
+          <h1>{t('crm.deals.title')}</h1>
+          <p>{t('crm.deals.summary', { count: total.count, amount: money(total.amount), weighted: money(total.weighted) })}</p>
         </div>
         <div className="acts">
           <Button variant="primary" onClick={() => ui.newDeal()}>
             <Plus size={14} />
-            New deal
+            {t('crm.deals.newDeal')}
           </Button>
         </div>
       </div>
       <FilterBar
-        search={{ value: filters.q, onChange: filters.setQ, placeholder: 'Search deals' }}
+        search={{ value: filters.q, onChange: filters.setQ, placeholder: t('crm.deals.searchPlaceholder') }}
         fields={fields}
         filters={filters}
-        sort={{ options: DEAL_SORTS, value: table.sort.id, dir: table.sort.dir, onChange: table.setSort }}
-        group={mode === 'table' ? { options: GROUPS, value: group, onChange: g => setGroup(g as GroupId) } : undefined}
-        columns={mode === 'table' ? columnsMenu(DEAL_COLUMNS, table) : undefined}
+        sort={{ options: dealSorts(t), value: table.sort.id, dir: table.sort.dir, onChange: table.setSort }}
+        group={mode === 'table' ? { options: groupOptions, value: group, onChange: g => setGroup(g as GroupId) } : undefined}
+        columns={mode === 'table' ? columnsMenu(columns, table) : undefined}
         left={
           <Segmented
             aria-label="View"
             value={mode}
             onValueChange={setMode}
             items={[
-              { value: 'board', label: <span className="hide-m">Board</span>, icon: <SquareKanban size={13} />, 'aria-label': 'Board' },
-              { value: 'table', label: <span className="hide-m">Table</span>, icon: <Table2 size={13} />, 'aria-label': 'Table' },
+              { value: 'board', label: <span className="hide-m">{t('crm.deals.viewBoard')}</span>, icon: <SquareKanban size={13} />, 'aria-label': t('crm.deals.viewBoard') },
+              { value: 'table', label: <span className="hide-m">{t('crm.deals.viewTable')}</span>, icon: <Table2 size={13} />, 'aria-label': t('crm.deals.viewTable') },
             ]}
           />
         }
       />
       {noDeals ? (
-        <EmptyState icon={<SquareKanban size={20} />} title="No deals yet" action={<Button size="sm" variant="primary" onClick={() => ui.newDeal()}><Plus size={14} />New deal</Button>}>
-          Create the first deal to start filling the pipeline.
+        <EmptyState icon={<SquareKanban size={20} />} title={t('crm.deals.noDeals')} action={<Button size="sm" variant="primary" onClick={() => ui.newDeal()}><Plus size={14} />{t('crm.deals.newDeal')}</Button>}>
+          {t('crm.deals.noDealsHint')}
         </EmptyState>
       ) : mode === 'board' ? (
         <Kanban
-          aria-label="Deals pipeline"
-          columns={columns}
+          aria-label={t('crm.deals.title')}
+          columns={kanbanColumns}
           items={ordered}
           getId={r => r.id}
           getColumn={r => r.stage}
@@ -132,22 +136,22 @@ export function DealsPage() {
           onMove={(r, col, before) => ui.moveDeal(r.id, col as StageId, before)}
           onAdd={col => ui.newDeal({ stage: col as StageId })}
           canAdd={col => isOpen(col as StageId)}
-          addLabel="Add deal"
+          addLabel={t('crm.deals.addDeal')}
         />
       ) : (
         <DataTable
-          aria-label="Deals table"
-          columns={DEAL_COLUMNS}
+          aria-label={t('crm.deals.table')}
+          columns={columns}
           rows={rows}
           table={table}
           getId={r => r.id}
           onRowClick={r => ui.openDeal(r.id)}
           groupBy={groupBy}
           onNew={() => ui.newDeal()}
-          newLabel="New deal"
+          newLabel={t('crm.deals.newDeal')}
           empty={
-            <EmptyState icon={<SquareKanban size={20} />} title="No results found" action={<Button size="sm" onClick={filters.reset}>Clear filters</Button>}>
-              No deals match these filters.
+            <EmptyState icon={<SquareKanban size={20} />} title={t('crm.deals.noResults')} action={<Button size="sm" onClick={filters.reset}>{t('crm.deals.clearFilters')}</Button>}>
+              {t('crm.deals.noResultsHint')}
             </EmptyState>
           }
         />

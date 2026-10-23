@@ -6,17 +6,19 @@ import { DataTable, columnsMenu, useDataTable } from '@/components/gr8r/data-tab
 import { FilterBar, useFilterState, type FilterField } from '@/components/gr8r/filter-bar';
 import { useWorkspace } from '../data/store';
 import { MemberAvatar } from '../components/workspace';
+import { useT } from '@/i18n';
 import { CompanyLink, CompanyLogo, OwnerCell, PersonCell, useOwnerName } from './components';
-import { CONTACT_COLUMNS } from './columns';
+import { contactColumns } from './columns';
 import { contactRows, type ContactRow } from './selectors';
 import { useCrm } from './store';
 import { useCrmUi } from './ui-context';
+import { contactGroupName } from './labels';
 
 type GroupId = 'none' | 'company' | 'owner';
-const GROUPS: { id: GroupId; name: string }[] = [
-  { id: 'none', name: 'None' },
-  { id: 'company', name: 'Company' },
-  { id: 'owner', name: 'Owner' },
+const GROUPS: { id: GroupId; icon?: React.ReactNode }[] = [
+  { id: 'none' },
+  { id: 'company', icon: <Building2 size={15} /> },
+  { id: 'owner', icon: <User size={15} /> },
 ];
 
 export function ContactsPage() {
@@ -24,9 +26,11 @@ export function ContactsPage() {
   const { data: ws } = useWorkspace();
   const ui = useCrmUi();
   const ownerName = useOwnerName();
+  const t = useT();
   const filters = useFilterState();
   const [group, setGroup] = React.useState<GroupId>('none');
-  const table = useDataTable(CONTACT_COLUMNS);
+  const columns = React.useMemo(() => contactColumns(t), [t]);
+  const table = useDataTable(columns);
 
   const all = React.useMemo(() => contactRows(data, ownerName), [data, ownerName]);
   const rows = all.filter(r => {
@@ -37,9 +41,11 @@ export function ContactsPage() {
   });
 
   const fields: FilterField[] = [
-    { id: 'company', name: 'Company', icon: <Building2 size={15} />, options: [...data.companies].sort((a, b) => a.name.localeCompare(b.name)).map(c => ({ id: c.id, name: c.name, icon: <CompanyLogo name={c.name} size={14} /> })) },
-    { id: 'owner', name: 'Owner', icon: <User size={15} />, options: ws.members.filter(m => m.status === 'active').map(m => ({ id: m.id, name: m.name, icon: <MemberAvatar id={m.id} size="sm" tooltip={false} /> })) },
+    { id: 'company', name: t('crm.contacts.col.company'), icon: <Building2 size={15} />, options: [...data.companies].sort((a, b) => a.name.localeCompare(b.name)).map(c => ({ id: c.id, name: c.name, icon: <CompanyLogo name={c.name} size={14} /> })) },
+    { id: 'owner', name: t('crm.contacts.col.owner'), icon: <User size={15} />, options: ws.members.filter(m => m.status === 'active').map(m => ({ id: m.id, name: m.name + (m.id === ws.me ? t('crm.deals.you') : ''), icon: <MemberAvatar id={m.id} size="sm" tooltip={false} /> })) },
   ];
+
+  const groupOptions = GROUPS.map(g => ({ id: g.id, name: contactGroupName(g.id, g.id), icon: g.icon }));
 
   const groupBy =
     group === 'none'
@@ -53,34 +59,34 @@ export function ContactsPage() {
     <div className="page flush">
       <div className="ph">
         <div>
-          <h1>Contacts</h1>
-          <p>{all.length} people across {data.companies.length} companies.</p>
+          <h1>{t('crm.contacts.title')}</h1>
+          <p>{t('crm.contacts.summary', { count: all.length, companies: data.companies.length })}</p>
         </div>
         <div className="acts">
           <Button variant="primary" onClick={() => ui.newContact()}>
             <Plus size={14} />
-            New contact
+            {t('crm.contacts.newContact')}
           </Button>
         </div>
       </div>
       <FilterBar
-        search={{ value: filters.q, onChange: filters.setQ, placeholder: 'Search contacts' }}
+        search={{ value: filters.q, onChange: filters.setQ, placeholder: t('crm.contacts.searchPlaceholder') }}
         fields={fields}
         filters={filters}
-        sort={{ options: CONTACT_COLUMNS.map(c => ({ id: c.id, name: c.header })), value: table.sort.id, dir: table.sort.dir, onChange: table.setSort }}
-        group={{ options: GROUPS, value: group, onChange: g => setGroup(g as GroupId) }}
-        columns={columnsMenu(CONTACT_COLUMNS, table)}
+        sort={{ options: columns.map(c => ({ id: c.id, name: c.header })), value: table.sort.id, dir: table.sort.dir, onChange: table.setSort }}
+        group={{ options: groupOptions, value: group, onChange: g => setGroup(g as GroupId) }}
+        columns={columnsMenu(columns, table)}
       />
       <DataTable
-        aria-label="Contacts table"
-        columns={CONTACT_COLUMNS}
+        aria-label={t('crm.contacts.table')}
+        columns={columns}
         rows={rows}
         table={table}
         getId={r => r.id}
         onRowClick={r => ui.openContact(r.id)}
         groupBy={groupBy}
         onNew={() => ui.newContact()}
-        newLabel="New contact"
+        newLabel={t('crm.contacts.newContact')}
         renderCard={r => (
           <div className="panel dt-card">
             <div className="dt-card-t">
@@ -95,8 +101,8 @@ export function ContactsPage() {
           </div>
         )}
         empty={
-          <EmptyState icon={<Users size={20} />} title="No contacts found" action={<Button size="sm" onClick={filters.reset}>Clear filters</Button>}>
-            No contacts match these filters.
+          <EmptyState icon={<Users size={20} />} title={t('crm.contacts.noResults')} action={<Button size="sm" onClick={filters.reset}>{t('crm.contacts.clearFilters')}</Button>}>
+            {t('crm.contacts.noResultsHint')}
           </EmptyState>
         }
       />

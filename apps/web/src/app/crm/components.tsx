@@ -13,14 +13,17 @@ import { MemberAvatar } from '../components/workspace';
 import { ACTIVITY_TYPES, STAGES, activityType, isOpen, stage } from './stages';
 import { money, pct } from './format';
 import { company as findCompany, contact as findContact, deal as findDeal, isOverdueDeal, probability } from './selectors';
+import { activityName, activityVerb, lostReasonName, stageName } from './labels';
 import { useCrm } from './store';
 import { useCrmUi } from './ui-context';
+import { useT } from '@/i18n';
 import type { ActivityType, CrmActivity, Deal, StageId } from './types';
 
 /** Имя участника воркспейса по id — для сортировки и подписей в таблицах */
 export function useOwnerName() {
   const { data } = useWorkspace();
-  return React.useCallback((id: string) => member(data, id)?.name ?? 'Unassigned', [data]);
+  const t = useT();
+  return React.useCallback((id: string) => member(data, id)?.name ?? t('crm.deals.unassigned'), [data, t]);
 }
 
 /** Значок этапа воронки: кольцо с долей, равной вероятности этапа (как StatusIcon у задач) */
@@ -123,11 +126,12 @@ export function DealLink({ id, className }: { id: string; className?: string }) 
 /** Владелец: аватар и имя */
 export function OwnerCell({ id, short }: { id: string; short?: boolean }) {
   const { data } = useWorkspace();
+  const t = useT();
   const m = member(data, id);
   return (
     <span className="row" style={{ gap: 6, minWidth: 0 }}>
       <MemberAvatar id={id} size="sm" tooltip={false} />
-      <span className="trunc">{m ? (short ? m.name.split(' ')[0] : m.name) : 'Unassigned'}</span>
+      <span className="trunc">{m ? (short ? m.name.split(' ')[0] : m.name) : t('crm.deals.unassigned')}</span>
     </span>
   );
 }
@@ -147,10 +151,11 @@ export function PersonCell({ name, sub }: { name: string; sub?: string }) {
 
 /** Этап: значок и название */
 export function StageLabel({ stage: id }: { stage: StageId }) {
+  const s = stage(id);
   return (
     <span className="row" style={{ gap: 6 }}>
       <StageIcon stage={id} />
-      {stage(id).name}
+      {stageName(id, s.name)}
     </span>
   );
 }
@@ -158,12 +163,13 @@ export function StageLabel({ stage: id }: { stage: StageId }) {
 /** Выбор этапа сделки в «таблетке»; смена идёт через useCrmUi().moveDeal (подтверждение Won / причина Lost) */
 export function StageField({ deal }: { deal: Deal }) {
   const ui = useCrmUi();
+  const t = useT();
   return (
     <PillMenu<StageId>
-      label={`Stage: ${stage(deal.stage).name}`}
+      label={`${t('crm.deals.drawer.stageLabel')}: ${stageName(deal.stage, deal.stage)}`}
       value={deal.stage}
       onChange={s => s !== deal.stage && ui.moveDeal(deal.id, s)}
-      options={STAGES.map(s => ({ value: s.id, label: s.name, icon: <StageIcon stage={s.id} /> }))}
+      options={STAGES.map(s => ({ value: s.id, label: stageName(s.id, s.name), icon: <StageIcon stage={s.id} /> }))}
       trigger={<StageLabel stage={deal.stage} />}
     />
   );
@@ -172,13 +178,14 @@ export function StageField({ deal }: { deal: Deal }) {
 /** Выбор владельца в «таблетке» */
 export function OwnerField({ value, onChange }: { value: string; onChange: (id: string) => void }) {
   const { data } = useWorkspace();
+  const t = useT();
   const people = data.members.filter(m => m.status === 'active');
   return (
     <PillMenu<string>
-      label="Owner"
+      label={t('crm.deals.drawer.ownerField')}
       value={value}
       onChange={onChange}
-      options={people.map(m => ({ value: m.id, label: m.name + (m.id === data.me ? ' (you)' : ''), icon: <MemberAvatar id={m.id} size="sm" tooltip={false} /> }))}
+      options={people.map(m => ({ value: m.id, label: m.name + (m.id === data.me ? t('crm.deals.you') : ''), icon: <MemberAvatar id={m.id} size="sm" tooltip={false} /> }))}
       trigger={<OwnerCell id={value} />}
     />
   );
@@ -187,6 +194,7 @@ export function OwnerField({ value, onChange }: { value: string; onChange: (id: 
 /** Дата в «таблетке» с быстрыми значениями и календарём (по образцу DueField) */
 export function DateField({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
   const [open, setOpen] = React.useState(false);
+  const t = useT();
   const set = (v: string) => {
     onChange(v);
     setOpen(false);
@@ -203,9 +211,9 @@ export function DateField({ value, onChange, label }: { value: string; onChange:
         <div className="flex max-w-[248px] flex-wrap gap-1 p-1 pb-0">
           {(
             [
-              ['In 2 weeks', 14],
-              ['In a month', 30],
-              ['In 3 months', 90],
+              [t('crm.activities.dateField.in2w'), 14],
+              [t('crm.activities.dateField.inMonth'), 30],
+              [t('crm.activities.dateField.in3m'), 90],
             ] as const
           ).map(([l, n]) => (
             <button key={l} className="btn btn-sm btn-ghost" onClick={() => set(dOff(n))}>
@@ -235,6 +243,7 @@ export function CloseDate({ deal: d }: { deal: Deal }) {
 export function DealCard({ deal: d }: { deal: Deal }) {
   const { data } = useCrm();
   const ui = useCrmUi();
+  const t = useT();
   const co = findCompany(data, d.company);
   const closed = !isOpen(d.stage);
   const open = () => ui.openDeal(d.id);
@@ -253,10 +262,10 @@ export function DealCard({ deal: d }: { deal: Deal }) {
         <span className="amt num">{money(d.amount)}</span>
         {!closed && <span className="m num">{pct(probability(d))}</span>}
         <CloseDate deal={d} />
-        {d.stage === 'lost' && d.lostReason && <span className="m trunc">{d.lostReason}</span>}
+        {d.stage === 'lost' && d.lostReason && <span className="m trunc">{lostReasonName(d.lostReason, d.lostReason)}</span>}
         <MemberAvatar id={d.owner} size="sm" />
       </div>
-      {isOverdueDeal(d) && <span className="sr">Overdue</span>}
+      {isOverdueDeal(d) && <span className="sr">{t('crm.activities.overdueDeal')}</span>}
     </div>
   );
 }
@@ -269,29 +278,31 @@ const ACT_COLORS: Record<ActivityType, string> = { call: 'var(--green)', email: 
 export function ActivityRow({ a, showDeal, showCompany, showContact = true }: { a: CrmActivity; showDeal?: boolean; showCompany?: boolean; showContact?: boolean }) {
   const { data: ws } = useWorkspace();
   const { dispatch } = useCrm();
+  const t = useT();
   const m = member(ws, a.by);
-  const who = m?.id === ws.me ? 'You' : (m?.name ?? 'Someone');
-  const t = activityType(a.type);
+  const who = m?.id === ws.me ? t('crm.activities.you') : (m?.name ?? t('crm.activities.someone'));
+  const at = activityType(a.type);
+  const verb = activityVerb(a.type, at.verb);
   const overdue = a.type === 'task' && !a.done && a.due && diffDays(parse(a.due), today()) < 0;
   const ctx: React.ReactNode[] = [];
-  if (a.type === 'task' && a.due) ctx.push(<span key="due" className={cn(overdue && 'crm-over')}>Due {relDate(a.due)}</span>);
-  if (showContact && a.contact) ctx.push(<span key="c">with <ContactLink id={a.contact} /></span>);
+  if (a.type === 'task' && a.due) ctx.push(<span key="due" className={cn(overdue && 'crm-over')}>{t('crm.activities.dueRel', { date: relDate(a.due) })}</span>);
+  if (showContact && a.contact) ctx.push(<span key="c">{t('crm.activities.withContact')} <ContactLink id={a.contact} /></span>);
   if (showDeal && a.deal) ctx.push(<DealLink key="d" id={a.deal} />);
   if (showCompany && a.company) ctx.push(<CompanyLink key="co" id={a.company} />);
   return (
     <div className="fitem crm-act">
       {a.type === 'task' ? (
         <span className="crm-ico crm-chk">
-          <Checkbox round checked={!!a.done} onChange={() => dispatch({ type: 'activity/toggle', id: a.id })} aria-label={`${a.done ? 'Reopen' : 'Complete'} ${a.subject}`} />
+          <Checkbox round checked={!!a.done} onChange={() => dispatch({ type: 'activity/toggle', id: a.id })} aria-label={`${a.done ? t('crm.common.reopenAria', { subject: a.subject }) : t('crm.common.completeAria', { subject: a.subject })}`} />
         </span>
       ) : (
         <span className="crm-ico" style={{ '--c': a.system ? 'var(--gray)' : ACT_COLORS[a.type] } as React.CSSProperties} aria-hidden>
-          {a.system ? <ArrowRightLeft size={11} /> : <t.icon size={11} />}
+          {a.system ? <ArrowRightLeft size={11} /> : <at.icon size={11} />}
         </span>
       )}
       <div className="min-w-0 flex-1">
         <div>
-          <b>{who}</b> <span className="muted">{a.system ? 'updated the deal' : t.verb}</span>
+          <b>{who}</b> <span className="muted">{a.system ? t('crm.activities.updatedDeal') : verb}</span>
         </div>
         <div className={cn('crm-subj', a.done && 'done', a.system && 'muted')}>{a.subject}</div>
         {a.body && <div className="crm-body">{a.body}</div>}
@@ -315,6 +326,7 @@ export function ActivityRow({ a, showDeal, showCompany, showContact = true }: { 
 export function ActivityComposer({ deal, company, contact }: { deal?: string; company?: string; contact?: string }) {
   const { data: ws } = useWorkspace();
   const { dispatch } = useCrm();
+  const t = useT();
   const [type, setType] = React.useState<ActivityType>('note');
   const [text, setText] = React.useState('');
   const [due, setDue] = React.useState(dOff(2));
@@ -324,7 +336,7 @@ export function ActivityComposer({ deal, company, contact }: { deal?: string; co
     if (!subject) return ref.current?.focus();
     dispatch({ type: 'activity/add', activity: { type, subject, by: ws.me, deal, company, contact, due: type === 'task' ? due : undefined } });
     setText('');
-    toast(type === 'task' ? 'Follow-up scheduled' : `${activityType(type).name} logged`, { duration: 1800 });
+    toast(type === 'task' ? t('crm.activities.scheduled') : t('crm.activities.logged', { type: activityName(type, type) }), { duration: 1800 });
   };
   return (
     <div className="row" style={{ alignItems: 'flex-start', gap: 10, marginTop: 10 }}>
@@ -334,8 +346,8 @@ export function ActivityComposer({ deal, company, contact }: { deal?: string; co
           ref={ref}
           rows={2}
           value={text}
-          aria-label="Activity text"
-          placeholder={type === 'task' ? 'What needs to happen next?' : type === 'note' ? 'Add a note…' : `Summarize the ${type}…`}
+          aria-label={t('crm.activities.activityLabel')}
+          placeholder={type === 'task' ? t('crm.activities.followUpPlaceholder') : type === 'note' ? t('crm.activities.notePlaceholder') : t('crm.activities.summarizeAs', { type: activityName(type, type) })}
           onChange={e => setText(e.target.value)}
           onKeyDown={e => {
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -346,21 +358,21 @@ export function ActivityComposer({ deal, company, contact }: { deal?: string; co
         />
         <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
           <Segmented
-            aria-label="Activity type"
+            aria-label={t('crm.activities.typeLabel')}
             value={type}
             onValueChange={setType}
-            items={ACTIVITY_TYPES.map(t => ({ value: t.id, label: <span className="hide-m">{t.name}</span>, icon: <t.icon size={13} />, 'aria-label': t.name }))}
+            items={ACTIVITY_TYPES.map(a => ({ value: a.id, label: <span className="hide-m">{activityName(a.id, a.name)}</span>, icon: <a.icon size={13} />, 'aria-label': activityName(a.id, a.name) }))}
           />
           {type === 'task' && (
             <span className="row" style={{ gap: 4 }}>
-              <span className="faint" style={{ fontSize: 12 }}>Due</span>
-              <DateField value={due} onChange={setDue} label="Follow-up due date" />
+              <span className="faint" style={{ fontSize: 12 }}>{t('crm.activities.due')}</span>
+              <DateField value={due} onChange={setDue} label={t('crm.activities.followUpDueLabel')} />
             </span>
           )}
           <span className="sp" />
           <Button size="sm" variant="primary" onClick={post}>
             <Plus size={13} />
-            Add
+            {t('crm.activities.add')}
           </Button>
         </div>
       </div>
@@ -370,10 +382,11 @@ export function ActivityComposer({ deal, company, contact }: { deal?: string; co
 
 /** Лента активностей с пустым состоянием */
 export function ActivityFeed({ items, ...flags }: { items: CrmActivity[] } & Pick<Parameters<typeof ActivityRow>[0], 'showDeal' | 'showCompany' | 'showContact'>) {
+  const t = useT();
   if (!items.length)
     return (
       <p className="faint" style={{ fontSize: 13, margin: '10px 0' }}>
-        No activity yet. Log a call or leave a note below.
+        {t('crm.activities.noActivity')}
       </p>
     );
   return (

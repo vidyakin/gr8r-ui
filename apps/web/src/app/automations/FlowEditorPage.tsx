@@ -22,7 +22,6 @@ import '@xyflow/react/dist/style.css';
 import { ArrowLeft, CircleAlert, CircleCheck, Play, Save, Trash2, Upload } from 'lucide-react';
 import {
   NODE_CATEGORIES,
-  NODE_CATEGORY_LABELS,
   NODE_LIST,
   defaultParams,
   getNodeDef,
@@ -34,12 +33,13 @@ import {
 } from '@gr8r/shared';
 import { Alert, Badge, Button, Dialog, DialogClose, DialogContent, EmptyState, Input, Skeleton, Switch, Tab, Tabs, TabsList, Textarea, toast } from '@/components/ui';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 import { useIsAdmin } from '../catalog/data';
 import { errorMessage } from '../data/api';
 import { useFlow, useFlowApi, type FlowDetail } from './data';
 import { FlowNodeView, IssuesContext, type RFNode } from './flow-node';
 import { ParamsForm, templateVariables, useFormEnv } from './node-form';
-import { CATEGORY_COLOR, NodeIcon } from './node-meta';
+import { CATEGORY_COLOR, NodeIcon, nodeCategoryName } from './node-meta';
 import { RunsView } from './RunsView';
 
 const nodeTypes = { gr8r: FlowNodeView };
@@ -64,7 +64,8 @@ const newId = (taken: Set<string>) => {
 export function FlowEditorPage() {
   const { id, tab = 'editor' } = useParams();
   const flow = useFlow(id);
-  if (flow.isError) return <div className="page"><EmptyState icon={<CircleAlert size={20} />} error title="Could not open the automation" action={<Button size="sm" onClick={() => flow.refetch()}>Retry</Button>}>{(flow.error as Error).message}</EmptyState></div>;
+  const t = useT();
+  if (flow.isError) return <div className="page"><EmptyState icon={<CircleAlert size={20} />} error title={t('automations.editor.loadFailed')} action={<Button size="sm" onClick={() => flow.refetch()}>{t('common.retry')}</Button>}>{(flow.error as Error).message}</EmptyState></div>;
   if (flow.isPending) return <div className="page"><Skeleton w="100%" h={60} /></div>;
   return (
     <ReactFlowProvider>
@@ -77,6 +78,7 @@ function Editor({ flow, tab }: { flow: FlowDetail; tab: 'editor' | 'runs' }) {
   const navigate = useNavigate();
   const isAdmin = useIsAdmin();
   const api = useFlowApi();
+  const t = useT();
   const rf = useReactFlow();
   const updateInternals = useUpdateNodeInternals();
   const wrap = React.useRef<HTMLDivElement>(null);
@@ -119,7 +121,7 @@ function Editor({ flow, tab }: { flow: FlowDetail; tab: 'editor' | 'runs' }) {
     (def: AnyNodeDef, at?: { x: number; y: number }) => {
       if (readOnly) return;
       if (def.category === 'trigger' && nodes.some(n => getNodeDef(n.data.nodeType)?.category === 'trigger')) {
-        toast.error('A flow has exactly one trigger');
+        toast.error(t('automations.editor.oneTrigger'));
         return;
       }
       const id = newId(new Set(nodes.map(n => n.id)));
@@ -143,7 +145,7 @@ function Editor({ flow, tab }: { flow: FlowDetail; tab: 'editor' | 'runs' }) {
       if (src && freeOut && def.category !== 'trigger') setEdges(es => [...es, { id: edgeId(src.id, freeOut.id, id), source: src.id, target: id, sourceHandle: freeOut.id }]);
       setTimeout(() => void rf.fitView({ padding: 0.3, maxZoom: 1, duration: 200 }), 60);
     },
-    [nodes, edges, selected, triggerEntity, readOnly, rf, setNodes, setEdges],
+    [nodes, edges, selected, triggerEntity, readOnly, rf, setNodes, setEdges, t],
   );
 
   const isValidConnection = React.useCallback(
@@ -158,12 +160,12 @@ function Editor({ flow, tab }: { flow: FlowDetail; tab: 'editor' | 'runs' }) {
   const onConnect = React.useCallback(
     (c: Connection) => {
       if (!isValidConnection(c)) {
-        toast.error('A step can have only one incoming connection');
+        toast.error(t('automations.editor.oneIncoming'));
         return;
       }
       setEdges(es => addEdge({ ...c, id: edgeId(c.source, c.sourceHandle ?? 'out', c.target), sourceHandle: c.sourceHandle ?? 'out' }, es));
     },
-    [isValidConnection, setEdges],
+    [isValidConnection, setEdges, t],
   );
 
   const updateParams = (nodeId: string, params: Record<string, unknown>) => {
@@ -189,7 +191,7 @@ function Editor({ flow, tab }: { flow: FlowDetail; tab: 'editor' | 'runs' }) {
   const save = async (): Promise<boolean> => {
     setBusy('save');
     try {
-      await api.save(flow.id, { name: name.trim() || 'Untitled automation', description, graph });
+      await api.save(flow.id, { name: name.trim() || t('automations.editor.untitledName') || t('automations.list.untitledName'), description, graph });
       setSaved(snapshot(name, description, graph));
       return true;
     } catch {
@@ -200,90 +202,90 @@ function Editor({ flow, tab }: { flow: FlowDetail; tab: 'editor' | 'runs' }) {
   };
   const publish = async () => {
     if (issues.length) {
-      toast.error(`Fix ${issues.length} issue${issues.length === 1 ? '' : 's'} before publishing`);
+      toast.error(issues.length === 1 ? t('automations.editor.publishIssuesOne') : t('automations.editor.publishIssuesMany', { n: issues.length }));
       return;
     }
     if (dirty && !(await save())) return;
     setBusy('publish');
     try {
       const f = await api.publish(flow.id, flow.publishedVersion === null ? true : undefined);
-      toast(`Published version ${f.publishedVersion}${f.enabled ? ' — the automation is on' : ''}`);
+      toast(f.enabled ? t('automations.editor.publishSuccessOn', { v: f.publishedVersion }) : t('automations.editor.publishSuccessOff', { v: f.publishedVersion }));
     } catch (e) {
       toast.error(errorMessage(e));
     } finally {
       setBusy(null);
     }
   };
-  const toggle = (enabled: boolean) => void api.save(flow.id, { enabled }).then(() => toast(enabled ? 'Automation is on' : 'Automation is off'));
+  const toggle = (enabled: boolean) => void api.save(flow.id, { enabled }).then(() => toast(enabled ? t('automations.editor.automationOn') : t('automations.editor.automationOff')));
   const start = async (body: { entity?: string; recordId?: string }) => {
     await api.runNow(flow.id, body);
-    toast('Run started');
+    toast(t('automations.editor.runStarted'));
     navigate(`/automations/flow/${flow.id}/runs`);
   };
 
   const needsRecord = triggerDef?.type === 'trigger.manual' && !!trigger?.data.params.entity;
   const canRun = isAdmin && flow.publishedVersion !== null && triggerDef?.type === 'trigger.manual';
-  const status = flow.publishedVersion === null ? <Badge tone="gray">Draft</Badge> : <Badge tone={flow.enabled ? 'green' : 'neutral'} dot>{flow.enabled ? `Live · v${flow.publishedVersion}` : `Off · v${flow.publishedVersion}`}</Badge>;
+  const status = flow.publishedVersion === null ? <Badge tone="gray">{t('automations.list.draft')}</Badge> : <Badge tone={flow.enabled ? 'green' : 'neutral'} dot>{flow.enabled ? t('automations.editor.liveV', { v: flow.publishedVersion }) : t('automations.editor.offV', { v: flow.publishedVersion })}</Badge>;
 
   return (
     <IssuesContext.Provider value={issuesByNode}>
       <div className="page flush auto-editor">
         <div className="ae-bar">
-          <Button size="sm" variant="ghost" aria-label="Back to automations" onClick={() => navigate('/automations')}>
+          <Button size="sm" variant="ghost" aria-label={t('automations.editor.back')} onClick={() => navigate('/automations')}>
             <ArrowLeft size={14} />
           </Button>
-          <Input className="ae-name" aria-label="Automation name" value={name} disabled={readOnly} onChange={e => setName(e.target.value)} />
+          <Input className="ae-name" aria-label={t('automations.editor.nameAria')} value={name} disabled={readOnly} onChange={e => setName(e.target.value)} />
           {status}
-          {(flow.hasDraftChanges || dirty) && flow.publishedVersion !== null && <Badge tone="amber">unpublished changes</Badge>}
+          {(flow.hasDraftChanges || dirty) && flow.publishedVersion !== null && <Badge tone="amber">{t('automations.list.unpublishedChanges')}</Badge>}
           <span className="sp" />
           <span className={cn('ae-valid', issues.length ? 'bad' : 'ok')} role="status">
             {issues.length ? (
               <>
-                <CircleAlert size={13} /> {issues.length} issue{issues.length === 1 ? '' : 's'}
+                <CircleAlert size={13} /> {issues.length === 1 ? t('automations.editor.issuesOne', { n: 1 }) : t('automations.editor.issuesMany', { n: issues.length })}
               </>
             ) : (
               <>
-                <CircleCheck size={13} /> Graph is valid
+                <CircleCheck size={13} /> {t('automations.editor.valid')}
               </>
             )}
           </span>
           {isAdmin && (
             <>
-              <label className="row ae-sw" title={flow.publishedVersion === null ? 'Publish first' : undefined}>
-                <Switch checked={flow.enabled} disabled={flow.publishedVersion === null} onChange={e => toggle(e.target.checked)} aria-label="Enabled" />
-                <span>Enabled</span>
+              <label className="row ae-sw" title={flow.publishedVersion === null ? t('automations.editor.publishFirstTitle') : undefined}>
+                <Switch checked={flow.enabled} disabled={flow.publishedVersion === null} onChange={e => toggle(e.target.checked)} aria-label={t('automations.editor.enabledAria')} />
+                <span>{t('automations.editor.enabled')}</span>
               </label>
               {canRun && (
                 <Button size="sm" variant="secondary" onClick={() => (needsRecord ? setRunDialog(true) : void start({}))}>
                   <Play size={13} />
-                  Run
+                  {t('automations.editor.run')}
                 </Button>
               )}
-              <Button size="sm" variant="secondary" disabled={!dirty} loading={busy === 'save'} onClick={() => void save().then(ok => ok && toast('Draft saved'))}>
+              <Button size="sm" variant="secondary" disabled={!dirty} loading={busy === 'save'} onClick={() => void save().then(ok => ok && toast(t('automations.editor.draftSaved')))}>
                 <Save size={13} />
-                Save draft
+                {t('automations.editor.saveDraft')}
               </Button>
               <Button size="sm" variant="primary" disabled={!dirty && !flow.hasDraftChanges && flow.publishedVersion !== null} loading={busy === 'publish'} onClick={publish}>
                 <Upload size={13} />
-                Publish
+                {t('automations.editor.publishBtn')}
               </Button>
             </>
           )}
         </div>
         <Tabs value={tab} onValueChange={v => navigate(v === 'runs' ? `/automations/flow/${flow.id}/runs` : `/automations/flow/${flow.id}`)} className="auto-tabs">
           <TabsList>
-            <Tab value="editor">Editor</Tab>
-            <Tab value="runs">Runs</Tab>
+            <Tab value="editor">{t('automations.editor.tabs.editor')}</Tab>
+            <Tab value="runs">{t('automations.editor.tabs.runs')}</Tab>
           </TabsList>
         </Tabs>
 
         {tab === 'runs' && <RunsView flowId={flow.id} />}
 
         <div className="ae-body" hidden={tab === 'runs'}>
-          <aside className="ae-palette" aria-label="Node palette">
+          <aside className="ae-palette" aria-label={t('automations.editor.paletteAria')}>
             {NODE_CATEGORIES.map(cat => (
               <section key={cat}>
-                <h3>{NODE_CATEGORY_LABELS[cat]}</h3>
+                <h3>{nodeCategoryName(cat)}</h3>
                 {NODE_LIST.filter(d => d.category === cat).map(d => (
                   <button
                     key={d.type}
@@ -305,7 +307,7 @@ function Editor({ flow, tab }: { flow: FlowDetail; tab: 'editor' | 'runs' }) {
                 ))}
               </section>
             ))}
-            <p className="faint pal-help">Click to add a step after the selected one, or drag it onto the canvas.</p>
+            <p className="faint pal-help">{t('automations.editor.paletteHelp')}</p>
           </aside>
 
           <div className="ae-canvas" ref={wrap} onDrop={onDrop} onDragOver={e => e.preventDefault()}>
@@ -332,22 +334,22 @@ function Editor({ flow, tab }: { flow: FlowDetail; tab: 'editor' | 'runs' }) {
               maxZoom={1.6}
               proOptions={{ hideAttribution: true }}
               onPaneClick={() => select(null)}
-              aria-label="Flow canvas"
+              aria-label={t('automations.editor.canvasAria')}
             >
               <Background variant={BackgroundVariant.Dots} gap={18} size={1.2} />
               <Controls showInteractive={false} />
-              <MiniMap pannable zoomable ariaLabel="Flow overview" nodeColor={n => CATEGORY_COLOR[getNodeDef((n as RFNode).data.nodeType)?.category ?? 'action']} maskColor="color-mix(in srgb, var(--bg) 70%, transparent)" />
+              <MiniMap pannable zoomable ariaLabel={t('automations.editor.minimapAria')} nodeColor={n => CATEGORY_COLOR[getNodeDef((n as RFNode).data.nodeType)?.category ?? 'action']} maskColor="color-mix(in srgb, var(--bg) 70%, transparent)" />
             </ReactFlow>
             {!nodes.length && (
               <div className="ae-empty">
-                <EmptyState icon={<Play size={20} />} title="Start with a trigger">
-                  Pick a trigger in the palette — for example “Field changed” — then add conditions and actions after it.
+                <EmptyState icon={<Play size={20} />} title={t('automations.editor.emptyTitle')}>
+                  {t('automations.editor.emptyHint')}
                 </EmptyState>
               </div>
             )}
           </div>
 
-          <aside className="ae-panel" aria-label="Properties">
+          <aside className="ae-panel" aria-label={t('automations.editor.propertiesAria')}>
             {selected && selectedDef ? (
               <NodePanel key={selected.id} nodeId={selected.id} def={selectedDef} params={selected.data.params} env={env} readOnly={readOnly} issues={issuesByNode.get(selected.id) ?? []} onChange={p => updateParams(selected.id, p)} onRemove={removeSelected} />
             ) : (
@@ -364,6 +366,7 @@ function Editor({ flow, tab }: { flow: FlowDetail; tab: 'editor' | 'runs' }) {
 /* ---------------- панели ---------------- */
 
 function NodePanel({ nodeId, def, params, env, readOnly, issues, onChange, onRemove }: { nodeId: string; def: AnyNodeDef; params: Record<string, unknown>; env: ReturnType<typeof useFormEnv>; readOnly: boolean; issues: string[]; onChange: (p: Record<string, unknown>) => void; onRemove: () => void }) {
+  const t = useT();
   // Ошибки схемы по именам параметров — под полями формы
   const errors = React.useMemo(() => {
     const r = def.params.safeParse(params);
@@ -384,17 +387,17 @@ function NodePanel({ nodeId, def, params, env, readOnly, issues, onChange, onRem
       </div>
       <ParamsForm def={def} params={params} env={env} errors={errors} readOnly={readOnly} onChange={onChange} />
       {issues.length > 0 && (
-        <Alert tone="warn" title="Needs attention">
+        <Alert tone="warn" title={t('automations.editor.needsAttention')}>
           {issues.join(' · ')}
         </Alert>
       )}
       <div className="faint ae-nid">
-        Node ID <span className="mono">{nodeId}</span> — use <span className="mono">{`{{steps.${nodeId}.…}}`}</span> in later steps.
+        {t('automations.editor.nodeIdHint', { id: nodeId })}
       </div>
       {!readOnly && (
         <Button variant="secondary" size="sm" onClick={onRemove}>
           <Trash2 size={13} />
-          Delete step
+          {t('automations.editor.deleteStep')}
         </Button>
       )}
     </div>
@@ -402,23 +405,24 @@ function NodePanel({ nodeId, def, params, env, readOnly, issues, onChange, onRem
 }
 
 function FlowPanel({ name, description, setDescription, issues, nodes, onPick, env, triggerField, readOnly }: { name: string; description: string; setDescription: (v: string) => void; issues: GraphIssue[]; nodes: RFNode[]; onPick: (id: string) => void; env: ReturnType<typeof useFormEnv>; triggerField?: string; readOnly: boolean }) {
+  const t = useT();
   const vars = React.useMemo(() => templateVariables(env, triggerField), [env, triggerField]);
   return (
     <div className="ae-p">
       <div className="ae-ph">
         <div>
-          <h2>{name || 'Automation'}</h2>
-          <p className="faint">Select a step to edit its parameters.</p>
+          <h2>{name || t('automations.editor.panelFlowTitle')}</h2>
+          <p className="faint">{t('automations.editor.panelSelectHint')}</p>
         </div>
       </div>
       <div className="field">
         <label className="label" htmlFor="ae-desc">
-          Description
+          {t('automations.editor.descriptionLabel')}
         </label>
         <Textarea id="ae-desc" rows={3} value={description} disabled={readOnly} onChange={e => setDescription(e.target.value)} />
       </div>
       <div>
-        <div className="label">Checks</div>
+        <div className="label">{t('automations.editor.checks')}</div>
         {issues.length ? (
           <ul className="ae-issues">
             {issues.map((i, k) => (
@@ -434,12 +438,12 @@ function FlowPanel({ name, description, setDescription, issues, nodes, onPick, e
             ))}
           </ul>
         ) : (
-          <p className="faint">One trigger, no dangling steps, all parameters valid.</p>
+          <p className="faint">{t('automations.editor.checksOk')}</p>
         )}
       </div>
       <details className="ae-vars">
-        <summary>Variables for {'{{…}}'}</summary>
-        <p className="faint">Any text parameter can use values from the trigger and earlier steps. Missing values become empty text.</p>
+        <summary>{t('automations.editor.variables')}</summary>
+        <p className="faint">{t('automations.editor.variablesDesc')}</p>
         {vars.map(g => (
           <div key={g.group}>
             <div className="label">{g.group}</div>
@@ -452,18 +456,19 @@ function FlowPanel({ name, description, setDescription, issues, nodes, onPick, e
 }
 
 function RunDialog({ entity, onClose, onRun }: { entity: string; onClose: () => void; onRun: (b: { entity?: string; recordId?: string }) => Promise<void> }) {
+  const t = useT();
   const [id, setId] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const valid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id.trim());
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
-        title="Run on a record"
+        title={t('automations.editor.runOnRecord')}
         footer={
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{t('automations.editor.cancel')}</Button>
             </DialogClose>
             <Button
               variant="primary"
@@ -479,16 +484,16 @@ function RunDialog({ entity, onClose, onRun }: { entity: string; onClose: () => 
                 }
               }}
             >
-              Run
+              {t('automations.editor.run')}
             </Button>
           </>
         }
       >
         <div className="field">
           <label className="label" htmlFor="run-rec">
-            {entity} record ID
+            {t('automations.editor.recordIdLabel', { entity })}
           </label>
-          <Input id="run-rec" className="mono" value={id} onChange={e => setId(e.target.value)} placeholder="UUID of the record" />
+          <Input id="run-rec" className="mono" value={id} onChange={e => setId(e.target.value)} placeholder={t('automations.editor.recordIdPlaceholder')} />
         </div>
       </DialogContent>
     </Dialog>
