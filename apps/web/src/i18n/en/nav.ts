@@ -63,6 +63,8 @@ export const projectTabs = {
 };
 
 export const nav = {
+  skipToContent: 'Skip to content',
+  primary: 'Primary',
   main: 'Main',
   groups: {
     workspace: 'Workspace',

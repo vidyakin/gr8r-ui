@@ -2,6 +2,7 @@
    Используется диаграммой Ганта задач (components/timeline-view.tsx) и планировщиком загрузки
    (production/PlannerPage.tsx) — сетка одна, различаются только строки и полосы. */
 import * as React from 'react';
+import { useT } from '@/i18n';
 
 /** Ячейка шапки: подпись и сколько дней она занимает */
 export interface TimeGridHeaderCell {
@@ -46,7 +47,7 @@ export interface TimeGridProps {
   className?: string;
 }
 
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const MONTH_KEYS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] as const;
 
 const weekdayOf = (date: string): number => {
   const w = new Date(`${date}T00:00:00Z`).getUTCDay();
@@ -54,15 +55,14 @@ const weekdayOf = (date: string): number => {
 };
 
 /** Группировка дней по месяцам: подпись и число дней */
-function monthGroups(days: string[]): { label: string; span: number }[] {
+function monthGroups(days: string[], tt: ReturnType<typeof useT>): { label: string; span: number }[] {
   const out: { label: string; span: number }[] = [];
   for (const d of days) {
     const dt = new Date(`${d}T00:00:00Z`);
-    const key = `${dt.getUTCFullYear()}-${dt.getUTCMonth()}`;
     const last = out[out.length - 1];
-    if (last && last.label === `${MONTHS[dt.getUTCMonth()]} ${dt.getUTCFullYear()}`) last.span += 1;
-    else out.push({ label: `${MONTHS[dt.getUTCMonth()]} ${dt.getUTCFullYear()}`, span: 1 });
-    void key;
+    const label = `${tt(`views.calendar.monthsLong.${MONTH_KEYS[dt.getUTCMonth()]}`)} ${dt.getUTCFullYear()}`;
+    if (last && last.label === label) last.span += 1;
+    else out.push({ label, span: 1 });
   }
   return out;
 }
@@ -85,9 +85,10 @@ export function TimeGrid({
   leftRef,
   className,
 }: TimeGridProps) {
+  const tt = useT();
   const width = days.length * dayWidth;
   const gridHeight = height ?? (rowCount ?? 0) * rowHeight;
-  const months = React.useMemo(() => monthGroups(days), [days]);
+  const months = React.useMemo(() => monthGroups(days, tt), [days, tt]);
   const todayIndex = today ? days.indexOf(today) : -1;
 
   return (
@@ -128,7 +129,7 @@ export function TimeGrid({
             days.map((d, i) =>
               Array.from({ length: 23 }, (_, h) => <div key={`h${d}${h}`} className="tl-hour" style={{ left: i * dayWidth + ((h + 1) * dayWidth) / 24 }} />),
             )}
-          {todayIndex >= 0 && <div className="tl-today" style={{ left: todayIndex * dayWidth + dayWidth / 2 }} title="Today" />}
+          {todayIndex >= 0 && <div className="tl-today" style={{ left: todayIndex * dayWidth + dayWidth / 2 }} title={tt('views.calendar.today')} />}
           {children}
         </div>
       </div>

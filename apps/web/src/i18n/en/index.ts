@@ -4,5 +4,6 @@ import { common, dates, ui } from './common';
 import { errors } from './errors';
 import { nav, projectTabs, sections } from './nav';
 import { languages, settings } from './settings';
+import { views } from './views';
 
-export const en = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, errors };
+export const en = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, errors, views };

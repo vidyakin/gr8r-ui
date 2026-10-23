@@ -7,6 +7,7 @@ import { ArrowUpRight, Calendar, ChevronLeft, ChevronRight, Clock, Folder, Plus,
 import { Button, IconButton, Popover, PopoverContent, PopoverTrigger, Segmented, toast } from '@/components/ui';
 import { PriorityIcon, StatusIcon } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { project, projectColor } from '../data/selectors';
 import { diffDays, fmtDate, iso, parse, sod, today } from '../lib/dates';
@@ -14,8 +15,8 @@ import type { CalendarEvent, Task } from '../data/types';
 import { MemberAvatar, MemberStack, useTaskActions } from './workspace';
 import { ProjectDot } from './project';
 
-const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+const MONTH_LONG_KEYS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] as const;
 const WEEK_START = 1;
 
 const addDays = (d: Date, n: number) => {
@@ -43,6 +44,7 @@ function Chip({ t, drag }: { t: Task; drag: DragSrc }) {
 /** Поповер события: название, дата, проект, участники (popover «event») */
 function EventPopover({ e, children }: { e: CalendarEvent; children: React.ReactNode }) {
   const { data } = useWorkspace();
+  const tt = useT();
   const navigate = useNavigate();
   const p = project(data, e.project);
   return (
@@ -72,7 +74,7 @@ function EventPopover({ e, children }: { e: CalendarEvent; children: React.React
         <div className="msep" />
         <button className="mi" onClick={() => navigate(`/projects/${e.project}`)}>
           <ArrowUpRight size={14} />
-          Open project
+          {tt('views.calendar.openProject')}
         </button>
       </PopoverContent>
     </Popover>
@@ -115,12 +117,13 @@ function EventCard({ e }: { e: CalendarEvent }) {
 /** Поповер «+N more»: события и задачи дня (popover «daylist») */
 function DayList({ ds, evs, ts }: { ds: string; evs: CalendarEvent[]; ts: Task[] }) {
   const navigate = useNavigate();
+  const tt = useT();
   const { open } = useTaskActions();
   const n = evs.length + ts.length - 3;
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button className="cmore">+{n} more</button>
+        <button className="cmore">{tt('views.calendar.moreCount', { n })}</button>
       </PopoverTrigger>
       <PopoverContent className="!p-1" style={{ width: 280 }}>
         <div className="mh">{fmtDate(ds, true)}</div>
@@ -167,6 +170,7 @@ function WeekCard({ t, drag }: { t: Task; drag: DragSrc }) {
 
 export function CalendarView({ tasks, onAdd, events }: { tasks: Task[]; onAdd?: (due: string) => void; events?: CalendarEvent[] }) {
   const { data, dispatch } = useWorkspace();
+  const tt = useT();
   const [mode, setMode] = React.useState<'month' | 'week'>('month');
   const [cur, setCur] = React.useState(today);
   const [dragId, setDragId] = React.useState<string | null>(null);
@@ -208,7 +212,7 @@ export function CalendarView({ tasks, onAdd, events }: { tasks: Task[]; onAdd?: 
       // Начало сдвигается так, чтобы длина задачи не менялась
       const len = t.start && t.due ? diffDays(parse(t.due), parse(t.start)) : null;
       dispatch({ type: 'task/update', id: t.id, patch: { due: ds, ...(len != null ? { start: iso(addDays(parse(ds), -len)) } : {}) } });
-      toast(`Rescheduled “${t.title}” to ${fmtDate(ds)}`, { duration: 2200 });
+      toast(tt('views.calendar.rescheduled', { title: t.title, date: fmtDate(ds) }), { duration: 2200 });
     },
   });
   const on = (ds: string) => tasks.filter(t => t.due === ds);
@@ -224,7 +228,7 @@ export function CalendarView({ tasks, onAdd, events }: { tasks: Task[]; onAdd?: 
 
   let label: string, body: React.ReactNode;
   if (mode === 'month') {
-    label = `${MONTHS[cur.getMonth()]} ${cur.getFullYear()}`;
+    label = `${tt(`views.calendar.monthsLong.${MONTH_LONG_KEYS[cur.getMonth()]}`)} ${cur.getFullYear()}`;
     const start = startOfWeek(new Date(cur.getFullYear(), cur.getMonth(), 1));
     const cells = Array.from({ length: 42 }, (_, i) => addDays(start, i));
     const days = cells[35].getMonth() !== cur.getMonth() ? cells.slice(0, 35) : cells;
@@ -232,7 +236,7 @@ export function CalendarView({ tasks, onAdd, events }: { tasks: Task[]; onAdd?: 
       <>
         <div className="cal-h">
           {Array.from({ length: 7 }, (_, i) => (
-            <div key={i}>{WD[(i + WEEK_START) % 7]}</div>
+            <div key={i}>{tt(`views.calendar.weekDaysShort.${WEEKDAY_KEYS[(i + WEEK_START) % 7]}`)}</div>
           ))}
         </div>
         <div className="cal-g" style={{ gridTemplateRows: `repeat(${days.length / 7},minmax(112px,1fr))` }}>
@@ -248,7 +252,7 @@ export function CalendarView({ tasks, onAdd, events }: { tasks: Task[]; onAdd?: 
                   {d.getDate()}
                 </span>
                 {onAdd && (
-                  <button className="ibtn ibtn-xs add" aria-label={`Add task on ${fmtDate(ds)}`} onClick={() => onAdd(ds)}>
+                  <button className="ibtn ibtn-xs add" aria-label={tt('views.calendar.addOn', { date: fmtDate(ds) })} onClick={() => onAdd(ds)}>
                     <Plus size={13} />
                   </button>
                 )}
@@ -263,7 +267,7 @@ export function CalendarView({ tasks, onAdd, events }: { tasks: Task[]; onAdd?: 
                     <DayList ds={ds} evs={evs} ts={items} />
                   ) : (
                     <button className="cmore" onClick={() => (setCur(d), setMode('week'))}>
-                      +{total - 3} more
+                      {tt('views.calendar.moreCount', { n: total - 3 })}
                     </button>
                   ))}
               </div>
@@ -287,11 +291,11 @@ export function CalendarView({ tasks, onAdd, events }: { tasks: Task[]; onAdd?: 
               <div className={cn('wcol-h', diffDays(d, now) === 0 && 'today')}>
                 <span className="n">{d.getDate()}</span>
                 <span className="muted" style={{ fontSize: 12 }}>
-                  {WD[d.getDay()]}
+                  {tt(`views.calendar.weekDaysShort.${WEEKDAY_KEYS[d.getDay()]}`)}
                 </span>
                 <span className="sp" />
                 {onAdd && (
-                  <IconButton size="xs" label="Add task" tooltip={false} onClick={() => onAdd(ds)}>
+                  <IconButton size="xs" label={tt('views.calendar.addTask')} tooltip={false} onClick={() => onAdd(ds)}>
                     <Plus size={13} />
                   </IconButton>
                 )}
@@ -308,7 +312,7 @@ export function CalendarView({ tasks, onAdd, events }: { tasks: Task[]; onAdd?: 
                   </>
                 ) : (
                   <span className="faint" style={{ fontSize: 12, padding: 4 }}>
-                    No tasks
+                    {tt('views.calendar.noTasks')}
                   </span>
                 )}
               </div>
@@ -324,13 +328,13 @@ export function CalendarView({ tasks, onAdd, events }: { tasks: Task[]; onAdd?: 
     <div className="cal" style={{ minHeight: 640 }}>
       <div className="toolbar" style={{ gap: 8 }}>
         <Button size="sm" onClick={() => nav(0)}>
-          Today
+          {tt('views.calendar.today')}
         </Button>
         <div className="row" style={{ gap: 0 }}>
-          <IconButton size="sm" label="Previous" tooltip={false} onClick={() => nav(-1)}>
+          <IconButton size="sm" label={tt('common.previous')} tooltip={false} onClick={() => nav(-1)}>
             <ChevronLeft size={16} />
           </IconButton>
-          <IconButton size="sm" label="Next" tooltip={false} onClick={() => nav(1)}>
+          <IconButton size="sm" label={tt('common.next')} tooltip={false} onClick={() => nav(1)}>
             <ChevronRight size={16} />
           </IconButton>
         </div>
@@ -349,12 +353,12 @@ export function CalendarView({ tasks, onAdd, events }: { tasks: Task[]; onAdd?: 
           </span>
         )}
         <Segmented
-          aria-label="Calendar range"
+          aria-label={tt('views.calendar.calendarRange')}
           value={mode}
           onValueChange={setMode}
           items={[
-            { value: 'month', label: 'Month' },
-            { value: 'week', label: 'Week' },
+            { value: 'month', label: tt('views.calendar.month') },
+            { value: 'week', label: tt('views.calendar.week') },
           ]}
         />
       </div>

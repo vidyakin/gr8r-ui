@@ -5,6 +5,7 @@ import * as React from 'react';
 import { Clock, SmilePlus, Trash2, TriangleAlert } from 'lucide-react';
 import { Button, IconButton, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@/components/ui';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { member, notifTarget } from '../data/selectors';
 import { ago } from '../lib/dates';
@@ -64,6 +65,7 @@ const EMOJI = ['👍', '🎉', '❤️', '👀', '🚀', '✅'];
 /** onDelete — кнопка «Delete» у собственного комментария (карточка задачи) */
 export function CommentItem({ c, onDelete }: { c: Comment; onDelete?: () => void }) {
   const { data, dispatch } = useWorkspace();
+  const tt = useT();
   const m = member(data, c.by);
   const react = (emoji: string) => dispatch({ type: 'comment/react', id: c.id, emoji });
   return (
@@ -76,7 +78,7 @@ export function CommentItem({ c, onDelete }: { c: Comment; onDelete?: () => void
           {onDelete && c.by === data.me && (
             <>
               <span className="sp" />
-              <IconButton size="xs" label="Delete" aria-label="Delete comment" onClick={onDelete}>
+              <IconButton size="xs" label={tt('common.delete')} aria-label={tt('views.conversation.deleteComment')} onClick={onDelete}>
                 <Trash2 size={12} />
               </IconButton>
             </>
@@ -90,7 +92,7 @@ export function CommentItem({ c, onDelete }: { c: Comment; onDelete?: () => void
             .filter(([, v]) => v.length)
             .map(([e, v]) => (
               <Tooltip key={e} content={v.map(id => member(data, id)?.name).join(', ')}>
-                <button className={cn('react', v.includes(data.me) && 'mine')} aria-label={`${e} ${v.length}`} aria-pressed={v.includes(data.me)} onClick={() => react(e)}>
+                <button className={cn('react', v.includes(data.me) && 'mine')} aria-label={tt('views.conversation.reactCount', { emoji: e, count: v.length })} aria-pressed={v.includes(data.me)} onClick={() => react(e)}>
                   {e}
                   <span className="num">{v.length}</span>
                 </button>
@@ -98,14 +100,14 @@ export function CommentItem({ c, onDelete }: { c: Comment; onDelete?: () => void
             ))}
           <Popover>
             <PopoverTrigger asChild>
-              <button className="react" aria-label="Add reaction" style={{ color: 'var(--text-3)' }}>
+              <button className="react" aria-label={tt('views.conversation.addReaction')} style={{ color: 'var(--text-3)' }}>
                 <SmilePlus size={13} />
               </button>
             </PopoverTrigger>
             <PopoverContent className="!min-w-0 !p-1">
               <div className="flex gap-0.5">
                 {EMOJI.map(e => (
-                  <button key={e} className="ibtn text-base" aria-label={`React ${e}`} onClick={() => react(e)}>
+                  <button key={e} className="ibtn text-base" aria-label={tt('views.conversation.reactWith', { emoji: e })} onClick={() => react(e)}>
                     {e}
                   </button>
                 ))}
@@ -119,8 +121,9 @@ export function CommentItem({ c, onDelete }: { c: Comment; onDelete?: () => void
 }
 
 /** Поле ответа: Ctrl/⌘+Enter отправляет комментарий к задаче */
-export function ReplyBox({ taskId, placeholder = 'Reply… use @ to mention' }: { taskId: string; placeholder?: string }) {
+export function ReplyBox({ taskId, placeholder }: { taskId: string; placeholder?: string }) {
   const { dispatch } = useWorkspace();
+  const tt = useT();
   const [text, setText] = React.useState('');
   const ref = React.useRef<HTMLTextAreaElement>(null);
   const send = () => {
@@ -133,8 +136,8 @@ export function ReplyBox({ taskId, placeholder = 'Reply… use @ to mention' }: 
       <textarea
         ref={ref}
         value={text}
-        placeholder={placeholder}
-        aria-label="Reply"
+        placeholder={placeholder ?? tt('views.conversation.replyPlaceholder')}
+        aria-label={tt('views.conversation.reply')}
         onChange={e => setText(e.target.value)}
         onKeyDown={e => {
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -145,11 +148,11 @@ export function ReplyBox({ taskId, placeholder = 'Reply… use @ to mention' }: 
       />
       <div className="row">
         <span className="faint" style={{ fontSize: 11.5 }}>
-          {MOD}+Enter to send
+          {MOD}+{tt('common.enter')}
         </span>
         <span className="sp" />
         <Button size="sm" variant="primary" onClick={send}>
-          Reply
+          {tt('common.reply')}
         </Button>
       </div>
     </div>

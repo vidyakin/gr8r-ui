@@ -21,7 +21,7 @@ export type Priority = number | null;
 /** Значения от высшего к низшему: порядок в фильтрах и группировке */
 export const PRIORITIES: number[] = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
 export const priorityColor = (p: number) => `var(--pr-${p})`;
-export const priorityName = (p: Priority) => (p == null ? 'No priority' : `Priority ${p}`);
+export const priorityName = (p: Priority) => (p == null ? t('views.task.noPriority') : t('views.task.priorityLabel', { n: p }));
 
 export function StatusIcon({ status, size = 14 }: { status: Status; size?: number }) {
   const c = `var(--st-${status})`;
@@ -107,26 +107,27 @@ export interface TaskCardProps {
 }
 
 /** Карточка задачи для доски (kcard из views/board.js) */
-export function TaskCard({ task: t, onOpen, onToggleDone, onEdit, onMore }: TaskCardProps) {
-  const done = t.status === 'done';
-  const prName = priorityName(t.priority);
+export function TaskCard({ task, onOpen, onToggleDone, onEdit, onMore }: TaskCardProps) {
+  const tk = task;
+  const done = tk.status === 'done';
+  const prName = priorityName(tk.priority);
   return (
     <div
       className={cn('kcard', done && 'done')}
       role="button"
       tabIndex={0}
-      aria-label={t.title}
-      onClick={() => onOpen?.(t)}
+      aria-label={tk.title}
+      onClick={() => onOpen?.(tk)}
       onKeyDown={e => {
         if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault();
-          onOpen?.(t);
+          onOpen?.(tk);
         }
       }}
     >
-      {!!t.labels?.length && (
+      {!!tk.labels?.length && (
         <div className="labels">
-          {t.labels.map(l => (
+          {tk.labels.map(l => (
             <Label key={l.name} color={l.color}>
               {l.name}
             </Label>
@@ -135,51 +136,51 @@ export function TaskCard({ task: t, onOpen, onToggleDone, onEdit, onMore }: Task
       )}
       <div className="top">
         {done && <StatusIcon status="done" />}
-        <div className="title">{t.title}</div>
+        <div className="title">{tk.title}</div>
       </div>
-      {t.subtasks && t.subtasks.total > 0 && (
+      {tk.subtasks && tk.subtasks.total > 0 && (
         <div className="subp">
           <ListChecks size={12} />
           <span className="num">
-            {t.subtasks.done}/{t.subtasks.total}
+            {tk.subtasks.done}/{tk.subtasks.total}
           </span>
-          <Progress value={(t.subtasks.done / t.subtasks.total) * 100} tone={t.subtasks.done === t.subtasks.total ? 'green' : undefined} />
+          <Progress value={(tk.subtasks.done / tk.subtasks.total) * 100} tone={tk.subtasks.done === tk.subtasks.total ? 'green' : undefined} />
         </div>
       )}
       <div className="meta">
-        <span className="key">{t.key}</span>
+        <span className="key">{tk.key}</span>
         <Tooltip content={prName}>
-          <span className="m" role="img" aria-label={`Приоритет: ${prName}`}>
-            <PriorityIcon priority={t.priority} size={13} />
+          <span className="m" role="img" aria-label={prName}>
+            <PriorityIcon priority={tk.priority} size={13} />
           </span>
         </Tooltip>
-        {t.due && (
+        {tk.due && (
           <span className="m">
-            <DueDate date={t.due} done={done} />
+            <DueDate date={tk.due} done={done} />
           </span>
         )}
-        {!!t.comments && (
-          <span className="m" aria-label={`${t.comments} комментариев`}>
+        {!!tk.comments && (
+          <span className="m" aria-label={t('views.task.comments', { n: tk.comments })}>
             <MessageSquare size={12} />
-            {t.comments}
+            {tk.comments}
           </span>
         )}
-        {!!t.attachments && (
-          <span className="m" aria-label={`${t.attachments} вложений`}>
+        {!!tk.attachments && (
+          <span className="m" aria-label={t('views.task.attachments', { n: tk.attachments })}>
             <Paperclip size={12} />
-            {t.attachments}
+            {tk.attachments}
           </span>
         )}
-        <Avatar name={t.assignee} size="sm" />
+        <Avatar name={tk.assignee} size="sm" />
       </div>
       <div className="hacts" onClick={e => e.stopPropagation()}>
-        <IconButton size="xs" label={done ? 'Вернуть в работу' : 'Завершить'} onClick={() => onToggleDone?.(t)}>
+        <IconButton size="xs" label={done ? t('views.task.reopen') : t('views.task.markComplete')} onClick={() => onToggleDone?.(tk)}>
           {done ? <RotateCcw size={13} /> : <Check size={13} />}
         </IconButton>
-        <IconButton size="xs" label="Быстрое редактирование" onClick={() => onEdit?.(t)}>
+        <IconButton size="xs" label={t('views.task.quickEdit')} onClick={() => onEdit?.(tk)}>
           <Pencil size={12} />
         </IconButton>
-        <IconButton size="xs" label="Ещё" onClick={() => onMore?.(t)}>
+        <IconButton size="xs" label={t('views.drawer.more')} onClick={() => onMore?.(tk)}>
           <Ellipsis size={13} />
         </IconButton>
       </div>

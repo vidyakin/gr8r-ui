@@ -4,6 +4,7 @@ import * as React from 'react';
 import { Calendar as CalendarIcon, Clock, Pencil, Plus, Trash2, User } from 'lucide-react';
 import { Button, Dialog, DialogClose, DialogContent, Field, IconButton, Input, Progress, toast } from '@/components/ui';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 import { newId, useWorkspace } from '../../data/store';
 import { fmtHours, logsOf, member, parseHours, planOfSub, planOfTask, subTime, taskTime } from '../../data/selectors';
 import { findSub, flattenSubs } from '../../data/subtasks';
@@ -16,7 +17,7 @@ import { DatePopover, ListPopover } from './pickers';
 const QUICK = [0.5, 1, 2, 4, 8];
 
 /** Значение плана, которое правится щелчком: число → поле ввода, Enter / потеря фокуса — сохранить, Esc — отмена */
-function PlanCell({ value, derived, onSave }: { value: number | null; derived: number; onSave: (v: number | null) => void }) {
+function PlanCell({ value, derived, onSave, tt }: { value: number | null; derived: number; onSave: (v: number | null) => void; tt: ReturnType<typeof useT> }) {
   const [edit, setEdit] = React.useState(false);
   const [v, setV] = React.useState('');
   const done = React.useRef(false);
@@ -32,19 +33,19 @@ function PlanCell({ value, derived, onSave }: { value: number | null; derived: n
     if (!save) return;
     if (!v.trim()) return onSave(null);
     const h = parseHours(v);
-    if (h == null || h > 9999) return toast.error('Enter hours, e.g. 4, 1.5 or 2d');
+    if (h == null || h > 9999) return toast.error(tt('views.time.dialog.enterHoursError'));
     onSave(Math.round(h * 100) / 100);
   };
   if (edit)
     return (
       <div className="tm-cell editing">
-        <span className="k">Plan</span>
+        <span className="k">{tt('views.time.planField')}</span>
         <input
           autoFocus
           className="tm-in"
           inputMode="decimal"
-          aria-label="Plan in hours"
-          placeholder={derived > 0 ? `${+derived.toFixed(2)} (from subtasks)` : 'hours, e.g. 8'}
+          aria-label={tt('views.time.planAria')}
+          placeholder={derived > 0 ? `${+derived.toFixed(2)} (${tt('views.time.planFromSubtasks', { n: '' }).trim()})` : tt('views.time.planPlaceholder')}
           value={v}
           onFocus={e => e.currentTarget.select()}
           onChange={e => setV(e.target.value)}
@@ -61,18 +62,18 @@ function PlanCell({ value, derived, onSave }: { value: number | null; derived: n
     );
   const plan = value ?? derived;
   return (
-    <button type="button" className="tm-cell pl" aria-label="Edit plan" title="Click to edit the plan" onClick={begin}>
+    <button type="button" className="tm-cell pl" aria-label={tt('views.time.planEditLabel')} title={tt('views.time.planEditTitle')} onClick={begin}>
       <span className="k">
-        Plan
+        {tt('views.time.planField')}
         <Pencil size={11} />
       </span>
-      <span className={cn('v num', !plan && 'faint')}>{plan ? fmtHours(plan) : 'Set plan'}</span>
+      <span className={cn('v num', !plan && 'faint')}>{plan ? fmtHours(plan) : tt('views.time.setPlan')}</span>
     </button>
   );
 }
 
 /** Диалог добавления и правки записи времени */
-function LogTimeDialog({ task: t, sub, log, onClose }: { task: Task; sub?: Subtask; log?: TimeLog; onClose: () => void }) {
+function LogTimeDialog({ task: t, sub, log, onClose, tt }: { task: Task; sub?: Subtask; log?: TimeLog; onClose: () => void; tt: ReturnType<typeof useT> }) {
   const { data, dispatch } = useWorkspace();
   const [hours, setHours] = React.useState(log ? String(log.hours) : '');
   const [date, setDate] = React.useState(log?.date ?? iso(today()));
@@ -87,17 +88,17 @@ function LogTimeDialog({ task: t, sub, log, onClose }: { task: Task; sub?: Subta
   const submit = () => {
     const h = Math.round(parseFloat(hours) * 100) / 100;
     if (!(h > 0) || h > 24) {
-      setError('Enter between 0.25 and 24 hours');
+      setError(tt('views.time.dialog.hoursError'));
       return;
     }
     const rec = { by, hours: h, date, note: note.trim() };
     if (log) {
       dispatch({ type: 'timelog/update', id: log.id, patch: { ...rec, sub: subId || undefined } });
-      toast('Time entry updated');
+      toast(tt('views.time.timeUpdated'));
     } else {
       const id = newId('l');
       dispatch({ type: 'timelog/add', log: { id, task: t.id, ...(subId ? { sub: subId } : null), ...rec } });
-      toast(`Logged ${fmtHours(h)} on ${t.key}`, { action: { label: 'Undo', onClick: () => dispatch({ type: 'timelog/delete', id }) } });
+      toast(tt('views.time.timeLogged', { hours: fmtHours(h), key: t.key }), { action: { label: tt('common.undo'), onClick: () => dispatch({ type: 'timelog/delete', id }) } });
     }
     onClose();
   };
@@ -106,8 +107,8 @@ function LogTimeDialog({ task: t, sub, log, onClose }: { task: Task; sub?: Subta
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
         size="sm"
-        title={log ? 'Edit time entry' : 'Log time'}
-        description={`${t.key} · ${t.title}`}
+        title={log ? tt('views.time.dialog.editTitle') : tt('views.time.dialog.newTitle')}
+        description={tt('views.time.dialog.desc', { key: t.key, title: t.title })}
         className="[&>.modal-b]:!gap-3"
         onKeyDown={e => {
           // Tab не должен уходить в ловушку фокуса карточки, из дерева которой React видит этот диалог
@@ -124,15 +125,15 @@ function LogTimeDialog({ task: t, sub, log, onClose }: { task: Task; sub?: Subta
             </span>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{tt('views.time.dialog.cancel')}</Button>
             </DialogClose>
             <Button variant="primary" onClick={submit} id="tm-submit">
-              {log ? 'Save' : 'Log time'}
+              {log ? tt('views.time.dialog.save') : tt('views.time.dialog.submit')}
             </Button>
           </>
         }
       >
-        <Field label="Hours" error={error}>
+        <Field label={tt('views.time.dialog.hours')} error={error}>
           {ids => (
             <>
               <Input
@@ -142,7 +143,7 @@ function LogTimeDialog({ task: t, sub, log, onClose }: { task: Task; sub?: Subta
                 min={0.25}
                 max={24}
                 inputMode="decimal"
-                placeholder="e.g. 1.5"
+                placeholder={tt('views.time.dialog.hoursPlaceholder')}
                 value={hours}
                 onChange={e => {
                   setHours(e.target.value);
@@ -162,14 +163,14 @@ function LogTimeDialog({ task: t, sub, log, onClose }: { task: Task; sub?: Subta
         <dl className="kv" style={{ margin: 0 }}>
           <dt>
             <CalendarIcon size={14} />
-            Date
+            {tt('views.time.dialog.date')}
           </dt>
           <dd>
             <DatePopover
               value={date}
               onChange={v => v && setDate(v)}
               trigger={
-                <button type="button" className="pillbtn" aria-label="Date">
+                <button type="button" className="pillbtn" aria-label={tt('views.time.dialog.date')}>
                   <CalendarIcon size={13} />
                   <span className="num">{relDate(date)}</span>
                 </button>
@@ -178,19 +179,19 @@ function LogTimeDialog({ task: t, sub, log, onClose }: { task: Task; sub?: Subta
           </dd>
           <dt>
             <User size={14} />
-            Who
+            {tt('views.time.dialog.who')}
           </dt>
           <dd>
             <ListPopover
-              search="Logged by…"
+              search={tt('views.time.dialog.loggedBy')}
               items={data.members
                 .filter(m => m.status === 'active' || m.id === by)
-                .map(m => ({ id: m.id, name: m.name + (m.id === data.me ? ' (you)' : ''), icon: <MemberAvatar id={m.id} size="sm" tooltip={false} />, on: by === m.id }))}
+                .map(m => ({ id: m.id, name: m.name + (m.id === data.me ? tt('views.time.dialog.whoSuffix') : ''), icon: <MemberAvatar id={m.id} size="sm" tooltip={false} />, on: by === m.id }))}
               onPick={setBy}
               trigger={
-                <button type="button" className="pillbtn" aria-label="Logged by">
+                <button type="button" className="pillbtn" aria-label={tt('views.time.dialog.loggedBy')}>
                   <MemberAvatar id={by} size="sm" tooltip={false} />
-                  <span>{who ? who.name + (who.id === data.me ? ' (you)' : '') : 'Someone'}</span>
+                  <span>{who ? who.name + (who.id === data.me ? tt('views.time.dialog.whoSuffix') : '') : 'Someone'}</span>
                 </button>
               }
             />
@@ -199,18 +200,18 @@ function LogTimeDialog({ task: t, sub, log, onClose }: { task: Task; sub?: Subta
             <>
               <dt>
                 <Clock size={14} />
-                Applies to
+                {tt('views.time.dialog.appliesTo')}
               </dt>
               <dd>
                 <ListPopover
-                  search="Find subtask…"
+                  search={tt('views.time.dialog.findSubtask')}
                   width={300}
-                  items={[{ id: '', name: 'Whole task', on: !subId }, ...subs.map(({ sub: s, depth }) => ({ id: s.id, name: `${'– '.repeat(depth)}${s.title}`, on: subId === s.id }))]}
+                  items={[{ id: '', name: tt('views.time.dialog.wholeTask'), on: !subId }, ...subs.map(({ sub: s, depth }) => ({ id: s.id, name: `${'– '.repeat(depth)}${s.title}`, on: subId === s.id }))]}
                   onPick={setSubId}
                   trigger={
-                    <button type="button" className="pillbtn" aria-label="Applies to">
+                    <button type="button" className="pillbtn" aria-label={tt('views.time.dialog.appliesTo')}>
                       <span className="trunc" style={{ maxWidth: 260 }}>
-                        {target ? target.title : 'Whole task'}
+                        {target ? target.title : tt('views.time.dialog.wholeTask')}
                       </span>
                     </button>
                   }
@@ -219,8 +220,8 @@ function LogTimeDialog({ task: t, sub, log, onClose }: { task: Task; sub?: Subta
             </>
           )}
         </dl>
-        <Field label="Note">
-          {ids => <Input {...ids} placeholder="What did you work on? (optional)" value={note} onChange={e => setNote(e.target.value)} />}
+        <Field label={tt('views.time.dialog.note')}>
+          {ids => <Input {...ids} placeholder={tt('views.time.dialog.notePlaceholder')} value={note} onChange={e => setNote(e.target.value)} />}
         </Field>
       </DialogContent>
     </Dialog>
@@ -229,6 +230,7 @@ function LogTimeDialog({ task: t, sub, log, onClose }: { task: Task; sub?: Subta
 
 /** sub — блок для подзадачи (её план, факт по поддереву); без него — для всей задачи */
 export function TimeBlock({ task: t, sub }: { task: Task; sub?: Subtask }) {
+  const tt = useT();
   const { data, dispatch } = useWorkspace();
   const [dlg, setDlg] = React.useState<{ log?: TimeLog } | null>(null);
   const [all, setAll] = React.useState(false);
@@ -243,44 +245,43 @@ export function TimeBlock({ task: t, sub }: { task: Task; sub?: Subtask }) {
   const remove = (l: TimeLog) => {
     const snap = data;
     dispatch({ type: 'timelog/delete', id: l.id });
-    toast(`Deleted ${fmtHours(l.hours)} entry`, { action: { label: 'Undo', onClick: () => dispatch({ type: 'data/restore', data: snap }) } });
+    toast(tt('views.time.timeDeleted', { hours: fmtHours(l.hours) }), { action: { label: tt('common.undo'), onClick: () => dispatch({ type: 'data/restore', data: snap }) } });
   };
 
   return (
     <div className="dsec tm">
       <div className="dsec-h">
-        <h3>Time</h3>
+        <h3>{tt('views.time.section')}</h3>
         {logs.length > 0 && <span className="cnt num">{logs.length}</span>}
         <div className="acts">
           <Button size="sm" variant="ghost" onClick={() => setDlg({})}>
             <Plus size={13} />
-            Log time
+            {tt('views.time.logTime')}
           </Button>
         </div>
       </div>
       <div className="tm-grid">
-        <PlanCell value={own ?? null} derived={derived} onSave={setPlan} />
+        <PlanCell value={own ?? null} derived={derived} onSave={setPlan} tt={tt} />
         <div className="tm-cell">
-          <span className="k">Actual</span>
+          <span className="k">{tt('views.time.actual')}</span>
           <span className={cn('v num', x.over && 'bad')}>{fmtHours(x.actual)}</span>
         </div>
         <div className="tm-cell">
-          <span className="k">{x.over ? 'Over by' : 'Remaining'}</span>
+          <span className="k">{x.over ? tt('views.time.overBy') : tt('views.time.remaining')}</span>
           <span className={cn('v num', x.over ? 'bad' : !x.plan && 'faint')}>{x.over ? `+${fmtHours(x.actual - x.plan)}` : x.plan ? fmtHours(x.remaining) : '—'}</span>
         </div>
       </div>
       {x.plan > 0 && (
         <div className="tm-bar">
-          <Progress value={Math.min(x.pct ?? 0, 100)} tone={x.over ? 'red' : undefined} aria-label="Time spent against plan" />
+          <Progress value={Math.min(x.pct ?? 0, 100)} tone={x.over ? 'red' : undefined} aria-label={tt('views.time.progressAria')} />
           <span className={cn('num', x.over && 'bad')}>{x.pct}%</span>
         </div>
       )}
       {own == null && derived > 0 ? (
-        <div className="tm-note">Plan is the sum of subtasks. Click it to set your own.</div>
+        <div className="tm-note">{tt('views.time.planNoteDerived')}</div>
       ) : own != null && kidsPlan > 0 && Math.abs(kidsPlan - own) > 0.001 ? (
         <div className={cn('tm-note', kidsPlan > own && 'warn')}>
-          Subtasks are planned at {fmtHours(kidsPlan)}
-          {kidsPlan > own ? `, ${fmtHours(kidsPlan - own)} over this plan` : ''}.
+          {kidsPlan > own ? tt('views.time.planNoteMismatch', { sub: fmtHours(kidsPlan), over: fmtHours(kidsPlan - own) }) : tt('views.time.planNoteUnder', { sub: fmtHours(kidsPlan) })}
         </div>
       ) : null}
       {shown.map(l => {
@@ -290,15 +291,15 @@ export function TimeBlock({ task: t, sub }: { task: Task; sub?: Subtask }) {
           <div key={l.id} className="tm-log">
             <MemberAvatar id={l.by} size="sm" />
             <span className="h num">{fmtHours(l.hours)}</span>
-            <span className="d num">{l.date === iso(today()) ? 'Today' : fmtDate(l.date)}</span>
+            <span className="d num">{l.date === iso(today()) ? tt('views.field.today') : fmtDate(l.date)}</span>
             <span className="n trunc" title={l.note || undefined}>
               {l.note || <span className="faint">{m ? m.name.split(' ')[0] : 'Someone'}</span>}
               {s && (!sub || s.id !== sub.id) && <span className="faint"> · {s.title}</span>}
             </span>
-            <IconButton size="xs" className="x" label="Edit entry" tooltip={false} onClick={() => setDlg({ log: l })}>
+            <IconButton size="xs" className="x" label={tt('views.time.editEntry')} tooltip={false} onClick={() => setDlg({ log: l })}>
               <Pencil size={12} />
             </IconButton>
-            <IconButton size="xs" className="x" label="Delete entry" tooltip={false} onClick={() => remove(l)}>
+            <IconButton size="xs" className="x" label={tt('views.time.deleteEntry')} tooltip={false} onClick={() => remove(l)}>
               <Trash2 size={12} />
             </IconButton>
           </div>
@@ -306,11 +307,11 @@ export function TimeBlock({ task: t, sub }: { task: Task; sub?: Subtask }) {
       })}
       {logs.length > 4 && (
         <button type="button" className="link" style={{ fontSize: 12.5, marginTop: 4 }} onClick={() => setAll(a => !a)}>
-          {all ? 'Show fewer' : `Show all ${logs.length} entries`}
+          {all ? tt('views.time.showFewer') : tt('views.time.showAll', { n: logs.length })}
         </button>
       )}
-      {!logs.length && <div className="tm-note">No time logged yet.</div>}
-      {dlg && <LogTimeDialog task={t} sub={sub} log={dlg.log} onClose={() => setDlg(null)} />}
+      {!logs.length && <div className="tm-note">{tt('views.time.noLogs')}</div>}
+      {dlg && <LogTimeDialog task={t} sub={sub} log={dlg.log} onClose={() => setDlg(null)} tt={tt} />}
     </div>
   );
 }

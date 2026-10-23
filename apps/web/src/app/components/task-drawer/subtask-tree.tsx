@@ -4,6 +4,7 @@ import * as React from 'react';
 import { Calendar as CalendarIcon, ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { Checkbox, IconButton, Progress } from '@/components/ui';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 import { newId, useWorkspace } from '../../data/store';
 import { fmtTimePair, subTime } from '../../data/selectors';
 import { countSubs } from '../../data/subtasks';
@@ -13,10 +14,11 @@ import { MemberAvatar } from '../workspace';
 
 /** Шапка секции: «Subtasks 3/9» и полоса прогресса по всему поддереву */
 function SubtaskHeader({ list }: { list: Subtask[] }) {
+  const tt = useT();
   const { done, total } = countSubs(list);
   return (
     <div className="dsec-h">
-      <h3>Subtasks</h3>
+      <h3>{tt('views.subtask.section')}</h3>
       <span className="cnt num">
         {done}/{total}
       </span>
@@ -31,6 +33,7 @@ function SubtaskHeader({ list }: { list: Subtask[] }) {
 
 /** Поле «Add subtask»: Enter добавляет и оставляет фокус; parent — id подзадачи, куда вкладываем */
 export function AddSubtask({ task: t, parent, depth = 0, nested, onAdded, onDone }: { task: Task; parent?: string; depth?: number; nested?: boolean; onAdded?: (id: string) => void; onDone?: () => void }) {
+  const tt = useT();
   const { dispatch } = useWorkspace();
   return (
     <div className="subt tree" style={{ color: 'var(--text-3)', paddingLeft: 6 + depth * 20 }}>
@@ -40,8 +43,8 @@ export function AddSubtask({ task: t, parent, depth = 0, nested, onAdded, onDone
         className="inline-in"
         id={nested ? undefined : 'd-sub'}
         autoFocus={nested}
-        placeholder={nested ? 'Nested subtask — Enter to add, Esc to close' : 'Add subtask'}
-        aria-label={nested ? 'Add nested subtask' : 'Add subtask'}
+        placeholder={nested ? tt('views.subtask.addNestedSubtask') : tt('views.subtask.addSubtask')}
+        aria-label={nested ? tt('views.subtask.addNestedAria') : tt('views.subtask.addSubtask')}
         style={{ fontSize: 13.5 }}
         onBlur={e => nested && !e.currentTarget.value.trim() && onDone?.()}
         onKeyDown={e => {
@@ -93,6 +96,7 @@ interface NodeProps {
 }
 
 function Node({ task: t, sub: s, depth, shut, setShut, adding, setAdding, added, setAdded, onOpenSub }: NodeProps) {
+  const tt = useT();
   const { data, dispatch } = useWorkspace();
   const kids = s.subtasks.length;
   const closed = !!shut[s.id];
@@ -105,23 +109,23 @@ function Node({ task: t, sub: s, depth, shut, setShut, adding, setAdding, added,
     <>
       <div className={cn('subt tree', s.done && 'done', added === s.id && 'fx-added')} style={{ paddingLeft: pad }}>
         {kids ? (
-          <button type="button" className="tg" aria-expanded={!closed} aria-label={`${closed ? 'Expand' : 'Collapse'} ${s.title}`} onClick={() => setShut(m => ({ ...m, [s.id]: !closed }))}>
+          <button type="button" className="tg" aria-expanded={!closed} aria-label={`${closed ? tt('views.subtask.expand') : tt('views.subtask.collapse')} ${s.title}`} onClick={() => setShut(m => ({ ...m, [s.id]: !closed }))}>
             {closed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
           </button>
         ) : (
           <span className="tg-sp" />
         )}
-        <Checkbox checked={s.done} onChange={() => dispatch({ type: 'task/toggleSubtask', id: t.id, subtask: s.id })} aria-label={`${s.done ? 'Reopen' : 'Complete'} subtask ${s.title}`} />
+        <Checkbox checked={s.done} onChange={() => dispatch({ type: 'task/toggleSubtask', id: t.id, subtask: s.id })} aria-label={`${s.done ? tt('views.subtask.reopenNested') : tt('views.subtask.completeNested')} ${s.title}`} />
         <button className="s" data-sid={s.id} onClick={() => onOpenSub(s.id)}>
           {s.title}
         </button>
         {kids > 0 && (
-          <span className="faint num mini-cnt" title="Nested subtasks done">
+          <span className="faint num mini-cnt" title={tt('views.subtask.nestedHint')}>
             {sc.done}/{sc.total}
           </span>
         )}
         {time && (
-          <span className={cn('tmv num', x.over && 'bad')} title={x.over ? 'Over plan' : 'Actual / plan'}>
+          <span className={cn('tmv num', x.over && 'bad')} title={x.over ? tt('views.subtask.overPlan') : tt('views.subtask.actualPlan')}>
             {time}
           </span>
         )}
@@ -135,7 +139,7 @@ function Node({ task: t, sub: s, depth, shut, setShut, adding, setAdding, added,
         <IconButton
           size="xs"
           className="x"
-          label="Add nested subtask"
+          label={tt('views.subtask.addNestedSubtask')}
           tooltip={false}
           onClick={() => {
             setShut(m => ({ ...m, [s.id]: false }));
@@ -144,7 +148,7 @@ function Node({ task: t, sub: s, depth, shut, setShut, adding, setAdding, added,
         >
           <Plus size={14} />
         </IconButton>
-        <IconButton size="xs" className="x" label="Open subtask details" tooltip={false} tabIndex={-1} onClick={() => onOpenSub(s.id)}>
+        <IconButton size="xs" className="x" label={tt('views.subtask.openDetails')} tooltip={false} tabIndex={-1} onClick={() => onOpenSub(s.id)}>
           <ChevronRight size={14} />
         </IconButton>
       </div>

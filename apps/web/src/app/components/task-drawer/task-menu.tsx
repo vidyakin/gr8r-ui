@@ -5,6 +5,7 @@ import { Archive, Check, CircleCheck, CircleDot, Copy, FolderInput, Link2, Panel
 import { ContextMenuItem, ContextMenuSeparator, MenuItem, MenuSeparator, toast, useMenuClose } from '@/components/ui';
 import { StatusIcon } from '@/components/gr8r/task';
 import { PriorityPanel } from '../priority-panel';
+import { useT } from '@/i18n';
 import { useWorkspace, type TaskPatch } from '../../data/store';
 import { canSee, projectColor } from '../../data/selectors';
 import type { Task } from '../../data/types';
@@ -33,6 +34,7 @@ type View = 'root' | 'status' | 'assignee' | 'priority' | 'project';
 
 /** Пункты меню; «Status…», «Assign to…», «Priority…», «Move to project…» заменяют содержимое меню списком выбора (ctxTo) */
 export function TaskMenuItems({ task: t, context, hideOpen, hideWindow }: { task: Task; context?: boolean; hideOpen?: boolean; hideWindow?: boolean }) {
+  const tt = useT();
   const { data, dispatch } = useWorkspace();
   const cmd = useTaskCommands();
   const closeMenu = useMenuClose();
@@ -81,12 +83,12 @@ export function TaskMenuItems({ task: t, context, hideOpen, hideWindow }: { task
         {view === 'assignee' && (
           <>
             <Item icon={<MemberAvatar id={null} size="sm" tooltip={false} />} onSelect={() => update({ assignee: null })}>
-              Unassigned
+              {tt('views.taskMenu.unassigned')}
               {ck(!t.assignee)}
             </Item>
             {data.members.map(m => (
               <Item key={m.id} icon={<MemberAvatar id={m.id} size="sm" tooltip={false} />} onSelect={() => update({ assignee: m.id })}>
-                {m.name + (m.id === data.me ? ' (you)' : '')}
+                {m.name + (m.id === data.me ? tt('views.activity.you') : '')}
                 {ck(t.assignee === m.id)}
               </Item>
             ))}
@@ -109,58 +111,58 @@ export function TaskMenuItems({ task: t, context, hideOpen, hideWindow }: { task
     <>
       {!hideOpen && (
         <Item icon={<PanelRightOpen size={15} />} onSelect={() => cmd.open(t)}>
-          Open
+          {tt('views.taskMenu.open')}
         </Item>
       )}
       {!hideWindow && (
         <Item icon={<PictureInPicture2 size={15} />} onSelect={() => cmd.openWindow(t)}>
-          Open in window
+          {tt('views.taskMenu.openInWindow')}
         </Item>
       )}
       <Item icon={<Pencil size={15} />} shortcut="E" onSelect={() => cmd.edit(t)}>
-        Edit
+        {tt('views.taskMenu.edit')}
       </Item>
       <Item icon={done ? <RotateCcw size={15} /> : <CircleCheck size={15} />} onSelect={() => actions.toggleDone(t)}>
-        {done ? 'Reopen' : 'Mark complete'}
+        {done ? tt('views.taskMenu.reopen') : tt('views.taskMenu.markComplete')}
       </Item>
       <Sep />
       <Item icon={<CircleDot size={15} />} onSelect={keep('status')}>
-        Status…
+        {tt('views.taskMenu.status')}
       </Item>
       <Item icon={<User size={15} />} onSelect={keep('assignee')}>
-        Assign to…
+        {tt('views.taskMenu.assignTo')}
       </Item>
       <Item icon={<SignalHigh size={15} />} onSelect={keep('priority')}>
-        Priority…
+        {tt('views.taskMenu.priority')}
       </Item>
       <Item icon={<FolderInput size={15} />} onSelect={keep('project')}>
-        Move to project…
+        {tt('views.taskMenu.moveToProject')}
       </Item>
       <Sep />
       <Item icon={<Star size={15} />} onSelect={() => actions.toggleFav(t)}>
-        {t.fav ? 'Remove from favorites' : 'Add to favorites'}
+        {t.fav ? tt('views.taskMenu.removeFromFavorites') : tt('views.taskMenu.addToFavorites')}
       </Item>
       <Item icon={<Link2 size={15} />} onSelect={() => cmd.copyLink(t)}>
-        Copy link
+        {tt('views.taskMenu.copyLink')}
       </Item>
       <Item icon={<Copy size={15} />} onSelect={() => cmd.duplicate(t)}>
-        Duplicate
+        {tt('views.taskMenu.duplicate')}
       </Item>
       <Item icon={<Archive size={15} />} onSelect={() => cmd.archive(t)}>
-        Archive
+        {tt('views.taskMenu.archive')}
       </Item>
       <Sep />
       <Item icon={<Trash2 size={15} />} danger shortcut="Del" onSelect={() => cmd.askDelete(t)}>
-        Delete
+        {tt('views.taskMenu.delete')}
       </Item>
     </>
   );
 }
 
 /** Копирование ссылки на задачу (copy в actions.js) */
-export function copyText(text: string, msg = 'Link copied') {
+export function copyText(text: string, msg = 'Link copied', fallbackMsg = "Copy isn't available here — {text}") {
   Promise.resolve()
     .then(() => navigator.clipboard.writeText(text))
     .then(() => toast(msg))
-    .catch(() => toast.info(`Copy isn't available here — ${text}`, { duration: 6000 }));
+    .catch(() => toast.info(fallbackMsg.replace('{text}', text), { duration: 6000 }));
 }

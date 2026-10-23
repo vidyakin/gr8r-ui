@@ -5,6 +5,7 @@ import { Check } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger, toast } from '@/components/ui';
 import { Calendar } from '@/components/shadcn/calendar';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 import { dOff, iso, parse, today } from '../../lib/dates';
 
 export interface PickItem {
@@ -32,6 +33,7 @@ export function ListPopover({
   align?: 'start' | 'end';
   width?: number;
 }) {
+  const tt = useT();
   const [open, setOpen] = React.useState(false);
   const [q, setQ] = React.useState('');
   const list = items.filter(it => !q || it.name.toLowerCase().includes(q.toLowerCase()));
@@ -93,7 +95,7 @@ export function ListPopover({
         ))}
         {!list.length && (
           <div className="mi faint" style={{ cursor: 'default' }}>
-            No matches
+            {tt('views.drawer.noMatches')}
           </div>
         )}
       </PopoverContent>
@@ -103,33 +105,37 @@ export function ListPopover({
 
 /** «Next week» в оригинале — ближайший понедельник */
 const nextMonday = () => 7 - ((today().getDay() + 6) % 7);
-const QUICK = [
-  ['Today', () => 0],
-  ['Tomorrow', () => 1],
-  ['Next week', nextMonday],
-  ['In 2 weeks', () => 14],
-] as const;
+function getQuick(tt: ReturnType<typeof useT>): { label: string; n: () => number }[] {
+  return [
+    { label: tt('views.drawer.dateToday'), n: () => 0 },
+    { label: tt('views.drawer.dateTomorrow'), n: () => 1 },
+    { label: tt('views.drawer.dateNextWeek'), n: nextMonday },
+    { label: tt('views.drawer.dateIn2Weeks'), n: () => 14 },
+  ];
+}
 
 /** Выбор даты: быстрые варианты и календарь. trigger — кнопка, открывающая поповер */
 export function DatePopover({ trigger, value, onChange, align = 'start' }: { trigger: React.ReactElement; value: string | null | undefined; onChange: (v: string | null) => void; align?: 'start' | 'end' }) {
+  const tt = useT();
   const [open, setOpen] = React.useState(false);
   const set = (v: string | null) => {
     onChange(v);
     setOpen(false);
   };
+  const quick = getQuick(tt);
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent align={align} collisionPadding={8} className="!max-w-none !p-1" onClick={e => e.stopPropagation()}>
         <div className="flex max-w-[248px] flex-wrap gap-1 p-1 pb-0">
-          {QUICK.map(([label, n]) => (
-            <button key={label} className="btn btn-sm btn-ghost" onClick={() => set(dOff(n()))}>
-              {label}
+          {quick.map(q => (
+            <button key={q.label} className="btn btn-sm btn-ghost" onClick={() => set(dOff(q.n()))}>
+              {q.label}
             </button>
           ))}
           {value && (
             <button className="btn btn-sm btn-ghost" style={{ color: 'var(--red)' }} onClick={() => set(null)}>
-              Clear
+              {tt('views.field.clear')}
             </button>
           )}
         </div>
@@ -169,6 +175,7 @@ export const AutoTextarea = React.forwardRef<HTMLTextAreaElement, React.Componen
 
 /** Редактор описания (data-rte в оригинале): contenteditable + execCommand, панель форматирования */
 export function RichText({ html, onChange, labelledBy, className }: { html: string; onChange: (html: string) => void; labelledBy: string; className?: string }) {
+  const tt = useT();
   const ref = React.useRef<HTMLDivElement>(null);
   // Содержимое ставим вручную, чтобы не сбрасывать курсор при наборе
   React.useLayoutEffect(() => {
@@ -182,7 +189,7 @@ export function RichText({ html, onChange, labelledBy, className }: { html: stri
       id="d-desc"
       contentEditable
       suppressContentEditableWarning
-      data-ph="Add a description…"
+      data-ph={tt('views.drawer.descPlaceholder')}
       role="textbox"
       aria-multiline="true"
       aria-labelledby={labelledBy}
@@ -192,12 +199,12 @@ export function RichText({ html, onChange, labelledBy, className }: { html: stri
 }
 
 /** Команда форматирования описания; возвращает новый html или null */
-export function runFormat(cmd: string) {
+export function runFormat(cmd: string, tt: ReturnType<typeof useT>) {
   const [name, arg] = cmd.split(':');
   if (name === 'createLink') {
     const s = String(getSelection());
     if (/^https?:\/\//.test(s)) document.execCommand('createLink', false, s);
-    else toast.info('Select a URL starting with https:// to turn it into a link');
+    else toast.info(tt('views.drawer.selectUrl'));
   } else document.execCommand(name, false, arg ? `<${arg}>` : undefined);
   return (document.getElementById('d-desc') as HTMLElement | null)?.innerHTML ?? null;
 }

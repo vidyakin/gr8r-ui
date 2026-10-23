@@ -6,6 +6,7 @@ import { Label, Menu, MenuContent, MenuRadioGroup, MenuRadioItem, MenuTrigger, P
 import { Calendar } from '@/components/shadcn/calendar';
 import { PriorityIcon, StatusIcon, priorityName, type Status } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 import { useWorkspace, type TaskPatch } from '../data/store';
 import { LABELS, isOverdue, member, project, statusOf } from '../data/selectors';
 import { dOff, iso, parse, relDate } from '../lib/dates';
@@ -111,37 +112,40 @@ export function PriorityField({ task: t, variant = 'pill' }: { task: Task; varia
 export function AssigneeField({ task: t, variant = 'pill' }: { task: Task; variant?: FieldVariant }) {
   const { data } = useWorkspace();
   const update = useUpdate(t);
+  const tt = useT();
   const m = member(data, t.assignee);
   return (
     <PillMenu<string>
-      label="Assignee"
+      label={tt('views.field.assignee')}
       {...variantProps(variant)}
       empty={variant === 'pill' && !m}
       value={t.assignee ?? 'none'}
       onChange={v => update({ assignee: v === 'none' ? null : v })}
       options={[
-        { value: 'none', label: 'Unassigned', icon: <MemberAvatar id={null} size="sm" tooltip={false} /> },
-        ...data.members.map(x => ({ value: x.id, label: x.name + (x.id === data.me ? ' (you)' : ''), icon: <MemberAvatar id={x.id} size="sm" tooltip={false} /> })),
+        { value: 'none', label: tt('views.field.unassigned'), icon: <MemberAvatar id={null} size="sm" tooltip={false} /> },
+        ...data.members.map(x => ({ value: x.id, label: x.name + (x.id === data.me ? tt('views.toolbar.you') : ''), icon: <MemberAvatar id={x.id} size="sm" tooltip={false} /> })),
       ]}
       trigger={
         <>
           <MemberAvatar id={t.assignee} size="sm" tooltip={false} />
-          {variant !== 'icon' && <span className={cn('trunc', variant === 'cell' && !m && 'faint')}>{m ? m.name : 'Unassigned'}</span>}
+          {variant !== 'icon' && <span className={cn('trunc', variant === 'cell' && !m && 'faint')}>{m ? m.name : tt('views.field.unassigned')}</span>}
         </>
       }
     />
   );
 }
 
-const QUICK_DATES = [
-  ['Today', 0],
-  ['Tomorrow', 1],
-  ['Next week', 7],
+const QUICK_DATES = (tt: ReturnType<typeof useT>) => [
+  [tt('views.field.today'), 0],
+  [tt('views.field.tomorrow'), 1],
+  [tt('views.field.nextWeek'), 7],
 ] as const;
 
 /** trigger — своё содержимое кнопки (тогда она без оформления «таблетки», стили задаёт className) */
 export function DueField({ task: t, trigger, className }: { task: Task; trigger?: React.ReactNode; className?: string }) {
   const update = useUpdate(t);
+  const tt = useT();
+  const QUICK = QUICK_DATES(tt);
   const [open, setOpen] = React.useState(false);
   const set = (due: string | null) => {
     update({ due });
@@ -150,29 +154,28 @@ export function DueField({ task: t, trigger, className }: { task: Task; trigger?
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button className={cn(!trigger && 'pillbtn', !trigger && (t.due ? isOverdue(t) && 'over' : 'empty'), className)} aria-label="Due date" onClick={e => e.stopPropagation()}>
+        <button className={cn(!trigger && 'pillbtn', !trigger && (t.due ? isOverdue(t) && 'over' : 'empty'), className)} aria-label={tt('views.field.setDueDate')} onClick={e => e.stopPropagation()}>
           {trigger ?? (
             <>
               <CalendarIcon size={13} />
-              {t.due ? <span className="num">{relDate(t.due)}</span> : <span>Set date</span>}
+              {t.due ? <span className="num">{relDate(t.due)}</span> : <span>{tt('views.field.setDate')}</span>}
             </>
           )}
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" collisionPadding={8} className="!max-w-none !p-1" onClick={e => e.stopPropagation()}>
         <div className="flex max-w-[248px] flex-wrap gap-1 p-1 pb-0">
-          {QUICK_DATES.map(([label, n]) => (
+          {QUICK.map(([label, n]) => (
             <button key={label} className="btn btn-sm btn-ghost" onClick={() => set(dOff(n))}>
               {label}
             </button>
           ))}
           {t.due && (
             <button className="btn btn-sm btn-ghost" onClick={() => set(null)}>
-              Clear
+              {tt('views.field.clear')}
             </button>
           )}
         </div>
-        {/* Calendar — готовый компонент shadcn, оформление берётся из токенов Gr8r */}
         <Calendar mode="single" weekStartsOn={1} selected={t.due ? parse(t.due) : undefined} defaultMonth={t.due ? parse(t.due) : undefined} onSelect={d => d && set(iso(d))} />
       </PopoverContent>
     </Popover>
@@ -189,14 +192,15 @@ export function CustomerCell({ task: t }: { task: Task }) {
 /** Заказчик у задачи модуля services: выбор компании из справочника (с поиском) и очистка */
 export function CustomerField({ task: t }: { task: Task }) {
   const update = useUpdate(t);
+  const tt = useT();
   const co = useCompanyRequisites(t.company ?? undefined);
   return (
     <div className="row" style={{ gap: 6, width: '100%' }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <CounterpartyPicker value={co.data?.name ?? ''} placeholder="Search customer…" onPick={c => update({ company: c.id })} />
+        <CounterpartyPicker value={co.data?.name ?? ''} placeholder={tt('views.field.searchCustomer')} onPick={c => update({ company: c.id })} />
       </div>
       {t.company && (
-        <button className="btn btn-sm btn-ghost" aria-label="Clear customer" onClick={() => update({ company: null })}>
+        <button className="btn btn-sm btn-ghost" aria-label={tt('views.field.clearCustomer')} onClick={() => update({ company: null })}>
           <X size={13} />
         </button>
       )}
@@ -217,8 +221,9 @@ export function ProjectPill({ task: t }: { task: Task }) {
 
 /** Метки задачи в списке (cellLabels): две первые + «+N»; выбор меток пока не перенесён */
 export function LabelsField({ task: t }: { task: Task }) {
+  const tt = useT();
   return (
-    <button className={cn('pillbtn', !t.labels.length && 'empty')} aria-label="Labels" style={{ gap: 4, overflow: 'hidden' }} onClick={() => toast.info('Выбор меток пока не перенесён')}>
+    <button className={cn('pillbtn', !t.labels.length && 'empty')} aria-label={tt('views.field.labels')} style={{ gap: 4, overflow: 'hidden' }} onClick={() => toast.info(tt('views.field.labelsNotImplemented'))}>
       {t.labels.length ? (
         <>
           {t.labels.slice(0, 2).map(id => (
@@ -235,7 +240,7 @@ export function LabelsField({ task: t }: { task: Task }) {
       ) : (
         <>
           <Tag size={13} />
-          <span>Add</span>
+          <span>{tt('views.field.add')}</span>
         </>
       )}
     </button>

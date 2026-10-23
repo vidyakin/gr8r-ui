@@ -5,6 +5,7 @@ import { BellRing, Ban } from 'lucide-react';
 import { IconButton, Popover, PopoverContent, PopoverTrigger, Tooltip, toast } from '@/components/ui';
 import { PRIORITIES, priorityColor, type Priority } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { member } from '../data/selectors';
 import type { Task } from '../data/types';
@@ -24,6 +25,7 @@ export interface PriorityPanelProps {
 /** Содержимое панели; без обёртки, чтобы его можно было встроить и в поповер, и в контекстное меню */
 export function PriorityPanel({ value, onChange, task, onClose }: PriorityPanelProps) {
   const { data, dispatch } = useWorkspace();
+  const tt = useT();
   const refs = React.useRef<(HTMLButtonElement | null)[]>([]);
   const [cur, setCur] = React.useState(Math.max(0, GRID.indexOf(value ?? 1)));
   const pick = (p: Priority) => {
@@ -65,26 +67,26 @@ export function PriorityPanel({ value, onChange, task, onClose }: PriorityPanelP
   const notify = () => {
     if (!task || !assignee) return;
     dispatch({ type: 'task/notifyPriority', id: task.id });
-    toast(`Notified ${assignee.name}`);
+    toast(tt('views.priority.notified', { name: assignee.name }));
     onClose?.();
   };
   const notifyBtn = (
     <button className="pp-notify" disabled={!canNotify} onClick={notify}>
       <BellRing size={14} />
-      Notify assignee
+      {tt('views.priority.notifyAssignee')}
     </button>
   );
 
   return (
     <div className="pprio" onKeyDown={onKeyDown}>
       <div className="pp-h">
-        <IconButton size="xs" label="No priority" onClick={() => pick(null)}>
+        <IconButton size="xs" label={tt('views.field.noPriority')} onClick={() => pick(null)}>
           <Ban size={14} />
         </IconButton>
         <span className="sp" />
         <kbd className="kbd">esc</kbd>
       </div>
-      <div className="pp-grid" role="radiogroup" aria-label="Priority">
+      <div className="pp-grid" role="radiogroup" aria-label={tt('views.priority.title')}>
         {GRID.map((p, i) => (
           <button
             key={p}
@@ -94,7 +96,7 @@ export function PriorityPanel({ value, onChange, task, onClose }: PriorityPanelP
             type="button"
             role="radio"
             aria-checked={value === p}
-            aria-label={`Priority ${p}`}
+            aria-label={tt('views.task.priorityLabel', { n: p })}
             tabIndex={i === cur ? 0 : -1}
             className={cn('pp-dot', value === p && 'on')}
             style={{ background: priorityColor(p) }}
@@ -111,7 +113,7 @@ export function PriorityPanel({ value, onChange, task, onClose }: PriorityPanelP
           {canNotify ? (
             notifyBtn
           ) : (
-            <Tooltip content={assignee ? 'You are the assignee' : 'No assignee to notify'} side="top">
+            <Tooltip content={assignee ? tt('views.priority.youAreAssignee') : tt('views.priority.noAssigneeToNotify')} side="top">
               <span className="pp-notify-wrap">{notifyBtn}</span>
             </Tooltip>
           )}

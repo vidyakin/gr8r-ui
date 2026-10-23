@@ -4,6 +4,7 @@ import { TASK_MODULE_LABELS } from '@gr8r/shared';
 import { IconButton, Menu, MenuContent, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger, Progress, Tooltip, toast } from '@/components/ui';
 import { Badge } from '@/components/ui';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { PROJECT_STATUS, canSee, progressOf, projectColor, tasksOf, visibleProjects } from '../data/selectors';
 import { ago, fmtDate, minsAgo } from '../lib/dates';
@@ -40,6 +41,7 @@ export function ProjectStatus({ status }: { status: PS }) {
 /** Выбор статуса проекта (поповер pstatus): children — кнопка-триггер */
 export function ProjectStatusMenu({ project: p, children }: { project: Project; children: React.ReactElement }) {
   const { dispatch } = useWorkspace();
+  const tt = useT();
   return (
     <Menu>
       <MenuTrigger asChild>{children}</MenuTrigger>
@@ -48,7 +50,7 @@ export function ProjectStatusMenu({ project: p, children }: { project: Project; 
           value={p.status}
           onValueChange={v => {
             dispatch({ type: 'project/update', id: p.id, patch: { status: v as PS } });
-            toast(`${p.name} marked ${PROJECT_STATUS[v as PS].name}`);
+            toast(tt('views.project.statusChanged', { name: p.name, status: PROJECT_STATUS[v as PS].name }));
           }}
         >
           {(Object.entries(PROJECT_STATUS) as [PS, { name: string; c: string }][]).map(([k, v]) => (
@@ -66,67 +68,67 @@ export function ProjectStatusMenu({ project: p, children }: { project: Project; 
 export function ProjectMenu({ project: p, className, style }: { project: Project; className?: string; style?: React.CSSProperties }) {
   const { data, dispatch } = useWorkspace();
   const navigate = useNavigate();
+  const tt = useT();
   const order = visibleProjects(data).map(x => x.id);
   const idx = order.indexOf(p.id);
   const move = (dir: -1 | 1) => {
     dispatch({ type: 'project/move', id: p.id, dir });
-    toast(`Moved ${p.name} ${dir < 0 ? 'up' : 'down'}`, { duration: 1600 });
+    toast(tt('views.project.moved', { name: p.name, dir: dir < 0 ? tt('views.project.up') : tt('views.project.down') }), { duration: 1600 });
   };
   const projectForms = useProjectForms();
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
   return (
     <Menu>
       <MenuTrigger asChild>
-        <IconButton size="sm" label="Project options" tooltip={false} className={className} style={style} onClick={stop} onKeyDown={stop}>
+        <IconButton size="sm" label={tt('views.project.options')} tooltip={false} className={className} style={style} onClick={stop} onKeyDown={stop}>
           <Ellipsis size={14} />
         </IconButton>
       </MenuTrigger>
-      {/* Портал всплывает событиями в карточку — гасим, чтобы клик по пункту не открывал проект */}
       <MenuContent align="end" onClick={stop} onKeyDown={stop}>
         <MenuItem icon={<ArrowUpRight size={15} />} onSelect={() => navigate(`/projects/${p.id}`)}>
-          Open
+          {tt('common.open')}
         </MenuItem>
         <MenuItem
           icon={<Star size={15} />}
           onSelect={() => {
             dispatch({ type: 'project/toggleFav', id: p.id });
-            toast.info(p.fav ? 'Removed from favorites' : 'Added to favorites', { duration: 1800 });
+            toast.info(p.fav ? tt('views.list.removedFromFavorites') : tt('views.list.addedToFavorites'), { duration: 1800 });
           }}
         >
-          {p.fav ? 'Remove from favorites' : 'Add to favorites'}
+          {p.fav ? tt('views.list.removeFromFavorites') : tt('views.list.addToFavorites')}
         </MenuItem>
         <MenuItem icon={<Pencil size={15} />} onSelect={() => projectForms.edit(p.id)}>
-          Rename &amp; edit
+          {tt('views.project.renameEdit')}
         </MenuItem>
         <MenuItem icon={<Share2 size={15} />} onSelect={() => projectForms.share(p.id)}>
-          Share
+          {tt('views.project.share')}
         </MenuItem>
         <MenuItem
           icon={<Link2 size={15} />}
           onSelect={() => projectForms.copyLink(p.id)}
         >
-          Copy link
+          {tt('views.list.copyLink')}
         </MenuItem>
         <MenuItem icon={<Copy size={15} />} onSelect={() => projectForms.duplicate(p.id)}>
-          Duplicate
+          {tt('views.project.duplicate')}
         </MenuItem>
         <MenuSeparator />
         {idx > 0 && (
           <MenuItem icon={<ArrowUp size={15} />} onSelect={() => move(-1)}>
-            Move up in sidebar
+            {tt('views.project.moveUp')}
           </MenuItem>
         )}
         {idx >= 0 && idx < order.length - 1 && (
           <MenuItem icon={<ArrowDown size={15} />} onSelect={() => move(1)}>
-            Move down in sidebar
+            {tt('views.project.moveDown')}
           </MenuItem>
         )}
         {order.length > 1 && <MenuSeparator />}
         <MenuItem icon={<Archive size={15} />} onSelect={() => projectForms.archive(p.id)}>
-          {p.status === 'complete' ? 'Archive' : 'Archive project'}
+          {p.status === 'complete' ? tt('views.project.archive') : tt('views.project.archiveProject')}
         </MenuItem>
         <MenuItem icon={<Trash2 size={15} />} danger onSelect={() => projectForms.remove(p.id)}>
-          Delete project
+          {tt('views.project.delete')}
         </MenuItem>
       </MenuContent>
     </Menu>
@@ -137,6 +139,7 @@ export function ProjectMenu({ project: p, className, style }: { project: Project
 export function ProjectCard({ project: p }: { project: Project }) {
   const { data } = useWorkspace();
   const navigate = useNavigate();
+  const tt = useT();
   const ts = tasksOf(data, p.id);
   const pr = progressOf(data, p.id);
   const done = ts.filter(t => t.status === 'done').length;
@@ -158,7 +161,7 @@ export function ProjectCard({ project: p }: { project: Project }) {
             )}
             {p.module !== 'general' && <Badge tone="accent">{TASK_MODULE_LABELS[p.module]}</Badge>}
             {p.private && (
-              <Tooltip content="Private project">
+              <Tooltip content={tt('views.project.private')}>
                 <span className="faint">
                   <Lock size={12} />
                 </span>
@@ -172,7 +175,7 @@ export function ProjectCard({ project: p }: { project: Project }) {
       {locked ? (
         <div className="row faint" style={{ fontSize: 12 }}>
           <Lock size={12} />
-          Restricted — request access to see tasks
+          {tt('views.project.restricted')}
         </div>
       ) : (
         <div className="row" style={{ gap: 10 }}>

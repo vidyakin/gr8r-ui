@@ -2,6 +2,7 @@
 import * as React from 'react';
 import { Copy, Ellipsis, Eye, File, FileCode, FileSpreadsheet, FileText, FolderArchive, FolderOpen, Image, LayoutGrid, Link, Link2, List, PenTool, Pencil, Search, SearchX, Trash2, Upload, UploadCloud } from 'lucide-react';
 import { Button, ConfirmDialog, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger, Dialog, DialogClose, DialogContent, EmptyState, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Progress, Segmented, Select, toast } from '@/components/ui';
+import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { FILE_TYPES, fileKind, fileSize, member, task as findTask } from '../data/selectors';
 import type { FileKind, Project, ProjectFile } from '../data/types';
@@ -108,34 +109,36 @@ interface MenuApi {
 function FileMenuItems({ file, api, context }: { file: ProjectFile; api: MenuApi; context?: boolean }) {
   const Item = context ? ContextMenuItem : MenuItem;
   const Sep = context ? ContextMenuSeparator : MenuSeparator;
+  const tt = useT();
   return (
     <>
       <Item icon={<Eye size={15} />} onSelect={() => api.preview(file)}>
-        Preview
+        {tt('views.files.preview')}
       </Item>
       <Item icon={<Pencil size={15} />} onSelect={() => api.rename(file)}>
-        Rename
+        {tt('views.files.rename')}
       </Item>
       <Item icon={<Link2 size={15} />} onSelect={() => api.copyLink(file)}>
-        Copy link
+        {tt('views.files.copyLink')}
       </Item>
       <Item icon={<Copy size={15} />} onSelect={() => api.duplicate(file)}>
-        Duplicate
+        {tt('views.files.duplicate')}
       </Item>
       <Sep />
       <Item icon={<Trash2 size={15} />} danger onSelect={() => api.remove(file)}>
-        Delete
+        {tt('common.delete')}
       </Item>
     </>
   );
 }
 
 function FileMore({ file, api, className, size }: { file: ProjectFile; api: MenuApi; className?: string; size: 'xs' | 'sm' }) {
+  const tt = useT();
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
   return (
     <Menu>
       <MenuTrigger asChild>
-        <IconButton size={size} label="File options" tooltip={false} className={className} onClick={stop} onKeyDown={stop}>
+        <IconButton size={size} label={tt('views.files.options')} tooltip={false} className={className} onClick={stop} onKeyDown={stop}>
           <Ellipsis size={size === 'xs' ? 13 : 14} />
         </IconButton>
       </MenuTrigger>
@@ -149,6 +152,7 @@ function FileMore({ file, api, className, size }: { file: ProjectFile; api: Menu
 /** Вкладка Files страницы проекта: поиск, фильтр по типу, сортировка, сетка/список, загрузка, превью и меню файла */
 export function ProjectFilesTab({ project }: { project: Project }) {
   const { data, dispatch } = useWorkspace();
+  const tt = useT();
   const taskActions = useTaskActions();
   const [q, setQ] = React.useState('');
   const [type, setType] = React.useState<'all' | FileKind>('all');
@@ -180,7 +184,7 @@ export function ProjectFilesTab({ project }: { project: Project }) {
         clearInterval(iv);
         setUploads(u => u.filter(x => x.id !== up.id));
         dispatch({ type: 'file/add', file: { project: project.id, name: up.name, size: up.size } });
-        toast(`Uploaded ${up.name}`);
+        toast(tt('views.files.uploaded', { name: up.name }));
       }, 220);
       timers.current.push(iv);
     });
@@ -194,11 +198,11 @@ export function ProjectFilesTab({ project }: { project: Project }) {
     },
     copyLink: f => {
       navigator.clipboard?.writeText(`${location.origin}${location.pathname}#/file/${f.id}`).catch(() => {});
-      toast.info('Link copied', { duration: 1800 });
+      toast.info(tt('common.linkCopied'), { duration: 1800 });
     },
     duplicate: f => {
       dispatch({ type: 'file/duplicate', id: f.id });
-      toast('File duplicated');
+      toast(tt('views.files.duplicated'));
     },
     remove: f => setDialog({ kind: 'delete', file: f }),
   };
@@ -206,7 +210,7 @@ export function ProjectFilesTab({ project }: { project: Project }) {
   const deleteFile = (f: ProjectFile) => {
     const index = data.files.findIndex(x => x.id === f.id);
     dispatch({ type: 'file/delete', id: f.id });
-    toast(`Deleted ${f.name}`, { action: { label: 'Undo', onClick: () => dispatch({ type: 'file/restore', file: f, index }) } });
+    toast(tt('views.files.deleted', { name: f.name }), { action: { label: tt('common.undo'), onClick: () => dispatch({ type: 'file/restore', file: f, index }) } });
   };
   const submitRename = () => {
     const v = newName.trim();
@@ -229,8 +233,8 @@ export function ProjectFilesTab({ project }: { project: Project }) {
   let body: React.ReactNode;
   if (!files.length)
     body = (
-      <EmptyState icon={filtered ? <SearchX /> : <FolderOpen />} title={filtered ? 'No results found' : 'No files yet'}>
-        {filtered ? 'No files match your search.' : 'Upload designs, documents, and assets to share them with the project.'}
+      <EmptyState icon={filtered ? <SearchX /> : <FolderOpen />} title={filtered ? tt('common.noResults') : tt('views.files.empty')}>
+        {filtered ? tt('views.files.emptyFiltered') : tt('views.files.emptyHint')}
       </EmptyState>
     );
   else if (view === 'grid')
@@ -263,11 +267,11 @@ export function ProjectFilesTab({ project }: { project: Project }) {
         <table className="perm-t" style={{ minWidth: 680 }}>
           <thead>
             <tr>
-              <th style={{ paddingLeft: 14 }}>Name</th>
-              <th style={{ textAlign: 'left' }}>Type</th>
-              <th style={{ textAlign: 'left' }}>Size</th>
-              <th style={{ textAlign: 'left' }}>Uploaded by</th>
-              <th style={{ textAlign: 'left' }}>Date</th>
+              <th style={{ paddingLeft: 14 }}>{tt('views.files.name')}</th>
+              <th style={{ textAlign: 'left' }}>{tt('views.files.type')}</th>
+              <th style={{ textAlign: 'left' }}>{tt('views.files.size')}</th>
+              <th style={{ textAlign: 'left' }}>{tt('views.files.uploadedBy')}</th>
+              <th style={{ textAlign: 'left' }}>{tt('views.files.date')}</th>
               <th />
             </tr>
           </thead>
@@ -332,41 +336,41 @@ export function ProjectFilesTab({ project }: { project: Project }) {
   return (
     <>
       <div className="toolbar">
-        <Input size="sm" icon={<Search size={13} />} className="!w-[200px]" placeholder="Search files" aria-label="Search files" value={q} onChange={e => setQ(e.target.value)} />
+        <Input size="sm" icon={<Search size={13} />} className="!w-[200px]" placeholder={tt('views.files.searchPlaceholder')} aria-label={tt('views.files.searchPlaceholder')} value={q} onChange={e => setQ(e.target.value)} />
         <Select
-          aria-label="Filter by type"
+          aria-label={tt('views.files.filterByType')}
           className="!h-[26px] !w-auto [&_.chev]:!mr-[-21px] !text-[12px]"
           value={type}
           onValueChange={v => setType(v as 'all' | FileKind)}
           options={[
-            { value: 'all', label: 'All types' },
+            { value: 'all', label: tt('views.files.allTypes') },
             ...(Object.entries(FILE_TYPES) as [FileKind, (typeof FILE_TYPES)[FileKind]][]).filter(([k]) => k !== 'other').map(([k, v]) => ({ value: k, label: v.n })),
           ]}
         />
         <Select
-          aria-label="Sort"
+          aria-label={tt('views.files.sort')}
           className="!h-[26px] !w-auto [&_.chev]:!mr-[-21px] !text-[12px]"
           value={sort}
           onValueChange={v => setSort(v as typeof sort)}
           options={[
-            { value: 'date', label: 'Sort: Newest' },
-            { value: 'name', label: 'Sort: Name' },
-            { value: 'type', label: 'Sort: Type' },
+            { value: 'date', label: tt('views.files.sortNewest') },
+            { value: 'name', label: tt('views.files.sortName') },
+            { value: 'type', label: tt('views.files.sortType') },
           ]}
         />
         <span className="sp" />
         <Segmented
-          aria-label="Layout"
+          aria-label={tt('views.files.layout')}
           value={view}
           onValueChange={setView}
           items={[
-            { value: 'grid', icon: <LayoutGrid size={13} />, 'aria-label': 'grid view' },
-            { value: 'list', icon: <List size={13} />, 'aria-label': 'list view' },
+            { value: 'grid', icon: <LayoutGrid size={13} />, 'aria-label': tt('views.files.viewGrid') },
+            { value: 'list', icon: <List size={13} />, 'aria-label': tt('views.files.viewList') },
           ]}
         />
         <label className="btn btn-primary btn-sm" style={{ cursor: 'pointer' }}>
           <Upload size={13} />
-          Upload
+          {tt('views.files.upload')}
           <input type="file" multiple hidden onChange={pick} />
         </label>
       </div>
@@ -387,7 +391,8 @@ export function ProjectFilesTab({ project }: { project: Project }) {
         >
           <UploadCloud size={18} />
           <span>
-            Drop files here or <span className="link">browse</span> — up to 250 MB each
+            {tt('views.files.dropHint')}{' '}
+            <span className="link">{tt('views.files.browse')}</span> — {tt('views.files.maxSize')}
           </span>
           <input type="file" multiple hidden onChange={pick} />
         </label>
@@ -408,7 +413,7 @@ export function ProjectFilesTab({ project }: { project: Project }) {
                       {x.pct}%
                     </span>
                   </div>
-                  <Progress value={x.pct} className="mt-1.5" aria-label={`Uploading ${x.name}`} />
+                  <Progress value={x.pct} className="mt-1.5" aria-label={tt('views.files.uploading', { name: x.name })} />
                 </div>
               </div>
             ))}
@@ -422,16 +427,16 @@ export function ProjectFilesTab({ project }: { project: Project }) {
           <DialogContent
             size="lg"
             title={previewing.name}
-            description={`${FILE_TYPES[previewing.type].n} · ${previewing.size} · Uploaded by ${member(data, previewing.by)?.name || 'you'} ${ago(previewing.at)}`}
+            description={tt('views.files.previewDesc', { type: FILE_TYPES[previewing.type].n, size: previewing.size, who: member(data, previewing.by)?.name || tt('views.activity.you'), when: ago(previewing.at) })}
             footer={
               <>
                 <Button variant="secondary" onClick={() => api.copyLink(previewing)}>
                   <Link size={14} />
-                  Copy link
+                  {tt('views.files.copyLink')}
                 </Button>
                 <span className="sp" />
                 <DialogClose asChild>
-                  <Button>Close</Button>
+                  <Button>{tt('common.close')}</Button>
                 </DialogClose>
               </>
             }
@@ -442,7 +447,7 @@ export function ProjectFilesTab({ project }: { project: Project }) {
             {previewTask && (
               <div className="row faint" style={{ fontSize: 12.5 }}>
                 <Link size={13} />
-                Attached to{' '}
+                {tt('views.files.attachedTo')}{' '}
                 <button className="link" onClick={() => openTask(previewTask.id)}>
                   {previewTask.title}
                 </button>
@@ -454,14 +459,14 @@ export function ProjectFilesTab({ project }: { project: Project }) {
       <Dialog open={dialog?.kind === 'rename'} onOpenChange={o => !o && setDialog(null)}>
         <DialogContent
           size="sm"
-          title="Rename file"
+          title={tt('views.files.renameTitle')}
           footer={
             <>
               <span className="sp" />
               <DialogClose asChild>
-                <Button variant="ghost">Cancel</Button>
+                <Button variant="ghost">{tt('common.cancel')}</Button>
               </DialogClose>
-              <Button onClick={submitRename}>Save</Button>
+              <Button onClick={submitRename}>{tt('common.save')}</Button>
             </>
           }
         >
@@ -473,7 +478,7 @@ export function ProjectFilesTab({ project }: { project: Project }) {
             }}
           >
             <label className="label" htmlFor="file-name">
-              File name
+              {tt('views.files.name')}
             </label>
             <input className="input" id="file-name" autoFocus value={newName} onChange={e => setNewName(e.target.value)} />
           </form>
@@ -483,10 +488,16 @@ export function ProjectFilesTab({ project }: { project: Project }) {
         open={dialog?.kind === 'delete'}
         onOpenChange={o => !o && setDialog(null)}
         danger
-        title="Delete file?"
-        description={dialog?.kind === 'delete' ? `${dialog.file.name} will be removed from the project${dialog.file.task ? ' and its task' : ''}.` : undefined}
-        confirmLabel="Delete file"
-        cancelLabel="Cancel"
+        title={tt('views.files.deleteTitle')}
+        description={
+          dialog?.kind === 'delete'
+            ? dialog.file.task
+              ? tt('views.files.deleteDescTask', { name: dialog.file.name })
+              : tt('views.files.deleteDesc', { name: dialog.file.name })
+            : undefined
+        }
+        confirmLabel={tt('views.files.deleteConfirm')}
+        cancelLabel={tt('common.cancel')}
         onConfirm={() => dialog?.kind === 'delete' && deleteFile(dialog.file)}
       />
     </>

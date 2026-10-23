@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { ArrowDownWideNarrow, Check, CheckCheck, Archive, ChevronDown, FoldHorizontal, ListChecks, MessageSquare, Paperclip, Pencil, Plus, Repeat, RotateCcw, Ellipsis, Trash2, X } from 'lucide-react';
 import { Button, Checkbox, ConfirmDialog, IconButton, Input, Label, Menu, Segmented, Switch, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger, Progress, Tooltip, toast } from '@/components/ui';
+import { useT } from '@/i18n';
 import { StatusIcon, type Status } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
 import { useWorkspace, type TaskPatch } from '../data/store';
@@ -75,15 +76,16 @@ export function useBoardDensity() {
 
 /** Параметры доски для слота extra тулбара: Full | Compact и «Show subtasks» */
 export function BoardOptions({ density, onDensity, showSubtasks, onShowSubtasks }: { density: BoardDensity; onDensity: (d: BoardDensity) => void; showSubtasks: boolean; onShowSubtasks: (on: boolean) => void }) {
+  const t = useT();
   return (
     <>
       <Segmented
-        aria-label="Card density"
+        aria-label={t('views.board.density')}
         value={density}
         onValueChange={onDensity}
         items={[
-          { value: 'full', label: 'Full' },
-          { value: 'compact', label: 'Compact' },
+          { value: 'full', label: t('views.board.densityFull') },
+          { value: 'compact', label: t('views.board.densityCompact') },
         ]}
       />
       <ShowSubtasksSwitch checked={showSubtasks} onChange={onShowSubtasks} />
@@ -93,11 +95,12 @@ export function BoardOptions({ density, onDensity, showSubtasks, onShowSubtasks 
 
 /** Переключатель «Show subtasks» для тулбара доски */
 export function ShowSubtasksSwitch({ checked, onChange }: { checked: boolean; onChange: (on: boolean) => void }) {
+  const t = useT();
   return (
     <label className="row cursor-pointer" style={{ fontSize: 12.5, color: 'var(--text-2)', gap: 6, whiteSpace: 'nowrap' }}>
       <Switch checked={checked} onChange={e => onChange(e.target.checked)} />
-      <span className="hide-m">Show subtasks</span>
-      <span className="only-m">Subtasks</span>
+      <span className="hide-m">{t('views.board.showSubtasks')}</span>
+      <span className="only-m">{t('views.board.subtasksShort')}</span>
     </label>
   );
 }
@@ -128,6 +131,7 @@ function KCard({ task: t, showProject, showSubtasks, dragging, onDragStart, onDr
   const { data } = useWorkspace();
   const actions = useTaskActions();
   const form = useTaskForm();
+  const tt = useT();
   const cc = commentsOf(data, t.id).length;
   const ac = t.attachments.length;
   const { done: sd, total: st } = countSubs(t.subtasks);
@@ -160,7 +164,7 @@ function KCard({ task: t, showProject, showSubtasks, dragging, onDragStart, onDr
       )}
       <div className="top">
         {done && (
-          <span className="done-ic" aria-label="Done">
+          <span className="done-ic" aria-label={tt('views.board.doneAria')}>
             <StatusIcon status="done" />
           </span>
         )}
@@ -169,7 +173,7 @@ function KCard({ task: t, showProject, showSubtasks, dragging, onDragStart, onDr
       {st > 0 && (
         <>
           <div className="subp">
-            <button className="subt-tg" aria-expanded={open} aria-label={open ? 'Hide subtasks' : 'Show subtasks'} onClick={e => (e.stopPropagation(), setOpen(o => !o))}>
+            <button className="subt-tg" aria-expanded={open} aria-label={open ? tt('views.task.subtasksHide') : tt('views.task.subtasksShow')} onClick={e => (e.stopPropagation(), setOpen(o => !o))}>
               <ChevronDown size={12} className="chev" />
               <ListChecks size={12} />
               <span className="num">
@@ -198,20 +202,20 @@ function KCard({ task: t, showProject, showSubtasks, dragging, onDragStart, onDr
         <PriorityField task={t} variant="icon" />
         {t.due && <DueField task={t} className="m" trigger={<TaskDue task={t} />} />}
         {t.recur && (
-          <Tooltip content={`Repeats ${t.recur.toLowerCase()}`}>
+          <Tooltip content={tt('views.task.repeatsLabel', { what: t.recur.toLowerCase() })}>
             <span className="m">
               <Repeat size={12} />
             </span>
           </Tooltip>
         )}
         {!!cc && (
-          <span className="m" aria-label={`${cc} comments`}>
+          <span className="m" aria-label={tt('views.task.comments', { n: cc })}>
             <MessageSquare size={12} />
             {cc}
           </span>
         )}
         {!!ac && (
-          <span className="m" aria-label={`${ac} attachments`}>
+          <span className="m" aria-label={tt('views.task.attachments', { n: ac })}>
             <Paperclip size={12} />
             {ac}
           </span>
@@ -219,13 +223,13 @@ function KCard({ task: t, showProject, showSubtasks, dragging, onDragStart, onDr
         <AssigneeField task={t} variant="icon" />
       </div>
       <div className="hacts" onClick={e => e.stopPropagation()}>
-        <Tooltip content={done ? 'Reopen' : 'Mark complete'}>
-          <button className="ibtn ibtn-xs" aria-label={done ? 'Reopen' : 'Mark complete'} onClick={() => actions.toggleDone(t)}>
+        <Tooltip content={done ? tt('views.task.reopen') : tt('views.task.markComplete')}>
+          <button className="ibtn ibtn-xs" aria-label={done ? tt('views.task.reopen') : tt('views.task.markComplete')} onClick={() => actions.toggleDone(t)}>
             {done ? <RotateCcw size={13} /> : <Check size={13} />}
           </button>
         </Tooltip>
-        <Tooltip content="Quick edit">
-          <button className="ibtn ibtn-xs" aria-label="Quick edit" onClick={() => form.edit(t.id)}>
+        <Tooltip content={tt('views.task.quickEdit')}>
+          <button className="ibtn ibtn-xs" aria-label={tt('views.task.quickEdit')} onClick={() => form.edit(t.id)}>
             <Pencil size={12} />
           </button>
         </Tooltip>
@@ -238,6 +242,7 @@ function KCard({ task: t, showProject, showSubtasks, dragging, onDragStart, onDr
 /** Компактная карточка: заголовок (до 2 строк) и план в часах; описание — в подсказке */
 function KCardCompact({ task: t, showSubtasks, dragging, onDragStart, onDragEnd }: { task: Task; showSubtasks: boolean; dragging: boolean; onDragStart: (e: React.DragEvent) => void; onDragEnd: () => void }) {
   const actions = useTaskActions();
+  const tt = useT();
   const plan = planOfTask(t);
   const { done: sd, total: st } = countSubs(t.subtasks);
   // Своё состояние карточки; общий переключатель перезаписывает его у всех карточек
@@ -270,7 +275,7 @@ function KCardCompact({ task: t, showSubtasks, dragging, onDragStart, onDragEnd 
         <div className="crow">
           <div className="title">{t.title}</div>
           {st > 0 && (
-            <button className="subt-tg" aria-expanded={open} aria-label={open ? 'Hide subtasks' : 'Show subtasks'} onClick={e => (e.stopPropagation(), setOpen(o => !o))}>
+            <button className="subt-tg" aria-expanded={open} aria-label={open ? tt('views.task.subtasksHide') : tt('views.task.subtasksShow')} onClick={e => (e.stopPropagation(), setOpen(o => !o))}>
               <ChevronDown size={11} className="chev" />
               <span className="num">
                 {sd}/{st}
@@ -304,12 +309,13 @@ function KCardCompact({ task: t, showSubtasks, dragging, onDragStart, onDragEnd 
 
 /** Поле названия колонки в шапке: Enter/кнопка — сохранить, Esc/крестик — отмена. Пустое и повторяющееся имя не сохраняется */
 function ColumnNameField({ initial = '', statuses, selfId, onSave, onCancel }: { initial?: string; statuses: StatusDef[]; selfId?: string; onSave: (name: string) => void; onCancel: () => void }) {
+  const tt = useT();
   const [v, setV] = React.useState(initial);
   const [err, setErr] = React.useState('');
   const save = () => {
     const name = v.trim();
-    if (!name) return setErr('Enter a column name');
-    if (statuses.some(s => s.id !== selfId && s.name.toLowerCase() === name.toLowerCase())) return setErr('A column with this name already exists');
+    if (!name) return setErr(tt('views.board.errEmptyName'));
+    if (statuses.some(s => s.id !== selfId && s.name.toLowerCase() === name.toLowerCase())) return setErr(tt('views.board.errDupName'));
     onSave(name);
   };
   return (
@@ -321,8 +327,8 @@ function ColumnNameField({ initial = '', statuses, selfId, onSave, onCancel }: {
           className="bcol-name"
           value={v}
           maxLength={40}
-          placeholder="Column name"
-          aria-label="Column name"
+          placeholder={tt('views.board.columnPlaceholder')}
+          aria-label={tt('views.board.columnPlaceholder')}
           invalid={!!err}
           onFocus={e => e.currentTarget.select()}
           onChange={e => (setV(e.target.value), setErr(''))}
@@ -331,10 +337,10 @@ function ColumnNameField({ initial = '', statuses, selfId, onSave, onCancel }: {
             if (e.key === 'Escape') onCancel();
           }}
         />
-        <IconButton size="sm" label="Save column" onClick={save}>
+        <IconButton size="sm" label={tt('views.board.saveColumn')} onClick={save}>
           <Check size={14} />
         </IconButton>
-        <IconButton size="sm" label="Cancel" onClick={onCancel}>
+        <IconButton size="sm" label={tt('views.board.cancelColumn')} onClick={onCancel}>
           <X size={14} />
         </IconButton>
       </div>
@@ -349,6 +355,7 @@ function ColumnNameField({ initial = '', statuses, selfId, onSave, onCancel }: {
 
 /** Поле быстрого добавления в колонке: Enter — создать, Esc — отмена */
 function Composer({ onSubmit, onCancel }: { onSubmit: (title: string) => void; onCancel: () => void }) {
+  const tt = useT();
   const [v, setV] = React.useState('');
   const submit = () => (v.trim() ? onSubmit(v.trim()) : onCancel());
   return (
@@ -357,8 +364,8 @@ function Composer({ onSubmit, onCancel }: { onSubmit: (title: string) => void; o
         autoFocus
         rows={2}
         value={v}
-        placeholder="Task name"
-        aria-label="New task name"
+        placeholder={tt('views.board.taskName')}
+        aria-label={tt('views.board.newTask')}
         onChange={e => setV(e.target.value)}
         onKeyDown={e => {
           if (e.key === 'Enter' && !e.shiftKey) {
@@ -370,14 +377,14 @@ function Composer({ onSubmit, onCancel }: { onSubmit: (title: string) => void; o
       />
       <div className="row">
         <span className="faint" style={{ fontSize: 11 }}>
-          Enter to add · Esc to cancel
+          {tt('views.board.enterAddEscCancel')}
         </span>
         <span className="sp" />
         <Button size="sm" variant="ghost" onClick={onCancel}>
-          Cancel
+          {tt('views.board.cancel')}
         </Button>
         <Button size="sm" variant="primary" onClick={submit}>
-          Add
+          {tt('views.board.add')}
         </Button>
       </div>
     </div>
@@ -410,6 +417,7 @@ export function BoardView({ tasks, defaultProject, project, showSubtasks = false
     return () => document.body.classList.remove('card-dragging');
   }, [dragId]);
 
+  const tt = useT();
   const addColumn = (name: string) => {
     const n = statuses.filter(s => !s.builtin).length;
     dispatch({ type: 'status/add', status: { id: newStatusKey(), name, color: STATUS_PALETTE[n % STATUS_PALETTE.length] } });
@@ -418,7 +426,7 @@ export function BoardView({ tasks, defaultProject, project, showSubtasks = false
   const deleteColumn = (s: StatusDef) => {
     const snap = data;
     dispatch({ type: 'status/delete', id: s.id });
-    toast(`Deleted column “${s.name}”`, { action: { label: 'Undo', onClick: () => dispatch({ type: 'data/restore', data: snap }) } });
+    toast(tt('views.board.deletedColumn', { name: s.name }), { action: { label: tt('views.board.undo'), onClick: () => dispatch({ type: 'data/restore', data: snap }) } });
   };
   const inColumn = (id: string) => data.tasks.filter(t => t.status === id).length;
 
@@ -452,7 +460,7 @@ export function BoardView({ tasks, defaultProject, project, showSubtasks = false
     } else order = colTs.length ? colTs[colTs.length - 1].order + 1 : t.order;
     const moved = t.status !== col;
     patch(t.id, moved ? { order, status: col } : { order });
-    if (moved) toast(`Moved “${t.title}” to ${statuses.find(s => s.id === col)?.name}`, { duration: 2200 });
+    if (moved) toast(tt('views.board.movedTo', { title: t.title, status: statuses.find(s => s.id === col)?.name ?? '' }), { duration: 2200 });
   };
 
   // Новая задача встаёт в начало колонки
@@ -483,8 +491,8 @@ export function BoardView({ tasks, defaultProject, project, showSubtasks = false
               className={cn('bcol collapsed', over && 'over')}
               role="button"
               tabIndex={0}
-              aria-label={`Expand ${s.name}`}
-              title="Expand"
+              aria-label={tt('views.board.expandColumn', { name: s.name })}
+              title={tt('views.board.expand')}
               onClick={() => setCollapsed(c => ({ ...c, [s.id]: false }))}
               onKeyDown={e => e.key === 'Enter' && setCollapsed(c => ({ ...c, [s.id]: false }))}
               onDragOver={e => onDragOver(e, s.id)}
@@ -510,7 +518,7 @@ export function BoardView({ tasks, defaultProject, project, showSubtasks = false
           ) : (
             <button className="addcard" onClick={() => setComposer(s.id)}>
               <Plus size={14} />
-              Add task
+              {tt('views.board.addCard')}
             </button>
           );
         const doneAll = s.id !== 'done';
@@ -533,64 +541,63 @@ export function BoardView({ tasks, defaultProject, project, showSubtasks = false
               <span className="trunc">{s.name}</span>
               <span className="cnt">{col.length}</span>
               <span className="acts">
-                <Tooltip content="Add task">
-                  <button className="ibtn ibtn-xs" aria-label={`Add task to ${s.name}`} onClick={() => setComposer(s.id)}>
+                <Tooltip content={tt('views.board.addCard')}>
+                  <button className="ibtn ibtn-xs" aria-label={tt('views.board.addColumnTo', { name: s.name })} onClick={() => setComposer(s.id)}>
                     <Plus size={14} />
                   </button>
                 </Tooltip>
                 <Menu>
                   <MenuTrigger asChild>
-                    <button className="ibtn ibtn-xs" aria-label="Column options">
+                    <button className="ibtn ibtn-xs" aria-label={tt('views.board.columnOptions')}>
                       <Ellipsis size={14} />
                     </button>
                   </MenuTrigger>
                   <MenuContent align="end">
                     <MenuLabel>{s.name}</MenuLabel>
                     <MenuItem icon={<Plus size={15} />} onSelect={() => setComposer(s.id)}>
-                      Add task
+                      {tt('views.board.addCard')}
                     </MenuItem>
                     <MenuItem icon={<FoldHorizontal size={15} />} onSelect={() => setCollapsed(c => ({ ...c, [s.id]: true }))}>
-                      Collapse column
+                      {tt('views.board.collapseColumn')}
                     </MenuItem>
                     {doneAll ? (
                       <MenuItem
                         icon={<CheckCheck size={15} />}
                         onSelect={() => {
                           col.forEach(t => patch(t.id, { status: 'done' }));
-                          toast(`Marked ${col.length} ${col.length === 1 ? 'task' : 'tasks'} as done`);
+                          toast(tt('views.board.markedDone', { count: col.length }));
                         }}
                       >
-                        Mark all as done
+                        {tt('views.board.markAllDone')}
                       </MenuItem>
                     ) : (
                       <MenuItem
                         icon={<Archive size={15} />}
                         onSelect={() => {
                           col.forEach(t => patch(t.id, { archived: true }));
-                          toast(`Archived ${col.length} completed ${col.length === 1 ? 'task' : 'tasks'}`);
+                          toast(tt('views.board.archivedCompleted', { count: col.length }));
                         }}
                       >
-                        Archive completed
+                        {tt('views.board.archiveCompleted')}
                       </MenuItem>
                     )}
                     <MenuItem
                       icon={<ArrowDownWideNarrow size={15} />}
                       onSelect={() => {
-                        // Раздаём прежние значения order в порядке приоритета
                         const orders = col.map(t => t.order).sort((a, b) => a - b);
                         sortTasks(col, 'priority').forEach((t, i) => patch(t.id, { order: orders[i] }));
                       }}
                     >
-                      Sort by priority
+                      {tt('views.board.sortByPriority')}
                     </MenuItem>
                     {!s.builtin && (
                       <>
                         <MenuSeparator />
                         <MenuItem icon={<Pencil size={15} />} onSelect={() => setRenaming(s.id)}>
-                          Rename
+                          {tt('views.board.rename')}
                         </MenuItem>
                         <MenuItem icon={<Trash2 size={15} />} danger onSelect={() => (inColumn(s.id) ? setDeleting(s) : deleteColumn(s))}>
-                          Delete column
+                          {tt('views.board.deleteColumn')}
                         </MenuItem>
                       </>
                     )}
@@ -613,13 +620,13 @@ export function BoardView({ tasks, defaultProject, project, showSubtasks = false
         );
       })}
       {adding ? (
-        <section className="bcol bcol-new" aria-label="New column">
+        <section className="bcol bcol-new" aria-label={tt('views.board.newColumn')}>
           <ColumnNameField statuses={statuses} onCancel={() => setAdding(false)} onSave={addColumn} />
           <div className="bcol-b" />
         </section>
       ) : (
-        <Tooltip content="Add column">
-          <button className="bcol-add" aria-label="Add column" onClick={() => setAdding(true)}>
+        <Tooltip content={tt('views.board.addColumn')}>
+          <button className="bcol-add" aria-label={tt('views.board.addColumn')} onClick={() => setAdding(true)}>
             <Plus size={16} />
           </button>
         </Tooltip>
@@ -628,10 +635,10 @@ export function BoardView({ tasks, defaultProject, project, showSubtasks = false
         open={!!deleting}
         onOpenChange={o => !o && setDeleting(null)}
         danger
-        title={`Delete “${deleting?.name ?? ''}”?`}
-        description={deleting && `${inColumn(deleting.id)} ${inColumn(deleting.id) === 1 ? 'task' : 'tasks'} will move to To Do.`}
-        confirmLabel="Delete column"
-        cancelLabel="Cancel"
+        title={tt('views.board.deleteColumnTitle', { name: deleting?.name ?? '' })}
+        description={deleting && tt('views.board.tasksWillMove', { count: inColumn(deleting.id) })}
+        confirmLabel={tt('views.board.deleteColumn')}
+        cancelLabel={tt('views.board.cancelColumn')}
         onConfirm={() => deleting && deleteColumn(deleting)}
       />
     </div>
