@@ -12,7 +12,7 @@ import { WorkOrderKindsSection } from '../settings/work-orders';
 import { NotificationsSection, PreferencesSection, ProfileSection, ShortcutsSection } from '../settings/personal';
 import { InvoicesSection, PasswordSection, PaymentSection, PlanSection, SessionsSection, TwoFactorSection } from '../settings/account';
 import { NotFoundPage } from './PlaceholderPage';
-import { useT } from '@/i18n';
+import { useT, type TKey } from '@/i18n';
 
 function Body({ sec, title }: { sec: string; title: string }) {
   switch (sec) {
@@ -81,11 +81,11 @@ export function SettingsPage() {
       <nav className="set-nav" aria-label={t('pages.settings.navLabel')}>
         {SET_NAV.map(([g, items]) => (
           <React.Fragment key={g}>
-            <div className="gh">{g}</div>
-            {items.map(([k, n, Icon]) => (
+            <div className="gh">{t(`settings.nav.groups.${g}` as TKey)}</div>
+            {items.map(([k, nKey, Icon]) => (
               <NavLink key={k} to={`${SECTIONS.settings.path}/${k}`} className={({ isActive }) => `sitem ${isActive ? 'on' : ''}`}>
                 <Icon size={15} />
-                <span>{n}</span>
+                <span>{t(`settings.nav.items.${nKey}` as TKey)}</span>
               </NavLink>
             ))}
           </React.Fragment>
@@ -93,7 +93,7 @@ export function SettingsPage() {
       </nav>
       <div className="set-body">
         <div className="set-in">
-          <Body sec={section} title={cur[1]} />
+          <Body sec={section} title={t(`settings.nav.items.${cur[1]}` as TKey)} />
         </div>
       </div>
     </div>

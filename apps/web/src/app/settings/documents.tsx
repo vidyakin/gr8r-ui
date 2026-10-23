@@ -8,10 +8,18 @@ import { useCompanies, useIsAdmin } from '../catalog/data';
 import { BankAccountsEditor, RequisitesFields, checkRequisites, type RequisitesValue } from '../docs/requisites';
 import { useCostItems, useDocsApi, useInventorySettings, useOrganizations, useWarehouses, type CostItem, type Organization, type Warehouse } from '../docs/data';
 import { SettingsHead, SRow, Toggle } from './parts';
+import { t as tFn, hasKey, useT, type TKey } from '@/i18n';
+
+/** Подпись значения из settings.enums.* с локальным fallback (для случая, когда справочник шире словаря) */
+function enumLabel(group: 'costItem' | 'warehouseKind' | 'costDistribution' | 'taxSystem' | 'materialPriceSource' | 'workOrderStateCategory', value: string, fallback: string): string {
+  const key = `settings.enums.${group}.${value}`;
+  return hasKey(key) ? tFn(key as TKey) : fallback;
+}
 
 /* ---------------- организации ---------------- */
 
 export function OrganizationsSection({ title }: { title: string }) {
+  const t = useT();
   const isAdmin = useIsAdmin();
   const list = useOrganizations();
   const api = useDocsApi();
@@ -21,27 +29,27 @@ export function OrganizationsSection({ title }: { title: string }) {
 
   return (
     <>
-      <SettingsHead title={title} lead="Your own legal entities. Documents are issued by an organization, and each organization numbers them separately." />
+      <SettingsHead title={title} lead={t('settings.organizations.lead')} />
       {!isAdmin && (
         <Alert tone="info" className="mb-3">
-          Only admins can change organizations.
+          {t('settings.organizations.onlyAdmins')}
         </Alert>
       )}
       <div className="sblock">
         <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
-          <h2 style={{ margin: 0 }}>Organizations</h2>
+          <h2 style={{ margin: 0 }}>{t('settings.organizations.title')}</h2>
           {isAdmin && (
             <Button size="sm" variant="primary" onClick={() => setDialog({})}>
               <Plus size={13} />
-              New organization
+              {t('settings.organizations.new')}
             </Button>
           )}
         </div>
         {list.isPending ? (
           <Skeleton w="100%" h={80} />
         ) : !orgs.length ? (
-          <EmptyState icon={<Building2 size={20} />} title="No organizations yet">
-            Add the legal entity that issues invoices and shipments.
+          <EmptyState icon={<Building2 size={20} />} title={t('settings.organizations.empty.title')}>
+            {t('settings.organizations.empty.hint')}
           </EmptyState>
         ) : (
           <div className="stack" style={{ gap: 8 }}>
@@ -49,25 +57,25 @@ export function OrganizationsSection({ title }: { title: string }) {
               <div key={o.id} className="srow org-row">
                 <div style={{ minWidth: 0 }}>
                   <div className="t">
-                    {o.name} {o.isDefault && <Badge tone="accent">Default</Badge>}
+                    {o.name} {o.isDefault && <Badge tone="accent">{t('settings.organizations.default')}</Badge>}
                   </div>
                   <div className="d">
-                    {o.inn ? `INN ${o.inn}` : 'No INN yet'}
-                    {o.kpp ? ` · KPP ${o.kpp}` : ''} · {TAX_SYSTEM_LABELS[o.taxSystem]} · VAT {VAT_LABELS[o.defaultVatRate]}
+                    {o.inn ? t('settings.organizations.innKpp', { inn: o.inn }) : t('settings.organizations.noInn')}
+                    {o.kpp ? ` · ${t('settings.organizations.kpp', { kpp: o.kpp })}` : ''} · {enumLabel('taxSystem', o.taxSystem, TAX_SYSTEM_LABELS[o.taxSystem])} · {t('settings.organizations.vat', { rate: VAT_LABELS[o.defaultVatRate] })}
                   </div>
                 </div>
                 {isAdmin && (
                   <div className="row" style={{ gap: 2 }}>
                     {!o.isDefault && (
-                      <IconButton size="xs" label={`Make ${o.name} the default`} onClick={() => void api('PATCH', `/organizations/${o.id}`, { isDefault: true })}>
+                      <IconButton size="xs" label={t('settings.organizations.makeDefault', { name: o.name })} onClick={() => void api('PATCH', `/organizations/${o.id}`, { isDefault: true })}>
                         <Star size={14} />
                       </IconButton>
                     )}
-                    <IconButton size="xs" label={`Edit ${o.name}`} onClick={() => setDialog({ org: o })}>
+                    <IconButton size="xs" label={t('settings.organizations.edit', { name: o.name })} onClick={() => setDialog({ org: o })}>
                       <Pencil size={14} />
                     </IconButton>
                     {!o.isDefault && (
-                      <IconButton size="xs" label={`Archive ${o.name}`} onClick={() => setArchiving(o)}>
+                      <IconButton size="xs" label={t('settings.organizations.archiveOne', { name: o.name })} onClick={() => setArchiving(o)}>
                         <Archive size={14} />
                       </IconButton>
                     )}
@@ -83,12 +91,12 @@ export function OrganizationsSection({ title }: { title: string }) {
         open={!!archiving}
         onOpenChange={o => !o && setArchiving(null)}
         danger
-        title="Archive organization?"
-        description={archiving ? <><b>{archiving.name}</b> disappears from the lists. Documents it issued are kept.</> : undefined}
-        confirmLabel="Archive"
-        cancelLabel="Cancel"
+        title={t('settings.organizations.archiveTitle')}
+        description={archiving ? <><b>{archiving.name}</b> {t('settings.organizations.archiveBody', { name: archiving.name })}</> : undefined}
+        confirmLabel={t('settings.organizations.archiveConfirm')}
+        cancelLabel={t('settings.common.cancel')}
         onConfirm={async () => {
-          if (archiving && (await api('DELETE', `/organizations/${archiving.id}`))) toast(`Archived “${archiving.name}”`);
+          if (archiving && (await api('DELETE', `/organizations/${archiving.id}`))) toast(t('settings.organizations.archived', { name: archiving.name }));
           setArchiving(null);
         }}
       />
@@ -101,14 +109,16 @@ const fileOf = (f: FileRef): { name: string; url: string } => (f ? { name: f.nam
 const fileBody = (f: { name: string; url: string }): FileRef => (f.url.trim() ? { name: f.name.trim() || f.url.trim().split('/').pop()!.slice(0, 80), url: f.url.trim() } : null);
 
 function FileLink({ label, value, onChange, error }: { label: string; value: { name: string; url: string }; onChange: (v: { name: string; url: string }) => void; error?: string }) {
+  const t = useT();
   return (
-    <Field label={label} error={error} hint="Link to an image (https://… or a base64 image). Uploads arrive with file storage.">
-      {p => <Input {...p} placeholder="https://…/stamp.png" value={value.url} onChange={e => onChange({ ...value, url: e.target.value })} />}
+    <Field label={label} error={error} hint={t('settings.organizations.file.hint')}>
+      {p => <Input {...p} placeholder={t('settings.organizations.file.placeholder')} value={value.url} onChange={e => onChange({ ...value, url: e.target.value })} />}
     </Field>
   );
 }
 
 function OrganizationDialog({ org, onClose }: { org?: Organization; onClose: () => void }) {
+  const t = useT();
   const api = useDocsApi();
   const [f, setF] = React.useState({
     name: org?.name ?? '',
@@ -116,7 +126,7 @@ function OrganizationDialog({ org, onClose }: { org?: Organization; onClose: () 
     phone: org?.phone ?? '',
     email: org?.email ?? '',
     directorName: org?.directorName ?? '',
-    directorTitle: org?.directorTitle ?? 'Генеральный директор',
+    directorTitle: org?.directorTitle ?? '',
     accountantName: org?.accountantName ?? '',
     taxSystem: (org?.taxSystem ?? 'osn') as TaxSystem,
     defaultVatRate: (org?.defaultVatRate ?? '20') as VatRate,
@@ -131,7 +141,7 @@ function OrganizationDialog({ org, onClose }: { org?: Organization; onClose: () 
 
   const submit = async () => {
     const errs: Record<string, string> = { ...checkRequisites(req) };
-    if (!f.name.trim()) errs.name = 'Enter a name';
+    if (!f.name.trim()) errs.name = t('settings.organizations.fields.nameRequired');
     setErr(errs);
     if (Object.keys(errs).length) return;
     setBusy(true);
@@ -139,7 +149,7 @@ function OrganizationDialog({ org, onClose }: { org?: Organization; onClose: () 
     const r = org ? await api('PATCH', `/organizations/${org.id}`, body) : await api('POST', '/organizations', body);
     setBusy(false);
     if (!r) return;
-    toast(org ? `Saved “${f.name.trim()}”` : `Added “${f.name.trim()}”`);
+    toast(org ? t('settings.organizations.saved', { name: f.name.trim() }) : t('settings.organizations.added', { name: f.name.trim() }));
     onClose();
   };
 
@@ -147,15 +157,15 @@ function OrganizationDialog({ org, onClose }: { org?: Organization; onClose: () 
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
         size="lg"
-        title={org ? 'Edit organization' : 'New organization'}
+        title={org ? t('settings.organizations.dialog.edit') : t('settings.organizations.dialog.new')}
         footer={
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{t('settings.common.cancel')}</Button>
             </DialogClose>
             <Button variant="primary" disabled={busy} onClick={submit}>
-              {org ? 'Save' : 'Create organization'}
+              {org ? t('settings.organizations.dialog.save') : t('settings.organizations.dialog.create')}
             </Button>
           </>
         }
@@ -168,45 +178,45 @@ function OrganizationDialog({ org, onClose }: { org?: Organization; onClose: () 
             void submit();
           }}
         >
-          <Field label="Name" error={err.name} hint="Short name for lists and headers">
+          <Field label={t('settings.organizations.fields.name')} error={err.name} hint={t('settings.organizations.fields.nameHint')}>
             {p => <Input {...p} autoFocus value={f.name} onChange={e => (setF({ ...f, name: e.target.value }), setErr(s => ({ ...s, name: '' })))} />}
           </Field>
-          <Field label="Full name" hint="As it appears on invoices and shipments">
+          <Field label={t('settings.organizations.fields.fullName')} hint={t('settings.organizations.fields.fullNameHint')}>
             {p => <Input {...p} value={f.fullName} placeholder={f.name} onChange={e => setF({ ...f, fullName: e.target.value })} />}
           </Field>
           <RequisitesFields value={req} errors={err} onChange={patch => (setReq(r => ({ ...r, ...patch })), setErr({}))} />
           <div className="row req-row">
-            <Field label="Phone" className="grow">
+            <Field label={t('settings.organizations.fields.phone')} className="grow">
               {p => <Input {...p} value={f.phone} onChange={e => setF({ ...f, phone: e.target.value })} />}
             </Field>
-            <Field label="Email" className="grow">
+            <Field label={t('settings.organizations.fields.email')} className="grow">
               {p => <Input {...p} value={f.email} onChange={e => setF({ ...f, email: e.target.value })} />}
             </Field>
           </div>
           <div className="row req-row">
-            <Field label="Director" className="grow">
+            <Field label={t('settings.organizations.fields.director')} className="grow">
               {p => <Input {...p} value={f.directorName} onChange={e => setF({ ...f, directorName: e.target.value })} />}
             </Field>
-            <Field label="Director's title" className="grow">
+            <Field label={t('settings.organizations.fields.directorTitle')} className="grow">
               {p => <Input {...p} value={f.directorTitle} onChange={e => setF({ ...f, directorTitle: e.target.value })} />}
             </Field>
-            <Field label="Chief accountant" className="grow">
+            <Field label={t('settings.organizations.fields.accountant')} className="grow">
               {p => <Input {...p} value={f.accountantName} onChange={e => setF({ ...f, accountantName: e.target.value })} />}
             </Field>
           </div>
           <div className="row req-row">
-            <Field label="Taxation" className="grow">
+            <Field label={t('settings.organizations.fields.taxation')} className="grow">
               {p => (
                 <select className="select" id={p.id} value={f.taxSystem} onChange={e => setF({ ...f, taxSystem: e.target.value as TaxSystem })}>
-                  {TAX_SYSTEMS.map(t => (
-                    <option key={t} value={t}>
-                      {TAX_SYSTEM_LABELS[t]}
+                  {TAX_SYSTEMS.map(ts => (
+                    <option key={ts} value={ts}>
+                      {enumLabel('taxSystem', ts, TAX_SYSTEM_LABELS[ts])}
                     </option>
                   ))}
                 </select>
               )}
             </Field>
-            <Field label="Default VAT rate" className="grow">
+            <Field label={t('settings.organizations.fields.defaultVat')} className="grow">
               {p => (
                 <select className="select" id={p.id} value={f.defaultVatRate} onChange={e => setF({ ...f, defaultVatRate: e.target.value as VatRate })}>
                   {VAT_RATES.map(v => (
@@ -218,15 +228,15 @@ function OrganizationDialog({ org, onClose }: { org?: Organization; onClose: () 
               )}
             </Field>
           </div>
-          <FileLink label="Stamp" value={stamp} onChange={setStamp} />
-          <FileLink label="Director's signature" value={dirSig} onChange={setDirSig} />
-          <FileLink label="Accountant's signature" value={accSig} onChange={setAccSig} />
-          <SRow t="Default organization" d="New documents are issued by it unless you pick another.">
-            <Toggle checked={f.isDefault} label="Default organization" onChange={v => setF({ ...f, isDefault: v })} />
+          <FileLink label={t('settings.organizations.file.stamp')} value={stamp} onChange={setStamp} />
+          <FileLink label={t('settings.organizations.file.directorSig')} value={dirSig} onChange={setDirSig} />
+          <FileLink label={t('settings.organizations.file.accountantSig')} value={accSig} onChange={setAccSig} />
+          <SRow t={t('settings.organizations.fields.defaultOrg')} d={t('settings.organizations.fields.defaultOrgHint')}>
+            <Toggle checked={f.isDefault} label={t('settings.organizations.fields.defaultOrg')} onChange={v => setF({ ...f, isDefault: v })} />
           </SRow>
           <div className="field">
-            <span className="label">Bank accounts</span>
-            {org ? <BankAccountsEditor owner="organizations" ownerId={org.id} canEdit /> : <p className="faint" style={{ margin: 0 }}>Save the organization first, then add its bank accounts.</p>}
+            <span className="label">{t('settings.organizations.fields.bankAccounts')}</span>
+            {org ? <BankAccountsEditor owner="organizations" ownerId={org.id} canEdit /> : <p className="faint" style={{ margin: 0 }}>{t('settings.organizations.fields.bankAccountsHint')}</p>}
           </div>
           <button type="submit" hidden />
         </form>
@@ -237,11 +247,9 @@ function OrganizationDialog({ org, onClose }: { org?: Organization; onClose: () 
 
 /* ---------------- статьи затрат и доходов ---------------- */
 
-const COST_ITEM_KIND_LABEL: Record<CostItemKind, string> = { expense: 'Expense', income: 'Income' };
-const WAREHOUSE_KIND_LABEL: Record<WarehouseKind, string> = { warehouse: 'Warehouse', workshop: 'Workshop', transit: 'In transit' };
-
 /** Справочник статей затрат и доходов: списание пишется на статью затрат, оприходование — на статью доходов */
 export function CostItemsSection({ title }: { title: string }) {
+  const t = useT();
   const isAdmin = useIsAdmin();
   const list = useCostItems();
   const api = useDocsApi();
@@ -251,27 +259,27 @@ export function CostItemsSection({ title }: { title: string }) {
 
   return (
     <>
-      <SettingsHead title={title} lead="Cost and income items. A write-off needs an expense item, a posting needs an income item." />
+      <SettingsHead title={title} lead={t('settings.costItems.lead')} />
       {!isAdmin && (
         <Alert tone="info" className="mb-3">
-          Only admins can change cost items.
+          {t('settings.costItems.onlyAdmins')}
         </Alert>
       )}
       <div className="sblock">
         <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
-          <h2 style={{ margin: 0 }}>Cost items</h2>
+          <h2 style={{ margin: 0 }}>{t('settings.costItems.title')}</h2>
           {isAdmin && (
             <Button size="sm" variant="primary" onClick={() => setDialog({})}>
               <Plus size={13} />
-              New cost item
+              {t('settings.costItems.new')}
             </Button>
           )}
         </div>
         {list.isPending ? (
           <Skeleton w="100%" h={80} />
         ) : !items.length ? (
-          <EmptyState icon={<Tags size={20} />} title="No cost items yet">
-            Add the items write-offs and postings are recorded against.
+          <EmptyState icon={<Tags size={20} />} title={t('settings.costItems.empty.title')}>
+            {t('settings.costItems.empty.hint')}
           </EmptyState>
         ) : (
           <div className="stack" style={{ gap: 8 }}>
@@ -279,19 +287,23 @@ export function CostItemsSection({ title }: { title: string }) {
               <div key={c.id} className="srow">
                 <div style={{ minWidth: 0 }}>
                   <div className="t">
-                    {c.name} <Badge tone={c.kind === 'expense' ? 'gray' : 'accent'}>{COST_ITEM_KIND_LABEL[c.kind]}</Badge>
-                    {c.kind === 'expense' && c.distributionMethod !== 'none' && <Badge tone="accent">{COST_DISTRIBUTION_LABELS[c.distributionMethod]}</Badge>}
+                    {c.name} <Badge tone={c.kind === 'expense' ? 'gray' : 'accent'}>{enumLabel('costItem', c.kind, c.kind === 'expense' ? 'Expense' : 'Income')}</Badge>
+                    {c.kind === 'expense' && c.distributionMethod !== 'none' && <Badge tone="accent">{enumLabel('costDistribution', c.distributionMethod, COST_DISTRIBUTION_LABELS[c.distributionMethod])}</Badge>}
                   </div>
                   <div className="d">
-                    {c.kind === 'expense' ? (c.distributionMethod === 'none' ? 'Write-offs are recorded against this item; at closing it stays undistributed' : `Write-offs and service receipts go to indirect costs; at closing they are allocated ${COST_DISTRIBUTION_LABELS[c.distributionMethod].toLowerCase()}`) : 'Postings are recorded against this item'}
+                    {c.kind === 'expense'
+                      ? c.distributionMethod === 'none'
+                        ? t('settings.costItems.writeOffsNone')
+                        : t('settings.costItems.writeOffsAllocated', { method: enumLabel('costDistribution', c.distributionMethod, COST_DISTRIBUTION_LABELS[c.distributionMethod]).toLowerCase() })
+                      : t('settings.costItems.postings')}
                   </div>
                 </div>
                 {isAdmin && (
                   <div className="row" style={{ gap: 2 }}>
-                    <IconButton size="xs" label={`Edit ${c.name}`} onClick={() => setDialog({ item: c })}>
+                    <IconButton size="xs" label={t('settings.costItems.edit', { name: c.name })} onClick={() => setDialog({ item: c })}>
                       <Pencil size={14} />
                     </IconButton>
-                    <IconButton size="xs" label={`Archive ${c.name}`} onClick={() => setArchiving(c)}>
+                    <IconButton size="xs" label={t('settings.costItems.archive', { name: c.name })} onClick={() => setArchiving(c)}>
                       <Archive size={14} />
                     </IconButton>
                   </div>
@@ -306,12 +318,12 @@ export function CostItemsSection({ title }: { title: string }) {
         open={!!archiving}
         onOpenChange={o => !o && setArchiving(null)}
         danger
-        title="Archive cost item?"
-        description={archiving ? <><b>{archiving.name}</b> disappears from the lists. Documents that used it keep it.</> : undefined}
-        confirmLabel="Archive"
-        cancelLabel="Cancel"
+        title={t('settings.costItems.archiveTitle')}
+        description={archiving ? <><b>{archiving.name}</b> {t('settings.costItems.archiveBody', { name: archiving.name })}</> : undefined}
+        confirmLabel={t('settings.costItems.archiveConfirm')}
+        cancelLabel={t('settings.common.cancel')}
         onConfirm={async () => {
-          if (archiving && (await api('DELETE', `/cost-items/${archiving.id}`))) toast(`Archived “${archiving.name}”`);
+          if (archiving && (await api('DELETE', `/cost-items/${archiving.id}`))) toast(t('settings.costItems.archived', { name: archiving.name }));
           setArchiving(null);
         }}
       />
@@ -320,6 +332,7 @@ export function CostItemsSection({ title }: { title: string }) {
 }
 
 function CostItemDialog({ item, onClose }: { item?: CostItem; onClose: () => void }) {
+  const t = useT();
   const api = useDocsApi();
   const [name, setName] = React.useState(item?.name ?? '');
   const [kind, setKind] = React.useState<CostItemKind>(item?.kind ?? 'expense');
@@ -327,27 +340,27 @@ function CostItemDialog({ item, onClose }: { item?: CostItem; onClose: () => voi
   const [err, setErr] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const submit = async () => {
-    if (!name.trim()) return setErr('Enter a name');
+    if (!name.trim()) return setErr(t('settings.costItems.dialog.fields.nameRequired'));
     setBusy(true);
     const body = { name: name.trim(), kind, distributionMethod: kind === 'expense' ? method : 'none' };
     const r = item ? await api('PATCH', `/cost-items/${item.id}`, body) : await api('POST', '/cost-items', body);
     setBusy(false);
     if (!r) return;
-    toast(item ? `Saved “${body.name}”` : `Added “${body.name}”`);
+    toast(item ? t('settings.costItems.saved', { name: body.name }) : t('settings.costItems.added', { name: body.name }));
     onClose();
   };
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
-        title={item ? 'Edit cost item' : 'New cost item'}
+        title={item ? t('settings.costItems.dialog.edit') : t('settings.costItems.dialog.new')}
         footer={
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{t('settings.common.cancel')}</Button>
             </DialogClose>
             <Button variant="primary" disabled={busy} onClick={submit}>
-              {item ? 'Save' : 'Create cost item'}
+              {item ? t('settings.costItems.dialog.save') : t('settings.costItems.dialog.create')}
             </Button>
           </>
         }
@@ -360,24 +373,24 @@ function CostItemDialog({ item, onClose }: { item?: CostItem; onClose: () => voi
             void submit();
           }}
         >
-          <Field label="Name" error={err}>
+          <Field label={t('settings.costItems.dialog.fields.name')} error={err}>
             {p => <Input {...p} autoFocus value={name} onChange={e => (setName(e.target.value), setErr(''))} />}
           </Field>
-          <Field label="Kind" hint="Expenses are used by write-offs, income items by postings">
+          <Field label={t('settings.costItems.dialog.fields.kind')} hint={t('settings.costItems.dialog.fields.kindHint')}>
             {p => (
               <select className="select" id={p.id} value={kind} onChange={e => setKind(e.target.value as CostItemKind)}>
-                <option value="expense">Expense</option>
-                <option value="income">Income</option>
+                <option value="expense">{enumLabel('costItem', 'expense', 'Expense')}</option>
+                <option value="income">{enumLabel('costItem', 'income', 'Income')}</option>
               </select>
             )}
           </Field>
           {kind === 'expense' && (
-            <Field label="Allocation base" hint="How the indirect costs of this item are split between the releases of the month">
+            <Field label={t('settings.costItems.dialog.fields.method')} hint={t('settings.costItems.dialog.fields.methodHint')}>
               {p => (
                 <select className="select" id={p.id} value={method} onChange={e => setMethod(e.target.value as CostDistribution)}>
                   {COST_DISTRIBUTIONS.map(m => (
                     <option key={m} value={m}>
-                      {COST_DISTRIBUTION_LABELS[m]}
+                      {enumLabel('costDistribution', m, COST_DISTRIBUTION_LABELS[m])}
                     </option>
                   ))}
                 </select>
@@ -394,6 +407,7 @@ function CostItemDialog({ item, onClose }: { item?: CostItem; onClose: () => voi
 /* ---------------- склады ---------------- */
 
 export function WarehousesSection({ title }: { title: string }) {
+  const t = useT();
   const isAdmin = useIsAdmin();
   const list = useWarehouses();
   const settings = useInventorySettings();
@@ -404,22 +418,22 @@ export function WarehousesSection({ title }: { title: string }) {
 
   return (
     <>
-      <SettingsHead title={title} lead="Places where goods are stored. Shipments and receipts move stock of the warehouse chosen in the document." />
+      <SettingsHead title={title} lead={t('settings.warehouses.lead')} />
       <div className="sblock">
         <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
-          <h2 style={{ margin: 0 }}>Warehouses</h2>
+          <h2 style={{ margin: 0 }}>{t('settings.warehouses.title')}</h2>
           {isAdmin && (
             <Button size="sm" variant="primary" onClick={() => setDialog({})}>
               <Plus size={13} />
-              New warehouse
+              {t('settings.warehouses.new')}
             </Button>
           )}
         </div>
         {list.isPending ? (
           <Skeleton w="100%" h={80} />
         ) : !items.length ? (
-          <EmptyState icon={<WarehouseIcon size={20} />} title="No warehouses yet">
-            Add a warehouse to receive and ship goods.
+          <EmptyState icon={<WarehouseIcon size={20} />} title={t('settings.warehouses.empty.title')}>
+            {t('settings.warehouses.empty.hint')}
           </EmptyState>
         ) : (
           <div className="stack" style={{ gap: 8 }}>
@@ -427,22 +441,22 @@ export function WarehousesSection({ title }: { title: string }) {
               <div key={w.id} className="srow">
                 <div style={{ minWidth: 0 }}>
                   <div className="t">
-                    {w.name} {w.code && <span className="mono faint">{w.code}</span>} {w.isDefault && <Badge tone="accent">Default</Badge>} {w.kind !== 'warehouse' && <Badge tone="gray">{WAREHOUSE_KIND_LABEL[w.kind]}</Badge>} {w.counterpartyId && <Badge tone="accent">Counterparty</Badge>}
+                    {w.name} {w.code && <span className="mono faint">{w.code}</span>} {w.isDefault && <Badge tone="accent">{t('settings.warehouses.default')}</Badge>} {w.kind !== 'warehouse' && <Badge tone="gray">{enumLabel('warehouseKind', w.kind, w.kind === 'workshop' ? 'Workshop' : 'In transit')}</Badge>} {w.counterpartyId && <Badge tone="accent">{t('settings.warehouses.counterparty')}</Badge>}
                   </div>
-                  <div className="d">{w.address || 'No address'}</div>
+                  <div className="d">{w.address || t('settings.warehouses.noAddress')}</div>
                 </div>
                 {isAdmin && (
                   <div className="row" style={{ gap: 2 }}>
                     {!w.isDefault && (
-                      <IconButton size="xs" label={`Make ${w.name} the default`} onClick={() => void api('PATCH', `/warehouses/${w.id}`, { isDefault: true })}>
+                      <IconButton size="xs" label={t('settings.warehouses.makeDefault', { name: w.name })} onClick={() => void api('PATCH', `/warehouses/${w.id}`, { isDefault: true })}>
                         <Star size={14} />
                       </IconButton>
                     )}
-                    <IconButton size="xs" label={`Edit ${w.name}`} onClick={() => setDialog({ wh: w })}>
+                    <IconButton size="xs" label={t('settings.warehouses.edit', { name: w.name })} onClick={() => setDialog({ wh: w })}>
                       <Pencil size={14} />
                     </IconButton>
                     {!w.isDefault && (
-                      <IconButton size="xs" label={`Archive ${w.name}`} onClick={() => setArchiving(w)}>
+                      <IconButton size="xs" label={t('settings.warehouses.archive', { name: w.name })} onClick={() => setArchiving(w)}>
                         <Archive size={14} />
                       </IconButton>
                     )}
@@ -454,18 +468,18 @@ export function WarehousesSection({ title }: { title: string }) {
         )}
       </div>
       <div className="sblock">
-        <h2>Stock rules</h2>
-        <SRow t="Allow negative stock" d="Off by default: posting a shipment or a return to a supplier is refused when there is not enough stock. Turn on to let balances go below zero (average cost then restarts at the next receipt price).">
+        <h2>{t('settings.warehouses.stockRules')}</h2>
+        <SRow t={t('settings.warehouses.allowNegative.t')} d={t('settings.warehouses.allowNegative.d')}>
           <Toggle
             checked={settings.data?.allowNegativeStock ?? false}
-            label="Allow negative stock"
+            label={t('settings.warehouses.allowNegative.t')}
             onChange={v => void api('PATCH', '/stock/settings', { allowNegativeStock: v }).then(() => settings.refetch())}
-            notify="Stock rule saved"
+            notify={t('settings.warehouses.stockRuleSaved')}
           />
         </SRow>
         {!isAdmin && (
           <Alert tone="info" className="mt-3">
-            Only admins can change warehouses and stock rules.
+            {t('settings.warehouses.onlyAdmins')}
           </Alert>
         )}
       </div>
@@ -474,12 +488,12 @@ export function WarehousesSection({ title }: { title: string }) {
         open={!!archiving}
         onOpenChange={o => !o && setArchiving(null)}
         danger
-        title="Archive warehouse?"
-        description={archiving ? <><b>{archiving.name}</b> disappears from the lists. A warehouse that still holds stock cannot be archived.</> : undefined}
-        confirmLabel="Archive"
-        cancelLabel="Cancel"
+        title={t('settings.warehouses.archiveTitle')}
+        description={archiving ? <><b>{archiving.name}</b> {t('settings.warehouses.archiveBody', { name: archiving.name })}</> : undefined}
+        confirmLabel={t('settings.warehouses.archiveConfirm')}
+        cancelLabel={t('settings.common.cancel')}
         onConfirm={async () => {
-          if (archiving && (await api('DELETE', `/warehouses/${archiving.id}`))) toast(`Archived “${archiving.name}”`);
+          if (archiving && (await api('DELETE', `/warehouses/${archiving.id}`))) toast(t('settings.warehouses.archived', { name: archiving.name }));
           setArchiving(null);
         }}
       />
@@ -488,6 +502,7 @@ export function WarehousesSection({ title }: { title: string }) {
 }
 
 function WarehouseDialog({ wh, onClose }: { wh?: Warehouse; onClose: () => void }) {
+  const t = useT();
   const api = useDocsApi();
   const companies = useCompanies();
   const [name, setName] = React.useState(wh?.name ?? '');
@@ -499,27 +514,27 @@ function WarehouseDialog({ wh, onClose }: { wh?: Warehouse; onClose: () => void 
   const [err, setErr] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const submit = async () => {
-    if (!name.trim()) return setErr('Enter a name');
+    if (!name.trim()) return setErr(t('settings.warehouses.dialog.fields.nameRequired'));
     setBusy(true);
     const body = { name: name.trim(), code: code.trim(), address: address.trim(), kind, counterpartyId: counterpartyId || null };
     const r = wh ? await api('PATCH', `/warehouses/${wh.id}`, body) : await api('POST', '/warehouses', body);
     setBusy(false);
     if (!r) return;
-    toast(wh ? `Saved “${body.name}”` : `Added “${body.name}”`);
+    toast(wh ? t('settings.warehouses.saved', { name: body.name }) : t('settings.warehouses.added', { name: body.name }));
     onClose();
   };
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
-        title={wh ? 'Edit warehouse' : 'New warehouse'}
+        title={wh ? t('settings.warehouses.dialog.edit') : t('settings.warehouses.dialog.new')}
         footer={
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{t('settings.common.cancel')}</Button>
             </DialogClose>
             <Button variant="primary" disabled={busy} onClick={submit}>
-              {wh ? 'Save' : 'Create warehouse'}
+              {wh ? t('settings.warehouses.dialog.save') : t('settings.warehouses.dialog.create')}
             </Button>
           </>
         }
@@ -532,24 +547,24 @@ function WarehouseDialog({ wh, onClose }: { wh?: Warehouse; onClose: () => void 
             void submit();
           }}
         >
-          <Field label="Name" error={err}>
+          <Field label={t('settings.warehouses.dialog.fields.name')} error={err}>
             {p => <Input {...p} autoFocus value={name} onChange={e => (setName(e.target.value), setErr(''))} />}
           </Field>
-          <Field label="Code">{p => <Input {...p} value={code} onChange={e => setCode(e.target.value)} />}</Field>
-          <Field label="Address">{p => <Input {...p} value={address} onChange={e => setAddress(e.target.value)} />}</Field>
-          <Field label="Kind" hint="A workshop warehouse receives the materials of a work center; the transit warehouse is a service one">
+          <Field label={t('settings.warehouses.dialog.fields.code')}>{p => <Input {...p} value={code} onChange={e => setCode(e.target.value)} />}</Field>
+          <Field label={t('settings.warehouses.dialog.fields.address')}>{p => <Input {...p} value={address} onChange={e => setAddress(e.target.value)} />}</Field>
+          <Field label={t('settings.warehouses.dialog.fields.kind')} hint={t('settings.warehouses.dialog.fields.kindHint')}>
             {p => (
               <select className="select" id={p.id} value={kind} onChange={e => setKind(e.target.value as WarehouseKind)}>
-                <option value="warehouse">Warehouse</option>
-                <option value="workshop">Workshop</option>
-                <option value="transit">In transit</option>
+                <option value="warehouse">{enumLabel('warehouseKind', 'warehouse', 'Warehouse')}</option>
+                <option value="workshop">{enumLabel('warehouseKind', 'workshop', 'Workshop')}</option>
+                <option value="transit">{enumLabel('warehouseKind', 'transit', 'In transit')}</option>
               </select>
             )}
           </Field>
-          <Field label="Counterparty warehouse" hint="A storage place at the counterparty: our materials handed over for processing there">
+          <Field label={t('settings.warehouses.dialog.fields.counterparty')} hint={t('settings.warehouses.dialog.fields.counterpartyHint')}>
             {p => (
               <select className="select" id={p.id} value={counterpartyId} onChange={e => setCounterpartyId(e.target.value)}>
-                <option value="">No</option>
+                <option value="">{t('settings.warehouses.dialog.fields.counterpartyNo')}</option>
                 {(companies.data ?? []).map(c => (
                   <option key={c.id} value={c.id}>
                     {c.name}

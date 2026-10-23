@@ -1,6 +1,7 @@
 /* Общие части настроек — порт srow, tog, sel и strengthMeter из pages/settings.js */
 import * as React from 'react';
 import { Switch, toast } from '@/components/ui';
+import { useT } from '@/i18n';
 
 /** Строка «заголовок + пояснение — элемент управления» */
 export function SRow({ t, d, children }: { t: React.ReactNode; d?: React.ReactNode; children?: React.ReactNode }) {
@@ -17,13 +18,14 @@ export function SRow({ t, d, children }: { t: React.ReactNode; d?: React.ReactNo
 
 /** Тумблер; notify — тост «сохранено», как у настроек уведомлений */
 export function Toggle({ checked, onChange, label, notify }: { checked: boolean; onChange: (v: boolean) => void; label: string; notify?: string }) {
+  const t = useT();
   return (
     <Switch
       checked={checked}
       aria-label={label}
       onChange={e => {
         onChange(e.target.checked);
-        if (notify) toast(notify, { duration: 1500 });
+        if (notify) toast(notify || t('settings.common.preferenceSaved'), { duration: 1500 });
       }}
     />
   );
@@ -31,6 +33,7 @@ export function Toggle({ checked, onChange, label, notify }: { checked: boolean;
 
 /** Нативный select (как в оригинале): значение, которого нет в списке, показывается первым пунктом */
 export function PrefSelect({ value, options, onChange, label }: { value: string; options: (string | [string, string])[]; onChange: (v: string) => void; label: string }) {
+  const t = useT();
   const opts = options.map(o => (Array.isArray(o) ? o : ([o, o] as [string, string])));
   const v = opts.some(o => o[0] === value) ? value : opts[0][0];
   return (
@@ -41,7 +44,7 @@ export function PrefSelect({ value, options, onChange, label }: { value: string;
       value={v}
       onChange={e => {
         onChange(e.target.value);
-        toast('Preference saved', { duration: 1500 });
+        toast(t('settings.common.preferenceSaved'), { duration: 1500 });
       }}
     >
       {opts.map(([val, n]) => (
@@ -65,10 +68,17 @@ export function passwordScore(pw: string) {
 
 /** Индикатор силы пароля; пустой пароль — ничего */
 export function PasswordStrength({ value }: { value: string }) {
+  const t = useT();
   if (!value) return null;
   const s = passwordScore(value);
   const c = ['var(--red)', 'var(--red)', 'var(--amber)', 'var(--green)', 'var(--green)'][s];
-  const n = ['Too short', 'Weak', 'Fair', 'Good', 'Strong'][s];
+  const n = [
+    t('settings.passwordStrength.tooShort'),
+    t('settings.passwordStrength.weak'),
+    t('settings.passwordStrength.fair'),
+    t('settings.passwordStrength.good'),
+    t('settings.passwordStrength.strong'),
+  ][s];
   return (
     <div className="row" style={{ gap: 8 }} data-strength={s}>
       <div className="strength grow" aria-hidden="true">

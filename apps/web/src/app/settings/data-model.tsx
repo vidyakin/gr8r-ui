@@ -13,6 +13,7 @@ import { ChoiceLabel, FIELD_ICONS } from '../meta/field-ui';
 import { ENTITY_ICON_NAMES, entityIcon } from '../meta/icons';
 import { activeFields, call, metaKey, useAllEntities, useWsId, type MetaEntity, type MetaField } from '../meta/data';
 import { SettingsHead } from './parts';
+import { useT } from '@/i18n';
 
 /* ---------------- запросы с обновлением метаданных ---------------- */
 
@@ -35,17 +36,28 @@ function useMetaApi() {
   );
 }
 
-const SYSTEM_HINT: Record<string, string> = {
-  task: 'Fields appear in the task card and as columns in the task table.',
-  deal: 'Fields appear in the deal card.',
-  company: 'Fields appear on the company page.',
-  contact: 'Fields appear in the contact card.',
-  project: 'Fields are stored with the project; shown through the API.',
+const HINT_KEYS: Record<string, string> = {
+  task: 'settings.dataModel.hints.task',
+  deal: 'settings.dataModel.hints.deal',
+  company: 'settings.dataModel.hints.company',
+  contact: 'settings.dataModel.hints.contact',
+  project: 'settings.dataModel.hints.project',
 };
+
+/** Показывает подсказку по типу системной сущности */
+function SysHint({ entityKey }: { entityKey: string }) {
+  const t = useT();
+  return (
+    <p className="muted" style={{ margin: '0 0 12px', fontSize: 13 }}>
+      {t((HINT_KEYS[entityKey] ?? 'settings.dataModel.hints.fallback') as 'settings.dataModel.hints.task')} {t('settings.dataModel.builtinNote')}
+    </p>
+  );
+}
 
 /* ---------------- раздел ---------------- */
 
 export function DataModelSection({ title }: { title: string }) {
+  const t = useT();
   const { active } = useSession();
   const canEdit = active?.role === 'owner' || active?.role === 'admin';
   const all = useAllEntities();
@@ -60,7 +72,7 @@ export function DataModelSection({ title }: { title: string }) {
   const item = (e: MetaEntity) => {
     const Icon = entityIcon(e.icon);
     return (
-      <button key={e.key} className={cn('dm-item', current?.key === e.key && 'on')} onClick={() => setSel(e.key)} aria-label={`Entity ${e.name}`}>
+      <button key={e.key} className={cn('dm-item', current?.key === e.key && 'on')} onClick={() => setSel(e.key)} aria-label={t('settings.dataModel.entityAria', { name: e.name })}>
         <Icon size={15} />
         <span className="trunc">{e.name}</span>
         <span className="ct">{activeFields(e).length}</span>
@@ -70,28 +82,28 @@ export function DataModelSection({ title }: { title: string }) {
 
   return (
     <>
-      <SettingsHead title={title} lead="Describe your own entities and add custom fields to built-in ones. Everything you define here shows up in the app automatically." />
+      <SettingsHead title={title} lead={t('settings.dataModel.lead')} />
       {!canEdit && (
         <Alert tone="info" className="mb-4">
-          Only admins and owners can change the data model. You can view it.
+          {t('settings.dataModel.readOnly')}
         </Alert>
       )}
       <div className="dm">
-        <div className="dm-list" role="list" aria-label="Entities">
-          <div className="gh">Built-in</div>
+        <div className="dm-list" role="list" aria-label={t('settings.dataModel.entityList')}>
+          <div className="gh">{t('settings.dataModel.builtin')}</div>
           {system.map(item)}
-          <div className="gh">Custom</div>
+          <div className="gh">{t('settings.dataModel.custom')}</div>
           {custom.map(item)}
-          {!custom.length && <div className="faint" style={{ padding: '4px 8px', fontSize: 12.5 }}>No custom entities yet</div>}
+          {!custom.length && <div className="faint" style={{ padding: '4px 8px', fontSize: 12.5 }}>{t('settings.dataModel.noCustom')}</div>}
           {canEdit && (
             <Button size="sm" variant="secondary" style={{ marginTop: 10 }} onClick={() => setCreating(true)}>
               <Plus size={13} />
-              New entity
+              {t('settings.dataModel.newEntity')}
             </Button>
           )}
           {canEdit && !!removed.length && <RemovedEntities list={removed} />}
         </div>
-        {current ? <EntityEditor key={current.id} entity={current} canEdit={canEdit} onDeleted={() => setSel(null)} /> : <div className="faint">Loading…</div>}
+        {current ? <EntityEditor key={current.id} entity={current} canEdit={canEdit} onDeleted={() => setSel(null)} /> : <div className="faint">{t('settings.dataModel.loading')}</div>}
       </div>
       {creating && <NewEntityDialog onClose={() => setCreating(false)} onCreated={key => setSel(key)} />}
     </>
@@ -99,20 +111,21 @@ export function DataModelSection({ title }: { title: string }) {
 }
 
 function RemovedEntities({ list }: { list: MetaEntity[] }) {
+  const t = useT();
   const api = useMetaApi();
   const [purge, setPurge] = React.useState<MetaEntity | null>(null);
   return (
     <div className="dm-removed">
-      <div className="gh">Removed</div>
+      <div className="gh">{t('settings.dataModel.removed')}</div>
       {list.map(e => (
         <div key={e.id} className="row" style={{ gap: 6, padding: '2px 8px', fontSize: 13 }}>
           <span className="trunc muted" style={{ flex: 1 }}>
             {e.name}
           </span>
-          <button className="ibtn ibtn-xs" aria-label={`Restore ${e.name}`} title="Restore" onClick={async () => (await api('POST', `/entities/${e.key}/restore`)) && toast(`Restored “${e.name}”`)}>
+          <button className="ibtn ibtn-xs" aria-label={t('settings.dataModel.restoreAria', { name: e.name })} title={t('settings.dataModel.restore')} onClick={async () => (await api('POST', `/entities/${e.key}/restore`)) && toast(t('settings.dataModel.restored', { name: e.name }))}>
             <RotateCcw size={13} />
           </button>
-          <button className="ibtn ibtn-xs" aria-label={`Delete ${e.name} permanently`} title="Delete permanently" onClick={() => setPurge(e)}>
+          <button className="ibtn ibtn-xs" aria-label={t('settings.dataModel.deleteAria', { name: e.name })} title={t('settings.dataModel.deletePerm')} onClick={() => setPurge(e)}>
             <Trash2 size={13} />
           </button>
         </div>
@@ -125,6 +138,7 @@ function RemovedEntities({ list }: { list: MetaEntity[] }) {
 /* ---------------- редактор сущности ---------------- */
 
 function EntityEditor({ entity: e, canEdit, onDeleted }: { entity: MetaEntity; canEdit: boolean; onDeleted: () => void }) {
+  const t = useT();
   const api = useMetaApi();
   const Icon = entityIcon(e.icon);
   const live = activeFields(e);
@@ -154,39 +168,39 @@ function EntityEditor({ entity: e, canEdit, onDeleted }: { entity: MetaEntity; c
         <span className="mono faint" style={{ fontSize: 12 }}>
           {e.key}
         </span>
-        {!custom && <Badge tone="gray">Built-in</Badge>}
+        {!custom && <Badge tone="gray">{t('settings.dataModel.builtin')}</Badge>}
         <span className="sp" style={{ flex: 1 }} />
         {custom && (
           <Link to={`/data/${e.key}`} className="btn btn-ghost btn-sm" style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
-            Open <ArrowUpRight size={13} />
+            {t('settings.dataModel.open')} <ArrowUpRight size={13} />
           </Link>
         )}
         {custom && canEdit && (
           <>
             <Button size="sm" variant="ghost" onClick={() => setDelEntity(true)}>
               <Trash2 size={13} />
-              Delete
+              {t('settings.dataModel.delete')}
             </Button>
           </>
         )}
       </div>
-      {!custom && <p className="muted" style={{ margin: '0 0 12px', fontSize: 13 }}>{SYSTEM_HINT[e.key]} Built-in columns (title, status, amount…) are fixed.</p>}
+      {!custom && <SysHint entityKey={e.key} />}
       {custom && canEdit && <EntityMeta entity={e} />}
 
-      <div className="dm-fields" role="table" aria-label={`${e.name} fields`}>
+      <div className="dm-fields" role="table" aria-label={t('settings.dataModel.fieldsAria', { name: e.name })}>
         <div className="dm-row head" role="row">
           <span />
-          <span>Field</span>
-          <span>Type</span>
-          <span className="hide-s">Settings</span>
+          <span>{t('settings.dataModel.cols.field')}</span>
+          <span>{t('settings.dataModel.cols.type')}</span>
+          <span className="hide-s">{t('settings.dataModel.cols.settings')}</span>
           <span />
         </div>
         {custom && (
           <div className="dm-row" role="row" style={{ background: 'var(--surface-2)' }}>
             <Lock size={13} className="faint" />
-            <span className="muted">Created, Updated</span>
-            <span className="faint">System</span>
-            <span className="faint hide-s">Always present</span>
+            <span className="muted">{t('settings.dataModel.createdUpdated')}</span>
+            <span className="faint">{t('settings.dataModel.systemCol')}</span>
+            <span className="faint hide-s">{t('settings.dataModel.alwaysPresent')}</span>
             <span />
           </div>
         )}
@@ -218,7 +232,7 @@ function EntityEditor({ entity: e, canEdit, onDeleted }: { entity: MetaEntity; c
                 setOverId(null);
               }}
             >
-              <span className="dm-grip" aria-hidden title={canEdit ? 'Drag to reorder' : undefined} style={canEdit ? undefined : { cursor: 'default', opacity: 0.3 }}>
+              <span className="dm-grip" aria-hidden title={canEdit ? t('settings.dataModel.dragHint') : undefined} style={canEdit ? undefined : { cursor: 'default', opacity: 0.3 }}>
                 <GripVertical size={14} />
               </span>
               <span className="row" style={{ gap: 8, minWidth: 0 }}>
@@ -226,24 +240,24 @@ function EntityEditor({ entity: e, canEdit, onDeleted }: { entity: MetaEntity; c
                 <span className="trunc" style={{ fontWeight: 450 }}>
                   {f.name}
                 </span>
-                {f.key === e.titleField && custom && <Badge tone="accent">Title</Badge>}
+                {f.key === e.titleField && custom && <Badge tone="accent">{t('settings.dataModel.titleBadge')}</Badge>}
               </span>
               <span className="muted">{FIELD_TYPE_LABELS[f.type]}</span>
               <span className="row hide-s" style={{ gap: 4, flexWrap: 'wrap' }}>
-                {f.required && <Badge>Required</Badge>}
-                {f.unique && <Badge>Unique</Badge>}
-                {f.filterable && <Badge tone="green">Indexed</Badge>}
+                {f.required && <Badge>{t('settings.dataModel.required')}</Badge>}
+                {f.unique && <Badge>{t('settings.dataModel.unique')}</Badge>}
+                {f.filterable && <Badge tone="green">{t('settings.dataModel.indexed')}</Badge>}
                 {(f.type === 'select' || f.type === 'multi_select') && (f.options.choices ?? []).slice(0, 3).map(c => <ChoiceLabel key={c.value} choice={c} />)}
                 {(f.type === 'ref' || f.type === 'refs') && <span className="muted">→ {f.options.refEntity}</span>}
               </span>
               <span className="row" style={{ gap: 2 }}>
                 {canEdit && (
                   <>
-                    <button className="ibtn ibtn-xs" aria-label={`Edit ${f.name}`} onClick={() => setDialog({ field: f })}>
+                    <button className="ibtn ibtn-xs" aria-label={t('settings.dataModel.editFieldAria', { name: f.name })} onClick={() => setDialog({ field: f })}>
                       <Pencil size={13} />
                     </button>
                     {f.key !== e.titleField && (
-                      <button className="ibtn ibtn-xs" aria-label={`Delete ${f.name}`} onClick={() => setDelField(f)}>
+                      <button className="ibtn ibtn-xs" aria-label={t('settings.dataModel.deleteFieldAria', { name: f.name })} onClick={() => setDelField(f)}>
                         <Trash2 size={13} />
                       </button>
                     )}
@@ -255,33 +269,33 @@ function EntityEditor({ entity: e, canEdit, onDeleted }: { entity: MetaEntity; c
         })}
         {!live.length && (
           <div className="dm-row" role="row" style={{ display: 'block', padding: 14 }}>
-            <span className="faint">No custom fields yet.</span>
+            <span className="faint">{t('settings.dataModel.noFields')}</span>
           </div>
         )}
       </div>
       {canEdit && (
         <Button variant="secondary" size="sm" style={{ marginTop: 12 }} onClick={() => setDialog({})}>
           <Plus size={13} />
-          Add field
+          {t('settings.dataModel.addField')}
         </Button>
       )}
 
       {!!removed.length && canEdit && (
         <div className="dm-removed">
-          <h3>Removed fields — data is kept until you delete them permanently</h3>
+          <h3>{t('settings.dataModel.removedFields')}</h3>
           <div className="dm-fields">
             {removed.map(f => (
               <div key={f.id} className="dm-row" style={{ gridTemplateColumns: 'minmax(0,1fr) auto auto' }}>
                 <span className="muted trunc">
                   {f.name} <span className="mono faint">{f.key}</span>
                 </span>
-                <Button size="sm" variant="ghost" onClick={async () => (await api('POST', `/entities/${e.key}/fields/${f.id}/restore`)) && toast(`Restored “${f.name}”`)}>
+                <Button size="sm" variant="ghost" onClick={async () => (await api('POST', `/entities/${e.key}/fields/${f.id}/restore`)) && toast(t('settings.dataModel.restored', { name: f.name }))}>
                   <RotateCcw size={13} />
-                  Restore
+                  {t('settings.dataModel.restore')}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => setDelField(f)}>
                   <Trash2 size={13} />
-                  Delete permanently
+                  {t('settings.dataModel.deletePerm')}
                 </Button>
               </div>
             ))}
@@ -298,12 +312,13 @@ function EntityEditor({ entity: e, canEdit, onDeleted }: { entity: MetaEntity; c
 
 /** Название, значок и поле-заголовок своей сущности */
 function EntityMeta({ entity: e }: { entity: MetaEntity }) {
+  const t = useT();
   const api = useMetaApi();
   const [name, setName] = React.useState(e.name);
   const texts = activeFields(e).filter(f => f.type === 'text');
   return (
     <div className="row" style={{ gap: 12, flexWrap: 'wrap', marginBottom: 16, alignItems: 'flex-end' }}>
-      <Field label="Name" className="grow">
+      <Field label={t('settings.dataModel.meta.name')} className="grow">
         {p => (
           <Input
             {...p}
@@ -314,7 +329,7 @@ function EntityMeta({ entity: e }: { entity: MetaEntity }) {
           />
         )}
       </Field>
-      <Field label="Title field">
+      <Field label={t('settings.dataModel.meta.titleField')}>
         {p => (
           <select className="select" id={p.id} value={e.titleField} onChange={ev => void api('PATCH', `/entities/${e.key}`, { titleField: ev.target.value })}>
             {texts.map(f => (
@@ -325,7 +340,7 @@ function EntityMeta({ entity: e }: { entity: MetaEntity }) {
           </select>
         )}
       </Field>
-      <Field label="Icon">
+      <Field label={t('settings.dataModel.meta.icon')}>
         {() => <IconPicker value={e.icon} onChange={icon => void api('PATCH', `/entities/${e.key}`, { icon })} />}
       </Field>
     </div>
@@ -333,8 +348,9 @@ function EntityMeta({ entity: e }: { entity: MetaEntity }) {
 }
 
 function IconPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const t = useT();
   return (
-    <div className="dm-icons" role="radiogroup" aria-label="Icon">
+    <div className="dm-icons" role="radiogroup" aria-label={t('settings.dataModel.meta.iconAria')}>
       {ENTITY_ICON_NAMES.map(n => {
         const I = entityIcon(n);
         return (
@@ -350,35 +366,37 @@ function IconPicker({ value, onChange }: { value: string; onChange: (v: string) 
 /* ---------------- диалоги ---------------- */
 
 function NewEntityDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (key: string) => void }) {
+  const t = useT();
   const api = useMetaApi();
   const [name, setName] = React.useState('');
   const [icon, setIcon] = React.useState('database');
-  const [titleFieldName, setTitle] = React.useState('Name');
+  const [titleFieldName, setTitle] = React.useState(t('settings.dataModel.newEntityDialog.defaultTitle'));
   const [err, setErr] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const submit = async () => {
-    if (!name.trim()) return setErr('Give the entity a name');
+    if (!name.trim()) return setErr(t('settings.dataModel.newEntityDialog.nameRequired'));
     setBusy(true);
-    const r = await api<MetaEntity>('POST', '/entities', { name: name.trim(), icon, titleFieldName: titleFieldName.trim() || 'Name' });
+    const defaultTitle = t('settings.dataModel.newEntityDialog.defaultTitle');
+    const r = await api<MetaEntity>('POST', '/entities', { name: name.trim(), icon, titleFieldName: titleFieldName.trim() || defaultTitle });
     setBusy(false);
     if (!r) return;
-    toast(`Created “${r.name}”`);
+    toast(t('settings.dataModel.newEntityDialog.created', { name: r.name }));
     onCreated(r.key);
     onClose();
   };
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
-        title="New entity"
-        description="Records of the new entity get their own section in the sidebar."
+        title={t('settings.dataModel.newEntityDialog.title')}
+        description={t('settings.dataModel.newEntityDialog.desc')}
         footer={
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{t('settings.common.cancel')}</Button>
             </DialogClose>
             <Button variant="primary" disabled={busy} onClick={submit}>
-              Create entity
+              {t('settings.dataModel.newEntityDialog.create')}
             </Button>
           </>
         }
@@ -391,13 +409,13 @@ function NewEntityDialog({ onClose, onCreated }: { onClose: () => void; onCreate
             void submit();
           }}
         >
-          <Field label="Name" error={err}>
-            {p => <Input {...p} autoFocus placeholder="e.g. Suppliers" value={name} onChange={e => (setName(e.target.value), setErr(''))} />}
+          <Field label={t('settings.dataModel.meta.name')} error={err}>
+            {p => <Input {...p} autoFocus placeholder={t('settings.dataModel.newEntityDialog.namePh')} value={name} onChange={e => (setName(e.target.value), setErr(''))} />}
           </Field>
-          <Field label="Title field" hint="The main text of every record: shown as its name in tables, cards and search.">
+          <Field label={t('settings.dataModel.meta.titleField')} hint={t('settings.dataModel.newEntityDialog.titleFieldHint')}>
             {p => <Input {...p} value={titleFieldName} onChange={e => setTitle(e.target.value)} />}
           </Field>
-          <Field label="Icon">{() => <IconPicker value={icon} onChange={setIcon} />}</Field>
+          <Field label={t('settings.dataModel.meta.icon')}>{() => <IconPicker value={icon} onChange={setIcon} />}</Field>
           <button type="submit" hidden />
         </form>
       </DialogContent>
@@ -410,6 +428,7 @@ interface ChoiceDraft extends FieldChoice {
 }
 
 function FieldDialog({ entity: e, field, onClose }: { entity: MetaEntity; field?: MetaField; onClose: () => void }) {
+  const t = useT();
   const api = useMetaApi();
   const all = useAllEntities();
   const edit = !!field;
@@ -418,7 +437,7 @@ function FieldDialog({ entity: e, field, onClose }: { entity: MetaEntity; field?
   const [required, setRequired] = React.useState(field?.required ?? false);
   const [unique, setUnique] = React.useState(field?.unique ?? false);
   const [filterable, setFilterable] = React.useState(field?.filterable ?? false);
-  const [choices, setChoices] = React.useState<ChoiceDraft[]>(field?.options.choices?.map(c => ({ ...c })) ?? [{ value: 'option_1', label: 'Option 1', color: 'blue', isNew: true }]);
+  const [choices, setChoices] = React.useState<ChoiceDraft[]>(field?.options.choices?.map(c => ({ ...c })) ?? [{ value: 'option_1', label: '', color: 'blue', isNew: true }]);
   const [refEntity, setRefEntity] = React.useState(field?.options.refEntity ?? '');
   const [min, setMin] = React.useState(field?.options.min != null ? String(field.options.min) : '');
   const [max, setMax] = React.useState(field?.options.max != null ? String(field.options.max) : '');
@@ -463,23 +482,23 @@ function FieldDialog({ entity: e, field, onClose }: { entity: MetaEntity; field?
       : await api('POST', `/entities/${e.key}/fields`, body);
     setBusy(false);
     if (!r) return;
-    toast(edit ? `Saved “${body.name}”` : `Added field “${body.name}”`);
+    toast(edit ? t('settings.dataModel.fieldDialog.saved', { name: body.name }) : t('settings.dataModel.fieldDialog.added', { name: body.name }));
     onClose();
   };
 
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
-        title={edit ? `Edit field “${field!.name}”` : `New field in ${e.name}`}
-        description={edit ? 'The type and key of a field cannot be changed.' : undefined}
+        title={edit ? t('settings.dataModel.fieldDialog.editTitle', { name: field!.name }) : t('settings.dataModel.fieldDialog.newTitle', { entity: e.name })}
+        description={edit ? t('settings.dataModel.fieldDialog.typeFixed') : undefined}
         footer={
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{t('settings.common.cancel')}</Button>
             </DialogClose>
             <Button variant="primary" disabled={busy} onClick={submit}>
-              {edit ? 'Save field' : 'Add field'}
+              {edit ? t('settings.dataModel.fieldDialog.save') : t('settings.dataModel.fieldDialog.add')}
             </Button>
           </>
         }
@@ -492,15 +511,15 @@ function FieldDialog({ entity: e, field, onClose }: { entity: MetaEntity; field?
             void submit();
           }}
         >
-          <Field label="Name" error={err.name}>
-            {p => <Input {...p} autoFocus placeholder="e.g. Story points" value={name} onChange={ev => (setName(ev.target.value), setErr({}))} />}
+          <Field label={t('settings.dataModel.meta.name')} error={err.name}>
+            {p => <Input {...p} autoFocus placeholder={t('settings.dataModel.fieldDialog.namePh')} value={name} onChange={ev => (setName(ev.target.value), setErr({}))} />}
           </Field>
-          <Field label="Type" hint={edit ? undefined : `Stored as “${keyFromName(name || 'field')}”.`}>
+          <Field label={t('settings.dataModel.fieldDialog.type')} hint={edit ? undefined : t('settings.dataModel.fieldDialog.storedAs', { key: keyFromName(name || 'field') })}>
             {p => (
               <select className="select" id={p.id} value={type} disabled={edit} onChange={ev => setType(ev.target.value as FieldType)}>
-                {FIELD_TYPES.map(t => (
-                  <option key={t} value={t}>
-                    {FIELD_TYPE_LABELS[t]}
+                {FIELD_TYPES.map(tp => (
+                  <option key={tp} value={tp}>
+                    {t(`settings.dataModel.fieldTypes.${tp}` as 'settings.dataModel.fieldTypes.text')}
                   </option>
                 ))}
               </select>
@@ -508,42 +527,42 @@ function FieldDialog({ entity: e, field, onClose }: { entity: MetaEntity; field?
           </Field>
 
           {(type === 'select' || type === 'multi_select') && (
-            <Field label="Options" error={err.options}>
+            <Field label={t('settings.dataModel.fieldDialog.options')} error={err.options}>
               {() => (
                 <div>
                   {choices.map((c, i) => (
                     <div key={i} className="dm-choice">
-                      <Input aria-label={`Option ${i + 1}`} value={c.label} onChange={ev => setChoice(i, { label: ev.target.value })} />
-                      <select className="select" aria-label={`Color of option ${i + 1}`} value={c.color} onChange={ev => setChoice(i, { color: ev.target.value })}>
+                      <Input aria-label={t('settings.dataModel.fieldDialog.optionAria', { n: i + 1 })} value={c.label} onChange={ev => setChoice(i, { label: ev.target.value })} />
+                      <select className="select" aria-label={t('settings.dataModel.fieldDialog.colorAria', { n: i + 1 })} value={c.color} onChange={ev => setChoice(i, { color: ev.target.value })}>
                         {CHOICE_COLORS.map(col => (
                           <option key={col} value={col}>
                             {col}
                           </option>
                         ))}
                       </select>
-                      <button type="button" className="ibtn" aria-label={`Remove option ${i + 1}`} onClick={() => setChoices(list => list.filter((_, j) => j !== i))}>
+                      <button type="button" className="ibtn" aria-label={t('settings.dataModel.fieldDialog.removeOptionAria', { n: i + 1 })} onClick={() => setChoices(list => list.filter((_, j) => j !== i))}>
                         <X size={14} />
                       </button>
                     </div>
                   ))}
                   <Button type="button" size="sm" variant="ghost" onClick={() => setChoices(list => [...list, { value: `option_${list.length + 1}`, label: '', color: CHOICE_COLORS[(list.length + 1) % CHOICE_COLORS.length]!, isNew: true }])}>
                     <Plus size={13} />
-                    Add option
+                    {t('settings.dataModel.fieldDialog.addOption')}
                   </Button>
-                  {edit && <div className="hint faint" style={{ fontSize: 12, marginTop: 4 }}>Removing an option keeps the value in existing records.</div>}
+                  {edit && <div className="hint faint" style={{ fontSize: 12, marginTop: 4 }}>{t('settings.dataModel.fieldDialog.removeKeeps')}</div>}
                 </div>
               )}
             </Field>
           )}
 
           {(type === 'ref' || type === 'refs') && (
-            <Field label="Refers to" error={err.options}>
+            <Field label={t('settings.dataModel.fieldDialog.refersTo')} error={err.options}>
               {p => (
                 <select className="select" id={p.id} value={refEntity} disabled={edit} onChange={ev => setRefEntity(ev.target.value)}>
-                  <option value="">Choose an entity…</option>
-                  {targets.map(t => (
-                    <option key={t.key} value={t.key}>
-                      {t.name}
+                  <option value="">{t('settings.dataModel.fieldDialog.chooseEntity')}</option>
+                  {targets.map(tp => (
+                    <option key={tp.key} value={tp.key}>
+                      {tp.name}
                     </option>
                   ))}
                 </select>
@@ -553,10 +572,10 @@ function FieldDialog({ entity: e, field, onClose }: { entity: MetaEntity; field?
 
           {['number', 'money', 'percent'].includes(type) && (
             <div className="row" style={{ gap: 10 }}>
-              <Field label="Minimum" className="grow">
+              <Field label={t('settings.dataModel.fieldDialog.minimum')} className="grow">
                 {p => <Input {...p} inputMode="decimal" value={min} onChange={ev => setMin(ev.target.value)} />}
               </Field>
-              <Field label="Maximum" className="grow">
+              <Field label={t('settings.dataModel.fieldDialog.maximum')} className="grow">
                 {p => <Input {...p} inputMode="decimal" value={max} onChange={ev => setMax(ev.target.value)} />}
               </Field>
             </div>
@@ -565,16 +584,16 @@ function FieldDialog({ entity: e, field, onClose }: { entity: MetaEntity; field?
           <div className="stack" style={{ gap: 8 }}>
             <label className="row" style={{ gap: 8 }}>
               <Checkbox checked={required} onChange={ev => setRequired(ev.target.checked)} />
-              Required
+              {t('settings.dataModel.required')}
             </label>
             <label className="row" style={{ gap: 8 }}>
               <Checkbox checked={unique} onChange={ev => setUnique(ev.target.checked)} />
-              Unique values
+              {t('settings.dataModel.fieldDialog.uniqueValues')}
             </label>
             <label className="row" style={{ gap: 8 }}>
               <Checkbox checked={filterable} onChange={ev => setFilterable(ev.target.checked)} />
               <span>
-                Filterable <span className="faint">— builds an index so filtering and sorting stay fast on large lists</span>
+                {t('settings.dataModel.fieldDialog.filterable')} <span className="faint">{t('settings.dataModel.fieldDialog.filterableHint')}</span>
               </span>
             </label>
           </div>
@@ -587,6 +606,7 @@ function FieldDialog({ entity: e, field, onClose }: { entity: MetaEntity; field?
 
 /** Подтверждение с вводом ключа: «скрыть» оставляет данные, «удалить навсегда» стирает их */
 function DestroyDialog({ title, what, keyName, dataNote, purgeNote, onlyPurge, onClose, onConfirm }: { title: string; what: string; keyName: string; dataNote: string; purgeNote: string; onlyPurge?: boolean; onClose: () => void; onConfirm: (purge: boolean) => Promise<void> }) {
+  const t = useT();
   const [purge, setPurge] = React.useState(!!onlyPurge);
   const [typed, setTyped] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -600,7 +620,7 @@ function DestroyDialog({ title, what, keyName, dataNote, purgeNote, onlyPurge, o
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{t('settings.common.cancel')}</Button>
             </DialogClose>
             <Button
               variant="danger"
@@ -611,7 +631,7 @@ function DestroyDialog({ title, what, keyName, dataNote, purgeNote, onlyPurge, o
                 setBusy(false);
               }}
             >
-              {purge ? 'Delete permanently' : 'Remove'}
+              {purge ? t('settings.dataModel.confirm.deletePerm') : t('settings.dataModel.confirm.remove')}
             </Button>
           </>
         }
@@ -622,19 +642,19 @@ function DestroyDialog({ title, what, keyName, dataNote, purgeNote, onlyPurge, o
               <label className="row" style={{ gap: 8, alignItems: 'flex-start' }}>
                 <Radio name="mode" checked={!purge} onChange={() => setPurge(false)} />
                 <span>
-                  <b>Remove and keep data.</b> {dataNote}
+                  <b>{t('settings.dataModel.confirm.keep')}</b> {dataNote}
                 </span>
               </label>
               <label className="row" style={{ gap: 8, alignItems: 'flex-start' }}>
                 <Radio name="mode" checked={purge} onChange={() => setPurge(true)} />
                 <span>
-                  <b>Delete permanently.</b> {purgeNote}
+                  <b>{t('settings.dataModel.confirm.deletePermLabel')}</b> {purgeNote}
                 </span>
               </label>
             </>
           )}
           {onlyPurge && <Alert tone="warn">{purgeNote}</Alert>}
-          <Field label={`Type “${keyName}” to confirm`}>{p => <Input {...p} autoFocus value={typed} onChange={ev => setTyped(ev.target.value)} />}</Field>
+          <Field label={t('settings.dataModel.confirm.typeKey', { key: keyName })}>{p => <Input {...p} autoFocus value={typed} onChange={ev => setTyped(ev.target.value)} />}</Field>
         </div>
       </DialogContent>
     </Dialog>
@@ -642,20 +662,21 @@ function DestroyDialog({ title, what, keyName, dataNote, purgeNote, onlyPurge, o
 }
 
 function DeleteFieldDialog({ entity: e, field: f, onClose }: { entity: MetaEntity; field: MetaField; onClose: () => void }) {
+  const t = useT();
   const api = useMetaApi();
   return (
     <DestroyDialog
-      title={`Delete field “${f.name}”?`}
-      what={`Field of ${e.name}.`}
+      title={t('settings.dataModel.confirm.fieldTitle', { name: f.name })}
+      what={t('settings.dataModel.confirm.fieldWhat', { entity: e.name })}
       keyName={f.key}
       onlyPurge={!!f.archivedAt}
-      dataNote="The field disappears from forms and tables; values stay in the records and come back if you restore the field."
-      purgeNote="The field and all values stored in it are erased from every record. This cannot be undone."
+      dataNote={t('settings.dataModel.confirm.fieldKeep')}
+      purgeNote={t('settings.dataModel.confirm.fieldPurge')}
       onClose={onClose}
       onConfirm={async purge => {
         const r = await api('DELETE', `/entities/${e.key}/fields/${f.id}?confirm=${encodeURIComponent(f.key)}${purge ? '&purge=true' : ''}`);
         if (r) {
-          toast(purge ? `Deleted “${f.name}”` : `Removed “${f.name}” — data kept`);
+          toast(purge ? t('settings.dataModel.confirm.fieldDeleted', { name: f.name }) : t('settings.dataModel.confirm.fieldRemoved', { name: f.name }));
           onClose();
         }
       }}
@@ -664,20 +685,21 @@ function DeleteFieldDialog({ entity: e, field: f, onClose }: { entity: MetaEntit
 }
 
 function DeleteEntityDialog({ entity: e, onClose, onDeleted, onlyPurge }: { entity: MetaEntity; onClose: () => void; onDeleted: () => void; onlyPurge?: boolean }) {
+  const t = useT();
   const api = useMetaApi();
   return (
     <DestroyDialog
-      title={`Delete entity “${e.name}”?`}
-      what="Its section disappears from the sidebar."
+      title={t('settings.dataModel.confirm.entityTitle', { name: e.name })}
+      what={t('settings.dataModel.confirm.entityWhat')}
       keyName={e.key}
       onlyPurge={onlyPurge}
-      dataNote="All records stay in the database and come back if you restore the entity."
-      purgeNote="The entity, its fields and all its records are erased. This cannot be undone."
+      dataNote={t('settings.dataModel.confirm.entityKeep')}
+      purgeNote={t('settings.dataModel.confirm.entityPurge')}
       onClose={onClose}
       onConfirm={async purge => {
         const r = await api('DELETE', `/entities/${e.key}?confirm=${encodeURIComponent(e.key)}${purge ? '&purge=true' : ''}`);
         if (r) {
-          toast(purge ? `Deleted “${e.name}”` : `Removed “${e.name}” — records kept`);
+          toast(purge ? t('settings.dataModel.confirm.entityDeleted', { name: e.name }) : t('settings.dataModel.confirm.entityRemoved', { name: e.name }));
           onDeleted();
           onClose();
         }

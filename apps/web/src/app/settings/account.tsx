@@ -10,6 +10,7 @@ import { dOff, fmtDate } from '../lib/dates';
 import { ConfirmModal, type ConfirmSpec } from '../overlays/project-dialogs';
 import { SECTIONS } from '../routes';
 import { PasswordStrength, SRow, SettingsHead } from './parts';
+import { useT } from '@/i18n';
 
 const ErrText = ({ children }: { children: React.ReactNode }) => (
   <span className="err">
@@ -27,6 +28,7 @@ function useConfirm() {
 /* ---------- Security ---------- */
 
 export function PasswordSection({ title }: { title: string }) {
+  const t = useT();
   const [cur, setCur] = React.useState('');
   const [pw, setPw] = React.useState('');
   const [conf, setConf] = React.useState('');
@@ -35,61 +37,61 @@ export function PasswordSection({ title }: { title: string }) {
   const [saving, setSaving] = React.useState(false);
   React.useEffect(() => {
     if (!saving) return;
-    const t = setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       setSaving(false);
       setDone(true);
       setCur('');
       setPw('');
       setConf('');
-      toast('Password updated');
+      toast(t('settings.password.saved'));
     }, 800);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timeoutId);
   }, [saving]);
   const submit = (ev: React.FormEvent) => {
     ev.preventDefault();
     const n: typeof e = {};
     setDone(false);
-    if (!cur) n.cur = 'Enter your current password';
-    if (pw.length < 10 || !/[0-9\W]/.test(pw)) n.pw = 'Use at least 10 characters, including a number or symbol';
-    if (pw !== conf) n.conf = "Passwords don't match";
+    if (!cur) n.cur = t('settings.password.enterCurrent');
+    if (pw.length < 10 || !/[0-9\W]/.test(pw)) n.pw = t('settings.password.rule');
+    if (pw !== conf) n.conf = t('settings.password.mismatch');
     setE(n);
     if (!Object.keys(n).length) setSaving(true);
   };
   return (
     <>
-      <SettingsHead title={title} lead="Use a long password you don't use anywhere else." />
+      <SettingsHead title={title} lead={t('settings.password.lead')} />
       {done && (
         <div className="alert ok" style={{ marginBottom: 14 }}>
           <CircleCheck size={15} />
-          <span>Password updated. Other sessions stay signed in.</span>
+          <span>{t('settings.password.updated')}</span>
         </div>
       )}
       <form onSubmit={submit} className="col" style={{ gap: 14, maxWidth: 400 }}>
         <div className="field">
           <label className="label" htmlFor="pw-cur">
-            Current password
+            {t('settings.password.current')}
           </label>
           <input type="password" className={`input ${e.cur ? 'is-error' : ''}`} id="pw-cur" autoComplete="current-password" value={cur} onChange={x => setCur(x.target.value)} />
           {e.cur && <ErrText>{e.cur}</ErrText>}
         </div>
         <div className="field">
           <label className="label" htmlFor="pw-new">
-            New password
+            {t('settings.password.new')}
           </label>
           <input type="password" className={`input ${e.pw ? 'is-error' : ''}`} id="pw-new" autoComplete="new-password" value={pw} onChange={x => setPw(x.target.value)} />
           <PasswordStrength value={pw} />
-          {e.pw ? <ErrText>{e.pw}</ErrText> : <span className="hint">At least 10 characters with a number or symbol.</span>}
+          {e.pw ? <ErrText>{e.pw}</ErrText> : <span className="hint">{t('settings.password.hint')}</span>}
         </div>
         <div className="field">
           <label className="label" htmlFor="pw-conf">
-            Confirm new password
+            {t('settings.password.confirm')}
           </label>
           <input type="password" className={`input ${e.conf ? 'is-error' : ''}`} id="pw-conf" autoComplete="new-password" value={conf} onChange={x => setConf(x.target.value)} />
           {e.conf && <ErrText>{e.conf}</ErrText>}
         </div>
         <div>
           <Button variant="primary" type="submit" loading={saving}>
-            Update password
+            {t('settings.password.update')}
           </Button>
         </div>
       </form>
@@ -98,11 +100,12 @@ export function PasswordSection({ title }: { title: string }) {
 }
 
 export function SessionsSection({ title }: { title: string }) {
+  const t = useT();
   const [s, set] = useSettings();
   const [dlg, ask] = useConfirm();
   return (
     <>
-      <SettingsHead title={title} lead="Devices currently signed in to your account." />
+      <SettingsHead title={title} lead={t('settings.sessions.lead')} />
       {s.sessions.map(x => (
         <SRow
           key={x.id}
@@ -110,7 +113,7 @@ export function SessionsSection({ title }: { title: string }) {
             <span className="row" style={{ gap: 8 }}>
               {x.dev.includes('iPhone') ? <Smartphone size={15} /> : <Monitor size={15} />}
               {x.dev}
-              {x.cur && <Badge tone="green">This device</Badge>}
+              {x.cur && <Badge tone="green">{t('settings.sessions.thisDevice')}</Badge>}
             </span>
           }
           d={`${x.loc} · ${x.at}`}
@@ -121,10 +124,10 @@ export function SessionsSection({ title }: { title: string }) {
               size="sm"
               onClick={() => {
                 set({ sessions: s.sessions.filter(y => y.id !== x.id) });
-                toast('Session signed out');
+                toast(t('settings.sessions.signedOut'));
               }}
             >
-              Sign out
+              {t('settings.sessions.signOut')}
             </Button>
           )}
         </SRow>
@@ -135,19 +138,19 @@ export function SessionsSection({ title }: { title: string }) {
           disabled={s.sessions.length <= 1}
           onClick={() =>
             ask({
-              title: 'Sign out of all other sessions?',
-              body: "You'll stay signed in on this device. Other devices will need to sign in again.",
-              ok: 'Sign out others',
+              title: t('settings.sessions.signOutAllTitle'),
+              body: t('settings.sessions.signOutAllBody'),
+              ok: t('settings.sessions.signOutAllOk'),
               danger: true,
               icon: LogOut,
               run: () => {
                 set({ sessions: s.sessions.filter(y => y.cur) });
-                toast('Signed out of other sessions');
+                toast(t('settings.sessions.signOutAll'));
               },
             })
           }
         >
-          Sign out of all other sessions
+          {t('settings.sessions.signOutAllBtn')}
         </Button>
       </div>
       {dlg}
@@ -159,8 +162,9 @@ const RECOVERY = ['7KQ2-M8PX', 'D4TN-9WRE', 'HV3C-QZ6L', 'P2YB-J7SK', 'R9FG-4NUD
 
 /** Заглушка QR-кода: 11×11 клеток с тремя «позиционными» метками, как в оригинале */
 function QrStub() {
+  const t = useT();
   return (
-    <div style={{ width: 132, height: 132, display: 'grid', gridTemplateColumns: 'repeat(11,1fr)', gap: 1, padding: 8, background: '#fff', borderRadius: 8, border: '1px solid var(--border)' }} aria-label="QR code">
+    <div style={{ width: 132, height: 132, display: 'grid', gridTemplateColumns: 'repeat(11,1fr)', gap: 1, padding: 8, background: '#fff', borderRadius: 8, border: '1px solid var(--border)' }} aria-label={t('settings.twofa.qrAria')}>
       {Array.from({ length: 121 }, (_, i) => {
         const r = Math.floor(i / 11);
         const c = i % 11;
@@ -173,6 +177,7 @@ function QrStub() {
 }
 
 export function TwoFactorSection({ title }: { title: string }) {
+  const t = useT();
   const [s, set] = useSettings();
   const [setup, setSetup] = React.useState(false);
   const [code, setCode] = React.useState('');
@@ -180,29 +185,29 @@ export function TwoFactorSection({ title }: { title: string }) {
   const [dlg, ask] = useConfirm();
   const verify = (ev: React.FormEvent) => {
     ev.preventDefault();
-    if (!/^\d{6}$/.test(code.trim())) return setErr('Enter the 6-digit code from your app');
+    if (!/^\d{6}$/.test(code.trim())) return setErr(t('settings.twofa.codeInvalid'));
     setErr('');
     setSetup(false);
     setCode('');
     set({ tfa: true });
-    toast('Two-factor authentication enabled');
+    toast(t('settings.twofa.enabled'));
   };
   return (
     <>
-      <SettingsHead title={title} lead="Add a second step when signing in." />
+      <SettingsHead title={title} lead={t('settings.twofa.lead')} />
       {s.tfa ? (
         <>
           <div className="alert ok">
             <ShieldCheck size={16} />
             <div>
-              <b>Two-factor authentication is on.</b>
-              <div className="muted">You'll enter a code from your authenticator app when signing in on a new device.</div>
+              <b>{t('settings.twofa.on.title')}</b>
+              <div className="muted">{t('settings.twofa.on.hint')}</div>
             </div>
           </div>
           <div className="sblock">
-            <h2>Recovery codes</h2>
+            <h2>{t('settings.twofa.recovery')}</h2>
             <p className="muted" style={{ fontSize: 13, margin: '1em 0' }}>
-              Store these somewhere safe. Each code works once.
+              {t('settings.twofa.recoveryHint')}
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,max-content)', gap: '6px 28px', fontFamily: 'var(--mono)', fontSize: 13, padding: 14, border: '1px solid var(--border)', borderRadius: 'var(--r)', background: 'var(--sunken)', userSelect: 'all' }}>
               {RECOVERY.map(c => (
@@ -214,19 +219,19 @@ export function TwoFactorSection({ title }: { title: string }) {
                 variant="danger-ghost"
                 onClick={() =>
                   ask({
-                    title: 'Turn off two-factor authentication?',
-                    body: 'Your account will be protected by your password only.',
-                    ok: 'Turn off',
+                    title: t('settings.twofa.turnOffTitle'),
+                    body: t('settings.twofa.turnOffBody'),
+                    ok: t('settings.twofa.turnOffOk'),
                     danger: true,
                     icon: ShieldOff,
                     run: () => {
                       set({ tfa: false });
-                      toast('Two-factor authentication turned off');
+                      toast(t('settings.twofa.turnOff'));
                     },
                   })
                 }
               >
-                Turn off two-factor authentication
+                {t('settings.twofa.turnOffBtn')}
               </Button>
             </div>
           </div>
@@ -236,18 +241,18 @@ export function TwoFactorSection({ title }: { title: string }) {
           <QrStub />
           <div className="grow col" style={{ gap: 10, minWidth: 220 }}>
             <div>
-              <b>1. Scan the QR code</b>
+              <b>{t('settings.twofa.setupTitle')}</b>
               <div className="muted" style={{ fontSize: 13 }}>
-                Use 1Password, Authy, or Google Authenticator.
+                {t('settings.twofa.setupHint')}
               </div>
             </div>
             <div>
-              <b>2. Enter the 6-digit code</b>
+              <b>{t('settings.twofa.setupCode')}</b>
             </div>
             <form onSubmit={verify} className="row">
-              <input className={`input mono ${err ? 'is-error' : ''}`} id="tfa-code" inputMode="numeric" maxLength={6} placeholder="000000" style={{ width: 130, letterSpacing: '.2em', fontSize: 15 }} autoFocus value={code} onChange={e => setCode(e.target.value)} aria-label="6-digit code" />
+              <input className={`input mono ${err ? 'is-error' : ''}`} id="tfa-code" inputMode="numeric" maxLength={6} placeholder={t('settings.twofa.codePlaceholder')} style={{ width: 130, letterSpacing: '.2em', fontSize: 15 }} autoFocus value={code} onChange={e => setCode(e.target.value)} aria-label={t('settings.twofa.codeAria')} />
               <Button variant="primary" type="submit">
-                Verify
+                {t('settings.twofa.verify')}
               </Button>
               <Button
                 variant="ghost"
@@ -257,10 +262,10 @@ export function TwoFactorSection({ title }: { title: string }) {
                   setErr('');
                 }}
               >
-                Cancel
+                {t('settings.common.cancel')}
               </Button>
             </form>
-            {err ? <ErrText>{err}</ErrText> : <span className="hint">Any 6 digits work in this prototype.</span>}
+            {err ? <ErrText>{err}</ErrText> : <span className="hint">{t('settings.twofa.codeHint')}</span>}
           </div>
         </div>
       ) : (
@@ -270,12 +275,12 @@ export function TwoFactorSection({ title }: { title: string }) {
               <ShieldAlert size={18} />
             </span>
             <div className="grow">
-              <b>Two-factor authentication is off</b>
+              <b>{t('settings.twofa.off.title')}</b>
               <p className="muted" style={{ margin: '4px 0 12px', fontSize: 13 }}>
-                Protect your account with a code from an authenticator app in addition to your password.
+                {t('settings.twofa.off.hint')}
               </p>
               <Button variant="primary" onClick={() => setSetup(true)}>
-                Set up two-factor authentication
+                {t('settings.twofa.off.btn')}
               </Button>
             </div>
           </div>
@@ -289,39 +294,38 @@ export function TwoFactorSection({ title }: { title: string }) {
 /* ---------- Billing ---------- */
 
 const PRICE: Record<Plan, number> = { Free: 0, Team: 12, Business: 24 };
-const PLANS: [Plan, string, string[]][] = [
-  ['Free', '$0', ['Up to 3 members', 'Unlimited tasks', '5 GB storage']],
-  ['Team', '$12', ['Up to 50 members', 'Timelines & custom views', '100 GB storage', 'Guest access']],
-  ['Business', '$24', ['Unlimited members', 'Advanced permissions', 'SAML SSO', '1 TB storage']],
-];
+
+type PlanKey = 'free' | 'team' | 'business';
+const PLAN_KEY: Record<Plan, PlanKey> = { Free: 'free', Team: 'team', Business: 'business' };
 
 export function PlanSection({ title }: { title: string }) {
+  const t = useT();
   const { data } = useWorkspace();
   const [s, set] = useSettings();
   const navigate = useNavigate();
   const [dlg, ask] = useConfirm();
   const usage: [string, number, number, string][] = [
-    ['Members', data.members.length, 10, ''],
-    ['Storage', 12.4, 100, ' GB'],
-    ['Projects', data.projects.length, 50, ''],
+    [t('settings.plan.usage.members'), data.members.length, 10, ''],
+    [t('settings.plan.usage.storage'), 12.4, 100, ' GB'],
+    [t('settings.plan.usage.projects'), data.projects.length, 50, ''],
   ];
   return (
     <>
-      <SettingsHead title={title} lead="Your subscription and usage." />
+      <SettingsHead title={title} lead={t('settings.plan.lead')} />
       <div className="panel" style={{ padding: 18, marginBottom: 18 }}>
         <div className="row" style={{ flexWrap: 'wrap' }}>
           <div>
-            <div className="eyebrow">Current plan</div>
+            <div className="eyebrow">{t('settings.plan.currentPlan')}</div>
             <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-.015em', marginTop: 4 }}>
-              {s.plan} <span className="muted" style={{ fontSize: 14, fontWeight: 400 }}>· $12 per member / month</span>
+              {s.plan} <span className="muted" style={{ fontSize: 14, fontWeight: 400 }}>· {t('settings.plan.perMember')}</span>
             </div>
             <div className="muted" style={{ fontSize: 13 }}>
-              Renews {fmtDate(dOff(7), true)} · Billed monthly
+              {t('settings.plan.renews', { date: fmtDate(dOff(7), true) })}
             </div>
           </div>
           <span className="sp" />
           <Button variant="secondary" onClick={() => navigate(`${SECTIONS.settings.path}/invoices`)}>
-            View invoices
+            {t('settings.plan.viewInvoices')}
           </Button>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 18, marginTop: 18 }}>
@@ -344,19 +348,22 @@ export function PlanSection({ title }: { title: string }) {
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 12 }}>
-        {PLANS.map(([n, pr, fs]) => {
+        {(['Free', 'Team', 'Business'] as Plan[]).map(n => {
+          const k = PLAN_KEY[n];
           const cur = s.plan === n;
+          const pr = t(`settings.plan.pricing.${k}.price`);
+          const fs = t(`settings.plan.pricing.${k}.features`).split('|');
           return (
             <div key={n} className={`plan ${cur ? 'cur' : ''}`}>
               <div className="row">
-                <b>{n}</b>
-                {cur && <Badge tone="accent">Current</Badge>}
+                <b>{t(`settings.plan.pricing.${k}.name`)}</b>
+                {cur && <Badge tone="accent">{t('settings.plan.current')}</Badge>}
               </div>
               <div className="pr">
                 {pr}
                 <span className="muted" style={{ fontSize: 12.5, fontWeight: 400 }}>
                   {' '}
-                  /member/mo
+                  {t('settings.plan.priceMember')}
                 </span>
               </div>
               <ul>
@@ -370,7 +377,7 @@ export function PlanSection({ title }: { title: string }) {
               <div style={{ marginTop: 8 }}>
                 {cur ? (
                   <Button block disabled>
-                    Current plan
+                    {t('settings.plan.currentPlanBtn')}
                   </Button>
                 ) : (
                   <Button
@@ -378,22 +385,18 @@ export function PlanSection({ title }: { title: string }) {
                     variant={n === 'Business' ? 'primary' : 'secondary'}
                     onClick={() =>
                       ask({
-                        title: `${n === 'Free' ? 'Downgrade' : 'Upgrade'} to ${n}?`,
-                        body: (
-                          <>
-                            {data.members.length} members × ${PRICE[n]}/month = <b>${data.members.length * PRICE[n]}/month</b>, prorated from today and billed to Visa ending 4242.
-                          </>
-                        ),
-                        ok: n === 'Free' ? 'Downgrade' : `Upgrade to ${n}`,
+                        title: t('settings.plan.confirmTitle', { action: n === 'Free' ? t('settings.plan.downgrade') : t('settings.plan.upgrade'), plan: t(`settings.plan.pricing.${k}.name`) }),
+                        body: t('settings.plan.confirmBody', { count: data.members.length, price: PRICE[n], total: data.members.length * PRICE[n] }),
+                        ok: n === 'Free' ? t('settings.plan.confirmOkDowngrade') : t('settings.plan.confirmOkUpgrade', { plan: t(`settings.plan.pricing.${k}.name`) }),
                         icon: Gem,
                         run: () => {
                           set({ plan: n });
-                          toast(`You're now on the ${n} plan`);
+                          toast(t('settings.plan.switched', { plan: t(`settings.plan.pricing.${k}.name`) }));
                         },
                       })
                     }
                   >
-                    {n === 'Free' ? 'Downgrade' : 'Upgrade'}
+                    {n === 'Free' ? t('settings.plan.downgrade') : t('settings.plan.upgrade')}
                   </Button>
                 )}
               </div>
@@ -407,60 +410,62 @@ export function PlanSection({ title }: { title: string }) {
 }
 
 export function PaymentSection({ title }: { title: string }) {
+  const t = useT();
   return (
     <>
-      <SettingsHead title={title} lead="Payment method and billing details." />
+      <SettingsHead title={title} lead={t('settings.payment.lead')} />
       <SRow
         t={
           <span className="row" style={{ gap: 10 }}>
             <span className="ftype" style={{ '--c': 'var(--blue)' } as React.CSSProperties}>
               <CreditCard size={15} />
             </span>
-            Visa ending in 4242
+            {t('settings.payment.card')}
           </span>
         }
-        d="Expires 08/2028 · Default"
+        d={t('settings.payment.cardSub')}
       >
-        <Button variant="secondary" size="sm" onClick={() => toast.info('Card updates open in a secure payment window')}>
-          Update
+        <Button variant="secondary" size="sm" onClick={() => toast.info(t('settings.payment.cardUpdates'))}>
+          {t('settings.payment.update')}
         </Button>
       </SRow>
-      <SRow t="Billing email" d="Invoices and receipts are sent here.">
+      <SRow t={t('settings.payment.billingEmail')} d={t('settings.payment.billingEmailHint')}>
         <span className="muted" style={{ userSelect: 'all' }}>
           hello@gr8rstudio.com
         </span>
       </SRow>
-      <SRow t="Billing address" d="2150 Mission St, San Francisco, CA 94110">
-        <Button variant="secondary" size="sm" onClick={() => toast.info('Address editing opens in the billing portal')}>
-          Edit
+      <SRow t={t('settings.payment.billingAddress')} d={t('settings.payment.billingAddressValue')}>
+        <Button variant="secondary" size="sm" onClick={() => toast.info(t('settings.payment.addressEdit'))}>
+          {t('settings.payment.edit')}
         </Button>
       </SRow>
-      <SRow t="Tax ID" d="Shown on invoices">
-        <span className="muted">US EIN ••-•••4410</span>
+      <SRow t={t('settings.payment.taxId')} d={t('settings.payment.taxIdHint')}>
+        <span className="muted">{t('settings.payment.taxIdValue')}</span>
       </SRow>
     </>
   );
 }
 
 const INVOICES = [
-  { id: 'INV-2026-009', date: -23, amt: '$96.00', st: 'Paid' },
-  { id: 'INV-2026-008', date: -53, amt: '$96.00', st: 'Paid' },
-  { id: 'INV-2026-007', date: -84, amt: '$80.00', st: 'Paid' },
-  { id: 'INV-2026-006', date: -114, amt: '$80.00', st: 'Paid' },
+  { id: 'INV-2026-009', date: -23, amt: '$96.00' },
+  { id: 'INV-2026-008', date: -53, amt: '$96.00' },
+  { id: 'INV-2026-007', date: -84, amt: '$80.00' },
+  { id: 'INV-2026-006', date: -114, amt: '$80.00' },
 ];
 
 export function InvoicesSection({ title }: { title: string }) {
+  const t = useT();
   return (
     <>
-      <SettingsHead title={title} lead="Past invoices for this workspace." />
+      <SettingsHead title={title} lead={t('settings.invoices.lead')} />
       <div className="panel" style={{ overflowX: 'auto' }}>
         <table className="perm-t" style={{ minWidth: 480 }}>
           <thead>
             <tr>
-              <th style={{ paddingLeft: 14 }}>Invoice</th>
-              <th style={{ textAlign: 'left' }}>Date</th>
-              <th style={{ textAlign: 'left' }}>Amount</th>
-              <th style={{ textAlign: 'left' }}>Status</th>
+              <th style={{ paddingLeft: 14 }}>{t('settings.invoices.cols.invoice')}</th>
+              <th style={{ textAlign: 'left' }}>{t('settings.invoices.cols.date')}</th>
+              <th style={{ textAlign: 'left' }}>{t('settings.invoices.cols.amount')}</th>
+              <th style={{ textAlign: 'left' }}>{t('settings.invoices.cols.status')}</th>
             </tr>
           </thead>
           <tbody>
@@ -478,7 +483,7 @@ export function InvoicesSection({ title }: { title: string }) {
                 <td style={{ textAlign: 'left' }}>
                   <Badge tone="green">
                     <Check size={11} />
-                    {i.st}
+                    {t('settings.invoices.paid')}
                   </Badge>
                 </td>
               </tr>
