@@ -2,6 +2,8 @@
    Список — реальные клавиши приложения (палитра, форма задачи, сайдбар, карточка задачи). */
 import * as React from 'react';
 import { MOD } from '../lib/platform';
+import { useT } from '@/i18n';
+import type { TKey } from '@/i18n';
 import { Modal } from './modal-shell';
 
 export interface ShortcutsApi {
@@ -59,20 +61,21 @@ export const SHORTCUTS: [string, [string, string[]][]][] = [
 ];
 
 function ShortcutsDialog({ onClose }: { onClose: () => void }) {
+  const t = useT();
   return (
-    <Modal title="Keyboard shortcuts" size="lg" onClose={onClose}>
+    <Modal title={t('overlays.shortcuts.title')} size="lg" onClose={onClose}>
       <div className="modal-b keys-grid">
-        {SHORTCUTS.map(([g, list]) => (
-          <div key={g}>
-            <div className="eyebrow">{g}</div>
+        {SHORTCUTS.map(([group, list]) => (
+          <div key={group}>
+            <div className="eyebrow">{t(`overlays.shortcuts.groups.${group}` as unknown as TKey)}</div>
             {list.map(([n, k]) => (
               <div key={n} className="row">
                 <span className="grow" style={{ flex: 1 }}>
-                  {n}
+                  {t(`overlays.shortcuts.actions.${n}` as unknown as TKey)}
                 </span>
                 {k.map((x, i) => (
                   <React.Fragment key={i}>
-                    {i > 0 && k[0] === 'G' && <span className="faint then">then</span>}
+                    {i > 0 && k[0] === 'G' && <span className="faint then">{t('overlays.shortcuts.then')}</span>}
                     <kbd>{x}</kbd>
                   </React.Fragment>
                 ))}

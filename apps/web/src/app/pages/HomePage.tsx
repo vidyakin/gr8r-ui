@@ -24,13 +24,13 @@ import { SECTIONS } from '../routes';
 import { ProjectDot, ProjectIcon, ProjectStatus } from '../components/project';
 import { ActivityItem, MemberAvatar, MemberStack, MiniTaskRow, useTaskActions } from '../components/workspace';
 import { useInvite, useProjectForms, useTaskForm } from '../overlays';
-import { fmtDateTimeIntl } from '@/i18n';
+import { fmtDateTimeIntl, useT } from '@/i18n';
 
 type Tab = 'upcoming' | 'overdue' | 'completed';
 const MAX_ROWS = 7;
 
-function greeting(h: number) {
-  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+function greeting(h: number, t: ReturnType<typeof useT>): string {
+  return h < 12 ? t('pages.home.greetingMorning') : h < 18 ? t('pages.home.greetingAfternoon') : t('pages.home.greetingEvening');
 }
 
 function Stat({ icon, label, value, note, tone, to }: { icon: React.ReactNode; label: string; value: number; note: string; tone?: 'up' | 'bad'; to: string }) {
@@ -61,6 +61,7 @@ function Panel({ title, id, actions, children }: { title: string; id?: string; a
 }
 
 export function HomePage() {
+  const t = useT();
   const { data } = useWorkspace();
   const navigate = useNavigate();
   const [tab, setTab] = React.useState<Tab>('upcoming');
@@ -101,7 +102,11 @@ export function HomePage() {
       'priority',
     ),
   });
-  const deadlines = [dueBetween('Today', 0, 0), dueBetween('Tomorrow', 1, 1), dueBetween('This week', 2, 7)];
+  const deadlines = [
+    dueBetween(t('pages.home.deadlines.today'), 0, 0),
+    dueBetween(t('pages.home.deadlines.tomorrow'), 1, 1),
+    dueBetween(t('pages.home.deadlines.thisWeek'), 2, 7),
+  ];
 
   const dateLine = fmtDateTimeIntl(now, { weekday: 'long', month: 'long', day: 'numeric' });
 
@@ -110,38 +115,38 @@ export function HomePage() {
       <div className="ph">
         <div>
           <h1>
-            {greeting(new Date().getHours())}, {me(data).name.split(' ')[0]}
+            {greeting(new Date().getHours(), t)}, {me(data).name.split(' ')[0]}
           </h1>
           <p>
-            <span className="num">{dateLine}</span> · Here's what's happening across your workspace.
+            <span className="num">{dateLine}</span> · {t('pages.home.subline')}
           </p>
         </div>
         <div className="acts">
           <Button className="hide-m" onClick={() => invite.open()}>
             <UserPlus size={14} />
-            Invite member
+            {t('pages.home.inviteMember')}
           </Button>
           <Button className="hide-m" onClick={() => projectForms.create()}>
             <FolderPlus size={14} />
-            New project
+            {t('pages.home.newProject')}
           </Button>
           <Button variant="primary" onClick={() => taskForm.open()}>
             <Plus size={14} />
-            New task
+            {t('pages.home.newTask')}
           </Button>
         </div>
       </div>
 
       <div className="stats" style={{ marginBottom: 16 }}>
-        <Stat to={SECTIONS.projects.path} icon={<FolderKanban size={14} />} label="Active projects" value={activeProjects.length} note={`${activeProjects.filter(p => p.status === 'risk').length} at risk`} />
-        <Stat to={SECTIONS.tasks.path} icon={<CircleDashed size={14} />} label="Open tasks" value={open.length} note={`${open.filter(t => t.assignee === data.me).length} assigned to you`} />
-        <Stat to={SECTIONS.tasks.path} icon={<CircleCheck size={14} />} label="Completed" value={doneThisWeek.length} note="this week" tone="up" />
+        <Stat to={SECTIONS.projects.path} icon={<FolderKanban size={14} />} label={t('pages.home.activeProjects')} value={activeProjects.length} note={t('pages.home.atRisk', { count: activeProjects.filter(p => p.status === 'risk').length })} />
+        <Stat to={SECTIONS.tasks.path} icon={<CircleDashed size={14} />} label={t('pages.home.openTasks')} value={open.length} note={t('pages.home.assignedToYou', { count: open.filter(task => task.assignee === data.me).length })} />
+        <Stat to={SECTIONS.tasks.path} icon={<CircleCheck size={14} />} label={t('pages.home.completed')} value={doneThisWeek.length} note={t('pages.home.thisWeek')} tone="up" />
         <Stat
           to={SECTIONS.tasks.path}
           icon={<ClockAlert size={14} />}
-          label="Overdue"
+          label={t('pages.home.overdue')}
           value={overdue.length}
-          note={overdue.length ? 'need attention' : 'all on track'}
+          note={overdue.length ? t('pages.home.needAttention') : t('pages.home.onTrack')}
           tone={overdue.length ? 'bad' : undefined}
         />
       </div>
@@ -149,19 +154,19 @@ export function HomePage() {
       <div className="grid2">
         <div className="stack">
           <Panel
-            title="My tasks"
+            title={t('pages.home.myTasks')}
             id="h-mytasks"
             actions={
               <>
                 <Segmented
-                  aria-label="Filter my tasks"
+                  aria-label={t('pages.home.myTasksFilter')}
                   value={tab}
                   onValueChange={setTab}
                   items={(
                     [
-                      ['upcoming', 'Upcoming'],
-                      ['overdue', 'Overdue'],
-                      ['completed', 'Completed'],
+                      ['upcoming', t('pages.home.tabUpcoming')],
+                      ['overdue', t('pages.home.tabOverdue')],
+                      ['completed', t('pages.home.tabCompleted')],
                     ] as const
                   ).map(([value, name]) => ({
                     value,
@@ -172,35 +177,35 @@ export function HomePage() {
                     ),
                   }))}
                 />
-                <IconButton size="sm" label="Open My Tasks" onClick={() => navigate(SECTIONS.mytasks.path)}>
+                <IconButton size="sm" label={t('pages.home.openMyTasks')} onClick={() => navigate(SECTIONS.mytasks.path)}>
                   <ArrowUpRight size={15} />
                 </IconButton>
               </>
             }
           >
             {rows.length ? (
-              rows.map(t => <MiniTaskRow key={t.id} task={t} showAssignee={false} onOpen={openTask} />)
+              rows.map(t2 => <MiniTaskRow key={t2.id} task={t2} showAssignee={false} onOpen={openTask} />)
             ) : tab === 'overdue' ? (
-              <EmptyState size="sm" icon={<CircleCheck />} title="Nothing overdue">
-                Every task assigned to you is on schedule.
+              <EmptyState size="sm" icon={<CircleCheck />} title={t('pages.home.nothingOverdue')}>
+                {t('pages.home.nothingOverdueHint')}
               </EmptyState>
             ) : (
-              <EmptyState size="sm" icon={<ListChecks />} title="No tasks here">
-                Add a task to get things moving.
+              <EmptyState size="sm" icon={<ListChecks />} title={t('pages.home.noTasksHere')}>
+                {t('pages.home.noTasksHint')}
               </EmptyState>
             )}
             {lists[tab].length > MAX_ROWS && (
               <Link className="addrow" style={{ paddingLeft: 14, borderTop: '1px solid var(--divider)', borderBottom: 0 }} to={SECTIONS.mytasks.path}>
-                View all {lists[tab].length} tasks <ArrowRight size={13} />
+                {t('pages.home.viewAllTasks', { count: lists[tab].length })} <ArrowRight size={13} />
               </Link>
             )}
           </Panel>
 
           <Panel
-            title="Project progress"
+            title={t('pages.home.projectProgress')}
             actions={
               <Button size="sm" variant="ghost" onClick={() => navigate(SECTIONS.projects.path)}>
-                All projects
+                {t('pages.home.allProjects')}
               </Button>
             }
           >
@@ -208,11 +213,11 @@ export function HomePage() {
               <table className="perm-t" style={{ minWidth: 560 }}>
                 <thead>
                   <tr>
-                    <th style={{ paddingLeft: 14 }}>Project</th>
-                    <th style={{ textAlign: 'left' }}>Status</th>
-                    <th style={{ textAlign: 'left', width: '26%' }}>Progress</th>
-                    <th style={{ textAlign: 'left' }}>Due</th>
-                    <th style={{ textAlign: 'right', paddingRight: 14 }}>Team</th>
+                    <th style={{ paddingLeft: 14 }}>{t('pages.home.colProject')}</th>
+                    <th style={{ textAlign: 'left' }}>{t('pages.home.colStatus')}</th>
+                    <th style={{ textAlign: 'left', width: '26%' }}>{t('pages.home.colProgress')}</th>
+                    <th style={{ textAlign: 'left' }}>{t('pages.home.colDue')}</th>
+                    <th style={{ textAlign: 'right', paddingRight: 14 }}>{t('pages.home.colTeam')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -231,7 +236,7 @@ export function HomePage() {
                         </td>
                         <td>
                           <span className="row">
-                            <Progress value={pr} tone={p.status === 'risk' ? 'red' : undefined} aria-label={`${p.name} progress`} />
+                            <Progress value={pr} tone={p.status === 'risk' ? 'red' : undefined} aria-label={t('pages.home.progressAria', { name: p.name })} />
                             <span className="num faint" style={{ fontSize: 11.5, width: 30 }}>
                               {pr}%
                             </span>
@@ -254,11 +259,11 @@ export function HomePage() {
 
         <div className="stack">
           <Panel
-            title="Upcoming deadlines"
+            title={t('pages.home.upcomingDeadlines')}
             actions={
               <Button size="sm" variant="ghost" onClick={() => navigate(SECTIONS.calendar.path)}>
                 <Calendar size={13} />
-                Calendar
+                {t('pages.home.calendar')}
               </Button>
             }
           >
@@ -273,31 +278,31 @@ export function HomePage() {
                   </div>
                   {g.tasks.length ? (
                     <>
-                      {g.tasks.slice(0, 4).map(t => (
+                      {g.tasks.slice(0, 4).map(t2 => (
                         <div
-                          key={t.id}
+                          key={t2.id}
                           className="row cursor-pointer"
                           style={{ height: 30, gap: 8, fontSize: 13 }}
                           role="button"
                           tabIndex={0}
-                          onClick={() => openTask(t)}
-                          onKeyDown={e => e.key === 'Enter' && openTask(t)}
+                          onClick={() => openTask(t2)}
+                          onKeyDown={e => e.key === 'Enter' && openTask(t2)}
                         >
-                          <ProjectDot project={project(data, t.project)} />
-                          <span className="trunc flex-1">{t.title}</span>
-                          {t.priority != null && <PriorityIcon priority={t.priority} size={13} />}
-                          <MemberAvatar id={t.assignee} size="sm" />
+                          <ProjectDot project={project(data, t2.project)} />
+                          <span className="trunc flex-1">{t2.title}</span>
+                          {t2.priority != null && <PriorityIcon priority={t2.priority} size={13} />}
+                          <MemberAvatar id={t2.assignee} size="sm" />
                         </div>
                       ))}
                       {g.tasks.length > 4 && (
                         <div className="faint" style={{ fontSize: 11.5, paddingLeft: 16 }}>
-                          +{g.tasks.length - 4} more
+                          {t('pages.home.more', { count: g.tasks.length - 4 })}
                         </div>
                       )}
                     </>
                   ) : (
                     <div className="faint" style={{ fontSize: 12.5, padding: '4px 0 2px' }}>
-                      Nothing due
+                      {t('pages.home.nothingDue')}
                     </div>
                   )}
                 </div>
@@ -306,10 +311,10 @@ export function HomePage() {
           </Panel>
 
           <Panel
-            title="Recent activity"
+            title={t('pages.home.recentActivity')}
             actions={
               <Button size="sm" variant="ghost" onClick={() => navigate(SECTIONS.activity.path)}>
-                View all
+                {t('pages.home.viewAll')}
               </Button>
             }
           >

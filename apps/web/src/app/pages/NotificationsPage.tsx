@@ -11,16 +11,18 @@ import type { Notification } from '../data/types';
 import { SECTIONS } from '../routes';
 import { MentionText, NotifIcon, NotifText } from '../components/conversation';
 import { useTaskActions } from '../components/workspace';
+import { useT } from '@/i18n';
 
 function NotificationRow({ n }: { n: Notification }) {
+  const t = useT();
   const { data, dispatch } = useWorkspace();
   const navigate = useNavigate();
   const { open } = useTaskActions();
-  const { task: t, project: p } = notifTarget(data, n);
+  const { task, project: proj } = notifTarget(data, n);
   const activate = () => {
     dispatch({ type: 'notif/setRead', id: n.id, read: true });
-    if (t) open(t);
-    else if (p) navigate(`/projects/${p.id}`);
+    if (task) open(task);
+    else if (proj) navigate(`/projects/${proj.id}`);
   };
   return (
     <div className={cn('nrow', !n.read && 'unread')} role="button" tabIndex={0} onClick={activate} onKeyDown={e => e.key === 'Enter' && e.target === e.currentTarget && activate()}>
@@ -33,14 +35,14 @@ function NotificationRow({ n }: { n: Notification }) {
           <MentionText text={n.snippet} />
         </div>
         <div className="faint" style={{ fontSize: 11.5, marginTop: 4 }}>
-          {p ? `${p.name} · ` : ''}
+          {proj ? `${proj.name} · ` : ''}
           {ago(n.at)}
         </div>
       </div>
-      {!n.read && <span className="size-[7px] rounded-full bg-brand" style={{ marginTop: 8 }} aria-label="Unread" />}
+      {!n.read && <span className="size-[7px] rounded-full bg-brand" style={{ marginTop: 8 }} aria-label={t('pages.notifications.unread')} />}
       <IconButton
         size="sm"
-        label={n.read ? 'Mark as unread' : 'Mark as read'}
+        label={n.read ? t('pages.notifications.markUnread') : t('pages.notifications.markRead')}
         onClick={e => {
           e.stopPropagation();
           dispatch({ type: 'notif/setRead', id: n.id, read: !n.read });
@@ -53,6 +55,7 @@ function NotificationRow({ n }: { n: Notification }) {
 }
 
 export function NotificationsPage() {
+  const t = useT();
   const { data, dispatch } = useWorkspace();
   const navigate = useNavigate();
   const [filter, setFilter] = React.useState<'all' | 'unread'>('all');
@@ -68,25 +71,25 @@ export function NotificationsPage() {
       <div className="ph">
         <div>
           <h1 className="row" style={{ gap: 10 }}>
-            Notifications {!!unread && <Badge tone="accent">{unread} unread</Badge>}
+            {t('pages.notifications.title')} {!!unread && <Badge tone="accent">{t('pages.notifications.unreadCount', { count: unread })}</Badge>}
           </h1>
-          <p>Updates on tasks and projects you follow.</p>
+          <p>{t('pages.notifications.subline')}</p>
         </div>
         <div className="acts">
           <Segmented
-            aria-label="Filter"
+            aria-label={t('pages.notifications.filterLabel')}
             value={filter}
             onValueChange={setFilter}
             items={[
-              { value: 'all', label: 'All' },
-              { value: 'unread', label: 'Unread' },
+              { value: 'all', label: t('pages.notifications.all') },
+              { value: 'unread', label: t('pages.notifications.unread') },
             ]}
           />
           <Button disabled={!unread} onClick={() => dispatch({ type: 'notif/markAllRead' })}>
             <CheckCheck size={14} />
-            Mark all as read
+            {t('pages.notifications.markAllRead')}
           </Button>
-          <IconButton label="Notification preferences" onClick={() => navigate(`${SECTIONS.settings.path}/notif-email`)}>
+          <IconButton label={t('pages.notifications.preferences')} onClick={() => navigate(`${SECTIONS.settings.path}/notif-email`)}>
             <Settings2 size={16} />
           </IconButton>
         </div>
@@ -106,14 +109,14 @@ export function NotificationsPage() {
         <div className="panel">
           <EmptyState
             icon={<BellOff />}
-            title="You're all caught up."
+            title={t('pages.notifications.allCaughtUp')}
             action={
               <Button size="sm" onClick={() => setFilter('all')}>
-                Show all
+                {t('pages.notifications.showAll')}
               </Button>
             }
           >
-            No unread notifications. We'll let you know when something needs you.
+            {t('pages.notifications.allCaughtUpHint')}
           </EmptyState>
         </div>
       )}

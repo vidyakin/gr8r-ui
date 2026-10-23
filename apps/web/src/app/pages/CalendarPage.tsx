@@ -6,8 +6,10 @@ import { allTasks, applyView, generalScope } from '../data/selectors';
 import { CalendarView } from '../components/calendar-view';
 import { ViewToolbar, useListView } from '../components/view-toolbar';
 import { useTaskForm } from '../overlays';
+import { useT } from '@/i18n';
 
 export function CalendarPage() {
+  const t = useT();
   const { data } = useWorkspace();
   const api = useListView();
   const tasks = applyView(generalScope(allTasks(data), api.view), api.view);
@@ -18,13 +20,13 @@ export function CalendarPage() {
     <div className="page flush">
       <div className="ph">
         <div>
-          <h1>Calendar</h1>
-          <p>Deadlines and events across every project.</p>
+          <h1>{t('pages.calendar.title')}</h1>
+          <p>{t('pages.calendar.subline')}</p>
         </div>
         <div className="acts">
           <Button variant="primary" onClick={newTask}>
             <Plus size={14} />
-            New task
+            {t('pages.calendar.newTask')}
           </Button>
         </div>
       </div>

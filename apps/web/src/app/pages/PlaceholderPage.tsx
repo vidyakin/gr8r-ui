@@ -2,9 +2,11 @@ import { Link } from 'react-router';
 import { Construction } from 'lucide-react';
 import { Button, EmptyState } from '@/components/ui';
 import { useCrumbs } from '../layout/Topbar';
+import { useT } from '@/i18n';
 
 /** Заглушка для разделов, которые ещё не перенесены из gr8r-studio */
 export function PlaceholderPage() {
+  const t = useT();
   const crumbs = useCrumbs();
   const title = crumbs[crumbs.length - 1].label;
   return (
@@ -17,14 +19,14 @@ export function PlaceholderPage() {
       <div className="panel">
         <EmptyState
           icon={<Construction />}
-          title="Раздел ещё не перенесён"
+          title={t('pages.placeholder.title')}
           action={
             <Button asChild size="sm">
-              <Link to="/">На главную</Link>
+              <Link to="/">{t('pages.placeholder.goHome')}</Link>
             </Button>
           }
         >
-          Страница «{title}» есть в исходном gr8r-studio и будет перенесена на компоненты Gr8r UI следующей.
+          {t('pages.placeholder.hint', { title })}
         </EmptyState>
       </div>
     </div>
@@ -32,14 +34,15 @@ export function PlaceholderPage() {
 }
 
 export function NotFoundPage() {
+  const t = useT();
   return (
     <div className="fullstate">
       <div className="box">
         <span className="code">404</span>
-        <h1>Page not found</h1>
-        <p>The page you're looking for doesn't exist or was moved.</p>
+        <h1>{t('pages.placeholder.notFoundTitle')}</h1>
+        <p>{t('pages.placeholder.notFoundHint')}</p>
         <Button asChild variant="primary">
-          <Link to="/">Go home</Link>
+          <Link to="/">{t('pages.placeholder.goHome')}</Link>
         </Button>
       </div>
     </div>

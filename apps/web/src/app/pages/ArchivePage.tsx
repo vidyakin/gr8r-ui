@@ -10,11 +10,12 @@ import { ago } from '../lib/dates';
 import { ProjectIcon } from '../components/project';
 import { ConfirmModal, type ConfirmSpec } from '../overlays/project-dialogs';
 import { useProjectForms, useTaskDrawer } from '../overlays';
+import { useT } from '@/i18n';
 
 type TabId = 'tasks' | 'projects';
 
 /** Строка архива: иконка, название с подписью, когда архивировано, «Restore» и «Delete permanently» */
-function Row({ lead, title, sub, when, onRestore, onDelete }: { lead: React.ReactNode; title: React.ReactNode; sub: React.ReactNode; when: string; onRestore: () => void; onDelete: () => void }) {
+function Row({ lead, title, sub, when, onRestore, onDelete, t }: { lead: React.ReactNode; title: React.ReactNode; sub: React.ReactNode; when: string; onRestore: () => void; onDelete: () => void; t: ReturnType<typeof useT> }) {
   return (
     <div className="mini" style={{ minHeight: 52, cursor: 'default', gap: 12 }}>
       {lead}
@@ -31,9 +32,9 @@ function Row({ lead, title, sub, when, onRestore, onDelete }: { lead: React.Reac
       </span>
       <Button variant="secondary" size="sm" onClick={onRestore}>
         <RotateCcw size={13} />
-        Restore
+        {t('pages.archive.restore')}
       </Button>
-      <IconButton size="sm" label="Delete permanently" style={{ color: 'var(--red)' }} onClick={onDelete}>
+      <IconButton size="sm" label={t('pages.archive.deletePermanently')} style={{ color: 'var(--red)' }} onClick={onDelete}>
         <Trash2 size={15} />
       </IconButton>
     </div>
@@ -41,6 +42,7 @@ function Row({ lead, title, sub, when, onRestore, onDelete }: { lead: React.Reac
 }
 
 export function ArchivePage() {
+  const t = useT();
   const { data, dispatch } = useWorkspace();
   const drawer = useTaskDrawer();
   const projectForms = useProjectForms();
@@ -53,55 +55,56 @@ export function ArchivePage() {
     .sort((a, b) => (b.archivedAt || 0) - (a.archivedAt || 0));
   const ps = data.projects.filter(p => p.archived);
 
-  const restoreTask = (t: Task) => {
-    dispatch({ type: 'task/restore', id: t.id });
-    toast(`Restored “${t.title}”`, { action: { label: 'Open', onClick: () => drawer.open(t.id) } });
+  const restoreTask = (task: Task) => {
+    dispatch({ type: 'task/restore', id: task.id });
+    toast(t('pages.archive.taskRestored', { title: task.title }), { action: { label: t('common.open'), onClick: () => drawer.open(task.id) } });
   };
-  const purgeTask = (t: Task) =>
+  const purgeTask = (task: Task) =>
     setConfirm({
-      title: 'Delete task permanently?',
+      title: t('pages.archive.deleteTaskTitle'),
       body: (
         <>
-          <b>{t.title}</b>, its subtasks, comments, and attachments will be deleted for everyone. This can't be undone.
+          <b>{task.title}</b>, {t('pages.archive.deleteTaskBody')}
         </>
       ),
-      ok: 'Delete permanently',
+      ok: t('pages.archive.deletePermanently'),
       danger: true,
       run: () => {
         const snap = data;
-        dispatch({ type: 'task/delete', ids: [t.id] });
-        toast(`Deleted “${t.title}”`, { action: { label: 'Undo', onClick: () => dispatch({ type: 'data/restore', data: snap }) } });
+        dispatch({ type: 'task/delete', ids: [task.id] });
+        toast(t('pages.archive.taskDeleted', { title: task.title }), { action: { label: t('common.undo'), onClick: () => dispatch({ type: 'data/restore', data: snap }) } });
       },
     });
   const restoreProject = (p: Project) => {
     dispatch({ type: 'project/update', id: p.id, patch: { archived: false, archivedAt: null } });
-    toast(`Restored ${p.name}`);
+    toast(t('pages.archive.projectRestored', { name: p.name }));
   };
 
   let body: React.ReactNode;
   if (tab === 'tasks')
     body = ts.length ? (
       <div className="panel" style={{ overflow: 'hidden' }}>
-        {ts.map(t => (
+        {ts.map(task => (
           <Row
-            key={t.id}
-            lead={<StatusIcon status={t.status} size={15} />}
-            title={t.title}
+            key={task.id}
+            t={t}
+            lead={<StatusIcon status={task.status} size={15} />}
+            title={task.title}
             sub={
               <>
-                <span className="mono">{t.key}</span> · {project(data, t.project)?.name}
+                <span className="mono">{task.key}</span> · {project(data, task.project)?.name}
               </>
             }
-            when={t.archivedAt ? 'Archived ' + ago(t.archivedAt) : 'Archived'}
-            onRestore={() => restoreTask(t)}
-            onDelete={() => purgeTask(t)}
+            when={task.archivedAt ? t('pages.archive.archivedAgo', { ago: ago(task.archivedAt) }) : t('pages.archive.archived')}
+            onRestore={() => restoreTask(task)}
+            onDelete={() => purgeTask(task)}
           />
         ))}
       </div>
     ) : (
       <div className="panel">
-        <EmptyState icon={<Archive />} title="No archived tasks">
-          Archive finished or abandoned tasks to keep boards focused. They wait here until you restore them.
+        <EmptyState icon={<Archive />} title={t('pages.archive.noArchivedTasksTitle')}>
+          {t('pages.archive.noArchivedTasksHint')}
         </EmptyState>
       </div>
     );
@@ -111,10 +114,14 @@ export function ArchivePage() {
         {ps.map(p => (
           <Row
             key={p.id}
+            t={t}
             lead={<ProjectIcon project={p} size={14} />}
             title={p.name}
-            sub={`${data.tasks.filter(t => t.project === p.id).length} tasks · ${PROJECT_STATUS[p.status].name}`}
-            when={p.archivedAt ? 'Archived ' + ago(p.archivedAt) : 'Archived'}
+            sub={t('pages.archive.projectMeta', {
+              tasksCount: data.tasks.filter(task => task.project === p.id).length,
+              status: PROJECT_STATUS[p.status].name,
+            })}
+            when={p.archivedAt ? t('pages.archive.archivedAgo', { ago: ago(p.archivedAt) }) : t('pages.archive.archived')}
             onRestore={() => restoreProject(p)}
             onDelete={() => projectForms.remove(p.id)}
           />
@@ -122,8 +129,8 @@ export function ArchivePage() {
       </div>
     ) : (
       <div className="panel">
-        <EmptyState icon={<Archive />} title="No archived projects">
-          Archived projects disappear from the sidebar and project lists but keep every task, file, and comment.
+        <EmptyState icon={<Archive />} title={t('pages.archive.noArchivedProjectsTitle')}>
+          {t('pages.archive.noArchivedProjectsHint')}
         </EmptyState>
       </div>
     );
@@ -132,17 +139,17 @@ export function ArchivePage() {
     <div className="page" style={{ maxWidth: 900 }}>
       <div className="ph">
         <div>
-          <h1>Archive</h1>
-          <p>Archived work is hidden everywhere else. Restore it any time, or delete it for good.</p>
+          <h1>{t('pages.archive.title')}</h1>
+          <p>{t('pages.archive.subline')}</p>
         </div>
       </div>
       <Tabs value={tab} onValueChange={v => setTab(v as TabId)}>
-        <TabsList aria-label="Archive" style={{ marginBottom: 14 }}>
+        <TabsList aria-label={t('pages.archive.tabsLabel')} style={{ marginBottom: 14 }}>
           <Tab value="tasks" count={ts.length}>
-            Tasks
+            {t('pages.archive.tabTasks')}
           </Tab>
           <Tab value="projects" count={ps.length}>
-            Projects
+            {t('pages.archive.tabProjects')}
           </Tab>
         </TabsList>
       </Tabs>

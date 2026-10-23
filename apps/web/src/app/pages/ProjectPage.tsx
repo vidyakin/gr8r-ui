@@ -1,7 +1,7 @@
 /* Страница проекта — порт pageProject / taskViewBody из pages/project.js */
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { Activity, Calendar, ChartGantt, ChevronDown, List, ListChecks, ListFilter, LayoutDashboard, Paperclip, Plus, Settings, Share2, SearchX, SquareKanban, Star, Table2, UserPlus, type LucideIcon } from 'lucide-react';
+import { ChevronDown, ListChecks, ListFilter, Plus, SearchX, Settings, Share2, Star, UserPlus } from 'lucide-react';
 import { Button, EmptyState, IconButton, Tooltip, toast } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '../data/store';
@@ -19,17 +19,9 @@ import { ProjectFilesTab } from '../components/files-view';
 import { ViewToolbar, useListView, type ViewApi } from '../components/view-toolbar';
 import { MemberStack } from '../components/workspace';
 import { useProjectForms, useTaskForm } from '../overlays';
+import { useT } from '@/i18n';
 
-const PTABS: [string, string, LucideIcon][] = [
-  ['overview', 'Overview', LayoutDashboard],
-  ['board', 'Board', SquareKanban],
-  ['list', 'List', List],
-  ['table', 'Table', Table2],
-  ['calendar', 'Calendar', Calendar],
-  ['timeline', 'Timeline', ChartGantt],
-  ['files', 'Files', Paperclip],
-  ['activity', 'Activity', Activity],
-];
+const PTABS: string[] = ['overview', 'board', 'list', 'table', 'calendar', 'timeline', 'files', 'activity'];
 
 export function ProjectPage() {
   const { id, tab } = useParams();
@@ -42,6 +34,7 @@ export function ProjectPage() {
 }
 
 function ProjectView({ project: p, tab }: { project: Project; tab: string }) {
+  const tr = useT();
   const { data, dispatch } = useWorkspace();
   const navigate = useNavigate();
   const api = useListView();
@@ -82,18 +75,18 @@ function ProjectView({ project: p, tab }: { project: Project; tab: string }) {
           <h1>{p.name}</h1>
           <IconButton
             size="sm"
-            label={p.fav ? 'Remove from favorites' : 'Add to favorites'}
+            label={p.fav ? tr('pages.project.favRemove') : tr('pages.project.favAdd')}
             aria-pressed={p.fav}
             style={p.fav ? { color: 'var(--amber)' } : undefined}
             onClick={() => {
               dispatch({ type: 'project/toggleFav', id: p.id });
-              toast(!p.fav ? `Added ${p.name} to favorites` : 'Removed from favorites', { duration: 1800 });
+              toast(!p.fav ? tr('pages.project.favAdded', { name: p.name }) : tr('pages.project.favRemoved'), { duration: 1800 });
             }}
           >
             <Star size={15} />
           </IconButton>
           <ProjectStatusMenu project={p}>
-            <button className="pillbtn bordered" aria-label="Project status" style={{ height: 24 }}>
+            <button className="pillbtn bordered" aria-label={tr('pages.project.statusLabel')} style={{ height: 24 }}>
               <span className="pdot" style={{ '--c': PROJECT_STATUS[p.status].c, borderRadius: '50%', width: 7, height: 7 } as React.CSSProperties} />
               {PROJECT_STATUS[p.status].name}
               <ChevronDown size={12} />
@@ -101,27 +94,26 @@ function ProjectView({ project: p, tab }: { project: Project; tab: string }) {
           </ProjectStatusMenu>
           <span className="sp" />
           <div className="row" style={{ gap: 4 }}>
-            <button className="row" aria-label="Members" style={{ gap: 0 }} onClick={() => projectForms.share(p.id)}>
+            <button className="row" aria-label={tr('pages.project.membersLabel')} style={{ gap: 0 }} onClick={() => projectForms.share(p.id)}>
               <MemberStack ids={p.members} max={5} size="md" />
             </button>
-            <IconButton size="sm" label="Add member" onClick={() => projectForms.share(p.id)}>
+            <IconButton size="sm" label={tr('pages.project.addMember')} onClick={() => projectForms.share(p.id)}>
               <UserPlus size={15} />
             </IconButton>
             <Button size="sm" className="hide-m" onClick={() => projectForms.share(p.id)}>
               <Share2 size={13} />
-              Share
+              {tr('pages.project.share')}
             </Button>
-            <IconButton size="sm" label="Project settings" onClick={() => projectForms.edit(p.id)}>
+            <IconButton size="sm" label={tr('pages.project.settings')} onClick={() => projectForms.edit(p.id)}>
               <Settings size={15} />
             </IconButton>
             <ProjectMenu project={p} />
           </div>
         </div>
-        <nav className="tabs" aria-label="Project views">
-          {PTABS.map(([k, name, Icon]) => (
+        <nav className="tabs" aria-label={tr('pages.project.viewsNav')}>
+          {PTABS.map(k => (
             <Link key={k} to={`/projects/${p.id}/${k}`} className={cn('tab', tab === k && 'on')} aria-current={tab === k ? 'page' : undefined}>
-              <Icon size={14} />
-              {name}
+              {tr(`pages.project.tabs.${k}` as 'pages.project.tabs.board')}
             </Link>
           ))}
           {views.map(v => (
@@ -130,8 +122,8 @@ function ProjectView({ project: p, tab }: { project: Project; tab: string }) {
               {v.name}
             </Link>
           ))}
-          <Tooltip content="Save current filters as a view">
-            <button className="tab" aria-label="Save view" onClick={() => projectForms.saveView(p.id, api.view.filters)}>
+          <Tooltip content={tr('pages.project.saveViewHint')}>
+            <button className="tab" aria-label={tr('pages.project.saveView')} onClick={() => projectForms.saveView(p.id, api.view.filters)}>
               <Plus size={14} />
             </button>
           </Tooltip>
@@ -150,6 +142,7 @@ function SavedViewBody({ view, project: p }: { view: SavedView; project: Project
 
 /** Панель вида + содержимое для board / list / table / calendar */
 function TaskViewBody({ type, project: p, api }: { type: string; project: Project; api: ViewApi }) {
+  const tr = useT();
   const taskColumns = useTaskColumns();
   const { data } = useWorkspace();
   const all = tasksOf(data, p.id);
@@ -163,27 +156,27 @@ function TaskViewBody({ type, project: p, api }: { type: string; project: Projec
   const addBtn = (
     <Button size="sm" variant="primary" onClick={newTask}>
       <Plus size={13} />
-      New task
+      {tr('pages.project.newTask')}
     </Button>
   );
   const emptyAll = (
     <EmptyState
       icon={<ListChecks size={20} />}
-      title="No tasks here"
+      title={tr('pages.project.emptyTasks')}
       action={
         <Button size="sm" variant="primary" onClick={newTask}>
           <Plus size={14} />
-          Add task
+          {tr('pages.project.addTask')}
         </Button>
       }
     >
-      Add a task to get things moving.
+      {tr('pages.project.emptyTasksHint')}
     </EmptyState>
   );
   const emptyFilter = (
     <EmptyState
       icon={<SearchX size={20} />}
-      title="No results found"
+      title={tr('pages.project.noTasksMatch')}
       action={
         <Button
           size="sm"
@@ -192,11 +185,11 @@ function TaskViewBody({ type, project: p, api }: { type: string; project: Projec
             api.setQuery('');
           }}
         >
-          Clear filters
+          {tr('common.clearFilters')}
         </Button>
       }
     >
-      No tasks match these filters.
+      {tr('pages.project.noTasksMatchHint')}
     </EmptyState>
   );
 

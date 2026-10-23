@@ -2,6 +2,7 @@
 import * as React from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { toast } from '@/components/ui';
+import { useT } from '@/i18n';
 import { useWorkspace, uid } from '../data/store';
 import { dOff } from '../lib/dates';
 import { me, project as findProject, tasksOf } from '../data/selectors';
@@ -40,6 +41,7 @@ export function ProjectFormsProvider({ children }: { children: React.ReactNode }
   const { data, dispatch } = useWorkspace();
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const t = useT();
   const [dlg, setDlg] = React.useState<Dlg | null>(null);
   // Свежие данные и маршрут для колбэков, которые живут дольше одного рендера (Undo, подтверждения)
   const live = React.useRef({ data, pathname });
@@ -54,8 +56,8 @@ export function ProjectFormsProvider({ children }: { children: React.ReactNode }
       if (!p) return;
       const url = `https://gr8rstudio.com/${d.ws.url}/project/${p.key.toLowerCase()}`;
       navigator.clipboard.writeText(url).then(
-        () => toast('Link copied'),
-        () => toast.info(`Copy isn't available here — ${url}`, { duration: 6000 }),
+        () => toast(t('common.linkCopied')),
+        () => toast.info(t('overlays.projectForms.copyFallback', { url }), { duration: 6000 }),
       );
     };
     return {
@@ -69,7 +71,7 @@ export function ProjectFormsProvider({ children }: { children: React.ReactNode }
         if (!p) return;
         const newId = uid('p');
         dispatch({ type: 'project/duplicate', id, newId });
-        toast(`Duplicated ${p.name}`, { action: { label: 'Open', onClick: () => navigate(`/projects/${newId}`) } });
+        toast(t('overlays.projectForms.duplicated', { name: p.name }), { action: { label: t('overlays.projectForms.openAction'), onClick: () => navigate(`/projects/${newId}`) } });
       },
       archive: id => {
         const p = findProject(live.current.data, id);
@@ -77,13 +79,13 @@ export function ProjectFormsProvider({ children }: { children: React.ReactNode }
         setDlg({
           kind: 'confirm',
           spec: {
-            title: `Archive ${p.name}?`,
-            body: 'The project will be hidden from the sidebar and project lists. Tasks, files, and comments are kept, and you can restore it from Settings → Projects.',
-            ok: 'Archive project',
+            title: t('overlays.projectForms.archiveTitle', { name: p.name }),
+            body: t('overlays.projectForms.archiveBody'),
+            ok: t('overlays.projectForms.archiveOk'),
             run: () => {
               dispatch({ type: 'project/update', id, patch: { archived: true, archivedAt: Date.now() } });
               if (onProjectPage(id)) navigate('/projects');
-              toast(`Archived ${p.name}`, { action: { label: 'Undo', onClick: () => dispatch({ type: 'project/update', id, patch: { archived: false, archivedAt: null } }) } });
+              toast(t('overlays.projectForms.archivedToast', { name: p.name }), { action: { label: t('common.undo'), onClick: () => dispatch({ type: 'project/update', id, patch: { archived: false, archivedAt: null } }) } });
             },
           },
         });
@@ -95,20 +97,20 @@ export function ProjectFormsProvider({ children }: { children: React.ReactNode }
         setDlg({
           kind: 'confirm',
           spec: {
-            title: `Delete ${p.name}?`,
+            title: t('overlays.projectForms.deleteTitle', { name: p.name }),
             body: (
               <>
-                This permanently deletes the project and its <b>{`${n} task${n === 1 ? '' : 's'}`}</b>, files, and comments for everyone. This can't be undone.
+                {t('overlays.projectForms.deleteBody', { count: n })}
               </>
             ),
-            ok: 'Delete project',
+            ok: t('overlays.projectForms.deleteOk'),
             danger: true,
             typeName: p.name,
             run: () => {
               const snapshot = live.current.data;
               dispatch({ type: 'project/delete', id });
               if (onProjectPage(id)) navigate('/projects');
-              toast(`Deleted ${p.name}`, { action: { label: 'Undo', onClick: () => dispatch({ type: 'data/restore', data: snapshot }) } });
+              toast(t('overlays.projectForms.deletedToast', { name: p.name }), { action: { label: t('common.undo'), onClick: () => dispatch({ type: 'data/restore', data: snapshot }) } });
             },
           },
         });
@@ -128,11 +130,11 @@ export function ProjectFormsProvider({ children }: { children: React.ReactNode }
           onClose={close}
           onSubmit={f => {
             const id = uid('p');
-            const starter = TEMPLATES.find(t => t.id === f.tmpl)?.tasks ?? [];
+            const starter = TEMPLATES.find(tmpl => tmpl.id === f.tmpl)?.tasks ?? [];
             dispatch({ type: 'project/create', id, form: { name: f.name, desc: f.desc, icon: f.icon, color: f.color, team: f.team, lead: f.lead, due: f.due }, tasks: starter });
             close();
             navigate(`/projects/${id}/${f.tmpl === 'blank' ? 'overview' : 'board'}`);
-            toast(`Created ${f.name}${starter.length ? ` with ${starter.length} starter tasks` : ''}`);
+            toast(starter.length ? t('overlays.projectForms.createdWithTasks', { name: f.name, count: starter.length }) : t('overlays.projectForms.created', { name: f.name }));
           }}
         />
       )}
@@ -145,7 +147,7 @@ export function ProjectFormsProvider({ children }: { children: React.ReactNode }
             const { name, desc, icon, color, team, lead, due } = f;
             dispatch({ type: 'project/update', id: editing.id, patch: { name, desc, icon, color, team, lead, due, members: [...new Set([...editing.members, lead])] } });
             close();
-            toast('Project updated');
+            toast(t('overlays.projectForms.updated'));
           }}
         />
       )}
@@ -160,7 +162,7 @@ export function ProjectFormsProvider({ children }: { children: React.ReactNode }
             dispatch({ type: 'savedView/create', view });
             close();
             navigate(`/projects/${target.id}/v:${view.id}`);
-            toast(`Saved view “${name}”`);
+            toast(t('overlays.projectForms.savedView', { name }));
           }}
         />
       )}

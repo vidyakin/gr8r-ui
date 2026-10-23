@@ -11,22 +11,24 @@ import { ProjectIcon, ProjectStatus } from '../components/project';
 import { useInvite, useTeamForm } from '../overlays';
 import { NotFoundPage } from './PlaceholderPage';
 import { TeamsGrid } from './MembersPage';
+import { useT } from '@/i18n';
 
 /** Все команды воркспейса (маршрут /teams, в сайдбаре отдельного пункта нет — туда ведёт крошка) */
 export function TeamsPage() {
+  const t = useT();
   const { data } = useWorkspace();
   const teamForm = useTeamForm();
   return (
     <div className="page">
       <div className="ph">
         <div>
-          <h1>Teams</h1>
-          <p>Groups of people who work on projects together.</p>
+          <h1>{t('pages.teams.title')}</h1>
+          <p>{t('pages.teams.subline')}</p>
         </div>
         <div className="acts">
           <Button variant="primary" onClick={() => teamForm.create()}>
             <Plus size={14} />
-            New team
+            {t('pages.teams.newTeam')}
           </Button>
         </div>
       </div>
@@ -36,15 +38,15 @@ export function TeamsPage() {
         <div className="panel">
           <EmptyState
             icon={<Users />}
-            title="No teams yet"
+            title={t('pages.teams.noTeamsTitle')}
             action={
               <Button size="sm" onClick={() => teamForm.create()}>
                 <Plus size={14} />
-                New team
+                {t('pages.teams.newTeam')}
               </Button>
             }
           >
-            Create a team to group people and give projects an owner.
+            {t('pages.teams.noTeamsHint')}
           </EmptyState>
         </div>
       )}
@@ -53,6 +55,7 @@ export function TeamsPage() {
 }
 
 export function TeamPage() {
+  const tr = useT();
   const { id } = useParams();
   const { data } = useWorkspace();
   const navigate = useNavigate();
@@ -60,11 +63,11 @@ export function TeamPage() {
   const teamForm = useTeamForm();
   const invite = useInvite();
 
-  const t = data.teams.find(x => x.id === id);
-  if (!t) return <NotFoundPage />;
+  const team = data.teams.find(x => x.id === id);
+  if (!team) return <NotFoundPage />;
 
-  const ms = data.members.filter(m => m.team === t.id);
-  const ps = visibleProjects(data).filter(p => p.team === t.id);
+  const ms = data.members.filter(m => m.team === team.id);
+  const ps = visibleProjects(data).filter(p => p.team === team.id);
   const ts = allTasks(data).filter(x => ms.some(m => m.id === x.assignee) && x.status !== 'done');
   const go = (to: string) => ({
     role: 'link',
@@ -77,22 +80,22 @@ export function TeamPage() {
     <div className="page">
       <div className="ph">
         <div className="row" style={{ gap: 12 }}>
-          <span className="picon lg" style={{ '--c': t.c } as React.CSSProperties}>
-            <NamedIcon name={t.icon} size={18} />
+          <span className="picon lg" style={{ '--c': team.c } as React.CSSProperties}>
+            <NamedIcon name={team.icon} size={18} />
           </span>
           <div>
-            <h1>{t.name}</h1>
-            <p style={{ margin: '2px 0 0' }}>{t.desc}</p>
+            <h1>{team.name}</h1>
+            <p style={{ margin: '2px 0 0' }}>{team.desc}</p>
           </div>
         </div>
         <div className="acts">
-          <Button variant="secondary" onClick={() => teamForm.edit(t.id)}>
+          <Button variant="secondary" onClick={() => teamForm.edit(team.id)}>
             <Pencil size={14} />
-            Edit team
+            {tr('pages.teams.editTeam')}
           </Button>
-          <Button variant="secondary" onClick={() => invite.open({ team: t.id })}>
+          <Button variant="secondary" onClick={() => invite.open({ team: team.id })}>
             <UserPlus size={14} />
-            Invite to workspace
+            {tr('pages.teams.inviteToWorkspace')}
           </Button>
         </div>
       </div>
@@ -100,7 +103,7 @@ export function TeamPage() {
         <div className="stack">
           <section className="panel">
             <div className="panel-h">
-              <h2>Projects</h2>
+              <h2>{tr('pages.teams.projectsTitle')}</h2>
               <span className="faint">{ps.length}</span>
             </div>
             {ps.length ? (
@@ -115,12 +118,12 @@ export function TeamPage() {
                 </div>
               ))
             ) : (
-              <div className="panel-b faint">No projects</div>
+              <div className="panel-b faint">{tr('pages.teams.noProjects')}</div>
             )}
           </section>
           <section className="panel">
             <div className="panel-h">
-              <h2>Open tasks</h2>
+              <h2>{tr('pages.teams.openTasksTitle')}</h2>
               <span className="faint">{ts.length}</span>
             </div>
             {sortTasks(ts, 'due', 1, data)
@@ -132,7 +135,7 @@ export function TeamPage() {
         </div>
         <section className="panel" style={{ alignSelf: 'start' }}>
           <div className="panel-h">
-            <h2>Members</h2>
+            <h2>{tr('pages.teams.membersTitle')}</h2>
             <span className="faint">{ms.length}</span>
           </div>
           {ms.map(m => (

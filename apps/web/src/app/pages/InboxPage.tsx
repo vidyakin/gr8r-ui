@@ -12,18 +12,14 @@ import { CommentItem, MentionText, NotifIcon, NotifText, ReplyBox } from '../com
 import { AssigneeField, DueField, PriorityField, StatusField } from '../components/fields';
 import { ProjectDot } from '../components/project';
 import { useTaskActions } from '../components/workspace';
+import { useT } from '@/i18n';
 
 type Category = 'all' | Notification['type'];
-const CATEGORIES: [Category, string][] = [
-  ['all', 'All'],
-  ['mention', 'Mentions'],
-  ['assign', 'Assignments'],
-  ['comment', 'Comments'],
-  ['update', 'Updates'],
-];
+const CATEGORIES: Category[] = ['all', 'mention', 'assign', 'comment', 'update'];
 const TYPE_ICON = { mention: AtSign, assign: UserPlus, comment: MessageSquare, update: RefreshCw } as const;
 
 function InboxItem({ n, selected, onSelect }: { n: Notification; selected: boolean; onSelect: () => void }) {
+  const t = useT();
   const { data, dispatch } = useWorkspace();
   const { project: p } = notifTarget(data, n);
   const TypeIcon = TYPE_ICON[n.type];
@@ -37,7 +33,7 @@ function InboxItem({ n, selected, onSelect }: { n: Notification; selected: boole
       onClick={onSelect}
       onKeyDown={e => e.key === 'Enter' && e.target === e.currentTarget && onSelect()}
     >
-      {!n.read && <span className="absolute top-[22px] left-1.5 size-1.5 rounded-full bg-brand" aria-label="Unread" />}
+      {!n.read && <span className="absolute top-[22px] left-1.5 size-1.5 rounded-full bg-brand" aria-label={t('pages.inbox.unread')} />}
       <NotifIcon n={n} />
       <div className="min-w-0 flex-1" style={{ fontSize: 13, lineHeight: 1.45 }}>
         <div>
@@ -60,7 +56,7 @@ function InboxItem({ n, selected, onSelect }: { n: Notification; selected: boole
       </div>
       <IconButton
         size="xs"
-        label={n.read ? 'Mark as unread' : 'Mark as read'}
+        label={n.read ? t('pages.inbox.markUnread') : t('pages.inbox.markRead')}
         onClick={e => {
           e.stopPropagation();
           dispatch({ type: 'notif/setRead', id: n.id, read: !n.read });
@@ -73,59 +69,60 @@ function InboxItem({ n, selected, onSelect }: { n: Notification; selected: boole
 }
 
 function Preview({ n, onBack }: { n: Notification; onBack: () => void }) {
+  const tr = useT();
   const { data } = useWorkspace();
   const navigate = useNavigate();
   const { open } = useTaskActions();
-  const { task: t, project: p } = notifTarget(data, n);
+  const { task: task, project: proj } = notifTarget(data, n);
 
-  if (!t)
+  if (!task)
     return (
       <div style={{ padding: '24px 28px' }}>
         <Button size="sm" variant="ghost" style={{ margin: '-4px 0 12px -8px' }} onClick={onBack}>
           <ArrowLeft size={14} />
-          Back
+          {tr('pages.inbox.back')}
         </Button>
         <Alert tone="danger" title={n.text}>
           <div className="muted" style={{ marginTop: 2 }}>
             {n.snippet}
           </div>
         </Alert>
-        {p && (
+        {proj && (
           <div style={{ marginTop: 14 }}>
-            <Button onClick={() => navigate(`/projects/${p.id}`)}>Open project</Button>
+            <Button onClick={() => navigate(`/projects/${proj.id}`)}>{tr('pages.inbox.openProject')}</Button>
           </div>
         )}
       </div>
     );
 
-  const comments = commentsOf(data, t.id).slice(-4);
+  const comments = commentsOf(data, task.id).slice(-4);
   return (
     <>
       <div className="row" style={{ height: 46, padding: '0 16px', borderBottom: '1px solid var(--border)', gap: 8, flexShrink: 0 }}>
-        <IconButton size="sm" label="Back" tooltip={false} onClick={onBack}>
+        <IconButton size="sm" label={tr('pages.inbox.back')} tooltip={false} onClick={onBack}>
           <ArrowLeft size={15} />
         </IconButton>
-        <ProjectDot project={p} />
+        <ProjectDot project={proj} />
         <span className="muted" style={{ fontSize: 12.5 }}>
-          {p?.name}
+          {proj?.name}
         </span>
-        <span className="faint mono">{t.key}</span>
+        <span className="faint mono">{task.key}</span>
         <span className="sp" />
-        <Button size="sm" onClick={() => open(t)}>
+        <Button size="sm" onClick={() => open(task)}>
           <PanelRightOpen size={14} />
-          Open task
+          {tr('pages.inbox.openTask')}
         </Button>
       </div>
       <div style={{ padding: '24px 28px', maxWidth: 720, width: '100%' }}>
-        <h2 style={{ fontSize: 'var(--fs-xl)', margin: '0 0 10px', fontWeight: 600, letterSpacing: '-.015em' }}>{t.title}</h2>
+        <h2 style={{ fontSize: 'var(--fs-xl)', margin: '0 0 10px', fontWeight: 600, letterSpacing: '-.015em' }}>{task.title}</h2>
         <div className="row" style={{ flexWrap: 'wrap', gap: 4, marginBottom: 18 }}>
-          <StatusField task={t} />
-          <AssigneeField task={t} />
-          <PriorityField task={t} />
-          <DueField task={t} />
+          <StatusField task={task} />
+          <AssigneeField task={task} />
+          <PriorityField task={task} />
+          <DueField task={task} />
         </div>
         <div className="eyebrow" style={{ marginBottom: 4 }}>
-          Conversation
+          {tr('pages.inbox.conversation')}
         </div>
         {comments.length ? (
           comments.map(c => <CommentItem key={c.id} c={c} />)
@@ -134,13 +131,14 @@ function Preview({ n, onBack }: { n: Notification; onBack: () => void }) {
             <MentionText text={n.snippet} />
           </p>
         )}
-        <ReplyBox key={t.id} taskId={t.id} />
+        <ReplyBox key={task.id} taskId={task.id} />
       </div>
     </>
   );
 }
 
 export function InboxPage() {
+  const t = useT();
   const { data, dispatch } = useWorkspace();
   const [cat, setCat] = React.useState<Category>('all');
   const [unreadOnly, setUnreadOnly] = React.useState(false);
@@ -158,7 +156,7 @@ export function InboxPage() {
   const markAll = () => {
     const had = unreadIn('all');
     dispatch({ type: 'notif/markAllRead' });
-    if (had) toast("You're all caught up.");
+    if (had) toast(t('pages.inbox.allCaughtUp'));
   };
 
   return (
@@ -166,21 +164,21 @@ export function InboxPage() {
       <div className="grid min-h-0 flex-1 grid-cols-1 min-[901px]:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
         <div className="flex min-h-0 flex-col border-r border-border">
           <div className="row" style={{ padding: '18px var(--gutter) 0' }}>
-            <h1 style={{ fontSize: 'var(--fs-xl)', margin: 0, fontWeight: 600, letterSpacing: '-.015em' }}>Inbox</h1>
+            <h1 style={{ fontSize: 'var(--fs-xl)', margin: 0, fontWeight: 600, letterSpacing: '-.015em' }}>{t('pages.inbox.title')}</h1>
             <span className="sp" />
             <label className="row cursor-pointer" style={{ fontSize: 12, color: 'var(--text-2)', gap: 6 }}>
               <Switch checked={unreadOnly} onChange={e => setUnreadOnly(e.target.checked)} />
-              Unread
+              {t('pages.inbox.unreadOnly')}
             </label>
-            <IconButton size="sm" label="Mark all as read" onClick={markAll}>
+            <IconButton size="sm" label={t('pages.inbox.markAllRead')} onClick={markAll}>
               <CheckCheck size={15} />
             </IconButton>
           </div>
           <Tabs value={cat} onValueChange={v => setCat(v as Category)}>
             <TabsList className="inbox-tabs">
-              {CATEGORIES.map(([k, name]) => (
+              {CATEGORIES.map(k => (
                 <Tab key={k} value={k} count={unreadIn(k) || undefined}>
-                  {name}
+                  {t(`pages.inbox.cats.${k}` as 'pages.inbox.cats.all')}
                 </Tab>
               ))}
             </TabsList>
@@ -189,8 +187,8 @@ export function InboxPage() {
             {list.length ? (
               list.map(n => <InboxItem key={n.id} n={n} selected={sel?.id === n.id} onSelect={() => select(n)} />)
             ) : (
-              <EmptyState size="sm" icon={<Inbox />} title="You're all caught up.">
-                {unreadOnly ? 'No unread notifications in this category.' : 'New mentions, assignments, and comments will show up here.'}
+              <EmptyState size="sm" icon={<Inbox />} title={t('pages.inbox.allCaughtUp')}>
+                {unreadOnly ? t('pages.inbox.noUnreadInCat') : t('pages.inbox.noNotifsHint')}
               </EmptyState>
             )}
           </div>
@@ -202,8 +200,8 @@ export function InboxPage() {
           ) : (
             <div className="fullstate">
               <div className="box">
-                <EmptyState icon={<MailOpen />} title="Select a notification" className="!p-0">
-                  Read the conversation and reply without leaving your inbox.
+                <EmptyState icon={<MailOpen />} title={t('pages.inbox.selectTitle')} className="!p-0">
+                  {t('pages.inbox.selectHint')}
                 </EmptyState>
               </div>
             </div>

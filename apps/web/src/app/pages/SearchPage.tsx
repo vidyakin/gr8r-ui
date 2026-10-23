@@ -13,17 +13,13 @@ import { KindIcon } from '../components/files-view';
 import { ProjectIcon, ProjectStatus } from '../components/project';
 import { MemberAvatar, useTaskActions } from '../components/workspace';
 import { SECTIONS } from '../routes';
+import { useT } from '@/i18n';
 
-const CATS: [SearchCat, string][] = [
-  ['all', 'All'],
-  ['tasks', 'Tasks'],
-  ['projects', 'Projects'],
-  ['people', 'People'],
-  ['files', 'Files'],
-  ['comments', 'Comments'],
-];
+const CATS: SearchCat[] = ['all', 'tasks', 'projects', 'people', 'files', 'comments'];
 
 export function SearchPage() {
+  const t = useT();
+  const catLabel = (k: SearchCat) => t(`pages.search.cats.${k}` as 'pages.search.cats.all');
   const { data } = useWorkspace();
   const navigate = useNavigate();
   const taskActions = useTaskActions();
@@ -64,13 +60,13 @@ export function SearchPage() {
     <div className="page" style={{ maxWidth: 860 }}>
       <div className="inwrap" style={{ marginBottom: 14 }}>
         <Search size={16} />
-        <input className="input input-lg" placeholder="Search tasks, projects, people, files, and comments" value={q} onChange={e => set({ q: e.target.value })} style={{ paddingLeft: 34, fontSize: 15 }} aria-label="Search" />
+        <input className="input input-lg" placeholder={t('pages.search.placeholder')} value={q} onChange={e => set({ q: e.target.value })} style={{ paddingLeft: 34, fontSize: 15 }} aria-label={t('pages.search.searchLabel')} />
       </div>
       <Tabs value={cat} onValueChange={v => set({ cat: v === 'all' ? '' : v })}>
         <TabsList style={{ marginBottom: 18 }}>
-          {CATS.map(([k, n]) => (
+          {CATS.map(k => (
             <Tab key={k} value={k} count={k === 'all' ? total : r[k].length}>
-              {n}
+              {catLabel(k)}
             </Tab>
           ))}
         </TabsList>
@@ -78,7 +74,7 @@ export function SearchPage() {
       {!q ? (
         <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
           <span className="faint" style={{ fontSize: 12.5 }}>
-            Recent:
+            {t('pages.search.recent')}
           </span>
           {recent.map(s => (
             <button key={s} className="badge" onClick={() => set({ q: s })}>
@@ -91,65 +87,65 @@ export function SearchPage() {
         <>
           {sec(
             'tasks',
-            'Tasks',
-            r.tasks.map(t =>
+            t('pages.search.sectionTasks'),
+            r.tasks.map(item =>
               row(
-                t.id,
-                () => taskActions.open(t),
+                item.id,
+                () => taskActions.open(item),
                 <>
-                  <StatusIcon status={t.status} />
+                  <StatusIcon status={item.status} />
                   <span className="mono faint" style={{ fontSize: 11 }}>
-                    {t.key}
+                    {item.key}
                   </span>
                   <span className="tt">
-                    <Highlight text={t.title} q={q} />
+                    <Highlight text={item.title} q={q} />
                   </span>
                   <span className="pj">
-                    <span className="pdot" style={{ '--c': projectColor(project(data, t.project)) } as React.CSSProperties} />
-                    {project(data, t.project)?.name}
+                    <span className="pdot" style={{ '--c': projectColor(project(data, item.project)) } as React.CSSProperties} />
+                    {project(data, item.project)?.name}
                   </span>
-                  <MemberAvatar id={t.assignee} size="sm" />
+                  <MemberAvatar id={item.assignee} size="sm" />
                 </>,
               ),
             ),
           )}
           {sec(
             'projects',
-            'Projects',
-            r.projects.map(p =>
+            t('pages.search.sectionProjects'),
+            r.projects.map(item =>
               row(
-                p.id,
-                () => navigate(`/projects/${p.id}`),
+                item.id,
+                () => navigate(`/projects/${item.id}`),
                 <>
-                  <ProjectIcon project={p} size={13} />
+                  <ProjectIcon project={item} size={13} />
                   <span className="tt">
-                    <Highlight text={p.name} q={q} />{' '}
+                    <Highlight text={item.name} q={q} />{' '}
                     <span className="faint" style={{ fontSize: 12 }}>
-                      — {p.desc.slice(0, 70)}…
+                      — {item.desc.slice(0, 70)}…
                     </span>
                   </span>
-                  <ProjectStatus status={p.status} />
+                  <ProjectStatus status={item.status} />
                 </>,
               ),
             ),
           )}
           {sec(
             'people',
-            'People',
-            r.people.map(m =>
+            t('pages.search.sectionPeople'),
+            r.people.map(item =>
               row(
-                m.id,
-                () => navigate(`${SECTIONS.members.path}/${m.id}`),
+                item.id,
+                () => navigate(`${SECTIONS.members.path}/${item.id}`),
                 <>
-                  <MemberAvatar id={m.id} size="md" tooltip={false} />
+                  <MemberAvatar id={item.id} size="md" tooltip={false} />
                   <span className="tt">
-                    <Highlight text={m.name} q={q} />{' '}
+                    <Highlight text={item.name} q={q} />{' '}
                     <span className="faint" style={{ fontSize: 12 }}>
-                      {m.title}
+                      {item.title}
                     </span>
                   </span>
                   <span className="faint" style={{ fontSize: 12 }}>
-                    {m.email}
+                    {item.email}
                   </span>
                 </>,
               ),
@@ -157,20 +153,20 @@ export function SearchPage() {
           )}
           {sec(
             'files',
-            'Files',
-            r.files.map(f =>
+            t('pages.search.sectionFiles'),
+            r.files.map(item =>
               row(
-                f.id,
-                () => navigate(`/projects/${f.project}/files`),
+                item.id,
+                () => navigate(`/projects/${item.project}/files`),
                 <>
-                  <span className="ftype" style={{ '--c': FILE_TYPES[f.type].c } as React.CSSProperties}>
-                    <KindIcon kind={f.type} size={14} />
+                  <span className="ftype" style={{ '--c': FILE_TYPES[item.type].c } as React.CSSProperties}>
+                    <KindIcon kind={item.type} size={14} />
                   </span>
                   <span className="tt">
-                    <Highlight text={f.name} q={q} />
+                    <Highlight text={item.name} q={q} />
                   </span>
                   <span className="faint" style={{ fontSize: 12 }}>
-                    {f.size} · {project(data, f.project)?.name}
+                    {item.size} · {project(data, item.project)?.name}
                   </span>
                 </>,
               ),
@@ -178,19 +174,19 @@ export function SearchPage() {
           )}
           {sec(
             'comments',
-            'Comments',
-            r.comments.map(c =>
+            t('pages.search.sectionComments'),
+            r.comments.map(item =>
               row(
-                c.id,
-                () => taskActions.open(findTask(data, c.task)!),
+                item.id,
+                () => taskActions.open(findTask(data, item.task)!),
                 <>
-                  <MemberAvatar id={c.by} size="sm" />
+                  <MemberAvatar id={item.by} size="sm" />
                   <div className="grow" style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 12 }} className="muted">
-                      <b style={{ color: 'var(--text)', fontWeight: 500 }}>{member(data, c.by)?.name}</b> on {findTask(data, c.task)?.title} · {ago(c.at)}
+                      <b style={{ color: 'var(--text)', fontWeight: 500 }}>{member(data, item.by)?.name}</b> {t('pages.search.commentOn', { title: findTask(data, item.task)?.title })} · {ago(item.at)}
                     </div>
                     <div style={{ fontSize: 13 }}>
-                      <Highlight text={c.text} q={q} />
+                      <Highlight text={item.text} q={q} />
                     </div>
                   </div>
                 </>,
@@ -203,14 +199,14 @@ export function SearchPage() {
         <div className="panel">
           <EmptyState
             icon={<SearchX size={20} />}
-            title="No results found"
+            title={t('pages.search.noResultsTitle')}
             action={
               <Button variant="secondary" size="sm" onClick={() => set({ q: '' })}>
-                Clear search
+                {t('pages.search.clearSearch')}
               </Button>
             }
           >
-            Nothing matches “{q}”. Check the spelling or try a broader term.
+            {t('pages.search.noResultsHint', { q })}
           </EmptyState>
         </div>
       )}

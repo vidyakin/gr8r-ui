@@ -3,6 +3,7 @@ import * as React from 'react';
 import { useLocation } from 'react-router';
 import { CircleAlert, Circle, Paperclip, Plus, X } from 'lucide-react';
 import { Button, Dialog, DialogClose, DialogContent, Input, Switch, Textarea, toast } from '@/components/ui';
+import { useT } from '@/i18n';
 import type { Task } from '../data/types';
 import { nextKey, uid, useWorkspace } from '../data/store';
 import { FILE_TYPES, canSee, fileKind, fileSize, project, visibleProjects } from '../data/selectors';
@@ -25,6 +26,7 @@ const plain = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' 
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
 export function TaskFormProvider({ children }: { children: React.ReactNode }) {
+  const t = useT();
   const { data, dispatch } = useWorkspace();
   const drawer = useTaskDrawer();
   const location = useLocation();
@@ -46,7 +48,7 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
     const { data: d, pathname } = latest.current;
     const visible = visibleProjects(d).filter(p => canSee(d, p));
     if (!visible.length) {
-      toast.info('Create a project first: tasks live inside projects');
+      toast.info(t('overlays.taskForm.noProjectToast'));
       return;
     }
     const cur = pathname.match(/^\/projects\/([^/]+)/)?.[1];
@@ -121,17 +123,17 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
     if (!form) return;
     const title = form.title.trim();
     if (!title) {
-      setError('Give the task a name');
+      setError(t('overlays.taskForm.nameRequired'));
       titleRef.current?.focus();
       return;
     }
     if (editId) {
-      const t = data.tasks.find(x => x.id === editId);
-      if (!t) return setOpen(false);
-      const same = t.subtasks.length === form.subtasks.length && t.subtasks.every((x, i) => x.id === form.subtasks[i].id);
+      const task = data.tasks.find(x => x.id === editId);
+      if (!task) return setOpen(false);
+      const same = task.subtasks.length === form.subtasks.length && task.subtasks.every((x, i) => x.id === form.subtasks[i].id);
       dispatch({
         type: 'task/update',
-        id: t.id,
+        id: task.id,
         patch: {
           title,
           project: form.project,
@@ -143,13 +145,13 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
           labels: form.labels,
           recur: form.recur,
           // Оставленные подзадачи сохраняют своё состояние и вложенность, новые добавляются открытыми
-          ...(same ? {} : { subtasks: form.subtasks.map(s => t.subtasks.find(x => x.id === s.id) ?? { ...s, done: false, subtasks: [] }) }),
-          ...(form.desc !== plain(t.desc || '') ? { desc: form.desc ? `<p>${esc(form.desc)}</p>` : '' } : {}),
+          ...(same ? {} : { subtasks: form.subtasks.map(s => task.subtasks.find(x => x.id === s.id) ?? { ...s, done: false, subtasks: [] }) }),
+          ...(form.desc !== plain(task.desc || '') ? { desc: form.desc ? `<p>${esc(form.desc)}</p>` : '' } : {}),
         },
       });
-      form.files.forEach(f => dispatch({ type: 'task/attach', id: t.id, file: f }));
+      form.files.forEach(f => dispatch({ type: 'task/attach', id: task.id, file: f }));
       setOpen(false);
-      toast('Changes saved');
+      toast(t('overlays.taskForm.saved'));
       return;
     }
     const id = uid('t');
@@ -179,11 +181,11 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
       setForm({ ...form, title: '', desc: '', subtasks: [], files: [] });
       setError(null);
       setTimeout(() => titleRef.current?.focus(), 0);
-      toast(`Created ${key}`, { duration: 2000 });
+      toast(t('overlays.taskForm.createdShort', { key }), { duration: 2000 });
       return;
     }
     setOpen(false);
-    toast(`Created ${key} in ${project(data, form.project)?.name}`, { action: { label: 'Open', onClick: () => drawer.open(id) } });
+    toast(t('overlays.taskForm.createdIn', { key, project: project(data, form.project)?.name ?? '' }), { action: { label: t('common.undo'), onClick: () => drawer.open(id) } });
   };
 
   const addSub = () => {
@@ -200,7 +202,7 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
       <Dialog open={isOpen} onOpenChange={setOpen}>
         {form && (
           <DialogContent
-            title={editId ? 'Edit task' : 'New task'}
+            title={editId ? t('overlays.taskForm.editTitle') : t('overlays.taskForm.newTitle')}
             description={editId ? <span className="mono">{data.tasks.find(x => x.id === editId)?.key}</span> : undefined}
             className="[&>.modal-b]:!gap-3"
             onOpenAutoFocus={e => {
@@ -219,7 +221,7 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
                 {!editId && (
                   <label className="row" style={{ gap: 8, fontSize: 12.5, color: 'var(--text-2)', cursor: 'pointer' }}>
                     <Switch id="f-more" checked={more} onChange={e => setMore(e.target.checked)} />
-                    Create more
+                    {t('overlays.taskForm.createMore')}
                   </label>
                 )}
                 <span className="sp" />
@@ -227,10 +229,10 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
                   <kbd>{MOD}</kbd> <kbd>↵</kbd>
                 </span>
                 <DialogClose asChild>
-                  <Button variant="secondary">Cancel</Button>
+                  <Button variant="secondary">{t('common.cancel')}</Button>
                 </DialogClose>
                 <Button variant="primary" onClick={submit} id="f-submit">
-                  {editId ? 'Save changes' : 'Create task'}
+                  {editId ? t('overlays.taskForm.saveChanges') : t('overlays.taskForm.createTask')}
                 </Button>
               </>
             }
@@ -238,7 +240,7 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
             <form className="contents" onSubmit={e => e.preventDefault()}>
               <div className="field">
                 <label className="sr-only" htmlFor="f-title">
-                  Task name
+                  {t('overlays.taskForm.namePlaceholder')}
                 </label>
                 <Input
                   ref={titleRef}
@@ -246,7 +248,7 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
                   size="lg"
                   invalid={!!error}
                   aria-describedby="f-title-err"
-                  placeholder="Task name"
+                  placeholder={t('overlays.taskForm.namePlaceholder')}
                   value={form.title}
                   onFocus={e => {
                     // Фокус-ловушка Radix выделяет весь текст при возврате фокуса; сразу после открытия редактирования ставим курсор в конец
@@ -268,18 +270,18 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
               </div>
               <div className="field">
                 <label className="sr-only" htmlFor="f-desc">
-                  Description
+                  {t('overlays.taskForm.descPlaceholder')}
                 </label>
-                <Textarea id="f-desc" placeholder="Add a description… (optional)" rows={3} value={form.desc} onChange={e => set({ desc: e.target.value })} />
+                <Textarea id="f-desc" placeholder={t('overlays.taskForm.descPlaceholder')} rows={3} value={form.desc} onChange={e => set({ desc: e.target.value })} />
               </div>
               <FormChips form={form} set={set} />
               <div className="field">
-                <span className="label">Subtasks</span>
+                <span className="label">{t('overlays.taskForm.subtasks')}</span>
                 {form.subtasks.map(s => (
                   <div key={s.id} className="subt" style={{ padding: '0 4px' }}>
                     <Circle size={13} />
                     <span className="s">{s.title}</span>
-                    <button type="button" className="ibtn ibtn-xs x" style={{ opacity: 1 }} aria-label="Remove" onClick={() => set({ subtasks: form.subtasks.filter(x => x.id !== s.id) })}>
+                    <button type="button" className="ibtn ibtn-xs x" style={{ opacity: 1 }} aria-label={t('common.clearFilters')} onClick={() => set({ subtasks: form.subtasks.filter(x => x.id !== s.id) })}>
                       <X size={12} />
                     </button>
                   </div>
@@ -290,7 +292,7 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
                     ref={subRef}
                     className="input"
                     id="f-sub"
-                    placeholder="Add a subtask and press Enter"
+                    placeholder={t('overlays.taskForm.subPlaceholder')}
                     onKeyDown={e => {
                       if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
                         e.preventDefault();
@@ -301,7 +303,7 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
                 </div>
               </div>
               <div className="field">
-                <span className="label">Attachments</span>
+                <span className="label">{t('overlays.taskForm.attachments')}</span>
                 {form.files.length > 0 && (
                   <div className="col" style={{ gap: 4 }}>
                     {form.files.map((x, i) => {
@@ -315,7 +317,7 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
                           <span className="faint" style={{ fontSize: 11.5 }}>
                             {x.size}
                           </span>
-                          <button type="button" className="ibtn ibtn-xs" aria-label="Remove" onClick={() => set({ files: form.files.filter((_, j) => j !== i) })}>
+                          <button type="button" className="ibtn ibtn-xs" aria-label={t('common.clearFilters')} onClick={() => set({ files: form.files.filter((_, j) => j !== i) })}>
                             <X size={12} />
                           </button>
                         </div>
@@ -325,7 +327,7 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
                 )}
                 <label className="dropzone" style={{ padding: 10 }}>
                   <Paperclip size={14} />
-                  <span>Attach files</span>
+                  <span>{t('overlays.taskForm.attachFiles')}</span>
                   <input
                     type="file"
                     multiple

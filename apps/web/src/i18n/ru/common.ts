@@ -5,6 +5,8 @@ export const common: Widen<typeof C> = {
   cancel: 'Отмена',
   save: 'Сохранить',
   done: 'Готово',
+  undo: 'Отменить',
+  open: 'Открыть',
   retry: 'Повторить',
   loading: 'Загрузка…',
   yes: 'Да',

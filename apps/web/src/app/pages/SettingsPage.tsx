@@ -12,6 +12,7 @@ import { WorkOrderKindsSection } from '../settings/work-orders';
 import { NotificationsSection, PreferencesSection, ProfileSection, ShortcutsSection } from '../settings/personal';
 import { InvoicesSection, PasswordSection, PaymentSection, PlanSection, SessionsSection, TwoFactorSection } from '../settings/account';
 import { NotFoundPage } from './PlaceholderPage';
+import { useT } from '@/i18n';
 
 function Body({ sec, title }: { sec: string; title: string }) {
   switch (sec) {
@@ -70,13 +71,14 @@ function Body({ sec, title }: { sec: string; title: string }) {
 }
 
 export function SettingsPage() {
+  const t = useT();
   const { section } = useParams();
   if (!section) return <Navigate to={`${SECTIONS.settings.path}/${DEFAULT_SECTION}`} replace />;
   const cur = SET_SECTIONS.find(x => x[0] === section);
   if (!cur) return <NotFoundPage />;
   return (
     <div className="set">
-      <nav className="set-nav" aria-label="Settings">
+      <nav className="set-nav" aria-label={t('pages.settings.navLabel')}>
         {SET_NAV.map(([g, items]) => (
           <React.Fragment key={g}>
             <div className="gh">{g}</div>

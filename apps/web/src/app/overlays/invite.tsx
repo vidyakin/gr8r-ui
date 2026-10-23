@@ -2,6 +2,7 @@
 import * as React from 'react';
 import { Info, Link } from 'lucide-react';
 import { Button, Dialog, DialogClose, DialogContent, Field, Textarea, toast } from '@/components/ui';
+import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import type { Member } from '../data/types';
 
@@ -24,6 +25,7 @@ export const inviteLink = (wsUrl: string) => `https://gr8rstudio.com/join/${wsUr
 
 function InviteDialog({ open, onOpenChange, opts }: { open: boolean; onOpenChange: (v: boolean) => void; opts: InviteOptions }) {
   const { data, dispatch } = useWorkspace();
+  const t = useT();
   const [emails, setEmails] = React.useState('');
   const [role, setRole] = React.useState<Member['role']>('Member');
   const [team, setTeam] = React.useState('');
@@ -50,40 +52,40 @@ function InviteDialog({ open, onOpenChange, opts }: { open: boolean; onOpenChang
       .map(s => s.trim())
       .filter(Boolean);
     const bad = list.find(e => !EMAIL_RE.test(e));
-    if (!list.length) return setError('Enter at least one email address');
-    if (bad) return setError(`${bad} isn't a valid email address`);
+    if (!list.length) return setError(t('overlays.invite.noEmails'));
+    if (bad) return setError(t('overlays.invite.invalidEmail', { email: bad }));
     setError('');
     setSending(true);
     // Короткая пауза на кнопке, как loadingBtn в оригинале
     timer.current = window.setTimeout(() => {
       dispatch({ type: 'member/invite', emails: list, role, team });
       onOpenChange(false);
-      toast(`${list.length} invitation${list.length > 1 ? 's' : ''} sent`);
+      toast(t('overlays.invite.sent', { count: list.length }));
     }, 600);
   };
 
   const copyLink = () => {
     navigator.clipboard?.writeText(inviteLink(data.ws.url)).catch(() => {});
-    toast('Invite link copied');
+    toast(t('overlays.invite.linkCopied'));
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        title={`Invite to ${data.ws.name}`}
-        description="Invited people get an email with a link to join."
+        title={t('overlays.invite.title', { name: data.ws.name })}
+        description={t('overlays.invite.description')}
         footer={
           <>
             <Button variant="ghost" onClick={copyLink}>
               <Link size={14} />
-              Copy invite link
+              {t('overlays.invite.copyLink')}
             </Button>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{t('common.cancel')}</Button>
             </DialogClose>
             <Button variant="primary" type="submit" form="invite-form" loading={sending}>
-              Send invites
+              {t('overlays.invite.send')}
             </Button>
           </>
         }
@@ -97,11 +99,11 @@ function InviteDialog({ open, onOpenChange, opts }: { open: boolean; onOpenChang
             submit();
           }}
         >
-          <Field label="Email addresses" hint="Separate multiple addresses with commas." error={error}>
+          <Field label={t('overlays.invite.emailsLabel')} hint={t('overlays.invite.emailsHint')} error={error}>
             {f => (
               <Textarea
                 {...f}
-                placeholder="name@company.com, another@company.com"
+                placeholder={t('overlays.invite.emailsPlaceholder')}
                 rows={3}
                 autoFocus
                 value={emails}
@@ -114,7 +116,7 @@ function InviteDialog({ open, onOpenChange, opts }: { open: boolean; onOpenChang
           <div className="row" style={{ gap: 12 }}>
             <div className="field" style={{ flex: 1, minWidth: 0 }}>
               <label className="label" htmlFor="inv-role">
-                Role
+                {t('overlays.invite.roleLabel')}
               </label>
               <select className="select" id="inv-role" value={role} onChange={e => setRole(e.target.value as Member['role'])}>
                 {INVITE_ROLES.map(r => (
@@ -124,7 +126,7 @@ function InviteDialog({ open, onOpenChange, opts }: { open: boolean; onOpenChang
             </div>
             <div className="field" style={{ flex: 1, minWidth: 0 }}>
               <label className="label" htmlFor="inv-team">
-                Team
+                {t('overlays.invite.teamLabel')}
               </label>
               <select className="select" id="inv-team" value={team} onChange={e => setTeam(e.target.value)}>
                 {data.teams.map(t => (
@@ -139,7 +141,7 @@ function InviteDialog({ open, onOpenChange, opts }: { open: boolean; onOpenChang
           <div className="alert info">
             <Info size={14} />
             <span>
-              <b>Guests</b> can only see projects they&apos;re added to and can&apos;t create projects.
+              <b>{t('overlays.invite.guestsLabel')}</b> {t('overlays.invite.guestsText')}
             </span>
           </div>
         </form>

@@ -5,6 +5,7 @@ import { Label, Popover, PopoverContent, PopoverTrigger } from '@/components/ui'
 import { Calendar } from '@/components/shadcn/calendar';
 import { PriorityIcon, StatusIcon, priorityName, type Priority, type Status } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { PriorityPopover } from '../components/priority-panel';
 import { LABELS, canSee, member, project, statusOf, visibleProjects } from '../data/selectors';
@@ -42,7 +43,16 @@ function quickDates(): [string, number][] {
   ];
 }
 
+function quickDateLabel(t: ReturnType<typeof useT>, n: string): string {
+  if (n === 'Today') return t('dates.today');
+  if (n === 'Tomorrow') return t('dates.tomorrow');
+  if (n === 'Next week') return t('overlays.taskForm.nextWeek');
+  if (n === 'In 2 weeks') return t('overlays.taskForm.inTwoWeeks');
+  return n;
+}
+
 function DateChip({ label, icon, text, value, onChange }: { label: string; icon: React.ReactNode; text: string; value: IsoDate | null; onChange: (v: IsoDate | null) => void }) {
+  const t = useT();
   const [open, setOpen] = React.useState(false);
   const pick = (v: IsoDate | null) => {
     onChange(v);
@@ -60,12 +70,12 @@ function DateChip({ label, icon, text, value, onChange }: { label: string; icon:
         <div className="row" style={{ gap: 4, padding: 4, flexWrap: 'wrap' }}>
           {quickDates().map(([n, d]) => (
             <button key={n} type="button" className="badge" style={{ cursor: 'pointer' }} onClick={() => pick(dOff(d))}>
-              {n}
+              {quickDateLabel(t, n)}
             </button>
           ))}
           {value && (
             <button type="button" className="badge" style={{ cursor: 'pointer', color: 'var(--red)' }} onClick={() => pick(null)}>
-              Clear
+              {t('overlays.taskForm.clear')}
             </button>
           )}
         </div>
@@ -92,6 +102,7 @@ function PickPop({
   multi?: boolean;
   onPick: (id: string) => void;
 }) {
+  const t = useT();
   const [open, setOpen] = React.useState(false);
   const [q, setQ] = React.useState('');
   const list = items.filter(it => !q || it.name.toLowerCase().includes(q.toLowerCase()));
@@ -135,7 +146,7 @@ function PickPop({
         ))}
         {!list.length && (
           <div className="mi faint" style={{ cursor: 'default' }}>
-            No matches
+            {t('common.noResults')}
           </div>
         )}
       </PopoverContent>
@@ -144,6 +155,7 @@ function PickPop({
 }
 
 export function FormChips({ form, set }: { form: TaskFormState; set: (patch: Partial<TaskFormState>) => void }) {
+  const t = useT();
   const { data } = useWorkspace();
   const p = project(data, form.project);
   const st = statusOf(data, form.status) ?? { name: form.status };
@@ -153,19 +165,19 @@ export function FormChips({ form, set }: { form: TaskFormState; set: (patch: Par
   return (
     <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
       <PickPop
-        label="Project"
-        placeholder="Move to project…"
+        label={t('overlays.taskForm.project')}
+        placeholder={t('overlays.taskForm.moveToProject')}
         items={projects.map(q => ({ id: q.id, name: q.name, icon: <ProjectDot project={q} />, on: q.id === form.project }))}
         onPick={id => set({ project: id })}
         trigger={
           <>
             <ProjectDot project={p} />
-            {p?.name || 'Project'}
+            {p?.name || t('overlays.taskForm.project')}
           </>
         }
       />
       <PillMenu<Status>
-        label="Status"
+        label={t('overlays.taskForm.status')}
         className="bordered"
         value={form.status}
         onChange={v => set({ status: v })}
@@ -178,17 +190,17 @@ export function FormChips({ form, set }: { form: TaskFormState; set: (patch: Par
         }
       />
       <PickPop
-        label="Assignee"
-        placeholder="Assign to…"
+        label={t('overlays.taskForm.assignee')}
+        placeholder={t('overlays.taskForm.assignTo')}
         items={[
-          { id: 'none', name: 'Unassigned', icon: <MemberAvatar id={null} size="sm" tooltip={false} />, on: !form.assignee },
-          ...data.members.map(x => ({ id: x.id, name: x.name + (x.id === data.me ? ' (you)' : ''), icon: <MemberAvatar id={x.id} size="sm" tooltip={false} />, on: form.assignee === x.id })),
+          { id: 'none', name: t('overlays.taskForm.unassigned'), icon: <MemberAvatar id={null} size="sm" tooltip={false} />, on: !form.assignee },
+          ...data.members.map(x => ({ id: x.id, name: x.name + (x.id === data.me ? t('overlays.taskForm.youSuffix') : ''), icon: <MemberAvatar id={x.id} size="sm" tooltip={false} />, on: form.assignee === x.id })),
         ]}
         onPick={v => set({ assignee: v === 'none' ? null : v })}
         trigger={
           <>
             <MemberAvatar id={form.assignee} size="sm" tooltip={false} />
-            {m?.name || 'Assignee'}
+            {m?.name || t('overlays.taskForm.assignee')}
           </>
         }
       />
@@ -204,16 +216,16 @@ export function FormChips({ form, set }: { form: TaskFormState; set: (patch: Par
         }
       />
       <DateChip
-        label="Due date"
+        label={t('overlays.taskForm.dueDate')}
         icon={<CalendarIcon size={13} />}
-        text={form.due ? 'Due ' + fmtDate(form.due) : 'Due date'}
+        text={form.due ? t('overlays.taskForm.dueOn', { date: fmtDate(form.due) }) : t('overlays.taskForm.dueDate')}
         value={form.due}
         onChange={due => set({ due, start: due && form.start && form.start > due ? due : form.start })}
       />
-      <DateChip label="Start date" icon={<CalendarArrowUp size={13} />} text={form.start ? 'Starts ' + fmtDate(form.start) : 'Start date'} value={form.start} onChange={start => set({ start })} />
+      <DateChip label={t('overlays.taskForm.startDate')} icon={<CalendarArrowUp size={13} />} text={form.start ? t('overlays.taskForm.startsOn', { date: fmtDate(form.start) }) : t('overlays.taskForm.startDate')} value={form.start} onChange={start => set({ start })} />
       <PickPop
-        label="Labels"
-        placeholder="Filter labels…"
+        label={t('overlays.taskForm.labels')}
+        placeholder={t('overlays.taskForm.filterLabels')}
         multi
         items={(Object.keys(LABELS) as LabelId[]).map(id => ({ id, name: LABELS[id].name, icon: <span className="pdot" style={{ '--c': LABELS[id].c } as React.CSSProperties} />, on: form.labels.includes(id) }))}
         onPick={id => toggleLabel(id as LabelId)}
@@ -227,21 +239,21 @@ export function FormChips({ form, set }: { form: TaskFormState; set: (patch: Par
           ) : (
             <>
               <Tag size={13} />
-              Labels
+              {t('overlays.taskForm.labels')}
             </>
           )
         }
       />
       <PillMenu<string>
-        label="Repeat"
+        label={t('overlays.taskForm.repeat')}
         className={cn('bordered')}
         value={form.recur || 'Does not repeat'}
         onChange={v => set({ recur: v === 'Does not repeat' ? null : v })}
-        options={RECUR.map(x => ({ value: x, label: x, icon: <Repeat size={14} /> }))}
+        options={RECUR.map(x => ({ value: x, label: t(`overlays.taskForm.recur.${x}` as 'overlays.taskForm.recur.Does not repeat'), icon: <Repeat size={14} /> }))}
         trigger={
           <>
             <Repeat size={13} />
-            {form.recur || 'Repeat'}
+            {form.recur ? t(`overlays.taskForm.recur.${form.recur}` as 'overlays.taskForm.recur.Does not repeat') : t('overlays.taskForm.repeat')}
           </>
         }
       />
