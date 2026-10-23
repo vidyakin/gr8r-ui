@@ -3,7 +3,7 @@
    Суммы строк и итоги документа в форме считает та же чистая функция, что и сервер при проведении (computeDocument из @gr8r/shared). */
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { DOCUMENT_META, type CompanyKind, type CostDistribution, type CostItemKind, type DocumentGroup, type DocumentStatus, type DocumentType, type FileRef, type TaxSystem, type VatRate, type WarehouseKind, type WorkOrderBillingMode, type WorkOrderStateCategory } from '@gr8r/shared';
+import { DOCUMENT_META, type CompanyKind, type CostDistribution, type CostItemKind, type DocumentGroup, type DocumentStatus, type DocumentType, type FileRef, type MaterialOwner, type TaxSystem, type TollingRole, type VatRate, type WarehouseKind, type WorkOrderBillingMode, type WorkOrderStateCategory } from '@gr8r/shared';
 import { toast } from '@/components/ui';
 import type { Tone } from '@/components/ui';
 import { errorMessage } from '../data/api';
@@ -45,6 +45,8 @@ export interface DocLine {
   costItemId: string | null;
   /** Участок строки-услуги поступления */
   workCenterId: string | null;
+  /** Вкладка строки отчёта о переработке: продукция, использованное сырьё или отходы */
+  tollingRole: TollingRole | null;
 }
 
 export interface DocListItem {
@@ -69,6 +71,10 @@ export interface DocListItem {
   costItemId: string | null;
   /** Участок списания (себестоимость уходит в косвенные затраты участка) */
   workCenterId: string | null;
+  /** Заказ на переработку (приём, отчёт о переработке, возврат) */
+  tollingOrderId: string | null;
+  /** Вид операции: «Переработка» у заказа на переработку и отчёта переработчика */
+  operation?: string | null;
   workCenter?: { id: string; name: string } | null;
   priceIncludesVat: boolean;
   amountNet: string;
@@ -111,6 +117,10 @@ export interface DocDetail extends Omit<DocListItem, 'organizationName' | 'count
   inUseWorkCenter: { id: string; name: string } | null;
   /** Стоимость по себестоимости (внутренние документы) */
   costTotal?: string;
+  /** Себестоимость услуги переработки по заказу (admin и owner; member и guest — null) */
+  serviceCost?: string | null;
+  /** Заказ на производство/выпуск по заказу на переработку */
+  processingOrderId?: string | null;
   basedOn: DocLink | null;
   children: DocLink[];
   lines: DocLine[];
@@ -125,7 +135,7 @@ export interface DocDetail extends Omit<DocListItem, 'organizationName' | 'count
   workCenter?: { id: string; name: string } | null;
   plannedStart?: string | null;
   plannedEnd?: string | null;
-  components?: { id: string; kind: 'material' | 'semi' | 'work'; operation: string; qty: string; hours: string; plannedCost: string | null; actualCost: string | null }[];
+  components?: { id: string; kind: 'material' | 'semi' | 'work' | 'expense'; ownerKind: MaterialOwner; operation: string; qty: string; hours: string; plannedCost: string | null; actualCost: string | null }[];
 }
 
 export interface DocListParams {
@@ -230,6 +240,8 @@ export interface Warehouse {
   code: string;
   address: string;
   kind: WarehouseKind;
+  /** Склад контрагента: место хранения на стороне контрагента (склад переработчика) */
+  counterpartyId: string | null;
   isDefault: boolean;
   archivedAt: string | null;
 }
@@ -370,6 +382,60 @@ export interface InUseBalance {
 export function useInUseBalances() {
   const ws = useWsId();
   return useQuery({ queryKey: docsKey(ws, 'in-use'), queryFn: async () => (await call<{ items: InUseBalance[] }>(ws, 'GET', '/stock/in-use')).items, staleTime: Infinity });
+}
+
+/* ---------------- переработка давальческого сырья ---------------- */
+
+/** Остаток давальца: склад, товар, давалец и заказ на переработку (только количество) */
+export interface CustomerBalance {
+  warehouseId: string;
+  warehouseName: string;
+  productId: string;
+  name: string;
+  sku: string;
+  unitCode: string;
+  ownerCompanyId: string;
+  ownerName: string;
+  processingOrderId: string | null;
+  processingOrderNumber: string | null;
+  qty: string;
+}
+
+export function useCustomerBalances() {
+  const ws = useWsId();
+  return useQuery({ queryKey: docsKey(ws, 'customer-balances'), queryFn: async () => (await call<{ items: CustomerBalance[] }>(ws, 'GET', '/processing/balances')).items, staleTime: Infinity });
+}
+
+/** Заказ на переработку: заказ покупателя с видом операции «Переработка» */
+export interface ProcessingOrderItem {
+  id: string;
+  number: string | null;
+  date: string;
+  status: DocumentStatus;
+  counterpartyId: string | null;
+  counterpartyName: string | null;
+  ownerName: string | null;
+  warehouseName: string | null;
+  total: string;
+  comment: string;
+  lineCount: number;
+  /** Накопленная себестоимость услуги переработки (admin и owner; member и guest — null) */
+  serviceCost: string | null;
+}
+
+export function useProcessingOrders(params: { status?: string; q?: string } = {}) {
+  const ws = useWsId();
+  return useQuery({
+    queryKey: docsKey(ws, 'processing-orders', params),
+    queryFn: () => {
+      const sp = new URLSearchParams({ limit: '200' });
+      if (params.status) sp.set('status', params.status);
+      if (params.q) sp.set('q', params.q);
+      return call<{ items: ProcessingOrderItem[]; total: number }>(ws, 'GET', `/processing/orders?${sp}`);
+    },
+    staleTime: Infinity,
+    placeholderData: prev => prev,
+  });
 }
 
 /* ---------------- заказ-наряды ---------------- */

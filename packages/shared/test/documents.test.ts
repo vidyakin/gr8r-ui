@@ -78,7 +78,7 @@ describe('document types', () => {
     expect(new Set(DOCUMENT_TYPES.map(t => DOCUMENT_META[t].prefix)).size).toBe(DOCUMENT_TYPES.length);
   });
   test('chains', () => {
-    expect(basedOnTargets('customer_order')).toEqual(['invoice', 'realization', 'act', 'production_order', 'production', 'work_order']);
+    expect(basedOnTargets('customer_order')).toEqual(['invoice', 'realization', 'act', 'production_order', 'production', 'work_order', 'tolling_receipt', 'tolling_report', 'tolling_return']);
     expect(basedOnTargets('invoice')).toEqual(['realization', 'act']);
     expect(basedOnTargets('supplier_order')).toEqual(['receipt']);
     expect(basedOnTargets('act')).toEqual([]);
@@ -88,6 +88,10 @@ describe('document types', () => {
   });
   test('production documents: no counterparty, states apart from posting', () => {
     expect(documentTypesOf('production')).toEqual(['production_order', 'production', 'piecework_order', 'other_costs']);
+    // переработка давальческого сырья: приём, отчёт и возврат — с контрагентом-давальцем, но без своих цен
+    expect(documentTypesOf('tolling')).toEqual(['tolling_receipt', 'tolling_report', 'tolling_return']);
+    expect(DOCUMENT_META.tolling_receipt.noPrice).toBe(true);
+    expect(DOCUMENT_META.tolling_report.tolling).toBe('report');
     expect(DOCUMENT_META.production_order.party).toBeNull();
     expect(DOCUMENT_META.production.party).toBeNull();
     // прочие затраты: внутренний документ без склада и без строк товаров (своя таблица строк)

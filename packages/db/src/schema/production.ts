@@ -422,6 +422,8 @@ export const productionComponents = pgTable(
     sourceComponentId: uuid('source_component_id'),
     /** Этап, на котором расходуется материал или выполняется работа (снимок строки спецификации) */
     stageId: uuid('stage_id'),
+    /** Чей материал: наш (списывается со своего склада по средней) или давальца (с его остатка, только количества) */
+    ownerKind: text('owner_kind', { enum: ['own', 'customer'] }).notNull().default('own'),
     sortOrder: integer('sort_order').notNull().default(0),
     createdAt: createdAt(),
   },
@@ -435,6 +437,7 @@ export const productionComponents = pgTable(
     foreignKey({ columns: [t.workspaceId, t.sourceComponentId], foreignColumns: [t.workspaceId, t.id], name: 'production_components_source_fk' }),
     foreignKey({ columns: [t.workspaceId, t.stageId], foreignColumns: [productionStages.workspaceId, productionStages.id], name: 'production_components_stage_fk' }),
     check('production_components_kind_chk', sql`${t.kind} in ('material','semi','work','expense')`),
+    check('production_components_owner_chk', sql`${t.ownerKind} in ('own','customer')`),
     check(
       'production_components_shape_chk',
       sql`${t.kind} = 'work' or (${t.kind} <> 'work' and ${t.productId} is not null)`,
@@ -494,6 +497,9 @@ export const productionHeaders = pgTable(
     parentDocumentId: uuid('parent_document_id'),
     /** Этап выпуска (у заказа на производство — пусто: этапы выбирают при выпуске) */
     stageId: uuid('stage_id'),
+    /** Заказ на переработку (заказ покупателя с видом операции «Переработка»): выпуск делается из давальческого сырья,
+        а продукция приходуется на остаток давальца */
+    processingOrderId: uuid('processing_order_id'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -503,6 +509,39 @@ export const productionHeaders = pgTable(
     foreignKey({ columns: [t.workspaceId, t.workCenterId], foreignColumns: [workCenters.workspaceId, workCenters.id], name: 'production_headers_work_center_fk' }),
     foreignKey({ columns: [t.workspaceId, t.parentDocumentId], foreignColumns: [documents.workspaceId, documents.id], name: 'production_headers_parent_fk' }),
     foreignKey({ columns: [t.workspaceId, t.stageId], foreignColumns: [productionStages.workspaceId, productionStages.id], name: 'production_headers_stage_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.processingOrderId], foreignColumns: [documents.workspaceId, documents.id], name: 'production_headers_processing_order_fk' }),
+  ],
+);
+
+/** Себестоимость услуги переработки: наши затраты выпуска (свои материалы, работы, накладные) по заказу на переработку.
+    Пишется при проведении отчёта о переработке и переносится на акт услуги — это себестоимость реализации услуги */
+export const processingServiceCosts = pgTable(
+  'processing_service_costs',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    /** Документ: отчёт о переработке, созданный из него акт услуги или (у строки закрытия месяца) выпуск переработки */
+    documentId: uuid('document_id').notNull(),
+    /** Заказ на переработку (заказ покупателя с видом операции «Переработка») */
+    processingOrderId: uuid('processing_order_id').notNull(),
+    /** Себестоимость услуги: у отчёта — затраты его партии, у строки закрытия — доля косвенных затрат месяца на выпуск */
+    amount: numeric('amount', { precision: 18, scale: 4 }).notNull().default('0'),
+    /** Закрытие месяца, которое распределило косвенные затраты на выпуск переработки (строка снимается отменой закрытия) */
+    closingId: uuid('closing_id'),
+    /** Отчёт о переработке, к себестоимости которого добавлена доля закрытия (отчёт уже был проведён) */
+    reportId: uuid('report_id'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    unique('processing_service_costs_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'processing_service_costs_document_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.processingOrderId], foreignColumns: [documents.workspaceId, documents.id], name: 'processing_service_costs_order_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.reportId], foreignColumns: [documents.workspaceId, documents.id], name: 'processing_service_costs_report_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.closingId], foreignColumns: [productionCostClosings.workspaceId, productionCostClosings.id], name: 'processing_service_costs_closing_fk' }).onDelete('cascade'),
+    uniqueIndex('processing_service_costs_document_uq').on(t.workspaceId, t.documentId),
+    index('processing_service_costs_order_idx').on(t.workspaceId, t.processingOrderId),
+    index('processing_service_costs_closing_idx').on(t.workspaceId, t.closingId),
   ],
 );
 

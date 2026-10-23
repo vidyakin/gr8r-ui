@@ -4,8 +4,8 @@
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Ban, Calculator, ChevronDown, CircleAlert, ClipboardList, Copy, Ellipsis, FileText, PackageCheck, Plus, Printer, RotateCcw, Send, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
-import { amountInWordsRu, basedOnTargets, computeDocument, DOCUMENT_META, PRINT_FORM_LABELS, TRANSFER_OPERATIONS, VAT_LABELS, VAT_RATES, type DocumentType, type VatRate } from '@gr8r/shared';
+import { Ban, Calculator, ChevronDown, CircleAlert, ClipboardList, Copy, Ellipsis, FileSignature, FileText, PackageCheck, Plus, Printer, RotateCcw, Send, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
+import { amountInWordsRu, basedOnTargets, computeDocument, DOCUMENT_META, MATERIAL_OWNER_LABELS, PRINT_FORM_LABELS, TOLLING_ROLE_LABELS, TOLLING_ROLES, TRANSFER_OPERATIONS, VAT_LABELS, VAT_RATES, type DocumentType, type TollingRole, type VatRate } from '@gr8r/shared';
 import { Badge, Button, ConfirmDialog, EmptyState, Field, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Segmented, Select, Skeleton, toast } from '@/components/ui';
 import { useCanWrite } from '../meta/custom-fields';
 import { money, unitSymbol, useIsAdmin, useUnits, type Product } from '../catalog/data';
@@ -13,7 +13,7 @@ import { uuidv7 } from '../lib/uuid';
 import { fmtDate } from '../lib/dates';
 import { useWorkspace } from '../data/store';
 import { useSnapshot } from '../production/data';
-import { STATUS_LABEL, STATUS_TONE, docTitle, docsKey, typeLabel, useCostItems, useDocsApi, useDocument, useOrganizations, useWarehouses, type DocDetail, type DocLink } from './data';
+import { STATUS_LABEL, STATUS_TONE, docTitle, docsKey, typeLabel, useCostItems, useDocsApi, useDocument, useOrganizations, useProcessingOrders, useWarehouses, type DocDetail, type DocLink } from './data';
 import { CalculationDialog, ParamsDialog } from './calculation';
 import { CounterpartyPicker, ProductPicker } from './pickers';
 import { useBillingBreakdown, useContracts } from './billing-data';
@@ -42,6 +42,8 @@ interface FormLine {
   workCenterId: string | null;
   /** Значения параметров спецификации изделия (замеры, цвет): по ним считается состав выпуска */
   params: Record<string, unknown>;
+  /** Вкладка строки отчёта о переработке: продукция, использованное сырьё или отходы */
+  tollingRole: TollingRole | null;
 }
 
 interface Form {
@@ -59,6 +61,8 @@ interface Form {
   operation: string;
   inUseMemberId: string | null;
   inUseWorkCenterId: string | null;
+  /** Заказ на переработку (приём, отчёт о переработке, возврат) */
+  tollingOrderId: string | null;
   date: string;
   dueDate: string;
   priceIncludesVat: boolean;
@@ -85,11 +89,12 @@ function toForm(d: DocDetail): Form {
     operation: d.operation ?? 'transfer',
     inUseMemberId: d.inUseMember?.id ?? null,
     inUseWorkCenterId: d.inUseWorkCenter?.id ?? null,
+    tollingOrderId: d.tollingOrderId ?? null,
     date: d.date,
     dueDate: d.dueDate ?? '',
     priceIncludesVat: d.priceIncludesVat,
     comment: d.comment,
-    lines: d.lines.map(l => ({ key: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, qty: trimNum(l.qty), price: l.price, discountPct: trimNum(l.discountPct), vatRate: l.vatRate, bookQty: trimNum(l.bookQty), receivedQty: trimNum(l.receivedQty), costItemId: l.costItemId, workCenterId: l.workCenterId, params: (l as { params?: Record<string, unknown> }).params ?? {} })),
+    lines: d.lines.map(l => ({ key: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, qty: trimNum(l.qty), price: l.price, discountPct: trimNum(l.discountPct), vatRate: l.vatRate, bookQty: trimNum(l.bookQty), receivedQty: trimNum(l.receivedQty), costItemId: l.costItemId, workCenterId: l.workCenterId, params: (l as { params?: Record<string, unknown> }).params ?? {}, tollingRole: l.tollingRole ?? null })),
   };
 }
 
@@ -115,13 +120,14 @@ function toPayload(f: Form) {
     operation: f.operation,
     inUseMemberId: f.inUseMemberId,
     inUseWorkCenterId: f.inUseWorkCenterId,
+    tollingOrderId: f.tollingOrderId,
     date: f.date,
     dueDate: f.dueDate || null,
     priceIncludesVat: f.priceIncludesVat,
     comment: f.comment,
     lines: f.lines
       .filter(l => l.productId)
-      .map(l => ({ id: l.key, productId: l.productId!, name: l.name, unitCode: l.unitCode, qty: num(l.qty), price: num(l.price), discountPct: num(l.discountPct || '0'), vatRate: l.vatRate, bookQty: num(l.bookQty || '0'), receivedQty: num(l.receivedQty || '0'), costItemId: l.costItemId, workCenterId: l.workCenterId, params: l.params ?? {} })),
+      .map(l => ({ id: l.key, productId: l.productId!, name: l.name, unitCode: l.unitCode, qty: num(l.qty), price: num(l.price), discountPct: num(l.discountPct || '0'), vatRate: l.vatRate, bookQty: num(l.bookQty || '0'), receivedQty: num(l.receivedQty || '0'), costItemId: l.costItemId, workCenterId: l.workCenterId, params: l.params ?? {}, tollingRole: l.tollingRole })),
   };
 }
 
@@ -173,6 +179,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const units = useUnits();
   const members = useWorkspace().data.members;
   const workCenters = useSnapshot().data?.workCenters ?? [];
+  const processingOrders = useProcessingOrders();
   const meta = DOCUMENT_META[doc.type];
   /** Договоры контрагента: в документе выбирается один */
   const contractOptions = (contracts.data?.items ?? []).map(c => ({ value: c.id, label: c.number ? `${c.number}${c.isService ? ' · service' : ''}` : c.companyName }));
@@ -187,6 +194,12 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const isWorkOrder = doc.type === 'work_order';
   /** Перемещение: вид операции задаёт, что делает документ */
   const isTransfer = doc.type === 'stock_transfer';
+  /** Переработка: приём, отчёт о переработке или возврат остатков давальцу */
+  const isTolling = !!meta.tolling;
+  /** Заказ на переработку: вид операции заказывает переработку давальческого сырья */
+  const processingKind = ((doc.type === 'customer_order' || doc.type === 'supplier_order') && doc.operation === 'processing') || doc.type === 'tolling_report';
+  /** У отчёта о переработке строки разделены по вкладкам: продукция, материалы, отходы */
+  const defaultTollingRole: TollingRole = 'product';
   const inTransit = isTransfer && doc.operation === 'in_transit';
   const toOperation = isTransfer && doc.operation === 'to_operation';
   const fromOperation = isTransfer && doc.operation === 'from_operation';
@@ -252,7 +265,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   };
   const patchLine = (key: string, patch: Partial<FormLine>) => edit(f => ({ ...f, lines: f.lines.map(l => (l.key === key ? { ...l, ...patch } : l)) }));
   const addLine = (at?: number) => {
-    const line: FormLine = { key: uuidv7(), productId: null, name: '', unitCode: '796', qty: '1', price: '', discountPct: '', vatRate: '20', bookQty: '0', receivedQty: '0', costItemId: null, workCenterId: null, params: {} };
+    const line: FormLine = { key: uuidv7(), productId: null, name: '', unitCode: '796', qty: '1', price: '', discountPct: '', vatRate: '20', bookQty: '0', receivedQty: '0', costItemId: null, workCenterId: null, params: {}, tollingRole: defaultTollingRole };
     const index = at ?? latest.current.lines.length;
     focusReq.current = { row: index, col: 0 };
     edit(f => ({ ...f, lines: [...f.lines.slice(0, index), line, ...f.lines.slice(index)] }));
@@ -440,6 +453,24 @@ function DocumentView({ doc }: { doc: DocDetail }) {
               </MenuContent>
             </Menu>
           )}
+          {doc.type === 'tolling_report' && doc.status === 'posted' && (
+            <Button
+              onClick={() => {
+                void (async () => {
+                  setBusy(true);
+                  const r = await api<DocDetail>('POST', `/processing/reports/${doc.id}/act`, {});
+                  setBusy(false);
+                  if (r) {
+                    toast('Created the service act');
+                    navigate(`/documents/${r.id}`);
+                  }
+                })();
+              }}
+            >
+              <FileSignature size={14} />
+              Create service act
+            </Button>
+          )}
           {!!meta.forms.length && (
             <Menu>
               <MenuTrigger asChild>
@@ -571,6 +602,38 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                 onValueChange={v => edit(f => ({ ...f, operation: v }))}
                 options={TRANSFER_OPERATIONS.map(o => ({ value: o, label: OPERATION_LABEL[o] ?? o }))}
                 aria-label="Kind of transfer"
+              />
+            )}
+          </Field>
+        )}
+        {(doc.type === 'customer_order' || doc.type === 'supplier_order') && (
+          <Field label="Kind of operation">
+            {p => (
+              <Select
+                id={p.id}
+                disabled={!editable}
+                value={form.operation === 'processing' ? 'processing' : 'default'}
+                onValueChange={v => edit(f => ({ ...f, operation: v === 'processing' ? 'processing' : '' }))}
+                options={[
+                  { value: 'default', label: doc.type === 'customer_order' ? 'Sale' : 'Purchase' },
+                  { value: 'processing', label: 'Processing' },
+                ]}
+                aria-label="Kind of operation"
+              />
+            )}
+          </Field>
+        )}
+        {isTolling && (
+          <Field label="Processing order" hint="The owner of the materials is taken from it">
+            {p => (
+              <Select
+                id={p.id}
+                disabled={!editable}
+                value={form.tollingOrderId ?? ''}
+                onValueChange={v => edit(f => ({ ...f, tollingOrderId: v || null }))}
+                options={(processingOrders.data?.items ?? []).filter(o => o.status !== 'cancelled').map(o => ({ value: o.id, label: o.number ? `${o.number} · ${o.counterpartyName ?? o.ownerName ?? ''}` : 'Draft' }))}
+                placeholder="Select processing order"
+                aria-label="Processing order"
               />
             )}
           </Field>
@@ -710,6 +773,9 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                 {meta.production && (
                   <th style={{ width: 96 }}>Role</th>
                 )}
+                {doc.type === 'tolling_report' && (
+                  <th style={{ width: 150 }}>Section</th>
+                )}
                 {isReceipt && (
                   <>
                     <th style={{ width: 170 }}>Cost item</th>
@@ -787,6 +853,17 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                     {meta.production && (
                       <td>
                         <span className="muted">{srv?.stockRole === 'in' ? 'Product' : 'Material'}</span>
+                      </td>
+                    )}
+                    {doc.type === 'tolling_report' && (
+                      <td>
+                        <Select
+                          aria-label="Section"
+                          disabled={!editable}
+                          value={l.tollingRole ?? 'product'}
+                          onValueChange={v => patchLine(l.key, { tollingRole: v as TollingRole })}
+                          options={TOLLING_ROLES.map(r => ({ value: r, label: TOLLING_ROLE_LABELS[r] }))}
+                        />
                       </td>
                     )}
                     {isReceipt && (
@@ -925,6 +1002,42 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             ))}
           </section>
         )}
+        {doc.type === 'production' && !!doc.components?.length && (
+          <section className="doc-links panel" aria-label="Composition">
+            <h2>Composition</h2>
+            {doc.processingOrderId && (
+              <p className="faint" style={{ fontSize: 12 }}>
+                Release for a processing order: customer materials are written off from the owner&apos;s balance, our own ones from the warehouse at average cost. The product goes to the owner&apos;s balance; our costs are the cost of the processing service.
+              </p>
+            )}
+            <table className="dtbl" aria-label="Composition">
+              <thead>
+                <tr>
+                  <th>Material or work</th>
+                  <th style={{ width: 120 }}>Owner</th>
+                  <th style={{ width: 100 }} className="r">
+                    Qty
+                  </th>
+                  <th style={{ width: 120 }} className="r">
+                    Cost
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {doc.components.map(c => (
+                  <tr key={c.id}>
+                    <td className="trunc">{c.kind === 'work' ? c.operation || 'Work' : c.kind === 'expense' ? 'Expense' : c.kind === 'semi' ? 'Semi-finished product' : 'Material'}</td>
+                    <td>
+                      <Badge tone={c.ownerKind === 'customer' ? 'accent' : 'gray'}>{MATERIAL_OWNER_LABELS[c.ownerKind]}</Badge>
+                    </td>
+                    <td className="r num">{c.kind === 'work' ? c.hours : c.qty}</td>
+                    <td className="r num">{c.actualCost === null ? '—' : money(c.actualCost)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        )}
         <section className="doc-links panel" aria-label="Related documents">
           <h2>Related documents</h2>
           {doc.basedOn ? (
@@ -973,6 +1086,19 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                 <dt>Cost at average price</dt>
                 <dd className="num" data-testid="total-sum">
                   {doc.costTotal === null || doc.costTotal === undefined ? '—' : money(doc.costTotal)}
+                </dd>
+              </div>
+            </dl>
+          ) : processingKind ? (
+            <dl>
+              <div>
+                <dt>Lines</dt>
+                <dd className="num">{lineCount}</dd>
+              </div>
+              <div className="grand">
+                <dt>Service cost</dt>
+                <dd className="num" data-testid="total-sum">
+                  {doc.serviceCost === null || doc.serviceCost === undefined ? '—' : money(doc.serviceCost)}
                 </dd>
               </div>
             </dl>

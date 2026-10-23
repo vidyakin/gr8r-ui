@@ -86,6 +86,8 @@ export const warehouses = pgTable(
     address: text('address').notNull().default(''),
     /** Вид склада: обычный склад, склад-цех участка, служебный склад «в пути» */
     kind: text('kind', { enum: ['warehouse', 'workshop', 'transit'] }).notNull().default('warehouse'),
+    /** Склад контрагента: место хранения на стороне контрагента (склад переработчика) */
+    counterpartyId: uuid('counterparty_id'),
     isDefault: boolean('is_default').notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -93,6 +95,7 @@ export const warehouses = pgTable(
   },
   t => [
     unique('warehouses_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.counterpartyId], foreignColumns: [companies.workspaceId, companies.id], name: 'warehouses_counterparty_fk' }),
     uniqueIndex('warehouses_default_uq').on(t.workspaceId).where(sql`${t.isDefault} and ${t.archivedAt} is null`),
     uniqueIndex('warehouses_ws_name_uq').on(t.workspaceId, sql`lower(${t.name})`).where(sql`${t.archivedAt} is null`),
   ],
@@ -181,6 +184,8 @@ export const documents = pgTable(
     inUseWorkCenterId: uuid('in_use_work_center_id'),
     /** Участок-получатель списания (стоимость уходит в косвенные затраты участка): внешний ключ не ставим (см. inUseWorkCenterId) */
     workCenterId: uuid('work_center_id'),
+    /** Заказ на переработку (заказ покупателя с видом операции «Переработка»): по нему берётся давалец */
+    tollingOrderId: uuid('tolling_order_id'),
     currency: text('currency').notNull().default('RUB'),
     /** Цены «НДС в т.ч.» (true) или «НДС сверху» (false) */
     priceIncludesVat: boolean('price_includes_vat').notNull().default(true),
@@ -208,6 +213,7 @@ export const documents = pgTable(
     foreignKey({ columns: [t.workspaceId, t.inUseMemberId], foreignColumns: [members.workspaceId, members.id], name: 'documents_in_use_member_fk' }),
     foreignKey({ columns: [t.workspaceId, t.basedOnId], foreignColumns: [t.workspaceId, t.id], name: 'documents_based_on_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.responsibleId], foreignColumns: [members.workspaceId, members.id], name: 'documents_responsible_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.tollingOrderId], foreignColumns: [t.workspaceId, t.id], name: 'documents_tolling_order_fk' }).onDelete('set null'),
     check('documents_type_chk', sql`${t.type} in ('quote','customer_order','invoice','realization','act','customer_return','supplier_order','receipt','supplier_return','stock_transfer','write_off','stock_posting','inventory_count','production_order','production','work_order','piecework_order','other_costs')`),
     check('documents_status_chk', sql`${t.status} in ('draft','posted','cancelled')`),
     check('documents_state_chk', sql`${t.state} is null or ${t.state} ~ '^[a-z][a-z0-9_]*$'`),
@@ -260,6 +266,8 @@ export const documentLines = pgTable(
     bookQty: numeric('book_qty', { precision: 18, scale: 3 }).notNull().default('0'),
     /** Принятое количество (перемещение «в пути»): не больше отправленного */
     receivedQty: numeric('received_qty', { precision: 18, scale: 3 }).notNull().default('0'),
+    /** Вкладка строки отчёта о переработке: продукция, использованное сырьё или отходы */
+    tollingRole: text('tolling_role', { enum: ['product', 'material', 'waste'] }),
     createdAt: createdAt(),
   },
   t => [
@@ -274,6 +282,7 @@ export const documentLines = pgTable(
     check('document_lines_book_qty_chk', sql`${t.bookQty} >= 0 and ${t.receivedQty} >= 0`),
     check('document_lines_vat_chk', sql`${t.vatRate} in ('none','0','5','7','10','20')`),
     check('document_lines_stock_role_chk', sql`${t.stockRole} is null or ${t.stockRole} in ('in','out')`),
+    check('document_lines_tolling_role_chk', sql`${t.tollingRole} is null or ${t.tollingRole} in ('product','material','waste')`),
     index('document_lines_doc_idx').on(t.documentId, t.sortOrder),
     index('document_lines_origin_idx').on(t.originLineId),
     index('document_lines_source_idx').on(t.sourceLineId),

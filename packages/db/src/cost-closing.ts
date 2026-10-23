@@ -20,7 +20,7 @@ import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { DOCUMENT_HOOKS } from './document-hooks';
 import { recomputeStockCosts } from './stock';
-import { costItems, documents, manufacturedItems, organizations, otherCostLines, periodCosts, products, productionCostClosings, productionHeaders, productionItems, stockBalances, stockCostAdjustments, stockMoves, warehouses, workCenters, workspaces } from './schema';
+import { costItems, documents, processingServiceCosts, manufacturedItems, organizations, otherCostLines, periodCosts, products, productionCostClosings, productionHeaders, productionItems, stockBalances, stockCostAdjustments, stockMoves, warehouses, workCenters, workspaces } from './schema';
 import type { DocCtx, DocumentLineRow, DocumentRow } from './documents';
 
 /* ---------------- дата запрета ---------------- */
@@ -104,6 +104,26 @@ export async function assertServiceCostItems(db: Db, type: string, lines: Docume
 /** Своя часть корректировок закрытия обнуляется (повторное закрытие или отмена); итог пересчитает recomputeStockCosts */
 async function dropOwnDeltas(db: Db, workspaceId: string, closingId: string): Promise<void> {
   await db.update(stockCostAdjustments).set({ ownDelta: '0', closingId: null, updatedAt: new Date() }).where(and(eq(stockCostAdjustments.workspaceId, workspaceId), eq(stockCostAdjustments.closingId, closingId)));
+  // доля косвенных на выпуски переработки (себестоимость услуги) снимается вместе со своей частью корректировок
+  await db.delete(processingServiceCosts).where(and(eq(processingServiceCosts.workspaceId, workspaceId), eq(processingServiceCosts.closingId, closingId)));
+}
+
+/** Доля косвенных на выпуск из давальческого сырья: продукции на нашем складе нет, поэтому распределённое идёт
+    в себестоимость услуги переработки — строкой по выпуску; если отчёт давальцу уже проведён, она добавляется к нему */
+async function recordProcessingOverhead(db: Db, workspaceId: string, closingId: string, releaseId: string, amount: Dec): Promise<boolean> {
+  const [header] = await db.select({ processingOrderId: productionHeaders.processingOrderId }).from(productionHeaders).where(eq(productionHeaders.documentId, releaseId)).limit(1);
+  if (!header?.processingOrderId) return false;
+  const [report] = await db
+    .select({ id: documents.id })
+    .from(documents)
+    .where(and(eq(documents.workspaceId, workspaceId), eq(documents.type, 'tolling_report'), eq(documents.status, 'posted'), eq(documents.tollingOrderId, header.processingOrderId)))
+    .orderBy(desc(documents.date), desc(documents.createdAt))
+    .limit(1);
+  await db
+    .insert(processingServiceCosts)
+    .values({ workspaceId, documentId: releaseId, processingOrderId: header.processingOrderId, amount: fmt(amount, 4), closingId, reportId: report?.id ?? null })
+    .onConflictDoUpdate({ target: [processingServiceCosts.workspaceId, processingServiceCosts.documentId], set: { amount: sql`${processingServiceCosts.amount} + ${fmt(amount, 4)}`, updatedAt: new Date() } });
+  return true;
 }
 
 /* ---------------- данные закрытия ---------------- */
@@ -263,7 +283,11 @@ export async function closePeriodMonth(db: Db, ctx: DocCtx, month: string): Prom
     const allocated = plan.byTarget.get(t.itemId) ?? 0n;
     if (allocated <= 0n || !t.documentLineId) continue;
     const [move] = await db.select({ id: stockMoves.id, qty: stockMoves.qty }).from(stockMoves).where(and(eq(stockMoves.workspaceId, ctx.workspaceId), eq(stockMoves.documentLineId, t.documentLineId), sql`${stockMoves.qty} > 0`)).orderBy(asc(stockMoves.seq)).limit(1);
-    if (!move) continue;
+    if (!move) {
+      // выпуск из давальческого сырья: прихода на наш склад нет — доля идёт в себестоимость услуги переработки
+      await recordProcessingOverhead(db, ctx.workspaceId, closing!.id, t.releaseId, allocated);
+      continue;
+    }
     const own = fmt(div(allocated, dec(move.qty)), 4);
     await db
       .insert(stockCostAdjustments)

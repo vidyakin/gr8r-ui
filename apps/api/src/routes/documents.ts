@@ -9,6 +9,8 @@ import { z } from 'zod';
 import {
   bankAccounts,
   buildPrintData,
+  documentServiceCost,
+  processingOrderCost,
   cancelDocument,
   canSeeCost,
   changeDocumentState,
@@ -348,6 +350,14 @@ export const documentRoutes = new Hono<AppEnv>()
     }
     // цена оприходования и стоимость по себестоимости — member и guest их не видят
     if (isInternal(detail.type) && !canSeeCost(ctx.role)) return c.json({ ...detail, lines: detail.lines.map(l => ({ ...l, price: '0.00' })), costTotal: null });
+    // себестоимость услуги переработки: у заказа на переработку — накопленная по заказу, у отчёта о переработке и акта
+    // по нему — себестоимость партии; видят admin и owner
+    const processingOrder = detail.type === 'customer_order' && detail.operation === 'processing';
+    const processingDoc = detail.type === 'tolling_report' || (detail.type === 'act' && detail.basedOn?.type === 'tolling_report');
+    if (processingOrder || processingDoc) {
+      const serviceCost = canSeeCost(ctx.role) ? (processingOrder ? await processingOrderCost(ctx.db, detail.id) : await documentServiceCost(ctx.db, detail.id)) : null;
+      return c.json({ ...detail, serviceCost });
+    }
     return c.json(detail);
   })
   .post('/', write, zValidator('json', documentCreate, validationHook), async c => {

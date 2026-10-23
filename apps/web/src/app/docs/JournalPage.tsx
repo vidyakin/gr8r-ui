@@ -18,9 +18,11 @@ const TITLES: Record<DocumentGroup, { title: string; lead: string }> = {
   purchases: { title: 'Purchases', lead: 'Supplier orders, goods receipts and returns to suppliers.' },
   stock: { title: 'Stock documents', lead: 'Transfers between warehouses, write-offs and postings. The amount shown is the cost at average price.' },
   production: { title: 'Production', lead: 'Production orders and releases. The amount shown is the cost at average price.' },
+  tolling: { title: 'Processing', lead: 'Receipts of customer raw materials, processing reports and returns of unused materials.' },
 };
 
-export function JournalPage({ group }: { group: DocumentGroup }) {
+/** Журнал группы документов; `type` открывает сразу один тип (вкладка экрана переработки) */
+export function JournalPage({ group, type: fixed }: { group: DocumentGroup; type?: DocumentType }) {
   const navigate = useNavigate();
   const [sp, setSp] = useSearchParams();
   const canWrite = useCanWrite();
@@ -29,7 +31,7 @@ export function JournalPage({ group }: { group: DocumentGroup }) {
   const filters = useFilterState();
   const types = documentTypesOf(group);
   const typeParam = sp.get('type') as DocumentType | null;
-  const type = typeParam && types.includes(typeParam) ? typeParam : null;
+  const type = fixed ?? (typeParam && types.includes(typeParam) ? typeParam : null);
   const [q, setQ] = React.useState('');
   React.useEffect(() => {
     const t = setTimeout(() => setQ(filters.q.trim()), 250);
@@ -119,9 +121,11 @@ export function JournalPage({ group }: { group: DocumentGroup }) {
         <div className="acts">{newMenu}</div>
       </div>
       <nav className="tabs doc-tabs" aria-label={`${head.title} document types`}>
+        {!fixed && (
         <button type="button" className={cn('tab', !type && 'on')} aria-current={!type ? 'page' : undefined} onClick={() => setType(null)}>
           All
         </button>
+        )}
         {types.map(t => (
           <button key={t} type="button" className={cn('tab', type === t && 'on')} aria-current={type === t ? 'page' : undefined} onClick={() => setType(t)}>
             {typeLabel(t)}
