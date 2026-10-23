@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { Activity, Calendar, CircleCheck, CircleDot, ClockAlert, Flag, Pencil, User, UserPlus, Users } from 'lucide-react';
 import { Badge, Button, EmptyState } from '@/components/ui';
 import { StatusIcon } from '@/components/gr8r/task';
+import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { dayBucket, fmtHours, isOverdue, member, progressOf, projectColor, sortTasks, task as findTask, taskTime, tasksOf, totalTime } from '../data/selectors';
 import type { Activity as ActivityRec, Project, Status } from '../data/types';
@@ -25,6 +26,7 @@ export function ProjectOverview({ project: p, onTab, onStatusList }: OverviewPro
   const { data } = useWorkspace();
   const navigate = useNavigate();
   const { open } = useTaskActions();
+  const tt = useT();
   const ts = tasksOf(data, p.id);
   const pr = progressOf(data, p.id);
   const cnt = data.statuses.map(s => ({ s, n: ts.filter(t => t.status === s.id).length }));
@@ -53,11 +55,11 @@ export function ProjectOverview({ project: p, onTab, onStatusList }: OverviewPro
         <div className="stack">
           <section className="panel">
             <div className="panel-h">
-              <h2>About</h2>
+              <h2>{tt('views.project.about')}</h2>
               <div className="acts">
                 <Button size="sm" variant="ghost" onClick={() => projectForms.edit(p.id)}>
                   <Pencil size={13} />
-                  Edit
+                  {tt('common.edit')}
                 </Button>
               </div>
             </div>
@@ -67,10 +69,10 @@ export function ProjectOverview({ project: p, onTab, onStatusList }: OverviewPro
           </section>
           <section className="panel">
             <div className="panel-h">
-              <h2>Progress</h2>
+              <h2>{tt('views.project.progress')}</h2>
               <div className="acts">
                 <span className="faint" style={{ fontSize: 12 }}>
-                  {ts.filter(t => t.status === 'done').length} of {ts.length} tasks done
+                  {tt('views.project.progressText', { done: ts.filter(t => t.status === 'done').length, total: ts.length })}
                 </span>
               </div>
             </div>
@@ -79,17 +81,17 @@ export function ProjectOverview({ project: p, onTab, onStatusList }: OverviewPro
                 <span style={{ fontSize: 30, fontWeight: 600, letterSpacing: '-.03em' }} className="num">
                   {pr}%
                 </span>
-                <span className="muted">{daysLeft >= 0 ? `${daysLeft} days until ${fmtDate(p.due)}` : `Ended ${fmtDate(p.due)}`}</span>
+                <span className="muted">{daysLeft >= 0 ? tt('views.project.daysUntil', { days: daysLeft, date: fmtDate(p.due) }) : tt('views.project.ended', { date: fmtDate(p.due) })}</span>
                 {over.length > 0 && (
                   <Badge tone="red">
                     <ClockAlert size={11} />
-                    {over.length} overdue
+                    {tt('views.project.overdueCount', { count: over.length })}
                   </Badge>
                 )}
               </div>
               <div className="stackbar" style={{ height: 8, marginBottom: 12 }}>
                 {cnt.map(c => (
-                  <i key={c.s.id} style={{ width: `${(c.n / Math.max(ts.length, 1)) * 100}%`, background: `var(--st-${c.s.id})` }} title={`${c.s.name}: ${c.n}`} />
+                  <i key={c.s.id} style={{ width: `${(c.n / Math.max(ts.length, 1)) * 100}%`, background: `var(--st-${c.s.id})` }} title={tt('views.project.statusCount', { status: c.s.name, count: c.n })} />
                 ))}
               </div>
               <div className="row" style={{ flexWrap: 'wrap', gap: 14, fontSize: 12.5 }}>
@@ -107,10 +109,10 @@ export function ProjectOverview({ project: p, onTab, onStatusList }: OverviewPro
           </section>
           <section className="panel">
             <div className="panel-h">
-              <h2>Time</h2>
+              <h2>{tt('views.project.time')}</h2>
               <div className="acts">
                 <span className="faint" style={{ fontSize: 12 }}>
-                  Plan vs. logged hours
+                  {tt('views.project.timeHint')}
                 </span>
               </div>
             </div>
@@ -119,7 +121,7 @@ export function ProjectOverview({ project: p, onTab, onStatusList }: OverviewPro
               {overPlan.length > 0 && (
                 <div style={{ marginTop: 12 }}>
                   <div className="faint" style={{ fontSize: 12, marginBottom: 2 }}>
-                    Over plan
+                    {tt('views.time.overBy')}
                   </div>
                   {overPlan.map(({ t, x }) => (
                     <div key={t.id} className="row" style={{ height: 30, fontSize: 13, cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => open(t)} onKeyDown={e => e.key === 'Enter' && open(t)}>
@@ -139,18 +141,18 @@ export function ProjectOverview({ project: p, onTab, onStatusList }: OverviewPro
           </section>
           <section className="panel">
             <div className="panel-h">
-              <h2>Coming up</h2>
+              <h2>{tt('views.project.comingUp')}</h2>
               <div className="acts">
                 <Button size="sm" variant="ghost" onClick={() => onTab('list')}>
-                  View list
+                  {tt('views.project.viewList')}
                 </Button>
               </div>
             </div>
             {soon.length ? (
               soon.map(t => <MiniTaskRow key={t.id} task={t} showProject={false} onOpen={open} />)
             ) : (
-              <EmptyState size="sm" icon={<CircleCheck />} title="Nothing scheduled">
-                Tasks with due dates will show up here.
+              <EmptyState size="sm" icon={<CircleCheck />} title={tt('views.project.nothingScheduled')}>
+                {tt('views.project.nothingScheduledHint')}
               </EmptyState>
             )}
           </section>
@@ -158,13 +160,13 @@ export function ProjectOverview({ project: p, onTab, onStatusList }: OverviewPro
         <div className="stack">
           <section className="panel">
             <div className="panel-h">
-              <h2>Details</h2>
+              <h2>{tt('views.project.details')}</h2>
             </div>
             <div className="panel-b">
               <dl className="kv">
                 <dt>
                   <CircleDot size={14} />
-                  Status
+                  {tt('views.project.status_')}
                 </dt>
                 <dd>
                   <ProjectStatusMenu project={p}>
@@ -175,7 +177,7 @@ export function ProjectOverview({ project: p, onTab, onStatusList }: OverviewPro
                 </dd>
                 <dt>
                   <User size={14} />
-                  Lead
+                  {tt('views.project.lead')}
                 </dt>
                 <dd>
                   <span className="pillbtn">
@@ -185,7 +187,7 @@ export function ProjectOverview({ project: p, onTab, onStatusList }: OverviewPro
                 </dd>
                 <dt>
                   <Users size={14} />
-                  Team
+                  {tt('views.project.team')}
                 </dt>
                 <dd>
                   <button className="pillbtn" onClick={() => navigate(`/teams/${p.team}`)}>
@@ -195,21 +197,21 @@ export function ProjectOverview({ project: p, onTab, onStatusList }: OverviewPro
                 </dd>
                 <dt>
                   <Calendar size={14} />
-                  Start
+                  {tt('views.project.start')}
                 </dt>
                 <dd>
                   <span className="pillbtn num">{fmtDate(p.start, true)}</span>
                 </dd>
                 <dt>
                   <Flag size={14} />
-                  Due
+                  {tt('views.project.due')}
                 </dt>
                 <dd>
                   <span className="pillbtn num">{fmtDate(p.due, true)}</span>
                 </dd>
                 <dt>
                   <UserPlus size={14} />
-                  Members
+                  {tt('views.project.members')}
                 </dt>
                 <dd>
                   <button className="pillbtn" onClick={share}>
@@ -222,7 +224,7 @@ export function ProjectOverview({ project: p, onTab, onStatusList }: OverviewPro
           </section>
           <section className="panel">
             <div className="panel-h">
-              <h2>Milestones</h2>
+              <h2>{tt('views.project.milestonesTitle')}</h2>
             </div>
             <div className="panel-b">
               {p.milestones?.length ? (
@@ -237,20 +239,20 @@ export function ProjectOverview({ project: p, onTab, onStatusList }: OverviewPro
                   );
                 })
               ) : (
-                <span className="faint">No milestones yet</span>
+                <span className="faint">{tt('views.project.noMilestones_')}</span>
               )}
             </div>
           </section>
           <section className="panel">
             <div className="panel-h">
-              <h2>Recent activity</h2>
+              <h2>{tt('views.project.recentActivity')}</h2>
               <div className="acts">
                 <Button size="sm" variant="ghost" onClick={() => onTab('activity')}>
-                  View all
+                  {tt('views.project.viewAll')}
                 </Button>
               </div>
             </div>
-            <div className="panel-b feed">{acts.length ? acts.map(a => <ActivityItem key={a.id} a={a} />) : <span className="faint">No activity yet</span>}</div>
+            <div className="panel-b feed">{acts.length ? acts.map(a => <ActivityItem key={a.id} a={a} />) : <span className="faint">{tt('views.project.noActivityTitle')}</span>}</div>
           </section>
         </div>
       </div>
@@ -260,6 +262,7 @@ export function ProjectOverview({ project: p, onTab, onStatusList }: OverviewPro
 
 export function ProjectActivity({ project: p }: { project: Project }) {
   const { data } = useWorkspace();
+  const tt = useT();
   // Комментарии к задачам проекта тоже попадают в ленту
   const comments: ActivityRec[] = data.comments
     .filter(c => findTask(data, c.task)?.project === p.id)
@@ -281,8 +284,8 @@ export function ProjectActivity({ project: p }: { project: Project }) {
           </div>
         ))
       ) : (
-        <EmptyState icon={<Activity />} title="No activity yet">
-          Changes to this project will appear here.
+        <EmptyState icon={<Activity />} title={tt('views.project.noActivityTitle')}>
+          {tt('views.project.noActivityHint')}
         </EmptyState>
       )}
     </div>

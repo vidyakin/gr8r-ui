@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, Calendar, Plus, SearchX, Timer } from 'lucide-react
 import { Button, EmptyState, Label, toast } from '@/components/ui';
 import { PriorityIcon, StatusIcon, priorityName } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
+import { t as tr, useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { LABELS, fmtHours, groupTasks, isOverdue, member, parseHours, planOfTask, project as findProject, projectColor, task as findTask, taskTime, totalTime, type GroupBy, type SortField, type TaskBucket, type TaskTime } from '../data/selectors';
 import { fmtDate } from '../lib/dates';
@@ -19,6 +20,24 @@ import { MemberAvatar, TaskDue, useTaskActions } from './workspace';
 export type BuiltinColumn = 'title' | 'status' | 'priority' | 'assignee' | 'due' | 'start' | 'labels' | 'deps' | 'plan' | 'actual' | 'variance' | 'created' | 'project' | 'customer';
 /** Пользовательские поля задач приходят колонками cf:<ключ> (конструктор сущностей) */
 export type TableColumn = BuiltinColumn | `cf:${string}`;
+
+export function getTableColumns(tt: ReturnType<typeof useT>): { id: BuiltinColumn; name: string; width: number }[] {
+  return [
+    { id: 'title', name: tt('views.table.task'), width: 314 },
+    { id: 'status', name: tt('views.table.status'), width: 132 },
+    { id: 'priority', name: tt('views.table.priority'), width: 112 },
+    { id: 'assignee', name: tt('views.table.assignee'), width: 156 },
+    { id: 'due', name: tt('views.table.dueDate'), width: 112 },
+    { id: 'start', name: tt('views.table.startDate'), width: 112 },
+    { id: 'labels', name: tt('views.table.labels'), width: 180 },
+    { id: 'deps', name: tt('views.table.dependencies'), width: 150 },
+    { id: 'plan', name: tt('views.table.plan'), width: 92 },
+    { id: 'actual', name: tt('views.table.actual'), width: 92 },
+    { id: 'variance', name: tt('views.table.variance'), width: 100 },
+    { id: 'created', name: tt('views.table.created'), width: 112 },
+    { id: 'project', name: tt('views.table.project'), width: 156 },
+  ];
+}
 
 /** Колонки таблицы: название и ширина по умолчанию (TCOLS) */
 export const TABLE_COLUMNS: { id: TableColumn; name: string; width: number }[] = [
@@ -131,6 +150,7 @@ function CellInput({ value, placeholder, label, onCommit, onCancel }: { value: s
 }
 
 function Cell({ task: t, col, edit, setEdit, cf }: { task: Task; col: TableColumn; edit: { id: string; f: 'title' | 'plan' } | null; setEdit: (e: { id: string; f: 'title' | 'plan' } | null) => void; cf?: MetaField }) {
+  const tt = useT();
   const { data, dispatch } = useWorkspace();
   const actions = useTaskActions();
   const editing = edit?.id === t.id && edit.f === col;
@@ -144,10 +164,10 @@ function Cell({ task: t, col, edit, setEdit, cf }: { task: Task; col: TableColum
     case 'title':
       return editing ? (
         <td className="sticky editing">
-          <CellInput label="Title" value={t.title} onCommit={v => (v ? save({ title: v }) : setEdit(null))} onCancel={() => setEdit(null)} />
+          <CellInput label={tt('views.drawer.titleField')} value={t.title} onCommit={v => (v ? save({ title: v }) : setEdit(null))} onCancel={() => setEdit(null)} />
         </td>
       ) : (
-        <td className="sticky cellbtn" title="Double-click to rename" onClick={() => actions.open(t)} onDoubleClick={() => setEdit({ id: t.id, f: 'title' })}>
+        <td className="sticky cellbtn" title={tt('views.table.renameAria')} onClick={() => actions.open(t)} onDoubleClick={() => setEdit({ id: t.id, f: 'title' })}>
           <span className="row" style={{ gap: 8 }}>
             <StatusIcon status={t.status} size={13} />
             <span className="trunc" style={{ fontWeight: 450 }}>
@@ -222,15 +242,15 @@ function Cell({ task: t, col, edit, setEdit, cf }: { task: Task; col: TableColum
       return editing ? (
         <td className="editing">
           <CellInput
-            label="Plan in hours"
-            placeholder="e.g. 8 or 1d"
+            label={tr('views.table.planHours')}
+            placeholder={tr('views.table.planPlaceholder')}
             value={t.planHours != null ? String(t.planHours) : ''}
             onCommit={v => {
               const h = parseHours(v);
               if (!v) save({ planHours: null });
               else if (h != null) save({ planHours: h });
               else {
-                toast.error('Enter hours, e.g. 4, 1.5 or 2d');
+                toast.error(tt('views.time.dialog.enterHoursError'));
                 setEdit(null);
               }
             }}
@@ -238,7 +258,7 @@ function Cell({ task: t, col, edit, setEdit, cf }: { task: Task; col: TableColum
           />
         </td>
       ) : (
-        <td className="cellbtn num" title={t.planHours == null && plan > 0 ? 'Sum of subtasks — click to set a plan' : 'Click to edit'} onClick={() => setEdit({ id: t.id, f: 'plan' })}>
+        <td className="cellbtn num" title={t.planHours == null && plan > 0 ? tt('views.table.planFromSubtasks') : tt('views.table.editPlan')} onClick={() => setEdit({ id: t.id, f: 'plan' })}>
           {plan > 0 ? <span style={t.planHours == null ? { color: 'var(--text-2)', fontStyle: 'italic' } : undefined}>{fmtHours(plan)}</span> : faint}
         </td>
       );
@@ -289,12 +309,16 @@ export interface TableViewProps {
 
 export function TableView({ tasks, api, onNewTask, project, customer }: TableViewProps) {
   const { data } = useWorkspace();
+  const tt = useT();
   const actions = useTaskActions();
   const [edit, setEdit] = React.useState<{ id: string; f: 'title' | 'plan' } | null>(null);
   const { view } = api;
   const { all, fields: cfFields } = useTaskColumns();
+  // Подменим локализованные имена встроенных колонок
+  const localizedNames = new Map(getTableColumns(tt).map(c => [c.id, c.name] as const));
+  const localizedAll = all.map(c => (localizedNames.has(c.id as BuiltinColumn) ? { ...c, name: localizedNames.get(c.id as BuiltinColumn)! } : c));
   const cols = [
-    ...all.filter(c => c.id === 'title' || (!api.hidden.includes(c.id) && !(project && c.id === 'project'))),
+    ...localizedAll.filter(c => c.id === 'title' || (!api.hidden.includes(c.id) && !(project && c.id === 'project'))),
     ...(customer && !api.hidden.includes('customer') ? [CUSTOMER_COLUMN] : []),
   ];
   const width = (c: (typeof cols)[number]) => api.colW[c.id] ?? c.width;
@@ -306,14 +330,14 @@ export function TableView({ tasks, api, onNewTask, project, customer }: TableVie
     return (
       <EmptyState
         icon={<SearchX size={20} />}
-        title="No results found"
+        title={tt('common.noResults')}
         action={
           <Button size="sm" onClick={api.clearFilters}>
-            Clear filters
+            {tt('common.clearFilters')}
           </Button>
         }
       >
-        No tasks match these filters.
+        {tt('views.table.emptyFiltered')}
       </EmptyState>
     );
 
@@ -339,7 +363,7 @@ export function TableView({ tasks, api, onNewTask, project, customer }: TableVie
   return (
     <>
       <div className="tbl-wrap hide-m">
-        <table className="tbl" style={{ width: totalW }} aria-label="Tasks table">
+        <table className="tbl" style={{ width: totalW }} aria-label={tt('views.table.ariaLabel')}>
           <colgroup>
             {cols.map(c => (
               <col key={c.id} style={{ width: width(c) }} />
@@ -399,7 +423,7 @@ export function TableView({ tasks, api, onNewTask, project, customer }: TableVie
               <td className="sticky cellbtn" colSpan={cols.length} style={{ color: 'var(--text-3)' }} onClick={onNewTask}>
                 <span className="row" style={{ gap: 6 }}>
                   <Plus size={14} />
-                  New task
+                  {tt('views.board.newTask')}
                 </span>
               </td>
             </tr>
@@ -407,7 +431,7 @@ export function TableView({ tasks, api, onNewTask, project, customer }: TableVie
               <tr className="tot-row">
                 <td className="sticky">
                   <span className="row" style={{ gap: 6 }}>
-                    Total
+                    {tt('ui.total')}
                     <span className="faint" style={{ fontWeight: 500 }}>
                       {tasks.length}
                     </span>

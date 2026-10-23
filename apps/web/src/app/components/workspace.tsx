@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { Avatar, AvatarStack, Checkbox, Tooltip, toast, type AvatarSize } from '@/components/ui';
 import { DueDate, PriorityIcon, StatusIcon, priorityName } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 import { ago, parse, relDate } from '../lib/dates';
 import { member, project, statusOf, task as findTask } from '../data/selectors';
 import { useWorkspace } from '../data/store';
@@ -14,18 +15,19 @@ import { useTaskDrawer } from '../overlays';
 export function useTaskActions() {
   const { data, dispatch } = useWorkspace();
   const drawer = useTaskDrawer();
+  const t = useT();
   return {
-    toggleDone(t: Task) {
-      const wasDone = t.status === 'done';
-      dispatch({ type: 'task/toggleDone', id: t.id });
-      if (!wasDone) toast(`Completed “${t.title}”`, { action: { label: 'Undo', onClick: () => dispatch({ type: 'task/update', id: t.id, patch: { status: t.status } }) } });
+    toggleDone(tk: Task) {
+      const wasDone = tk.status === 'done';
+      dispatch({ type: 'task/toggleDone', id: tk.id });
+      if (!wasDone) toast(t('views.list.completedTask', { title: tk.title }), { action: { label: t('views.board.undo'), onClick: () => dispatch({ type: 'task/update', id: tk.id, patch: { status: tk.status } }) } });
     },
-    toggleFav(t: Task) {
-      dispatch({ type: 'task/update', id: t.id, patch: { fav: !t.fav } });
-      toast.info(t.fav ? 'Removed from favorites' : 'Added to favorites', { duration: 1800 });
+    toggleFav(tk: Task) {
+      dispatch({ type: 'task/update', id: tk.id, patch: { fav: !tk.fav } });
+      toast.info(tk.fav ? t('views.list.removedFromFavorites') : t('views.list.addedToFavorites'), { duration: 1800 });
     },
-    open(t: Task) {
-      drawer.open(t.id);
+    open(tk: Task) {
+      drawer.open(tk.id);
     },
     data,
   };
@@ -55,6 +57,7 @@ export function TaskDue({ task, icon = true }: { task: Task; icon?: boolean }) {
 export function MiniTaskRow({ task: t, showProject = true, showAssignee = true, onOpen }: { task: Task; showProject?: boolean; showAssignee?: boolean; onOpen?: (t: Task) => void }) {
   const { data } = useWorkspace();
   const actions = useTaskActions();
+  const tt = useT();
   const p = project(data, t.project);
   const done = t.status === 'done';
   const st = statusOf(data, t.status) ?? { name: t.status };
@@ -70,7 +73,7 @@ export function MiniTaskRow({ task: t, showProject = true, showAssignee = true, 
         if (e.target === e.currentTarget && e.key === 'Enter') onOpen?.(t);
       }}
     >
-      <Checkbox round checked={done} onChange={() => actions.toggleDone(t)} onClick={e => e.stopPropagation()} aria-label={`Complete ${t.title}`} />
+      <Checkbox round checked={done} onChange={() => actions.toggleDone(t)} onClick={e => e.stopPropagation()} aria-label={tt('views.task.markComplete')} />
       <Tooltip content={st.name}>
         <span>
           <StatusIcon status={t.status} />
@@ -105,11 +108,12 @@ export function ActivityItem({ a, showProject }: { a: Activity; showProject?: bo
   const t = findTask(data, a.task);
   const p = project(data, a.project);
   const { open } = useTaskActions();
+  const tt = useT();
   return (
     <div className="fitem">
       <MemberAvatar id={a.by} size="sm" />
       <div className="min-w-0 flex-1">
-        <b>{m?.id === data.me ? 'You' : m?.name || 'Someone'}</b> <span className="muted">{a.verb}</span>{' '}
+        <b>{m?.id === data.me ? tt('views.activity.you') : m?.name || 'Someone'}</b> <span className="muted">{a.verb}</span>{' '}
         {t ? (
           <span className="obj" role="button" tabIndex={0} onClick={() => open(t)} onKeyDown={e => e.key === 'Enter' && open(t)}>
             {t.title}

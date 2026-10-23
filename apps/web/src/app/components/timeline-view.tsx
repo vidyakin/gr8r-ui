@@ -5,6 +5,7 @@ import { Crosshair, Diamond, Plus, ChartGantt } from 'lucide-react';
 import { Button, EmptyState, Segmented, Select, Tooltip, toast } from '@/components/ui';
 import { StatusIcon } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { applyView, canSee, groupTasks, projectColor, project as findProject, task as findTask, tasksOf, visibleProjects, type GroupBy } from '../data/selectors';
 import { countSubs } from '../data/subtasks';
@@ -33,28 +34,29 @@ export type TimelineApi = ReturnType<typeof useTimeline>;
 
 /** Контролы масштаба, группировки и «Today» для ViewToolbar (tlControls) */
 export function TimelineControls({ tl }: { tl: TimelineApi }) {
+  const tt = useT();
   return (
     <>
       <Segmented
         className="ml-1"
-        aria-label="Zoom"
+        aria-label={tt('views.timeline.zoom')}
         value={tl.zoom}
         onValueChange={tl.setZoom}
         items={[
-          { value: 'week', label: 'Weeks' },
-          { value: 'month', label: 'Months' },
+          { value: 'week', label: tt('views.timeline.weeks') },
+          { value: 'month', label: tt('views.timeline.months') },
         ]}
       />
       <Select
         className="select !h-[26px] !w-auto !text-xs ml-1"
-        aria-label="Group by"
+        aria-label={tt('views.toolbar.groupBy')}
         value={tl.group}
         onValueChange={g => tl.setGroup(g as GroupBy)}
         options={[
-          { value: 'status', label: 'Group: Status' },
-          { value: 'assignee', label: 'Group: Assignee' },
-          { value: 'project', label: 'Group: Project' },
-          { value: 'none', label: 'No grouping' },
+          { value: 'status', label: tt('views.timeline.groupStatus') },
+          { value: 'assignee', label: tt('views.timeline.groupAssignee') },
+          { value: 'project', label: tt('views.timeline.groupProject') },
+          { value: 'none', label: tt('views.timeline.groupNone') },
         ]}
       />
       <Button variant="ghost" onClick={tl.goToday}>
@@ -134,6 +136,7 @@ export interface TimelineViewProps {
 
 export function TimelineView({ tasks, project: p, tl, id = 'tl', onNewTask }: TimelineViewProps) {
   const { data, dispatch } = useWorkspace();
+  const tt = useT();
   const { open } = useTaskActions();
   const { zoom, group: g } = tl;
   const rightRef = React.useRef<HTMLDivElement>(null);
@@ -191,15 +194,15 @@ export function TimelineView({ tasks, project: p, tl, id = 'tl', onNewTask }: Ti
     return (
       <EmptyState
         icon={<ChartGantt size={20} />}
-        title="Nothing on the timeline"
+        title={tt('views.timeline.emptyTitle')}
         action={
           <Button variant="primary" size="sm" onClick={onNewTask}>
             <Plus size={14} />
-            New task
+            {tt('views.board.newTask')}
           </Button>
         }
       >
-        Give tasks a start and due date to see them here.
+        {tt('views.timeline.emptyText')}
       </EmptyState>
     );
 
@@ -396,6 +399,7 @@ export function TimelineView({ tasks, project: p, tl, id = 'tl', onNewTask }: Ti
 /* api — общее состояние вида страницы проекта: фильтры сохраняются при переключении вкладок */
 export function ProjectTimelineTab({ project, api: shared }: { project: Project; api?: ViewApi }) {
   const { data } = useWorkspace();
+  const tt = useT();
   const own = useListView();
   const api = shared ?? own;
   const tl = useTimeline('status');
@@ -411,7 +415,7 @@ export function ProjectTimelineTab({ project, api: shared }: { project: Project;
         right={
           <Button variant="primary" size="sm" onClick={newTask}>
             <Plus size={13} />
-            New task
+            {tt('views.board.newTask')}
           </Button>
         }
       />

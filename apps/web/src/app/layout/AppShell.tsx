@@ -20,7 +20,7 @@ function BottomNav({ onMore }: { onMore: () => void }) {
   const { data } = useWorkspace();
   const unread = data.notifs.some(n => !n.read && n.type !== 'update');
   return (
-    <nav className="bottomnav" aria-label="Primary">
+    <nav className="bottomnav" aria-label={t('nav.primary')}>
       {(['home', 'mytasks', 'projects', 'inbox'] as SectionId[]).map(id => {
         const s = SECTIONS[id];
         return (
@@ -86,7 +86,7 @@ export function AppShell() {
     <CrmOverlays>
     <div className={cn('shell', collapsed && 'collapsed', mnav && 'mnav')}>
       <button className="skip" onClick={() => document.getElementById('main-content')?.focus()}>
-        Skip to content
+        {t('nav.skipToContent')}
       </button>
       <Sidebar collapsed={collapsed} onToggle={toggle} />
       {mnav && <div className="side-scrim" onClick={() => setMnav(false)} />}

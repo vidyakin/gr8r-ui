@@ -3,6 +3,7 @@ import * as React from 'react';
 import { Apple, CircleAlert, Moon, Sun } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePrefs } from '@/components/ui';
+import { useT } from '@/i18n';
 import { Logo } from './brand';
 
 function useEffectiveDark() {
@@ -12,6 +13,7 @@ function useEffectiveDark() {
 
 export function AuthShell({ topRight, children }: { topRight?: React.ReactNode; children: React.ReactNode }) {
   const { setPrefs } = usePrefs();
+  const tt = useT();
   const dark = useEffectiveDark();
   return (
     <div className="auth">
@@ -21,14 +23,14 @@ export function AuthShell({ topRight, children }: { topRight?: React.ReactNode; 
         </span>
         <div className="row">
           {topRight}
-          <button type="button" className="ibtn" aria-label="Toggle theme" onClick={() => setPrefs({ theme: dark ? 'light' : 'dark' })}>
+          <button type="button" className="ibtn" aria-label={tt('views.shell.toggleTheme')} onClick={() => setPrefs({ theme: dark ? 'light' : 'dark' })}>
             {dark ? <Sun size={16} /> : <Moon size={16} />}
           </button>
         </div>
       </div>
       <div className="auth-c">{children}</div>
       <div className="auth-foot" style={{ padding: 18, fontSize: 12 }}>
-        <span className="faint">© 2026 Gr8r Studio · Terms · Privacy</span>
+        <span className="faint">{tt('views.shell.copyright')}</span>
       </div>
     </div>
   );
@@ -88,14 +90,16 @@ export function SocialButtons({ onPick, busy }: { onPick: (name: string) => void
 
 /** Индикатор надёжности пароля (strengthMeter) */
 export function StrengthMeter({ pw }: { pw: string }) {
+  const t = useT();
   if (!pw) return null;
   let s = 0;
   if (pw.length >= 8) s++;
   if (pw.length >= 12) s++;
   if (/[0-9]/.test(pw) && /[a-zA-Z]/.test(pw)) s++;
   if (/[^a-zA-Z0-9]/.test(pw)) s++;
+  const labels = ['one', 'two', 'three', 'four', 'five'] as const;
   const c = ['var(--red)', 'var(--red)', 'var(--amber)', 'var(--green)', 'var(--green)'][s];
-  const n = ['Too short', 'Weak', 'Fair', 'Good', 'Strong'][s];
+  const n = t(`views.auth.strength.${labels[s]}`);
   return (
     <div className="row" style={{ gap: 8 }}>
       <div className="strength grow" aria-hidden="true" style={{ flex: 1 }}>

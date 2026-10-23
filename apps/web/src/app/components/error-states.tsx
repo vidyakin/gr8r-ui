@@ -3,6 +3,7 @@ import * as React from 'react';
 import { useNavigate } from 'react-router';
 import { ArrowLeft, CloudAlert, FileQuestion, Lock, RefreshCw } from 'lucide-react';
 import { Button, toast } from '@/components/ui';
+import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { member } from '../data/selectors';
 import type { Project } from '../data/types';
@@ -10,6 +11,7 @@ import { SECTIONS } from '../routes';
 
 export function Page404() {
   const navigate = useNavigate();
+  const tt = useT();
   return (
     <div className="fullstate">
       <div className="box">
@@ -18,16 +20,16 @@ export function Page404() {
             <FileQuestion size={20} />
           </div>
         </div>
-        <span className="code">ERROR 404</span>
-        <h1>Page not found</h1>
-        <p>The page you're looking for was moved, deleted, or never existed. Check the link or head back home.</p>
+        <span className="code">{tt('views.error.notFound.code')}</span>
+        <h1>{tt('views.error.notFound.title')}</h1>
+        <p>{tt('views.error.notFound.text')}</p>
         <div className="row">
           <Button onClick={() => navigate(-1)}>
             <ArrowLeft size={14} />
-            Go back
+            {tt('views.error.back')}
           </Button>
           <Button variant="primary" onClick={() => navigate(SECTIONS.home.path)}>
-            Go to Home
+            {tt('views.error.home')}
           </Button>
         </div>
       </div>
@@ -38,6 +40,7 @@ export function Page404() {
 export function StateDenied({ project: p }: { project?: Project }) {
   const { data } = useWorkspace();
   const navigate = useNavigate();
+  const tt = useT();
   const lead = member(data, p?.lead);
   return (
     <div className="fullstate">
@@ -47,20 +50,16 @@ export function StateDenied({ project: p }: { project?: Project }) {
             <Lock size={20} />
           </div>
         </div>
-        <span className="code">ERROR 403</span>
-        <h1>You don't have access</h1>
+        <span className="code">{tt('views.error.forbidden.code')}</span>
+        <h1>{tt('views.error.forbidden.title')}</h1>
         <p>
-          {p && (
-            <>
-              <b>{p.name}</b> is a private project.{' '}
-            </>
-          )}
-          Ask {lead ? lead.name : 'the project owner'} to add you, or request access and we'll let them know.
+          {p && lead && tt('views.error.forbidden.text', { name: p.name, lead: lead.name })}
+          {p && !lead && tt('views.error.forbidden.text', { name: p.name, lead: 'project owner' })}
         </p>
         <div className="row">
-          <Button onClick={() => navigate(SECTIONS.projects.path)}>Back to projects</Button>
-          <Button variant="primary" onClick={() => toast(`Access requested. We'll notify you when ${lead?.name || 'the owner'} responds.`)}>
-            Request access
+          <Button onClick={() => navigate(SECTIONS.projects.path)}>{tt('views.error.back')}</Button>
+          <Button variant="primary" onClick={() => toast(tt('views.error.private', { lead: lead?.name ?? 'project owner' }))}>
+            {tt('views.error.forbidden.requestAccess')}
           </Button>
         </div>
       </div>
@@ -71,6 +70,7 @@ export function StateDenied({ project: p }: { project?: Project }) {
 /** Показывается вместо страницы, если её отрисовка упала (в оригинале — catch в shell/layout.js) */
 export function StateFailed() {
   const navigate = useNavigate();
+  const tt = useT();
   return (
     <div className="fullstate">
       <div className="box">
@@ -79,13 +79,13 @@ export function StateFailed() {
             <CloudAlert size={20} />
           </div>
         </div>
-        <h1>Something went wrong.</h1>
-        <p>This page failed to load. Your data is safe — try again in a moment.</p>
+        <h1>{tt('views.error.loadFailed.title')}</h1>
+        <p>{tt('views.error.loadFailed.text')}</p>
         <div className="row">
-          <Button onClick={() => navigate(SECTIONS.home.path)}>Go to Home</Button>
+          <Button onClick={() => navigate(SECTIONS.home.path)}>{tt('views.error.home')}</Button>
           <Button variant="primary" onClick={() => window.location.reload()}>
             <RefreshCw size={14} />
-            Try again
+            {tt('views.error.retry')}
           </Button>
         </div>
       </div>

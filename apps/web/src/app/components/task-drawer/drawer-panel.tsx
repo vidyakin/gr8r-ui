@@ -61,6 +61,7 @@ import { TimeBlock } from './time-block';
 import { OperationBlock } from '../../production/OperationBlock';
 import { findSub } from '../../data/subtasks';
 import { TaskMenuItems } from './task-menu';
+import { useT } from '@/i18n';
 
 export interface UploadItem {
   id: string;
@@ -84,16 +85,29 @@ const KindIcon = ({ kind, size }: { kind: FileKind; size: number }) => {
   return <I size={size} />;
 };
 
-const FORMAT = [
-  ['bold', Bold, 'Bold'],
-  ['italic', Italic, 'Italic'],
-  ['insertUnorderedList', List, 'Bulleted list'],
-  ['insertOrderedList', ListOrdered, 'Numbered list'],
-  ['formatBlock:h4', Heading, 'Heading'],
-  ['createLink', LinkIcon, 'Link'],
-] as const;
+type FormatCmd = 'bold' | 'italic' | 'insertUnorderedList' | 'insertOrderedList' | 'formatBlock:h4' | 'createLink';
+type FormatTuple = readonly [FormatCmd, typeof Bold, string];
 
-const RECUR = ['Does not repeat', 'Daily', 'Weekly', 'Every 2 weeks', 'Monthly'];
+function getFormat(tt: ReturnType<typeof useT>): readonly FormatTuple[] {
+  return [
+    ['bold', Bold, tt('views.drawer.fmtBold')],
+    ['italic', Italic, tt('views.drawer.fmtItalic')],
+    ['insertUnorderedList', List, tt('views.drawer.fmtBulletedList')],
+    ['insertOrderedList', ListOrdered, tt('views.drawer.fmtNumberedList')],
+    ['formatBlock:h4', Heading, tt('views.drawer.fmtHeading')],
+    ['createLink', LinkIcon, tt('views.drawer.fmtLink')],
+  ] as const;
+}
+
+function getRecur(tt: ReturnType<typeof useT>): string[] {
+  return [
+    tt('views.drawer.doesNotRepeat'),
+    tt('views.drawer.recurDaily'),
+    tt('views.drawer.recurWeekly'),
+    tt('views.drawer.recurEvery2Weeks'),
+    tt('views.drawer.recurMonthly'),
+  ];
+}
 
 export interface DrawerPanelProps {
   task: Task;
@@ -120,6 +134,7 @@ export interface DrawerPanelProps {
 }
 
 export function DrawerPanel(p: DrawerPanelProps) {
+  const tt = useT();
   const { task: t, full } = p;
   const { data, dispatch } = useWorkspace();
   const actions = useTaskActions();
@@ -138,7 +153,7 @@ export function DrawerPanel(p: DrawerPanelProps) {
     >
       {!p.inWindow && (
         <h2 className="sr" id="d-h">
-          {sub ? `Subtask: ${sub.title}` : `Task: ${t.title}`}
+          {sub ? `${tt('views.drawer.subtaskAria')}: ${sub.title}` : `${tt('views.drawer.taskAria')}: ${t.title}`}
         </h2>
       )}
       <div className="drawer-h">
@@ -155,27 +170,27 @@ export function DrawerPanel(p: DrawerPanelProps) {
         <span className="sp" />
         <button className={cn('btn btn-sm', done ? 'btn-secondary' : 'btn-ghost')} style={done ? { color: 'var(--green)' } : undefined} onClick={() => actions.toggleDone(t)}>
           {done ? <CircleCheck size={14} /> : <Circle size={14} />}
-          <span className="hide-m">{done ? 'Completed' : 'Mark complete'}</span>
+          <span className="hide-m">{done ? tt('views.drawer.completed') : tt('views.drawer.markComplete')}</span>
         </button>
-        <IconButton size="sm" label={t.fav ? 'Unfavorite' : 'Favorite'} aria-label="Favorite" aria-pressed={t.fav} style={t.fav ? { color: 'var(--amber)' } : undefined} onClick={() => actions.toggleFav(t)}>
+        <IconButton size="sm" label={t.fav ? tt('views.drawer.unfavorite') : tt('views.drawer.favorite')} aria-label={tt('views.drawer.favorite')} aria-pressed={t.fav} style={t.fav ? { color: 'var(--amber)' } : undefined} onClick={() => actions.toggleFav(t)}>
           <Star size={15} />
         </IconButton>
-        <IconButton size="sm" label="Copy link" onClick={() => actionsCopy(data.ws.url, t)}>
+        <IconButton size="sm" label={tt('views.drawer.copyLink')} onClick={() => actionsCopy(data.ws.url, t, tt)}>
           <Link2 size={15} />
         </IconButton>
         {!p.inWindow && p.onPopOut && (
-          <IconButton size="sm" label="Open in floating window" aria-label="Pop out" onClick={p.onPopOut}>
+          <IconButton size="sm" label={tt('views.drawer.popOutLabel')} aria-label={tt('views.drawer.popOut')} onClick={p.onPopOut}>
             <PictureInPicture2 size={15} />
           </IconButton>
         )}
         {!p.inWindow && (
-          <IconButton size="sm" className="hide-m" label={full ? 'Side panel' : 'Full page'} aria-label="Toggle full page" onClick={p.onToggleFull}>
+          <IconButton size="sm" className="hide-m" label={full ? tt('views.drawer.minimize') : tt('views.drawer.maximize')} aria-label={tt('views.drawer.toggleFull')} onClick={p.onToggleFull}>
             {full ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
           </IconButton>
         )}
         <Menu>
           <MenuTrigger asChild>
-            <IconButton size="sm" label="More" tooltip={false}>
+            <IconButton size="sm" label={tt('views.drawer.more')} tooltip={false}>
               <Ellipsis size={15} />
             </IconButton>
           </MenuTrigger>
@@ -184,7 +199,7 @@ export function DrawerPanel(p: DrawerPanelProps) {
           </MenuContent>
         </Menu>
         {!p.inWindow && (
-          <IconButton size="sm" label="Close" shortcut="Esc" onClick={p.onClose}>
+          <IconButton size="sm" label={tt('common.close')} shortcut="Esc" onClick={p.onClose}>
             <X size={16} />
           </IconButton>
         )}
@@ -193,19 +208,19 @@ export function DrawerPanel(p: DrawerPanelProps) {
         {sub ? (
           <SubtaskView task={t} sub={sub} onClose={() => p.onOpenSub(null)} onOpenSub={p.onOpenSub} onOpenTask={p.onOpenTask} />
         ) : (
-          <TaskBody {...p} update={update} />
+          <TaskBody {...p} tt={tt} update={update} />
         )}
       </div>
     </Root>
   );
 }
 
-function actionsCopy(wsUrl: string, t: Task) {
+function actionsCopy(wsUrl: string, t: Task, tt: ReturnType<typeof useT>) {
   const url = `https://gr8rstudio.com/${wsUrl}/task/${t.key}`;
   Promise.resolve()
     .then(() => navigator.clipboard.writeText(url))
-    .then(() => toast('Link copied'))
-    .catch(() => toast.info(`Copy isn't available here — ${url}`, { duration: 6000 }));
+    .then(() => toast(tt('common.linkCopied')))
+    .catch(() => toast.info(tt('views.drawer.copyNotAvailable', { url }), { duration: 6000 }));
 }
 
 function Prop({ icon: I, label, children }: { icon: typeof User; label: string; children: React.ReactNode }) {
@@ -220,7 +235,7 @@ function Prop({ icon: I, label, children }: { icon: typeof User; label: string; 
   );
 }
 
-function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) {
+function TaskBody(p: DrawerPanelProps & { tt: ReturnType<typeof useT>; update: (patch: TaskPatch) => void }) {
   // задача операции производства: исполнитель отмечает выполненное в своей задаче
   const operationId = typeof p.task.custom?.productionOperationId === 'string' ? p.task.custom.productionOperationId : null;
   const { task: t, full, update } = p;
@@ -244,9 +259,9 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
         <div className="alert ok" style={{ marginBottom: 12 }}>
           <CircleCheck size={15} />
           <span>
-            Completed {t.completedAt ? ago(t.completedAt) : ''}.{' '}
+            {p.tt('views.drawer.completedAgo', { ago: t.completedAt ? ago(t.completedAt) : '' })}{' '}
             <button className="link" onClick={() => actions.toggleDone(t)}>
-              Reopen task
+              {p.tt('views.drawer.reopenTask')}
             </button>
           </span>
         </div>
@@ -254,8 +269,8 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
         <div className="alert danger" style={{ marginBottom: 12 }}>
           <ClockAlert size={15} />
           <span>
-            Overdue by {overdue} day{overdue > 1 ? 's' : ''}.{' '}
-            <DatePopover value={t.due} onChange={due => update({ due })} trigger={<button className="link">Reschedule</button>} />
+            {p.tt('views.drawer.overdueBy', { count: overdue })}{' '}
+            <DatePopover value={t.due} onChange={due => update({ due })} trigger={<button className="link">{p.tt('views.drawer.reschedule')}</button>} />
           </span>
         </div>
       ) : null}
@@ -265,7 +280,7 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
         id="d-title"
         rows={1}
         defaultValue={t.title}
-        aria-label="Task title"
+        aria-label={p.tt('views.drawer.titleField')}
         onBlur={e => {
           const v = e.currentTarget.value.trim();
           if (v && v !== t.title) update({ title: v });
@@ -279,53 +294,53 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
         }}
       />
       <dl className="kv" style={{ marginTop: 12, ...(full ? { gridTemplateColumns: '112px minmax(0,1fr) 112px minmax(0,1fr)' } : null) }}>
-        <Prop icon={CircleDot} label="Status">
+        <Prop icon={CircleDot} label={p.tt('views.drawer.fieldStatus')}>
           <StatusField task={t} />
         </Prop>
-        <Prop icon={SignalHigh} label="Priority">
+        <Prop icon={SignalHigh} label={p.tt('views.drawer.fieldPriority')}>
           <PriorityField task={t} />
         </Prop>
-        <Prop icon={User} label="Assignee">
+        <Prop icon={User} label={p.tt('views.drawer.fieldAssignee')}>
           <AssigneeField task={t} />
         </Prop>
         {/* Заказчик бывает только у задач модуля services (время по заказчику без заказ-наряда) */}
         {t.module === 'services' && (
-          <Prop icon={Building2} label="Customer">
+          <Prop icon={Building2} label={p.tt('views.drawer.fieldCustomer')}>
             <CustomerField task={t} />
           </Prop>
         )}
-        <Prop icon={CalendarIcon} label="Due date">
+        <Prop icon={CalendarIcon} label={p.tt('views.drawer.fieldDue')}>
           <DueField task={t} />
         </Prop>
-        <Prop icon={CalendarArrowUp} label="Start date">
+        <Prop icon={CalendarArrowUp} label={p.tt('views.drawer.fieldStart')}>
           <DatePopover
             value={t.start}
             onChange={start => update({ start })}
             trigger={
-              <button className={cn('pillbtn', !t.start && 'empty')} aria-label="Start date">
+              <button className={cn('pillbtn', !t.start && 'empty')} aria-label={p.tt('views.drawer.fieldStart')}>
                 <CalendarIcon size={13} />
-                {t.start ? fmtDate(t.start) : 'Set date'}
+                {t.start ? fmtDate(t.start) : p.tt('views.field.setDate')}
               </button>
             }
           />
         </Prop>
-        <Prop icon={Folder} label="Project">
+        <Prop icon={Folder} label={p.tt('views.drawer.fieldProject')}>
           <ListPopover
-            search="Move to project…"
+            search={p.tt('views.drawer.moveToProject')}
             items={projects.map(x => ({ id: x.id, name: x.name, icon: <span className="pdot" style={{ '--c': projectColor(x) } as React.CSSProperties} />, on: t.project === x.id }))}
             onPick={id => id !== t.project && update({ project: id })}
             trigger={
-              <button className="pillbtn" aria-label="Project">
+              <button className="pillbtn" aria-label={p.tt('views.drawer.fieldProject')}>
                 <ProjectDot project={pr} />
                 <span className="trunc">{pr?.name}</span>
               </button>
             }
           />
         </Prop>
-        <Prop icon={Tag} label="Labels">
+        <Prop icon={Tag} label={p.tt('views.drawer.fieldLabels')}>
           <ListPopover
             multi
-            search="Filter labels…"
+            search={p.tt('views.drawer.filterLabels')}
             items={(Object.entries(LABELS) as [LabelId, { name: string; c: string }][]).map(([id, l]) => ({
               id,
               name: l.name,
@@ -334,7 +349,7 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
             }))}
             onPick={id => update({ labels: t.labels.includes(id as LabelId) ? t.labels.filter(x => x !== id) : [...t.labels, id as LabelId] })}
             trigger={
-              <button className={cn('pillbtn', !t.labels.length && 'empty')} aria-label="Labels" style={{ flexWrap: 'wrap', height: 'auto', minHeight: 26, padding: '3px 7px' }}>
+              <button className={cn('pillbtn', !t.labels.length && 'empty')} aria-label={p.tt('views.drawer.fieldLabels')} style={{ flexWrap: 'wrap', height: 'auto', minHeight: 26, padding: '3px 7px' }}>
                 {t.labels.length ? (
                   t.labels.map(id => (
                     <Label key={id} color={LABELS[id].c}>
@@ -344,34 +359,34 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
                 ) : (
                   <>
                     <Tag size={13} />
-                    Add labels
+                    {p.tt('views.drawer.addLabels')}
                   </>
                 )}
               </button>
             }
           />
         </Prop>
-        <Prop icon={Repeat} label="Repeat">
+        <Prop icon={Repeat} label={p.tt('views.drawer.fieldRepeat')}>
           <ListPopover
-            items={RECUR.map(x => ({ id: x, name: x, icon: <Repeat size={14} />, on: (t.recur || 'Does not repeat') === x }))}
-            onPick={id => update({ recur: id === 'Does not repeat' ? null : id })}
+            items={getRecur(p.tt).map(x => ({ id: x, name: x, icon: <Repeat size={14} />, on: (t.recur || p.tt('views.drawer.doesNotRepeat')) === x }))}
+            onPick={id => update({ recur: id === p.tt('views.drawer.doesNotRepeat') ? null : id })}
             trigger={
-              <button className={cn('pillbtn', !t.recur && 'empty')} aria-label="Repeat">
+              <button className={cn('pillbtn', !t.recur && 'empty')} aria-label={p.tt('views.drawer.fieldRepeat')}>
                 <Repeat size={13} />
-                {t.recur || 'Does not repeat'}
+                {t.recur || p.tt('views.drawer.doesNotRepeat')}
               </button>
             }
           />
         </Prop>
-        <Prop icon={GitBranch} label="Blocked by">
+        <Prop icon={GitBranch} label={p.tt('views.drawer.fieldBlockedBy')}>
           <ListPopover
             multi
-            search="Blocked by…"
+            search={p.tt('views.drawer.blockedBy')}
             width={300}
             items={candidates.map(x => ({ id: x.id, name: `${x.key}  ${x.title}`, icon: <StatusIcon status={x.status} />, on: t.deps.includes(x.id) }))}
             onPick={id => update({ deps: t.deps.includes(id) ? t.deps.filter(x => x !== id) : [...t.deps, id] })}
             trigger={
-              <button className={cn('pillbtn', !t.deps.length && 'empty')} aria-label="Blocked by" style={{ height: 'auto', minHeight: 26, flexWrap: 'wrap' }}>
+              <button className={cn('pillbtn', !t.deps.length && 'empty')} aria-label={p.tt('views.drawer.fieldBlockedBy')} style={{ height: 'auto', minHeight: 26, flexWrap: 'wrap' }}>
                 {t.deps.length ? (
                   t.deps.map(d => {
                     const x = findTask(data, d);
@@ -389,7 +404,7 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
                 ) : (
                   <>
                     <GitBranch size={13} />
-                    None
+                    {p.tt('views.drawer.none')}
                   </>
                 )}
               </button>
@@ -409,9 +424,9 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
 
       <div className="dsec">
         <div className="dsec-h">
-          <h3 id="d-desc-l">Description</h3>
-          <div className="rte-tb" role="toolbar" aria-label="Formatting" aria-controls="d-desc">
-            {FORMAT.map(([cmd, I, name]) => (
+          <h3 id="d-desc-l">{p.tt('views.drawer.description')}</h3>
+          <div className="rte-tb" role="toolbar" aria-label={p.tt('views.drawer.formattingToolbar')} aria-controls="d-desc">
+            {getFormat(p.tt).map(([cmd, I, name]) => (
               <IconButton
                 key={cmd}
                 size="xs"
@@ -419,7 +434,7 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
                 // mousedown не должен забирать выделение у редактора
                 onMouseDown={e => {
                   e.preventDefault();
-                  const html = runFormat(cmd);
+                  const html = runFormat(cmd, p.tt);
                   if (html != null) update({ desc: html });
                 }}
               >
@@ -437,12 +452,12 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
 
       <div className="dsec">
         <div className="dsec-h">
-          <h3>Attachments</h3>
+          <h3>{p.tt('views.drawer.attachments')}</h3>
           <span className="cnt">{t.attachments.length}</span>
           <div className="acts">
             <label className="btn btn-sm btn-ghost" style={{ cursor: 'pointer' }}>
               <UploadIcon size={13} />
-              Upload
+              {p.tt('views.drawer.upload')}
               <input type="file" multiple hidden onChange={e => { p.onFiles(e.target.files, t); e.target.value = ''; }} />
             </label>
           </div>
@@ -460,7 +475,7 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
                   {u.pct}%
                 </span>
               </div>
-              <Progress value={u.pct} className="mt-[5px]" aria-label={`Uploading ${u.name}`} />
+              <Progress value={u.pct} className="mt-[5px]" aria-label={p.tt('views.drawer.uploadingAria', { name: u.name })} />
             </div>
           </div>
         ))}
@@ -492,12 +507,12 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
                 <IconButton
                   size="xs"
                   className="x"
-                  label="Remove attachment"
+                  label={p.tt('views.drawer.removeAttachment')}
                   tooltip={false}
                   onClick={e => {
                     e.stopPropagation();
                     dispatch({ type: 'task/detach', id: t.id, attachment: f.id });
-                    toast(`Removed ${f.name}`);
+                    toast(p.tt('views.drawer.removedFile', { name: f.name }));
                   }}
                 >
                   <X size={12} />
@@ -522,7 +537,7 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
               }}
             >
               <Paperclip size={15} />
-              <span>Drop files or click to attach</span>
+              <span>{p.tt('views.drawer.dropFilesOrAttach')}</span>
               <input type="file" multiple hidden onChange={e => { p.onFiles(e.target.files, t); e.target.value = ''; }} />
             </label>
           )
@@ -533,10 +548,10 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
         <Tabs value={p.tab} onValueChange={v => p.onTab(v as 'comments' | 'activity')}>
           <TabsList style={{ marginBottom: 6 }}>
             <Tab value="comments" count={cs.length}>
-              Comments
+              {p.tt('views.drawer.tabComments')}
             </Tab>
             <Tab value="activity" count={acts.length}>
-              Activity
+              {p.tt('views.drawer.tabActivity')}
             </Tab>
           </TabsList>
           <TabsContent value="comments">
@@ -548,16 +563,16 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
                   onDelete={() => {
                     const snap = data;
                     dispatch({ type: 'comment/delete', id: c.id });
-                    toast('Comment deleted', { action: { label: 'Undo', onClick: () => dispatch({ type: 'data/restore', data: snap }) } });
+                    toast(p.tt('views.drawer.commentDeleted'), { action: { label: p.tt('common.undo'), onClick: () => dispatch({ type: 'data/restore', data: snap }) } });
                   }}
                 />
               ))
             ) : (
               <p className="faint" style={{ fontSize: 13, margin: '10px 0' }}>
-                No comments yet. Start the conversation.
+                {p.tt('views.drawer.noComments')}
               </p>
             )}
-            <CommentBox task={t} draft={p.draft} onDraft={p.onDraft} onFiles={p.onFiles} />
+            <CommentBox task={t} draft={p.draft} onDraft={p.onDraft} onFiles={p.onFiles} tt={p.tt} />
           </TabsContent>
           <TabsContent value="activity">
             <div style={{ paddingTop: 4 }}>
@@ -569,7 +584,7 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
                       <MemberAvatar id={a.by} size="sm" tooltip={false} />
                     </span>
                     <span className="grow">
-                      <b>{m?.id === data.me ? 'You' : m?.name}</b> {a.verb.replace(/ of$/, '')}
+                      <b>{m?.id === data.me ? p.tt('views.activity.you') : m?.name}</b> {a.verb.replace(/ of$/, '')}
                       {a.extra ? ' ' + a.extra : ''}
                     </span>
                     <time className="faint" style={{ fontSize: 11.5 }}>
@@ -582,7 +597,7 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
                 <span className="ico">
                   <Plus size={13} />
                 </span>
-                <span className="grow">Task created</span>
+                <span className="grow">{p.tt('views.drawer.taskCreated')}</span>
                 <time className="faint" style={{ fontSize: 11.5 }}>
                   {ago(t.created)}
                 </time>
@@ -597,16 +612,16 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
           <DialogContent
             size="lg"
             title={preview.name}
-            description={`${FILE_TYPES[preview.type]?.n ?? 'File'} · ${preview.size} · Uploaded by ${member(data, preview.by)?.name || 'you'} ${ago(preview.at)}`}
+            description={`${FILE_TYPES[preview.type]?.n ?? 'File'} · ${preview.size} · ${p.tt('views.drawer.fileDialogDesc', { type: FILE_TYPES[preview.type]?.n ?? 'File', size: preview.size, who: member(data, preview.by)?.name || p.tt('views.activity.you'), when: ago(preview.at) })}`}
             footer={
               <>
-                <Button variant="secondary" onClick={() => actionsCopy(data.ws.url, t)}>
+                <Button variant="secondary" onClick={() => actionsCopy(data.ws.url, t, p.tt)}>
                   <LinkIcon size={14} />
-                  Copy link
+                  {p.tt('views.drawer.copyLink')}
                 </Button>
                 <span className="sp" />
                 <DialogClose asChild>
-                  <Button>Close</Button>
+                  <Button>{p.tt('common.close')}</Button>
                 </DialogClose>
               </>
             }
@@ -625,7 +640,7 @@ const isDone = (t: Task) => t.status === 'done';
 const fileKindOf = (name: string): FileKind => fileKind(name);
 
 /** Поле комментария: упоминания по «@», ⌘/Ctrl+Enter отправляет */
-function CommentBox({ task: t, draft, onDraft, onFiles }: { task: Task; draft: string; onDraft: (v: string) => void; onFiles: (f: FileList | null, t: Task) => void }) {
+function CommentBox({ task: t, draft, onDraft, onFiles, tt }: { task: Task; draft: string; onDraft: (v: string) => void; onFiles: (f: FileList | null, t: Task) => void; tt: ReturnType<typeof useT> }) {
   const { data, dispatch } = useWorkspace();
   const ref = React.useRef<HTMLTextAreaElement>(null);
   const [mq, setMq] = React.useState<string | null>(null);
@@ -659,8 +674,8 @@ function CommentBox({ task: t, draft, onDraft, onFiles }: { task: Task; draft: s
             id="d-cmt"
             rows={2}
             value={draft}
-            placeholder="Leave a comment… type @ to mention"
-            aria-label="Comment"
+            placeholder={tt('views.drawer.commentBoxPlaceholder')}
+            aria-label={tt('views.drawer.commentAria')}
             onChange={e => {
               onDraft(e.target.value);
               const m = e.target.value.slice(0, e.target.selectionStart).match(/(?:^|\s)@([A-Za-z]*)$/);
@@ -680,8 +695,8 @@ function CommentBox({ task: t, draft, onDraft, onFiles }: { task: Task; draft: s
           <div className="row">
             <IconButton
               size="xs"
-              label="Mention someone"
-              aria-label="Mention"
+              label={tt('views.drawer.mentionSomeone')}
+              aria-label={tt('views.drawer.mention')}
               onClick={() => {
                 onDraft(draft + (draft && !draft.endsWith(' ') ? ' @' : '@'));
                 setMq('');
@@ -690,7 +705,7 @@ function CommentBox({ task: t, draft, onDraft, onFiles }: { task: Task; draft: s
             >
               <AtSign size={14} />
             </IconButton>
-            <label className="ibtn ibtn-xs" title="Attach file" style={{ cursor: 'pointer' }}>
+            <label className="ibtn ibtn-xs" title={tt('views.drawer.attachFile')} style={{ cursor: 'pointer' }}>
               <Paperclip size={14} />
               <input type="file" multiple hidden onChange={e => { onFiles(e.target.files, t); e.target.value = ''; }} />
             </label>
@@ -699,7 +714,7 @@ function CommentBox({ task: t, draft, onDraft, onFiles }: { task: Task; draft: s
               {MOD}+Enter
             </span>
             <Button variant="primary" size="sm" onClick={post}>
-              Comment
+              {tt('views.drawer.comment')}
             </Button>
           </div>
         </div>

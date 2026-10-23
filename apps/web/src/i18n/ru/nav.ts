@@ -64,6 +64,8 @@ export const projectTabs: Widen<typeof P> = {
 };
 
 export const nav: Widen<typeof N> = {
+  skipToContent: 'Перейти к содержимому',
+  primary: 'Основная навигация',
   main: 'Основная навигация',
   groups: {
     workspace: 'Воркспейс',
