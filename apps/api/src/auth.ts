@@ -5,7 +5,7 @@ import { eq, sql as dsql } from 'drizzle-orm';
 import { Hono, type Context } from 'hono';
 import { deleteCookie, setCookie } from 'hono/cookie';
 import { rateLimits, sessions, users, withContext, type Sql } from '@gr8r/db';
-import { signinBody, signupBody } from '@gr8r/shared';
+import { meUpdateBody, signinBody, signupBody } from '@gr8r/shared';
 import { AppError } from './errors';
 import { validationHook } from './crud';
 import { requireSession, sha256, SESSION_COOKIE } from './middleware';
@@ -60,7 +60,7 @@ export const authRoutes = new Hono<AppEnv>()
     const user = await withContext(sql, {}, async db => {
       const [taken] = await db.select({ id: users.id }).from(users).where(eq(dsql`lower(${users.email})`, body.email)).limit(1);
       if (taken) throw new AppError(409, 'email_taken', 'An account with this email already exists');
-      const [u] = await db.insert(users).values({ email: body.email, passwordHash, name: body.name }).returning({ id: users.id, email: users.email, name: users.name });
+      const [u] = await db.insert(users).values({ email: body.email, passwordHash, name: body.name }).returning({ id: users.id, email: users.email, name: users.name, locale: users.locale });
       return u!;
     });
     await startSession(c, user.id, cfg);
@@ -79,7 +79,7 @@ export const authRoutes = new Hono<AppEnv>()
     if (!found || !ok) throw new AppError(401, 'invalid_credentials', 'Invalid email or password');
     await clear(sql, `signin:email:${email}`);
     await startSession(c, found.id, cfg);
-    const user = { id: found.id, email: found.email, name: found.name };
+    const user = { id: found.id, email: found.email, name: found.name, locale: found.locale };
     return c.json({ user, workspaces: await listMyWorkspaces(sql, found.id) });
   })
   .post('/signout', requireSession, async c => {
@@ -90,4 +90,13 @@ export const authRoutes = new Hono<AppEnv>()
   .get('/me', requireSession, async c => {
     const user = c.get('user');
     return c.json({ user, workspaces: await listMyWorkspaces(c.get('sql'), user.id) });
+  })
+  // Личные настройки: пока только язык интерфейса
+  .patch('/me', requireSession, zValidator('json', meUpdateBody, validationHook), async c => {
+    const { locale } = c.req.valid('json');
+    const me = c.get('user');
+    const [user] = await withContext(c.get('sql'), { userId: me.id }, db =>
+      db.update(users).set({ locale }).where(eq(users.id, me.id)).returning({ id: users.id, email: users.email, name: users.name, locale: users.locale }),
+    );
+    return c.json({ user: user! });
   });

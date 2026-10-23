@@ -126,4 +126,27 @@ describe('auth', () => {
     expect(res.status).toBe(404);
     expect(((await res.json()) as any).error.code).toBe('not_found');
   });
+
+  test('interface language: personal (users.locale) and workspace default (settings.locale)', async () => {
+    const c = new Client();
+    const { user, workspaces } = await c.signup();
+    expect((await c.get('/auth/me')).body.user.locale).toBeNull();
+    expect(workspaces[0]).toMatchObject({ locale: null });
+
+    const me = await c.patch('/auth/me', { locale: 'ru' });
+    expect(me.status).toBe(200);
+    expect(me.body.user).toMatchObject({ id: user.id, locale: 'ru' });
+    expect((await c.get('/auth/me')).body.user.locale).toBe('ru');
+    expect((await c.patch('/auth/me', { locale: 'de' })).body.error.code).toBe('validation_error');
+    expect((await c.patch('/auth/me', { locale: null })).body.user.locale).toBeNull();
+
+    const wsId = workspaces[0]!.id;
+    expect((await c.patch(`/workspaces/${wsId}`, { locale: 'ru' }, wsId)).status).toBe(200);
+    expect((await c.get('/auth/me')).body.workspaces[0].locale).toBe('ru');
+    // смена названия не трогает язык, null снимает его
+    await c.patch(`/workspaces/${wsId}`, { name: 'Renamed' }, wsId);
+    expect((await c.get('/auth/me')).body.workspaces[0]).toMatchObject({ name: 'Renamed', locale: 'ru' });
+    await c.patch(`/workspaces/${wsId}`, { locale: null }, wsId);
+    expect((await c.get('/auth/me')).body.workspaces[0].locale).toBeNull();
+  });
 });

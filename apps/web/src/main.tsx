@@ -6,6 +6,7 @@ import './styles/index.css';
 import { Gr8rProvider } from '@/components/ui';
 import { SessionProvider } from '@/app/data/session';
 import { router } from '@/app/router';
+import { I18nProvider } from '@/i18n';
 
 // Данные воркспейса актуальны, пока их не отметит устаревшими событие realtime или своя мутация (staleTime: Infinity)
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: Infinity } } });
@@ -17,7 +18,9 @@ createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <Gr8rProvider>
         <SessionProvider>
-          <RouterProvider router={router} />
+          <I18nProvider>
+            <RouterProvider router={router} />
+          </I18nProvider>
         </SessionProvider>
       </Gr8rProvider>
     </QueryClientProvider>

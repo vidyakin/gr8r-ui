@@ -11,6 +11,7 @@ import { useWorkspace } from '../data/store';
 import { fmtDate } from '../lib/dates';
 import { useEntities, searchRefs, useRefTitle, useWsId, type MetaField } from './data';
 import { entityIcon } from './icons';
+import { fmtCurrency, fmtDateTime, fmtNumber } from '@/i18n';
 
 export const FIELD_ICONS: Record<FieldType, LucideIcon> = {
   text: TextCursorInput,
@@ -110,15 +111,15 @@ export function FieldValue({ field: f, value }: { field: Pick<MetaField, 'type' 
         </span>
       );
     case 'number':
-      return <span className="num">{Number(value).toLocaleString('en-US')}</span>;
+      return <span className="num">{fmtNumber(value as number)}</span>;
     case 'percent':
-      return <span className="num">{Number(value).toLocaleString('en-US')}%</span>;
+      return <span className="num">{fmtNumber(value as number)}%</span>;
     case 'money':
-      return <span className="num">{Number(value).toLocaleString('en-US', { style: 'currency', currency: f.options.currency ?? 'USD' })}</span>;
+      return <span className="num">{fmtCurrency(value as number, f.options.currency ?? 'USD')}</span>;
     case 'date':
       return <span className="num">{fmtDate(String(value))}</span>;
     case 'datetime':
-      return <span className="num">{new Date(String(value)).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</span>;
+      return <span className="num">{fmtDateTime(String(value))}</span>;
     case 'url':
       return (
         <a className="crm-link trunc" href={String(value)} target="_blank" rel="noreferrer noopener" onClick={e => e.stopPropagation()}>

@@ -6,6 +6,7 @@ import { Badge, Button, Checkbox, Dialog, DialogClose, DialogContent, Field, Inp
 import { cn } from '@/lib/utils';
 import { ChoiceLabel, FIELD_ICONS } from '../meta/field-ui';
 import { flattenTree, useAttributes, useCatalogApi, type Attribute, type Category, type CategoryNode } from './data';
+import { t, tEnum, useT } from '@/i18n';
 
 /* ---------------- дерево ---------------- */
 
@@ -23,6 +24,7 @@ interface TreeProps {
 
 export function CategoryTree({ nodes, total, selected, onSelect, canEdit, onCreate, onEdit, onAttributes, onDelete }: TreeProps) {
   const [closed, setClosed] = React.useState<Set<string>>(new Set());
+  const t = useT();
   const toggle = (id: string) =>
     setClosed(s => {
       const n = new Set(s);
@@ -36,7 +38,7 @@ export function CategoryTree({ nodes, total, selected, onSelect, canEdit, onCrea
     return (
       <li key={n.id} role="treeitem" aria-expanded={n.children.length ? open : undefined} aria-selected={selected === n.id}>
         <div className={cn('ctree-row', selected === n.id && 'on')} style={{ paddingLeft: 6 + n.depth * 16 }}>
-          <button type="button" className={cn('ctree-chev', !n.children.length && 'none')} aria-label={open ? `Collapse ${n.name}` : `Expand ${n.name}`} tabIndex={n.children.length ? 0 : -1} onClick={() => toggle(n.id)}>
+          <button type="button" className={cn('ctree-chev', !n.children.length && 'none')} aria-label={t(open ? 'catalog.tree.collapse' : 'catalog.tree.expand', { name: n.name })} tabIndex={n.children.length ? 0 : -1} onClick={() => toggle(n.id)}>
             <ChevronRight size={13} className={cn('chev', open && 'open')} />
           </button>
           <button type="button" className="ctree-name" onClick={() => onSelect(n.id)}>
@@ -46,23 +48,23 @@ export function CategoryTree({ nodes, total, selected, onSelect, canEdit, onCrea
           {canEdit && (
             <Menu>
               <MenuTrigger asChild>
-                <button type="button" className="ibtn ibtn-xs ctree-more" aria-label={`Options for ${n.name}`}>
+                <button type="button" className="ibtn ibtn-xs ctree-more" aria-label={t('catalog.tree.options', { name: n.name })}>
                   <Ellipsis size={14} />
                 </button>
               </MenuTrigger>
               <MenuContent align="end">
                 <MenuItem icon={<FolderPlus size={15} />} onSelect={() => onCreate(n)}>
-                  Add sub-category
+                  {t('catalog.tree.addSub')}
                 </MenuItem>
                 <MenuItem icon={<Settings2 size={15} />} onSelect={() => onAttributes(n)}>
-                  Characteristics
+                  {t('catalog.tree.characteristics')}
                 </MenuItem>
                 <MenuItem icon={<Pencil size={15} />} onSelect={() => onEdit(n)}>
-                  Rename or move
+                  {t('catalog.tree.renameMove')}
                 </MenuItem>
                 <MenuSeparator />
                 <MenuItem icon={<Trash2 size={15} />} danger onSelect={() => onDelete(n)}>
-                  Delete category
+                  {t('catalog.tree.deleteCategory')}
                 </MenuItem>
               </MenuContent>
             </Menu>
@@ -74,14 +76,14 @@ export function CategoryTree({ nodes, total, selected, onSelect, canEdit, onCrea
   };
 
   return (
-    <nav className="ctree" aria-label="Categories">
-      <ul role="tree" aria-label="Product categories">
+    <nav className="ctree" aria-label={t('catalog.tree.categories')}>
+      <ul role="tree" aria-label={t('catalog.tree.productCategories')}>
         <li role="treeitem" aria-selected={selected === null}>
           <div className={cn('ctree-row', selected === null && 'on')}>
             <span className="ctree-chev none" />
             <button type="button" className="ctree-name" onClick={() => onSelect(null)}>
               <FolderTree size={14} className="faint" />
-              <span className="trunc">All products</span>
+              <span className="trunc">{t('catalog.tree.allProducts')}</span>
               <span className="ct num">{total}</span>
             </button>
           </div>
@@ -91,7 +93,7 @@ export function CategoryTree({ nodes, total, selected, onSelect, canEdit, onCrea
       {canEdit && (
         <button type="button" className="ctree-add" onClick={() => onCreate(null)}>
           <Plus size={14} />
-          New category
+          {t('catalog.tree.newCategory')}
         </button>
       )}
     </nav>
@@ -110,13 +112,13 @@ export function CategoryDialog({ tree, edit, parent, onClose, onSaved }: { tree:
   const options = flattenTree(tree).filter(n => !edit || (n.id !== edit.id && !n.path.startsWith(`${edit.path}/`)));
 
   const submit = async () => {
-    if (!name.trim()) return setError('Enter a name');
+    if (!name.trim()) return setError(t('common.enterName'));
     setBusy(true);
     const body = { name: name.trim(), parentId: parentId || null };
     const r = edit ? await api<Category>('PATCH', `/product-categories/${edit.id}`, body) : await api<Category>('POST', '/product-categories', body);
     setBusy(false);
     if (!r) return;
-    toast(edit ? `Saved “${r.name}”` : `Added category “${r.name}”`);
+    toast(t(edit ? 'catalog.category.saved' : 'catalog.category.added', { name: r.name }));
     onSaved?.(r);
     onClose();
   };
@@ -124,15 +126,15 @@ export function CategoryDialog({ tree, edit, parent, onClose, onSaved }: { tree:
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
-        title={edit ? 'Edit category' : 'New category'}
+        title={edit ? t('catalog.category.edit') : t('catalog.category.new')}
         footer={
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{t('common.cancel')}</Button>
             </DialogClose>
             <Button variant="primary" disabled={busy} onClick={submit}>
-              {edit ? 'Save' : 'Create category'}
+              {edit ? t('common.save') : t('catalog.category.create')}
             </Button>
           </>
         }
@@ -145,13 +147,13 @@ export function CategoryDialog({ tree, edit, parent, onClose, onSaved }: { tree:
             void submit();
           }}
         >
-          <Field label="Name" error={error}>
+          <Field label={t('common.name')} error={error}>
             {p => <Input {...p} autoFocus value={name} onChange={e => (setName(e.target.value), setError(''))} />}
           </Field>
-          <Field label="Parent category" hint="Sub-categories inherit the characteristics of their parents.">
+          <Field label={t('catalog.category.parent')} hint={t('catalog.category.parentHint')}>
             {p => (
               <select className="select" id={p.id} value={parentId} onChange={e => setParentId(e.target.value)}>
-                <option value="">None (top level)</option>
+                <option value="">{t('catalog.category.topLevel')}</option>
                 {options.map(n => (
                   <option key={n.id} value={n.id}>
                     {' '.repeat(n.depth)}
@@ -174,17 +176,17 @@ export function DeleteCategoryDialog({ category, onClose, onDeleted }: { categor
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
-        title={`Delete “${category.name}”?`}
+        title={t('catalog.category.deleteTitle', { name: category.name })}
         description={
           category.children.length || category.productCount
-            ? 'Only empty categories can be deleted: move or delete the sub-categories and products first.'
-            : 'The category and its characteristics will be removed.'
+            ? t('catalog.category.deleteNotEmpty')
+            : t('catalog.category.deleteEmpty')
         }
         footer={
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{t('common.cancel')}</Button>
             </DialogClose>
             <Button
               variant="danger"
@@ -194,12 +196,12 @@ export function DeleteCategoryDialog({ category, onClose, onDeleted }: { categor
                 const r = await api('DELETE', `/product-categories/${category.id}`);
                 setBusy(false);
                 if (!r) return;
-                toast(`Deleted “${category.name}”`);
+                toast(t('catalog.category.deleted', { name: category.name }));
                 onDeleted();
                 onClose();
               }}
             >
-              Delete category
+              {t('catalog.tree.deleteCategory')}
             </Button>
           </>
         }
@@ -219,6 +221,7 @@ export function AttributesDialog({ category, onClose }: { category: CategoryNode
   const attrs = list.data ?? [];
   const inherited = attrs.filter(a => a.inherited);
   const own = attrs.filter(a => !a.inherited);
+  const t = useT();
 
   const rowOf = (a: Attribute) => {
     const I = FIELD_ICONS[a.type];
@@ -231,23 +234,23 @@ export function AttributesDialog({ category, onClose }: { category: CategoryNode
           </span>
           {a.unit && <span className="faint">{a.unit}</span>}
         </span>
-        <span className="muted">{FIELD_TYPE_LABELS[a.type]}</span>
+        <span className="muted">{tEnum('fieldType', a.type, FIELD_TYPE_LABELS[a.type])}</span>
         <span className="row" style={{ gap: 4, flexWrap: 'wrap' }}>
-          {a.required && <Badge>Required</Badge>}
+          {a.required && <Badge>{t('common.required')}</Badge>}
           {(a.type === 'select' || a.type === 'multi_select') && (a.options.choices ?? []).slice(0, 3).map(c => <ChoiceLabel key={c.value} choice={c} />)}
           {a.inherited && (
             <Badge tone="gray">
-              <Lock size={10} /> from {a.categoryName}
+              <Lock size={10} /> {t('catalog.attrs.from', { name: a.categoryName })}
             </Badge>
           )}
         </span>
         <span className="row" style={{ gap: 2 }}>
           {!a.inherited && (
             <>
-              <button type="button" className="ibtn ibtn-xs" aria-label={`Edit ${a.name}`} onClick={() => setForm({ attr: a })}>
+              <button type="button" className="ibtn ibtn-xs" aria-label={t('catalog.attrs.editAria', { name: a.name })} onClick={() => setForm({ attr: a })}>
                 <Pencil size={13} />
               </button>
-              <button type="button" className="ibtn ibtn-xs" aria-label={`Delete ${a.name}`} onClick={() => setDel(a)}>
+              <button type="button" className="ibtn ibtn-xs" aria-label={t('catalog.attrs.deleteAria', { name: a.name })} onClick={() => setDel(a)}>
                 <Trash2 size={13} />
               </button>
             </>
@@ -262,32 +265,32 @@ export function AttributesDialog({ category, onClose }: { category: CategoryNode
       <Dialog open onOpenChange={o => !o && onClose()}>
         <DialogContent
           size="lg"
-          title={`Characteristics of “${category.name}”`}
-          description="Products in this category (and its sub-categories) get these fields. Characteristics set on a parent category are inherited and shown here read-only."
+          title={t('catalog.characteristicsOf', { name: category.name })}
+          description={t('catalog.attrs.description')}
           footer={
             <>
               <Button variant="secondary" onClick={() => setForm({})}>
                 <Plus size={14} />
-                Add characteristic
+                {t('catalog.attrs.add')}
               </Button>
               <span className="sp" />
               <DialogClose asChild>
-                <Button variant="primary">Done</Button>
+                <Button variant="primary">{t('common.done')}</Button>
               </DialogClose>
             </>
           }
         >
           {!!inherited.length && (
-            <section aria-label="Inherited characteristics">
-              <h3 className="attr-h">Inherited</h3>
+            <section aria-label={t('catalog.attrs.inheritedAria')}>
+              <h3 className="attr-h">{t('catalog.attrs.inherited')}</h3>
               <div className="attr-list">{inherited.map(rowOf)}</div>
             </section>
           )}
-          <section aria-label="Own characteristics">
-            <h3 className="attr-h">This category</h3>
+          <section aria-label={t('catalog.attrs.ownAria')}>
+            <h3 className="attr-h">{t('catalog.attrs.own')}</h3>
             <div className="attr-list">
               {own.map(rowOf)}
-              {!own.length && <div className="faint" style={{ padding: 14 }}>{list.isPending ? 'Loading…' : 'No characteristics of its own yet.'}</div>}
+              {!own.length && <div className="faint" style={{ padding: 14 }}>{list.isPending ? t('common.loading') : t('catalog.attrs.noneOwn')}</div>}
             </div>
           </section>
         </DialogContent>
@@ -307,12 +310,13 @@ interface ChoiceDraft {
 
 function AttributeForm({ category, attr, onClose }: { category: CategoryNode; attr?: Attribute; onClose: () => void }) {
   const api = useCatalogApi();
+  const t = useT();
   const edit = !!attr;
   const [name, setName] = React.useState(attr?.name ?? '');
   const [type, setType] = React.useState<FieldType>(attr?.type ?? 'text');
   const [unit, setUnit] = React.useState(attr?.unit ?? '');
   const [required, setRequired] = React.useState(attr?.required ?? false);
-  const [choices, setChoices] = React.useState<ChoiceDraft[]>(attr?.options.choices?.map(c => ({ ...c })) ?? [{ value: 'option_1', label: 'Option 1', color: 'blue', isNew: true }]);
+  const [choices, setChoices] = React.useState<ChoiceDraft[]>(attr?.options.choices?.map(c => ({ ...c })) ?? [{ value: 'option_1', label: t('catalog.attrs.option', { n: 1 }), color: 'blue', isNew: true }]);
   const [min, setMin] = React.useState(attr?.options.min != null ? String(attr.options.min) : '');
   const [max, setMax] = React.useState(attr?.options.max != null ? String(attr.options.max) : '');
   const [err, setErr] = React.useState<Record<string, string>>({});
@@ -353,23 +357,23 @@ function AttributeForm({ category, attr, onClose }: { category: CategoryNode; at
       : await api('POST', `/product-categories/${category.id}/attributes`, body);
     setBusy(false);
     if (!r) return;
-    toast(edit ? `Saved “${body.name}”` : `Added “${body.name}”`);
+    toast(t(edit ? 'catalog.attrs.saved' : 'catalog.attrs.added', { name: body.name }));
     onClose();
   };
 
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
-        title={edit ? `Edit “${attr!.name}”` : `New characteristic in ${category.name}`}
-        description={edit ? 'The type and key of a characteristic cannot be changed.' : undefined}
+        title={edit ? t('catalog.attrs.editTitle', { name: attr!.name }) : t('catalog.attrs.newTitle', { name: category.name })}
+        description={edit ? t('catalog.attrs.immutable') : undefined}
         footer={
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{t('common.cancel')}</Button>
             </DialogClose>
             <Button variant="primary" disabled={busy} onClick={submit}>
-              {edit ? 'Save' : 'Add characteristic'}
+              {edit ? t('common.save') : t('catalog.attrs.add')}
             </Button>
           </>
         }
@@ -382,48 +386,48 @@ function AttributeForm({ category, attr, onClose }: { category: CategoryNode; at
             void submit();
           }}
         >
-          <Field label="Name" error={err.name}>
-            {p => <Input {...p} autoFocus placeholder="e.g. Width" value={name} onChange={e => (setName(e.target.value), setErr({}))} />}
+          <Field label={t('common.name')} error={err.name}>
+            {p => <Input {...p} autoFocus placeholder={t('catalog.attrs.namePlaceholder')} value={name} onChange={e => (setName(e.target.value), setErr({}))} />}
           </Field>
           <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
-            <Field label="Type" className="grow" hint={edit ? undefined : `Stored as “${keyFromName(name || 'attr', 'attr')}”.`}>
+            <Field label={t('common.type')} className="grow" hint={edit ? undefined : t('catalog.attrs.storedAs', { key: keyFromName(name || 'attr', 'attr') })}>
               {p => (
                 <select className="select" id={p.id} value={type} disabled={edit} onChange={e => setType(e.target.value as FieldType)}>
-                  {ATTRIBUTE_TYPES.map(t => (
-                    <option key={t} value={t}>
-                      {FIELD_TYPE_LABELS[t]}
+                  {ATTRIBUTE_TYPES.map(ft => (
+                    <option key={ft} value={ft}>
+                      {tEnum('fieldType', ft, FIELD_TYPE_LABELS[ft])}
                     </option>
                   ))}
                 </select>
               )}
             </Field>
-            <Field label="Unit" className="grow" hint="Shown next to the value, e.g. mm, kg.">
+            <Field label={t('catalog.attrs.unit')} className="grow" hint={t('catalog.attrs.unitHint')}>
               {p => <Input {...p} value={unit} maxLength={20} onChange={e => setUnit(e.target.value)} />}
             </Field>
           </div>
 
           {(type === 'select' || type === 'multi_select') && (
-            <Field label="Options" error={err.options}>
+            <Field label={t('catalog.attrs.options')} error={err.options}>
               {() => (
                 <div>
                   {choices.map((c, i) => (
                     <div key={i} className="dm-choice">
-                      <Input aria-label={`Option ${i + 1}`} value={c.label} onChange={e => setChoice(i, { label: e.target.value })} />
-                      <select className="select" aria-label={`Color of option ${i + 1}`} value={c.color} onChange={e => setChoice(i, { color: e.target.value })}>
+                      <Input aria-label={t('catalog.attrs.option', { n: i + 1 })} value={c.label} onChange={e => setChoice(i, { label: e.target.value })} />
+                      <select className="select" aria-label={t('catalog.attrs.optionColor', { n: i + 1 })} value={c.color} onChange={e => setChoice(i, { color: e.target.value })}>
                         {CHOICE_COLORS.map(col => (
                           <option key={col} value={col}>
                             {col}
                           </option>
                         ))}
                       </select>
-                      <button type="button" className="ibtn" aria-label={`Remove option ${i + 1}`} onClick={() => setChoices(list => list.filter((_, j) => j !== i))}>
+                      <button type="button" className="ibtn" aria-label={t('catalog.attrs.removeOption', { n: i + 1 })} onClick={() => setChoices(list => list.filter((_, j) => j !== i))}>
                         <X size={14} />
                       </button>
                     </div>
                   ))}
                   <Button type="button" size="sm" variant="ghost" onClick={() => setChoices(list => [...list, { value: `option_${list.length + 1}`, label: '', color: CHOICE_COLORS[(list.length + 1) % CHOICE_COLORS.length]!, isNew: true }])}>
                     <Plus size={13} />
-                    Add option
+                    {t('catalog.attrs.addOption')}
                   </Button>
                 </div>
               )}
@@ -432,10 +436,10 @@ function AttributeForm({ category, attr, onClose }: { category: CategoryNode; at
 
           {(type === 'number' || type === 'money' || type === 'percent') && (
             <div className="row" style={{ gap: 10 }}>
-              <Field label="Minimum" className="grow">
+              <Field label={t('catalog.attrs.minimum')} className="grow">
                 {p => <Input {...p} inputMode="decimal" value={min} onChange={e => setMin(e.target.value)} />}
               </Field>
-              <Field label="Maximum" className="grow">
+              <Field label={t('catalog.attrs.maximum')} className="grow">
                 {p => <Input {...p} inputMode="decimal" value={max} onChange={e => setMax(e.target.value)} />}
               </Field>
             </div>
@@ -443,7 +447,7 @@ function AttributeForm({ category, attr, onClose }: { category: CategoryNode; at
 
           <label className="row" style={{ gap: 8 }}>
             <Checkbox checked={required} onChange={e => setRequired(e.target.checked)} />
-            Required for new products
+            {t('catalog.attrs.requiredForNew')}
           </label>
           <button type="submit" hidden />
         </form>
@@ -455,17 +459,18 @@ function AttributeForm({ category, attr, onClose }: { category: CategoryNode; at
 function DeleteAttributeDialog({ attr, onClose }: { attr: Attribute; onClose: () => void }) {
   const api = useCatalogApi();
   const [typed, setTyped] = React.useState('');
+  const t = useT();
   const [busy, setBusy] = React.useState(false);
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
-        title={`Delete “${attr.name}”?`}
-        description="The values of this characteristic are erased from all products in the category and its sub-categories. This cannot be undone."
+        title={t('catalog.attrs.deleteTitle', { name: attr.name })}
+        description={t('catalog.attrs.deleteText')}
         footer={
           <>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">Cancel</Button>
+              <Button variant="secondary">{t('common.cancel')}</Button>
             </DialogClose>
             <Button
               variant="danger"
@@ -475,16 +480,16 @@ function DeleteAttributeDialog({ attr, onClose }: { attr: Attribute; onClose: ()
                 const r = await api<{ cleared: number }>('DELETE', `/attribute-defs/${attr.id}?confirm=${attr.key}`);
                 setBusy(false);
                 if (!r) return;
-                toast(`Deleted “${attr.name}”${r.cleared ? ` and cleared ${r.cleared} value${r.cleared === 1 ? '' : 's'}` : ''}`);
+                toast(r.cleared ? t('catalog.attrs.deletedCleared', { name: attr.name, count: r.cleared }) : t('catalog.attrs.deleted', { name: attr.name }));
                 onClose();
               }}
             >
-              Delete permanently
+              {t('catalog.attrs.deletePermanently')}
             </Button>
           </>
         }
       >
-        <Field label={`Type “${attr.key}” to confirm`}>{p => <Input {...p} autoFocus value={typed} onChange={e => setTyped(e.target.value)} />}</Field>
+        <Field label={t('catalog.attrs.typeToConfirm', { key: attr.key })}>{p => <Input {...p} autoFocus value={typed} onChange={e => setTyped(e.target.value)} />}</Field>
       </DialogContent>
     </Dialog>
   );

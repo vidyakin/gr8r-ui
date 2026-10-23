@@ -5,6 +5,7 @@ import * as React from 'react';
 import { ArrowDown, ArrowUp, Plus, SearchX } from 'lucide-react';
 import { EmptyState } from '@/components/ui';
 import { cn } from '@/lib/utils';
+import { t } from '@/i18n';
 
 export interface Column<T> {
   id: string;
@@ -116,7 +117,7 @@ export interface DataTableProps<T> {
 
 const cellValue = <T,>(c: Column<T>, row: T) => (c.cell ? c.cell(row) : (c.value?.(row) ?? <span className="faint">—</span>));
 
-export function DataTable<T>({ columns, rows, table, getId, onRowClick, groupBy, showTotals = true, totalLabel = 'Total', onNew, newLabel = 'New', empty, renderCard, ...rest }: DataTableProps<T>) {
+export function DataTable<T>({ columns, rows, table, getId, onRowClick, groupBy, showTotals = true, totalLabel = t('ui.total'), onNew, newLabel = t('ui.new'), empty, renderCard, ...rest }: DataTableProps<T>) {
   const cols = columns.filter((c, i) => i === 0 || !table.hidden.includes(c.id));
   const width = (c: Column<T>) => table.colW[c.id] ?? c.width;
   const totalW = cols.reduce((a, c) => a + width(c), 0);
@@ -141,8 +142,8 @@ export function DataTable<T>({ columns, rows, table, getId, onRowClick, groupBy,
   if (!rows.length)
     return (
       empty ?? (
-        <EmptyState icon={<SearchX size={20} />} title="No results found">
-          Nothing matches the current filters.
+        <EmptyState icon={<SearchX size={20} />} title={t('common.noResults')}>
+          {t('ui.nothingMatches')}
         </EmptyState>
       )
     );

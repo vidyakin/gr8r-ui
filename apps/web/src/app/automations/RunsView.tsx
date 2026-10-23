@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { ago } from '../lib/dates';
 import { useRun, useRuns, type RunRow, type StepRow } from './data';
 import { NodeIcon } from './node-meta';
+import { fmtDateTime } from '@/i18n';
 
 const RUN_TONE: Record<FlowRunStatus, Tone> = { succeeded: 'green', failed: 'red', waiting: 'amber', running: 'accent', queued: 'gray', skipped: 'gray' };
 const STEP_TONE: Record<FlowStepStatus, Tone> = { succeeded: 'green', failed: 'red', waiting: 'amber', retrying: 'amber', running: 'accent' };
@@ -117,7 +118,7 @@ function RunDetailView({ id, onOpenFlow }: { id: string; onOpenFlow?: (flowId: s
           )}
         </div>
         <div className="faint run-meta">
-          {TRIGGER_LABEL[r.triggerKind]} trigger · version {r.version} · started {new Date(r.startedAt ?? r.createdAt).toLocaleString()} · took {duration(r.startedAt ?? r.createdAt, r.finishedAt)}
+          {TRIGGER_LABEL[r.triggerKind]} trigger · version {r.version} · started {fmtDateTime(r.startedAt ?? r.createdAt)} · took {duration(r.startedAt ?? r.createdAt, r.finishedAt)}
         </div>
       </div>
       {r.error && (

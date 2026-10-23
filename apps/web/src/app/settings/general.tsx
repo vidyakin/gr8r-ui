@@ -19,6 +19,7 @@ import { PermsTable, TeamsGrid } from '../pages/MembersPage';
 import { useBillingApi, useWorkspaceTimezone } from '../docs/billing-data';
 import { useIsAdmin } from '../catalog/data';
 import { PrefSelect, SRow, SettingsHead, Toggle } from './parts';
+import { LOCALES, getLocale, isLocale, setLocale, useT, type Locale } from '@/i18n';
 
 const WS_COLORS = ['#2F2E2A', '#5A67D8', '#3B82C4', '#23918A', '#C54B78', '#C48A1E'];
 
@@ -288,13 +289,55 @@ export function AppearanceSection({ title }: { title: string }) {
 
 export function LanguageSection({ title }: { title: string }) {
   const [s, set] = useSettings();
+  const session = useSession();
+  const isAdmin = useIsAdmin();
+  const t = useT();
+  const ws = session.active;
+  const wsLocale = isLocale(ws?.locale) ? ws.locale : null;
+  const langName = (l: Locale) => t(`languages.${l}`);
+  // Личный выбор: язык или «как в воркспейсе» (null в users.locale)
+  const mine = isLocale(session.user?.locale) ? session.user.locale : 'default';
   return (
     <>
-      <SettingsHead title={title} lead="Language and regional formats." />
-      <SRow t="Language" d="The language used throughout the interface.">
-        <PrefSelect label="lang" value={s.lang} options={['English (US)', 'English (UK)', 'Deutsch', 'Español', 'Français', '日本語']} onChange={lang => set({ lang })} />
+      <SettingsHead title={title} lead={t('settings.language.lead')} />
+      <SRow t={t('settings.language.title')} d={t('settings.language.hint')}>
+        <Select
+          value={mine}
+          onValueChange={async v => {
+            const next = isLocale(v) ? v : null;
+            if (next) setLocale(next);
+            try {
+              await session.setMyLocale(next);
+              toast(t('settings.language.saved'), { duration: 1500 });
+            } catch (e) {
+              toast.error(errorMessage(e));
+            }
+          }}
+          options={[
+            { value: 'default', label: t('settings.language.workspaceDefault', { lang: wsLocale ? langName(wsLocale) : langName(getLocale()) }) },
+            ...LOCALES.map(l => ({ value: l, label: langName(l) })),
+          ]}
+          aria-label={t('settings.language.title')}
+        />
       </SRow>
-      <SRow t="Spellcheck" d="Check spelling in descriptions and comments.">
+      <SRow t={t('settings.language.workspaceTitle')} d={t('settings.language.workspaceHint')}>
+        <Select
+          value={wsLocale ?? 'none'}
+          disabled={!isAdmin || !ws}
+          onValueChange={v => {
+            // PATCH /workspaces/:id { locale } — язык воркспейса по умолчанию (settings.locale)
+            apiFor()
+              .workspaces[':id'].$patch({ param: { id: ws!.id }, json: { locale: isLocale(v) ? v : null } })
+              .then(r => ok(r))
+              .then(() => session.refreshWorkspaces())
+              .then(() => toast(t('settings.language.saved'), { duration: 1500 }))
+              .catch(e => toast.error(errorMessage(e)));
+          }}
+          options={[{ value: 'none', label: t('settings.language.notSet') }, ...LOCALES.map(l => ({ value: l, label: langName(l) }))]}
+          aria-label={t('settings.language.workspaceTitle')}
+        />
+      </SRow>
+      <SRow t={t('settings.language.spellcheck')} d={t('settings.language.spellcheckHint')}>
         <Toggle label="spell" checked={s.spell} onChange={spell => set({ spell })} />
       </SRow>
     </>

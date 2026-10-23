@@ -4,6 +4,7 @@
 import * as React from 'react';
 import { ArrowUpDown, Columns3, ListFilter, Plus, RotateCcw, Rows3, Search, X } from 'lucide-react';
 import { Badge, Button, Input, Menu, MenuCheckboxItem, MenuContent, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger } from '@/components/ui';
+import { t } from '@/i18n';
 
 export interface FilterOption {
   id: string;
@@ -60,7 +61,7 @@ function FilterMenu({ fields, filters, children }: { fields: FilterField[]; filt
     <Menu>
       <MenuTrigger asChild>{children}</MenuTrigger>
       <MenuContent>
-        <MenuLabel>Filter by</MenuLabel>
+        <MenuLabel>{t('ui.filterBy')}</MenuLabel>
         {fields.map(f => {
           const sel = filters.values[f.id] ?? [];
           return (
@@ -86,8 +87,8 @@ function FilterMenu({ fields, filters, children }: { fields: FilterField[]; filt
 
 export function FilterBar({ search, fields, filters, sort, group, columns, extra, left, right }: FilterBarProps) {
   const active = fields && filters ? fields.filter(f => (filters.values[f.id] ?? []).length) : [];
-  const sortName = sort?.options.find(o => o.id === sort.value)?.name ?? 'Manual';
-  const groupName = group?.options.find(o => o.id === group.value)?.name ?? 'None';
+  const sortName = sort?.options.find(o => o.id === sort.value)?.name ?? t('ui.manual');
+  const groupName = group?.options.find(o => o.id === group.value)?.name ?? t('ui.none');
   return (
     <>
       <div className="toolbar fb-bar" role="toolbar">
@@ -97,7 +98,7 @@ export function FilterBar({ search, fields, filters, sort, group, columns, extra
           <FilterMenu fields={fields} filters={filters}>
             <Button variant="ghost" className={active.length ? 'on' : undefined}>
               <ListFilter size={14} />
-              Filter
+              {t('ui.filter')}
               {!!active.length && (
                 <Badge tone="accent" style={{ height: 16, padding: '0 5px' }}>
                   {active.length}
@@ -111,12 +112,12 @@ export function FilterBar({ search, fields, filters, sort, group, columns, extra
             <MenuTrigger asChild>
               <Button variant="ghost">
                 <ArrowUpDown size={14} />
-                <span className="hide-m">Sort:</span> {sortName}
+                <span className="hide-m">{t('ui.sort')}</span> {sortName}
               </Button>
             </MenuTrigger>
             <MenuContent>
               <MenuRadioGroup value={sort.value ?? 'manual'} onValueChange={id => sort.onChange(id === 'manual' ? null : id, 1)}>
-                <MenuRadioItem value="manual">Manual</MenuRadioItem>
+                <MenuRadioItem value="manual">{t('ui.manual')}</MenuRadioItem>
                 {sort.options.map(o => (
                   <MenuRadioItem key={o.id} value={o.id}>
                     {o.name}
@@ -125,8 +126,8 @@ export function FilterBar({ search, fields, filters, sort, group, columns, extra
               </MenuRadioGroup>
               <MenuSeparator />
               <MenuRadioGroup value={String(sort.dir)} onValueChange={d => sort.onChange(sort.value, +d as 1 | -1)}>
-                <MenuRadioItem value="1">Ascending</MenuRadioItem>
-                <MenuRadioItem value="-1">Descending</MenuRadioItem>
+                <MenuRadioItem value="1">{t('ui.ascending')}</MenuRadioItem>
+                <MenuRadioItem value="-1">{t('ui.descending')}</MenuRadioItem>
               </MenuRadioGroup>
             </MenuContent>
           </Menu>
@@ -136,11 +137,11 @@ export function FilterBar({ search, fields, filters, sort, group, columns, extra
             <MenuTrigger asChild>
               <Button variant="ghost">
                 <Rows3 size={14} />
-                <span className="hide-m">Group:</span> {groupName}
+                <span className="hide-m">{t('ui.group')}</span> {groupName}
               </Button>
             </MenuTrigger>
             <MenuContent>
-              <MenuLabel>Group by</MenuLabel>
+              <MenuLabel>{t('ui.groupBy')}</MenuLabel>
               <MenuRadioGroup value={group.value} onValueChange={group.onChange}>
                 {group.options.map(o => (
                   <MenuRadioItem key={o.id} value={o.id} icon={o.icon}>
@@ -156,11 +157,11 @@ export function FilterBar({ search, fields, filters, sort, group, columns, extra
             <MenuTrigger asChild>
               <Button variant="ghost">
                 <Columns3 size={14} />
-                Columns
+                {t('ui.columns')}
               </Button>
             </MenuTrigger>
             <MenuContent>
-              <MenuLabel>Visible columns</MenuLabel>
+              <MenuLabel>{t('ui.visibleColumns')}</MenuLabel>
               {columns.options.map(c => (
                 <MenuCheckboxItem key={c.id} checked={!columns.hidden.includes(c.id)} onCheckedChange={() => columns.onToggle(c.id)} onSelect={e => e.preventDefault()}>
                   {c.name}
@@ -168,7 +169,7 @@ export function FilterBar({ search, fields, filters, sort, group, columns, extra
               ))}
               <MenuSeparator />
               <MenuItem icon={<RotateCcw size={14} />} onSelect={columns.onReset}>
-                Reset widths
+                {t('ui.resetWidths')}
               </MenuItem>
             </MenuContent>
           </Menu>
@@ -184,15 +185,15 @@ export function FilterBar({ search, fields, filters, sort, group, columns, extra
             const names = (filters.values[f.id] ?? []).map(id => f.options.find(o => o.id === id)?.name ?? id);
             return (
               <React.Fragment key={f.id}>
-                {i > 0 && <span>and</span>}
+                {i > 0 && <span>{t('ui.and')}</span>}
                 <span className="chip">
                   <FilterMenu fields={fields} filters={filters}>
                     <button style={{ display: 'inline-flex', gap: 5, alignItems: 'center' }}>
                       {React.cloneElement(f.icon as React.ReactElement<{ size: number }>, { size: 12 })}
-                      <b>{f.name}</b> is <span>{names.length > 2 ? `${names.length} selected` : names.join(', ')}</span>
+                      <b>{f.name}</b> {t('ui.is')} <span>{names.length > 2 ? t('ui.selected', { count: names.length }) : names.join(', ')}</span>
                     </button>
                   </FilterMenu>
-                  <button className="ibtn" aria-label={`Remove ${f.name} filter`} onClick={() => filters.remove(f.id)}>
+                  <button className="ibtn" aria-label={t('ui.removeFilter', { name: f.name })} onClick={() => filters.remove(f.id)}>
                     <X size={12} />
                   </button>
                 </span>
@@ -202,12 +203,12 @@ export function FilterBar({ search, fields, filters, sort, group, columns, extra
           <FilterMenu fields={fields} filters={filters}>
             <Button size="sm" variant="ghost">
               <Plus size={12} />
-              Add
+              {t('ui.add')}
             </Button>
           </FilterMenu>
           <span className="sp" />
           <Button size="sm" variant="ghost" onClick={filters.clear}>
-            Clear all
+            {t('ui.clearAll')}
           </Button>
         </div>
       )}

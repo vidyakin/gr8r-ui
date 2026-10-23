@@ -1,4 +1,4 @@
-/* Личные настройки, которым не нужен бэкенд, — состояние Settings из S.prefs / D().notifPrefs / sessions / tfa / plan оригинала.
+/* Личные настройки, которым не нужен бэкенд (язык — не здесь, а в src/i18n и users.locale), — состояние Settings из S.prefs / D().notifPrefs / sessions / tfa / plan оригинала.
    Тема, акцент, плотность и движение живут в Gr8rProvider (usePrefs), имя и воркспейс — в store.tsx. */
 import * as React from 'react';
 
@@ -13,7 +13,6 @@ export interface Session {
 export type Plan = 'Free' | 'Team' | 'Business';
 
 export interface Settings {
-  lang: string;
   spell: boolean;
   tz: string;
   dateFmt: string;
@@ -37,7 +36,6 @@ export interface Settings {
 const KEY = 'gr8r-ui.settings';
 
 export const DEFAULT_SETTINGS: Settings = {
-  lang: 'English (US)',
   spell: true,
   tz: '(GMT-08:00) Pacific Time',
   dateFmt: 'MMM d',

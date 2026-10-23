@@ -10,6 +10,8 @@ import { FilterBar, useFilterState, type FilterField } from '@/components/gr8r/f
 import { EntityDrawer } from '@/components/gr8r/entity-drawer';
 import { useCanWrite } from '../meta/custom-fields';
 import { fmtDate } from '../lib/dates';
+import { tEnum, useT } from '@/i18n';
+import { errorMessage } from '../data/api';
 import { AttributesDialog, CategoryDialog, CategoryTree, DeleteCategoryDialog } from './category-ui';
 import { ProductDrawer, ProductFormDialog } from './product-ui';
 import { buildCategoryTree, categoryPath, flattenTree, money, unitSymbol, useCategories, useIsAdmin, useProduct, useProducts, useUnits, type CategoryNode, type Product } from './data';
@@ -26,6 +28,7 @@ export function CatalogPage() {
   const units = useUnits();
   const [dialog, setDialog] = React.useState<Dialog>(null);
   const filters = useFilterState();
+  const t = useT();
   const [q, setQ] = React.useState('');
   React.useEffect(() => {
     const t = setTimeout(() => setQ(filters.q.trim()), 250);
@@ -74,37 +77,37 @@ export function CatalogPage() {
     () => [
       {
         id: 'name',
-        header: 'Name',
+        header: t('catalog.col.name'),
         width: 300,
         value: p => p.name,
         cell: p => (
           <span className="row" style={{ gap: 8, minWidth: 0 }}>
-            {p.kind === 'service' ? <Wrench size={14} className="faint" aria-label="Service" /> : <Package size={14} className="faint" aria-label="Goods" />}
+            {p.kind === 'service' ? <Wrench size={14} className="faint" aria-label={t('catalog.kind.service')} /> : <Package size={14} className="faint" aria-label={t('catalog.kind.goods')} />}
             <span className="trunc" style={{ fontWeight: 450, opacity: p.isActive ? 1 : 0.6, paddingLeft: p.parentProductId ? 14 : 0 }}>
               {p.parentProductId && <span className="faint" aria-hidden="true">↳ </span>}
               {p.name}
             </span>
-            {p.parentProductId && <Badge tone="gray">Variant</Badge>}
-            {!p.isActive && <Badge tone="gray">Inactive</Badge>}
+            {p.parentProductId && <Badge tone="gray">{t('catalog.variant')}</Badge>}
+            {!p.isActive && <Badge tone="gray">{t('common.inactive')}</Badge>}
           </span>
         ),
       },
-      { id: 'sku', header: 'SKU', width: 130, value: p => p.sku, cell: p => (p.sku ? <span className="mono">{p.sku}</span> : <span className="faint">—</span>) },
-      { id: 'category', header: 'Category', width: 190, value: p => categoryPath(categories.data, p.categoryId), cell: p => <span className="trunc muted">{categoryPath(categories.data, p.categoryId).split(' / ').pop() || '—'}</span> },
-      { id: 'unit', header: 'Unit', width: 72, value: p => unitSymbol(units.data, p.unitCode) },
-      { id: 'vat', header: 'VAT', width: 84, value: p => VAT_LABELS[p.vatRate] },
-      { id: 'price', header: 'Price', width: 120, align: 'right', value: p => Number(p.price), cell: p => <span className="num">{money(p.price)}</span> },
-      { id: 'purchase', header: 'Purchase', width: 120, align: 'right', value: p => Number(p.purchasePrice), cell: p => <span className="num">{money(p.purchasePrice)}</span> },
-      { id: 'barcode', header: 'Barcode', width: 140, defaultHidden: true, value: p => p.barcode, cell: p => (p.barcode ? <span className="mono">{p.barcode}</span> : <span className="faint">—</span>) },
-      { id: 'created', header: 'Created', width: 112, defaultHidden: true, value: p => Date.parse(p.createdAt), cell: p => <span className="muted num">{fmtDate(new Date(p.createdAt))}</span> },
+      { id: 'sku', header: t('catalog.col.sku'), width: 130, value: p => p.sku, cell: p => (p.sku ? <span className="mono">{p.sku}</span> : <span className="faint">—</span>) },
+      { id: 'category', header: t('catalog.col.category'), width: 190, value: p => categoryPath(categories.data, p.categoryId), cell: p => <span className="trunc muted">{categoryPath(categories.data, p.categoryId).split(' / ').pop() || '—'}</span> },
+      { id: 'unit', header: t('catalog.col.unit'), width: 72, value: p => unitSymbol(units.data, p.unitCode) },
+      { id: 'vat', header: t('catalog.col.vat'), width: 84, value: p => tEnum('vat', p.vatRate, VAT_LABELS[p.vatRate]) },
+      { id: 'price', header: t('catalog.col.price'), width: 120, align: 'right', value: p => Number(p.price), cell: p => <span className="num">{money(p.price)}</span> },
+      { id: 'purchase', header: t('catalog.col.purchase'), width: 120, align: 'right', value: p => Number(p.purchasePrice), cell: p => <span className="num">{money(p.purchasePrice)}</span> },
+      { id: 'barcode', header: t('catalog.col.barcode'), width: 140, defaultHidden: true, value: p => p.barcode, cell: p => (p.barcode ? <span className="mono">{p.barcode}</span> : <span className="faint">—</span>) },
+      { id: 'created', header: t('catalog.col.created'), width: 112, defaultHidden: true, value: p => Date.parse(p.createdAt), cell: p => <span className="muted num">{fmtDate(new Date(p.createdAt))}</span> },
     ],
-    [categories.data, units.data],
+    [categories.data, units.data, t],
   );
   const table = useDataTable(columns);
 
   const filterFields: FilterField[] = [
-    { id: 'kind', name: 'Type', icon: <Package size={15} />, options: [{ id: 'goods', name: 'Goods' }, { id: 'service', name: 'Service' }] },
-    { id: 'status', name: 'Status', icon: <CircleAlert size={15} />, options: [{ id: 'active', name: 'Active' }, { id: 'inactive', name: 'Inactive' }] },
+    { id: 'kind', name: t('common.type'), icon: <Package size={15} />, options: [{ id: 'goods', name: t('catalog.kind.goods') }, { id: 'service', name: t('catalog.kind.service') }] },
+    { id: 'status', name: t('common.status'), icon: <CircleAlert size={15} />, options: [{ id: 'active', name: t('common.active') }, { id: 'inactive', name: t('common.inactive') }] },
   ];
 
   if (categories.isPending)
@@ -119,7 +122,7 @@ export function CatalogPage() {
   const newProduct = canWrite && (
     <Button variant="primary" onClick={() => setDialog({ type: 'product' })}>
       <Plus size={14} />
-      New product
+      {t('catalog.newProduct')}
     </Button>
   );
 
@@ -127,11 +130,10 @@ export function CatalogPage() {
     <div className="page flush">
       <div className="ph">
         <div>
-          <h1>Catalog</h1>
+          <h1>{t('catalog.title')}</h1>
           <p>
             {selectedNode ? `${selectedNode.name}: ` : ''}
-            {rows.length} item{rows.length === 1 ? '' : 's'}
-            {filters.count || q ? ' match' : ''}
+            {t(filters.count || q ? 'catalog.summaryMatch' : 'catalog.summary', { count: rows.length })}
           </p>
         </div>
         <div className="acts">{newProduct}</div>
@@ -151,33 +153,33 @@ export function CatalogPage() {
           />
           {selectedNode && isAdmin && (
             <Button size="sm" variant="ghost" className="cat-attrs-btn" onClick={() => setDialog({ type: 'attributes', category: selectedNode })}>
-              Characteristics of “{selectedNode.name}”
+              {t('catalog.characteristicsOf', { name: selectedNode.name })}
             </Button>
           )}
         </aside>
-        <section className="cat-main" aria-label="Products">
+        <section className="cat-main" aria-label={t('catalog.products')}>
           <FilterBar
-            search={{ value: filters.q, onChange: filters.setQ, placeholder: 'Search by name, SKU or barcode' }}
+            search={{ value: filters.q, onChange: filters.setQ, placeholder: t('catalog.searchPlaceholder') }}
             fields={filterFields}
             filters={filters}
             sort={{ options: columns.filter(c => c.value).map(c => ({ id: c.id, name: c.header })), value: table.sort.id, dir: table.sort.dir, onChange: table.setSort }}
             columns={columnsMenu(columns, table)}
           />
           {list.isError ? (
-            <EmptyState icon={<CircleAlert size={20} />} error title="Could not load products" action={<Button size="sm" onClick={() => list.refetch()}>Retry</Button>}>
-              {(list.error as Error).message}
+            <EmptyState icon={<CircleAlert size={20} />} error title={t('catalog.loadFailed')} action={<Button size="sm" onClick={() => list.refetch()}>{t('common.retry')}</Button>}>
+              {errorMessage(list.error)}
             </EmptyState>
           ) : list.isPending ? (
             <div style={{ padding: 16 }}>
               <Skeleton w="100%" h={36} />
             </div>
           ) : !rows.length && !filters.count && !q ? (
-            <EmptyState icon={<Package size={20} />} title={selectedNode ? `No products in ${selectedNode.name}` : 'No products yet'} action={newProduct || undefined}>
-              Goods and services you add show up here.
+            <EmptyState icon={<Package size={20} />} title={selectedNode ? t('catalog.noProductsIn', { name: selectedNode.name }) : t('catalog.noProducts')} action={newProduct || undefined}>
+              {t('catalog.noProductsHint')}
             </EmptyState>
           ) : (
             <DataTable
-              aria-label="Products table"
+              aria-label={t('catalog.productsTable')}
               columns={columns}
               rows={rows}
               table={table}
@@ -185,10 +187,10 @@ export function CatalogPage() {
               onRowClick={open}
               showTotals={false}
               onNew={canWrite ? () => setDialog({ type: 'product' }) : undefined}
-              newLabel="New product"
+              newLabel={t('catalog.newProduct')}
               empty={
-                <EmptyState icon={<Package size={20} />} title="No results found" action={<Button size="sm" onClick={() => (filters.reset(), setQ(''))}>Clear filters</Button>}>
-                  No products match these filters.
+                <EmptyState icon={<Package size={20} />} title={t('common.noResults')} action={<Button size="sm" onClick={() => (filters.reset(), setQ(''))}>{t('common.clearFilters')}</Button>}>
+                  {t('catalog.noMatch')}
                 </EmptyState>
               }
             />
@@ -219,10 +221,11 @@ function DrawerHost({ id, rows, tree, onClose, onOpenCategory }: { id: string; r
   const inList = rows.find(r => r.id === id);
   const single = useProduct(inList ? undefined : id);
   const product = inList ?? single.data;
+  const t = useT();
   if (!product)
     return single.isError ? (
-      <EntityDrawer label="Product not found" title="Product not found" onClose={onClose}>
-        <p className="muted">This product does not exist or was archived.</p>
+      <EntityDrawer label={t('catalog.notFoundTitle')} title={t('catalog.notFoundTitle')} onClose={onClose}>
+        <p className="muted">{t('catalog.notFoundText')}</p>
       </EntityDrawer>
     ) : null;
   return <ProductDrawer key={product.id} product={product} tree={tree} onClose={onClose} onOpenCategory={onOpenCategory} />;

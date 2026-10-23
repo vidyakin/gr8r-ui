@@ -12,6 +12,7 @@ import { call, useWsId } from '../meta/data';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCanWrite } from '../meta/custom-fields';
 import { useWarehouses } from '../docs/data';
+import { tEnum, useT } from '@/i18n';
 
 export interface StockLevelRow {
   id: string;
@@ -38,6 +39,7 @@ export function StockLevelsTab({ productId }: { productId: string }) {
   const rows = levels.data?.items ?? [];
   const whs = (warehouses.data ?? []).filter(w => w.kind !== 'transit');
   const [busy, setBusy] = React.useState(false);
+  const t = useT();
 
   const save = async (next: Omit<StockLevelRow, 'id' | 'warehouseName' | 'sourceWarehouseName'>[]) => {
     setBusy(true);
@@ -60,28 +62,28 @@ export function StockLevelsTab({ productId }: { productId: string }) {
   const remove = (index: number) => save(rows.filter((_, i) => i !== index));
 
   return (
-    <DrawerSection title="Stock levels" count={rows.length || undefined}>
+    <DrawerSection title={t('catalog.levels.title')} count={rows.length || undefined}>
       <p className="muted" style={{ margin: '0 0 8px', fontSize: 12.5 }}>
-        The line without a warehouse is the level for the company as a whole; a line with a warehouse wins over it.
+        {t('catalog.levels.hint')}
       </p>
       {levels.isPending ? (
         <p className="faint" style={{ margin: 0 }}>
-          Loading…
+          {t('common.loading')}
         </p>
       ) : (
         <div className="table-wrap">
-          <table className="dtbl" aria-label="Stock levels">
+          <table className="dtbl" aria-label={t('catalog.levels.title')}>
             <thead>
               <tr>
-                <th style={{ width: 150 }}>Warehouse</th>
+                <th style={{ width: 150 }}>{t('catalog.levels.warehouse')}</th>
                 <th style={{ width: 90 }} className="r">
-                  Min
+                  {t('catalog.levels.min')}
                 </th>
                 <th style={{ width: 90 }} className="r">
-                  Max
+                  {t('catalog.levels.max')}
                 </th>
-                <th style={{ width: 140 }}>Replenishment</th>
-                <th style={{ width: 150 }}>Source warehouse</th>
+                <th style={{ width: 140 }}>{t('catalog.levels.replenishment')}</th>
+                <th style={{ width: 150 }}>{t('catalog.levels.source')}</th>
                 <th style={{ width: 34 }} />
               </tr>
             </thead>
@@ -90,8 +92,8 @@ export function StockLevelsTab({ productId }: { productId: string }) {
                 <tr key={r.id || i}>
                   <td>
                     {canWrite ? (
-                      <select className="select" aria-label="Warehouse" value={r.warehouseId ?? ''} onChange={e => patch(i, { warehouseId: e.target.value || null })}>
-                        <option value="">Company</option>
+                      <select className="select" aria-label={t('catalog.levels.warehouse')} value={r.warehouseId ?? ''} onChange={e => patch(i, { warehouseId: e.target.value || null })}>
+                        <option value="">{t('catalog.levels.company')}</option>
                         {whs.map(w => (
                           <option key={w.id} value={w.id}>
                             {w.name}
@@ -99,41 +101,41 @@ export function StockLevelsTab({ productId }: { productId: string }) {
                         ))}
                       </select>
                     ) : (
-                      <span className="muted">{r.warehouseName ?? 'Company'}</span>
+                      <span className="muted">{r.warehouseName ?? t('catalog.levels.company')}</span>
                     )}
                   </td>
                   <td className="r">
                     {canWrite ? (
-                      <Input aria-label="Minimum" className="num" type="number" step="0.001" value={r.minQty} onChange={e => patch(i, { minQty: num(e.target.value) })} style={{ textAlign: 'right' }} />
+                      <Input aria-label={t('catalog.levels.minimum')} className="num" type="number" step="0.001" value={r.minQty} onChange={e => patch(i, { minQty: num(e.target.value) })} style={{ textAlign: 'right' }} />
                     ) : (
                       <span className="num">{r.minQty}</span>
                     )}
                   </td>
                   <td className="r">
                     {canWrite ? (
-                      <Input aria-label="Maximum" className="num" type="number" step="0.001" value={r.maxQty} onChange={e => patch(i, { maxQty: num(e.target.value) })} style={{ textAlign: 'right' }} />
+                      <Input aria-label={t('catalog.levels.maximum')} className="num" type="number" step="0.001" value={r.maxQty} onChange={e => patch(i, { maxQty: num(e.target.value) })} style={{ textAlign: 'right' }} />
                     ) : (
                       <span className="num">{r.maxQty}</span>
                     )}
                   </td>
                   <td>
                     {canWrite ? (
-                      <select className="select" aria-label="Replenishment" value={r.replenishment} onChange={e => patch(i, { replenishment: e.target.value as StockReplenishment })}>
+                      <select className="select" aria-label={t('catalog.levels.replenishment')} value={r.replenishment} onChange={e => patch(i, { replenishment: e.target.value as StockReplenishment })}>
                         {Object.entries(STOCK_REPLENISHMENT_LABELS).map(([value, label]) => (
                           <option key={value} value={value}>
-                            {label}
+                            {tEnum('replenishment', value, label)}
                           </option>
                         ))}
                       </select>
                     ) : (
-                      <span className="muted">{STOCK_REPLENISHMENT_LABELS[r.replenishment]}</span>
+                      <span className="muted">{tEnum('replenishment', r.replenishment, STOCK_REPLENISHMENT_LABELS[r.replenishment])}</span>
                     )}
                   </td>
                   <td>
                     {r.replenishment === 'transfer' ? (
                       canWrite ? (
-                        <select className="select" aria-label="Source warehouse" value={r.sourceWarehouseId ?? ''} onChange={e => patch(i, { sourceWarehouseId: e.target.value || null })}>
-                          <option value="">Choose</option>
+                        <select className="select" aria-label={t('catalog.levels.source')} value={r.sourceWarehouseId ?? ''} onChange={e => patch(i, { sourceWarehouseId: e.target.value || null })}>
+                          <option value="">{t('common.choose')}</option>
                           {whs.filter(w => w.id !== r.warehouseId).map(w => (
                             <option key={w.id} value={w.id}>
                               {w.name}
@@ -147,7 +149,7 @@ export function StockLevelsTab({ productId }: { productId: string }) {
                       <span className="faint">—</span>
                     )}
                   </td>
-                  <td>{canWrite && <IconButton label="Remove level" onClick={() => remove(i)}><Trash2 size={14} /></IconButton>}</td>
+                  <td>{canWrite && <IconButton label={t('catalog.levels.remove')} onClick={() => remove(i)}><Trash2 size={14} /></IconButton>}</td>
                 </tr>
               ))}
             </tbody>
@@ -158,12 +160,12 @@ export function StockLevelsTab({ productId }: { productId: string }) {
         <div style={{ marginTop: 8 }}>
           <Button size="sm" disabled={busy} onClick={add}>
             <Plus size={14} />
-            Add a level
+            {t('catalog.levels.add')}
           </Button>
           {!rows.length && (
             <span className="faint" style={{ marginLeft: 10, fontSize: 12.5, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               <Boxes size={14} />
-              No stock levels — the product does not take part in the needs calculation
+              {t('catalog.levels.none')}
             </span>
           )}
         </div>

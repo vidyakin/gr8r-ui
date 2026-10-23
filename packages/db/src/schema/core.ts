@@ -11,10 +11,12 @@ export const users = pgTable(
     email: text('email').notNull(),
     passwordHash: text('password_hash').notNull(),
     name: text('name').notNull(),
+    /** Язык интерфейса ('en' | 'ru'); null — как в воркспейсе */
+    locale: text('locale'),
     createdAt: createdAt(),
     lastLoginAt: ts('last_login_at'),
   },
-  t => [uniqueIndex('users_email_uq').on(sql`lower(${t.email})`)],
+  t => [uniqueIndex('users_email_uq').on(sql`lower(${t.email})`), check('users_locale_chk', sql`${t.locale} in ('en','ru')`)],
 );
 
 /** Сессии: id — sha256 токена из cookie (сам токен в БД не хранится) */

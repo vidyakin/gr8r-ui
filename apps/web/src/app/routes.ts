@@ -41,6 +41,7 @@ import {
   FileSignature,
   type LucideIcon,
 } from 'lucide-react';
+import { hasKey, t } from '@/i18n';
 
 export interface Section {
   path: string;
@@ -117,3 +118,15 @@ export const PROJECT_TABS = [
   { id: 'files', name: 'Files' },
   { id: 'activity', name: 'Activity' },
 ] as const;
+
+/* Названия разделов и вкладок — из словаря (sections.<id>, projectTabs.<id>) на текущем языке.
+   Подписи выше остаются английским запасным вариантом: новый раздел без ключа в словаре покажет его */
+function localize(items: Iterable<[string, { name: string }]>, ns: 'sections' | 'projectTabs') {
+  for (const [id, item] of items) {
+    const fallback = item.name;
+    const key = `${ns}.${id}`;
+    Object.defineProperty(item, 'name', { get: () => (hasKey(key) ? t(key) : fallback), enumerable: true });
+  }
+}
+localize(Object.entries(SECTIONS), 'sections');
+localize(PROJECT_TABS.map(tab => [tab.id, tab]), 'projectTabs');

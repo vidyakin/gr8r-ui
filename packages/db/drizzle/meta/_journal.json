@@ -190,6 +190,13 @@
       "when": 1792724796316,
       "tag": "0026_composite_fk_set_null",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792726412349,
+      "tag": "0027_user_locale",
+      "breakpoints": true
     }
   ]
 }
