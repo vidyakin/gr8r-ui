@@ -3,6 +3,8 @@ import { z } from 'zod';
 
 export const uuid = z.uuid();
 export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected date in YYYY-MM-DD format');
+/** Дата и время с часовым поясом (timestamptz) */
+export const isoDateTime = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:\d{2})$/, 'Expected date and time in ISO 8601');
 export const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Expected time in HH:MM format');
 /** Десятичное число: принимается числом или строкой, хранится и отдаётся строкой (numeric в БД) */
 export const decimal = z

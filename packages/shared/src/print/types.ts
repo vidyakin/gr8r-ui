@@ -46,6 +46,18 @@ export interface PrintLine {
   net: string;
   vatAmount: string;
   total: string;
+  /** Учётное количество по остаткам (инвентаризация) */
+  bookQty?: string;
+  /** Разница фактического и учётного количества (инвентаризация) */
+  diffQty?: string;
+  /** Себестоимость единицы по документу (внутренние документы) */
+  cost?: string;
+  /** План по строке (сдельный наряд) */
+  planQty?: string;
+  /** Нормочасы по строке (сдельный наряд) */
+  hours?: string;
+  /** Расценка по строке (сдельный наряд) */
+  rate?: string;
 }
 
 export interface PrintData {
@@ -62,4 +74,28 @@ export interface PrintData {
   totals: DocumentTotals;
   basedOn: { type: DocumentType; number: string | null; date: string } | null;
   comment: string;
+  /** Склад документа (внутренние документы) */
+  warehouseName?: string;
+  /** Склад-получатель (перемещение) */
+  targetWarehouseName?: string;
+  /** Статья затрат или доходов (списание, оприходование, передача в эксплуатацию) */
+  costItemName?: string;
+  /** Получатель имущества в эксплуатацию: сотрудник или участок */
+  holderName?: string;
+  /** Вид операции документа (перемещение) */
+  operation?: string;
+  /** Заказ-наряд: вид, состояние, материалы и исполнители */
+  workOrder?: {
+    kindName: string;
+    stateLabel: string;
+    /** Плановые начало и окончание работ */
+    plannedStart?: string | null;
+    plannedEnd?: string | null;
+    materials: { n: number; name: string; unitCode: string; unitSymbol: string; qty: string }[];
+    assignees: { name: string; workCenterName: string | null; plannedHours: string | null; startDate: string | null; dueDate: string | null }[];
+  };
+  /** Исполнитель сдельного наряда */
+  executorName?: string;
+  /** Участок сдельного наряда */
+  workCenterName?: string;
 }

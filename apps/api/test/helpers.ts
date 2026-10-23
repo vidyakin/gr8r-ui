@@ -53,6 +53,7 @@ export class Client {
   }
   get = <T = any>(path: string, ws?: string | null) => this.req<T>('GET', path, { ws });
   post = <T = any>(path: string, json?: unknown, ws?: string | null) => this.req<T>('POST', path, { json: json ?? {}, ws });
+  put = <T = any>(path: string, json: unknown, ws?: string | null) => this.req<T>('PUT', path, { json, ws });
   patch = <T = any>(path: string, json: unknown, ws?: string | null) => this.req<T>('PATCH', path, { json, ws });
   del = <T = any>(path: string, ws?: string | null) => this.req<T>('DELETE', path, { ws });
 
@@ -70,12 +71,12 @@ export class Client {
   async project(key = 'TST', name = 'Test project') {
     const res = await this.post('/projects', { key, name });
     if (res.status !== 201) throw new Error(`project failed: ${res.status} ${JSON.stringify(res.body)}`);
-    return res.body as { id: string; key: string; name: string };
+    return res.body as { id: string; key: string; name: string; module: string };
   }
   async task(projectId: string, title = 'Task', extra: Record<string, unknown> = {}) {
     const res = await this.post('/tasks', { projectId, title, ...extra });
     if (res.status !== 201) throw new Error(`task failed: ${res.status} ${JSON.stringify(res.body)}`);
-    return res.body as { id: string; key: string; title: string; status: string };
+    return res.body as { id: string; key: string; title: string; status: string; module: string };
   }
 }
 

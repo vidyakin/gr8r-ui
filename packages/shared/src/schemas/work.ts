@@ -1,6 +1,6 @@
 /* zod-схемы сущностей этапа 1: работа. Поля называются как колонки drizzle-схемы (camelCase). */
 import { z } from 'zod';
-import { FILE_KINDS, MEMBER_STATUSES, NOTIFICATION_TYPES, PROJECT_COLORS, PROJECT_STATUSES, VIEW_TYPES } from '../constants';
+import { FILE_KINDS, MEMBER_STATUSES, NOTIFICATION_TYPES, PROJECT_COLORS, PROJECT_STATUSES, TASK_MODULES, VIEW_TYPES } from '../constants';
 import { customData } from './meta';
 import { clientId, color, decimal, toPatch, hhmm, isoDate, listQuery, queryBool, shortText, uuid } from './common';
 
@@ -39,6 +39,7 @@ export const projectQuery = listQuery.extend({
   teamId: uuid.optional(),
   leadId: uuid.optional(),
   fav: queryBool.optional(),
+  module: z.enum(TASK_MODULES).optional(),
 });
 
 /* ---------- statuses ---------- */
@@ -76,8 +77,12 @@ export const taskCreate = z.object({
   /** Только при повторном создании (Undo удаления): прежний ключ WEB-109 вместо нового номера */
   key: z.string().trim().toUpperCase().regex(/^[A-Z][A-Z0-9]{1,9}-\d{1,9}$/).optional(),
   title: z.string().trim().min(1).max(500),
+  /** Модуль задачи. Не указан — берётся модуль проекта; указанный модуль должен совпадать с модулем проекта */
+  module: z.enum(TASK_MODULES).optional(),
   status: z.string().min(1).max(32).default('todo'),
   assigneeId: uuid.nullish(),
+  /** Заказчик: только у задач модуля services (время по заказчику без заказ-наряда) */
+  companyId: uuid.nullish(),
   priority: z.number().int().min(1).max(10).nullish(),
   dueDate: isoDate.nullish(),
   startDate: isoDate.nullish(),
@@ -94,6 +99,7 @@ export const taskCreate = z.object({
 export const taskUpdate = toPatch(taskCreate.omit({ id: true, key: true }));
 export const taskQuery = listQuery.extend({
   projectId: uuid.optional(),
+  module: z.enum(TASK_MODULES).optional(),
   status: z.string().max(32).optional(),
   assigneeId: z.union([uuid, z.literal('none')]).optional(),
   priority: z.coerce.number().int().min(1).max(10).optional(),
@@ -156,7 +162,7 @@ export const savedViewCreate = z.object({
   projectId: uuid,
   name: shortText,
   type: z.enum(VIEW_TYPES),
-  filters: z.array(z.object({ f: z.enum(['status', 'assignee', 'priority', 'due', 'project']), v: z.array(z.string()) })).max(50).default([]),
+  filters: z.array(z.object({ f: z.enum(['status', 'assignee', 'priority', 'due', 'project', 'module']), v: z.array(z.string()) })).max(50).default([]),
 });
 export const savedViewUpdate = toPatch(savedViewCreate.omit({ projectId: true, id: true }));
 export const savedViewQuery = listQuery.extend({ projectId: uuid.optional() });

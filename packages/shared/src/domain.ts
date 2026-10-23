@@ -1,5 +1,7 @@
 /* Доменные типы фронтенда (форма данных в браузере). Источник правды для демо-данных, сидов и API-клиента. */
 
+import type { TaskModule } from './constants';
+
 /** Идентификатор статуса: пять встроенных + пользовательские колонки доски */
 export type Status = string;
 
@@ -30,6 +32,8 @@ export interface Project {
   id: string;
   key: string;
   name: string;
+  /** Модуль проекта: general — обычный, production/services — системный проект модуля */
+  module: TaskModule;
   icon: string;
   color: ProjectColor;
   status: ProjectStatus;
@@ -91,6 +95,8 @@ export interface Task {
   id: string;
   key: string;
   project: string;
+  /** Модуль задачи — совпадает с модулем проекта */
+  module: TaskModule;
   title: string;
   status: Status;
   assignee: string | null;
@@ -102,6 +108,8 @@ export interface Task {
   attachments: Attachment[];
   deps: string[];
   desc: string;
+  /** Заказчик (id компании) — только у задач модуля services */
+  company?: string | null;
   /** План в часах; если не задан, считается суммой плана подзадач */
   planHours: number | null;
   created: number;
@@ -173,7 +181,7 @@ export interface SavedView {
   project: string;
   name: string;
   type: 'list' | 'board' | 'table' | 'calendar' | 'timeline';
-  filters: { f: 'status' | 'assignee' | 'priority' | 'due' | 'project'; v: string[] }[];
+  filters: { f: 'status' | 'assignee' | 'priority' | 'due' | 'project' | 'module'; v: string[] }[];
 }
 
 /** Статус задачи = колонка доски. Встроенные (builtin) нельзя переименовать и удалить */

@@ -1,7 +1,7 @@
 /* HTML-шаблоны печатных форм: счёт на оплату, УПД, акт оказания услуг, ТОРГ-12. Чистые функции «данные → HTML-строка»:
    одни и те же страницы показываются в браузере (предпросмотр + window.print) и превращаются в PDF в воркере (headless Chromium).
    Формат A4, поля и разрывы страниц заданы в @page и CSS-правилах break-*; шапка таблицы повторяется на каждой странице. */
-import { dec, div, fmt } from '../decimal';
+import { dec, div, fmt, mul } from '../decimal';
 import { DOCUMENT_LABELS_RU, type PrintForm } from '../documents';
 import { amountInWordsRu, numberToWordsRu } from '../ru';
 import type { FileRef } from '../schemas/documents';
@@ -266,8 +266,195 @@ ${person('Главный (старший) бухгалтер', o.accountantName 
   );
 }
 
+/* ---------------- заказ-наряд (бланк приёма заказа) ---------------- */
+
+function workOrderForm(d: PrintData): string {
+  const o = d.organization;
+  const t = d.totals;
+  const w = d.workOrder;
+  const rows = d.lines
+    .map(l => `<tr><td class="center">${l.n}</td><td>${l.sku ? `<span class="small">${esc(l.sku)}</span> ` : ''}${esc(l.name)}</td><td class="right">${qtyRu(l.qty)}</td><td class="center">${esc(l.unitSymbol)}</td><td class="right">${unitEff(l, d.priceIncludesVat)}</td><td class="right">${moneyRu(d.priceIncludesVat ? l.total : l.net)}</td></tr>`)
+    .join('');
+  const materials = (w?.materials ?? []).map(m => `<tr><td class="center">${m.n}</td><td>${esc(m.name)}</td><td class="right">${qtyRu(m.qty)}</td><td class="center">${esc(m.unitSymbol)}</td></tr>`).join('');
+  const assignees = (w?.assignees ?? []).map(a => `<tr><td>${esc(a.name)}</td><td>${esc(a.workCenterName ?? '—')}</td><td class="right">${a.plannedHours ? qtyRu(a.plannedHours) : '—'}</td><td class="center">${a.startDate ? esc(dateRu(a.startDate)) : '—'}</td><td class="center">${a.dueDate ? esc(dateRu(a.dueDate)) : '—'}</td></tr>`).join('');
+  const vatText = d.lines.every(l => l.vatRate === 'none') ? 'Без НДС' : moneyRu(t.vat);
+  return html(
+    d,
+    'portrait',
+    `<h1 class="center">${numberTitle(d, 'Заказ-наряд')}</h1>
+<table class="plain">
+<tr><td style="width:150px">Исполнитель</td><td>${partyLine(o)}</td></tr>
+<tr><td>Заказчик</td><td>${partyLine(d.party)}</td></tr>
+<tr><td>Вид заказ-наряда</td><td>${esc(w?.kindName ?? '—')}</td></tr>
+<tr><td>Состояние</td><td>${esc(w?.stateLabel ?? '—')}</td></tr>
+<tr><td>Склад</td><td>${esc(d.warehouseName ?? '—')}</td></tr>
+<tr><td>Плановые работы</td><td>с ${w?.plannedStart ? esc(dateRu(w.plannedStart)) : '—'} по ${w?.plannedEnd ? esc(dateRu(w.plannedEnd)) : '—'}</td></tr>
+</table>
+<table class="grid" style="margin-top:8px"><thead><tr><th style="width:28px">№</th><th>Работы, услуги и товары</th><th style="width:56px">Кол-во</th><th style="width:40px">Ед.</th><th style="width:84px">Цена</th><th style="width:92px">Сумма</th></tr></thead><tbody>${rows}</tbody></table>
+<table class="totals" style="margin-top:4px"><tr><td class="bold">${d.priceIncludesVat ? 'Итого' : 'Итого (без НДС)'}:</td><td class="bold" style="width:100px">${moneyRu(d.priceIncludesVat ? t.total : t.net)}</td></tr>
+<tr><td class="bold">${d.priceIncludesVat ? 'В том числе НДС' : 'Сумма НДС'}:</td><td class="bold">${vatText}</td></tr>
+<tr><td class="bold">Всего:</td><td class="bold">${moneyRu(t.total)}</td></tr></table>
+${materials ? `<h2 style="margin-top:10px">Материалы</h2><table class="grid"><thead><tr><th style="width:28px">№</th><th>Наименование</th><th style="width:60px">Кол-во</th><th style="width:44px">Ед.</th></tr></thead><tbody>${materials}</tbody></table>` : ''}
+${assignees ? `<h2 style="margin-top:10px">Исполнители</h2><table class="grid"><thead><tr><th>Сотрудник</th><th style="width:120px">Участок</th><th style="width:60px">Часы</th><th style="width:80px">Начало</th><th style="width:80px">Окончание</th></tr></thead><tbody>${assignees}</tbody></table>` : ''}
+<div class="words">Всего наименований ${d.lines.length}, на сумму ${moneyRu(t.total)} руб.<br><b>${esc(amountInWordsRu(t.total))}</b></div>
+${d.comment ? `<div class="party small">${esc(d.comment)}</div>` : ''}
+<table class="sign plain" style="margin-top:18px"><tr>
+<td style="width:50%"><b>ИСПОЛНИТЕЛЬ</b><br>${esc(o.fullName || o.name)}<br><br><span class="line">${image(o.directorSignatureFile, 'sig', 'Подпись')}</span> / ${esc(o.directorName)} /</td>
+<td style="width:50%"><b>ЗАКАЗЧИК</b><br>${esc(d.party.fullName || d.party.name)}<br><br><span class="line"></span> / ______________ /</td></tr></table>`,
+  );
+}
+
 export function printOrientation(form: PrintForm): 'portrait' | 'landscape' {
-  return form === 'upd' || form === 'torg12' ? 'landscape' : 'portrait';
+  return form === 'upd' || form === 'torg12' || form === 'torg13' ? 'landscape' : 'portrait';
+}
+
+/* ---------------- ИНВ-3: инвентаризационная опись ---------------- */
+
+function inv3Form(d: PrintData): string {
+  const o = d.organization;
+  const rows = d.lines
+    .map(l => {
+      const diff = Number(l.diffQty ?? 0);
+      const mark = diff < 0 ? 'недостача' : diff > 0 ? 'излишек' : '';
+      return `<tr><td class="center">${l.n}</td><td>${esc(l.name)}</td><td class="center">${esc(l.unitSymbol)}</td><td class="right">${qtyRu(l.bookQty ?? '0')}</td><td class="right">${qtyRu(l.qty)}</td><td class="right">${qtyRu(l.diffQty ?? '0')}</td><td class="center">${mark}</td></tr>`;
+    })
+    .join('');
+  const book = d.lines.reduce((s, l) => s + dec(l.bookQty ?? '0'), 0n);
+  const fact = d.lines.reduce((s, l) => s + dec(l.qty), 0n);
+  const diff = fact - book;
+  const person = (label: string, name: string) => `<td><b>${label}</b><br><span class="line"></span> / ${esc(name)} /<br><span class="small">(должность) (подпись) (расшифровка подписи)</span></td>`;
+  return html(
+    d,
+    'portrait',
+    `<h1 class="center">${numberTitle(d, 'ИНВ-3. Инвентаризационная опись остатков товаров')}</h1>
+<table class="plain"><tr><td style="width:150px">Организация</td><td>${partyLine(o, true)}</td></tr>
+<tr><td>Склад</td><td>${esc(d.warehouseName ?? '')}</td></tr>
+<tr><td>Вид деятельности</td><td>${esc(d.comment || 'основная деятельность')}</td></tr>
+</table>
+<table class="grid" style="margin-top:6px"><thead>
+<tr><th rowspan="2" style="width:30px">№ п/п</th><th rowspan="2">Наименование товара</th><th rowspan="2" style="width:48px">Ед. изм.</th><th colspan="2">Количество</th><th rowspan="2" style="width:70px">Разница</th><th rowspan="2" style="width:110px">Отметка о расхождении</th></tr>
+<tr><th style="width:80px">учётное</th><th style="width:80px">фактическое</th></tr>
+</thead><tbody>${rows}
+<tr class="bold"><td colspan="3" class="right">Итого</td><td class="right">${qtyRu(fmt(book, 3))}</td><td class="right">${qtyRu(fmt(fact, 3))}</td><td class="right">${qtyRu(fmt(diff, 3))}</td><td></td></tr>
+</tbody></table>
+<p>Итоговая строка описи: товаров наименований ${d.lines.length}.</p>
+<table class="sign plain"><tr>
+${person('Председатель комиссии', o.directorName)}
+${person('Член комиссии', o.accountantName || o.directorName)}
+</tr><tr>
+<td><b>Ответственный за хранение</b><br><span class="line"></span> / ______________ /</td>
+<td>${d.comment ? `<div class="small">${esc(d.comment)}</div>` : ''}</td>
+</tr></table>`,
+  );
+}
+
+/* ---------------- ТОРГ-16: акт о списании ---------------- */
+
+function torg16Form(d: PrintData): string {
+  const o = d.organization;
+  const rows = d.lines
+    .map(l => `<tr><td class="center">${l.n}</td><td>${esc(l.name)}</td><td class="center">${esc(l.sku)}</td><td class="center">${esc(l.unitSymbol)}</td><td class="right">${qtyRu(l.qty)}</td><td class="right">${moneyRu(l.cost ?? '0')}</td><td class="right">${moneyRu(fmt(mul(dec(l.qty), dec(l.cost ?? '0')), 2))}</td></tr>`)
+    .join('');
+  const total = d.lines.reduce((s, l) => s + mul(dec(l.qty), dec(l.cost ?? '0')), 0n);
+  const person = (label: string, name: string) => `<td><b>${label}</b><br><span class="line"></span> / ${esc(name)} /<br><span class="small">(должность) (подпись) (расшифровка подписи)</span></td>`;
+  return html(
+    d,
+    'portrait',
+    `<h1 class="center">${numberTitle(d, 'ТОРГ-16. Акт о списании товаров')}</h1>
+<table class="plain"><tr><td style="width:150px">Организация</td><td>${partyLine(o, true)}</td></tr>
+<tr><td>Склад</td><td>${esc(d.warehouseName ?? '')}</td></tr>
+<tr><td>Статья затрат (доходов)</td><td>${esc(d.costItemName ?? '')}</td></tr>
+<tr><td>Основание</td><td>${d.basedOn ? `${esc(DOCUMENT_LABELS_RU[d.basedOn.type])}${d.basedOn.number ? ` № ${esc(d.basedOn.number)}` : ''} от ${esc(dateRu(d.basedOn.date))}` : '—'}</td></tr>
+</table>
+<table class="grid" style="margin-top:6px"><thead>
+<tr><th style="width:30px">№ п/п</th><th>Наименование товара</th><th style="width:70px">Код</th><th style="width:48px">Ед. изм.</th><th style="width:80px">Количество</th><th style="width:90px">Цена по себестоимости</th><th style="width:100px">Сумма</th></tr>
+</thead><tbody>${rows}
+<tr class="bold"><td colspan="4" class="right">Итого</td><td class="right">${qtyRu(fmt(d.lines.reduce((s, l) => s + dec(l.qty), 0n), 3))}</td><td></td><td class="right">${moneyRu(fmt(total, 2))}</td></tr>
+</tbody></table>
+<p>Товары списаны по результатам сверки их фактического наличия с учётным. Сумма списания: <b>${moneyRu(fmt(total, 2))}</b> руб.</p>
+<table class="sign plain"><tr>
+${person('Председатель комиссии', o.directorName)}
+${person('Член комиссии', o.accountantName || o.directorName)}
+</tr><tr>
+<td><b>Главный бухгалтер</b><br><span class="line">${image(o.accountantSignatureFile, 'sig', 'Подпись')}</span> / ${esc(o.accountantName || o.directorName)} /</td>
+<td style="position:relative">${person('Ответственный за хранение', '')}<div style="position:relative;height:0">${image(o.stampFile, 'stamp', 'Печать')}</div></td>
+</tr></table>`,
+  );
+}
+
+/* ---------------- ТОРГ-13: накладная на внутреннее перемещение ---------------- */
+
+function torg13Form(d: PrintData): string {
+  const o = d.organization;
+  const rows = d.lines
+    .map(l => `<tr><td class="center">${l.n}</td><td>${esc(l.name)}</td><td class="center">${esc(l.sku)}</td><td class="center">${esc(l.unitSymbol)}</td><td class="center">${esc(l.unitCode)}</td><td class="right">${qtyRu(l.qty)}</td><td class="right">${moneyRu(l.cost ?? '0')}</td><td class="right">${moneyRu(fmt(mul(dec(l.qty), dec(l.cost ?? '0')), 2))}</td></tr>`)
+    .join('');
+  const total = d.lines.reduce((s, l) => s + mul(dec(l.qty), dec(l.cost ?? '0')), 0n);
+  const person = (label: string, name: string) => `<td><b>${label}</b><br><span class="line"></span> / ${esc(name)} /<br><span class="small">(должность) (подпись) (расшифровка подписи)</span></td>`;
+  const holder = d.holderName ? `<tr><td>Передано в эксплуатацию</td><td>${esc(d.holderName)}</td></tr>` : '';
+  return html(
+    d,
+    'landscape',
+    `<table class="plain"><tr><td class="right small">Унифицированная форма № ТОРГ-13<br>Утверждена постановлением Госкомстата России от 25.12.98 № 132</td></tr></table>
+<table class="plain">
+<tr><td style="width:150px">Организация</td><td>${partyLine(o, true)}</td><td style="width:140px" class="right">Форма по ОКУД 0330213</td></tr>
+<tr><td>Отправитель (склад)</td><td>${esc(d.warehouseName ?? '')}</td><td></td></tr>
+<tr><td>Получатель (склад)</td><td>${esc(d.targetWarehouseName ?? '')}</td><td></td></tr>
+${holder}
+</table>
+<table class="plain" style="margin:6px 0"><tr><td style="width:60%"></td><td class="center bold">Номер документа</td><td class="center bold">Дата составления</td></tr>
+<tr><td class="right bold" style="font-size:15px">НАКЛАДНАЯ НА ВНУТРЕННЕЕ ПЕРЕМЕЩЕНИЕ</td><td class="center" style="border:1px solid #000">${esc(d.number ?? '—')}</td><td class="center" style="border:1px solid #000">${esc(dateRu(d.date))}</td></tr></table>
+<table class="grid"><thead>
+<tr><th rowspan="2" style="width:30px">Но-мер по по-рядку</th><th colspan="2">Товар</th><th colspan="2">Единица измерения</th><th colspan="2">Количество</th><th rowspan="2" style="width:80px">Цена по себестоимости</th><th rowspan="2" style="width:100px">Сумма</th></tr>
+<tr><th>наименование, характеристика, сорт, артикул товара</th><th style="width:60px">код</th><th>наимено-вание</th><th style="width:44px">код по ОКЕИ</th><th style="width:56px">в одном месте</th><th style="width:56px">мест, штук</th></tr>
+</thead><tbody>${rows}
+<tr class="bold"><td colspan="6" class="right">Итого</td><td class="right">${moneyRu(fmt(total, 2))}</td></tr>
+</tbody></table>
+<div class="words">Накладная содержит <b>${esc(numberToWordsRu(d.lines.length, 'm'))}</b> порядковых номеров записей.<br>
+Всего перемещено наименований ${d.lines.length} на сумму: <b>${esc(amountInWordsRu(fmt(total, 2)))}</b></div>
+<table class="sign plain"><tr>
+${person('Отпуск груза разрешил', o.directorName)}
+${person('Главный (старший) бухгалтер', o.accountantName || o.directorName)}
+</tr><tr>
+<td><b>Груз принял</b><br><span class="line"></span> / ______________ /</td>
+<td style="position:relative"><b>Отпуск груза произвёл</b><br><span class="line">${image(o.directorSignatureFile, 'sig', 'Подпись')}</span> / ${esc(o.directorName)} /<div style="position:relative;height:0">${image(o.stampFile, 'stamp', 'Печать')}</div></td>
+</tr></table>`,
+  );
+}
+
+/* ---------------- сдельный наряд ---------------- */
+
+function pieceworkForm(d: PrintData): string {
+  const o = d.organization;
+  const rows = d.lines
+    .map(
+      l =>
+        `<tr><td class="center">${l.n}</td><td>${esc(l.name)}</td><td class="center">${esc(l.sku)}</td><td class="right">${qtyRu(l.planQty ?? '0')}</td><td class="right">${qtyRu(l.qty)}</td><td class="right">${qtyRu(l.hours ?? '0')}</td><td class="right">${moneyRu(l.rate ?? '0')}</td><td class="right">${moneyRu(l.total)}</td></tr>`,
+    )
+    .join('');
+  const total = d.lines.reduce((s, l) => s + dec(l.total), 0n);
+  const person = (label: string, name: string) => `<td><b>${label}</b><br><span class="line"></span> / ${esc(name)} /<br><span class="small">(подпись) (расшифровка подписи)</span></td>`;
+  return html(
+    d,
+    'landscape',
+    `<h1 class="center">${numberTitle(d, 'Сдельный наряд')}</h1>
+<table class="plain">
+<tr><td style="width:150px">Организация</td><td>${partyLine(o, true)}</td></tr>
+<tr><td>Исполнитель</td><td>${esc(d.executorName ?? '')}</td></tr>
+<tr><td>Участок</td><td>${esc(d.workCenterName ?? '')}</td></tr>
+<tr><td>Дата выполнения</td><td>${esc(dateRu(d.date))}</td></tr>
+</table>
+<table class="grid" style="margin-top:6px"><thead>
+<tr><th style="width:30px">№ п/п</th><th>Операция</th><th style="width:70px">Код</th><th style="width:80px">Количество (план)</th><th style="width:80px">Количество (факт)</th><th style="width:80px">Нормочасы</th><th style="width:90px">Расценка</th><th style="width:100px">Сумма</th></tr>
+</thead><tbody>${rows}
+<tr class="bold"><td colspan="4" class="right">Итого</td><td class="right">${qtyRu(fmt(d.lines.reduce((s, l) => s + dec(l.qty), 0n), 3))}</td><td></td><td></td><td class="right">${moneyRu(fmt(total, 2))}</td></tr>
+</tbody></table>
+<p>Выполнено операций: ${d.lines.length}. Сумма к оплате: <b>${moneyRu(fmt(total, 2))}</b> руб.</p>
+<table class="sign plain"><tr>
+${person('Исполнитель', d.executorName ?? '')}
+${person('Мастер (проверил)', o.directorName)}
+</tr></table>`,
+  );
 }
 
 /** Страница печатной формы целиком: <!doctype html>… */
@@ -281,5 +468,15 @@ export function renderPrintForm(form: PrintForm, data: PrintData): string {
       return updForm(data);
     case 'torg12':
       return torg12Form(data);
+    case 'inv3':
+      return inv3Form(data);
+    case 'torg16':
+      return torg16Form(data);
+    case 'torg13':
+      return torg13Form(data);
+    case 'work_order':
+      return workOrderForm(data);
+    case 'piecework':
+      return pieceworkForm(data);
   }
 }

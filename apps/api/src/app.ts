@@ -10,10 +10,24 @@ import { loadConfig } from './env';
 import { AppError, forbidden, onError, onNotFound } from './errors';
 import { requireSession, requestLogger, tenant } from './middleware';
 import { Hub } from './realtime';
-import { attributeRoutes, categoryRoutes, productRoutes, unitRoutes } from './routes/catalog';
+import { attributeRoutes, categoryRoutes, productRoutes, unitRoutes, variantRoutes } from './routes/catalog';
 import { bomLineRoutes, itemRoutes, productionRoutes, workCenterRoutes } from './routes/production';
+import { productionOrderRoutes } from './routes/production-orders';
+import { productionPlanRoutes } from './routes/production-plans';
+import { stockLevelRoutes } from './routes/stock-levels';
+import { pieceworkRoutes, operationAssignmentRoutes } from './routes/piecework';
+import { productionStageRoutes } from './routes/production-stages';
+import { planningRoutes } from './routes/planning';
+import { productionWorkbenchRoutes } from './routes/production-workbench';
 import { companyRoutes, contactRoutes, crmActivityRoutes, dealRoutes } from './routes/crm';
-import { bankAccountRoutes, companyBankRoutes, documentRoutes, organizationBankRoutes, organizationRoutes, stockRoutes, warehouseRoutes } from './routes/documents';
+import { bankAccountRoutes, companyBankRoutes, costItemRoutes, documentRoutes, organizationBankRoutes, organizationRoutes, stockRoutes, warehouseRoutes } from './routes/documents';
+import { componentOwnerRoutes, processorReportRoutes, processorTransferRoutes, tollingRoutes } from './routes/tolling';
+import { documentStateRoutes, workOrderAssignmentRoutes, workOrderKindRoutes, workOrderRoutes } from './routes/work-orders';
+import { serviceRoutes } from './routes/services';
+import { contractRoutes, tariffPlanRoutes } from './routes/contracts';
+import { billingRoutes } from './routes/billing';
+import { calculationRoutes } from './routes/calculations';
+import { otherCostsRoutes, productionClosingRoutes } from './routes/production-closing';
 import { flowRoutes, flowRunRoutes } from './routes/flows';
 import { entityRoutes } from './routes/meta';
 import { dataSearchRoutes, recordsRoutes } from './routes/records';
@@ -44,7 +58,7 @@ export interface AppDeps {
 }
 
 /** Ресурсы арендатора: каждый путь защищён цепочкой «сессия → членство → транзакция с RLS» */
-const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/files', '/activity', '/events', '/companies', '/contacts', '/deals', '/crm-activities', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production', '/organizations', '/bank-accounts', '/warehouses', '/documents', '/stock', '/flows', '/flow-runs'];
+const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/files', '/activity', '/events', '/companies', '/contacts', '/deals', '/crm-activities', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production', '/production-orders', '/production-plans', '/stock-levels', '/organizations', '/bank-accounts', '/warehouses', '/cost-items', '/documents', '/order-calculations', '/stock', '/flows', '/flow-runs', '/work-orders', '/work-order-assignments', '/work-order-kinds', '/document-states', '/services', '/contracts', '/tariff-plans', '/billing', '/other-costs', '/processing', '/processor-reports', '/supplier-orders'];
 
 function buildTenantApi() {
   const guarded = new Hono<AppEnv>();
@@ -78,15 +92,40 @@ function buildTenantApi() {
     .route('/product-categories', categoryRoutes)
     .route('/attribute-defs', attributeRoutes)
     .route('/products', productRoutes)
+    .route('/products', variantRoutes)
     .route('/work-centers', workCenterRoutes)
     .route('/manufactured-items', itemRoutes)
     .route('/bom-lines', bomLineRoutes)
     .route('/production', productionRoutes)
+    .route('/production', productionWorkbenchRoutes)
+    .route('/production', productionStageRoutes)
+    .route('/production', pieceworkRoutes)
+    .route('/production', planningRoutes)
+    .route('/production', productionClosingRoutes)
+    .route('/order-calculations', calculationRoutes)
+    .route('/production-orders', productionOrderRoutes)
+    .route('/production-orders', operationAssignmentRoutes)
+    .route('/production-plans', productionPlanRoutes)
+    .route('/stock-levels', stockLevelRoutes)
     .route('/organizations', organizationRoutes)
     .route('/organizations', organizationBankRoutes)
     .route('/bank-accounts', bankAccountRoutes)
     .route('/warehouses', warehouseRoutes)
+    .route('/cost-items', costItemRoutes)
     .route('/documents', documentRoutes)
+    .route('/other-costs', otherCostsRoutes)
+    .route('/processing', tollingRoutes)
+    .route('/supplier-orders', processorTransferRoutes)
+    .route('/processor-reports', processorReportRoutes)
+    .route('/production-orders', componentOwnerRoutes)
+    .route('/work-orders', workOrderRoutes)
+    .route('/work-order-assignments', workOrderAssignmentRoutes)
+    .route('/work-order-kinds', workOrderKindRoutes)
+    .route('/document-states', documentStateRoutes)
+    .route('/services', serviceRoutes)
+    .route('/contracts', contractRoutes)
+    .route('/tariff-plans', tariffPlanRoutes)
+    .route('/billing', billingRoutes)
     .route('/stock', stockRoutes)
     .route('/flows', flowRoutes)
     .route('/flow-runs', flowRunRoutes);

@@ -4,6 +4,7 @@ import * as React from 'react';
 import {
   AtSign,
   Bold,
+  Building2,
   CalendarArrowUp,
   Calendar as CalendarIcon,
   Circle,
@@ -47,7 +48,7 @@ import { FILE_TYPES, LABELS, commentsOf, isOverdue, member, project, projectColo
 import { ago, diffDays, fmtDate, parse, today } from '../../lib/dates';
 import { MOD } from '../../lib/platform';
 import type { FileKind, LabelId, Project, ProjectFile, Task } from '../../data/types';
-import { AssigneeField, DueField, PriorityField, StatusField } from '../fields';
+import { AssigneeField, CustomerField, DueField, PriorityField, StatusField } from '../fields';
 import { useCustomRows } from '../../meta/custom-fields';
 import { CommentItem } from '../conversation';
 import { FilePreview } from '../files-view';
@@ -57,6 +58,7 @@ import { AutoTextarea, DatePopover, ListPopover, RichText, runFormat } from './p
 import { SubtaskView } from './subtask-view';
 import { SubtaskSection } from './subtask-tree';
 import { TimeBlock } from './time-block';
+import { OperationBlock } from '../../production/OperationBlock';
 import { findSub } from '../../data/subtasks';
 import { TaskMenuItems } from './task-menu';
 
@@ -219,6 +221,8 @@ function Prop({ icon: I, label, children }: { icon: typeof User; label: string; 
 }
 
 function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) {
+  // задача операции производства: исполнитель отмечает выполненное в своей задаче
+  const operationId = typeof p.task.custom?.productionOperationId === 'string' ? p.task.custom.productionOperationId : null;
   const { task: t, full, update } = p;
   const { data, dispatch } = useWorkspace();
   const actions = useTaskActions();
@@ -284,6 +288,12 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
         <Prop icon={User} label="Assignee">
           <AssigneeField task={t} />
         </Prop>
+        {/* Заказчик бывает только у задач модуля services (время по заказчику без заказ-наряда) */}
+        {t.module === 'services' && (
+          <Prop icon={Building2} label="Customer">
+            <CustomerField task={t} />
+          </Prop>
+        )}
         <Prop icon={CalendarIcon} label="Due date">
           <DueField task={t} />
         </Prop>
@@ -394,6 +404,8 @@ function TaskBody(p: DrawerPanelProps & { update: (patch: TaskPatch) => void }) 
       </dl>
 
       <TimeBlock task={t} />
+
+      {!!operationId && <OperationBlock assignmentId={operationId} />}
 
       <div className="dsec">
         <div className="dsec-h">

@@ -1,13 +1,13 @@
 /* zod-схемы документов, организаций, складов, банковских счетов и склада (остатки, движения, настройки). */
 import { z } from 'zod';
 import { VAT_RATES } from '../constants';
-import { DOCUMENT_GROUPS, DOCUMENT_STATUSES, DOCUMENT_TYPES, PRINT_FORMS } from '../documents';
+import { COST_DISTRIBUTIONS } from '../cost-closing';
+import { COST_ITEM_KINDS, DOCUMENT_GROUPS, DOCUMENT_OPERATIONS, DOCUMENT_STATUSES, DOCUMENT_TYPES, PRINT_FORMS, TOLLING_ROLES, TRANSFER_OPERATIONS, WAREHOUSE_KINDS } from '../documents';
 import { COMPANY_KINDS, TAX_SYSTEMS } from '../ru';
 import { clientId, decimal, isoDate, listQuery, queryBool, shortText, toPatch, uuid } from './common';
 import { customData } from './meta';
 
 const nonNeg = (max = 1e13) => decimal.refine(v => Number(v) >= 0 && Number(v) < max, 'Must not be negative');
-const positive = (max = 1e10) => decimal.refine(v => Number(v) > 0 && Number(v) < max, 'Must be greater than zero');
 const pct = decimal.refine(v => Number(v) >= 0 && Number(v) <= 100, 'Percent must be between 0 and 100');
 
 /* ---------------- файлы печати и подписи (пока ссылка + метаданные) ---------------- */
@@ -77,30 +77,69 @@ export const warehouseCreate = z.object({
   name: shortText,
   code: z.string().trim().max(32).default(''),
   address: z.string().trim().max(500).default(''),
+  /** Вид склада: обычный склад, цех участка или служебный «в пути» */
+  kind: z.enum(WAREHOUSE_KINDS).default('warehouse'),
+  /** Склад контрагента: место хранения на стороне контрагента (склад переработчика) */
+  counterpartyId: uuid.nullish(),
   isDefault: z.boolean().optional(),
 });
 export const warehouseUpdate = toPatch(warehouseCreate.omit({ id: true }));
 export const warehouseQuery = listQuery;
 
+/* ---------------- статьи затрат и доходов ---------------- */
+
+export const costItemCreate = z.object({
+  id: clientId,
+  name: shortText,
+  /** Статья затрат (expense) или доходов (income) */
+  kind: z.enum(COST_ITEM_KINDS).default('expense'),
+  /** База распределения косвенной затраты при закрытии периода */
+  distributionMethod: z.enum(COST_DISTRIBUTIONS).default('none'),
+});
+export const costItemUpdate = toPatch(costItemCreate.omit({ id: true }));
+export const costItemQuery = listQuery.extend({ kind: z.enum(COST_ITEM_KINDS).optional() });
+
+/* ---------------- параметры спецификации (значения в строке документа) ---------------- */
+
+/** Значения параметров изделия в строке документа: число, строка варианта или истина/ложь */
+export const paramValues = z.record(z.string().max(40), z.union([z.number().finite(), z.string().max(200), z.boolean()]));
+
 /* ---------------- документы ---------------- */
 
-export const documentLineInput = z.object({
-  /** Свой id нужен, чтобы при правке документа ссылки «на основании» не терялись */
-  id: clientId,
-  productId: uuid,
-  /** Название на момент добавления; пусто — берётся из товара */
-  name: z.string().trim().max(500).optional(),
-  unitCode: z
-    .string()
-    .trim()
-    .regex(/^\d{3,4}$/)
-    .optional(),
-  qty: positive(),
-  price: nonNeg(),
-  discountPct: pct.default('0'),
-  /** Пусто — ставка товара */
-  vatRate: z.enum(VAT_RATES).optional(),
-});
+export const documentLineInput = z
+  .object({
+    /** Свой id нужен, чтобы при правке документа ссылки «на основании» не терялись */
+    id: clientId,
+    productId: uuid,
+    /** Название на момент добавления; пусто — берётся из товара */
+    name: z.string().trim().max(500).optional(),
+    unitCode: z
+      .string()
+      .trim()
+      .regex(/^\d{3,4}$/)
+      .optional(),
+    qty: nonNeg(),
+    price: nonNeg(),
+    discountPct: pct.default('0'),
+    /** Пусто — ставка товара */
+    vatRate: z.enum(VAT_RATES).optional(),
+    /** Учётное количество по остаткам (инвентаризация): разница с qty — недостача или излишек */
+    bookQty: nonNeg().optional(),
+    /** Принятое количество (перемещение «в пути»): не больше отправленного */
+    receivedQty: nonNeg().optional(),
+    /** Роль строки выпуска (производства): материал — расход, продукция — приход. У остальных типов её задаёт сервер */
+    stockRole: z.enum(['in', 'out']).optional(),
+    /** Статья косвенных затрат строки-услуги (поступление) */
+    costItemId: uuid.nullish(),
+    /** Участок строки-услуги (поступление): участные затраты идут на выпуск своего участка */
+    workCenterId: uuid.nullish(),
+    /** Вкладка строки отчёта о переработке: продукция, использованное сырьё или отходы */
+    tollingRole: z.enum(TOLLING_ROLES).optional(),
+    /** Значения параметров спецификации изделия (заказ покупателя): состав выпуска считается формулами строк спецификации */
+    params: paramValues.optional(),
+  })
+  // нулевое количество допустимо только у строки инвентаризации: там qty — фактическое, учётное лежит в bookQty
+  .refine(l => Number(l.qty) !== 0 || l.bookQty !== undefined, { message: 'Must be greater than zero', path: ['qty'] });
 export type DocumentLineInput = z.infer<typeof documentLineInput>;
 
 export const documentCreate = z.object({
@@ -109,7 +148,24 @@ export const documentCreate = z.object({
   /** Пусто — организация по умолчанию */
   organizationId: uuid.nullish(),
   counterpartyId: uuid.nullish(),
+  /** Договор: пусто — договор по умолчанию контрагента */
+  contractId: uuid.nullish(),
   warehouseId: uuid.nullish(),
+  /** Склад-получатель (перемещение между складами) */
+  targetWarehouseId: uuid.nullish(),
+  /** Вид операции документа: вид перемещения у перемещения, «Переработка» у заказов и выпуска */
+  operation: z.enum([...TRANSFER_OPERATIONS, ...DOCUMENT_OPERATIONS]).optional(),
+  /** Заказ на переработку (приём, отчёт о переработке, возврат остатков) */
+  tollingOrderId: uuid.nullish(),
+  /** Получатель в эксплуатацию: участник или участок (ровно один) */
+  inUseMemberId: uuid.nullish(),
+  inUseWorkCenterId: uuid.nullish(),
+  /** Статья затрат или доходов (списание, оприходование) */
+  costItemId: uuid.nullish(),
+  /** Участок списания: себестоимость уходит в косвенные затраты участка (только у write_off) */
+  workCenterId: uuid.nullish(),
+  /** Вид заказ-наряда (только у work_order): пусто — вид по умолчанию */
+  workOrderKindId: uuid.nullish(),
   /** Пусто — сегодня */
   date: isoDate.optional(),
   dueDate: isoDate.nullish(),
@@ -130,6 +186,8 @@ export const documentQuery = listQuery.extend({
   status: csv(z.enum(DOCUMENT_STATUSES)).optional(),
   organizationId: uuid.optional(),
   counterpartyId: uuid.optional(),
+  /** Договор документа */
+  contractId: uuid.optional(),
   warehouseId: uuid.optional(),
   basedOnId: uuid.optional(),
   from: isoDate.optional(),
@@ -137,6 +195,17 @@ export const documentQuery = listQuery.extend({
 });
 
 export const basedOnCreate = z.object({ type: z.enum(DOCUMENT_TYPES) });
+/** Смена состояния документа (отдельно от проведения) */
+export const documentStateChange = z.object({
+  state: z.string().trim().regex(/^[a-z][a-z0-9_]*$/, 'State key: lowercase letters, digits and underscores'),
+  /** Принятые количества по строкам (перемещение «в пути»): не больше отправленного */
+  received: z
+    .array(z.object({ id: uuid, qty: nonNeg() }))
+    .max(500)
+    .optional(),
+  /** Причина отмены заказ-наряда: обязательна для состояния категории «cancelled» */
+  cancelReason: z.string().trim().max(1000).optional(),
+});
 export const pdfRequest = z.object({ form: z.enum(PRINT_FORMS) });
 export const printParam = z.object({ id: uuid, form: z.enum(PRINT_FORMS) });
 

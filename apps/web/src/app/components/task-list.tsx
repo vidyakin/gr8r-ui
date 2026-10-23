@@ -9,10 +9,10 @@ import { commentsOf, fmtTimePair, subTime, taskTime, type SortField } from '../d
 import { countSubs } from '../data/subtasks';
 import type { Subtask, Task } from '../data/types';
 import { useTaskDrawer } from '../overlays';
-import { AssigneeField, DueField, LabelsField, PriorityField, ProjectPill, StatusField } from './fields';
+import { AssigneeField, CustomerCell, DueField, LabelsField, PriorityField, ProjectPill, StatusField } from './fields';
 import { useTaskActions } from './workspace';
 
-export type Column = 'project' | 'status' | 'assignee' | 'priority' | 'due' | 'labels' | 'time';
+export type Column = 'project' | 'status' | 'assignee' | 'priority' | 'due' | 'labels' | 'time' | 'customer';
 
 /** Колонка Time: «6/8h» — факт и план, красным при перерасходе */
 function TimeCell({ task: t }: { task: Task }) {
@@ -36,6 +36,7 @@ const COLUMNS: Record<Column, { name: string; width: string; sort?: SortField; C
   due: { name: 'Due date', width: '104px', sort: 'due', Cell: DueField },
   labels: { name: 'Labels', width: '168px', sort: 'manual', Cell: LabelsField },
   time: { name: 'Time', width: '84px', sort: 'actual', Cell: TimeCell },
+  customer: { name: 'Customer', width: '160px', Cell: CustomerCell },
 };
 
 /** Необязательные колонки списка для меню Columns (переключаются через api.hidden) */
@@ -43,6 +44,9 @@ export const LIST_OPTIONAL_COLUMNS = [{ id: 'time', name: 'Time' }];
 
 /** Колонки списка с учётом скрытых в виде: Time добавляется последней, если включена */
 export const withTimeColumn = (base: Column[], hidden: string[]): Column[] => (hidden.includes('time') ? base : [...base, 'time']);
+
+/** Колонка Customer — только у списков задач модуля services (у остальных заказчика нет) */
+export const withCustomerColumn = (base: Column[], services: boolean): Column[] => (services ? [...base, 'customer'] : base);
 
 export interface TaskGroup {
   key: string;

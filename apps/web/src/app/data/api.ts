@@ -58,4 +58,19 @@ export async function ok(res: ResponseLike | Promise<ResponseLike>): Promise<unk
   throw new ApiError(r.status, body?.error?.code ?? 'error', body?.error?.message ?? (r.statusText || `Request failed (${r.status})`), body?.error?.details);
 }
 
-export const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));
+/** Понятные тексты ошибок API по кодам: серверный текст про ссылки бывает техническим */
+const CODE_TEXT: Record<string, string> = {
+  company_not_allowed: 'A customer can be set only for a task of the Services module',
+  invalid_reference: 'The selected record does not exist or is no longer available',
+};
+/** Технический текст сервера про ссылку — заменяем понятным */
+const GENERIC_REFERENCE = 'A referenced record does not exist, or the record is still in use';
+
+/** Текст ошибки для показа пользователю: по коду — понятная фраза, иначе сообщение сервера */
+export const errorMessage = (e: unknown) => {
+  if (e instanceof ApiError) {
+    if (e.code === 'company_not_allowed') return CODE_TEXT.company_not_allowed!;
+    if (e.code === 'invalid_reference' && e.message === GENERIC_REFERENCE) return CODE_TEXT.invalid_reference!;
+  }
+  return e instanceof Error ? e.message : String(e);
+};

@@ -2,6 +2,7 @@
 import { createSql, databaseUrl, ddlDatabaseUrl, EVENTS_CHANNEL, listenChannel } from '@gr8r/db';
 import { closeBrowser } from './pdf/render';
 import { scheduleFlowsOnce } from './flows/triggers';
+import { runBillingOnce } from './billing';
 import { defaultOptions, processEventsOnce, processJobsOnce, requeueStale } from './worker';
 
 const pollMs = Number(process.env.WORKER_POLL_MS ?? 1000);
@@ -42,6 +43,7 @@ process.on('SIGTERM', () => void shutdown('SIGTERM'));
 
 let lastStaleCheck = 0;
 let lastMinute = 0;
+let lastBillingHour = '';
 while (!stopping) {
   try {
     if (Date.now() - lastStaleCheck > 60_000) {
@@ -54,6 +56,13 @@ while (!stopping) {
       lastMinute = minute;
       const n = await scheduleFlowsOnce(sql); // автоматизации по расписанию: раз в минуту, повтор той же минуты ничего не создаёт
       if (n) o.log(`scheduled ${n} flow run(s)`);
+    }
+    // биллинг договоров обслуживания: раз в час проверяем, не наступил ли день выставления (по часовому поясу арендатора)
+    const hour = new Date().toISOString().slice(0, 13);
+    if (hour !== lastBillingHour) {
+      lastBillingHour = hour;
+      const n = await runBillingOnce(sql);
+      if (n) o.log(`issued ${n} billing invoice(s)`);
     }
     const events = await processEventsOnce(sql, o);
     const jobs = await processJobsOnce(sql, o);

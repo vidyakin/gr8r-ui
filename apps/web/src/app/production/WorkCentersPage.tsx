@@ -4,12 +4,15 @@ import { CircleAlert, Factory, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, Input, Skeleton, toast } from '@/components/ui';
 import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
 import { money, useIsAdmin } from '../catalog/data';
+import { useWarehouses } from '../docs/data';
 import { useProductionApi, useSnapshot, type WorkCenter } from './data';
 
 export function WorkCentersPage() {
   const isAdmin = useIsAdmin();
   const snap = useSnapshot();
   const api = useProductionApi();
+  const warehouses = useWarehouses();
+  const workshops = (warehouses.data ?? []).filter(w => w.kind === 'workshop');
   const [dialog, setDialog] = React.useState<{ wc?: WorkCenter } | null>(null);
   const [removing, setRemoving] = React.useState<WorkCenter | null>(null);
   const rows = (snap.data?.workCenters ?? []).filter(w => !w.archivedAt);
@@ -19,6 +22,7 @@ export function WorkCentersPage() {
       { id: 'name', header: 'Name', width: 280, value: w => w.name, cell: w => <span style={{ fontWeight: 450 }}>{w.name}</span> },
       { id: 'code', header: 'Code', width: 120, value: w => w.code, cell: w => (w.code ? <span className="mono">{w.code}</span> : <span className="faint">—</span>) },
       { id: 'rate', header: 'Rate per hour', width: 140, align: 'right', value: w => Number(w.hourlyRate), cell: w => <span className="num">{money(w.hourlyRate)}</span> },
+      { id: 'warehouse', header: 'Workshop warehouse', width: 190, defaultHidden: true, value: w => w.warehouseId ?? '', cell: w => <span className="trunc muted">{w.warehouseId ? (workshops.find(x => x.id === w.warehouseId)?.name ?? '—') : '—'}</span> },
       { id: 'note', header: 'Note', width: 320, value: w => w.note, cell: w => <span className="trunc muted">{w.note || '—'}</span> },
       {
         id: 'actions',
@@ -39,7 +43,7 @@ export function WorkCentersPage() {
           ) : null,
       },
     ],
-    [isAdmin],
+    [isAdmin, workshops],
   );
   const table = useDataTable(columns, { hidden: [] });
   const newBtn = isAdmin && (
@@ -83,7 +87,7 @@ export function WorkCentersPage() {
           }
         />
       )}
-      {dialog && <CenterDialog wc={dialog.wc} onClose={() => setDialog(null)} />}
+      {dialog && <CenterDialog wc={dialog.wc} workshops={workshops.map(w => ({ id: w.id, name: w.name }))} onClose={() => setDialog(null)} />}
       <ConfirmDialog
         open={!!removing}
         onOpenChange={o => !o && setRemoving(null)}
@@ -101,11 +105,12 @@ export function WorkCentersPage() {
   );
 }
 
-function CenterDialog({ wc, onClose }: { wc?: WorkCenter; onClose: () => void }) {
+function CenterDialog({ wc, workshops, onClose }: { wc?: WorkCenter; workshops: { id: string; name: string }[]; onClose: () => void }) {
   const api = useProductionApi();
   const [name, setName] = React.useState(wc?.name ?? '');
   const [code, setCode] = React.useState(wc?.code ?? '');
   const [rate, setRate] = React.useState(wc ? String(Number(wc.hourlyRate)) : '');
+  const [warehouseId, setWarehouseId] = React.useState(wc?.warehouseId ?? '');
   const [note, setNote] = React.useState(wc?.note ?? '');
   const [err, setErr] = React.useState<Record<string, string>>({});
   const [busy, setBusy] = React.useState(false);
@@ -116,7 +121,7 @@ function CenterDialog({ wc, onClose }: { wc?: WorkCenter; onClose: () => void })
     setErr(errs);
     if (Object.keys(errs).length) return;
     setBusy(true);
-    const body = { name: name.trim(), code: code.trim(), hourlyRate: rate.trim() === '' ? 0 : Number(rate), note: note.trim() };
+    const body = { name: name.trim(), code: code.trim(), hourlyRate: rate.trim() === '' ? 0 : Number(rate), warehouseId: warehouseId || null, note: note.trim() };
     const r = wc ? await api('PATCH', `/work-centers/${wc.id}`, body) : await api('POST', '/work-centers', body);
     setBusy(false);
     if (!r) return;
@@ -158,6 +163,18 @@ function CenterDialog({ wc, onClose }: { wc?: WorkCenter; onClose: () => void })
               {p => <Input {...p} inputMode="decimal" value={rate} onChange={e => setRate(e.target.value)} />}
             </Field>
           </div>
+          <Field label="Workshop warehouse" hint="Materials are moved to this warehouse when they go to the shop">
+            {p => (
+              <select className="select" id={p.id} value={warehouseId} onChange={e => setWarehouseId(e.target.value)}>
+                <option value="">Not set</option>
+                {workshops.map(w => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
           <Field label="Note">{p => <Input {...p} value={note} onChange={e => setNote(e.target.value)} />}</Field>
           <button type="submit" hidden />
         </form>

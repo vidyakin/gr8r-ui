@@ -22,6 +22,8 @@ import {
 } from 'drizzle-orm/pg-core';
 import type { Subtask } from '@gr8r/shared';
 import { archivedAt, createdAt, hours, pk, ts, updatedAt } from './columns';
+import { companies } from './crm';
+import { products } from './catalog';
 import { members, teams, wsCol } from './people';
 
 export const projects = pgTable(
@@ -31,6 +33,8 @@ export const projects = pgTable(
     workspaceId: wsCol(),
     key: text('key').notNull(),
     name: text('name').notNull(),
+    /** Модуль проекта: general — обычный, production/services — системный проект модуля (по одному на модуль) */
+    module: text('module', { enum: ['general', 'production', 'services'] }).notNull().default('general'),
     icon: text('icon').notNull().default('folder'),
     color: text('color', { enum: ['indigo', 'blue', 'violet', 'teal', 'rose', 'amber', 'green', 'slate'] }).notNull().default('indigo'),
     status: text('status', { enum: ['planning', 'active', 'risk', 'hold', 'complete'] }).notNull().default('planning'),
@@ -58,9 +62,13 @@ export const projects = pgTable(
   t => [
     unique('projects_ws_id_uq').on(t.workspaceId, t.id),
     uniqueIndex('projects_ws_key_uq').on(t.workspaceId, sql`lower(${t.key})`),
+    check('projects_module_chk', sql`${t.module} in ('general','production','services')`),
+    // системный проект модуля — один на воркспейс: у general проектов может быть сколько угодно
+    uniqueIndex('projects_ws_module_uq').on(t.workspaceId, t.module).where(sql`${t.module} <> 'general'`),
     foreignKey({ columns: [t.workspaceId, t.teamId], foreignColumns: [teams.workspaceId, teams.id], name: 'projects_team_fk' }),
     foreignKey({ columns: [t.workspaceId, t.leadId], foreignColumns: [members.workspaceId, members.id], name: 'projects_lead_fk' }),
     index('projects_ws_order_idx').on(t.workspaceId, t.sortOrder),
+    index('projects_ws_module_idx').on(t.workspaceId, t.module),
   ],
 );
 
@@ -107,9 +115,15 @@ export const tasks = pgTable(
     /** Человекочитаемый ключ WEB-109, уникален в воркспейсе */
     key: text('key').notNull(),
     projectId: uuid('project_id').notNull(),
+    /** Модуль задачи — совпадает с модулем проекта (проверяется в сервисе) */
+    module: text('module', { enum: ['general', 'production', 'services'] }).notNull().default('general'),
     title: text('title').notNull(),
     status: text('status').notNull().default('todo'),
     assigneeId: uuid('assignee_id'),
+    /** Заказчик: только у задач модуля services (время можно записать по заказчику без заказ-наряда) */
+    companyId: uuid('company_id'),
+    /** Вид работ (номенклатура): по нему время по заказчику без заказ-наряда попадает в биллинг */
+    workProductId: uuid('work_product_id'),
     /** Шкала 1–10 (10 — самый срочный); null — без приоритета */
     priority: smallint('priority'),
     dueDate: date('due_date', { mode: 'string' }),
@@ -138,10 +152,17 @@ export const tasks = pgTable(
     uniqueIndex('tasks_ws_key_uq').on(t.workspaceId, t.key),
     foreignKey({ columns: [t.workspaceId, t.projectId], foreignColumns: [projects.workspaceId, projects.id], name: 'tasks_project_fk' }),
     foreignKey({ columns: [t.workspaceId, t.assigneeId], foreignColumns: [members.workspaceId, members.id], name: 'tasks_assignee_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.companyId], foreignColumns: [companies.workspaceId, companies.id], name: 'tasks_company_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.workProductId], foreignColumns: [products.workspaceId, products.id], name: 'tasks_work_product_fk' }),
     foreignKey({ columns: [t.workspaceId, t.status], foreignColumns: [statuses.workspaceId, statuses.key], name: 'tasks_status_fk' }),
     check('tasks_priority_chk', sql`${t.priority} is null or ${t.priority} between 1 and 10`),
+    check('tasks_module_chk', sql`${t.module} in ('general','production','services')`),
+    // заказчик есть только у задач модуля services
+    check('tasks_company_chk', sql`${t.companyId} is null or ${t.module} = 'services'`),
     index('tasks_ws_project_status_idx').on(t.workspaceId, t.projectId, t.status),
+    index('tasks_ws_module_idx').on(t.workspaceId, t.module),
     index('tasks_ws_assignee_idx').on(t.workspaceId, t.assigneeId),
+    index('tasks_ws_company_idx').on(t.workspaceId, t.companyId),
     index('tasks_ws_due_idx').on(t.workspaceId, t.dueDate),
   ],
 );
@@ -278,7 +299,8 @@ export const savedViews = pgTable(
     ownerId: uuid('owner_id'),
     name: text('name').notNull(),
     type: text('type', { enum: ['list', 'board', 'table', 'calendar', 'timeline'] }).notNull(),
-    filters: jsonb('filters').$type<{ f: 'status' | 'assignee' | 'priority' | 'due' | 'project'; v: string[] }[]>().notNull().default([]),
+    /** Фильтры вида: поле → значения. Модуль — тоже фильтр (задачи производства отделены от общих) */
+    filters: jsonb('filters').$type<{ f: 'status' | 'assignee' | 'priority' | 'due' | 'project' | 'module'; v: string[] }[]>().notNull().default([]),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

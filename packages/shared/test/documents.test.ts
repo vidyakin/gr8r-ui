@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { basedOnTargets, computeDocument, computeLine, computeTotals, dec, DOCUMENT_META, DOCUMENT_TYPES, documentTypesOf, fmt, formatDocumentNumber, replayMoves, stockIn, stockOut, weightedAvgCost } from '../src';
+import { basedOnTargets, canChangeState, computeDocument, computeLine, computeTotals, dec, DOCUMENT_META, DOCUMENT_TYPES, documentTypesOf, fmt, formatDocumentNumber, lineRole, replayMoves, stateTransitions, stockIn, stockOut, stockPlan, weightedAvgCost } from '../src';
 
 const line = (qty: string, price: string, vatRate: string, discountPct = '0') => ({ qty, price, vatRate, discountPct });
 
@@ -73,15 +73,42 @@ describe('document types', () => {
   test('numbering format and groups', () => {
     expect(formatDocumentNumber('invoice', 2026, 42)).toBe('СЧ-2026-00042');
     expect(formatDocumentNumber('receipt', 2027, 123456)).toBe('ПТ-2027-123456');
-    expect(documentTypesOf('sales')).toEqual(['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return']);
+    expect(documentTypesOf('sales')).toEqual(['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'work_order']);
     expect(documentTypesOf('purchases')).toEqual(['supplier_order', 'receipt', 'supplier_return']);
     expect(new Set(DOCUMENT_TYPES.map(t => DOCUMENT_META[t].prefix)).size).toBe(DOCUMENT_TYPES.length);
   });
   test('chains', () => {
-    expect(basedOnTargets('customer_order')).toEqual(['invoice', 'realization', 'act']);
+    expect(basedOnTargets('customer_order')).toEqual(['invoice', 'realization', 'act', 'production_order', 'production', 'work_order', 'tolling_receipt', 'tolling_report', 'tolling_return']);
     expect(basedOnTargets('invoice')).toEqual(['realization', 'act']);
     expect(basedOnTargets('supplier_order')).toEqual(['receipt']);
     expect(basedOnTargets('act')).toEqual([]);
+    expect(basedOnTargets('production_order')).toEqual(['production']);
+    // заказ-наряд: счёт можно выставить на основании заказ-наряда (предоплата), акта и реализации — нет
+    expect(basedOnTargets('work_order')).toEqual(['invoice']);
+  });
+  test('production documents: no counterparty, states apart from posting', () => {
+    expect(documentTypesOf('production')).toEqual(['production_order', 'production', 'piecework_order', 'other_costs']);
+    // переработка давальческого сырья: приём, отчёт и возврат — с контрагентом-давальцем, но без своих цен
+    expect(documentTypesOf('tolling')).toEqual(['tolling_receipt', 'tolling_report', 'tolling_return']);
+    expect(DOCUMENT_META.tolling_receipt.noPrice).toBe(true);
+    expect(DOCUMENT_META.tolling_report.tolling).toBe('report');
+    expect(DOCUMENT_META.production_order.party).toBeNull();
+    expect(DOCUMENT_META.production.party).toBeNull();
+    // прочие затраты: внутренний документ без склада и без строк товаров (своя таблица строк)
+    expect(DOCUMENT_META.other_costs.party).toBeNull();
+    expect(DOCUMENT_META.other_costs.ownLines).toBe(true);
+    expect(DOCUMENT_META.other_costs.states).toBeUndefined();
+    // сдельный наряд: тоже внутренний документ, без контрагента и без состояний
+    expect(DOCUMENT_META.piecework_order.party).toBeNull();
+    expect(DOCUMENT_META.piecework_order.states).toBeUndefined();
+    expect(DOCUMENT_META.production_order.states?.map(s => s.key)).toEqual(['planned', 'in_progress', 'done', 'closed']);
+    expect(DOCUMENT_META.production_order.operation).toBe('assembly');
+    expect(DOCUMENT_META.production.production).toBe(true);
+    // состояние заказа: переходы по списку, из конечного выхода нет
+    const meta = DOCUMENT_META.production_order;
+    expect(stateTransitions(meta, null)).toEqual(['planned', 'in_progress', 'done']);
+    expect(stateTransitions(meta, 'planned')).toEqual(['in_progress']);
+    expect(stateTransitions(meta, 'closed')).toEqual([]);
   });
   test('stock direction', () => {
     expect(DOCUMENT_META.realization.stock).toBe('out');
@@ -89,6 +116,53 @@ describe('document types', () => {
     expect(DOCUMENT_META.customer_return.stock).toBe('in');
     expect(DOCUMENT_META.supplier_return.stock).toBe('out');
     expect(DOCUMENT_META.act.stock).toBeNull();
+  });
+  test('internal documents: no counterparty, their own line role', () => {
+    expect(documentTypesOf('stock')).toEqual(['stock_transfer', 'write_off', 'stock_posting', 'inventory_count']);
+    expect(DOCUMENT_META.stock_transfer.party).toBeNull();
+    expect(DOCUMENT_META.write_off.costItemKind).toBe('expense');
+    expect(DOCUMENT_META.stock_posting.costItemKind).toBe('income');
+    expect(lineRole('write_off')).toBe('out');
+    expect(lineRole('stock_posting')).toBe('in');
+    expect(lineRole('stock_transfer')).toBeNull(); // обе стороны задаёт шапка
+    expect(lineRole('invoice')).toBeNull();
+  });
+  test('states are separate from posting: a type without states has no transitions', () => {
+    expect(stateTransitions(DOCUMENT_META.invoice, null)).toEqual([]);
+    const meta = { ...DOCUMENT_META.stock_transfer, states: [{ key: 'draft', label: 'Draft' }, { key: 'shipped', label: 'Shipped', next: ['received'] }, { key: 'received', label: 'Received', final: true }] };
+    expect(stateTransitions(meta, null)).toEqual(['draft', 'shipped']);
+    expect(stateTransitions(meta, 'shipped')).toEqual(['received']);
+    expect(stateTransitions(meta, 'received')).toEqual([]);
+    expect(canChangeState(meta, 'shipped', 'received')).toBe(true);
+    expect(canChangeState(meta, 'shipped', 'draft')).toBe(false);
+  });
+});
+
+describe('stock plan', () => {
+  const line = { id: 'l1', productId: 'p1', qty: '5', stockRole: null };
+  test('sales and purchases: the type sets the direction', () => {
+    expect(stockPlan({ type: 'realization', warehouseId: 'w1', targetWarehouseId: null }, [line])).toEqual([{ lineId: 'l1', productId: 'p1', warehouseId: 'w1', qty: '5', direction: 'out', role: 'out' }]);
+    expect(stockPlan({ type: 'receipt', warehouseId: 'w1', targetWarehouseId: null }, [line])).toEqual([{ lineId: 'l1', productId: 'p1', warehouseId: 'w1', qty: '5', direction: 'in', role: 'in' }]);
+    expect(stockPlan({ type: 'invoice', warehouseId: 'w1', targetWarehouseId: null }, [line])).toEqual([]); // счёт склад не двигает
+    expect(stockPlan({ type: 'realization', warehouseId: null, targetWarehouseId: null }, [line])).toEqual([]); // без склада движений нет
+  });
+  test('transfer: two sides per line — out of the header warehouse and into the target', () => {
+    expect(stockPlan({ type: 'stock_transfer', warehouseId: 'w1', targetWarehouseId: 'w2' }, [line])).toEqual([
+      { lineId: 'l1', productId: 'p1', warehouseId: 'w1', qty: '5', direction: 'out', role: 'out' },
+      { lineId: 'l1', productId: 'p1', warehouseId: 'w2', qty: '5', direction: 'in', role: 'in' },
+    ]);
+  });
+  test('write-off and posting: the role of the type', () => {
+    expect(stockPlan({ type: 'write_off', warehouseId: 'w1', targetWarehouseId: null }, [line])).toEqual([{ lineId: 'l1', productId: 'p1', warehouseId: 'w1', qty: '5', direction: 'out', role: 'out' }]);
+    expect(stockPlan({ type: 'stock_posting', warehouseId: 'w1', targetWarehouseId: null }, [line])).toEqual([{ lineId: 'l1', productId: 'p1', warehouseId: 'w1', qty: '5', direction: 'in', role: 'in' }]);
+  });
+  test('the role of the line wins over the type (release of a production order)', () => {
+    const out = { ...line, stockRole: 'out' as const };
+    const inn = { ...line, id: 'l2', stockRole: 'in' as const };
+    expect(stockPlan({ type: 'stock_posting', warehouseId: 'w1', targetWarehouseId: 'w2' }, [out, inn])).toEqual([
+      { lineId: 'l1', productId: 'p1', warehouseId: 'w1', qty: '5', direction: 'out', role: 'out' },
+      { lineId: 'l2', productId: 'p1', warehouseId: 'w2', qty: '5', direction: 'in', role: 'in' },
+    ]);
   });
 });
 

@@ -4,9 +4,9 @@ import { zValidator } from '@hono/zod-validator';
 import { asc, eq, inArray, max, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { attributeDefs, productCategories, products, recordEvent, units, uuidv7 } from '@gr8r/db';
+import { attributeDefs, companies, generateVariants, listVariants, productCategories, products, recordEvent, specParamsOfProduct, units, uuidv7 } from '@gr8r/db';
 import { attributeCreate, attributeUpdate, categoryCreate, categoryQuery, categoryUpdate, destroyQuery, idParam, keyFromName, productCreate, productQuery, productUpdate, unitCreate, unitQuery, unitUpdate, type RecordData } from '@gr8r/shared';
-import { crud, ctxOf, validationHook } from '../crud';
+import { crud, ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError, notFound } from '../errors';
 import { requireRole } from '../middleware';
 import { assertAttributeKeyFree, assertUnit, chainIds, effectiveAttributes, loadCategory, subtreeWhere, validateAttrs } from '../catalog/service';
@@ -172,6 +172,12 @@ export const attributeRoutes = new Hono<AppEnv>()
 
 /* ---------------- товары и услуги ---------------- */
 
+/** Поставщик по умолчанию: контрагент должен существовать в этом же арендаторе */
+const assertSupplier = async (ctx: Ctx, id: string) => {
+  const [c] = await ctx.db.select({ id: companies.id }).from(companies).where(eq(companies.id, id)).limit(1);
+  if (!c) throw new AppError(422, 'invalid_reference', 'The supplier does not exist');
+};
+
 export const productRoutes = crud({
   entity: 'product',
   table: products,
@@ -192,12 +198,16 @@ export const productRoutes = crud({
   ],
   prepareCreate: async (ctx, body) => {
     await assertUnit(ctx, body.unitCode);
+    if (body.defaultSupplierId) await assertSupplier(ctx, body.defaultSupplierId);
+    if (body.parentProductId) await assertVariantParent(ctx, body.parentProductId);
     const cat = body.categoryId ? await loadCategory(ctx, body.categoryId) : null;
     const attrs = validateAttrs(cat ? await effectiveAttributes(ctx, cat) : [], body.attrs, 'create');
     return { attrs, ...(await customForCreate(ctx, 'product', body.custom)) };
   },
   prepareUpdate: async (ctx, existing, body) => {
     if (body.unitCode !== undefined && body.unitCode !== existing.unitCode) await assertUnit(ctx, body.unitCode);
+    if (body.defaultSupplierId) await assertSupplier(ctx, body.defaultSupplierId);
+    if (body.parentProductId !== undefined && body.parentProductId && body.parentProductId !== existing.parentProductId) await assertVariantParent(ctx, body.parentProductId);
     const out: Record<string, unknown> = { ...(await customForUpdate(ctx, 'product', existing.custom, body.custom, existing.id)) };
     const categoryChanged = body.categoryId !== undefined && (body.categoryId ?? null) !== existing.categoryId;
     if (categoryChanged || body.attrs !== undefined) {
@@ -216,4 +226,46 @@ export const productRoutes = crud({
     }
     return out;
   },
+  // товар с вариантами нельзя убрать: сначала удалите варианты
+  beforeDelete: async (ctx, row) => {
+    const [{ n }] = await ctx.db.select({ n: sql<number>`count(*)::int` }).from(products).where(eq(products.parentProductId, row.id));
+    if (n) throw new AppError(422, 'variants_exist', `“${row.name}” has ${n} variant${n === 1 ? '' : 's'}: remove them first`);
+  },
 });
+
+/** Родитель варианта: вариант не может быть родителем другого варианта */
+async function assertVariantParent(ctx: Ctx, parentId: string): Promise<void> {
+  const [parent] = await ctx.db.select({ name: products.name, parentProductId: products.parentProductId }).from(products).where(eq(products.id, parentId)).limit(1);
+  if (!parent) throw new AppError(422, 'invalid_reference', 'The parent product does not exist');
+  if (parent.parentProductId) throw new AppError(422, 'nested_variants', `“${parent.name}” is a variant itself: variants of variants are not allowed`);
+}
+
+/* ---------------- варианты товара ---------------- */
+
+export const variantRoutes = new Hono<AppEnv>()
+  // параметры спецификации товара: значения их вводят в строках заказов
+  .get('/:id/params', zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    const [row] = await ctx.db.select({ id: products.id }).from(products).where(eq(products.id, id)).limit(1);
+    if (!row) throw notFound('product');
+    return c.json({ params: await specParamsOfProduct(ctx.db, ctx.workspaceId, id) });
+  })
+  // варианты товара: комбинации значений параметров с флажком «разрез склада»
+  .get('/:id/variants', zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const items = await listVariants(ctx.db, c.req.valid('param').id);
+    return c.json({ items, total: items.length, limit: items.length, offset: 0 });
+  })
+  // «создать все комбинации»: по select-параметрам с флажком «разрез склада»
+  .post('/:id/variants/generate', requireRole('member'), zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    const [parent] = await ctx.db.select().from(products).where(eq(products.id, id)).limit(1);
+    if (!parent) throw notFound('product');
+    if (parent.parentProductId) throw new AppError(422, 'nested_variants', 'Variants of variants are not allowed');
+    const params = await specParamsOfProduct(ctx.db, ctx.workspaceId, parent.id);
+    const res = await generateVariants(ctx.db, ctx.workspaceId, parent, params);
+    await recordEvent(ctx.db, { workspaceId: ctx.workspaceId, type: 'product.variants_generated', entity: 'product', recordId: parent.id, actorId: ctx.memberId, payload: { created: res.created, total: res.total } });
+    return c.json({ ...res, items: await listVariants(ctx.db, parent.id) }, 201);
+  });

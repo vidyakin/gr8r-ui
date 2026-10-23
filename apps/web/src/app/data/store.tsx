@@ -17,7 +17,7 @@ import { toast } from '@/components/ui';
 import { dOff, fmtDate, iso, parse } from '../lib/dates';
 import type { Activity, Attachment, Member, Project, ProjectFile, SavedView, Status, StatusDef, Subtask, Task, Team, TimeLog, WorkspaceData, WorkspaceInfo } from './types';
 
-export type TaskPatch = Partial<Pick<Task, 'title' | 'status' | 'assignee' | 'priority' | 'due' | 'start' | 'fav' | 'project' | 'planHours' | 'order' | 'archived' | 'labels' | 'deps' | 'recur' | 'desc' | 'subtasks' | 'custom'>>;
+export type TaskPatch = Partial<Pick<Task, 'title' | 'status' | 'assignee' | 'priority' | 'due' | 'start' | 'fav' | 'project' | 'planHours' | 'order' | 'archived' | 'labels' | 'deps' | 'recur' | 'desc' | 'company' | 'subtasks' | 'custom'>>;
 export type SubtaskPatch = Partial<Pick<Subtask, 'title' | 'assignee' | 'due' | 'note' | 'planHours'>>;
 export type TimeLogPatch = Partial<Pick<TimeLog, 'sub' | 'by' | 'hours' | 'date' | 'note'>>;
 
@@ -209,6 +209,7 @@ function blankTask(d: WorkspaceData, extra: Partial<Task> & Pick<Task, 'project'
     order: Math.max(0, ...tasks.map(x => x.order)) + 1,
     fav: false,
     recur: null,
+    module: 'general',
     ...extra,
   };
 }
@@ -219,6 +220,7 @@ function addProject(d: WorkspaceData, id: string, f: ProjectForm, starter: strin
     id,
     key: makeKey(d, f.name),
     name: f.name,
+    module: 'general',
     icon: f.icon,
     color: f.color,
     status: 'planning',
@@ -270,7 +272,10 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
       // Срок раньше даты начала подтягивает начало (popPick в оригинале)
       if (patch.due && t.start && t.start > patch.due) patch.start = patch.due;
       const next = patchTask(t, patch);
-      if (patch.project && patch.project !== t.project) next.key = nextKey(d, patch.project);
+      if (patch.project && patch.project !== t.project) {
+        next.key = nextKey(d, patch.project);
+        next.module = d.projects.find(p => p.id === patch.project)?.module ?? 'general';
+      }
       let activity = d.activity;
       for (const [verb, extra] of patchLog(d, t, patch)) activity = [{ id: uid('a'), by: d.me, verb, task: t.id, project: next.project, at: Date.now(), extra }, ...activity];
       // Завершение повторяющейся задачи создаёт следующую
@@ -411,6 +416,7 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
         id: a.newId,
         key: nextKey(d, t.project),
         project: t.project,
+        module: t.module,
         title: sub.title,
         status: sub.done ? 'done' : 'todo',
         assignee: sub.assignee || t.assignee,
@@ -474,6 +480,8 @@ function reducer(d: WorkspaceData, a: Action): WorkspaceData {
         fav: false,
         recur: null,
         ...a.task,
+        // модуль задачи — модуль её проекта
+        module: d.projects.find(p => p.id === a.task.project)?.module ?? 'general',
       };
       return { ...d, tasks: [...d.tasks, t], activity: logActivity(d, 'created', t) };
     }

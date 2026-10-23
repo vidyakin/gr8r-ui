@@ -55,8 +55,16 @@ export interface Product {
   vatRate: VatRate;
   price: string;
   purchasePrice: string;
+  /** Срок поставки, дней (в расчёте потребностей) */
+  leadDays: number;
   categoryId: string | null;
+  /** Поставщик по умолчанию: заказы поставщикам по потребности создаются на него */
+  defaultSupplierId: string | null;
   attrs: Record<string, unknown>;
+  /** Товар-родитель: вариант товара (комбинация параметров с флажком «разрез склада») */
+  parentProductId: string | null;
+  /** Значения параметров, дающих вариант: { color: 'white' } */
+  variantValues: Record<string, string>;
   isActive: boolean;
   custom: Record<string, unknown>;
   createdAt: string;
@@ -75,6 +83,12 @@ export const catalogKey = (ws: string, ...rest: unknown[]) => ['ws', ws, 'catalo
 
 /** Деньги: «1 234,50» — строка из API → число для показа. Расчёты идут на сервере и в @gr8r/shared (BigInt), здесь только вывод */
 export const money = (v: string | number | null | undefined) => Number(v ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** Контрагенты: поставщик по умолчанию для товара */
+export function useCompanies() {
+  const ws = useWsId();
+  return useQuery({ queryKey: catalogKey(ws, 'companies'), queryFn: async () => (await call<{ items: { id: string; name: string }[] }>(ws, 'GET', '/companies?limit=200')).items, staleTime: Infinity });
+}
 
 export function useUnits() {
   const ws = useWsId();
@@ -126,8 +140,23 @@ export function useProducts(params: ProductParams = {}) {
 }
 
 export function useProduct(id: string | undefined) {
+  const ws = useWsId();  return useQuery({ queryKey: catalogKey(ws, 'product', id), queryFn: () => call<Product>(ws, 'GET', `/products/${id}`), enabled: !!id, staleTime: 30_000, retry: false });
+}
+
+/** Варианты товара: комбинации значений параметров с флажком «разрез склада» */
+export function useVariants(productId: string | undefined) {
   const ws = useWsId();
-  return useQuery({ queryKey: catalogKey(ws, 'product', id), queryFn: () => call<Product>(ws, 'GET', `/products/${id}`), enabled: !!id, staleTime: 30_000, retry: false });
+  return useQuery({ queryKey: catalogKey(ws, 'variants', productId), queryFn: async () => (await call<{ items: Product[] }>(ws, 'GET', `/products/${productId}/variants`)).items, enabled: !!productId, staleTime: 30_000 });
+}
+
+/** Генератор «создать все комбинации»: по select-параметрам с флажком «разрез склада» */
+export function useGenerateVariants() {
+  const ws = useWsId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (productId: string) => call<{ created: number; total: number }>(ws, 'POST', `/products/${productId}/variants/generate`),
+    onSettled: () => qc.invalidateQueries({ queryKey: catalogKey(ws) }),
+  });
 }
 
 /** Поиск товаров для выбора в формах (материал в спецификации, товар изделия) */
@@ -216,6 +245,43 @@ export function useProductMutations() {
   });
   const restore = useMutation({ mutationFn: (id: string) => call(ws, 'POST', `/products/${id}/restore`), onSettled: settle });
   return { create, update, remove, restore };
+}
+
+/* ---------------- нормы времени работ ---------------- */
+
+/** Норма времени работы: норма на единицу и участок по умолчанию (таблица operations) */
+export interface WorkNorm {
+  productId: string;
+  name: string;
+  sku: string;
+  unitCode: string;
+  archived: boolean;
+  /** Норма времени на единицу работы, ч */
+  normHours: string;
+  /** Участок по умолчанию */
+  workCenterId: string | null;
+}
+
+export function useWorkNorms() {
+  const ws = useWsId();
+  return useQuery({ queryKey: catalogKey(ws, 'work-norms'), queryFn: () => call<{ items: WorkNorm[] }>(ws, 'GET', '/services/work-norms'), staleTime: Infinity });
+}
+
+/** Норма времени работы и участок по умолчанию */
+export function useSaveWorkNorm() {
+  const ws = useWsId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { productId: string; normHours: string; workCenterId?: string | null }) => call(ws, 'PUT', `/services/work-norms/${v.productId}`, { normHours: v.normHours, workCenterId: v.workCenterId ?? null }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: catalogKey(ws, 'work-norms') }),
+    onError: e => toast.error(errorMessage(e)),
+  });
+}
+
+/** Участки: список для выбора участка по умолчанию у работы */
+export function useWorkCenters() {
+  const ws = useWsId();
+  return useQuery({ queryKey: catalogKey(ws, 'work-centers'), queryFn: () => call<{ items: { id: string; name: string }[] }>(ws, 'GET', '/work-centers?limit=200'), staleTime: Infinity });
 }
 
 /* ---------------- дерево категорий ---------------- */

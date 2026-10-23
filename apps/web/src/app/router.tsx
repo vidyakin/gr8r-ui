@@ -37,16 +37,36 @@ import { CatalogPage } from './catalog/CatalogPage';
 import { ItemPage } from './production/ItemPage';
 import { ProductionPage } from './production/ProductionPage';
 import { WorkCentersPage } from './production/WorkCentersPage';
+import { ProductionOrdersPage } from './production/ProductionOrdersPage';
+import { ProductionOrderPage } from './production/ProductionOrderPage';
+import { ProductionStagesPage } from './production/ProductionStagesPage';
+import { PieceworkPage } from './production/PieceworkPage';
+import { ProductionWorkbenchPage } from './production/ProductionWorkbenchPage';
+import { ProductionNeedsPage } from './production/ProductionNeedsPage';
+import { ProductionPlansPage } from './production/ProductionPlansPage';
+import { ProductionPlanPage } from './production/ProductionPlanPage';
+import { PlanOrdersPage } from './production/PlanOrdersPage';
+import { PlannerPage } from './production/PlannerPage';
+import { ResourcesPage } from './production/ResourcesPage';
+import { MonthClosingPage } from './production/MonthClosingPage';
+import { OtherCostsDocumentPage, OtherCostsPage } from './production/OtherCostsPage';
 import { JournalPage } from './docs/JournalPage';
+import { WorkOrdersPage } from './docs/work-orders';
+import { TimesheetPage } from './docs/timesheet';
+import { ServicePlannerPage } from './docs/service-planner';
 import { DocumentPage } from './docs/DocumentPage';
 import { PrintPage } from './docs/PrintPage';
 import { InventoryPage } from './docs/InventoryPage';
+import { InUsePage } from './docs/InUsePage';
+import { ProcessingPage } from './docs/ProcessingPage';
+import { ContractsPage, TariffPlansPage } from './docs/contracts';
+import { BillingPage } from './docs/billing';
 import { AutomationsPage } from './automations/AutomationsPage';
 import { FlowEditorPage } from './automations/FlowEditorPage';
 
 /* Hash-роутинг, как в оригинале: работает на любом статическом хостинге без настройки rewrite.
    Чтобы перенести раздел, замените PlaceholderPage на его компонент. */
-const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.archive, SECTIONS.crm, SECTIONS.crmDeals, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities, SECTIONS.catalog, SECTIONS.production, SECTIONS.workCenters, SECTIONS.sales, SECTIONS.purchases, SECTIONS.inventory, SECTIONS.automations, SECTIONS.settings, SECTIONS.system].map(s => s.path));
+const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.archive, SECTIONS.crm, SECTIONS.crmDeals, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities, SECTIONS.catalog, SECTIONS.production, SECTIONS.productionOrders, SECTIONS.productionWorkbench, SECTIONS.productionStages, SECTIONS.workOrders, SECTIONS.servicesTimesheet, SECTIONS.servicesPlanner, SECTIONS.workCenters, SECTIONS.sales, SECTIONS.purchases, SECTIONS.stockDocs, SECTIONS.processingDocs, SECTIONS.inventory, SECTIONS.inUse, SECTIONS.automations, SECTIONS.settings, SECTIONS.system, SECTIONS.productionPiecework, SECTIONS.productionPlanner, SECTIONS.productionResources, SECTIONS.contracts, SECTIONS.tariffPlans, SECTIONS.billing, SECTIONS.productionNeeds, SECTIONS.productionPlans, SECTIONS.productionPlanOrders, SECTIONS.productionClosing, SECTIONS.otherCosts].map(s => s.path));
 
 export const router = createHashRouter([
   {
@@ -89,13 +109,37 @@ export const router = createHashRouter([
       { path: `${SECTIONS.catalog.path}/:productId?`, element: <CatalogPage /> },
       { path: SECTIONS.production.path, element: <ProductionPage /> },
       { path: SECTIONS.workCenters.path, element: <WorkCentersPage /> },
+      { path: SECTIONS.productionOrders.path, element: <ProductionOrdersPage /> },
+      { path: `${SECTIONS.productionOrders.path}/:id`, element: <ProductionOrderPage /> },
+      { path: SECTIONS.productionWorkbench.path, element: <ProductionWorkbenchPage /> },
+      { path: SECTIONS.productionNeeds.path, element: <ProductionNeedsPage /> },
+      { path: SECTIONS.productionPlans.path, element: <ProductionPlansPage /> },
+      { path: `${SECTIONS.productionPlans.path}/:id`, element: <ProductionPlanPage /> },
+      { path: SECTIONS.productionPlanOrders.path, element: <PlanOrdersPage /> },
+      { path: SECTIONS.productionStages.path, element: <ProductionStagesPage /> },
+      { path: SECTIONS.productionPiecework.path, element: <PieceworkPage /> },
+      { path: SECTIONS.productionPlanner.path, element: <PlannerPage /> },
+      { path: SECTIONS.productionResources.path, element: <ResourcesPage /> },
+      { path: SECTIONS.productionClosing.path, element: <MonthClosingPage /> },
+      { path: SECTIONS.otherCosts.path, element: <OtherCostsPage /> },
+      { path: `${SECTIONS.otherCosts.path}/:id`, element: <OtherCostsDocumentPage /> },
       { path: `${SECTIONS.production.path}/:id`, element: <ItemPage /> },
       // Документы продаж и закупок, склад
       { path: SECTIONS.sales.path, element: <JournalPage group="sales" /> },
+      { path: SECTIONS.workOrders.path, element: <WorkOrdersPage /> },
+      { path: SECTIONS.servicesTimesheet.path, element: <TimesheetPage /> },
+      { path: SECTIONS.servicesPlanner.path, element: <ServicePlannerPage /> },
       { path: SECTIONS.purchases.path, element: <JournalPage group="purchases" /> },
+      { path: SECTIONS.stockDocs.path, element: <JournalPage group="stock" /> },
+      { path: SECTIONS.processingDocs.path, element: <ProcessingPage /> },
       { path: '/documents/:id', element: <DocumentPage /> },
       { path: '/documents/:id/print/:form', element: <PrintPage /> },
       { path: `${SECTIONS.inventory.path}/:productId?`, element: <InventoryPage /> },
+      { path: SECTIONS.inUse.path, element: <InUsePage /> },
+      // Договоры и биллинг
+      { path: SECTIONS.contracts.path, element: <ContractsPage /> },
+      { path: SECTIONS.tariffPlans.path, element: <TariffPlansPage /> },
+      { path: SECTIONS.billing.path, element: <BillingPage /> },
       // Автоматизации: список и журнал, редактор flow
       { path: SECTIONS.automations.path, element: <AutomationsPage /> },
       { path: `${SECTIONS.automations.path}/runs`, element: <AutomationsPage /> },

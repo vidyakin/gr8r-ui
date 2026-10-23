@@ -1,7 +1,7 @@
 /* Хранилище сформированных PDF. Интерфейс отделён от реализации: сейчас файл лежит в БД (document_files.data), потом — S3/MinIO
    (по ключу storage_key). API читает файл тем же путём, поэтому смена хранилища не меняет ни задачу, ни маршруты. */
 import { eq } from 'drizzle-orm';
-import { documentFiles, type Db } from '@gr8r/db';
+import { documentExports, documentFiles, type Db } from '@gr8r/db';
 
 export interface PdfFileRef {
   id: string;
@@ -33,4 +33,25 @@ export const s3PdfStore: PdfStore = {
 
 export function pdfStoreFromEnv(env: Record<string, string | undefined> = process.env): PdfStore {
   return env.PDF_STORE === 's3' ? s3PdfStore : dbPdfStore;
+}
+
+/** Хранилище архивов выгрузки (ZIP): тот же интерфейс и тот же bytea, но своя таблица — архив не привязан к одному документу */
+export const dbArchiveStore: PdfStore = {
+  async save(db, file, bytes) {
+    await db
+      .update(documentExports)
+      .set({ status: 'ready', data: Buffer.from(bytes), size: bytes.length, error: null, finishedAt: new Date() })
+      .where(eq(documentExports.id, file.id));
+  },
+};
+
+/** Заготовка под S3 для архивов: тот же ключ, что у PDF (см. s3PdfStore) */
+export const s3ArchiveStore: PdfStore = {
+  async save() {
+    throw new Error('S3 storage for export archives is not implemented yet: use PDF_STORE=db');
+  },
+};
+
+export function archiveStoreFromEnv(env: Record<string, string | undefined> = process.env): PdfStore {
+  return env.PDF_STORE === 's3' ? s3ArchiveStore : dbArchiveStore;
 }

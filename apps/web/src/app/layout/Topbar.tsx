@@ -52,7 +52,14 @@ export function useCrumbs(): Crumb[] {
   if (a === 'automations') return b === 'flow' ? [{ label: 'Automations', to: SECTIONS.automations.path }, { label: 'Editor' }] : [{ label: 'Automations' }];
   if (a === 'catalog') return [{ label: 'Catalog' }];
   if (a === 'inventory') return [{ label: 'Inventory' }];
+  if (a === 'stock-docs') return [{ label: 'Stock documents' }];
+  if (a === 'other-costs') return b ? [{ label: 'Other costs', to: SECTIONS.otherCosts.path }, { label: 'Document' }] : [{ label: 'Other costs' }];
   if (a === 'documents' && b) return [{ label: 'Documents' }, { label: docTitle ?? 'Document', ...(c === 'print' ? { to: `/documents/${b}` } : {}) }, ...(c === 'print' ? [{ label: 'Print' }] : [])];
+  if (a === 'production' && b === 'workbench') return [{ label: 'Production', to: SECTIONS.production.path }, { label: SECTIONS.productionWorkbench.name }];
+  if (a === 'production' && b === 'orders') return [{ label: 'Production', to: SECTIONS.production.path }, { label: SECTIONS.productionOrders.name }];
+  if (a === 'production' && b === 'needs') return [{ label: 'Production', to: SECTIONS.production.path }, { label: SECTIONS.productionNeeds.name }];
+  if (a === 'production' && b === 'planner') return [{ label: 'Production', to: SECTIONS.production.path }, { label: SECTIONS.productionPlanner.name }];
+  if (a === 'production' && b === 'resources') return [{ label: 'Production', to: SECTIONS.production.path }, { label: SECTIONS.productionResources.name }];
   if (a === 'production' && b) return [{ label: 'Production', to: SECTIONS.production.path }, { label: itemName ?? 'Product' }];
   if (a === 'settings') return [{ label: 'Settings' }];
   if (a === 'teams' && !b) return [{ label: 'Teams' }];

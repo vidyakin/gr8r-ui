@@ -1,6 +1,6 @@
 /* Учётные записи, сессии, воркспейсы (арендаторы), членство и приглашения. */
 import { sql } from 'drizzle-orm';
-import { boolean, check, index, integer, jsonb, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, date, index, integer, jsonb, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { archivedAt, createdAt, pk, ts, updatedAt } from './columns';
 
 /** Глобальные учётные записи (не арендаторские: без workspace_id и без RLS) */
@@ -51,6 +51,12 @@ export const workspaces = pgTable(
     color: text('color').notNull().default('#1D1C1A'),
     brand: boolean('brand').notNull().default(false),
     settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
+    /** Часовой пояс арендатора (IANA): в нём считаются день и период биллинга и расписания автоматизаций */
+    timezone: text('timezone').notNull().default('Europe/Moscow'),
+    /** Дата запрета редактирования: документы с датой не позже неё нельзя провести, снять с проведения или исправить */
+    closedThrough: date('closed_through', { mode: 'string' }),
+    /** Переносить дату запрета на конец закрываемого месяца (настройка закрытия периода, по умолчанию выключена) */
+    closeMovesLock: boolean('close_moves_lock').notNull().default(false),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

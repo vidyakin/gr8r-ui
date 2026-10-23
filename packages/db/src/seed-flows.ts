@@ -1,4 +1,4 @@
-/* Демо-автоматизации: две опубликованные включённые flow. Граф — тот же формат, что строит редактор. */
+/* Демо-автоматизации: три опубликованные включённые flow. Граф — тот же формат, что строит редактор. */
 import type { FlowGraph } from '@gr8r/shared';
 import type { Db } from './client';
 import { flows, flowVersions } from './schema';
@@ -38,6 +38,18 @@ export async function seedFlows(db: Db, wsId: string, createdBy: string | null, 
           }),
         ],
         edges: [edge('trigger', 'task')],
+      },
+    },
+    {
+      name: 'Work order done → notify the responsible',
+      description: 'When a work order reaches the Done state, the person responsible for it gets a notification.',
+      triggerType: 'trigger.field_changed',
+      graph: {
+        nodes: [
+          node('trigger', 'trigger.field_changed', 0, 80, { entity: 'document', field: 'state', to: 'done' }),
+          node('notify', 'action.notify', 320, 80, { recipientId: '{{trigger.record.responsibleId}}', text: 'completed a work order', snippet: '{{trigger.record.number}}' }),
+        ],
+        edges: [edge('trigger', 'notify')],
       },
     },
   ];

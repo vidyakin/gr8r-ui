@@ -1,7 +1,7 @@
 /* Карточка товара (EntityDrawer) и форма создания. Характеристики категории рисуются теми же FieldInput / FieldValue и
    проверяются той же zod-схемой (validateRecord), что и поля конструктора. */
 import * as React from 'react';
-import { Barcode, CircleAlert, CircleDollarSign, FolderTree, Hash, Package, Percent, Power, Ruler, Tag, Trash2, Wrench, type LucideIcon } from 'lucide-react';
+import { Barcode, Building2, CircleAlert, CircleDollarSign, FolderTree, Hash, Layers, Package, Percent, Power, Ruler, Tag, Timer, Trash2, Wrench, type LucideIcon } from 'lucide-react';
 import { PRODUCT_KINDS, VAT_LABELS, VAT_RATES, validateRecord, type ProductKind } from '@gr8r/shared';
 import { Button, ConfirmDialog, Dialog, DialogClose, DialogContent, Field, Input, MenuItem, Segmented, Switch, toast } from '@/components/ui';
 import { DrawerSection, EntityDrawer } from '@/components/gr8r/entity-drawer';
@@ -9,7 +9,8 @@ import { fmtDate } from '../lib/dates';
 import { useCanWrite, useCustomRows } from '../meta/custom-fields';
 import { FieldInput, FieldValue } from '../meta/field-ui';
 import type { MetaField } from '../meta/data';
-import { attributeAsField, flattenTree, useAttributes, useProductMutations, useUnits, type CategoryNode, type Product } from './data';
+import { attributeAsField, flattenTree, useAttributes, useCompanies, useGenerateVariants, useProductMutations, useSaveWorkNorm, useUnits, useVariants, useWorkCenters, useWorkNorms, type CategoryNode, type Product } from './data';
+import { StockLevelsTab } from './stock-levels';
 
 /** Служебное «поле» для обычной колонки товара, чтобы редактировать её тем же FieldInput */
 const col = (key: string, name: string, type: MetaField['type']): MetaField => ({
@@ -32,9 +33,11 @@ const F = {
   barcode: col('barcode', 'Barcode', 'text'),
   price: col('price', 'Price', 'number'),
   purchasePrice: col('purchasePrice', 'Purchase price', 'number'),
+  normHours: col('normHours', 'Norm hours', 'number'),
+  leadDays: col('leadDays', 'Lead days', 'number'),
 };
 
-const KIND_LABEL: Record<ProductKind, string> = { goods: 'Goods', service: 'Service' };
+const KIND_LABEL: Record<ProductKind, string> = { goods: 'Goods', service: 'Service', work: 'Work', operation: 'Operation' };
 
 export function CategorySelect({ tree, value, onChange, id, label = 'Category', allowNone = true }: { tree: CategoryNode[]; value: string | null; onChange: (v: string | null) => void; id?: string; label?: string; allowNone?: boolean }) {
   return (
@@ -89,8 +92,18 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
     save({ attrs: { [a.key]: v ?? null } });
   };
   const custom = useCustomRows('product', p.custom, patch => save({ custom: patch }));
+  const variants = useVariants(p.id);
+  const gen = useGenerateVariants();
   const attrFields = (attrs.data ?? []).map(attributeAsField);
   const KindIcon = p.kind === 'service' ? Wrench : Package;
+
+  // норма времени и участок по умолчанию — только у работ (вид номенклатуры «Работа»)
+  const norms = useWorkNorms();
+  const centers = useWorkCenters();
+  const companies = useCompanies();
+  const saveNorm = useSaveWorkNorm();
+  const norm = p.kind === 'work' ? (norms.data?.items ?? []).find(n => n.productId === p.id) : undefined;
+  const centerName = (id: string | null | undefined) => (centers.data?.items ?? []).find(c => c.id === id)?.name ?? '';
 
   const row = (icon: LucideIcon, label: string, edit: React.ReactNode, view: React.ReactNode) => ({ icon, label, value: canWrite ? edit : view });
 
@@ -143,7 +156,52 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
           row(Percent, 'VAT', <VatSelect value={p.vatRate} onChange={vatRate => save({ vatRate })} />, VAT_LABELS[p.vatRate]),
           row(CircleDollarSign, 'Sale price', <FieldInput field={F.price} value={Number(p.price)} onChange={v => save({ price: v ?? 0 })} />, p.price),
           row(CircleDollarSign, 'Purchase price', <FieldInput field={F.purchasePrice} value={Number(p.purchasePrice)} onChange={v => save({ purchasePrice: v ?? 0 })} />, p.purchasePrice),
+          row(Timer, 'Lead days', <FieldInput field={F.leadDays} value={p.leadDays ?? 0} onChange={v => save({ leadDays: v ?? 0 })} />, String(p.leadDays ?? 0)),
+          {
+            icon: Building2,
+            label: 'Default supplier',
+            value: canWrite ? (
+              <select className="select" aria-label="Default supplier" value={p.defaultSupplierId ?? ''} onChange={e => save({ defaultSupplierId: e.target.value || null })}>
+                <option value="">No supplier</option>
+                {(companies.data ?? []).map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            ) : p.defaultSupplierId ? (
+              <span className="muted">{(companies.data ?? []).find(c => c.id === p.defaultSupplierId)?.name ?? '—'}</span>
+            ) : (
+              <span className="faint">—</span>
+            ),
+          },
           row(Power, 'Active', <Switch checked={p.isActive} aria-label="Active" onChange={e => save({ isActive: e.target.checked })} />, p.isActive ? 'Yes' : 'No'),
+          ...(p.kind === 'work'
+            ? [
+                row(Timer, 'Norm hours', <FieldInput field={F.normHours} value={Number(norm?.normHours ?? 0)} onChange={v => saveNorm.mutate({ productId: p.id, normHours: String(v ?? 0), workCenterId: norm?.workCenterId ?? null })} />, norm?.normHours ?? '—'),
+                {
+                  icon: Wrench,
+                  label: 'Work center',
+                  value: canWrite ? (
+                    <select
+                      className="select"
+                      aria-label="Work center"
+                      value={norm?.workCenterId ?? ''}
+                      onChange={e => saveNorm.mutate({ productId: p.id, normHours: norm?.normHours ?? '0', workCenterId: e.target.value || null })}
+                    >
+                      <option value="">No work center</option>
+                      {(centers.data?.items ?? []).map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    centerName(norm?.workCenterId) || <span className="faint">—</span>
+                  ),
+                },
+              ]
+            : []),
         ]}
       >
         <DrawerSection title="Characteristics" count={attrFields.length || undefined}>
@@ -167,6 +225,39 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
             </dl>
           )}
         </DrawerSection>
+        <StockLevelsTab productId={p.id} />
+        {!p.parentProductId && (
+          <DrawerSection title="Variants" count={variants.data?.length || undefined}>
+            <p className="muted" style={{ margin: '0 0 8px' }}>
+              Variants are combinations of the specification parameters marked as “stock dimension”. They are ordinary stock positions: warehouses, prices and documents work with them as usual.
+            </p>
+            {canWrite && (
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={gen.isPending}
+                onClick={() =>
+                  gen.mutate(p.id, {
+                    onSuccess: r => toast(`Variants created: ${r.created} of ${r.total}`),
+                    onError: e => toast.error(e instanceof Error ? e.message : String(e)),
+                  })
+                }
+              >
+                <Layers size={14} />
+                Generate all combinations
+              </Button>
+            )}
+            {!!variants.data?.length && (
+              <ul className="muted" style={{ margin: '8px 0 0', paddingLeft: 18 }}>
+                {variants.data.map(v => (
+                  <li key={v.id}>
+                    {v.name} <span className="faint mono">{v.sku}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </DrawerSection>
+        )}
         {!!custom.length && (
           <DrawerSection title="Custom fields">
             <dl className="kv">

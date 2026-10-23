@@ -262,14 +262,37 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
 
         <div className="sgroup">
           <div className="sgroup-h">Trade</div>
-          {(['sales', 'purchases', 'inventory'] as const).map(id => (
+          {(['sales', 'purchases', 'stockDocs', 'processingDocs', 'inventory', 'inUse'] as const).map(id => (
             <SectionItem key={id} id={id} collapsed={collapsed} />
           ))}
+          {/* расчёт потребностей открывается из закупок и склада — тот же экран, что и в производстве */}
+          <Item to={SECTIONS.productionNeeds.path} label="Stock needs" icon={<SECTIONS.productionNeeds.icon size={16} />} collapsed={collapsed} />
+        </div>
+
+        <div className="sgroup">
+          <div className="sgroup-h">Services</div>
+          <Item to={SECTIONS.workOrders.path} label="Work orders" icon={<SECTIONS.workOrders.icon size={16} />} collapsed={collapsed} />
+          <Item to={SECTIONS.servicesTimesheet.path} label="Timesheet" icon={<SECTIONS.servicesTimesheet.icon size={16} />} collapsed={collapsed} />
+          <Item to={SECTIONS.servicesPlanner.path} label="Service planner" icon={<SECTIONS.servicesPlanner.icon size={16} />} collapsed={collapsed} />
+          <Item to={SECTIONS.contracts.path} label="Contracts" icon={<SECTIONS.contracts.icon size={16} />} collapsed={collapsed} />
+          <Item to={SECTIONS.tariffPlans.path} label="Tariff plans" icon={<SECTIONS.tariffPlans.icon size={16} />} collapsed={collapsed} />
+          <Item to={SECTIONS.billing.path} label="Billing" icon={<SECTIONS.billing.icon size={16} />} collapsed={collapsed} />
         </div>
 
         <div className="sgroup">
           <div className="sgroup-h">Production</div>
           <Item to={SECTIONS.production.path} label="Production" icon={<SECTIONS.production.icon size={16} />} collapsed={collapsed} />
+          <Item to={SECTIONS.productionWorkbench.path} label="Production release" icon={<SECTIONS.productionWorkbench.icon size={16} />} collapsed={collapsed} />
+          <Item to={SECTIONS.productionOrders.path} label="Production orders" icon={<SECTIONS.productionOrders.icon size={16} />} collapsed={collapsed} />
+          <Item to={SECTIONS.productionNeeds.path} label="Needs" icon={<SECTIONS.productionNeeds.icon size={16} />} collapsed={collapsed} />
+          <Item to={SECTIONS.productionPlans.path} label="Production plans" icon={<SECTIONS.productionPlans.icon size={16} />} collapsed={collapsed} />
+          <Item to={SECTIONS.productionPlanOrders.path} label="Orders by plan" icon={<SECTIONS.productionPlanOrders.icon size={16} />} collapsed={collapsed} />
+          <Item to={SECTIONS.productionStages.path} label="Production stages" icon={<SECTIONS.productionStages.icon size={16} />} collapsed={collapsed} />
+          <Item to={SECTIONS.productionPiecework.path} label="Piecework" icon={<SECTIONS.productionPiecework.icon size={16} />} collapsed={collapsed} />
+          <Item to={SECTIONS.productionPlanner.path} label="Resource planner" icon={<SECTIONS.productionPlanner.icon size={16} />} collapsed={collapsed} />
+          <Item to={SECTIONS.productionResources.path} label="Resources" icon={<SECTIONS.productionResources.icon size={16} />} collapsed={collapsed} />
+          <Item to={SECTIONS.productionClosing.path} label="Month closing" icon={<SECTIONS.productionClosing.icon size={16} />} collapsed={collapsed} />
+          <Item to={SECTIONS.otherCosts.path} label="Other costs" icon={<SECTIONS.otherCosts.icon size={16} />} collapsed={collapsed} />
           <Item to={SECTIONS.workCenters.path} label="Work centers" icon={<SECTIONS.workCenters.icon size={16} />} collapsed={collapsed} />
         </div>
 

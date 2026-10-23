@@ -1,8 +1,8 @@
-/* Добавление и правка строки спецификации: материал (товар каталога), полуфабрикат (другая продукция), работа (участок). */
+/** Добавление и правка строки спецификации: материал (товар каталога), полуфабрикат (другая продукция), работа (участок), расход (услуга), выходной продукт (разборка). */
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Check, Package, Search } from 'lucide-react';
-import { bomLineCreate } from '@gr8r/shared';
+import { bomLineCreate, compileExpr, ExprError } from '@gr8r/shared';
 import { Button, Dialog, DialogClose, DialogContent, Field, Input, toast } from '@/components/ui';
 import { uuidv7 } from '../lib/uuid';
 import { searchProducts, unitSymbol, useUnits, type Product } from '../catalog/data';
@@ -11,8 +11,8 @@ import { canInclude, type BomLine, type Item, type Material, type ProductionMuta
 
 const toMaterial = (p: Product): Material => ({ id: p.id, name: p.name, sku: p.sku, kind: p.kind, unitCode: p.unitCode, price: p.price, purchasePrice: p.purchasePrice, archived: false });
 
-/** Поиск товара (только товары, не услуги): поле + список результатов */
-function ProductPicker({ value, onChange, invalid }: { value: Material | null; onChange: (m: Material) => void; invalid?: boolean }) {
+/** Поиск товара: товары (материал) или услуги (расход подрядчику): поле + список результатов */
+function ProductPicker({ value, onChange, invalid, kind = 'goods' }: { value: Material | null; onChange: (m: Material) => void; invalid?: boolean; kind?: 'goods' | 'service' }) {
   const ws = useWsId();
   const units = useUnits();
   const [q, setQ] = React.useState('');
@@ -21,10 +21,10 @@ function ProductPicker({ value, onChange, invalid }: { value: Material | null; o
     const t = setTimeout(() => setDebounced(q.trim()), 200);
     return () => clearTimeout(t);
   }, [q]);
-  const results = useQuery({ queryKey: ['ws', ws, 'catalog', 'picker', debounced], queryFn: () => searchProducts(ws, debounced, 'goods', 8), staleTime: 5_000 });
+  const results = useQuery({ queryKey: ['ws', ws, 'catalog', 'picker', debounced, kind], queryFn: () => searchProducts(ws, debounced, kind, 8), staleTime: 5_000 });
   return (
     <div className="picker">
-      <Input icon={<Search size={14} />} aria-label="Search products" placeholder="Search goods by name, SKU or barcode" invalid={invalid} value={q} onChange={e => setQ(e.target.value)} autoFocus />
+      <Input icon={<Search size={14} />} aria-label="Search products" placeholder={kind === 'service' ? 'Search services by name or SKU' : 'Search goods by name, SKU or barcode'} invalid={invalid} value={q} onChange={e => setQ(e.target.value)} autoFocus />
       <div className="picker-list" role="listbox" aria-label="Products">
         {results.data?.map(p => (
           <button type="button" key={p.id} role="option" aria-selected={value?.id === p.id} className={value?.id === p.id ? 'mi on' : 'mi'} onClick={() => onChange(toMaterial(p))}>
@@ -51,13 +51,32 @@ function ProductPicker({ value, onChange, invalid }: { value: Material | null; o
 
 export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLine['kind']; item: Item; line?: BomLine; snap: Snapshot; m: ProductionMutations; onClose: () => void }) {
   const units = useUnits();
+  const ws = useWsId();
   const edit = !!line;
   const [material, setMaterial] = React.useState<Material | null>(() => (line?.productId ? (snap.materials.find(x => x.id === line.productId) ?? null) : null));
+  const [opProduct, setOpProduct] = React.useState<string>('');
+  // операции каталога: работа спецификации может ссылаться на операцию (норма времени и расценки)
+  const operations = useQuery({ queryKey: ['ws', ws, 'catalog', 'operations'], queryFn: () => searchProducts(ws, '', 'operation', 100), staleTime: 60_000 });
   const [childId, setChildId] = React.useState(line?.childItemId ?? '');
+  const [mode, setMode] = React.useState<'stock' | 'explode'>(line?.semiMode ?? 'stock');
   const [qty, setQty] = React.useState(line ? line.qty.replace(/\.?0+$/, '') : '1');
+  // доля стоимости исходного товара (выходной продукт разборки), %
+  const [costShare, setCostShare] = React.useState(line?.costShare ? line.costShare.replace(/\.?0+$/, '') : '');
   const [scrap, setScrap] = React.useState(line ? line.scrapPct.replace(/\.?0+$/, '') : '0');
   const [operation, setOperation] = React.useState(line?.operation ?? '');
+  // формулы строки: количество по параметрам и условие включения строки в состав
+  const [qtyExpr, setQtyExpr] = React.useState(line?.qtyExpr ?? '');
+  const [condition, setCondition] = React.useState(line?.condition ?? '');
+  const paramKeys = (item.params ?? []).map(p => p.key);
+  React.useEffect(() => {
+    // у работы с операцией её название берётся из товара каталога
+    if (kind === 'work' && !opProduct) {
+      const found = operations.data?.find(p => p.id === line?.productId);
+      if (found) setOpProduct(found.id);
+    }
+  }, [operations.data, kind, line?.productId, opProduct]);
   const [center, setCenter] = React.useState(line?.workCenterId ?? '');
+  const [stageId, setStageId] = React.useState(line?.stageId ?? '');
   const [hours, setHours] = React.useState(line ? line.hours.replace(/\.?0+$/, '') : '1');
   const [rate, setRate] = React.useState(line?.rate ? line.rate.replace(/\.00$/, '') : '');
   const [fixed, setFixed] = React.useState(line?.fixedCost ? line.fixedCost.replace(/\.00$/, '') : '');
@@ -65,17 +84,40 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
   const [busy, setBusy] = React.useState(false);
 
   const candidates = snap.items.filter(i => i.id !== item.id && (i.id === line?.childItemId || canInclude(snap.items, item.id, i.id)));
+  // вид производства изделия: этап, на котором расходуется материал или выполняется операция
+  const prodKind = snap.kinds.find(k => k.id === item.productionKindId) ?? null;
   const centerObj = snap.workCenters.find(w => w.id === center);
-  const title = `${edit ? 'Edit' : 'Add'} ${kind === 'material' ? 'material' : kind === 'semi' ? 'semi-finished product' : 'work operation'}`;
+  const title = `${edit ? 'Edit' : 'Add'} ${kind === 'material' ? 'material' : kind === 'semi' ? 'semi-finished product' : kind === 'expense' ? 'expense' : kind === 'output' ? 'output' : 'work operation'}`;
+
+  /** Ошибка выражения видна сразу: ключи параметров спецификации известны */
+  const exprError = (src: string): string | undefined => {
+    if (!src.trim()) return undefined;
+    try {
+      compileExpr(src, paramKeys);
+      return undefined;
+    } catch (e) {
+      return e instanceof ExprError ? e.message : 'Invalid expression';
+    }
+  };
+  const qtyExprError = exprError(qtyExpr);
+  const conditionError = exprError(condition);
 
   const submit = async () => {
     const num = (v: string) => (v.trim() === '' ? undefined : Number(v));
-    const body: Record<string, unknown> =
-      kind === 'material'
-        ? { kind, productId: material?.id, qty: num(qty), scrapPct: num(scrap) ?? 0 }
-        : kind === 'semi'
-          ? { kind, childItemId: childId || undefined, qty: num(qty) }
-          : { kind, operation: operation.trim(), workCenterId: center || null, hours: num(hours) ?? 0, rate: rate.trim() === '' ? null : Number(rate), fixedCost: fixed.trim() === '' ? null : Number(fixed) };
+    const body: Record<string, unknown> = {
+      stageId: prodKind ? stageId || null : null,
+      ...(kind === 'material' || kind === 'expense'
+        ? { kind, productId: material?.id, qty: num(qty), scrapPct: kind === 'material' ? (num(scrap) ?? 0) : 0, ...(qtyExpr.trim() ? { qtyExpr: qtyExpr.trim() } : {}), ...(condition.trim() ? { condition: condition.trim() } : {}) }
+        : kind === 'output'
+          ? { kind, productId: material?.id, qty: num(qty), ...(costShare.trim() ? { costShare: Number(costShare) } : {}), ...(qtyExpr.trim() ? { qtyExpr: qtyExpr.trim() } : {}), ...(condition.trim() ? { condition: condition.trim() } : {}) }
+          : kind === 'semi'
+            ? { kind, childItemId: childId || undefined, qty: num(qty), semiMode: mode, ...(qtyExpr.trim() ? { qtyExpr: qtyExpr.trim() } : {}), ...(condition.trim() ? { condition: condition.trim() } : {}) }
+            : { kind, operation: operation.trim(), productId: opProduct || null, workCenterId: center || null, hours: num(hours) ?? 0, rate: rate.trim() === '' ? null : Number(rate), fixedCost: fixed.trim() === '' ? null : Number(fixed) }),
+    };
+    if (qtyExprError || conditionError) {
+      setErr({ ...(qtyExprError ? { qtyExpr: qtyExprError } : {}), ...(conditionError ? { condition: conditionError } : {}) });
+      return;
+    }
     const parsed = bomLineCreate.safeParse(body);
     if (!parsed.success) {
       const out: Record<string, string> = {};
@@ -87,7 +129,7 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
       if (edit) {
         const { kind: _k, ...patch } = body;
         await m.updateLine.mutateAsync({ id: line!.id, itemId: item.id, patch });
-      } else await m.addLine.mutateAsync({ itemId: item.id, id: uuidv7(), body, material: kind === 'material' ? (material ?? undefined) : undefined });
+      } else await m.addLine.mutateAsync({ itemId: item.id, id: uuidv7(), body, material: kind === 'material' || kind === 'expense' || kind === 'output' ? (material ?? undefined) : undefined });
       toast(edit ? 'Line saved' : 'Line added');
       onClose();
     } catch {
@@ -120,6 +162,20 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
             void submit();
           }}
         >
+          {prodKind && (
+            <Field label="Stage" hint="The stage of the production kind where the material is used or the operation is performed." error={err.stageId}>
+              {p => (
+                <select className="select" id={p.id} value={stageId} onChange={e => (setStageId(e.target.value), setErr({}))}>
+                  <option value="">Choose a stage…</option>
+                  {prodKind.stages.map(st => (
+                    <option key={st.id} value={st.id}>
+                      {st.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
+          )}
           {kind === 'material' && (
             <>
               <Field label="Material" error={err.productId}>
@@ -153,11 +209,77 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
               <Field label="Quantity" error={err.qty}>
                 {p => <Input {...p} inputMode="decimal" value={qty} onChange={e => setQty(e.target.value)} />}
               </Field>
+              <Field label="Mode" hint="Stock: the semi-finished product is produced separately and taken from the warehouse. Explode: it is expanded into its materials and works in the same release.">
+                {p => (
+                  <select className="select" id={p.id} value={mode} onChange={e => setMode(e.target.value as 'stock' | 'explode')}>
+                    <option value="stock">Take from stock</option>
+                    <option value="explode">Expand to materials</option>
+                  </select>
+                )}
+              </Field>
+            </>
+          )}
+          {kind === 'expense' && (
+            <>
+              <Field label="Service" hint="A service of a contractor: it is included in the planned cost, but it is not taken from stock." error={err.productId}>
+                {() => <ProductPicker kind="service" value={material} onChange={mat => (setMaterial(mat), setErr({}))} invalid={!!err.productId} />}
+              </Field>
+              <Field label="Quantity" error={err.qty}>
+                {p => <Input {...p} inputMode="decimal" value={qty} onChange={e => setQty(e.target.value)} />}
+              </Field>
+            </>
+          )}
+          {kind === 'output' && (
+            <>
+              <Field label="Output product" hint="The goods received from the disassembly. Only goods of the catalogue can be an output." error={err.productId}>
+                {() => <ProductPicker value={material} onChange={mat => (setMaterial(mat), setErr({}))} invalid={!!err.productId} />}
+              </Field>
+              <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
+                <Field label={`Quantity${material ? `, ${unitSymbol(units.data, material.unitCode)}` : ''}`} className="grow" error={err.qty}>
+                  {p => <Input {...p} inputMode="decimal" value={qty} onChange={e => setQty(e.target.value)} />}
+                </Field>
+                <Field label="Cost share, %" className="grow" hint="The share of the cost of the goods being disassembled. If it is set for one output, it is set for all of them and adds up to 100%." error={err.costShare}>
+                  {p => <Input {...p} inputMode="decimal" placeholder="e.g. 60" value={costShare} onChange={e => setCostShare(e.target.value)} />}
+                </Field>
+              </div>
+            </>
+          )}
+          {(kind === 'material' || kind === 'semi' || kind === 'expense' || kind === 'output') && paramKeys.length > 0 && (
+            <>
+              <Field label="Quantity formula" hint="Counted over the parameters of the product. Empty: the quantity above." error={err.qtyExpr ?? qtyExprError}>
+                {p => <Input {...p} placeholder="e.g. width * height / 1000000 * 1.05" value={qtyExpr} onChange={e => setQtyExpr(e.target.value)} invalid={!!(err.qtyExpr ?? qtyExprError)} />}
+              </Field>
+              <Field label="Condition" hint="The line is included in the composition only when the condition is true. Empty: the line is always included." error={err.condition ?? conditionError}>
+                {p => <Input {...p} placeholder="e.g. color = 'white'" value={condition} onChange={e => setCondition(e.target.value)} invalid={!!(err.condition ?? conditionError)} />}
+              </Field>
             </>
           )}
           {kind === 'work' && (
             <>
-              <Field label="Operation" error={err.operation}>
+              <Field label="Operation" hint="An operation is a product of the “Operation” kind: it carries the norm of time and the history of rates." error={err.operation}>
+                {p => (
+                  <select
+                    className="select"
+                    id={p.id}
+                    value={opProduct}
+                    onChange={e => {
+                      setOpProduct(e.target.value);
+                      const found = operations.data?.find(x => x.id === e.target.value);
+                      if (found) setOperation(found.name);
+                      setErr({});
+                    }}
+                  >
+                    <option value="">No operation (text work)</option>
+                    {(operations.data ?? []).map(o => (
+                      <option key={o.id} value={o.id}>
+                        {o.name}
+                        {o.sku ? ` (${o.sku})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </Field>
+              <Field label="Name of the work" error={err.operation}>
                 {p => <Input {...p} autoFocus placeholder="e.g. Assembly" value={operation} onChange={e => (setOperation(e.target.value), setErr({}))} />}
               </Field>
               <Field label="Work center" hint={centerObj ? `Rate of the center: ${Number(centerObj.hourlyRate).toFixed(2)} per hour.` : 'Optional: without a center, set the rate below.'}>

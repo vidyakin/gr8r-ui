@@ -4,6 +4,7 @@ import { sql } from 'drizzle-orm';
 import { boolean, check, foreignKey, index, integer, jsonb, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import type { FieldOptions } from '@gr8r/shared';
 import { archivedAt, createdAt, money, pk, updatedAt } from './columns';
+import { companies } from './crm';
 import { wsCol } from './people';
 
 /** Справочник единиц: базовый набор ОКЕИ воркспейс получает при создании, свои единицы добавляются рядом */
@@ -70,7 +71,8 @@ export const products = pgTable(
   {
     id: pk(),
     workspaceId: wsCol(),
-    kind: text('kind', { enum: ['goods', 'service'] }).notNull().default('goods'),
+    /** Вид номенклатуры: товар, услуга, работа (заказ-наряд) или операция (производство: не продаётся, склад не двигает). Список расширяют вместе с CHECK в БД */
+    kind: text('kind', { enum: ['goods', 'service', 'work', 'operation'] }).notNull().default('goods'),
     sku: text('sku').notNull().default(''),
     name: text('name').notNull(),
     description: text('description').notNull().default(''),
@@ -82,6 +84,14 @@ export const products = pgTable(
     price: money('price').notNull().default('0'),
     purchasePrice: money('purchase_price').notNull().default('0'),
     categoryId: uuid('category_id'),
+    /** Поставщик по умолчанию: заказы поставщикам по потребности создаются на него */
+    defaultSupplierId: uuid('default_supplier_id'),
+    /** Срок поставки, дней (для закупки): дата поступления в расчёте потребностей */
+    leadDays: integer('lead_days').notNull().default(0),
+    /** Товар-родитель: вариант товара (комбинация параметров с флажком «разрез склада») — обычная складская позиция */
+    parentProductId: uuid('parent_product_id'),
+    /** Значения параметров, дающих вариант: { цвет: 'white', размер: 'L' } */
+    variantValues: jsonb('variant_values').$type<Record<string, string>>().notNull().default({}),
     /** Значения характеристик категории (по схеме категории с унаследованными) */
     attrs: jsonb('attrs').$type<Record<string, unknown>>().notNull().default({}),
     isActive: boolean('is_active').notNull().default(true),
@@ -94,11 +104,19 @@ export const products = pgTable(
     unique('products_ws_id_uq').on(t.workspaceId, t.id),
     foreignKey({ columns: [t.workspaceId, t.categoryId], foreignColumns: [productCategories.workspaceId, productCategories.id], name: 'products_category_fk' }),
     foreignKey({ columns: [t.workspaceId, t.unitCode], foreignColumns: [units.workspaceId, units.code], name: 'products_unit_fk' }),
-    check('products_kind_chk', sql`${t.kind} in ('goods','service')`),
+    foreignKey({ columns: [t.workspaceId, t.defaultSupplierId], foreignColumns: [companies.workspaceId, companies.id], name: 'products_default_supplier_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.parentProductId], foreignColumns: [t.workspaceId, t.id], name: 'products_parent_fk' }),
+    check('products_kind_chk', sql`${t.kind} in ('goods','service','work','operation')`),
+    // вариант не может быть своим родителем (вложенность вариантов проверяет сервис)
+    check('products_parent_chk', sql`${t.parentProductId} is null or ${t.parentProductId} <> ${t.id}`),
     check('products_vat_chk', sql`${t.vatRate} in ('none','0','5','7','10','20')`),
     check('products_price_chk', sql`${t.price} >= 0 and ${t.purchasePrice} >= 0`),
+    check('products_lead_chk', sql`${t.leadDays} >= 0`),
     uniqueIndex('products_ws_sku_uq').on(t.workspaceId, sql`lower(${t.sku})`).where(sql`${t.sku} <> ''`),
     uniqueIndex('products_ws_barcode_uq').on(t.workspaceId, t.barcode).where(sql`${t.barcode} <> ''`),
+    // одна комбинация параметров у товара — один вариант (jsonb сравнивается без учёта порядка ключей)
+    uniqueIndex('products_variant_uq').on(t.workspaceId, t.parentProductId, t.variantValues).where(sql`${t.parentProductId} is not null`),
     index('products_ws_category_idx').on(t.workspaceId, t.categoryId),
+    index('products_parent_idx').on(t.workspaceId, t.parentProductId),
   ],
 );

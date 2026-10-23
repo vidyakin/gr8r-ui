@@ -24,10 +24,18 @@ export function ProductionPage() {
   const [creating, setCreating] = React.useState(false);
 
   const kinds = filters.values.kind ?? [];
+  const contains = filters.values.contains ?? [];
   const q = filters.q.trim().toLowerCase();
   const rows = React.useMemo(
-    () => (snap.data?.items ?? []).filter(i => (!kinds.length || kinds.includes(i.kind)) && (!q || i.name.toLowerCase().includes(q) || i.code.toLowerCase().includes(q))),
-    [snap.data, kinds, q],
+    () =>
+      (snap.data?.items ?? []).filter(
+        i =>
+          (!kinds.length || kinds.includes(i.kind)) &&
+          (!q || i.name.toLowerCase().includes(q) || i.code.toLowerCase().includes(q)) &&
+          // «содержит материал/операцию»: товар или операция есть в строках спецификации
+          (!contains.length || contains.some(c => i.lines.some(l => l.productId === c))),
+      ),
+    [snap.data, kinds, q, contains],
   );
 
   const columns = React.useMemo<Column<Item>[]>(
@@ -67,7 +75,15 @@ export function ProductionPage() {
   );
   const table = useDataTable(columns);
 
-  const filterFields: FilterField[] = [{ id: 'kind', name: 'Type', icon: <Layers size={15} />, options: MANUFACTURED_KINDS.map(k => ({ id: k, name: KIND_LABEL[k] })) }];
+  // материалы, расходы и операции, которые встречаются в спецификациях
+  const containsOptions = React.useMemo(() => {
+    const used = new Set((snap.data?.items ?? []).flatMap(i => i.lines.map(l => l.productId).filter((x): x is string => !!x)));
+    return (snap.data?.materials ?? []).filter(m => used.has(m.id)).map(m => ({ id: m.id, name: m.name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [snap.data]);
+  const filterFields: FilterField[] = [
+    { id: 'kind', name: 'Type', icon: <Layers size={15} />, options: MANUFACTURED_KINDS.map(k => ({ id: k, name: KIND_LABEL[k] })) },
+    { id: 'contains', name: 'Contains', icon: <Package size={15} />, options: containsOptions },
+  ];
   const newBtn = canWrite && (
     <Button variant="primary" onClick={() => setCreating(true)}>
       <Plus size={14} />

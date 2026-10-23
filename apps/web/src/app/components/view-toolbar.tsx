@@ -1,9 +1,10 @@
 /* Панель вида списка: поиск, фильтры, сортировка и строка фильтров-чипов — порт viewToolbar / filterChips
    из shell/view-engine.js. Конструктор фильтров упрощён: поле → набор значений (условие «is»). */
 import * as React from 'react';
-import { ArrowUpDown, Calendar, CircleDot, Columns3, Folder, ListFilter, Minus, Plus, RotateCcw, Rows3, Search, SignalHigh, User, X } from 'lucide-react';
+import { ArrowUpDown, Boxes, Calendar, CircleDot, Columns3, Folder, ListFilter, Minus, Plus, RotateCcw, Rows3, Search, SignalHigh, User, X } from 'lucide-react';
 import { Badge, Button, Input, Menu, MenuCheckboxItem, MenuContent, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger } from '@/components/ui';
 import { PRIORITIES, PriorityIcon, StatusIcon } from '@/components/gr8r/task';
+import { TASK_MODULES, TASK_MODULE_LABELS } from '@gr8r/shared';
 import { useWorkspace } from '../data/store';
 import { canSee, visibleProjects, type Filter, type FilterField, type GroupBy, type ListView, type SortField } from '../data/selectors';
 import { MemberAvatar } from './workspace';
@@ -45,6 +46,11 @@ function useFields(): Record<FilterField, { name: string; icon: React.ReactNode;
       options: visibleProjects(data)
         .filter(p => canSee(data, p))
         .map(p => ({ id: p.id, name: p.name, icon: <ProjectDot project={p} /> })),
+    },
+    module: {
+      name: 'Module',
+      icon: <Boxes size={15} />,
+      options: TASK_MODULES.map(m => ({ id: m, name: TASK_MODULE_LABELS[m] })),
     },
   };
 }

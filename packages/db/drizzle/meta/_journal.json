@@ -50,6 +50,146 @@
       "when": 1792484617970,
       "tag": "0006_automations",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792545803059,
+      "tag": "0007_stock_docs",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792598466546,
+      "tag": "0008_bom_semi_mode",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792605310871,
+      "tag": "0009_production_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792625472042,
+      "tag": "0010_task_modules",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792626909368,
+      "tag": "0011_stage_0b_stock_ops",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792629843788,
+      "tag": "0012_production_stages",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792636399858,
+      "tag": "0013_work_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792643289072,
+      "tag": "0014_piecework",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1792669030769,
+      "tag": "0015_service_time",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792671269530,
+      "tag": "0016_planning",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792672497068,
+      "tag": "0017_service_schedule",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792678549123,
+      "tag": "0018_contracts_billing",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792680141094,
+      "tag": "0019_production_materials",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792690204893,
+      "tag": "0020_production_closing",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792699495671,
+      "tag": "0021_production_plans",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792699563825,
+      "tag": "0022_billing_export_zip",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792706583113,
+      "tag": "0023_stage7_parametric_specs",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792712763860,
+      "tag": "0024_disassembly",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792724391156,
+      "tag": "0025_stage8_tolling",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792724796316,
+      "tag": "0026_composite_fk_set_null",
+      "breakpoints": true
     }
   ]
 }

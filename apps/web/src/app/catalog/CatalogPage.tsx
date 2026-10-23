@@ -52,7 +52,20 @@ export function CatalogPage() {
   const kind = (filters.values.kind ?? []) as ProductKind[];
   const status = filters.values.status ?? [];
   const list = useProducts({ categoryId: selected ?? undefined, q: q || undefined, kind: kind.length === 1 ? kind[0] : undefined, active: status.length === 1 ? status[0] === 'active' : undefined });
-  const rows = list.data ?? [];
+  // варианты показываются вложенно под товаром-родителем
+  const rows = React.useMemo(() => {
+    const all = list.data ?? [];
+    const variants = all.filter(p => p.parentProductId);
+    const parents = all.filter(p => !p.parentProductId);
+    const byParent = new Map<string, typeof all>();
+    for (const v of variants) byParent.set(v.parentProductId!, [...(byParent.get(v.parentProductId!) ?? []), v]);
+    const out: Product[] = [];
+    for (const p of parents) {
+      out.push(p);
+      for (const v of byParent.get(p.id) ?? []) out.push(v);
+    }
+    return out;
+  }, [list.data]);
 
   const open = (p: Product) => navigate({ pathname: `/catalog/${p.id}`, search: sp.toString() });
   const closeDrawer = () => navigate({ pathname: '/catalog', search: sp.toString() });
@@ -67,9 +80,11 @@ export function CatalogPage() {
         cell: p => (
           <span className="row" style={{ gap: 8, minWidth: 0 }}>
             {p.kind === 'service' ? <Wrench size={14} className="faint" aria-label="Service" /> : <Package size={14} className="faint" aria-label="Goods" />}
-            <span className="trunc" style={{ fontWeight: 450, opacity: p.isActive ? 1 : 0.6 }}>
+            <span className="trunc" style={{ fontWeight: 450, opacity: p.isActive ? 1 : 0.6, paddingLeft: p.parentProductId ? 14 : 0 }}>
+              {p.parentProductId && <span className="faint" aria-hidden="true">↳ </span>}
               {p.name}
             </span>
+            {p.parentProductId && <Badge tone="gray">Variant</Badge>}
             {!p.isActive && <Badge tone="gray">Inactive</Badge>}
           </span>
         ),

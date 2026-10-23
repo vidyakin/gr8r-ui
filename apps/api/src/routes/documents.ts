@@ -3,42 +3,67 @@
    Правила проведения, нумерации и склада — в packages/db (documents.ts, stock.ts); здесь только HTTP. */
 import { zValidator } from '@hono/zod-validator';
 import { and, asc, count, desc, eq, ilike, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import {
   bankAccounts,
   buildPrintData,
+  documentServiceCost,
+  processingOrderCost,
   cancelDocument,
+  canSeeCost,
+  changeDocumentState,
   companies,
+  costItems,
+  countSheet,
   createBasedOn,
   createDocument,
+  createInventoryBasedOn,
+  createProductionFromCustomerOrder,
+  createProductionFromOrder,
+  createProductionOrderFromCustomerOrder,
+  defaultPostingCost,
   deleteDocument,
+  documentCosts,
   documentDetail,
   documentFiles,
   documents,
+  fillCountSheet,
   jobs,
   loadAvgCosts,
   loadInventorySettings,
   organizations,
   postDocument,
   products,
+  productionDetail,
   recordEvent,
   restoreDocument,
   stockBalances,
+  stockCostAdjustments,
   stockMoves,
   stockReservations,
   unpostDocument,
   updateDocument,
   warehouses,
   workspaces,
+  workCenters,
+  workOrderDetail,
+  assertWorkOrderPostingByState,
+  inUseBalances,
+  members,
 } from '@gr8r/db';
 import {
   bankAccountCreate,
   bankAccountUpdate,
   basedOnCreate,
+  costItemCreate,
+  costItemQuery,
+  costItemUpdate,
   DOCUMENT_META,
   documentCreate,
   documentQuery,
+  documentStateChange,
   documentTypesOf,
   documentUpdate,
   idParam,
@@ -57,6 +82,7 @@ import {
   warehouseUpdate,
   type CompanyKind,
   type DocumentType,
+  uuid,
 } from '@gr8r/shared';
 import { crud, ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError, notFound } from '../errors';
@@ -66,7 +92,7 @@ import type { AppEnv } from '../types';
 const admin = requireRole('admin');
 const write = requireRole('member');
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, m => '\\' + m);
-const docCtx = (ctx: Ctx) => ({ workspaceId: ctx.workspaceId, memberId: ctx.memberId });
+const docCtx = (ctx: Ctx) => ({ workspaceId: ctx.workspaceId, memberId: ctx.memberId, role: ctx.role });
 
 /** Реквизиты проверяются по итоговому состоянию записи (тип + ИНН + КПП + ОГРН): ошибка — в том же формате, что у zod */
 export function assertRequisites(r: { kind: CompanyKind; inn?: string | null; kpp?: string | null; ogrn?: string | null }) {
@@ -222,6 +248,19 @@ const SORTABLE = {
   counterparty: companies.name,
 } as const;
 
+/** Внутренний документ: без контрагента, направление движения задаёт роль строки */
+const isInternal = (t: string) => DOCUMENT_META[t as DocumentType]?.party === null;
+
+/** Тип документа по id: нужен там, где поведение документа зависит от его типа */
+async function documentTypeOf(ctx: Ctx, id: string): Promise<string> {
+  const [doc] = await ctx.db.select({ type: documents.type }).from(documents).where(eq(documents.id, id)).limit(1);
+  if (!doc) throw notFound('document');
+  return doc.type;
+}
+
+/** Склад-получатель (перемещение) — отдельным алиасом, чтобы не путать со складом шапки */
+const targetWh = alias(warehouses, 'target_wh');
+
 export const documentRoutes = new Hono<AppEnv>()
   // журнал: фильтры по типу / группе / статусу / организации / контрагенту / датам, поиск по номеру, комментарию и контрагенту, суммы по выборке
   .get('/', zValidator('query', documentQuery, validationHook), async c => {
@@ -233,6 +272,7 @@ export const documentRoutes = new Hono<AppEnv>()
       q.status?.length ? inArray(documents.status, q.status) : undefined,
       q.organizationId ? eq(documents.organizationId, q.organizationId) : undefined,
       q.counterpartyId ? eq(documents.counterpartyId, q.counterpartyId) : undefined,
+      q.contractId ? eq(documents.contractId, q.contractId) : undefined,
       q.warehouseId ? eq(documents.warehouseId, q.warehouseId) : undefined,
       q.basedOnId ? eq(documents.basedOnId, q.basedOnId) : undefined,
       q.from ? sql`${documents.date} >= ${q.from}` : undefined,
@@ -246,29 +286,91 @@ export const documentRoutes = new Hono<AppEnv>()
     const order = (q.sort ?? '-date').startsWith('-') ? desc(sortCol) : asc(sortCol);
     const base = ctx.db.select({ n: count() }).from(documents).leftJoin(companies, eq(companies.id, documents.counterpartyId)).where(where);
     const [{ n }] = await base;
+    // суммы продаж и закупок: внутренние документы в них не входят — у них своя стоимость по себестоимости
     const [sum] = await ctx.db
       .select({ net: sql<string>`coalesce(sum(${documents.amountNet}), 0)::text`, vat: sql<string>`coalesce(sum(${documents.vatTotal}), 0)::text`, total: sql<string>`coalesce(sum(${documents.total}), 0)::text` })
       .from(documents)
       .leftJoin(companies, eq(companies.id, documents.counterpartyId))
-      .where(and(where, ne(documents.status, 'cancelled')));
+      .where(and(where, ne(documents.status, 'cancelled'), sql`${documents.type} not in ('stock_transfer','write_off','stock_posting')`));
     const rows = await ctx.db
-      .select({ doc: documents, counterpartyName: companies.name, organizationName: organizations.name, warehouseName: warehouses.name })
+      .select({ doc: documents, counterpartyName: companies.name, organizationName: organizations.name, warehouseName: warehouses.name, targetWarehouseName: targetWh.name })
       .from(documents)
       .leftJoin(companies, eq(companies.id, documents.counterpartyId))
       .innerJoin(organizations, eq(organizations.id, documents.organizationId))
       .leftJoin(warehouses, eq(warehouses.id, documents.warehouseId))
+      .leftJoin(targetWh, eq(targetWh.id, documents.targetWarehouseId))
       .where(where)
       .orderBy(order, desc(documents.createdAt), desc(documents.id))
       .limit(q.limit)
       .offset(q.offset);
     const items = rows.map(({ doc: { custom: _custom, ...doc }, ...r }) => ({ ...doc, ...r }));
-    return c.json({ items, total: n, limit: q.limit, offset: q.offset, sum: { net: sum!.net, vat: sum!.vat, total: sum!.total } });
+    // внутренние документы: стоимость по себестоимости (сумма qty × cost движений) — её видят только admin и owner
+    const internal = items.filter(d => isInternal(d.type));
+    const costs = internal.length ? await documentCosts(ctx.db, internal.map(d => d.id)) : new Map<string, string>();
+    const withCost = items.map(d => (isInternal(d.type) ? { ...d, costTotal: canSeeCost(ctx.role) ? (costs.get(d.id) ?? '0.00') : null } : d));
+    // сумма стоимости по выборке: у перемещения берётся расходная сторона (иначе приход и расход сократились бы)
+    const costRows = internal.length
+      ? await ctx.db.execute<{ cost: string }>(sql`
+          select coalesce(sum(c), 0)::text as cost
+          from (
+            select documents.id,
+              case when bool_or(m.qty < 0) then sum(case when m.qty < 0 then -m.qty * m.cost else 0 end)
+                   else sum(m.qty * m.cost) end as c
+            from stock_moves m
+            join documents on documents.id = m.document_id
+            left join companies on companies.id = documents.counterparty_id
+            where ${where} and documents.status <> 'cancelled' and documents.type in ('stock_transfer','write_off','stock_posting')
+            group by documents.id
+          ) t`)
+      : [];
+    const costSum = costRows[0]?.cost ?? '0';
+    return c.json({ items: withCost, total: n, limit: q.limit, offset: q.offset, sum: { net: sum!.net, vat: sum!.vat, total: sum!.total, cost: canSeeCost(ctx.role) ? costSum : null } });
   })
-  .get('/:id', zValidator('param', idParam, validationHook), async c => c.json(await documentDetail(ctxOf(c).db, c.req.valid('param').id)))
+  .get('/:id', zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const detail = await documentDetail(ctx.db, c.req.valid('param').id);
+    // заказ-наряд: добавляем вид, состояния, материалы и назначения
+    if (detail.type === 'work_order') {
+      const wo = await workOrderDetail(ctx.db, detail.id);
+      return c.json({ ...detail, ...wo });
+    }
+    // производственный документ: добавляем изготовителя, позиции и состав
+    if (detail.type === 'production' || detail.type === 'production_order') {
+      const prod = await productionDetail(ctx.db, detail.id);
+      const seeCost = canSeeCost(ctx.role);
+      return c.json({
+        ...detail,
+        workCenter: prod.workCenter,
+        plannedStart: prod.plannedStart,
+        plannedEnd: prod.plannedEnd,
+        items: prod.items,
+        components: seeCost ? prod.components : prod.components.map(c => ({ ...c, plannedCost: null, actualCost: null })),
+        outputs: prod.outputs,
+      });
+    }
+    // цена оприходования и стоимость по себестоимости — member и guest их не видят
+    if (isInternal(detail.type) && !canSeeCost(ctx.role)) return c.json({ ...detail, lines: detail.lines.map(l => ({ ...l, price: '0.00' })), costTotal: null });
+    // себестоимость услуги переработки: у заказа на переработку — накопленная по заказу, у отчёта о переработке и акта
+    // по нему — себестоимость партии; видят admin и owner
+    const processingOrder = detail.type === 'customer_order' && detail.operation === 'processing';
+    const processingDoc = detail.type === 'tolling_report' || (detail.type === 'act' && detail.basedOn?.type === 'tolling_report');
+    if (processingOrder || processingDoc) {
+      const serviceCost = canSeeCost(ctx.role) ? (processingOrder ? await processingOrderCost(ctx.db, detail.id) : await documentServiceCost(ctx.db, detail.id)) : null;
+      return c.json({ ...detail, serviceCost });
+    }
+    return c.json(detail);
+  })
   .post('/', write, zValidator('json', documentCreate, validationHook), async c => {
     const ctx = ctxOf(c);
-    const id = await createDocument(ctx.db, docCtx(ctx), c.req.valid('json'));
-    return c.json(await documentDetail(ctx.db, id), 201);
+    const body = c.req.valid('json');
+    // производственные документы создаются своим сервисом: у них позиции и состав, а не строки товаров
+    // производственные документы и прочие затраты создаются своим сервисом: у них позиции и состав, а не строки товаров
+    if (body.type === 'production' || body.type === 'production_order' || body.type === 'other_costs') throw new AppError(422, 'production_api_only', 'This document type is created in its own section of Production');
+    const id = await createDocument(ctx.db, docCtx(ctx), body);
+    const detail = await documentDetail(ctx.db, id);
+    // заказ-наряд: карточка сразу с видом, состояниями, материалами и назначениями
+    if (detail.type === 'work_order') return c.json({ ...detail, ...(await workOrderDetail(ctx.db, id)) }, 201);
+    return c.json(detail, 201);
   })
   .patch('/:id', write, zValidator('param', idParam, validationHook), zValidator('json', documentUpdate, validationHook), async c => {
     const ctx = ctxOf(c);
@@ -285,12 +387,15 @@ export const documentRoutes = new Hono<AppEnv>()
   .post('/:id/post', write, zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;
+    // заказ-наряд проводит состояние «выполнен», вручную его не проводят
+    assertWorkOrderPostingByState((await documentTypeOf(ctx, id)) as DocumentType);
     await postDocument(ctx.db, docCtx(ctx), id);
     return c.json(await documentDetail(ctx.db, id));
   })
   .post('/:id/unpost', write, zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;
+    assertWorkOrderPostingByState((await documentTypeOf(ctx, id)) as DocumentType);
     await unpostDocument(ctx.db, docCtx(ctx), id);
     return c.json(await documentDetail(ctx.db, id));
   })
@@ -308,8 +413,51 @@ export const documentRoutes = new Hono<AppEnv>()
   })
   .post('/:id/based-on', write, zValidator('param', idParam, validationHook), zValidator('json', basedOnCreate, validationHook), async c => {
     const ctx = ctxOf(c);
-    const id = await createBasedOn(ctx.db, docCtx(ctx), c.req.valid('param').id, c.req.valid('json').type);
-    return c.json(await documentDetail(ctx.db, id), 201);
+    const id = c.req.valid('param').id;
+    const type = c.req.valid('json').type;
+    // списание и оприходование по результатам инвентаризации: строго по разнице
+    if (type === 'write_off' || type === 'stock_posting') {
+      const [src] = await ctx.db.select({ type: documents.type }).from(documents).where(eq(documents.id, id)).limit(1);
+      if (src?.type === 'inventory_count') {
+        const created = await createInventoryBasedOn(ctx.db, docCtx(ctx), id, type);
+        return c.json(await documentDetail(ctx.db, created), 201);
+      }
+    }
+    // производство создаётся своим сервисом: заказ на производство и выпуск из заказа покупателя
+    if (type === 'production_order') {
+      const orderId = await createProductionOrderFromCustomerOrder(ctx.db, docCtx(ctx), { customerOrderId: id });
+      return c.json(await documentDetail(ctx.db, orderId), 201);
+    }
+    if (type === 'production') {
+      const [src] = await ctx.db.select({ type: documents.type }).from(documents).where(eq(documents.id, id)).limit(1);
+      if (src?.type === 'production_order') {
+        // выпуск по заказу на производство: остаток к выпуску по его позициям
+        const order = await productionDetail(ctx.db, id);
+        const lines = order.items.map(i => ({ orderItemId: i.id, qty: String(Math.max(0, Number(i.qty) - Number(i.produced))) })).filter(l => Number(l.qty) > 0);
+        if (!lines.length) throw new AppError(422, 'nothing_to_create', 'Everything from this production order is already produced');
+        const docId = await createProductionFromOrder(ctx.db, docCtx(ctx), id, { lines });
+        return c.json(await documentDetail(ctx.db, docId), 201);
+      }
+      const docId = await createProductionFromCustomerOrder(ctx.db, docCtx(ctx), { customerOrderId: id, lines: [] });
+      return c.json(await documentDetail(ctx.db, docId), 201);
+    }
+    const created = await createBasedOn(ctx.db, docCtx(ctx), id, type);
+    return c.json(await documentDetail(ctx.db, created), 201);
+  })
+  // состояние документа (отдельно от проведения): переход проверяется по метаданным типа
+  .post('/:id/state', write, zValidator('param', idParam, validationHook), zValidator('json', documentStateChange, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    const body = c.req.valid('json');
+    await changeDocumentState(ctx.db, docCtx(ctx), id, body.state, { received: body.received, cancelReason: body.cancelReason });
+    return c.json(await documentDetail(ctx.db, id));
+  })
+  // заполнить строки инвентаризации по остаткам склада
+  .post('/:id/fill-count-sheet', write, zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    await fillCountSheet(ctx.db, docCtx(ctx), id);
+    return c.json(await documentDetail(ctx.db, id));
   })
   // печатная форма: готовая HTML-страница (A4); та же, что превращается в PDF в воркере
   .get('/:id/print/:form', zValidator('param', printParam, validationHook), async c => {
@@ -344,6 +492,22 @@ export const documentRoutes = new Hono<AppEnv>()
     const name = `${doc?.number ?? 'document'}-${file.form}.pdf`.replace(/[^\w.-]+/g, '_');
     return new Response(new Uint8Array(file.data), { headers: { 'content-type': 'application/pdf', 'content-disposition': `attachment; filename="${name}"`, 'content-length': String(file.data.length), 'x-content-type-options': 'nosniff' } });
   });
+
+/* ---------------- справочник статей затрат и доходов ---------------- */
+
+/** Статьи затрат (списание) и доходов (оприходование): чтение — любой участник, меняет admin и выше */
+export const costItemRoutes = crud({
+  entity: 'cost_item',
+  table: costItems,
+  create: costItemCreate,
+  update: costItemUpdate,
+  query: costItemQuery,
+  sortable: { name: costItems.name, kind: costItems.kind, createdAt: costItems.createdAt },
+  defaultSort: 'name',
+  search: [costItems.name],
+  writeRole: 'admin',
+  filters: q => [q.kind ? eq(costItems.kind, q.kind) : undefined],
+});
 
 /* ---------------- склад ---------------- */
 
@@ -385,7 +549,10 @@ export const stockRoutes = new Hono<AppEnv>()
       .from(stockBalances)
       .innerJoin(products, eq(products.id, stockBalances.productId))
       .where(conds);
-    return c.json({ items: rows, total: tot!.n, limit: q.limit, offset: q.offset, value: tot!.value });
+    // средняя себестоимость и стоимость остатка видят только admin и owner
+    const seeCost = canSeeCost(ctx.role);
+    const items = rows.map(r => (seeCost ? r : { ...r, avgCost: null, value: null }));
+    return c.json({ items, total: tot!.n, limit: q.limit, offset: q.offset, value: seeCost ? tot!.value : null });
   })
   // карточка движений товара: документ, склад, количество со знаком, себестоимость, остаток после движения по складу
   .get('/moves', zValidator('query', stockMoveQuery, validationHook), async c => {
@@ -401,11 +568,13 @@ export const stockRoutes = new Hono<AppEnv>()
         productId: stockMoves.productId,
         documentId: stockMoves.documentId,
         qty: stockMoves.qty,
-        cost: stockMoves.cost,
+        // себестоимость движения с корректировкой закрытия периода
+        cost: sql<string>`(${stockMoves.cost} + coalesce(${stockCostAdjustments.deltaCost}, 0))::numeric(18,4)::text`.as('cost'),
         movedAt: stockMoves.movedAt,
         balance: running.as('balance'),
       })
       .from(stockMoves)
+      .leftJoin(stockCostAdjustments, and(eq(stockCostAdjustments.workspaceId, stockMoves.workspaceId), eq(stockCostAdjustments.moveId, stockMoves.id)))
       .where(and(q.warehouseId ? eq(stockMoves.warehouseId, q.warehouseId) : undefined, q.productId ? eq(stockMoves.productId, q.productId) : undefined))
       .as('m');
     const rows = await ctx.db
@@ -430,12 +599,62 @@ export const stockRoutes = new Hono<AppEnv>()
       .orderBy(desc(inner.seq))
       .limit(q.limit)
       .offset(q.offset);
-    return c.json({ items: rows, limit: q.limit, offset: q.offset });
+    // себестоимость движения видят только admin и owner
+    const seeCost = canSeeCost(ctx.role);
+    const items = rows.map(r => (seeCost ? r : { ...r, cost: null }));
+    return c.json({ items, limit: q.limit, offset: q.offset });
   })
   // средняя себестоимость товаров по организации (взвешенная остатком) — источник цены материала в производстве
   .get('/avg-costs', async c => {
-    const m = await loadAvgCosts(ctxOf(c).db);
+    const ctx = ctxOf(c);
+    // себестоимость видят только admin и owner
+    if (!canSeeCost(ctx.role)) return c.json({ items: [] });
+    const m = await loadAvgCosts(ctx.db);
     return c.json({ items: [...m].map(([productId, avgCost]) => ({ productId, avgCost })) });
+  })
+  // цена оприходования по умолчанию: текущая средняя (склад, товар), иначе последняя закупочная
+  .get('/default-cost', zValidator('query', z.object({ warehouseId: uuid.optional(), productId: uuid }), validationHook), async c => {
+    const ctx = ctxOf(c);
+    const { warehouseId, productId } = c.req.valid('query');
+    const [p] = await ctx.db.select({ id: products.id }).from(products).where(eq(products.id, productId)).limit(1);
+    if (!p) throw notFound('product');
+    const cost = await defaultPostingCost(ctx.db, warehouseId ?? null, productId);
+    return c.json({ productId, warehouseId: warehouseId ?? null, cost: canSeeCost(ctx.role) ? cost.cost : null, source: cost.source });
+  })
+  // опись склада для инвентаризации: текущие остатки (учётное количество)
+  .get('/count-sheet', zValidator('query', z.object({ warehouseId: uuid }), validationHook), async c => {
+    const ctx = ctxOf(c);
+    const { warehouseId } = c.req.valid('query');
+    const [w] = await ctx.db.select({ id: warehouses.id }).from(warehouses).where(eq(warehouses.id, warehouseId)).limit(1);
+    if (!w) throw notFound('warehouse');
+    const items = await countSheet(ctx.db, ctx.workspaceId, warehouseId);
+    return c.json({ warehouseId, items });
+  })
+  // имущество в эксплуатации: у какого сотрудника или участка оно лежит
+  .get('/in-use', async c => {
+    const ctx = ctxOf(c);
+    const rows = await ctx.db
+      .select({
+        productId: inUseBalances.productId,
+        name: products.name,
+        sku: products.sku,
+        unitCode: products.unitCode,
+        qty: inUseBalances.qty,
+        memberId: inUseBalances.memberId,
+        workCenterId: inUseBalances.workCenterId,
+      })
+      .from(inUseBalances)
+      .innerJoin(products, eq(products.id, inUseBalances.productId))
+      .where(sql`${inUseBalances.qty} <> 0`)
+      .orderBy(asc(products.name));
+    const memberIds = [...new Set(rows.map(r => r.memberId).filter((x): x is string => !!x))];
+    const centerIds = [...new Set(rows.map(r => r.workCenterId).filter((x): x is string => !!x))];
+    const memberRows = memberIds.length ? await ctx.db.select({ id: members.id, name: members.name }).from(members).where(inArray(members.id, memberIds)) : [];
+    const centerRows = centerIds.length ? await ctx.db.select({ id: workCenters.id, name: workCenters.name }).from(workCenters).where(inArray(workCenters.id, centerIds)) : [];
+    const memberNames = new Map(memberRows.map(m => [m.id, m.name]));
+    const centerNames = new Map(centerRows.map(w => [w.id, w.name]));
+    const items = rows.map(r => ({ ...r, memberName: r.memberId ? (memberNames.get(r.memberId) ?? null) : null, workCenterName: r.workCenterId ? (centerNames.get(r.workCenterId) ?? null) : null }));
+    return c.json({ items, total: items.length });
   })
   .get('/settings', async c => c.json(await loadInventorySettings(ctxOf(c).db, ctxOf(c).workspaceId)))
   .patch('/settings', admin, zValidator('json', inventorySettingsUpdate, validationHook), async c => {

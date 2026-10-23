@@ -2,7 +2,7 @@
    Защита от зацикливания: события, которые порождают действия flow, несут метку `via.chain` (flow цепочки). Flow, уже стоящий в цепочке,
    событием не запускается («сам себя»), а глубина цепочки ограничена MAX_FLOW_CHAIN — запуск фиксируется как skipped с причиной. */
 import { and, eq } from 'drizzle-orm';
-import { createRun, events, flowVersions, flows, withContext, type Db, type Sql } from '@gr8r/db';
+import { createRun, events, flowVersions, flows, withContext, workspaces, type Db, type Sql } from '@gr8r/db';
 import {
   cronMatches,
   eventAction,
@@ -14,6 +14,7 @@ import {
   parseCron,
   SYSTEM_ENTITY_KEYS,
   triggerNodeOf,
+  wallClock,
   type FlowEvent,
   type TriggerContext,
 } from '@gr8r/shared';
@@ -74,10 +75,9 @@ export async function startRunsForEvent(db: Db, ev: EventRow): Promise<number> {
   return created;
 }
 
-/** Срабатывания по расписанию за указанную минуту (UTC). Повторный вызов для той же минуты ничего не создаёт */
+/** Срабатывания по расписанию за указанную минуту. «Сейчас» переводится в часовой пояс арендатора — расписание
+    автоматизации живёт в часах арендатора. Повторный вызов для той же минуты ничего не создаёт */
 export async function scheduleFlowsOnce(sql: Sql, at: Date = new Date()): Promise<number> {
-  const minute = new Date(Math.floor(at.getTime() / 60_000) * 60_000);
-  const key = `cron:${minute.toISOString()}`;
   return withContext(
     sql,
     {},
@@ -87,11 +87,17 @@ export async function scheduleFlowsOnce(sql: Sql, at: Date = new Date()): Promis
         .from(flows)
         .innerJoin(flowVersions, and(eq(flowVersions.flowId, flows.id), eq(flowVersions.version, flows.publishedVersion)))
         .where(and(eq(flows.enabled, true), eq(flowVersions.triggerType, 'trigger.schedule')));
+      const zones = await db.select({ id: workspaces.id, timezone: workspaces.timezone }).from(workspaces);
+      const tzByWorkspace = new Map(zones.map(z => [z.id, z.timezone]));
       let n = 0;
       for (const r of rows) {
         const trig = triggerNodeOf(r.graph);
         const cron = typeof trig?.params.cron === 'string' ? parseCron(trig.params.cron) : null;
-        if (!cron || !cronMatches(cron, minute)) continue;
+        if (!cron) continue;
+        // стенные часы арендатора: выражение расписания задано в его часовом поясе
+        const minute = wallClock(at, tzByWorkspace.get(r.workspaceId) ?? 'UTC');
+        if (!cronMatches(cron, minute)) continue;
+        const key = `cron:${minute.toISOString()}`;
         const trigger: TriggerContext = { kind: 'schedule', scheduledFor: minute.toISOString(), firedAt: new Date().toISOString() };
         if (await createRun(db, { workspaceId: r.workspaceId, flowId: r.id, version: r.version, triggerKind: 'schedule', trigger: trigger as never, dedupeKey: key, chain: [r.id] })) n++;
       }

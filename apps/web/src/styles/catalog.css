@@ -201,7 +201,7 @@
 }
 .bom-params {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 12px;
   margin-bottom: 16px;
   padding: 12px;
@@ -304,6 +304,13 @@
 }
 .bom-empty {
   padding: 12px;
+}
+.bom.needs {
+  margin-top: 16px;
+}
+.bom-row .need-deficit {
+  color: var(--amber);
+  font-weight: 600;
 }
 .bom-row .chev {
   transition: transform var(--dur);

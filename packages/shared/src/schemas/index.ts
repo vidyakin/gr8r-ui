@@ -7,3 +7,6 @@ export * from './catalog';
 export * from './production';
 export * from './documents';
 export * from './automations';
+export * from './services';
+export * from './billing';
+export * from './calculations';

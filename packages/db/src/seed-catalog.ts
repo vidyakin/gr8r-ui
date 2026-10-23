@@ -3,7 +3,7 @@
    Названия товаров — данные (на русском), интерфейс остаётся английским. */
 import type { Db } from './client';
 import { registerBaseUnits } from './catalog';
-import { bomLines, attributeDefs, manufacturedItems, productCategories, products, workCenters } from './schema';
+import { bomLines, attributeDefs, manufacturedItems, operationRates, operations, productCategories, productionKinds, productionStages, products, workCenters } from './schema';
 import { uuidv7 } from './uuid';
 
 /** EAN-13 с контрольной цифрой из 12 цифр */
@@ -57,7 +57,7 @@ export async function seedCatalog(db: Db, wsId: string) {
   let seq = 0;
   const barcode = () => ean13(`46000000${String(++seq).padStart(4, '0')}`);
   const ids: Record<string, string> = {};
-  const goods = async (key: string, p: { name: string; sku: string; category: string; unit?: string; price: number; purchase: number; vat?: string; attrs?: Record<string, unknown>; active?: boolean }) => {
+  const goods = async (key: string, p: { name: string; sku: string; category: string | null; unit?: string; price: number; purchase: number; vat?: string; attrs?: Record<string, unknown>; active?: boolean }) => {
     const id = (ids[key] = uuidv7());
     await db.insert(products).values({
       id,
@@ -83,6 +83,8 @@ export async function seedCatalog(db: Db, wsId: string) {
 
   // Готовая мебель, купленная для перепродажи
   await goods('chair', { name: 'Стул обеденный «Классик»', sku: 'FRN-001', category: furniture.id, price: 5900, purchase: 3200, attrs: { brand: 'Loft&Co', color: 'Чёрный' } });
+  // Стул собственного производства: из него делается заказ на производство
+  await goods('chairLoft', { name: 'Стул обеденный «Лофт»', sku: 'FRN-003', category: furniture.id, price: 6900, purchase: 0, attrs: { brand: 'Gr8r Home', color: 'Натуральный' } });
   await goods('stool', { name: 'Табурет «Мини»', sku: 'FRN-002', category: furniture.id, price: 2400, purchase: 1300, attrs: { brand: 'Loft&Co', color: 'Белый' } });
 
   // Фурнитура
@@ -104,12 +106,51 @@ export async function seedCatalog(db: Db, wsId: string) {
   await goods('sandpaper', { name: 'Шлифшкурка P120, лист', sku: 'MT-SND-120', category: materials.id, unit: '625', price: 45, purchase: 24 });
   await goods('packaging', { name: 'Упаковка картон + плёнка', sku: 'MT-PKG-1', category: materials.id, price: 420, purchase: 260 });
 
+  // Окно на заказ: товар-родитель и его вариант (белый) — вариант даёт комбинация параметров с флажком «разрез склада».
+  // Без категории: у «Мебели» есть характеристика color, а ключи параметров спецификации не должны с ней совпадать
+  await goods('window', { name: 'Окно', sku: 'WIN-001', category: null, price: 18500, purchase: 0 });
+  const windowWhite = uuidv7();
+  await db.insert(products).values({
+    id: windowWhite,
+    workspaceId: wsId,
+    kind: 'goods',
+    sku: 'WIN-001-WHITE',
+    name: 'Окно (Белый)',
+    unitCode: '796',
+    vatRate: '20',
+    price: '18500.00',
+    purchasePrice: '0',
+    categoryId: null,
+    parentProductId: ids.window!,
+    variantValues: { color: 'white' },
+  });
+
+  // Окна на заказ: материалы, из которых состав считается по параметрам (ширина, высота, цвет)
+  await goods('glass', { name: 'Стекло оконное 4 мм (м²)', sku: 'MT-GLS-4', category: materials.id, unit: '006', price: 2400, purchase: 1500 });
+  await goods('profile', { name: 'Профиль ПВХ (м)', sku: 'MT-PRF-PVC', category: materials.id, unit: '006', price: 900, purchase: 520 });
+  await goods('paint', { name: 'Краска по дереву (кг)', sku: 'MT-PNT-1', category: materials.id, unit: '112', price: 700, purchase: 430 });
+
   // Услуги
   const service = async (name: string, sku: string, unit: string, price: number, vat = '20') =>
     db.insert(products).values({ workspaceId: wsId, kind: 'service', sku, name, unitCode: unit, vatRate: vat, price: price.toFixed(2), purchasePrice: '0', categoryId: services.id });
   await service('Доставка по городу', 'SV-DLV', '876', 1500);
   await service('Сборка мебели на месте', 'SV-ASM', '356', 1800);
-  await service('Замер и консультация', 'SV-MSR', '876', 0, 'none');
+  await service('Замер и консультация', 'SV-MSR', '876', 1200, 'none');
+  // Подрядчик: окраска изделия на своём оборудовании — строка «Расход» в спецификации
+  ids.painting = uuidv7();
+  await db.insert(products).values({ id: ids.painting!, workspaceId: wsId, kind: 'service', sku: 'SV-PNT', name: 'Окраска подрядчиком', unitCode: '876', vatRate: '20', price: '1200.00', purchasePrice: '1200.00', categoryId: services.id });
+
+  // Работы (вид номенклатуры «Работа»): заказ-наряд продаёт работу, к ней идут материалы и исполнители
+  const work = async (key: string, name: string, sku: string, unit: string, price: number, vat = '20') => {
+    const id = (ids[key] = uuidv7());
+    await db.insert(products).values({ id, workspaceId: wsId, kind: 'work', sku, name, unitCode: unit, vatRate: vat, price: price.toFixed(2), purchasePrice: '0', categoryId: services.id });
+    return id;
+  };
+  await work('workMnt', 'Монтаж и наладка оборудования', 'WR-MNT', '356', 2400);
+  await work('workSrv', 'Сервисное обслуживание', 'WR-SRV', '356', 3200);
+  // Операция — вид номенклатуры: не продаётся и склад не двигает, только норма времени и расценки
+  const operationId = (ids.assemblyOperation = uuidv7());
+  await db.insert(products).values({ id: operationId, workspaceId: wsId, kind: 'operation', sku: 'OP-ASM', name: 'Сборка стула', unitCode: '356', vatRate: 'none', price: '0', purchasePrice: '0', categoryId: services.id });
 
   /* ---------- участки ---------- */
   const carpentry = uuidv7();
@@ -119,22 +160,48 @@ export async function seedCatalog(db: Db, wsId: string) {
     { id: assembly, workspaceId: wsId, code: 'WS-2', name: 'Сборочный участок', hourlyRate: '450.00', note: 'Сборка и упаковка' },
   ]);
 
+  /* ---------- операции: норма времени и история расценок ---------- */
+  await db.insert(operations).values({ workspaceId: wsId, productId: ids.assemblyOperation!, normHours: '0.500', workCenterId: assembly });
+  // Нормы работ (вид номенклатуры «Работа»): норма на единицу и участок по умолчанию — та же таблица operations
+  await db.insert(operations).values([
+    { workspaceId: wsId, productId: ids.workMnt!, normHours: '1.500', workCenterId: assembly },
+    { workspaceId: wsId, productId: ids.workSrv!, normHours: '2.000', workCenterId: assembly },
+  ]);
+  await db.insert(operationRates).values([
+    { workspaceId: wsId, productId: ids.assemblyOperation!, validFrom: '2026-01-01', rate: '900.00', unit: 'per_unit' },
+    { workspaceId: wsId, productId: ids.assemblyOperation!, validFrom: '2026-07-01', rate: '1100.00', unit: 'per_unit' },
+  ]);
+
+  /* ---------- виды производства и этапы ---------- */
+  // Вид «Мебельное производство»: распил → сборка → завершение производства
+  const furnitureKind = uuidv7();
+  await db.insert(productionKinds).values({ id: furnitureKind, workspaceId: wsId, name: 'Мебельное производство', note: 'Распил, сборка и упаковка' });
+  const stageCut = uuidv7();
+  const stageAssembly = uuidv7();
+  const stageFinal = uuidv7();
+  await db.insert(productionStages).values([
+    { id: stageCut, workspaceId: wsId, kindId: furnitureKind, sortOrder: 0, name: 'Распил', isFinal: false },
+    { id: stageAssembly, workspaceId: wsId, kindId: furnitureKind, sortOrder: 1, name: 'Сборка', isFinal: false },
+    { id: stageFinal, workspaceId: wsId, kindId: furnitureKind, sortOrder: 2, name: 'Завершение производства', isFinal: true },
+  ]);
+  const stages = { cut: stageCut, assembly: stageAssembly, final: stageFinal } as const;
+
   /* ---------- продукция и спецификации ---------- */
-  const item = async (key: string, i: { name: string; code: string; kind: 'product' | 'semi'; productId?: string; batchQty?: number; overheadPct: number }) => {
+  const item = async (key: string, i: { name: string; code: string; kind: 'product' | 'semi'; productId?: string; batchQty?: number; overheadPct: number; kindId?: string }) => {
     ids[key] = uuidv7();
-    await db.insert(manufacturedItems).values({ id: ids[key], workspaceId: wsId, code: i.code, name: i.name, kind: i.kind, unitCode: '796', productId: i.productId ?? null, batchQty: String(i.batchQty ?? 1), overheadPct: String(i.overheadPct) });
+    await db.insert(manufacturedItems).values({ id: ids[key], workspaceId: wsId, code: i.code, name: i.name, kind: i.kind, unitCode: '796', productId: i.productId ?? null, batchQty: String(i.batchQty ?? 1), overheadPct: String(i.overheadPct), productionKindId: i.kindId ?? null });
   };
-  type Line = { kind: 'material'; product: string; qty: number; scrap?: number } | { kind: 'semi'; item: string; qty: number } | { kind: 'work'; op: string; center?: string; hours?: number; rate?: number; fixed?: number };
+  type Line = { kind: 'material'; product: string; qty: number; scrap?: number; stage?: keyof typeof stages } | { kind: 'semi'; item: string; qty: number; stage?: keyof typeof stages } | { kind: 'work'; op: string; center?: string; hours?: number; rate?: number; fixed?: number; stage?: keyof typeof stages; operation?: string };
   const bom = async (itemKey: string, lines: Line[]) => {
     await db.insert(bomLines).values(
       lines.map((l, i) => {
-        const base = { workspaceId: wsId, itemId: ids[itemKey]!, kind: l.kind, sortOrder: i };
+        const base = { workspaceId: wsId, itemId: ids[itemKey]!, kind: l.kind, sortOrder: i, stageId: l.stage ? stages[l.stage] : null };
         if (l.kind === 'material') {
           const unit = ({ oakBeam: '006', oakBoard: '055', plywood: '625', mdf: '625', edge: '006', lacquer: '112', stain: '112', glue: '166', sandpaper: '625' } as Record<string, string>)[l.product] ?? '796';
           return { ...base, productId: ids[l.product]!, qty: String(l.qty), unitCode: unit, scrapPct: String(l.scrap ?? 0) };
         }
-        if (l.kind === 'semi') return { ...base, childItemId: ids[l.item]!, qty: String(l.qty), unitCode: '796' };
-        return { ...base, operation: l.op, workCenterId: l.center === 'assembly' ? assembly : carpentry, hours: String(l.hours ?? 0), rate: l.rate !== undefined ? l.rate.toFixed(2) : null, fixedCost: l.fixed !== undefined ? l.fixed.toFixed(2) : null, qty: '1' };
+        if (l.kind === 'semi') return { ...base, childItemId: ids[l.item]!, qty: String(l.qty), unitCode: '796', semiMode: 'stock' as const };
+        return { ...base, productId: l.operation ? ids[l.operation]! : null, operation: l.op, workCenterId: l.center === 'assembly' ? assembly : carpentry, hours: String(l.hours ?? 0), rate: l.rate !== undefined ? l.rate.toFixed(2) : null, fixedCost: l.fixed !== undefined ? l.fixed.toFixed(2) : null, qty: '1' };
       }),
     );
   };
@@ -183,14 +250,68 @@ export async function seedCatalog(db: Db, wsId: string) {
     { kind: 'material', product: 'edge', qty: 3.6, scrap: 5 },
     { kind: 'work', op: 'Раскрой и кромление', center: 'carpentry', hours: 0.8 },
   ]);
-  await item('desk', { name: 'Стол письменный «Офис»', code: 'FG-OFFICE', kind: 'product', productId: ids.tableOffice, overheadPct: 10 });
+  // Изделие с видом производства: материалы и операции распределены по этапам
+  await item('desk', { name: 'Стол письменный «Офис»', code: 'FG-OFFICE', kind: 'product', productId: ids.tableOffice, overheadPct: 10, kindId: furnitureKind });
   await bom('desk', [
-    { kind: 'semi', item: 'officeTop', qty: 1 },
-    { kind: 'material', product: 'foot', qty: 4 },
-    { kind: 'material', product: 'plywood', qty: 0.25, scrap: 10 },
-    { kind: 'material', product: 'screw', qty: 12 },
-    { kind: 'work', op: 'Сборка', center: 'assembly', hours: 0.7 },
+    { kind: 'material', product: 'mdf', qty: 0.5, scrap: 10, stage: 'cut' },
+    { kind: 'material', product: 'edge', qty: 3.6, scrap: 5, stage: 'cut' },
+    { kind: 'material', product: 'plywood', qty: 0.25, scrap: 10, stage: 'cut' },
+    { kind: 'material', product: 'foot', qty: 4, stage: 'assembly' },
+    { kind: 'material', product: 'screw', qty: 12, stage: 'assembly' },
+    { kind: 'material', product: 'packaging', qty: 1, stage: 'final' },
+    { kind: 'work', op: 'Сборка', center: 'assembly', hours: 0.7, stage: 'assembly' },
   ]);
 
-  return { products: 20, services: 3 };
+  // Изделие 4: окно на заказ — параметрическая спецификация (ширина, высота, цвет) с формулами строк
+  ids.windowItem = uuidv7();
+  await db.insert(manufacturedItems).values({
+    id: ids.windowItem,
+    workspaceId: wsId,
+    code: 'FG-WINDOW',
+    name: 'Окно по замерам',
+    kind: 'product',
+    unitCode: '796',
+    productId: ids.window!,
+    batchQty: '1',
+    overheadPct: '10',
+    params: [
+      { key: 'width', name: 'Ширина, мм', type: 'number', required: true, options: {} },
+      { key: 'height', name: 'Высота, мм', type: 'number', required: true, options: {} },
+      { key: 'color', name: 'Цвет', type: 'select', required: true, stockDimension: true, options: { choices: [{ value: 'white', label: 'Белый', color: 'gray' }, { value: 'black', label: 'Чёрный', color: 'gray' }] } },
+    ],
+  });
+  await db.insert(bomLines).values([
+    // площадь стекла с запасом 5% на отход
+    { workspaceId: wsId, itemId: ids.windowItem!, kind: 'material', sortOrder: 0, productId: ids.glass!, qty: '1', unitCode: '006', scrapPct: '0', qtyExpr: 'width * height / 1000000 * 1.05' },
+    // профиль по периметру рамы
+    { workspaceId: wsId, itemId: ids.windowItem!, kind: 'material', sortOrder: 1, productId: ids.profile!, qty: '1', unitCode: '006', scrapPct: '0', qtyExpr: '2 * (width + height) / 1000' },
+    // краска — только для белого цвета
+    { workspaceId: wsId, itemId: ids.windowItem!, kind: 'material', sortOrder: 2, productId: ids.paint!, qty: '0.2', unitCode: '112', scrapPct: '0', condition: "color = 'white'" },
+    // расход подрядчику: в себестоимость входит, со склада не списывается
+    { workspaceId: wsId, itemId: ids.windowItem!, kind: 'expense', sortOrder: 3, productId: ids.painting!, qty: '1', unitCode: '876', scrapPct: '0' },
+    { workspaceId: wsId, itemId: ids.windowItem!, kind: 'work', sortOrder: 4, operation: 'Сборка окна', workCenterId: assembly, hours: '2', rate: null, fixedCost: null, qty: '1' },
+  ]);
+
+  // Разборка: исходный товар (брус) делится на выходные продукты (заготовки и обрезки) с долями стоимости
+  await goods('logBeam', { name: 'Брус сосновый 150×150', sku: 'MT-LOG-150', category: materials.id, unit: '006', price: 0, purchase: 1800 });
+  await goods('blank', { name: 'Заготовка деталь', sku: 'MT-BLK-001', category: materials.id, unit: '796', price: 1400, purchase: 0 });
+  await goods('offcut', { name: 'Обрезок', sku: 'MT-OFC-001', category: materials.id, unit: '796', price: 300, purchase: 0 });
+  ids.logItem = uuidv7();
+  await db.insert(manufacturedItems).values({ id: ids.logItem, workspaceId: wsId, code: 'DIS-LOG', name: 'Разборка бруса', kind: 'product', mode: 'disassembly', unitCode: '796', productId: ids.logBeam!, batchQty: '1', overheadPct: '10' });
+  await db.insert(bomLines).values([
+    { workspaceId: wsId, itemId: ids.logItem!, kind: 'output', sortOrder: 0, productId: ids.blank!, qty: '4', unitCode: '796', costShare: '80.00' },
+    { workspaceId: wsId, itemId: ids.logItem!, kind: 'output', sortOrder: 1, productId: ids.offcut!, qty: '1', unitCode: '796', costShare: '20.00' },
+    { workspaceId: wsId, itemId: ids.logItem!, kind: 'work', sortOrder: 2, operation: 'Распил бруса', workCenterId: carpentry, hours: '1', rate: '650.00', fixedCost: null, qty: '1' },
+  ]);
+
+  // Изделие 3: стул «Лофт» — простое изделие для заказа на производство
+  await item('loftChair', { name: 'Стул «Лофт»', code: 'FG-LOFT', kind: 'product', productId: ids.chairLoft, overheadPct: 10 });
+  await bom('loftChair', [
+    { kind: 'material', product: 'oakBeam', qty: 4, scrap: 8 },
+    { kind: 'material', product: 'screw', qty: 8 },
+    { kind: 'material', product: 'packaging', qty: 1 },
+    { kind: 'work', op: 'Сборка стула', operation: 'assemblyOperation', center: 'assembly', hours: 0.5 },
+  ]);
+
+  return { products: 28, services: 4, operations: 1 };
 }

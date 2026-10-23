@@ -3,7 +3,7 @@
    Суммы строк и итоги документа в форме считает та же чистая функция, что и сервер при проведении (computeDocument из @gr8r/shared). */
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { DOCUMENT_META, type CompanyKind, type DocumentGroup, type DocumentStatus, type DocumentType, type FileRef, type TaxSystem, type VatRate } from '@gr8r/shared';
+import { DOCUMENT_META, type CompanyKind, type CostDistribution, type CostItemKind, type DocumentGroup, type DocumentStatus, type DocumentType, type FileRef, type MaterialOwner, type TaxSystem, type TollingRole, type VatRate, type WarehouseKind, type WorkOrderBillingMode, type WorkOrderStateCategory } from '@gr8r/shared';
 import { toast } from '@/components/ui';
 import type { Tone } from '@/components/ui';
 import { errorMessage } from '../data/api';
@@ -29,12 +29,24 @@ export interface DocLine {
   vatAmount: string;
   total: string;
   sku: string;
-  kind: 'goods' | 'service';
+  kind: 'goods' | 'service' | 'work' | 'operation';
   shipped: string;
   planned: string;
   returned: string;
   sourceLineId: string | null;
   originLineId: string | null;
+  /** Роль строки внутреннего документа: приход или расход */
+  stockRole: 'in' | 'out' | null;
+  /** Учётное количество по остаткам (инвентаризация) */
+  bookQty: string;
+  /** Принятое количество (перемещение «в пути») */
+  receivedQty: string;
+  /** Статья косвенных затрат строки-услуги поступления */
+  costItemId: string | null;
+  /** Участок строки-услуги поступления */
+  workCenterId: string | null;
+  /** Вкладка строки отчёта о переработке: продукция, использованное сырьё или отходы */
+  tollingRole: TollingRole | null;
 }
 
 export interface DocListItem {
@@ -44,16 +56,32 @@ export interface DocListItem {
   date: string;
   dueDate: string | null;
   status: DocumentStatus;
+  /** Состояние документа (отдельно от проведения) */
+  state: string | null;
   organizationId: string;
   organizationName: string;
   counterpartyId: string | null;
   counterpartyName: string | null;
+  /** Договор документа */
+  contractId: string | null;
   warehouseId: string | null;
   warehouseName: string | null;
+  targetWarehouseId: string | null;
+  targetWarehouseName?: string | null;
+  costItemId: string | null;
+  /** Участок списания (себестоимость уходит в косвенные затраты участка) */
+  workCenterId: string | null;
+  /** Заказ на переработку (приём, отчёт о переработке, возврат) */
+  tollingOrderId: string | null;
+  /** Вид операции: «Переработка» у заказа на переработку и отчёта переработчика */
+  operation?: string | null;
+  workCenter?: { id: string; name: string } | null;
   priceIncludesVat: boolean;
   amountNet: string;
   vatTotal: string;
   total: string;
+  /** Стоимость по себестоимости (внутренние документы); member и guest её не видят (null) */
+  costTotal?: string | null;
   basedOnId: string | null;
   comment: string;
   createdAt: string;
@@ -75,11 +103,39 @@ export interface DocDetail extends Omit<DocListItem, 'organizationName' | 'count
   currency: string;
   organization: { id: string; name: string } | null;
   counterparty: { id: string; name: string; inn: string } | null;
+  /** Договор документа */
+  contract: { id: string; number: string; companyName: string; validFrom: string; validTo: string | null } | null;
   warehouse: { id: string; name: string } | null;
+  /** Склад-получатель (перемещение) */
+  targetWarehouse: { id: string; name: string; kind: WarehouseKind } | null;
+  /** Статья затрат или доходов */
+  costItem: { id: string; name: string; kind: CostItemKind } | null;
+  operation: string | null;
+  /** Получатель имущества в эксплуатацию: сотрудник */
+  inUseMember: { id: string; name: string } | null;
+  /** Получатель имущества в эксплуатацию: участок */
+  inUseWorkCenter: { id: string; name: string } | null;
+  /** Стоимость по себестоимости (внутренние документы) */
+  costTotal?: string;
+  /** Себестоимость услуги переработки по заказу (admin и owner; member и guest — null) */
+  serviceCost?: string | null;
+  /** Заказ на производство/выпуск по заказу на переработку */
+  processingOrderId?: string | null;
   basedOn: DocLink | null;
   children: DocLink[];
   lines: DocLine[];
   postedAt: string | null;
+  /** Заказ-наряд: вид, набор состояний, материалы и назначения */
+  kindId?: string | null;
+  kindName?: string | null;
+  states?: WorkOrderState[];
+  materials?: WorkOrderMaterial[];
+  assignments?: WorkOrderAssignment[];
+  /** Производственный документ: изготовитель, плановые сроки, позиции и состав */
+  workCenter?: { id: string; name: string } | null;
+  plannedStart?: string | null;
+  plannedEnd?: string | null;
+  components?: { id: string; kind: 'material' | 'semi' | 'work' | 'expense'; ownerKind: MaterialOwner; operation: string; qty: string; hours: string; plannedCost: string | null; actualCost: string | null }[];
 }
 
 export interface DocListParams {
@@ -96,7 +152,7 @@ export interface DocList {
   items: DocListItem[];
   total: number;
   limit: number;
-  sum: { net: string; vat: string; total: string };
+  sum: { net: string; vat: string; total: string; cost?: string | null };
 }
 
 export function useDocuments(params: DocListParams) {
@@ -183,7 +239,20 @@ export interface Warehouse {
   name: string;
   code: string;
   address: string;
+  kind: WarehouseKind;
+  /** Склад контрагента: место хранения на стороне контрагента (склад переработчика) */
+  counterpartyId: string | null;
   isDefault: boolean;
+  archivedAt: string | null;
+}
+
+export interface CostItem {
+  id: string;
+  name: string;
+  kind: CostItemKind;
+  systemKey: string | null;
+  /** База распределения косвенной затраты при закрытии периода */
+  distributionMethod: CostDistribution;
   archivedAt: string | null;
 }
 
@@ -207,6 +276,16 @@ export function useOrganizations() {
 export function useWarehouses() {
   const ws = useWsId();
   return useQuery({ queryKey: docsKey(ws, 'warehouses'), queryFn: async () => (await call<{ items: Warehouse[] }>(ws, 'GET', '/warehouses?limit=100')).items, staleTime: Infinity });
+}
+
+/** Статьи затрат и доходов: справочник для списаний и оприходований */
+export function useCostItems(kind?: CostItemKind) {
+  const ws = useWsId();
+  return useQuery({
+    queryKey: docsKey(ws, 'cost-items', kind ?? 'all'),
+    queryFn: async () => (await call<{ items: CostItem[] }>(ws, 'GET', `/cost-items?limit=200${kind ? `&kind=${kind}` : ''}`)).items,
+    staleTime: Infinity,
+  });
 }
 
 export function useBankAccounts(owner: 'companies' | 'organizations', id: string | undefined) {
@@ -275,7 +354,7 @@ export function useStockBalances(params: { warehouseId?: string; q?: string; non
       if (params.warehouseId) sp.set('warehouseId', params.warehouseId);
       if (params.q) sp.set('q', params.q);
       if (params.nonZero) sp.set('nonZero', 'true');
-      return call<{ items: StockBalance[]; total: number; value: string }>(ws, 'GET', `/stock/balances?${sp}`);
+      return call<{ items: StockBalance[]; total: number; value: string | null }>(ws, 'GET', `/stock/balances?${sp}`);
     },
     staleTime: Infinity,
     placeholderData: prev => prev,
@@ -285,6 +364,218 @@ export function useStockBalances(params: { warehouseId?: string; q?: string; non
 export function useStockMoves(productId: string | undefined) {
   const ws = useWsId();
   return useQuery({ queryKey: docsKey(ws, 'moves', productId), queryFn: async () => (await call<{ items: StockMove[] }>(ws, 'GET', `/stock/moves?productId=${productId}&limit=200`)).items, enabled: !!productId, staleTime: Infinity });
+}
+
+/** Имущество в эксплуатации: у какого сотрудника или участка оно лежит */
+export interface InUseBalance {
+  productId: string;
+  name: string;
+  sku: string;
+  unitCode: string;
+  qty: string;
+  memberId: string | null;
+  memberName: string | null;
+  workCenterId: string | null;
+  workCenterName: string | null;
+}
+
+export function useInUseBalances() {
+  const ws = useWsId();
+  return useQuery({ queryKey: docsKey(ws, 'in-use'), queryFn: async () => (await call<{ items: InUseBalance[] }>(ws, 'GET', '/stock/in-use')).items, staleTime: Infinity });
+}
+
+/* ---------------- переработка давальческого сырья ---------------- */
+
+/** Остаток давальца: склад, товар, давалец и заказ на переработку (только количество) */
+export interface CustomerBalance {
+  warehouseId: string;
+  warehouseName: string;
+  productId: string;
+  name: string;
+  sku: string;
+  unitCode: string;
+  ownerCompanyId: string;
+  ownerName: string;
+  processingOrderId: string | null;
+  processingOrderNumber: string | null;
+  qty: string;
+}
+
+export function useCustomerBalances() {
+  const ws = useWsId();
+  return useQuery({ queryKey: docsKey(ws, 'customer-balances'), queryFn: async () => (await call<{ items: CustomerBalance[] }>(ws, 'GET', '/processing/balances')).items, staleTime: Infinity });
+}
+
+/** Заказ на переработку: заказ покупателя с видом операции «Переработка» */
+export interface ProcessingOrderItem {
+  id: string;
+  number: string | null;
+  date: string;
+  status: DocumentStatus;
+  counterpartyId: string | null;
+  counterpartyName: string | null;
+  ownerName: string | null;
+  warehouseName: string | null;
+  total: string;
+  comment: string;
+  lineCount: number;
+  /** Накопленная себестоимость услуги переработки (admin и owner; member и guest — null) */
+  serviceCost: string | null;
+}
+
+export function useProcessingOrders(params: { status?: string; q?: string } = {}) {
+  const ws = useWsId();
+  return useQuery({
+    queryKey: docsKey(ws, 'processing-orders', params),
+    queryFn: () => {
+      const sp = new URLSearchParams({ limit: '200' });
+      if (params.status) sp.set('status', params.status);
+      if (params.q) sp.set('q', params.q);
+      return call<{ items: ProcessingOrderItem[]; total: number }>(ws, 'GET', `/processing/orders?${sp}`);
+    },
+    staleTime: Infinity,
+    placeholderData: prev => prev,
+  });
+}
+
+/* ---------------- заказ-наряды ---------------- */
+
+/** Состояние заказ-наряда: набор задаёт воркспейс, логика — по категории */
+export interface WorkOrderState {
+  key: string;
+  label: string;
+  category: WorkOrderStateCategory;
+  color?: string;
+}
+
+export interface WorkOrderKind {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  sortOrder: number;
+}
+
+/** Материал заказ-наряда: израсходован на работу, списывается при выполнении */
+export interface WorkOrderMaterial {
+  id: string;
+  productId: string;
+  name: string;
+  unitCode: string;
+  qty: string;
+  warehouseId: string | null;
+  warehouseName: string | null;
+}
+
+/** Назначение: исполнитель — задача модуля services */
+export interface WorkOrderAssignment {
+  id: string;
+  taskId: string;
+  taskKey: string;
+  title: string;
+  status: string;
+  assigneeId: string | null;
+  assigneeName: string | null;
+  lineId: string | null;
+  workCenterId: string | null;
+  workCenterName: string | null;
+  plannedHours: string | null;
+  startDate: string | null;
+  dueDate: string | null;
+  /** Интервал работы по часам */
+  startAt: string | null;
+  endAt: string | null;
+}
+
+export interface WorkOrderListItem extends DocListItem {
+  kindName: string | null;
+  stateLabel: string | null;
+  stateColor: string | null;
+  category: WorkOrderStateCategory | null;
+}
+
+export function useWorkOrders(params: { state?: string; status?: string; q?: string }) {
+  const ws = useWsId();
+  return useQuery({
+    queryKey: docsKey(ws, 'work-orders', params),
+    queryFn: () => {
+      const sp = new URLSearchParams({ limit: '200' });
+      if (params.state) sp.set('state', params.state);
+      if (params.status) sp.set('status', params.status);
+      if (params.q) sp.set('q', params.q);
+      return call<{ items: WorkOrderListItem[]; total: number; sum: { net: string; vat: string; total: string } }>(ws, 'GET', `/work-orders?${sp}`);
+    },
+    staleTime: Infinity,
+    placeholderData: prev => prev,
+  });
+}
+
+/** Табель сотрудника: время по задачам модуля services (строки по заказчику и виду работ) */
+export interface TimesheetRow {
+  logDate: string;
+  hours: string;
+  memberId: string;
+  memberName: string;
+  taskId: string;
+  taskKey: string;
+  title: string;
+  companyId: string | null;
+  companyName: string | null;
+  workName: string | null;
+  documentId: string | null;
+  documentNumber: string | null;
+}
+
+export interface Timesheet {
+  items: TimesheetRow[];
+  totals: { hours: string; byMember: { memberId: string; memberName: string; hours: string }[] };
+}
+
+export function useTimesheet(params: { memberId?: string; from?: string; to?: string }) {
+  const ws = useWsId();
+  return useQuery({
+    queryKey: docsKey(ws, 'timesheet', params),
+    queryFn: () => {
+      const sp = new URLSearchParams();
+      if (params.memberId) sp.set('memberId', params.memberId);
+      if (params.from) sp.set('from', params.from);
+      if (params.to) sp.set('to', params.to);
+      return call<Timesheet>(ws, 'GET', `/services/timesheet?${sp}`);
+    },
+    staleTime: Infinity,
+    placeholderData: prev => prev,
+  });
+}
+
+/** Время заказ-наряда: план и факт по назначениям, способ выставления строк работ */
+export interface WorkOrderTime {
+  assignments: { assignmentId: string; taskId: string; taskKey: string; title: string; assigneeName: string | null; lineId: string | null; lineName: string | null; plannedHours: string; actualHours: string }[];
+  lines: { lineId: string; name: string; billing: WorkOrderBillingMode; actualHours: string }[];
+  members: { memberId: string | null; memberName: string | null; plannedHours: string; actualHours: string }[];
+  totals: { plannedHours: string; actualHours: string };
+}
+
+export function useWorkOrderTime(id: string | undefined) {
+  const ws = useWsId();
+  return useQuery({ queryKey: docsKey(ws, 'wo-time', id), queryFn: () => call<WorkOrderTime>(ws, 'GET', `/work-orders/${id}/time`), enabled: !!id, staleTime: Infinity });
+}
+
+/** Виды заказ-нарядов воркспейса */
+export function useWorkOrderKinds() {  const ws = useWsId();
+  return useQuery({ queryKey: docsKey(ws, 'work-order-kinds'), queryFn: async () => (await call<{ items: WorkOrderKind[] }>(ws, 'GET', '/work-order-kinds?limit=100')).items, staleTime: Infinity });
+}
+
+/** Состояния заказ-наряда (по видам) */
+export function useDocumentStates(kindId?: string) {
+  const ws = useWsId();
+  return useQuery({
+    queryKey: docsKey(ws, 'document-states', kindId ?? 'all'),
+    queryFn: async () => {
+      const sp = new URLSearchParams({ limit: '200' });
+      if (kindId) sp.set('kindId', kindId);
+      return (await call<{ items: (WorkOrderState & { id: string; kindId: string })[] }>(ws, 'GET', `/document-states?${sp}`)).items;
+    },
+    staleTime: Infinity,
+  });
 }
 
 /* ---------------- поиск ---------------- */
