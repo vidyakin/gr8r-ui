@@ -2,6 +2,7 @@
    Раздел — часть адреса (/settings/:section), поэтому переключается ссылками и работает с кнопкой «назад». */
 import * as React from 'react';
 import { NavLink, Navigate, useParams } from 'react-router';
+import { useT, type TKey } from '../../i18n';
 import { SECTIONS } from '../routes';
 import { DEFAULT_SECTION, SET_NAV, SET_SECTIONS } from '../settings/nav';
 import { AppearanceSection, DateTimeSection, LanguageSection, MembersSection, PermissionsSection, ProjectsSection, TeamsSection, WorkspaceSection } from '../settings/general';
@@ -71,19 +72,20 @@ function Body({ sec, title }: { sec: string; title: string }) {
 
 export function SettingsPage() {
   const { section } = useParams();
+  const t = useT();
   if (!section) return <Navigate to={`${SECTIONS.settings.path}/${DEFAULT_SECTION}`} replace />;
   const cur = SET_SECTIONS.find(x => x[0] === section);
   if (!cur) return <NotFoundPage />;
   return (
     <div className="set">
-      <nav className="set-nav" aria-label="Settings">
+      <nav className="set-nav" aria-label={t('sections.settings')}>
         {SET_NAV.map(([g, items]) => (
           <React.Fragment key={g}>
-            <div className="gh">{g}</div>
-            {items.map(([k, n, Icon]) => (
+            <div className="gh">{t(`settings.nav.groups.${g}` as TKey)}</div>
+            {items.map(([k, nKey, Icon]) => (
               <NavLink key={k} to={`${SECTIONS.settings.path}/${k}`} className={({ isActive }) => `sitem ${isActive ? 'on' : ''}`}>
                 <Icon size={15} />
-                <span>{n}</span>
+                <span>{t(`settings.nav.items.${nKey}` as TKey)}</span>
               </NavLink>
             ))}
           </React.Fragment>
@@ -91,7 +93,7 @@ export function SettingsPage() {
       </nav>
       <div className="set-body">
         <div className="set-in">
-          <Body sec={section} title={cur[1]} />
+          <Body sec={section} title={t(`settings.nav.items.${cur[1]}` as TKey)} />
         </div>
       </div>
     </div>

@@ -36,6 +36,7 @@ export function Swatches({ colors, value, onPick, size, label }: { colors: strin
 
 /** Часовой пояс арендатора (IANA): в нём считаются период биллинга и расписания автоматизаций. Меняет admin и выше */
 function WorkspaceTimeZone() {
+  const t = useT();
   const zone = useWorkspaceTimezone();
   const api = useBillingApi();
   const isAdmin = useIsAdmin();
@@ -44,23 +45,24 @@ function WorkspaceTimeZone() {
     if (zone.data) setValue(zone.data.timezone);
   }, [zone.data?.timezone]);
   return (
-    <SRow t="Workspace time zone" d="Billing periods and automation schedules are counted in this time zone.">
+    <SRow t={t('settings.workspace.timezone')} d={t('settings.workspace.timezoneHint')}>
       <Select
         value={value}
         disabled={!isAdmin}
         onValueChange={async v => {
           setValue(v);
           const r = await api('PATCH', '/billing/timezone', { timezone: v });
-          if (r) toast('Time zone saved');
+          if (r) toast(t('settings.workspace.timezoneSaved'));
         }}
         options={(zone.data?.options ?? ['UTC', 'Europe/Moscow']).map(tz => ({ value: tz, label: tz }))}
-        aria-label="Workspace time zone"
+        aria-label={t('settings.workspace.timezone')}
       />
     </SRow>
   );
 }
 
 export function WorkspaceSection({ title }: { title: string }) {
+  const t = useT();
   const { data, dispatch } = useWorkspace();
   const session = useSession();
   const navigate = useNavigate();
@@ -73,44 +75,44 @@ export function WorkspaceSection({ title }: { title: string }) {
     if (!saving) return;
     const n = name.trim();
     const u = url.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-');
-    const t = setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       dispatch({ type: 'ws/update', patch: { name: n, url: u || ws.url } });
       setUrl(u || ws.url);
       setSaving(false);
-      toast('Workspace settings saved');
+      toast(t('settings.workspace.saved'));
     }, 600);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saving]);
   const save = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return toast.error("Workspace name can't be empty");
+    if (!name.trim()) return toast.error(t('settings.workspace.nameEmpty'));
     setSaving(true);
   };
   return (
     <>
-      <SettingsHead title={title} lead="Your workspace name, address, and identity." />
+      <SettingsHead title={title} lead={t('settings.workspace.lead')} />
       <form onSubmit={save}>
         <div className="sblock" style={{ marginTop: 0 }}>
           <div className="row" style={{ gap: 14, marginBottom: 18 }}>
             <WorkspaceLogo ws={ws} size={52} />
             <div>
               <div className="label" style={{ marginBottom: 6 }}>
-                Workspace icon
+                {t('settings.workspace.icon')}
               </div>
-              <Swatches colors={WS_COLORS} value={ws.c} size={22} label="Color" onPick={c => dispatch({ type: 'ws/update', patch: { c } })} />
+              <Swatches colors={WS_COLORS} value={ws.c} size={22} label={t('settings.workspace.color')} onPick={c => dispatch({ type: 'ws/update', patch: { c } })} />
             </div>
           </div>
           <div className="col" style={{ gap: 14, maxWidth: 440 }}>
             <div className="field">
               <label className="label" htmlFor="ws-name">
-                Workspace name
+                {t('settings.workspace.name')}
               </label>
               <input className="input" id="ws-name" value={name} onChange={e => setName(e.target.value)} />
             </div>
             <div className="field">
               <label className="label" htmlFor="ws-url">
-                Workspace URL
+                {t('settings.workspace.url')}
               </label>
               <div className="row" style={{ gap: 0 }}>
                 <span className="input" style={{ width: 'auto', background: 'var(--surface-2)', borderRight: 0, borderRadius: '6px 0 0 6px', display: 'flex', alignItems: 'center', color: 'var(--text-2)' }}>
@@ -118,21 +120,21 @@ export function WorkspaceSection({ title }: { title: string }) {
                 </span>
                 <input className="input" id="ws-url" value={url} onChange={e => setUrl(e.target.value)} style={{ borderRadius: '0 6px 6px 0' }} />
               </div>
-              <span className="hint">Changing the URL will break existing links.</span>
+              <span className="hint">{t('settings.workspace.urlHint')}</span>
             </div>
             <div>
               <Button variant="primary" type="submit" loading={saving}>
-                Save changes
+                {t('settings.workspace.save')}
               </Button>
             </div>
           </div>
         </div>
       </form>
       <div className="sblock">
-        <h2 style={{ color: 'var(--red)' }}>Danger zone</h2>
-        <SRow t="Delete workspace" d="Permanently delete this workspace, its projects, tasks, and files. This cannot be undone.">
+        <h2 style={{ color: 'var(--red)' }}>{t('settings.workspace.dangerZone')}</h2>
+        <SRow t={t('settings.workspace.deleteTitle', { name: ws.name })} d={t('settings.workspace.deleteBody')}>
           <Button variant="danger-ghost" style={{ border: '1px solid color-mix(in srgb,var(--red) 35%,transparent)' }} onClick={() => setConfirm(true)}>
-            Delete workspace
+            {t('settings.workspace.deleteOk')}
           </Button>
         </SRow>
       </div>
@@ -140,9 +142,9 @@ export function WorkspaceSection({ title }: { title: string }) {
         <ConfirmModal
           onClose={() => setConfirm(false)}
           spec={{
-            title: `Delete ${ws.name}?`,
-            body: 'Every project, task, file, and comment in this workspace will be permanently deleted for all members.',
-            ok: 'Delete workspace',
+            title: t('settings.workspace.deleteTitle', { name: ws.name }),
+            body: t('settings.workspace.deleteBody'),
+            ok: t('settings.workspace.deleteOk'),
             danger: true,
             typeName: ws.name,
             run: () => {
@@ -156,7 +158,7 @@ export function WorkspaceSection({ title }: { title: string }) {
                   resetSettings();
                   if (rest[0]) session.switchWorkspace(rest[0].id);
                   navigate('/');
-                  toast.info(`Workspace “${ws.name}” was deleted`);
+                  toast.info(t('settings.workspace.deleted', { name: ws.name }));
                 })
                 .catch(e => toast.error(errorMessage(e)));
             },
@@ -192,11 +194,11 @@ function ThemePreview({ c }: { c: typeof LIGHT }) {
   );
 }
 
-const THEMES: [ThemeMode, string, React.ReactNode][] = [
-  ['light', 'Light', <Sun key="l" size={14} />],
-  ['dark', 'Dark', <Moon key="d" size={14} />],
-  ['system', 'System', <Monitor key="s" size={14} />],
-];
+function ThemeItem({ mode, icon }: { mode: ThemeMode; icon: React.ReactNode }) {
+  const t = useT();
+  return <>{icon} {t(`settings.appearance.themes.${mode}`)}</>;
+}
+
 const ACCENTS: [Accent, string][] = [
   ['indigo', '#4B5BD6'],
   ['blue', '#2F6CD4'],
@@ -205,17 +207,27 @@ const ACCENTS: [Accent, string][] = [
   ['rose', '#B93D68'],
   ['graphite', '#34332F'],
 ];
-const DENSITY_ITEMS = ['comfortable', 'compact'].map(k => ({ value: k as Density, label: k[0].toUpperCase() + k.slice(1) }));
+const DENSITY_KEYS: Density[] = ['comfortable', 'compact'];
 
 export function AppearanceSection({ title }: { title: string }) {
+  const t = useT();
   const { prefs, setPrefs } = usePrefs();
+  const themeIcons: Record<ThemeMode, React.ReactNode> = {
+    light: <Sun key="l" size={14} />,
+    dark: <Moon key="d" size={14} />,
+    system: <Monitor key="s" size={14} />,
+  };
+  const densityItems = DENSITY_KEYS.map(k => {
+    const label = k === 'comfortable' ? t('settings.appearance.densityComfortable') : t('settings.appearance.densityCompact');
+    return { value: k, label };
+  });
   return (
     <>
-      <SettingsHead title={title} lead="Customize how Gr8r looks on this device." />
+      <SettingsHead title={title} lead={t('settings.appearance.lead')} />
       <div className="sblock" style={{ marginTop: 0 }}>
-        <h2>Theme</h2>
-        <div className="themecards" style={{ marginTop: 12 }} role="radiogroup" aria-label="Theme">
-          {THEMES.map(([k, n, icon]) => (
+        <h2>{t('settings.appearance.theme')}</h2>
+        <div className="themecards" style={{ marginTop: 12 }} role="radiogroup" aria-label={t('settings.appearance.themeAria')}>
+          {(['light', 'dark', 'system'] as ThemeMode[]).map(k => (
             <button key={k} className={`tcard ${prefs.theme === k ? 'on' : ''}`} role="radio" aria-checked={prefs.theme === k} onClick={() => setPrefs({ theme: k })}>
               <div className="tprev" style={k === 'system' ? { gridTemplateColumns: '1fr 1fr', display: 'grid' } : undefined}>
                 {k === 'system' ? (
@@ -232,8 +244,7 @@ export function AppearanceSection({ title }: { title: string }) {
                 )}
               </div>
               <span className="row" style={{ fontWeight: 500, fontSize: 13, gap: 6 }}>
-                {icon}
-                {n}
+                <ThemeItem mode={k} icon={themeIcons[k]} />
                 {prefs.theme === k && (
                   <>
                     <span className="sp" />
@@ -248,9 +259,9 @@ export function AppearanceSection({ title }: { title: string }) {
         </div>
       </div>
       <div className="sblock">
-        <h2>Accent color</h2>
-        <SRow t="Accent" d="Used for primary buttons, focus rings, and selection.">
-          <div className="swatches" role="radiogroup" aria-label="Accent color">
+        <h2>{t('settings.appearance.accent')}</h2>
+        <SRow t={t('settings.appearance.accentRow.t')} d={t('settings.appearance.accentRow.d')}>
+          <div className="swatches" role="radiogroup" aria-label={t('settings.appearance.accentAria')}>
             {ACCENTS.map(([k, c]) => (
               <Tooltip key={k} content={k[0].toUpperCase() + k.slice(1)}>
                 <button className={`sw ${prefs.accent === k ? 'on' : ''}`} style={{ '--c': c } as React.CSSProperties} role="radio" aria-checked={prefs.accent === k} onClick={() => setPrefs({ accent: k })} aria-label={k}>
@@ -262,20 +273,20 @@ export function AppearanceSection({ title }: { title: string }) {
         </SRow>
       </div>
       <div className="sblock">
-        <h2>Density</h2>
-        <SRow t="Sidebar density" d="Compact fits more projects on screen.">
-          <Segmented value={prefs.side} onValueChange={v => setPrefs({ side: v })} items={DENSITY_ITEMS} aria-label="Sidebar density" />
+        <h2>{t('settings.appearance.density')}</h2>
+        <SRow t={t('settings.appearance.sidebarDensity.t')} d={t('settings.appearance.sidebarDensity.d')}>
+          <Segmented value={prefs.side} onValueChange={v => setPrefs({ side: v })} items={densityItems} aria-label={t('settings.appearance.sideDensityAria')} />
         </SRow>
-        <SRow t="Task display" d="Row height in lists and card padding on boards.">
-          <Segmented value={prefs.density} onValueChange={v => setPrefs({ density: v })} items={DENSITY_ITEMS} aria-label="Task display" />
+        <SRow t={t('settings.appearance.taskDisplay.t')} d={t('settings.appearance.taskDisplay.d')}>
+          <Segmented value={prefs.density} onValueChange={v => setPrefs({ density: v })} items={densityItems} aria-label={t('settings.appearance.taskDisplayAria')} />
         </SRow>
-        <SRow t="Motion" d="Reduce animations for drawers, modals, and transitions.">
+        <SRow t={t('settings.appearance.motion.t')} d={t('settings.appearance.motion.d')}>
           <PrefSelect
             label="motion"
             value={prefs.motion}
             options={[
-              ['system', 'Follow system'],
-              ['reduce', 'Reduce motion'],
+              ['system', t('settings.appearance.motionSystem')],
+              ['reduce', t('settings.appearance.motionReduce')],
             ]}
             onChange={v => setPrefs({ motion: v as Motion })}
           />
@@ -345,19 +356,20 @@ export function LanguageSection({ title }: { title: string }) {
 }
 
 export function DateTimeSection({ title }: { title: string }) {
+  const t = useT();
   const [s, set] = useSettings();
   return (
     <>
-      <SettingsHead title={title} lead="How dates and times appear across the workspace." />
+      <SettingsHead title={title} lead={t('settings.dateTime.lead')} />
       <WorkspaceTimeZone />
-      <SRow t="Time zone" d="Used for due dates and reminders.">
+      <SRow t={t('settings.dateTime.timezone')} d={t('settings.dateTime.timezoneHint')}>
         <PrefSelect label="tz" value={s.tz} options={['(GMT-08:00) Pacific Time', '(GMT-05:00) Eastern Time', '(GMT+00:00) London', '(GMT+01:00) Berlin', '(GMT+08:00) Singapore']} onChange={tz => set({ tz })} />
       </SRow>
       <SRow
-        t="Date format"
+        t={t('settings.dateTime.dateFormat')}
         d={
           <>
-            Preview: <b>{fmtDate(dOff(8))}</b>
+            {t('settings.common.preview')}: <b>{fmtDate(dOff(8))}</b>
           </>
         }
       >
@@ -373,25 +385,25 @@ export function DateTimeSection({ title }: { title: string }) {
           onChange={dateFmt => set({ dateFmt })}
         />
       </SRow>
-      <SRow t="Start week on" d="Affects calendars and the timeline.">
+      <SRow t={t('settings.dateTime.weekStart')}>
         <PrefSelect
           label="weekStart"
           value={s.weekStart}
           options={[
-            ['1', 'Monday'],
-            ['0', 'Sunday'],
-            ['6', 'Saturday'],
+            ['1', t('settings.dateTime.weekStartMonday')],
+            ['0', t('settings.dateTime.weekStartSunday')],
+            ['6', t('settings.dateTime.weekStartSaturday')],
           ]}
           onChange={weekStart => set({ weekStart })}
         />
       </SRow>
-      <SRow t="Time format">
+      <SRow t={t('settings.dateTime.timeFormat')}>
         <PrefSelect
           label="timeFmt"
           value={s.timeFmt}
           options={[
-            ['12', '12-hour (2:30 PM)'],
-            ['24', '24-hour (14:30)'],
+            ['12', t('settings.dateTime.format12')],
+            ['24', t('settings.dateTime.format24')],
           ]}
           onChange={timeFmt => set({ timeFmt })}
         />
@@ -403,20 +415,23 @@ export function DateTimeSection({ title }: { title: string }) {
 /* ---------- Workspace group ---------- */
 
 export function MembersSection({ title }: { title: string }) {
+  const t = useT();
   const { data } = useWorkspace();
   const navigate = useNavigate();
   const invite = useInvite();
   const actions = useMemberActions();
+  const count = data.members.length;
+  const lead = t('settings.members.leadCount', { count, name: data.ws.name });
   return (
     <>
-      <SettingsHead title={title} lead={`${data.members.length} people have access to ${data.ws.name}.`} />
+      <SettingsHead title={title} lead={lead} />
       <div className="row" style={{ marginBottom: 12 }}>
         <Button variant="primary" onClick={() => invite.open()}>
           <UserPlus size={14} />
-          Invite member
+          {t('settings.members.invite')}
         </Button>
         <Button variant="secondary" onClick={() => navigate(SECTIONS.members.path)}>
-          Open member directory
+          {t('settings.members.openDirectory')}
         </Button>
       </div>
       <div className="panel" style={{ overflow: 'hidden' }}>
@@ -429,11 +444,11 @@ export function MembersSection({ title }: { title: string }) {
                 {m.email}
               </div>
             </div>
-            {m.status === 'invited' && <Badge tone="amber">Invited</Badge>}
+            {m.status === 'invited' && <Badge tone="amber">{t('settings.members.invited')}</Badge>}
             {m.role === 'Owner' ? (
               <span className="pillbtn">
                 <Crown size={13} />
-                Owner
+                {t('settings.members.owner')}
               </span>
             ) : (
               <RoleCell m={m} actions={actions} />
@@ -448,15 +463,17 @@ export function MembersSection({ title }: { title: string }) {
 }
 
 export function TeamsSection({ title }: { title: string }) {
+  const t = useT();
   return (
     <>
-      <SettingsHead title={title} lead="Teams group people and projects." />
+      <SettingsHead title={title} lead={t('settings.teams.lead')} />
       <TeamsGrid />
     </>
   );
 }
 
 export function ProjectsSection({ title }: { title: string }) {
+  const t = useT();
   const { data, dispatch } = useWorkspace();
   const [s, set] = useSettings();
   const navigate = useNavigate();
@@ -464,26 +481,26 @@ export function ProjectsSection({ title }: { title: string }) {
   const arch = data.projects.filter(p => p.archived);
   return (
     <>
-      <SettingsHead title={title} lead="Defaults for new projects and archived work." />
-      <SRow t="Default project view" d="The tab that opens when you open a project.">
+      <SettingsHead title={title} lead={t('settings.projects.lead')} />
+      <SRow t={t('settings.projects.defaultView')}>
         <PrefSelect
           label="defaultTab"
           value={s.defaultTab}
           options={[
-            ['board', 'Board'],
-            ['list', 'List'],
-            ['table', 'Table'],
-            ['overview', 'Overview'],
-            ['timeline', 'Timeline'],
+            ['board', t('projectTabs.board')],
+            ['list', t('projectTabs.list')],
+            ['table', t('projectTabs.table')],
+            ['overview', t('projectTabs.overview')],
+            ['timeline', t('projectTabs.timeline')],
           ]}
           onChange={defaultTab => set({ defaultTab })}
         />
       </SRow>
-      <SRow t="Show completed tasks on boards">
+      <SRow t={t('settings.projects.showDone')}>
         <Toggle label="showDoneBoard" checked={s.showDoneBoard} onChange={showDoneBoard => set({ showDoneBoard })} />
       </SRow>
       <div className="sblock">
-        <h2>Archived projects</h2>
+        <h2>{t('settings.projects.archived')}</h2>
         {arch.length ? (
           arch.map(p => (
             <div key={p.id} className="srow">
@@ -497,26 +514,26 @@ export function ProjectsSection({ title }: { title: string }) {
                   size="sm"
                   onClick={() => {
                     dispatch({ type: 'project/update', id: p.id, patch: { archived: false, archivedAt: null } });
-                    toast(`Restored ${p.name}`);
+                    toast(t('settings.projects.restored', { name: p.name }));
                   }}
                 >
-                  Restore
+                  {t('settings.common.restore')}
                 </Button>
                 <Button variant="danger-ghost" size="sm" onClick={() => forms.remove(p.id)}>
-                  Delete
+                  {t('settings.common.remove')}
                 </Button>
               </div>
             </div>
           ))
         ) : (
           <p className="faint" style={{ padding: '12px 0', margin: '1em 0' }}>
-            No archived projects. Archived projects are hidden from the sidebar but keep all their tasks.
+            {t('settings.projects.archivedEmpty')}
           </p>
         )}
         <div style={{ marginTop: 12 }}>
           <Button variant="secondary" size="sm" onClick={() => navigate(SECTIONS.archive.path)}>
             <Archive size={13} />
-            Open archive
+            {t('settings.projects.openArchive')}
           </Button>
         </div>
       </div>
@@ -525,21 +542,22 @@ export function ProjectsSection({ title }: { title: string }) {
 }
 
 export function PermissionsSection({ title }: { title: string }) {
+  const t = useT();
   const [s, set] = useSettings();
   return (
     <>
-      <SettingsHead title={title} lead="Control what each role can do." />
-      <SRow t="Members can create projects">
+      <SettingsHead title={title} lead={t('settings.permissions.lead')} />
+      <SRow t={t('settings.permissions.canCreate')}>
         <Toggle label="permCreate" checked={s.permCreate} onChange={permCreate => set({ permCreate })} />
       </SRow>
-      <SRow t="Members can invite guests" d="Guests only see projects they are added to.">
+      <SRow t={t('settings.permissions.canInvite')} d={t('settings.permissions.canInviteHint')}>
         <Toggle label="permGuests" checked={s.permGuests} onChange={permGuests => set({ permGuests })} />
       </SRow>
-      <SRow t="Allow public share links" d="Anyone with the link can view a project.">
+      <SRow t={t('settings.permissions.publicShare')} d={t('settings.permissions.publicShareHint')}>
         <Toggle label="permPublic" checked={s.permPublic} onChange={permPublic => set({ permPublic })} />
       </SRow>
       <div className="sblock">
-        <h2>Role permissions</h2>
+        <h2>{t('settings.permissions.roleTable')}</h2>
         <div style={{ marginTop: 12 }}>
           <PermsTable />
         </div>

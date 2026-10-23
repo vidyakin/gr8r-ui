@@ -8,58 +8,60 @@ import { MemberAvatar } from '../components/workspace';
 import { PrefSelect, SRow, SettingsHead, Toggle } from './parts';
 import { Swatches } from './general';
 import { SHORTCUTS } from './nav';
+import { useT, type TKey } from '@/i18n';
 
 /* ---------- Notifications ---------- */
 
-/** Строка уведомления: заголовок, пояснение, ключ в settings.np */
-type NotifRow = [t: string, d: string, key: string];
+/** Строка уведомления: ключ заголовка в settings.notifications.<id>, ключ настройки в settings.np */
+type NotifRow = [labelKey: string, key: string];
 
-const NOTIF: Record<string, { lead: string; rows: NotifRow[] }> = {
+const NOTIF: Record<string, { leadKey: string; rows: NotifRow[] }> = {
   'notif-email': {
-    lead: 'Choose which emails you receive.',
+    leadKey: 'settings.notifications.email.lead',
     rows: [
-      ['Mentions', 'When someone @mentions you.', 'email_mention'],
-      ['Assignments', 'When a task is assigned to you.', 'email_assign'],
-      ['Comments', 'On tasks you created or are assigned.', 'email_comment'],
-      ['Daily digest', 'A summary of what changed, every weekday at 8:00.', 'email_digest'],
+      ['settings.notifications.email.mentions', 'email_mention'],
+      ['settings.notifications.email.assignments', 'email_assign'],
+      ['settings.notifications.email.comments', 'email_comment'],
+      ['settings.notifications.email.digest', 'email_digest'],
     ],
   },
   'notif-push': {
-    lead: 'Notifications on desktop and mobile.',
+    leadKey: 'settings.notifications.push.lead',
     rows: [
-      ['Mentions', '', 'push_mention'],
-      ['Assignments', '', 'push_assign'],
-      ['Comments', '', 'push_comment'],
-      ['Due date reminders', 'One day before a task is due.', 'push_due'],
+      ['settings.notifications.push.mentions', 'push_mention'],
+      ['settings.notifications.push.assignments', 'push_assign'],
+      ['settings.notifications.push.comments', 'push_comment'],
+      ['settings.notifications.push.due', 'push_due'],
     ],
   },
   'notif-mentions': {
-    lead: 'Decide which mentions reach you.',
+    leadKey: 'settings.notifications.mentions.lead',
     rows: [
-      ['@mentions in comments and descriptions', '', 'mention_all'],
-      ['@team mentions', 'When your team is mentioned, e.g. @Product.', 'mention_team'],
-      ['@workspace mentions', 'Announcements to everyone.', 'mention_ws'],
+      ['settings.notifications.mentions.all', 'mention_all'],
+      ['settings.notifications.mentions.team', 'mention_team'],
+      ['settings.notifications.mentions.workspace', 'mention_ws'],
     ],
   },
   'notif-assign': {
-    lead: 'Updates about tasks assigned to you.',
+    leadKey: 'settings.notifications.assign.lead',
     rows: [
-      ["When I'm assigned a task", '', 'assign_self'],
-      ['When my task changes status', '', 'assign_status'],
-      ['When my task is overdue', '', 'assign_over'],
+      ['settings.notifications.assign.self', 'assign_self'],
+      ['settings.notifications.assign.status', 'assign_status'],
+      ['settings.notifications.assign.overdue', 'assign_over'],
     ],
   },
 };
 
 export function NotificationsSection({ id, title }: { id: string; title: string }) {
+  const t = useT();
   const [s, set] = useSettings();
-  const { lead, rows } = NOTIF[id];
+  const { leadKey, rows } = NOTIF[id];
   return (
     <>
-      <SettingsHead title={title} lead={lead} />
-      {rows.map(([t, d, k]) => (
-        <SRow key={k} t={t} d={d}>
-          <Toggle label={k} checked={!!s.np[k]} notify="Notification preferences saved" onChange={v => set({ np: { ...s.np, [k]: v } })} />
+      <SettingsHead title={title} lead={t(leadKey as TKey)} />
+      {rows.map(([labelKey, k]) => (
+        <SRow key={k} t={t(`${labelKey}.t` as TKey)} d={t(`${labelKey}.d` as TKey)}>
+          <Toggle label={k} checked={!!s.np[k]} notify={t('settings.notifications.saved')} onChange={v => set({ np: { ...s.np, [k]: v } })} />
         </SRow>
       ))}
     </>
@@ -71,6 +73,7 @@ export function NotificationsSection({ id, title }: { id: string; title: string 
 const AV_COLORS = ['#5A67D8', '#C54B78', '#3B82C4', '#23918A', '#C48A1E', '#8662C9'];
 
 export function ProfileSection({ title }: { title: string }) {
+  const t = useT();
   const { data, dispatch } = useWorkspace();
   const me = data.members.find(m => m.id === data.me)!;
   const [name, setName] = React.useState(me.name);
@@ -79,36 +82,36 @@ export function ProfileSection({ title }: { title: string }) {
   const [saving, setSaving] = React.useState(false);
   React.useEffect(() => {
     if (!saving) return;
-    const t = setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       dispatch({ type: 'member/update', id: me.id, patch: { name: name.trim(), title: job.trim() } });
       setSaving(false);
-      toast('Profile updated');
+      toast(t('settings.profile.updated'));
     }, 600);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saving]);
   const save = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return setErr('Enter your name');
+    if (!name.trim()) return setErr(t('settings.profile.nameRequired'));
     setErr('');
     setSaving(true);
   };
   return (
     <>
-      <SettingsHead title={title} lead="How you appear to others in the workspace." />
+      <SettingsHead title={title} lead={t('settings.profile.lead')} />
       <form onSubmit={save} className="col" style={{ gap: 16, maxWidth: 440 }}>
         <div className="row" style={{ gap: 14 }}>
           <MemberAvatar id={me.id} size="xl" tooltip={false} />
           <div>
             <div className="label" style={{ marginBottom: 6 }}>
-              Avatar color
+              {t('settings.profile.avatar')}
             </div>
-            <Swatches colors={AV_COLORS} value={me.c} size={22} label="Color" onPick={c => dispatch({ type: 'member/update', id: me.id, patch: { c } })} />
+            <Swatches colors={AV_COLORS} value={me.c} size={22} label={t('settings.workspace.color')} onPick={c => dispatch({ type: 'member/update', id: me.id, patch: { c } })} />
           </div>
         </div>
         <div className="field">
           <label className="label" htmlFor="pf-name">
-            Full name
+            {t('settings.profile.fullName')}
           </label>
           <input className={`input ${err ? 'is-error' : ''}`} id="pf-name" value={name} onChange={e => setName(e.target.value)} />
           {err && (
@@ -120,20 +123,20 @@ export function ProfileSection({ title }: { title: string }) {
         </div>
         <div className="field">
           <label className="label" htmlFor="pf-title">
-            Title
+            {t('settings.profile.title')}
           </label>
           <input className="input" id="pf-title" value={job} onChange={e => setJob(e.target.value)} />
         </div>
         <div className="field">
           <label className="label" htmlFor="pf-email">
-            Email
+            {t('settings.profile.email')}
           </label>
           <input className="input" id="pf-email" value={me.email} disabled readOnly />
-          <span className="hint">Contact a workspace owner to change your sign-in email.</span>
+          <span className="hint">{t('settings.profile.emailHint')}</span>
         </div>
         <div>
           <Button variant="primary" type="submit" loading={saving}>
-            Save profile
+            {t('settings.profile.save')}
           </Button>
         </div>
       </form>
@@ -144,34 +147,35 @@ export function ProfileSection({ title }: { title: string }) {
 /* ---------- Preferences / Shortcuts ---------- */
 
 export function PreferencesSection({ title }: { title: string }) {
+  const t = useT();
   const [s, set] = useSettings();
   return (
     <>
-      <SettingsHead title={title} lead="Personal defaults for how you work." />
-      <SRow t="Open on launch" d="The page you see when Gr8r opens.">
+      <SettingsHead title={title} lead={t('settings.preferences.lead')} />
+      <SRow t={t('settings.preferences.home.t')} d={t('settings.preferences.home.d')}>
         <PrefSelect
           label="home"
           value={s.home}
           options={[
-            ['home', 'Home'],
-            ['mytasks', 'My Tasks'],
-            ['inbox', 'Inbox'],
+            ['home', t('settings.preferences.homeHome')],
+            ['mytasks', t('settings.preferences.homeTasks')],
+            ['inbox', t('settings.preferences.homeInbox')],
           ]}
           onChange={home => set({ home })}
         />
       </SRow>
-      <SRow t="Open tasks in" d="Side panel keeps your place in the list.">
+      <SRow t={t('settings.preferences.openTasks.t')} d={t('settings.preferences.openTasks.d')}>
         <PrefSelect
           label="openTasks"
           value={s.openTasks}
           options={[
-            ['drawer', 'Side panel'],
-            ['full', 'Full page'],
+            ['drawer', t('settings.preferences.openDrawer')],
+            ['full', t('settings.preferences.openFull')],
           ]}
           onChange={openTasks => set({ openTasks })}
         />
       </SRow>
-      <SRow t="Confirm before deleting tasks">
+      <SRow t={t('settings.preferences.confirmDelete')}>
         <Toggle label="confirmDel" checked={s.confirmDel} onChange={confirmDel => set({ confirmDel })} />
       </SRow>
     </>
@@ -179,21 +183,22 @@ export function PreferencesSection({ title }: { title: string }) {
 }
 
 export function ShortcutsSection({ title }: { title: string }) {
+  const t = useT();
   return (
     <>
-      <SettingsHead title={title} lead="Move faster with the keyboard." />
+      <SettingsHead title={title} lead={t('settings.shortcuts.lead')} />
       {SHORTCUTS.map(([g, list]) => (
         <div key={g} className="sblock" style={{ marginTop: 18 }}>
-          <h2>{g}</h2>
+          <h2>{t(`settings.shortcuts.groups.${g}` as TKey)}</h2>
           {list.map(([n, k], i) => (
             <div key={n + i} className="srow" style={{ padding: '9px 0' }}>
-              <span>{n}</span>
+              <span>{t(`settings.shortcuts.items.${n}` as TKey)}</span>
               <span className="row" style={{ gap: 4 }}>
                 {k.map((x, j) => (
                   <React.Fragment key={j}>
                     {j > 0 && k[0] === 'G' && (
                       <span className="faint" style={{ fontSize: 11 }}>
-                        then
+                        {t('settings.shortcuts.items.then')}
                       </span>
                     )}
                     <Kbd>{x}</Kbd>
