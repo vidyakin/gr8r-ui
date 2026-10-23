@@ -5,7 +5,7 @@ import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import { drizzleOf, isUuid, memberships, members, sessions, setContext, users, type Tx } from '@gr8r/db';
 import { ROLES, type Role } from '@gr8r/shared';
-import { AppError, Rollback, forbidden, unauthorized } from './errors';
+import { AppError, Rollback, dbUnavailable, forbidden, unauthorized } from './errors';
 import type { AppEnv } from './types';
 
 export const SESSION_COOKIE = 'gr8r_session';
@@ -52,10 +52,28 @@ export const requireSession = createMiddleware<AppEnv>(async (c, next) => {
   await next();
 });
 
+/* Транзакция, которая перестаёт принимать запросы после закрытия. После дедлайна postgres.js откатывает транзакцию
+   и возвращает соединение в пул, а зависший обработчик держит ссылку на tx: без этой обёртки его поздние запросы
+   ушли бы в то же соединение — уже вне транзакции или в транзакцию чужого запроса */
+function closableTx(tx: Tx, isOpen: () => boolean): Tx {
+  const check = () => {
+    if (!isOpen()) throw new Error('Request transaction is closed (deadline exceeded)');
+  };
+  return new Proxy(tx, {
+    apply: (target, self, args) => (check(), Reflect.apply(target, self, args)),
+    get(target, key) {
+      const v = Reflect.get(target, key);
+      return typeof v === 'function' ? (...args: unknown[]) => (check(), v.apply(target, args)) : v;
+    },
+  });
+}
+
 /**
  * Контекст арендатора. Открывает транзакцию, делает `SET LOCAL ROLE app_user` и `app.user_id`, проверяет членство
  * в воркспейсе (X-Workspace-Id или параметр :id пути) и только потом ставит `app.workspace_id`.
  * Все запросы обработчика идут в этой транзакции (c.var.db / c.var.tx); при ответе >= 400 она откатывается.
+ * Дедлайн config.txTimeoutMs: если обработчик ждёт дольше (недоступная зависимость, очередь пула), транзакция
+ * откатывается, соединение возвращается в пул, клиент получает 503 — пул не исчерпывается зависшими запросами.
  */
 export const tenant = (source: 'header' | 'param' = 'header') =>
   createMiddleware<AppEnv>(async (c, next) => {
@@ -65,27 +83,40 @@ export const tenant = (source: 'header' | 'param' = 'header') =>
     const wsId = raw.toLowerCase();
     const user = c.get('user');
     try {
-      await c.get('sql').begin(async tx => {
-        const t = tx as Tx;
-        await setContext(t, { userId: user.id });
-        const db = drizzleOf(t);
-        // Членство видно по политике memberships (user_id = app.user_id); чужой воркспейс даст пустой результат
-        const [ms] = await db.select({ role: memberships.role }).from(memberships).where(and(eq(memberships.workspaceId, wsId), eq(memberships.userId, user.id))).limit(1);
-        if (!ms) throw forbidden('You are not a member of this workspace');
-        await t`select set_config('app.workspace_id', ${wsId}, true)`;
-        const [me] = await db.select({ id: members.id, status: members.status }).from(members).where(and(eq(members.workspaceId, wsId), eq(members.userId, user.id))).limit(1);
-        if (!me || me.status === 'deactivated') throw forbidden('Your membership in this workspace is deactivated');
-        c.set('tx', t);
-        c.set('db', db);
-        c.set('workspaceId', wsId);
-        c.set('memberId', me.id);
-        c.set('role', ms.role);
-        await next();
-        // Ошибка обработчика не бросается через next() — Hono превращает её в ответ; откатываем сами
-        if (c.error || c.res.status >= 400) throw new Rollback();
+      await c.get('sql').begin(async raw => {
+        let open = true;
+        let timer: Timer | undefined;
+        const deadline = new Promise<never>((_, reject) => (timer = setTimeout(() => reject(dbUnavailable('Request timed out waiting for the database')), c.get('config').txTimeoutMs)));
+        const work = inTx(closableTx(raw as Tx, () => open));
+        try {
+          await Promise.race([work, deadline]);
+        } finally {
+          open = false;
+          clearTimeout(timer);
+          work.catch(() => {}); // поздняя ошибка зависшего обработчика ответа уже не меняет
+        }
       });
     } catch (e) {
       if (!(e instanceof Rollback)) throw e;
+    }
+
+    async function inTx(t: Tx) {
+      await setContext(t, { userId: user.id });
+      const db = drizzleOf(t);
+      // Членство видно по политике memberships (user_id = app.user_id); чужой воркспейс даст пустой результат
+      const [ms] = await db.select({ role: memberships.role }).from(memberships).where(and(eq(memberships.workspaceId, wsId), eq(memberships.userId, user.id))).limit(1);
+      if (!ms) throw forbidden('You are not a member of this workspace');
+      await t`select set_config('app.workspace_id', ${wsId}, true)`;
+      const [me] = await db.select({ id: members.id, status: members.status }).from(members).where(and(eq(members.workspaceId, wsId), eq(members.userId, user.id))).limit(1);
+      if (!me || me.status === 'deactivated') throw forbidden('Your membership in this workspace is deactivated');
+      c.set('tx', t);
+      c.set('db', db);
+      c.set('workspaceId', wsId);
+      c.set('memberId', me.id);
+      c.set('role', ms.role);
+      await next();
+      // Ошибка обработчика не бросается через next() — Hono превращает её в ответ; откатываем сами
+      if (c.error || c.res.status >= 400) throw new Rollback();
     }
   });
 
