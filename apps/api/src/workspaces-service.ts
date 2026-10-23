@@ -1,5 +1,5 @@
 /* Операции над воркспейсами, общие для регистрации и /workspaces: создание (создатель — owner), список моих. */
-import { eq } from 'drizzle-orm';
+import { eq, sql as dsql } from 'drizzle-orm';
 import { ensureCostItems, ensureDocumentDefaults, ensureModuleProjects, ensureWorkOrderKind, members, memberships, recordEvent, registerBaseUnits, registerSystemEntities, statuses, uuidv7, withContext, workspaces, type Sql } from '@gr8r/db';
 import { STATUSES } from '@gr8r/shared';
 import type { SessionUser } from './types';
@@ -47,7 +47,17 @@ export async function createWorkspace(sql: Sql, user: SessionUser, input: Worksp
 export async function listMyWorkspaces(sql: Sql, userId: string) {
   return withContext(sql, { userId }, async db => {
     const rows = await db
-      .select({ id: workspaces.id, name: workspaces.name, slug: workspaces.slug, color: workspaces.color, brand: workspaces.brand, createdAt: workspaces.createdAt, role: memberships.role })
+      .select({
+        id: workspaces.id,
+        name: workspaces.name,
+        slug: workspaces.slug,
+        color: workspaces.color,
+        brand: workspaces.brand,
+        createdAt: workspaces.createdAt,
+        role: memberships.role,
+        // Язык воркспейса по умолчанию (settings.locale), null — не задан
+        locale: dsql<string | null>`${workspaces.settings}->>'locale'`,
+      })
       .from(memberships)
       .innerJoin(workspaces, eq(workspaces.id, memberships.workspaceId))
       .where(eq(memberships.userId, userId))

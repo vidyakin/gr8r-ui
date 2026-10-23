@@ -5,6 +5,7 @@ import * as React from 'react';
 import { FoldHorizontal, Plus } from 'lucide-react';
 import { Tooltip } from '@/components/ui';
 import { cn } from '@/lib/utils';
+import { t } from '@/i18n';
 
 export interface KanbanColumn {
   id: string;
@@ -41,7 +42,7 @@ export interface KanbanProps<T> {
 
 const colName = (c: KanbanColumn) => c.name ?? (typeof c.title === 'string' ? c.title : c.id);
 
-export function Kanban<T>({ columns, items, getId, getColumn, renderCard, onMove, onAdd, canAdd, addLabel = 'Add item', emptyText = 'Nothing here', className, ...rest }: KanbanProps<T>) {
+export function Kanban<T>({ columns, items, getId, getColumn, renderCard, onMove, onAdd, canAdd, addLabel = t('ui.addItem'), emptyText = t('ui.nothingHere'), className, ...rest }: KanbanProps<T>) {
   const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>({});
   const [dragId, setDragId] = React.useState<string | null>(null);
   // Куда упадёт карточка: колонка и карточка, перед которой вставляем (null — в конец)
@@ -88,8 +89,8 @@ export function Kanban<T>({ columns, items, getId, getColumn, renderCard, onMove
               className={cn('bcol collapsed', over && 'over')}
               role="button"
               tabIndex={0}
-              aria-label={`Expand ${name}`}
-              title="Expand"
+              aria-label={t('ui.expandNamed', { name })}
+              title={t('ui.expand')}
               onClick={() => setCollapsed(s => ({ ...s, [c.id]: false }))}
               onKeyDown={e => e.key === 'Enter' && setCollapsed(s => ({ ...s, [c.id]: false }))}
               onDragOver={e => onDragOver(e, c.id)}
@@ -124,8 +125,8 @@ export function Kanban<T>({ columns, items, getId, getColumn, renderCard, onMove
                     </button>
                   </Tooltip>
                 )}
-                <Tooltip content="Collapse column">
-                  <button className="ibtn ibtn-xs" aria-label={`Collapse ${name}`} onClick={() => setCollapsed(s => ({ ...s, [c.id]: true }))}>
+                <Tooltip content={t('ui.collapseColumn')}>
+                  <button className="ibtn ibtn-xs" aria-label={t('ui.collapseNamed', { name })} onClick={() => setCollapsed(s => ({ ...s, [c.id]: true }))}>
                     <FoldHorizontal size={14} />
                   </button>
                 </Tooltip>

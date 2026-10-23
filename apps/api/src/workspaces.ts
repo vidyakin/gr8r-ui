@@ -28,7 +28,15 @@ export const workspaceRoutes = new Hono<AppEnv>()
   .patch('/:id', requireRole('admin'), zValidator('json', workspaceUpdateBody, validationHook), async c => {
     const { db, workspaceId, memberId } = ctxOf(c);
     const body = c.req.valid('json');
-    const [ws] = await db.update(workspaces).set({ ...body, updatedAt: new Date() }).where(eq(workspaces.id, workspaceId)).returning();
+    const { locale, ...rest } = body;
+    // Язык живёт в settings (jsonb): null снимает ключ, значение — дописывает
+    const settings =
+      locale === undefined ? undefined : locale === null ? dsql`${workspaces.settings} - 'locale'` : dsql`${workspaces.settings} || jsonb_build_object('locale', ${locale}::text)`;
+    const [ws] = await db
+      .update(workspaces)
+      .set({ ...rest, ...(settings ? { settings } : {}), updatedAt: new Date() })
+      .where(eq(workspaces.id, workspaceId))
+      .returning();
     if (!ws) throw notFound('Workspace');
     await recordEvent(db, { workspaceId, type: 'workspace.updated', entity: 'workspace', recordId: workspaceId, actorId: memberId, payload: { changes: body } });
     return c.json(ws);

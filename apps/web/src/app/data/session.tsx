@@ -2,11 +2,14 @@
 import * as React from 'react';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { ApiError, UNAUTHORIZED_EVENT, apiFor, ok } from './api';
+import { resolveLocale, setLocale, type Locale } from '@/i18n';
 
 export interface SessionUser {
   id: string;
   email: string;
   name: string;
+  /** Личный язык интерфейса; null — как в воркспейсе */
+  locale: string | null;
 }
 
 /** Воркспейс из GET /workspaces: мой и роль в нём */
@@ -18,6 +21,8 @@ export interface WorkspaceRef {
   brand: boolean;
   createdAt: string;
   role: 'owner' | 'admin' | 'member' | 'guest';
+  /** Язык воркспейса по умолчанию (settings.locale) */
+  locale: string | null;
 }
 
 interface SessionData {
@@ -48,6 +53,8 @@ interface SessionCtx {
   signOut: () => Promise<void>;
   /** Перечитать список моих воркспейсов (после создания/переименования/удаления) */
   refreshWorkspaces: () => Promise<WorkspaceRef[]>;
+  /** Личный язык интерфейса (null — как в воркспейсе); сохраняется на сервере */
+  setMyLocale: (locale: Locale | null) => Promise<void>;
 }
 
 const Ctx = React.createContext<SessionCtx | null>(null);
@@ -79,6 +86,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const data = q.data ?? null;
   const workspaces = data?.workspaces ?? [];
   const active = workspaces.find(w => w.id === stored) ?? workspaces[0] ?? null;
+
+  // Язык интерфейса: личный → воркспейса → запомненный в браузере
+  React.useEffect(() => {
+    if (data) setLocale(resolveLocale(data.user.locale, active?.locale));
+  }, [data?.user.locale, active?.locale]);
 
   const value = React.useMemo<SessionCtx>(() => {
     const set = (d: SessionData | null) => qc.setQueryData(SESSION_KEY, d);
@@ -118,6 +130,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         const { items } = await ok<{ items: WorkspaceRef[] }>(apiFor().workspaces.$get());
         if (data) set({ user: data.user, workspaces: items });
         return items;
+      },
+      setMyLocale: async locale => {
+        const { user } = await ok<{ user: SessionUser }>(apiFor().auth.me.$patch({ json: { locale } }));
+        if (data) set({ ...data, user });
       },
     };
   }, [qc, q.isPending, data, workspaces, active]);

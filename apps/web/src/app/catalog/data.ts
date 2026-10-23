@@ -9,6 +9,7 @@ import { errorMessage } from '../data/api';
 import { call, useWsId, type MetaField } from '../meta/data';
 import { useSession } from '../data/session';
 import { uuidv7 } from '../lib/uuid';
+import { fmtAmount } from '@/i18n';
 
 export interface Unit {
   id: string;
@@ -81,8 +82,8 @@ export interface ProductParams {
 
 export const catalogKey = (ws: string, ...rest: unknown[]) => ['ws', ws, 'catalog', ...rest] as const;
 
-/** Деньги: «1 234,50» — строка из API → число для показа. Расчёты идут на сервере и в @gr8r/shared (BigInt), здесь только вывод */
-export const money = (v: string | number | null | undefined) => Number(v ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/** Деньги: «1,234.50» / «1 234,50» по языку — строка из API → число для показа. Расчёты идут на сервере и в @gr8r/shared (BigInt), здесь только вывод */
+export const money = fmtAmount;
 
 /** Контрагенты: поставщик по умолчанию для товара */
 export function useCompanies() {

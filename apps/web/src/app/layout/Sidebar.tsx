@@ -34,8 +34,9 @@ import { MemberAvatar } from '../components/workspace';
 import { useProjectForms, useShortcuts, useTeamForm } from '../overlays';
 import { useCustomEntities } from '../meta/data';
 import { entityIcon } from '../meta/icons';
+import { t, useT } from '@/i18n';
 
-const soon = (what: string) => toast.info(`${what} пока не перенесено`);
+const soon = (what: string) => toast.info(t('common.notMovedYet', { what }));
 
 interface ItemProps {
   to: string;
@@ -77,10 +78,10 @@ function SectionItem({ id, collapsed, count, dot }: { id: SectionId; collapsed: 
 }
 
 const SUB_PAGES = [
-  ['board', 'Board', SquareKanban],
-  ['list', 'List', List],
-  ['timeline', 'Timeline', ChartGantt],
-  ['files', 'Files', Paperclip],
+  ['board', SquareKanban],
+  ['list', List],
+  ['timeline', ChartGantt],
+  ['files', Paperclip],
 ] as const;
 
 function ProjectItem({ id, collapsed }: { id: string; collapsed: boolean }) {
@@ -91,6 +92,7 @@ function ProjectItem({ id, collapsed }: { id: string; collapsed: boolean }) {
   const on = match?.params.id === p.id;
   const [open, setOpen] = React.useState(false);
   const st = PROJECT_STATUS[p.status];
+  const t = useT();
 
   const row = (
     <div
@@ -126,20 +128,20 @@ function ProjectItem({ id, collapsed }: { id: string; collapsed: boolean }) {
       <span className="hov" onClick={e => e.stopPropagation()}>
         <Menu>
           <MenuTrigger asChild>
-            <button className="ibtn ibtn-xs" aria-label="Project options">
+            <button className="ibtn ibtn-xs" aria-label={t('nav.projectOptions')}>
               <Ellipsis size={14} />
             </button>
           </MenuTrigger>
           <MenuContent>
-            <MenuItem icon={<Star size={15} />} onSelect={() => soon('Избранное')}>
-              {p.fav ? 'Remove from favorites' : 'Add to favorites'}
+            <MenuItem icon={<Star size={15} />} onSelect={() => soon(t('nav.favorites'))}>
+              {p.fav ? t('nav.removeFavorite') : t('nav.addFavorite')}
             </MenuItem>
-            <MenuItem icon={<LinkIcon size={15} />} onSelect={() => toast('Link copied')}>
-              Copy link
+            <MenuItem icon={<LinkIcon size={15} />} onSelect={() => toast(t('common.linkCopied'))}>
+              {t('nav.copyLink')}
             </MenuItem>
           </MenuContent>
         </Menu>
-        <button className="ibtn ibtn-xs" aria-label={open ? 'Collapse' : 'Expand'} aria-expanded={open} onClick={() => setOpen(o => !o)}>
+        <button className="ibtn ibtn-xs" aria-label={open ? t('nav.collapse') : t('nav.expand')} aria-expanded={open} onClick={() => setOpen(o => !o)}>
           <ChevronRight size={13} className={cn('chev', open && 'open')} />
         </button>
       </span>
@@ -156,10 +158,10 @@ function ProjectItem({ id, collapsed }: { id: string; collapsed: boolean }) {
         row
       )}
       <div className={cn('sub', open && !collapsed && 'open')}>
-        {SUB_PAGES.map(([tab, name, Icon]) => (
+        {SUB_PAGES.map(([tab, Icon]) => (
           <SideLink key={tab} to={`/projects/${p.id}/${tab}`}>
             <Icon size={14} />
-            <span>{name}</span>
+            <span>{t(`projectTabs.${tab}`)}</span>
           </SideLink>
         ))}
       </div>
@@ -182,15 +184,18 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   const navigate = useNavigate();
   const [newWs, setNewWs] = React.useState(false);
   const customEntities = useCustomEntities();
+  const t = useT();
+  /** Пункт раздела с другой подписью или без особых правил end — как SectionItem */
+  const item = (id: SectionId, label?: string) => <Item to={SECTIONS[id].path} label={label ?? SECTIONS[id].name} icon={React.createElement(SECTIONS[id].icon, { size: 16 })} collapsed={collapsed} />;
 
   return (
-    <nav className="side" aria-label="Main">
+    <nav className="side" aria-label={t('nav.main')}>
       <NewWorkspaceDialog open={newWs} onOpenChange={setNewWs} />
       <div className="side-top">
         <div className="row" style={{ gap: 2 }}>
           <Menu>
             <MenuTrigger asChild>
-              <button className="ws flex-1" aria-label="Switch workspace">
+              <button className="ws flex-1" aria-label={t('nav.switchWorkspace')}>
                 <WorkspaceLogo ws={data.ws} />
                 <span className="ws-name trunc">{data.ws.name}</span>
                 <span className="chev-d faint">
@@ -199,7 +204,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
               </button>
             </MenuTrigger>
             <MenuContent className="min-w-[220px]">
-              <MenuLabel>Workspaces</MenuLabel>
+              <MenuLabel>{t('nav.workspaces')}</MenuLabel>
               <MenuRadioGroup
                 value={session.active?.id}
                 onValueChange={id => {
@@ -215,12 +220,12 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
               </MenuRadioGroup>
               <MenuSeparator />
               <MenuItem icon={<Plus size={15} />} onSelect={() => setNewWs(true)}>
-                Create workspace
+                {t('nav.createWorkspace')}
               </MenuItem>
             </MenuContent>
           </Menu>
           {!collapsed && (
-            <IconButton size="sm" className="hide-m" label="Collapse sidebar" shortcut="[" onClick={onToggle}>
+            <IconButton size="sm" className="hide-m" label={t('nav.collapseSidebar')} shortcut="[" onClick={onToggle}>
               <PanelLeft size={15} />
             </IconButton>
           )}
@@ -229,8 +234,8 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
 
       <div className="side-scroll">
         {collapsed && (
-          <Tooltip content="Expand sidebar" side="right">
-            <button className="sitem" aria-label="Expand sidebar" onClick={onToggle}>
+          <Tooltip content={t('nav.expandSidebar')} side="right">
+            <button className="sitem" aria-label={t('nav.expandSidebar')} onClick={onToggle}>
               <PanelLeft size={16} />
             </button>
           </Tooltip>
@@ -242,68 +247,68 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
         <SectionItem id="notifications" collapsed={collapsed} count={unreadAll} />
 
         <div className="sgroup">
-          <div className="sgroup-h">Workspace</div>
+          <div className="sgroup-h">{t('nav.groups.workspace')}</div>
           {(['overview', 'projects', 'tasks', 'calendar', 'timeline', 'members', 'activity'] as const).map(id => (
             <SectionItem key={id} id={id} collapsed={collapsed} />
           ))}
         </div>
 
         <div className="sgroup">
-          <div className="sgroup-h">CRM</div>
+          <div className="sgroup-h">{t('nav.groups.crm')}</div>
           {(['crm', 'crmDeals', 'crmCompanies', 'crmContacts', 'crmActivities'] as const).map(id => (
             <SectionItem key={id} id={id} collapsed={collapsed} />
           ))}
         </div>
 
         <div className="sgroup">
-          <div className="sgroup-h">Catalog</div>
-          <Item to={SECTIONS.catalog.path} label="Catalog" icon={<SECTIONS.catalog.icon size={16} />} collapsed={collapsed} />
+          <div className="sgroup-h">{t('nav.groups.catalog')}</div>
+          {item('catalog')}
         </div>
 
         <div className="sgroup">
-          <div className="sgroup-h">Trade</div>
+          <div className="sgroup-h">{t('nav.groups.trade')}</div>
           {(['sales', 'purchases', 'stockDocs', 'inventory', 'inUse'] as const).map(id => (
             <SectionItem key={id} id={id} collapsed={collapsed} />
           ))}
           {/* расчёт потребностей открывается из закупок и склада — тот же экран, что и в производстве */}
-          <Item to={SECTIONS.productionNeeds.path} label="Stock needs" icon={<SECTIONS.productionNeeds.icon size={16} />} collapsed={collapsed} />
+          {item('productionNeeds', t('nav.stockNeeds'))}
         </div>
 
         <div className="sgroup">
-          <div className="sgroup-h">Services</div>
-          <Item to={SECTIONS.workOrders.path} label="Work orders" icon={<SECTIONS.workOrders.icon size={16} />} collapsed={collapsed} />
-          <Item to={SECTIONS.servicesTimesheet.path} label="Timesheet" icon={<SECTIONS.servicesTimesheet.icon size={16} />} collapsed={collapsed} />
-          <Item to={SECTIONS.servicesPlanner.path} label="Service planner" icon={<SECTIONS.servicesPlanner.icon size={16} />} collapsed={collapsed} />
-          <Item to={SECTIONS.contracts.path} label="Contracts" icon={<SECTIONS.contracts.icon size={16} />} collapsed={collapsed} />
-          <Item to={SECTIONS.tariffPlans.path} label="Tariff plans" icon={<SECTIONS.tariffPlans.icon size={16} />} collapsed={collapsed} />
-          <Item to={SECTIONS.billing.path} label="Billing" icon={<SECTIONS.billing.icon size={16} />} collapsed={collapsed} />
+          <div className="sgroup-h">{t('nav.groups.services')}</div>
+          {item('workOrders')}
+          {item('servicesTimesheet')}
+          {item('servicesPlanner')}
+          {item('contracts')}
+          {item('tariffPlans')}
+          {item('billing')}
         </div>
 
         <div className="sgroup">
-          <div className="sgroup-h">Production</div>
-          <Item to={SECTIONS.production.path} label="Production" icon={<SECTIONS.production.icon size={16} />} collapsed={collapsed} />
-          <Item to={SECTIONS.productionWorkbench.path} label="Production release" icon={<SECTIONS.productionWorkbench.icon size={16} />} collapsed={collapsed} />
-          <Item to={SECTIONS.productionOrders.path} label="Production orders" icon={<SECTIONS.productionOrders.icon size={16} />} collapsed={collapsed} />
-          <Item to={SECTIONS.productionNeeds.path} label="Needs" icon={<SECTIONS.productionNeeds.icon size={16} />} collapsed={collapsed} />
-          <Item to={SECTIONS.productionPlans.path} label="Production plans" icon={<SECTIONS.productionPlans.icon size={16} />} collapsed={collapsed} />
-          <Item to={SECTIONS.productionPlanOrders.path} label="Orders by plan" icon={<SECTIONS.productionPlanOrders.icon size={16} />} collapsed={collapsed} />
-          <Item to={SECTIONS.productionStages.path} label="Production stages" icon={<SECTIONS.productionStages.icon size={16} />} collapsed={collapsed} />
-          <Item to={SECTIONS.productionPiecework.path} label="Piecework" icon={<SECTIONS.productionPiecework.icon size={16} />} collapsed={collapsed} />
-          <Item to={SECTIONS.productionPlanner.path} label="Resource planner" icon={<SECTIONS.productionPlanner.icon size={16} />} collapsed={collapsed} />
-          <Item to={SECTIONS.productionResources.path} label="Resources" icon={<SECTIONS.productionResources.icon size={16} />} collapsed={collapsed} />
-          <Item to={SECTIONS.productionClosing.path} label="Month closing" icon={<SECTIONS.productionClosing.icon size={16} />} collapsed={collapsed} />
-          <Item to={SECTIONS.otherCosts.path} label="Other costs" icon={<SECTIONS.otherCosts.icon size={16} />} collapsed={collapsed} />
-          <Item to={SECTIONS.workCenters.path} label="Work centers" icon={<SECTIONS.workCenters.icon size={16} />} collapsed={collapsed} />
+          <div className="sgroup-h">{t('nav.groups.production')}</div>
+          {item('production')}
+          {item('productionWorkbench')}
+          {item('productionOrders')}
+          {item('productionNeeds')}
+          {item('productionPlans')}
+          {item('productionPlanOrders')}
+          {item('productionStages')}
+          {item('productionPiecework')}
+          {item('productionPlanner')}
+          {item('productionResources')}
+          {item('productionClosing')}
+          {item('otherCosts')}
+          {item('workCenters')}
         </div>
 
         <div className="sgroup">
-          <div className="sgroup-h">Automation</div>
-          <Item to={SECTIONS.automations.path} label="Automations" icon={<SECTIONS.automations.icon size={16} />} collapsed={collapsed} />
+          <div className="sgroup-h">{t('nav.groups.automation')}</div>
+          {item('automations')}
         </div>
 
         {!!customEntities.length && (
           <div className="sgroup">
-            <div className="sgroup-h">Data</div>
+            <div className="sgroup-h">{t('nav.groups.data')}</div>
             {customEntities.map(e => {
               const I = entityIcon(e.icon);
               return <Item key={e.key} to={`/data/${e.key}`} label={e.name} icon={<I size={16} />} collapsed={collapsed} />;
@@ -313,9 +318,9 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
 
         <div className="sgroup">
           <div className="sgroup-h">
-            <span>Projects</span>
+            <span>{t('nav.groups.projects')}</span>
             <span className="sp" />
-            <IconButton size="xs" label="New project" shortcut="P" onClick={() => projectForms.create()}>
+            <IconButton size="xs" label={t('nav.newProject')} shortcut="P" onClick={() => projectForms.create()}>
               <Plus size={14} />
             </IconButton>
           </div>
@@ -327,9 +332,9 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
 
         <div className="sgroup">
           <div className="sgroup-h">
-            <span>Teams</span>
+            <span>{t('nav.groups.teams')}</span>
             <span className="sp" />
-            <IconButton size="xs" label="New team" onClick={() => teamForm.create()}>
+            <IconButton size="xs" label={t('nav.newTeam')} onClick={() => teamForm.create()}>
               <Plus size={14} />
             </IconButton>
           </div>
@@ -342,22 +347,22 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
       <div className="side-bot">
         <Menu>
           <MenuTrigger asChild>
-            <button className="sitem" aria-label={collapsed ? 'Help' : undefined}>
+            <button className="sitem" aria-label={collapsed ? t('nav.help') : undefined}>
               <CircleHelp size={16} />
-              <span>Help &amp; resources</span>
+              <span>{t('nav.helpResources')}</span>
             </button>
           </MenuTrigger>
           <MenuContent side="top">
-            <MenuItem icon={<BookOpen size={15} />}>Documentation</MenuItem>
+            <MenuItem icon={<BookOpen size={15} />}>{t('nav.documentation')}</MenuItem>
             <MenuItem icon={<Keyboard size={15} />} shortcut="?" onSelect={() => shortcuts.open()}>
-              Keyboard shortcuts
+              {t('nav.shortcuts')}
             </MenuItem>
-            <MenuItem icon={<MessageCircle size={15} />}>Contact support</MenuItem>
+            <MenuItem icon={<MessageCircle size={15} />}>{t('nav.support')}</MenuItem>
           </MenuContent>
         </Menu>
         <SectionItem id="settings" collapsed={collapsed} />
         <UserMenu side="top" align="start">
-          <button className="sitem" style={{ height: 36 }} aria-label={collapsed ? 'Profile' : undefined}>
+          <button className="sitem" style={{ height: 36 }} aria-label={collapsed ? t('nav.profile') : undefined}>
             <MemberAvatar id={data.me} online tooltip={false} />
             <span className="trunc" style={{ color: 'var(--text)', fontWeight: 500 }}>
               {me.name}

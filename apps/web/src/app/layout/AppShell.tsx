@@ -12,6 +12,7 @@ import { Topbar, useCrumbs } from './Topbar';
 import { OverlayProviders, PaletteHost, TaskWindowsHost } from '../overlays';
 import { CrmOverlays } from '../crm/overlays';
 import { PageBoundary } from '../components/error-states';
+import { t } from '@/i18n';
 
 const COLLAPSED_KEY = 'gr8r-ui.sidebar-collapsed';
 
@@ -32,7 +33,7 @@ function BottomNav({ onMore }: { onMore: () => void }) {
       })}
       <button onClick={onMore}>
         <Ellipsis size={19} />
-        <span>More</span>
+        <span>{t('nav.more')}</span>
       </button>
     </nav>
   );

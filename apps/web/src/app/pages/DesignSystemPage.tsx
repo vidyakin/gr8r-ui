@@ -71,6 +71,7 @@ import {
 import { Calendar } from '@/components/shadcn/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/shadcn/card';
 import { PRIORITIES, PriorityIcon, priorityName, STATUSES, StatusIcon, TaskCard, type Task } from '@/components/gr8r/task';
+import { fmtDateTimeIntl } from '@/i18n';
 
 const d = (n: number) => new Date(Date.now() + n * 864e5);
 const TASKS: Task[] = [
@@ -495,7 +496,7 @@ export function DesignSystemPage() {
                 <CardDescription>shadcn Card внутри Gr8r</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-3 text-sm">
-                <span>Выбрана дата: {day ? day.toLocaleDateString('ru-RU') : '—'}</span>
+                <span>Выбрана дата: {day ? fmtDateTimeIntl(day, { dateStyle: 'short' }) : '—'}</span>
                 <Progress value={62} />
                 <AvatarStack people={['Анна Смирнова', 'Игорь Петров', 'Мария Ким']} />
               </CardContent>

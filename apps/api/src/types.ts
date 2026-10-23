@@ -5,6 +5,7 @@ export interface SessionUser {
   id: string;
   email: string;
   name: string;
+  locale: string | null;
 }
 
 export interface AppConfig {

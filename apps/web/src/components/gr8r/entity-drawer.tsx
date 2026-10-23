@@ -5,6 +5,7 @@ import * as React from 'react';
 import { Ellipsis, Maximize2, Minimize2, X, type LucideIcon } from 'lucide-react';
 import { IconButton, Menu, MenuContent, MenuTrigger, Tab, Tabs, TabsContent, TabsList } from '@/components/ui';
 import { cn } from '@/lib/utils';
+import { t } from '@/i18n';
 
 export interface DrawerField {
   icon: LucideIcon;
@@ -136,27 +137,27 @@ export function EntityDrawer({ label, crumb, actions, menu, title, onTitleChange
           {crumb}
           <span className="sp" />
           {actions}
-          <IconButton size="sm" className="hide-m" label={full ? 'Side panel' : 'Full page'} aria-label="Toggle full page" onClick={() => setFull(f => !f)}>
+          <IconButton size="sm" className="hide-m" label={full ? t('ui.sidePanel') : t('ui.fullPage')} aria-label={t('ui.toggleFullPage')} onClick={() => setFull(f => !f)}>
             {full ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
           </IconButton>
           {menu && (
             <Menu>
               <MenuTrigger asChild>
-                <IconButton size="sm" label="More" tooltip={false}>
+                <IconButton size="sm" label={t('common.more')} tooltip={false}>
                   <Ellipsis size={15} />
                 </IconButton>
               </MenuTrigger>
               <MenuContent align="end">{menu}</MenuContent>
             </Menu>
           )}
-          <IconButton size="sm" label="Close" shortcut="Esc" onClick={onClose}>
+          <IconButton size="sm" label={t('ui.close')} shortcut="Esc" onClick={onClose}>
             <X size={16} />
           </IconButton>
         </div>
         <div className="drawer-b">
           {banner && <div style={{ marginBottom: 12 }}>{banner}</div>}
           {onTitleChange ? (
-            <TitleInput key={title} value={title} label="Title" onCommit={onTitleChange} />
+            <TitleInput key={title} value={title} label={t('ui.title')} onCommit={onTitleChange} />
           ) : (
             <h2 className="ttl-edit" style={{ margin: 0 }}>
               {title}

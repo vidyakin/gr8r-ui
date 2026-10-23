@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { ROLES } from '../constants';
 import { clientId, uuid } from './common';
+import { localeSchema } from '../i18n';
 
 const email = z.string().trim().toLowerCase().max(254).pipe(z.email());
 const password = z.string().min(8, 'Password must be at least 8 characters').max(200);
@@ -24,7 +25,8 @@ export const workspaceCreateBody = z.object({
     .optional(),
   color: z.string().max(32).optional(),
 });
-export const workspaceUpdateBody = workspaceCreateBody.partial();
+/** locale — язык воркспейса по умолчанию (workspaces.settings.locale), null — снять */
+export const workspaceUpdateBody = workspaceCreateBody.partial().extend({ locale: localeSchema.nullable().optional() });
 
 export const inviteCreateBody = z.object({
   email,

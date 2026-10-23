@@ -24,6 +24,7 @@ import { SECTIONS } from '../routes';
 import { ProjectDot, ProjectIcon, ProjectStatus } from '../components/project';
 import { ActivityItem, MemberAvatar, MemberStack, MiniTaskRow, useTaskActions } from '../components/workspace';
 import { useInvite, useProjectForms, useTaskForm } from '../overlays';
+import { fmtDateTimeIntl } from '@/i18n';
 
 type Tab = 'upcoming' | 'overdue' | 'completed';
 const MAX_ROWS = 7;
@@ -102,7 +103,7 @@ export function HomePage() {
   });
   const deadlines = [dueBetween('Today', 0, 0), dueBetween('Tomorrow', 1, 1), dueBetween('This week', 2, 7)];
 
-  const dateLine = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const dateLine = fmtDateTimeIntl(now, { weekday: 'long', month: 'long', day: 'numeric' });
 
   return (
     <div className="page">

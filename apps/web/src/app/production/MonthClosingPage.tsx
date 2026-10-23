@@ -10,6 +10,7 @@ import { useIsAdmin } from '../catalog/data';
 import { errorMessage } from '../data/api';
 import { useSession } from '../data/session';
 import { usePeriodPreview, usePeriods, useClosePeriod, type Closing } from './closing-data';
+import { fmtDateTime } from '@/i18n';
 
 /** Ключ месяца текущей даты: «2026-10» */
 const currentMonth = () => new Date().toISOString().slice(0, 7);
@@ -141,7 +142,7 @@ export function MonthClosingPage() {
                   <td className="r num">{c.totals.total ?? <span className="muted">—</span>}</td>
                   <td className="r num">{c.totals.undistributed ?? <span className="muted">—</span>}</td>
                   <td className="muted" style={{ fontSize: 12 }}>
-                    {new Date(c.runAt).toLocaleString()}
+                    {fmtDateTime(c.runAt)}
                   </td>
                 </tr>
               ))}

@@ -12,6 +12,7 @@ import { isOpen, stage } from './stages';
 import { useCrm, type DealPatch } from './store';
 import { useCrmUi } from './ui-context';
 import { useCustomRows } from '../meta/custom-fields';
+import { parseNumber } from '@/i18n';
 
 /** Сумма сделки: поле ввода без рамки, сохраняется по Enter или потере фокуса */
 function AmountInput({ value, onCommit }: { value: number; onCommit: (v: number) => void }) {
@@ -27,7 +28,7 @@ function AmountInput({ value, onCommit }: { value: number; onCommit: (v: number)
         e.currentTarget.select();
       }}
       onBlur={e => {
-        const v = Number(e.currentTarget.value.replace(/[^0-9.]/g, ''));
+        const v = parseNumber(e.currentTarget.value);
         if (v > 0 && v !== value) onCommit(v);
         else e.currentTarget.value = money(value);
       }}

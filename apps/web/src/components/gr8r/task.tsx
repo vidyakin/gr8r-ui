@@ -2,6 +2,7 @@
    Пример того, как «прикладные» компоненты собираются из базовых из components/ui. */
 import { Calendar, Check, Ellipsis, ListChecks, MessageSquare, Paperclip, Pencil, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { fmtDateTimeIntl, t } from '@/i18n';
 import { Avatar, IconButton, Label, Progress, Tooltip } from '@/components/ui';
 
 /** Набор статусов по умолчанию: сид воркспейса и страница дизайн-системы. Актуальный список — WorkspaceData.statuses */
@@ -69,12 +70,12 @@ export function PriorityIcon({ priority, size = 14 }: { priority: Priority; size
 const DAY = 864e5;
 const sod = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 
-/** Срок: «Сегодня», «Завтра», «3 дн. назад», дата; подсветка просрочки и близкого срока */
+/** Срок: «Today»/«Сегодня», «3d ago»/«3 дн. назад», дата по языку интерфейса; подсветка просрочки и близкого срока */
 export function DueDate({ date, done, icon = true, format }: { date: Date; done?: boolean; icon?: boolean; format?: (d: Date) => string }) {
   const n = Math.round((sod(date) - sod(new Date())) / DAY);
   const text = format
     ? format(date)
-    : n === 0 ? 'Сегодня' : n === 1 ? 'Завтра' : n === -1 ? 'Вчера' : n < 0 && n > -7 ? `${-n} дн. назад` : date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+    : n === 0 ? t('dates.today') : n === 1 ? t('dates.tomorrow') : n === -1 ? t('dates.yesterday') : n < 0 && n > -7 ? t('dates.daysAgo', { n: -n }) : fmtDateTimeIntl(date, { day: 'numeric', month: 'short' });
   return (
     <span className={cn('due', !done && (n < 0 ? 'over' : n <= 1 && 'soon'))}>
       {icon && <Calendar size={12} />}
