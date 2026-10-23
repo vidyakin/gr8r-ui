@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { ArrowLeft, CircleAlert, Download, Printer } from 'lucide-react';
 import { DOCUMENT_META, PRINT_FORMS, PRINT_FORM_LABELS, printOrientation, type PrintForm } from '@gr8r/shared';
 import { Button, EmptyState, Select, Skeleton, toast } from '@/components/ui';
+import { useT } from '@/i18n';
 import { API_BASE } from '../data/api';
 import { call, useWsId } from '../meta/data';
 import { docTitle, useDocument } from './data';
@@ -20,6 +21,7 @@ export function PrintPage() {
   const [height, setHeight] = React.useState(1200);
   const [pdf, setPdf] = React.useState<'idle' | 'working'>('idle');
   const valid = PRINT_FORMS.includes(form as PrintForm);
+  const t = useT();
 
   // Страница грузится после сохранения документа; при смене формы или правке документа запрашивается заново
   React.useEffect(() => {
@@ -35,7 +37,7 @@ export function PrintPage() {
         }
         return r.text();
       })
-      .then(t => alive && setHtml(t))
+      .then(tt => alive && setHtml(tt))
       .catch(e => alive && setError(e instanceof Error ? e.message : String(e)));
     return () => {
       alive = false;
@@ -62,10 +64,10 @@ export function PrintPage() {
       for (let i = 0; i < 60; i++) {
         await new Promise(r => setTimeout(r, 1000));
         const st = await call<{ status: string; error?: string }>(ws, 'GET', `/documents/${id}/pdf/${file.id}`);
-        if (st.status === 'failed') throw new Error(st.error || 'PDF generation failed');
+        if (st.status === 'failed') throw new Error(st.error || t('docs.print.pdfFailed'));
         if (st.status === 'ready') {
           const res = await fetch(`${API_BASE()}/documents/${id}/pdf/${file.id}?download=1`, { credentials: 'include', headers: { 'X-Workspace-Id': ws } });
-          if (!res.ok) throw new Error('Could not download the PDF');
+          if (!res.ok) throw new Error(t('docs.print.pdfDownloadFailed'));
           const url = URL.createObjectURL(await res.blob());
           const a = document.createElement('a');
           a.href = url;
@@ -75,7 +77,7 @@ export function PrintPage() {
           return;
         }
       }
-      throw new Error('The PDF is taking too long: is the worker running?');
+      throw new Error(t('docs.print.pdfTimeout'));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
     } finally {
@@ -86,8 +88,8 @@ export function PrintPage() {
   if (!valid || (doc.isError && !doc.isPending))
     return (
       <div className="page flush">
-        <EmptyState icon={<CircleAlert size={20} />} error title="Nothing to print" action={<Link to="/sales" className="btn btn-secondary">Back to Sales</Link>}>
-          This print form or document does not exist.
+        <EmptyState icon={<CircleAlert size={20} />} error title={t('docs.print.emptyTitle')} action={<Link to="/sales" className="btn btn-secondary">{t('docs.print.backToSales')}</Link>}>
+          {t('docs.print.emptyHint')}
         </EmptyState>
       </div>
     );
@@ -98,35 +100,35 @@ export function PrintPage() {
     <div className="page flush print-page">
       <div className="ph print-bar">
         <div className="row" style={{ gap: 10, minWidth: 0 }}>
-          <Link to={`/documents/${id}`} className="ibtn" aria-label="Back to the document">
+          <Link to={`/documents/${id}`} className="ibtn" aria-label={t('docs.print.backAria')}>
             <ArrowLeft size={16} />
           </Link>
           <div style={{ minWidth: 0 }}>
             <h1 className="trunc">{PRINT_FORM_LABELS[form as PrintForm]}</h1>
-            <p className="trunc">{doc.data ? docTitle(doc.data) : ' '} · A4 {landscape ? 'landscape' : 'portrait'}</p>
+            <p className="trunc">{doc.data ? docTitle(doc.data) : ' '} · A4 {landscape ? t('docs.print.landscape') : t('docs.print.portrait')}</p>
           </div>
         </div>
         <div className="acts">
-          {forms.length > 1 && <Select value={form} onValueChange={f => navigate(`/documents/${id}/print/${f}`, { replace: true })} options={forms.map(f => ({ value: f, label: PRINT_FORM_LABELS[f] }))} aria-label="Print form" />}
+          {forms.length > 1 && <Select value={form} onValueChange={f => navigate(`/documents/${id}/print/${f}`, { replace: true })} options={forms.map(f => ({ value: f, label: PRINT_FORM_LABELS[f] }))} aria-label={t('docs.print.formAria')} />}
           <Button onClick={() => void downloadPdf()} disabled={pdf === 'working' || !html}>
             <Download size={14} />
-            {pdf === 'working' ? 'Preparing PDF…' : 'Download PDF'}
+            {pdf === 'working' ? t('docs.print.preparingPdf') : t('docs.print.downloadPdf')}
           </Button>
           <Button variant="primary" onClick={print} disabled={!html}>
             <Printer size={14} />
-            Print
+            {t('docs.print.print')}
           </Button>
         </div>
       </div>
       <div className="print-stage">
         {error ? (
-          <EmptyState icon={<CircleAlert size={20} />} error title="Could not build the form">
+          <EmptyState icon={<CircleAlert size={20} />} error title={t('docs.print.buildError')}>
             {error}
           </EmptyState>
         ) : html === null ? (
           <Skeleton w="100%" h={400} />
         ) : (
-          <iframe ref={frame} title="Print preview" className="print-frame" sandbox="allow-same-origin allow-modals" srcDoc={html} style={{ height, width: landscape ? 1160 : 820 }} onLoad={fit} />
+          <iframe ref={frame} title={t('docs.print.previewTitle')} className="print-frame" sandbox="allow-same-origin allow-modals" srcDoc={html} style={{ height, width: landscape ? 1160 : 820 }} onLoad={fit} />
         )}
       </div>
     </div>

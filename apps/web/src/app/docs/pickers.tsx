@@ -5,6 +5,7 @@ import * as React from 'react';
 import { Popover as P } from 'radix-ui';
 import { Package, Wrench } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n';
 import { useWsId } from '../meta/data';
 import { searchProducts, money, type Product } from '../catalog/data';
 import { searchCompanies, type CompanyHit } from './data';
@@ -157,15 +158,16 @@ export function Combo<T>({ value, placeholder, disabled, invalid, id, className,
 
 /* ---------------- контрагент ---------------- */
 
-export function CounterpartyPicker({ value, onPick, disabled, invalid, id, placeholder = 'Search by name or INN' }: { value: string; onPick: (c: CompanyHit) => void; disabled?: boolean; invalid?: boolean; id?: string; placeholder?: string }) {
+export function CounterpartyPicker({ value, onPick, disabled, invalid, id, placeholder }: { value: string; onPick: (c: CompanyHit) => void; disabled?: boolean; invalid?: boolean; id?: string; placeholder?: string }) {
   const ws = useWsId();
+  const t = useT();
   return (
     <Combo<CompanyHit>
       id={id}
       value={value}
       disabled={disabled}
       invalid={invalid}
-      placeholder={placeholder}
+      placeholder={placeholder ?? t('docs.header.counterpartyPlaceholder')}
       search={q => searchCompanies(ws, q)}
       itemKey={c => c.id}
       onPick={onPick}
@@ -183,15 +185,16 @@ export function CounterpartyPicker({ value, onPick, disabled, invalid, id, place
 
 /* ---------------- товар из каталога ---------------- */
 
-export function ProductPicker({ value, onPick, disabled, invalid, inputRef, onKeyDown, dataCell, price, placeholder = 'Find product or service' }: { value: string; onPick: (p: Product) => void; disabled?: boolean; invalid?: boolean; inputRef?: React.Ref<HTMLInputElement>; onKeyDown?: ComboProps<Product>['onKeyDown']; dataCell?: string; price: 'price' | 'purchasePrice'; placeholder?: string }) {
+export function ProductPicker({ value, onPick, disabled, invalid, inputRef, onKeyDown, dataCell, price, placeholder }: { value: string; onPick: (p: Product) => void; disabled?: boolean; invalid?: boolean; inputRef?: React.Ref<HTMLInputElement>; onKeyDown?: ComboProps<Product>['onKeyDown']; dataCell?: string; price: 'price' | 'purchasePrice'; placeholder?: string }) {
   const ws = useWsId();
+  const t = useT();
   return (
     <Combo<Product>
-      aria-label="Product"
+      aria-label={t('docs.pickers.productAria')}
       value={value}
       disabled={disabled}
       invalid={invalid}
-      placeholder={placeholder}
+      placeholder={placeholder ?? t('docs.pickers.productPlaceholder')}
       inputRef={inputRef}
       onKeyDown={onKeyDown}
       dataCell={dataCell}

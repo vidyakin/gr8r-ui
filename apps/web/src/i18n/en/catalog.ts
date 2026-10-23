@@ -148,6 +148,8 @@ export const catalog = {
 /** Подписи значений из @gr8r/shared (VAT_LABELS, FIELD_TYPE_LABELS, …): переводятся по значению, без перевода — подпись из shared */
 export const enums = {
   vat: { none: 'No VAT' },
+  /** Периодичность биллинга по договору (месяц / квартал / год) — см. BILLING_PERIODICITY_LABELS в @gr8r/shared */
+  periodicity: { month: 'Month', quarter: 'Quarter', year: 'Year' },
   replenishment: { purchase: 'Purchase', production: 'Production', transfer: 'Transfer' },
   fieldType: {
     text: 'Text',

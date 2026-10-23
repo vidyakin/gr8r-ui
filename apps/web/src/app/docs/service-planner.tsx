@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { TimeGrid } from '../components/time-grid';
 import { useCanWrite } from '../meta/custom-fields';
 import { usePlanningApi, useServiceSchedule, type ServiceScheduleEntry, type ServiceWarning } from '../production/planning-data';
+import { useT } from '@/i18n';
 
 const RH = 36;
 /** Ширина часа, px */
@@ -27,6 +28,7 @@ const hhmm = (iso: string) => {
 };
 
 export function ServicePlannerPage() {
+  const t = useT();
   const canWrite = useCanWrite();
   const api = usePlanningApi();
   const [rowType, setRowType] = React.useState<'member' | 'resource'>('member');
@@ -108,7 +110,7 @@ export function ServicePlannerPage() {
     if (!body.startAt && !body.assigneeId) return;
     const r = await api<{ warnings: ServiceWarning[] }>('PATCH', `/work-order-assignments/${entry.taskId}`, body);
     if (!r) return;
-    toast(body.startAt ? `Moved to ${hhmm(body.startAt)}` : 'Executor changed');
+    toast(body.startAt ? t('docs.planner.movedTo', { time: hhmm(body.startAt) }) : t('docs.planner.executorChanged'));
     for (const w of r.warnings ?? []) toast.info(w.message, { duration: 6000 });
   };
 
@@ -141,7 +143,7 @@ export function ServicePlannerPage() {
               key={e.id}
               className={cn('bar', drag?.id === e.id && 'dragging')}
               style={{ '--c': over ? 'var(--red)' : 'var(--accent)', left: x, top: barY + 7, width: w } as React.CSSProperties}
-              title={`${e.title} · ${hhmm(e.startAt)} – ${hhmm(e.endAt)} · ${e.hours} h`}
+              title={`${e.title} · ${hhmm(e.startAt)} – ${hhmm(e.endAt)} · ${e.hours} ${t('docs.planner.hoursShort')}`}
               onPointerDown={ev => startDrag(ev, e)}
             >
               <span className="trunc">{w > 110 ? e.title : ''}</span>
@@ -158,34 +160,34 @@ export function ServicePlannerPage() {
     <div className="page flush">
       <div className="ph">
         <div>
-          <h1>Service planner</h1>
-          <p>Work of the service jobs by hours. Drag a bar to move it — an overload or work outside the shift is a warning, not a block.</p>
+          <h1>{t('docs.planner.title')}</h1>
+          <p>{t('docs.planner.lead')}</p>
         </div>
         <div className="acts">
           <Segmented
-            aria-label="Rows"
+            aria-label={t('docs.planner.rowsLabel')}
             value={rowType}
             onValueChange={v => setRowType(v as 'member' | 'resource')}
             items={[
-              { value: 'member', label: 'Employees' },
-              { value: 'resource', label: 'Resources' },
+              { value: 'member', label: t('docs.planner.employees') },
+              { value: 'resource', label: t('docs.planner.resources') },
             ]}
           />
-          <Button variant="ghost" onClick={() => setDay(addDays(day, -1))} aria-label="Previous day">
+          <Button variant="ghost" onClick={() => setDay(addDays(day, -1))} aria-label={t('docs.planner.prevDay')}>
             <ChevronLeft size={14} />
           </Button>
-          <Button variant="ghost" onClick={() => setDay(addDays(day, 1))} aria-label="Next day">
+          <Button variant="ghost" onClick={() => setDay(addDays(day, 1))} aria-label={t('docs.planner.nextDay')}>
             <ChevronRight size={14} />
           </Button>
           <Button variant="ghost" onClick={() => setDay(dayKey(new Date()))}>
             <Crosshair size={14} />
-            Today
+            {t('docs.planner.today')}
           </Button>
         </div>
       </div>
 
       {plan.isError ? (
-        <EmptyState icon={<CircleAlert size={20} />} error title="Could not load the plan" action={<Button size="sm" onClick={() => plan.refetch()}>Retry</Button>}>
+        <EmptyState icon={<CircleAlert size={20} />} error title={t('docs.planner.loadError')} action={<Button size="sm" onClick={() => plan.refetch()}>{t('docs.planner.retry')}</Button>}>
           {(plan.error as Error).message}
         </EmptyState>
       ) : plan.isPending ? (
@@ -193,8 +195,8 @@ export function ServicePlannerPage() {
           <Skeleton w="100%" h={36} />
         </div>
       ) : !rows.length ? (
-        <EmptyState icon={<CalendarRange size={20} />} title="Nothing to plan yet">
-          Assign executors to the works of a work order — their intervals appear here.
+        <EmptyState icon={<CalendarRange size={20} />} title={t('docs.planner.emptyTitle')}>
+          {t('docs.planner.emptyHint')}
         </EmptyState>
       ) : (
         <>
@@ -203,7 +205,7 @@ export function ServicePlannerPage() {
               days={[day]}
               dayWidth={dayWidth}
               headerCells={headerCells}
-              leftTitle={rowType === 'member' ? 'Employee' : 'Resource'}
+              leftTitle={rowType === 'member' ? t('docs.planner.employee') : t('docs.planner.resource')}
               rowHeight={RH}
               height={rows.length * RH}
               today={day}
@@ -214,7 +216,7 @@ export function ServicePlannerPage() {
                   {r.overloaded && (
                     <Badge tone="red">
                       <CircleAlert size={11} />
-                      {r.bookedHours} h
+                      {r.bookedHours} {t('docs.planner.hoursShort')}
                     </Badge>
                   )}
                 </div>
@@ -225,7 +227,7 @@ export function ServicePlannerPage() {
           </div>
           {!!warnings.length && (
             <div className="panel" style={{ margin: 12, padding: 12 }}>
-              <h2 style={{ margin: '0 0 6px', fontSize: 'var(--fs-sm)' }}>Warnings</h2>
+              <h2 style={{ margin: '0 0 6px', fontSize: 'var(--fs-sm)' }}>{t('docs.planner.warnings')}</h2>
               <ul style={{ margin: 0, paddingLeft: 18 }}>
                 {warnings.map((w, i) => (
                   <li key={i} className="muted">
