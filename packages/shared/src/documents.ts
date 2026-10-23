@@ -23,8 +23,11 @@ export type WarehouseKind = (typeof WAREHOUSE_KINDS)[number];
 export const COST_ITEM_KINDS = ['expense', 'income'] as const;
 export type CostItemKind = (typeof COST_ITEM_KINDS)[number];
 /** Вид операции внутреннего документа */
-export const DOCUMENT_OPERATIONS = ['transfer', 'in_transit', 'to_operation', 'from_operation', 'assembly'] as const;
+export const DOCUMENT_OPERATIONS = ['transfer', 'in_transit', 'to_operation', 'from_operation', 'assembly', 'disassembly'] as const;
 export type DocumentOperation = (typeof DOCUMENT_OPERATIONS)[number];
+/** Виды операции производственных документов: сборка и разборка */
+export const PRODUCTION_OPERATIONS = ['assembly', 'disassembly'] as const;
+export type ProductionOperation = (typeof PRODUCTION_OPERATIONS)[number];
 /** Виды перемещения между складами: сразу, «в пути», в эксплуатацию и обратно */
 export const TRANSFER_OPERATIONS = ['transfer', 'in_transit', 'to_operation', 'from_operation'] as const;
 export type TransferOperation = (typeof TRANSFER_OPERATIONS)[number];

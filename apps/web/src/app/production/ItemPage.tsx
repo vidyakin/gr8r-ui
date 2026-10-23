@@ -45,12 +45,21 @@ interface Flat {
 }
 
 function lineTitle(line: BomLine, c: Ctx) {
-  if (line.kind === 'material' || line.kind === 'expense') return c.mats.get(line.productId ?? '')?.name ?? 'Unknown material';
+  if (line.kind === 'material' || line.kind === 'expense' || line.kind === 'output') return c.mats.get(line.productId ?? '')?.name ?? 'Unknown material';
   if (line.kind === 'semi') return c.items.get(line.childItemId ?? '')?.name ?? 'Unknown product';
   return line.operation || 'Operation';
 }
 
 function detail(line: BomLine, c: Ctx) {
+  if (line.kind === 'output') {
+    return (
+      <span className="faint">
+        {line.costShare ? <>cost share {trimZeros(line.costShare)}%</> : <>cost share: by sale price</>}
+        {line.qtyExpr && <> · formula {line.qtyExpr}</>}
+        {line.condition && <> · if {line.condition}</>}
+      </span>
+    );
+  }
   if (line.kind === 'material' || line.kind === 'expense') {
     const m = c.mats.get(line.productId ?? '');
     const src = c.snap.settings.materialPriceSource;
@@ -78,8 +87,8 @@ function detail(line: BomLine, c: Ctx) {
   );
 }
 
-const KIND_ICON = { material: Package, semi: Layers, work: Wrench, expense: Package } as const;
-const KIND_LABEL = { material: 'Material', semi: 'Semi-finished', work: 'Work', expense: 'Expense' } as const;
+const KIND_ICON = { material: Package, semi: Layers, work: Wrench, expense: Package, output: Package } as const;
+const KIND_LABEL = { material: 'Material', semi: 'Semi-finished', work: 'Work', expense: 'Expense', output: 'Output' } as const;
 
 /** Печатная форма спецификации: готовая HTML-страница открывается в новом окне и печатается */
 export function printSpec(ws: string, itemId: string, form: 'short' | 'expanded') {
@@ -276,18 +285,31 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
                   </Button>
                 </MenuTrigger>
                 <MenuContent align="end">
-                  <MenuItem icon={<Package size={15} />} onSelect={() => setDialog({ kind: 'material' })}>
-                    Material
-                  </MenuItem>
-                  <MenuItem icon={<Layers size={15} />} onSelect={() => setDialog({ kind: 'semi' })}>
-                    Semi-finished product
-                  </MenuItem>
-                  <MenuItem icon={<Wrench size={15} />} onSelect={() => setDialog({ kind: 'work' })}>
-                    Work operation
-                  </MenuItem>
-                  <MenuItem icon={<Package size={15} />} onSelect={() => setDialog({ kind: 'expense' })}>
-                    Expense (contractor service)
-                  </MenuItem>
+                  {item.mode === 'disassembly' ? (
+                    <>
+                      <MenuItem icon={<Package size={15} />} onSelect={() => setDialog({ kind: 'output' })}>
+                        Output product
+                      </MenuItem>
+                      <MenuItem icon={<Wrench size={15} />} onSelect={() => setDialog({ kind: 'work' })}>
+                        Work operation
+                      </MenuItem>
+                    </>
+                  ) : (
+                    <>
+                      <MenuItem icon={<Package size={15} />} onSelect={() => setDialog({ kind: 'material' })}>
+                        Material
+                      </MenuItem>
+                      <MenuItem icon={<Layers size={15} />} onSelect={() => setDialog({ kind: 'semi' })}>
+                        Semi-finished product
+                      </MenuItem>
+                      <MenuItem icon={<Wrench size={15} />} onSelect={() => setDialog({ kind: 'work' })}>
+                        Work operation
+                      </MenuItem>
+                      <MenuItem icon={<Package size={15} />} onSelect={() => setDialog({ kind: 'expense' })}>
+                        Expense (contractor service)
+                      </MenuItem>
+                    </>
+                  )}
                 </MenuContent>
               </Menu>
               <Menu>
@@ -320,6 +342,13 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
           <select className="select" value={item.kind} disabled={!canWrite} aria-label="Type" onChange={e => m.updateItem.mutate({ id: item.id, patch: { kind: e.target.value } })}>
             <option value="product">Product</option>
             <option value="semi">Semi-finished</option>
+          </select>
+        </label>
+        <label>
+          <span className="label">Kind of specification</span>
+          <select className="select" value={item.mode ?? 'assembly'} disabled={!canWrite} aria-label="Kind of specification" onChange={e => m.updateItem.mutate({ id: item.id, patch: { mode: e.target.value } })}>
+            <option value="assembly">Assembly</option>
+            <option value="disassembly">Disassembly</option>
           </select>
         </label>
         <label>
@@ -475,7 +504,7 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
                 <span className="muted">{l.kind === 'work' ? 'h' : unitSymbol(unitsQ.data, l.unitCode ?? '')}</span>
                 <span className="hide-s trunc">{detail(l, ctx)}</span>
                 <span className="r num" style={{ fontWeight: root ? 500 : 400 }}>
-                  {root ? money(f.cost.cost) : money(scaledCost)}
+                  {l.kind === 'output' ? <span className="faint">—</span> : root ? money(f.cost.cost) : money(scaledCost)}
                 </span>
                 <span className="row" style={{ gap: 2, justifyContent: 'flex-end' }}>
                   {l.kind === 'semi' && l.childItemId && (
@@ -514,8 +543,13 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
         })}
         {!item.lines.length && (
           <div className="bom-empty">
-            <EmptyState icon={<Layers size={20} />} size="sm" title="No lines yet" action={canWrite ? <Button size="sm" onClick={() => setDialog({ kind: 'material' })}>Add a material</Button> : undefined}>
-              Add materials, semi-finished products and work operations to get the cost.
+            <EmptyState
+              icon={<Layers size={20} />}
+              size="sm"
+              title="No lines yet"
+              action={canWrite ? <Button size="sm" onClick={() => setDialog({ kind: item.mode === 'disassembly' ? 'output' : 'material' })}>{item.mode === 'disassembly' ? 'Add an output' : 'Add a material'}</Button> : undefined}
+            >
+              {item.mode === 'disassembly' ? 'Add the outputs of the disassembly and the work operations to get the cost.' : 'Add materials, semi-finished products and work operations to get the cost.'}
             </EmptyState>
           </div>
         )}

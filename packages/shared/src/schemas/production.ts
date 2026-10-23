@@ -1,10 +1,11 @@
 /* zod-схемы производства: участки, продукция (изделия и полуфабрикаты), строки спецификации, настройки. */
 import { z } from 'zod';
-import { BOM_KINDS, MANUFACTURED_KINDS, MATERIAL_PRICE_SOURCES, NEEDS_METHODS, OPERATION_RATE_UNITS, PARAM_TYPES, PLAN_STEPS, PLAN_STATUSES, REPLENISHMENT_MODES, SEMI_MODES, STOCK_REPLENISHMENT } from '../constants';
+import { BOM_KINDS, MANUFACTURED_KINDS, MATERIAL_PRICE_SOURCES, NEEDS_METHODS, OPERATION_RATE_UNITS, PARAM_TYPES, PLAN_STEPS, PLAN_STATUSES, REPLENISHMENT_MODES, SEMI_MODES, SPEC_MODES, STOCK_REPLENISHMENT } from '../constants';
 import { CALENDAR_KINDS, LOAD_ROW_TYPES } from '../planning';
 import { PARAM_KEY_RE } from '../parameters';
 import { clientId, decimal, isoDate, isoDateTime, listQuery, shortText, toPatch, uuid } from './common';
 import { paramValues } from './documents';
+import { PRODUCTION_OPERATIONS } from '../documents';
 import { checkFieldOptions, fieldOptions } from './meta';
 
 const nonNeg = (max = 1e12) => decimal.refine(v => Number(v) >= 0 && Number(v) < max, 'Must not be negative');
@@ -74,6 +75,8 @@ export const itemCreate = z.object({
   code: z.string().trim().max(32).default(''),
   name: shortText,
   kind: z.enum(MANUFACTURED_KINDS).default('product'),
+  /** Вид спецификации: сборка (изделие из материалов) или разборка (исходный товар делится на выходные продукты) */
+  mode: z.enum(SPEC_MODES).default('assembly'),
   unitCode: z.string().trim().regex(/^\d{3,4}$/, 'OKEI code: 3–4 digits').default('796'),
   /** Товар каталога для продажи/склада (необязательно) */
   productId: uuid.nullish(),
@@ -107,6 +110,8 @@ export const bomLineCreate = z
     qty: positive(1e9).optional(),
     productId: uuid.nullish(),
     scrapPct: nonNeg(1000).optional(),
+    /** output: доля стоимости исходного товара, % (если задана хоть одна — заданы все, сумма 100) */
+    costShare: nonNeg(1000).nullish(),
     childItemId: uuid.nullish(),
     /** semi: режим полуфабриката — stock (списывается со склада) или explode (разворачивается до материалов) */
     semiMode: z.enum(SEMI_MODES).optional(),
@@ -138,6 +143,11 @@ export const bomLineCreate = z
     } else if (v.kind === 'semi') {
       need(!!v.childItemId, 'childItemId', 'Choose a product to include');
       need(v.qty !== undefined, 'qty', 'Quantity is required');
+    } else if (v.kind === 'output') {
+      // выходной продукт разборки: товар каталога и количество на партию
+      need(!!v.productId, 'productId', 'Choose the output product');
+      need(v.qty !== undefined, 'qty', 'Quantity is required');
+      need(v.semiMode === undefined, 'semiMode', 'Not applicable to an output line');
     } else {
       // работа: операция (товар каталога) или текстовое название; часы и ставка — норма строки
       need(!!v.operation || !!v.productId, 'operation', 'Name the operation or choose one from the catalogue');
@@ -151,6 +161,8 @@ export const bomLineUpdate = z
     qty: positive(1e9).optional(),
     productId: uuid.optional(),
     scrapPct: nonNeg(1000).optional(),
+    /** output: доля стоимости исходного товара, % */
+    costShare: nonNeg(1000).nullish(),
     childItemId: uuid.optional(),
     /** semi: режим полуфабриката */
     semiMode: z.enum(SEMI_MODES).optional(),
@@ -607,6 +619,8 @@ export type ProductionOrderItemInput = z.infer<typeof productionOrderItemInput>;
 
 export const productionOrderCreate = z.object({
   id: clientId,
+  /** Вид операции: сборка (по умолчанию) или разборка */
+  operation: z.enum(PRODUCTION_OPERATIONS).default('assembly'),
   /** Участок-изготовитель */
   workCenterId: uuid.nullish(),
   /** Склад материалов (списывать из) */

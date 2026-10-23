@@ -17,15 +17,19 @@
 import type { MaterialPriceSource, SemiMode } from './constants';
 import { add, dec, div, fmt, mul, pctOf, withPct, type Dec } from './decimal';
 import { compileExpr, ExprError } from './expr';
+import { distributeOverhead } from './cost-closing';
 
 export interface BomLineInput {
   id: string;
   /** material — закупаемый товар, semi — полуфабрикат, work — операция, expense — расход (услуга подрядчика):
-      входит в плановую себестоимость, но со склада не списывается */
-  kind: 'material' | 'semi' | 'work' | 'expense';
+      входит в плановую себестоимость, но со склада не списывается; output — выходной продукт разборки:
+      не расходуется, а приходуется на склад */
+  kind: 'material' | 'semi' | 'work' | 'expense' | 'output';
   qty: string;
   /** material */
   productId?: string | null;
+  /** output: доля стоимости исходного товара, % (необязательна; если задана хоть одна — заданы все, сумма 100) */
+  costShare?: string | null;
   /** work: операция (товар каталога вида «операция») */
   scrapPct?: string | null;
   /** Единица строки: единица товара / продукции */
@@ -54,6 +58,8 @@ export interface BomItemInput {
   unitCode?: string;
   /** Товар каталога, которым лежит изделие на складе (нужно для остатка полуфабриката) */
   productId?: string | null;
+  /** Вид спецификации: сборка (по умолчанию) или разборка — у разборки строки только «выход» и работы */
+  mode?: 'assembly' | 'disassembly';
   batchQty: string;
   overheadPct: string;
   lines: BomLineInput[];
@@ -263,6 +269,9 @@ export function computeBomCost(items: BomItemInput[], rootId: string, pricing: B
         total.w += cost;
         direct += cost;
         lines.push({ id: l.id, kind: 'work', cost: fmt(cost) });
+      } else if (l.kind === 'output') {
+        // выходной продукт разборки: он не затрата, а результат — его стоимость считается при выпуске
+        lines.push({ id: l.id, kind: 'output', cost: fmt(0n) });
       } else {
         const childItem = l.childItemId ? byId.get(l.childItemId) : undefined;
         const child = l.childItemId && childItem ? node(l.childItemId, passParams(params, childItem.paramKeys ?? [])) : undefined;
@@ -341,6 +350,17 @@ export interface ExplosionSemi {
   child: Explosion | null;
 }
 
+/** Выходной продукт разборки: сколько получается из исходного сырья */
+export interface ExplosionOutput {
+  productId: string;
+  qty: string;
+  unitCode?: string | null;
+  /** Доля стоимости исходного товара, % (пусто — доли не заданы) */
+  costShare?: string | null;
+  /** Этап, на котором получается продукт */
+  stageId?: string | null;
+}
+
 /** Ветка развёртки: требования к материалам, работам и полуфабрикатам */
 export interface Explosion {
   itemId: string;
@@ -352,6 +372,8 @@ export interface Explosion {
   materials: ExplosionMaterial[];
   works: ExplosionWork[];
   semis: ExplosionSemi[];
+  /** Выходные продукты разборки (у сборки пусто) */
+  outputs: ExplosionOutput[];
 }
 
 /** Строка потребности: сколько нужно, сколько доступно и сколько не хватает */
@@ -405,6 +427,7 @@ export function explodeBom(items: BomItemInput[], rootId: string, qty: string): 
     const materials: ExplosionMaterial[] = [];
     const works: ExplosionWork[] = [];
     const semis: ExplosionSemi[] = [];
+    const outputs: ExplosionOutput[] = [];
     for (const l of item.lines) {
       // строка с ложным условием в состав не входит
       if (!lineEnabled(l, params, keys)) continue;
@@ -416,6 +439,10 @@ export function explodeBom(items: BomItemInput[], rootId: string, qty: string): 
         materials.push({ productId: l.productId!, qty: fmt(withPct(q, dec(l.scrapPct)), 3), unitCode: l.unitCode ?? null, stageId: stage, ...(l.kind === 'expense' ? { expense: true } : {}) });
       } else if (l.kind === 'work') {
         works.push({ operation: l.operation ?? '', operationId: l.productId ?? null, workCenterId: l.workCenterId ?? null, hours: fmt(mul(dec(l.hours), scale), 3), rate: l.rate ?? null, fixedCost: l.fixedCost ?? null, stageId: stage });
+      } else if (l.kind === 'output') {
+        // выходной продукт разборки: получается из исходного сырья, а не расходуется
+        const q = mul(lineQty(l, params, keys), scale);
+        outputs.push({ productId: l.productId!, qty: fmt(q, 3), unitCode: l.unitCode ?? null, costShare: l.costShare ?? null, stageId: stage });
       } else {
         const child = l.childItemId ? byId.get(l.childItemId) : undefined;
         if (!child) continue;
@@ -434,7 +461,7 @@ export function explodeBom(items: BomItemInput[], rootId: string, qty: string): 
       }
     }
     stack.pop();
-    return { itemId: item.id, name: item.name, unitCode: item.unitCode ?? null, batchQty: item.batchQty, qty: fmt(units, 3), materials, works, semis };
+    return { itemId: item.id, name: item.name, unitCode: item.unitCode ?? null, batchQty: item.batchQty, qty: fmt(units, 3), materials, works, semis, outputs };
   };
 
   return node(root, dec(qty));
@@ -549,6 +576,62 @@ export function computeNeeds(explosion: Explosion, availability: Record<string, 
 export function resolveMaterialPrice(source: MaterialPriceSource, p: { price?: string | null; purchasePrice?: string | null }, avgCost?: string | null): string | null {
   const pick = source === 'price' ? p.price : source === 'avg_cost' ? (avgCost ?? p.purchasePrice) : p.purchasePrice;
   return pick !== null && pick !== undefined && dec(pick) > 0n ? pick : null;
+}
+
+/* ---------------- разборка: распределение стоимости по выходным продуктам ----------------
+
+   У разборки стоимость исходного товара (плюс работы и накладные) делится между выходными продуктами.
+   База распределения: доли стоимости из спецификации (сумма ровно 100 %); если доли не заданы — цена продажи
+   выходного продукта × количество; если цен нет — количество. Остаток округления уходит на последнюю строку. */
+
+/** Выходной продукт разборки */
+export interface DisassemblyOutput {
+  productId: string;
+  qty: string;
+  /** Доля стоимости исходного товара, % (пусто — доли не заданы) */
+  costShare?: string | null;
+  /** Цена продажи выходного продукта (база распределения, когда доли не заданы) */
+  price?: string | null;
+}
+
+/** Ошибка долей стоимости: заданы не у всех выходов или их сумма не 100 % */
+export class DisassemblyShareError extends Error {
+  constructor(
+    message: string,
+    public code: 'share_incomplete' | 'share_sum',
+  ) {
+    super(message);
+    this.name = 'DisassemblyShareError';
+  }
+}
+
+/** Проверка долей стоимости: если задана хоть одна — заданы все, и сумма ровно 100 % */
+export function checkCostShares(outputs: { costShare?: string | null }[]): void {
+  const set = outputs.filter(o => o.costShare !== null && o.costShare !== undefined && o.costShare !== '');
+  if (!set.length) return;
+  if (set.length !== outputs.length) throw new DisassemblyShareError('If a cost share is set, it must be set for every output', 'share_incomplete');
+  const sum = outputs.reduce((s, o) => s + dec(o.costShare ?? '0'), 0n);
+  if (sum !== dec('100')) throw new DisassemblyShareError('The cost shares must add up to 100%', 'share_sum');
+}
+
+/** База распределения по каждому выходу: доли стоимости, иначе цена × количество, иначе количество */
+export function outputBases(outputs: DisassemblyOutput[]): Dec[] {
+  const anyShare = outputs.some(o => o.costShare !== null && o.costShare !== undefined && o.costShare !== '');
+  if (anyShare) {
+    checkCostShares(outputs);
+    return outputs.map(o => dec(o.costShare ?? '0'));
+  }
+  const priced = outputs.map(o => mul(dec(o.price ?? '0'), dec(o.qty)));
+  if (priced.length && priced.every(v => v > 0n)) return priced;
+  return outputs.map(o => dec(o.qty));
+}
+
+/** Распределение стоимости разборки по выходным продуктам: остаток округления — на последней строке,
+    сумма результата равна распределяемой сумме */
+export function allocateDisassembly(total: Dec, outputs: DisassemblyOutput[]): { productId: string; qty: string; amount: Dec }[] {
+  const bases = outputBases(outputs);
+  const { allocations } = distributeOverhead(total, outputs.map((_o, i) => ({ key: String(i), base: bases[i]! })));
+  return outputs.map((o, i) => ({ productId: o.productId, qty: o.qty, amount: allocations.find(a => a.key === String(i))?.amount ?? 0n }));
 }
 
 /* ---------------- себестоимость выпуска ----------------

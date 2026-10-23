@@ -2,7 +2,7 @@
    себестоимости и настройки. Чтение — любой участник; участки и настройки меняет admin и выше; продукцию и спецификации — member и выше.
    Расчёт — та же чистая функция `computeBomCost`, что и в интерфейсе (packages/shared/src/bom.ts). */
 import { zValidator } from '@hono/zod-validator';
-import { asc, eq, inArray, isNull, max, sql } from 'drizzle-orm';
+import { asc, and, eq, inArray, isNull, max, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { bomLines, calculateNeeds, createNeedsDrafts, createNeedsSupplierOrders, listProductionKinds, loadAvgCosts, manufacturedItems, postNeedsDrafts, productCategories, productionKinds, productionNeeds, productionStages, products, recordEvent, stockBalances, stockReservations, warehouses, workCenters, workspaces } from '@gr8r/db';
 import {
@@ -10,9 +10,11 @@ import {
   bomLineUpdate,
   bomPrintParam,
   bomReorder,
+  checkCostShares,
   compileExpr,
   computeBomCost,
   computeNeeds,
+  DisassemblyShareError,
   explodeBom,
   explodeQuery,
   idParam,
@@ -115,6 +117,13 @@ export const workCenterRoutes = crud({
   },
 });
 
+/** Разборка — в один этап: выходы приходуются тем же выпуском, что списывает исходный товар, поэтому вид производства
+    (этапы) у спецификации разборки не задаётся */
+function assertSingleStage(mode: string | null | undefined, productionKindId: string | null | undefined): void {
+  if (mode === 'disassembly' && productionKindId)
+    throw new AppError(422, 'disassembly_stages', 'A disassembly is done in one stage: remove the production kind', { issues: [{ path: 'productionKindId', message: 'Not allowed for a disassembly' }] });
+}
+
 /* ---------------- расчёт ---------------- */
 
 /** Продукция с её строками и данные для цены: всё, что нужно computeBomCost (без архивной продукции) */
@@ -134,11 +143,12 @@ export const toInput = (item: ItemRow, lines: LineRow[], paramKeys: string[] = [
   name: item.name,
   unitCode: item.unitCode,
   productId: item.productId,
+  mode: item.mode,
   batchQty: item.batchQty,
   overheadPct: item.overheadPct,
   paramKeys,
   params,
-  lines: lines.map(l => ({ id: l.id, kind: l.kind, qty: l.qty, productId: l.productId, scrapPct: l.scrapPct, unitCode: l.unitCode, childItemId: l.childItemId, semiMode: l.semiMode, operation: l.operation, workCenterId: l.workCenterId, hours: l.hours, rate: l.rate, fixedCost: l.fixedCost, qtyExpr: l.qtyExpr, condition: l.condition })),
+  lines: lines.map(l => ({ id: l.id, kind: l.kind, qty: l.qty, productId: l.productId, costShare: l.costShare, scrapPct: l.scrapPct, unitCode: l.unitCode, childItemId: l.childItemId, semiMode: l.semiMode, operation: l.operation, workCenterId: l.workCenterId, hours: l.hours, rate: l.rate, fixedCost: l.fixedCost, qtyExpr: l.qtyExpr, condition: l.condition })),
 });
 
 /* ---------------- продукция и спецификации ---------------- */
@@ -148,6 +158,13 @@ const lineParam = idParam;
 /** Проверка строки перед записью: ссылки, единица, запрет циклов. Возвращает колонки, которые определяет сервер */
 async function checkLine(ctx: Ctx, itemId: string, l: Pick<LineRow, 'kind' | 'productId' | 'childItemId' | 'workCenterId' | 'operation'> & { stageId?: string | null }): Promise<{ unitCode: string | null }> {
   await assertStageOfItem(ctx, itemId, l.stageId ?? null);
+  // вид спецификации задаёт набор допустимых строк: у разборки — только выходные продукты и работы
+  const [item] = await ctx.db.select({ mode: manufacturedItems.mode, name: manufacturedItems.name }).from(manufacturedItems).where(eq(manufacturedItems.id, itemId)).limit(1);
+  const disassembly = item?.mode === 'disassembly';
+  if (disassembly && l.kind !== 'output' && l.kind !== 'work')
+    throw new AppError(422, 'spec_kind_forbidden', 'A disassembly specification has outputs and work operations only', { issues: [{ path: 'kind', message: 'Not applicable to a disassembly specification' }] });
+  if (!disassembly && l.kind === 'output')
+    throw new AppError(422, 'spec_kind_forbidden', 'Outputs belong to a disassembly specification only', { issues: [{ path: 'kind', message: 'Not applicable to an assembly specification' }] });
   if (l.kind === 'material') {
     const [p] = await ctx.db.select({ unitCode: products.unitCode, kind: products.kind }).from(products).where(eq(products.id, l.productId ?? '')).limit(1);
     if (!p) throw new AppError(422, 'invalid_reference', 'The product does not exist', { issues: [{ path: 'productId', message: 'Product not found' }] });
@@ -171,6 +188,13 @@ async function checkLine(ctx: Ctx, itemId: string, l: Pick<LineRow, 'kind' | 'pr
     const [p] = await ctx.db.select({ unitCode: products.unitCode, kind: products.kind }).from(products).where(eq(products.id, l.productId ?? '')).limit(1);
     if (!p) throw new AppError(422, 'invalid_reference', 'The service does not exist', { issues: [{ path: 'productId', message: 'Service not found' }] });
     if (p.kind !== 'service') throw new AppError(422, 'invalid_expense', 'An expense line is a service of a contractor', { issues: [{ path: 'productId', message: 'Choose a service' }] });
+    return { unitCode: p.unitCode };
+  }
+  if (l.kind === 'output') {
+    // выходной продукт разборки: складской товар каталога
+    const [p] = await ctx.db.select({ unitCode: products.unitCode, kind: products.kind }).from(products).where(eq(products.id, l.productId ?? '')).limit(1);
+    if (!p) throw new AppError(422, 'invalid_reference', 'The product does not exist', { issues: [{ path: 'productId', message: 'Product not found' }] });
+    if (p.kind !== 'goods') throw new AppError(422, 'invalid_output', 'Only goods can be an output of a disassembly', { issues: [{ path: 'productId', message: 'Choose a goods product' }] });
     return { unitCode: p.unitCode };
   }
   if (l.kind === 'work') {
@@ -222,6 +246,29 @@ async function assertFormulas(ctx: Ctx, itemId: string, body: { qtyExpr?: string
   }
 }
 
+/** Доли стоимости выходов спецификации: если задана хоть одна — заданы все, и сумма ровно 100 % */
+async function assertSpecCostShares(ctx: Ctx, itemId: string): Promise<void> {
+  const outs = await ctx.db.select({ costShare: bomLines.costShare }).from(bomLines).where(and(eq(bomLines.itemId, itemId), eq(bomLines.kind, 'output')));
+  if (!outs.length) return;
+  try {
+    checkCostShares(outs.map(o => ({ costShare: o.costShare ?? null })));
+  } catch (e) {
+    if (e instanceof DisassemblyShareError) throw new AppError(422, e.code, e.message);
+    throw e;
+  }
+}
+
+/** Состав спецификации должен соответствовать её виду: у разборки — только выходы и работы */
+async function assertSpecComposition(ctx: Ctx, itemId: string, mode: 'assembly' | 'disassembly'): Promise<void> {
+  const lines = await ctx.db.select({ kind: bomLines.kind }).from(bomLines).where(eq(bomLines.itemId, itemId));
+  for (const l of lines) {
+    if (mode === 'disassembly' && l.kind !== 'output' && l.kind !== 'work')
+      throw new AppError(422, 'spec_kind_forbidden', 'A disassembly specification has outputs and work operations only', { issues: [{ path: 'kind', message: 'Not applicable to a disassembly specification' }] });
+    if (mode === 'assembly' && l.kind === 'output')
+      throw new AppError(422, 'spec_kind_forbidden', 'Outputs belong to a disassembly specification only', { issues: [{ path: 'kind', message: 'Not applicable to an assembly specification' }] });
+  }
+}
+
 export const itemRoutes = crud({
   entity: 'manufactured_item',
   table: manufacturedItems,
@@ -239,13 +286,19 @@ export const itemRoutes = crud({
   prepareCreate: async (ctx, body) => {
     await assertUnit(ctx, body.unitCode);
     await assertProductionKind(ctx, body.productionKindId);
+    assertSingleStage(body.mode, body.productionKindId);
     await assertParamsFree(ctx, body.productId, body.params ?? []);
     return {};
   },
   prepareUpdate: async (ctx, existing, body) => {
     if (body.unitCode !== undefined && body.unitCode !== existing.unitCode) await assertUnit(ctx, body.unitCode);
     if (body.productionKindId !== undefined) await assertProductionKind(ctx, body.productionKindId);
+    assertSingleStage(body.mode ?? existing.mode, body.productionKindId !== undefined ? body.productionKindId : existing.productionKindId);
     if (body.params !== undefined) await assertParamsFree(ctx, body.productId ?? existing.productId, body.params);
+    // вид спецификации задаёт набор строк, а доли стоимости выходов должны давать 100 %
+    const mode = (body.mode ?? existing.mode) as 'assembly' | 'disassembly';
+    await assertSpecComposition(ctx, existing.id, mode);
+    await assertSpecCostShares(ctx, existing.id);
     return {};
   },
   // Продукцию, которая входит в чужие спецификации, нельзя убрать: сначала уберите её оттуда
@@ -270,7 +323,7 @@ export const itemRoutes = crud({
     const ctx = ctxOf(c);
     const body = c.req.valid('json');
     const item = await loadItem(ctx, c.req.valid('param').id);
-    const base = { kind: body.kind, productId: body.kind === 'material' || body.kind === 'expense' ? (body.productId ?? null) : body.kind === 'work' ? (body.productId ?? null) : null, childItemId: body.kind === 'semi' ? (body.childItemId ?? null) : null, semiMode: body.kind === 'semi' ? (body.semiMode ?? 'stock') : null, workCenterId: body.kind === 'work' ? (body.workCenterId ?? null) : null, operation: body.operation ?? '', stageId: body.stageId ?? null };
+    const base = { kind: body.kind, productId: body.kind === 'material' || body.kind === 'expense' || body.kind === 'output' ? (body.productId ?? null) : body.kind === 'work' ? (body.productId ?? null) : null, childItemId: body.kind === 'semi' ? (body.childItemId ?? null) : null, semiMode: body.kind === 'semi' ? (body.semiMode ?? 'stock') : null, workCenterId: body.kind === 'work' ? (body.workCenterId ?? null) : null, operation: body.operation ?? '', stageId: body.stageId ?? null };
     const { unitCode } = await checkLine(ctx, item.id, base);
     await assertFormulas(ctx, item.id, body);
     const [ord] = await ctx.db.select({ m: max(bomLines.sortOrder) }).from(bomLines).where(eq(bomLines.itemId, item.id));
@@ -290,6 +343,7 @@ export const itemRoutes = crud({
         fixedCost: body.kind === 'work' ? (body.fixedCost ?? null) : null,
         qtyExpr: body.qtyExpr ?? null,
         condition: body.condition ?? null,
+        costShare: body.kind === 'output' ? (body.costShare ?? null) : null,
         note: body.note ?? '',
       })
       .returning();
@@ -350,7 +404,7 @@ export const itemRoutes = crud({
     const items = new Map(g.items.map(i => [i.id, i]));
     const specs = await loadSpecParams(ctx.db, ctx.workspaceId);
     const params = parseParamJson(c.req.query('params'));
-    const kindLabel: Record<string, string> = { material: 'Материал', semi: 'Полуфабрикат', work: 'Работа', expense: 'Расход' };
+    const kindLabel: Record<string, string> = { material: 'Материал', semi: 'Полуфабрикат', work: 'Работа', expense: 'Расход', output: 'Выходной продукт' };
     let n = 0;
     // строки спецификации: в краткой форме — свои, в развёрнутой — с переделами
     const build = (itemId: string, deep: boolean): BomPrintRow[] => {
@@ -358,15 +412,16 @@ export const itemRoutes = crud({
       for (const l of byItem.get(itemId) ?? []) {
         n++;
         const child = l.kind === 'semi' && l.childItemId ? items.get(l.childItemId) : undefined;
-        const name = l.kind === 'material' || l.kind === 'expense' ? (prod.get(l.productId ?? '')?.name ?? '') : l.kind === 'work' ? l.operation ?? '' : (child?.name ?? '');
+        const name = l.kind === 'material' || l.kind === 'expense' || l.kind === 'output' ? (prod.get(l.productId ?? '')?.name ?? '') : l.kind === 'work' ? l.operation ?? '' : (child?.name ?? '');
         const row: BomPrintRow = {
           n,
           kind: kindLabel[l.kind] ?? l.kind,
           name,
-          product: l.kind === 'material' || l.kind === 'expense' ? (prod.get(l.productId ?? '')?.sku ?? '') : '',
+          product: l.kind === 'material' || l.kind === 'expense' || l.kind === 'output' ? (prod.get(l.productId ?? '')?.sku ?? '') : '',
           unitCode: l.unitCode ?? '',
           qty: l.qty,
           note: l.note ?? '',
+          costShare: l.costShare ?? null,
         };
         if (deep && child) row.children = build(child.id, true);
         out.push(row);
@@ -377,6 +432,7 @@ export const itemRoutes = crud({
     const values = spec?.params.map(p => ({ name: p.name, value: String((params ?? {})[p.key] ?? '') })).filter(x => x.value !== '') ?? [];
     const data: BomPrintData = {
       form,
+      mode: item.mode,
       name: item.name,
       code: item.code,
       productName: item.productId ? (prod.get(item.productId)?.name ?? null) : null,
@@ -434,6 +490,8 @@ export const itemRoutes = crud({
       expenses: explosion.materials.filter(m => m.expense).map(m => ({ productId: m.productId, name: prod.get(m.productId ?? '')?.name ?? m.productId, unitCode: prod.get(m.productId ?? '')?.unitCode ?? null, qty: m.qty })),
       semis: needs.semis.map(s => ({ ...s, name: items.get(s.itemId ?? '')?.name ?? s.itemId, unitCode: items.get(s.itemId ?? '')?.unitCode ?? null })),
       works: needs.works,
+      // выходные продукты разборки: они не расходуются, а получаются
+      outputs: explosion.outputs.map(o => ({ productId: o.productId, name: prod.get(o.productId)?.name ?? o.productId, unitCode: prod.get(o.productId)?.unitCode ?? null, qty: o.qty, costShare: o.costShare ?? null })),
     });
   });
 
@@ -453,7 +511,7 @@ export const bomLineRoutes = new Hono<AppEnv>()
     const [line] = await ctx.db.select().from(bomLines).where(eq(bomLines.id, c.req.valid('param').id)).limit(1).for('update');
     if (!line) throw notFound('bom_line');
     // Поля, чужие для типа строки, отклоняются: тип не меняется
-    const foreign: Record<LineRow['kind'], string[]> = { material: ['childItemId', 'semiMode', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], semi: ['productId', 'scrapPct', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], work: ['childItemId', 'semiMode', 'qty', 'scrapPct'], expense: ['childItemId', 'semiMode', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'] };
+    const foreign: Record<LineRow['kind'], string[]> = { material: ['childItemId', 'semiMode', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], semi: ['productId', 'scrapPct', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], work: ['childItemId', 'semiMode', 'qty', 'scrapPct'], expense: ['childItemId', 'semiMode', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], output: ['childItemId', 'semiMode', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'] };
     const bad = foreign[line.kind].find(k => (body as Record<string, unknown>)[k] !== undefined);
     if (bad) throw new AppError(400, 'validation_error', `${bad}: not applicable to a ${line.kind} line`, { issues: [{ path: bad, message: `Not applicable to a ${line.kind} line` }] });
     const next = { ...line, ...Object.fromEntries(Object.entries(body).filter(([, v]) => v !== undefined)) } as LineRow;

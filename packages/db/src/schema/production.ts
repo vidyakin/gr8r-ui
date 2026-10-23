@@ -102,6 +102,9 @@ export const manufacturedItems = pgTable(
     name: text('name').notNull(),
     /** product — изделие на продажу, semi — полуфабрикат (на уровне данных различий нет: любой элемент можно включить в другой) */
     kind: text('kind', { enum: ['product', 'semi'] }).notNull().default('product'),
+    /** Вид спецификации: сборка (изделие из материалов) или разборка (исходный товар делится на выходные продукты).
+        У разборки товар спецификации — исходный (что разбираем), а строки — выходные продукты и работы */
+    mode: text('mode', { enum: ['assembly', 'disassembly'] }).notNull().default('assembly'),
     unitCode: text('unit_code').notNull().default('796'),
     /** Товар каталога для продажи и склада (необязательно) */
     productId: uuid('product_id'),
@@ -128,6 +131,7 @@ export const manufacturedItems = pgTable(
     foreignKey({ columns: [t.workspaceId, t.productionKindId], foreignColumns: [productionKinds.workspaceId, productionKinds.id], name: 'manufactured_items_kind_fk' }),
     foreignKey({ columns: [t.workspaceId, t.unitCode], foreignColumns: [units.workspaceId, units.code], name: 'manufactured_items_unit_fk' }),
     check('manufactured_items_kind_chk', sql`${t.kind} in ('product','semi')`),
+    check('manufactured_items_mode_chk', sql`${t.mode} in ('assembly','disassembly')`),
     check('manufactured_items_batch_chk', sql`${t.batchQty} > 0 and ${t.overheadPct} >= 0`),
     check('manufactured_items_lead_chk', sql`${t.leadDays} >= 0`),
     uniqueIndex('manufactured_items_ws_code_uq').on(t.workspaceId, sql`lower(${t.code})`).where(sql`${t.code} <> ''`),
@@ -141,11 +145,13 @@ export const bomLines = pgTable(
     workspaceId: wsCol(),
     itemId: uuid('item_id').notNull(),
     /** expense — расход: услуга подрядчика (окраска, вырубка). Входит в плановую себестоимость и калькуляцию,
-        но со склада не списывается и в потребности не попадает */
-    kind: text('kind', { enum: ['material', 'semi', 'work', 'expense'] }).notNull(),
+        но со склада не списывается и в потребности не попадает; output — выходной продукт разборки */
+    kind: text('kind', { enum: ['material', 'semi', 'work', 'expense', 'output'] }).notNull(),
     sortOrder: integer('sort_order').notNull().default(0),
     /** material */
     productId: uuid('product_id'),
+    /** output: доля стоимости исходного товара, % (необязательна; если задана хоть одна — заданы все, сумма 100) */
+    costShare: numeric('cost_share', { precision: 7, scale: 2 }),
     /** semi */
     childItemId: uuid('child_item_id'),
     /** semi: режим полуфабриката — stock (выпускается отдельно и списывается со склада) или explode (разворачивается до материалов) */
@@ -179,14 +185,17 @@ export const bomLines = pgTable(
     foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'bom_lines_product_fk' }),
     foreignKey({ columns: [t.workspaceId, t.childItemId], foreignColumns: [manufacturedItems.workspaceId, manufacturedItems.id], name: 'bom_lines_child_fk' }),
     foreignKey({ columns: [t.workspaceId, t.workCenterId], foreignColumns: [workCenters.workspaceId, workCenters.id], name: 'bom_lines_work_center_fk' }),
-    check('bom_lines_kind_chk', sql`${t.kind} in ('material','semi','work','expense')`),
+    check('bom_lines_kind_chk', sql`${t.kind} in ('material','semi','work','expense','output')`),
     check(
       'bom_lines_shape_chk',
       sql`(${t.kind} = 'material' and ${t.productId} is not null and ${t.childItemId} is null)
         or (${t.kind} = 'expense' and ${t.productId} is not null and ${t.childItemId} is null)
+        or (${t.kind} = 'output' and ${t.productId} is not null and ${t.childItemId} is null)
         or (${t.kind} = 'semi' and ${t.childItemId} is not null and ${t.productId} is null and ${t.childItemId} <> ${t.itemId})
         or (${t.kind} = 'work' and ${t.childItemId} is null)`,
     ),
+    // доля стоимости — только у выходных продуктов разборки
+    check('bom_lines_cost_share_chk', sql`(${t.kind} = 'output' and (${t.costShare} is null or ${t.costShare} >= 0)) or (${t.kind} <> 'output' and ${t.costShare} is null)`),
     // формулы и условия считает expr.ts: длина ограничена там же (EXPR_MAX_LENGTH)
     check('bom_lines_expr_chk', sql`length(coalesce(${t.qtyExpr}, '')) <= 500 and length(coalesce(${t.condition}, '')) <= 500`),
     check('bom_lines_nonneg_chk', sql`${t.qty} >= 0 and ${t.scrapPct} >= 0 and ${t.hours} >= 0`),
@@ -394,8 +403,11 @@ export const productionComponents = pgTable(
     documentId: uuid('document_id').notNull(),
     /** Позиция документа, к которой относится строка состава */
     itemId: uuid('item_id'),
-    /** Тип строки состава: expense — расход подрядчику (услуга), в себестоимость входит, со склада не списывается */
-    kind: text('kind', { enum: ['material', 'semi', 'work', 'expense'] }).notNull(),
+    /** Тип строки состава: expense — расход подрядчику (услуга), в себестоимость входит, со склада не списывается;
+        output — выходной продукт разборки: приходуется на склад, а не расходуется */
+    kind: text('kind', { enum: ['material', 'semi', 'work', 'expense', 'output'] }).notNull(),
+    /** Доля стоимости исходного товара, % (выходной продукт разборки) */
+    costShare: numeric('cost_share', { precision: 7, scale: 2 }),
     /** Материал или полуфабрикат на складе */
     productId: uuid('product_id'),
     /** Участок (работа) */
@@ -434,7 +446,8 @@ export const productionComponents = pgTable(
     foreignKey({ columns: [t.workspaceId, t.documentLineId], foreignColumns: [documentLines.workspaceId, documentLines.id], name: 'production_components_line_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.sourceComponentId], foreignColumns: [t.workspaceId, t.id], name: 'production_components_source_fk' }),
     foreignKey({ columns: [t.workspaceId, t.stageId], foreignColumns: [productionStages.workspaceId, productionStages.id], name: 'production_components_stage_fk' }),
-    check('production_components_kind_chk', sql`${t.kind} in ('material','semi','work','expense')`),
+    check('production_components_kind_chk', sql`${t.kind} in ('material','semi','work','expense','output')`),
+    check('production_components_cost_share_chk', sql`(${t.kind} = 'output' and (${t.costShare} is null or ${t.costShare} >= 0)) or (${t.kind} <> 'output' and ${t.costShare} is null)`),
     check(
       'production_components_shape_chk',
       sql`${t.kind} = 'work' or (${t.kind} <> 'work' and ${t.productId} is not null)`,

@@ -27,7 +27,7 @@ export interface ProductionComponent {
   id: string;
   documentId: string;
   itemId: string | null;
-  kind: 'material' | 'semi' | 'work';
+  kind: 'material' | 'semi' | 'work' | 'expense' | 'output';
   productId: string | null;
   workCenterId: string | null;
   operation: string;
@@ -39,6 +39,8 @@ export interface ProductionComponent {
   actualQty: string | null;
   actualCost: string | null;
   documentLineId: string | null;
+  /** Доля стоимости исходного товара, % (выходной продукт разборки) */
+  costShare: string | null;
 }
 
 export interface ProductionOrderListItem {
@@ -57,6 +59,8 @@ export interface ProductionOrderListItem {
 
 export interface ProductionOrderDetail extends ProductionOrderListItem {
   workCenter: { id: string; name: string } | null;
+  /** Вид операции: сборка или разборка */
+  operation: string;
   items: ProductionOrderItem[];
   components: ProductionComponent[];
   outputs: { id: string; number: string | null; status: DocumentStatus; date: string }[];

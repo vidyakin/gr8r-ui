@@ -17,6 +17,7 @@ import {
   paramFields,
   stockPlan,
   FULFIL_TYPES,
+  PRODUCTION_OPERATIONS,
   TRANSFER_OPERATIONS,
   type DocumentLineInput,
   type DocumentType,
@@ -318,8 +319,13 @@ export interface DocumentCreateInput {
   custom?: Record<string, unknown>;
 }
 
-/** Вид операции документа: у перемещения — из запроса, у остальных типов — из метаданных */
+/** Вид операции документа: у перемещения — из запроса, у производственных — сборка или разборка, у остальных типов — из метаданных */
 function operationOf(type: DocumentType, input?: string | null): string | null {
+  if (type === 'production_order' || type === 'production') {
+    const op = input ?? 'assembly';
+    if (!PRODUCTION_OPERATIONS.includes(op as (typeof PRODUCTION_OPERATIONS)[number])) throw new DomainError(422, 'invalid_operation', 'Unknown kind of production operation');
+    return op;
+  }
   if (type !== 'stock_transfer') return DOCUMENT_META[type].operation ?? null;
   const op = input ?? 'transfer';
   if (!TRANSFER_OPERATIONS.includes(op as (typeof TRANSFER_OPERATIONS)[number])) throw new DomainError(422, 'invalid_operation', 'Unknown kind of transfer');
@@ -487,7 +493,7 @@ export async function updateDocument(db: Db, ctx: DocCtx, id: string, patch: Doc
     } else set.contractId = null;
   }
   if (patch.warehouseId !== undefined) set.warehouseId = patch.warehouseId;
-  if (patch.operation !== undefined && type === 'stock_transfer') set.operation = operation;
+  if (patch.operation !== undefined && (type === 'stock_transfer' || type === 'production_order' || type === 'production')) set.operation = operation;
   if (patch.inUseMemberId !== undefined && type === 'stock_transfer') set.inUseMemberId = patch.inUseMemberId;
   if (patch.inUseWorkCenterId !== undefined && type === 'stock_transfer') set.inUseWorkCenterId = patch.inUseWorkCenterId;
   if (patch.targetWarehouseId !== undefined && (meta.stockRole === 'transfer' || meta.production)) set.targetWarehouseId = patch.targetWarehouseId;

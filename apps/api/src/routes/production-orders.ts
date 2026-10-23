@@ -2,6 +2,7 @@
    (по заказу на производство или прямо из заказа покупателя) и состояние заказа. Чтение — любой участник,
    заказы и выпуски — member и выше. Правила — packages/db/src/production.ts. */
 import { zValidator } from '@hono/zod-validator';
+import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import {
@@ -17,6 +18,7 @@ import {
   documentDetail,
   fillOrderFromBom,
   listProductionOrders,
+  manufacturedItems,
   materialRows,
   productManufacturing,
   productionDetail,
@@ -74,6 +76,13 @@ export const productionOrderRoutes = new Hono<AppEnv>()
   .post('/product-settings', write, zValidator('json', productManufacturingSet, validationHook), async c => {
     const ctx = ctxOf(c);
     const body = c.req.valid('json');
+    // спецификация по умолчанию — сборка этого же товара: спецификация разборки товар не выпускает, а чужая — выпускает другой товар
+    if (body.defaultItemId) {
+      const [item] = await ctx.db.select({ mode: manufacturedItems.mode, productId: manufacturedItems.productId }).from(manufacturedItems).where(eq(manufacturedItems.id, body.defaultItemId)).limit(1);
+      if (!item) throw new AppError(422, 'invalid_reference', 'The specification does not exist');
+      if (item.mode !== 'assembly') throw new AppError(422, 'not_assembly', 'A disassembly specification does not produce the product: choose an assembly specification');
+      if (item.productId !== body.productId) throw new AppError(422, 'invalid_reference', 'The specification produces another product');
+    }
     const [row] = await ctx.db
       .insert(productManufacturing)
       .values({ workspaceId: ctx.workspaceId, productId: body.productId, replenishment: body.replenishment, defaultItemId: body.defaultItemId ?? null })
@@ -98,6 +107,7 @@ export const productionOrderRoutes = new Hono<AppEnv>()
     const body = c.req.valid('json');
     const id = await createProductionOrder(ctx.db, docCtx(ctx), {
       ...(body.id ? { id: body.id } : {}),
+      operation: body.operation,
       workCenterId: body.workCenterId,
       warehouseId: body.warehouseId,
       targetWarehouseId: body.targetWarehouseId,
@@ -114,6 +124,7 @@ export const productionOrderRoutes = new Hono<AppEnv>()
     const ctx = ctxOf(c);
     const body = c.req.valid('json');
     await updateProductionOrder(ctx.db, docCtx(ctx), c.req.valid('param').id, {
+      operation: body.operation,
       workCenterId: body.workCenterId,
       warehouseId: body.warehouseId,
       targetWarehouseId: body.targetWarehouseId,

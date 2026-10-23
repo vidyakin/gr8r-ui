@@ -1,4 +1,4 @@
-/** Добавление и правка строки спецификации: материал (товар каталога), полуфабрикат (другая продукция), работа (участок), расход (услуга). */
+/** Добавление и правка строки спецификации: материал (товар каталога), полуфабрикат (другая продукция), работа (участок), расход (услуга), выходной продукт (разборка). */
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Check, Package, Search } from 'lucide-react';
@@ -60,6 +60,8 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
   const [childId, setChildId] = React.useState(line?.childItemId ?? '');
   const [mode, setMode] = React.useState<'stock' | 'explode'>(line?.semiMode ?? 'stock');
   const [qty, setQty] = React.useState(line ? line.qty.replace(/\.?0+$/, '') : '1');
+  // доля стоимости исходного товара (выходной продукт разборки), %
+  const [costShare, setCostShare] = React.useState(line?.costShare ? line.costShare.replace(/\.?0+$/, '') : '');
   const [scrap, setScrap] = React.useState(line ? line.scrapPct.replace(/\.?0+$/, '') : '0');
   const [operation, setOperation] = React.useState(line?.operation ?? '');
   // формулы строки: количество по параметрам и условие включения строки в состав
@@ -85,7 +87,7 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
   // вид производства изделия: этап, на котором расходуется материал или выполняется операция
   const prodKind = snap.kinds.find(k => k.id === item.productionKindId) ?? null;
   const centerObj = snap.workCenters.find(w => w.id === center);
-  const title = `${edit ? 'Edit' : 'Add'} ${kind === 'material' ? 'material' : kind === 'semi' ? 'semi-finished product' : kind === 'expense' ? 'expense' : 'work operation'}`;
+  const title = `${edit ? 'Edit' : 'Add'} ${kind === 'material' ? 'material' : kind === 'semi' ? 'semi-finished product' : kind === 'expense' ? 'expense' : kind === 'output' ? 'output' : 'work operation'}`;
 
   /** Ошибка выражения видна сразу: ключи параметров спецификации известны */
   const exprError = (src: string): string | undefined => {
@@ -106,9 +108,11 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
       stageId: prodKind ? stageId || null : null,
       ...(kind === 'material' || kind === 'expense'
         ? { kind, productId: material?.id, qty: num(qty), scrapPct: kind === 'material' ? (num(scrap) ?? 0) : 0, ...(qtyExpr.trim() ? { qtyExpr: qtyExpr.trim() } : {}), ...(condition.trim() ? { condition: condition.trim() } : {}) }
-        : kind === 'semi'
-          ? { kind, childItemId: childId || undefined, qty: num(qty), semiMode: mode, ...(qtyExpr.trim() ? { qtyExpr: qtyExpr.trim() } : {}), ...(condition.trim() ? { condition: condition.trim() } : {}) }
-          : { kind, operation: operation.trim(), productId: opProduct || null, workCenterId: center || null, hours: num(hours) ?? 0, rate: rate.trim() === '' ? null : Number(rate), fixedCost: fixed.trim() === '' ? null : Number(fixed) }),
+        : kind === 'output'
+          ? { kind, productId: material?.id, qty: num(qty), ...(costShare.trim() ? { costShare: Number(costShare) } : {}), ...(qtyExpr.trim() ? { qtyExpr: qtyExpr.trim() } : {}), ...(condition.trim() ? { condition: condition.trim() } : {}) }
+          : kind === 'semi'
+            ? { kind, childItemId: childId || undefined, qty: num(qty), semiMode: mode, ...(qtyExpr.trim() ? { qtyExpr: qtyExpr.trim() } : {}), ...(condition.trim() ? { condition: condition.trim() } : {}) }
+            : { kind, operation: operation.trim(), productId: opProduct || null, workCenterId: center || null, hours: num(hours) ?? 0, rate: rate.trim() === '' ? null : Number(rate), fixedCost: fixed.trim() === '' ? null : Number(fixed) }),
     };
     if (qtyExprError || conditionError) {
       setErr({ ...(qtyExprError ? { qtyExpr: qtyExprError } : {}), ...(conditionError ? { condition: conditionError } : {}) });
@@ -125,7 +129,7 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
       if (edit) {
         const { kind: _k, ...patch } = body;
         await m.updateLine.mutateAsync({ id: line!.id, itemId: item.id, patch });
-      } else await m.addLine.mutateAsync({ itemId: item.id, id: uuidv7(), body, material: kind === 'material' || kind === 'expense' ? (material ?? undefined) : undefined });
+      } else await m.addLine.mutateAsync({ itemId: item.id, id: uuidv7(), body, material: kind === 'material' || kind === 'expense' || kind === 'output' ? (material ?? undefined) : undefined });
       toast(edit ? 'Line saved' : 'Line added');
       onClose();
     } catch {
@@ -225,7 +229,22 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
               </Field>
             </>
           )}
-          {(kind === 'material' || kind === 'semi' || kind === 'expense') && paramKeys.length > 0 && (
+          {kind === 'output' && (
+            <>
+              <Field label="Output product" hint="The goods received from the disassembly. Only goods of the catalogue can be an output." error={err.productId}>
+                {() => <ProductPicker value={material} onChange={mat => (setMaterial(mat), setErr({}))} invalid={!!err.productId} />}
+              </Field>
+              <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
+                <Field label={`Quantity${material ? `, ${unitSymbol(units.data, material.unitCode)}` : ''}`} className="grow" error={err.qty}>
+                  {p => <Input {...p} inputMode="decimal" value={qty} onChange={e => setQty(e.target.value)} />}
+                </Field>
+                <Field label="Cost share, %" className="grow" hint="The share of the cost of the goods being disassembled. If it is set for one output, it is set for all of them and adds up to 100%." error={err.costShare}>
+                  {p => <Input {...p} inputMode="decimal" placeholder="e.g. 60" value={costShare} onChange={e => setCostShare(e.target.value)} />}
+                </Field>
+              </div>
+            </>
+          )}
+          {(kind === 'material' || kind === 'semi' || kind === 'expense' || kind === 'output') && paramKeys.length > 0 && (
             <>
               <Field label="Quantity formula" hint="Counted over the parameters of the product. Empty: the quantity above." error={err.qtyExpr ?? qtyExprError}>
                 {p => <Input {...p} placeholder="e.g. width * height / 1000000 * 1.05" value={qtyExpr} onChange={e => setQtyExpr(e.target.value)} invalid={!!(err.qtyExpr ?? qtyExprError)} />}

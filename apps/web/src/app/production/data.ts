@@ -12,7 +12,7 @@ import { uuidv7 } from '../lib/uuid';
 export interface BomLine {
   id: string;
   itemId: string;
-  kind: 'material' | 'semi' | 'work' | 'expense';
+  kind: 'material' | 'semi' | 'work' | 'expense' | 'output';
   sortOrder: number;
   /** Этап, на котором расходуется материал или выполняется операция */
   stageId: string | null;
@@ -21,6 +21,8 @@ export interface BomLine {
   /** Режим полуфабриката: stock — списать со склада, explode — развернуть до материалов */
   semiMode: SemiMode;
   qty: string;
+  /** Доля стоимости исходного товара, % (выходной продукт разборки) */
+  costShare: string | null;
   /** Формула количества над параметрами спецификации (пусто — обычное количество) */
   qtyExpr: string | null;
   /** Условие строки над параметрами (пусто — строка всегда) */
@@ -40,6 +42,8 @@ export interface Item {
   code: string;
   name: string;
   kind: 'product' | 'semi';
+  /** Вид спецификации: сборка (изделие из материалов) или разборка (исходный товар делится на выходные продукты) */
+  mode: 'assembly' | 'disassembly';
   unitCode: string;
   productId: string | null;
   batchQty: string;
@@ -163,6 +167,7 @@ const toInput = (i: Item): BomItemInput => ({
   name: i.name,
   unitCode: i.unitCode,
   productId: i.productId,
+  mode: i.mode,
   batchQty: i.batchQty,
   overheadPct: i.overheadPct,
   paramKeys: (i.params ?? []).map(p => p.key),
@@ -284,6 +289,7 @@ export function useProductionMutations() {
             childItemId: (b.childItemId as string) ?? null,
             semiMode: (b.semiMode as SemiMode) ?? 'stock',
             qty: String(b.qty ?? '1'),
+            costShare: b.costShare === undefined || b.costShare === null ? null : String(b.costShare),
             qtyExpr: (b.qtyExpr as string) ?? null,
             condition: (b.condition as string) ?? null,
             unitCode: mat?.unitCode ?? child?.unitCode ?? null,

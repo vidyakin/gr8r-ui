@@ -114,7 +114,7 @@ export async function resolveSpecForProduct(db: Db, workspaceId: string, product
       await db
         .select({ id: manufacturedItems.id })
         .from(manufacturedItems)
-        .where(and(eq(manufacturedItems.workspaceId, workspaceId), eq(manufacturedItems.productId, pid), isNull(manufacturedItems.archivedAt), eq(manufacturedItems.isInvalid, false)))
+        .where(and(eq(manufacturedItems.workspaceId, workspaceId), eq(manufacturedItems.productId, pid), eq(manufacturedItems.mode, 'assembly'), isNull(manufacturedItems.archivedAt), eq(manufacturedItems.isInvalid, false)))
         .orderBy(asc(manufacturedItems.createdAt))
         .limit(1)
     )[0];
@@ -127,7 +127,7 @@ export async function resolveSpecForProduct(db: Db, workspaceId: string, product
     const [spec] = await db
       .select({ id: manufacturedItems.id })
       .from(manufacturedItems)
-      .where(and(eq(manufacturedItems.workspaceId, workspaceId), eq(manufacturedItems.id, setting.defaultItemId), isNull(manufacturedItems.archivedAt), eq(manufacturedItems.isInvalid, false)))
+      .where(and(eq(manufacturedItems.workspaceId, workspaceId), eq(manufacturedItems.id, setting.defaultItemId), eq(manufacturedItems.mode, 'assembly'), isNull(manufacturedItems.archivedAt), eq(manufacturedItems.isInvalid, false)))
       .limit(1);
     if (spec) return { itemId: spec.id, productId: rootId, rootProductId: rootId, inherited: isVariant };
   }

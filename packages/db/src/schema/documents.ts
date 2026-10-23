@@ -211,7 +211,7 @@ export const documents = pgTable(
     check('documents_type_chk', sql`${t.type} in ('quote','customer_order','invoice','realization','act','customer_return','supplier_order','receipt','supplier_return','stock_transfer','write_off','stock_posting','inventory_count','production_order','production','work_order','piecework_order','other_costs')`),
     check('documents_status_chk', sql`${t.status} in ('draft','posted','cancelled')`),
     check('documents_state_chk', sql`${t.state} is null or ${t.state} ~ '^[a-z][a-z0-9_]*$'`),
-    check('documents_operation_chk', sql`${t.operation} is null or ${t.operation} in ('transfer','in_transit','to_operation','from_operation','assembly')`),
+    check('documents_operation_chk', sql`${t.operation} is null or ${t.operation} in ('transfer','in_transit','to_operation','from_operation','assembly','disassembly')`),
     // перемещение с получателем: склад-получатель задан и отличается от склада-источника
     // (у передачи в эксплуатацию и возврата из неё склада-получателя нет)
     check('documents_transfer_chk', sql`${t.operation} not in ('transfer','in_transit') or (${t.targetWarehouseId} is not null and ${t.targetWarehouseId} <> ${t.warehouseId})`),
