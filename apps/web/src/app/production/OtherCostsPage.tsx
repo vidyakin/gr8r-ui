@@ -8,6 +8,7 @@ import { useCanWrite } from '../meta/custom-fields';
 import { useCostItems } from '../docs/data';
 import { useSnapshot } from './data';
 import { useOtherCosts, useOtherCostsApi, useOtherCostsDocument, type OtherCostsLineInput } from './closing-data';
+import { t } from '@/i18n';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const newLine = (): OtherCostsLineInput => ({ id: crypto.randomUUID(), costItemId: '', workCenterId: null, amount: '0', comment: '' });
@@ -204,9 +205,6 @@ export function OtherCostsDocumentPage() {
 
       <section className="panel doc-head" aria-label="Header">
         <Field label="Date">{p => <Input {...p} type="date" disabled={!editable} value={date} onChange={e => setDate(e.target.value)} />}</Field>
-        <Field label="Comment" className="doc-wide">
-          {p => <Input {...p} disabled={!editable} value={comment} placeholder="What these costs are for" onChange={e => setComment(e.target.value)} />}
-        </Field>
       </section>
 
       <section className="doc-lines panel" aria-label="Lines">
@@ -248,7 +246,7 @@ export function OtherCostsDocumentPage() {
                     />
                   </td>
                   <td className="r">
-                    <Input aria-label="Amount" type="number" disabled={!editable} value={l.amount} onChange={e => setLines(prev => prev.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)))} />
+                    <Input aria-label="Amount" inputMode="decimal" disabled={!editable} value={l.amount} onChange={e => setLines(prev => prev.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)))} />
                   </td>
                   <td>
                     <Input aria-label="Line comment" disabled={!editable} value={l.comment} onChange={e => setLines(prev => prev.map((x, j) => (j === i ? { ...x, comment: e.target.value } : x)))} />
@@ -279,6 +277,12 @@ export function OtherCostsDocumentPage() {
             <span className="num">{total.toFixed(2)}</span>
           </div>
         </div>
+      </section>
+
+      <section className="doc-comment panel" aria-label={t('docs.comment')}>
+        <Field label={t('docs.comment')}>
+          {p => <Input {...p} disabled={!editable} value={comment} placeholder={t('docs.commentHint.otherCosts')} onChange={e => setComment(e.target.value)} />}
+        </Field>
       </section>
 
       {removing && detail && (

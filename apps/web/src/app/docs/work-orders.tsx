@@ -16,6 +16,8 @@ import { STATUS_LABEL, STATUS_TONE, docsKey, useDocsApi, useDocumentStates, useW
 import { useQueryClient } from '@tanstack/react-query';
 import { useWsId } from '../meta/data';
 import { DocumentResourcesPanel } from '../production/ProductionOrderPage';
+import { t } from '@/i18n';
+import { DocTabs, type DocTab } from './doc-tabs';
 
 /** Тон бейджа по категории состояния */
 const CATEGORY_TONE: Record<WorkOrderStateCategory, Tone> = {
@@ -136,7 +138,7 @@ export function WorkOrdersPage() {
 
 /* ---------------- карточка: состояние, материалы и исполнители ---------------- */
 
-export function WorkOrderPanel({ doc }: { doc: DocDetail }) {
+export function WorkOrderPanel({ doc, lead }: { doc: DocDetail; lead: (DocTab | false | null | undefined)[] }) {
   const qc = useQueryClient();
   const ws = useWsId();
   const api = useDocsApi();
@@ -257,218 +259,244 @@ export function WorkOrderPanel({ doc }: { doc: DocDetail }) {
         </Field>
       </section>
 
-      <section className="doc-lines panel" aria-label="Works">
-        <h2>Works</h2>
-        <div className="table-wrap">
-          <table className="dtbl" aria-label="Work lines of the work order">
-            <thead>
-              <tr>
-                <th>Work</th>
-                <th style={{ width: 90 }} className="r">
-                  Qty
-                </th>
-                <th style={{ width: 170 }}>Billing</th>
-                <th style={{ width: 90 }} className="r">
-                  Hours
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {(time.data?.lines ?? []).map(l => {
-                const line = (doc.lines ?? []).find(x => x.id === l.lineId);
-                return (
-                  <tr key={l.lineId}>
-                    <td>{l.name}</td>
-                    <td className="r num">{line?.qty ?? '—'}</td>
-                    <td>
-                      <Select
-                        aria-label={`Billing of ${l.name}`}
-                        disabled={!editable}
-                        value={l.billing}
-                        onValueChange={v => void saveBilling(l.lineId, v as WorkOrderBillingMode)}
-                        options={WORK_ORDER_BILLING_MODES.map(m => ({ value: m, label: WORK_ORDER_BILLING_LABELS[m] }))}
-                      />
-                    </td>
-                    <td className="r num">{l.actualHours}</td>
-                  </tr>
-                );
-              })}
-              {!(time.data?.lines ?? []).length && (
-                <tr>
-                  <td colSpan={4} className="faint" style={{ textAlign: 'center', padding: 18 }}>
-                    No works in the work order: add a line of the “Work” type.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        {editable && (
-          <p className="faint" style={{ margin: '8px 0 0' }}>
-            A work billed by actual hours takes the logged time of its assignments as the quantity — the order is recalculated before it is posted.
-          </p>
-        )}
-      </section>
-
-      <section className="doc-lines panel" aria-label="Materials">
-        <h2>Materials</h2>
-        <div className="table-wrap">
-          <table className="dtbl" aria-label="Materials of the work order">
-            <thead>
-              <tr>
-                <th>Product</th>
-                <th style={{ width: 70 }} className="r">
-                  Qty
-                </th>
-                <th style={{ width: 150 }}>Warehouse</th>
-                <th style={{ width: 36 }} />
-              </tr>
-            </thead>
-            <tbody>
-              {(doc.materials ?? []).map(m => (
-                <tr key={m.id}>
-                  <td>{m.name}</td>
-                  <td className="r num">{m.qty}</td>
-                  <td className="muted">{m.warehouseName ?? '—'}</td>
-                  <td>
-                    {editable && (
-                      <IconButton size="xs" label="Remove material" onClick={() => void removeMaterial(m.id)}>
-                        <Trash2 size={13} />
-                      </IconButton>
+      <DocTabs
+        label={t('docs.tabsLabel')}
+        tabs={[
+          ...lead,
+          {
+            id: 'works',
+            label: t('docs.tabs.works'), count: (time.data?.lines ?? []).length,
+            content: (
+            <section className="doc-lines panel" aria-label="Works">
+              <div className="table-wrap">
+                <table className="dtbl" aria-label="Work lines of the work order">
+                  <thead>
+                    <tr>
+                      <th>Work</th>
+                      <th style={{ width: 90 }} className="r">
+                        Qty
+                      </th>
+                      <th style={{ width: 170 }}>Billing</th>
+                      <th style={{ width: 90 }} className="r">
+                        Hours
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(time.data?.lines ?? []).map(l => {
+                      const line = (doc.lines ?? []).find(x => x.id === l.lineId);
+                      return (
+                        <tr key={l.lineId}>
+                          <td>{l.name}</td>
+                          <td className="r num">{line?.qty ?? '—'}</td>
+                          <td>
+                            <Select
+                              aria-label={`Billing of ${l.name}`}
+                              disabled={!editable}
+                              value={l.billing}
+                              onValueChange={v => void saveBilling(l.lineId, v as WorkOrderBillingMode)}
+                              options={WORK_ORDER_BILLING_MODES.map(m => ({ value: m, label: WORK_ORDER_BILLING_LABELS[m] }))}
+                            />
+                          </td>
+                          <td className="r num">{l.actualHours}</td>
+                        </tr>
+                      );
+                    })}
+                    {!(time.data?.lines ?? []).length && (
+                      <tr>
+                        <td colSpan={4} className="faint" style={{ textAlign: 'center', padding: 18 }}>
+                          No works in the work order: add a line of the “Work” type.
+                        </td>
+                      </tr>
                     )}
-                  </td>
-                </tr>
-              ))}
-              {!(doc.materials ?? []).length && (
-                <tr>
-                  <td colSpan={4} className="faint" style={{ textAlign: 'center', padding: 18 }}>
-                    No materials: they are written off when the work order reaches the Done state.
-                  </td>
-                </tr>
+                  </tbody>
+                </table>
+              </div>
+              {editable && (
+                <p className="faint" style={{ margin: '8px 0 0' }}>
+                  A work billed by actual hours takes the logged time of its assignments as the quantity — the order is recalculated before it is posted.
+                </p>
               )}
-            </tbody>
-          </table>
-        </div>
-        {editable && (
-          <MaterialEditor
-            onAdd={async (productId, qty) => {
-              await saveMaterials([...(doc.materials ?? []).map(m => ({ id: m.id, productId: m.productId, qty: m.qty })), { productId, qty }]);
-            }}
-          />
-        )}
-      </section>
+            </section>
 
-      <section className="doc-links panel" aria-label="Resources">
-        <h2>Resources</h2>
-        <DocumentResourcesPanel orderId={doc.id} />
-      </section>
-
-      <section className="doc-lines panel" aria-label="Assignees">
-        <h2>Assignees</h2>
-        <div className="table-wrap">
-          <table className="dtbl" aria-label="Assignments of the work order">
-            <thead>
-              <tr>
-                <th>Task</th>
-                <th style={{ width: 170 }}>Assignee</th>
-                <th style={{ width: 190 }}>From</th>
-                <th style={{ width: 190 }}>To</th>
-                <th style={{ width: 70 }} className="r">
-                  Plan
-                </th>
-                <th style={{ width: 70 }} className="r">
-                  Actual
-                </th>
-                <th style={{ width: 36 }} />
-              </tr>
-            </thead>
-            <tbody>
-              {(doc.assignments ?? []).map(a => {
-                const t = (time.data?.assignments ?? []).find(x => x.taskId === a.taskId);
-                return (
-                  <tr key={a.id}>
-                    <td>
-                      <span className="muted">{a.title}</span> <span className="mono faint">{a.taskKey}</span>
-                    </td>
-                    <td>
-                      {editable ? (
-                        <Select
-                          aria-label={`Assignee of ${a.title}`}
-                          value={a.assigneeId ?? ''}
-                          onValueChange={v => void api('PATCH', `/work-order-assignments/${a.taskId}`, { assigneeId: v }).then(() => qc.invalidateQueries({ queryKey: docsKey(ws, 'doc', doc.id) }))}
-                          options={members.filter(m => m.status === 'active').map(m => ({ value: m.id, label: m.name }))}
-                          placeholder="Not assigned"
-                        />
-                      ) : (
-                        a.assigneeName ?? '—'
-                      )}
-                    </td>
-                    <td>
-                      {editable ? (
-                        <Input
-                          aria-label={`Start of ${a.title}`}
-                          type="datetime-local"
-                          value={toLocalInput(a.startAt)}
-                          onChange={e => {
-                            if (!e.target.value) return;
-                            const { startAt, endAt } = interval(a, 'start', e.target.value);
-                            void saveInterval(a, startAt, endAt);
-                          }}
-                        />
-                      ) : (
-                        <span className="num">{a.startAt ? toLocalInput(a.startAt).replace('T', ' ') : '—'}</span>
-                      )}
-                    </td>
-                    <td>
-                      {editable ? (
-                        <Input
-                          aria-label={`End of ${a.title}`}
-                          type="datetime-local"
-                          value={toLocalInput(a.endAt)}
-                          onChange={e => {
-                            if (!e.target.value) return;
-                            const { startAt, endAt } = interval(a, 'end', e.target.value);
-                            void saveInterval(a, startAt, endAt);
-                          }}
-                        />
-                      ) : (
-                        <span className="num">{a.endAt ? toLocalInput(a.endAt).replace('T', ' ') : '—'}</span>
-                      )}
-                    </td>
-                    <td className="r num">{t?.plannedHours ?? a.plannedHours ?? '—'}</td>
-                    <td className="r num">{t?.actualHours ?? '—'}</td>
-                    <td>
-                      {editable && (
-                        <IconButton size="xs" label="Remove assignee" onClick={() => void removeAssignment(a.taskId)}>
-                          <Trash2 size={13} />
-                        </IconButton>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-              {!(doc.assignments ?? []).length && (
-                <tr>
-                  <td colSpan={7} className="faint" style={{ textAlign: 'center', padding: 18 }}>
-                    No assignees: every assignee gets a task of the Services module.
-                  </td>
-                </tr>
+            ),
+          },
+          {
+            id: 'materials',
+            label: t('docs.tabs.materials'), count: (doc.materials ?? []).length,
+            content: (
+            <section className="doc-lines panel" aria-label="Materials">
+              <div className="table-wrap">
+                <table className="dtbl" aria-label="Materials of the work order">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th style={{ width: 70 }} className="r">
+                        Qty
+                      </th>
+                      <th style={{ width: 150 }}>Warehouse</th>
+                      <th style={{ width: 36 }} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(doc.materials ?? []).map(m => (
+                      <tr key={m.id}>
+                        <td>{m.name}</td>
+                        <td className="r num">{m.qty}</td>
+                        <td className="muted">{m.warehouseName ?? '—'}</td>
+                        <td>
+                          {editable && (
+                            <IconButton size="xs" label="Remove material" onClick={() => void removeMaterial(m.id)}>
+                              <Trash2 size={13} />
+                            </IconButton>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {!(doc.materials ?? []).length && (
+                      <tr>
+                        <td colSpan={4} className="faint" style={{ textAlign: 'center', padding: 18 }}>
+                          No materials: they are written off when the work order reaches the Done state.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {editable && (
+                <MaterialEditor
+                  onAdd={async (productId, qty) => {
+                    await saveMaterials([...(doc.materials ?? []).map(m => ({ id: m.id, productId: m.productId, qty: m.qty })), { productId, qty }]);
+                  }}
+                />
               )}
-            </tbody>
-          </table>
-        </div>
-        {editable && (
-          <div className="doc-add">
-            <Select
-              value=""
-              aria-label="Add assignee"
-              onValueChange={v => void addAssignment(v)}
-              options={members.filter(m => m.status === 'active').map(m => ({ value: m.id, label: m.name }))}
-              placeholder="Add assignee"
-            />
-          </div>
-        )}
-      </section>
+            </section>
+
+            ),
+          },
+          {
+            id: 'resources',
+            label: t('docs.tabs.resources'),
+            content: (
+            <section className="doc-links panel" aria-label="Resources">
+              <DocumentResourcesPanel orderId={doc.id} />
+            </section>
+
+            ),
+          },
+          {
+            id: 'assignees',
+            label: t('docs.tabs.assignees'), count: (doc.assignments ?? []).length,
+            content: (
+            <section className="doc-lines panel" aria-label="Assignees">
+              <div className="table-wrap">
+                <table className="dtbl" aria-label="Assignments of the work order">
+                  <thead>
+                    <tr>
+                      <th>Task</th>
+                      <th style={{ width: 170 }}>Assignee</th>
+                      <th style={{ width: 190 }}>From</th>
+                      <th style={{ width: 190 }}>To</th>
+                      <th style={{ width: 70 }} className="r">
+                        Plan
+                      </th>
+                      <th style={{ width: 70 }} className="r">
+                        Actual
+                      </th>
+                      <th style={{ width: 36 }} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(doc.assignments ?? []).map(a => {
+                      const t = (time.data?.assignments ?? []).find(x => x.taskId === a.taskId);
+                      return (
+                        <tr key={a.id}>
+                          <td>
+                            <span className="muted">{a.title}</span> <span className="mono faint">{a.taskKey}</span>
+                          </td>
+                          <td>
+                            {editable ? (
+                              <Select
+                                aria-label={`Assignee of ${a.title}`}
+                                value={a.assigneeId ?? ''}
+                                onValueChange={v => void api('PATCH', `/work-order-assignments/${a.taskId}`, { assigneeId: v }).then(() => qc.invalidateQueries({ queryKey: docsKey(ws, 'doc', doc.id) }))}
+                                options={members.filter(m => m.status === 'active').map(m => ({ value: m.id, label: m.name }))}
+                                placeholder="Not assigned"
+                              />
+                            ) : (
+                              a.assigneeName ?? '—'
+                            )}
+                          </td>
+                          <td>
+                            {editable ? (
+                              <Input
+                                aria-label={`Start of ${a.title}`}
+                                type="datetime-local"
+                                value={toLocalInput(a.startAt)}
+                                onChange={e => {
+                                  if (!e.target.value) return;
+                                  const { startAt, endAt } = interval(a, 'start', e.target.value);
+                                  void saveInterval(a, startAt, endAt);
+                                }}
+                              />
+                            ) : (
+                              <span className="num">{a.startAt ? toLocalInput(a.startAt).replace('T', ' ') : '—'}</span>
+                            )}
+                          </td>
+                          <td>
+                            {editable ? (
+                              <Input
+                                aria-label={`End of ${a.title}`}
+                                type="datetime-local"
+                                value={toLocalInput(a.endAt)}
+                                onChange={e => {
+                                  if (!e.target.value) return;
+                                  const { startAt, endAt } = interval(a, 'end', e.target.value);
+                                  void saveInterval(a, startAt, endAt);
+                                }}
+                              />
+                            ) : (
+                              <span className="num">{a.endAt ? toLocalInput(a.endAt).replace('T', ' ') : '—'}</span>
+                            )}
+                          </td>
+                          <td className="r num">{t?.plannedHours ?? a.plannedHours ?? '—'}</td>
+                          <td className="r num">{t?.actualHours ?? '—'}</td>
+                          <td>
+                            {editable && (
+                              <IconButton size="xs" label="Remove assignee" onClick={() => void removeAssignment(a.taskId)}>
+                                <Trash2 size={13} />
+                              </IconButton>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {!(doc.assignments ?? []).length && (
+                      <tr>
+                        <td colSpan={7} className="faint" style={{ textAlign: 'center', padding: 18 }}>
+                          No assignees: every assignee gets a task of the Services module.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {editable && (
+                <div className="doc-add">
+                  <Select
+                    value=""
+                    aria-label="Add assignee"
+                    onValueChange={v => void addAssignment(v)}
+                    options={members.filter(m => m.status === 'active').map(m => ({ value: m.id, label: m.name }))}
+                    placeholder="Add assignee"
+                  />
+                </div>
+              )}
+            </section>
+            ),
+          },
+        ]}
+      />
 
       <Dialog open={cancelOpen} onOpenChange={o => !o && setCancelOpen(false)}>
         <DialogContent
@@ -516,7 +544,7 @@ function MaterialEditor({ onAdd }: { onAdd: (productId: string, qty: string) => 
   return (
     <div className="doc-add">
       <Select value={productId} aria-label="Material" onValueChange={setProductId} options={products.map(p => ({ value: p.id, label: p.name }))} placeholder="Add material" />
-      <Input aria-label="Quantity" value={qty} onChange={e => setQty(e.target.value)} className="num" />
+      <Input aria-label="Quantity" inputMode="decimal" value={qty} onChange={e => setQty(e.target.value)} className="num" />
       <Button
         size="sm"
         variant="ghost"

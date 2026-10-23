@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { CircleAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { handleNumericArrow } from '@/lib/numeric-step';
 
 export interface InputProps extends Omit<React.ComponentProps<'input'>, 'size'> {
   size?: 'sm' | 'md' | 'lg';
@@ -11,11 +12,18 @@ export interface InputProps extends Omit<React.ComponentProps<'input'>, 'size'> 
   invalid?: boolean;
 }
 
-export function Input({ className, size = 'md', icon, kbd, invalid, ...props }: InputProps) {
+export function Input({ className, size = 'md', icon, kbd, invalid, onKeyDown, ...props }: InputProps) {
+  // поле количества или суммы (inputMode="decimal"): стрелки вверх/вниз меняют число (шаг 1, с Shift — 10);
+  // inputMode="numeric" — коды (ИНН, БИК, счёт), их стрелки не трогают
+  const numeric = props.inputMode === 'decimal';
   const input = (
     <input
       className={cn('input', size === 'lg' && 'input-lg', size === 'sm' && 'search-sm w-full', invalid && 'is-error', className)}
       aria-invalid={invalid || undefined}
+      onKeyDown={e => {
+        onKeyDown?.(e);
+        if (numeric && !e.defaultPrevented) handleNumericArrow(e);
+      }}
       {...props}
     />
   );

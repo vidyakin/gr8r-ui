@@ -3,6 +3,7 @@
    способ пополнения, методика, шаг и число периодов, начало горизонта, учёт по складам или по компании.
    Вкладка «Production orders» — сводная потребность этапа 3 по материалам заказов на производство. */
 import * as React from 'react';
+import { handleNumericArrow } from '@/lib/numeric-step';
 import { CircleAlert, Factory, PackageSearch, RotateCw, Send, Truck } from 'lucide-react';
 import { Badge, Button, EmptyState, Skeleton, toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
@@ -321,7 +322,7 @@ export function ProductionNeedsPage() {
                           <td className="r num">
                             {step === 'planning' ? (
                               canWrite ? (
-                                <input className="inp num" style={{ width: 90, textAlign: 'right' }} aria-label={`Order ${r.productName}`} type="number" step="0.001" value={qtyOf(r)} onChange={e => setQty(s => ({ ...s, [k]: e.target.value }))} />
+                                <input className="inp num" style={{ width: 90, textAlign: 'right' }} aria-label={`Order ${r.productName}`} inputMode="decimal" value={qtyOf(r)} onChange={e => setQty(s => ({ ...s, [k]: e.target.value }))} onKeyDown={handleNumericArrow} />
                               ) : (
                                 <span className="num">{r.recommendation}</span>
                               )

@@ -18,6 +18,9 @@ import { CalculationDialog, ParamsDialog } from './calculation';
 import { CounterpartyPicker, ProductPicker } from './pickers';
 import { useBillingBreakdown, useContracts } from './billing-data';
 import { WorkOrderPanel } from './work-orders';
+import { DocTabs, type DocTab } from './doc-tabs';
+import { t } from '@/i18n';
+import { handleNumericArrow } from '@/lib/numeric-step';
 import { useWsId } from '../meta/data';
 
 /** Виды перемещения между складами */
@@ -289,7 +292,8 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const cellKey = (row: number, col: number) => (e: React.KeyboardEvent<HTMLInputElement>) => {
     const to = (r: number, c: number) => document.querySelector<HTMLInputElement>(`[data-cell="${r}:${c}"]`);
     const rows = latest.current.lines.length;
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    // в числовых ячейках стрелки меняют число (NumCell), по строкам ходят только из ячейки товара
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && col === 0) {
       const target = to(row + (e.key === 'ArrowDown' ? 1 : -1), col);
       if (target) (e.preventDefault(), target.focus());
     } else if (e.key === 'Enter') {
@@ -375,6 +379,324 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const lineCount = form.lines.filter(l => l.productId).length;
   const hasNumber = doc.numberSeq !== null;
   const noVatOnly = calc.totals.byRate.length > 0 && calc.totals.byRate.every(r => r.rate === 'none');
+
+  // табличные части документа — во вкладках (как в 1С); шапка над ними, итоги и комментарий внизу
+  const docTabs: (DocTab | false | null)[] = [
+    {
+      id: 'lines',
+      label: t('docs.tabs.lines'),
+      count: lineCount,
+      content: (
+        <section className="doc-lines panel" aria-label="Lines">
+          <div className="table-wrap">
+            <table className="dtbl" aria-label="Document lines">
+              <thead>
+                <tr>
+                  <th style={{ width: 34 }}>#</th>
+                  <th>Product or service</th>
+                  <th style={{ width: 56 }}>Unit</th>
+                  {isCount && (
+                    <th style={{ width: 96 }} className="r">
+                      Book
+                    </th>
+                  )}
+                  <th style={{ width: 96 }} className="r">
+                    {isCount ? 'Actual' : inTransit ? 'Shipped' : 'Qty'}
+                  </th>
+                  {inTransit && (
+                    <th style={{ width: 96 }} className="r">
+                      Received
+                    </th>
+                  )}
+                  {isCount && (
+                    <th style={{ width: 96 }} className="r">
+                      Diff
+                    </th>
+                  )}
+                  {isOrder && doc.status !== 'draft' && (
+                    <>
+                      <th style={{ width: 84 }} className="r">
+                        {doc.type === 'customer_order' ? 'Shipped' : 'Received'}
+                      </th>
+                      <th style={{ width: 84 }} className="r">
+                        Remaining
+                      </th>
+                    </>
+                  )}
+                  {meta.production && (
+                    <th style={{ width: 96 }}>Role</th>
+                  )}
+                  {doc.type === 'tolling_report' && (
+                    <th style={{ width: 150 }}>Section</th>
+                  )}
+                  {isReceipt && (
+                    <>
+                      <th style={{ width: 170 }}>Cost item</th>
+                      <th style={{ width: 160 }}>Work center</th>
+                    </>
+                  )}
+                  <th style={{ width: 112 }} className="r">
+                    {internal ? 'Cost' : 'Price'}
+                  </th>
+                  {!internal && (
+                    <>
+                      <th style={{ width: 72 }} className="r">
+                        Disc. %
+                      </th>
+                      <th style={{ width: 84 }}>VAT</th>
+                      <th style={{ width: 104 }} className="r">
+                        VAT amount
+                      </th>
+                    </>
+                  )}
+                  <th style={{ width: 120 }} className="r">
+                    {internal ? 'Amount' : 'Total'}
+                  </th>
+                  <th style={{ width: 36 }} />
+                </tr>
+              </thead>
+              <tbody>
+                {form.lines.map((l, i) => {
+                  const a = calc.byKey.get(l.key);
+                  const err = l.productId ? lineErrors(l, isCount) : {};
+                  const srv = serverLine.get(l.key);
+                  const shipped = Number(srv?.shipped ?? 0);
+                  const diff = Number(num(l.qty || '0')) - Number(num(srv?.bookQty ?? '0'));
+                  return (
+                    <tr key={l.key} data-row={i}>
+                      <td className="faint num">{i + 1}</td>
+                      <td>
+                        {editable ? (
+                          <ProductPicker value={l.name} dataCell={`${i}:0`} price={priceField} onKeyDown={cellKey(i, 0)} onPick={p => pickProduct(l.key, i, p)} invalid={save === 'invalid' && !l.productId} />
+                        ) : (
+                          <span className="trunc" title={l.name}>
+                            {l.name} {srv?.sku && <span className="mono faint" style={{ fontSize: 11 }}>{srv.sku}</span>}
+                          </span>
+                        )}
+                      </td>
+                      <td className="muted">{unitSymbol(units.data, l.unitCode)}</td>
+                      {isCount && <td className="r num muted">{trimNum(srv?.bookQty ?? '0') || '0'}</td>}
+                      <td className="r">
+                        <NumCell value={l.qty} disabled={!editable} invalid={!!err.qty} label="Quantity" cell={`${i}:1`} onKeyDown={cellKey(i, 1)} onChange={v => patchLine(l.key, { qty: v })} />
+                      </td>
+                      {inTransit && (
+                        <td className="r">
+                          <NumCell
+                            value={received[l.key] ?? '0'}
+                            disabled={doc.status !== 'posted' || doc.state !== 'shipped'}
+                            invalid={false}
+                            label="Accepted quantity"
+                            cell={`${i}:2`}
+                            onKeyDown={() => {}}
+                            onChange={v => setReceived(r => ({ ...r, [l.key]: v }))}
+                          />
+                        </td>
+                      )}
+                      {isCount && (
+                        <td className="r num" style={{ fontWeight: 500 }}>
+                          {diff === 0 ? '—' : diff > 0 ? `+${trimNum(String(diff))}` : trimNum(String(diff))}
+                        </td>
+                      )}
+                      {isOrder && doc.status !== 'draft' && (
+                        <>
+                          <td className="r num muted">{trimNum(srv?.shipped ?? '0') || '0'}</td>
+                          <td className="r num">{trimNum(String(Math.max(0, Number(l.qty) - shipped).toFixed(3))) || '0'}</td>
+                        </>
+                      )}
+                      {meta.production && (
+                        <td>
+                          <span className="muted">{srv?.stockRole === 'in' ? (disassembly ? 'Output' : 'Product') : disassembly ? 'To disassemble' : 'Material'}</span>
+                        </td>
+                      )}
+                      {doc.type === 'tolling_report' && (
+                        <td>
+                          <Select
+                            aria-label="Section"
+                            disabled={!editable}
+                            value={l.tollingRole ?? 'product'}
+                            onValueChange={v => patchLine(l.key, { tollingRole: v as TollingRole })}
+                            options={TOLLING_ROLES.map(r => ({ value: r, label: TOLLING_ROLE_LABELS[r] }))}
+                          />
+                        </td>
+                      )}
+                      {isReceipt && (
+                        <>
+                          <td>
+                            {srv?.kind === 'service' ? (
+                              <Select
+                                aria-label="Cost item"
+                                disabled={!editable}
+                                value={l.costItemId ?? ''}
+                                onValueChange={v => patchLine(l.key, { costItemId: v || null })}
+                                options={(costItems.data ?? [])
+                                  .filter(c => !c.archivedAt && c.kind === 'expense')
+                                  .map(c => ({ value: c.id, label: c.name }))}
+                                placeholder="—"
+                              />
+                            ) : (
+                              <span className="faint" title="Only service lines become indirect costs">
+                                —
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            {srv?.kind === 'service' ? (
+                              <Select
+                                aria-label="Work center"
+                                disabled={!editable}
+                                value={l.workCenterId ?? ''}
+                                onValueChange={v => patchLine(l.key, { workCenterId: v || null })}
+                                options={workCenters.filter(w => !w.archivedAt).map(w => ({ value: w.id, label: w.name }))}
+                                placeholder="—"
+                              />
+                            ) : (
+                              <span className="faint">—</span>
+                            )}
+                          </td>
+                        </>
+                      )}
+                      <td className="r">
+                        <NumCell
+                          value={l.price}
+                          disabled={!editable || (doc.type === 'stock_posting' && !isAdmin)}
+                          invalid={!!err.price}
+                          label={internal ? 'Cost' : 'Price'}
+                          cell={`${i}:2`}
+                          onKeyDown={cellKey(i, 2)}
+                          onChange={v => patchLine(l.key, { price: v })}
+                        />
+                      </td>
+                      {!internal && (
+                        <>
+                          <td className="r">
+                            <NumCell value={l.discountPct} disabled={!editable} invalid={!!err.discountPct} label="Discount percent" cell={`${i}:3`} onKeyDown={cellKey(i, 3)} onChange={v => patchLine(l.key, { discountPct: v })} />
+                          </td>
+                          <td>
+                            <select className="input cell-input" aria-label="VAT rate" disabled={!editable} value={l.vatRate} onChange={e => patchLine(l.key, { vatRate: e.target.value as VatRate })}>
+                              {VAT_RATES.map(r => (
+                                <option key={r} value={r}>
+                                  {VAT_LABELS[r]}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="r num muted">{a ? money(a.vatAmount) : '—'}</td>
+                        </>
+                      )}
+                      <td className="r num" style={{ fontWeight: 500 }}>
+                        {a ? money(a.total) : '—'}
+                      </td>
+                      <td>
+                        {editable && doc.type === 'customer_order' && l.productId && (
+                          <IconButton size="xs" label="Parameters of the product" onClick={() => setParamsLine(l.key)}>
+                            <SlidersHorizontal size={13} />
+                          </IconButton>
+                        )}
+                        {editable && (
+                          <IconButton size="xs" label="Remove line" onClick={() => edit(f => ({ ...f, lines: f.lines.filter(x => x.key !== l.key) }))}>
+                            <Trash2 size={13} />
+                          </IconButton>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {!form.lines.length && (
+                  <tr>
+                    <td colSpan={12} className="faint" style={{ textAlign: 'center', padding: 22 }}>
+                      No lines yet.{editable ? ' Add the first product or service.' : ''}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          {editable && (
+            <div className="doc-add">
+              <Button size="sm" variant="ghost" onClick={() => addLine()}>
+                <Plus size={13} />
+                Add line
+              </Button>
+              <span className="faint" style={{ fontSize: 12 }}>
+                {t('docs.keysHint')}
+              </span>
+            </div>
+          )}
+        </section>
+      ),
+    },
+    !!breakdown.data && {
+      id: 'billing',
+      label: t('docs.tabs.billing'),
+      content: breakdown.data && (
+          <section className="doc-links panel" aria-label="Billing breakdown">
+          <p className="faint" style={{ fontSize: 12 }}>
+            Period {breakdown.data.subscriptionPeriod} · works by fact {breakdown.data.factPeriod}. The original lines of the billing are kept here; the invoice shows the grouped positions.
+          </p>
+          {breakdown.data.warnings.map((w, i) => (
+            <div key={i} className="faint" style={{ fontSize: 12 }}>
+              {w}
+            </div>
+          ))}
+          {breakdown.data.lines.map((l, i) => (
+            <div key={i} style={{ marginTop: 8 }}>
+              <div className="row" style={{ justifyContent: 'space-between' }}>
+                <span>{l.name}</span>
+                <span className="num muted">
+                  {l.qty} × {money(l.price)}
+                </span>
+              </div>
+              {l.rows.map((r, j) => (
+                <div key={j} className="faint" style={{ fontSize: 12, paddingLeft: 12 }}>
+                  {r.source}: {r.name} — {r.qty} × {r.price} = {money(r.amount)}
+                </div>
+              ))}
+            </div>
+          ))}
+        </section>
+      ),
+    },
+    doc.type === 'production' && !!doc.components?.length && {
+      id: 'composition',
+      label: t('docs.tabs.composition'),
+      count: doc.components.length,
+      content: (
+          <section className="doc-links panel" aria-label="Composition">
+            {doc.processingOrderId && (
+              <p className="faint" style={{ fontSize: 12 }}>
+                Release for a processing order: customer materials are written off from the owner&apos;s balance, our own ones from the warehouse at average cost. The product goes to the owner&apos;s balance; our costs are the cost of the processing service.
+              </p>
+            )}
+            <table className="dtbl" aria-label="Composition">
+              <thead>
+                <tr>
+                  <th>Material or work</th>
+                  <th style={{ width: 120 }}>Owner</th>
+                  <th style={{ width: 100 }} className="r">
+                    Qty
+                  </th>
+                  <th style={{ width: 120 }} className="r">
+                    Cost
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {doc.components.map(c => (
+                  <tr key={c.id}>
+                    <td className="trunc">{c.kind === 'work' ? c.operation || 'Work' : c.kind === 'expense' ? 'Expense' : c.kind === 'semi' ? 'Semi-finished product' : 'Material'}</td>
+                    <td>
+                      <Badge tone={c.ownerKind === 'customer' ? 'accent' : 'gray'}>{MATERIAL_OWNER_LABELS[c.ownerKind]}</Badge>
+                    </td>
+                    <td className="r num">{c.kind === 'work' ? c.hours : c.qty}</td>
+                    <td className="r num">{c.actualCost === null ? '—' : money(c.actualCost)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+      ),
+    },
+  ];
 
   return (
     <div className="page doc-page">
@@ -736,315 +1058,11 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             )}
           </Field>
         )}
-        <Field label="Comment" className="doc-wide">
-          {p => <Input {...p} disabled={!editable} value={form.comment} placeholder="Internal note or payment terms" onChange={e => edit(f => ({ ...f, comment: e.target.value }))} />}
-        </Field>
       </section>
 
-      <section className="doc-lines panel" aria-label="Lines">
-        <div className="table-wrap">
-          <table className="dtbl" aria-label="Document lines">
-            <thead>
-              <tr>
-                <th style={{ width: 34 }}>#</th>
-                <th>Product or service</th>
-                <th style={{ width: 56 }}>Unit</th>
-                {isCount && (
-                  <th style={{ width: 96 }} className="r">
-                    Book
-                  </th>
-                )}
-                <th style={{ width: 96 }} className="r">
-                  {isCount ? 'Actual' : inTransit ? 'Shipped' : 'Qty'}
-                </th>
-                {inTransit && (
-                  <th style={{ width: 96 }} className="r">
-                    Received
-                  </th>
-                )}
-                {isCount && (
-                  <th style={{ width: 96 }} className="r">
-                    Diff
-                  </th>
-                )}
-                {isOrder && doc.status !== 'draft' && (
-                  <>
-                    <th style={{ width: 84 }} className="r">
-                      {doc.type === 'customer_order' ? 'Shipped' : 'Received'}
-                    </th>
-                    <th style={{ width: 84 }} className="r">
-                      Remaining
-                    </th>
-                  </>
-                )}
-                {meta.production && (
-                  <th style={{ width: 96 }}>Role</th>
-                )}
-                {doc.type === 'tolling_report' && (
-                  <th style={{ width: 150 }}>Section</th>
-                )}
-                {isReceipt && (
-                  <>
-                    <th style={{ width: 170 }}>Cost item</th>
-                    <th style={{ width: 160 }}>Work center</th>
-                  </>
-                )}
-                <th style={{ width: 112 }} className="r">
-                  {internal ? 'Cost' : 'Price'}
-                </th>
-                {!internal && (
-                  <>
-                    <th style={{ width: 72 }} className="r">
-                      Disc. %
-                    </th>
-                    <th style={{ width: 84 }}>VAT</th>
-                    <th style={{ width: 104 }} className="r">
-                      VAT amount
-                    </th>
-                  </>
-                )}
-                <th style={{ width: 120 }} className="r">
-                  {internal ? 'Amount' : 'Total'}
-                </th>
-                <th style={{ width: 36 }} />
-              </tr>
-            </thead>
-            <tbody>
-              {form.lines.map((l, i) => {
-                const a = calc.byKey.get(l.key);
-                const err = l.productId ? lineErrors(l, isCount) : {};
-                const srv = serverLine.get(l.key);
-                const shipped = Number(srv?.shipped ?? 0);
-                const diff = Number(num(l.qty || '0')) - Number(num(srv?.bookQty ?? '0'));
-                return (
-                  <tr key={l.key} data-row={i}>
-                    <td className="faint num">{i + 1}</td>
-                    <td>
-                      {editable ? (
-                        <ProductPicker value={l.name} dataCell={`${i}:0`} price={priceField} onKeyDown={cellKey(i, 0)} onPick={p => pickProduct(l.key, i, p)} invalid={save === 'invalid' && !l.productId} />
-                      ) : (
-                        <span className="trunc" title={l.name}>
-                          {l.name} {srv?.sku && <span className="mono faint" style={{ fontSize: 11 }}>{srv.sku}</span>}
-                        </span>
-                      )}
-                    </td>
-                    <td className="muted">{unitSymbol(units.data, l.unitCode)}</td>
-                    {isCount && <td className="r num muted">{trimNum(srv?.bookQty ?? '0') || '0'}</td>}
-                    <td className="r">
-                      <NumCell value={l.qty} disabled={!editable} invalid={!!err.qty} label="Quantity" cell={`${i}:1`} onKeyDown={cellKey(i, 1)} onChange={v => patchLine(l.key, { qty: v })} />
-                    </td>
-                    {inTransit && (
-                      <td className="r">
-                        <NumCell
-                          value={received[l.key] ?? '0'}
-                          disabled={doc.status !== 'posted' || doc.state !== 'shipped'}
-                          invalid={false}
-                          label="Accepted quantity"
-                          cell={`${i}:2`}
-                          onKeyDown={() => {}}
-                          onChange={v => setReceived(r => ({ ...r, [l.key]: v }))}
-                        />
-                      </td>
-                    )}
-                    {isCount && (
-                      <td className="r num" style={{ fontWeight: 500 }}>
-                        {diff === 0 ? '—' : diff > 0 ? `+${trimNum(String(diff))}` : trimNum(String(diff))}
-                      </td>
-                    )}
-                    {isOrder && doc.status !== 'draft' && (
-                      <>
-                        <td className="r num muted">{trimNum(srv?.shipped ?? '0') || '0'}</td>
-                        <td className="r num">{trimNum(String(Math.max(0, Number(l.qty) - shipped).toFixed(3))) || '0'}</td>
-                      </>
-                    )}
-                    {meta.production && (
-                      <td>
-                        <span className="muted">{srv?.stockRole === 'in' ? (disassembly ? 'Output' : 'Product') : disassembly ? 'To disassemble' : 'Material'}</span>
-                      </td>
-                    )}
-                    {doc.type === 'tolling_report' && (
-                      <td>
-                        <Select
-                          aria-label="Section"
-                          disabled={!editable}
-                          value={l.tollingRole ?? 'product'}
-                          onValueChange={v => patchLine(l.key, { tollingRole: v as TollingRole })}
-                          options={TOLLING_ROLES.map(r => ({ value: r, label: TOLLING_ROLE_LABELS[r] }))}
-                        />
-                      </td>
-                    )}
-                    {isReceipt && (
-                      <>
-                        <td>
-                          {srv?.kind === 'service' ? (
-                            <Select
-                              aria-label="Cost item"
-                              disabled={!editable}
-                              value={l.costItemId ?? ''}
-                              onValueChange={v => patchLine(l.key, { costItemId: v || null })}
-                              options={(costItems.data ?? [])
-                                .filter(c => !c.archivedAt && c.kind === 'expense')
-                                .map(c => ({ value: c.id, label: c.name }))}
-                              placeholder="—"
-                            />
-                          ) : (
-                            <span className="faint" title="Only service lines become indirect costs">
-                              —
-                            </span>
-                          )}
-                        </td>
-                        <td>
-                          {srv?.kind === 'service' ? (
-                            <Select
-                              aria-label="Work center"
-                              disabled={!editable}
-                              value={l.workCenterId ?? ''}
-                              onValueChange={v => patchLine(l.key, { workCenterId: v || null })}
-                              options={workCenters.filter(w => !w.archivedAt).map(w => ({ value: w.id, label: w.name }))}
-                              placeholder="—"
-                            />
-                          ) : (
-                            <span className="faint">—</span>
-                          )}
-                        </td>
-                      </>
-                    )}
-                    <td className="r">
-                      <NumCell
-                        value={l.price}
-                        disabled={!editable || (doc.type === 'stock_posting' && !isAdmin)}
-                        invalid={!!err.price}
-                        label={internal ? 'Cost' : 'Price'}
-                        cell={`${i}:2`}
-                        onKeyDown={cellKey(i, 2)}
-                        onChange={v => patchLine(l.key, { price: v })}
-                      />
-                    </td>
-                    {!internal && (
-                      <>
-                        <td className="r">
-                          <NumCell value={l.discountPct} disabled={!editable} invalid={!!err.discountPct} label="Discount percent" cell={`${i}:3`} onKeyDown={cellKey(i, 3)} onChange={v => patchLine(l.key, { discountPct: v })} />
-                        </td>
-                        <td>
-                          <select className="input cell-input" aria-label="VAT rate" disabled={!editable} value={l.vatRate} onChange={e => patchLine(l.key, { vatRate: e.target.value as VatRate })}>
-                            {VAT_RATES.map(r => (
-                              <option key={r} value={r}>
-                                {VAT_LABELS[r]}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="r num muted">{a ? money(a.vatAmount) : '—'}</td>
-                      </>
-                    )}
-                    <td className="r num" style={{ fontWeight: 500 }}>
-                      {a ? money(a.total) : '—'}
-                    </td>
-                    <td>
-                      {editable && doc.type === 'customer_order' && l.productId && (
-                        <IconButton size="xs" label="Parameters of the product" onClick={() => setParamsLine(l.key)}>
-                          <SlidersHorizontal size={13} />
-                        </IconButton>
-                      )}
-                      {editable && (
-                        <IconButton size="xs" label="Remove line" onClick={() => edit(f => ({ ...f, lines: f.lines.filter(x => x.key !== l.key) }))}>
-                          <Trash2 size={13} />
-                        </IconButton>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-              {!form.lines.length && (
-                <tr>
-                  <td colSpan={12} className="faint" style={{ textAlign: 'center', padding: 22 }}>
-                    No lines yet.{editable ? ' Add the first product or service.' : ''}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        {editable && (
-          <div className="doc-add">
-            <Button size="sm" variant="ghost" onClick={() => addLine()}>
-              <Plus size={13} />
-              Add line
-            </Button>
-            <span className="faint" style={{ fontSize: 12 }}>
-              ↑ ↓ move between rows · Enter next row · Insert new line
-            </span>
-          </div>
-        )}
-      </section>
-
-      {isWorkOrder && <WorkOrderPanel doc={doc} />}
+      {isWorkOrder ? <WorkOrderPanel doc={doc} lead={docTabs} /> : <DocTabs label={t('docs.tabsLabel')} tabs={docTabs} />}
 
       <div className="doc-bottom">
-        {breakdown.data && (
-          <section className="doc-links panel" aria-label="Billing breakdown">
-            <h2>Billing breakdown</h2>
-            <p className="faint" style={{ fontSize: 12 }}>
-              Period {breakdown.data.subscriptionPeriod} · works by fact {breakdown.data.factPeriod}. The original lines of the billing are kept here; the invoice shows the grouped positions.
-            </p>
-            {breakdown.data.warnings.map((w, i) => (
-              <div key={i} className="faint" style={{ fontSize: 12 }}>
-                {w}
-              </div>
-            ))}
-            {breakdown.data.lines.map((l, i) => (
-              <div key={i} style={{ marginTop: 8 }}>
-                <div className="row" style={{ justifyContent: 'space-between' }}>
-                  <span>{l.name}</span>
-                  <span className="num muted">
-                    {l.qty} × {money(l.price)}
-                  </span>
-                </div>
-                {l.rows.map((r, j) => (
-                  <div key={j} className="faint" style={{ fontSize: 12, paddingLeft: 12 }}>
-                    {r.source}: {r.name} — {r.qty} × {r.price} = {money(r.amount)}
-                  </div>
-                ))}
-              </div>
-            ))}
-          </section>
-        )}
-        {doc.type === 'production' && !!doc.components?.length && (
-          <section className="doc-links panel" aria-label="Composition">
-            <h2>Composition</h2>
-            {doc.processingOrderId && (
-              <p className="faint" style={{ fontSize: 12 }}>
-                Release for a processing order: customer materials are written off from the owner&apos;s balance, our own ones from the warehouse at average cost. The product goes to the owner&apos;s balance; our costs are the cost of the processing service.
-              </p>
-            )}
-            <table className="dtbl" aria-label="Composition">
-              <thead>
-                <tr>
-                  <th>Material or work</th>
-                  <th style={{ width: 120 }}>Owner</th>
-                  <th style={{ width: 100 }} className="r">
-                    Qty
-                  </th>
-                  <th style={{ width: 120 }} className="r">
-                    Cost
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {doc.components.map(c => (
-                  <tr key={c.id}>
-                    <td className="trunc">{c.kind === 'work' ? c.operation || 'Work' : c.kind === 'expense' ? 'Expense' : c.kind === 'semi' ? 'Semi-finished product' : 'Material'}</td>
-                    <td>
-                      <Badge tone={c.ownerKind === 'customer' ? 'accent' : 'gray'}>{MATERIAL_OWNER_LABELS[c.ownerKind]}</Badge>
-                    </td>
-                    <td className="r num">{c.kind === 'work' ? c.hours : c.qty}</td>
-                    <td className="r num">{c.actualCost === null ? '—' : money(c.actualCost)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-        )}
         <section className="doc-links panel" aria-label="Related documents">
           <h2>Related documents</h2>
           {doc.basedOn ? (
@@ -1152,6 +1170,12 @@ function DocumentView({ doc }: { doc: DocDetail }) {
         </section>
       </div>
 
+      <section className="doc-comment panel" aria-label={t('docs.comment')}>
+        <Field label={t('docs.comment')}>
+          {p => <Input {...p} disabled={!editable} value={form.comment} placeholder={t('docs.commentHint.document')} onChange={e => edit(f => ({ ...f, comment: e.target.value }))} />}
+        </Field>
+      </section>
+
       <ConfirmDialog
         open={confirm === 'cancel'}
         onOpenChange={o => !o && setConfirm(null)}
@@ -1199,7 +1223,10 @@ function NumCell({ value, onChange, disabled, invalid, label, cell, onKeyDown }:
       value={value}
       onFocus={e => e.currentTarget.select()}
       onChange={e => onChange(e.target.value)}
-      onKeyDown={onKeyDown}
+      onKeyDown={e => {
+        onKeyDown(e);
+        if (!e.defaultPrevented) handleNumericArrow(e);
+      }}
     />
   );
 }

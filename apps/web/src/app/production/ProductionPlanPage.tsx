@@ -12,8 +12,9 @@ import { useWarehouses } from '../docs/data';
 import { useWorkCenters } from '../catalog/data';
 import { useSnapshot } from './data';
 import { useProductionPlan, useProductionPlanApi, useProductionPlanNeeds, type PlanDetail, type PlanLine } from './plans-data';
+import { DocTabs } from '../docs/doc-tabs';
+import { t } from '@/i18n';
 
-type Tab = 'needs' | 'fact';
 const SOURCE_LABEL: Record<string, string> = { output: 'Output statistics', sales: 'Sales statistics', customer_orders: 'Customer orders' };
 
 export function ProductionPlanPage() {
@@ -46,7 +47,6 @@ function PlanView({ plan }: { plan: PlanDetail }) {
   const centers = useWorkCenters();
   const snap = useSnapshot();
   const needs = useProductionPlanNeeds(plan.id);
-  const [tab, setTab] = React.useState<Tab>('needs');
   const [fill, setFill] = React.useState(false);
   const [confirm, setConfirm] = React.useState(false);
   const save = (patch: Record<string, unknown>) => api.update.mutate({ id: plan.id, body: patch });
@@ -186,119 +186,124 @@ function PlanView({ plan }: { plan: PlanDetail }) {
         </div>
       )}
 
-      <section className="doc-lines panel" aria-label="Plan lines">
-        <div className="table-wrap">
-          <table className="dtbl" aria-label="Plan lines">
-            <thead>
-              <tr>
-                <th style={{ width: 200 }}>Product</th>
-                {plan.periods.map(p => (
-                  <th key={p} className="r" style={{ width: 110 }}>
-                    {fmtDate(parse(p))}
-                  </th>
-                ))}
-                <th style={{ width: 120 }} className="r">
-                  Total
-                </th>
-                <th style={{ width: 34 }} />
-              </tr>
-            </thead>
-            <tbody>
-              {groups.map(g => (
-                <tr key={g.key} data-row={g.isSemi ? 'semi' : undefined}>
-                  <td className="trunc">
-                    {g.itemName}
-                    {g.isSemi && <span className="faint"> · semi-finished</span>}
-                  </td>
-                  {plan.periods.map(p => {
-                    const cell = g.cells.find(x => x.periodStart === p);
-                    return (
-                      <td key={p} className="r num">
-                        {cell ? (
-                          canWrite ? (
-                            <Input aria-label={`${g.itemName} ${p}`} type="number" step="0.001" value={cell.qty} onChange={e => setQty(cell.id, e.target.value)} style={{ textAlign: 'right' }} />
-                          ) : (
-                            cell.qty
-                          )
-                        ) : canWrite ? (
-                          <Button size="sm" onClick={() => addCell(g.itemId, g.isSemi, p)} aria-label={`Add ${g.itemName} to ${p}`}>
-                            +
-                          </Button>
-                        ) : (
-                          <span className="faint">—</span>
-                        )}
-                      </td>
-                    );
-                  })}
-                  <td className="r num">{g.total.toFixed(3)}</td>
-                  <td>{canWrite && <IconButton label={`Remove ${g.itemName}`} onClick={() => removeGroup(g)}><X size={14} /></IconButton>}</td>
-                </tr>
-              ))}
-              {canWrite && (
-                <tr>
-                  <td className="faint">Add a product</td>
-                  {plan.periods.map(p => (
-                    <td key={p} className="r">
-                      <Button size="sm" aria-label={`Add a line to ${p}`} onClick={() => addLine(p)}>
-                        +
-                      </Button>
-                    </td>
-                  ))}
-                  <td />
-                  <td />
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        {!products.length && (
-          <p className="muted" style={{ padding: 12, margin: 0 }}>
-            The plan is empty. Fill it by statistics, by customer orders or add a line by hand.
-          </p>
-        )}
-      </section>
-
-      <nav className="tabs doc-tabs" aria-label="Plan sections">
-        <button type="button" className={`tab${tab === 'needs' ? ' on' : ''}`} aria-current={tab === 'needs' ? 'page' : undefined} onClick={() => setTab('needs')}>
-          Needs
-        </button>
-        <button type="button" className={`tab${tab === 'fact' ? ' on' : ''}`} aria-current={tab === 'fact' ? 'page' : undefined} onClick={() => setTab('fact')}>
-          Plan vs fact
-        </button>
-      </nav>
-
-      {tab === 'needs' ? (
-        <NeedsTabs plan={plan} needs={needs.data} pending={needs.isPending} />
-      ) : (
-        <section className="panel" aria-label="Plan vs fact">
-          <div className="table-wrap">
-            <table className="dtbl" aria-label="Plan vs fact">
-              <thead>
-                <tr>
-                  <th>Product</th>
-                  <th>Period</th>
-                  <th className="r">Planned</th>
-                  <th className="r">Ordered</th>
-                  <th className="r">Produced</th>
-                  <th>Start</th>
-                </tr>
-              </thead>
-              <tbody>
-                {plan.lines.map(l => (
-                  <tr key={l.id}>
-                    <td className="trunc">{l.itemName}</td>
-                    <td className="num muted">{fmtDate(parse(l.periodStart))}</td>
-                    <td className="r num">{l.qty}</td>
-                    <td className="r num">{l.ordered}</td>
-                    <td className="r num">{l.produced}</td>
-                    <td className="num muted">{fmtDate(parse(l.startDate))}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
+      <DocTabs
+        label={t('docs.tabsLabel')}
+        tabs={[
+          {
+            id: 'lines',
+            label: t('docs.tabs.planLines'),
+            count: plan.lines.length,
+            content: (
+              <section className="doc-lines panel" aria-label="Plan lines">
+                <div className="table-wrap">
+                  <table className="dtbl" aria-label="Plan lines">
+                    <thead>
+                      <tr>
+                        <th style={{ width: 200 }}>Product</th>
+                        {plan.periods.map(p => (
+                          <th key={p} className="r" style={{ width: 110 }}>
+                            {fmtDate(parse(p))}
+                          </th>
+                        ))}
+                        <th style={{ width: 120 }} className="r">
+                          Total
+                        </th>
+                        <th style={{ width: 34 }} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {groups.map(g => (
+                        <tr key={g.key} data-row={g.isSemi ? 'semi' : undefined}>
+                          <td className="trunc">
+                            {g.itemName}
+                            {g.isSemi && <span className="faint"> · semi-finished</span>}
+                          </td>
+                          {plan.periods.map(p => {
+                            const cell = g.cells.find(x => x.periodStart === p);
+                            return (
+                              <td key={p} className="r num">
+                                {cell ? (
+                                  canWrite ? (
+                                    <Input aria-label={`${g.itemName} ${p}`} inputMode="decimal" value={cell.qty} onChange={e => setQty(cell.id, e.target.value)} style={{ textAlign: 'right' }} />
+                                  ) : (
+                                    cell.qty
+                                  )
+                                ) : canWrite ? (
+                                  <Button size="sm" onClick={() => addCell(g.itemId, g.isSemi, p)} aria-label={`Add ${g.itemName} to ${p}`}>
+                                    +
+                                  </Button>
+                                ) : (
+                                  <span className="faint">—</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                          <td className="r num">{g.total.toFixed(3)}</td>
+                          <td>{canWrite && <IconButton label={`Remove ${g.itemName}`} onClick={() => removeGroup(g)}><X size={14} /></IconButton>}</td>
+                        </tr>
+                      ))}
+                      {canWrite && (
+                        <tr>
+                          <td className="faint">Add a product</td>
+                          {plan.periods.map(p => (
+                            <td key={p} className="r">
+                              <Button size="sm" aria-label={`Add a line to ${p}`} onClick={() => addLine(p)}>
+                                +
+                              </Button>
+                            </td>
+                          ))}
+                          <td />
+                          <td />
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                {!products.length && (
+                  <p className="muted" style={{ padding: 12, margin: 0 }}>
+                    The plan is empty. Fill it by statistics, by customer orders or add a line by hand.
+                  </p>
+                )}
+              </section>
+            ),
+          },
+          { id: 'needs', label: t('docs.tabs.needs'), content: <NeedsTabs plan={plan} needs={needs.data} pending={needs.isPending} /> },
+          {
+            id: 'fact',
+            label: t('docs.tabs.planVsFact'),
+            content: (
+              <section className="panel" aria-label="Plan vs fact">
+                <div className="table-wrap">
+                  <table className="dtbl" aria-label="Plan vs fact">
+                    <thead>
+                      <tr>
+                        <th>Product</th>
+                        <th>Period</th>
+                        <th className="r">Planned</th>
+                        <th className="r">Ordered</th>
+                        <th className="r">Produced</th>
+                        <th>Start</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {plan.lines.map(l => (
+                        <tr key={l.id}>
+                          <td className="trunc">{l.itemName}</td>
+                          <td className="num muted">{fmtDate(parse(l.periodStart))}</td>
+                          <td className="r num">{l.qty}</td>
+                          <td className="r num">{l.ordered}</td>
+                          <td className="r num">{l.produced}</td>
+                          <td className="num muted">{fmtDate(parse(l.startDate))}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            ),
+          },
+        ]}
+      />
 
       <FillDialog open={fill} onClose={() => setFill(false)} onFill={(source, mode, periods) => api.fill.mutate({ id: plan.id, source, mode, periods })} />
       <ConfirmDialog

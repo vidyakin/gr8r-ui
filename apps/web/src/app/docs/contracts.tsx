@@ -281,8 +281,8 @@ function TariffPlanLines({ plan, api }: { plan: TariffPlan; api: ReturnType<type
             placeholder="Select a product"
             options={(products.data ?? []).map(p => ({ value: p.id, label: p.name }))}
           />
-          <Input aria-label="Qty" value={l.qty} onChange={e => setLines(prev => prev.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x)))} />
-          <Input aria-label="Price" value={l.price} onChange={e => setLines(prev => prev.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))} />
+          <Input aria-label="Qty" inputMode="decimal" value={l.qty} onChange={e => setLines(prev => prev.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x)))} />
+          <Input aria-label="Price" inputMode="decimal" value={l.price} onChange={e => setLines(prev => prev.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))} />
           <label className="row" style={{ gap: 6, whiteSpace: 'nowrap' }}>
             <input
               type="checkbox"

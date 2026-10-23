@@ -2,6 +2,7 @@
    (материал / полуфабрикат / работа) и итог внизу. Любая правка строки пересчитывает дерево и итоги мгновенно:
    расчёт идёт на клиенте функцией computeBomCost, сервер подтверждает запись следом. */
 import * as React from 'react';
+import { handleNumericArrow } from '@/lib/numeric-step';
 import { Link, useNavigate, useParams } from 'react-router';
 import { ArrowDown, ArrowUp, Boxes, ChevronRight, CircleAlert, Ellipsis, ExternalLink, GripVertical, Layers, Package, Pencil, Plus, Printer, Trash2, Wrench } from 'lucide-react';
 import { dec, div, fmt, mul, type CostLine, type CostNode } from '@gr8r/shared';
@@ -718,7 +719,7 @@ function ParamInput({ value, onCommit, label, numeric, disabled }: { value: stri
       value={v}
       onChange={e => setV(e.target.value)}
       onBlur={() => v.trim() !== value && (v.trim() === '' && numeric ? setV(value) : onCommit(v.trim()))}
-      onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
+      onKeyDown={e => (e.key === 'Enter' ? e.currentTarget.blur() : numeric && handleNumericArrow(e))}
     />
   );
 }
@@ -732,7 +733,7 @@ function QtyInput({ value, onCommit, label }: { value: string; onCommit: (v: num
     if (v.trim() === '' || !Number.isFinite(n) || n < 0) return setV(value);
     if (n !== Number(value)) onCommit(n);
   };
-  return <input className="input bom-qty" inputMode="decimal" aria-label={label} value={v} onChange={e => setV(e.target.value)} onBlur={commit} onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()} />;
+  return <input className="input bom-qty" inputMode="decimal" aria-label={label} value={v} onChange={e => setV(e.target.value)} onBlur={commit} onKeyDown={e => (e.key === 'Enter' ? e.currentTarget.blur() : handleNumericArrow(e))} />;
 }
 
 export type { ProductionMutations };

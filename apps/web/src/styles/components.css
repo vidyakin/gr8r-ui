@@ -421,6 +421,10 @@
 .tab:hover {
   color: var(--text);
 }
+/* у вкладки фокус и выбор совпадают (стрелки переключают вкладку), выбранную видно по подчёркиванию — обводка не нужна */
+.tab[role='tab']:focus-visible {
+  outline: none;
+}
 .tab.on,
 .tab[data-state='active'] {
   color: var(--text);

@@ -16,6 +16,8 @@ import { useOrderOperations, usePieceworkApi, type AssignmentRow } from './piece
 import { useDocumentResources, usePlanningApi, useResources } from './planning-data';
 import { MaterialStockBlock, ReserveDialog, StockToggle, SupplyButtons } from './material-stock';
 import type { MaterialCoverageRow } from './orders-data';
+import { DocTabs } from '../docs/doc-tabs';
+import { t } from '@/i18n';
 
 export function ProductionOrderPage() {
   const { id } = useParams();
@@ -190,153 +192,178 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
         </Field>
         <Field label="Planned start">{p => <Input {...p} type="date" disabled={!editable} value={order.plannedStart ? order.plannedStart.slice(0, 10) : ''} onChange={e => save({ plannedStart: e.target.value ? new Date(e.target.value).toISOString() : null })} />}</Field>
         <Field label="Planned end">{p => <Input {...p} type="date" disabled={!editable} value={order.plannedEnd ? order.plannedEnd.slice(0, 10) : ''} onChange={e => save({ plannedEnd: e.target.value ? new Date(e.target.value).toISOString() : null })} />}</Field>
-        <Field label="Comment" className="doc-wide">
-          {p => <Input {...p} disabled={!editable} value={order.comment} placeholder="What is this order for" onChange={e => save({ comment: e.target.value })} />}
-        </Field>
       </section>
 
-      <section className="doc-lines panel" aria-label={disassembly ? 'What we disassemble' : 'Products to produce'}>
-        <div className="table-wrap">
-          <table className="dtbl" aria-label="Order items">
-            <thead>
-              <tr>
-                <th style={{ width: 34 }}>#</th>
-                <th>{disassembly ? 'What we disassemble' : 'Product'}</th>
-                <th style={{ width: 110 }} className="r">
-                  Qty
-                </th>
-                <th style={{ width: 100 }} className="r">
-                  Produced
-                </th>
-                <th style={{ width: 100 }} className="r">
-                  Remaining
-                </th>
-                <th style={{ width: 36 }} />
-              </tr>
-            </thead>
-            <tbody>
-              {order.items.map((it, n) => (
-                <tr key={it.id} data-row={n}>
-                  <td className="faint num">{n + 1}</td>
-                  <td>
-                    {editable ? (
-                      <Select
-                        aria-label="Product"
-                        value={it.itemId}
-                        onValueChange={v => changeItem(n, { itemId: v })}
-                        options={products.map(p => ({ value: p.id, label: p.name }))}
-                      />
-                    ) : (
-                      <span className="trunc">{it.name}</span>
-                    )}
-                  </td>
-                  <td className="r">
-                    {editable ? (
-                      <Input aria-label="Quantity" inputMode="decimal" value={it.qty} onChange={e => changeItem(n, { qty: e.target.value })} />
-                    ) : (
-                      <span className="num">{it.qty}</span>
-                    )}
-                  </td>
-                  <td className="r num muted">{it.produced}</td>
-                  <td className="r num">{remaining[n]}</td>
-                  <td>
-                    {editable && (
-                      <IconButton size="xs" label="Remove product" onClick={() => removeItem(n)}>
-                        <Trash2 size={13} />
-                      </IconButton>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {!order.items.length && (
-                <tr>
-                  <td colSpan={6} className="faint" style={{ textAlign: 'center', padding: 22 }}>
-                    {disassembly ? 'No goods to disassemble yet.' : 'No products yet.'} {editable ? (disassembly ? ' Add what to disassemble.' : ' Add what to produce.') : ''}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        {editable && (
-          <div className="doc-add">
-            <Button size="sm" variant="ghost" onClick={addItem}>
-              <Plus size={13} />
-              Add product
-            </Button>
-          </div>
-        )}
-      </section>
+      <DocTabs
+        label={t('docs.tabsLabel')}
+        tabs={[
+          {
+            id: 'products',
+            label: t(disassembly ? 'docs.tabs.disassembled' : 'docs.tabs.products'),
+            count: order.items.length,
+            content: (
+              <section className="doc-lines panel" aria-label={disassembly ? 'What we disassemble' : 'Products to produce'}>
+                <div className="table-wrap">
+                  <table className="dtbl" aria-label="Order items">
+                    <thead>
+                      <tr>
+                        <th style={{ width: 34 }}>#</th>
+                        <th>{disassembly ? 'What we disassemble' : 'Product'}</th>
+                        <th style={{ width: 110 }} className="r">
+                          Qty
+                        </th>
+                        <th style={{ width: 100 }} className="r">
+                          Produced
+                        </th>
+                        <th style={{ width: 100 }} className="r">
+                          Remaining
+                        </th>
+                        <th style={{ width: 36 }} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {order.items.map((it, n) => (
+                        <tr key={it.id} data-row={n}>
+                          <td className="faint num">{n + 1}</td>
+                          <td>
+                            {editable ? (
+                              <Select
+                                aria-label="Product"
+                                value={it.itemId}
+                                onValueChange={v => changeItem(n, { itemId: v })}
+                                options={products.map(p => ({ value: p.id, label: p.name }))}
+                              />
+                            ) : (
+                              <span className="trunc">{it.name}</span>
+                            )}
+                          </td>
+                          <td className="r">
+                            {editable ? (
+                              <Input aria-label="Quantity" inputMode="decimal" value={it.qty} onChange={e => changeItem(n, { qty: e.target.value })} />
+                            ) : (
+                              <span className="num">{it.qty}</span>
+                            )}
+                          </td>
+                          <td className="r num muted">{it.produced}</td>
+                          <td className="r num">{remaining[n]}</td>
+                          <td>
+                            {editable && (
+                              <IconButton size="xs" label="Remove product" onClick={() => removeItem(n)}>
+                                <Trash2 size={13} />
+                              </IconButton>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                      {!order.items.length && (
+                        <tr>
+                          <td colSpan={6} className="faint" style={{ textAlign: 'center', padding: 22 }}>
+                            {disassembly ? 'No goods to disassemble yet.' : 'No products yet.'} {editable ? (disassembly ? ' Add what to disassemble.' : ' Add what to produce.') : ''}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                {editable && (
+                  <div className="doc-add">
+                    <Button size="sm" variant="ghost" onClick={addItem}>
+                      <Plus size={13} />
+                      Add product
+                    </Button>
+                  </div>
+                )}
+              </section>
+            ),
+          },
+          {
+            id: 'composition',
+            label: t(disassembly ? 'docs.tabs.outputs' : 'docs.tabs.bom'),
+            count: order.components.length,
+            content: (
+              <section className="doc-links panel" aria-label="Composition">
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', flexWrap: 'wrap', marginBottom: 8 }}>
+                  <StockToggle on={showStock} onToggle={() => setShowStock(v => !v)} />
+                  <SupplyButtons orderId={order.id} />
+                </div>
+                {showStock ? (
+                  <MaterialStockBlock orderId={order.id} canWrite={canWrite} onEdit={setEditing} />
+                ) : !order.components.length ? (
+                  <p className="faint">The composition is empty: use “Fill from BOM” to copy the specification of each product.</p>
+                ) : (
+                  <table className="dtbl" aria-label="Composition">
+                    <thead>
+                      <tr>
+                        <th>{disassembly ? 'Output or work' : 'Material or work'}</th>
+                        <th style={{ width: 100 }} className="r">
+                          Qty
+                        </th>
+                        {order.processingOrderId && (
+                          <th style={{ width: 150 }}>Owner</th>
+                        )}
+                        <th style={{ width: 90 }} className="r">
+                          Hours
+                        </th>
+                        <th style={{ width: 120 }} className="r">
+                          Cost
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {order.components.map(c => (
+                        <tr key={c.id}>
+                          <td>
+                            <span className="trunc">{c.kind === 'work' ? c.operation : c.kind === 'semi' ? 'Semi-finished product' : c.kind === 'output' ? 'Output' : 'Material'}</span>
+                          </td>
+                          <td className="r num">{c.kind === 'work' ? '—' : c.qty}</td>
+                          {order.processingOrderId && (
+                            <td>
+                              {c.kind === 'work' || c.kind === 'expense' ? (
+                                <span className="muted">{MATERIAL_OWNER_LABELS.own}</span>
+                              ) : (
+                                <Select
+                                  aria-label="Owner"
+                                  disabled={!canWrite || order.status !== 'draft'}
+                                  value={c.ownerKind}
+                                  onValueChange={v => void api.run('PATCH', `/production-orders/${order.id}/components/${c.id}`, { ownerKind: v })}
+                                  options={MATERIAL_OWNERS.map(o => ({ value: o, label: MATERIAL_OWNER_LABELS[o] }))}
+                                />
+                              )}
+                            </td>
+                          )}
+                          <td className="r num">{c.kind === 'work' ? c.hours : '—'}</td>
+                          <td className="r num">{c.plannedCost === null ? '—' : money(c.plannedCost)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                {editing && <ReserveDialog row={editing} orderId={order.id} onClose={() => setEditing(null)} />}
+              </section>
+            ),
+          },
+          {
+            id: 'operations',
+            label: t('docs.tabs.operations'),
+            content: (
+              <section className="doc-links panel" aria-label="Operations">
+                <OrderOperations order={order} />
+              </section>
+            ),
+          },
+          {
+            id: 'resources',
+            label: t('docs.tabs.resources'),
+            content: (
+              <section className="doc-links panel" aria-label="Resources">
+                <DocumentResourcesPanel orderId={order.id} />
+              </section>
+            ),
+          },
+        ]}
+      />
 
       <div className="doc-bottom">
-        <section className="doc-links panel" aria-label="Composition">
-          <h2>{disassembly ? 'Outputs' : 'Bill of materials'}</h2>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', flexWrap: 'wrap', marginBottom: 8 }}>
-            <StockToggle on={showStock} onToggle={() => setShowStock(v => !v)} />
-            <SupplyButtons orderId={order.id} />
-          </div>
-          {showStock ? (
-            <MaterialStockBlock orderId={order.id} canWrite={canWrite} onEdit={setEditing} />
-          ) : !order.components.length ? (
-            <p className="faint">The composition is empty: use “Fill from BOM” to copy the specification of each product.</p>
-          ) : (
-            <table className="dtbl" aria-label="Composition">
-              <thead>
-                <tr>
-                  <th>{disassembly ? 'Output or work' : 'Material or work'}</th>
-                  <th style={{ width: 100 }} className="r">
-                    Qty
-                  </th>
-                  {order.processingOrderId && (
-                    <th style={{ width: 150 }}>Owner</th>
-                  )}
-                  <th style={{ width: 90 }} className="r">
-                    Hours
-                  </th>
-                  <th style={{ width: 120 }} className="r">
-                    Cost
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {order.components.map(c => (
-                  <tr key={c.id}>
-                    <td>
-                      <span className="trunc">{c.kind === 'work' ? c.operation : c.kind === 'semi' ? 'Semi-finished product' : c.kind === 'output' ? 'Output' : 'Material'}</span>
-                    </td>
-                    <td className="r num">{c.kind === 'work' ? '—' : c.qty}</td>
-                    {order.processingOrderId && (
-                      <td>
-                        {c.kind === 'work' || c.kind === 'expense' ? (
-                          <span className="muted">{MATERIAL_OWNER_LABELS.own}</span>
-                        ) : (
-                          <Select
-                            aria-label="Owner"
-                            disabled={!canWrite || order.status !== 'draft'}
-                            value={c.ownerKind}
-                            onValueChange={v => void api.run('PATCH', `/production-orders/${order.id}/components/${c.id}`, { ownerKind: v })}
-                            options={MATERIAL_OWNERS.map(o => ({ value: o, label: MATERIAL_OWNER_LABELS[o] }))}
-                          />
-                        )}
-                      </td>
-                    )}
-                    <td className="r num">{c.kind === 'work' ? c.hours : '—'}</td>
-                    <td className="r num">{c.plannedCost === null ? '—' : money(c.plannedCost)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          {editing && <ReserveDialog row={editing} orderId={order.id} onClose={() => setEditing(null)} />}
-        </section>
-        <section className="doc-links panel" aria-label="Operations">
-          <h2>Operations</h2>
-          <OrderOperations order={order} />
-        </section>
-        <section className="doc-links panel" aria-label="Resources">
-          <h2>Resources</h2>
-          <DocumentResourcesPanel orderId={order.id} />
-        </section>
         <section className="doc-links panel" aria-label="Releases">
           <h2>Releases</h2>
           {!order.outputs.length ? (
@@ -355,6 +382,12 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
           )}
         </section>
       </div>
+
+      <section className="doc-comment panel" aria-label={t('docs.comment')}>
+        <Field label={t('docs.comment')}>
+          {p => <Input {...p} disabled={!editable} value={order.comment} placeholder={t('docs.commentHint.productionOrder')} onChange={e => save({ comment: e.target.value })} />}
+        </Field>
+      </section>
 
       <ConfirmDialog open={confirm} onOpenChange={o => !o && setConfirm(false)} title="Delete this draft?" description="The draft has never been posted and has no number, so it is removed completely." confirmLabel="Delete" cancelLabel="Keep" danger onConfirm={() => setConfirm(false)} />
     </div>
@@ -647,7 +680,7 @@ function ResourcesDialog({ orderId, onClose, onSave }: { orderId: string; onClos
                   </option>
                 ))}
               </select>
-              <Input aria-label="Hours" value={r.hours} onChange={e => setRows(prev => prev.map((x, n) => (n === i ? { ...x, hours: e.target.value } : x)))} style={{ width: 90 }} />
+              <Input aria-label="Hours" inputMode="decimal" value={r.hours} onChange={e => setRows(prev => prev.map((x, n) => (n === i ? { ...x, hours: e.target.value } : x)))} style={{ width: 90 }} />
               <Input aria-label="From" type="date" value={r.startAt} onChange={e => setRows(prev => prev.map((x, n) => (n === i ? { ...x, startAt: e.target.value } : x)))} style={{ width: 150 }} />
               <Input aria-label="To" type="date" value={r.endAt} onChange={e => setRows(prev => prev.map((x, n) => (n === i ? { ...x, endAt: e.target.value } : x)))} style={{ width: 150 }} />
               <button type="button" className="ibtn ibtn-xs" aria-label="Remove resource" onClick={() => setRows(prev => prev.filter((_, n) => n !== i))}>

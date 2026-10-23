@@ -115,6 +115,26 @@
   padding: 8px 10px;
   border-top: 1px solid var(--divider);
 }
+/* табличные части во вкладках (как в 1С): полоса вкладок над панелью активной части */
+.doc-tabsec {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.doc-tabsec > .tabs {
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+.doc-tabsec > [role='tabpanel'] {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+/* комментарий — всегда в самом низу формы */
+.doc-comment {
+  padding: 14px;
+}
 .doc-bottom {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
