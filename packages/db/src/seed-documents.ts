@@ -16,6 +16,7 @@ import { planPeriods } from '@gr8r/shared';
 import { createProductionFromOrder, createProductionOrder, createSupplierOrdersForOrder, fillOrderFromBom, setComponentOwner } from './production';
 import { createProcessorReport, createProcessorTransfer } from './tolling';
 import { createOtherCosts } from './other-costs';
+import { seedInvestments } from './seed-investments';
 import { closePeriodMonth } from './cost-closing';
 import { assignOperations, createPieceworkOrder } from './piecework';
 import { productionComponents, productionItems, productionOperations } from './schema';
@@ -585,6 +586,9 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
     services: [{ productId: P('SV-ASM').id, qty: '4', price: '350' }],
   });
   await postAt(procReport, 1);
+
+  // инвестпроекты: документы факта проводятся до даты запрета
+  await seedInvestments(db, ctx, { organizationId: org!.id, supplierId: co.atlas, customerId: co.quanta, serviceId: P('SV-PNT').id });
 
   // закрытый месяц: закрываем месяц выпуска — косвенные затраты распределяются, средняя склада пересчитывается
   const closedMonth = iso(3).slice(0, 7);

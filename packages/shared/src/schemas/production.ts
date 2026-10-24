@@ -855,12 +855,15 @@ export const otherCostsCreate = z.object({
   /** Пусто — организация по умолчанию */
   organizationId: uuid.nullish(),
   date: isoDate.optional(),
+  /** Инвестпроект: затраты идут в факт проекта */
+  investmentProjectId: uuid.nullish(),
   comment: z.string().max(5000).default(''),
   lines: z.array(otherCostLineInput).min(1).max(200),
 });
 export const otherCostsUpdate = z.object({
   organizationId: uuid.nullish(),
   date: isoDate.optional(),
+  investmentProjectId: uuid.nullish(),
   comment: z.string().max(5000).optional(),
   lines: z.array(otherCostLineInput).min(1).max(200).optional(),
 });

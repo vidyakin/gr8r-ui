@@ -9,6 +9,7 @@ import { useCostItems } from '../docs/data';
 import { useSnapshot } from './data';
 import { useOtherCosts, useOtherCostsApi, useOtherCostsDocument, type OtherCostsLineInput } from './closing-data';
 import { t, tProductionEnum, useT } from '@/i18n';
+import { DocInvestmentField } from '../finance/DocInvestmentField';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const newLine = (): OtherCostsLineInput => ({ id: crypto.randomUUID(), costItemId: '', workCenterId: null, amount: '0', comment: '' });
@@ -111,6 +112,7 @@ export function OtherCostsDocumentPage() {
   const [lines, setLines] = React.useState<OtherCostsLineInput[]>([newLine()]);
   const [date, setDate] = React.useState(today());
   const [comment, setComment] = React.useState('');
+  const [investmentProjectId, setInvestmentProjectId] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [removing, setRemoving] = React.useState(false);
   const loadedFor = React.useRef<string | null>(null);
@@ -122,6 +124,7 @@ export function OtherCostsDocumentPage() {
     setLines(doc.data.lines.map(l => ({ id: l.id, costItemId: l.costItemId, workCenterId: l.workCenterId, amount: l.amount ?? '0', comment: l.comment })));
     setDate(doc.data.date);
     setComment(doc.data.comment);
+    setInvestmentProjectId(doc.data.investmentProjectId ?? null);
   }, [doc.data]);
 
   const detail = isNew ? null : doc.data;
@@ -132,7 +135,7 @@ export function OtherCostsDocumentPage() {
   const save = async () => {
     setBusy(true);
     try {
-      const body = { date, comment, lines };
+      const body = { date, investmentProjectId, comment, lines };
       const saved = detail ? await api.update(detail.id, body) : await api.save(body);
       toast(detail ? tt('production.otherCosts.saved') : tt('production.otherCosts.saved'), { duration: 1500 });
       await navigate(`/other-costs/${saved.id}`, { replace: true });
@@ -147,7 +150,7 @@ export function OtherCostsDocumentPage() {
     if (!detail) return;
     setBusy(true);
     try {
-      if (!valid) await api.update(detail.id, { date, comment, lines });
+      if (!valid) await api.update(detail.id, { date, investmentProjectId, comment, lines });
       await api.post(detail.id);
       toast(t('production.order.actions.repost'), { duration: 2000 });
     } catch (e) {
@@ -203,6 +206,7 @@ export function OtherCostsDocumentPage() {
 
       <section className="panel doc-head" aria-label={t('production.field.date')}>
         <Field label={t('production.otherCosts.fields.date')}>{p => <Input {...p} type="date" disabled={!editable} value={date} onChange={e => setDate(e.target.value)} />}</Field>
+        <DocInvestmentField value={investmentProjectId} current={detail?.investmentProject} disabled={!editable} onChange={setInvestmentProjectId} />
       </section>
 
       <section className="doc-lines panel" aria-label={t('production.otherCosts.table')}>

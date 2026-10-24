@@ -6,6 +6,7 @@ import type { FileRef } from '@gr8r/shared';
 import { archivedAt, createdAt, money, pk, ts, updatedAt } from './columns';
 import { products, units } from './catalog';
 import { companies } from './crm';
+import { investmentProjects } from './investments';
 import { members, wsCol } from './people';
 
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => 'bytea' });
@@ -186,6 +187,8 @@ export const documents = pgTable(
     workCenterId: uuid('work_center_id'),
     /** Заказ на переработку (заказ покупателя с видом операции «Переработка»): по нему берётся давалец */
     tollingOrderId: uuid('tolling_order_id'),
+    /** Инвестпроект: весь документ идёт в факт этого проекта */
+    investmentProjectId: uuid('investment_project_id'),
     currency: text('currency').notNull().default('RUB'),
     /** Цены «НДС в т.ч.» (true) или «НДС сверху» (false) */
     priceIncludesVat: boolean('price_includes_vat').notNull().default(true),
@@ -213,6 +216,7 @@ export const documents = pgTable(
     foreignKey({ columns: [t.workspaceId, t.inUseMemberId], foreignColumns: [members.workspaceId, members.id], name: 'documents_in_use_member_fk' }),
     foreignKey({ columns: [t.workspaceId, t.basedOnId], foreignColumns: [t.workspaceId, t.id], name: 'documents_based_on_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.responsibleId], foreignColumns: [members.workspaceId, members.id], name: 'documents_responsible_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.investmentProjectId], foreignColumns: [investmentProjects.workspaceId, investmentProjects.id], name: 'documents_investment_project_fk' }),
     foreignKey({ columns: [t.workspaceId, t.tollingOrderId], foreignColumns: [t.workspaceId, t.id], name: 'documents_tolling_order_fk' }).onDelete('set null'),
     check('documents_type_chk', sql`${t.type} in ('quote','customer_order','invoice','realization','act','customer_return','supplier_order','receipt','supplier_return','stock_transfer','write_off','stock_posting','inventory_count','production_order','production','work_order','piecework_order','other_costs','tolling_receipt','tolling_report','tolling_return')`),
     check('documents_status_chk', sql`${t.status} in ('draft','posted','cancelled')`),
@@ -230,6 +234,7 @@ export const documents = pgTable(
     index('documents_counterparty_idx').on(t.counterpartyId),
     index('documents_contract_idx').on(t.workspaceId, t.contractId),
     index('documents_based_on_idx').on(t.basedOnId),
+    index('documents_investment_project_idx').on(t.investmentProjectId),
   ],
 );
 

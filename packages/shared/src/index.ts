@@ -16,3 +16,4 @@ export * from './cost-closing';
 export * from './print';
 export * from './automations';
 export * from './i18n';
+export * from './investments';

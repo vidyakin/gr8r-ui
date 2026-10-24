@@ -86,6 +86,9 @@ export interface DocListItem {
   workCenterId: string | null;
   /** Заказ на переработку (приём, отчёт о переработке, возврат) */
   tollingOrderId: string | null;
+  /** Инвестпроект: документ идёт в факт проекта */
+  investmentProjectId?: string | null;
+  investmentProject?: { id: string; name: string } | null;
   /** Вид операции: «Переработка» у заказа на переработку и отчёта переработчика */
   operation?: string | null;
   workCenter?: { id: string; name: string } | null;

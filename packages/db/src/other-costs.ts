@@ -11,7 +11,7 @@ import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { otherCostsTotal } from './cost-closing';
 import { createDocument, updateDocument, type DocCtx, type DocumentPatch } from './documents';
-import { costItems, documents, organizations, otherCostLines, workCenters } from './schema';
+import { costItems, documents, investmentProjects, organizations, otherCostLines, workCenters } from './schema';
 
 export interface OtherCostLineInput {
   id?: string;
@@ -27,6 +27,7 @@ export interface OtherCostsInput {
   id?: string;
   organizationId?: string | null;
   date?: string;
+  investmentProjectId?: string | null;
   comment?: string;
   lines: OtherCostLineInput[];
 }
@@ -72,7 +73,7 @@ async function writeTotals(db: Db, documentId: string): Promise<void> {
 
 /** Черновик «Прочих затрат» */
 export async function createOtherCosts(db: Db, ctx: DocCtx, input: OtherCostsInput): Promise<string> {
-  const id = await createDocument(db, ctx, { ...(input.id ? { id: input.id } : {}), type: 'other_costs', organizationId: input.organizationId ?? null, date: input.date, comment: input.comment ?? '' });
+  const id = await createDocument(db, ctx, { ...(input.id ? { id: input.id } : {}), type: 'other_costs', organizationId: input.organizationId ?? null, date: input.date, investmentProjectId: input.investmentProjectId ?? null, comment: input.comment ?? '' });
   await saveLines(db, ctx, id, input.lines);
   await writeTotals(db, id);
   return id;
@@ -83,6 +84,7 @@ export async function updateOtherCosts(db: Db, ctx: DocCtx, id: string, input: P
   const patch: DocumentPatch = {};
   if (input.organizationId !== undefined) patch.organizationId = input.organizationId;
   if (input.date !== undefined) patch.date = input.date;
+  if (input.investmentProjectId !== undefined) patch.investmentProjectId = input.investmentProjectId;
   if (input.comment !== undefined) patch.comment = input.comment;
   if (Object.keys(patch).length) await updateDocument(db, ctx, id, patch);
   if (input.lines) {
@@ -103,6 +105,7 @@ export async function otherCostsDetail(db: Db, id: string) {
   return {
     ...doc,
     organizationName: org?.name ?? null,
+    investmentProject: doc.investmentProjectId ? ((await db.select({ id: investmentProjects.id, name: investmentProjects.name }).from(investmentProjects).where(eq(investmentProjects.id, doc.investmentProjectId)).limit(1))[0] ?? null) : null,
     lines: lines.map(l => ({ ...l, costItemName: items.get(l.costItemId) ?? '', workCenterName: l.workCenterId ? (centers.get(l.workCenterId) ?? null) : null })),
     total: await otherCostsTotal(db, id),
   };

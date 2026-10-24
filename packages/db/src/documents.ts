@@ -28,6 +28,7 @@ import {
   type Role,
   type TollingRole,
   type VatRate,
+  isInvestmentFactType,
 } from '@gr8r/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
@@ -36,7 +37,8 @@ import { recordEvent } from './events';
 import { applyStockMoves, defaultPostingCost, documentCosts, documentLineCosts, loadInventorySettings, revertStockMoves, sourceMoveCosts, syncReservations, type MoveRequest } from './stock';
 import { syncWorkOrderResources } from './planning';
 import { assertPeriodOpen, assertServiceCostItems, clearPeriodCosts, syncPeriodCosts } from './cost-closing';
-import { bankAccounts, companies, contracts, costItems, documentCounters, documentLines, documentStates, documents, members, organizations, products, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials } from './schema';
+import { bankAccounts, companies, contracts, costItems, documentCounters, documentLines, documentStates, documents, investmentProjects, members, organizations, products, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials } from './schema';
+import { assertInvestmentTarget, investmentOpen } from './investments';
 import { assertContractOfCompany, contractDocumentProducts, contractPlanProductIds, defaultContract } from './contracts';
 import { ensureVariant, specParamsOfProduct } from './variants';
 import { checkParamValues, loadCategoryAttributeDefs } from './specs';
@@ -326,6 +328,8 @@ export interface DocumentCreateInput {
   costItemId?: string | null;
   /** Участок списания: стоимость уходит в косвенные затраты участка (только у списания) */
   workCenterId?: string | null;
+  /** Инвестпроект: документ идёт в факт проекта (только у типов из INVESTMENT_FACT_TYPES) */
+  investmentProjectId?: string | null;
   /** Вид перемещения: сразу, «в пути», в эксплуатацию или обратно (только у перемещения между складами) */
   operation?: string;
   /** Получатель в эксплуатацию: участник или участок (ровно один) */
@@ -405,6 +409,8 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
   // заказ на переработку: только у документов переработки (приём, отчёт, возврат)
   const tollingOrderId = meta.tolling ? (input.tollingOrderId ?? null) : null;
   if (tollingOrderId) await assertProcessingOrder(db, tollingOrderId);
+  const investmentProjectId = input.investmentProjectId ?? null;
+  if (investmentProjectId) await assertInvestmentTarget(db, investmentProjectId, input.type);
   // договор: заданный или по умолчанию у контрагента; его условия подставляются в документ
   let contractId: string | null = null;
   let contract: Awaited<ReturnType<typeof defaultContract>> = null;
@@ -442,6 +448,7 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
       inUseMemberId,
       inUseWorkCenterId,
       tollingOrderId,
+      investmentProjectId,
       priceIncludesVat: input.priceIncludesVat ?? true,
       comment: input.comment ?? '',
       responsibleId: input.responsibleId ?? ctx.memberId,
@@ -471,6 +478,7 @@ export interface DocumentPatch {
   costItemId?: string | null;
   /** Участок списания: стоимость уходит в косвенные затраты участка (только у списания) */
   workCenterId?: string | null;
+  investmentProjectId?: string | null;
   /** Вид перемещения (только у перемещения между складами) */
   operation?: string;
   /** Получатель в эксплуатацию: участник или участок */
@@ -532,6 +540,11 @@ export async function updateDocument(db: Db, ctx: DocCtx, id: string, patch: Doc
   if (patch.tollingOrderId !== undefined && meta.tolling) {
     if (patch.tollingOrderId) await assertProcessingOrder(db, patch.tollingOrderId);
     set.tollingOrderId = patch.tollingOrderId;
+  }
+  // проверяем только смену проекта: черновик, привязанный до закрытия проекта, по-прежнему правится (проведение его не пустит)
+  if (patch.investmentProjectId !== undefined && patch.investmentProjectId !== doc.investmentProjectId) {
+    if (patch.investmentProjectId) await assertInvestmentTarget(db, patch.investmentProjectId, type);
+    set.investmentProjectId = patch.investmentProjectId;
   }
   if (patch.inUseMemberId !== undefined && type === 'stock_transfer') set.inUseMemberId = patch.inUseMemberId;
   if (patch.inUseWorkCenterId !== undefined && type === 'stock_transfer') set.inUseWorkCenterId = patch.inUseWorkCenterId;
@@ -677,6 +690,7 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<voi
   const meta = DOCUMENT_META[type];
   if (doc.status !== 'draft') throw new DomainError(409, 'invalid_status', doc.status === 'posted' ? 'The document is already posted' : 'A cancelled document cannot be posted: restore it first');
   await assertPeriodOpen(db, ctx.workspaceId, doc.date);
+  if (doc.investmentProjectId && !(await investmentOpen(db, doc.investmentProjectId))) throw new DomainError(422, 'investment_closed', 'The investment project is closed or archived: unlink it before posting');
   if (meta.party && !doc.counterpartyId) throw new DomainError(422, 'counterparty_required', meta.party === 'customer' ? 'Select a customer before posting' : 'Select a supplier before posting');
   // договор: должен быть того же контрагента и организации и действовать на дату документа
   const contractWarnings: string[] = [];
@@ -853,6 +867,8 @@ export async function createBasedOn(db: Db, ctx: DocCtx, sourceId: string, targe
     priceIncludesVat: src.priceIncludesVat,
     comment: src.comment,
     dueDate: target === 'invoice' ? src.dueDate : null,
+    // инвестпроект переходит в документ-исполнитель и возврат, если проект ещё принимает документы
+    investmentProjectId: src.investmentProjectId && isInvestmentFactType(target) && (await investmentOpen(db, src.investmentProjectId)) ? src.investmentProjectId : null,
     lines: newLines,
   });
   await db.update(documents).set({ basedOnId: sourceId }).where(eq(documents.id, id));
@@ -919,7 +935,8 @@ export async function documentDetail(db: Db, id: string) {
   const [workCenter] = doc.workCenterId ? await db.select({ id: workCenters.id, name: workCenters.name }).from(workCenters).where(eq(workCenters.id, doc.workCenterId)).limit(1) : [];
   // внутренний документ: стоимость по себестоимости (сумма qty × cost движений)
   const costs = DOCUMENT_META[type].party === null ? await documentCosts(db, [id]) : new Map<string, string>();
-  return { ...doc, organization: org ?? null, counterparty: cp ?? null, contract: contract ?? null, warehouse: wh ?? null, targetWarehouse: targetWh ?? null, costItem: costItem ?? null, workCenter: workCenter ?? null, inUseMember: inUseMember ?? null, inUseWorkCenter: inUseWorkCenter ?? null, costTotal: costs.get(id) ?? '0.00', basedOn: base ?? null, children, lines, totals };
+  const [investmentProject] = doc.investmentProjectId ? await db.select({ id: investmentProjects.id, name: investmentProjects.name, status: investmentProjects.status }).from(investmentProjects).where(eq(investmentProjects.id, doc.investmentProjectId)).limit(1) : [];
+  return { ...doc, investmentProject: investmentProject ?? null, organization: org ?? null, counterparty: cp ?? null, contract: contract ?? null, warehouse: wh ?? null, targetWarehouse: targetWh ?? null, costItem: costItem ?? null, workCenter: workCenter ?? null, inUseMember: inUseMember ?? null, inUseWorkCenter: inUseWorkCenter ?? null, costTotal: costs.get(id) ?? '0.00', basedOn: base ?? null, children, lines, totals };
 }
 
 /* ---------------- данные для печатной формы ---------------- */
