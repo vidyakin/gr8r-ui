@@ -4,7 +4,7 @@
    предопределённый этап «Завершение производства» (PRODUCTION_STAGES в shared).
 
    Правила — docs/architecture/production-stages.md. */
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
@@ -192,7 +192,7 @@ export async function assertStageOfKind(db: Db, kindId: string | null, stageId: 
 /** Строки спецификации изделия с видом производства: у каждой должен быть этап этого вида */
 export async function assertItemStagesValid(db: Db, itemId: string): Promise<void> {
   const plan = await itemStagePlan(db, itemId);
-  const lines = await db.select({ id: bomLines.id, stageId: bomLines.stageId }).from(bomLines).where(eq(bomLines.itemId, itemId));
+  const lines = await db.select({ id: bomLines.id, stageId: bomLines.stageId }).from(bomLines).where(and(eq(bomLines.itemId, itemId), ne(bomLines.kind, 'waste'))); // у отходов этапа нет
   if (!lines.length) return;
   const stages = plan.kindId ? await stagesOfKind(db, plan.kindId) : [];
   const ids = new Set(stages.map(s => s.id));

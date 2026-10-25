@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { handleNumericArrow } from '@/lib/numeric-step';
 import { Link, useNavigate, useParams } from 'react-router';
-import { ArrowDown, ArrowUp, Boxes, ChevronRight, CircleAlert, Ellipsis, ExternalLink, GripVertical, Layers, Package, Pencil, Plus, Printer, Trash2, Wrench } from 'lucide-react';
+import { ArrowDown, ArrowUp, Boxes, ChevronRight, CircleAlert, Ellipsis, ExternalLink, GripVertical, Layers, Package, Pencil, Plus, Printer, Recycle, Trash2, Wrench } from 'lucide-react';
 import { dec, div, fmt, mul, type CostLine, type CostNode } from '@gr8r/shared';
 import { Alert, Badge, Button, ConfirmDialog, EmptyState, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Skeleton, toast } from '@/components/ui';
 import { cn } from '@/lib/utils';
@@ -90,7 +90,7 @@ function detail(line: BomLine, c: Ctx) {
   );
 }
 
-const KIND_ICON = { material: Package, semi: Layers, work: Wrench, expense: Package, output: Package } as const;
+const KIND_ICON = { material: Package, semi: Layers, work: Wrench, expense: Package, output: Package, waste: Recycle } as const;
 
 /** Печатная форма спецификации: готовая HTML-страница открывается в новом окне и печатается */
 export function printSpec(ws: string, itemId: string, form: 'short' | 'expanded') {
@@ -311,6 +311,9 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
                       <MenuItem icon={<Package size={15} />} onSelect={() => setDialog({ kind: 'expense' })}>
                         {tt('production.line.kind.expense')}
                       </MenuItem>
+                      <MenuItem icon={<Recycle size={15} />} onSelect={() => setDialog({ kind: 'waste' })}>
+                        {tt('production.line.kind.waste')}
+                      </MenuItem>
                     </>
                   )}
                 </MenuContent>
@@ -446,6 +449,7 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
             work: 'productionEnums.componentKind.work',
             expense: 'productionEnums.componentKind.expense',
             output: 'productionEnums.componentKind.output',
+            waste: 'production.line.kind.waste',
           };
           const kindLabel = t(kindLabelKey[l.kind] as any);
           return (

@@ -98,6 +98,8 @@ export async function seedCatalog(db: Db, wsId: string) {
   await goods('oakBeam', { name: 'Брус дубовый 50×50', sku: 'MT-OAK-5050', category: materials.id, unit: '006', price: 620, purchase: 380, attrs: { thickness: 50, species: 'Дуб' } });
   await goods('oakBoard', { name: 'Доска дубовая 30 мм (м²)', sku: 'MT-OAK-30', category: materials.id, unit: '055', price: 6900, purchase: 4200, attrs: { thickness: 30, species: 'Дуб' } });
   await goods('plywood', { name: 'Фанера берёзовая 18 мм', sku: 'MT-PLY-18', category: materials.id, unit: '625', price: 2900, purchase: 1850, attrs: { thickness: 18, species: 'Берёза' } });
+  // Возвратные отходы производства: обрезки дубового бруса приходуются на склад отходов
+  await goods('oakOffcut', { name: 'Обрезки дуба', sku: 'MT-OAK-OFF', category: materials.id, unit: '166', price: 60, purchase: 40, attrs: { species: 'Дуб' } });
   await goods('mdf', { name: 'МДФ 16 мм, лист 2800×2070', sku: 'MT-MDF-16', category: materials.id, unit: '625', price: 3600, purchase: 2300, attrs: { thickness: 16, species: 'МДФ' } });
   await goods('edge', { name: 'Кромка ПВХ 2 мм', sku: 'MT-EDG-2', category: materials.id, unit: '006', price: 38, purchase: 21, attrs: { thickness: 2 } });
   await goods('lacquer', { name: 'Лак матовый полиуретановый', sku: 'MT-LAC-1', category: materials.id, unit: '112', price: 1450, purchase: 900, attrs: { species: 'Химия' } });
@@ -191,7 +193,7 @@ export async function seedCatalog(db: Db, wsId: string) {
     ids[key] = uuidv7();
     await db.insert(manufacturedItems).values({ id: ids[key], workspaceId: wsId, code: i.code, name: i.name, kind: i.kind, unitCode: '796', productId: i.productId ?? null, batchQty: String(i.batchQty ?? 1), overheadPct: String(i.overheadPct), productionKindId: i.kindId ?? null });
   };
-  type Line = { kind: 'material'; product: string; qty: number; scrap?: number; stage?: keyof typeof stages } | { kind: 'semi'; item: string; qty: number; stage?: keyof typeof stages } | { kind: 'work'; op: string; center?: string; hours?: number; rate?: number; fixed?: number; stage?: keyof typeof stages; operation?: string };
+  type Line = { kind: 'material'; product: string; qty: number; scrap?: number; stage?: keyof typeof stages } | { kind: 'semi'; item: string; qty: number; stage?: keyof typeof stages } | { kind: 'work'; op: string; center?: string; hours?: number; rate?: number; fixed?: number; stage?: keyof typeof stages; operation?: string } | { kind: 'waste'; product: string; qty: number; stage?: keyof typeof stages };
   const bom = async (itemKey: string, lines: Line[]) => {
     await db.insert(bomLines).values(
       lines.map((l, i) => {
@@ -201,6 +203,7 @@ export async function seedCatalog(db: Db, wsId: string) {
           return { ...base, productId: ids[l.product]!, qty: String(l.qty), unitCode: unit, scrapPct: String(l.scrap ?? 0) };
         }
         if (l.kind === 'semi') return { ...base, childItemId: ids[l.item]!, qty: String(l.qty), unitCode: '796', semiMode: 'stock' as const };
+        if (l.kind === 'waste') return { ...base, productId: ids[l.product]!, qty: String(l.qty), unitCode: '166' };
         return { ...base, productId: l.operation ? ids[l.operation]! : null, operation: l.op, workCenterId: l.center === 'assembly' ? assembly : carpentry, hours: String(l.hours ?? 0), rate: l.rate !== undefined ? l.rate.toFixed(2) : null, fixedCost: l.fixed !== undefined ? l.fixed.toFixed(2) : null, qty: '1' };
       }),
     );
@@ -260,6 +263,8 @@ export async function seedCatalog(db: Db, wsId: string) {
     { kind: 'material', product: 'screw', qty: 12, stage: 'assembly' },
     { kind: 'material', product: 'packaging', qty: 1, stage: 'final' },
     { kind: 'work', op: 'Сборка', center: 'assembly', hours: 0.7, stage: 'assembly' },
+    // возвратные отходы: обрезки приходуются на склад отходов финальным этапом, их учётная стоимость уменьшает себестоимость стола
+    { kind: 'waste', product: 'oakOffcut', qty: 0.5 },
   ]);
 
   // Изделие 4: окно на заказ — параметрическая спецификация (ширина, высота, цвет) с формулами строк
@@ -313,5 +318,5 @@ export async function seedCatalog(db: Db, wsId: string) {
     { kind: 'work', op: 'Сборка стула', operation: 'assemblyOperation', center: 'assembly', hours: 0.5 },
   ]);
 
-  return { products: 28, services: 4, operations: 1 };
+  return { products: 29, services: 4, operations: 1 };
 }

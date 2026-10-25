@@ -204,6 +204,13 @@
       "when": 1792801496790,
       "tag": "0029_investments",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792970915293,
+      "tag": "0030_waste_defects",
+      "breakpoints": true
     }
   ]
 }

@@ -36,7 +36,9 @@ import {
   organizations,
   postDocument,
   products,
+  maskProductionDetail,
   productionDetail,
+  writeOffDefects,
   recordEvent,
   restoreDocument,
   stockBalances,
@@ -336,15 +338,17 @@ export const documentRoutes = new Hono<AppEnv>()
     }
     // производственный документ: добавляем изготовителя, позиции и состав
     if (detail.type === 'production' || detail.type === 'production_order') {
-      const prod = await productionDetail(ctx.db, detail.id);
-      const seeCost = canSeeCost(ctx.role);
+      const prod = maskProductionDetail(await productionDetail(ctx.db, detail.id), ctx.role);
       return c.json({
         ...detail,
         workCenter: prod.workCenter,
         plannedStart: prod.plannedStart,
         plannedEnd: prod.plannedEnd,
+        wasteValuation: prod.wasteValuation,
+        wasteWarehouseId: prod.wasteWarehouseId,
+        defectWarehouseId: prod.defectWarehouseId,
         items: prod.items,
-        components: seeCost ? prod.components : prod.components.map(c => ({ ...c, plannedCost: null, actualCost: null })),
+        components: prod.components,
         outputs: prod.outputs,
       });
     }
@@ -418,6 +422,11 @@ export const documentRoutes = new Hono<AppEnv>()
     // списание и оприходование по результатам инвентаризации: строго по разнице
     if (type === 'write_off' || type === 'stock_posting') {
       const [src] = await ctx.db.select({ type: documents.type }).from(documents).where(eq(documents.id, id)).limit(1);
+      // брак выпуска списывается своей кнопкой: черновик со строками брака «на расходы»
+      if (type === 'write_off' && src?.type === 'production') {
+        const { id: created } = await writeOffDefects(ctx.db, docCtx(ctx), id);
+        return c.json(await documentDetail(ctx.db, created), 201);
+      }
       if (src?.type === 'inventory_count') {
         const created = await createInventoryBasedOn(ctx.db, docCtx(ctx), id, type);
         return c.json(await documentDetail(ctx.db, created), 201);

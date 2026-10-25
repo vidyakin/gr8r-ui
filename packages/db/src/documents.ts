@@ -340,6 +340,8 @@ export interface DocumentCreateInput {
   priceIncludesVat?: boolean;
   comment?: string;
   responsibleId?: string | null;
+  /** Документ-основание: выпуск производства, из которого сделан документ (списание брака) */
+  basedOnId?: string | null;
   lines?: DocumentLineInput[];
   custom?: Record<string, unknown>;
 }
@@ -449,6 +451,7 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
       inUseWorkCenterId,
       tollingOrderId,
       investmentProjectId,
+      basedOnId: input.basedOnId ?? null,
       priceIncludesVat: input.priceIncludesVat ?? true,
       comment: input.comment ?? '',
       responsibleId: input.responsibleId ?? ctx.memberId,

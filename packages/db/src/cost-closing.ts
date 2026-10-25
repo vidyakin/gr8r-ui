@@ -182,7 +182,9 @@ export async function loadReleaseTargets(db: Db, workspaceId: string, month: str
         .innerJoin(stockMoves, eq(stockMoves.id, stockCostAdjustments.moveId))
         .where(and(eq(stockCostAdjustments.workspaceId, workspaceId), inArray(stockMoves.documentLineId, lineIds), sql`${stockMoves.qty} > 0`))
     : [];
-  const chainByLine = new Map(chain.map(c => [c.lineId!, mul(dec(c.chain), dec(c.qty))]));
+  const chainByLine = new Map<string, Dec>();
+  // у выпуска с браком «на расходы» приходов по строке два (годное и брак): удорожание складывается
+  for (const c of chain) chainByLine.set(c.lineId!, (chainByLine.get(c.lineId!) ?? 0n) + mul(dec(c.chain), dec(c.qty)));
   // часы работ разборки относятся к позиции выпуска, а получателей у неё несколько (выходы): часы делятся между
   // выходами по их стоимости (без стоимости — поровну), иначе база «по часам работ» считала бы их по разу на каждый выход
   const disTotals = new Map<string, { cost: Dec; n: number }>();
@@ -317,17 +319,20 @@ export async function closePeriodMonth(db: Db, ctx: DocCtx, month: string): Prom
   for (const t of targets) {
     const allocated = plan.byTarget.get(t.itemId) ?? 0n;
     if (allocated <= 0n || !t.documentLineId) continue;
-    const [move] = await db.select({ id: stockMoves.id, qty: stockMoves.qty }).from(stockMoves).where(and(eq(stockMoves.workspaceId, ctx.workspaceId), eq(stockMoves.documentLineId, t.documentLineId), sql`${stockMoves.qty} > 0`)).orderBy(asc(stockMoves.seq)).limit(1);
-    if (!move) {
+    // приходы строки выпуска: годное и (при браке «на расходы») брак — косвенные делятся между ними по количеству.
+    // Приход отходов строки не имеет: на отходы косвенные не распределяются
+    const moved = await db.select({ id: stockMoves.id, qty: stockMoves.qty }).from(stockMoves).where(and(eq(stockMoves.workspaceId, ctx.workspaceId), eq(stockMoves.documentLineId, t.documentLineId), sql`${stockMoves.qty} > 0`)).orderBy(asc(stockMoves.seq));
+    if (!moved.length) {
       // выпуск из давальческого сырья: прихода на наш склад нет — доля идёт в себестоимость услуги переработки
       await recordProcessingOverhead(db, ctx.workspaceId, closing!.id, t.releaseId, allocated);
       continue;
     }
-    const own = fmt(div(allocated, dec(move.qty)), 4);
-    await db
-      .insert(stockCostAdjustments)
-      .values({ workspaceId: ctx.workspaceId, moveId: move.id, deltaCost: own, ownDelta: own, closingId: closing!.id, updatedAt: new Date() })
-      .onConflictDoUpdate({ target: [stockCostAdjustments.workspaceId, stockCostAdjustments.moveId], set: { ownDelta: own, closingId: closing!.id, updatedAt: new Date() } });
+    const own = fmt(div(allocated, moved.reduce((sum, m) => sum + dec(m.qty), 0n)), 4);
+    for (const move of moved)
+      await db
+        .insert(stockCostAdjustments)
+        .values({ workspaceId: ctx.workspaceId, moveId: move.id, deltaCost: own, ownDelta: own, closingId: closing!.id, updatedAt: new Date() })
+        .onConflictDoUpdate({ target: [stockCostAdjustments.workspaceId, stockCostAdjustments.moveId], set: { ownDelta: own, closingId: closing!.id, updatedAt: new Date() } });
   }
 
   // 3. пересчёт цепочки: средняя складов и себестоимость всех последующих движений (перемещения, выпуски, реализации)

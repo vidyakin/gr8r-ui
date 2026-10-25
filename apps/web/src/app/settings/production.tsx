@@ -1,7 +1,7 @@
 /* Settings → Production: источник цены материалов при расчёте себестоимости (настройка воркспейса, меняет admin и выше). */
 import * as React from 'react';
 import { Link } from 'react-router';
-import { MATERIAL_PRICE_SOURCES, type MaterialPriceSource } from '@gr8r/shared';
+import { MATERIAL_PRICE_SOURCES, WASTE_PRICE_SOURCES, type MaterialPriceSource, type WastePriceSource } from '@gr8r/shared';
 import { Alert, Button, Field, Input, Radio, Skeleton, toast } from '@/components/ui';
 import { useIsAdmin } from '../catalog/data';
 import { useProductionApi, useSnapshot } from '../production/data';
@@ -16,21 +16,33 @@ export function ProductionSection({ title }: { title: string }) {
   const api = useProductionApi();
   const periods = usePeriods();
   const lock = usePeriodSettings();
-  const saved = snap.data?.settings.materialPriceSource;
+  const savedMat = snap.data?.settings.materialPriceSource;
+  const savedWaste = snap.data?.settings.wastePriceSource;
   // Выбор виден сразу, не дожидаясь ответа сервера; при ошибке возвращается сохранённое значение
-  const [picked, setPicked] = React.useState<MaterialPriceSource | null>(null);
-  const current = picked ?? saved;
+  const [pickedMat, setPickedMat] = React.useState<MaterialPriceSource | null>(null);
+  const [pickedWaste, setPickedWaste] = React.useState<WastePriceSource | null>(null);
+  const currentMat = pickedMat ?? savedMat;
+  const currentWaste = pickedWaste ?? savedWaste ?? 'purchase';
 
-  const choose = async (v: MaterialPriceSource) => {
-    if (v === current) return;
-    setPicked(v);
+  const chooseMat = async (v: MaterialPriceSource) => {
+    if (v === currentMat) return;
+    setPickedMat(v);
     const ok = await api('PATCH', '/production/settings', { materialPriceSource: v });
     if (ok) toast(t('settings.production.priceSource.saved'), { duration: 1500 });
-    setPicked(null);
+    setPickedMat(null);
+  };
+  const chooseWaste = async (v: WastePriceSource) => {
+    if (v === currentWaste) return;
+    setPickedWaste(v);
+    const ok = await api('PATCH', '/production/settings', { wastePriceSource: v });
+    if (ok) toast(t('settings.production.wastePriceSource.saved'), { duration: 1500 });
+    setPickedWaste(null);
   };
 
   const optTitle = (v: MaterialPriceSource) => t(`settings.production.priceSource.options.${v}.title` as 'settings.production.priceSource.options.purchase.title');
   const optDesc = (v: MaterialPriceSource) => t(`settings.production.priceSource.options.${v}.desc` as 'settings.production.priceSource.options.purchase.desc');
+  const optWasteTitle = (v: WastePriceSource) => t(`settings.production.wastePriceSource.options.${v}.title` as 'settings.production.wastePriceSource.options.purchase.title');
+  const optWasteDesc = (v: WastePriceSource) => t(`settings.production.wastePriceSource.options.${v}.desc` as 'settings.production.wastePriceSource.options.purchase.desc');
 
   return (
     <>
@@ -51,7 +63,30 @@ export function ProductionSection({ title }: { title: string }) {
                   <div className="d">{optDesc(v)}</div>
                 </div>
                 <div className="row">
-                  <Radio name="price-source" value={v} aria-label={optTitle(v)} checked={current === v} disabled={!isAdmin} onChange={() => void choose(v)} />
+                  <Radio name="price-source" value={v} aria-label={optTitle(v)} checked={currentMat === v} disabled={!isAdmin} onChange={() => void chooseMat(v)} />
+                </div>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="sblock">
+        <h2>{t('settings.production.wastePriceSource.title')}</h2>
+        <p className="muted" style={{ margin: '4px 0 12px' }}>
+          {t('settings.production.wastePriceSource.hint')}
+        </p>
+        {snap.isPending ? (
+          <Skeleton w="100%" h={90} />
+        ) : (
+          <div className="stack" style={{ gap: 8 }} role="radiogroup" aria-label={t('settings.production.wastePriceSource.aria')}>
+            {WASTE_PRICE_SOURCES.map(v => (
+              <label key={v} className="srow" style={{ cursor: !isAdmin ? 'default' : 'pointer' }}>
+                <div>
+                  <div className="t">{optWasteTitle(v)}</div>
+                  <div className="d">{optWasteDesc(v)}</div>
+                </div>
+                <div className="row">
+                  <Radio name="waste-price-source" value={v} aria-label={optWasteTitle(v)} checked={currentWaste === v} disabled={!isAdmin} onChange={() => void chooseWaste(v)} />
                 </div>
               </label>
             ))}

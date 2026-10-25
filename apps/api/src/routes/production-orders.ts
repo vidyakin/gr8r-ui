@@ -18,18 +18,21 @@ import {
   documentDetail,
   fillOrderFromBom,
   listProductionOrders,
+  maskProductionDetail,
   manufacturedItems,
   materialRows,
   productManufacturing,
   productionDetail,
   scheduleProductionOrder,
   setMaterialReservation,
+  updateProductionAccounting,
   updateProductionOrder,
 } from '@gr8r/db';
 import {
   documentStateChange,
   idParam,
   materialReservationUpdate,
+  productionAccountingUpdate,
   productionCreate,
   productionFromCustomerOrder,
   productionOrderCreate,
@@ -53,8 +56,7 @@ const materialParam = z.object({ id: idParam.shape.id, componentId: idParam.shap
 /** Карточка заказа или выпуска: документ + производственные данные */
 async function detail(ctx: Ctx, id: string) {
   const doc = await documentDetail(ctx.db, id);
-  const prod = await productionDetail(ctx.db, id);
-  const seeCost = canSeeCost(ctx.role);
+  const prod = maskProductionDetail(await productionDetail(ctx.db, id), ctx.role);
   return {
     ...doc,
     workCenter: prod.workCenter,
@@ -62,8 +64,11 @@ async function detail(ctx: Ctx, id: string) {
     plannedEnd: prod.plannedEnd,
     parentDocumentId: prod.parentDocumentId,
     processingOrderId: prod.processingOrderId,
+    wasteValuation: prod.wasteValuation,
+    wasteWarehouseId: prod.wasteWarehouseId,
+    defectWarehouseId: prod.defectWarehouseId,
     items: prod.items,
-    components: seeCost ? prod.components : prod.components.map(c => ({ ...c, plannedCost: null, actualCost: null })),
+    components: prod.components,
     outputs: prod.outputs,
   };
 }
@@ -118,6 +123,9 @@ export const productionOrderRoutes = new Hono<AppEnv>()
       comment: body.comment,
       parentDocumentId: body.parentDocumentId,
       processingOrderId: body.processingOrderId ?? null,
+      wasteValuation: body.wasteValuation,
+      wasteWarehouseId: body.wasteWarehouseId,
+      defectWarehouseId: body.defectWarehouseId,
       items: body.items.map(i => ({ itemId: i.itemId, qty: i.qty, customerOrderLineId: i.customerOrderLineId, params: i.params })),
     });
     return c.json(await detail(ctx, id), 201);
@@ -135,6 +143,9 @@ export const productionOrderRoutes = new Hono<AppEnv>()
       plannedEnd: body.plannedEnd,
       comment: body.comment,
       parentDocumentId: body.parentDocumentId,
+      wasteValuation: body.wasteValuation,
+      wasteWarehouseId: body.wasteWarehouseId,
+      defectWarehouseId: body.defectWarehouseId,
       items: body.items?.map(i => ({ itemId: i.itemId, qty: i.qty, customerOrderLineId: i.customerOrderLineId, params: i.params })),
     });
     return c.json(await detail(ctx, c.req.valid('param').id));
@@ -152,6 +163,14 @@ export const productionOrderRoutes = new Hono<AppEnv>()
     const ctx = ctxOf(c);
     await fillOrderFromBom(ctx.db, docCtx(ctx), c.req.valid('param').id);
     return c.json(await detail(ctx, c.req.valid('param').id));
+  })
+  // отходы и брак черновика: оценка и склады в шапке, вкладка «Отходы», брак по позициям выпуска
+  .patch('/:id/accounting', write, zValidator('param', idParam, validationHook), zValidator('json', productionAccountingUpdate, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    const body = c.req.valid('json');
+    await updateProductionAccounting(ctx.db, docCtx(ctx), id, { ...body, defects: body.defects?.map(d => ({ ...d, defectMode: d.defectMode ?? null })), waste: body.waste?.map(w => ({ ...w, price: w.price ?? null })) }, { canSetPrice: canSeeCost(ctx.role) });
+    return c.json(await detail(ctx, id));
   })
   // обеспечение материалов заказа: покрытие по строкам состава и расшифровки (резервы, размещение, к поступлению)
   .get('/:id/materials', zValidator('param', idParam, validationHook), async c => {
@@ -192,7 +211,10 @@ export const productionOrderRoutes = new Hono<AppEnv>()
       workCenterId: body.workCenterId,
       warehouseId: body.warehouseId,
       targetWarehouseId: body.targetWarehouseId,
-      lines: body.lines.map(l => ({ orderItemId: l.orderItemId, stageId: l.stageId ?? null, qty: l.qty })),
+      wasteValuation: body.wasteValuation ?? null,
+      wasteWarehouseId: body.wasteWarehouseId ?? null,
+      defectWarehouseId: body.defectWarehouseId ?? null,
+      lines: body.lines.map(l => ({ orderItemId: l.orderItemId, stageId: l.stageId ?? null, qty: l.qty, defectQty: l.defectQty ?? null, defectMode: l.defectMode ?? null })),
     });
     return c.json(await detail(ctx, id), 201);
   })
@@ -218,7 +240,10 @@ export const productionOrderRoutes = new Hono<AppEnv>()
       workCenterId: body.workCenterId,
       warehouseId: body.warehouseId,
       targetWarehouseId: body.targetWarehouseId,
-      lines: body.lines.map(l => ({ customerOrderLineId: l.customerOrderLineId, stageId: l.stageId ?? null, qty: l.qty })),
+      wasteValuation: body.wasteValuation ?? null,
+      wasteWarehouseId: body.wasteWarehouseId ?? null,
+      defectWarehouseId: body.defectWarehouseId ?? null,
+      lines: body.lines.map(l => ({ customerOrderLineId: l.customerOrderLineId, stageId: l.stageId ?? null, qty: l.qty, defectQty: l.defectQty ?? null, defectMode: l.defectMode ?? null })),
     });
     return c.json(await detail(ctx, id), 201);
   })

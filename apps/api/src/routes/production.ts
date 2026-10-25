@@ -4,7 +4,7 @@
 import { zValidator } from '@hono/zod-validator';
 import { asc, and, eq, inArray, isNull, max, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { bomLines, calculateNeeds, createNeedsDrafts, createNeedsSupplierOrders, listProductionKinds, loadAvgCosts, manufacturedItems, postNeedsDrafts, productCategories, productionKinds, productionNeeds, productionStages, products, recordEvent, stockBalances, stockReservations, warehouses, workCenters, workspaces } from '@gr8r/db';
+import { bomLines, calculateNeeds, createNeedsDrafts, createNeedsSupplierOrders, listProductionKinds, loadAvgCosts, manufacturedItems, postNeedsDrafts, productCategories, productionKinds, productionNeeds, productionStages, products, recordEvent, stockBalances, stockReservations, warehouses, workCenters, workspaces, writeOffDefects } from '@gr8r/db';
 import {
   bomLineCreate,
   bomLineUpdate,
@@ -22,6 +22,7 @@ import {
   itemQuery,
   itemUpdate,
   MATERIAL_PRICE_SOURCES,
+  WASTE_PRICE_SOURCES,
   needsSupplierOrdersCreate,
   needsCalculateQuery,
   needsOrdersCreate,
@@ -44,6 +45,7 @@ import {
   type Explosion,
   type MaterialPriceSource,
   type ProductionSettings,
+  type WastePriceSource,
 } from '@gr8r/shared';
 import { crud, ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError, notFound } from '../errors';
@@ -63,7 +65,11 @@ export type LineRow = typeof bomLines.$inferSelect;
 export async function loadSettings(ctx: Ctx): Promise<ProductionSettings> {
   const [ws] = await ctx.db.select({ settings: workspaces.settings }).from(workspaces).where(eq(workspaces.id, ctx.workspaceId)).limit(1);
   const v = ws?.settings?.materialPriceSource;
-  return { materialPriceSource: MATERIAL_PRICE_SOURCES.includes(v as MaterialPriceSource) ? (v as MaterialPriceSource) : 'purchase' };
+  const wasteSource = ws?.settings?.wastePriceSource;
+  return {
+    materialPriceSource: MATERIAL_PRICE_SOURCES.includes(v as MaterialPriceSource) ? (v as MaterialPriceSource) : 'purchase',
+    wastePriceSource: WASTE_PRICE_SOURCES.includes(wasteSource as WastePriceSource) ? (wasteSource as WastePriceSource) : 'purchase',
+  };
 }
 
 /* ---------------- участки ---------------- */
@@ -157,12 +163,21 @@ const lineParam = idParam;
 
 /** Проверка строки перед записью: ссылки, единица, запрет циклов. Возвращает колонки, которые определяет сервер */
 async function checkLine(ctx: Ctx, itemId: string, l: Pick<LineRow, 'kind' | 'productId' | 'childItemId' | 'workCenterId' | 'operation'> & { stageId?: string | null }): Promise<{ unitCode: string | null }> {
-  await assertStageOfItem(ctx, itemId, l.stageId ?? null);
+  // этап у возвратного отхода не задаётся: отходы приходует финальный этап
+  if (l.kind === 'waste' && l.stageId) throw new AppError(422, 'stage_mismatch', 'A waste line has no stage: the final stage receives the waste', { issues: [{ path: 'stageId', message: 'Not applicable to a waste line' }] });
+  if (l.kind !== 'waste') await assertStageOfItem(ctx, itemId, l.stageId ?? null);
   // вид спецификации задаёт набор допустимых строк: у разборки — только выходные продукты и работы
   const [item] = await ctx.db.select({ mode: manufacturedItems.mode, name: manufacturedItems.name }).from(manufacturedItems).where(eq(manufacturedItems.id, itemId)).limit(1);
   const disassembly = item?.mode === 'disassembly';
-  if (disassembly && l.kind !== 'output' && l.kind !== 'work')
-    throw new AppError(422, 'spec_kind_forbidden', 'A disassembly specification has outputs and work operations only', { issues: [{ path: 'kind', message: 'Not applicable to a disassembly specification' }] });
+  if (disassembly && l.kind !== 'output' && l.kind !== 'work' && l.kind !== 'waste')
+    throw new AppError(422, 'spec_kind_forbidden', 'A disassembly specification has outputs, waste and work operations only', { issues: [{ path: 'kind', message: 'Not applicable to a disassembly specification' }] });
+  if (l.kind === 'waste') {
+    // возвратный отход: складской товар каталога
+    const [p] = await ctx.db.select({ unitCode: products.unitCode, kind: products.kind }).from(products).where(eq(products.id, l.productId ?? '')).limit(1);
+    if (!p) throw new AppError(422, 'invalid_reference', 'The product does not exist', { issues: [{ path: 'productId', message: 'Product not found' }] });
+    if (p.kind !== 'goods') throw new AppError(422, 'invalid_waste', 'Only goods can be returnable waste', { issues: [{ path: 'productId', message: 'Choose a goods product' }] });
+    return { unitCode: p.unitCode };
+  }
   if (!disassembly && l.kind === 'output')
     throw new AppError(422, 'spec_kind_forbidden', 'Outputs belong to a disassembly specification only', { issues: [{ path: 'kind', message: 'Not applicable to an assembly specification' }] });
   if (l.kind === 'material') {
@@ -263,7 +278,7 @@ async function assertSpecComposition(ctx: Ctx, itemId: string, mode: 'assembly' 
   const lines = await ctx.db.select({ kind: bomLines.kind }).from(bomLines).where(eq(bomLines.itemId, itemId));
   for (const l of lines) {
     if (mode === 'disassembly' && l.kind !== 'output' && l.kind !== 'work')
-      throw new AppError(422, 'spec_kind_forbidden', 'A disassembly specification has outputs and work operations only', { issues: [{ path: 'kind', message: 'Not applicable to a disassembly specification' }] });
+      throw new AppError(422, 'spec_kind_forbidden', 'A disassembly specification has outputs, waste and work operations only', { issues: [{ path: 'kind', message: 'Not applicable to a disassembly specification' }] });
     if (mode === 'assembly' && l.kind === 'output')
       throw new AppError(422, 'spec_kind_forbidden', 'Outputs belong to a disassembly specification only', { issues: [{ path: 'kind', message: 'Not applicable to an assembly specification' }] });
   }
@@ -323,7 +338,7 @@ export const itemRoutes = crud({
     const ctx = ctxOf(c);
     const body = c.req.valid('json');
     const item = await loadItem(ctx, c.req.valid('param').id);
-    const base = { kind: body.kind, productId: body.kind === 'material' || body.kind === 'expense' || body.kind === 'output' ? (body.productId ?? null) : body.kind === 'work' ? (body.productId ?? null) : null, childItemId: body.kind === 'semi' ? (body.childItemId ?? null) : null, semiMode: body.kind === 'semi' ? (body.semiMode ?? 'stock') : null, workCenterId: body.kind === 'work' ? (body.workCenterId ?? null) : null, operation: body.operation ?? '', stageId: body.stageId ?? null };
+    const base = { kind: body.kind, productId: body.kind === 'material' || body.kind === 'expense' || body.kind === 'output' || body.kind === 'waste' ? (body.productId ?? null) : body.kind === 'work' ? (body.productId ?? null) : null, childItemId: body.kind === 'semi' ? (body.childItemId ?? null) : null, semiMode: body.kind === 'semi' ? (body.semiMode ?? 'stock') : null, workCenterId: body.kind === 'work' ? (body.workCenterId ?? null) : null, operation: body.operation ?? '', stageId: body.stageId ?? null };
     const { unitCode } = await checkLine(ctx, item.id, base);
     await assertFormulas(ctx, item.id, body);
     const [ord] = await ctx.db.select({ m: max(bomLines.sortOrder) }).from(bomLines).where(eq(bomLines.itemId, item.id));
@@ -381,6 +396,7 @@ export const itemRoutes = crud({
     try {
       const tree = computeBomCost(g.items.map(i => toInput(i, byItem.get(i.id) ?? [], specs.get(i.id)?.keys ?? [])), id, {
         materialPrice: pid => (prod.has(pid) ? resolveMaterialPrice(settings.materialPriceSource, prod.get(pid)!, g.avg.get(pid)) : null),
+        wastePrice: pid => (prod.has(pid) ? resolveMaterialPrice(settings.wastePriceSource, prod.get(pid)!, g.avg.get(pid)) : null),
         workCenterRate: wid => rates.get(wid),
       });
       return c.json({ itemId: id, source: settings.materialPriceSource, tree });
@@ -511,7 +527,7 @@ export const bomLineRoutes = new Hono<AppEnv>()
     const [line] = await ctx.db.select().from(bomLines).where(eq(bomLines.id, c.req.valid('param').id)).limit(1).for('update');
     if (!line) throw notFound('bom_line');
     // Поля, чужие для типа строки, отклоняются: тип не меняется
-    const foreign: Record<LineRow['kind'], string[]> = { material: ['childItemId', 'semiMode', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], semi: ['productId', 'scrapPct', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], work: ['childItemId', 'semiMode', 'qty', 'scrapPct'], expense: ['childItemId', 'semiMode', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], output: ['childItemId', 'semiMode', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'] };
+    const foreign: Record<LineRow['kind'], string[]> = { material: ['childItemId', 'semiMode', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], semi: ['productId', 'scrapPct', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], work: ['childItemId', 'semiMode', 'qty', 'scrapPct'], expense: ['childItemId', 'semiMode', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], output: ['childItemId', 'semiMode', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], waste: ['childItemId', 'semiMode', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost', 'scrapPct', 'costShare'] };
     const bad = foreign[line.kind].find(k => (body as Record<string, unknown>)[k] !== undefined);
     if (bad) throw new AppError(400, 'validation_error', `${bad}: not applicable to a ${line.kind} line`, { issues: [{ path: bad, message: `Not applicable to a ${line.kind} line` }] });
     const next = { ...line, ...Object.fromEntries(Object.entries(body).filter(([, v]) => v !== undefined)) } as LineRow;
@@ -620,4 +636,10 @@ export const productionRoutes = new Hono<AppEnv>()
     await ctx.db.update(workspaces).set({ settings: sql`${workspaces.settings} || ${JSON.stringify(body)}::jsonb`, updatedAt: new Date() }).where(eq(workspaces.id, ctx.workspaceId));
     await recordEvent(ctx.db, { workspaceId: ctx.workspaceId, type: 'workspace.updated', entity: 'workspace', recordId: ctx.workspaceId, actorId: ctx.memberId, payload: { changes: body } });
     return c.json(await loadSettings(ctx));
+  })
+  // списание брака выпуска: создаёт черновик write_off по дефектным позициям
+  .post('/:id/write-off-defects', write, zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const { id, created } = await writeOffDefects(ctx.db, ctx, c.req.valid('param').id);
+    return c.json({ id, created }, created ? 201 : 200);
   });

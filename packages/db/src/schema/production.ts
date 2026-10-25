@@ -29,6 +29,8 @@ export const workCenters = pgTable(
     outputWarehouseId: uuid('output_warehouse_id'),
     /** Склад отходов: куда уходят отходы производства */
     wasteWarehouseId: uuid('waste_warehouse_id'),
+    /** Склад брака: куда идёт бракованная продукция при учёте «на расходы» */
+    defectWarehouseId: uuid('defect_warehouse_id'),
     note: text('note').notNull().default(''),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -40,6 +42,7 @@ export const workCenters = pgTable(
     foreignKey({ columns: [t.workspaceId, t.warehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'work_centers_warehouse_fk' }),
     foreignKey({ columns: [t.workspaceId, t.outputWarehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'work_centers_output_warehouse_fk' }),
     foreignKey({ columns: [t.workspaceId, t.wasteWarehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'work_centers_waste_warehouse_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.defectWarehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'work_centers_defect_warehouse_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.calendarId], foreignColumns: [workCalendars.workspaceId, workCalendars.id], name: 'work_centers_calendar_fk' }),
   ],
 );
@@ -146,7 +149,7 @@ export const bomLines = pgTable(
     itemId: uuid('item_id').notNull(),
     /** expense — расход: услуга подрядчика (окраска, вырубка). Входит в плановую себестоимость и калькуляцию,
         но со склада не списывается и в потребности не попадает; output — выходной продукт разборки */
-    kind: text('kind', { enum: ['material', 'semi', 'work', 'expense', 'output'] }).notNull(),
+    kind: text('kind', { enum: ['material', 'semi', 'work', 'expense', 'output', 'waste'] }).notNull(),
     sortOrder: integer('sort_order').notNull().default(0),
     /** material */
     productId: uuid('product_id'),
@@ -185,12 +188,13 @@ export const bomLines = pgTable(
     foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'bom_lines_product_fk' }),
     foreignKey({ columns: [t.workspaceId, t.childItemId], foreignColumns: [manufacturedItems.workspaceId, manufacturedItems.id], name: 'bom_lines_child_fk' }),
     foreignKey({ columns: [t.workspaceId, t.workCenterId], foreignColumns: [workCenters.workspaceId, workCenters.id], name: 'bom_lines_work_center_fk' }),
-    check('bom_lines_kind_chk', sql`${t.kind} in ('material','semi','work','expense','output')`),
+    check('bom_lines_kind_chk', sql`${t.kind} in ('material','semi','work','expense','output','waste')`),
     check(
       'bom_lines_shape_chk',
       sql`(${t.kind} = 'material' and ${t.productId} is not null and ${t.childItemId} is null)
         or (${t.kind} = 'expense' and ${t.productId} is not null and ${t.childItemId} is null)
         or (${t.kind} = 'output' and ${t.productId} is not null and ${t.childItemId} is null)
+        or (${t.kind} = 'waste' and ${t.productId} is not null and ${t.childItemId} is null)
         or (${t.kind} = 'semi' and ${t.childItemId} is not null and ${t.productId} is null and ${t.childItemId} <> ${t.itemId})
         or (${t.kind} = 'work' and ${t.childItemId} is null)`,
     ),
@@ -372,6 +376,15 @@ export const productionItems = pgTable(
     stageCost: numeric('stage_cost', { precision: 18, scale: 4 }),
     /** Строка документа с продукцией (у выпуска) */
     documentLineId: uuid('document_line_id'),
+    /** Брак в позиции выпуска: количество (0 если нет) */
+    defectQty: numeric('defect_qty', { precision: 18, scale: 3 }).notNull().default('0'),
+    /** Режим учёта брака: waste — на склад отходов, cost — в себестоимость годного (не приходуется),
+        expense — на склад брака и далее списание через write_off */
+    defectMode: text('defect_mode', { enum: ['waste', 'cost', 'expense'] }),
+    /** Себестоимость единицы брака, захваченная при проведении (для ревалоризации и списания) */
+    defectUnitCost: numeric('defect_unit_cost', { precision: 18, scale: 4 }),
+    /** Черновик write_off, созданный кнопкой «Списать брак» (для защиты от дубля и связи) */
+    disposalDocumentId: uuid('disposal_document_id'),
     sortOrder: integer('sort_order').notNull().default(0),
     createdAt: createdAt(),
   },
@@ -385,7 +398,10 @@ export const productionItems = pgTable(
     foreignKey({ columns: [t.workspaceId, t.stageId], foreignColumns: [productionStages.workspaceId, productionStages.id], name: 'production_items_stage_fk' }),
     foreignKey({ columns: [t.workspaceId, t.documentLineId], foreignColumns: [documentLines.workspaceId, documentLines.id], name: 'production_items_line_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.planLineId], foreignColumns: [productionPlanLines.workspaceId, productionPlanLines.id], name: 'production_items_plan_line_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.disposalDocumentId], foreignColumns: [documents.workspaceId, documents.id], name: 'production_items_disposal_document_fk' }).onDelete('set null'),
     check('production_items_qty_chk', sql`${t.qty} > 0`),
+    check('production_items_defect_chk', sql`${t.defectQty} >= 0 and ${t.defectQty} <= ${t.qty}`),
+    check('production_items_defect_mode_chk', sql`${t.defectMode} is null or ${t.defectMode} in ('waste','cost','expense')`),
     index('production_items_document_idx').on(t.documentId, t.sortOrder),
     index('production_items_source_idx').on(t.sourceItemId),
     index('production_items_plan_line_idx').on(t.planLineId),
@@ -404,8 +420,9 @@ export const productionComponents = pgTable(
     /** Позиция документа, к которой относится строка состава */
     itemId: uuid('item_id'),
     /** Тип строки состава: expense — расход подрядчику (услуга), в себестоимость входит, со склада не списывается;
-        output — выходной продукт разборки: приходуется на склад, а не расходуется */
-    kind: text('kind', { enum: ['material', 'semi', 'work', 'expense', 'output'] }).notNull(),
+        output — выходной продукт разборки: приходуется на склад, а не расходуется;
+        waste — возвратный отход: приходуется на склад отходов финальным этапом, в себестоимости вычитается */
+    kind: text('kind', { enum: ['material', 'semi', 'work', 'expense', 'output', 'waste'] }).notNull(),
     /** Доля стоимости исходного товара, % (выходной продукт разборки) */
     costShare: numeric('cost_share', { precision: 7, scale: 2 }),
     /** Материал или полуфабрикат на складе */
@@ -424,6 +441,8 @@ export const productionComponents = pgTable(
     fixedCost: numeric('fixed_cost', { precision: 18, scale: 2 }),
     /** Плановая стоимость строки */
     plannedCost: numeric('planned_cost', { precision: 18, scale: 4 }).notNull().default('0'),
+    /** Учётная цена отхода за единицу: пусто — берётся из настройки «Цена отходов» при заполнении снимка */
+    price: numeric('price', { precision: 18, scale: 4 }),
     /** Фактическое количество (заполняется при проведении) */
     actualQty: numeric('actual_qty', { precision: 18, scale: 3 }),
     /** Фактическая стоимость строки */
@@ -448,9 +467,10 @@ export const productionComponents = pgTable(
     foreignKey({ columns: [t.workspaceId, t.documentLineId], foreignColumns: [documentLines.workspaceId, documentLines.id], name: 'production_components_line_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.sourceComponentId], foreignColumns: [t.workspaceId, t.id], name: 'production_components_source_fk' }),
     foreignKey({ columns: [t.workspaceId, t.stageId], foreignColumns: [productionStages.workspaceId, productionStages.id], name: 'production_components_stage_fk' }),
-    check('production_components_kind_chk', sql`${t.kind} in ('material','semi','work','expense','output')`),
+    check('production_components_kind_chk', sql`${t.kind} in ('material','semi','work','expense','output','waste')`),
     check('production_components_cost_share_chk', sql`(${t.kind} = 'output' and (${t.costShare} is null or ${t.costShare} >= 0)) or (${t.kind} <> 'output' and ${t.costShare} is null)`),
     check('production_components_owner_chk', sql`${t.ownerKind} in ('own','customer')`),
+    check('production_components_price_chk', sql`${t.price} is null or (${t.kind} = 'waste' and ${t.price} >= 0)`),
     check(
       'production_components_shape_chk',
       sql`${t.kind} = 'work' or (${t.kind} <> 'work' and ${t.productId} is not null)`,
@@ -513,6 +533,12 @@ export const productionHeaders = pgTable(
     /** Заказ на переработку (заказ покупателя с видом операции «Переработка»): выпуск делается из давальческого сырья,
         а продукция приходуется на остаток давальца */
     processingOrderId: uuid('processing_order_id'),
+    /** Учёт стоимости возвратных отходов: zero — не вычитается, accounting — вычитается из себестоимости продукции */
+    wasteValuation: text('waste_valuation', { enum: ['zero', 'accounting'] }).notNull().default('accounting'),
+    /** Склад отходов выпуска (по умолчанию из участка) */
+    wasteWarehouseId: uuid('waste_warehouse_id'),
+    /** Склад брака выпуска (по умолчанию из участка) */
+    defectWarehouseId: uuid('defect_warehouse_id'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -523,6 +549,8 @@ export const productionHeaders = pgTable(
     foreignKey({ columns: [t.workspaceId, t.parentDocumentId], foreignColumns: [documents.workspaceId, documents.id], name: 'production_headers_parent_fk' }),
     foreignKey({ columns: [t.workspaceId, t.stageId], foreignColumns: [productionStages.workspaceId, productionStages.id], name: 'production_headers_stage_fk' }),
     foreignKey({ columns: [t.workspaceId, t.processingOrderId], foreignColumns: [documents.workspaceId, documents.id], name: 'production_headers_processing_order_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.wasteWarehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'production_headers_waste_warehouse_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.defectWarehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'production_headers_defect_warehouse_fk' }).onDelete('set null'),
   ],
 );
 

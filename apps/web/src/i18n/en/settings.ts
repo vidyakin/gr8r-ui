@@ -545,6 +545,17 @@ export const settings = {
         avgCost: { title: 'Average warehouse cost', desc: 'Moving average cost of the stock, weighted across warehouses. A material that is not in stock yet is priced at its purchase price.' },
       },
     },
+    wastePriceSource: {
+      title: 'Returnable waste price source',
+      hint: 'Used to value the returnable waste of every bill of materials. The cost of the released product is reduced accordingly.',
+      aria: 'Returnable waste price source',
+      saved: 'Waste price source saved',
+      options: {
+        purchase: { title: 'Purchase price', desc: 'Purchase price from the product card — the same as for materials.' },
+        price: { title: 'Sale price', desc: 'Sale price from the product card.' },
+        avg_cost: { title: 'Average warehouse cost', desc: 'Moving average cost of the stock across warehouses. Falls back to purchase price when out of stock.' },
+      },
+    },
     periodClosing: {
       title: 'Period closing',
       hint: 'Documents dated not later than the closed-through date cannot be posted, unposted or edited. Admins move the date forward, only the owner can move it back and cancel a closing.',

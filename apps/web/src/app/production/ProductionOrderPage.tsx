@@ -7,10 +7,11 @@ import { MATERIAL_OWNERS, MATERIAL_OWNER_LABELS, PRODUCTION_ORDER_STATES } from 
 import { Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
 import { fmtDate } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';
-import { money } from '../catalog/data';
+import { money, useIsAdmin } from '../catalog/data';
 import { useWorkspace } from '../data/store';
-import { STATUS_LABEL, STATUS_TONE, useDocsApi } from '../docs/data';
+import { STATUS_LABEL, STATUS_TONE, useDocsApi, useWarehouses } from '../docs/data';
 import { useSnapshot } from './data';
+import { WasteHeaderFields, WasteTab } from './WasteTab';
 import { STATE_LABEL, STATE_TONE, useProductionOrder, useProductionOrderApi, type ProductionOrderDetail } from './orders-data';
 import { useOrderOperations, usePieceworkApi, type AssignmentRow } from './piecework-data';
 import { useDocumentResources, usePlanningApi, useResources } from './planning-data';
@@ -48,6 +49,8 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
   const api = useProductionOrderApi();
   const docs = useDocsApi();
   const snap = useSnapshot();
+  const warehouses = useWarehouses();
+  const seeCost = useIsAdmin();
   const tt = useT();
   const [busy, setBusy] = React.useState(false);
   const [confirm] = React.useState(false);
@@ -102,6 +105,8 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
     }
   };
 
+  const wasteRows = order.components.filter(c => c.kind === 'waste');
+  const compositionRows = order.components.filter(c => c.kind !== 'waste');
   const remaining = order.items.map(i => Math.max(0, Number(i.qty) - Number(i.produced)));
 
   return (
@@ -194,6 +199,15 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
         </Field>
         <Field label={tt('production.field.plannedStart')}>{p => <Input {...p} type="date" disabled={!editable} value={order.plannedStart ? order.plannedStart.slice(0, 10) : ''} onChange={e => save({ plannedStart: e.target.value ? new Date(e.target.value).toISOString() : null })} />}</Field>
         <Field label={tt('production.field.plannedEnd')}>{p => <Input {...p} type="date" disabled={!editable} value={order.plannedEnd ? order.plannedEnd.slice(0, 10) : ''} onChange={e => save({ plannedEnd: e.target.value ? new Date(e.target.value).toISOString() : null })} />}</Field>
+        <WasteHeaderFields
+          valuation={order.wasteValuation}
+          wasteWarehouseId={order.wasteWarehouseId}
+          defectWarehouseId={order.defectWarehouseId}
+          warehouses={(warehouses.data ?? []).filter(w => !w.archivedAt && w.kind !== 'transit')}
+          editable={editable}
+          showDefect={false}
+          onChange={patch => void api.accounting.mutateAsync({ id: order.id, body: patch })}
+        />
       </section>
 
       <DocTabs
@@ -282,7 +296,7 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
           {
             id: 'composition',
             label: t(disassembly ? 'docs.tabs.outputs' : 'docs.tabs.bom'),
-            count: order.components.length,
+            count: compositionRows.length,
             content: (
               <section className="doc-links panel" aria-label={tt('production.order.compositionAria')}>
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', flexWrap: 'wrap', marginBottom: 8 }}>
@@ -291,7 +305,7 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
                 </div>
                 {showStock ? (
                   <MaterialStockBlock orderId={order.id} canWrite={canWrite} onEdit={setEditing} />
-                ) : !order.components.length ? (
+                ) : !compositionRows.length ? (
                   <p className="faint">{tt('production.order.emptyComposition')}</p>
                 ) : (
                   <table className="dtbl" aria-label={tt('production.order.compositionTable')}>
@@ -313,7 +327,7 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
                       </tr>
                     </thead>
                     <tbody>
-                      {order.components.map(c => (
+                      {compositionRows.map(c => (
                         <tr key={c.id}>
                           <td>
                             <span className="trunc">{c.kind === 'work' ? c.operation : tProductionEnum('componentKind', c.kind, c.kind)}</span>
@@ -344,6 +358,12 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
                 {editing && <ReserveDialog row={editing} orderId={order.id} onClose={() => setEditing(null)} />}
               </section>
             ),
+          },
+          {
+            id: 'waste',
+            label: tt('production.waste.tab'),
+            count: wasteRows.length,
+            content: <WasteTab rows={wasteRows} editable={editable} seeCost={seeCost} onSave={waste => api.accounting.mutateAsync({ id: order.id, body: { waste } })} />,
           },
           {
             id: 'operations',

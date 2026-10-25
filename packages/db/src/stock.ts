@@ -223,17 +223,20 @@ export async function recomputeStockCosts(db: Db, workspaceId: string): Promise<
     .orderBy(asc(stockMoves.seq));
   if (!moves.length) return 0;
 
-  // приход продукции выпуска: строка продукции → количество, накладные % и строки списанных на неё материалов
+  // приход продукции выпуска: строка продукции → количество, накладные % и строки списанных на неё материалов.
+  // В materials попадают только реально списанные материалы/полуфабрикаты; отходы (waste), расходы подрядчику (expense)
+  // и выходные продукты разборки (output) — не входят в прямые затраты выпуска.
   const comps = await db
-    .select({ productLineId: productionItems.documentLineId, qty: productionItems.qty, overheadPct: manufacturedItems.overheadPct, materialLineId: productionComponents.documentLineId, materialQty: documentLines.qty })
+    .select({ productLineId: productionItems.documentLineId, qty: productionItems.qty, defectQty: productionItems.defectQty, defectMode: productionItems.defectMode, overheadPct: manufacturedItems.overheadPct, materialLineId: productionComponents.documentLineId, materialQty: documentLines.qty })
     .from(productionComponents)
     .innerJoin(productionItems, eq(productionItems.id, productionComponents.itemId))
     .innerJoin(manufacturedItems, eq(manufacturedItems.id, productionItems.itemId))
     .innerJoin(documentLines, eq(documentLines.id, productionComponents.documentLineId))
-    .where(and(eq(productionComponents.workspaceId, workspaceId), sql`${productionItems.documentLineId} is not null`, sql`${productionComponents.kind} <> 'work'`));
+    .where(and(eq(productionComponents.workspaceId, workspaceId), sql`${productionItems.documentLineId} is not null`, inArray(productionComponents.kind, ['material', 'semi'])));
   const releaseLines = new Map<string, { qty: Dec; pct: Dec; materials: { lineId: string; qty: Dec }[] }>();
   for (const c of comps) {
-    const r = releaseLines.get(c.productLineId!) ?? { qty: dec(c.qty), pct: dec(c.overheadPct), materials: [] };
+    // удорожание делится на приходованное: брак «в себестоимость» не приходуется, брак «на расходы» получает его вместе с годным
+    const r = releaseLines.get(c.productLineId!) ?? { qty: dec(c.qty) - (c.defectMode === 'cost' ? dec(c.defectQty) : 0n), pct: dec(c.overheadPct), materials: [] };
     r.materials.push({ lineId: c.materialLineId!, qty: dec(c.materialQty) });
     releaseLines.set(c.productLineId!, r);
   }

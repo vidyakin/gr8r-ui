@@ -90,7 +90,7 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
   // вид производства изделия: этап, на котором расходуется материал или выполняется операция
   const prodKind = snap.kinds.find(k => k.id === item.productionKindId) ?? null;
   const centerObj = snap.workCenters.find(w => w.id === center);
-  const kindKey = kind === 'material' ? 'material' : kind === 'semi' ? 'semi' : kind === 'expense' ? 'expense' : kind === 'output' ? 'output' : 'work';
+  const kindKey = kind === 'material' ? 'material' : kind === 'semi' ? 'semi' : kind === 'expense' ? 'expense' : kind === 'output' ? 'output' : kind === 'waste' ? 'waste' : 'work';
   const title = `${edit ? tt('production.common.edit') : tt('production.common.add')} ${tt(`production.line.kind.${kindKey}`)}`;
 
   /** Ошибка выражения видна сразу: ключи параметров спецификации известны */
@@ -116,7 +116,9 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
           ? { kind, productId: material?.id, qty: num(qty), ...(costShare.trim() ? { costShare: Number(costShare) } : {}), ...(qtyExpr.trim() ? { qtyExpr: qtyExpr.trim() } : {}), ...(condition.trim() ? { condition: condition.trim() } : {}) }
           : kind === 'semi'
             ? { kind, childItemId: childId || undefined, qty: num(qty), semiMode: mode, ...(qtyExpr.trim() ? { qtyExpr: qtyExpr.trim() } : {}), ...(condition.trim() ? { condition: condition.trim() } : {}) }
-            : { kind, operation: operation.trim(), productId: opProduct || null, workCenterId: center || null, hours: num(hours) ?? 0, rate: rate.trim() === '' ? null : Number(rate), fixedCost: fixed.trim() === '' ? null : Number(fixed) }),
+            : kind === 'waste'
+              ? { kind, productId: material?.id, qty: num(qty), ...(qtyExpr.trim() ? { qtyExpr: qtyExpr.trim() } : {}), ...(condition.trim() ? { condition: condition.trim() } : {}) }
+              : { kind, operation: operation.trim(), productId: opProduct || null, workCenterId: center || null, hours: num(hours) ?? 0, rate: rate.trim() === '' ? null : Number(rate), fixedCost: fixed.trim() === '' ? null : Number(fixed) }),
     };
     if (qtyExprError || conditionError) {
       setErr({ ...(qtyExprError ? { qtyExpr: qtyExprError } : {}), ...(conditionError ? { condition: conditionError } : {}) });
@@ -133,7 +135,7 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
       if (edit) {
         const { kind: _k, ...patch } = body;
         await m.updateLine.mutateAsync({ id: line!.id, itemId: item.id, patch });
-      } else await m.addLine.mutateAsync({ itemId: item.id, id: uuidv7(), body, material: kind === 'material' || kind === 'expense' || kind === 'output' ? (material ?? undefined) : undefined });
+      } else await m.addLine.mutateAsync({ itemId: item.id, id: uuidv7(), body, material: kind === 'material' || kind === 'expense' || kind === 'output' || kind === 'waste' ? (material ?? undefined) : undefined });
       toast(edit ? tt('production.line.saved') : tt('production.line.added'));
       onClose();
     } catch {
@@ -248,7 +250,17 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
               </div>
             </>
           )}
-          {(kind === 'material' || kind === 'semi' || kind === 'expense' || kind === 'output') && paramKeys.length > 0 && (
+          {kind === 'waste' && (
+            <>
+              <Field label={tt('production.line.fields.wasteProduct')} hint={tt('production.line.hints.waste')} error={err.productId}>
+                {() => <ProductPicker value={material} onChange={mat => (setMaterial(mat), setErr({}))} invalid={!!err.productId} />}
+              </Field>
+              <Field label={material ? tt('production.line.fields.qtyUnit', { unit: unitSymbol(units.data, material.unitCode) }) : tt('production.field.quantity')} error={err.qty}>
+                {p => <Input {...p} inputMode="decimal" value={qty} onChange={e => setQty(e.target.value)} />}
+              </Field>
+            </>
+          )}
+          {(kind === 'material' || kind === 'semi' || kind === 'expense' || kind === 'output' || kind === 'waste') && paramKeys.length > 0 && (
             <>
               <Field label={tt('production.line.fields.expr')} hint={tt('production.line.fields.exprHint', { example: 'width * height / 1000000 * 1.05' })} error={err.qtyExpr ?? qtyExprError}>
                 {p => <Input {...p} placeholder={'width * height / 1000000 * 1.05'} value={qtyExpr} onChange={e => setQtyExpr(e.target.value)} invalid={!!(err.qtyExpr ?? qtyExprError)} />}

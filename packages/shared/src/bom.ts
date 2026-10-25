@@ -23,8 +23,9 @@ export interface BomLineInput {
   id: string;
   /** material — закупаемый товар, semi — полуфабрикат, work — операция, expense — расход (услуга подрядчика):
       входит в плановую себестоимость, но со склада не списывается; output — выходной продукт разборки:
-      не расходуется, а приходуется на склад */
-  kind: 'material' | 'semi' | 'work' | 'expense' | 'output';
+      не расходуется, а приходуется на склад; waste — возвратный отход: приходуется на склад отходов,
+      в плановой себестоимости вычитается */
+  kind: 'material' | 'semi' | 'work' | 'expense' | 'output' | 'waste';
   qty: string;
   /** material */
   productId?: string | null;
@@ -72,6 +73,8 @@ export interface BomItemInput {
 export interface BomPricing {
   /** Цена единицы материала по выбранному источнику; нет значения — материал не оценён (стоимость 0, строка помечается) */
   materialPrice: (productId: string) => string | null | undefined;
+  /** Цена единицы возвратного отхода (wastePriceSource: purchase | price | avg_cost); null — отход не оценён */
+  wastePrice?: (productId: string) => string | null | undefined;
   /** Ставка участка за час */
   workCenterRate: (workCenterId: string) => string | null | undefined;
 }
@@ -80,6 +83,8 @@ export interface CostBreakdown {
   materials: string;
   works: string;
   overhead: string;
+  /** Вычет возвратных отходов по учётной цене (отрицательное значение); без отходов поля нет */
+  waste?: string;
   total: string;
 }
 
@@ -116,6 +121,8 @@ interface Parts {
   m: Dec;
   w: Dec;
   o: Dec;
+  /** Вычет возвратных отходов (учётная стоимость единицы × количество), не влияет на `direct` (база накладных) */
+  wa: Dec;
 }
 
 /* ---------------- формулы строк спецификации ----------------
@@ -181,7 +188,7 @@ export function passParams(params: Record<string, unknown> | null | undefined, k
   return out;
 }
 
-const out = (p: Parts): CostBreakdown => ({ materials: fmt(p.m), works: fmt(p.w), overhead: fmt(p.o), total: fmt(p.m + p.w + p.o) });
+const out = (p: Parts): CostBreakdown => ({ materials: fmt(p.m), works: fmt(p.w), overhead: fmt(p.o), ...(p.wa !== 0n ? { waste: fmt(p.wa) } : {}), total: fmt(p.m + p.w + p.o + p.wa) });
 
 /** Цепочка id, если по ссылкам на полуфабрикаты можно вернуться в ту же продукцию (от `startId` или в любом месте графа); иначе null */
 export function findBomCycle(items: Pick<BomItemInput, 'id' | 'lines'>[], startId?: string): string[] | null {
@@ -250,7 +257,7 @@ export function computeBomCost(items: BomItemInput[], rootId: string, pricing: B
     const keys = item.paramKeys ?? [];
     stack.push(id);
 
-    const total: Parts = { m: 0n, w: 0n, o: 0n };
+    const total: Parts = { m: 0n, w: 0n, o: 0n, wa: 0n };
     let direct = 0n;
     const lines: CostLine[] = [];
     for (const l of item.lines) {
@@ -272,6 +279,13 @@ export function computeBomCost(items: BomItemInput[], rootId: string, pricing: B
       } else if (l.kind === 'output') {
         // выходной продукт разборки: он не затрата, а результат — его стоимость считается при выпуске
         lines.push({ id: l.id, kind: 'output', cost: fmt(0n) });
+      } else if (l.kind === 'waste') {
+        // возвратный отход: не затрата, а вычет из себестоимости по учётной цене отхода (wastePriceSource).
+        // В «direct» (база накладных) не входит: накладные считаются от прямых затрат без вычета отходов.
+        const price = l.productId ? (pricing.wastePrice ?? pricing.materialPrice)(l.productId) : null;
+        const cost = mul(qty, dec(price));
+        total.wa -= cost;
+        lines.push({ id: l.id, kind: 'waste', cost: fmt(-cost), ...(price === null || price === undefined ? { missingPrice: true } : {}) });
       } else {
         const childItem = l.childItemId ? byId.get(l.childItemId) : undefined;
         const child = l.childItemId && childItem ? node(l.childItemId, passParams(params, childItem.paramKeys ?? [])) : undefined;
@@ -287,7 +301,7 @@ export function computeBomCost(items: BomItemInput[], rootId: string, pricing: B
     total.o += pctOf(direct, dec(item.overheadPct));
     stack.pop();
 
-    const unit: Parts = { m: div(total.m, batchQty), w: div(total.w, batchQty), o: div(total.o, batchQty) };
+    const unit: Parts = { m: div(total.m, batchQty), w: div(total.w, batchQty), o: div(total.o, batchQty), wa: div(total.wa, batchQty) };
     const res: CostNode = { itemId: id, name: item.name, batchQty: item.batchQty, overheadPct: item.overheadPct, lines, batch: out(total), unit: out(unit) };
     memo.set(memoKey, res);
     exact.set(memoKey, unit);
@@ -361,6 +375,17 @@ export interface ExplosionOutput {
   stageId?: string | null;
 }
 
+/** Возвратный отход: приходуется на склад отходов финальным этапом, в плановой себестоимости вычитается */
+export interface ExplosionWaste {
+  productId: string;
+  qty: string;
+  unitCode?: string | null;
+  /** Учётная цена за единицу (берется из настройки «Цена отходов» или задаётся руками) */
+  price?: string | null;
+  /** Этап строки спецификации: по плану отходы приходует только финальный этап */
+  stageId?: string | null;
+}
+
 /** Ветка развёртки: требования к материалам, работам и полуфабрикатам */
 export interface Explosion {
   itemId: string;
@@ -374,6 +399,8 @@ export interface Explosion {
   semis: ExplosionSemi[];
   /** Выходные продукты разборки (у сборки пусто) */
   outputs: ExplosionOutput[];
+  /** Возвратные отходы спецификации: приходуются финальным этапом, вычитаются из себестоимости */
+  wastes: ExplosionWaste[];
 }
 
 /** Строка потребности: сколько нужно, сколько доступно и сколько не хватает */
@@ -428,6 +455,7 @@ export function explodeBom(items: BomItemInput[], rootId: string, qty: string): 
     const works: ExplosionWork[] = [];
     const semis: ExplosionSemi[] = [];
     const outputs: ExplosionOutput[] = [];
+    const wastes: ExplosionWaste[] = [];
     for (const l of item.lines) {
       // строка с ложным условием в состав не входит
       if (!lineEnabled(l, params, keys)) continue;
@@ -443,6 +471,10 @@ export function explodeBom(items: BomItemInput[], rootId: string, qty: string): 
         // выходной продукт разборки: получается из исходного сырья, а не расходуется
         const q = mul(lineQty(l, params, keys), scale);
         outputs.push({ productId: l.productId!, qty: fmt(q, 3), unitCode: l.unitCode ?? null, costShare: l.costShare ?? null, stageId: stage });
+      } else if (l.kind === 'waste') {
+        // возвратный отход: приходуется на склад отходов финальным этапом; `scrapPct`, `costShare` не действуют
+        const q = mul(lineQty(l, params, keys), scale);
+        wastes.push({ productId: l.productId!, qty: fmt(q, 3), unitCode: l.unitCode ?? null, stageId: null });
       } else {
         const child = l.childItemId ? byId.get(l.childItemId) : undefined;
         if (!child) continue;
@@ -455,13 +487,15 @@ export function explodeBom(items: BomItemInput[], rootId: string, qty: string): 
           materials.push(...cn.materials);
           works.push(...cn.works);
           semis.push(...cn.semis);
+          outputs.push(...cn.outputs);
+          wastes.push(...cn.wastes);
         } else {
           semis.push({ itemId: child.id, name: child.name, productId: child.productId ?? null, unitCode: child.unitCode ?? null, batchQty: child.batchQty, qty: fmt(need, 3), stageId: stage, child: node(child, dec(child.batchQty), undefined, childParams) });
         }
       }
     }
     stack.pop();
-    return { itemId: item.id, name: item.name, unitCode: item.unitCode ?? null, batchQty: item.batchQty, qty: fmt(units, 3), materials, works, semis, outputs };
+    return { itemId: item.id, name: item.name, unitCode: item.unitCode ?? null, batchQty: item.batchQty, qty: fmt(units, 3), materials, works, semis, outputs, wastes };
   };
 
   return node(root, dec(qty));

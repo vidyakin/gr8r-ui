@@ -89,7 +89,7 @@ export function WorkCentersPage() {
           }
         />
       )}
-      {dialog && <CenterDialog wc={dialog.wc} workshops={workshops.map(w => ({ id: w.id, name: w.name }))} onClose={() => setDialog(null)} />}
+      {dialog && <CenterDialog wc={dialog.wc} workshops={workshops.map(w => ({ id: w.id, name: w.name }))} stores={(warehouses.data ?? []).filter(w => !w.archivedAt && w.kind !== 'transit').map(w => ({ id: w.id, name: w.name }))} onClose={() => setDialog(null)} />}
       <ConfirmDialog
         open={!!removing}
         onOpenChange={o => !o && setRemoving(null)}
@@ -107,13 +107,16 @@ export function WorkCentersPage() {
   );
 }
 
-function CenterDialog({ wc, workshops, onClose }: { wc?: WorkCenter; workshops: { id: string; name: string }[]; onClose: () => void }) {
+function CenterDialog({ wc, workshops, stores, onClose }: { wc?: WorkCenter; workshops: { id: string; name: string }[]; stores: { id: string; name: string }[]; onClose: () => void }) {
   const tt = useT();
   const api = useProductionApi();
   const [name, setName] = React.useState(wc?.name ?? '');
   const [code, setCode] = React.useState(wc?.code ?? '');
   const [rate, setRate] = React.useState(wc ? String(Number(wc.hourlyRate)) : '');
   const [warehouseId, setWarehouseId] = React.useState(wc?.warehouseId ?? '');
+  const [outputWh, setOutputWh] = React.useState(wc?.outputWarehouseId ?? '');
+  const [wasteWh, setWasteWh] = React.useState(wc?.wasteWarehouseId ?? '');
+  const [defectWh, setDefectWh] = React.useState(wc?.defectWarehouseId ?? '');
   const [note, setNote] = React.useState(wc?.note ?? '');
   const [err, setErr] = React.useState<Record<string, string>>({});
   const [busy, setBusy] = React.useState(false);
@@ -124,7 +127,7 @@ function CenterDialog({ wc, workshops, onClose }: { wc?: WorkCenter; workshops: 
     setErr(errs);
     if (Object.keys(errs).length) return;
     setBusy(true);
-    const body = { name: name.trim(), code: code.trim(), hourlyRate: rate.trim() === '' ? 0 : Number(rate), warehouseId: warehouseId || null, note: note.trim() };
+    const body = { name: name.trim(), code: code.trim(), hourlyRate: rate.trim() === '' ? 0 : Number(rate), warehouseId: warehouseId || null, outputWarehouseId: outputWh || null, wasteWarehouseId: wasteWh || null, defectWarehouseId: defectWh || null, note: note.trim() };
     const r = wc ? await api('PATCH', `/work-centers/${wc.id}`, body) : await api('POST', '/work-centers', body);
     setBusy(false);
     if (!r) return;
@@ -178,6 +181,26 @@ function CenterDialog({ wc, workshops, onClose }: { wc?: WorkCenter; workshops: 
               </select>
             )}
           </Field>
+          {(
+            [
+              ['outputWarehouse', outputWh, setOutputWh],
+              ['wasteWarehouse', wasteWh, setWasteWh],
+              ['defectWarehouse', defectWh, setDefectWh],
+            ] as const
+          ).map(([key, value, set]) => (
+            <Field key={key} label={tt(`production.workCenters.fields.${key}`)} hint={tt(`production.workCenters.fields.${key}Hint`)}>
+              {p => (
+                <select className="select" id={p.id} value={value} onChange={e => set(e.target.value)}>
+                  <option value="">{tt('production.common.notChosen')}</option>
+                  {stores.map(w => (
+                    <option key={w.id} value={w.id}>
+                      {w.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
+          ))}
           <Field label={tt('production.workCenters.fields.comment')}>{p => <Input {...p} value={note} onChange={e => setNote(e.target.value)} />}</Field>
           <button type="submit" hidden />
         </form>

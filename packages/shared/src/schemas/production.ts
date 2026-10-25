@@ -1,6 +1,6 @@
 /* zod-схемы производства: участки, продукция (изделия и полуфабрикаты), строки спецификации, настройки. */
 import { z } from 'zod';
-import { BOM_KINDS, MANUFACTURED_KINDS, MATERIAL_PRICE_SOURCES, NEEDS_METHODS, OPERATION_RATE_UNITS, PARAM_TYPES, PLAN_STEPS, PLAN_STATUSES, REPLENISHMENT_MODES, SEMI_MODES, SPEC_MODES, STOCK_REPLENISHMENT } from '../constants';
+import { BOM_KINDS, DEFECT_MODES, MANUFACTURED_KINDS, MATERIAL_PRICE_SOURCES, NEEDS_METHODS, OPERATION_RATE_UNITS, PARAM_TYPES, PLAN_STEPS, PLAN_STATUSES, REPLENISHMENT_MODES, SEMI_MODES, SPEC_MODES, STOCK_REPLENISHMENT, WASTE_PRICE_SOURCES, WASTE_VALUATION } from '../constants';
 import { MATERIAL_OWNERS } from '../documents';
 import { CALENDAR_KINDS, LOAD_ROW_TYPES } from '../planning';
 import { PARAM_KEY_RE } from '../parameters';
@@ -26,6 +26,8 @@ export const workCenterCreate = z.object({
   outputWarehouseId: uuid.nullish(),
   /** Склад отходов: куда уходят отходы производства */
   wasteWarehouseId: uuid.nullish(),
+  /** Склад брака: куда идёт бракованная продукция при учёте «на расходы» */
+  defectWarehouseId: uuid.nullish(),
   note: z.string().max(1000).default(''),
 });
 export const workCenterUpdate = toPatch(workCenterCreate.omit({ id: true }));
@@ -107,7 +109,7 @@ export const bomLineCreate = z
   .object({
     id: clientId,
     kind: z.enum(BOM_KINDS),
-    /** material / semi: количество на партию */
+    /** material / semi / output / waste: количество на партию */
     qty: positive(1e9).optional(),
     productId: uuid.nullish(),
     scrapPct: nonNeg(1000).optional(),
@@ -149,6 +151,16 @@ export const bomLineCreate = z
       need(!!v.productId, 'productId', 'Choose the output product');
       need(v.qty !== undefined, 'qty', 'Quantity is required');
       need(v.semiMode === undefined, 'semiMode', 'Not applicable to an output line');
+    } else if (v.kind === 'waste') {
+      // возвратный отход: товар-отход и количество на партию, без списания процента и доли стоимости
+      need(!!v.productId, 'productId', 'Choose the waste product');
+      need(v.qty !== undefined, 'qty', 'Quantity is required');
+      need(v.scrapPct === undefined, 'scrapPct', 'Not applicable to a waste line');
+      need(v.costShare == null, 'costShare', 'Not applicable to a waste line');
+      need(v.semiMode === undefined, 'semiMode', 'Not applicable to a waste line');
+      need(v.childItemId == null, 'childItemId', 'Not applicable to a waste line');
+      need(v.workCenterId == null, 'workCenterId', 'Not applicable to a waste line');
+      need(v.operation === undefined, 'operation', 'Not applicable to a waste line');
     } else {
       // работа: операция (товар каталога) или текстовое название; часы и ставка — норма строки
       need(!!v.operation || !!v.productId, 'operation', 'Name the operation or choose one from the catalogue');
@@ -212,9 +224,16 @@ export function parseParamJson(raw: string | undefined): Record<string, unknown>
 
 /* ---------------- настройки ---------------- */
 
-export const productionSettingsUpdate = z.object({ materialPriceSource: z.enum(MATERIAL_PRICE_SOURCES) }).strict();
+export const productionSettingsUpdate = z
+  .object({
+    materialPriceSource: z.enum(MATERIAL_PRICE_SOURCES).optional(),
+    /** Учётная цена возвратных отходов: purchase (по умолчанию) | price | avg_cost */
+    wastePriceSource: z.enum(WASTE_PRICE_SOURCES).optional(),
+  })
+  .strict();
 export interface ProductionSettings {
   materialPriceSource: (typeof MATERIAL_PRICE_SOURCES)[number];
+  wastePriceSource: (typeof WASTE_PRICE_SOURCES)[number];
 }
 
 /* ---------------- рабочее место «Выпуск продукции» ---------------- */
@@ -638,6 +657,11 @@ export const productionOrderCreate = z.object({
   parentDocumentId: uuid.nullish(),
   /** Заказ на переработку: выпуск из давальческого сырья, продукция уходит на остаток давальца */
   processingOrderId: uuid.nullish(),
+  /** Стоимость отходов: учётная (по умолчанию) или нулевая */
+  wasteValuation: z.enum(WASTE_VALUATION).optional(),
+  /** Склады отходов и брака; пусто — с участка */
+  wasteWarehouseId: uuid.nullish(),
+  defectWarehouseId: uuid.nullish(),
   items: z.array(productionOrderItemInput).max(200).default([]),
 });
 export const productionOrderUpdate = toPatch(productionOrderCreate.omit({ id: true }));
@@ -661,6 +685,11 @@ export const productionCreate = z.object({
   warehouseId: uuid.nullish(),
   /** Склад готовой продукции (продукция в) */
   targetWarehouseId: uuid.nullish(),
+  /** Стоимость отходов: учётная (по умолчанию) или нулевая */
+  wasteValuation: z.enum(WASTE_VALUATION).optional(),
+  /** Склады отходов и брака; пусто — из заказа или с участка */
+  wasteWarehouseId: uuid.nullish(),
+  defectWarehouseId: uuid.nullish(),
   /** Позиции заказа на производство, которые выпускаем */
   lines: z
     .array(
@@ -671,6 +700,10 @@ export const productionCreate = z.object({
         stageId: uuid.nullish(),
         /** Количество */
         qty: positive(1e9),
+        /** Брак в количестве qty (0 ≤ defectQty ≤ qty): заказ исполняется годным */
+        defectQty: decimal.optional(),
+        /** Режим брака: в себестоимость годного или на склад брака для списания */
+        defectMode: z.enum(DEFECT_MODES).optional(),
       }),
     )
     .min(1)
@@ -684,8 +717,11 @@ export const productionFromCustomerOrder = z.object({
   workCenterId: uuid.nullish(),
   warehouseId: uuid.nullish(),
   targetWarehouseId: uuid.nullish(),
+  wasteValuation: z.enum(WASTE_VALUATION).optional(),
+  wasteWarehouseId: uuid.nullish(),
+  defectWarehouseId: uuid.nullish(),
   lines: z
-    .array(z.object({ customerOrderLineId: uuid, stageId: uuid.nullish(), qty: positive(1e9) }))
+    .array(z.object({ customerOrderLineId: uuid, stageId: uuid.nullish(), qty: positive(1e9), defectQty: decimal.optional(), defectMode: z.enum(DEFECT_MODES).optional() }))
     .min(1)
     .max(200),
 });
@@ -907,3 +943,14 @@ export const processorReportCreate = z.object({
   /** Материалы по факту; без них берётся спецификация изделия */
   materials: z.array(z.object({ productId: uuid, qty: positive(1e12) })).max(200).optional(),
 });
+
+/** Правка отходов и брака в черновике выпуска или заказа: шапка, вкладка «Отходы» целиком, брак по позициям */
+export const productionAccountingUpdate = z
+  .object({
+    wasteValuation: z.enum(WASTE_VALUATION).optional(),
+    wasteWarehouseId: uuid.nullish(),
+    defectWarehouseId: uuid.nullish(),
+    defects: z.array(z.object({ itemId: uuid, defectQty: decimal, defectMode: z.enum(DEFECT_MODES).nullish() })).max(200).optional(),
+    waste: z.array(z.object({ id: uuid.optional(), productId: uuid, qty: positive(1e9), price: decimal.nullish() })).max(200).optional(),
+  })
+  .strict();

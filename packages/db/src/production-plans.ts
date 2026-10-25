@@ -24,7 +24,7 @@ import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
 import type { DocCtx } from './documents';
-import { createProductionOrder, loadProductionGraph } from './production';
+import { createProductionOrder, GOOD_QTY, loadProductionGraph } from './production';
 import { calendarContext, type CalendarContext } from './planning';
 import { documentLines, documents, manufacturedItems, productionItems, productionPlanLines, productionPlans, warehouses, workCenters } from './schema';
 
@@ -94,7 +94,7 @@ export async function planLines(db: Db, planId: string): Promise<PlanLineView[]>
   const sourceIds = orderItems.map(o => o.id);
   const made = sourceIds.length
     ? await db
-        .select({ source: productionItems.sourceItemId, qty: sql<string>`sum(${productionItems.qty})` })
+        .select({ source: productionItems.sourceItemId, qty: sql<string>`sum(${GOOD_QTY})` })
         .from(productionItems)
         .innerJoin(documents, eq(documents.id, productionItems.documentId))
         .where(and(inArray(productionItems.sourceItemId, sourceIds), eq(documents.type, 'production'), eq(documents.status, 'posted')))
