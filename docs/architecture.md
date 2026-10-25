@@ -52,3 +52,7 @@
 
 - [Заказ-наряд: работы, материалы и состояния](architecture/work-orders.md)
 - [Планирование услуг по часам](architecture/service-planning.md)
+
+## Финансы
+
+- [Инвестпроекты и окупаемость](architecture/investments.md)

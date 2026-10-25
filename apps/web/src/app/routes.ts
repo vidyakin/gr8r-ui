@@ -41,6 +41,9 @@ import {
   FileSignature,
   Store,
   BriefcaseBusiness,
+  Landmark,
+  TrendingUp,
+  Scale,
   type LucideIcon,
 } from 'lucide-react';
 import { hasKey, t, type TKey } from '@/i18n';
@@ -105,6 +108,9 @@ export const SECTIONS = {
   contracts: { path: '/contracts', name: 'Contracts', icon: FileSignature },
   tariffPlans: { path: '/tariff-plans', name: 'Tariff plans', icon: ListChecks },
   billing: { path: '/billing', name: 'Billing', icon: ReceiptText },
+  // Финансы: инвестпроекты и окупаемость
+  investments: { path: '/investments', name: 'Investment projects', icon: TrendingUp },
+  investmentsPlanFact: { path: '/investments/plan-fact', name: 'Plan vs actual', icon: Scale },
 } satisfies Record<string, Section>;
 
 export type SectionId = keyof typeof SECTIONS;
@@ -149,6 +155,10 @@ export const NAV_GROUPS = {
   services: {
     icon: BriefcaseBusiness,
     items: [{ id: 'workOrders' }, { id: 'servicesTimesheet' }, { id: 'servicesPlanner' }, { id: 'contracts' }, { id: 'tariffPlans' }, { id: 'billing' }],
+  },
+  finance: {
+    icon: Landmark,
+    items: [{ id: 'investments' }, { id: 'investmentsPlanFact' }],
   },
 } satisfies Record<string, NavGroup>;
 

@@ -1,0 +1,30 @@
+/* Финансы: карточка инвестпроекта и план-факт */
+.inv-metrics {
+  flex: none;
+  padding: 4px 0;
+  margin-top: 12px;
+  overflow-x: auto;
+}
+.inv-metrics > p {
+  padding: 10px 14px;
+  margin: 0;
+}
+.inv-sub {
+  font-size: var(--fs);
+  font-weight: 600;
+  margin: 0;
+  padding: 12px 12px 6px;
+}
+.inv-neg {
+  color: var(--red);
+}
+.inv-pos {
+  color: var(--green);
+}
+.dtbl tr.inv-current td {
+  background: var(--surface-2);
+}
+.dtbl tr.inv-total td {
+  font-weight: 600;
+  border-top: 1px solid var(--border);
+}

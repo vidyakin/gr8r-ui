@@ -18,4 +18,10 @@ export const errors = {
   email_taken: 'An account with this email already exists',
   validation_error: 'Check the value of “{path}”',
   company_not_allowed: 'A customer can be set only for a task of the Services module',
+  investment_closed: 'The investment project is closed: documents can no longer be linked to it or posted to it',
+  investment_not_draft: 'Only a draft investment project can change its plan',
+  investment_not_applicable: 'This document type does not count towards investment projects',
+  cost_item_taken: 'The cost item is already linked to another investment project',
+  period_out_of_range: 'A plan line is outside the project horizon',
+  invalid_rate: 'The discount rate cannot be negative',
 };

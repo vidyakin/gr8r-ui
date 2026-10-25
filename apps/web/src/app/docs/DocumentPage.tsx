@@ -5,7 +5,7 @@ import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Ban, Calculator, ChevronDown, CircleAlert, ClipboardList, Copy, Ellipsis, FileSignature, FileText, PackageCheck, Plus, Printer, RotateCcw, Send, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
-import { amountInWordsRu, basedOnTargets, computeDocument, DOCUMENT_META, MATERIAL_OWNER_LABELS, PRINT_FORM_LABELS, TOLLING_ROLE_LABELS, TOLLING_ROLES, TRANSFER_OPERATIONS, VAT_LABELS, VAT_RATES, type DocumentType, type TollingRole, type VatRate } from '@gr8r/shared';
+import { amountInWordsRu, basedOnTargets, computeDocument, DOCUMENT_META, isInvestmentFactType, MATERIAL_OWNER_LABELS, PRINT_FORM_LABELS, TOLLING_ROLE_LABELS, TOLLING_ROLES, TRANSFER_OPERATIONS, VAT_LABELS, VAT_RATES, type DocumentType, type TollingRole, type VatRate } from '@gr8r/shared';
 import { Badge, Button, ConfirmDialog, EmptyState, Field, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Segmented, Select, Skeleton, toast } from '@/components/ui';
 import { useCanWrite } from '../meta/custom-fields';
 import { money, unitSymbol, useIsAdmin, useUnits, type Product } from '../catalog/data';
@@ -19,6 +19,7 @@ import { CounterpartyPicker, ProductPicker } from './pickers';
 import { useBillingBreakdown, useContracts } from './billing-data';
 import { WorkOrderPanel } from './work-orders';
 import { DocTabs, type DocTab } from './doc-tabs';
+import { DocInvestmentField } from '../finance/DocInvestmentField';
 import { hasKey, t, useT, type TKey } from '@/i18n';
 import { handleNumericArrow } from '@/lib/numeric-step';
 import { useWsId } from '../meta/data';
@@ -67,6 +68,8 @@ interface Form {
   inUseWorkCenterId: string | null;
   /** Заказ на переработку (приём, отчёт о переработке, возврат) */
   tollingOrderId: string | null;
+  /** Инвестпроект: документ идёт в факт проекта */
+  investmentProjectId: string | null;
   date: string;
   dueDate: string;
   priceIncludesVat: boolean;
@@ -95,6 +98,7 @@ function toForm(d: DocDetail): Form {
     inUseMemberId: d.inUseMember?.id ?? null,
     inUseWorkCenterId: d.inUseWorkCenter?.id ?? null,
     tollingOrderId: d.tollingOrderId ?? null,
+    investmentProjectId: d.investmentProjectId ?? null,
     date: d.date,
     dueDate: d.dueDate ?? '',
     priceIncludesVat: d.priceIncludesVat,
@@ -126,6 +130,7 @@ function toPayload(f: Form) {
     inUseMemberId: f.inUseMemberId,
     inUseWorkCenterId: f.inUseWorkCenterId,
     tollingOrderId: f.tollingOrderId,
+    investmentProjectId: f.investmentProjectId,
     date: f.date,
     dueDate: f.dueDate || null,
     priceIncludesVat: f.priceIncludesVat,
@@ -1047,6 +1052,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             )}
           </Field>
         )}
+        {isInvestmentFactType(doc.type) && <DocInvestmentField value={form.investmentProjectId} current={doc.investmentProject} disabled={!editable} onChange={v => edit(f => ({ ...f, investmentProjectId: v }))} />}
         <Field label={t('docs.header.date')}>{p => <Input {...p} type="date" disabled={!editable} value={form.date} onChange={e => edit(f => ({ ...f, date: e.target.value }))} />}</Field>
         {(doc.type === 'invoice' || doc.type === 'quote' || doc.type === 'customer_order') && (
           <Field label={doc.type === 'quote' ? t('docs.document.validUntil') : doc.type === 'invoice' ? t('docs.document.payBy') : t('docs.document.dueDate')}>

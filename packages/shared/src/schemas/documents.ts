@@ -164,6 +164,8 @@ export const documentCreate = z.object({
   costItemId: uuid.nullish(),
   /** Участок списания: себестоимость уходит в косвенные затраты участка (только у write_off) */
   workCenterId: uuid.nullish(),
+  /** Инвестпроект: документ идёт в факт проекта */
+  investmentProjectId: uuid.nullish(),
   /** Вид заказ-наряда (только у work_order): пусто — вид по умолчанию */
   workOrderKindId: uuid.nullish(),
   /** Пусто — сегодня */

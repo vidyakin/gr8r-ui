@@ -48,6 +48,8 @@ export const sections = {
   contracts: 'Contracts',
   tariffPlans: 'Tariff plans',
   billing: 'Billing',
+  investments: 'Investment projects',
+  investmentsPlanFact: 'Plan vs actual',
 };
 
 /** Вкладки проекта (PROJECT_TABS) */
@@ -73,6 +75,7 @@ export const nav = {
     trade: 'Trade',
     services: 'Services',
     production: 'Production',
+    finance: 'Finance',
     automation: 'Automation',
     data: 'Data',
     projects: 'Projects',
@@ -119,6 +122,7 @@ export const nav = {
   accountMenu: 'Account menu',
   // хлебные крошки
   crumbs: {
+    investment: 'Investment project',
     data: 'Data',
     company: 'Company',
     member: 'Member',

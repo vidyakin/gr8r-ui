@@ -118,6 +118,8 @@ export interface OtherCostsDetail {
   status: DocumentStatus;
   organizationId: string;
   organizationName: string | null;
+  investmentProjectId: string | null;
+  investmentProject?: { id: string; name: string } | null;
   comment: string;
   total: string | null;
   lines: OtherCostLine[];
@@ -162,12 +164,12 @@ export function useOtherCostsApi() {
     await qc.invalidateQueries({ queryKey: otherCostsKey(ws) });
   };
   return {
-    save: async (body: { id?: string; date?: string; comment?: string; lines: OtherCostsLineInput[] }) => {
+    save: async (body: { id?: string; date?: string; investmentProjectId?: string | null; comment?: string; lines: OtherCostsLineInput[] }) => {
       const r = await call<OtherCostsDetail>(ws, 'POST', '/other-costs', body);
       await refresh();
       return r;
     },
-    update: async (id: string, body: { date?: string; comment?: string; lines?: OtherCostsLineInput[] }) => {
+    update: async (id: string, body: { date?: string; investmentProjectId?: string | null; comment?: string; lines?: OtherCostsLineInput[] }) => {
       const r = await call<OtherCostsDetail>(ws, 'PATCH', `/other-costs/${id}`, body);
       await refresh();
       return r;

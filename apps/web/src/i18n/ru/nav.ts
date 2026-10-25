@@ -50,6 +50,8 @@ export const sections: Widen<typeof S> = {
   contracts: 'Договоры',
   tariffPlans: 'Тарифные планы',
   billing: 'Биллинг',
+  investments: 'Инвестпроекты',
+  investmentsPlanFact: 'План-факт',
 };
 
 export const projectTabs: Widen<typeof P> = {
@@ -74,6 +76,7 @@ export const nav: Widen<typeof N> = {
     trade: 'Торговля',
     services: 'Услуги',
     production: 'Производство',
+    finance: 'Финансы',
     automation: 'Автоматизация',
     data: 'Данные',
     projects: 'Проекты',
@@ -118,6 +121,7 @@ export const nav: Widen<typeof N> = {
   inviteMember: 'Пригласить участника',
   accountMenu: 'Меню аккаунта',
   crumbs: {
+    investment: 'Инвестпроект',
     data: 'Данные',
     company: 'Компания',
     member: 'Участник',

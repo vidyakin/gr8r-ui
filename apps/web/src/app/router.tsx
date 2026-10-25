@@ -50,6 +50,9 @@ import { PlannerPage } from './production/PlannerPage';
 import { ResourcesPage } from './production/ResourcesPage';
 import { MonthClosingPage } from './production/MonthClosingPage';
 import { OtherCostsDocumentPage, OtherCostsPage } from './production/OtherCostsPage';
+import { InvestmentPage } from './finance/InvestmentPage';
+import { InvestmentsPage } from './finance/InvestmentsPage';
+import { PlanFactPage } from './finance/PlanFactPage';
 import { JournalPage } from './docs/JournalPage';
 import { WorkOrdersPage } from './docs/work-orders';
 import { TimesheetPage } from './docs/timesheet';
@@ -123,6 +126,10 @@ export const router = createHashRouter([
       { path: SECTIONS.productionClosing.path, element: <MonthClosingPage /> },
       { path: SECTIONS.otherCosts.path, element: <OtherCostsPage /> },
       { path: `${SECTIONS.otherCosts.path}/:id`, element: <OtherCostsDocumentPage /> },
+      // Финансы: инвестпроекты
+      { path: SECTIONS.investments.path, element: <InvestmentsPage /> },
+      { path: SECTIONS.investmentsPlanFact.path, element: <PlanFactPage /> },
+      { path: `${SECTIONS.investments.path}/:id`, element: <InvestmentPage /> },
       { path: `${SECTIONS.production.path}/:id`, element: <ItemPage /> },
       // Документы продаж и закупок, склад
       { path: SECTIONS.sales.path, element: <JournalPage group="sales" /> },
