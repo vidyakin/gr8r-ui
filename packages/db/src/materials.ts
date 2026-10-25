@@ -1,5 +1,5 @@
 /* Обеспечение материалов заказа на производство: резерв под заказ, размещение (заказы поставщикам и дочерние
-   заказы на полуфабрикаты) и покрытие строки материала. Правила — docs/architecture.md, раздел «Склад». */
+   заказы на полуфабрикаты) и покрытие строки материала. Правила — docs/architecture/production-materials.md и stock.md. */
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { dec, fmt, materialCoverage, type Dec, type MaterialCoverage, type MaterialOwner } from '@gr8r/shared';
 import type { Db } from './client';

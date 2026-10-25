@@ -3,7 +3,7 @@
    Отсюда же потребности плана (материалы, полуфабрикаты, часы участков против мощности, трудозатраты),
    план-факт (план / заказано / выпущено) и черновики заказов на производство по строкам плана.
 
-   Правила — docs/architecture.md, раздел «План производства и пополнение». Чистые расчёты — packages/shared/src/replenishment.ts. */
+   Правила — docs/architecture/replenishment.md. Чистые расчёты — packages/shared/src/replenishment.ts. */
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql, type SQL } from 'drizzle-orm';
 import {
   averageQty,

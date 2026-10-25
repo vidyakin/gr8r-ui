@@ -1,6 +1,6 @@
 /* Конструктор сущностей (метаданные + JSONB): описание сущностей и полей, записи пользовательских сущностей.
    Таблицы под пользовательские данные на лету не создаются: значения лежат в records.data (jsonb), а у системных
-   таблиц — в колонке custom. См. docs/architecture.md, «Конструктор сущностей». */
+   таблиц — в колонке custom. См. docs/architecture/metadata.md. */
 import { sql } from 'drizzle-orm';
 import { boolean, check, foreignKey, index, integer, jsonb, pgTable, text, unique, uuid } from 'drizzle-orm/pg-core';
 import type { FieldOptions } from '@gr8r/shared';

@@ -4,7 +4,7 @@
 
    Модель: заказ на производство (`production_order`) и выпуск (`production`) — обычные документы, а производственные данные
    лежат рядом: production_items (что выпускаем), production_components (снимок состава), production_headers (изготовитель и сроки).
-   Правила — в docs/architecture.md, раздел «Производство». */
+   Правила — в docs/architecture/production.md. */
 import { and, asc, desc, eq, inArray, isNull, ne, notInArray, or, sql } from 'drizzle-orm';
 import { allocateDisassembly, checkCostShares, computeBomCost, dec, div, explodeBom, fmt, FULFIL_TYPES, mul, pctOf, resolveMaterialPrice, roundDiv, BomFormulaError, DisassemblyShareError, type BomItemInput, type SpecParamDef, type Explosion, type MaterialOwner } from '@gr8r/shared';
 import type { Db } from './client';

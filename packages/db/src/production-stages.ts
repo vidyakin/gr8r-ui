@@ -3,7 +3,7 @@
    продукция приходуется только им. Спецификация без вида производства работает как раньше — единственный
    предопределённый этап «Завершение производства» (PRODUCTION_STAGES в shared).
 
-   Правила — docs/architecture.md, раздел «Виды производства и этапы». */
+   Правила — docs/architecture/production-stages.md. */
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { Db } from './client';
 import { DomainError } from './errors';

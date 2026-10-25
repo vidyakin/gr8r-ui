@@ -5,7 +5,7 @@
    модуля production. Выполнение отмечают мастер (рабочее место «Выпуск продукции») и исполнитель (своя задача) — строки
    идут в один наряд исполнителя за день. Проведённый наряд даёт фактическую стоимость работ в себестоимости выпуска.
 
-   Правила — docs/architecture.md, раздел «Операции, исполнители и сдельный наряд». */
+   Правила — docs/architecture/piecework.md. */
 import { and, asc, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { dec, div, fmt, mul, type Dec } from '@gr8r/shared';
 import type { Db } from './client';

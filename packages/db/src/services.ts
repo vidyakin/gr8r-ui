@@ -7,7 +7,7 @@
    Выставление клиенту выбирается в строке работы заказ-наряда: norm (количество × цена) или hours (фактические
    часы задач-назначений строки). Перед проведением заказ-наряда количество таких строк пересчитывается по часам.
 
-   Правила — docs/architecture.md, раздел «Учёт времени и нормы работ». */
+   Правила — docs/architecture/time-tracking.md. */
 import { and, asc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { dec, fmt, type Dec } from '@gr8r/shared';
 import type { Db } from './client';

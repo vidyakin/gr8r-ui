@@ -1,5 +1,5 @@
 /* Автоматизации: flow (черновик + опубликованные версии), журнал запусков и шагов.
-   Все таблицы — арендаторские (workspace_id + RLS). См. docs/architecture.md, «Автоматизации». */
+   Все таблицы — арендаторские (workspace_id + RLS). См. docs/architecture/automations.md. */
 import { sql } from 'drizzle-orm';
 import { boolean, check, foreignKey, index, integer, jsonb, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import type { FlowGraph } from '@gr8r/shared';
