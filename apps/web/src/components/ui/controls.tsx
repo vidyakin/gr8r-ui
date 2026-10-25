@@ -43,6 +43,7 @@ export interface SegmentedProps<V extends string> {
   items: { value: V; label?: React.ReactNode; icon?: React.ReactNode; 'aria-label'?: string }[];
   className?: string;
   'aria-label'?: string;
+  disabled?: boolean;
 }
 
 export function Segmented<V extends string>({ value, onValueChange, items, className, ...rest }: SegmentedProps<V>) {

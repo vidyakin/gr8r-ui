@@ -592,14 +592,15 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                               if (Number(num(d.qty)) <= 0) return <span className="faint">{t('production.waste.defectNone')}</span>;
                               const label = (m: DefectMode) => (m === 'cost' ? t('production.waste.defectModeCost') : t('production.waste.defectModeExpense'));
                               return editable ? (
-                                <select className="select" aria-label={t('production.waste.colDefectMode')} value={d.mode} onChange={e => void commitDefect(it.id, { ...d, mode: e.target.value as DefectMode | '' })}>
-                                  <option value="">—</option>
-                                  {DEFECT_MODES.map(m => (
-                                    <option key={m} value={m}>
-                                      {label(m)}
-                                    </option>
-                                  ))}
-                                </select>
+                                <Select
+                                  size="sm"
+                                  className="min-w-[140px]"
+                                  aria-label={t('production.waste.colDefectMode')}
+                                  value={d.mode || undefined}
+                                  onValueChange={v => void commitDefect(it.id, { ...d, mode: v as DefectMode })}
+                                  options={DEFECT_MODES.map(m => ({ value: m, label: label(m) }))}
+                                  placeholder="—"
+                                />
                               ) : (
                                 <span className="muted">{d.mode ? label(d.mode) : '—'}</span>
                               );

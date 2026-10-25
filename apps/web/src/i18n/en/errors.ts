@@ -24,4 +24,16 @@ export const errors = {
   cost_item_taken: 'The cost item is already linked to another investment project',
   period_out_of_range: 'A plan line is outside the project horizon',
   invalid_rate: 'The discount rate cannot be negative',
+  // брак и возвратные отходы (задача 1136)
+  waste_exceeds_cost: 'Returnable waste costs more than the whole release',
+  waste_tolling_forbidden: 'Returnable waste is not allowed when processing customer materials',
+  waste_final_stage_only: 'Returnable waste is received by the final stage only',
+  defect_exceeds_qty: 'The defect cannot exceed the produced quantity',
+  defect_mode_required: 'Choose how the defect is accounted: into the cost or as an expense',
+  defect_final_stage_only: 'The defect is recorded by the final stage only',
+  defect_order_forbidden: 'A production order has no defect: record it in the release',
+  defect_disassembly_forbidden: 'A disassembly has no defect',
+  defect_tolling_forbidden: 'A defect cannot be recorded when processing customer materials',
+  defects_written_off: 'The defect of this release is already written off',
+  no_defects: 'There is no defect “as an expense” to write off in this release',
 };

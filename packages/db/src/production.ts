@@ -2479,7 +2479,8 @@ export async function writeOffDefects(db: Db, ctx: DocCtx, releaseId: string): P
     warehouseId: wh.defect,
     date: doc.date,
     basedOnId: releaseId,
-    comment: `Defects of ${doc.number ?? 'production'}`,
+    // комментарий — данные документа, как и демо-данные, по-русски
+    comment: `Брак по выпуску ${doc.number ?? ''}`.trim(),
     lines: [...grouped.values()].map(g => ({ id: uuidv7(), productId: g.productId, name: g.name, unitCode: g.unitCode, qty: fmt(g.qty, 3), price: '0', discountPct: '0', vatRate: 'none' as const, stockRole: 'out' as const })),
   });
   await db.update(productionItems).set({ disposalDocumentId: id }).where(inArray(productionItems.id, defective.map(i => i.id)));

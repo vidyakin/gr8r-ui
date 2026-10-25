@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Trash2 } from 'lucide-react';
 import { dec, fmt, mul, type WasteValuation } from '@gr8r/shared';
-import { Field, IconButton, Input, Segmented } from '@/components/ui';
+import { Field, IconButton, Input, Segmented, Select } from '@/components/ui';
 import { money, type Product } from '../catalog/data';
 import { ProductPicker } from '../docs/pickers';
 import { useT } from '@/i18n';
@@ -155,14 +155,15 @@ export function WasteHeaderFields({
   const select = (label: string, value: string | null, key: 'wasteWarehouseId' | 'defectWarehouseId') => (
     <Field label={label}>
       {p => (
-        <select className="select" id={p.id} disabled={!editable} value={value ?? ''} aria-label={label} onChange={e => onChange({ [key]: e.target.value || null })}>
-          <option value="">{t('production.waste.warehouseDefault')}</option>
-          {warehouses.map(w => (
-            <option key={w.id} value={w.id}>
-              {w.name}
-            </option>
-          ))}
-        </select>
+        <Select
+          id={p.id}
+          disabled={!editable}
+          value={value ?? ''}
+          onValueChange={v => onChange({ [key]: v || null })}
+          options={warehouses.map(w => ({ value: w.id, label: w.name }))}
+          placeholder={t('production.waste.warehouseDefault')}
+          aria-label={label}
+        />
       )}
     </Field>
   );
@@ -172,6 +173,7 @@ export function WasteHeaderFields({
         {() => (
           <Segmented
             aria-label={t('production.waste.valuation')}
+            disabled={!editable}
             value={valuation}
             onValueChange={v => editable && onChange({ wasteValuation: v })}
             items={[

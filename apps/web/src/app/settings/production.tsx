@@ -39,8 +39,10 @@ export function ProductionSection({ title }: { title: string }) {
     setPickedWaste(null);
   };
 
-  const optTitle = (v: MaterialPriceSource) => t(`settings.production.priceSource.options.${v}.title` as 'settings.production.priceSource.options.purchase.title');
-  const optDesc = (v: MaterialPriceSource) => t(`settings.production.priceSource.options.${v}.desc` as 'settings.production.priceSource.options.purchase.desc');
+  // в словаре ключ варианта — avgCost (camelCase), значение настройки — avg_cost
+  const optKey = (v: MaterialPriceSource) => (v === 'avg_cost' ? 'avgCost' : v);
+  const optTitle = (v: MaterialPriceSource) => t(`settings.production.priceSource.options.${optKey(v)}.title` as 'settings.production.priceSource.options.purchase.title');
+  const optDesc = (v: MaterialPriceSource) => t(`settings.production.priceSource.options.${optKey(v)}.desc` as 'settings.production.priceSource.options.purchase.desc');
   const optWasteTitle = (v: WastePriceSource) => t(`settings.production.wastePriceSource.options.${v}.title` as 'settings.production.wastePriceSource.options.purchase.title');
   const optWasteDesc = (v: WastePriceSource) => t(`settings.production.wastePriceSource.options.${v}.desc` as 'settings.production.wastePriceSource.options.purchase.desc');
 
