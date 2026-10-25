@@ -83,12 +83,28 @@ export const OKEI_UNITS = [
   { code: '876', name: 'Условная единица', symbol: 'усл. ед' },
 ] as const;
 
-export const BOM_KINDS = ['material', 'semi', 'work', 'expense', 'output'] as const;
+export const BOM_KINDS = ['material', 'semi', 'work', 'expense', 'output', 'waste'] as const;
 export type BomKind = (typeof BOM_KINDS)[number];
 /** expense — расход: услуга подрядчика входит в плановую себестоимость, но со склада не списывается (строка 8.1.1 УНФ);
-    output — выходной продукт разборки: он не расходуется, а приходуется (спецификация разборки) */
-export const BOM_KIND_LABELS: Record<BomKind, string> = { material: 'Material', semi: 'Semi-finished product', work: 'Work operation', expense: 'Expense', output: 'Output' };
+    output — выходной продукт разборки: он не расходуется, а приходуется (спецификация разборки);
+    waste — возвратные отходы: приходуются на склад отходов финальным этапом, плановая себестоимость уменьшается
+    на их учётную стоимость */
+export const BOM_KIND_LABELS: Record<BomKind, string> = { material: 'Material', semi: 'Semi-finished product', work: 'Work operation', expense: 'Expense', output: 'Output', waste: 'Waste' };
 export const MANUFACTURED_KINDS = ['product', 'semi'] as const;
+
+/** Стоимость возвратных отходов в шапке выпуска: zero — приходуются по 0, себестоимость продукции не меняется;
+    accounting — приходуются по учётной цене и уменьшают себестоимость продукции */
+export const WASTE_VALUATION = ['zero', 'accounting'] as const;
+export type WasteValuation = (typeof WASTE_VALUATION)[number];
+
+/** Источник учётной цены возвратных отходов (настройка воркспейса): цена закупки (по умолчанию), цена продажи или средняя склада */
+export const WASTE_PRICE_SOURCES = ['purchase', 'price', 'avg_cost'] as const;
+export type WastePriceSource = (typeof WASTE_PRICE_SOURCES)[number];
+
+/** Режим брака позиции выпуска: cost — в себестоимость годной продукции (брак не приходуется),
+    expense — на склад брака по себестоимости годного, дальше списание */
+export const DEFECT_MODES = ['cost', 'expense'] as const;
+export type DefectMode = (typeof DEFECT_MODES)[number];
 
 /** Вид спецификации: сборка (изделие из материалов) или разборка (исходный товар делится на выходные продукты) */
 export const SPEC_MODES = ['assembly', 'disassembly'] as const;

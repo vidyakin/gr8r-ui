@@ -3,7 +3,7 @@
    (той же, что на сервере), поэтому любая правка строки пересчитывает дерево и итоги мгновенно, не дожидаясь ответа сервера. */
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BomCycleError, BomFormulaError, computeBomCost, resolveMaterialPrice, wouldCreateCycle, type BomItemInput, type CostNode, type MaterialPriceSource, type ProductKind, type SemiMode, type SpecParamDef } from '@gr8r/shared';
+import { BomCycleError, BomFormulaError, computeBomCost, resolveMaterialPrice, wouldCreateCycle, type BomItemInput, type CostNode, type MaterialPriceSource, type ProductKind, type ProductionSettings, type SemiMode, type SpecParamDef } from '@gr8r/shared';
 import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';
@@ -12,7 +12,7 @@ import { uuidv7 } from '../lib/uuid';
 export interface BomLine {
   id: string;
   itemId: string;
-  kind: 'material' | 'semi' | 'work' | 'expense' | 'output';
+  kind: 'material' | 'semi' | 'work' | 'expense' | 'output' | 'waste';
   sortOrder: number;
   /** Этап, на котором расходуется материал или выполняется операция */
   stageId: string | null;
@@ -85,6 +85,10 @@ export interface WorkCenter {
   hourlyRate: string;
   /** Склад-цех участка */
   warehouseId: string | null;
+  /** Склады выпуска: продукция, возвратные отходы и брак */
+  outputWarehouseId?: string | null;
+  wasteWarehouseId?: string | null;
+  defectWarehouseId?: string | null;
   note: string;
   archivedAt: string | null;
 }
@@ -103,7 +107,7 @@ export interface Material {
 }
 
 export interface Snapshot {
-  settings: { materialPriceSource: MaterialPriceSource };
+  settings: ProductionSettings;
   items: Item[];
   workCenters: WorkCenter[];
   materials: Material[];
@@ -187,6 +191,7 @@ export function makeCosting(snap: Snapshot) {
   const inputs = snap.items.map(toInput);
   const pricing = {
     materialPrice: (id: string) => (mats.has(id) ? resolveMaterialPrice(snap.settings.materialPriceSource, mats.get(id)!, mats.get(id)!.avgCost) : null),
+    wastePrice: (id: string) => (mats.has(id) ? resolveMaterialPrice(snap.settings.wastePriceSource, mats.get(id)!, mats.get(id)!.avgCost) : null),
     workCenterRate: (id: string) => rates.get(id),
   };
   return (itemId: string): Costing => {

@@ -81,7 +81,10 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
   const [fg] = await db.insert(warehouses).values({ workspaceId: wsId, name: 'Склад готовой продукции', code: 'FG', address: 'г. Москва, Алтуфьевское ш., 62' }).returning();
   // склад-цех: материалы передаются на него перемещением, участок выпускает продукцию на склад готовой продукции
   const [shop] = await db.insert(warehouses).values({ workspaceId: wsId, name: 'Цех столярный', code: 'SHOP', address: 'Московская обл., г. Химки, ул. Заводская, 7, цех', kind: 'workshop' }).returning();
-  await db.update(workCenters).set({ warehouseId: shop!.id, outputWarehouseId: fg!.id }).where(eq(workCenters.workspaceId, wsId));
+  // отходы и брак производства приходуются на свои склады
+  const [wasteWh] = await db.insert(warehouses).values({ workspaceId: wsId, name: 'Склад отходов', code: 'WST', address: 'Московская обл., г. Химки, ул. Заводская, 7, цех' }).returning();
+  const [defectWh] = await db.insert(warehouses).values({ workspaceId: wsId, name: 'Склад брака', code: 'DEF', address: 'Московская обл., г. Химки, ул. Заводская, 7, цех' }).returning();
+  await db.update(workCenters).set({ warehouseId: shop!.id, outputWarehouseId: fg!.id, wasteWarehouseId: wasteWh!.id, defectWarehouseId: defectWh!.id }).where(eq(workCenters.workspaceId, wsId));
 
   /* ---------- реквизиты контрагентов (пять компаний) ---------- */
   const requisites = async (id: string, v: { kind?: 'legal' | 'sole_proprietor'; inn: string; kpp?: string; ogrn: string; legal: string; actual?: string; bank: keyof typeof BANKS; tail: string }) => {
@@ -295,7 +298,7 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
   });
   await fillOrderFromBom(db, ctx, prodOrder);
   await postAt(prodOrder, 3);
-  const release = await createProductionFromOrder(db, ctx, prodOrder, { date: iso(2), lines: [{ orderItemId: (await db.select().from(productionItems).where(eq(productionItems.documentId, prodOrder))).map(i => i.id)[0]!, qty: '4' }] });
+  const release = await createProductionFromOrder(db, ctx, prodOrder, { date: iso(2), lines: [{ orderItemId: (await db.select().from(productionItems).where(eq(productionItems.documentId, prodOrder))).map(i => i.id)[0]!, qty: '4', defectQty: '1', defectMode: 'expense' }] });
   await postAt(release, 2);
 
   /* ---------- разборка: брусы делятся на заготовки и обрезки ---------- */

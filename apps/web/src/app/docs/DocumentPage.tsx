@@ -4,8 +4,8 @@
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Ban, Calculator, ChevronDown, CircleAlert, ClipboardList, Copy, Ellipsis, FileSignature, FileText, PackageCheck, Plus, Printer, RotateCcw, Send, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
-import { amountInWordsRu, basedOnTargets, computeDocument, DOCUMENT_META, MATERIAL_OWNER_LABELS, PRINT_FORM_LABELS, TOLLING_ROLE_LABELS, TOLLING_ROLES, TRANSFER_OPERATIONS, VAT_LABELS, VAT_RATES, type DocumentType, type TollingRole, type VatRate } from '@gr8r/shared';
+import { Ban, Calculator, ChevronDown, CircleAlert, ClipboardList, Copy, Ellipsis, FileSignature, FileText, PackageCheck, PackageX, Plus, Printer, RotateCcw, Send, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
+import { amountInWordsRu, basedOnTargets, computeDocument, DEFECT_MODES, DOCUMENT_META, MATERIAL_OWNER_LABELS, PRINT_FORM_LABELS, TOLLING_ROLE_LABELS, TOLLING_ROLES, TRANSFER_OPERATIONS, VAT_LABELS, VAT_RATES, type DefectMode, type DocumentType, type TollingRole, type VatRate } from '@gr8r/shared';
 import { Badge, Button, ConfirmDialog, EmptyState, Field, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Segmented, Select, Skeleton, toast } from '@/components/ui';
 import { useCanWrite } from '../meta/custom-fields';
 import { money, unitSymbol, useIsAdmin, useUnits, type Product } from '../catalog/data';
@@ -13,6 +13,7 @@ import { uuidv7 } from '../lib/uuid';
 import { fmtDate } from '../lib/dates';
 import { useWorkspace } from '../data/store';
 import { useSnapshot } from '../production/data';
+import { WasteHeaderFields, WasteTab } from '../production/WasteTab';
 import { STATUS_LABEL, STATUS_TONE, docTitle, docsKey, typeLabel, useCostItems, useDocsApi, useDocument, useOrganizations, useProcessingOrders, useWarehouses, type DocDetail, type DocLink } from './data';
 import { CalculationDialog, ParamsDialog } from './calculation';
 import { CounterpartyPicker, ProductPicker } from './pickers';
@@ -205,6 +206,15 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const disassembly = meta.production && doc.operation === 'disassembly';
   /** Переработка: приём, отчёт о переработке или возврат остатков давальцу */
   const isTolling = !!meta.tolling;
+  /** Выпуск продукции со вкладкой «Отходы»: из давальческого сырья отходы не приходуются */
+  const hasWaste = doc.type === 'production' && !doc.processingOrderId;
+  /** Брак ведётся у выпуска сборки: в строке продукции видны «Из них брак» и режим брака */
+  const hasDefect = hasWaste && !disassembly;
+  const items = doc.items ?? [];
+  const wasteRows = (doc.components ?? []).filter(c => c.kind === 'waste');
+  const compositionRows = (doc.components ?? []).filter(c => c.kind !== 'waste');
+  /** Брак «на расходы» проведённого выпуска ждёт списания */
+  const hasExpenseDefect = hasDefect && doc.status === 'posted' && items.some(i => Number(i.defectQty) > 0 && i.defectMode === 'expense');
   /** Заказ на переработку: вид операции заказывает переработку давальческого сырья */
   const processingKind = ((doc.type === 'customer_order' || doc.type === 'supplier_order') && doc.operation === 'processing') || doc.type === 'tolling_report';
   /** У отчёта о переработке строки разделены по вкладкам: продукция, материалы, отходы */
@@ -388,6 +398,32 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     }
   };
 
+  /** Отходы и брак черновика сохраняются сразу, отдельно от строк: сервер возвращает карточку целиком */
+  const saveAccounting = (body: Record<string, unknown>) => api<DocDetail>('PATCH', `/production-orders/${doc.id}/accounting`, body);
+  /** Брак позиций: вводится в таблице, сохраняется при выходе из поля */
+  const [defects, setDefects] = React.useState<Record<string, { qty: string; mode: DefectMode | '' }>>(() => Object.fromEntries((doc.items ?? []).map(i => [i.id, { qty: trimNum(i.defectQty) || '0', mode: i.defectMode ?? '' }])));
+  React.useEffect(() => setDefects(Object.fromEntries((doc.items ?? []).map(i => [i.id, { qty: trimNum(i.defectQty) || '0', mode: i.defectMode ?? '' }]))), [doc.items]);
+  const commitDefect = async (itemId: string, next: { qty: string; mode: DefectMode | '' }) => {
+    setDefects(d => ({ ...d, [itemId]: next }));
+    const qty = next.qty.trim() === '' ? '0' : num(next.qty);
+    const r = await saveAccounting({ defects: [{ itemId, defectQty: qty, defectMode: Number(qty) > 0 ? next.mode || null : null }] });
+    // ошибка (режим не выбран, брак больше выпуска): значения возвращаются к сохранённым
+    if (!r) setDefects(d => ({ ...d, [itemId]: { qty: trimNum(items.find(i => i.id === itemId)?.defectQty ?? '0') || '0', mode: items.find(i => i.id === itemId)?.defectMode ?? '' } }));
+  };
+  /** «Списать брак»: черновик списания по браку «на расходы» */
+  const writeOffDefects = async () => {
+    setBusy(true);
+    try {
+      const r = await api<{ id: string }>('POST', `/production/${doc.id}/write-off-defects`);
+      if (r) {
+        toast(t('production.waste.writeOffDone'));
+        navigate(`/documents/${r.id}`);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const targets = basedOnTargets(doc.type);
   const lineCount = form.lines.filter(l => l.productId).length;
   const hasNumber = doc.numberSeq !== null;
@@ -438,6 +474,14 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                   )}
                   {meta.production && (
                     <th style={{ width: 96 }}>{t('docs.document.colRole')}</th>
+                  )}
+                  {hasDefect && (
+                    <>
+                      <th style={{ width: 96 }} className="r">
+                        {t('production.waste.colDefect')}
+                      </th>
+                      <th style={{ width: 150 }}>{t('production.waste.colDefectMode')}</th>
+                    </>
                   )}
                   {doc.type === 'tolling_report' && (
                     <th style={{ width: 150 }}>{t('docs.document.colSection')}</th>
@@ -520,6 +564,43 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                         <td>
                           <span className="muted">{srv?.stockRole === 'in' ? (disassembly ? t('docs.document.roleOutput') : t('docs.document.roleProduct')) : disassembly ? t('docs.document.roleToDisassemble') : t('docs.document.roleMaterial')}</span>
                         </td>
+                      )}
+                      {hasDefect && (
+                        <>
+                          <td className="r">
+                            {(() => {
+                              const it = srv?.stockRole === 'in' ? items.find(x => x.documentLineId === l.key) : undefined;
+                              if (!it) return <span className="faint">—</span>;
+                              const d = defects[it.id] ?? { qty: '0', mode: '' as const };
+                              return editable ? (
+                                <Input aria-label={t('production.waste.colDefect')} inputMode="decimal" value={d.qty} onChange={e => setDefects(m => ({ ...m, [it.id]: { ...d, qty: e.target.value } }))} onBlur={() => void commitDefect(it.id, d)} />
+                              ) : (
+                                <span className="num">{d.qty}</span>
+                              );
+                            })()}
+                          </td>
+                          <td>
+                            {(() => {
+                              const it = srv?.stockRole === 'in' ? items.find(x => x.documentLineId === l.key) : undefined;
+                              if (!it) return <span className="faint">—</span>;
+                              const d = defects[it.id] ?? { qty: '0', mode: '' as const };
+                              if (Number(num(d.qty)) <= 0) return <span className="faint">{t('production.waste.defectNone')}</span>;
+                              const label = (m: DefectMode) => (m === 'cost' ? t('production.waste.defectModeCost') : t('production.waste.defectModeExpense'));
+                              return editable ? (
+                                <select className="select" aria-label={t('production.waste.colDefectMode')} value={d.mode} onChange={e => void commitDefect(it.id, { ...d, mode: e.target.value as DefectMode | '' })}>
+                                  <option value="">—</option>
+                                  {DEFECT_MODES.map(m => (
+                                    <option key={m} value={m}>
+                                      {label(m)}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="muted">{d.mode ? label(d.mode) : '—'}</span>
+                              );
+                            })()}
+                          </td>
+                        </>
                       )}
                       {doc.type === 'tolling_report' && (
                         <td>
@@ -669,10 +750,10 @@ function DocumentView({ doc }: { doc: DocDetail }) {
         </section>
       ),
     },
-    doc.type === 'production' && !!doc.components?.length && {
+    doc.type === 'production' && !!compositionRows.length && {
       id: 'composition',
       label: t('docs.tabs.composition'),
-      count: doc.components.length,
+      count: compositionRows.length,
       content: (
           <section className="doc-links panel" aria-label={t('docs.document.composition')}>
             {doc.processingOrderId && (
@@ -694,7 +775,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                 </tr>
               </thead>
               <tbody>
-                {doc.components.map(c => (
+                {compositionRows.map(c => (
                   <tr key={c.id}>
                     <td className="trunc">{c.kind === 'work' ? c.operation || t('docs.document.workKind') : c.kind === 'expense' ? t('docs.document.expenseKind') : c.kind === 'semi' ? t('docs.document.semiKind') : t('docs.document.materialKind')}</td>
                     <td>
@@ -708,6 +789,12 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             </table>
           </section>
       ),
+    },
+    hasWaste && (editable || wasteRows.length > 0) && {
+      id: 'waste',
+      label: t('production.waste.tab'),
+      count: wasteRows.length,
+      content: <WasteTab rows={wasteRows} editable={editable} seeCost={isAdmin} onSave={waste => saveAccounting({ waste })} />,
     },
   ];
 
@@ -764,6 +851,12 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             <Button disabled={busy} onClick={() => void run('unpost')}>
               <Undo2 size={14} />
               {t('docs.document.unpost')}
+            </Button>
+          )}
+          {canWrite && hasExpenseDefect && (
+            <Button disabled={busy} onClick={() => void writeOffDefects()}>
+              <PackageX size={14} />
+              {t('production.waste.writeOff')}
             </Button>
           )}
           {canWrite && doc.status === 'cancelled' && (
@@ -994,6 +1087,17 @@ function DocumentView({ doc }: { doc: DocDetail }) {
               />
             )}
           </Field>
+        )}
+        {hasWaste && (
+          <WasteHeaderFields
+            valuation={doc.wasteValuation ?? 'accounting'}
+            wasteWarehouseId={doc.wasteWarehouseId ?? null}
+            defectWarehouseId={doc.defectWarehouseId ?? null}
+            warehouses={(warehouses.data ?? []).filter(w => !w.archivedAt && w.kind !== 'transit')}
+            editable={editable}
+            showDefect={hasDefect}
+            onChange={patch => void saveAccounting(patch)}
+          />
         )}
         {(toOperation || fromOperation) && (
           <>

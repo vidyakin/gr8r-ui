@@ -22,7 +22,7 @@ import { maskCost } from './cost';
 import { recordEvent } from './events';
 import { createDocument, postDocument, type DocCtx } from './documents';
 import { supplierForProduct } from './materials';
-import { createProductionOrder, loadProductionGraph } from './production';
+import { createProductionOrder, GOOD_QTY, loadProductionGraph } from './production';
 import { calendarContext } from './planning';
 import { planOrderedQty } from './production-plans';
 import { lastSupplierPrice, supplierHistory } from './stock-levels';
@@ -314,7 +314,7 @@ async function incomingFlows(db: Db, productIds: string[], query: NeedsQuery): P
     .leftJoin(productionHeaders, eq(productionHeaders.documentId, documents.id))
     .where(and(eq(documents.type, 'production_order'), sql`${documents.status} <> 'cancelled'`, sql`${documents.state} is distinct from 'closed'`));
   const produced = await db
-    .select({ source: productionItems.sourceItemId, qty: sql<string>`sum(${productionItems.qty})` })
+    .select({ source: productionItems.sourceItemId, qty: sql<string>`sum(${GOOD_QTY})` })
     .from(productionItems)
     .innerJoin(documents, eq(documents.id, productionItems.documentId))
     .where(and(eq(documents.type, 'production'), eq(documents.status, 'posted')))

@@ -127,7 +127,7 @@ export const DOCUMENT_META: Record<DocumentType, DocumentTypeMeta> = {
   supplier_return: { label: 'Supplier return', group: 'purchases', prefix: 'ВС', stock: 'out', party: 'supplier', basedOn: ['receipt'], fulfils: false, forms: [], isReturn: true },
   // внутренние документы: контрагента нет, направление движения задаёт роль строки
   stock_transfer: { label: 'Stock transfer', group: 'stock', prefix: 'ПМ', stock: null, party: null, basedOn: [], fulfils: false, forms: ['torg13'], stockRole: 'transfer', operation: 'transfer', states: TRANSIT_STATES },
-  write_off: { label: 'Write-off', group: 'stock', prefix: 'СП', stock: null, party: null, basedOn: ['inventory_count'], fulfils: false, forms: ['torg16'], stockRole: 'out', costItemKind: 'expense' },
+  write_off: { label: 'Write-off', group: 'stock', prefix: 'СП', stock: null, party: null, basedOn: ['inventory_count', 'production'], fulfils: false, forms: ['torg16'], stockRole: 'out', costItemKind: 'expense' },
   stock_posting: { label: 'Goods posting', group: 'stock', prefix: 'ОП', stock: null, party: null, basedOn: ['inventory_count'], fulfils: false, forms: [], stockRole: 'in', costItemKind: 'income' },
   // инвентаризация: остатки не двигает, результат оформляется списанием и оприходованием на основании
   inventory_count: { label: 'Inventory count', group: 'stock', prefix: 'ИНВ', stock: null, party: null, basedOn: [], fulfils: false, forms: ['inv3'], isOrder: true },

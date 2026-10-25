@@ -2,7 +2,7 @@
    Данные лежат в кэше TanStack Query под ключом ['ws', id, 'production-orders', …]. */
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PRODUCTION_ORDER_STATES, type DocumentStatus, type MaterialOwner } from '@gr8r/shared';
+import { PRODUCTION_ORDER_STATES, type DefectMode, type DocumentStatus, type MaterialOwner, type WasteValuation } from '@gr8r/shared';
 import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';
@@ -21,13 +21,21 @@ export interface ProductionOrderItem {
   /** Сколько уже выпущено по позиции */
   produced: string;
   plannedUnitCost: string | null;
+  /** Брак выпуска (у заказа 0): заказ исполняется годным, qty − defectQty */
+  defectQty: string;
+  /** Режим брака: в себестоимость годного или на склад брака для списания */
+  defectMode: DefectMode | null;
+  /** Цена единицы брака, зафиксированная при проведении (admin и owner) */
+  defectUnitCost: string | null;
+  /** Черновик списания брака, созданный из выпуска */
+  disposalDocumentId: string | null;
 }
 
 export interface ProductionComponent {
   id: string;
   documentId: string;
   itemId: string | null;
-  kind: 'material' | 'semi' | 'work' | 'expense' | 'output';
+  kind: 'material' | 'semi' | 'work' | 'expense' | 'output' | 'waste';
   /** Чей материал: наш (списывается по средней) или давальца (с остатка давальца) */
   ownerKind: MaterialOwner;
   productId: string | null;
@@ -38,6 +46,10 @@ export interface ProductionComponent {
   rate: string | null;
   fixedCost: string | null;
   plannedCost: string | null;
+  /** Учётная цена возвратного отхода (admin и owner) */
+  price: string | null;
+  /** Название товара состава */
+  productName: string;
   actualQty: string | null;
   actualCost: string | null;
   documentLineId: string | null;
@@ -70,6 +82,11 @@ export interface ProductionOrderDetail extends ProductionOrderListItem {
   targetWarehouseId: string | null;
   /** Заказ на переработку: выпуск делается из давальческого сырья */
   processingOrderId: string | null;
+  /** Стоимость возвратных отходов: нулевая или учётная */
+  wasteValuation: WasteValuation;
+  /** Склады отходов и брака (пусто: как на участке) */
+  wasteWarehouseId: string | null;
+  defectWarehouseId: string | null;
 }
 
 export const STATE_LABEL: Record<string, string> = Object.fromEntries(PRODUCTION_ORDER_STATES.map(s => [s.key, s.label]));
@@ -204,6 +221,12 @@ export function useProductionOrderApi() {
     onSuccess: settle,
     onError: e => toast.error(errorMessage(e)),
   });
+  // отходы и брак черновика: оценка и склады в шапке, вкладка «Отходы», брак по позициям
+  const accounting = useMutation({
+    mutationFn: (v: { id: string; body: Record<string, unknown> }) => call<ProductionOrderDetail>(ws, 'PATCH', `/production-orders/${v.id}/accounting`, v.body),
+    onSuccess: settle,
+    onError: e => toast.error(errorMessage(e)),
+  });
   const fill = useMutation({
     mutationFn: (id: string) => call<ProductionOrderDetail>(ws, 'POST', `/production-orders/${id}/fill-from-bom`),
     onSuccess: () => {
@@ -261,5 +284,5 @@ export function useProductionOrderApi() {
     },
     onError: e => toast.error(errorMessage(e)),
   });
-  return { run, create, update, fill, produce, setState, schedule, reserve, semiOrders, supplierOrders };
+  return { run, create, update, accounting, fill, produce, setState, schedule, reserve, semiOrders, supplierOrders };
 }

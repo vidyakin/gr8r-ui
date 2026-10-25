@@ -6,8 +6,9 @@
    лежат рядом: production_items (что выпускаем), production_components (снимок состава), production_headers (изготовитель и сроки).
    Правила — в docs/architecture.md, раздел «Производство». */
 import { and, asc, desc, eq, inArray, isNull, ne, notInArray, or, sql } from 'drizzle-orm';
-import { allocateDisassembly, checkCostShares, computeBomCost, dec, div, explodeBom, fmt, FULFIL_TYPES, mul, pctOf, resolveMaterialPrice, roundDiv, BomFormulaError, DisassemblyShareError, type BomItemInput, type SpecParamDef, type Explosion, type MaterialOwner } from '@gr8r/shared';
+import { allocateDisassembly, checkCostShares, computeBomCost, dec, div, explodeBom, fmt, FULFIL_TYPES, mul, pctOf, resolveMaterialPrice, roundDiv, WASTE_PRICE_SOURCES, WASTE_VALUATION, BomFormulaError, DisassemblyShareError, type BomItemInput, type DefectMode, type SpecParamDef, type Explosion, type MaterialOwner } from '@gr8r/shared';
 import type { Db } from './client';
+import { canSeeCost } from './cost';
 import { DomainError } from './errors';
 import { DOCUMENT_HOOKS, STATE_HOOKS } from './document-hooks';
 import { createDocument, postDocument, unpostDocument, assertProcessingOrder, type DocCtx } from './documents';
@@ -31,9 +32,9 @@ export const operationOfDoc = (doc: { operation?: string | null }): ProductionOp
 
 /* ---------------- справочники и план ---------------- */
 
-/** Строка состава выпуска: материал, полуфабрикат, работа, расход или выходной продукт разборки */
+/** Строка состава выпуска: материал, полуфабрикат, работа, расход, выходной продукт разборки или возвратный отход */
 export interface PlannedComponent {
-  kind: 'material' | 'semi' | 'work' | 'expense' | 'output';
+  kind: 'material' | 'semi' | 'work' | 'expense' | 'output' | 'waste';
   /** Чей материал: наш (списывается со своего склада по средней) или давальца (с остатка давальца, только количества) */
   ownerKind: MaterialOwner;
   /** Материал или полуфабрикат на складе */
@@ -59,6 +60,9 @@ export interface PlannedComponent {
   sourceComponentId?: string | null;
   /** Выходной продукт разборки: доля стоимости исходного товара, % (пусто — доли не заданы) */
   costShare?: string | null;
+  /** Возвратный отход: учётная цена единицы (для прихода на склад отходов и для вычета из себестоимости);
+      пусто — берётся из настройки «Цена отходов» (wastePriceSource) */
+  price?: string | null;
 }
 
 /** Источник цены материала — настройка воркспейса */
@@ -67,6 +71,34 @@ export async function loadPriceSource(db: Db, workspaceId: string): Promise<'pur
   const v = ws?.settings?.materialPriceSource;
   return v === 'price' || v === 'avg_cost' ? v : 'purchase';
 }
+
+/** Источник учётной цены возвратных отходов — настройка воркспейса (по умолчанию — цена закупки товара) */
+export type WastePriceSource = (typeof WASTE_PRICE_SOURCES)[number];
+export async function loadWastePriceSource(db: Db, workspaceId: string): Promise<WastePriceSource> {
+  const [ws] = await db.select({ settings: workspaces.settings }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
+  const v = (ws?.settings as Record<string, unknown> | null)?.wastePriceSource;
+  return v === 'price' || v === 'avg_cost' ? v : 'purchase';
+}
+
+/** Учёт стоимости отходов в шапке выпуска: zero — приходуются по 0 (на себестоимость не влияют),
+    accounting — приходуются по учётной цене и уменьшают себестоимость продукции */
+export type WasteValuation = (typeof WASTE_VALUATION)[number];
+
+/** Склады отходов и брака по цепочкам решения 6: отходы — склад отходов участка, затем склад продукции;
+    брак — склад брака, затем склад отходов, затем склад продукции */
+export function centerWasteWarehouses(wc: { outputWarehouseId?: string | null; wasteWarehouseId?: string | null; defectWarehouseId?: string | null } | undefined): { wasteWarehouseId: string | null; defectWarehouseId: string | null } {
+  const waste = wc?.wasteWarehouseId ?? wc?.outputWarehouseId ?? null;
+  return { wasteWarehouseId: waste, defectWarehouseId: wc?.defectWarehouseId ?? waste };
+}
+
+/** Склады участка для цепочек отходов и брака */
+async function loadCenterWarehouses(db: Db, workCenterId: string) {
+  const [wc] = await db.select({ outputWarehouseId: workCenters.outputWarehouseId, wasteWarehouseId: workCenters.wasteWarehouseId, defectWarehouseId: workCenters.defectWarehouseId }).from(workCenters).where(eq(workCenters.id, workCenterId)).limit(1);
+  return wc;
+}
+
+/** Количество годной продукции позиции выпуска (всё выпущенное минус брак): по нему считаются исполнение заказа и резерв */
+export const GOOD_QTY = sql`(${productionItems.qty} - ${productionItems.defectQty})`;
 
 /** Продукция со строками спецификаций, участки и товары: всё, что нужно планированию и расчёту себестоимости */
 export async function loadProductionGraph(db: Db) {
@@ -95,7 +127,7 @@ export async function loadProductionGraph(db: Db) {
 }
 
 /** Себестоимость единицы изделия по спецификации (плановая) */
-function unitCost(graph: Awaited<ReturnType<typeof loadProductionGraph>>, itemId: string, source: 'purchase' | 'price' | 'avg_cost', params?: Record<string, unknown> | null): string | null {
+function unitCost(graph: Awaited<ReturnType<typeof loadProductionGraph>>, itemId: string, source: 'purchase' | 'price' | 'avg_cost', params?: Record<string, unknown> | null, wasteSource: 'purchase' | 'price' | 'avg_cost' = 'purchase'): string | null {
   try {
     const prod = new Map(graph.mats.map(p => [p.id, p]));
     const rates = new Map(graph.centers.map(w => [w.id, w.hourlyRate]));
@@ -103,6 +135,7 @@ function unitCost(graph: Awaited<ReturnType<typeof loadProductionGraph>>, itemId
     const inputs = params === undefined ? graph.inputs : graph.inputs.map(i => (i.id === itemId ? { ...i, params } : i));
     const tree = computeBomCost(inputs, itemId, {
       materialPrice: pid => (prod.has(pid) ? resolveMaterialPrice(source, prod.get(pid)!, graph.avg.get(pid)) : null),
+      wastePrice: pid => (prod.has(pid) ? resolveMaterialPrice(wasteSource, prod.get(pid)!, graph.avg.get(pid)) : null),
       workCenterRate: wid => rates.get(wid),
     });
     return tree.unit.total;
@@ -118,6 +151,8 @@ function unitCost(graph: Awaited<ReturnType<typeof loadProductionGraph>>, itemId
 export async function planComponents(db: Db, workspaceId: string, itemId: string, qty: string, params?: Record<string, unknown> | null): Promise<PlannedComponent[]> {
   const graph = await loadProductionGraph(db);
   const source = await loadPriceSource(db, workspaceId);
+  // источник цены возвратных отходов — отдельная настройка воркспейса; по умолчанию — цена закупки
+  const wasteSource = await loadWastePriceSource(db, workspaceId);
   const prod = new Map(graph.mats.map(p => [p.id, p]));
   const rates = new Map(graph.centers.map(w => [w.id, w.hourlyRate]));
   // значения параметров — только у изделия, чья спецификация разворачивается: вложенной продукции
@@ -146,12 +181,22 @@ export async function planComponents(db: Db, workspaceId: string, itemId: string
   for (const s of explosion.semis) {
     // полуфабрикат в режиме stock списывается со склада: нужен товар каталога
     if (!s.productId) throw new DomainError(422, 'item_not_stockable', `“${s.name}” has no product of the catalogue: it cannot be written off from stock`);
-    const cost = unitCost(graph, s.itemId, source);
+    const cost = unitCost(graph, s.itemId, source, undefined, wasteSource);
     out.push({ kind: 'semi', ownerKind: 'own', productId: s.productId, itemId: s.itemId, workCenterId: null, operation: '', operationId: null, qty: s.qty, hours: '0', rate: null, fixedCost: null, plannedCost: fmt(mul(dec(s.qty), dec(cost ?? '0'))), stageId: s.stageId ?? null });
   }
   // выходные продукты разборки: их стоимость считается при выпуске (доля, цена или количество)
   for (const o of explosion.outputs) {
     out.push({ kind: 'output', ownerKind: 'own', productId: o.productId, itemId: null, workCenterId: null, operation: '', operationId: null, qty: o.qty, hours: '0', rate: null, fixedCost: null, plannedCost: '0', stageId: o.stageId ?? null, costShare: o.costShare ?? null });
+  }
+  // возвратные отходы спецификации: приходуются финальным этапом на склад отходов; цена — из настройки «Цена отходов» (wastePriceSource)
+  // отходы приходует только финальный этап: строка относится к нему независимо от этапа в спецификации
+  const stagePlan = explosion.wastes.length ? await itemStagePlan(db, itemId) : null;
+  const finalStageId = stagePlan ? (stagePlan.stages.find(s => s.isFinal) ?? stagePlan.stages[stagePlan.stages.length - 1])?.id ?? null : null;
+  for (const w of explosion.wastes) {
+    if (!w.productId) throw new DomainError(422, 'invalid_reference', 'Waste line has no product');
+    const p = prod.get(w.productId);
+    const price = p ? resolveMaterialPrice(wasteSource, p, graph.avg.get(w.productId)) : null;
+    out.push({ kind: 'waste', ownerKind: 'own', productId: w.productId, itemId: null, workCenterId: null, operation: '', operationId: null, qty: w.qty, hours: '0', rate: null, fixedCost: null, plannedCost: fmt(mul(dec(w.qty), dec(price ?? '0'))), stageId: finalStageId, price: price ?? null });
   }
   for (const w of explosion.works) {
     const rate = w.rate ?? (w.workCenterId ? (rates.get(w.workCenterId) ?? null) : null);
@@ -188,7 +233,7 @@ async function stageTotals(db: Db, sources: StageSource[]): Promise<Map<string, 
       source: productionItems.sourceItemId,
       customer: productionItems.customerOrderLineId,
       stageId: productionHeaders.stageId,
-      qty: sql<string>`sum(${productionItems.qty})`,
+      qty: sql<string>`sum(${GOOD_QTY})`,
       cost: sql<string>`coalesce(sum(${productionItems.stageCost}), 0)`,
     })
     .from(productionItems)
@@ -295,6 +340,11 @@ export interface ProductionOrderInput {
   parentDocumentId?: string | null;
   /** Заказ на переработку: выпуск делается из давальческого сырья, продукция уходит на остаток давальца */
   processingOrderId?: string | null;
+  /** Учёт стоимости отходов: пусто — «учётная» */
+  wasteValuation?: WasteValuation | null;
+  /** Склад отходов и склад брака; пусто — с участка (отходы: склад отходов, затем склад продукции; брак: склад брака, затем отходов) */
+  wasteWarehouseId?: string | null;
+  defectWarehouseId?: string | null;
   items: { itemId: string; qty: string; customerOrderLineId?: string | null; planLineId?: string | null; params?: Record<string, unknown> | null }[];
 }
 
@@ -359,6 +409,14 @@ export async function createProductionOrder(db: Db, ctx: DocCtx, input: Producti
     comment: input.comment ?? '',
     lines: [],
   });
+  // склады по умолчанию берутся с участка — чтобы выпуск знал, куда отправлять возвратные отходы и брак
+  let wasteWarehouseId: string | null = input.wasteWarehouseId ?? null;
+  let defectWarehouseId: string | null = input.defectWarehouseId ?? null;
+  if (input.workCenterId && (!wasteWarehouseId || !defectWarehouseId)) {
+    const dflt = centerWasteWarehouses(await loadCenterWarehouses(db, input.workCenterId));
+    wasteWarehouseId ??= dflt.wasteWarehouseId;
+    defectWarehouseId ??= dflt.defectWarehouseId;
+  }
   await db.insert(productionHeaders).values({
     workspaceId: ctx.workspaceId,
     documentId: id,
@@ -367,6 +425,9 @@ export async function createProductionOrder(db: Db, ctx: DocCtx, input: Producti
     plannedEnd: input.plannedEnd ? new Date(input.plannedEnd) : null,
     parentDocumentId: input.parentDocumentId ?? null,
     processingOrderId: input.processingOrderId ?? null,
+    wasteValuation: input.wasteValuation ?? 'accounting',
+    wasteWarehouseId,
+    defectWarehouseId,
   });
   // заказ на переработку — основание заказа на производство
   if (input.processingOrderId) await db.update(documents).set({ basedOnId: input.processingOrderId }).where(eq(documents.id, id));
@@ -406,6 +467,9 @@ export interface ProductionOrderPatch {
   plannedEnd?: string | null;
   comment?: string;
   parentDocumentId?: string | null;
+  wasteValuation?: WasteValuation | null;
+  wasteWarehouseId?: string | null;
+  defectWarehouseId?: string | null;
   items?: { itemId: string; qty: string; customerOrderLineId?: string | null; planLineId?: string | null; params?: Record<string, unknown> | null }[];
 }
 
@@ -422,6 +486,9 @@ export async function updateProductionOrder(db: Db, ctx: DocCtx, id: string, pat
   if (patch.plannedStart !== undefined) set.plannedStart = patch.plannedStart ? new Date(patch.plannedStart) : null;
   if (patch.plannedEnd !== undefined) set.plannedEnd = patch.plannedEnd ? new Date(patch.plannedEnd) : null;
   if (patch.parentDocumentId !== undefined) set.parentDocumentId = patch.parentDocumentId;
+  if (patch.wasteValuation) set.wasteValuation = patch.wasteValuation;
+  if (patch.wasteWarehouseId !== undefined) set.wasteWarehouseId = patch.wasteWarehouseId;
+  if (patch.defectWarehouseId !== undefined) set.defectWarehouseId = patch.defectWarehouseId;
   if (header) await db.update(productionHeaders).set(set).where(eq(productionHeaders.documentId, id));
   else await db.insert(productionHeaders).values({ workspaceId: ctx.workspaceId, documentId: id, workCenterId: patch.workCenterId ?? null, plannedStart: patch.plannedStart ? new Date(patch.plannedStart) : null, plannedEnd: patch.plannedEnd ? new Date(patch.plannedEnd) : null, parentDocumentId: patch.parentDocumentId ?? null });
   const docSet: Partial<typeof documents.$inferInsert> = { updatedAt: new Date() };
@@ -490,12 +557,31 @@ export async function fillOrderFromBom(db: Db, ctx: DocCtx, id: string): Promise
   await db.delete(productionComponents).where(eq(productionComponents.documentId, id));
   const graph = await loadProductionGraph(db);
   const source = await loadPriceSource(db, ctx.workspaceId);
+  const wasteSource = await loadWastePriceSource(db, ctx.workspaceId);
   const rows: (typeof productionComponents.$inferInsert)[] = [];
   for (const it of items) {
     const plan = await planComponents(db, ctx.workspaceId, it.itemId, it.qty, it.params);
     await assertPlanStages(db, it.itemId, plan);
-    for (const c of plan) rows.push({ workspaceId: ctx.workspaceId, documentId: id, itemId: it.id, kind: c.kind, ownerKind: c.kind === 'work' || c.kind === 'expense' || c.kind === 'output' ? 'own' : ownerKind, productId: c.kind === 'work' ? c.operationId : c.productId, workCenterId: c.workCenterId, operation: c.operation, qty: c.qty, hours: c.hours, rate: c.rate, fixedCost: c.fixedCost, plannedCost: c.plannedCost, stageId: c.stageId, costShare: c.costShare ?? null, sortOrder: rows.length });
-    const cost = unitCost(graph, it.itemId, source, it.params);
+    for (const c of plan) rows.push({
+      workspaceId: ctx.workspaceId,
+      documentId: id,
+      itemId: it.id,
+      kind: c.kind,
+      ownerKind: c.kind === 'work' || c.kind === 'expense' || c.kind === 'output' || c.kind === 'waste' ? 'own' : ownerKind,
+      productId: c.kind === 'work' ? c.operationId : c.productId,
+      workCenterId: c.workCenterId,
+      operation: c.operation,
+      qty: c.qty,
+      hours: c.hours,
+      rate: c.rate,
+      fixedCost: c.fixedCost,
+      plannedCost: c.plannedCost,
+      stageId: c.stageId,
+      costShare: c.costShare ?? null,
+      price: c.kind === 'waste' ? (c.price ?? null) : null,
+      sortOrder: rows.length,
+    });
+    const cost = unitCost(graph, it.itemId, source, it.params, wasteSource);
     if (cost) await db.update(productionItems).set({ plannedUnitCost: cost }).where(eq(productionItems.id, it.id));
   }
   if (rows.length) await db.insert(productionComponents).values(rows);
@@ -526,6 +612,10 @@ export interface ProductionLineInput {
   /** Этап выпуска; пусто — «Завершение производства» */
   stageId?: string | null;
   qty: string;
+  /** Брак в выпущенном количестве `qty` (0 ≤ defectQty ≤ qty); заказ и резерв считаются по годному */
+  defectQty?: string | null;
+  /** Режим брака: cost — в себестоимость годного (брак не приходуется), expense — на склад брака для списания */
+  defectMode?: DefectMode | null;
 }
 
 export interface ProductionInput {
@@ -537,6 +627,12 @@ export interface ProductionInput {
   workCenterId?: string | null;
   warehouseId?: string | null;
   targetWarehouseId?: string | null;
+  /** Режим учёта отходов: переопределение настройки воркспейса */
+  wasteValuation?: WasteValuation | null;
+  /** Склад отходов: переопределение настройки участка */
+  wasteWarehouseId?: string | null;
+  /** Склад брака: переопределение настройки участка */
+  defectWarehouseId?: string | null;
   lines: ProductionLineInput[];
 }
 
@@ -544,6 +640,10 @@ export interface ProductionInput {
 export interface ProductionPlan {
   itemId: string;
   qty: string;
+  /** Брак в количестве `qty`: 0 ≤ defectQty ≤ qty */
+  defectQty?: string | null;
+  /** Режим брака: cost — в себестоимость годного, expense — на склад брака с дальнейшим списанием */
+  defectMode?: DefectMode | null;
   /** Позиция заказа на производство, которую выполняет выпуск */
   sourceItemId: string | null;
   /** Строка заказа покупателя, которую выполняет выпуск */
@@ -562,7 +662,7 @@ export async function createProductionFromOrder(db: Db, ctx: DocCtx, orderId: st
   if (order.type !== 'production_order') throw new DomainError(422, 'invalid_type', 'This is not a production order');
   if (order.status !== 'posted') throw new DomainError(422, 'base_not_posted', 'Post the production order first');
   const [header] = await db.select().from(productionHeaders).where(eq(productionHeaders.documentId, orderId)).limit(1);
-  const plans = await orderPlans(db, ctx, orderId, input.lines.map(l => ({ orderItemId: l.orderItemId ?? '', qty: l.qty, stageId: l.stageId ?? null })));
+  const plans = await orderPlans(db, ctx, orderId, input.lines.map(l => ({ orderItemId: l.orderItemId ?? '', qty: l.qty, stageId: l.stageId ?? null, defectQty: l.defectQty ?? null, defectMode: l.defectMode ?? null })));
   return createProductionDocuments(db, ctx, {
     date: input.date ?? order.date,
     workCenterId: input.workCenterId ?? header?.workCenterId ?? null,
@@ -573,13 +673,16 @@ export async function createProductionFromOrder(db: Db, ctx: DocCtx, orderId: st
     operation: operationOfDoc(order),
     basedOnId: orderId,
     processingOrderId: header?.processingOrderId ?? null,
+    wasteValuation: input.wasteValuation ?? header?.wasteValuation ?? null,
+    wasteWarehouseId: input.wasteWarehouseId ?? header?.wasteWarehouseId ?? null,
+    defectWarehouseId: input.defectWarehouseId ?? header?.defectWarehouseId ?? null,
     plans,
   });
 }
 
 /** Планы выпуска по позициям заказа на производство: состав — снимок заказа (пропорционально количеству) или развёртка спецификации.
     Без количества — весь остаток к выпуску на выбранном этапе */
-async function orderPlans(db: Db, ctx: DocCtx, orderId: string, requested: { orderItemId: string; qty?: string; stageId?: string | null }[]): Promise<ProductionPlan[]> {
+async function orderPlans(db: Db, ctx: DocCtx, orderId: string, requested: { orderItemId: string; qty?: string; stageId?: string | null; defectQty?: string | null; defectMode?: DefectMode | null }[]): Promise<ProductionPlan[]> {
   const [order] = await db.select().from(documents).where(eq(documents.id, orderId)).limit(1);
   if (!order) throw new DomainError(404, 'not_found', 'document not found');
   if (order.type !== 'production_order') throw new DomainError(422, 'invalid_type', 'This is not a production order');
@@ -597,9 +700,12 @@ async function orderPlans(db: Db, ctx: DocCtx, orderId: string, requested: { ord
     const stagePlan = await itemStagePlan(db, src.itemId);
     const limit = await stageLimit(db, { itemId: src.itemId, stage, ordered: dec(src.qty), source, totals });
     const left = limit.cap - limit.done;
-    const qty = l.qty ? dec(l.qty) : left;
+    // выпущенное количество включает брак; заказ и этапы считаются по годному
+    const defect = l.defectQty ? dec(l.defectQty) : 0n;
+    const qty = l.qty ? dec(l.qty) : left + defect;
     if (qty <= 0n) continue;
-    if (qty > left) throw stageError(limit, stage, left, dec(src.qty));
+    assertDefect(qty, defect, l.defectMode ?? null, stage.isFinal);
+    if (qty - defect > left) throw stageError(limit, stage, left, dec(src.qty));
     // состав: снимок заказа (пропорционально количеству) или развёртка спецификации
     const scale = div(qty, dec(src.qty));
     const own = snapshot.filter(c => c.itemId === src.id);
@@ -621,11 +727,22 @@ async function orderPlans(db: Db, ctx: DocCtx, orderId: string, requested: { ord
           stageId: c.stageId ?? null,
           sourceComponentId: c.id,
           costShare: c.costShare ?? null,
+          price: c.kind === 'waste' ? c.price ?? null : null,
         }))
       : (await planComponents(db, ctx.workspaceId, src.itemId, fmt(qty, 3), src.params)).filter(c => componentStage(c, stagePlan.stages) === stage.id);
-    plans.push({ itemId: src.itemId, qty: fmt(qty, 3), sourceItemId: src.id, customerOrderLineId: src.customerOrderLineId, stageId: stage.id, components, productId: src.productVariantId ?? null });
+    plans.push({ itemId: src.itemId, qty: fmt(qty, 3), defectQty: fmt(defect, 3), defectMode: defect > 0n ? l.defectMode ?? null : null, sourceItemId: src.id, customerOrderLineId: src.customerOrderLineId, stageId: stage.id, components, productId: src.productVariantId ?? null });
   }
   return plans;
+}
+
+/** Проверка брака позиции выпуска: 0 ≤ брак ≤ выпущено, режим обязателен, брак только у финального этапа,
+    «в себестоимость» требует хотя бы одной годной единицы (иначе затраты некому нести) */
+function assertDefect(qty: bigint, defect: bigint, mode: DefectMode | null, final: boolean): void {
+  if (defect < 0n || defect > qty) throw new DomainError(422, 'defect_exceeds_qty', 'The defect cannot exceed the produced quantity');
+  if (defect === 0n) return;
+  if (!mode) throw new DomainError(422, 'defect_mode_required', 'Choose how the defect is accounted: into the cost or as an expense');
+  if (!final) throw new DomainError(422, 'defect_final_stage_only', 'The defect is recorded by the final stage only');
+  if (mode === 'cost' && defect >= qty) throw new DomainError(422, 'defect_exceeds_qty', 'The defect “into the cost” leaves no good products to carry the cost');
 }
 
 /** Ошибка превышения: этап ограничен предыдущим или заказом */
@@ -642,8 +759,8 @@ export async function createProductionFromCustomerOrder(db: Db, ctx: DocCtx, inp
   if (order.type !== 'customer_order') throw new DomainError(422, 'invalid_type', 'This is not a customer order');
   if (order.status !== 'posted') throw new DomainError(422, 'base_not_posted', 'Post the customer order first');
   // строки по умолчанию — все производимые строки заказа, по остатку
-  const wanted = input.lines.length ? input.lines : await producibleLines(db, ctx, order.id);
-  const plans = await customerPlans(db, ctx, order.id, wanted.map(l => ({ customerOrderLineId: l.customerOrderLineId ?? '', qty: l.qty, stageId: l.stageId ?? null })));
+  const wanted: ProductionLineInput[] = input.lines.length ? input.lines : await producibleLines(db, ctx, order.id);
+  const plans = await customerPlans(db, ctx, order.id, wanted.map(l => ({ customerOrderLineId: l.customerOrderLineId ?? '', qty: l.qty, stageId: l.stageId ?? null, defectQty: l.defectQty ?? null, defectMode: l.defectMode ?? null })));
   if (!plans.length) throw new DomainError(422, 'nothing_to_create', 'Everything from this customer order is already produced');
   return createProductionDocuments(db, ctx, {
     date: input.date ?? order.date,
@@ -652,12 +769,15 @@ export async function createProductionFromCustomerOrder(db: Db, ctx: DocCtx, inp
     targetWarehouseId: input.targetWarehouseId ?? null,
     fallbackWarehouseId: order.warehouseId,
     basedOnId: order.id,
+    wasteValuation: input.wasteValuation ?? null,
+    wasteWarehouseId: input.wasteWarehouseId ?? null,
+    defectWarehouseId: input.defectWarehouseId ?? null,
     plans,
   });
 }
 
 /** Планы выпуска по строкам заказа покупателя: производится товар со способом пополнения «производство» */
-async function customerPlans(db: Db, ctx: DocCtx, customerOrderId: string, requested: { customerOrderLineId: string; qty?: string; stageId?: string | null }[]): Promise<ProductionPlan[]> {
+async function customerPlans(db: Db, ctx: DocCtx, customerOrderId: string, requested: { customerOrderLineId: string; qty?: string; stageId?: string | null; defectQty?: string | null; defectMode?: DefectMode | null }[]): Promise<ProductionPlan[]> {
   const [order] = await db.select().from(documents).where(eq(documents.id, customerOrderId)).limit(1);
   if (!order) throw new DomainError(404, 'not_found', 'document not found');
   if (order.type !== 'customer_order') throw new DomainError(422, 'invalid_type', 'This is not a customer order');
@@ -683,14 +803,17 @@ async function customerPlans(db: Db, ctx: DocCtx, customerOrderId: string, reque
     const ordered = dec(src.qty) - (shipped.get(src.id) ?? 0n);
     const limit = await stageLimit(db, { itemId: specId, stage, ordered, source, totals });
     const left = limit.cap - limit.done;
-    const qty = l.qty ? dec(l.qty) : left;
+    // выпущенное количество включает брак; заказ и этапы считаются по годному
+    const defect = l.defectQty ? dec(l.defectQty) : 0n;
+    const qty = l.qty ? dec(l.qty) : left + defect;
     if (qty <= 0n) continue;
-    if (qty > left) throw stageError(limit, stage, left, ordered);
+    assertDefect(qty, defect, l.defectMode ?? null, stage.isFinal);
+    if (qty - defect > left) throw stageError(limit, stage, left, ordered);
     // значения параметров строки заказа: по ним считаются формулы состава
     const components = (await planComponents(db, ctx.workspaceId, specId, fmt(qty, 3), src.params)).filter(c => componentStage(c, stagePlan.stages) === stage.id);
     // выпускается вариант товара, если строка заказа ссылается на вариант
     const variant = (await isVariant(db, src.productId)) ? src.productId : null;
-    plans.push({ itemId: specId, qty: fmt(qty, 3), sourceItemId: null, customerOrderLineId: src.id, stageId: stage.id, components, productId: variant });
+    plans.push({ itemId: specId, qty: fmt(qty, 3), defectQty: fmt(defect, 3), defectMode: defect > 0n ? l.defectMode ?? null : null, sourceItemId: null, customerOrderLineId: src.id, stageId: stage.id, components, productId: variant });
   }
   return plans;
 }
@@ -765,6 +888,9 @@ async function writeProduction(
     basedOnId: string | null;
     /** Заказ на переработку: выпуск из давальческого сырья */
     processingOrderId?: string | null;
+    wasteValuation?: WasteValuation | null;
+    wasteWarehouseId?: string | null;
+    defectWarehouseId?: string | null;
     plans: ProductionPlan[];
   },
 ): Promise<string> {
@@ -783,14 +909,65 @@ async function writeProduction(
     date: input.date,
     lines: rows.docLines.map(l => ({ id: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, qty: l.qty, price: '0', discountPct: '0', vatRate: 'none' as const, stockRole: l.stockRole })),
   });
-  await db.insert(productionHeaders).values({ workspaceId: ctx.workspaceId, documentId: docId, workCenterId: input.workCenterId ?? null, plannedStart: null, plannedEnd: null, parentDocumentId: null, stageId: input.stageId, processingOrderId: input.processingOrderId ?? null });
+  // шапка выпуска: режим учёта отходов и склады отходов/брака — по умолчанию из настроек воркспейса и участка
+  const wcWh = centerWasteWarehouses(input.workCenterId ? await loadCenterWarehouses(db, input.workCenterId) : undefined);
+  await db.insert(productionHeaders).values({
+    workspaceId: ctx.workspaceId,
+    documentId: docId,
+    workCenterId: input.workCenterId ?? null,
+    plannedStart: null,
+    plannedEnd: null,
+    parentDocumentId: null,
+    stageId: input.stageId,
+    processingOrderId: input.processingOrderId ?? null,
+    wasteValuation: input.wasteValuation ?? 'accounting',
+    wasteWarehouseId: input.wasteWarehouseId ?? wcWh.wasteWarehouseId,
+    defectWarehouseId: input.defectWarehouseId ?? wcWh.defectWarehouseId,
+  });
   const itemRows = await db.insert(productionItems).values(
-    rows.itemLines.map((l, n) => ({ workspaceId: ctx.workspaceId, documentId: docId, itemId: l.itemId, qty: l.qty, unitCode: l.unitCode, customerOrderLineId: l.customerOrderLineId, sourceItemId: l.sourceItemId, stageId: input.stageId, documentLineId: l.documentLineId, productVariantId: l.variantId, sortOrder: n })),
+    rows.itemLines.map((l, n) => {
+      const plan = input.plans[n] ?? null;
+      return {
+        workspaceId: ctx.workspaceId,
+        documentId: docId,
+        itemId: l.itemId,
+        qty: l.qty,
+        unitCode: l.unitCode,
+        customerOrderLineId: l.customerOrderLineId,
+        sourceItemId: l.sourceItemId,
+        stageId: input.stageId,
+        documentLineId: l.documentLineId,
+        productVariantId: l.variantId,
+        sortOrder: n,
+        defectQty: plan?.defectQty ?? '0',
+        defectMode: dec(plan?.defectQty ?? '0') > 0n ? plan?.defectMode ?? null : null,
+      };
+    }),
   ).returning();
   // связь состава с позицией: строки плана и позиции идут в одном порядке
   const itemIdByLine = new Map(rows.itemLines.map((l, n) => [l.id, itemRows[n].id]));
   if (rows.componentLines.length) await db.insert(productionComponents).values(
-    rows.componentLines.map((c, n) => ({ workspaceId: ctx.workspaceId, documentId: docId, itemId: itemIdByLine.get(c.itemId) ?? null, kind: c.kind, ownerKind: c.ownerKind, productId: c.productId, workCenterId: c.workCenterId, operation: c.operation, qty: c.qty, hours: c.hours, rate: c.rate, fixedCost: c.fixedCost, plannedCost: c.plannedCost, documentLineId: c.documentLineId, sourceComponentId: c.sourceComponentId ?? null, stageId: c.stageId ?? input.stageId, costShare: c.costShare ?? null, sortOrder: n })),
+    rows.componentLines.map((c, n) => ({
+      workspaceId: ctx.workspaceId,
+      documentId: docId,
+      itemId: itemIdByLine.get(c.itemId) ?? null,
+      kind: c.kind,
+      ownerKind: c.ownerKind,
+      productId: c.productId,
+      workCenterId: c.workCenterId,
+      operation: c.operation,
+      qty: c.qty,
+      hours: c.hours,
+      rate: c.rate,
+      fixedCost: c.fixedCost,
+      plannedCost: c.plannedCost,
+      documentLineId: c.documentLineId,
+      sourceComponentId: c.sourceComponentId ?? null,
+      stageId: c.stageId ?? input.stageId,
+      costShare: c.costShare ?? null,
+      price: c.kind === 'waste' ? (c.price ?? null) : null,
+      sortOrder: n,
+    })),
   );
   if (input.basedOnId) await db.update(documents).set({ basedOnId: input.basedOnId }).where(eq(documents.id, docId));
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.created', entity: 'document', recordId: docId, actorId: ctx.memberId, payload: { documentType: 'production' } });
@@ -815,7 +992,7 @@ async function buildProductionRows(
   targetWarehouseId: string | null;
   docLines: { id: string; productId: string; name: string; unitCode: string; qty: string; stockRole: 'in' | 'out' }[];
   itemLines: { id: string; documentLineId: string | null; itemId: string; qty: string; sourceItemId: string | null; customerOrderLineId: string | null; productId: string; name: string; unitCode: string; variantId: string | null }[];
-  componentLines: { id: string; itemId: string; kind: 'material' | 'semi' | 'work' | 'expense' | 'output'; ownerKind: MaterialOwner; productId: string | null; workCenterId: string | null; operation: string; qty: string; hours: string; rate: string | null; fixedCost: string | null; plannedCost: string; documentLineId: string | null; stageId: string | null; sourceComponentId?: string | null; costShare?: string | null }[];
+  componentLines: { id: string; itemId: string; kind: 'material' | 'semi' | 'work' | 'expense' | 'output' | 'waste'; ownerKind: MaterialOwner; productId: string | null; workCenterId: string | null; operation: string; qty: string; hours: string; rate: string | null; fixedCost: string | null; plannedCost: string; documentLineId: string | null; stageId: string | null; sourceComponentId?: string | null; costShare?: string | null; price?: string | null }[];
 }> {
   const itemIds = [...new Set(plans.map(p => p.itemId))];
   const products_ = await db.select().from(manufacturedItems).where(inArray(manufacturedItems.id, itemIds));
@@ -827,7 +1004,7 @@ async function buildProductionRows(
   }
   const docLines: { id: string; productId: string; name: string; unitCode: string; qty: string; stockRole: 'in' | 'out' }[] = [];
   const itemLines: { id: string; documentLineId: string | null; itemId: string; qty: string; sourceItemId: string | null; customerOrderLineId: string | null; productId: string; name: string; unitCode: string; variantId: string | null }[] = [];
-  const componentLines: { id: string; itemId: string; kind: 'material' | 'semi' | 'work' | 'expense' | 'output'; ownerKind: MaterialOwner; productId: string | null; workCenterId: string | null; operation: string; qty: string; hours: string; rate: string | null; fixedCost: string | null; plannedCost: string; documentLineId: string | null; stageId: string | null; sourceComponentId?: string | null; costShare?: string | null }[] = [];
+  const componentLines: { id: string; itemId: string; kind: 'material' | 'semi' | 'work' | 'expense' | 'output' | 'waste'; ownerKind: MaterialOwner; productId: string | null; workCenterId: string | null; operation: string; qty: string; hours: string; rate: string | null; fixedCost: string | null; plannedCost: string; documentLineId: string | null; stageId: string | null; sourceComponentId?: string | null; costShare?: string | null; price?: string | null }[] = [];
   for (const p of plans) {
     const it = byItem.get(p.itemId)!;
     const lineId = uuidv7();
@@ -836,6 +1013,11 @@ async function buildProductionRows(
       for (const c of p.components) {
         if (c.kind === 'work') {
           componentLines.push({ id: uuidv7(), itemId: lineId, kind: 'work', ownerKind: 'own', productId: c.operationId, workCenterId: c.workCenterId, operation: c.operation, qty: '0', hours: c.hours, rate: c.rate, fixedCost: c.fixedCost, plannedCost: c.plannedCost, documentLineId: null, stageId: c.stageId, sourceComponentId: c.sourceComponentId ?? null });
+          continue;
+        }
+        // возвратный отход разборки: приходует финальный этап на склад отходов, строки документа у него нет
+        if (c.kind === 'waste') {
+          if (isFinal) componentLines.push({ id: uuidv7(), itemId: lineId, kind: 'waste', ownerKind: 'own', productId: c.productId, workCenterId: null, operation: '', qty: c.qty, hours: '0', rate: null, fixedCost: null, plannedCost: c.plannedCost, documentLineId: null, stageId: c.stageId, sourceComponentId: c.sourceComponentId ?? null, price: c.price ?? null });
           continue;
         }
         const prod = await db.select({ name: products.name, unitCode: products.unitCode }).from(products).where(eq(products.id, c.productId!)).limit(1);
@@ -863,6 +1045,12 @@ async function buildProductionRows(
       // расход подрядчику: в себестоимость входит, со склада не списывается — строки документа у него нет
       if (c.kind === 'expense') {
         componentLines.push({ id: uuidv7(), itemId: lineId, kind: 'expense', ownerKind: c.ownerKind, productId: c.productId, workCenterId: null, operation: '', qty: c.qty, hours: '0', rate: null, fixedCost: null, plannedCost: c.plannedCost, documentLineId: null, stageId: c.stageId, sourceComponentId: c.sourceComponentId ?? null });
+        continue;
+      }
+      // возвратный отход: приходуется на склад отходов финальным этапом; цена — из строки или из настройки «Цена отходов»
+      if (c.kind === 'waste') {
+        if (!isFinal) continue;
+        componentLines.push({ id: uuidv7(), itemId: lineId, kind: 'waste', ownerKind: 'own', productId: c.productId, workCenterId: null, operation: '', qty: c.qty, hours: '0', rate: null, fixedCost: null, plannedCost: c.plannedCost, documentLineId: null, stageId: c.stageId, sourceComponentId: c.sourceComponentId ?? null, price: c.price ?? null });
         continue;
       }
       const materialLineId = uuidv7();
@@ -924,7 +1112,7 @@ async function appendProduction(
   db: Db,
   ctx: DocCtx,
   docId: string,
-  input: { date?: string; workCenterId?: string | null; warehouseId?: string | null; targetWarehouseId?: string | null; stageId: string | null; operation?: ProductionOperation; processingOrderId?: string | null; plans: ProductionPlan[] },
+  input: { date?: string; workCenterId?: string | null; warehouseId?: string | null; targetWarehouseId?: string | null; stageId: string | null; operation?: ProductionOperation; processingOrderId?: string | null; wasteValuation?: WasteValuation | null; wasteWarehouseId?: string | null; defectWarehouseId?: string | null; plans: ProductionPlan[] },
 ): Promise<void> {
   const [doc] = await db.select().from(documents).where(eq(documents.id, docId)).limit(1).for('update');
   if (!doc) throw new DomainError(404, 'not_found', 'document not found');
@@ -956,13 +1144,62 @@ async function appendProduction(
   const [lastItem] = await db.select({ m: sql<number>`coalesce(max(${productionItems.sortOrder}), -1)` }).from(productionItems).where(eq(productionItems.documentId, docId));
   const itemRows = await db
     .insert(productionItems)
-    .values(rows.itemLines.map((l, n) => ({ workspaceId: ctx.workspaceId, documentId: docId, itemId: l.itemId, qty: l.qty, unitCode: l.unitCode, customerOrderLineId: l.customerOrderLineId, sourceItemId: l.sourceItemId, stageId: input.stageId, documentLineId: l.documentLineId, productVariantId: l.variantId, sortOrder: Number(lastItem?.m ?? -1) + 1 + n })))
+    .values(rows.itemLines.map((l, n) => {
+      const plan = input.plans[n] ?? null;
+      return {
+        workspaceId: ctx.workspaceId,
+        documentId: docId,
+        itemId: l.itemId,
+        qty: l.qty,
+        unitCode: l.unitCode,
+        customerOrderLineId: l.customerOrderLineId,
+        sourceItemId: l.sourceItemId,
+        stageId: input.stageId,
+        documentLineId: l.documentLineId,
+        productVariantId: l.variantId,
+        sortOrder: Number(lastItem?.m ?? -1) + 1 + n,
+        defectQty: plan?.defectQty ?? '0',
+        defectMode: dec(plan?.defectQty ?? '0') > 0n ? plan?.defectMode ?? null : null,
+      };
+    }))
     .returning();
   // связь состава с позицией: строки плана и позиции идут в одном порядке
   const itemIdByLine = new Map(rows.itemLines.map((l, n) => [l.id, itemRows[n].id]));
   if (rows.componentLines.length) await db.insert(productionComponents).values(
-    rows.componentLines.map((c, n) => ({ workspaceId: ctx.workspaceId, documentId: docId, itemId: itemIdByLine.get(c.itemId) ?? null, kind: c.kind, ownerKind: c.ownerKind, productId: c.productId, workCenterId: c.workCenterId, operation: c.operation, qty: c.qty, hours: c.hours, rate: c.rate, fixedCost: c.fixedCost, plannedCost: c.plannedCost, documentLineId: c.documentLineId, sourceComponentId: c.sourceComponentId ?? null, stageId: c.stageId ?? input.stageId, costShare: c.costShare ?? null, sortOrder: n })),
+    rows.componentLines.map((c, n) => ({
+      workspaceId: ctx.workspaceId,
+      documentId: docId,
+      itemId: itemIdByLine.get(c.itemId) ?? null,
+      kind: c.kind,
+      ownerKind: c.ownerKind,
+      productId: c.productId,
+      workCenterId: c.workCenterId,
+      operation: c.operation,
+      qty: c.qty,
+      hours: c.hours,
+      rate: c.rate,
+      fixedCost: c.fixedCost,
+      plannedCost: c.plannedCost,
+      documentLineId: c.documentLineId,
+      sourceComponentId: c.sourceComponentId ?? null,
+      stageId: c.stageId ?? input.stageId,
+      costShare: c.costShare ?? null,
+      price: c.kind === 'waste' ? (c.price ?? null) : null,
+      sortOrder: n,
+    })),
   );
+  const headerPatch: Partial<typeof productionHeaders.$inferInsert> = {};
+  if (input.wasteValuation != null) headerPatch.wasteValuation = input.wasteValuation;
+  if (input.wasteWarehouseId !== undefined) headerPatch.wasteWarehouseId = input.wasteWarehouseId;
+  if (input.defectWarehouseId !== undefined) headerPatch.defectWarehouseId = input.defectWarehouseId;
+  // склады отходов и брака, не заданные в старом документе, берутся с участка
+  if (input.workCenterId) {
+    const [cur] = await db.select({ wasteWarehouseId: productionHeaders.wasteWarehouseId, defectWarehouseId: productionHeaders.defectWarehouseId }).from(productionHeaders).where(eq(productionHeaders.documentId, docId)).limit(1);
+    const dflt = centerWasteWarehouses(await loadCenterWarehouses(db, input.workCenterId));
+    if (headerPatch.wasteWarehouseId === undefined && !cur?.wasteWarehouseId && dflt.wasteWarehouseId) headerPatch.wasteWarehouseId = dflt.wasteWarehouseId;
+    if (headerPatch.defectWarehouseId === undefined && !cur?.defectWarehouseId && dflt.defectWarehouseId) headerPatch.defectWarehouseId = dflt.defectWarehouseId;
+  }
+  if (Object.keys(headerPatch).length) await db.update(productionHeaders).set(headerPatch).where(eq(productionHeaders.documentId, docId));
   if (wasPosted) await postDocument(db, ctx, docId);
 }
 
@@ -970,7 +1207,7 @@ async function appendProduction(
 async function createOrAppendProduction(
   db: Db,
   ctx: DocCtx,
-  input: { date?: string; workCenterId?: string | null; warehouseId?: string | null; targetWarehouseId?: string | null; fallbackWarehouseId?: string | null; fallbackTargetWarehouseId?: string | null; stageId: string | null; operation?: ProductionOperation; basedOnId: string | null; processingOrderId?: string | null; plans: ProductionPlan[] },
+  input: { date?: string; workCenterId?: string | null; warehouseId?: string | null; targetWarehouseId?: string | null; fallbackWarehouseId?: string | null; fallbackTargetWarehouseId?: string | null; stageId: string | null; operation?: ProductionOperation; basedOnId: string | null; processingOrderId?: string | null; wasteValuation?: WasteValuation | null; wasteWarehouseId?: string | null; defectWarehouseId?: string | null; plans: ProductionPlan[] },
 ): Promise<string> {
   const date = input.date ?? new Date().toISOString().slice(0, 10);
   const operation = input.operation ?? 'assembly';
@@ -986,7 +1223,7 @@ async function createOrAppendProduction(
 async function createProductionDocuments(
   db: Db,
   ctx: DocCtx,
-  input: { date?: string; workCenterId?: string | null; warehouseId?: string | null; targetWarehouseId?: string | null; fallbackWarehouseId?: string | null; fallbackTargetWarehouseId?: string | null; operation?: ProductionOperation; basedOnId: string | null; processingOrderId?: string | null; plans: ProductionPlan[] },
+  input: { date?: string; workCenterId?: string | null; warehouseId?: string | null; targetWarehouseId?: string | null; fallbackWarehouseId?: string | null; fallbackTargetWarehouseId?: string | null; operation?: ProductionOperation; basedOnId: string | null; processingOrderId?: string | null; wasteValuation?: WasteValuation | null; wasteWarehouseId?: string | null; defectWarehouseId?: string | null; plans: ProductionPlan[] },
 ): Promise<string> {
   if (!input.plans.length) throw new DomainError(422, 'no_items', 'Add products to produce');
   const groups = new Map<string, ProductionPlan[]>();
@@ -1429,7 +1666,7 @@ async function laterStageRelease(db: Db, itemId: string, source: StageSource, so
 async function producedQty(db: Db, _workspaceId: string, orderItemIds: string[]): Promise<Map<string, bigint>> {
   if (!orderItemIds.length) return new Map();
   const rows = await db
-    .select({ source: productionItems.sourceItemId, qty: sql<string>`sum(${productionItems.qty})` })
+    .select({ source: productionItems.sourceItemId, qty: sql<string>`sum(${GOOD_QTY})` })
     .from(productionItems)
     .innerJoin(documents, eq(documents.id, productionItems.documentId))
     .leftJoin(productionHeaders, eq(productionHeaders.documentId, documents.id))
@@ -1444,7 +1681,7 @@ async function producedQty(db: Db, _workspaceId: string, orderItemIds: string[])
 async function producedByCustomerLine(db: Db, _workspaceId: string, customerLineIds: string[]): Promise<Map<string, bigint>> {
   if (!customerLineIds.length) return new Map();
   const rows = await db
-    .select({ line: productionItems.customerOrderLineId, qty: sql<string>`sum(${productionItems.qty})` })
+    .select({ line: productionItems.customerOrderLineId, qty: sql<string>`sum(${GOOD_QTY})` })
     .from(productionItems)
     .innerJoin(documents, eq(documents.id, productionItems.documentId))
     .leftJoin(productionHeaders, eq(productionHeaders.documentId, documents.id))
@@ -1472,7 +1709,31 @@ async function shippedQty(db: Db, _workspaceId: string, customerLineIds: string[
 async function loadPlan(db: Db, documentId: string) {
   const items = await db.select().from(productionItems).where(eq(productionItems.documentId, documentId)).orderBy(asc(productionItems.sortOrder));
   const components = await db.select().from(productionComponents).where(eq(productionComponents.documentId, documentId)).orderBy(asc(productionComponents.sortOrder));
-  return { items, components };
+  // товарная карточка для каждой позиции: stock-движения и списание брака используют productId
+  const itemIds = [...new Set(items.map(i => i.itemId))];
+  const productById = itemIds.length
+    ? new Map((await db.select({ id: manufacturedItems.id, productId: manufacturedItems.productId, name: manufacturedItems.name, unitCode: manufacturedItems.unitCode }).from(manufacturedItems).where(inArray(manufacturedItems.id, itemIds))).map(m => [m.id, m]))
+    : new Map<typeof manufacturedItems.$inferSelect.id, typeof manufacturedItems.$inferSelect>();
+  return { items, components, productById };
+}
+
+/** Распределение стоимости возвратных отходов по позициям выпуска пропорционально их себестоимости.
+    Остаток от округления уходит на последнюю позицию, чтобы суммарное вычитание совпало с распределяемой суммой */
+function distributeWasteAcrossItems(items: (typeof productionItems.$inferSelect)[], itemCostByItem: Map<string, bigint>, total: bigint): Map<string, bigint> {
+  const out = new Map<string, bigint>();
+  if (total <= 0n || items.length === 0) return out;
+  const sum = [...itemCostByItem.values()].reduce((a, b) => a + b, 0n);
+  if (sum <= 0n) return out;
+  let allocated = 0n;
+  for (let i = 0; i < items.length - 1; i++) {
+    const c = itemCostByItem.get(items[i].id) ?? 0n;
+    const part = roundDiv(c * total, sum);
+    out.set(items[i].id, part);
+    allocated += part;
+  }
+  // последней позиции — остаток, чтобы сумма распределения точно совпала с total
+  out.set(items[items.length - 1].id, total - allocated);
+  return out;
 }
 
 /** Себестоимость позиции выпуска: материалы (факт — по списанной строке) + работы + накладные.
@@ -1494,6 +1755,8 @@ function itemCost(item: typeof productionItems.$inferSelect, components: (typeof
       materials += c.actualCost !== null ? dec(c.actualCost) : dec(c.plannedCost);
       continue;
     }
+    // возвратный отход приходуется на склад, не расходуется — в прямые затраты не входит
+    if (c.kind === 'waste' || c.kind === 'output') continue;
     // фактическое количество — по строке документа (её и списывают), плановое — из снимка
     const qty = c.documentLineId ? (lineQty.get(c.documentLineId) ?? dec(c.qty)) : dec(c.qty);
     const unit = c.documentLineId ? (outCost.get(c.documentLineId) ?? 0n) : 0n;
@@ -1556,6 +1819,8 @@ async function disassemblySplit(
     overheadByItem: Map<string, bigint>;
     /** Количество по строке документа */
     qtyByLine: Map<string, bigint>;
+    /** Оценка возвратных отходов: учётная стоимость вычитается из распределяемой, нулевая — нет */
+    wasteValuation?: WasteValuation;
   },
 ): Promise<DisassemblySplit> {
   const outIds = [...new Set(components.filter(c => c.kind === 'output').map(c => c.productId).filter((x): x is string => !!x))];
@@ -1569,6 +1834,7 @@ async function disassemblySplit(
     // стоимость исходного товара: по фактически списанной строке документа
     let source = 0n;
     for (const c of own) {
+      // возвратные отходы в разборке не встречаются — пропускаем на всякий случай
       if (c.kind !== 'material') continue;
       const qty = c.documentLineId ? (opts.qtyByLine.get(c.documentLineId) ?? dec(c.qty)) : dec(c.qty);
       const unit = c.documentLineId ? (opts.sourceCost.get(c.documentLineId) ?? 0n) : 0n;
@@ -1582,7 +1848,12 @@ async function disassemblySplit(
       works += actual !== undefined ? actual : mul(dec(c.hours), dec(c.rate ?? '0')) + dec(c.fixedCost ?? '0');
     }
     const overhead = pctOf(source + works, opts.overheadByItem.get(it.itemId) ?? 0n);
-    const total = source + works + overhead;
+    // возвратные отходы разборки (решение 8): их учётная стоимость вычитается до распределения между выходами;
+    // накладные считаются от затрат без вычета отходов
+    let waste = 0n;
+    if (opts.wasteValuation !== 'zero') for (const c of own) if (c.kind === 'waste') waste += mul(dec(c.qty), dec(c.price ?? '0'));
+    if (waste > source + works + overhead) throw new DomainError(422, 'waste_exceeds_cost', `Returnable waste (${fmt(waste)}) costs more than the disassembly (${fmt(source + works + overhead)})`);
+    const total = source + works + overhead - waste;
     totals.set(it.id, total);
     const outs = own.filter(c => c.kind === 'output');
     if (!outs.length) continue;
@@ -1631,13 +1902,14 @@ export async function recalcReleaseCost(db: Db, ctx: DocCtx, releaseId: string):
     .where(eq(stockMoves.documentId, releaseId));
   const outCost = new Map<string, bigint>();
   const lineQty = new Map<string, bigint>();
-  const incoming = new Map<string, (typeof moves)[number]>();
+  /** Приходы по строке документа: у выпуска с браком «на расходы» их два — годное и брак (по одной цене единицы) */
+  const incoming = new Map<string, (typeof moves)[number][]>();
   for (const m of moves) {
-    if (!m.lineId) continue;
+    if (!m.lineId) continue; // приход отходов без строки: его цена фиксирована
     const qty = dec(m.qty) < 0n ? -dec(m.qty) : dec(m.qty);
-    lineQty.set(m.lineId, qty);
+    lineQty.set(m.lineId, (lineQty.get(m.lineId) ?? 0n) + qty);
     if (dec(m.qty) < 0n) outCost.set(m.lineId, dec(m.cost));
-    else incoming.set(m.lineId, m);
+    else incoming.set(m.lineId, [...(incoming.get(m.lineId) ?? []), m]);
   }
   const prodIds = [...new Set(items.map(i => i.itemId))];
   const overheads = prodIds.length ? await db.select({ id: manufacturedItems.id, overheadPct: manufacturedItems.overheadPct }).from(manufacturedItems).where(inArray(manufacturedItems.id, prodIds)) : [];
@@ -1652,28 +1924,16 @@ export async function recalcReleaseCost(db: Db, ctx: DocCtx, releaseId: string):
     wipByItem.set(it.id, await wipUnitCost(source, plan.stages, totals));
   }
   const workCosts = await releaseWorkCosts(db, releaseId);
-  const [header] = await db.select({ stageId: productionHeaders.stageId }).from(productionHeaders).where(eq(productionHeaders.documentId, releaseId)).limit(1);
+  const [header] = await db.select({ stageId: productionHeaders.stageId, wasteValuation: productionHeaders.wasteValuation }).from(productionHeaders).where(eq(productionHeaders.documentId, releaseId)).limit(1);
+  const wasteValuation: WasteValuation = header?.wasteValuation === 'zero' ? 'zero' : 'accounting';
   const stage = await stageDef(db, header?.stageId ?? null);
-  // разборка: пересчитываем стоимость списанного + работы + накладные и заново делим её между выходами
+  // разборка: пересчитываем стоимость списанного + работы + накладные − отходы и заново делим её между выходами
   if (doc.operation === 'disassembly') {
-    const sourceCost = new Map<string, bigint>();
-    const qtyByLine = new Map<string, bigint>();
-    const incoming = new Map<string, (typeof moves)[number]>();
-    for (const m of moves) {
-      if (!m.lineId) continue;
-      const qty = dec(m.qty) < 0n ? -dec(m.qty) : dec(m.qty);
-      qtyByLine.set(m.lineId, qty);
-      if (dec(m.qty) < 0n) sourceCost.set(m.lineId, dec(m.cost));
-      else incoming.set(m.lineId, m);
-    }
-    const prodIds = [...new Set(items.map(i => i.itemId))];
-    const overheads = prodIds.length ? await db.select({ id: manufacturedItems.id, overheadPct: manufacturedItems.overheadPct }).from(manufacturedItems).where(inArray(manufacturedItems.id, prodIds)) : [];
-    const overheadByItem = new Map(overheads.map(o => [o.id, dec(o.overheadPct)]));
-    const split = await disassemblySplit(db, items, components, { sourceCost, workCosts, overheadByItem, qtyByLine });
+    const split = await disassemblySplit(db, items, components, { sourceCost: outCost, workCosts, overheadByItem, qtyByLine: lineQty, wasteValuation });
     for (const it of items) await db.update(productionItems).set({ stageCost: fmt(split.totals.get(it.id) ?? 0n) }).where(eq(productionItems.id, it.id));
     for (const c of components) {
       if (c.kind !== 'output' || !c.documentLineId) continue;
-      const move = incoming.get(c.documentLineId);
+      const move = incoming.get(c.documentLineId)?.[0];
       if (!move) continue;
       await assertNotShipped(db, move);
       await revalueMove(db, ctx.workspaceId, move.id, split.units.get(c.documentLineId) ?? 0n);
@@ -1681,6 +1941,20 @@ export async function recalcReleaseCost(db: Db, ctx: DocCtx, releaseId: string):
     }
     return;
   }
+  // возвратные отходы (как при проведении): учётная стоимость qty × цена делится между продукцией по её затратам
+  const final = stage.isFinal;
+  let wasteTotal = 0n;
+  if (final && wasteValuation === 'accounting') for (const c of components) if (c.kind === 'waste') wasteTotal += mul(dec(c.qty), dec(c.price ?? '0'));
+  const base = new Map<string, bigint>();
+  const withWip = new Map<string, bigint>();
+  for (const it of items) {
+    const b = itemCost(it, components, outCost, overheadByItem.get(it.itemId) ?? 0n, lineQty, workCosts);
+    base.set(it.id, b);
+    const total = it.documentLineId ? (lineQty.get(it.documentLineId) ?? 0n) + (it.defectMode === 'cost' ? dec(it.defectQty) : 0n) : 0n;
+    withWip.set(it.id, b + mul(wipByItem.get(it.id) ?? 0n, total));
+  }
+  if (wasteTotal > [...withWip.values()].reduce((a, v) => a + v, 0n)) throw new DomainError(422, 'waste_exceeds_cost', 'Returnable waste costs more than the whole release');
+  const wasteByItem = distributeWasteAcrossItems(items, withWip, wasteTotal);
   for (const it of items) {
     if (!it.documentLineId) {
       // промежуточный этап: продукции нет, меняется только затрата этапа (НЗП); если следующий этап уже выпущен, НЗП учтено в нём
@@ -1689,19 +1963,21 @@ export async function recalcReleaseCost(db: Db, ctx: DocCtx, releaseId: string):
         const later = await laterStageRelease(db, it.itemId, source, stage.sortOrder);
         if (later) throw new DomainError(422, 'cost_locked', `The stage “${later.name}” is already released: the cost of the stage “${stage.name}” cannot be recalculated, adjust it when closing the period`);
       }
-      await db.update(productionItems).set({ stageCost: fmt(itemCost(it, components, outCost, overheadByItem.get(it.itemId) ?? 0n, lineQty, workCosts)) }).where(eq(productionItems.id, it.id));
+      await db.update(productionItems).set({ stageCost: fmt((base.get(it.id) ?? 0n) - (wasteByItem.get(it.id) ?? 0n)) }).where(eq(productionItems.id, it.id));
       continue;
     }
-    const move = incoming.get(it.documentLineId);
-    if (!move) continue;
-    const qty = lineQty.get(it.documentLineId) ?? dec(it.qty);
-    if (qty <= 0n) continue;
-    await assertNotShipped(db, move);
-    const cost = itemCost(it, components, outCost, overheadByItem.get(it.itemId) ?? 0n, lineQty, workCosts);
-    const wip = wipByItem.get(it.id) ?? 0n;
-    const unit = div(cost + mul(wip, qty), qty);
-    await revalueMove(db, ctx.workspaceId, move.id, unit);
-    await db.update(productionItems).set({ stageCost: fmt(cost) }).where(eq(productionItems.id, it.id));
+    const moved = incoming.get(it.documentLineId) ?? [];
+    if (!moved.length) continue;
+    // затраты делятся на всё приходованное: «в себестоимость» — только годное, «на расходы» — годное и брак
+    const den = lineQty.get(it.documentLineId) ?? 0n;
+    if (den <= 0n) continue;
+    const cost = (base.get(it.id) ?? 0n) - (wasteByItem.get(it.id) ?? 0n);
+    const unit = div((withWip.get(it.id) ?? 0n) - (wasteByItem.get(it.id) ?? 0n), den);
+    for (const move of moved) {
+      await assertNotShipped(db, move);
+      await revalueMove(db, ctx.workspaceId, move.id, unit);
+    }
+    await db.update(productionItems).set({ stageCost: fmt(cost), ...(dec(it.defectQty) > 0n ? { defectUnitCost: fmt(unit, 4) } : {}) }).where(eq(productionItems.id, it.id));
   }
 }
 
@@ -1836,6 +2112,13 @@ DOCUMENT_HOOKS.production_order = {
   },
 };
 
+/** Склады выпуска для отходов и брака: склад из шапки, иначе цепочка решения 6 (отходы → склад продукции; брак → отходы → продукция) */
+async function releaseWarehouses(db: Db, doc: { id: string; targetWarehouseId: string | null }): Promise<{ waste: string | null; defect: string | null }> {
+  const [h] = await db.select({ waste: productionHeaders.wasteWarehouseId, defect: productionHeaders.defectWarehouseId }).from(productionHeaders).where(eq(productionHeaders.documentId, doc.id)).limit(1);
+  const waste = h?.waste ?? doc.targetWarehouseId;
+  return { waste, defect: h?.defect ?? waste };
+}
+
 DOCUMENT_HOOKS.production = {
   /** Проверки до проведения: состав документа, порядок этапов и превышение заказанного */
   check: async (db, ctx, doc, lines) => {
@@ -1868,13 +2151,27 @@ DOCUMENT_HOOKS.production = {
       if (final && !doc.targetWarehouseId) throw new DomainError(422, 'warehouse_required', 'Select a warehouse for the finished goods before posting');
       if (lines.some(l => l.stockRole === 'out') && !doc.warehouseId) throw new DomainError(422, 'warehouse_required', 'Select a warehouse for the materials before posting');
     }
+    // брак: 0 ≤ брак ≤ выпущено, режим обязателен, только у финального этапа
+    if (disassembly && items.some(it => dec(it.defectQty) > 0n)) throw new DomainError(422, 'defect_disassembly_forbidden', 'A disassembly has no defect');
+    for (const it of items) assertDefect(dec(it.qty), dec(it.defectQty), (it.defectMode as DefectMode | null) ?? null, final);
+    // возвратные отходы: товары каталога, склад отходов нужен финальному этапу (из шапки или склад продукции)
+    const wasteComps = components.filter(c => c.kind === 'waste');
+    if (wasteComps.length) {
+      const kinds = await db.select({ id: products.id, kind: products.kind }).from(products).where(inArray(products.id, [...new Set(wasteComps.map(c => c.productId!))]));
+      if (kinds.some(p => p.kind !== 'goods')) throw new DomainError(422, 'item_not_stockable', 'Only goods can be received as waste');
+      if (!(await releaseWarehouses(db, doc)).waste) throw new DomainError(422, 'warehouse_required', 'Select a warehouse for the waste before posting');
+    }
+    if (items.some(it => dec(it.defectQty) > 0n && it.defectMode === 'expense') && !(await releaseWarehouses(db, doc)).defect) throw new DomainError(422, 'warehouse_required', 'Select a warehouse for the defects before posting');
     // выпуск из давальческого сырья: заказ на переработку должен быть проведён, сырьё — на своём остатке
     if (header?.processingOrderId) {
+      if (items.some(it => dec(it.defectQty) > 0n)) throw new DomainError(422, 'defect_tolling_forbidden', 'A defect cannot be recorded for customer material processing');
       // разборка давальческого сырья не делается (решение пользователя): ветка разборки не знает владельца материала
       if (disassembly) throw new DomainError(422, 'processing_disassembly', 'A disassembly cannot be made from customer materials');
       const order = await assertProcessingOrder(db, header.processingOrderId);
       if (order.status !== 'posted') throw new DomainError(422, 'base_not_posted', 'Post the customer order first');
       if (!order.counterpartyId) throw new DomainError(422, 'counterparty_required', 'The processing order has no customer');
+      // возвратные отходы в переработке запрещены: спецификация не подразумевает отходы «давальцу»
+      if (components.some(c => c.kind === 'waste')) throw new DomainError(422, 'waste_tolling_forbidden', 'Returnable waste is forbidden for customer material processing');
     }
     // продукция должна быть складским товаром
     const prodIds = [...new Set(lines.filter(l => l.stockRole === 'in' || (disassembly && l.stockRole === 'out')).map(l => l.productId))];
@@ -1891,7 +2188,7 @@ DOCUMENT_HOOKS.production = {
       const totals = await stageTotals(db, [source]);
       const stage = await resolveStage(db, it.itemId, stageId);
       const limit = await stageLimit(db, { itemId: it.itemId, stage, ordered, source, totals });
-      const qty = dec(it.qty);
+      const qty = dec(it.qty) - dec(it.defectQty); // заказ исполняется годным
       if (limit.done + qty > limit.cap) {
         if (limit.byStage) throw new DomainError(422, 'stage_order', `The stage “${stage.name}” waits for the previous one: only ${fmt(limit.cap, 3)} of ${fmt(ordered, 3)} are ready`);
         throw new DomainError(422, 'over_fulfilment', 'More is produced than ordered');
@@ -1915,9 +2212,14 @@ DOCUMENT_HOOKS.production = {
       const outReqs: MoveRequest[] = lines.filter(l => l.stockRole === 'out').map(l => ({ warehouseId: doc.warehouseId!, productId: l.productId, lineId: l.id, qty: dec(l.qty), direction: 'out' as const }));
       const outCost = await applyStockMoves(db, ctx.workspaceId, { id: doc.id, date: doc.date }, outReqs, settings);
       // стоимость разборки делится между выходными продуктами: списанное + работы + накладные
-      const split = await disassemblySplit(db, items, components, { sourceCost: outCost, workCosts, overheadByItem, qtyByLine: lineQty });
-      // затем приход выходных продуктов по распределённой стоимости
+      const [dHeader] = await db.select({ stageId: productionHeaders.stageId, wasteValuation: productionHeaders.wasteValuation }).from(productionHeaders).where(eq(productionHeaders.documentId, doc.id)).limit(1);
+      const wasteValuation: WasteValuation = dHeader?.wasteValuation === 'zero' ? 'zero' : 'accounting';
+      const split = await disassemblySplit(db, items, components, { sourceCost: outCost, workCosts, overheadByItem, qtyByLine: lineQty, wasteValuation });
+      // затем приход выходных продуктов по распределённой стоимости и возвратных отходов по их учётной цене
       const inReqs: MoveRequest[] = lines.filter(l => l.stockRole === 'in').map(l => ({ warehouseId: doc.targetWarehouseId!, productId: l.productId, lineId: l.id, qty: dec(l.qty), direction: 'in' as const, cost: split.units.get(l.id) }));
+      const wasteComps = (await isFinalStage(db, dHeader?.stageId ?? null)) ? components.filter(c => c.kind === 'waste') : [];
+      const wh = await releaseWarehouses(db, doc);
+      for (const c of wasteComps) inReqs.push({ warehouseId: wh.waste!, productId: c.productId!, lineId: null, qty: dec(c.qty), direction: 'in', cost: wasteValuation === 'accounting' ? dec(c.price ?? '0') : 0n });
       await applyStockMoves(db, ctx.workspaceId, { id: doc.id, date: doc.date }, inReqs, settings);
       // факт по составу: списанное количество и себестоимость строки
       for (const c of components) {
@@ -1934,12 +2236,16 @@ DOCUMENT_HOOKS.production = {
         const unit = outCost.get(c.documentLineId) ?? 0n;
         await db.update(productionComponents).set({ actualQty: fmt(qty), actualCost: fmt(mul(qty, unit)) }).where(eq(productionComponents.id, c.id));
       }
-      // себестоимость позиции: списанное + работы + накладные (всего, что поделили между выходами)
+      for (const c of wasteComps) await db.update(productionComponents).set({ actualQty: c.qty, actualCost: fmt(wasteValuation === 'accounting' ? mul(dec(c.qty), dec(c.price ?? '0')) : 0n) }).where(eq(productionComponents.id, c.id));
+      // себестоимость позиции: списанное + работы + накладные − отходы (всё, что поделили между выходами)
       for (const it of items) await db.update(productionItems).set({ stageCost: fmt(split.totals.get(it.id) ?? 0n) }).where(eq(productionItems.id, it.id));
       return;
     }
-    const [headerRow] = await db.select({ processingOrderId: productionHeaders.processingOrderId }).from(productionHeaders).where(eq(productionHeaders.documentId, doc.id)).limit(1);
+    const [headerRow] = await db.select({ processingOrderId: productionHeaders.processingOrderId, stageId: productionHeaders.stageId, wasteValuation: productionHeaders.wasteValuation }).from(productionHeaders).where(eq(productionHeaders.documentId, doc.id)).limit(1);
     const processingOrderId = headerRow?.processingOrderId ?? null;
+    // финальный ли этап у выпуска: возвратные отходы и брак приходует только финальный этап
+    const final = await isFinalStage(db, headerRow?.stageId ?? null);
+    const wasteValuation: WasteValuation = headerRow?.wasteValuation === 'zero' ? 'zero' : 'accounting';
     // чей материал по строке состава: давальческое сырьё списывается со своего остатка, своё — по средней склада
     const customerLineIds = new Set(components.filter(c => c.ownerKind === 'customer' && c.documentLineId).map(c => c.documentLineId!));
     let ownerCompanyId: string | null = null;
@@ -1948,8 +2254,13 @@ DOCUMENT_HOOKS.production = {
       if (!order?.counterpartyId) throw new DomainError(422, 'counterparty_required', 'The processing order has no customer');
       ownerCompanyId = order.counterpartyId;
     }
-    const reqs: MoveRequest[] = [];
+    const itemByLine = new Map(items.filter(i => i.documentLineId).map(i => [i.documentLineId!, i]));
+    /** Брак позиции: в себестоимость (cost) или на склад брака (expense) */
+    const defectOf = (lineId: string) => dec(itemByLine.get(lineId)?.defectQty ?? '0');
+    const outReqs: MoveRequest[] = [];
+    const inReqs: MoveRequest[] = [];
     const custReqs: CustomerMoveRequest[] = [];
+    const wh = await releaseWarehouses(db, doc);
     // склад двигают только товары: услуга переработчика идёт в себестоимость, а не в расход со склада
     const kinds = new Map((await db.select({ id: products.id, kind: products.kind }).from(products).where(inArray(products.id, [...new Set(lines.map(l => l.productId))]))).map(p => [p.id, p.kind]));
     for (const l of lines) {
@@ -1959,15 +2270,21 @@ DOCUMENT_HOOKS.production = {
           if (ownerCompanyId) custReqs.push({ warehouseId: doc.warehouseId!, productId: l.productId, lineId: l.id, qty: dec(l.qty), direction: 'out', ownerCompanyId, processingOrderId });
           continue;
         }
-        reqs.push({ warehouseId: doc.warehouseId!, productId: l.productId, lineId: l.id, qty: dec(l.qty), direction: 'out' });
+        outReqs.push({ warehouseId: doc.warehouseId!, productId: l.productId, lineId: l.id, qty: dec(l.qty), direction: 'out' });
       } else if (l.stockRole === 'in') {
         // продукция из давальческого сырья остаётся давальцу: она приходуется на его остаток, без стоимости
-        if (processingOrderId && ownerCompanyId) custReqs.push({ warehouseId: doc.targetWarehouseId!, productId: l.productId, lineId: l.id, qty: dec(l.qty), direction: 'in', ownerCompanyId, processingOrderId });
-        else reqs.push({ warehouseId: doc.targetWarehouseId!, productId: l.productId, lineId: l.id, qty: dec(l.qty), direction: 'in' });
+        if (processingOrderId && ownerCompanyId) {
+          custReqs.push({ warehouseId: doc.targetWarehouseId!, productId: l.productId, lineId: l.id, qty: dec(l.qty), direction: 'in', ownerCompanyId, processingOrderId });
+          continue;
+        }
+        // брак не приходуется на склад продукции: «в себестоимость» исчезает, «на расходы» уходит на склад брака (той же строкой)
+        const defect = defectOf(l.id);
+        const mode = itemByLine.get(l.id)?.defectMode;
+        const good = dec(l.qty) - defect;
+        if (good > 0n) inReqs.push({ warehouseId: doc.targetWarehouseId!, productId: l.productId, lineId: l.id, qty: good, direction: 'in' });
+        if (defect > 0n && mode === 'expense') inReqs.push({ warehouseId: wh.defect!, productId: l.productId, lineId: l.id, qty: defect, direction: 'in' });
       }
     }
-    // цена прихода продукции: себестоимость её позиции (материалы по факту + работы + накладные)
-    const itemByLine = new Map(items.filter(i => i.documentLineId).map(i => [i.documentLineId!, i]));
     const qtyByItem = new Map<string, bigint>();
     for (const l of lines) {
       const it = itemByLine.get(l.id);
@@ -1989,19 +2306,39 @@ DOCUMENT_HOOKS.production = {
       const totals = await stageTotals(db, [source]);
       wipByItem.set(it.id, await wipUnitCost(source, plan.stages, totals));
     }
-    const outCost = await applyStockMoves(db, ctx.workspaceId, { id: doc.id, date: doc.date }, reqs, await loadInventorySettings(db, ctx.workspaceId), {
-      inCost: (lineId, costs) => {
-        const it = lineId ? itemByLine.get(lineId) : undefined;
-        if (!it) return undefined;
-        // выпуск по заказу на переработку: прихода продукции на своём складе нет — стоимость не считается
-        if (processingOrderId) return undefined;
-        const cost = itemCost(it, components, costs, overheadByItem.get(it.itemId) ?? 0n, lineQty, workCosts);
-        const qty = qtyByItem.get(it.id) ?? 0n;
-        if (qty <= 0n) return undefined;
-        // себестоимость продукции = затраты этапа + незавершённое производство предыдущих этапов
-        const wip = wipByItem.get(it.id) ?? 0n;
-        return div(cost + mul(wip, qty), qty);
-      },
+    const settings = await loadInventorySettings(db, ctx.workspaceId);
+    // 1. расход: списываются материалы, фактическая цена нужна для себестоимости продукции
+    const outCost = await applyStockMoves(db, ctx.workspaceId, { id: doc.id, date: doc.date }, outReqs, settings);
+    // 2. возвратные отходы: учётная стоимость qty × цена (при нулевой оценке — 0) и распределение по продукции пропорционально её затратам
+    const wasteComps = final ? components.filter(c => c.kind === 'waste') : [];
+    const wasteCostOf = (c: (typeof components)[number]) => (wasteValuation === 'accounting' ? mul(dec(c.qty), dec(c.price ?? '0')) : 0n);
+    const wasteTotal = wasteComps.reduce((sum, c) => sum + wasteCostOf(c), 0n);
+    const itemBase = new Map<string, bigint>(); // затраты позиции этапа до вычета отходов
+    const itemWithWip = new Map<string, bigint>(); // то же вместе с НЗП предыдущих этапов
+    for (const it of items) {
+      const base = itemCost(it, components, outCost, overheadByItem.get(it.itemId) ?? 0n, lineQty, workCosts);
+      itemBase.set(it.id, base);
+      itemWithWip.set(it.id, base + mul(wipByItem.get(it.id) ?? 0n, qtyByItem.get(it.id) ?? 0n));
+    }
+    const available = [...itemWithWip.values()].reduce((a, b) => a + b, 0n);
+    if (wasteTotal > available) throw new DomainError(422, 'waste_exceeds_cost', `Returnable waste (${fmt(wasteTotal)}) costs more than the whole release (${fmt(available)})`);
+    const wasteByItem = distributeWasteAcrossItems(items, itemWithWip, wasteTotal);
+    /** Цена единицы продукции позиции: затраты + НЗП − отходы; «в себестоимость» делит их на годное, «на расходы» — на всё выпущенное */
+    const unitOf = new Map<string, bigint>();
+    for (const it of items) {
+      if (!it.documentLineId || processingOrderId) continue;
+      const total = qtyByItem.get(it.id) ?? 0n;
+      const den = it.defectMode === 'cost' ? total - dec(it.defectQty) : total;
+      if (den <= 0n) continue;
+      unitOf.set(it.documentLineId, div((itemWithWip.get(it.id) ?? 0n) - (wasteByItem.get(it.id) ?? 0n), den));
+    }
+    // 3. приход: годная продукция, брак «на расходы» (по той же цене единицы) и отходы (по зафиксированной цене)
+    for (const c of wasteComps) {
+      if (!wh.waste) throw new DomainError(422, 'warehouse_required', 'Select a warehouse for the waste before posting');
+      inReqs.push({ warehouseId: wh.waste, productId: c.productId!, lineId: null, qty: dec(c.qty), direction: 'in', cost: wasteValuation === 'accounting' ? dec(c.price ?? '0') : 0n });
+    }
+    await applyStockMoves(db, ctx.workspaceId, { id: doc.id, date: doc.date }, inReqs, settings, {
+      inCost: lineId => (lineId ? unitOf.get(lineId) : undefined),
     });
     // давальские движения выпуска: сырьё давальца и продукция на его остатке (наш склад не меняется)
     if (custReqs.length && ownerCompanyId) await applyCustomerStockMoves(db, ctx.workspaceId, { id: doc.id, date: doc.date }, custReqs);
@@ -2016,15 +2353,22 @@ DOCUMENT_HOOKS.production = {
         await db.update(productionComponents).set({ actualQty: c.qty, actualCost: c.plannedCost }).where(eq(productionComponents.id, c.id));
         continue;
       }
+      // возвратный отход: факт — принятое количество и учётная стоимость прихода
+      if (c.kind === 'waste') {
+        await db.update(productionComponents).set({ actualQty: c.qty, actualCost: fmt(wasteCostOf(c)) }).where(eq(productionComponents.id, c.id));
+        continue;
+      }
       if (!c.documentLineId) continue;
       const qty = lineQty.get(c.documentLineId) ?? dec(c.qty);
       const unit = outCost.get(c.documentLineId) ?? 0n;
       await db.update(productionComponents).set({ actualQty: fmt(qty), actualCost: fmt(mul(qty, unit)) }).where(eq(productionComponents.id, c.id));
     }
-    // себестоимость этапа по позиции: наши материалы + работы + накладные — по заказу на переработку это себестоимость услуги
+    // себестоимость этапа по позиции: наши материалы + работы + накладные — по заказу на переработку это себестоимость услуги;
+    // стоимость возвратных отходов уменьшает её
     for (const it of items) {
-      const cost = itemCost(it, components, outCost, overheadByItem.get(it.itemId) ?? 0n, lineQty, workCosts);
-      await db.update(productionItems).set({ stageCost: fmt(cost) }).where(eq(productionItems.id, it.id));
+      const cost = (itemBase.get(it.id) ?? 0n) - (wasteByItem.get(it.id) ?? 0n);
+      const unit = it.documentLineId ? unitOf.get(it.documentLineId) : undefined;
+      await db.update(productionItems).set({ stageCost: fmt(cost), ...(dec(it.defectQty) > 0n ? { defectUnitCost: unit !== undefined ? fmt(unit, 4) : null } : {}) }).where(eq(productionItems.id, it.id));
     }
   },
   /** Отмена проведения промежуточного этапа, если следующий этап уже выполнен, запрещена */
@@ -2059,7 +2403,9 @@ DOCUMENT_HOOKS.production = {
       if (!src) continue;
       const shipped = (await shippedQty(db, ctx.workspaceId, [it.customerOrderLineId!])).get(it.customerOrderLineId!) ?? 0n;
       // produced считает и этот выпуск — вычитаем его
-      const other = (already.get(it.customerOrderLineId!) ?? 0n) - dec(it.qty);
+      const good = dec(it.qty) - dec(it.defectQty); // резервируется годное: брак заказ не закрывает
+      if (good <= 0n) continue;
+      const other = (already.get(it.customerOrderLineId!) ?? 0n) - good;
       const want = dec(src.qty) - shipped - other;
       if (want <= 0n) continue;
       // если заказ покупателя уже резервирует товар на этом складе, второй резерв не нужен
@@ -2069,7 +2415,7 @@ DOCUMENT_HOOKS.production = {
         .where(and(eq(stockReservations.documentLineId, it.customerOrderLineId!), eq(stockReservations.warehouseId, doc.targetWarehouseId!), eq(stockReservations.productId, src.productId)))
         .limit(1);
       if (own) continue;
-      const qty = dec(it.qty) < want ? dec(it.qty) : want;
+      const qty = good < want ? good : want;
       await db
         .insert(stockReservations)
         .values({ workspaceId: ctx.workspaceId, documentId: doc.id, productionLineId: it.documentLineId!, warehouseId: doc.targetWarehouseId!, productId: src.productId, qty: fmt(qty, 3) })
@@ -2089,11 +2435,143 @@ DOCUMENT_HOOKS.production = {
     const ids = items.map(i => i.documentLineId).filter((x): x is string => !!x);
     if (ids.length) await db.delete(stockReservations).where(inArray(stockReservations.productionLineId, ids));
     for (const c of components) if (c.actualQty !== null || c.actualCost !== null) await db.update(productionComponents).set({ actualQty: null, actualCost: null }).where(eq(productionComponents.id, c.id));
-    for (const it of items) if (it.stageCost !== null) await db.update(productionItems).set({ stageCost: null }).where(eq(productionItems.id, it.id));
+    for (const it of items) if (it.stageCost !== null || it.defectUnitCost !== null) await db.update(productionItems).set({ stageCost: null, defectUnitCost: null }).where(eq(productionItems.id, it.id));
   },
 };
 
 /* ---------------- карточка и журнал ---------------- */
+
+/* ---------------- списание брака ---------------- */
+
+/** «Списать брак»: черновик «Списание» на основании проведённого выпуска. Склад — склад брака выпуска, строки — товар × количество
+    брака «на расходы», сгруппированные по товару. Статью расходов выбирает и акт проводит пользователь.
+    Если не отменённое списание на основании выпуска уже есть — 409 `defects_written_off` */
+export async function writeOffDefects(db: Db, ctx: DocCtx, releaseId: string): Promise<{ id: string; created: boolean }> {
+  const [doc] = await db.select().from(documents).where(eq(documents.id, releaseId)).limit(1).for('update');
+  if (!doc) throw new DomainError(404, 'not_found', 'document not found');
+  if (doc.type !== 'production') throw new DomainError(422, 'invalid_type', 'Defects are written off from a production release');
+  if (doc.status !== 'posted') throw new DomainError(422, 'not_posted', 'Post the production release first');
+  const items = await db.select().from(productionItems).where(eq(productionItems.documentId, releaseId)).orderBy(asc(productionItems.sortOrder));
+  const defective = items.filter(i => i.documentLineId && dec(i.defectQty) > 0n && i.defectMode === 'expense');
+  if (!defective.length) throw new DomainError(422, 'no_defects', 'There are no defects to write off');
+  const [existing] = await db
+    .select({ id: documents.id, number: documents.number })
+    .from(documents)
+    .where(and(eq(documents.basedOnId, releaseId), eq(documents.type, 'write_off'), ne(documents.status, 'cancelled')))
+    .limit(1);
+  if (existing) throw new DomainError(409, 'defects_written_off', 'The defects of this release are already written off', { documentId: existing.id, number: existing.number });
+  const wh = await releaseWarehouses(db, doc);
+  if (!wh.defect) throw new DomainError(422, 'warehouse_required', 'Select a warehouse for the defects first');
+  // строки: товар выпущенной строки документа, брак суммируется по товару
+  const lineRows = await db.select().from(documentLines).where(inArray(documentLines.id, defective.map(i => i.documentLineId!)));
+  const byLine = new Map(lineRows.map(l => [l.id, l]));
+  const grouped = new Map<string, { productId: string; name: string; unitCode: string; qty: bigint }>();
+  for (const it of defective) {
+    const l = byLine.get(it.documentLineId!);
+    if (!l) continue;
+    const cur = grouped.get(l.productId) ?? { productId: l.productId, name: l.name, unitCode: l.unitCode, qty: 0n };
+    cur.qty += dec(it.defectQty);
+    grouped.set(l.productId, cur);
+  }
+  const id = await createDocument(db, ctx, {
+    type: 'write_off',
+    organizationId: null,
+    warehouseId: wh.defect,
+    date: doc.date,
+    basedOnId: releaseId,
+    comment: `Defects of ${doc.number ?? 'production'}`,
+    lines: [...grouped.values()].map(g => ({ id: uuidv7(), productId: g.productId, name: g.name, unitCode: g.unitCode, qty: fmt(g.qty, 3), price: '0', discountPct: '0', vatRate: 'none' as const, stockRole: 'out' as const })),
+  });
+  await db.update(productionItems).set({ disposalDocumentId: id }).where(inArray(productionItems.id, defective.map(i => i.id)));
+  return { id, created: true };
+}
+
+/* ---------------- отходы и брак: правка шапки, вкладки «Отходы» и позиций ---------------- */
+
+export interface ProductionAccountingPatch {
+  wasteValuation?: WasteValuation;
+  wasteWarehouseId?: string | null;
+  defectWarehouseId?: string | null;
+  /** Брак по позициям выпуска (у заказа брака нет) */
+  defects?: { itemId: string; defectQty: string; defectMode?: DefectMode | null }[];
+  /** Вкладка «Отходы» целиком: строки с id обновляются, без id — новые, пропавшие удаляются. Цену задают только admin и owner */
+  waste?: { id?: string; productId: string; qty: string; price?: string | null }[];
+}
+
+/** Учётная цена отхода по настройке «Цена отходов» */
+async function defaultWastePrice(db: Db, workspaceId: string, productId: string): Promise<string | null> {
+  const [p] = await db.select({ price: products.price, purchasePrice: products.purchasePrice }).from(products).where(eq(products.id, productId)).limit(1);
+  if (!p) return null;
+  return resolveMaterialPrice(await loadWastePriceSource(db, workspaceId), p, (await loadAvgCosts(db, [productId])).get(productId));
+}
+
+/** Правка шапки (оценка отходов, склады отходов и брака), вкладки «Отходы» и брака проводимого вручную выпуска или заказа (только черновик) */
+export async function updateProductionAccounting(db: Db, ctx: DocCtx, docId: string, patch: ProductionAccountingPatch, opts: { canSetPrice: boolean }): Promise<void> {
+  const [doc] = await db.select().from(documents).where(eq(documents.id, docId)).limit(1).for('update');
+  if (!doc) throw new DomainError(404, 'not_found', 'document not found');
+  if (doc.type !== 'production' && doc.type !== 'production_order') throw new DomainError(422, 'invalid_type', 'This is not a production document');
+  if (doc.status !== 'draft') throw new DomainError(409, 'not_draft', 'A posted document cannot be edited: unpost it first');
+  const [header] = await db.select().from(productionHeaders).where(eq(productionHeaders.documentId, docId)).limit(1);
+  if (!header) throw new DomainError(404, 'not_found', 'The production document has no header');
+  const items = await db.select().from(productionItems).where(eq(productionItems.documentId, docId)).orderBy(asc(productionItems.sortOrder));
+  const final = doc.type === 'production_order' ? true : await isFinalStage(db, header.stageId);
+  const set: Partial<typeof productionHeaders.$inferInsert> = {};
+  if (patch.wasteValuation) set.wasteValuation = patch.wasteValuation;
+  for (const k of ['wasteWarehouseId', 'defectWarehouseId'] as const) {
+    const v = patch[k];
+    if (v === undefined) continue;
+    if (v) {
+      const [w] = await db.select({ id: warehouses.id }).from(warehouses).where(eq(warehouses.id, v)).limit(1);
+      if (!w) throw new DomainError(422, 'invalid_reference', 'The warehouse does not exist');
+    }
+    set[k] = v;
+  }
+  if (Object.keys(set).length) await db.update(productionHeaders).set({ ...set, updatedAt: new Date() }).where(eq(productionHeaders.documentId, docId));
+  if (patch.defects) {
+    if (doc.type !== 'production') throw new DomainError(422, 'defect_order_forbidden', 'A defect is recorded in a production release, not in an order');
+    if (doc.operation === 'disassembly') throw new DomainError(422, 'defect_disassembly_forbidden', 'A disassembly has no defect');
+    if (header.processingOrderId) throw new DomainError(422, 'defect_tolling_forbidden', 'A defect cannot be recorded for customer material processing');
+    for (const d of patch.defects) {
+      const it = items.find(i => i.id === d.itemId);
+      if (!it) throw new DomainError(422, 'invalid_reference', 'The position does not belong to this document');
+      const defect = dec(d.defectQty);
+      assertDefect(dec(it.qty), defect, d.defectMode ?? null, final);
+      await db.update(productionItems).set({ defectQty: fmt(defect, 3), defectMode: defect > 0n ? d.defectMode ?? null : null, defectUnitCost: null }).where(eq(productionItems.id, it.id));
+    }
+  }
+  if (patch.waste) {
+    if (!final) throw new DomainError(422, 'waste_final_stage_only', 'The waste is received by the final stage only');
+    if (header.processingOrderId && patch.waste.length) throw new DomainError(422, 'waste_tolling_forbidden', 'Returnable waste is forbidden for customer material processing');
+    if (!items.length) throw new DomainError(422, 'no_items', 'Add products to produce first');
+    const existing = await db.select().from(productionComponents).where(and(eq(productionComponents.documentId, docId), eq(productionComponents.kind, 'waste')));
+    const byId = new Map(existing.map(c => [c.id, c]));
+    const kept = new Set<string>();
+    const stage = existing[0]?.stageId ?? (doc.type === 'production' ? header.stageId : null);
+    let order = (await db.select({ m: sql<number>`coalesce(max(${productionComponents.sortOrder}), -1)` }).from(productionComponents).where(eq(productionComponents.documentId, docId)))[0]?.m ?? -1;
+    for (const w of patch.waste) {
+      const qty = dec(w.qty);
+      if (qty <= 0n) throw new DomainError(422, 'invalid_quantity', 'The quantity must be greater than zero');
+      const [prod] = await db.select({ id: products.id, kind: products.kind }).from(products).where(eq(products.id, w.productId)).limit(1);
+      if (!prod) throw new DomainError(422, 'invalid_reference', 'The product does not exist');
+      if (prod.kind !== 'goods') throw new DomainError(422, 'item_not_stockable', 'Only goods can be received as waste');
+      const prev = w.id ? byId.get(w.id) : undefined;
+      if (w.id && !prev) throw new DomainError(422, 'invalid_reference', 'The waste line does not belong to this document');
+      // цену вправе менять admin и owner; остальным остаётся прежняя или учётная по настройке
+      const price = opts.canSetPrice && w.price != null && w.price !== '' ? fmt(dec(w.price), 4) : prev ? prev.price : await defaultWastePrice(db, ctx.workspaceId, w.productId);
+      const planned = fmt(mul(qty, dec(price ?? '0')));
+      if (prev) {
+        kept.add(prev.id);
+        await db.update(productionComponents).set({ productId: w.productId, qty: fmt(qty, 3), price, plannedCost: planned }).where(eq(productionComponents.id, prev.id));
+      } else {
+        order += 1;
+        await db.insert(productionComponents).values({ workspaceId: ctx.workspaceId, documentId: docId, itemId: items[0]!.id, kind: 'waste', ownerKind: 'own', productId: w.productId, operation: '', qty: fmt(qty, 3), hours: '0', plannedCost: planned, price, stageId: stage, sortOrder: order });
+      }
+    }
+    const drop = existing.filter(c => !kept.has(c.id)).map(c => c.id);
+    if (drop.length) await db.delete(productionComponents).where(inArray(productionComponents.id, drop));
+  }
+  await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.updated', entity: 'document', recordId: docId, actorId: ctx.memberId, payload: { changes: Object.keys(patch) } });
+}
 
 /** Карточка производственного документа: позиции, состав, выпуски */
 export async function productionDetail(db: Db, id: string) {
@@ -2106,6 +2584,9 @@ export async function productionDetail(db: Db, id: string) {
   const byProd = new Map(prods.map(p => [p.id, p]));
   const [workCenter] = header?.workCenterId ? await db.select({ id: workCenters.id, name: workCenters.name }).from(workCenters).where(eq(workCenters.id, header.workCenterId)).limit(1) : [];
   const produced = await producedQty(db, doc.workspaceId, items.map(i => i.id));
+  // названия товаров состава: вкладки «Состав» и «Отходы» показывают товар
+  const compProductIds = [...new Set(components.map(c => c.productId).filter((x): x is string => !!x))];
+  const names = new Map((compProductIds.length ? await db.select({ id: products.id, name: products.name }).from(products).where(inArray(products.id, compProductIds)) : []).map(p => [p.id, p.name]));
   const outputs = await db
     .select({ id: documents.id, number: documents.number, status: documents.status, date: documents.date })
     .from(documents)
@@ -2118,9 +2599,22 @@ export async function productionDetail(db: Db, id: string) {
     plannedEnd: header?.plannedEnd ?? null,
     parentDocumentId: header?.parentDocumentId ?? null,
     processingOrderId: header?.processingOrderId ?? null,
+    wasteValuation: (header?.wasteValuation ?? 'accounting') as WasteValuation,
+    wasteWarehouseId: header?.wasteWarehouseId ?? null,
+    defectWarehouseId: header?.defectWarehouseId ?? null,
     items: items.map(i => ({ ...i, name: byProd.get(i.itemId)?.name ?? '', productId: byProd.get(i.itemId)?.productId ?? null, produced: fmt(produced.get(i.id) ?? 0n, 3) })),
-    components: components.map(c => ({ ...c })),
+    components: components.map(c => ({ ...c, productName: c.productId ? (names.get(c.productId) ?? '') : '' })),
     outputs,
+  };
+}
+
+/** Карточка для участника без права видеть стоимость: цены и суммы состава, отходов и брака скрыты, количества остаются */
+export function maskProductionDetail<T extends Awaited<ReturnType<typeof productionDetail>>>(prod: T, role: Parameters<typeof canSeeCost>[0]): T {
+  if (canSeeCost(role)) return prod;
+  return {
+    ...prod,
+    items: prod.items.map(i => ({ ...i, defectUnitCost: null, stageCost: null, plannedUnitCost: null })),
+    components: prod.components.map(c => ({ ...c, plannedCost: null, actualCost: null, price: null })),
   };
 }
 

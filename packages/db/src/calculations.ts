@@ -130,7 +130,7 @@ async function calcLines(db: Db, workspaceId: string, orderId: string, priceSour
   const matAvg = await loadAvgCosts(db, matIds);
   const matLast = await loadLastPurchasePrices(db, matIds);
   const priceOf = (pid: string) => resolveCostPrice(priceSource, matById.get(pid) ?? {}, matAvg.get(pid), matLast.get(pid));
-  const pricing = { materialPrice: priceOf, workCenterRate: (wid: string) => rates.get(wid) };
+  const pricing = { materialPrice: priceOf, wastePrice: priceOf, workCenterRate: (wid: string) => rates.get(wid) };
   const byId = new Map(graph.inputs.map(i => [i.id, i]));
   const out: CalcLine[] = [];
   /** Расчётные цены строк заказа (по наценке) */

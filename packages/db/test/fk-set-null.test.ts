@@ -39,17 +39,17 @@ describe('composite FKs with ON DELETE SET NULL', () => {
     const fks = await compositeSetNullFks(admin);
     const checked: string[] = [];
     const failures: string[] = [];
-    // каждый случай — в транзакции с откатом: сид не меняется
+    // каждый случай — в транзакции с откатом: сид не меняется; строка находится по ctid (не у всех таблиц есть колонка id)
     for (const fk of fks) {
       const col = fk.childCols.find(c => c !== 'workspace_id')!;
       const pcol = fk.parentCols[fk.childCols.indexOf(col)]!;
-      const [row] = await admin.unsafe(`select id, workspace_id, ${col} as ref from ${fk.child} where ${col} is not null limit 1`);
+      const [row] = await admin.unsafe(`select ctid::text as rid, workspace_id, ${col} as ref from ${fk.child} where ${col} is not null limit 1`);
       if (!row) continue;
       await admin.begin(async tx => {
         try {
           await tx.unsafe('savepoint s');
           await tx.unsafe(`delete from ${fk.parent} where workspace_id = $1 and ${pcol} = $2`, [row.workspace_id, row.ref]);
-          const [after] = await tx.unsafe(`select workspace_id, ${col} as ref from ${fk.child} where id = $1`, [row.id]);
+          const [after] = await tx.unsafe(`select workspace_id, ${col} as ref from ${fk.child} where ctid = $1::text::tid`, [row.rid]);
           // строка могла уйти каскадом по другой ссылке — тогда проверять нечего
           if (after) {
             if (after.ref !== null || after.workspace_id !== row.workspace_id) failures.push(`${fk.name}: link not cleared`);

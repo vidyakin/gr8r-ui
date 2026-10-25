@@ -253,3 +253,36 @@ describe('параметрическая спецификация (этап 7)',
     expect(computeBomCost([plain], 'plain', pricing).batch.materials).toBe('200.0000');
   });
 });
+
+describe('возвратные отходы (задача 1136)', () => {
+  const waste = (id: string, productId: string, qty: string): BomLineInput => ({ id, kind: 'waste', productId, qty });
+
+  test('учётная стоимость отходов вычитается из затрат, накладные считаются от затрат без вычета', () => {
+    const t = item('table', { overheadPct: '10', lines: [mat('l1', 'wood', '2'), waste('w1', 'screw', '5')] });
+    const r = computeBomCost([t], 'table', { ...pricing, wastePrice: id => (id === 'screw' ? '3' : null) });
+    // материалы 200, накладные 10 % от 200 = 20, отходы 5 × 3 = 15
+    expect(r.batch).toEqual({ materials: '200.0000', works: '0.0000', overhead: '20.0000', waste: '-15.0000', total: '205.0000' });
+    expect(r.lines.map(l => [l.kind, l.cost])).toEqual([['material', '200.0000'], ['waste', '-15.0000']]);
+  });
+
+  test('цена отхода по умолчанию — цена материала; нет цены — строка помечена, вычета нет', () => {
+    const t = item('t', { lines: [mat('l1', 'wood', '1'), waste('w1', 'fabric', '2')] });
+    const r = computeBomCost([t], 't', pricing);
+    expect(r.batch.total).toBe('100.0000');
+    expect(r.lines[1]).toMatchObject({ kind: 'waste', missingPrice: true });
+  });
+
+  test('без отходов разбивка прежняя: поля waste нет', () => {
+    const r = computeBomCost([item('p', { lines: [mat('l1', 'wood', '1')] })], 'p', pricing);
+    expect(r.batch).toEqual({ materials: '100.0000', works: '0.0000', overhead: '0.0000', total: '100.0000' });
+  });
+
+  test('развёртка: отходы масштабируются на партию, у «фантома» попадают в родителя, этапа у них нет', () => {
+    const child = item('board', { batchQty: '2', lines: [mat('b1', 'wood', '1'), { ...waste('bw', 'screw', '4'), stageId: 'cut' }] });
+    const parent = item('table', { lines: [semi('s1', 'board', '2', 'explode'), waste('w1', 'paint', '1')] });
+    const e = explodeBom([parent, child], 'table', '3');
+    // партия доски 2 шт.: на 6 досок 3 партии -> отходов 12; плюс собственный отход стола на 3 шт.
+    expect(e.wastes.map(w => [w.productId, w.qty, w.stageId])).toEqual([['screw', '12.000', null], ['paint', '3.000', null]]);
+    expect(e.materials).toHaveLength(1);
+  });
+});

@@ -3,7 +3,7 @@
    Суммы строк и итоги документа в форме считает та же чистая функция, что и сервер при проведении (computeDocument из @gr8r/shared). */
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { DOCUMENT_META, type CompanyKind, type CostDistribution, type CostItemKind, type DocumentGroup, type DocumentStatus, type DocumentType, type FileRef, type MaterialOwner, type TaxSystem, type TollingRole, type VatRate, type WarehouseKind, type WorkOrderBillingMode, type WorkOrderStateCategory } from '@gr8r/shared';
+import { DOCUMENT_META, type CompanyKind, type CostDistribution, type CostItemKind, type DefectMode, type DocumentGroup, type DocumentStatus, type DocumentType, type FileRef, type MaterialOwner, type TaxSystem, type TollingRole, type VatRate, type WarehouseKind, type WasteValuation, type WorkOrderBillingMode, type WorkOrderStateCategory } from '@gr8r/shared';
 import { hasKey, t, type TKey } from '@/i18n';
 import { toast } from '@/components/ui';
 import type { Tone } from '@/components/ui';
@@ -148,7 +148,13 @@ export interface DocDetail extends Omit<DocListItem, 'organizationName' | 'count
   workCenter?: { id: string; name: string } | null;
   plannedStart?: string | null;
   plannedEnd?: string | null;
-  components?: { id: string; kind: 'material' | 'semi' | 'work' | 'expense'; ownerKind: MaterialOwner; operation: string; qty: string; hours: string; plannedCost: string | null; actualCost: string | null }[];
+  components?: { id: string; kind: 'material' | 'semi' | 'work' | 'expense' | 'output' | 'waste'; ownerKind: MaterialOwner; productId: string | null; productName: string; operation: string; qty: string; hours: string; price: string | null; plannedCost: string | null; actualCost: string | null }[];
+  /** Позиции выпуска: брак и строка документа с продукцией */
+  items?: { id: string; itemId: string; qty: string; documentLineId: string | null; defectQty: string; defectMode: DefectMode | null; disposalDocumentId: string | null }[];
+  /** Стоимость возвратных отходов выпуска и склады отходов и брака (пусто: как на участке) */
+  wasteValuation?: WasteValuation;
+  wasteWarehouseId?: string | null;
+  defectWarehouseId?: string | null;
 }
 
 export interface DocListParams {
