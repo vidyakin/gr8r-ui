@@ -17,6 +17,7 @@ import { productionPlanRoutes } from './routes/production-plans';
 import { stockLevelRoutes } from './routes/stock-levels';
 import { pieceworkRoutes, operationAssignmentRoutes } from './routes/piecework';
 import { productionStageRoutes } from './routes/production-stages';
+import { productionReportRoutes } from './routes/production-reports';
 import { planningRoutes } from './routes/planning';
 import { productionWorkbenchRoutes } from './routes/production-workbench';
 import { companyRoutes, contactRoutes, crmActivityRoutes, dealRoutes } from './routes/crm';
@@ -100,6 +101,7 @@ function buildTenantApi() {
     .route('/production', productionRoutes)
     .route('/production', productionWorkbenchRoutes)
     .route('/production', productionStageRoutes)
+    .route('/production', productionReportRoutes)
     .route('/production', pieceworkRoutes)
     .route('/production', planningRoutes)
     .route('/production', productionClosingRoutes)

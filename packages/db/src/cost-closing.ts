@@ -308,7 +308,7 @@ export interface ClosingTotals {
   /** Распределено по статьям и участкам */
   byCostItem: { costItemId: string; costItemName: string; workCenterId: string | null; workCenterName: string | null; method: CostDistribution; amount: string; distributed: string; scope: string }[];
   /** Что получили выпуски месяца */
-  byRelease: { itemId: string; releaseId: string; name: string; workCenterId: string | null; workCenterName: string | null; qty: string; directCost: string; workHours: string; allocated: string; /** Промежуточный этап: доля ушла в НЗП */ interim?: boolean }[];
+  byRelease: { itemId: string; releaseId: string; name: string; workCenterId: string | null; workCenterName: string | null; qty: string; directCost: string; workHours: string; allocated: string; /** Промежуточный этап: доля ушла в НЗП */ interim?: boolean; /** Расшифровка доли по статьям затрат (отчёт «Себестоимость выпуска») */ byCostItem?: { costItemId: string; name: string; amount: string }[] }[];
   /** Нераспределённые затраты */
   undistributed: string;
   /** Предупреждения закрытия */
@@ -380,7 +380,7 @@ export async function closePeriodMonth(db: Db, ctx: DocCtx, month: string): Prom
   const totals: ClosingTotals = {
     month,
     byCostItem: plan.byCostItem.map(g => ({ costItemId: g.costItemId, costItemName: g.costItemName, workCenterId: g.workCenterId, workCenterName: g.workCenterName, method: g.method, amount: fmt(g.amount, 2), distributed: fmt(g.distributed, 2), scope: g.scope })),
-    byRelease: targets.map(t => ({ itemId: t.itemId, releaseId: t.releaseId, name: t.name, workCenterId: t.workCenterId, workCenterName: t.workCenterId ? (centers.get(t.workCenterId) ?? null) : null, qty: fmt(t.qty, 3), directCost: fmt(t.directCost, 2), workHours: fmt(t.workHours, 3), allocated: fmt(plan.byTarget.get(t.itemId) ?? 0n, 2), interim: !t.documentLineId })),
+    byRelease: targets.map(t => ({ itemId: t.itemId, releaseId: t.releaseId, name: t.name, workCenterId: t.workCenterId, workCenterName: t.workCenterId ? (centers.get(t.workCenterId) ?? null) : null, qty: fmt(t.qty, 3), directCost: fmt(t.directCost, 2), workHours: fmt(t.workHours, 3), allocated: fmt(plan.byTarget.get(t.itemId) ?? 0n, 2), interim: !t.documentLineId, byCostItem: [...(plan.byTargetItem.get(t.itemId) ?? new Map<string, bigint>())].map(([id, amount]) => ({ costItemId: id, name: plan.byCostItem.find(g => g.costItemId === id)?.costItemName ?? '', amount: fmt(amount, 4) })) })),
     undistributed: fmt(plan.undistributed, 2),
     warnings: plan.warnings,
     total: fmt(costs.reduce((s, c) => s + c.amount, 0n), 2),

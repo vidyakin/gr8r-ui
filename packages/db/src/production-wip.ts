@@ -54,7 +54,7 @@ export interface WipBalance {
 }
 
 /** Остаток НЗП на дату (выпуски по дату включительно), по завершающим участкам → заказам → изделиям */
-export async function wipBalance(db: Db, workspaceId: string, params: { date?: string; workCenterId?: string }): Promise<WipBalance> {
+export async function wipBalance(db: Db, workspaceId: string, params: { date?: string; workCenterId?: string; /** Отчёт «НЗП с движением»: оставить и позиции с нулевым остатком (ради прихода и расхода периода) */ includeEmpty?: boolean }): Promise<WipBalance> {
   const date = params.date ?? new Date().toISOString().slice(0, 10);
   const rows = await db
     .select({
@@ -137,7 +137,7 @@ export async function wipBalance(db: Db, workspaceId: string, params: { date?: s
       if (rest > qty) qty = rest;
       amount += mul(div(st.cost, st.done), rest);
     }
-    if (qty <= 0n) continue;
+    if (qty <= 0n && !params.includeEmpty) continue;
     const ck = g.center ?? '';
     const center = out.get(ck) ?? { workCenterId: g.center, workCenterName: g.center ? (centers.get(g.center) ?? null) : null, orders: [], amount: '0' };
     const docId = orderOf.get(g.source) ?? null;

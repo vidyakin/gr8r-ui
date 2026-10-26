@@ -62,7 +62,7 @@ export async function ok(res: ResponseLike | Promise<ResponseLike>): Promise<unk
 /** Технический текст сервера про ссылку — заменяем понятным */
 const GENERIC_REFERENCE = 'A referenced record does not exist, or the record is still in use';
 /** Коды, у которых текст сервера всегда хуже перевода (на любом языке) */
-const ALWAYS_TRANSLATE = new Set(['company_not_allowed']);
+const ALWAYS_TRANSLATE = new Set(['company_not_allowed', 'formula_param', 'formula_error', 'cost_access_required']);
 
 /** Параметры для перевода ошибки: details сервера + путь первого поля для validation_error */
 function errorParams(e: ApiError): TParams {

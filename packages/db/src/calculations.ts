@@ -35,7 +35,7 @@ export interface CalculationInput {
 }
 
 /** Последняя цена закупки по товарам: цена строки последнего проведённого поступления */
-async function loadLastPurchasePrices(db: Db, productIds: string[]): Promise<Map<string, string>> {
+export async function loadLastPurchasePrices(db: Db, productIds: string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   if (!productIds.length) return out;
   const rows = await db

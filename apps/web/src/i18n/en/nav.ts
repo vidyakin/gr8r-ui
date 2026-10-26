@@ -33,6 +33,7 @@ export const sections = {
   productionPlanner: 'Resource planner',
   productionResources: 'Resources',
   productionWip: 'Work in progress',
+  productionReports: 'Reports',
   productionClosing: 'Month closing',
   otherCosts: 'Other costs',
   materialAllocation: 'Material allocation',

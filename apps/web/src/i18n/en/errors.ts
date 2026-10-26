@@ -27,6 +27,10 @@ export const errors = {
   // брак и возвратные отходы (задача 1136)
   waste_exceeds_cost: 'Returnable waste costs more than the whole release',
   waste_tolling_forbidden: 'Returnable waste is not allowed when processing customer materials',
+  formula_param: 'Fill in the values of the specification parameters: a quantity formula needs them',
+  formula_error: 'A quantity formula of the specification cannot be calculated',
+  cost_access_required: 'The cost report is available to the workspace owner and administrators only',
+  report_period_invalid: 'The report period is not valid: it must end after it starts and be no longer than a year',
   waste_final_stage_only: 'Returnable waste is received by the final stage only',
   defect_exceeds_qty: 'The defect cannot exceed the produced quantity',
   defect_mode_required: 'Choose how the defect is accounted: into the cost or as an expense',

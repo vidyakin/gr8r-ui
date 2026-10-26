@@ -39,3 +39,4 @@ export * from './billing';
 export * from './cost-closing';
 export * from './other-costs';
 export * from './investments';
+export * from './production-reports';

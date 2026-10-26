@@ -49,6 +49,7 @@
 - [Операции, исполнители и сдельный наряд](architecture/piecework.md)
 - [Планирование загрузки ресурсов](architecture/resource-planning.md)
 - [План производства и пополнение](architecture/replenishment.md)
+- [Отчёты производства](architecture/production-reports.md)
 
 ## Услуги
 

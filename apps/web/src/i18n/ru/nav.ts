@@ -35,6 +35,7 @@ export const sections: Widen<typeof S> = {
   productionPlanner: 'Загрузка ресурсов',
   productionResources: 'Ресурсы',
   productionWip: 'Остаток НЗП',
+  productionReports: 'Отчёты',
   productionClosing: 'Закрытие месяца',
   otherCosts: 'Прочие затраты',
   materialAllocation: 'Распределение материалов',

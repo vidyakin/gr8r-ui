@@ -130,6 +130,8 @@ export interface OverheadGroup {
 export interface OverheadPlan {
   /** Сколько получила каждая позиция выпуска */
   byTarget: Map<string, Dec>;
+  /** Она же по статьям затрат: позиция → статья → сумма (расшифровка косвенных в отчёте себестоимости выпуска) */
+  byTargetItem: Map<string, Map<string, Dec>>;
   /** Распределение по статьям и участкам */
   byCostItem: OverheadGroup[];
   /** Что осталось нераспределённым */
@@ -145,6 +147,7 @@ const baseOf = (t: OverheadTarget, method: CostDistribution): Dec => (method ===
     Статья с способом «не распределять» и затраты, которым не нашлось базы, остаются нераспределёнными */
 export function planOverhead(costs: OverheadCost[], targets: OverheadTarget[]): OverheadPlan {
   const byTarget = new Map<string, Dec>();
+  const byTargetItem = new Map<string, Map<string, Dec>>();
   const warnings: string[] = [];
   // затраты группируются по статье и участку — так же, как в УНФ (подразделение и способ распределения)
   const groups = new Map<string, OverheadGroup>();
@@ -175,11 +178,16 @@ export function planOverhead(costs: OverheadCost[], targets: OverheadTarget[]): 
       warnings.push(`«${g.costItemName}»${where}: nothing to allocate on — ${targets.length ? 'the base is zero in every release' : 'there are no releases this month'}`);
       continue;
     }
-    for (const a of allocations) byTarget.set(a.key, (byTarget.get(a.key) ?? 0n) + a.amount);
+    for (const a of allocations) {
+      byTarget.set(a.key, (byTarget.get(a.key) ?? 0n) + a.amount);
+      const per = byTargetItem.get(a.key) ?? new Map<string, Dec>();
+      per.set(g.costItemId, (per.get(g.costItemId) ?? 0n) + a.amount);
+      byTargetItem.set(a.key, per);
+    }
     g.distributed = allocations.reduce((s, a) => s + a.amount, 0n);
     undistributed += rest;
   }
-  return { byTarget, byCostItem: [...groups.values()], undistributed, warnings };
+  return { byTarget, byTargetItem, byCostItem: [...groups.values()], undistributed, warnings };
 }
 
 /* ---------------- корректировки себестоимости ---------------- */

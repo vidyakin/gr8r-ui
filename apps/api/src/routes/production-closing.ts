@@ -52,7 +52,7 @@ function maskedTotals(ctx: Ctx, totals: Record<string, unknown>) {
   return {
     ...totals,
     byCostItem: ((totals.byCostItem ?? []) as Record<string, unknown>[]).map(g => ({ ...g, amount: null, distributed: null })),
-    byRelease: ((totals.byRelease ?? []) as Record<string, unknown>[]).map(r => ({ ...r, directCost: null, allocated: null })),
+    byRelease: ((totals.byRelease ?? []) as Record<string, unknown>[]).map(r => ({ ...r, directCost: null, allocated: null, byCostItem: undefined })),
     undistributed: null,
     wip: null,
     total: null,
