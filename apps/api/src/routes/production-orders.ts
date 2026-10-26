@@ -65,6 +65,7 @@ async function detail(ctx: Ctx, id: string) {
     parentDocumentId: prod.parentDocumentId,
     processingOrderId: prod.processingOrderId,
     wasteValuation: prod.wasteValuation,
+    materialMode: prod.materialMode,
     wasteWarehouseId: prod.wasteWarehouseId,
     defectWarehouseId: prod.defectWarehouseId,
     items: prod.items,

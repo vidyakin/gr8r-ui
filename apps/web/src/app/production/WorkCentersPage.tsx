@@ -1,7 +1,7 @@
 /* Справочник участков (work centers): название, код, ставка за час. Меняет admin и выше. */
 import * as React from 'react';
 import { CircleAlert, Factory, Pencil, Plus, Trash2 } from 'lucide-react';
-import { Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, Input, Skeleton, toast } from '@/components/ui';
+import { Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, Input, Segmented, Skeleton, toast } from '@/components/ui';
 import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
 import { t, useT } from '@/i18n';
 import { money, useIsAdmin } from '../catalog/data';
@@ -117,6 +117,7 @@ function CenterDialog({ wc, workshops, stores, onClose }: { wc?: WorkCenter; wor
   const [outputWh, setOutputWh] = React.useState(wc?.outputWarehouseId ?? '');
   const [wasteWh, setWasteWh] = React.useState(wc?.wasteWarehouseId ?? '');
   const [defectWh, setDefectWh] = React.useState(wc?.defectWarehouseId ?? '');
+  const [materialMode, setMaterialMode] = React.useState<'on_release' | 'shift'>(wc?.materialMode ?? 'on_release');
   const [note, setNote] = React.useState(wc?.note ?? '');
   const [err, setErr] = React.useState<Record<string, string>>({});
   const [busy, setBusy] = React.useState(false);
@@ -127,7 +128,7 @@ function CenterDialog({ wc, workshops, stores, onClose }: { wc?: WorkCenter; wor
     setErr(errs);
     if (Object.keys(errs).length) return;
     setBusy(true);
-    const body = { name: name.trim(), code: code.trim(), hourlyRate: rate.trim() === '' ? 0 : Number(rate), warehouseId: warehouseId || null, outputWarehouseId: outputWh || null, wasteWarehouseId: wasteWh || null, defectWarehouseId: defectWh || null, note: note.trim() };
+    const body = { name: name.trim(), code: code.trim(), hourlyRate: rate.trim() === '' ? 0 : Number(rate), warehouseId: warehouseId || null, outputWarehouseId: outputWh || null, wasteWarehouseId: wasteWh || null, defectWarehouseId: defectWh || null, materialMode, note: note.trim() };
     const r = wc ? await api('PATCH', `/work-centers/${wc.id}`, body) : await api('POST', '/work-centers', body);
     setBusy(false);
     if (!r) return;
@@ -201,6 +202,19 @@ function CenterDialog({ wc, workshops, stores, onClose }: { wc?: WorkCenter; wor
               )}
             </Field>
           ))}
+          <Field label={tt('production.workCenters.fields.materialMode')} hint={tt('production.workCenters.fields.materialModeHint')}>
+            {() => (
+              <Segmented
+                aria-label={tt('production.workCenters.fields.materialMode')}
+                value={materialMode}
+                onValueChange={setMaterialMode}
+                items={[
+                  { value: 'on_release', label: tt('production.shift.modeOnRelease') },
+                  { value: 'shift', label: tt('production.shift.modeShift') },
+                ]}
+              />
+            )}
+          </Field>
           <Field label={tt('production.workCenters.fields.comment')}>{p => <Input {...p} value={note} onChange={e => setNote(e.target.value)} />}</Field>
           <button type="submit" hidden />
         </form>

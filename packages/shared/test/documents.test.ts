@@ -87,7 +87,7 @@ describe('document types', () => {
     expect(basedOnTargets('work_order')).toEqual(['invoice']);
   });
   test('production documents: no counterparty, states apart from posting', () => {
-    expect(documentTypesOf('production')).toEqual(['production_order', 'production', 'piecework_order', 'other_costs']);
+    expect(documentTypesOf('production')).toEqual(['production_order', 'production', 'piecework_order', 'other_costs', 'material_allocation']);
     // переработка давальческого сырья: приём, отчёт и возврат — с контрагентом-давальцем, но без своих цен
     expect(documentTypesOf('tolling')).toEqual(['tolling_receipt', 'tolling_report', 'tolling_return']);
     expect(DOCUMENT_META.tolling_receipt.noPrice).toBe(true);

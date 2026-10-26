@@ -957,6 +957,7 @@ export const docs = {
     work_order: 'Work order',
     piecework_order: 'Piecework order',
     other_costs: 'Other costs',
+    material_allocation: 'Material allocation',
     tolling_receipt: 'Receipt for processing',
     tolling_report: 'Processing report',
     tolling_return: 'Return of unused materials',

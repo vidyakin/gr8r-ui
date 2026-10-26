@@ -50,6 +50,7 @@ import { PlannerPage } from './production/PlannerPage';
 import { ResourcesPage } from './production/ResourcesPage';
 import { MonthClosingPage } from './production/MonthClosingPage';
 import { OtherCostsDocumentPage, OtherCostsPage } from './production/OtherCostsPage';
+import { MaterialAllocationPage, MaterialAllocationsPage } from './production/MaterialAllocationPage';
 import { InvestmentPage } from './finance/InvestmentPage';
 import { InvestmentsPage } from './finance/InvestmentsPage';
 import { PlanFactPage } from './finance/PlanFactPage';
@@ -126,6 +127,8 @@ export const router = createHashRouter([
       { path: SECTIONS.productionClosing.path, element: <MonthClosingPage /> },
       { path: SECTIONS.otherCosts.path, element: <OtherCostsPage /> },
       { path: `${SECTIONS.otherCosts.path}/:id`, element: <OtherCostsDocumentPage /> },
+      { path: SECTIONS.materialAllocation.path, element: <MaterialAllocationsPage /> },
+      { path: `${SECTIONS.materialAllocation.path}/:id`, element: <MaterialAllocationPage /> },
       // Финансы: инвестпроекты
       { path: SECTIONS.investments.path, element: <InvestmentsPage /> },
       { path: SECTIONS.investmentsPlanFact.path, element: <PlanFactPage /> },

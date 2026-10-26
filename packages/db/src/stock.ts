@@ -5,7 +5,7 @@ import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { dec, div, fmt, mul, pctOf, replayMoves, stockIn, stockOut, weightedAvgCost, DOCUMENT_META, DOCUMENT_TYPES, type Dec, type DocumentType, type InventorySettings, type StockState } from '@gr8r/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
-import { documentLines, documents, manufacturedItems, productionComponents, productionItems, products, stockBalances, stockCostAdjustments, stockMoves, stockReservations, workspaces } from './schema';
+import { documentLines, documents, manufacturedItems, productionComponents, productionHeaders, productionItems, products, stockBalances, stockCostAdjustments, stockMoves, stockReservations, workspaces } from './schema';
 
 export interface StockKey {
   warehouseId: string;
@@ -287,6 +287,11 @@ export async function recomputeStockCosts(db: Db, workspaceId: string): Promise<
     cur.outputs.forEach((o, i) => disOutputs.set(o.lineId, { sourceLine: cur.sourceLine, sourceQty: cur.sourceQty, pct: cur.pct, base: bases[i]!, totalBase, qty: o.qty }));
   }
 
+  // распределения материалов смены (задача 1135): стоимость доходит до прихода продукции прибавкой к цене движения.
+  // Своя доля позиции — production_items.alloc_cost (материалы с накладными), на финальный этап дополнительно приходит
+  // доля промежуточных этапов того же источника (НЗП): на единицу — их alloc_cost / годное количество этапа
+  const allocByLine = await loadAllocationChain(db, workspaceId);
+
   const r4 = (a: Dec) => dec(fmt(a, 4));
   const state = new Map<string, StockState>();
   /** Удорожание единицы последнего расхода по строке документа */
@@ -318,6 +323,7 @@ export async function recomputeStockCosts(db: Db, workspaceId: string): Promise<
         chain = div(materials + pctOf(materials, rel.pct), rel.qty);
       } else if (m.lineId && outDelta.has(m.lineId)) chain = outDelta.get(m.lineId)!; // приход по цене расхода той же строки: перемещение, в том числе «в пути»
       else if (m.type === 'customer_return' && m.lineId) chain = outDelta.get(sourceOf.get(m.lineId) ?? '') ?? 0n;
+      if (m.type === 'production' && m.lineId) chain += allocByLine.get(m.lineId) ?? 0n;
       delta = r4(own + chain);
       state.set(k, stockIn(s, qty, base + delta));
     }
@@ -335,10 +341,60 @@ export async function recomputeStockCosts(db: Db, workspaceId: string): Promise<
   return changed;
 }
 
-/** Есть ли у воркспейса корректировки закрытия (тогда отмена проведения и переоценка пересчитывают цепочку целиком) */
+/** Есть ли у воркспейса корректировки закрытия или распределённые материалы смены
+    (тогда отмена проведения и переоценка пересчитывают цепочку целиком) */
 export async function hasCostAdjustments(db: Db, workspaceId: string): Promise<boolean> {
   const [row] = await db.select({ id: stockCostAdjustments.id }).from(stockCostAdjustments).where(eq(stockCostAdjustments.workspaceId, workspaceId)).limit(1);
-  return !!row;
+  if (row) return true;
+  const [alloc] = await db.select({ id: productionItems.id }).from(productionItems).where(and(eq(productionItems.workspaceId, workspaceId), sql`${productionItems.allocCost} <> 0`)).limit(1);
+  return !!alloc;
+}
+
+/** Прибавка к цене единицы прихода продукции от распределений материалов смены: строка документа → прибавка */
+async function loadAllocationChain(db: Db, workspaceId: string): Promise<Map<string, Dec>> {
+  const out = new Map<string, Dec>();
+  const items = await db
+    .select({
+      lineId: productionItems.documentLineId,
+      qty: productionItems.qty,
+      defectQty: productionItems.defectQty,
+      defectMode: productionItems.defectMode,
+      alloc: productionItems.allocCost,
+      source: productionItems.sourceItemId,
+      customer: productionItems.customerOrderLineId,
+      stageId: productionHeaders.stageId,
+    })
+    .from(productionItems)
+    .innerJoin(documents, eq(documents.id, productionItems.documentId))
+    .leftJoin(productionHeaders, and(eq(productionHeaders.workspaceId, productionItems.workspaceId), eq(productionHeaders.documentId, productionItems.documentId)))
+    .where(and(eq(productionItems.workspaceId, workspaceId), eq(documents.type, 'production'), eq(documents.status, 'posted')));
+  if (!items.some(i => dec(i.alloc) !== 0n)) return out;
+  const srcKey = (i: { source: string | null; customer: string | null }) => (i.source ? `s:${i.source}` : i.customer ? `c:${i.customer}` : '');
+  // НЗП: промежуточные этапы источника (у позиции нет строки продукции)
+  const stages = new Map<string, { cost: Dec; qty: Dec }>();
+  for (const i of items) {
+    if (i.lineId || !srcKey(i)) continue;
+    const k = `${srcKey(i)}|${i.stageId ?? ''}`;
+    const cur = stages.get(k) ?? { cost: 0n, qty: 0n };
+    cur.cost += dec(i.alloc);
+    cur.qty += dec(i.qty) - dec(i.defectQty);
+    stages.set(k, cur);
+  }
+  const wipUnit = new Map<string, Dec>();
+  for (const [k, v] of stages) {
+    if (v.qty <= 0n) continue;
+    const key = k.split('|')[0]!;
+    wipUnit.set(key, (wipUnit.get(key) ?? 0n) + div(v.cost, v.qty));
+  }
+  for (const i of items) {
+    if (!i.lineId) continue;
+    const total = dec(i.qty);
+    const den = i.defectMode === 'cost' ? total - dec(i.defectQty) : total; // как у выпуска: брак «в себестоимость» не приходуется
+    if (den <= 0n) continue;
+    const amount = dec(i.alloc) + mul(wipUnit.get(srcKey(i)) ?? 0n, total);
+    if (amount !== 0n) out.set(i.lineId, div(amount, den));
+  }
+  return out;
 }
 
 /** Блокирует все остатки воркспейса в порядке ключей — том же, что у lockBalances, поэтому взаимных блокировок нет */

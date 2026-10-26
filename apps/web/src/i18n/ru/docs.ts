@@ -958,6 +958,7 @@ export const docs: Widen<typeof D> = {
     work_order: 'Заказ-наряд',
     piecework_order: 'Сдельный наряд',
     other_costs: 'Прочие затраты',
+    material_allocation: 'Распределение материалов',
     tolling_receipt: 'Поступление в переработку',
     tolling_report: 'Отчёт о переработке',
     tolling_return: 'Возврат давальческого сырья',

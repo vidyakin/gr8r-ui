@@ -57,6 +57,7 @@ export function useCrumbs(): Crumb[] {
   if (a === 'catalog') return [{ label: S.catalog.name }];
   if (a === 'inventory') return [{ label: S.inventory.name }];
   if (a === 'stock-docs') return [{ label: S.stockDocs.name }];
+  if (a === 'material-allocations') return b ? [{ label: S.materialAllocation.name, to: SECTIONS.materialAllocation.path }, { label: t('nav.crumbs.document') }] : [{ label: S.materialAllocation.name }];
   if (a === 'other-costs') return b ? [{ label: S.otherCosts.name, to: SECTIONS.otherCosts.path }, { label: t('nav.crumbs.document') }] : [{ label: S.otherCosts.name }];
   if (a === 'investments') return b === 'plan-fact' ? [{ label: S.investments.name, to: SECTIONS.investments.path }, { label: S.investmentsPlanFact.name }] : b ? [{ label: S.investments.name, to: SECTIONS.investments.path }, { label: t('nav.crumbs.investment') }] : [{ label: S.investments.name }];
   if (a === 'documents' && b) return [{ label: t('nav.crumbs.documents') }, { label: docTitle ?? t('nav.crumbs.document'), ...(c === 'print' ? { to: `/documents/${b}` } : {}) }, ...(c === 'print' ? [{ label: t('nav.crumbs.print') }] : [])];

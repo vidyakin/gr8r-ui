@@ -10,11 +10,16 @@ import { and, asc, desc, eq, gt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   canSeeCost,
+  allocationDetail,
+  createMaterialAllocation,
   createOtherCosts,
+  fillAllocationByNorms,
+  fillAllocationByStock,
   deleteDocument,
   documents,
   jobs,
   listClosings,
+  listMaterialAllocations,
   listOtherCosts,
   loadPeriodLock,
   otherCostsDetail,
@@ -22,10 +27,11 @@ import {
   previewPeriod,
   productionCostClosings,
   unpostDocument,
+  updateMaterialAllocation,
   updateOtherCosts,
   workspaces,
 } from '@gr8r/db';
-import { monthKey, monthLabel, monthPeriod, monthRange, otherCostsCreate, otherCostsQuery, otherCostsUpdate, periodCloseInput, periodSettingsInput } from '@gr8r/shared';
+import { materialAllocationCreate, materialAllocationQuery, materialAllocationUpdate, monthKey, monthLabel, monthPeriod, monthRange, otherCostsCreate, otherCostsQuery, otherCostsUpdate, periodCloseInput, periodSettingsInput } from '@gr8r/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError } from '../errors';
 import { hasRole, requireRole } from '../middleware';
@@ -200,3 +206,73 @@ async function assertOtherCosts(ctx: Ctx, id: string): Promise<void> {
   const [doc] = await ctx.db.select({ id: documents.id, type: documents.type }).from(documents).where(eq(documents.id, id)).limit(1);
   if (!doc || doc.type !== 'other_costs') throw new AppError(404, 'not_found', 'Other costs document not found');
 }
+/* ---------------- распределение материалов по итогам смены ---------------- */
+
+/** Стоимость в карточке видят admin и owner: у остальных остаются количества */
+function maskAllocation<T extends { result: { cost: string | null }[] }>(ctx: Ctx, detail: T): T {
+  if (canSeeCost(ctx.role)) return detail;
+  return { ...detail, result: detail.result.map(r => ({ ...r, cost: null })) };
+}
+
+async function assertAllocation(ctx: Ctx, id: string): Promise<void> {
+  const [doc] = await ctx.db.select({ id: documents.id, type: documents.type }).from(documents).where(eq(documents.id, id)).limit(1);
+  if (!doc || doc.type !== 'material_allocation') throw new AppError(404, 'not_found', 'Material allocation not found');
+}
+
+export const materialAllocationRoutes = new Hono<AppEnv>()
+  .get('/', zValidator('query', materialAllocationQuery, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json(await listMaterialAllocations(ctx.db, ctx.workspaceId, c.req.valid('query')));
+  })
+  .get('/:id', async c => {
+    const ctx = ctxOf(c);
+    return c.json(maskAllocation(ctx, await allocationDetail(ctx.db, c.req.param('id'))));
+  })
+  .post('/', write, zValidator('json', materialAllocationCreate, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = await createMaterialAllocation(ctx.db, docCtx(ctx), c.req.valid('json'));
+    return c.json(maskAllocation(ctx, await allocationDetail(ctx.db, id)), 201);
+  })
+  .patch('/:id', write, zValidator('json', materialAllocationUpdate, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.param('id');
+    await assertAllocation(ctx, id);
+    await updateMaterialAllocation(ctx.db, docCtx(ctx), id, c.req.valid('json'));
+    return c.json(maskAllocation(ctx, await allocationDetail(ctx.db, id)));
+  })
+  // «Заполнить по нормам» и «Заполнить по остатку цеха»
+  .post('/:id/fill-by-norms', write, async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.param('id');
+    await assertAllocation(ctx, id);
+    await fillAllocationByNorms(ctx.db, docCtx(ctx), id);
+    return c.json(maskAllocation(ctx, await allocationDetail(ctx.db, id)));
+  })
+  .post('/:id/fill-by-stock', write, async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.param('id');
+    await assertAllocation(ctx, id);
+    await fillAllocationByStock(ctx.db, docCtx(ctx), id);
+    return c.json(maskAllocation(ctx, await allocationDetail(ctx.db, id)));
+  })
+  .post('/:id/post', write, async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.param('id');
+    await assertAllocation(ctx, id);
+    await postDocument(ctx.db, docCtx(ctx), id);
+    return c.json(maskAllocation(ctx, await allocationDetail(ctx.db, id)));
+  })
+  .post('/:id/unpost', write, async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.param('id');
+    await assertAllocation(ctx, id);
+    await unpostDocument(ctx.db, docCtx(ctx), id);
+    return c.json(maskAllocation(ctx, await allocationDetail(ctx.db, id)));
+  })
+  .delete('/:id', write, async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.param('id');
+    await assertAllocation(ctx, id);
+    await deleteDocument(ctx.db, docCtx(ctx), id);
+    return c.json({ ok: true });
+  });

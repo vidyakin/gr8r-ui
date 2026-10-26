@@ -405,7 +405,7 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
   const needsCostItem = !!meta.costItemKind || operation === 'to_operation';
   const costItemId = needsCostItem ? input.costItemId ?? null : null;
   // участок списания: себестоимость списанного уходит в косвенные затраты участка (у остальных типов он не нужен)
-  const workCenterId = input.type === 'write_off' ? input.workCenterId ?? null : null;
+  const workCenterId = input.type === 'write_off' || input.type === 'material_allocation' ? input.workCenterId ?? null : null;
   // вид заказ-наряда: только у work_order, пусто — вид по умолчанию (его поставит хук создания)
   const workOrderKindId = input.type === 'work_order' ? input.workOrderKindId ?? null : null;
   // заказ на переработку: только у документов переработки (приём, отчёт, возврат)
@@ -554,7 +554,7 @@ export async function updateDocument(db: Db, ctx: DocCtx, id: string, patch: Doc
   if (patch.targetWarehouseId !== undefined && (meta.stockRole === 'transfer' || meta.production)) set.targetWarehouseId = patch.targetWarehouseId;
   if (meta.stockRole === 'transfer' && !needsTargetWarehouse(operation)) set.targetWarehouseId = null;
   if (patch.costItemId !== undefined && (meta.costItemKind || operation === 'to_operation')) set.costItemId = patch.costItemId;
-  if (patch.workCenterId !== undefined && type === 'write_off') set.workCenterId = patch.workCenterId;
+  if (patch.workCenterId !== undefined && (type === 'write_off' || type === 'material_allocation')) set.workCenterId = patch.workCenterId;
   // смена даты черновика в закрытый период запрещена: иначе документ нельзя будет провести
   if (patch.date) await assertPeriodOpen(db, ctx.workspaceId, patch.date);
   if (patch.workOrderKindId !== undefined && type === 'work_order') {

@@ -36,4 +36,11 @@ export const errors = {
   defect_tolling_forbidden: 'A defect cannot be recorded when processing customer materials',
   defects_written_off: 'The defect of this release is already written off',
   no_defects: 'There is no defect “as an expense” to write off in this release',
+  // распределение материалов по итогам смены (задача 1135)
+  shift_mode_unsupported: 'Allocation by shift results is available for assembly only: a disassembly and customer materials are consumed at release',
+  no_releases: 'There are no shift-mode releases of this work center in the period',
+  nothing_to_fill: 'There is nothing to fill: no materials in the norms or no stock at the end of the period',
+  work_center_required: 'Select a work center first',
+  invalid_period: 'The period start is after its end',
+  has_posted_children: 'Unpost the documents created from this one first',
 };

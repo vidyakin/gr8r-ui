@@ -156,6 +156,8 @@ export interface DocDetail extends Omit<DocListItem, 'organizationName' | 'count
   items?: { id: string; itemId: string; qty: string; documentLineId: string | null; defectQty: string; defectMode: DefectMode | null; disposalDocumentId: string | null }[];
   /** Стоимость возвратных отходов выпуска и склады отходов и брака (пусто: как на участке) */
   wasteValuation?: WasteValuation;
+  /** Режим материалов выпуска: при выпуске или по итогам смены */
+  materialMode?: 'on_release' | 'shift';
   wasteWarehouseId?: string | null;
   defectWarehouseId?: string | null;
 }

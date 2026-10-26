@@ -13,7 +13,7 @@ import { uuidv7 } from '../lib/uuid';
 import { fmtDate } from '../lib/dates';
 import { useWorkspace } from '../data/store';
 import { useSnapshot } from '../production/data';
-import { WasteHeaderFields, WasteTab } from '../production/WasteTab';
+import { MaterialModeField, WasteHeaderFields, WasteTab } from '../production/WasteTab';
 import { STATUS_LABEL, STATUS_TONE, docTitle, docsKey, typeLabel, useCostItems, useDocsApi, useDocument, useOrganizations, useProcessingOrders, useWarehouses, type DocDetail, type DocLink } from './data';
 import { CalculationDialog, ParamsDialog } from './calculation';
 import { CounterpartyPicker, ProductPicker } from './pickers';
@@ -215,6 +215,8 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const hasWaste = doc.type === 'production' && !doc.processingOrderId;
   /** Брак ведётся у выпуска сборки: в строке продукции видны «Из них брак» и режим брака */
   const hasDefect = hasWaste && !disassembly;
+  /** Режим «по итогам смены»: строки материалов — нормы, их списывает документ «Распределение материалов» */
+  const shiftMode = hasDefect && doc.materialMode === 'shift';
   const items = doc.items ?? [];
   const wasteRows = (doc.components ?? []).filter(c => c.kind === 'waste');
   const compositionRows = (doc.components ?? []).filter(c => c.kind !== 'waste');
@@ -442,6 +444,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
       count: lineCount,
       content: (
         <section className="doc-lines panel" aria-label={t('docs.lines.addRow')}>
+          {shiftMode && <p className="faint" style={{ padding: '8px 12px', fontSize: 12 }}>{t('production.shift.normNote')}</p>}
           <div className="table-wrap">
             <table className="dtbl" aria-label={t('docs.document.tableLines')}>
               <thead>
@@ -539,7 +542,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       <td className="muted">{unitSymbol(units.data, l.unitCode)}</td>
                       {isCount && <td className="r num muted">{trimNum(srv?.bookQty ?? '0') || '0'}</td>}
                       <td className="r">
-                        <NumCell value={l.qty} disabled={!editable} invalid={!!err.qty} label={t('docs.document.cellQty')} cell={`${i}:1`} onKeyDown={cellKey(i, 1)} onChange={v => patchLine(l.key, { qty: v })} />
+                        <NumCell value={l.qty} disabled={!editable || (shiftMode && srv?.stockRole === 'out')} invalid={!!err.qty} label={t('docs.document.cellQty')} cell={`${i}:1`} onKeyDown={cellKey(i, 1)} onChange={v => patchLine(l.key, { qty: v })} />
                       </td>
                       {inTransit && (
                         <td className="r">
@@ -567,7 +570,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       )}
                       {meta.production && (
                         <td>
-                          <span className="muted">{srv?.stockRole === 'in' ? (disassembly ? t('docs.document.roleOutput') : t('docs.document.roleProduct')) : disassembly ? t('docs.document.roleToDisassemble') : t('docs.document.roleMaterial')}</span>
+                          <span className="muted">{srv?.stockRole === 'in' ? (disassembly ? t('docs.document.roleOutput') : t('docs.document.roleProduct')) : disassembly ? t('docs.document.roleToDisassemble') : shiftMode ? t('production.shift.roleNorm') : t('docs.document.roleMaterial')}</span>
                         </td>
                       )}
                       {hasDefect && (
@@ -1094,6 +1097,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             )}
           </Field>
         )}
+        {hasDefect && <MaterialModeField value={doc.materialMode ?? 'on_release'} editable={editable} onChange={v => void saveAccounting({ materialMode: v })} />}
         {hasWaste && (
           <WasteHeaderFields
             valuation={doc.wasteValuation ?? 'accounting'}

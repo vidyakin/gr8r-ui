@@ -137,6 +137,7 @@ export async function loadReleaseTargets(db: Db, workspaceId: string, month: str
       releaseId: productionItems.documentId,
       qty: productionItems.qty,
       stageCost: productionItems.stageCost,
+      allocCost: productionItems.allocCost,
       documentLineId: productionItems.documentLineId,
       name: manufacturedItems.name,
       workCenterId: productionHeaders.workCenterId,
@@ -196,7 +197,8 @@ export async function loadReleaseTargets(db: Db, workspaceId: string, month: str
     const t = disTotals.get(r.positionId)!;
     return t.cost > 0n ? div(mul(dec(r.hours), dec(r.stageCost ?? '0')), t.cost) : div(dec(r.hours), dec(t.n));
   };
-  const targets = [...rows.map(r => ({ itemId: r.itemId, releaseId: r.releaseId, name: r.name, workCenterId: r.workCenterId, documentLineId: r.documentLineId, qty: dec(r.qty), directCost: dec(r.stageCost) + (r.documentLineId ? (chainByLine.get(r.documentLineId) ?? 0n) : 0n), workHours: dec(r.hours) })), ...disRows.map(r => ({ itemId: r.itemId, releaseId: r.releaseId, name: r.name ?? '', workCenterId: r.workCenterId, documentLineId: r.documentLineId, qty: dec(r.qty), directCost: dec(r.stageCost ?? '0') + (r.documentLineId ? (chainByLine.get(r.documentLineId) ?? 0n) : 0n), workHours: disHours(r) }))];
+  const targets = [...rows.map(r => ({ itemId: r.itemId, releaseId: r.releaseId, name: r.name, workCenterId: r.workCenterId, documentLineId: r.documentLineId, qty: dec(r.qty), // распределённые материалы смены уже входят в удорожание по цепочке (chainByLine): вычитаем их из stage_cost, чтобы не считать дважды
+    directCost: dec(r.stageCost) - (r.documentLineId ? dec(r.allocCost) : 0n) + (r.documentLineId ? (chainByLine.get(r.documentLineId) ?? 0n) : 0n), workHours: dec(r.hours) })), ...disRows.map(r => ({ itemId: r.itemId, releaseId: r.releaseId, name: r.name ?? '', workCenterId: r.workCenterId, documentLineId: r.documentLineId, qty: dec(r.qty), directCost: dec(r.stageCost ?? '0') + (r.documentLineId ? (chainByLine.get(r.documentLineId) ?? 0n) : 0n), workHours: disHours(r) }))];
   return targets;
 }
 
@@ -222,6 +224,27 @@ export async function loadPeriodCosts(db: Db, workspaceId: string, month: string
 /** Участки воркспейса: подпись участка нужна в результате закрытия и в предварительной проверке */
 async function loadCenters(db: Db): Promise<Map<string, string>> {
   return new Map((await db.select({ id: workCenters.id, name: workCenters.name }).from(workCenters)).map(w => [w.id, w.name]));
+}
+
+/** Позиции проведённых выпусков режима смены без распределения: предупреждение закрытия месяца */
+export async function unallocatedShiftReleases(db: Db, workspaceId: string, from: string, to: string): Promise<{ id: string; number: string | null; date: string }[]> {
+  const rows = await db
+    .select({ id: documents.id, number: documents.number, date: documents.date })
+    .from(documents)
+    .innerJoin(productionHeaders, and(eq(productionHeaders.workspaceId, documents.workspaceId), eq(productionHeaders.documentId, documents.id)))
+    .where(
+      and(
+        eq(documents.workspaceId, workspaceId),
+        eq(documents.type, 'production'),
+        eq(documents.status, 'posted'),
+        eq(productionHeaders.materialMode, 'shift'),
+        gte(documents.date, from),
+        lte(documents.date, to),
+        sql`not exists (select 1 from material_allocation_rows r where r.release_id = ${documents.id})`,
+      ),
+    )
+    .orderBy(asc(documents.date), asc(documents.createdAt));
+  return rows;
 }
 
 /* ---------------- предварительная проверка ---------------- */
@@ -314,6 +337,9 @@ export async function closePeriodMonth(db: Db, ctx: DocCtx, month: string): Prom
   const targets = await loadReleaseTargets(db, ctx.workspaceId, month);
   const centers = await loadCenters(db);
   const plan = planOverhead(costs, targets);
+  // выпуски в режиме «по итогам смены» без распределения материалов: закрытие идёт, но их материалы не учтены
+  const unallocated = await unallocatedShiftReleases(db, ctx.workspaceId, start, end);
+  if (unallocated.length) plan.warnings.push(`Shift-mode releases without material allocation (${unallocated.length}): ${unallocated.map(r => r.number ?? r.date).join(', ')}`);
 
   // 2. распределённое — своя часть корректировки прихода продукции выпуска
   for (const t of targets) {

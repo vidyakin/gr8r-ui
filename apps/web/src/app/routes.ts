@@ -35,6 +35,7 @@ import {
   Boxes,
   PackageCheck,
   ReceiptText,
+  Split,
   ShoppingCart,
   CalendarRange,
   CalendarCheck,
@@ -91,6 +92,7 @@ export const SECTIONS = {
   productionResources: { path: '/production/resources', name: 'Resources', icon: Hammer },
   productionClosing: { path: '/production/closing', name: 'Month closing', icon: CalendarCheck },
   otherCosts: { path: '/other-costs', name: 'Other costs', icon: ReceiptText },
+  materialAllocation: { path: '/material-allocations', name: 'Material allocation', icon: Split },
   workCenters: { path: '/work-centers', name: 'Work centers', icon: Wrench },
   // Автоматизации
   automations: { path: '/automations', name: 'Automations', icon: Workflow },
@@ -143,6 +145,7 @@ export const NAV_GROUPS = {
         'productionResources',
         'productionClosing',
         'otherCosts',
+        'materialAllocation',
         'workCenters',
       ] as const
     ).map(id => ({ id })),

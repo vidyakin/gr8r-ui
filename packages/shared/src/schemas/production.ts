@@ -1,6 +1,6 @@
 /* zod-схемы производства: участки, продукция (изделия и полуфабрикаты), строки спецификации, настройки. */
 import { z } from 'zod';
-import { BOM_KINDS, DEFECT_MODES, MANUFACTURED_KINDS, MATERIAL_PRICE_SOURCES, NEEDS_METHODS, OPERATION_RATE_UNITS, PARAM_TYPES, PLAN_STEPS, PLAN_STATUSES, REPLENISHMENT_MODES, SEMI_MODES, SPEC_MODES, STOCK_REPLENISHMENT, WASTE_PRICE_SOURCES, WASTE_VALUATION } from '../constants';
+import { BOM_KINDS, DEFECT_MODES, MANUFACTURED_KINDS, MATERIAL_PRICE_SOURCES, NEEDS_METHODS, OPERATION_RATE_UNITS, PARAM_TYPES, PLAN_STEPS, PLAN_STATUSES, REPLENISHMENT_MODES, SEMI_MODES, SPEC_MODES, MATERIAL_MODES, STOCK_REPLENISHMENT, WASTE_PRICE_SOURCES, WASTE_VALUATION } from '../constants';
 import { MATERIAL_OWNERS } from '../documents';
 import { CALENDAR_KINDS, LOAD_ROW_TYPES } from '../planning';
 import { PARAM_KEY_RE } from '../parameters';
@@ -28,6 +28,8 @@ export const workCenterCreate = z.object({
   wasteWarehouseId: uuid.nullish(),
   /** Склад брака: куда идёт бракованная продукция при учёте «на расходы» */
   defectWarehouseId: uuid.nullish(),
+  /** Режим материалов выпусков участка: при выпуске (по умолчанию) или по итогам смены */
+  materialMode: z.enum(MATERIAL_MODES).default('on_release'),
   note: z.string().max(1000).default(''),
 });
 export const workCenterUpdate = toPatch(workCenterCreate.omit({ id: true }));
@@ -905,6 +907,38 @@ export const otherCostsUpdate = z.object({
 });
 export const otherCostsQuery = listQuery.extend({ from: isoDate.optional(), to: isoDate.optional(), q: z.string().trim().max(200).optional() });
 
+/* ---------------- распределение материалов по итогам смены ---------------- */
+
+export const materialAllocationLineInput = z.object({
+  id: clientId,
+  productId: uuid,
+  qty: positive(1e12),
+});
+
+export const materialAllocationCreate = z.object({
+  id: clientId,
+  workCenterId: uuid,
+  /** Склад списания; пусто — склад-цех участка */
+  warehouseId: uuid.nullish(),
+  /** Дата документа; пусто — сегодня */
+  date: isoDate.optional(),
+  /** Период смены; пусто — один день, дата документа */
+  periodFrom: isoDate.optional(),
+  periodTo: isoDate.optional(),
+  comment: z.string().max(5000).default(''),
+  lines: z.array(materialAllocationLineInput).max(200).default([]),
+});
+export const materialAllocationUpdate = z.object({
+  workCenterId: uuid.optional(),
+  warehouseId: uuid.nullish(),
+  date: isoDate.optional(),
+  periodFrom: isoDate.optional(),
+  periodTo: isoDate.optional(),
+  comment: z.string().max(5000).optional(),
+  lines: z.array(materialAllocationLineInput).max(200).optional(),
+});
+export const materialAllocationQuery = listQuery.extend({ from: isoDate.optional(), to: isoDate.optional(), q: z.string().trim().max(200).optional() });
+
 /* ---------------- переработка давальческого сырья ---------------- */
 
 /** Журнал заказов на переработку (заказы покупателей с видом операции «Переработка») */
@@ -947,6 +981,8 @@ export const processorReportCreate = z.object({
 /** Правка отходов и брака в черновике выпуска или заказа: шапка, вкладка «Отходы» целиком, брак по позициям */
 export const productionAccountingUpdate = z
   .object({
+    /** Режим материалов выпуска (только сборка не из давальческого сырья): при выпуске или по итогам смены */
+    materialMode: z.enum(MATERIAL_MODES).optional(),
     wasteValuation: z.enum(WASTE_VALUATION).optional(),
     wasteWarehouseId: uuid.nullish(),
     defectWarehouseId: uuid.nullish(),

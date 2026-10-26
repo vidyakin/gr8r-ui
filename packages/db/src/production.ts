@@ -14,9 +14,9 @@ import { DOCUMENT_HOOKS, STATE_HOOKS } from './document-hooks';
 import { createDocument, postDocument, unpostDocument, assertProcessingOrder, type DocCtx } from './documents';
 import { recordEvent } from './events';
 import { applyCustomerStockMoves, revertCustomerStockMoves, type CustomerMoveRequest } from './customer-stock';
-import { applyStockMoves, loadAvgCosts, loadInventorySettings, revalueMove, type MoveRequest } from './stock';
+import { applyStockMoves, loadAvgCosts, loadInventorySettings, recomputeStockCosts, revalueMove, type MoveRequest } from './stock';
 import { materialRows, reduceReservation, releaseOrderMaterials, reserveChildOutput, reserveOrderMaterials, restoreReservation, supplierForProduct } from './materials';
-import { bomLines, companies, documentLines, documents, manufacturedItems, pieceworkLines, productionOperations, productManufacturing, productionComponents, productionHeaders, productionItems, productionPlacements, productionStages, products, stockMoves, stockReservations, warehouses, workCenters, workspaces } from './schema';
+import { bomLines, companies, documentLines, documents, manufacturedItems, materialAllocationRows, pieceworkLines, productionOperations, productManufacturing, productionComponents, productionHeaders, productionItems, productionPlacements, productionStages, products, stockMoves, stockReservations, warehouses, workCenters, workspaces } from './schema';
 import { FINAL_STAGE, itemStagePlan, listProductionKinds, stageDef, stageKey, type StageDef } from './production-stages';
 import { checkParamValues, loadSpecParams, resolveSpecForProduct, specParamFields } from './specs';
 import { ensureVariant, isVariant } from './variants';
@@ -95,6 +95,33 @@ export function centerWasteWarehouses(wc: { outputWarehouseId?: string | null; w
 async function loadCenterWarehouses(db: Db, workCenterId: string) {
   const [wc] = await db.select({ outputWarehouseId: workCenters.outputWarehouseId, wasteWarehouseId: workCenters.wasteWarehouseId, defectWarehouseId: workCenters.defectWarehouseId }).from(workCenters).where(eq(workCenters.id, workCenterId)).limit(1);
   return wc;
+}
+
+/** Если у промежуточных этапов источника есть распределённые материалы смены, приход финального этапа получает свою долю: пересчёт цепочки */
+async function refreshStageAllocations(db: Db, workspaceId: string, releaseId: string): Promise<void> {
+  const { items } = await loadPlan(db, releaseId);
+  const sources = [...new Set(items.filter(i => i.documentLineId).map(i => i.sourceItemId).filter((x): x is string => !!x))];
+  const lines = [...new Set(items.filter(i => i.documentLineId).map(i => i.customerOrderLineId).filter((x): x is string => !!x))];
+  if (!sources.length && !lines.length) return;
+  const [row] = await db
+    .select({ id: productionItems.id })
+    .from(productionItems)
+    .where(and(sql`${productionItems.allocCost} <> 0`, isNull(productionItems.documentLineId), or(sources.length ? inArray(productionItems.sourceItemId, sources) : undefined, lines.length ? inArray(productionItems.customerOrderLineId, lines) : undefined)))
+    .limit(1);
+  if (row) await recomputeStockCosts(db, workspaceId);
+}
+
+/** Режим списания материалов участка: при выпуске или по итогам смены */
+export type MaterialMode = 'on_release' | 'shift';
+async function centerMaterialMode(db: Db, workCenterId: string | null | undefined): Promise<MaterialMode> {
+  if (!workCenterId) return 'on_release';
+  const [wc] = await db.select({ mode: workCenters.materialMode }).from(workCenters).where(eq(workCenters.id, workCenterId)).limit(1);
+  return wc?.mode === 'shift' ? 'shift' : 'on_release';
+}
+
+/** Режим смены выпуску не подходит: разборка и давальческое сырьё всегда списывают при выпуске */
+export function shiftModeSupported(doc: { operation?: string | null }, header: { processingOrderId?: string | null } | undefined): boolean {
+  return doc.operation !== 'disassembly' && doc.operation !== 'processing' && !header?.processingOrderId;
 }
 
 /** Количество годной продукции позиции выпуска (всё выпущенное минус брак): по нему считаются исполнение заказа и резерв */
@@ -234,7 +261,8 @@ async function stageTotals(db: Db, sources: StageSource[]): Promise<Map<string, 
       customer: productionItems.customerOrderLineId,
       stageId: productionHeaders.stageId,
       qty: sql<string>`sum(${GOOD_QTY})`,
-      cost: sql<string>`coalesce(sum(${productionItems.stageCost}), 0)`,
+      // распределённые материалы смены в НЗП не входят: они доходят до следующего этапа корректировкой (recomputeStockCosts)
+      cost: sql<string>`coalesce(sum(${productionItems.stageCost} - ${productionItems.allocCost}), 0)`,
     })
     .from(productionItems)
     .innerJoin(documents, eq(documents.id, productionItems.documentId))
@@ -923,6 +951,8 @@ async function writeProduction(
     wasteValuation: input.wasteValuation ?? 'accounting',
     wasteWarehouseId: input.wasteWarehouseId ?? wcWh.wasteWarehouseId,
     defectWarehouseId: input.defectWarehouseId ?? wcWh.defectWarehouseId,
+    // режим материалов берётся у участка; разборка и давальческое сырьё всегда списывают при выпуске
+    materialMode: disassembly || input.processingOrderId ? 'on_release' : await centerMaterialMode(db, input.workCenterId),
   });
   const itemRows = await db.insert(productionItems).values(
     rows.itemLines.map((l, n) => {
@@ -1100,6 +1130,8 @@ async function findDayDocument(db: Db, _workspaceId: string, date: string, workC
         // выпуски из давальческого сырья в общий документ дня не попадают
         processingOrderId ? eq(productionHeaders.processingOrderId, processingOrderId) : isNull(productionHeaders.processingOrderId),
         ne(documents.status, 'cancelled'),
+        // выпуск, вошедший в распределение материалов, не дополняется: его состав уже разнесён
+        sql`not exists (select 1 from material_allocation_rows r where r.release_id = ${documents.id})`,
       ),
     )
     .orderBy(asc(documents.createdAt))
@@ -1963,7 +1995,7 @@ export async function recalcReleaseCost(db: Db, ctx: DocCtx, releaseId: string):
         const later = await laterStageRelease(db, it.itemId, source, stage.sortOrder);
         if (later) throw new DomainError(422, 'cost_locked', `The stage “${later.name}” is already released: the cost of the stage “${stage.name}” cannot be recalculated, adjust it when closing the period`);
       }
-      await db.update(productionItems).set({ stageCost: fmt((base.get(it.id) ?? 0n) - (wasteByItem.get(it.id) ?? 0n)) }).where(eq(productionItems.id, it.id));
+      await db.update(productionItems).set({ stageCost: fmt((base.get(it.id) ?? 0n) - (wasteByItem.get(it.id) ?? 0n) + dec(it.allocCost)) }).where(eq(productionItems.id, it.id));
       continue;
     }
     const moved = incoming.get(it.documentLineId) ?? [];
@@ -1971,7 +2003,7 @@ export async function recalcReleaseCost(db: Db, ctx: DocCtx, releaseId: string):
     // затраты делятся на всё приходованное: «в себестоимость» — только годное, «на расходы» — годное и брак
     const den = lineQty.get(it.documentLineId) ?? 0n;
     if (den <= 0n) continue;
-    const cost = (base.get(it.id) ?? 0n) - (wasteByItem.get(it.id) ?? 0n);
+    const cost = (base.get(it.id) ?? 0n) - (wasteByItem.get(it.id) ?? 0n) + dec(it.allocCost); // распределённые материалы смены — в прямых затратах
     const unit = div((withWip.get(it.id) ?? 0n) - (wasteByItem.get(it.id) ?? 0n), den);
     for (const move of moved) {
       await assertNotShipped(db, move);
@@ -2125,9 +2157,13 @@ DOCUMENT_HOOKS.production = {
     const { items, components } = await loadPlan(db, doc.id);
     if (!items.length) throw new DomainError(422, 'no_items', 'Add products to produce before posting');
     const disassembly = doc.operation === 'disassembly';
-    const [header] = await db.select({ stageId: productionHeaders.stageId, processingOrderId: productionHeaders.processingOrderId }).from(productionHeaders).where(eq(productionHeaders.documentId, doc.id)).limit(1);
+    const [header] = await db.select({ stageId: productionHeaders.stageId, processingOrderId: productionHeaders.processingOrderId, materialMode: productionHeaders.materialMode }).from(productionHeaders).where(eq(productionHeaders.documentId, doc.id)).limit(1);
+    const hdrMode = header?.materialMode ?? 'on_release';
     const stageId = header?.stageId ?? null;
     const final = await isFinalStage(db, stageId);
+    // режим смены: материалы списывает документ «Распределение материалов», поэтому склад материалов выпуску не нужен
+    const shiftMode = hdrMode === 'shift';
+    if (shiftMode && !shiftModeSupported(doc, header)) throw new DomainError(422, 'shift_mode_unsupported', 'Allocation by shift results is available for assembly only: a disassembly and customer material processing consume materials at release');
     if (disassembly) {
       // разборка: исходный товар списывается, выходные продукты приходуются
       const sourceLines = new Set(components.filter(c => c.kind === 'material').map(c => c.documentLineId).filter((x): x is string => !!x));
@@ -2149,7 +2185,7 @@ DOCUMENT_HOOKS.production = {
       }
       // склад продукции нужен только финальному этапу: промежуточный этап продукцию не приходует
       if (final && !doc.targetWarehouseId) throw new DomainError(422, 'warehouse_required', 'Select a warehouse for the finished goods before posting');
-      if (lines.some(l => l.stockRole === 'out') && !doc.warehouseId) throw new DomainError(422, 'warehouse_required', 'Select a warehouse for the materials before posting');
+      if (!shiftMode && lines.some(l => l.stockRole === 'out') && !doc.warehouseId) throw new DomainError(422, 'warehouse_required', 'Select a warehouse for the materials before posting');
     }
     // брак: 0 ≤ брак ≤ выпущено, режим обязателен, только у финального этапа
     if (disassembly && items.some(it => dec(it.defectQty) > 0n)) throw new DomainError(422, 'defect_disassembly_forbidden', 'A disassembly has no defect');
@@ -2241,8 +2277,10 @@ DOCUMENT_HOOKS.production = {
       for (const it of items) await db.update(productionItems).set({ stageCost: fmt(split.totals.get(it.id) ?? 0n) }).where(eq(productionItems.id, it.id));
       return;
     }
-    const [headerRow] = await db.select({ processingOrderId: productionHeaders.processingOrderId, stageId: productionHeaders.stageId, wasteValuation: productionHeaders.wasteValuation }).from(productionHeaders).where(eq(productionHeaders.documentId, doc.id)).limit(1);
+    const [headerRow] = await db.select({ processingOrderId: productionHeaders.processingOrderId, stageId: productionHeaders.stageId, wasteValuation: productionHeaders.wasteValuation, materialMode: productionHeaders.materialMode }).from(productionHeaders).where(eq(productionHeaders.documentId, doc.id)).limit(1);
     const processingOrderId = headerRow?.processingOrderId ?? null;
+    // режим смены: материалы и полуфабрикаты не списываются — их распределяет документ «Распределение материалов»
+    const shiftMode = headerRow?.materialMode === 'shift';
     // финальный ли этап у выпуска: возвратные отходы и брак приходует только финальный этап
     const final = await isFinalStage(db, headerRow?.stageId ?? null);
     const wasteValuation: WasteValuation = headerRow?.wasteValuation === 'zero' ? 'zero' : 'accounting';
@@ -2266,6 +2304,7 @@ DOCUMENT_HOOKS.production = {
     for (const l of lines) {
       if (kinds.get(l.productId) !== 'goods') continue;
       if (l.stockRole === 'out') {
+        if (shiftMode) continue;
         if (customerLineIds.has(l.id) && processingOrderId) {
           if (ownerCompanyId) custReqs.push({ warehouseId: doc.warehouseId!, productId: l.productId, lineId: l.id, qty: dec(l.qty), direction: 'out', ownerCompanyId, processingOrderId });
           continue;
@@ -2359,6 +2398,7 @@ DOCUMENT_HOOKS.production = {
         continue;
       }
       if (!c.documentLineId) continue;
+      if (shiftMode) continue; // строки состава остаются нормами: факта списания у выпуска нет
       const qty = lineQty.get(c.documentLineId) ?? dec(c.qty);
       const unit = outCost.get(c.documentLineId) ?? 0n;
       await db.update(productionComponents).set({ actualQty: fmt(qty), actualCost: fmt(mul(qty, unit)) }).where(eq(productionComponents.id, c.id));
@@ -2373,6 +2413,13 @@ DOCUMENT_HOOKS.production = {
   },
   /** Отмена проведения промежуточного этапа, если следующий этап уже выполнен, запрещена */
   beforeUnpost: async (db, _ctx, doc) => {
+    // выпуск вошёл в проведённое распределение материалов: сначала снимите с проведения распределение
+    const allocs = await db
+      .selectDistinct({ id: documents.id, type: documents.type, number: documents.number })
+      .from(materialAllocationRows)
+      .innerJoin(documents, eq(documents.id, materialAllocationRows.documentId))
+      .where(and(eq(materialAllocationRows.releaseId, doc.id), eq(documents.status, 'posted')));
+    if (allocs.length) throw new DomainError(409, 'has_posted_children', `Unpost the material allocation first: ${allocs.map(a => a.number ?? 'document').join(', ')}`, { documents: allocs });
     const { items } = await loadPlan(db, doc.id);
     const [header] = await db.select({ stageId: productionHeaders.stageId }).from(productionHeaders).where(eq(productionHeaders.documentId, doc.id)).limit(1);
     const stageId = header?.stageId ?? null;
@@ -2390,6 +2437,8 @@ DOCUMENT_HOOKS.production = {
   afterPost: async (db, ctx, doc) => {
     // списанные материалы уменьшают резерв заказа на производство
     await reduceReleaseReservations(db, doc.id);
+    // финальный этап после распределения материалов промежуточного: НЗП-доля распределения доходит до прихода корректировкой
+    await refreshStageAllocations(db, ctx.workspaceId, doc.id);
     // выпуск дочернего заказа резервирует полуфабрикат под строку материала родителя
     await reserveChildOutput(db, ctx.workspaceId, doc.id);
     const { items } = await loadPlan(db, doc.id);
@@ -2490,6 +2539,8 @@ export async function writeOffDefects(db: Db, ctx: DocCtx, releaseId: string): P
 /* ---------------- отходы и брак: правка шапки, вкладки «Отходы» и позиций ---------------- */
 
 export interface ProductionAccountingPatch {
+  /** Режим материалов выпуска: при выпуске или по итогам смены (разборка и давальческое — только «при выпуске») */
+  materialMode?: MaterialMode;
   wasteValuation?: WasteValuation;
   wasteWarehouseId?: string | null;
   defectWarehouseId?: string | null;
@@ -2518,6 +2569,10 @@ export async function updateProductionAccounting(db: Db, ctx: DocCtx, docId: str
   const final = doc.type === 'production_order' ? true : await isFinalStage(db, header.stageId);
   const set: Partial<typeof productionHeaders.$inferInsert> = {};
   if (patch.wasteValuation) set.wasteValuation = patch.wasteValuation;
+  if (patch.materialMode) {
+    if (patch.materialMode === 'shift' && (doc.type !== 'production' || !shiftModeSupported(doc, header))) throw new DomainError(422, 'shift_mode_unsupported', 'Allocation by shift results is available for assembly only: a disassembly and customer material processing consume materials at release');
+    set.materialMode = patch.materialMode;
+  }
   for (const k of ['wasteWarehouseId', 'defectWarehouseId'] as const) {
     const v = patch[k];
     if (v === undefined) continue;
@@ -2601,6 +2656,7 @@ export async function productionDetail(db: Db, id: string) {
     parentDocumentId: header?.parentDocumentId ?? null,
     processingOrderId: header?.processingOrderId ?? null,
     wasteValuation: (header?.wasteValuation ?? 'accounting') as WasteValuation,
+    materialMode: (header?.materialMode ?? 'on_release') as MaterialMode,
     wasteWarehouseId: header?.wasteWarehouseId ?? null,
     defectWarehouseId: header?.defectWarehouseId ?? null,
     items: items.map(i => ({ ...i, name: byProd.get(i.itemId)?.name ?? '', productId: byProd.get(i.itemId)?.productId ?? null, produced: fmt(produced.get(i.id) ?? 0n, 3) })),

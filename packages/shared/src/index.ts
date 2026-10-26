@@ -13,6 +13,7 @@ export * from './ru';
 export * from './documents';
 export * from './billing';
 export * from './cost-closing';
+export * from './shift-allocation';
 export * from './print';
 export * from './automations';
 export * from './i18n';

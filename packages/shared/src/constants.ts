@@ -95,6 +95,9 @@ export const MANUFACTURED_KINDS = ['product', 'semi'] as const;
 /** Стоимость возвратных отходов в шапке выпуска: zero — приходуются по 0, себестоимость продукции не меняется;
     accounting — приходуются по учётной цене и уменьшают себестоимость продукции */
 export const WASTE_VALUATION = ['zero', 'accounting'] as const;
+/** Режим списания материалов выпуска: при проведении выпуска или по итогам смены (документ «Распределение материалов») */
+export const MATERIAL_MODES = ['on_release', 'shift'] as const;
+export type MaterialMode = (typeof MATERIAL_MODES)[number];
 export type WasteValuation = (typeof WASTE_VALUATION)[number];
 
 /** Источник учётной цены возвратных отходов (настройка воркспейса): цена закупки (по умолчанию), цена продажи или средняя склада */

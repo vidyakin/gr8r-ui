@@ -188,3 +188,24 @@ export function WasteHeaderFields({
     </>
   );
 }
+
+/** Режим материалов выпуска (задача 1135): при выпуске или по итогам смены. Меняется в черновике сборки */
+export function MaterialModeField({ value, editable, onChange }: { value: 'on_release' | 'shift'; editable: boolean; onChange: (v: 'on_release' | 'shift') => void }) {
+  const t = useT();
+  return (
+    <Field label={t('production.shift.mode')} hint={t('production.shift.modeHint')}>
+      {() => (
+        <Segmented
+          aria-label={t('production.shift.mode')}
+          disabled={!editable}
+          value={value}
+          onValueChange={v => editable && onChange(v)}
+          items={[
+            { value: 'on_release', label: t('production.shift.modeOnRelease') },
+            { value: 'shift', label: t('production.shift.modeShift') },
+          ]}
+        />
+      )}
+    </Field>
+  );
+}

@@ -89,6 +89,8 @@ export interface WorkCenter {
   outputWarehouseId?: string | null;
   wasteWarehouseId?: string | null;
   defectWarehouseId?: string | null;
+  /** Режим материалов выпусков: при выпуске или по итогам смены */
+  materialMode?: 'on_release' | 'shift';
   note: string;
   archivedAt: string | null;
 }

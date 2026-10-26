@@ -34,6 +34,7 @@ export const sections = {
   productionResources: 'Resources',
   productionClosing: 'Month closing',
   otherCosts: 'Other costs',
+  materialAllocation: 'Material allocation',
   workCenters: 'Work centers',
   automations: 'Automations',
   sales: 'Sales',

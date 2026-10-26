@@ -31,6 +31,8 @@ export const workCenters = pgTable(
     wasteWarehouseId: uuid('waste_warehouse_id'),
     /** Склад брака: куда идёт бракованная продукция при учёте «на расходы» */
     defectWarehouseId: uuid('defect_warehouse_id'),
+    /** Режим списания материалов выпусков участка: при выпуске или по итогам смены (документ «Распределение материалов») */
+    materialMode: text('material_mode', { enum: ['on_release', 'shift'] }).notNull().default('on_release'),
     note: text('note').notNull().default(''),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -38,6 +40,7 @@ export const workCenters = pgTable(
   },
   t => [
     unique('work_centers_ws_id_uq').on(t.workspaceId, t.id),
+    check('work_centers_material_mode_chk', sql`${t.materialMode} in ('on_release','shift')`),
     check('work_centers_rate_chk', sql`${t.hourlyRate} >= 0`),
     foreignKey({ columns: [t.workspaceId, t.warehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'work_centers_warehouse_fk' }),
     foreignKey({ columns: [t.workspaceId, t.outputWarehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'work_centers_output_warehouse_fk' }),
@@ -374,6 +377,8 @@ export const productionItems = pgTable(
     planLineId: uuid('plan_line_id'),
     /** Фактическая себестоимость позиции на этом этапе (материалы + работы + накладные) */
     stageCost: numeric('stage_cost', { precision: 18, scale: 4 }),
+    /** Часть stage_cost, пришедшая из проведённых распределений материалов смены (с накладными); доходит до прихода продукции корректировкой */
+    allocCost: numeric('alloc_cost', { precision: 18, scale: 4 }).notNull().default('0'),
     /** Строка документа с продукцией (у выпуска) */
     documentLineId: uuid('document_line_id'),
     /** Брак в позиции выпуска: количество (0 если нет) */
@@ -539,11 +544,14 @@ export const productionHeaders = pgTable(
     wasteWarehouseId: uuid('waste_warehouse_id'),
     /** Склад брака выпуска (по умолчанию из участка) */
     defectWarehouseId: uuid('defect_warehouse_id'),
+    /** Режим списания материалов: on_release — при проведении выпуска, shift — по итогам смены (берётся у участка при создании) */
+    materialMode: text('material_mode', { enum: ['on_release', 'shift'] }).notNull().default('on_release'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   t => [
     primaryKey({ columns: [t.workspaceId, t.documentId] }),
+    check('production_headers_material_mode_chk', sql`${t.materialMode} in ('on_release','shift')`),
     foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'production_headers_document_fk' }).onDelete('cascade'),
     foreignKey({ columns: [t.workspaceId, t.workCenterId], foreignColumns: [workCenters.workspaceId, workCenters.id], name: 'production_headers_work_center_fk' }),
     foreignKey({ columns: [t.workspaceId, t.parentDocumentId], foreignColumns: [documents.workspaceId, documents.id], name: 'production_headers_parent_fk' }),
@@ -885,5 +893,60 @@ export const otherCostLines = pgTable(
     foreignKey({ columns: [t.workspaceId, t.workCenterId], foreignColumns: [workCenters.workspaceId, workCenters.id], name: 'other_cost_lines_work_center_fk' }),
     check('other_cost_lines_amount_chk', sql`${t.amount} > 0`),
     index('other_cost_lines_document_idx').on(t.documentId, t.sortOrder),
+  ],
+);
+
+/* ---------------- распределение материалов по итогам смены (задача 1135) ---------------- */
+
+/** Шапка документа «Распределение материалов»: период смены (участок и склад — в самом документе) */
+export const materialAllocations = pgTable(
+  'material_allocations',
+  {
+    workspaceId: wsCol(),
+    documentId: uuid('document_id').notNull(),
+    /** Период, за который берутся выпуски участка в режиме смены (по умолчанию один день — дата документа) */
+    periodFrom: date('period_from', { mode: 'string' }).notNull(),
+    periodTo: date('period_to', { mode: 'string' }).notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    primaryKey({ columns: [t.workspaceId, t.documentId] }),
+    foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'material_allocations_document_fk' }).onDelete('cascade'),
+    check('material_allocations_period_chk', sql`${t.periodFrom} <= ${t.periodTo}`),
+  ],
+);
+
+/** Результат проведённого распределения: сколько материала и на сколько денег пришлось на позицию выпуска */
+export const materialAllocationRows = pgTable(
+  'material_allocation_rows',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    /** Документ «Распределение материалов» */
+    documentId: uuid('document_id').notNull(),
+    /** Выпуск и его позиция */
+    releaseId: uuid('release_id').notNull(),
+    releaseItemId: uuid('release_item_id').notNull(),
+    /** Материал */
+    productId: uuid('product_id').notNull(),
+    /** Строка списания материала в документе распределения */
+    documentLineId: uuid('document_line_id'),
+    qty: numeric('qty', { precision: 18, scale: 6 }).notNull().default('0'),
+    /** Стоимость доли по цене списания (без накладных) */
+    cost: numeric('cost', { precision: 18, scale: 4 }).notNull().default('0'),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: createdAt(),
+  },
+  t => [
+    unique('material_allocation_rows_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'material_allocation_rows_document_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.releaseId], foreignColumns: [documents.workspaceId, documents.id], name: 'material_allocation_rows_release_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.releaseItemId], foreignColumns: [productionItems.workspaceId, productionItems.id], name: 'material_allocation_rows_item_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'material_allocation_rows_product_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.documentLineId], foreignColumns: [documentLines.workspaceId, documentLines.id], name: 'material_allocation_rows_line_fk' }).onDelete('set null'),
+    index('material_allocation_rows_document_idx').on(t.documentId, t.sortOrder),
+    index('material_allocation_rows_release_idx').on(t.releaseId),
+    index('material_allocation_rows_item_idx').on(t.releaseItemId),
   ],
 );

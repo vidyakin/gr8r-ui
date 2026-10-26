@@ -6,7 +6,7 @@ import type { VatRate } from './constants';
 
 /* ---------------- типы и статусы ---------------- */
 
-export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'inventory_count', 'production_order', 'production', 'work_order', 'piecework_order', 'other_costs', 'tolling_receipt', 'tolling_report', 'tolling_return'] as const;
+export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'inventory_count', 'production_order', 'production', 'work_order', 'piecework_order', 'other_costs', 'material_allocation', 'tolling_receipt', 'tolling_report', 'tolling_return'] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 export const DOCUMENT_STATUSES = ['draft', 'posted', 'cancelled'] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
@@ -141,6 +141,8 @@ export const DOCUMENT_META: Record<DocumentType, DocumentTypeMeta> = {
   piecework_order: { label: 'Piecework order', group: 'production', prefix: 'СН', stock: null, party: null, basedOn: [], fulfils: false, forms: ['piecework'] },
   // прочие затраты: косвенные затраты периода без склада (строки — статья, участок, сумма; своего товара у них нет)
   other_costs: { label: 'Other costs', group: 'production', prefix: 'ПЗ', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true },
+  // распределение материалов по итогам смены: фактический расход делится между выпусками участка в режиме «по итогам смены»
+  material_allocation: { label: 'Material allocation', group: 'production', prefix: 'РМ', stock: null, party: null, basedOn: [], fulfils: false, forms: [], stockRole: 'out' },
   // переработка давальческого сырья (мы — переработчик): приём сырья заказчика, отчёт перед ним и возврат остатков
   tolling_receipt: { label: 'Receipt for processing', group: 'tolling', prefix: 'ППР', stock: null, party: 'customer', basedOn: ['customer_order'], fulfils: false, forms: [], tolling: 'receipt', noPrice: true },
   tolling_report: { label: 'Processing report', group: 'tolling', prefix: 'ОРП', stock: null, party: 'customer', basedOn: ['customer_order'], fulfils: false, forms: ['act'], tolling: 'report' },
@@ -196,6 +198,7 @@ export const DOCUMENT_LABELS_RU: Record<DocumentType, string> = {
   work_order: 'Заказ-наряд',
   piecework_order: 'Сдельный наряд',
   other_costs: 'Прочие затраты',
+  material_allocation: 'Распределение материалов',
 };
 
 export const documentTypesOf = (group: DocumentGroup): DocumentType[] => DOCUMENT_TYPES.filter(t => DOCUMENT_META[t].group === group);
