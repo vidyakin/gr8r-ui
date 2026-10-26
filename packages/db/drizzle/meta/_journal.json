@@ -218,6 +218,13 @@
       "when": 1792971915293,
       "tag": "0031_shift_allocation",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792972915293,
+      "tag": "0032_shift_allocation_items",
+      "breakpoints": true
     }
   ]
 }

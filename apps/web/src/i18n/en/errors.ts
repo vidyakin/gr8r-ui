@@ -41,6 +41,9 @@ export const errors = {
   no_releases: 'There are no shift-mode releases of this work center in the period',
   nothing_to_fill: 'There is nothing to fill: no materials in the norms or no stock at the end of the period',
   work_center_required: 'Select a work center first',
-  invalid_period: 'The period start is after its end',
+  invalid_period: 'The period start is after the document date',
+  allocation_mismatch: 'The distributed quantity of a material does not match its fact',
+  allocation_row_invalid: 'The distribution refers to a product that is not on the “Products” tab',
+  release_not_allocatable: 'A release on the “Products” tab is not suitable for this allocation',
   has_posted_children: 'Unpost the documents created from this one first',
 };

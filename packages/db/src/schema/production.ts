@@ -917,7 +917,31 @@ export const materialAllocations = pgTable(
   ],
 );
 
-/** Результат проведённого распределения: сколько материала и на сколько денег пришлось на позицию выпуска */
+/** Вкладка «Продукция» документа «Распределение материалов»: позиции выпусков, между которыми делится расход */
+export const materialAllocationItems = pgTable(
+  'material_allocation_items',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    documentId: uuid('document_id').notNull(),
+    /** Выпуск и его позиция */
+    releaseId: uuid('release_id').notNull(),
+    releaseItemId: uuid('release_item_id').notNull(),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: createdAt(),
+  },
+  t => [
+    unique('material_allocation_items_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'material_allocation_items_document_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.releaseId], foreignColumns: [documents.workspaceId, documents.id], name: 'material_allocation_items_release_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.releaseItemId], foreignColumns: [productionItems.workspaceId, productionItems.id], name: 'material_allocation_items_item_fk' }).onDelete('cascade'),
+    uniqueIndex('material_allocation_items_doc_item_uq').on(t.documentId, t.releaseItemId),
+    index('material_allocation_items_release_idx').on(t.releaseId),
+    index('material_allocation_items_item_idx').on(t.releaseItemId),
+  ],
+);
+
+/** Таблица «Распределение» (позиция × материал × количество): хранится и в черновике, правится вручную; стоимость пишет проведение */
 export const materialAllocationRows = pgTable(
   'material_allocation_rows',
   {
@@ -941,8 +965,8 @@ export const materialAllocationRows = pgTable(
   t => [
     unique('material_allocation_rows_ws_id_uq').on(t.workspaceId, t.id),
     foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'material_allocation_rows_document_fk' }).onDelete('cascade'),
-    foreignKey({ columns: [t.workspaceId, t.releaseId], foreignColumns: [documents.workspaceId, documents.id], name: 'material_allocation_rows_release_fk' }),
-    foreignKey({ columns: [t.workspaceId, t.releaseItemId], foreignColumns: [productionItems.workspaceId, productionItems.id], name: 'material_allocation_rows_item_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.releaseId], foreignColumns: [documents.workspaceId, documents.id], name: 'material_allocation_rows_release_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.releaseItemId], foreignColumns: [productionItems.workspaceId, productionItems.id], name: 'material_allocation_rows_item_fk' }).onDelete('cascade'),
     foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'material_allocation_rows_product_fk' }),
     foreignKey({ columns: [t.workspaceId, t.documentLineId], foreignColumns: [documentLines.workspaceId, documentLines.id], name: 'material_allocation_rows_line_fk' }).onDelete('set null'),
     index('material_allocation_rows_document_idx').on(t.documentId, t.sortOrder),

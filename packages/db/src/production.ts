@@ -16,7 +16,7 @@ import { recordEvent } from './events';
 import { applyCustomerStockMoves, revertCustomerStockMoves, type CustomerMoveRequest } from './customer-stock';
 import { applyStockMoves, loadAvgCosts, loadInventorySettings, recomputeStockCosts, revalueMove, type MoveRequest } from './stock';
 import { materialRows, reduceReservation, releaseOrderMaterials, reserveChildOutput, reserveOrderMaterials, restoreReservation, supplierForProduct } from './materials';
-import { bomLines, companies, documentLines, documents, manufacturedItems, materialAllocationRows, pieceworkLines, productionOperations, productManufacturing, productionComponents, productionHeaders, productionItems, productionPlacements, productionStages, products, stockMoves, stockReservations, warehouses, workCenters, workspaces } from './schema';
+import { bomLines, companies, documentLines, documents, manufacturedItems, materialAllocationItems, pieceworkLines, productionOperations, productManufacturing, productionComponents, productionHeaders, productionItems, productionPlacements, productionStages, products, stockMoves, stockReservations, warehouses, workCenters, workspaces } from './schema';
 import { FINAL_STAGE, itemStagePlan, listProductionKinds, stageDef, stageKey, type StageDef } from './production-stages';
 import { checkParamValues, loadSpecParams, resolveSpecForProduct, specParamFields } from './specs';
 import { ensureVariant, isVariant } from './variants';
@@ -1131,7 +1131,7 @@ async function findDayDocument(db: Db, _workspaceId: string, date: string, workC
         processingOrderId ? eq(productionHeaders.processingOrderId, processingOrderId) : isNull(productionHeaders.processingOrderId),
         ne(documents.status, 'cancelled'),
         // выпуск, вошедший в распределение материалов, не дополняется: его состав уже разнесён
-        sql`not exists (select 1 from material_allocation_rows r where r.release_id = ${documents.id})`,
+        sql`not exists (select 1 from material_allocation_items i join documents d on d.id = i.document_id where i.release_id = ${documents.id} and d.status = 'posted')`,
       ),
     )
     .orderBy(asc(documents.createdAt))
@@ -2416,9 +2416,9 @@ DOCUMENT_HOOKS.production = {
     // выпуск вошёл в проведённое распределение материалов: сначала снимите с проведения распределение
     const allocs = await db
       .selectDistinct({ id: documents.id, type: documents.type, number: documents.number })
-      .from(materialAllocationRows)
-      .innerJoin(documents, eq(documents.id, materialAllocationRows.documentId))
-      .where(and(eq(materialAllocationRows.releaseId, doc.id), eq(documents.status, 'posted')));
+      .from(materialAllocationItems)
+      .innerJoin(documents, eq(documents.id, materialAllocationItems.documentId))
+      .where(and(eq(materialAllocationItems.releaseId, doc.id), eq(documents.status, 'posted')));
     if (allocs.length) throw new DomainError(409, 'has_posted_children', `Unpost the material allocation first: ${allocs.map(a => a.number ?? 'document').join(', ')}`, { documents: allocs });
     const { items } = await loadPlan(db, doc.id);
     const [header] = await db.select({ stageId: productionHeaders.stageId }).from(productionHeaders).where(eq(productionHeaders.documentId, doc.id)).limit(1);

@@ -240,7 +240,7 @@ export async function unallocatedShiftReleases(db: Db, workspaceId: string, from
         eq(productionHeaders.materialMode, 'shift'),
         gte(documents.date, from),
         lte(documents.date, to),
-        sql`not exists (select 1 from material_allocation_rows r where r.release_id = ${documents.id})`,
+        sql`not exists (select 1 from material_allocation_items i join documents d on d.id = i.document_id where i.release_id = ${documents.id} and d.status = 'posted')`,
       ),
     )
     .orderBy(asc(documents.date), asc(documents.createdAt));

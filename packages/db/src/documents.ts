@@ -37,7 +37,7 @@ import { recordEvent } from './events';
 import { applyStockMoves, defaultPostingCost, documentCosts, documentLineCosts, loadInventorySettings, revertStockMoves, sourceMoveCosts, syncReservations, type MoveRequest } from './stock';
 import { syncWorkOrderResources } from './planning';
 import { assertPeriodOpen, assertServiceCostItems, clearPeriodCosts, syncPeriodCosts } from './cost-closing';
-import { bankAccounts, companies, contracts, costItems, documentCounters, documentLines, documentStates, documents, investmentProjects, members, organizations, products, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials } from './schema';
+import { bankAccounts, companies, contracts, costItems, documentCounters, documentLines, documentStates, documents, investmentProjects, materialAllocationItems, members, organizations, products, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials } from './schema';
 import { assertInvestmentTarget, investmentOpen } from './investments';
 import { assertContractOfCompany, contractDocumentProducts, contractPlanProductIds, defaultContract } from './contracts';
 import { ensureVariant, specParamsOfProduct } from './variants';
@@ -905,6 +905,16 @@ export async function documentDetail(db: Db, id: string) {
     .from(documents)
     .where(eq(documents.basedOnId, id))
     .orderBy(asc(documents.createdAt));
+  // выпуск в режиме смены: распределения материалов, в которые он вошёл, — тоже его дочерние документы
+  if (type === 'production') {
+    const allocs = await db
+      .selectDistinct({ id: documents.id, type: documents.type, number: documents.number, status: documents.status, date: documents.date, total: documents.total, createdAt: documents.createdAt })
+      .from(materialAllocationItems)
+      .innerJoin(documents, eq(documents.id, materialAllocationItems.documentId))
+      .where(eq(materialAllocationItems.releaseId, id))
+      .orderBy(asc(documents.createdAt));
+    for (const { createdAt: _, ...a } of allocs) if (!children.some(c => c.id === a.id)) children.push(a);
+  }
   const rows = await db
     .select({ line: documentLines, sku: products.sku, kind: products.kind })
     .from(documentLines)

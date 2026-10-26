@@ -915,16 +915,21 @@ export const materialAllocationLineInput = z.object({
   qty: positive(1e12),
 });
 
+/** Позиция вкладки «Продукция» */
+export const materialAllocationItemInput = z.object({ releaseItemId: uuid });
+/** Строка таблицы «Распределение»: позиция выпуска × материал × количество (до 6 знаков: остаток округления) */
+export const materialAllocationRowInput = z.object({ releaseItemId: uuid, productId: uuid, qty: decimal });
+export const ALLOCATION_METHODS = ['norms', 'qty'] as const;
+
 export const materialAllocationCreate = z.object({
   id: clientId,
   workCenterId: uuid,
   /** Склад списания; пусто — склад-цех участка */
   warehouseId: uuid.nullish(),
-  /** Дата документа; пусто — сегодня */
+  /** Дата документа = конец периода; пусто — сегодня */
   date: isoDate.optional(),
-  /** Период смены; пусто — один день, дата документа */
+  /** Начало периода; пусто — дата документа (одна смена) */
   periodFrom: isoDate.optional(),
-  periodTo: isoDate.optional(),
   comment: z.string().max(5000).default(''),
   lines: z.array(materialAllocationLineInput).max(200).default([]),
 });
@@ -933,10 +938,15 @@ export const materialAllocationUpdate = z.object({
   warehouseId: uuid.nullish(),
   date: isoDate.optional(),
   periodFrom: isoDate.optional(),
-  periodTo: isoDate.optional(),
   comment: z.string().max(5000).optional(),
   lines: z.array(materialAllocationLineInput).max(200).optional(),
+  /** Вкладка «Продукция» целиком */
+  items: z.array(materialAllocationItemInput).max(500).optional(),
+  /** Таблица «Распределение» целиком */
+  rows: z.array(materialAllocationRowInput).max(5000).optional(),
 });
+/** «Распределить по нормативам» / «Распределить по количеству» */
+export const materialAllocationDistribute = z.object({ method: z.enum(ALLOCATION_METHODS) });
 export const materialAllocationQuery = listQuery.extend({ from: isoDate.optional(), to: isoDate.optional(), q: z.string().trim().max(200).optional() });
 
 /* ---------------- переработка давальческого сырья ---------------- */

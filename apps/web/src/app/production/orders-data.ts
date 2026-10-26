@@ -4,6 +4,7 @@ import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PRODUCTION_ORDER_STATES, type DefectMode, type DocumentStatus, type MaterialOwner, type WasteValuation } from '@gr8r/shared';
 import { toast } from '@/components/ui';
+import { t } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';
 import { uuidv7 } from '../lib/uuid';
@@ -230,7 +231,7 @@ export function useProductionOrderApi() {
   const fill = useMutation({
     mutationFn: (id: string) => call<ProductionOrderDetail>(ws, 'POST', `/production-orders/${id}/fill-from-bom`),
     onSuccess: () => {
-      toast('The bill of materials is copied into the order');
+      toast(t('production.order.bomCopied'));
       settle();
     },
     onError: e => toast.error(errorMessage(e)),
@@ -238,7 +239,7 @@ export function useProductionOrderApi() {
   const produce = useMutation({
     mutationFn: (v: { id: string; body: Record<string, unknown> }) => call<ProductionOrderDetail>(ws, 'POST', `/production-orders/${v.id}/production`, v.body),
     onSuccess: d => {
-      toast('Production created');
+      toast(t('production.order.productionCreated'));
       settle();
       return d;
     },
@@ -261,7 +262,7 @@ export function useProductionOrderApi() {
   const reserve = useMutation({
     mutationFn: (v: { id: string; componentId: string; qty: string; warehouseId: string }) => call<{ items: MaterialCoverageRow[] }>(ws, 'PATCH', `/production-orders/${v.id}/materials/${v.componentId}/reservation`, { qty: v.qty, warehouseId: v.warehouseId }),
     onSuccess: () => {
-      toast('The reserve is saved');
+      toast(t('production.order.material.coverageSaved'));
       settle();
     },
     onError: e => toast.error(errorMessage(e)),

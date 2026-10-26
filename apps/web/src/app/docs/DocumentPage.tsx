@@ -1362,7 +1362,8 @@ function NumCell({ value, onChange, disabled, invalid, label, cell, onKeyDown }:
 export function DocRef({ d }: { d: DocLink }) {
   return (
     <span className="doc-ref">
-      <Link className="crm-link" to={`/documents/${d.id}`}>
+      {/* у распределения материалов своя форма */}
+      <Link className="crm-link" to={d.type === 'material_allocation' ? `/material-allocations/${d.id}` : `/documents/${d.id}`}>
         {typeLabel(d.type)} {d.number ?? '(draft)'}
       </Link>
       <Badge tone={STATUS_TONE[d.status]}>{STATUS_LABEL[d.status]}</Badge>

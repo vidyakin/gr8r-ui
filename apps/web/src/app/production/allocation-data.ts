@@ -36,20 +36,22 @@ export interface AllocationDetail {
   periodFrom: string;
   periodTo: string;
   lines: AllocationLine[];
-  /** Выпуски периода: у проведённого распределения — вошедшие в результат */
-  releases: { itemId: string; releaseId: string; number: string | null; date: string; name: string; qty: string }[];
-  /** Результат: у черновика — расчёт количеств (стоимость пусто), у проведённого — записанное; стоимость видят admin и owner */
-  result: { releaseId: string; releaseItemId: string; productId: string; productName: string; releaseNumber: string | null; itemName: string; qty: string; cost: string | null }[];
+  /** Вкладка «Продукция»: позиции выпусков */
+  items: { itemId: string; releaseId: string; number: string | null; date: string; name: string; qty: string }[];
+  /** Таблица «Распределение»: стоимость — после проведения, видят admin и owner */
+  rows: { id: string; releaseId: string; releaseItemId: string; productId: string; productName: string; releaseNumber: string | null; itemName: string; qty: string; cost: string | null }[];
 }
 
 export interface AllocationBody {
   workCenterId?: string;
   warehouseId?: string | null;
   date?: string;
+  /** Начало периода; конец — всегда дата документа */
   periodFrom?: string;
-  periodTo?: string;
   comment?: string;
   lines?: { id?: string; productId: string; qty: string }[];
+  items?: { releaseItemId: string }[];
+  rows?: { releaseItemId: string; productId: string; qty: string }[];
 }
 
 const key = (ws: string, ...rest: unknown[]) => ['ws', ws, 'production', 'material-allocations', ...rest] as const;
@@ -80,6 +82,8 @@ export function useAllocationApi() {
     create: (body: AllocationBody & { workCenterId: string }) => run('POST', '', body),
     update: (id: string, body: AllocationBody) => run('PATCH', `/${id}`, body),
     fillByNorms: (id: string) => run('POST', `/${id}/fill-by-norms`),
+    fillItems: (id: string) => run('POST', `/${id}/fill-items`),
+    distribute: (id: string, method: 'norms' | 'qty') => run('POST', `/${id}/distribute`, { method }),
     fillByStock: (id: string) => run('POST', `/${id}/fill-by-stock`),
     post: (id: string) => run('POST', `/${id}/post`),
     unpost: (id: string) => run('POST', `/${id}/unpost`),

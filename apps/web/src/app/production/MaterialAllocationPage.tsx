@@ -1,6 +1,6 @@
 /* Распределение материалов по итогам смены (задача 1135): журнал и форма документа. Форма как в 1С: шапка сверху,
-   табличные части во вкладках («Материалы» — факт смены, «Выпуски» — выпуски участка за период, «Распределение» —
-   результат), комментарий внизу. Правила — docs/architecture/production-shift-allocation.md. */
+   табличные части во вкладках («Материалы» — факт смены, «Продукция» — позиции выпусков участка за период,
+   «Распределение» — материал по позициям, правится вручную), комментарий внизу. Правила — docs/architecture/production-shift-allocation.md. */
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { CircleAlert, FilePlus2, Plus, Trash2 } from 'lucide-react';
@@ -11,6 +11,7 @@ import { useWarehouses } from '../docs/data';
 import { useSnapshot } from './data';
 import { useAllocation, useAllocationApi, useAllocations, type AllocationDetail } from './allocation-data';
 import { fmtNumber } from '@/i18n/format';
+import { fmtDate } from '../lib/dates';
 import { t, tProductionEnum, useT } from '@/i18n';
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -85,14 +86,14 @@ export function MaterialAllocationsPage() {
                       {r.number ?? t('production.workbench.draft')}
                     </Link>
                   </td>
-                  <td className="muted">{r.date}</td>
+                  <td className="muted">{fmtDate(r.date)}</td>
                   <td>
                     <Badge tone={r.status === 'posted' ? 'green' : r.status === 'cancelled' ? 'neutral' : 'gray'} dot>
                       {tProductionEnum('docStatus', r.status, r.status)}
                     </Badge>
                   </td>
                   <td className="trunc">{r.workCenterName ?? '—'}</td>
-                  <td className="muted">{r.periodFrom === r.periodTo ? r.periodFrom : `${r.periodFrom} — ${r.periodTo}`}</td>
+                  <td className="muted">{!r.periodFrom || !r.periodTo ? '—' : r.periodFrom === r.periodTo ? fmtDate(r.periodFrom) : `${fmtDate(r.periodFrom)} — ${fmtDate(r.periodTo)}`}</td>
                   <td className="trunc">{r.comment}</td>
                 </tr>
               ))}
@@ -106,7 +107,15 @@ export function MaterialAllocationsPage() {
 
 /* ---------------- карточка документа ---------------- */
 
+interface FormRow {
+  key: string;
+  releaseItemId: string;
+  productId: string;
+  qty: string;
+}
+
 const toForm = (d: AllocationDetail): FormLine[] => d.lines.map(l => ({ key: l.id, id: l.id, productId: l.productId, qty: trim(l.qty) }));
+const toRows = (d: AllocationDetail): FormRow[] => d.rows.map(r => ({ key: r.id, releaseItemId: r.releaseItemId, productId: r.productId, qty: trim(r.qty) }));
 
 export function MaterialAllocationPage() {
   const tt = useT();
@@ -122,31 +131,36 @@ export function MaterialAllocationPage() {
   const materials = (snapshot.data?.materials ?? []).filter(m => m.kind === 'goods');
 
   const [date, setDate] = React.useState(today());
+  /** Начало периода: по умолчанию равно дате документа (одна смена), пока его не изменили руками; окончание — всегда дата документа */
   const [periodFrom, setPeriodFrom] = React.useState(today());
-  const [periodTo, setPeriodTo] = React.useState(today());
+  const [periodTouched, setPeriodTouched] = React.useState(false);
   const [workCenterId, setWorkCenterId] = React.useState('');
   const [warehouseId, setWarehouseId] = React.useState('');
   const [comment, setComment] = React.useState('');
   const [lines, setLines] = React.useState<FormLine[]>([]);
+  const [itemIds, setItemIds] = React.useState<string[]>([]);
+  const [rows, setRows] = React.useState<FormRow[]>([]);
   const [busy, setBusy] = React.useState(false);
   const [removing, setRemoving] = React.useState(false);
   const loadedFor = React.useRef<string | null>(null);
   const loadedAt = React.useRef<string | null>(null);
 
   const detail = isNew ? null : doc.data;
-  // карточка кладётся в форму при открытии и после каждого ответа сервера (проведение, заполнение)
+  // карточка кладётся в форму при открытии и после каждого ответа сервера (проведение, заполнение, распределение)
   React.useEffect(() => {
     if (!detail) return;
-    const stamp = `${detail.id}:${detail.status}:${JSON.stringify(detail.lines)}`;
+    const stamp = `${detail.id}:${detail.status}:${JSON.stringify(detail.lines)}:${JSON.stringify(detail.items)}:${JSON.stringify(detail.rows)}`;
     if (loadedAt.current === stamp) return;
     loadedAt.current = stamp;
     const first = loadedFor.current !== detail.id;
     loadedFor.current = detail.id;
     setLines(toForm(detail));
+    setItemIds(detail.items.map(i => i.itemId));
+    setRows(toRows(detail));
     if (first) {
       setDate(detail.date);
       setPeriodFrom(detail.periodFrom);
-      setPeriodTo(detail.periodTo);
+      setPeriodTouched(detail.periodFrom !== detail.date);
       setWorkCenterId(detail.workCenterId ?? '');
       setWarehouseId(detail.warehouseId ?? '');
       setComment(detail.comment);
@@ -156,7 +170,12 @@ export function MaterialAllocationPage() {
   const editable = canWrite && (!detail || detail.status === 'draft');
   const center = (snapshot.data?.workCenters ?? []).find(w => w.id === workCenterId);
   const defaultWarehouse = center?.warehouseId ?? '';
-  const valid = !!workCenterId && periodFrom <= periodTo;
+  /** Пока начало периода не менялось руками, оно идёт за датой документа */
+  const changeDate = (v: string) => {
+    if (!periodTouched && v) setPeriodFrom(v);
+    setDate(v);
+  };
+  const valid = !!workCenterId && !!date && periodFrom <= date;
   const postable = valid && lines.length > 0 && lines.every(l => l.productId && Number(l.qty) > 0);
 
   const body = () => ({
@@ -164,10 +183,11 @@ export function MaterialAllocationPage() {
     warehouseId: warehouseId || defaultWarehouse || null,
     date,
     periodFrom,
-    periodTo,
     comment,
     lines: lines.filter(l => l.productId).map(l => ({ id: l.id, productId: l.productId, qty: l.qty || '0' })),
   });
+  /** Всё, что редактируется в форме: шапка, материалы, продукция и распределение */
+  const fullBody = () => ({ ...body(), items: itemIds.map(releaseItemId => ({ releaseItemId })), rows: rows.filter(r => r.releaseItemId && r.productId).map(r => ({ releaseItemId: r.releaseItemId, productId: r.productId, qty: r.qty || '0' })) });
 
   const run = async (fn: () => Promise<AllocationDetail | void>, ok?: string) => {
     setBusy(true);
@@ -184,20 +204,19 @@ export function MaterialAllocationPage() {
   };
 
   const save = async () => {
-    const r = await run(() => (detail ? api.update(detail.id, body()) : api.create(body())), tt('production.allocation.saved'));
+    const r = await run(() => (detail ? api.update(detail.id, fullBody()) : api.create(body())), tt('production.allocation.saved'));
     if (r && !detail) await navigate(`/material-allocations/${r.id}`, { replace: true });
   };
-  const fill = async (kind: 'norms' | 'stock') => {
+  /** Команды заполнения считаются на сервере по сохранённому: правки формы уходят туда до команды */
+  const command = async (fn: (docId: string) => Promise<AllocationDetail>, ok: string) => {
     if (!detail) return;
-    // шапка (участок, склад, период) уходит на сервер до заполнения: оно считается по сохранённому
-    const saved = await run(() => api.update(detail.id, { workCenterId, warehouseId: warehouseId || defaultWarehouse || null, date, periodFrom, periodTo, comment }));
-    if (!saved) return;
-    await run(() => (kind === 'norms' ? api.fillByNorms(detail.id) : api.fillByStock(detail.id)), tt('production.allocation.filled'));
+    if (!(await run(() => api.update(detail.id, fullBody())))) return;
+    await run(() => fn(detail.id), ok);
   };
   const post = async () => {
     if (!detail) return;
     // перед проведением сохраняются правки формы
-    if (editable && !(await run(() => api.update(detail.id, body())))) return;
+    if (editable && !(await run(() => api.update(detail.id, fullBody())))) return;
     await run(() => api.post(detail.id), tt('production.order.actions.repost'));
   };
 
@@ -210,17 +229,26 @@ export function MaterialAllocationPage() {
       </div>
     );
 
-  const releases = detail?.releases ?? [];
-  const result = detail?.result ?? [];
-  const seeCost = result.some(r => r.cost !== null);
-  const totalCost = result.reduce((s, r) => s + Number(r.cost ?? 0), 0);
-  const productName = (pid: string) => materials.find(m => m.id === pid)?.name ?? detail?.lines.find(l => l.productId === pid)?.name ?? '';
+  const items = (detail?.items ?? []).filter(i => itemIds.includes(i.itemId));
+  const serverRow = (key: string) => detail?.rows.find(r => r.id === key);
+  const productName = (pid: string) => materials.find(m => m.id === pid)?.name ?? detail?.lines.find(l => l.productId === pid)?.name ?? detail?.rows.find(r => r.productId === pid)?.productName ?? '';
+  const seeCost = (detail?.rows ?? []).some(r => r.cost !== null);
+  const totalCost = (detail?.rows ?? []).reduce((s, r) => s + Number(r.cost ?? 0), 0);
+  /** Сверка: распределено по каждому материалу и факт смены */
+  const check = [...new Set([...lines.map(l => l.productId), ...rows.map(r => r.productId)])]
+    .filter(Boolean)
+    .map(pid => ({
+      productId: pid,
+      fact: lines.filter(l => l.productId === pid).reduce((s, l) => s + Number(l.qty || 0), 0),
+      distributed: rows.filter(r => r.productId === pid).reduce((s, r) => s + Number(r.qty || 0), 0),
+    }));
+  const mismatch = rows.length > 0 && check.some(c => Math.abs(c.fact - c.distributed) > 1e-6);
 
   return (
     <div className="page doc-page">
       <div className="doc-bar">
         <div className="doc-title">
-          <h1>{detail?.number ?? t('production.allocation.newTitle')}</h1>
+          <h1>{detail ? (detail.number ?? t('production.allocation.title')) : t('production.allocation.newTitle')}</h1>
           {detail && <Badge tone={detail.status === 'posted' ? 'green' : 'gray'} dot>{tProductionEnum('docStatus', detail.status, detail.status)}</Badge>}
         </div>
         <div className="acts">
@@ -248,7 +276,22 @@ export function MaterialAllocationPage() {
       </div>
 
       <section className="panel doc-head" aria-label={t('production.field.date')}>
-        <Field label={t('production.allocation.fields.date')}>{p => <Input {...p} type="date" disabled={!editable} value={date} onChange={e => setDate(e.target.value)} />}</Field>
+        <Field label={t('production.allocation.fields.date')} hint={t('production.allocation.fields.dateHint')}>{p => <Input {...p} type="date" disabled={!editable} value={date} onChange={e => changeDate(e.target.value)} />}</Field>
+        <Field label={t('production.allocation.fields.periodFrom')} hint={t('production.allocation.fields.periodFromHint')}>
+          {p => (
+            <Input
+              {...p}
+              type="date"
+              disabled={!editable}
+              value={periodFrom}
+              max={date || undefined}
+              onChange={e => {
+                setPeriodTouched(true);
+                setPeriodFrom(e.target.value);
+              }}
+            />
+          )}
+        </Field>
         <Field label={t('production.allocation.fields.workCenter')}>
           {p => (
             <Select
@@ -275,21 +318,6 @@ export function MaterialAllocationPage() {
             />
           )}
         </Field>
-        <Field label={t('production.allocation.fields.periodFrom')}>
-          {p => (
-            <Input
-              {...p}
-              type="date"
-              disabled={!editable}
-              value={periodFrom}
-              onChange={e => {
-                setPeriodFrom(e.target.value);
-                if (periodTo < e.target.value) setPeriodTo(e.target.value);
-              }}
-            />
-          )}
-        </Field>
-        <Field label={t('production.allocation.fields.periodTo')}>{p => <Input {...p} type="date" disabled={!editable} value={periodTo} min={periodFrom} onChange={e => setPeriodTo(e.target.value)} />}</Field>
       </section>
 
       <DocTabs
@@ -303,10 +331,10 @@ export function MaterialAllocationPage() {
               <section className="doc-lines panel" aria-label={t('production.allocation.tabs.materials')}>
                 {editable && detail && (
                   <div className="row" style={{ gap: 8, padding: '8px 12px' }}>
-                    <Button size="sm" disabled={busy || !valid} onClick={() => void fill('norms')}>
+                    <Button size="sm" disabled={busy || !valid} onClick={() => void command(api.fillByNorms, tt('production.allocation.filled'))}>
                       {t('production.allocation.fillByNorms')}
                     </Button>
-                    <Button size="sm" disabled={busy || !valid} onClick={() => void fill('stock')}>
+                    <Button size="sm" disabled={busy || !valid} onClick={() => void command(api.fillByStock, tt('production.allocation.filled'))}>
                       {t('production.allocation.fillByStock')}
                     </Button>
                   </div>
@@ -362,35 +390,57 @@ export function MaterialAllocationPage() {
             ),
           },
           {
-            id: 'releases',
-            label: t('production.allocation.tabs.releases'),
-            count: releases.length,
+            id: 'items',
+            label: t('production.allocation.tabs.items'),
+            count: items.length,
             content: (
-              <section className="doc-lines panel" aria-label={t('production.allocation.tabs.releases')}>
-                {!releases.length ? (
-                  <p className="faint" style={{ padding: 12 }}>{t('production.allocation.releasesEmpty')}</p>
+              <section className="doc-lines panel" aria-label={t('production.allocation.tabs.items')}>
+                {editable && detail && (
+                  <div className="row" style={{ gap: 8, padding: '8px 12px' }}>
+                    <Button size="sm" disabled={busy || !valid} onClick={() => void command(api.fillItems, tt('production.allocation.itemsFilled'))}>
+                      {t('production.allocation.fillItems')}
+                    </Button>
+                  </div>
+                )}
+                {!items.length ? (
+                  <p className="faint" style={{ padding: 12 }}>{t('production.allocation.itemsEmpty')}</p>
                 ) : (
                   <div className="table-wrap">
-                    <table className="dtbl" aria-label={t('production.allocation.tabs.releases')}>
+                    <table className="dtbl" aria-label={t('production.allocation.tabs.items')}>
                       <thead>
                         <tr>
                           <th style={{ width: 150 }}>{t('production.allocation.colRelease')}</th>
                           <th style={{ width: 120 }}>{t('production.allocation.colDate')}</th>
                           <th>{t('production.allocation.colItem')}</th>
                           <th style={{ width: 120 }} className="r">{t('production.allocation.colItemQty')}</th>
+                          <th style={{ width: 36 }} />
                         </tr>
                       </thead>
                       <tbody>
-                        {releases.map(r => (
+                        {items.map(r => (
                           <tr key={r.itemId}>
                             <td className="mono">
                               <Link to={`/documents/${r.releaseId}`} className="crm-link">
                                 {r.number ?? t('production.workbench.draft')}
                               </Link>
                             </td>
-                            <td className="muted">{r.date}</td>
+                            <td className="muted">{fmtDate(r.date)}</td>
                             <td className="trunc">{r.name}</td>
                             <td className="r num">{fmtNumber(Number(r.qty), { maximumFractionDigits: 3 })}</td>
+                            <td>
+                              {editable && (
+                                <IconButton
+                                  size="xs"
+                                  label={t('production.common.remove')}
+                                  onClick={() => {
+                                    setItemIds(prev => prev.filter(x => x !== r.itemId));
+                                    setRows(prev => prev.filter(x => x.releaseItemId !== r.itemId));
+                                  }}
+                                >
+                                  <Trash2 size={13} />
+                                </IconButton>
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -403,38 +453,91 @@ export function MaterialAllocationPage() {
           {
             id: 'result',
             label: t('production.allocation.tabs.result'),
-            count: result.length,
+            count: rows.length,
             content: (
               <section className="doc-lines panel" aria-label={t('production.allocation.tabs.result')}>
-                {!result.length ? (
+                {editable && detail && (
+                  <div className="row" style={{ gap: 8, padding: '8px 12px' }}>
+                    <Button size="sm" disabled={busy || !valid} onClick={() => void command(a => api.distribute(a, 'norms'), tt('production.allocation.distributed'))}>
+                      {t('production.allocation.distributeNorms')}
+                    </Button>
+                    <Button size="sm" disabled={busy || !valid} onClick={() => void command(a => api.distribute(a, 'qty'), tt('production.allocation.distributed'))}>
+                      {t('production.allocation.distributeQty')}
+                    </Button>
+                  </div>
+                )}
+                {!rows.length ? (
                   <p className="faint" style={{ padding: 12 }}>{t('production.allocation.resultEmpty')}</p>
                 ) : (
                   <>
-                    {detail?.status !== 'posted' && <p className="faint" style={{ padding: '8px 12px', fontSize: 12 }}>{t('production.allocation.resultDraft')}</p>}
                     <div className="table-wrap">
                       <table className="dtbl" aria-label={t('production.allocation.tabs.result')}>
                         <thead>
                           <tr>
-                            <th style={{ width: 150 }}>{t('production.allocation.colRelease')}</th>
                             <th>{t('production.allocation.colItem')}</th>
                             <th>{t('production.allocation.colProduct')}</th>
-                            <th style={{ width: 130 }} className="r">{t('production.allocation.colAllocQty')}</th>
+                            <th style={{ width: 150 }} className="r">{t('production.allocation.colAllocQty')}</th>
                             {seeCost && <th style={{ width: 130 }} className="r">{t('production.allocation.colCost')}</th>}
+                            <th style={{ width: 36 }} />
                           </tr>
                         </thead>
                         <tbody>
-                          {result.map((r, i) => (
-                            <tr key={i}>
-                              <td className="mono">{r.releaseNumber ?? t('production.workbench.draft')}</td>
-                              <td className="trunc">{r.itemName}</td>
-                              <td className="trunc">{r.productName || productName(r.productId)}</td>
-                              <td className="r num">{fmtNumber(Number(r.qty), { maximumFractionDigits: 3 })}</td>
-                              {seeCost && <td className="r num">{r.cost === null ? '—' : fmtNumber(Number(r.cost), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>}
+                          {rows.map((r, i) => (
+                            <tr key={r.key}>
+                              <td>
+                                <Select
+                                  aria-label={t('production.allocation.colItem')}
+                                  disabled={!editable}
+                                  value={r.releaseItemId}
+                                  onValueChange={v => setRows(prev => prev.map((x, j) => (j === i ? { ...x, releaseItemId: v } : x)))}
+                                  options={items.map(x => ({ value: x.itemId, label: `${x.number ?? t('production.workbench.draft')} · ${x.name} × ${fmtNumber(Number(x.qty), { maximumFractionDigits: 3 })}` }))}
+                                  placeholder={t('production.allocation.pickItem')}
+                                />
+                              </td>
+                              <td>
+                                <Select
+                                  aria-label={t('production.allocation.colProduct')}
+                                  disabled={!editable}
+                                  value={r.productId}
+                                  onValueChange={v => setRows(prev => prev.map((x, j) => (j === i ? { ...x, productId: v } : x)))}
+                                  options={[...new Set(lines.map(l => l.productId).filter(Boolean))].map(pid => ({ value: pid, label: productName(pid) }))}
+                                  placeholder={t('production.allocation.pickProduct')}
+                                />
+                              </td>
+                              <td className="r">
+                                <Input aria-label={t('production.allocation.colAllocQty')} inputMode="decimal" disabled={!editable} value={r.qty} onChange={e => setRows(prev => prev.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x)))} />
+                              </td>
+                              {seeCost && <td className="r num">{serverRow(r.key)?.cost == null ? '—' : fmtNumber(Number(serverRow(r.key)!.cost), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>}
+                              <td>
+                                {editable && (
+                                  <IconButton size="xs" label={t('production.common.remove')} onClick={() => setRows(prev => prev.filter((_, j) => j !== i))}>
+                                    <Trash2 size={13} />
+                                  </IconButton>
+                                )}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
+                    {editable && (
+                      <div className="doc-add">
+                        <Button size="sm" variant="ghost" onClick={() => setRows(prev => [...prev, { key: crypto.randomUUID(), releaseItemId: items[0]?.itemId ?? '', productId: lines[0]?.productId ?? '', qty: '0' }])}>
+                          <Plus size={13} />
+                          {t('production.allocation.addRow')}
+                        </Button>
+                      </div>
+                    )}
+                    {editable && (
+                      <ul className="faint" style={{ padding: '4px 12px 8px', fontSize: 12 }} aria-label={t('production.allocation.checkTitle')}>
+                        {check.map(c => (
+                          <li key={c.productId} style={{ color: Math.abs(c.fact - c.distributed) > 1e-6 ? 'var(--danger, #c0392b)' : undefined }}>
+                            {productName(c.productId)}: {fmtNumber(c.distributed, { maximumFractionDigits: 6 })} / {fmtNumber(c.fact, { maximumFractionDigits: 6 })}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {mismatch && editable && <p className="faint" style={{ padding: '0 12px 8px', fontSize: 12 }}>{t('production.allocation.mismatchHint')}</p>}
                     {seeCost && detail?.status === 'posted' && (
                       <div className="doc-totals panel" style={{ border: 0 }}>
                         <div className="trow grand">

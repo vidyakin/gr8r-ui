@@ -57,12 +57,15 @@ async function postedRelease(item: string, qty: string, date: string, opts: { ce
   return r;
 }
 
-/** Распределение на день: материалы заполняются по нормам, затем правятся вручную (факт) */
-async function allocation(date: string, lines?: { productId: string; qty: number }[]) {
-  const a = await mk(owner, '/material-allocations', { workCenterId: center, date });
+/** Распределение на день: «Заполнить по выпуску», материалы — по нормам или вручную (факт); распределение — ещё не считалось */
+async function allocation(date: string, lines?: { productId: string; qty: number }[], opts: { periodFrom?: string } = {}) {
+  const a = await mk(owner, '/material-allocations', { workCenterId: center, date, ...(opts.periodFrom ? { periodFrom: opts.periodFrom } : {}) });
+  const filled = await owner.post(`/material-allocations/${a.id}/fill-items`);
+  if (filled.status >= 300) throw new Error(`fill-items: ${filled.status} ${JSON.stringify(filled.body)}`);
   if (lines) return (await owner.patch(`/material-allocations/${a.id}`, { lines })).body;
   return (await owner.post(`/material-allocations/${a.id}/fill-by-norms`)).body;
 }
+const distribute = async (id: string, method: 'norms' | 'qty') => (await owner.post(`/material-allocations/${id}/distribute`, { method })).body;
 
 beforeAll(async () => {
   owner = new Client();
@@ -137,22 +140,23 @@ describe('material allocation', () => {
     const draft = await allocation('2027-03-01');
     // по нормам: 2 + 4 = 6 брусьев; факт смены — 9
     expect(draft.lines).toMatchObject([{ productId: wood, qty: '6.000' }]);
-    expect(draft.releases).toHaveLength(2);
-    const fact = (await owner.patch(`/material-allocations/${draft.id}`, { lines: [{ productId: wood, qty: 9 }] })).body;
-    // черновик показывает расчёт количеств: 3 и 6
-    expect(fact.result.map((r: any) => num(r.qty))).toEqual([3, 6]);
-    expect(fact.result.every((r: any) => r.cost === null)).toBe(true);
+    expect(draft.items).toHaveLength(2);
+    await owner.patch(`/material-allocations/${draft.id}`, { lines: [{ productId: wood, qty: 9 }] });
+    // «Распределить по нормативам»: 3 и 6; в черновике стоимости ещё нет
+    const split = await distribute(draft.id, 'norms');
+    expect(split.rows.map((r: any) => num(r.qty))).toEqual([3, 6]);
+    expect(split.rows.every((r: any) => r.cost === null)).toBe(true);
 
     const posted = await owner.post(`/material-allocations/${draft.id}/post`);
     expect(posted.status).toBe(200);
     expect(posted.body.status).toBe('posted');
     expect(num((await balance(wood, workshop)).qty)).toBe(woodBefore - 9);
     // 9 × 80 = 720: 240 на стул А, 480 на два стула Б
-    expect(posted.body.result.map((r: any) => [num(r.qty), r.cost])).toEqual([[3, '240.0000'], [6, '480.0000']]);
+    expect(posted.body.rows.map((r: any) => [num(r.qty), r.cost])).toEqual([[3, '240.0000'], [6, '480.0000']]);
     expect(await balance(a.productId, fg)).toMatchObject({ qty: '1.000', avgCost: '240.0000' });
     expect(await balance(b.productId, fg)).toMatchObject({ qty: '2.000', avgCost: '240.0000' });
     // сумма распределённого равна фактическому списанию
-    expect(posted.body.result.reduce((s: number, r: any) => s + num(r.cost), 0)).toBe(720);
+    expect(posted.body.rows.reduce((s: number, r: any) => s + num(r.cost), 0)).toBe(720);
     // себестоимость позиций выросла (в прямые затраты)
     const detailA = (await owner.get(`/documents/${relA.release.id}`)).body;
     expect(detailA.items[0].stageCost).toBe('240.0000');
@@ -166,9 +170,9 @@ describe('material allocation', () => {
     await postedRelease(b.item, '1', '2027-03-02');
     const draft = await allocation('2027-03-02', [{ productId: glue, qty: 10 }]);
     // клея нет в нормах: по плановой стоимости материалов позиции (равна) — поровну
-    expect(draft.result.map((r: any) => num(r.qty))).toEqual([5, 5]);
+    expect((await distribute(draft.id, 'norms')).rows.map((r: any) => num(r.qty))).toEqual([5, 5]);
     const posted = (await owner.post(`/material-allocations/${draft.id}/post`)).body;
-    expect(posted.result.map((r: any) => r.cost)).toEqual(['50.0000', '50.0000']);
+    expect(posted.rows.map((r: any) => r.cost)).toEqual(['50.0000', '50.0000']);
     // накладные 10 % у тумбы А: 50 + 5
     expect(await balance(a.productId, fg)).toMatchObject({ avgCost: '55.0000' });
     expect(await balance(b.productId, fg)).toMatchObject({ avgCost: '50.0000' });
@@ -207,7 +211,9 @@ describe('material allocation', () => {
     const un = await owner.post(`/material-allocations/${draft.id}/unpost`);
     expect(un.status).toBe(200);
     expect(un.body.status).toBe('draft');
-    expect(un.body.result.every((r: any) => r.cost === null)).toBe(true);
+    // строки распределения остаются в черновике, стоимость уходит
+    expect(un.body.rows.length).toBeGreaterThan(0);
+    expect(un.body.rows.every((r: any) => r.cost === null)).toBe(true);
     expect(await balance(wood, workshop)).toMatchObject({ qty: woodBefore.qty, avgCost: woodBefore.avgCost });
     expect(await balance(p.productId, fg)).toMatchObject({ qty: '1.000', avgCost: '0.0000' });
     expect((await owner.get(`/documents/${rel.release.id}`)).body.items[0].stageCost).toBe('0.0000');
@@ -221,7 +227,9 @@ describe('material allocation', () => {
     const first = await allocation('2027-03-06');
     expect((await owner.post(`/material-allocations/${first.id}/post`)).status).toBe(200);
     const second = await mk(owner, '/material-allocations', { workCenterId: center, date: '2027-03-06', lines: [{ productId: wood, qty: 1 }] });
-    expect(second.releases).toHaveLength(0);
+    const fill = await owner.post(`/material-allocations/${second.id}/fill-items`);
+    expect(fill.status).toBe(422);
+    expect(fill.body.error.code).toBe('no_releases');
     const res = await owner.post(`/material-allocations/${second.id}/post`);
     expect(res.status).toBe(422);
     expect(res.body.error.code).toBe('no_releases');
@@ -267,6 +275,105 @@ describe('material allocation', () => {
     // отмена возвращает прежнее
     expect((await owner.post(`/material-allocations/${a2.id}/unpost`)).status).toBe(200);
     expect(await balance(q.productId, fg)).toMatchObject({ avgCost: '100.0000' });
+  });
+});
+
+describe('allocation document as in 1C', () => {
+  test('the period ends on the document date, its start defaults to the date; a release before the start is not taken', async () => {
+    const p = await makeProduct('Скамья период');
+    await postedRelease(p.item, '1', '2027-05-03');
+    await postedRelease(p.item, '1', '2027-05-05');
+    // по умолчанию — один день
+    const one = await mk(owner, '/material-allocations', { workCenterId: center, date: '2027-05-05' });
+    expect(one).toMatchObject({ periodFrom: '2027-05-05', periodTo: '2027-05-05' });
+    const filled = (await owner.post(`/material-allocations/${one.id}/fill-items`)).body;
+    expect(filled.items.map((i: any) => i.date)).toEqual(['2027-05-05']);
+    // дата документа двигает окончание периода
+    const moved = (await owner.patch(`/material-allocations/${one.id}`, { date: '2027-05-06' })).body;
+    expect(moved).toMatchObject({ periodFrom: '2027-05-05', periodTo: '2027-05-06' });
+    // начало позже даты — ошибка
+    const bad = await owner.patch(`/material-allocations/${one.id}`, { periodFrom: '2027-05-07' });
+    expect(bad.status).toBe(422);
+    expect(bad.body.error.code).toBe('invalid_period');
+    // начало раньше захватывает и более ранний выпуск
+    const wide = await mk(owner, '/material-allocations', { workCenterId: center, date: '2027-05-05', periodFrom: '2027-05-03' });
+    expect((await owner.post(`/material-allocations/${wide.id}/fill-items`)).body.items).toHaveLength(2);
+  });
+
+  test('a row of the “Products” tab can be deleted: the release stays free for another document', async () => {
+    const a = await makeProduct('Банкетка А');
+    const b = await makeProduct('Банкетка Б');
+    await postedRelease(a.item, '1', '2027-05-10');
+    await postedRelease(b.item, '1', '2027-05-10');
+    const first = await allocation('2027-05-10');
+    expect(first.items).toHaveLength(2);
+    // оставляем только первую позицию
+    const kept = (await owner.patch(`/material-allocations/${first.id}`, { items: [{ releaseItemId: first.items[0].itemId }] })).body;
+    expect(kept.items).toHaveLength(1);
+    const split = await distribute(first.id, 'norms');
+    expect(split.rows).toHaveLength(1);
+    expect(num(split.rows[0].qty)).toBe(4); // весь факт (4 по нормам обеих позиций) уходит на оставшуюся
+    expect((await owner.post(`/material-allocations/${first.id}/post`)).status).toBe(200);
+    // вторая позиция свободна для другого распределения, первая — нет
+    const second = await mk(owner, '/material-allocations', { workCenterId: center, date: '2027-05-10' });
+    const filled = (await owner.post(`/material-allocations/${second.id}/fill-items`)).body;
+    expect(filled.items.map((i: any) => i.itemId)).toEqual([first.items[1].itemId]);
+  });
+
+  test('the distribution can be edited by hand; the sum must equal the fact (422 allocation_mismatch)', async () => {
+    const a = await makeProduct('Диван А');
+    const b = await makeProduct('Диван Б');
+    await postedRelease(a.item, '1', '2027-05-11');
+    await postedRelease(b.item, '1', '2027-05-11');
+    const draft = await allocation('2027-05-11', [{ productId: wood, qty: 10 }]);
+    const [ia, ib] = draft.items.map((i: any) => i.itemId);
+    // вручную: 7 + 2 = 9 из 10 — не сходится
+    await owner.patch(`/material-allocations/${draft.id}`, { rows: [{ releaseItemId: ia, productId: wood, qty: 7 }, { releaseItemId: ib, productId: wood, qty: 2 }] });
+    const bad = await owner.post(`/material-allocations/${draft.id}/post`);
+    expect(bad.status).toBe(422);
+    expect(bad.body.error.code).toBe('allocation_mismatch');
+    expect(bad.body.error.details.products[0]).toMatchObject({ productId: wood, fact: '10.000000' });
+    // строка чужой позиции не принимается
+    const foreign = await owner.patch(`/material-allocations/${draft.id}`, { rows: [{ releaseItemId: crypto.randomUUID(), productId: wood, qty: 10 }] });
+    expect(foreign.status).toBe(422);
+    // 7 + 3 = 10: проводится, стоимость — пропорционально количеству (800 на 10 брусьев)
+    await owner.patch(`/material-allocations/${draft.id}`, { rows: [{ releaseItemId: ia, productId: wood, qty: 7 }, { releaseItemId: ib, productId: wood, qty: 3 }] });
+    const ok = await owner.post(`/material-allocations/${draft.id}/post`);
+    expect(ok.status).toBe(200);
+    expect(ok.body.rows.map((r: any) => r.cost)).toEqual(['560.0000', '240.0000']);
+    expect(await balance(a.productId, fg)).toMatchObject({ avgCost: '560.0000' });
+    expect(await balance(b.productId, fg)).toMatchObject({ avgCost: '240.0000' });
+  });
+
+  test('“by quantity” splits by the released quantity, not by the norms; an empty distribution is filled by the norms on posting', async () => {
+    const a = await makeProduct('Пуф А');
+    const b = await makeProduct('Пуф Б');
+    await postedRelease(a.item, '1', '2027-05-12');
+    await postedRelease(b.item, '3', '2027-05-12');
+    const draft = await allocation('2027-05-12', [{ productId: wood, qty: 8 }]);
+    expect((await distribute(draft.id, 'qty')).rows.map((r: any) => num(r.qty))).toEqual([2, 6]);
+    // нормы 2 и 6 дают то же 2 : 6 — различим на материале вне норм с другой пропорцией
+    const c = await makeProduct('Пуф В');
+    const d = await makeProduct('Пуф Г');
+    await postedRelease(c.item, '1', '2027-05-13');
+    await postedRelease(d.item, '1', '2027-05-13');
+    const second = await allocation('2027-05-13', [{ productId: wood, qty: 4 }]);
+    // пустое распределение при проведении заполняется по нормативам
+    expect(second.rows).toHaveLength(0);
+    const posted = await owner.post(`/material-allocations/${second.id}/post`);
+    expect(posted.status).toBe(200);
+    expect(posted.body.rows.map((r: any) => num(r.qty))).toEqual([2, 2]);
+  });
+
+  test('every position must be a posted shift-mode release of the same work center in the period', async () => {
+    const p = await makeProduct('Ларь чужой участок');
+    const rel = await postedRelease(p.item, '1', '2027-05-14', { centerId: plainCenter });
+    const draft = await mk(owner, '/material-allocations', { workCenterId: center, date: '2027-05-14', lines: [{ productId: wood, qty: 2 }] });
+    const itemId = (await owner.get(`/documents/${rel.release.id}`)).body.items[0].id;
+    await owner.patch(`/material-allocations/${draft.id}`, { items: [{ releaseItemId: itemId }] });
+    const res = await owner.post(`/material-allocations/${draft.id}/post`);
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe('release_not_allocatable');
   });
 });
 

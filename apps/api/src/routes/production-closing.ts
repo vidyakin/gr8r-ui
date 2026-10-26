@@ -13,7 +13,9 @@ import {
   allocationDetail,
   createMaterialAllocation,
   createOtherCosts,
+  distributeAllocation,
   fillAllocationByNorms,
+  fillAllocationItems,
   fillAllocationByStock,
   deleteDocument,
   documents,
@@ -31,7 +33,7 @@ import {
   updateOtherCosts,
   workspaces,
 } from '@gr8r/db';
-import { materialAllocationCreate, materialAllocationQuery, materialAllocationUpdate, monthKey, monthLabel, monthPeriod, monthRange, otherCostsCreate, otherCostsQuery, otherCostsUpdate, periodCloseInput, periodSettingsInput } from '@gr8r/shared';
+import { materialAllocationCreate, materialAllocationDistribute, materialAllocationQuery, materialAllocationUpdate, monthKey, monthLabel, monthPeriod, monthRange, otherCostsCreate, otherCostsQuery, otherCostsUpdate, periodCloseInput, periodSettingsInput } from '@gr8r/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError } from '../errors';
 import { hasRole, requireRole } from '../middleware';
@@ -209,9 +211,9 @@ async function assertOtherCosts(ctx: Ctx, id: string): Promise<void> {
 /* ---------------- распределение материалов по итогам смены ---------------- */
 
 /** Стоимость в карточке видят admin и owner: у остальных остаются количества */
-function maskAllocation<T extends { result: { cost: string | null }[] }>(ctx: Ctx, detail: T): T {
+function maskAllocation<T extends { rows: { cost: string | null }[] }>(ctx: Ctx, detail: T): T {
   if (canSeeCost(ctx.role)) return detail;
-  return { ...detail, result: detail.result.map(r => ({ ...r, cost: null })) };
+  return { ...detail, rows: detail.rows.map(r => ({ ...r, cost: null })) };
 }
 
 async function assertAllocation(ctx: Ctx, id: string): Promise<void> {
@@ -238,6 +240,21 @@ export const materialAllocationRoutes = new Hono<AppEnv>()
     const id = c.req.param('id');
     await assertAllocation(ctx, id);
     await updateMaterialAllocation(ctx.db, docCtx(ctx), id, c.req.valid('json'));
+    return c.json(maskAllocation(ctx, await allocationDetail(ctx.db, id)));
+  })
+  // «Заполнить по выпуску» (вкладка «Продукция») и «Распределить по нормативам / по количеству»
+  .post('/:id/fill-items', write, async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.param('id');
+    await assertAllocation(ctx, id);
+    await fillAllocationItems(ctx.db, docCtx(ctx), id);
+    return c.json(maskAllocation(ctx, await allocationDetail(ctx.db, id)));
+  })
+  .post('/:id/distribute', write, zValidator('json', materialAllocationDistribute, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.param('id');
+    await assertAllocation(ctx, id);
+    await distributeAllocation(ctx.db, docCtx(ctx), id, c.req.valid('json').method);
     return c.json(maskAllocation(ctx, await allocationDetail(ctx.db, id)));
   })
   // «Заполнить по нормам» и «Заполнить по остатку цеха»
