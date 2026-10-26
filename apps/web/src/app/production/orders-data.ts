@@ -74,6 +74,8 @@ export interface ProductionOrderListItem {
 
 export interface ProductionOrderDetail extends ProductionOrderListItem {
   workCenter: { id: string; name: string } | null;
+  /** Завершающий участок: на нём числится НЗП промежуточных этапов */
+  finalWorkCenter?: { id: string; name: string } | null;
   /** Вид операции: сборка или разборка */
   operation: string;
   items: ProductionOrderItem[];

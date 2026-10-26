@@ -26,6 +26,7 @@ export * from './production-plans';
 export * from './stock-levels';
 export * from './replenishment';
 export * from './production-stages';
+export * from './production-wip';
 export * from './shift-allocation';
 export * from './inventory';
 export * from './internal-ops';

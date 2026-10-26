@@ -197,6 +197,19 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
             />
           )}
         </Field>
+        <Field label={tt('production.field.finalWorkCenter')} hint={tt('production.order.hint.finalWorkCenter')}>
+          {p => (
+            <Select
+              id={p.id}
+              disabled={!editable}
+              value={order.finalWorkCenter?.id ?? order.workCenter?.id ?? ''}
+              onValueChange={v => save({ finalWorkCenterId: v })}
+              options={(snap.data?.workCenters ?? []).map(w => ({ value: w.id, label: w.name }))}
+              placeholder={tt('production.order.chooseWorkCenter')}
+              aria-label={tt('production.field.finalWorkCenter')}
+            />
+          )}
+        </Field>
         <Field label={tt('production.field.plannedStart')}>{p => <Input {...p} type="date" disabled={!editable} value={order.plannedStart ? order.plannedStart.slice(0, 10) : ''} onChange={e => save({ plannedStart: e.target.value ? new Date(e.target.value).toISOString() : null })} />}</Field>
         <Field label={tt('production.field.plannedEnd')}>{p => <Input {...p} type="date" disabled={!editable} value={order.plannedEnd ? order.plannedEnd.slice(0, 10) : ''} onChange={e => save({ plannedEnd: e.target.value ? new Date(e.target.value).toISOString() : null })} />}</Field>
         <WasteHeaderFields

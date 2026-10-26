@@ -106,7 +106,7 @@ async function refreshStageAllocations(db: Db, workspaceId: string, releaseId: s
   const [row] = await db
     .select({ id: productionItems.id })
     .from(productionItems)
-    .where(and(sql`${productionItems.allocCost} <> 0`, isNull(productionItems.documentLineId), or(sources.length ? inArray(productionItems.sourceItemId, sources) : undefined, lines.length ? inArray(productionItems.customerOrderLineId, lines) : undefined)))
+    .where(and(sql`(${productionItems.allocCost} <> 0 or ${productionItems.closingCost} <> 0)`, isNull(productionItems.documentLineId), or(sources.length ? inArray(productionItems.sourceItemId, sources) : undefined, lines.length ? inArray(productionItems.customerOrderLineId, lines) : undefined)))
     .limit(1);
   if (row) await recomputeStockCosts(db, workspaceId);
 }
@@ -359,6 +359,8 @@ export interface ProductionOrderInput {
   /** Вид операции: сборка (по умолчанию) или разборка */
   operation?: ProductionOperation;
   workCenterId?: string | null;
+  /** Завершающий участок (НЗП): пусто — участок заказа */
+  finalWorkCenterId?: string | null;
   warehouseId?: string | null;
   targetWarehouseId?: string | null;
   date?: string;
@@ -419,6 +421,7 @@ export async function createProductionOrder(db: Db, ctx: DocCtx, input: Producti
     if (i.customerOrderLineId) await assertCustomerOrderLine(db, i.customerOrderLineId);
   }
   if (input.workCenterId) await assertWorkCenter(db, input.workCenterId);
+  if (input.finalWorkCenterId) await assertWorkCenter(db, input.finalWorkCenterId);
   // заказ на переработку: заказ покупателя с видом операции «Переработка» — основание заказа на производство
   if (input.processingOrderId) {
     const processing = await assertProcessingOrder(db, input.processingOrderId);
@@ -449,6 +452,7 @@ export async function createProductionOrder(db: Db, ctx: DocCtx, input: Producti
     workspaceId: ctx.workspaceId,
     documentId: id,
     workCenterId: input.workCenterId ?? null,
+    finalWorkCenterId: input.finalWorkCenterId ?? input.workCenterId ?? null,
     plannedStart: input.plannedStart ? new Date(input.plannedStart) : null,
     plannedEnd: input.plannedEnd ? new Date(input.plannedEnd) : null,
     parentDocumentId: input.parentDocumentId ?? null,
@@ -488,6 +492,8 @@ export interface ProductionOrderPatch {
   /** Вид операции: сборка или разборка (смена очищает снимок состава) */
   operation?: ProductionOperation;
   workCenterId?: string | null;
+  /** Завершающий участок (НЗП); пусто — участок заказа */
+  finalWorkCenterId?: string | null;
   warehouseId?: string | null;
   targetWarehouseId?: string | null;
   date?: string;
@@ -509,8 +515,12 @@ export async function updateProductionOrder(db: Db, ctx: DocCtx, id: string, pat
   if (doc.status !== 'draft') throw new DomainError(409, 'not_draft', 'A posted document cannot be edited: unpost it first');
   const [header] = await db.select().from(productionHeaders).where(eq(productionHeaders.documentId, id)).limit(1);
   if (patch.workCenterId !== undefined && patch.workCenterId) await assertWorkCenter(db, patch.workCenterId);
+  if (patch.finalWorkCenterId) await assertWorkCenter(db, patch.finalWorkCenterId);
   const set: Partial<typeof productionHeaders.$inferInsert> = { updatedAt: new Date() };
   if (patch.workCenterId !== undefined) set.workCenterId = patch.workCenterId;
+  // завершающий участок по умолчанию — участок заказа: пока он совпадал с прежним участком, он следует за сменой участка
+  if (patch.finalWorkCenterId !== undefined) set.finalWorkCenterId = patch.finalWorkCenterId ?? patch.workCenterId ?? header?.workCenterId ?? null;
+  else if (patch.workCenterId !== undefined && (!header?.finalWorkCenterId || header.finalWorkCenterId === header.workCenterId)) set.finalWorkCenterId = patch.workCenterId;
   if (patch.plannedStart !== undefined) set.plannedStart = patch.plannedStart ? new Date(patch.plannedStart) : null;
   if (patch.plannedEnd !== undefined) set.plannedEnd = patch.plannedEnd ? new Date(patch.plannedEnd) : null;
   if (patch.parentDocumentId !== undefined) set.parentDocumentId = patch.parentDocumentId;
@@ -518,7 +528,7 @@ export async function updateProductionOrder(db: Db, ctx: DocCtx, id: string, pat
   if (patch.wasteWarehouseId !== undefined) set.wasteWarehouseId = patch.wasteWarehouseId;
   if (patch.defectWarehouseId !== undefined) set.defectWarehouseId = patch.defectWarehouseId;
   if (header) await db.update(productionHeaders).set(set).where(eq(productionHeaders.documentId, id));
-  else await db.insert(productionHeaders).values({ workspaceId: ctx.workspaceId, documentId: id, workCenterId: patch.workCenterId ?? null, plannedStart: patch.plannedStart ? new Date(patch.plannedStart) : null, plannedEnd: patch.plannedEnd ? new Date(patch.plannedEnd) : null, parentDocumentId: patch.parentDocumentId ?? null });
+  else await db.insert(productionHeaders).values({ workspaceId: ctx.workspaceId, documentId: id, workCenterId: patch.workCenterId ?? null, finalWorkCenterId: patch.finalWorkCenterId ?? patch.workCenterId ?? null, plannedStart: patch.plannedStart ? new Date(patch.plannedStart) : null, plannedEnd: patch.plannedEnd ? new Date(patch.plannedEnd) : null, parentDocumentId: patch.parentDocumentId ?? null });
   const docSet: Partial<typeof documents.$inferInsert> = { updatedAt: new Date() };
   if (patch.warehouseId !== undefined) docSet.warehouseId = patch.warehouseId;
   if (patch.targetWarehouseId !== undefined) docSet.targetWarehouseId = patch.targetWarehouseId;
@@ -653,6 +663,8 @@ export interface ProductionInput {
   customerOrderId?: string | null;
   date?: string;
   workCenterId?: string | null;
+  /** Завершающий участок (НЗП): пусто — из заказа, иначе участок выпуска */
+  finalWorkCenterId?: string | null;
   warehouseId?: string | null;
   targetWarehouseId?: string | null;
   /** Режим учёта отходов: переопределение настройки воркспейса */
@@ -694,6 +706,7 @@ export async function createProductionFromOrder(db: Db, ctx: DocCtx, orderId: st
   return createProductionDocuments(db, ctx, {
     date: input.date ?? order.date,
     workCenterId: input.workCenterId ?? header?.workCenterId ?? null,
+    finalWorkCenterId: input.finalWorkCenterId ?? header?.finalWorkCenterId ?? null,
     warehouseId: input.warehouseId ?? null,
     targetWarehouseId: input.targetWarehouseId ?? null,
     fallbackWarehouseId: order.warehouseId,
@@ -793,6 +806,7 @@ export async function createProductionFromCustomerOrder(db: Db, ctx: DocCtx, inp
   return createProductionDocuments(db, ctx, {
     date: input.date ?? order.date,
     workCenterId: input.workCenterId ?? null,
+    finalWorkCenterId: input.finalWorkCenterId ?? null,
     warehouseId: input.warehouseId ?? null,
     targetWarehouseId: input.targetWarehouseId ?? null,
     fallbackWarehouseId: order.warehouseId,
@@ -869,7 +883,7 @@ async function producibleLines(db: Db, ctx: DocCtx, customerOrderId: string): Pr
 export async function createProductionOrderFromCustomerOrder(
   db: Db,
   ctx: DocCtx,
-  input: { customerOrderId: string; date?: string; workCenterId?: string | null; warehouseId?: string | null; targetWarehouseId?: string | null },
+  input: { customerOrderId: string; date?: string; workCenterId?: string | null; finalWorkCenterId?: string | null; warehouseId?: string | null; targetWarehouseId?: string | null },
 ): Promise<string> {
   const [order] = await db.select().from(documents).where(eq(documents.id, input.customerOrderId)).limit(1);
   if (!order) throw new DomainError(404, 'not_found', 'document not found');
@@ -889,6 +903,7 @@ export async function createProductionOrderFromCustomerOrder(
   }
   return createProductionOrder(db, ctx, {
     workCenterId: input.workCenterId,
+    finalWorkCenterId: input.finalWorkCenterId,
     warehouseId: input.warehouseId ?? order.warehouseId,
     targetWarehouseId: input.targetWarehouseId,
     date: input.date,
@@ -904,6 +919,8 @@ async function writeProduction(
   input: {
     date?: string;
     workCenterId?: string | null;
+    /** Завершающий участок: пусто — участок выпуска */
+    finalWorkCenterId?: string | null;
     warehouseId?: string | null;
     targetWarehouseId?: string | null;
     /** Склад заказа — запасной вариант, если участок своих складов не задал */
@@ -943,6 +960,7 @@ async function writeProduction(
     workspaceId: ctx.workspaceId,
     documentId: docId,
     workCenterId: input.workCenterId ?? null,
+    finalWorkCenterId: input.finalWorkCenterId ?? input.workCenterId ?? null,
     plannedStart: null,
     plannedEnd: null,
     parentDocumentId: null,
@@ -1112,8 +1130,8 @@ async function resolveWarehouses(db: Db, workCenterId: string | null | undefined
   return { warehouseId: from, targetWarehouseId: to };
 }
 
-/** Документ выпуска за эту дату, участок, этап, вид операции и заказ на переработку: в него дописываются новые строки (как в 1С — один документ за день) */
-async function findDayDocument(db: Db, _workspaceId: string, date: string, workCenterId: string | null, stageId: string | null, operation: ProductionOperation | 'processing', processingOrderId: string | null = null): Promise<string | null> {
+/** Документ выпуска за эту дату, участок, завершающий участок, этап, вид операции и заказ на переработку: в него дописываются новые строки (как в 1С — один документ за день) */
+async function findDayDocument(db: Db, _workspaceId: string, date: string, workCenterId: string | null, stageId: string | null, operation: ProductionOperation | 'processing', processingOrderId: string | null = null, finalWorkCenterId: string | null = null): Promise<string | null> {
   if (!workCenterId) return null;
   const [row] = await db
     .select({ id: documents.id })
@@ -1124,6 +1142,8 @@ async function findDayDocument(db: Db, _workspaceId: string, date: string, workC
         eq(documents.type, 'production'),
         eq(documents.date, date),
         eq(productionHeaders.workCenterId, workCenterId),
+        // выпуски с разными завершающими участками в один документ дня не сливаются (НЗП числится на завершающем участке)
+        finalWorkCenterId ? eq(productionHeaders.finalWorkCenterId, finalWorkCenterId) : isNull(productionHeaders.finalWorkCenterId),
         stageId ? eq(productionHeaders.stageId, stageId) : isNull(productionHeaders.stageId),
         // старые выпуски без вида операции — сборка
         sql`coalesce(${documents.operation}, 'assembly') = ${operation}`,
@@ -1239,11 +1259,11 @@ async function appendProduction(
 async function createOrAppendProduction(
   db: Db,
   ctx: DocCtx,
-  input: { date?: string; workCenterId?: string | null; warehouseId?: string | null; targetWarehouseId?: string | null; fallbackWarehouseId?: string | null; fallbackTargetWarehouseId?: string | null; stageId: string | null; operation?: ProductionOperation; basedOnId: string | null; processingOrderId?: string | null; wasteValuation?: WasteValuation | null; wasteWarehouseId?: string | null; defectWarehouseId?: string | null; plans: ProductionPlan[] },
+  input: { date?: string; workCenterId?: string | null; finalWorkCenterId?: string | null; warehouseId?: string | null; targetWarehouseId?: string | null; fallbackWarehouseId?: string | null; fallbackTargetWarehouseId?: string | null; stageId: string | null; operation?: ProductionOperation; basedOnId: string | null; processingOrderId?: string | null; wasteValuation?: WasteValuation | null; wasteWarehouseId?: string | null; defectWarehouseId?: string | null; plans: ProductionPlan[] },
 ): Promise<string> {
   const date = input.date ?? new Date().toISOString().slice(0, 10);
   const operation = input.operation ?? 'assembly';
-  const existing = await findDayDocument(db, ctx.workspaceId, date, input.workCenterId ?? null, input.stageId, input.processingOrderId ? 'processing' : operation, input.processingOrderId ?? null);
+  const existing = await findDayDocument(db, ctx.workspaceId, date, input.workCenterId ?? null, input.stageId, input.processingOrderId ? 'processing' : operation, input.processingOrderId ?? null, input.finalWorkCenterId ?? input.workCenterId ?? null);
   if (existing) {
     await appendProduction(db, ctx, existing, { ...input, date });
     return existing;
@@ -1255,7 +1275,7 @@ async function createOrAppendProduction(
 async function createProductionDocuments(
   db: Db,
   ctx: DocCtx,
-  input: { date?: string; workCenterId?: string | null; warehouseId?: string | null; targetWarehouseId?: string | null; fallbackWarehouseId?: string | null; fallbackTargetWarehouseId?: string | null; operation?: ProductionOperation; basedOnId: string | null; processingOrderId?: string | null; wasteValuation?: WasteValuation | null; wasteWarehouseId?: string | null; defectWarehouseId?: string | null; plans: ProductionPlan[] },
+  input: { date?: string; workCenterId?: string | null; finalWorkCenterId?: string | null; warehouseId?: string | null; targetWarehouseId?: string | null; fallbackWarehouseId?: string | null; fallbackTargetWarehouseId?: string | null; operation?: ProductionOperation; basedOnId: string | null; processingOrderId?: string | null; wasteValuation?: WasteValuation | null; wasteWarehouseId?: string | null; defectWarehouseId?: string | null; plans: ProductionPlan[] },
 ): Promise<string> {
   if (!input.plans.length) throw new DomainError(422, 'no_items', 'Add products to produce');
   const groups = new Map<string, ProductionPlan[]>();
@@ -2484,7 +2504,7 @@ DOCUMENT_HOOKS.production = {
     const ids = items.map(i => i.documentLineId).filter((x): x is string => !!x);
     if (ids.length) await db.delete(stockReservations).where(inArray(stockReservations.productionLineId, ids));
     for (const c of components) if (c.actualQty !== null || c.actualCost !== null) await db.update(productionComponents).set({ actualQty: null, actualCost: null }).where(eq(productionComponents.id, c.id));
-    for (const it of items) if (it.stageCost !== null || it.defectUnitCost !== null) await db.update(productionItems).set({ stageCost: null, defectUnitCost: null }).where(eq(productionItems.id, it.id));
+    for (const it of items) if (it.stageCost !== null || it.defectUnitCost !== null || dec(it.closingCost) !== 0n) await db.update(productionItems).set({ stageCost: null, defectUnitCost: null, closingCost: '0' }).where(eq(productionItems.id, it.id));
   },
 };
 
@@ -2539,6 +2559,8 @@ export async function writeOffDefects(db: Db, ctx: DocCtx, releaseId: string): P
 /* ---------------- отходы и брак: правка шапки, вкладки «Отходы» и позиций ---------------- */
 
 export interface ProductionAccountingPatch {
+  /** Завершающий участок (НЗП промежуточных этапов): пусто — участок документа */
+  finalWorkCenterId?: string | null;
   /** Режим материалов выпуска: при выпуске или по итогам смены (разборка и давальческое — только «при выпуске») */
   materialMode?: MaterialMode;
   wasteValuation?: WasteValuation;
@@ -2569,6 +2591,10 @@ export async function updateProductionAccounting(db: Db, ctx: DocCtx, docId: str
   const final = doc.type === 'production_order' ? true : await isFinalStage(db, header.stageId);
   const set: Partial<typeof productionHeaders.$inferInsert> = {};
   if (patch.wasteValuation) set.wasteValuation = patch.wasteValuation;
+  if (patch.finalWorkCenterId !== undefined) {
+    if (patch.finalWorkCenterId) await assertWorkCenter(db, patch.finalWorkCenterId);
+    set.finalWorkCenterId = patch.finalWorkCenterId ?? header.workCenterId ?? null;
+  }
   if (patch.materialMode) {
     if (patch.materialMode === 'shift' && (doc.type !== 'production' || !shiftModeSupported(doc, header))) throw new DomainError(422, 'shift_mode_unsupported', 'Allocation by shift results is available for assembly only: a disassembly and customer material processing consume materials at release');
     set.materialMode = patch.materialMode;
@@ -2639,6 +2665,7 @@ export async function productionDetail(db: Db, id: string) {
   const prods = prodIds.length ? await db.select().from(manufacturedItems).where(inArray(manufacturedItems.id, prodIds)) : [];
   const byProd = new Map(prods.map(p => [p.id, p]));
   const [workCenter] = header?.workCenterId ? await db.select({ id: workCenters.id, name: workCenters.name }).from(workCenters).where(eq(workCenters.id, header.workCenterId)).limit(1) : [];
+  const [finalWorkCenter] = header?.finalWorkCenterId ? await db.select({ id: workCenters.id, name: workCenters.name }).from(workCenters).where(eq(workCenters.id, header.finalWorkCenterId)).limit(1) : [];
   const produced = await producedQty(db, doc.workspaceId, items.map(i => i.id));
   // названия товаров состава: вкладки «Состав» и «Отходы» показывают товар
   const compProductIds = [...new Set(components.map(c => c.productId).filter((x): x is string => !!x))];
@@ -2651,6 +2678,7 @@ export async function productionDetail(db: Db, id: string) {
   return {
     ...doc,
     workCenter: workCenter ?? null,
+    finalWorkCenter: finalWorkCenter ?? null,
     plannedStart: header?.plannedStart ?? null,
     plannedEnd: header?.plannedEnd ?? null,
     parentDocumentId: header?.parentDocumentId ?? null,

@@ -149,6 +149,8 @@ export interface DocDetail extends Omit<DocListItem, 'organizationName' | 'count
   assignments?: WorkOrderAssignment[];
   /** Производственный документ: изготовитель, плановые сроки, позиции и состав */
   workCenter?: { id: string; name: string } | null;
+  /** Завершающий участок выпуска или заказа (НЗП промежуточных этапов) */
+  finalWorkCenter?: { id: string; name: string } | null;
   plannedStart?: string | null;
   plannedEnd?: string | null;
   components?: { id: string; kind: 'material' | 'semi' | 'work' | 'expense' | 'output' | 'waste'; ownerKind: MaterialOwner; productId: string | null; productName: string; operation: string; qty: string; hours: string; price: string | null; plannedCost: string | null; actualCost: string | null }[];

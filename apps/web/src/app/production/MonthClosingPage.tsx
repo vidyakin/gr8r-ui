@@ -10,7 +10,7 @@ import { useIsAdmin } from '../catalog/data';
 import { errorMessage } from '../data/api';
 import { useSession } from '../data/session';
 import { usePeriodPreview, usePeriods, useClosePeriod, type Closing } from './closing-data';
-import { fmtDateTime, hasKey, useT, type TKey } from '@/i18n';
+import { fmtAmount, fmtDateTime, hasKey, useT, type TKey } from '@/i18n';
 
 /** Ключ месяца текущей даты: «2026-10» */
 const currentMonth = () => new Date().toISOString().slice(0, 7);
@@ -330,7 +330,10 @@ function ResultPanel({ closing }: { closing: Closing | null }) {
             <tbody>
               {t0.byRelease.map((r, i) => (
                 <tr key={r.itemId + i}>
-                  <td className="trunc">{r.name}</td>
+                  <td className="trunc">
+                    {r.name}
+                    {r.interim && <Badge tone="gray">{tt('production.closing.interimTag')}</Badge>}
+                  </td>
                   <td className="r num">{r.qty}</td>
                   <td className="r num">{r.directCost ?? '—'}</td>
                   <td className="r num">{r.allocated ?? '—'}</td>
@@ -339,6 +342,11 @@ function ResultPanel({ closing }: { closing: Closing | null }) {
             </tbody>
           </table>
         </>
+      )}
+      {t0.wip != null && Number(t0.wip) > 0 && (
+        <p className="faint" style={{ fontSize: 12, marginTop: 10 }}>
+          {tt('production.closing.wipLine', { wip: fmtAmount(t0.wip) })}
+        </p>
       )}
       <p className="faint" style={{ fontSize: 12, marginTop: 10 }}>
         {tt('production.closing.resultFootnote', { undistributed: t0.undistributed ?? '—', adjusted: t0.adjustedMoves ?? 0 })}

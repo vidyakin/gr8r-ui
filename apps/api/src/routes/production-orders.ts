@@ -60,6 +60,7 @@ async function detail(ctx: Ctx, id: string) {
   return {
     ...doc,
     workCenter: prod.workCenter,
+    finalWorkCenter: prod.finalWorkCenter,
     plannedStart: prod.plannedStart,
     plannedEnd: prod.plannedEnd,
     parentDocumentId: prod.parentDocumentId,
@@ -116,6 +117,7 @@ export const productionOrderRoutes = new Hono<AppEnv>()
       ...(body.id ? { id: body.id } : {}),
       operation: body.operation,
       workCenterId: body.workCenterId,
+      finalWorkCenterId: body.finalWorkCenterId,
       warehouseId: body.warehouseId,
       targetWarehouseId: body.targetWarehouseId,
       date: body.date,
@@ -137,6 +139,7 @@ export const productionOrderRoutes = new Hono<AppEnv>()
     await updateProductionOrder(ctx.db, docCtx(ctx), c.req.valid('param').id, {
       operation: body.operation,
       workCenterId: body.workCenterId,
+      finalWorkCenterId: body.finalWorkCenterId,
       warehouseId: body.warehouseId,
       targetWarehouseId: body.targetWarehouseId,
       date: body.date,
@@ -210,6 +213,7 @@ export const productionOrderRoutes = new Hono<AppEnv>()
     const id = await createProductionFromOrder(ctx.db, docCtx(ctx), c.req.valid('param').id, {
       date: body.date,
       workCenterId: body.workCenterId,
+      finalWorkCenterId: body.finalWorkCenterId,
       warehouseId: body.warehouseId,
       targetWarehouseId: body.targetWarehouseId,
       wasteValuation: body.wasteValuation ?? null,
@@ -239,6 +243,7 @@ export const productionOrderRoutes = new Hono<AppEnv>()
       customerOrderId: body.customerOrderId,
       date: body.date,
       workCenterId: body.workCenterId,
+      finalWorkCenterId: body.finalWorkCenterId,
       warehouseId: body.warehouseId,
       targetWarehouseId: body.targetWarehouseId,
       wasteValuation: body.wasteValuation ?? null,
@@ -256,6 +261,7 @@ export const productionOrderRoutes = new Hono<AppEnv>()
       customerOrderId: body.customerOrderId,
       date: body.date,
       workCenterId: body.workCenterId,
+      finalWorkCenterId: body.finalWorkCenterId,
       warehouseId: body.warehouseId,
       targetWarehouseId: body.targetWarehouseId,
     });

@@ -32,6 +32,7 @@ export const sections = {
   productionPiecework: 'Piecework',
   productionPlanner: 'Resource planner',
   productionResources: 'Resources',
+  productionWip: 'Work in progress',
   productionClosing: 'Month closing',
   otherCosts: 'Other costs',
   materialAllocation: 'Material allocation',

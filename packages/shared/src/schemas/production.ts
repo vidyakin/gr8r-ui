@@ -645,6 +645,8 @@ export const productionOrderCreate = z.object({
   operation: z.enum(PRODUCTION_OPERATIONS).default('assembly'),
   /** Участок-изготовитель */
   workCenterId: uuid.nullish(),
+  /** Завершающий участок: на нём числится НЗП промежуточных этапов; пусто — участок заказа */
+  finalWorkCenterId: uuid.nullish(),
   /** Склад материалов (списывать из) */
   warehouseId: uuid.nullish(),
   /** Склад готовой продукции (продукция в) */
@@ -683,6 +685,8 @@ export const productionCreate = z.object({
   date: isoDate.optional(),
   /** Участок-изготовитель */
   workCenterId: uuid.nullish(),
+  /** Завершающий участок: пусто — из заказа, иначе участок выпуска */
+  finalWorkCenterId: uuid.nullish(),
   /** Склад материалов (списывать из) */
   warehouseId: uuid.nullish(),
   /** Склад готовой продукции (продукция в) */
@@ -717,6 +721,7 @@ export const productionFromCustomerOrder = z.object({
   customerOrderId: uuid,
   date: isoDate.optional(),
   workCenterId: uuid.nullish(),
+  finalWorkCenterId: uuid.nullish(),
   warehouseId: uuid.nullish(),
   targetWarehouseId: uuid.nullish(),
   wasteValuation: z.enum(WASTE_VALUATION).optional(),
@@ -733,6 +738,7 @@ export const productionOrderFromCustomerOrder = z.object({
   customerOrderId: uuid,
   date: isoDate.optional(),
   workCenterId: uuid.nullish(),
+  finalWorkCenterId: uuid.nullish(),
   warehouseId: uuid.nullish(),
   targetWarehouseId: uuid.nullish(),
 });
@@ -993,6 +999,8 @@ export const productionAccountingUpdate = z
   .object({
     /** Режим материалов выпуска (только сборка не из давальческого сырья): при выпуске или по итогам смены */
     materialMode: z.enum(MATERIAL_MODES).optional(),
+    /** Завершающий участок (НЗП промежуточных этапов числится на нём) */
+    finalWorkCenterId: uuid.nullish(),
     wasteValuation: z.enum(WASTE_VALUATION).optional(),
     wasteWarehouseId: uuid.nullish(),
     defectWarehouseId: uuid.nullish(),
@@ -1000,3 +1008,11 @@ export const productionAccountingUpdate = z
     waste: z.array(z.object({ id: uuid.optional(), productId: uuid, qty: positive(1e9), price: decimal.nullish() })).max(200).optional(),
   })
   .strict();
+
+/* ---------------- остаток НЗП по участкам (задача 1137) ---------------- */
+
+/** Остаток незавершённого производства на дату: участок — фильтр, дата по умолчанию сегодня */
+export const wipBalanceQuery = z.object({
+  date: isoDate.optional(),
+  workCenterId: uuid.optional(),
+});

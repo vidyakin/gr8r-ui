@@ -198,7 +198,8 @@ export async function revertStockMoves(db: Db, workspaceId: string, documentId: 
     - остальные приходы — только свою часть.
     Так косвенные доходят по цепочке «выпуск → перемещение → выпуск → реализация» до копейки, а отмена закрытия (обнуление
     ownDelta) и повторный пересчёт возвращают всё назад. Воркспейс без корректировок не пересчитывается вовсе.
-    Ограничение: удорожание материалов промежуточного этапа до финального этапа (НЗП) не доходит — задача 1137. */
+    НЗП (задача 1137): прибавка промежуточных этапов (материалы смены `alloc_cost` и косвенные закрытия `closing_cost`) доходит
+    до прихода финального этапа тем же проходом (loadAllocationChain). */
 export async function recomputeStockCosts(db: Db, workspaceId: string): Promise<number> {
   if (!(await hasCostAdjustments(db, workspaceId))) return 0;
   // все остатки воркспейса блокируются до чтения движений: параллельное проведение не проскочит между чтением и записью
@@ -346,7 +347,7 @@ export async function recomputeStockCosts(db: Db, workspaceId: string): Promise<
 export async function hasCostAdjustments(db: Db, workspaceId: string): Promise<boolean> {
   const [row] = await db.select({ id: stockCostAdjustments.id }).from(stockCostAdjustments).where(eq(stockCostAdjustments.workspaceId, workspaceId)).limit(1);
   if (row) return true;
-  const [alloc] = await db.select({ id: productionItems.id }).from(productionItems).where(and(eq(productionItems.workspaceId, workspaceId), sql`${productionItems.allocCost} <> 0`)).limit(1);
+  const [alloc] = await db.select({ id: productionItems.id }).from(productionItems).where(and(eq(productionItems.workspaceId, workspaceId), sql`(${productionItems.allocCost} <> 0 or ${productionItems.closingCost} <> 0)`)).limit(1);
   return !!alloc;
 }
 
@@ -360,6 +361,7 @@ async function loadAllocationChain(db: Db, workspaceId: string): Promise<Map<str
       defectQty: productionItems.defectQty,
       defectMode: productionItems.defectMode,
       alloc: productionItems.allocCost,
+      closing: productionItems.closingCost,
       source: productionItems.sourceItemId,
       customer: productionItems.customerOrderLineId,
       stageId: productionHeaders.stageId,
@@ -368,7 +370,7 @@ async function loadAllocationChain(db: Db, workspaceId: string): Promise<Map<str
     .innerJoin(documents, eq(documents.id, productionItems.documentId))
     .leftJoin(productionHeaders, and(eq(productionHeaders.workspaceId, productionItems.workspaceId), eq(productionHeaders.documentId, productionItems.documentId)))
     .where(and(eq(productionItems.workspaceId, workspaceId), eq(documents.type, 'production'), eq(documents.status, 'posted')));
-  if (!items.some(i => dec(i.alloc) !== 0n)) return out;
+  if (!items.some(i => dec(i.alloc) !== 0n || dec(i.closing) !== 0n)) return out;
   const srcKey = (i: { source: string | null; customer: string | null }) => (i.source ? `s:${i.source}` : i.customer ? `c:${i.customer}` : '');
   // НЗП: промежуточные этапы источника (у позиции нет строки продукции)
   const stages = new Map<string, { cost: Dec; qty: Dec }>();
@@ -376,7 +378,7 @@ async function loadAllocationChain(db: Db, workspaceId: string): Promise<Map<str
     if (i.lineId || !srcKey(i)) continue;
     const k = `${srcKey(i)}|${i.stageId ?? ''}`;
     const cur = stages.get(k) ?? { cost: 0n, qty: 0n };
-    cur.cost += dec(i.alloc);
+    cur.cost += dec(i.alloc) + dec(i.closing); // распределённые материалы смены и косвенные закрытия месяца
     cur.qty += dec(i.qty) - dec(i.defectQty);
     stages.set(k, cur);
   }

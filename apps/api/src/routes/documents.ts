@@ -342,6 +342,7 @@ export const documentRoutes = new Hono<AppEnv>()
       return c.json({
         ...detail,
         workCenter: prod.workCenter,
+        finalWorkCenter: prod.finalWorkCenter,
         plannedStart: prod.plannedStart,
         plannedEnd: prod.plannedEnd,
         wasteValuation: prod.wasteValuation,

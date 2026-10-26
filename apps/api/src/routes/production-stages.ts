@@ -2,8 +2,8 @@
    меняет admin и выше. Правила — packages/db/src/production-stages.ts. */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
-import { archiveProductionKind, createProductionKind, listProductionKinds, updateProductionKind } from '@gr8r/db';
-import { idParam, productionKindCreate, productionKindUpdate } from '@gr8r/shared';
+import { archiveProductionKind, canSeeCost, createProductionKind, listProductionKinds, maskWipBalance, updateProductionKind, wipBalance } from '@gr8r/db';
+import { idParam, productionKindCreate, productionKindUpdate, wipBalanceQuery } from '@gr8r/shared';
 import { ctxOf, validationHook } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';
@@ -11,6 +11,11 @@ import type { AppEnv } from '../types';
 const admin = requireRole('admin');
 
 export const productionStageRoutes = new Hono<AppEnv>()
+  // остаток НЗП на дату по завершающим участкам; суммы — только ролям с доступом к себестоимости
+  .get('/wip', zValidator('query', wipBalanceQuery, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json(maskWipBalance(await wipBalance(ctx.db, ctx.workspaceId, c.req.valid('query')), canSeeCost(ctx.role)));
+  })
   // виды производства с этапами
   .get('/kinds', async c => {
     const ctx = ctxOf(c);

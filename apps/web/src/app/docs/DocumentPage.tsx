@@ -1098,6 +1098,21 @@ function DocumentView({ doc }: { doc: DocDetail }) {
           </Field>
         )}
         {hasDefect && <MaterialModeField value={doc.materialMode ?? 'on_release'} editable={editable} onChange={v => void saveAccounting({ materialMode: v })} />}
+        {doc.type === 'production' && (
+          <Field label={t('production.field.finalWorkCenter')} hint={t('production.order.hint.finalWorkCenter')}>
+            {p => (
+              <Select
+                id={p.id}
+                disabled={!editable}
+                value={doc.finalWorkCenter?.id ?? doc.workCenter?.id ?? ''}
+                onValueChange={v => void saveAccounting({ finalWorkCenterId: v })}
+                options={workCenters.filter(w => !w.archivedAt).map(w => ({ value: w.id, label: w.name }))}
+                placeholder={t('docs.document.notSet')}
+                aria-label={t('production.field.finalWorkCenter')}
+              />
+            )}
+          </Field>
+        )}
         {hasWaste && (
           <WasteHeaderFields
             valuation={doc.wasteValuation ?? 'accounting'}

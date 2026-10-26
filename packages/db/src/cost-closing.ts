@@ -101,6 +101,11 @@ export async function assertServiceCostItems(db: Db, type: string, lines: Docume
 
 /* ---------------- корректировки себестоимости ---------------- */
 
+/** Косвенные закрытия, отнесённые на промежуточные этапы (НЗП) выпусков месяца, обнуляются: повторное закрытие считает их заново */
+async function dropWipClosing(db: Db, workspaceId: string, start: string, end: string): Promise<void> {
+  await db.execute(sql`update production_items set closing_cost = 0 where workspace_id = ${workspaceId} and closing_cost <> 0 and document_id in (select id from documents where workspace_id = ${workspaceId} and type = 'production' and date >= ${start}::date and date <= ${end}::date)`);
+}
+
 /** Своя часть корректировок закрытия обнуляется (повторное закрытие или отмена); итог пересчитает recomputeStockCosts */
 async function dropOwnDeltas(db: Db, workspaceId: string, closingId: string): Promise<void> {
   await db.update(stockCostAdjustments).set({ ownDelta: '0', closingId: null, updatedAt: new Date() }).where(and(eq(stockCostAdjustments.workspaceId, workspaceId), eq(stockCostAdjustments.closingId, closingId)));
@@ -197,7 +202,7 @@ export async function loadReleaseTargets(db: Db, workspaceId: string, month: str
     const t = disTotals.get(r.positionId)!;
     return t.cost > 0n ? div(mul(dec(r.hours), dec(r.stageCost ?? '0')), t.cost) : div(dec(r.hours), dec(t.n));
   };
-  const targets = [...rows.map(r => ({ itemId: r.itemId, releaseId: r.releaseId, name: r.name, workCenterId: r.workCenterId, documentLineId: r.documentLineId, qty: dec(r.qty), // распределённые материалы смены уже входят в удорожание по цепочке (chainByLine): вычитаем их из stage_cost, чтобы не считать дважды
+  const targets = [...rows.map(r => ({ itemId: r.itemId, releaseId: r.releaseId, name: r.name, workCenterId: r.workCenterId, documentLineId: r.documentLineId, interim: !r.documentLineId, qty: dec(r.qty), // распределённые материалы смены уже входят в удорожание по цепочке (chainByLine): вычитаем их из stage_cost, чтобы не считать дважды
     directCost: dec(r.stageCost) - (r.documentLineId ? dec(r.allocCost) : 0n) + (r.documentLineId ? (chainByLine.get(r.documentLineId) ?? 0n) : 0n), workHours: dec(r.hours) })), ...disRows.map(r => ({ itemId: r.itemId, releaseId: r.releaseId, name: r.name ?? '', workCenterId: r.workCenterId, documentLineId: r.documentLineId, qty: dec(r.qty), directCost: dec(r.stageCost ?? '0') + (r.documentLineId ? (chainByLine.get(r.documentLineId) ?? 0n) : 0n), workHours: disHours(r) }))];
   return targets;
 }
@@ -259,7 +264,7 @@ export interface PeriodIssue {
 export interface PeriodPreview {
   month: string;
   costs: { costItemId: string; name: string; method: CostDistribution; workCenterId: string | null; workCenterName: string | null; amount: string }[];
-  targets: { itemId: string; releaseId: string; name: string; workCenterId: string | null; workCenterName: string | null; qty: string; directCost: string; workHours: string }[];
+  targets: { itemId: string; releaseId: string; name: string; workCenterId: string | null; workCenterName: string | null; qty: string; directCost: string; workHours: string; interim?: boolean }[];
   issues: PeriodIssue[];
   /** Всего косвенных затрат месяца */
   total: string;
@@ -290,7 +295,7 @@ export async function previewPeriod(db: Db, workspaceId: string, month: string):
   return {
     month,
     costs: costs.map(c => ({ costItemId: c.costItemId, name: c.costItemName, method: c.method, workCenterId: c.workCenterId, workCenterName: c.workCenterName, amount: fmt(c.amount, 2) })),
-    targets: targets.map(t => ({ itemId: t.itemId, releaseId: t.releaseId, name: t.name, workCenterId: t.workCenterId, workCenterName: t.workCenterId ? (centers.get(t.workCenterId) ?? null) : null, qty: fmt(t.qty, 3), directCost: fmt(t.directCost, 2), workHours: fmt(t.workHours, 3) })),
+    targets: targets.map(t => ({ itemId: t.itemId, releaseId: t.releaseId, name: t.name, workCenterId: t.workCenterId, workCenterName: t.workCenterId ? (centers.get(t.workCenterId) ?? null) : null, qty: fmt(t.qty, 3), directCost: fmt(t.directCost, 2), workHours: fmt(t.workHours, 3), interim: !t.documentLineId })),
     issues,
     total: fmt(costs.reduce((s, c) => s + c.amount, 0n), 2),
   };
@@ -303,13 +308,15 @@ export interface ClosingTotals {
   /** Распределено по статьям и участкам */
   byCostItem: { costItemId: string; costItemName: string; workCenterId: string | null; workCenterName: string | null; method: CostDistribution; amount: string; distributed: string; scope: string }[];
   /** Что получили выпуски месяца */
-  byRelease: { itemId: string; releaseId: string; name: string; workCenterId: string | null; workCenterName: string | null; qty: string; directCost: string; workHours: string; allocated: string }[];
+  byRelease: { itemId: string; releaseId: string; name: string; workCenterId: string | null; workCenterName: string | null; qty: string; directCost: string; workHours: string; allocated: string; /** Промежуточный этап: доля ушла в НЗП */ interim?: boolean }[];
   /** Нераспределённые затраты */
   undistributed: string;
   /** Предупреждения закрытия */
   warnings: string[];
   /** Всего косвенных затрат месяца */
   total: string;
+  /** Сколько из распределённого ушло в НЗП промежуточных этапов */
+  wip: string;
   /** Сколько движений переоценено */
   adjustedMoves: number;
   /** Кто закрывал */
@@ -325,6 +332,7 @@ export async function closePeriodMonth(db: Db, ctx: DocCtx, month: string): Prom
   await db.execute(sql`select pg_advisory_xact_lock(hashtext(${`closing:${ctx.workspaceId}`}))`);
   const [prev] = await db.select({ id: productionCostClosings.id }).from(productionCostClosings).where(and(eq(productionCostClosings.workspaceId, ctx.workspaceId), eq(productionCostClosings.period, start))).limit(1);
   if (prev) await dropOwnDeltas(db, ctx.workspaceId, prev.id);
+  await dropWipClosing(db, ctx.workspaceId, start, end);
   const [closing] = await db
     .insert(productionCostClosings)
     .values({ workspaceId: ctx.workspaceId, period: start, status: 'running', totals: {}, runAt: new Date() })
@@ -344,7 +352,12 @@ export async function closePeriodMonth(db: Db, ctx: DocCtx, month: string): Prom
   // 2. распределённое — своя часть корректировки прихода продукции выпуска
   for (const t of targets) {
     const allocated = plan.byTarget.get(t.itemId) ?? 0n;
-    if (allocated <= 0n || !t.documentLineId) continue;
+    if (allocated <= 0n) continue;
+    // промежуточный этап: доля косвенных входит в НЗП этапа и доходит до продукции на финальном этапе (recomputeStockCosts)
+    if (!t.documentLineId) {
+      await db.update(productionItems).set({ closingCost: fmt(allocated, 4) }).where(eq(productionItems.id, t.itemId));
+      continue;
+    }
     // приходы строки выпуска: годное и (при браке «на расходы») брак — косвенные делятся между ними по количеству.
     // Приход отходов строки не имеет: на отходы косвенные не распределяются
     const moved = await db.select({ id: stockMoves.id, qty: stockMoves.qty }).from(stockMoves).where(and(eq(stockMoves.workspaceId, ctx.workspaceId), eq(stockMoves.documentLineId, t.documentLineId), sql`${stockMoves.qty} > 0`)).orderBy(asc(stockMoves.seq));
@@ -367,10 +380,11 @@ export async function closePeriodMonth(db: Db, ctx: DocCtx, month: string): Prom
   const totals: ClosingTotals = {
     month,
     byCostItem: plan.byCostItem.map(g => ({ costItemId: g.costItemId, costItemName: g.costItemName, workCenterId: g.workCenterId, workCenterName: g.workCenterName, method: g.method, amount: fmt(g.amount, 2), distributed: fmt(g.distributed, 2), scope: g.scope })),
-    byRelease: targets.filter(t => t.documentLineId).map(t => ({ itemId: t.itemId, releaseId: t.releaseId, name: t.name, workCenterId: t.workCenterId, workCenterName: t.workCenterId ? (centers.get(t.workCenterId) ?? null) : null, qty: fmt(t.qty, 3), directCost: fmt(t.directCost, 2), workHours: fmt(t.workHours, 3), allocated: fmt(plan.byTarget.get(t.itemId) ?? 0n, 2) })),
+    byRelease: targets.map(t => ({ itemId: t.itemId, releaseId: t.releaseId, name: t.name, workCenterId: t.workCenterId, workCenterName: t.workCenterId ? (centers.get(t.workCenterId) ?? null) : null, qty: fmt(t.qty, 3), directCost: fmt(t.directCost, 2), workHours: fmt(t.workHours, 3), allocated: fmt(plan.byTarget.get(t.itemId) ?? 0n, 2), interim: !t.documentLineId })),
     undistributed: fmt(plan.undistributed, 2),
     warnings: plan.warnings,
     total: fmt(costs.reduce((s, c) => s + c.amount, 0n), 2),
+    wip: fmt(targets.filter(t => !t.documentLineId).reduce((s, t) => s + (plan.byTarget.get(t.itemId) ?? 0n), 0n), 2),
     adjustedMoves: adjusted,
     closedBy: ctx.memberId,
     runAt: new Date().toISOString(),
@@ -393,6 +407,8 @@ export async function reopenPeriodMonth(db: Db, ctx: DocCtx, month: string): Pro
   const [later] = await db.select({ period: productionCostClosings.period }).from(productionCostClosings).where(and(eq(productionCostClosings.workspaceId, ctx.workspaceId), gt(productionCostClosings.period, start), eq(productionCostClosings.status, 'done'))).limit(1);
   if (later) throw new DomainError(422, 'later_month_closed', `Reopen ${monthOf(later.period)} first: a later month is closed`);
   await dropOwnDeltas(db, ctx.workspaceId, closing.id);
+  const { start: from, end: to } = monthPeriod(month);
+  await dropWipClosing(db, ctx.workspaceId, from, to);
   // после снятия своей части цепочка пересчитывается обратно — средняя склада возвращается прежней
   await recomputeStockCosts(db, ctx.workspaceId);
   await db.update(productionCostClosings).set({ status: 'reopened', updatedAt: new Date() }).where(eq(productionCostClosings.id, closing.id));

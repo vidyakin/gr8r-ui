@@ -379,6 +379,9 @@ export const productionItems = pgTable(
     stageCost: numeric('stage_cost', { precision: 18, scale: 4 }),
     /** Часть stage_cost, пришедшая из проведённых распределений материалов смены (с накладными); доходит до прихода продукции корректировкой */
     allocCost: numeric('alloc_cost', { precision: 18, scale: 4 }).notNull().default('0'),
+    /** Косвенные затраты, распределённые закрытием месяца на промежуточный этап (НЗП): входят в НЗП этапа и доходят до
+        продукции корректировкой на финальном этапе (recomputeStockCosts); в stage_cost не входят, при повторном закрытии обнуляются */
+    closingCost: numeric('closing_cost', { precision: 18, scale: 4 }).notNull().default('0'),
     /** Строка документа с продукцией (у выпуска) */
     documentLineId: uuid('document_line_id'),
     /** Брак в позиции выпуска: количество (0 если нет) */
@@ -527,6 +530,8 @@ export const productionHeaders = pgTable(
     documentId: uuid('document_id').notNull(),
     /** Участок-изготовитель */
     workCenterId: uuid('work_center_id'),
+    /** Завершающий участок: на нём числится НЗП промежуточных этапов (по умолчанию — участок заказа или выпуска) */
+    finalWorkCenterId: uuid('final_work_center_id'),
     /** Плановый старт */
     plannedStart: ts('planned_start'),
     /** Плановый финиш */
@@ -554,6 +559,7 @@ export const productionHeaders = pgTable(
     check('production_headers_material_mode_chk', sql`${t.materialMode} in ('on_release','shift')`),
     foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'production_headers_document_fk' }).onDelete('cascade'),
     foreignKey({ columns: [t.workspaceId, t.workCenterId], foreignColumns: [workCenters.workspaceId, workCenters.id], name: 'production_headers_work_center_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.finalWorkCenterId], foreignColumns: [workCenters.workspaceId, workCenters.id], name: 'production_headers_final_work_center_fk' }),
     foreignKey({ columns: [t.workspaceId, t.parentDocumentId], foreignColumns: [documents.workspaceId, documents.id], name: 'production_headers_parent_fk' }),
     foreignKey({ columns: [t.workspaceId, t.stageId], foreignColumns: [productionStages.workspaceId, productionStages.id], name: 'production_headers_stage_fk' }),
     foreignKey({ columns: [t.workspaceId, t.processingOrderId], foreignColumns: [documents.workspaceId, documents.id], name: 'production_headers_processing_order_fk' }),

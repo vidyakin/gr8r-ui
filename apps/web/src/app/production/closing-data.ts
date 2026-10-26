@@ -11,10 +11,12 @@ import { call, useWsId } from '../meta/data';
 export interface ClosingTotals {
   month: string;
   byCostItem: { costItemId: string; costItemName: string; workCenterId: string | null; workCenterName: string | null; method: CostDistribution; amount: string | null; distributed: string | null; scope: string }[];
-  byRelease: { itemId: string; releaseId: string; name: string; workCenterId: string | null; workCenterName: string | null; qty: string; directCost: string | null; workHours: string; allocated: string | null }[];
+  byRelease: { itemId: string; releaseId: string; name: string; workCenterId: string | null; workCenterName: string | null; qty: string; directCost: string | null; workHours: string; allocated: string | null; interim?: boolean }[];
   undistributed: string | null;
   warnings: string[];
   total: string | null;
+  /** Сколько ушло в НЗП промежуточных этапов */
+  wip?: string | null;
   adjustedMoves: number;
   runAt: string;
 }

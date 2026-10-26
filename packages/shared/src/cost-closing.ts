@@ -105,6 +105,8 @@ export interface OverheadTarget {
   workCenterId: string | null;
   /** Строка документа с продукцией: у промежуточного этапа её нет (продукция не приходуется) */
   documentLineId: string | null;
+  /** Промежуточный этап: косвенные уходят в его НЗП и доходят до продукции на финальном этапе */
+  interim?: boolean;
   /** Количество выпуска */
   qty: Dec;
   /** Прямые затраты позиции (материалы + работы + накладные этапа) */
@@ -161,12 +163,12 @@ export function planOverhead(costs: OverheadCost[], targets: OverheadTarget[]): 
       warnings.push(`«${g.costItemName}»${where}: not allocated, stays undistributed`);
       continue;
     }
-    // позиции с продукцией — только они получают затраты (промежуточный этап продукцию не приходует)
-    const own = g.workCenterId ? targets.filter(t => t.workCenterId === g.workCenterId && t.documentLineId) : [];
+    // получатели — все позиции выпуска, в том числе промежуточные этапы (их доля входит в НЗП); «свой участок» — участок, выполнивший этап
+    const own = g.workCenterId ? targets.filter(t => t.workCenterId === g.workCenterId) : [];
     const scope: 'work_center' | 'common' = own.length ? 'work_center' : 'common';
     g.scope = scope;
     if (scope === 'common' && g.workCenterId) warnings.push(`«${g.costItemName}»: no release of ${g.workCenterName ?? 'its work center'} this month — allocated to all releases`);
-    const rows = (scope === 'work_center' ? own : targets.filter(t => t.documentLineId)).map(t => ({ key: t.itemId, base: baseOf(t, g.method) }));
+    const rows = (scope === 'work_center' ? own : targets).map(t => ({ key: t.itemId, base: baseOf(t, g.method) }));
     const { allocations, undistributed: rest } = distributeOverhead(g.amount, rows);
     if (!allocations.length) {
       undistributed += g.amount;

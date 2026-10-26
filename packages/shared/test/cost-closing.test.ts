@@ -86,10 +86,11 @@ describe('plan of overhead allocation', () => {
     expect(plan.warnings[0]).toContain('Малярный участок');
   });
 
-  test('an intermediate stage has no product line and never receives costs', () => {
-    const plan = planOverhead([cost()], [target({ itemId: 'i0', documentLineId: null }), target({ itemId: 'i1', releaseId: 'r2', documentLineId: 'l2' })]);
-    expect(plan.byTarget.has('i0')).toBe(false);
-    expect(plan.byTarget.get('i1')).toBe(dec(100));
+  test('an intermediate stage receives costs of its own work center into its work in progress', () => {
+    const plan = planOverhead([cost({ workCenterId: 'wc1', workCenterName: 'Цех' })], [target({ itemId: 'i0', documentLineId: null, interim: true }), target({ itemId: 'i1', releaseId: 'r2', documentLineId: 'l2', workCenterId: 'wc2' })]);
+    expect(plan.byTarget.get('i0')).toBe(dec(100));
+    expect(plan.byTarget.has('i1')).toBe(false);
+    expect(plan.byCostItem[0]!.scope).toBe('work_center');
   });
 
   test('an item marked "do not allocate" stays undistributed', () => {
