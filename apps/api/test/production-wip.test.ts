@@ -196,3 +196,34 @@ describe('month closing and work in progress', () => {
     expect(await avg(product)).toBe('260.0000');
   });
 });
+
+describe('final work center changed between stages', () => {
+  test('each stage keeps its WIP on its own final center; the final stage takes it from every stage', async () => {
+    const k3 = await mk(owner, '/production/kinds', { name: 'Раскрой, склейка, завершение', stages: [{ name: 'Раскрой' }, { name: 'Склейка' }, { name: 'Завершение производства' }] });
+    const product = (await mk(owner, '/products', { name: 'Стол сменил участок', price: 5000, vatRate: 'none' })).id;
+    const item = (await mk(owner, '/manufactured-items', { name: 'Стол сменил участок', productId: product, productionKindId: k3.id, overheadPct: 0 })).id;
+    await mk(owner, `/manufactured-items/${item}/lines`, { kind: 'material', productId: wood, qty: 1, stageId: k3.stages[0].id });
+    await mk(owner, `/manufactured-items/${item}/lines`, { kind: 'material', productId: wood, qty: 1, stageId: k3.stages[1].id });
+    const o = await mk(owner, '/production-orders', { workCenterId: cut, finalWorkCenterId: finalCenter, items: [{ itemId: item, qty: '2' }] });
+    await owner.post(`/production-orders/${o.id}/fill-from-bom`);
+    expect((await owner.post(`/documents/${o.id}/post`)).status).toBe(200);
+    const oi = (await owner.get(`/production-orders/${o.id}`)).body.items[0].id;
+    const rel = async (idx: number, date: string, fwc?: string) => {
+      const r = await owner.post(`/production-orders/${o.id}/production`, { date, lines: [{ orderItemId: oi, stageId: k3.stages[idx].id, qty: '2' }] });
+      if (r.status >= 300) throw new Error(JSON.stringify(r.body));
+      if (fwc) expect((await owner.patch(`/production-orders/${r.body.id}/accounting`, { finalWorkCenterId: fwc })).status).toBe(200);
+      expect((await owner.post(`/documents/${r.body.id}/post`)).status).toBe(200);
+    };
+    await rel(0, '2028-08-01');
+    await rel(1, '2028-08-02', assembly);
+    // раскрой числится на завершающем участке заказа, склейка — на сменённом: по 2 шт. и по 160 (2 бруса по 80)
+    const mid = (await wip(owner, '2028-08-02')).centers.filter((c: any) => c.orders.some((o: any) => o.items.some((i: any) => i.itemName === 'Стол сменил участок')));
+    expect(mid.map((c: any) => [c.workCenterId, c.orders.flatMap((o: any) => o.items.filter((i: any) => i.itemName === 'Стол сменил участок').map((i: any) => [i.qty, i.amount]))])).toEqual([
+      [finalCenter, [['2.000', '160.00']]],
+      [assembly, [['2.000', '160.00']]],
+    ]);
+    await rel(2, '2028-08-03');
+    // финальный этап принял все 2 шт.: НЗП не остаётся ни на одном участке
+    expect(await wipItem('2028-08-03', 'Стол сменил участок')).toBeUndefined();
+  });
+});

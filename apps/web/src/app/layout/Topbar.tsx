@@ -61,12 +61,11 @@ export function useCrumbs(): Crumb[] {
   if (a === 'other-costs') return b ? [{ label: S.otherCosts.name, to: SECTIONS.otherCosts.path }, { label: t('nav.crumbs.document') }] : [{ label: S.otherCosts.name }];
   if (a === 'investments') return b === 'plan-fact' ? [{ label: S.investments.name, to: SECTIONS.investments.path }, { label: S.investmentsPlanFact.name }] : b ? [{ label: S.investments.name, to: SECTIONS.investments.path }, { label: t('nav.crumbs.investment') }] : [{ label: S.investments.name }];
   if (a === 'documents' && b) return [{ label: t('nav.crumbs.documents') }, { label: docTitle ?? t('nav.crumbs.document'), ...(c === 'print' ? { to: `/documents/${b}` } : {}) }, ...(c === 'print' ? [{ label: t('nav.crumbs.print') }] : [])];
-  if (a === 'production' && b === 'workbench') return [{ label: S.production.name, to: SECTIONS.production.path }, { label: SECTIONS.productionWorkbench.name }];
-  if (a === 'production' && b === 'orders') return [{ label: S.production.name, to: SECTIONS.production.path }, { label: SECTIONS.productionOrders.name }];
-  if (a === 'production' && b === 'needs') return [{ label: S.production.name, to: SECTIONS.production.path }, { label: SECTIONS.productionNeeds.name }];
-  if (a === 'production' && b === 'planner') return [{ label: S.production.name, to: SECTIONS.production.path }, { label: SECTIONS.productionPlanner.name }];
-  if (a === 'production' && b === 'resources') return [{ label: S.production.name, to: SECTIONS.production.path }, { label: SECTIONS.productionResources.name }];
-  if (a === 'production' && b) return [{ label: S.production.name, to: SECTIONS.production.path }, { label: itemName ?? t('nav.crumbs.product') }];
+  if (a === 'production' && b) {
+    // подраздел производства (заказы, рабочее место, остаток НЗП…); иначе — карточка изделия
+    const sub = Object.values(SECTIONS).find(x => x.path === `/production/${b}`);
+    return [{ label: S.production.name, to: SECTIONS.production.path }, { label: sub?.name ?? itemName ?? t('nav.crumbs.product') }];
+  }
   if (a === 'settings') return [{ label: S.settings.name }];
   if (a === 'teams' && !b) return [{ label: t('nav.groups.teams') }];
   if (a === 'teams' && b) return [{ label: t('nav.groups.teams'), to: '/teams' },{ label: data.teams.find(x => x.id === b)?.name ?? t('nav.crumbs.team') }];

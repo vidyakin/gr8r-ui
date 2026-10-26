@@ -4,8 +4,8 @@
    этапы при этом выполняют любые участки. Остаток на дату — выпуски до даты включительно:
    - количество в НЗП = выполнено на первом промежуточном этапе минус принято финальным этапом (годное и брак);
    - сумма НЗП = по каждому этапу средняя стоимость единицы (затраты этапа плюс косвенные закрытия месяца) × сколько единиц
-     этого этапа ещё не принято финальным. Финальный этап забирает НЗП на любом участке; приём делится между
-     завершающими участками по порядку выпуска промежуточных этапов.
+     этого этапа ещё не принято финальным. Финальный этап забирает НЗП на любом участке; принятое списывается
+     с каждого этапа, а этап на нескольких завершающих участках отдаёт НЗП по порядку своих выпусков.
    Суммы маскирует API (себестоимость видят admin и owner). Полное движение НЗП — этап 9 (1091). */
 import { and, eq, inArray, lte, sql } from 'drizzle-orm';
 import { dec, div, fmt, mul } from '@gr8r/shared';
@@ -83,7 +83,7 @@ export async function wipBalance(db: Db, workspaceId: string, params: { date?: s
   const bySource = new Map<string, typeof rows>();
   for (const r of rows) bySource.set(srcKey(r), [...(bySource.get(srcKey(r)) ?? []), r]);
 
-  interface Group { source: string; center: string | null; itemName: string; stages: Map<string, { stageId: string | null; name: string; sortOrder: number; done: bigint; cost: bigint }>; first: string; consumed: bigint }
+  interface Group { source: string; center: string | null; itemName: string; stages: Map<string, { stageId: string | null; name: string; sortOrder: number; done: bigint; cost: bigint; first: string; consumed: bigint }> }
   const groups: Group[] = [];
   for (const [source, list] of bySource) {
     // принято финальным этапом: у выпуска без этапа этап «Завершение производства»
@@ -92,22 +92,26 @@ export async function wipBalance(db: Db, workspaceId: string, params: { date?: s
     for (const r of list) {
       if (!r.stageId || r.isFinal) continue;
       const ck = r.center ?? '';
-      const g = perCenter.get(ck) ?? { source, center: r.center, itemName: r.itemName, stages: new Map(), first: r.date, consumed: 0n };
-      if (r.date < g.first) g.first = r.date;
-      const st = g.stages.get(r.stageId) ?? { stageId: r.stageId, name: r.stageName ?? '', sortOrder: r.sortOrder ?? 0, done: 0n, cost: 0n };
+      const g = perCenter.get(ck) ?? { source, center: r.center, itemName: r.itemName, stages: new Map() };
+      const st = g.stages.get(r.stageId) ?? { stageId: r.stageId, name: r.stageName ?? '', sortOrder: r.sortOrder ?? 0, done: 0n, cost: 0n, first: r.date, consumed: 0n };
+      if (r.date < st.first) st.first = r.date;
       st.done += dec(r.qty) - dec(r.defectQty);
       st.cost += dec(r.cost);
       g.stages.set(r.stageId, st);
       perCenter.set(ck, g);
     }
-    // приём финального этапа забирает НЗП по порядку выпуска промежуточных этапов
-    let left = finalQty;
-    for (const g of [...perCenter.values()].sort((a, b) => (a.first < b.first ? -1 : a.first > b.first ? 1 : 0))) {
-      const started = [...g.stages.values()].reduce((m, s) => (s.done > m ? s.done : m), 0n);
-      g.consumed = left < started ? left : started;
-      left -= g.consumed;
-      groups.push(g);
+    // приём финального этапа забирает НЗП каждого этапа отдельно: единица проходит все этапы, поэтому принятое списывается
+    // с каждого этапа; если этап числится на нескольких завершающих участках — по порядку выпуска
+    const byStage = new Map<string, { first: string; st: { done: bigint; consumed: bigint } }[]>();
+    for (const g of perCenter.values()) for (const [stageId, st] of g.stages) byStage.set(stageId, [...(byStage.get(stageId) ?? []), { first: st.first, st }]);
+    for (const list of byStage.values()) {
+      let left = finalQty;
+      for (const e of list.sort((a, b) => (a.first < b.first ? -1 : a.first > b.first ? 1 : 0))) {
+        e.st.consumed = left < e.st.done ? left : e.st.done;
+        left -= e.st.consumed;
+      }
     }
+    groups.push(...perCenter.values());
   }
 
   // названия участков, заказов и позиций
@@ -128,7 +132,7 @@ export async function wipBalance(db: Db, workspaceId: string, params: { date?: s
     let qty = 0n;
     let amount = 0n;
     for (const st of g.stages.values()) {
-      const rest = st.done - g.consumed;
+      const rest = st.done - st.consumed;
       if (rest <= 0n || st.done <= 0n) continue;
       if (rest > qty) qty = rest;
       amount += mul(div(st.cost, st.done), rest);
