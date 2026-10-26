@@ -1,0 +1,3 @@
+ALTER TABLE "other_cost_lines" ADD COLUMN "work_order_id" uuid;--> statement-breakpoint
+ALTER TABLE "other_cost_lines" ADD CONSTRAINT "other_cost_lines_work_order_fk" FOREIGN KEY ("workspace_id","work_order_id") REFERENCES "public"."documents"("workspace_id","id") ON DELETE SET NULL ("work_order_id") ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "other_cost_lines_work_order_idx" ON "other_cost_lines" USING btree ("work_order_id");

@@ -232,6 +232,13 @@
       "when": 1793037081939,
       "tag": "0033_wip_centers",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793051610891,
+      "tag": "0034_work_order_costs",
+      "breakpoints": true
     }
   ]
 }

@@ -6,14 +6,18 @@ import { and, count, desc, eq, ilike, ne, or, sql, type SQL } from 'drizzle-orm'
 import { Hono } from 'hono';
 import { z } from 'zod';
 import {
+  canSeeCost,
+  costBrief,
   createWorkOrderAssignment,
   deleteWorkOrderAssignment,
   documentDetail,
   documentStates,
   documents,
+  loadWorkOrderCosts,
   saveWorkOrderBilling,
   saveWorkOrderMaterials,
   updateWorkOrderAssignment,
+  workOrderCost,
   workOrderDetail,
   workOrderKinds,
   workOrderTime,
@@ -89,7 +93,13 @@ export const workOrderRoutes = new Hono<AppEnv>()
       .orderBy(desc(documents.date), desc(documents.createdAt))
       .limit(q.limit)
       .offset(q.offset);
-    const items = rows.map(({ doc: { custom: _custom, ...doc }, ...r }) => ({ ...doc, ...r }));
+    // себестоимость и маржа — только admin и owner (у остальных поля null)
+    const costs = canSeeCost(ctx.role) ? await loadWorkOrderCosts(ctx.db, ctx.workspaceId, rows.map(r => r.doc.id)) : null;
+    const items = rows.map(({ doc: { custom: _custom, ...doc }, ...r }) => {
+      const d = costs?.get(doc.id);
+      const brief = d ? costBrief(d) : null;
+      return { ...doc, ...r, cost: brief?.cost ?? null, margin: brief?.margin ?? null, marginPct: brief?.marginPct ?? null, costBasis: brief?.basis ?? null };
+    });
     const [sum] = await ctx.db
       .select({ net: sql<string>`coalesce(sum(${documents.amountNet}), 0)::text`, vat: sql<string>`coalesce(sum(${documents.vatTotal}), 0)::text`, total: sql<string>`coalesce(sum(${documents.total}), 0)::text` })
       .from(documents)
@@ -120,6 +130,15 @@ export const workOrderRoutes = new Hono<AppEnv>()
     const [doc] = await ctx.db.select({ type: documents.type }).from(documents).where(eq(documents.id, id)).limit(1);
     if (!doc || doc.type !== 'work_order') throw notFound('work_order');
     return c.json(await workOrderTime(ctx.db, id));
+  })
+  // себестоимость работ: план и факт по видам, выручка и маржа — только admin и owner
+  .get('/:id/cost', zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    if (!canSeeCost(ctx.role)) throw new AppError(403, 'cost_access_required', 'The cost is available to the workspace owner and administrators only');
+    const id = c.req.valid('param').id;
+    const data = await workOrderCost(ctx.db, ctx.workspaceId, id);
+    if (!data) throw notFound('work_order');
+    return c.json({ documentId: id, status: data.status, state: data.state, indirectMonths: data.indirectMonths, ...data.cost });
   })
   // способ выставления строк работ: по норме или по фактическим часам
   .post('/:id/billing', write, zValidator('param', idParam, validationHook), zValidator('json', workOrderBillingUpdate, validationHook), async c => {

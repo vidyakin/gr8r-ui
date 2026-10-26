@@ -890,6 +890,8 @@ export const otherCostLineInput = z.object({
   costItemId: uuid,
   /** Участок: пусто — затрата идёт на общий выпуск месяца */
   workCenterId: uuid.nullish(),
+  /** Заказ-наряд: прямая затрата заказ-наряда, в пул косвенных не попадает */
+  workOrderId: uuid.nullish(),
   amount: positive(),
   comment: z.string().trim().max(500).default(''),
 });
@@ -902,6 +904,8 @@ export const otherCostsCreate = z.object({
   /** Инвестпроект: затраты идут в факт проекта */
   investmentProjectId: uuid.nullish(),
   comment: z.string().max(5000).default(''),
+  /** Заказ-наряд шапки: проставляется строкам без своего */
+  workOrderId: uuid.nullish(),
   lines: z.array(otherCostLineInput).min(1).max(200),
 });
 export const otherCostsUpdate = z.object({
@@ -909,6 +913,7 @@ export const otherCostsUpdate = z.object({
   date: isoDate.optional(),
   investmentProjectId: uuid.nullish(),
   comment: z.string().max(5000).optional(),
+  workOrderId: uuid.nullish(),
   lines: z.array(otherCostLineInput).min(1).max(200).optional(),
 });
 export const otherCostsQuery = listQuery.extend({ from: isoDate.optional(), to: isoDate.optional(), q: z.string().trim().max(200).optional() });

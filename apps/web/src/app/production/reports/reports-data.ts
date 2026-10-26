@@ -171,3 +171,24 @@ export const useBomReport = (p: { itemId: string; qty: string; priceMode: string
 export const useReleaseCostReport = (f: ReportFilter) => useReport<{ rows: CostReportRow[]; indirectItems: { costItemId: string | null; name: string; amount: string }[] }>('release-cost', { ...f }, !!f.from && !!f.to);
 export const useCostPlanFactReport = (f: ReportFilter) => useReport<{ rows: CostPlanFactRow[] }>('cost-plan-fact', { ...f }, !!f.from && !!f.to);
 export const useWipMovementReport = (f: ReportFilter) => useReport<{ rows: WipMovementRow[]; closingTotal: string | null }>('wip-movement', { from: f.from, to: f.to, workCenterId: f.workCenterId }, !!f.from && !!f.to);
+
+/** Себестоимость заказ-нарядов, выполненных за период (задача 1096) */
+export interface WorkOrderCostReportRow {
+  documentId: string;
+  number: string | null;
+  date: string;
+  doneDate: string;
+  counterpartyId: string | null;
+  counterpartyName: string | null;
+  revenue: string;
+  labor: string;
+  materials: string;
+  goods: string;
+  other: string;
+  indirect: string;
+  cost: string;
+  margin: string;
+  marginPct: string | null;
+  estimated: boolean;
+}
+export const useWorkOrderCostReport = (f: ReportFilter) => useReport<{ rows: WorkOrderCostReportRow[] }>('work-order-cost', { from: f.from, to: f.to }, !!f.from && !!f.to);

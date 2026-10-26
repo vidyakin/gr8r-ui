@@ -343,6 +343,34 @@ function ResultPanel({ closing }: { closing: Closing | null }) {
           </table>
         </>
       )}
+      {!!t0.byWorkOrder?.length && (
+        <>
+          <h3 style={{ fontSize: 12, margin: '10px 0 4px' }}>{tt('production.closing.byWorkOrder')}</h3>
+          <table className="dtbl" aria-label={tt('production.closing.byWorkOrder')}>
+            <thead>
+              <tr>
+                <th>{tt('production.closing.col.workOrder')}</th>
+                <th>{tt('production.closing.col.workCenter')}</th>
+                <th style={{ width: 90 }} className="r">{tt('production.closing.col.hours')}</th>
+                <th style={{ width: 100 }} className="r">{tt('production.closing.col.direct')}</th>
+                <th style={{ width: 100 }} className="r">{tt('production.closing.col.allocated')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {t0.byWorkOrder.map((r, i) => (
+                <tr key={r.documentId + i}>
+                  <td><Link to={`/documents/${r.documentId}`} className="crm-link">{r.number}</Link></td>
+                  <td className="trunc">{r.workCenterName ?? '—'}</td>
+                  <td className="r num">{r.hours}</td>
+                  <td className="r num">{r.directCost ?? '—'}</td>
+                  <td className="r num">{r.allocated ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="faint" style={{ fontSize: 12, marginTop: 6 }}>{tt('production.closing.byWorkOrderHint')}</p>
+        </>
+      )}
       {t0.wip != null && Number(t0.wip) > 0 && (
         <p className="faint" style={{ fontSize: 12, marginTop: 10 }}>
           {tt('production.closing.wipLine', { wip: fmtAmount(t0.wip) })}

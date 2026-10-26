@@ -363,7 +363,8 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     const r = await api<DocDetail>('POST', `/documents/${doc.id}/based-on`, { type });
     if (r) {
       toast(t('docs.document.toastCreatedFrom', { type: typeLabel(type).toLowerCase(), source: doc.number ?? t('docs.document.toastCreatedFromDraft') }));
-      navigate(`/documents/${r.id}`);
+      // прочие затраты — свой экран
+      navigate(type === 'other_costs' ? `/other-costs/${r.id}` : `/documents/${r.id}`);
     }
   };
   const remove = async () => {

@@ -50,3 +50,6 @@ export const costPlanFactReportQuery = releaseCostReportQuery;
 
 /** НЗП с движением: период, участок */
 export const wipMovementReportQuery = z.object({ ...period, workCenterId: uuid.optional() });
+
+/** Себестоимость заказ-нарядов: выполненные за период, при необходимости — по контрагенту (задача 1096) */
+export const workOrderCostReportQuery = z.object({ ...period, counterpartyId: uuid.optional() });

@@ -1,14 +1,14 @@
 /* Прочие затраты (этап 6): журнал и форма документа. Строки — статья затрат, участок, сумма и комментарий:
    склада и номенклатуры у таких затрат нет, поэтому у документа своя таблица строк и свой экран. */
 import * as React from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { CircleAlert, FilePlus2, Plus, Trash2 } from 'lucide-react';
 import { Badge, Button, ConfirmDialog, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
 import { useCanWrite } from '../meta/custom-fields';
-import { useCostItems } from '../docs/data';
+import { useCostItems, useWorkOrders } from '../docs/data';
 import { useSnapshot } from './data';
 import { useOtherCosts, useOtherCostsApi, useOtherCostsDocument, type OtherCostsLineInput } from './closing-data';
-import { t, tProductionEnum, useT } from '@/i18n';
+import { fmtAmount, t, tProductionEnum, useT } from '@/i18n';
 import { DocInvestmentField } from '../finance/DocInvestmentField';
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -113,6 +113,10 @@ export function OtherCostsDocumentPage() {
   const [date, setDate] = React.useState(today());
   const [comment, setComment] = React.useState('');
   const [investmentProjectId, setInvestmentProjectId] = React.useState<string | null>(null);
+  // заказ-наряд документа: затраты прямо идут в его себестоимость и в пул косвенных не попадают
+  const [sp] = useSearchParams();
+  const [workOrderId, setWorkOrderId] = React.useState<string | null>(sp.get('workOrderId'));
+  const workOrders = useWorkOrders({});
   const [busy, setBusy] = React.useState(false);
   const [removing, setRemoving] = React.useState(false);
   const loadedFor = React.useRef<string | null>(null);
@@ -121,7 +125,8 @@ export function OtherCostsDocumentPage() {
   React.useEffect(() => {
     if (!doc.data || loadedFor.current === doc.data.id) return;
     loadedFor.current = doc.data.id;
-    setLines(doc.data.lines.map(l => ({ id: l.id, costItemId: l.costItemId, workCenterId: l.workCenterId, amount: l.amount ?? '0', comment: l.comment })));
+    setLines(doc.data.lines.length ? doc.data.lines.map(l => ({ id: l.id, costItemId: l.costItemId, workCenterId: l.workCenterId, amount: l.amount ?? '0', comment: l.comment })) : [newLine()]);
+    setWorkOrderId(doc.data.workOrder?.id ?? null);
     setDate(doc.data.date);
     setComment(doc.data.comment);
     setInvestmentProjectId(doc.data.investmentProjectId ?? null);
@@ -135,7 +140,7 @@ export function OtherCostsDocumentPage() {
   const save = async () => {
     setBusy(true);
     try {
-      const body = { date, investmentProjectId, comment, lines };
+      const body = { date, investmentProjectId, workOrderId, comment, lines };
       const saved = detail ? await api.update(detail.id, body) : await api.save(body);
       toast(detail ? tt('production.otherCosts.saved') : tt('production.otherCosts.saved'), { duration: 1500 });
       await navigate(`/other-costs/${saved.id}`, { replace: true });
@@ -150,7 +155,7 @@ export function OtherCostsDocumentPage() {
     if (!detail) return;
     setBusy(true);
     try {
-      if (!valid) await api.update(detail.id, { date, investmentProjectId, comment, lines });
+      if (!valid) await api.update(detail.id, { date, investmentProjectId, workOrderId, comment, lines });
       await api.post(detail.id);
       toast(t('production.order.actions.repost'), { duration: 2000 });
     } catch (e) {
@@ -206,6 +211,21 @@ export function OtherCostsDocumentPage() {
 
       <section className="panel doc-head" aria-label={t('production.field.date')}>
         <Field label={t('production.otherCosts.fields.date')}>{p => <Input {...p} type="date" disabled={!editable} value={date} onChange={e => setDate(e.target.value)} />}</Field>
+        <Field label={t('production.otherCosts.fields.workOrder')} hint={t('production.otherCosts.fields.workOrderHint')}>
+          {p => (
+            <Select
+              id={p.id}
+              disabled={!editable}
+              value={workOrderId ?? ''}
+              onValueChange={v => setWorkOrderId(v || null)}
+              options={[
+                { value: '', label: t('production.common.empty') },
+                ...(workOrders.data?.items ?? []).filter(w => w.status !== 'cancelled' || w.id === workOrderId).map(w => ({ value: w.id, label: `${w.number ?? t('production.workbench.draft')}${w.counterpartyName ? ` · ${w.counterpartyName}` : ''}` })),
+              ]}
+              aria-label={t('production.otherCosts.fields.workOrder')}
+            />
+          )}
+        </Field>
         <DocInvestmentField value={investmentProjectId} current={detail?.investmentProject} disabled={!editable} onChange={setInvestmentProjectId} />
       </section>
 
@@ -273,7 +293,7 @@ export function OtherCostsDocumentPage() {
         <div className="doc-totals panel" style={{ border: 0 }}>
           <div className="trow grand">
             <span>{t('production.field.total')}</span>
-            <span className="num">{total.toFixed(2)}</span>
+            <span className="num">{fmtAmount(total.toFixed(2))}</span>
           </div>
         </div>
       </section>

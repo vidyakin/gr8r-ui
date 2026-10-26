@@ -12,12 +12,13 @@ import { useCanWrite } from '../meta/custom-fields';
 import { money } from '../catalog/data';
 import { fmtDate, parse } from '../lib/dates';
 import { useWorkspace } from '../data/store';
-import { STATUS_LABEL, STATUS_TONE, docsKey, useDocsApi, useDocumentStates, useWorkOrderKinds, useWorkOrderTime, useWorkOrders, type DocDetail, type WorkOrderAssignment, type WorkOrderListItem } from './data';
+import { STATUS_LABEL, STATUS_TONE, docsKey, useDocsApi, useCanSeeCost, useDocumentStates, useWorkOrderKinds, useWorkOrderTime, useWorkOrders, type DocDetail, type WorkOrderAssignment, type WorkOrderListItem } from './data';
 import { useQueryClient } from '@tanstack/react-query';
 import { useWsId } from '../meta/data';
 import { DocumentResourcesPanel } from '../production/ProductionOrderPage';
 import { useT } from '@/i18n';
 import { DocTabs, type DocTab } from './doc-tabs';
+import { WorkOrderCostPanel } from './work-order-cost';
 
 /** Тон бейджа по категории состояния */
 const CATEGORY_TONE: Record<WorkOrderStateCategory, Tone> = {
@@ -36,6 +37,7 @@ export function WorkOrdersPage() {
   const navigate = useNavigate();
   const [sp, setSp] = useSearchParams();
   const canWrite = useCanWrite();
+  const canSeeCost = useCanSeeCost();
   const api = useDocsApi();
   const filters = useFilterState();
   const states = useDocumentStates();
@@ -57,6 +59,13 @@ export function WorkOrdersPage() {
     { id: 'date', header: t('docs.workOrders.col.date'), width: 112, value: d => d.date, cell: d => <span className="num muted">{fmtDate(parse(d.date))}</span> },
     { id: 'customer', header: t('docs.workOrders.col.customer'), width: 240, value: d => d.counterpartyName ?? '', cell: d => (d.counterpartyName ? <span className="trunc">{d.counterpartyName}</span> : <span className="faint">—</span>) },
     { id: 'status', header: t('docs.workOrders.col.status'), width: 112, value: d => STATUS_LABEL[d.status], cell: d => <Badge tone={STATUS_TONE[d.status]} dot>{STATUS_LABEL[d.status]}</Badge> },
+    // себестоимость и маржа — только admin и owner; у невыполненного это план
+    ...(canSeeCost
+      ? ([
+          { id: 'cost', header: t('docs.workOrders.col.cost'), width: 132, align: 'right', value: d => Number(d.cost ?? 0), cell: d => (d.cost === null ? <span className="faint">—</span> : <span className="num" title={d.costBasis === 'plan' ? t('docs.workOrders.cost.plan') : t('docs.workOrders.cost.fact')}>{money(d.cost)}</span>) },
+          { id: 'margin', header: t('docs.workOrders.col.margin'), width: 132, align: 'right', value: d => Number(d.margin ?? 0), cell: d => (d.margin === null ? <span className="faint">—</span> : <span className="num" style={{ color: Number(d.margin) < 0 ? 'var(--red)' : undefined }}>{money(d.margin)}{d.marginPct !== null && <span className="faint"> · {d.marginPct}%</span>}</span>) },
+        ] satisfies Column<WorkOrderListItem>[])
+      : []),
     { id: 'total', header: t('docs.workOrders.col.total'), width: 132, align: 'right', value: d => Number(d.total), cell: d => <span className="num" style={{ fontWeight: 500 }}>{money(d.total)}</span>, total: () => (sum ? <span className="num" style={{ fontWeight: 600 }}>{money(sum.total)}</span> : null) },
   ];
   const table = useDataTable(columns, { sort: { id: 'date', dir: -1 } });
@@ -231,6 +240,7 @@ export function WorkOrderPanel({ doc, lead }: { doc: DocDetail; lead: (DocTab | 
   };
 
   const editable = canWrite && doc.status === 'draft';
+  const canSeeCost = useCanSeeCost();
 
   return (
     <>
@@ -497,6 +507,7 @@ export function WorkOrderPanel({ doc, lead }: { doc: DocDetail; lead: (DocTab | 
             </section>
             ),
           },
+          canSeeCost && { id: 'cost', label: t('docs.tabs.cost'), content: <WorkOrderCostPanel documentId={doc.id} /> },
         ]}
       />
 

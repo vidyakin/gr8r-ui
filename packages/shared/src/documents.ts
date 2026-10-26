@@ -140,7 +140,7 @@ export const DOCUMENT_META: Record<DocumentType, DocumentTypeMeta> = {
   // сдельный наряд: выполненные операции исполнителя за день (зарплата не начисляется — только отчёт к оплате)
   piecework_order: { label: 'Piecework order', group: 'production', prefix: 'СН', stock: null, party: null, basedOn: [], fulfils: false, forms: ['piecework'] },
   // прочие затраты: косвенные затраты периода без склада (строки — статья, участок, сумма; своего товара у них нет)
-  other_costs: { label: 'Other costs', group: 'production', prefix: 'ПЗ', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true },
+  other_costs: { label: 'Other costs', group: 'production', prefix: 'ПЗ', stock: null, party: null, basedOn: ['work_order'], fulfils: false, forms: [], ownLines: true },
   // распределение материалов по итогам смены: фактический расход делится между выпусками участка в режиме «по итогам смены»
   material_allocation: { label: 'Material allocation', group: 'production', prefix: 'РМ', stock: null, party: null, basedOn: [], fulfils: false, forms: [], stockRole: 'out' },
   // переработка давальческого сырья (мы — переработчик): приём сырья заказчика, отчёт перед ним и возврат остатков

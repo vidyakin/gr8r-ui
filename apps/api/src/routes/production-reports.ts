@@ -2,8 +2,8 @@
    стоимость нормативного состава — только admin и owner (maskBomReport). Правила — packages/db/src/production-reports.ts. */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
-import { bomReport, canSeeCost, costPlanFactReport, loadReport, maskBomReport, maskCostPlanFact, maskWipMovement, ordersReport, planFactReport, releaseCostReport, releaseReport, wipMovementReport } from '@gr8r/db';
-import { bomReportQuery, costPlanFactReportQuery, loadReportQuery, ordersReportQuery, planFactReportQuery, releaseCostReportQuery, releaseReportQuery, wipMovementReportQuery } from '@gr8r/shared';
+import { bomReport, canSeeCost, costPlanFactReport, loadReport, maskBomReport, maskCostPlanFact, maskWipMovement, ordersReport, planFactReport, releaseCostReport, releaseReport, wipMovementReport, workOrderCostReport } from '@gr8r/db';
+import { bomReportQuery, costPlanFactReportQuery, loadReportQuery, ordersReportQuery, planFactReportQuery, releaseCostReportQuery, releaseReportQuery, wipMovementReportQuery, workOrderCostReportQuery } from '@gr8r/shared';
 import { ctxOf, validationHook } from '../crud';
 import { AppError } from '../errors';
 import type { AppEnv } from '../types';
@@ -38,6 +38,12 @@ export const productionReportRoutes = new Hono<AppEnv>()
   .get('/reports/wip-movement', zValidator('query', wipMovementReportQuery, validationHook), async c => {
     const ctx = ctxOf(c);
     return c.json(maskWipMovement(await wipMovementReport(ctx.db, ctx.workspaceId, c.req.valid('query')), canSeeCost(ctx.role)));
+  })
+  // себестоимость заказ-нарядов, выполненных за период (задача 1096): только admin и owner
+  .get('/reports/work-order-cost', zValidator('query', workOrderCostReportQuery, validationHook), async c => {
+    const ctx = ctxOf(c);
+    if (!canSeeCost(ctx.role)) throw new AppError(403, 'cost_access_required', 'The cost report is available to the workspace owner and administrators only');
+    return c.json(await workOrderCostReport(ctx.db, ctx.workspaceId, c.req.valid('query')));
   })
   .get('/reports/load', zValidator('query', loadReportQuery, validationHook), async c => {
     const ctx = ctxOf(c);

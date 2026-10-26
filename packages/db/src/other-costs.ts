@@ -19,6 +19,8 @@ export interface OtherCostLineInput {
   costItemId: string;
   /** Участок: пусто — затрата идёт на общий выпуск */
   workCenterId?: string | null;
+  /** Заказ-наряд: строка — прямая затрата заказ-наряда, в пул косвенных закрытия не попадает */
+  workOrderId?: string | null;
   amount: string;
   comment?: string;
 }
@@ -29,6 +31,8 @@ export interface OtherCostsInput {
   date?: string;
   investmentProjectId?: string | null;
   comment?: string;
+  /** Заказ-наряд для всех строк, у которых свой не задан (шапка формы) */
+  workOrderId?: string | null;
   lines: OtherCostLineInput[];
 }
 
@@ -43,6 +47,11 @@ async function assertLines(db: Db, lines: OtherCostLineInput[]): Promise<void> {
     if (!item || item.archivedAt) throw new DomainError(422, 'invalid_reference', 'The cost item does not exist or is archived');
     if (item.kind !== 'expense') throw new DomainError(422, 'cost_item_kind_mismatch', 'Other costs accept expense cost items only');
     if (dec(l.amount) <= 0n) throw new DomainError(422, 'invalid_amount', 'The amount must be greater than zero');
+    if (l.workOrderId) {
+      const [wo] = await db.select({ type: documents.type, status: documents.status }).from(documents).where(eq(documents.id, l.workOrderId)).limit(1);
+      if (!wo || wo.type !== 'work_order') throw new DomainError(422, 'invalid_reference', 'The work order does not exist');
+      if (wo.status === 'cancelled') throw new DomainError(422, 'invalid_reference', 'The work order is cancelled');
+    }
     if (l.workCenterId) {
       const [w] = await db.select({ id: workCenters.id, archivedAt: workCenters.archivedAt }).from(workCenters).where(eq(workCenters.id, l.workCenterId)).limit(1);
       if (!w || w.archivedAt) throw new DomainError(422, 'invalid_reference', 'The work center does not exist or is archived');
@@ -51,7 +60,8 @@ async function assertLines(db: Db, lines: OtherCostLineInput[]): Promise<void> {
 }
 
 /** Строки документа сохраняются списком: существующие по id обновляются, новые добавляются, отсутствующие удаляются */
-async function saveLines(db: Db, ctx: DocCtx, documentId: string, inputs: OtherCostLineInput[]): Promise<void> {
+async function saveLines(db: Db, ctx: DocCtx, documentId: string, rawInputs: OtherCostLineInput[], workOrderId?: string | null): Promise<void> {
+  const inputs = rawInputs.map(l => ({ ...l, workOrderId: l.workOrderId ?? workOrderId ?? null }));
   await assertLines(db, inputs);
   const existing = await db.select({ id: otherCostLines.id }).from(otherCostLines).where(eq(otherCostLines.documentId, documentId));
   const existingIds = new Set(existing.map(e => e.id));
@@ -59,7 +69,7 @@ async function saveLines(db: Db, ctx: DocCtx, documentId: string, inputs: OtherC
   const drop = [...existingIds].filter(id => !keep.has(id));
   if (drop.length) await db.delete(otherCostLines).where(inArray(otherCostLines.id, drop));
   for (const [i, l] of inputs.entries()) {
-    const values = { sortOrder: i, costItemId: l.costItemId, workCenterId: l.workCenterId ?? null, amount: fmt(dec(l.amount), 2), comment: l.comment?.trim() ?? '' };
+    const values = { sortOrder: i, costItemId: l.costItemId, workCenterId: l.workCenterId ?? null, workOrderId: l.workOrderId ?? null, amount: fmt(dec(l.amount), 2), comment: l.comment?.trim() ?? '' };
     if (l.id && existingIds.has(l.id)) await db.update(otherCostLines).set(values).where(eq(otherCostLines.id, l.id));
     else await db.insert(otherCostLines).values({ ...values, workspaceId: ctx.workspaceId, documentId, ...(l.id ? { id: l.id } : {}) });
   }
@@ -71,10 +81,28 @@ async function writeTotals(db: Db, documentId: string): Promise<void> {
   await db.update(documents).set({ amountNet: total, vatTotal: '0.00', total, updatedAt: new Date() }).where(eq(documents.id, documentId));
 }
 
+/** Основание-заказ-наряд документа: пусто, если документ основан не на заказ-наряде */
+async function basedOnWorkOrder(db: Db, basedOnId: string | null): Promise<string | null> {
+  if (!basedOnId) return null;
+  const [b] = await db.select({ type: documents.type }).from(documents).where(eq(documents.id, basedOnId)).limit(1);
+  return b?.type === 'work_order' ? basedOnId : null;
+}
+
+/** Ввод на основании заказ-наряда: черновик с заказ-нарядом в шапке (строки добавляет пользователь) */
+export async function createOtherCostsFromWorkOrder(db: Db, ctx: DocCtx, workOrderId: string): Promise<string> {
+  const [wo] = await db.select().from(documents).where(eq(documents.id, workOrderId)).limit(1);
+  if (!wo || wo.type !== 'work_order') throw new DomainError(404, 'not_found', 'work order not found');
+  if (wo.status === 'cancelled') throw new DomainError(422, 'invalid_based_on', 'A cancelled document cannot be a basis');
+  const id = await createDocument(db, ctx, { type: 'other_costs', organizationId: wo.organizationId, investmentProjectId: null, comment: '' });
+  await db.update(documents).set({ basedOnId: workOrderId }).where(eq(documents.id, id));
+  return id;
+}
+
 /** Черновик «Прочих затрат» */
 export async function createOtherCosts(db: Db, ctx: DocCtx, input: OtherCostsInput): Promise<string> {
   const id = await createDocument(db, ctx, { ...(input.id ? { id: input.id } : {}), type: 'other_costs', organizationId: input.organizationId ?? null, date: input.date, investmentProjectId: input.investmentProjectId ?? null, comment: input.comment ?? '' });
-  await saveLines(db, ctx, id, input.lines);
+  await saveLines(db, ctx, id, input.lines, input.workOrderId);
+  if (input.workOrderId) await db.update(documents).set({ basedOnId: input.workOrderId }).where(eq(documents.id, id));
   await writeTotals(db, id);
   return id;
 }
@@ -88,9 +116,17 @@ export async function updateOtherCosts(db: Db, ctx: DocCtx, id: string, input: P
   if (input.comment !== undefined) patch.comment = input.comment;
   if (Object.keys(patch).length) await updateDocument(db, ctx, id, patch);
   if (input.lines) {
-    await saveLines(db, ctx, id, input.lines);
+    // заказ-наряд шапки: не задан — остаётся основание документа (на основании заказ-наряда)
+    const [cur] = await db.select({ basedOnId: documents.basedOnId }).from(documents).where(eq(documents.id, id)).limit(1);
+    const wo = input.workOrderId !== undefined ? input.workOrderId : await basedOnWorkOrder(db, cur?.basedOnId ?? null);
+    await saveLines(db, ctx, id, input.lines, wo);
     await writeTotals(db, id);
+  } else if (input.workOrderId !== undefined) {
+    // меняется только заказ-наряд: проставляется всем строкам
+    const rows = await db.select().from(otherCostLines).where(eq(otherCostLines.documentId, id)).orderBy(asc(otherCostLines.sortOrder));
+    await saveLines(db, ctx, id, rows.map(r => ({ id: r.id, costItemId: r.costItemId, workCenterId: r.workCenterId, amount: r.amount, comment: r.comment })), input.workOrderId);
   }
+  if (input.workOrderId !== undefined) await db.update(documents).set({ basedOnId: input.workOrderId, updatedAt: new Date() }).where(eq(documents.id, id));
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.updated', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { documentType: 'other_costs' } });
 }
 
@@ -102,8 +138,12 @@ export async function otherCostsDetail(db: Db, id: string) {
   const lines = await db.select().from(otherCostLines).where(eq(otherCostLines.documentId, id)).orderBy(asc(otherCostLines.sortOrder));
   const items = new Map((await db.select({ id: costItems.id, name: costItems.name }).from(costItems).where(inArray(costItems.id, [...new Set(lines.map(l => l.costItemId))]))).map(i => [i.id, i.name]));
   const centers = new Map((await db.select({ id: workCenters.id, name: workCenters.name }).from(workCenters).where(inArray(workCenters.id, [...new Set(lines.map(l => l.workCenterId).filter((x): x is string => !!x))]))).map(w => [w.id, w.name]));
+  // заказ-наряд документа: из строк, иначе из основания
+  const woId = lines.find(l => l.workOrderId)?.workOrderId ?? (await basedOnWorkOrder(db, doc.basedOnId));
+  const [wo] = woId ? await db.select({ id: documents.id, number: documents.number, date: documents.date }).from(documents).where(eq(documents.id, woId)).limit(1) : [];
   return {
     ...doc,
+    workOrder: wo ?? null,
     organizationName: org?.name ?? null,
     investmentProject: doc.investmentProjectId ? ((await db.select({ id: investmentProjects.id, name: investmentProjects.name }).from(investmentProjects).where(eq(investmentProjects.id, doc.investmentProjectId)).limit(1))[0] ?? null) : null,
     lines: lines.map(l => ({ ...l, costItemName: items.get(l.costItemId) ?? '', workCenterName: l.workCenterId ? (centers.get(l.workCenterId) ?? null) : null })),

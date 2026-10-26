@@ -20,6 +20,7 @@ import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { DOCUMENT_HOOKS } from './document-hooks';
 import { recomputeStockCosts } from './stock';
+import { loadWorkOrderTargets } from './work-order-cost';
 import { costItems, documents, documentLines, processingServiceCosts, manufacturedItems, organizations, otherCostLines, periodCosts, products, productionComponents, productionCostClosings, productionHeaders, productionItems, stockBalances, stockCostAdjustments, stockMoves, warehouses, workCenters, workspaces } from './schema';
 import type { DocCtx, DocumentLineRow, DocumentRow } from './documents';
 
@@ -78,6 +79,8 @@ export async function syncPeriodCosts(db: Db, ctx: DocCtx, doc: DocumentRow, lin
   }
   if (type === 'other_costs') {
     for (const r of await db.select().from(otherCostLines).where(eq(otherCostLines.documentId, doc.id))) {
+      // строка на основании заказ-наряда — прямая затрата заказ-наряда, в пул косвенных не попадает (задача 1096)
+      if (r.workOrderId) continue;
       await db.insert(periodCosts).values({ workspaceId: ctx.workspaceId, period: periodStart(doc.date), costItemId: r.costItemId, workCenterId: r.workCenterId, amount: r.amount, source: 'other_costs', documentId: doc.id });
     }
   }
@@ -264,7 +267,7 @@ export interface PeriodIssue {
 export interface PeriodPreview {
   month: string;
   costs: { costItemId: string; name: string; method: CostDistribution; workCenterId: string | null; workCenterName: string | null; amount: string }[];
-  targets: { itemId: string; releaseId: string; name: string; workCenterId: string | null; workCenterName: string | null; qty: string; directCost: string; workHours: string; interim?: boolean }[];
+  targets: { itemId: string; releaseId: string; name: string; workCenterId: string | null; workCenterName: string | null; qty: string; directCost: string; workHours: string; interim?: boolean; /** Заказ-наряд, выполненный в месяце */ workOrder?: boolean }[];
   issues: PeriodIssue[];
   /** Всего косвенных затрат месяца */
   total: string;
@@ -289,13 +292,14 @@ export async function previewPeriod(db: Db, workspaceId: string, month: string):
   const unposted = drafts.filter(d => d.status === 'draft');
   if (unposted.length) issues.push({ kind: 'unposted', message: `${unposted.length} document(s) of the month are not posted — post them or move their date out of the period`, links: unposted.map(d => ({ documentId: d.id, number: d.number, date: d.date })) });
   const targets = await loadReleaseTargets(db, workspaceId, month);
-  if (!targets.length) issues.push({ kind: 'no_release', message: 'There are no releases this month: indirect costs will stay undistributed', links: [] });
+  const woTargets = await loadWorkOrderTargets(db, workspaceId, start, end);
+  if (!targets.length && !woTargets.length) issues.push({ kind: 'no_release', message: 'There are no releases this month: indirect costs will stay undistributed', links: [] });
   const costs = await loadPeriodCosts(db, workspaceId, month);
   const centers = await loadCenters(db);
   return {
     month,
     costs: costs.map(c => ({ costItemId: c.costItemId, name: c.costItemName, method: c.method, workCenterId: c.workCenterId, workCenterName: c.workCenterName, amount: fmt(c.amount, 2) })),
-    targets: targets.map(t => ({ itemId: t.itemId, releaseId: t.releaseId, name: t.name, workCenterId: t.workCenterId, workCenterName: t.workCenterId ? (centers.get(t.workCenterId) ?? null) : null, qty: fmt(t.qty, 3), directCost: fmt(t.directCost, 2), workHours: fmt(t.workHours, 3), interim: !t.documentLineId })),
+    targets: [...targets, ...woTargets].map(t => ({ itemId: t.itemId, releaseId: t.releaseId, name: t.name, workCenterId: t.workCenterId, workCenterName: t.workCenterId ? (centers.get(t.workCenterId) ?? null) : null, qty: fmt(t.qty, 3), directCost: fmt(t.directCost, 2), workHours: fmt(t.workHours, 3), interim: !t.documentLineId && !t.workOrder, workOrder: t.workOrder })),
     issues,
     total: fmt(costs.reduce((s, c) => s + c.amount, 0n), 2),
   };
@@ -309,6 +313,8 @@ export interface ClosingTotals {
   byCostItem: { costItemId: string; costItemName: string; workCenterId: string | null; workCenterName: string | null; method: CostDistribution; amount: string; distributed: string; scope: string }[];
   /** Что получили выпуски месяца */
   byRelease: { itemId: string; releaseId: string; name: string; workCenterId: string | null; workCenterName: string | null; qty: string; directCost: string; workHours: string; allocated: string; /** Промежуточный этап: доля ушла в НЗП */ interim?: boolean; /** Расшифровка доли по статьям затрат (отчёт «Себестоимость выпуска») */ byCostItem?: { costItemId: string; name: string; amount: string }[] }[];
+  /** Доля косвенных заказ-нарядов, выполненных в месяце (по участкам труда; задача 1096) */
+  byWorkOrder: { documentId: string; number: string; workCenterId: string | null; workCenterName: string | null; hours: string; directCost: string; allocated: string; byCostItem: { costItemId: string; name: string; amount: string }[] }[];
   /** Нераспределённые затраты */
   undistributed: string;
   /** Предупреждения закрытия */
@@ -344,7 +350,9 @@ export async function closePeriodMonth(db: Db, ctx: DocCtx, month: string): Prom
   const costs = await loadPeriodCosts(db, ctx.workspaceId, month);
   const targets = await loadReleaseTargets(db, ctx.workspaceId, month);
   const centers = await loadCenters(db);
-  const plan = planOverhead(costs, targets);
+  // заказ-наряды, выполненные в месяце, получают долю наравне с выпусками (база: часы и прямые затраты участка)
+  const woTargets = await loadWorkOrderTargets(db, ctx.workspaceId, start, end);
+  const plan = planOverhead(costs, [...targets, ...woTargets]);
   // выпуски в режиме «по итогам смены» без распределения материалов: закрытие идёт, но их материалы не учтены
   const unallocated = await unallocatedShiftReleases(db, ctx.workspaceId, start, end);
   if (unallocated.length) plan.warnings.push(`Shift-mode releases without material allocation (${unallocated.length}): ${unallocated.map(r => r.number ?? r.date).join(', ')}`);
@@ -381,6 +389,7 @@ export async function closePeriodMonth(db: Db, ctx: DocCtx, month: string): Prom
     month,
     byCostItem: plan.byCostItem.map(g => ({ costItemId: g.costItemId, costItemName: g.costItemName, workCenterId: g.workCenterId, workCenterName: g.workCenterName, method: g.method, amount: fmt(g.amount, 2), distributed: fmt(g.distributed, 2), scope: g.scope })),
     byRelease: targets.map(t => ({ itemId: t.itemId, releaseId: t.releaseId, name: t.name, workCenterId: t.workCenterId, workCenterName: t.workCenterId ? (centers.get(t.workCenterId) ?? null) : null, qty: fmt(t.qty, 3), directCost: fmt(t.directCost, 2), workHours: fmt(t.workHours, 3), allocated: fmt(plan.byTarget.get(t.itemId) ?? 0n, 2), interim: !t.documentLineId, byCostItem: [...(plan.byTargetItem.get(t.itemId) ?? new Map<string, bigint>())].map(([id, amount]) => ({ costItemId: id, name: plan.byCostItem.find(g => g.costItemId === id)?.costItemName ?? '', amount: fmt(amount, 4) })) })),
+    byWorkOrder: woTargets.map(t => ({ documentId: t.releaseId, number: t.name, workCenterId: t.workCenterId, workCenterName: t.workCenterId ? (centers.get(t.workCenterId) ?? null) : null, hours: fmt(t.workHours, 3), directCost: fmt(t.directCost, 2), allocated: fmt(plan.byTarget.get(t.itemId) ?? 0n, 2), byCostItem: [...(plan.byTargetItem.get(t.itemId) ?? new Map<string, bigint>())].map(([id, amount]) => ({ costItemId: id, name: plan.byCostItem.find(g => g.costItemId === id)?.costItemName ?? '', amount: fmt(amount, 4) })) })),
     undistributed: fmt(plan.undistributed, 2),
     warnings: plan.warnings,
     total: fmt(costs.reduce((s, c) => s + c.amount, 0n), 2),

@@ -14,6 +14,7 @@ import { PlanFactTab } from './PlanFactTab';
 import { ReleaseCostTab } from './ReleaseCostTab';
 import { ReleaseTab } from './ReleaseTab';
 import { WipMovementTab } from './WipMovementTab';
+import { WorkOrderCostTab } from './WorkOrderCostTab';
 import type { ReportFilter } from './reports-data';
 import type { FilterKey, TabProps } from './shared';
 
@@ -33,6 +34,7 @@ export const REPORT_TABS: ReportTabDef[] = [
   { id: 'release-cost', label: 'production.reports.tab.releaseCost', filters: ['period', 'center', 'item'], Component: ReleaseCostTab },
   { id: 'cost-plan-fact', label: 'production.reports.tab.costPlanFact', filters: ['period', 'center', 'item'], Component: CostPlanFactTab },
   { id: 'wip-movement', label: 'production.reports.tab.wipMovement', filters: ['period', 'center'], Component: WipMovementTab },
+  { id: 'work-order-cost', label: 'production.reports.tab.workOrderCost', filters: ['period'], Component: WorkOrderCostTab },
   { id: 'bom', label: 'production.reports.tab.bom', filters: [], Component: BomTab },
   { id: 'load', label: 'production.reports.tab.load', filters: ['period', 'center'], Component: LoadTab },
 ];

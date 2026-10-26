@@ -31,3 +31,23 @@ API — `apps/api/src/routes/work-orders.ts`, клиент — `apps/web/src/app
   `/work-order-assignments/:taskId` (правка и удаление), `/work-order-kinds` и `/document-states` (справочники, admin и выше).
 - **Интерфейс:** журнал **Work orders** (`/work-orders`) с фильтром по состояниям; в карточке документа — блок состояния и вида, таблицы материалов
   и исполнителей; настройка видов и состояний — Settings → Work order kinds.
+
+## Себестоимость работ (задача 1096)
+
+Код: расчёт — `packages/shared/src/work-orders.ts` (`computeWorkOrderCost`, тесты `packages/shared/test/work-orders.test.ts`), сбор данных — `packages/db/src/work-order-cost.ts`,
+API — `GET /work-orders/:id/cost`, экран — `apps/web/src/app/docs/work-order-cost.tsx`, отчёт — `apps/web/src/app/production/reports/WorkOrderCostTab.tsx`. Справка УНФ 7.1.
+
+- **Живая себестоимость.** В документ ничего не пишется: сервер собирает данные и считает при каждом запросе. У строк «Услуга» затрат нет — их выручка целиком в марже.
+- **Труд** = часы × `work_centers.hourly_rate`. Участок — `work_order_assignments.work_center_id`, а если пуст — участок нормы работы строки (`operations.work_center_id`). Личных ставок нет.
+  Без участка труд не оценивается (0), часы попадают в предупреждение `no_work_center`, в карточке показывается плашка. Факт часов — все `time_logs` задач-назначений, без ограничения по датам.
+- **План:** плановые часы × ставка + материалы заказ-наряда и товары его строк × текущая средняя себестоимость (склад строки или документа, иначе средняя по складам) + прочие затраты.
+  **Факт:** часы × ставка + материалы и товары по себестоимости списания (`stock_moves.cost` проведённого заказ-наряда: строка товара — товары, без строки — материалы) + прочие + косвенные.
+  Пока заказ-наряд не выполнен, факт материалов и товаров — оценка по средней (`estimated`, пометка «оценка»).
+- **Выручка** = `documents.amount_net` (без НДС: работы, услуги, товары). **Маржа** = выручка − себестоимость, процент — от выручки (`null` при нулевой выручке). Плановая маржа — до выполнения.
+- **Прочие затраты:** у `other_cost_lines` есть необязательный `work_order_id` (составной FK на `documents`, миграция 0034). Такие строки — прямые затраты заказ-наряда (проведённые документы),
+  в пул косвенных закрытия месяца (`period_costs`) не попадают. Ввод на основании: `POST /documents/:id/based-on {type:'other_costs'}` создаёт черновик с `based_on_id` = заказ-наряд
+  (строки пользователь добавляет), в форме «Прочие затраты» есть поле «Заказ-наряд» (шапка действует на все строки без своего).
+- **Косвенные** — из итогов закрытия месяца (`production_cost_closings.totals.byWorkOrder`, статус `done`), см. `month-closing.md`.
+- **Права:** `GET /work-orders/:id/cost` — admin и owner (иначе 403 `cost_access_required`). В журнале `/work-orders` поля `cost`, `margin`, `marginPct`, `costBasis` у остальных `null`;
+  `costBasis` — `fact` у выполненного, иначе `plan`. Вкладка «Себестоимость» и колонки журнала скрыты для member и guest.
+- **Отчёт** `GET /production/reports/work-order-cost?from&to` — см. `production-reports.md`.

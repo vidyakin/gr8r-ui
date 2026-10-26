@@ -12,6 +12,8 @@ export interface ClosingTotals {
   month: string;
   byCostItem: { costItemId: string; costItemName: string; workCenterId: string | null; workCenterName: string | null; method: CostDistribution; amount: string | null; distributed: string | null; scope: string }[];
   byRelease: { itemId: string; releaseId: string; name: string; workCenterId: string | null; workCenterName: string | null; qty: string; directCost: string | null; workHours: string; allocated: string | null; interim?: boolean }[];
+  /** Доля косвенных заказ-нарядов, выполненных в месяце (по участкам труда) */
+  byWorkOrder?: { documentId: string; number: string; workCenterName: string | null; hours: string; directCost: string | null; allocated: string | null }[];
   undistributed: string | null;
   warnings: string[];
   total: string | null;
@@ -122,6 +124,8 @@ export interface OtherCostsDetail {
   organizationName: string | null;
   investmentProjectId: string | null;
   investmentProject?: { id: string; name: string } | null;
+  /** Заказ-наряд документа (прямые затраты заказ-наряда) */
+  workOrder?: { id: string; number: string | null; date: string } | null;
   comment: string;
   total: string | null;
   lines: OtherCostLine[];
@@ -166,12 +170,12 @@ export function useOtherCostsApi() {
     await qc.invalidateQueries({ queryKey: otherCostsKey(ws) });
   };
   return {
-    save: async (body: { id?: string; date?: string; investmentProjectId?: string | null; comment?: string; lines: OtherCostsLineInput[] }) => {
+    save: async (body: { id?: string; date?: string; investmentProjectId?: string | null; workOrderId?: string | null; comment?: string; lines: OtherCostsLineInput[] }) => {
       const r = await call<OtherCostsDetail>(ws, 'POST', '/other-costs', body);
       await refresh();
       return r;
     },
-    update: async (id: string, body: { date?: string; investmentProjectId?: string | null; comment?: string; lines?: OtherCostsLineInput[] }) => {
+    update: async (id: string, body: { date?: string; investmentProjectId?: string | null; workOrderId?: string | null; comment?: string; lines?: OtherCostsLineInput[] }) => {
       const r = await call<OtherCostsDetail>(ws, 'PATCH', `/other-costs/${id}`, body);
       await refresh();
       return r;

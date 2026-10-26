@@ -887,6 +887,8 @@ export const otherCostLines = pgTable(
     costItemId: uuid('cost_item_id').notNull(),
     /** Участок: необязателен (затраты без участка идут на общий выпуск) */
     workCenterId: uuid('work_center_id'),
+    /** Заказ-наряд (задача 1096): строка — прямая затрата заказ-наряда и в пул косвенных закрытия месяца не попадает */
+    workOrderId: uuid('work_order_id'),
     /** Сумма затрат */
     amount: money('amount').notNull().default('0'),
     comment: text('comment').notNull().default(''),
@@ -897,6 +899,8 @@ export const otherCostLines = pgTable(
     foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'other_cost_lines_document_fk' }).onDelete('cascade'),
     foreignKey({ columns: [t.workspaceId, t.costItemId], foreignColumns: [costItems.workspaceId, costItems.id], name: 'other_cost_lines_item_fk' }),
     foreignKey({ columns: [t.workspaceId, t.workCenterId], foreignColumns: [workCenters.workspaceId, workCenters.id], name: 'other_cost_lines_work_center_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.workOrderId], foreignColumns: [documents.workspaceId, documents.id], name: 'other_cost_lines_work_order_fk' }).onDelete('set null'),
+    index('other_cost_lines_work_order_idx').on(t.workOrderId),
     check('other_cost_lines_amount_chk', sql`${t.amount} > 0`),
     index('other_cost_lines_document_idx').on(t.documentId, t.sortOrder),
   ],

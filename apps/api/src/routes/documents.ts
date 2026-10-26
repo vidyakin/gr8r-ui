@@ -20,6 +20,7 @@ import {
   createBasedOn,
   createDocument,
   createInventoryBasedOn,
+  createOtherCostsFromWorkOrder,
   createProductionFromCustomerOrder,
   createProductionFromOrder,
   createProductionOrderFromCustomerOrder,
@@ -433,6 +434,11 @@ export const documentRoutes = new Hono<AppEnv>()
         const created = await createInventoryBasedOn(ctx.db, docCtx(ctx), id, type);
         return c.json(await documentDetail(ctx.db, created), 201);
       }
+    }
+    // прочие затраты на основании заказ-наряда: черновик с заказ-нарядом в шапке (прямые затраты заказ-наряда)
+    if (type === 'other_costs') {
+      const created = await createOtherCostsFromWorkOrder(ctx.db, docCtx(ctx), id);
+      return c.json(await documentDetail(ctx.db, created), 201);
     }
     // производство создаётся своим сервисом: заказ на производство и выпуск из заказа покупателя
     if (type === 'production_order') {

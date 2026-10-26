@@ -83,8 +83,8 @@ describe('document types', () => {
     expect(basedOnTargets('supplier_order')).toEqual(['receipt']);
     expect(basedOnTargets('act')).toEqual([]);
     expect(basedOnTargets('production_order')).toEqual(['production']);
-    // заказ-наряд: счёт можно выставить на основании заказ-наряда (предоплата), акта и реализации — нет
-    expect(basedOnTargets('work_order')).toEqual(['invoice']);
+    // заказ-наряд: счёт (предоплата) и прочие затраты на заказ-наряд; акта и реализации — нет
+    expect(basedOnTargets('work_order')).toEqual(['invoice', 'other_costs']);
   });
   test('production documents: no counterparty, states apart from posting', () => {
     expect(documentTypesOf('production')).toEqual(['production_order', 'production', 'piecework_order', 'other_costs', 'material_allocation']);

@@ -8,6 +8,7 @@ import { hasKey, t, type TKey } from '@/i18n';
 import { toast } from '@/components/ui';
 import type { Tone } from '@/components/ui';
 import { errorMessage } from '../data/api';
+import { useSession } from '../data/session';
 import { call, useWsId } from '../meta/data';
 
 export const docsKey = (ws: string, ...rest: unknown[]) => ['ws', ws, 'docs', ...rest] as const;
@@ -517,6 +518,49 @@ export interface WorkOrderListItem extends DocListItem {
   stateLabel: string | null;
   stateColor: string | null;
   category: WorkOrderStateCategory | null;
+  /** Себестоимость и маржа — только admin и owner (иначе null); у выполненного факт, у остальных план */
+  cost: string | null;
+  margin: string | null;
+  marginPct: string | null;
+  costBasis: 'plan' | 'fact' | null;
+}
+
+/** Себестоимость и маржу видят admin и owner */
+export function useCanSeeCost(): boolean {
+  const { active } = useSession();
+  return active?.role === 'owner' || active?.role === 'admin';
+}
+
+/** Себестоимость работ заказ-наряда (GET /work-orders/:id/cost, задача 1096) */
+export interface WorkOrderCostView {
+  documentId: string;
+  status: string;
+  indirectMonths: string[];
+  labor: { plan: string; fact: string; plannedHours: string; actualHours: string; rows: { assigneeId: string | null; assigneeName: string | null; workCenterId: string | null; workCenterName: string | null; rate: string | null; plannedHours: string; actualHours: string; planAmount: string; factAmount: string }[] };
+  materials: { plan: string; fact: string; estimated: boolean; rows: WorkOrderCostItemView[] };
+  goods: { plan: string; fact: string; estimated: boolean; rows: WorkOrderCostItemView[] };
+  other: { plan: string; fact: string };
+  indirect: { plan: string; fact: string };
+  cost: { plan: string; fact: string };
+  revenue: string;
+  margin: { plan: string; fact: string };
+  marginPct: { plan: string | null; fact: string | null };
+  estimated: boolean;
+  warnings: { kind: 'no_work_center'; assignmentIds: string[]; plannedHours: string; actualHours: string }[];
+}
+export interface WorkOrderCostItemView {
+  key: string;
+  name: string;
+  unitCode: string;
+  qty: string;
+  planCost: string;
+  factCost: string;
+  estimated: boolean;
+}
+
+export function useWorkOrderCost(id: string | undefined, enabled: boolean) {
+  const ws = useWsId();
+  return useQuery({ queryKey: docsKey(ws, 'wo-cost', id), queryFn: () => call<WorkOrderCostView>(ws, 'GET', `/work-orders/${id}/cost`), enabled: !!id && enabled, staleTime: 0 });
 }
 
 export function useWorkOrders(params: { state?: string; status?: string; q?: string }) {
