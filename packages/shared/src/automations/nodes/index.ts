@@ -1,6 +1,8 @@
 /* Реестр узлов. Новый узел = новый файл в этой папке (описание + схема параметров + исполнитель) и одна строка ниже. */
 import type { AnyNodeDef } from '../types';
 import addComment from './action-add-comment';
+import assignLead from './action-assign-lead';
+import createLead from './action-create-lead';
 import createTask from './action-create-task';
 import httpRequest from './action-http-request';
 import notify from './action-notify';
@@ -10,6 +12,8 @@ import delay from './flow-delay';
 import condition from './logic-condition';
 import fieldChanged from './trigger-field-changed';
 import documentPaid from './trigger-document-paid';
+import leadCreated from './trigger-lead-created';
+import leadStatusChanged from './trigger-lead-status-changed';
 import manual from './trigger-manual';
 import paymentPosted from './trigger-payment-posted';
 import recordCreated from './trigger-record-created';
@@ -25,6 +29,8 @@ export const NODE_LIST: AnyNodeDef[] = [
   manual,
   paymentPosted,
   documentPaid,
+  leadCreated,
+  leadStatusChanged,
   // Условия и управление потоком
   condition,
   delay,
@@ -35,6 +41,8 @@ export const NODE_LIST: AnyNodeDef[] = [
   notify,
   httpRequest,
   addComment,
+  createLead,
+  assignLead,
 ];
 
 export const NODE_DEFS: Record<string, AnyNodeDef> = Object.fromEntries(NODE_LIST.map(n => [n.type, n]));

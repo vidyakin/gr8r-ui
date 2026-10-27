@@ -2,7 +2,7 @@
    видимые разделы меню (объединение, admin всё, без должностей всё), перенос курьеров миграцией 0039, вид номенклатуры у товара
    (несовпадение типа 422, фильтр каталога), услуги специалиста по видам, изоляция арендаторов. */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { cpSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join as pathJoin } from 'node:path';
 import { createSql, ensureDatabase, runMigrations, wipeDatabase } from '@gr8r/db';
@@ -272,10 +272,12 @@ describe('migration 0039 moves the courier flag into the "Курьер" position
     // миграции до 0038 включительно — во временной папке
     const src = new URL('../../../packages/db/drizzle', import.meta.url).pathname;
     cpSync(src, tmp, { recursive: true });
-    rmSync(pathJoin(tmp, '0039_positions.sql'));
-    rmSync(pathJoin(tmp, 'meta', '0039_snapshot.json'));
+    // 0039 и все более поздние миграции (0042 лиды и т. д.) убираются: сначала применяется схема до 0038
+    const later = (name: string) => /^\d{4}/.test(name) && Number(name.slice(0, 4)) >= 39;
+    for (const f of readdirSync(tmp)) if (later(f)) rmSync(pathJoin(tmp, f));
+    for (const f of readdirSync(pathJoin(tmp, 'meta'))) if (later(f)) rmSync(pathJoin(tmp, 'meta', f));
     const journal = JSON.parse(readFileSync(pathJoin(tmp, 'meta', '_journal.json'), 'utf8'));
-    journal.entries = journal.entries.filter((e: { tag: string }) => !e.tag.startsWith('0039'));
+    journal.entries = journal.entries.filter((e: { tag: string }) => !later(e.tag));
     writeFileSync(pathJoin(tmp, 'meta', '_journal.json'), JSON.stringify(journal));
 
     await ensureDatabase(url);
@@ -290,7 +292,7 @@ describe('migration 0039 moves the courier flag into the "Курьер" position
       const c2 = await add(w1!.id, 'c2@x.dev', true);
       const n1 = await add(w1!.id, 'n1@x.dev', false);
       const n2 = await add(w2!.id, 'n2@x.dev', false); // во втором воркспейсе курьеров нет
-      await runMigrations(url); // применяется только 0039
+      await runMigrations(url); // применяются 0039 и последующие
       const pos = await sql`select workspace_id, name, functions, sections from positions`;
       expect(pos).toHaveLength(1);
       expect(pos[0]!.workspace_id).toBe(w1!.id);

@@ -75,6 +75,8 @@ export const crmActivityCreate = z.object({
   dealId: uuid.nullish(),
   companyId: uuid.nullish(),
   contactId: uuid.nullish(),
+  /** Касание лида (задача 1175) */
+  leadId: uuid.nullish(),
   dueDate: isoDate.nullish(),
   done: z.boolean().nullish(),
   body: z.string().max(20_000).nullish(),
@@ -85,5 +87,6 @@ export const crmActivityQuery = listQuery.extend({
   dealId: uuid.optional(),
   companyId: uuid.optional(),
   contactId: uuid.optional(),
+  leadId: uuid.optional(),
 });
 

@@ -20,6 +20,9 @@ export interface AppConfig {
   /** Rate-limit входа/регистрации: попыток на окно */
   authRateLimitMax: number;
   authRateLimitWindowMs: number;
+  /** Rate-limit публичного вебхука лидов: обращений с одного IP на окно */
+  leadHookRateLimitMax: number;
+  leadHookRateLimitWindowMs: number;
   /** Логировать запросы в stdout (в тестах выключено) */
   logRequests: boolean;
   /** Дедлайн транзакции арендатора, мс: дольше — откат и 503 (защита пула от зависших обработчиков) */

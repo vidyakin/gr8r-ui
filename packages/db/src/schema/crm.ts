@@ -2,6 +2,7 @@
 import { sql } from 'drizzle-orm';
 import { boolean, check, date, doublePrecision, foreignKey, index, jsonb, pgTable, primaryKey, text, unique, uuid } from 'drizzle-orm/pg-core';
 import { archivedAt, createdAt, money, pk, updatedAt } from './columns';
+import { leads } from './leads';
 import { members, wsCol } from './people';
 
 export const companies = pgTable(
@@ -119,6 +120,8 @@ export const crmActivities = pgTable(
     dealId: uuid('deal_id'),
     companyId: uuid('company_id'),
     contactId: uuid('contact_id'),
+    /** Касание лида (задача 1175); при конвертации переезжает к контакту/сделке */
+    leadId: uuid('lead_id'),
     authorId: uuid('author_id'),
     /** Служебная запись (смена этапа) */
     system: boolean('system').notNull().default(false),
@@ -133,8 +136,10 @@ export const crmActivities = pgTable(
     foreignKey({ columns: [t.workspaceId, t.dealId], foreignColumns: [deals.workspaceId, deals.id], name: 'ca_deal_fk' }).onDelete('cascade'),
     foreignKey({ columns: [t.workspaceId, t.companyId], foreignColumns: [companies.workspaceId, companies.id], name: 'ca_company_fk' }).onDelete('cascade'),
     foreignKey({ columns: [t.workspaceId, t.contactId], foreignColumns: [contacts.workspaceId, contacts.id], name: 'ca_contact_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.leadId], foreignColumns: [leads.workspaceId, leads.id], name: 'ca_lead_fk' }).onDelete('cascade'),
     foreignKey({ columns: [t.workspaceId, t.authorId], foreignColumns: [members.workspaceId, members.id], name: 'ca_author_fk' }),
     index('crm_activities_ws_created_idx').on(t.workspaceId, t.createdAt),
+    index('crm_activities_lead_idx').on(t.leadId),
   ],
 );
 

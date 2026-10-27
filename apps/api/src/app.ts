@@ -30,6 +30,7 @@ import { appointmentRoutes } from './routes/appointments';
 import { repairItemRoutes, serialRoutes } from './routes/serials';
 import { deliveryMethodRoutes, deliveryRoutes } from './routes/delivery';
 import { positionRoutes, productKindRoutes } from './routes/positions';
+import { secretRoutes } from './routes/secrets';
 import { serviceRoutes } from './routes/services';
 import { contractRoutes, tariffPlanRoutes } from './routes/contracts';
 import { billingRoutes } from './routes/billing';
@@ -38,6 +39,8 @@ import { materialAllocationRoutes, otherCostsRoutes, productionClosingRoutes } f
 import { investmentRoutes } from './routes/investments';
 import { cashFlowItemRoutes, cashRegisterRoutes, paymentRoutes } from './routes/payments';
 import { flowRoutes, flowRunRoutes } from './routes/flows';
+import { hookRoutes } from './routes/hooks';
+import { leadFormRoutes, leadRoutes, leadStatusRoutes } from './routes/leads';
 import { entityRoutes } from './routes/meta';
 import { dataSearchRoutes, recordsRoutes } from './routes/records';
 import {
@@ -69,7 +72,7 @@ export interface AppDeps {
 }
 
 /** Ресурсы арендатора: каждый путь защищён цепочкой «сессия → членство → транзакция с RLS» */
-const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/files', '/activity', '/events', '/companies', '/contacts', '/deals', '/crm-activities', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production', '/production-orders', '/production-plans', '/stock-levels', '/organizations', '/bank-accounts', '/warehouses', '/cost-items', '/documents', '/order-calculations', '/stock', '/flows', '/flow-runs', '/work-orders', '/work-order-assignments', '/work-order-kinds', '/document-states', '/services', '/contracts', '/tariff-plans', '/billing', '/other-costs', '/material-allocations', '/investments', '/processing', '/processor-reports', '/supplier-orders', '/serials', '/repair-items', '/sales-plan', '/appointments', '/delivery-methods', '/deliveries', '/positions', '/product-kinds', '/payments', '/cash-registers', '/cash-flow-items'];
+const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/files', '/activity', '/events', '/companies', '/contacts', '/deals', '/crm-activities', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production', '/production-orders', '/production-plans', '/stock-levels', '/organizations', '/bank-accounts', '/warehouses', '/cost-items', '/documents', '/order-calculations', '/stock', '/flows', '/flow-runs', '/work-orders', '/work-order-assignments', '/work-order-kinds', '/document-states', '/services', '/contracts', '/tariff-plans', '/billing', '/other-costs', '/material-allocations', '/investments', '/processing', '/processor-reports', '/supplier-orders', '/serials', '/repair-items', '/sales-plan', '/appointments', '/delivery-methods', '/deliveries', '/positions', '/product-kinds', '/leads', '/lead-statuses', '/lead-forms', '/secrets', '/payments', '/cash-registers', '/cash-flow-items'];
 
 function buildTenantApi() {
   const guarded = new Hono<AppEnv>();
@@ -96,6 +99,9 @@ function buildTenantApi() {
     .route('/contacts', contactRoutes)
     .route('/deals', dealRoutes)
     .route('/crm-activities', crmActivityRoutes)
+    .route('/leads', leadRoutes)
+    .route('/lead-statuses', leadStatusRoutes)
+    .route('/lead-forms', leadFormRoutes)
     .route('/entities', entityRoutes)
     .route('/data-search', dataSearchRoutes)
     .route('/data', recordsRoutes)
@@ -141,6 +147,7 @@ function buildTenantApi() {
     .route('/deliveries', deliveryRoutes)
     .route('/positions', positionRoutes)
     .route('/product-kinds', productKindRoutes)
+    .route('/secrets', secretRoutes)
     .route('/repair-items', repairItemRoutes)
     .route('/work-order-assignments', workOrderAssignmentRoutes)
     .route('/work-order-kinds', workOrderKindRoutes)
@@ -179,7 +186,8 @@ export function createApp(deps: AppDeps) {
     .use(
       '*',
       createMiddleware<AppEnv>(async (c, next) => {
-        if (!config.corsOrigins.length) return next();
+        // публичные вебхуки сами отвечают CORS для любых сайтов (без cookie)
+        if (!config.corsOrigins.length || c.req.path.startsWith('/hooks/')) return next();
         return cors({ origin: config.corsOrigins, credentials: true, allowHeaders: ['Content-Type', 'X-Workspace-Id', 'X-Request-Id'], exposeHeaders: ['X-Request-Id'] })(c, next);
       }),
     )
@@ -198,6 +206,7 @@ export function createApp(deps: AppDeps) {
     .route('/auth', authRoutes)
     .route('/workspaces', workspaceRoutes)
     .route('/invites', inviteRoutes)
+    .route('/hooks', hookRoutes)
     // WebSocket: сессия (cookie) → членство → подписка на события воркспейса. Воркспейс — ?workspace=<uuid> (браузер не ставит заголовки)
     .get(
       '/ws',

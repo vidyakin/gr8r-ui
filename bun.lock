@@ -9,6 +9,7 @@
         "@gr8r/shared": "workspace:*",
         "@types/bun": "^1.4.3",
         "playwright-core": "1.56.1",
+        "typescript": "^7.0.2",
       },
     },
     "apps/api": {

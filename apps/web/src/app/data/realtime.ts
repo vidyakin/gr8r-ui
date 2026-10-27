@@ -45,11 +45,14 @@ export function useRealtime(ws: string, engine: Engine) {
       if (e.entity === 'task' || e.entity === 'time_log' || e.entity === 'member') void qc.invalidateQueries({ queryKey: ['ws', ws, 'docs', 'service-reports'] });
       // Планирование загрузки: графики, ресурсы, операции и документы меняют план
       if (['work_calendar', 'resource', 'document', 'task'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'planning'] });
+      // Лиды (задача 1175): запросы ['ws', id, 'leads', …]; конвертация и объединение меняют лиды, контрагентов, контакты, сделки и касания
+      if (['lead', 'lead_status', 'lead_form', 'crm_activity', 'company', 'contact', 'deal'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'leads'] });
       // Автоматизации: flow и журнал запусков
       if (e.entity === 'flow' || e.entity === 'flow_run') void qc.invalidateQueries({ queryKey: ['ws', ws, 'automations'] });
       // Должности и виды номенклатуры (задача 1172); смена должностей участника приходит событием member.updated
       if (['position', 'product_kind'].includes(e.entity) || e.type.startsWith('member.')) void qc.invalidateQueries({ queryKey: ['ws', ws, 'positions'] });
       if (e.entity === 'position' || e.entity === 'product_kind') void qc.invalidateQueries({ queryKey: ['ws', ws, 'catalog'] });
+      if (e.entity === 'secret') void qc.invalidateQueries({ queryKey: ['ws', ws, 'secrets'] });
       // Название воркспейса, моя роль, состав участников
       if (e.entity === 'workspace' || e.type.startsWith('member.')) void qc.invalidateQueries({ queryKey: ['session'] });
     };

@@ -55,6 +55,7 @@ import {
   ScanBarcode,
   Target,
   type LucideIcon,
+  UserPlus,
 } from 'lucide-react';
 import type { PositionSection } from '@gr8r/shared';
 import { hasKey, t, type TKey } from '@/i18n';
@@ -84,6 +85,7 @@ export const SECTIONS = {
   system: { path: '/design-system', name: 'Design system', icon: Component },
   // Демо-модуль CRM (src/app/crm)
   crm: { path: '/crm', name: 'Dashboard', icon: ChartNoAxesCombined },
+  crmLeads: { path: '/crm/leads', name: 'Leads', icon: UserPlus },
   crmDeals: { path: '/crm/deals', name: 'Deals', icon: Handshake },
   crmCompanies: { path: '/crm/companies', name: 'Companies', icon: Building2 },
   crmContacts: { path: '/crm/contacts', name: 'Contacts', icon: ContactRound },
@@ -221,6 +223,7 @@ const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
   calendar: 'projects',
   timeline: 'projects',
   crm: 'crm',
+  crmLeads: 'crm',
   crmDeals: 'crm',
   crmCompanies: 'crm',
   crmContacts: 'crm',

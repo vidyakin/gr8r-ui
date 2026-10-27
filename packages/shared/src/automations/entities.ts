@@ -67,6 +67,17 @@ export const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
     f('companyId', 'Company', 'ref', true, { refEntity: 'company' }),
   ],
   product: [f('name', 'Name', 'text'), f('sku', 'SKU', 'text'), f('description', 'Description', 'long_text'), f('price', 'Price', 'money', true, { min: 0 }), f('purchasePrice', 'Purchase price', 'money', true, { min: 0 })],
+  lead: [
+    f('name', 'Name', 'text'),
+    f('companyName', 'Company', 'text'),
+    f('phone', 'Phone', 'text', false),
+    f('email', 'Email', 'text', false),
+    f('comment', 'Comment', 'long_text'),
+    f('source', 'Source', 'text'),
+    f('ownerId', 'Owner', 'user'),
+    f('statusId', 'Status', 'text', false),
+    f('rejectReason', 'Reject reason', 'text'),
+  ],
   // Документами управляют проведение и отмена: поля только для чтения (триггеры «поле изменилось», условия, подстановки)
   document: [f('status', 'Status', 'select', false, choices(['draft', 'posted', 'cancelled'])), f('state', 'State', 'text', false), f('number', 'Number', 'text', false), f('date', 'Date', 'date', false), f('total', 'Total', 'money', false), f('responsibleId', 'Responsible', 'user', false)],
 };

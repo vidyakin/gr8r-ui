@@ -14,6 +14,7 @@ import {
   entities,
   fields,
   isUuid,
+  leads,
   members,
   notifications,
   products,
@@ -22,6 +23,8 @@ import {
   records,
   statuses,
   tasks,
+  assignLead as assignLeadService,
+  insertLead,
   type Db,
 } from '@gr8r/db';
 import { BUILTIN_FIELDS, buildRecordSchema, type EventVia, type FieldDef, type FieldType } from '@gr8r/shared';
@@ -34,6 +37,7 @@ const SYSTEM_TABLES: Record<string, AnyTable> = {
   company: companies as unknown as AnyTable,
   contact: contacts as unknown as AnyTable,
   product: products as unknown as AnyTable,
+  lead: leads as unknown as AnyTable,
   document: documents as unknown as AnyTable,
 };
 type Row = Record<string, unknown>;
@@ -46,6 +50,7 @@ const NULLABLE: Record<string, string[]> = {
   company: ['ownerId'],
   contact: ['ownerId', 'companyId'],
   product: [],
+  lead: ['ownerId'],
 };
 const NEVER_EMPTY = new Set(['title', 'name', 'status', 'stage', 'amount', 'price', 'purchasePrice', 'currency']);
 
@@ -317,4 +322,24 @@ export async function notifyMember(db: Db, ws: string, via: EventVia, a: { membe
   const id = await insertNotification(db, ws, { memberId: a.memberId, type: 'update', text: a.text, snippet: a.snippet, taskId, projectId });
   await recordEvent(db, { workspaceId: ws, type: 'notification.created', entity: 'notification', recordId: id, actorId: null, payload: { recipientId: a.memberId, via } });
   return { id };
+}
+
+/* ---------------- лиды (задача 1175) ---------------- */
+
+export async function createLead(
+  db: Db,
+  ws: string,
+  via: EventVia,
+  a: { name: string; companyName?: string; phone?: string; email?: string; comment?: string; source?: string; ownerId?: string | null },
+): Promise<{ id: string }> {
+  if (!a.name.trim()) throw new Error('Lead name is empty');
+  if (a.ownerId) await assertMember(db, ws, a.ownerId, 'Owner');
+  const row = await insertLead(db, { workspaceId: ws, memberId: null, via: via as unknown as Record<string, unknown> }, { ...a, name: a.name, ownerId: a.ownerId || null });
+  return { id: row.id };
+}
+
+export async function assignLead(db: Db, ws: string, via: EventVia, a: { leadId: string; mode: 'manual' | 'round_robin'; memberId?: string | null }): Promise<{ ownerId: string | null; changed: boolean }> {
+  const leadId = assertUuid(a.leadId, 'Lead');
+  if (a.memberId) assertUuid(a.memberId, 'Member');
+  return assignLeadService(db, { workspaceId: ws, memberId: null, via: via as unknown as Record<string, unknown> }, leadId, a.mode, a.memberId);
 }

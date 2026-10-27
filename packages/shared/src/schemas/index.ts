@@ -19,3 +19,5 @@ export * from './appointments';
 export * from './delivery';
 export * from './positions';
 export * from './payments';
+export * from './leads';
+export * from './secrets';

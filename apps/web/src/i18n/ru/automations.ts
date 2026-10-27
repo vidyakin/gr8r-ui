@@ -88,6 +88,25 @@ export const automations = {
         dueDate: 'Срок ГГГГ-ММ-ДД (необязательно)',
       },
     },
+    trigger_lead_created: {
+      label: 'Лид создан',
+      description: 'Запускается при создании лида: вручную, формой сайта или автоматизацией.',
+    },
+    trigger_lead_status_changed: {
+      label: 'Статус лида изменён',
+      description: 'Запускается при смене статуса лида, при желании — на конкретный статус.',
+      params: { statusId: 'Новый статус (необязательно)' },
+    },
+    action_create_lead: {
+      label: 'Создать лид',
+      description: 'Создаёт лид в первом статусе категории «новый».',
+      params: { name: 'Имя', companyName: 'Компания (необязательно)', phone: 'Телефон (необязательно)', email: 'Email (необязательно)', comment: 'Комментарий', source: 'Источник', ownerId: 'Ответственный (необязательно)' },
+    },
+    action_assign_lead: {
+      label: 'Назначить ответственного за лид',
+      description: 'Назначает ответственного за лид: вручную или по кругу среди менеджеров продаж.',
+      params: { leadId: 'ID лида', mode: 'Назначение', memberId: 'Участник (для ручного)' },
+    },
     action_notify: {
       label: 'Уведомить участника',
       description: 'Отправляет участнику воркспейса уведомление в приложении.',
@@ -330,6 +349,7 @@ export const automations = {
     chooseProject: 'Выберите проект',
     statusPlaceholder: 'Статус',
     memberPlaceholder: 'Участник',
+    anyStatus: 'Любой статус',
     chooseMember: 'Выберите участника',
     chooseGeneric: 'Выберите…',
     required: 'Обязательно',

@@ -16,7 +16,7 @@ export async function registerSystemEntities(db: Db, workspaceId: string): Promi
 }
 
 /** Таблица и колонка jsonb, где лежат значения сущности */
-export const SYSTEM_TABLES: Record<string, string> = { task: 'tasks', project: 'projects', deal: 'deals', company: 'companies', contact: 'contacts', product: 'products' };
+export const SYSTEM_TABLES: Record<string, string> = { task: 'tasks', project: 'projects', deal: 'deals', company: 'companies', contact: 'contacts', product: 'products', lead: 'leads' };
 
 /** Выражение для значения поля: число — numeric, остальное — текст (даты ISO сортируются как текст). Ключ проверяется по FIELD_KEY_RE, поэтому его можно вставлять в SQL */
 export function fieldExprSql(column: string, key: string, type: FieldType): string {
