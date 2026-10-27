@@ -47,3 +47,4 @@ export * from './repair';
 export * from './repeat-sales';
 export * from './sales-plan';
 export * from './appointments';
+export * from './delivery';

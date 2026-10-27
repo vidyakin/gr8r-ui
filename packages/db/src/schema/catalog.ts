@@ -1,7 +1,7 @@
 /* Каталог: единицы ОКЕИ, дерево категорий, характеристики категорий, товары и услуги.
    Таблицы арендатора (workspace_id + RLS); связи — составные внешние ключи (workspace_id, id). */
 import { sql } from 'drizzle-orm';
-import { boolean, check, foreignKey, index, integer, jsonb, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, foreignKey, index, integer, jsonb, numeric, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import type { FieldOptions } from '@gr8r/shared';
 import { archivedAt, createdAt, money, pk, updatedAt } from './columns';
 import { companies } from './crm';
@@ -103,6 +103,8 @@ export const products = pgTable(
     repeatSaleDays: integer('repeat_sale_days'),
     /** Длительность приёма, мин (задача 1171): услуга занимает столько слотов подряд; пусто — один слот */
     appointmentMinutes: integer('appointment_minutes'),
+    /** Вес, кг (задача 1100): вес доставки = Σ количество × вес по строкам товаров */
+    weightKg: numeric('weight_kg', { precision: 18, scale: 3 }),
     custom: jsonb('custom').$type<Record<string, unknown>>().notNull().default({}),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -122,6 +124,7 @@ export const products = pgTable(
     check('products_lead_chk', sql`${t.leadDays} >= 0`),
     check('products_appointment_minutes_chk', sql`${t.appointmentMinutes} is null or ${t.appointmentMinutes} between 5 and 600`),
     check('products_repeat_days_chk', sql`${t.repeatSaleDays} is null or ${t.repeatSaleDays} between 1 and 3650`),
+    check('products_weight_chk', sql`${t.weightKg} is null or ${t.weightKg} >= 0`),
     check('products_warranty_chk', sql`${t.warrantyMonths} is null or ${t.warrantyMonths} between 0 and 600`),
     uniqueIndex('products_ws_sku_uq').on(t.workspaceId, sql`lower(${t.sku})`).where(sql`${t.sku} <> ''`),
     uniqueIndex('products_ws_barcode_uq').on(t.workspaceId, t.barcode).where(sql`${t.barcode} <> ''`),

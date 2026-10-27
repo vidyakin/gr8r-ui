@@ -1,6 +1,6 @@
 /* Профили участников воркспейса и команды. Таблицы арендатора: workspace_id + RLS. */
 import { sql } from 'drizzle-orm';
-import { check, foreignKey, index, integer, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, foreignKey, index, integer, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { createdAt, pk, ts, updatedAt } from './columns';
 import { users } from './core';
 import { workCalendars } from './calendars';
@@ -45,6 +45,8 @@ export const members = pgTable(
     /** Рабочий график сотрудника (пусто — график воркспейса по умолчанию) */
     calendarId: uuid('calendar_id'),
     lastSeenAt: ts('last_seen_at'),
+    /** Курьер (задача 1100): видит и меняет только свои доставки, если не admin/owner */
+    isCourier: boolean('is_courier').notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

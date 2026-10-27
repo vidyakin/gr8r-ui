@@ -123,6 +123,16 @@ describe('seed', () => {
     expect(await count('investment_cost_items', w)).toBe(1);
     expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(46);
     expect(await count('documents', `${w} and based_on_id is not null`)).toBe(13);
+    // доставка (задача 1100): два способа, три доставки в разных статусах, расход «Доставка» у доставленной, два курьера, веса у двух товаров
+    expect(await count('delivery_methods', w)).toBe(2);
+    expect(await count('deliveries', w)).toBe(3);
+    expect(await count('deliveries', `${w} and status = 'delivered' and expense_amount is not null`)).toBe(1);
+    expect(await count('deliveries', `${w} and status = 'assigned'`)).toBe(1);
+    expect(await count('deliveries', `${w} and status = 'in_transit'`)).toBe(1);
+    expect(await count('members', `${w} and is_courier`)).toBe(2);
+    expect(await count('products', `${w} and weight_kg is not null`)).toBe(2);
+    expect(await count('cost_items', `${w} and system_key = 'dostavka'`)).toBe(1);
+    expect(await count('deliveries', `${w} and line_id is not null`)).toBe(1); // строка-услуга добавлена в черновик заказа
     expect(await count('documents', `${w} and type in ('stock_transfer','write_off','inventory_count')`)).toBe(8); // + брусья в цех и передача переработчику
     // производство: заказ на производство и выпуск со списанием материалов
     expect(await count('documents', `${w} and type = 'production_order'`)).toBe(5);
@@ -194,7 +204,7 @@ describe('seed', () => {
     expect(await count('document_states', w)).toBe(18);
     expect(await count('work_order_materials', w)).toBe(2); // + запчасть гарантийного ремонта
     expect(await count('work_order_assignments', w)).toBe(1);
-    expect(await count('cost_items', w)).toBe(15); // 7 системных (с «Гарантийный ремонт») + электроэнергия и аренда демо + 6 статей инвестпроектов
+    expect(await count('cost_items', w)).toBe(16); // 8 системных (с «Гарантийный ремонт» и «Доставка») + электроэнергия и аренда демо + 6 статей инвестпроектов
     expect(await count('stock_balances', `${w} and qty > 0`)).toBe(29); // + смартфоны на основном складе
     // резервы: заказ покупателя, продукция под заказ и материалы заказов на производство
     expect(await count('stock_reservations', w)).toBe(11); // + резерв под заказ окна

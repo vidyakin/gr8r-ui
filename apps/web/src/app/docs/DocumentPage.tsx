@@ -20,6 +20,7 @@ import { CounterpartyPicker, ProductPicker } from './pickers';
 import { useBillingBreakdown, useContracts } from './billing-data';
 import { WorkOrderPanel } from './work-orders';
 import { SerialsButton } from './serials-ui';
+import { DeliveryTab } from './DeliveryTab';
 import { DocTabs, type DocTab } from './doc-tabs';
 import { DocInvestmentField } from '../finance/DocInvestmentField';
 import { hasKey, t, useT, type TKey } from '@/i18n';
@@ -804,6 +805,11 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             </table>
           </section>
       ),
+    },
+    (doc.type === 'customer_order' || doc.type === 'realization' || doc.type === 'work_order') && {
+      id: 'delivery',
+      label: t('delivery.tab.title'),
+      content: <DeliveryTab doc={doc} />,
     },
     hasWaste && (editable || wasteRows.length > 0) && {
       id: 'waste',

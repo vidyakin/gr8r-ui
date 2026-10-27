@@ -91,6 +91,8 @@ export const productCreate = z.object({
   /** Повторить продажу через, дн. (задача 1133; пусто — нет): после продажи у компании ставится дата следующего контакта */
   repeatSaleDays: z.number().int().min(1).max(3650).nullish(),
   appointmentMinutes: z.number().int().min(5).max(600).nullish(),
+  /** Вес, кг (задача 1100): вес доставки = Σ количество × вес */
+  weightKg: decimal.nullish().refine(v => v == null || Number(v) >= 0, 'Expected a non-negative weight'),
   custom: customData.optional(),
 });
 export const productUpdate = toPatch(productCreate.omit({ id: true }));

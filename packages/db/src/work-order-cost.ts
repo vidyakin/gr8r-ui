@@ -8,6 +8,7 @@ import { computeWorkOrderCost, dec, div, fmt, marginPct, mul, type WorkOrderCost
 import type { Db } from './client';
 import { companies, documentLines, documents, members, operations, workOrderKinds, otherCostLines, productionCostClosings, products, stockBalances, stockMoves, tasks, timeLogs, workCenters, workOrderAssignments, workOrderMaterials } from './schema';
 import { workspaceTimeZone } from './planning';
+import { deliveredCostByWorkOrder } from './delivery';
 
 export interface WorkOrderCostData {
   documentId: string;
@@ -144,6 +145,8 @@ export async function loadWorkOrderCosts(db: Db, workspaceId: string, documentId
     .where(and(eq(otherCostLines.workspaceId, workspaceId), inArray(otherCostLines.workOrderId, ids), eq(documents.status, 'posted')))
     .groupBy(otherCostLines.workOrderId);
   const otherBy = new Map(others.map(o => [o.workOrderId!, o.amount]));
+  // доставленные доставки заказ-наряда (задача 1100) — тоже прочие затраты
+  for (const [id, cost] of await deliveredCostByWorkOrder(db, workspaceId, ids)) otherBy.set(id, fmt(dec(otherBy.get(id) ?? '0') + dec(cost), 2));
   const indirect = opts.withIndirect === false ? new Map<string, { amount: Dec; months: string[] }>() : await loadIndirect(db, workspaceId);
 
   for (const d of docs) {

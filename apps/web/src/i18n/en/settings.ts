@@ -39,6 +39,7 @@ export const settings = {
       warehouses: 'Warehouses',
       costItems: 'Cost items',
       workOrders: 'Work order kinds',
+      deliveryMethods: 'Delivery methods',
       notifEmail: 'Email',
       notifPush: 'Push',
       notifMentions: 'Mentions',

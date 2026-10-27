@@ -74,6 +74,8 @@ export interface Product {
   repeatSaleDays: number | null;
   /** Длительность приёма, мин (задача 1171) */
   appointmentMinutes: number | null;
+  /** Вес, кг (задача 1100) */
+  weightKg: string | null;
   custom: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;

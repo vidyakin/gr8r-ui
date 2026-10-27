@@ -34,6 +34,7 @@ import {
   Workflow,
   Boxes,
   PackageCheck,
+  Truck,
   ReceiptText,
   Split,
   ShoppingCart,
@@ -115,6 +116,8 @@ export const SECTIONS = {
   inUse: { path: '/stock/in-use', name: 'In use', icon: PackageCheck },
   serials: { path: '/serials', name: 'Serial numbers', icon: ScanBarcode },
   repairItems: { path: '/repair-items', name: 'Items in repair', icon: Wrench },
+  deliveries: { path: '/deliveries', name: 'Deliveries', icon: Truck },
+  myDeliveries: { path: '/deliveries/mine', name: 'My deliveries', icon: PackageCheck },
   // Договоры и биллинг
   contracts: { path: '/contracts', name: 'Contracts', icon: FileSignature },
   tariffPlans: { path: '/tariff-plans', name: 'Tariff plans', icon: ListChecks },
@@ -168,7 +171,7 @@ export const NAV_GROUPS = {
   },
   services: {
     icon: BriefcaseBusiness,
-    items: [{ id: 'workOrders' }, { id: 'repairItems' }, { id: 'servicesTimesheet' }, { id: 'servicesPlanner' }, { id: 'servicesReports' }, { id: 'contracts' }, { id: 'tariffPlans' }, { id: 'billing' }],
+    items: [{ id: 'workOrders' }, { id: 'repairItems' }, { id: 'deliveries' }, { id: 'myDeliveries' }, { id: 'servicesTimesheet' }, { id: 'servicesPlanner' }, { id: 'servicesReports' }, { id: 'contracts' }, { id: 'tariffPlans' }, { id: 'billing' }],
   },
   finance: {
     icon: Landmark,

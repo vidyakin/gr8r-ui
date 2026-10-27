@@ -59,6 +59,7 @@
 - [Серийные номера, ремонт и гарантия](architecture/serials-repair.md)
 - [Повторные продажи и план продаж](architecture/repeat-sales.md)
 - [Запись клиентов на приём](architecture/appointments.md)
+- [Доставка](architecture/delivery.md)
 
 ## Финансы
 

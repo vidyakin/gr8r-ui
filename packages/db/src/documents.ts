@@ -45,6 +45,7 @@ import { checkParamValues, loadCategoryAttributeDefs } from './specs';
 import { uuidv7 } from './uuid';
 import { saveSerials, checkInventorySerials, lineSerialsView } from './serials';
 import { applySaleNextContact } from './repeat-sales';
+import { inheritDelivery } from './delivery';
 import { repairPrintData, syncWarrantyKind, workOrderKindType } from './repair';
 
 export interface DocCtx {
@@ -79,6 +80,7 @@ const SYSTEM_COST_ITEMS: { key: string; name: string; kind: 'expense' | 'income'
   { key: 'v_expluaciatsiyu', name: 'Передача в эксплуатацию', kind: 'expense' },
   { key: 'izlishki', name: 'Излишки', kind: 'income' },
   { key: 'garantiynyy_remont', name: 'Гарантийный ремонт', kind: 'expense' },
+  { key: 'dostavka', name: 'Доставка', kind: 'expense' },
 ];
 
 /** Статьи затрат и доходов по умолчанию: добавляются один раз, свои статьи воркспейс заводит сам */
@@ -890,6 +892,8 @@ export async function createBasedOn(db: Db, ctx: DocCtx, sourceId: string, targe
   await db.update(documents).set({ basedOnId: sourceId }).where(eq(documents.id, id));
   const created = await linesOf(db, id);
   for (const [i, l] of created.entries()) await db.update(documentLines).set({ sourceLineId: meta[i]!.source, originLineId: meta[i]!.origin }).where(eq(documentLines.id, l.id));
+  // реализация на основании заказа наследует его доставку (задача 1100)
+  if (srcType === 'customer_order' && target === 'realization') await inheritDelivery(db, ctx, sourceId, id);
   return id;
 }
 

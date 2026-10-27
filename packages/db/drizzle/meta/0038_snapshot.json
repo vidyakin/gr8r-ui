@@ -1,6 +1,6 @@
 {
-  "id": "b1d3a8bc-f694-40b4-a500-d7f66b547efb",
-  "prevId": "ec66e8b9-c43b-4f56-b502-9ac14abb2e0e",
+  "id": "90daafe1-5e3f-4507-9e9e-7160a23f3f1b",
+  "prevId": "98c1fb2d-8626-44e3-be32-ea2e84e53b67",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -667,6 +667,13 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
+        },
+        "is_courier": {
+          "name": "is_courier",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "created_at": {
           "name": "created_at",
@@ -5020,6 +5027,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "weight_kg": {
+          "name": "weight_kg",
+          "type": "numeric(18, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "custom": {
           "name": "custom",
           "type": "jsonb",
@@ -5279,6 +5292,10 @@
         "products_repeat_days_chk": {
           "name": "products_repeat_days_chk",
           "value": "\"products\".\"repeat_sale_days\" is null or \"products\".\"repeat_sale_days\" between 1 and 3650"
+        },
+        "products_weight_chk": {
+          "name": "products_weight_chk",
+          "value": "\"products\".\"weight_kg\" is null or \"products\".\"weight_kg\" >= 0"
         },
         "products_warranty_chk": {
           "name": "products_warranty_chk",
@@ -21487,6 +21504,567 @@
         "specialist_schedules_range_chk": {
           "name": "specialist_schedules_range_chk",
           "value": "\"specialist_schedules\".\"day_start_min\" >= 0 and \"specialist_schedules\".\"day_end_min\" <= 1440 and \"specialist_schedules\".\"day_end_min\" > \"specialist_schedules\".\"day_start_min\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.deliveries": {
+      "name": "deliveries",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "uuid_generate_v7()"
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "document_id": {
+          "name": "document_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "origin_document_id": {
+          "name": "origin_document_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "method_id": {
+          "name": "method_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "contact_name": {
+          "name": "contact_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "contact_phone": {
+          "name": "contact_phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "delivery_date": {
+          "name": "delivery_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "window_from": {
+          "name": "window_from",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "window_to": {
+          "name": "window_to",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "distance_km": {
+          "name": "distance_km",
+          "type": "numeric(12, 3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "weight_kg": {
+          "name": "weight_kg",
+          "type": "numeric(18, 3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "price": {
+          "name": "price",
+          "type": "numeric(18, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "our_cost": {
+          "name": "our_cost",
+          "type": "numeric(18, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "courier_member_id": {
+          "name": "courier_member_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "carrier_company_id": {
+          "name": "carrier_company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'new'"
+        },
+        "comment": {
+          "name": "comment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "line_id": {
+          "name": "line_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expense_cost_item_id": {
+          "name": "expense_cost_item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expense_amount": {
+          "name": "expense_amount",
+          "type": "numeric(18, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expensed_at": {
+          "name": "expensed_at",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "delivered_at": {
+          "name": "delivered_at",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "deliveries_document_uq": {
+          "name": "deliveries_document_uq",
+          "columns": [
+            {
+              "expression": "document_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "deliveries_date_idx": {
+          "name": "deliveries_date_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "delivery_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "deliveries_courier_idx": {
+          "name": "deliveries_courier_idx",
+          "columns": [
+            {
+              "expression": "courier_member_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "deliveries_method_idx": {
+          "name": "deliveries_method_idx",
+          "columns": [
+            {
+              "expression": "method_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "deliveries_workspace_id_workspaces_id_fk": {
+          "name": "deliveries_workspace_id_workspaces_id_fk",
+          "tableFrom": "deliveries",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "deliveries_document_fk": {
+          "name": "deliveries_document_fk",
+          "tableFrom": "deliveries",
+          "tableTo": "documents",
+          "columnsFrom": [
+            "workspace_id",
+            "document_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "deliveries_origin_fk": {
+          "name": "deliveries_origin_fk",
+          "tableFrom": "deliveries",
+          "tableTo": "documents",
+          "columnsFrom": [
+            "workspace_id",
+            "origin_document_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "deliveries_method_fk": {
+          "name": "deliveries_method_fk",
+          "tableFrom": "deliveries",
+          "tableTo": "delivery_methods",
+          "columnsFrom": [
+            "workspace_id",
+            "method_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "deliveries_courier_fk": {
+          "name": "deliveries_courier_fk",
+          "tableFrom": "deliveries",
+          "tableTo": "members",
+          "columnsFrom": [
+            "workspace_id",
+            "courier_member_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "deliveries_carrier_fk": {
+          "name": "deliveries_carrier_fk",
+          "tableFrom": "deliveries",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "workspace_id",
+            "carrier_company_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "deliveries_line_fk": {
+          "name": "deliveries_line_fk",
+          "tableFrom": "deliveries",
+          "tableTo": "document_lines",
+          "columnsFrom": [
+            "workspace_id",
+            "line_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "deliveries_expense_item_fk": {
+          "name": "deliveries_expense_item_fk",
+          "tableFrom": "deliveries",
+          "tableTo": "cost_items",
+          "columnsFrom": [
+            "workspace_id",
+            "expense_cost_item_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "deliveries_ws_id_uq": {
+          "name": "deliveries_ws_id_uq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "workspace_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "deliveries_status_chk": {
+          "name": "deliveries_status_chk",
+          "value": "\"deliveries\".\"status\" in ('new','assigned','in_transit','delivered','failed')"
+        },
+        "deliveries_amounts_chk": {
+          "name": "deliveries_amounts_chk",
+          "value": "\"deliveries\".\"price\" >= 0 and \"deliveries\".\"our_cost\" >= 0 and \"deliveries\".\"distance_km\" >= 0 and \"deliveries\".\"weight_kg\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.delivery_methods": {
+      "name": "delivery_methods",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "uuid_generate_v7()"
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'own_courier'"
+        },
+        "product_id": {
+          "name": "product_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "carrier_company_id": {
+          "name": "carrier_company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "client_rate": {
+          "name": "client_rate",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{\"base\":\"0\",\"perKm\":\"0\",\"perKg\":\"0\",\"min\":\"0\"}'::jsonb"
+        },
+        "cost_rate": {
+          "name": "cost_rate",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{\"base\":\"0\",\"perKm\":\"0\",\"perKg\":\"0\",\"min\":\"0\"}'::jsonb"
+        },
+        "free_from": {
+          "name": "free_from",
+          "type": "numeric(18, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "delivery_methods_ws_name_uq": {
+          "name": "delivery_methods_ws_name_uq",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lower(\"name\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"delivery_methods\".\"archived_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "delivery_methods_workspace_id_workspaces_id_fk": {
+          "name": "delivery_methods_workspace_id_workspaces_id_fk",
+          "tableFrom": "delivery_methods",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "delivery_methods_product_fk": {
+          "name": "delivery_methods_product_fk",
+          "tableFrom": "delivery_methods",
+          "tableTo": "products",
+          "columnsFrom": [
+            "workspace_id",
+            "product_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "delivery_methods_carrier_fk": {
+          "name": "delivery_methods_carrier_fk",
+          "tableFrom": "delivery_methods",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "workspace_id",
+            "carrier_company_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "delivery_methods_ws_id_uq": {
+          "name": "delivery_methods_ws_id_uq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "workspace_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "delivery_methods_kind_chk": {
+          "name": "delivery_methods_kind_chk",
+          "value": "\"delivery_methods\".\"kind\" in ('own_courier','courier_service','third_party')"
+        },
+        "delivery_methods_free_chk": {
+          "name": "delivery_methods_free_chk",
+          "value": "\"delivery_methods\".\"free_from\" is null or \"delivery_methods\".\"free_from\" >= 0"
         }
       },
       "isRLSEnabled": false
