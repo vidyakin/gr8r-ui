@@ -69,6 +69,10 @@ export interface NodeRuntime {
   addComment(a: { entity: string; recordId: string; body: string }): Promise<{ id: string }>;
   notify(a: { memberId: string; text: string; snippet?: string; taskId?: string | null; projectId?: string | null }): Promise<{ id: string }>;
   http(req: HttpRequest): Promise<HttpResult>;
+  /** Создать лид (задача 1175); статус по умолчанию — первый статус категории «new» */
+  createLead(a: { name: string; companyName?: string; phone?: string; email?: string; comment?: string; source?: string; ownerId?: string | null }): Promise<{ id: string }>;
+  /** Назначить ответственного за лид: вручную или по кругу среди сотрудников с функцией sales_manager */
+  assignLead(a: { leadId: string; mode: 'manual' | 'round_robin'; memberId?: string | null }): Promise<{ ownerId: string | null; changed: boolean }>;
 }
 
 export interface NodeResult {
@@ -111,8 +115,8 @@ export const defineNode = <P extends z.ZodType>(def: NodeDef<P>): AnyNodeDef => 
 export interface UiHint {
   /** entity — выбор сущности; field — поле сущности из параметра `dependsOn`; member — участник; project — проект;
       textarea — многострочный текст; value — значение поля выбранной сущности (`dependsOn` — параметр с полем);
-      cron — расписание; url — адрес */
-  ui?: 'entity' | 'field' | 'member' | 'project' | 'textarea' | 'value' | 'cron' | 'url';
+      cron — расписание; url — адрес; lead_status — статус лида */
+  ui?: 'entity' | 'field' | 'member' | 'project' | 'textarea' | 'value' | 'cron' | 'url' | 'lead_status';
   /** Имя соседнего параметра, от которого зависит выбор (сущность для поля, поле для значения) */
   dependsOn?: string;
   /** Для ui: 'field' — показывать только поля, которые можно менять */
