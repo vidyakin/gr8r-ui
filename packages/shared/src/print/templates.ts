@@ -55,7 +55,7 @@ function numberTitle(d: PrintData, title: string): string {
   return d.number ? `${title} № ${esc(d.number)} от ${esc(dateRu(d.date))}` : `${title} (черновик, номер будет присвоен при проведении) от ${esc(dateRu(d.date))}`;
 }
 
-const BASE_CSS = `
+export const BASE_CSS = `
 *{box-sizing:border-box}
 html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 body{margin:0;background:#fff;color:#000;font:11px/1.35 "Liberation Sans",Arial,Helvetica,sans-serif}
@@ -590,5 +590,8 @@ export function renderPrintForm(form: PrintForm, data: PrintData): string {
       return repairReceiptForm(data);
     case 'repair_return':
       return repairReturnForm(data);
+    case 'ko1':
+    case 'ko2':
+      throw new Error('Cash orders are rendered by renderCashOrder');
   }
 }

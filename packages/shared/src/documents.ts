@@ -6,15 +6,15 @@ import type { VatRate } from './constants';
 
 /* ---------------- типы и статусы ---------------- */
 
-export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'inventory_count', 'production_order', 'production', 'work_order', 'piecework_order', 'other_costs', 'material_allocation', 'tolling_receipt', 'tolling_report', 'tolling_return', 'sales_plan', 'service_day'] as const;
+export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'inventory_count', 'production_order', 'production', 'work_order', 'piecework_order', 'other_costs', 'material_allocation', 'tolling_receipt', 'tolling_report', 'tolling_return', 'sales_plan', 'service_day', 'cash_receipt', 'cash_payment', 'bank_receipt', 'bank_payment', 'advance_report'] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 export const DOCUMENT_STATUSES = ['draft', 'posted', 'cancelled'] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
-export const DOCUMENT_GROUPS = ['sales', 'purchases', 'stock', 'production', 'tolling'] as const;
+export const DOCUMENT_GROUPS = ['sales', 'purchases', 'stock', 'production', 'tolling', 'cash'] as const;
 export type DocumentGroup = (typeof DOCUMENT_GROUPS)[number];
-export const PRINT_FORMS = ['invoice', 'upd', 'act', 'torg12', 'inv3', 'torg16', 'torg13', 'work_order', 'piecework', 'warranty_card', 'repair_receipt', 'repair_return'] as const;
+export const PRINT_FORMS = ['invoice', 'upd', 'act', 'torg12', 'inv3', 'torg16', 'torg13', 'work_order', 'piecework', 'warranty_card', 'repair_receipt', 'repair_return', 'ko1', 'ko2'] as const;
 export type PrintForm = (typeof PRINT_FORMS)[number];
-export const PRINT_FORM_LABELS: Record<PrintForm, string> = { invoice: 'Invoice for payment', upd: 'UPD', act: 'Service act', torg12: 'TORG-12', inv3: 'INV-3 (inventory list)', torg16: 'TORG-16 (write-off act)', torg13: 'TORG-13 (internal transfer)', work_order: 'Work order (job sheet)', piecework: 'Piecework order', warranty_card: 'Warranty card', repair_receipt: 'Repair acceptance act', repair_return: 'Repair return act' };
+export const PRINT_FORM_LABELS: Record<PrintForm, string> = { invoice: 'Invoice for payment', upd: 'UPD', act: 'Service act', torg12: 'TORG-12', inv3: 'INV-3 (inventory list)', torg16: 'TORG-16 (write-off act)', torg13: 'TORG-13 (internal transfer)', work_order: 'Work order (job sheet)', piecework: 'Piecework order', warranty_card: 'Warranty card', repair_receipt: 'Repair acceptance act', repair_return: 'Repair return act', ko1: 'Cash receipt order (KO-1)', ko2: 'Cash payment order (KO-2)' };
 
 /** Вид склада: обычный склад, цех участка и служебный склад «в пути» */
 export const WAREHOUSE_KINDS = ['warehouse', 'workshop', 'transit'] as const;
@@ -23,7 +23,7 @@ export type WarehouseKind = (typeof WAREHOUSE_KINDS)[number];
 export const COST_ITEM_KINDS = ['expense', 'income'] as const;
 export type CostItemKind = (typeof COST_ITEM_KINDS)[number];
 /** Вид операции внутреннего документа */
-export const DOCUMENT_OPERATIONS = ['transfer', 'in_transit', 'to_operation', 'from_operation', 'assembly', 'disassembly', 'processing'] as const;
+export const DOCUMENT_OPERATIONS = ['transfer', 'in_transit', 'to_operation', 'from_operation', 'assembly', 'disassembly', 'processing', 'from_customer', 'supplier_refund', 'from_accountable', 'other_income', 'to_supplier', 'customer_refund', 'to_accountable', 'other_expense', 'money_transfer'] as const;
 export type DocumentOperation = (typeof DOCUMENT_OPERATIONS)[number];
 /** Виды операции производственных документов: сборка и разборка */
 export const PRODUCTION_OPERATIONS = ['assembly', 'disassembly'] as const;
@@ -148,6 +148,12 @@ export const DOCUMENT_META: Record<DocumentType, DocumentTypeMeta> = {
   // оказанные услуги за день: один на специалиста, строки — клиент, услуга, время; проведение создаёт продажу по каждому клиенту
   service_day: { label: 'Services of the day', group: 'sales', prefix: 'ОУ', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true, own: true },
   sales_plan: { label: 'Sales plan', group: 'sales', prefix: 'ПП', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true, section: true },
+  // оплаты (задача 1174б): деньги по кассам и счетам; строки — расшифровка суммы в payment_lines, склада и товаров нет
+  cash_receipt: { label: 'Cash receipt', group: 'cash', prefix: 'ПКО', stock: null, party: null, basedOn: [], fulfils: false, forms: ['ko1'], ownLines: true, section: true },
+  cash_payment: { label: 'Cash payment', group: 'cash', prefix: 'РКО', stock: null, party: null, basedOn: [], fulfils: false, forms: ['ko2'], ownLines: true, section: true },
+  bank_receipt: { label: 'Bank receipt', group: 'cash', prefix: 'ПС', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true, section: true },
+  bank_payment: { label: 'Bank payment', group: 'cash', prefix: 'СС', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true, section: true },
+  advance_report: { label: 'Advance report', group: 'cash', prefix: 'АО', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true, section: true },
   other_costs: { label: 'Other costs', group: 'production', prefix: 'ПЗ', stock: null, party: null, basedOn: ['work_order'], fulfils: false, forms: [], ownLines: true },
   // распределение материалов по итогам смены: фактический расход делится между выпусками участка в режиме «по итогам смены»
   material_allocation: { label: 'Material allocation', group: 'production', prefix: 'РМ', stock: null, party: null, basedOn: [], fulfils: false, forms: [], stockRole: 'out' },
@@ -209,6 +215,11 @@ export const DOCUMENT_LABELS_RU: Record<DocumentType, string> = {
   sales_plan: 'План продаж',
   service_day: 'Оказанные услуги за день',
   material_allocation: 'Распределение материалов',
+  cash_receipt: 'Приходный кассовый ордер',
+  cash_payment: 'Расходный кассовый ордер',
+  bank_receipt: 'Поступление на расчётный счёт',
+  bank_payment: 'Списание с расчётного счёта',
+  advance_report: 'Авансовый отчёт',
 };
 
 export const documentTypesOf = (group: DocumentGroup): DocumentType[] => DOCUMENT_TYPES.filter(t => DOCUMENT_META[t].group === group && !DOCUMENT_META[t].section);

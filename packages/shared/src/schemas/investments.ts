@@ -32,6 +32,8 @@ export const investmentCreate = z.object({
   comment: head.comment.default(''),
   lines: z.array(investmentPlanLineInput).max(2000).default([]),
   costItemIds: z.array(uuid).max(200).default([]),
+  /** База факта: начисление (документы) или оплаты (движения денег) */
+  factBasis: z.enum(['accrual', 'payments']).default('accrual'),
 });
 
 export const investmentUpdate = z.object({
@@ -46,6 +48,7 @@ export const investmentUpdate = z.object({
   comment: head.comment.optional(),
   lines: z.array(investmentPlanLineInput).max(2000).optional(),
   costItemIds: z.array(uuid).max(200).optional(),
+  factBasis: z.enum(['accrual', 'payments']).optional(),
 });
 
 export const investmentQuery = listQuery.extend({ status: z.enum(INVESTMENT_STATUSES).optional() });

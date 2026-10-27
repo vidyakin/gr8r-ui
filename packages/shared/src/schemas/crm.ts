@@ -21,6 +21,8 @@ export const companyCreate = z.object({
   legalAddress: z.string().trim().max(500).default(''),
   actualAddress: z.string().trim().max(500).default(''),
   /** Следующий контакт (задача 1133): дата и заметка; пусто — контакта не запланировано */
+  /** Взаиморасчёты: по документам или по контрагенту в целом (задача 1174б) */
+  settlementMode: z.enum(['by_documents', 'by_counterparty']).default('by_documents'),
   nextContactDate: isoDate.nullish(),
   nextContactNote: z.string().trim().max(500).default(''),
   custom: customData.optional(),
