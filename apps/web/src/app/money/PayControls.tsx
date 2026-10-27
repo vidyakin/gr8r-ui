@@ -11,6 +11,24 @@ import { usePaymentApi, usePaymentStatuses } from './data';
 
 const TONE = { unpaid: 'gray', partial: 'amber', paid: 'green' } as const;
 
+/** Значок оплаты документа: не оплачен / частично / оплачен / аванс (оплата до отгрузки). Данные — из списка или карточки, без запроса на документ */
+export function PayBadge({ s, compact }: { s: { state: 'unpaid' | 'partial' | 'paid'; paid: string; obligation: string; prepaid?: boolean; mode?: string }; compact?: boolean }) {
+  const tt = useT();
+  const label = s.prepaid
+    ? s.state === 'paid' || compact
+      ? tt('money.status.prepaid')
+      : tt('money.status.prepaidOf', { paid: fmtAmount(s.paid), total: fmtAmount(s.obligation) })
+    : s.state === 'partial' && !compact
+      ? tt('money.status.paidOf', { paid: fmtAmount(s.paid), total: fmtAmount(s.obligation) })
+      : tt(`money.status.${s.state}`);
+  return (
+    <Badge tone={s.prepaid ? 'accent' : TONE[s.state]} dot>
+      {label}
+      {!compact && s.mode === 'by_counterparty' ? ` (${tt('money.status.byCounterparty')})` : ''}
+    </Badge>
+  );
+}
+
 export function PayControls({ docId, type, status }: { docId: string; type: string; status: string }) {
   const tt = useT();
   const canWrite = useCanWrite();
@@ -46,12 +64,7 @@ export function PayControls({ docId, type, status }: { docId: string; type: stri
   };
   return (
     <>
-      {!isReturn && (
-        <Badge tone={TONE[s.state]} dot>
-          {s.state === 'partial' ? tt('money.status.paidOf', { paid: fmtAmount(s.paid), total: fmtAmount(s.obligation) }) : tt(`money.status.${s.state}`)}
-          {s.mode === 'by_counterparty' ? ` (${tt('money.status.byCounterparty')})` : ''}
-        </Badge>
-      )}
+      {!isReturn && <PayBadge s={s} />}
       {canWrite && !isReturn && s.side === 'customer' && Number(s.remaining) > 0 && (
         <Button variant="ghost" onClick={() => void payLink()}>
           <Link2 size={14} />

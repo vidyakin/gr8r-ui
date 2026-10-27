@@ -65,6 +65,7 @@ import { BankImportPage } from './money/BankImportPage';
 import { PaymentPage } from './money/PaymentPage';
 import { PaymentCalendarPage } from './money/CalendarPage';
 import { RequestPage, RequestsPage } from './money/RequestPages';
+import { OpeningPage, OpeningsPage } from './money/OpeningPages';
 import { BalancesPage, CashFlowPage, DebtsPage, MoneyReferencesPage } from './money/ReportPages';
 import { PlanFactPage } from './finance/PlanFactPage';
 import { JournalPage } from './docs/JournalPage';
@@ -159,6 +160,8 @@ export const router = createHashRouter([
       { path: SECTIONS.moneyCalendar.path, element: <PaymentCalendarPage /> },
       { path: SECTIONS.moneyRequests.path, element: <RequestsPage /> },
       { path: `${SECTIONS.moneyRequests.path}/:id`, element: <RequestPage /> },
+      { path: SECTIONS.moneyOpening.path, element: <OpeningsPage /> },
+      { path: `${SECTIONS.moneyOpening.path}/:id`, element: <OpeningPage /> },
       { path: SECTIONS.moneyBalances.path, element: <BalancesPage /> },
       { path: SECTIONS.moneyCashFlow.path, element: <CashFlowPage /> },
       { path: SECTIONS.moneyReceivables.path, element: <DebtsPage side="customer" /> },

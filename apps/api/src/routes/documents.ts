@@ -27,6 +27,7 @@ import {
   defaultPostingCost,
   deleteDocument,
   documentCosts,
+  paymentStatuses,
   documentDetail,
   documentFiles,
   documents,
@@ -75,6 +76,7 @@ import {
   idParam,
   inventorySettingsUpdate,
   isCashDocType,
+  PAYABLE_TYPES,
   organizationCreate,
   organizationQuery,
   organizationUpdate,
@@ -314,7 +316,14 @@ export const documentRoutes = new Hono<AppEnv>()
     // внутренние документы: стоимость по себестоимости (сумма qty × cost движений) — её видят только admin и owner
     const internal = items.filter(d => isInternal(d.type));
     const costs = internal.length ? await documentCosts(ctx.db, internal.map(d => d.id)) : new Map<string, string>();
-    const withCost = items.map(d => (isInternal(d.type) ? { ...d, costTotal: canSeeCost(ctx.role) ? (costs.get(d.id) ?? '0.00') : null } : d));
+    // оплата проведённых документов продаж и закупок страницы — тем же пакетным расчётом, что и в карточке (без запроса на документ)
+    const payable = items.filter(d => d.status === 'posted' && (PAYABLE_TYPES as string[]).includes(d.type) && d.type !== 'customer_return' && d.type !== 'supplier_return').map(d => d.id);
+    const statuses = payable.length ? await paymentStatuses(ctx.db, payable) : {};
+    const withCost = items.map(d => {
+      const st = statuses[d.id];
+      const payment = st ? { state: st.state, paid: st.paid, obligation: st.obligation, remaining: st.remaining, prepaid: st.prepaid } : null;
+      return isInternal(d.type) ? { ...d, payment, costTotal: canSeeCost(ctx.role) ? (costs.get(d.id) ?? '0.00') : null } : { ...d, payment };
+    });
     // сумма стоимости по выборке: у перемещения берётся расходная сторона (иначе приход и расход сократились бы)
     const costRows = internal.length
       ? await ctx.db.execute<{ cost: string }>(sql`

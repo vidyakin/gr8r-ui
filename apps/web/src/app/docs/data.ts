@@ -67,6 +67,8 @@ export interface DocLine {
 }
 
 export interface DocListItem {
+  /** Оплата проведённого документа продаж или закупок (приходит списком, без запроса на документ) */
+  payment?: { state: 'unpaid' | 'partial' | 'paid'; paid: string; obligation: string; remaining: string; prepaid: boolean } | null;
   id: string;
   type: DocumentType;
   number: string | null;

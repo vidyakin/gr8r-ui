@@ -313,7 +313,7 @@ async function investmentCashFact(db: Db, p: Pick<ProjectRow, 'id' | 'startDate'
     .where(sql`(${cashMoves.investmentProjectId} = ${p.id} or (${cashMoves.investmentProjectId} is null and ${cashFlowItems.investmentProjectId} = ${p.id} and ${cashMoves.date} >= ${p.startDate}))`);
   const out: FactEntry[] = [];
   for (const r of rows) {
-    if (r.itemKey && ['transfer_in', 'transfer_out', 'accountable_in', 'accountable_out'].includes(r.itemKey)) continue;
+    if (r.itemKey && ['transfer_in', 'transfer_out', 'accountable_in', 'accountable_out', 'opening_balance'].includes(r.itemKey)) continue;
     // у закрытого проекта по статье идут только оплаты, проведённые до закрытия
     if (!r.viaField && p.closedAt && r.postedAt && r.postedAt > p.closedAt) continue;
     out.push({ documentId: r.documentId, type: r.type, number: r.number, date: r.date, costItemId: r.costItemId, direction: r.direction as 'in' | 'out', amount: fmt(dec(r.amount), 2), via: r.viaField ? 'field' : 'cost_item' });

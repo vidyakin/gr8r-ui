@@ -10,8 +10,8 @@ export type PaymentDocType = (typeof PAYMENT_DOC_TYPES)[number];
 export const isPaymentType = (t: string): t is PaymentDocType => (PAYMENT_DOC_TYPES as readonly string[]).includes(t);
 export const isReceiptType = (t: PaymentDocType): boolean => t === 'cash_receipt' || t === 'bank_receipt';
 export const accountKindOfType = (t: PaymentDocType): 'cash' | 'bank' => (t === 'cash_receipt' || t === 'cash_payment' ? 'cash' : 'bank');
-/** Документы, у которых есть строки payment_lines */
-export const isCashDocType = (t: string): boolean => isPaymentType(t) || t === 'advance_report' || t === 'payment_request';
+/** Документы раздела «Деньги» (свои маршруты, не общий CRUD документов): оплаты, авансовый отчёт, заявка на расход, ввод остатков */
+export const isCashDocType = (t: string): boolean => isPaymentType(t) || t === 'advance_report' || t === 'payment_request' || t === 'opening_balance';
 
 /** Операции поступлений и выплат (documents.operation) */
 export const RECEIPT_OPERATIONS = ['from_customer', 'supplier_refund', 'from_accountable', 'other_income'] as const;
@@ -91,6 +91,8 @@ export const SYSTEM_CASH_FLOW_ITEMS: SystemCashFlowItem[] = [
   { key: 'transfer_out', name: 'Перемещение денег', kind: 'expense', group: 'operating', internal: true },
   { key: 'accountable_in', name: 'Подотчёт', kind: 'income', group: 'operating', internal: true },
   { key: 'accountable_out', name: 'Подотчёт', kind: 'expense', group: 'operating', internal: true },
+  // начальные остатки касс и счетов: входят в остатки, но не в обороты «Движения денег»
+  { key: 'opening_balance', name: 'Начальные остатки', kind: 'income', group: 'operating', internal: true },
 ];
 export const INTERNAL_CASH_FLOW_KEYS = SYSTEM_CASH_FLOW_ITEMS.filter(i => i.internal).map(i => i.key);
 
@@ -215,3 +217,20 @@ export function paymentState(obligationAmount: Dec, paid: Dec): PaymentState {
 }
 
 export const PAYMENT_STATE_LABELS_RU: Record<PaymentState, string> = { unpaid: 'Не оплачен', partial: 'Оплачен частично', paid: 'Оплачен' };
+
+/* ---------------- ввод начальных остатков ---------------- */
+
+/** Строка остатков: касса или счёт организации; долг и аванс контрагента (покупатель — нам, поставщик — мы) */
+export const OPENING_LINE_KINDS = ['cash', 'bank', 'customer_debt', 'customer_advance', 'supplier_debt', 'supplier_advance'] as const;
+export type OpeningLineKind = (typeof OPENING_LINE_KINDS)[number];
+export const isOpeningMoneyKind = (k: string): boolean => k === 'cash' || k === 'bank';
+/** Сторона расчётов и знак в регистре «долг растёт» (+): долг — приход начисления, аванс — оплата без документа */
+export function openingSettlement(k: OpeningLineKind): { side: 'customer' | 'supplier'; advance: boolean } | null {
+  switch (k) {
+    case 'customer_debt': return { side: 'customer', advance: false };
+    case 'customer_advance': return { side: 'customer', advance: true };
+    case 'supplier_debt': return { side: 'supplier', advance: false };
+    case 'supplier_advance': return { side: 'supplier', advance: true };
+    default: return null;
+  }
+}

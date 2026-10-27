@@ -52,6 +52,7 @@ export * from './positions';
 export * from './settlements';
 export * from './payments';
 export * from './payment-requests';
+export * from './opening-balances';
 export * from './payment-calendar';
 export * from './request-paid';
 export * from './bank-import';

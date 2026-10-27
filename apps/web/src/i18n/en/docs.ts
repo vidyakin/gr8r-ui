@@ -54,6 +54,7 @@ export const docs = {
       fromWarehouse: 'From warehouse',
       toWarehouse: 'To warehouse',
       org: 'Organization',
+      payment: 'Payment',
       net: 'Without VAT',
       vat: 'VAT',
       cost: 'Cost',
