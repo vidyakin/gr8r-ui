@@ -59,6 +59,7 @@
 - [Серийные номера, ремонт и гарантия](architecture/serials-repair.md)
 - [Повторные продажи и план продаж](architecture/repeat-sales.md)
 - [Должности сотрудников и виды номенклатуры](architecture/positions.md)
+- [Лиды: статусы, дубли, конвертация, вебхук форм](architecture/leads.md)
 - [Запись клиентов на приём](architecture/appointments.md)
 - [Доставка](architecture/delivery.md)
 
