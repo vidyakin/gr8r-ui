@@ -90,6 +90,8 @@ export const productCreate = z.object({
   warrantyMonths: z.number().int().min(0).max(600).nullish(),
   /** Повторить продажу через, дн. (задача 1133; пусто — нет): после продажи у компании ставится дата следующего контакта */
   repeatSaleDays: z.number().int().min(1).max(3650).nullish(),
+  /** Вес, кг (задача 1100): вес доставки = Σ количество × вес */
+  weightKg: decimal.nullish().refine(v => v == null || Number(v) >= 0, 'Expected a non-negative weight'),
   custom: customData.optional(),
 });
 export const productUpdate = toPatch(productCreate.omit({ id: true }));

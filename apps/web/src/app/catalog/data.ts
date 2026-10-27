@@ -72,6 +72,8 @@ export interface Product {
   warrantyMonths: number | null;
   /** Повторить продажу через, дн. (пусто — нет) */
   repeatSaleDays: number | null;
+  /** Вес, кг (задача 1100) */
+  weightKg: string | null;
   custom: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;

@@ -52,6 +52,8 @@ export const sections = {
   inUse: 'In use',
   serials: 'Serial numbers',
   repairItems: 'Items in repair',
+  deliveries: 'Deliveries',
+  myDeliveries: 'My deliveries',
   contracts: 'Contracts',
   tariffPlans: 'Tariff plans',
   billing: 'Billing',

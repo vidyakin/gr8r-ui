@@ -1,7 +1,7 @@
 /* Карточка товара (EntityDrawer) и форма создания. Характеристики категории рисуются теми же FieldInput / FieldValue и
    проверяются той же zod-схемой (validateRecord), что и поля конструктора. */
 import * as React from 'react';
-import { Barcode, Building2, CircleAlert, CircleDollarSign, FolderTree, Hash, Layers, Package, Percent, Power, Repeat, Ruler, ScanBarcode, Tag, Timer, Trash2, Wrench, type LucideIcon } from 'lucide-react';
+import { Barcode, Building2, CircleAlert, CircleDollarSign, FolderTree, Hash, Layers, Package, Percent, Power, Repeat, Ruler, ScanBarcode, Tag, Timer, Trash2, Truck, Wrench, type LucideIcon } from 'lucide-react';
 import { PRODUCT_KINDS, VAT_LABELS, VAT_RATES, validateRecord, type ProductKind } from '@gr8r/shared';
 import { Button, ConfirmDialog, Dialog, DialogClose, DialogContent, Field, Input, MenuItem, Segmented, Switch, toast } from '@/components/ui';
 import { DrawerSection, EntityDrawer } from '@/components/gr8r/entity-drawer';
@@ -38,6 +38,7 @@ const F = {
   get normHours() { return col('normHours', t('catalog.product.normHours'), 'number'); },
   get warrantyMonths() { return col('warrantyMonths', t('serials.product.warrantyMonths'), 'number'); },
   get repeatSaleDays() { return col('repeatSaleDays', t('repeat.product.repeatDays'), 'number'); },
+  get weightKg() { return col('weightKg', t('delivery.product.weight'), 'number'); },
   get leadDays() { return col('leadDays', t('catalog.product.leadDays'), 'number'); },
 };
 
@@ -187,6 +188,7 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
               ]
             : []),
           row(Timer, t('serials.product.warrantyMonths'), <FieldInput field={F.warrantyMonths} value={p.warrantyMonths ?? 0} onChange={v => save({ warrantyMonths: Number(v) ? Math.round(Number(v)) : null })} />, String(p.warrantyMonths ?? '—')),
+          ...(p.kind === 'goods' ? [row(Truck, t('delivery.product.weight'), <FieldInput field={F.weightKg} value={Number(p.weightKg ?? 0)} onChange={v => save({ weightKg: Number(v) > 0 ? String(v) : null })} />, p.weightKg ? p.weightKg : '—')] : []),
           row(Repeat, t('repeat.product.repeatDays'), <FieldInput field={F.repeatSaleDays} value={p.repeatSaleDays ?? 0} onChange={v => save({ repeatSaleDays: Number(v) ? Math.round(Number(v)) : null })} />, p.repeatSaleDays ? String(p.repeatSaleDays) : '—'),
           ...(p.kind === 'work'
             ? [

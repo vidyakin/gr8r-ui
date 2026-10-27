@@ -253,6 +253,13 @@
       "when": 1793069561542,
       "tag": "0036_repeat_sales",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793072132780,
+      "tag": "0037_delivery",
+      "breakpoints": true
     }
   ]
 }
