@@ -60,6 +60,12 @@ export const sections: Widen<typeof S> = {
   contracts: 'Договоры',
   tariffPlans: 'Тарифные планы',
   billing: 'Биллинг',
+  money: 'Оплаты',
+  moneyBalances: 'Остатки денег',
+  moneyCashFlow: 'Движение денег',
+  moneyReceivables: 'Дебиторская задолженность',
+  moneyPayables: 'Кредиторская задолженность',
+  moneyReferences: 'Кассы и статьи ДДС',
   investments: 'Инвестпроекты',
   investmentsPlanFact: 'План-факт',
 };

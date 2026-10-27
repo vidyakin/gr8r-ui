@@ -2,8 +2,8 @@
 import * as React from 'react';
 import { Link, useNavigate } from 'react-router';
 import { CircleAlert, FilePlus2 } from 'lucide-react';
-import { Badge, Button, EmptyState, Field, Input, Menu, MenuItem, Skeleton, Tab, Tabs, TabsList } from '@/components/ui';
-import { fmtAmount, t, tProductionEnum, useT } from '@/i18n';
+import { Badge, Button, EmptyState, Field, Input, Menu, MenuContent, MenuItem, MenuTrigger, Skeleton, Tab, Tabs, TabsList } from '@/components/ui';
+import { fmtAmount, tProductionEnum, useT } from '@/i18n';
 import { fmtDate } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';
 import { usePayments } from './data';
@@ -31,19 +31,20 @@ export function MoneyPage() {
         </div>
         <div className="acts">
           {canWrite && (
-            <Menu
-              trigger={
+            <Menu>
+              <MenuTrigger asChild>
                 <Button variant="primary">
                   <FilePlus2 size={14} />
                   {tt('money.list.new')}
                 </Button>
-              }
-            >
-              {NEW_TYPES.map(ty => (
-                <MenuItem key={ty} onSelect={() => void navigate(`/money/new?type=${ty}`)}>
-                  {tt(`money.typesShort.${ty}`)}
-                </MenuItem>
-              ))}
+              </MenuTrigger>
+              <MenuContent align="end">
+                {NEW_TYPES.map(ty => (
+                  <MenuItem key={ty} onSelect={() => void navigate(`/money/new?type=${ty}`)}>
+                    {tt(`money.typesShort.${ty}`)}
+                  </MenuItem>
+                ))}
+              </MenuContent>
             </Menu>
           )}
         </div>
@@ -119,4 +120,3 @@ export function MoneyPage() {
   );
 }
 
-export const _unusedT = t;

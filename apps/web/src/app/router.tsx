@@ -59,6 +59,9 @@ import { OtherCostsDocumentPage, OtherCostsPage } from './production/OtherCostsP
 import { MaterialAllocationPage, MaterialAllocationsPage } from './production/MaterialAllocationPage';
 import { InvestmentPage } from './finance/InvestmentPage';
 import { InvestmentsPage } from './finance/InvestmentsPage';
+import { MoneyPage } from './money/MoneyPage';
+import { PaymentPage } from './money/PaymentPage';
+import { BalancesPage, CashFlowPage, DebtsPage, MoneyReferencesPage } from './money/ReportPages';
 import { PlanFactPage } from './finance/PlanFactPage';
 import { JournalPage } from './docs/JournalPage';
 import { WorkOrdersPage } from './docs/work-orders';
@@ -146,6 +149,14 @@ export const router = createHashRouter([
       { path: `${SECTIONS.otherCosts.path}/:id`, element: <OtherCostsDocumentPage /> },
       { path: SECTIONS.materialAllocation.path, element: <MaterialAllocationsPage /> },
       { path: `${SECTIONS.materialAllocation.path}/:id`, element: <MaterialAllocationPage /> },
+      // Финансы: деньги
+      { path: SECTIONS.money.path, element: <MoneyPage /> },
+      { path: SECTIONS.moneyBalances.path, element: <BalancesPage /> },
+      { path: SECTIONS.moneyCashFlow.path, element: <CashFlowPage /> },
+      { path: SECTIONS.moneyReceivables.path, element: <DebtsPage side="customer" /> },
+      { path: SECTIONS.moneyPayables.path, element: <DebtsPage side="supplier" /> },
+      { path: SECTIONS.moneyReferences.path, element: <MoneyReferencesPage /> },
+      { path: `${SECTIONS.money.path}/:id`, element: <PaymentPage /> },
       // Финансы: инвестпроекты
       { path: SECTIONS.investments.path, element: <InvestmentsPage /> },
       { path: SECTIONS.investmentsPlanFact.path, element: <PlanFactPage /> },

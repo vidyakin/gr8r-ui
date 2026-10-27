@@ -58,6 +58,12 @@ export const sections = {
   contracts: 'Contracts',
   tariffPlans: 'Tariff plans',
   billing: 'Billing',
+  money: 'Payments',
+  moneyBalances: 'Cash balances',
+  moneyCashFlow: 'Cash flow',
+  moneyReceivables: 'Receivables',
+  moneyPayables: 'Payables',
+  moneyReferences: 'Cash registers and items',
   investments: 'Investment projects',
   investmentsPlanFact: 'Plan vs actual',
 };

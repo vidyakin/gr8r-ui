@@ -1,6 +1,6 @@
 /* Деньги на клиенте (задача 1174б): оплаты, кассы, статьи ДДС, остатки, отчёты и взаиморасчёты.
    Запросы лежат под ['ws', id, 'docs', 'money', …]: события документов инвалидируют их вместе с остальными документами. */
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { DocumentStatus, PaymentLineInput, PaymentState } from '@gr8r/shared';
 import { call, useWsId } from '../meta/data';
 

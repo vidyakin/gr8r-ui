@@ -44,6 +44,12 @@ import {
   Store,
   BriefcaseBusiness,
   Landmark,
+  Banknote,
+  Wallet,
+  ArrowDownUp,
+  HandCoins,
+  CreditCard,
+  Vault,
   TrendingUp,
   Scale,
   ScanBarcode,
@@ -123,6 +129,13 @@ export const SECTIONS = {
   contracts: { path: '/contracts', name: 'Contracts', icon: FileSignature },
   tariffPlans: { path: '/tariff-plans', name: 'Tariff plans', icon: ListChecks },
   billing: { path: '/billing', name: 'Billing', icon: ReceiptText },
+  // Деньги: оплаты, остатки, ДДС, задолженность
+  money: { path: '/money', name: 'Payments', icon: Banknote },
+  moneyBalances: { path: '/money/balances', name: 'Cash balances', icon: Wallet },
+  moneyCashFlow: { path: '/money/cash-flow', name: 'Cash flow', icon: ArrowDownUp },
+  moneyReceivables: { path: '/money/receivables', name: 'Receivables', icon: HandCoins },
+  moneyPayables: { path: '/money/payables', name: 'Payables', icon: CreditCard },
+  moneyReferences: { path: '/money/references', name: 'Cash registers and items', icon: Vault },
   // Финансы: инвестпроекты и окупаемость
   investments: { path: '/investments', name: 'Investment projects', icon: TrendingUp },
   investmentsPlanFact: { path: '/investments/plan-fact', name: 'Plan vs actual', icon: Scale },
@@ -176,7 +189,7 @@ export const NAV_GROUPS = {
   },
   finance: {
     icon: Landmark,
-    items: [{ id: 'investments' }, { id: 'investmentsPlanFact' }],
+    items: [{ id: 'money' }, { id: 'moneyBalances' }, { id: 'moneyCashFlow' }, { id: 'moneyReceivables' }, { id: 'moneyPayables' }, { id: 'moneyReferences' }, { id: 'investments' }, { id: 'investmentsPlanFact' }],
   },
 } satisfies Record<string, NavGroup>;
 
@@ -249,6 +262,12 @@ const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
   billing: 'services',
   deliveries: 'deliveries',
   myDeliveries: 'deliveries',
+  money: 'finance',
+  moneyBalances: 'finance',
+  moneyCashFlow: 'finance',
+  moneyReceivables: 'finance',
+  moneyPayables: 'finance',
+  moneyReferences: 'finance',
   investments: 'finance',
   investmentsPlanFact: 'finance',
 };
