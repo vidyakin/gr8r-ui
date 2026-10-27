@@ -42,6 +42,7 @@ export const settings = {
       deliveryMethods: 'Delivery methods',
       positions: 'Positions',
       productKinds: 'Nomenclature kinds',
+      integrations: 'Integrations',
       notifEmail: 'Email',
       notifPush: 'Push',
       notifMentions: 'Mentions',
