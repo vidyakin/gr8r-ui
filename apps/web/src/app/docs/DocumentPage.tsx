@@ -12,6 +12,7 @@ import { money, unitSymbol, useIsAdmin, useUnits, type Product } from '../catalo
 import { uuidv7 } from '../lib/uuid';
 import { fmtDate } from '../lib/dates';
 import { useWorkspace } from '../data/store';
+import { PayControls } from '../money/PayControls';
 import { useSnapshot } from '../production/data';
 import { MaterialModeField, WasteHeaderFields, WasteTab } from '../production/WasteTab';
 import { STATUS_LABEL, STATUS_TONE, docTitle, docsKey, typeLabel, useCostItems, useDocsApi, useDocument, useOrganizations, useProcessingOrders, useWarehouses, type DocDetail, type DocLink } from './data';
@@ -904,6 +905,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
               </MenuContent>
             </Menu>
           )}
+          <PayControls docId={doc.id} type={doc.type} status={doc.status} />
           {doc.type === 'tolling_report' && doc.status === 'posted' && (
             <Button
               onClick={() => {

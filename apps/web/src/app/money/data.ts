@@ -2,6 +2,7 @@
    Запросы лежат под ['ws', id, 'docs', 'money', …]: события документов инвалидируют их вместе с остальными документами. */
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { DocumentStatus, PaymentLineInput, PaymentState } from '@gr8r/shared';
+import { API_BASE } from '../data/api';
 import { call, useWsId } from '../meta/data';
 
 export const moneyKey = (ws: string, ...rest: unknown[]) => ['ws', ws, 'docs', 'money', ...rest] as const;
@@ -283,6 +284,17 @@ export function usePaymentStatuses(ids: string[]) {
 export function useSettlementCard(companyId: string | undefined, p: { from?: string; to?: string }) {
   const ws = useWsId();
   return useQuery({ queryKey: moneyKey(ws, 'card', companyId ?? '', p), queryFn: () => call<SettlementCard>(ws, 'GET', `/payments/settlements/${companyId}?${qs(p)}`), enabled: !!companyId });
+}
+
+/** Печатная форма с сервера (HTML, A4): запрос с cookie и воркспейсом, страница открывается в новой вкладке и печатается оттуда */
+export function usePrintOpener() {
+  const ws = useWsId();
+  return async (path: string) => {
+    const res = await fetch(`${API_BASE()}${path}`, { credentials: 'include', headers: { 'X-Workspace-Id': ws } });
+    if (!res.ok) throw new Error(`${res.status}`);
+    const url = URL.createObjectURL(new Blob([await res.text()], { type: 'text/html;charset=utf-8' }));
+    window.open(url, '_blank');
+  };
 }
 
 export function useOrgBankAccounts(organizationId: string | undefined) {

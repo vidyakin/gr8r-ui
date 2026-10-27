@@ -54,6 +54,7 @@ const blank = (): InvestmentInput => ({
   comment: '',
   lines: [newLine()],
   costItemIds: [],
+  factBasis: 'accrual',
 });
 
 const fromDetail = (d: InvestmentDetail): InvestmentInput => ({
@@ -68,6 +69,7 @@ const fromDetail = (d: InvestmentDetail): InvestmentInput => ({
   comment: d.comment,
   lines: d.lines.map(l => ({ id: l.id, periodIndex: l.periodIndex, costItemId: l.costItemId, amount: trimZeros(l.amount ?? '0'), comment: l.comment })),
   costItemIds: d.costItems.map(c => c.id),
+  factBasis: d.factBasis ?? 'accrual',
 });
 
 /** Вложения и поступления факта по периодам формы (с сервера; при смене горизонта в форме — до сохранения обрезаются) */
@@ -144,7 +146,7 @@ export function InvestmentPage() {
       const body = { ...form, periods, startDate: start, lines: form.lines.filter(l => l.costItemId) };
       if (detail) {
         // у утверждённого проекта план заморожен — отправляем только шапку и статьи
-        const patch: Partial<InvestmentInput> = planEditable ? body : { name: body.name, projectId: body.projectId, organizationId: body.organizationId, responsibleId: body.responsibleId, comment: body.comment, costItemIds: body.costItemIds };
+        const patch: Partial<InvestmentInput> = planEditable ? body : { name: body.name, projectId: body.projectId, organizationId: body.organizationId, responsibleId: body.responsibleId, comment: body.comment, costItemIds: body.costItemIds, factBasis: body.factBasis };
         await api.update(detail.id, patch);
       } else {
         const created = await api.create(body);
@@ -255,6 +257,21 @@ export function InvestmentPage() {
         </Field>
         <Field label={tt('finance.field.startDate')}>{p => <Input {...p} type="date" disabled={!planEditable} value={form.startDate} onChange={e => set('startDate', e.target.value)} onBlur={() => set('startDate', start)} />}</Field>
         <Field label={tt('finance.field.periods')}>{p => <Input {...p} inputMode="decimal" disabled={!planEditable} value={String(form.periods)} onChange={e => set('periods', Number(e.target.value.replace(/\D/g, '')) || 0)} />}</Field>
+        <Field label={t('money.investment.factBasis')}>
+          {p => (
+            <Select
+              id={p.id}
+              disabled={!canManage}
+              value={form.factBasis}
+              onValueChange={v => set('factBasis', v as 'accrual' | 'payments')}
+              options={[
+                { value: 'accrual', label: t('money.investment.accrual') },
+                { value: 'payments', label: t('money.investment.payments') },
+              ]}
+              aria-label={t('money.investment.factBasis')}
+            />
+          )}
+        </Field>
         <Field label={tt('finance.field.discountRate')}>
           {p => <Input {...p} inputMode="decimal" disabled={!planEditable || !canManage} value={canManage ? form.discountRate : t('finance.common.empty')} onChange={e => set('discountRate', e.target.value)} />}
         </Field>

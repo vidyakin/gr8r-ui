@@ -1,7 +1,7 @@
 /* Страница компании — шапка как у страницы проекта и вкладки Overview / Deals / Contacts / Activity */
 import * as React from 'react';
 import { Link, useParams } from 'react-router';
-import { Activity, Briefcase, FileSignature, FileText, Files, CircleDollarSign, ExternalLink, Globe, LayoutDashboard, CalendarCheck, MapPin, Plus, Ruler, User, UserPlus, Users, Clock, type LucideIcon } from 'lucide-react';
+import { Activity, Briefcase, FileSignature, FileText, Files, CircleDollarSign, ExternalLink, Globe, LayoutDashboard, CalendarCheck, Wallet, MapPin, Plus, Ruler, User, UserPlus, Users, Clock, type LucideIcon } from 'lucide-react';
 import { Badge, Button, EmptyState, Tooltip } from '@/components/ui';
 import { DataTable, useDataTable } from '@/components/gr8r/data-table';
 import { Panel, Stat } from '@/components/gr8r/panel';
@@ -20,6 +20,7 @@ import { useCustomRows } from '../meta/custom-fields';
 import { CompanyRequisitesTab } from '../docs/CompanyRequisites';
 import { CompanyContractsTab } from '../docs/CompanyContracts';
 import { CompanyDocumentsTab } from '../docs/CompanyDocuments';
+import { CompanySettlementsTab } from '../money/CompanySettlements';
 import { NextContactPanel } from './NextContactPanel';
 import { ClientAppointments } from './ClientAppointments';
 import { industryName, sizeName, stageName } from './labels';
@@ -33,6 +34,7 @@ const TABS: [string, LucideIcon][] = [
   ['requisites', FileText],
   ['contracts', FileSignature],
   ['documents', Files],
+  ['settlements', Wallet],
   ['appointments', CalendarCheck],
 ];
 
@@ -135,6 +137,7 @@ function CompanyView({ company: co, tab }: { company: Company; tab: string }) {
   } else if (tab === 'requisites') body = <CompanyRequisitesTab companyId={co.id} />;
   else if (tab === 'contracts') body = <CompanyContractsTab companyId={co.id} />;
   else if (tab === 'documents') body = <CompanyDocumentsTab companyId={co.id} />;
+  else if (tab === 'settlements') body = <CompanySettlementsTab companyId={co.id} />;
   else if (tab === 'appointments') body = <ClientAppointments companyId={co.id} />;
   else body = <Overview company={co} />;
 

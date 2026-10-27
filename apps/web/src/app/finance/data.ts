@@ -25,6 +25,8 @@ export interface InvestmentDetail {
   id: string;
   name: string;
   status: InvestmentStatus;
+  /** База факта: начисление (документы) или оплаты (движения денег) */
+  factBasis: 'accrual' | 'payments';
   periodKind: InvestmentPeriodKind;
   startDate: string;
   periods: number;
@@ -109,6 +111,7 @@ export interface InvestmentInput {
   comment: string;
   lines: { id: string; periodIndex: number; costItemId: string; amount: string; comment: string }[];
   costItemIds: string[];
+  factBasis: 'accrual' | 'payments';
 }
 
 export const investmentsKey = (ws: string, ...rest: unknown[]) => ['ws', ws, 'investments', ...rest] as const;

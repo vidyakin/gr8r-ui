@@ -235,6 +235,7 @@ export const crm = {
       requisites: 'Requisites',
       contracts: 'Contracts',
       documents: 'Documents',
+      settlements: 'Settlements',
       appointments: 'Appointments',
     },
     openWebsite: 'Open {website}',

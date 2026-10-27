@@ -12,7 +12,7 @@ import { useCanWrite } from '../meta/custom-fields';
 import { useCostItems, useDocuments, useOrganizations, typeLabel } from '../docs/data';
 import { CounterpartyPicker } from '../docs/pickers';
 import { useBankAccounts } from '../docs/data';
-import { useCashFlowItems, useCashRegisters, usePayment, usePaymentApi, type PaymentBody } from './data';
+import { useCashFlowItems, useCashRegisters, usePayment, usePaymentApi, usePrintOpener, type PaymentBody } from './data';
 
 interface Line {
   id: string;
@@ -38,6 +38,7 @@ export function PaymentPage() {
   const canWrite = useCanWrite();
   const navigate = useNavigate();
   const api = usePaymentApi();
+  const openPrint = usePrintOpener();
   const doc = usePayment(isNew ? undefined : id);
   const detail = isNew ? null : doc.data;
   const docType = detail?.type ?? type;
@@ -197,7 +198,7 @@ export function PaymentPage() {
             </Button>
           )}
           {detail && koForm && (
-            <Button variant="ghost" onClick={() => window.open(`${import.meta.env.VITE_API_URL ?? ''}/api/payments/${detail.id}/print/${koForm}`, '_blank')}>
+            <Button variant="ghost" onClick={() => void openPrint(`/payments/${detail.id}/print/${koForm}`).catch(e => toast.error(errorMessage(e)))}>
               <Printer size={14} />
               {tt('money.common.print')}
             </Button>
