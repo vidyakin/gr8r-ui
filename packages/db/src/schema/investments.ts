@@ -16,6 +16,8 @@ export const investmentProjects = pgTable(
     name: text('name').notNull(),
     /** Черновик → утверждён (план заморожен) → закрыт (документы не принимаются) */
     status: text('status', { enum: ['draft', 'approved', 'closed'] }).notNull().default('draft'),
+    /** База факта: начисление (проведённые документы) или оплаты (движения денег, задача 1174б) */
+    factBasis: text('fact_basis', { enum: ['accrual', 'payments'] }).notNull().default('accrual'),
     /** Шаг планирования: месяц, квартал, год */
     periodKind: text('period_kind', { enum: ['month', 'quarter', 'year'] }).notNull().default('month'),
     /** Начало первого периода (всегда начало месяца, квартала или года) */
@@ -40,6 +42,7 @@ export const investmentProjects = pgTable(
   t => [
     unique('investment_projects_ws_id_uq').on(t.workspaceId, t.id),
     check('investment_projects_status_chk', sql`${t.status} in ('draft','approved','closed')`),
+    check('investment_projects_fact_basis_chk', sql`${t.factBasis} in ('accrual','payments')`),
     check('investment_projects_period_chk', sql`${t.periodKind} in ('month','quarter','year')`),
     check('investment_projects_periods_chk', sql`${t.periods} between 1 and 240`),
     check('investment_projects_rate_chk', sql`${t.discountRate} >= 0`),

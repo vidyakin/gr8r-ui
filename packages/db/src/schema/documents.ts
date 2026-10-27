@@ -192,6 +192,13 @@ export const documents = pgTable(
     tollingOrderId: uuid('tolling_order_id'),
     /** Инвестпроект: весь документ идёт в факт этого проекта */
     investmentProjectId: uuid('investment_project_id'),
+    /** Оплаты (группа cash): касса или банковский счёт организации, «куда» при перемещении денег, подотчётное лицо.
+        Внешние ключи (workspace_id, …) на cash_registers / bank_accounts / members добавляет миграция 0041 (схема касс ссылается на документы) */
+    cashRegisterId: uuid('cash_register_id'),
+    bankAccountId: uuid('bank_account_id'),
+    targetCashRegisterId: uuid('target_cash_register_id'),
+    targetBankAccountId: uuid('target_bank_account_id'),
+    accountableMemberId: uuid('accountable_member_id'),
     currency: text('currency').notNull().default('RUB'),
     /** Цены «НДС в т.ч.» (true) или «НДС сверху» (false) */
     priceIncludesVat: boolean('price_includes_vat').notNull().default(true),
@@ -221,10 +228,10 @@ export const documents = pgTable(
     foreignKey({ columns: [t.workspaceId, t.responsibleId], foreignColumns: [members.workspaceId, members.id], name: 'documents_responsible_fk' }),
     foreignKey({ columns: [t.workspaceId, t.investmentProjectId], foreignColumns: [investmentProjects.workspaceId, investmentProjects.id], name: 'documents_investment_project_fk' }),
     foreignKey({ columns: [t.workspaceId, t.tollingOrderId], foreignColumns: [t.workspaceId, t.id], name: 'documents_tolling_order_fk' }).onDelete('set null'),
-    check('documents_type_chk', sql`${t.type} in ('quote','customer_order','invoice','realization','act','customer_return','supplier_order','receipt','supplier_return','stock_transfer','write_off','stock_posting','inventory_count','production_order','production','work_order','piecework_order','other_costs','material_allocation','tolling_receipt','tolling_report','tolling_return','sales_plan','service_day')`),
+    check('documents_type_chk', sql`${t.type} in ('quote','customer_order','invoice','realization','act','customer_return','supplier_order','receipt','supplier_return','stock_transfer','write_off','stock_posting','inventory_count','production_order','production','work_order','piecework_order','other_costs','material_allocation','tolling_receipt','tolling_report','tolling_return','sales_plan','service_day','cash_receipt','cash_payment','bank_receipt','bank_payment','advance_report')`),
     check('documents_status_chk', sql`${t.status} in ('draft','posted','cancelled')`),
     check('documents_state_chk', sql`${t.state} is null or ${t.state} ~ '^[a-z][a-z0-9_]*$'`),
-    check('documents_operation_chk', sql`${t.operation} is null or ${t.operation} in ('transfer','in_transit','to_operation','from_operation','assembly','disassembly','processing')`),
+    check('documents_operation_chk', sql`${t.operation} is null or ${t.operation} in ('transfer','in_transit','to_operation','from_operation','assembly','disassembly','processing','from_customer','supplier_refund','from_accountable','other_income','to_supplier','customer_refund','to_accountable','other_expense','money_transfer')`),
     // перемещение с получателем: склад-получатель задан и отличается от склада-источника
     // (у передачи в эксплуатацию и возврата из неё склада-получателя нет)
     check('documents_transfer_chk', sql`${t.operation} not in ('transfer','in_transit') or (${t.targetWarehouseId} is not null and ${t.targetWarehouseId} <> ${t.warehouseId})`),
