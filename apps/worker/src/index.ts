@@ -1,5 +1,5 @@
 /* Точка входа воркера: опрос jobs + outbox, ускорение по LISTEN gr8r_events. */
-import { createSql, databaseUrl, ddlDatabaseUrl, EVENTS_CHANNEL, listenChannel } from '@gr8r/db';
+import { scheduleBankSyncs, createSql, databaseUrl, ddlDatabaseUrl, EVENTS_CHANNEL, listenChannel } from '@gr8r/db';
 import { closeBrowser } from './pdf/render';
 import { scheduleFlowsOnce } from './flows/triggers';
 import { runBillingOnce } from './billing';
@@ -58,6 +58,11 @@ while (!stopping) {
       lastMinute = minute;
       const n = await scheduleFlowsOnce(sql); // автоматизации по расписанию: раз в минуту, повтор той же минуты ничего не создаёт
       if (n) o.log(`scheduled ${n} flow run(s)`);
+      // загрузка операций банков по API: подключения, у которых прошёл интервал (BANK_SYNC_INTERVAL_MIN, по умолчанию 60 минут), проверка раз в 5 минут
+      if (minute % 5 === 0) {
+        const banks = await scheduleBankSyncs(sql);
+        if (banks) o.log(`queued ${banks} bank sync job(s)`);
+      }
     }
     // биллинг договоров обслуживания: раз в час проверяем, не наступил ли день выставления (по часовому поясу арендатора)
     const hour = new Date().toISOString().slice(0, 13);

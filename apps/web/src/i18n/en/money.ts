@@ -230,6 +230,9 @@ export const money = {
     payCash: 'Cash',
     payBank: 'Bank account',
     byCounterparty: 'by counterparty',
+    payLink: 'Payment link',
+    payLinkCopied: 'Payment link copied to the clipboard',
+    payLinkOpen: 'Open',
   },
   card: {
     title: 'Settlements',

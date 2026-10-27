@@ -1,10 +1,11 @@
 /* «Оплачено / к оплате» и кнопка «Оплатить» в документе расчётов: счёт, заказ, реализация, акт, заказ-наряд, поступление, возвраты */
 import { useNavigate } from 'react-router';
-import { Banknote, ChevronDown } from 'lucide-react';
+import { Banknote, ChevronDown, Link2 } from 'lucide-react';
 import { PAYABLE_TYPES } from '@gr8r/shared';
 import { Badge, Button, Menu, MenuContent, MenuItem, MenuTrigger, toast } from '@/components/ui';
 import { fmtAmount, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
+import { call, useWsId } from '../meta/data';
 import { useCanWrite } from '../meta/custom-fields';
 import { usePaymentApi, usePaymentStatuses } from './data';
 
@@ -15,6 +16,7 @@ export function PayControls({ docId, type, status }: { docId: string; type: stri
   const canWrite = useCanWrite();
   const navigate = useNavigate();
   const api = usePaymentApi();
+  const ws = useWsId();
   const payable = (PAYABLE_TYPES as string[]).includes(type) && status !== 'cancelled';
   const st = usePaymentStatuses(payable ? [docId] : []);
   const s = st.data?.[docId];
@@ -28,6 +30,20 @@ export function PayControls({ docId, type, status }: { docId: string; type: stri
       toast.error(errorMessage(e));
     }
   };
+  // ссылка на онлайн-оплату (ЮКасса): сумма — остаток к оплате; ссылка копируется в буфер обмена
+  const payLink = async () => {
+    try {
+      const r = await call<{ url: string }>(ws, 'POST', '/payment-links', { documentId: docId, returnUrl: window.location.href });
+      try {
+        await navigator.clipboard.writeText(r.url);
+        toast(tt('money.status.payLinkCopied'));
+      } catch {
+        window.prompt(tt('money.status.payLink'), r.url);
+      }
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  };
   return (
     <>
       {!isReturn && (
@@ -35,6 +51,12 @@ export function PayControls({ docId, type, status }: { docId: string; type: stri
           {s.state === 'partial' ? tt('money.status.paidOf', { paid: fmtAmount(s.paid), total: fmtAmount(s.obligation) }) : tt(`money.status.${s.state}`)}
           {s.mode === 'by_counterparty' ? ` (${tt('money.status.byCounterparty')})` : ''}
         </Badge>
+      )}
+      {canWrite && !isReturn && s.side === 'customer' && Number(s.remaining) > 0 && (
+        <Button variant="ghost" onClick={() => void payLink()}>
+          <Link2 size={14} />
+          {tt('money.status.payLink')}
+        </Button>
       )}
       {canWrite && (isReturn || Number(s.remaining) > 0) && (
         <Menu>

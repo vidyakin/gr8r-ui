@@ -10,7 +10,7 @@
 
 ## Задачи `jobs`
 `index.create`/`index.drop` (DDL индексов полей конструктора), `flow.run`, `document.pdf`, `billing.export_zip`,
-`production.close_period`, `noop`.
+`production.close_period`, `bank.sync` (загрузка операций банка по API), `yookassa.payment` (проверка платежа ЮКассы), `noop`.
 
 ## Структура `src/`
 - `flows/` — движок автоматизаций: `engine.ts` (пошаговый запуск), `triggers.ts` (события и расписание → запуски), `records.ts` (действия над данными), `runtime.ts` (порты `NodeRuntime`), `http.ts` (исходящие запросы с защитой от SSRF).

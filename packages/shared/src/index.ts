@@ -28,4 +28,5 @@ export * from './positions';
 export * from './payments';
 export * from './payment-calendar';
 export * from './bank-statement';
+export * from './bank-api';
 export * from './leads';
