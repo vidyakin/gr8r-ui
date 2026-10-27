@@ -65,7 +65,7 @@ describe('seed', () => {
     expect(await count('time_logs', w)).toBe(src.timeLogs.length + 2); // + время по заказ-наряду и по консультации
     expect(await count('saved_views', w)).toBe(1);
     expect(await count('calendar_events', w)).toBe(6);
-    expect(await count('companies', w)).toBe(crm.companies.length + 1); // + ИП из демо документов
+    expect(await count('companies', w)).toBe(crm.companies.length + 2); // + ИП из демо документов и контрагент из сконвертированного лида
     expect(await count('contacts', w)).toBe(crm.contacts.length);
     expect(await count('deals', w)).toBe(crm.deals.length);
     // повторные продажи (задача 1133): срок повтора у двух услуг, дата контакта у двух компаний, план продаж на текущий год

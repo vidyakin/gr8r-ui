@@ -15,9 +15,11 @@ import { seedContracts } from './seed-contracts';
 import { seedRepeatSales } from './seed-repeat-sales';
 import { seedPositions } from './seed-positions';
 import { seedAppointments } from './seed-appointments';
+import { seedLeads } from './seed-leads';
 import { ensureCostItems, ensureDocumentDefaults } from './documents';
 import { ensureModuleProjects } from './modules';
 import { ensureWorkOrderKind } from './work-orders';
+import { ensureLeadStatuses } from './leads';
 import { enqueueFieldIndex, registerSystemEntities } from './meta';
 import { uuidv7 } from './uuid';
 import {
@@ -353,6 +355,9 @@ async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: string, user
   // Запись на приём: специалисты с графиками, услуги массажа, записи этой недели и незакрытый день
   await seedAppointments(db, { workspaceId: wsId, memberId: U(d.me), role: 'owner' });
 
+  // Лиды: статусы, форма сайта, лиды с касаниями и один сконвертированный (задача 1175)
+  await seedLeads(db, wsId, U(d.me));
+
   await db.insert(events).values({ workspaceId: wsId, type: 'workspace.seeded', entity: 'workspace', recordId: wsId, actorId: U(d.me), payload: { tasks: d.tasks.length, deals: crm.deals.length, documents: docs.documents } });
   return { tasks: d.tasks.length, projects: d.projects.length, deals: crm.deals.length, metaFields };
 }
@@ -366,6 +371,7 @@ async function seedOtherWorkspace(db: Db, wsId: string, userId: string) {
   await db.insert(memberships).values({ workspaceId: wsId, userId, role: 'owner' });
   await db.insert(members).values({ id: memberId, workspaceId: wsId, userId, email: OTHER_USER.email, name: OTHER_USER.name, title: 'Founder', color: '#C54B78', role: 'owner' });
   await registerSystemEntities(db, wsId);
+  await ensureLeadStatuses(db, wsId);
   await registerBaseUnits(db, wsId);
   await ensureDocumentDefaults(db, wsId, 'Acme Corp');
   await ensureCostItems(db, wsId);

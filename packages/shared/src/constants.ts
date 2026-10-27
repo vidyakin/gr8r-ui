@@ -40,6 +40,7 @@ export const SYSTEM_ENTITIES = [
   { key: 'company', name: 'Companies', icon: 'building-2', titleField: 'name' },
   { key: 'contact', name: 'Contacts', icon: 'contact-round', titleField: 'name' },
   { key: 'product', name: 'Products', icon: 'package', titleField: 'name' },
+  { key: 'lead', name: 'Leads', icon: 'user-plus', titleField: 'name' },
 ] as const;
 export type SystemEntityKey = (typeof SYSTEM_ENTITIES)[number]['key'];
 
