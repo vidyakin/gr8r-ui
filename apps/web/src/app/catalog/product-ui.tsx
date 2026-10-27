@@ -38,6 +38,7 @@ const F = {
   get normHours() { return col('normHours', t('catalog.product.normHours'), 'number'); },
   get warrantyMonths() { return col('warrantyMonths', t('serials.product.warrantyMonths'), 'number'); },
   get repeatSaleDays() { return col('repeatSaleDays', t('repeat.product.repeatDays'), 'number'); },
+  get appointmentMinutes() { return col('appointmentMinutes', t('appt.product.minutes'), 'number'); },
   get leadDays() { return col('leadDays', t('catalog.product.leadDays'), 'number'); },
 };
 
@@ -188,6 +189,9 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
             : []),
           row(Timer, t('serials.product.warrantyMonths'), <FieldInput field={F.warrantyMonths} value={p.warrantyMonths ?? 0} onChange={v => save({ warrantyMonths: Number(v) ? Math.round(Number(v)) : null })} />, String(p.warrantyMonths ?? '—')),
           row(Repeat, t('repeat.product.repeatDays'), <FieldInput field={F.repeatSaleDays} value={p.repeatSaleDays ?? 0} onChange={v => save({ repeatSaleDays: Number(v) ? Math.round(Number(v)) : null })} />, p.repeatSaleDays ? String(p.repeatSaleDays) : '—'),
+          ...(p.kind === 'service'
+            ? [row(Timer, t('appt.product.minutes'), <FieldInput field={F.appointmentMinutes} value={p.appointmentMinutes ?? 0} onChange={v => save({ appointmentMinutes: Number(v) ? Math.round(Number(v)) : null })} />, p.appointmentMinutes ? String(p.appointmentMinutes) : '—')]
+            : []),
           ...(p.kind === 'work'
             ? [
                 row(Timer, t('catalog.product.normHours'), <FieldInput field={F.normHours} value={Number(norm?.normHours ?? 0)} onChange={v => saveNorm.mutate({ productId: p.id, normHours: String(v ?? 0), workCenterId: norm?.workCenterId ?? null })} />, norm?.normHours ?? '—'),

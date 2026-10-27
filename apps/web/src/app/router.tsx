@@ -34,6 +34,8 @@ import { ContactsPage as CrmContactsPage } from './crm/ContactsPage';
 import { ActivitiesPage as CrmActivitiesPage } from './crm/ActivitiesPage';
 import { SalesPlanPage as CrmSalesPlanPage } from './crm/SalesPlanPage';
 import { SalesPlanDocumentPage as CrmSalesPlanDocumentPage } from './crm/SalesPlanDocumentPage';
+import { AppointmentsPage as CrmAppointmentsPage } from './crm/AppointmentsPage';
+import { ServiceDayPage as CrmServiceDayPage } from './crm/ServiceDayPage';
 import { RecordsPage } from './meta/RecordsPage';
 import { CatalogPage } from './catalog/CatalogPage';
 import { ItemPage } from './production/ItemPage';
@@ -77,7 +79,7 @@ import { FlowEditorPage } from './automations/FlowEditorPage';
 
 /* Hash-роутинг, как в оригинале: работает на любом статическом хостинге без настройки rewrite.
    Чтобы перенести раздел, замените PlaceholderPage на его компонент. */
-const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.archive, SECTIONS.crm, SECTIONS.crmDeals, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities, SECTIONS.crmSalesPlan, SECTIONS.catalog, SECTIONS.production, SECTIONS.productionOrders, SECTIONS.productionWorkbench, SECTIONS.productionStages, SECTIONS.workOrders, SECTIONS.serials, SECTIONS.repairItems, SECTIONS.servicesTimesheet, SECTIONS.servicesPlanner, SECTIONS.servicesReports, SECTIONS.workCenters, SECTIONS.sales, SECTIONS.purchases, SECTIONS.stockDocs, SECTIONS.processingDocs, SECTIONS.inventory, SECTIONS.inUse, SECTIONS.automations, SECTIONS.settings, SECTIONS.system, SECTIONS.productionPiecework, SECTIONS.productionPlanner, SECTIONS.productionResources, SECTIONS.contracts, SECTIONS.tariffPlans, SECTIONS.billing, SECTIONS.productionNeeds, SECTIONS.productionPlans, SECTIONS.productionPlanOrders, SECTIONS.productionClosing, SECTIONS.productionWip, SECTIONS.productionReports, SECTIONS.otherCosts].map(s => s.path));
+const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.archive, SECTIONS.crm, SECTIONS.crmDeals, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities, SECTIONS.crmSalesPlan, SECTIONS.crmAppointments, SECTIONS.catalog, SECTIONS.production, SECTIONS.productionOrders, SECTIONS.productionWorkbench, SECTIONS.productionStages, SECTIONS.workOrders, SECTIONS.serials, SECTIONS.repairItems, SECTIONS.servicesTimesheet, SECTIONS.servicesPlanner, SECTIONS.servicesReports, SECTIONS.workCenters, SECTIONS.sales, SECTIONS.purchases, SECTIONS.stockDocs, SECTIONS.processingDocs, SECTIONS.inventory, SECTIONS.inUse, SECTIONS.automations, SECTIONS.settings, SECTIONS.system, SECTIONS.productionPiecework, SECTIONS.productionPlanner, SECTIONS.productionResources, SECTIONS.contracts, SECTIONS.tariffPlans, SECTIONS.billing, SECTIONS.productionNeeds, SECTIONS.productionPlans, SECTIONS.productionPlanOrders, SECTIONS.productionClosing, SECTIONS.productionWip, SECTIONS.productionReports, SECTIONS.otherCosts].map(s => s.path));
 
 export const router = createHashRouter([
   {
@@ -118,6 +120,8 @@ export const router = createHashRouter([
       { path: SECTIONS.crmActivities.path, element: <CrmActivitiesPage /> },
       { path: SECTIONS.crmSalesPlan.path, element: <CrmSalesPlanPage /> },
       { path: `${SECTIONS.crmSalesPlan.path}/:id`, element: <CrmSalesPlanDocumentPage /> },
+      { path: SECTIONS.crmAppointments.path, element: <CrmAppointmentsPage /> },
+      { path: `${SECTIONS.crmAppointments.path}/day/:id`, element: <CrmServiceDayPage /> },
       // Каталог и производство
       { path: `${SECTIONS.catalog.path}/:productId?`, element: <CatalogPage /> },
       { path: SECTIONS.production.path, element: <ProductionPage /> },

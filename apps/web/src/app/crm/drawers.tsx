@@ -12,6 +12,7 @@ import { isOpen, stage } from './stages';
 import { lostReasonName, stageName } from './labels';
 import { useCrm, type DealPatch } from './store';
 import { useCrmUi } from './ui-context';
+import { ClientAppointments } from './ClientAppointments';
 import { useCustomRows } from '../meta/custom-fields';
 import { parseNumber, useT } from '@/i18n';
 
@@ -359,6 +360,11 @@ export function ContactDrawer({ id }: { id: string }) {
               {t('crm.contacts.drawer.noDeals')}
             </p>
           ),
+        },
+        {
+          id: 'appointments',
+          label: t('appt.client.title'),
+          content: <ClientAppointments contactId={c.id} />,
         },
       ]}
     />

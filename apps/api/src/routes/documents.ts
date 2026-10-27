@@ -375,7 +375,7 @@ export const documentRoutes = new Hono<AppEnv>()
     const body = c.req.valid('json');
     // производственные документы создаются своим сервисом: у них позиции и состав, а не строки товаров
     // производственные документы и прочие затраты создаются своим сервисом: у них позиции и состав, а не строки товаров
-    if (body.type === 'production' || body.type === 'production_order' || body.type === 'other_costs' || body.type === 'material_allocation' || body.type === 'sales_plan') throw new AppError(422, 'production_api_only', 'This document type is created in its own section of Production');
+    if (body.type === 'production' || body.type === 'production_order' || body.type === 'other_costs' || body.type === 'material_allocation' || body.type === 'sales_plan' || body.type === 'service_day') throw new AppError(422, 'production_api_only', 'This document type is created in its own section of Production');
     const id = await createDocument(ctx.db, docCtx(ctx), body);
     const detail = await documentDetail(ctx.db, id);
     // заказ-наряд: карточка сразу с видом, состояниями, материалами и назначениями

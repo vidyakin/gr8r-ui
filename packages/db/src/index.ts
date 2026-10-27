@@ -46,3 +46,4 @@ export * from './serials';
 export * from './repair';
 export * from './repeat-sales';
 export * from './sales-plan';
+export * from './appointments';

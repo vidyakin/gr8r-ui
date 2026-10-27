@@ -25,6 +25,7 @@
 @import './time-tracking.css' layer(components);
 @import './gr8r-blocks.css' layer(components);
 @import './crm.css' layer(components);
+@import './appointments.css' layer(components);
 @import './palette.css' layer(components);
 @import './settings.css' layer(components);
 @import './data-model.css' layer(components);

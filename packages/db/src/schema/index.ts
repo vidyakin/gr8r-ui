@@ -17,3 +17,4 @@ export * from './stockops';
 export * from './automations';
 export * from './serials';
 export * from './sales-plan';
+export * from './appointments';

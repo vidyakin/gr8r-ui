@@ -71,4 +71,16 @@ export const errors = {
   allocation_row_invalid: 'The distribution refers to a product that is not on the “Products” tab',
   release_not_allocatable: 'A release on the “Products” tab is not suitable for this allocation',
   has_posted_children: 'Unpost the documents created from this one first',
+  // запись на приём (задача 1171)
+  slot_taken: 'The specialist is already busy at this time',
+  outside_working_slots: 'The appointment does not fit into the working slots of the specialist',
+  no_schedule: 'The specialist has no schedule yet: set it up in the “Schedules” tab',
+  schedule_has_appointments: 'The change conflicts with an existing appointment: move or cancel it first',
+  cancel_reason_required: 'Enter the reason for cancelling',
+  service_day_exists: 'A document of the day already exists for this specialist',
+  appointment_in_day_document: 'The appointment is already in a document of the day: change the price there',
+  invalid_slots: 'Some slots do not lie on the schedule grid',
+  invalid_qty: 'The quantity must be greater than zero',
+  invalid_status: 'This status change is not allowed',
+  client_required: 'Select a contact or a company',
 };

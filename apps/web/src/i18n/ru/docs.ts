@@ -993,6 +993,7 @@ export const docs: Widen<typeof D> = {
     production: 'Производство',
     work_order: 'Заказ-наряд',
     piecework_order: 'Сдельный наряд',
+    service_day: 'Оказанные услуги за день',
     other_costs: 'Прочие затраты',
     material_allocation: 'Распределение материалов',
     tolling_receipt: 'Поступление в переработку',

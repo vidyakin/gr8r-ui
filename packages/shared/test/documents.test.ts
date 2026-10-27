@@ -73,7 +73,7 @@ describe('document types', () => {
   test('numbering format and groups', () => {
     expect(formatDocumentNumber('invoice', 2026, 42)).toBe('СЧ-2026-00042');
     expect(formatDocumentNumber('receipt', 2027, 123456)).toBe('ПТ-2027-123456');
-    expect(documentTypesOf('sales')).toEqual(['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'work_order']);
+    expect(documentTypesOf('sales')).toEqual(['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'work_order', 'service_day']);
     expect(documentTypesOf('purchases')).toEqual(['supplier_order', 'receipt', 'supplier_return']);
     expect(new Set(DOCUMENT_TYPES.map(t => DOCUMENT_META[t].prefix)).size).toBe(DOCUMENT_TYPES.length);
   });

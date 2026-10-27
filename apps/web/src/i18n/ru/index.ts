@@ -14,7 +14,8 @@ import { production, productionEnums } from './production';
 import { serviceReports } from './services';
 import { serials } from './serials';
 import { repeat } from './repeat';
+import { appt } from './appt';
 import { languages, settings } from './settings';
 import { views } from './views';
 
-export const ru = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, repeat };
+export const ru = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, repeat, appt };

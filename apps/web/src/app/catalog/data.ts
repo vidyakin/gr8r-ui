@@ -72,6 +72,8 @@ export interface Product {
   warrantyMonths: number | null;
   /** Повторить продажу через, дн. (пусто — нет) */
   repeatSaleDays: number | null;
+  /** Длительность приёма, мин (задача 1171) */
+  appointmentMinutes: number | null;
   custom: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;

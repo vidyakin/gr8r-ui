@@ -253,6 +253,13 @@
       "when": 1793069561542,
       "tag": "0036_repeat_sales",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793072470546,
+      "tag": "0038_appointments",
+      "breakpoints": true
     }
   ]
 }

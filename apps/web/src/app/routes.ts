@@ -81,6 +81,7 @@ export const SECTIONS = {
   crmContacts: { path: '/crm/contacts', name: 'Contacts', icon: ContactRound },
   crmActivities: { path: '/crm/activities', name: 'Activities', icon: PhoneCall },
   crmSalesPlan: { path: '/crm/sales-plan', name: 'Sales plan', icon: Target },
+  crmAppointments: { path: '/crm/appointments', name: 'Appointments', icon: CalendarCheck },
   // Каталог и производство
   catalog: { path: '/catalog', name: 'Catalog', icon: Package },
   production: { path: '/production', name: 'Production', icon: Factory },

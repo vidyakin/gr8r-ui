@@ -287,7 +287,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
 
         <div className="sgroup">
           <div className="sgroup-h">{t('nav.groups.crm')}</div>
-          {(['crm', 'crmDeals', 'crmCompanies', 'crmContacts', 'crmActivities', 'crmSalesPlan'] as const).map(id => (
+          {(['crm', 'crmDeals', 'crmCompanies', 'crmContacts', 'crmActivities', 'crmSalesPlan', 'crmAppointments'] as const).map(id => (
             <SectionItem key={id} id={id} collapsed={collapsed} />
           ))}
         </div>

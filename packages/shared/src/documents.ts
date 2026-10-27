@@ -6,7 +6,7 @@ import type { VatRate } from './constants';
 
 /* ---------------- типы и статусы ---------------- */
 
-export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'inventory_count', 'production_order', 'production', 'work_order', 'piecework_order', 'other_costs', 'material_allocation', 'tolling_receipt', 'tolling_report', 'tolling_return', 'sales_plan'] as const;
+export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'inventory_count', 'production_order', 'production', 'work_order', 'piecework_order', 'other_costs', 'material_allocation', 'tolling_receipt', 'tolling_report', 'tolling_return', 'sales_plan', 'service_day'] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 export const DOCUMENT_STATUSES = ['draft', 'posted', 'cancelled'] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
@@ -96,6 +96,8 @@ export interface DocumentTypeMeta {
   ownLines?: boolean;
   /** Документ ведётся в своём разделе (план продаж в CRM): в общих журналах группы и меню «Создать» его нет */
   section?: boolean;
+  /** Документ создаётся и открывается в своём разделе (запись на приём): в журнале есть, в меню «Создать» нет */
+  own?: boolean;
 }
 
 /** Состояния заказа на производство (отдельно от проведения) */
@@ -143,6 +145,8 @@ export const DOCUMENT_META: Record<DocumentType, DocumentTypeMeta> = {
   piecework_order: { label: 'Piecework order', group: 'production', prefix: 'СН', stock: null, party: null, basedOn: [], fulfils: false, forms: ['piecework'] },
   // прочие затраты: косвенные затраты периода без склада (строки — статья, участок, сумма; своего товара у них нет)
   // план продаж: сценарий и периоды в своей шапке, строки — период × значение разреза (раздел CRM «План продаж»)
+  // оказанные услуги за день: один на специалиста, строки — клиент, услуга, время; проведение создаёт продажу по каждому клиенту
+  service_day: { label: 'Services of the day', group: 'sales', prefix: 'ОУ', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true, own: true },
   sales_plan: { label: 'Sales plan', group: 'sales', prefix: 'ПП', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true, section: true },
   other_costs: { label: 'Other costs', group: 'production', prefix: 'ПЗ', stock: null, party: null, basedOn: ['work_order'], fulfils: false, forms: [], ownLines: true },
   // распределение материалов по итогам смены: фактический расход делится между выпусками участка в режиме «по итогам смены»
@@ -203,6 +207,7 @@ export const DOCUMENT_LABELS_RU: Record<DocumentType, string> = {
   piecework_order: 'Сдельный наряд',
   other_costs: 'Прочие затраты',
   sales_plan: 'План продаж',
+  service_day: 'Оказанные услуги за день',
   material_allocation: 'Распределение материалов',
 };
 

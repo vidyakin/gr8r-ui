@@ -75,6 +75,13 @@ describe('seed', () => {
     expect(await count('documents', `${w} and type = 'sales_plan' and status = 'posted'`)).toBe(1);
     expect(await count('sales_plan_figures', `${w} and extract(year from period_start) = extract(year from current_date)`)).toBe(36);
     expect(await count('crm_activities', w)).toBe(crm.activities.length);
+    // запись на приём (задача 1171): два специалиста с разной длиной слота, услуги массажа, записи недели и один незакрытый день
+    expect(await count('specialist_schedules', w)).toBe(2);
+    expect(await count('specialist_schedules', `${w} and slot_minutes = 30`)).toBe(1);
+    expect(await count('specialist_schedules', `${w} and slot_minutes = 60`)).toBe(1);
+    expect(await count('products', `${w} and appointment_minutes is not null`)).toBe(2);
+    expect(await count('appointments', `${w} and status = 'came' and day_line_id is null`)).toBe(2);
+    expect(await count('appointments', `${w} and status in ('booked','confirmed','no_show','cancelled')`)).toBeGreaterThanOrEqual(4);
 
     // конструктор сущностей: системные сущности, пользовательские поля задач, «Suppliers» с записями и индексами по filterable-полям
     expect(await count('entities', `${w} and kind = 'system'`)).toBe(6);
@@ -92,7 +99,7 @@ describe('seed', () => {
     expect(await count('units', w)).toBeGreaterThanOrEqual(19);
     expect(await count('product_categories', w)).toBe(5);
     expect(await count('products', `${w} and kind = 'goods'`)).toBe(31); // + смартфон с учётом по номерам, стекло, профиль, краска, окно и его вариант, брус, заготовка, обрезок и обрезки дуба (отход)
-    expect(await count('products', `${w} and kind = 'service'`)).toBe(4); // + окраска подрядчиком
+    expect(await count('products', `${w} and kind = 'service'`)).toBe(6); // + окраска подрядчиком и две услуги массажа
     expect(await count('products', `${w} and kind = 'work'`)).toBe(2);
     expect(await count('products', `${w} and kind = 'operation'`)).toBe(1);
     expect(await count('work_centers', w)).toBe(2);

@@ -15,3 +15,4 @@ export * from './production-reports';
 export * from './service-reports';
 export * from './serials';
 export * from './sales-plan';
+export * from './appointments';

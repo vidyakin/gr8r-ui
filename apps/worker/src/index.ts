@@ -4,6 +4,7 @@ import { closeBrowser } from './pdf/render';
 import { scheduleFlowsOnce } from './flows/triggers';
 import { runBillingOnce } from './billing';
 import { runNextContactsOnce } from './next-contacts';
+import { runAppointmentsOnce } from './appointments';
 import { defaultOptions, processEventsOnce, processJobsOnce, requeueStale } from './worker';
 
 const pollMs = Number(process.env.WORKER_POLL_MS ?? 1000);
@@ -67,6 +68,9 @@ while (!stopping) {
       // следующий контакт с клиентом (повторные продажи): дела на сегодня по часовому поясу арендатора, повтор в тот же день ничего не создаёт
       const calls = await runNextContactsOnce(sql);
       if (calls) o.log(`created ${calls} next-contact task(s)`);
+      // запись на приём: напоминания накануне и контроль незакрытых дней
+      const appts = await runAppointmentsOnce(sql);
+      if (appts.reminders || appts.alerts) o.log(`appointments: ${appts.reminders} reminder(s), ${appts.alerts} unclosed-day alert(s)`);
     }
     const events = await processEventsOnce(sql, o);
     const jobs = await processJobsOnce(sql, o);

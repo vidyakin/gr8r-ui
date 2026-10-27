@@ -13,6 +13,7 @@ import { seedFlows } from './seed-flows';
 import { seedPlanning } from './seed-planning';
 import { seedContracts } from './seed-contracts';
 import { seedRepeatSales } from './seed-repeat-sales';
+import { seedAppointments } from './seed-appointments';
 import { ensureCostItems, ensureDocumentDefaults } from './documents';
 import { ensureModuleProjects } from './modules';
 import { ensureWorkOrderKind } from './work-orders';
@@ -345,6 +346,9 @@ async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: string, user
 
   // Повторные продажи и план продаж на текущий год
   await seedRepeatSales(db, { workspaceId: wsId, memberId: U(d.me), role: 'owner' }, { first: U('co1'), second: U('co8') });
+
+  // Запись на приём: специалисты с графиками, услуги массажа, записи этой недели и незакрытый день
+  await seedAppointments(db, { workspaceId: wsId, memberId: U(d.me), role: 'owner' });
 
   await db.insert(events).values({ workspaceId: wsId, type: 'workspace.seeded', entity: 'workspace', recordId: wsId, actorId: U(d.me), payload: { tasks: d.tasks.length, deals: crm.deals.length, documents: docs.documents } });
   return { tasks: d.tasks.length, projects: d.projects.length, deals: crm.deals.length, metaFields };

@@ -401,6 +401,7 @@ export const overlays = {
       production: 'Production',
       work_order: 'Work order',
       piecework_order: 'Piecework order',
+      service_day: 'Services of the day',
       other_costs: 'Other costs',
       material_allocation: 'Material allocation',
       tolling_receipt: 'Receipt for processing',

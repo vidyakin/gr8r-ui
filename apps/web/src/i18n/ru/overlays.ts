@@ -400,6 +400,7 @@ export const overlays: Widen<typeof O> = {
       production: 'Производство',
       work_order: 'Заказ-наряд',
       piecework_order: 'Сдельный наряд',
+      service_day: 'Оказанные услуги за день',
       other_costs: 'Прочие затраты',
       material_allocation: 'Распределение материалов',
       tolling_receipt: 'Приём в переработку',

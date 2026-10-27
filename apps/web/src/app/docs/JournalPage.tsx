@@ -96,7 +96,7 @@ export function JournalPage({ group, type: fixed }: { group: DocumentGroup; type
         </Button>
       </MenuTrigger>
       <MenuContent align="end">
-        {types.map(tt => (
+        {types.filter(tt => !DOCUMENT_META[tt].own).map(tt => (
           <MenuItem key={tt} icon={<FilePlus size={15} />} onSelect={() => void create(tt)}>
             {typeLabel(tt)}
           </MenuItem>
@@ -154,7 +154,7 @@ export function JournalPage({ group, type: fixed }: { group: DocumentGroup; type
             rows={rows}
             table={table}
             getId={d => d.id}
-            onRowClick={d => navigate(`/documents/${d.id}`)}
+            onRowClick={d => navigate(d.type === 'service_day' ? `/crm/appointments/day/${d.id}` : `/documents/${d.id}`)}
             showTotals={rows.length > 0}
             totalLabel={t('ui.total')}
             empty={
