@@ -103,6 +103,10 @@ describe('stock transfer', () => {
     // журнал показывает стоимость по себестоимости, а не сумму строк
     const journal = (await owner.get('/documents?group=stock')).body;
     expect(journal.items.find((d: any) => d.id === t.id).costTotal).toBe('400.00');
+    // журнал без фильтров: сумма стоимости собирается и при пустом условии отбора
+    const all = await owner.get('/documents');
+    expect(all.status).toBe(200);
+    expect(Number(all.body.sum.cost)).toBe(400);
   });
 
   test('the same warehouse cannot be both the source and the target', async () => {

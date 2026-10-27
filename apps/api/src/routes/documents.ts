@@ -335,7 +335,7 @@ export const documentRoutes = new Hono<AppEnv>()
             from stock_moves m
             join documents on documents.id = m.document_id
             left join companies on companies.id = documents.counterparty_id
-            where ${where} and documents.status <> 'cancelled' and documents.type in ('stock_transfer','write_off','stock_posting')
+            where ${where ?? sql`true`} and documents.status <> 'cancelled' and documents.type in ('stock_transfer','write_off','stock_posting')
             group by documents.id
           ) t`)
       : [];
