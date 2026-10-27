@@ -60,6 +60,8 @@ export const sections = {
   tariffPlans: 'Tariff plans',
   billing: 'Billing',
   money: 'Payments',
+  moneyCalendar: 'Payment calendar',
+  moneyRequests: 'Payment requests',
   moneyBalances: 'Cash balances',
   moneyCashFlow: 'Cash flow',
   moneyReceivables: 'Receivables',

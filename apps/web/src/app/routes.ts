@@ -45,6 +45,7 @@ import {
   BriefcaseBusiness,
   Landmark,
   Banknote,
+  FileCheck2,
   Wallet,
   ArrowDownUp,
   HandCoins,
@@ -133,6 +134,8 @@ export const SECTIONS = {
   billing: { path: '/billing', name: 'Billing', icon: ReceiptText },
   // Деньги: оплаты, остатки, ДДС, задолженность
   money: { path: '/money', name: 'Payments', icon: Banknote },
+  moneyCalendar: { path: '/money/calendar', name: 'Payment calendar', icon: CalendarRange },
+  moneyRequests: { path: '/money/requests', name: 'Payment requests', icon: FileCheck2 },
   moneyBalances: { path: '/money/balances', name: 'Cash balances', icon: Wallet },
   moneyCashFlow: { path: '/money/cash-flow', name: 'Cash flow', icon: ArrowDownUp },
   moneyReceivables: { path: '/money/receivables', name: 'Receivables', icon: HandCoins },
@@ -191,7 +194,7 @@ export const NAV_GROUPS = {
   },
   finance: {
     icon: Landmark,
-    items: [{ id: 'money' }, { id: 'moneyBalances' }, { id: 'moneyCashFlow' }, { id: 'moneyReceivables' }, { id: 'moneyPayables' }, { id: 'moneyReferences' }, { id: 'investments' }, { id: 'investmentsPlanFact' }],
+    items: [{ id: 'money' }, { id: 'moneyRequests' }, { id: 'moneyCalendar' }, { id: 'moneyBalances' }, { id: 'moneyCashFlow' }, { id: 'moneyReceivables' }, { id: 'moneyPayables' }, { id: 'moneyReferences' }, { id: 'investments' }, { id: 'investmentsPlanFact' }],
   },
 } satisfies Record<string, NavGroup>;
 
@@ -266,6 +269,8 @@ const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
   deliveries: 'deliveries',
   myDeliveries: 'deliveries',
   money: 'finance',
+  moneyCalendar: 'finance',
+  moneyRequests: 'finance',
   moneyBalances: 'finance',
   moneyCashFlow: 'finance',
   moneyReceivables: 'finance',

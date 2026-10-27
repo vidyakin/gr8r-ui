@@ -305,3 +305,137 @@ export function useOrgBankAccounts(organizationId: string | undefined) {
     enabled: !!organizationId,
   });
 }
+
+/* ---------------- платёжный календарь и заявки на расход (1174г) ---------------- */
+
+export interface CalendarItem {
+  direction: 'in' | 'out';
+  source: 'document' | 'request';
+  date: string;
+  dueDate: string;
+  overdue: boolean;
+  amount: string;
+  documentId: string;
+  documentType: string;
+  number: string | null;
+  counterpartyId: string | null;
+  counterpartyName: string;
+  state?: string;
+}
+export interface CalendarDay {
+  date: string;
+  in: string;
+  out: string;
+  balance: string;
+  gap: boolean;
+}
+export interface PaymentCalendar {
+  from: string;
+  to: string;
+  opening: { total: string; cash: string; bank: string };
+  days: CalendarDay[];
+  totals: { in: string; out: string };
+  endBalance: string;
+  minBalance: string;
+  minDate: string;
+  firstGap: { date: string; balance: string } | null;
+  gapDays: number;
+  items: CalendarItem[];
+  beyond: number;
+}
+
+export function usePaymentCalendar(p: { days: number; includePending: boolean; organizationId?: string }) {
+  const ws = useWsId();
+  return useQuery({
+    queryKey: moneyKey(ws, 'calendar', p),
+    queryFn: () => call<PaymentCalendar>(ws, 'GET', `/payment-calendar?${qs({ days: String(p.days), includePending: String(p.includePending), organizationId: p.organizationId })}`),
+  });
+}
+
+export interface RequestListItem {
+  id: string;
+  number: string | null;
+  date: string;
+  dueDate: string | null;
+  status: DocumentStatus;
+  state: string | null;
+  operation: string | null;
+  total: string;
+  comment: string;
+  counterpartyId: string | null;
+  counterpartyName: string | null;
+}
+export interface RequestDetail {
+  id: string;
+  number: string | null;
+  date: string;
+  dueDate: string | null;
+  status: DocumentStatus;
+  state: string | null;
+  operation: string | null;
+  organizationId: string;
+  organizationName: string | null;
+  counterpartyId: string | null;
+  counterparty: { id: string; name: string } | null;
+  comment: string;
+  total: string;
+  paid: string;
+  remaining: string;
+  payable: string;
+  payments: { id: string; type: string; number: string | null; date: string; status: string; total: string }[];
+  lines: PaymentLine[];
+}
+export interface RequestBody {
+  operation?: string;
+  organizationId?: string | null;
+  date?: string;
+  dueDate?: string | null;
+  counterpartyId?: string | null;
+  comment?: string;
+  lines?: Partial<PaymentLineInput>[];
+}
+
+export function useRequests(params: { state?: string; q?: string }) {
+  const ws = useWsId();
+  return useQuery({ queryKey: moneyKey(ws, 'requests', params), queryFn: () => call<{ items: RequestListItem[]; total: number }>(ws, 'GET', `/payment-requests?${qs({ ...params, limit: '100' })}`) });
+}
+
+export function useRequest(id: string | undefined) {
+  const ws = useWsId();
+  return useQuery({ queryKey: moneyKey(ws, 'request', id ?? ''), queryFn: () => call<RequestDetail>(ws, 'GET', `/payment-requests/${id}`), enabled: !!id });
+}
+
+export function useRequestApi() {
+  const ws = useWsId();
+  const qc = useQueryClient();
+  const refresh = () => qc.invalidateQueries({ queryKey: ['ws', ws, 'docs'] });
+  return {
+    save: async (body: RequestBody) => {
+      const r = await call<RequestDetail>(ws, 'POST', '/payment-requests', body);
+      await refresh();
+      return r;
+    },
+    update: async (id: string, body: RequestBody) => {
+      const r = await call<RequestDetail>(ws, 'PATCH', `/payment-requests/${id}`, body);
+      await refresh();
+      return r;
+    },
+    setState: async (id: string, state: 'pending' | 'approved' | 'rejected') => {
+      await call(ws, 'POST', `/payment-requests/${id}/state`, { state });
+      await refresh();
+    },
+    pay: async (id: string, account: 'cash' | 'bank') => {
+      const r = await call<PaymentDetail>(ws, 'POST', `/payment-requests/${id}/pay`, { account });
+      await refresh();
+      return r;
+    },
+    action: async (id: string, action: 'post' | 'unpost' | 'cancel' | 'restore') => {
+      await call(ws, 'POST', `/documents/${id}/${action}`);
+      await refresh();
+    },
+    remove: async (id: string) => {
+      await call(ws, 'DELETE', `/documents/${id}`);
+      await refresh();
+    },
+  };
+}
