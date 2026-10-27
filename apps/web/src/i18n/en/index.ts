@@ -11,7 +11,8 @@ import { nav, projectTabs, sections } from './nav';
 import { overlays } from './overlays';
 import { pages } from './pages';
 import { production, productionEnums } from './production';
+import { serviceReports } from './services';
 import { languages, settings } from './settings';
 import { views } from './views';
 
-export const en = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages };
+export const en = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports };

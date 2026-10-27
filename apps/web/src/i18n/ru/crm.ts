@@ -234,6 +234,7 @@ export const crm = {
       activity: 'Активность',
       requisites: 'Реквизиты',
       contracts: 'Договоры',
+      documents: 'Документы',
     },
     openWebsite: 'Открыть {website}',
     created: 'Создана сделка',

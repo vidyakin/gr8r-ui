@@ -19,3 +19,4 @@ export * from './print';
 export * from './automations';
 export * from './i18n';
 export * from './investments';
+export * from './service-reports';

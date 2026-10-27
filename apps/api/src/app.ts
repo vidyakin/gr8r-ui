@@ -24,6 +24,7 @@ import { companyRoutes, contactRoutes, crmActivityRoutes, dealRoutes } from './r
 import { bankAccountRoutes, companyBankRoutes, costItemRoutes, documentRoutes, organizationBankRoutes, organizationRoutes, stockRoutes, warehouseRoutes } from './routes/documents';
 import { componentOwnerRoutes, processorReportRoutes, processorTransferRoutes, tollingRoutes } from './routes/tolling';
 import { documentStateRoutes, workOrderAssignmentRoutes, workOrderKindRoutes, workOrderRoutes } from './routes/work-orders';
+import { serviceReportRoutes } from './routes/service-reports';
 import { serviceRoutes } from './routes/services';
 import { contractRoutes, tariffPlanRoutes } from './routes/contracts';
 import { billingRoutes } from './routes/billing';
@@ -128,6 +129,7 @@ function buildTenantApi() {
     .route('/work-order-kinds', workOrderKindRoutes)
     .route('/document-states', documentStateRoutes)
     .route('/services', serviceRoutes)
+    .route('/services', serviceReportRoutes)
     .route('/contracts', contractRoutes)
     .route('/tariff-plans', tariffPlanRoutes)
     .route('/billing', billingRoutes)

@@ -103,6 +103,7 @@ export const SECTIONS = {
   workOrders: { path: '/work-orders', name: 'Work orders', icon: ClipboardList },
   servicesTimesheet: { path: '/services/timesheet', name: 'Timesheet', icon: CalendarClock },
   servicesPlanner: { path: '/services/planner', name: 'Service planner', icon: CalendarRange },
+  servicesReports: { path: '/services/reports', name: 'Service reports', icon: ChartNoAxesCombined },
   purchases: { path: '/purchases', name: 'Purchases', icon: ShoppingCart },
   stockDocs: { path: '/stock-docs', name: 'Stock documents', icon: ArrowLeftRight },
   processingDocs: { path: '/processing-docs', name: 'Documents of processing', icon: PackageSearch },
@@ -161,7 +162,7 @@ export const NAV_GROUPS = {
   },
   services: {
     icon: BriefcaseBusiness,
-    items: [{ id: 'workOrders' }, { id: 'servicesTimesheet' }, { id: 'servicesPlanner' }, { id: 'contracts' }, { id: 'tariffPlans' }, { id: 'billing' }],
+    items: [{ id: 'workOrders' }, { id: 'servicesTimesheet' }, { id: 'servicesPlanner' }, { id: 'servicesReports' }, { id: 'contracts' }, { id: 'tariffPlans' }, { id: 'billing' }],
   },
   finance: {
     icon: Landmark,

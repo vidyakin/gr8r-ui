@@ -78,6 +78,8 @@ export interface DocListItem {
   counterpartyName: string | null;
   /** Договор документа */
   contractId: string | null;
+  /** Вид заказ-наряда (только у work_order): по нему и ключу состояния находится подпись состояния */
+  workOrderKindId?: string | null;
   warehouseId: string | null;
   warehouseName: string | null;
   targetWarehouseId: string | null;

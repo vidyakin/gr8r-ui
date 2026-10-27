@@ -25,6 +25,8 @@ interface Props {
   /** Линия-ориентир (например, 100 % мощности) */
   reference?: { value: number; label: string };
   height?: number;
+  /** Значения — штуки: деления шкалы только целые */
+  integer?: boolean;
 }
 
 const PAD = { l: 44, r: 8, t: 8, b: 44 };
@@ -37,9 +39,11 @@ function niceMax(v: number): number {
   return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p;
 }
 
-export function BarChart({ groups, series, title, reference, height = 220 }: Props) {
+export function BarChart({ groups, series, title, reference, height = 220, integer }: Props) {
   const width = Math.max(320, groups.length * (series.length * 18 + 22) + PAD.l + PAD.r);
-  const max = niceMax(Math.max(reference?.value ?? 0, ...groups.flatMap(g => series.map(s => g.values[s.id] ?? 0))));
+  const top = Math.max(reference?.value ?? 0, ...groups.flatMap(g => series.map(s => g.values[s.id] ?? 0)));
+  // для штук — 4 целых деления: шаг округляем вверх
+  const max = integer ? Math.max(1, Math.ceil(top / 4)) * 4 : niceMax(top);
   const plotH = height - PAD.t - PAD.b;
   const gw = (width - PAD.l - PAD.r) / Math.max(groups.length, 1);
   const bw = Math.min(26, (gw - 10) / Math.max(series.length, 1));

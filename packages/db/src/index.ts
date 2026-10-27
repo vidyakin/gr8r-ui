@@ -41,3 +41,4 @@ export * from './other-costs';
 export * from './work-order-cost';
 export * from './investments';
 export * from './production-reports';
+export * from './service-reports';

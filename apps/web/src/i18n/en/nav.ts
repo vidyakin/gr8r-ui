@@ -43,6 +43,7 @@ export const sections = {
   workOrders: 'Work orders',
   servicesTimesheet: 'Timesheet',
   servicesPlanner: 'Service planner',
+  servicesReports: 'Service reports',
   purchases: 'Purchases',
   stockDocs: 'Stock documents',
   processingDocs: 'Documents of processing',
