@@ -44,6 +44,7 @@ export const settings = {
       productKinds: 'Nomenclature kinds',
       leadStatuses: 'Lead statuses',
       leadForms: 'Lead forms',
+      integrations: 'Integrations',
       notifEmail: 'Email',
       notifPush: 'Push',
       notifMentions: 'Mentions',

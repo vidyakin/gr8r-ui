@@ -45,6 +45,7 @@ export const settings: Widen<typeof S> = {
       productKinds: 'Виды номенклатуры',
       leadStatuses: 'Статусы лидов',
       leadForms: 'Формы лидов',
+      integrations: 'Интеграции',
       notifEmail: 'Email',
       notifPush: 'Push',
       notifMentions: 'Упоминания',

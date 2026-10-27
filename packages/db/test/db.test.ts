@@ -66,15 +66,15 @@ describe('seed', () => {
     expect(await count('saved_views', w)).toBe(1);
     expect(await count('calendar_events', w)).toBe(6);
     expect(await count('companies', w)).toBe(crm.companies.length + 2); // + ИП из демо документов и контрагент из сконвертированного лида
-    expect(await count('contacts', w)).toBe(crm.contacts.length);
-    expect(await count('deals', w)).toBe(crm.deals.length);
+    expect(await count('contacts', w)).toBe(crm.contacts.length + 1); // + контакт из сконвертированного лида
+    expect(await count('deals', w)).toBe(crm.deals.length + 1); // + сделка из сконвертированного лида
     // повторные продажи (задача 1133): срок повтора у двух услуг, дата контакта у двух компаний, план продаж на текущий год
     expect(await count('products', `${w} and repeat_sale_days is not null`)).toBe(2);
     expect(await count('companies', `${w} and next_contact_date is not null`)).toBe(2);
     expect(await count('sales_plan_scenarios', w)).toBe(2);
     expect(await count('documents', `${w} and type = 'sales_plan' and status = 'posted'`)).toBe(1);
     expect(await count('sales_plan_figures', `${w} and extract(year from period_start) = extract(year from current_date)`)).toBe(36);
-    expect(await count('crm_activities', w)).toBe(crm.activities.length);
+    expect(await count('crm_activities', w)).toBe(crm.activities.length + 7); // + касания демо-лидов (6) и заметка о конвертации
     // запись на приём (задача 1171): два специалиста с разной длиной слота, услуги массажа, записи недели и один незакрытый день
     expect(await count('specialist_schedules', w)).toBe(2);
     expect(await count('specialist_schedules', `${w} and slot_minutes = 30`)).toBe(1);
@@ -84,7 +84,7 @@ describe('seed', () => {
     expect(await count('appointments', `${w} and status in ('booked','confirmed','no_show','cancelled')`)).toBeGreaterThanOrEqual(4);
 
     // конструктор сущностей: системные сущности, пользовательские поля задач, «Suppliers» с записями и индексами по filterable-полям
-    expect(await count('entities', `${w} and kind = 'system'`)).toBe(6);
+    expect(await count('entities', `${w} and kind = 'system'`)).toBe(7); // + lead
     const [sup] = await admin`select id from entities where workspace_id = ${demo!.id} and key = 'suppliers'`;
     expect(await count('records', `where entity_id = '${sup!.id}'`)).toBe(8);
     expect(await count('fields', `where entity_id = '${sup!.id}'`)).toBe(6);
@@ -108,7 +108,7 @@ describe('seed', () => {
     expect(await count('bom_lines', `${w} and kind = 'semi'`)).toBe(3);
     expect(await count('products', `where workspace_id = '${acme!.id}'`)).toBe(0);
     expect(await count('units', `where workspace_id = '${acme!.id}'`)).toBeGreaterThanOrEqual(19);
-    expect(await count('entities', `where workspace_id = '${acme!.id}' and kind = 'system'`)).toBe(6); // второй арендатор тоже зарегистрирован
+    expect(await count('entities', `where workspace_id = '${acme!.id}' and kind = 'system'`)).toBe(7); // второй арендатор тоже зарегистрирован
 
     // документы и склад: организация, склады, реквизиты, проведённые цепочки, остатки и резерв
     expect(await count('organizations', `${w} and name = 'ООО «Гр8р Студия»' and tax_system = 'osn' and default_vat_rate = '20' and is_default`)).toBe(1);

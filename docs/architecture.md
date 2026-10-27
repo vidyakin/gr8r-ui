@@ -60,6 +60,7 @@
 - [Повторные продажи и план продаж](architecture/repeat-sales.md)
 - [Должности сотрудников и виды номенклатуры](architecture/positions.md)
 - [Лиды: статусы, дубли, конвертация, вебхук форм](architecture/leads.md)
+- [Хранилище секретов](architecture/secrets.md)
 - [Запись клиентов на приём](architecture/appointments.md)
 - [Доставка](architecture/delivery.md)
 

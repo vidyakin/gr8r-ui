@@ -52,6 +52,7 @@ export function useRealtime(ws: string, engine: Engine) {
       // Должности и виды номенклатуры (задача 1172); смена должностей участника приходит событием member.updated
       if (['position', 'product_kind'].includes(e.entity) || e.type.startsWith('member.')) void qc.invalidateQueries({ queryKey: ['ws', ws, 'positions'] });
       if (e.entity === 'position' || e.entity === 'product_kind') void qc.invalidateQueries({ queryKey: ['ws', ws, 'catalog'] });
+      if (e.entity === 'secret') void qc.invalidateQueries({ queryKey: ['ws', ws, 'secrets'] });
       // Название воркспейса, моя роль, состав участников
       if (e.entity === 'workspace' || e.type.startsWith('member.')) void qc.invalidateQueries({ queryKey: ['session'] });
     };

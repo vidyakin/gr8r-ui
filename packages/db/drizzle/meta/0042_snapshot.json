@@ -1,6 +1,6 @@
 {
-  "id": "e48fec89-bc4d-4637-94ce-34123aa7dc8e",
-  "prevId": "158a31d3-94e2-47e5-8f78-2d50804e81d9",
+  "id": "30dee59b-eb17-458a-acf0-480605015da3",
+  "prevId": "e88198fe-1984-4580-b93d-451211969e1c",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3457,6 +3457,21 @@
             },
             {
               "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "crm_activities_lead_idx": {
+          "name": "crm_activities_lead_idx",
+          "columns": [
+            {
+              "expression": "lead_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -23142,6 +23157,79 @@
           ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.workspace_secrets": {
+      "name": "workspace_secrets",
+      "schema": "",
+      "columns": {
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ciphertext": {
+          "name": "ciphertext",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "workspace_secrets_workspace_id_workspaces_id_fk": {
+          "name": "workspace_secrets_workspace_id_workspaces_id_fk",
+          "tableFrom": "workspace_secrets",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "workspace_secrets_pk": {
+          "name": "workspace_secrets_pk",
+          "columns": [
+            "workspace_id",
+            "key"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

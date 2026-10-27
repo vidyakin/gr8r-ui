@@ -1,0 +1,21 @@
+/* Хранилище секретов воркспейса (задача 1174а): Settings → Integrations. Английский словарь — источник ключей. */
+export const secrets = {
+  lead: 'Keys and passwords of integrations. Values are stored encrypted and are never shown again; you can only replace or delete them.',
+  onlyAdmins: 'Only admins and owners can manage secrets.',
+  unavailable: 'Secret storage is not configured on the server: set SECRETS_KEY (32 bytes, 64 hex characters or base64) and restart.',
+  empty: 'No secrets yet',
+  emptyHint: 'Add the first key, for example for a payment or bank integration.',
+  add: 'Add secret',
+  name: 'Name',
+  nameHint: 'Lowercase latin letters, digits, dot, dash, underscore. For example yookassa.api_key',
+  value: 'Value',
+  set: 'Set',
+  updated: 'Updated {date}',
+  replace: 'Replace',
+  save: 'Save',
+  cancel: 'Cancel',
+  delete: 'Delete',
+  confirmDelete: 'Delete secret {key}? Integrations that use it will stop working.',
+  saved: 'Secret saved',
+  deleted: 'Secret deleted',
+};

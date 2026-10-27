@@ -12,6 +12,7 @@ import { WorkOrderKindsSection } from '../settings/work-orders';
 import { DeliveryMethodsSection } from '../settings/delivery';
 import { PositionsSection, ProductKindsSection } from '../settings/positions';
 import { LeadFormsSection, LeadStatusesSection } from '../settings/leads';
+import { IntegrationsSection } from '../settings/integrations';
 import { NotificationsSection, PreferencesSection, ProfileSection, ShortcutsSection } from '../settings/personal';
 import { InvoicesSection, PasswordSection, PaymentSection, PlanSection, SessionsSection, TwoFactorSection } from '../settings/account';
 import { NotFoundPage } from './PlaceholderPage';
@@ -55,6 +56,8 @@ function Body({ sec, title }: { sec: string; title: string }) {
       return <LeadStatusesSection title={title} />;
     case 'lead-forms':
       return <LeadFormsSection title={title} />;
+    case 'integrations':
+      return <IntegrationsSection title={title} />;
     case 'product-kinds':
       return <ProductKindsSection title={title} />;
     case 'notif-email':
