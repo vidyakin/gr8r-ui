@@ -167,6 +167,9 @@ export const money: Widen<typeof M> = {
     pay: 'Оплатить',
     payCash: 'Наличными',
     payBank: 'На счёт',
+    payLink: 'Ссылка на оплату',
+    payLinkCopied: 'Ссылка на оплату скопирована',
+    payLinkOpen: 'Открыть',
     byCounterparty: 'по контрагенту',
   },
   card: {

@@ -10,6 +10,7 @@ import { fmtDateTime } from '@/i18n/format';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';
 import { useIsAdmin } from '../catalog/data';
+import { BankConnections } from './bank-connections';
 import { SettingsHead, SRow } from './parts';
 
 interface SecretItem {
@@ -79,6 +80,8 @@ export function IntegrationsSection({ title }: { title: string }) {
       {!isAdmin ? (
         <Alert tone="info" className="mb-3">{t('secrets.onlyAdmins')}</Alert>
       ) : (
+        <>
+        <BankConnections secretsAvailable={available} />
         <div className="sblock">
           {!available && <Alert tone="warn" className="mb-3">{t('secrets.unavailable')}</Alert>}
           <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
@@ -107,6 +110,7 @@ export function IntegrationsSection({ title }: { title: string }) {
             </div>
           )}
         </div>
+        </>
       )}
       <ConfirmDialog
         open={!!del}
