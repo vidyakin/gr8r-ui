@@ -22,6 +22,8 @@ export interface AppConfig {
   authRateLimitWindowMs: number;
   /** Логировать запросы в stdout (в тестах выключено) */
   logRequests: boolean;
+  /** Дедлайн транзакции арендатора, мс: дольше — откат и 503 (защита пула от зависших обработчиков) */
+  txTimeoutMs: number;
 }
 
 /** Переменные контекста Hono. tenant-поля есть только после middleware tenant() */

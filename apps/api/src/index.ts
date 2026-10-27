@@ -1,10 +1,10 @@
 /* Точка входа API: Bun.serve + WebSocket + слушатель событий. */
 import { createSql, databaseUrl } from '@gr8r/db';
 import { createApp, websocket } from './app';
-import { loadConfig } from './env';
+import { apiSqlOptions, loadConfig } from './env';
 
 const config = loadConfig();
-const sql = createSql(databaseUrl());
+const sql = createSql(databaseUrl(), apiSqlOptions(config));
 const { app, hub } = createApp({ sql, config });
 await hub.start();
 

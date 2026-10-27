@@ -7,7 +7,7 @@ import { createMiddleware } from 'hono/factory';
 import { databaseUrl, events, isUuid, memberships, members, withContext, type Sql } from '@gr8r/db';
 import { authRoutes } from './auth';
 import { loadConfig } from './env';
-import { AppError, forbidden, onError, onNotFound } from './errors';
+import { AppError, dbUnavailable, forbidden, onError, onNotFound } from './errors';
 import { requireSession, requestLogger, tenant } from './middleware';
 import { Hub } from './realtime';
 import { attributeRoutes, categoryRoutes, productRoutes, unitRoutes, variantRoutes } from './routes/catalog';
@@ -54,6 +54,8 @@ import type { AppConfig, AppEnv } from './types';
 import { inviteRoutes, workspaceRoutes } from './workspaces';
 
 export { websocket };
+
+const HEALTH_TIMEOUT_MS = 2000;
 
 export interface AppDeps {
   sql: Sql;
@@ -168,11 +170,15 @@ export function createApp(deps: AppDeps) {
       }),
     )
     .get('/health', async c => {
+      // Пул без свободных соединений ставит запрос в очередь без таймаута — ограничиваем ожидание сами
+      let timer: Timer | undefined;
       try {
-        await c.get('sql')`select 1`;
+        await Promise.race([c.get('sql')`select 1`, new Promise((_, reject) => (timer = setTimeout(() => reject(dbUnavailable()), HEALTH_TIMEOUT_MS)))]);
         return c.json({ status: 'ok' as const, db: 'up' as const, time: new Date().toISOString(), ws: hub.connections });
       } catch {
         return c.json({ status: 'degraded' as const, db: 'down' as const, time: new Date().toISOString(), ws: hub.connections }, 503);
+      } finally {
+        clearTimeout(timer);
       }
     })
     .route('/auth', authRoutes)

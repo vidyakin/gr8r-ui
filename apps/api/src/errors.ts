@@ -7,7 +7,7 @@ import type { AppEnv } from './types';
 
 export class AppError extends Error {
   constructor(
-    public status: 400 | 401 | 403 | 404 | 405 | 409 | 422 | 429 | 500,
+    public status: 400 | 401 | 403 | 404 | 405 | 409 | 422 | 429 | 500 | 503,
     public code: string,
     message: string,
     public details?: unknown,
@@ -20,6 +20,7 @@ export const notFound = (what = 'Resource') => new AppError(404, 'not_found', `$
 export const forbidden = (message = 'You do not have permission to do this') => new AppError(403, 'forbidden', message);
 export const unauthorized = (message = 'Authentication required') => new AppError(401, 'unauthorized', message);
 export const badRequest = (code: string, message: string, details?: unknown) => new AppError(400, code, message, details);
+export const dbUnavailable = (message = 'Database is unavailable, try again later') => new AppError(503, 'db_unavailable', message);
 
 /** Откат транзакции арендатора после ответа с ошибкой (не ошибка для клиента) */
 export class Rollback extends Error {}
@@ -31,9 +32,15 @@ interface PgErrorLike {
   column_name?: string;
 }
 
+/* Коды postgres.js (ошибки соединения) и SQLSTATE: 57P01/57P03 — сервер завершает работу или не принимает подключения,
+   25P03 — idle_in_transaction_session_timeout, 57014 — statement_timeout. Классы 08 (соединение) и 28 (аутентификация) — выше */
+const DB_DOWN_CODES = new Set(['CONNECT_TIMEOUT', 'CONNECTION_CLOSED', 'CONNECTION_DESTROYED', 'CONNECTION_ENDED', 'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', '57P01', '57P03', '25P03', '57014']);
+
 /** Ошибки PostgreSQL → понятные HTTP-ответы. drizzle оборачивает ошибку драйвера в cause */
 function fromPg(err: unknown): AppError | null {
   const e = ((err as { cause?: unknown })?.cause ?? err) as PgErrorLike;
+  // Нет связи с БД, отказ в подключении, таймауты сервера → 503, а не 500
+  if (e?.code && (/^(08|28)/.test(e.code) || DB_DOWN_CODES.has(e.code))) return dbUnavailable();
   switch (e?.code) {
     case '23505':
       return new AppError(409, 'conflict', 'A record with the same unique value already exists', { constraint: e.constraint_name });
