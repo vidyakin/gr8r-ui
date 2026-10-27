@@ -131,6 +131,7 @@ export const crmActivityRoutes = crud({
     q.dealId ? eq(crmActivities.dealId, q.dealId) : undefined,
     q.companyId ? eq(crmActivities.companyId, q.companyId) : undefined,
     q.contactId ? eq(crmActivities.contactId, q.contactId) : undefined,
+    q.leadId ? eq(crmActivities.leadId, q.leadId) : undefined,
   ],
   prepareCreate: async (ctx, body) => {
     // Компания берётся из сделки, если не указана

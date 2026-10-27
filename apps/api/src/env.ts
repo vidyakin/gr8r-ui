@@ -17,6 +17,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     sessionTtlDays: int(env.SESSION_TTL_DAYS, 30),
     authRateLimitMax: int(env.AUTH_RATE_LIMIT_MAX, 10),
     authRateLimitWindowMs: int(env.AUTH_RATE_LIMIT_WINDOW_MIN, 15) * 60_000,
+    leadHookRateLimitMax: int(env.LEAD_HOOK_RATE_LIMIT_MAX, 30),
+    leadHookRateLimitWindowMs: int(env.LEAD_HOOK_RATE_LIMIT_WINDOW_SEC, 60) * 1000,
     logRequests: env.NODE_ENV !== 'test',
     txTimeoutMs: int(env.API_TX_TIMEOUT_MS, 30_000),
   };

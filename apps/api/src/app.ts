@@ -37,6 +37,8 @@ import { calculationRoutes } from './routes/calculations';
 import { materialAllocationRoutes, otherCostsRoutes, productionClosingRoutes } from './routes/production-closing';
 import { investmentRoutes } from './routes/investments';
 import { flowRoutes, flowRunRoutes } from './routes/flows';
+import { hookRoutes } from './routes/hooks';
+import { leadFormRoutes, leadRoutes, leadStatusRoutes } from './routes/leads';
 import { entityRoutes } from './routes/meta';
 import { dataSearchRoutes, recordsRoutes } from './routes/records';
 import {
@@ -68,7 +70,7 @@ export interface AppDeps {
 }
 
 /** Ресурсы арендатора: каждый путь защищён цепочкой «сессия → членство → транзакция с RLS» */
-const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/files', '/activity', '/events', '/companies', '/contacts', '/deals', '/crm-activities', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production', '/production-orders', '/production-plans', '/stock-levels', '/organizations', '/bank-accounts', '/warehouses', '/cost-items', '/documents', '/order-calculations', '/stock', '/flows', '/flow-runs', '/work-orders', '/work-order-assignments', '/work-order-kinds', '/document-states', '/services', '/contracts', '/tariff-plans', '/billing', '/other-costs', '/material-allocations', '/investments', '/processing', '/processor-reports', '/supplier-orders', '/serials', '/repair-items', '/sales-plan', '/appointments', '/delivery-methods', '/deliveries', '/positions', '/product-kinds'];
+const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/files', '/activity', '/events', '/companies', '/contacts', '/deals', '/crm-activities', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production', '/production-orders', '/production-plans', '/stock-levels', '/organizations', '/bank-accounts', '/warehouses', '/cost-items', '/documents', '/order-calculations', '/stock', '/flows', '/flow-runs', '/work-orders', '/work-order-assignments', '/work-order-kinds', '/document-states', '/services', '/contracts', '/tariff-plans', '/billing', '/other-costs', '/material-allocations', '/investments', '/processing', '/processor-reports', '/supplier-orders', '/serials', '/repair-items', '/sales-plan', '/appointments', '/delivery-methods', '/deliveries', '/positions', '/product-kinds', '/leads', '/lead-statuses', '/lead-forms'];
 
 function buildTenantApi() {
   const guarded = new Hono<AppEnv>();
@@ -95,6 +97,9 @@ function buildTenantApi() {
     .route('/contacts', contactRoutes)
     .route('/deals', dealRoutes)
     .route('/crm-activities', crmActivityRoutes)
+    .route('/leads', leadRoutes)
+    .route('/lead-statuses', leadStatusRoutes)
+    .route('/lead-forms', leadFormRoutes)
     .route('/entities', entityRoutes)
     .route('/data-search', dataSearchRoutes)
     .route('/data', recordsRoutes)
@@ -175,7 +180,8 @@ export function createApp(deps: AppDeps) {
     .use(
       '*',
       createMiddleware<AppEnv>(async (c, next) => {
-        if (!config.corsOrigins.length) return next();
+        // публичные вебхуки сами отвечают CORS для любых сайтов (без cookie)
+        if (!config.corsOrigins.length || c.req.path.startsWith('/hooks/')) return next();
         return cors({ origin: config.corsOrigins, credentials: true, allowHeaders: ['Content-Type', 'X-Workspace-Id', 'X-Request-Id'], exposeHeaders: ['X-Request-Id'] })(c, next);
       }),
     )
@@ -194,6 +200,7 @@ export function createApp(deps: AppDeps) {
     .route('/auth', authRoutes)
     .route('/workspaces', workspaceRoutes)
     .route('/invites', inviteRoutes)
+    .route('/hooks', hookRoutes)
     // WebSocket: сессия (cookie) → членство → подписка на события воркспейса. Воркспейс — ?workspace=<uuid> (браузер не ставит заголовки)
     .get(
       '/ws',
