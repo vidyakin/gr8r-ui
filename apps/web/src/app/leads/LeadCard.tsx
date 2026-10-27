@@ -188,7 +188,8 @@ export function LeadCard({ leadId, onClose, onConvert }: { leadId: string | null
         }
       >
         <div className="stack" style={{ gap: 12 }}>
-          <Duplicates items={leadId ? dupSaved.data ?? [] : dupNew.data ?? []} current={leadId} onMerge={setMergeWith} />
+          {/* у сконвертированного лида дубли уже разобраны мастером — вместо них блок «Созданные записи» */}
+          {!converted && <Duplicates items={leadId ? dupSaved.data ?? [] : dupNew.data ?? []} current={leadId} onMerge={setMergeWith} />}
           {converted && current && (
             <Alert tone="info">
               <div style={{ fontWeight: 500 }}>{t('leads.card.convertedTo')}</div>
