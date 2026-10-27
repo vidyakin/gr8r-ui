@@ -65,7 +65,7 @@ describe('seed', () => {
     expect(await count('time_logs', w)).toBe(src.timeLogs.length + 2); // + время по заказ-наряду и по консультации
     expect(await count('saved_views', w)).toBe(1);
     expect(await count('calendar_events', w)).toBe(6);
-    expect(await count('companies', w)).toBe(crm.companies.length + 1); // + ИП из демо документов
+    expect(await count('companies', w)).toBe(crm.companies.length + 2); // + ИП из демо документов и физлицо из демо денег
     expect(await count('contacts', w)).toBe(crm.contacts.length);
     expect(await count('deals', w)).toBe(crm.deals.length);
     // повторные продажи (задача 1133): срок повтора у двух услуг, дата контакта у двух компаний, план продаж на текущий год
@@ -115,14 +115,19 @@ describe('seed', () => {
     expect(await count('warehouses', w)).toBe(7); // основной, цех, склад готовой продукции, служебный «в пути», склад переработчика, склад отходов и склад брака
     expect(await count('companies', `${w} and inn <> ''`)).toBe(5);
     expect(await count('bank_accounts', `${w} and company_id is not null`)).toBe(5);
-    expect(await count('documents', w)).toBe(49); // + проведённый план продаж, + поступление и продажа смартфона, ремонтный и гарантийный заказ-наряды, заказ покупателя на окно, цепочка разборки, документы переработки и факт инвестпроекта
+    expect(await count('documents', w)).toBe(61); // + 12 документов денег (оплаты, подотчёт, акты физлица); // + проведённый план продаж, + поступление и продажа смартфона, ремонтный и гарантийный заказ-наряды, заказ покупателя на окно, цепочка разборки, документы переработки и факт инвестпроекта
+    // деньги: касса, движения, взаиморасчёты и подотчёт
+    expect(await count('cash_registers', w)).toBe(1);
+    expect(await count('cash_moves', w)).toBeGreaterThan(8);
+    expect(await count('settlement_moves', w)).toBeGreaterThan(5);
+    expect(await count('accountable_moves', w)).toBe(2);
     // инвестпроекты: утверждённый с фактом (поле документа и статья проекта) и черновик
     expect(await count('investment_projects', `${w} and status = 'approved'`)).toBe(1);
     expect(await count('investment_projects', `${w} and status = 'draft'`)).toBe(1);
     expect(await count('documents', `${w} and investment_project_id is not null and status = 'posted'`)).toBe(3);
     expect(await count('investment_cost_items', w)).toBe(1);
-    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(46);
-    expect(await count('documents', `${w} and based_on_id is not null`)).toBe(13);
+    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(58);
+    expect(await count('documents', `${w} and based_on_id is not null`)).toBe(16);
     // доставка (задача 1100): два способа, три доставки в разных статусах, расход «Доставка» у доставленной, два курьера, веса у двух товаров
     expect(await count('delivery_methods', w)).toBe(2);
     expect(await count('deliveries', w)).toBe(3);
@@ -210,7 +215,7 @@ describe('seed', () => {
     expect(await count('document_states', w)).toBe(18);
     expect(await count('work_order_materials', w)).toBe(2); // + запчасть гарантийного ремонта
     expect(await count('work_order_assignments', w)).toBe(1);
-    expect(await count('cost_items', w)).toBe(16); // 8 системных (с «Гарантийный ремонт» и «Доставка») + электроэнергия и аренда демо + 6 статей инвестпроектов
+    expect(await count('cost_items', w)).toBe(17); // 8 системных (с «Гарантийный ремонт» и «Доставка») + электроэнергия и аренда демо + 6 статей инвестпроектов + статья подотчёта
     expect(await count('stock_balances', `${w} and qty > 0`)).toBe(29); // + смартфоны на основном складе
     // резервы: заказ покупателя, продукция под заказ и материалы заказов на производство
     expect(await count('stock_reservations', w)).toBe(11); // + резерв под заказ окна
