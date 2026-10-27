@@ -61,6 +61,7 @@ import { MaterialAllocationPage, MaterialAllocationsPage } from './production/Ma
 import { InvestmentPage } from './finance/InvestmentPage';
 import { InvestmentsPage } from './finance/InvestmentsPage';
 import { MoneyPage } from './money/MoneyPage';
+import { BankImportPage } from './money/BankImportPage';
 import { PaymentPage } from './money/PaymentPage';
 import { PaymentCalendarPage } from './money/CalendarPage';
 import { RequestPage, RequestsPage } from './money/RequestPages';
@@ -162,6 +163,7 @@ export const router = createHashRouter([
       { path: SECTIONS.moneyCashFlow.path, element: <CashFlowPage /> },
       { path: SECTIONS.moneyReceivables.path, element: <DebtsPage side="customer" /> },
       { path: SECTIONS.moneyPayables.path, element: <DebtsPage side="supplier" /> },
+      { path: SECTIONS.moneyBankImport.path, element: <BankImportPage /> },
       { path: SECTIONS.moneyReferences.path, element: <MoneyReferencesPage /> },
       { path: `${SECTIONS.money.path}/:id`, element: <PaymentPage /> },
       // Финансы: инвестпроекты

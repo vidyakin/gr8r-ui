@@ -1,6 +1,6 @@
 {
   "id": "6e13d0d5-fff3-40e7-bb5e-cdf7a1348cb2",
-  "prevId": "3e88929f-6066-411e-9c1f-fe1db2f08cf8",
+  "prevId": "4662e64d-a44e-4f58-abf1-47276ac7fd56",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -12127,6 +12127,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "bank_import_key": {
+          "name": "bank_import_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "currency": {
           "name": "currency",
           "type": "text",
@@ -12222,6 +12228,28 @@
         }
       },
       "indexes": {
+        "documents_bank_import_uq": {
+          "name": "documents_bank_import_uq",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "bank_import_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"documents\".\"bank_import_key\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "documents_number_uq": {
           "name": "documents_number_uq",
           "columns": [

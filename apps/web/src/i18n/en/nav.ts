@@ -66,6 +66,7 @@ export const sections = {
   moneyCashFlow: 'Cash flow',
   moneyReceivables: 'Receivables',
   moneyPayables: 'Payables',
+  moneyBankImport: 'Bank statement',
   moneyReferences: 'Cash registers and items',
   investments: 'Investment projects',
   investmentsPlanFact: 'Plan vs actual',

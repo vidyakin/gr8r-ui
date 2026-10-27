@@ -17,6 +17,8 @@ export interface Res<T = any> {
   status: number;
   body: T;
   headers: Headers;
+  /** Сырые байты ответа (для файлов не в UTF-8) */
+  bytes: Uint8Array;
 }
 
 /** Клиент с cookie-банкой; запросы идут прямо в app.request (без сети) */
@@ -30,27 +32,30 @@ export class Client {
     private defaultHeaders: Record<string, string> = {},
   ) {}
 
-  async req<T = any>(method: string, path: string, opts: { json?: unknown; ws?: string | null; headers?: Record<string, string> } = {}): Promise<Res<T>> {
+  async req<T = any>(method: string, path: string, opts: { json?: unknown; raw?: Uint8Array; ws?: string | null; headers?: Record<string, string> } = {}): Promise<Res<T>> {
     const headers: Record<string, string> = { ...this.defaultHeaders, ...opts.headers };
     if (this.cookie) headers.cookie = this.cookie;
     const ws = opts.ws === undefined ? this.workspaceId : opts.ws;
     if (ws) headers['x-workspace-id'] = ws;
     if (opts.json !== undefined) headers['content-type'] = 'application/json';
-    const res = await this.application.request(path, { method, headers, body: opts.json !== undefined ? JSON.stringify(opts.json) : undefined });
+    if (opts.raw) headers['content-type'] = 'application/octet-stream';
+    const res = await this.application.request(path, { method, headers, body: opts.raw ?? (opts.json !== undefined ? JSON.stringify(opts.json) : undefined) });
     const set = res.headers.getSetCookie?.() ?? [];
     for (const c of set) {
       const [pair] = c.split(';');
       if (pair!.startsWith('gr8r_session=')) this.cookie = /Max-Age=0|=;|expires=Thu, 01 Jan 1970/i.test(c) || pair === 'gr8r_session=' ? '' : pair!;
     }
-    const text = await res.text();
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    const text = new TextDecoder().decode(bytes);
     let body: any = text;
     try {
       body = text ? JSON.parse(text) : null;
     } catch {
       /* не JSON */
     }
-    return { status: res.status, body, headers: res.headers };
+    return { status: res.status, body, headers: res.headers, bytes };
   }
+  upload = <T = any>(path: string, raw: Uint8Array, ws?: string | null) => this.req<T>('POST', path, { raw, ws });
   get = <T = any>(path: string, ws?: string | null) => this.req<T>('GET', path, { ws });
   post = <T = any>(path: string, json?: unknown, ws?: string | null) => this.req<T>('POST', path, { json: json ?? {}, ws });
   put = <T = any>(path: string, json: unknown, ws?: string | null) => this.req<T>('PUT', path, { json, ws });

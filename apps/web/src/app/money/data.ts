@@ -2,7 +2,7 @@
    Запросы лежат под ['ws', id, 'docs', 'money', …]: события документов инвалидируют их вместе с остальными документами. */
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { DocumentStatus, PaymentLineInput, PaymentState } from '@gr8r/shared';
-import { API_BASE } from '../data/api';
+import { API_BASE, ok } from '../data/api';
 import { call, useWsId } from '../meta/data';
 
 export const moneyKey = (ws: string, ...rest: unknown[]) => ['ws', ws, 'docs', 'money', ...rest] as const;
@@ -436,6 +436,88 @@ export function useRequestApi() {
     remove: async (id: string) => {
       await call(ws, 'DELETE', `/documents/${id}`);
       await refresh();
+    },
+  };
+}
+
+/* ---------------- банковская выписка (1174в) ---------------- */
+
+export interface BankImportRow {
+  index: number;
+  key: string;
+  direction: 'in' | 'out' | null;
+  number: string;
+  docDate: string;
+  bookedDate: string;
+  amount: string;
+  purpose: string;
+  party: { name: string; inn: string; kpp: string; account: string; bik: string; bank: string };
+  counterpartyId: string | null;
+  counterpartyName: string | null;
+  candidates: { id: string; name: string }[];
+  settlementDocumentId: string | null;
+  settlementDocument: { id: string; type: string; number: string | null; date: string; remaining: string } | null;
+  operation: string | null;
+  skip: boolean;
+  issues: string[];
+}
+export interface BankImportPreview {
+  encoding: string;
+  bankAccount: { id: string; label: string; organizationId: string } | null;
+  accounts: { id: string; label: string; account: string }[];
+  statementAccounts: string[];
+  period: { from: string | null; to: string | null };
+  warnings: { code: string; line: number; message: string }[];
+  rows: BankImportRow[];
+  summary: { total: number; incoming: number; outgoing: number; duplicates: number; unmatched: number };
+}
+export interface BankImportCommitRow {
+  direction: 'in' | 'out';
+  number: string;
+  docDate: string;
+  bookedDate: string;
+  amount: string;
+  purpose: string;
+  operation: string;
+  counterpartyId: string | null;
+  settlementDocumentId: string | null;
+  cashFlowItemId: string | null;
+}
+export interface BankImportResult {
+  created: { key: string; id: string; posted: boolean }[];
+  skipped: { key: string; reason: string }[];
+  failed: { key: string; code: string; message: string }[];
+}
+
+export function useBankImportApi() {
+  const ws = useWsId();
+  const qc = useQueryClient();
+  return {
+    /** Файл уходит как есть (тело запроса): кодировку определяет сервер */
+    preview: async (file: File, bankAccountId?: string) => {
+      const res = await fetch(`${API_BASE()}/bank-import/preview${bankAccountId ? `?bankAccountId=${bankAccountId}` : ''}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'X-Workspace-Id': ws, 'Content-Type': 'application/octet-stream' },
+        body: await file.arrayBuffer(),
+      });
+      return ok<BankImportPreview>(res);
+    },
+    commit: async (body: { bankAccountId: string; post: boolean; rows: BankImportCommitRow[] }) => {
+      const r = await call<BankImportResult>(ws, 'POST', '/bank-import/commit', body);
+      await qc.invalidateQueries({ queryKey: ['ws', ws, 'docs'] });
+      return r;
+    },
+    /** Платёжные поручения: файл сохраняется через ссылку на blob */
+    downloadOrders: async (params: { bankAccountId: string; from?: string; to?: string }) => {
+      const res = await fetch(`${API_BASE()}/bank-import/payment-orders?${qs(params)}`, { credentials: 'include', headers: { 'X-Workspace-Id': ws } });
+      if (!res.ok) await ok(res);
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'payment-orders.txt';
+      a.click();
+      URL.revokeObjectURL(url);
     },
   };
 }

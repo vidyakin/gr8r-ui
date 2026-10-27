@@ -109,6 +109,8 @@ export interface PaymentInput {
   investmentProjectId?: string | null;
   basedOnId?: string | null;
   comment?: string;
+  /** Ключ строки банковской выписки (повторный импорт не дублирует документ) */
+  bankImportKey?: string | null;
   lines?: PaymentLineInput[];
 }
 
@@ -209,6 +211,7 @@ export async function createPayment(db: Db, ctx: DocCtx, input: PaymentInput): P
       investmentProjectId: input.investmentProjectId ?? null,
       basedOnId: input.basedOnId ?? null,
       comment: input.comment ?? '',
+      bankImportKey: input.bankImportKey ?? null,
       responsibleId: ctx.memberId,
       createdBy: ctx.memberId,
     })

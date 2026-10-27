@@ -54,5 +54,6 @@ export * from './payments';
 export * from './payment-requests';
 export * from './payment-calendar';
 export * from './request-paid';
+export * from './bank-import';
 export * from './leads';
 export * from './secrets';
