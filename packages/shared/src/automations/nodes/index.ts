@@ -9,7 +9,9 @@ import branch from './flow-branch';
 import delay from './flow-delay';
 import condition from './logic-condition';
 import fieldChanged from './trigger-field-changed';
+import documentPaid from './trigger-document-paid';
 import manual from './trigger-manual';
+import paymentPosted from './trigger-payment-posted';
 import recordCreated from './trigger-record-created';
 import recordUpdated from './trigger-record-updated';
 import schedule from './trigger-schedule';
@@ -21,6 +23,8 @@ export const NODE_LIST: AnyNodeDef[] = [
   fieldChanged,
   schedule,
   manual,
+  paymentPosted,
+  documentPaid,
   // Условия и управление потоком
   condition,
   delay,
