@@ -29,6 +29,7 @@ import {
   type TollingRole,
   type VatRate,
   isInvestmentFactType,
+  isCashDocType,
 } from '@gr8r/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
@@ -46,6 +47,7 @@ import { uuidv7 } from './uuid';
 import { saveSerials, checkInventorySerials, lineSerialsView } from './serials';
 import { applySaleNextContact } from './repeat-sales';
 import { inheritDelivery } from './delivery';
+import { postAccrual, removeSettlementMoves } from './settlements';
 import { repairPrintData, syncWarrantyKind, workOrderKindType } from './repair';
 
 export interface DocCtx {
@@ -762,6 +764,8 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<voi
 
   await syncAfterChange(db, ctx, doc, lines, true);
   await hook?.afterPost?.(db, ctx, doc, lines);
+  // взаиморасчёты (задача 1174б): начисление долга контрагента и зачёт авансов
+  await postAccrual(db, ctx.workspaceId, id);
   // повторные продажи (задача 1133): у покупателя ставится дата следующего контакта
   await applySaleNextContact(db, ctx, doc, lines);
   const [after] = await db.select({ number: documents.number, total: documents.total }).from(documents).where(eq(documents.id, id)).limit(1);
@@ -808,6 +812,7 @@ export async function unpostDocument(db: Db, ctx: DocCtx, id: string, opts: { re
   await db.update(documents).set({ status: 'draft', postedAt: null, postedBy: null, updatedAt: new Date() }).where(eq(documents.id, id));
   await syncAfterChange(db, ctx, { ...doc, status: 'draft' }, await linesOf(db, id), false);
   await DOCUMENT_HOOKS[doc.type as DocumentType]?.afterUnpost?.(db, ctx, { ...doc, status: 'draft' }, await linesOf(db, id));
+  if (!isCashDocType(doc.type)) await removeSettlementMoves(db, ctx.workspaceId, id);
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.unposted', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { documentType: type, number: doc.number } });
 }
 

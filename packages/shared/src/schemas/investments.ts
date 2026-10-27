@@ -33,7 +33,7 @@ export const investmentCreate = z.object({
   lines: z.array(investmentPlanLineInput).max(2000).default([]),
   costItemIds: z.array(uuid).max(200).default([]),
   /** База факта: начисление (документы) или оплаты (движения денег) */
-  factBasis: z.enum(['accrual', 'payments']).default('accrual'),
+  factBasis: z.enum(['accrual', 'payments']).optional(),
 });
 
 export const investmentUpdate = z.object({

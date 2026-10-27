@@ -34,7 +34,7 @@ import { canSeeCost } from './cost';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { documentCosts } from './stock';
-import { costItems, documentLines, documents, investmentCostItems, investmentPlanLines, investmentProjects, members, organizations, otherCostLines, projects } from './schema';
+import { cashFlowItems, cashMoves, costItems, documentLines, documents, investmentCostItems, investmentPlanLines, investmentProjects, members, organizations, otherCostLines, projects } from './schema';
 
 export interface InvestmentCtx {
   workspaceId: string;
@@ -119,6 +119,7 @@ export async function createInvestment(db: Db, ctx: InvestmentCtx, input: Invest
       organizationId: input.organizationId ?? null,
       responsibleId: input.responsibleId ?? null,
       comment: input.comment,
+      ...(input.factBasis ? { factBasis: input.factBasis } : {}),
     })
     .returning({ id: investmentProjects.id });
   const id = row!.id;
@@ -152,6 +153,7 @@ export async function updateInvestment(db: Db, ctx: InvestmentCtx, id: string, i
   if (input.organizationId !== undefined) set.organizationId = input.organizationId;
   if (input.responsibleId !== undefined) set.responsibleId = input.responsibleId;
   if (input.comment !== undefined) set.comment = input.comment;
+  if (input.factBasis !== undefined) set.factBasis = input.factBasis;
   await db.update(investmentProjects).set(set).where(eq(investmentProjects.id, id));
   if (input.lines) await saveLines(db, ctx, id, input.lines);
   if (input.costItemIds) await saveCostItems(db, ctx, id, input.costItemIds);
@@ -229,7 +231,8 @@ const RETURN_TYPES = new Set(['supplier_return', 'customer_return']);
 const FACT_TYPES = Object.keys(INVESTMENT_FACT_TYPES);
 
 /** Факт проекта: строки проведённых документов по правилу старшинства */
-export async function investmentFact(db: Db, p: Pick<ProjectRow, 'id' | 'startDate' | 'closedAt'>): Promise<FactEntry[]> {
+export async function investmentFact(db: Db, p: Pick<ProjectRow, 'id' | 'startDate' | 'closedAt'> & { factBasis?: string }): Promise<FactEntry[]> {
+  if (p.factBasis === 'payments') return investmentCashFact(db, p);
   type Doc = { id: string; type: string; number: string | null; date: string; costItemId: string | null };
   const head = { id: documents.id, type: documents.type, number: documents.number, date: documents.date, costItemId: documents.costItemId };
   const posted = eq(documents.status, 'posted');
@@ -295,6 +298,25 @@ export async function investmentFact(db: Db, p: Pick<ProjectRow, 'id' | 'startDa
     };
     const target = { in: single('in'), out: single('out') };
     for (const e of out) if (!e.costItemId) e.costItemId = target[e.direction];
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date) || a.documentId.localeCompare(b.documentId));
+}
+
+/** Кассовый факт (база «оплаты», задача 1174б): движения денег проекта — строка/документ с проектом или статья ДДС, закреплённая за проектом.
+    Приход — поступление, расход — вложение; внутренние движения (перемещение, подотчёт) не считаются */
+async function investmentCashFact(db: Db, p: Pick<ProjectRow, 'id' | 'startDate' | 'closedAt'>): Promise<FactEntry[]> {
+  const rows = await db
+    .select({ documentId: cashMoves.documentId, type: documents.type, number: documents.number, date: cashMoves.date, costItemId: cashMoves.costItemId, direction: cashMoves.direction, amount: cashMoves.amount, viaField: cashMoves.investmentProjectId, itemKey: cashFlowItems.systemKey, postedAt: documents.postedAt })
+    .from(cashMoves)
+    .innerJoin(cashFlowItems, eq(cashFlowItems.id, cashMoves.cashFlowItemId))
+    .innerJoin(documents, eq(documents.id, cashMoves.documentId))
+    .where(sql`(${cashMoves.investmentProjectId} = ${p.id} or (${cashMoves.investmentProjectId} is null and ${cashFlowItems.investmentProjectId} = ${p.id} and ${cashMoves.date} >= ${p.startDate}))`);
+  const out: FactEntry[] = [];
+  for (const r of rows) {
+    if (r.itemKey && ['transfer_in', 'transfer_out', 'accountable_in', 'accountable_out'].includes(r.itemKey)) continue;
+    // у закрытого проекта по статье идут только оплаты, проведённые до закрытия
+    if (!r.viaField && p.closedAt && r.postedAt && r.postedAt > p.closedAt) continue;
+    out.push({ documentId: r.documentId, type: r.type, number: r.number, date: r.date, costItemId: r.costItemId, direction: r.direction as 'in' | 'out', amount: fmt(dec(r.amount), 2), via: r.viaField ? 'field' : 'cost_item' });
   }
   return out.sort((a, b) => a.date.localeCompare(b.date) || a.documentId.localeCompare(b.documentId));
 }
