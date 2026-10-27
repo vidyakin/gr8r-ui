@@ -2,7 +2,7 @@
    (индексы полей конструктора), PDF печатных форм, ZIP-архив выгрузки счетов, закрытие периода (production.close_period)
    и выполнение запусков автоматизаций (flow.run). */
 import { and, eq, inArray } from 'drizzle-orm';
-import { buildPrintData, createFieldIndex, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, isUuid, jobs, withContext, type Db, type Sql } from '@gr8r/db';
+import { BANK_SYNC_JOB, buildPrintData, createFieldIndex, defaultIntegrationDeps, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, type IntegrationDeps, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, isUuid, jobs, withContext, type Db, type Sql } from '@gr8r/db';
 import { DOCUMENT_META, FIELD_TYPES, renderPrintForm, type FieldType, type PrintForm } from '@gr8r/shared';
 import { runClosePeriod } from './production-closing';
 import { executeRun } from './flows/engine';
@@ -33,6 +33,9 @@ export interface JobContext {
 }
 
 export const makeJobContext = (sql: Sql, ddl: Sql | null): JobContext => ({ read: fn => withContext(sql, {}, fn, 'app_worker'), ddl, sql });
+
+/** Сеть интеграций (банки, ЮКасса); тесты подменяют `deps` фикстурами */
+export const integrationRuntime: { deps: IntegrationDeps } = { deps: defaultIntegrationDeps() };
 
 /** Хранилище PDF (PDF_STORE=db по умолчанию; s3 — заготовка); тесты подменяют его */
 export const pdfRuntime: { store: PdfStore; render: typeof renderPdf } = { store: pdfStoreFromEnv(), render: renderPdf };
@@ -87,6 +90,19 @@ export const jobHandlers: Record<string, (job: JobRow, h: JobContext) => Promise
     const { fieldId, eligible } = await loadIndexTarget(job, h);
     if (eligible) return;
     await dropFieldIndex(needDdl(h), fieldId);
+  },
+  /** Загрузка операций банка по подключению через общий импорт выписки. Ошибка ключа записывается в подключение без повтора,
+      временный сбой банка — повтор с паузой. Повторная загрузка того же окна дублей не создаёт (ключ документа) */
+  [BANK_SYNC_JOB]: async (job, h) => {
+    const connectionId = (job.payload as { connectionId?: unknown }).connectionId;
+    if (!isUuid(connectionId)) throw new Error('bank.sync job: payload.connectionId must be a uuid');
+    await syncConnection(h.sql, job.workspaceId, connectionId, integrationRuntime.deps);
+  },
+  /** Проверка платежа ЮКассы после вебхука: статус перепроверяется запросом к API, успех → «Поступление на счёт». Идемпотентно */
+  [YOOKASSA_PAYMENT_JOB]: async (job, h) => {
+    const paymentId = (job.payload as { paymentId?: unknown }).paymentId;
+    if (typeof paymentId !== 'string' || !paymentId || paymentId.length > 64) throw new Error('yookassa.payment job: payload.paymentId must be a string');
+    await processYooPayment(h.sql, job.workspaceId, paymentId, integrationRuntime.deps);
   },
   /** Выполнение (или продолжение после задержки / повтора) запуска автоматизации */
   'flow.run': async (job, h) => {

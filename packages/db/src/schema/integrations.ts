@@ -26,7 +26,7 @@ export const bankConnections = pgTable(
     lastSyncAt: ts('last_sync_at'),
     lastStatus: text('last_status', { enum: ['ok', 'error'] }),
     lastError: text('last_error'),
-    lastResult: jsonb('last_result').$type<Record<string, number>>(),
+    lastResult: jsonb('last_result').$type<Record<string, number | string>>(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
