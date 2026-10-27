@@ -5,7 +5,7 @@
 
 - `documents (type, number, number_year, number_seq, date, due_date, status: draft|posted|cancelled, organization_id, counterparty_id, warehouse_id?, currency 'RUB',
   price_includes_vat, amount_net, vat_total, total, based_on_id, responsible_id, comment, posted_at, custom jsonb)`. Договор документа — `contract_id` (составной внешний ключ
-  `(workspace_id, contract_id)` → `contracts`, добавлен на этапе 8 «УНФ: Услуги», см. раздел «Договоры, тарифные планы и биллинг»); оплаты (входящая и исходящая) — позже;
+  `(workspace_id, contract_id)` → `contracts`, добавлен на этапе 8 «УНФ: Услуги», см. раздел «Договоры, тарифные планы и биллинг»); оплаты (входящая и исходящая) — раздел «Деньги» (`docs/architecture/payments.md`);
   валюта пока одна — рубль.
 - `document_lines (document_id, product_id, name, unit_code, qty, price, discount_pct, vat_rate, net, vat_amount, total, source_line_id, origin_line_id)`. Строка — всегда товар или услуга
   каталога (название, единица и ставка НДС копируются из товара и дальше правятся в строке); `qty > 0`; суммы строки хранятся (их считает сервер, клиентские значения не принимаются).

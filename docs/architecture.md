@@ -67,3 +67,4 @@
 ## Финансы
 
 - [Инвестпроекты и окупаемость](architecture/investments.md)
+- [Деньги: оплаты, кассы, ДДС, взаиморасчёты](architecture/payments.md)
