@@ -615,7 +615,7 @@ export function seed(): WorkspaceData {
   const tmp = tk('t3');
   tmp.updated = minsAgo(38);
   return {
-    ws: { name: 'Gr8r Studio', url: 'gr8rstudio', c: '#1D1C1A', brand: true },
+    ws: { name: 'FutureERP', url: 'gr8rstudio', c: '#1D1C1A', brand: true },
     me: 'm1',
     members,
     projects,

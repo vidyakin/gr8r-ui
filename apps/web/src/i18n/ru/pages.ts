@@ -373,7 +373,7 @@ export const pages: Widen<typeof P> = {
   auth: {
     welcomeBack: 'С возвращением',
     signIn: 'Войти',
-    signInSub: 'Вход в Gr8r',
+    signInSub: 'Вход в FutureERP',
     signUp: 'Регистрация',
     email: 'Электронная почта',
     password: 'Пароль',

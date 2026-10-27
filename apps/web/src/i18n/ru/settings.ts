@@ -109,7 +109,7 @@ export const settings: Widen<typeof S> = {
 
   /* ---------------- appearance ---------------- */
   appearance: {
-    lead: 'Настройте внешний вид Gr8r на этом устройстве.',
+    lead: 'Настройте внешний вид FutureERP на этом устройстве.',
     theme: 'Тема',
     themeAria: 'Тема',
     themes: {
@@ -235,7 +235,7 @@ export const settings: Widen<typeof S> = {
   /* ---------------- preferences ---------------- */
   preferences: {
     lead: 'Ваши личные настройки работы.',
-    home: { t: 'Открывать при запуске', d: 'Страница, которую вы видите при открытии Gr8r.' },
+    home: { t: 'Открывать при запуске', d: 'Страница, которую вы видите при открытии FutureERP.' },
     homeHome: 'Главная',
     homeTasks: 'Мои задачи',
     homeInbox: 'Входящие',

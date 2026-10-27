@@ -108,7 +108,7 @@ export const settings = {
 
   /* ---------------- appearance ---------------- */
   appearance: {
-    lead: 'Customize how Gr8r looks on this device.',
+    lead: 'Customize how FutureERP looks on this device.',
     theme: 'Theme',
     themeAria: 'Theme',
     themes: {
@@ -229,7 +229,7 @@ export const settings = {
   /* ---------------- preferences ---------------- */
   preferences: {
     lead: 'Personal defaults for how you work.',
-    home: { t: 'Open on launch', d: 'The page you see when Gr8r opens.' },
+    home: { t: 'Open on launch', d: 'The page you see when FutureERP opens.' },
     homeHome: 'Home',
     homeTasks: 'My Tasks',
     homeInbox: 'Inbox',

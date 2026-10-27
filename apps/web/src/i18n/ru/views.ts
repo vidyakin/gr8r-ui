@@ -24,7 +24,7 @@ export const views: Widen<typeof V> = {
   },
 
   shell: {
-    copyright: '© 2026 Gr8r Studio · Условия · Конфиденциальность',
+    copyright: '© 2026 FutureERP · Условия · Конфиденциальность',
     toggleTheme: 'Сменить тему',
   },
 

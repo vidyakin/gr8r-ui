@@ -370,7 +370,7 @@ export const pages = {
   auth: {
     welcomeBack: 'Welcome back',
     signIn: 'Sign in',
-    signInSub: 'Sign in to Gr8r',
+    signInSub: 'Sign in to FutureERP',
     signUp: 'Sign up',
     email: 'Email',
     password: 'Password',
@@ -442,7 +442,7 @@ export const pages = {
     step3Sub: 'Start from a template or a blank project.',
     projectName: 'Project name',
     step4Title: 'Invite your team',
-    step4Sub: "Gr8r works best with your teammates. They'll get an email invite.",
+    step4Sub: "FutureERP works best with your teammates. They'll get an email invite.",
     invitePlaceholder: 'teammate@company.com',
     inviteAria: 'Teammate email {n}',
     copyInvite: 'Copy invite link instead',

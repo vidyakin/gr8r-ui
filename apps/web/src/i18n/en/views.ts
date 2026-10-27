@@ -24,7 +24,7 @@ export const views = {
 
   /* App shell / подвал */
   shell: {
-    copyright: '© 2026 Gr8r Studio · Terms · Privacy',
+    copyright: '© 2026 FutureERP · Terms · Privacy',
     toggleTheme: 'Toggle theme',
   },
 

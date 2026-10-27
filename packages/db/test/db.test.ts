@@ -235,7 +235,7 @@ describe('seed', () => {
     expect(bobsWs).toHaveLength(1);
     expect(bobsWs[0]!.name).toBe('Acme Corp');
     const demoWsList = await withContext(sql, { userId: demoUser!.id }, db => db.execute(dsql`select name from workspaces`));
-    expect(demoWsList.map((r: any) => r.name)).toEqual(['Gr8r Studio']);
+    expect(demoWsList.map((r: any) => r.name)).toEqual(['FutureERP']);
     expect(await Bun.password.verify(DEMO_USER.password, (await admin`select password_hash from users where id = ${demoUser!.id}`)[0]!.password_hash)).toBe(true);
 
     await sql.end();
