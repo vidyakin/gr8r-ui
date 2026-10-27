@@ -1,9 +1,10 @@
 /* Демо-данные денег (задача 1174б, по-русски): касса «Основная касса», статьи ДДС, оплаты части документов полностью и частично,
    аванс, выдача подотчётному и авансовый отчёт, перемещение денег (инкассация) и физлицо с расчётами «по контрагенту».
    Вызывается из seedDocuments до закрытия месяца: после даты запрета проводить документы уже нельзя. */
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { Db } from './client';
-import { createDocument, postDocument, type DocCtx } from './documents';
+import { changeDocumentState, createDocument, postDocument, type DocCtx } from './documents';
+import { createPaymentFromRequest, createRequest } from './payment-requests';
 import { createPayment, createPaymentFromDocument, ensureCashFlowItems, updatePayment } from './payments';
 import { bankAccounts, cashFlowItems, cashRegisters, companies, costItems, documents } from './schema';
 
@@ -88,4 +89,31 @@ export async function seedPayments(db: Db, ctx: DocCtx, refs: { organizationId: 
   }
   const cashPay = await createPayment(db, ctx, { type: 'cash_receipt', operation: 'from_customer', cashRegisterId: register!.id, counterpartyId: person!.id, comment: 'Оплата наличными', lines: [{ amount: '15000' } as never] });
   await post(cashPay, 10);
+
+  // платёжный календарь (1174г): сроки неоплаченных документов и заявки на расход в разных состояниях
+  await db
+    .update(documents)
+    .set({ dueDate: sql`${documents.date} + 14` })
+    .where(and(eq(documents.workspaceId, ws), isNull(documents.dueDate), eq(documents.status, 'posted'), inArray(documents.type, ['realization', 'act', 'receipt', 'work_order'])));
+  const [supplierDoc] = await db
+    .select({ cp: documents.counterpartyId })
+    .from(documents)
+    .where(and(eq(documents.workspaceId, ws), eq(documents.type, 'receipt'), eq(documents.status, 'posted')))
+    .limit(1);
+  const payee = supplierDoc?.cp ?? refs.customerId;
+  const admin = { ...ctx, role: 'owner' as const };
+  const future = (days: number) => iso(-days);
+  const rentNext = await createRequest(db, ctx, { counterpartyId: payee, dueDate: future(5), comment: 'Аренда офиса на следующий месяц', lines: [{ amount: '65000', cashFlowItemId: rent, comment: 'Аренда' } as never] });
+  await postDocument(db, ctx, rentNext);
+  await changeDocumentState(db, admin, rentNext, 'approved');
+  const repair = await createRequest(db, ctx, { counterpartyId: payee, dueDate: future(12), operation: 'other_expense', comment: 'Ремонт кондиционера', lines: [{ amount: '28000', cashFlowItemId: household, comment: 'Ремонт' } as never] });
+  await postDocument(db, ctx, repair);
+  const furniture = await createRequest(db, ctx, { counterpartyId: payee, dueDate: future(3), operation: 'other_expense', comment: 'Мебель для переговорной', lines: [{ amount: '54000', cashFlowItemId: household, comment: 'Столы и стулья' } as never] });
+  await postDocument(db, ctx, furniture);
+  await changeDocumentState(db, admin, furniture, 'rejected');
+  const water = await createRequest(db, ctx, { counterpartyId: payee, dueDate: iso(1), operation: 'other_expense', comment: 'Питьевая вода на квартал', lines: [{ amount: '6400', cashFlowItemId: household, comment: 'Вода' } as never] });
+  await postDocument(db, ctx, water);
+  await changeDocumentState(db, admin, water, 'approved');
+  const waterPay = await createPaymentFromRequest(db, ctx, water, 'bank');
+  await post(waterPay, 1);
 }
