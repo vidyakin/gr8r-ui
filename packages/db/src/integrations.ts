@@ -100,6 +100,8 @@ export interface IntegrationDeps {
   today?: () => string;
 }
 export const defaultIntegrationDeps = (): IntegrationDeps => ({ fetch: guardedFetcher() });
+/** Сеть интеграций процесса (API и воркер); тесты подменяют `deps` фикстурами — наружу запросов нет */
+export const integrationRuntime: { deps: IntegrationDeps } = { deps: defaultIntegrationDeps() };
 
 /* ---------------- секреты подключения ---------------- */
 
@@ -235,7 +237,7 @@ async function recordSyncOutcome(sql: Sql, workspaceId: string, id: string, patc
 
 /** Загрузка операций одного подключения. Сеть — вне транзакции. Ошибка ключа или запроса записывается в подключение и не
     повторяется; временный сбой записывается и пробрасывается, чтобы задача повторилась с паузой */
-export async function syncConnection(sql: Sql, workspaceId: string, connectionId: string, deps: IntegrationDeps = defaultIntegrationDeps()): Promise<SyncResult | null> {
+export async function syncConnection(sql: Sql, workspaceId: string, connectionId: string, deps: IntegrationDeps = integrationRuntime.deps): Promise<SyncResult | null> {
   const prep = await withContext(sql, { workspaceId }, async db => {
     const [c] = await db
       .select({ conn: bankConnections, account: bankAccounts.account, bik: bankAccounts.bik })
@@ -367,7 +369,7 @@ export async function createPaymentLink(
   db: Db,
   ctx: DocCtx,
   input: { documentId: string; returnUrl: string },
-  deps: IntegrationDeps = defaultIntegrationDeps(),
+  deps: IntegrationDeps = integrationRuntime.deps,
 ): Promise<{ id: string; url: string; amount: string; reused: boolean }> {
   const [doc] = await db.select({ id: documents.id, type: documents.type, status: documents.status, number: documents.number }).from(documents).where(eq(documents.id, input.documentId)).limit(1);
   if (!doc || doc.status === 'cancelled') throw new DomainError(404, 'not_found', 'Document not found');
@@ -384,7 +386,13 @@ export async function createPaymentLink(
     .orderBy(desc(paymentLinks.createdAt))
     .limit(1);
   if (live) return { id: live.id, url: live.confirmationUrl, amount, reused: true };
-  const creds = await yooCreds(db, ctx.workspaceId, conn.secretPrefix, deps.env);
+  let creds;
+  try {
+    creds = await yooCreds(db, ctx.workspaceId, conn.secretPrefix, deps.env);
+  } catch (e) {
+    if (e instanceof BankApiError) throw new DomainError(422, 'yookassa_auth', e.message);
+    throw e;
+  }
   let p;
   try {
     p = await yooCreatePayment(
@@ -425,7 +433,7 @@ export type YooProcessResult = 'unknown' | 'already_done' | 'pending' | 'cancele
 
 /** Проверка платежа ЮКассы: статус всегда берётся повторным запросом к API (тело вебхука не доверенное). Успех → «Поступление на счёт»
     с распределением на документ расчётов. Идемпотентно: повтор не создаёт второй документ (ключ `yookassa|<id>` и блокировка ссылки) */
-export async function processYooPayment(sql: Sql, workspaceId: string, paymentId: string, deps: IntegrationDeps = defaultIntegrationDeps()): Promise<YooProcessResult> {
+export async function processYooPayment(sql: Sql, workspaceId: string, paymentId: string, deps: IntegrationDeps = integrationRuntime.deps): Promise<YooProcessResult> {
   const prep = await withContext(sql, { workspaceId }, async db => {
     const [l] = await db.select().from(paymentLinks).where(eq(paymentLinks.providerPaymentId, paymentId)).limit(1);
     if (!l) return null;

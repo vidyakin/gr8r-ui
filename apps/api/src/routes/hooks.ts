@@ -5,8 +5,8 @@
 import { sql as dsql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { findEnabledForm, insertLead, parseFormToken, pickRoundRobin, rateLimits, withContext, type Sql } from '@gr8r/db';
-import { leadWebhookBody, pickUtm } from '@gr8r/shared';
+import { enqueueYooPayment, findEnabledForm, insertLead, isUuid, parseFormToken, pickRoundRobin, rateLimits, withContext, type Sql } from '@gr8r/db';
+import { leadWebhookBody, pickUtm, yooWebhookBody } from '@gr8r/shared';
 import { AppError } from '../errors';
 import type { AppEnv } from '../types';
 
@@ -77,4 +77,30 @@ export const hookRoutes = new Hono<AppEnv>()
       );
     });
     return c.json({ ok: true as const }, 201);
+  })
+  // Вебхук ЮКассы. Телу не верим: берём только id платежа, воркер перепроверяет статус запросом к API ЮКассы. Ответ всегда один и тот же —
+  // не раскрывает, есть ли такой платёж и воркспейс; ЮКасса повторяет запрос, пока не получит 200
+  .post('/yookassa/:workspaceId', async c => {
+    const cfg = c.get('config');
+    const sql = c.get('sql');
+    const windowSec = Math.ceil(cfg.leadHookRateLimitWindowMs / 1000);
+    if (!(await allow(sql, `yookassa-hook:ip:${c.get('ip')}`, cfg.leadHookRateLimitMax * 10, windowSec))) throw new AppError(429, 'rate_limited', 'Too many requests. Try again later.', { retryAfterSeconds: windowSec });
+    const workspaceId = c.req.param('workspaceId');
+    if (!isUuid(workspaceId)) throw notFound();
+    if (Number(c.req.header('content-length') ?? 0) > MAX_BODY) throw new AppError(400, 'payload_too_large', 'Request body is too large');
+    let raw: unknown;
+    try {
+      const text = await c.req.text();
+      if (text.length > MAX_BODY) throw new Error('large');
+      raw = JSON.parse(text);
+    } catch {
+      throw new AppError(400, 'validation_error', 'Request body must be JSON');
+    }
+    const body = yooWebhookBody.safeParse(raw);
+    if (!body.success) throw new AppError(400, 'validation_error', 'Invalid notification');
+    if (body.data.event === 'payment.succeeded' || body.data.event === 'payment.canceled') {
+      const paymentId = body.data.object.id;
+      await withContext(sql, { workspaceId }, db => enqueueYooPayment(db, workspaceId, paymentId));
+    }
+    return c.json({ ok: true as const });
   });
