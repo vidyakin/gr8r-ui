@@ -70,6 +70,8 @@ export interface Product {
   /** Учёт по серийным номерам и гарантия, мес. */
   trackSerials: boolean;
   warrantyMonths: number | null;
+  /** Повторить продажу через, дн. (пусто — нет) */
+  repeatSaleDays: number | null;
   custom: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;

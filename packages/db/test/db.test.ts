@@ -68,6 +68,12 @@ describe('seed', () => {
     expect(await count('companies', w)).toBe(crm.companies.length + 1); // + ИП из демо документов
     expect(await count('contacts', w)).toBe(crm.contacts.length);
     expect(await count('deals', w)).toBe(crm.deals.length);
+    // повторные продажи (задача 1133): срок повтора у двух услуг, дата контакта у двух компаний, план продаж на текущий год
+    expect(await count('products', `${w} and repeat_sale_days is not null`)).toBe(2);
+    expect(await count('companies', `${w} and next_contact_date is not null`)).toBe(2);
+    expect(await count('sales_plan_scenarios', w)).toBe(2);
+    expect(await count('documents', `${w} and type = 'sales_plan' and status = 'posted'`)).toBe(1);
+    expect(await count('sales_plan_figures', `${w} and extract(year from period_start) = extract(year from current_date)`)).toBe(36);
     expect(await count('crm_activities', w)).toBe(crm.activities.length);
 
     // конструктор сущностей: системные сущности, пользовательские поля задач, «Suppliers» с записями и индексами по filterable-полям
@@ -102,13 +108,13 @@ describe('seed', () => {
     expect(await count('warehouses', w)).toBe(7); // основной, цех, склад готовой продукции, служебный «в пути», склад переработчика, склад отходов и склад брака
     expect(await count('companies', `${w} and inn <> ''`)).toBe(5);
     expect(await count('bank_accounts', `${w} and company_id is not null`)).toBe(5);
-    expect(await count('documents', w)).toBe(48); // + поступление и продажа смартфона, ремонтный и гарантийный заказ-наряды, заказ покупателя на окно, цепочка разборки, документы переработки и факт инвестпроекта
+    expect(await count('documents', w)).toBe(49); // + проведённый план продаж, + поступление и продажа смартфона, ремонтный и гарантийный заказ-наряды, заказ покупателя на окно, цепочка разборки, документы переработки и факт инвестпроекта
     // инвестпроекты: утверждённый с фактом (поле документа и статья проекта) и черновик
     expect(await count('investment_projects', `${w} and status = 'approved'`)).toBe(1);
     expect(await count('investment_projects', `${w} and status = 'draft'`)).toBe(1);
     expect(await count('documents', `${w} and investment_project_id is not null and status = 'posted'`)).toBe(3);
     expect(await count('investment_cost_items', w)).toBe(1);
-    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(45);
+    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(46);
     expect(await count('documents', `${w} and based_on_id is not null`)).toBe(13);
     expect(await count('documents', `${w} and type in ('stock_transfer','write_off','inventory_count')`)).toBe(8); // + брусья в цех и передача переработчику
     // производство: заказ на производство и выпуск со списанием материалов

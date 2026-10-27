@@ -246,6 +246,9 @@ export interface Company {
   website: string;
   city: string;
   created: number;
+  /** Следующий контакт (задача 1133): дата YYYY-MM-DD и заметка; пустая строка — не запланирован */
+  nextContactDate?: string;
+  nextContactNote?: string;
   custom?: Record<string, unknown>;
 }
 

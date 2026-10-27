@@ -246,6 +246,13 @@
       "when": 1793061673457,
       "tag": "0035_serials_repair",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793069561542,
+      "tag": "0036_repeat_sales",
+      "breakpoints": true
     }
   ]
 }

@@ -56,6 +56,7 @@ export const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
     f('ownerId', 'Owner', 'user'),
     f('website', 'Website', 'text'),
     f('city', 'City', 'text'),
+    f('nextContactDate', 'Next contact', 'date'),
   ],
   contact: [
     f('name', 'Name', 'text'),

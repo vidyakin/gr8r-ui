@@ -20,6 +20,7 @@ import { useCustomRows } from '../meta/custom-fields';
 import { CompanyRequisitesTab } from '../docs/CompanyRequisites';
 import { CompanyContractsTab } from '../docs/CompanyContracts';
 import { CompanyDocumentsTab } from '../docs/CompanyDocuments';
+import { NextContactPanel } from './NextContactPanel';
 import { industryName, sizeName, stageName } from './labels';
 import type { Company } from './types';
 
@@ -279,6 +280,7 @@ function Overview({ company: co }: { company: Company }) {
               </dl>
             </div>
           </Panel>
+          <NextContactPanel company={co} />
           <Panel title={t('crm.companies.overview.contacts')} actions={<Button size="sm" variant="ghost" onClick={() => ui.newContact({ company: co.id })}><UserPlus size={13} />{t('crm.companies.header.add')}</Button>}>
             <div className="panel-b">
               {people.length ? (

@@ -482,6 +482,45 @@ export async function serviceLoadReport(db: Db, ws: string, q: ServiceReportQuer
   return { from: q.from, to: q.to, rows };
 }
 
+/** Документ выручки для отчётов: net — выручка без НДС по модулю, знак у возврата покупателя задаёт тип */
+export interface SalesDocRow {
+  id: string;
+  type: string;
+  /** Дата учёта: у акта, реализации и возврата — дата документа, у заказ-наряда — день выполнения */
+  date: string;
+  counterpartyId: string | null;
+  counterpartyName: string | null;
+  responsibleId: string | null;
+  /** Ответственный компании-контрагента */
+  companyOwnerId: string | null;
+  organizationId: string;
+  warehouseId: string | null;
+  net: string;
+}
+
+/** Проведённые акты, реализации и возвраты покупателей за период по дате документа (общий расчёт факта: отчёт «Клиенты» и план-факт, задача 1133) */
+export async function postedSalesDocs(db: Db, ws: string, from: string, to: string, counterpartyId?: string): Promise<SalesDocRow[]> {
+  const conds = [eq(documents.workspaceId, ws), eq(documents.status, 'posted'), inArray(documents.type, ['act', 'realization', 'customer_return']), gte(documents.date, from), lte(documents.date, to)];
+  if (counterpartyId) conds.push(eq(documents.counterpartyId, counterpartyId));
+  return db
+    .select({ id: documents.id, type: documents.type, date: documents.date, counterpartyId: documents.counterpartyId, counterpartyName: companies.name, responsibleId: documents.responsibleId, companyOwnerId: companies.ownerId, organizationId: documents.organizationId, warehouseId: documents.warehouseId, net: documents.amountNet })
+    .from(documents)
+    .leftJoin(companies, eq(companies.id, documents.counterpartyId))
+    .where(and(...conds));
+}
+
+/** Выполненные заказ-наряды за период (день выполнения по часовому поясу воркспейса) в том же виде */
+export async function workOrdersFactDocs(db: Db, ws: string, from: string, to: string): Promise<SalesDocRow[]> {
+  const ids = await workOrdersDoneBetween(db, ws, from, to);
+  if (!ids.length) return [];
+  const tz = await workspaceTimeZone(db, ws);
+  return db
+    .select({ id: documents.id, type: documents.type, date: sql<string>`((${documents.postedAt} at time zone ${tz})::date)::text`, counterpartyId: documents.counterpartyId, counterpartyName: companies.name, responsibleId: documents.responsibleId, companyOwnerId: companies.ownerId, organizationId: documents.organizationId, warehouseId: documents.warehouseId, net: documents.amountNet })
+    .from(documents)
+    .leftJoin(companies, eq(companies.id, documents.counterpartyId))
+    .where(inArray(documents.id, ids));
+}
+
 /* ---------------- 4. аналитика по клиентам ---------------- */
 
 export interface ClientsRow {
@@ -557,13 +596,7 @@ export async function clientsReport(db: Db, ws: string, q: ServiceReportQuery): 
 
   // акты, реализации и возвраты покупателей
   if (!q.kindId && !q.assigneeId) {
-    const conds = [eq(documents.workspaceId, ws), eq(documents.status, 'posted'), inArray(documents.type, ['act', 'realization', 'customer_return']), gte(documents.date, q.from), lte(documents.date, q.to)];
-    if (q.counterpartyId) conds.push(eq(documents.counterpartyId, q.counterpartyId));
-    const docs = await db
-      .select({ id: documents.id, type: documents.type, counterpartyId: documents.counterpartyId, name: companies.name })
-      .from(documents)
-      .leftJoin(companies, eq(companies.id, documents.counterpartyId))
-      .where(and(...conds));
+    const docs = await postedSalesDocs(db, ws, q.from, q.to, q.counterpartyId);
     const ids = docs.map(d => d.id);
     const lines = await lineSplit(ids);
     const moves = ids.length
@@ -575,7 +608,7 @@ export async function clientsReport(db: Db, ws: string, q: ServiceReportQuery): 
       : [];
     const moveCost = new Map(moves.map(m => [m.documentId, dec(m.cost)]));
     for (const d of docs) {
-      const a = get(d.counterpartyId, d.name);
+      const a = get(d.counterpartyId, d.counterpartyName);
       const sign = d.type === 'customer_return' ? -1n : 1n;
       const s = lines.get(d.id) ?? { goods: 0n, other: 0n };
       a.docs++;

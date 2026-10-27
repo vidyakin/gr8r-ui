@@ -44,6 +44,7 @@ import { ensureVariant, specParamsOfProduct } from './variants';
 import { checkParamValues, loadCategoryAttributeDefs } from './specs';
 import { uuidv7 } from './uuid';
 import { saveSerials, checkInventorySerials, lineSerialsView } from './serials';
+import { applySaleNextContact } from './repeat-sales';
 import { repairPrintData, syncWarrantyKind, workOrderKindType } from './repair';
 
 export interface DocCtx {
@@ -759,6 +760,8 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<voi
 
   await syncAfterChange(db, ctx, doc, lines, true);
   await hook?.afterPost?.(db, ctx, doc, lines);
+  // повторные продажи (задача 1133): у покупателя ставится дата следующего контакта
+  await applySaleNextContact(db, ctx, doc, lines);
   const [after] = await db.select({ number: documents.number, total: documents.total }).from(documents).where(eq(documents.id, id)).limit(1);
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.posted', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { documentType: type, number: after!.number, total: after!.total, warnings: contractWarnings } });
 }
@@ -814,7 +817,7 @@ async function syncAfterChange(db: Db, ctx: DocCtx, doc: DocumentRow, lines: Doc
   if (ids.length) await syncReservations(db, ctx.workspaceId, ids);
   // косвенные затраты периода: набираются при проведении и очищаются при отмене.
   // У «Прочих затрат» строк товаров нет — их набирает хук проведения этого типа
-  if (doc.type === 'other_costs') return;
+  if (doc.type === 'other_costs' || doc.type === 'sales_plan') return;
   if (posted) await syncPeriodCosts(db, ctx, doc, lines);
   else await clearPeriodCosts(db, ctx.workspaceId, doc.id);
 }

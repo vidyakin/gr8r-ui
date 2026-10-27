@@ -22,7 +22,7 @@ export type CrmAction =
   | { type: 'deal/move'; id: string; stage: StageId; before?: string | null; by: string; lostReason?: string }
   | { type: 'deal/delete'; id: string }
   | { type: 'company/create'; company: Pick<Company, 'name' | 'industry' | 'size' | 'owner'> & Partial<Pick<Company, 'id' | 'website' | 'city'>> }
-  | { type: 'company/update'; id: string; patch: Partial<Pick<Company, 'name' | 'industry' | 'size' | 'owner' | 'website' | 'city' | 'custom'>> }
+  | { type: 'company/update'; id: string; patch: Partial<Pick<Company, 'name' | 'industry' | 'size' | 'owner' | 'website' | 'city' | 'custom' | 'nextContactDate' | 'nextContactNote'>> }
   | { type: 'contact/create'; contact: Pick<Contact, 'name' | 'company' | 'owner'> & Partial<Pick<Contact, 'id' | 'title' | 'email' | 'phone'>> }
   | { type: 'contact/update'; id: string; patch: Partial<Pick<Contact, 'name' | 'title' | 'email' | 'phone' | 'owner' | 'company' | 'custom'>> }
   | { type: 'activity/add'; activity: NewActivity }

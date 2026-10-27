@@ -46,6 +46,7 @@ import {
   TrendingUp,
   Scale,
   ScanBarcode,
+  Target,
   type LucideIcon,
 } from 'lucide-react';
 import { hasKey, t, type TKey } from '@/i18n';
@@ -79,6 +80,7 @@ export const SECTIONS = {
   crmCompanies: { path: '/crm/companies', name: 'Companies', icon: Building2 },
   crmContacts: { path: '/crm/contacts', name: 'Contacts', icon: ContactRound },
   crmActivities: { path: '/crm/activities', name: 'Activities', icon: PhoneCall },
+  crmSalesPlan: { path: '/crm/sales-plan', name: 'Sales plan', icon: Target },
   // Каталог и производство
   catalog: { path: '/catalog', name: 'Catalog', icon: Package },
   production: { path: '/production', name: 'Production', icon: Factory },

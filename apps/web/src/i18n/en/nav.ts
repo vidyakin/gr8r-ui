@@ -21,6 +21,7 @@ export const sections = {
   crmCompanies: 'Companies',
   crmContacts: 'Contacts',
   crmActivities: 'Activities',
+  crmSalesPlan: 'Sales plan',
   catalog: 'Catalog',
   production: 'Production',
   productionOrders: 'Production orders',

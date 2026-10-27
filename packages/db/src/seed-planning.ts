@@ -67,7 +67,8 @@ export async function seedPlanning(db: Db, wsId: string) {
   const [work] = await db
     .select({ id: products.id })
     .from(products)
-    .where(and(eq(products.workspaceId, wsId), eq(products.kind, 'work')))
+    // именно «Монтаж»: без отбора по артикулу ресурс доставался случайной работе (порядок строк не задан)
+    .where(and(eq(products.workspaceId, wsId), eq(products.kind, 'work'), eq(products.sku, 'WR-MNT')))
     .limit(1);
   if (work) await db.insert(productResources).values({ workspaceId: wsId, productId: work.id, resourceId: bench, hoursPerUnit: '0.500' });
 

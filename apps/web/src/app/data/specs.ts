@@ -346,8 +346,8 @@ export function buildSpecs(ws: string, statusIds: Map<string, string>) {
   const companies = list<Company>({
     name: 'companies',
     query: { sort: 'name' },
-    from: ((r: Rows['companies']): Company => ({ id: r.id, name: r.name, industry: r.industry, size: r.size, owner: r.ownerId ?? '', website: r.website, city: r.city, created: ms(r.createdAt), custom: r.custom as Record<string, unknown> })) as never,
-    fields: { custom: v => ({ custom: v }), name: v => ({ name: v }), industry: v => ({ industry: v }), size: v => ({ size: v }), owner: v => ({ ownerId: orNull(v) }), website: v => ({ website: v }), city: v => ({ city: v }) },
+    from: ((r: Rows['companies']): Company => ({ id: r.id, name: r.name, industry: r.industry, size: r.size, owner: r.ownerId ?? '', website: r.website, city: r.city, created: ms(r.createdAt), nextContactDate: r.nextContactDate ?? '', nextContactNote: r.nextContactNote, custom: r.custom as Record<string, unknown> })) as never,
+    fields: { custom: v => ({ custom: v }), nextContactDate: v => ({ nextContactDate: orNull(v) }), nextContactNote: v => ({ nextContactNote: v }), name: v => ({ name: v }), industry: v => ({ industry: v }), size: v => ({ size: v }), owner: v => ({ ownerId: orNull(v) }), website: v => ({ website: v }), city: v => ({ city: v }) },
     remove: 'soft',
   });
 

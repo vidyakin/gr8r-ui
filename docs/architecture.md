@@ -57,6 +57,7 @@
 - [Планирование услуг по часам](architecture/service-planning.md)
 - [Контроль и отчёты услуг](architecture/service-reports.md)
 - [Серийные номера, ремонт и гарантия](architecture/serials-repair.md)
+- [Повторные продажи и план продаж](architecture/repeat-sales.md)
 
 ## Финансы
 

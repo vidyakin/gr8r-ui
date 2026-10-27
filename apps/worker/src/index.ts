@@ -3,6 +3,7 @@ import { createSql, databaseUrl, ddlDatabaseUrl, EVENTS_CHANNEL, listenChannel }
 import { closeBrowser } from './pdf/render';
 import { scheduleFlowsOnce } from './flows/triggers';
 import { runBillingOnce } from './billing';
+import { runNextContactsOnce } from './next-contacts';
 import { defaultOptions, processEventsOnce, processJobsOnce, requeueStale } from './worker';
 
 const pollMs = Number(process.env.WORKER_POLL_MS ?? 1000);
@@ -63,6 +64,9 @@ while (!stopping) {
       lastBillingHour = hour;
       const n = await runBillingOnce(sql);
       if (n) o.log(`issued ${n} billing invoice(s)`);
+      // следующий контакт с клиентом (повторные продажи): дела на сегодня по часовому поясу арендатора, повтор в тот же день ничего не создаёт
+      const calls = await runNextContactsOnce(sql);
+      if (calls) o.log(`created ${calls} next-contact task(s)`);
     }
     const events = await processEventsOnce(sql, o);
     const jobs = await processJobsOnce(sql, o);

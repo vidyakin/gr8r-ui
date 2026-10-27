@@ -88,6 +88,8 @@ export const productCreate = z.object({
   trackSerials: z.boolean().default(false),
   /** Гарантия, мес. (пусто — без гарантии) */
   warrantyMonths: z.number().int().min(0).max(600).nullish(),
+  /** Повторить продажу через, дн. (задача 1133; пусто — нет): после продажи у компании ставится дата следующего контакта */
+  repeatSaleDays: z.number().int().min(1).max(3650).nullish(),
   custom: customData.optional(),
 });
 export const productUpdate = toPatch(productCreate.omit({ id: true }));

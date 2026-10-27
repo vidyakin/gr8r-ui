@@ -22,6 +22,9 @@ export const companies = pgTable(
     ogrn: text('ogrn').notNull().default(''),
     legalAddress: text('legal_address').notNull().default(''),
     actualAddress: text('actual_address').notNull().default(''),
+    /** Следующий контакт (задача 1133): ставится при продаже, воркер в этот день создаёт дело ответственному и очищает дату */
+    nextContactDate: date('next_contact_date', { mode: 'string' }),
+    nextContactNote: text('next_contact_note').notNull().default(''),
     custom: jsonb('custom').$type<Record<string, unknown>>().notNull().default({}),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -129,5 +132,21 @@ export const crmActivities = pgTable(
     foreignKey({ columns: [t.workspaceId, t.contactId], foreignColumns: [contacts.workspaceId, contacts.id], name: 'ca_contact_fk' }).onDelete('cascade'),
     foreignKey({ columns: [t.workspaceId, t.authorId], foreignColumns: [members.workspaceId, members.id], name: 'ca_author_fk' }),
     index('crm_activities_ws_created_idx').on(t.workspaceId, t.createdAt),
+  ],
+);
+
+/** Журнал напоминаний о следующем контакте (задача 1133): одно дело на (компания, дата) — идемпотентность задачи воркера */
+export const crmNextContactRuns = pgTable(
+  'crm_next_contact_runs',
+  {
+    workspaceId: wsCol(),
+    companyId: uuid('company_id').notNull(),
+    contactDate: date('contact_date', { mode: 'string' }).notNull(),
+    activityId: uuid('activity_id'),
+    createdAt: createdAt(),
+  },
+  t => [
+    primaryKey({ columns: [t.companyId, t.contactDate] }),
+    foreignKey({ columns: [t.workspaceId, t.companyId], foreignColumns: [companies.workspaceId, companies.id], name: 'cncr_company_fk' }).onDelete('cascade'),
   ],
 );

@@ -20,6 +20,9 @@ export const companyCreate = z.object({
   ogrn: z.string().trim().regex(/^(\d{13}|\d{15})?$/, 'OGRN: 13 digits, OGRNIP: 15 digits').default(''),
   legalAddress: z.string().trim().max(500).default(''),
   actualAddress: z.string().trim().max(500).default(''),
+  /** Следующий контакт (задача 1133): дата и заметка; пусто — контакта не запланировано */
+  nextContactDate: isoDate.nullish(),
+  nextContactNote: z.string().trim().max(500).default(''),
   custom: customData.optional(),
 });
 export const companyUpdate = toPatch(companyCreate.omit({ id: true }));
@@ -81,3 +84,4 @@ export const crmActivityQuery = listQuery.extend({
   companyId: uuid.optional(),
   contactId: uuid.optional(),
 });
+

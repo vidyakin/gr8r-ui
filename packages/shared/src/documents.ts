@@ -6,7 +6,7 @@ import type { VatRate } from './constants';
 
 /* ---------------- типы и статусы ---------------- */
 
-export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'inventory_count', 'production_order', 'production', 'work_order', 'piecework_order', 'other_costs', 'material_allocation', 'tolling_receipt', 'tolling_report', 'tolling_return'] as const;
+export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'inventory_count', 'production_order', 'production', 'work_order', 'piecework_order', 'other_costs', 'material_allocation', 'tolling_receipt', 'tolling_report', 'tolling_return', 'sales_plan'] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 export const DOCUMENT_STATUSES = ['draft', 'posted', 'cancelled'] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
@@ -94,6 +94,8 @@ export interface DocumentTypeMeta {
   production?: boolean;
   /** Тип со своими строками вне document_lines (строки без товара: «Прочие затраты») */
   ownLines?: boolean;
+  /** Документ ведётся в своём разделе (план продаж в CRM): в общих журналах группы и меню «Создать» его нет */
+  section?: boolean;
 }
 
 /** Состояния заказа на производство (отдельно от проведения) */
@@ -140,6 +142,8 @@ export const DOCUMENT_META: Record<DocumentType, DocumentTypeMeta> = {
   // сдельный наряд: выполненные операции исполнителя за день (зарплата не начисляется — только отчёт к оплате)
   piecework_order: { label: 'Piecework order', group: 'production', prefix: 'СН', stock: null, party: null, basedOn: [], fulfils: false, forms: ['piecework'] },
   // прочие затраты: косвенные затраты периода без склада (строки — статья, участок, сумма; своего товара у них нет)
+  // план продаж: сценарий и периоды в своей шапке, строки — период × значение разреза (раздел CRM «План продаж»)
+  sales_plan: { label: 'Sales plan', group: 'sales', prefix: 'ПП', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true, section: true },
   other_costs: { label: 'Other costs', group: 'production', prefix: 'ПЗ', stock: null, party: null, basedOn: ['work_order'], fulfils: false, forms: [], ownLines: true },
   // распределение материалов по итогам смены: фактический расход делится между выпусками участка в режиме «по итогам смены»
   material_allocation: { label: 'Material allocation', group: 'production', prefix: 'РМ', stock: null, party: null, basedOn: [], fulfils: false, forms: [], stockRole: 'out' },
@@ -198,10 +202,11 @@ export const DOCUMENT_LABELS_RU: Record<DocumentType, string> = {
   work_order: 'Заказ-наряд',
   piecework_order: 'Сдельный наряд',
   other_costs: 'Прочие затраты',
+  sales_plan: 'План продаж',
   material_allocation: 'Распределение материалов',
 };
 
-export const documentTypesOf = (group: DocumentGroup): DocumentType[] => DOCUMENT_TYPES.filter(t => DOCUMENT_META[t].group === group);
+export const documentTypesOf = (group: DocumentGroup): DocumentType[] => DOCUMENT_TYPES.filter(t => DOCUMENT_META[t].group === group && !DOCUMENT_META[t].section);
 /** В какие типы можно создать документ «на основании» данного */
 export const basedOnTargets = (from: DocumentType): DocumentType[] => DOCUMENT_TYPES.filter(t => DOCUMENT_META[t].basedOn.includes(from));
 

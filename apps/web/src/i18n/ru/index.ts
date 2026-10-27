@@ -13,7 +13,8 @@ import { pages } from './pages';
 import { production, productionEnums } from './production';
 import { serviceReports } from './services';
 import { serials } from './serials';
+import { repeat } from './repeat';
 import { languages, settings } from './settings';
 import { views } from './views';
 
-export const ru = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials };
+export const ru = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, repeat };

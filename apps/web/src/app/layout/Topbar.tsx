@@ -42,6 +42,7 @@ export function useCrumbs(): Crumb[] {
     const sec = Object.values(SECTIONS).find(x => x.path === `/crm${b ? '/' + b : ''}`);
     const crumbs: Crumb[] = [{ label: t('nav.groups.crm'), to: SECTIONS.crm.path }];
     if (b === 'companies' && c) return [...crumbs, { label: S.crmCompanies.name, to: SECTIONS.crmCompanies.path }, { label: crmCompany(crm.data, c)?.name ?? t('nav.crumbs.company') }];
+    if (b === 'sales-plan' && c) return [...crumbs, { label: S.crmSalesPlan.name, to: SECTIONS.crmSalesPlan.path }, { label: t('nav.crumbs.document') }];
     return [...crumbs, { label: sec?.name ?? nf }];
   }
   if (a === 'projects' && b) {
