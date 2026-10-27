@@ -27,4 +27,5 @@ export * from './delivery';
 export * from './positions';
 export * from './payments';
 export * from './bank-statement';
+export * from './bank-api';
 export * from './leads';
