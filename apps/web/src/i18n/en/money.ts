@@ -224,6 +224,8 @@ export const money = {
     unpaid: 'Unpaid',
     partial: 'Partly paid',
     paid: 'Paid',
+    prepaid: 'Advance',
+    prepaidOf: 'Advance {paid} of {total}',
     paidOf: 'Paid {paid} of {total}',
     remaining: 'To pay',
     pay: 'Pay',

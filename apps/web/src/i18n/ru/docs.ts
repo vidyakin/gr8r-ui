@@ -55,6 +55,7 @@ export const docs: Widen<typeof D> = {
       fromWarehouse: 'Склад-отправитель',
       toWarehouse: 'Склад-получатель',
       org: 'Организация',
+      payment: 'Оплата',
       net: 'Без НДС',
       vat: 'НДС',
       cost: 'Себестоимость',

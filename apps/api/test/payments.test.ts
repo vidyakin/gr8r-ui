@@ -258,3 +258,26 @@ describe('кассовый факт инвестпроекта', () => {
     expect((await owner.get(`/investments/${proj.id}`)).body.factBasis).toBe('payments');
   });
 });
+
+describe('значок оплаты в журналах документов', () => {
+  test('список документов отдаёт оплату пачкой: оплачен, частично, не оплачен, аванс', async () => {
+    const c = await company('ООО «Журнал оплат»');
+    const unpaid = await act(c, '300.00', '2026-04-01');
+    const partial = await act(c, '400.00', '2026-04-02');
+    const paid = await act(c, '500.00', '2026-04-03');
+    await pay({ counterpartyId: c, lines: [{ settlementDocumentId: partial, amount: '100.00' }] });
+    await pay({ counterpartyId: c, lines: [{ settlementDocumentId: paid, amount: '500.00' }] });
+    // счёт, оплаченный до отгрузки: аванс
+    const inv = await mk(owner, '/documents', { type: 'invoice', counterpartyId: c, date: '2026-04-04', lines: [{ productId: service, qty: 1, price: '1000.00', vatRate: 'none' }] });
+    await mk(owner, `/documents/${inv.id}/post`);
+    await pay({ counterpartyId: c, lines: [{ settlementDocumentId: inv.id, amount: '200.00' }] });
+    const list = (await owner.get(`/documents?counterpartyId=${c}&limit=50`)).body.items as any[];
+    const by = (id: string) => list.find(d => d.id === id).payment;
+    expect(by(unpaid)).toMatchObject({ state: 'unpaid', paid: '0.00', prepaid: false });
+    expect(by(partial)).toMatchObject({ state: 'partial', paid: '100.00', remaining: '300.00', prepaid: false });
+    expect(by(paid)).toMatchObject({ state: 'paid', prepaid: false });
+    expect(by(inv.id)).toMatchObject({ state: 'partial', paid: '200.00', prepaid: true });
+    // то же, что отдаёт карточка документа
+    expect(by(partial).remaining).toBe((await status(partial)).remaining);
+  });
+});

@@ -165,6 +165,8 @@ export interface PaymentStatus {
   paid: string;
   remaining: string;
   state: PaymentState;
+  /** Оплата пришла до начисления (аванс под заказ или счёт) */
+  prepaid: boolean;
 }
 
 export interface SettlementCard {

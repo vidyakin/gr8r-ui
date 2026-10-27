@@ -11,6 +11,7 @@ import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { useCanWrite } from '../meta/custom-fields';
 import { money } from '../catalog/data';
+import { PayBadge } from '../money/PayControls';
 import { fmtDate, parse } from '../lib/dates';
 import { STATUS_LABEL, STATUS_TONE, typeLabel, useDocsApi, useDocuments, useOrganizations, type DocDetail, type DocListItem } from './data';
 
@@ -77,6 +78,9 @@ export function JournalPage({ group, type: fixed }: { group: DocumentGroup; type
     { id: 'date', header: t('docs.journal.col.date'), width: 112, value: d => d.date, cell: d => <span className="num muted">{fmtDate(parse(d.date))}</span> },
     ...(group === 'stock' ? stockCols : partyCols),
     { id: 'org', header: t('docs.journal.col.org'), width: 190, defaultHidden: true, value: d => d.organizationName, cell: d => <span className="trunc muted">{d.organizationName}</span> },
+    ...(group === 'sales' || group === 'purchases'
+      ? [{ id: 'payment', header: t('docs.journal.col.payment'), width: 150, value: (d: DocListItem) => (d.payment ? (d.payment.prepaid ? 'prepaid' : d.payment.state) : ''), cell: (d: DocListItem) => (d.payment ? <PayBadge s={d.payment} compact /> : <span className="faint">—</span>) } satisfies Column<DocListItem>]
+      : []),
     { id: 'status', header: t('common.status'), width: 112, value: d => STATUS_LABEL[d.status], cell: d => <Badge tone={STATUS_TONE[d.status]} dot>{STATUS_LABEL[d.status]}</Badge> },
     ...(group === 'stock' ? [costCol] : sumCols),
   ];

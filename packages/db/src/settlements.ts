@@ -260,6 +260,8 @@ export interface PaymentStatus {
   paid: string;
   remaining: string;
   state: PaymentState;
+  /** Оплата пришла до начисления: аванс под заказ, счёт, заказ-наряд или заказ поставщику */
+  prepaid: boolean;
 }
 
 /** Оплата корней по FIFO общей суммой платежей контрагента (режим «по контрагенту») */
@@ -283,35 +285,77 @@ async function fifoPaid(db: Db, companyId: string, side: Side): Promise<{ paid: 
   return allocateFifo([...byRoot.values()], paidTotal);
 }
 
-/** «Оплачено / к оплате» для списка документов (по цепочке: у заказа, счёта и реализации общий документ расчётов) */
+/** Корни цепочек «основание» для набора документов: не более одного запроса на уровень цепочки (заказ → счёт → реализация), а не на документ */
+async function settlementRoots(db: Db, start: RootRow[]): Promise<Map<string, RootRow>> {
+  const cur = new Map(start.map(d => [d.id, d]));
+  const active = new Set(start.filter(d => d.basedOnId).map(d => d.id));
+  for (let i = 0; i < 10 && active.size; i++) {
+    const parentIds = [...new Set([...active].map(id => cur.get(id)!.basedOnId!))];
+    const parents = new Map((await db.select(rootCols).from(documents).where(inArray(documents.id, parentIds))).map(p => [p.id, p]));
+    for (const id of [...active]) {
+      const parent = parents.get(cur.get(id)!.basedOnId!);
+      if (!parent || !(SETTLEMENT_CHAIN_TYPES as string[]).includes(parent.type) || parent.status === 'cancelled') active.delete(id);
+      else {
+        cur.set(id, parent);
+        if (!parent.basedOnId) active.delete(id);
+      }
+    }
+  }
+  return cur;
+}
+
+/** «Оплачено / к оплате» для списка документов (по цепочке: у заказа, счёта и реализации общий документ расчётов).
+    Запросов столько, сколько уровней цепочки плюс фиксированное число — не по запросу на документ (режим «по контрагенту» считается по контрагентам) */
 export async function paymentStatuses(db: Db, ids: string[]): Promise<Record<string, PaymentStatus>> {
   const out: Record<string, PaymentStatus> = {};
   if (!ids.length) return out;
-  const docs = await db.select({ id: documents.id, type: documents.type, status: documents.status, counterpartyId: documents.counterpartyId }).from(documents).where(inArray(documents.id, ids));
+  const docs = (await db.select(rootCols).from(documents).where(inArray(documents.id, ids))).filter(d => (PAYABLE_TYPES as string[]).includes(d.type) && d.status !== 'cancelled');
+  const roots = await settlementRoots(db, docs);
+  const rootRows = new Map([...roots.values()].map(r => [r.id, r]));
+  const rootIds = [...rootRows.keys()];
+  const cpIds = [...new Set([...rootRows.values()].map(r => r.counterpartyId).filter((x): x is string => !!x))];
+  const modes = new Map((cpIds.length ? await db.select({ id: companies.id, m: companies.settlementMode }).from(companies).where(inArray(companies.id, cpIds)) : []).map(c => [c.id, (c.m ?? 'by_documents') as SettlementMode]));
+  const totals = new Map<string, { accrued: Dec; paid: Dec }>();
+  if (rootIds.length) {
+    const rows = await db
+      .select({ rootId: settlementMoves.settlementDocumentId, kind: settlementMoves.kind, s: sum(settlementMoves.amount) })
+      .from(settlementMoves)
+      .where(inArray(settlementMoves.settlementDocumentId, rootIds))
+      .groupBy(settlementMoves.settlementDocumentId, settlementMoves.kind);
+    for (const r of rows) {
+      const t = totals.get(r.rootId!) ?? { accrued: 0n, paid: 0n };
+      if (r.kind === 'accrual') t.accrued += dec(r.s);
+      else t.paid -= dec(r.s);
+      totals.set(r.rootId!, t);
+    }
+  }
   const fifo = new Map<string, Awaited<ReturnType<typeof fifoPaid>>>();
   for (const d of docs) {
-    if (!(PAYABLE_TYPES as string[]).includes(d.type) || d.status === 'cancelled') continue;
-    const root = await settlementRoot(db, d.id);
+    const root = roots.get(d.id)!;
     if (!root.counterpartyId) continue;
     const rule = ACCRUAL_TYPES[root.type as DocumentType];
     const side: Side = rule?.side ?? (root.type === 'supplier_order' ? 'supplier' : 'customer');
-    const mode = await companyMode(db, root.counterpartyId);
+    const mode = modes.get(root.counterpartyId) ?? 'by_documents';
     const prepay = (PREPAY_TYPES as string[]).includes(root.type);
-    const t = await rootTotals(db, root.id);
     let ob: Dec;
     let paid: Dec;
+    let accrued: Dec;
     if (mode === 'by_documents') {
+      const t = totals.get(root.id) ?? { accrued: 0n, paid: 0n };
+      accrued = t.accrued;
       ob = obligation(prepay, root.total, t.accrued);
       paid = t.paid;
     } else {
       const key = `${root.counterpartyId}|${side}`;
       if (!fifo.has(key)) fifo.set(key, await fifoPaid(db, root.counterpartyId, side));
-      const accrued = (await db.select({ s: sum(settlementMoves.amount) }).from(settlementMoves).where(and(eq(settlementMoves.kind, 'accrual'), inArray(settlementMoves.documentId, await chainDocIds(db, root.id)))))[0]?.s ?? '0';
-      ob = obligation(prepay, root.total, dec(accrued));
+      accrued = dec((await db.select({ s: sum(settlementMoves.amount) }).from(settlementMoves).where(and(eq(settlementMoves.kind, 'accrual'), inArray(settlementMoves.documentId, await chainDocIds(db, root.id)))))[0]?.s ?? '0');
+      ob = obligation(prepay, root.total, accrued);
       paid = fifo.get(key)!.paid.get(root.id) ?? 0n;
     }
     const remaining = ob > paid ? ob - paid : 0n;
-    out[d.id] = { documentId: d.id, rootId: root.id, side, mode, obligation: fmt(ob, 2), paid: fmt(paid, 2), remaining: fmt(remaining, 2), state: paymentState(ob, paid) };
+    // аванс: оплата пришла до начисления (заказ, счёт, заказ-наряд, заказ поставщику ещё не отгружены / не оприходованы)
+    const prepaid = prepay && accrued === 0n && paid > 0n;
+    out[d.id] = { documentId: d.id, rootId: root.id, side, mode, obligation: fmt(ob, 2), paid: fmt(paid, 2), remaining: fmt(remaining, 2), state: paymentState(ob, paid), prepaid };
   }
   return out;
 }

@@ -227,6 +227,8 @@ export const money: Widen<typeof M> = {
     unpaid: 'Не оплачен',
     partial: 'Оплачен частично',
     paid: 'Оплачен',
+    prepaid: 'Аванс',
+    prepaidOf: 'Аванс {paid} из {total}',
     paidOf: 'Оплачено {paid} из {total}',
     remaining: 'К оплате',
     pay: 'Оплатить',
