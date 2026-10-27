@@ -26,4 +26,5 @@ export * from './appointments';
 export * from './delivery';
 export * from './positions';
 export * from './payments';
+export * from './payment-calendar';
 export * from './leads';

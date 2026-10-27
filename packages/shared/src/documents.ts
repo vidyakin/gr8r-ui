@@ -6,7 +6,7 @@ import type { VatRate } from './constants';
 
 /* ---------------- типы и статусы ---------------- */
 
-export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'inventory_count', 'production_order', 'production', 'work_order', 'piecework_order', 'other_costs', 'material_allocation', 'tolling_receipt', 'tolling_report', 'tolling_return', 'sales_plan', 'service_day', 'cash_receipt', 'cash_payment', 'bank_receipt', 'bank_payment', 'advance_report'] as const;
+export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'inventory_count', 'production_order', 'production', 'work_order', 'piecework_order', 'other_costs', 'material_allocation', 'tolling_receipt', 'tolling_report', 'tolling_return', 'sales_plan', 'service_day', 'cash_receipt', 'cash_payment', 'bank_receipt', 'bank_payment', 'advance_report', 'payment_request'] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 export const DOCUMENT_STATUSES = ['draft', 'posted', 'cancelled'] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
@@ -153,6 +153,7 @@ export const DOCUMENT_META: Record<DocumentType, DocumentTypeMeta> = {
   cash_payment: { label: 'Cash payment', group: 'cash', prefix: 'РКО', stock: null, party: null, basedOn: [], fulfils: false, forms: ['ko2'], ownLines: true, section: true },
   bank_receipt: { label: 'Bank receipt', group: 'cash', prefix: 'ПС', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true, section: true },
   bank_payment: { label: 'Bank payment', group: 'cash', prefix: 'СС', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true, section: true },
+  payment_request: { label: 'Payment request', group: 'cash', prefix: 'ЗР', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true, section: true },
   advance_report: { label: 'Advance report', group: 'cash', prefix: 'АО', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true, section: true },
   other_costs: { label: 'Other costs', group: 'production', prefix: 'ПЗ', stock: null, party: null, basedOn: ['work_order'], fulfils: false, forms: [], ownLines: true },
   // распределение материалов по итогам смены: фактический расход делится между выпусками участка в режиме «по итогам смены»
@@ -220,6 +221,7 @@ export const DOCUMENT_LABELS_RU: Record<DocumentType, string> = {
   bank_receipt: 'Поступление на расчётный счёт',
   bank_payment: 'Списание с расчётного счёта',
   advance_report: 'Авансовый отчёт',
+  payment_request: 'Заявка на расход',
 };
 
 export const documentTypesOf = (group: DocumentGroup): DocumentType[] => DOCUMENT_TYPES.filter(t => DOCUMENT_META[t].group === group && !DOCUMENT_META[t].section);

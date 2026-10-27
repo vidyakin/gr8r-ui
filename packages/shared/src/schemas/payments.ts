@@ -1,5 +1,6 @@
 /* zod-схемы денег (задача 1174б): кассы, статьи ДДС, документы оплат и авансовый отчёт, отчёты. */
 import { z } from 'zod';
+import { REQUEST_OPERATIONS } from '../payment-calendar';
 import { CASH_FLOW_GROUPS, PAYMENT_DOC_TYPES, RECEIPT_OPERATIONS, PAYMENT_OPERATIONS } from '../payments';
 import { clientId, decimal, isoDate, listQuery, shortText, toPatch, uuid } from './common';
 
@@ -103,3 +104,30 @@ export const settlementQuery = z.object({ from: isoDate.optional(), to: isoDate.
 export const settlementStatusQuery = z.object({
   ids: z.preprocess(v => (typeof v === 'string' ? v.split(',').filter(Boolean) : v), z.array(uuid).max(200)),
 });
+
+/* ---------------- платёжный календарь и заявки на расход (1174г) ---------------- */
+
+export const paymentCalendarQuery = z.object({
+  days: z.coerce.number().int().min(1).max(366).default(60),
+  organizationId: uuid.optional(),
+  /** Заявки на согласовании в прогнозе (по умолчанию да) */
+  includePending: z.enum(['true', 'false']).default('true'),
+});
+
+export const requestCreate = z.object({
+  id: clientId,
+  operation: z.enum(REQUEST_OPERATIONS).optional(),
+  organizationId: uuid.nullish(),
+  date: isoDate.optional(),
+  /** Желаемая дата оплаты */
+  dueDate: isoDate.nullish(),
+  /** Получатель */
+  counterpartyId: uuid.nullish(),
+  investmentProjectId: uuid.nullish(),
+  comment: z.string().trim().max(2000).default(''),
+  lines: z.array(paymentLineInput).max(200).default([]),
+});
+export const requestUpdate = toPatch(requestCreate.omit({ id: true }));
+export const requestQuery = listQuery.extend({ state: z.string().optional(), counterpartyId: uuid.optional(), from: isoDate.optional(), to: isoDate.optional() });
+export const requestState = z.object({ state: z.enum(['pending', 'approved', 'rejected']) });
+export const requestPay = z.object({ account: z.enum(['cash', 'bank']).default('bank') });

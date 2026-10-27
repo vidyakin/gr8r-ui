@@ -11,7 +11,7 @@ export const isPaymentType = (t: string): t is PaymentDocType => (PAYMENT_DOC_TY
 export const isReceiptType = (t: PaymentDocType): boolean => t === 'cash_receipt' || t === 'bank_receipt';
 export const accountKindOfType = (t: PaymentDocType): 'cash' | 'bank' => (t === 'cash_receipt' || t === 'cash_payment' ? 'cash' : 'bank');
 /** Документы, у которых есть строки payment_lines */
-export const isCashDocType = (t: string): boolean => isPaymentType(t) || t === 'advance_report';
+export const isCashDocType = (t: string): boolean => isPaymentType(t) || t === 'advance_report' || t === 'payment_request';
 
 /** Операции поступлений и выплат (documents.operation) */
 export const RECEIPT_OPERATIONS = ['from_customer', 'supplier_refund', 'from_accountable', 'other_income'] as const;
