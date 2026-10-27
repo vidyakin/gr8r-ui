@@ -51,5 +51,6 @@ export * from './delivery';
 export * from './positions';
 export * from './settlements';
 export * from './payments';
+export * from './bank-import';
 export * from './leads';
 export * from './secrets';

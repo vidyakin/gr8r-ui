@@ -1,0 +1,2 @@
+ALTER TABLE "documents" ADD COLUMN "bank_import_key" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "documents_bank_import_uq" ON "documents" USING btree ("workspace_id","bank_import_key") WHERE "documents"."bank_import_key" is not null;

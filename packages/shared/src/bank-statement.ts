@@ -148,8 +148,6 @@ export function parseBankAmount(v: string): string | null {
 
 /* ---------------- разбор ---------------- */
 
-const emptyParty = (): BankParty => ({ name: '', inn: '', kpp: '', account: '', bik: '', bank: '', corrAccount: '' });
-
 /** «ИНН 7701234567 ООО Ромашка» → { inn, name } (так пишут часть банков в поле «Плательщик») */
 function splitNameInn(raw: string): { name: string; inn: string; kpp: string } {
   let name = raw.trim();

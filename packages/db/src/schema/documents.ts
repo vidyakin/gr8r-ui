@@ -199,6 +199,8 @@ export const documents = pgTable(
     targetCashRegisterId: uuid('target_cash_register_id'),
     targetBankAccountId: uuid('target_bank_account_id'),
     accountableMemberId: uuid('accountable_member_id'),
+    /** Банковская выписка (1174в): ключ строки выписки «счёт|направление|дата|номер|сумма» — повторный импорт не дублирует документ */
+    bankImportKey: text('bank_import_key'),
     currency: text('currency').notNull().default('RUB'),
     /** Цены «НДС в т.ч.» (true) или «НДС сверху» (false) */
     priceIncludesVat: boolean('price_includes_vat').notNull().default(true),
@@ -239,6 +241,7 @@ export const documents = pgTable(
     check('documents_in_use_chk', sql`${t.operation} not in ('to_operation','from_operation') or ((${t.inUseMemberId} is not null) <> (${t.inUseWorkCenterId} is not null))`),
     check('documents_number_chk', sql`(${t.number} is null) = (${t.numberSeq} is null) and (${t.numberSeq} is null) = (${t.numberYear} is null)`),
     // номер уникален в (организация, тип, год)
+    uniqueIndex('documents_bank_import_uq').on(t.workspaceId, t.bankImportKey).where(sql`${t.bankImportKey} is not null`),
     uniqueIndex('documents_number_uq').on(t.workspaceId, t.organizationId, t.type, t.numberYear, t.numberSeq).where(sql`${t.numberSeq} is not null`),
     index('documents_ws_type_date_idx').on(t.workspaceId, t.type, t.date),
     index('documents_counterparty_idx').on(t.counterpartyId),

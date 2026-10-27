@@ -103,3 +103,30 @@ export const settlementQuery = z.object({ from: isoDate.optional(), to: isoDate.
 export const settlementStatusQuery = z.object({
   ids: z.preprocess(v => (typeof v === 'string' ? v.split(',').filter(Boolean) : v), z.array(uuid).max(200)),
 });
+
+/* ---------------- банковская выписка (1174в) ---------------- */
+
+export const bankImportPreviewQuery = z.object({ bankAccountId: uuid.optional() });
+export const bankImportRow = z.object({
+  direction: z.enum(['in', 'out']),
+  number: z.string().trim().max(50).default(''),
+  /** Дата документа в выписке (входит в ключ повторного импорта) */
+  docDate: isoDate,
+  /** Дата по счёту: дата созданного документа */
+  bookedDate: isoDate,
+  amount: decimal.refine(v => Number(v) > 0, 'Amount must be greater than zero'),
+  purpose: z.string().trim().max(1000).default(''),
+  operation: z.string(),
+  counterpartyId: uuid.nullish(),
+  settlementDocumentId: uuid.nullish(),
+  cashFlowItemId: uuid.nullish(),
+  costItemId: uuid.nullish(),
+  skip: z.boolean().default(false),
+});
+export const bankImportCommit = z.object({
+  bankAccountId: uuid,
+  /** true — сразу провести; false — оставить черновиками */
+  post: z.boolean().default(false),
+  rows: z.array(bankImportRow).min(1).max(2000),
+});
+export const paymentOrdersQuery = z.object({ bankAccountId: uuid, from: isoDate.optional(), to: isoDate.optional(), ids: z.string().optional() });
