@@ -6,7 +6,7 @@
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { computeWorkOrderCost, dec, div, fmt, marginPct, mul, type WorkOrderCost, type WorkOrderCostAssignment, type WorkOrderCostInput, type WorkOrderCostItem, type OverheadTarget, type Dec } from '@gr8r/shared';
 import type { Db } from './client';
-import { companies, documentLines, documents, members, operations, otherCostLines, productionCostClosings, products, stockBalances, stockMoves, tasks, timeLogs, workCenters, workOrderAssignments, workOrderMaterials } from './schema';
+import { companies, documentLines, documents, members, operations, workOrderKinds, otherCostLines, productionCostClosings, products, stockBalances, stockMoves, tasks, timeLogs, workCenters, workOrderAssignments, workOrderMaterials } from './schema';
 import { workspaceTimeZone } from './planning';
 
 export interface WorkOrderCostData {
@@ -20,6 +20,8 @@ export interface WorkOrderCostData {
   cost: WorkOrderCost;
   /** Сколько косвенных пришло из закрытий месяцев: месяцы, по которым есть доля */
   indirectMonths: string[];
+  /** Тип вида: гарантийный ремонт — затраты уходят на статью «Гарантийный ремонт» (задача 1099) */
+  kindType: string;
 }
 
 /** Доля косвенных заказ-нарядов из итогов закрытых месяцев: документ → сумма и месяцы */
@@ -53,6 +55,8 @@ export async function loadWorkOrderCosts(db: Db, workspaceId: string, documentId
     .where(and(eq(documents.workspaceId, workspaceId), eq(documents.type, 'work_order'), inArray(documents.id, documentIds)));
   if (!docs.length) return out;
   const ids = docs.map(d => d.id);
+  const kindIds = [...new Set(docs.map(d => d.workOrderKindId).filter((x): x is string => !!x))];
+  const kindTypes = new Map((kindIds.length ? await db.select({ id: workOrderKinds.id, t: workOrderKinds.kindType }).from(workOrderKinds).where(inArray(workOrderKinds.id, kindIds)) : []).map(k => [k.id, k.t]));
 
   // назначения: участок назначения, иначе участок нормы работы строки
   const asg = await db
@@ -172,7 +176,7 @@ export async function loadWorkOrderCosts(db: Db, workspaceId: string, documentId
       other: otherBy.get(d.id) ?? '0',
       indirect: ind ? fmt(ind.amount, 2) : '0',
     };
-    out.set(d.id, { documentId: d.id, number: d.number, date: d.date, status: d.status, state: d.state, counterpartyId: d.counterpartyId, input, cost: computeWorkOrderCost(input), indirectMonths: ind?.months.sort() ?? [] });
+    out.set(d.id, { documentId: d.id, number: d.number, date: d.date, status: d.status, state: d.state, counterpartyId: d.counterpartyId, input, cost: computeWorkOrderCost(input), indirectMonths: ind?.months.sort() ?? [], kindType: (d.workOrderKindId && kindTypes.get(d.workOrderKindId)) || 'regular' });
   }
   return out;
 }
@@ -250,6 +254,8 @@ export interface WorkOrderCostReportRow {
   marginPct: string | null;
   /** Материалы или товары оценены по средней */
   estimated: boolean;
+  /** Гарантийный ремонт: себестоимость относится на статью «Гарантийный ремонт» */
+  warranty: boolean;
 }
 
 export interface WorkOrderCostReport {
@@ -257,6 +263,8 @@ export interface WorkOrderCostReport {
   to: string;
   rows: WorkOrderCostReportRow[];
   totals: { revenue: string; labor: string; materials: string; goods: string; other: string; indirect: string; cost: string; margin: string; marginPct: string | null };
+  /** Затраты гарантийного ремонта за период — на статью «Гарантийный ремонт» */
+  warrantyCost: string;
 }
 
 /** Отчёт «Себестоимость заказ-нарядов»: выполненные за период, факт по видам затрат, выручка и маржа */
@@ -279,7 +287,7 @@ export async function workOrderCostReport(db: Db, workspaceId: string, q: { from
     if (!d || !m) continue;
     if (q.counterpartyId && d.counterpartyId !== q.counterpartyId) continue;
     const c = d.cost;
-    rows.push({ documentId: id, number: d.number, date: d.date, doneDate: m.done, counterpartyId: d.counterpartyId, counterpartyName: m.name ?? null, revenue: c.revenue, labor: c.labor.fact, materials: c.materials.fact, goods: c.goods.fact, other: c.other.fact, indirect: c.indirect.fact, cost: c.cost.fact, margin: c.margin.fact, marginPct: c.marginPct.fact, estimated: c.estimated });
+    rows.push({ documentId: id, number: d.number, date: d.date, doneDate: m.done, counterpartyId: d.counterpartyId, counterpartyName: m.name ?? null, revenue: c.revenue, labor: c.labor.fact, materials: c.materials.fact, goods: c.goods.fact, other: c.other.fact, indirect: c.indirect.fact, cost: c.cost.fact, margin: c.margin.fact, marginPct: c.marginPct.fact, estimated: c.estimated, warranty: d.kindType === 'warranty' });
   }
   const sum = (f: (r: WorkOrderCostReportRow) => string) => rows.reduce((s, r) => s + dec(f(r)), 0n);
   const revenue = sum(r => r.revenue);
@@ -289,5 +297,6 @@ export async function workOrderCostReport(db: Db, workspaceId: string, q: { from
     to: q.to,
     rows,
     totals: { revenue: fmt(revenue, 2), labor: fmt(sum(r => r.labor), 2), materials: fmt(sum(r => r.materials), 2), goods: fmt(sum(r => r.goods), 2), other: fmt(sum(r => r.other), 2), indirect: fmt(sum(r => r.indirect), 2), cost: fmt(sum(r => r.cost), 2), margin: fmt(margin, 2), marginPct: marginPct(margin, revenue) },
+    warrantyCost: fmt(rows.filter(r => r.warranty).reduce((s, r) => s + dec(r.cost), 0n), 2),
   };
 }

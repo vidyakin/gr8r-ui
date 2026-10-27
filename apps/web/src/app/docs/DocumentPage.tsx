@@ -19,6 +19,7 @@ import { CalculationDialog, ParamsDialog } from './calculation';
 import { CounterpartyPicker, ProductPicker } from './pickers';
 import { useBillingBreakdown, useContracts } from './billing-data';
 import { WorkOrderPanel } from './work-orders';
+import { SerialsButton } from './serials-ui';
 import { DocTabs, type DocTab } from './doc-tabs';
 import { DocInvestmentField } from '../finance/DocInvestmentField';
 import { hasKey, t, useT, type TKey } from '@/i18n';
@@ -432,7 +433,8 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     }
   };
 
-  const targets = basedOnTargets(doc.type);
+  // гарантийный ремонт не продаётся: счёт на его основании недоступен
+  const targets = basedOnTargets(doc.type).filter(x => !(doc.kindType === 'warranty' && x === 'invoice'));
   const lineCount = form.lines.filter(l => l.productId).length;
   const hasNumber = doc.numberSeq !== null;
   const noVatOnly = calc.totals.byRate.length > 0 && calc.totals.byRate.every(r => r.rate === 'none');
@@ -691,6 +693,9 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                         {a ? money(a.total) : '—'}
                       </td>
                       <td>
+                        {srv?.trackSerials && (
+                          <SerialsButton doc={doc} lineId={l.key} productId={l.productId ?? ''} name={l.name} qty={l.qty} serials={doc.serials ?? []} editable={editable} warehouseId={doc.warehouse?.id ?? null} incoming={meta.stock === 'in' || meta.stockRole === 'in' || srv.stockRole === 'in'} />
+                        )}
                         {editable && doc.type === 'customer_order' && l.productId && (
                           <IconButton size="xs" label={t('docs.document.parameters')} onClick={() => setParamsLine(l.key)}>
                             <SlidersHorizontal size={13} />

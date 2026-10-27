@@ -190,5 +190,7 @@ export interface WorkOrderCostReportRow {
   margin: string;
   marginPct: string | null;
   estimated: boolean;
+  /** Гарантийный ремонт: затраты на статью «Гарантийный ремонт» */
+  warranty: boolean;
 }
-export const useWorkOrderCostReport = (f: ReportFilter) => useReport<{ rows: WorkOrderCostReportRow[] }>('work-order-cost', { from: f.from, to: f.to }, !!f.from && !!f.to);
+export const useWorkOrderCostReport = (f: ReportFilter) => useReport<{ rows: WorkOrderCostReportRow[]; warrantyCost: string }>('work-order-cost', { from: f.from, to: f.to }, !!f.from && !!f.to);

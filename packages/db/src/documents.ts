@@ -43,6 +43,8 @@ import { assertContractOfCompany, contractDocumentProducts, contractPlanProductI
 import { ensureVariant, specParamsOfProduct } from './variants';
 import { checkParamValues, loadCategoryAttributeDefs } from './specs';
 import { uuidv7 } from './uuid';
+import { saveSerials, checkInventorySerials, lineSerialsView } from './serials';
+import { repairPrintData, syncWarrantyKind, workOrderKindType } from './repair';
 
 export interface DocCtx {
   workspaceId: string;
@@ -75,6 +77,7 @@ const SYSTEM_COST_ITEMS: { key: string; name: string; kind: 'expense' | 'income'
   { key: 'othody', name: 'Отходы', kind: 'expense' },
   { key: 'v_expluaciatsiyu', name: 'Передача в эксплуатацию', kind: 'expense' },
   { key: 'izlishki', name: 'Излишки', kind: 'income' },
+  { key: 'garantiynyy_remont', name: 'Гарантийный ремонт', kind: 'expense' },
 ];
 
 /** Статьи затрат и доходов по умолчанию: добавляются один раз, свои статьи воркспейс заводит сам */
@@ -295,6 +298,8 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
     if (existingIds.has(l.id)) await db.update(documentLines).set(values).where(eq(documentLines.id, l.id));
     else await db.insert(documentLines).values({ ...values, id: l.id, workspaceId: ctx.workspaceId, documentId: doc.id });
   }
+  // серийные номера строк (задача 1099): присланный список заменяет прежний
+  for (const [i, l] of resolved.entries()) if (inputs[i]?.serials !== undefined) await saveSerials(db, ctx.workspaceId, doc.id, { lineId: l.id }, inputs[i]!.serials!);
   await writeTotals(db, doc.id);
 }
 
@@ -582,6 +587,8 @@ export async function updateDocument(db: Db, ctx: DocCtx, id: string, patch: Doc
     // ресурсы строк-работ заказ-наряда подставляются из норматива работ
     if (type === 'work_order') await syncWorkOrderResources(db, ctx, id);
   } else if (patch.priceIncludesVat !== undefined && patch.priceIncludesVat !== doc.priceIncludesVat) await recalcLines(db, after!);
+  // гарантийный ремонт: цены нулевые, затраты на системную статью; другой вид снимает статью
+  if (type === 'work_order') await syncWarrantyKind(db, ctx, id);
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.updated', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { changes: Object.keys(patch) } });
 }
 
@@ -727,6 +734,7 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<voi
 
   const kinds = new Map((await db.select({ id: products.id, kind: products.kind }).from(products).where(inArray(products.id, [...new Set(lines.map(l => l.productId))]))).map(p => [p.id, p.kind]));
   const goods = lines.filter(l => kinds.get(l.productId) === 'goods');
+  if (type === 'inventory_count') await checkInventorySerials(db, { id: doc.id, warehouseId: doc.warehouseId }, goods.map(l => ({ id: l.id, productId: l.productId, qty: l.qty, name: l.name })));
   if (type === 'inventory_count' && !doc.warehouseId) throw new DomainError(422, 'warehouse_required', 'Select a warehouse before posting');
   // возврат из эксплуатации склад не меняет — склад ему не нужен
   const needsWarehouse = meta.stock || (meta.stockRole && doc.operation !== 'from_operation');
@@ -820,6 +828,8 @@ export async function createBasedOn(db: Db, ctx: DocCtx, sourceId: string, targe
   const srcType = src.type as DocumentType;
   if (src.status === 'cancelled') throw new DomainError(422, 'invalid_based_on', 'A cancelled document cannot be a basis');
   if (!basedOnTargets(srcType).includes(target)) throw new DomainError(422, 'invalid_based_on', `${DOCUMENT_META[target].label} cannot be created from ${DOCUMENT_META[srcType].label.toLowerCase()}`);
+  // гарантийный ремонт не продаётся: счёт, акт и реализация на его основании недоступны
+  if (srcType === 'work_order' && ['invoice', 'act', 'realization'].includes(target) && (await workOrderKindType(db, src.workOrderKindId)) === 'warranty') throw new DomainError(422, 'warranty_no_billing', 'A warranty repair has no revenue: invoices, acts and shipments cannot be created from it');
   const srcLines = await linesOf(db, sourceId);
   const isOrder = DOCUMENT_META[srcType].isOrder === true;
   const isReturn = DOCUMENT_META[target].isReturn === true;
@@ -885,6 +895,8 @@ export async function createBasedOn(db: Db, ctx: DocCtx, sourceId: string, targe
 export interface DocumentLineView extends DocumentLineRow {
   sku: string;
   kind: 'goods' | 'service' | 'work' | 'operation';
+  /** Товар с учётом по серийным номерам */
+  trackSerials: boolean;
   /** Для строк заказов: исполнено проведёнными документами (отгружено / получено) и запланировано (с черновиками) */
   shipped: string;
   planned: string;
@@ -916,7 +928,7 @@ export async function documentDetail(db: Db, id: string) {
     for (const { createdAt: _, ...a } of allocs) if (!children.some(c => c.id === a.id)) children.push(a);
   }
   const rows = await db
-    .select({ line: documentLines, sku: products.sku, kind: products.kind })
+    .select({ line: documentLines, sku: products.sku, kind: products.kind, trackSerials: products.trackSerials })
     .from(documentLines)
     .innerJoin(products, eq(products.id, documentLines.productId))
     .where(eq(documentLines.documentId, id))
@@ -937,7 +949,7 @@ export async function documentDetail(db: Db, id: string) {
   const shipped = isOrder ? await sums(documentLines.originLineId, FULFIL_TYPES, true) : new Map<string, string>();
   const planned = isOrder ? await sums(documentLines.originLineId, FULFIL_TYPES, false) : new Map<string, string>();
   const returned = isReturnable ? await sums(documentLines.sourceLineId, [type === 'realization' ? 'customer_return' : 'supplier_return'], true) : new Map<string, string>();
-  const lines: DocumentLineView[] = rows.map(r => ({ ...r.line, sku: r.sku, kind: r.kind, shipped: fmt(dec(shipped.get(r.line.id) ?? 0), 3), planned: fmt(dec(planned.get(r.line.id) ?? 0), 3), returned: fmt(dec(returned.get(r.line.id) ?? 0), 3) }));
+  const lines: DocumentLineView[] = rows.map(r => ({ ...r.line, sku: r.sku, kind: r.kind, trackSerials: r.trackSerials, shipped: fmt(dec(shipped.get(r.line.id) ?? 0), 3), planned: fmt(dec(planned.get(r.line.id) ?? 0), 3), returned: fmt(dec(returned.get(r.line.id) ?? 0), 3) }));
   const totals = computeTotals(lines.map(l => ({ net: l.net, vatAmount: l.vatAmount, total: l.total, vatRate: l.vatRate })));
   const [targetWh] = doc.targetWarehouseId ? await db.select({ id: warehouses.id, name: warehouses.name, kind: warehouses.kind }).from(warehouses).where(eq(warehouses.id, doc.targetWarehouseId)).limit(1) : [];
   const [costItem] = doc.costItemId ? await db.select({ id: costItems.id, name: costItems.name, kind: costItems.kind }).from(costItems).where(eq(costItems.id, doc.costItemId)).limit(1) : [];
@@ -949,7 +961,7 @@ export async function documentDetail(db: Db, id: string) {
   // внутренний документ: стоимость по себестоимости (сумма qty × cost движений)
   const costs = DOCUMENT_META[type].party === null ? await documentCosts(db, [id]) : new Map<string, string>();
   const [investmentProject] = doc.investmentProjectId ? await db.select({ id: investmentProjects.id, name: investmentProjects.name, status: investmentProjects.status }).from(investmentProjects).where(eq(investmentProjects.id, doc.investmentProjectId)).limit(1) : [];
-  return { ...doc, investmentProject: investmentProject ?? null, organization: org ?? null, counterparty: cp ?? null, contract: contract ?? null, warehouse: wh ?? null, targetWarehouse: targetWh ?? null, costItem: costItem ?? null, workCenter: workCenter ?? null, inUseMember: inUseMember ?? null, inUseWorkCenter: inUseWorkCenter ?? null, costTotal: costs.get(id) ?? '0.00', basedOn: base ?? null, children, lines, totals };
+  return { ...doc, investmentProject: investmentProject ?? null, organization: org ?? null, counterparty: cp ?? null, contract: contract ?? null, warehouse: wh ?? null, targetWarehouse: targetWh ?? null, costItem: costItem ?? null, workCenter: workCenter ?? null, inUseMember: inUseMember ?? null, inUseWorkCenter: inUseWorkCenter ?? null, costTotal: costs.get(id) ?? '0.00', basedOn: base ?? null, children, lines, totals, serials: await lineSerialsView(db, id) };
 }
 
 /* ---------------- данные для печатной формы ---------------- */
@@ -998,6 +1010,11 @@ export async function buildPrintData(db: Db, id: string): Promise<PrintData> {
   const symbol = new Map(unitRows.map(u => [u.code, u.symbol]));
   // себестоимость по строкам (внутренние документы): у перемещения — цена расходной стороны
   const lineCosts = DOCUMENT_META[d.type as DocumentType].party === null ? await documentLineCosts(db, id) : new Map<string, string>();
+  // серийные номера строк и гарантия товаров (гарантийный талон)
+  const serialsByLine = new Map<string, { serial: string; warrantyUntil: string | null }[]>();
+  for (const sr of await lineSerialsView(db, id)) if (sr.lineId) serialsByLine.set(sr.lineId, [...(serialsByLine.get(sr.lineId) ?? []), { serial: sr.serial, warrantyUntil: sr.warrantyUntil }]);
+  const warrantyRows = d.lines.length ? await db.select({ id: products.id, m: products.warrantyMonths }).from(products).where(inArray(products.id, [...new Set(d.lines.map(l => l.productId))])) : [];
+  const warrantyBy = new Map(warrantyRows.map(w => [w.id, w.m]));
   const party: PrintParty = co
     ? { name: co.name, fullName: co.name, inn: co.inn, kpp: co.kpp, ogrn: co.ogrn, address: co.legalAddress || co.city, phone: '', bank: await defaultBank(db, { companyId: co.id }) }
     : { name: '', fullName: '', inn: '', kpp: '', ogrn: '', address: '', phone: '', bank: null };
@@ -1041,9 +1058,13 @@ export async function buildPrintData(db: Db, id: string): Promise<PrintData> {
       total: l.total,
       ...(d.type === 'inventory_count' ? { bookQty: l.bookQty, diffQty: fmt(dec(l.qty) - dec(l.bookQty), 3) } : {}),
       ...(lineCosts.has(l.id) ? { cost: lineCosts.get(l.id)! } : {}),
+      kind: l.kind,
+      ...(serialsByLine.has(l.id) ? { serials: serialsByLine.get(l.id)! } : {}),
+      warrantyMonths: warrantyBy.get(l.productId) ?? null,
     })),
     totals: d.totals,
     ...(d.type === 'work_order' ? { workOrder: await workOrderPrintData(db, d) } : {}),
+    ...(d.type === 'work_order' ? await repairPrintData(db, id, d.workOrderKindId, d.date, today()).then(r => (r ? { repair: r } : {})) : {}),
     basedOn: d.basedOn ? { type: d.basedOn.type as DocumentType, number: d.basedOn.number, date: d.basedOn.date } : null,
     comment: d.comment,
     warehouseName: d.warehouse?.name,

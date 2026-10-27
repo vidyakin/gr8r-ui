@@ -67,6 +67,9 @@ export interface Product {
   /** Значения параметров, дающих вариант: { color: 'white' } */
   variantValues: Record<string, string>;
   isActive: boolean;
+  /** Учёт по серийным номерам и гарантия, мес. */
+  trackSerials: boolean;
+  warrantyMonths: number | null;
   custom: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;

@@ -15,3 +15,4 @@ export * from './planning';
 export * from './services';
 export * from './stockops';
 export * from './automations';
+export * from './serials';

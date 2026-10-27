@@ -51,6 +51,8 @@ export const sections: Widen<typeof S> = {
   processingDocs: 'Документы переработки',
   inventory: 'Остатки',
   inUse: 'В эксплуатации',
+  serials: 'Серийные номера',
+  repairItems: 'Изделия в ремонте',
   contracts: 'Договоры',
   tariffPlans: 'Тарифные планы',
   billing: 'Биллинг',

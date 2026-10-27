@@ -48,6 +48,11 @@ export function WorkOrderCostTab({ filter }: TabProps) {
       {d => (
         <>
           <p className="muted" style={{ margin: '0 var(--gutter) 8px', fontSize: 12 }}>{tt('production.reports.workOrderCost.hint')}</p>
+          {Number(d.warrantyCost) > 0 && (
+            <p style={{ margin: '0 var(--gutter) 8px', fontSize: 12 }}>
+              {tt('serials.report.warrantyCost')}: <strong>{fmtAmount(d.warrantyCost)}</strong>
+            </p>
+          )}
           <ReportTable rows={d.rows} columns={columns} groups={groups} rowKey={r => r.documentId} href={r => `/documents/${r.documentId}`} filename="production-work-order-cost" label={tt('production.reports.tab.workOrderCost')} />
         </>
       )}

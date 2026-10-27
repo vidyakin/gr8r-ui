@@ -58,6 +58,31 @@ export interface PrintLine {
   hours?: string;
   /** Расценка по строке (сдельный наряд) */
   rate?: string;
+  /** Вид номенклатуры строки (товар, услуга, работа) */
+  kind?: string;
+  /** Серийные номера строки с гарантией до (товары с учётом по номерам) */
+  serials?: { serial: string; warrantyUntil: string | null }[];
+  /** Гарантия на товар, мес. */
+  warrantyMonths?: number | null;
+}
+
+/** Ремонт: изделие клиента и данные для актов приёма и выдачи */
+export interface PrintRepair {
+  kindType: 'repair' | 'warranty';
+  itemName: string;
+  serial: string;
+  defect: string;
+  completeness: string;
+  appearance: string;
+  receivedAt: string | null;
+  returnedAt: string | null;
+  /** Гарантия на проданное изделие по реестру номеров (проверка при приёме) */
+  saleWarrantyUntil: string | null;
+  saleWarrantyActive: boolean | null;
+  /** Гарантия на выполненный ремонт, мес. и дата окончания */
+  repairWarrantyMonths: number | null;
+  repairWarrantyUntil: string | null;
+  customerMaterials: { name: string; qty: string; comment: string }[];
 }
 
 export interface PrintData {
@@ -94,6 +119,8 @@ export interface PrintData {
     materials: { n: number; name: string; unitCode: string; unitSymbol: string; qty: string }[];
     assignees: { name: string; workCenterName: string | null; plannedHours: string | null; startDate: string | null; dueDate: string | null }[];
   };
+  /** Изделие в ремонте (заказ-наряд типа ремонт и гарантийный ремонт) */
+  repair?: PrintRepair;
   /** Исполнитель сдельного наряда */
   executorName?: string;
   /** Участок сдельного наряда */

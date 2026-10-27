@@ -45,6 +45,7 @@ import {
   Landmark,
   TrendingUp,
   Scale,
+  ScanBarcode,
   type LucideIcon,
 } from 'lucide-react';
 import { hasKey, t, type TKey } from '@/i18n';
@@ -109,6 +110,8 @@ export const SECTIONS = {
   processingDocs: { path: '/processing-docs', name: 'Documents of processing', icon: PackageSearch },
   inventory: { path: '/inventory', name: 'Inventory', icon: Boxes },
   inUse: { path: '/stock/in-use', name: 'In use', icon: PackageCheck },
+  serials: { path: '/serials', name: 'Serial numbers', icon: ScanBarcode },
+  repairItems: { path: '/repair-items', name: 'Items in repair', icon: Wrench },
   // Договоры и биллинг
   contracts: { path: '/contracts', name: 'Contracts', icon: FileSignature },
   tariffPlans: { path: '/tariff-plans', name: 'Tariff plans', icon: ListChecks },
@@ -158,11 +161,11 @@ export const NAV_GROUPS = {
   trade: {
     icon: Store,
     // расчёт потребностей открывается из закупок и склада — тот же экран, что и в производстве
-    items: [{ id: 'sales' }, { id: 'purchases' }, { id: 'stockDocs' }, { id: 'processingDocs' }, { id: 'inventory' }, { id: 'inUse' }, { id: 'productionNeeds', label: 'nav.stockNeeds' }],
+    items: [{ id: 'sales' }, { id: 'purchases' }, { id: 'stockDocs' }, { id: 'processingDocs' }, { id: 'inventory' }, { id: 'inUse' }, { id: 'serials' }, { id: 'productionNeeds', label: 'nav.stockNeeds' }],
   },
   services: {
     icon: BriefcaseBusiness,
-    items: [{ id: 'workOrders' }, { id: 'servicesTimesheet' }, { id: 'servicesPlanner' }, { id: 'servicesReports' }, { id: 'contracts' }, { id: 'tariffPlans' }, { id: 'billing' }],
+    items: [{ id: 'workOrders' }, { id: 'repairItems' }, { id: 'servicesTimesheet' }, { id: 'servicesPlanner' }, { id: 'servicesReports' }, { id: 'contracts' }, { id: 'tariffPlans' }, { id: 'billing' }],
   },
   finance: {
     icon: Landmark,

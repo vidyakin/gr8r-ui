@@ -304,6 +304,112 @@ ${d.comment ? `<div class="party small">${esc(d.comment)}</div>` : ''}
   );
 }
 
+
+/* ---------------- ремонт и гарантия (задача 1099) ---------------- */
+
+/** Гарантийный талон: товары с серийными номерами и сроком гарантии (из реализации и заказ-наряда) */
+function warrantyCardForm(d: PrintData): string {
+  const o = d.organization;
+  const rows = d.lines
+    .filter(l => l.kind === undefined || l.kind === 'goods')
+    .map(l => {
+      const serials = l.serials?.length ? l.serials.map(s => `${esc(s.serial)}${s.warrantyUntil ? ` (до ${esc(dateRu(s.warrantyUntil))})` : ''}`).join('<br>') : '—';
+      const months = l.warrantyMonths ? `${l.warrantyMonths} мес.` : '—';
+      return `<tr><td class="center">${l.n}</td><td>${esc(l.name)}</td><td class="right">${qtyRu(l.qty)}</td><td class="center">${esc(l.unitSymbol)}</td><td>${serials}</td><td class="center">${months}</td></tr>`;
+    })
+    .join('');
+  return html(
+    d,
+    'portrait',
+    `<h1 class="center">Гарантийный талон${d.number ? ` к документу № ${esc(d.number)} от ${esc(dateRu(d.date))}` : ` (черновик) от ${esc(dateRu(d.date))}`}</h1>
+<table class="plain">
+<tr><td style="width:150px">Продавец</td><td>${partyLine(o)}</td></tr>
+<tr><td>Покупатель</td><td>${partyLine(d.party)}</td></tr>
+</table>
+<table class="grid" style="margin-top:8px"><thead><tr><th style="width:28px">№</th><th>Товар</th><th style="width:56px">Кол-во</th><th style="width:40px">Ед.</th><th style="width:220px">Серийные номера, гарантия до</th><th style="width:80px">Срок гарантии</th></tr></thead><tbody>${rows}</tbody></table>
+<div class="words small">Гарантия действует при соблюдении правил эксплуатации и сохранности серийного номера. Гарантийный срок исчисляется с даты продажи (${esc(dateRu(d.date))}). Гарантия не распространяется на механические повреждения, следы вскрытия и неисправности, вызванные неправильной эксплуатацией.</div>
+<table class="sign plain" style="margin-top:18px"><tr>
+<td style="width:50%"><b>ПРОДАВЕЦ</b><br>${esc(o.fullName || o.name)}<br><br><span class="line">${image(o.directorSignatureFile, 'sig', 'Подпись')}</span> / ${esc(o.directorName)} /<div style="position:relative;height:0">${image(o.stampFile, 'stamp', 'Печать')}</div></td>
+<td style="width:50%"><b>ПОКУПАТЕЛЬ</b><br>${esc(d.party.fullName || d.party.name)}<br><br><span class="line"></span> / ______________ /</td></tr></table>`,
+  );
+}
+
+function repairHeader(d: PrintData, title: string): string {
+  const o = d.organization;
+  const r = d.repair;
+  const kind = r?.kindType === 'warranty' ? 'Гарантийный ремонт' : 'Ремонт';
+  return `<h1 class="center">${numberTitle(d, title)}</h1>
+<table class="plain">
+<tr><td style="width:150px">Исполнитель</td><td>${partyLine(o)}</td></tr>
+<tr><td>Заказчик</td><td>${partyLine(d.party)}</td></tr>
+<tr><td>Вид ремонта</td><td>${kind}</td></tr>
+<tr><td>Изделие</td><td>${esc(r?.itemName || '—')}</td></tr>
+<tr><td>Серийный номер</td><td>${esc(r?.serial || '—')}</td></tr>
+</table>`;
+}
+
+/** Акт приёма в ремонт */
+function repairReceiptForm(d: PrintData): string {
+  const o = d.organization;
+  const r = d.repair;
+  const guarantee = r?.saleWarrantyUntil ? `${r.saleWarrantyActive ? 'действует' : 'истекла'} (до ${esc(dateRu(r.saleWarrantyUntil))})` : 'не подтверждена';
+  const mats = (r?.customerMaterials ?? []).map((m, i) => `<tr><td class="center">${i + 1}</td><td>${esc(m.name)}</td><td class="right">${qtyRu(m.qty)}</td><td>${esc(m.comment)}</td></tr>`).join('');
+  return html(
+    d,
+    'portrait',
+    `${repairHeader(d, 'Акт приёма в ремонт')}
+<table class="plain" style="margin-top:6px">
+<tr><td style="width:150px">Дата приёма</td><td>${r?.receivedAt ? esc(dateRu(r.receivedAt)) : esc(dateRu(d.date))}</td></tr>
+<tr><td>Заявленная неисправность</td><td>${esc(r?.defect || '—')}</td></tr>
+<tr><td>Комплектность</td><td>${esc(r?.completeness || '—')}</td></tr>
+<tr><td>Внешний вид</td><td>${esc(r?.appearance || '—')}</td></tr>
+<tr><td>Гарантия на изделие</td><td>${guarantee}</td></tr>
+</table>
+${mats ? `<h2 style="margin-top:10px">Материалы заказчика</h2><table class="grid"><thead><tr><th style="width:28px">№</th><th>Наименование</th><th style="width:70px">Кол-во</th><th>Примечание</th></tr></thead><tbody>${mats}</tbody></table>` : ''}
+${d.comment ? `<div class="party small">${esc(d.comment)}</div>` : ''}
+<div class="words small">Изделие принято на диагностику и ремонт. Заказчик с внешним видом и комплектностью согласен. Срок ремонта и стоимость определяются по результатам диагностики.</div>
+<table class="sign plain" style="margin-top:18px"><tr>
+<td style="width:50%"><b>ИСПОЛНИТЕЛЬ (принял)</b><br>${esc(o.fullName || o.name)}<br><br><span class="line">${image(o.directorSignatureFile, 'sig', 'Подпись')}</span> / ${esc(o.directorName)} /</td>
+<td style="width:50%"><b>ЗАКАЗЧИК (сдал)</b><br>${esc(d.party.fullName || d.party.name)}<br><br><span class="line"></span> / ______________ /</td></tr></table>`,
+  );
+}
+
+/** Акт выдачи из ремонта: что сделано, запчасти, гарантия на ремонт, подписи */
+function repairReturnForm(d: PrintData): string {
+  const o = d.organization;
+  const r = d.repair;
+  const warranty = r?.kindType === 'warranty';
+  const works = d.lines.filter(l => l.kind === 'work' || l.kind === 'service');
+  const parts = d.lines.filter(l => l.kind === 'goods');
+  const priceCell = (l: PrintLine) => (warranty ? '—' : moneyRu(d.priceIncludesVat ? l.total : l.net));
+  const workRows = works.map((l, i) => `<tr><td class="center">${i + 1}</td><td>${esc(l.name)}</td><td class="right">${qtyRu(l.qty)}</td><td class="center">${esc(l.unitSymbol)}</td><td class="right">${priceCell(l)}</td></tr>`).join('');
+  const partRows = parts.map((l, i) => `<tr><td class="center">${i + 1}</td><td>${esc(l.name)}${l.serials?.length ? `<br><span class="small">${l.serials.map(s => esc(s.serial)).join(', ')}</span>` : ''}</td><td class="right">${qtyRu(l.qty)}</td><td class="center">${esc(l.unitSymbol)}</td><td class="right">${priceCell(l)}</td></tr>`).join('')
+    // материалы работ тоже запчасти: клиенту их отдельно не выставляют, сумма — в цене работы
+    + (d.workOrder?.materials ?? []).map((m, i) => `<tr><td class="center">${parts.length + i + 1}</td><td>${esc(m.name)}</td><td class="right">${qtyRu(m.qty)}</td><td class="center">${esc(m.unitSymbol)}</td><td class="right">—</td></tr>`).join('');
+  const head = `<thead><tr><th style="width:28px">№</th><th>Наименование</th><th style="width:60px">Кол-во</th><th style="width:44px">Ед.</th><th style="width:100px">Сумма</th></tr></thead>`;
+  const total = warranty ? 'Гарантийный ремонт выполнен бесплатно для заказчика.' : `Итого к оплате: <b>${moneyRu(d.totals.total)}</b> руб. (${esc(amountInWordsRu(d.totals.total))})`;
+  const guarantee = r?.repairWarrantyMonths ? `${r.repairWarrantyMonths} мес.${r.repairWarrantyUntil ? `, до ${esc(dateRu(r.repairWarrantyUntil))}` : ''}` : 'не предоставляется';
+  return html(
+    d,
+    'portrait',
+    `${repairHeader(d, 'Акт выдачи из ремонта')}
+<table class="plain" style="margin-top:6px">
+<tr><td style="width:150px">Принято</td><td>${r?.receivedAt ? esc(dateRu(r.receivedAt)) : '—'}</td></tr>
+<tr><td>Выдано</td><td>${r?.returnedAt ? esc(dateRu(r.returnedAt)) : '__.__.____'}</td></tr>
+<tr><td>Неисправность</td><td>${esc(r?.defect || '—')}</td></tr>
+</table>
+<h2 style="margin-top:10px">Выполненные работы</h2>
+<table class="grid">${head}<tbody>${workRows || '<tr><td colspan="5" class="center">—</td></tr>'}</tbody></table>
+<h2 style="margin-top:10px">Использованные запасные части</h2>
+<table class="grid">${head}<tbody>${partRows || '<tr><td colspan="5" class="center">—</td></tr>'}</tbody></table>
+<div class="words">${total}</div>
+<div class="words small">Гарантия на выполненный ремонт: <b>${guarantee}</b>. Изделие получено в исправном состоянии, претензий по качеству и срокам заказчик не имеет.</div>
+<table class="sign plain" style="margin-top:18px"><tr>
+<td style="width:50%"><b>ИСПОЛНИТЕЛЬ (выдал)</b><br>${esc(o.fullName || o.name)}<br><br><span class="line">${image(o.directorSignatureFile, 'sig', 'Подпись')}</span> / ${esc(o.directorName)} /<div style="position:relative;height:0">${image(o.stampFile, 'stamp', 'Печать')}</div></td>
+<td style="width:50%"><b>ЗАКАЗЧИК (получил)</b><br>${esc(d.party.fullName || d.party.name)}<br><br><span class="line"></span> / ______________ /</td></tr></table>`,
+  );
+}
+
 export function printOrientation(form: PrintForm): 'portrait' | 'landscape' {
   return form === 'upd' || form === 'torg12' || form === 'torg13' ? 'landscape' : 'portrait';
 }
@@ -478,5 +584,11 @@ export function renderPrintForm(form: PrintForm, data: PrintData): string {
       return workOrderForm(data);
     case 'piecework':
       return pieceworkForm(data);
+    case 'warranty_card':
+      return warrantyCardForm(data);
+    case 'repair_receipt':
+      return repairReceiptForm(data);
+    case 'repair_return':
+      return repairReturnForm(data);
   }
 }

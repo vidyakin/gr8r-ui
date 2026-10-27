@@ -20,3 +20,4 @@ export * from './automations';
 export * from './i18n';
 export * from './investments';
 export * from './service-reports';
+export * from './serials';

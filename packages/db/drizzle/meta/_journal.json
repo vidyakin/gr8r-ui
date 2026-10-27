@@ -239,6 +239,13 @@
       "when": 1793051610891,
       "tag": "0034_work_order_costs",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1793061673457,
+      "tag": "0035_serials_repair",
+      "breakpoints": true
     }
   ]
 }

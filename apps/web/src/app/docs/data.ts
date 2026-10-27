@@ -8,6 +8,7 @@ import { hasKey, t, type TKey } from '@/i18n';
 import { toast } from '@/components/ui';
 import type { Tone } from '@/components/ui';
 import { errorMessage } from '../data/api';
+import type { LineSerial } from './serials-data';
 import { useSession } from '../data/session';
 import { call, useWsId } from '../meta/data';
 
@@ -44,6 +45,8 @@ export interface DocLine {
   total: string;
   sku: string;
   kind: 'goods' | 'service' | 'work' | 'operation';
+  /** Товар с учётом по серийным номерам */
+  trackSerials?: boolean;
   shipped: string;
   planned: string;
   returned: string;
@@ -147,6 +150,10 @@ export interface DocDetail extends Omit<DocListItem, 'organizationName' | 'count
   /** Заказ-наряд: вид, набор состояний, материалы и назначения */
   kindId?: string | null;
   kindName?: string | null;
+  /** Тип вида: обычный, ремонт, гарантийный ремонт */
+  kindType?: 'regular' | 'repair' | 'warranty';
+  /** Серийные номера строк и материалов */
+  serials?: LineSerial[];
   states?: WorkOrderState[];
   materials?: WorkOrderMaterial[];
   assignments?: WorkOrderAssignment[];
@@ -481,6 +488,7 @@ export interface WorkOrderKind {
   id: string;
   name: string;
   isDefault: boolean;
+  kindType: 'regular' | 'repair' | 'warranty';
   sortOrder: number;
 }
 
@@ -493,6 +501,7 @@ export interface WorkOrderMaterial {
   qty: string;
   warehouseId: string | null;
   warehouseName: string | null;
+  trackSerials?: boolean;
 }
 
 /** Назначение: исполнитель — задача модуля services */

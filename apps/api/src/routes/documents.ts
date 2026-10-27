@@ -55,6 +55,8 @@ import {
   assertWorkOrderPostingByState,
   inUseBalances,
   members,
+  lineSerialsView,
+  saveSerials,
 } from '@gr8r/db';
 import {
   bankAccountCreate,
@@ -67,6 +69,7 @@ import {
   documentCreate,
   documentQuery,
   documentStateChange,
+  documentSerialsSave,
   documentTypesOf,
   documentUpdate,
   idParam,
@@ -399,6 +402,15 @@ export const documentRoutes = new Hono<AppEnv>()
     await postDocument(ctx.db, docCtx(ctx), id);
     return c.json(await documentDetail(ctx.db, id));
   })
+  // серийные номера строки документа или материала заказ-наряда (у товаров с учётом по номерам); список заменяется целиком
+  .put('/:id/serials', write, zValidator('param', idParam, validationHook), zValidator('json', documentSerialsSave, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    const body = c.req.valid('json');
+    await saveSerials(ctx.db, ctx.workspaceId, id, { lineId: body.lineId, materialId: body.materialId }, body.serials);
+    return c.json({ serials: await lineSerialsView(ctx.db, id) });
+  })
+  .get('/:id/serials', zValidator('param', idParam, validationHook), async c => c.json({ serials: await lineSerialsView(ctxOf(c).db, c.req.valid('param').id) }))
   .post('/:id/unpost', write, zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;

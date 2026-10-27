@@ -1,7 +1,7 @@
 /* Карточка товара (EntityDrawer) и форма создания. Характеристики категории рисуются теми же FieldInput / FieldValue и
    проверяются той же zod-схемой (validateRecord), что и поля конструктора. */
 import * as React from 'react';
-import { Barcode, Building2, CircleAlert, CircleDollarSign, FolderTree, Hash, Layers, Package, Percent, Power, Ruler, Tag, Timer, Trash2, Wrench, type LucideIcon } from 'lucide-react';
+import { Barcode, Building2, CircleAlert, CircleDollarSign, FolderTree, Hash, Layers, Package, Percent, Power, Ruler, ScanBarcode, Tag, Timer, Trash2, Wrench, type LucideIcon } from 'lucide-react';
 import { PRODUCT_KINDS, VAT_LABELS, VAT_RATES, validateRecord, type ProductKind } from '@gr8r/shared';
 import { Button, ConfirmDialog, Dialog, DialogClose, DialogContent, Field, Input, MenuItem, Segmented, Switch, toast } from '@/components/ui';
 import { DrawerSection, EntityDrawer } from '@/components/gr8r/entity-drawer';
@@ -36,6 +36,7 @@ const F = {
   get price() { return col('price', t('catalog.col.price'), 'number'); },
   get purchasePrice() { return col('purchasePrice', t('catalog.product.purchasePrice'), 'number'); },
   get normHours() { return col('normHours', t('catalog.product.normHours'), 'number'); },
+  get warrantyMonths() { return col('warrantyMonths', t('serials.product.warrantyMonths'), 'number'); },
   get leadDays() { return col('leadDays', t('catalog.product.leadDays'), 'number'); },
 };
 
@@ -179,6 +180,12 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
             ),
           },
           row(Power, t('catalog.product.active'), <Switch checked={p.isActive} aria-label={t('catalog.product.active')} onChange={e => save({ isActive: e.target.checked })} />, p.isActive ? t('common.yes') : t('common.no')),
+          ...(p.kind === 'goods'
+            ? [
+                row(ScanBarcode, t('serials.product.track'), <Switch checked={p.trackSerials} aria-label={t('serials.product.track')} onChange={e => save({ trackSerials: e.target.checked })} />, p.trackSerials ? t('common.yes') : t('common.no')),
+              ]
+            : []),
+          row(Timer, t('serials.product.warrantyMonths'), <FieldInput field={F.warrantyMonths} value={p.warrantyMonths ?? 0} onChange={v => save({ warrantyMonths: Number(v) ? Math.round(Number(v)) : null })} />, String(p.warrantyMonths ?? '—')),
           ...(p.kind === 'work'
             ? [
                 row(Timer, t('catalog.product.normHours'), <FieldInput field={F.normHours} value={Number(norm?.normHours ?? 0)} onChange={v => saveNorm.mutate({ productId: p.id, normHours: String(v ?? 0), workCenterId: norm?.workCenterId ?? null })} />, norm?.normHours ?? '—'),

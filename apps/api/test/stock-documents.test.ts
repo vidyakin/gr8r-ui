@@ -63,7 +63,7 @@ beforeAll(async () => {
 describe('cost items', () => {
   test('the reference book: a new workspace gets the system items, only admins write', async () => {
     const list = (await owner.get('/cost-items')).body.items as any[];
-    expect(list.map(i => i.name).sort()).toEqual(['Брак', 'Излишки', 'Недостача', 'Отходы', 'Передача в эксплуатацию', 'Порча']);
+    expect(list.map(i => i.name).sort()).toEqual(['Брак', 'Гарантийный ремонт', 'Излишки', 'Недостача', 'Отходы', 'Передача в эксплуатацию', 'Порча']);
     expect(list.filter(i => i.kind === 'income').map(i => i.name)).toEqual(['Излишки']);
     expect((await member.get('/cost-items')).status).toBe(200);
     expect((await member.post('/cost-items', { name: 'Своя статья' })).status).toBe(403);

@@ -10,6 +10,10 @@ import {
   costBrief,
   createWorkOrderAssignment,
   deleteWorkOrderAssignment,
+  getRepairItem,
+  listCustomerMaterials,
+  saveCustomerMaterials,
+  saveRepairItem,
   documentDetail,
   documentStates,
   documents,
@@ -30,6 +34,8 @@ import {
   uuid,
   workOrderAssignmentCreate,
   workOrderAssignmentUpdate,
+  customerMaterialsSave,
+  repairItemSave,
   workOrderBillingUpdate,
   workOrderKindCreate,
   workOrderKindQuery,
@@ -122,6 +128,22 @@ export const workOrderRoutes = new Hono<AppEnv>()
     await assertEditable(ctx, id);
     await saveWorkOrderMaterials(ctx.db, docCtx(ctx), id, c.req.valid('json').materials);
     return c.json(await workOrderDetail(ctx.db, id));
+  })
+  // изделие в ремонте (заказ-наряды типа ремонт и гарантийный ремонт): склад не затрагивается
+  .get('/:id/repair', zValidator('param', idParam, validationHook), async c => c.json({ item: await getRepairItem(ctxOf(c).db, c.req.valid('param').id) }))
+  .put('/:id/repair', write, zValidator('param', idParam, validationHook), zValidator('json', repairItemSave, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    await saveRepairItem(ctx.db, docCtx(ctx), id, c.req.valid('json'));
+    return c.json({ item: await getRepairItem(ctx.db, id) });
+  })
+  // материалы заказчика: что клиент принёс (информационно, без склада)
+  .get('/:id/customer-materials', zValidator('param', idParam, validationHook), async c => c.json({ items: await listCustomerMaterials(ctxOf(c).db, c.req.valid('param').id) }))
+  .put('/:id/customer-materials', write, zValidator('param', idParam, validationHook), zValidator('json', customerMaterialsSave, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    await saveCustomerMaterials(ctx.db, docCtx(ctx), id, c.req.valid('json').materials);
+    return c.json({ items: await listCustomerMaterials(ctx.db, id) });
   })
   // время по назначениям: план (planned_hours) и факт (time_logs), сводка по исполнителям
   .get('/:id/time', zValidator('param', idParam, validationHook), async c => {

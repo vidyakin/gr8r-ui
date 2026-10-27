@@ -13,6 +13,8 @@ export const workOrderKindCreate = z.object({
   name: shortText,
   /** Вид по умолчанию: его получают новые заказ-наряды */
   isDefault: z.boolean().optional(),
+  /** Тип вида: обычный, ремонт, гарантийный ремонт */
+  kindType: z.enum(['regular', 'repair', 'warranty']).optional(),
   sortOrder: z.number().int().min(0).max(1000).optional(),
 });
 export const workOrderKindUpdate = toPatch(workOrderKindCreate.omit({ id: true }));

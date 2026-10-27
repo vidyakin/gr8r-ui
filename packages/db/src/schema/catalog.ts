@@ -95,6 +95,10 @@ export const products = pgTable(
     /** Значения характеристик категории (по схеме категории с унаследованными) */
     attrs: jsonb('attrs').$type<Record<string, unknown>>().notNull().default({}),
     isActive: boolean('is_active').notNull().default(true),
+    /** Учёт по серийным номерам (задача 1099): складские документы требуют номера по количеству */
+    trackSerials: boolean('track_serials').notNull().default(false),
+    /** Гарантия, мес.: при продаже номер получает «гарантия до» = дата продажи + срок */
+    warrantyMonths: integer('warranty_months'),
     custom: jsonb('custom').$type<Record<string, unknown>>().notNull().default({}),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -112,6 +116,7 @@ export const products = pgTable(
     check('products_vat_chk', sql`${t.vatRate} in ('none','0','5','7','10','20')`),
     check('products_price_chk', sql`${t.price} >= 0 and ${t.purchasePrice} >= 0`),
     check('products_lead_chk', sql`${t.leadDays} >= 0`),
+    check('products_warranty_chk', sql`${t.warrantyMonths} is null or ${t.warrantyMonths} between 0 and 600`),
     uniqueIndex('products_ws_sku_uq').on(t.workspaceId, sql`lower(${t.sku})`).where(sql`${t.sku} <> ''`),
     uniqueIndex('products_ws_barcode_uq').on(t.workspaceId, t.barcode).where(sql`${t.barcode} <> ''`),
     // одна комбинация параметров у товара — один вариант (jsonb сравнивается без учёта порядка ключей)

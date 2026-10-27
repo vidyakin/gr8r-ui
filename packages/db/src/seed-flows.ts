@@ -52,6 +52,18 @@ export async function seedFlows(db: Db, wsId: string, createdBy: string | null, 
         edges: [edge('trigger', 'notify')],
       },
     },
+    {
+      name: 'Repair work order is ready → tell the client',
+      description: 'When a repair work order reaches the Ready state, the person responsible gets a notification “tell the client” (mail and SMS are postponed).',
+      triggerType: 'trigger.field_changed',
+      graph: {
+        nodes: [
+          node('trigger', 'trigger.field_changed', 0, 80, { entity: 'document', field: 'state', to: 'ready' }),
+          node('notify', 'action.notify', 320, 80, { recipientId: '{{trigger.record.responsibleId}}', text: 'repair is ready: tell the client', snippet: '{{trigger.record.number}}' }),
+        ],
+        edges: [edge('trigger', 'notify')],
+      },
+    },
   ];
   for (const d of defs) {
     const [f] = await db

@@ -19,6 +19,8 @@ import { DocumentResourcesPanel } from '../production/ProductionOrderPage';
 import { useT } from '@/i18n';
 import { DocTabs, type DocTab } from './doc-tabs';
 import { WorkOrderCostPanel } from './work-order-cost';
+import { CustomerMaterialsPanel, RepairItemPanel } from './repair-ui';
+import { SerialsButton } from './serials-ui';
 
 /** Тон бейджа по категории состояния */
 const CATEGORY_TONE: Record<WorkOrderStateCategory, Tone> = {
@@ -357,6 +359,9 @@ export function WorkOrderPanel({ doc, lead }: { doc: DocDetail; lead: (DocTab | 
                         <td className="r num">{m.qty}</td>
                         <td className="muted">{m.warehouseName ?? '—'}</td>
                         <td>
+                          {m.trackSerials && (
+                            <SerialsButton doc={doc} materialId={m.id} productId={m.productId} name={m.name} qty={m.qty} serials={doc.serials ?? []} editable={editable} warehouseId={m.warehouseId ?? doc.warehouse?.id ?? null} incoming={false} />
+                          )}
                           {editable && (
                             <IconButton size="xs" label={t('docs.workOrders.materials.removeAria')} onClick={() => void removeMaterial(m.id)}>
                               <Trash2 size={13} />
@@ -507,6 +512,8 @@ export function WorkOrderPanel({ doc, lead }: { doc: DocDetail; lead: (DocTab | 
             </section>
             ),
           },
+          doc.kindType && doc.kindType !== 'regular' && { id: 'repair', label: t('serials.tabs.repair'), content: <RepairItemPanel doc={doc} editable={canWrite} /> },
+          doc.kindType && doc.kindType !== 'regular' && { id: 'customerMaterials', label: t('serials.tabs.customerMaterials'), content: <CustomerMaterialsPanel doc={doc} editable={canWrite} /> },
           canSeeCost && { id: 'cost', label: t('docs.tabs.cost'), content: <WorkOrderCostPanel documentId={doc.id} /> },
         ]}
       />

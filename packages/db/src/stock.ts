@@ -5,6 +5,7 @@ import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { dec, div, fmt, mul, pctOf, replayMoves, stockIn, stockOut, weightedAvgCost, DOCUMENT_META, DOCUMENT_TYPES, type Dec, type DocumentType, type InventorySettings, type StockState } from '@gr8r/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
+import { applySerialMoves, revertSerialEvents } from './serials';
 import { documentLines, documents, manufacturedItems, productionComponents, productionHeaders, productionItems, products, stockBalances, stockCostAdjustments, stockMoves, stockReservations, workspaces } from './schema';
 
 export interface StockKey {
@@ -45,6 +46,8 @@ async function productNames(db: Db, ids: string[]): Promise<Map<string, string>>
 export interface MoveRequest extends StockKey {
   /** Строка документа; у материалов заказ-наряда строки нет — null */
   lineId: string | null;
+  /** Материал заказ-наряда (строки документа у него нет): слот серийных номеров вместо lineId */
+  materialId?: string | null;
   /** Положительное количество */
   qty: Dec;
   direction: 'in' | 'out';
@@ -101,6 +104,8 @@ export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: st
   }
   for (const r of reqs) if (r.direction === 'in') apply(r);
   await db.insert(stockMoves).values(rows);
+  // серийные номера товаров с учётом по номерам: проверка и события (задача 1099)
+  await applySerialMoves(db, workspaceId, doc, reqs);
   for (const [k, s] of state) {
     const [warehouseId, productId] = k.split(':') as [string, string];
     await db.update(stockBalances).set({ qty: fmt(s.qty, 3), avgCost: fmt(s.avg, 4), updatedAt: new Date() }).where(and(eq(stockBalances.warehouseId, warehouseId), eq(stockBalances.productId, productId)));
@@ -156,6 +161,7 @@ export async function revertStockMoves(db: Db, workspaceId: string, documentId: 
   const scope = phase ? and(eq(stockMoves.documentId, documentId), eq(stockMoves.phase, phase)) : eq(stockMoves.documentId, documentId);
   const own = await db.select({ warehouseId: stockMoves.warehouseId, productId: stockMoves.productId }).from(stockMoves).where(scope);
   if (!own.length) return;
+  await revertSerialEvents(db, workspaceId, documentId, phase);
   const keys = uniqueKeys(own);
   // после закрытия периода пересчёт пойдёт по всем остаткам: блокируем их все заранее и в общем порядке
   const adjusted = await hasCostAdjustments(db, workspaceId);

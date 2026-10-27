@@ -12,9 +12,9 @@ export const DOCUMENT_STATUSES = ['draft', 'posted', 'cancelled'] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
 export const DOCUMENT_GROUPS = ['sales', 'purchases', 'stock', 'production', 'tolling'] as const;
 export type DocumentGroup = (typeof DOCUMENT_GROUPS)[number];
-export const PRINT_FORMS = ['invoice', 'upd', 'act', 'torg12', 'inv3', 'torg16', 'torg13', 'work_order', 'piecework'] as const;
+export const PRINT_FORMS = ['invoice', 'upd', 'act', 'torg12', 'inv3', 'torg16', 'torg13', 'work_order', 'piecework', 'warranty_card', 'repair_receipt', 'repair_return'] as const;
 export type PrintForm = (typeof PRINT_FORMS)[number];
-export const PRINT_FORM_LABELS: Record<PrintForm, string> = { invoice: 'Invoice for payment', upd: 'UPD', act: 'Service act', torg12: 'TORG-12', inv3: 'INV-3 (inventory list)', torg16: 'TORG-16 (write-off act)', torg13: 'TORG-13 (internal transfer)', work_order: 'Work order (job sheet)', piecework: 'Piecework order' };
+export const PRINT_FORM_LABELS: Record<PrintForm, string> = { invoice: 'Invoice for payment', upd: 'UPD', act: 'Service act', torg12: 'TORG-12', inv3: 'INV-3 (inventory list)', torg16: 'TORG-16 (write-off act)', torg13: 'TORG-13 (internal transfer)', work_order: 'Work order (job sheet)', piecework: 'Piecework order', warranty_card: 'Warranty card', repair_receipt: 'Repair acceptance act', repair_return: 'Repair return act' };
 
 /** Вид склада: обычный склад, цех участка и служебный склад «в пути» */
 export const WAREHOUSE_KINDS = ['warehouse', 'workshop', 'transit'] as const;
@@ -119,7 +119,7 @@ export const DOCUMENT_META: Record<DocumentType, DocumentTypeMeta> = {
   quote: { label: 'Quote', group: 'sales', prefix: 'КП', stock: null, party: 'customer', basedOn: [], fulfils: false, forms: ['invoice'] },
   customer_order: { label: 'Customer order', group: 'sales', prefix: 'ЗК', stock: null, party: 'customer', basedOn: ['quote'], fulfils: false, forms: ['invoice'], reserves: true, isOrder: true, reservedUntil: ['realization'] },
   invoice: { label: 'Invoice', group: 'sales', prefix: 'СЧ', stock: null, party: 'customer', basedOn: ['quote', 'customer_order', 'work_order'], fulfils: false, forms: ['invoice'] },
-  realization: { label: 'Shipment (UPD)', group: 'sales', prefix: 'РТ', stock: 'out', party: 'customer', basedOn: ['customer_order', 'invoice'], fulfils: true, forms: ['upd', 'torg12'] },
+  realization: { label: 'Shipment (UPD)', group: 'sales', prefix: 'РТ', stock: 'out', party: 'customer', basedOn: ['customer_order', 'invoice'], fulfils: true, forms: ['upd', 'torg12', 'warranty_card'] },
   act: { label: 'Service act', group: 'sales', prefix: 'АКТ', stock: null, party: 'customer', basedOn: ['customer_order', 'invoice'], fulfils: true, forms: ['act'] },
   customer_return: { label: 'Customer return', group: 'sales', prefix: 'ВК', stock: 'in', party: 'customer', basedOn: ['realization'], fulfils: false, forms: [], isReturn: true },
   supplier_order: { label: 'Supplier order', group: 'purchases', prefix: 'ЗС', stock: null, party: 'supplier', basedOn: [], fulfils: false, forms: [], isOrder: true, reservedUntil: ['receipt'] },
@@ -136,7 +136,7 @@ export const DOCUMENT_META: Record<DocumentType, DocumentTypeMeta> = {
   production: { label: 'Production', group: 'production', prefix: 'ПР', stock: null, party: null, basedOn: ['production_order', 'customer_order'], fulfils: false, forms: [], operation: 'assembly', production: true },
   // заказ-наряд: сам является продажей — при входе в состояние категории «done» он проводится целиком
   // (выручка, долг клиента, расход товаров и материалов), частичной отгрузки нет
-  work_order: { label: 'Work order', group: 'sales', prefix: 'ЗН', stock: 'out', party: 'customer', basedOn: ['quote', 'customer_order'], fulfils: true, forms: ['work_order', 'act', 'upd', 'torg12', 'invoice'] },
+  work_order: { label: 'Work order', group: 'sales', prefix: 'ЗН', stock: 'out', party: 'customer', basedOn: ['quote', 'customer_order'], fulfils: true, forms: ['work_order', 'act', 'upd', 'torg12', 'invoice', 'warranty_card', 'repair_receipt', 'repair_return'] },
   // сдельный наряд: выполненные операции исполнителя за день (зарплата не начисляется — только отчёт к оплате)
   piecework_order: { label: 'Piecework order', group: 'production', prefix: 'СН', stock: null, party: null, basedOn: [], fulfils: false, forms: ['piecework'] },
   // прочие затраты: косвенные затраты периода без склада (строки — статья, участок, сумма; своего товара у них нет)

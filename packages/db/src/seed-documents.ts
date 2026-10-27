@@ -22,6 +22,7 @@ import { assignOperations, createPieceworkOrder } from './piecework';
 import { productionComponents, productionItems, productionOperations } from './schema';
 import { recalculateOrderCalculation } from './calculations';
 import { uuidv7 } from './uuid';
+import { seedRepair } from './seed-repair';
 
 const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * 864e5).toISOString().slice(0, 10);
 
@@ -592,6 +593,9 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
 
   // инвестпроекты: документы факта проводятся до даты запрета
   await seedInvestments(db, ctx, { organizationId: org!.id, supplierId: co.atlas, customerId: co.quanta, serviceId: P('SV-PNT').id });
+
+  // ремонт и серийные номера (задача 1099): смартфон с номерами, ремонтный и гарантийный заказ-наряды
+  await seedRepair(db, ctx, { warehouseId: main!.id, supplierId: co.atlas, customerId: co.skyline, partProductId: P('HW-CAM-15').id, workProductId: P('WR-SRV').id });
 
   // закрытый месяц: закрываем месяц выпуска — косвенные затраты распределяются, средняя склада пересчитывается
   const closedMonth = iso(3).slice(0, 7);

@@ -3,7 +3,7 @@
    если на нём есть заказ-наряды или оно последнее в своей категории. Меняет admin и выше. */
 import * as React from 'react';
 import { ClipboardList, Plus, Trash2 } from 'lucide-react';
-import { WORK_ORDER_STATE_CATEGORIES, type WorkOrderStateCategory } from '@gr8r/shared';
+import { WORK_ORDER_KIND_TYPES, WORK_ORDER_STATE_CATEGORIES, type WorkOrderKindType, type WorkOrderStateCategory } from '@gr8r/shared';
 import { Alert, Badge, Button, EmptyState, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
 import { useIsAdmin } from '../catalog/data';
 import { useDocsApi, useDocumentStates, useWorkOrderKinds } from '../docs/data';
@@ -23,6 +23,7 @@ export function WorkOrderKindsSection({ title }: { title: string }) {
   const kinds = useWorkOrderKinds();
   const states = useDocumentStates();
   const [name, setName] = React.useState('');
+  const [newType, setNewType] = React.useState<WorkOrderKindType>('regular');
   const [kindId, setKindId] = React.useState<string | null>(null);
   const [label, setLabel] = React.useState('');
   const [key, setKey] = React.useState('');
@@ -57,6 +58,13 @@ export function WorkOrderKindsSection({ title }: { title: string }) {
                 }
                 d={t('settings.workOrders.kinds.statesCount', { count: (states.data ?? []).filter(s => s.kindId === k.id).length })}
               >
+                <Select
+                  aria-label={t('serials.kindType.label')}
+                  disabled={!isAdmin}
+                  value={k.kindType}
+                  onValueChange={v => void api('PATCH', `/work-order-kinds/${k.id}`, { kindType: v })}
+                  options={WORK_ORDER_KIND_TYPES.map(x => ({ value: x, label: t(`serials.kindType.${x}`) }))}
+                />
                 {kind !== k.id && (
                   <Button size="sm" variant="ghost" onClick={() => setKindId(k.id)}>
                     {t('settings.workOrders.kinds.statesBtn')}
@@ -69,12 +77,13 @@ export function WorkOrderKindsSection({ title }: { title: string }) {
         {isAdmin && (
           <div className="doc-add">
             <Input aria-label={t('settings.workOrders.kinds.nameAria')} value={name} placeholder={t('settings.workOrders.kinds.namePlaceholder')} onChange={e => setName(e.target.value)} />
+            <Select aria-label={t('serials.kindType.label')} value={newType} onValueChange={v => setNewType(v as WorkOrderKindType)} options={WORK_ORDER_KIND_TYPES.map(x => ({ value: x, label: t(`serials.kindType.${x}`) }))} />
             <Button
               size="sm"
               variant="ghost"
               disabled={!name.trim()}
               onClick={async () => {
-                const r = await api('POST', '/work-order-kinds', { name: name.trim() });
+                const r = await api('POST', '/work-order-kinds', { name: name.trim(), kindType: newType });
                 if (r) {
                   setName('');
                   toast(t('settings.workOrders.kinds.created', { name: name.trim() }));

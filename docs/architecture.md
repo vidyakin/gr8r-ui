@@ -56,6 +56,7 @@
 - [Заказ-наряд: работы, материалы и состояния](architecture/work-orders.md)
 - [Планирование услуг по часам](architecture/service-planning.md)
 - [Контроль и отчёты услуг](architecture/service-reports.md)
+- [Серийные номера, ремонт и гарантия](architecture/serials-repair.md)
 
 ## Финансы
 

@@ -84,6 +84,10 @@ export const productCreate = z.object({
   /** Значения характеристик категории; проверяются по схеме категории (с унаследованными) */
   attrs: z.record(z.string(), z.unknown()).optional(),
   isActive: z.boolean().default(true),
+  /** Учёт по серийным номерам: складские документы требуют номера по количеству */
+  trackSerials: z.boolean().default(false),
+  /** Гарантия, мес. (пусто — без гарантии) */
+  warrantyMonths: z.number().int().min(0).max(600).nullish(),
   custom: customData.optional(),
 });
 export const productUpdate = toPatch(productCreate.omit({ id: true }));

@@ -85,7 +85,7 @@ describe('seed', () => {
     // каталог и производство
     expect(await count('units', w)).toBeGreaterThanOrEqual(19);
     expect(await count('product_categories', w)).toBe(5);
-    expect(await count('products', `${w} and kind = 'goods'`)).toBe(30); // + стекло, профиль, краска, окно и его вариант, брус, заготовка, обрезок и обрезки дуба (отход)
+    expect(await count('products', `${w} and kind = 'goods'`)).toBe(31); // + смартфон с учётом по номерам, стекло, профиль, краска, окно и его вариант, брус, заготовка, обрезок и обрезки дуба (отход)
     expect(await count('products', `${w} and kind = 'service'`)).toBe(4); // + окраска подрядчиком
     expect(await count('products', `${w} and kind = 'work'`)).toBe(2);
     expect(await count('products', `${w} and kind = 'operation'`)).toBe(1);
@@ -102,13 +102,13 @@ describe('seed', () => {
     expect(await count('warehouses', w)).toBe(7); // основной, цех, склад готовой продукции, служебный «в пути», склад переработчика, склад отходов и склад брака
     expect(await count('companies', `${w} and inn <> ''`)).toBe(5);
     expect(await count('bank_accounts', `${w} and company_id is not null`)).toBe(5);
-    expect(await count('documents', w)).toBe(44); // + заказ покупателя на окно, цепочка разборки, документы переработки и факт инвестпроекта
+    expect(await count('documents', w)).toBe(48); // + поступление и продажа смартфона, ремонтный и гарантийный заказ-наряды, заказ покупателя на окно, цепочка разборки, документы переработки и факт инвестпроекта
     // инвестпроекты: утверждённый с фактом (поле документа и статья проекта) и черновик
     expect(await count('investment_projects', `${w} and status = 'approved'`)).toBe(1);
     expect(await count('investment_projects', `${w} and status = 'draft'`)).toBe(1);
     expect(await count('documents', `${w} and investment_project_id is not null and status = 'posted'`)).toBe(3);
     expect(await count('investment_cost_items', w)).toBe(1);
-    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(42);
+    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(45);
     expect(await count('documents', `${w} and based_on_id is not null`)).toBe(13);
     expect(await count('documents', `${w} and type in ('stock_transfer','write_off','inventory_count')`)).toBe(8); // + брусья в цех и передача переработчику
     // производство: заказ на производство и выпуск со списанием материалов
@@ -176,13 +176,13 @@ describe('seed', () => {
     expect(await count('contracts', `${w} and is_service and periodicity = 'month' and billing_day = 1`)).toBe(1);
     expect(await count('documents', `${w} and contract_id is not null`)).toBe(1);
     // заказ-наряд: вид по умолчанию с состояниями, материалы и назначение
-    expect(await count('documents', `${w} and type = 'work_order'`)).toBe(1);
-    expect(await count('work_order_kinds', w)).toBe(1);
-    expect(await count('document_states', w)).toBe(6);
-    expect(await count('work_order_materials', w)).toBe(1);
+    expect(await count('documents', `${w} and type = 'work_order'`)).toBe(3); // + ремонтный и гарантийный
+    expect(await count('work_order_kinds', w)).toBe(3); // по умолчанию, «Ремонт» и «Гарантийный ремонт»
+    expect(await count('document_states', w)).toBe(18);
+    expect(await count('work_order_materials', w)).toBe(2); // + запчасть гарантийного ремонта
     expect(await count('work_order_assignments', w)).toBe(1);
-    expect(await count('cost_items', w)).toBe(14); // 6 системных + электроэнергия и аренда демо + 6 статей инвестпроектов
-    expect(await count('stock_balances', `${w} and qty > 0`)).toBe(28);
+    expect(await count('cost_items', w)).toBe(15); // 7 системных (с «Гарантийный ремонт») + электроэнергия и аренда демо + 6 статей инвестпроектов
+    expect(await count('stock_balances', `${w} and qty > 0`)).toBe(29); // + смартфоны на основном складе
     // резервы: заказ покупателя, продукция под заказ и материалы заказов на производство
     expect(await count('stock_reservations', w)).toBe(11); // + резерв под заказ окна
     expect(await count('stock_reservations', `${w} and production_component_id is not null`)).toBe(8);

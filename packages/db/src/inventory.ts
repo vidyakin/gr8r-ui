@@ -5,7 +5,8 @@ import { dec, fmt } from '@gr8r/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { createDocument, type DocCtx } from './documents';
-import { documentLines, documents, costItems, products, stockBalances } from './schema';
+import { documentLineSerials, documentLines, documents, costItems, products, serialNumbers, stockBalances } from './schema';
+import { inventoryDiffSerials, trackedProducts } from './serials';
 import { uuidv7 } from './uuid';
 
 export interface CountSheetRow {
@@ -47,7 +48,15 @@ export async function fillCountSheet(db: Db, ctx: DocCtx, docId: string): Promis
     const factQty = prev ? prev.qty : bookQty;
     const values = { name: row.name, unitCode: row.unitCode, qty: factQty, price: '0.00', discountPct: '0', vatRate: 'none', net: '0.00', vatAmount: '0.00', total: '0.00', bookQty, receivedQty: '0.000', sortOrder: sort++ };
     if (prev) await db.update(documentLines).set(values).where(eq(documentLines.id, prev.id));
-    else await db.insert(documentLines).values({ ...values, id: uuidv7(), workspaceId: ctx.workspaceId, documentId: docId, productId: row.productId });
+    else {
+      const id = uuidv7();
+      await db.insert(documentLines).values({ ...values, id, workspaceId: ctx.workspaceId, documentId: docId, productId: row.productId });
+      // товар с учётом по номерам: «насчитаны» все номера склада, их можно поправить в строке
+      if ((await trackedProducts(db, [row.productId])).size) {
+        const have = await db.select({ serial: serialNumbers.serial }).from(serialNumbers).where(and(eq(serialNumbers.productId, row.productId), eq(serialNumbers.status, 'in_stock'), eq(serialNumbers.warehouseId, doc.warehouseId))).orderBy(asc(serialNumbers.serial));
+        if (have.length) await db.insert(documentLineSerials).values(have.map((h, i) => ({ workspaceId: ctx.workspaceId, documentId: docId, documentLineId: id, serial: h.serial, sortOrder: i })));
+      }
+    }
     keep.add(row.productId);
   }
   // строки, которых нет на складе, сохраняем: в них может быть излишек
@@ -107,6 +116,11 @@ export async function createInventoryBasedOn(db: Db, ctx: DocCtx, inventoryId: s
   for (const [i, l] of created.entries()) {
     const src = items[i]!.source;
     await db.update(documentLines).set({ sourceLineId: src, originLineId: src }).where(eq(documentLines.id, l.id));
+    // номера разницы: недостача — номера склада, которые не найдены; излишек — найденные, которых нет в реестре
+    if ((await trackedProducts(db, [l.productId])).size) {
+      const nums = await inventoryDiffSerials(db, inventoryId, inv.warehouseId, { id: src, productId: l.productId }, shortage, Math.floor(Number(items[i]!.qty)));
+      if (nums.length) await db.insert(documentLineSerials).values(nums.map((serial, k) => ({ workspaceId: ctx.workspaceId, documentId: id, documentLineId: l.id, serial, sortOrder: k })));
+    }
   }
   return id;
 }

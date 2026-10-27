@@ -137,11 +137,14 @@ export const workOrderKinds = pgTable(
     name: text('name').notNull(),
     /** Вид по умолчанию: его получают новые заказ-наряды */
     isDefault: boolean('is_default').notNull().default(false),
+    /** Тип вида (задача 1099): обычный, ремонт или гарантийный ремонт (без выручки, затраты на статью «Гарантийный ремонт») */
+    kindType: text('kind_type', { enum: ['regular', 'repair', 'warranty'] }).notNull().default('regular'),
     sortOrder: integer('sort_order').notNull().default(0),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   t => [
+    check('work_order_kinds_type_chk', sql`${t.kindType} in ('regular','repair','warranty')`),
     unique('work_order_kinds_ws_id_uq').on(t.workspaceId, t.id),
     uniqueIndex('work_order_kinds_ws_name_uq').on(t.workspaceId, sql`lower(${t.name})`),
     // вид по умолчанию — один на воркспейс

@@ -27,6 +27,7 @@ import { ensureModuleProject } from './modules';
 import { applyDocumentMoves, postDocument, unpostDocument, type DocCtx, type DocumentRow } from './documents';
 import { applyWorkOrderBilling, workNorm } from './services';
 import { uuidv7 } from './uuid';
+import { markRepairReturned, syncWarrantyKind } from './repair';
 
 /* ---------------- виды и состояния ---------------- */
 
@@ -66,18 +67,20 @@ export interface WorkOrderMaterialView {
   qty: string;
   warehouseId: string | null;
   warehouseName: string | null;
+  /** Товар с учётом по серийным номерам */
+  trackSerials: boolean;
 }
 
 /** Материалы заказ-наряда (расход со склада при выполнении) */
 export async function listWorkOrderMaterials(db: Db, documentId: string): Promise<WorkOrderMaterialView[]> {
   const rows = await db
-    .select({ m: workOrderMaterials, name: products.name, unitCode: products.unitCode, warehouseName: warehouses.name })
+    .select({ m: workOrderMaterials, name: products.name, unitCode: products.unitCode, warehouseName: warehouses.name, trackSerials: products.trackSerials })
     .from(workOrderMaterials)
     .innerJoin(products, eq(products.id, workOrderMaterials.productId))
     .leftJoin(warehouses, eq(warehouses.id, workOrderMaterials.warehouseId))
     .where(eq(workOrderMaterials.documentId, documentId))
     .orderBy(asc(workOrderMaterials.createdAt));
-  return rows.map(r => ({ ...r.m, name: r.name, unitCode: r.unitCode, warehouseName: r.warehouseName }));
+  return rows.map(r => ({ ...r.m, name: r.name, unitCode: r.unitCode, warehouseName: r.warehouseName, trackSerials: r.trackSerials }));
 }
 
 /** Материалы заказ-наряда заменяются списком: существующие по id обновляются, новые добавляются, отсутствующие удаляются */
@@ -355,6 +358,8 @@ export async function deleteWorkOrderAssignment(db: Db, ctx: DocCtx, taskId: str
 export interface WorkOrderDetail {
   kindId: string | null;
   kindName: string | null;
+  /** Тип вида: обычный, ремонт, гарантийный ремонт */
+  kindType: string;
   states: WorkOrderStateDef[];
   materials: WorkOrderMaterialView[];
   assignments: WorkOrderAssignmentView[];
@@ -364,11 +369,12 @@ export interface WorkOrderDetail {
 export async function workOrderDetail(db: Db, id: string): Promise<WorkOrderDetail> {
   const [doc] = await db.select({ kindId: documents.workOrderKindId }).from(documents).where(eq(documents.id, id)).limit(1);
   if (!doc) throw new DomainError(404, 'not_found', 'document not found');
-  const kind = doc.kindId ? (await db.select({ name: workOrderKinds.name }).from(workOrderKinds).where(eq(workOrderKinds.id, doc.kindId)).limit(1))[0] : undefined;
+  const kind = doc.kindId ? (await db.select({ name: workOrderKinds.name, kindType: workOrderKinds.kindType }).from(workOrderKinds).where(eq(workOrderKinds.id, doc.kindId)).limit(1))[0] : undefined;
   const states = doc.kindId ? await workOrderStates(db, doc.kindId) : [];
   return {
     kindId: doc.kindId ?? null,
     kindName: kind?.name ?? null,
+    kindType: kind?.kindType ?? 'regular',
     states,
     materials: await listWorkOrderMaterials(db, id),
     assignments: await listWorkOrderAssignments(db, id),
@@ -385,7 +391,7 @@ async function applyMaterialMoves(db: Db, ctx: DocCtx, doc: DocumentRow): Promis
   for (const m of rows) {
     const warehouseId = m.warehouseId ?? doc.warehouseId;
     if (!warehouseId) throw new DomainError(422, 'warehouse_required', 'Select a warehouse before posting the work order');
-    reqs.push({ warehouseId, productId: m.productId, lineId: null, qty: dec(m.qty), direction: 'out' });
+    reqs.push({ warehouseId, productId: m.productId, lineId: null, materialId: m.id, qty: dec(m.qty), direction: 'out' });
   }
   await applyStockMoves(db, ctx.workspaceId, { id: doc.id, date: doc.date }, reqs, await loadInventorySettings(db, ctx.workspaceId));
 }
@@ -423,6 +429,8 @@ STATE_HOOKS.work_order = async (db, ctx, doc, from, to, payload?: StatePayload) 
   // причина хранится, пока заказ-наряд отменён; возврат в работу её снимает
   if (toState.category === 'cancelled') await db.update(documents).set({ cancelReason: payload!.cancelReason!.trim() }).where(eq(documents.id, doc.id));
   else if (fromState?.category === 'cancelled') await db.update(documents).set({ cancelReason: null }).where(eq(documents.id, doc.id));
+  // изделие в ремонте выдано: проставляем дату выдачи
+  if (toState.category === 'delivered') await markRepairReturned(db, doc.id);
   if (toState.category === 'done') {
     // строки, выставляемые по часам, пересчитываются по фактическому времени до проведения
     await applyWorkOrderBilling(db, doc.id);
@@ -444,6 +452,8 @@ export async function initWorkOrder(db: Db, ctx: DocCtx, doc: DocumentRow): Prom
   const states = await workOrderStates(db, kindId);
   const first = states.find(s => s.category === 'new') ?? states[0];
   await db.update(documents).set({ workOrderKindId: kindId, state: doc.state ?? first?.key ?? null, updatedAt: new Date() }).where(eq(documents.id, doc.id));
+  // гарантийный вид: цены нулевые, затраты на статью «Гарантийный ремонт»
+  await syncWarrantyKind(db, ctx, doc.id);
 }
 
 DOCUMENT_CREATED_HOOKS.work_order = initWorkOrder;

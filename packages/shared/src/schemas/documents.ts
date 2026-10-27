@@ -137,6 +137,8 @@ export const documentLineInput = z
     tollingRole: z.enum(TOLLING_ROLES).optional(),
     /** Значения параметров спецификации изделия (заказ покупателя): состав выпуска считается формулами строк спецификации */
     params: paramValues.optional(),
+    /** Серийные номера строки (товары с учётом по номерам): список заменяет прежние */
+    serials: z.array(z.string().trim().min(1).max(100)).max(2000).optional(),
   })
   // нулевое количество допустимо только у строки инвентаризации: там qty — фактическое, учётное лежит в bookQty
   .refine(l => Number(l.qty) !== 0 || l.bookQty !== undefined, { message: 'Must be greater than zero', path: ['qty'] });
