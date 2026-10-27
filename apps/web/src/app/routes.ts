@@ -45,6 +45,7 @@ import {
   BriefcaseBusiness,
   Landmark,
   Banknote,
+  FileUp,
   Wallet,
   ArrowDownUp,
   HandCoins,
@@ -137,6 +138,7 @@ export const SECTIONS = {
   moneyCashFlow: { path: '/money/cash-flow', name: 'Cash flow', icon: ArrowDownUp },
   moneyReceivables: { path: '/money/receivables', name: 'Receivables', icon: HandCoins },
   moneyPayables: { path: '/money/payables', name: 'Payables', icon: CreditCard },
+  moneyBankImport: { path: '/money/bank-import', name: 'Bank statement', icon: FileUp },
   moneyReferences: { path: '/money/references', name: 'Cash registers and items', icon: Vault },
   // Финансы: инвестпроекты и окупаемость
   investments: { path: '/investments', name: 'Investment projects', icon: TrendingUp },
@@ -191,7 +193,7 @@ export const NAV_GROUPS = {
   },
   finance: {
     icon: Landmark,
-    items: [{ id: 'money' }, { id: 'moneyBalances' }, { id: 'moneyCashFlow' }, { id: 'moneyReceivables' }, { id: 'moneyPayables' }, { id: 'moneyReferences' }, { id: 'investments' }, { id: 'investmentsPlanFact' }],
+    items: [{ id: 'money' }, { id: 'moneyBalances' }, { id: 'moneyCashFlow' }, { id: 'moneyReceivables' }, { id: 'moneyPayables' }, { id: 'moneyBankImport' }, { id: 'moneyReferences' }, { id: 'investments' }, { id: 'investmentsPlanFact' }],
   },
 } satisfies Record<string, NavGroup>;
 
@@ -270,6 +272,7 @@ const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
   moneyCashFlow: 'finance',
   moneyReceivables: 'finance',
   moneyPayables: 'finance',
+  moneyBankImport: 'finance',
   moneyReferences: 'finance',
   investments: 'finance',
   investmentsPlanFact: 'finance',

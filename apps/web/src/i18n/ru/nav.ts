@@ -66,6 +66,7 @@ export const sections: Widen<typeof S> = {
   moneyCashFlow: 'Движение денег',
   moneyReceivables: 'Дебиторская задолженность',
   moneyPayables: 'Кредиторская задолженность',
+  moneyBankImport: 'Банковская выписка',
   moneyReferences: 'Кассы и статьи ДДС',
   investments: 'Инвестпроекты',
   investmentsPlanFact: 'План-факт',
