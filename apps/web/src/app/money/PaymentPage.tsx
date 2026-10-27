@@ -103,7 +103,7 @@ export function PaymentPage() {
   const needsMember = isAdvance || operationNeedsAccountable(operation);
   const settle = operationSettlement(operation);
   const isTransfer = operation === 'money_transfer';
-  const flowItems = (items.data ?? []).filter(i => !i.archivedAt && i.kind === (isAdvance || !incoming ? 'expense' : 'income') && !['transfer_in', 'transfer_out', 'accountable_in', 'accountable_out'].includes(i.systemKey ?? ''));
+  const flowItems = (items.data ?? []).filter(i => !i.archivedAt && i.kind === (isAdvance || !incoming ? 'expense' : 'income') && !['opening_balance', 'transfer_in', 'transfer_out', 'accountable_in', 'accountable_out'].includes(i.systemKey ?? ''));
   const sysItem = (key: string) => (items.data ?? []).find(i => i.systemKey === key)?.id ?? '';
   const defaultItem = (op: string) => ({ from_customer: sysItem('customers_payment'), to_supplier: sysItem('suppliers_payment'), supplier_refund: sysItem('refund_in'), customer_refund: sysItem('refund_out'), to_accountable: sysItem('accountable_out'), from_accountable: sysItem('accountable_in'), money_transfer: sysItem('transfer_out') })[op as 'from_customer'] ?? '';
 

@@ -62,6 +62,7 @@ export const sections = {
   money: 'Payments',
   moneyCalendar: 'Payment calendar',
   moneyRequests: 'Payment requests',
+  moneyOpening: 'Opening balances',
   moneyBalances: 'Cash balances',
   moneyCashFlow: 'Cash flow',
   moneyReceivables: 'Receivables',
