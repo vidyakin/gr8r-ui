@@ -115,12 +115,20 @@ describe('seed', () => {
     expect(await count('warehouses', w)).toBe(7); // основной, цех, склад готовой продукции, служебный «в пути», склад переработчика, склад отходов и склад брака
     expect(await count('companies', `${w} and inn <> ''`)).toBe(5);
     expect(await count('bank_accounts', `${w} and company_id is not null`)).toBe(5);
-    expect(await count('documents', w)).toBe(66); // + 5 документов платёжного календаря (4 заявки на расход и оплата заявки), + 12 документов денег (оплаты, подотчёт, акты физлица); // + проведённый план продаж, + поступление и продажа смартфона, ремонтный и гарантийный заказ-наряды, заказ покупателя на окно, цепочка разборки, документы переработки и факт инвестпроекта
+    expect(await count('documents', w)).toBe(67); // + ввод начальных остатков, + 5 документов платёжного календаря (4 заявки на расход и оплата заявки), + 12 документов денег (оплаты, подотчёт, акты физлица); // + проведённый план продаж, + поступление и продажа смартфона, ремонтный и гарантийный заказ-наряды, заказ покупателя на окно, цепочка разборки, документы переработки и факт инвестпроекта
     expect(await count('documents', `${w} and type = 'payment_request' and state = 'approved'`)).toBe(1);
     expect(await count('documents', `${w} and type = 'payment_request' and state = 'paid'`)).toBe(1);
     // деньги: касса, движения, взаиморасчёты и подотчёт
     expect(await count('cash_registers', w)).toBe(1);
     expect(await count('cash_moves', w)).toBeGreaterThan(8);
+    // начальные остатки введены раньше всех оплат: остаток денег ни в один день не отрицательный
+    expect(await count('documents', `${w} and type = 'opening_balance' and status = 'posted'`)).toBe(1);
+    const daily = await admin.unsafe(`select date::text as d, sum(case when direction = 'in' then amount else -amount end)::float as s from cash_moves ${w} and account_kind in ('cash','bank') group by date order by date`);
+    let running = 0;
+    for (const r of daily) {
+      running += Number(r.s);
+      expect(running).toBeGreaterThan(0);
+    }
     expect(await count('settlement_moves', w)).toBeGreaterThan(5);
     expect(await count('accountable_moves', w)).toBe(2);
     // инвестпроекты: утверждённый с фактом (поле документа и статья проекта) и черновик
@@ -128,7 +136,7 @@ describe('seed', () => {
     expect(await count('investment_projects', `${w} and status = 'draft'`)).toBe(1);
     expect(await count('documents', `${w} and investment_project_id is not null and status = 'posted'`)).toBe(3);
     expect(await count('investment_cost_items', w)).toBe(1);
-    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(63);
+    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(64);
     expect(await count('documents', `${w} and based_on_id is not null`)).toBe(17);
     // доставка (задача 1100): два способа, три доставки в разных статусах, расход «Доставка» у доставленной, два курьера, веса у двух товаров
     expect(await count('delivery_methods', w)).toBe(2);

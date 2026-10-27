@@ -5,8 +5,13 @@ import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { Db } from './client';
 import { changeDocumentState, createDocument, postDocument, type DocCtx } from './documents';
 import { createPaymentFromRequest, createRequest } from './payment-requests';
+import { createOpening } from './opening-balances';
 import { createPayment, createPaymentFromDocument, ensureCashFlowItems, updatePayment } from './payments';
 import { bankAccounts, cashFlowItems, cashRegisters, companies, costItems, documents } from './schema';
+
+/** Начальные остатки демо (рубли): подобраны так, чтобы остаток денег и календарь на 60 дней не уходили в минус */
+const OPENING_CASH = '150000.00';
+const OPENING_BANK = '3000000.00';
 
 const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * 864e5).toISOString().slice(0, 10);
 
@@ -20,6 +25,18 @@ export async function seedPayments(db: Db, ctx: DocCtx, refs: { organizationId: 
   const household = await item('Хозяйственные расходы', 'expense');
   const interest = await item('Проценты по остатку на счёте', 'income');
   const [costHousehold] = await db.insert(costItems).values({ workspaceId: ws, name: 'Хозяйственные нужды офиса', kind: 'expense' }).returning({ id: costItems.id });
+
+  // начальные остатки на начало учёта: раньше всех демо-оплат, чтобы остатки и платёжный календарь не уходили в кассовый разрыв
+  const opening = await createOpening(db, ctx, {
+    organizationId: refs.organizationId,
+    date: iso(45),
+    comment: 'Остатки на начало учёта',
+    lines: [
+      { kind: 'cash', cashRegisterId: register!.id, amount: OPENING_CASH, comment: 'Наличные в основной кассе' },
+      ...(bank ? [{ kind: 'bank' as const, bankAccountId: bank.id, amount: OPENING_BANK, comment: 'Остаток на расчётном счёте' }] : []),
+    ] as never,
+  });
+  await postDocument(db, ctx, opening);
 
   const post = async (id: string, daysAgo: number) => {
     await updatePayment(db, ctx, id, { date: iso(daysAgo) });
