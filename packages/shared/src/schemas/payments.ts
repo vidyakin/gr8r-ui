@@ -1,7 +1,7 @@
 /* zod-схемы денег (задача 1174б): кассы, статьи ДДС, документы оплат и авансовый отчёт, отчёты. */
 import { z } from 'zod';
 import { REQUEST_OPERATIONS } from '../payment-calendar';
-import { CASH_FLOW_GROUPS, PAYMENT_DOC_TYPES, RECEIPT_OPERATIONS, PAYMENT_OPERATIONS } from '../payments';
+import { CASH_FLOW_GROUPS, OPENING_LINE_KINDS, PAYMENT_DOC_TYPES, RECEIPT_OPERATIONS, PAYMENT_OPERATIONS } from '../payments';
 import { clientId, decimal, isoDate, listQuery, shortText, toPatch, uuid } from './common';
 
 /* ---------------- кассы и статьи ДДС ---------------- */
@@ -157,3 +157,26 @@ export const bankImportCommit = z.object({
   rows: z.array(bankImportRow).min(1).max(2000),
 });
 export const paymentOrdersQuery = z.object({ bankAccountId: uuid, from: isoDate.optional(), to: isoDate.optional(), ids: z.string().optional() });
+
+/* ---------------- ввод начальных остатков ---------------- */
+
+export const openingLineInput = z.object({
+  id: clientId,
+  kind: z.enum(OPENING_LINE_KINDS),
+  cashRegisterId: uuid.nullish(),
+  bankAccountId: uuid.nullish(),
+  counterpartyId: uuid.nullish(),
+  contractId: uuid.nullish(),
+  amount: decimal.refine(v => Number(v) > 0, 'Amount must be greater than zero'),
+  comment: z.string().trim().max(500).default(''),
+});
+export type OpeningLineInput = z.infer<typeof openingLineInput>;
+export const openingCreate = z.object({
+  id: clientId,
+  organizationId: uuid.nullish(),
+  date: isoDate.optional(),
+  comment: z.string().trim().max(2000).default(''),
+  lines: z.array(openingLineInput).max(500).default([]),
+});
+export const openingUpdate = toPatch(openingCreate.omit({ id: true }));
+export const openingQuery = listQuery.extend({ status: z.string().optional() });

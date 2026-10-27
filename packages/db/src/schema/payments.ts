@@ -95,6 +95,36 @@ export const paymentLines = pgTable(
   ],
 );
 
+/** Строки «Ввода начальных остатков»: касса или счёт организации (kind cash|bank) либо долг/аванс контрагента */
+export const openingBalanceLines = pgTable(
+  'opening_balance_lines',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    documentId: uuid('document_id').notNull(),
+    sortOrder: integer('sort_order').notNull().default(0),
+    kind: text('kind', { enum: ['cash', 'bank', 'customer_debt', 'customer_advance', 'supplier_debt', 'supplier_advance'] }).notNull(),
+    cashRegisterId: uuid('cash_register_id'),
+    bankAccountId: uuid('bank_account_id'),
+    counterpartyId: uuid('counterparty_id'),
+    contractId: uuid('contract_id'),
+    amount: money('amount').notNull(),
+    comment: text('comment').notNull().default(''),
+    createdAt: createdAt(),
+  },
+  t => [
+    unique('opening_balance_lines_ws_id_uq').on(t.workspaceId, t.id),
+    check('opening_balance_lines_amount_chk', sql`${t.amount} > 0`),
+    check('opening_balance_lines_kind_chk', sql`${t.kind} in ('cash','bank','customer_debt','customer_advance','supplier_debt','supplier_advance')`),
+    foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'opening_balance_lines_document_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.cashRegisterId], foreignColumns: [cashRegisters.workspaceId, cashRegisters.id], name: 'opening_balance_lines_cash_register_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.bankAccountId], foreignColumns: [bankAccounts.workspaceId, bankAccounts.id], name: 'opening_balance_lines_bank_account_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.counterpartyId], foreignColumns: [companies.workspaceId, companies.id], name: 'opening_balance_lines_counterparty_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.contractId], foreignColumns: [contracts.workspaceId, contracts.id], name: 'opening_balance_lines_contract_fk' }),
+    index('opening_balance_lines_doc_idx').on(t.documentId, t.sortOrder),
+  ],
+);
+
 /** Движения денег по кассам, банковским счетам и подотчётным лицам (записываются при проведении) */
 export const cashMoves = pgTable(
   'cash_moves',

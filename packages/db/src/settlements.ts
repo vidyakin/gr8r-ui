@@ -235,6 +235,19 @@ export async function applyRefund(db: Db, workspaceId: string, side: Side, doc: 
   await insertMove(db, scope, { settlementDocumentId: null, documentId: doc.id, lineId: line.id, date: doc.date, kind: 'payment', amount: left });
 }
 
+/** Начальный долг или аванс контрагента («Ввод начальных остатков»): долг — начисление без документа расчётов (пул компании),
+    аванс — оплата без документа с источником аванса: он зачтётся в ближайшее начисление, как обычная предоплата */
+export async function postOpeningSettlement(
+  db: Db,
+  workspaceId: string,
+  doc: { id: string; date: string },
+  line: { id: string; companyId: string; side: Side; contractId: string | null; advance: boolean; amount: Dec },
+): Promise<void> {
+  const scope: Scope = { workspaceId, companyId: line.companyId, side: line.side, contractId: line.contractId };
+  if (line.advance) await insertMove(db, scope, { settlementDocumentId: null, documentId: doc.id, lineId: line.id, advanceDocumentId: doc.id, advanceLineId: line.id, date: doc.date, kind: 'payment', amount: -line.amount });
+  else await insertMove(db, scope, { settlementDocumentId: null, documentId: doc.id, lineId: line.id, date: doc.date, kind: 'accrual', amount: line.amount });
+}
+
 /* ---------------- состояние оплаты документов ---------------- */
 
 export interface PaymentStatus {

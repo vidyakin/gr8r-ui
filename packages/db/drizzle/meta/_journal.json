@@ -316,6 +316,13 @@
       "when": 1793118116989,
       "tag": "0046_bank_integrations",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1793121566636,
+      "tag": "0047_opening_balances",
+      "breakpoints": true
     }
   ]
 }

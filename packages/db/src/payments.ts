@@ -636,13 +636,25 @@ export async function cashFlowReport(db: Db, workspaceId: string, p: CashFlowPar
     // по кассам и счетам: с остатками на начало и конец периода, перемещения видны (они меняют остатки)
     const bal = await cashBalances(db, workspaceId, p.to);
     const before = await cashBalances(db, workspaceId, new Date(Date.parse(p.from) - 86_400_000).toISOString().slice(0, 10));
+    // начальные остатки внутри периода — не оборот, а часть остатка на начало
+    const openingIds = (await db.select({ id: cashFlowItems.id }).from(cashFlowItems).where(and(eq(cashFlowItems.workspaceId, workspaceId), eq(cashFlowItems.systemKey, 'opening_balance')))).map(r => r.id);
+    const isOpening = openingIds.length ? sql`${cashMoves.cashFlowItemId} in (${sql.join(openingIds.map(i => sql`${i}`), sql`, `)})` : sql`false`;
     const turn = await db
       .select({ cash: cashMoves.cashRegisterId, bank: cashMoves.bankAccountId, i: inSum, o: outSum })
       .from(cashMoves)
-      .where(and(...base, sql`${cashMoves.accountKind} in ('cash','bank')`))
+      .where(and(...base, sql`${cashMoves.accountKind} in ('cash','bank')`, sql`not ${isOpening}`))
+      .groupBy(cashMoves.cashRegisterId, cashMoves.bankAccountId);
+    const inPeriodOpening = await db
+      .select({ cash: cashMoves.cashRegisterId, bank: cashMoves.bankAccountId, s: signed })
+      .from(cashMoves)
+      .where(and(...base, sql`${cashMoves.accountKind} in ('cash','bank')`, isOpening))
       .groupBy(cashMoves.cashRegisterId, cashMoves.bankAccountId);
     const t = new Map(turn.map(x => [(x.cash ?? x.bank)!, x]));
     const prev = new Map([...before.cash, ...before.bank].map(a => [a.id, a.balance]));
+    for (const o of inPeriodOpening) {
+      const id = (o.cash ?? o.bank)!;
+      prev.set(id, fmt(dec(prev.get(id) ?? '0') + dec(o.s), 2));
+    }
     rows = [...bal.cash.map(a => ({ ...a, kind: 'cash' })), ...bal.bank.map(a => ({ ...a, kind: 'bank' }))]
       .filter(a => t.has(a.id) || dec(a.balance) !== 0n || dec(prev.get(a.id) ?? '0') !== 0n)
       .map(a => {
