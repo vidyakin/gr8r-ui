@@ -47,6 +47,7 @@ import {
   paymentLines,
 } from './schema';
 import { assertPeriodOpen } from './cost-closing';
+import { requestPaidAmounts, syncRequestPaid } from './request-paid';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const CASH_TYPES = ['cash_receipt', 'cash_payment', 'bank_receipt', 'bank_payment', 'advance_report'] as const;
@@ -111,7 +112,7 @@ export interface PaymentInput {
   lines?: PaymentLineInput[];
 }
 
-type DocRow = typeof documents.$inferSelect;
+export type DocRow = typeof documents.$inferSelect;
 
 async function loadDoc(db: Db, id: string, lock = false): Promise<DocRow> {
   const q = db.select().from(documents).where(eq(documents.id, id)).limit(1);
@@ -125,7 +126,7 @@ function defaultOperation(type: CashDocType): string | null {
 }
 
 /** Строки сохраняются списком: существующие по id обновляются, новые добавляются, отсутствующие удаляются */
-async function saveLines(db: Db, ctx: DocCtx, doc: DocRow, inputs: PaymentLineInput[]): Promise<void> {
+export async function saveLines(db: Db, ctx: DocCtx, doc: DocRow, inputs: PaymentLineInput[]): Promise<void> {
   const items = await ensureCashFlowItems(db, ctx.workspaceId);
   const receipt = isPaymentType(doc.type) && isReceiptType(doc.type);
   const defaultKey = defaultCashFlowKey(doc.operation);
@@ -219,6 +220,7 @@ export async function createPayment(db: Db, ctx: DocCtx, input: PaymentInput): P
 
 async function assertPayableBase(db: Db, baseId: string): Promise<void> {
   const [b] = await db.select({ type: documents.type, status: documents.status }).from(documents).where(eq(documents.id, baseId)).limit(1);
+  if (b?.type === 'payment_request') return; // заявка на расход: состояние проверяется при проведении оплаты
   if (!b || !(PAYABLE_TYPES as string[]).includes(b.type)) throw new DomainError(422, 'invalid_based_on', 'This document cannot be a basis for a payment');
   if (b.status === 'cancelled') throw new DomainError(422, 'invalid_based_on', 'A cancelled document cannot be a basis');
 }
@@ -316,6 +318,7 @@ async function checkPosting(db: Db, doc: DocRow): Promise<void> {
     const [c] = await db.select({ id: companies.id, archivedAt: companies.archivedAt }).from(companies).where(eq(companies.id, doc.counterpartyId)).limit(1);
     if (!c || c.archivedAt) throw new DomainError(422, 'invalid_reference', 'The counterparty does not exist or is archived');
   }
+  await checkRequestBase(db, doc, lines.reduce((s, l) => s + dec(l.amount), 0n));
   const itemIds = [...new Set(lines.map(l => l.cashFlowItemId))];
   const items = new Map((await db.select({ id: cashFlowItems.id, kind: cashFlowItems.kind, archivedAt: cashFlowItems.archivedAt }).from(cashFlowItems).where(inArray(cashFlowItems.id, itemIds))).map(i => [i.id, i]));
   const incoming = !advance && isReceiptType(doc.type as PaymentDocType);
@@ -340,6 +343,16 @@ async function checkPosting(db: Db, doc: DocRow): Promise<void> {
       if (!ci || ci.archivedAt) throw new DomainError(422, 'invalid_reference', 'The cost item does not exist or is archived');
     }
   }
+}
+
+/** Оплата на основании заявки: заявка согласована (или уже частично оплачена), общая сумма оплат не больше суммы заявки */
+async function checkRequestBase(db: Db, doc: DocRow, total: bigint): Promise<void> {
+  if (!doc.basedOnId) return;
+  const [req] = await db.select({ type: documents.type, state: documents.state, total: documents.total }).from(documents).where(eq(documents.id, doc.basedOnId)).limit(1);
+  if (req?.type !== 'payment_request') return;
+  if (req.state !== 'approved') throw new DomainError(422, 'request_not_approved', 'The payment request must be approved before it is paid');
+  const { posted } = await requestPaidAmounts(db, doc.basedOnId);
+  if (posted + total > dec(req.total)) throw new DomainError(422, 'over_request', 'The payments exceed the amount of the payment request');
 }
 
 async function writeMoves(db: Db, ctx: DocCtx, doc: DocRow): Promise<void> {
@@ -393,6 +406,7 @@ for (const type of CASH_TYPES) {
     post: async (db, ctx, doc) => writeMoves(db, ctx, doc),
     afterPost: async (db, ctx, doc) => {
       const lines = await linesOf(db, doc.id);
+      if (doc.basedOnId) await syncRequestPaid(db, ctx, doc.basedOnId);
       const [fresh] = await db.select({ total: documents.total, number: documents.number }).from(documents).where(eq(documents.id, doc.id)).limit(1);
       await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.payment_posted', entity: 'document', recordId: doc.id, actorId: ctx.memberId, payload: { documentType: doc.type, operation: doc.operation, total: fresh?.total, number: fresh?.number } });
       // документы расчётов, оплаченные полностью этим документом
@@ -401,7 +415,10 @@ for (const type of CASH_TYPES) {
         await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.paid', entity: 'document', recordId: rootId, actorId: ctx.memberId, payload: { paymentId: doc.id, changes: { remaining: { to: remaining } }, remaining, paid: dec(remaining) === 0n } });
       }
     },
-    afterUnpost: async (db, ctx, doc) => clearMoves(db, ctx, doc.id),
+    afterUnpost: async (db, ctx, doc) => {
+      await clearMoves(db, ctx, doc.id);
+      if (doc.basedOnId) await syncRequestPaid(db, ctx, doc.basedOnId);
+    },
   };
 }
 
