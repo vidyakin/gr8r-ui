@@ -6,6 +6,7 @@ import type { FieldOptions } from '@gr8r/shared';
 import { archivedAt, createdAt, money, pk, updatedAt } from './columns';
 import { companies } from './crm';
 import { wsCol } from './people';
+import { productKinds } from './positions';
 
 /** Справочник единиц: базовый набор ОКЕИ воркспейс получает при создании, свои единицы добавляются рядом */
 export const units = pgTable(
@@ -105,6 +106,8 @@ export const products = pgTable(
     appointmentMinutes: integer('appointment_minutes'),
     /** Вес, кг (задача 1100): вес доставки = Σ количество × вес по строкам товаров */
     weightKg: numeric('weight_kg', { precision: 18, scale: 3 }),
+    /** Вид номенклатуры (задача 1172, необязательный): тип вида совпадает с kind товара */
+    productKindId: uuid('product_kind_id'),
     custom: jsonb('custom').$type<Record<string, unknown>>().notNull().default({}),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -116,6 +119,7 @@ export const products = pgTable(
     foreignKey({ columns: [t.workspaceId, t.unitCode], foreignColumns: [units.workspaceId, units.code], name: 'products_unit_fk' }),
     foreignKey({ columns: [t.workspaceId, t.defaultSupplierId], foreignColumns: [companies.workspaceId, companies.id], name: 'products_default_supplier_fk' }),
     foreignKey({ columns: [t.workspaceId, t.parentProductId], foreignColumns: [t.workspaceId, t.id], name: 'products_parent_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.productKindId], foreignColumns: [productKinds.workspaceId, productKinds.id], name: 'products_product_kind_fk' }),
     check('products_kind_chk', sql`${t.kind} in ('goods','service','work','operation')`),
     // вариант не может быть своим родителем (вложенность вариантов проверяет сервис)
     check('products_parent_chk', sql`${t.parentProductId} is null or ${t.parentProductId} <> ${t.id}`),

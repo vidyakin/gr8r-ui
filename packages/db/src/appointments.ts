@@ -19,6 +19,8 @@ import {
   type FreeCandidate,
   type FreeSlot,
   type ScheduleDef,
+  productFitsSpecialist,
+  specialistProductKindIds,
 } from '@gr8r/shared';
 import type { Db } from './client';
 import { DOCUMENT_HOOKS } from './document-hooks';
@@ -26,6 +28,7 @@ import { createDocument, deleteDocument, postDocument, unpostDocument, type DocC
 import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { workspaceTimeZone } from './planning';
+import { loadPositionContext, memberIdsWithFunction, specialistKinds } from './positions';
 import {
   appointmentDayAlerts,
   appointmentReminders,
@@ -133,15 +136,26 @@ export async function deleteScheduleException(db: Db, ctx: DocCtx, memberId: str
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'specialist_schedule.updated', entity: 'specialist_schedule', recordId: memberId, actorId: ctx.memberId, payload: { memberId, date } });
 }
 
-/** Специалисты: участники с графиком */
+/** Специалисты: участники с графиком и функцией «специалист записи» (нет таких должностей в воркспейсе — все с графиком).
+    productKindIds — оказываемые виды номенклатуры (null — любые услуги, задача 1172) */
 export async function listSpecialists(db: Db) {
+  const ids = await memberIdsWithFunction(db, 'appointments_specialist');
+  const cx = await loadPositionContext(db);
   const rows = await db
     .select({ memberId: members.id, name: members.name, color: members.color, title: members.title, slotMinutes: specialistSchedules.slotMinutes, dayStartMin: specialistSchedules.dayStartMin, dayEndMin: specialistSchedules.dayEndMin })
     .from(specialistSchedules)
     .innerJoin(members, eq(members.id, specialistSchedules.memberId))
     .where(ne(members.status, 'deactivated'))
     .orderBy(asc(members.name));
-  return rows;
+  return rows.filter(r => !ids || ids.has(r.memberId)).map(r => ({ ...r, productKindIds: specialistProductKindIds(r.memberId, cx.positions, cx.links) }));
+}
+
+/** Специалист оказывает услугу: её вид входит в виды его должностей (виды не заданы — любая услуга) */
+async function assertSpecialistProvides(db: Db, specialistId: string, productId: string): Promise<void> {
+  const allowed = await specialistKinds(db, specialistId);
+  if (allowed === null) return;
+  const [p] = await db.select({ kindId: products.productKindId }).from(products).where(eq(products.id, productId)).limit(1);
+  if (!productFitsSpecialist(p?.kindId, allowed)) throw new DomainError(422, 'service_not_provided', 'The specialist does not provide this service');
 }
 
 export async function scheduleView(db: Db, ws: string, memberId: string) {
@@ -368,6 +382,7 @@ export async function createAppointment(db: Db, ctx: DocCtx, input: AppointmentI
   await loadClient(db, input.contactId, input.companyId);
   const [prod] = await db.select({ price: products.price, kind: products.kind, isActive: products.isActive }).from(products).where(eq(products.id, input.productId)).limit(1);
   if (!prod || prod.kind !== 'service' || !prod.isActive) throw new DomainError(422, 'invalid_reference', 'Select an active service from the catalog');
+  await assertSpecialistProvides(db, input.specialistId, input.productId);
   const { slots, slotMinutes } = await placeOrThrow(db, ctx.workspaceId, input);
   const [row] = await db
     .insert(appointments)
@@ -418,7 +433,10 @@ export async function moveAppointment(db: Db, ctx: DocCtx, id: string, to: { spe
   const a = await loadAppt(db, id);
   if (a.status !== 'booked' && a.status !== 'confirmed') throw new DomainError(409, 'invalid_status', 'Only a booked or confirmed appointment can be moved');
   const specialistId = to.specialistId ?? a.specialistId;
-  if (specialistId !== a.specialistId) await assertMember(db, specialistId);
+  if (specialistId !== a.specialistId) {
+    await assertMember(db, specialistId);
+    await assertSpecialistProvides(db, specialistId, a.productId);
+  }
   const { slots, slotMinutes } = await placeOrThrow(db, ctx.workspaceId, { specialistId, date: to.date, startMin: to.startMin, productId: a.productId, excludeId: id });
   await db.update(appointments).set({ specialistId, date: to.date, startMin: to.startMin, slots, slotMinutes, updatedAt: new Date() }).where(eq(appointments.id, id));
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'appointment.updated', entity: 'appointment', recordId: id, actorId: ctx.memberId, payload: { changes: { date: { from: a.date, to: to.date }, startMin: { from: a.startMin, to: to.startMin } } } });
@@ -428,7 +446,8 @@ export async function moveAppointment(db: Db, ctx: DocCtx, id: string, to: { spe
 export async function findFreeTime(db: Db, ws: string, q: { productId: string; specialistId?: string | undefined; from?: string | undefined; fromMin?: number | undefined }, today: string): Promise<(FreeSlot & { specialistName: string }) | null> {
   const [prod] = await db.select({ minutes: products.appointmentMinutes }).from(products).where(eq(products.id, q.productId)).limit(1);
   if (!prod) throw new DomainError(422, 'invalid_reference', 'The service does not exist');
-  const specs = (await listSpecialists(db)).filter(s => !q.specialistId || s.memberId === q.specialistId);
+  const [fp] = await db.select({ kindId: products.productKindId }).from(products).where(eq(products.id, q.productId)).limit(1);
+  const specs = (await listSpecialists(db)).filter(s => (!q.specialistId || s.memberId === q.specialistId) && productFitsSpecialist(fp?.kindId, s.productKindIds));
   const from = q.from ?? today;
   const dates = Array.from({ length: 60 }, (_, i) => addDaysIso(from, i));
   const candidates: FreeCandidate[] = [];

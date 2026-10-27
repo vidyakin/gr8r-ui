@@ -17,6 +17,7 @@ import { useCrm } from './store';
 import { useCrmUi } from './ui-context';
 import { stageName, dealGroupName } from './labels';
 import type { StageId } from './types';
+import { useMembersWith } from '../positions/data';
 
 type Mode = 'board' | 'table';
 type GroupId = 'stage' | 'owner' | 'company' | 'none';
@@ -39,6 +40,7 @@ export function DealsPage() {
   const [group, setGroup] = React.useState<GroupId>('stage');
   const columns = React.useMemo(() => dealColumns(t), [t]);
   const table = useDataTable(columns);
+  const ownerCandidates = useMembersWith(ws.members.filter(m => m.status === 'active'), 'sales_manager'); // менеджеры продаж (задача 1172)
 
   const all = React.useMemo(() => dealRows(data, ownerName), [data, ownerName]);
   const rows = React.useMemo(() => filterDeals(data, all, { q: filters.q, owner: filters.values.owner, company: filters.values.company, stage: filters.values.stage }).sort((a, b) => a.order - b.order), [data, all, filters.q, filters.values]);
@@ -47,7 +49,7 @@ export function DealsPage() {
   const total = pipeline(data.deals);
 
   const fields: FilterField[] = [
-    { id: 'owner', name: t('crm.deals.col.owner'), icon: <User size={15} />, options: ws.members.filter(m => m.status === 'active').map(m => ({ id: m.id, name: m.name + (m.id === ws.me ? t('crm.deals.you') : ''), icon: <MemberAvatar id={m.id} size="sm" tooltip={false} /> })) },
+    { id: 'owner', name: t('crm.deals.col.owner'), icon: <User size={15} />, options: ownerCandidates.map(m => ({ id: m.id, name: m.name + (m.id === ws.me ? t('crm.deals.you') : ''), icon: <MemberAvatar id={m.id} size="sm" tooltip={false} /> })) },
     { id: 'company', name: t('crm.deals.col.company'), icon: <Building2 size={15} />, options: [...data.companies].sort((a, b) => a.name.localeCompare(b.name)).map(c => ({ id: c.id, name: c.name, icon: <CompanyLogo name={c.name} size={14} /> })) },
     { id: 'stage', name: t('crm.deals.col.stage'), icon: <CircleDot size={15} />, options: STAGES.map(s => ({ id: s.id, name: stageName(s.id, s.name), icon: <StageIcon stage={s.id} /> })) },
   ];

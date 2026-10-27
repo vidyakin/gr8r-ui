@@ -40,6 +40,8 @@ export const settings = {
       costItems: 'Cost items',
       workOrders: 'Work order kinds',
       deliveryMethods: 'Delivery methods',
+      positions: 'Positions',
+      productKinds: 'Nomenclature kinds',
       notifEmail: 'Email',
       notifPush: 'Push',
       notifMentions: 'Mentions',

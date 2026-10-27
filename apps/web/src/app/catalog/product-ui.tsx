@@ -1,7 +1,8 @@
 /* Карточка товара (EntityDrawer) и форма создания. Характеристики категории рисуются теми же FieldInput / FieldValue и
    проверяются той же zod-схемой (validateRecord), что и поля конструктора. */
 import * as React from 'react';
-import { Barcode, Building2, CircleAlert, CircleDollarSign, FolderTree, Hash, Layers, Package, Percent, Power, Repeat, Ruler, ScanBarcode, Tag, Timer, Trash2, Truck, Wrench, type LucideIcon } from 'lucide-react';
+import { useProductKinds } from '../positions/data';
+import { Barcode, Building2, CircleAlert, CircleDollarSign, FolderTree, Hash, Layers, Package, Percent, Power, Repeat, Ruler, ScanBarcode, Shapes, Tag, Timer, Trash2, Truck, Wrench, type LucideIcon } from 'lucide-react';
 import { PRODUCT_KINDS, VAT_LABELS, VAT_RATES, validateRecord, type ProductKind } from '@gr8r/shared';
 import { Button, ConfirmDialog, Dialog, DialogClose, DialogContent, Field, Input, MenuItem, Segmented, Switch, toast } from '@/components/ui';
 import { DrawerSection, EntityDrawer } from '@/components/gr8r/entity-drawer';
@@ -108,6 +109,7 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
   const norms = useWorkNorms();
   const centers = useWorkCenters();
   const companies = useCompanies();
+  const productKinds = useProductKinds();
   const saveNorm = useSaveWorkNorm();
   const norm = p.kind === 'work' ? (norms.data?.items ?? []).find(n => n.productId === p.id) : undefined;
   const centerName = (id: string | null | undefined) => (centers.data?.items ?? []).find(c => c.id === id)?.name ?? '';
@@ -157,6 +159,22 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
               </button>
             ) : (
               <span className="faint">—</span>
+            ),
+          },
+          {
+            icon: Shapes,
+            label: t('positions.product.kind'),
+            value: canWrite ? (
+              <select className="select" aria-label={t('positions.product.kind')} value={p.productKindId ?? ''} onChange={e => save({ productKindId: e.target.value || null })}>
+                <option value="">{t('positions.product.none')}</option>
+                {(productKinds.data ?? []).filter(k => k.type === p.kind).map(k => (
+                  <option key={k.id} value={k.id}>
+                    {k.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="muted">{(productKinds.data ?? []).find(k => k.id === p.productKindId)?.name ?? '—'}</span>
             ),
           },
           row(Ruler, t('catalog.product.unit'), <UnitSelect value={p.unitCode} onChange={unitCode => save({ unitCode })} />, p.unitCode),

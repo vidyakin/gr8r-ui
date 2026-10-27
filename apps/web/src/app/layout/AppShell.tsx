@@ -13,6 +13,7 @@ import { Topbar, useCrumbs } from './Topbar';
 import { OverlayProviders, PaletteHost, TaskWindowsHost } from '../overlays';
 import { CrmOverlays } from '../crm/overlays';
 import { PageBoundary } from '../components/error-states';
+import { SectionGuard, useSectionAccess } from '../positions/access';
 import { t } from '@/i18n';
 
 const COLLAPSED_KEY = 'gr8r-ui.sidebar-collapsed';
@@ -20,9 +21,10 @@ const COLLAPSED_KEY = 'gr8r-ui.sidebar-collapsed';
 function BottomNav({ onMore }: { onMore: () => void }) {
   const { data } = useWorkspace();
   const unread = data.notifs.some(n => !n.read && n.type !== 'update');
+  const access = useSectionAccess();
   return (
     <nav className="bottomnav" aria-label={t('nav.primary')}>
-      {(['home', 'mytasks', 'projects', 'inbox'] as SectionId[]).map(id => {
+      {(['home', 'mytasks', 'projects', 'inbox'] as SectionId[]).filter(id => access.id(id)).map(id => {
         const s = SECTIONS[id];
         return (
           <NavLink key={id} to={s.path} end={s.path === '/' || s.path === '/projects'} className={({ isActive }) => cn(isActive && 'on')}>
@@ -104,7 +106,9 @@ export function AppShell() {
         {/* key перезапускает анимацию появления при смене страницы */}
         <div key={pageKey} className="content fx-route" id="main-content" tabIndex={-1}>
           <PageBoundary resetKey={location.pathname}>
-            <Outlet />
+            <SectionGuard>
+              <Outlet />
+            </SectionGuard>
           </PageBoundary>
         </div>
       </main>

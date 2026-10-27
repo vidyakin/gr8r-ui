@@ -10,6 +10,7 @@ import { ProductionSection } from '../settings/production';
 import { CostItemsSection, OrganizationsSection, WarehousesSection } from '../settings/documents';
 import { WorkOrderKindsSection } from '../settings/work-orders';
 import { DeliveryMethodsSection } from '../settings/delivery';
+import { PositionsSection, ProductKindsSection } from '../settings/positions';
 import { NotificationsSection, PreferencesSection, ProfileSection, ShortcutsSection } from '../settings/personal';
 import { InvoicesSection, PasswordSection, PaymentSection, PlanSection, SessionsSection, TwoFactorSection } from '../settings/account';
 import { NotFoundPage } from './PlaceholderPage';
@@ -47,6 +48,10 @@ function Body({ sec, title }: { sec: string; title: string }) {
       return <WorkOrderKindsSection title={title} />;
     case 'delivery-methods':
       return <DeliveryMethodsSection title={title} />;
+    case 'positions':
+      return <PositionsSection title={title} />;
+    case 'product-kinds':
+      return <ProductKindsSection title={title} />;
     case 'notif-email':
     case 'notif-push':
     case 'notif-mentions':

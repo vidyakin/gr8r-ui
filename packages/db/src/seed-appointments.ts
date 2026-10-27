@@ -6,13 +6,15 @@ import { addDaysIso, weekStartOf, weekdayOf, type AppointmentStatus } from '@gr8
 import type { Db } from './client';
 import { createAppointment, saveSchedule, setAppointmentStatus } from './appointments';
 import type { DocCtx } from './documents';
+import { massageKindId } from './seed-positions';
 import { contacts, members, products } from './schema';
 
 export async function seedAppointments(db: Db, ctx: DocCtx): Promise<void> {
   const ws = ctx.workspaceId;
   const [ref] = await db.select({ categoryId: products.categoryId }).from(products).where(and(eq(products.workspaceId, ws), eq(products.sku, 'SV-ASM'))).limit(1);
+  const kindId = await massageKindId(db, ws); // вид «Массаж» из seedPositions
   const service = async (name: string, sku: string, price: string, minutes: number) => {
-    const [p] = await db.insert(products).values({ workspaceId: ws, kind: 'service', sku, name, unitCode: '876', vatRate: 'none', price, purchasePrice: '0', categoryId: ref?.categoryId ?? null, appointmentMinutes: minutes }).returning({ id: products.id });
+    const [p] = await db.insert(products).values({ productKindId: kindId, workspaceId: ws, kind: 'service', sku, name, unitCode: '876', vatRate: 'none', price, purchasePrice: '0', categoryId: ref?.categoryId ?? null, appointmentMinutes: minutes }).returning({ id: products.id });
     return p!.id;
   };
   const back = await service('Массаж спины 30 мин', 'SV-MSG30', '1500.00', 30);

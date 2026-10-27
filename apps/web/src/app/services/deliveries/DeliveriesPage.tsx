@@ -58,7 +58,7 @@ function DeliveriesList() {
   const [q, setQ] = React.useState('');
   const list = useDeliveries({ from, to, courierId: courier === ALL ? undefined : courier, methodId: method === ALL ? undefined : method, status: status === ALL ? undefined : status, q: q.trim() || undefined });
   const rows = list.data?.items ?? [];
-  const courierOptions = (couriers.data ?? []).filter(c => c.isCourier);
+  const courierOptions = couriers.data ?? [];
 
   const columns = React.useMemo<Column<DeliveryItem>[]>(
     () => [
@@ -129,7 +129,7 @@ function DeliveriesList() {
           <Field label={t('delivery.list.from')}>{p => <Input {...p} type="date" value={from} max={to} onChange={e => setFrom(e.target.value || iso(today()))} />}</Field>
           <Field label={t('delivery.list.to')}>{p => <Input {...p} type="date" value={to} min={from} onChange={e => setTo(e.target.value || from)} />}</Field>
           <Field label={t('delivery.list.courier')}>
-            {p => <Select id={p.id} value={courier} onValueChange={setCourier} aria-label={t('delivery.list.courier')} options={[{ value: ALL, label: t('delivery.list.allCouriers') }, ...members.map(m => ({ value: m.id, label: m.name }))]} />}
+            {p => <Select id={p.id} value={courier} onValueChange={setCourier} aria-label={t('delivery.list.courier')} options={[{ value: ALL, label: t('delivery.list.allCouriers') }, ...(courierOptions.length ? courierOptions : members).map(m => ({ value: m.id, label: m.name }))]} />}
           </Field>
           <Field label={t('delivery.list.method')}>
             {p => <Select id={p.id} value={method} onValueChange={setMethod} aria-label={t('delivery.list.method')} options={[{ value: ALL, label: t('delivery.list.allMethods') }, ...(methods.data ?? []).map(m => ({ value: m.id, label: m.name }))]} />}

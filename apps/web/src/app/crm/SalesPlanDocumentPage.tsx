@@ -12,6 +12,7 @@ import { useWorkspace } from '../data/store';
 import { useCategories, useProducts } from '../catalog/data';
 import { useOrganizations, useWarehouses } from '../docs/data';
 import { useCanEditPlan, usePeriodLabel } from './SalesPlanPage';
+import { useMembersWith } from '../positions/data';
 import { usePlan, useSalesPlanMutation, useScenarios, type PlanDetail, type PlanLine } from './sales-plan-data';
 
 const NONE = 'none';
@@ -36,7 +37,8 @@ function PlanForm({ plan }: { plan: PlanDetail }) {
   const scenarios = useScenarios();
   const orgs = useOrganizations();
   const whs = useWarehouses();
-  const members = useWorkspace().data.members.filter(m => m.status === 'active');
+  const allMembers = useWorkspace().data.members.filter(m => m.status === 'active');
+  const members = useMembersWith(allMembers, 'sales_manager'); // менеджеры продаж (задача 1172)
   const cats = useCategories();
   const prods = useProducts({ active: true });
   const save = useSalesPlanMutation<PlanDetail>('PATCH');

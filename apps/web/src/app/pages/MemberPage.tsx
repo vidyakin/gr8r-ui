@@ -11,6 +11,7 @@ import { ProjectIcon } from '../components/project';
 import { WeekBars } from '../components/time-summary';
 import { MemberMenu, useMemberActions } from '../components/member';
 import { NotFoundPage } from './PlaceholderPage';
+import { MemberPositions } from '../positions/MemberPositions';
 import { useT } from '@/i18n';
 
 export function MemberPage() {
@@ -58,6 +59,9 @@ export function MemberPage() {
           <div className="muted" style={{ marginTop: 3 }}>
             {m.title}
             {team && ` · ${team.name}`}
+          </div>
+          <div style={{ marginTop: 6 }}>
+            <MemberPositions memberId={m.id} />
           </div>
           <div className="row faint" style={{ marginTop: 8, gap: 14, fontSize: 12.5, flexWrap: 'wrap' }}>
             <span className="row" style={{ gap: 5 }}>

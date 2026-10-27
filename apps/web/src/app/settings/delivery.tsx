@@ -194,12 +194,7 @@ export function DeliveryMethodsSection({ title }: { title: string }) {
         <p className="faint" style={{ fontSize: 12 }}>{t('delivery.settings.couriersLead')}</p>
         <div className="stack" style={{ gap: 8 }}>
           {(couriers.data ?? []).map(c => (
-            <SRow key={c.id} t={c.name}>
-              <label className="row" style={{ gap: 6, fontSize: 12 }}>
-                <Switch checked={c.isCourier} disabled={!isAdmin} aria-label={`${t('delivery.settings.isCourier')}: ${c.name}`} onChange={e => void api('PUT', `/deliveries/couriers/${c.id}`, { isCourier: e.target.checked })} />
-                {t('delivery.settings.isCourier')}
-              </label>
-            </SRow>
+            <SRow key={c.id} t={c.name} />
           ))}
         </div>
       </div>

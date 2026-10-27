@@ -20,6 +20,7 @@ import { useBillingApi, useWorkspaceTimezone } from '../docs/billing-data';
 import { useIsAdmin } from '../catalog/data';
 import { PrefSelect, SRow, SettingsHead, Toggle } from './parts';
 import { LOCALES, getLocale, isLocale, setLocale, useT, type Locale } from '@/i18n';
+import { MemberPositions } from '../positions/MemberPositions';
 
 const WS_COLORS = ['#2F2E2A', '#5A67D8', '#3B82C4', '#23918A', '#C54B78', '#C48A1E'];
 
@@ -445,6 +446,7 @@ export function MembersSection({ title }: { title: string }) {
               </div>
             </div>
             {m.status === 'invited' && <Badge tone="amber">{t('settings.members.invited')}</Badge>}
+            <MemberPositions memberId={m.id} compact />
             {m.role === 'Owner' ? (
               <span className="pillbtn">
                 <Crown size={13} />

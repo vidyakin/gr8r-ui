@@ -62,6 +62,7 @@ import { useCrm } from '../crm/store';
 import { money } from '../crm/format';
 import { company as crmCompany } from '../crm/selectors';
 import { useInvite } from './invite';
+import { useSectionAccess } from '../positions/access';
 import { useProjectForms } from './project-forms';
 import { useShortcuts } from './shortcuts';
 import { useSession } from '../data/session';
@@ -217,6 +218,8 @@ interface Item {
   keep?: boolean;
   /** Переход в раздел (не зависит от подписи на языке) */
   nav?: boolean;
+  /** Раздел меню: пункт скрыт, если должности участника его не открывают (задача 1172) */
+  section?: SectionId;
   /** CRM-разделы показываются только при вводе, чтобы пустая палитра совпадала с оригиналом */
   quiet?: boolean;
   run(): void;
@@ -262,6 +265,7 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
   const toggleDark = useToggleDark();
   const recent = useRecentSearches();
   const t = useT();
+  const access = useSectionAccess();
 
   const [q, setQ] = React.useState(init.q);
   const recordHits = useRecordHits(q);
@@ -279,7 +283,7 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
   const go = (path: string, state?: unknown) => navigate(path, state ? { state } : undefined);
   const section = (id: SectionId) => () => go(SECTIONS[id].path);
 
-  const commands: Item[] = [
+  const allCommands: Item[] = [
     { id: 'c-task', name: t('overlays.palette.cmd.createTask'), icon: Plus, kbd: 'N', run: () => taskForm.open() },
     { id: 'c-proj', name: t('overlays.palette.cmd.createProject'), icon: FolderPlus, kbd: 'P', run: () => projectForms.create() },
     {
@@ -295,26 +299,26 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
         setHl(0);
       },
     },
-    { id: 'c-home', name: t('overlays.palette.cmd.goHome'), icon: House, kbd: 'G H', nav: true, run: section('home') },
-    { id: 'c-inbox', name: t('overlays.palette.cmd.goInbox'), icon: Inbox, kbd: 'G I', nav: true, run: section('inbox') },
-    { id: 'c-my', name: t('overlays.palette.cmd.goMyTasks'), icon: CircleCheck, kbd: 'G T', nav: true, run: section('mytasks') },
-    { id: 'c-projs', name: t('overlays.palette.cmd.goProjects'), icon: FolderKanban, kbd: 'G P', nav: true, run: section('projects') },
-    { id: 'c-cal', name: t('overlays.palette.cmd.goCalendar'), icon: Calendar, kbd: 'G C', nav: true, run: section('calendar') },
-    { id: 'c-tl', name: t('overlays.palette.cmd.goTimeline'), icon: ChartGantt, nav: true, run: section('timeline') },
-    { id: 'c-mem', name: t('overlays.palette.cmd.goMembers'), icon: Users, nav: true, run: section('members') },
+    { id: 'c-home', name: t('overlays.palette.cmd.goHome'), icon: House, kbd: 'G H', nav: true, section: 'home', run: section('home') },
+    { id: 'c-inbox', name: t('overlays.palette.cmd.goInbox'), icon: Inbox, kbd: 'G I', nav: true, section: 'inbox', run: section('inbox') },
+    { id: 'c-my', name: t('overlays.palette.cmd.goMyTasks'), icon: CircleCheck, kbd: 'G T', nav: true, section: 'mytasks', run: section('mytasks') },
+    { id: 'c-projs', name: t('overlays.palette.cmd.goProjects'), icon: FolderKanban, kbd: 'G P', nav: true, section: 'projects', run: section('projects') },
+    { id: 'c-cal', name: t('overlays.palette.cmd.goCalendar'), icon: Calendar, kbd: 'G C', nav: true, section: 'calendar', run: section('calendar') },
+    { id: 'c-tl', name: t('overlays.palette.cmd.goTimeline'), icon: ChartGantt, nav: true, section: 'timeline', run: section('timeline') },
+    { id: 'c-mem', name: t('overlays.palette.cmd.goMembers'), icon: Users, nav: true, section: 'members', run: section('members') },
     // Разделы CRM (их нет в оригинале)
-    { id: 'c-crm', name: t('overlays.palette.cmd.goCrm'), icon: SECTIONS.crm.icon, nav: true, quiet: true, run: section('crm') },
-    { id: 'c-deals', name: t('overlays.palette.cmd.goDeals'), icon: Handshake, nav: true, quiet: true, run: section('crmDeals') },
-    { id: 'c-comps', name: t('overlays.palette.cmd.goCompanies'), icon: Building2, nav: true, quiet: true, run: section('crmCompanies') },
-    { id: 'c-conts', name: t('overlays.palette.cmd.goContacts'), icon: ContactRound, nav: true, quiet: true, run: section('crmContacts') },
-    { id: 'c-acts', name: t('overlays.palette.cmd.goCrmActivities'), icon: SECTIONS.crmActivities.icon, nav: true, quiet: true, run: section('crmActivities') },
-    { id: 'c-cat', name: t('overlays.palette.cmd.goCatalog'), icon: SECTIONS.catalog.icon, nav: true, quiet: true, run: section('catalog') },
-    { id: 'c-prod', name: t('overlays.palette.cmd.goProduction'), icon: SECTIONS.production.icon, nav: true, quiet: true, run: section('production') },
-    { id: 'c-sales', name: t('overlays.palette.cmd.goSales'), icon: SECTIONS.sales.icon, nav: true, quiet: true, run: section('sales') },
-    { id: 'c-purch', name: t('overlays.palette.cmd.goPurchases'), icon: SECTIONS.purchases.icon, nav: true, quiet: true, run: section('purchases') },
-    { id: 'c-stock', name: t('overlays.palette.cmd.goInventory'), icon: SECTIONS.inventory.icon, nav: true, quiet: true, run: section('inventory') },
-    { id: 'c-wc', name: t('overlays.palette.cmd.goWorkCenters'), icon: SECTIONS.workCenters.icon, nav: true, quiet: true, run: section('workCenters') },
-    { id: 'c-set', name: t('overlays.palette.cmd.openSettings'), icon: Settings, kbd: 'G S', nav: true, run: section('settings') },
+    { id: 'c-crm', name: t('overlays.palette.cmd.goCrm'), icon: SECTIONS.crm.icon, nav: true, quiet: true, section: 'crm', run: section('crm') },
+    { id: 'c-deals', name: t('overlays.palette.cmd.goDeals'), icon: Handshake, nav: true, quiet: true, section: 'crmDeals', run: section('crmDeals') },
+    { id: 'c-comps', name: t('overlays.palette.cmd.goCompanies'), icon: Building2, nav: true, quiet: true, section: 'crmCompanies', run: section('crmCompanies') },
+    { id: 'c-conts', name: t('overlays.palette.cmd.goContacts'), icon: ContactRound, nav: true, quiet: true, section: 'crmContacts', run: section('crmContacts') },
+    { id: 'c-acts', name: t('overlays.palette.cmd.goCrmActivities'), icon: SECTIONS.crmActivities.icon, nav: true, quiet: true, section: 'crmActivities', run: section('crmActivities') },
+    { id: 'c-cat', name: t('overlays.palette.cmd.goCatalog'), icon: SECTIONS.catalog.icon, nav: true, quiet: true, section: 'catalog', run: section('catalog') },
+    { id: 'c-prod', name: t('overlays.palette.cmd.goProduction'), icon: SECTIONS.production.icon, nav: true, quiet: true, section: 'production', run: section('production') },
+    { id: 'c-sales', name: t('overlays.palette.cmd.goSales'), icon: SECTIONS.sales.icon, nav: true, quiet: true, section: 'sales', run: section('sales') },
+    { id: 'c-purch', name: t('overlays.palette.cmd.goPurchases'), icon: SECTIONS.purchases.icon, nav: true, quiet: true, section: 'purchases', run: section('purchases') },
+    { id: 'c-stock', name: t('overlays.palette.cmd.goInventory'), icon: SECTIONS.inventory.icon, nav: true, quiet: true, section: 'inventory', run: section('inventory') },
+    { id: 'c-wc', name: t('overlays.palette.cmd.goWorkCenters'), icon: SECTIONS.workCenters.icon, nav: true, quiet: true, section: 'workCenters', run: section('workCenters') },
+    { id: 'c-set', name: t('overlays.palette.cmd.openSettings'), icon: Settings, kbd: 'G S', nav: true, section: 'settings', run: section('settings') },
     { id: 'c-app', name: t('overlays.palette.cmd.appearance'), icon: Palette, run: () => go(`${SECTIONS.settings.path}/appearance`) },
     { id: 'c-dark', name: t(dark ? 'overlays.palette.cmd.darkOn' : 'overlays.palette.cmd.darkOff'), icon: dark ? Sun : Moon, kbd: `${MOD} ⇧ L`, run: toggleDark },
     { id: 'c-inv', name: t('overlays.palette.cmd.inviteMember'), icon: UserPlus, run: () => invite.open() },
@@ -323,6 +327,7 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
     { id: 'c-out', name: t('overlays.palette.cmd.signOut'), icon: LogOut, run: () => void session.signOut().then(() => navigate('/signin')) },
   ];
 
+  const commands = allCommands.filter(c => !c.section || access.id(c.section));
   const query = q.trim();
   const ql = query.toLowerCase();
   const taskItem = (t: (typeof data.tasks)[number]): Item => ({
@@ -413,12 +418,12 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
         }
       // Каталог и производство: товары, услуги, изделия и полуфабрикаты
       if (sc === 'all') {
-        if (catalogHits.products.length)
+        if (catalogHits.products.length && access.section('catalog'))
           groups.push({
             name: t('overlays.palette.group.products'),
             items: catalogHits.products.slice(0, lim).map(p => ({ id: 'pr-' + p.id, icon: p.kind === 'service' ? SECTIONS.workCenters.icon : SECTIONS.catalog.icon, name: p.name, sub: p.sku || t(p.kind === 'service' ? 'overlays.palette.productSub.service' : 'overlays.palette.productSub.goods'), run: () => go(`${SECTIONS.catalog.path}/${p.id}`) })),
           });
-        if (catalogHits.items.length)
+        if (catalogHits.items.length && access.section('production'))
           groups.push({
             name: t('overlays.palette.group.production'),
             items: catalogHits.items.slice(0, lim).map(i => ({ id: 'pi-' + i.id, icon: SECTIONS.production.icon, name: i.name, sub: t(i.kind === 'semi' ? 'overlays.palette.productionSub.semi' : 'overlays.palette.productionSub.product'), run: () => go(`${SECTIONS.production.path}/${i.id}`) })),
@@ -431,7 +436,7 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
           items: docHits.slice(0, lim).map(d => ({ id: 'doc-' + d.id, icon: SECTIONS.sales.icon, name: `${tOEnum('documentType', d.type, typeLabel(d.type))} ${d.number ?? `(${t('overlays.palette.draftNumber')})`}`, sub: `${d.counterpartyName ?? t('overlays.palette.noCounterparty')} · ${tOEnum('documentStatus', d.status, STATUS_LABEL[d.status])}`, r: fmtMoney(d.total), run: () => go(`/documents/${d.id}`) })),
         });
       // CRM — только в общем поиске, после основных групп
-      if (sc === 'all' && crmUi) {
+      if (sc === 'all' && crmUi && access.section('crm')) {
         const has = (s: string) => s.toLowerCase().includes(ql);
         groups.push({
           name: t('overlays.palette.group.deals'),

@@ -4,7 +4,7 @@ import { zValidator } from '@hono/zod-validator';
 import { asc, eq, inArray, max, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { attributeDefs, companies, generateVariants, listVariants, productCategories, products, recordEvent, specParamsOfProduct, units, uuidv7 } from '@gr8r/db';
+import { assertProductKind, attributeDefs, companies, generateVariants, listVariants, productCategories, products, recordEvent, specParamsOfProduct, units, uuidv7 } from '@gr8r/db';
 import { attributeCreate, attributeUpdate, categoryCreate, categoryQuery, categoryUpdate, destroyQuery, idParam, keyFromName, productCreate, productQuery, productUpdate, unitCreate, unitQuery, unitUpdate, type RecordData } from '@gr8r/shared';
 import { crud, ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError, notFound } from '../errors';
@@ -190,6 +190,7 @@ export const productRoutes = crud({
   filters: q => [
     q.kind ? eq(products.kind, q.kind) : undefined,
     q.active !== undefined ? eq(products.isActive, q.active) : undefined,
+    q.productKindId ? eq(products.productKindId, q.productKindId) : undefined,
     q.categoryId
       ? q.subtree === false
         ? eq(products.categoryId, q.categoryId)
@@ -198,6 +199,7 @@ export const productRoutes = crud({
   ],
   prepareCreate: async (ctx, body) => {
     await assertUnit(ctx, body.unitCode);
+    await assertProductKind(ctx.db, body.kind, body.productKindId);
     if (body.defaultSupplierId) await assertSupplier(ctx, body.defaultSupplierId);
     if (body.parentProductId) await assertVariantParent(ctx, body.parentProductId);
     const cat = body.categoryId ? await loadCategory(ctx, body.categoryId) : null;
@@ -206,6 +208,7 @@ export const productRoutes = crud({
   },
   prepareUpdate: async (ctx, existing, body) => {
     if (body.unitCode !== undefined && body.unitCode !== existing.unitCode) await assertUnit(ctx, body.unitCode);
+    if (body.kind !== undefined || body.productKindId !== undefined) await assertProductKind(ctx.db, body.kind ?? existing.kind, body.productKindId !== undefined ? body.productKindId : existing.productKindId);
     if (body.defaultSupplierId) await assertSupplier(ctx, body.defaultSupplierId);
     if (body.parentProductId !== undefined && body.parentProductId && body.parentProductId !== existing.parentProductId) await assertVariantParent(ctx, body.parentProductId);
     const out: Record<string, unknown> = { ...(await customForUpdate(ctx, 'product', existing.custom, body.custom, existing.id)) };

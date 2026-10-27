@@ -1,5 +1,5 @@
 /* Доставка (задача 1100, docs/architecture/delivery.md): способы доставки (правят admin и owner), доставка документа,
-   список и «мои доставки», статусы и назначение, отчёт, маршрутный лист. Курьер-участник (members.is_courier, роль ниже admin)
+   список и «мои доставки», статусы и назначение, отчёт, маршрутный лист. Курьер-участник (должность с функцией courier, роль ниже admin)
    видит и меняет только свои доставки и только их статусы. Правила — packages/db/src/delivery.ts. */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
@@ -21,10 +21,9 @@ import {
   myDeliveries,
   routeSheet,
   saveDelivery,
-  setCourierFlag,
   updateDeliveryMethod,
 } from '@gr8r/db';
-import { courierFlag, deliveryAssign, deliveryMethodQuery, deliveryMethodSave, deliveryMethodUpdate, deliveryQuery, deliveryReportQuery, deliverySave, deliveryStatusChange, idParam, isoDate, renderRouteSheet } from '@gr8r/shared';
+import { deliveryAssign, deliveryMethodQuery, deliveryMethodSave, deliveryMethodUpdate, deliveryQuery, deliveryReportQuery, deliverySave, deliveryStatusChange, idParam, isoDate, renderRouteSheet } from '@gr8r/shared';
 import { ctxOf, validationHook } from '../crud';
 import { forbidden } from '../errors';
 import { requireRole } from '../middleware';
@@ -75,11 +74,6 @@ export const deliveryRoutes = new Hono<AppEnv>()
     return c.json(await myDeliveries(ctx.db, docCtx(ctx), c.req.valid('query').date ?? today()));
   })
   .get('/couriers', async c => c.json({ items: await listCouriers(ctxOf(c).db) }))
-  .put('/couriers/:id', admin, zValidator('param', idParam, validationHook), zValidator('json', courierFlag, validationHook), async c => {
-    const ctx = ctxOf(c);
-    await setCourierFlag(ctx.db, docCtx(ctx), c.req.valid('param').id, c.req.valid('json').isCourier);
-    return c.json({ ok: true });
-  })
   .get('/report', write, zValidator('query', deliveryReportQuery, validationHook), async c => {
     const ctx = ctxOf(c);
     await notCourier(ctx);

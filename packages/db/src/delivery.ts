@@ -1,12 +1,13 @@
 /* Доставка без внешних служб (задача 1100, часть 1; docs/architecture/delivery.md): способы доставки, доставка документа
    (заказ покупателя, реализация, заказ-наряд), статусы, назначение курьера, расход при «доставлена», «мои доставки», отчёт.
    Расчёт цены и себестоимости — чистая computeDeliveryCost из shared. */
-import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
 import { computeDeliveryCost, DELIVERY_COST_ITEM_KEY, DELIVERY_DOC_TYPES, deliveryWeight, dec, div, fmt, mul, type DeliveryRateInput, type DeliveryStatus, type DocumentLineInput, type Role } from '@gr8r/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { assertPeriodOpen } from './cost-closing';
+import { memberHasFunction, memberIdsWithFunction } from './positions';
 import { updateDocument, type DocCtx } from './documents';
 import { companies, contacts, costItems, deliveries, deliveryMethods, documentLines, documents, members, products } from './schema';
 
@@ -88,21 +89,17 @@ export async function archiveDeliveryMethod(db: Db, ctx: DocCtx, id: string, arc
 
 /* ---------------- курьер ---------------- */
 
-/** Курьер, ограниченный своими доставками: отмеченный «курьер» участник без прав admin/owner */
+/** Курьер, ограниченный своими доставками: участник с должностью с функцией «курьер» без прав admin/owner */
 export async function courierScope(db: Db, ctx: DocCtx): Promise<string | null> {
   if (isAdmin(ctx.role) || !ctx.memberId) return null;
-  const [m] = await db.select({ isCourier: members.isCourier }).from(members).where(eq(members.id, ctx.memberId)).limit(1);
-  return m?.isCourier ? ctx.memberId : null;
+  return (await memberHasFunction(db, ctx.memberId, 'courier')) ? ctx.memberId : null;
 }
 
-export async function setCourierFlag(db: Db, ctx: DocCtx, memberId: string, isCourier: boolean): Promise<void> {
-  const [m] = await db.update(members).set({ isCourier, updatedAt: new Date() }).where(eq(members.id, memberId)).returning({ id: members.id });
-  if (!m) throw new DomainError(404, 'not_found', 'member not found');
-  await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'member.updated', entity: 'member', recordId: memberId, actorId: ctx.memberId, payload: { changes: ['isCourier'] } });
-}
-
+/** Курьеры для выбора: участники с функцией «курьер»; без таких должностей в воркспейсе — все активные участники */
 export async function listCouriers(db: Db) {
-  return db.select({ id: members.id, name: members.name, isCourier: members.isCourier }).from(members).where(eq(members.status, 'active')).orderBy(desc(members.isCourier), asc(members.name));
+  const ids = await memberIdsWithFunction(db, 'courier');
+  const rows = await db.select({ id: members.id, name: members.name }).from(members).where(eq(members.status, 'active')).orderBy(asc(members.name));
+  return ids ? rows.filter(r => ids.has(r.id)) : rows;
 }
 
 /* ---------------- доставка документа ---------------- */

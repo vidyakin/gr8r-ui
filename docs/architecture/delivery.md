@@ -15,7 +15,7 @@ API `apps/api/src/routes/delivery.ts`, экраны `apps/web/src/app/services/d
   строка-услуга в документе, `origin_document_id` — заказ, из которого доставка перешла в реализацию.
 - Расход в финансовый результат лежит в самой доставке: `expense_cost_item_id` (системная статья), `expense_amount`, `expensed_at`.
   Отдельного регистра финансового результата в проекте нет; расход читают отчёт по доставкам и (будущий) финансовый результат.
-- `products.weight_kg` — вес товара, кг. `members.is_courier` — отметка «курьер» (правит admin и owner).
+- `products.weight_kg` — вес товара, кг. Курьер — участник с должностью с функцией `courier` (задача 1172, [positions.md](positions.md)); флаг `members.is_courier` удалён миграцией 0039, отмеченные перенесены в должность «Курьер».
 - Системная статья затрат `dostavka` («Доставка», расходная): миграция создаёт её существующим воркспейсам, `ensureCostItems` — новым;
   если название занято своей статьёй — «Доставка (системная)».
 
@@ -43,7 +43,7 @@ API `apps/api/src/routes/delivery.ts`, экраны `apps/web/src/app/services/d
 
 ## Права
 - Справочник способов: чтение — любой участник, правка — admin и owner. Доставки правит member и выше; guest читает.
-- **Курьер** — участник с `members.is_courier`, чья роль ниже admin: видит в списках, карточке и «мои доставки» только свои, меняет только их статус на
+- **Курьер** — участник с должностью с функцией `courier`, чья роль ниже admin (список курьеров для выбора — по функции; нет таких должностей — все активные): видит в списках, карточке и «мои доставки» только свои, меняет только их статус на
   `in_transit | delivered | failed` (иначе 403 `delivery_not_yours` / `delivery_status_forbidden`); правка доставки, назначение, «Добавить в документ», удаление и отчёт ему закрыты (403).
   Admin и owner всегда видят всё. Себестоимость (`ourCost`, `expenseAmount`) и маржа приходят только admin и owner (иначе `null`).
 - API: `GET /deliveries` (отборы `from`, `to`, `courierId`, `methodId`, `status`, `q`), `GET /deliveries/mine?date=`, `GET /deliveries/report?from&to&by=method|courier|day|month`,

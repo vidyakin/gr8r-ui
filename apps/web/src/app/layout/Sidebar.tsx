@@ -25,6 +25,7 @@ import { NAV_GROUPS, SECTIONS, type NavGroupId, type SectionId } from '../routes
 import { groupPanelId, useSidePanel } from './SidePanel';
 import { useWorkspace } from '../data/store';
 import { useSession } from '../data/session';
+import { useSectionAccess } from '../positions/access';
 import { NewWorkspaceDialog } from '../overlays/new-workspace';
 import { PROJECT_STATUS, allTasks, projectColor, visibleProjects } from '../data/selectors';
 import { diffDays, parse, today } from '../lib/dates';
@@ -75,17 +76,21 @@ function Item({ to, label, icon, count, dot, collapsed, end }: ItemProps) {
 
 function SectionItem({ id, collapsed, count, dot }: { id: SectionId; collapsed: boolean; count?: number; dot?: boolean }) {
   const s = SECTIONS[id];
+  const access = useSectionAccess();
+  if (!access.id(id)) return null; // раздел скрыт должностями (задача 1172)
   return <Item to={s.path} label={s.name} icon={<s.icon size={16} />} count={count} dot={dot} collapsed={collapsed} end={s.path === '/' || s.path === '/projects' || s.path === '/members' || s.path === '/crm'} />;
 }
 
 /** Строка группы меню: подпункты открываются во второй панели. Подсвечена, если текущий адрес — в этой группе. */
 function GroupRow({ id, collapsed }: { id: NavGroupId; collapsed: boolean }) {
   const panel = useSidePanel();
+  const access = useSectionAccess();
   const t = useT();
   const pid = groupPanelId(id);
   const expanded = panel.open && panel.id === pid;
   const label = t(`nav.groups.${id}`);
   const Icon = NAV_GROUPS[id].icon;
+  if (!NAV_GROUPS[id].items.some(it => access.id(it.id))) return null; // все пункты группы скрыты должностями
   const row = (
     <button
       className={cn('sitem', panel.routeGroup === id && 'on', expanded && 'expanded')}
@@ -217,8 +222,10 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   const [newWs, setNewWs] = React.useState(false);
   const customEntities = useCustomEntities();
   const t = useT();
+  const access = useSectionAccess();
+  const showProjects = access.section('projects');
   /** Пункт раздела с другой подписью или без особых правил end — как SectionItem */
-  const item = (id: SectionId, label?: string) => <Item to={SECTIONS[id].path} label={label ?? SECTIONS[id].name} icon={React.createElement(SECTIONS[id].icon, { size: 16 })} collapsed={collapsed} />;
+  const item = (id: SectionId, label?: string) => !access.id(id) ? null : <Item to={SECTIONS[id].path} label={label ?? SECTIONS[id].name} icon={React.createElement(SECTIONS[id].icon, { size: 16 })} collapsed={collapsed} />;
 
   return (
     <nav className="side" aria-label={t('nav.main')}>
@@ -285,17 +292,21 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           ))}
         </div>
 
-        <div className="sgroup">
-          <div className="sgroup-h">{t('nav.groups.crm')}</div>
-          {(['crm', 'crmDeals', 'crmCompanies', 'crmContacts', 'crmActivities', 'crmSalesPlan', 'crmAppointments'] as const).map(id => (
-            <SectionItem key={id} id={id} collapsed={collapsed} />
-          ))}
-        </div>
+        {access.section('crm') && (
+          <div className="sgroup">
+            <div className="sgroup-h">{t('nav.groups.crm')}</div>
+            {(['crm', 'crmDeals', 'crmCompanies', 'crmContacts', 'crmActivities', 'crmSalesPlan', 'crmAppointments'] as const).map(id => (
+              <SectionItem key={id} id={id} collapsed={collapsed} />
+            ))}
+          </div>
+        )}
 
-        <div className="sgroup">
-          <div className="sgroup-h">{t('nav.groups.catalog')}</div>
-          {item('catalog')}
-        </div>
+        {access.section('catalog') && (
+          <div className="sgroup">
+            <div className="sgroup-h">{t('nav.groups.catalog')}</div>
+            {item('catalog')}
+          </div>
+        )}
 
         {/* торговля, услуги, производство и финансы — одной строкой, подпункты во второй панели */}
         <div className="sgroup">
@@ -304,10 +315,12 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           ))}
         </div>
 
-        <div className="sgroup">
-          <div className="sgroup-h">{t('nav.groups.automation')}</div>
-          {item('automations')}
-        </div>
+        {access.section('automations') && (
+          <div className="sgroup">
+            <div className="sgroup-h">{t('nav.groups.automation')}</div>
+            {item('automations')}
+          </div>
+        )}
 
         {!!customEntities.length && (
           <div className="sgroup">
@@ -327,7 +340,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
               <Plus size={14} />
             </IconButton>
           </div>
-          {projects.map(p => (
+          {showProjects && projects.map(p => (
             <ProjectItem key={p.id} id={p.id} collapsed={collapsed} />
           ))}
           <SectionItem id="archive" collapsed={collapsed} count={archived} />

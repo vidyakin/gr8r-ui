@@ -9,6 +9,7 @@ import { fmtDate } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';
 import { money, useIsAdmin } from '../catalog/data';
 import { useWorkspace } from '../data/store';
+import { useMembersWith } from '../positions/data';
 import { STATUS_LABEL, STATUS_TONE, useDocsApi, useWarehouses } from '../docs/data';
 import { useSnapshot } from './data';
 import { WasteHeaderFields, WasteTab } from './WasteTab';
@@ -441,6 +442,8 @@ function OrderOperations({ order }: { order: ProductionOrderDetail }) {
   const [editing, setEditing] = React.useState<{ componentId: string; name: string } | null>(null);
   const works = order.components.filter(c => c.kind === 'work');
   const rows = ops.data?.items ?? [];
+  // исполнители производства: участники с должностью с функцией «исполнитель производства» (задача 1172); уже назначенные остаются
+  const workers = useMembersWith((ws?.members ?? []).filter(m => m.status === 'active'), 'production_worker', rows.map(r => r.memberId));
 
   if (!works.length) return <p className="faint">{tt('production.order.noWorks')}</p>;
   if (!rows.length && !canWrite) return <p className="faint">{tt('production.order.noExecutors')}</p>;
@@ -490,7 +493,7 @@ function OrderOperations({ order }: { order: ProductionOrderDetail }) {
         <AssignDialog
           componentId={editing.componentId}
           name={editing.name}
-          members={(ws?.members ?? []).filter(m => m.status === 'active')}
+          members={workers}
           current={rows.filter(r => r.componentId === editing.componentId)}
           all={rows}
           onClose={() => setEditing(null)}

@@ -2,8 +2,9 @@
    веса у пары товаров, два курьера и три доставки в разных статусах (назначена, в пути, доставлена). Всё — настоящими сервисами. */
 import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { Db } from './client';
-import { addDeliveryToDocument, assignCourier, changeDeliveryStatus, createDeliveryMethod, saveDelivery, setCourierFlag } from './delivery';
+import { addDeliveryToDocument, assignCourier, changeDeliveryStatus, createDeliveryMethod, saveDelivery } from './delivery';
 import type { DocCtx } from './documents';
+import { memberIdsWithFunction } from './positions';
 import { documentLines, documents, members, products } from './schema';
 
 const iso = (daysAhead: number) => new Date(Date.now() + daysAhead * 864e5).toISOString().slice(0, 10);
@@ -17,9 +18,10 @@ export async function seedDelivery(db: Db, ctx: DocCtx, o: { carrierId: string; 
   const own = await createDeliveryMethod(db, ctx, { name: 'Свой курьер', kind: 'own_courier', productId: service.id, clientRate: { base: '300', perKm: '25', perKg: '5', min: '500' }, costRate: { base: '150', perKm: '15', perKg: '2', min: '250' }, freeFrom: '50000' });
   const svc = await createDeliveryMethod(db, ctx, { name: 'Курьерская служба «Быстро»', kind: 'courier_service', productId: service.id, carrierCompanyId: o.carrierId, clientRate: { base: '450', perKm: '30', perKg: '8', min: '700' }, costRate: { base: '380', perKm: '22', perKg: '6', min: '600' } });
 
-  // курьеры: два активных участника, кроме автора
-  const people = await db.select({ id: members.id }).from(members).where(and(eq(members.status, 'active'), ne(members.id, ctx.memberId ?? ''))).orderBy(asc(members.createdAt)).limit(2);
-  for (const p of people) await setCourierFlag(db, ctx, p.id, true);
+  // курьеры: участники с должностью «Курьер» (seedPositions), без должностей — первые два активных, кроме автора
+  const withFn = await memberIdsWithFunction(db, 'courier');
+  const active = await db.select({ id: members.id }).from(members).where(and(eq(members.workspaceId, wsId), eq(members.status, 'active'), ne(members.id, ctx.memberId ?? ''))).orderBy(asc(members.createdAt), asc(members.id));
+  const people = (withFn ? active.filter(m => withFn.has(m.id)) : active).slice(0, 2);
   const courier = people[0]?.id ?? null;
 
   // документы доставки: заказы покупателей и ремонтный заказ-наряд

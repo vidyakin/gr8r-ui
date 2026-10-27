@@ -63,4 +63,3 @@ export const deliveryReportQuery = z.object({
   by: z.enum(['method', 'courier', 'day', 'month']).default('method'),
 });
 
-export const courierFlag = z.object({ isCourier: z.boolean() });

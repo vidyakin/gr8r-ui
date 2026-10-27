@@ -76,6 +76,8 @@ export interface Product {
   appointmentMinutes: number | null;
   /** Вес, кг (задача 1100) */
   weightKg: string | null;
+  /** Вид номенклатуры (задача 1172) */
+  productKindId: string | null;
   custom: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;

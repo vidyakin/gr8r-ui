@@ -9,6 +9,7 @@ import { Badge, Button, ConfirmDialog, EmptyState, Field, Input, Select, Skeleto
 import { fmtAmount, useT } from '@/i18n';
 import { fmtDate, parse } from '../lib/dates';
 import { useWorkspace } from '../data/store';
+import { useMembersWith } from '../positions/data';
 import { useCanWrite } from '../meta/custom-fields';
 import { CounterpartyPicker } from './pickers';
 import { useCanSeeCost, useDocsApi, typeLabel, type DocDetail } from './data';
@@ -59,9 +60,10 @@ export function DeliveryTab({ doc }: { doc: DocDetail }) {
   const canWrite = useCanWrite() && doc.status !== 'cancelled';
   const seeCost = useCanSeeCost();
   const methods = useDeliveryMethods();
-  const members = useWorkspace().data.members;
+  const allMembers = useWorkspace().data.members;
   const q = useDocumentDelivery(doc.id);
   const item = q.data?.delivery ?? null;
+  const members = useMembersWith(allMembers, 'courier', [item?.courierMemberId]); // курьеры (задача 1172)
   const [form, setForm] = React.useState<Form | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [confirmDel, setConfirmDel] = React.useState(false);

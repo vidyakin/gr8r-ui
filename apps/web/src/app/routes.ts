@@ -50,6 +50,7 @@ import {
   Target,
   type LucideIcon,
 } from 'lucide-react';
+import type { PositionSection } from '@gr8r/shared';
 import { hasKey, t, type TKey } from '@/i18n';
 
 export interface Section {
@@ -193,6 +194,74 @@ export function navGroupOf(pathname: string, prefer?: NavGroupId | null): NavGro
       const path = SECTIONS[it.id].path;
       if (within(pathname, path) && (path.length > len || (path.length === len && gid === prefer))) [best, len] = [gid, path.length];
     }
+  }
+  return best;
+}
+
+/* Раздел меню для должностей (задача 1172): какой набор разделов открывает пункт. Нет в таблице — виден всегда
+   (главная, входящие, избранное, уведомления, участники, активность, архив, поиск, настройки). */
+const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
+  overview: 'projects',
+  projects: 'projects',
+  tasks: 'projects',
+  mytasks: 'projects',
+  calendar: 'projects',
+  timeline: 'projects',
+  crm: 'crm',
+  crmDeals: 'crm',
+  crmCompanies: 'crm',
+  crmContacts: 'crm',
+  crmActivities: 'crm',
+  crmSalesPlan: 'crm',
+  crmAppointments: 'crm',
+  catalog: 'catalog',
+  production: 'production',
+  productionOrders: 'production',
+  productionWorkbench: 'production',
+  productionNeeds: 'production',
+  productionPlans: 'production',
+  productionPlanOrders: 'production',
+  productionStages: 'production',
+  productionPiecework: 'production',
+  productionPlanner: 'production',
+  productionResources: 'production',
+  productionClosing: 'production',
+  productionWip: 'production',
+  productionReports: 'production',
+  otherCosts: 'production',
+  materialAllocation: 'production',
+  workCenters: 'production',
+  automations: 'automations',
+  sales: 'trade',
+  purchases: 'trade',
+  processingDocs: 'trade',
+  stockDocs: 'stock',
+  inventory: 'stock',
+  inUse: 'stock',
+  serials: 'stock',
+  workOrders: 'services',
+  repairItems: 'services',
+  servicesTimesheet: 'services',
+  servicesPlanner: 'services',
+  servicesReports: 'services',
+  contracts: 'services',
+  tariffPlans: 'services',
+  billing: 'services',
+  deliveries: 'deliveries',
+  myDeliveries: 'deliveries',
+  investments: 'finance',
+  investmentsPlanFact: 'finance',
+};
+
+export const positionSectionOf = (id: SectionId): PositionSection | null => POSITION_SECTION_OF[id] ?? null;
+
+/** Раздел для должностей по адресу: самое длинное совпадение пути пункта (адреса вне меню, например /documents/:id, не ограничиваются) */
+export function positionSectionOfPath(pathname: string): PositionSection | null {
+  let best: PositionSection | null = null;
+  let len = 0;
+  for (const [id, sec] of Object.entries(POSITION_SECTION_OF) as [SectionId, PositionSection][]) {
+    const path = SECTIONS[id].path;
+    if (within(pathname, path) && path.length > len) [best, len] = [sec, path.length];
   }
   return best;
 }

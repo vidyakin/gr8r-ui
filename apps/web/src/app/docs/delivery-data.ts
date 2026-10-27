@@ -99,7 +99,6 @@ export function useMyDeliveries(date: string) {
 export interface Courier {
   id: string;
   name: string;
-  isCourier: boolean;
 }
 
 export function useCouriers() {

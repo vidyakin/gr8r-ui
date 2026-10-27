@@ -12,6 +12,7 @@ import { useCanWrite } from '../meta/custom-fields';
 import { money } from '../catalog/data';
 import { fmtDate, parse } from '../lib/dates';
 import { useWorkspace } from '../data/store';
+import { useMembersWith } from '../positions/data';
 import { STATUS_LABEL, STATUS_TONE, docsKey, useDocsApi, useCanSeeCost, useDocumentStates, useWorkOrderKinds, useWorkOrderTime, useWorkOrders, type DocDetail, type WorkOrderAssignment, type WorkOrderListItem } from './data';
 import { useQueryClient } from '@tanstack/react-query';
 import { useWsId } from '../meta/data';
@@ -156,7 +157,8 @@ export function WorkOrderPanel({ doc, lead }: { doc: DocDetail; lead: (DocTab | 
   const ws = useWsId();
   const api = useDocsApi();
   const canWrite = useCanWrite();
-  const members = useWorkspace().data.members;
+  const allMembers = useWorkspace().data.members;
+  const members = useMembersWith(allMembers, 'work_order_executor', (doc.assignments ?? []).map((a: { assigneeId?: string | null }) => a.assigneeId)); // исполнители заказ-нарядов (задача 1172)
   const kinds = useWorkOrderKinds();
   const time = useWorkOrderTime(doc.id);
   const [reason, setReason] = React.useState('');

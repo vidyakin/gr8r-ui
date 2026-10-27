@@ -2,7 +2,7 @@
    Выбранная категория живёт в адресе (?category=…), карточка — в пути (/catalog/:productId). */
 import * as React from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
-import { CircleAlert, Package, Plus, Wrench } from 'lucide-react';
+import { CircleAlert, Package, Plus, Shapes, Wrench } from 'lucide-react';
 import { VAT_LABELS, type ProductKind } from '@gr8r/shared';
 import { Badge, Button, EmptyState, Skeleton } from '@/components/ui';
 import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/gr8r/data-table';
@@ -14,6 +14,7 @@ import { tEnum, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { AttributesDialog, CategoryDialog, CategoryTree, DeleteCategoryDialog } from './category-ui';
 import { ProductDrawer, ProductFormDialog } from './product-ui';
+import { useProductKinds } from '../positions/data';
 import { buildCategoryTree, categoryPath, flattenTree, money, unitSymbol, useCategories, useIsAdmin, useProduct, useProducts, useUnits, type CategoryNode, type Product } from './data';
 
 type Dialog = { type: 'category'; edit?: CategoryNode; parent?: CategoryNode | null } | { type: 'attributes'; category: CategoryNode } | { type: 'delete'; category: CategoryNode } | { type: 'product' } | null;
@@ -54,10 +55,12 @@ export function CatalogPage() {
 
   const kind = (filters.values.kind ?? []) as ProductKind[];
   const status = filters.values.status ?? [];
+  const productKinds = useProductKinds();
+  const pkFilter = filters.values.productKind ?? [];
   const list = useProducts({ categoryId: selected ?? undefined, q: q || undefined, kind: kind.length === 1 ? kind[0] : undefined, active: status.length === 1 ? status[0] === 'active' : undefined });
   // варианты показываются вложенно под товаром-родителем
   const rows = React.useMemo(() => {
-    const all = list.data ?? [];
+    const all = (list.data ?? []).filter(p => !pkFilter.length || (p.productKindId && pkFilter.includes(p.productKindId))); // фильтр по виду номенклатуры (задача 1172)
     const variants = all.filter(p => p.parentProductId);
     const parents = all.filter(p => !p.parentProductId);
     const byParent = new Map<string, typeof all>();
@@ -68,7 +71,7 @@ export function CatalogPage() {
       for (const v of byParent.get(p.id) ?? []) out.push(v);
     }
     return out;
-  }, [list.data]);
+  }, [list.data, pkFilter.join('|')]);
 
   const open = (p: Product) => navigate({ pathname: `/catalog/${p.id}`, search: sp.toString() });
   const closeDrawer = () => navigate({ pathname: '/catalog', search: sp.toString() });
@@ -93,6 +96,7 @@ export function CatalogPage() {
         ),
       },
       { id: 'sku', header: t('catalog.col.sku'), width: 130, value: p => p.sku, cell: p => (p.sku ? <span className="mono">{p.sku}</span> : <span className="faint">—</span>) },
+      { id: 'productKind', header: t('positions.product.kind'), width: 150, defaultHidden: true, value: p => p.productKindId ?? '', cell: p => <span className="muted trunc">{(productKinds.data ?? []).find(k => k.id === p.productKindId)?.name ?? '—'}</span> },
       { id: 'category', header: t('catalog.col.category'), width: 190, value: p => categoryPath(categories.data, p.categoryId), cell: p => <span className="trunc muted">{categoryPath(categories.data, p.categoryId).split(' / ').pop() || '—'}</span> },
       { id: 'unit', header: t('catalog.col.unit'), width: 72, value: p => unitSymbol(units.data, p.unitCode) },
       { id: 'vat', header: t('catalog.col.vat'), width: 84, value: p => tEnum('vat', p.vatRate, VAT_LABELS[p.vatRate]) },
@@ -101,12 +105,13 @@ export function CatalogPage() {
       { id: 'barcode', header: t('catalog.col.barcode'), width: 140, defaultHidden: true, value: p => p.barcode, cell: p => (p.barcode ? <span className="mono">{p.barcode}</span> : <span className="faint">—</span>) },
       { id: 'created', header: t('catalog.col.created'), width: 112, defaultHidden: true, value: p => Date.parse(p.createdAt), cell: p => <span className="muted num">{fmtDate(new Date(p.createdAt))}</span> },
     ],
-    [categories.data, units.data, t],
+    [categories.data, units.data, productKinds.data, t],
   );
   const table = useDataTable(columns);
 
   const filterFields: FilterField[] = [
     { id: 'kind', name: t('common.type'), icon: <Package size={15} />, options: [{ id: 'goods', name: t('catalog.kind.goods') }, { id: 'service', name: t('catalog.kind.service') }] },
+    ...((productKinds.data ?? []).length ? [{ id: 'productKind', name: t('positions.product.filter'), icon: <Shapes size={15} />, options: (productKinds.data ?? []).map(k => ({ id: k.id, name: k.name })) }] : []),
     { id: 'status', name: t('common.status'), icon: <CircleAlert size={15} />, options: [{ id: 'active', name: t('common.active') }, { id: 'inactive', name: t('common.inactive') }] },
   ];
 

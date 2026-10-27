@@ -129,7 +129,13 @@ describe('seed', () => {
     expect(await count('deliveries', `${w} and status = 'delivered' and expense_amount is not null`)).toBe(1);
     expect(await count('deliveries', `${w} and status = 'assigned'`)).toBe(1);
     expect(await count('deliveries', `${w} and status = 'in_transit'`)).toBe(1);
-    expect(await count('members', `${w} and is_courier`)).toBe(2);
+    expect(await count('member_positions', `${w} and position_id in (select id from positions where functions @> array['courier'])`)).toBe(2);
+    // должности (задача 1172): четыре должности, шесть назначений, три вида номенклатуры; виды у мебели, монтажа и двух услуг массажа
+    expect(await count('positions', w)).toBe(4);
+    expect(await count('member_positions', w)).toBe(6);
+    expect(await count('product_kinds', w)).toBe(3);
+    expect(await count('position_product_kinds', w)).toBe(1);
+    expect(await count('products', `${w} and product_kind_id is not null`)).toBeGreaterThan(5);
     expect(await count('products', `${w} and weight_kg is not null`)).toBe(2);
     expect(await count('cost_items', `${w} and system_key = 'dostavka'`)).toBe(1);
     expect(await count('deliveries', `${w} and line_id is not null`)).toBe(1); // строка-услуга добавлена в черновик заказа

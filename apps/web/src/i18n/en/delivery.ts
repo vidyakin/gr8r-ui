@@ -141,7 +141,6 @@ export const delivery = {
     empty: 'No delivery methods yet',
     emptyHint: 'Add the first one: for example, your own courier.',
     couriers: 'Couriers',
-    couriersLead: 'A courier sees and changes only their own deliveries. Admins and owners always see everything.',
-    isCourier: 'Courier',
+    couriersLead: 'A courier sees and changes only their own deliveries. Admins and owners always see everything. Couriers are employees whose position has the “Courier” function: set it in Settings → Positions.',
   },
 } as const;

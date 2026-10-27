@@ -17,3 +17,4 @@ export * from './serials';
 export * from './sales-plan';
 export * from './appointments';
 export * from './delivery';
+export * from './positions';

@@ -41,6 +41,8 @@ export const settings: Widen<typeof S> = {
       costItems: 'Статьи затрат',
       workOrders: 'Виды заказ-нарядов',
       deliveryMethods: 'Способы доставки',
+      positions: 'Должности',
+      productKinds: 'Виды номенклатуры',
       notifEmail: 'Email',
       notifPush: 'Push',
       notifMentions: 'Упоминания',

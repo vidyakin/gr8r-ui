@@ -47,8 +47,9 @@ beforeAll(async () => {
   const people = (await owner.get('/members')).body.items as any[];
   courierId = people.find(m => m.email === courier.user!.email).id;
   courier2Id = people.find(m => m.email === courier2.user!.email).id;
-  expect((await owner.put(`/deliveries/couriers/${courierId}`, { isCourier: true })).status).toBe(200);
-  expect((await owner.put(`/deliveries/couriers/${courier2Id}`, { isCourier: true })).status).toBe(200);
+  // курьеры — участники с должностью с функцией «курьер» (задача 1172)
+  const pos = (await owner.post('/positions', { name: 'Курьер', functions: ['courier'] })).body;
+  for (const id of [courierId, courier2Id]) expect((await owner.put(`/positions/by-member/${id}`, { positionIds: [pos.id] })).status).toBe(200);
   wh = (await owner.get('/warehouses')).body.items[0].id;
   customer = (await mk(owner, '/companies', { name: 'ООО «Получатель»', actualAddress: 'Москва, ул. Ленина, 1' })).id;
   await mk(owner, '/contacts', { name: 'Иван Петров', phone: '+7 900 000-00-01', companyId: customer });

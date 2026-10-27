@@ -11,6 +11,7 @@ import { company as findCompany, contactsOfCompany } from './selectors';
 import { industryName, sizeName } from './labels';
 import { newCrmId, useCrm } from './store';
 import type { DealDefaults } from './ui-context';
+import { useMembersWith } from '../positions/data';
 import type { StageId } from './types';
 
 /** Поле формы: подпись, содержимое и ошибка */
@@ -34,10 +35,10 @@ function FormField({ id, label, error, grow, children }: { id: string; label: st
 function OwnerSelect({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
   const { data } = useWorkspace();
   const t = useT();
+  const people = useMembersWith(data.members.filter(m => m.status === 'active'), 'sales_manager', [value]);
   return (
     <select className="select" id={id} value={value} onChange={e => onChange(e.target.value)}>
-      {data.members
-        .filter(m => m.status === 'active')
+      {people
         .map(m => (
           <option key={m.id} value={m.id}>
             {m.name}

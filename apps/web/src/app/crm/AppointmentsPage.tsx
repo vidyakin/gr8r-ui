@@ -14,6 +14,7 @@ import { useCanWrite } from '../meta/custom-fields';
 import { fmtDate, parse } from '../lib/dates';
 import { ScheduleEditor } from './ScheduleEditor';
 import { ApptDialog, BookDialog, Board, isoToday, type BoardCol, type BookPreset } from './appointments-ui';
+import { useMembersWith } from '../positions/data';
 import { useApptMutation, useDayBoard, useSpecialists, useUnclosedDays, useWeekBoard, type Appt, type DayDoc } from './appointments-data';
 
 const TABS = ['day', 'week', 'unclosed', 'schedules'] as const;
@@ -167,7 +168,8 @@ function SchedulesTab() {
   const { active } = useSession();
   const ws = useWorkspace().data;
   const isAdmin = active?.role === 'owner' || active?.role === 'admin';
-  const people = ws.members.filter(m => m.status === 'active' && (isAdmin || m.id === ws.me));
+  // график заводят специалистам записи (должность с функцией); свой график участник открывает всегда (задача 1172)
+  const people = useMembersWith(ws.members.filter(m => m.status === 'active' && (isAdmin || m.id === ws.me)), 'appointments_specialist', [ws.me]);
   const [pick, setPick] = React.useState(ws.me);
   const memberId = people.some(m => m.id === pick) ? pick : people[0]?.id;
   if (!memberId) return <EmptyState icon={<CalendarCheck size={20} />} title={t('appt.board.noSpecialists')} />;

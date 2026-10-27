@@ -6,6 +6,7 @@ import { NavLink, useLocation } from 'react-router';
 import { ArrowLeft, X } from 'lucide-react';
 import { IconButton } from '@/components/ui';
 import { cn } from '@/lib/utils';
+import { useSectionAccess } from '../positions/access';
 import { NAV_GROUPS, SECTIONS, navGroupOf, type NavGroupId, type NavGroupItem } from '../routes';
 import { t, useT } from '@/i18n';
 
@@ -23,7 +24,8 @@ interface PanelDef {
 
 /** Подпункты группы. end — у пункта, под путём которого лежат другие пункты (/production и /production/orders) */
 function GroupItems({ id }: { id: NavGroupId }) {
-  const items: NavGroupItem[] = NAV_GROUPS[id].items;
+  const access = useSectionAccess();
+  const items: NavGroupItem[] = NAV_GROUPS[id].items.filter(it => access.id(it.id)); // скрытые должностями разделы не показываем
   return (
     <>
       {items.map(it => {

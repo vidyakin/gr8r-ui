@@ -50,6 +50,8 @@ export interface Specialist {
   slotMinutes: number;
   dayStartMin: number;
   dayEndMin: number;
+  /** Оказываемые виды номенклатуры (задача 1172); null — любые услуги */
+  productKindIds: string[] | null;
 }
 export interface ScheduleView {
   memberId: string;

@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
-import { dec, fmt, mul } from '@gr8r/shared';
+import { dec, fmt, mul, productFitsSpecialist } from '@gr8r/shared';
 import { Badge, Button, EmptyState, IconButton, Input, Select, Skeleton, Textarea, toast } from '@/components/ui';
 import { fmtAmount, fmtDateTimeIntl, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
@@ -12,7 +12,7 @@ import { useCanWrite } from '../meta/custom-fields';
 import { parse } from '../lib/dates';
 import { useCrm } from './store';
 import { fmtMin } from './appointments-ui';
-import { useApptMutation, useDayDoc, type DayDoc } from './appointments-data';
+import { useApptMutation, useDayDoc, useSpecialists, type DayDoc } from './appointments-data';
 
 type Row = { id?: string; companyId: string; contactId: string | null; productId: string; startMin: number | null; qty: string; price: string };
 
@@ -37,7 +37,18 @@ function DayForm({ doc }: { doc: DayDoc }) {
   const [comment, setComment] = React.useState(doc.comment);
   const [rows, setRows] = React.useState<Row[]>(doc.lines.map(l => ({ id: l.id, companyId: l.companyId, contactId: l.contactId, productId: l.productId, startMin: l.startMin, qty: String(Number(l.qty)), price: String(Number(l.price)) })));
   const companyName = (id: string) => doc.lines.find(l => l.companyId === id)?.companyName ?? crm.companies.find(c => c.id === id)?.name ?? '';
-  const productOptions = (prods.data ?? []).filter(p => p.kind === 'service' || p.kind === 'goods').map(p => ({ value: p.id, label: p.name }));
+  // услуги — только виды, которые оказывает специалист документа; товары добавляются отдельной кнопкой (задача 1172)
+  const specs = useSpecialists();
+  const allowed = (specs.data ?? []).find(x => x.memberId === doc.specialistId)?.productKindIds ?? null;
+  const catalog = prods.data ?? [];
+  const serviceOptions = catalog.filter(p => p.kind === 'service' && productFitsSpecialist(p.productKindId, allowed)).map(p => ({ value: p.id, label: p.name }));
+  const goodsOptions = catalog.filter(p => p.kind === 'goods').map(p => ({ value: p.id, label: p.name }));
+  const optionsFor = (productId: string) => {
+    const isGoods = catalog.find(p => p.id === productId)?.kind === 'goods';
+    const base = isGoods ? goodsOptions : serviceOptions;
+    const cur = catalog.find(p => p.id === productId);
+    return cur && !base.some(o => o.value === productId) ? [{ value: cur.id, label: cur.name }, ...base] : base;
+  };
   const total = rows.reduce((s, r) => s + dec(fmt(mul(dec(r.qty || '0'), dec(r.price || '0')), 2)), 0n);
   const setRow = (i: number, p: Partial<Row>) => setRows(list => list.map((r, k) => (k === i ? { ...r, ...p } : r)));
   const body = () => ({ comment, lines: rows.map(r => ({ ...(r.id ? { id: r.id } : {}), companyId: r.companyId, contactId: r.contactId, productId: r.productId, startMin: r.startMin, qty: r.qty || '1', price: r.price || '0' })) });
@@ -76,7 +87,7 @@ function DayForm({ doc }: { doc: DayDoc }) {
             {rows.map((r, i) => (
               <tr key={`${r.id ?? 'new'}${i}`}>
                 <td>{canEdit && !r.id ? <Select value={r.companyId} onValueChange={v => setRow(i, { companyId: v, contactId: null })} options={crm.companies.map(c => ({ value: c.id, label: c.name }))} aria-label={t('appt.doc.client')} /> : companyName(r.companyId)}</td>
-                <td>{canEdit ? <Select value={r.productId} onValueChange={v => setRow(i, { productId: v })} options={productOptions} aria-label={t('appt.doc.service')} /> : productOptions.find(o => o.value === r.productId)?.label}</td>
+                <td>{canEdit ? <Select value={r.productId} onValueChange={v => setRow(i, { productId: v })} options={optionsFor(r.productId)} aria-label={t('appt.doc.service')} /> : optionsFor(r.productId).find(o => o.value === r.productId)?.label}</td>
                 <td className="num">{r.startMin === null ? '—' : fmtMin(r.startMin)}</td>
                 <td className="r">{canEdit ? <Input type="number" min={0} step="0.001" style={{ width: 80, textAlign: 'right' }} value={r.qty} aria-label={t('appt.doc.qty')} onChange={e => setRow(i, { qty: e.target.value })} /> : <span className="num">{r.qty}</span>}</td>
                 <td className="r">{canEdit ? <Input type="number" min={0} step="0.01" style={{ width: 110, textAlign: 'right' }} value={r.price} aria-label={t('appt.book.price')} onChange={e => setRow(i, { price: e.target.value })} /> : <span className="num">{fmtAmount(r.price)}</span>}</td>
@@ -93,10 +104,13 @@ function DayForm({ doc }: { doc: DayDoc }) {
       {canEdit && (
         <div className="row" style={{ gap: 8, padding: '0 var(--gutter) 12px', flexWrap: 'wrap' }}>
           {clients.map(([id, name]) => (
-            <Button key={id} size="sm" variant="ghost" onClick={() => setRows(list => [...list, { companyId: id, contactId: null, productId: productOptions[0]?.value ?? '', startMin: null, qty: '1', price: '0' }])}>
+            <Button key={id} size="sm" variant="ghost" onClick={() => setRows(list => [...list, { companyId: id, contactId: null, productId: serviceOptions[0]?.value ?? '', startMin: null, qty: '1', price: '0' }])}>
               <Plus size={13} /> {name}
             </Button>
           ))}
+          <Button size="sm" variant="ghost" disabled={!clients.length || !goodsOptions.length} onClick={() => setRows(list => [...list, { companyId: clients[0]![0], contactId: null, productId: goodsOptions[0]!.value, startMin: null, qty: '1', price: String(Number(catalog.find(p => p.id === goodsOptions[0]!.value)?.price ?? 0)) }])}>
+            <Plus size={13} /> {t('appt.doc.addGoods')}
+          </Button>
           {!clients.length && <span className="faint" style={{ fontSize: 13 }}>{t('appt.doc.empty')}</span>}
         </div>
       )}

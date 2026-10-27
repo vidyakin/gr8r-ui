@@ -16,6 +16,7 @@ import { company as findCompany, contact as findContact, deal as findDeal, isOve
 import { activityName, activityVerb, lostReasonName, stageName } from './labels';
 import { useCrm } from './store';
 import { useCrmUi } from './ui-context';
+import { useMembersWith } from '../positions/data';
 import { useT } from '@/i18n';
 import type { ActivityType, CrmActivity, Deal, StageId } from './types';
 
@@ -179,7 +180,7 @@ export function StageField({ deal }: { deal: Deal }) {
 export function OwnerField({ value, onChange }: { value: string; onChange: (id: string) => void }) {
   const { data } = useWorkspace();
   const t = useT();
-  const people = data.members.filter(m => m.status === 'active');
+  const people = useMembersWith(data.members.filter(m => m.status === 'active'), 'sales_manager', [value]);
   return (
     <PillMenu<string>
       label={t('crm.deals.drawer.ownerField')}

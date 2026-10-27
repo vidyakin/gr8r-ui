@@ -1,7 +1,7 @@
 /* Запись на приём (задача 1171): сетка «время × колонки» (день всех специалистов, неделя специалиста), диалог записи и карточка записи.
    Сетка работает на телефонной ширине: горизонтальная прокрутка, закреплённая колонка времени. */
 import * as React from 'react';
-import { freeStarts, OCCUPYING_STATUSES, slotsNeeded, type AppointmentStatus } from '@gr8r/shared';
+import { freeStarts, OCCUPYING_STATUSES, productFitsSpecialist, slotsNeeded, type AppointmentStatus } from '@gr8r/shared';
 import { Badge, Button, Dialog, DialogContent, Field, Input, Segmented, Select, Textarea, toast } from '@/components/ui';
 import { fmtAmount, fmtDateTimeIntl, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
@@ -125,7 +125,6 @@ export function BookDialog({ open, onOpenChange, preset }: { open: boolean; onOp
   const { data: crm } = useCrm();
   const specs = useSpecialists();
   const prods = useProducts({ active: true });
-  const services = (prods.data ?? []).filter(p => p.kind === 'service');
   const create = useApptMutation<{ id: string }>('POST');
   const free = useFreeSlot();
   const [mode, setMode] = React.useState<'contact' | 'company' | 'new'>(preset.companyId ? 'company' : 'contact');
@@ -140,7 +139,12 @@ export function BookDialog({ open, onOpenChange, preset }: { open: boolean; onOp
   const [price, setPrice] = React.useState('');
   const [comment, setComment] = React.useState('');
   const [busy, setBusy] = React.useState(false);
-  const product = services.find(p => p.id === productId);
+  // услуги — только виды, которые оказывает выбранный специалист; специалисты — только те, кто оказывает выбранную услугу (задача 1172)
+  const allServices = (prods.data ?? []).filter(p => p.kind === 'service');
+  const chosen = (specs.data ?? []).find(s => s.memberId === specialistId);
+  const services = allServices.filter(p => productFitsSpecialist(p.productKindId, chosen?.productKindIds ?? null));
+  const product = allServices.find(p => p.id === productId);
+  const specialists = (specs.data ?? []).filter(s => !product || productFitsSpecialist(product.productKindId, s.productKindIds));
   const board = useDayBoard(date);
   const col = board.data?.columns.find(c => c.specialistId === specialistId);
   const starts = React.useMemo(() => {
@@ -221,7 +225,7 @@ export function BookDialog({ open, onOpenChange, preset }: { open: boolean; onOp
             {p => <Select id={p.id} value={productId} onValueChange={pickProduct} options={services.map(s => ({ value: s.id, label: s.appointmentMinutes ? `${s.name} · ${t('appt.minutes', { n: s.appointmentMinutes })}` : s.name }))} placeholder={t('appt.book.pickService')} aria-label={t('appt.book.service')} />}
           </Field>
           <div className="row" style={{ gap: 12, flexWrap: 'wrap' }}>
-            <Field label={t('appt.book.specialist')}>{p => <Select id={p.id} value={specialistId} onValueChange={v => { setSpecialistId(v); setStartMin(null); }} options={(specs.data ?? []).map(s => ({ value: s.memberId, label: s.name }))} placeholder={t('appt.book.pickSpecialist')} aria-label={t('appt.book.specialist')} />}</Field>
+            <Field label={t('appt.book.specialist')}>{p => <Select id={p.id} value={specialistId} onValueChange={v => { setSpecialistId(v); setStartMin(null); const sp = (specs.data ?? []).find(x => x.memberId === v); if (product && !productFitsSpecialist(product.productKindId, sp?.productKindIds ?? null)) setProductId(''); }} options={specialists.map(s => ({ value: s.memberId, label: s.name }))} placeholder={t('appt.book.pickSpecialist')} aria-label={t('appt.book.specialist')} />}</Field>
             <Field label={t('appt.book.date')}>{p => <Input {...p} type="date" value={date} onChange={e => { setDate(e.target.value); setStartMin(null); }} />}</Field>
             <Field label={t('appt.book.time')}>
               {p => <Select id={p.id} value={startMin === null ? '' : String(startMin)} onValueChange={v => setStartMin(Number(v))} options={starts.map(s => ({ value: String(s), label: fmtMin(s) }))} placeholder={col && !starts.length ? t('appt.book.noSlots') : t('appt.book.pickTime')} aria-label={t('appt.book.time')} />}
