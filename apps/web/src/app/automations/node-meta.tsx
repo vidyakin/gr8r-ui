@@ -1,5 +1,9 @@
 /* Оформление узлов: иконки по имени из описания узла, цвета категорий, краткое описание параметров для карточки на холсте. */
 import {
+  UserPlus,
+  UserRoundPlus,
+  UserCheck,
+  GitCompareArrows,
   Bell,
   CirclePlus,
   Clock,
@@ -33,6 +37,10 @@ const ICONS: Record<string, LucideIcon> = {
   'square-pen': SquarePen,
   'list-plus': ListPlus,
   bell: Bell,
+  'user-plus': UserPlus,
+  'user-round-plus': UserRoundPlus,
+  'user-check': UserCheck,
+  'git-compare-arrows': GitCompareArrows,
   globe: Globe,
   'message-square-plus': MessageSquarePlus,
 };

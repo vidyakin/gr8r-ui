@@ -17,7 +17,8 @@ import { delivery } from './delivery';
 import { repeat } from './repeat';
 import { appt } from './appt';
 import { positions } from './positions';
+import { leads } from './leads';
 import { languages, settings } from './settings';
 import { views } from './views';
 
-export const en = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, repeat, appt, delivery, positions };
+export const en = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, repeat, appt, delivery, positions, leads };

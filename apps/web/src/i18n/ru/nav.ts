@@ -19,6 +19,7 @@ export const sections: Widen<typeof S> = {
   settings: 'Настройки',
   system: 'Дизайн-система',
   crm: 'Сводка',
+  crmLeads: 'Лиды',
   crmDeals: 'Сделки',
   crmCompanies: 'Компании',
   crmContacts: 'Контакты',

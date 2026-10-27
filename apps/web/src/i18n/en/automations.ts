@@ -88,6 +88,25 @@ export const automations = {
         dueDate: 'Due date YYYY-MM-DD (optional)',
       },
     },
+    trigger_lead_created: {
+      label: 'Lead created',
+      description: 'Starts when a lead is created: manually, by a website form or by an automation.',
+    },
+    trigger_lead_status_changed: {
+      label: 'Lead status changed',
+      description: 'Starts when the status of a lead changes, optionally to a specific status.',
+      params: { statusId: 'New status (optional)' },
+    },
+    action_create_lead: {
+      label: 'Create lead',
+      description: 'Creates a lead in the first status of the "new" category.',
+      params: { name: 'Name', companyName: 'Company (optional)', phone: 'Phone (optional)', email: 'Email (optional)', comment: 'Comment', source: 'Source', ownerId: 'Owner (optional)' },
+    },
+    action_assign_lead: {
+      label: 'Assign lead owner',
+      description: 'Sets the responsible member of a lead: manually or in turn among sales managers.',
+      params: { leadId: 'Lead ID', mode: 'Assign', memberId: 'Member (for manual)' },
+    },
     action_notify: {
       label: 'Notify member',
       description: 'Sends an in-app notification to a workspace member.',
@@ -330,6 +349,7 @@ export const automations = {
     chooseProject: 'Choose project',
     statusPlaceholder: 'Status',
     memberPlaceholder: 'Member',
+    anyStatus: 'Any status',
     chooseMember: 'Choose member',
     chooseGeneric: 'Choose…',
     required: 'Required',
