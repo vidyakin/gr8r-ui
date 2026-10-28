@@ -1,6 +1,7 @@
 /* Запись клиентов на приём (задача 1171), раздел docs/architecture/appointments.md: график специалиста и исключения, записи с проверкой
    слотов и пересечений, сетки дня и недели, поиск свободного времени, документ «Оказанные услуги за день» (тип service_day) с проведением,
    контроль незакрытых дней и напоминания воркера. Правила слотов — чистые функции @gr8r/shared/appointments. */
+import { resolveOne } from './pricing';
 import { and, asc, eq, gte, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import {
   addDaysIso,
@@ -396,7 +397,8 @@ export async function createAppointment(db: Db, ctx: DocCtx, input: AppointmentI
       startMin: input.startMin,
       slots,
       slotMinutes,
-      price: input.price ?? prod.price,
+      // цена по виду цен клиента на дату записи (задача 1178), без вида — розничная
+      price: input.price ?? (await resolveOne(db, ctx.workspaceId, input.productId, { party: 'customer', counterpartyId: input.companyId ?? null }, input.date)) ?? prod.price,
       comment: input.comment ?? '',
       createdBy: ctx.memberId,
     })

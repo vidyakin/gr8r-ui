@@ -270,7 +270,7 @@ async function documentTypeOf(ctx: Ctx, id: string): Promise<string> {
 async function payrollGuard(c: Parameters<typeof hasRole>[0], ctx: Ctx, id: string): Promise<void> {
   if (hasRole(c, 'admin')) return;
   const type = await documentTypeOf(ctx, id);
-  if (type === 'payroll' || type === 'payroll_statement') throw new AppError(403, 'forbidden', 'Payroll documents require the admin role');
+  if (type === 'payroll' || type === 'payroll_statement' || type === 'price_setting') throw new AppError(403, 'forbidden', 'Payroll and price setting documents require the admin role');
 }
 
 /** Склад-получатель (перемещение) — отдельным алиасом, чтобы не путать со складом шапки */
@@ -392,7 +392,7 @@ export const documentRoutes = new Hono<AppEnv>()
     const body = c.req.valid('json');
     // производственные документы создаются своим сервисом: у них позиции и состав, а не строки товаров
     // производственные документы и прочие затраты создаются своим сервисом: у них позиции и состав, а не строки товаров
-    if (body.type === 'production' || body.type === 'production_order' || body.type === 'other_costs' || body.type === 'material_allocation' || body.type === 'sales_plan' || body.type === 'service_day' || isCashDocType(body.type)) throw new AppError(422, 'production_api_only', 'This document type is created in its own section of Production');
+    if (body.type === 'production' || body.type === 'production_order' || body.type === 'other_costs' || body.type === 'material_allocation' || body.type === 'sales_plan' || body.type === 'service_day' || body.type === 'price_setting' || isCashDocType(body.type)) throw new AppError(422, 'production_api_only', 'This document type is created in its own section of Production');
     const id = await createDocument(ctx.db, docCtx(ctx), body);
     const detail = await documentDetail(ctx.db, id);
     // заказ-наряд: карточка сразу с видом, состояниями, материалами и назначениями
@@ -402,7 +402,9 @@ export const documentRoutes = new Hono<AppEnv>()
   .patch('/:id', write, zValidator('param', idParam, validationHook), zValidator('json', documentUpdate, validationHook), async c => {
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;
-    if (isCashDocType(await documentTypeOf(ctx, id))) throw new AppError(422, 'payments_api_only', 'Payment documents are edited through /payments');
+    const patchedType = await documentTypeOf(ctx, id);
+    if (patchedType === 'price_setting') throw new AppError(422, 'pricing_api_only', 'The price setting is edited through /pricing/settings');
+    if (isCashDocType(patchedType)) throw new AppError(422, 'payments_api_only', 'Payment documents are edited through /payments');
     await updateDocument(ctx.db, docCtx(ctx), id, c.req.valid('json'));
     return c.json(await documentDetail(ctx.db, id));
   })

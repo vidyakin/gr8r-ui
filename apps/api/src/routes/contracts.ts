@@ -86,6 +86,7 @@ export const contractRoutes = new Hono<AppEnv>()
         validTo: body.validTo ?? null,
         paymentDays: body.paymentDays,
         priceType: body.priceType,
+        priceKindId: body.priceKindId ?? null,
         isService: body.isService,
         tariffPlanId: body.tariffPlanId ?? null,
         periodicity: body.periodicity ?? null,
@@ -112,7 +113,7 @@ export const contractRoutes = new Hono<AppEnv>()
     assertContract({ isService: body.isService ?? existing.isService, tariffPlanId: body.tariffPlanId ?? existing.tariffPlanId, periodicity: body.periodicity ?? existing.periodicity, validFrom: body.validFrom ?? existing.validFrom, validTo: body.validTo === undefined ? existing.validTo : body.validTo });
     if (body.isDefault === true) await clearDefault(ctx, existing.companyId, id);
     const patch: Record<string, unknown> = { updatedAt: new Date() };
-    for (const key of ['number', 'date', 'kind', 'category', 'isSigned', 'isDefault', 'validFrom', 'validTo', 'paymentDays', 'priceType', 'isService', 'tariffPlanId', 'periodicity', 'billingDay', 'documentPackage', 'note'] as const) {
+    for (const key of ['number', 'date', 'kind', 'category', 'isSigned', 'isDefault', 'validFrom', 'validTo', 'paymentDays', 'priceType', 'priceKindId', 'isService', 'tariffPlanId', 'periodicity', 'billingDay', 'documentPackage', 'note'] as const) {
       if (body[key] !== undefined) patch[key] = body[key] === null ? null : body[key];
     }
     if (body.organizationId) patch.organizationId = body.organizationId;

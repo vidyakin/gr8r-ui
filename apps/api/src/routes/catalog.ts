@@ -4,7 +4,7 @@ import { zValidator } from '@hono/zod-validator';
 import { asc, eq, inArray, max, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { assertProductKind, attributeDefs, companies, generateVariants, listVariants, productCategories, products, recordEvent, specParamsOfProduct, units, uuidv7 } from '@gr8r/db';
+import { assertProductKind, attributeDefs, companies, generateVariants, listVariants, productCategories, products, recordEvent, recordProductPrice, specParamsOfProduct, units, uuidv7 } from '@gr8r/db';
 import { attributeCreate, attributeUpdate, categoryCreate, categoryQuery, categoryUpdate, destroyQuery, idParam, keyFromName, productCreate, productQuery, productUpdate, unitCreate, unitQuery, unitUpdate, type RecordData } from '@gr8r/shared';
 import { crud, ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError, notFound } from '../errors';
@@ -228,6 +228,15 @@ export const productRoutes = crud({
       }
     }
     return out;
+  },
+  // цена в карточке — запись истории «Розничной» / «Закупочной» на сегодня (задача 1178), иначе история перекрыла бы правку
+  afterCreate: async (ctx, row) => {
+    if (Number(row.price) > 0) await recordProductPrice(ctx.db, ctx.workspaceId, row.id, 'retail', row.price);
+    if (Number(row.purchasePrice) > 0) await recordProductPrice(ctx.db, ctx.workspaceId, row.id, 'purchase', row.purchasePrice);
+  },
+  afterUpdate: async (ctx, before, after) => {
+    if (after.price !== before.price) await recordProductPrice(ctx.db, ctx.workspaceId, after.id, 'retail', after.price);
+    if (after.purchasePrice !== before.purchasePrice) await recordProductPrice(ctx.db, ctx.workspaceId, after.id, 'purchase', after.purchasePrice);
   },
   // товар с вариантами нельзя убрать: сначала удалите варианты
   beforeDelete: async (ctx, row) => {

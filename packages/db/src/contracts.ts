@@ -82,6 +82,8 @@ export interface ContractView {
   validTo: string | null;
   paymentDays: number;
   priceType: string;
+  /** Вид цен из справочника (задача 1178): подставляется в документы по договору */
+  priceKindId: string | null;
   isService: boolean;
   tariffPlanId: string | null;
   tariffPlanName: string | null;
@@ -122,6 +124,7 @@ const toView = (r: {
   validTo: r.c.validTo,
   paymentDays: r.c.paymentDays,
   priceType: r.c.priceType,
+  priceKindId: r.c.priceKindId,
   isService: r.c.isService,
   tariffPlanId: r.c.tariffPlanId,
   tariffPlanName: r.planName,

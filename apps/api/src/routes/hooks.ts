@@ -5,7 +5,7 @@
 import { sql as dsql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { enqueueYooPayment, findEnabledForm, insertLead, isUuid, parseFormToken, pickRoundRobin, rateLimits, withContext, type Sql } from '@gr8r/db';
+import { enqueueYooPayment, findEnabledForm, insertLead, isUuid, parseFormToken, parsePriceToken, pickRoundRobin, publicPriceList, rateLimits, withContext, type Sql } from '@gr8r/db';
 import { leadWebhookBody, pickUtm, yooWebhookBody } from '@gr8r/shared';
 import { AppError } from '../errors';
 import { isYooKassaIp } from '../yookassa-ip';
@@ -35,6 +35,25 @@ async function allow(sql: Sql, key: string, max: number, windowSec: number): Pro
 const notFound = () => new AppError(404, 'not_found', 'Not found');
 
 export const hookRoutes = new Hono<AppEnv>()
+  // Публичный прайс-лист по ссылке (задача 1178): без сессии, данные — только разрешённые ссылкой (виды цен без закупочных, без остатков).
+  // Любая причина отказа — один и тот же 404; лимит частоты по IP (до разбора токена) и по ссылке
+  .get('/prices/:token', async c => {
+    const cfg = c.get('config');
+    const sql = c.get('sql');
+    const windowSec = Math.ceil(cfg.leadHookRateLimitWindowMs / 1000);
+    if (!(await allow(sql, `price-hook:ip:${c.get('ip')}`, cfg.leadHookRateLimitMax, windowSec))) throw new AppError(429, 'rate_limited', 'Too many requests. Try again later.', { retryAfterSeconds: windowSec });
+    const parsed = parsePriceToken(c.req.param('token'));
+    if (!parsed) throw notFound();
+    if (!(await allow(sql, `price-hook:link:${parsed.secret.slice(0, 16)}`, cfg.leadHookRateLimitMax * 10, windowSec))) throw new AppError(429, 'rate_limited', 'Too many requests. Try again later.', { retryAfterSeconds: windowSec });
+    const q = c.req.query('q')?.trim().slice(0, 100);
+    const limit = Math.min(500, Math.max(1, Number(c.req.query('limit')) || 200));
+    const offset = Math.max(0, Number(c.req.query('offset')) || 0);
+    const data = await withContext(sql, { workspaceId: parsed.workspaceId }, db => publicPriceList(db, parsed.workspaceId, parsed.secret, { q, limit, offset }));
+    if (!data) throw notFound();
+    c.header('Cache-Control', 'no-store');
+    c.header('X-Content-Type-Options', 'nosniff');
+    return c.json(data);
+  })
   .use('/leads/*', cors({ origin: '*', allowMethods: ['POST', 'OPTIONS'], allowHeaders: ['Content-Type'], maxAge: 86400 }))
   .post('/leads/:token', async c => {
     const cfg = c.get('config');

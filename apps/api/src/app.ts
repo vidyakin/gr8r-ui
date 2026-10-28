@@ -42,6 +42,7 @@ import { cashFlowItemRoutes, cashRegisterRoutes, paymentRoutes } from './routes/
 import { paymentCalendarRoutes, paymentRequestRoutes } from './routes/payment-calendar';
 import { openingBalanceRoutes } from './routes/opening-balances';
 import { payrollRoutes } from './routes/payroll';
+import { pricingRoutes } from './routes/pricing';
 import { bankImportRoutes } from './routes/bank-import';
 import { flowRoutes, flowRunRoutes } from './routes/flows';
 import { hookRoutes } from './routes/hooks';
@@ -77,7 +78,7 @@ export interface AppDeps {
 }
 
 /** Ресурсы арендатора: каждый путь защищён цепочкой «сессия → членство → транзакция с RLS» */
-const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/files', '/activity', '/events', '/companies', '/contacts', '/deals', '/crm-activities', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production', '/production-orders', '/production-plans', '/stock-levels', '/organizations', '/bank-accounts', '/warehouses', '/cost-items', '/documents', '/order-calculations', '/stock', '/flows', '/flow-runs', '/work-orders', '/work-order-assignments', '/work-order-kinds', '/document-states', '/services', '/contracts', '/tariff-plans', '/billing', '/other-costs', '/material-allocations', '/investments', '/processing', '/processor-reports', '/supplier-orders', '/serials', '/repair-items', '/sales-plan', '/appointments', '/delivery-methods', '/deliveries', '/positions', '/product-kinds', '/leads', '/lead-statuses', '/lead-forms', '/secrets', '/payments', '/payment-calendar', '/payment-requests', '/opening-balances', '/bank-import', '/cash-registers', '/cash-flow-items', '/bank-connections', '/payment-links', '/payroll'];
+const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/files', '/activity', '/events', '/companies', '/contacts', '/deals', '/crm-activities', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production', '/production-orders', '/production-plans', '/stock-levels', '/organizations', '/bank-accounts', '/warehouses', '/cost-items', '/documents', '/order-calculations', '/stock', '/flows', '/flow-runs', '/work-orders', '/work-order-assignments', '/work-order-kinds', '/document-states', '/services', '/contracts', '/tariff-plans', '/billing', '/other-costs', '/material-allocations', '/investments', '/processing', '/processor-reports', '/supplier-orders', '/serials', '/repair-items', '/sales-plan', '/appointments', '/delivery-methods', '/deliveries', '/positions', '/product-kinds', '/leads', '/lead-statuses', '/lead-forms', '/secrets', '/payments', '/payment-calendar', '/payment-requests', '/opening-balances', '/bank-import', '/cash-registers', '/cash-flow-items', '/bank-connections', '/payment-links', '/payroll', '/pricing'];
 
 function buildTenantApi() {
   const guarded = new Hono<AppEnv>();
@@ -144,6 +145,7 @@ function buildTenantApi() {
     .route('/payment-requests', paymentRequestRoutes)
     .route('/opening-balances', openingBalanceRoutes)
     .route('/payroll', payrollRoutes)
+    .route('/pricing', pricingRoutes)
     .route('/bank-import', bankImportRoutes)
     .route('/cash-registers', cashRegisterRoutes)
     .route('/cash-flow-items', cashFlowItemRoutes)
