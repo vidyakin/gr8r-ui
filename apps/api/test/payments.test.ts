@@ -1,7 +1,7 @@
 /* Деньги (1174б): долг растёт отгрузкой и гасится оплатой, аванс зачитывается FIFO в обоих режимах, откат при отмене проведения,
    остатки и ДДС сходятся с движениями, подотчёт, перемещение денег, изоляция арендаторов. */
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { Client } from './helpers';
+import { Client, admin } from './helpers';
 
 let owner: Client;
 let other: Client;
@@ -279,5 +279,72 @@ describe('значок оплаты в журналах документов', (
     expect(by(inv.id)).toMatchObject({ state: 'partial', paid: '200.00', prepaid: true });
     // то же, что отдаёт карточка документа
     expect(by(partial).remaining).toBe((await status(partial)).remaining);
+  });
+});
+
+describe('смена режима взаиморасчётов', () => {
+  const setMode = (id: string, settlementMode: string) => owner.patch(`/companies/${id}`, { settlementMode });
+
+  /** Один и тот же набор документов: два акта, оплата на первый, аванс без документа и третий акт, который зачитывает аванс */
+  async function scenario(name: string, mode: string) {
+    const c = await company(name, { settlementMode: mode });
+    const a1 = await act(c, '1000.00', '2026-03-01');
+    const a2 = await act(c, '500.00', '2026-03-05');
+    await pay({ counterpartyId: c, date: '2026-03-06', lines: [{ settlementDocumentId: a1, amount: 700 }] });
+    await pay({ counterpartyId: c, date: '2026-03-07', lines: [{ amount: 400 }] });
+    const a3 = await act(c, '300.00', '2026-03-10');
+    return { c, a1, a2, a3 };
+  }
+
+  test('по документам → по контрагенту → обратно: сальдо то же, зачёты пересчитаны, событие записано', async () => {
+    const { c, a1, a2, a3 } = await scenario('ООО «Смена режима 1»', 'by_documents');
+    expect(await status(a1)).toMatchObject({ paid: '700.00', state: 'partial' });
+    expect(await status(a3)).toMatchObject({ paid: '300.00', state: 'paid' });
+    expect(await receivable(c)).toMatchObject({ debt: '800.00', advance: '100.00' });
+
+    expect((await setMode(c, 'by_counterparty')).status).toBe(200);
+    // общий пул: оплаты 1100 закрывают документы по FIFO
+    expect(await status(a1)).toMatchObject({ mode: 'by_counterparty', paid: '1000.00', state: 'paid' });
+    expect(await status(a2)).toMatchObject({ paid: '100.00', remaining: '400.00', state: 'partial' });
+    expect(await status(a3)).toMatchObject({ paid: '0.00', state: 'unpaid' });
+    expect(await receivable(c)).toMatchObject({ debt: '700.00', advance: '0.00' });
+    expect((await admin`select payload from events where record_id = ${c} and type = 'company.settlement_mode_changed'`) as any[]).toHaveLength(1);
+
+    expect((await setMode(c, 'by_documents')).status).toBe(200);
+    expect(await status(a1)).toMatchObject({ mode: 'by_documents', paid: '700.00', state: 'partial' });
+    expect(await status(a3)).toMatchObject({ paid: '300.00', state: 'paid' });
+    expect(await receivable(c)).toMatchObject({ debt: '800.00', advance: '100.00' });
+    // дальше учёт идёт как обычно: оплата остатка закрывает документ
+    await pay({ counterpartyId: c, lines: [{ settlementDocumentId: a1, amount: 300 }] });
+    expect(await status(a1)).toMatchObject({ remaining: '0.00', state: 'paid' });
+  });
+
+  test('по контрагенту → по документам: оплаты и авансы раскладываются по документам', async () => {
+    const { c, a1, a2, a3 } = await scenario('ООО «Смена режима 2»', 'by_counterparty');
+    expect(await status(a1)).toMatchObject({ paid: '1000.00', state: 'paid' });
+    expect(await receivable(c)).toMatchObject({ debt: '700.00' });
+    expect((await setMode(c, 'by_documents')).status).toBe(200);
+    expect(await status(a1)).toMatchObject({ mode: 'by_documents', paid: '700.00' });
+    expect(await status(a2)).toMatchObject({ paid: '0.00', state: 'unpaid' });
+    expect(await status(a3)).toMatchObject({ paid: '300.00', state: 'paid' });
+    expect(await receivable(c)).toMatchObject({ debt: '800.00', advance: '100.00' });
+  });
+
+  test('документы закрытого периода — 422 settlement_mode_period_closed, режим не меняется', async () => {
+    const { c, a1 } = await scenario('ООО «Смена режима 3»', 'by_documents');
+    expect((await owner.patch('/production/periods/settings', { closedThrough: '2026-03-03' })).status).toBe(200);
+    const r = await setMode(c, 'by_counterparty');
+    expect(r.status).toBe(422);
+    expect(r.body.error.code).toBe('settlement_mode_period_closed');
+    expect((await owner.get(`/companies/${c}`)).body.settlementMode).toBe('by_documents');
+    expect(await status(a1)).toMatchObject({ mode: 'by_documents', paid: '700.00' });
+    await owner.patch('/production/periods/settings', { closedThrough: null });
+    expect((await setMode(c, 'by_counterparty')).status).toBe(200);
+  });
+
+  test('контрагент без документов и смена других полей — без пересчёта', async () => {
+    const c = await company('ООО «Смена режима 4»');
+    expect((await setMode(c, 'by_counterparty')).status).toBe(200);
+    expect((await owner.patch(`/companies/${c}`, { city: 'Омск' })).status).toBe(200);
   });
 });

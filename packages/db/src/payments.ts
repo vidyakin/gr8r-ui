@@ -395,6 +395,21 @@ async function writeMoves(db: Db, ctx: DocCtx, doc: DocRow): Promise<void> {
   if (doc.operation === 'from_accountable') await db.insert(accountableMoves).values({ workspaceId: ctx.workspaceId, memberId: doc.accountableMemberId!, documentId: doc.id, date: doc.date, amount: fmt(-total, 2) });
 }
 
+/** Повтор взаиморасчётов проведённой оплаты по одному контрагенту (смена режима расчётов): те же вызовы, что при проведении, но только строки этого контрагента */
+export async function replayPaymentSettlements(db: Db, workspaceId: string, doc: DocRow, companyId: string): Promise<void> {
+  const lines = await linesOf(db, doc.id);
+  if (doc.type === 'advance_report') {
+    for (const l of lines) if (l.counterpartyId === companyId) await applyPayment(db, workspaceId, 'supplier', doc, toPayLine(l, companyId));
+    return;
+  }
+  const settle = operationSettlement(doc.operation);
+  if (!settle || doc.counterpartyId !== companyId) return;
+  for (const l of lines) {
+    if (settle.mode === 'pay') await applyPayment(db, workspaceId, settle.side, doc, toPayLine(l, companyId));
+    else await applyRefund(db, workspaceId, settle.side, doc, toPayLine(l, companyId));
+  }
+}
+
 const toPayLine = (l: typeof paymentLines.$inferSelect, companyId: string): PayLine => ({ id: l.id, companyId, settlementDocumentId: l.settlementDocumentId, contractId: l.contractId, amount: dec(l.amount) });
 
 async function clearMoves(db: Db, ctx: DocCtx, docId: string): Promise<void> {
