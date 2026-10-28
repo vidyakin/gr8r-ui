@@ -86,6 +86,8 @@ export const contracts = pgTable(
     paymentDays: integer('payment_days').notNull().default(0),
     /** Вид цен — подставляется в документы */
     priceType: text('price_type').notNull().default(''),
+    /** Вид цен из справочника (задача 1178; внешний ключ ставит миграция 0051). Текстовый priceType оставлен для совместимости */
+    priceKindId: uuid('price_kind_id'),
     /** Договор обслуживания: регулярные услуги с периодичностью */
     isService: boolean('is_service').notNull().default(false),
     /** Тарифный план (обязателен для договора обслуживания) */

@@ -12,6 +12,8 @@ import { seedDocuments } from './seed-documents';
 import { seedFlows } from './seed-flows';
 import { seedPlanning } from './seed-planning';
 import { seedContracts } from './seed-contracts';
+import { ensurePriceKinds } from './pricing';
+import { seedPricing } from './seed-pricing';
 import { seedRepeatSales } from './seed-repeat-sales';
 import { seedPositions } from './seed-positions';
 import { seedAppointments } from './seed-appointments';
@@ -355,6 +357,9 @@ async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: string, user
   // Запись на приём: специалисты с графиками, услуги массажа, записи этой недели и незакрытый день
   await seedAppointments(db, { workspaceId: wsId, memberId: U(d.me), role: 'owner' });
 
+  // Виды цен (после всех товаров): оптовая, дилерская, цены поставщика, установка цен
+  await seedPricing(db, { workspaceId: wsId, memberId: U(d.me), role: 'owner' }, { supplierId: U('co8'), customerId: U('co4') });
+
   // Лиды: статусы, форма сайта, лиды с касаниями и один сконвертированный (задача 1175)
   await seedLeads(db, wsId, U(d.me));
 
@@ -373,6 +378,7 @@ async function seedOtherWorkspace(db: Db, wsId: string, userId: string) {
   await registerSystemEntities(db, wsId);
   await ensureLeadStatuses(db, wsId);
   await registerBaseUnits(db, wsId);
+  await ensurePriceKinds(db, wsId);
   await ensureDocumentDefaults(db, wsId, 'Acme Corp');
   await ensureCostItems(db, wsId);
   await ensureModuleProjects(db, wsId);

@@ -25,6 +25,8 @@ export const companies = pgTable(
     actualAddress: text('actual_address').notNull().default(''),
     /** Следующий контакт (задача 1133): ставится при продаже, воркер в этот день создаёт дело ответственному и очищает дату */
     /** Взаиморасчёты: по документам (долг по каждому счёту/заказу) или по контрагенту в целом (одно сальдо, зачёт FIFO) */
+    /** Вид цен контрагента: подставляется в документы (задача 1178; внешний ключ ставит миграция 0051) */
+    priceKindId: uuid('price_kind_id'),
     settlementMode: text('settlement_mode', { enum: ['by_documents', 'by_counterparty'] }).notNull().default('by_documents'),
     nextContactDate: date('next_contact_date', { mode: 'string' }),
     nextContactNote: text('next_contact_note').notNull().default(''),

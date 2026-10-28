@@ -337,6 +337,13 @@
       "when": 1793221893466,
       "tag": "0050_payroll",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793223741157,
+      "tag": "0051_price_kinds",
+      "breakpoints": true
     }
   ]
 }

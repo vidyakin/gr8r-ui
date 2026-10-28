@@ -140,6 +140,8 @@ export const workOrderKinds = pgTable(
     /** Тип вида (задача 1099): обычный, ремонт или гарантийный ремонт (без выручки, затраты на статью «Гарантийный ремонт») */
     kindType: text('kind_type', { enum: ['regular', 'repair', 'warranty'] }).notNull().default('regular'),
     sortOrder: integer('sort_order').notNull().default(0),
+    /** Вид цен вида заказ-наряда (задача 1178; внешний ключ ставит миграция 0051) */
+    priceKindId: uuid('price_kind_id'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -178,6 +180,8 @@ export const documents = pgTable(
     costItemId: uuid('cost_item_id'),
     /** Договор (составной внешний ключ (workspace_id, contract_id) → contracts добавляется миграцией) */
     contractId: uuid('contract_id'),
+    /** Вид цен документа (задача 1178; внешний ключ (workspace_id, price_kind_id) → price_kinds ставит миграция 0051) */
+    priceKindId: uuid('price_kind_id'),
     /** Вид заказ-наряда (только у work_order): у каждого вида свои состояния */
     workOrderKindId: uuid('work_order_kind_id'),
     /** Причина отмены заказ-наряда (состояние категории «cancelled») */
@@ -230,7 +234,7 @@ export const documents = pgTable(
     foreignKey({ columns: [t.workspaceId, t.responsibleId], foreignColumns: [members.workspaceId, members.id], name: 'documents_responsible_fk' }),
     foreignKey({ columns: [t.workspaceId, t.investmentProjectId], foreignColumns: [investmentProjects.workspaceId, investmentProjects.id], name: 'documents_investment_project_fk' }),
     foreignKey({ columns: [t.workspaceId, t.tollingOrderId], foreignColumns: [t.workspaceId, t.id], name: 'documents_tolling_order_fk' }).onDelete('set null'),
-    check('documents_type_chk', sql`${t.type} in ('quote','customer_order','invoice','realization','act','customer_return','supplier_order','receipt','supplier_return','stock_transfer','write_off','stock_posting','inventory_count','production_order','production','work_order','piecework_order','other_costs','material_allocation','tolling_receipt','tolling_report','tolling_return','sales_plan','service_day','cash_receipt','cash_payment','bank_receipt','bank_payment','advance_report','payment_request','opening_balance','payroll','payroll_statement')`),
+    check('documents_type_chk', sql`${t.type} in ('quote','customer_order','invoice','realization','act','customer_return','supplier_order','receipt','supplier_return','stock_transfer','write_off','stock_posting','inventory_count','production_order','production','work_order','piecework_order','other_costs','material_allocation','tolling_receipt','tolling_report','tolling_return','sales_plan','service_day','cash_receipt','cash_payment','bank_receipt','bank_payment','advance_report','payment_request','opening_balance','payroll','payroll_statement','price_setting')`),
     check('documents_status_chk', sql`${t.status} in ('draft','posted','cancelled')`),
     check('documents_state_chk', sql`${t.state} is null or ${t.state} ~ '^[a-z][a-z0-9_]*$'`),
     check('documents_operation_chk', sql`${t.operation} is null or ${t.operation} in ('transfer','in_transit','to_operation','from_operation','assembly','disassembly','processing','from_customer','supplier_refund','from_accountable','other_income','to_supplier','customer_refund','to_accountable','other_expense','money_transfer','salary_payment')`),

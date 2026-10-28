@@ -333,6 +333,8 @@ export interface DocumentCreateInput {
   counterpartyId?: string | null;
   /** Договор: пусто — договор по умолчанию контрагента (если он есть) */
   contractId?: string | null;
+  /** Вид цен документа (задача 1178) */
+  priceKindId?: string | null;
   warehouseId?: string | null;
   targetWarehouseId?: string | null;
   costItemId?: string | null;
@@ -452,6 +454,7 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
       organizationId,
       counterpartyId,
       contractId,
+      priceKindId: meta.party !== null ? (input.priceKindId ?? null) : null,
       warehouseId,
       targetWarehouseId,
       costItemId,
@@ -486,6 +489,8 @@ export interface DocumentPatch {
   counterpartyId?: string | null;
   /** Договор документа */
   contractId?: string | null;
+  /** Вид цен документа (задача 1178) */
+  priceKindId?: string | null;
   warehouseId?: string | null;
   targetWarehouseId?: string | null;
   costItemId?: string | null;
@@ -542,6 +547,7 @@ export async function updateDocument(db: Db, ctx: DocCtx, id: string, patch: Doc
   const set: Partial<typeof documents.$inferInsert> = { updatedAt: new Date() };
   if (patch.organizationId) set.organizationId = patch.organizationId;
   if (patch.counterpartyId !== undefined) set.counterpartyId = meta.party === null ? null : patch.counterpartyId;
+  if (patch.priceKindId !== undefined && meta.party !== null) set.priceKindId = patch.priceKindId;
   if (patch.contractId !== undefined && meta.party !== null) {
     if (patch.contractId) {
       const c = await assertContractOfCompany(db, patch.contractId, patch.counterpartyId ?? doc.counterpartyId);
@@ -630,7 +636,7 @@ export async function changeDocumentState(db: Db, ctx: DocCtx, id: string, state
   const doc = await loadDoc(db, id, true);
   const type = doc.type as DocumentType;
   const meta = DOCUMENT_META[type];
-  await assertPeriodOpen(db, ctx.workspaceId, doc.date);
+  if (doc.type !== 'price_setting') await assertPeriodOpen(db, ctx.workspaceId, doc.date);
   const provider = STATE_PROVIDERS[type];
   if (!provider) {
     if (!meta.states?.length) throw new DomainError(422, 'state_not_allowed', `A ${meta.label.toLowerCase()} has no states`);
@@ -704,7 +710,7 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<voi
   const type = doc.type as DocumentType;
   const meta = DOCUMENT_META[type];
   if (doc.status !== 'draft') throw new DomainError(409, 'invalid_status', doc.status === 'posted' ? 'The document is already posted' : 'A cancelled document cannot be posted: restore it first');
-  await assertPeriodOpen(db, ctx.workspaceId, doc.date);
+  if (doc.type !== 'price_setting') await assertPeriodOpen(db, ctx.workspaceId, doc.date);
   if (doc.investmentProjectId && !(await investmentOpen(db, doc.investmentProjectId))) throw new DomainError(422, 'investment_closed', 'The investment project is closed or archived: unlink it before posting');
   if (meta.party && !doc.counterpartyId) throw new DomainError(422, 'counterparty_required', meta.party === 'customer' ? 'Select a customer before posting' : 'Select a supplier before posting');
   // договор: должен быть того же контрагента и организации и действовать на дату документа
@@ -801,7 +807,7 @@ export async function unpostDocument(db: Db, ctx: DocCtx, id: string, opts: { re
   const doc = await loadDoc(db, id, true);
   const type = doc.type as DocumentType;
   if (doc.status !== 'posted') throw new DomainError(409, 'invalid_status', 'Only a posted document can be unposted');
-  await assertPeriodOpen(db, ctx.workspaceId, doc.date);
+  if (doc.type !== 'price_setting') await assertPeriodOpen(db, ctx.workspaceId, doc.date);
   const kids = await db.select({ id: documents.id, type: documents.type, number: documents.number }).from(documents).where(and(eq(documents.basedOnId, id), eq(documents.status, 'posted')));
   if (kids.length)
     throw new DomainError(409, 'has_posted_children', `Unpost the documents created from this one first: ${kids.map(k => k.number ?? DOCUMENT_META[k.type as DocumentType].label).join(', ')}`, { documents: kids });
@@ -824,7 +830,7 @@ async function syncAfterChange(db: Db, ctx: DocCtx, doc: DocumentRow, lines: Doc
   if (ids.length) await syncReservations(db, ctx.workspaceId, ids);
   // косвенные затраты периода: набираются при проведении и очищаются при отмене.
   // У «Прочих затрат» строк товаров нет — их набирает хук проведения этого типа
-  if (doc.type === 'other_costs' || doc.type === 'sales_plan' || doc.type === 'payroll' || doc.type === 'payroll_statement') return;
+  if (doc.type === 'other_costs' || doc.type === 'sales_plan' || doc.type === 'payroll' || doc.type === 'payroll_statement' || doc.type === 'price_setting') return;
   if (posted) await syncPeriodCosts(db, ctx, doc, lines);
   else await clearPeriodCosts(db, ctx.workspaceId, doc.id);
 }

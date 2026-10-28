@@ -1,6 +1,6 @@
 /* Операции над воркспейсами, общие для регистрации и /workspaces: создание (создатель — owner), список моих. */
 import { eq, sql as dsql } from 'drizzle-orm';
-import { ensureCostItems, ensureDocumentDefaults, ensureModuleProjects, ensureWorkOrderKind, members, memberships, recordEvent, registerBaseUnits, ensureLeadStatuses, registerSystemEntities, statuses, uuidv7, withContext, workspaces, type Sql } from '@gr8r/db';
+import { ensureCostItems, ensureDocumentDefaults, ensureModuleProjects, ensurePriceKinds, ensureWorkOrderKind, members, memberships, recordEvent, registerBaseUnits, ensureLeadStatuses, registerSystemEntities, statuses, uuidv7, withContext, workspaces, type Sql } from '@gr8r/db';
 import { STATUSES } from '@gr8r/shared';
 import type { SessionUser } from './types';
 
@@ -35,6 +35,7 @@ export async function createWorkspace(sql: Sql, user: SessionUser, input: Worksp
     await registerSystemEntities(db, id);
     await ensureLeadStatuses(db, id);
     await registerBaseUnits(db, id);
+    await ensurePriceKinds(db, id);
     await ensureDocumentDefaults(db, id, input.name);
     await ensureCostItems(db, id);
     await ensureModuleProjects(db, id);

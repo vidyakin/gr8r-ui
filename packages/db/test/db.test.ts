@@ -115,7 +115,9 @@ describe('seed', () => {
     expect(await count('warehouses', w)).toBe(7); // основной, цех, склад готовой продукции, служебный «в пути», склад переработчика, склад отходов и склад брака
     expect(await count('companies', `${w} and inn <> ''`)).toBe(5);
     expect(await count('bank_accounts', `${w} and company_id is not null`)).toBe(5);
-    expect(await count('documents', w)).toBe(73); // + зарплата: начисление за прошлый месяц и черновик за текущий, две ведомости, две выплаты; // + ввод начальных остатков, + 5 документов платёжного календаря (4 заявки на расход и оплата заявки), + 12 документов денег (оплаты, подотчёт, акты физлица); // + проведённый план продаж, + поступление и продажа смартфона, ремонтный и гарантийный заказ-наряды, заказ покупателя на окно, цепочка разборки, документы переработки и факт инвестпроекта
+    expect(await count('documents', w)).toBe(75); // + виды цен: проведённая установка цен поставщика и черновик повышения розницы; // + зарплата: начисление за прошлый месяц и черновик за текущий, две ведомости, две выплаты; // + ввод начальных остатков, + 5 документов платёжного календаря (4 заявки на расход и оплата заявки), + 12 документов денег (оплаты, подотчёт, акты физлица); // + проведённый план продаж, + поступление и продажа смартфона, ремонтный и гарантийный заказ-наряды, заказ покупателя на окно, цепочка разборки, документы переработки и факт инвестпроекта
+    expect(await count('price_kinds', `${w} and archived_at is null`)).toBe(5); // «Розничная», «Закупочная», «Оптовая», «Дилерская» и цены поставщика
+    expect(await count('product_prices', `${w} and document_id is not null`)).toBeGreaterThan(0);
     expect(await count('documents', `${w} and type = 'payment_request' and state = 'approved'`)).toBe(1);
     expect(await count('documents', `${w} and type = 'payment_request' and state = 'paid'`)).toBe(1);
     // деньги: касса, движения, взаиморасчёты и подотчёт
@@ -139,7 +141,7 @@ describe('seed', () => {
     expect(await count('investment_projects', `${w} and status = 'draft'`)).toBe(1);
     expect(await count('documents', `${w} and investment_project_id is not null and status = 'posted'`)).toBe(3);
     expect(await count('investment_cost_items', w)).toBe(1);
-    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(69);
+    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(70);
     expect(await count('documents', `${w} and based_on_id is not null`)).toBe(19);
     // доставка (задача 1100): два способа, три доставки в разных статусах, расход «Доставка» у доставленной, два курьера, веса у двух товаров
     expect(await count('delivery_methods', w)).toBe(2);

@@ -104,3 +104,36 @@ export function hasKindCycle(kindId: string, baseOf: (id: string) => string | nu
 export function changeByPercent(price: string, pct: string, rule: RoundingRule): string {
   return priceStr(applyMarkup(dec(price), pct, rule));
 }
+
+/* ---------------- загрузка цен из таблицы ---------------- */
+
+/** Число из ячейки таблицы: «1 234,50», «1234.5», число; пусто или не число — null */
+export function parsePriceCell(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number') return Number.isFinite(v) && v >= 0 ? priceStr(dec(v)) : null;
+  const s = String(v).replace(/[\s ]/g, '').replace(',', '.').replace(/[₽р.]+$/i, '');
+  if (!/^\d+(\.\d+)?$/.test(s)) return null;
+  return priceStr(dec(s));
+}
+
+export interface ImportColumns {
+  skuColumn: number | null;
+  nameColumn: number | null;
+  /** Колонки с ценами: заголовок совпал с названием вида цен */
+  priceColumns: { column: number; priceKindId: string }[];
+}
+
+/** Определяет колонки по заголовку первой строки: артикул, название, виды цен (по названию без учёта регистра) */
+export function detectImportColumns(header: string[], kinds: { id: string; name: string }[]): ImportColumns {
+  const h = header.map(x => String(x ?? '').trim().toLowerCase());
+  const find = (re: RegExp) => {
+    const i = h.findIndex(x => re.test(x));
+    return i >= 0 ? i : null;
+  };
+  const priceColumns: ImportColumns['priceColumns'] = [];
+  h.forEach((x, column) => {
+    const k = kinds.find(kk => kk.name.trim().toLowerCase() === x);
+    if (k) priceColumns.push({ column, priceKindId: k.id });
+  });
+  return { skuColumn: find(/^(артикул|sku|код|арт\.?)$/), nameColumn: find(/^(наименование|название|товар|номенклатура|name)$/), priceColumns };
+}
