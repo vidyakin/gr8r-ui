@@ -38,7 +38,7 @@ import { recordEvent } from './events';
 import { applyStockMoves, defaultPostingCost, documentCosts, documentLineCosts, loadInventorySettings, revertStockMoves, sourceMoveCosts, syncReservations, type MoveRequest } from './stock';
 import { syncWorkOrderResources } from './planning';
 import { assertPeriodOpen, assertServiceCostItems, clearPeriodCosts, syncPeriodCosts } from './cost-closing';
-import { bankAccounts, companies, contracts, costItems, documentCounters, documentLines, documentStates, documents, investmentProjects, materialAllocationItems, members, organizations, products, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials } from './schema';
+import { bankAccounts, companies, contracts, paymentLinks, costItems, documentCounters, documentLines, documentStates, documents, investmentProjects, materialAllocationItems, members, organizations, products, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials } from './schema';
 import { assertInvestmentTarget, investmentOpen } from './investments';
 import { assertContractOfCompany, contractDocumentProducts, contractPlanProductIds, defaultContract } from './contracts';
 import { ensureVariant, specParamsOfProduct } from './variants';
@@ -47,7 +47,7 @@ import { uuidv7 } from './uuid';
 import { saveSerials, checkInventorySerials, lineSerialsView } from './serials';
 import { applySaleNextContact } from './repeat-sales';
 import { inheritDelivery } from './delivery';
-import { postAccrual, removeSettlementMoves } from './settlements';
+import { payableOf, postAccrual, removeSettlementMoves } from './settlements';
 import { repairPrintData, syncWarrantyKind, workOrderKindType } from './repair';
 
 export interface DocCtx {
@@ -978,10 +978,25 @@ export async function documentDetail(db: Db, id: string) {
 
 /* ---------------- данные для печатной формы ---------------- */
 
-async function defaultBank(db: Db, owner: { companyId?: string; organizationId?: string }): Promise<PrintBank | null> {
+export async function defaultBank(db: Db, owner: { companyId?: string; organizationId?: string }): Promise<PrintBank | null> {
   const where = owner.companyId ? eq(bankAccounts.companyId, owner.companyId) : eq(bankAccounts.organizationId, owner.organizationId!);
   const [b] = await db.select().from(bankAccounts).where(where).orderBy(desc(bankAccounts.isDefault), asc(bankAccounts.createdAt)).limit(1);
   return b ? { bik: b.bik, account: b.account, corrAccount: b.corrAccount, bankName: b.bankName } : null;
+}
+
+/** Живая ссылка ЮКассы для печати счёта и заказа покупателя: ссылка привязана к корню цепочки расчётов (заказ, счёт…),
+    поэтому ищем по корню; берём последнюю неоплаченную. Нет ссылки — блока в печати нет */
+async function printPaymentLink(db: Db, id: string, type: string): Promise<{ url: string; amount: string } | null> {
+  if (type !== 'invoice' && type !== 'customer_order') return null;
+  const info = await payableOf(db, id);
+  if (!info) return null;
+  const [l] = await db
+    .select({ url: paymentLinks.confirmationUrl, amount: paymentLinks.amount })
+    .from(paymentLinks)
+    .where(and(eq(paymentLinks.documentId, info.status.rootId), eq(paymentLinks.status, 'pending')))
+    .orderBy(desc(paymentLinks.createdAt))
+    .limit(1);
+  return l ?? null;
 }
 
 /** Данные заказ-наряда для печатной формы: вид, состояние, материалы и исполнители */
@@ -1077,6 +1092,7 @@ export async function buildPrintData(db: Db, id: string): Promise<PrintData> {
     totals: d.totals,
     ...(d.type === 'work_order' ? { workOrder: await workOrderPrintData(db, d) } : {}),
     ...(d.type === 'work_order' ? await repairPrintData(db, id, d.workOrderKindId, d.date, today()).then(r => (r ? { repair: r } : {})) : {}),
+    paymentLink: await printPaymentLink(db, d.id, d.type),
     basedOn: d.basedOn ? { type: d.basedOn.type as DocumentType, number: d.basedOn.number, date: d.basedOn.date } : null,
     comment: d.comment,
     warehouseName: d.warehouse?.name,

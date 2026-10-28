@@ -1,11 +1,11 @@
 # Деньги: оплаты, кассы, ДДС, взаиморасчёты
 
-Реализовано в задаче 1174б «Ядро денег» (миграция `0043_payments.sql`) 1174в «Банковская выписка» (`0044_bank_import.sql`) 1174д «Интеграции» (`0046_bank_integrations.sql`) 1174е «Начальные остатки» (`0047_opening_balances.sql`) и 1174ж «Пробелы расчётов» (`0049_opening_settlement_document.sql`), решения интервью 2026-10-27 — в `docs/plans/2026-10-21-unf-services.md`, «Задача 1174».
+Реализовано в задаче 1174б «Ядро денег» (миграция `0043_payments.sql`) 1174в «Банковская выписка» (`0044_bank_import.sql`) 1174д «Интеграции» (`0046_bank_integrations.sql`) 1174е «Начальные остатки» (`0047_opening_balances.sql`) 1174ж «Пробелы расчётов» (`0049_opening_settlement_document.sql`) и 1174ж «Печать» (без миграции), решения интервью 2026-10-27 — в `docs/plans/2026-10-21-unf-services.md`, «Задача 1174».
 
 **Где код:**
 - схема — `packages/db/src/schema/payments.ts` (+ колонки в `documents`, `companies`, `investment_projects`);
 - сервисы — `packages/db/src/payments.ts` (документы, движения денег, остатки, отчёты, печатные данные) и `packages/db/src/settlements.ts` (взаиморасчёты, аванс, зачёт FIFO);
-- общее — `packages/shared/src/payments.ts` (операции, системные статьи ДДС, чистые расчёты), `schemas/payments.ts`, `print/payments.ts` (КО-1, КО-2, акт сверки);
+- общее — `packages/shared/src/payments.ts` (операции, системные статьи ДДС, чистые расчёты), `schemas/payments.ts`, `print/payments.ts` (КО-1, КО-2, акт сверки, формы банковских документов, АО-1, ввод остатков);
 - API — `apps/api/src/routes/payments.ts` (`/payments`, `/cash-registers`, `/cash-flow-items`), тест — `apps/api/test/payments.test.ts`;
 - выписка — `packages/shared/src/bank-statement.ts`, `packages/db/src/bank-import.ts`, `apps/api/src/routes/bank-import.ts`, тесты `packages/shared/test/bank-statement.test.ts` и `apps/api/test/bank-import.test.ts`;
 - интеграции — `packages/shared/src/bank-api.ts` (адаптеры), `packages/db/src/integrations.ts` (сервис, сеть), `packages/db/src/schema/integrations.ts`, `apps/api/src/routes/integrations.ts` и `hooks.ts`, воркер `bank.sync` / `yookassa.payment`, тест `apps/api/test/integrations.test.ts`, `packages/shared/test/bank-api.test.ts`;
@@ -117,6 +117,14 @@
 
 `paymentStatuses(db, ids)` считает «оплачено / к оплате» пакетом: корни цепочек находятся по одному запросу на уровень цепочки, режимы контрагентов и итоги по корням — по одному запросу на всех документов (режим «по контрагенту» — по запросу на контрагента). Поле `prepaid` — оплата пришла до начисления у заказа, счёта, заказ-наряда, заказа поставщику (значок «Аванс»). `GET /documents` добавляет `payment` проведённым документам продаж и закупок страницы (не возвратам); колонка «Оплата» в `JournalPage` показывает `PayBadge`. `GET /payments/status?ids=` остаётся для карточки.
 
+## Печатные формы и PDF (1174ж)
+
+- Формы: КО-1 (`ko1`), КО-2 (`ko2`), «Поступление на расчётный счёт» (`bank_receipt`), платёжное поручение 0401060 для «Списания с расчётного счёта» (`payment_order`), АО-1 (`advance_report`), «Ввод начальных остатков» (`opening_balance`), «Акт сверки». Все — по-русски, A4 портрет; шаблоны — `packages/shared/src/print/payments.ts` (`renderMoneyForm`, `renderSettlementAct`), данные — `packages/db/src/money-print.ts`.
+- Формы документов перечислены в `DOCUMENT_META[type].forms`, поэтому работают общие маршруты `GET /documents/:id/print/:form` (HTML) и `POST /documents/:id/pdf` + `GET /documents/:id/pdf/:fileId` (задача `document.pdf`, файл в `document_files`). Обе ветки зовут `renderDocumentHtml` (`money-print.ts`): денежная форма или обычная — страница одна и та же. Экран `/documents/:id/print/:form` показывает предпросмотр, «Print» и «Download PDF»; кнопки «Print» в документах денег и в вводе остатков ведут на него. Старый `GET /payments/:id/print/ko1|ko2` остаётся.
+- Платёжное поручение: плательщик — организация и её расчётный счёт из документа; получатель — контрагент с банком по умолчанию (перевод между своими счетами — своя организация и целевой счёт; выдача подотчётному — ФИО без банка). Назначение собирается из операции, документов расчётов и комментария. Вид оп. 01, очерёдность 5; НДС в назначение не вставляется.
+- Акт сверки в PDF: `POST /payments/settlements/:companyId/act/pdf?side&from&to&contractId&organizationId` создаёт строку `document_exports` (`content_type = 'application/pdf'`) и задачу `settlement.act_pdf`; статус и скачивание — `GET /payments/act-files/:id[?download=1]`. Акт — не документ учёта, поэтому `document_files` (привязан к документу) не подходит; миграции не потребовалось.
+- Счёт и заказ покупателя: если по корню цепочки расчётов есть неоплаченная ссылка ЮКассы (`payment_links`, статус `pending`), печатная форма `invoice` добавляет блок «Оплатить онлайн»: ссылка, сумма ссылки (остаток на момент её создания) и QR (`packages/shared/src/qr.ts`, встроенный SVG, сети не нужно, подходит для PDF воркера). Только `invoice` и `customer_order`, только https; без ссылки, с оплаченной или отменённой — блока нет. Вторая зависимость `shared` — `qrcode-generator`.
+
 ## Ограничения и дальнейшая работа
 
-Не входят: чеки 54-ФЗ; печатные формы банковских документов; несколько валют (все деньги — RUB).
+Не входят: чеки 54-ФЗ; несколько валют (все деньги — RUB).

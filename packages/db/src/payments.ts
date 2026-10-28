@@ -686,7 +686,7 @@ export async function cashFlowReport(db: Db, workspaceId: string, p: CashFlowPar
 
 /* ---------------- данные печатных форм ---------------- */
 
-async function printOrg(db: Db, organizationId: string): Promise<PrintOrganization> {
+export async function printOrg(db: Db, organizationId: string): Promise<PrintOrganization> {
   const [o] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
   if (!o) throw new DomainError(404, 'not_found', 'organization not found');
   return {

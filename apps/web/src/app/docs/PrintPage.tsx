@@ -3,12 +3,15 @@
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { ArrowLeft, CircleAlert, Download, Printer } from 'lucide-react';
-import { DOCUMENT_META, PRINT_FORMS, PRINT_FORM_LABELS, printOrientation, type PrintForm } from '@gr8r/shared';
+import { DOCUMENT_META, isCashDocType, PRINT_FORMS, PRINT_FORM_LABELS, printOrientation, type PrintForm } from '@gr8r/shared';
 import { Button, EmptyState, Select, Skeleton, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { API_BASE } from '../data/api';
 import { call, useWsId } from '../meta/data';
 import { docTitle, useDocument } from './data';
+
+/** Куда ведёт «назад»: документы денег живут в своём разделе, остальные — в карточке документа */
+const backPath = (type: string, id: string | undefined) => (type === 'opening_balance' ? `/money/opening/${id}` : isCashDocType(type) ? `/money/${id}` : `/documents/${id}`);
 
 export function PrintPage() {
   const { id, form } = useParams();
@@ -100,7 +103,7 @@ export function PrintPage() {
     <div className="page flush print-page">
       <div className="ph print-bar">
         <div className="row" style={{ gap: 10, minWidth: 0 }}>
-          <Link to={`/documents/${id}`} className="ibtn" aria-label={t('docs.print.backAria')}>
+          <Link to={doc.data ? backPath(doc.data.type, id) : `/documents/${id}`} className="ibtn" aria-label={t('docs.print.backAria')}>
             <ArrowLeft size={16} />
           </Link>
           <div style={{ minWidth: 0 }}>

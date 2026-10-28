@@ -1,10 +1,10 @@
 /* Карточка контрагента: вкладка «Взаиморасчёты» — режим расчётов, сальдо, обороты периода и акт сверки */
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Printer, Wallet } from 'lucide-react';
+import { Download, Printer, Wallet } from 'lucide-react';
 import { Button, EmptyState, Field, Input, Select, toast } from '@/components/ui';
 import { fmtAmount, useT } from '@/i18n';
-import { errorMessage } from '../data/api';
+import { API_BASE, errorMessage } from '../data/api';
 import { fmtDate } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';
 import { call, useWsId } from '../meta/data';
@@ -20,6 +20,35 @@ export function CompanySettlementsTab({ companyId }: { companyId: string }) {
   const openPrint = usePrintOpener();
   const [from, setFrom] = React.useState(`${new Date().getFullYear()}-01-01`);
   const [to, setTo] = React.useState(today());
+  const [pdfBusy, setPdfBusy] = React.useState<string | null>(null);
+  /** Акт сверки в PDF: задача воркеру, опрос статуса, скачивание файла */
+  const downloadPdf = async (side: string) => {
+    setPdfBusy(side);
+    try {
+      const file = await call<{ id: string; name: string }>(ws, 'POST', `/payments/settlements/${companyId}/act/pdf?side=${side}&from=${from}&to=${to}`);
+      for (let i = 0; i < 60; i++) {
+        await new Promise(r => setTimeout(r, 1000));
+        const st = await call<{ status: string; error?: string }>(ws, 'GET', `/payments/act-files/${file.id}`);
+        if (st.status === 'failed') throw new Error(st.error || tt('money.card.pdfFailed'));
+        if (st.status === 'ready') {
+          const res = await fetch(`${API_BASE()}/payments/act-files/${file.id}?download=1`, { credentials: 'include', headers: { 'X-Workspace-Id': ws } });
+          if (!res.ok) throw new Error(tt('money.card.pdfDownloadFailed'));
+          const url = URL.createObjectURL(await res.blob());
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = file.name;
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(url), 10_000);
+          return;
+        }
+      }
+      throw new Error(tt('money.card.pdfTimeout'));
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setPdfBusy(null);
+    }
+  };
   const company = useQuery({ queryKey: moneyKey(ws, 'company', companyId), queryFn: () => call<{ id: string; settlementMode: string }>(ws, 'GET', `/companies/${companyId}`) });
   const card = useSettlementCard(companyId, { from, to });
   const setMode = async (settlementMode: string) => {
@@ -65,6 +94,10 @@ export function CompanySettlementsTab({ companyId }: { companyId: string }) {
             <Button size="sm" onClick={() => void openPrint(`/payments/settlements/${companyId}/act?side=${s.side}&from=${from}&to=${to}`).catch(e => toast.error(errorMessage(e)))}>
               <Printer size={13} />
               {tt('money.card.print')}
+            </Button>
+            <Button size="sm" disabled={pdfBusy !== null} onClick={() => void downloadPdf(s.side)}>
+              <Download size={13} />
+              {pdfBusy === s.side ? tt('money.card.pdfPreparing') : tt('money.card.pdf')}
             </Button>
           </div>
           <table className="dtbl" aria-label={tt(`money.card.${s.side}`)}>
