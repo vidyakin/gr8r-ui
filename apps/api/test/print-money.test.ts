@@ -64,6 +64,8 @@ describe('печатные формы денег', () => {
     expect(po.csp).toContain("default-src 'none'");
     for (const s of ['Платёжное поручение', '0401060', 'Банк поставщика', '044030653', '40702810900000000009', '40702810400000000001', 'Одна тысяча пятьсот рублей 00 копеек', 'Оплата &lt;услуг&gt;']) expect(po.text).toContain(s);
     expect(po.text).not.toContain('ЧЕРНОВИК');
+    // страница печати в интерфейсе берёт заголовок из карточки /documents/:id
+    expect((await owner.get(`/documents/${out.id}`)).body).toMatchObject({ id: out.id, type: 'bank_payment' });
     // чужая для типа форма
     expect((await html(owner, out.id, 'bank_receipt')).status).toBe(422);
 
