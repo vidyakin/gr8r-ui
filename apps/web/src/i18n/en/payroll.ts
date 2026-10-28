@@ -11,6 +11,7 @@ export const payroll = {
   saved: 'Saved',
   fill: 'Fill',
   save: 'Save',
+  print: 'Print',
   create: 'Create',
   post: 'Post',
   unpost: 'Unpost',

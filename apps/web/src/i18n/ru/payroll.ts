@@ -13,6 +13,7 @@ export const payroll: typeof en = {
   saved: 'Сохранено',
   fill: 'Заполнить',
   save: 'Сохранить',
+  print: 'Печать',
   create: 'Создать',
   post: 'Провести',
   unpost: 'Отменить проведение',

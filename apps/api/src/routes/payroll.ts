@@ -22,10 +22,12 @@ import {
   payrollSettings,
   payrollSummary,
   payslip,
+  payslipPrintData,
   payStatement,
   setInsuranceRate,
   settlementsReport,
   statementDetail,
+  statementPrintData,
   statementRegistry,
   updateEmployeePayroll,
   updatePayroll,
@@ -34,6 +36,8 @@ import {
   updateStatement,
 } from '@gr8r/db';
 import {
+  renderPayslip,
+  renderPaymentStatement,
   employeeAccrualCreate,
   employeePayrollUpdate,
   idParam,
@@ -76,7 +80,26 @@ export const payrollRoutes = new Hono<AppEnv>()
     if (q.memberId && q.memberId !== own && !hasRole(c, 'admin')) throw new AppError(403, 'forbidden', 'Only admin can see the payslip of another employee');
     return c.json(await payslip(ctx.db, ctx.workspaceId, target, q.period));
   })
+  // печатная форма расчётного листка (HTML, A4)
+  .get('/payslip/print', zValidator('query', payslipQuery, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const q = c.req.valid('query');
+    const own = ctx.memberId;
+    if (q.memberId && q.memberId !== own && !hasRole(c, 'admin')) throw new AppError(403, 'forbidden', 'Only admin can see the payslip of another employee');
+    const target = hasRole(c, 'admin') ? (q.memberId ?? own) : own;
+    if (!target) throw new AppError(404, 'not_found', 'employee not found');
+    c.header('Content-Security-Policy', "default-src 'none'; img-src * data:; style-src 'unsafe-inline'");
+    c.header('X-Content-Type-Options', 'nosniff');
+    return c.html(renderPayslip(await payslipPrintData(ctx.db, ctx.workspaceId, target, q.period)));
+  })
   .use('*', admin)
+  // платёжная ведомость Т-53 (HTML, A4 альбом)
+  .get('/statements/:id/print', zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    c.header('Content-Security-Policy', "default-src 'none'; img-src * data:; style-src 'unsafe-inline'");
+    c.header('X-Content-Type-Options', 'nosniff');
+    return c.html(renderPaymentStatement(await statementPrintData(ctx.db, c.req.valid('param').id)));
+  })
   /* справочники и настройки */
   .get('/settings', async c => c.json(await payrollSettings(ctxOf(c).db, ctxOf(c).workspaceId)))
   .patch('/settings', zValidator('json', payrollSettingsUpdate, validationHook), async c => {

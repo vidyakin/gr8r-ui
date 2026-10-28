@@ -708,7 +708,7 @@ export async function cashFlowReport(db: Db, workspaceId: string, p: CashFlowPar
 
 /* ---------------- данные печатных форм ---------------- */
 
-async function printOrg(db: Db, organizationId: string): Promise<PrintOrganization> {
+export async function printOrg(db: Db, organizationId: string): Promise<PrintOrganization> {
   const [o] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
   if (!o) throw new DomainError(404, 'not_found', 'organization not found');
   return {
@@ -742,8 +742,8 @@ export async function cashOrderData(db: Db, id: string, form: 'ko1' | 'ko2'): Pr
     date: d.date,
     organization: await printOrg(db, d.organizationId),
     cashRegisterName: d.cashRegisterName ?? '',
-    personName: d.counterparty?.name ?? d.accountable?.name ?? '',
-    basis: [...new Set([...docs, d.comment].filter(Boolean))].join('; '),
+    personName: d.operation === 'salary_payment' ? 'Работники по платёжной ведомости' : (d.counterparty?.name ?? d.accountable?.name ?? ''),
+    basis: d.operation === 'salary_payment' ? ['Выплата заработной платы', d.comment].filter(Boolean).join(': ') : [...new Set([...docs, d.comment].filter(Boolean))].join('; '),
     amount: d.total,
   };
 }

@@ -21,6 +21,8 @@ import {
   SYSTEM_PAYROLL_KINDS,
   type PayrollBaseType,
   type PayrollLineInput,
+  type PayrollStatementPrintData,
+  type PayslipData,
   type StatementLineInput,
 } from '@gr8r/shared';
 import type { Db } from './client';
@@ -29,7 +31,7 @@ import { DOCUMENT_HOOKS } from './document-hooks';
 import type { DocCtx } from './documents';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
-import { createPayment, ensureCashFlowItems } from './payments';
+import { createPayment, ensureCashFlowItems, printOrg } from './payments';
 import { calendarContext } from './planning';
 import { pieceworkReport } from './piecework';
 import { postedSalesDocs, workOrdersFactDocs } from './service-reports';
@@ -889,4 +891,27 @@ export async function payslip(db: Db, workspaceId: string, memberId: string, per
   });
   const paid = sumDec(moves.map(x => x.amount)) * -1n;
   return { memberId, memberName: m.name, period: from, items, totals: { accrued: fmt(accrued, 2), ndfl: fmt(ndfl, 2), deductions: fmt(deductions, 2), paid: fmt(paid, 2), debtAtEnd: fmt(bal.get(memberId) ?? 0n, 2) } };
+}
+
+/* ---------------- печать ---------------- */
+
+/** Данные расчётного листка для печати */
+export async function payslipPrintData(db: Db, workspaceId: string, memberId: string, period: string): Promise<PayslipData> {
+  const p = await payslip(db, workspaceId, memberId, period);
+  const orgId = await defaultOrganizationId(db);
+  return { organization: await printOrg(db, orgId), memberName: p.memberName, period: p.period, items: p.items, totals: p.totals };
+}
+
+/** Данные платёжной ведомости (Т-53) для печати */
+export async function statementPrintData(db: Db, id: string): Promise<PayrollStatementPrintData> {
+  const d = await statementDetail(db, id);
+  return {
+    organization: await printOrg(db, d.organizationId),
+    number: d.number,
+    date: d.date,
+    period: d.period,
+    kindLabel: d.kind === 'advance' ? 'Аванс' : 'Расчёт',
+    lines: d.lines.map(l => ({ memberName: l.memberName, amount: l.amount })),
+    total: d.total,
+  };
 }

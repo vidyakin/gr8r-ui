@@ -357,6 +357,7 @@ export function PayslipPage() {
   const tt = useT();
   const [period, setPeriod] = React.useState(today().slice(0, 7));
   const q = usePayslip(`${period}-01`);
+  const api = usePayrollApi();
   const d = q.data;
   return (
     <div className="page flush">
@@ -365,6 +366,7 @@ export function PayslipPage() {
           <h1>{tt('payroll.payslip.title')}</h1>
           <p>{tt('payroll.payslip.subtitle')}</p>
         </div>
+        <div className="acts"><Button onClick={() => void guarded(() => api.openPrint(`/payroll/payslip/print?period=${period}-01`))}>{tt('payroll.print')}</Button></div>
       </div>
       <section className="panel doc-head" aria-label={tt('payroll.period')}>
         <Field label={tt('payroll.period')}>{p => <Input {...p} type="month" value={period} onChange={e => setPeriod(e.target.value)} />}</Field>

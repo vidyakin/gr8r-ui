@@ -495,6 +495,7 @@ export function StatementPage() {
         <div className="acts">
           {detail && <StatusBadge status={detail.status} />}
           {detail && detail.status === 'posted' && <Badge tone={detail.payState === 'paid' ? 'green' : detail.payState === 'partial' ? 'amber' : 'gray'} dot>{tt(`payroll.statements.payStates.${detail.payState}`)}</Badge>}
+          {detail && detail.status === 'posted' && <Button disabled={busy} onClick={() => void run(() => api.openPrint(`/payroll/statements/${detail.id}/print`))}>{tt('payroll.print')}</Button>}
           {editable && <Button disabled={busy || !organizationId || !period} onClick={() => void fill()}><Wand2 size={14} />{tt('payroll.fill')}</Button>}
           {editable && <Button variant="primary" disabled={busy || !valid} onClick={() => void save()}>{detail ? tt('payroll.save') : tt('payroll.create')}</Button>}
           {detail && detail.status === 'draft' && editable && <Button disabled={busy || !valid} onClick={() => void post()}>{tt('payroll.post')}</Button>}

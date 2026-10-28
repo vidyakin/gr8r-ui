@@ -68,3 +68,4 @@
 
 - [Инвестпроекты и окупаемость](architecture/investments.md)
 - [Деньги: оплаты, кассы, ДДС, взаиморасчёты](architecture/payments.md)
+- [Зарплата: начисление, ведомости, выплаты, расчёты с персоналом](architecture/payroll.md)

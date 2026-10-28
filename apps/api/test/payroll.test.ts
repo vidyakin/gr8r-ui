@@ -181,6 +181,16 @@ describe('зарплата', () => {
     expect((await other.get('/payroll/reports/settlements?from=2026-01-01&to=2026-12-31')).body.items.length).toBe(0);
   });
 
+  test('печатные формы: платёжная ведомость и расчётный листок', async () => {
+    const st = await owner.get(`/payroll/statements/${statementId}/print`);
+    expect(st.status).toBe(200);
+    expect(String(st.body)).toContain('Т-53');
+    expect((await member.get(`/payroll/statements/${statementId}/print`)).status).toBe(403);
+    const slip = await member.get('/payroll/payslip/print?period=2026-09-01');
+    expect(slip.status).toBe(200);
+    expect(String(slip.body)).toContain('Расчётный листок');
+  });
+
   test('закрытый период: проведение запрещено', async () => {
     const doc = await mk(owner, '/payroll/documents', { period: '2026-08-01' });
     await mk(owner, `/payroll/documents/${doc.id}/fill`, {});
