@@ -7,6 +7,11 @@
     ".": "./src/index.ts",
     "./demo": "./src/demo/index.ts"
   },
-  "scripts": { "typecheck": "tsc --noEmit -p ." },
-  "dependencies": { "zod": "^4.1.0" }
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "qrcode-generator": "^2.0.4",
+    "zod": "^4.1.0"
+  }
 }

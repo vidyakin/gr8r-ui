@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { computeDocument, dateLongRu, dateRu, esc, moneyRu, printOrientation, qtyRu, renderPrintForm, type PrintData, type PrintLine } from '../src';
+import { computeDocument, dateLongRu, dateRu, esc, moneyRu, printOrientation, qtyRu, renderMoneyForm, renderPrintForm, qrSvg, type PrintData, type PrintLine } from '../src';
 
 const lines = (includesVat: boolean): PrintLine[] => {
   const raw = [
@@ -156,5 +156,51 @@ describe('print forms', () => {
       const html = renderPrintForm(form, evil);
       expect(html).not.toContain('<script>');
     }
+  });
+});
+
+describe('payment link block (YooKassa)', () => {
+  const url = 'https://yoomoney.ru/checkout/payments/v2/contract?orderId=abc';
+  test('invoice with a link prints the URL, the amount and an inline QR', () => {
+    const html = renderPrintForm('invoice', data({ type: 'invoice', paymentLink: { url, amount: '1234.50' } }));
+    expect(html).toContain('Оплатить онлайн');
+    expect(html).toContain(esc(url));
+    expect(html).toContain(moneyRu('1234.50'));
+    expect(html).toContain('<svg');
+    expect(html).not.toContain('<img src="http');
+  });
+  test('no link, a non-https link or a null link means no block', () => {
+    expect(renderPrintForm('invoice', data({ type: 'invoice' }))).not.toContain('Оплатить онлайн');
+    expect(renderPrintForm('invoice', data({ type: 'invoice', paymentLink: null }))).not.toContain('Оплатить онлайн');
+    expect(renderPrintForm('invoice', data({ type: 'invoice', paymentLink: { url: 'javascript:alert(1)', amount: '1.00' } }))).not.toContain('Оплатить онлайн');
+  });
+  test('qrSvg is deterministic and sized by viewBox', () => {
+    const a = qrSvg(url);
+    expect(a).toBe(qrSvg(url));
+    expect(a).toMatch(/viewBox="0 0 (\d+) \1"/);
+  });
+});
+
+describe('money forms', () => {
+  const org = data().organization;
+  const base = { number: 'СС-2026-00004', date: '2026-03-05', organization: org };
+  const bank = { bankName: 'ПАО Сбербанк', bik: '044525225', corrAccount: '30101810400000000225', account: '40702810400000000001' };
+  test('payment order 0401060 carries both banks, the amount in words and the purpose', () => {
+    const html = renderMoneyForm({ ...base, form: 'payment_order', payer: { name: org.name, inn: org.inn, kpp: org.kpp }, payerBank: bank, payee: { name: 'ООО «Поставщик»', inn: '7728168971', kpp: '' }, payeeBank: { ...bank, bik: '044030653', account: '40702810900000000009' }, amount: '1500.00', purpose: 'Оплата по счёту <1>' });
+    expect(html).toContain('Платёжное поручение № СС-2026-00004');
+    expect(html).toContain('0401060');
+    expect(html).toContain('044030653');
+    expect(html).toContain('Одна тысяча пятьсот рублей 00 копеек');
+    expect(html).toContain('Оплата по счёту &lt;1&gt;');
+  });
+  test('draft documents are marked', () => {
+    const html = renderMoneyForm({ ...base, number: null, form: 'advance_report', accountableName: 'Сидоров', rows: [{ n: 1, label: 'Бумага', costItem: 'Канцелярия', counterparty: '', amount: '300.00' }], total: '300.00', comment: '' });
+    expect(html).toContain('ЧЕРНОВИК');
+    expect(html).toContain('АО-1');
+  });
+  test('bank receipt, opening balances and the cash order go through one dispatcher', () => {
+    expect(renderMoneyForm({ ...base, form: 'bank_receipt', account: bank, operation: 'Оплата от покупателя', payer: { name: 'Покупатель', inn: '1', kpp: '' }, rows: [{ n: 1, label: 'Счёт СЧ-1', flowItem: 'Оплата от покупателей', amount: '10.00' }], amount: '10.00', comment: '' })).toContain('Поступление на расчётный счёт № СС-2026-00004');
+    expect(renderMoneyForm({ ...base, form: 'opening_balance', sections: [{ title: 'Остатки в кассах', rows: [{ n: 1, name: 'Касса', details: '', amount: '100.00' }], total: '100.00' }], comment: '' })).toContain('Остатки в кассах');
+    expect(renderMoneyForm({ form: 'ko1', number: 'ПКО-1', date: '2026-03-05', organization: org, cashRegisterName: 'Касса', personName: 'X', basis: '', amount: '5.00' })).toContain('КО-1');
   });
 });
