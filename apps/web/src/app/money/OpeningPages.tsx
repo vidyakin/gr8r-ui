@@ -4,12 +4,14 @@ import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { CircleAlert, FilePlus2, Plus, Trash2 } from 'lucide-react';
 import { Badge, Button, ConfirmDialog, EmptyState, Field, IconButton, Input, Select, Skeleton, Tab, Tabs, TabsList, toast } from '@/components/ui';
+import { PAYABLE_TYPES } from '@gr8r/shared';
 import { fmtAmount, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { useCanWrite } from '../meta/custom-fields';
 import { useIsAdmin } from '../catalog/data';
 import { fmtDate } from '../lib/dates';
-import { useOrganizations } from '../docs/data';
+import { typeLabel, useDocuments, useOrganizations } from '../docs/data';
+import { useContracts } from '../docs/billing-data';
 import { CounterpartyPicker } from '../docs/pickers';
 import { useCashRegisters, useOrgBankAccounts } from './data';
 import { useOpening, useOpeningApi, useOpenings, type OpeningKind } from './opening-data';
@@ -84,16 +86,55 @@ export function OpeningsPage() {
   );
 }
 
+/** Договор и документ расчётов строки: список договоров и документов выбранного контрагента (оба необязательны) */
+function ContractSelect({ line, disabled, onChange }: { line: Line; disabled: boolean; onChange: (id: string) => void }) {
+  const tt = useT();
+  const contracts = useContracts({ companyId: line.counterpartyId || undefined });
+  return (
+    <Select
+      aria-label={tt('money.opening.contract')}
+      disabled={disabled || !line.counterpartyId}
+      value={line.contractId}
+      onValueChange={onChange}
+      options={[{ value: '', label: tt('money.opening.noContract') }, ...(contracts.data?.items ?? []).map(c => ({ value: c.id, label: c.number }))]}
+    />
+  );
+}
+
+function SettlementDocumentSelect({ line, disabled, onChange }: { line: Line; disabled: boolean; onChange: (id: string) => void }) {
+  const tt = useT();
+  const docs = useDocuments({ counterpartyId: line.counterpartyId || undefined });
+  const side = line.kind.startsWith('customer') ? 'customer' : 'supplier';
+  const options = (docs.data?.items ?? []).filter(d => (PAYABLE_TYPES as string[]).includes(d.type) && d.status !== 'cancelled' && (d.type === 'receipt' || d.type === 'supplier_order' ? side === 'supplier' : side === 'customer'));
+  const current = line.settlementDocumentLabel;
+  return (
+    <Select
+      aria-label={tt('money.opening.document')}
+      disabled={disabled || !line.counterpartyId}
+      value={line.settlementDocumentId}
+      onValueChange={onChange}
+      options={[
+        { value: '', label: tt('money.opening.noDocument') },
+        ...(line.settlementDocumentId && current && !options.some(d => d.id === line.settlementDocumentId) ? [{ value: line.settlementDocumentId, label: current }] : []),
+        ...options.map(d => ({ value: d.id, label: `${typeLabel(d.type)} ${d.number ?? ''} · ${fmtAmount(d.total)}` })),
+      ]}
+    />
+  );
+}
+
 interface Line {
   id: string;
   kind: OpeningKind;
+  contractId: string;
+  settlementDocumentId: string;
+  settlementDocumentLabel: string;
   accountId: string;
   counterpartyId: string;
   counterpartyName: string;
   amount: string;
   comment: string;
 }
-const newLine = (kind: OpeningKind): Line => ({ id: crypto.randomUUID(), kind, accountId: '', counterpartyId: '', counterpartyName: '', amount: '', comment: '' });
+const newLine = (kind: OpeningKind): Line => ({ id: crypto.randomUUID(), kind, accountId: '', counterpartyId: '', counterpartyName: '', contractId: '', settlementDocumentId: '', settlementDocumentLabel: '', amount: '', comment: '' });
 
 export function OpeningPage() {
   const tt = useT();
@@ -129,7 +170,7 @@ export function OpeningPage() {
     setOrganizationId(detail.organizationId);
     setDate(detail.date);
     setComment(detail.comment);
-    setLines(detail.lines.map(l => ({ id: l.id, kind: l.kind, accountId: l.cashRegisterId ?? l.bankAccountId ?? '', counterpartyId: l.counterpartyId ?? '', counterpartyName: l.counterpartyName ?? '', amount: l.amount, comment: l.comment })));
+    setLines(detail.lines.map(l => ({ id: l.id, kind: l.kind, accountId: l.cashRegisterId ?? l.bankAccountId ?? '', counterpartyId: l.counterpartyId ?? '', counterpartyName: l.counterpartyName ?? '', contractId: l.contractId ?? '', settlementDocumentId: l.settlementDocumentId ?? '', settlementDocumentLabel: l.settlementDocumentLabel ?? '', amount: l.amount, comment: l.comment })));
   }, [detail]);
 
   const editable = isAdmin && canWrite && (!detail || detail.status === 'draft');
@@ -144,6 +185,8 @@ export function OpeningPage() {
       cashRegisterId: l.kind === 'cash' ? l.accountId || null : null,
       bankAccountId: l.kind === 'bank' ? l.accountId || null : null,
       counterpartyId: MONEY_KINDS.includes(l.kind) ? null : l.counterpartyId || null,
+      contractId: MONEY_KINDS.includes(l.kind) ? null : l.contractId || null,
+      settlementDocumentId: MONEY_KINDS.includes(l.kind) ? null : l.settlementDocumentId || null,
       amount: l.amount || '0',
       comment: l.comment,
     })),
@@ -230,6 +273,8 @@ export function OpeningPage() {
                 <th style={{ width: 34 }}>#</th>
                 <th style={{ width: 230 }}>{tt('money.opening.kind')}</th>
                 <th>{tab === 'money' ? tt('money.opening.account') : tt('money.opening.counterparty')}</th>
+                {tab === 'settlements' && <th style={{ width: 160 }}>{tt('money.opening.contract')}</th>}
+                {tab === 'settlements' && <th style={{ width: 220 }}>{tt('money.opening.document')}</th>}
                 <th style={{ width: 150 }} className="r">{tt('money.form.amount')}</th>
                 <th>{tt('money.form.comment')}</th>
                 <th style={{ width: 36 }} />
@@ -242,7 +287,7 @@ export function OpeningPage() {
                   <tr key={l.id}>
                     <td className="faint num">{n + 1}</td>
                     <td>
-                      <Select aria-label={tt('money.opening.kind')} disabled={!editable} value={l.kind} onValueChange={v => set({ kind: v as OpeningKind, accountId: '' })} options={kinds.map(k => ({ value: k, label: tt(`money.opening.kinds.${k}`) }))} />
+                      <Select aria-label={tt('money.opening.kind')} disabled={!editable} value={l.kind} onValueChange={v => set({ kind: v as OpeningKind, accountId: '', settlementDocumentId: '', settlementDocumentLabel: '' })} options={kinds.map(k => ({ value: k, label: tt(`money.opening.kinds.${k}`) }))} />
                     </td>
                     <td>
                       {tab === 'money' ? (
@@ -254,9 +299,19 @@ export function OpeningPage() {
                           options={l.kind === 'cash' ? ownRegisters.map(r => ({ value: r.id, label: r.name })) : (banks.data ?? []).map(b => ({ value: b.id, label: `${b.bankName} · ${b.account}` }))}
                         />
                       ) : (
-                        <CounterpartyPicker id={`opening-cp-${l.id}`} value={l.counterpartyName} disabled={!editable} onPick={c => set({ counterpartyId: c.id, counterpartyName: c.name })} />
+                        <CounterpartyPicker id={`opening-cp-${l.id}`} value={l.counterpartyName} disabled={!editable} onPick={c => set({ counterpartyId: c.id, counterpartyName: c.name, contractId: '', settlementDocumentId: '', settlementDocumentLabel: '' })} />
                       )}
                     </td>
+                    {tab === 'settlements' && (
+                      <td>
+                        <ContractSelect line={l} disabled={!editable} onChange={v => set({ contractId: v })} />
+                      </td>
+                    )}
+                    {tab === 'settlements' && (
+                      <td>
+                        <SettlementDocumentSelect line={l} disabled={!editable} onChange={v => set({ settlementDocumentId: v, settlementDocumentLabel: '' })} />
+                      </td>
+                    )}
                     <td className="r">
                       <Input aria-label={tt('money.form.amount')} inputMode="decimal" disabled={!editable} value={l.amount} onChange={e => set({ amount: e.target.value })} />
                     </td>
