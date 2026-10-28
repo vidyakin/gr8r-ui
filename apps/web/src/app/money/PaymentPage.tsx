@@ -12,7 +12,7 @@ import { useCanWrite } from '../meta/custom-fields';
 import { useCostItems, useDocuments, useOrganizations, typeLabel } from '../docs/data';
 import { CounterpartyPicker } from '../docs/pickers';
 import { useBankAccounts } from '../docs/data';
-import { useCashFlowItems, useCashRegisters, usePayment, usePaymentApi, usePrintOpener, type PaymentBody } from './data';
+import { useCashFlowItems, useCashRegisters, usePayment, usePaymentApi, type PaymentBody } from './data';
 
 interface Line {
   id: string;
@@ -27,7 +27,8 @@ interface Line {
 
 const today = () => new Date().toISOString().slice(0, 10);
 const newLine = (): Line => ({ id: crypto.randomUUID(), settlementDocumentId: null, counterpartyId: null, counterpartyName: '', amount: '', cashFlowItemId: '', costItemId: null, comment: '' });
-const KO: Record<string, 'ko1' | 'ko2'> = { cash_receipt: 'ko1', cash_payment: 'ko2' };
+/** Печатная форма документа: КО-1, КО-2, поступление на счёт, платёжное поручение 0401060, АО-1 */
+const PRINT_FORM: Record<string, string> = { cash_receipt: 'ko1', cash_payment: 'ko2', bank_receipt: 'bank_receipt', bank_payment: 'payment_order', advance_report: 'advance_report' };
 
 export function PaymentPage() {
   const tt = useT();
@@ -38,7 +39,6 @@ export function PaymentPage() {
   const canWrite = useCanWrite();
   const navigate = useNavigate();
   const api = usePaymentApi();
-  const openPrint = usePrintOpener();
   const doc = usePayment(isNew ? undefined : id);
   const detail = isNew ? null : doc.data;
   const docType = detail?.type ?? type;
@@ -171,7 +171,7 @@ export function PaymentPage() {
     );
 
   const title = detail?.number ?? tt('money.form.newTitle');
-  const koForm = KO[docType];
+  const printForm = PRINT_FORM[docType];
 
   return (
     <div className="page flush">
@@ -197,8 +197,8 @@ export function PaymentPage() {
               {tt('money.common.unpost')}
             </Button>
           )}
-          {detail && koForm && (
-            <Button variant="ghost" onClick={() => void openPrint(`/payments/${detail.id}/print/${koForm}`).catch(e => toast.error(errorMessage(e)))}>
+          {detail && printForm && (
+            <Button variant="ghost" onClick={() => void navigate(`/documents/${detail.id}/print/${printForm}`)}>
               <Printer size={14} />
               {tt('money.common.print')}
             </Button>

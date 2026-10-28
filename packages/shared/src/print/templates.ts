@@ -5,6 +5,7 @@ import { dec, div, fmt, mul } from '../decimal';
 import { DOCUMENT_LABELS_RU, type PrintForm } from '../documents';
 import { amountInWordsRu, numberToWordsRu } from '../ru';
 import type { FileRef } from '../schemas/documents';
+import { qrSvg } from '../qr';
 import type { PrintData, PrintLine, PrintOrganization, PrintParty } from './types';
 
 const NBSP = ' ';
@@ -144,8 +145,19 @@ ${d.dueDate ? `<div class="party"><b>${d.type === 'quote' ? 'Действите�
 <tr><td class="bold">Всего к оплате:</td><td class="bold">${moneyRu(t.total)}</td></tr></table>
 <div class="words">Всего наименований ${d.lines.length}, на сумму ${moneyRu(t.total)} руб.<br><b>${esc(amountInWordsRu(t.total))}</b></div>
 ${d.comment ? `<div class="party small">${esc(d.comment)}</div>` : ''}
+${paymentLinkBlock(d)}
 ${signBlock(o)}`,
   );
+}
+
+/** Блок «Оплатить онлайн»: ссылка ЮКассы и QR-код (встроенный SVG, без сети). Только https-ссылка и только когда она создана */
+export function paymentLinkBlock(d: PrintData): string {
+  const l = d.paymentLink;
+  if (!l || !/^https:\/\//i.test(l.url)) return '';
+  return `<table class="plain paylink" style="margin-top:10px;break-inside:avoid;page-break-inside:avoid"><tr>
+<td style="width:30mm"><div style="width:28mm;height:28mm">${qrSvg(l.url)}</div></td>
+<td><b>Оплатить онлайн (банковской картой, СБП)</b><div class="small" style="margin:2px 0">Наведите камеру на QR-код или откройте ссылку. Сумма к оплате: <b>${moneyRu(l.amount)}</b> руб.</div><div class="small" style="word-break:break-all">${esc(l.url)}</div></td>
+</tr></table>`;
 }
 
 /* ---------------- акт оказания услуг ---------------- */
@@ -592,6 +604,10 @@ export function renderPrintForm(form: PrintForm, data: PrintData): string {
       return repairReturnForm(data);
     case 'ko1':
     case 'ko2':
-      throw new Error('Cash orders are rendered by renderCashOrder');
+    case 'bank_receipt':
+    case 'payment_order':
+    case 'advance_report':
+    case 'opening_balance':
+      throw new Error('Money forms are rendered by renderMoneyForm');
   }
 }

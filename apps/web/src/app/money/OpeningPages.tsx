@@ -2,7 +2,7 @@
    комментарий внизу (как в 1С). Проведение пишет остатки касс и счетов и взаиморасчёты; отмена проведения их убирает. */
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { CircleAlert, FilePlus2, Plus, Trash2 } from 'lucide-react';
+import { CircleAlert, FilePlus2, Plus, Printer, Trash2 } from 'lucide-react';
 import { Badge, Button, ConfirmDialog, EmptyState, Field, IconButton, Input, Select, Skeleton, Tab, Tabs, TabsList, toast } from '@/components/ui';
 import { PAYABLE_TYPES } from '@gr8r/shared';
 import { fmtAmount, useT } from '@/i18n';
@@ -245,6 +245,12 @@ export function OpeningPage() {
           )}
           {detail && detail.status === 'draft' && editable && <Button disabled={busy || !valid} onClick={() => void post()}>{tt('money.common.post')}</Button>}
           {detail && detail.status === 'posted' && isAdmin && <Button disabled={busy} onClick={() => void run(() => api.action(detail.id, 'unpost'))}>{tt('money.common.unpost')}</Button>}
+          {detail && (
+            <Button variant="ghost" onClick={() => void navigate(`/documents/${detail.id}/print/opening_balance`)}>
+              <Printer size={14} />
+              {tt('money.common.print')}
+            </Button>
+          )}
           {detail && detail.status === 'draft' && editable && <Button variant="ghost" onClick={() => setRemoving(true)}>{tt('money.common.delete')}</Button>}
         </div>
       </div>

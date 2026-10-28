@@ -2,8 +2,8 @@
    (индексы полей конструктора), PDF печатных форм, ZIP-архив выгрузки счетов, закрытие периода (production.close_period)
    и выполнение запусков автоматизаций (flow.run). */
 import { and, eq, inArray } from 'drizzle-orm';
-import { BANK_SYNC_JOB, buildPrintData, createFieldIndex, integrationRuntime, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, isUuid, jobs, withContext, type Db, type Sql } from '@gr8r/db';
-import { DOCUMENT_META, FIELD_TYPES, renderPrintForm, type FieldType, type PrintForm } from '@gr8r/shared';
+import { BANK_SYNC_JOB, buildPrintData, renderDocumentHtml, settlementActHtml, createFieldIndex, integrationRuntime, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, isUuid, jobs, withContext, type Db, type Sql } from '@gr8r/db';
+import { FIELD_TYPES, renderPrintForm, type FieldType, type PrintForm } from '@gr8r/shared';
 import { runClosePeriod } from './production-closing';
 import { executeRun } from './flows/engine';
 import { startRunsForEvent } from './flows/triggers';
@@ -121,16 +121,38 @@ export const jobHandlers: Record<string, (job: JobRow, h: JobContext) => Promise
     const file = await h.read(async db => (await db.select().from(documentFiles).where(eq(documentFiles.id, fileId)).limit(1))[0]);
     if (!file) return; // документ удалён вместе с файлом
     try {
-      const html = await h.read(async db => {
-        const data = await buildPrintData(db, file.documentId);
-        if (!DOCUMENT_META[data.type].forms.includes(file.form as PrintForm)) throw new Error(`form "${file.form}" is not available for ${data.type}`);
-        return renderPrintForm(file.form as PrintForm, data);
-      });
+      // та же страница, что в предпросмотре браузера (денежные формы и обычные печатные формы)
+      const html = await h.read(db => renderDocumentHtml(db, file.documentId, file.form as PrintForm));
       const bytes = await pdfRuntime.render(html, file.form as PrintForm);
       await h.read(db => pdfRuntime.store.save(db, { id: file.id, workspaceId: file.workspaceId }, bytes));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       await h.read(db => db.update(documentFiles).set({ status: 'failed', error: msg.slice(0, 1000), finishedAt: new Date() }).where(eq(documentFiles.id, file.id)));
+    }
+  },
+  /** Акт сверки взаиморасчётов → PDF. Акт не документ учёта, поэтому файл лежит в document_exports (contentType application/pdf).
+      Ошибка формирования не повторяется вслепую: файл помечается failed с текстом, акт можно заказать заново */
+  'settlement.act_pdf': async (job, h) => {
+    const p = job.payload as { exportId?: unknown; companyId?: unknown; side?: unknown; from?: unknown; to?: unknown; contractId?: unknown; organizationId?: unknown };
+    if (!isUuid(p.exportId) || !isUuid(p.companyId)) throw new Error('settlement.act_pdf job: payload.exportId and payload.companyId must be uuids');
+    const exportId = p.exportId;
+    const row = await h.read(async db => (await db.select().from(documentExports).where(eq(documentExports.id, exportId)).limit(1))[0]);
+    if (!row) return;
+    try {
+      const html = await h.read(db =>
+        settlementActHtml(db, job.workspaceId, p.companyId as string, {
+          side: p.side === 'supplier' ? 'supplier' : 'customer',
+          from: typeof p.from === 'string' ? p.from : undefined,
+          to: typeof p.to === 'string' ? p.to : undefined,
+          contractId: isUuid(p.contractId) ? p.contractId : null,
+          organizationId: isUuid(p.organizationId) ? p.organizationId : null,
+        }),
+      );
+      const bytes = await pdfRuntime.render(html, 'invoice'); // акт — A4 портрет
+      await h.read(db => archiveRuntime.store.save(db, { id: row.id, workspaceId: row.workspaceId }, bytes));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await h.read(db => db.update(documentExports).set({ status: 'failed', error: msg.slice(0, 1000), finishedAt: new Date() }).where(eq(documentExports.id, row.id)));
     }
   },
   /** Выгрузка счетов одним ZIP-архивом: PDF печатных форм (та же печать, что у document.pdf) складываются в архив.
