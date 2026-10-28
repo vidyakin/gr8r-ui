@@ -1,7 +1,7 @@
 /* Деньги (задача 1174б): документы оплат (ПКО, РКО, поступление на счёт, списание со счёта), авансовый отчёт, кассы, статьи ДДС,
    движения денег, остатки и отчёты. Правила — docs/architecture/payments.md.
    У документов нет товаров: строки лежат в payment_lines, проведение и нумерация — общие (хуки типа в document-hooks.ts). */
-import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, sql } from 'drizzle-orm';
 import {
   accountKindOfType,
   defaultCashFlowKey,
@@ -45,6 +45,8 @@ import {
   members,
   organizations,
   paymentLines,
+  payrollMoves,
+
 } from './schema';
 import { assertPeriodOpen } from './cost-closing';
 import { requestPaidAmounts, syncRequestPaid } from './request-paid';
@@ -159,6 +161,7 @@ export async function saveLines(db: Db, ctx: DocCtx, doc: DocRow, inputs: Paymen
       documentId: doc.id,
       sortOrder: i,
       counterpartyId: doc.type === 'advance_report' ? (l.counterpartyId ?? null) : null,
+      memberId: doc.operation === 'salary_payment' ? (l.memberId ?? null) : null,
       settlementDocumentId,
       contractId,
       amount: fmt(dec(l.amount), 2),
@@ -223,7 +226,7 @@ export async function createPayment(db: Db, ctx: DocCtx, input: PaymentInput): P
 
 async function assertPayableBase(db: Db, baseId: string): Promise<void> {
   const [b] = await db.select({ type: documents.type, status: documents.status }).from(documents).where(eq(documents.id, baseId)).limit(1);
-  if (b?.type === 'payment_request') return; // заявка на расход: состояние проверяется при проведении оплаты
+  if (b?.type === 'payment_request' || b?.type === 'payroll_statement') return; // заявка и ведомость: состояние проверяется при проведении оплаты
   if (!b || !(PAYABLE_TYPES as string[]).includes(b.type)) throw new DomainError(422, 'invalid_based_on', 'This document cannot be a basis for a payment');
   if (b.status === 'cancelled') throw new DomainError(422, 'invalid_based_on', 'A cancelled document cannot be a basis');
 }
@@ -322,6 +325,7 @@ async function checkPosting(db: Db, doc: DocRow): Promise<void> {
     if (!c || c.archivedAt) throw new DomainError(422, 'invalid_reference', 'The counterparty does not exist or is archived');
   }
   await checkRequestBase(db, doc, lines.reduce((s, l) => s + dec(l.amount), 0n));
+  if (doc.operation === 'salary_payment') await checkSalaryPayment(db, doc, lines);
   const itemIds = [...new Set(lines.map(l => l.cashFlowItemId))];
   const items = new Map((await db.select({ id: cashFlowItems.id, kind: cashFlowItems.kind, archivedAt: cashFlowItems.archivedAt }).from(cashFlowItems).where(inArray(cashFlowItems.id, itemIds))).map(i => [i.id, i]));
   const incoming = !advance && isReceiptType(doc.type as PaymentDocType);
@@ -385,6 +389,7 @@ async function writeMoves(db: Db, ctx: DocCtx, doc: DocRow): Promise<void> {
       continue;
     }
     await db.insert(cashMoves).values({ ...common, ...source, cashFlowItemId: l.cashFlowItemId, direction: incoming ? 'in' : 'out' });
+    if (doc.operation === 'salary_payment') await db.insert(payrollMoves).values({ workspaceId: ctx.workspaceId, memberId: l.memberId!, documentId: doc.id, lineId: l.id, date: doc.date, kind: 'payment', amount: fmt(-dec(l.amount), 2) });
     if (settle) {
       const pl = toPayLine(l, doc.counterpartyId!);
       if (settle.mode === 'pay') await applyPayment(db, ctx.workspaceId, settle.side, doc, pl);
@@ -410,11 +415,28 @@ export async function replayPaymentSettlements(db: Db, workspaceId: string, doc:
   }
 }
 
+/** Выплата зарплаты: у каждой строки сотрудник; на основании ведомости — ведомость проведена и выплаты не превышают её сумму */
+async function checkSalaryPayment(db: Db, doc: DocRow, lines: (typeof paymentLines.$inferSelect)[]): Promise<void> {
+  if (lines.some(l => !l.memberId)) throw new DomainError(422, 'member_required', 'Select an employee in every line of a salary payment');
+  if (!doc.basedOnId) return;
+  const [st] = await db.select({ type: documents.type, status: documents.status, total: documents.total }).from(documents).where(eq(documents.id, doc.basedOnId)).limit(1);
+  if (st?.type !== 'payroll_statement') return;
+  if (st.status !== 'posted') throw new DomainError(422, 'statement_not_posted', 'Post the payroll statement before paying it');
+  const [other] = await db
+    .select({ s: sql<string>`coalesce(sum(${paymentLines.amount}), 0)::text` })
+    .from(paymentLines)
+    .innerJoin(documents, eq(documents.id, paymentLines.documentId))
+    .where(and(eq(documents.basedOnId, doc.basedOnId), eq(documents.status, 'posted'), ne(documents.id, doc.id)));
+  const total = lines.reduce((s, l) => s + dec(l.amount), 0n);
+  if (dec(other?.s ?? '0') + total > dec(st.total)) throw new DomainError(422, 'over_statement', 'The payments exceed the amount of the payroll statement');
+}
+
 const toPayLine = (l: typeof paymentLines.$inferSelect, companyId: string): PayLine => ({ id: l.id, companyId, settlementDocumentId: l.settlementDocumentId, contractId: l.contractId, amount: dec(l.amount) });
 
 async function clearMoves(db: Db, ctx: DocCtx, docId: string): Promise<void> {
   await db.delete(cashMoves).where(eq(cashMoves.documentId, docId));
   await db.delete(accountableMoves).where(eq(accountableMoves.documentId, docId));
+  await db.delete(payrollMoves).where(eq(payrollMoves.documentId, docId));
   await removeSettlementMoves(db, ctx.workspaceId, docId);
 }
 

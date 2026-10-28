@@ -330,6 +330,13 @@
       "when": 1793221367623,
       "tag": "0049_opening_settlement_document",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1793221893466,
+      "tag": "0050_payroll",
+      "breakpoints": true
     }
   ]
 }

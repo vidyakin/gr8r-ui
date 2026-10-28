@@ -53,6 +53,7 @@ export * from './settlements';
 export * from './payments';
 export * from './payment-requests';
 export * from './opening-balances';
+export * from './payroll';
 export * from './settlement-mode';
 export * from './payment-calendar';
 export * from './request-paid';

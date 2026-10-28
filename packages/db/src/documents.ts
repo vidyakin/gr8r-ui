@@ -824,7 +824,7 @@ async function syncAfterChange(db: Db, ctx: DocCtx, doc: DocumentRow, lines: Doc
   if (ids.length) await syncReservations(db, ctx.workspaceId, ids);
   // косвенные затраты периода: набираются при проведении и очищаются при отмене.
   // У «Прочих затрат» строк товаров нет — их набирает хук проведения этого типа
-  if (doc.type === 'other_costs' || doc.type === 'sales_plan') return;
+  if (doc.type === 'other_costs' || doc.type === 'sales_plan' || doc.type === 'payroll' || doc.type === 'payroll_statement') return;
   if (posted) await syncPeriodCosts(db, ctx, doc, lines);
   else await clearPeriodCosts(db, ctx.workspaceId, doc.id);
 }
