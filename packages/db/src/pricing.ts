@@ -196,6 +196,11 @@ export async function resolvePrices(db: Db, workspaceId: string, kindId: string,
   const parentRows = parents.length ? await db.select({ id: products.id, parentId: products.parentProductId, price: products.price, purchasePrice: products.purchasePrice }).from(products).where(inArray(products.id, parents)) : [];
   const prod = new Map([...prodRows, ...parentRows].map(p => [p.id, p]));
   const allIds = [...prod.keys()];
+  // ни один товар не виден (чужие или устаревшие id): цены нет, пустой список в SQL не передаём
+  if (!allIds.length) {
+    for (const pid of productIds) out.set(pid, { price: null, source: null });
+    return out;
+  }
   // ручные записи на дату
   const hist = new Map<string, string>();
   const rows = await db.execute<{ price_kind_id: string; product_id: string; price: string }>(sql`

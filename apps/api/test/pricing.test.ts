@@ -168,6 +168,11 @@ describe('приоритет вида цен', () => {
     // шапка документа хранится в документе
     const doc = await mk(owner, '/documents', { type: 'invoice', counterpartyId: company, priceKindId: wholesale, lines: [{ productId: phone, qty: 1, price: 850 }] });
     expect(doc.priceKindId).toBe(wholesale);
+    // шапка сохраняется и обычной правкой документа (автосохранение формы)
+    const patched = await owner.patch(`/documents/${doc.id}`, { priceKindId: retail });
+    expect(patched.status).toBe(200);
+    expect(patched.body.priceKindId).toBe(retail);
+    expect((await owner.get(`/documents/${doc.id}`)).body.priceKindId).toBe(retail);
   });
 
   test('запись на приём берёт цену по виду цен клиента (договор — не нужен, достаточно контрагента)', async () => {
@@ -309,6 +314,11 @@ describe('изоляция арендаторов', () => {
     expect((await other.get(`/pricing/products/${phone}/history`)).body.items).toEqual([]);
     const r = await other.post('/pricing/resolve', { productIds: [phone], priceKindId: wholesale });
     expect(r.status).toBe(404);
+    // чужой товар со своим видом цен: цены нет, ответ 200 (не ошибка SQL)
+    const theirRetail = theirs.find(k => k.systemKey === 'retail').id;
+    const own = await other.post('/pricing/resolve', { productIds: [phone], priceKindId: theirRetail });
+    expect(own.status).toBe(200);
+    expect(own.body.prices[phone]).toBeNull();
     const rows = await admin`select count(*)::int as n from product_prices where workspace_id = ${other.workspaceId}`;
     expect(rows[0]!.n).toBe(0);
   });

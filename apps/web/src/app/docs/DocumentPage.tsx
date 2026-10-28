@@ -330,8 +330,8 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     if (!ids.length) return;
     try {
       const r = await resolvePrices({ productIds: ids, date: f.date, party: meta.party === 'supplier' ? 'supplier' : 'customer', priceKindId: f.priceKindId, contractId: f.contractId, counterpartyId: f.counterpartyId, workOrderKindId: (doc as { workOrderKindId?: string | null }).workOrderKindId ?? null });
-      let n = 0;
-      edit(cur => ({ ...cur, lines: cur.lines.map(l => { const v = l.productId ? r.prices[l.productId] : null; if (!v) return l; n++; return { ...l, price: trimNum(v) }; }) }));
+      const n = f.lines.filter(l => l.productId && r.prices[l.productId]).length;
+      edit(cur => ({ ...cur, lines: cur.lines.map(l => { const v = l.productId ? r.prices[l.productId] : null; return v ? { ...l, price: trimNum(v) } : l; }) }));
       toast(t('pricing.doc.repriced', { n }), { duration: 2000 });
     } catch {
       toast.error(t('docs.document.saveErrorFix'));
