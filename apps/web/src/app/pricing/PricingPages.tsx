@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { CircleAlert, Copy, Download, FilePlus2, Link as LinkIcon, Percent, Plus, Printer, Trash2, Upload, Wand2 } from 'lucide-react';
 import { Badge, Button, Checkbox, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
-import { fmtAmount, useT } from '@/i18n';
+import { fmtAmount, fmtNumber, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { useCanWrite } from '../meta/custom-fields';
 import { useCategories, useCompanies, useIsAdmin } from '../catalog/data';
@@ -801,7 +801,7 @@ export function PriceListPage() {
                   <td className="muted">{r.unit}</td>
                   <td className="muted">{r.categoryName}</td>
                   {data.kinds.map(k => <td key={k.id} className="r num">{r.prices[k.id] === null || r.prices[k.id] === undefined ? '' : fmtAmount(r.prices[k.id])}</td>)}
-                  <td className="r num muted">{Number(r.stockQty) ? Number(r.stockQty) : ''}</td>
+                  <td className="r num muted">{Number(r.stockQty) ? fmtNumber(r.stockQty, { maximumFractionDigits: 3 }) : ''}</td>
                 </tr>
               ))}
             </tbody>
