@@ -49,6 +49,7 @@ export const money = {
     to_accountable: 'To accountable person',
     other_expense: 'Other expense',
     money_transfer: 'Money transfer',
+    salary_payment: 'Salary payment',
   },
   list: {
     title: 'Payments',

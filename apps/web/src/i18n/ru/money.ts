@@ -52,6 +52,7 @@ export const money: Widen<typeof M> = {
     to_accountable: 'Выдача подотчётному лицу',
     other_expense: 'Прочий расход',
     money_transfer: 'Перемещение денег',
+    salary_payment: 'Выплата зарплаты',
   },
   list: {
     title: 'Оплаты',

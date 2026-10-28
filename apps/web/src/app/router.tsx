@@ -66,6 +66,8 @@ import { PaymentPage } from './money/PaymentPage';
 import { PaymentCalendarPage } from './money/CalendarPage';
 import { RequestPage, RequestsPage } from './money/RequestPages';
 import { OpeningPage, OpeningsPage } from './money/OpeningPages';
+import { PayrollPage, PayrollsPage, StatementPage, StatementsPage } from './payroll/PayrollPages';
+import { EmployeesPage, PayrollReportsPage, PayslipPage } from './payroll/PayrollAdminPages';
 import { BalancesPage, CashFlowPage, DebtsPage, MoneyReferencesPage } from './money/ReportPages';
 import { PlanFactPage } from './finance/PlanFactPage';
 import { JournalPage } from './docs/JournalPage';
@@ -162,6 +164,13 @@ export const router = createHashRouter([
       { path: `${SECTIONS.moneyRequests.path}/:id`, element: <RequestPage /> },
       { path: SECTIONS.moneyOpening.path, element: <OpeningsPage /> },
       { path: `${SECTIONS.moneyOpening.path}/:id`, element: <OpeningPage /> },
+      { path: SECTIONS.payroll.path, element: <PayrollsPage /> },
+      { path: SECTIONS.payrollStatements.path, element: <StatementsPage /> },
+      { path: `${SECTIONS.payrollStatements.path}/:id`, element: <StatementPage /> },
+      { path: SECTIONS.payrollEmployees.path, element: <EmployeesPage /> },
+      { path: SECTIONS.payrollReports.path, element: <PayrollReportsPage /> },
+      { path: SECTIONS.payslip.path, element: <PayslipPage /> },
+      { path: `${SECTIONS.payroll.path}/:id`, element: <PayrollPage /> },
       { path: SECTIONS.moneyBalances.path, element: <BalancesPage /> },
       { path: SECTIONS.moneyCashFlow.path, element: <CashFlowPage /> },
       { path: SECTIONS.moneyReceivables.path, element: <DebtsPage side="customer" /> },

@@ -971,6 +971,7 @@ export const docs = {
     stock: { title: 'Stock documents', lead: 'Transfers between warehouses, write-offs and stock postings. Amounts are at average cost.' },
     production: { title: 'Production', lead: 'Production orders and releases. Amounts are at average cost.' },
     cash: { title: 'Payments', lead: 'Cash and bank documents.' },
+    payroll: { title: 'Payroll', lead: 'Payroll accruals and payment statements.' },
     tolling: { title: 'Processing', lead: 'Receipts of customer materials, processing reports and returns of unused materials.' },
   },
   serviceContract: 'service',

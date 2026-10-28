@@ -2,6 +2,9 @@
 import {
   Activity,
   Archive,
+  BadgeRussianRuble,
+  FileSpreadsheet,
+  UserRoundCog,
   ArrowLeftRight,
   Bell,
   Building2,
@@ -138,6 +141,11 @@ export const SECTIONS = {
   moneyCalendar: { path: '/money/calendar', name: 'Payment calendar', icon: CalendarRange },
   moneyRequests: { path: '/money/requests', name: 'Payment requests', icon: FileCheck2 },
   moneyOpening: { path: '/money/opening', name: 'Opening balances', icon: Scale },
+  payroll: { path: '/payroll', name: 'Payroll accruals', icon: BadgeRussianRuble },
+  payrollStatements: { path: '/payroll/statements', name: 'Payroll statements', icon: FileSpreadsheet },
+  payrollEmployees: { path: '/payroll/employees', name: 'Payroll employees', icon: UserRoundCog },
+  payrollReports: { path: '/payroll/reports', name: 'Payroll reports', icon: ChartNoAxesCombined },
+  payslip: { path: '/payroll/payslip', name: 'My payslip', icon: ReceiptText },
   moneyBalances: { path: '/money/balances', name: 'Cash balances', icon: Wallet },
   moneyCashFlow: { path: '/money/cash-flow', name: 'Cash flow', icon: ArrowDownUp },
   moneyReceivables: { path: '/money/receivables', name: 'Receivables', icon: HandCoins },
@@ -197,7 +205,7 @@ export const NAV_GROUPS = {
   },
   finance: {
     icon: Landmark,
-    items: [{ id: 'money' }, { id: 'moneyRequests' }, { id: 'moneyCalendar' }, { id: 'moneyBalances' }, { id: 'moneyOpening' }, { id: 'moneyCashFlow' }, { id: 'moneyReceivables' }, { id: 'moneyPayables' }, { id: 'moneyBankImport' }, { id: 'moneyReferences' }, { id: 'investments' }, { id: 'investmentsPlanFact' }],
+    items: [{ id: 'money' }, { id: 'moneyRequests' }, { id: 'moneyCalendar' }, { id: 'moneyBalances' }, { id: 'moneyOpening' }, { id: 'payroll' }, { id: 'payrollStatements' }, { id: 'payrollEmployees' }, { id: 'payrollReports' }, { id: 'payslip' }, { id: 'moneyCashFlow' }, { id: 'moneyReceivables' }, { id: 'moneyPayables' }, { id: 'moneyBankImport' }, { id: 'moneyReferences' }, { id: 'investments' }, { id: 'investmentsPlanFact' }],
   },
 } satisfies Record<string, NavGroup>;
 
@@ -276,6 +284,11 @@ const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
   moneyRequests: 'finance',
   moneyBalances: 'finance',
   moneyOpening: 'finance',
+  payroll: 'finance',
+  payrollStatements: 'finance',
+  payrollEmployees: 'finance',
+  payrollReports: 'finance',
+  payslip: 'finance',
   moneyCashFlow: 'finance',
   moneyReceivables: 'finance',
   moneyPayables: 'finance',
