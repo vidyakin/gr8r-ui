@@ -115,7 +115,7 @@ describe('seed', () => {
     expect(await count('warehouses', w)).toBe(7); // основной, цех, склад готовой продукции, служебный «в пути», склад переработчика, склад отходов и склад брака
     expect(await count('companies', `${w} and inn <> ''`)).toBe(5);
     expect(await count('bank_accounts', `${w} and company_id is not null`)).toBe(5);
-    expect(await count('documents', w)).toBe(67); // + ввод начальных остатков, + 5 документов платёжного календаря (4 заявки на расход и оплата заявки), + 12 документов денег (оплаты, подотчёт, акты физлица); // + проведённый план продаж, + поступление и продажа смартфона, ремонтный и гарантийный заказ-наряды, заказ покупателя на окно, цепочка разборки, документы переработки и факт инвестпроекта
+    expect(await count('documents', w)).toBe(73); // + зарплата: начисление за прошлый месяц и черновик за текущий, две ведомости, две выплаты; // + ввод начальных остатков, + 5 документов платёжного календаря (4 заявки на расход и оплата заявки), + 12 документов денег (оплаты, подотчёт, акты физлица); // + проведённый план продаж, + поступление и продажа смартфона, ремонтный и гарантийный заказ-наряды, заказ покупателя на окно, цепочка разборки, документы переработки и факт инвестпроекта
     expect(await count('documents', `${w} and type = 'payment_request' and state = 'approved'`)).toBe(1);
     expect(await count('documents', `${w} and type = 'payment_request' and state = 'paid'`)).toBe(1);
     // деньги: касса, движения, взаиморасчёты и подотчёт
@@ -123,6 +123,9 @@ describe('seed', () => {
     expect(await count('cash_moves', w)).toBeGreaterThan(8);
     // начальные остатки введены раньше всех оплат: остаток денег ни в один день не отрицательный
     expect(await count('documents', `${w} and type = 'opening_balance' and status = 'posted'`)).toBe(1);
+    expect(await count('documents', `${w} and type = 'payroll' and status = 'posted'`)).toBe(1);
+    expect(await count('documents', `${w} and type = 'payroll_statement' and status = 'posted'`)).toBe(2);
+    expect(await count('payroll_moves', w)).toBeGreaterThan(0);
     const daily = await admin.unsafe(`select date::text as d, sum(case when direction = 'in' then amount else -amount end)::float as s from cash_moves ${w} and account_kind in ('cash','bank') group by date order by date`);
     let running = 0;
     for (const r of daily) {
@@ -136,8 +139,8 @@ describe('seed', () => {
     expect(await count('investment_projects', `${w} and status = 'draft'`)).toBe(1);
     expect(await count('documents', `${w} and investment_project_id is not null and status = 'posted'`)).toBe(3);
     expect(await count('investment_cost_items', w)).toBe(1);
-    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(64);
-    expect(await count('documents', `${w} and based_on_id is not null`)).toBe(17);
+    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(69);
+    expect(await count('documents', `${w} and based_on_id is not null`)).toBe(19);
     // доставка (задача 1100): два способа, три доставки в разных статусах, расход «Доставка» у доставленной, два курьера, веса у двух товаров
     expect(await count('delivery_methods', w)).toBe(2);
     expect(await count('deliveries', w)).toBe(3);
@@ -192,7 +195,7 @@ describe('seed', () => {
     expect(await count('documents', `${w} and type = 'other_costs'`)).toBe(2); // + монтаж инвестпроекта (по статье проекта)
     expect(await count('documents', `${w} and type = 'other_costs' and status = 'posted'`)).toBe(2);
     expect(await count('other_cost_lines', w)).toBe(3);
-    expect(await count('period_costs', w)).toBe(5); // услуга со статьёй + две строки прочих затрат; + оборудование и монтаж инвестпроекта (в незакрытых месяцах)
+    expect(await count('period_costs', w)).toBe(7); // + затраты на зарплату прошлого месяца по способам отражения; // услуга со статьёй + две строки прочих затрат; + оборудование и монтаж инвестпроекта (в незакрытых месяцах)
     expect(await count('production_cost_closings', `${w} and status = 'done'`)).toBe(1);
     expect(await count('stock_cost_adjustments', w)).toBe(5); // + корректировки приходов выходных продуктов разборки, продукции переработчика и брака «на расходы» (на складе брака)
     // план производства и нормы запаса: демо-план с недельными периодами и четыре строки норм
@@ -225,7 +228,7 @@ describe('seed', () => {
     expect(await count('document_states', w)).toBe(18);
     expect(await count('work_order_materials', w)).toBe(2); // + запчасть гарантийного ремонта
     expect(await count('work_order_assignments', w)).toBe(1);
-    expect(await count('cost_items', w)).toBe(17); // 8 системных (с «Гарантийный ремонт» и «Доставка») + электроэнергия и аренда демо + 6 статей инвестпроектов + статья подотчёта
+    expect(await count('cost_items', w)).toBe(18); // + статья «Оплата труда»; // 8 системных (с «Гарантийный ремонт» и «Доставка») + электроэнергия и аренда демо + 6 статей инвестпроектов + статья подотчёта
     expect(await count('stock_balances', `${w} and qty > 0`)).toBe(29); // + смартфоны на основном складе
     // резервы: заказ покупателя, продукция под заказ и материалы заказов на производство
     expect(await count('stock_reservations', w)).toBe(11); // + резерв под заказ окна

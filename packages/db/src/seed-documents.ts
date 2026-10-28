@@ -18,6 +18,7 @@ import { createProcessorReport, createProcessorTransfer } from './tolling';
 import { createOtherCosts } from './other-costs';
 import { seedInvestments } from './seed-investments';
 import { seedPayments } from './seed-payments';
+import { seedPayroll } from './seed-payroll';
 import { closePeriodMonth } from './cost-closing';
 import { assignOperations, createPieceworkOrder } from './piecework';
 import { productionComponents, productionItems, productionOperations } from './schema';
@@ -598,6 +599,8 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
 
   // деньги (задача 1174б): оплаты, аванс, подотчёт, инкассация; тоже до даты запрета
   await seedPayments(db, ctx, { organizationId: org!.id, customerId: co.skyline, serviceId: P('SV-PNT').id });
+  // зарплата (задача 1184): оклады, начисление, ведомости, выплаты
+  await seedPayroll(db, ctx, { organizationId: org!.id });
 
   // ремонт и серийные номера (задача 1099): смартфон с номерами, ремонтный и гарантийный заказ-наряды
   const repairSeed = await seedRepair(db, ctx, { warehouseId: main!.id, supplierId: co.atlas, customerId: co.skyline, partProductId: P('HW-CAM-15').id, workProductId: P('WR-SRV').id });
