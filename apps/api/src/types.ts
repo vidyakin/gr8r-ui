@@ -16,6 +16,8 @@ export interface AppConfig {
   corsOrigins: string[];
   /** Доверять X-Forwarded-For (за nginx/балансировщиком) */
   trustProxy: boolean;
+  /** Принимать вебхук ЮКассы только с официальных адресов (YOOKASSA_IP_CHECK=0 отключает — для песочниц и тестов) */
+  yookassaIpCheck: boolean;
   sessionTtlDays: number;
   /** Rate-limit входа/регистрации: попыток на окно */
   authRateLimitMax: number;

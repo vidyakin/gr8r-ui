@@ -4,7 +4,8 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { integrationRuntime, readSecret, withContext } from '@gr8r/db';
 import type { Fetcher, HttpCall } from '@gr8r/shared';
 import { defaultOptions, processJobsOnce } from '../../worker/src/worker';
-import { Client, admin, app, sql } from './helpers';
+import { createApp } from '../src/app';
+import { Client, admin, app, sql, testConfig } from './helpers';
 
 const OWN = '40702810400000000077';
 const OWN2 = '40702810400000000088';
@@ -254,5 +255,71 @@ describe('ЮКасса', () => {
   test('ссылку нельзя создать по поставщику и чужому документу', async () => {
     expect((await other.post('/payment-links', { documentId: (await act('10')).id, returnUrl: 'https://app.test/back' })).status).toBe(404);
     expect((await member.post('/payment-links', { documentId: (await act('10')).id, returnUrl: 'javascript:alert(1)' })).status).toBe(400);
+  });
+});
+
+describe('ЮКасса: частичная оплата и адрес отправителя', () => {
+  let buyer: string;
+  const actFor = async (price: string) => {
+    const d = await mk(owner, '/documents', { type: 'act', counterpartyId: buyer, date: '2026-10-16', lines: [{ productId: service, qty: 1, price, vatRate: 'none' }] });
+    await mk(owner, `/documents/${d.id}/post`);
+    return d.id as string;
+  };
+  const hook = (id: string) => app.request(`/hooks/yookassa/${ws}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'notification', event: 'payment.succeeded', object: { id } }) });
+  const paid = async (payId: string) => {
+    yoo[payId]!.status = 'succeeded';
+    await hook(payId);
+    await processJobsOnce(sql, quiet);
+  };
+  const link = async (documentId: string, extra: Record<string, unknown> = {}) => owner.post('/payment-links', { documentId, returnUrl: 'https://app.test/back', ...extra });
+  const payIdOf = (r: { body: { url: string } }) => r.body.url.split('/').pop() as string;
+
+  test('частичная ссылка → остаток → вторая ссылка на оставшуюся сумму', async () => {
+    buyer = (await mk(owner, '/companies', { name: 'ООО «Частями»', inn: '7707083893' })).id;
+    const a = await actFor('1500');
+    expect((await link(a, { amount: '1600' })).body.error.code).toBe('amount_exceeds_remaining');
+    const first = await link(a, { amount: '600' });
+    expect(first.body).toMatchObject({ amount: '600.00', reused: false });
+    await paid(payIdOf(first));
+    expect(await status(a)).toMatchObject({ paid: '600.00', remaining: '900.00', state: 'partial' });
+    // ссылка на остаток: новая сумма, а не старая ссылка
+    const rest = await link(a);
+    expect(rest.body).toMatchObject({ amount: '900.00', reused: false });
+    expect((await link(a)).body).toMatchObject({ id: rest.body.id, reused: true });
+    await paid(payIdOf(rest));
+    expect(await status(a)).toMatchObject({ remaining: '0.00', state: 'paid' });
+    const items = (await owner.get(`/payment-links?documentId=${a}`)).body.items;
+    expect(items.map((l: any) => l.status)).toEqual(['succeeded', 'succeeded']);
+  });
+
+  test('ссылка устарела: документ оплачен частично другим способом — переплата уходит в аванс', async () => {
+    const a = await actFor('1000');
+    const stale = await link(a);
+    expect(stale.body.amount).toBe('1000.00');
+    const d = await mk(owner, '/payments', { type: 'bank_receipt', bankAccountId: bankId, operation: 'from_customer', counterpartyId: buyer, lines: [{ settlementDocumentId: a, amount: 400 }] });
+    await mk(owner, `/documents/${d.id}/post`);
+    expect(await status(a)).toMatchObject({ remaining: '600.00' });
+    // новая ссылка — на 600, старая остаётся живой на 1000
+    const fresh = await link(a);
+    expect(fresh.body).toMatchObject({ amount: '600.00', reused: false });
+    await paid(payIdOf(stale));
+    expect(await status(a)).toMatchObject({ remaining: '0.00', state: 'paid', paid: '1000.00' });
+    const rec = (await owner.get(`/payments/reports/receivables?companyId=${buyer}`)).body.rows[0];
+    expect(rec.advance).toBe('400.00');
+  });
+
+  test('вебхук принимается только с адресов ЮКассы (за прокси — по X-Forwarded-For при TRUST_PROXY)', async () => {
+    const body = JSON.stringify({ type: 'notification', event: 'payment.succeeded', object: { id: 'nope' } });
+    const post = (a: typeof app, headers: Record<string, string>) => a.request(`/hooks/yookassa/${ws}`, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body });
+    const proxied = createApp({ sql, config: testConfig({ trustProxy: true, yookassaIpCheck: true }) }).app;
+    expect((await post(proxied, { 'x-forwarded-for': '185.71.76.10' })).status).toBe(200);
+    expect((await post(proxied, { 'x-forwarded-for': '77.75.156.11' })).status).toBe(200);
+    expect((await post(proxied, { 'x-forwarded-for': '2a02:5180:1::5' })).status).toBe(200);
+    expect((await post(proxied, { 'x-forwarded-for': '8.8.8.8' })).status).toBe(403);
+    expect((await post(proxied, { 'x-forwarded-for': '185.71.76.40' })).status).toBe(403); // за пределами /27
+    expect((await post(proxied, {})).status).toBe(403); // адрес неизвестен
+    // без TRUST_PROXY заголовок игнорируется
+    const direct = createApp({ sql, config: testConfig({ trustProxy: false, yookassaIpCheck: true }) }).app;
+    expect((await post(direct, { 'x-forwarded-for': '185.71.76.10' })).status).toBe(403);
   });
 });

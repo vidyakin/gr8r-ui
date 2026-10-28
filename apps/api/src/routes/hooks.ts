@@ -8,6 +8,7 @@ import { cors } from 'hono/cors';
 import { enqueueYooPayment, findEnabledForm, insertLead, isUuid, parseFormToken, pickRoundRobin, rateLimits, withContext, type Sql } from '@gr8r/db';
 import { leadWebhookBody, pickUtm, yooWebhookBody } from '@gr8r/shared';
 import { AppError } from '../errors';
+import { isYooKassaIp } from '../yookassa-ip';
 import type { AppEnv } from '../types';
 
 const MAX_BODY = 32 * 1024;
@@ -84,6 +85,8 @@ export const hookRoutes = new Hono<AppEnv>()
     const cfg = c.get('config');
     const sql = c.get('sql');
     const windowSec = Math.ceil(cfg.leadHookRateLimitWindowMs / 1000);
+    // отправитель — только адреса ЮКассы (за прокси адрес берётся из X-Forwarded-For при TRUST_PROXY); остальным один и тот же отказ
+    if (cfg.yookassaIpCheck && !isYooKassaIp(c.get('ip'))) throw new AppError(403, 'forbidden', 'Forbidden');
     if (!(await allow(sql, `yookassa-hook:ip:${c.get('ip')}`, cfg.leadHookRateLimitMax * 10, windowSec))) throw new AppError(429, 'rate_limited', 'Too many requests. Try again later.', { retryAfterSeconds: windowSec });
     const workspaceId = c.req.param('workspaceId');
     if (!isUuid(workspaceId)) throw notFound();
