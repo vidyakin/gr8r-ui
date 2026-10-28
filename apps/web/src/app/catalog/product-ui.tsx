@@ -1,8 +1,9 @@
 /* Карточка товара (EntityDrawer) и форма создания. Характеристики категории рисуются теми же FieldInput / FieldValue и
    проверяются той же zod-схемой (validateRecord), что и поля конструктора. */
 import * as React from 'react';
+import { ProductPricesBlock } from '../pricing/ProductPrices';
 import { useProductKinds } from '../positions/data';
-import { Barcode, Building2, CircleAlert, CircleDollarSign, FolderTree, Hash, Layers, Package, Percent, Power, Repeat, Ruler, ScanBarcode, Shapes, Tag, Timer, Trash2, Truck, Wrench, type LucideIcon } from 'lucide-react';
+import { Barcode, Building2, CircleAlert, CircleDollarSign, FolderTree, Hash, Layers, Package, Percent, Power, Repeat, Ruler, ScanBarcode, Shapes, Tag, Tags, Timer, Trash2, Truck, Wrench, type LucideIcon } from 'lucide-react';
 import { PRODUCT_KINDS, VAT_LABELS, VAT_RATES, validateRecord, type ProductKind } from '@gr8r/shared';
 import { Button, ConfirmDialog, Dialog, DialogClose, DialogContent, Field, Input, MenuItem, Segmented, Switch, toast } from '@/components/ui';
 import { DrawerSection, EntityDrawer } from '@/components/gr8r/entity-drawer';
@@ -181,6 +182,7 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
           row(Percent, t('catalog.product.vat'), <VatSelect value={p.vatRate} onChange={vatRate => save({ vatRate })} />, tEnum('vat', p.vatRate, VAT_LABELS[p.vatRate])),
           row(CircleDollarSign, t('catalog.product.salePrice'), <FieldInput field={F.price} value={Number(p.price)} onChange={v => save({ price: v ?? 0 })} />, p.price),
           row(CircleDollarSign, t('catalog.product.purchasePrice'), <FieldInput field={F.purchasePrice} value={Number(p.purchasePrice)} onChange={v => save({ purchasePrice: v ?? 0 })} />, p.purchasePrice),
+          { icon: Tags, label: t('pricing.card.title'), value: <ProductPricesBlock productId={p.id} /> },
           row(Timer, t('catalog.product.leadDays'), <FieldInput field={F.leadDays} value={p.leadDays ?? 0} onChange={v => save({ leadDays: v ?? 0 })} />, String(p.leadDays ?? 0)),
           {
             icon: Building2,

@@ -1,6 +1,7 @@
 /* Contracts and tariff plans (stage 8 «UNF: Services»).
    Contracts are a common directory: with a customer, with a supplier, other. A service contract adds billing:
    a tariff plan, a periodicity (month / quarter / year), a billing day and a document package (invoice or invoice + act). */
+import { usePriceKinds } from '../pricing/data';
 import * as React from 'react';
 import { CircleAlert, FileSignature, Plus, Trash2 } from 'lucide-react';
 import { BILLING_PACKAGE_LABELS, BILLING_PACKAGES, BILLING_PERIODICITIES, BILLING_PERIODICITY_LABELS, CONTRACT_KIND_LABELS, CONTRACT_KINDS, EXTRA_PRODUCT_POLICIES, EXTRA_PRODUCT_POLICY_LABELS, type ContractKind, type ExtraProductPolicy } from '@gr8r/shared';
@@ -87,7 +88,8 @@ function ContractDialog({ api, onClose, contract }: { api: ReturnType<typeof use
   const [validFrom, setValidFrom] = React.useState(contract?.validFrom ?? new Date().toISOString().slice(0, 10));
   const [validTo, setValidTo] = React.useState(contract?.validTo ?? '');
   const [paymentDays, setPaymentDays] = React.useState(String(contract?.paymentDays ?? 0));
-  const [priceType, setPriceType] = React.useState(contract?.priceType ?? '');
+  const [priceKindId, setPriceKindId] = React.useState(contract?.priceKindId ?? '');
+  const priceKinds = usePriceKinds();
   const [isService, setIsService] = React.useState(contract?.isService ?? false);
   const [tariffPlanId, setTariffPlanId] = React.useState(contract?.tariffPlanId ?? '');
   const [periodicity, setPeriodicity] = React.useState(contract?.periodicity ?? 'month');
@@ -107,7 +109,7 @@ function ContractDialog({ api, onClose, contract }: { api: ReturnType<typeof use
       validFrom,
       validTo: validTo || null,
       paymentDays: Number(paymentDays) || 0,
-      priceType: priceType.trim(),
+      priceKindId: priceKindId || null,
       isService,
       tariffPlanId: isService ? tariffPlanId || null : null,
       periodicity: isService ? periodicity : null,
@@ -139,7 +141,7 @@ function ContractDialog({ api, onClose, contract }: { api: ReturnType<typeof use
           </div>
           <div className="row" style={{ gap: 8 }}>
             <Field label={t('docs.contracts.paymentDays')}>{({ id }) => (<Input id={id} value={paymentDays} onChange={e => setPaymentDays(e.target.value)} />)}</Field>
-            <Field label={t('docs.contracts.priceType')}>{({ id }) => <Input id={id} value={priceType} onChange={e => setPriceType(e.target.value)} placeholder={t('docs.contracts.priceTypePlaceholder')} />}</Field>
+            <Field label={t('docs.contracts.priceType')}>{({ id }) => <Select id={id} value={priceKindId} placeholder={t('pricing.doc.auto')} onValueChange={setPriceKindId} options={[{ value: '', label: t('pricing.doc.auto') }, ...(priceKinds.data ?? []).map(k => ({ value: k.id, label: k.name }))]} />}</Field>
           </div>
           <div className="row" style={{ gap: 16 }}>
             <label className="row" style={{ gap: 6 }}>

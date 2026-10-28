@@ -127,6 +127,8 @@ export interface DocDetail extends Omit<DocListItem, 'organizationName' | 'count
   currency: string;
   organization: { id: string; name: string } | null;
   counterparty: { id: string; name: string; inn: string } | null;
+  /** Вид цен документа (задача 1178) */
+  priceKindId: string | null;
   /** Договор документа */
   contract: { id: string; number: string; companyName: string; validFrom: string; validTo: string | null } | null;
   warehouse: { id: string; name: string } | null;
@@ -492,6 +494,8 @@ export interface WorkOrderKind {
   isDefault: boolean;
   kindType: 'regular' | 'repair' | 'warranty';
   sortOrder: number;
+  /** Вид цен вида заказ-наряда (задача 1178) */
+  priceKindId?: string | null;
 }
 
 /** Материал заказ-наряда: израсходован на работу, списывается при выполнении */

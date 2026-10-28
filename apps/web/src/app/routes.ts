@@ -3,6 +3,9 @@ import {
   Activity,
   Archive,
   BadgeRussianRuble,
+  ScrollText,
+  Tags,
+  FilePenLine,
   FileSpreadsheet,
   UserRoundCog,
   ArrowLeftRight,
@@ -136,6 +139,10 @@ export const SECTIONS = {
   contracts: { path: '/contracts', name: 'Contracts', icon: FileSignature },
   tariffPlans: { path: '/tariff-plans', name: 'Tariff plans', icon: ListChecks },
   billing: { path: '/billing', name: 'Billing', icon: ReceiptText },
+  // Виды цен и прайс-листы
+  priceList: { path: '/pricing', name: 'Price list', icon: ScrollText },
+  priceSettings: { path: '/pricing/settings', name: 'Price settings', icon: FilePenLine },
+  priceKinds: { path: '/pricing/kinds', name: 'Price kinds', icon: Tags },
   // Деньги: оплаты, остатки, ДДС, задолженность
   money: { path: '/money', name: 'Payments', icon: Banknote },
   moneyCalendar: { path: '/money/calendar', name: 'Payment calendar', icon: CalendarRange },
@@ -197,7 +204,7 @@ export const NAV_GROUPS = {
   trade: {
     icon: Store,
     // расчёт потребностей открывается из закупок и склада — тот же экран, что и в производстве
-    items: [{ id: 'sales' }, { id: 'purchases' }, { id: 'stockDocs' }, { id: 'processingDocs' }, { id: 'inventory' }, { id: 'inUse' }, { id: 'serials' }, { id: 'productionNeeds', label: 'nav.stockNeeds' }],
+    items: [{ id: 'sales' }, { id: 'purchases' }, { id: 'stockDocs' }, { id: 'processingDocs' }, { id: 'inventory' }, { id: 'inUse' }, { id: 'serials' }, { id: 'productionNeeds', label: 'nav.stockNeeds' }, { id: 'priceList' }, { id: 'priceSettings' }, { id: 'priceKinds' }],
   },
   services: {
     icon: BriefcaseBusiness,
@@ -245,6 +252,9 @@ const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
   crmSalesPlan: 'crm',
   crmAppointments: 'crm',
   catalog: 'catalog',
+  priceList: 'catalog',
+  priceSettings: 'catalog',
+  priceKinds: 'catalog',
   production: 'production',
   productionOrders: 'production',
   productionWorkbench: 'production',

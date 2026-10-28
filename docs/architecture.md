@@ -27,6 +27,7 @@
 ## Каталог, документы, склад
 
 - [Каталог: товары и услуги](architecture/catalog.md)
+- [Виды цен и прайс-листы](architecture/pricing.md)
 - [Контрагенты и организации (Россия)](architecture/counterparties.md)
 - [Документы продаж и закупок](architecture/documents.md)
 - [Внутренние складские документы](architecture/internal-documents.md)

@@ -139,6 +139,8 @@ describe('подстановка и история', () => {
     const byProduct = Object.fromEntries(mass.lines.map((l: any) => [l.productId, l.price]));
     expect(byProduct[phone]).toBe('1100.00');
     expect(byProduct[cable]).toBe('110.00'); // 99.5 × 1.1 = 109.45 → вверх до 10
+    const listed = (await owner.get('/pricing/settings')).body.items as any[];
+    expect(listed.find(x => x.id === s.id).lineCount).toBe(2);
     const empty = await mk(owner, '/pricing/settings', {});
     expect((await owner.post(`/documents/${empty.id}/post`)).status).toBe(422);
     // обычные маршруты документов не правят установку цен, участник её не видит

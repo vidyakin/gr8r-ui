@@ -18,6 +18,7 @@ import { MaterialModeField, WasteHeaderFields, WasteTab } from '../production/Wa
 import { STATUS_LABEL, STATUS_TONE, docTitle, docsKey, typeLabel, useCostItems, useDocsApi, useDocument, useOrganizations, useProcessingOrders, useWarehouses, type DocDetail, type DocLink } from './data';
 import { CalculationDialog, ParamsDialog } from './calculation';
 import { CounterpartyPicker, ProductPicker } from './pickers';
+import { usePriceKinds, useResolvePrices } from '../pricing/data';
 import { useBillingBreakdown, useContracts } from './billing-data';
 import { WorkOrderPanel } from './work-orders';
 import { SerialsButton } from './serials-ui';
@@ -61,6 +62,8 @@ interface Form {
   counterpartyName: string;
   /** Договор документа */
   contractId: string | null;
+  /** Вид цен документа: пусто — по договору, контрагенту, виду заказ-наряда (задача 1178) */
+  priceKindId: string | null;
   warehouseId: string | null;
   targetWarehouseId: string | null;
   costItemId: string | null;
@@ -94,6 +97,7 @@ function toForm(d: DocDetail): Form {
     counterpartyId: d.counterpartyId,
     counterpartyName: d.counterparty?.name ?? '',
     contractId: d.contractId ?? null,
+    priceKindId: d.priceKindId ?? null,
     warehouseId: d.warehouseId,
     targetWarehouseId: d.targetWarehouseId,
     costItemId: d.costItemId,
@@ -126,6 +130,7 @@ function toPayload(f: Form) {
     organizationId: f.organizationId,
     counterpartyId: f.counterpartyId,
     contractId: f.contractId,
+    priceKindId: f.priceKindId,
     warehouseId: f.warehouseId,
     targetWarehouseId: f.targetWarehouseId,
     costItemId: f.costItemId,
@@ -188,6 +193,8 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const canWrite = useCanWrite();
   const isAdmin = useIsAdmin();
   const orgs = useOrganizations();
+  const priceKinds = usePriceKinds();
+  const resolvePrices = useResolvePrices();
   const warehouses = useWarehouses();
   const costItems = useCostItems();
   const contracts = useContracts({ companyId: doc.counterpartyId ?? undefined });
@@ -303,6 +310,32 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     // у внутренних документов цена — себестоимость: её подставляет сервер
     patchLine(key, { productId: p.id, name: p.name, unitCode: p.unitCode, vatRate: p.vatRate, price: internal ? '0' : trimNum(p[priceField]) || '0', qty: latest.current.lines.find(l => l.key === key)?.qty || '1', costItemId: p.kind === 'service' ? (latest.current.lines.find(l => l.key === key)?.costItemId ?? null) : null, workCenterId: p.kind === 'service' ? (latest.current.lines.find(l => l.key === key)?.workCenterId ?? null) : null });
     focusReq.current = { row, col: 1 };
+    // цена по виду цен документа на его дату (договор, контрагент, вид заказ-наряда…); карточка товара — пока ответа нет
+    if (!internal && meta.party !== null) {
+      const cardPrice = trimNum(p[priceField]) || '0';
+      const f = latest.current;
+      void resolvePrices({ productIds: [p.id], date: f.date, party: meta.party === 'supplier' ? 'supplier' : 'customer', priceKindId: f.priceKindId, contractId: f.contractId, counterpartyId: f.counterpartyId, workOrderKindId: (doc as { workOrderKindId?: string | null }).workOrderKindId ?? null })
+        .then(r => {
+          const v = r.prices[p.id];
+          const cur = latest.current.lines.find(l => l.key === key);
+          if (v && cur && cur.productId === p.id && cur.price === cardPrice) patchLine(key, { price: trimNum(v) });
+        })
+        .catch(() => undefined);
+    }
+  };
+  /** Пересчёт цен строк по виду цен документа (после смены вида цен, договора или контрагента) */
+  const reprice = async () => {
+    const f = latest.current;
+    const ids = [...new Set(f.lines.map(l => l.productId).filter((x): x is string => !!x))];
+    if (!ids.length) return;
+    try {
+      const r = await resolvePrices({ productIds: ids, date: f.date, party: meta.party === 'supplier' ? 'supplier' : 'customer', priceKindId: f.priceKindId, contractId: f.contractId, counterpartyId: f.counterpartyId, workOrderKindId: (doc as { workOrderKindId?: string | null }).workOrderKindId ?? null });
+      let n = 0;
+      edit(cur => ({ ...cur, lines: cur.lines.map(l => { const v = l.productId ? r.prices[l.productId] : null; if (!v) return l; n++; return { ...l, price: trimNum(v) }; }) }));
+      toast(t('pricing.doc.repriced', { n }), { duration: 2000 });
+    } catch {
+      toast.error(t('docs.document.saveErrorFix'));
+    }
   };
 
   // фокус на ячейку после добавления строки или выбора товара
@@ -1026,6 +1059,27 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                 />
               ) : (
                 <div className="doc-ro">{doc.contract ? <span className="mono">{doc.contract.number}</span> : '—'}</div>
+              )
+            }
+          </Field>
+        )}
+        {!internal && meta.party !== null && (
+          <Field label={t('pricing.doc.kind')}>
+            {p =>
+              editable ? (
+                <div className="row" style={{ gap: 6 }}>
+                  <Select
+                    id={p.id}
+                    value={form.priceKindId ?? ''}
+                    onValueChange={v => edit(f => ({ ...f, priceKindId: v || null }))}
+                    options={[{ value: '', label: t('pricing.doc.auto') }, ...(priceKinds.data ?? []).map(k => ({ value: k.id, label: k.name }))]}
+                    placeholder={t('pricing.doc.auto')}
+                    aria-label={t('pricing.doc.kind')}
+                  />
+                  <Button size="sm" onClick={() => void reprice()} disabled={!form.lines.some(l => l.productId)}>{t('pricing.doc.reprice')}</Button>
+                </div>
+              ) : (
+                <div className="doc-ro">{(priceKinds.data ?? []).find(k => k.id === form.priceKindId)?.name ?? '—'}</div>
               )
             }
           </Field>

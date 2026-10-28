@@ -449,7 +449,7 @@ export async function priceSettingDetail(db: Db, id: string) {
 export async function listPriceSettings(db: Db, workspaceId: string, p: { status?: string[] | undefined; limit: number; offset: number }) {
   const conds = [eq(documents.workspaceId, workspaceId), eq(documents.type, 'price_setting'), p.status?.length ? inArray(documents.status, p.status as ('draft' | 'posted' | 'cancelled')[]) : undefined];
   const rows = await db
-    .select({ d: documents, n: sql<number>`(select count(*)::int from price_setting_lines l where l.document_id = ${documents.id})` })
+    .select({ d: documents, n: sql<number>`(select count(*)::int from price_setting_lines l where l.document_id = documents.id)` })
     .from(documents)
     .where(and(...conds))
     .orderBy(desc(documents.date), desc(documents.createdAt))

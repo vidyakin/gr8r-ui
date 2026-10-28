@@ -66,6 +66,8 @@ import { PaymentPage } from './money/PaymentPage';
 import { PaymentCalendarPage } from './money/CalendarPage';
 import { RequestPage, RequestsPage } from './money/RequestPages';
 import { OpeningPage, OpeningsPage } from './money/OpeningPages';
+import { PriceKindsPage, PriceListPage, PriceSettingPage, PriceSettingsPage } from './pricing/PricingPages';
+import { PublicPricePage } from './pricing/PublicPricePage';
 import { PayrollPage, PayrollsPage, StatementPage, StatementsPage } from './payroll/PayrollPages';
 import { EmployeesPage, PayrollReportsPage, PayslipPage } from './payroll/PayrollAdminPages';
 import { BalancesPage, CashFlowPage, DebtsPage, MoneyReferencesPage } from './money/ReportPages';
@@ -164,6 +166,10 @@ export const router = createHashRouter([
       { path: `${SECTIONS.moneyRequests.path}/:id`, element: <RequestPage /> },
       { path: SECTIONS.moneyOpening.path, element: <OpeningsPage /> },
       { path: `${SECTIONS.moneyOpening.path}/:id`, element: <OpeningPage /> },
+      { path: SECTIONS.priceList.path, element: <PriceListPage /> },
+      { path: SECTIONS.priceSettings.path, element: <PriceSettingsPage /> },
+      { path: `${SECTIONS.priceSettings.path}/:id`, element: <PriceSettingPage /> },
+      { path: SECTIONS.priceKinds.path, element: <PriceKindsPage /> },
       { path: SECTIONS.payroll.path, element: <PayrollsPage /> },
       { path: SECTIONS.payrollStatements.path, element: <StatementsPage /> },
       { path: `${SECTIONS.payrollStatements.path}/:id`, element: <StatementPage /> },
@@ -221,6 +227,8 @@ export const router = createHashRouter([
     ],
   },
   // Экраны входа и онбординга живут вне оболочки
+  // публичный прайс-лист по ссылке: без входа
+  { path: '/p/price/:token', element: <PublicPricePage /> },
   { path: '/signin', element: <SignInPage /> },
   { path: '/signup', element: <SignUpPage /> },
   { path: '/forgot', element: <ForgotPage /> },

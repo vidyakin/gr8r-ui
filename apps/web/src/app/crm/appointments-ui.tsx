@@ -1,5 +1,6 @@
 /* Запись на приём (задача 1171): сетка «время × колонки» (день всех специалистов, неделя специалиста), диалог записи и карточка записи.
    Сетка работает на телефонной ширине: горизонтальная прокрутка, закреплённая колонка времени. */
+import { useResolvePrices } from '../pricing/data';
 import * as React from 'react';
 import { freeStarts, OCCUPYING_STATUSES, productFitsSpecialist, slotsNeeded, type AppointmentStatus } from '@gr8r/shared';
 import { Badge, Button, Dialog, DialogContent, Field, Input, Segmented, Select, Textarea, toast } from '@/components/ui';
@@ -127,6 +128,7 @@ export function BookDialog({ open, onOpenChange, preset }: { open: boolean; onOp
   const prods = useProducts({ active: true });
   const create = useApptMutation<{ id: string }>('POST');
   const free = useFreeSlot();
+  const resolvePrices = useResolvePrices();
   const [mode, setMode] = React.useState<'contact' | 'company' | 'new'>(preset.companyId ? 'company' : 'contact');
   const [clientId, setClientId] = React.useState(preset.contactId ?? preset.companyId ?? '');
   const [filter, setFilter] = React.useState('');
@@ -163,6 +165,13 @@ export function BookDialog({ open, onOpenChange, preset }: { open: boolean; onOp
     setProductId(id);
     const p = services.find(x => x.id === id);
     if (p) setPrice(String(Number(p.price)));
+    // цена по виду цен клиента (если выбрана компания) на дату записи (задача 1178)
+    void resolvePrices({ productIds: [id], date, counterpartyId: mode === 'company' && clientId ? clientId : null })
+      .then(r => {
+        const v = r.prices[id];
+        if (v) setPrice(String(Number(v)));
+      })
+      .catch(() => undefined);
     setStartMin(null);
   };
   const findFree = () => {

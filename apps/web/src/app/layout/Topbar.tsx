@@ -57,6 +57,10 @@ export function useCrumbs(): Crumb[] {
   if (a === 'members' && b) return [{ label: S.members.name, to: SECTIONS.members.path }, { label: data.members.find(m => m.id === b)?.name ?? t('nav.crumbs.member') }];
   if (a === 'automations') return b === 'flow' ? [{ label: S.automations.name, to: SECTIONS.automations.path }, { label: t('nav.crumbs.editor') }] : [{ label: S.automations.name }];
   if (a === 'catalog') return [{ label: S.catalog.name }];
+  if (a === 'pricing') {
+    if (b === 'settings' && c) return [{ label: S.priceSettings.name, to: S.priceSettings.path }, { label: t('nav.crumbs.document') }];
+    return [{ label: b === 'kinds' ? S.priceKinds.name : b === 'settings' ? S.priceSettings.name : S.priceList.name }];
+  }
   if (a === 'inventory') return [{ label: S.inventory.name }];
   if (a === 'stock-docs') return [{ label: S.stockDocs.name }];
   if (a === 'material-allocations') return b ? [{ label: S.materialAllocation.name, to: SECTIONS.materialAllocation.path }, { label: t('nav.crumbs.document') }] : [{ label: S.materialAllocation.name }];

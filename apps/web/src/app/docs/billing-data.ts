@@ -25,6 +25,7 @@ export interface Contract {
   validTo: string | null;
   paymentDays: number;
   priceType: string;
+  priceKindId: string | null;
   isService: boolean;
   tariffPlanId: string | null;
   tariffPlanName: string | null;

@@ -7,6 +7,7 @@ import { WORK_ORDER_KIND_TYPES, WORK_ORDER_STATE_CATEGORIES, type WorkOrderKindT
 import { Alert, Badge, Button, EmptyState, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
 import { useIsAdmin } from '../catalog/data';
 import { useDocsApi, useDocumentStates, useWorkOrderKinds } from '../docs/data';
+import { usePriceKinds } from '../pricing/data';
 import { SettingsHead, SRow } from './parts';
 import { t as tFn, hasKey, useT, type TKey } from '@/i18n';
 
@@ -21,6 +22,7 @@ export function WorkOrderKindsSection({ title }: { title: string }) {
   const isAdmin = useIsAdmin();
   const api = useDocsApi();
   const kinds = useWorkOrderKinds();
+  const priceKinds = usePriceKinds();
   const states = useDocumentStates();
   const [name, setName] = React.useState('');
   const [newType, setNewType] = React.useState<WorkOrderKindType>('regular');
@@ -64,6 +66,14 @@ export function WorkOrderKindsSection({ title }: { title: string }) {
                   value={k.kindType}
                   onValueChange={v => void api('PATCH', `/work-order-kinds/${k.id}`, { kindType: v })}
                   options={WORK_ORDER_KIND_TYPES.map(x => ({ value: x, label: t(`serials.kindType.${x}`) }))}
+                />
+                <Select
+                  aria-label={t('pricing.doc.kind')}
+                  disabled={!isAdmin}
+                  value={k.priceKindId ?? ''}
+                  placeholder={t('pricing.doc.auto')}
+                  onValueChange={v => void api('PATCH', `/work-order-kinds/${k.id}`, { priceKindId: v || null })}
+                  options={[{ value: '', label: t('pricing.doc.auto') }, ...(priceKinds.data ?? []).map(x => ({ value: x.id, label: x.name }))]}
                 />
                 {kind !== k.id && (
                   <Button size="sm" variant="ghost" onClick={() => setKindId(k.id)}>

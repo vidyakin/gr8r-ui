@@ -1,5 +1,6 @@
 /* Документ «Оказанные услуги за день» (задача 1171): /crm/appointments/day/:id. Один на специалиста за день.
    «Заполнить» берёт записи со статусом «пришёл»; строки правятся (товары и доп. услуги добавляются), проведение продаёт по каждому клиенту. */
+import { useResolvePrices } from '../pricing/data';
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
@@ -49,6 +50,15 @@ function DayForm({ doc }: { doc: DayDoc }) {
     const cur = catalog.find(p => p.id === productId);
     return cur && !base.some(o => o.value === productId) ? [{ value: cur.id, label: cur.name }, ...base] : base;
   };
+  // цена выбранной услуги — по виду цен клиента на дату документа (задача 1178)
+  const resolvePrices = useResolvePrices();
+  const repriceRow = (i: number, companyId: string, productId: string) =>
+    resolvePrices({ productIds: [productId], date: (doc as { date?: string }).date ?? new Date().toISOString().slice(0, 10), counterpartyId: companyId })
+      .then(r => {
+        const v = r.prices[productId];
+        if (v) setRow(i, { price: String(Number(v)) });
+      })
+      .catch(() => undefined);
   const total = rows.reduce((s, r) => s + dec(fmt(mul(dec(r.qty || '0'), dec(r.price || '0')), 2)), 0n);
   const setRow = (i: number, p: Partial<Row>) => setRows(list => list.map((r, k) => (k === i ? { ...r, ...p } : r)));
   const body = () => ({ comment, lines: rows.map(r => ({ ...(r.id ? { id: r.id } : {}), companyId: r.companyId, contactId: r.contactId, productId: r.productId, startMin: r.startMin, qty: r.qty || '1', price: r.price || '0' })) });
@@ -87,7 +97,7 @@ function DayForm({ doc }: { doc: DayDoc }) {
             {rows.map((r, i) => (
               <tr key={`${r.id ?? 'new'}${i}`}>
                 <td>{canEdit && !r.id ? <Select value={r.companyId} onValueChange={v => setRow(i, { companyId: v, contactId: null })} options={crm.companies.map(c => ({ value: c.id, label: c.name }))} aria-label={t('appt.doc.client')} /> : companyName(r.companyId)}</td>
-                <td>{canEdit ? <Select value={r.productId} onValueChange={v => setRow(i, { productId: v })} options={optionsFor(r.productId)} aria-label={t('appt.doc.service')} /> : optionsFor(r.productId).find(o => o.value === r.productId)?.label}</td>
+                <td>{canEdit ? <Select value={r.productId} onValueChange={v => { setRow(i, { productId: v }); void repriceRow(i, r.companyId, v); }} options={optionsFor(r.productId)} aria-label={t('appt.doc.service')} /> : optionsFor(r.productId).find(o => o.value === r.productId)?.label}</td>
                 <td className="num">{r.startMin === null ? '—' : fmtMin(r.startMin)}</td>
                 <td className="r">{canEdit ? <Input type="number" min={0} step="0.001" style={{ width: 80, textAlign: 'right' }} value={r.qty} aria-label={t('appt.doc.qty')} onChange={e => setRow(i, { qty: e.target.value })} /> : <span className="num">{r.qty}</span>}</td>
                 <td className="r">{canEdit ? <Input type="number" min={0} step="0.01" style={{ width: 110, textAlign: 'right' }} value={r.price} aria-label={t('appt.book.price')} onChange={e => setRow(i, { price: e.target.value })} /> : <span className="num">{fmtAmount(r.price)}</span>}</td>
