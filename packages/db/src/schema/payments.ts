@@ -67,6 +67,8 @@ export const paymentLines = pgTable(
     workspaceId: wsCol(),
     documentId: uuid('document_id').notNull(),
     sortOrder: integer('sort_order').notNull().default(0),
+    /** Сотрудник строки: выплата зарплаты по ведомости (операция salary_payment) */
+    memberId: uuid('member_id'),
     /** Контрагент строки (авансовый отчёт — оплата поставщику); у оплат берётся из шапки */
     counterpartyId: uuid('counterparty_id'),
     /** Документ расчётов (счёт, заказ, реализация…): сервер приводит его к корню цепочки */
@@ -86,6 +88,7 @@ export const paymentLines = pgTable(
     foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'payment_lines_document_fk' }).onDelete('cascade'),
     foreignKey({ columns: [t.workspaceId, t.counterpartyId], foreignColumns: [companies.workspaceId, companies.id], name: 'payment_lines_counterparty_fk' }),
     foreignKey({ columns: [t.workspaceId, t.settlementDocumentId], foreignColumns: [documents.workspaceId, documents.id], name: 'payment_lines_settlement_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.memberId], foreignColumns: [members.workspaceId, members.id], name: 'payment_lines_member_fk' }),
     foreignKey({ columns: [t.workspaceId, t.contractId], foreignColumns: [contracts.workspaceId, contracts.id], name: 'payment_lines_contract_fk' }),
     foreignKey({ columns: [t.workspaceId, t.cashFlowItemId], foreignColumns: [cashFlowItems.workspaceId, cashFlowItems.id], name: 'payment_lines_cash_flow_item_fk' }),
     foreignKey({ columns: [t.workspaceId, t.costItemId], foreignColumns: [costItems.workspaceId, costItems.id], name: 'payment_lines_cost_item_fk' }),

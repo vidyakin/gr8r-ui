@@ -11,11 +11,11 @@ export const isPaymentType = (t: string): t is PaymentDocType => (PAYMENT_DOC_TY
 export const isReceiptType = (t: PaymentDocType): boolean => t === 'cash_receipt' || t === 'bank_receipt';
 export const accountKindOfType = (t: PaymentDocType): 'cash' | 'bank' => (t === 'cash_receipt' || t === 'cash_payment' ? 'cash' : 'bank');
 /** Документы раздела «Деньги» (свои маршруты, не общий CRUD документов): оплаты, авансовый отчёт, заявка на расход, ввод остатков */
-export const isCashDocType = (t: string): boolean => isPaymentType(t) || t === 'advance_report' || t === 'payment_request' || t === 'opening_balance';
+export const isCashDocType = (t: string): boolean => isPaymentType(t) || t === 'advance_report' || t === 'payment_request' || t === 'opening_balance' || t === 'payroll' || t === 'payroll_statement';
 
 /** Операции поступлений и выплат (documents.operation) */
 export const RECEIPT_OPERATIONS = ['from_customer', 'supplier_refund', 'from_accountable', 'other_income'] as const;
-export const PAYMENT_OPERATIONS = ['to_supplier', 'customer_refund', 'to_accountable', 'other_expense', 'money_transfer'] as const;
+export const PAYMENT_OPERATIONS = ['to_supplier', 'customer_refund', 'to_accountable', 'other_expense', 'money_transfer', 'salary_payment'] as const;
 export type PaymentOperation = (typeof RECEIPT_OPERATIONS)[number] | (typeof PAYMENT_OPERATIONS)[number];
 export const operationsOfType = (t: PaymentDocType): readonly PaymentOperation[] => (isReceiptType(t) ? RECEIPT_OPERATIONS : PAYMENT_OPERATIONS);
 export const PAYMENT_OPERATION_LABELS: Record<PaymentOperation, string> = {
@@ -28,6 +28,7 @@ export const PAYMENT_OPERATION_LABELS: Record<PaymentOperation, string> = {
   to_accountable: 'To accountable person',
   other_expense: 'Other expense',
   money_transfer: 'Money transfer',
+  salary_payment: 'Salary payment',
 };
 export const PAYMENT_OPERATION_LABELS_RU: Record<PaymentOperation, string> = {
   from_customer: 'Оплата от покупателя',
@@ -39,6 +40,7 @@ export const PAYMENT_OPERATION_LABELS_RU: Record<PaymentOperation, string> = {
   to_accountable: 'Выдача подотчётному лицу',
   other_expense: 'Прочий расход',
   money_transfer: 'Перемещение денег',
+  salary_payment: 'Выплата зарплаты',
 };
 
 /** С кем расчёты по операции: сторона и что делает строка — гасит долг документа или возвращается через аванс */
@@ -85,6 +87,7 @@ export interface SystemCashFlowItem {
 export const SYSTEM_CASH_FLOW_ITEMS: SystemCashFlowItem[] = [
   { key: 'customers_payment', name: 'Оплата от покупателей', kind: 'income', group: 'operating' },
   { key: 'suppliers_payment', name: 'Оплата поставщикам', kind: 'expense', group: 'operating' },
+  { key: 'salary', name: 'Оплата труда', kind: 'expense', group: 'operating' },
   { key: 'refund_in', name: 'Возвраты', kind: 'income', group: 'operating' },
   { key: 'refund_out', name: 'Возвраты', kind: 'expense', group: 'operating' },
   { key: 'transfer_in', name: 'Перемещение денег', kind: 'income', group: 'operating', internal: true },
@@ -111,6 +114,8 @@ export function defaultCashFlowKey(op: string | null): string | null {
       return 'transfer_out';
     case 'to_accountable':
       return 'accountable_out';
+    case 'salary_payment':
+      return 'salary';
     case 'from_accountable':
       return 'accountable_in';
     default:

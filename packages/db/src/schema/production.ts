@@ -800,7 +800,7 @@ export const periodCosts = pgTable(
     /** Сумма затрат */
     amount: money('amount').notNull().default('0'),
     /** Источник: поступление (строка-услуга), списание на участок, прочие затраты */
-    source: text('source', { enum: ['receipt', 'write_off', 'other_costs'] }).notNull(),
+    source: text('source', { enum: ['receipt', 'write_off', 'other_costs', 'payroll'] }).notNull(),
     documentId: uuid('document_id'),
     /** Строка документа (поступление) — по ней запись однозначна и перезаписывается при повторном проведении */
     documentLineId: uuid('document_line_id'),

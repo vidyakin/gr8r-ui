@@ -6,11 +6,11 @@ import type { VatRate } from './constants';
 
 /* ---------------- типы и статусы ---------------- */
 
-export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'inventory_count', 'production_order', 'production', 'work_order', 'piecework_order', 'other_costs', 'material_allocation', 'tolling_receipt', 'tolling_report', 'tolling_return', 'sales_plan', 'service_day', 'cash_receipt', 'cash_payment', 'bank_receipt', 'bank_payment', 'advance_report', 'payment_request', 'opening_balance'] as const;
+export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'inventory_count', 'production_order', 'production', 'work_order', 'piecework_order', 'other_costs', 'material_allocation', 'tolling_receipt', 'tolling_report', 'tolling_return', 'sales_plan', 'service_day', 'cash_receipt', 'cash_payment', 'bank_receipt', 'bank_payment', 'advance_report', 'payment_request', 'opening_balance', 'payroll', 'payroll_statement'] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 export const DOCUMENT_STATUSES = ['draft', 'posted', 'cancelled'] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
-export const DOCUMENT_GROUPS = ['sales', 'purchases', 'stock', 'production', 'tolling', 'cash'] as const;
+export const DOCUMENT_GROUPS = ['sales', 'purchases', 'stock', 'production', 'tolling', 'cash', 'payroll'] as const;
 export type DocumentGroup = (typeof DOCUMENT_GROUPS)[number];
 export const PRINT_FORMS = ['invoice', 'upd', 'act', 'torg12', 'inv3', 'torg16', 'torg13', 'work_order', 'piecework', 'warranty_card', 'repair_receipt', 'repair_return', 'ko1', 'ko2'] as const;
 export type PrintForm = (typeof PRINT_FORMS)[number];
@@ -23,7 +23,7 @@ export type WarehouseKind = (typeof WAREHOUSE_KINDS)[number];
 export const COST_ITEM_KINDS = ['expense', 'income'] as const;
 export type CostItemKind = (typeof COST_ITEM_KINDS)[number];
 /** Вид операции внутреннего документа */
-export const DOCUMENT_OPERATIONS = ['transfer', 'in_transit', 'to_operation', 'from_operation', 'assembly', 'disassembly', 'processing', 'from_customer', 'supplier_refund', 'from_accountable', 'other_income', 'to_supplier', 'customer_refund', 'to_accountable', 'other_expense', 'money_transfer'] as const;
+export const DOCUMENT_OPERATIONS = ['transfer', 'in_transit', 'to_operation', 'from_operation', 'assembly', 'disassembly', 'processing', 'from_customer', 'supplier_refund', 'from_accountable', 'other_income', 'to_supplier', 'customer_refund', 'to_accountable', 'other_expense', 'money_transfer', 'salary_payment'] as const;
 export type DocumentOperation = (typeof DOCUMENT_OPERATIONS)[number];
 /** Виды операции производственных документов: сборка и разборка */
 export const PRODUCTION_OPERATIONS = ['assembly', 'disassembly'] as const;
@@ -156,6 +156,9 @@ export const DOCUMENT_META: Record<DocumentType, DocumentTypeMeta> = {
   payment_request: { label: 'Payment request', group: 'cash', prefix: 'ЗР', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true, section: true },
   // ввод начальных остатков денег и расчётов: строки в opening_balance_lines
   opening_balance: { label: 'Opening balances', group: 'cash', prefix: 'НО', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true, section: true },
+  // зарплата (задача 1184): начисление и ведомость на выплату, строки в payroll_lines и payroll_statement_lines
+  payroll: { label: 'Payroll', group: 'payroll', prefix: 'НЗ', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true, section: true },
+  payroll_statement: { label: 'Payroll statement', group: 'payroll', prefix: 'ВЗ', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true, section: true },
   advance_report: { label: 'Advance report', group: 'cash', prefix: 'АО', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true, section: true },
   other_costs: { label: 'Other costs', group: 'production', prefix: 'ПЗ', stock: null, party: null, basedOn: ['work_order'], fulfils: false, forms: [], ownLines: true },
   // распределение материалов по итогам смены: фактический расход делится между выпусками участка в режиме «по итогам смены»
@@ -225,6 +228,8 @@ export const DOCUMENT_LABELS_RU: Record<DocumentType, string> = {
   advance_report: 'Авансовый отчёт',
   payment_request: 'Заявка на расход',
   opening_balance: 'Ввод начальных остатков',
+  payroll: 'Начисление зарплаты',
+  payroll_statement: 'Ведомость на выплату зарплаты',
 };
 
 export const documentTypesOf = (group: DocumentGroup): DocumentType[] => DOCUMENT_TYPES.filter(t => DOCUMENT_META[t].group === group && !DOCUMENT_META[t].section);

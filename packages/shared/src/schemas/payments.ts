@@ -34,6 +34,8 @@ export const paymentLineInput = z.object({
   id: clientId,
   /** Документ расчётов: пусто — аванс (или прочая строка). Сервер приводит к корню цепочки заказ → счёт → реализация */
   settlementDocumentId: uuid.nullish(),
+  /** Сотрудник строки: выплата зарплаты по ведомости (операция salary_payment) */
+  memberId: uuid.nullish(),
   /** Контрагент строки: только авансовый отчёт (оплата поставщику) */
   counterpartyId: uuid.nullish(),
   contractId: uuid.nullish(),
