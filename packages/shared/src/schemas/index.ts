@@ -20,6 +20,7 @@ export * from './delivery';
 export * from './positions';
 export * from './payments';
 export * from './payroll';
+export * from './pricing';
 export * from './leads';
 export * from './secrets';
 export * from './integrations';

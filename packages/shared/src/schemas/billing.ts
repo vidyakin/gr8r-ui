@@ -51,6 +51,8 @@ export const contractCreate = z.object({
   paymentDays: z.coerce.number().int().min(0).max(365).default(0),
   /** Вид цен — подставляется в документы */
   priceType: z.string().trim().max(100).default(''),
+  /** Вид цен из справочника (задача 1178) */
+  priceKindId: uuid.nullish(),
   /** Договор обслуживания: регулярные услуги с периодичностью */
   isService: z.boolean().default(false),
   /** Тарифный план (обязателен для договора обслуживания) */

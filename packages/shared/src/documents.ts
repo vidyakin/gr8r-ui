@@ -6,7 +6,7 @@ import type { VatRate } from './constants';
 
 /* ---------------- типы и статусы ---------------- */
 
-export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'inventory_count', 'production_order', 'production', 'work_order', 'piecework_order', 'other_costs', 'material_allocation', 'tolling_receipt', 'tolling_report', 'tolling_return', 'sales_plan', 'service_day', 'cash_receipt', 'cash_payment', 'bank_receipt', 'bank_payment', 'advance_report', 'payment_request', 'opening_balance', 'payroll', 'payroll_statement'] as const;
+export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'inventory_count', 'production_order', 'production', 'work_order', 'piecework_order', 'other_costs', 'material_allocation', 'tolling_receipt', 'tolling_report', 'tolling_return', 'sales_plan', 'service_day', 'cash_receipt', 'cash_payment', 'bank_receipt', 'bank_payment', 'advance_report', 'payment_request', 'opening_balance', 'payroll', 'payroll_statement', 'price_setting'] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 export const DOCUMENT_STATUSES = ['draft', 'posted', 'cancelled'] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
@@ -157,6 +157,8 @@ export const DOCUMENT_META: Record<DocumentType, DocumentTypeMeta> = {
   // ввод начальных остатков денег и расчётов: строки в opening_balance_lines
   // зарплата (задача 1184): начисление и ведомость на выплату, строки в payroll_lines и payroll_statement_lines
   payroll: { label: 'Payroll', group: 'payroll', prefix: 'НЗ', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true, section: true },
+  // виды цен (задача 1178): установка цен, строки в price_setting_lines
+  price_setting: { label: 'Price setting', group: 'sales', prefix: 'УЦ', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true, section: true },
   payroll_statement: { label: 'Payroll statement', group: 'payroll', prefix: 'ВЗ', stock: null, party: null, basedOn: [], fulfils: false, forms: [], ownLines: true, section: true },
   opening_balance: { label: 'Opening balances', group: 'cash', prefix: 'НО', stock: null, party: null, basedOn: [], fulfils: false, forms: ['opening_balance'], ownLines: true, section: true },
   advance_report: { label: 'Advance report', group: 'cash', prefix: 'АО', stock: null, party: null, basedOn: [], fulfils: false, forms: ['advance_report'], ownLines: true, section: true },
@@ -230,6 +232,7 @@ export const DOCUMENT_LABELS_RU: Record<DocumentType, string> = {
   opening_balance: 'Ввод начальных остатков',
   payroll: 'Начисление зарплаты',
   payroll_statement: 'Ведомость на выплату зарплаты',
+  price_setting: 'Установка цен номенклатуры',
 };
 
 export const documentTypesOf = (group: DocumentGroup): DocumentType[] => DOCUMENT_TYPES.filter(t => DOCUMENT_META[t].group === group && !DOCUMENT_META[t].section);

@@ -152,6 +152,8 @@ export const documentCreate = z.object({
   counterpartyId: uuid.nullish(),
   /** Договор: пусто — договор по умолчанию контрагента */
   contractId: uuid.nullish(),
+  /** Вид цен документа (задача 1178) */
+  priceKindId: uuid.nullish(),
   warehouseId: uuid.nullish(),
   /** Склад-получатель (перемещение между складами) */
   targetWarehouseId: uuid.nullish(),

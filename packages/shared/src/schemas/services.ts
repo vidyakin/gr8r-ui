@@ -16,6 +16,8 @@ export const workOrderKindCreate = z.object({
   /** Тип вида: обычный, ремонт, гарантийный ремонт */
   kindType: z.enum(['regular', 'repair', 'warranty']).optional(),
   sortOrder: z.number().int().min(0).max(1000).optional(),
+  /** Вид цен вида заказ-наряда (задача 1178) */
+  priceKindId: uuid.nullish(),
 });
 export const workOrderKindUpdate = toPatch(workOrderKindCreate.omit({ id: true }));
 export const workOrderKindQuery = listQuery;
