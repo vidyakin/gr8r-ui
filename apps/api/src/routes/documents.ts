@@ -95,7 +95,7 @@ import {
 } from '@gr8r/shared';
 import { crud, ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError, notFound } from '../errors';
-import { requireRole } from '../middleware';
+import { hasRole, requireRole } from '../middleware';
 import type { AppEnv } from '../types';
 
 const admin = requireRole('admin');
@@ -267,6 +267,13 @@ async function documentTypeOf(ctx: Ctx, id: string): Promise<string> {
   return doc.type;
 }
 
+/** Документы зарплаты видят и проводят только admin и owner (суммы — как себестоимость) */
+async function payrollGuard(c: Parameters<typeof hasRole>[0], ctx: Ctx, id: string): Promise<void> {
+  if (hasRole(c, 'admin')) return;
+  const type = await documentTypeOf(ctx, id);
+  if (type === 'payroll' || type === 'payroll_statement') throw new AppError(403, 'forbidden', 'Payroll documents require the admin role');
+}
+
 /** Склад-получатель (перемещение) — отдельным алиасом, чтобы не путать со складом шапки */
 const targetWh = alias(warehouses, 'target_wh');
 
@@ -344,6 +351,7 @@ export const documentRoutes = new Hono<AppEnv>()
   })
   .get('/:id', zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
+    await payrollGuard(c, ctx, c.req.valid('param').id);
     const detail = await documentDetail(ctx.db, c.req.valid('param').id);
     // заказ-наряд: добавляем вид, состояния, материалы и назначения
     if (detail.type === 'work_order') {
@@ -402,6 +410,7 @@ export const documentRoutes = new Hono<AppEnv>()
   .delete('/:id', write, zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;
+    await payrollGuard(c, ctx, id);
     await deleteDocument(ctx.db, docCtx(ctx), id);
     return c.json({ id, deleted: true as const });
   })
@@ -410,6 +419,7 @@ export const documentRoutes = new Hono<AppEnv>()
     const id = c.req.valid('param').id;
     // заказ-наряд проводит состояние «выполнен», вручную его не проводят
     assertWorkOrderPostingByState((await documentTypeOf(ctx, id)) as DocumentType);
+    await payrollGuard(c, ctx, id);
     await postDocument(ctx.db, docCtx(ctx), id);
     return c.json(await documentDetail(ctx.db, id));
   })
@@ -426,18 +436,21 @@ export const documentRoutes = new Hono<AppEnv>()
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;
     assertWorkOrderPostingByState((await documentTypeOf(ctx, id)) as DocumentType);
+    await payrollGuard(c, ctx, id);
     await unpostDocument(ctx.db, docCtx(ctx), id);
     return c.json(await documentDetail(ctx.db, id));
   })
   .post('/:id/cancel', write, zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;
+    await payrollGuard(c, ctx, id);
     await cancelDocument(ctx.db, docCtx(ctx), id);
     return c.json(await documentDetail(ctx.db, id));
   })
   .post('/:id/restore', write, zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;
+    await payrollGuard(c, ctx, id);
     await restoreDocument(ctx.db, docCtx(ctx), id);
     return c.json(await documentDetail(ctx.db, id));
   })

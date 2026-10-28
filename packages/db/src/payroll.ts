@@ -473,6 +473,7 @@ DOCUMENT_HOOKS.payroll = {
   },
   post: async (db, ctx, doc) => {
     const { hdr, lines, kinds, reflections } = await payrollContext(db, doc);
+    await payrollTotals(db, doc.id);
     await db.delete(payrollMoves).where(eq(payrollMoves.documentId, doc.id));
     await clearPeriodCosts(db, ctx.workspaceId, doc.id);
     const costs = new Map<string, { costItemId: string; workCenterId: string | null; amount: bigint }>();
@@ -705,6 +706,13 @@ async function statementPaid(db: Db, id: string, statuses: ('draft' | 'posted')[
 }
 
 DOCUMENT_HOOKS.payroll_statement = {
+  // сумма документа — сумма строк (общий код проведения свою не пересчитывает: строк товаров нет)
+  post: async (db, ctx, doc) => {
+    const rows = await db.select({ amount: payrollStatementLines.amount }).from(payrollStatementLines).where(eq(payrollStatementLines.documentId, doc.id));
+    const total = fmt(sumDec(rows.map(r => r.amount)), 2);
+    await db.update(documents).set({ amountNet: total, vatTotal: '0.00', total, updatedAt: new Date() }).where(eq(documents.id, doc.id));
+    void ctx;
+  },
   check: async (db, _ctx, doc) => {
     const lines = await db.select().from(payrollStatementLines).where(eq(payrollStatementLines.documentId, doc.id));
     if (!lines.length) throw new DomainError(422, 'no_lines', 'Add at least one line before posting');

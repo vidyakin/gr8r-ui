@@ -47,7 +47,7 @@ import {
 import { z } from 'zod';
 import { crud, ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError } from '../errors';
-import { requireRole } from '../middleware';
+import { hasRole, requireRole } from '../middleware';
 import type { AppEnv } from '../types';
 
 const write = requireRole('member');
@@ -61,7 +61,9 @@ export const paymentRoutes = new Hono<AppEnv>()
   .get('/', zValidator('query', paymentQuery, validationHook), async c => {
     const ctx = ctxOf(c);
     const q = c.req.valid('query');
-    return c.json(await listPayments(ctx.db, ctx.workspaceId, { ...q, types: csv(q.type), status: csv(q.status) }));
+    const res = await listPayments(ctx.db, ctx.workspaceId, { ...q, types: csv(q.type), status: csv(q.status) });
+    // выплаты зарплаты видят только admin и owner
+    return c.json(hasRole(c, 'admin') ? res : { ...res, items: res.items.filter(i => i.operation !== 'salary_payment') });
   })
   // остатки денег по кассам, счетам и подотчётным лицам на дату
   .get('/balances', zValidator('query', balancesQuery, validationHook), async c => {
@@ -115,13 +117,19 @@ export const paymentRoutes = new Hono<AppEnv>()
   .post('/', write, zValidator('json', paymentCreate, validationHook), async c => {
     const ctx = ctxOf(c);
     const b = c.req.valid('json');
+    if (b.operation === 'salary_payment' && !hasRole(c, 'admin')) throw new AppError(403, 'forbidden', 'Salary payments require the admin role');
     const id = await createPayment(ctx.db, docCtx(ctx), { ...b, lines: b.lines });
     return c.json(await paymentDetail(ctx.db, id), 201);
   })
-  .get('/:id', zValidator('param', idParam, validationHook), async c => c.json(await paymentDetail(ctxOf(c).db, c.req.valid('param').id)))
+  .get('/:id', zValidator('param', idParam, validationHook), async c => {
+    const d = await paymentDetail(ctxOf(c).db, c.req.valid('param').id);
+    if (d.operation === 'salary_payment' && !hasRole(c, 'admin')) throw new AppError(403, 'forbidden', 'Salary payments require the admin role');
+    return c.json(d);
+  })
   .patch('/:id', write, zValidator('param', idParam, validationHook), zValidator('json', paymentUpdate, validationHook), async c => {
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;
+    if ((await paymentDetail(ctx.db, id)).operation === 'salary_payment' && !hasRole(c, 'admin')) throw new AppError(403, 'forbidden', 'Salary payments require the admin role');
     await updatePayment(ctx.db, docCtx(ctx), id, c.req.valid('json'));
     return c.json(await paymentDetail(ctx.db, id));
   })
