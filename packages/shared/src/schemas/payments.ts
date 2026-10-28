@@ -167,6 +167,8 @@ export const openingLineInput = z.object({
   bankAccountId: uuid.nullish(),
   counterpartyId: uuid.nullish(),
   contractId: uuid.nullish(),
+  /** Документ расчётов для долга или аванса (необязательно) */
+  settlementDocumentId: uuid.nullish(),
   amount: decimal.refine(v => Number(v) > 0, 'Amount must be greater than zero'),
   comment: z.string().trim().max(500).default(''),
 });

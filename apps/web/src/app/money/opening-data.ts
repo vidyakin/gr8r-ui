@@ -13,6 +13,8 @@ export interface OpeningLine {
   counterpartyId: string | null;
   counterpartyName: string | null;
   contractId: string | null;
+  settlementDocumentId: string | null;
+  settlementDocumentLabel: string | null;
   amount: string;
   comment: string;
 }

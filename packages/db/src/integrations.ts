@@ -5,6 +5,8 @@ import { lookup } from 'node:dns/promises';
 import { and, desc, eq, inArray, sql as dsql } from 'drizzle-orm';
 import {
   BANK_ADAPTERS,
+  dec,
+  fmt,
   BankApiError,
   CONNECTION_PROVIDERS,
   isPrivateAddress,
@@ -27,7 +29,7 @@ import { recordEvent } from './events';
 import { createPayment } from './payments';
 import { postDocument, type DocCtx } from './documents';
 import { encryptSecret, listSecrets, readSecret } from './secrets';
-import { payableOf } from './settlements';
+import { payableOf, remainingOf } from './settlements';
 import { bankAccounts, bankConnections, documents, jobs, organizations, paymentLinks, workspaceSecrets } from './schema';
 
 
@@ -364,19 +366,22 @@ async function yooCreds(db: Db, workspaceId: string, prefix: string, env?: Recor
   return { shopId: s.shop_id!, secretKey: s.secret_key! };
 }
 
-/** Ссылка на оплату счёта или заказа: сумма — остаток к оплате по цепочке расчётов. Живая неоплаченная ссылка на ту же сумму переиспользуется */
+/** Ссылка на оплату счёта или заказа: сумма — остаток к оплате по цепочке расчётов (или часть остатка, если задана `amount`).
+    Живая неоплаченная ссылка на ту же сумму переиспользуется; после частичной оплаты новая ссылка выписывается на оставшуюся сумму */
 export async function createPaymentLink(
   db: Db,
   ctx: DocCtx,
-  input: { documentId: string; returnUrl: string },
+  input: { documentId: string; returnUrl: string; amount?: string },
   deps: IntegrationDeps = integrationRuntime.deps,
 ): Promise<{ id: string; url: string; amount: string; reused: boolean }> {
   const [doc] = await db.select({ id: documents.id, type: documents.type, status: documents.status, number: documents.number }).from(documents).where(eq(documents.id, input.documentId)).limit(1);
   if (!doc || doc.status === 'cancelled') throw new DomainError(404, 'not_found', 'Document not found');
   const info = await payableOf(db, input.documentId);
   if (!info || info.status.side !== 'customer') throw new DomainError(422, 'not_payable', 'An online payment link can be created for customer documents only');
-  const amount = info.status.remaining;
-  if (Number(amount) <= 0) throw new DomainError(422, 'nothing_to_pay', 'Nothing left to pay for this document');
+  const remaining = info.status.remaining;
+  if (Number(remaining) <= 0) throw new DomainError(422, 'nothing_to_pay', 'Nothing left to pay for this document');
+  const amount = input.amount ? fmt(dec(input.amount), 2) : remaining;
+  if (dec(amount) > dec(remaining)) throw new DomainError(422, 'amount_exceeds_remaining', 'The amount is greater than what is left to pay for this document', { remaining });
   const [conn] = await db.select().from(bankConnections).where(and(eq(bankConnections.provider, 'yookassa'), eq(bankConnections.enabled, true))).limit(1);
   if (!conn) throw new DomainError(422, 'yookassa_not_configured', 'YooKassa is not connected: add the connection to a bank account and the keys in Settings → Integrations');
   const [live] = await db
@@ -478,7 +483,7 @@ export async function processYooPayment(sql: Sql, workspaceId: string, paymentId
     });
     await postDocument(db, ctx, receiptId);
     await db.update(paymentLinks).set({ status: 'succeeded', paidAt: new Date(), receiptDocumentId: receiptId, updatedAt: new Date() }).where(eq(paymentLinks.id, l.id));
-    await recordEvent(db, { workspaceId, type: 'payment_link.paid', entity: 'payment_link', recordId: l.id, payload: { documentId: l.documentId, receiptDocumentId: receiptId } });
+    await recordEvent(db, { workspaceId, type: 'payment_link.paid', entity: 'payment_link', recordId: l.id, payload: { documentId: l.documentId, receiptDocumentId: receiptId, amount: l.amount, remaining: (await remainingOf(db, l.documentId)) } });
     return 'succeeded';
   });
 }

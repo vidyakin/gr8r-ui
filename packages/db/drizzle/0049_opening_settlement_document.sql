@@ -1,0 +1,2 @@
+ALTER TABLE "opening_balance_lines" ADD COLUMN "settlement_document_id" uuid;--> statement-breakpoint
+ALTER TABLE "opening_balance_lines" ADD CONSTRAINT "opening_balance_lines_settlement_document_fk" FOREIGN KEY ("workspace_id","settlement_document_id") REFERENCES "public"."documents"("workspace_id","id") ON DELETE no action ON UPDATE no action;

@@ -108,6 +108,8 @@ export const openingBalanceLines = pgTable(
     bankAccountId: uuid('bank_account_id'),
     counterpartyId: uuid('counterparty_id'),
     contractId: uuid('contract_id'),
+    /** Документ расчётов, к которому привязан долг или аванс (необязательно; нужен в режиме «по документам») */
+    settlementDocumentId: uuid('settlement_document_id'),
     amount: money('amount').notNull(),
     comment: text('comment').notNull().default(''),
     createdAt: createdAt(),
@@ -121,6 +123,7 @@ export const openingBalanceLines = pgTable(
     foreignKey({ columns: [t.workspaceId, t.bankAccountId], foreignColumns: [bankAccounts.workspaceId, bankAccounts.id], name: 'opening_balance_lines_bank_account_fk' }),
     foreignKey({ columns: [t.workspaceId, t.counterpartyId], foreignColumns: [companies.workspaceId, companies.id], name: 'opening_balance_lines_counterparty_fk' }),
     foreignKey({ columns: [t.workspaceId, t.contractId], foreignColumns: [contracts.workspaceId, contracts.id], name: 'opening_balance_lines_contract_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.settlementDocumentId], foreignColumns: [documents.workspaceId, documents.id], name: 'opening_balance_lines_settlement_document_fk' }),
     index('opening_balance_lines_doc_idx').on(t.documentId, t.sortOrder),
   ],
 );

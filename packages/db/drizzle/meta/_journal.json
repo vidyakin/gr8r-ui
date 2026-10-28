@@ -323,6 +323,13 @@
       "when": 1793121566636,
       "tag": "0047_opening_balances",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1793221367623,
+      "tag": "0049_opening_settlement_document",
+      "breakpoints": true
     }
   ]
 }

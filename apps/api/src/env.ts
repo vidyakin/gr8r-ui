@@ -14,6 +14,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     cookieSecure: env.COOKIE_SECURE ? env.COOKIE_SECURE === '1' || env.COOKIE_SECURE === 'true' : env.NODE_ENV === 'production',
     corsOrigins: (env.CORS_ORIGINS ?? '').split(',').map(s => s.trim()).filter(Boolean),
     trustProxy: env.TRUST_PROXY === '1' || env.TRUST_PROXY === 'true',
+    yookassaIpCheck: !(env.YOOKASSA_IP_CHECK === '0' || env.YOOKASSA_IP_CHECK === 'false'),
     sessionTtlDays: int(env.SESSION_TTL_DAYS, 30),
     authRateLimitMax: int(env.AUTH_RATE_LIMIT_MAX, 10),
     authRateLimitWindowMs: int(env.AUTH_RATE_LIMIT_WINDOW_MIN, 15) * 60_000,
