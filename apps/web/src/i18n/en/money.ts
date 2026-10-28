@@ -154,7 +154,11 @@ export const money = {
       supplier_debt: 'We owe supplier',
       supplier_advance: 'Advance to supplier',
     },
-    settlementHint: 'Debts and advances go to settlements, not to cash balances. Pay or offset them with ordinary documents.',
+    contract: 'Contract',
+    noContract: 'No contract',
+    document: 'Settlement document',
+    noDocument: 'Not tied to a document',
+    settlementHint: 'Debts and advances go to settlements, not to cash balances. A document ties the debt to it in the “by documents” mode; without one it stays in the common pool. Pay or offset them with ordinary documents.',
     moneyTotal: 'Cash and bank total',
   },
   request: {

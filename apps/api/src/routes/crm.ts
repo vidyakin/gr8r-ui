@@ -1,6 +1,6 @@
 /* CRM: компании, контакты, сделки, активности. */
 import { eq, gte, inArray, lte } from 'drizzle-orm';
-import { companies, contacts, crmActivities, dealContacts, deals } from '@gr8r/db';
+import { companies, contacts, crmActivities, dealContacts, deals, recalcSettlementMode } from '@gr8r/db';
 import {
   companyCreate,
   companyQuery,
@@ -40,6 +40,10 @@ export const companyRoutes = crud({
     // реквизиты проверяются по итоговому состоянию: тип, ИНН, КПП и ОГРН зависят друг от друга
     assertRequisites({ kind: body.kind ?? existing.kind, inn: body.inn ?? existing.inn, kpp: body.kpp ?? existing.kpp, ogrn: body.ogrn ?? existing.ogrn });
     return customForUpdate(ctx, 'company', existing.custom, body.custom, existing.id);
+  },
+  // смена режима взаиморасчётов пересчитывает зачёты проведённых документов в той же транзакции (закрытый период — 422)
+  afterUpdate: async (ctx, before, after) => {
+    if (before.settlementMode !== after.settlementMode) await recalcSettlementMode(ctx.db, { workspaceId: ctx.workspaceId, memberId: ctx.memberId, role: ctx.role }, after.id, before.settlementMode, after.settlementMode);
   },
 });
 

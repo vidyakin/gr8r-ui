@@ -93,3 +93,80 @@ describe('ввод начальных остатков', () => {
     expect((await owner.patch(`/documents/${empty.id}`, { comment: 'x' })).status).toBe(422);
   });
 });
+
+describe('остатки: документ расчётов и повторный ввод', () => {
+  const status = async (id: string) => (await owner.get(`/payments/status?ids=${id}`)).body.items[id];
+
+  test('долг и аванс с документом расчётов не висят в общем пуле (режим «по документам»)', async () => {
+    const service = (await mk(owner, '/products', { name: 'Услуга', kind: 'service', price: 0, vatRate: 'none' })).id;
+    const buyer = (await mk(owner, '/companies', { name: 'ООО «Покупатель с документом»' })).id as string;
+    const order = await mk(owner, '/documents', { type: 'customer_order', counterpartyId: buyer, date: '2026-01-05', lines: [{ productId: service, qty: 1, price: '1000.00', vatRate: 'none' }] });
+    const act = await mk(owner, '/documents', { type: 'act', counterpartyId: buyer, date: '2026-01-06', lines: [] });
+    const doc = await mk(owner, '/opening-balances', {
+      date: '2025-12-31',
+      organizationId: orgId,
+      lines: [
+        { kind: 'customer_advance', counterpartyId: buyer, settlementDocumentId: order.id, amount: '300' },
+        { kind: 'customer_debt', counterpartyId: buyer, settlementDocumentId: act.id, amount: '2000' },
+      ],
+    });
+    await mk(owner, `/documents/${doc.id}/post`);
+    expect(await status(order.id)).toMatchObject({ paid: '300.00', remaining: '700.00', state: 'partial' });
+    expect(await status(act.id)).toMatchObject({ obligation: '2000.00', paid: '0.00', remaining: '2000.00' });
+    const rec = (await owner.get(`/payments/reports/receivables?companyId=${buyer}`)).body.rows[0];
+    expect(rec.debt).toBe('2000.00');
+    expect(rec.docs.map((d: any) => d.documentId)).toContain(act.id);
+    // карточка документа остатков показывает выбранный документ
+    const detail = (await owner.get(`/opening-balances/${doc.id}`)).body;
+    expect(detail.lines[0].settlementDocumentId).toBe(order.id);
+    expect(detail.lines[0].settlementDocumentLabel).toContain('2026-01-05');
+    // отмена проведения убирает и привязанные движения
+    await mk(owner, `/documents/${doc.id}/unpost`);
+    expect(await status(order.id)).toMatchObject({ paid: '0.00' });
+  });
+
+  test('документ другого контрагента или другой стороны — 422 settlement_document_mismatch', async () => {
+    const a = (await mk(owner, '/companies', { name: 'ООО «Свой»' })).id as string;
+    const b = (await mk(owner, '/companies', { name: 'ООО «Чужой»' })).id as string;
+    const order = await mk(owner, '/documents', { type: 'customer_order', counterpartyId: b, date: '2026-01-05', lines: [] });
+    const wrong = await mk(owner, '/opening-balances', { date: '2025-12-30', organizationId: orgId, lines: [{ kind: 'customer_debt', counterpartyId: a, settlementDocumentId: order.id, amount: '10' }] });
+    const r = await owner.post(`/documents/${wrong.id}/post`);
+    expect(r.status).toBe(422);
+    expect(r.body.error.code).toBe('settlement_document_mismatch');
+    const side = await mk(owner, '/opening-balances', { date: '2025-12-30', organizationId: orgId, lines: [{ kind: 'supplier_debt', counterpartyId: b, settlementDocumentId: order.id, amount: '10' }] });
+    expect((await owner.post(`/documents/${side.id}/post`)).body.error.code).toBe('settlement_document_mismatch');
+  });
+
+  test('второй проведённый документ остатков на ту же организацию блокируется', async () => {
+    const org2 = (await mk(owner, '/organizations', { name: 'ООО «Вторая»' })).id as string;
+    const first = await mk(owner, '/opening-balances', { date: '2025-12-31', organizationId: org2, lines: [{ kind: 'cash', cashRegisterId: cashId, amount: '1' }] });
+    void first;
+    const org3 = (await mk(owner, '/organizations', { name: 'ООО «Третья»' })).id as string;
+    const c3 = (await mk(owner, '/companies', { name: 'ООО «К»' })).id as string;
+    const one = await mk(owner, '/opening-balances', { date: '2025-12-31', organizationId: org3, lines: [{ kind: 'customer_debt', counterpartyId: c3, amount: '5' }] });
+    await mk(owner, `/documents/${one.id}/post`);
+    const two = await mk(owner, '/opening-balances', { date: '2026-01-31', organizationId: org3, lines: [{ kind: 'customer_debt', counterpartyId: c3, amount: '7' }] });
+    const r = await owner.post(`/documents/${two.id}/post`);
+    expect(r.status).toBe(409);
+    expect(r.body.error.code).toBe('opening_already_posted');
+    // после отмены проведения первого второй проводится
+    await mk(owner, `/documents/${one.id}/unpost`);
+    expect((await owner.post(`/documents/${two.id}/post`)).status).toBe(200);
+  });
+});
+
+describe('остатки и смена режима расчётов', () => {
+  test('привязка к документу действует только в режиме «по документам»; пересчёт идёт и по документу остатков', async () => {
+    const buyer = (await mk(owner, '/companies', { name: 'ООО «Режим и остатки»' })).id as string;
+    const act = await mk(owner, '/documents', { type: 'act', counterpartyId: buyer, date: '2026-01-06', lines: [] });
+    const doc = await mk(owner, '/opening-balances', { date: '2025-11-30', organizationId: orgId, lines: [{ kind: 'customer_debt', counterpartyId: buyer, settlementDocumentId: act.id, amount: '900' }] });
+    await mk(owner, `/documents/${doc.id}/post`);
+    const st = async () => (await owner.get(`/payments/status?ids=${act.id}`)).body.items[act.id];
+    expect(await st()).toMatchObject({ mode: 'by_documents', obligation: '900.00' });
+    expect((await owner.patch(`/companies/${buyer}`, { settlementMode: 'by_counterparty' })).status).toBe(200);
+    expect((await owner.get(`/payments/reports/receivables?companyId=${buyer}`)).body.rows[0].debt).toBe('900.00');
+    expect((await owner.patch(`/companies/${buyer}`, { settlementMode: 'by_documents' })).status).toBe(200);
+    expect(await st()).toMatchObject({ mode: 'by_documents', obligation: '900.00', paid: '0.00' });
+    await mk(owner, `/documents/${doc.id}/unpost`);
+  });
+});

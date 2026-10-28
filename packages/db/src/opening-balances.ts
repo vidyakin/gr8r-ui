@@ -2,8 +2,8 @@
    Строки «касса / расчётный счёт — сумма» при проведении пишут приход в cash_moves по внутренней статье «Начальные остатки»
    (в обороты «Движения денег» она не входит, в остатки — входит). Строки «долг / аванс контрагента» пишут взаиморасчёты.
    Правила — docs/architecture/payments.md, «Ввод начальных остатков». */
-import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
-import { dec, fmt, isOpeningMoneyKind, openingSettlement, type OpeningLineInput, type OpeningLineKind } from '@gr8r/shared';
+import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, sql } from 'drizzle-orm';
+import { DOCUMENT_LABELS_RU, dec, fmt, isOpeningMoneyKind, openingSettlement, SETTLEMENT_CHAIN_TYPES, type DocumentType, type OpeningLineInput, type OpeningLineKind } from '@gr8r/shared';
 import type { Db } from './client';
 import { DOCUMENT_HOOKS } from './document-hooks';
 import type { DocCtx } from './documents';
@@ -11,7 +11,7 @@ import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { assertPeriodOpen } from './cost-closing';
 import { ensureCashFlowItems } from './payments';
-import { postOpeningSettlement, removeSettlementMoves } from './settlements';
+import { postOpeningSettlement, removeSettlementMoves, rootSide, settlementRoot } from './settlements';
 import { accountableMoves, bankAccounts, cashMoves, cashRegisters, companies, contracts, documents, openingBalanceLines, organizations } from './schema';
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -55,6 +55,7 @@ async function saveOpeningLines(db: Db, ctx: DocCtx, doc: DocRow, inputs: Openin
       bankAccountId: l.kind === 'bank' ? l.bankAccountId! : null,
       counterpartyId: money ? null : l.counterpartyId!,
       contractId: money ? null : (l.contractId ?? null),
+      settlementDocumentId: money ? null : (l.settlementDocumentId ?? null),
       amount: fmt(dec(l.amount), 2),
       comment: l.comment?.trim() ?? '',
     } satisfies typeof openingBalanceLines.$inferInsert;
@@ -109,6 +110,13 @@ export async function updateOpening(db: Db, ctx: DocCtx, id: string, patch: Part
 async function checkPosting(db: Db, doc: DocRow): Promise<void> {
   const lines = await linesOf(db, doc.id);
   if (!lines.length) throw new DomainError(422, 'no_lines', 'Add at least one line before posting');
+  // начальные остатки вводятся один раз на организацию: повторный проведённый документ задвоил бы кассу, счета и долги
+  const [dup] = await db
+    .select({ id: documents.id, number: documents.number, date: documents.date })
+    .from(documents)
+    .where(and(eq(documents.workspaceId, doc.workspaceId), eq(documents.type, 'opening_balance'), eq(documents.organizationId, doc.organizationId), eq(documents.status, 'posted'), ne(documents.id, doc.id)))
+    .limit(1);
+  if (dup) throw new DomainError(409, 'opening_already_posted', `Opening balances for this organization are already posted (${dup.number ?? ''} dated ${dup.date}): unpost it first or edit it`, { documentId: dup.id, number: dup.number, date: dup.date });
   for (const l of lines) {
     if (l.kind === 'cash') {
       const [c] = await db.select({ org: cashRegisters.organizationId, archivedAt: cashRegisters.archivedAt }).from(cashRegisters).where(eq(cashRegisters.id, l.cashRegisterId!)).limit(1);
@@ -125,6 +133,14 @@ async function checkPosting(db: Db, doc: DocRow): Promise<void> {
         const [k] = await db.select({ companyId: contracts.companyId }).from(contracts).where(eq(contracts.id, l.contractId)).limit(1);
         if (!k || k.companyId !== l.counterpartyId) throw new DomainError(422, 'contract_mismatch', 'The contract belongs to another counterparty');
       }
+      if (l.settlementDocumentId) {
+        const [d] = await db.select({ type: documents.type, status: documents.status }).from(documents).where(eq(documents.id, l.settlementDocumentId)).limit(1);
+        if (!d || d.status === 'cancelled') throw new DomainError(422, 'invalid_reference', 'The settlement document does not exist or is cancelled');
+        const root = await settlementRoot(db, l.settlementDocumentId);
+        const side = openingSettlement(l.kind as OpeningLineKind)!.side;
+        if (!(SETTLEMENT_CHAIN_TYPES as string[]).includes(root.type) || root.counterpartyId !== l.counterpartyId || rootSide(root.type) !== side)
+          throw new DomainError(422, 'settlement_document_mismatch', 'The settlement document belongs to another counterparty or to the other side of settlements');
+      }
     }
   }
 }
@@ -134,16 +150,31 @@ async function writeMoves(db: Db, ctx: DocCtx, doc: DocRow): Promise<void> {
   const keys = await ensureCashFlowItems(db, ctx.workspaceId);
   const total = moneyTotal(lines);
   await db.update(documents).set({ amountNet: fmt(total, 2), vatTotal: '0.00', total: fmt(total, 2), updatedAt: new Date() }).where(eq(documents.id, doc.id));
-  for (const l of lines) {
+  // сначала деньги и авансы без документа, потом долги с документом: долг сразу гасится авансами того же документа
+  for (const l of [...lines.filter(x => !attachedDebtLine(x)), ...lines.filter(attachedDebtLine)]) {
     if (l.kind === 'cash' || l.kind === 'bank') {
       const account = l.kind === 'cash' ? { accountKind: 'cash' as const, cashRegisterId: l.cashRegisterId } : { accountKind: 'bank' as const, bankAccountId: l.bankAccountId };
       await db.insert(cashMoves).values({ workspaceId: ctx.workspaceId, documentId: doc.id, lineId: l.id, date: doc.date, ...account, cashFlowItemId: keys.get('opening_balance')!, direction: 'in', amount: l.amount });
       continue;
     }
-    const s = openingSettlement(l.kind as OpeningLineKind)!;
-    await postOpeningSettlement(db, ctx.workspaceId, doc, { id: l.id, companyId: l.counterpartyId!, side: s.side, contractId: l.contractId, advance: s.advance, amount: dec(l.amount) });
+    await writeSettlementLine(db, ctx.workspaceId, doc, l);
   }
 }
+
+/** Взаиморасчётная строка остатков: документ расчётов приводится к корню цепочки (заказ → счёт → реализация делят один документ) */
+async function writeSettlementLine(db: Db, workspaceId: string, doc: DocRow, l: LineRow): Promise<void> {
+  const s = openingSettlement(l.kind as OpeningLineKind)!;
+  const settlementDocumentId = l.settlementDocumentId ? (await settlementRoot(db, l.settlementDocumentId)).id : null;
+  await postOpeningSettlement(db, workspaceId, doc, { id: l.id, companyId: l.counterpartyId!, side: s.side, contractId: l.contractId, advance: s.advance, amount: dec(l.amount), settlementDocumentId });
+}
+
+/** Повтор взаиморасчётов проведённого документа остатков по одному контрагенту (смена режима расчётов) */
+export async function replayOpeningSettlements(db: Db, workspaceId: string, doc: DocRow, companyId: string): Promise<void> {
+  const lines = (await linesOf(db, doc.id)).filter(l => !isOpeningMoneyKind(l.kind) && l.counterpartyId === companyId);
+  for (const l of [...lines.filter(x => !attachedDebtLine(x)), ...lines.filter(attachedDebtLine)]) await writeSettlementLine(db, workspaceId, doc, l);
+}
+
+const attachedDebtLine = (l: LineRow) => !!l.settlementDocumentId && !openingSettlement(l.kind as OpeningLineKind)?.advance;
 
 DOCUMENT_HOOKS.opening_balance = {
   check: async (db, _ctx, doc) => checkPosting(db, doc),
@@ -173,6 +204,8 @@ export async function openingDetail(db: Db, id: string) {
   const bank = new Map((bankIds.length ? await db.select({ id: bankAccounts.id, name: bankAccounts.bankName, account: bankAccounts.account }).from(bankAccounts).where(inArray(bankAccounts.id, bankIds)) : []).map(r => [r.id, `${r.name} · ${r.account.slice(-4)}`]));
   const cps = new Map((cpIds.length ? await db.select({ id: companies.id, name: companies.name }).from(companies).where(inArray(companies.id, cpIds)) : []).map(c => [c.id, c.name]));
   const cons = new Map((conIds.length ? await db.select({ id: contracts.id, number: contracts.number }).from(contracts).where(inArray(contracts.id, conIds)) : []).map(c => [c.id, c.number]));
+  const sdIds = [...new Set(lines.map(l => l.settlementDocumentId).filter((x): x is string => !!x))];
+  const sdocs = new Map((sdIds.length ? await db.select({ id: documents.id, type: documents.type, number: documents.number, date: documents.date }).from(documents).where(inArray(documents.id, sdIds)) : []).map(d => [d.id, `${DOCUMENT_LABELS_RU[d.type as DocumentType] ?? d.type}${d.number ? ` ${d.number}` : ''} · ${d.date}`]));
   return {
     ...doc,
     organizationName: org?.name ?? null,
@@ -181,6 +214,7 @@ export async function openingDetail(db: Db, id: string) {
       accountName: l.cashRegisterId ? (cash.get(l.cashRegisterId) ?? null) : l.bankAccountId ? (bank.get(l.bankAccountId) ?? null) : null,
       counterpartyName: l.counterpartyId ? (cps.get(l.counterpartyId) ?? null) : null,
       contractNumber: l.contractId ? (cons.get(l.contractId) ?? null) : null,
+      settlementDocumentLabel: l.settlementDocumentId ? (sdocs.get(l.settlementDocumentId) ?? null) : null,
     })),
   };
 }

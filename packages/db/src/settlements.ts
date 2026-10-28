@@ -235,15 +235,31 @@ export async function applyRefund(db: Db, workspaceId: string, side: Side, doc: 
   await insertMove(db, scope, { settlementDocumentId: null, documentId: doc.id, lineId: line.id, date: doc.date, kind: 'payment', amount: left });
 }
 
-/** Начальный долг или аванс контрагента («Ввод начальных остатков»): долг — начисление без документа расчётов (пул компании),
-    аванс — оплата без документа с источником аванса: он зачтётся в ближайшее начисление, как обычная предоплата */
+/** Сторона документа расчётов: по правилу начисления, заказ поставщику — поставщик, остальные — покупатель */
+export function rootSide(type: string): Side {
+  return ACCRUAL_TYPES[type as DocumentType]?.side ?? (type === 'supplier_order' ? 'supplier' : 'customer');
+}
+
+/** Начальный долг или аванс контрагента («Ввод начальных остатков»). Без документа расчётов (или в режиме «по контрагенту») долг — начисление
+    без документа (пул компании), аванс — оплата без документа с источником аванса: он зачтётся в ближайшее начисление, как обычная предоплата.
+    С документом расчётов (режим «по документам»): долг начисляется на документ и гасится авансами, аванс — оплата этого документа (сверх долга — аванс) */
 export async function postOpeningSettlement(
   db: Db,
   workspaceId: string,
   doc: { id: string; date: string },
-  line: { id: string; companyId: string; side: Side; contractId: string | null; advance: boolean; amount: Dec },
+  line: { id: string; companyId: string; side: Side; contractId: string | null; advance: boolean; amount: Dec; settlementDocumentId?: string | null },
 ): Promise<void> {
   const scope: Scope = { workspaceId, companyId: line.companyId, side: line.side, contractId: line.contractId };
+  const attached = line.settlementDocumentId && (await companyMode(db, line.companyId)) === 'by_documents' ? line.settlementDocumentId : null;
+  if (attached) {
+    if (line.advance) {
+      await applyPayment(db, workspaceId, line.side, doc, { id: line.id, companyId: line.companyId, settlementDocumentId: attached, contractId: line.contractId, amount: line.amount });
+    } else {
+      await insertMove(db, scope, { settlementDocumentId: attached, documentId: doc.id, lineId: line.id, date: doc.date, kind: 'accrual', amount: line.amount });
+      await offsetAdvances(db, scope, [attached], { documentId: doc.id, date: doc.date });
+    }
+    return;
+  }
   if (line.advance) await insertMove(db, scope, { settlementDocumentId: null, documentId: doc.id, lineId: line.id, advanceDocumentId: doc.id, advanceLineId: line.id, date: doc.date, kind: 'payment', amount: -line.amount });
   else await insertMove(db, scope, { settlementDocumentId: null, documentId: doc.id, lineId: line.id, date: doc.date, kind: 'accrual', amount: line.amount });
 }
