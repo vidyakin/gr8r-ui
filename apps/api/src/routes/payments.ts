@@ -11,10 +11,13 @@ import {
   cashFlowReport,
   cashOrderData,
   cashRegisters,
+  companies,
   createPayment,
   createPaymentFromDocument,
   debtReport,
+  documentExports,
   ensureCashFlowItems,
+  jobs,
   listPayments,
   organizations,
   paymentDetail,
@@ -54,6 +57,8 @@ const write = requireRole('member');
 const docCtx = (ctx: Ctx) => ({ workspaceId: ctx.workspaceId, memberId: ctx.memberId, role: ctx.role });
 const today = () => new Date().toISOString().slice(0, 10);
 const csv = (v: string | undefined) => (v ? v.split(',').filter(Boolean) : undefined);
+
+const actQuery = settlementQuery.extend({ side: z.enum(['customer', 'supplier']).default('customer'), organizationId: uuid.optional() });
 
 const CSP = "default-src 'none'; img-src * data:; style-src 'unsafe-inline'";
 
@@ -98,13 +103,35 @@ export const paymentRoutes = new Hono<AppEnv>()
     return c.json(await settlementCard(ctx.db, ctx.workspaceId, c.req.valid('param').companyId, c.req.valid('query')));
   })
   // акт сверки: печатная форма (HTML, A4)
-  .get('/settlements/:companyId/act', zValidator('param', z.object({ companyId: uuid }), validationHook), zValidator('query', settlementQuery.extend({ side: z.enum(['customer', 'supplier']).default('customer'), organizationId: uuid.optional() }), validationHook), async c => {
+  .get('/settlements/:companyId/act', zValidator('param', z.object({ companyId: uuid }), validationHook), zValidator('query', actQuery, validationHook), async c => {
     const ctx = ctxOf(c);
     const q = c.req.valid('query');
     const data = await settlementActData(ctx.db, ctx.workspaceId, c.req.valid('param').companyId, q);
     c.header('Content-Security-Policy', CSP);
     c.header('X-Content-Type-Options', 'nosniff');
     return c.html(renderSettlementAct(data));
+  })
+  // акт сверки в PDF: задача воркеру (headless Chromium); файл лежит в document_exports (акт — не документ учёта)
+  .post('/settlements/:companyId/act/pdf', write, zValidator('param', z.object({ companyId: uuid }), validationHook), zValidator('query', actQuery, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const companyId = c.req.valid('param').companyId;
+    const q = c.req.valid('query');
+    const [co] = await ctx.db.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId)).limit(1);
+    if (!co) throw new AppError(404, 'not_found', 'Counterparty not found');
+    const name = `settlement-act-${q.from ?? 'start'}-${q.to ?? today()}.pdf`;
+    const [row] = await ctx.db.insert(documentExports).values({ workspaceId: ctx.workspaceId, name, contentType: 'application/pdf', requestedBy: ctx.memberId }).returning({ id: documentExports.id, name: documentExports.name, status: documentExports.status });
+    await ctx.db.insert(jobs).values({ workspaceId: ctx.workspaceId, type: 'settlement.act_pdf', payload: { exportId: row!.id, companyId, ...q } });
+    return c.json(row!, 202);
+  })
+  // статус акта сверки в PDF и скачивание (?download=1)
+  .get('/act-files/:id', zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    const [row] = await ctx.db.select().from(documentExports).where(and(eq(documentExports.id, id), eq(documentExports.workspaceId, ctx.workspaceId), eq(documentExports.contentType, 'application/pdf'))).limit(1);
+    if (!row) throw new AppError(404, 'not_found', 'File not found');
+    if (c.req.query('download') !== '1') return c.json({ id: row.id, name: row.name, status: row.status, size: row.size, error: row.error });
+    if (row.status !== 'ready' || !row.data) throw new AppError(409, 'not_ready', row.status === 'failed' ? `PDF generation failed: ${row.error}` : 'The PDF is not ready yet');
+    return new Response(new Uint8Array(row.data), { headers: { 'content-type': 'application/pdf', 'content-disposition': `attachment; filename="${row.name}"`, 'content-length': String(row.data.length), 'x-content-type-options': 'nosniff' } });
   })
   .post('/from-document', write, zValidator('json', paymentFromDocument, validationHook), async c => {
     const ctx = ctxOf(c);

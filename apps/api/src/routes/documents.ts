@@ -8,7 +8,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import {
   bankAccounts,
-  buildPrintData,
+  renderDocumentHtml,
   documentServiceCost,
   processingOrderCost,
   cancelDocument,
@@ -82,7 +82,6 @@ import {
   organizationUpdate,
   pdfRequest,
   printParam,
-  renderPrintForm,
   stockBalanceQuery,
   stockMoveQuery,
   validateRequisites,
@@ -503,11 +502,9 @@ export const documentRoutes = new Hono<AppEnv>()
   .get('/:id/print/:form', zValidator('param', printParam, validationHook), async c => {
     const ctx = ctxOf(c);
     const { id, form } = c.req.valid('param');
-    const data = await buildPrintData(ctx.db, id);
-    if (!DOCUMENT_META[data.type as DocumentType].forms.includes(form)) throw new AppError(422, 'form_not_available', `The "${form}" form is not available for this document type`);
     c.header('Content-Security-Policy', "default-src 'none'; img-src * data:; style-src 'unsafe-inline'");
     c.header('X-Content-Type-Options', 'nosniff');
-    return c.html(renderPrintForm(form, data));
+    return c.html(await renderDocumentHtml(ctx.db, id, form));
   })
   // PDF: задача воркеру (headless Chromium); результат читается по id файла
   .post('/:id/pdf', write, zValidator('param', idParam, validationHook), zValidator('json', pdfRequest, validationHook), async c => {
