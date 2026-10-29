@@ -6,6 +6,8 @@ export interface SessionUser {
   email: string;
   name: string;
   locale: string | null;
+  /** Оператор установки (users.is_operator): доступ к /admin/tenants */
+  isOperator: boolean;
 }
 
 export interface AppConfig {

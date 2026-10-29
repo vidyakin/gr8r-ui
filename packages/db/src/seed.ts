@@ -135,8 +135,17 @@ async function seedMeta(db: Db, wsId: string, sys: Map<string, string>, creator:
   ];
 }
 
-/** Демо-воркспейс: все данные фронтенда (задачи, проекты, комментарии, CRM…) */
-async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: string, userIds: Map<string, string>, inviteToken: string) {
+export interface DemoWorkspaceOptions {
+  name?: string;
+  slug?: string;
+  /** Email владельца (участник m1); без него — demo@gr8r.dev */
+  ownerEmail?: string;
+  ownerName?: string;
+}
+
+/** Демо-воркспейс: все данные фронтенда (задачи, проекты, комментарии, CRM…). Аккаунты есть только у участников из userIds,
+    остальные — профили без входа. Демо-арендаторы оператора (tenants.ts) передают своё имя, адрес и владельца */
+export async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: string, userIds: Map<string, string>, inviteToken: string, opts: DemoWorkspaceOptions = {}) {
   const d = demoWorkspace();
   const crm = seedCrm();
   const ids = new Map<string, string>(); // старый id фронтенда → uuid v7
@@ -147,7 +156,7 @@ async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: string, user
   };
   const Uo = (old?: string | null) => (old ? U(old) : null);
 
-  await db.insert(workspaces).values({ id: wsId, name: d.ws.name, slug: d.ws.url, color: d.ws.c, brand: d.ws.brand ?? false, createdBy: ownerUserId });
+  await db.insert(workspaces).values({ id: wsId, name: opts.name ?? d.ws.name, slug: opts.slug ?? d.ws.url, color: d.ws.c, brand: d.ws.brand ?? false, createdBy: ownerUserId });
   await db.insert(memberships).values(
     d.members
       .filter(m => userIds.has(m.id))
@@ -170,8 +179,8 @@ async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: string, user
       id: U(m.id),
       workspaceId: wsId,
       userId: userIds.get(m.id) ?? null,
-      email: m.id === 'm1' ? DEMO_USER.email : m.email,
-      name: m.name,
+      email: m.id === 'm1' ? (opts.ownerEmail ?? DEMO_USER.email) : m.email,
+      name: m.id === 'm1' ? (opts.ownerName ?? m.name) : m.name,
       title: m.title,
       color: m.c,
       teamId: teamId.get(m.team) ?? null,

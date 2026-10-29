@@ -1,0 +1,113 @@
+# Прод-развёртывание на VPS: postgres, migrate (миграции при каждом старте), api, worker, web (nginx), caddy (HTTPS), backup (pg_dump раз в сутки).
+# Инструкция — README, «Деплой», устройство — docs/architecture/deploy.md.
+#   cp .env.prod.example .env.prod && nano .env.prod
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+# Наружу открыты только 80/443 (Caddy). Postgres и API портов на хосте не публикуют.
+
+x-db-env: &db-env
+  ADMIN_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?задайте POSTGRES_PASSWORD}@postgres:5432/gr8r
+  DATABASE_URL: postgres://gr8r_app:${APP_DB_PASSWORD:?задайте APP_DB_PASSWORD}@postgres:5432/gr8r
+  APP_DB_USER: gr8r_app
+  APP_DB_PASSWORD: ${APP_DB_PASSWORD}
+  NODE_ENV: production
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: gr8r
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d gr8r']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # Разовая задача при каждом `up`: миграции (идемпотентно), роли gr8r_app/gr8r_ddl. Через неё же запускается CLI оператора:
+  #   docker compose -f docker-compose.prod.yml --env-file .env.prod run --rm migrate bun run tenant list
+  migrate:
+    build: { context: ., target: migrate }
+    environment:
+      <<: *db-env
+      DDL_DB_USER: gr8r_ddl
+      DDL_DB_PASSWORD: ${DDL_DB_PASSWORD:?задайте DDL_DB_PASSWORD}
+      SEED: '0'
+    volumes:
+      - ./archives:/archives # выгрузки арендаторов: bun run tenant export <адрес> --out /archives/x.jsonl.gz
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: 'no'
+
+  api:
+    build: { context: ., target: api }
+    restart: unless-stopped
+    environment:
+      <<: *db-env
+      API_PORT: 3000
+      COOKIE_SECURE: '1'
+      TRUST_PROXY: '1' # Caddy → nginx → api: первый адрес X-Forwarded-For ставит Caddy
+      CORS_ORIGINS: https://${DOMAIN:?задайте DOMAIN}
+      SECRETS_KEY: ${SECRETS_KEY:?задайте SECRETS_KEY (openssl rand -hex 32)}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  worker:
+    build: { context: ., target: worker }
+    restart: unless-stopped
+    environment:
+      <<: *db-env
+      DATABASE_URL_DDL: postgres://gr8r_ddl:${DDL_DB_PASSWORD}@postgres:5432/gr8r
+      SECRETS_KEY: ${SECRETS_KEY}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  web:
+    build: { context: ., target: web }
+    restart: unless-stopped
+    depends_on:
+      - api
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN}
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
+  # Полный дамп БД раз в сутки в ./backups, хранится BACKUP_KEEP_DAYS дней. Восстановление — README, «Деплой»
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - ./backups:/backups
+    entrypoint:
+      - sh
+      - -c
+      - |
+        while true; do
+          f=/backups/gr8r-$$(date +%Y%m%d-%H%M).dump
+          pg_dump -h postgres -U postgres -d gr8r -Fc -f "$$f.tmp" && mv "$$f.tmp" "$$f" && echo "backup: $$f"
+          find /backups -name 'gr8r-*.dump' -mtime +$$KEEP_DAYS -delete
+          sleep 86400
+        done
+    depends_on:
+      postgres: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

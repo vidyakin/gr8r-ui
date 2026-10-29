@@ -10,6 +10,8 @@ export interface SessionUser {
   name: string;
   /** Личный язык интерфейса; null — как в воркспейсе */
   locale: string | null;
+  /** Оператор установки: раздел «Арендаторы» в настройках */
+  isOperator?: boolean;
 }
 
 /** Воркспейс из GET /workspaces: мой и роль в нём */

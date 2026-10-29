@@ -1,0 +1,7 @@
+# HTTPS для прод-развёртывания (docker-compose.prod.yml): сертификат Let's Encrypt для {$DOMAIN}.
+# DOMAIN=localhost — локальная проверка с внутренним CA Caddy.
+# Caddy не доверяет входящему X-Forwarded-For и ставит его сам: rate-limit входа видит настоящий IP клиента.
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy web:80
+}

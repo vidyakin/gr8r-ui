@@ -18,7 +18,8 @@
     "db:migrate": "bun run --cwd packages/db migrate",
     "db:seed": "bun run --cwd packages/db seed",
     "db:wipe": "bun run --cwd packages/db wipe",
-    "db:reset": "bun run --cwd packages/db reset"
+    "db:reset": "bun run --cwd packages/db reset",
+    "tenant": "bun packages/db/src/cli/tenant.ts"
   },
   "devDependencies": {
     "@gr8r/db": "workspace:*",

@@ -6,3 +6,8 @@ dist
 *.log
 .dev-pids
 .pgtest
+
+# Прод: переменные и данные на сервере
+.env.prod
+backups/
+archives/

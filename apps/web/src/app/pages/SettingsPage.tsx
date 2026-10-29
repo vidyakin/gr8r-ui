@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { NavLink, Navigate, useParams } from 'react-router';
 import { SECTIONS } from '../routes';
-import { DEFAULT_SECTION, SET_NAV, SET_SECTIONS } from '../settings/nav';
+import { DEFAULT_SECTION, SET_NAV } from '../settings/nav';
 import { AppearanceSection, DateTimeSection, LanguageSection, MembersSection, PermissionsSection, ProjectsSection, TeamsSection, WorkspaceSection } from '../settings/general';
 import { DataModelSection } from '../settings/data-model';
 import { ProductionSection } from '../settings/production';
@@ -13,6 +13,8 @@ import { DeliveryMethodsSection } from '../settings/delivery';
 import { PositionsSection, ProductKindsSection } from '../settings/positions';
 import { LeadFormsSection, LeadStatusesSection } from '../settings/leads';
 import { IntegrationsSection } from '../settings/integrations';
+import { TenantsSection } from '../settings/tenants';
+import { useSession } from '../data/session';
 import { NotificationsSection, PreferencesSection, ProfileSection, ShortcutsSection } from '../settings/personal';
 import { InvoicesSection, PasswordSection, PaymentSection, PlanSection, SessionsSection, TwoFactorSection } from '../settings/account';
 import { NotFoundPage } from './PlaceholderPage';
@@ -58,6 +60,8 @@ function Body({ sec, title }: { sec: string; title: string }) {
       return <LeadFormsSection title={title} />;
     case 'integrations':
       return <IntegrationsSection title={title} />;
+    case 'tenants':
+      return <TenantsSection title={title} />;
     case 'product-kinds':
       return <ProductKindsSection title={title} />;
     case 'notif-email':
@@ -89,13 +93,15 @@ function Body({ sec, title }: { sec: string; title: string }) {
 export function SettingsPage() {
   const t = useT();
   const { section } = useParams();
+  const { user } = useSession();
+  const nav = user?.isOperator ? SET_NAV : SET_NAV.filter(([g]) => g !== 'operator');
   if (!section) return <Navigate to={`${SECTIONS.settings.path}/${DEFAULT_SECTION}`} replace />;
-  const cur = SET_SECTIONS.find(x => x[0] === section);
+  const cur = nav.flatMap(g => g[1]).find(x => x[0] === section);
   if (!cur) return <NotFoundPage />;
   return (
     <div className="set">
       <nav className="set-nav" aria-label={t('pages.settings.navLabel')}>
-        {SET_NAV.map(([g, items]) => (
+        {nav.map(([g, items]) => (
           <React.Fragment key={g}>
             <div className="gh">{t(`settings.nav.groups.${g}` as TKey)}</div>
             {items.map(([k, nKey, Icon]) => (

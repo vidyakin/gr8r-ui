@@ -5,6 +5,7 @@ import { getConnInfo, upgradeWebSocket, websocket } from 'hono/bun';
 import { cors } from 'hono/cors';
 import { createMiddleware } from 'hono/factory';
 import { databaseUrl, events, isUuid, memberships, members, withContext, type Sql } from '@gr8r/db';
+import { adminRoutes } from './admin';
 import { authRoutes } from './auth';
 import { loadConfig } from './env';
 import { AppError, dbUnavailable, forbidden, onError, onNotFound } from './errors';
@@ -220,6 +221,7 @@ export function createApp(deps: AppDeps) {
     .route('/auth', authRoutes)
     .route('/workspaces', workspaceRoutes)
     .route('/invites', inviteRoutes)
+    .route('/admin', adminRoutes)
     .route('/hooks', hookRoutes)
     // WebSocket: сессия (cookie) → членство → подписка на события воркспейса. Воркспейс — ?workspace=<uuid> (браузер не ставит заголовки)
     .get(

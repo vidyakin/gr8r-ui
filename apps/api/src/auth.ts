@@ -60,7 +60,7 @@ export const authRoutes = new Hono<AppEnv>()
     const user = await withContext(sql, {}, async db => {
       const [taken] = await db.select({ id: users.id }).from(users).where(eq(dsql`lower(${users.email})`, body.email)).limit(1);
       if (taken) throw new AppError(409, 'email_taken', 'An account with this email already exists');
-      const [u] = await db.insert(users).values({ email: body.email, passwordHash, name: body.name }).returning({ id: users.id, email: users.email, name: users.name, locale: users.locale });
+      const [u] = await db.insert(users).values({ email: body.email, passwordHash, name: body.name }).returning({ id: users.id, email: users.email, name: users.name, locale: users.locale, isOperator: users.isOperator });
       return u!;
     });
     await startSession(c, user.id, cfg);
@@ -79,7 +79,7 @@ export const authRoutes = new Hono<AppEnv>()
     if (!found || !ok) throw new AppError(401, 'invalid_credentials', 'Invalid email or password');
     await clear(sql, `signin:email:${email}`);
     await startSession(c, found.id, cfg);
-    const user = { id: found.id, email: found.email, name: found.name, locale: found.locale };
+    const user = { id: found.id, email: found.email, name: found.name, locale: found.locale, isOperator: found.isOperator };
     return c.json({ user, workspaces: await listMyWorkspaces(sql, found.id) });
   })
   .post('/signout', requireSession, async c => {
@@ -96,7 +96,7 @@ export const authRoutes = new Hono<AppEnv>()
     const { locale } = c.req.valid('json');
     const me = c.get('user');
     const [user] = await withContext(c.get('sql'), { userId: me.id }, db =>
-      db.update(users).set({ locale }).where(eq(users.id, me.id)).returning({ id: users.id, email: users.email, name: users.name, locale: users.locale }),
+      db.update(users).set({ locale }).where(eq(users.id, me.id)).returning({ id: users.id, email: users.email, name: users.name, locale: users.locale, isOperator: users.isOperator }),
     );
     return c.json({ user: user! });
   });

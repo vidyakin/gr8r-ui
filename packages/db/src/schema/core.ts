@@ -13,6 +13,8 @@ export const users = pgTable(
     name: text('name').notNull(),
     /** Язык интерфейса ('en' | 'ru'); null — как в воркспейсе */
     locale: text('locale'),
+    /** Оператор установки: видит список арендаторов, создаёт и удаляет их (выдаёт CLI `bun run operator grant`) */
+    isOperator: boolean('is_operator').notNull().default(false),
     createdAt: createdAt(),
     lastLoginAt: ts('last_login_at'),
   },
@@ -62,11 +64,16 @@ export const workspaces = pgTable(
     /** Ставка страховых взносов на зарплату, % (задача 1184) */
     payrollInsuranceRate: numeric('payroll_insurance_rate', { precision: 5, scale: 2 }).notNull().default('30'),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    /** regular — клиент, demo — демо-арендатор оператора со сроком жизни expires_at (docs/architecture/deploy.md) */
+    kind: text('kind', { enum: ['regular', 'demo'] }).notNull().default('regular'),
+    expiresAt: ts('expires_at'),
+    /** Оператор запросил удаление: воркер удалит арендатора целиком (purgeTenantsOnce) */
+    deleteRequestedAt: ts('delete_requested_at'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
     archivedAt: archivedAt(),
   },
-  t => [uniqueIndex('workspaces_slug_uq').on(sql`lower(${t.slug})`)],
+  t => [uniqueIndex('workspaces_slug_uq').on(sql`lower(${t.slug})`), check('workspaces_kind_chk', sql`${t.kind} in ('regular','demo')`)],
 );
 
 /** Доступ пользователя к воркспейсу и его роль (источник правды для проверки прав) */

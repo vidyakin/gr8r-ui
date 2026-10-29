@@ -126,6 +126,44 @@ curl -s -b jar "$API/tasks?projectId=$P&sort=-priority" -H "X-Workspace-Id: $WS"
 по `current_setting('app.workspace_id', true)::uuid`, поэтому забытый фильтр в запросе не вернёт чужие данные
 (это проверяют тесты прямым SQL под `app_user`). Подробности — в [docs/architecture.md](docs/architecture.md).
 
+## Деплой
+
+Прод-развёртывание на VPS — `docker-compose.prod.yml`: postgres, миграции при каждом старте, api, worker, web, Caddy (HTTPS) и ежедневный
+`pg_dump`. Устройство, права и формат выгрузки — [`docs/architecture/deploy.md`](docs/architecture/deploy.md).
+
+1. Сервер с Docker (Ubuntu 24.04: `curl -fsSL https://get.docker.com | sh`), A-запись домена на его IP, открыты порты 80 и 443.
+2. Код и переменные:
+   ```bash
+   git clone <репозиторий> gr8r && cd gr8r
+   cp .env.prod.example .env.prod   # DOMAIN, пароли и SECRETS_KEY: openssl rand -hex 32
+   mkdir -p backups archives && sudo chown 1000:1000 archives   # archives пишет CLI под пользователем bun
+   ```
+3. Запуск (сборка, миграции, сертификат Let's Encrypt):
+   ```bash
+   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+   ```
+   Приложение — `https://$DOMAIN`. Обновление — `git pull` и та же команда: `migrate` применит новые миграции до старта api и worker.
+4. Оператор и арендаторы — CLI в контейнере `migrate` (ниже `T` = `docker compose -f docker-compose.prod.yml --env-file .env.prod run --rm migrate bun run tenant`):
+   ```bash
+   $T create --name "ООО Ромашка" --owner boss@romashka.ru --owner-name "Иван"   # пароль владельца выводится один раз
+   $T operator grant boss@romashka.ru     # оператор: раздел «Настройки → Оператор → Арендаторы» в интерфейсе
+   $T demo --name "Демо для Ромашки" --owner lead@romashka.ru --ttl 14   # демо-данные, удалится через 14 дней
+   $T list
+   $T export romashka-1a2b3c --out /archives/romashka.jsonl.gz
+   $T delete romashka-1a2b3c
+   $T import /archives/romashka.jsonl.gz
+   ```
+   Первого оператора можно завести так: `create` с его email (он станет владельцем своего воркспейса), затем `operator grant`.
+5. Бэкапы: сервис `backup` раз в сутки кладёт `backups/gr8r-*.dump` (хранит `BACKUP_KEEP_DAYS`). Восстановление всей БД:
+   ```bash
+   docker compose -f docker-compose.prod.yml --env-file .env.prod stop api worker
+   docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T postgres pg_restore -U postgres -d gr8r --clean --if-exists < backups/gr8r-YYYYMMDD-HHMM.dump
+   docker compose -f docker-compose.prod.yml --env-file .env.prod start api worker
+   ```
+   Один арендатор восстанавливается из выгрузки (`export` / `import`). `SECRETS_KEY` храните отдельно от дампов — без него секреты воркспейсов не прочитать.
+
+`docker-compose.yml` — для локального запуска всего стека, на сервер его не ставить (порты БД открыты, пароли по умолчанию).
+
 ## Структура
 
 ```

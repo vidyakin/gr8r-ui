@@ -1,18 +1,9 @@
 /* Операции над воркспейсами, общие для регистрации и /workspaces: создание (создатель — owner), список моих. */
-import { eq, sql as dsql } from 'drizzle-orm';
-import { ensureCostItems, ensureDocumentDefaults, ensureModuleProjects, ensurePriceKinds, ensureWorkOrderKind, members, memberships, recordEvent, registerBaseUnits, ensureLeadStatuses, registerSystemEntities, statuses, uuidv7, withContext, workspaces, type Sql } from '@gr8r/db';
-import { STATUSES } from '@gr8r/shared';
+import { and, eq, isNull, sql as dsql } from 'drizzle-orm';
+import { initWorkspace, memberships, slugify, uuidv7, withContext, workspaces, type Sql } from '@gr8r/db';
 import type { SessionUser } from './types';
 
-const PALETTE = ['#5A67D8', '#C54B78', '#3B82C4', '#23918A', '#C48A1E', '#8662C9', '#3D8E5F', '#C0612B'];
-
-export const slugify = (s: string) =>
-  s
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 32) || 'workspace';
+export { slugify };
 
 export interface WorkspaceInput {
   name: string;
@@ -20,28 +11,13 @@ export interface WorkspaceInput {
   color?: string;
 }
 
-/** Создаёт воркспейс, членство owner, профиль участника, статусы по умолчанию и событие workspace.created */
-export async function createWorkspace(sql: Sql, user: SessionUser, input: WorkspaceInput) {
+/** Создаёт воркспейс, членство owner, профиль участника, статусы по умолчанию и событие workspace.created (initWorkspace) */
+export async function createWorkspace(sql: Sql, user: Pick<SessionUser, 'id' | 'email' | 'name'>, input: WorkspaceInput) {
   const id = uuidv7();
   const slug = input.slug ?? `${slugify(input.name)}-${id.slice(-6)}`;
   return withContext(sql, { userId: user.id, workspaceId: id }, async db => {
-    const [ws] = await db.insert(workspaces).values({ id, name: input.name, slug, color: input.color ?? '#1D1C1A', createdBy: user.id }).returning();
-    await db.insert(memberships).values({ workspaceId: id, userId: user.id, role: 'owner' });
-    const [me] = await db
-      .insert(members)
-      .values({ workspaceId: id, userId: user.id, email: user.email, name: user.name, color: PALETTE[Math.floor(Math.random() * PALETTE.length)]!, role: 'owner' })
-      .returning();
-    await db.insert(statuses).values(STATUSES.map((s, i) => ({ workspaceId: id, key: s.id, name: s.name, color: `var(--st-${s.id})`, builtin: true, sortOrder: i })));
-    await registerSystemEntities(db, id);
-    await ensureLeadStatuses(db, id);
-    await registerBaseUnits(db, id);
-    await ensurePriceKinds(db, id);
-    await ensureDocumentDefaults(db, id, input.name);
-    await ensureCostItems(db, id);
-    await ensureModuleProjects(db, id);
-    await ensureWorkOrderKind(db, id);
-    await recordEvent(db, { workspaceId: id, type: 'workspace.created', entity: 'workspace', recordId: id, actorId: me!.id, payload: { name: input.name } });
-    return { ...ws!, role: 'owner' as const, memberId: me!.id };
+    const { ws, me } = await initWorkspace(db, { id, name: input.name, slug, color: input.color, owner: { userId: user.id, email: user.email, name: user.name } });
+    return { ...ws, role: 'owner' as const, memberId: me.id };
   });
 }
 
@@ -62,7 +38,7 @@ export async function listMyWorkspaces(sql: Sql, userId: string) {
       })
       .from(memberships)
       .innerJoin(workspaces, eq(workspaces.id, memberships.workspaceId))
-      .where(eq(memberships.userId, userId))
+      .where(and(eq(memberships.userId, userId), isNull(workspaces.deleteRequestedAt)))
       .orderBy(workspaces.createdAt);
     return rows;
   });

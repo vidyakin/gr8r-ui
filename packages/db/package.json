@@ -14,7 +14,8 @@
     "seed": "bun src/cli/seed.ts",
     "wipe": "bun src/cli/wipe.ts",
     "reset": "bun src/cli/reset.ts",
-    "typecheck": "tsc --noEmit -p ."
+    "typecheck": "tsc --noEmit -p .",
+    "tenant": "bun src/cli/tenant.ts"
   },
   "dependencies": {
     "@gr8r/shared": "workspace:*",

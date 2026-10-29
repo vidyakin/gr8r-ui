@@ -23,6 +23,7 @@ export const settings = {
       personal: 'Personal',
       security: 'Security',
       billing: 'Billing',
+      operator: 'Operator',
     },
     items: {
       workspace: 'Workspace',
@@ -58,7 +59,33 @@ export const settings = {
       plan: 'Plan',
       payment: 'Payment',
       invoices: 'Invoices',
+      tenants: 'Tenants',
     },
+  },
+
+  /* ---------------- оператор установки: арендаторы ---------------- */
+  tenants: {
+    lead: 'All tenants of this installation. Only operators see this section. Deleting removes all tenant data; export it first.',
+    name: 'Name',
+    ownerEmail: 'Owner email',
+    ownerName: 'Owner name',
+    demo: 'With demo data',
+    ttl: 'Lifetime, days',
+    create: 'Create tenant',
+    created: 'Tenant {slug} created',
+    password: 'Owner sign-in: {email} / {password}. The password is shown only once.',
+    existingOwner: 'Owner {email} already has an account and signs in with their own password.',
+    empty: 'No tenants',
+    kindDemo: 'Demo',
+    expires: 'deleted on {date}',
+    deleting: 'Deleting…',
+    owner: 'Owner {email}',
+    members: '{n} members',
+    export: 'Export',
+    delete: 'Delete',
+    confirmDelete: 'Delete tenant “{name}” with all its data? This cannot be undone.',
+    deleteQueued: 'The tenant will be deleted within a minute',
+    cancel: 'Cancel',
   },
 
   /* ---------------- общие части ---------------- */

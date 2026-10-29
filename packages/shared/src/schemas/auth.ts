@@ -38,3 +38,13 @@ export const inviteAcceptBody = z.object({ token: z.string().min(10).max(200) })
 export const roleChangeBody = z.object({ role: z.enum(ROLES) });
 export const workspaceParam = z.object({ id: uuid });
 export const memberParam = z.object({ id: uuid, memberId: uuid });
+
+/** Оператор установки создаёт арендатора: пустого или демо со сроком жизни (docs/architecture/deploy.md) */
+export const tenantCreateBody = z.object({
+  name: workspaceCreateBody.shape.name,
+  slug: workspaceCreateBody.shape.slug,
+  ownerEmail: email,
+  ownerName: z.string().trim().min(1).max(100).optional(),
+  demo: z.boolean().default(false),
+  ttlDays: z.number().int().min(1).max(365).optional(),
+});

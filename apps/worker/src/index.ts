@@ -1,5 +1,5 @@
 /* Точка входа воркера: опрос jobs + outbox, ускорение по LISTEN gr8r_events. */
-import { scheduleBankSyncs, createSql, databaseUrl, ddlDatabaseUrl, EVENTS_CHANNEL, listenChannel } from '@gr8r/db';
+import { purgeTenantsOnce, scheduleBankSyncs, createSql, databaseUrl, ddlDatabaseUrl, EVENTS_CHANNEL, listenChannel } from '@gr8r/db';
 import { closeBrowser } from './pdf/render';
 import { scheduleFlowsOnce } from './flows/triggers';
 import { runBillingOnce } from './billing';
@@ -62,6 +62,11 @@ while (!stopping) {
       if (minute % 5 === 0) {
         const banks = await scheduleBankSyncs(sql);
         if (banks) o.log(`queued ${banks} bank sync job(s)`);
+      }
+      // удаление арендаторов: запрошенное оператором и просроченные демо (нужен DDL — индексы полей)
+      if (ddl) {
+        const purged = await purgeTenantsOnce(sql, ddl);
+        if (purged.length) o.log(`deleted ${purged.length} tenant(s): ${purged.join(', ')}`);
       }
     }
     // биллинг договоров обслуживания: раз в час проверяем, не наступил ли день выставления (по часовому поясу арендатора)
