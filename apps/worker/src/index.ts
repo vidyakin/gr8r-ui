@@ -6,6 +6,7 @@ import { runBillingOnce } from './billing';
 import { runDealOverdueOnce } from './deal-overdue';
 import { runNextContactsOnce } from './next-contacts';
 import { runAppointmentsOnce } from './appointments';
+import { runFleetOnce } from './fleet';
 import { defaultOptions, processEventsOnce, processJobsOnce, requeueStale } from './worker';
 
 const pollMs = Number(process.env.WORKER_POLL_MS ?? 1000);
@@ -84,6 +85,9 @@ while (!stopping) {
       if (overdue) o.log(`deal stage overdue: ${overdue}`);
       // запись на приём: напоминания накануне и контроль незакрытых дней
       const appts = await runAppointmentsOnce(sql);
+      // автопарк: сроки документов машин и водителей (ОСАГО, права, техосмотр…)
+      const fleet = await runFleetOnce(sql);
+      if (fleet) o.log(`fleet documents: ${fleet} reminder(s)`);
       if (appts.reminders || appts.alerts) o.log(`appointments: ${appts.reminders} reminder(s), ${appts.alerts} unclosed-day alert(s)`);
     }
     const events = await processEventsOnce(sql, o);
