@@ -162,6 +162,26 @@ curl -s -b jar "$API/tasks?projectId=$P&sort=-priority" -H "X-Workspace-Id: $WS"
    ```
    Один арендатор восстанавливается из выгрузки (`export` / `import`). `SECRETS_KEY` храните отдельно от дампов — без него секреты воркспейсов не прочитать.
 
+### Деплой через Coolify
+
+Если на сервере уже стоит Coolify, его прокси держит 80/443 и `docker-compose.prod.yml` с Caddy не запустится (порт занят).
+Для Coolify — `docker-compose.coolify.yml`: те же сервисы без Caddy, HTTPS даёт Coolify.
+
+1. Запушить код в репозиторий, к которому у Coolify есть доступ.
+2. Coolify → New Resource → приложение из git → Build Pack **Docker Compose**, Docker Compose Location `/docker-compose.coolify.yml`.
+3. Environment Variables: `DOMAIN` (без `https://`), `POSTGRES_PASSWORD`, `APP_DB_PASSWORD`, `DDL_DB_PASSWORD`, `SECRETS_KEY`
+   (`openssl rand -hex 32`), по желанию `BACKUP_KEEP_DAYS`. Без обязательных деплой не стартует.
+4. У сервиса **web** указать домен `https://$DOMAIN` (порт 80). Другим сервисам домены не нужны — api, postgres и worker наружу не открыты.
+5. Deploy. Миграции идут при каждом деплое (сервис `migrate` завершается — это нормально).
+6. CLI оператора — Coolify → приложение → Terminal → контейнер `api`: `bun run tenant create …`, `bun run tenant operator grant <email>`
+   (команды — как в списке выше). Выгрузка арендатора скачивается из экрана «Арендаторы»; для `import` положить файл по SSH в
+   `/data/coolify/applications/<uuid>/archives/` (`sudo chown 1000:1000` на папку) и выполнить `bun run tenant import /archives/<файл>`.
+7. Дампы — в `/data/coolify/applications/<uuid>/backups/`, восстановление — как в п. 5 выше, через `docker exec` в контейнер postgres.
+8. После первого деплоя проверить, что прокси Coolify не пропускает подставленный IP:
+   `curl -s -o /dev/null -H 'X-Forwarded-For: 6.6.6.6' -H 'Content-Type: application/json' -d '{"email":"x@x.ru","password":"wrong-pass"}' https://$DOMAIN/api/auth/signin`,
+   затем в контейнере postgres `psql -U postgres -d gr8r -c "select key from rate_limits where key like 'signin:ip:%'"` — там должен быть
+   ваш настоящий IP, а не 6.6.6.6.
+
 `docker-compose.yml` — для локального запуска всего стека, на сервер его не ставить (порты БД открыты, пароли по умолчанию).
 
 ## Структура

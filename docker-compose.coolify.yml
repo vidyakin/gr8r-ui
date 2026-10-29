@@ -1,0 +1,101 @@
+# Развёртывание через Coolify (Docker Compose build pack): то же, что docker-compose.prod.yml, но без Caddy —
+# HTTPS и домен даёт прокси Coolify (Traefik/Caddy), он же держит 80/443 на сервере.
+# В Coolify: ресурс из git-репозитория → Build Pack «Docker Compose» → путь /docker-compose.coolify.yml;
+# домен указывается у сервиса web (порт 80), переменные — во вкладке Environment Variables.
+# Инструкция — README, «Деплой через Coolify», устройство — docs/architecture/deploy.md.
+
+x-db-env: &db-env
+  ADMIN_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?задайте POSTGRES_PASSWORD}@postgres:5432/gr8r
+  DATABASE_URL: postgres://gr8r_app:${APP_DB_PASSWORD:?задайте APP_DB_PASSWORD}@postgres:5432/gr8r
+  APP_DB_USER: gr8r_app
+  APP_DB_PASSWORD: ${APP_DB_PASSWORD}
+  NODE_ENV: production
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: gr8r
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d gr8r']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # Разовая задача при каждом деплое: миграции и роли gr8r_app/gr8r_ddl. Завершается — Coolify не считает это падением
+  migrate:
+    build: { context: ., target: migrate }
+    environment:
+      <<: *db-env
+      DDL_DB_USER: gr8r_ddl
+      DDL_DB_PASSWORD: ${DDL_DB_PASSWORD:?задайте DDL_DB_PASSWORD}
+      SEED: '0'
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: 'no'
+    exclude_from_hc: true # ключ Coolify (он его убирает); обычный `docker compose config` на нём ругается — это ожидаемо
+
+  # CLI оператора — в терминале Coolify у контейнера api: bun run tenant list
+  api:
+    build: { context: ., target: api }
+    restart: unless-stopped
+    environment:
+      <<: *db-env
+      API_PORT: 3000
+      COOKIE_SECURE: '1'
+      TRUST_PROXY: '1' # прокси Coolify → nginx → api: первый адрес X-Forwarded-For ставит прокси Coolify
+      CORS_ORIGINS: https://${DOMAIN:?задайте DOMAIN — тот же домен, что у сервиса web}
+      SECRETS_KEY: ${SECRETS_KEY:?задайте SECRETS_KEY (openssl rand -hex 32)}
+    volumes:
+      - ./archives:/archives # загрузка арендатора: bun run tenant import /archives/x.jsonl.gz
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  worker:
+    build: { context: ., target: worker }
+    restart: unless-stopped
+    environment:
+      <<: *db-env
+      DATABASE_URL_DDL: postgres://gr8r_ddl:${DDL_DB_PASSWORD}@postgres:5432/gr8r
+      SECRETS_KEY: ${SECRETS_KEY}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  # Единственный сервис с доменом: статика и прокси /api + WebSocket на api
+  web:
+    build: { context: ., target: web }
+    restart: unless-stopped
+    expose:
+      - '80'
+    depends_on:
+      - api
+
+  # Полный дамп БД раз в сутки, хранится BACKUP_KEEP_DAYS дней. Папка на сервере — каталог приложения Coolify
+  # (/data/coolify/applications/<uuid>/backups)
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - ./backups:/backups
+    entrypoint:
+      - sh
+      - -c
+      - |
+        while true; do
+          f=/backups/gr8r-$$(date +%Y%m%d-%H%M).dump
+          pg_dump -h postgres -U postgres -d gr8r -Fc -f "$$f.tmp" && mv "$$f.tmp" "$$f" && echo "backup: $$f"
+          find /backups -name 'gr8r-*.dump' -mtime +$$KEEP_DAYS -delete
+          sleep 86400
+        done
+    depends_on:
+      postgres: { condition: service_healthy }
+
+volumes:
+  pgdata:
