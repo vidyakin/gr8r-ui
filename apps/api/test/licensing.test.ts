@@ -156,6 +156,59 @@ describe('автоматизации и модули', () => {
   });
 });
 
+describe('журнал изменений лицензии (1209)', () => {
+  test('смена тарифа, срока, лимитов и доп. модулей пишется со старым и новым значением и автором', async () => {
+    const c = new Client();
+    await c.signup();
+    const put = (body: any) => op.put(`/admin/tenants/${c.workspaceId}/license`, body);
+    expect((await op.get(`/admin/tenants/${c.workspaceId}/license-log`)).body.items).toEqual([]);
+    await put({ planId: corePlan, planExpiresAt: '2030-01-01T00:00:00Z', limits: { members: 3 }, grants: [{ module: 'crm', expiresAt: null }] });
+    await put({ planId: corePlan, planExpiresAt: '2031-01-01T00:00:00Z', limits: { members: 5, warehouses: 2 }, grants: [{ module: 'crm', expiresAt: '2030-06-01T00:00:00Z' }, { module: 'money' }] });
+    await put({ planId: fullPlan, planExpiresAt: null, limits: {}, grants: [] });
+    const items = (await op.get(`/admin/tenants/${c.workspaceId}/license-log`)).body.items as any[];
+    const has = (kind: string, subject: string | null, o: unknown, n: unknown) =>
+      items.some(i => i.kind === kind && i.subject === subject && JSON.stringify(i.old) === JSON.stringify(o) && JSON.stringify(i.new) === JSON.stringify(n) && i.actorEmail === op.user!.email);
+    expect(has('plan', null, 'Полный', 'Только ядро')).toBe(true);
+    expect(has('plan', null, 'Только ядро', 'Полный')).toBe(true);
+    expect(items.some(i => i.kind === 'plan_expires' && i.old === null && String(i.new).startsWith('2030-01-01'))).toBe(true);
+    expect(items.some(i => i.kind === 'plan_expires' && String(i.old).startsWith('2031-01-01') && i.new === null)).toBe(true);
+    expect(has('limit', 'members', null, 3)).toBe(true);
+    expect(has('limit', 'members', 3, 5)).toBe(true);
+    expect(has('limit', 'warehouses', 2, null)).toBe(true);
+    expect(items.some(i => i.kind === 'grant_added' && i.subject === 'crm')).toBe(true);
+    expect(items.some(i => i.kind === 'grant_added' && i.subject === 'money')).toBe(true);
+    expect(items.some(i => i.kind === 'grant_expires' && i.subject === 'crm' && i.old === null && String(i.new).startsWith('2030-06-01'))).toBe(true);
+    expect(items.some(i => i.kind === 'grant_removed' && i.subject === 'crm')).toBe(true);
+    // без изменений — без записей
+    const n = items.length;
+    await put({ planId: fullPlan, planExpiresAt: null, limits: {}, grants: [] });
+    expect(((await op.get(`/admin/tenants/${c.workspaceId}/license-log`)).body.items as any[]).length).toBe(n);
+  });
+
+  test('правка тарифа пишет в журнал арендаторов на этом тарифе', async () => {
+    const c = new Client();
+    await c.signup();
+    const p = await op.post('/admin/plans', { name: 'Журнальный', modules: ['crm'] });
+    await op.put(`/admin/tenants/${c.workspaceId}/license`, { planId: p.body.id });
+    await op.put(`/admin/plans/${p.body.id}`, { name: 'Журнальный', modules: ['crm', 'trade'], limits: { members: 9 } });
+    const items = (await op.get(`/admin/tenants/${c.workspaceId}/license-log`)).body.items as any[];
+    expect(items.find(i => i.kind === 'plan_edit' && i.subject === 'modules')).toMatchObject({ old: ['crm'], new: ['crm', 'trade'], context: 'Журнальный' });
+    expect(items.find(i => i.kind === 'plan_edit' && i.subject === 'limits')).toMatchObject({ new: { members: 9 } });
+  });
+
+  test('журнал виден только оператору и недоступен арендатору', async () => {
+    expect((await plain.get(`/admin/tenants/${plain.workspaceId}/license-log`)).status).toBe(403);
+    const run = (q: (tx: any) => Promise<any>) =>
+      sql.begin(async tx => {
+        await tx.unsafe('set local role app_user');
+        await tx`select set_config('app.workspace_id', ${op.workspaceId!}, true)`;
+        return q(tx);
+      });
+    expect(await run(tx => tx`select * from license_log`)).toHaveLength(0);
+    await expect(run(tx => tx`insert into license_log (workspace_id, kind) values (${op.workspaceId!}, 'plan')`)).rejects.toThrow(/permission denied/);
+  });
+});
+
 describe('доступ к тарифам', () => {
   test('не оператор не читает и не меняет тарифы и лицензии', async () => {
     expect((await plain.get('/admin/plans')).status).toBe(403);

@@ -213,6 +213,21 @@ export function licenseView(l: LicenseRaw | null, now: Date = new Date()): Licen
   };
 }
 
+/** Запись журнала изменений лицензии (задача 1209). old/new — значения до и после (null — не было / убрали) */
+export interface LicenseLogEntry {
+  id: string;
+  at: string;
+  /** Email оператора на момент изменения; null — система (пробный период при создании арендатора) */
+  actorEmail: string | null;
+  kind: 'plan' | 'plan_expires' | 'grant_added' | 'grant_removed' | 'grant_expires' | 'limit' | 'trial' | 'trial_started' | 'plan_edit';
+  /** Модуль, ключ лимита или поле тарифа */
+  subject: string | null;
+  /** Название тарифа для plan_edit */
+  context: string | null;
+  old: unknown;
+  new: unknown;
+}
+
 /** Модули, нужные набору узлов автоматизации и выключенные у арендатора (по типам узлов; неизвестный тип считается общим узлом автоматизаций) */
 export function disabledModulesOfNodes(nodeTypes: Iterable<string>, enabled: ReadonlySet<ModuleId>): ModuleId[] {
   const out = new Set<ModuleId>();

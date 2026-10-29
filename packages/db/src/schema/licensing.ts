@@ -62,3 +62,28 @@ export const workspaceModuleGrants = pgTable(
   },
   t => [primaryKey({ columns: [t.workspaceId, t.module], name: 'workspace_module_grants_pk' }), index('workspace_module_grants_expires_idx').on(t.expiresAt)],
 );
+
+/** Журнал изменений лицензии арендатора (задача 1209): кто из операторов и когда сменил тариф, модули, сроки, лимиты (старое → новое).
+    Пишут только SECURITY DEFINER-функции оператора; арендатору таблица недоступна. Запись — одно изменение одного поля */
+export const licenseLog = pgTable(
+  'license_log',
+  {
+    id: pk(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    /** Оператор; без внешнего ключа — журнал переживает удаление пользователя. null — система (пробный период при создании арендатора) */
+    actorId: uuid('actor_id'),
+    actorEmail: text('actor_email'),
+    at: ts('at').notNull().defaultNow(),
+    /** plan | plan_expires | grant_added | grant_removed | grant_expires | limit | trial | trial_started | plan_edit */
+    kind: text('kind').notNull(),
+    /** Модуль (grant_*), ключ лимита (limit), изменённое поле тарифа (plan_edit) */
+    subject: text('subject'),
+    /** Название тарифа для plan_edit */
+    context: text('context'),
+    oldValue: jsonb('old_value'),
+    newValue: jsonb('new_value'),
+  },
+  t => [index('license_log_ws_idx').on(t.workspaceId, t.at)],
+);

@@ -386,6 +386,13 @@
       "when": 1793281331874,
       "tag": "0057_licensing",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1793293974841,
+      "tag": "0058_license_log",
+      "breakpoints": true
     }
   ]
 }

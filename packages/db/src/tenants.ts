@@ -234,7 +234,7 @@ export async function isOperator(sql: Sql, userId: string): Promise<boolean> {
 
 export const TENANT_ARCHIVE_FORMAT = 'gr8r-tenant';
 const ARCHIVE_VERSION = 1;
-const SKIP_TABLES = new Set(['jobs', 'workspace_licenses', 'workspace_module_grants']); // очередь и лицензия установки (платформенные данные оператора) не выгружаются
+const SKIP_TABLES = new Set(['jobs', 'workspace_licenses', 'workspace_module_grants', 'license_log']); // очередь и лицензия установки (платформенные данные оператора) не выгружаются
 
 /** Последняя миграция: архив загружается только в установку с той же схемой */
 export function schemaTag(): string {

@@ -3,7 +3,8 @@
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Layers } from 'lucide-react';
-import { MODULES, MODULE_IDS, resolveModules, type LicenseRaw, type ModuleId } from '@gr8r/shared';
+import { MODULES, MODULE_IDS, resolveModules, type LicenseLogEntry, type LicenseRaw, type ModuleId } from '@gr8r/shared';
+import { fmtDateTime, fmtDateTimeIntl, fmtNumber } from '@/i18n/format';
 import { Alert, Badge, Button, Checkbox, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, Input, Select, Skeleton, Textarea, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { errorMessage } from '../data/api';
@@ -198,6 +199,52 @@ type TenantLicense = LicenseRaw & { assigned: boolean };
 const toDateInput = (iso: string | null) => (iso ? iso.slice(0, 10) : '');
 const fromDateInput = (d: string) => (d ? new Date(`${d}T23:59:59`).toISOString() : null);
 
+/** Журнал изменений лицензии арендатора (задача 1209): одна строка на изменение, старое → новое */
+export function LicenseLog({ tenantId }: { tenantId: string }) {
+  const t = useT();
+  const ws = useWsId();
+  const name = useModuleName();
+  const log = useQuery({ queryKey: ['admin', 'license-log', tenantId], queryFn: () => call<{ items: LicenseLogEntry[] }>(ws, 'GET', `/admin/tenants/${tenantId}/license-log`) });
+  const date = (v: unknown) => (typeof v === 'string' ? fmtDateTimeIntl(v, { dateStyle: 'medium' }) : t('licensing.log.never'));
+  const show = (e: LicenseLogEntry, v: unknown): string => {
+    if (e.kind === 'plan_expires' || e.kind === 'grant_expires') return date(v);
+    if (e.kind === 'grant_added' || e.kind === 'grant_removed' || e.kind === 'trial_started') return date((v as { expiresAt?: unknown } | null)?.expiresAt ?? v);
+    if (v === null || v === undefined) return t('licensing.log.none');
+    if (typeof v === 'boolean') return v ? t('licensing.log.yes') : t('licensing.log.no');
+    if (Array.isArray(v)) return v.length ? v.join(', ') : t('licensing.log.none');
+    if (typeof v === 'object') return Object.entries(v as Record<string, unknown>).map(([k, x]) => `${k}: ${String(x)}`).join(', ') || t('licensing.log.none');
+    return typeof v === 'number' ? fmtNumber(v) : String(v);
+  };
+  const text = (e: LicenseLogEntry) => {
+    const isModule = e.kind.startsWith('grant');
+    const subject = isModule && (MODULE_IDS as readonly string[]).includes(e.subject ?? '') ? name(e.subject as ModuleId) : e.kind === 'plan_edit' ? t(`licensing.log.fields.${e.subject}` as 'licensing.log.fields.modules') : (e.subject ?? '');
+    return t(`licensing.log.${e.kind}` as 'licensing.log.plan', { subject, context: e.context ?? '', old: show(e, e.old), new: show(e, e.new) });
+  };
+  return (
+    <div>
+      <div className="t">{t('licensing.log.title')}</div>
+      {log.isPending ? (
+        <Skeleton w="100%" h={40} />
+      ) : log.isError ? (
+        <Alert tone="danger">{errorMessage(log.error)}</Alert>
+      ) : !log.data.items.length ? (
+        <div className="muted">{t('licensing.log.empty')}</div>
+      ) : (
+        <div className="stack" style={{ gap: 4, maxHeight: 220, overflowY: 'auto' }}>
+          {log.data.items.map(e => (
+            <div key={e.id}>
+              <span className="muted">
+                {fmtDateTime(e.at)} · {e.actorEmail ?? t('licensing.log.system')}
+              </span>{' '}
+              {text(e)}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TenantLicenseDialog({ tenant, onClose }: { tenant: { id: string; name: string } | null; onClose: () => void }) {
   const t = useT();
   const ws = useWsId();
@@ -298,6 +345,7 @@ export function TenantLicenseDialog({ tenant, onClose }: { tenant: { id: string;
             <div className="muted">
               {t('licensing.operator.effective')}: {MODULE_IDS.filter(id => effective.has(id)).map(name).join(', ')}
             </div>
+            {tenant && <LicenseLog tenantId={tenant.id} />}
           </div>
         )}
       </DialogContent>

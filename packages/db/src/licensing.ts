@@ -2,7 +2,7 @@
    app_workspace_license() (контекст app.workspace_id), воркер — app_license_of(ws) под app_worker. Запись — только функции
    оператора app_operator_* (SECURITY DEFINER, проверяют users.is_operator сами). Правила «какие модули включены» — в @gr8r/shared. */
 import { sql as dsql } from 'drizzle-orm';
-import { enabledModules, type LicenseRaw, type LicenseView, licenseView, type ModuleId, type LicensePlanBody, type TenantLicenseBody } from '@gr8r/shared';
+import { enabledModules, type LicenseLogEntry, type LicenseRaw, type LicenseView, licenseView, type ModuleId, type LicensePlanBody, type TenantLicenseBody } from '@gr8r/shared';
 import type { Db, Sql, Tx } from './client';
 import { withContext } from './context';
 import { DomainError } from './errors';
@@ -87,7 +87,11 @@ export const deletePlan = (sql: Sql, userId: string, id: string): Promise<void> 
 export const getTenantLicense = (sql: Sql, userId: string, workspaceId: string): Promise<(LicenseRaw & { assigned: boolean }) | null> =>
   call(sql, userId, async tx => (await tx`select app_operator_license(${workspaceId}::uuid) as r`)[0]!.r as (LicenseRaw & { assigned: boolean }) | null);
 
-export const setTenantLicense = (sql: Sql, userId: string, workspaceId: string, body: TenantLicenseBody): Promise<LicenseRaw> =>
+/** Журнал изменений лицензии арендатора для оператора, новые записи первыми (задача 1209) */
+export const getLicenseLog = (sql: Sql, userId: string, workspaceId: string, limit = 200): Promise<LicenseLogEntry[]> =>
+  call(sql, userId, async tx => (await tx`select app_operator_license_log(${workspaceId}::uuid, ${limit}::int) as r`)[0]!.r as LicenseLogEntry[]);
+
+export const setTenantLicense =(sql: Sql, userId: string, workspaceId: string, body: TenantLicenseBody): Promise<LicenseRaw> =>
   call(
     sql,
     userId,
