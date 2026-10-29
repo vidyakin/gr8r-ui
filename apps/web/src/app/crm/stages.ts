@@ -2,18 +2,36 @@
 import { CircleCheck, Mail, Phone, StickyNote, Users, type LucideIcon } from 'lucide-react';
 import type { ActivityType, StageId } from './types';
 
-export const STAGES: { id: StageId; name: string; p: number; c: string }[] = [
-  { id: 'lead', name: 'Lead', p: 0.1, c: 'var(--gray)' },
-  { id: 'qualified', name: 'Qualified', p: 0.25, c: 'var(--blue)' },
-  { id: 'proposal', name: 'Proposal', p: 0.5, c: 'var(--violet)' },
-  { id: 'negotiation', name: 'Negotiation', p: 0.75, c: 'var(--amber)' },
-  { id: 'won', name: 'Won', p: 1, c: 'var(--green)' },
-  { id: 'lost', name: 'Lost', p: 0, c: 'var(--red)' },
-];
+/** Этап воронки для интерфейса: p — доля вероятности 0..1, c — цвет (css-переменная) */
+export interface StageDef {
+  id: StageId;
+  pipelineId: string;
+  name: string;
+  p: number;
+  c: string;
+  category: 'in_progress' | 'won' | 'lost';
+  sort: number;
+  slaDays: number | null;
+  required: string[];
+}
 
-export const stage = (id: StageId) => STAGES.find(s => s.id === id)!;
-export const isOpen = (id: StageId) => id !== 'won' && id !== 'lost';
-export const OPEN_STAGES = STAGES.filter(s => isOpen(s.id));
+/** Реестр этапов выбранного воркспейса (задача 1176): CrmProvider выставляет его синхронно с загрузкой данных, до отрисовки детей —
+    поэтому чистые выборки (selectors.ts) и компоненты читают этапы без передачи через props. Этапы приходят с сервера. */
+let REGISTRY = new Map<StageId, StageDef>();
+let ORDERED: StageDef[] = [];
+
+export function setStageRegistry(list: StageDef[]) {
+  ORDERED = [...list].sort((a, b) => a.sort - b.sort);
+  REGISTRY = new Map(ORDERED.map(s => [s.id, s]));
+}
+
+const UNKNOWN: StageDef = { id: '', pipelineId: '', name: '—', p: 0, c: 'var(--gray)', category: 'in_progress', sort: 0, slaDays: null, required: [] };
+export const stage = (id: StageId): StageDef => REGISTRY.get(id) ?? UNKNOWN;
+export const isOpen = (id: StageId) => stage(id).category === 'in_progress';
+/** Этапы воронки по порядку */
+export const stagesOf = (pipelineId: string) => ORDERED.filter(s => s.pipelineId === pipelineId);
+export const openStagesOf = (pipelineId: string) => stagesOf(pipelineId).filter(s => s.category === 'in_progress');
+export const colorVar = (color: string) => `var(--${color})`;
 
 export const ACTIVITY_TYPES: { id: ActivityType; name: string; plural: string; verb: string; icon: LucideIcon }[] = [
   { id: 'call', name: 'Call', plural: 'Calls', verb: 'logged a call', icon: Phone },
@@ -26,4 +44,3 @@ export const activityType = (id: ActivityType) => ACTIVITY_TYPES.find(t => t.id 
 
 export const INDUSTRIES = ['Logistics', 'Energy', 'Healthcare', 'Retail', 'Fintech', 'Media', 'Food & Beverage', 'Manufacturing', 'Education', 'Real Estate', 'Software', 'Travel'];
 export const SIZES = ['1–10', '11–50', '51–200', '201–1000', '1000+'];
-export const LOST_REASONS = ['Price too high', 'Chose a competitor', 'No budget', 'No decision', 'Bad timing', 'Requirements changed'];

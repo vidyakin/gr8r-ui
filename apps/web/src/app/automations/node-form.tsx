@@ -8,6 +8,7 @@ import { IconButton, Input, Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger,
 import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { useLeadStatuses } from '../leads/data';
+import { usePipelines } from '../crm/pipelines';
 import { activeFields, useEntities, type MetaEntity } from '../meta/data';
 import { humanize } from './node-meta';
 import { paramTitle } from './node-i18n';
@@ -198,6 +199,7 @@ export function ParamsForm({ def, params, env, onChange, errors = {}, readOnly }
   const triggerField = typeof params.field === 'string' && def.category === 'trigger' ? params.field : undefined;
   const cronPresets = React.useMemo(() => CRON_PRESETS(t), [t]);
   const leadStatuses = useLeadStatuses().data ?? [];
+  const dealPipes = usePipelines().data;
 
   return (
     <fieldset disabled={readOnly} className="pform">
@@ -261,6 +263,12 @@ export function ParamsForm({ def, params, env, onChange, errors = {}, readOnly }
           control = <PickOrType id={id} value={str} options={[...presets, ...env.members.map(m => ({ value: m.id, label: m.name }))]} onChange={v => set(key, v)} env={env} label={label} placeholder={t('automations.nodeForm.chooseMember')} />;
         } else if (p.ui === 'lead_status') {
           control = <Select id={id} value={str || '__any'} onValueChange={v => set(key, v === '__any' ? '' : v)} options={[{ value: '__any', label: t('automations.nodeForm.anyStatus') }, ...leadStatuses.map(s => ({ value: s.id, label: s.name }))]} />;
+        } else if (p.ui === 'deal_pipeline') {
+          control = <Select id={id} value={str || '__any'} onValueChange={v => set(key, v === '__any' ? '' : v)} options={[{ value: '__any', label: t('automations.nodeForm.anyPipeline') }, ...(dealPipes?.pipelines ?? []).map(x => ({ value: x.id, label: x.name }))]} />;
+        } else if (p.ui === 'deal_stage') {
+          const pid = typeof params[p.dependsOn ?? 'pipelineId'] === 'string' ? (params[p.dependsOn ?? 'pipelineId'] as string) : '';
+          const pipeName = (id2: string) => dealPipes?.pipelines.find(x => x.id === id2)?.name ?? '';
+          control = <Select id={id} value={str || '__any'} onValueChange={v => set(key, v === '__any' ? '' : v)} options={[{ value: '__any', label: t('automations.nodeForm.anyStage') }, ...(dealPipes?.stages ?? []).filter(s => !pid || s.pipelineId === pid).map(s => ({ value: s.id, label: pid ? s.name : `${pipeName(s.pipelineId)} / ${s.name}` }))]} />;
         } else if (p.ui === 'project') {
           const presets = [{ value: '{{trigger.record.projectId}}', label: t('automations.nodeForm.projectPresets.fromTask') }];
           control = <PickOrType id={id} value={str} options={[...presets, ...env.projects.map(pr => ({ value: pr.id, label: `${pr.key} · ${pr.name}` }))]} onChange={v => set(key, v)} env={env} label={label} placeholder={t('automations.nodeForm.chooseProject')} />;

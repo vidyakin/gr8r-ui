@@ -350,6 +350,8 @@ export const automations = {
     statusPlaceholder: 'Статус',
     memberPlaceholder: 'Участник',
     anyStatus: 'Любой статус',
+    anyPipeline: 'Любая воронка',
+    anyStage: 'Любой этап',
     chooseMember: 'Выберите участника',
     chooseGeneric: 'Выберите…',
     required: 'Обязательно',

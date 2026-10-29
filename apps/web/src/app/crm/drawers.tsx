@@ -1,15 +1,15 @@
 /* Карточки сделки и контакта — EntityDrawer с полями CRM */
 import * as React from 'react';
 import { useNavigate } from 'react-router';
-import { Building2, Calendar as CalendarIcon, CircleCheck, CircleDollarSign, Clock, ClockAlert, Mail, Percent, Phone, RotateCcw, Trash2, User, UserPlus, Users, Briefcase, Layers, Megaphone, X } from 'lucide-react';
+import { Building2, Calendar as CalendarIcon, CircleCheck, CircleDollarSign, Clock, ClockAlert, Mail, Percent, Phone, RotateCcw, Trash2, User, UserPlus, Users, Briefcase, Layers, Megaphone, X, GitBranch } from 'lucide-react';
 import { Button, ConfirmDialog, Menu, MenuCheckboxItem, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Progress, toast } from '@/components/ui';
 import { EntityDrawer } from '@/components/gr8r/entity-drawer';
 import { diffDays, fmtDate, parse, today } from '../lib/dates';
-import { ActivityComposer, ActivityFeed, ActivityRow, CompanyLink, CompanyLogo, ContactLink, DateField, DealLink, OwnerField, StageField, StageIcon } from './components';
+import { ActivityComposer, ActivityFeed, ActivityRow, CompanyLink, CompanyLogo, ContactLink, DateField, DealLink, OwnerField, PipelineField, StageField, StageHistory, StageIcon } from './components';
 import { money, pct } from './format';
 import { activitiesOfContact, activitiesOfDeal, company as findCompany, contact as findContact, contactsOfCompany, dealsOfContact, deal as findDeal, isOverdueDeal, probability, weighted } from './selectors';
 import { isOpen, stage } from './stages';
-import { lostReasonName, stageName } from './labels';
+import { stageName } from './labels';
 import { useCrm, type DealPatch } from './store';
 import { useCrmUi } from './ui-context';
 import { ClientAppointments } from './ClientAppointments';
@@ -48,7 +48,7 @@ function AmountInput({ value, onCommit }: { value: number; onCommit: (v: number)
 }
 
 export function DealDrawer({ id }: { id: string }) {
-  const { data, dispatch } = useCrm();
+  const { data, dispatch, pipes } = useCrm();
   const ui = useCrmUi();
   const navigate = useNavigate();
   const t = useT();
@@ -57,6 +57,8 @@ export function DealDrawer({ id }: { id: string }) {
   if (!d) return null;
   const co = findCompany(data, d.company);
   const open = isOpen(d.stage);
+  const st = stage(d.stage);
+  const reasonName = pipes.reasons.find(r => r.id === d.lostReasonId)?.name;
   const acts = activitiesOfDeal(data, d.id);
   const follow = acts.filter(a => a.type === 'task');
   const overdueDays = isOverdueDeal(d) ? -diffDays(parse(d.closeDate), today()) : 0;
@@ -66,23 +68,23 @@ export function DealDrawer({ id }: { id: string }) {
   const customRows = useCustomRows('deal', d.custom, patch => update({ custom: { ...d.custom, ...patch } }));
 
   const banner =
-    d.stage === 'won' ? (
+    st.category === 'won' ? (
       <div className="alert ok">
         <CircleCheck size={15} />
         <span>
           {d.closedAt ? t('crm.deals.drawer.wonBannerDate', { date: fmtDate(d.closedAt), amount: money(d.amount) }) : t('crm.deals.drawer.wonBanner', { amount: money(d.amount) })}{' '}
-          <button className="link" onClick={() => ui.moveDeal(d.id, 'negotiation')}>
+          <button className="link" onClick={() => ui.moveDealTo(d.id, 'reopen')}>
             {t('crm.deals.drawer.reopen')}
           </button>
         </span>
       </div>
-    ) : d.stage === 'lost' ? (
+    ) : st.category === 'lost' ? (
       <div className="alert danger">
         <X size={15} />
         <span>
           {d.closedAt ? t('crm.deals.drawer.lostBannerDate', { date: fmtDate(d.closedAt) }) : t('crm.deals.drawer.lostBanner')}
-          {d.lostReason ? `: ${lostReasonName(d.lostReason, d.lostReason)}` : ''}.{' '}
-          <button className="link" onClick={() => ui.moveDeal(d.id, 'qualified')}>
+          {reasonName ? `: ${reasonName}` : ''}{d.lostReason ? ` (${d.lostReason})` : ''}.{' '}
+          <button className="link" onClick={() => ui.moveDealTo(d.id, 'reopen')}>
             {t('crm.deals.drawer.reopen')}
           </button>
         </span>
@@ -117,12 +119,12 @@ export function DealDrawer({ id }: { id: string }) {
         }
         actions={
           open ? (
-            <Button size="sm" variant="ghost" onClick={() => ui.moveDeal(d.id, 'won')}>
+            <Button size="sm" variant="ghost" onClick={() => ui.moveDealTo(d.id, 'won')}>
               <CircleCheck size={14} />
               <span className="hide-m">{t('crm.deals.markWonBtn')}</span>
             </Button>
           ) : (
-            <Button size="sm" variant="ghost" onClick={() => ui.moveDeal(d.id, d.stage === 'won' ? 'negotiation' : 'qualified')}>
+            <Button size="sm" variant="ghost" onClick={() => ui.moveDealTo(d.id, 'reopen')}>
               <RotateCcw size={14} />
               <span className="hide-m">{t('crm.deals.drawer.reopenBtn')}</span>
             </Button>
@@ -131,7 +133,7 @@ export function DealDrawer({ id }: { id: string }) {
         menu={
           <>
             {open && (
-              <MenuItem icon={<X size={15} />} onSelect={() => ui.moveDeal(d.id, 'lost')}>
+              <MenuItem icon={<X size={15} />} onSelect={() => ui.moveDealTo(d.id, 'lost')}>
                 {t('crm.deals.drawer.markLost')}
               </MenuItem>
             )}
@@ -148,6 +150,7 @@ export function DealDrawer({ id }: { id: string }) {
         title={d.name}
         onTitleChange={name => update({ name })}
         fields={[
+          { icon: GitBranch, label: t('crm.pipelines.pipeline'), value: <PipelineField deal={d} /> },
           { icon: Layers, label: t('crm.deals.col.stage'), value: <StageField deal={d} /> },
           { icon: CircleDollarSign, label: t('crm.deals.col.amount'), value: <AmountInput value={d.amount} onCommit={amount => update({ amount })} /> },
           {
@@ -162,7 +165,7 @@ export function DealDrawer({ id }: { id: string }) {
                 </span>
               </span>
             ) : (
-              <span className="muted">{d.stage === 'won' ? t('crm.deals.drawer.probWon') : t('crm.deals.drawer.probLost')}</span>
+              <span className="muted">{st.category === 'won' ? t('crm.deals.drawer.probWon') : t('crm.deals.drawer.probLost')}</span>
             ),
           },
           {
@@ -226,6 +229,11 @@ export function DealDrawer({ id }: { id: string }) {
                 <ActivityComposer deal={d.id} company={d.company} />
               </>
             ),
+          },
+          {
+            id: 'stages',
+            label: t('crm.pipelines.history'),
+            content: <StageHistory deal={d} />,
           },
           {
             id: 'followups',

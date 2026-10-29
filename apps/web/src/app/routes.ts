@@ -1,6 +1,7 @@
 /* Единый список разделов: из него строятся навигация, хлебные крошки и заголовок вкладки. */
 import {
   Activity,
+  Filter,
   FileStack,
   Megaphone,
   Archive,
@@ -98,6 +99,7 @@ export const SECTIONS = {
   crmLeads: { path: '/crm/leads', name: 'Leads', icon: UserPlus },
   crmAds: { path: '/crm/ads', name: 'Advertising', icon: Megaphone },
   crmDeals: { path: '/crm/deals', name: 'Deals', icon: Handshake },
+  crmFunnel: { path: '/crm/funnel', name: 'Sales funnel', icon: Filter },
   crmCompanies: { path: '/crm/companies', name: 'Companies', icon: Building2 },
   crmContacts: { path: '/crm/contacts', name: 'Contacts', icon: ContactRound },
   crmActivities: { path: '/crm/activities', name: 'Activities', icon: PhoneCall },
@@ -251,6 +253,7 @@ const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
   crmLeads: 'crm',
   crmAds: 'crm',
   crmDeals: 'crm',
+  crmFunnel: 'crm',
   crmCompanies: 'crm',
   crmContacts: 'crm',
   crmActivities: 'crm',

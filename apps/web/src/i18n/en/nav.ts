@@ -20,6 +20,7 @@ export const sections = {
   crmLeads: 'Leads',
   crmAds: 'Advertising',
   crmDeals: 'Deals',
+  crmFunnel: 'Sales funnel',
   crmCompanies: 'Companies',
   crmContacts: 'Contacts',
   crmActivities: 'Activities',

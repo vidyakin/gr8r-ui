@@ -8,18 +8,20 @@ import { useSession } from '../data/session';
 import type { CollName } from '../data/specs';
 import { iso, today } from '../lib/dates';
 import { LoadingScreen, uid } from '../data/store';
-import { stage } from './stages';
+import { setStageRegistry, stage } from './stages';
+import { stageDefs, usePipelines, type PipelinesData } from './pipelines';
 import type { ActivityType, Company, Contact, CrmActivity, CrmData, Deal, StageId } from './types';
 
-export type DealPatch = Partial<Pick<Deal, 'name' | 'amount' | 'owner' | 'closeDate' | 'company' | 'contacts' | 'custom'>>;
-export type NewDeal = Pick<Deal, 'name' | 'company' | 'owner' | 'amount' | 'stage' | 'closeDate'> & Partial<Pick<Deal, 'id' | 'contacts'>>;
+export type DealPatch = Partial<Pick<Deal, 'name' | 'amount' | 'owner' | 'closeDate' | 'company' | 'contacts' | 'custom' | 'sourceId'>>;
+export type NewDeal = Pick<Deal, 'name' | 'company' | 'owner' | 'amount' | 'stage' | 'closeDate'> & Partial<Pick<Deal, 'id' | 'contacts' | 'pipeline'>>;
 export type NewActivity = { type: ActivityType; subject: string; by: string; deal?: string; company?: string; contact?: string; due?: string; body?: string };
 
 export type CrmAction =
   | { type: 'deal/create'; deal: NewDeal }
   | { type: 'deal/update'; id: string; patch: DealPatch }
   /** Перенос сделки: stage + before (id карточки, перед которой встаём; null — в конец) либо только порядок внутри колонки */
-  | { type: 'deal/move'; id: string; stage: StageId; before?: string | null; by: string; lostReason?: string }
+  /** patch — поля, которые нужны этапу (обязательные): уходят тем же запросом, что и смена этапа. lostReasonId — причина из справочника */
+  | { type: 'deal/move'; id: string; stage: StageId; before?: string | null; by: string; lostReasonId?: string; lostReason?: string; patch?: DealPatch }
   | { type: 'deal/delete'; id: string }
   | { type: 'company/create'; company: Pick<Company, 'name' | 'industry' | 'size' | 'owner'> & Partial<Pick<Company, 'id' | 'website' | 'city'>> }
   | { type: 'company/update'; id: string; patch: Partial<Pick<Company, 'name' | 'industry' | 'size' | 'owner' | 'website' | 'city' | 'custom' | 'nextContactDate' | 'nextContactNote'>> }
@@ -28,6 +30,7 @@ export type CrmAction =
   | { type: 'activity/add'; activity: NewActivity }
   | { type: 'activity/toggle'; id: string };
 
+const isOpen = (id: StageId) => stage(id).category === 'in_progress';
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '');
 
 function systemNote(by: string, deal: Deal, subject: string): CrmActivity {
@@ -40,8 +43,8 @@ export function crmReducer(d: CrmData, a: CrmAction): CrmData {
       // Новая сделка встаёт в начало своей колонки
       const order = Math.min(1, ...d.deals.filter(x => x.stage === a.deal.stage).map(x => x.order)) - 1;
       const x: Deal = { contacts: [], ...a.deal, id: a.deal.id ?? uid('d'), created: Date.now(), order };
-      const closed = x.stage === 'won' || x.stage === 'lost';
-      return { ...d, deals: [...d.deals, closed ? { ...x, closedAt: x.closeDate } : x] };
+      const closed = !isOpen(x.stage);
+      return { ...d, deals: [...d.deals, { ...x, pipeline: stage(x.stage).pipelineId, stageEnteredAt: Date.now(), ...(closed ? { closedAt: x.closeDate } : {}) }] };
     }
     case 'deal/update':
       return { ...d, deals: d.deals.map(x => (x.id === a.id ? { ...x, ...a.patch } : x)) };
@@ -58,16 +61,24 @@ export function crmReducer(d: CrmData, a: CrmAction): CrmData {
         order = !nx ? (col.length ? col[col.length - 1].order + 1 : x.order) : prev ? (prev.order + nx.order) / 2 : nx.order - 1;
       } else order = col.length ? col[col.length - 1].order + 1 : x.order;
       const changed = x.stage !== a.stage;
-      let next: Deal = { ...x, stage: a.stage, order };
+      const to = stage(a.stage);
+      let next: Deal = { ...x, ...a.patch, stage: a.stage, pipeline: to.pipelineId, order };
       if (changed) {
-        const closed = a.stage === 'won' || a.stage === 'lost';
+        const closed = to.category !== 'in_progress';
         const day = iso(today());
-        next = { ...next, closedAt: closed ? day : undefined, lostReason: a.stage === 'lost' ? a.lostReason : undefined, closeDate: a.stage === 'won' ? day : next.closeDate };
+        next = {
+          ...next,
+          closedAt: closed ? day : undefined,
+          lostReasonId: to.category === 'lost' ? a.lostReasonId : undefined,
+          lostReason: to.category === 'lost' ? a.lostReason : undefined,
+          closeDate: to.category === 'won' ? day : next.closeDate,
+          stageEnteredAt: Date.now(),
+        };
       }
       return {
         ...d,
         deals: d.deals.map(y => (y.id === x.id ? next : y)),
-        activities: changed ? [systemNote(a.by, x, `Stage changed: ${stage(x.stage).name} → ${stage(a.stage).name}${a.lostReason ? ` (${a.lostReason})` : ''}`), ...d.activities] : d.activities,
+        activities: changed ? [systemNote(a.by, x, `Stage changed: ${stage(x.stage).name} → ${to.name}`), ...d.activities] : d.activities,
       };
     }
     case 'deal/delete':
@@ -102,7 +113,7 @@ export function crmReducer(d: CrmData, a: CrmAction): CrmData {
 const CRM_DOMAIN: Domain<CrmData> = { companies: 'companies', contacts: 'contacts', deals: 'deals', activities: 'crmActivities' };
 const CRM_COLLS = Object.values(CRM_DOMAIN) as CollName[];
 
-const Ctx = React.createContext<{ data: CrmData; dispatch: React.Dispatch<CrmAction> } | null>(null);
+const Ctx = React.createContext<{ data: CrmData; dispatch: React.Dispatch<CrmAction>; pipes: PipelinesData } | null>(null);
 
 export function CrmProvider({ children }: { children: React.ReactNode }) {
   const { active } = useSession();
@@ -136,9 +147,12 @@ function CrmInner({ ws, children }: { ws: string; children: React.ReactNode }) {
   React.useEffect(() => {
     if (import.meta.env.DEV) (window as unknown as { __crm: unknown }).__crm = { dispatch, read };
   }, [dispatch, read]);
-  const value = React.useMemo(() => (data ? { data, dispatch } : null), [data, dispatch]);
-  const failed = results.find(r => r.isError);
-  if (failed) return <LoadingScreen error={String((failed.error as Error).message)} onRetry={() => results.forEach(r => void r.refetch())} />;
+  const pipesQ = usePipelines();
+  // реестр этапов выставляется до отрисовки детей: selectors.ts и компоненты читают этапы без props
+  if (pipesQ.data) setStageRegistry(stageDefs(pipesQ.data.stages));
+  const value = React.useMemo(() => (data && pipesQ.data ? { data, dispatch, pipes: pipesQ.data } : null), [data, dispatch, pipesQ.data]);
+  const failed = results.find(r => r.isError) ?? (pipesQ.isError ? pipesQ : undefined);
+  if (failed) return <LoadingScreen error={String((failed.error as Error).message)} onRetry={() => { results.forEach(r => void r.refetch()); void pipesQ.refetch(); }} />;
   if (!value) return <LoadingScreen />;
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

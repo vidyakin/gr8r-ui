@@ -1,7 +1,8 @@
 /* Выборки CRM — чистые функции над CrmData: воронка, прогноз, статистика компаний, строки таблиц */
 import { diffDays, iso, parse, today } from '../lib/dates';
 import type { IsoDate } from '../data/types';
-import { STAGES, isOpen, stage } from './stages';
+import { isOpen, stage, stagesOf } from './stages';
+import { dealOverdue } from './pipelines';
 import type { ActivityType, Company, Contact, CrmActivity, CrmData, Deal, StageId } from './types';
 
 export const company = (d: CrmData, id?: string | null) => d.companies.find(c => c.id === id);
@@ -28,8 +29,8 @@ export const openDeals = (ds: Deal[]) => ds.filter(x => isOpen(x.stage));
 export const isOverdueDeal = (x: Deal) => isOpen(x.stage) && diffDays(parse(x.closeDate), today()) < 0;
 
 /** Итоги по каждому этапу воронки */
-export function stageSummary(ds: Deal[]) {
-  return STAGES.map(s => {
+export function stageSummary(ds: Deal[], pipelineId: string) {
+  return stagesOf(pipelineId).map(s => {
     const list = ds.filter(x => x.stage === s.id);
     return { stage: s, count: list.length, amount: sumAmount(list), weighted: sumWeighted(list) };
   });
@@ -48,12 +49,15 @@ export function pipeline(ds: Deal[]): Pipeline {
 const monthKey = (date: IsoDate) => date.slice(0, 7);
 const thisMonthKey = () => monthKey(iso(today()));
 
-export const wonThisMonth = (ds: Deal[]) => ds.filter(x => x.stage === 'won' && x.closedAt && monthKey(x.closedAt) === thisMonthKey());
+const isWon = (x: Deal) => stage(x.stage).category === 'won';
+const isLost = (x: Deal) => stage(x.stage).category === 'lost';
+
+export const wonThisMonth = (ds: Deal[]) => ds.filter(x => isWon(x) && x.closedAt && monthKey(x.closedAt) === thisMonthKey());
 
 /** Доля выигранных среди закрытых (Won / (Won + Lost)) */
 export function conversionRate(ds: Deal[]) {
-  const won = ds.filter(x => x.stage === 'won').length;
-  const closed = won + ds.filter(x => x.stage === 'lost').length;
+  const won = ds.filter(isWon).length;
+  const closed = won + ds.filter(isLost).length;
   return closed ? won / closed : 0;
 }
 
@@ -65,7 +69,7 @@ export function revenueByMonth(ds: Deal[], n = 6) {
   return Array.from({ length: n }, (_, i) => {
     const d = new Date(t.getFullYear(), t.getMonth() - (n - 1 - i), 1);
     const key = monthKey(iso(d));
-    const won = ds.filter(x => x.stage === 'won' && x.closedAt && monthKey(x.closedAt) === key);
+    const won = ds.filter(x => isWon(x) && x.closedAt && monthKey(x.closedAt) === key);
     return { key, label: MON[d.getMonth()], amount: sumAmount(won), count: won.length, current: i === n - 1 };
   });
 }
@@ -78,7 +82,7 @@ export const closingSoon = (ds: Deal[], n = 5) => openDeals(ds).sort((a, b) => (
 export function companyStats(d: CrmData, companyId: string) {
   const ds = dealsOfCompany(d, companyId);
   const open = openDeals(ds);
-  const won = ds.filter(x => x.stage === 'won');
+  const won = ds.filter(isWon);
   const last = d.activities.filter(a => a.company === companyId && !(a.type === 'task' && !a.done && a.at > Date.now())).reduce((m, a) => Math.max(m, a.at), 0);
   return { open: open.length, pipeline: sumAmount(open), won: sumAmount(won), contacts: contactsOfCompany(d, companyId).length, lastActivity: last || null };
 }
@@ -95,6 +99,8 @@ export interface DealRow extends Deal {
   p: number;
   weightedAmount: number;
   stageIndex: number;
+  /** Превышен норматив дней на этапе */
+  overdueStage: boolean;
 }
 export function dealRows(d: CrmData, ownerName: (id: string) => string, ds: Deal[] = d.deals): DealRow[] {
   return ds.map(x => ({
@@ -103,7 +109,8 @@ export function dealRows(d: CrmData, ownerName: (id: string) => string, ds: Deal
     ownerName: ownerName(x.owner),
     p: probability(x),
     weightedAmount: weighted(x),
-    stageIndex: STAGES.findIndex(s => s.id === x.stage),
+    stageIndex: stage(x.stage).sort,
+    overdueStage: dealOverdue(x, stage(x.stage).slaDays, stage(x.stage).category),
   }));
 }
 
@@ -112,6 +119,8 @@ export interface DealFilters {
   owner: string[];
   company: string[];
   stage: string[];
+  /** Только сделки с превышенным нормативом этапа */
+  overdue: boolean;
 }
 
 /** Фильтры вида «Deals»: поиск по названию, компании и контактам + выбранные значения полей */
@@ -121,6 +130,7 @@ export function filterDeals(d: CrmData, rows: DealRow[], f: Partial<DealFilters>
     if (f.owner?.length && !f.owner.includes(r.owner)) return false;
     if (f.company?.length && !f.company.includes(r.company)) return false;
     if (f.stage?.length && !f.stage.includes(r.stage)) return false;
+    if (f.overdue && !r.overdueStage) return false;
     if (q) {
       const names = r.contacts.map(id => contact(d, id)?.name ?? '').join(' ');
       return `${r.name} ${r.companyName} ${names}`.toLowerCase().includes(q);

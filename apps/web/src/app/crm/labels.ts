@@ -1,10 +1,10 @@
 /* Хелперы локализации для CRM: динамические ключи (этап, тип активности, отрасль, размер, причина) */
-import { t, tEnum } from '@/i18n';
+import { t } from '@/i18n';
 import { INDUSTRIES, SIZES } from './stages';
 
-/** Имя этапа — через общий словарь enums.stage */
-export function stageName(id: string, fallback: string): string {
-  return tEnum('stage', id, fallback);
+/** Имя этапа — название, заданное в настройках воронки (задача 1176): не переводится */
+export function stageName(_id: string, fallback: string): string {
+  return fallback;
 }
 
 const ACTIVITY_KEYS: Record<string, string> = {

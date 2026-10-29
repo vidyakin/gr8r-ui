@@ -10,7 +10,7 @@ import { useT } from '@/i18n';
 import { CloseDate, StageIcon } from './components';
 import { money, moneyShort, pct } from './format';
 import { closingSoon, company as findCompany, conversionRate, openDeals, pipeline, revenueByMonth, stageSummary, sumAmount, topDeals, wonThisMonth } from './selectors';
-import { isOpen } from './stages';
+import { stage } from './stages';
 import { stageName } from './labels';
 import { useCrm } from './store';
 import { useCrmUi } from './ui-context';
@@ -18,15 +18,15 @@ import { cn } from '@/lib/utils';
 import type { Deal } from './types';
 
 /** Воронка: по этапу — полоса суммы (светлая) и взвешенной суммы (насыщенная) */
-function Funnel({ deals }: { deals: Deal[] }) {
+function Funnel({ deals, pipelineId }: { deals: Deal[]; pipelineId: string }) {
   const navigate = useNavigate();
   const t = useT();
-  const rows = stageSummary(deals);
+  const rows = stageSummary(deals, pipelineId);
   const max = Math.max(...rows.map(r => r.amount), 1);
   return (
     <div className="panel-b">
       {rows.map(r => {
-        const open = isOpen(r.stage.id);
+        const open = r.stage.category === 'in_progress';
         const w = (r.amount / max) * 100;
         const name = stageName(r.stage.id, r.stage.name);
         return (
@@ -36,7 +36,7 @@ function Funnel({ deals }: { deals: Deal[] }) {
               <span className="trunc">{name}</span>
             </span>
             <span className="crm-track" role="img" aria-label={`${name}: ${money(r.amount)}${open ? `, ${t('crm.dashboard.weightedLabel')} ${money(r.weighted)}` : ''}`}>
-              <span className={cn('crm-fill', r.stage.id === 'won' && 'solid')} style={{ width: `${w}%`, '--c': r.stage.c } as React.CSSProperties}>
+              <span className={cn('crm-fill', r.stage.category === 'won' && 'solid')} style={{ width: `${w}%`, '--c': r.stage.c } as React.CSSProperties}>
                 {open && <i style={{ width: `${r.amount ? (r.weighted / r.amount) * 100 : 0}%` }} />}
               </span>
             </span>
@@ -109,15 +109,16 @@ function DealRowLine({ d, right, company = true }: { d: Deal; right: React.React
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const { data, dispatch } = useCrm();
+  const { data, dispatch, pipes } = useCrm();
   const ui = useCrmUi();
   const t = useT();
   const ds = data.deals;
+  const mainPipeline = pipes.pipelines.find(p => p.isDefault) ?? pipes.pipelines[0];
   const pl = pipeline(ds);
   const won = wonThisMonth(ds);
   const conv = conversionRate(ds);
-  const lost = ds.filter(d => d.stage === 'lost').length;
-  const wonAll = ds.filter(d => d.stage === 'won').length;
+  const lost = ds.filter(d => stage(d.stage).category === 'lost').length;
+  const wonAll = ds.filter(d => stage(d.stage).category === 'won').length;
   const soon = closingSoon(ds, 5);
   const top = topDeals(ds, 5);
   const followups = data.activities
@@ -155,7 +156,7 @@ export function DashboardPage() {
       <div className="grid2">
         <div className="stack">
           <Panel title={t('crm.dashboard.funnel')} actions={<span className="faint" style={{ fontSize: 11.5 }}>{t('crm.dashboard.funnelHint')}</span>}>
-            <Funnel deals={ds} />
+            {mainPipeline && <Funnel deals={ds.filter(d => stage(d.stage).pipelineId === mainPipeline.id)} pipelineId={mainPipeline.id} />}
           </Panel>
           <Panel title={t('crm.dashboard.revenue')} actions={<span className="faint" style={{ fontSize: 11.5 }}>{t('crm.dashboard.revenueHint')}</span>}>
             <Revenue deals={ds} />

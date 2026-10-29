@@ -49,6 +49,8 @@ export function useRealtime(ws: string, engine: Engine) {
       if (['work_calendar', 'resource', 'document', 'task'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'planning'] });
       // Лиды (задача 1175): запросы ['ws', id, 'leads', …]; конвертация и объединение меняют лиды, контрагентов, контакты, сделки и касания
       if (['lead', 'lead_status', 'lead_form', 'crm_activity', 'company', 'contact', 'deal'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'leads'] });
+      // Воронки продаж (задача 1176): ['ws', id, 'pipelines', …] — воронки, этапы, причины, история и отчёт; сделка меняет историю и отчёт
+      if (['deal', 'deal_pipeline', 'deal_stage', 'deal_lost_reason'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'pipelines'] });
       // Реклама (задача 1177): ['ws', id, 'ad', …] — справочники, расходы и отчёт по каналам (лиды, клиенты, сделки входят в отчёт)
       if (['lead_source', 'ad_campaign', 'ad_expense', 'lead', 'company', 'deal'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'ad'] });
       if (e.entity === 'lead_source' || e.entity === 'ad_campaign') void qc.invalidateQueries({ queryKey: ['ws', ws, 'leads'] });

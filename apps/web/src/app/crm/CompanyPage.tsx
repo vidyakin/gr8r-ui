@@ -25,7 +25,8 @@ import { NextContactPanel } from './NextContactPanel';
 import { ClientAppointments } from './ClientAppointments';
 import { CompanyPriceKind } from '../pricing/CompanyPriceKind';
 import { RecordAttribution } from './AttributionFields';
-import { industryName, sizeName, stageName } from './labels';
+import { industryName, sizeName } from './labels';
+import { stage } from './stages';
 import type { Company } from './types';
 
 const TABS: [string, LucideIcon][] = [
@@ -194,7 +195,7 @@ function Overview({ company: co }: { company: Company }) {
   const open = openDeals(dealsOfCompany(data, co.id)).sort((a, b) => (a.closeDate > b.closeDate ? 1 : -1));
   const people = data.contacts.filter(c => c.company === co.id);
   const acts = activitiesOfCompany(data, co.id).slice(0, 5);
-  const wonCount = dealsOfCompany(data, co.id).filter(d => d.stage === 'won').length;
+  const wonCount = dealsOfCompany(data, co.id).filter(d => stage(d.stage).category === 'won').length;
   return (
     <div className="page" style={{ maxWidth: 1160, paddingTop: 22 }}>
       <div className="stats" style={{ marginBottom: 16 }}>
@@ -212,7 +213,7 @@ function Overview({ company: co }: { company: Company }) {
                   <div key={d.id} className="row crm-row" role="button" tabIndex={0} onClick={() => ui.openDeal(d.id)} onKeyDown={e => e.key === 'Enter' && ui.openDeal(d.id)}>
                     <StageIcon stage={d.stage} />
                     <span className="grow trunc">{d.name}</span>
-                    <span className="faint hide-m" style={{ width: 84 }}>{stageName(d.stage, d.stage)}</span>
+                    <span className="faint hide-m" style={{ width: 84 }}>{stage(d.stage).name}</span>
                     <span className="hide-m" style={{ width: 90 }}><CloseDate deal={d} /></span>
                     <span className="num" style={{ width: 84, textAlign: 'right' }}>{money(d.amount)}</span>
                   </div>

@@ -1,7 +1,7 @@
 /* Общие компоненты CRM: значок этапа, логотип компании, поля сделки, карточка воронки, запись активности и её форма */
 import * as React from 'react';
 import { Link } from 'react-router';
-import { ArrowRightLeft, Calendar as CalendarIcon, Plus } from 'lucide-react';
+import { ArrowRightLeft, Calendar as CalendarIcon, GitBranch, Plus } from 'lucide-react';
 import { Avatar, Button, Checkbox, Popover, PopoverContent, PopoverTrigger, Segmented, toast } from '@/components/ui';
 import { Calendar } from '@/components/shadcn/calendar';
 import { cn } from '@/lib/utils';
@@ -10,14 +10,15 @@ import { member } from '../data/selectors';
 import { ago, dOff, diffDays, fmtDate, iso, parse, relDate, today } from '../lib/dates';
 import { PillMenu } from '../components/fields';
 import { MemberAvatar } from '../components/workspace';
-import { ACTIVITY_TYPES, STAGES, activityType, isOpen, stage } from './stages';
+import { ACTIVITY_TYPES, activityType, isOpen, stage, stagesOf } from './stages';
+import { dealOverdue, useStageHistory } from './pipelines';
 import { money, pct } from './format';
 import { company as findCompany, contact as findContact, deal as findDeal, isOverdueDeal, probability } from './selectors';
-import { activityName, activityVerb, lostReasonName, stageName } from './labels';
+import { activityName, activityVerb, stageName } from './labels';
 import { useCrm } from './store';
 import { useCrmUi } from './ui-context';
 import { useMembersWith } from '../positions/data';
-import { useT } from '@/i18n';
+import { fmtDateTime, useT } from '@/i18n';
 import type { ActivityType, CrmActivity, Deal, StageId } from './types';
 
 /** Имя участника воркспейса по id — для сортировки и подписей в таблицах */
@@ -37,20 +38,20 @@ export function StageIcon({ stage: id, size = 14 }: { stage: StageId; size?: num
   const wedge = `M7 7 L7 3.4 A3.6 3.6 0 ${f > 0.5 ? 1 : 0} 1 ${(7 + 3.6 * Math.sin(a)).toFixed(2)} ${(7 - 3.6 * Math.cos(a)).toFixed(2)} Z`;
   return (
     <svg width={size} height={size} viewBox="0 0 14 14" aria-hidden className="shrink-0">
-      {id === 'lead' && <circle cx="7" cy="7" r={r} fill="none" stroke={c} strokeWidth="1.5" strokeDasharray="1.9 2.1" />}
-      {(id === 'qualified' || id === 'proposal' || id === 'negotiation') && (
+      {s.category === 'in_progress' && f === 0 && <circle cx="7" cy="7" r={r} fill="none" stroke={c} strokeWidth="1.5" strokeDasharray="1.9 2.1" />}
+      {s.category === 'in_progress' && f > 0 && (
         <>
           <circle cx="7" cy="7" r={r} fill="none" stroke={c} strokeWidth="1.5" />
           <path d={wedge} fill={c} />
         </>
       )}
-      {id === 'won' && (
+      {s.category === 'won' && (
         <>
           <circle cx="7" cy="7" r="6.2" fill={c} />
           <path d="M4.4 7.2 6.2 9 9.7 5.3" fill="none" stroke="var(--surface)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         </>
       )}
-      {id === 'lost' && (
+      {s.category === 'lost' && (
         <>
           <circle cx="7" cy="7" r="6.2" fill={c} />
           <path d="M4.9 4.9 9.1 9.1M9.1 4.9 4.9 9.1" stroke="var(--surface)" strokeWidth="1.5" strokeLinecap="round" />
@@ -167,12 +168,60 @@ export function StageField({ deal }: { deal: Deal }) {
   const t = useT();
   return (
     <PillMenu<StageId>
-      label={`${t('crm.deals.drawer.stageLabel')}: ${stageName(deal.stage, deal.stage)}`}
+      label={`${t('crm.deals.drawer.stageLabel')}: ${stage(deal.stage).name}`}
       value={deal.stage}
       onChange={s => s !== deal.stage && ui.moveDeal(deal.id, s)}
-      options={STAGES.map(s => ({ value: s.id, label: stageName(s.id, s.name), icon: <StageIcon stage={s.id} /> }))}
+      options={stagesOf(deal.pipeline ?? stage(deal.stage).pipelineId).map(s => ({ value: s.id, label: stageName(s.id, s.name), icon: <StageIcon stage={s.id} /> }))}
       trigger={<StageLabel stage={deal.stage} />}
     />
+  );
+}
+
+/** Воронка сделки: смена переносит сделку на первый этап выбранной воронки (через useCrmUi().movePipeline) */
+export function PipelineField({ deal }: { deal: Deal }) {
+  const ui = useCrmUi();
+  const t = useT();
+  const { pipes } = useCrm();
+  const current = pipes.pipelines.find(p => p.id === (deal.pipeline ?? stage(deal.stage).pipelineId));
+  return (
+    <PillMenu<string>
+      label={`${t('crm.pipelines.pipeline')}: ${current?.name ?? ''}`}
+      value={current?.id ?? ''}
+      onChange={id => id !== current?.id && ui.movePipeline(deal.id, id)}
+      options={pipes.pipelines.map(p => ({ value: p.id, label: p.name, icon: <GitBranch size={14} /> }))}
+      trigger={<span>{current?.name ?? '—'}</span>}
+    />
+  );
+}
+
+/** История этапов сделки: из какого этапа в какой, кто и когда; время на этапе до следующего перехода */
+export function StageHistory({ deal }: { deal: Deal }) {
+  const t = useT();
+  const { pipes } = useCrm();
+  const ownerName = useOwnerName();
+  const { data: rows } = useStageHistory(deal.id);
+  const name = (stageId: string | null) => pipes.stages.find(s => s.id === stageId)?.name ?? '—';
+  const pipeName = (id: string | null) => pipes.pipelines.find(p => p.id === id)?.name ?? '';
+  if (!rows?.length) return <p className="faint" style={{ fontSize: 13, margin: '10px 0' }}>{t('crm.pipelines.noHistory')}</p>;
+  return (
+    <div className="feed">
+      {rows.map((h, i) => {
+        const next = rows[i - 1]; // список идёт от новых к старым: «следующий» переход — предыдущий элемент
+        const days = Math.max(0, Math.round(((next ? new Date(next.createdAt).getTime() : Date.now()) - new Date(h.createdAt).getTime()) / 86_400_000));
+        return (
+          <div key={h.id} className="row" style={{ gap: 8, minHeight: 32, fontSize: 13, flexWrap: 'wrap' }}>
+            <StageIcon stage={h.toStageId} />
+            <span>
+              {h.fromStageId ? `${pipeName(h.fromPipelineId) !== pipeName(h.toPipelineId) ? pipeName(h.fromPipelineId) + ' / ' : ''}${name(h.fromStageId)} → ` : ''}
+              <b>{pipeName(h.fromPipelineId) !== pipeName(h.toPipelineId) && h.fromStageId ? pipeName(h.toPipelineId) + ' / ' : ''}{name(h.toStageId)}</b>
+            </span>
+            <span className="faint" style={{ fontSize: 12 }}>
+              {h.memberId ? ownerName(h.memberId) : t('crm.pipelines.bySystem')} · {fmtDateTime(h.createdAt)} · {t('crm.pipelines.daysOnStage', { count: days })}
+            </span>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -242,14 +291,17 @@ export function CloseDate({ deal: d }: { deal: Deal }) {
 
 /** Карточка сделки в воронке (по образцу KCard задач) */
 export function DealCard({ deal: d }: { deal: Deal }) {
-  const { data } = useCrm();
+  const { data, pipes } = useCrm();
   const ui = useCrmUi();
   const t = useT();
   const co = findCompany(data, d.company);
   const closed = !isOpen(d.stage);
+  const st = stage(d.stage);
+  const overdueStage = dealOverdue(d, st.slaDays, st.category);
+  const reason = pipes.reasons.find(r => r.id === d.lostReasonId)?.name ?? d.lostReason;
   const open = () => ui.openDeal(d.id);
   return (
-    <div className={cn('kcard crm-deal', d.stage === 'lost' && 'lost')} role="button" tabIndex={0} aria-label={`${d.name}, ${money(d.amount)}`} onClick={open} onKeyDown={e => e.key === 'Enter' && e.target === e.currentTarget && open()}>
+    <div className={cn('kcard crm-deal', st.category === 'lost' && 'lost', overdueStage && 'stage-overdue')} role="button" tabIndex={0} aria-label={`${d.name}, ${money(d.amount)}`} onClick={open} onKeyDown={e => e.key === 'Enter' && e.target === e.currentTarget && open()}>
       <div className="top">
         <div className="title">{d.name}</div>
       </div>
@@ -263,7 +315,8 @@ export function DealCard({ deal: d }: { deal: Deal }) {
         <span className="amt num">{money(d.amount)}</span>
         {!closed && <span className="m num">{pct(probability(d))}</span>}
         <CloseDate deal={d} />
-        {d.stage === 'lost' && d.lostReason && <span className="m trunc">{lostReasonName(d.lostReason, d.lostReason)}</span>}
+        {st.category === 'lost' && reason && <span className="m trunc">{reason}</span>}
+        {overdueStage && <span className="m" style={{ color: 'var(--red)' }}>{t('crm.pipelines.overdueBadge', { days: st.slaDays ?? 0 })}</span>}
         <MemberAvatar id={d.owner} size="sm" />
       </div>
       {isOverdueDeal(d) && <span className="sr">{t('crm.activities.overdueDeal')}</span>}

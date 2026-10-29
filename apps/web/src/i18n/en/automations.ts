@@ -350,6 +350,8 @@ export const automations = {
     statusPlaceholder: 'Status',
     memberPlaceholder: 'Member',
     anyStatus: 'Any status',
+    anyPipeline: 'Any pipeline',
+    anyStage: 'Any stage',
     chooseMember: 'Choose member',
     chooseGeneric: 'Choose…',
     required: 'Required',

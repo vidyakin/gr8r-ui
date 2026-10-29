@@ -12,6 +12,7 @@ import { WorkOrderKindsSection } from '../settings/work-orders';
 import { DeliveryMethodsSection } from '../settings/delivery';
 import { PositionsSection, ProductKindsSection } from '../settings/positions';
 import { LeadFormsSection, LeadStatusesSection } from '../settings/leads';
+import { DealPipelinesSection, LostReasonsSection } from '../settings/deal-pipelines';
 import { LeadSourcesSection } from '../settings/lead-sources';
 import { IntegrationsSection } from '../settings/integrations';
 import { TenantsSection } from '../settings/tenants';
@@ -55,6 +56,10 @@ function Body({ sec, title }: { sec: string; title: string }) {
       return <DeliveryMethodsSection title={title} />;
     case 'positions':
       return <PositionsSection title={title} />;
+    case 'deal-pipelines':
+      return <DealPipelinesSection title={title} />;
+    case 'lost-reasons':
+      return <LostReasonsSection title={title} />;
     case 'lead-statuses':
       return <LeadStatusesSection title={title} />;
     case 'lead-forms':

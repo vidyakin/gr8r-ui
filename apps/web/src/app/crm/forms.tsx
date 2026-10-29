@@ -6,7 +6,7 @@ import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { dOff } from '../lib/dates';
 import { MOD } from '../lib/platform';
-import { INDUSTRIES, OPEN_STAGES, SIZES } from './stages';
+import { INDUSTRIES, SIZES, openStagesOf, stage } from './stages';
 import { company as findCompany, contactsOfCompany } from './selectors';
 import { industryName, sizeName } from './labels';
 import { newCrmId, useCrm } from './store';
@@ -104,13 +104,14 @@ function FormDialog({ title, description, submitLabel, onSubmit, onClose, childr
 
 export function DealFormDialog({ defaults, onClose, onCreated }: { defaults: DealDefaults; onClose: () => void; onCreated: (id: string) => void }) {
   const { data: ws } = useWorkspace();
-  const { data, dispatch } = useCrm();
+  const { data, dispatch, pipes } = useCrm();
   const t = useT();
   const [f, setF] = React.useState({
     name: '',
     company: defaults.company ?? '',
     amount: '',
-    stage: (defaults.stage && defaults.stage !== 'won' && defaults.stage !== 'lost' ? defaults.stage : 'lead') as StageId,
+    pipeline: defaults.pipeline ?? (defaults.stage ? stage(defaults.stage).pipelineId : (pipes.pipelines.find(p => p.isDefault) ?? pipes.pipelines[0])?.id ?? ''),
+    stage: (defaults.stage && stage(defaults.stage).category === 'in_progress' ? defaults.stage : '') as StageId,
     close: dOff(30),
     owner: defaults.owner ?? ws.me,
     contacts: [] as string[],
@@ -128,7 +129,7 @@ export function DealFormDialog({ defaults, onClose, onCreated }: { defaults: Dea
     setErr(e);
     if (Object.keys(e).length) return;
     const id = newCrmId('d');
-    dispatch({ type: 'deal/create', deal: { id, name: f.name.trim(), company: f.company, amount, stage: f.stage, closeDate: f.close, owner: f.owner, contacts: f.contacts } });
+    dispatch({ type: 'deal/create', deal: { id, name: f.name.trim(), company: f.company, amount, stage: f.stage || openStagesOf(f.pipeline)[0]!.id, pipeline: f.pipeline, closeDate: f.close, owner: f.owner, contacts: f.contacts } });
     onClose();
     onCreated(id);
   };
@@ -161,9 +162,18 @@ export function DealFormDialog({ defaults, onClose, onCreated }: { defaults: Dea
         </FormField>
       </div>
       <div className="row" style={{ gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        <FormField id="nd-pipeline" label={t('crm.pipelines.pipeline')} grow>
+          <select className="select" id="nd-pipeline" value={f.pipeline} onChange={e => setF(s => ({ ...s, pipeline: e.target.value, stage: '' as StageId }))}>
+            {pipes.pipelines.map(p => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </FormField>
         <FormField id="nd-stage" label={t('crm.deals.form.fieldStage')} grow>
-          <select className="select" id="nd-stage" value={f.stage} onChange={e => set('stage', e.target.value as StageId)}>
-            {OPEN_STAGES.map(s => (
+          <select className="select" id="nd-stage" value={f.stage || openStagesOf(f.pipeline)[0]?.id} onChange={e => set('stage', e.target.value as StageId)}>
+            {openStagesOf(f.pipeline).map(s => (
               <option key={s.id} value={s.id}>
                 {s.name}
               </option>

@@ -43,6 +43,8 @@ export const settings = {
       deliveryMethods: 'Delivery methods',
       positions: 'Positions',
       productKinds: 'Nomenclature kinds',
+      dealPipelines: 'Deal pipelines',
+      lostReasons: 'Lost reasons',
       leadStatuses: 'Lead statuses',
       leadForms: 'Lead forms',
       leadSources: 'Lead sources',

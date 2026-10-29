@@ -231,3 +231,8 @@
   font-size: 11.5px;
   color: var(--text-3);
 }
+
+/* Воронки (задача 1176): сделка, у которой превышен норматив дней на этапе */
+.crm-deal.stage-overdue {
+  box-shadow: inset 3px 0 0 var(--red);
+}

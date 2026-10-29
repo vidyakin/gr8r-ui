@@ -5,6 +5,7 @@ import type { StageId } from './types';
 
 export interface DealDefaults {
   stage?: StageId;
+  pipeline?: string;
   company?: string;
   owner?: string;
 }
@@ -16,8 +17,12 @@ export interface CrmUi {
   newDeal(defaults?: DealDefaults): void;
   newCompany(): void;
   newContact(defaults?: { company?: string }): void;
-  /** Смена этапа: Won и Lost спрашивают подтверждение / причину, остальные этапы применяются сразу */
+  /** Смена этапа: «выиграна» подтверждается, «проиграна» спрашивает причину, этап с обязательными полями — их значения; остальные применяются сразу */
   moveDeal(id: string, stage: StageId, before?: string | null): void;
+  /** Быстрые действия карточки: победа, проигрыш (первый «проиграна» воронки сделки) или возврат в работу */
+  moveDealTo(id: string, target: 'won' | 'lost' | 'reopen'): void;
+  /** Перенос в другую воронку: на её первый этап */
+  movePipeline(id: string, pipelineId: string): void;
 }
 
 export const CrmUiCtx = React.createContext<CrmUi | null>(null);
