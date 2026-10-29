@@ -6,6 +6,8 @@ import type { BillingPeriodicity, ContractKind, ExtraProductPolicy } from '@gr8r
 import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';
+import { useModuleReady } from '../licensing/data';
+
 
 export const billingKey = (ws: string, ...rest: unknown[]) => ['ws', ws, 'billing', ...rest] as const;
 
@@ -91,7 +93,9 @@ export interface BillingRunItem {
 
 export function useContracts(params: { companyId?: string; kind?: string; isService?: boolean; q?: string } = {}) {
   const ws = useWsId();
+  const on = useModuleReady('services');
   return useQuery({
+    enabled: on,
     queryKey: billingKey(ws, 'contracts', params),
     queryFn: () => {
       const sp = new URLSearchParams({ limit: '200' });

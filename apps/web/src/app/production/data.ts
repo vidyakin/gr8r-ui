@@ -7,6 +7,8 @@ import { BomCycleError, BomFormulaError, computeBomCost, resolveMaterialPrice, w
 import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';
+import { useModuleReady } from '../licensing/data';
+
 import { uuidv7 } from '../lib/uuid';
 
 export interface BomLine {
@@ -121,7 +123,8 @@ export const productionKey = (ws: string, ...rest: unknown[]) => ['ws', ws, 'pro
 
 export function useSnapshot() {
   const ws = useWsId();
-  return useQuery({ queryKey: productionKey(ws, 'snapshot'), queryFn: () => call<Snapshot>(ws, 'GET', '/production/snapshot'), staleTime: Infinity });
+  const on = useModuleReady('production');
+  return useQuery({ queryKey: productionKey(ws, 'snapshot'), queryFn: () => call<Snapshot>(ws, 'GET', '/production/snapshot'), staleTime: Infinity, enabled: on });
 }
 
 /** Виды производства с этапами — справочник «Этапы» */
