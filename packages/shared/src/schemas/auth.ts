@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { ROLES } from '../constants';
 import { clientId, uuid } from './common';
 import { localeSchema } from '../i18n';
-import { MODULE_IDS } from '../licensing';
+import { isLimitKey, MODULE_IDS } from '../licensing';
 
 const email = z.string().trim().toLowerCase().max(254).pipe(z.email());
 const password = z.string().min(8, 'Password must be at least 8 characters').max(200);
@@ -48,11 +48,14 @@ export const tenantCreateBody = z.object({
   ownerName: z.string().trim().min(1).max(100).optional(),
   demo: z.boolean().default(false),
   ttlDays: z.number().int().min(1).max(365).optional(),
+  /** Тариф нового арендатора (по умолчанию — тариф по умолчанию); если у тарифа задан пробный период, он начинается сразу */
+  planId: uuid.optional(),
 });
 
 /* Тарифы и лицензии арендаторов (задача 1205, docs/architecture/licensing.md): тела запросов оператора */
 const moduleIdSchema = z.enum(MODULE_IDS);
 const isoDate = z.string().datetime({ offset: true });
+const limitsSchema = z.record(z.string(), z.number().int().min(0)).refine(r => Object.keys(r).every(isLimitKey), 'unknown limit');
 
 export const licensePlanBody = z.object({
   key: z.string().trim().min(1).max(40).regex(/^[a-z0-9_-]+$/).optional(),
@@ -60,7 +63,7 @@ export const licensePlanBody = z.object({
   description: z.string().trim().max(1000).nullable().optional(),
   modules: z.array(moduleIdSchema).max(20).default([]),
   allModules: z.boolean().default(false),
-  limits: z.record(z.string(), z.number().int().min(0)).default({}),
+  limits: limitsSchema.default({}),
   trialDays: z.number().int().min(1).max(365).nullable().optional(),
   isDefault: z.boolean().default(false),
   sortOrder: z.number().int().min(0).max(1000).default(0),
@@ -70,7 +73,45 @@ export type LicensePlanBody = z.infer<typeof licensePlanBody>;
 export const tenantLicenseBody = z.object({
   planId: uuid,
   planExpiresAt: isoDate.nullable().default(null),
-  limits: z.record(z.string(), z.number().int().min(0)).default({}),
+  isTrial: z.boolean().default(false),
+  limits: limitsSchema.default({}),
   grants: z.array(z.object({ module: moduleIdSchema, expiresAt: isoDate.nullable().default(null) })).max(20).default([]),
 });
 export type TenantLicenseBody = z.infer<typeof tenantLicenseBody>;
+
+/* Заявки арендатора на модули («Нужно больше?», задача 1208) */
+export const REQUEST_STATUSES = ['new', 'in_progress', 'done', 'rejected'] as const;
+export type RequestStatus = (typeof REQUEST_STATUSES)[number];
+
+export const moduleRequestBody = z.object({
+  modules: z.array(moduleIdSchema.exclude(['core'])).min(1).max(20),
+  comment: z.string().trim().max(2000).nullish(),
+  contact: z.string().trim().min(3).max(200),
+});
+export type ModuleRequestBody = z.infer<typeof moduleRequestBody>;
+
+export const moduleRequestStatusBody = z.object({
+  status: z.enum(REQUEST_STATUSES),
+  note: z.string().trim().max(2000).nullish(),
+});
+
+/** Заявка в ответах API: арендатору — свои, оператору — все (с названием арендатора) */
+export interface ModuleRequestRow {
+  id: string;
+  modules: string[];
+  comment: string | null;
+  contact: string;
+  status: RequestStatus;
+  createdAt: string;
+}
+export interface OperatorModuleRequest extends ModuleRequestRow {
+  workspaceId: string;
+  workspaceName: string;
+  workspaceSlug: string;
+  requestedBy: string | null;
+  requestedByEmail: string | null;
+  note: string | null;
+  handledAt: string | null;
+  handledByEmail: string | null;
+  hookSentAt: string | null;
+}

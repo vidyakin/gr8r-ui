@@ -17,6 +17,7 @@ import { LeadSourcesSection } from '../settings/lead-sources';
 import { IntegrationsSection } from '../settings/integrations';
 import { TenantsSection } from '../settings/tenants';
 import { PlansSection } from '../settings/plans';
+import { RequestsSection } from '../settings/requests';
 import { useLicense } from '../licensing/data';
 import { MODULE_OF_SETTING } from '@gr8r/shared';
 import { useSession } from '../data/session';
@@ -73,6 +74,8 @@ function Body({ sec, title }: { sec: string; title: string }) {
       return <IntegrationsSection title={title} />;
     case 'plans':
       return <PlansSection title={title} />;
+    case 'requests':
+      return <RequestsSection title={title} />;
     case 'tenants':
       return <TenantsSection title={title} />;
     case 'product-kinds':

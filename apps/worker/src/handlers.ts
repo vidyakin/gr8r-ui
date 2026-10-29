@@ -4,6 +4,7 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { BANK_SYNC_JOB, buildPrintData, renderDocumentHtml, settlementActHtml, createFieldIndex, integrationRuntime, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, isUuid, jobs, withContext, type Db, type Sql } from '@gr8r/db';
 import { FIELD_TYPES, renderPrintForm, type FieldType, type PrintForm } from '@gr8r/shared';
+import { loadRequestForHook, markRequestHookSent } from '@gr8r/db';
 import { runClosePeriod } from './production-closing';
 import { executeRun } from './flows/engine';
 import { startRunsForEvent } from './flows/triggers';
@@ -71,11 +72,34 @@ const needDdl = (h: JobContext) => {
   return h.ddl;
 };
 
+/** Дублирование заявки на модули в вебхук лидов оператора (OPERATOR_LEAD_HOOK_URL, задача 1208); тесты подменяют fetch и адрес */
+export const requestHookRuntime: { fetch: (input: string, init: RequestInit) => Promise<Response>; url: () => string | undefined } = { fetch: (input, init) => fetch(input, init), url: () => process.env.OPERATOR_LEAD_HOOK_URL?.trim() || undefined };
+
 /** Реестр обработчиков фоновых задач по jobs.type. Задачи работают по состоянию метаданных на момент выполнения
     (а не на момент постановки), поэтому порядок задач и повторы безопасны */
 export const jobHandlers: Record<string, (job: JobRow, h: JobContext) => Promise<void>> = {
   /** Служебная задача для проверки очереди */
   noop: async () => {},
+  /** Заявка арендатора на модули → лид в вебхук лидов оператора. Адрес не задан — ничего не делает; не 2xx или сбой сети — ошибка, задача повторится */
+  'module_request.notify': async (job, h) => {
+    const url = requestHookRuntime.url();
+    if (!url) return;
+    const id = (job.payload as { requestId?: unknown }).requestId;
+    if (!isUuid(id)) throw new Error('module_request.notify: payload.requestId must be a uuid');
+    const r = await h.read(db => loadRequestForHook(db, id));
+    if (!r || r.hookSentAt) return;
+    const contact = r.contact.trim();
+    const body = {
+      name: `${r.workspaceName}: заявка на модули`,
+      company: r.workspaceName,
+      [contact.includes('@') ? 'email' : 'phone']: contact,
+      comment: [`Модули: ${r.modules.join(', ')}`, r.comment, `Арендатор: ${r.workspaceSlug}${r.requestedBy ? `, от ${r.requestedBy}` : ''}`].filter(Boolean).join('\n'),
+      utm_source: 'gr8r-module-request',
+    };
+    const res = await requestHookRuntime.fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) throw new Error(`lead hook responded ${res.status}`);
+    await h.read(db => markRequestHookSent(db, id));
+  },
   /** Построить индекс по выражению для поля сущности. Пропускается, если поле уже не требует индекса (удалено, скрыто, не filterable) */
   'index.create': async (job, h) => {
     const { eligible, target } = await loadIndexTarget(job, h);

@@ -17,7 +17,7 @@ id из `SECTIONS`), пункты настроек (`settings`, id из `SET_NAV
 Чистые функции: `resolveModules(raw)` (ядро + перечисленные + зависимости; `*` — все), `enabledModules(license, now)` (тариф и доп. модули с действующим сроком),
 `licenseView`, `moduleOfApiPath`, `moduleOfSectionPath`, `disabledModulesOfNodes`.
 
-## Хранение (миграция `0057_licensing`)
+## Хранение (миграции `0057_licensing`, `0058`–`0061`)
 - `license_plans` — справочник тарифов: `key`, `name`, `modules text[]`, `all_modules` («Полный», включает и будущие модули), `limits`, `trial_days`, `is_default` (не более одного).
 - `workspace_licenses` (на арендатора) — `plan_id`, `plan_expires_at`, персональные `limits`, `updated_by`.
 - `workspace_module_grants` — докупленные модули `(workspace_id, module)` со своим `expires_at`.
@@ -41,12 +41,43 @@ id из `SECTIONS`), пункты настроек (`settings`, id из `SET_NAV
 | Интерфейс | `useSectionAccess` (меню, вторая панель, палитра, `SectionGuard`) = должности И модули; `SettingsPage` скрывает пункты настроек. Набор — `GET /license` (ключ `['ws', id, 'license']`). |
 
 ## Оператор
-Настройки → Оператор → «Тарифы и модули» (CRUD тарифов) и кнопка «Лицензия» у арендатора (тариф, срок, доп. модули со сроками, итоговый набор).
+Настройки → Оператор → «Тарифы и модули» (CRUD тарифов, лимиты), «Заявки на модули» и кнопка «Лицензия» у арендатора (тариф, срок, пробный период, лимиты и их использование, доп. модули со сроками, итоговый набор, журнал).
 API: `GET/POST /admin/plans`, `PUT/DELETE /admin/plans/:id`, `GET/PUT /admin/tenants/:id/license`. Realtime: событие `license.changed` сбрасывает кэш интерфейса арендатора.
 
-## Что ещё впереди (задачи 1206–1209)
-Режим «только чтение» после срока и баннер, пробный период при создании арендатора (`trial_days`), проверка лимитов, страница «Нужно больше?» и заявки, журнал изменений.
-Сейчас срок — жёсткая граница: по истечении модуль выключается сразу.
+## Сроки, «только чтение», пробный период (задача 1206)
+Состояние каждого модуля — `moduleStates(license, now)` в `@gr8r/shared`: `active` (действует), `readonly` (срок кончился не более `READONLY_DAYS` = 14 дней назад), `off`. Источники — тариф (`planExpiresAt`) и
+каждый доп. модуль (`expiresAt`); модуль действует, пока действует любой источник, который его включает (в том числе как зависимость). Ядро не истекает.
+| Функция | Смысл | Кто использует |
+|---|---|---|
+| `enabledModules` | можно писать (только `active`) | воркер, расписания, автоматизации, вебхуки лидов и ЮКассы |
+| `readableModules` | можно читать (`active` + `readonly`) | API, `GET /license.modules` (меню), `/hooks/prices` |
+
+API: `requireModule` — `off` → 403 `module_disabled`; `readonly` и метод не GET/HEAD/OPTIONS → 403 `module_expired` (`details.readonlyUntil`). Воркер: задачи только чтения (`READONLY_SAFE_JOBS`: `document.pdf`,
+`settlement.act_pdf`, `billing.export_zip`) идут и в режиме «только чтение». `GET /license` отдаёт `states`, `isTrial`; баннер — `licenseNotices` (за `EXPIRY_NOTICE_DAYS` = 7 дней и в режиме «только чтение»), показывает `LicenseBanner`
+владельцу и админу.
+Пробный период: `workspace_licenses.is_trial`. `createTenant` (CLI `--plan`, `POST /admin/tenants {planId}`) вызывает `app_license_start`: тариф с `trial_days` → срок `now()+trial_days` и признак; без `trial_days` и без явного тарифа
+строки лицензии нет. Самостоятельная регистрация пробного периода не получает.
+
+## Лимиты (задача 1207)
+Ключи (`LIMIT_KEYS`): `members` (участники без отключённых + неотвеченные приглашения), `organizations`, `warehouses` (не в архиве), `storageMb` (МБ: `files.size_bytes` + PDF `document_files` + архивы `document_exports`).
+Нет ключа — без ограничения, `0` — добавлять нельзя. Итог = лимиты тарифа, поверх них персональные арендатора (`app_license_of`: `limits`, `planLimits`, `ownLimits`). Использование — `app_usage_of(ws)`/`app_workspace_usage()`.
+`assertLimit(db, key, add)` (`packages/db/src/licensing.ts`) → 403 `limit_exceeded` `{limit, max, used}` при создании приглашения, организации, склада, файла; существующее не трогается. Файлы в S3 ещё не используются,
+PDF воркера лимит не блокирует. Новое место создания сущности с лимитом должно вызвать `assertLimit`.
+
+## «Нужно больше?» и заявки (задача 1208)
+Раздел `upgrade` (`/upgrade`, кнопка внизу меню): все модули с описанием и возможностями (`licensing.modules.*`, `licensing.features.*`), состояние (подключён / пробный до / только чтение до / не подключён), заявка
+(модули, контакт, комментарий). Таблица `module_requests` — арендаторская (RLS), арендатор создаёт (owner/admin) и читает свои через `/license/requests`, менять не может; оператор — `/admin/requests` (список, статус
+`new|in_progress|done|rejected`, заметка; функции `app_operator_requests`, `app_operator_set_request`), экран «Настройки → Оператор → Заявки на модули». Вебхук: задача `module_request.notify` (ядро) отправляет заявку лидом на
+`OPERATOR_LEAD_HOOK_URL` (воркер; пусто — ничего не делает; не 2xx — повтор), `hook_sent_at` отмечает отправку (`deploy.md`).
+
+## Журнал изменений (задача 1209)
+`license_log`: кто (email оператора на момент изменения; пусто — система), когда, что (`plan`, `plan_expires`, `trial`, `trial_started`, `limit`, `grant_added|removed|expires`, `plan_edit` — правка самого тарифа у каждого
+арендатора на нём), старое → новое. Пишут функции `app_operator_set_license`, `app_operator_save_plan`, `app_license_start` (поэтому CLI и API ведут журнал одинаково); читает оператор `GET /admin/tenants/:id/license-log`
+(диалог «Лицензия»). RLS — политика `USING (false)`, таблица исключена из выгрузки арендатора.
+
+## Запросы данных чужого модуля на экране
+Экран одного модуля не должен запрашивать данные другого, если тот выключен (иначе 403 `module_disabled` в сети). Хук данных такого модуля закрывается `enabled: useModuleReady(module)` (`app/licensing/data.ts`):
+`useContracts`, `useDocumentStates`, `useWorkOrderKinds`, `useWorkNorms` (услуги), `useSnapshot`, `useWorkCenters` (производство).
 
 Тесты: `apps/api/test/licensing.test.ts` (покрытие каталога; прямой вызов API выключенного модуля → 403; доп. модуль, зависимости, срок; событие realtime; воркер; flow; доступ оператора и
 изоляция таблиц), `apps/web/src/app/licensing/modules.test.ts`.

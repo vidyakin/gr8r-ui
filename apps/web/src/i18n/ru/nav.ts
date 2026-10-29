@@ -16,6 +16,7 @@ export const sections: Widen<typeof S> = {
   activity: 'Активность',
   archive: 'Архив',
   search: 'Поиск',
+  upgrade: 'Нужно больше?',
   settings: 'Настройки',
   system: 'Дизайн-система',
   crm: 'Сводка',

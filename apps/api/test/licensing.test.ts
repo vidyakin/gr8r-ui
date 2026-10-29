@@ -4,8 +4,8 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
 import { setOperator } from '@gr8r/db';
 import { defaultOptions, processEventsOnce, processJobsOnce } from '../../worker/src/worker';
-import { disabledModulesOfNodes, enabledModules, MODULE_IDS, MODULE_OF_JOB, MODULE_OF_NODE, MODULE_OF_PATH, NODE_LIST, resolveModules } from '@gr8r/shared';
-import { jobHandlers } from '../../worker/src/handlers';
+import { disabledModulesOfNodes, enabledModules, licenseNotices, licenseView, moduleStates, readableModules, type LicenseRaw, MODULE_IDS, MODULE_OF_JOB, MODULE_OF_NODE, MODULE_OF_PATH, NODE_LIST, resolveModules } from '@gr8r/shared';
+import { jobHandlers, requestHookRuntime } from '../../worker/src/handlers';
 import { TENANT_PATHS } from '../src/app';
 import { admin, Client, ddl, drainJobs, sql, uniq } from './helpers';
 
@@ -153,6 +153,314 @@ describe('автоматизации и модули', () => {
     await admin`insert into events (workspace_id, type, entity) values (${c.workspaceId}, 'task.created', 'task')`;
     for (let i = 0; i < 20 && (await processEventsOnce(sql, o)) + (await processJobsOnce(sql, o)) > 0; i++);
     expect((await admin`select count(*)::int as n from flow_runs where workspace_id = ${c.workspaceId}`)[0]!.n).toBe(before);
+  });
+});
+
+const daysAgo = (n: number) => new Date(Date.now() - n * 864e5).toISOString();
+const inDays = (n: number) => new Date(Date.now() + n * 864e5).toISOString();
+const raw = (over: Partial<LicenseRaw>): LicenseRaw => ({ planId: null, planKey: null, planName: null, planModules: [], planAllModules: false, planExpiresAt: null, grants: [], limits: {}, ...over });
+
+describe('сроки: только чтение и баннер (1206)', () => {
+  test('moduleStates: действует → 14 дней только чтение → выключен; действующий источник перевешивает; зависимости', () => {
+    const l = raw({ planModules: ['crm'], planExpiresAt: daysAgo(3), grants: [{ module: 'payroll', expiresAt: daysAgo(20) }, { module: 'trade', expiresAt: null }] });
+    const s = moduleStates(l);
+    expect(s.core.state).toBe('active');
+    expect(s.crm.state).toBe('readonly');
+    expect(new Date(s.crm.readonlyUntil!).getTime()).toBeGreaterThan(Date.now() + 10 * 864e5);
+    expect(s.payroll.state).toBe('off'); // 20 дней назад — позже окна
+    expect(s.trade.state).toBe('active'); // бессрочный доп. модуль, хотя payroll (тянул trade) истёк
+    expect(s.money.state).toBe('off');
+    expect([...enabledModules(l)].sort()).toEqual(['core', 'trade']);
+    expect([...readableModules(l)].sort()).toEqual(['core', 'crm', 'trade']);
+    // истёкший тариф покрыт действующим доп. модулем: действует
+    expect(moduleStates(raw({ planModules: ['crm'], planExpiresAt: daysAgo(3), grants: [{ module: 'crm', expiresAt: inDays(5) }] })).crm.state).toBe('active');
+  });
+
+  test('баннер: за 7 дней до конца и в режиме только чтение', () => {
+    expect(licenseNotices(licenseView(raw({ planModules: ['crm'], planExpiresAt: inDays(30) })))).toEqual([]);
+    const soon = licenseNotices(licenseView(raw({ planModules: ['crm'], planExpiresAt: inDays(5), isTrial: true })));
+    expect(soon).toHaveLength(1);
+    expect(soon[0]).toMatchObject({ kind: 'expiring', trial: true });
+    expect(soon[0]!.modules).toContain('crm');
+    const ro = licenseNotices(licenseView(raw({ planModules: ['crm'], planExpiresAt: daysAgo(2) })));
+    expect(ro[0]).toMatchObject({ kind: 'readonly' });
+    expect(licenseNotices(licenseView(raw({ planModules: ['crm'], planExpiresAt: daysAgo(40) })))).toEqual([]);
+  });
+
+  test('API: после срока чтение работает, запись — 403 module_expired; через 14 дней — module_disabled', async () => {
+    const c = new Client();
+    await c.signup();
+    await license(c, corePlan, [{ module: 'crm', expiresAt: daysAgo(3) }]);
+    expect((await c.get('/deals')).status).toBe(200);
+    for (const [m, path] of [['post', '/deals'], ['put', '/deals/00000000-0000-0000-0000-000000000000'], ['del', '/deals/00000000-0000-0000-0000-000000000000']] as const) {
+      const r = m === 'del' ? await c.del(path) : await (c as any)[m](path, { title: 'x' });
+      expect(r.status, `${m} ${path}`).toBe(403);
+      expect(r.body.error.code).toBe('module_expired');
+    }
+    const v = (await c.get('/license')).body;
+    expect(v.modules).toContain('crm');
+    expect(v.states.crm).toMatchObject({ state: 'readonly' });
+    expect((await c.get('/tasks')).status).toBe(200);
+    expect((await c.post('/companies', { name: 'Core still writes' })).status).toBe(201);
+    await license(c, corePlan, [{ module: 'crm', expiresAt: daysAgo(15) }]);
+    expect((await c.get('/deals')).body.error.code).toBe('module_disabled');
+    expect((await c.get('/license')).body.modules).toEqual(['core']);
+  });
+
+  test('воркер: в режиме только чтение задачи записи не идут, печать и выгрузки — идут', async () => {
+    const c = new Client();
+    await c.signup();
+    await license(c, corePlan, [{ module: 'production', expiresAt: daysAgo(3) }, { module: 'services', expiresAt: daysAgo(3) }]);
+    const [w] = await admin`insert into jobs (workspace_id, type, payload) values (${c.workspaceId}, 'production.close_period', '{}'::jsonb) returning id`;
+    const [r] = await admin`insert into jobs (workspace_id, type, payload) values (${c.workspaceId}, 'billing.export_zip', ${JSON.stringify({ exportId: '00000000-0000-0000-0000-000000000000' })}::jsonb) returning id`;
+    await drainJobs();
+    expect((await admin`select last_error from jobs where id = ${w!.id}`)[0]!.last_error).toContain('module_disabled');
+    expect(String((await admin`select last_error from jobs where id = ${r!.id}`)[0]!.last_error)).not.toContain('module_disabled');
+  });
+
+  test('пробный период: арендатор с тарифом, у которого trial_days — срок, признак и запись в журнале; без trial_days ничего не меняется', async () => {
+    const trialPlan = (await op.post('/admin/plans', { name: 'Пробный', modules: ['crm', 'trade'], trialDays: 14 })).body.id as string;
+    const noTrial = (await op.post('/admin/plans', { name: 'Без пробного', modules: ['crm'] })).body.id as string;
+    const mk = async (planId?: string) => {
+      const res = await op.post('/admin/tenants', { name: `Trial ${uniq()}`, ownerEmail: `owner-${uniq()}@test.dev`, planId });
+      expect(res.status).toBe(201);
+      return res.body.workspaceId as string;
+    };
+    const t1 = await mk(trialPlan);
+    const l1 = (await op.get(`/admin/tenants/${t1}/license`)).body;
+    expect(l1).toMatchObject({ assigned: true, isTrial: true, planName: 'Пробный' });
+    const days = (new Date(l1.planExpiresAt).getTime() - Date.now()) / 864e5;
+    expect(days).toBeGreaterThan(13.9);
+    expect(days).toBeLessThan(14.1);
+    const log = (await op.get(`/admin/tenants/${t1}/license-log`)).body.items as any[];
+    expect(log.some(i => i.kind === 'trial_started' && i.actorEmail === op.user!.email)).toBe(true);
+    // тариф без пробного периода назначен, срока нет
+    const l2 = (await op.get(`/admin/tenants/${await mk(noTrial)}/license`)).body;
+    expect(l2).toMatchObject({ assigned: true, isTrial: false, planExpiresAt: null, planName: 'Без пробного' });
+    // тариф по умолчанию без trial_days: строки нет
+    const l3 = (await op.get(`/admin/tenants/${await mk()}/license`)).body;
+    expect(l3).toMatchObject({ assigned: false, planName: 'Полный' });
+    // оператор может снять признак пробного периода и продлить
+    const res = await op.put(`/admin/tenants/${t1}/license`, { planId: trialPlan, planExpiresAt: inDays(365), isTrial: false });
+    expect(res.status).toBe(200);
+    expect((await op.get(`/admin/tenants/${t1}/license`)).body.isTrial).toBe(false);
+  });
+});
+
+describe('лимиты (1207)', () => {
+  const setLimits = (c: Client, limits: Record<string, number>, planId = fullPlan) => op.put(`/admin/tenants/${c.workspaceId}/license`, { planId, limits });
+  const usage = async (c: Client) => (await op.get(`/admin/tenants/${c.workspaceId}/license`)).body.usage;
+
+  test('пользователи: участники и неотвеченные приглашения; существующих не трогаем; 403 limit_exceeded с подробностями', async () => {
+    const c = new Client();
+    await c.signup();
+    expect((await usage(c)).members).toBe(1);
+    await setLimits(c, { members: 2 });
+    const invite = (email: string) => c.post(`/workspaces/${c.workspaceId}/invites`, { email, role: 'member' });
+    expect((await invite(`a-${uniq()}@test.dev`)).status).toBe(201);
+    expect((await usage(c)).members).toBe(2);
+    const r = await invite(`b-${uniq()}@test.dev`);
+    expect(r.status).toBe(403);
+    expect(r.body.error).toMatchObject({ code: 'limit_exceeded', details: { limit: 'members', max: 2, used: 2 } });
+    // лимит ниже текущего использования: существующее остаётся, нового нет
+    await setLimits(c, { members: 1 });
+    expect((await c.get('/members')).status).toBe(200);
+    expect((await invite(`c-${uniq()}@test.dev`)).body.error.code).toBe('limit_exceeded');
+    // снятие лимита возвращает возможность
+    await setLimits(c, {});
+    expect((await invite(`d-${uniq()}@test.dev`)).status).toBe(201);
+  });
+
+  test('организации и склады: 0 — больше нельзя, существующие остаются', async () => {
+    const c = new Client();
+    await c.signup();
+    const u = await usage(c);
+    expect(u.organizations).toBeGreaterThan(0);
+    await setLimits(c, { organizations: u.organizations, warehouses: u.warehouses });
+    const org = await c.post('/organizations', { name: 'Ещё одна' });
+    expect(org.status).toBe(403);
+    expect(org.body.error).toMatchObject({ code: 'limit_exceeded', details: { limit: 'organizations' } });
+    expect((await c.post('/warehouses', { name: 'Ещё склад', code: 'X1' })).body.error.code).toBe('limit_exceeded');
+    expect((await c.get('/organizations')).body.items.length).toBe(u.organizations);
+    await setLimits(c, { organizations: u.organizations + 1, warehouses: u.warehouses + 1 });
+    expect((await c.post('/organizations', { name: 'Ещё одна' })).status).toBe(201);
+    expect((await c.post('/warehouses', { name: 'Ещё склад', code: 'X1' })).status).toBe(201);
+    expect((await c.post('/organizations', { name: 'И ещё' })).body.error.code).toBe('limit_exceeded');
+  });
+
+  test('объём файлов: считаем размеры файлов и PDF, лимит в МБ проверяется при создании файла', async () => {
+    const c = new Client();
+    await c.signup();
+    await setLimits(c, { storageMb: 1 });
+    expect((await c.post('/files', { name: 'a.bin', sizeBytes: 600 * 1024 })).status).toBe(201);
+    expect((await usage(c)).storageBytes).toBe(600 * 1024);
+    const big = await c.post('/files', { name: 'b.bin', sizeBytes: 600 * 1024 });
+    expect(big.status).toBe(403);
+    expect(big.body.error).toMatchObject({ code: 'limit_exceeded', details: { limit: 'storageMb', max: 1 } });
+    expect((await c.post('/files', { name: 'c.bin', sizeBytes: 100 * 1024 })).status).toBe(201);
+  });
+
+  test('лимит тарифа действует, персональный поверх него; оператор видит оба и использование; неизвестный ключ — 400', async () => {
+    const c = new Client();
+    await c.signup();
+    const plan = (await op.post('/admin/plans', { name: `С лимитом ${uniq()}`, modules: [], limits: { organizations: 0 } })).body.id as string;
+    await setLimits(c, {}, plan);
+    expect((await c.post('/organizations', { name: 'X' })).body.error.code).toBe('limit_exceeded');
+    const lic = (await op.get(`/admin/tenants/${c.workspaceId}/license`)).body;
+    expect(lic).toMatchObject({ planLimits: { organizations: 0 }, ownLimits: {}, limits: { organizations: 0 } });
+    await setLimits(c, { organizations: 5 }, plan);
+    expect((await c.post('/organizations', { name: 'X' })).status).toBe(201);
+    expect((await setLimits(c, { bogus: 1 } as any)).status).toBe(400);
+  });
+});
+
+describe('«Нужно больше?»: заявки (1208)', () => {
+  let c: Client;
+  let reqId: string;
+  beforeAll(async () => {
+    c = new Client();
+    await c.signup();
+    await license(c, corePlan);
+  });
+
+  test('арендатор оставляет заявку и видит свои; чужие не видит; валидация модулей и контакта', async () => {
+    expect((await c.post('/license/requests', { modules: [], contact: 'a@b.ru' })).status).toBe(400);
+    expect((await c.post('/license/requests', { modules: ['core'], contact: 'a@b.ru' })).status).toBe(400);
+    expect((await c.post('/license/requests', { modules: ['crm'], contact: '' })).status).toBe(400);
+    const r = await c.post('/license/requests', { modules: ['crm', 'money'], comment: 'Нужна воронка', contact: 'boss@test.dev' });
+    expect(r.status).toBe(201);
+    expect(r.body).toMatchObject({ modules: ['crm', 'money'], status: 'new', contact: 'boss@test.dev' });
+    reqId = r.body.id;
+    expect((await c.get('/license/requests')).body.items.map((x: any) => x.id)).toContain(reqId);
+    expect((await plain.get('/license/requests')).body.items).toEqual([]);
+  });
+
+  test('арендатор не может менять и удалять заявку (RLS и права)', async () => {
+    const run = (q: (tx: any) => Promise<any>) =>
+      sql.begin(async tx => {
+        await tx.unsafe('set local role app_user');
+        await tx`select set_config('app.workspace_id', ${c.workspaceId!}, true)`;
+        return q(tx);
+      });
+    await expect(run(tx => tx`update module_requests set status = 'done'`)).rejects.toThrow(/permission denied/);
+    await expect(run(tx => tx`delete from module_requests`)).rejects.toThrow(/permission denied/);
+  });
+
+  test('оператор видит заявки всех арендаторов и ведёт статус; не оператору закрыто', async () => {
+    const list = await op.get('/admin/requests');
+    const mine = list.body.items.find((x: any) => x.id === reqId);
+    expect(mine).toMatchObject({ workspaceId: c.workspaceId, status: 'new', modules: ['crm', 'money'], requestedByEmail: c.user!.email });
+    expect(mine.workspaceName).toBeTruthy();
+    const upd = await op.put(`/admin/requests/${reqId}`, { status: 'in_progress', note: 'Звоним' });
+    expect(upd.body).toMatchObject({ status: 'in_progress', note: 'Звоним', handled_by_email: op.user!.email });
+    expect((await op.get('/admin/requests?status=new')).body.items.some((x: any) => x.id === reqId)).toBe(false);
+    expect((await c.get('/license/requests')).body.items.find((x: any) => x.id === reqId).status).toBe('in_progress');
+    expect((await op.put(`/admin/requests/${reqId}`, { status: 'bogus' })).status).toBe(400);
+    expect((await plain.get('/admin/requests')).status).toBe(403);
+    expect((await plain.put(`/admin/requests/${reqId}`, { status: 'done' })).status).toBe(403);
+  });
+
+  test('заявку может оставить владелец или админ, участник — нет', async () => {
+    const m = new Client();
+    await m.signup();
+    const inv = await c.post(`/workspaces/${c.workspaceId}/invites`, { email: m.user!.email, role: 'member' });
+    expect(inv.status).toBe(201);
+    expect((await m.post('/invites/accept', { token: inv.body.token })).status).toBeLessThan(300);
+    const r = await m.post('/license/requests', { modules: ['crm'], contact: 'x@test.dev' }, c.workspaceId);
+    expect(r.status).toBe(403);
+  });
+
+  test('воркер дублирует заявку в вебхук лидов, при сбое повторяет; без адреса ничего не отправляет', async () => {
+    const calls: { url: string; body: any }[] = [];
+    let fail = 1;
+    const orig = { fetch: requestHookRuntime.fetch, url: requestHookRuntime.url };
+    try {
+      // адрес не задан: задача выполнена, заявка не помечена
+      requestHookRuntime.url = () => undefined;
+      const a = await c.post('/license/requests', { modules: ['trade'], contact: '+7 900 000-00-00' });
+      await drainJobs();
+      expect((await admin`select hook_sent_at from module_requests where id = ${a.body.id}`)[0]!.hook_sent_at).toBeNull();
+      expect((await admin`select status from jobs where payload->>'requestId' = ${a.body.id}`)[0]!.status).toBe('done');
+      // адрес задан: первый вызов 500 → повтор → успех
+      requestHookRuntime.url = () => 'http://hook.test/hooks/leads/token';
+      requestHookRuntime.fetch = async (url, init) => {
+        calls.push({ url, body: JSON.parse(String(init.body)) });
+        return new Response('{}', { status: fail-- > 0 ? 500 : 201 });
+      };
+      const b = await c.post('/license/requests', { modules: ['production', 'services'], comment: 'Срочно', contact: 'boss@test.dev' });
+      await drainJobs();
+      expect(calls).toHaveLength(1);
+      const job = (await admin`select status, attempts, last_error from jobs where payload->>'requestId' = ${b.body.id}`)[0]!;
+      expect(job.status).toBe('queued');
+      expect(job.last_error).toContain('500');
+      await admin`update jobs set run_at = now() where payload->>'requestId' = ${b.body.id}`;
+      await drainJobs();
+      expect(calls).toHaveLength(2);
+      expect(calls[1]).toMatchObject({ url: 'http://hook.test/hooks/leads/token', body: { email: 'boss@test.dev', utm_source: 'gr8r-module-request' } });
+      expect(calls[1]!.body.comment).toContain('production, services');
+      expect(calls[1]!.body.comment).toContain('Срочно');
+      expect((await admin`select hook_sent_at from module_requests where id = ${b.body.id}`)[0]!.hook_sent_at).not.toBeNull();
+      expect((await admin`select status from jobs where payload->>'requestId' = ${b.body.id}`)[0]!.status).toBe('done');
+      // повтор задачи не шлёт заявку второй раз
+      await admin`update jobs set status = 'queued', run_at = now() where payload->>'requestId' = ${b.body.id}`;
+      await drainJobs();
+      expect(calls).toHaveLength(2);
+    } finally {
+      Object.assign(requestHookRuntime, orig);
+    }
+  });
+});
+
+describe('журнал изменений лицензии (1209)', () => {
+  test('смена тарифа, срока, лимитов и доп. модулей пишется со старым и новым значением и автором', async () => {
+    const c = new Client();
+    await c.signup();
+    const put = (body: any) => op.put(`/admin/tenants/${c.workspaceId}/license`, body);
+    expect((await op.get(`/admin/tenants/${c.workspaceId}/license-log`)).body.items).toEqual([]);
+    await put({ planId: corePlan, planExpiresAt: '2030-01-01T00:00:00Z', limits: { members: 3 }, grants: [{ module: 'crm', expiresAt: null }] });
+    await put({ planId: corePlan, planExpiresAt: '2031-01-01T00:00:00Z', limits: { members: 5, warehouses: 2 }, grants: [{ module: 'crm', expiresAt: '2030-06-01T00:00:00Z' }, { module: 'money' }] });
+    await put({ planId: fullPlan, planExpiresAt: null, limits: {}, grants: [] });
+    const items = (await op.get(`/admin/tenants/${c.workspaceId}/license-log`)).body.items as any[];
+    const has = (kind: string, subject: string | null, o: unknown, n: unknown) =>
+      items.some(i => i.kind === kind && i.subject === subject && JSON.stringify(i.old) === JSON.stringify(o) && JSON.stringify(i.new) === JSON.stringify(n) && i.actorEmail === op.user!.email);
+    expect(has('plan', null, 'Полный', 'Только ядро')).toBe(true);
+    expect(has('plan', null, 'Только ядро', 'Полный')).toBe(true);
+    expect(items.some(i => i.kind === 'plan_expires' && i.old === null && String(i.new).startsWith('2030-01-01'))).toBe(true);
+    expect(items.some(i => i.kind === 'plan_expires' && String(i.old).startsWith('2031-01-01') && i.new === null)).toBe(true);
+    expect(has('limit', 'members', null, 3)).toBe(true);
+    expect(has('limit', 'members', 3, 5)).toBe(true);
+    expect(has('limit', 'warehouses', 2, null)).toBe(true);
+    expect(items.some(i => i.kind === 'grant_added' && i.subject === 'crm')).toBe(true);
+    expect(items.some(i => i.kind === 'grant_added' && i.subject === 'money')).toBe(true);
+    expect(items.some(i => i.kind === 'grant_expires' && i.subject === 'crm' && i.old === null && String(i.new).startsWith('2030-06-01'))).toBe(true);
+    expect(items.some(i => i.kind === 'grant_removed' && i.subject === 'crm')).toBe(true);
+    // без изменений — без записей
+    const n = items.length;
+    await put({ planId: fullPlan, planExpiresAt: null, limits: {}, grants: [] });
+    expect(((await op.get(`/admin/tenants/${c.workspaceId}/license-log`)).body.items as any[]).length).toBe(n);
+  });
+
+  test('правка тарифа пишет в журнал арендаторов на этом тарифе', async () => {
+    const c = new Client();
+    await c.signup();
+    const p = await op.post('/admin/plans', { name: 'Журнальный', modules: ['crm'] });
+    await op.put(`/admin/tenants/${c.workspaceId}/license`, { planId: p.body.id });
+    await op.put(`/admin/plans/${p.body.id}`, { name: 'Журнальный', modules: ['crm', 'trade'], limits: { members: 9 } });
+    const items = (await op.get(`/admin/tenants/${c.workspaceId}/license-log`)).body.items as any[];
+    expect(items.find(i => i.kind === 'plan_edit' && i.subject === 'modules')).toMatchObject({ old: ['crm'], new: ['crm', 'trade'], context: 'Журнальный' });
+    expect(items.find(i => i.kind === 'plan_edit' && i.subject === 'limits')).toMatchObject({ new: { members: 9 } });
+  });
+
+  test('журнал виден только оператору и недоступен арендатору', async () => {
+    expect((await plain.get(`/admin/tenants/${plain.workspaceId}/license-log`)).status).toBe(403);
+    const run = (q: (tx: any) => Promise<any>) =>
+      sql.begin(async tx => {
+        await tx.unsafe('set local role app_user');
+        await tx`select set_config('app.workspace_id', ${op.workspaceId!}, true)`;
+        return q(tx);
+      });
+    expect(await run(tx => tx`select * from license_log`)).toHaveLength(0);
+    await expect(run(tx => tx`insert into license_log (workspace_id, kind) values (${op.workspaceId!}, 'plan')`)).rejects.toThrow(/permission denied/);
   });
 });
 

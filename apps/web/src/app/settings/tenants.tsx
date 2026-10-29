@@ -3,13 +3,13 @@
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2 } from 'lucide-react';
-import { Alert, Badge, Button, Checkbox, ConfirmDialog, EmptyState, Field, Input, Skeleton, toast } from '@/components/ui';
+import { Alert, Badge, Button, Checkbox, ConfirmDialog, EmptyState, Field, Input, Select, Skeleton, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { fmtDateTimeIntl } from '@/i18n/format';
 import { API_BASE, errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';
 import { SettingsHead, SRow } from './parts';
-import { TenantLicenseDialog } from './plans';
+import { TenantLicenseDialog, usePlans } from './plans';
 
 interface TenantRow {
   id: string;
@@ -39,6 +39,8 @@ export function TenantsSection({ title }: { title: string }) {
   const [name, setName] = React.useState('');
   const [ownerEmail, setOwnerEmail] = React.useState('');
   const [ownerName, setOwnerName] = React.useState('');
+  const plans = usePlans();
+  const [planId, setPlanId] = React.useState('');
   const [demo, setDemo] = React.useState(false);
   const [ttl, setTtl] = React.useState('14');
   const [busy, setBusy] = React.useState(false);
@@ -49,7 +51,7 @@ export function TenantsSection({ title }: { title: string }) {
   const create = async () => {
     setBusy(true);
     try {
-      const body = { name, ownerEmail, ownerName: ownerName || undefined, demo, ttlDays: demo ? Number(ttl) || undefined : undefined };
+      const body = { name, ownerEmail, ownerName: ownerName || undefined, demo, ttlDays: demo ? Number(ttl) || undefined : undefined, planId: planId || undefined };
       const res = await call<Created>(ws, 'POST', '/admin/tenants', body);
       setCreated(res);
       toast(t('settings.tenants.created', { slug: res.slug }));
@@ -89,6 +91,9 @@ export function TenantsSection({ title }: { title: string }) {
           <Field label={t('settings.tenants.ownerName')}>{p => <Input {...p} maxLength={100} value={ownerName} onChange={e => setOwnerName(e.target.value)} />}</Field>
         </div>
         <div className="row" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-end', marginTop: 8 }}>
+          <Field label={t('licensing.operator.plan')} hint={t('settings.tenants.planHint')}>
+            {p => <Select {...p} value={planId} onValueChange={setPlanId} options={[{ value: '', label: t('settings.tenants.planDefault') }, ...(plans.data?.items ?? []).map(x => ({ value: x.id, label: x.name }))]} />}
+          </Field>
           <label className="row" style={{ gap: 6 }}>
             <Checkbox checked={demo} onChange={e => setDemo(e.target.checked)} />
             {t('settings.tenants.demo')}

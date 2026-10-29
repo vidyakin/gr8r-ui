@@ -14,6 +14,7 @@ export const sections = {
   activity: 'Activity',
   archive: 'Archive',
   search: 'Search',
+  upgrade: 'Need more?',
   settings: 'Settings',
   system: 'Design system',
   crm: 'Dashboard',

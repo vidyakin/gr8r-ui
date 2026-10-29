@@ -5,7 +5,7 @@
 import { sql as dsql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { campaignByUtm, enqueueYooPayment, findEnabledForm, insertLead, isUuid, parseFormToken, parsePriceToken, pickRoundRobin, publicPriceList, rateLimits, readMyModules, withContext, type Sql } from '@gr8r/db';
+import { campaignByUtm, enqueueYooPayment, findEnabledForm, insertLead, isUuid, parseFormToken, parsePriceToken, pickRoundRobin, publicPriceList, rateLimits, readMyModules, readMyReadableModules, withContext, type Sql } from '@gr8r/db';
 import { leadWebhookBody, pickUtm, yooWebhookBody } from '@gr8r/shared';
 import { AppError } from '../errors';
 import { isYooKassaIp } from '../yookassa-ip';
@@ -49,7 +49,7 @@ export const hookRoutes = new Hono<AppEnv>()
     const limit = Math.min(500, Math.max(1, Number(c.req.query('limit')) || 200));
     const offset = Math.max(0, Number(c.req.query('offset')) || 0);
     const data = await withContext(sql, { workspaceId: parsed.workspaceId }, async db => {
-      if (!(await readMyModules(db)).has('trade')) return null; // модуль выключен: как несуществующая ссылка
+      if (!(await readMyReadableModules(db)).has('trade')) return null; // модуль выключен: как несуществующая ссылка
       return publicPriceList(db, parsed.workspaceId, parsed.secret, { q, limit, offset });
     });
     if (!data) throw notFound();

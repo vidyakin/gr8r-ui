@@ -7,6 +7,8 @@ import type { FieldOptions, FieldType, ProductKind, VatRate } from '@gr8r/shared
 import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId, type MetaField } from '../meta/data';
+import { useModuleReady } from '../licensing/data';
+
 import { useSession } from '../data/session';
 import { uuidv7 } from '../lib/uuid';
 import { fmtAmount } from '@/i18n';
@@ -276,7 +278,8 @@ export interface WorkNorm {
 
 export function useWorkNorms() {
   const ws = useWsId();
-  return useQuery({ queryKey: catalogKey(ws, 'work-norms'), queryFn: () => call<{ items: WorkNorm[] }>(ws, 'GET', '/services/work-norms'), staleTime: Infinity });
+  const on = useModuleReady('services');
+  return useQuery({ queryKey: catalogKey(ws, 'work-norms'), queryFn: () => call<{ items: WorkNorm[] }>(ws, 'GET', '/services/work-norms'), staleTime: Infinity, enabled: on });
 }
 
 /** Норма времени работы и участок по умолчанию */
@@ -293,7 +296,8 @@ export function useSaveWorkNorm() {
 /** Участки: список для выбора участка по умолчанию у работы */
 export function useWorkCenters() {
   const ws = useWsId();
-  return useQuery({ queryKey: catalogKey(ws, 'work-centers'), queryFn: () => call<{ items: { id: string; name: string }[] }>(ws, 'GET', '/work-centers?limit=200'), staleTime: Infinity });
+  const on = useModuleReady('production');
+  return useQuery({ enabled: on, queryKey: catalogKey(ws, 'work-centers'), queryFn: () => call<{ items: { id: string; name: string }[] }>(ws, 'GET', '/work-centers?limit=200'), staleTime: Infinity });
 }
 
 /* ---------------- дерево категорий ---------------- */

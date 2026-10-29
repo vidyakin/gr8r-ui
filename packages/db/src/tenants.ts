@@ -13,6 +13,7 @@ import { ensureDealPipeline } from './pipelines';
 import { dropFieldIndex, enqueueFieldIndex, registerSystemEntities } from './meta';
 import { registerBaseUnits } from './catalog';
 import { ensureModuleProjects } from './modules';
+import { resolvePlanId, startTenantLicense } from './licensing';
 import { ensurePriceKinds } from './pricing';
 import { members, memberships, statuses, users, workspaces } from './schema';
 import { fields } from './schema/meta';
@@ -82,6 +83,10 @@ export interface CreateTenantInput {
   /** С демо-данными и сроком жизни */
   demo?: boolean;
   ttlDays?: number;
+  /** Тариф (id или ключ); без него — тариф по умолчанию. Пробный период тарифа (trial_days) начинается сразу */
+  plan?: string;
+  /** Оператор, создавший арендатора (для журнала лицензии) */
+  actorId?: string;
 }
 
 export interface CreatedTenant {
@@ -98,6 +103,7 @@ const isUniqueViolation = (e: unknown) => (e as { code?: string })?.code === '23
 
 /** Создаёт арендатора. Владелец — существующий пользователь с этим email или новый (пароль генерируется, если не передан) */
 export async function createTenant(sql: Sql, input: CreateTenantInput): Promise<CreatedTenant> {
+  const planId = input.plan ? await resolvePlanId(sql, input.plan) : null;
   const email = input.owner.email.trim().toLowerCase();
   let password: string | null = null;
   const owner = await withContext(sql, {}, async db => {
@@ -130,6 +136,7 @@ export async function createTenant(sql: Sql, input: CreateTenantInput): Promise<
     if (isUniqueViolation(e)) throw new DomainError(409, 'slug_taken', `Workspace address "${slug}" is already taken`);
     throw e;
   }
+  await startTenantLicense(sql, id, planId, input.actorId ?? null);
   return { workspaceId: id, slug, kind, expiresAt, ownerEmail: owner.email, password };
 }
 
@@ -234,7 +241,7 @@ export async function isOperator(sql: Sql, userId: string): Promise<boolean> {
 
 export const TENANT_ARCHIVE_FORMAT = 'gr8r-tenant';
 const ARCHIVE_VERSION = 1;
-const SKIP_TABLES = new Set(['jobs', 'workspace_licenses', 'workspace_module_grants']); // очередь и лицензия установки (платформенные данные оператора) не выгружаются
+const SKIP_TABLES = new Set(['jobs', 'workspace_licenses', 'workspace_module_grants', 'license_log']); // очередь и лицензия установки (платформенные данные оператора) не выгружаются
 
 /** Последняя миграция: архив загружается только в установку с той же схемой */
 export function schemaTag(): string {

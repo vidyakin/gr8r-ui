@@ -2,7 +2,7 @@
 import { zValidator } from '@hono/zod-validator';
 import { and, count, eq, gt, isNull, sql as dsql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { invites, members, memberships, recordEvent, uuidv7, withContext, workspaces } from '@gr8r/db';
+import { assertLimit, invites, members, memberships, recordEvent, uuidv7, withContext, workspaces } from '@gr8r/db';
 import { inviteAcceptBody, inviteCreateBody, memberParam, roleChangeBody, workspaceCreateBody, workspaceParam, workspaceUpdateBody, idParam } from '@gr8r/shared';
 import { AppError, forbidden, notFound } from './errors';
 import { ctxOf, validationHook } from './crud';
@@ -61,6 +61,7 @@ export const workspaceRoutes = new Hono<AppEnv>()
     const { email, role, memberId: wantedId } = c.req.valid('json');
     const [existing] = await db.select({ id: members.id, status: members.status }).from(members).where(eq(dsql`lower(${members.email})`, email)).limit(1);
     if (existing && existing.status === 'active') throw new AppError(409, 'already_member', 'This person is already a member of the workspace');
+    await assertLimit(db, 'members'); // лимит пользователей тарифа: участники и неотвеченные приглашения
     const token = newInviteToken(workspaceId);
     const [invite] = await db
       .insert(invites)

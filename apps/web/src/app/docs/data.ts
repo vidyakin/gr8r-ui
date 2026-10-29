@@ -11,6 +11,8 @@ import { errorMessage } from '../data/api';
 import type { LineSerial } from './serials-data';
 import { useSession } from '../data/session';
 import { call, useWsId } from '../meta/data';
+import { useModuleReady } from '../licensing/data';
+
 
 export const docsKey = (ws: string, ...rest: unknown[]) => ['ws', ws, 'docs', ...rest] as const;
 
@@ -682,14 +684,18 @@ export function useWorkOrderTime(id: string | undefined) {
 }
 
 /** Виды заказ-нарядов воркспейса */
-export function useWorkOrderKinds() {  const ws = useWsId();
-  return useQuery({ queryKey: docsKey(ws, 'work-order-kinds'), queryFn: async () => (await call<{ items: WorkOrderKind[] }>(ws, 'GET', '/work-order-kinds?limit=100')).items, staleTime: Infinity });
+export function useWorkOrderKinds() {
+  const ws = useWsId();
+  const on = useModuleReady('services');
+  return useQuery({ enabled: on, queryKey: docsKey(ws, 'work-order-kinds'), queryFn: async () => (await call<{ items: WorkOrderKind[] }>(ws, 'GET', '/work-order-kinds?limit=100')).items, staleTime: Infinity });
 }
 
 /** Состояния заказ-наряда (по видам) */
 export function useDocumentStates(kindId?: string) {
   const ws = useWsId();
+  const on = useModuleReady('services');
   return useQuery({
+    enabled: on,
     queryKey: docsKey(ws, 'document-states', kindId ?? 'all'),
     queryFn: async () => {
       const sp = new URLSearchParams({ limit: '200' });

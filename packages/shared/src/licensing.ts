@@ -37,9 +37,9 @@ export const MODULES: readonly ModuleDef[] = [
       '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/organizations', '/bank-accounts', '/warehouses', '/cost-items',
       '/companies', '/contacts', '/positions', '/product-kinds', '/secrets', '/license',
     ],
-    sections: ['home', 'inbox', 'mytasks', 'favorites', 'notifications', 'overview', 'projects', 'tasks', 'calendar', 'timeline', 'members', 'activity', 'archive', 'search', 'settings', 'system', 'catalog', 'crmCompanies', 'crmContacts'],
+    sections: ['home', 'inbox', 'mytasks', 'favorites', 'notifications', 'overview', 'projects', 'tasks', 'calendar', 'timeline', 'members', 'activity', 'archive', 'search', 'settings', 'upgrade', 'system', 'catalog', 'crmCompanies', 'crmContacts'],
     settings: ['workspace', 'appearance', 'language', 'datetime', 'members', 'teams', 'projects', 'permissions', 'data-model', 'organizations', 'warehouses', 'cost-items', 'positions', 'product-kinds'],
-    jobs: ['noop', 'index.create', 'index.drop'],
+    jobs: ['noop', 'index.create', 'index.drop', 'module_request.notify'],
   }),
   def({
     id: 'crm',
@@ -179,39 +179,155 @@ export interface LicenseRaw {
   planAllModules: boolean;
   /** Срок тарифа арендатора; null — бессрочно */
   planExpiresAt: string | null;
+  /** Тариф выдан как пробный (срок — пробный период) */
+  isTrial?: boolean;
   /** Доп. модули со сроками (null — бессрочно) */
   grants: { module: string; expiresAt: string | null }[];
   /** Лимиты тарифа с персональными поверх него (проверит задача 1207; пока только хранятся) */
   limits: Record<string, unknown>;
+  /** Лимиты самого тарифа и персональные арендатора по отдельности (limits — итог) */
+  planLimits?: Record<string, number>;
+  ownLimits?: Record<string, number>;
 }
 
-const active = (expiresAt: string | null, now: Date) => !expiresAt || new Date(expiresAt).getTime() > now.getTime();
+/* Сроки (задача 1206). После окончания срока модуль ещё READONLY_DAYS дней работает «только для чтения», затем выключается.
+   Источники модулей — тариф (planExpiresAt) и каждый доп. модуль (expiresAt); модуль включён, пока действует хоть один источник,
+   в который он входит (в том числе как зависимость). Ядро не истекает. */
+export const READONLY_DAYS = 14;
+/** За сколько дней до окончания срока владельцу показывается баннер */
+export const EXPIRY_NOTICE_DAYS = 7;
+const DAY_MS = 864e5;
 
-/** Включённые модули арендатора: ядро + модули тарифа (пока не истёк срок) + доп. модули с действующим сроком + зависимости */
-export function enabledModules(l: LicenseRaw | null, now: Date = new Date()): Set<ModuleId> {
-  const raw: string[] = [];
+export type ModuleAccess = 'active' | 'readonly' | 'off';
+export interface ModuleState {
+  state: ModuleAccess;
+  /** active: когда закончится срок (null — бессрочно); readonly: когда срок закончился; off: последний известный срок или null */
+  expiresAt: string | null;
+  /** readonly: до какого момента доступно чтение */
+  readonlyUntil: string | null;
+}
+
+const time = (iso: string) => new Date(iso).getTime();
+
+/** Состояние каждого модуля: действует / только чтение / выключен */
+export function moduleStates(l: LicenseRaw | null, now: Date = new Date()): Record<ModuleId, ModuleState> {
+  const sources: { modules: Set<ModuleId>; expiresAt: string | null }[] = [];
   if (l) {
-    if (active(l.planExpiresAt, now)) raw.push(...(l.planAllModules ? ['*'] : l.planModules));
-    for (const g of l.grants) if (active(g.expiresAt, now)) raw.push(g.module);
+    sources.push({ modules: resolveModules(l.planAllModules ? ['*'] : l.planModules), expiresAt: l.planExpiresAt });
+    for (const g of l.grants) sources.push({ modules: resolveModules([g.module]), expiresAt: g.expiresAt });
   }
-  return resolveModules(raw);
+  const t = now.getTime();
+  const out = {} as Record<ModuleId, ModuleState>;
+  for (const id of MODULE_IDS) {
+    if (id === CORE_MODULE) {
+      out[id] = { state: 'active', expiresAt: null, readonlyUntil: null };
+      continue;
+    }
+    const mine = sources.filter(s => s.modules.has(id));
+    const live = mine.filter(s => !s.expiresAt || time(s.expiresAt) > t);
+    if (live.length) {
+      const unlimited = live.some(s => !s.expiresAt);
+      const last = Math.max(...live.map(s => (s.expiresAt ? time(s.expiresAt) : 0)));
+      out[id] = { state: 'active', expiresAt: unlimited ? null : new Date(last).toISOString(), readonlyUntil: null };
+      continue;
+    }
+    const lastEnd = mine.length ? Math.max(...mine.map(s => time(s.expiresAt!))) : null;
+    if (lastEnd !== null && t < lastEnd + READONLY_DAYS * DAY_MS)
+      out[id] = { state: 'readonly', expiresAt: new Date(lastEnd).toISOString(), readonlyUntil: new Date(lastEnd + READONLY_DAYS * DAY_MS).toISOString() };
+    else out[id] = { state: 'off', expiresAt: lastEnd === null ? null : new Date(lastEnd).toISOString(), readonlyUntil: null };
+  }
+  return out;
 }
 
-/** Ответ GET /license: набор модулей текущего арендатора и сведения о тарифе */
+/** Модули, в которых можно писать: ядро + действующие. Их проверяют воркер, расписания, автоматизации и запись в API */
+export function enabledModules(l: LicenseRaw | null, now: Date = new Date()): Set<ModuleId> {
+  const s = moduleStates(l, now);
+  return new Set(MODULE_IDS.filter(id => s[id].state === 'active'));
+}
+
+/** Модули, которые можно читать: действующие и в режиме «только чтение» */
+export function readableModules(l: LicenseRaw | null, now: Date = new Date()): Set<ModuleId> {
+  const s = moduleStates(l, now);
+  return new Set(MODULE_IDS.filter(id => s[id].state !== 'off'));
+}
+
+/** Ответ GET /license: видимые модули (действующие и только чтение), их состояния и сведения о тарифе */
 export interface LicenseView {
+  /** Модули, которые видны в интерфейсе и читаются через API (в том числе «только чтение») */
   modules: ModuleId[];
+  states: Record<ModuleId, ModuleState>;
   plan: { key: string | null; name: string | null; expiresAt: string | null };
+  /** Тариф выдан как пробный */
+  isTrial: boolean;
   grants: { module: ModuleId; expiresAt: string | null }[];
 }
 
 export function licenseView(l: LicenseRaw | null, now: Date = new Date()): LicenseView {
-  const on = enabledModules(l, now);
+  const states = moduleStates(l, now);
   return {
-    modules: MODULE_IDS.filter(id => on.has(id)),
+    modules: MODULE_IDS.filter(id => states[id].state !== 'off'),
+    states,
     plan: { key: l?.planKey ?? null, name: l?.planName ?? null, expiresAt: l?.planExpiresAt ?? null },
+    isTrial: l?.isTrial ?? false,
     grants: (l?.grants ?? []).filter((g): g is { module: ModuleId; expiresAt: string | null } => isModuleId(g.module)),
   };
 }
+
+/** Что показать владельцу/админу баннером: скорое окончание срока и режим «только чтение» */
+export interface LicenseNotice {
+  kind: 'expiring' | 'readonly';
+  modules: ModuleId[];
+  /** expiring: момент окончания; readonly: до какого момента доступно чтение */
+  until: string;
+  /** Окончание касается пробного периода */
+  trial: boolean;
+}
+
+export function licenseNotices(v: LicenseView, now: Date = new Date()): LicenseNotice[] {
+  const t = now.getTime();
+  const out: LicenseNotice[] = [];
+  const ro = MODULE_IDS.filter(id => v.states[id].state === 'readonly');
+  if (ro.length) out.push({ kind: 'readonly', modules: ro, until: new Date(Math.min(...ro.map(id => time(v.states[id].readonlyUntil!)))).toISOString(), trial: v.isTrial });
+  const soon = MODULE_IDS.filter(id => {
+    const s = v.states[id];
+    return s.state === 'active' && s.expiresAt && time(s.expiresAt) - t <= EXPIRY_NOTICE_DAYS * DAY_MS;
+  });
+  if (soon.length) out.push({ kind: 'expiring', modules: soon, until: new Date(Math.min(...soon.map(id => time(v.states[id].expiresAt!)))).toISOString(), trial: v.isTrial });
+  return out;
+}
+
+/** Запись журнала изменений лицензии (задача 1209). old/new — значения до и после (null — не было / убрали) */
+export interface LicenseLogEntry {
+  id: string;
+  at: string;
+  /** Email оператора на момент изменения; null — система (пробный период при создании арендатора) */
+  actorEmail: string | null;
+  kind: 'plan' | 'plan_expires' | 'grant_added' | 'grant_removed' | 'grant_expires' | 'limit' | 'trial' | 'trial_started' | 'plan_edit';
+  /** Модуль, ключ лимита или поле тарифа */
+  subject: string | null;
+  /** Название тарифа для plan_edit */
+  context: string | null;
+  old: unknown;
+  new: unknown;
+}
+
+/* Лимиты тарифа (задача 1207): ключ в license_plans.limits / workspace_licenses.limits. Нет ключа — без ограничения, 0 — больше нельзя.
+   members — пользователи (участники + неотвеченные приглашения), organizations и warehouses — не в архиве, storageMb — объём файлов в МБ */
+export const LIMIT_KEYS = ['members', 'organizations', 'warehouses', 'storageMb'] as const;
+export type LimitKey = (typeof LIMIT_KEYS)[number];
+export const isLimitKey = (v: string): v is LimitKey => (LIMIT_KEYS as readonly string[]).includes(v);
+export const MB = 1024 * 1024;
+
+/** Использование лимитов арендатором: счётчики в единицах лимита (объём — в байтах) */
+export interface LicenseUsage {
+  members: number;
+  organizations: number;
+  warehouses: number;
+  storageBytes: number;
+}
+
+/** Использование по ключу лимита в единицах лимита (МБ для storageMb) */
+export const usageOf = (u: LicenseUsage, key: LimitKey): number => (key === 'storageMb' ? u.storageBytes / MB : u[key]);
 
 /** Модули, нужные набору узлов автоматизации и выключенные у арендатора (по типам узлов; неизвестный тип считается общим узлом автоматизаций) */
 export function disabledModulesOfNodes(nodeTypes: Iterable<string>, enabled: ReadonlySet<ModuleId>): ModuleId[] {
