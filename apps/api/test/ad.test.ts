@@ -16,6 +16,9 @@ const mk = async (c: Client, path: string, body: Record<string, unknown>) => {
   return r.body as any;
 };
 const today = new Date().toISOString().slice(0, 10);
+// период отчёта вчера–завтра: created_at сравнивается с датой в часовом поясе сессии БД, а today — дата UTC
+const dayOff = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+const period = `from=${dayOff(-1)}&to=${dayOff(1)}`;
 
 let direct: any;
 let site: any;
@@ -107,13 +110,13 @@ describe('расходы и отчёт по каналам', () => {
   test('отчёт: лиды, клиенты, выручка выигранных сделок, CPL и ROMI', async () => {
     await mk(member, '/leads', { name: 'Без источника' });
     await mk(member, '/deals', { name: 'Выиграна', stage: 'won', amount: '60001.50', campaignId: camp.id, currency: 'RUB' });
-    const r = await owner.get(`/ad-report?from=${today}&to=${today}&groupBy=campaign`);
+    const r = await owner.get(`/ad-report?${period}&groupBy=campaign`);
     expect(r.status).toBe(200);
     const row = r.body.rows.find((x: any) => x.key === camp.id);
     // лиды кампании за сегодня: «По кампании» (источник потом сменён — уже не кампании), Utm-лид, Конверсия
     expect(row).toMatchObject({ name: 'Кухни', sourceName: 'Яндекс.Директ', leads: 2, converted: 1, newClients: 1, wonDeals: 1, revenue: '60001.50', expense: '20000.50', conversion: '50.0', cpl: '10000.25', cac: '20000.50', romi: '200.0' });
     expect(r.body.currencies).toEqual(['RUB']);
-    const bySrc = (await member.get(`/ad-report?from=${today}&to=${today}`)).body;
+    const bySrc = (await member.get(`/ad-report?${period}`)).body;
     expect(bySrc.rows.find((x: any) => x.key === direct.id).expense).toBe('20000.50');
     expect(bySrc.total.expense).toBe('20000.50');
     expect(bySrc.rows.at(-1)).toMatchObject({ key: null, leads: 1 });
