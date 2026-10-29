@@ -7,6 +7,7 @@ export const positions = {
     production_worker: 'Production worker',
     work_order_executor: 'Work order executor',
     sales_manager: 'Sales manager',
+    driver: 'Driver',
   },
   fnHint: {
     appointments_specialist: 'Sees clients by appointment',
@@ -14,6 +15,7 @@ export const positions = {
     production_worker: 'Production and piecework assignee',
     work_order_executor: 'Assignee of work orders',
     sales_manager: 'Owner of deals, sales plans',
+    driver: 'Drives vehicles: waybills, fleet documents',
   },
   section: {
     crm: 'CRM',
@@ -26,6 +28,7 @@ export const positions = {
     projects: 'Projects and tasks',
     catalog: 'Catalog',
     automations: 'Automations',
+    transport: 'Transport',
   },
   kindType: { goods: 'Goods', service: 'Service', work: 'Work' },
   noAccess: { title: 'No access to this section', body: 'Your position does not include this section. Ask an admin to change your position if you need it.' },

@@ -66,6 +66,11 @@ import {
   Scale,
   ScanBarcode,
   Target,
+  Car,
+  Fuel,
+  UserRound,
+  FileClock,
+  Route,
   type LucideIcon,
   UserPlus,
 } from 'lucide-react';
@@ -143,6 +148,15 @@ export const SECTIONS = {
   repairItems: { path: '/repair-items', name: 'Items in repair', icon: Wrench },
   deliveries: { path: '/deliveries', name: 'Deliveries', icon: Truck },
   myDeliveries: { path: '/deliveries/mine', name: 'My deliveries', icon: PackageCheck },
+  // Транспорт: автопарк
+  fleet: { path: '/fleet', name: 'Fleet', icon: Truck },
+  fleetVehicles: { path: '/fleet/vehicles', name: 'Vehicles', icon: Car },
+  fleetDrivers: { path: '/fleet/drivers', name: 'Drivers', icon: UserRound },
+  fleetDocuments: { path: '/fleet/documents', name: 'Fleet documents', icon: FileClock },
+  fleetWaybills: { path: '/fleet/waybills', name: 'Waybills', icon: Route },
+  fleetFuel: { path: '/fleet/fuel', name: 'Fuel', icon: Fuel },
+  fleetService: { path: '/fleet/service', name: 'Service and repairs', icon: Wrench },
+  fleetFines: { path: '/fleet/fines', name: 'Fines', icon: ReceiptText },
   // Договоры и биллинг
   contracts: { path: '/contracts', name: 'Contracts', icon: FileSignature },
   tariffPlans: { path: '/tariff-plans', name: 'Tariff plans', icon: ListChecks },
@@ -217,6 +231,10 @@ export const NAV_GROUPS = {
   services: {
     icon: BriefcaseBusiness,
     items: [{ id: 'workOrders' }, { id: 'repairItems' }, { id: 'deliveries' }, { id: 'myDeliveries' }, { id: 'servicesTimesheet' }, { id: 'servicesPlanner' }, { id: 'servicesReports' }, { id: 'contracts' }, { id: 'tariffPlans' }, { id: 'billing' }],
+  },
+  transport: {
+    icon: Truck,
+    items: [{ id: 'fleet' }, { id: 'fleetVehicles' }, { id: 'fleetDrivers' }, { id: 'fleetDocuments' }, { id: 'fleetWaybills' }, { id: 'fleetFuel' }, { id: 'fleetService' }, { id: 'fleetFines' }],
   },
   finance: {
     icon: Landmark,

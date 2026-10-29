@@ -6,6 +6,7 @@ export const positions = {
     production_worker: 'Исполнитель производства',
     work_order_executor: 'Исполнитель заказ-нарядов',
     sales_manager: 'Менеджер продаж',
+    driver: 'Водитель',
   },
   fnHint: {
     appointments_specialist: 'Принимает клиентов по записи',
@@ -13,6 +14,7 @@ export const positions = {
     production_worker: 'Исполнитель производства и сдельных нарядов',
     work_order_executor: 'Исполнитель заказ-нарядов',
     sales_manager: 'Ответственный по сделкам, планам продаж',
+    driver: 'Водит машины: путевые листы, документы водителя',
   },
   section: {
     crm: 'CRM',
@@ -25,6 +27,7 @@ export const positions = {
     projects: 'Проекты и задачи',
     catalog: 'Каталог',
     automations: 'Автоматизации',
+    transport: 'Транспорт',
   },
   kindType: { goods: 'Товар', service: 'Услуга', work: 'Работа' },
   noAccess: { title: 'Нет доступа к разделу', body: 'Ваша должность не включает этот раздел. Если он нужен, попросите администратора изменить должность.' },

@@ -167,6 +167,10 @@
   flex-direction: column;
   gap: 6px;
 }
+/* поле на всю ширину сетки формы (автопарк) */
+.field.fleet-wide {
+  grid-column: 1 / -1;
+}
 /* подпись слева от поля, в одну линию (фильтры периода) */
 .field-row {
   flex-direction: row;

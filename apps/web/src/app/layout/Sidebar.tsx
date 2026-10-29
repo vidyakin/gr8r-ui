@@ -312,7 +312,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
 
         {/* торговля, услуги, производство и финансы — одной строкой, подпункты во второй панели */}
         <div className="sgroup">
-          {(['trade', 'services', 'production', 'finance'] as const).map(id => (
+          {(['trade', 'services', 'production', 'transport', 'finance'] as const).map(id => (
             <GroupRow key={id} id={id} collapsed={collapsed} />
           ))}
         </div>

@@ -41,6 +41,8 @@ export function useRealtime(ws: string, engine: Engine) {
       // Документы, организации, склады, счета, остатки: запросы ['ws', id, 'docs', …]; проведение меняет и среднюю себестоимость в производстве
       if (['document', 'organization', 'warehouse', 'bank_account', 'product', 'company', 'unit', 'cost_item', 'deal', 'sales_plan_scenario', 'appointment', 'specialist_schedule', 'contact', 'delivery', 'delivery_method', 'position', 'product_kind', 'cash_register', 'cash_flow_item', 'price_kind', 'price_list_link'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'docs'] });
       if (e.entity === 'document') void qc.invalidateQueries({ queryKey: ['ws', ws, 'production'] });
+      // Автопарк (задача 1210): события fleet_* (машины, документы, путевые листы, топливо, ТО, ремонты, штрафы) и должности водителей
+      if (e.entity.startsWith('fleet_') || e.entity === 'position') void qc.invalidateQueries({ queryKey: ['ws', ws, 'fleet'] });
       // Шаблоны КП: ['ws', id, 'doc-templates', …]
       if (e.entity === 'doc_template') void qc.invalidateQueries({ queryKey: ['ws', ws, 'doc-templates'] });
       // Отчёты услуг лежат под 'docs'; задачи и записи времени меняют план, факт и просрочку (задача 1097)

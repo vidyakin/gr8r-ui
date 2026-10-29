@@ -11,6 +11,7 @@ export const licensing = {
     automations: { name: 'Automations', description: 'Visual flows: triggers, conditions and actions.' },
     integrations: { name: 'Integrations', description: 'Bank connections and online payments. Requires Money.' },
     docflow: { name: 'Document flow', description: 'Internal documents, approvals and files.' },
+    transport: { name: 'Transport', description: 'Fleet: vehicles, drivers, waybills, fuel, service and fines. Requires Trade.' },
   },
   disabled: {
     title: 'Module not connected',
@@ -69,6 +70,7 @@ export const licensing = {
     automations: { a: 'Visual flows with triggers and actions', b: 'Conditions, delays and branches', c: 'HTTP requests to other systems' },
     integrations: { a: 'Bank statements by API', b: 'Online payments with YooKassa', c: 'Payment links on invoices' },
     docflow: { a: 'Internal documents and approvals', b: 'Files and versions', c: 'Document routes' },
+    transport: { a: 'Vehicles, drivers and document terms', b: 'Waybills and fuel against the norm', c: 'Service, repairs and fines' },
   },
   upgrade: {
     title: 'Need more?',
