@@ -1,10 +1,11 @@
 /* CRM: компании, контакты, сделки, активности. Деньги — numeric(18,2) (строки в JSON). */
 import { sql } from 'drizzle-orm';
-import { boolean, check, date, doublePrecision, foreignKey, index, jsonb, pgTable, primaryKey, text, unique, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, date, doublePrecision, foreignKey, index, jsonb, pgTable, primaryKey, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
 import { archivedAt, createdAt, money, pk, updatedAt } from './columns';
 import { adCampaigns, leadSources } from './ad';
 import { leads } from './leads';
 import { members, wsCol } from './people';
+import { dealLostReasons, dealPipelines, dealStages } from './pipelines';
 
 export const companies = pgTable(
   'companies',
@@ -86,7 +87,13 @@ export const deals = pgTable(
     ownerId: uuid('owner_id'),
     amount: money('amount').notNull().default('0'),
     currency: text('currency').notNull().default('USD'),
-    stage: text('stage', { enum: ['lead', 'qualified', 'proposal', 'negotiation', 'won', 'lost'] }).notNull().default('lead'),
+    /** Воронка и этап (задача 1176); этап обязан принадлежать воронке сделки (составной внешний ключ) */
+    pipelineId: uuid('pipeline_id').notNull(),
+    stageId: uuid('stage_id').notNull(),
+    /** Когда сделка вошла в текущий этап; отметка о том, что просрочка норматива этапа уже объявлена */
+    stageEnteredAt: timestamp('stage_entered_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    stageOverdueNotifiedAt: timestamp('stage_overdue_notified_at', { withTimezone: true, mode: 'date' }),
+    lostReasonId: uuid('lost_reason_id'),
     closeDate: date('close_date', { mode: 'string' }),
     closedAt: date('closed_at', { mode: 'string' }),
     lostReason: text('lost_reason'),
@@ -108,8 +115,32 @@ export const deals = pgTable(
     foreignKey({ columns: [t.workspaceId, t.ownerId], foreignColumns: [members.workspaceId, members.id], name: 'deals_owner_fk' }),
     foreignKey({ columns: [t.workspaceId, t.sourceId], foreignColumns: [leadSources.workspaceId, leadSources.id], name: 'deals_source_fk' }),
     foreignKey({ columns: [t.workspaceId, t.campaignId], foreignColumns: [adCampaigns.workspaceId, adCampaigns.id], name: 'deals_campaign_fk' }),
-    check('deals_stage_chk', sql`${t.stage} in ('lead','qualified','proposal','negotiation','won','lost')`),
-    index('deals_ws_stage_idx').on(t.workspaceId, t.stage),
+    foreignKey({ columns: [t.workspaceId, t.pipelineId], foreignColumns: [dealPipelines.workspaceId, dealPipelines.id], name: 'deals_pipeline_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.pipelineId, t.stageId], foreignColumns: [dealStages.workspaceId, dealStages.pipelineId, dealStages.id], name: 'deals_stage_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.lostReasonId], foreignColumns: [dealLostReasons.workspaceId, dealLostReasons.id], name: 'deals_lost_reason_fk' }),
+    index('deals_ws_stage_idx').on(t.workspaceId, t.pipelineId, t.stageId),
+  ],
+);
+
+/** История этапов сделки: из/в этап и воронку, кто и когда. Идентификаторы этапов без внешних ключей — запись переживает удаление этапа */
+export const dealStageHistory = pgTable(
+  'deal_stage_history',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    dealId: uuid('deal_id').notNull(),
+    fromPipelineId: uuid('from_pipeline_id'),
+    fromStageId: uuid('from_stage_id'),
+    toPipelineId: uuid('to_pipeline_id').notNull(),
+    toStageId: uuid('to_stage_id').notNull(),
+    memberId: uuid('member_id'),
+    createdAt: createdAt(),
+  },
+  t => [
+    foreignKey({ columns: [t.workspaceId, t.dealId], foreignColumns: [deals.workspaceId, deals.id], name: 'dsh_deal_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.memberId], foreignColumns: [members.workspaceId, members.id], name: 'dsh_member_fk' }),
+    index('deal_stage_history_deal_idx').on(t.workspaceId, t.dealId, t.createdAt),
+    index('deal_stage_history_to_idx').on(t.workspaceId, t.toPipelineId, t.toStageId),
   ],
 );
 

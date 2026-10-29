@@ -4,6 +4,7 @@ import addComment from './action-add-comment';
 import assignLead from './action-assign-lead';
 import createLead from './action-create-lead';
 import createTask from './action-create-task';
+import moveDeal from './action-move-deal';
 import httpRequest from './action-http-request';
 import notify from './action-notify';
 import updateField from './action-update-field';
@@ -12,6 +13,10 @@ import delay from './flow-delay';
 import condition from './logic-condition';
 import fieldChanged from './trigger-field-changed';
 import documentPaid from './trigger-document-paid';
+import dealLost from './trigger-deal-lost';
+import dealStageChanged from './trigger-deal-stage-changed';
+import dealStageOverdue from './trigger-deal-stage-overdue';
+import dealWon from './trigger-deal-won';
 import leadCreated from './trigger-lead-created';
 import leadStatusChanged from './trigger-lead-status-changed';
 import manual from './trigger-manual';
@@ -31,6 +36,10 @@ export const NODE_LIST: AnyNodeDef[] = [
   documentPaid,
   leadCreated,
   leadStatusChanged,
+  dealStageChanged,
+  dealWon,
+  dealLost,
+  dealStageOverdue,
   // Условия и управление потоком
   condition,
   delay,
@@ -43,6 +52,7 @@ export const NODE_LIST: AnyNodeDef[] = [
   addComment,
   createLead,
   assignLead,
+  moveDeal,
 ];
 
 export const NODE_DEFS: Record<string, AnyNodeDef> = Object.fromEntries(NODE_LIST.map(n => [n.type, n]));

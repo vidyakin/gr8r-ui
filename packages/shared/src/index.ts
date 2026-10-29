@@ -34,3 +34,4 @@ export * from './bank-api';
 export * from './leads';
 export * from './ad-report';
 export * from './qr';
+export * from './pipelines';

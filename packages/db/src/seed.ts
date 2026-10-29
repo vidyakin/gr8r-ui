@@ -2,7 +2,7 @@
    один источник для браузера и БД) и второй воркспейс другого пользователя для проверки изоляции арендаторов.
    Сид идёт тем же путём, что и приложение: под ролью app_user с настройками RLS (политики проверяют и его). */
 import { eq, sql as dsql } from 'drizzle-orm';
-import type { FieldType, Subtask } from '@gr8r/shared';
+import type { FieldType, LegacyDealStage, Subtask } from '@gr8r/shared';
 import { seed as demoWorkspace, seedCrm } from '@gr8r/shared/demo';
 import type { Db, Sql } from './client';
 import { withContext } from './context';
@@ -23,6 +23,8 @@ import { ensureCostItems, ensureDocumentDefaults } from './documents';
 import { ensureModuleProjects } from './modules';
 import { ensureWorkOrderKind } from './work-orders';
 import { ensureLeadStatuses } from './leads';
+import { ensureDealPipeline, firstStage } from './pipelines';
+import { seedDealHistory, seedDealPipelines, seedServiceDeals } from './seed-pipelines';
 import { enqueueFieldIndex, registerSystemEntities } from './meta';
 import { uuidv7 } from './uuid';
 import {
@@ -309,6 +311,9 @@ export async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: strin
   // CRM
   await db.insert(companies).values(crm.companies.map(c => ({ id: U(c.id), workspaceId: wsId, name: c.name, industry: c.industry, size: c.size, ownerId: U(c.owner), website: c.website, city: c.city, createdAt: new Date(c.created) })));
   await db.insert(contacts).values(crm.contacts.map(c => ({ id: U(c.id), workspaceId: wsId, companyId: U(c.company), name: c.name, title: c.title, email: c.email, phone: c.phone, ownerId: U(c.owner), createdAt: new Date(c.created) })));
+  // Воронки (задача 1176): сделки демо живут в основной воронке «Продажи», старые ключи стадий → её этапы
+  const pipes = await seedDealPipelines(db, wsId);
+  const REASON_INDEX: Record<string, number> = { 'Price too high': 0, 'Chose a competitor': 1, 'No budget': 2, 'No decision': 3, 'Bad timing': 4, 'Requirements changed': 5 };
   await db.insert(deals).values(
     crm.deals.map(x => ({
       id: U(x.id),
@@ -317,14 +322,17 @@ export async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: strin
       companyId: U(x.company),
       ownerId: U(x.owner),
       amount: x.amount.toFixed(2),
-      stage: x.stage,
+      pipelineId: pipes.mainId,
+      stageId: pipes.stageByKey[x.stage as LegacyDealStage],
       closeDate: x.closeDate,
       closedAt: x.closedAt ?? null,
-      lostReason: x.lostReason ?? null,
+      lostReasonId: x.lostReason ? (pipes.reasonIds[REASON_INDEX[x.lostReason] ?? 0] ?? null) : null,
       sortOrder: x.order,
       createdAt: new Date(x.created),
     })),
   );
+  await seedDealHistory(db, wsId);
+  await seedServiceDeals(db, wsId, U(d.me), crm.companies.map(c => U(c.id)), pipes.serviceId);
   await db.insert(dealContacts).values(crm.deals.flatMap(x => x.contacts.map(c => ({ workspaceId: wsId, dealId: U(x.id), contactId: U(c) }))));
   await insertChunks(crm.activities, chunk =>
     db.insert(crmActivities).values(
@@ -388,6 +396,8 @@ async function seedOtherWorkspace(db: Db, wsId: string, userId: string) {
   await db.insert(members).values({ id: memberId, workspaceId: wsId, userId, email: OTHER_USER.email, name: OTHER_USER.name, title: 'Founder', color: '#C54B78', role: 'owner' });
   await registerSystemEntities(db, wsId);
   await ensureLeadStatuses(db, wsId);
+  const acmePipeline = await ensureDealPipeline(db, wsId);
+  const acmeStage = await firstStage(db, acmePipeline.id);
   await registerBaseUnits(db, wsId);
   await ensurePriceKinds(db, wsId);
   await ensureDocumentDefaults(db, wsId, 'Acme Corp');
@@ -400,7 +410,7 @@ async function seedOtherWorkspace(db: Db, wsId: string, userId: string) {
     ['Secret roadmap', 'Confidential pricing', 'Internal memo'].map((title, i) => ({ workspaceId: wsId, key: `ACM-${i + 1}`, projectId, title, status: 'todo', assigneeId: memberId, priority: 5 + i, sortOrder: i })),
   );
   await db.insert(companies).values({ id: companyId, workspaceId: wsId, name: 'Acme Customer Ltd', ownerId: memberId });
-  await db.insert(deals).values({ workspaceId: wsId, name: 'Acme secret deal', companyId, ownerId: memberId, amount: '1000000.00', stage: 'negotiation' });
+  await db.insert(deals).values({ workspaceId: wsId, name: 'Acme secret deal', companyId, ownerId: memberId, amount: '1000000.00', pipelineId: acmePipeline.id, stageId: acmeStage.id });
 }
 
 export async function runSeed(sql: Sql, log: (msg: string) => void = console.log) {

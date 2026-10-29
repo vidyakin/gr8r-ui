@@ -153,8 +153,9 @@ export async function adReportData(db: Db, q: { from: string; to: string; groupB
   }
 
   const dealKey = keyOf(deals);
-  // «Выиграна» — этап won (после воронок 1176 — категория этапа)
-  const wonWhere = and(isNull(deals.archivedAt), eq(deals.stage, 'won'), gte(deals.closedAt, q.from), lte(deals.closedAt, q.to), onlyReferred(deals));
+  // «Выиграна» — сделка на этапе категории won (задача 1176); подзапрос, чтобы не менять форму выборок ниже
+  const wonStage = sql`${deals.stageId} in (select id from deal_stages where category = 'won')`;
+  const wonWhere = and(isNull(deals.archivedAt), wonStage, gte(deals.closedAt, q.from), lte(deals.closedAt, q.to), onlyReferred(deals));
   for (const r of await db
     .select({ key: dealKey, n: sql<number>`count(*)::int`, sum: sql<string>`coalesce(sum(${deals.amount}), 0)::text` })
     .from(deals)

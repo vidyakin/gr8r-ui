@@ -235,7 +235,10 @@ export interface WorkspaceData {
 
 /* Типы демо-модуля CRM. Владельцы (owner, by) — id участников основного воркспейса (Member.id). */
 
-export type StageId = 'lead' | 'qualified' | 'proposal' | 'negotiation' | 'won' | 'lost';
+/** Идентификатор этапа воронки (uuid с сервера, задача 1176); в демо-данных — старые ключи стадий */
+export type StageId = string;
+/** Старые стадии демо-данных (источник сида) */
+export type LegacyStageId = 'lead' | 'qualified' | 'proposal' | 'negotiation' | 'won' | 'lost';
 
 export interface Company {
   id: string;
@@ -272,12 +275,17 @@ export interface Deal {
   owner: string;
   /** Сумма в USD */
   amount: number;
+  /** Этап воронки (id) и воронка */
   stage: StageId;
+  pipeline?: string;
   closeDate: IsoDate;
   created: number;
   /** Дата закрытия (для Won/Lost) */
   closedAt?: IsoDate;
   lostReason?: string;
+  /** Причина проигрыша из справочника и когда сделка вошла в текущий этап (ms) */
+  lostReasonId?: string;
+  stageEnteredAt?: number;
   /** Порядок карточки внутри колонки воронки */
   order: number;
   custom?: Record<string, unknown>;

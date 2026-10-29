@@ -27,3 +27,4 @@ export * from './secrets';
 export * from './integrations';
 export * from './payroll';
 export * from './pricing';
+export * from './pipelines';

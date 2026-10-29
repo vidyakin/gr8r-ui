@@ -1,7 +1,7 @@
 /* Сущности и встроенные поля для автоматизаций. Пользовательские поля берутся из метаданных конструктора (таблица fields),
    а встроенные колонки системных таблиц описаны здесь: в `fields` они не заводятся. `writable` — колонки, которые узел
    «Обновить поле» может менять (значение проверяется схемой поля того же типа, что и в конструкторе). */
-import { DEAL_STAGES, PROJECT_STATUSES, SYSTEM_ENTITIES, TASK_MODULES } from '../constants';
+import { PROJECT_STATUSES, SYSTEM_ENTITIES, TASK_MODULES } from '../constants';
 import type { FieldOptions, FieldType } from '../fields';
 
 /** Сущности, события которых могут запускать flow: системные, документы и пользовательские (их ключи — из конструктора) */
@@ -41,7 +41,6 @@ export const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
   ],
   deal: [
     f('name', 'Name', 'text'),
-    f('stage', 'Stage', 'select', true, choices(DEAL_STAGES)),
     f('amount', 'Amount', 'money', true, { min: 0 }),
     f('currency', 'Currency', 'text'),
     f('ownerId', 'Owner', 'user'),

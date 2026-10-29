@@ -73,6 +73,8 @@ export interface NodeRuntime {
   createLead(a: { name: string; companyName?: string; phone?: string; email?: string; comment?: string; source?: string; ownerId?: string | null }): Promise<{ id: string }>;
   /** Назначить ответственного за лид: вручную или по кругу среди сотрудников с функцией sales_manager */
   assignLead(a: { leadId: string; mode: 'manual' | 'round_robin'; memberId?: string | null }): Promise<{ ownerId: string | null; changed: boolean }>;
+  /** Перевести сделку на этап / в другую воронку (задача 1176): обязательные поля и причина проигрыша проверяются как в API */
+  moveDeal(a: { dealId: string; pipelineId?: string | null; stageId?: string | null; lostReason?: string | null }): Promise<{ changed: boolean; stageId: string }>;
 }
 
 export interface NodeResult {
@@ -116,7 +118,7 @@ export interface UiHint {
   /** entity — выбор сущности; field — поле сущности из параметра `dependsOn`; member — участник; project — проект;
       textarea — многострочный текст; value — значение поля выбранной сущности (`dependsOn` — параметр с полем);
       cron — расписание; url — адрес; lead_status — статус лида */
-  ui?: 'entity' | 'field' | 'member' | 'project' | 'textarea' | 'value' | 'cron' | 'url' | 'lead_status';
+  ui?: 'entity' | 'field' | 'member' | 'project' | 'textarea' | 'value' | 'cron' | 'url' | 'lead_status' | 'deal_pipeline' | 'deal_stage';
   /** Имя соседнего параметра, от которого зависит выбор (сущность для поля, поле для значения) */
   dependsOn?: string;
   /** Для ui: 'field' — показывать только поля, которые можно менять */

@@ -60,6 +60,7 @@ export * from './payment-calendar';
 export * from './request-paid';
 export * from './bank-import';
 export * from './leads';
+export * from './pipelines';
 export * from './ad';
 export * from './secrets';
 export * from './integrations';

@@ -29,7 +29,6 @@ export const MEMBER_STATUSES = ['active', 'invited', 'deactivated'] as const;
 export const NOTIFICATION_TYPES = ['mention', 'assign', 'comment', 'update'] as const;
 export const VIEW_TYPES = ['list', 'board', 'table', 'calendar', 'timeline'] as const;
 export const FILE_KINDS = ['fig', 'pdf', 'zip', 'img', 'sheet', 'doc', 'code', 'other'] as const;
-export const DEAL_STAGES = ['lead', 'qualified', 'proposal', 'negotiation', 'won', 'lost'] as const;
 export const CRM_ACTIVITY_TYPES = ['call', 'email', 'meeting', 'note', 'task'] as const;
 
 /** Системные сущности конструктора: у их таблиц есть колонка custom jsonb. Регистрируются в entities при создании воркспейса */

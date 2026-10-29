@@ -1,6 +1,6 @@
 /* zod-схемы CRM: компании, контакты, сделки, активности. Деньги — строкой/числом, хранятся numeric(18,2). */
 import { z } from 'zod';
-import { CRM_ACTIVITY_TYPES, DEAL_STAGES } from '../constants';
+import { CRM_ACTIVITY_TYPES } from '../constants';
 import { COMPANY_KINDS } from '../ru';
 import { attribution } from './ad';
 import { clientId, decimal, toPatch, isoDate, listQuery, shortText, uuid } from './common';
@@ -55,7 +55,11 @@ export const dealCreate = z.object({
   ownerId: uuid.nullish(),
   amount: decimal.refine(v => Number(v) >= 0, 'Amount must not be negative').default('0'),
   currency: z.string().length(3).toUpperCase().default('USD'),
-  stage: z.enum(DEAL_STAGES).default('lead'),
+  /** Воронка и этап (задача 1176): не заданы — основная воронка, первый этап; задан только этап — воронка этапа; только воронка — её первый этап */
+  pipelineId: uuid.nullish(),
+  stageId: uuid.nullish(),
+  /** Причина проигрыша из справочника: обязательна при переходе на этап категории «проиграна» */
+  lostReasonId: uuid.nullish(),
   closeDate: isoDate.nullish(),
   closedAt: isoDate.nullish(),
   lostReason: z.string().max(500).nullish(),
@@ -68,7 +72,10 @@ export const dealCreate = z.object({
 });
 export const dealUpdate = toPatch(dealCreate.omit({ id: true }));
 export const dealQuery = listQuery.extend({
-  stage: z.enum(DEAL_STAGES).optional(),
+  pipelineId: uuid.optional(),
+  stageId: uuid.optional(),
+  /** Только сделки, у которых превышен норматив дней на этапе */
+  overdue: z.enum(['true', 'false']).optional(),
   companyId: uuid.optional(),
   ownerId: uuid.optional(),
   closeFrom: isoDate.optional(),

@@ -23,10 +23,10 @@ export async function seedFlows(db: Db, wsId: string, createdBy: string | null, 
     {
       name: 'Deal won → create a Kickoff task',
       description: 'When a deal moves to Won, a “Kickoff” task is created in the project.',
-      triggerType: 'trigger.field_changed',
+      triggerType: 'trigger.deal_won',
       graph: {
         nodes: [
-          node('trigger', 'trigger.field_changed', 0, 80, { entity: 'deal', field: 'stage', to: 'won' }),
+          node('trigger', 'trigger.deal_won', 0, 80, {}),
           node('task', 'action.create_task', 320, 80, {
             projectId: kickoffProjectId,
             title: 'Kickoff',

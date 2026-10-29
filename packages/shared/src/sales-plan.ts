@@ -13,9 +13,6 @@ export function nextContactAfterSale(docDate: string, termsDays: (number | null 
   return current && current <= candidate ? null : candidate;
 }
 
-/** Вероятность этапа воронки (та же, что в CRM-интерфейсе): взвешенный прогноз открытых сделок */
-export const DEAL_STAGE_PROBABILITY: Record<string, number> = { lead: 0.1, qualified: 0.25, proposal: 0.5, negotiation: 0.75, won: 1, lost: 0 };
-
 /* ---------------- сценарии планирования ---------------- */
 
 export const SALES_PLAN_PERIODICITIES = ['month', 'quarter', 'year'] as const;

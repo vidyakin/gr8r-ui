@@ -67,14 +67,14 @@ describe('seed', () => {
     expect(await count('calendar_events', w)).toBe(6);
     expect(await count('companies', w)).toBe(crm.companies.length + 3); // + ИП из демо документов, физлицо из демо денег и контрагент из сконвертированного лида
     expect(await count('contacts', w)).toBe(crm.contacts.length + 1); // + контакт из сконвертированного лида
-    expect(await count('deals', w)).toBe(crm.deals.length + 1); // + сделка из сконвертированного лида
+    expect(await count('deals', w)).toBe(crm.deals.length + 5); // + сделка из сконвертированного лида и четыре сервисные сделки воронки «Сервис»
     // повторные продажи (задача 1133): срок повтора у двух услуг, дата контакта у двух компаний, план продаж на текущий год
     expect(await count('products', `${w} and repeat_sale_days is not null`)).toBe(2);
     expect(await count('companies', `${w} and next_contact_date is not null`)).toBe(2);
     expect(await count('sales_plan_scenarios', w)).toBe(2);
     expect(await count('documents', `${w} and type = 'sales_plan' and status = 'posted'`)).toBe(1);
     expect(await count('sales_plan_figures', `${w} and extract(year from period_start) = extract(year from current_date)`)).toBe(36);
-    expect(await count('crm_activities', w)).toBe(crm.activities.length + 7); // + касания демо-лидов (6) и заметка о конвертации
+    expect(await count('crm_activities', w)).toBe(crm.activities.length + 10); // + касания демо-лидов (6), заметка о конвертации и три заметки о переходах сервисных сделок
     // запись на приём (задача 1171): два специалиста с разной длиной слота, услуги массажа, записи недели и один незакрытый день
     expect(await count('specialist_schedules', w)).toBe(2);
     expect(await count('specialist_schedules', `${w} and slot_minutes = 30`)).toBe(1);
@@ -249,7 +249,7 @@ describe('seed', () => {
     expect(Number(wf!.plan_hours)).toBe(24);
 
     // деньги — numeric
-    const [{ sum }] = await admin`select sum(amount)::text as sum from deals where stage = 'won' and workspace_id = ${demo!.id}`;
+    const [{ sum }] = await admin`select sum(d.amount)::text as sum from deals d join deal_stages s on s.id = d.stage_id join deal_pipelines p on p.id = d.pipeline_id where s.category = 'won' and p.is_default and d.workspace_id = ${demo!.id}`;
     expect(sum).toBe(crm.deals.filter(d => d.stage === 'won').reduce((a, d) => a + d.amount, 0).toFixed(2));
 
     // демо-пользователь и второй арендатор

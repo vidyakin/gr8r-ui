@@ -2,13 +2,13 @@
    документ «План продаж» (тип sales_plan, свои строки; проведение пишет регистр плановых показателей)
    и «План-фактный анализ продаж» по сценарию. Факт — тот же расчёт, что в отчёте услуг «Клиенты». */
 import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm';
-import { buildPlanFact, dec, DEAL_STAGE_PROBABILITY, fmt, mul, periodEnd, periodOf, periodStarts, planDocPeriods, type BillingPeriodicity, type ForecastFigure, type PlanFactReport, type PlanFigure, type SalesPlanDimension } from '@gr8r/shared';
+import { buildPlanFact, dec, div, fmt, mul, periodEnd, periodOf, periodStarts, planDocPeriods, type BillingPeriodicity, type ForecastFigure, type PlanFactReport, type PlanFigure, type SalesPlanDimension } from '@gr8r/shared';
 import type { Db } from './client';
 import { DOCUMENT_HOOKS } from './document-hooks';
 import { createDocument, updateDocument, type DocCtx, type DocumentPatch } from './documents';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
-import { deals, documentLines, documents, members, productCategories, products, salesPlanDocs, salesPlanFigures, salesPlanLines, salesPlanScenarios } from './schema';
+import { dealStages, deals, documentLines, documents, members, productCategories, products, salesPlanDocs, salesPlanFigures, salesPlanLines, salesPlanScenarios } from './schema';
 import { postedSalesDocs, workOrdersFactDocs } from './service-reports';
 
 /* ---------------- сценарии ---------------- */
@@ -263,12 +263,14 @@ export async function salesPlanAnalysis(db: Db, workspaceId: string, q: SalesPla
   const forecast: ForecastFigure[] = [];
   if (dimension === 'manager') {
     const rows = await db
-      .select({ closeDate: deals.closeDate, ownerId: deals.ownerId, stage: deals.stage, amount: deals.amount })
+      .select({ closeDate: deals.closeDate, ownerId: deals.ownerId, category: dealStages.category, probability: dealStages.probability, amount: deals.amount })
       .from(deals)
-      .where(and(eq(deals.workspaceId, workspaceId), isNull(deals.archivedAt), ne(deals.stage, 'lost'), gte(deals.closeDate, from), lte(deals.closeDate, to)));
+      .innerJoin(dealStages, and(eq(dealStages.workspaceId, deals.workspaceId), eq(dealStages.id, deals.stageId)))
+      .where(and(eq(deals.workspaceId, workspaceId), isNull(deals.archivedAt), ne(dealStages.category, 'lost'), gte(deals.closeDate, from), lte(deals.closeDate, to)));
     for (const d of rows) {
-      const won = d.stage === 'won';
-      forecast.push({ period: periodOfDate(d.closeDate!), key: d.ownerId, won: won ? d.amount : '0', open: won ? '0' : d.amount, weighted: won ? '0' : fmt(mul(dec(d.amount), dec(DEAL_STAGE_PROBABILITY[d.stage] ?? 0)), 2) });
+      const won = d.category === 'won';
+      // вероятность — у этапа воронки (задача 1176), в процентах
+      forecast.push({ period: periodOfDate(d.closeDate!), key: d.ownerId, won: won ? d.amount : '0', open: won ? '0' : d.amount, weighted: won ? '0' : fmt(div(mul(dec(d.amount), dec(d.probability)), dec(100)), 2) });
     }
   }
 

@@ -1,7 +1,7 @@
 /* Демо-данные CRM: 12 компаний, 26 контактов, 32 сделки, 65 активностей.
    Все даты считаются от сегодняшнего дня, поэтому дашборд всегда выглядит «живым». Владельцы — участники основного seed (m1…m7). */
 import { dOff, iso, today } from './dates';
-import type { ActivityType, Company, Contact, CrmActivity, CrmData, Deal, IsoDate, StageId } from '../domain';
+import type { ActivityType, Company, Contact, CrmActivity, CrmData, Deal, IsoDate, LegacyStageId } from '../domain';
 
 const DAY = 864e5;
 const ago = (days: number) => Date.now() - days * DAY;
@@ -63,7 +63,7 @@ const CONTACTS: [string, string, string][] = [
   ['co12', 'Rui Almeida', 'Revenue Manager'],
 ];
 
-type DealRow = [string, string, string[], string, number, StageId, number | [number, number], number, string?];
+type DealRow = [string, string, string[], string, number, LegacyStageId, number | [number, number], number, string?];
 // название, компания, контакты, владелец, сумма, этап, срок (дней от сегодня; для Won/Lost — [месяцев назад, число]), создана (дней назад), причина проигрыша
 const DEALS: DealRow[] = [
   ['Fleet analytics pilot', 'co1', ['ct1'], 'm3', 28000, 'lead', 45, 6],

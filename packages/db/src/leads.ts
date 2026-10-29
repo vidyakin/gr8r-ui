@@ -6,13 +6,13 @@ import { membersWithFunction, normalizeEmail, normalizePhone, nextRoundRobin, ph
 import { resolveAttribution } from './ad';
 import type { Db } from './client';
 import { DomainError } from './errors';
+import { insertDeal, qualifiedStage } from './pipelines';
 import { recordEvent } from './events';
 import {
   companies,
   contacts,
   crmActivities,
   dealContacts,
-  deals,
   leadAssignCursor,
   leadForms,
   leadStatuses,
@@ -314,13 +314,18 @@ export async function convertLead(db: Db, ctx: LeadCtx, leadId: string, input: C
 
   let dealId: string | null = null;
   if (input.deal) {
-    const [d] = await db
-      .insert(deals)
-      .values({ workspaceId: ctx.workspaceId, name: input.deal.name.trim() || lead.name, companyId, ownerId: owner, amount: input.deal.amount ?? '0', stage: 'qualified', ...leadAttr(lead) })
-      .returning();
-    dealId = d!.id;
+    // Этап «квалифицирован» основной воронки: второй открытый этап, а если он один — первый (docs/architecture/pipelines.md)
+    const qualified = await qualifiedStage(db);
+    const d = await insertDeal(
+      db,
+      ctx,
+      { name: input.deal.name.trim() || lead.name, companyId, ownerId: owner, amount: input.deal.amount ?? '0', ...leadAttr(lead) },
+      { stageId: qualified.id, skipRequired: true },
+      contactId ? [contactId] : [],
+    );
+    dealId = d.id;
     if (contactId) await db.insert(dealContacts).values({ workspaceId: ctx.workspaceId, dealId, contactId });
-    await ev('deal.created', 'deal', d!.id, d);
+    await ev('deal.created', 'deal', d.id, d);
   }
 
   // Касания лида переезжают к сделке (если есть), иначе к контакту / контрагенту

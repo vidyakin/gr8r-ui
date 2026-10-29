@@ -9,6 +9,7 @@ import { ensureCostItems, ensureDocumentDefaults } from './documents';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { ensureLeadStatuses } from './leads';
+import { ensureDealPipeline } from './pipelines';
 import { dropFieldIndex, enqueueFieldIndex, registerSystemEntities } from './meta';
 import { registerBaseUnits } from './catalog';
 import { ensureModuleProjects } from './modules';
@@ -63,6 +64,7 @@ export async function initWorkspace(db: Db, input: { id: string; name: string; s
   await db.insert(statuses).values(STATUSES.map((s, i) => ({ workspaceId: id, key: s.id, name: s.name, color: `var(--st-${s.id})`, builtin: true, sortOrder: i })));
   await registerSystemEntities(db, id);
   await ensureLeadStatuses(db, id);
+  await ensureDealPipeline(db, id);
   await registerBaseUnits(db, id);
   await ensurePriceKinds(db, id);
   await ensureDocumentDefaults(db, id, input.name);
