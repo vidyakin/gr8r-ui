@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Layers } from 'lucide-react';
-import { MODULES, MODULE_IDS, resolveModules, type LicenseLogEntry, type LicenseRaw, type ModuleId } from '@gr8r/shared';
+import { LIMIT_KEYS, MODULES, MODULE_IDS, resolveModules, usageOf, type LicenseUsage, type LimitKey, type LicenseLogEntry, type LicenseRaw, type ModuleId } from '@gr8r/shared';
 import { fmtDateTime, fmtDateTimeIntl, fmtNumber } from '@/i18n/format';
 import { Alert, Badge, Button, Checkbox, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, Input, Select, Skeleton, Textarea, toast } from '@/components/ui';
 import { useT } from '@/i18n';
@@ -19,6 +19,7 @@ export interface PlanRow {
   modules: string[];
   all_modules: boolean;
   trial_days: number | null;
+  limits: Record<string, number>;
   is_default: boolean;
   sort_order: number;
   tenants: number;
@@ -58,6 +59,35 @@ function ModuleChecks({ value, onChange }: { value: ModuleId[]; onChange: (v: Mo
   );
 }
 
+type LimitsText = Record<LimitKey, string>;
+const emptyLimits = (): LimitsText => ({ members: '', organizations: '', warehouses: '', storageMb: '' });
+const limitsToText = (l: Record<string, number> | undefined): LimitsText => ({ ...emptyLimits(), ...Object.fromEntries(Object.entries(l ?? {}).filter(([k]) => (LIMIT_KEYS as readonly string[]).includes(k)).map(([k, v]) => [k, String(v)])) });
+const limitsFromText = (l: LimitsText): Record<string, number> => Object.fromEntries(LIMIT_KEYS.filter(k => l[k] !== '').map(k => [k, Number(l[k])]));
+
+/** Поля лимитов (пусто — без ограничения). usage и planLimits — у арендатора: сколько использовано и что даёт тариф */
+function LimitsFields({ value, onChange, usage, planLimits }: { value: LimitsText; onChange: (v: LimitsText) => void; usage?: LicenseUsage; planLimits?: Record<string, number> }) {
+  const t = useT();
+  return (
+    <div className="stack" style={{ gap: 6 }}>
+      {LIMIT_KEYS.map(k => (
+        <div key={k} className="row" style={{ gap: 10, alignItems: 'center' }}>
+          <span style={{ minWidth: 200 }}>{t(`licensing.limits.${k}` as const)}</span>
+          <Input
+            size="sm"
+            style={{ width: 110 }}
+            inputMode="numeric"
+            aria-label={t(`licensing.limits.${k}` as const)}
+            placeholder={planLimits && planLimits[k] !== undefined ? String(planLimits[k]) : t('licensing.limits.unlimited')}
+            value={value[k]}
+            onChange={e => onChange({ ...value, [k]: e.target.value.replace(/\D/g, '') })}
+          />
+          {usage && <span className="muted">{t('licensing.limits.used', { n: fmtNumber(Math.round(usageOf(usage, k) * 10) / 10) })}</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function PlanDialog({ plan, onClose }: { plan: PlanRow | 'new' | null; onClose: () => void }) {
   const t = useT();
   const ws = useWsId();
@@ -68,6 +98,7 @@ function PlanDialog({ plan, onClose }: { plan: PlanRow | 'new' | null; onClose: 
   const [all, setAll] = React.useState(false);
   const [trial, setTrial] = React.useState('');
   const [isDefault, setIsDefault] = React.useState(false);
+  const [limits, setLimits] = React.useState<LimitsText>(emptyLimits);
   const [busy, setBusy] = React.useState(false);
   React.useEffect(() => {
     const p = plan && plan !== 'new' ? plan : null;
@@ -77,12 +108,13 @@ function PlanDialog({ plan, onClose }: { plan: PlanRow | 'new' | null; onClose: 
     setAll(p?.all_modules ?? false);
     setTrial(p?.trial_days ? String(p.trial_days) : '');
     setIsDefault(p?.is_default ?? false);
+    setLimits(limitsToText(p?.limits));
   }, [plan]);
 
   const save = async () => {
     setBusy(true);
     try {
-      const body = { name, description: description || null, modules, allModules: all, trialDays: trial ? Number(trial) : null, isDefault };
+      const body = { name, description: description || null, modules, allModules: all, trialDays: trial ? Number(trial) : null, isDefault, limits: limitsFromText(limits) };
       if (plan === 'new') await call(ws, 'POST', '/admin/plans', body);
       else if (plan) await call(ws, 'PUT', `/admin/plans/${plan.id}`, body);
       toast(t('licensing.operator.saved'));
@@ -116,6 +148,7 @@ function PlanDialog({ plan, onClose }: { plan: PlanRow | 'new' | null; onClose: 
           {!all && (
             <Field label={t('licensing.operator.modules')}>{() => <ModuleChecks value={modules} onChange={setModules} />}</Field>
           )}
+          <Field label={t('licensing.limits.title')} hint={t('licensing.limits.planHint')}>{() => <LimitsFields value={limits} onChange={setLimits} />}</Field>
           <Field label={t('licensing.operator.trialDays')}>{p => <Input {...p} inputMode="numeric" style={{ width: 120 }} value={trial} onChange={e => setTrial(e.target.value.replace(/\D/g, ''))} />}</Field>
           <label className="row" style={{ gap: 8 }}>
             <Checkbox checked={isDefault} onChange={e => setIsDefault(e.target.checked)} />
@@ -195,7 +228,7 @@ export function PlansSection({ title }: { title: string }) {
 
 /* ---------------- лицензия арендатора ---------------- */
 
-type TenantLicense = LicenseRaw & { assigned: boolean };
+type TenantLicense = LicenseRaw & { assigned: boolean; usage: LicenseUsage };
 const toDateInput = (iso: string | null) => (iso ? iso.slice(0, 10) : '');
 const fromDateInput = (d: string) => (d ? new Date(`${d}T23:59:59`).toISOString() : null);
 
@@ -259,6 +292,7 @@ export function TenantLicenseDialog({ tenant, onClose }: { tenant: { id: string;
   const [planId, setPlanId] = React.useState('');
   const [planExpires, setPlanExpires] = React.useState('');
   const [isTrial, setIsTrial] = React.useState(false);
+  const [limits, setLimits] = React.useState<LimitsText>(emptyLimits);
   const [grants, setGrants] = React.useState<{ module: ModuleId; expiresAt: string }[]>([]);
   const [busy, setBusy] = React.useState(false);
   React.useEffect(() => {
@@ -267,6 +301,7 @@ export function TenantLicenseDialog({ tenant, onClose }: { tenant: { id: string;
     setPlanId(l.planId ?? '');
     setPlanExpires(toDateInput(l.planExpiresAt));
     setIsTrial(l.isTrial ?? false);
+    setLimits(limitsToText(l.ownLimits));
     setGrants(l.grants.filter((g): g is { module: ModuleId; expiresAt: string | null } => (MODULE_IDS as readonly string[]).includes(g.module)).map(g => ({ module: g.module, expiresAt: toDateInput(g.expiresAt) })));
   }, [lic.data]);
 
@@ -283,6 +318,7 @@ export function TenantLicenseDialog({ tenant, onClose }: { tenant: { id: string;
         planId,
         planExpiresAt: fromDateInput(planExpires),
         isTrial,
+        limits: limitsFromText(limits),
         grants: grants.map(g => ({ module: g.module, expiresAt: fromDateInput(g.expiresAt) })),
       });
       toast(t('licensing.operator.saved'));
@@ -348,6 +384,11 @@ export function TenantLicenseDialog({ tenant, onClose }: { tenant: { id: string;
                   );
                 })}
               </div>
+            </div>
+            <div>
+              <div className="t">{t('licensing.limits.title')}</div>
+              <div className="muted" style={{ marginBottom: 6 }}>{t('licensing.limits.ownHint')}</div>
+              <LimitsFields value={limits} onChange={setLimits} usage={lic.data?.usage} planLimits={plan?.limits ?? lic.data?.planLimits} />
             </div>
             <div className="muted">
               {t('licensing.operator.effective')}: {MODULE_IDS.filter(id => effective.has(id)).map(name).join(', ')}

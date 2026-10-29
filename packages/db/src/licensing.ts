@@ -2,7 +2,7 @@
    app_workspace_license() (контекст app.workspace_id), воркер — app_license_of(ws) под app_worker. Запись — только функции
    оператора app_operator_* (SECURITY DEFINER, проверяют users.is_operator сами). Правила «какие модули включены» — в @gr8r/shared. */
 import { sql as dsql } from 'drizzle-orm';
-import { enabledModules, moduleStates, readableModules, type LicenseLogEntry, type LicenseRaw, type LicenseView, licenseView, type ModuleId, type LicensePlanBody, type TenantLicenseBody } from '@gr8r/shared';
+import { enabledModules, MB, usageOf, type LicenseUsage, type LimitKey, moduleStates, readableModules, type LicenseLogEntry, type LicenseRaw, type LicenseView, licenseView, type ModuleId, type LicensePlanBody, type TenantLicenseBody } from '@gr8r/shared';
 import type { Db, Sql, Tx } from './client';
 import { withContext } from './context';
 import { DomainError } from './errors';
@@ -130,3 +130,23 @@ export const setTenantLicense =(sql: Sql, userId: string, workspaceId: string, b
       (await tx`select app_operator_set_license(${workspaceId}::uuid, ${body.planId}::uuid, ${body.planExpiresAt}::timestamptz, ${JSON.stringify(body.limits)}::jsonb, ${JSON.stringify(body.grants)}::jsonb, ${body.isTrial}::boolean) as r`)[0]!
         .r as LicenseRaw,
   );
+
+/* ---- Лимиты (задача 1207) ---- */
+
+/** Использование лимитов текущего арендатора */
+export async function readMyUsage(db: Db): Promise<LicenseUsage> {
+  const rows = (await db.execute(dsql`select app_workspace_usage() as u`)) as unknown as { u: LicenseUsage }[];
+  return rows[0]!.u;
+}
+
+/** Проверка лимита перед созданием записи: 403 limit_exceeded, если used + add > max. Нет ключа в лимитах — без ограничения, 0 — больше нельзя.
+    add — в единицах учёта (штуки; для storageMb — байты). Существующие записи не трогаются: лимит проверяет только добавление */
+export async function assertLimit(db: Db, key: LimitKey, add = 1): Promise<void> {
+  const limits = ((await readMyLicense(db))?.limits ?? {}) as Record<string, unknown>;
+  const max = limits[key];
+  if (typeof max !== 'number' || !Number.isFinite(max)) return;
+  const usage = await readMyUsage(db);
+  const unit = key === 'storageMb' ? MB : 1;
+  const used = key === 'storageMb' ? usage.storageBytes : usage[key];
+  if (used + add > max * unit) throw new DomainError(403, 'limit_exceeded', `The "${key}" limit of the plan is reached (${max})`, { limit: key, max, used: usageOf(usage, key) });
+}

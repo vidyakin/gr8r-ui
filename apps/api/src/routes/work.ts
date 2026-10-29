@@ -20,6 +20,7 @@ import {
   tasks,
   teams,
   timeLogs,
+  assertLimit,
 } from '@gr8r/db';
 import {
   activityQuery,
@@ -403,7 +404,10 @@ export const fileRoutes = crud({
   defaultSort: '-createdAt',
   search: [files.name],
   filters: q => [q.projectId ? eq(files.projectId, q.projectId) : undefined, q.taskId ? eq(files.taskId, q.taskId) : undefined],
-  prepareCreate: ctx => ({ uploadedBy: ctx.memberId }),
+  prepareCreate: async (ctx, body) => {
+    await assertLimit(ctx.db, 'storageMb', body.sizeBytes); // лимит объёма файлов тарифа
+    return { uploadedBy: ctx.memberId };
+  },
 });
 
 /** Лента активности — только чтение (записи создаёт сервер при изменениях) */

@@ -185,6 +185,9 @@ export interface LicenseRaw {
   grants: { module: string; expiresAt: string | null }[];
   /** Лимиты тарифа с персональными поверх него (проверит задача 1207; пока только хранятся) */
   limits: Record<string, unknown>;
+  /** Лимиты самого тарифа и персональные арендатора по отдельности (limits — итог) */
+  planLimits?: Record<string, number>;
+  ownLimits?: Record<string, number>;
 }
 
 /* Сроки (задача 1206). После окончания срока модуль ещё READONLY_DAYS дней работает «только для чтения», затем выключается.
@@ -307,6 +310,24 @@ export interface LicenseLogEntry {
   old: unknown;
   new: unknown;
 }
+
+/* Лимиты тарифа (задача 1207): ключ в license_plans.limits / workspace_licenses.limits. Нет ключа — без ограничения, 0 — больше нельзя.
+   members — пользователи (участники + неотвеченные приглашения), organizations и warehouses — не в архиве, storageMb — объём файлов в МБ */
+export const LIMIT_KEYS = ['members', 'organizations', 'warehouses', 'storageMb'] as const;
+export type LimitKey = (typeof LIMIT_KEYS)[number];
+export const isLimitKey = (v: string): v is LimitKey => (LIMIT_KEYS as readonly string[]).includes(v);
+export const MB = 1024 * 1024;
+
+/** Использование лимитов арендатором: счётчики в единицах лимита (объём — в байтах) */
+export interface LicenseUsage {
+  members: number;
+  organizations: number;
+  warehouses: number;
+  storageBytes: number;
+}
+
+/** Использование по ключу лимита в единицах лимита (МБ для storageMb) */
+export const usageOf = (u: LicenseUsage, key: LimitKey): number => (key === 'storageMb' ? u.storageBytes / MB : u[key]);
 
 /** Модули, нужные набору узлов автоматизации и выключенные у арендатора (по типам узлов; неизвестный тип считается общим узлом автоматизаций) */
 export function disabledModulesOfNodes(nodeTypes: Iterable<string>, enabled: ReadonlySet<ModuleId>): ModuleId[] {

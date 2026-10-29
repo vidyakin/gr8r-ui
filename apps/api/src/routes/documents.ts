@@ -63,6 +63,7 @@ import {
   deleteVariant,
   renameVariant,
   getTemplate,
+  assertLimit,
 } from '@gr8r/db';
 import {
   bankAccountCreate,
@@ -134,6 +135,7 @@ export const organizationRoutes = crud({
   search: [organizations.name, organizations.fullName, organizations.inn],
   writeRole: 'admin',
   prepareCreate: async (ctx, body) => {
+    await assertLimit(ctx.db, 'organizations');
     assertRequisites(body);
     const [any] = await ctx.db.select({ id: organizations.id }).from(organizations).where(isNull(organizations.archivedAt)).limit(1);
     const isDefault = body.isDefault ?? !any;
@@ -165,6 +167,7 @@ export const warehouseRoutes = crud({
   search: [warehouses.name, warehouses.code, warehouses.address],
   writeRole: 'admin',
   prepareCreate: async (ctx, body) => {
+    await assertLimit(ctx.db, 'warehouses');
     const [any] = await ctx.db.select({ id: warehouses.id }).from(warehouses).where(isNull(warehouses.archivedAt)).limit(1);
     const isDefault = body.isDefault ?? !any;
     if (isDefault) await clearDefault(ctx, warehouses);

@@ -48,6 +48,17 @@ export const licensing = {
     isTrial: 'Trial period (the plan is marked as a trial)',
     unassigned: 'No plan assigned: the default plan applies.',
   },
+  limits: {
+    title: 'Limits',
+    planHint: 'Empty means no limit; 0 forbids adding.',
+    ownHint: 'Personal limits override the plan; empty means “as in the plan”. The plan value is shown as a hint.',
+    unlimited: 'no limit',
+    used: 'used: {n}',
+    members: 'Users (members and invitations)',
+    organizations: 'Organizations',
+    warehouses: 'Warehouses',
+    storageMb: 'File storage, MB',
+  },
   banner: {
     expiring: 'Access to {modules} ends on {date}. After that these modules become read-only for 14 days, then they are switched off.',
     expiringTrial: 'The trial period ends on {date}. After that {modules} become read-only for 14 days, then they are switched off.',

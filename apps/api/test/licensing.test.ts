@@ -247,6 +247,73 @@ describe('сроки: только чтение и баннер (1206)', () => {
   });
 });
 
+describe('лимиты (1207)', () => {
+  const setLimits = (c: Client, limits: Record<string, number>, planId = fullPlan) => op.put(`/admin/tenants/${c.workspaceId}/license`, { planId, limits });
+  const usage = async (c: Client) => (await op.get(`/admin/tenants/${c.workspaceId}/license`)).body.usage;
+
+  test('пользователи: участники и неотвеченные приглашения; существующих не трогаем; 403 limit_exceeded с подробностями', async () => {
+    const c = new Client();
+    await c.signup();
+    expect((await usage(c)).members).toBe(1);
+    await setLimits(c, { members: 2 });
+    const invite = (email: string) => c.post(`/workspaces/${c.workspaceId}/invites`, { email, role: 'member' });
+    expect((await invite(`a-${uniq()}@test.dev`)).status).toBe(201);
+    expect((await usage(c)).members).toBe(2);
+    const r = await invite(`b-${uniq()}@test.dev`);
+    expect(r.status).toBe(403);
+    expect(r.body.error).toMatchObject({ code: 'limit_exceeded', details: { limit: 'members', max: 2, used: 2 } });
+    // лимит ниже текущего использования: существующее остаётся, нового нет
+    await setLimits(c, { members: 1 });
+    expect((await c.get('/members')).status).toBe(200);
+    expect((await invite(`c-${uniq()}@test.dev`)).body.error.code).toBe('limit_exceeded');
+    // снятие лимита возвращает возможность
+    await setLimits(c, {});
+    expect((await invite(`d-${uniq()}@test.dev`)).status).toBe(201);
+  });
+
+  test('организации и склады: 0 — больше нельзя, существующие остаются', async () => {
+    const c = new Client();
+    await c.signup();
+    const u = await usage(c);
+    expect(u.organizations).toBeGreaterThan(0);
+    await setLimits(c, { organizations: u.organizations, warehouses: u.warehouses });
+    const org = await c.post('/organizations', { name: 'Ещё одна' });
+    expect(org.status).toBe(403);
+    expect(org.body.error).toMatchObject({ code: 'limit_exceeded', details: { limit: 'organizations' } });
+    expect((await c.post('/warehouses', { name: 'Ещё склад', code: 'X1' })).body.error.code).toBe('limit_exceeded');
+    expect((await c.get('/organizations')).body.items.length).toBe(u.organizations);
+    await setLimits(c, { organizations: u.organizations + 1, warehouses: u.warehouses + 1 });
+    expect((await c.post('/organizations', { name: 'Ещё одна' })).status).toBe(201);
+    expect((await c.post('/warehouses', { name: 'Ещё склад', code: 'X1' })).status).toBe(201);
+    expect((await c.post('/organizations', { name: 'И ещё' })).body.error.code).toBe('limit_exceeded');
+  });
+
+  test('объём файлов: считаем размеры файлов и PDF, лимит в МБ проверяется при создании файла', async () => {
+    const c = new Client();
+    await c.signup();
+    await setLimits(c, { storageMb: 1 });
+    expect((await c.post('/files', { name: 'a.bin', sizeBytes: 600 * 1024 })).status).toBe(201);
+    expect((await usage(c)).storageBytes).toBe(600 * 1024);
+    const big = await c.post('/files', { name: 'b.bin', sizeBytes: 600 * 1024 });
+    expect(big.status).toBe(403);
+    expect(big.body.error).toMatchObject({ code: 'limit_exceeded', details: { limit: 'storageMb', max: 1 } });
+    expect((await c.post('/files', { name: 'c.bin', sizeBytes: 100 * 1024 })).status).toBe(201);
+  });
+
+  test('лимит тарифа действует, персональный поверх него; оператор видит оба и использование; неизвестный ключ — 400', async () => {
+    const c = new Client();
+    await c.signup();
+    const plan = (await op.post('/admin/plans', { name: `С лимитом ${uniq()}`, modules: [], limits: { organizations: 0 } })).body.id as string;
+    await setLimits(c, {}, plan);
+    expect((await c.post('/organizations', { name: 'X' })).body.error.code).toBe('limit_exceeded');
+    const lic = (await op.get(`/admin/tenants/${c.workspaceId}/license`)).body;
+    expect(lic).toMatchObject({ planLimits: { organizations: 0 }, ownLimits: {}, limits: { organizations: 0 } });
+    await setLimits(c, { organizations: 5 }, plan);
+    expect((await c.post('/organizations', { name: 'X' })).status).toBe(201);
+    expect((await setLimits(c, { bogus: 1 } as any)).status).toBe(400);
+  });
+});
+
 describe('журнал изменений лицензии (1209)', () => {
   test('смена тарифа, срока, лимитов и доп. модулей пишется со старым и новым значением и автором', async () => {
     const c = new Client();
