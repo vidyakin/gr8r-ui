@@ -12,6 +12,7 @@
 - [Стек и монорепозиторий](architecture/stack.md)
 - [Арендаторы и доступ](architecture/tenancy.md) — RLS, роли, авторизация
 - [Деплой и арендаторы оператора](architecture/deploy.md) — VPS, создание, удаление, выгрузка арендаторов
+- [Модули и тарифы](architecture/licensing.md) — каталог модулей, тарифы, доп. модули арендатора, запрет в интерфейсе, API и воркере
 - [Общие соглашения по данным](architecture/data-conventions.md) — id, деньги, мягкое удаление, аудит
 - [Конструктор сущностей](architecture/metadata.md) — метаданные + JSONB
 - [Фронтенд на сервере](architecture/frontend-server.md) — TanStack Query, realtime
