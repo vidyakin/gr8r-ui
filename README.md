@@ -176,10 +176,11 @@ curl -s -b jar "$API/tasks?projectId=$P&sort=-priority" -H "X-Workspace-Id: $WS"
 6. CLI оператора — Coolify → приложение → Terminal → контейнер `api`: `bun run tenant create …`, `bun run tenant operator grant <email>`
    (команды — как в списке выше). Выгрузка арендатора скачивается из экрана «Арендаторы»; для `import` положить файл по SSH в
    `/data/coolify/applications/<uuid>/archives/` (`sudo chown 1000:1000` на папку) и выполнить `bun run tenant import /archives/<файл>`.
-7. Дампы — в `/data/coolify/applications/<uuid>/backups/`, восстановление — как в п. 5 выше, через `docker exec` в контейнер postgres.
+7. Дампы — в `/data/coolify/applications/<uuid>/backups/erp-*.dump`, восстановление — как в п. 5 выше, через `docker exec` в контейнер
+   postgres, база `erp`: `pg_restore -U postgres -d erp --clean --if-exists`.
 8. После первого деплоя проверить, что прокси Coolify не пропускает подставленный IP:
    `curl -s -o /dev/null -H 'X-Forwarded-For: 6.6.6.6' -H 'Content-Type: application/json' -d '{"email":"x@x.ru","password":"wrong-pass"}' https://$DOMAIN/api/auth/signin`,
-   затем в контейнере postgres `psql -U postgres -d gr8r -c "select key from rate_limits where key like 'signin:ip:%'"` — там должен быть
+   затем в контейнере postgres `psql -U postgres -d erp -c "select key from rate_limits where key like 'signin:ip:%'"` — там должен быть
    ваш настоящий IP, а не 6.6.6.6.
 
 `docker-compose.yml` — для локального запуска всего стека, на сервер его не ставить (порты БД открыты, пароли по умолчанию).

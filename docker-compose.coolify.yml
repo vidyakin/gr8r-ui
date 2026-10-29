@@ -5,9 +5,9 @@
 # Инструкция — README, «Деплой через Coolify», устройство — docs/architecture/deploy.md.
 
 x-db-env: &db-env
-  ADMIN_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?задайте POSTGRES_PASSWORD}@postgres:5432/gr8r
-  DATABASE_URL: postgres://gr8r_app:${APP_DB_PASSWORD:?задайте APP_DB_PASSWORD}@postgres:5432/gr8r
-  APP_DB_USER: gr8r_app
+  ADMIN_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?задайте POSTGRES_PASSWORD}@postgres:5432/erp
+  DATABASE_URL: postgres://erp_app:${APP_DB_PASSWORD:?задайте APP_DB_PASSWORD}@postgres:5432/erp
+  APP_DB_USER: erp_app
   APP_DB_PASSWORD: ${APP_DB_PASSWORD}
   NODE_ENV: production
 
@@ -17,21 +17,21 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: gr8r
+      POSTGRES_DB: erp
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres -d gr8r']
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d erp']
       interval: 3s
       timeout: 3s
       retries: 20
 
-  # Разовая задача при каждом деплое: миграции и роли gr8r_app/gr8r_ddl. Завершается — Coolify не считает это падением
+  # Разовая задача при каждом деплое: миграции и роли erp_app/erp_ddl. Завершается — Coolify не считает это падением
   migrate:
     build: { context: ., target: migrate }
     environment:
       <<: *db-env
-      DDL_DB_USER: gr8r_ddl
+      DDL_DB_USER: erp_ddl
       DDL_DB_PASSWORD: ${DDL_DB_PASSWORD:?задайте DDL_DB_PASSWORD}
       SEED: '0'
     depends_on:
@@ -60,7 +60,7 @@ services:
     restart: unless-stopped
     environment:
       <<: *db-env
-      DATABASE_URL_DDL: postgres://gr8r_ddl:${DDL_DB_PASSWORD}@postgres:5432/gr8r
+      DATABASE_URL_DDL: postgres://erp_ddl:${DDL_DB_PASSWORD}@postgres:5432/erp
       SECRETS_KEY: ${SECRETS_KEY}
       OPERATOR_LEAD_HOOK_URL: ${OPERATOR_LEAD_HOOK_URL:-}
     depends_on:
@@ -90,9 +90,9 @@ services:
       - -c
       - |
         while true; do
-          f=/backups/gr8r-$$(date +%Y%m%d-%H%M).dump
-          pg_dump -h postgres -U postgres -d gr8r -Fc -f "$$f.tmp" && mv "$$f.tmp" "$$f" && echo "backup: $$f"
-          find /backups -name 'gr8r-*.dump' -mtime +$$KEEP_DAYS -delete
+          f=/backups/erp-$$(date +%Y%m%d-%H%M).dump
+          pg_dump -h postgres -U postgres -d erp -Fc -f "$$f.tmp" && mv "$$f.tmp" "$$f" && echo "backup: $$f"
+          find /backups -name 'erp-*.dump' -mtime +$$KEEP_DAYS -delete
           sleep 86400
         done
     depends_on:
