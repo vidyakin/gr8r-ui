@@ -1,6 +1,7 @@
 /* Интеграции оплат (задача 1174д): подключение счетов к API банков, загрузка операций через общий импорт выписки,
    ссылки на онлайн-оплату и проверка платежей ЮКассы. Правила — docs/architecture/payments.md, «Интеграции».
    Сеть — только через `Fetcher` (по умолчанию `guardedFetcher`: фиксированные хосты провайдеров, проверка адресов DNS). */
+import { allWorkspaceModules } from './licensing';
 import { lookup } from 'node:dns/promises';
 import { and, desc, eq, inArray, sql as dsql } from 'drizzle-orm';
 import {
@@ -342,8 +343,10 @@ export async function scheduleBankSyncs(sql: Sql, intervalMin = Number(process.e
         .select({ id: bankConnections.id, workspaceId: bankConnections.workspaceId })
         .from(bankConnections)
         .where(and(eq(bankConnections.enabled, true), dsql`${bankConnections.provider} <> 'yookassa'`, dsql`(${bankConnections.lastSyncAt} is null or ${bankConnections.lastSyncAt} < now() - make_interval(mins => ${intervalMin}))`));
+      const modules = await allWorkspaceModules(db);
       let n = 0;
       for (const c of due) {
+        if (!modules.get(c.workspaceId)?.has('integrations')) continue; // модуль «Интеграции» выключен: подключение не опрашиваем
         const [busy] = await db
           .select({ id: jobs.id })
           .from(jobs)

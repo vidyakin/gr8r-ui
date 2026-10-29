@@ -379,6 +379,13 @@
       "when": 1793280331874,
       "tag": "0056_deal_pipelines",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1793281331874,
+      "tag": "0057_licensing",
+      "breakpoints": true
     }
   ]
 }

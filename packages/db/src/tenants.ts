@@ -234,7 +234,7 @@ export async function isOperator(sql: Sql, userId: string): Promise<boolean> {
 
 export const TENANT_ARCHIVE_FORMAT = 'gr8r-tenant';
 const ARCHIVE_VERSION = 1;
-const SKIP_TABLES = new Set(['jobs']);
+const SKIP_TABLES = new Set(['jobs', 'workspace_licenses', 'workspace_module_grants']); // очередь и лицензия установки (платформенные данные оператора) не выгружаются
 
 /** Последняя миграция: архив загружается только в установку с той же схемой */
 export function schemaTag(): string {
@@ -255,7 +255,7 @@ async function userRefColumns(tx: Tx): Promise<{ table: string; column: string }
   const rows = await tx`
     select cl.relname as table, a.attname as column from pg_constraint k
     join pg_class cl on cl.oid = k.conrelid join pg_attribute a on a.attrelid = k.conrelid and a.attnum = k.conkey[1]
-    where k.contype = 'f' and k.confrelid = 'public.users'::regclass and cl.relname <> 'sessions' order by 1, 2`;
+    where k.contype = 'f' and k.confrelid = 'public.users'::regclass and cl.relname <> 'sessions' and cl.relname not in ('workspace_licenses', 'workspace_module_grants') order by 1, 2`;
   return rows.map(r => ({ table: r.table as string, column: r.column as string }));
 }
 
