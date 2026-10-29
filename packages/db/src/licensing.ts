@@ -99,7 +99,7 @@ function mapOperatorError(e: unknown): never {
   throw e;
 }
 
-const call = async <T>(sql: Sql, userId: string, fn: (tx: Tx) => Promise<T>): Promise<T> => {
+export const call = async <T>(sql: Sql, userId: string, fn: (tx: Tx) => Promise<T>): Promise<T> => {
   try {
     return await withContext(sql, { userId }, (_db, tx) => fn(tx));
   } catch (e) {

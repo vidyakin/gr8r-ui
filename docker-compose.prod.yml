@@ -61,6 +61,7 @@ services:
       <<: *db-env
       DATABASE_URL_DDL: postgres://gr8r_ddl:${DDL_DB_PASSWORD}@postgres:5432/gr8r
       SECRETS_KEY: ${SECRETS_KEY}
+      OPERATOR_LEAD_HOOK_URL: ${OPERATOR_LEAD_HOOK_URL:-}
     depends_on:
       migrate: { condition: service_completed_successfully }
 

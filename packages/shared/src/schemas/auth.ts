@@ -78,3 +78,40 @@ export const tenantLicenseBody = z.object({
   grants: z.array(z.object({ module: moduleIdSchema, expiresAt: isoDate.nullable().default(null) })).max(20).default([]),
 });
 export type TenantLicenseBody = z.infer<typeof tenantLicenseBody>;
+
+/* Заявки арендатора на модули («Нужно больше?», задача 1208) */
+export const REQUEST_STATUSES = ['new', 'in_progress', 'done', 'rejected'] as const;
+export type RequestStatus = (typeof REQUEST_STATUSES)[number];
+
+export const moduleRequestBody = z.object({
+  modules: z.array(moduleIdSchema.exclude(['core'])).min(1).max(20),
+  comment: z.string().trim().max(2000).nullish(),
+  contact: z.string().trim().min(3).max(200),
+});
+export type ModuleRequestBody = z.infer<typeof moduleRequestBody>;
+
+export const moduleRequestStatusBody = z.object({
+  status: z.enum(REQUEST_STATUSES),
+  note: z.string().trim().max(2000).nullish(),
+});
+
+/** Заявка в ответах API: арендатору — свои, оператору — все (с названием арендатора) */
+export interface ModuleRequestRow {
+  id: string;
+  modules: string[];
+  comment: string | null;
+  contact: string;
+  status: RequestStatus;
+  createdAt: string;
+}
+export interface OperatorModuleRequest extends ModuleRequestRow {
+  workspaceId: string;
+  workspaceName: string;
+  workspaceSlug: string;
+  requestedBy: string | null;
+  requestedByEmail: string | null;
+  note: string | null;
+  handledAt: string | null;
+  handledByEmail: string | null;
+  hookSentAt: string | null;
+}

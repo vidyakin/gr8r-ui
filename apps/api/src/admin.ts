@@ -3,8 +3,8 @@
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { createMiddleware } from 'hono/factory';
-import { createTenant, deletePlan, exportTenant, getLicenseLog, getTenantLicense, isOperator, listPlans, listTenantsForOperator, requestTenantDelete, savePlan, setTenantLicense } from '@gr8r/db';
-import { licensePlanBody, tenantCreateBody, tenantLicenseBody, workspaceParam } from '@gr8r/shared';
+import { createTenant, deletePlan, exportTenant, getLicenseLog, getTenantLicense, isOperator, listOperatorRequests, listPlans, setOperatorRequestStatus, listTenantsForOperator, requestTenantDelete, savePlan, setTenantLicense } from '@gr8r/db';
+import { licensePlanBody, moduleRequestStatusBody, REQUEST_STATUSES, tenantCreateBody, tenantLicenseBody, workspaceParam } from '@gr8r/shared';
 import { validationHook } from './crud';
 import { forbidden } from './errors';
 import { requireSession } from './middleware';
@@ -39,6 +39,16 @@ export const adminRoutes = new Hono<AppEnv>()
     return c.json({ ok: true });
   })
   .get('/tenants/:id/license', zValidator('param', workspaceParam, validationHook), async c => c.json(await getTenantLicense(c.get('sql'), c.get('user').id, c.req.valid('param').id)))
+  // Заявки арендаторов на модули (задача 1208)
+  .get('/requests', async c => {
+    const st = c.req.query('status');
+    const status = (REQUEST_STATUSES as readonly string[]).includes(st ?? '') ? (st as (typeof REQUEST_STATUSES)[number]) : null;
+    return c.json({ items: await listOperatorRequests(c.get('sql'), c.get('user').id, status) });
+  })
+  .put('/requests/:id', zValidator('param', workspaceParam, validationHook), zValidator('json', moduleRequestStatusBody, validationHook), async c => {
+    const b = c.req.valid('json');
+    return c.json(await setOperatorRequestStatus(c.get('sql'), c.get('user').id, c.req.valid('param').id, b.status, b.note ?? null));
+  })
   .get('/tenants/:id/license-log', zValidator('param', workspaceParam, validationHook), async c => c.json({ items: await getLicenseLog(c.get('sql'), c.get('user').id, c.req.valid('param').id) }))
   .put('/tenants/:id/license', zValidator('param', workspaceParam, validationHook), zValidator('json', tenantLicenseBody, validationHook), async c =>
     c.json(await setTenantLicense(c.get('sql'), c.get('user').id, c.req.valid('param').id, c.req.valid('json'))),

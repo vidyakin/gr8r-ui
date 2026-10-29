@@ -5,7 +5,7 @@ import { beforeAll, describe, expect, test } from 'bun:test';
 import { setOperator } from '@gr8r/db';
 import { defaultOptions, processEventsOnce, processJobsOnce } from '../../worker/src/worker';
 import { disabledModulesOfNodes, enabledModules, licenseNotices, licenseView, moduleStates, readableModules, type LicenseRaw, MODULE_IDS, MODULE_OF_JOB, MODULE_OF_NODE, MODULE_OF_PATH, NODE_LIST, resolveModules } from '@gr8r/shared';
-import { jobHandlers } from '../../worker/src/handlers';
+import { jobHandlers, requestHookRuntime } from '../../worker/src/handlers';
 import { TENANT_PATHS } from '../src/app';
 import { admin, Client, ddl, drainJobs, sql, uniq } from './helpers';
 
@@ -311,6 +311,103 @@ describe('лимиты (1207)', () => {
     await setLimits(c, { organizations: 5 }, plan);
     expect((await c.post('/organizations', { name: 'X' })).status).toBe(201);
     expect((await setLimits(c, { bogus: 1 } as any)).status).toBe(400);
+  });
+});
+
+describe('«Нужно больше?»: заявки (1208)', () => {
+  let c: Client;
+  let reqId: string;
+  beforeAll(async () => {
+    c = new Client();
+    await c.signup();
+    await license(c, corePlan);
+  });
+
+  test('арендатор оставляет заявку и видит свои; чужие не видит; валидация модулей и контакта', async () => {
+    expect((await c.post('/license/requests', { modules: [], contact: 'a@b.ru' })).status).toBe(400);
+    expect((await c.post('/license/requests', { modules: ['core'], contact: 'a@b.ru' })).status).toBe(400);
+    expect((await c.post('/license/requests', { modules: ['crm'], contact: '' })).status).toBe(400);
+    const r = await c.post('/license/requests', { modules: ['crm', 'money'], comment: 'Нужна воронка', contact: 'boss@test.dev' });
+    expect(r.status).toBe(201);
+    expect(r.body).toMatchObject({ modules: ['crm', 'money'], status: 'new', contact: 'boss@test.dev' });
+    reqId = r.body.id;
+    expect((await c.get('/license/requests')).body.items.map((x: any) => x.id)).toContain(reqId);
+    expect((await plain.get('/license/requests')).body.items).toEqual([]);
+  });
+
+  test('арендатор не может менять и удалять заявку (RLS и права)', async () => {
+    const run = (q: (tx: any) => Promise<any>) =>
+      sql.begin(async tx => {
+        await tx.unsafe('set local role app_user');
+        await tx`select set_config('app.workspace_id', ${c.workspaceId!}, true)`;
+        return q(tx);
+      });
+    await expect(run(tx => tx`update module_requests set status = 'done'`)).rejects.toThrow(/permission denied/);
+    await expect(run(tx => tx`delete from module_requests`)).rejects.toThrow(/permission denied/);
+  });
+
+  test('оператор видит заявки всех арендаторов и ведёт статус; не оператору закрыто', async () => {
+    const list = await op.get('/admin/requests');
+    const mine = list.body.items.find((x: any) => x.id === reqId);
+    expect(mine).toMatchObject({ workspaceId: c.workspaceId, status: 'new', modules: ['crm', 'money'], requestedByEmail: c.user!.email });
+    expect(mine.workspaceName).toBeTruthy();
+    const upd = await op.put(`/admin/requests/${reqId}`, { status: 'in_progress', note: 'Звоним' });
+    expect(upd.body).toMatchObject({ status: 'in_progress', note: 'Звоним', handled_by_email: op.user!.email });
+    expect((await op.get('/admin/requests?status=new')).body.items.some((x: any) => x.id === reqId)).toBe(false);
+    expect((await c.get('/license/requests')).body.items.find((x: any) => x.id === reqId).status).toBe('in_progress');
+    expect((await op.put(`/admin/requests/${reqId}`, { status: 'bogus' })).status).toBe(400);
+    expect((await plain.get('/admin/requests')).status).toBe(403);
+    expect((await plain.put(`/admin/requests/${reqId}`, { status: 'done' })).status).toBe(403);
+  });
+
+  test('заявку может оставить владелец или админ, участник — нет', async () => {
+    const m = new Client();
+    await m.signup();
+    const inv = await c.post(`/workspaces/${c.workspaceId}/invites`, { email: m.user!.email, role: 'member' });
+    expect(inv.status).toBe(201);
+    expect((await m.post('/invites/accept', { token: inv.body.token })).status).toBeLessThan(300);
+    const r = await m.post('/license/requests', { modules: ['crm'], contact: 'x@test.dev' }, c.workspaceId);
+    expect(r.status).toBe(403);
+  });
+
+  test('воркер дублирует заявку в вебхук лидов, при сбое повторяет; без адреса ничего не отправляет', async () => {
+    const calls: { url: string; body: any }[] = [];
+    let fail = 1;
+    const orig = { fetch: requestHookRuntime.fetch, url: requestHookRuntime.url };
+    try {
+      // адрес не задан: задача выполнена, заявка не помечена
+      requestHookRuntime.url = () => undefined;
+      const a = await c.post('/license/requests', { modules: ['trade'], contact: '+7 900 000-00-00' });
+      await drainJobs();
+      expect((await admin`select hook_sent_at from module_requests where id = ${a.body.id}`)[0]!.hook_sent_at).toBeNull();
+      expect((await admin`select status from jobs where payload->>'requestId' = ${a.body.id}`)[0]!.status).toBe('done');
+      // адрес задан: первый вызов 500 → повтор → успех
+      requestHookRuntime.url = () => 'http://hook.test/hooks/leads/token';
+      requestHookRuntime.fetch = async (url, init) => {
+        calls.push({ url, body: JSON.parse(String(init.body)) });
+        return new Response('{}', { status: fail-- > 0 ? 500 : 201 });
+      };
+      const b = await c.post('/license/requests', { modules: ['production', 'services'], comment: 'Срочно', contact: 'boss@test.dev' });
+      await drainJobs();
+      expect(calls).toHaveLength(1);
+      const job = (await admin`select status, attempts, last_error from jobs where payload->>'requestId' = ${b.body.id}`)[0]!;
+      expect(job.status).toBe('queued');
+      expect(job.last_error).toContain('500');
+      await admin`update jobs set run_at = now() where payload->>'requestId' = ${b.body.id}`;
+      await drainJobs();
+      expect(calls).toHaveLength(2);
+      expect(calls[1]).toMatchObject({ url: 'http://hook.test/hooks/leads/token', body: { email: 'boss@test.dev', utm_source: 'gr8r-module-request' } });
+      expect(calls[1]!.body.comment).toContain('production, services');
+      expect(calls[1]!.body.comment).toContain('Срочно');
+      expect((await admin`select hook_sent_at from module_requests where id = ${b.body.id}`)[0]!.hook_sent_at).not.toBeNull();
+      expect((await admin`select status from jobs where payload->>'requestId' = ${b.body.id}`)[0]!.status).toBe('done');
+      // повтор задачи не шлёт заявку второй раз
+      await admin`update jobs set status = 'queued', run_at = now() where payload->>'requestId' = ${b.body.id}`;
+      await drainJobs();
+      expect(calls).toHaveLength(2);
+    } finally {
+      Object.assign(requestHookRuntime, orig);
+    }
   });
 });
 

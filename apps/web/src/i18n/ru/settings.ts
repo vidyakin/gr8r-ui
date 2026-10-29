@@ -64,6 +64,7 @@ export const settings: Widen<typeof S> = {
       payment: 'Оплата',
       invoices: 'Счета',
       tenants: 'Арендаторы',
+      requests: 'Заявки на модули',
       plans: 'Тарифы и модули',
     },
   },

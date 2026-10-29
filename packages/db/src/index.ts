@@ -68,3 +68,4 @@ export * from './money-print';
 export * from './tenants';
 export * from './quotes';
 export * from './licensing';
+export * from './module-requests';

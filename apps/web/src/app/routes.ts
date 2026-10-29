@@ -26,6 +26,7 @@ import {
   House,
   Inbox,
   Layers,
+  Sparkles,
   Hammer,
   LayoutDashboard,
   ListChecks,
@@ -93,6 +94,7 @@ export const SECTIONS = {
   archive: { path: '/archive', name: 'Archive', icon: Archive },
   search: { path: '/search', name: 'Search', icon: Search },
   settings: { path: '/settings', name: 'Settings', icon: Settings },
+  upgrade: { path: '/upgrade', name: 'Need more?', icon: Sparkles },
   system: { path: '/design-system', name: 'Design system', icon: Component },
   // Демо-модуль CRM (src/app/crm)
   crm: { path: '/crm', name: 'Dashboard', icon: ChartNoAxesCombined },

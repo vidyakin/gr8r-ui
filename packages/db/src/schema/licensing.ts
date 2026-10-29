@@ -2,9 +2,11 @@
    установки, а не арендатора. Приложению (app_user) доступно только чтение своей строки лицензии, запись — через
    SECURITY DEFINER-функции оператора (миграция 0057). */
 import { sql } from 'drizzle-orm';
-import { boolean, index, integer, jsonb, pgTable, primaryKey, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, foreignKey, index, integer, jsonb, pgTable, primaryKey, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { archivedAt, createdAt, pk, ts, updatedAt } from './columns';
 import { users, workspaces } from './core';
+import { members } from './people';
+import { wsCol } from './tenant';
 
 /** Справочник тарифов оператора. Модули — идентификаторы каталога в коде (`MODULES` в @gr8r/shared) */
 export const licensePlans = pgTable(
@@ -88,4 +90,35 @@ export const licenseLog = pgTable(
     newValue: jsonb('new_value'),
   },
   t => [index('license_log_ws_idx').on(t.workspaceId, t.at)],
+);
+
+/** Заявки арендатора на подключение модулей («Нужно больше?», задача 1208). Таблица арендаторская: арендатор создаёт заявку и видит свои
+    (RLS по workspace_id), менять и удалять не может; оператор читает все заявки и ведёт статус через SECURITY DEFINER-функции */
+export const moduleRequests = pgTable(
+  'module_requests',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    /** Автор заявки — участник воркспейса */
+    requestedBy: uuid('requested_by'),
+    /** Запрошенные модули (идентификаторы каталога) */
+    modules: text('modules').array().notNull().default(sql`'{}'::text[]`),
+    comment: text('comment'),
+    /** Как связаться: телефон, email или мессенджер */
+    contact: text('contact').notNull(),
+    /** new | in_progress | done | rejected */
+    status: text('status').notNull().default('new'),
+    /** Заметка оператора */
+    note: text('note'),
+    handledAt: ts('handled_at'),
+    handledByEmail: text('handled_by_email'),
+    /** Когда заявка продублирована в вебхук лидов оператора (OPERATOR_LEAD_HOOK_URL); null — не отправлена */
+    hookSentAt: ts('hook_sent_at'),
+    createdAt: createdAt(),
+  },
+  t => [
+    foreignKey({ columns: [t.workspaceId, t.requestedBy], foreignColumns: [members.workspaceId, members.id], name: 'module_requests_member_fk' }).onDelete('cascade'),
+    index('module_requests_ws_idx').on(t.workspaceId, t.createdAt),
+    index('module_requests_status_idx').on(t.status, t.createdAt),
+  ],
 );

@@ -37,9 +37,9 @@ export const MODULES: readonly ModuleDef[] = [
       '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/organizations', '/bank-accounts', '/warehouses', '/cost-items',
       '/companies', '/contacts', '/positions', '/product-kinds', '/secrets', '/license',
     ],
-    sections: ['home', 'inbox', 'mytasks', 'favorites', 'notifications', 'overview', 'projects', 'tasks', 'calendar', 'timeline', 'members', 'activity', 'archive', 'search', 'settings', 'system', 'catalog', 'crmCompanies', 'crmContacts'],
+    sections: ['home', 'inbox', 'mytasks', 'favorites', 'notifications', 'overview', 'projects', 'tasks', 'calendar', 'timeline', 'members', 'activity', 'archive', 'search', 'settings', 'upgrade', 'system', 'catalog', 'crmCompanies', 'crmContacts'],
     settings: ['workspace', 'appearance', 'language', 'datetime', 'members', 'teams', 'projects', 'permissions', 'data-model', 'organizations', 'warehouses', 'cost-items', 'positions', 'product-kinds'],
-    jobs: ['noop', 'index.create', 'index.drop'],
+    jobs: ['noop', 'index.create', 'index.drop', 'module_request.notify'],
   }),
   def({
     id: 'crm',

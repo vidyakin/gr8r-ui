@@ -63,6 +63,7 @@ export const settings = {
       payment: 'Payment',
       invoices: 'Invoices',
       tenants: 'Tenants',
+      requests: 'Module requests',
       plans: 'Plans and modules',
     },
   },

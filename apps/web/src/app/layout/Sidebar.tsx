@@ -378,6 +378,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
             <MenuItem icon={<MessageCircle size={15} />}>{t('nav.support')}</MenuItem>
           </MenuContent>
         </Menu>
+        <SectionItem id="upgrade" collapsed={collapsed} />
         <SectionItem id="settings" collapsed={collapsed} />
         <UserMenu side="top" align="start">
           <button className="sitem" style={{ height: 36 }} aria-label={collapsed ? t('nav.profile') : undefined}>
