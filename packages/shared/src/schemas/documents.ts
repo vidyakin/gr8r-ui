@@ -233,13 +233,17 @@ export type DocTemplatePurpose = (typeof DOC_TEMPLATE_PURPOSES)[number];
 export const docTemplateCreate = z.object({
   id: clientId,
   name: shortText,
-  /** Пока только КП; назначения договоров — в DOC_TEMPLATE_PURPOSES и в БД */
-  purpose: z.enum(['quote']).default('quote'),
+  /** Назначение: КП или договор (с документом или без) — как в справочнике 1С */
+  purpose: z.enum(DOC_TEMPLATE_PURPOSES).default('quote'),
   body: z.string().max(100_000).default(''),
   isUsed: z.boolean().default(true),
   onlyAuthor: z.boolean().default(false),
 });
-export const docTemplateUpdate = toPatch(docTemplateCreate.omit({ id: true }));
+/** Назначение шаблона после создания не меняется */
+export const docTemplateUpdate = toPatch(docTemplateCreate.omit({ id: true, purpose: true }));
+
+/** PDF договора без документа */
+export const contractPdfRequest = z.object({ templateId: uuid.optional() });
 
 /* ---------------- склад ---------------- */
 

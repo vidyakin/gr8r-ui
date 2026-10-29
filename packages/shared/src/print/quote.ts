@@ -65,7 +65,7 @@ export const DEFAULT_QUOTE_TEMPLATE = `# Коммерческое предлож
 
 const PLACEHOLDER = /\{\{\s*([^{}]+?)\s*\}\}/g;
 
-function linesTable(d: PrintData, v: PrintVariant): string {
+export function linesTable(d: PrintData, v: PrintVariant): string {
   const amount = (l: PrintLine) => (d.priceIncludesVat ? l.total : l.net);
   const disc = v.lines.some(l => Number(l.discountPct) > 0);
   const cols = disc ? 6 : 5;
@@ -91,7 +91,7 @@ function variantsBlock(d: PrintData): string {
   return vs.map(v => `<h2 style="margin-top:10px">${esc(v.name)}</h2>${linesTable(d, v)}<div class="small">${esc(amountInWordsRu(v.totals.total))}</div>`).join('');
 }
 
-function signs(d: PrintData): string {
+export function signs(d: PrintData): string {
   const o = d.organization;
   const img = (f: PrintData['organization']['stampFile'], cls: string, alt: string) => (f && f.url ? `<img class="${cls}" src="${esc(f.url)}" alt="${esc(alt)}">` : '');
   return `<table class="sign plain"><tr>
@@ -104,12 +104,12 @@ function signs(d: PrintData): string {
 
 /** Строка текста: параметры подставляются (экранированно), **жирный** — после экранирования, значения в нём не участвуют.
     null — в строке были параметры, и все оказались пустыми: такую строку не печатаем */
-function inline(text: string, d: PrintData): string | null {
+function inline<D>(text: string, d: D, params: Record<string, (d: D) => string>): string | null {
   const values: string[] = [];
   let total = 0;
   let filled = 0;
   const marked = text.replace(PLACEHOLDER, (all, name: string) => {
-    const f = PARAMS[name];
+    const f = params[name];
     if (!f) return all;
     total++;
     const v = f(d);
@@ -123,8 +123,8 @@ function inline(text: string, d: PrintData): string | null {
     .replace(/\u0000(\d+)\u0000/g, (_, i: string) => values[Number(i)]!);
 }
 
-/** Тело шаблона → HTML без обёртки страницы */
-export function renderQuoteBody(body: string, d: PrintData): string {
+/** Тело шаблона → HTML без обёртки страницы; разметка общая для КП и договоров (print/contract.ts) */
+export function renderMarkup<D>(body: string, d: D, params: Record<string, (d: D) => string>, blocks: Record<string, (d: D) => string>): string {
   const out: string[] = [];
   let para: string[] = [];
   const flush = () => {
@@ -134,9 +134,9 @@ export function renderQuoteBody(body: string, d: PrintData): string {
   for (const raw of body.replace(/\r\n?/g, '\n').split('\n')) {
     const line = raw.trimEnd();
     const block = /^\s*\{\{\s*([^{}]+?)\s*\}\}\s*$/.exec(line);
-    if (block && BLOCKS[block[1]!]) {
+    if (block && blocks[block[1]!]) {
       flush();
-      out.push(BLOCKS[block[1]!]!(d));
+      out.push(blocks[block[1]!]!(d));
       continue;
     }
     if (!line.trim()) {
@@ -144,7 +144,7 @@ export function renderQuoteBody(body: string, d: PrintData): string {
       continue;
     }
     const h = /^(#{1,2})\s+(.*)$/.exec(line);
-    const text = inline(h ? h[2]! : line, d);
+    const text = inline(h ? h[2]! : line, d, params);
     if (text === null) continue;
     if (h) {
       flush();
@@ -154,6 +154,9 @@ export function renderQuoteBody(body: string, d: PrintData): string {
   flush();
   return out.join('\n');
 }
+
+/** Тело КП по шаблону */
+export const renderQuoteBody = (body: string, d: PrintData): string => renderMarkup(body, d, PARAMS, BLOCKS);
 
 /** Страница КП по шаблону; без шаблона — стандартная форма */
 export function renderQuote(d: PrintData, body: string = DEFAULT_QUOTE_TEMPLATE): string {

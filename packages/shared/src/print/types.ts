@@ -142,3 +142,31 @@ export interface PrintData {
   /** Варианты КП (КП и заказ покупателя): первым — основной; пусто — вариантов нет */
   variants?: PrintVariant[];
 }
+
+/** Параметры договора для печати (docs/architecture/contracts.md) */
+export interface PrintContract {
+  number: string;
+  /** YYYY-MM-DD */
+  date: string;
+  kind: 'customer' | 'supplier' | 'other';
+  category: string;
+  validFrom: string;
+  /** null — бессрочный */
+  validTo: string | null;
+  paymentDays: number;
+  note: string;
+  /** Основание полномочий руководителя организации («Устава», «доверенности № …»); пусто — «Устава» */
+  orgSignerBasis: string;
+  /** Подписант контрагента и основание его полномочий */
+  partySignerName: string;
+  partySignerTitle: string;
+  partySignerBasis: string;
+}
+
+/** Данные печати договора: стороны и сам договор; документ — для составных назначений («Договор + Заказ / Счёт / Заказ-наряд») */
+export interface ContractPrintData {
+  contract: PrintContract;
+  organization: PrintOrganization;
+  party: PrintParty;
+  doc: PrintData | null;
+}

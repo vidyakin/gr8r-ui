@@ -5,8 +5,8 @@
 import * as React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { FileStack, Plus, Save, Trash2 } from 'lucide-react';
-import { DEFAULT_QUOTE_TEMPLATE, QUOTE_TEMPLATE_BLOCKS, QUOTE_TEMPLATE_PARAMS } from '@gr8r/shared';
-import { Badge, Button, ConfirmDialog, EmptyState, Field, Input, Skeleton, Switch, Textarea, toast } from '@/components/ui';
+import { CONTRACT_TEMPLATE_BLOCKS, CONTRACT_TEMPLATE_PARAMS, DEFAULT_CONTRACT_TEMPLATES, DEFAULT_QUOTE_TEMPLATE, DOC_TEMPLATE_PURPOSES, QUOTE_TEMPLATE_BLOCKS, QUOTE_TEMPLATE_PARAMS, type DocTemplatePurpose } from '@gr8r/shared';
+import { Badge, Button, ConfirmDialog, EmptyState, Field, Input, Select, Skeleton, Switch, Textarea, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { useCanWrite } from '../meta/custom-fields';
@@ -27,7 +27,8 @@ export function QuoteTemplatesPage() {
   const ws = useWsId();
   const qc = useQueryClient();
   const canWrite = useCanWrite();
-  const list = useDocTemplates();
+  const [purpose, setPurpose] = React.useState<DocTemplatePurpose | 'all'>('all');
+  const list = useDocTemplates({ purpose });
   const [selected, setSelected] = React.useState<string | null>(null);
   const [draft, setDraft] = React.useState<Draft | null>(null);
   const [busy, setBusy] = React.useState(false);
@@ -57,7 +58,11 @@ export function QuoteTemplatesPage() {
   };
 
   const create = async () => {
-    const r = await run(() => call<DocTemplate>(ws, 'POST', '/doc-templates', { name: t('docs.quotes.newTemplateName'), body: DEFAULT_QUOTE_TEMPLATE }));
+    // новый шаблон — с выбранным назначением и его стандартным текстом (при «Все» — КП)
+    const p: DocTemplatePurpose = purpose === 'all' ? 'quote' : purpose;
+    const body = p === 'quote' ? DEFAULT_QUOTE_TEMPLATE : DEFAULT_CONTRACT_TEMPLATES[p].body;
+    const name = p === 'quote' ? t('docs.quotes.newTemplateName') : DEFAULT_CONTRACT_TEMPLATES[p].name;
+    const r = await run(() => call<DocTemplate>(ws, 'POST', '/doc-templates', { name, purpose: p, body }));
     if (!r) return;
     await refresh();
     setSelected(r.id);
@@ -104,6 +109,18 @@ export function QuoteTemplatesPage() {
           <h1>{t('docs.quotes.templatesTitle')}</h1>
           <p>{t('docs.quotes.templatesSubtitle')}</p>
         </div>
+        <div className="acts">
+          <Select
+            aria-label={t('docs.quotes.purposeAria')}
+            value={purpose}
+            onValueChange={v => {
+              setPurpose(v as DocTemplatePurpose | 'all');
+              setSelected(null);
+              setDraft(null);
+            }}
+            options={[{ value: 'all', label: t('docs.quotes.purposeAll') }, ...DOC_TEMPLATE_PURPOSES.map(p => ({ value: p, label: t(`docs.quotes.purpose.${p}`) }))]}
+          />
+        </div>
         {canWrite && (
           <div className="acts">
             <Button variant="primary" onClick={() => void create()} disabled={busy}>
@@ -126,6 +143,7 @@ export function QuoteTemplatesPage() {
               <li key={x.id}>
                 <button type="button" className={`nav-item${x.id === selected ? ' on' : ''}`} aria-current={x.id === selected ? 'true' : undefined} onClick={() => setSelected(x.id)} style={{ width: '100%', textAlign: 'left', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', padding: '6px 8px' }}>
                   <span className="trunc">{x.name}</span>
+                  {purpose === 'all' && <Badge tone="accent">{t(`docs.quotes.purpose.${x.purpose}`)}</Badge>}
                   {!x.isUsed && <Badge tone="gray">{t('docs.quotes.notUsed')}</Badge>}
                   {x.onlyAuthor && <Badge tone="amber">{t('docs.quotes.onlyAuthorBadge')}</Badge>}
                 </button>
@@ -149,7 +167,7 @@ export function QuoteTemplatesPage() {
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'start' }}>
                 <div style={{ flex: '3 1 380px', minWidth: 0 }}>
-                  <Field label={t('docs.quotes.body')} hint={t('docs.quotes.markupHint')}>
+                  <Field label={t('docs.quotes.body')} hint={current.purpose === 'quote' ? t('docs.quotes.markupHint') : `${t('docs.quotes.markupHint')} ${t('docs.quotes.contractHint')}`}>
                     {p => <Textarea {...p} ref={area} value={draft.body} disabled={!canWrite} rows={24} spellCheck={false} className="mono" style={{ fontSize: 12, width: '100%' }} onChange={e => setDraft({ ...draft, body: e.target.value })} />}
                   </Field>
                 </div>
@@ -157,7 +175,7 @@ export function QuoteTemplatesPage() {
                   <div className="muted" style={{ fontSize: 12 }}>
                     {t('docs.quotes.blocks')}
                   </div>
-                  {QUOTE_TEMPLATE_BLOCKS.map(b => (
+                  {(current.purpose === 'quote' ? QUOTE_TEMPLATE_BLOCKS : CONTRACT_TEMPLATE_BLOCKS).map(b => (
                     <Button key={b} size="sm" disabled={!canWrite} onClick={() => insert(`{{${b}}}`, true)}>
                       {b}
                     </Button>
@@ -166,7 +184,7 @@ export function QuoteTemplatesPage() {
                     {t('docs.quotes.params')}
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                    {QUOTE_TEMPLATE_PARAMS.map(p => (
+                    {(current.purpose === 'quote' ? QUOTE_TEMPLATE_PARAMS : CONTRACT_TEMPLATE_PARAMS).map(p => (
                       <Button key={p} size="sm" variant="ghost" disabled={!canWrite} onClick={() => insert(`{{${p}}}`, false)}>
                         {p}
                       </Button>

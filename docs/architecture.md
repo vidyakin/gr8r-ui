@@ -66,6 +66,7 @@
 - [Источники привлечения, рекламные кампании, отчёт по каналам](architecture/ad-campaigns.md)
 - [Воронки продаж: этапы, переход сделки, история, просрочка, отчёт-воронка](architecture/pipelines.md)
 - [Коммерческие предложения: варианты КП, группы строк, шаблоны КП](architecture/quotes.md)
+- [Шаблоны договоров: назначения, параметры сторон, печать и PDF](architecture/contracts.md)
 - [Хранилище секретов](architecture/secrets.md)
 - [Запись клиентов на приём](architecture/appointments.md)
 - [Доставка](architecture/delivery.md)

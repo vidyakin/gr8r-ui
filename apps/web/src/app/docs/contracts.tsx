@@ -3,15 +3,17 @@
    a tariff plan, a periodicity (month / quarter / year), a billing day and a document package (invoice or invoice + act). */
 import { usePriceKinds } from '../pricing/data';
 import * as React from 'react';
-import { CircleAlert, FileSignature, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, CircleAlert, ClipboardList, FileSignature, FileText, Plus, Printer, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router';
 import { BILLING_PACKAGE_LABELS, BILLING_PACKAGES, BILLING_PERIODICITIES, BILLING_PERIODICITY_LABELS, CONTRACT_KIND_LABELS, CONTRACT_KINDS, EXTRA_PRODUCT_POLICIES, EXTRA_PRODUCT_POLICY_LABELS, type ContractKind, type ExtraProductPolicy } from '@gr8r/shared';
-import { Alert, Badge, Button, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
+import { Alert, Badge, Button, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Select, Skeleton, toast } from '@/components/ui';
 import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/gr8r/data-table';
 import { FilterBar, useFilterState } from '@/components/gr8r/filter-bar';
 import { useT } from '@/i18n';
 import { useCanWrite } from '../meta/custom-fields';
 import { fmtDate, parse } from '../lib/dates';
 import { useBillingApi, useContracts, useTariffPlans, type Contract, type TariffPlan } from './billing-data';
+import { useDocTemplates } from './data';
 import { CounterpartyPicker } from './pickers';
 import { useProducts } from '../catalog/data';
 
@@ -24,6 +26,7 @@ export function ContractsPage() {
   const t = useT();
   const contracts = useContracts({ q: filters.q || undefined });
   const [creating, setCreating] = React.useState(false);
+  const [editing, setEditing] = React.useState<Contract | null>(null);
 
   const columns: Column<Contract>[] = [
     { id: 'number', header: t('docs.contracts.col.number'), width: 140, value: c => c.number, cell: c => <span className="mono">{c.number || '—'}</span> },
@@ -66,10 +69,11 @@ export function ContractsPage() {
             {t('docs.contracts.emptyHint')}
           </EmptyState>
         ) : (
-          <DataTable columns={columns} table={table} rows={contracts.data.items} getId={c => c.id} aria-label={t('docs.contracts.contractsAria')} />
+          <DataTable columns={columns} table={table} rows={contracts.data.items} getId={c => c.id} onRowClick={setEditing} aria-label={t('docs.contracts.contractsAria')} />
         )}
       </div>
       {creating && <ContractDialog api={api} onClose={() => setCreating(false)} />}
+      {editing && <ContractDialog key={editing.id} api={api} contract={editing} onClose={() => setEditing(null)} />}
     </div>
   );
 }
@@ -95,6 +99,12 @@ function ContractDialog({ api, onClose, contract }: { api: ReturnType<typeof use
   const [periodicity, setPeriodicity] = React.useState(contract?.periodicity ?? 'month');
   const [billingDay, setBillingDay] = React.useState(String(contract?.billingDay ?? 1));
   const [documentPackage, setDocumentPackage] = React.useState<'invoice' | 'invoice_act'>(contract?.documentPackage ?? 'invoice');
+  const [orgSignerBasis, setOrgSignerBasis] = React.useState(contract?.orgSignerBasis ?? '');
+  const [partySignerName, setPartySignerName] = React.useState(contract?.partySignerName ?? '');
+  const [partySignerTitle, setPartySignerTitle] = React.useState(contract?.partySignerTitle ?? '');
+  const [partySignerBasis, setPartySignerBasis] = React.useState(contract?.partySignerBasis ?? '');
+  const navigate = useNavigate();
+  const templates = useDocTemplates({ purpose: 'contract', usedOnly: true });
 
   const save = async () => {
     if (!company) return toast.error(t('docs.contracts.chooseCustomer'));
@@ -115,6 +125,10 @@ function ContractDialog({ api, onClose, contract }: { api: ReturnType<typeof use
       periodicity: isService ? periodicity : null,
       billingDay: Number(billingDay) || 1,
       documentPackage,
+      orgSignerBasis: orgSignerBasis.trim(),
+      partySignerName: partySignerName.trim(),
+      partySignerTitle: partySignerTitle.trim(),
+      partySignerBasis: partySignerBasis.trim(),
     };
     const r = contract ? await api('PATCH', `/contracts/${contract.id}`, body) : await api('POST', '/contracts', body);
     if (r) {
@@ -175,7 +189,44 @@ function ContractDialog({ api, onClose, contract }: { api: ReturnType<typeof use
               </div>
             </>
           )}
+          <div className="stack" style={{ gap: 8 }}>
+            <b style={{ fontSize: 12 }}>{t('docs.contracts.partiesForPrint')}</b>
+            <div className="row" style={{ gap: 8 }}>
+              <Field label={t('docs.contracts.orgSignerBasis')}>{({ id }) => <Input id={id} value={orgSignerBasis} maxLength={300} onChange={e => setOrgSignerBasis(e.target.value)} placeholder={t('docs.contracts.orgSignerBasisPlaceholder')} />}</Field>
+            </div>
+            <div className="row" style={{ gap: 8 }}>
+              <Field label={t('docs.contracts.partySignerName')}>{({ id }) => <Input id={id} value={partySignerName} maxLength={200} onChange={e => setPartySignerName(e.target.value)} />}</Field>
+              <Field label={t('docs.contracts.partySignerTitle')}>{({ id }) => <Input id={id} value={partySignerTitle} maxLength={200} onChange={e => setPartySignerTitle(e.target.value)} />}</Field>
+              <Field label={t('docs.contracts.partySignerBasis')}>{({ id }) => <Input id={id} value={partySignerBasis} maxLength={300} onChange={e => setPartySignerBasis(e.target.value)} placeholder={t('docs.contracts.orgSignerBasisPlaceholder')} />}</Field>
+            </div>
+          </div>
           <div className="row" style={{ justifyContent: 'flex-end', gap: 8 }}>
+            {contract && (
+              <Menu>
+                <MenuTrigger asChild>
+                  <Button variant="ghost">
+                    <Printer size={14} />
+                    {t('docs.contracts.print')}
+                    <ChevronDown size={12} />
+                  </Button>
+                </MenuTrigger>
+                <MenuContent align="end">
+                  <MenuItem icon={<FileSignature size={15} />} onSelect={() => navigate(`/contracts/${contract.id}/print`)}>
+                    {t('docs.contracts.printStandard')}
+                  </MenuItem>
+                  {(templates.data ?? []).length > 0 && <MenuSeparator />}
+                  {(templates.data ?? []).map(tp => (
+                    <MenuItem key={tp.id} icon={<FileText size={15} />} onSelect={() => navigate(`/contracts/${contract.id}/print?template=${tp.id}`)}>
+                      {tp.name}
+                    </MenuItem>
+                  ))}
+                  <MenuSeparator />
+                  <MenuItem icon={<ClipboardList size={15} />} onSelect={() => navigate('/crm/quote-templates')}>
+                    {t('docs.contracts.printAllTemplates')}
+                  </MenuItem>
+                </MenuContent>
+              </Menu>
+            )}
             <Button variant="ghost" onClick={onClose}>
               {t('common.cancel')}
             </Button>

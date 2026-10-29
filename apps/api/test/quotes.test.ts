@@ -160,7 +160,7 @@ describe('шаблоны КП', () => {
     const other2 = await mk(owner, '/doc-templates', { name: 'Чужое для участника', body: 'x' });
     expect((await member.patch(`/doc-templates/${other2.id}`, { name: 'нельзя' })).status).toBe(403);
     expect((await member.del(`/doc-templates/${other2.id}`)).status).toBe(403);
-    expect((await owner.post('/doc-templates', { name: 'Договор', purpose: 'contract' })).status).toBe(400);
+    expect((await owner.post('/doc-templates', { name: 'Неизвестное', purpose: 'memo' })).status).toBe(400);
   });
 
   test('«только автор» — шаблон не виден и не печатается другими', async () => {

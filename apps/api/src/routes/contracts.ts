@@ -8,15 +8,19 @@ import { z } from 'zod';
 import {
   companies,
   contractDetail,
+  contractFiles,
   contracts,
   duplicateContractNumbers,
+  getTemplate,
+  jobs,
   listContracts,
   organizations,
+  renderContractHtml,
   saveTariffPlanLines,
   tariffPlans,
   tariffPlanLinesOf,
 } from '@gr8r/db';
-import { contractCreate, contractQuery, contractUpdate, idParam, tariffPlanCreate, tariffPlanLinesUpdate, tariffPlanQuery, tariffPlanUpdate } from '@gr8r/shared';
+import { contractCreate, contractPdfRequest, contractQuery, contractUpdate, idParam, tariffPlanCreate, tariffPlanLinesUpdate, tariffPlanQuery, tariffPlanUpdate } from '@gr8r/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError, notFound } from '../errors';
 import { requireRole } from '../middleware';
@@ -93,6 +97,10 @@ export const contractRoutes = new Hono<AppEnv>()
         billingDay: body.billingDay,
         documentPackage: body.documentPackage,
         note: body.note,
+        orgSignerBasis: body.orgSignerBasis,
+        partySignerName: body.partySignerName,
+        partySignerTitle: body.partySignerTitle,
+        partySignerBasis: body.partySignerBasis,
       })
       .returning();
     return c.json(await decorate(ctx, row!), 201);
@@ -113,7 +121,7 @@ export const contractRoutes = new Hono<AppEnv>()
     assertContract({ isService: body.isService ?? existing.isService, tariffPlanId: body.tariffPlanId ?? existing.tariffPlanId, periodicity: body.periodicity ?? existing.periodicity, validFrom: body.validFrom ?? existing.validFrom, validTo: body.validTo === undefined ? existing.validTo : body.validTo });
     if (body.isDefault === true) await clearDefault(ctx, existing.companyId, id);
     const patch: Record<string, unknown> = { updatedAt: new Date() };
-    for (const key of ['number', 'date', 'kind', 'category', 'isSigned', 'isDefault', 'validFrom', 'validTo', 'paymentDays', 'priceType', 'priceKindId', 'isService', 'tariffPlanId', 'periodicity', 'billingDay', 'documentPackage', 'note'] as const) {
+    for (const key of ['number', 'date', 'kind', 'category', 'isSigned', 'isDefault', 'validFrom', 'validTo', 'paymentDays', 'priceType', 'priceKindId', 'isService', 'tariffPlanId', 'periodicity', 'billingDay', 'documentPackage', 'note', 'orgSignerBasis', 'partySignerName', 'partySignerTitle', 'partySignerBasis'] as const) {
       if (body[key] !== undefined) patch[key] = body[key] === null ? null : body[key];
     }
     if (body.organizationId) patch.organizationId = body.organizationId;
@@ -129,6 +137,41 @@ export const contractRoutes = new Hono<AppEnv>()
     if (docs && docs.n > 0) throw new AppError(422, 'contract_in_use', 'The contract is used by documents: archive it instead of deleting');
     await ctx.db.update(contracts).set({ archivedAt: new Date(), isDefault: false, updatedAt: new Date() }).where(eq(contracts.id, id));
     return c.json({ id, deleted: false as const, archived: true as const });
+  })
+  // печать договора по шаблону с назначением «Договор» (docs/architecture/contracts.md): HTML-страница, та же, что уходит в PDF
+  .get('/:id/print', zValidator('param', idParam, validationHook), zValidator('query', z.object({ template: z.string().uuid().optional() }), validationHook), async c => {
+    const ctx = ctxOf(c);
+    const html = await renderContractHtml(ctx.db, { contractId: c.req.valid('param').id, purpose: 'contract', templateId: c.req.valid('query').template, memberId: ctx.memberId });
+    c.header('Content-Security-Policy', "default-src 'none'; img-src * data:; style-src 'unsafe-inline'");
+    c.header('X-Content-Type-Options', 'nosniff');
+    return c.html(html);
+  })
+  // PDF договора без документа: задача воркеру contract.pdf; результат читается по id файла
+  .post('/:id/pdf', write, zValidator('param', idParam, validationHook), zValidator('json', contractPdfRequest, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    const { templateId } = c.req.valid('json');
+    const [existing] = await ctx.db.select({ id: contracts.id }).from(contracts).where(eq(contracts.id, id)).limit(1);
+    if (!existing) throw notFound('contract');
+    // шаблон проверяется сразу (доступность автору и назначение), чтобы не ставить задачу, которая заведомо упадёт
+    if (templateId) {
+      const tpl = await getTemplate(ctx.db, { workspaceId: ctx.workspaceId, memberId: ctx.memberId, role: ctx.role }, templateId);
+      if (tpl.purpose !== 'contract' || tpl.archivedAt) throw notFound('template');
+    }
+    const [file] = await ctx.db.insert(contractFiles).values({ workspaceId: ctx.workspaceId, contractId: id, templateId: templateId ?? null, requestedBy: ctx.memberId }).returning({ id: contractFiles.id, status: contractFiles.status });
+    await ctx.db.insert(jobs).values({ workspaceId: ctx.workspaceId, type: 'contract.pdf', payload: { fileId: file!.id } });
+    return c.json(file!, 202);
+  })
+  .get('/:id/pdf/:fileId', zValidator('param', z.object({ id: idParam.shape.id, fileId: idParam.shape.id }), validationHook), async c => {
+    const ctx = ctxOf(c);
+    const { id, fileId } = c.req.valid('param');
+    const [file] = await ctx.db.select().from(contractFiles).where(and(eq(contractFiles.id, fileId), eq(contractFiles.contractId, id))).limit(1);
+    if (!file) throw notFound('file');
+    if (c.req.query('download') !== '1') return c.json({ id: file.id, status: file.status, size: file.size, error: file.error });
+    if (file.status !== 'ready' || !file.data) throw new AppError(409, 'not_ready', file.status === 'failed' ? `PDF generation failed: ${file.error}` : 'The PDF is not ready yet');
+    const [ct] = await ctx.db.select({ number: contracts.number }).from(contracts).where(eq(contracts.id, id)).limit(1);
+    const name = `contract-${ct?.number || 'no-number'}.pdf`.replace(/[^\w.-]+/g, '_');
+    return new Response(new Uint8Array(file.data), { headers: { 'content-type': 'application/pdf', 'content-disposition': `attachment; filename="${name}"`, 'content-length': String(file.data.length), 'x-content-type-options': 'nosniff' } });
   })
   .post('/:id/restore', write, zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);

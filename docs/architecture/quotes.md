@@ -32,8 +32,8 @@ API `apps/api/src/routes/documents.ts` (варианты, печать) и `rout
 группы с суммой (`groupedRows` в `print/templates.ts`) в счёте на оплату (он же заказ) и в КП; УПД, ТОРГ-12, акт — без групп.
 
 ## Шаблоны КП
-- `doc_templates`: название, `purpose` (в БД перечень 1С: `quote`, `contract`, `contract_order`, `contract_invoice`,
-  `contract_work_order`; API принимает только `quote`), `body`, `is_used` («Используется» — в меню «Печать»),
+- `doc_templates`: название, `purpose` (перечень 1С: `quote`, `contract`, `contract_order`, `contract_invoice`,
+  `contract_work_order`; договорные назначения — `contracts.md`), `body`, `is_used` («Используется» — в меню «Печать»),
   `only_author` (видит и печатает только автор — даже admin), `author_id`, архив вместо удаления.
 - API `/doc-templates`: список (`purpose`, `used`, `archived`), карточка, создание — member+, правка и удаление — автор или
   admin+ (403 `forbidden`). Событие `doc_template.*`, кэш фронтенда `['ws', id, 'doc-templates']`.
@@ -45,5 +45,5 @@ API `apps/api/src/routes/documents.ts` (варианты, печать) и `rout
 - **Печать:** форма `quote` («Коммерческое предложение») у КП и заказа покупателя. `GET /documents/:id/print/quote?template=<id>`,
   PDF — `POST /documents/:id/pdf { form: 'quote', templateId }` (`document_files.template_id`, воркер печатает от имени
   `requested_by`). Меню «Печать»: стандартная форма, используемые шаблоны пользователя, «Все шаблоны КП…» → `/crm/quote-templates`.
-- Не сделано: загрузка docx/odt и вкладка «Файлы», картинки товаров, отправка по почте (задача 1092), шаблоны договоров,
+- Не сделано: загрузка docx/odt и вкладка «Файлы», картинки товаров, отправка по почте (задача 1092), шаблоны договоров (сделано в задаче 1194 — `contracts.md`),
   связь КП со сделкой CRM.

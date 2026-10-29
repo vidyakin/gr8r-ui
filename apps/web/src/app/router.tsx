@@ -83,6 +83,7 @@ import { ServicePlannerPage } from './docs/service-planner';
 import { ServiceReportsPage } from './services/reports/ServiceReportsPage';
 import { DocumentPage } from './docs/DocumentPage';
 import { PrintPage } from './docs/PrintPage';
+import { ContractPrintPage } from './docs/ContractPrintPage';
 import { DeliveriesPage } from './services/deliveries/DeliveriesPage';
 import { MyDeliveriesPage } from './services/deliveries/MyDeliveriesPage';
 import { InventoryPage } from './docs/InventoryPage';
@@ -216,6 +217,7 @@ export const router = createHashRouter([
       { path: SECTIONS.myDeliveries.path, element: <MyDeliveriesPage /> },
       // Договоры и биллинг
       { path: SECTIONS.contracts.path, element: <ContractsPage /> },
+      { path: '/contracts/:id/print', element: <ContractPrintPage /> },
       { path: SECTIONS.tariffPlans.path, element: <TariffPlansPage /> },
       { path: SECTIONS.billing.path, element: <BillingPage /> },
       // Автоматизации: список и журнал, редактор flow

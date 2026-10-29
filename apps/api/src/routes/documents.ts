@@ -74,6 +74,9 @@ import {
   costItemUpdate,
   DOCUMENT_META,
   documentCreate,
+  formAllowedFor,
+  isContractForm,
+  usesTemplate,
   documentQuery,
   documentStateChange,
   documentSerialsSave,
@@ -528,8 +531,8 @@ export const documentRoutes = new Hono<AppEnv>()
   .get('/:id/print/:form', zValidator('param', printParam, validationHook), zValidator('query', printQuery, validationHook), async c => {
     const ctx = ctxOf(c);
     const { id, form } = c.req.valid('param');
-    // форма quote: ?template=<id> — КП по шаблону
-    const templateId = form === 'quote' ? c.req.valid('query').template : undefined;
+    // формы quote и contract_*: ?template=<id> — по шаблону
+    const templateId = usesTemplate(form) ? c.req.valid('query').template : undefined;
     const html = await renderDocumentHtml(ctx.db, id, form, { templateId, memberId: ctx.memberId });
     c.header('Content-Security-Policy', "default-src 'none'; img-src * data:; style-src 'unsafe-inline'");
     c.header('X-Content-Type-Options', 'nosniff');
@@ -565,12 +568,13 @@ export const documentRoutes = new Hono<AppEnv>()
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;
     const { form, templateId } = c.req.valid('json');
-    const [doc] = await ctx.db.select({ type: documents.type }).from(documents).where(eq(documents.id, id)).limit(1);
+    const [doc] = await ctx.db.select({ type: documents.type, contractId: documents.contractId }).from(documents).where(eq(documents.id, id)).limit(1);
     if (!doc) throw notFound('document');
-    if (!DOCUMENT_META[doc.type as DocumentType].forms.includes(form)) throw new AppError(422, 'form_not_available', `The "${form}" form is not available for this document type`);
-    // шаблон КП проверяется сразу (доступность автору), чтобы не ставить задачу, которая заведомо упадёт
-    if (templateId && form === 'quote') await getTemplate(ctx.db, docCtx(ctx), templateId);
-    const [file] = await ctx.db.insert(documentFiles).values({ workspaceId: ctx.workspaceId, documentId: id, form, templateId: form === 'quote' ? (templateId ?? null) : null, requestedBy: ctx.memberId }).returning({ id: documentFiles.id, status: documentFiles.status, form: documentFiles.form });
+    if (!formAllowedFor(doc.type, form)) throw new AppError(422, 'form_not_available', `The "${form}" form is not available for this document type`);
+    if (isContractForm(form) && !doc.contractId) throw new AppError(422, 'contract_required', 'The document has no contract to print');
+    // шаблон КП или договора проверяется сразу (доступность автору), чтобы не ставить задачу, которая заведомо упадёт
+    if (templateId && usesTemplate(form)) await getTemplate(ctx.db, docCtx(ctx), templateId);
+    const [file] = await ctx.db.insert(documentFiles).values({ workspaceId: ctx.workspaceId, documentId: id, form, templateId: usesTemplate(form) ? (templateId ?? null) : null, requestedBy: ctx.memberId }).returning({ id: documentFiles.id, status: documentFiles.status, form: documentFiles.form });
     await ctx.db.insert(jobs).values({ workspaceId: ctx.workspaceId, type: 'document.pdf', payload: { fileId: file!.id } });
     return c.json(file!, 202);
   })

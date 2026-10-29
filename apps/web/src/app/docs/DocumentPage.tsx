@@ -5,7 +5,7 @@ import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Ban, Calculator, ChevronDown, CircleAlert, ClipboardList, Copy, Ellipsis, FileSignature, FileText, PackageCheck, PackageX, Plus, Printer, RotateCcw, Send, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
-import { amountInWordsRu, basedOnTargets, computeDocument, dec, DEFECT_MODES, DOCUMENT_META, fmt as fmtDec, hasQuoteVariants, isInvestmentFactType, MATERIAL_OWNER_LABELS, PRINT_FORM_LABELS, TOLLING_ROLE_LABELS, TOLLING_ROLES, TRANSFER_OPERATIONS, VAT_LABELS, VAT_RATES, type DefectMode, type DocumentType, type TollingRole, type VatRate } from '@gr8r/shared';
+import { amountInWordsRu, basedOnTargets, CONTRACT_FORM_BY_TYPE, computeDocument, dec, DEFECT_MODES, DOCUMENT_META, fmt as fmtDec, hasQuoteVariants, isInvestmentFactType, MATERIAL_OWNER_LABELS, PRINT_FORM_LABELS, TOLLING_ROLE_LABELS, TOLLING_ROLES, TRANSFER_OPERATIONS, VAT_LABELS, VAT_RATES, type DefectMode, type DocTemplatePurpose, type DocumentType, type TollingRole, type VatRate } from '@gr8r/shared';
 import { Badge, Button, ConfirmDialog, EmptyState, Field, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Segmented, Select, Skeleton, toast } from '@/components/ui';
 import { useCanWrite } from '../meta/custom-fields';
 import { money, unitSymbol, useIsAdmin, useUnits, type Product } from '../catalog/data';
@@ -389,6 +389,9 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     return [...m].map(([name, sum]) => ({ name, total: fmtDec(sum, 2) }));
   }, [form.lines, calc]);
   const quoteTemplates = useDocTemplates({ usedOnly: true });
+  // «Договор + документ»: договор берётся из документа; без договора пункта нет (docs/architecture/contracts.md)
+  const contractForm = CONTRACT_FORM_BY_TYPE[doc.type];
+  const contractTemplates = useDocTemplates({ usedOnly: true, purpose: (contractForm ?? 'contract_order') as DocTemplatePurpose });
   /** Ответ сервера после операции с вариантами заменяет форму: строки документа — уже другой вариант */
   const applyServer = (r: DocDetail) => {
     clearTimeout(timer.current);
@@ -1028,6 +1031,33 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                     {f === 'quote' ? t('docs.quotes.standardForm') : PRINT_FORM_LABELS[f]}
                   </MenuItem>
                 ))}
+                {contractForm && form.contractId && (
+                  <>
+                    <MenuSeparator />
+                    <MenuItem
+                      icon={<FileSignature size={15} />}
+                      onSelect={async () => {
+                        if (await flush()) navigate(`/documents/${doc.id}/print/${contractForm}`);
+                      }}
+                    >
+                      {t(`docs.quotes.purpose.${contractForm as 'contract_order'}`)}
+                    </MenuItem>
+                    {(contractTemplates.data ?? []).map(tp => (
+                      <MenuItem
+                        key={tp.id}
+                        icon={<FileText size={15} />}
+                        onSelect={async () => {
+                          if (await flush()) navigate(`/documents/${doc.id}/print/${contractForm}?template=${tp.id}`);
+                        }}
+                      >
+                        {tp.name}
+                      </MenuItem>
+                    ))}
+                    <MenuItem icon={<ClipboardList size={15} />} onSelect={() => navigate('/crm/quote-templates')}>
+                      {t('docs.contracts.printAllTemplates')}
+                    </MenuItem>
+                  </>
+                )}
                 {meta.forms.includes('quote') && (
                   <>
                     <MenuSeparator />
