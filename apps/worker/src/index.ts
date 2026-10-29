@@ -3,6 +3,7 @@ import { purgeTenantsOnce, scheduleBankSyncs, createSql, databaseUrl, ddlDatabas
 import { closeBrowser } from './pdf/render';
 import { scheduleFlowsOnce } from './flows/triggers';
 import { runBillingOnce } from './billing';
+import { runDealOverdueOnce } from './deal-overdue';
 import { runNextContactsOnce } from './next-contacts';
 import { runAppointmentsOnce } from './appointments';
 import { defaultOptions, processEventsOnce, processJobsOnce, requeueStale } from './worker';
@@ -78,6 +79,9 @@ while (!stopping) {
       // следующий контакт с клиентом (повторные продажи): дела на сегодня по часовому поясу арендатора, повтор в тот же день ничего не создаёт
       const calls = await runNextContactsOnce(sql);
       if (calls) o.log(`created ${calls} next-contact task(s)`);
+      // воронки продаж: сделки, просрочившие норматив дней на этапе
+      const overdue = await runDealOverdueOnce(sql);
+      if (overdue) o.log(`deal stage overdue: ${overdue}`);
       // запись на приём: напоминания накануне и контроль незакрытых дней
       const appts = await runAppointmentsOnce(sql);
       if (appts.reminders || appts.alerts) o.log(`appointments: ${appts.reminders} reminder(s), ${appts.alerts} unclosed-day alert(s)`);

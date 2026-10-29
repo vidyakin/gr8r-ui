@@ -5,7 +5,7 @@ import { TransientError, type HttpRequest, type HttpResult } from '@gr8r/shared'
 import { flowEngine } from '../../worker/src/flows/engine';
 import { scheduleFlowsOnce } from '../../worker/src/flows/triggers';
 import { defaultOptions, processEventsOnce, processJobsOnce } from '../../worker/src/worker';
-import { admin, Client, ddl, sql } from './helpers';
+import { admin, Client, ddl, sql, stageId } from './helpers';
 
 const opts = () => defaultOptions({ log: () => {}, concurrency: 10, ddl });
 
@@ -160,14 +160,14 @@ describe('flows: trigger → condition → actions', () => {
       'Kickoff',
       graph(
         [
-          ['t', 'trigger.field_changed', { entity: 'deal', field: 'stage', to: 'won' }],
+          ['t', 'trigger.deal_won', {}],
           ['k', 'action.create_task', { projectId: project.id, title: 'Kickoff: {{trigger.record.name}}', priority: '8', assigneeId: me }],
         ],
         [['t', 'k']],
       ),
     );
-    const deal = (await owner.post('/deals', { name: 'Big deal', stage: 'proposal' })).body;
-    await owner.patch(`/deals/${deal.id}`, { stage: 'won' });
+    const deal = (await owner.post('/deals', { name: 'Big deal', stageId: await stageId(owner, 'proposal') })).body;
+    await owner.patch(`/deals/${deal.id}`, { stageId: await stageId(owner, 'won') });
     await drain();
     const runs = await runsOf(owner, flowId);
     expect(runs.map(r => r.status)).toEqual(['succeeded']);

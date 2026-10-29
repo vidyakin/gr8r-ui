@@ -3,7 +3,7 @@
    сценарии планирования, документ «План продаж» (проведение пишет регистр), план-фактный анализ (менеджер/категория/товар, возврат, прогноз по сделкам),
    права и изоляция арендаторов. */
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { Client, admin } from './helpers';
+import { Client, admin, lostReasonId, stageId } from './helpers';
 import { runNextContactsOnce } from '../../worker/src/next-contacts';
 import { sql } from './helpers';
 
@@ -176,10 +176,10 @@ describe('planning scenarios and the sales plan document', () => {
     await doc('customer_return', y, '2027-10-08', goods, 1, 200, { basedOnId: r1.id, responsibleId: memberId }); // −200 у участника
     await doc('act', y, '2027-11-02', plain, 1, 300); // другой месяц
     await doc('act', y, '2027-11-10', service2, 2, 200); // категория «Монтаж», 400
-    await mk(owner, '/deals', { name: 'Won', companyId: x, ownerId: memberId, amount: 5000, stage: 'won', closeDate: '2027-10-20' });
-    await mk(owner, '/deals', { name: 'Open', companyId: x, ownerId: ownerId, amount: 3000, stage: 'proposal', closeDate: '2027-10-25' });
-    await mk(owner, '/deals', { name: 'Lost', companyId: x, ownerId: ownerId, amount: 900, stage: 'lost', closeDate: '2027-10-26' });
-    await mk(owner, '/deals', { name: 'Nodate', companyId: x, ownerId: ownerId, amount: 800, stage: 'lead' });
+    await mk(owner, '/deals', { name: 'Won', companyId: x, ownerId: memberId, amount: 5000, stageId: await stageId(owner, 'won'), closeDate: '2027-10-20' });
+    await mk(owner, '/deals', { name: 'Open', companyId: x, ownerId: ownerId, amount: 3000, stageId: await stageId(owner, 'proposal'), closeDate: '2027-10-25' });
+    await mk(owner, '/deals', { name: 'Lost', companyId: x, ownerId: ownerId, amount: 900, stageId: await stageId(owner, 'lost'), lostReasonId: await lostReasonId(owner), closeDate: '2027-10-26' });
+    await mk(owner, '/deals', { name: 'Nodate', companyId: x, ownerId: ownerId, amount: 800, stageId: await stageId(owner, 'lead') });
   });
 
   test('scenarios: only admin and owner edit them; names are unique', async () => {

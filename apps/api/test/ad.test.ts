@@ -3,7 +3,7 @@
    расходы и отчёт по каналам (CPL, ROMI), изоляция арендаторов. */
 import { beforeAll, describe, expect, test } from 'bun:test';
 import { createApp } from '../src/app';
-import { Client, sql, testConfig } from './helpers';
+import { Client, sql, stageId, testConfig } from './helpers';
 
 let owner: Client;
 let member: Client;
@@ -109,7 +109,7 @@ describe('расходы и отчёт по каналам', () => {
   });
   test('отчёт: лиды, клиенты, выручка выигранных сделок, CPL и ROMI', async () => {
     await mk(member, '/leads', { name: 'Без источника' });
-    await mk(member, '/deals', { name: 'Выиграна', stage: 'won', amount: '60001.50', campaignId: camp.id, currency: 'RUB' });
+    await mk(member, '/deals', { name: 'Выиграна', stageId: await stageId(owner, 'won'), amount: '60001.50', campaignId: camp.id, currency: 'RUB' });
     const r = await owner.get(`/ad-report?${period}&groupBy=campaign`);
     expect(r.status).toBe(200);
     const row = r.body.rows.find((x: any) => x.key === camp.id);
@@ -139,7 +139,7 @@ describe('кто привёл (тип источника)', () => {
     const r = await mk(member, `/leads/${l.id}/convert`, { company: { mode: 'new', name: 'ООО «По совету»' }, contact: { mode: 'none' }, deal: { name: 'Сделка по совету', amount: '500' } });
     expect((await owner.get(`/companies/${r.companyId}`)).body).toMatchObject({ sourceId: rec.id, referrerContactId: friend.id });
     expect((await owner.get(`/deals/${r.dealId}`)).body).toMatchObject({ referrerContactId: friend.id });
-    await mk(member, '/deals', { name: 'Партнёрская', stage: 'won', amount: '700', sourceId: prt.id, referrerCompanyId: partner.id });
+    await mk(member, '/deals', { name: 'Партнёрская', stageId: await stageId(member, 'won'), amount: '700', sourceId: prt.id, referrerCompanyId: partner.id });
     const rep = (await owner.get(`/ad-report?${period}&groupBy=referrer`)).body;
     expect(rep.rows.find((x: any) => x.key === friend.id)).toMatchObject({ name: 'Анна Советчица', refKind: 'contact', leads: 1, converted: 1, newClients: 1 });
     expect(rep.rows.find((x: any) => x.key === partner.id)).toMatchObject({ name: 'Партнёр-дизайнер', refKind: 'company', wonDeals: 1, revenue: '700.00' });

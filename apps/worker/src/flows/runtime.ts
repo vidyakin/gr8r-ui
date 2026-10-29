@@ -2,7 +2,7 @@
 import type { Db } from '@gr8r/db';
 import type { EventVia, FlowContext, HttpRequest, HttpResult, NodeRuntime } from '@gr8r/shared';
 import { guardedFetch, type HttpOptions } from './http';
-import { addComment, assignLead, createLead, createTask, notifyMember, updateField } from './records';
+import { addComment, assignLead, createLead, createTask, moveDealAction, notifyMember, updateField } from './records';
 
 export interface RuntimeDeps {
   db: Db;
@@ -26,6 +26,7 @@ export function makeRuntime(d: RuntimeDeps): NodeRuntime {
     addComment: a => addComment(d.db, d.workspaceId, d.via, d.author, a),
     createLead: a => createLead(d.db, d.workspaceId, d.via, a),
     assignLead: a => assignLead(d.db, d.workspaceId, d.via, a),
+    moveDeal: a => moveDealAction(d.db, d.workspaceId, d.via, a),
     notify: a => notifyMember(d.db, d.workspaceId, d.via, a),
     http: req => (d.httpImpl ? d.httpImpl(req) : guardedFetch(req, d.http)),
   };

@@ -49,6 +49,7 @@ import { bankImportRoutes } from './routes/bank-import';
 import { flowRoutes, flowRunRoutes } from './routes/flows';
 import { hookRoutes } from './routes/hooks';
 import { leadFormRoutes, leadRoutes, leadStatusRoutes } from './routes/leads';
+import { dealFunnelRoutes, dealLostReasonRoutes, dealPipelineRoutes, dealStageRoutes } from './routes/pipelines';
 import { adCampaignRoutes, adExpenseRoutes, adReportRoutes, leadSourceRoutes } from './routes/ad';
 import { entityRoutes } from './routes/meta';
 import { dataSearchRoutes, recordsRoutes } from './routes/records';
@@ -81,7 +82,7 @@ export interface AppDeps {
 }
 
 /** Ресурсы арендатора: каждый путь защищён цепочкой «сессия → членство → транзакция с RLS» */
-const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/files', '/activity', '/events', '/companies', '/contacts', '/deals', '/crm-activities', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production', '/production-orders', '/production-plans', '/stock-levels', '/organizations', '/bank-accounts', '/warehouses', '/cost-items', '/documents', '/order-calculations', '/stock', '/flows', '/flow-runs', '/work-orders', '/work-order-assignments', '/work-order-kinds', '/document-states', '/services', '/contracts', '/tariff-plans', '/billing', '/other-costs', '/material-allocations', '/investments', '/processing', '/processor-reports', '/supplier-orders', '/serials', '/repair-items', '/sales-plan', '/appointments', '/delivery-methods', '/deliveries', '/positions', '/product-kinds', '/leads', '/lead-statuses', '/lead-forms', '/lead-sources', '/ad-campaigns', '/ad-expenses', '/ad-report', '/secrets', '/payments', '/payment-calendar', '/payment-requests', '/opening-balances', '/bank-import', '/cash-registers', '/cash-flow-items', '/bank-connections', '/payment-links', '/payroll', '/pricing', '/doc-templates'];
+const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/files', '/activity', '/events', '/companies', '/contacts', '/deals', '/deal-pipelines', '/deal-stages', '/deal-lost-reasons', '/deal-funnel', '/crm-activities', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production', '/production-orders', '/production-plans', '/stock-levels', '/organizations', '/bank-accounts', '/warehouses', '/cost-items', '/documents', '/order-calculations', '/stock', '/flows', '/flow-runs', '/work-orders', '/work-order-assignments', '/work-order-kinds', '/document-states', '/services', '/contracts', '/tariff-plans', '/billing', '/other-costs', '/material-allocations', '/investments', '/processing', '/processor-reports', '/supplier-orders', '/serials', '/repair-items', '/sales-plan', '/appointments', '/delivery-methods', '/deliveries', '/positions', '/product-kinds', '/leads', '/lead-statuses', '/lead-forms', '/lead-sources', '/ad-campaigns', '/ad-expenses', '/ad-report', '/secrets', '/payments', '/payment-calendar', '/payment-requests', '/opening-balances', '/bank-import', '/cash-registers', '/cash-flow-items', '/bank-connections', '/payment-links', '/payroll', '/pricing', '/doc-templates'];
 
 function buildTenantApi() {
   const guarded = new Hono<AppEnv>();
@@ -107,6 +108,10 @@ function buildTenantApi() {
     .route('/companies', companyBankRoutes)
     .route('/contacts', contactRoutes)
     .route('/deals', dealRoutes)
+    .route('/deal-pipelines', dealPipelineRoutes)
+    .route('/deal-stages', dealStageRoutes)
+    .route('/deal-lost-reasons', dealLostReasonRoutes)
+    .route('/deal-funnel', dealFunnelRoutes)
     .route('/crm-activities', crmActivityRoutes)
     .route('/leads', leadRoutes)
     .route('/lead-statuses', leadStatusRoutes)

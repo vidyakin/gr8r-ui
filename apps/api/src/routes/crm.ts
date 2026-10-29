@@ -1,6 +1,8 @@
 /* CRM: компании, контакты, сделки, активности. */
-import { eq, gte, inArray, lte } from 'drizzle-orm';
-import { companies, contacts, crmActivities, dealContacts, deals, recalcSettlementMode } from '@gr8r/db';
+import { zValidator } from '@hono/zod-validator';
+import { desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
+import { Hono } from 'hono';
+import { companies, contacts, crmActivities, dealContacts, dealStageHistory, deals, loadStage, planStageChange, recalcSettlementMode, recordStageChange } from '@gr8r/db';
 import {
   companyCreate,
   companyQuery,
@@ -14,12 +16,14 @@ import {
   dealCreate,
   dealQuery,
   dealUpdate,
+  idParam,
 } from '@gr8r/shared';
-import { crud, type Ctx } from '../crud';
-import { forbidden } from '../errors';
+import { crud, ctxOf, validationHook, type Ctx } from '../crud';
+import { forbidden, notFound } from '../errors';
+import type { AppEnv } from '../types';
 import { hasRole } from '../middleware';
 import { customForCreate, customForUpdate } from '../meta/service';
-import { attributionPatch, nextOrder } from './helpers';
+import { attributionPatch } from './helpers';
 import { assertRequisites } from './documents';
 
 export const companyRoutes = crud({
@@ -66,8 +70,6 @@ export const contactRoutes = crud({
   prepareUpdate: (ctx, existing, body) => customForUpdate(ctx, 'contact', existing.custom, body.custom, existing.id),
 });
 
-const CLOSED = ['won', 'lost'];
-
 /** Только колонки атрибуции: у контрагента и сделки нет кэша названия источника */
 const pickAttr = (a: { sourceId?: string | null; campaignId?: string | null; referrerCompanyId?: string | null; referrerContactId?: string | null }) =>
   'sourceId' in a ? { sourceId: a.sourceId, campaignId: a.campaignId, referrerCompanyId: a.referrerCompanyId, referrerContactId: a.referrerContactId } : {};
@@ -90,17 +92,22 @@ async function setDealContacts(ctx: Ctx, dealId: string, ids: string[]) {
   if (uniq.length) await ctx.db.insert(dealContacts).values(uniq.map(contactId => ({ workspaceId: ctx.workspaceId, dealId, contactId })));
 }
 
-export const dealRoutes = crud({
+/** Сделки, у которых превышен норматив дней на этапе (задача 1176) */
+const overdueSql = sql`exists (select 1 from deal_stages s where s.id = ${deals.stageId} and s.category = 'in_progress' and s.sla_days is not null and ${deals.stageEnteredAt} + (s.sla_days * interval '1 day') < now())`;
+
+const dealBase = crud({
   entity: 'deal',
   table: deals,
   create: dealCreate,
   update: dealUpdate,
   query: dealQuery,
-  sortable: { name: deals.name, amount: deals.amount, stage: deals.stage, closeDate: deals.closeDate, sortOrder: deals.sortOrder, createdAt: deals.createdAt, updatedAt: deals.updatedAt },
+  sortable: { name: deals.name, amount: deals.amount, closeDate: deals.closeDate, sortOrder: deals.sortOrder, stageEnteredAt: deals.stageEnteredAt, createdAt: deals.createdAt, updatedAt: deals.updatedAt },
   defaultSort: 'sortOrder',
   search: [deals.name],
   filters: q => [
-    q.stage ? eq(deals.stage, q.stage) : undefined,
+    q.pipelineId ? eq(deals.pipelineId, q.pipelineId) : undefined,
+    q.stageId ? eq(deals.stageId, q.stageId) : undefined,
+    q.overdue === 'true' ? overdueSql : q.overdue === 'false' ? sql`not ${overdueSql}` : undefined,
     q.companyId ? eq(deals.companyId, q.companyId) : undefined,
     q.ownerId ? eq(deals.ownerId, q.ownerId) : undefined,
     q.closeFrom ? gte(deals.closeDate, q.closeFrom) : undefined,
@@ -108,34 +115,49 @@ export const dealRoutes = crud({
     q.sourceId ? eq(deals.sourceId, q.sourceId) : undefined,
     q.campaignId ? eq(deals.campaignId, q.campaignId) : undefined,
   ],
-  prepareCreate: async (ctx, body) => ({
-    ownerId: body.ownerId ?? ctx.memberId,
-    sortOrder: body.sortOrder ?? (await nextOrder(ctx, deals, eq(deals.stage, body.stage))),
-    closedAt: CLOSED.includes(body.stage) ? (body.closedAt ?? new Date().toISOString().slice(0, 10)) : null,
-    ...(await dealAttribution(ctx, body)),
-    ...(await customForCreate(ctx, 'deal', body.custom)),
-  }),
+  prepareCreate: async (ctx, body) => {
+    const attr = await dealAttribution(ctx, body);
+    const custom = await customForCreate(ctx, 'deal', body.custom);
+    // воронка и этап: проверка принадлежности, обязательные поля, причина проигрыша (задача 1176)
+    const plan = await planStageChange(
+      ctx.db,
+      null,
+      { stageId: body.stageId, pipelineId: body.pipelineId, lostReasonId: body.lostReasonId, closedAt: body.closedAt },
+      { amount: body.amount, closeDate: body.closeDate, contactIds: body.contactIds ?? [], sourceId: (attr as { sourceId?: string | null }).sourceId ?? body.sourceId, custom: (custom as { custom?: Record<string, unknown> }).custom ?? {} },
+    );
+    const { sortOrder, ...stagePatch } = plan.patch;
+    return { ownerId: body.ownerId ?? ctx.memberId, sortOrder: body.sortOrder ?? sortOrder, ...stagePatch, ...attr, ...custom };
+  },
   afterCreate: async (ctx, row, body) => {
     if (body.contactIds) await setDealContacts(ctx, row.id, body.contactIds);
+    await recordStageChange(ctx.db, { workspaceId: ctx.workspaceId, memberId: ctx.memberId }, row, { to: await loadStage(ctx.db, row.stageId), from: null });
   },
   prepareUpdate: async (ctx, existing, body) => {
-    const patch: Record<string, unknown> = { ...(await customForUpdate(ctx, 'deal', existing.custom, body.custom, existing.id)), ...pickAttr(await attributionPatch(ctx, body, existing)) };
-    if (body.stage && body.stage !== existing.stage) {
-      // Переход в won/lost фиксирует дату закрытия; возврат в открытый этап — сбрасывает её и причину отказа
-      if (CLOSED.includes(body.stage)) patch.closedAt = body.closedAt ?? new Date().toISOString().slice(0, 10);
-      else {
-        patch.closedAt = null;
-        patch.lostReason = null;
-      }
-      if (body.sortOrder === undefined) patch.sortOrder = await nextOrder(ctx, deals, eq(deals.stage, body.stage));
-    }
+    const custom = await customForUpdate(ctx, 'deal', existing.custom, body.custom, existing.id);
+    const attr = pickAttr(await attributionPatch(ctx, body, existing));
+    const contactIds = body.contactIds ?? (await ctx.db.select({ id: dealContacts.contactId }).from(dealContacts).where(eq(dealContacts.dealId, existing.id))).map(r => r.id);
+    const plan = await planStageChange(
+      ctx.db,
+      existing,
+      { stageId: body.stageId, pipelineId: body.pipelineId, lostReasonId: body.lostReasonId, closedAt: body.closedAt },
+      {
+        amount: body.amount ?? existing.amount,
+        closeDate: body.closeDate === undefined ? existing.closeDate : body.closeDate,
+        contactIds,
+        sourceId: 'sourceId' in attr ? attr.sourceId : existing.sourceId,
+        custom: custom.custom ?? existing.custom,
+      },
+    );
+    const patch: Record<string, unknown> = { ...custom, ...attr, ...plan.patch };
+    if (body.sortOrder !== undefined) patch.sortOrder = body.sortOrder;
+    // причина проигрыша меняется только на этапе категории «проиграна»
+    if (!plan.changed) patch.lostReasonId = plan.to.category === 'lost' ? body.lostReasonId : undefined;
     return patch;
   },
   afterUpdate: async (ctx, before, after, body) => {
     if (body.contactIds) await setDealContacts(ctx, after.id, body.contactIds);
-    if (before.stage !== after.stage) {
-      // Служебная запись о смене этапа (как в локальной модели фронтенда)
-      await ctx.db.insert(crmActivities).values({ workspaceId: ctx.workspaceId, type: 'note', subject: `Stage changed: ${before.stage} → ${after.stage}`, dealId: after.id, companyId: after.companyId, authorId: ctx.memberId, system: true });
+    if (before.stageId !== after.stageId) {
+      await recordStageChange(ctx.db, { workspaceId: ctx.workspaceId, memberId: ctx.memberId }, after, { to: await loadStage(ctx.db, after.stageId), from: await loadStage(ctx.db, before.stageId) });
     }
   },
   decorate: async (ctx, rows) => {
@@ -144,6 +166,18 @@ export const dealRoutes = crud({
     return rows.map(r => ({ ...r, contactIds: dc.filter(x => x.dealId === r.id).map(x => x.contactId) }));
   },
 });
+
+/** История этапов сделки: из/в этап и воронку, кто и когда (новые сверху) */
+export const dealRoutes = new Hono<AppEnv>()
+  .get('/:id/stage-history', zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const { id } = c.req.valid('param');
+    const [d] = await ctx.db.select({ id: deals.id }).from(deals).where(eq(deals.id, id)).limit(1);
+    if (!d) throw notFound('deal');
+    const items = await ctx.db.select().from(dealStageHistory).where(eq(dealStageHistory.dealId, id)).orderBy(desc(dealStageHistory.createdAt), desc(dealStageHistory.id));
+    return c.json({ items });
+  })
+  .route('/', dealBase);
 
 export const crmActivityRoutes = crud({
   entity: 'crm_activity',

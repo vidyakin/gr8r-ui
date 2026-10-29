@@ -1,7 +1,7 @@
 /* Конструктор сущностей: метаданные (admin+), проверка значений по типам полей, изоляция арендаторов,
    фильтры/сортировка/поиск по data, custom у системных сущностей, индексы filterable, удаление с подтверждением. */
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { Client, admin, drainJobs, sql as appSql } from './helpers';
+import { Client, admin, drainJobs, sql as appSql, stageId } from './helpers';
 import { SYSTEM_ENTITIES } from '@gr8r/shared';
 
 let owner: Client;
@@ -382,7 +382,7 @@ describe('custom fields of system entities', () => {
     const deal = await owner.post('/deals', { name: 'D', companyId, custom: { source: 'web' } });
     expect(deal.body.custom).toEqual({ source: 'web' });
     expect((await owner.patch(`/deals/${deal.body.id}`, { custom: { source: 'tv' } })).status).toBe(400);
-    expect((await owner.patch(`/deals/${deal.body.id}`, { stage: 'qualified' })).body.custom).toEqual({ source: 'web' });
+    expect((await owner.patch(`/deals/${deal.body.id}`, { stageId: await stageId(owner, 'qualified') })).body.custom).toEqual({ source: 'web' });
     const co = await owner.patch(`/companies/${companyId}`, { custom: { segment: 'SMB' } });
     expect(co.body.custom).toEqual({ segment: 'SMB' });
     const ct = await owner.post('/contacts', { name: 'Bob', custom: { birthday: '1990-05-05' } });

@@ -26,6 +26,8 @@ import {
   assignLead as assignLeadService,
   insertLead,
   type Db,
+  dealLostReasons,
+  moveDeal,
 } from '@gr8r/db';
 import { BUILTIN_FIELDS, buildRecordSchema, type EventVia, type FieldDef, type FieldType } from '@gr8r/shared';
 
@@ -52,7 +54,7 @@ const NULLABLE: Record<string, string[]> = {
   product: [],
   lead: ['ownerId'],
 };
-const NEVER_EMPTY = new Set(['title', 'name', 'status', 'stage', 'amount', 'price', 'purchasePrice', 'currency']);
+const NEVER_EMPTY = new Set(['title', 'name', 'status', 'amount', 'price', 'purchasePrice', 'currency']);
 
 const json = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -186,19 +188,11 @@ export async function updateField(db: Db, ws: string, via: EventVia, a: { entity
       patch.prevStatus = row.status;
       patch.completedAt = value === 'done' ? new Date() : null;
     }
-    if (a.entity === 'deal' && a.field === 'stage') {
-      const closed = value === 'won' || value === 'lost';
-      patch.closedAt = closed ? new Date().toISOString().slice(0, 10) : null;
-      if (!closed) patch.lostReason = null;
-    }
     if ('updatedAt' in row) patch.updatedAt = new Date();
     const [after] = (await db.update(sys).set(patch as never).where(and(eq(sys.workspaceId, ws), eq(sys.id, id))).returning()) as Row[];
     const changes: Row = {};
     for (const k of Object.keys(after!)) if (k !== 'updatedAt' && !same(row[k], after![k])) changes[k] = { from: json(row[k] ?? null), to: json(after![k] ?? null) };
     if (Object.keys(changes).length) await recordEvent(db, { workspaceId: ws, type: `${a.entity}.updated`, entity: a.entity, recordId: id, actorId: null, payload: { changes, via } });
-    if (a.entity === 'deal' && a.field === 'stage') {
-      await db.insert(crmActivities).values({ workspaceId: ws, type: 'note', subject: `Stage changed: ${String(row.stage)} → ${String(after!.stage)}`, dealId: id, companyId: (after!.companyId as string | null) ?? null, authorId: null, system: true });
-    }
     return { changed: true, before: before ?? null, after: value };
   }
 
@@ -342,4 +336,21 @@ export async function assignLead(db: Db, ws: string, via: EventVia, a: { leadId:
   const leadId = assertUuid(a.leadId, 'Lead');
   if (a.memberId) assertUuid(a.memberId, 'Member');
   return assignLeadService(db, { workspaceId: ws, memberId: null, via: via as unknown as Record<string, unknown> }, leadId, a.mode, a.memberId);
+}
+
+/* ---------------- воронки продаж (задача 1176) ---------------- */
+
+/** Перевести сделку: те же правила, что у PATCH /deals (обязательные поля этапа, причина проигрыша, история, события) */
+export async function moveDealAction(db: Db, ws: string, via: EventVia, a: { dealId: string; pipelineId?: string | null; stageId?: string | null; lostReason?: string | null }): Promise<{ changed: boolean; stageId: string }> {
+  const dealId = assertUuid(a.dealId, 'Deal');
+  if (a.pipelineId) assertUuid(a.pipelineId, 'Pipeline');
+  if (a.stageId) assertUuid(a.stageId, 'Stage');
+  let lostReasonId: string | null = null;
+  if (a.lostReason) {
+    const [r] = await db.select({ id: dealLostReasons.id }).from(dealLostReasons).where(and(eq(dealLostReasons.workspaceId, ws), sql`lower(${dealLostReasons.name}) = lower(${a.lostReason})`)).limit(1);
+    if (!r) throw new Error(`Lost reason "${a.lostReason}" not found`);
+    lostReasonId = r.id;
+  }
+  const r = await moveDeal(db, { workspaceId: ws, memberId: null, via: via as unknown as Record<string, unknown> }, dealId, { pipelineId: a.pipelineId ?? null, stageId: a.stageId ?? null, lostReasonId });
+  return { changed: r.changed, stageId: r.to.id };
 }

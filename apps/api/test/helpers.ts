@@ -98,3 +98,17 @@ export async function drainJobs(): Promise<number> {
   }
   return total;
 }
+
+const LEGACY_STAGE_ORDER = ['lead', 'qualified', 'proposal', 'negotiation', 'won', 'lost'];
+/** id этапа основной воронки по старому ключу стадии (lead … lost) — этапы приходят из шаблона «Sales» */
+export async function stageId(c: Client, key: (typeof LEGACY_STAGE_ORDER)[number]): Promise<string> {
+  const pipes = (await c.get('/deal-pipelines')).body.items;
+  const main = pipes.find((p: any) => p.isDefault);
+  const stages = (await c.get(`/deal-stages?pipelineId=${main.id}&sort=sortOrder`)).body.items;
+  return stages[LEGACY_STAGE_ORDER.indexOf(key)].id;
+}
+
+/** id первой причины проигрыша (нужна при переходе на этап «проиграна») */
+export async function lostReasonId(c: Client): Promise<string> {
+  return (await c.get('/deal-lost-reasons')).body.items[0].id;
+}

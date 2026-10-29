@@ -1,6 +1,6 @@
 /* CRUD задач и других сущностей: события в outbox, транзакционность, фильтры, пагинация, валидация. */
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { Client, admin } from './helpers';
+import { Client, admin, stageId } from './helpers';
 
 let c: Client;
 let ws: string;
@@ -250,14 +250,14 @@ describe('other resources', () => {
     expect(d.body.amount).toBe('1234567.89');
     expect(d.body.contactIds).toEqual([ct.id]);
     expect(d.body.closedAt).toBeNull();
-    const won = await c.patch(`/deals/${d.body.id}`, { stage: 'won' });
-    expect(won.body.stage).toBe('won');
+    const won = await c.patch(`/deals/${d.body.id}`, { stageId: await stageId(c, 'won') });
+    expect(won.body.stageId).toBe(await stageId(c, 'won'));
     expect(won.body.closedAt).toBe(new Date().toISOString().slice(0, 10));
-    const reopened = await c.patch(`/deals/${d.body.id}`, { stage: 'negotiation' });
+    const reopened = await c.patch(`/deals/${d.body.id}`, { stageId: await stageId(c, 'negotiation') });
     expect(reopened.body.closedAt).toBeNull();
     const acts = (await c.get(`/crm-activities?dealId=${d.body.id}`)).body.items;
     expect(acts.filter((a: any) => a.system).length).toBe(2);
-    expect((await c.get(`/deals?stage=negotiation&companyId=${co.id}`)).body.total).toBe(1);
+    expect((await c.get(`/deals?stageId=${await stageId(c, 'negotiation')}&companyId=${co.id}`)).body.total).toBe(1);
     const task = await c.post('/crm-activities', { type: 'task', subject: 'Call back', dealId: d.body.id, dueDate: '2026-11-01' });
     expect(task.body).toMatchObject({ done: false, companyId: co.id, system: false });
     // системные записи не редактируются
