@@ -285,6 +285,8 @@ export interface Deal {
   lostReason?: string;
   /** Причина проигрыша из справочника и когда сделка вошла в текущий этап (ms) */
   lostReasonId?: string;
+  /** Источник сделки (справочник, задача 1177) */
+  sourceId?: string;
   stageEnteredAt?: number;
   /** Порядок карточки внутри колонки воронки */
   order: number;
