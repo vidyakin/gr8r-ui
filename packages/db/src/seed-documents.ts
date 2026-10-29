@@ -27,6 +27,7 @@ import { recalculateOrderCalculation } from './calculations';
 import { uuidv7 } from './uuid';
 import { seedRepair } from './seed-repair';
 import { seedDelivery } from './seed-delivery';
+import { seedFleet } from './seed-fleet';
 
 const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * 864e5).toISOString().slice(0, 10);
 
@@ -626,6 +627,7 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
 
   // доставка (задача 1100): способы, курьеры и доставки в разных статусах
   await seedDelivery(db, ctx, { carrierId: co.northwind, repairWorkOrderId: repairSeed.repair });
+  await seedFleet(db, ctx);
 
   // закрытый месяц: закрываем месяц выпуска — косвенные затраты распределяются, средняя склада пересчитывается
   const closedMonth = iso(3).slice(0, 7);

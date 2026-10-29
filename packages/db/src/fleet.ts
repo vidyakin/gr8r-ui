@@ -534,7 +534,7 @@ export async function deleteWaybill(db: Db, ctx: DocCtx, id: string): Promise<vo
   await event(db, ctx, 'fleet_waybill', 'deleted', id, { number: w.number });
 }
 
-const KIND_RU: Record<string, string> = { car: 'легковой', van: 'фургон', truck: 'грузовой', tractor: 'тягач', trailer: 'прицеп', special: 'спецтехника', other: 'прочее' };
+const KIND_RU: Record<string, string> = { car: 'легковой', van: 'фургон', truck: 'грузовой', tractor: 'тягач', trailer: 'прицеп', special: 'спецтехника', misc: 'прочее' };
 const FUEL_RU: Record<string, string> = { petrol: 'бензин', diesel: 'дизельное топливо', gas: 'газ', electric: 'электричество' };
 const hhmm = (d: Date | null) => (d ? `${d.toISOString().slice(0, 10).split('-').reverse().join('.')} ${d.toISOString().slice(11, 16)}` : '');
 

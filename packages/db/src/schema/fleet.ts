@@ -18,7 +18,7 @@ export const fleetVehicles = pgTable(
     workspaceId: wsCol(),
     plate: text('plate').notNull(),
     name: text('name').notNull().default(''),
-    kind: text('kind', { enum: ['car', 'van', 'truck', 'tractor', 'trailer', 'special', 'other'] }).notNull().default('truck'),
+    kind: text('kind', { enum: ['car', 'van', 'truck', 'tractor', 'trailer', 'special', 'misc'] }).notNull().default('truck'),
     make: text('make').notNull().default(''),
     model: text('model').notNull().default(''),
     vin: text('vin').notNull().default(''),

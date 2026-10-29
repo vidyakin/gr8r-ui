@@ -5,7 +5,7 @@ import { dec, div, fmt, mul, type Dec } from './decimal';
 
 export { addDaysIso };
 
-export const VEHICLE_KINDS = ['car', 'van', 'truck', 'tractor', 'trailer', 'special', 'other'] as const;
+export const VEHICLE_KINDS = ['car', 'van', 'truck', 'tractor', 'trailer', 'special', 'misc'] as const;
 export type VehicleKind = (typeof VEHICLE_KINDS)[number];
 export const FUEL_TYPES = ['petrol', 'diesel', 'gas', 'electric'] as const;
 export type FuelType = (typeof FUEL_TYPES)[number];

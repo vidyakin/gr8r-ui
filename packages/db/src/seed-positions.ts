@@ -18,12 +18,14 @@ export async function seedPositions(db: Db, ctx: DocCtx): Promise<void> {
   const masseur = await createPosition(db, ctx, { name: 'Массажист', functions: ['appointments_specialist'], sections: ['crm'], productKindIds: [massage.id], sortOrder: 1 });
   const worker = await createPosition(db, ctx, { name: 'Рабочий цеха', functions: ['production_worker'], sections: ['production', 'stock'], sortOrder: 2 });
   const courier = await createPosition(db, ctx, { name: 'Курьер', functions: ['courier'], sections: ['deliveries'], sortOrder: 3 });
+  const driver = await createPosition(db, ctx, { name: 'Водитель', functions: ['driver'], sections: ['transport', 'deliveries'], sortOrder: 5 });
   const manager = await createPosition(db, ctx, { name: 'Менеджер', functions: ['sales_manager'], sections: ['crm', 'trade'], sortOrder: 4 });
 
   // участники по порядку создания, без автора: массажисты, менеджер, рабочий цеха, два курьера
   const people = await db.select({ id: members.id }).from(members).where(and(eq(members.workspaceId, ws), eq(members.status, 'active'), ne(members.id, ctx.memberId ?? ''))).orderBy(asc(members.createdAt), asc(members.id));
   const plan: [number, string][] = [[0, masseur.id], [1, masseur.id], [2, manager.id], [3, worker.id], [4, courier.id], [5, courier.id]];
-  for (const [i, positionId] of plan) if (people[i]) await setMemberPositions(db, ctx, people[i]!.id, [positionId]);
+  // водители — те же два сотрудника, что и курьеры (вторая должность)
+  for (const [i, positionId] of plan) if (people[i]) await setMemberPositions(db, ctx, people[i]!.id, i >= 4 ? [positionId, driver.id] : [positionId]);
 }
 
 /** Вид номенклатуры «Массаж» для услуг записи (создаётся в seedPositions) */
