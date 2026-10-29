@@ -201,10 +201,15 @@ describe('сборка мусора', () => {
     expect(store.objects.has(key)).toBe(false);
     expect((await owner.get(`/attachments/${id}/content`)).body.error.code).toBe('file_content_missing');
     // сирота: ключ без строки версии, старше суток
-    store.objects.set(`${ws}/orphan/1`, { data: bytes('x'), at: new Date(Date.now() - 2 * 86_400_000) });
-    store.objects.set(`${ws}/fresh/1`, { data: bytes('x'), at: new Date() });
+    const orphan = `${ws}/${crypto.randomUUID()}/1`;
+    const fresh = `${ws}/${crypto.randomUUID()}/1`;
+    const foreign = `${ws}/products/${crypto.randomUUID()}`; // чужой формат ключа (например, картинки товаров) не трогаем
+    store.objects.set(orphan, { data: bytes('x'), at: new Date(Date.now() - 2 * 86_400_000) });
+    store.objects.set(fresh, { data: bytes('x'), at: new Date() });
+    store.objects.set(foreign, { data: bytes('x'), at: new Date(Date.now() - 9 * 86_400_000) });
     expect((await runGc(30)).orphanObjects).toBe(1);
-    expect(store.objects.has(`${ws}/orphan/1`)).toBe(false);
-    expect(store.objects.has(`${ws}/fresh/1`)).toBe(true);
+    expect(store.objects.has(orphan)).toBe(false);
+    expect(store.objects.has(fresh)).toBe(true);
+    expect(store.objects.has(foreign)).toBe(true);
   });
 });

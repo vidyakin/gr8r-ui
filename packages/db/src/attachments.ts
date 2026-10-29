@@ -285,6 +285,8 @@ export async function archiveAttachmentsOf(db: Db, workspaceId: string, entityTy
 
 /* ---------------- сборка мусора (воркер) ---------------- */
 
+const ATTACHMENT_KEY = /^[0-9a-f]{8}-[0-9a-f-]{27}\/[0-9a-f]{8}-[0-9a-f-]{27}\/\d+$/;
+
 export interface GcResult {
   archivedObjects: number;
   orphanObjects: number;
@@ -308,8 +310,9 @@ export async function collectAttachmentGarbage(db: Db, store: FileStore, retenti
   }
   const known = new Set((await db.select({ key: attachmentVersions.storageKey }).from(attachmentVersions).where(isNotNull(attachmentVersions.storageKey))).map(r => r.key));
   const dayAgo = now.getTime() - 86_400_000;
+  // Сиротой считается только ключ вида <workspace>/<attachment>/<номер>: в том же бакете лежат и другие файлы (картинки товаров и т. п.)
   for (const o of await store.list('')) {
-    if (known.has(o.key) || o.lastModified.getTime() > dayAgo) continue;
+    if (!ATTACHMENT_KEY.test(o.key) || known.has(o.key) || o.lastModified.getTime() > dayAgo) continue;
     await store.delete(o.key);
     res.orphanObjects++;
   }

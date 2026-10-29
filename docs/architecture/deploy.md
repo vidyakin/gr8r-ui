@@ -78,7 +78,7 @@
   `api` и `worker` получают `S3_*`, `FILE_MAX_BYTES`, `STORAGE_QUOTA_BYTES`. Том `miniodata` в `pg_dump`-бэкап не входит — копировать отдельно
   (`docker run --rm -v <проект>_miniodata:/data -v $PWD/backups:/b alpine tar czf /b/minio.tgz /data`). Для Yandex Object Storage вместо MinIO задайте `S3_ENDPOINT=https://storage.yandexcloud.net`,
   `S3_FORCE_PATH_STYLE=0` и уберите сервисы `minio`/`minio-init`. `nginx` пропускает тело до 55 МБ (`client_max_body_size` на `/api/`). PDF печатных форм по-прежнему в БД (`PDF_STORE=db`).
-  Проверено локально: `docker compose config` для всех трёх файлов; `S3FileStore` против настоящего MinIO этого образа; полный стек в compose не поднимался.
+  Выгрузка арендатора (`tenant export`) не содержит файлов из S3 — их копируют вместе с бакетом (`mc mirror`). Проверено локально: `docker compose config` для всех трёх файлов; `S3FileStore` против настоящего MinIO этого образа; полный стек в compose не поднимался.
 - **Coolify** — `docker-compose.coolify.yml`: те же сервисы без `caddy` (80/443 держит прокси Coolify, домен задаётся у сервиса `web`),
   `migrate` помечен `exclude_from_hc` (ключ Coolify: завершившийся контейнер не делает приложение «нездоровым»; обычный
   `docker compose config` на этом ключе падает). CLI — в контейнере `api` (там весь код и `ADMIN_DATABASE_URL`), `./archives` смонтирован в него.
