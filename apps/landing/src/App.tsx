@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { features, moreItems, t, type TKey } from './i18n';
+import { features, t, type TKey } from './i18n';
 import { Recording, type Scene } from './demo/player';
 import { tasksScene } from './demo/TasksScene';
 import { crmScene } from './demo/CrmScene';
@@ -9,6 +9,7 @@ import { productionScene } from './demo/ProductionScene';
 import { Brand } from './demo/shell';
 import { LeadForm } from './LeadForm';
 import { HeroFlow } from './HeroFlow';
+import { MoreCards } from './MoreCards';
 
 /** Адрес приложения: по плану лендинг на «/», приложение на «/app/» (docs/plans/2026-10-29-landing.md) */
 const APP_URL = import.meta.env.VITE_APP_URL ?? '/app/';
@@ -76,14 +77,7 @@ export function App() {
             <h2 id="h-more">{t('more.title')}</h2>
             <p>{t('more.lead')}</p>
           </div>
-          <dl className="l-more-list">
-            {moreItems().map(([name, what]) => (
-              <div key={name}>
-                <dt>{name}</dt>
-                <dd>{what}</dd>
-              </div>
-            ))}
-          </dl>
+          <MoreCards />
           <p className="l-platform">{t('more.platform')}</p>
         </section>
 

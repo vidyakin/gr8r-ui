@@ -367,21 +367,51 @@ ol {
 }
 .l-more-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: 56px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
 }
-.l-more-list > div {
+.l-card {
+  padding: 20px 20px 22px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  transition:
+    border-color 1.2s var(--ease),
+    box-shadow 1.2s var(--ease);
+}
+/* подсветка: граница акцентного цвета и мягкое свечение вокруг */
+.l-card.lit {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent),
+    0 0 28px -4px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.l-card-ic {
   display: grid;
-  grid-template-columns: 150px minmax(0, 1fr);
-  gap: 16px;
-  padding: 14px 0;
-  border-top: 1px solid var(--divider);
-  font-size: 16px;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  margin-bottom: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  color: var(--text-2);
+  transition:
+    color 1.2s var(--ease),
+    border-color 1.2s var(--ease);
 }
-.l-more-list dt {
-  font-weight: 500;
+.l-card.lit .l-card-ic {
+  color: var(--accent);
+  border-color: var(--accent-line);
 }
-.l-more-list dd {
+.l-card dt {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.l-card dd {
+  margin-top: 4px;
+  font-size: 15px;
+  line-height: 1.5;
   color: var(--text-2);
 }
 .l-platform {
@@ -452,7 +482,7 @@ ol {
     grid-template-columns: minmax(0, 1fr);
   }
   .l-more-list {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   /* на узком экране запись — сразу под вкладками, возможности ниже */
   .l-panel-shot {
@@ -496,9 +526,8 @@ ol {
   .l-panel {
     padding-top: 28px;
   }
-  .l-more-list > div {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 2px;
+  .l-card {
+    padding: 16px;
   }
   .l-form {
     grid-template-columns: minmax(0, 1fr);
