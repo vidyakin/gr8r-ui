@@ -69,6 +69,7 @@ import { RequestPage, RequestsPage } from './money/RequestPages';
 import { OpeningPage, OpeningsPage } from './money/OpeningPages';
 import { PriceKindsPage, PriceListPage, PriceSettingPage, PriceSettingsPage } from './pricing/PricingPages';
 import { PublicPricePage } from './pricing/PublicPricePage';
+import { QuoteTemplatesPage } from './docs/QuoteTemplatesPage';
 import { PayrollPage, PayrollsPage, StatementPage, StatementsPage } from './payroll/PayrollPages';
 import { EmployeesPage, PayrollReportsPage, PayslipPage } from './payroll/PayrollAdminPages';
 import { BalancesPage, CashFlowPage, DebtsPage, MoneyReferencesPage } from './money/ReportPages';
@@ -138,6 +139,7 @@ export const router = createHashRouter([
       { path: SECTIONS.crmSalesPlan.path, element: <CrmSalesPlanPage /> },
       { path: `${SECTIONS.crmSalesPlan.path}/:id`, element: <CrmSalesPlanDocumentPage /> },
       { path: SECTIONS.crmAppointments.path, element: <CrmAppointmentsPage /> },
+      { path: SECTIONS.crmQuoteTemplates.path, element: <QuoteTemplatesPage /> },
       { path: `${SECTIONS.crmAppointments.path}/day/:id`, element: <CrmServiceDayPage /> },
       // Каталог и производство
       { path: `${SECTIONS.catalog.path}/:productId?`, element: <CatalogPage /> },

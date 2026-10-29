@@ -1,6 +1,7 @@
 /* Единый список разделов: из него строятся навигация, хлебные крошки и заголовок вкладки. */
 import {
   Activity,
+  FileStack,
   Megaphone,
   Archive,
   BadgeRussianRuble,
@@ -102,6 +103,7 @@ export const SECTIONS = {
   crmActivities: { path: '/crm/activities', name: 'Activities', icon: PhoneCall },
   crmSalesPlan: { path: '/crm/sales-plan', name: 'Sales plan', icon: Target },
   crmAppointments: { path: '/crm/appointments', name: 'Appointments', icon: CalendarCheck },
+  crmQuoteTemplates: { path: '/crm/quote-templates', name: 'Proposal templates', icon: FileStack },
   // Каталог и производство
   catalog: { path: '/catalog', name: 'Catalog', icon: Package },
   production: { path: '/production', name: 'Production', icon: Factory },
@@ -254,6 +256,7 @@ const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
   crmActivities: 'crm',
   crmSalesPlan: 'crm',
   crmAppointments: 'crm',
+  crmQuoteTemplates: 'crm',
   catalog: 'catalog',
   priceList: 'catalog',
   priceSettings: 'catalog',

@@ -31,6 +31,7 @@ export const errors = {
   serial_in_transit: 'Serial number {serial} is in transit between warehouses',
   serial_not_in_transit: 'Serial number {serial} is not in transit',
   no_lines: 'Add at least one line before posting',
+  variants_not_available: 'Only quotes and customer orders have proposal variants',
   not_draft: 'Only a draft can be edited or deleted: unpost the document first',
   invalid_amount: 'The amount and quantity cannot be negative',
   invalid_dimension: 'The line value does not match the scenario split',

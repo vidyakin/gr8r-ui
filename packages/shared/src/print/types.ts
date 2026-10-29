@@ -64,6 +64,16 @@ export interface PrintLine {
   serials?: { serial: string; warrantyUntil: string | null }[];
   /** Гарантия на товар, мес. */
   warrantyMonths?: number | null;
+  /** Группа строки (справочно): пусто — без группы */
+  group?: string;
+}
+
+/** Вариант КП для печати: основной — строки документа */
+export interface PrintVariant {
+  name: string;
+  main: boolean;
+  lines: PrintLine[];
+  totals: DocumentTotals;
 }
 
 /** Ремонт: изделие клиента и данные для актов приёма и выдачи */
@@ -127,4 +137,8 @@ export interface PrintData {
   executorName?: string;
   /** Участок сдельного наряда */
   workCenterName?: string;
+  /** Ответственный по документу (КП) */
+  responsibleName?: string;
+  /** Варианты КП (КП и заказ покупателя): первым — основной; пусто — вариантов нет */
+  variants?: PrintVariant[];
 }

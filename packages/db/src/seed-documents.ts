@@ -1,7 +1,7 @@
 /* Демо документов и склада для демо-воркспейса: организация «ООО «Гр8р Студия»» (ОСН, НДС 20%), два склада, реквизиты у пяти компаний CRM
    и две цепочки документов, проведённые настоящими сервисами (поэтому остатки, резервы и средняя себестоимость — как у живых данных):
    «заказ поставщику → поступление» и «заказ покупателя → счёт → реализация (УПД)» + акт услуг. Данные — на русском, интерфейс английский. */
-import { accountKeyOk, makeInn, makeOgrn, monthPeriod } from '@gr8r/shared';
+import { accountKeyOk, DEFAULT_QUOTE_TEMPLATE, makeInn, makeOgrn, monthPeriod } from '@gr8r/shared';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { Db } from './client';
 import { changeDocumentState, createBasedOn, createDocument, ensureCostItems, postDocument, updateDocument, type DocCtx } from './documents';
@@ -9,6 +9,7 @@ import { createWorkOrderAssignment, saveWorkOrderMaterials } from './work-orders
 import { saveWorkOrderBilling } from './services';
 import { ensureModuleProject, issueTaskKey } from './modules';
 import { fillCountSheet } from './inventory';
+import { createTemplate, createVariant } from './quotes';
 import './internal-ops';
 import { bankAccounts, companies, costItems, documentLines, organizations, productManufacturing, products, stockLevels, tasks, timeLogs, warehouses, workCenters, workspaces, manufacturedItems } from './schema';
 import { productionPlanLines, productionPlans } from './schema';
@@ -198,6 +199,24 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
   await postAt(quote, 9);
   const order2 = await createBasedOn(db, ctx, quote, 'customer_order');
   await postAt(order2, 6);
+
+  // черновик КП с двумя вариантами и группами строк и шаблон КП (docs/architecture/quotes.md)
+  const g = (groupName: string, l: ReturnType<typeof sell>) => ({ ...l, groupName });
+  const offer = await createDocument(db, ctx, {
+    type: 'quote',
+    counterpartyId: co.skyline,
+    date: iso(1),
+    dueDate: iso(-13),
+    comment: 'Оснащение второй переговорной: два варианта на выбор',
+    lines: [g('Мебель', sell('FRN-001', 8)), g('Мебель', sell('FRN-002', 2)), g('Услуги', sell('SV-DLV', 1)), g('Услуги', sell('SV-ASM', 2))],
+  });
+  await updateDocument(db, ctx, offer, { variantName: 'Стандарт' });
+  await createVariant(db, ctx, offer, { name: 'Эконом', copy: false });
+  await updateDocument(db, ctx, offer, { lines: [g('Мебель', sell('FRN-001', 8, { discountPct: 10 })), g('Услуги', sell('SV-DLV', 1))] });
+  await createTemplate(db, ctx, {
+    name: 'КП с вариантами и условиями',
+    body: `${DEFAULT_QUOTE_TEMPLATE.replace('{{Подписи}}', '## Условия\nОплата: 50 % предоплата, остаток — после поставки.\nСрок поставки: 10 рабочих дней.\n\n{{Подписи}}')}`,
+  });
 
   // прямая отгрузка ИП: цены «НДС сверху»
   const direct = await createDocument(db, ctx, {

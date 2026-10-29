@@ -5,7 +5,7 @@ import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Ban, Calculator, ChevronDown, CircleAlert, ClipboardList, Copy, Ellipsis, FileSignature, FileText, PackageCheck, PackageX, Plus, Printer, RotateCcw, Send, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
-import { amountInWordsRu, basedOnTargets, computeDocument, DEFECT_MODES, DOCUMENT_META, isInvestmentFactType, MATERIAL_OWNER_LABELS, PRINT_FORM_LABELS, TOLLING_ROLE_LABELS, TOLLING_ROLES, TRANSFER_OPERATIONS, VAT_LABELS, VAT_RATES, type DefectMode, type DocumentType, type TollingRole, type VatRate } from '@gr8r/shared';
+import { amountInWordsRu, basedOnTargets, computeDocument, dec, DEFECT_MODES, DOCUMENT_META, fmt as fmtDec, hasQuoteVariants, isInvestmentFactType, MATERIAL_OWNER_LABELS, PRINT_FORM_LABELS, TOLLING_ROLE_LABELS, TOLLING_ROLES, TRANSFER_OPERATIONS, VAT_LABELS, VAT_RATES, type DefectMode, type DocumentType, type TollingRole, type VatRate } from '@gr8r/shared';
 import { Badge, Button, ConfirmDialog, EmptyState, Field, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Segmented, Select, Skeleton, toast } from '@/components/ui';
 import { useCanWrite } from '../meta/custom-fields';
 import { money, unitSymbol, useIsAdmin, useUnits, type Product } from '../catalog/data';
@@ -15,7 +15,8 @@ import { useWorkspace } from '../data/store';
 import { PayControls } from '../money/PayControls';
 import { useSnapshot } from '../production/data';
 import { MaterialModeField, WasteHeaderFields, WasteTab } from '../production/WasteTab';
-import { STATUS_LABEL, STATUS_TONE, docTitle, docsKey, typeLabel, useCostItems, useDocsApi, useDocument, useOrganizations, useProcessingOrders, useWarehouses, type DocDetail, type DocLink } from './data';
+import { STATUS_LABEL, STATUS_TONE, docTitle, docsKey, typeLabel, useCostItems, useDocsApi, useDocTemplates, useDocument, useOrganizations, useProcessingOrders, useWarehouses, type DocDetail, type DocLink } from './data';
+import { QuoteVariants } from './quote-variants';
 import { CalculationDialog, ParamsDialog } from './calculation';
 import { CounterpartyPicker, ProductPicker } from './pickers';
 import { usePriceKinds, useResolvePrices } from '../pricing/data';
@@ -54,6 +55,8 @@ interface FormLine {
   params: Record<string, unknown>;
   /** Вкладка строки отчёта о переработке: продукция, использованное сырьё или отходы */
   tollingRole: TollingRole | null;
+  /** Группа строки (справочно, сумма по группе в форме и печати) */
+  groupName: string;
 }
 
 interface Form {
@@ -111,7 +114,7 @@ function toForm(d: DocDetail): Form {
     dueDate: d.dueDate ?? '',
     priceIncludesVat: d.priceIncludesVat,
     comment: d.comment,
-    lines: d.lines.map(l => ({ key: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, qty: trimNum(l.qty), price: l.price, discountPct: trimNum(l.discountPct), vatRate: l.vatRate, bookQty: trimNum(l.bookQty), receivedQty: trimNum(l.receivedQty), costItemId: l.costItemId, workCenterId: l.workCenterId, params: (l as { params?: Record<string, unknown> }).params ?? {}, tollingRole: l.tollingRole ?? null })),
+    lines: d.lines.map(l => ({ key: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, qty: trimNum(l.qty), price: l.price, discountPct: trimNum(l.discountPct), vatRate: l.vatRate, bookQty: trimNum(l.bookQty), receivedQty: trimNum(l.receivedQty), costItemId: l.costItemId, workCenterId: l.workCenterId, params: (l as { params?: Record<string, unknown> }).params ?? {}, tollingRole: l.tollingRole ?? null, groupName: l.groupName ?? '' })),
   };
 }
 
@@ -146,7 +149,7 @@ function toPayload(f: Form) {
     comment: f.comment,
     lines: f.lines
       .filter(l => l.productId)
-      .map(l => ({ id: l.key, productId: l.productId!, name: l.name, unitCode: l.unitCode, qty: num(l.qty), price: num(l.price), discountPct: num(l.discountPct || '0'), vatRate: l.vatRate, bookQty: num(l.bookQty || '0'), receivedQty: num(l.receivedQty || '0'), costItemId: l.costItemId, workCenterId: l.workCenterId, params: l.params ?? {}, tollingRole: l.tollingRole })),
+      .map(l => ({ id: l.key, productId: l.productId!, name: l.name, unitCode: l.unitCode, qty: num(l.qty), price: num(l.price), discountPct: num(l.discountPct || '0'), vatRate: l.vatRate, bookQty: num(l.bookQty || '0'), receivedQty: num(l.receivedQty || '0'), costItemId: l.costItemId, workCenterId: l.workCenterId, params: l.params ?? {}, tollingRole: l.tollingRole, groupName: l.groupName.trim() })),
   };
 }
 
@@ -301,7 +304,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   };
   const patchLine = (key: string, patch: Partial<FormLine>) => edit(f => ({ ...f, lines: f.lines.map(l => (l.key === key ? { ...l, ...patch } : l)) }));
   const addLine = (at?: number) => {
-    const line: FormLine = { key: uuidv7(), productId: null, name: '', unitCode: '796', qty: '1', price: '', discountPct: '', vatRate: '20', bookQty: '0', receivedQty: '0', costItemId: null, workCenterId: null, params: {}, tollingRole: defaultTollingRole };
+    const line: FormLine = { key: uuidv7(), productId: null, name: '', unitCode: '796', qty: '1', price: '', discountPct: '', vatRate: '20', bookQty: '0', receivedQty: '0', costItemId: null, workCenterId: null, params: {}, tollingRole: defaultTollingRole, groupName: '' };
     const index = at ?? latest.current.lines.length;
     focusReq.current = { row: index, col: 0 };
     edit(f => ({ ...f, lines: [...f.lines.slice(0, index), line, ...f.lines.slice(index)] }));
@@ -373,6 +376,26 @@ function DocumentView({ doc }: { doc: DocDetail }) {
       return { byKey: new Map(), totals: { net: '0.00', vat: '0.00', total: '0.00', byRate: [] as { rate: string; net: string; vat: string; total: string }[] } };
     }
   }, [form.lines, form.priceIncludesVat]);
+  /** Группы строк (КП, заказ, счёт): колонка «Группа» и итоги по группам */
+  const hasGroups = !internal && (hasQuoteVariants(doc.type) || doc.type === 'invoice');
+  const groupTotals = React.useMemo(() => {
+    const m = new Map<string, bigint>();
+    for (const l of form.lines) {
+      const g = l.groupName.trim();
+      const a = calc.byKey.get(l.key);
+      if (!g || !a) continue;
+      m.set(g, (m.get(g) ?? 0n) + dec(a.total));
+    }
+    return [...m].map(([name, sum]) => ({ name, total: fmtDec(sum, 2) }));
+  }, [form.lines, calc]);
+  const quoteTemplates = useDocTemplates({ usedOnly: true });
+  /** Ответ сервера после операции с вариантами заменяет форму: строки документа — уже другой вариант */
+  const applyServer = (r: DocDetail) => {
+    clearTimeout(timer.current);
+    setForm(toForm(r));
+    dirty.current = false;
+    setSave('saved');
+  };
   const serverLine = new Map(doc.lines.map(l => [l.id, l]));
 
   const run = async (action: 'post' | 'unpost' | 'restore' | 'cancel') => {
@@ -489,6 +512,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                 <tr>
                   <th style={{ width: 34 }}>{t('docs.document.colNum')}</th>
                   <th>{t('docs.document.colProduct')}</th>
+                  {hasGroups && <th style={{ width: 150 }}>{t('docs.quotes.colGroup')}</th>}
                   <th style={{ width: 56 }}>{t('docs.document.colUnit')}</th>
                   {isCount && (
                     <th style={{ width: 96 }} className="r">
@@ -577,6 +601,15 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                           </span>
                         )}
                       </td>
+                      {hasGroups && (
+                        <td>
+                          {editable ? (
+                            <input className="input cell-input" list={`groups-${doc.id}`} aria-label={t('docs.quotes.colGroup')} value={l.groupName} maxLength={200} onChange={e => patchLine(l.key, { groupName: e.target.value })} />
+                          ) : (
+                            <span className="muted trunc">{l.groupName}</span>
+                          )}
+                        </td>
+                      )}
                       <td className="muted">{unitSymbol(units.data, l.unitCode)}</td>
                       {isCount && <td className="r num muted">{trimNum(srv?.bookQty ?? '0') || '0'}</td>}
                       <td className="r">
@@ -754,7 +787,24 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                 )}
               </tbody>
             </table>
+            {hasGroups && (
+              <datalist id={`groups-${doc.id}`}>
+                {[...new Set(form.lines.map(l => l.groupName.trim()).filter(Boolean))].map(g => (
+                  <option key={g} value={g} />
+                ))}
+              </datalist>
+            )}
           </div>
+          {hasGroups && !!groupTotals.length && (
+            <div className="doc-group-totals faint" style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12, padding: '6px 10px' }} aria-label={t('docs.quotes.groupTotals')}>
+              <span>{t('docs.quotes.groupTotals')}:</span>
+              {groupTotals.map(g => (
+                <span key={g.name}>
+                  {g.name} — <span className="num">{money(g.total)}</span>
+                </span>
+              ))}
+            </div>
+          )}
           {editable && (
             <div className="doc-add">
               <Button size="sm" variant="ghost" onClick={() => addLine()}>
@@ -975,9 +1025,28 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       if (await flush()) navigate(`/documents/${doc.id}/print/${f}`);
                     }}
                   >
-                    {PRINT_FORM_LABELS[f]}
+                    {f === 'quote' ? t('docs.quotes.standardForm') : PRINT_FORM_LABELS[f]}
                   </MenuItem>
                 ))}
+                {meta.forms.includes('quote') && (
+                  <>
+                    <MenuSeparator />
+                    {(quoteTemplates.data ?? []).map(tp => (
+                      <MenuItem
+                        key={tp.id}
+                        icon={<FileText size={15} />}
+                        onSelect={async () => {
+                          if (await flush()) navigate(`/documents/${doc.id}/print/quote?template=${tp.id}`);
+                        }}
+                      >
+                        {tp.name}
+                      </MenuItem>
+                    ))}
+                    <MenuItem icon={<ClipboardList size={15} />} onSelect={() => navigate('/crm/quote-templates')}>
+                      {t('docs.quotes.allTemplates')}
+                    </MenuItem>
+                  </>
+                )}
               </MenuContent>
             </Menu>
           )}
@@ -1271,6 +1340,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
         )}
       </section>
 
+      {hasQuoteVariants(doc.type) && <QuoteVariants doc={doc} editable={editable} total={calc.totals.total} flush={flush} api={(m, p, j) => api(m, p, j)} onApplied={applyServer} />}
       {isWorkOrder ? <WorkOrderPanel doc={doc} lead={docTabs} /> : <DocTabs label={t('docs.tabsLabel')} tabs={docTabs} />}
 
       <div className="doc-bottom">

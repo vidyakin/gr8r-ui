@@ -58,6 +58,8 @@ export interface DocLine {
   bookQty: string;
   /** Принятое количество (перемещение «в пути») */
   receivedQty: string;
+  /** Группа строки (справочно): пусто — без группы */
+  groupName?: string;
   /** Статья косвенных затрат строки-услуги поступления */
   costItemId: string | null;
   /** Участок строки-услуги поступления */
@@ -121,6 +123,36 @@ export interface DocLink {
   total?: string;
 }
 
+/** Неосновной вариант КП: строки лежат на сервере снимком */
+export interface DocVariant {
+  id: string;
+  name: string;
+  sortOrder: number;
+  lineCount: number;
+  totals: { net: string; vat: string; total: string };
+}
+
+/** Шаблон КП (справочник «Шаблоны КП и договоров») */
+export interface DocTemplate {
+  id: string;
+  name: string;
+  purpose: 'quote';
+  body: string;
+  isUsed: boolean;
+  onlyAuthor: boolean;
+  authorId: string | null;
+  updatedAt: string;
+}
+
+/** Шаблоны КП: только используемые (меню «Печать») или все (справочник) */
+export function useDocTemplates(opts: { usedOnly?: boolean } = {}) {
+  const ws = useWsId();
+  return useQuery({
+    queryKey: ['ws', ws, 'doc-templates', opts.usedOnly ? 'used' : 'all'],
+    queryFn: async () => (await call<{ items: DocTemplate[] }>(ws, 'GET', `/doc-templates?purpose=quote${opts.usedOnly ? '&used=true' : ''}`)).items,
+  });
+}
+
 export interface DocDetail extends Omit<DocListItem, 'organizationName' | 'counterpartyName' | 'warehouseName'> {
   numberYear: number | null;
   numberSeq: number | null;
@@ -150,6 +182,9 @@ export interface DocDetail extends Omit<DocListItem, 'organizationName' | 'count
   basedOn: DocLink | null;
   children: DocLink[];
   lines: DocLine[];
+  /** Варианты КП (КП и заказ покупателя): название основного и остальные варианты */
+  variantName?: string | null;
+  variants?: DocVariant[];
   postedAt: string | null;
   /** Заказ-наряд: вид, набор состояний, материалы и назначения */
   kindId?: string | null;

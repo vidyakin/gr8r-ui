@@ -122,7 +122,7 @@ export const jobHandlers: Record<string, (job: JobRow, h: JobContext) => Promise
     if (!file) return; // документ удалён вместе с файлом
     try {
       // та же страница, что в предпросмотре браузера (денежные формы и обычные печатные формы)
-      const html = await h.read(db => renderDocumentHtml(db, file.documentId, file.form as PrintForm));
+      const html = await h.read(db => renderDocumentHtml(db, file.documentId, file.form as PrintForm, { templateId: file.templateId, memberId: file.requestedBy }));
       const bytes = await pdfRuntime.render(html, file.form as PrintForm);
       await h.read(db => pdfRuntime.store.save(db, { id: file.id, workspaceId: file.workspaceId }, bytes));
     } catch (e) {

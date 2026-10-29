@@ -205,6 +205,8 @@ export const documents = pgTable(
     accountableMemberId: uuid('accountable_member_id'),
     /** Банковская выписка (1174в): ключ строки выписки «счёт|направление|дата|номер|сумма» — повторный импорт не дублирует документ */
     bankImportKey: text('bank_import_key'),
+    /** Название основного варианта КП (строки документа): null — вариантов нет; остальные варианты — document_variants */
+    variantName: text('variant_name'),
     currency: text('currency').notNull().default('RUB'),
     /** Цены «НДС в т.ч.» (true) или «НДС сверху» (false) */
     priceIncludesVat: boolean('price_includes_vat').notNull().default(true),
@@ -290,6 +292,8 @@ export const documentLines = pgTable(
     receivedQty: numeric('received_qty', { precision: 18, scale: 3 }).notNull().default('0'),
     /** Вкладка строки отчёта о переработке: продукция, использованное сырьё или отходы */
     tollingRole: text('tolling_role', { enum: ['product', 'material', 'waste'] }),
+    /** Группа строки (справочно, сумма по группе в форме и печати): пусто — без группы */
+    groupName: text('group_name').notNull().default(''),
     createdAt: createdAt(),
   },
   t => [
@@ -425,6 +429,8 @@ export const documentFiles = pgTable(
     workspaceId: wsCol(),
     documentId: uuid('document_id').notNull(),
     form: text('form').notNull(),
+    /** Шаблон КП (форма quote): null — стандартная форма */
+    templateId: uuid('template_id'),
     status: text('status', { enum: ['pending', 'ready', 'failed'] }).notNull().default('pending'),
     contentType: text('content_type').notNull().default('application/pdf'),
     size: integer('size').notNull().default(0),
@@ -439,6 +445,57 @@ export const documentFiles = pgTable(
     foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'document_files_document_fk' }).onDelete('cascade'),
     check('document_files_status_chk', sql`${t.status} in ('pending','ready','failed')`),
     index('document_files_document_idx').on(t.documentId, t.createdAt),
+  ],
+);
+
+/** Варианты КП документа, кроме основного (основной — строки документа). Строки варианта — снимок в lines,
+    «Сделать основным» меняет местами снимок и строки документа (docs/architecture/quotes.md) */
+export const documentVariants = pgTable(
+  'document_variants',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    documentId: uuid('document_id').notNull(),
+    name: text('name').notNull(),
+    sortOrder: integer('sort_order').notNull().default(0),
+    lines: jsonb('lines').$type<Record<string, unknown>[]>().notNull().default([]),
+    amountNet: money('amount_net').notNull().default('0'),
+    vatTotal: money('vat_total').notNull().default('0'),
+    total: money('total').notNull().default('0'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    unique('document_variants_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'document_variants_document_fk' }).onDelete('cascade'),
+    index('document_variants_document_idx').on(t.documentId, t.sortOrder),
+  ],
+);
+
+/** Шаблоны КП и договоров (как справочник 1С:УНФ). Назначения — перечень 1С, пока используется только quote */
+export const docTemplates = pgTable(
+  'doc_templates',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    name: text('name').notNull(),
+    purpose: text('purpose', { enum: ['quote', 'contract', 'contract_order', 'contract_invoice', 'contract_work_order'] }).notNull().default('quote'),
+    /** Текст шаблона: простая разметка с параметрами {{…}} (packages/shared/src/print/quote.ts) */
+    body: text('body').notNull().default(''),
+    /** «Используется»: шаблон виден в меню «Печать» */
+    isUsed: boolean('is_used').notNull().default(true),
+    /** «Доступность»: шаблон видит и печатает только автор */
+    onlyAuthor: boolean('only_author').notNull().default(false),
+    authorId: uuid('author_id'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    archivedAt: archivedAt(),
+  },
+  t => [
+    unique('doc_templates_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.authorId], foreignColumns: [members.workspaceId, members.id], name: 'doc_templates_author_fk' }),
+    check('doc_templates_purpose_chk', sql`${t.purpose} in ('quote','contract','contract_order','contract_invoice','contract_work_order')`),
+    index('doc_templates_ws_purpose_idx').on(t.workspaceId, t.purpose),
   ],
 );
 

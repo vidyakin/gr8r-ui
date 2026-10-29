@@ -12,9 +12,9 @@ export const DOCUMENT_STATUSES = ['draft', 'posted', 'cancelled'] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
 export const DOCUMENT_GROUPS = ['sales', 'purchases', 'stock', 'production', 'tolling', 'cash', 'payroll'] as const;
 export type DocumentGroup = (typeof DOCUMENT_GROUPS)[number];
-export const PRINT_FORMS = ['invoice', 'upd', 'act', 'torg12', 'inv3', 'torg16', 'torg13', 'work_order', 'piecework', 'warranty_card', 'repair_receipt', 'repair_return', 'ko1', 'ko2', 'bank_receipt', 'payment_order', 'advance_report', 'opening_balance'] as const;
+export const PRINT_FORMS = ['quote', 'invoice', 'upd', 'act', 'torg12', 'inv3', 'torg16', 'torg13', 'work_order', 'piecework', 'warranty_card', 'repair_receipt', 'repair_return', 'ko1', 'ko2', 'bank_receipt', 'payment_order', 'advance_report', 'opening_balance'] as const;
 export type PrintForm = (typeof PRINT_FORMS)[number];
-export const PRINT_FORM_LABELS: Record<PrintForm, string> = { invoice: 'Invoice for payment', upd: 'UPD', act: 'Service act', torg12: 'TORG-12', inv3: 'INV-3 (inventory list)', torg16: 'TORG-16 (write-off act)', torg13: 'TORG-13 (internal transfer)', work_order: 'Work order (job sheet)', piecework: 'Piecework order', warranty_card: 'Warranty card', repair_receipt: 'Repair acceptance act', repair_return: 'Repair return act', ko1: 'Cash receipt order (KO-1)', ko2: 'Cash payment order (KO-2)', bank_receipt: 'Receipt to bank account', payment_order: 'Payment order (0401060)', advance_report: 'Advance report (AO-1)', opening_balance: 'Opening balances' };
+export const PRINT_FORM_LABELS: Record<PrintForm, string> = { quote: 'Commercial proposal', invoice: 'Invoice for payment', upd: 'UPD', act: 'Service act', torg12: 'TORG-12', inv3: 'INV-3 (inventory list)', torg16: 'TORG-16 (write-off act)', torg13: 'TORG-13 (internal transfer)', work_order: 'Work order (job sheet)', piecework: 'Piecework order', warranty_card: 'Warranty card', repair_receipt: 'Repair acceptance act', repair_return: 'Repair return act', ko1: 'Cash receipt order (KO-1)', ko2: 'Cash payment order (KO-2)', bank_receipt: 'Receipt to bank account', payment_order: 'Payment order (0401060)', advance_report: 'Advance report (AO-1)', opening_balance: 'Opening balances' };
 
 /** Вид склада: обычный склад, цех участка и служебный склад «в пути» */
 export const WAREHOUSE_KINDS = ['warehouse', 'workshop', 'transit'] as const;
@@ -119,9 +119,28 @@ export const PRODUCTION_ORDER_STATES: DocumentStateDef[] = [
 export const PRODUCTION_STAGES = [{ key: 'final', label: 'Completion of production', isFinal: true }] as const;
 export type ProductionStageKey = (typeof PRODUCTION_STAGES)[number]['key'];
 
+/** Документы с вариантами КП: строки документа — основной вариант, остальные хранятся отдельно (docs/architecture/quotes.md) */
+export const hasQuoteVariants = (type: string): boolean => type === 'quote' || type === 'customer_order';
+
+/** Строка варианта КП в снимке (document_variants.lines): id строк сохраняются, ссылки «на основании» — тоже */
+export interface VariantLine {
+  id: string;
+  productId: string;
+  name: string;
+  unitCode: string;
+  qty: string;
+  price: string;
+  discountPct: string;
+  vatRate: string;
+  groupName: string;
+  params: Record<string, unknown>;
+  sourceLineId: string | null;
+  originLineId: string | null;
+}
+
 export const DOCUMENT_META: Record<DocumentType, DocumentTypeMeta> = {
-  quote: { label: 'Quote', group: 'sales', prefix: 'КП', stock: null, party: 'customer', basedOn: [], fulfils: false, forms: ['invoice'] },
-  customer_order: { label: 'Customer order', group: 'sales', prefix: 'ЗК', stock: null, party: 'customer', basedOn: ['quote'], fulfils: false, forms: ['invoice'], reserves: true, isOrder: true, reservedUntil: ['realization'] },
+  quote: { label: 'Quote', group: 'sales', prefix: 'КП', stock: null, party: 'customer', basedOn: [], fulfils: false, forms: ['quote', 'invoice'] },
+  customer_order: { label: 'Customer order', group: 'sales', prefix: 'ЗК', stock: null, party: 'customer', basedOn: ['quote'], fulfils: false, forms: ['quote', 'invoice'], reserves: true, isOrder: true, reservedUntil: ['realization'] },
   invoice: { label: 'Invoice', group: 'sales', prefix: 'СЧ', stock: null, party: 'customer', basedOn: ['quote', 'customer_order', 'work_order'], fulfils: false, forms: ['invoice'] },
   realization: { label: 'Shipment (UPD)', group: 'sales', prefix: 'РТ', stock: 'out', party: 'customer', basedOn: ['customer_order', 'invoice'], fulfils: true, forms: ['upd', 'torg12', 'warranty_card'] },
   act: { label: 'Service act', group: 'sales', prefix: 'АКТ', stock: null, party: 'customer', basedOn: ['customer_order', 'invoice'], fulfils: true, forms: ['act'] },

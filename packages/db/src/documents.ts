@@ -30,6 +30,7 @@ import {
   type VatRate,
   isInvestmentFactType,
   isCashDocType,
+  hasQuoteVariants,
 } from '@gr8r/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
@@ -49,6 +50,7 @@ import { applySaleNextContact } from './repeat-sales';
 import { inheritDelivery } from './delivery';
 import { payableOf, postAccrual, removeSettlementMoves } from './settlements';
 import { repairPrintData, syncWarrantyKind, workOrderKindType } from './repair';
+import { printVariants, variantsOf } from './quotes';
 
 export interface DocCtx {
   workspaceId: string;
@@ -155,6 +157,8 @@ interface ResolvedLine {
   workCenterId: string | null;
   /** Значения параметров спецификации изделия (замеры, цвет): по ним считается состав выпуска */
   params: Record<string, unknown>;
+  /** Группа строки; undefined — оставить прежнюю */
+  groupName?: string;
 }
 
 /** Подставляет из товара название, единицу и ставку НДС, которых нет в строке; новые строки — только по действующим товарам.
@@ -185,6 +189,7 @@ async function resolveLines(db: Db, inputs: DocumentLineInput[], existingIds: Se
       workCenterId: l.workCenterId ?? null,
       tollingRole: l.tollingRole ?? null,
       params: l.params ?? {},
+      groupName: l.groupName,
     };
   });
 }
@@ -248,7 +253,7 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
   const type = doc.type as DocumentType;
   const meta = DOCUMENT_META[type];
   const existing = await db
-    .select({ id: documentLines.id, price: documentLines.price, stockRole: documentLines.stockRole, costItemId: documentLines.costItemId, workCenterId: documentLines.workCenterId })
+    .select({ id: documentLines.id, price: documentLines.price, stockRole: documentLines.stockRole, costItemId: documentLines.costItemId, workCenterId: documentLines.workCenterId, groupName: documentLines.groupName })
     .from(documentLines)
     .where(eq(documentLines.documentId, doc.id));
   const existingIds = new Set(existing.map(e => e.id));
@@ -256,6 +261,7 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
   const prevRole = new Map(existing.map(e => [e.id, e.stockRole]));
   const prevCostItem = new Map(existing.map(e => [e.id, e.costItemId]));
   const prevCenter = new Map(existing.map(e => [e.id, e.workCenterId]));
+  const prevGroup = new Map(existing.map(e => [e.id, e.groupName]));
   const resolved = await resolveLines(db, inputs, existingIds, type);
   // заказ покупателя: комбинация значений параметров с флажком «разрез склада» даёт вариант товара.
   // Вариант создаётся лениво (первый заказ комбинации) и заменяет товар в строке: склад, резервы и документы работают по нему
@@ -286,6 +292,8 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
       // вкладка строки отчёта о переработке: продукция, использованное сырьё или отходы
       tollingRole: l.tollingRole ?? null,
       params: l.params ?? {},
+      // группа строки (справочно): клиент, не знающий групп, её не сбрасывает
+      groupName: l.groupName ?? prevGroup.get(l.id) ?? '',
     };
     // приём и возврат давальческого сырья ничего не продают: цена строки нулевая, НДС нет
     if (meta.noPrice) {
@@ -307,6 +315,9 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
   for (const [i, l] of resolved.entries()) if (inputs[i]?.serials !== undefined) await saveSerials(db, ctx.workspaceId, doc.id, { lineId: l.id }, inputs[i]!.serials!);
   await writeTotals(db, doc.id);
 }
+
+/** Замена строк документа для вариантов КП (quotes.ts) */
+export const saveDocumentLines = saveLines;
 
 /** Цена строки внутреннего документа: у списания и перемещения — ноль, у оприходования — себестоимость прихода.
     Цену оприходования вправе задать admin и owner, остальным сервер подставляет текущую среднюю */
@@ -507,6 +518,8 @@ export interface DocumentPatch {
   priceIncludesVat?: boolean;
   comment?: string;
   responsibleId?: string | null;
+  /** Название основного варианта КП (КП и заказ покупателя) */
+  variantName?: string | null;
   lines?: DocumentLineInput[];
   custom?: Record<string, unknown>;
 }
@@ -591,6 +604,7 @@ export async function updateDocument(db: Db, ctx: DocCtx, id: string, patch: Doc
   if (patch.priceIncludesVat !== undefined) set.priceIncludesVat = patch.priceIncludesVat;
   if (patch.comment !== undefined) set.comment = patch.comment;
   if (patch.responsibleId !== undefined) set.responsibleId = patch.responsibleId;
+  if (patch.variantName !== undefined && hasQuoteVariants(type)) set.variantName = patch.variantName;
   if (patch.custom) set.custom = { ...doc.custom, ...patch.custom };
   const [after] = await db.update(documents).set(set).where(eq(documents.id, id)).returning();
   if (patch.lines) {
@@ -883,7 +897,7 @@ export async function createBasedOn(db: Db, ctx: DocCtx, sourceId: string, targe
       }
     }
     if (qty <= 0n) continue;
-    newLines.push({ productId: l.productId, name: l.name, unitCode: l.unitCode, qty: fmt(qty, 3), price: l.price, discountPct: l.discountPct, vatRate: l.vatRate as VatRate });
+    newLines.push({ productId: l.productId, name: l.name, unitCode: l.unitCode, qty: fmt(qty, 3), price: l.price, discountPct: l.discountPct, vatRate: l.vatRate as VatRate, groupName: l.groupName });
     meta.push({ source: l.id, origin: isOrder ? l.id : l.originLineId });
   }
   if (!newLines.length) throw new DomainError(422, 'nothing_to_create', isReturn ? 'Everything has already been returned' : 'Everything from this document is already covered by other documents');
@@ -979,7 +993,7 @@ export async function documentDetail(db: Db, id: string) {
   // внутренний документ: стоимость по себестоимости (сумма qty × cost движений)
   const costs = DOCUMENT_META[type].party === null ? await documentCosts(db, [id]) : new Map<string, string>();
   const [investmentProject] = doc.investmentProjectId ? await db.select({ id: investmentProjects.id, name: investmentProjects.name, status: investmentProjects.status }).from(investmentProjects).where(eq(investmentProjects.id, doc.investmentProjectId)).limit(1) : [];
-  return { ...doc, investmentProject: investmentProject ?? null, organization: org ?? null, counterparty: cp ?? null, contract: contract ?? null, warehouse: wh ?? null, targetWarehouse: targetWh ?? null, costItem: costItem ?? null, workCenter: workCenter ?? null, inUseMember: inUseMember ?? null, inUseWorkCenter: inUseWorkCenter ?? null, costTotal: costs.get(id) ?? '0.00', basedOn: base ?? null, children, lines, totals, serials: await lineSerialsView(db, id) };
+  return { ...doc, investmentProject: investmentProject ?? null, organization: org ?? null, counterparty: cp ?? null, contract: contract ?? null, warehouse: wh ?? null, targetWarehouse: targetWh ?? null, costItem: costItem ?? null, workCenter: workCenter ?? null, inUseMember: inUseMember ?? null, inUseWorkCenter: inUseWorkCenter ?? null, costTotal: costs.get(id) ?? '0.00', basedOn: base ?? null, children, lines, totals, serials: await lineSerialsView(db, id), variants: hasQuoteVariants(type) ? await variantsOf(db, doc) : [] };
 }
 
 /* ---------------- данные для печатной формы ---------------- */
@@ -1051,7 +1065,7 @@ export async function buildPrintData(db: Db, id: string): Promise<PrintData> {
   const party: PrintParty = co
     ? { name: co.name, fullName: co.name, inn: co.inn, kpp: co.kpp, ogrn: co.ogrn, address: co.legalAddress || co.city, phone: '', bank: await defaultBank(db, { companyId: co.id }) }
     : { name: '', fullName: '', inn: '', kpp: '', ogrn: '', address: '', phone: '', bank: null };
-  return {
+  const data: PrintData = {
     type: d.type as DocumentType,
     number: d.number,
     date: d.date,
@@ -1094,6 +1108,7 @@ export async function buildPrintData(db: Db, id: string): Promise<PrintData> {
       kind: l.kind,
       ...(serialsByLine.has(l.id) ? { serials: serialsByLine.get(l.id)! } : {}),
       warrantyMonths: warrantyBy.get(l.productId) ?? null,
+      group: l.groupName,
     })),
     totals: d.totals,
     ...(d.type === 'work_order' ? { workOrder: await workOrderPrintData(db, d) } : {}),
@@ -1107,4 +1122,10 @@ export async function buildPrintData(db: Db, id: string): Promise<PrintData> {
     holderName: d.inUseMember?.name ?? d.inUseWorkCenter?.name,
     operation: d.operation ?? undefined,
   };
+  if (hasQuoteVariants(d.type)) {
+    const [resp] = d.responsibleId ? await db.select({ name: members.name }).from(members).where(eq(members.id, d.responsibleId)).limit(1) : [];
+    data.responsibleName = resp?.name ?? '';
+    data.variants = await printVariants(db, d, data.lines, d.totals);
+  }
+  return data;
 }

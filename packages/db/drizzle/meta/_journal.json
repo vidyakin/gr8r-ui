@@ -365,6 +365,13 @@
       "when": 1793272896509,
       "tag": "0054_lead_source_kinds",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1793277572086,
+      "tag": "0055_quotes",
+      "breakpoints": true
     }
   ]
 }

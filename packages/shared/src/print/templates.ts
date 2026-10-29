@@ -6,6 +6,7 @@ import { DOCUMENT_LABELS_RU, type PrintForm } from '../documents';
 import { amountInWordsRu, numberToWordsRu } from '../ru';
 import type { FileRef } from '../schemas/documents';
 import { qrSvg } from '../qr';
+import { renderQuote } from './quote';
 import type { PrintData, PrintLine, PrintOrganization, PrintParty } from './types';
 
 const NBSP = ' ';
@@ -71,6 +72,7 @@ table.grid th{text-align:center;font-weight:700;background:#f2f2f2}
 table.grid thead{display:table-header-group}
 table.grid tr{break-inside:avoid;page-break-inside:avoid}
 table.plain td{padding:1px 4px}
+table.grid tr.grp td{background:#f7f7f7}
 .hr{border-top:2px solid #000;margin:6px 0}
 .party{margin:3px 0}
 .party b{display:inline-block;min-width:110px}
@@ -85,7 +87,7 @@ table.plain td{padding:1px 4px}
 .draft{position:fixed;top:40%;left:0;right:0;text-align:center;font-size:90px;color:rgba(200,0,0,.12);transform:rotate(-20deg);pointer-events:none}
 `;
 
-const html = (d: PrintData, orientation: 'portrait' | 'landscape', body: string) => `<!doctype html>
+export const html = (d: PrintData, orientation: 'portrait' | 'landscape', body: string) => `<!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(pageTitle(d))}</title>
 <style>
@@ -115,11 +117,12 @@ function invoiceForm(d: PrintData): string {
   const o = d.organization;
   const b = o.bank;
   const title = d.type === 'quote' ? 'Коммерческое предложение' : d.type === 'customer_order' ? 'Заказ покупателя' : 'Счёт на оплату';
-  const rows = d.lines
-    .map(
-      l => `<tr><td class="center">${l.n}</td><td>${l.sku ? `<span class="small">${esc(l.sku)}</span> ` : ''}${esc(l.name)}</td><td class="right">${qtyRu(l.qty)}</td><td class="center">${esc(l.unitSymbol)}</td><td class="right">${unitEff(l, d.priceIncludesVat)}</td><td class="right">${moneyRu(d.priceIncludesVat ? l.total : l.net)}</td></tr>`,
-    )
-    .join('');
+  const rows = groupedRows(
+    d.lines,
+    l => `<tr><td class="center">${l.n}</td><td>${l.sku ? `<span class="small">${esc(l.sku)}</span> ` : ''}${esc(l.name)}</td><td class="right">${qtyRu(l.qty)}</td><td class="center">${esc(l.unitSymbol)}</td><td class="right">${unitEff(l, d.priceIncludesVat)}</td><td class="right">${moneyRu(d.priceIncludesVat ? l.total : l.net)}</td></tr>`,
+    (name, sum) => `<tr class="grp"><td colspan="5" class="bold">${esc(name)}</td><td class="right bold">${moneyRu(sum)}</td></tr>`,
+    l => (d.priceIncludesVat ? l.total : l.net),
+  );
   const t = d.totals;
   const sumLabel = d.priceIncludesVat ? 'Итого' : 'Итого (без НДС)';
   const vatLabelText = d.priceIncludesVat ? 'В том числе НДС' : 'Сумма НДС';
@@ -148,6 +151,26 @@ ${d.comment ? `<div class="party small">${esc(d.comment)}</div>` : ''}
 ${paymentLinkBlock(d)}
 ${signBlock(o)}`,
   );
+}
+
+/** Группы строк по порядку первого появления; строки без группы — без подзаголовка */
+export function lineGroups(lines: PrintLine[]): { name: string; lines: PrintLine[] }[] {
+  const out: { name: string; lines: PrintLine[] }[] = [];
+  for (const l of lines) {
+    const name = l.group ?? '';
+    const g = out.find(x => x.name === name);
+    if (g) g.lines.push(l);
+    else out.push({ name, lines: [l] });
+  }
+  return out;
+}
+
+/** Строки таблицы с подзаголовками групп и суммой группы; без групп — просто строки */
+export function groupedRows(lines: PrintLine[], row: (l: PrintLine) => string, header: (name: string, sum: string) => string, amount: (l: PrintLine) => string): string {
+  if (!lines.some(l => l.group)) return lines.map(row).join('');
+  return lineGroups(lines)
+    .map(g => (g.name ? header(g.name, fmt(g.lines.reduce((s, l) => s + dec(amount(l)), 0n), 2)) : '') + g.lines.map(row).join(''))
+    .join('');
 }
 
 /** Блок «Оплатить онлайн»: ссылка ЮКассы и QR-код (встроенный SVG, без сети). Только https-ссылка и только когда она создана */
@@ -578,6 +601,8 @@ ${person('Мастер (проверил)', o.directorName)}
 /** Страница печатной формы целиком: <!doctype html>… */
 export function renderPrintForm(form: PrintForm, data: PrintData): string {
   switch (form) {
+    case 'quote':
+      return renderQuote(data);
     case 'invoice':
       return invoiceForm(data);
     case 'act':

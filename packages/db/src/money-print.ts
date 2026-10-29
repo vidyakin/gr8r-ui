@@ -23,6 +23,7 @@ import {
 } from '@gr8r/shared';
 import type { Db } from './client';
 import { buildPrintData, defaultBank } from './documents';
+import { renderQuoteHtml } from './quotes';
 import { DomainError } from './errors';
 import { openingDetail } from './opening-balances';
 import { cashOrderData, paymentDetail, printOrg, settlementActData } from './payments';
@@ -157,11 +158,13 @@ export async function moneyPrintData(db: Db, id: string, form: PrintForm): Promi
 }
 
 /** Печатная страница документа любого типа: единая точка для предпросмотра (API) и PDF (воркер). Форма должна быть из DOCUMENT_META типа */
-export async function renderDocumentHtml(db: Db, id: string, form: PrintForm): Promise<string> {
+export async function renderDocumentHtml(db: Db, id: string, form: PrintForm, opts: { templateId?: string | null; memberId?: string | null } = {}): Promise<string> {
   const [doc] = await db.select({ type: documents.type }).from(documents).where(eq(documents.id, id)).limit(1);
   if (!doc) throw new DomainError(404, 'not_found', 'document not found');
   if (!DOCUMENT_META[doc.type as DocumentType].forms.includes(form)) throw new DomainError(422, 'form_not_available', `The "${form}" form is not available for this document type`);
   if (isMoneyForm(form)) return renderMoneyForm(await moneyPrintData(db, id, form));
+  // КП: стандартная форма или шаблон КП (docs/architecture/quotes.md)
+  if (form === 'quote') return renderQuoteHtml(db, await buildPrintData(db, id), opts.templateId, opts.memberId ?? null);
   return renderPrintForm(form, await buildPrintData(db, id));
 }
 

@@ -137,6 +137,8 @@ export const documentLineInput = z
     tollingRole: z.enum(TOLLING_ROLES).optional(),
     /** Значения параметров спецификации изделия (заказ покупателя): состав выпуска считается формулами строк спецификации */
     params: paramValues.optional(),
+    /** Группа строки (справочно, сумма по группе в форме и печати): пусто — без группы */
+    groupName: z.string().trim().max(200).optional(),
     /** Серийные номера строки (товары с учётом по номерам): список заменяет прежние */
     serials: z.array(z.string().trim().min(1).max(100)).max(2000).optional(),
   })
@@ -179,6 +181,8 @@ export const documentCreate = z.object({
   priceIncludesVat: z.boolean().default(true),
   comment: z.string().max(5000).default(''),
   responsibleId: uuid.nullish(),
+  /** Название основного варианта КП (КП и заказ покупателя, когда вариантов несколько) */
+  variantName: z.string().trim().min(1).max(200).nullish(),
   lines: z.array(documentLineInput).max(500).optional(),
   custom: customData.optional(),
 });
@@ -212,8 +216,30 @@ export const documentStateChange = z.object({
   /** Причина отмены заказ-наряда: обязательна для состояния категории «cancelled» */
   cancelReason: z.string().trim().max(1000).optional(),
 });
-export const pdfRequest = z.object({ form: z.enum(PRINT_FORMS) });
+export const pdfRequest = z.object({ form: z.enum(PRINT_FORMS), templateId: uuid.optional() });
 export const printParam = z.object({ id: uuid, form: z.enum(PRINT_FORMS) });
+/** Печать формы quote по шаблону КП: ?template=<id> */
+export const printQuery = z.object({ template: uuid.optional() });
+
+/* ---------------- варианты КП и шаблоны КП (docs/architecture/quotes.md) ---------------- */
+
+/** Новый вариант: копия основного (copy) или пустой */
+export const variantCreate = z.object({ name: z.string().trim().min(1).max(200).optional(), copy: z.boolean().default(true) });
+export const variantUpdate = z.object({ name: z.string().trim().min(1).max(200) });
+
+export const DOC_TEMPLATE_PURPOSES = ['quote', 'contract', 'contract_order', 'contract_invoice', 'contract_work_order'] as const;
+export type DocTemplatePurpose = (typeof DOC_TEMPLATE_PURPOSES)[number];
+
+export const docTemplateCreate = z.object({
+  id: clientId,
+  name: shortText,
+  /** Пока только КП; назначения договоров — в DOC_TEMPLATE_PURPOSES и в БД */
+  purpose: z.enum(['quote']).default('quote'),
+  body: z.string().max(100_000).default(''),
+  isUsed: z.boolean().default(true),
+  onlyAuthor: z.boolean().default(false),
+});
+export const docTemplateUpdate = toPatch(docTemplateCreate.omit({ id: true }));
 
 /* ---------------- склад ---------------- */
 

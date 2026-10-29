@@ -1,14 +1,14 @@
 /* Предпросмотр печатной формы: готовая HTML-страница с сервера (та же, что уходит в PDF) в iframe и кнопка «Print» (window.print в iframe).
    Размер бумаги и разрывы страниц заданы самой формой (@page A4), поэтому диалог печати браузера открывается уже с нужной ориентацией. */
 import * as React from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ArrowLeft, CircleAlert, Download, Printer } from 'lucide-react';
 import { DOCUMENT_META, isCashDocType, PRINT_FORMS, PRINT_FORM_LABELS, printOrientation, type PrintForm } from '@gr8r/shared';
 import { Button, EmptyState, Select, Skeleton, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { API_BASE } from '../data/api';
 import { call, useWsId } from '../meta/data';
-import { docTitle, useDocument } from './data';
+import { docTitle, useDocTemplates, useDocument } from './data';
 
 /** Куда ведёт «назад»: документы денег живут в своём разделе, остальные — в карточке документа */
 const backPath = (type: string, id: string | undefined) => (type === 'opening_balance' ? `/money/opening/${id}` : isCashDocType(type) ? `/money/${id}` : `/documents/${id}`);
@@ -16,6 +16,13 @@ const backPath = (type: string, id: string | undefined) => (type === 'opening_ba
 export function PrintPage() {
   const { id, form } = useParams();
   const navigate = useNavigate();
+  // КП по шаблону: /documents/:id/print/quote?template=<id>
+  const [search] = useSearchParams();
+  const templateId = form === 'quote' ? search.get('template') : null;
+  const templates = useDocTemplates();
+  const template = templateId ? templates.data?.find(x => x.id === templateId) : undefined;
+  /** Подпись формы: шаблон КП, стандартное КП или форма из списка */
+  const formLabel = (f: string) => (f === 'quote' ? t('docs.quotes.standardForm') : PRINT_FORM_LABELS[f as PrintForm]);
   const ws = useWsId();
   const doc = useDocument(id);
   const frame = React.useRef<HTMLIFrameElement>(null);
@@ -32,7 +39,7 @@ export function PrintPage() {
     let alive = true;
     setHtml(null);
     setError(null);
-    fetch(`${API_BASE()}/documents/${id}/print/${form}`, { credentials: 'include', headers: { 'X-Workspace-Id': ws } })
+    fetch(`${API_BASE()}/documents/${id}/print/${form}${templateId ? `?template=${encodeURIComponent(templateId)}` : ''}`, { credentials: 'include', headers: { 'X-Workspace-Id': ws } })
       .then(async r => {
         if (!r.ok) {
           const body = await r.json().catch(() => null);
@@ -45,7 +52,7 @@ export function PrintPage() {
     return () => {
       alive = false;
     };
-  }, [id, form, ws, valid, doc.data?.updatedAt]);
+  }, [id, form, ws, valid, doc.data?.updatedAt, templateId]);
 
   const fit = () => {
     const d = frame.current?.contentDocument;
@@ -63,7 +70,7 @@ export function PrintPage() {
     if (!id || !form) return;
     setPdf('working');
     try {
-      const file = await call<{ id: string }>(ws, 'POST', `/documents/${id}/pdf`, { form });
+      const file = await call<{ id: string }>(ws, 'POST', `/documents/${id}/pdf`, templateId ? { form, templateId } : { form });
       for (let i = 0; i < 60; i++) {
         await new Promise(r => setTimeout(r, 1000));
         const st = await call<{ status: string; error?: string }>(ws, 'GET', `/documents/${id}/pdf/${file.id}`);
@@ -107,12 +114,12 @@ export function PrintPage() {
             <ArrowLeft size={16} />
           </Link>
           <div style={{ minWidth: 0 }}>
-            <h1 className="trunc">{PRINT_FORM_LABELS[form as PrintForm]}</h1>
+            <h1 className="trunc">{template ? template.name : formLabel(form!)}</h1>
             <p className="trunc">{doc.data ? docTitle(doc.data) : ' '} · A4 {landscape ? t('docs.print.landscape') : t('docs.print.portrait')}</p>
           </div>
         </div>
         <div className="acts">
-          {forms.length > 1 && <Select value={form} onValueChange={f => navigate(`/documents/${id}/print/${f}`, { replace: true })} options={forms.map(f => ({ value: f, label: PRINT_FORM_LABELS[f] }))} aria-label={t('docs.print.formAria')} />}
+          {forms.length > 1 && <Select value={form} onValueChange={f => navigate(`/documents/${id}/print/${f}`, { replace: true })} options={forms.map(f => ({ value: f, label: formLabel(f) }))} aria-label={t('docs.print.formAria')} />}
           <Button onClick={() => void downloadPdf()} disabled={pdf === 'working' || !html}>
             <Download size={14} />
             {pdf === 'working' ? t('docs.print.preparingPdf') : t('docs.print.downloadPdf')}
