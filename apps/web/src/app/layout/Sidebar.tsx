@@ -74,6 +74,8 @@ function Item({ to, label, icon, count, dot, collapsed, end }: ItemProps) {
   );
 }
 
+const CRM_IDS = ['crm', 'crmLeads', 'crmAds', 'crmDeals', 'crmFunnel', 'crmCompanies', 'crmContacts', 'crmActivities', 'crmSalesPlan', 'crmAppointments', 'crmQuoteTemplates'] as const;
+
 function SectionItem({ id, collapsed, count, dot }: { id: SectionId; collapsed: boolean; count?: number; dot?: boolean }) {
   const s = SECTIONS[id];
   const access = useSectionAccess();
@@ -292,10 +294,10 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           ))}
         </div>
 
-        {access.section('crm') && (
+        {access.section('crm') && CRM_IDS.some(id => access.id(id)) && (
           <div className="sgroup">
             <div className="sgroup-h">{t('nav.groups.crm')}</div>
-            {(['crm', 'crmLeads', 'crmAds', 'crmDeals', 'crmFunnel', 'crmCompanies', 'crmContacts', 'crmActivities', 'crmSalesPlan', 'crmAppointments', 'crmQuoteTemplates'] as const).map(id => (
+            {CRM_IDS.map(id => (
               <SectionItem key={id} id={id} collapsed={collapsed} />
             ))}
           </div>
@@ -315,7 +317,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           ))}
         </div>
 
-        {access.section('automations') && (
+        {access.section('automations') && access.id('automations') && (
           <div className="sgroup">
             <div className="sgroup-h">{t('nav.groups.automation')}</div>
             {item('automations')}

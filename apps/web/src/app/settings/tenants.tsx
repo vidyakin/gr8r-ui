@@ -9,6 +9,7 @@ import { fmtDateTimeIntl } from '@/i18n/format';
 import { API_BASE, errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';
 import { SettingsHead, SRow } from './parts';
+import { TenantLicenseDialog } from './plans';
 
 interface TenantRow {
   id: string;
@@ -43,6 +44,7 @@ export function TenantsSection({ title }: { title: string }) {
   const [busy, setBusy] = React.useState(false);
   const [created, setCreated] = React.useState<Created | null>(null);
   const [del, setDel] = React.useState<TenantRow | null>(null);
+  const [licensing, setLicensing] = React.useState<TenantRow | null>(null);
 
   const create = async () => {
     setBusy(true);
@@ -132,6 +134,7 @@ export function TenantsSection({ title }: { title: string }) {
                   <Badge tone="amber">{t('settings.tenants.deleting')}</Badge>
                 ) : (
                   <>
+                    <Button size="sm" variant="ghost" onClick={() => setLicensing(r)}>{t('licensing.operator.license')}</Button>
                     <Button size="sm" variant="ghost" onClick={() => download(r)}>{t('settings.tenants.export')}</Button>
                     <Button size="sm" variant="ghost" onClick={() => setDel(r)}>{t('settings.tenants.delete')}</Button>
                   </>
@@ -141,6 +144,7 @@ export function TenantsSection({ title }: { title: string }) {
           </div>
         )}
       </div>
+      <TenantLicenseDialog tenant={licensing} onClose={() => setLicensing(null)} />
       <ConfirmDialog
         open={!!del}
         onOpenChange={o => !o && setDel(null)}

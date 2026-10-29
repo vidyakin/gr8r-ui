@@ -423,7 +423,7 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
             name: t('overlays.palette.group.products'),
             items: catalogHits.products.slice(0, lim).map(p => ({ id: 'pr-' + p.id, icon: p.kind === 'service' ? SECTIONS.workCenters.icon : SECTIONS.catalog.icon, name: p.name, sub: p.sku || t(p.kind === 'service' ? 'overlays.palette.productSub.service' : 'overlays.palette.productSub.goods'), run: () => go(`${SECTIONS.catalog.path}/${p.id}`) })),
           });
-        if (catalogHits.items.length && access.section('production'))
+        if (catalogHits.items.length && access.section('production') && access.module('production'))
           groups.push({
             name: t('overlays.palette.group.production'),
             items: catalogHits.items.slice(0, lim).map(i => ({ id: 'pi-' + i.id, icon: SECTIONS.production.icon, name: i.name, sub: t(i.kind === 'semi' ? 'overlays.palette.productionSub.semi' : 'overlays.palette.productionSub.product'), run: () => go(`${SECTIONS.production.path}/${i.id}`) })),
@@ -436,7 +436,7 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
           items: docHits.slice(0, lim).map(d => ({ id: 'doc-' + d.id, icon: SECTIONS.sales.icon, name: `${tOEnum('documentType', d.type, typeLabel(d.type))} ${d.number ?? `(${t('overlays.palette.draftNumber')})`}`, sub: `${d.counterpartyName ?? t('overlays.palette.noCounterparty')} · ${tOEnum('documentStatus', d.status, STATUS_LABEL[d.status])}`, r: fmtMoney(d.total), run: () => go(`/documents/${d.id}`) })),
         });
       // CRM — только в общем поиске, после основных групп
-      if (sc === 'all' && crmUi && access.section('crm')) {
+      if (sc === 'all' && crmUi && access.section('crm') && access.module('crm')) {
         const has = (s: string) => s.toLowerCase().includes(ql);
         groups.push({
           name: t('overlays.palette.group.deals'),

@@ -58,6 +58,8 @@ export function useRealtime(ws: string, engine: Engine) {
       if (e.entity === 'flow' || e.entity === 'flow_run') void qc.invalidateQueries({ queryKey: ['ws', ws, 'automations'] });
       // Должности и виды номенклатуры (задача 1172); смена должностей участника приходит событием member.updated
       if (['position', 'product_kind'].includes(e.entity) || e.type.startsWith('member.')) void qc.invalidateQueries({ queryKey: ['ws', ws, 'positions'] });
+      // Лицензия (задача 1205): набор модулей изменился — перечитываем всё, что принадлежит воркспейсу (раздел мог появиться или пропасть)
+      if (e.entity === 'license') void qc.invalidateQueries({ queryKey: ['ws', ws] });
       if (e.entity === 'position' || e.entity === 'product_kind') void qc.invalidateQueries({ queryKey: ['ws', ws, 'catalog'] });
       if (e.entity === 'secret') void qc.invalidateQueries({ queryKey: ['ws', ws, 'secrets'] });
       // Название воркспейса, моя роль, состав участников

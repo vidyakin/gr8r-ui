@@ -16,6 +16,9 @@ import { DealPipelinesSection, LostReasonsSection } from '../settings/deal-pipel
 import { LeadSourcesSection } from '../settings/lead-sources';
 import { IntegrationsSection } from '../settings/integrations';
 import { TenantsSection } from '../settings/tenants';
+import { PlansSection } from '../settings/plans';
+import { useLicense } from '../licensing/data';
+import { MODULE_OF_SETTING } from '@gr8r/shared';
 import { useSession } from '../data/session';
 import { NotificationsSection, PreferencesSection, ProfileSection, ShortcutsSection } from '../settings/personal';
 import { InvoicesSection, PasswordSection, PaymentSection, PlanSection, SessionsSection, TwoFactorSection } from '../settings/account';
@@ -68,6 +71,8 @@ function Body({ sec, title }: { sec: string; title: string }) {
       return <LeadSourcesSection title={title} />;
     case 'integrations':
       return <IntegrationsSection title={title} />;
+    case 'plans':
+      return <PlansSection title={title} />;
     case 'tenants':
       return <TenantsSection title={title} />;
     case 'product-kinds':
@@ -102,7 +107,13 @@ export function SettingsPage() {
   const t = useT();
   const { section } = useParams();
   const { user } = useSession();
-  const nav = user?.isOperator ? SET_NAV : SET_NAV.filter(([g]) => g !== 'operator');
+  const modules = useLicense().data?.modules;
+  // пункты выключенных модулей (docs/architecture/licensing.md) скрыты, пока набор не загружен — видны все
+  const moduleOn = (k: string) => {
+    const m = MODULE_OF_SETTING.get(k);
+    return !m || !modules || (modules as string[]).includes(m);
+  };
+  const nav = (user?.isOperator ? SET_NAV : SET_NAV.filter(([g]) => g !== 'operator')).map(([g, items]) => [g, items.filter(([k]) => moduleOn(k))] as (typeof SET_NAV)[number]);
   if (!section) return <Navigate to={`${SECTIONS.settings.path}/${DEFAULT_SECTION}`} replace />;
   const cur = nav.flatMap(g => g[1]).find(x => x[0] === section);
   if (!cur) return <NotFoundPage />;

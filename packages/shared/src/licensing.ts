@@ -148,10 +148,10 @@ export function moduleOfSectionPath(pathname: string, sectionPaths: Readonly<Rec
   let len = 0;
   for (const [id, path] of Object.entries(sectionPaths)) {
     const m = MODULE_OF_SECTION.get(id);
-    if (!m || m === CORE_MODULE) continue;
+    if (!m) continue;
     if ((pathname === path || pathname.startsWith(path + '/')) && path.length > len) [best, len] = [m, path.length];
   }
-  return best;
+  return best === CORE_MODULE ? null : best; // самый длинный путь — раздел ядра (/crm/companies): ограничений нет
 }
 
 /** Набор включённых модулей: ядро + перечисленные + их зависимости. `*` включает всё. Неизвестные идентификаторы игнорируются */
