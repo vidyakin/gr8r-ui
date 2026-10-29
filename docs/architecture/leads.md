@@ -4,7 +4,7 @@
 схемы `packages/shared/src/schemas/leads.ts`, API `apps/api/src/routes/leads.ts` и `routes/hooks.ts`, узлы `packages/shared/src/automations/nodes/*lead*.ts`,
 порты воркера `apps/worker/src/flows/records.ts`, интерфейс `apps/web/src/app/leads/` и `settings/leads.tsx`. Тесты: `apps/api/test/leads.test.ts`, `packages/shared/test/leads.test.ts`.
 
-Лид — человек или компания **до** появления клиента. Раньше лидом называлась стадия сделки (`deals.stage = 'lead'`): такие сделки остаются сделками, перенос не делался.
+Лид — человек или компания **до** появления клиента. Раньше лидом называлась стадия сделки (`deals.stage = 'lead'`): такие сделки остаются сделками, перенос не делался. С задачи 1176 стадии сделки — этапы воронок ([pipelines.md](pipelines.md)).
 
 ## Данные (миграция 0042)
 Все таблицы арендатора: `workspace_id`, `unique(workspace_id, id)`, составные FK, `app_secure_tenant_table`.
@@ -27,7 +27,7 @@ API: `GET /leads/duplicates?phone&email&companyName&excludeId` (форма но�
 
 ## Конвертация
 `POST /leads/:id/convert { company, contact, deal }` (`convertLead`), каждый из `company` / `contact`: `{ mode: 'existing', id } | { mode: 'new', name } | { mode: 'none' }`; `deal` — `{ name, amount? } | null`.
-Новый контакт получает телефон, email и `custom` лида и привязывается к контрагенту; сделка создаётся на этапе `qualified`, контакт добавляется в её участники. Касания лида переезжают (`lead_id` очищается): к сделке, если она создана, иначе к контакту и контрагенту. Лид получает первый статус категории `converted`, `converted_at` и ссылки. Повторная конвертация — 409 `lead_already_converted`. Всё в одной транзакции с событиями `company.created`, `contact.created`, `deal.created`, `lead.updated`.
+Новый контакт получает телефон, email и `custom` лида и привязывается к контрагенту; сделка создаётся на этапе «квалифицирован» основной воронки (второй открытый этап, иначе первый — см. pipelines.md), контакт добавляется в её участники. Касания лида переезжают (`lead_id` очищается): к сделке, если она создана, иначе к контакту и контрагенту. Лид получает первый статус категории `converted`, `converted_at` и ссылки. Повторная конвертация — 409 `lead_already_converted`. Всё в одной транзакции с событиями `company.created`, `contact.created`, `deal.created`, `lead.updated`.
 В мастере (`ConvertDialog`) найденные дубли подставляются сами (контрагент и контакт), иначе создаётся новый (контрагент — если у лида указана компания).
 
 ## Распределение

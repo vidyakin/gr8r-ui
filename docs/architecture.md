@@ -63,6 +63,7 @@
 - [Должности сотрудников и виды номенклатуры](architecture/positions.md)
 - [Лиды: статусы, дубли, конвертация, вебхук форм](architecture/leads.md)
 - [Источники привлечения, рекламные кампании, отчёт по каналам](architecture/ad-campaigns.md)
+- [Воронки продаж: этапы, переход сделки, история, просрочка, отчёт-воронка](architecture/pipelines.md)
 - [Коммерческие предложения: варианты КП, группы строк, шаблоны КП](architecture/quotes.md)
 - [Хранилище секретов](architecture/secrets.md)
 - [Запись клиентов на приём](architecture/appointments.md)
