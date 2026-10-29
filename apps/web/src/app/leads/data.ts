@@ -23,7 +23,10 @@ export interface Lead {
   phoneNorm: string;
   email: string;
   comment: string;
+  /** Название источника (кэш); источник и кампания — задача 1177 */
   source: string;
+  sourceId: string | null;
+  campaignId: string | null;
   ownerId: string | null;
   statusId: string;
   rejectReason: string;
@@ -41,6 +44,8 @@ export interface LeadForm {
   id: string;
   name: string;
   source: string;
+  sourceId: string | null;
+  campaignId: string | null;
   defaultOwnerId: string | null;
   enabled: boolean;
   /** Полный токен вебхука `<воркспейс>.<секрет>`; пусто, если у пользователя нет прав admin */

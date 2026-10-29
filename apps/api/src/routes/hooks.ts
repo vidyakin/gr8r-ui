@@ -5,7 +5,7 @@
 import { sql as dsql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { enqueueYooPayment, findEnabledForm, insertLead, isUuid, parseFormToken, parsePriceToken, pickRoundRobin, publicPriceList, rateLimits, withContext, type Sql } from '@gr8r/db';
+import { campaignByUtm, enqueueYooPayment, findEnabledForm, insertLead, isUuid, parseFormToken, parsePriceToken, pickRoundRobin, publicPriceList, rateLimits, withContext, type Sql } from '@gr8r/db';
 import { leadWebhookBody, pickUtm, yooWebhookBody } from '@gr8r/shared';
 import { AppError } from '../errors';
 import { isYooKassaIp } from '../yookassa-ip';
@@ -90,10 +90,14 @@ export const hookRoutes = new Hono<AppEnv>()
       const form = await findEnabledForm(db, parsed.secret);
       if (!form) throw notFound();
       const ownerId = form.defaultOwnerId ?? (await pickRoundRobin(db, parsed.workspaceId));
+      const custom = pickUtm(b as Record<string, unknown>);
+      // атрибуция (задача 1177): кампания по utm_campaign, иначе кампания / источник формы, иначе название источника формы
+      const byUtm = typeof custom.utm_campaign === 'string' ? await campaignByUtm(db, custom.utm_campaign) : null;
+      const attr = byUtm ? { campaignId: byUtm.id } : form.campaignId ? { campaignId: form.campaignId } : form.sourceId ? { sourceId: form.sourceId } : { source: form.source || form.name };
       await insertLead(
         db,
         { workspaceId: parsed.workspaceId, memberId: null },
-        { name: b.name || b.phone || b.email, companyName: b.company, phone: b.phone, email: b.email, comment: b.comment, source: form.source || form.name, ownerId, formId: form.id, custom: pickUtm(b as Record<string, unknown>) },
+        { name: b.name || b.phone || b.email, companyName: b.company, phone: b.phone, email: b.email, comment: b.comment, ...attr, ownerId, formId: form.id, custom },
       );
     });
     return c.json({ ok: true as const }, 201);

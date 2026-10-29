@@ -1,6 +1,6 @@
 import { and, inArray, max, type SQL } from 'drizzle-orm';
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
-import { activity, notifications, tasks } from '@gr8r/db';
+import { activity, notifications, resolveAttribution, tasks } from '@gr8r/db';
 import type { Ctx } from '../crud';
 import { AppError } from '../errors';
 
@@ -38,4 +38,15 @@ export async function assertTasksExist(ctx: Ctx, ids: string[]) {
   const unique = [...new Set(ids)];
   const found = await ctx.db.select({ id: tasks.id }).from(tasks).where(and(inArray(tasks.id, unique)));
   if (found.length !== unique.length) throw new AppError(422, 'invalid_reference', 'One or more dependencies refer to tasks that do not exist');
+}
+
+/** Источник и кампания записи (задача 1177): {} — в теле нет ни одного из полей; текст `source` ищет источник по названию */
+export async function attributionPatch(
+  ctx: Ctx,
+  body: { sourceId?: string | null | undefined; campaignId?: string | null | undefined; source?: string | undefined },
+  existing?: { sourceId: string | null; campaignId: string | null },
+) {
+  const byId = body.sourceId !== undefined || body.campaignId !== undefined;
+  if (!byId && body.source === undefined) return {};
+  return resolveAttribution(ctx.db, ctx.workspaceId, { sourceId: body.sourceId, campaignId: body.campaignId, sourceName: byId ? undefined : body.source }, existing);
 }

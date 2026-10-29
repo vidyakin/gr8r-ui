@@ -47,6 +47,9 @@ export function useRealtime(ws: string, engine: Engine) {
       if (['work_calendar', 'resource', 'document', 'task'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'planning'] });
       // Лиды (задача 1175): запросы ['ws', id, 'leads', …]; конвертация и объединение меняют лиды, контрагентов, контакты, сделки и касания
       if (['lead', 'lead_status', 'lead_form', 'crm_activity', 'company', 'contact', 'deal'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'leads'] });
+      // Реклама (задача 1177): ['ws', id, 'ad', …] — справочники, расходы и отчёт по каналам (лиды, клиенты, сделки входят в отчёт)
+      if (['lead_source', 'ad_campaign', 'ad_expense', 'lead', 'company', 'deal'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'ad'] });
+      if (e.entity === 'lead_source' || e.entity === 'ad_campaign') void qc.invalidateQueries({ queryKey: ['ws', ws, 'leads'] });
       // Автоматизации: flow и журнал запусков
       if (e.entity === 'flow' || e.entity === 'flow_run') void qc.invalidateQueries({ queryKey: ['ws', ws, 'automations'] });
       // Должности и виды номенклатуры (задача 1172); смена должностей участника приходит событием member.updated

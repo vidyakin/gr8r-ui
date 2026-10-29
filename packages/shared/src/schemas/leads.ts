@@ -1,6 +1,7 @@
 /* zod-схемы лидов (задача 1175, docs/architecture/leads.md): лиды, статусы, формы сайта, конвертация, объединение, вебхук. */
 import { z } from 'zod';
 import { LEAD_STATUS_CATEGORIES, LEAD_STATUS_COLORS } from '../leads';
+import { attribution } from './ad';
 import { clientId, decimal, listQuery, shortText, toPatch, uuid } from './common';
 import { customData } from './meta';
 
@@ -11,8 +12,9 @@ export const leadCreate = z.object({
   phone: z.string().trim().max(50).default(''),
   email: z.string().trim().max(254).default(''),
   comment: z.string().max(5000).default(''),
-  /** Источник — текст (справочник источников — задача 1177) */
-  source: z.string().trim().max(200).default(''),
+  /** Источник по названию (найдётся или создастся в справочнике); `sourceId` / `campaignId` важнее (задача 1177) */
+  source: z.string().trim().max(200).optional(),
+  ...attribution,
   ownerId: uuid.nullish(),
   /** По умолчанию — первый статус категории «new» */
   statusId: uuid.optional(),
@@ -25,6 +27,8 @@ export const leadQuery = listQuery.extend({
   category: z.enum(LEAD_STATUS_CATEGORIES).optional(),
   ownerId: uuid.optional(),
   source: z.string().max(200).optional(),
+  sourceId: uuid.optional(),
+  campaignId: uuid.optional(),
 });
 
 export const leadStatusCreate = z.object({
@@ -40,7 +44,9 @@ export const leadStatusReorder = z.object({ ids: z.array(uuid).min(1).max(100) }
 
 export const leadFormCreate = z.object({
   name: shortText,
-  source: z.string().trim().max(200).default(''),
+  /** Название источника — устарело, заполняет сервер по `sourceId` (задача 1177) */
+  source: z.string().trim().max(200).optional(),
+  ...attribution,
   defaultOwnerId: uuid.nullish(),
   enabled: z.boolean().default(true),
 });

@@ -1,7 +1,7 @@
 /* Карточки сделки и контакта — EntityDrawer с полями CRM */
 import * as React from 'react';
 import { useNavigate } from 'react-router';
-import { Building2, Calendar as CalendarIcon, CircleCheck, CircleDollarSign, Clock, ClockAlert, Mail, Percent, Phone, RotateCcw, Trash2, User, UserPlus, Users, Briefcase, Layers, X } from 'lucide-react';
+import { Building2, Calendar as CalendarIcon, CircleCheck, CircleDollarSign, Clock, ClockAlert, Mail, Percent, Phone, RotateCcw, Trash2, User, UserPlus, Users, Briefcase, Layers, Megaphone, X } from 'lucide-react';
 import { Button, ConfirmDialog, Menu, MenuCheckboxItem, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Progress, toast } from '@/components/ui';
 import { EntityDrawer } from '@/components/gr8r/entity-drawer';
 import { diffDays, fmtDate, parse, today } from '../lib/dates';
@@ -15,6 +15,7 @@ import { useCrmUi } from './ui-context';
 import { ClientAppointments } from './ClientAppointments';
 import { useCustomRows } from '../meta/custom-fields';
 import { parseNumber, useT } from '@/i18n';
+import { RecordAttribution } from './AttributionFields';
 
 /** Сумма сделки: поле ввода без рамки, сохраняется по Enter или потере фокуса */
 function AmountInput({ value, onCommit }: { value: number; onCommit: (v: number) => void }) {
@@ -170,6 +171,7 @@ export function DealDrawer({ id }: { id: string }) {
             value: open ? <DateField value={d.closeDate} onChange={closeDate => update({ closeDate })} label={t('crm.deals.drawer.expectedCloseAria')} /> : <span className="num">{fmtDate(d.closedAt ?? d.closeDate)}</span>,
           },
           { icon: Building2, label: t('crm.deals.col.company'), value: <CompanyLink id={d.company} logo /> },
+          { icon: Megaphone, label: t('ads.field.source'), value: <RecordAttribution path={`/deals/${d.id}`} /> },
           {
             icon: Users,
             label: t('crm.deals.drawer.contacts'),

@@ -12,6 +12,7 @@ import { WorkOrderKindsSection } from '../settings/work-orders';
 import { DeliveryMethodsSection } from '../settings/delivery';
 import { PositionsSection, ProductKindsSection } from '../settings/positions';
 import { LeadFormsSection, LeadStatusesSection } from '../settings/leads';
+import { LeadSourcesSection } from '../settings/lead-sources';
 import { IntegrationsSection } from '../settings/integrations';
 import { TenantsSection } from '../settings/tenants';
 import { useSession } from '../data/session';
@@ -58,6 +59,8 @@ function Body({ sec, title }: { sec: string; title: string }) {
       return <LeadStatusesSection title={title} />;
     case 'lead-forms':
       return <LeadFormsSection title={title} />;
+    case 'lead-sources':
+      return <LeadSourcesSection title={title} />;
     case 'integrations':
       return <IntegrationsSection title={title} />;
     case 'tenants':

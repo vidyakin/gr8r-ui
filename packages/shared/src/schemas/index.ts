@@ -22,5 +22,6 @@ export * from './payments';
 export * from './payroll';
 export * from './pricing';
 export * from './leads';
+export * from './ad';
 export * from './secrets';
 export * from './integrations';

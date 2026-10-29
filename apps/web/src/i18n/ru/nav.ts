@@ -20,6 +20,7 @@ export const sections: Widen<typeof S> = {
   system: 'Дизайн-система',
   crm: 'Сводка',
   crmLeads: 'Лиды',
+  crmAds: 'Реклама',
   crmDeals: 'Сделки',
   crmCompanies: 'Компании',
   crmContacts: 'Контакты',

@@ -1,6 +1,7 @@
 /* Единый список разделов: из него строятся навигация, хлебные крошки и заголовок вкладки. */
 import {
   Activity,
+  Megaphone,
   Archive,
   BadgeRussianRuble,
   ScrollText,
@@ -94,6 +95,7 @@ export const SECTIONS = {
   // Демо-модуль CRM (src/app/crm)
   crm: { path: '/crm', name: 'Dashboard', icon: ChartNoAxesCombined },
   crmLeads: { path: '/crm/leads', name: 'Leads', icon: UserPlus },
+  crmAds: { path: '/crm/ads', name: 'Advertising', icon: Megaphone },
   crmDeals: { path: '/crm/deals', name: 'Deals', icon: Handshake },
   crmCompanies: { path: '/crm/companies', name: 'Companies', icon: Building2 },
   crmContacts: { path: '/crm/contacts', name: 'Contacts', icon: ContactRound },
@@ -245,6 +247,7 @@ const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
   timeline: 'projects',
   crm: 'crm',
   crmLeads: 'crm',
+  crmAds: 'crm',
   crmDeals: 'crm',
   crmCompanies: 'crm',
   crmContacts: 'crm',

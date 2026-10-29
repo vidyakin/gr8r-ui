@@ -1,7 +1,7 @@
 /* Страница компании — шапка как у страницы проекта и вкладки Overview / Deals / Contacts / Activity */
 import * as React from 'react';
 import { Link, useParams } from 'react-router';
-import { Activity, Briefcase, FileSignature, FileText, Files, CircleDollarSign, ExternalLink, Globe, LayoutDashboard, CalendarCheck, Wallet, MapPin, Plus, Ruler, Tags, User, UserPlus, Users, Clock, type LucideIcon } from 'lucide-react';
+import { Activity, Briefcase, FileSignature, FileText, Files, CircleDollarSign, ExternalLink, Globe, LayoutDashboard, CalendarCheck, Wallet, MapPin, Plus, Ruler, Tags, User, UserPlus, Users, Clock, Megaphone, type LucideIcon } from 'lucide-react';
 import { Badge, Button, EmptyState, Tooltip } from '@/components/ui';
 import { DataTable, useDataTable } from '@/components/gr8r/data-table';
 import { Panel, Stat } from '@/components/gr8r/panel';
@@ -24,6 +24,7 @@ import { CompanySettlementsTab } from '../money/CompanySettlements';
 import { NextContactPanel } from './NextContactPanel';
 import { ClientAppointments } from './ClientAppointments';
 import { CompanyPriceKind } from '../pricing/CompanyPriceKind';
+import { RecordAttribution } from './AttributionFields';
 import { industryName, sizeName, stageName } from './labels';
 import type { Company } from './types';
 
@@ -281,6 +282,13 @@ function Overview({ company: co }: { company: Company }) {
                 </dt>
                 <dd>
                   <CompanyPriceKind companyId={co.id} />
+                </dd>
+                <dt>
+                  <Megaphone size={14} />
+                  {t('ads.field.source')}
+                </dt>
+                <dd>
+                  <RecordAttribution path={`/companies/${co.id}`} />
                 </dd>
                 {customRows.map(r => (
                   <React.Fragment key={r.field.key}>

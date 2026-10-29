@@ -18,6 +18,7 @@ export const sections = {
   system: 'Design system',
   crm: 'Dashboard',
   crmLeads: 'Leads',
+  crmAds: 'Advertising',
   crmDeals: 'Deals',
   crmCompanies: 'Companies',
   crmContacts: 'Contacts',

@@ -32,4 +32,5 @@ export * from './payment-calendar';
 export * from './bank-statement';
 export * from './bank-api';
 export * from './leads';
+export * from './ad-report';
 export * from './qr';

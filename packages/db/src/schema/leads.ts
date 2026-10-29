@@ -4,6 +4,7 @@ import { sql } from 'drizzle-orm';
 import { boolean, check, foreignKey, index, integer, jsonb, pgTable, text, timestamp, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { LEAD_STATUS_CATEGORIES } from '@gr8r/shared';
 import { archivedAt, createdAt, pk, updatedAt } from './columns';
+import { adCampaigns, leadSources } from './ad';
 import { companies, contacts, deals } from './crm';
 import { members } from './people';
 import { wsCol } from './tenant';
@@ -38,6 +39,9 @@ export const leadForms = pgTable(
     /** Секретная часть токена; полный токен вебхука — `<workspace_id>.<token>` */
     token: text('token').notNull(),
     source: text('source').notNull().default(''),
+    /** Источник и кампания заявок формы (задача 1177); `source` — кэш названия источника */
+    sourceId: uuid('source_id'),
+    campaignId: uuid('campaign_id'),
     defaultOwnerId: uuid('default_owner_id'),
     enabled: boolean('enabled').notNull().default(true),
     createdAt: createdAt(),
@@ -47,6 +51,8 @@ export const leadForms = pgTable(
     unique('lead_forms_ws_id_uq').on(t.workspaceId, t.id),
     uniqueIndex('lead_forms_token_uq').on(t.token),
     foreignKey({ columns: [t.workspaceId, t.defaultOwnerId], foreignColumns: [members.workspaceId, members.id], name: 'lead_forms_owner_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.sourceId], foreignColumns: [leadSources.workspaceId, leadSources.id], name: 'lead_forms_source_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.campaignId], foreignColumns: [adCampaigns.workspaceId, adCampaigns.id], name: 'lead_forms_campaign_fk' }),
   ],
 );
 
@@ -64,7 +70,10 @@ export const leads = pgTable(
     email: text('email').notNull().default(''),
     emailNorm: text('email_norm').notNull().default(''),
     comment: text('comment').notNull().default(''),
+    /** Кэш названия источника (для подстановок автоматизаций); пишет только сервер по `source_id` (задача 1177) */
     source: text('source').notNull().default(''),
+    sourceId: uuid('source_id'),
+    campaignId: uuid('campaign_id'),
     ownerId: uuid('owner_id'),
     statusId: uuid('status_id').notNull(),
     rejectReason: text('reject_reason').notNull().default(''),
@@ -86,6 +95,9 @@ export const leads = pgTable(
     foreignKey({ columns: [t.workspaceId, t.companyId], foreignColumns: [companies.workspaceId, companies.id], name: 'leads_company_fk' }),
     foreignKey({ columns: [t.workspaceId, t.contactId], foreignColumns: [contacts.workspaceId, contacts.id], name: 'leads_contact_fk' }),
     foreignKey({ columns: [t.workspaceId, t.dealId], foreignColumns: [deals.workspaceId, deals.id], name: 'leads_deal_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.sourceId], foreignColumns: [leadSources.workspaceId, leadSources.id], name: 'leads_source_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.campaignId], foreignColumns: [adCampaigns.workspaceId, adCampaigns.id], name: 'leads_campaign_fk' }),
+    index('leads_ws_source_idx').on(t.workspaceId, t.sourceId, t.createdAt),
     index('leads_ws_status_idx').on(t.workspaceId, t.statusId),
     index('leads_ws_phone_idx').on(t.workspaceId, t.phoneNorm),
     index('leads_ws_email_idx').on(t.workspaceId, t.emailNorm),

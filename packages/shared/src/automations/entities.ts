@@ -73,7 +73,6 @@ export const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
     f('phone', 'Phone', 'text', false),
     f('email', 'Email', 'text', false),
     f('comment', 'Comment', 'long_text'),
-    f('source', 'Source', 'text'),
     f('ownerId', 'Owner', 'user'),
     f('statusId', 'Status', 'text', false),
     f('rejectReason', 'Reject reason', 'text'),

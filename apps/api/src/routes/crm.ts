@@ -19,7 +19,7 @@ import { crud, type Ctx } from '../crud';
 import { forbidden } from '../errors';
 import { hasRole } from '../middleware';
 import { customForCreate, customForUpdate } from '../meta/service';
-import { nextOrder } from './helpers';
+import { attributionPatch, nextOrder } from './helpers';
 import { assertRequisites } from './documents';
 
 export const companyRoutes = crud({
@@ -31,15 +31,20 @@ export const companyRoutes = crud({
   sortable: { name: companies.name, industry: companies.industry, city: companies.city, createdAt: companies.createdAt },
   defaultSort: 'name',
   search: [companies.name, companies.industry, companies.city, companies.website, companies.inn],
-  filters: q => [q.ownerId ? eq(companies.ownerId, q.ownerId) : undefined, q.industry ? eq(companies.industry, q.industry) : undefined],
+  filters: q => [
+    q.ownerId ? eq(companies.ownerId, q.ownerId) : undefined,
+    q.industry ? eq(companies.industry, q.industry) : undefined,
+    q.sourceId ? eq(companies.sourceId, q.sourceId) : undefined,
+    q.campaignId ? eq(companies.campaignId, q.campaignId) : undefined,
+  ],
   prepareCreate: async (ctx, body) => {
     assertRequisites(body);
-    return { ownerId: body.ownerId ?? ctx.memberId, ...(await customForCreate(ctx, 'company', body.custom)) };
+    return { ownerId: body.ownerId ?? ctx.memberId, ...pickAttr(await attributionPatch(ctx, body)), ...(await customForCreate(ctx, 'company', body.custom)) };
   },
-  prepareUpdate: (ctx, existing, body) => {
+  prepareUpdate: async (ctx, existing, body) => {
     // реквизиты проверяются по итоговому состоянию: тип, ИНН, КПП и ОГРН зависят друг от друга
     assertRequisites({ kind: body.kind ?? existing.kind, inn: body.inn ?? existing.inn, kpp: body.kpp ?? existing.kpp, ogrn: body.ogrn ?? existing.ogrn });
-    return customForUpdate(ctx, 'company', existing.custom, body.custom, existing.id);
+    return { ...(await customForUpdate(ctx, 'company', existing.custom, body.custom, existing.id)), ...pickAttr(await attributionPatch(ctx, body, existing)) };
   },
   // смена режима взаиморасчётов пересчитывает зачёты проведённых документов в той же транзакции (закрытый период — 422)
   afterUpdate: async (ctx, before, after) => {
@@ -63,6 +68,17 @@ export const contactRoutes = crud({
 
 const CLOSED = ['won', 'lost'];
 
+/** Только колонки атрибуции: у контрагента и сделки нет кэша названия источника */
+const pickAttr = (a: { sourceId?: string | null; campaignId?: string | null }) => ('sourceId' in a ? { sourceId: a.sourceId, campaignId: a.campaignId } : {});
+
+/** Источник сделки: явный, иначе — источник и кампания контрагента (задача 1177) */
+async function dealAttribution(ctx: Ctx, body: { sourceId?: string | null; campaignId?: string | null; companyId?: string | null }) {
+  if (body.sourceId || body.campaignId) return pickAttr(await attributionPatch(ctx, body));
+  if (!body.companyId) return {};
+  const [c] = await ctx.db.select({ sourceId: companies.sourceId, campaignId: companies.campaignId }).from(companies).where(eq(companies.id, body.companyId)).limit(1);
+  return c ? { sourceId: c.sourceId, campaignId: c.campaignId } : {};
+}
+
 async function setDealContacts(ctx: Ctx, dealId: string, ids: string[]) {
   await ctx.db.delete(dealContacts).where(eq(dealContacts.dealId, dealId));
   const uniq = [...new Set(ids)];
@@ -84,18 +100,21 @@ export const dealRoutes = crud({
     q.ownerId ? eq(deals.ownerId, q.ownerId) : undefined,
     q.closeFrom ? gte(deals.closeDate, q.closeFrom) : undefined,
     q.closeTo ? lte(deals.closeDate, q.closeTo) : undefined,
+    q.sourceId ? eq(deals.sourceId, q.sourceId) : undefined,
+    q.campaignId ? eq(deals.campaignId, q.campaignId) : undefined,
   ],
   prepareCreate: async (ctx, body) => ({
     ownerId: body.ownerId ?? ctx.memberId,
     sortOrder: body.sortOrder ?? (await nextOrder(ctx, deals, eq(deals.stage, body.stage))),
     closedAt: CLOSED.includes(body.stage) ? (body.closedAt ?? new Date().toISOString().slice(0, 10)) : null,
+    ...(await dealAttribution(ctx, body)),
     ...(await customForCreate(ctx, 'deal', body.custom)),
   }),
   afterCreate: async (ctx, row, body) => {
     if (body.contactIds) await setDealContacts(ctx, row.id, body.contactIds);
   },
   prepareUpdate: async (ctx, existing, body) => {
-    const patch: Record<string, unknown> = { ...(await customForUpdate(ctx, 'deal', existing.custom, body.custom, existing.id)) };
+    const patch: Record<string, unknown> = { ...(await customForUpdate(ctx, 'deal', existing.custom, body.custom, existing.id)), ...pickAttr(await attributionPatch(ctx, body, existing)) };
     if (body.stage && body.stage !== existing.stage) {
       // Переход в won/lost фиксирует дату закрытия; возврат в открытый этап — сбрасывает её и причину отказа
       if (CLOSED.includes(body.stage)) patch.closedAt = body.closedAt ?? new Date().toISOString().slice(0, 10);

@@ -351,6 +351,13 @@
       "when": 1793237800250,
       "tag": "0052_tenants",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1793270916710,
+      "tag": "0053_ad_campaigns",
+      "breakpoints": true
     }
   ]
 }

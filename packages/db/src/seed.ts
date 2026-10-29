@@ -18,6 +18,7 @@ import { seedRepeatSales } from './seed-repeat-sales';
 import { seedPositions } from './seed-positions';
 import { seedAppointments } from './seed-appointments';
 import { seedLeads } from './seed-leads';
+import { seedAdCampaigns } from './seed-ad';
 import { ensureCostItems, ensureDocumentDefaults } from './documents';
 import { ensureModuleProjects } from './modules';
 import { ensureWorkOrderKind } from './work-orders';
@@ -371,6 +372,7 @@ export async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: strin
 
   // Лиды: статусы, форма сайта, лиды с касаниями и один сконвертированный (задача 1175)
   await seedLeads(db, wsId, U(d.me));
+  await seedAdCampaigns(db, wsId, U(d.me));
 
   await db.insert(events).values({ workspaceId: wsId, type: 'workspace.seeded', entity: 'workspace', recordId: wsId, actorId: U(d.me), payload: { tasks: d.tasks.length, deals: crm.deals.length, documents: docs.documents } });
   return { tasks: d.tasks.length, projects: d.projects.length, deals: crm.deals.length, metaFields };

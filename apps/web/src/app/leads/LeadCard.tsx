@@ -6,6 +6,7 @@ import { Archive, ArrowRightLeft, Building2, Handshake, User } from 'lucide-reac
 import { Alert, Button, ConfirmDialog, Dialog, DialogContent, Field, Input, Select, Textarea, toast } from '@/components/ui';
 import { fmtDateTime } from '@/i18n/format';
 import { useT } from '@/i18n';
+import { AttributionFields } from '../crm/AttributionFields';
 import { useWorkspace } from '../data/store';
 import { useCustomRows } from '../meta/custom-fields';
 import { useMembersWith } from '../positions/data';
@@ -17,15 +18,16 @@ interface Draft {
   companyName: string;
   phone: string;
   email: string;
-  source: string;
+  sourceId: string | null;
+  campaignId: string | null;
   comment: string;
   ownerId: string;
   statusId: string;
   rejectReason: string;
 }
 
-const fromLead = (l: Lead): Draft => ({ name: l.name, companyName: l.companyName, phone: l.phone, email: l.email, source: l.source, comment: l.comment, ownerId: l.ownerId ?? '', statusId: l.statusId, rejectReason: l.rejectReason });
-const blank: Draft = { name: '', companyName: '', phone: '', email: '', source: '', comment: '', ownerId: '', statusId: '', rejectReason: '' };
+const fromLead = (l: Lead): Draft => ({ name: l.name, companyName: l.companyName, phone: l.phone, email: l.email, sourceId: l.sourceId, campaignId: l.campaignId, comment: l.comment, ownerId: l.ownerId ?? '', statusId: l.statusId, rejectReason: l.rejectReason });
+const blank: Draft = { name: '', companyName: '', phone: '', email: '', sourceId: null, campaignId: null, comment: '', ownerId: '', statusId: '', rejectReason: '' };
 const NO_OWNER = '__none';
 
 function Duplicates({ items, current, onMerge }: { items: DuplicateMatch[]; current: string | null; onMerge: (m: DuplicateMatch) => void }) {
@@ -136,7 +138,8 @@ export function LeadCard({ leadId, onClose, onConvert }: { leadId: string | null
       companyName: draft.companyName,
       phone: draft.phone,
       email: draft.email,
-      source: draft.source,
+      sourceId: draft.sourceId,
+      campaignId: draft.campaignId,
       comment: draft.comment,
       ownerId: draft.ownerId || null,
       statusId: draft.statusId || undefined,
@@ -205,7 +208,7 @@ export function LeadCard({ leadId, onClose, onConvert }: { leadId: string | null
             <Field label={t('leads.card.companyName')}>{p => <Input {...p} maxLength={200} value={draft.companyName} onChange={e => set({ companyName: e.target.value })} />}</Field>
             <Field label={t('leads.card.phone')}>{p => <Input {...p} maxLength={50} value={draft.phone} onChange={e => set({ phone: e.target.value })} />}</Field>
             <Field label={t('leads.card.email')}>{p => <Input {...p} maxLength={254} value={draft.email} onChange={e => set({ email: e.target.value })} />}</Field>
-            <Field label={t('leads.card.source')}>{p => <Input {...p} maxLength={200} value={draft.source} onChange={e => set({ source: e.target.value })} />}</Field>
+            <AttributionFields value={{ sourceId: draft.sourceId, campaignId: draft.campaignId }} onChange={set} />
             <Field label={t('leads.card.owner')}>
               {p => (
                 <Select

@@ -21,8 +21,9 @@ import { repeat } from './repeat';
 import { appt } from './appt';
 import { positions } from './positions';
 import { leads } from './leads';
+import { ads } from './ads';
 import { secrets } from './secrets';
 import { languages, settings } from './settings';
 import { views } from './views';
 
-export const en = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, repeat, appt, delivery, positions, leads, secrets, money, payroll, pricing };
+export const en = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, repeat, appt, delivery, positions, leads, ads, secrets, money, payroll, pricing };

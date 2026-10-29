@@ -26,6 +26,7 @@ import { crud, ctxOf, validationHook } from '../crud';
 import { AppError } from '../errors';
 import { hasRole, requireRole } from '../middleware';
 import { customForCreate, customForUpdate } from '../meta/service';
+import { attributionPatch } from './helpers';
 import type { AppEnv } from '../types';
 
 const writeLead = requireRole('member');
@@ -45,7 +46,13 @@ const base = crud({
   sortable: { name: leads.name, createdAt: leads.createdAt, updatedAt: leads.updatedAt, source: leads.source },
   defaultSort: '-createdAt',
   search: [leads.name, leads.companyName, leads.phone, leads.email, leads.comment],
-  filters: q => [q.statusId ? eq(leads.statusId, q.statusId) : undefined, q.ownerId ? eq(leads.ownerId, q.ownerId) : undefined, q.source ? eq(leads.source, q.source) : undefined],
+  filters: q => [
+    q.statusId ? eq(leads.statusId, q.statusId) : undefined,
+    q.ownerId ? eq(leads.ownerId, q.ownerId) : undefined,
+    q.source ? eq(leads.source, q.source) : undefined,
+    q.sourceId ? eq(leads.sourceId, q.sourceId) : undefined,
+    q.campaignId ? eq(leads.campaignId, q.campaignId) : undefined,
+  ],
   prepareCreate: async (ctx, body) => {
     const status = body.statusId ? await statusById(ctx, body.statusId) : await statusOfCategory(ctx.db, 'new');
     if (status.category === 'converted') throw new AppError(422, 'lead_use_convert', 'Use conversion to move a lead to a converted status');
@@ -54,11 +61,13 @@ const base = crud({
       ownerId: body.ownerId ?? ctx.memberId,
       phoneNorm: normalizePhone(body.phone),
       emailNorm: normalizeEmail(body.email),
+      source: '',
+      ...(await attributionPatch(ctx, body)),
       ...(await customForCreate(ctx, 'lead', body.custom)),
     };
   },
   prepareUpdate: async (ctx, existing, body) => {
-    const patch: Record<string, unknown> = { ...(await customForUpdate(ctx, 'lead', existing.custom, body.custom, existing.id)) };
+    const patch: Record<string, unknown> = { ...(await customForUpdate(ctx, 'lead', existing.custom, body.custom, existing.id)), ...(await attributionPatch(ctx, body, existing)) };
     if (body.phone !== undefined) patch.phoneNorm = normalizePhone(body.phone);
     if (body.email !== undefined) patch.emailNorm = normalizeEmail(body.email);
     if (body.statusId && body.statusId !== existing.statusId) {
@@ -166,7 +175,8 @@ const formBase = crud({
   defaultSort: 'createdAt',
   search: [leadForms.name],
   writeRole: 'admin',
-  prepareCreate: () => ({ token: newFormSecret() }),
+  prepareCreate: async (ctx, body) => ({ token: newFormSecret(), source: '', ...(await attributionPatch(ctx, body)) }),
+  prepareUpdate: (ctx, existing, body) => attributionPatch(ctx, body, existing),
   decorate: async (ctx, rows) => rows.map(r => publicForm(ctx, r) as FormRow & { webhookToken: string }),
 });
 

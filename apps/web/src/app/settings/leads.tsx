@@ -5,6 +5,7 @@ import { LEAD_STATUS_CATEGORIES, LEAD_STATUS_COLORS, type LeadStatusCategory } f
 import { Alert, Badge, Button, ConfirmDialog, EmptyState, Field, Input, Select, Skeleton, Switch, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { useIsAdmin } from '../catalog/data';
+import { AttributionFields } from '../crm/AttributionFields';
 import { useWorkspace } from '../data/store';
 import { useMembersWith } from '../positions/data';
 import { StatusBadge } from '../leads/StatusBadge';
@@ -101,7 +102,6 @@ function FormRow({ form, isAdmin }: { form: LeadForm; isAdmin: boolean }) {
   const { data: ws } = useWorkspace();
   const owners = useMembersWith(ws.members.filter(m => m.status === 'active'), 'sales_manager', [form.defaultOwnerId]);
   const [name, setName] = React.useState(form.name);
-  const [source, setSource] = React.useState(form.source);
   const [del, setDel] = React.useState(false);
   const [rotate, setRotate] = React.useState(false);
   const url = form.webhookToken ? webhookUrl(form.webhookToken) : '';
@@ -116,7 +116,7 @@ function FormRow({ form, isAdmin }: { form: LeadForm; isAdmin: boolean }) {
         <div className="stack" style={{ gap: 8, marginTop: 8 }}>
           <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
             <Field label={t('leads.settings.formName')}>{p => <Input {...p} maxLength={200} value={name} onChange={e => setName(e.target.value)} onBlur={() => name.trim() && name !== form.name && void patch({ name: name.trim() })} />}</Field>
-            <Field label={t('leads.settings.formSource')}>{p => <Input {...p} maxLength={200} value={source} onChange={e => setSource(e.target.value)} onBlur={() => source !== form.source && void patch({ source })} />}</Field>
+            <AttributionFields value={{ sourceId: form.sourceId, campaignId: form.campaignId }} onChange={v => void patch({ ...v })} />
             <Field label={t('leads.settings.formOwner')}>
               {p => (
                 <Select {...p} value={form.defaultOwnerId ?? AUTO} onValueChange={v => void patch({ defaultOwnerId: v === AUTO ? null : v })} options={[{ value: AUTO, label: t('leads.settings.formOwnerAuto') }, ...owners.map(m => ({ value: m.id, label: m.name }))]} />
@@ -183,7 +183,7 @@ export function LeadFormsSection({ title }: { title: string }) {
               size="sm"
               disabled={!name.trim()}
               onClick={async () => {
-                if (await api('POST', '/lead-forms', { name: name.trim(), source: name.trim() })) setName('');
+                if (await api('POST', '/lead-forms', { name: name.trim() })) setName('');
               }}
             >
               <Plus size={13} />

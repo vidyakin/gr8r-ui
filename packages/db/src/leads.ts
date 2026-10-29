@@ -3,6 +3,7 @@
    вызывающего: данные + события outbox вместе. Права проверяют маршруты. */
 import { and, asc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { membersWithFunction, normalizeEmail, normalizePhone, nextRoundRobin, phoneKey, type LeadStatusCategory, type MemberPositionLink, type PositionDef } from '@gr8r/shared';
+import { resolveAttribution } from './ad';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
@@ -68,7 +69,10 @@ export interface LeadInput {
   phone?: string | undefined;
   email?: string | undefined;
   comment?: string | undefined;
+  /** Источник по названию (найдётся или создастся); `sourceId` / `campaignId` важнее (задача 1177) */
   source?: string | undefined;
+  sourceId?: string | null | undefined;
+  campaignId?: string | null | undefined;
   ownerId?: string | null | undefined;
   statusId?: string | undefined;
   formId?: string | null | undefined;
@@ -82,6 +86,7 @@ export async function insertLead(db: Db, ctx: LeadCtx, input: LeadInput): Promis
   if (!name) throw new DomainError(422, 'lead_name_required', 'Lead name is required');
   const status = input.statusId ? await loadStatus(db, input.statusId) : await statusOfCategory(db, 'new');
   if (status.category === 'converted') throw new DomainError(422, 'lead_use_convert', 'Use conversion to move a lead to a converted status');
+  const attr = await resolveAttribution(db, ctx.workspaceId, { sourceId: input.sourceId, campaignId: input.campaignId, sourceName: input.sourceId || input.campaignId ? undefined : input.source });
   const [row] = await db
     .insert(leads)
     .values({
@@ -94,7 +99,7 @@ export async function insertLead(db: Db, ctx: LeadCtx, input: LeadInput): Promis
       email: input.email?.trim() ?? '',
       emailNorm: normalizeEmail(input.email),
       comment: input.comment ?? '',
-      source: input.source?.trim() ?? '',
+      ...attr,
       ownerId: input.ownerId ?? null,
       statusId: status.id,
       formId: input.formId ?? null,
@@ -233,7 +238,7 @@ export async function mergeLeads(db: Db, ctx: LeadCtx, fromId: string, intoId: s
     phoneNorm: normalizePhone(phone),
     email,
     emailNorm: normalizeEmail(email),
-    source: into.source || from.source,
+    ...(into.sourceId ? {} : { source: from.source, sourceId: from.sourceId, campaignId: from.campaignId }),
     ownerId: into.ownerId ?? from.ownerId,
     comment: [into.comment, from.comment].filter(Boolean).join('\n\n'),
     custom: { ...from.custom, ...into.custom },
@@ -276,13 +281,15 @@ export async function convertLead(db: Db, ctx: LeadCtx, leadId: string, input: C
 
   let companyId: string | null = null;
   if (input.company.mode === 'existing') {
-    const [c] = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, input.company.id)).limit(1);
+    const [c] = await db.select({ id: companies.id, sourceId: companies.sourceId }).from(companies).where(eq(companies.id, input.company.id)).limit(1);
     if (!c) throw new DomainError(422, 'invalid_reference', 'Company not found');
     companyId = c.id;
+    // первое касание важнее: источник существующему контрагенту ставится, только если его нет
+    if (!c.sourceId && lead.sourceId) await db.update(companies).set({ sourceId: lead.sourceId, campaignId: lead.campaignId, updatedAt: new Date() }).where(eq(companies.id, c.id));
   } else if (input.company.mode === 'new') {
     const name = input.company.name.trim();
     if (!name) throw new DomainError(422, 'validation_error', 'Company name is required');
-    const [c] = await db.insert(companies).values({ workspaceId: ctx.workspaceId, name, ownerId: owner, kind: 'legal' }).returning();
+    const [c] = await db.insert(companies).values({ workspaceId: ctx.workspaceId, name, ownerId: owner, kind: 'legal', sourceId: lead.sourceId, campaignId: lead.campaignId }).returning();
     companyId = c!.id;
     await ev('company.created', 'company', c!.id, c);
   }
@@ -303,7 +310,7 @@ export async function convertLead(db: Db, ctx: LeadCtx, leadId: string, input: C
   if (input.deal) {
     const [d] = await db
       .insert(deals)
-      .values({ workspaceId: ctx.workspaceId, name: input.deal.name.trim() || lead.name, companyId, ownerId: owner, amount: input.deal.amount ?? '0', stage: 'qualified' })
+      .values({ workspaceId: ctx.workspaceId, name: input.deal.name.trim() || lead.name, companyId, ownerId: owner, amount: input.deal.amount ?? '0', stage: 'qualified', sourceId: lead.sourceId, campaignId: lead.campaignId })
       .returning();
     dealId = d!.id;
     if (contactId) await db.insert(dealContacts).values({ workspaceId: ctx.workspaceId, dealId, contactId });

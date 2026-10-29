@@ -2,6 +2,7 @@
 import { z } from 'zod';
 import { CRM_ACTIVITY_TYPES, DEAL_STAGES } from '../constants';
 import { COMPANY_KINDS } from '../ru';
+import { attribution } from './ad';
 import { clientId, decimal, toPatch, isoDate, listQuery, shortText, uuid } from './common';
 import { customData } from './meta';
 
@@ -27,10 +28,12 @@ export const companyCreate = z.object({
   priceKindId: uuid.nullish(),
   nextContactDate: isoDate.nullish(),
   nextContactNote: z.string().trim().max(500).default(''),
+  /** Источник привлечения и кампания (задача 1177) */
+  ...attribution,
   custom: customData.optional(),
 });
 export const companyUpdate = toPatch(companyCreate.omit({ id: true }));
-export const companyQuery = listQuery.extend({ ownerId: uuid.optional(), industry: z.string().max(200).optional() });
+export const companyQuery = listQuery.extend({ ownerId: uuid.optional(), industry: z.string().max(200).optional(), sourceId: uuid.optional(), campaignId: uuid.optional() });
 
 export const contactCreate = z.object({
   id: clientId,
@@ -59,6 +62,8 @@ export const dealCreate = z.object({
   sortOrder: z.number().optional(),
   /** Контакты сделки (заменяют список целиком) */
   contactIds: z.array(uuid).max(100).optional(),
+  /** Источник и кампания (задача 1177); не заданы — берутся у контрагента */
+  ...attribution,
   custom: customData.optional(),
 });
 export const dealUpdate = toPatch(dealCreate.omit({ id: true }));
@@ -68,6 +73,8 @@ export const dealQuery = listQuery.extend({
   ownerId: uuid.optional(),
   closeFrom: isoDate.optional(),
   closeTo: isoDate.optional(),
+  sourceId: uuid.optional(),
+  campaignId: uuid.optional(),
 });
 
 export const crmActivityCreate = z.object({

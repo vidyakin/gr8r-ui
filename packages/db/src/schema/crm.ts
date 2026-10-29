@@ -2,6 +2,7 @@
 import { sql } from 'drizzle-orm';
 import { boolean, check, date, doublePrecision, foreignKey, index, jsonb, pgTable, primaryKey, text, unique, uuid } from 'drizzle-orm/pg-core';
 import { archivedAt, createdAt, money, pk, updatedAt } from './columns';
+import { adCampaigns, leadSources } from './ad';
 import { leads } from './leads';
 import { members, wsCol } from './people';
 
@@ -30,6 +31,9 @@ export const companies = pgTable(
     settlementMode: text('settlement_mode', { enum: ['by_documents', 'by_counterparty'] }).notNull().default('by_documents'),
     nextContactDate: date('next_contact_date', { mode: 'string' }),
     nextContactNote: text('next_contact_note').notNull().default(''),
+    /** Источник привлечения и кампания (задача 1177) */
+    sourceId: uuid('source_id'),
+    campaignId: uuid('campaign_id'),
     custom: jsonb('custom').$type<Record<string, unknown>>().notNull().default({}),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -40,6 +44,8 @@ export const companies = pgTable(
     check('companies_settlement_mode_chk', sql`${t.settlementMode} in ('by_documents','by_counterparty')`),
     check('companies_kind_chk', sql`${t.kind} in ('legal','sole_proprietor','individual')`),
     foreignKey({ columns: [t.workspaceId, t.ownerId], foreignColumns: [members.workspaceId, members.id], name: 'companies_owner_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.sourceId], foreignColumns: [leadSources.workspaceId, leadSources.id], name: 'companies_source_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.campaignId], foreignColumns: [adCampaigns.workspaceId, adCampaigns.id], name: 'companies_campaign_fk' }),
   ],
 );
 
@@ -81,6 +87,9 @@ export const deals = pgTable(
     closeDate: date('close_date', { mode: 'string' }),
     closedAt: date('closed_at', { mode: 'string' }),
     lostReason: text('lost_reason'),
+    /** Источник привлечения и кампания (задача 1177); по умолчанию — от контрагента */
+    sourceId: uuid('source_id'),
+    campaignId: uuid('campaign_id'),
     /** Порядок карточки внутри колонки воронки */
     sortOrder: doublePrecision('sort_order').notNull().default(0),
     custom: jsonb('custom').$type<Record<string, unknown>>().notNull().default({}),
@@ -92,6 +101,8 @@ export const deals = pgTable(
     unique('deals_ws_id_uq').on(t.workspaceId, t.id),
     foreignKey({ columns: [t.workspaceId, t.companyId], foreignColumns: [companies.workspaceId, companies.id], name: 'deals_company_fk' }),
     foreignKey({ columns: [t.workspaceId, t.ownerId], foreignColumns: [members.workspaceId, members.id], name: 'deals_owner_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.sourceId], foreignColumns: [leadSources.workspaceId, leadSources.id], name: 'deals_source_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.campaignId], foreignColumns: [adCampaigns.workspaceId, adCampaigns.id], name: 'deals_campaign_fk' }),
     check('deals_stage_chk', sql`${t.stage} in ('lead','qualified','proposal','negotiation','won','lost')`),
     index('deals_ws_stage_idx').on(t.workspaceId, t.stage),
   ],
