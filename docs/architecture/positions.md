@@ -10,14 +10,14 @@
 - `members.is_courier` удалён: миграция создаёт в воркспейсах с курьерами должность «Курьер» (`courier`, все разделы) и назначает её отмеченным.
 
 ## Функции и списки выбора
-Функции: `appointments_specialist`, `courier`, `production_worker`, `work_order_executor`, `sales_manager`.
+Функции: `appointments_specialist`, `courier`, `production_worker`, `work_order_executor`, `sales_manager`, `driver` (водитель автопарка, [fleet.md](fleet.md); раздел меню `transport`).
 `membersWithFunction` (shared): участники с функцией; если ни у одной должности воркспейса её нет — все участники.
 Применено: специалисты записи (`GET /appointments/specialists`, график), курьеры (`GET /deliveries/couriers`, вкладка доставки), исполнители
 заказ-нарядов и производства (в списке остаются уже назначенные), ответственные сделок и менеджеры плана продаж.
 Ограничение курьера своими доставками (`courierScope`) действует только при наличии у участника должности с функцией `courier`.
 
 ## Разделы меню
-Разделы: `crm, trade, stock, services, deliveries, production, finance, projects, catalog, automations` (соответствие пунктов меню — `POSITION_SECTION_OF` в `apps/web/src/app/routes.ts`).
+Разделы: `crm, trade, stock, services, deliveries, production, finance, projects, catalog, automations, transport` (соответствие пунктов меню — `POSITION_SECTION_OF` в `apps/web/src/app/routes.ts`).
 `visibleSections(role, positions)`: admin/owner — все; без должностей — все; иначе объединение (должность с пустым набором открывает все).
 `GET /positions/me` отдаёт должности, функции и видимые разделы (отдельный запрос воркспейса, а не `/auth/me`: сессия не привязана к воркспейсу).
 Интерфейс скрывает пункты меню, группы, команды и поиск палитры; прямой переход на скрытый раздел показывает «Нет доступа к разделу» (`SectionGuard`).

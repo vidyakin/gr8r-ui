@@ -69,6 +69,7 @@
 - [Хранилище секретов](architecture/secrets.md)
 - [Запись клиентов на приём](architecture/appointments.md)
 - [Доставка](architecture/delivery.md)
+- [Автопарк](architecture/fleet.md) — машины, водители, документы со сроками и напоминания, путевые листы, топливо, ТО и ремонты, штрафы (модуль `transport`)
 
 ## Финансы
 
