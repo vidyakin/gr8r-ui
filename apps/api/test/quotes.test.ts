@@ -54,8 +54,8 @@ describe('варианты КП', () => {
     expect(r.body.variants).toHaveLength(1);
     expect(r.body.variants[0].name).toBe('Вариант 1');
     expect(r.body.variants[0].totals.total).toBe('2300.00');
-    // у копии свои id строк
-    expect(r.body.lines.map((l: any) => l.id)).not.toContain(quote.lines[0].id);
+    // строки документа остаются на месте (ссылки на них живы), в снимок ушла копия
+    expect(r.body.lines.map((l: any) => l.id)).toEqual(quote.lines.map((l: any) => l.id));
     // правим основной: сумма документа — по основному варианту
     const e = await owner.patch(`/documents/${quote.id}`, { lines: [line(cable, 1, 100)] });
     expect(e.body.total).toBe('100.00');
@@ -101,6 +101,20 @@ describe('варианты КП', () => {
     const r = await owner.post(`/documents/${order.id}/variants`, {});
     expect(r.status).toBe(409);
     expect(r.body.error.code).toBe('not_draft');
+  });
+
+  test('строки основного варианта, на которые ссылаются другие документы, не уходят в снимок', async () => {
+    const q = await mk(owner, '/documents', { type: 'quote', counterpartyId: company, lines: [line(phone, 1, 1000)] });
+    await owner.post(`/documents/${q.id}/variants`, { name: 'Б', copy: true });
+    const child = await owner.post(`/documents/${q.id}/based-on`, { type: 'customer_order' });
+    expect(child.status).toBe(201);
+    const d = (await owner.get(`/documents/${q.id}`)).body;
+    for (const r of [await owner.post(`/documents/${q.id}/variants/${d.variants[0].id}/activate`), await owner.post(`/documents/${q.id}/variants`, { copy: false })]) {
+      expect(r.status).toBe(422);
+      expect(r.body.error.code).toBe('variant_lines_in_use');
+    }
+    // копия строки документа не трогает: можно и со ссылками
+    expect((await owner.post(`/documents/${q.id}/variants`, { copy: true })).status).toBe(201);
   });
 
   test('«на основании» берёт основной вариант с группами', async () => {

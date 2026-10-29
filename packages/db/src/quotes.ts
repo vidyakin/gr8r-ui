@@ -1,13 +1,13 @@
 /* Коммерческие предложения: варианты КП документа и шаблоны КП (docs/architecture/quotes.md).
    Строки документа — всегда основной вариант, поэтому резервы, исполнение, калькуляция и «на основании» о вариантах не знают.
    Остальные варианты — снимки строк в document_variants; «Сделать основным» меняет местами снимок и строки документа. */
-import { and, asc, eq, isNull, max } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, max, ne, or } from 'drizzle-orm';
 import { computeLine, computeTotals, hasQuoteVariants, renderQuote, type DocumentTotals, type PrintData, type PrintLine, type Role, type DocumentLineInput, type VariantLine, type VatRate } from '@gr8r/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { saveDocumentLines, type DocCtx } from './documents';
-import { docTemplates, documentLines, documentVariants, documents, units } from './schema';
+import { deliveries, docTemplates, documentLines, documentVariants, documents, orderCalculationLines, productionItems, units } from './schema';
 import { uuidv7 } from './uuid';
 
 type DocRow = typeof documents.$inferSelect;
@@ -51,6 +51,22 @@ async function restore(db: Db, ctx: DocCtx, doc: DocRow, lines: VariantLine[]): 
   for (const l of lines) if (l.sourceLineId || l.originLineId) await db.update(documentLines).set({ sourceLineId: l.sourceLineId, originLineId: l.originLineId }).where(eq(documentLines.id, l.id));
 }
 
+/** Строки основного варианта уходят в снимок (удаляются из документа) только когда на них никто не ссылается:
+    документы «на основании», заказ на производство по строке, калькуляция строки, доставка. Иначе связь сломалась бы
+    или потерялась молча — 422 variant_lines_in_use */
+async function assertLinesFree(db: Db, documentId: string, ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  const [child] = await db
+    .select({ id: documentLines.id })
+    .from(documentLines)
+    .where(and(ne(documentLines.documentId, documentId), or(inArray(documentLines.sourceLineId, ids), inArray(documentLines.originLineId, ids))))
+    .limit(1);
+  const [prod] = child ? [] : await db.select({ id: productionItems.id }).from(productionItems).where(inArray(productionItems.customerOrderLineId, ids)).limit(1);
+  const [calc] = child || prod ? [] : await db.select({ id: orderCalculationLines.id }).from(orderCalculationLines).where(inArray(orderCalculationLines.documentLineId, ids)).limit(1);
+  const [dlv] = child || prod || calc ? [] : await db.select({ id: deliveries.id }).from(deliveries).where(inArray(deliveries.lineId, ids)).limit(1);
+  if (child || prod || calc || dlv) throw new DomainError(422, 'variant_lines_in_use', 'Lines of the main variant are used by other documents, a calculation or a delivery: the main variant cannot be changed');
+}
+
 const changed = (db: Db, ctx: DocCtx, id: string) => recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.updated', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { changes: ['variants'] } });
 
 /** Варианты документа для карточки: основной (строки документа) не входит */
@@ -62,15 +78,18 @@ export async function variantsOf(db: Db, doc: Pick<DocRow, 'id' | 'priceIncludes
   });
 }
 
-/** Новый вариант становится основным: прежний основной уходит в список вариантов. copy — строки копируются, иначе вариант пустой */
+/** Новый вариант становится основным: прежний основной уходит в список вариантов. copy — новый вариант начинается с тех же строк, иначе пустой */
 export async function createVariant(db: Db, ctx: DocCtx, id: string, input: { name?: string; copy: boolean }): Promise<void> {
   const doc = await loadDraft(db, id);
   const current = await snapshot(db, id);
   const [{ top } = { top: null }] = await db.select({ top: max(documentVariants.sortOrder) }).from(documentVariants).where(eq(documentVariants.documentId, id));
   const stored = (await db.select({ id: documentVariants.id }).from(documentVariants).where(eq(documentVariants.documentId, id))).length;
-  await db.insert(documentVariants).values({ workspaceId: ctx.workspaceId, documentId: id, name: doc.variantName ?? 'Вариант 1', sortOrder: (top ?? 0) + 1, lines: current as unknown as Record<string, unknown>[], ...storedTotals(current, doc.priceIncludesVat) });
-  // копия получает свои id строк: снимок прежнего варианта держит прежние
-  await restore(db, ctx, doc, input.copy ? current.map(l => ({ ...l, id: uuidv7() })) : []);
+  // копия: строки документа остаются на месте (ссылки на них живы), в снимок уходит копия с новыми id.
+  // Пустой вариант убирает строки из документа — сначала проверяем, что на них не ссылаются
+  if (!input.copy) await assertLinesFree(db, id, current.map(l => l.id));
+  const kept = input.copy ? current.map(l => ({ ...l, id: uuidv7() })) : current;
+  await db.insert(documentVariants).values({ workspaceId: ctx.workspaceId, documentId: id, name: doc.variantName ?? 'Вариант 1', sortOrder: (top ?? 0) + 1, lines: kept as unknown as Record<string, unknown>[], ...storedTotals(kept, doc.priceIncludesVat) });
+  if (!input.copy) await restore(db, ctx, doc, []);
   await db.update(documents).set({ variantName: input.name ?? `Вариант ${stored + 2}`, updatedAt: new Date() }).where(eq(documents.id, id));
   await changed(db, ctx, id);
 }
@@ -81,6 +100,7 @@ export async function activateVariant(db: Db, ctx: DocCtx, id: string, variantId
   const [v] = await db.select().from(documentVariants).where(and(eq(documentVariants.id, variantId), eq(documentVariants.documentId, id))).limit(1);
   if (!v) throw new DomainError(404, 'not_found', 'variant not found');
   const current = await snapshot(db, id);
+  await assertLinesFree(db, id, current.map(l => l.id));
   await db
     .update(documentVariants)
     .set({ name: doc.variantName ?? 'Вариант 1', lines: current as unknown as Record<string, unknown>[], ...storedTotals(current, doc.priceIncludesVat), updatedAt: new Date() })
