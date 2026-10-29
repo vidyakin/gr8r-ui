@@ -60,7 +60,8 @@
 - Обязательные переменные (`${VAR:?}` — без них compose не стартует): `DOMAIN`, `POSTGRES_PASSWORD`, `APP_DB_PASSWORD`, `DDL_DB_PASSWORD`, `SECRETS_KEY`.
   `COOKIE_SECURE=1`, `CORS_ORIGINS=https://$DOMAIN`.
 - IP клиента для rate-limit: Caddy не доверяет входящему `X-Forwarded-For` и ставит его сам, nginx дописывает свой адрес, API (`TRUST_PROXY=1`)
-  берёт первый — адрес клиента.
+  берёт первый — адрес клиента. Проверено на локальном стеке: запрос с подставленным `X-Forwarded-For: 6.6.6.6` попал в `rate_limits` с адресом,
+  который видит Caddy, а не с подставленным.
 - MinIO в прод-файле нет: хранилище файлов ещё не используется (`PDF_STORE=db`).
 - `docker-compose.yml` — для локального запуска всего стека (порты открыты, пароли по умолчанию), на сервер его не ставить.
 - Проверено локально (`DOMAIN=localhost`, Docker Desktop): сборка образов, миграции с нуля, вход через Caddy, CLI оператора. На реальном VPS с

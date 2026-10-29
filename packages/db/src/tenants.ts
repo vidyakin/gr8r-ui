@@ -167,8 +167,17 @@ export async function purgeTenantsOnce(sql: Sql, ddl: Sql, now = new Date()): Pr
     async (_db, tx) => (await tx`select id from workspaces where delete_requested_at is not null or (kind = 'demo' and expires_at < ${now.toISOString()}::timestamptz) order by created_at limit 20`).map(r => r.id as string),
     'app_worker',
   );
-  for (const id of due) await deleteTenant(sql, ddl, id);
-  return due;
+  const done: string[] = [];
+  // Сбой одного арендатора не должен навсегда задерживать удаление остальных
+  for (const id of due) {
+    try {
+      await deleteTenant(sql, ddl, id);
+      done.push(id);
+    } catch (e) {
+      console.error(`[tenants] delete ${id} failed:`, e);
+    }
+  }
+  return done;
 }
 
 export interface TenantRow {

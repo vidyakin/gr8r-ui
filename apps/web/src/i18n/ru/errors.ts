@@ -17,6 +17,7 @@ export const errors: Widen<typeof E> = {
   rate_limited: 'Слишком много попыток. Повторите через {retryAfterSeconds} с.',
   invalid_credentials: 'Неверный email или пароль',
   email_taken: 'Пользователь с таким email уже есть',
+  slug_taken: 'Этот адрес воркспейса уже занят',
   validation_error: 'Проверьте значение «{path}»',
   company_not_allowed: 'Заказчика можно указать только у задачи модуля «Услуги»',
   investment_closed: 'Инвестпроект закрыт: документы к нему больше не привязываются и не проводятся',

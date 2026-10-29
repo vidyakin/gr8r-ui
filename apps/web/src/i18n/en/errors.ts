@@ -16,6 +16,7 @@ export const errors = {
   rate_limited: 'Too many attempts. Try again in {retryAfterSeconds} s.',
   invalid_credentials: 'Invalid email or password',
   email_taken: 'An account with this email already exists',
+  slug_taken: 'This workspace address is already taken',
   validation_error: 'Check the value of “{path}”',
   company_not_allowed: 'A customer can be set only for a task of the Services module',
   investment_closed: 'The investment project is closed: documents can no longer be linked to it or posted to it',
