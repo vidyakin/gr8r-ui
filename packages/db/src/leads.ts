@@ -73,6 +73,9 @@ export interface LeadInput {
   source?: string | undefined;
   sourceId?: string | null | undefined;
   campaignId?: string | null | undefined;
+  /** Кто привёл (для источника-партнёра или контактного лица) */
+  referrerCompanyId?: string | null | undefined;
+  referrerContactId?: string | null | undefined;
   ownerId?: string | null | undefined;
   statusId?: string | undefined;
   formId?: string | null | undefined;
@@ -86,7 +89,7 @@ export async function insertLead(db: Db, ctx: LeadCtx, input: LeadInput): Promis
   if (!name) throw new DomainError(422, 'lead_name_required', 'Lead name is required');
   const status = input.statusId ? await loadStatus(db, input.statusId) : await statusOfCategory(db, 'new');
   if (status.category === 'converted') throw new DomainError(422, 'lead_use_convert', 'Use conversion to move a lead to a converted status');
-  const attr = await resolveAttribution(db, ctx.workspaceId, { sourceId: input.sourceId, campaignId: input.campaignId, sourceName: input.sourceId || input.campaignId ? undefined : input.source });
+  const attr = await resolveAttribution(db, ctx.workspaceId, { sourceId: input.sourceId, campaignId: input.campaignId, sourceName: input.sourceId || input.campaignId ? undefined : input.source, referrerCompanyId: input.referrerCompanyId, referrerContactId: input.referrerContactId });
   const [row] = await db
     .insert(leads)
     .values({
@@ -238,7 +241,7 @@ export async function mergeLeads(db: Db, ctx: LeadCtx, fromId: string, intoId: s
     phoneNorm: normalizePhone(phone),
     email,
     emailNorm: normalizeEmail(email),
-    ...(into.sourceId ? {} : { source: from.source, sourceId: from.sourceId, campaignId: from.campaignId }),
+    ...(into.sourceId ? {} : { source: from.source, sourceId: from.sourceId, campaignId: from.campaignId, referrerCompanyId: from.referrerCompanyId, referrerContactId: from.referrerContactId }),
     ownerId: into.ownerId ?? from.ownerId,
     comment: [into.comment, from.comment].filter(Boolean).join('\n\n'),
     custom: { ...from.custom, ...into.custom },
@@ -273,6 +276,9 @@ export interface ConvertResult {
 
 /** Конвертация: найти или создать контрагента и контакт, при необходимости создать сделку; касания лида переезжают к контакту / сделке;
     лид получает первый статус категории converted и ссылки. Повторно конвертировать нельзя (409 `lead_already_converted`). */
+/** Источник, кампания и кто привёл — переносятся из лида в клиента и сделку */
+const leadAttr = (l: LeadRow) => ({ sourceId: l.sourceId, campaignId: l.campaignId, referrerCompanyId: l.referrerCompanyId, referrerContactId: l.referrerContactId });
+
 export async function convertLead(db: Db, ctx: LeadCtx, leadId: string, input: ConvertInput): Promise<ConvertResult> {
   const lead = await loadLead(db, leadId, true);
   if (lead.convertedAt) throw new DomainError(409, 'lead_already_converted', 'The lead has already been converted');
@@ -285,11 +291,11 @@ export async function convertLead(db: Db, ctx: LeadCtx, leadId: string, input: C
     if (!c) throw new DomainError(422, 'invalid_reference', 'Company not found');
     companyId = c.id;
     // первое касание важнее: источник существующему контрагенту ставится, только если его нет
-    if (!c.sourceId && lead.sourceId) await db.update(companies).set({ sourceId: lead.sourceId, campaignId: lead.campaignId, updatedAt: new Date() }).where(eq(companies.id, c.id));
+    if (!c.sourceId && lead.sourceId) await db.update(companies).set({ ...leadAttr(lead), updatedAt: new Date() }).where(eq(companies.id, c.id));
   } else if (input.company.mode === 'new') {
     const name = input.company.name.trim();
     if (!name) throw new DomainError(422, 'validation_error', 'Company name is required');
-    const [c] = await db.insert(companies).values({ workspaceId: ctx.workspaceId, name, ownerId: owner, kind: 'legal', sourceId: lead.sourceId, campaignId: lead.campaignId }).returning();
+    const [c] = await db.insert(companies).values({ workspaceId: ctx.workspaceId, name, ownerId: owner, kind: 'legal', ...leadAttr(lead) }).returning();
     companyId = c!.id;
     await ev('company.created', 'company', c!.id, c);
   }
@@ -310,7 +316,7 @@ export async function convertLead(db: Db, ctx: LeadCtx, leadId: string, input: C
   if (input.deal) {
     const [d] = await db
       .insert(deals)
-      .values({ workspaceId: ctx.workspaceId, name: input.deal.name.trim() || lead.name, companyId, ownerId: owner, amount: input.deal.amount ?? '0', stage: 'qualified', sourceId: lead.sourceId, campaignId: lead.campaignId })
+      .values({ workspaceId: ctx.workspaceId, name: input.deal.name.trim() || lead.name, companyId, ownerId: owner, amount: input.deal.amount ?? '0', stage: 'qualified', ...leadAttr(lead) })
       .returning();
     dealId = d!.id;
     if (contactId) await db.insert(dealContacts).values({ workspaceId: ctx.workspaceId, dealId, contactId });

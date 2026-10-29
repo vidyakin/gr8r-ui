@@ -74,6 +74,9 @@ export const leads = pgTable(
     source: text('source').notNull().default(''),
     sourceId: uuid('source_id'),
     campaignId: uuid('campaign_id'),
+    /** Кто привёл — для источника-партнёра (контрагент) или контактного лица; внешние ключи ставит миграция 0054 */
+    referrerCompanyId: uuid('referrer_company_id'),
+    referrerContactId: uuid('referrer_contact_id'),
     ownerId: uuid('owner_id'),
     statusId: uuid('status_id').notNull(),
     rejectReason: text('reject_reason').notNull().default(''),

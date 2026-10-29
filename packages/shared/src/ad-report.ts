@@ -2,6 +2,10 @@
    Чистый расчёт на decimal.ts — один и тот же на сервере и в тестах. */
 import { add, dec, div, fmt, type Dec } from './decimal';
 
+/** Тип источника (как в 1С:ERP): канал; партнёр (контрагент) или контактное лицо — у записи указывается, кто привёл */
+export const LEAD_SOURCE_KINDS = ['channel', 'partner', 'contact'] as const;
+export type LeadSourceKind = (typeof LEAD_SOURCE_KINDS)[number];
+
 /** Сырые показатели строки отчёта (источник или кампания; key = null — «без источника») */
 export interface AdReportInput {
   key: string | null;

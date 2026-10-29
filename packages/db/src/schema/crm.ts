@@ -31,9 +31,12 @@ export const companies = pgTable(
     settlementMode: text('settlement_mode', { enum: ['by_documents', 'by_counterparty'] }).notNull().default('by_documents'),
     nextContactDate: date('next_contact_date', { mode: 'string' }),
     nextContactNote: text('next_contact_note').notNull().default(''),
-    /** Источник привлечения и кампания (задача 1177) */
+    /** Источник привлечения и кампания (задача 1177); кто привёл — для источника-партнёра или контактного лица
+        (внешние ключи с ON DELETE SET NULL (колонка) ставит миграция 0054) */
     sourceId: uuid('source_id'),
     campaignId: uuid('campaign_id'),
+    referrerCompanyId: uuid('referrer_company_id'),
+    referrerContactId: uuid('referrer_contact_id'),
     custom: jsonb('custom').$type<Record<string, unknown>>().notNull().default({}),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -87,9 +90,11 @@ export const deals = pgTable(
     closeDate: date('close_date', { mode: 'string' }),
     closedAt: date('closed_at', { mode: 'string' }),
     lostReason: text('lost_reason'),
-    /** Источник привлечения и кампания (задача 1177); по умолчанию — от контрагента */
+    /** Источник, кампания и кто привёл (задача 1177; внешние ключи «кто привёл» ставит миграция 0054); по умолчанию — от контрагента */
     sourceId: uuid('source_id'),
     campaignId: uuid('campaign_id'),
+    referrerCompanyId: uuid('referrer_company_id'),
+    referrerContactId: uuid('referrer_contact_id'),
     /** Порядок карточки внутри колонки воронки */
     sortOrder: doublePrecision('sort_order').notNull().default(0),
     custom: jsonb('custom').$type<Record<string, unknown>>().notNull().default({}),

@@ -69,14 +69,19 @@ export const contactRoutes = crud({
 const CLOSED = ['won', 'lost'];
 
 /** Только колонки атрибуции: у контрагента и сделки нет кэша названия источника */
-const pickAttr = (a: { sourceId?: string | null; campaignId?: string | null }) => ('sourceId' in a ? { sourceId: a.sourceId, campaignId: a.campaignId } : {});
+const pickAttr = (a: { sourceId?: string | null; campaignId?: string | null; referrerCompanyId?: string | null; referrerContactId?: string | null }) =>
+  'sourceId' in a ? { sourceId: a.sourceId, campaignId: a.campaignId, referrerCompanyId: a.referrerCompanyId, referrerContactId: a.referrerContactId } : {};
 
 /** Источник сделки: явный, иначе — источник и кампания контрагента (задача 1177) */
-async function dealAttribution(ctx: Ctx, body: { sourceId?: string | null; campaignId?: string | null; companyId?: string | null }) {
+async function dealAttribution(ctx: Ctx, body: { sourceId?: string | null; campaignId?: string | null; referrerCompanyId?: string | null; referrerContactId?: string | null; companyId?: string | null }) {
   if (body.sourceId || body.campaignId) return pickAttr(await attributionPatch(ctx, body));
   if (!body.companyId) return {};
-  const [c] = await ctx.db.select({ sourceId: companies.sourceId, campaignId: companies.campaignId }).from(companies).where(eq(companies.id, body.companyId)).limit(1);
-  return c ? { sourceId: c.sourceId, campaignId: c.campaignId } : {};
+  const [c] = await ctx.db
+    .select({ sourceId: companies.sourceId, campaignId: companies.campaignId, referrerCompanyId: companies.referrerCompanyId, referrerContactId: companies.referrerContactId })
+    .from(companies)
+    .where(eq(companies.id, body.companyId))
+    .limit(1);
+  return c ?? {};
 }
 
 async function setDealContacts(ctx: Ctx, dealId: string, ids: string[]) {

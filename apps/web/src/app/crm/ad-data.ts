@@ -3,6 +3,7 @@
    ad_expense / lead / company / deal обновляют их (data/realtime.ts). */
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import type { LeadSourceKind } from '@gr8r/shared';
 import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';
@@ -11,6 +12,8 @@ export interface LeadSource {
   id: string;
   name: string;
   color: string;
+  /** channel — канал; partner / contact — у записи указывается, кто привёл (контрагент или контакт) */
+  kind: LeadSourceKind;
   sortOrder: number;
   archivedAt: string | null;
 }
@@ -43,6 +46,8 @@ export interface AdReportRow {
   name: string | null;
   color: string | null;
   sourceName: string | null;
+  /** Разрез «кто привёл»: контрагент или контакт */
+  refKind?: 'company' | 'contact' | null;
   leads: number;
   converted: number;
   newClients: number;
@@ -58,7 +63,7 @@ export interface AdReportRow {
 export interface AdReport {
   from: string;
   to: string;
-  groupBy: 'source' | 'campaign';
+  groupBy: AdGroupBy;
   rows: AdReportRow[];
   total: AdReportRow;
   currencies: string[];
@@ -68,7 +73,11 @@ export interface AdReport {
 export interface Attribution {
   sourceId: string | null;
   campaignId: string | null;
+  referrerCompanyId?: string | null;
+  referrerContactId?: string | null;
 }
+
+export type AdGroupBy = 'source' | 'campaign' | 'referrer';
 
 export const adKey = (ws: string, ...rest: unknown[]) => ['ws', ws, 'ad', ...rest] as const;
 
@@ -94,7 +103,7 @@ export function useAdExpenses(campaignId: string | null) {
   });
 }
 
-export function useAdReport(from: string, to: string, groupBy: 'source' | 'campaign') {
+export function useAdReport(from: string, to: string, groupBy: AdGroupBy) {
   const ws = useWsId();
   return useQuery({ queryKey: adKey(ws, 'report', from, to, groupBy), enabled: !!from && !!to && from <= to, queryFn: () => call<AdReport>(ws, 'GET', `/ad-report?from=${from}&to=${to}&groupBy=${groupBy}`), staleTime: Infinity });
 }

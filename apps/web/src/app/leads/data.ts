@@ -27,6 +27,8 @@ export interface Lead {
   source: string;
   sourceId: string | null;
   campaignId: string | null;
+  referrerCompanyId: string | null;
+  referrerContactId: string | null;
   ownerId: string | null;
   statusId: string;
   rejectReason: string;

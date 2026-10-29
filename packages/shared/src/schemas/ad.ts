@@ -1,5 +1,6 @@
 /* zod-схемы источников привлечения и рекламных кампаний (задача 1177, docs/architecture/ad-campaigns.md). */
 import { z } from 'zod';
+import { LEAD_SOURCE_KINDS } from '../ad-report';
 import { LEAD_STATUS_COLORS } from '../leads';
 import { decimal, isoDate, listQuery, shortText, toPatch, uuid } from './common';
 
@@ -8,6 +9,8 @@ const nonNegative = decimal.refine(v => Number(v) >= 0, 'Amount must not be nega
 export const leadSourceCreate = z.object({
   name: shortText,
   color: z.enum(LEAD_STATUS_COLORS).default('gray'),
+  /** Тип: канал, партнёр (у записи — контрагент, который привёл) или контактное лицо (контакт, который привёл) */
+  kind: z.enum(LEAD_SOURCE_KINDS).default('channel'),
   sortOrder: z.number().int().min(0).max(10_000).optional(),
 });
 export const leadSourceUpdate = toPatch(leadSourceCreate);
@@ -40,11 +43,15 @@ export const adExpenseQuery = listQuery.extend({ campaignId: uuid.optional(), fr
 export const adReportQuery = z.object({
   from: isoDate,
   to: isoDate,
-  groupBy: z.enum(['source', 'campaign']).default('source'),
+  /** referrer — по тем, кто привёл (источники-партнёры и контактные лица) */
+  groupBy: z.enum(['source', 'campaign', 'referrer']).default('source'),
 });
 
 /** Источник и кампания записи (лид, форма, контрагент, сделка): кампания задаёт источник */
 export const attribution = {
   sourceId: uuid.nullish(),
   campaignId: uuid.nullish(),
+  /** Кто привёл: контрагент (источник-партнёр) или контакт (источник «контактное лицо»); к другому типу не сохраняется */
+  referrerCompanyId: uuid.nullish(),
+  referrerContactId: uuid.nullish(),
 };

@@ -10,7 +10,7 @@ import { useIsAdmin } from '../catalog/data';
 import { dOff, fmtDate, iso } from '../lib/dates';
 import { ReportState } from '../production/reports/shared';
 import { StatusBadge } from '../leads/StatusBadge';
-import { useAdApi, useAdCampaigns, useAdExpenses, useAdReport, useLeadSources, type AdCampaign, type AdReportRow } from './ad-data';
+import { useAdApi, useAdCampaigns, useAdExpenses, useAdReport, useLeadSources, type AdCampaign, type AdGroupBy, type AdReportRow } from './ad-data';
 
 export function AdsPage() {
   const t = useT();
@@ -45,10 +45,15 @@ function ReportTab() {
   const t = useT();
   const [from, setFrom] = React.useState(dOff(-89));
   const [to, setTo] = React.useState(iso(new Date()));
-  const [groupBy, setGroupBy] = React.useState<'source' | 'campaign'>('source');
+  const [groupBy, setGroupBy] = React.useState<AdGroupBy>('source');
   const q = useAdReport(from, to, groupBy);
   const label = (r: AdReportRow) =>
-    r.key === null ? <span className="muted">{groupBy === 'source' ? t('ads.report.noSource') : t('ads.report.noCampaign')}</span> : (
+    groupBy === 'referrer' ? (
+      <span className="row" style={{ gap: 6 }}>
+        {r.name ?? '—'}
+        {r.refKind && <span className="faint" style={{ fontSize: 12 }}>{t(`ads.report.ref.${r.refKind}`)}</span>}
+      </span>
+    ) : r.key === null ? <span className="muted">{groupBy === 'source' ? t('ads.report.noSource') : t('ads.report.noCampaign')}</span> : (
       <span className="row" style={{ gap: 6 }}>
         <StatusBadge status={{ name: r.name ?? '—', color: r.color ?? 'gray' }} />
         {groupBy === 'campaign' && r.sourceName && <span className="faint" style={{ fontSize: 12 }}>{r.sourceName}</span>}
@@ -73,7 +78,7 @@ function ReportTab() {
         <Input type="date" aria-label={t('ads.report.from')} value={from} max={to} onChange={e => e.target.value && setFrom(e.target.value)} style={{ width: 150 }} />
         <span className="faint">—</span>
         <Input type="date" aria-label={t('ads.report.to')} value={to} min={from} onChange={e => e.target.value && setTo(e.target.value)} style={{ width: 150 }} />
-        <Select size="sm" aria-label={t('ads.report.groupBy')} value={groupBy} onValueChange={v => setGroupBy(v as 'source' | 'campaign')} options={[{ value: 'source', label: t('ads.report.bySource') }, { value: 'campaign', label: t('ads.report.byCampaign') }]} />
+        <Select size="sm" aria-label={t('ads.report.groupBy')} value={groupBy} onValueChange={v => setGroupBy(v as AdGroupBy)} options={[{ value: 'source', label: t('ads.report.bySource') }, { value: 'campaign', label: t('ads.report.byCampaign') }, { value: 'referrer', label: t('ads.report.byReferrer') }]} />
       </div>
       <ReportState q={q} isEmpty={d => !d.rows.length}>
         {d => (
@@ -82,7 +87,7 @@ function ReportTab() {
             <table className="tbl" aria-label={t('ads.tab.report')}>
               <thead>
                 <tr>
-                  <th>{groupBy === 'source' ? t('ads.col.source') : t('ads.col.campaign')}</th>
+                  <th>{groupBy === 'source' ? t('ads.col.source') : groupBy === 'campaign' ? t('ads.col.campaign') : t('ads.field.referrer')}</th>
                   <th className="r">{t('ads.col.leads')}</th>
                   <th className="r">{t('ads.col.conversion')}</th>
                   <th className="r">{t('ads.col.newClients')}</th>
@@ -107,7 +112,7 @@ function ReportTab() {
                 </tr>
               </tbody>
             </table>
-            <p className="faint" style={{ fontSize: 12, marginTop: 8 }}>{t('ads.report.hint')}</p>
+            <p className="faint" style={{ fontSize: 12, marginTop: 8 }}>{groupBy === 'referrer' ? t('ads.report.referrerHint') : t('ads.report.hint')}</p>
           </div>
         )}
       </ReportState>

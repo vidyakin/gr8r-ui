@@ -20,14 +20,16 @@ interface Draft {
   email: string;
   sourceId: string | null;
   campaignId: string | null;
+  referrerCompanyId: string | null;
+  referrerContactId: string | null;
   comment: string;
   ownerId: string;
   statusId: string;
   rejectReason: string;
 }
 
-const fromLead = (l: Lead): Draft => ({ name: l.name, companyName: l.companyName, phone: l.phone, email: l.email, sourceId: l.sourceId, campaignId: l.campaignId, comment: l.comment, ownerId: l.ownerId ?? '', statusId: l.statusId, rejectReason: l.rejectReason });
-const blank: Draft = { name: '', companyName: '', phone: '', email: '', sourceId: null, campaignId: null, comment: '', ownerId: '', statusId: '', rejectReason: '' };
+const fromLead = (l: Lead): Draft => ({ name: l.name, companyName: l.companyName, phone: l.phone, email: l.email, sourceId: l.sourceId, campaignId: l.campaignId, referrerCompanyId: l.referrerCompanyId, referrerContactId: l.referrerContactId, comment: l.comment, ownerId: l.ownerId ?? '', statusId: l.statusId, rejectReason: l.rejectReason });
+const blank: Draft = { name: '', companyName: '', phone: '', email: '', sourceId: null, campaignId: null, referrerCompanyId: null, referrerContactId: null, comment: '', ownerId: '', statusId: '', rejectReason: '' };
 const NO_OWNER = '__none';
 
 function Duplicates({ items, current, onMerge }: { items: DuplicateMatch[]; current: string | null; onMerge: (m: DuplicateMatch) => void }) {
@@ -140,6 +142,8 @@ export function LeadCard({ leadId, onClose, onConvert }: { leadId: string | null
       email: draft.email,
       sourceId: draft.sourceId,
       campaignId: draft.campaignId,
+      referrerCompanyId: draft.referrerCompanyId,
+      referrerContactId: draft.referrerContactId,
       comment: draft.comment,
       ownerId: draft.ownerId || null,
       statusId: draft.statusId || undefined,
@@ -208,7 +212,7 @@ export function LeadCard({ leadId, onClose, onConvert }: { leadId: string | null
             <Field label={t('leads.card.companyName')}>{p => <Input {...p} maxLength={200} value={draft.companyName} onChange={e => set({ companyName: e.target.value })} />}</Field>
             <Field label={t('leads.card.phone')}>{p => <Input {...p} maxLength={50} value={draft.phone} onChange={e => set({ phone: e.target.value })} />}</Field>
             <Field label={t('leads.card.email')}>{p => <Input {...p} maxLength={254} value={draft.email} onChange={e => set({ email: e.target.value })} />}</Field>
-            <AttributionFields value={{ sourceId: draft.sourceId, campaignId: draft.campaignId }} onChange={set} />
+            <AttributionFields value={{ sourceId: draft.sourceId, campaignId: draft.campaignId, referrerCompanyId: draft.referrerCompanyId, referrerContactId: draft.referrerContactId }} onChange={set} />
             <Field label={t('leads.card.owner')}>
               {p => (
                 <Select

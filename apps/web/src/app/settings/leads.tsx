@@ -116,7 +116,7 @@ function FormRow({ form, isAdmin }: { form: LeadForm; isAdmin: boolean }) {
         <div className="stack" style={{ gap: 8, marginTop: 8 }}>
           <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
             <Field label={t('leads.settings.formName')}>{p => <Input {...p} maxLength={200} value={name} onChange={e => setName(e.target.value)} onBlur={() => name.trim() && name !== form.name && void patch({ name: name.trim() })} />}</Field>
-            <AttributionFields value={{ sourceId: form.sourceId, campaignId: form.campaignId }} onChange={v => void patch({ ...v })} />
+            <AttributionFields noReferrer value={{ sourceId: form.sourceId, campaignId: form.campaignId }} onChange={v => void patch({ sourceId: v.sourceId, campaignId: v.campaignId })} />
             <Field label={t('leads.settings.formOwner')}>
               {p => (
                 <Select {...p} value={form.defaultOwnerId ?? AUTO} onValueChange={v => void patch({ defaultOwnerId: v === AUTO ? null : v })} options={[{ value: AUTO, label: t('leads.settings.formOwnerAuto') }, ...owners.map(m => ({ value: m.id, label: m.name }))]} />

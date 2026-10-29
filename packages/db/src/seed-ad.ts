@@ -4,7 +4,7 @@ import { and, asc, eq, isNull } from 'drizzle-orm';
 import type { Db } from './client';
 import { findOrCreateSource } from './ad';
 import { insertLead } from './leads';
-import { adCampaignExpenses, adCampaigns, companies, deals, leadSources } from './schema';
+import { adCampaignExpenses, adCampaigns, companies, contacts, deals, leadSources, leads } from './schema';
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -13,6 +13,10 @@ export async function seedAdCampaigns(db: Db, workspaceId: string, authorId: str
   const src: Record<string, string> = {};
   for (const name of Object.keys(colors)) src[name] = (await findOrCreateSource(db, workspaceId, name)).id;
   for (const [name, color] of Object.entries(colors)) await db.update(leadSources).set({ color }).where(eq(leadSources.id, src[name]!));
+  // «Рекомендация» — контактное лицо: у лида указано, кто именно порекомендовал
+  await db.update(leadSources).set({ kind: 'contact' }).where(eq(leadSources.id, src['Рекомендация']!));
+  const [adviser] = await db.select({ id: contacts.id }).from(contacts).where(eq(contacts.workspaceId, workspaceId)).orderBy(asc(contacts.createdAt), asc(contacts.id)).limit(1);
+  if (adviser) await db.update(leads).set({ referrerContactId: adviser.id }).where(and(eq(leads.workspaceId, workspaceId), eq(leads.sourceId, src['Рекомендация']!)));
 
   const today = new Date();
   const monthAgo = new Date(today.getTime() - 60 * 86_400_000);
@@ -52,7 +56,8 @@ export async function seedAdCampaigns(db: Db, workspaceId: string, authorId: str
   ];
   for (const [i, c] of cs.entries()) {
     const [sourceId, campaignId] = plan[i % plan.length]!;
-    await db.update(companies).set({ sourceId, campaignId }).where(eq(companies.id, c.id));
-    await db.update(deals).set({ sourceId, campaignId }).where(and(eq(deals.companyId, c.id), isNull(deals.sourceId)));
+    const referrerContactId = sourceId === src['Рекомендация'] && adviser ? adviser.id : null;
+    await db.update(companies).set({ sourceId, campaignId, referrerContactId }).where(eq(companies.id, c.id));
+    await db.update(deals).set({ sourceId, campaignId, referrerContactId }).where(and(eq(deals.companyId, c.id), isNull(deals.sourceId)));
   }
 }

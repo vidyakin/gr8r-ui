@@ -3,7 +3,7 @@
 import { zValidator } from '@hono/zod-validator';
 import { and, count, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { adCampaignExpenses, adCampaigns, adReportData, companies, deals, leadForms, leadSources, leads } from '@gr8r/db';
+import { adCampaignExpenses, adCampaigns, adReportData, clearMismatchedReferrers, companies, contacts, deals, leadForms, leadSources, leads } from '@gr8r/db';
 import {
   adCampaignCreate,
   adCampaignQuery,
@@ -38,6 +38,7 @@ export const leadSourceRoutes = crud({
   },
   // переименование обновляет кэш названия у лидов и форм
   afterUpdate: async (ctx, before, after) => {
+    if (before.kind !== after.kind) await clearMismatchedReferrers(ctx.db, after.id, after.kind);
     if (before.name === after.name) return;
     await ctx.db.update(leads).set({ source: after.name }).where(eq(leads.sourceId, after.id));
     await ctx.db.update(leadForms).set({ source: after.name }).where(eq(leadForms.sourceId, after.id));
@@ -119,7 +120,19 @@ export const adReportRoutes = new Hono<AppEnv>().get('/', zValidator('query', ad
   const srcs = await ctx.db.select({ id: leadSources.id, name: leadSources.name, color: leadSources.color }).from(leadSources);
   const camps = q.groupBy === 'campaign' ? await ctx.db.select({ id: adCampaigns.id, name: adCampaigns.name, sourceId: adCampaigns.sourceId }).from(adCampaigns) : [];
   const report = buildAdReport(raw.rows);
+  // кто привёл: ключ — id контрагента или контакта
+  const refIds = q.groupBy === 'referrer' ? report.rows.map(r => r.key).filter((k): k is string => !!k) : [];
+  const refs = refIds.length
+    ? [
+        ...(await ctx.db.select({ id: companies.id, name: companies.name }).from(companies).where(inArray(companies.id, refIds))).map(x => ({ ...x, kind: 'company' as const })),
+        ...(await ctx.db.select({ id: contacts.id, name: contacts.name }).from(contacts).where(inArray(contacts.id, refIds))).map(x => ({ ...x, kind: 'contact' as const })),
+      ]
+    : [];
   const named = report.rows.map(r => {
+    if (q.groupBy === 'referrer') {
+      const ref = refs.find(x => x.id === r.key);
+      return { ...r, name: ref?.name ?? null, color: null, sourceName: null, refKind: ref?.kind ?? null };
+    }
     if (q.groupBy === 'source') {
       const s = srcs.find(x => x.id === r.key);
       return { ...r, name: s?.name ?? null, color: s?.color ?? null, sourceName: s?.name ?? null };

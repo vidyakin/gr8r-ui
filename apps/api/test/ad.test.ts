@@ -123,6 +123,36 @@ describe('расходы и отчёт по каналам', () => {
   });
 });
 
+describe('кто привёл (тип источника)', () => {
+  test('контактное лицо и партнёр: ссылка хранится только под свой тип, переносится конвертацией, отчёт по рекомендателям', async () => {
+    const friend = await mk(member, '/contacts', { name: 'Анна Советчица' });
+    const partner = await mk(member, '/companies', { name: 'Партнёр-дизайнер' });
+    const rec = await mk(owner, '/lead-sources', { name: 'Recommendation', kind: 'contact' });
+    const prt = await mk(owner, '/lead-sources', { name: 'Partners', kind: 'partner' });
+    // под «контактное лицо» сохраняется только контакт
+    const l = await mk(member, '/leads', { name: 'По совету', sourceId: rec.id, referrerContactId: friend.id, referrerCompanyId: partner.id });
+    expect(l).toMatchObject({ referrerContactId: friend.id, referrerCompanyId: null });
+    // у канала рекомендателя нет
+    const ch = await mk(member, '/leads', { name: 'Канал', sourceId: direct.id, referrerContactId: friend.id });
+    expect(ch.referrerContactId).toBeNull();
+    // конвертация переносит рекомендателя в клиента и сделку, сделка клиента наследует его
+    const r = await mk(member, `/leads/${l.id}/convert`, { company: { mode: 'new', name: 'ООО «По совету»' }, contact: { mode: 'none' }, deal: { name: 'Сделка по совету', amount: '500' } });
+    expect((await owner.get(`/companies/${r.companyId}`)).body).toMatchObject({ sourceId: rec.id, referrerContactId: friend.id });
+    expect((await owner.get(`/deals/${r.dealId}`)).body).toMatchObject({ referrerContactId: friend.id });
+    await mk(member, '/deals', { name: 'Партнёрская', stage: 'won', amount: '700', sourceId: prt.id, referrerCompanyId: partner.id });
+    const rep = (await owner.get(`/ad-report?${period}&groupBy=referrer`)).body;
+    expect(rep.rows.find((x: any) => x.key === friend.id)).toMatchObject({ name: 'Анна Советчица', refKind: 'contact', leads: 1, converted: 1, newClients: 1 });
+    expect(rep.rows.find((x: any) => x.key === partner.id)).toMatchObject({ name: 'Партнёр-дизайнер', refKind: 'company', wonDeals: 1, revenue: '700.00' });
+    expect(rep.total.expense).toBe('0.00');
+    // смена типа источника снимает неподходящие ссылки
+    await owner.patch(`/lead-sources/${rec.id}`, { kind: 'channel' });
+    expect((await owner.get(`/companies/${r.companyId}`)).body.referrerContactId).toBeNull();
+    // чужой контакт — 422
+    const foreign = (await other.post('/contacts', { name: 'Чужой' })).body;
+    expect((await member.post('/leads', { name: 'Чужой реком.', sourceId: prt.id, referrerCompanyId: foreign.id })).status).toBe(422);
+  });
+});
+
 describe('изоляция', () => {
   test('чужой воркспейс не видит источники и не может сослаться на кампанию', async () => {
     expect((await other.get('/lead-sources')).body.total).toBe(0);
