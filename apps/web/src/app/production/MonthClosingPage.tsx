@@ -4,13 +4,13 @@
 import * as React from 'react';
 import { Link } from 'react-router';
 import { CalendarCheck, CircleAlert, Lock, RotateCcw } from 'lucide-react';
-import { monthLabel, monthRange } from '@gr8r/shared';
+import { monthRange } from '@gr8r/shared';
 import { Alert, Badge, Button, ConfirmDialog, EmptyState, Field, Input, Select, Skeleton, toast } from '@/components/ui';
 import { useIsAdmin } from '../catalog/data';
 import { errorMessage } from '../data/api';
 import { useSession } from '../data/session';
 import { usePeriodPreview, usePeriods, useClosePeriod, type Closing } from './closing-data';
-import { fmtAmount, fmtDateTime, hasKey, useT, type TKey } from '@/i18n';
+import { fmtAmount, fmtDateTime, fmtMonthYear, hasKey, useT, type TKey } from '@/i18n';
 
 /** Ключ месяца текущей даты: «2026-10» */
 const currentMonth = () => new Date().toISOString().slice(0, 7);
@@ -40,9 +40,9 @@ export function MonthClosingPage() {
     try {
       await close.mutateAsync(target);
       if (reopen) {
-        toast(tt('production.closing.toast.reopening', { count, label: count === 1 ? monthLabel(target.month) : tt('production.closing.monthsCount', { count }) }));
+        toast(tt('production.closing.toast.reopening', { count, label: count === 1 ? fmtMonthYear(target.month) : tt('production.closing.monthsCount', { count }) }));
       } else {
-        toast(tt('production.closing.toast.closing', { count, label: count === 1 ? monthLabel(target.month) : tt('production.closing.monthsCount', { count }) }));
+        toast(tt('production.closing.toast.closing', { count, label: count === 1 ? fmtMonthYear(target.month) : tt('production.closing.monthsCount', { count }) }));
       }
     } catch (e) {
       toast.error(errorMessage(e));
@@ -82,7 +82,7 @@ export function MonthClosingPage() {
           <div className="row" style={{ gap: 8, marginLeft: 'auto' }}>
             <Button variant="primary" disabled={!isAdmin || close.isPending} onClick={() => void run(false, { month, through: mode === 'period' ? through : undefined })}>
               <CalendarCheck size={14} />
-              {tt('production.closing.runButton', { label: mode === 'period' && months.length > 1 ? tt('production.closing.monthsCount', { count: months.length }) : monthLabel(month) })}
+              {tt('production.closing.runButton', { label: mode === 'period' && months.length > 1 ? tt('production.closing.monthsCount', { count: months.length }) : fmtMonthYear(month) })}
             </Button>
             <Button disabled={!isOwner || close.isPending || closing?.status !== 'done'} onClick={() => setConfirmReopen(closing!)}>
               <RotateCcw size={14} />
@@ -137,7 +137,7 @@ export function MonthClosingPage() {
                 <tr key={c.id}>
                   <td>
                     <button type="button" className="crm-link" onClick={() => setMonth(c.month)}>
-                      {c.label}
+                      {fmtMonthYear(c.month)}
                     </button>
                   </td>
                   <td>
@@ -169,7 +169,7 @@ export function MonthClosingPage() {
             setConfirmReopen(null);
             void run(true, target);
           }}
-          description={tt('production.closing.reopenDesc', { label: confirmReopen.label })}
+          description={tt('production.closing.reopenDesc', { label: fmtMonthYear(confirmReopen.month) })}
         />
       )}
     </div>
@@ -184,7 +184,7 @@ function PreviewPanel({ month }: { month: string }) {
   return (
     <section className="panel plain" style={{ flex: 1, minWidth: 0 }} aria-label={tt('production.closing.previewAria')}>
       <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
-        <h2 style={{ margin: 0, fontSize: 14 }}>{tt('production.closing.previewTitle', { label: monthLabel(month) })}</h2>
+        <h2 style={{ margin: 0, fontSize: 14 }}>{tt('production.closing.previewTitle', { label: fmtMonthYear(month) })}</h2>
         <span className="faint" style={{ fontSize: 12 }}>
           {tt('production.closing.totalLabel')}: {preview.data?.total ?? '—'}
         </span>

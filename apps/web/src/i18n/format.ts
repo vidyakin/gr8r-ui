@@ -48,3 +48,10 @@ export const monthShort = (m: number) => fmtDateTimeIntl(new Date(2000, m, 1), {
 
 /** Короткое имя дня недели (0 — воскресенье) */
 export const weekdayShort = (wd: number) => fmtDateTimeIntl(new Date(2000, 0, 2 + wd), { weekday: 'short' });
+
+/** Месяц с годом из «2026-10»: «October 2026» / «октябрь 2026» (без «г.», который ru-RU добавляет к году) */
+export function fmtMonthYear(month: string) {
+  const [y, m] = month.split('-').map(Number);
+  if (!y || !m) return month;
+  return `${fmtDateTimeIntl(new Date(y, m - 1, 1), { month: 'long' })} ${y}`;
+}
