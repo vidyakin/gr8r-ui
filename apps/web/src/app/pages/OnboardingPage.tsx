@@ -220,7 +220,7 @@ export function OnboardingPage() {
             id="o-ws"
             data-af
             value={o.ws}
-            placeholder="e.g. Gr8r Studio"
+            placeholder="e.g. FutureERP"
             onChange={e => {
               const ws = e.target.value;
               set({ ws, ...(urlTouched.current ? {} : { url: ws.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') }) });

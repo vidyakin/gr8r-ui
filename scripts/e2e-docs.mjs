@@ -28,7 +28,7 @@ await page.click('#login-btn');
 await page.waitForSelector('.topbar');
 const ws = await page.evaluate(async () => {
   const r = await (await fetch('/api/workspaces', { credentials: 'include' })).json();
-  return (r.items ?? r).find(w => w.name === 'Gr8r Studio').id;
+  return (r.items ?? r).find(w => w.name === 'FutureERP').id;
 });
 const api = path => page.evaluate(async ([w, p]) => (await fetch('/api' + p, { credentials: 'include', headers: { 'X-Workspace-Id': w } })).json(), [ws, path]);
 const screwBalance = async () => {
