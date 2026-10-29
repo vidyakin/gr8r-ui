@@ -7,9 +7,10 @@
    Граф — дерево от триггера (публикация запрещает слияния и циклы). Очередь `state.queue` хранит узлы к выполнению; её голова — текущий узел.
    Задержка и повтор временной ошибки не держат воркер: запуск переходит в waiting, а задача `flow.run` ставится в jobs с run_at. */
 import { and, eq } from 'drizzle-orm';
-import { enqueueRun, flowRunSteps, flowRuns, flowVersions, flows, recordEvent, withContext, type Db, type Sql, type Tx } from '@gr8r/db';
+import { enqueueRun, readMyModules, flowRunSteps, flowRuns, flowVersions, flows, recordEvent, withContext, type Db, type Sql, type Tx } from '@gr8r/db';
 import {
   getNodeDef,
+  MODULE_OF_NODE,
   resolveTemplates,
   TransientError,
   triggerNodeOf,
@@ -100,6 +101,9 @@ async function stepRun(db: Db, tx: Tx, ws: string, runId: string): Promise<Outco
   };
   if (!flow || !ver) return finish('failed', 'The flow or its published version no longer exists');
   if (run.triggerKind !== 'manual' && !flow.enabled) return finish('skipped', 'The flow is disabled');
+  // Лицензия (docs/architecture/licensing.md): модуль мог отключиться после постановки запуска или во время задержки
+  const modules = await readMyModules(db);
+  if (!modules.has('automations')) return finish('skipped', 'Skipped: the "automations" module is not enabled for this workspace');
   const graph = ver.graph;
 
   // Старт: курсор — триггер
@@ -174,6 +178,9 @@ async function stepRun(db: Db, tx: Tx, ws: string, runId: string): Promise<Outco
     await db.update(flowRunSteps).set({ status: 'failed', error: message, finishedAt: new Date() }).where(eq(flowRunSteps.id, stepId!));
     return finish('failed', `${def.label}: ${message}`);
   };
+
+  const nodeModule = MODULE_OF_NODE.get(node.type) ?? 'automations';
+  if (!modules.has(nodeModule)) return failStep(`The "${nodeModule}" module is not enabled for this workspace`);
 
   const parsed = def.params.safeParse(input);
   if (!parsed.success) return failStep(`Invalid parameters — ${parsed.error.issues.map((i: { path: PropertyKey[]; message: string }) => `${i.path.map(String).join('.') || 'params'}: ${i.message}`).join('; ')}`);

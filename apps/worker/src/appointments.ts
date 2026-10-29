@@ -1,6 +1,6 @@
 /* Задачи воркера записи на приём (задача 1171): напоминание накануне («Подтвердите запись») и контроль незакрытых дней
    (вечером и утром по часовому поясу воркспейса). Журналы appointment_reminders и appointment_day_alerts делают проходы идемпотентными. */
-import { runAppointmentReminders, runUnclosedDayAlerts, withContext, workspaces, type Sql } from '@gr8r/db';
+import { modulesByWorkspace, runAppointmentReminders, runUnclosedDayAlerts, withContext, workspaces, type Sql } from '@gr8r/db';
 import { dateInTimezone, wallClock } from '@gr8r/shared';
 
 export interface AppointmentsRun {
@@ -11,7 +11,9 @@ export interface AppointmentsRun {
 export async function runAppointmentsOnce(sql: Sql, at: Date = new Date()): Promise<AppointmentsRun> {
   const zones = await withContext(sql, {}, db => db.select({ id: workspaces.id, timezone: workspaces.timezone }).from(workspaces), 'app_worker');
   const out: AppointmentsRun = { reminders: 0, alerts: 0 };
+  const modules = await modulesByWorkspace(sql);
   for (const ws of zones) {
+    if (!modules.get(ws.id)?.has('services')) continue; // модуль «Услуги» выключен
     const today = dateInTimezone(ws.timezone, at);
     const hour = wallClock(at, ws.timezone).getUTCHours();
     await withContext(
