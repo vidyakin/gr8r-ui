@@ -35,3 +35,4 @@ export * from './leads';
 export * from './ad-report';
 export * from './qr';
 export * from './pipelines';
+export * from './licensing';

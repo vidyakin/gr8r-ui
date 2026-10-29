@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { ROLES } from '../constants';
 import { clientId, uuid } from './common';
 import { localeSchema } from '../i18n';
+import { MODULE_IDS } from '../licensing';
 
 const email = z.string().trim().toLowerCase().max(254).pipe(z.email());
 const password = z.string().min(8, 'Password must be at least 8 characters').max(200);
@@ -48,3 +49,28 @@ export const tenantCreateBody = z.object({
   demo: z.boolean().default(false),
   ttlDays: z.number().int().min(1).max(365).optional(),
 });
+
+/* Тарифы и лицензии арендаторов (задача 1205, docs/architecture/licensing.md): тела запросов оператора */
+const moduleIdSchema = z.enum(MODULE_IDS);
+const isoDate = z.string().datetime({ offset: true });
+
+export const licensePlanBody = z.object({
+  key: z.string().trim().min(1).max(40).regex(/^[a-z0-9_-]+$/).optional(),
+  name: z.string().trim().min(1).max(100),
+  description: z.string().trim().max(1000).nullable().optional(),
+  modules: z.array(moduleIdSchema).max(20).default([]),
+  allModules: z.boolean().default(false),
+  limits: z.record(z.string(), z.number().int().min(0)).default({}),
+  trialDays: z.number().int().min(1).max(365).nullable().optional(),
+  isDefault: z.boolean().default(false),
+  sortOrder: z.number().int().min(0).max(1000).default(0),
+});
+export type LicensePlanBody = z.infer<typeof licensePlanBody>;
+
+export const tenantLicenseBody = z.object({
+  planId: uuid,
+  planExpiresAt: isoDate.nullable().default(null),
+  limits: z.record(z.string(), z.number().int().min(0)).default({}),
+  grants: z.array(z.object({ module: moduleIdSchema, expiresAt: isoDate.nullable().default(null) })).max(20).default([]),
+});
+export type TenantLicenseBody = z.infer<typeof tenantLicenseBody>;
