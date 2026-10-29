@@ -3,8 +3,8 @@
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { createMiddleware } from 'hono/factory';
-import { createTenant, exportTenant, isOperator, listTenantsForOperator, requestTenantDelete } from '@gr8r/db';
-import { tenantCreateBody, workspaceParam } from '@gr8r/shared';
+import { createTenant, deletePlan, exportTenant, getTenantLicense, isOperator, listPlans, listTenantsForOperator, requestTenantDelete, savePlan, setTenantLicense } from '@gr8r/db';
+import { licensePlanBody, tenantCreateBody, tenantLicenseBody, workspaceParam } from '@gr8r/shared';
 import { validationHook } from './crud';
 import { forbidden } from './errors';
 import { requireSession } from './middleware';
@@ -28,6 +28,20 @@ export const adminRoutes = new Hono<AppEnv>()
     await requestTenantDelete(c.get('sql'), c.req.valid('param').id);
     return c.json({ ok: true }, 202);
   })
+  // Тарифы и лицензии арендаторов (задача 1205, docs/architecture/licensing.md): запись — функции БД app_operator_*
+  .get('/plans', async c => c.json({ items: await listPlans(c.get('sql'), c.get('user').id) }))
+  .post('/plans', zValidator('json', licensePlanBody, validationHook), async c => c.json(await savePlan(c.get('sql'), c.get('user').id, null, c.req.valid('json')), 201))
+  .put('/plans/:id', zValidator('param', workspaceParam, validationHook), zValidator('json', licensePlanBody, validationHook), async c =>
+    c.json(await savePlan(c.get('sql'), c.get('user').id, c.req.valid('param').id, c.req.valid('json'))),
+  )
+  .delete('/plans/:id', zValidator('param', workspaceParam, validationHook), async c => {
+    await deletePlan(c.get('sql'), c.get('user').id, c.req.valid('param').id);
+    return c.json({ ok: true });
+  })
+  .get('/tenants/:id/license', zValidator('param', workspaceParam, validationHook), async c => c.json(await getTenantLicense(c.get('sql'), c.get('user').id, c.req.valid('param').id)))
+  .put('/tenants/:id/license', zValidator('param', workspaceParam, validationHook), zValidator('json', tenantLicenseBody, validationHook), async c =>
+    c.json(await setTenantLicense(c.get('sql'), c.get('user').id, c.req.valid('param').id, c.req.valid('json'))),
+  )
   .get('/tenants/:id/export', zValidator('param', workspaceParam, validationHook), async c => {
     const id = c.req.valid('param').id;
     const archive = await exportTenant(c.get('sql'), id);

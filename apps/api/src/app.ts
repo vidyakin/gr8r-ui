@@ -9,7 +9,9 @@ import { adminRoutes } from './admin';
 import { authRoutes } from './auth';
 import { loadConfig } from './env';
 import { AppError, dbUnavailable, forbidden, onError, onNotFound } from './errors';
-import { requireSession, requestLogger, tenant } from './middleware';
+import { requireModule, requireSession, requestLogger, tenant } from './middleware';
+import { MODULE_OF_PATH } from '@gr8r/shared';
+import { licenseRoutes } from './routes/license';
 import { Hub } from './realtime';
 import { attributeRoutes, categoryRoutes, productRoutes, unitRoutes, variantRoutes } from './routes/catalog';
 import { bomLineRoutes, itemRoutes, productionRoutes, workCenterRoutes } from './routes/production';
@@ -82,13 +84,17 @@ export interface AppDeps {
 }
 
 /** Ресурсы арендатора: каждый путь защищён цепочкой «сессия → членство → транзакция с RLS» */
-const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/files', '/activity', '/events', '/companies', '/contacts', '/deals', '/deal-pipelines', '/deal-stages', '/deal-lost-reasons', '/deal-funnel', '/crm-activities', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production', '/production-orders', '/production-plans', '/stock-levels', '/organizations', '/bank-accounts', '/warehouses', '/cost-items', '/documents', '/order-calculations', '/stock', '/flows', '/flow-runs', '/work-orders', '/work-order-assignments', '/work-order-kinds', '/document-states', '/services', '/contracts', '/tariff-plans', '/billing', '/other-costs', '/material-allocations', '/investments', '/processing', '/processor-reports', '/supplier-orders', '/serials', '/repair-items', '/sales-plan', '/appointments', '/delivery-methods', '/deliveries', '/positions', '/product-kinds', '/leads', '/lead-statuses', '/lead-forms', '/lead-sources', '/ad-campaigns', '/ad-expenses', '/ad-report', '/secrets', '/payments', '/payment-calendar', '/payment-requests', '/opening-balances', '/bank-import', '/cash-registers', '/cash-flow-items', '/bank-connections', '/payment-links', '/payroll', '/pricing', '/doc-templates'];
+export const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/files', '/activity', '/events', '/companies', '/contacts', '/deals', '/deal-pipelines', '/deal-stages', '/deal-lost-reasons', '/deal-funnel', '/crm-activities', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production', '/production-orders', '/production-plans', '/stock-levels', '/organizations', '/bank-accounts', '/warehouses', '/cost-items', '/documents', '/order-calculations', '/stock', '/flows', '/flow-runs', '/work-orders', '/work-order-assignments', '/work-order-kinds', '/document-states', '/services', '/contracts', '/tariff-plans', '/billing', '/other-costs', '/material-allocations', '/investments', '/processing', '/processor-reports', '/supplier-orders', '/serials', '/repair-items', '/sales-plan', '/appointments', '/delivery-methods', '/deliveries', '/positions', '/product-kinds', '/leads', '/lead-statuses', '/lead-forms', '/lead-sources', '/ad-campaigns', '/ad-expenses', '/ad-report', '/secrets', '/payments', '/payment-calendar', '/payment-requests', '/opening-balances', '/bank-import', '/cash-registers', '/cash-flow-items', '/bank-connections', '/payment-links', '/payroll', '/pricing', '/doc-templates', '/license'];
 
 function buildTenantApi() {
   const guarded = new Hono<AppEnv>();
   for (const p of TENANT_PATHS) {
-    guarded.use(p, requireSession, tenant());
-    guarded.use(`${p}/*`, requireSession, tenant());
+    // каждый корневой путь принадлежит модулю (@gr8r/shared licensing): путь без модуля — ошибка сборки, а не дыра в запрете
+    const module = MODULE_OF_PATH.get(p);
+    if (!module) throw new Error(`Tenant path ${p} does not belong to any module (packages/shared/src/licensing.ts)`);
+    const chain = module === 'core' ? [requireSession, tenant()] : [requireSession, tenant(), requireModule(module)];
+    guarded.use(p, ...chain);
+    guarded.use(`${p}/*`, ...chain);
   }
   return guarded
     .route('/projects', projectRoutes)
@@ -188,7 +194,8 @@ function buildTenantApi() {
     .route('/billing', billingRoutes)
     .route('/stock', stockRoutes)
     .route('/flows', flowRoutes)
-    .route('/flow-runs', flowRunRoutes);
+    .route('/flow-runs', flowRunRoutes)
+    .route('/license', licenseRoutes);
 }
 
 export function createApp(deps: AppDeps) {

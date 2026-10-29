@@ -3,8 +3,8 @@ import { and, eq, gt } from 'drizzle-orm';
 import { getCookie } from 'hono/cookie';
 import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
-import { drizzleOf, isUuid, memberships, members, sessions, setContext, users, type Tx } from '@gr8r/db';
-import { ROLES, type Role } from '@gr8r/shared';
+import { drizzleOf, isUuid, readMyModules, memberships, members, sessions, setContext, users, type Tx } from '@gr8r/db';
+import { ROLES, type ModuleId, type Role } from '@gr8r/shared';
 import { AppError, Rollback, dbUnavailable, forbidden, unauthorized } from './errors';
 import type { AppEnv } from './types';
 
@@ -130,3 +130,21 @@ export const requireRole = (min: Role) =>
   });
 
 export const hasRole = (c: { get(k: 'role'): Role }, min: Role) => rank(c.get('role')) >= rank(min);
+
+/** Включённые модули арендатора: читается один раз за запрос (функция app_workspace_license, контекст арендатора уже выставлен tenant()) */
+export async function modulesOf(c: Context<AppEnv>): Promise<Set<ModuleId>> {
+  let m = c.get('modules');
+  if (!m) {
+    m = await readMyModules(c.get('db'));
+    c.set('modules', m);
+  }
+  return m;
+}
+
+/** Запрет по модулю: путь, чей модуль выключен у арендатора, отвечает 403 module_disabled (docs/architecture/licensing.md).
+    Ставится после tenant(), поэтому работает в транзакции запроса — ответ откатывает её. Пути ядра запроса не делают */
+export const requireModule = (module: ModuleId) =>
+  createMiddleware<AppEnv>(async (c, next) => {
+    if (!(await modulesOf(c)).has(module)) throw new AppError(403, 'module_disabled', `Module "${module}" is not enabled for this workspace`, { module });
+    await next();
+  });

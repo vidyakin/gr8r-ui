@@ -1,5 +1,5 @@
 import type { Db, Sql, Tx } from '@gr8r/db';
-import type { Role } from '@gr8r/shared';
+import type { ModuleId, Role } from '@gr8r/shared';
 
 export interface SessionUser {
   id: string;
@@ -48,5 +48,7 @@ export interface AppEnv {
     workspaceId: string;
     memberId: string;
     role: Role;
+    /** Включённые модули арендатора: заполняется лениво (`modulesOf(c)`), один запрос на HTTP-запрос */
+    modules: Set<ModuleId>;
   };
 }

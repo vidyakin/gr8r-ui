@@ -5,7 +5,7 @@
 import { sql as dsql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { campaignByUtm, enqueueYooPayment, findEnabledForm, insertLead, isUuid, parseFormToken, parsePriceToken, pickRoundRobin, publicPriceList, rateLimits, withContext, type Sql } from '@gr8r/db';
+import { campaignByUtm, enqueueYooPayment, findEnabledForm, insertLead, isUuid, parseFormToken, parsePriceToken, pickRoundRobin, publicPriceList, rateLimits, readMyModules, withContext, type Sql } from '@gr8r/db';
 import { leadWebhookBody, pickUtm, yooWebhookBody } from '@gr8r/shared';
 import { AppError } from '../errors';
 import { isYooKassaIp } from '../yookassa-ip';
@@ -48,7 +48,10 @@ export const hookRoutes = new Hono<AppEnv>()
     const q = c.req.query('q')?.trim().slice(0, 100);
     const limit = Math.min(500, Math.max(1, Number(c.req.query('limit')) || 200));
     const offset = Math.max(0, Number(c.req.query('offset')) || 0);
-    const data = await withContext(sql, { workspaceId: parsed.workspaceId }, db => publicPriceList(db, parsed.workspaceId, parsed.secret, { q, limit, offset }));
+    const data = await withContext(sql, { workspaceId: parsed.workspaceId }, async db => {
+      if (!(await readMyModules(db)).has('trade')) return null; // модуль выключен: как несуществующая ссылка
+      return publicPriceList(db, parsed.workspaceId, parsed.secret, { q, limit, offset });
+    });
     if (!data) throw notFound();
     c.header('Cache-Control', 'no-store');
     c.header('X-Content-Type-Options', 'nosniff');
@@ -87,6 +90,7 @@ export const hookRoutes = new Hono<AppEnv>()
     if (!b.name && !b.phone && !b.email) throw new AppError(422, 'validation_error', 'Provide at least a name, a phone or an email');
 
     await withContext(sql, { workspaceId: parsed.workspaceId }, async db => {
+      if (!(await readMyModules(db)).has('crm')) throw notFound(); // модуль выключен: как несуществующая форма
       const form = await findEnabledForm(db, parsed.secret);
       if (!form) throw notFound();
       const ownerId = form.defaultOwnerId ?? (await pickRoundRobin(db, parsed.workspaceId));
@@ -126,7 +130,9 @@ export const hookRoutes = new Hono<AppEnv>()
     if (!body.success) throw new AppError(400, 'validation_error', 'Invalid notification');
     if (body.data.event === 'payment.succeeded' || body.data.event === 'payment.canceled') {
       const paymentId = body.data.object.id;
-      await withContext(sql, { workspaceId }, db => enqueueYooPayment(db, workspaceId, paymentId));
+      await withContext(sql, { workspaceId }, async db => {
+        if ((await readMyModules(db)).has('integrations')) await enqueueYooPayment(db, workspaceId, paymentId); // модуль выключен: платёж не обрабатываем, ответ прежний
+      });
     }
     return c.json({ ok: true as const });
   });
