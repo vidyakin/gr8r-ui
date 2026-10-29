@@ -1,0 +1,15 @@
+/* Стили интерфейса берутся из apps/web как есть — «записи» выглядят как продукт. Только то, что нужно кадрам и странице:
+   без Tailwind и без оболочки .shell (её медиазапросы зависят от ширины окна, а у кадра своя ширина). */
+@import '../../web/src/styles/tokens.css';
+@import '../../web/src/styles/base.css' layer(base);
+@import '../../web/src/styles/components.css' layer(components);
+@import '../../web/src/styles/overlays.css' layer(components);
+@import '../../web/src/styles/domain.css' layer(components);
+@import '../../web/src/styles/app.css' layer(components);
+@import '../../web/src/styles/task-views.css' layer(components);
+@import '../../web/src/styles/board-columns.css' layer(components);
+@import '../../web/src/styles/gr8r-blocks.css' layer(components);
+@import '../../web/src/styles/crm.css' layer(components);
+@import '../../web/src/styles/docs.css' layer(components);
+@import '../../web/src/styles/appointments.css' layer(components);
+@import './landing.css';

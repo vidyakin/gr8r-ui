@@ -24,6 +24,22 @@
         "zod": "^4.1.0",
       },
     },
+    "apps/landing": {
+      "name": "@gr8r/landing",
+      "version": "0.1.0",
+      "dependencies": {
+        "lucide-react": "^1.59.0",
+        "react": "^19.3.1",
+        "react-dom": "^19.3.1",
+      },
+      "devDependencies": {
+        "@types/react": "^19.3.0",
+        "@types/react-dom": "^19.3.0",
+        "@vitejs/plugin-react": "^6.1.2",
+        "typescript": "^7.0.2",
+        "vite": "^8.3.4",
+      },
+    },
     "apps/web": {
       "name": "@gr8r/web",
       "version": "0.1.0",
@@ -158,6 +174,8 @@
     "@gr8r/api": ["@gr8r/api@workspace:apps/api"],
 
     "@gr8r/db": ["@gr8r/db@workspace:packages/db"],
+
+    "@gr8r/landing": ["@gr8r/landing@workspace:apps/landing"],
 
     "@gr8r/shared": ["@gr8r/shared@workspace:packages/shared"],
 

@@ -1,0 +1,954 @@
+/* ============================================================
+   Лендинг: страница (l-*) и кадры «записей» (.stage, d-*)
+   ============================================================ */
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 72px;
+}
+body {
+  height: auto;
+  font-size: var(--fs-md);
+}
+h1,
+h2,
+p,
+dl,
+dd,
+ul,
+ol {
+  margin: 0;
+}
+
+.l-wrap {
+  max-width: 1232px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* ---------- шапка ---------- */
+.l-head {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--bg);
+  border-bottom: 1px solid var(--divider);
+}
+.l-head-in {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  height: 60px;
+}
+.l-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.l-brand b {
+  font-weight: 600;
+  color: var(--accent);
+}
+.l-nav {
+  display: flex;
+  gap: 22px;
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--text-2);
+}
+.l-nav a:hover {
+  color: var(--text);
+}
+
+/* ---------- первый экран ---------- */
+.l-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  align-items: center;
+  gap: 48px 64px;
+  padding-top: 80px;
+}
+.l-hero h1 {
+  font-size: clamp(34px, 4.6vw, 60px);
+  line-height: 1.03;
+  letter-spacing: -0.038em;
+  font-weight: 600;
+  max-width: 13.5em;
+  text-wrap: balance;
+}
+.l-lead {
+  margin-top: 26px;
+  max-width: 60ch;
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--text-2);
+  text-wrap: pretty;
+}
+.l-ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 34px;
+}
+/* ---------- сквозная цепочка в первом экране ---------- */
+.l-flow {
+  position: relative;
+  isolation: isolate;
+  padding: 8px 0;
+}
+/* размытое пятно акцентного цвета за цепочкой */
+.l-flow::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  left: 4%;
+  top: 12%;
+  width: 78%;
+  height: 72%;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.16;
+  filter: blur(70px);
+  pointer-events: none;
+}
+.l-flow-h {
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: var(--text-3);
+}
+.l-flow-body {
+  position: relative;
+  /* постоянная высота: шаги растут и сжимаются внутри, первый экран не прыгает (текст шагов — в одну строку) */
+  height: 448px;
+}
+.l-flow-list {
+  list-style: none;
+  padding: 0;
+}
+/* одна линия через все значки (от центра первого до центра последнего) и её заливка до текущего шага */
+.l-flow-body::before,
+.l-flow-fill {
+  content: '';
+  position: absolute;
+  left: 23px;
+  width: 2px;
+  border-radius: 1px;
+}
+.l-flow-body::before {
+  top: 25px;
+  bottom: 25px;
+  background: var(--border);
+}
+.l-flow-fill {
+  top: 25px;
+  height: 0;
+  background: var(--accent);
+}
+/* размер значка и отступ шага — анимируемые переменные: текущий шаг крупнее остальных */
+@property --ic {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 34px;
+}
+@property --pad {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 8px;
+}
+.l-step {
+  --ic: 34px;
+  --pad: 8px;
+  position: relative;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 14px;
+  padding: var(--pad) 0;
+  transition:
+    --ic 0.45s var(--ease),
+    --pad 0.45s var(--ease);
+}
+.l-step.on {
+  --ic: 48px;
+  --pad: 14px;
+}
+.l-step-ic {
+  display: grid;
+  place-items: center;
+  position: relative;
+  z-index: 1;
+  justify-self: center;
+  width: var(--ic);
+  height: var(--ic);
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-4);
+  transition:
+    color 0.35s,
+    background 0.35s,
+    border-color 0.35s,
+    box-shadow 0.35s;
+}
+.l-step-ic svg {
+  transition: transform 0.45s var(--ease);
+}
+.l-step.on .l-step-ic svg {
+  transform: scale(1.3);
+}
+.l-step-t {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.l-step-t b {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-3);
+  transition:
+    color 0.35s,
+    font-size 0.45s var(--ease);
+}
+.l-step.on .l-step-t b {
+  font-size: 23px;
+  letter-spacing: -0.02em;
+}
+.l-step-t span {
+  font-size: 14px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.55;
+  transition:
+    opacity 0.35s,
+    font-size 0.45s var(--ease);
+}
+.l-step.on .l-step-t span {
+  font-size: 15.5px;
+}
+.l-step-ok {
+  color: var(--green);
+}
+.l-step.on .l-step-ic {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 5px var(--accent-soft);
+}
+.l-step.done .l-step-ic {
+  color: var(--accent);
+  border-color: var(--accent-line);
+  /* непрозрачный фон: линия идёт под значками */
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+.l-step.on .l-step-t b,
+.l-step.done .l-step-t b {
+  color: var(--text);
+}
+.l-step.on .l-step-t span,
+.l-step.done .l-step-t span {
+  opacity: 1;
+  color: var(--text-2);
+}
+
+/* ---------- модули: вкладки и страница модуля ---------- */
+.l-mods {
+  padding-top: 96px;
+}
+.l-tabs {
+  display: flex;
+  gap: 44px;
+  border-bottom: 1px solid var(--border);
+}
+.l-tab {
+  position: relative;
+  padding: 18px 0;
+  text-align: left;
+  font-size: clamp(17px, 1.9vw, 22px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-3);
+  transition: color var(--dur);
+}
+.l-tab:hover {
+  color: var(--text);
+}
+.l-tab[aria-selected='true'] {
+  color: var(--text);
+}
+.l-tab[aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--text);
+}
+.l-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+.l-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+  gap: 32px 48px;
+  padding-top: 40px;
+  animation: dIn 0.3s var(--ease) both;
+}
+.l-panel-text h2 {
+  font-size: clamp(26px, 2.6vw, 34px);
+  line-height: 1.12;
+  letter-spacing: -0.028em;
+  font-weight: 600;
+  text-wrap: balance;
+}
+.l-panel-text > p {
+  margin-top: 14px;
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--text-2);
+  text-wrap: pretty;
+}
+.l-feats {
+  margin-top: 28px;
+}
+.l-feats > div {
+  padding: 14px 0;
+  border-top: 1px solid var(--divider);
+}
+.l-feats dt {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.l-feats dd {
+  margin-top: 3px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.l-soon {
+  display: grid;
+  place-items: center;
+  min-height: 420px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 12px;
+  padding: 24px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 16px;
+}
+
+/* ---------- что ещё есть ---------- */
+.l-more {
+  padding-top: 120px;
+}
+.l-more-h {
+  display: grid;
+  grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+  gap: 14px 48px;
+  padding-top: 24px;
+  margin-bottom: 28px;
+  border-top: 1px solid var(--border);
+}
+.l-more-h p,
+.l-req p {
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--text-2);
+  max-width: 62ch;
+  text-wrap: pretty;
+}
+.l-more-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 56px;
+}
+.l-more-list > div {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 16px;
+  padding: 14px 0;
+  border-top: 1px solid var(--divider);
+  font-size: 16px;
+}
+.l-more-list dt {
+  font-weight: 500;
+}
+.l-more-list dd {
+  color: var(--text-2);
+}
+.l-platform {
+  margin-top: 28px;
+  max-width: 70ch;
+  color: var(--text-2);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+/* ---------- заявка ---------- */
+.l-req {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: 24px 56px;
+  margin-top: 112px;
+  padding-top: 24px;
+  padding-bottom: 112px;
+  border-top: 1px solid var(--border);
+}
+.l-req p {
+  margin-top: 14px;
+}
+.l-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 14px;
+}
+.l-span {
+  grid-column: 1 / -1;
+}
+.l-form .textarea {
+  font-size: var(--fs-md);
+  resize: vertical;
+}
+.l-form-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.l-form-done {
+  align-self: start;
+  padding: 18px 20px;
+  border-radius: var(--r-lg);
+  background: var(--green-soft);
+  color: var(--text);
+  font-size: 15px;
+}
+.l-foot {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 28px;
+  padding-bottom: 48px;
+  border-top: 1px solid var(--divider);
+  font-size: 13px;
+  color: var(--text-3);
+}
+.l-foot a:hover {
+  color: var(--text);
+}
+
+@media (max-width: 860px) {
+  .l-hero,
+  .l-panel,
+  .l-more-h,
+  .l-req {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .l-more-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* на узком экране запись — сразу под вкладками, возможности ниже */
+  .l-panel-shot {
+    order: -1;
+  }
+}
+@media (max-width: 720px) {
+  .l-wrap {
+    padding: 0 16px;
+  }
+  .l-nav {
+    display: none;
+  }
+  .l-head-in > .btn {
+    margin-left: auto;
+  }
+  .l-hero {
+    padding-top: 56px;
+  }
+  .l-lead {
+    font-size: 16.5px;
+  }
+  .l-mods,
+  .l-more {
+    padding-top: 72px;
+  }
+  /* вкладки на телефоне — лентой с прокруткой */
+  .l-tabs {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin: 0 -16px;
+    padding: 0 16px;
+  }
+  .l-tabs {
+    gap: 28px;
+  }
+  .l-tab {
+    flex-shrink: 0;
+  }
+  .l-panel {
+    padding-top: 28px;
+  }
+  .l-more-list > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+  .l-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ============================================================
+   «Запись»: рамка, кадр, курсор, строка управления
+   ============================================================ */
+.rec {
+  margin: 0;
+}
+.rec-frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  box-shadow: 0 32px 64px -36px rgba(28, 25, 20, 0.22);
+}
+.stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  transform-origin: 0 0;
+  background: var(--surface);
+  font-size: var(--fs);
+  user-select: none;
+}
+.rec-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 14px;
+  color: var(--text-3);
+}
+.rec-btn {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--border-strong);
+  color: var(--text-2);
+  transition: background var(--dur);
+}
+.rec-btn:hover {
+  background: var(--surface-2);
+}
+.rec-cap {
+  min-width: 0;
+  line-height: 1.45;
+}
+@keyframes recPulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 40;
+  pointer-events: none;
+  transition-property: transform, opacity;
+  transition-timing-function: cubic-bezier(0.45, 0.05, 0.25, 1), ease;
+  will-change: transform;
+}
+.cursor svg {
+  position: relative;
+  z-index: 1;
+  margin: -2px 0 0 -2px;
+  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.25));
+  transition: transform 0.12s var(--ease);
+  transform-origin: 2px 2px;
+}
+.cursor.down svg {
+  transform: scale(0.88);
+}
+.cursor.gone {
+  opacity: 0;
+}
+.cursor .ring {
+  position: absolute;
+  left: -12px;
+  top: -12px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  opacity: 0;
+}
+.cursor.down .ring {
+  animation: clickRing 0.42s var(--ease);
+}
+@keyframes clickRing {
+  from {
+    opacity: 0.7;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+.ghost {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 30;
+  width: 236px;
+  pointer-events: none;
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.45, 0.05, 0.25, 1);
+}
+.ghost .kcard {
+  box-shadow: var(--shadow-drag);
+}
+.stage.compact .ghost {
+  width: 188px;
+}
+
+/* ---------- оболочка приложения в кадре ---------- */
+.d-shell {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  height: 100%;
+}
+.stage.compact .d-shell {
+  grid-template-columns: minmax(0, 1fr);
+}
+.d-shell .main {
+  min-height: 0;
+}
+.d-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-top: 20px;
+}
+.d-page-in {
+  display: flex;
+  flex-direction: column;
+  animation: dIn 0.28s var(--ease) both;
+}
+.d-ph {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 var(--gutter);
+  margin-bottom: 14px;
+}
+.d-ph h1 {
+  margin: 0;
+  font-size: var(--fs-2xl);
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  line-height: 1.2;
+}
+.d-ph p {
+  margin-top: 4px;
+  color: var(--text-2);
+  font-size: var(--fs);
+}
+.d-tabs {
+  padding: 0 var(--gutter);
+}
+.d-toolbar {
+  display: flex;
+  gap: 6px;
+  padding: 12px var(--gutter);
+}
+
+/* медиазапросы приложения срабатывают по ширине окна, а не кадра — возвращаем настольный вид */
+.stage {
+  --gutter: 24px;
+  --topbar-h: 46px;
+}
+.stage.compact {
+  --gutter: 16px;
+}
+.stage .crumbs .sep {
+  display: inline;
+}
+.stage .topbar .ibtn,
+.stage .topbar .btn {
+  min-width: 0;
+  min-height: 0;
+}
+.stage .board {
+  overflow: hidden;
+  padding-bottom: 14px;
+}
+.stage .bcol {
+  width: 241px;
+}
+.stage.compact .bcol {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 180px;
+}
+.stage .doc-head {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.stage.compact .doc-head {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.stage .doc-bottom {
+  grid-template-columns: minmax(0, 1fr) 360px;
+}
+.stage.compact .doc-bottom {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* ---------- элементы сцен ---------- */
+.d-edit {
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 0 0 4px var(--accent-soft);
+}
+.d-input {
+  min-height: 20px;
+  font-size: var(--fs-md);
+  font-weight: 500;
+}
+.d-hint {
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
+}
+.caret {
+  display: inline-block;
+  width: 1px;
+  height: 1.1em;
+  margin-left: 1px;
+  vertical-align: -0.15em;
+  background: var(--text);
+  animation: caret 1s steps(1) infinite;
+}
+@keyframes caret {
+  50% {
+    opacity: 0;
+  }
+}
+.d-fresh {
+  animation: dFresh 1.6s var(--ease);
+}
+@keyframes dFresh {
+  from {
+    box-shadow:
+      0 0 0 1px var(--accent),
+      0 0 0 4px var(--accent-soft);
+    transform: translateY(-3px);
+  }
+}
+.d-flash {
+  border-radius: 4px;
+  animation: dFlash 1.6s var(--ease);
+}
+@keyframes dFlash {
+  from {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+}
+.d-row-hot td {
+  animation: dRow 2.2s var(--ease);
+}
+@keyframes dRow {
+  from {
+    background: var(--accent-soft);
+  }
+}
+.d-pop {
+  animation: popIn 0.22s var(--spring) both;
+}
+@keyframes dIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.d-doc {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 0 var(--gutter);
+}
+.d-doc .d-tabs {
+  padding: 0;
+  margin-bottom: -6px;
+}
+.d-sel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.d-sel .chev {
+  margin-left: auto;
+  color: var(--text-3);
+}
+.d-focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.d-ph-text {
+  color: var(--text-3);
+}
+.d-cell {
+  height: 30px;
+  padding: 0 8px;
+}
+.d-cell.r {
+  justify-content: flex-end;
+}
+.d-popover {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 0;
+  min-width: 300px;
+  max-width: 420px;
+  padding: 4px;
+  animation: popIn 0.16s var(--ease) both;
+}
+.d-addline {
+  padding: 6px 8px;
+  border-top: 1px solid var(--divider);
+}
+.d-seg {
+  display: inline-flex;
+  height: var(--h-md);
+}
+.d-seg span {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  border-radius: var(--r-sm);
+}
+.d-seg span[data-state='on'] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+.d-report {
+  margin: 0 var(--gutter);
+  overflow: hidden;
+}
+.d-report .dtbl th,
+.d-report .dtbl td {
+  padding: 11px 14px;
+}
+.d-src {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.d-src i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+.d-romi {
+  color: var(--green);
+  font-weight: 500;
+}
+.d-total td {
+  font-weight: 600;
+  border-top: 1px solid var(--border);
+}
+
+/* диалог и уведомление внутри кадра: у приложения они fixed к окну */
+.d-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 90px;
+  background: var(--overlay);
+}
+.d-modal .modal {
+  max-width: 400px;
+}
+.d-toast {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  z-index: 25;
+  animation: dIn 0.25s var(--ease) both;
+}
+.d-toast svg {
+  color: var(--green);
+}
+.stage .appt-cell {
+  min-width: 0;
+}
+.stage .appt-scroll {
+  overflow: hidden;
+}
+.d-wb {
+  margin: 0 var(--gutter);
+  padding: 0;
+  overflow: hidden;
+}
+.d-wb .dtbl td,
+.d-wb .dtbl th {
+  white-space: nowrap;
+}
+.d-wb-group {
+  padding: 6px 10px;
+  background: var(--surface-2);
+}
+.d-off {
+  opacity: 0.5;
+}
+.d-ok {
+  color: var(--green);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .l-panel,
+  .l-step-ic,
+  .caret,
+  .d-fresh,
+  .d-flash,
+  .d-row-hot td,
+  .d-pop,
+  .d-toast,
+  .d-page-in {
+    animation: none;
+  }
+}
+.d-delta {
+  margin-right: 8px;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--green);
+  animation: dIn 0.4s var(--ease) both;
+}
