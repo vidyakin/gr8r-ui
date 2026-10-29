@@ -8,6 +8,7 @@ import {
   computeTotals,
   DOCUMENT_META,
   DOCUMENT_OPERATION_CHOICES,
+  FLEET_COST_ITEMS,
   dec,
   div,
   fmt,
@@ -85,6 +86,7 @@ const SYSTEM_COST_ITEMS: { key: string; name: string; kind: 'expense' | 'income'
   { key: 'izlishki', name: 'Излишки', kind: 'income' },
   { key: 'garantiynyy_remont', name: 'Гарантийный ремонт', kind: 'expense' },
   { key: 'dostavka', name: 'Доставка', kind: 'expense' },
+  ...FLEET_COST_ITEMS.map(i => ({ key: i.key, name: i.name, kind: 'expense' as const })),
 ];
 
 /** Статьи затрат и доходов по умолчанию: добавляются один раз, свои статьи воркспейс заводит сам */

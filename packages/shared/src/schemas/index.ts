@@ -26,3 +26,4 @@ export * from './ad';
 export * from './secrets';
 export * from './integrations';
 export * from './pipelines';
+export * from './fleet';

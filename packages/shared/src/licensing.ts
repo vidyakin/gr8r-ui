@@ -2,7 +2,7 @@
    у модуля есть корневые пути API, разделы меню, пункты настроек, типы задач воркера и узлы автоматизаций. Какие модули
    включены у арендатора, решает оператор (тариф + докупленные модули); здесь — только чистые правила без БД. */
 
-export const MODULE_IDS = ['core', 'crm', 'trade', 'production', 'services', 'money', 'payroll', 'automations', 'integrations', 'docflow'] as const;
+export const MODULE_IDS = ['core', 'crm', 'trade', 'production', 'services', 'money', 'payroll', 'automations', 'integrations', 'docflow', 'transport'] as const;
 export type ModuleId = (typeof MODULE_IDS)[number];
 
 /** Модуль, который включён всегда */
@@ -110,6 +110,14 @@ export const MODULES: readonly ModuleDef[] = [
     hooks: ['yookassa'],
     settings: ['integrations'],
     jobs: ['bank.sync', 'yookassa.payment'],
+  }),
+  // Транспорт (сессия 50, docs/architecture/fleet.md): автопарк; рейсы, ТК и заявки на перевозку добавят задачи 1211+
+  def({
+    id: 'transport',
+    requires: ['trade'],
+    paths: ['/fleet'],
+    sections: ['fleet', 'fleetVehicles', 'fleetDrivers', 'fleetDocuments', 'fleetWaybills', 'fleetFuel', 'fleetService', 'fleetFines'],
+    nodes: ['trigger.fleet_document_expiring'],
   }),
   // Документооборот (сессия 48): модуль заведён заранее, разделы, пути и задачи добавит задача 1191+
   def({ id: 'docflow' }),

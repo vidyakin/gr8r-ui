@@ -69,3 +69,4 @@ export * from './tenants';
 export * from './quotes';
 export * from './licensing';
 export * from './module-requests';
+export * from './fleet';

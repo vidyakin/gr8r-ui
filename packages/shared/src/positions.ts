@@ -3,11 +3,11 @@
 import type { Role } from './constants';
 
 /** Функции должности: по ним фильтруются списки выбора сотрудников */
-export const POSITION_FUNCTIONS = ['appointments_specialist', 'courier', 'production_worker', 'work_order_executor', 'sales_manager'] as const;
+export const POSITION_FUNCTIONS = ['appointments_specialist', 'courier', 'production_worker', 'work_order_executor', 'sales_manager', 'driver'] as const;
 export type PositionFunction = (typeof POSITION_FUNCTIONS)[number];
 
 /** Разделы меню, доступные должности (группы навигации). Всегда видны: главная, входящие, уведомления, поиск, участники, настройки */
-export const POSITION_SECTIONS = ['crm', 'trade', 'stock', 'services', 'deliveries', 'production', 'finance', 'projects', 'catalog', 'automations'] as const;
+export const POSITION_SECTIONS = ['crm', 'trade', 'stock', 'services', 'deliveries', 'production', 'finance', 'projects', 'catalog', 'automations', 'transport'] as const;
 export type PositionSection = (typeof POSITION_SECTIONS)[number];
 
 /** Тип вида номенклатуры совпадает с видом товара каталога */
