@@ -367,34 +367,56 @@ ol {
 }
 .l-more-list {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 36px 56px;
 }
 .l-card {
-  padding: 20px 20px 22px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface);
+  display: grid;
+  grid-template-columns: minmax(0, 11fr) minmax(0, 10fr);
+  align-items: center;
+  gap: 28px;
+}
+/* плитка: серый фон, скриншот выходит за правый и нижний край */
+.l-card-tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 11 / 10;
+  overflow: hidden;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  background: var(--surface-2);
   transition:
     border-color 1.2s var(--ease),
     box-shadow 1.2s var(--ease);
 }
 /* подсветка: граница акцентного цвета и мягкое свечение вокруг */
-.l-card.lit {
+.l-card.lit .l-card-tile {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
   box-shadow:
     0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent),
-    0 0 28px -4px color-mix(in srgb, var(--accent) 40%, transparent);
+    0 0 32px -4px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.l-card-shot {
+  position: absolute;
+  left: 14%;
+  top: 14%;
+  width: 150%;
+  max-width: none;
+  border-radius: 8px 0 0 0;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 10px 30px -14px rgba(28, 25, 20, 0.25);
 }
 .l-card-ic {
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
-  margin-bottom: 16px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   border: 1px solid var(--border-strong);
-  color: var(--text-2);
+  background: var(--surface);
+  color: var(--text-3);
   transition:
     color 1.2s var(--ease),
     border-color 1.2s var(--ease);
@@ -404,14 +426,14 @@ ol {
   border-color: var(--accent-line);
 }
 .l-card dt {
-  font-size: 17px;
+  font-size: 19px;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
 }
 .l-card dd {
-  margin-top: 4px;
-  font-size: 15px;
-  line-height: 1.5;
+  margin-top: 8px;
+  font-size: 16px;
+  line-height: 1.55;
   color: var(--text-2);
 }
 .l-platform {
@@ -482,7 +504,7 @@ ol {
     grid-template-columns: minmax(0, 1fr);
   }
   .l-more-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
   }
   /* на узком экране запись — сразу под вкладками, возможности ниже */
   .l-panel-shot {
@@ -527,7 +549,11 @@ ol {
     padding-top: 28px;
   }
   .l-card {
-    padding: 16px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .l-card-tile {
+    aspect-ratio: 16 / 9;
   }
   .l-form {
     grid-template-columns: minmax(0, 1fr);
