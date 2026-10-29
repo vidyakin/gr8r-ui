@@ -8,7 +8,6 @@ import {
   comments,
   companies,
   events,
-  files,
   issueTaskKey as issueTaskKeyInDb,
   members,
   notifications,
@@ -20,7 +19,6 @@ import {
   tasks,
   teams,
   timeLogs,
-  assertLimit,
 } from '@gr8r/db';
 import {
   activityQuery,
@@ -30,9 +28,6 @@ import {
   commentCreate,
   commentQuery,
   commentUpdate,
-  fileCreate,
-  fileQuery,
-  fileUpdate,
   idParam,
   listQuery,
   memberQuery,
@@ -392,22 +387,6 @@ export const calendarEventRoutes = crud({
   search: [calendarEvents.title],
   filters: q => [q.projectId ? eq(calendarEvents.projectId, q.projectId) : undefined, q.from ? gte(calendarEvents.eventDate, q.from) : undefined, q.to ? lte(calendarEvents.eventDate, q.to) : undefined],
   prepareCreate: ctx => ({ createdBy: ctx.memberId }),
-});
-
-export const fileRoutes = crud({
-  entity: 'file',
-  table: files,
-  create: fileCreate,
-  update: fileUpdate,
-  query: fileQuery,
-  sortable: { createdAt: files.createdAt, name: files.name, sizeBytes: files.sizeBytes },
-  defaultSort: '-createdAt',
-  search: [files.name],
-  filters: q => [q.projectId ? eq(files.projectId, q.projectId) : undefined, q.taskId ? eq(files.taskId, q.taskId) : undefined],
-  prepareCreate: async (ctx, body) => {
-    await assertLimit(ctx.db, 'storageMb', body.sizeBytes); // лимит объёма файлов тарифа
-    return { uploadedBy: ctx.memberId };
-  },
 });
 
 /** Лента активности — только чтение (записи создаёт сервер при изменениях) */

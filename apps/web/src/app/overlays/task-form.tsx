@@ -6,6 +6,7 @@ import { Button, Dialog, DialogClose, DialogContent, Input, Switch, Textarea, to
 import { useT } from '@/i18n';
 import type { Task } from '../data/types';
 import { nextKey, uid, useWorkspace } from '../data/store';
+import { useUploadToTask } from '../data/attachments';
 import { FILE_TYPES, canSee, fileKind, fileSize, project, visibleProjects } from '../data/selectors';
 import { MOD } from '../lib/platform';
 import { KindIcon } from '../components/files-view';
@@ -28,6 +29,7 @@ const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;
 export function TaskFormProvider({ children }: { children: React.ReactNode }) {
   const t = useT();
   const { data, dispatch } = useWorkspace();
+  const uploadToTask = useUploadToTask();
   const drawer = useTaskDrawer();
   const location = useLocation();
   const [isOpen, setOpen] = React.useState(false);
@@ -149,14 +151,13 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
           ...(form.desc !== plain(task.desc || '') ? { desc: form.desc ? `<p>${esc(form.desc)}</p>` : '' } : {}),
         },
       });
-      form.files.forEach(f => dispatch({ type: 'task/attach', id: task.id, file: f }));
+      void uploadToTask(task.id, form.files.map(f => f.file));
       setOpen(false);
       toast(t('overlays.taskForm.saved'));
       return;
     }
     const id = uid('t');
     const key = nextKey(data, form.project);
-    const attachments = form.files.map(x => ({ id: uid('a'), name: x.name, type: fileKind(x.name), size: x.size, by: data.me, at: Date.now() }));
     dispatch({
       type: 'task/create',
       task: {
@@ -173,10 +174,10 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
         recur: form.recur,
         subtasks: form.subtasks.map(s => ({ ...s, done: false, subtasks: [] })),
         desc: form.desc ? `<p>${esc(form.desc)}</p>` : '',
-        attachments,
+        attachments: [],
       },
     });
-    attachments.forEach(a => dispatch({ type: 'file/add', file: { project: form.project, name: a.name, size: a.size, task: id } }));
+    void uploadToTask(id, form.files.map(f => f.file)); // файлы — вложения задачи в хранилище (docs/architecture/attachments.md)
     if (more) {
       setForm({ ...form, title: '', desc: '', subtasks: [], files: [] });
       setError(null);
@@ -333,7 +334,7 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
                     multiple
                     hidden
                     onChange={e => {
-                      const added = [...(e.target.files ?? [])].map(f => ({ name: f.name, size: fileSize(f.size) }));
+                      const added = [...(e.target.files ?? [])].map(f => ({ name: f.name, size: fileSize(f.size), file: f }));
                       e.target.value = '';
                       set({ files: [...form.files, ...added] });
                     }}

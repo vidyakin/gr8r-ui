@@ -40,7 +40,8 @@ import {
   entities,
   events,
   fields,
-  files,
+  attachments,
+  attachmentVersions,
   invites,
   members,
   memberships,
@@ -299,9 +300,12 @@ export async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: strin
   );
 
   // Файлы (метаданные), учёт времени, виды, события календаря
-  await db.insert(files).values(
-    d.files.map(f => ({ workspaceId: wsId, projectId: U(f.project), taskId: Uo(f.task), name: f.name, kind: f.type, sizeBytes: parseSize(f.size), uploadedBy: U(f.by), createdAt: new Date(f.at) })),
-  );
+  // Файлы задач и проектов — вложения без содержимого (демо-данные, в хранилище ничего нет)
+  const seededFiles = await db
+    .insert(attachments)
+    .values(d.files.map(f => ({ workspaceId: wsId, entityType: f.task ? 'task' : 'project', entityId: f.task ? U(f.task) : U(f.project), name: f.name, kind: f.type, createdBy: U(f.by), createdAt: new Date(f.at) })))
+    .returning({ id: attachments.id });
+  await db.insert(attachmentVersions).values(seededFiles.map((a, i) => ({ workspaceId: wsId, attachmentId: a.id, version: 1, sizeBytes: parseSize(d.files[i]!.size), createdBy: U(d.files[i]!.by), createdAt: new Date(d.files[i]!.at) })));
   await db.insert(timeLogs).values(
     d.timeLogs.map(l => ({ workspaceId: wsId, taskId: U(l.task), subId: l.sub ?? null, memberId: U(l.by), hours: String(l.hours), logDate: l.date, note: l.note })),
   );

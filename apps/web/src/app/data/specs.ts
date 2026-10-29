@@ -17,7 +17,7 @@ type Rows = {
   tasks: Items<Api['tasks']['$get']>;
   comments: Items<Api['comments']['$get']>;
   timeLogs: Items<Api['time-logs']['$get']>;
-  files: Items<Api['files']['$get']>;
+  files: Items<Api['attachments']['$get']>;
   savedViews: Items<Api['saved-views']['$get']>;
   events: Items<Api['calendar-events']['$get']>;
   notifs: Items<Api['notifications']['$get']>;
@@ -295,10 +295,12 @@ export function buildSpecs(ws: string, statusIds: Map<string, string>) {
 
   const files = list<ProjectFile>({
     name: 'files',
-    query: { sort: '-createdAt' },
-    from: ((r: Rows['files']): ProjectFile => ({ id: r.id, project: r.projectId ?? '', name: r.name, type: r.kind as FileKind, size: bytesToSize(r.sizeBytes), by: r.uploadedBy ?? '', at: ms(r.createdAt), task: r.taskId })) as never,
+    // Файлы задач и проектов — вложения (docs/architecture/attachments.md). Загрузка идёт отдельным multipart-запросом
+    // (data/attachments.ts), поэтому создание из локальной модели на сервер не уходит; переименование и архив — через движок
+    query: { entityTypes: 'task,project' },
+    from: ((r: Rows['files']): ProjectFile => ({ id: r.id, project: r.projectId ?? '', name: r.name, type: r.kind as FileKind, size: bytesToSize(r.sizeBytes), by: r.createdBy ?? '', at: ms(r.createdAt), task: r.entityType === 'task' ? r.entityId : null })) as never,
     fields: { name: v => ({ name: v }), type: v => ({ kind: v }) },
-    createFields: { project: v => ({ projectId: orNull(v) }), task: v => ({ taskId: v ?? null }), size: v => ({ sizeBytes: sizeToBytes(v) }) },
+    canCreate: () => false,
     cascadeFrom: l => [
       ['tasks', l.task],
       ['projects', l.project],

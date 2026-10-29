@@ -1,9 +1,11 @@
 /* Файлы проекта — порт filesHtml из views/files.js (+ filePrev, previewFile, renameFile, dupFile, delFile, handleFiles) */
 import * as React from 'react';
-import { Copy, Ellipsis, Eye, File, FileCode, FileSpreadsheet, FileText, FolderArchive, FolderOpen, Image, LayoutGrid, Link, Link2, List, PenTool, Pencil, Search, SearchX, Trash2, Upload, UploadCloud } from 'lucide-react';
+import { Download, Ellipsis, Eye, File, FileCode, FileSpreadsheet, FileText, FolderArchive, FolderOpen, Image, LayoutGrid, Link, Link2, List, PenTool, Pencil, Search, SearchX, Trash2, Upload, UploadCloud } from 'lucide-react';
 import { Button, ConfirmDialog, ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger, Dialog, DialogClose, DialogContent, EmptyState, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Progress, Segmented, Select, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
+import { errorMessage } from '../data/api';
+import { useAttachmentActions } from '../data/attachments';
 import { FILE_TYPES, fileKind, fileSize, member, task as findTask } from '../data/selectors';
 import type { FileKind, Project, ProjectFile } from '../data/types';
 import { ago } from '../lib/dates';
@@ -101,7 +103,7 @@ interface MenuApi {
   preview: (f: ProjectFile) => void;
   rename: (f: ProjectFile) => void;
   copyLink: (f: ProjectFile) => void;
-  duplicate: (f: ProjectFile) => void;
+  download: (f: ProjectFile) => void;
   remove: (f: ProjectFile) => void;
 }
 
@@ -121,8 +123,8 @@ function FileMenuItems({ file, api, context }: { file: ProjectFile; api: MenuApi
       <Item icon={<Link2 size={15} />} onSelect={() => api.copyLink(file)}>
         {tt('views.files.copyLink')}
       </Item>
-      <Item icon={<Copy size={15} />} onSelect={() => api.duplicate(file)}>
-        {tt('views.files.duplicate')}
+      <Item icon={<Download size={15} />} onSelect={() => api.download(file)}>
+        {tt('attachments.download')}
       </Item>
       <Sep />
       <Item icon={<Trash2 size={15} />} danger onSelect={() => api.remove(file)}>
@@ -162,8 +164,6 @@ export function ProjectFilesTab({ project }: { project: Project }) {
   const [over, setOver] = React.useState(false);
   const [dialog, setDialog] = React.useState<FileDialog>(null);
   const [newName, setNewName] = React.useState('');
-  const timers = React.useRef<number[]>([]);
-  React.useEffect(() => () => timers.current.forEach(clearInterval), []);
 
   const needle = q.toLowerCase();
   const files = data.files
@@ -171,22 +171,18 @@ export function ProjectFilesTab({ project }: { project: Project }) {
     .sort((a, b) => (sort === 'name' ? a.name.localeCompare(b.name) : sort === 'type' ? a.type.localeCompare(b.type) : b.at - a.at));
   const filtered = !!q || type !== 'all';
 
-  // Загрузка в оригинале — имитация прогресса, по завершении файл попадает в данные
+  // Загрузка — вложения проекта в хранилище (docs/architecture/attachments.md)
+  const attach = useAttachmentActions();
   const handleFiles = (list: FileList | null) => {
     if (!list || !list.length) return;
     [...list].forEach(file => {
-      const up: Upload = { id: `u${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, name: file.name, size: fileSize(file.size), pct: 0 };
+      const up: Upload = { id: `u${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, name: file.name, size: fileSize(file.size), pct: 50 };
       setUploads(u => [...u, up]);
-      let pct = 0;
-      const iv = window.setInterval(() => {
-        pct = Math.min(100, pct + 9 + Math.round(Math.random() * 22));
-        if (pct < 100) return setUploads(u => u.map(x => (x.id === up.id ? { ...x, pct } : x)));
-        clearInterval(iv);
-        setUploads(u => u.filter(x => x.id !== up.id));
-        dispatch({ type: 'file/add', file: { project: project.id, name: up.name, size: up.size } });
-        toast(tt('views.files.uploaded', { name: up.name }));
-      }, 220);
-      timers.current.push(iv);
+      attach
+        .upload('project', project.id, file)
+        .then(() => toast(tt('views.files.uploaded', { name: up.name })))
+        .catch(e => toast.error(errorMessage(e)))
+        .finally(() => setUploads(u => u.filter(x => x.id !== up.id)));
     });
   };
 
@@ -200,10 +196,7 @@ export function ProjectFilesTab({ project }: { project: Project }) {
       navigator.clipboard?.writeText(`${location.origin}${location.pathname}#/file/${f.id}`).catch(() => {});
       toast.info(tt('common.linkCopied'), { duration: 1800 });
     },
-    duplicate: f => {
-      dispatch({ type: 'file/duplicate', id: f.id });
-      toast(tt('views.files.duplicated'));
-    },
+    download: f => void attach.download(f.id, f.name).catch(e => toast.error(errorMessage(e))),
     remove: f => setDialog({ kind: 'delete', file: f }),
   };
 

@@ -67,6 +67,7 @@
 - [Воронки продаж: этапы, переход сделки, история, просрочка, отчёт-воронка](architecture/pipelines.md)
 - [Коммерческие предложения: варианты КП, группы строк, шаблоны КП](architecture/quotes.md)
 - [Хранилище секретов](architecture/secrets.md)
+- [Вложения и хранилище файлов S3: версии, лимит, квота, права как у объекта](architecture/attachments.md)
 - [Запись клиентов на приём](architecture/appointments.md)
 - [Доставка](architecture/delivery.md)
 

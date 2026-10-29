@@ -32,7 +32,7 @@ beforeAll(async () => {
   B = await makeTenant('Beta', 'BET');
 });
 
-const RESOURCES = ['projects', 'tasks', 'comments', 'companies', 'deals', 'statuses', 'members', 'time-logs', 'notifications', 'activity', 'events', 'contacts', 'teams', 'files'];
+const RESOURCES = ['projects', 'tasks', 'comments', 'companies', 'deals', 'statuses', 'members', 'time-logs', 'notifications', 'activity', 'events', 'contacts', 'teams', 'attachments'];
 
 describe('HTTP: tenant boundary', () => {
   test('A cannot use B workspace id (X-Workspace-Id substitution) on any resource', async () => {

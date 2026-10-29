@@ -2,7 +2,7 @@
    автоматизаций; выключенный модуль даёт 403 module_disabled при прямом вызове API; запись только у оператора;
    арендатор читает только свой набор; смена набора пишет событие для realtime; воркер не исполняет задачи выключенного модуля. */
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { setOperator } from '@gr8r/db';
+import { MemoryFileStore, setFileStore, setOperator } from '@gr8r/db';
 import { defaultOptions, processEventsOnce, processJobsOnce } from '../../worker/src/worker';
 import { disabledModulesOfNodes, enabledModules, licenseNotices, licenseView, moduleStates, readableModules, type LicenseRaw, MODULE_IDS, MODULE_OF_JOB, MODULE_OF_NODE, MODULE_OF_PATH, NODE_LIST, resolveModules } from '@gr8r/shared';
 import { jobHandlers, requestHookRuntime } from '../../worker/src/handlers';
@@ -288,16 +288,30 @@ describe('лимиты (1207)', () => {
     expect((await c.post('/organizations', { name: 'И ещё' })).body.error.code).toBe('limit_exceeded');
   });
 
-  test('объём файлов: считаем размеры файлов и PDF, лимит в МБ проверяется при создании файла', async () => {
-    const c = new Client();
-    await c.signup();
-    await setLimits(c, { storageMb: 1 });
-    expect((await c.post('/files', { name: 'a.bin', sizeBytes: 600 * 1024 })).status).toBe(201);
-    expect((await usage(c)).storageBytes).toBe(600 * 1024);
-    const big = await c.post('/files', { name: 'b.bin', sizeBytes: 600 * 1024 });
-    expect(big.status).toBe(403);
-    expect(big.body.error).toMatchObject({ code: 'limit_exceeded', details: { limit: 'storageMb', max: 1 } });
-    expect((await c.post('/files', { name: 'c.bin', sizeBytes: 100 * 1024 })).status).toBe(201);
+  test('объём файлов: считаем размеры вложений и PDF, лимит в МБ проверяется при загрузке файла', async () => {
+    const store = new MemoryFileStore();
+    setFileStore(store);
+    try {
+      const c = new Client();
+      await c.signup();
+      await setLimits(c, { storageMb: 1 });
+      const company = (await c.post('/companies', { name: 'ООО Лимит' })).body.id;
+      const put = (size: number) => {
+        const f = new FormData();
+        f.set('entityType', 'company');
+        f.set('entityId', company);
+        f.set('file', new File([new Uint8Array(size)], 'a.bin'));
+        return c.form('POST', '/attachments', f);
+      };
+      expect((await put(600 * 1024)).status).toBe(201);
+      expect((await usage(c)).storageBytes).toBe(600 * 1024);
+      const big = await put(600 * 1024);
+      expect(big.status).toBe(403);
+      expect(big.body.error).toMatchObject({ code: 'limit_exceeded', details: { limit: 'storageMb', max: 1 } });
+      expect((await put(100 * 1024)).status).toBe(201);
+    } finally {
+      setFileStore(null);
+    }
   });
 
   test('лимит тарифа действует, персональный поверх него; оператор видит оба и использование; неизвестный ключ — 400', async () => {

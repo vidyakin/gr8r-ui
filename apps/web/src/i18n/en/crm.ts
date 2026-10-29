@@ -237,6 +237,7 @@ export const crm = {
       documents: 'Documents',
       settlements: 'Settlements',
       appointments: 'Appointments',
+      files: 'Files',
     },
     openWebsite: 'Open {website}',
     created: 'Created deal',

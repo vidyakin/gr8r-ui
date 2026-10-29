@@ -1,6 +1,6 @@
 /* Учётные записи, сессии, воркспейсы (арендаторы), членство и приглашения. */
 import { sql } from 'drizzle-orm';
-import { boolean, check, date, index, integer, jsonb, numeric, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { bigint, boolean, check, date, index, integer, jsonb, numeric, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { archivedAt, createdAt, pk, ts, updatedAt } from './columns';
 
 /** Глобальные учётные записи (не арендаторские: без workspace_id и без RLS) */
@@ -67,6 +67,8 @@ export const workspaces = pgTable(
     /** regular — клиент, demo — демо-арендатор оператора со сроком жизни expires_at (docs/architecture/deploy.md) */
     kind: text('kind', { enum: ['regular', 'demo'] }).notNull().default('regular'),
     expiresAt: ts('expires_at'),
+    /** Квота файлов воркспейса, байт (null — по умолчанию из STORAGE_QUOTA_BYTES, 0 тоже допустим). Меняет owner */
+    storageQuotaBytes: bigint('storage_quota_bytes', { mode: 'number' }),
     /** Оператор запросил удаление: воркер удалит арендатора целиком (purgeTenantsOnce) */
     deleteRequestedAt: ts('delete_requested_at'),
     createdAt: createdAt(),

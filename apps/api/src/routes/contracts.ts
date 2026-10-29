@@ -15,6 +15,7 @@ import {
   saveTariffPlanLines,
   tariffPlans,
   tariffPlanLinesOf,
+  archiveAttachmentsOf,
 } from '@gr8r/db';
 import { contractCreate, contractQuery, contractUpdate, idParam, tariffPlanCreate, tariffPlanLinesUpdate, tariffPlanQuery, tariffPlanUpdate } from '@gr8r/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
@@ -128,6 +129,7 @@ export const contractRoutes = new Hono<AppEnv>()
     const [docs] = await ctx.db.select({ n: sql<number>`count(*)::int` }).from(sql`documents`).where(sql`workspace_id = ${ctx.workspaceId} and contract_id = ${id}`);
     if (docs && docs.n > 0) throw new AppError(422, 'contract_in_use', 'The contract is used by documents: archive it instead of deleting');
     await ctx.db.update(contracts).set({ archivedAt: new Date(), isDefault: false, updatedAt: new Date() }).where(eq(contracts.id, id));
+    await archiveAttachmentsOf(ctx.db, ctx.workspaceId, 'contract', id);
     return c.json({ id, deleted: false as const, archived: true as const });
   })
   .post('/:id/restore', write, zValidator('param', idParam, validationHook), async c => {

@@ -1,7 +1,7 @@
 /* Страница компании — шапка как у страницы проекта и вкладки Overview / Deals / Contacts / Activity */
 import * as React from 'react';
 import { Link, useParams } from 'react-router';
-import { Activity, Briefcase, FileSignature, FileText, Files, CircleDollarSign, ExternalLink, Globe, LayoutDashboard, CalendarCheck, Wallet, MapPin, Plus, Ruler, Tags, User, UserPlus, Users, Clock, Megaphone, type LucideIcon } from 'lucide-react';
+import { Activity, Briefcase, FileSignature, FileText, Files, CircleDollarSign, ExternalLink, Globe, LayoutDashboard, CalendarCheck, Wallet, MapPin, Plus, Ruler, Tags, User, UserPlus, Users, Clock, Megaphone, Paperclip, type LucideIcon } from 'lucide-react';
 import { Badge, Button, EmptyState, Tooltip } from '@/components/ui';
 import { DataTable, useDataTable } from '@/components/gr8r/data-table';
 import { Panel, Stat } from '@/components/gr8r/panel';
@@ -27,6 +27,7 @@ import { CompanyPriceKind } from '../pricing/CompanyPriceKind';
 import { RecordAttribution } from './AttributionFields';
 import { industryName, sizeName } from './labels';
 import { stage } from './stages';
+import { AttachmentsPanel } from '@/components/gr8r/attachments-panel';
 import type { Company } from './types';
 
 const TABS: [string, LucideIcon][] = [
@@ -39,6 +40,7 @@ const TABS: [string, LucideIcon][] = [
   ['documents', Files],
   ['settlements', Wallet],
   ['appointments', CalendarCheck],
+  ['files', Paperclip],
 ];
 
 export function CompanyPage() {
@@ -142,6 +144,12 @@ function CompanyView({ company: co, tab }: { company: Company; tab: string }) {
   else if (tab === 'documents') body = <CompanyDocumentsTab companyId={co.id} />;
   else if (tab === 'settlements') body = <CompanySettlementsTab companyId={co.id} />;
   else if (tab === 'appointments') body = <ClientAppointments companyId={co.id} />;
+  else if (tab === 'files')
+    body = (
+      <div className="page" style={{ maxWidth: 980, paddingTop: 16 }}>
+        <AttachmentsPanel entityType="company" entityId={co.id} />
+      </div>
+    );
   else body = <Overview company={co} />;
 
   return (

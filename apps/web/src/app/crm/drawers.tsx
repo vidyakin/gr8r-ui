@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router';
 import { Building2, Calendar as CalendarIcon, CircleCheck, CircleDollarSign, Clock, ClockAlert, Mail, Percent, Phone, RotateCcw, Trash2, User, UserPlus, Users, Briefcase, Layers, Megaphone, X, GitBranch } from 'lucide-react';
 import { Button, ConfirmDialog, Menu, MenuCheckboxItem, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Progress, toast } from '@/components/ui';
 import { EntityDrawer } from '@/components/gr8r/entity-drawer';
+import { AttachmentsPanel } from '@/components/gr8r/attachments-panel';
 import { diffDays, fmtDate, parse, today } from '../lib/dates';
 import { ActivityComposer, ActivityFeed, ActivityRow, CompanyLink, CompanyLogo, ContactLink, DateField, DealLink, OwnerField, PipelineField, StageField, StageHistory, StageIcon } from './components';
 import { money, pct } from './format';
@@ -251,6 +252,7 @@ export function DealDrawer({ id }: { id: string }) {
               </p>
             ),
           },
+          { id: 'files', label: t('attachments.tab'), content: <AttachmentsPanel entityType="deal" entityId={d.id} /> },
         ]}
       />
       <DeleteDealConfirm
@@ -376,6 +378,7 @@ export function ContactDrawer({ id }: { id: string }) {
           label: t('appt.client.title'),
           content: <ClientAppointments contactId={c.id} />,
         },
+        { id: 'files', label: t('attachments.tab'), content: <AttachmentsPanel entityType="contact" entityId={c.id} /> },
       ]}
     />
   );

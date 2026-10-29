@@ -190,4 +190,9 @@ export const errors = {
   over_statement: 'The payments exceed the amount of the payroll statement',
   member_required: 'Select an employee in every line of a salary payment',
   organization_required: 'Add an organization in Settings first',
+  attachment_too_large: 'The file is larger than {maxBytes} bytes',
+  storage_quota_exceeded: 'The workspace storage quota is exceeded: archive unneeded files or ask the owner to raise the quota',
+  storage_unavailable: 'File storage is not configured on this server',
+  file_content_missing: 'The file content is no longer stored',
+  attachment_archived: 'The file is archived: restore it before adding a version',
 };

@@ -27,7 +27,7 @@ export interface TaskFormState {
   labels: LabelId[];
   recur: string | null;
   subtasks: { id: string; title: string }[];
-  files: { name: string; size: string }[];
+  files: { name: string; size: string; file: File }[];
 }
 
 const RECUR = ['Does not repeat', 'Daily', 'Weekly', 'Every 2 weeks', 'Monthly'];

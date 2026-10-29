@@ -191,4 +191,9 @@ export const errors: Widen<typeof E> = {
   over_statement: 'Выплаты превышают сумму ведомости',
   member_required: 'Укажите сотрудника в каждой строке выплаты зарплаты',
   organization_required: 'Сначала добавьте организацию в настройках',
+  attachment_too_large: 'Файл больше {maxBytes} байт',
+  storage_quota_exceeded: 'Квота хранилища воркспейса исчерпана: уберите ненужные файлы в архив или попросите владельца увеличить квоту',
+  storage_unavailable: 'Хранилище файлов на сервере не настроено',
+  file_content_missing: 'Содержимое файла больше не хранится',
+  attachment_archived: 'Файл в архиве: сначала верните его',
 };

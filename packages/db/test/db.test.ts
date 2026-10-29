@@ -61,7 +61,7 @@ describe('seed', () => {
     expect(await count('comment_reactions', w)).toBe(4);
     expect(await count('activity', w)).toBe(src.activity.length);
     expect(await count('notifications', w)).toBe(src.notifs.length);
-    expect(await count('files', w)).toBe(src.files.length);
+    expect(await count('attachments', w)).toBe(src.files.length);
     expect(await count('time_logs', w)).toBe(src.timeLogs.length + 2); // + время по заказ-наряду и по консультации
     expect(await count('saved_views', w)).toBe(1);
     expect(await count('calendar_events', w)).toBe(6);
