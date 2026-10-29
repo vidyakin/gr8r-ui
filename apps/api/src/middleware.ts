@@ -3,10 +3,10 @@ import { and, eq, gt } from 'drizzle-orm';
 import { getCookie } from 'hono/cookie';
 import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
-import { drizzleOf, isUuid, readMyModules, memberships, members, sessions, setContext, users, type Tx } from '@gr8r/db';
+import { drizzleOf, isUuid, readMyAccess, memberships, members, sessions, setContext, users, type Tx } from '@gr8r/db';
 import { ROLES, type ModuleId, type Role } from '@gr8r/shared';
 import { AppError, Rollback, dbUnavailable, forbidden, unauthorized } from './errors';
-import type { AppEnv } from './types';
+import type { AppEnv, ModuleAccessSets } from './types';
 
 export const SESSION_COOKIE = 'gr8r_session';
 
@@ -131,20 +131,29 @@ export const requireRole = (min: Role) =>
 
 export const hasRole = (c: { get(k: 'role'): Role }, min: Role) => rank(c.get('role')) >= rank(min);
 
-/** Включённые модули арендатора: читается один раз за запрос (функция app_workspace_license, контекст арендатора уже выставлен tenant()) */
-export async function modulesOf(c: Context<AppEnv>): Promise<Set<ModuleId>> {
-  let m = c.get('modules');
+/** Модули арендатора: читаются один раз за запрос (функция app_workspace_license, контекст арендатора уже выставлен tenant()) */
+export async function accessOf(c: Context<AppEnv>): Promise<ModuleAccessSets> {
+  let m = c.get('access');
   if (!m) {
-    m = await readMyModules(c.get('db'));
-    c.set('modules', m);
+    m = await readMyAccess(c.get('db'));
+    c.set('access', m);
   }
   return m;
 }
 
-/** Запрет по модулю: путь, чей модуль выключен у арендатора, отвечает 403 module_disabled (docs/architecture/licensing.md).
+/** Модули, в которых арендатор может писать */
+export const modulesOf = async (c: Context<AppEnv>): Promise<Set<ModuleId>> => (await accessOf(c)).active;
+
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+/** Запрет по модулю: путь, чей модуль выключен у арендатора, отвечает 403 module_disabled; модуль после окончания срока (режим
+    «только чтение», 14 дней) пускает только чтение — запись отвечает 403 module_expired (docs/architecture/licensing.md).
     Ставится после tenant(), поэтому работает в транзакции запроса — ответ откатывает её. Пути ядра запроса не делают */
 export const requireModule = (module: ModuleId) =>
   createMiddleware<AppEnv>(async (c, next) => {
-    if (!(await modulesOf(c)).has(module)) throw new AppError(403, 'module_disabled', `Module "${module}" is not enabled for this workspace`, { module });
+    const a = await accessOf(c);
+    if (!a.readable.has(module)) throw new AppError(403, 'module_disabled', `Module "${module}" is not enabled for this workspace`, { module });
+    if (!a.active.has(module) && !SAFE_METHODS.has(c.req.method))
+      throw new AppError(403, 'module_expired', `The "${module}" module has expired and is read-only`, { module, readonlyUntil: a.states[module].readonlyUntil });
     await next();
   });

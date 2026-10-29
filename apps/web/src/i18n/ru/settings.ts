@@ -75,6 +75,8 @@ export const settings: Widen<typeof S> = {
     ownerEmail: 'Email владельца',
     ownerName: 'Имя владельца',
     demo: 'С демо-данными',
+    planHint: 'Тариф; пробный период начнётся, если у тарифа заданы дни',
+    planDefault: 'Тариф по умолчанию',
     ttl: 'Срок жизни, дней',
     create: 'Создать арендатора',
     created: 'Арендатор {slug} создан',

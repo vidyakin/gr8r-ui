@@ -14,6 +14,7 @@ import { OverlayProviders, PaletteHost, TaskWindowsHost } from '../overlays';
 import { CrmOverlays } from '../crm/overlays';
 import { PageBoundary } from '../components/error-states';
 import { SectionGuard, useSectionAccess } from '../positions/access';
+import { LicenseBanner } from '../licensing/LicenseBanner';
 import { t } from '@/i18n';
 
 const COLLAPSED_KEY = 'gr8r-ui.sidebar-collapsed';
@@ -103,6 +104,7 @@ export function AppShell() {
       {mnav && <div className="side-scrim" onClick={() => setMnav(false)} />}
       <main className="main" id="main">
         <Topbar onOpenNav={() => setMnav(true)} />
+        <LicenseBanner />
         {/* key перезапускает анимацию появления при смене страницы */}
         <div key={pageKey} className="content fx-route" id="main-content" tabIndex={-1}>
           <PageBoundary resetKey={location.pathname}>

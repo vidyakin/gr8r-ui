@@ -1,5 +1,13 @@
 import type { Db, Sql, Tx } from '@gr8r/db';
-import type { ModuleId, Role } from '@gr8r/shared';
+import type { ModuleAccess, ModuleId, ModuleState, Role } from '@gr8r/shared';
+
+/** Модули арендатора на момент запроса: можно писать (active), можно читать (readable) и состояния со сроками */
+export interface ModuleAccessSets {
+  active: Set<ModuleId>;
+  readable: Set<ModuleId>;
+  states: Record<ModuleId, ModuleState>;
+}
+export type { ModuleAccess };
 
 export interface SessionUser {
   id: string;
@@ -48,7 +56,7 @@ export interface AppEnv {
     workspaceId: string;
     memberId: string;
     role: Role;
-    /** Включённые модули арендатора: заполняется лениво (`modulesOf(c)`), один запрос на HTTP-запрос */
-    modules: Set<ModuleId>;
+    /** Модули арендатора (действующие и читаемые): заполняется лениво (`accessOf(c)`), один запрос на HTTP-запрос */
+    access: ModuleAccessSets;
   };
 }

@@ -41,6 +41,8 @@ export const workspaceLicenses = pgTable('workspace_licenses', {
     .references(() => licensePlans.id),
   /** null — бессрочно */
   planExpiresAt: ts('plan_expires_at'),
+  /** Тариф выдан как пробный: срок plan_expires_at — конец пробного периода (задача 1206) */
+  isTrial: boolean('is_trial').notNull().default(false),
   limits: jsonb('limits').$type<Record<string, number>>().notNull().default({}),
   updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
   createdAt: createdAt(),

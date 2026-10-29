@@ -45,7 +45,14 @@ export const licensing = {
     addonsHint: 'Modules bought on top of the plan; dependencies are connected automatically.',
     addonExpires: 'valid until',
     effective: 'Enabled now',
+    isTrial: 'Trial period (the plan is marked as a trial)',
     unassigned: 'No plan assigned: the default plan applies.',
+  },
+  banner: {
+    expiring: 'Access to {modules} ends on {date}. After that these modules become read-only for 14 days, then they are switched off.',
+    expiringTrial: 'The trial period ends on {date}. After that {modules} become read-only for 14 days, then they are switched off.',
+    readonly: '{modules} are read-only until {date}: adding and editing is disabled. Extend the plan to keep working.',
+    readonlyTrial: 'The trial period has ended. {modules} are read-only until {date}: adding and editing is disabled.',
   },
   log: {
     title: 'Change log',

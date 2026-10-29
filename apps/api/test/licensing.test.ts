@@ -4,7 +4,7 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
 import { setOperator } from '@gr8r/db';
 import { defaultOptions, processEventsOnce, processJobsOnce } from '../../worker/src/worker';
-import { disabledModulesOfNodes, enabledModules, MODULE_IDS, MODULE_OF_JOB, MODULE_OF_NODE, MODULE_OF_PATH, NODE_LIST, resolveModules } from '@gr8r/shared';
+import { disabledModulesOfNodes, enabledModules, licenseNotices, licenseView, moduleStates, readableModules, type LicenseRaw, MODULE_IDS, MODULE_OF_JOB, MODULE_OF_NODE, MODULE_OF_PATH, NODE_LIST, resolveModules } from '@gr8r/shared';
 import { jobHandlers } from '../../worker/src/handlers';
 import { TENANT_PATHS } from '../src/app';
 import { admin, Client, ddl, drainJobs, sql, uniq } from './helpers';
@@ -153,6 +153,97 @@ describe('автоматизации и модули', () => {
     await admin`insert into events (workspace_id, type, entity) values (${c.workspaceId}, 'task.created', 'task')`;
     for (let i = 0; i < 20 && (await processEventsOnce(sql, o)) + (await processJobsOnce(sql, o)) > 0; i++);
     expect((await admin`select count(*)::int as n from flow_runs where workspace_id = ${c.workspaceId}`)[0]!.n).toBe(before);
+  });
+});
+
+const daysAgo = (n: number) => new Date(Date.now() - n * 864e5).toISOString();
+const inDays = (n: number) => new Date(Date.now() + n * 864e5).toISOString();
+const raw = (over: Partial<LicenseRaw>): LicenseRaw => ({ planId: null, planKey: null, planName: null, planModules: [], planAllModules: false, planExpiresAt: null, grants: [], limits: {}, ...over });
+
+describe('сроки: только чтение и баннер (1206)', () => {
+  test('moduleStates: действует → 14 дней только чтение → выключен; действующий источник перевешивает; зависимости', () => {
+    const l = raw({ planModules: ['crm'], planExpiresAt: daysAgo(3), grants: [{ module: 'payroll', expiresAt: daysAgo(20) }, { module: 'trade', expiresAt: null }] });
+    const s = moduleStates(l);
+    expect(s.core.state).toBe('active');
+    expect(s.crm.state).toBe('readonly');
+    expect(new Date(s.crm.readonlyUntil!).getTime()).toBeGreaterThan(Date.now() + 10 * 864e5);
+    expect(s.payroll.state).toBe('off'); // 20 дней назад — позже окна
+    expect(s.trade.state).toBe('active'); // бессрочный доп. модуль, хотя payroll (тянул trade) истёк
+    expect(s.money.state).toBe('off');
+    expect([...enabledModules(l)].sort()).toEqual(['core', 'trade']);
+    expect([...readableModules(l)].sort()).toEqual(['core', 'crm', 'trade']);
+    // истёкший тариф покрыт действующим доп. модулем: действует
+    expect(moduleStates(raw({ planModules: ['crm'], planExpiresAt: daysAgo(3), grants: [{ module: 'crm', expiresAt: inDays(5) }] })).crm.state).toBe('active');
+  });
+
+  test('баннер: за 7 дней до конца и в режиме только чтение', () => {
+    expect(licenseNotices(licenseView(raw({ planModules: ['crm'], planExpiresAt: inDays(30) })))).toEqual([]);
+    const soon = licenseNotices(licenseView(raw({ planModules: ['crm'], planExpiresAt: inDays(5), isTrial: true })));
+    expect(soon).toHaveLength(1);
+    expect(soon[0]).toMatchObject({ kind: 'expiring', trial: true });
+    expect(soon[0]!.modules).toContain('crm');
+    const ro = licenseNotices(licenseView(raw({ planModules: ['crm'], planExpiresAt: daysAgo(2) })));
+    expect(ro[0]).toMatchObject({ kind: 'readonly' });
+    expect(licenseNotices(licenseView(raw({ planModules: ['crm'], planExpiresAt: daysAgo(40) })))).toEqual([]);
+  });
+
+  test('API: после срока чтение работает, запись — 403 module_expired; через 14 дней — module_disabled', async () => {
+    const c = new Client();
+    await c.signup();
+    await license(c, corePlan, [{ module: 'crm', expiresAt: daysAgo(3) }]);
+    expect((await c.get('/deals')).status).toBe(200);
+    for (const [m, path] of [['post', '/deals'], ['put', '/deals/00000000-0000-0000-0000-000000000000'], ['del', '/deals/00000000-0000-0000-0000-000000000000']] as const) {
+      const r = m === 'del' ? await c.del(path) : await (c as any)[m](path, { title: 'x' });
+      expect(r.status, `${m} ${path}`).toBe(403);
+      expect(r.body.error.code).toBe('module_expired');
+    }
+    const v = (await c.get('/license')).body;
+    expect(v.modules).toContain('crm');
+    expect(v.states.crm).toMatchObject({ state: 'readonly' });
+    expect((await c.get('/tasks')).status).toBe(200);
+    expect((await c.post('/companies', { name: 'Core still writes' })).status).toBe(201);
+    await license(c, corePlan, [{ module: 'crm', expiresAt: daysAgo(15) }]);
+    expect((await c.get('/deals')).body.error.code).toBe('module_disabled');
+    expect((await c.get('/license')).body.modules).toEqual(['core']);
+  });
+
+  test('воркер: в режиме только чтение задачи записи не идут, печать и выгрузки — идут', async () => {
+    const c = new Client();
+    await c.signup();
+    await license(c, corePlan, [{ module: 'production', expiresAt: daysAgo(3) }, { module: 'services', expiresAt: daysAgo(3) }]);
+    const [w] = await admin`insert into jobs (workspace_id, type, payload) values (${c.workspaceId}, 'production.close_period', '{}'::jsonb) returning id`;
+    const [r] = await admin`insert into jobs (workspace_id, type, payload) values (${c.workspaceId}, 'billing.export_zip', ${JSON.stringify({ exportId: '00000000-0000-0000-0000-000000000000' })}::jsonb) returning id`;
+    await drainJobs();
+    expect((await admin`select last_error from jobs where id = ${w!.id}`)[0]!.last_error).toContain('module_disabled');
+    expect(String((await admin`select last_error from jobs where id = ${r!.id}`)[0]!.last_error)).not.toContain('module_disabled');
+  });
+
+  test('пробный период: арендатор с тарифом, у которого trial_days — срок, признак и запись в журнале; без trial_days ничего не меняется', async () => {
+    const trialPlan = (await op.post('/admin/plans', { name: 'Пробный', modules: ['crm', 'trade'], trialDays: 14 })).body.id as string;
+    const noTrial = (await op.post('/admin/plans', { name: 'Без пробного', modules: ['crm'] })).body.id as string;
+    const mk = async (planId?: string) => {
+      const res = await op.post('/admin/tenants', { name: `Trial ${uniq()}`, ownerEmail: `owner-${uniq()}@test.dev`, planId });
+      expect(res.status).toBe(201);
+      return res.body.workspaceId as string;
+    };
+    const t1 = await mk(trialPlan);
+    const l1 = (await op.get(`/admin/tenants/${t1}/license`)).body;
+    expect(l1).toMatchObject({ assigned: true, isTrial: true, planName: 'Пробный' });
+    const days = (new Date(l1.planExpiresAt).getTime() - Date.now()) / 864e5;
+    expect(days).toBeGreaterThan(13.9);
+    expect(days).toBeLessThan(14.1);
+    const log = (await op.get(`/admin/tenants/${t1}/license-log`)).body.items as any[];
+    expect(log.some(i => i.kind === 'trial_started' && i.actorEmail === op.user!.email)).toBe(true);
+    // тариф без пробного периода назначен, срока нет
+    const l2 = (await op.get(`/admin/tenants/${await mk(noTrial)}/license`)).body;
+    expect(l2).toMatchObject({ assigned: true, isTrial: false, planExpiresAt: null, planName: 'Без пробного' });
+    // тариф по умолчанию без trial_days: строки нет
+    const l3 = (await op.get(`/admin/tenants/${await mk()}/license`)).body;
+    expect(l3).toMatchObject({ assigned: false, planName: 'Полный' });
+    // оператор может снять признак пробного периода и продлить
+    const res = await op.put(`/admin/tenants/${t1}/license`, { planId: trialPlan, planExpiresAt: inDays(365), isTrial: false });
+    expect(res.status).toBe(200);
+    expect((await op.get(`/admin/tenants/${t1}/license`)).body.isTrial).toBe(false);
   });
 });
 

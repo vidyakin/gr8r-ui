@@ -74,6 +74,8 @@ export const settings = {
     ownerEmail: 'Owner email',
     ownerName: 'Owner name',
     demo: 'With demo data',
+    planHint: 'Plan; a trial starts if the plan has trial days',
+    planDefault: 'Default plan',
     ttl: 'Lifetime, days',
     create: 'Create tenant',
     created: 'Tenant {slug} created',

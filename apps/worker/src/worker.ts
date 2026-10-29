@@ -1,7 +1,7 @@
 /* Цикл воркера: очередь jobs и outbox events на FOR UPDATE SKIP LOCKED — несколько воркеров безопасно работают параллельно.
    Воркер ходит под ролью app_worker (BYPASSRLS): задачи и события относятся ко всем арендаторам. */
 import { sql as dsql } from 'drizzle-orm';
-import { events, modulesOfWorkspace, withContext, type Sql } from '@gr8r/db';
+import { events, modulesOfWorkspace, readableModulesOfWorkspace, withContext, type Sql } from '@gr8r/db';
 import { MODULE_OF_JOB } from '@gr8r/shared';
 import { handleEvent, jobHandlers, makeJobContext, type EventRow, type JobRow } from './handlers';
 
@@ -45,6 +45,9 @@ export async function claimJobs(sql: Sql, o: WorkerOptions): Promise<JobRow[]> {
   );
 }
 
+/** Задачи, которые только читают данные: в режиме «только чтение» после окончания срока модуля они ещё работают */
+const READONLY_SAFE_JOBS = new Set(['document.pdf', 'settlement.act_pdf', 'billing.export_zip']);
+
 /** Выполняет одну задачу; успех → done, ошибка → повтор с экспоненциальной паузой или failed после max_attempts */
 async function runJob(sql: Sql, job: JobRow, o: WorkerOptions): Promise<void> {
   try {
@@ -52,7 +55,9 @@ async function runJob(sql: Sql, job: JobRow, o: WorkerOptions): Promise<void> {
     if (!handler) throw new Error(`no handler for job type "${job.type}"`);
     // Лицензия: задача выключенного модуля не выполняется и не повторяется (данные не трогаем, включение модуля вернёт работу вручную)
     const module = MODULE_OF_JOB.get(job.type);
-    if (module && module !== 'core' && !(await modulesOfWorkspace(sql, job.workspaceId)).has(module)) {
+    // после окончания срока (14 дней «только чтение») задачи, которые лишь читают данные (печать, выгрузка), идут; остальные — как у выключенного модуля
+    const set = module && module !== 'core' ? (READONLY_SAFE_JOBS.has(job.type) ? await readableModulesOfWorkspace(sql, job.workspaceId) : await modulesOfWorkspace(sql, job.workspaceId)) : null;
+    if (module && set && !set.has(module)) {
       const msg = `module_disabled: the "${module}" module is not enabled for this workspace`;
       o.log(`job ${job.id} (${job.type}) skipped: ${msg}`);
       await withContext(sql, {}, async db => db.execute(dsql`update jobs set status = 'failed', last_error = ${msg}, finished_at = now() where id = ${job.id}`), 'app_worker');

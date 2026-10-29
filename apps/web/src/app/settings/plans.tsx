@@ -258,6 +258,7 @@ export function TenantLicenseDialog({ tenant, onClose }: { tenant: { id: string;
   });
   const [planId, setPlanId] = React.useState('');
   const [planExpires, setPlanExpires] = React.useState('');
+  const [isTrial, setIsTrial] = React.useState(false);
   const [grants, setGrants] = React.useState<{ module: ModuleId; expiresAt: string }[]>([]);
   const [busy, setBusy] = React.useState(false);
   React.useEffect(() => {
@@ -265,6 +266,7 @@ export function TenantLicenseDialog({ tenant, onClose }: { tenant: { id: string;
     if (!l) return;
     setPlanId(l.planId ?? '');
     setPlanExpires(toDateInput(l.planExpiresAt));
+    setIsTrial(l.isTrial ?? false);
     setGrants(l.grants.filter((g): g is { module: ModuleId; expiresAt: string | null } => (MODULE_IDS as readonly string[]).includes(g.module)).map(g => ({ module: g.module, expiresAt: toDateInput(g.expiresAt) })));
   }, [lic.data]);
 
@@ -280,6 +282,7 @@ export function TenantLicenseDialog({ tenant, onClose }: { tenant: { id: string;
       await call(ws, 'PUT', `/admin/tenants/${tenant.id}/license`, {
         planId,
         planExpiresAt: fromDateInput(planExpires),
+        isTrial,
         grants: grants.map(g => ({ module: g.module, expiresAt: fromDateInput(g.expiresAt) })),
       });
       toast(t('licensing.operator.saved'));
@@ -318,6 +321,10 @@ export function TenantLicenseDialog({ tenant, onClose }: { tenant: { id: string;
               <Field label={t('licensing.operator.planExpires')} hint={t('licensing.operator.noExpiry')}>
                 {p => <Input {...p} type="date" value={planExpires} onChange={e => setPlanExpires(e.target.value)} />}
               </Field>
+              <label className="row" style={{ gap: 6, paddingBottom: 8 }}>
+                <Checkbox checked={isTrial} onChange={e => setIsTrial(e.target.checked)} />
+                {t('licensing.operator.isTrial')}
+              </label>
             </div>
             <div>
               <div className="t">{t('licensing.operator.addons')}</div>

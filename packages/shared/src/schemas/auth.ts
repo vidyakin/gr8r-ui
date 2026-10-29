@@ -48,6 +48,8 @@ export const tenantCreateBody = z.object({
   ownerName: z.string().trim().min(1).max(100).optional(),
   demo: z.boolean().default(false),
   ttlDays: z.number().int().min(1).max(365).optional(),
+  /** Тариф нового арендатора (по умолчанию — тариф по умолчанию); если у тарифа задан пробный период, он начинается сразу */
+  planId: uuid.optional(),
 });
 
 /* Тарифы и лицензии арендаторов (задача 1205, docs/architecture/licensing.md): тела запросов оператора */
@@ -70,6 +72,7 @@ export type LicensePlanBody = z.infer<typeof licensePlanBody>;
 export const tenantLicenseBody = z.object({
   planId: uuid,
   planExpiresAt: isoDate.nullable().default(null),
+  isTrial: z.boolean().default(false),
   limits: z.record(z.string(), z.number().int().min(0)).default({}),
   grants: z.array(z.object({ module: moduleIdSchema, expiresAt: isoDate.nullable().default(null) })).max(20).default([]),
 });

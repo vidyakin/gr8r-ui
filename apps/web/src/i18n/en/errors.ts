@@ -7,6 +7,7 @@ export const errors = {
   forbidden: 'You do not have permission to do this',
   unauthorized: 'Please sign in again',
   conflict: 'A record with the same unique value already exists',
+  module_expired: 'The module’s term has ended: it is read-only. Extend the plan to edit data',
   module_disabled: 'This section is not included in your plan. Ask the administrator to connect the module',
   plan_in_use: 'The plan cannot be deleted: it is the default plan or is assigned to workspaces',
   invalid_reference: 'The selected record does not exist or is no longer available',

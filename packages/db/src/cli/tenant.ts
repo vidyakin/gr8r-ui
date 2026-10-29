@@ -1,6 +1,6 @@
 /* CLI оператора: арендаторы и операторы установки (docs/architecture/deploy.md). Работает под ADMIN_DATABASE_URL.
    bun run tenant list
-   bun run tenant create --name "ООО Ромашка" --owner boss@romashka.ru [--owner-name Имя] [--password …] [--slug romashka]
+   bun run tenant create --name "ООО Ромашка" --owner boss@romashka.ru [--owner-name Имя] [--password …] [--slug romashka] [--plan ключ|id]
    bun run tenant demo --name "Демо для Ромашки" --owner boss@romashka.ru [--ttl 14]
    bun run tenant delete <id|адрес>
    bun run tenant export <id|адрес> [--out файл.jsonl[.gz]]
@@ -61,6 +61,7 @@ try {
         owner: { email: owner, name: opt('owner-name'), password: opt('password') },
         demo: cmd === 'demo',
         ttlDays: ttl ? Number(ttl) : undefined,
+        plan: opt('plan'),
       });
       console.log(`[tenant] создан ${t.kind === 'demo' ? 'демо-' : ''}арендатор ${t.slug} (${t.workspaceId})${t.expiresAt ? `, удалится ${t.expiresAt.toISOString().slice(0, 10)}` : ''}`);
       console.log(t.password ? `[tenant] вход: ${t.ownerEmail} / ${t.password} (пароль показывается один раз)` : `[tenant] владелец ${t.ownerEmail} уже зарегистрирован — вход с прежним паролем`);

@@ -21,7 +21,7 @@ export const adminRoutes = new Hono<AppEnv>()
   .get('/tenants', async c => c.json({ items: await listTenantsForOperator(c.get('sql'), c.get('user').id) }))
   .post('/tenants', zValidator('json', tenantCreateBody, validationHook), async c => {
     const b = c.req.valid('json');
-    const t = await createTenant(c.get('sql'), { name: b.name, slug: b.slug, owner: { email: b.ownerEmail, name: b.ownerName }, demo: b.demo, ttlDays: b.ttlDays });
+    const t = await createTenant(c.get('sql'), { name: b.name, slug: b.slug, owner: { email: b.ownerEmail, name: b.ownerName }, demo: b.demo, ttlDays: b.ttlDays, plan: b.planId, actorId: c.get('user').id });
     return c.json(t, 201);
   })
   .delete('/tenants/:id', zValidator('param', workspaceParam, validationHook), async c => {
