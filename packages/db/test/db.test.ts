@@ -150,9 +150,14 @@ describe('seed', () => {
     expect(await count('deliveries', `${w} and status = 'assigned'`)).toBe(1);
     expect(await count('deliveries', `${w} and status = 'in_transit'`)).toBe(1);
     expect(await count('member_positions', `${w} and position_id in (select id from positions where functions @> array['courier'])`)).toBe(2);
-    // должности (задача 1172): четыре должности, шесть назначений, три вида номенклатуры; виды у мебели, монтажа и двух услуг массажа
-    expect(await count('positions', w)).toBe(4);
-    expect(await count('member_positions', w)).toBe(6);
+    // должности (задача 1172, 1210): пять должностей (в том числе «Водитель»), восемь назначений (курьеры — ещё и водители), три вида номенклатуры; виды у мебели, монтажа и двух услуг массажа
+    expect(await count('positions', w)).toBe(5);
+    expect(await count('member_positions', w)).toBe(8);
+    // автопарк (задача 1210): четыре машины, путевые листы, заправки, документы со сроками
+    expect(await count('fleet_vehicles', w)).toBe(4);
+    expect(await count('fleet_waybills', w)).toBe(7);
+    expect(await count('fleet_fuel_entries', w)).toBe(3);
+    expect(await count('fleet_documents', w)).toBe(12);
     expect(await count('product_kinds', w)).toBe(3);
     expect(await count('position_product_kinds', w)).toBe(1);
     expect(await count('products', `${w} and product_kind_id is not null`)).toBeGreaterThan(5);
@@ -230,7 +235,7 @@ describe('seed', () => {
     expect(await count('document_states', w)).toBe(18);
     expect(await count('work_order_materials', w)).toBe(2); // + запчасть гарантийного ремонта
     expect(await count('work_order_assignments', w)).toBe(1);
-    expect(await count('cost_items', w)).toBe(18); // + статья «Оплата труда»; // 8 системных (с «Гарантийный ремонт» и «Доставка») + электроэнергия и аренда демо + 6 статей инвестпроектов + статья подотчёта
+    expect(await count('cost_items', w)).toBe(21); // + статья «Оплата труда»; // 11 системных (с «Гарантийный ремонт», «Доставка» и тремя статьями автопарка) + электроэнергия и аренда демо + 6 статей инвестпроектов + статья подотчёта
     expect(await count('stock_balances', `${w} and qty > 0`)).toBe(29); // + смартфоны на основном складе
     // резервы: заказ покупателя, продукция под заказ и материалы заказов на производство
     expect(await count('stock_reservations', w)).toBe(11); // + резерв под заказ окна
