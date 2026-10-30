@@ -2,6 +2,10 @@ import type { Widen } from '../types';
 import type { errors as E } from '../en/errors';
 
 export const errors: Widen<typeof E> = {
+  driver_payment_conflict: 'Этот идентификатор уже использован для другой оплаты.',
+  driver_return_conflict: 'Этот идентификатор уже использован для другого возврата.',
+  return_requires_realization: 'Для возврата нужна проведённая реализация.',
+  invalid_return_quantity: 'Количество возврата превышает доступное.',
   unknown: 'Что-то пошло не так',
   network: 'Сервер недоступен',
   not_found: 'Запись не найдена',

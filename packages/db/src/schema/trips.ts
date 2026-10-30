@@ -6,6 +6,8 @@ import { boolean, check, date, foreignKey, index, integer, jsonb, numeric, pgTab
 import { createdAt, pk, ts, updatedAt } from './columns';
 import { deliveries } from './delivery';
 import { fleetVehicles } from './fleet';
+import { documents, organizations } from './documents';
+import { cashRegisters } from './payments';
 import { members, wsCol } from './people';
 
 export const fleetTrips = pgTable(
@@ -200,4 +202,39 @@ export const fleetDriverEvents = pgTable('fleet_driver_events', {
   check('fleet_driver_events_coords_chk', sql`(${t.latitude} is null and ${t.longitude} is null) or (${t.latitude} is not null and ${t.longitude} is not null and ${t.latitude} between -90 and 90 and ${t.longitude} between -180 and 180)`),
   check('fleet_driver_events_pod_size_chk', sql`coalesce(octet_length(${t.photo}), 0) <= 2097152 and coalesce(octet_length(${t.signature}), 0) <= 524288`),
   index('fleet_driver_events_stop_idx').on(t.stopId, t.createdAt),
+]);
+
+/** Касса закрепляется за водителем и организацией, а не выбирается из общих касс. */
+export const fleetDriverRegisters = pgTable('fleet_driver_registers', {
+  id: pk(), workspaceId: wsCol(), driverMemberId: uuid('driver_member_id').notNull(),
+  organizationId: uuid('organization_id').notNull(), cashRegisterId: uuid('cash_register_id').notNull(),
+}, t => [
+  unique('fleet_driver_registers_driver_org_uq').on(t.workspaceId, t.driverMemberId, t.organizationId),
+  foreignKey({ columns: [t.workspaceId, t.driverMemberId], foreignColumns: [members.workspaceId, members.id], name: 'fleet_driver_registers_driver_fk' }),
+  foreignKey({ columns: [t.workspaceId, t.organizationId], foreignColumns: [organizations.workspaceId, organizations.id], name: 'fleet_driver_registers_org_fk' }),
+  foreignKey({ columns: [t.workspaceId, t.cashRegisterId], foreignColumns: [cashRegisters.workspaceId, cashRegisters.id], name: 'fleet_driver_registers_cash_fk' }),
+]);
+
+export const fleetDriverPayments = pgTable('fleet_driver_payments', {
+  id: pk(), workspaceId: wsCol(), clientId: uuid('client_id').notNull(),
+  tripId: uuid('trip_id').notNull(), stopId: uuid('stop_id').notNull(), driverMemberId: uuid('driver_member_id').notNull(),
+  paymentId: uuid('payment_id').notNull(), amount: numeric('amount', { precision: 18, scale: 2 }).notNull(), createdAt: createdAt(),
+}, t => [
+  unique('fleet_driver_payments_client_uq').on(t.workspaceId, t.clientId),
+  foreignKey({ columns: [t.workspaceId, t.tripId], foreignColumns: [fleetTrips.workspaceId, fleetTrips.id], name: 'fleet_driver_payments_trip_fk' }),
+  foreignKey({ columns: [t.workspaceId, t.stopId], foreignColumns: [fleetTripStops.workspaceId, fleetTripStops.id], name: 'fleet_driver_payments_stop_fk' }),
+  foreignKey({ columns: [t.workspaceId, t.driverMemberId], foreignColumns: [members.workspaceId, members.id], name: 'fleet_driver_payments_driver_fk' }),
+  foreignKey({ columns: [t.workspaceId, t.paymentId], foreignColumns: [documents.workspaceId, documents.id], name: 'fleet_driver_payments_payment_fk' }),
+]);
+
+export const fleetDriverReturns = pgTable('fleet_driver_returns', {
+  id: pk(), workspaceId: wsCol(), clientId: uuid('client_id').notNull(), tripId: uuid('trip_id').notNull(),
+  stopId: uuid('stop_id').notNull(), driverMemberId: uuid('driver_member_id').notNull(), returnId: uuid('return_id').notNull(),
+  lines: jsonb('lines').$type<{ lineId: string; qty: string }[]>().notNull(), createdAt: createdAt(),
+}, t => [
+  unique('fleet_driver_returns_client_uq').on(t.workspaceId, t.clientId),
+  foreignKey({ columns: [t.workspaceId, t.tripId], foreignColumns: [fleetTrips.workspaceId, fleetTrips.id], name: 'fleet_driver_returns_trip_fk' }),
+  foreignKey({ columns: [t.workspaceId, t.stopId], foreignColumns: [fleetTripStops.workspaceId, fleetTripStops.id], name: 'fleet_driver_returns_stop_fk' }),
+  foreignKey({ columns: [t.workspaceId, t.driverMemberId], foreignColumns: [members.workspaceId, members.id], name: 'fleet_driver_returns_driver_fk' }),
+  foreignKey({ columns: [t.workspaceId, t.returnId], foreignColumns: [documents.workspaceId, documents.id], name: 'fleet_driver_returns_document_fk' }),
 ]);

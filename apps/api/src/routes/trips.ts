@@ -28,13 +28,17 @@ import {
   setStopStatus,
   recordDriverStopEvent,
   driverTripsForDate,
+  driverCashPayment,
+  driverPaymentLink,
+  driverPartialReturn,
+  driverStopProof,
   startTrip,
   tripCapacityMode,
   tripPrintData,
   updateStop,
   updateTrip,
 } from '@gr8r/db';
-import { driverStopEvent, dispatchQuery, idParam, renderRouteSheet, renderTransportWaybill, routingDistribute, routingOptimize, routingSettingsSave, tnCreate, tripAddDelivery, tripQuery, tripSave, tripSettingsSave, tripStopOrder, tripStopSave, tripStopStatus, tripStopUpdate, tripUpdate } from '@gr8r/shared';
+import { driverCashPayment as driverCashPaymentSchema, driverPartialReturn as driverPartialReturnSchema, driverStopEvent, paymentLinkCreate, dispatchQuery, idParam, renderRouteSheet, renderTransportWaybill, routingDistribute, routingOptimize, routingSettingsSave, tnCreate, tripAddDelivery, tripQuery, tripSave, tripSettingsSave, tripStopOrder, tripStopSave, tripStopStatus, tripStopUpdate, tripUpdate } from '@gr8r/shared';
 import { documentExports, jobs } from '@gr8r/db';
 import { and, eq } from 'drizzle-orm';
 import { AppError } from '../errors';
@@ -56,6 +60,26 @@ export const tripRoutes = new Hono<AppEnv>()
     const ctx = ctxOf(c);
     const { id, stopId } = c.req.valid('param');
     return c.json(await recordDriverStopEvent(ctx.db, docCtx(ctx), id, stopId, c.req.valid('json')));
+  })
+  .get('/driver/:id/stops/:stopId/proof', zValidator('param', stopParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const { id, stopId } = c.req.valid('param');
+    return c.json({ items: await driverStopProof(ctx.db, docCtx(ctx), id, stopId) });
+  })
+  .post('/driver/:id/stops/:stopId/payments', write, zValidator('param', stopParam, validationHook), zValidator('json', driverCashPaymentSchema, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const { id, stopId } = c.req.valid('param');
+    return c.json(await driverCashPayment(ctx.db, docCtx(ctx), id, stopId, c.req.valid('json')));
+  })
+  .post('/driver/:id/stops/:stopId/payment-link', write, zValidator('param', stopParam, validationHook), zValidator('json', paymentLinkCreate.omit({ documentId: true }), validationHook), async c => {
+    const ctx = ctxOf(c);
+    const { id, stopId } = c.req.valid('param');
+    return c.json(await driverPaymentLink(ctx.db, docCtx(ctx), id, stopId, c.req.valid('json')));
+  })
+  .post('/driver/:id/stops/:stopId/returns', write, zValidator('param', stopParam, validationHook), zValidator('json', driverPartialReturnSchema, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const { id, stopId } = c.req.valid('param');
+    return c.json(await driverPartialReturn(ctx.db, docCtx(ctx), id, stopId, c.req.valid('json')));
   })
   .get('/settings', async c => c.json({ capacityMode: await tripCapacityMode(ctxOf(c).db, ctxOf(c).workspaceId) }))
   // транспортная накладная (1214): выдать номер (повторно — тот же), HTML-страница, PDF задачей воркеру
