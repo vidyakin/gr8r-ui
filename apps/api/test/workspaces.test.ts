@@ -148,4 +148,18 @@ describe('workspaces', () => {
     expect((await b.get(`/workspaces/${a.workspaceId}`)).status).toBe(403);
     expect((await b.get('/workspaces')).body.items.every((w: any) => w.id !== a.workspaceId)).toBe(true);
   });
+
+  test('удалить воркспейс может только владелец (прямой вызов API)', async () => {
+    const owner = new Client();
+    await owner.signup();
+    const ws = owner.workspaceId!;
+    const admin = new Client();
+    await admin.signup();
+    const inv = await owner.post(`/workspaces/${ws}/invites`, { email: admin.user!.email, role: 'admin' });
+    await admin.post('/invites/accept', { token: inv.body.token });
+    admin.workspaceId = ws;
+    expect((await admin.del(`/workspaces/${ws}`)).status).toBe(403);
+    expect((await owner.get(`/workspaces/${ws}`)).status).toBe(200);
+    expect((await owner.del(`/workspaces/${ws}`)).status).toBe(200);
+  });
 });
