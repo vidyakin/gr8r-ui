@@ -114,12 +114,12 @@ export function useRuns(opts: { flowId?: string; failed?: boolean } = {}) {
   });
 }
 
-export function useRun(id: string | undefined) {
+export function useRun(id: string | undefined, enabled = true) {
   const ws = useWsId();
   return useQuery({
     queryKey: [...base(ws), 'run', id],
     queryFn: () => call<RunDetail>(ws, 'GET', `/flow-runs/${id}`),
-    enabled: !!id,
+    enabled: !!id && enabled,
     staleTime: Infinity,
     refetchInterval: q => (q.state.data && LIVE.includes(q.state.data.status) ? 3000 : false),
   });

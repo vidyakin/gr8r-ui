@@ -5,6 +5,7 @@ import { getNodeDef, type FlowRunStatus, type FlowStepStatus } from '@gr8r/share
 import { Alert, Badge, Button, EmptyState, Segmented, Skeleton, type Tone } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { ago } from '../lib/dates';
+import { useIsAdmin } from '../catalog/data';
 import { useRun, useRuns, type RunRow, type StepRow } from './data';
 import { NodeIcon } from './node-meta';
 import { fmtDateTime, useT } from '@/i18n';
@@ -108,7 +109,9 @@ function RunItem({ run, on, showFlow, onPick }: { run: RunRow; on: boolean; show
 
 function RunDetailView({ id, onOpenFlow }: { id: string; onOpenFlow?: (flowId: string) => void }) {
   const t = useT();
-  const q = useRun(id);
+  const isAdmin = useIsAdmin();
+  const q = useRun(id, isAdmin);
+  if (!isAdmin) return <EmptyState icon={<CircleAlert size={20} />} title={t('automations.runs.detailAdminOnly')} />;
   if (q.isPending) return <div style={{ padding: 16 }}><Skeleton w="100%" h={80} /></div>;
   if (q.isError) return <EmptyState icon={<CircleAlert size={20} />} error title={t('automations.runs.loadFailed')}>{(q.error as Error).message}</EmptyState>;
   const r = q.data;

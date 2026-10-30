@@ -226,6 +226,7 @@ export const automations = {
     tabFailed: 'С ошибками',
     table: 'Таблица запусков',
     loadFailed: 'Не удалось загрузить запуски',
+    detailAdminOnly: 'Подробности запуска доступны администраторам',
     filterAria: 'Фильтр запусков',
     refreshAria: 'Обновить',
     allRuns: 'Все запуски',

@@ -6,6 +6,8 @@ import { drizzleOf, type Db, type Sql, type Tx } from './client';
 export interface DbContext {
   userId?: string | null;
   workspaceId?: string | null;
+  /** Действие системы без пользователя (шаг автоматизации): закрытые проекты видны, изоляция воркспейса действует */
+  system?: boolean;
 }
 
 /** Роль, под которой работает код приложения */
@@ -15,6 +17,7 @@ export async function setContext(tx: Tx, ctx: DbContext, role: AppRole = 'app_us
   await tx.unsafe(`set local role ${role}`);
   if (ctx.userId) await tx`select set_config('app.user_id', ${ctx.userId}, true)`;
   if (ctx.workspaceId) await tx`select set_config('app.workspace_id', ${ctx.workspaceId}, true)`;
+  if (ctx.system) await tx`select set_config('app.system', 'on', true)`;
 }
 
 export async function withContext<T>(sql: Sql, ctx: DbContext, fn: (db: Db, tx: Tx) => Promise<T>, role: AppRole = 'app_user'): Promise<T> {

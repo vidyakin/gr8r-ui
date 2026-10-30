@@ -79,7 +79,7 @@ const successors = (graph: FlowGraph, nodeId: string, handle: string) => graph.e
 /** Выполняет запуск до завершения, задержки или повтора. Бросает только при сбое инфраструктуры (задача jobs повторится) */
 export async function executeRun(sql: Sql, workspaceId: string, runId: string): Promise<void> {
   for (let i = 0; i < flowEngine.maxSteps + 20; i++) {
-    const outcome = await withContext(sql, { workspaceId }, (db, tx) => stepRun(db, tx, workspaceId, runId));
+    const outcome = await withContext(sql, { workspaceId, system: true }, (db, tx) => stepRun(db, tx, workspaceId, runId));
     if (outcome === 'stop') return;
   }
 }

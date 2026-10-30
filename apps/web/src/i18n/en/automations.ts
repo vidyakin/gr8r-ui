@@ -226,6 +226,7 @@ export const automations = {
     tabFailed: 'Failed',
     table: 'Runs table',
     loadFailed: 'Could not load runs',
+    detailAdminOnly: 'Run details are available to admins',
     filterAria: 'Filter runs',
     refreshAria: 'Refresh',
     allRuns: 'All runs',

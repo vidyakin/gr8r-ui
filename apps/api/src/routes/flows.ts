@@ -175,7 +175,8 @@ export const flowRunRoutes = new Hono<AppEnv>()
     const [{ n }] = await ctx.db.select({ n: count() }).from(flowRuns).where(where);
     return c.json({ items: rows, total: n, limit: q.limit, offset: q.offset });
   })
-  .get('/:id', zValidator('param', idParam, validationHook), async c => {
+  // Шаги хранят снимки записей, в том числе из закрытых проектов: подробности — только админам
+  .get('/:id', admin, zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
     const { id } = c.req.valid('param');
     const [run] = await ctx.db

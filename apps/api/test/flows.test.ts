@@ -5,7 +5,7 @@ import { TransientError, type HttpRequest, type HttpResult } from '@gr8r/shared'
 import { flowEngine } from '../../worker/src/flows/engine';
 import { scheduleFlowsOnce } from '../../worker/src/flows/triggers';
 import { defaultOptions, processEventsOnce, processJobsOnce } from '../../worker/src/worker';
-import { admin, Client, ddl, sql, stageId } from './helpers';
+import { addMember, admin, Client, ddl, sql, stageId } from './helpers';
 
 const opts = () => defaultOptions({ log: () => {}, concurrency: 10, ddl });
 
@@ -452,7 +452,7 @@ describe('flows: API', () => {
     expect(await runsOf(owner, flowId)).toHaveLength(0);
   });
 
-  test('only admins change flows; members can read them and the journal', async () => {
+  test('only admins change flows; members can read them', async () => {
     const member = new Client();
     await member.signup();
     const inv = await owner.post(`/workspaces/${ws}/invites`, { email: member.user!.email, role: 'member' });
@@ -460,6 +460,27 @@ describe('flows: API', () => {
     member.workspaceId = ws;
     expect((await member.get('/flows')).status).toBe(200);
     expect((await member.post('/flows', { name: 'Nope' })).status).toBe(403);
+  });
+
+  test('шаги видят закрытый проект, а подробности запуска доступны только админам', async () => {
+    const member = await addMember(owner);
+    const secret = (await owner.post('/projects', { key: 'FSEC', name: 'Secret', isPrivate: true, access: 'private' })).body;
+    const task = await owner.task(secret.id, 'Секретная задача');
+    const flowId = await makeFlow(
+      owner,
+      'Private project flow',
+      graph([['t', 'trigger.field_changed', { entity: 'task', field: 'title' }], ['u', 'action.update_field', { entity: 'task', recordId: '{{trigger.recordId}}', field: 'description', value: 'из автоматизации' }]], [['t', 'u']]),
+    );
+    expect((await owner.patch(`/tasks/${task.id}`, { title: 'Новая секретная задача' })).status).toBe(200);
+    await drain();
+    const [run] = await runsOf(owner, flowId);
+    expect(run.status).toBe('succeeded');
+    expect((await owner.get(`/tasks/${task.id}`)).body.description).toBe('из автоматизации');
+    // снимки записей в шагах не должны уходить участнику вне закрытого проекта
+    expect((await member.get(`/flow-runs/${run.id}`)).status).toBe(403);
+    expect((await owner.get(`/flow-runs/${run.id}`)).status).toBe(200);
+    expect((await member.get(`/tasks/${task.id}`)).status).toBe(404);
+    expect((await owner.post(`/flows/${flowId}/publish`, { enable: false })).status).toBe(200);
   });
 });
 
