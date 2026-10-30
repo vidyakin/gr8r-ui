@@ -80,7 +80,7 @@ async function costItemId(db: Db, ws: string, key: string): Promise<string> {
 export { FLEET_COST_ITEMS };
 
 /** Следующий номер документа автопарка «ПЛ-2026-00001»: под блокировкой, чтобы параллельные запросы не взяли один номер */
-export async function nextNumber(db: Db, ws: string, table: 'fleet_waybills' | 'fleet_repairs' | 'fleet_trips', prefix: string, date: string): Promise<string> {
+export async function nextNumber(db: Db, ws: string, table: 'fleet_waybills' | 'fleet_repairs' | 'fleet_trips' | 'transport_orders', prefix: string, date: string): Promise<string> {
   await db.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`fleet:${table}:${ws}`}, 0))`);
   const year = date.slice(0, 4);
   const like = `${prefix}-${year}-%`;

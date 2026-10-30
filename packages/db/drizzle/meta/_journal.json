@@ -505,6 +505,13 @@
       "when": 1793366268200,
       "tag": "0077_driver_workplace",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1793366668257,
+      "tag": "0080_transport_orders",
+      "breakpoints": true
     }
   ]
 }

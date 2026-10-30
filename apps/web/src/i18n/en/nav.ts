@@ -68,6 +68,8 @@ export const sections = {
   fleetFuel: 'Fuel',
   fleetService: 'Service and repairs',
   trips: 'Trips',
+  transportOrders: 'Transport orders',
+  rateSchedules: 'Rate schedules',
   driverWorkplace: 'Driver workplace',
   dispatch: 'Dispatcher',
   fleetFines: 'Fines',

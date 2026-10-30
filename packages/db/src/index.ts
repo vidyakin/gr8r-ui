@@ -71,6 +71,7 @@ export * from './licensing';
 export * from './module-requests';
 export * from './fleet';
 export * from './trips';
+export * from './transport-orders';
 export * from './transport-waybill';
 export * from './routing';
 export * from './routing-trips';

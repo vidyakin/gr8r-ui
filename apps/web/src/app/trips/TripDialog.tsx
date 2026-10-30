@@ -14,6 +14,7 @@ import { useVehicles } from '../fleet/data';
 import { FormDialog, intOrNull, num, orNull, type FieldDef, type Values } from '../fleet/parts';
 import { downloadTransportWaybillPdf, openTransportWaybill, openTripPrint, useRoutingRuns, useTrip, useTripApi, type TripDetail, type TripStop } from './data';
 import { RouteMapView, etaText, mapStops, tripColor } from './map';
+import { TripEconomics } from '../transport-orders/TripEconomics';
 
 export const TRIP_TONE = { planned: 'gray', in_transit: 'accent', done: 'green', cancelled: 'red' } as const;
 export const STOP_TONE = { planned: 'gray', arrived: 'amber', done: 'green', failed: 'red' } as const;
@@ -328,6 +329,7 @@ export function TripDialog({ id, defaults, onClose }: { id: string | null; defau
                   <span>{t('trips.card.docs')}:</span>
                   {trip.waybills.length ? trip.waybills.map(w => <Badge key={w.id} tone="gray">{w.number}</Badge>) : <span>{t('trips.card.noWaybill')}</span>}
                 </div>
+                <TripEconomics tripId={trip.id} />
               </>
             )}
           </div>
