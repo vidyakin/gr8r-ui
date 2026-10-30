@@ -51,7 +51,7 @@ export async function saveTripSettings(db: Db, ctx: DocCtx, capacityMode: TripCa
 
 /* ---------------- загрузка ---------------- */
 
-async function loadTrip(db: Db, id: string, lock = false): Promise<TripRow> {
+export async function loadTrip(db: Db, id: string, lock = false): Promise<TripRow> {
   const q = db.select().from(fleetTrips).where(eq(fleetTrips.id, id)).limit(1);
   const [row] = await (lock ? q.for('update') : q);
   if (!row) throw notFound('trip');
