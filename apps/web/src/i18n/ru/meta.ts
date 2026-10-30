@@ -15,7 +15,7 @@ export const meta = {
     board: 'Доска',
     newRecord: 'Новая запись',
     addRecord: 'Добавить запись',
-    total: '{count, plural, one {# запись} few {# записи} many {# записей} other {# записи}}',
+    total: { one: '# запись', few: '# записи', many: '# записей', other: '# записи' },
     match: 'совпало',
     searchPlaceholder: 'Поиск по «{name}»…',
     viewModeAria: 'Режим просмотра',

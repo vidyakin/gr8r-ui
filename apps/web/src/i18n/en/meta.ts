@@ -15,7 +15,7 @@ export const meta = {
     board: 'Board',
     newRecord: 'New record',
     addRecord: 'Add record',
-    total: '{count, plural, one {# record} other {# records}}',
+    total: { one: '# record', other: '# records' },
     match: 'match',
     searchPlaceholder: 'Search {name}…',
     viewModeAria: 'View',

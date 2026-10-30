@@ -6,6 +6,7 @@ export const views = {
   /* Карточка задачи (TaskCard в components/gr8r/task.tsx — общий блок) */
   task: {
     noPriority: 'No priority',
+    timeColumn: 'Time',
     priorityLabel: 'Priority {n}',
     comments: { one: '{n} comment', other: '{n} comments' },
     attachments: { one: '{n} attachment', other: '{n} attachments' },
@@ -29,6 +30,8 @@ export const views = {
   },
 
   /* Toolbar видов списка (Tasks, Files, …) */
+  groups: { overdue: 'Overdue', today: 'Today', week: 'Next 7 days', later: 'Later', nodate: 'No due date', all: 'All tasks', unassigned: 'Unassigned' },
+
   toolbar: {
     searchTasks: 'Search tasks',
     filter: 'Filter',
@@ -273,6 +276,8 @@ export const views = {
     empty: 'Empty timeline',
     emptyHint: 'Create tasks to see them here.',
     moved: 'Moved “{title}” {days} days later',
+    movedLater: { one: 'Moved “{title}” # day later', other: 'Moved “{title}” # days later' },
+    movedEarlier: { one: 'Moved “{title}” # day earlier', other: 'Moved “{title}” # days earlier' },
     monthsShort: { jan: 'Jan', feb: 'Feb', mar: 'Mar', apr: 'Apr', may: 'May', jun: 'Jun', jul: 'Jul', aug: 'Aug', sep: 'Sep', oct: 'Oct', nov: 'Nov', dec: 'Dec' },
   },
 

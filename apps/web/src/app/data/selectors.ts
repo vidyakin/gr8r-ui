@@ -184,23 +184,23 @@ export interface TaskBucket {
   set?: Partial<Pick<Task, 'status' | 'priority' | 'assignee' | 'project' | 'due'>>;
 }
 
-const DUE_BUCKETS = [
-  { key: 'overdue', name: 'Overdue' },
-  { key: 'today', name: 'Today' },
-  { key: 'week', name: 'Next 7 days' },
-  { key: 'later', name: 'Later' },
-  { key: 'nodate', name: 'No due date' },
+const dueBuckets = () => [
+  { key: 'overdue', name: t('views.groups.overdue') },
+  { key: 'today', name: t('views.groups.today') },
+  { key: 'week', name: t('views.groups.week') },
+  { key: 'later', name: t('views.groups.later') },
+  { key: 'nodate', name: t('views.groups.nodate') },
 ];
 
 export function groupTasks(d: WorkspaceData, ts: Task[], g: GroupBy): TaskBucket[] {
-  if (g === 'none') return [{ key: 'all', name: 'All tasks', tasks: ts }];
+  if (g === 'none') return [{ key: 'all', name: t('views.groups.all'), tasks: ts }];
   let groups: Omit<TaskBucket, 'tasks'>[];
   if (g === 'status') groups = statusesOf(d).map(s => ({ key: s.id, name: statusName(s), set: { status: s.id } }));
   else if (g === 'priority') groups = [...PRIORITIES.map(p => ({ key: String(p), name: priorityName(p), set: { priority: p as number | null } })), { key: 'none', name: priorityName(null), set: { priority: null } }];
   else if (g === 'assignee')
-    groups = [...d.members.map(m => ({ key: m.id, name: m.name, set: { assignee: m.id } })), { key: 'none', name: 'Unassigned', set: { assignee: null } }];
+    groups = [...d.members.map(m => ({ key: m.id, name: m.name, set: { assignee: m.id } })), { key: 'none', name: t('views.groups.unassigned'), set: { assignee: null } }];
   else if (g === 'project') groups = visibleProjects(d).filter(p => canSee(d, p)).map(p => ({ key: p.id, name: p.name, set: { project: p.id } }));
-  else groups = DUE_BUCKETS;
+  else groups = dueBuckets();
   const out = groups.map(G => ({
     ...G,
     tasks: ts.filter(t => {

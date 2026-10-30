@@ -279,7 +279,7 @@ export function ViewToolbar({ api, left, right, group, columns, resetWidths = tr
                   <FilterMenu api={api}>
                     <button style={{ display: 'inline-flex', gap: 5, alignItems: 'center' }}>
                       {React.cloneElement(F.icon as React.ReactElement<{ size: number }>, { size: 12 })}
-                      <b>{F.name}</b> is <span>{names.length > 2 ? tt('views.toolbar.selected', { n: names.length }) : names.join(', ')}</span>
+                      <b>{F.name}</b> {tt('ui.is')} <span>{names.length > 2 ? tt('views.toolbar.selected', { count: names.length }) : names.join(', ')}</span>
                     </button>
                   </FilterMenu>
                   <button className="ibtn" aria-label={tt('views.toolbar.removeFilter')} onClick={() => api.removeFilter(f.f)}>

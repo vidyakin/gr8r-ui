@@ -258,6 +258,7 @@ export const docs: Widen<typeof D> = {
 
   /* ----------- карточка документа (DocumentPage) ----------- */
   document: {
+    draftRef: '(черновик)',
     title: 'Документ',
     createError: 'Не удалось создать документ',
     notFound: 'Документ не найден',

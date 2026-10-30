@@ -4,7 +4,7 @@ import * as React from 'react';
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Ellipsis, Link as LinkIcon, ListChecks, MessageSquare, PanelRightOpen, Plus, Repeat, RotateCcw, Star, Check } from 'lucide-react';
 import { Checkbox, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tooltip, toast } from '@/components/ui';
 import { cn } from '@/lib/utils';
-import { useT } from '@/i18n';
+import { t, useT } from '@/i18n';
 import { useWorkspace, type TaskPatch } from '../data/store';
 import { commentsOf, fmtTimePair, subTime, taskTime, type SortField } from '../data/selectors';
 import { countSubs } from '../data/subtasks';
@@ -56,7 +56,14 @@ const COL_WIDTHS: Record<Column, string> = {
 };
 
 /** Необязательные колонки списка для меню Columns (переключаются через api.hidden) */
-export const LIST_OPTIONAL_COLUMNS = [{ id: 'time', name: 'Time' }];
+export const LIST_OPTIONAL_COLUMNS = [
+  {
+    id: 'time',
+    get name() {
+      return t('views.task.timeColumn');
+    },
+  },
+];
 
 /** Колонки списка с учётом скрытых в виде: Time добавляется последней, если включена */
 export const withTimeColumn = (base: Column[], hidden: string[]): Column[] => (hidden.includes('time') ? base : [...base, 'time']);

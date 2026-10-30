@@ -1520,7 +1520,7 @@ export function DocRef({ d }: { d: DocLink }) {
     <span className="doc-ref">
       {/* у распределения материалов своя форма */}
       <Link className="crm-link" to={d.type === 'material_allocation' ? `/material-allocations/${d.id}` : `/documents/${d.id}`}>
-        {typeLabel(d.type)} {d.number ?? '(draft)'}
+        {typeLabel(d.type)} {d.number ?? t('docs.document.draftRef')}
       </Link>
       <Badge tone={STATUS_TONE[d.status]}>{STATUS_LABEL[d.status]}</Badge>
       {d.total !== undefined && <span className="num muted">{money(d.total)}</span>}

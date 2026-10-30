@@ -96,7 +96,7 @@ const KIND_ICON = { material: Package, semi: Layers, work: Wrench, expense: Pack
 export function printSpec(ws: string, itemId: string, form: 'short' | 'expanded') {
   const win = window.open('', '_blank');
   if (!win) return;
-  win.document.write('<p style="font:13px sans-serif">Loading…</p>');
+  win.document.write('<p style="font:13px sans-serif">' + t('common.loading') + '</p>');
   fetch(`${API_BASE()}/manufactured-items/${itemId}/print/${form}`, { credentials: 'include', headers: { 'X-Workspace-Id': ws } })
     .then(async r => {
       if (!r.ok) throw new Error((await r.json().catch(() => null))?.error?.message ?? `Request failed (${r.status})`);
