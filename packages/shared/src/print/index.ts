@@ -7,3 +7,4 @@ export * from './payroll';
 export * from './pricing';
 export * from './quote';
 export * from './waybill';
+export * from './transport-waybill';

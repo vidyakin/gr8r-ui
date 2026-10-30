@@ -91,3 +91,34 @@ export const fleetTripStops = pgTable(
     index('fleet_trip_stops_delivery_idx').on(t.deliveryId),
   ],
 );
+
+/** Транспортная накладная (задача 1214, постановление Правительства РФ № 2200): только номер и привязка; содержимое печатной формы собирается из живых данных.
+    Область: рейс (trip_id), точка рейса (+ stop_id), доставка (+ delivery_id, с рейсом или без). Номер сквозной по арендатору и не меняется при повторной печати.
+    Ссылки на рейс, точку и доставку — ON DELETE SET NULL ("колонка") (миграция 0067), чтобы выданный номер пережил удаление. etrn_status — место под ЭТрН (ГИС ЭПД, после ЭДО сессии 48) */
+export const transportWaybills = pgTable(
+  'transport_waybills',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    /** ТН-NNNNN, сквозной по арендатору */
+    number: text('number').notNull(),
+    tripId: uuid('trip_id'),
+    stopId: uuid('stop_id'),
+    deliveryId: uuid('delivery_id'),
+    /** Статус электронной накладной: пока всегда «не оформлена» */
+    etrnStatus: text('etrn_status', { enum: ['none', 'draft', 'sent', 'signed', 'rejected'] }).notNull().default('none'),
+    createdBy: uuid('created_by'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    unique('transport_waybills_ws_id_uq').on(t.workspaceId, t.id),
+    uniqueIndex('transport_waybills_ws_number_uq').on(t.workspaceId, t.number),
+    foreignKey({ columns: [t.workspaceId, t.tripId], foreignColumns: [fleetTrips.workspaceId, fleetTrips.id], name: 'transport_waybills_trip_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.stopId], foreignColumns: [fleetTripStops.workspaceId, fleetTripStops.id], name: 'transport_waybills_stop_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.deliveryId], foreignColumns: [deliveries.workspaceId, deliveries.id], name: 'transport_waybills_delivery_fk' }).onDelete('set null'),
+    check('transport_waybills_etrn_chk', sql`${t.etrnStatus} in ('none','draft','sent','signed','rejected')`),
+    index('transport_waybills_trip_idx').on(t.tripId),
+    index('transport_waybills_delivery_idx').on(t.deliveryId),
+  ],
+);
