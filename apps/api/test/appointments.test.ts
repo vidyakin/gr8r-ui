@@ -291,4 +291,19 @@ describe('work order from an appointment', () => {
     await owner.post(`/appointments/${b.id}/cancel`, { reason: 'x' });
     expect((await owner.post(`/appointments/${b.id}/work-order`, {})).status).toBe(409);
   });
+
+  test('a visit is sold once: by a work order or by the document of the day', async () => {
+    const date = '2026-11-24';
+    const withOrder = (await book(owner, { date, startMin: 540, price: '1000' })).body;
+    const inDay = (await book(owner, { date, startMin: 600, price: '2000' })).body;
+    for (const a of [withOrder, inDay]) expect((await owner.post(`/appointments/${a.id}/came`)).status).toBe(200);
+    expect((await owner.post(`/appointments/${withOrder.id}/work-order`, {})).status).toBe(201);
+    const day = await spec.post('/appointments/day-documents', { specialistId: specId, date });
+    expect(day.status).toBe(201);
+    expect(day.body.lines).toHaveLength(1);
+    expect(day.body.total).toBe('2000.00');
+    const r = await owner.post(`/appointments/${inDay.id}/work-order`, {});
+    expect(r.status).toBe(409);
+    expect(r.body.error.code).toBe('appointment_sold_in_day');
+  });
 });

@@ -135,6 +135,7 @@ export const errors: Widen<typeof E> = {
   invalid_secret_key: 'Недопустимое имя секрета',
   service_not_provided: 'Этот специалист не оказывает такую услугу',
   work_order_exists: 'Заказ-наряд по этой записи уже создан',
+  appointment_sold_in_day: 'Запись уже в документе дня: уберите её оттуда, чтобы оформить заказ-наряд',
   appointment_in_day_document: 'Запись уже в документе дня: цену меняйте там',
   invalid_slots: 'Часть слотов не лежит на сетке графика',
   invalid_qty: 'Количество должно быть больше нуля',

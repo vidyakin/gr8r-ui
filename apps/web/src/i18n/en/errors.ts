@@ -134,6 +134,7 @@ export const errors = {
   invalid_secret_key: 'Invalid secret name',
   service_not_provided: 'This specialist does not provide this service',
   work_order_exists: 'A work order has already been created from this appointment',
+  appointment_sold_in_day: 'The appointment is already in a document of the day: remove it there to create a work order',
   appointment_in_day_document: 'The appointment is already in a document of the day: change the price there',
   invalid_slots: 'Some slots do not lie on the schedule grid',
   invalid_qty: 'The quantity must be greater than zero',

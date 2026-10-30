@@ -264,7 +264,7 @@ async function unclosedSet(db: Db, specialistIds: string[], from: string, to: st
     .from(appointments)
     .leftJoin(serviceDayLines, eq(serviceDayLines.id, appointments.dayLineId))
     .leftJoin(documents, eq(documents.id, serviceDayLines.documentId))
-    .where(and(inArray(appointments.specialistId, specialistIds), eq(appointments.status, 'came'), gte(appointments.date, from), lte(appointments.date, to)));
+    .where(and(inArray(appointments.specialistId, specialistIds), eq(appointments.status, 'came'), isNull(appointments.workOrderId), gte(appointments.date, from), lte(appointments.date, to)));
   return new Set(rows.filter(r => r.docStatus !== 'posted').map(r => `${r.s}|${r.d}`));
 }
 
@@ -442,6 +442,8 @@ export async function setAppointmentStatus(db: Db, ctx: DocCtx, id: string, to: 
 export async function createAppointmentWorkOrder(db: Db, ctx: DocCtx, id: string): Promise<{ documentId: string }> {
   const a = await loadAppt(db, id);
   if (a.workOrderId) throw new DomainError(409, 'work_order_exists', 'A work order has already been created from this appointment', { documentId: a.workOrderId });
+  // Визит продаётся одним документом: заказ-нарядом или документом дня, иначе выручка задвоится
+  if (a.dayLineId) throw new DomainError(409, 'appointment_sold_in_day', 'The appointment is already sold in a document of the day');
   if (a.status === 'cancelled' || a.status === 'no_show') throw new DomainError(409, 'invalid_status', 'A work order cannot be created from a cancelled appointment or a no-show');
   const counterpartyId = await saleCompanyOf(db, ctx, a);
   const documentId = await createDocument(db, ctx, {
@@ -570,7 +572,7 @@ export async function fillServiceDay(db: Db, ctx: DocCtx, id: string): Promise<n
     .from(appointments)
     .where(and(eq(appointments.specialistId, header.specialistId), eq(appointments.date, doc.date), eq(appointments.status, 'came')))
     .orderBy(asc(appointments.startMin));
-  const fresh = appts.filter(a => !a.dayLineId);
+  const fresh = appts.filter(a => !a.dayLineId && !a.workOrderId); // визит с заказ-нарядом уже продан им
   const [{ n } = { n: 0 }] = await db.select({ n: sql<number>`count(*)::int` }).from(serviceDayLines).where(eq(serviceDayLines.documentId, id));
   let i = Number(n);
   for (const a of fresh) {
@@ -640,7 +642,7 @@ export async function unclosedDays(db: Db, ws: string, specialistId?: string) {
     .from(appointments)
     .leftJoin(serviceDayLines, eq(serviceDayLines.id, appointments.dayLineId))
     .leftJoin(documents, eq(documents.id, serviceDayLines.documentId))
-    .where(and(eq(appointments.workspaceId, ws), eq(appointments.status, 'came'), specialistId ? eq(appointments.specialistId, specialistId) : undefined));
+    .where(and(eq(appointments.workspaceId, ws), eq(appointments.status, 'came'), isNull(appointments.workOrderId), specialistId ? eq(appointments.specialistId, specialistId) : undefined));
   const groups = new Map<string, { specialistId: string; date: string; count: number; documentId: string | null }>();
   for (const r of rows) {
     if (r.docStatus === 'posted') continue;
