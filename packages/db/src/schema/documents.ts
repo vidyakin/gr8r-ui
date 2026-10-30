@@ -205,6 +205,8 @@ export const documents = pgTable(
     accountableMemberId: uuid('accountable_member_id'),
     /** Банковская выписка (1174в): ключ строки выписки «счёт|направление|дата|номер|сумма» — повторный импорт не дублирует документ */
     bankImportKey: text('bank_import_key'),
+    /** Сделка CRM, из которой создан документ (КП из сделки, задача 1252; составной внешний ключ (workspace_id, deal_id) → deals добавляет миграция 0074) */
+    dealId: uuid('deal_id'),
     /** Название основного варианта КП (строки документа): null — вариантов нет; остальные варианты — document_variants */
     variantName: text('variant_name'),
     currency: text('currency').notNull().default('RUB'),
@@ -250,6 +252,7 @@ export const documents = pgTable(
     uniqueIndex('documents_bank_import_uq').on(t.workspaceId, t.bankImportKey).where(sql`${t.bankImportKey} is not null`),
     uniqueIndex('documents_number_uq').on(t.workspaceId, t.organizationId, t.type, t.numberYear, t.numberSeq).where(sql`${t.numberSeq} is not null`),
     index('documents_ws_type_date_idx').on(t.workspaceId, t.type, t.date),
+    index('documents_deal_idx').on(t.workspaceId, t.dealId),
     index('documents_counterparty_idx').on(t.counterpartyId),
     index('documents_contract_idx').on(t.workspaceId, t.contractId),
     index('documents_based_on_idx').on(t.basedOnId),

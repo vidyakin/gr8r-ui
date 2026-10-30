@@ -300,6 +300,7 @@ export const documentRoutes = new Hono<AppEnv>()
       q.organizationId ? eq(documents.organizationId, q.organizationId) : undefined,
       q.counterpartyId ? eq(documents.counterpartyId, q.counterpartyId) : undefined,
       q.contractId ? eq(documents.contractId, q.contractId) : undefined,
+      q.dealId ? eq(documents.dealId, q.dealId) : undefined,
       q.warehouseId ? eq(documents.warehouseId, q.warehouseId) : undefined,
       q.basedOnId ? eq(documents.basedOnId, q.basedOnId) : undefined,
       q.from ? sql`${documents.date} >= ${q.from}` : undefined,

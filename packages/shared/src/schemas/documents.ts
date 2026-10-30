@@ -156,6 +156,8 @@ export const documentCreate = z.object({
   contractId: uuid.nullish(),
   /** Вид цен документа (задача 1178) */
   priceKindId: uuid.nullish(),
+  /** Сделка CRM: документ создан из неё; контрагент по умолчанию — контрагент сделки (только при создании) */
+  dealId: uuid.nullish(),
   warehouseId: uuid.nullish(),
   /** Склад-получатель (перемещение между складами) */
   targetWarehouseId: uuid.nullish(),
@@ -186,7 +188,7 @@ export const documentCreate = z.object({
   lines: z.array(documentLineInput).max(500).optional(),
   custom: customData.optional(),
 });
-export const documentUpdate = toPatch(documentCreate.omit({ id: true, type: true }));
+export const documentUpdate = toPatch(documentCreate.omit({ id: true, type: true, dealId: true }));
 
 const csv = <T extends z.ZodType>(item: T) => z.preprocess(v => (typeof v === 'string' ? v.split(',').filter(Boolean) : v), z.array(item).max(20));
 
@@ -198,6 +200,8 @@ export const documentQuery = listQuery.extend({
   counterpartyId: uuid.optional(),
   /** Договор документа */
   contractId: uuid.optional(),
+  /** Документы сделки */
+  dealId: uuid.optional(),
   warehouseId: uuid.optional(),
   basedOnId: uuid.optional(),
   from: isoDate.optional(),

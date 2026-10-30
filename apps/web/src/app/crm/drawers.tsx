@@ -16,6 +16,7 @@ import { ClientAppointments } from './ClientAppointments';
 import { useCustomRows } from '../meta/custom-fields';
 import { parseNumber, useT } from '@/i18n';
 import { RecordAttribution } from './AttributionFields';
+import { CreateQuoteButton, DealQuotesTab, useDealQuoteCount } from '../docs/DealQuotes';
 
 /** Сумма сделки: поле ввода без рамки, сохраняется по Enter или потере фокуса */
 function AmountInput({ value, onCommit }: { value: number; onCommit: (v: number) => void }) {
@@ -54,6 +55,7 @@ export function DealDrawer({ id }: { id: string }) {
   const t = useT();
   const d = findDeal(data, id);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const quoteCount = useDealQuoteCount(id);
   if (!d) return null;
   const co = findCompany(data, d.company);
   const open = isOpen(d.stage);
@@ -118,17 +120,20 @@ export function DealDrawer({ id }: { id: string }) {
           </>
         }
         actions={
-          open ? (
-            <Button size="sm" variant="ghost" onClick={() => ui.moveDealTo(d.id, 'won')}>
-              <CircleCheck size={14} />
-              <span className="hide-m">{t('crm.deals.markWonBtn')}</span>
-            </Button>
-          ) : (
-            <Button size="sm" variant="ghost" onClick={() => ui.moveDealTo(d.id, 'reopen')}>
-              <RotateCcw size={14} />
-              <span className="hide-m">{t('crm.deals.drawer.reopenBtn')}</span>
-            </Button>
-          )
+          <>
+            <CreateQuoteButton dealId={d.id} hasCompany={!!d.company} />
+            {open ? (
+              <Button size="sm" variant="ghost" onClick={() => ui.moveDealTo(d.id, 'won')}>
+                <CircleCheck size={14} />
+                <span className="hide-m">{t('crm.deals.markWonBtn')}</span>
+              </Button>
+            ) : (
+              <Button size="sm" variant="ghost" onClick={() => ui.moveDealTo(d.id, 'reopen')}>
+                <RotateCcw size={14} />
+                <span className="hide-m">{t('crm.deals.drawer.reopenBtn')}</span>
+              </Button>
+            )}
+          </>
         }
         menu={
           <>
@@ -229,6 +234,12 @@ export function DealDrawer({ id }: { id: string }) {
                 <ActivityComposer deal={d.id} company={d.company} />
               </>
             ),
+          },
+          {
+            id: 'quotes',
+            label: t('crm.deals.drawer.quoteTab'),
+            count: quoteCount,
+            content: <DealQuotesTab dealId={d.id} hasCompany={!!d.company} />,
           },
           {
             id: 'stages',
