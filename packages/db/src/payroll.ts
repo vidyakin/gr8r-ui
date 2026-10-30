@@ -409,7 +409,7 @@ async function salesByResponsible(db: Db, workspaceId: string, from: string, to:
   return { revenue, margin };
 }
 
-/** Начисления водителям по фактически завершённым рейсам за период: за рейс, за км маршрута, за точку доставки (done),
+/** Начисления водителям по фактически завершённым рейсам за период: за рейс, за км маршрута, за выполненную точку любого вида,
     суточные по междугородним рейсам (день рейса — каждый день dateFrom..dateTo). Одна запись на сотрудника × вид × рейс
     (строка документа получает trip_id и номер рейса в комментарии); совместный водитель получает начисление по тем же
     ставкам, что основной (решение задачи 1224 — ставки не делятся). Рейс относится ровно к одному периоду по дате
@@ -446,7 +446,7 @@ async function tripAccrualsReport(
     const rows = await db
       .select({ tripId: fleetTripStops.tripId, n: sql<string>`count(*)` })
       .from(fleetTripStops)
-      .where(and(inArray(fleetTripStops.tripId, tripIds), eq(fleetTripStops.kind, 'delivery'), eq(fleetTripStops.status, 'done')))
+      .where(and(inArray(fleetTripStops.tripId, tripIds), eq(fleetTripStops.status, 'done')))
       .groupBy(fleetTripStops.tripId);
     for (const r of rows) stopCounts.set(r.tripId, Number(r.n));
   }
