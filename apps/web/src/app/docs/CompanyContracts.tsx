@@ -1,15 +1,22 @@
 /* Договоры контрагента: вкладка «Договоры» в карточке компании. */
-import { FileSignature } from 'lucide-react';
+import * as React from 'react';
+import { FileSignature, Plus } from 'lucide-react';
 import { BILLING_PERIODICITY_LABELS, CONTRACT_KIND_LABELS } from '@gr8r/shared';
-import { Badge, EmptyState, Skeleton } from '@/components/ui';
+import { Badge, Button, EmptyState, Skeleton } from '@/components/ui';
 import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
 import { useT, tEnum } from '@/i18n';
 import { fmtDate, parse } from '../lib/dates';
-import { useContracts, type Contract } from './billing-data';
+import { useCanWrite } from '../meta/custom-fields';
+import { useBillingApi, useContracts, type Contract } from './billing-data';
+import { ContractDialog } from './contracts';
 
-export function CompanyContractsTab({ companyId }: { companyId: string }) {
+export function CompanyContractsTab({ companyId, companyName = '' }: { companyId: string; companyName?: string }) {
   const contracts = useContracts({ companyId });
   const t = useT();
+  const canWrite = useCanWrite();
+  const api = useBillingApi();
+  const [creating, setCreating] = React.useState(false);
+  const [editing, setEditing] = React.useState<Contract | null>(null);
   const columns: Column<Contract>[] = [
     { id: 'number', header: t('docs.counterpartyContracts.col.number'), width: 140, value: c => c.number, cell: c => <span className="mono">{c.number || '—'}</span> },
     { id: 'kind', header: t('docs.counterpartyContracts.col.kind'), width: 110, value: c => CONTRACT_KIND_LABELS[c.kind], cell: c => <span className="muted">{CONTRACT_KIND_LABELS[c.kind]}</span> },
@@ -27,13 +34,23 @@ export function CompanyContractsTab({ companyId }: { companyId: string }) {
   const items = contracts.data?.items ?? [];
   return (
     <div className="page" style={{ maxWidth: 980, paddingTop: 12 }}>
+      {canWrite && (
+        <div className="row" style={{ justifyContent: 'flex-end', marginBottom: 8 }}>
+          <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
+            <Plus size={14} />
+            {t('docs.contracts.newContract')}
+          </Button>
+        </div>
+      )}
       {items.length ? (
-        <DataTable columns={columns} table={table} rows={items} getId={c => c.id} aria-label={t('docs.counterpartyContracts.ariaLabel')} />
+        <DataTable columns={columns} table={table} rows={items} getId={c => c.id} onRowClick={c => setEditing(c)} aria-label={t('docs.counterpartyContracts.ariaLabel')} />
       ) : (
         <EmptyState icon={<FileSignature size={20} />} title={t('docs.counterpartyContracts.emptyTitle')}>
           {t('docs.counterpartyContracts.emptyHint')}
         </EmptyState>
       )}
+      {creating && <ContractDialog api={api} companyId={{ id: companyId, name: companyName }} onClose={() => setCreating(false)} />}
+      {editing && <ContractDialog api={api} contract={editing} readOnly={!canWrite} onClose={() => setEditing(null)} />}
     </div>
   );
 }

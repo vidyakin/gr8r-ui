@@ -138,7 +138,7 @@ function CompanyView({ company: co, tab }: { company: Company; tab: string }) {
       </div>
     );
   } else if (tab === 'requisites') body = <CompanyRequisitesTab companyId={co.id} />;
-  else if (tab === 'contracts') body = <CompanyContractsTab companyId={co.id} />;
+  else if (tab === 'contracts') body = <CompanyContractsTab companyId={co.id} companyName={co.name} />;
   else if (tab === 'documents') body = <CompanyDocumentsTab companyId={co.id} />;
   else if (tab === 'settlements') body = <CompanySettlementsTab companyId={co.id} />;
   else if (tab === 'appointments') body = <ClientAppointments companyId={co.id} />;

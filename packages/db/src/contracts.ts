@@ -1,7 +1,7 @@
 /* Договоры и тарифные планы (этап 8 «УНФ: Услуги»).
    Справочник договоров общий: с покупателем, с поставщиком, прочее. Договор обслуживания включает биллинг.
    Связи — составные внешние ключи (workspace_id, id): договор чужого арендатора нельзя подставить даже в обход API. */
-import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
@@ -136,8 +136,8 @@ const toView = (r: {
 });
 
 /** Договоры арендатора: по контрагенту, виду, «обслуживание» */
-export async function listContracts(db: Db, params: { workspaceId?: string; companyId?: string; kind?: string; isService?: boolean; q?: string }): Promise<ContractView[]> {
-  const conds = [isNull(contracts.archivedAt)];
+export async function listContracts(db: Db, params: { workspaceId?: string; companyId?: string; kind?: string; isService?: boolean; q?: string; archived?: boolean }): Promise<ContractView[]> {
+  const conds = [params.archived ? isNotNull(contracts.archivedAt) : isNull(contracts.archivedAt)];
   if (params.workspaceId) conds.push(eq(contracts.workspaceId, params.workspaceId));
   if (params.companyId) conds.push(eq(contracts.companyId, params.companyId));
   if (params.kind) conds.push(eq(contracts.kind, params.kind as 'customer'));

@@ -59,8 +59,8 @@ async function decorate(ctx: Ctx, row: typeof contracts.$inferSelect) {
 export const contractRoutes = new Hono<AppEnv>()
   .get('/', zValidator('query', contractQuery, validationHook), async c => {
     const ctx = ctxOf(c);
-    const q = c.req.valid('query' as never) as { companyId?: string; kind?: string; isService?: boolean; q?: string; limit: number; offset: number };
-    const items = await listContracts(ctx.db, { workspaceId: ctx.workspaceId, companyId: q.companyId, kind: q.kind, isService: q.isService, q: q.q });
+    const q = c.req.valid('query' as never) as { companyId?: string; kind?: string; isService?: boolean; q?: string; archived?: 'true' | 'false'; limit: number; offset: number };
+    const items = await listContracts(ctx.db, { workspaceId: ctx.workspaceId, companyId: q.companyId, kind: q.kind, isService: q.isService, q: q.q, archived: q.archived === 'true' });
     return c.json({ items: items.slice(q.offset, q.offset + q.limit), total: items.length, limit: q.limit, offset: q.offset });
   })
   .post('/', write, zValidator('json', contractCreate, validationHook), async c => {
@@ -125,8 +125,6 @@ export const contractRoutes = new Hono<AppEnv>()
     const id = c.req.valid('param').id;
     const [existing] = await ctx.db.select().from(contracts).where(and(eq(contracts.id, id), eq(contracts.workspaceId, ctx.workspaceId))).limit(1);
     if (!existing) throw notFound('contract');
-    const [docs] = await ctx.db.select({ n: sql<number>`count(*)::int` }).from(sql`documents`).where(sql`workspace_id = ${ctx.workspaceId} and contract_id = ${id}`);
-    if (docs && docs.n > 0) throw new AppError(422, 'contract_in_use', 'The contract is used by documents: archive it instead of deleting');
     await ctx.db.update(contracts).set({ archivedAt: new Date(), isDefault: false, updatedAt: new Date() }).where(eq(contracts.id, id));
     return c.json({ id, deleted: false as const, archived: true as const });
   })

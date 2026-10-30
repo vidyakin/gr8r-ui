@@ -91,7 +91,7 @@ export interface BillingRunItem {
   reason?: string;
 }
 
-export function useContracts(params: { companyId?: string; kind?: string; isService?: boolean; q?: string } = {}) {
+export function useContracts(params: { companyId?: string; kind?: string; isService?: boolean; q?: string; archived?: boolean } = {}) {
   const ws = useWsId();
   const on = useModuleReady('services');
   return useQuery({
@@ -103,6 +103,7 @@ export function useContracts(params: { companyId?: string; kind?: string; isServ
       if (params.kind) sp.set('kind', params.kind);
       if (params.isService !== undefined) sp.set('isService', String(params.isService));
       if (params.q) sp.set('q', params.q);
+      if (params.archived) sp.set('archived', 'true');
       return call<{ items: Contract[] }>(ws, 'GET', `/contracts?${sp}`);
     },
     staleTime: Infinity,
