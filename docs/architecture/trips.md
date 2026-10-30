@@ -1,7 +1,7 @@
 # Рейсы
 
 Задача 1211 (TaskFlow, сессия 50); решения — `docs/plans/2026-10-30-tms.md`, пункты 3 и 4. Модуль тарифов `transport` ([licensing.md](licensing.md)), автопарк — [fleet.md](fleet.md), доставка документа — [delivery.md](delivery.md).
-Кнопка «Распределить» и карта (1213), заявки на перевозку (1223), место водителя (1212) — следующие задачи.
+Кнопка «Распределить», оптимизация порядка и карта — [routing.md](routing.md) (1213); заявки на перевозку (1223), место водителя (1212) — следующие задачи.
 
 Код: схема `packages/db/src/schema/trips.ts`, миграция `0065_trips`, сервис `packages/db/src/trips.ts` (хук доставки — `delivery.ts`), демо `seed-trips.ts`; расчёты `packages/shared/src/trips.ts`, схемы API `schemas/trips.ts`,
 узел автоматизаций `trigger-trip-status`, печать — `print/route-sheet.ts`; API `apps/api/src/routes/trips.ts` (корневой путь `/trips`); экраны `apps/web/src/app/trips/*`. Тесты: `apps/api/test/trips.test.ts`.

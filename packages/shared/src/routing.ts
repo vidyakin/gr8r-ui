@@ -309,7 +309,10 @@ export function solveGreedy(problem: VrpProblem, speedKmh: number): VrpSolution 
           const arrive = s.t + Math.ceil(driveS / 60);
           if (strict && j.windowToMin !== null && arrive > j.windowToMin) continue;
           if (s.t >= s.v.toMin && s.jobs.length) continue;
-          const cost = driveS + (s.jobs.length * 30); // небольшой штраф за длину маршрута — выравнивает нагрузку
+          // дорога + ожидание окна + запас до конца окна (срочные точки раньше) + небольшой штраф за длину маршрута (выравнивает нагрузку)
+          const wait = j.windowFromMin !== null && arrive < j.windowFromMin ? j.windowFromMin - arrive : 0;
+          const slack = j.windowToMin === null ? 0 : Math.max(0, j.windowToMin - arrive);
+          const cost = driveS + wait * 60 + slack * 15 + s.jobs.length * 30;
           if (!best || cost < best.cost) best = { s, j, arrive, cost };
         }
       }
