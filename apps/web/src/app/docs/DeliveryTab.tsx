@@ -27,6 +27,8 @@ interface Form {
   windowFrom: string;
   windowTo: string;
   distanceKm: string;
+  lat: string;
+  lon: string;
   weightKg: string;
   price: string;
   ourCost: string;
@@ -45,6 +47,8 @@ const fromItem = (d: DeliveryItem): Form => ({
   windowFrom: d.windowFrom?.slice(0, 5) ?? '',
   windowTo: d.windowTo?.slice(0, 5) ?? '',
   distanceKm: d.distanceKm,
+  lat: d.lat === null ? '' : String(Number(d.lat)),
+  lon: d.lon === null ? '' : String(Number(d.lon)),
   weightKg: d.weightKg,
   price: d.price,
   ourCost: d.ourCost ?? '',
@@ -114,6 +118,10 @@ export function DeliveryTab({ doc }: { doc: DocDetail }) {
       windowFrom: form.windowFrom || null,
       windowTo: form.windowTo || null,
       distanceKm: form.distanceKm || '0',
+      // координаты уходят только если их правили руками: иначе геокодер сам обновит их при смене адреса
+      ...(item && (form.lat !== (item.lat === null ? '' : String(Number(item.lat))) || form.lon !== (item.lon === null ? '' : String(Number(item.lon))))
+        ? { lat: form.lat === '' ? null : Number(form.lat), lon: form.lon === '' ? null : Number(form.lon) }
+        : {}),
       weightKg: form.weightKg || '0',
       price: form.price || '0',
       ...(seeCost && form.ourCost !== '' ? { ourCost: form.ourCost } : {}),
@@ -153,6 +161,8 @@ export function DeliveryTab({ doc }: { doc: DocDetail }) {
         <Field label={t('delivery.tab.from')}>{p => <Input {...p} type="time" disabled={dis} value={form.windowFrom} onChange={e => set({ windowFrom: e.target.value })} />}</Field>
         <Field label={t('delivery.tab.to')}>{p => <Input {...p} type="time" disabled={dis} value={form.windowTo} onChange={e => set({ windowTo: e.target.value })} />}</Field>
         <Field label={t('delivery.tab.address')} className="span-2">{p => <Input {...p} disabled={dis} value={form.address} onChange={e => set({ address: e.target.value })} />}</Field>
+        <Field label={t('delivery.tab.lat')} hint={item.geoStatus ? t(`delivery.tab.geo.${item.geoStatus}`) : undefined}>{p => <Input {...p} inputMode="decimal" disabled={dis} value={form.lat} onChange={e => set({ lat: e.target.value })} />}</Field>
+        <Field label={t('delivery.tab.lon')}>{p => <Input {...p} inputMode="decimal" disabled={dis} value={form.lon} onChange={e => set({ lon: e.target.value })} />}</Field>
         <Field label={t('delivery.tab.contact')}>{p => <Input {...p} disabled={dis} value={form.contactName} onChange={e => set({ contactName: e.target.value })} />}</Field>
         <Field label={t('delivery.tab.phone')}>{p => <Input {...p} type="tel" disabled={dis} value={form.contactPhone} onChange={e => set({ contactPhone: e.target.value })} />}</Field>
         <Field label={t('delivery.tab.distance')}>{p => <Input {...p} inputMode="decimal" disabled={dis} value={form.distanceKm} onChange={e => set({ distanceKm: e.target.value })} />}</Field>
