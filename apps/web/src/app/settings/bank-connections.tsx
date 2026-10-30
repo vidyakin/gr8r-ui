@@ -187,6 +187,7 @@ function AddForm({ onDone }: { onDone: (body: Record<string, unknown>) => Promis
   const [accountId, setAccountId] = React.useState('');
   const [provider, setProvider] = React.useState<ConnectionProvider>('tbank');
   const [syncFrom, setSyncFrom] = React.useState('');
+  const [autoPost, setAutoPost] = React.useState(true);
   const organization = orgId || orgs.data?.[0]?.id;
   const accounts = useOrgBankAccounts(organization);
   const account = accountId || accounts.data?.[0]?.id || '';
@@ -203,7 +204,12 @@ function AddForm({ onDone }: { onDone: (body: Record<string, unknown>) => Promis
         {p => <Select id={p.id} value={provider} onValueChange={v => setProvider(v as ConnectionProvider)} options={CONNECTION_PROVIDERS.map(v => ({ value: v, label: t(`secrets.bank.providers.${v}`) }))} aria-label={t('secrets.bank.provider')} />}
       </Field>
       {provider !== 'yookassa' && <Field label={t('secrets.bank.syncFrom')}>{p => <Input {...p} type="date" value={syncFrom} onChange={e => setSyncFrom(e.target.value)} />}</Field>}
-      <Button size="sm" disabled={!account || !spec} onClick={() => void onDone({ bankAccountId: account, provider, ...(provider !== 'yookassa' && syncFrom ? { syncFrom } : {}) })}>
+      {provider !== 'yookassa' && (
+        <label className="row" style={{ gap: 6, height: 32 }}>
+          <input type="checkbox" checked={autoPost} onChange={e => setAutoPost(e.target.checked)} /> {t('secrets.bank.autoPost')}
+        </label>
+      )}
+      <Button size="sm" disabled={!account || !spec} onClick={() => void onDone({ bankAccountId: account, provider, ...(provider !== 'yookassa' ? { autoPost, ...(syncFrom ? { syncFrom } : {}) } : {}) })}>
         {t('secrets.bank.create')}
       </Button>
     </div>
