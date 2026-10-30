@@ -5,7 +5,7 @@ module: trade
 sources:
   - apps/web/src/app/docs/InUsePage.tsx
   - apps/api/src/routes/documents.ts
-verified: ea4561be23
+verified: 21f33aa159
 screenshots: []
 ---
 
