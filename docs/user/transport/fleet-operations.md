@@ -13,7 +13,7 @@ sources:
   - packages/db/src/fleet.ts
   - packages/shared/src/fleet.ts
   - packages/shared/src/print/waybill.ts
-verified: cb96f21e23
+verified: a2ef1a4512
 screenshots: []
 ---
 

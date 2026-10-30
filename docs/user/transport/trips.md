@@ -12,7 +12,7 @@ sources:
   - packages/db/src/trips.ts
   - packages/db/src/transport-waybill.ts
   - packages/shared/src/trips.ts
-verified: 28e6a048b4
+verified: a2ef1a4512
 screenshots: []
 ---
 

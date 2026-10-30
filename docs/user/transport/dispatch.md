@@ -8,7 +8,7 @@ sources:
   - apps/web/src/app/trips/data.ts
   - apps/api/src/routes/trips.ts
   - packages/db/src/trips.ts
-verified: 5e2f33dcbb
+verified: a2ef1a4512
 screenshots: []
 ---
 
