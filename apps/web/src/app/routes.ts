@@ -162,6 +162,9 @@ export const SECTIONS = {
   trips: { path: '/trips', name: 'Trips', icon: Waypoints },
   driverWorkplace: { path: '/trips/driver', name: 'Driver workplace', icon: UserRound },
   dispatch: { path: '/trips/dispatch', name: 'Dispatcher', icon: CalendarRange },
+  // Транспорт: заявки на перевозку и тарифы (задача 1223)
+  transportOrders: { path: '/transport-orders', name: 'Transport orders', icon: FileSignature },
+  rateSchedules: { path: '/transport-orders/rates', name: 'Rate schedules', icon: ListChecks },
   // Договоры и биллинг
   contracts: { path: '/contracts', name: 'Contracts', icon: FileSignature },
   tariffPlans: { path: '/tariff-plans', name: 'Tariff plans', icon: ListChecks },
@@ -239,7 +242,7 @@ export const NAV_GROUPS = {
   },
   transport: {
     icon: Truck,
-    items: [{ id: 'driverWorkplace' }, { id: 'dispatch' }, { id: 'trips' }, { id: 'fleet' }, { id: 'fleetVehicles' }, { id: 'fleetDrivers' }, { id: 'fleetDocuments' }, { id: 'fleetWaybills' }, { id: 'fleetFuel' }, { id: 'fleetService' }, { id: 'fleetFines' }],
+    items: [{ id: 'driverWorkplace' }, { id: 'dispatch' }, { id: 'trips' }, { id: 'transportOrders' }, { id: 'rateSchedules' }, { id: 'fleet' }, { id: 'fleetVehicles' }, { id: 'fleetDrivers' }, { id: 'fleetDocuments' }, { id: 'fleetWaybills' }, { id: 'fleetFuel' }, { id: 'fleetService' }, { id: 'fleetFines' }],
   },
   finance: {
     icon: Landmark,
