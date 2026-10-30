@@ -2,6 +2,7 @@ import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Input, toast } from '@/components/ui';
 import { fmtNumber, useT } from '@/i18n';
+import { unitSymbol, useUnits } from '../catalog/data';
 import { call, useWsId } from '../meta/data';
 import { useSession } from '../data/session';
 import { ApiError, errorMessage } from '../data/api';
@@ -177,6 +178,7 @@ export function DriverPage() {
 
 function StopCard({ trip, stop, submit }: { trip: string; stop: Stop; submit: (path: string, body: Record<string, unknown>) => Promise<void> }) {
   const t = useT();
+  const units = useUnits();
   const ws = useWsId();
   const canvas = React.useRef<HTMLCanvasElement>(null);
   const drawing = React.useRef(false);
@@ -351,7 +353,7 @@ function StopCard({ trip, stop, submit }: { trip: string; stop: Stop; submit: (p
           <p>{t('trips.driver.returnNote')}</p>
           {stop.lines.map(l => (
             <label key={l.id}>
-              {l.name} ({fmtNumber(l.qty)} {l.unitCode}) — {t('trips.driver.quantity')}
+              {l.name} ({fmtNumber(l.qty)} {unitSymbol(units.data, l.unitCode)}) — {t('trips.driver.quantity')}
               <Input type="number" min="0" max={l.qty} step="0.001" value={quantities[l.id] ?? ''} onChange={e => setQuantities({ ...quantities, [l.id]: e.target.value })} />
             </label>
           ))}
