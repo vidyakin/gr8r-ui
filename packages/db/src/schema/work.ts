@@ -42,8 +42,6 @@ export const projects = pgTable(
     leadId: uuid('lead_id'),
     startDate: date('start_date', { mode: 'string' }),
     dueDate: date('due_date', { mode: 'string' }),
-    /** Избранное. Пока общее для воркспейса, как в локальной модели фронтенда */
-    fav: boolean('fav').notNull().default(false),
     isPrivate: boolean('is_private').notNull().default(false),
     /** Общий доступ (форма Share) */
     access: text('access', { enum: ['private', 'workspace'] }).notNull().default('workspace'),
@@ -69,6 +67,24 @@ export const projects = pgTable(
     foreignKey({ columns: [t.workspaceId, t.leadId], foreignColumns: [members.workspaceId, members.id], name: 'projects_lead_fk' }),
     index('projects_ws_order_idx').on(t.workspaceId, t.sortOrder),
     index('projects_ws_module_idx').on(t.workspaceId, t.module),
+  ],
+);
+
+/** Личное избранное: проект или задача у конкретного участника (не общее на воркспейс) */
+export const favorites = pgTable(
+  'favorites',
+  {
+    workspaceId: wsCol(),
+    memberId: uuid('member_id').notNull(),
+    entity: text('entity', { enum: ['project', 'task'] }).notNull(),
+    recordId: uuid('record_id').notNull(),
+    createdAt: createdAt(),
+  },
+  t => [
+    primaryKey({ columns: [t.memberId, t.entity, t.recordId] }),
+    foreignKey({ columns: [t.workspaceId, t.memberId], foreignColumns: [members.workspaceId, members.id], name: 'fav_member_fk' }).onDelete('cascade'),
+    check('favorites_entity_chk', sql`${t.entity} in ('project','task')`),
+    index('favorites_ws_record_idx').on(t.workspaceId, t.entity, t.recordId),
   ],
 );
 
@@ -137,7 +153,6 @@ export const tasks = pgTable(
     planHours: hours('plan_hours'),
     prevStatus: text('prev_status'),
     sortOrder: doublePrecision('sort_order').notNull().default(0),
-    fav: boolean('fav').notNull().default(false),
     /** Повтор: 'Weekly' и т.п. */
     recur: text('recur'),
     custom: jsonb('custom').$type<Record<string, unknown>>().notNull().default({}),

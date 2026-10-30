@@ -85,7 +85,19 @@ export class Client {
   }
 }
 
-export const testConfig = (over: Partial<AppConfig>) => ({ logRequests: false, ...over });
+/** Новый пользователь, приглашённый в воркспейс владельца с ролью (по умолчанию member); возвращает клиента этого воркспейса */
+export async function addMember(owner: Client, role: 'admin' | 'member' | 'guest' = 'member'): Promise<Client> {
+  const c = new Client();
+  await c.signup();
+  const inv = await owner.post(`/workspaces/${owner.workspaceId}/invites`, { email: c.user!.email, role });
+  if (inv.status !== 201) throw new Error(`invite failed: ${inv.status} ${JSON.stringify(inv.body)}`);
+  const acc = await c.post('/invites/accept', { token: inv.body.token });
+  if (acc.status >= 300) throw new Error(`accept failed: ${acc.status} ${JSON.stringify(acc.body)}`);
+  c.workspaceId = owner.workspaceId;
+  return c;
+}
+
+export const testConfig =(over: Partial<AppConfig>) => ({ logRequests: false, ...over });
 
 /** Прогоняет очередь jobs воркером (с DDL-подключением), пока в ней есть готовые задачи: так в тестах появляются индексы полей */
 export async function drainJobs(): Promise<number> {

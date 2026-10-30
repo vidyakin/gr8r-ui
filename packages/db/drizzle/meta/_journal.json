@@ -442,6 +442,13 @@
       "when": 1793324040086,
       "tag": "0067_transport_waybill",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1793350319893,
+      "tag": "0070_personal_favorites",
+      "breakpoints": true
     }
   ]
 }

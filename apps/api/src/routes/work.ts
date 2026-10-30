@@ -65,7 +65,7 @@ import { crud, ctxOf, validationHook } from '../crud';
 import { AppError, forbidden, notFound } from '../errors';
 import { hasRole } from '../middleware';
 import { customForCreate, customForUpdate } from '../meta/service';
-import { addActivity, assertTasksExist, nextOrder, notify } from './helpers';
+import { addActivity, assertTasksExist, favoriteFilter, favoriteSet, nextOrder, notify, setFavorite } from './helpers';
 
 /* ============================== projects ============================== */
 export const projectRoutes = crud({
@@ -77,14 +77,16 @@ export const projectRoutes = crud({
   sortable: { name: projects.name, key: projects.key, status: projects.status, dueDate: projects.dueDate, startDate: projects.startDate, sortOrder: projects.sortOrder, createdAt: projects.createdAt, updatedAt: projects.updatedAt, lastActivityAt: projects.lastActivityAt },
   defaultSort: 'sortOrder',
   search: [projects.name, projects.key, projects.description],
-  filters: q => [q.status ? eq(projects.status, q.status) : undefined, q.teamId ? eq(projects.teamId, q.teamId) : undefined, q.leadId ? eq(projects.leadId, q.leadId) : undefined, q.fav != null ? eq(projects.fav, q.fav) : undefined, q.module ? eq(projects.module, q.module) : undefined],
+  filters: (q, ctx) => [favoriteFilter(ctx, 'project', projects.id, q.fav), q.status ? eq(projects.status, q.status) : undefined, q.teamId ? eq(projects.teamId, q.teamId) : undefined, q.leadId ? eq(projects.leadId, q.leadId) : undefined,  q.module ? eq(projects.module, q.module) : undefined],
   prepareCreate: async (ctx, body) => ({ sortOrder: body.sortOrder ?? (await nextOrder(ctx, projects)), ...(await customForCreate(ctx, 'project', body.custom)) }),
   prepareUpdate: (ctx, existing, body) => customForUpdate(ctx, 'project', existing.custom, body.custom, existing.id),
   afterCreate: async (ctx, row, body) => {
     await setProjectMembers(ctx, row.id, body.members ?? [{ memberId: ctx.memberId, permission: 'admin' }]);
     await addActivity(ctx, { verb: 'created project', projectId: row.id });
+    await setFavorite(ctx, 'project', row.id, body.fav || undefined);
   },
   afterUpdate: async (ctx, before, after, body) => {
+    await setFavorite(ctx, 'project', after.id, body.fav);
     if (body.members) {
       await setProjectMembers(ctx, after.id, body.members);
       await recordEvent(ctx.db, { workspaceId: ctx.workspaceId, type: 'project.members_changed', entity: 'project', recordId: after.id, actorId: ctx.memberId, payload: { members: body.members } });
@@ -98,7 +100,8 @@ export const projectRoutes = crud({
   decorate: async (ctx, rows) => {
     if (!rows.length) return [];
     const pm = await ctx.db.select({ projectId: projectMembers.projectId, memberId: projectMembers.memberId, permission: projectMembers.permission }).from(projectMembers).where(inArray(projectMembers.projectId, rows.map(r => r.id)));
-    return rows.map(r => ({ ...r, members: pm.filter(m => m.projectId === r.id).map(({ memberId, permission }) => ({ memberId, permission })) }));
+    const fav = await favoriteSet(ctx, 'project', rows.map(r => r.id));
+    return rows.map(r => ({ ...r, fav: fav.has(r.id), members: pm.filter(m => m.projectId === r.id).map(({ memberId, permission }) => ({ memberId, permission })) }));
   },
 });
 
@@ -170,7 +173,7 @@ export const taskRoutes = crud({
   sortable: { createdAt: tasks.createdAt, updatedAt: tasks.updatedAt, title: tasks.title, key: tasks.key, status: tasks.status, priority: tasks.priority, dueDate: tasks.dueDate, startDate: tasks.startDate, sortOrder: tasks.sortOrder },
   defaultSort: 'sortOrder',
   search: [tasks.title, tasks.key, tasks.description],
-  filters: q => [
+  filters: (q, ctx) => [
     q.projectId ? eq(tasks.projectId, q.projectId) : undefined,
     q.module ? eq(tasks.module, q.module) : undefined,
     q.status ? eq(tasks.status, q.status) : undefined,
@@ -179,7 +182,7 @@ export const taskRoutes = crud({
     q.label ? dsql`${q.label} = any(${tasks.labels})` : undefined,
     q.dueFrom ? gte(tasks.dueDate, q.dueFrom) : undefined,
     q.dueTo ? lte(tasks.dueDate, q.dueTo) : undefined,
-    q.fav != null ? eq(tasks.fav, q.fav) : undefined,
+    favoriteFilter(ctx, 'task', tasks.id, q.fav),
   ],
   prepareCreate: async (ctx, body) => {
     await assertTasksExist(ctx, body.deps);
@@ -196,8 +199,9 @@ export const taskRoutes = crud({
       ...(await customForCreate(ctx, 'task', body.custom)),
     };
   },
-  afterCreate: async (ctx, row) => {
+  afterCreate: async (ctx, row, body) => {
     await addActivity(ctx, { verb: 'created', taskId: row.id, projectId: row.projectId });
+    await setFavorite(ctx, 'task', row.id, body.fav || undefined);
     await notify(ctx, { to: row.assigneeId, type: 'assign', text: 'assigned you', snippet: row.title, taskId: row.id, projectId: row.projectId });
   },
   prepareUpdate: async (ctx, existing, body) => {
@@ -221,7 +225,8 @@ export const taskRoutes = crud({
     }
     return patch;
   },
-  afterUpdate: async (ctx, before, after) => {
+  afterUpdate: async (ctx, before, after, body) => {
+    await setFavorite(ctx, 'task', after.id, body.fav);
     if (before.projectId !== after.projectId) await addActivity(ctx, { verb: 'moved', taskId: after.id, projectId: after.projectId, extra: `from ${before.key} to ${after.key}` });
     if (before.status !== after.status) {
       const [st] = await ctx.db.select({ name: statuses.name }).from(statuses).where(eq(statuses.key, after.status)).limit(1);
@@ -233,6 +238,10 @@ export const taskRoutes = crud({
       await notify(ctx, { to: after.assigneeId, type: 'assign', text: 'assigned you', snippet: after.title, taskId: after.id, projectId: after.projectId });
     }
     if (before.priority !== after.priority) await addActivity(ctx, { verb: 'changed priority of', taskId: after.id, projectId: after.projectId, extra: `to ${after.priority ?? 'none'}` });
+  },
+  decorate: async (ctx, rows) => {
+    const fav = await favoriteSet(ctx, 'task', rows.map(r => r.id));
+    return rows.map(r => ({ ...r, fav: fav.has(r.id) }));
   },
 });
 

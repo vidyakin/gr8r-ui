@@ -30,6 +30,7 @@ import { uuidv7 } from './uuid';
 import {
   activity,
   calendarEvents,
+  favorites,
   commentReactions,
   comments,
   companies,
@@ -227,7 +228,6 @@ export async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: strin
       leadId: U(p.lead),
       startDate: p.start,
       dueDate: p.due,
-      fav: p.fav,
       isPrivate: !!p.private,
       access: p.private ? ('private' as const) : (p.access ?? ('workspace' as const)),
       description: p.desc,
@@ -276,7 +276,6 @@ export async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: strin
         planHours: t.planHours == null ? null : String(t.planHours),
         prevStatus: t.prevStatus ?? null,
         sortOrder: t.order,
-        fav: t.fav,
         recur: t.recur,
         custom: taskCustom(t.id, d.tasks.indexOf(t)),
         createdAt: new Date(t.created),
@@ -286,6 +285,15 @@ export async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: strin
       })),
     ),
   );
+
+  // Личное избранное демо-пользователя (раньше было общим флагом fav у проектов и задач)
+  if (d.me) {
+    const favRows = [
+      ...d.projects.filter(p => p.fav).map(p => ({ entity: 'project' as const, recordId: U(p.id) })),
+      ...d.tasks.filter(t => t.fav).map(t => ({ entity: 'task' as const, recordId: U(t.id) })),
+    ].map(f => ({ workspaceId: wsId, memberId: U(d.me!), ...f }));
+    if (favRows.length) await db.insert(favorites).values(favRows);
+  }
 
   // Комментарии и реакции
   await db.insert(comments).values(d.comments.map(c => ({ id: U(c.id), workspaceId: wsId, taskId: U(c.task), authorId: U(c.by), body: c.text, createdAt: new Date(c.at), updatedAt: new Date(c.at) })));
