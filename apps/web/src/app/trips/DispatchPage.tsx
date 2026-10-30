@@ -118,7 +118,7 @@ function TripBar({ trip, date, over, onOpen, onDropDelivery }: { trip: DispatchT
           <Badge tone={TRIP_TONE[trip.status]}>{t(`trips.status.${trip.status}`)}</Badge>
         </span>
         <span className="muted trunc" style={{ fontSize: 12 }}>
-          {trip.driverName} · {t('trips.dispatch.stops', { n: trip.stopsTotal })} · {fmtNumber(trip.load.weightKg)}
+          {trip.driverName ? `${trip.driverName} · ` : ''}{t('trips.dispatch.stops', { n: trip.stopsTotal })} · {fmtNumber(trip.load.weightKg)}
           {trip.limits.capacityKg ? `/${fmtNumber(trip.limits.capacityKg)}` : ''}
         </span>
         <span className="row" style={{ gap: 4, flexWrap: 'wrap' }}>
@@ -203,7 +203,7 @@ export function DispatchPage() {
   }
   const busyVehicles = new Set(board.trips.map(x => x.vehicleId));
   const targets = [
-    ...board.trips.filter(x => x.status !== 'done').map(x => ({ value: `trip:${x.id}`, label: `${x.number} · ${x.plate}` })),
+    ...board.trips.filter(x => x.status !== 'done').map(x => ({ value: `trip:${x.id}`, label: `${x.number} · ${x.plate || x.carrierName || ''}` })),
     ...board.vehicles.filter(v => !busyVehicles.has(v.id)).map(v => ({ value: `vehicle:${v.id}`, label: `${t('trips.dispatch.newTripFor')} · ${v.plate}` })),
   ];
   const onPlace = (deliveryId: string, target: string) => {
@@ -296,11 +296,22 @@ export function DispatchPage() {
                 </div>
               );
             })}
+            {board.trips.filter(x => x.hired).map(trip => (
+              <div key={trip.id} className="row" style={{ gap: 0, alignItems: 'stretch' }}>
+                <div style={{ width: 150, flex: 'none', paddingRight: 8 }}>
+                  <b>{t('trips.hiredLane')}</b>
+                  <div className="muted trunc" style={{ fontSize: 12 }}>{trip.carrierName ?? '—'}</div>
+                </div>
+                <div style={{ position: 'relative', flex: 1, minHeight: 78, borderRadius: 6, border: '1px dashed var(--line)' }}>
+                  <TripBar trip={trip} date={date} over={false} onOpen={() => setOpen({ id: trip.id })} onDropDelivery={id => void place(board, id, { tripId: trip.id })} />
+                </div>
+              </div>
+            ))}
           </div>
           <div className="label" style={{ margin: '16px 0 8px' }}>{t('trips.dispatch.map')}</div>
           <RouteMapView
             height={380}
-            routes={board.trips.map((x, i) => ({ id: x.id, color: tripColor(i), label: `${x.number} · ${x.plate}`, stops: mapStops(x.stops) }))}
+            routes={board.trips.map((x, i) => ({ id: x.id, color: tripColor(i), label: `${x.number} · ${x.plate || x.carrierName || ''}`, stops: mapStops(x.stops) }))}
             free={board.unassigned.flatMap(d => (d.lat !== null && d.lon !== null ? [{ id: d.id, lat: Number(d.lat), lon: Number(d.lon), label: '•', title: d.address || d.documentNumber || '' }] : []))}
             onRouteClick={id => setOpen({ id })}
           />

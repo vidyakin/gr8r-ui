@@ -14,8 +14,10 @@ export const tripSave = z.object({
   dateTo: isoDate.nullish(),
   startTime: hhmm.nullish(),
   endTime: hhmm.nullish(),
-  vehicleId: uuid,
-  driverMemberId: uuid,
+  /** Наёмный перевозчик: машина и водители не указываются, обязательность проверяет сервис */
+  hired: z.boolean().default(false),
+  vehicleId: uuid.nullish(),
+  driverMemberId: uuid.nullish(),
   coDriverMemberId: uuid.nullish(),
   comment: text(2000).default(''),
 });

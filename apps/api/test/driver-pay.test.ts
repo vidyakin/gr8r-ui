@@ -190,9 +190,14 @@ describe('начисление за рейс', () => {
   });
 
   test('рейс наёмного перевозчика своему водителю не начисляется', async () => {
-    const t = await finishedTrip({ dateFrom: '2026-07-10', dateTo: '2026-07-10', driverMemberId: drv1, vehicleId: truck, routeKm: '20' });
+    const t = await mk(owner, '/trips', { dateFrom: '2026-07-10', hired: true });
     const carrier = await mk(owner, '/companies', { name: 'ООО «Наёмный перевозчик»' });
     expect((await owner.put(`/transport-orders/trips/${t.id}/carrier`, { carrierCompanyId: carrier.id, rate: '1000' })).status).toBe(200);
+    await mk(owner, `/trips/${t.id}/stops`, { kind: 'delivery', address: 'Москва, тест' });
+    expect((await owner.post(`/trips/${t.id}/start`)).status).toBe(200);
+    const stop = (await owner.get(`/trips/${t.id}`)).body.stops[0];
+    await mk(owner, `/trips/${t.id}/stops/${stop.id}/status`, { status: 'done' });
+    expect((await owner.post(`/trips/${t.id}/complete`)).status).toBe(200);
     const doc = await mk(owner, '/payroll/documents', { period: '2026-07-01' });
     await mk(owner, `/payroll/documents/${doc.id}/fill`, {});
     expect(await admin`select id from payroll_lines where trip_id = ${t.id}`).toHaveLength(0);

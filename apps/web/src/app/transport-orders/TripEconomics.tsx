@@ -13,7 +13,7 @@ import { openCarrierContract } from './print';
 import { useWsId } from '../meta/data';
 
 /** Блок «наёмный перевозчик, затраты, маржа» в карточке рейса. Показывается только для сохранённого рейса. */
-export function TripEconomics({ tripId }: { tripId: string }) {
+export function TripEconomics({ tripId, hired }: { tripId: string; hired: boolean }) {
   const t = useT();
   const ws = useWsId();
   const api = useTransportApi();
@@ -68,19 +68,19 @@ export function TripEconomics({ tripId }: { tripId: string }) {
 
   return (
     <div className="stack" style={{ gap: 10 }}>
-      <div className="row" style={{ gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+      {hired && <div className="row" style={{ gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <div className="label">{t('transport.carrier.title')}</div>
         <span className="muted">{t('transport.carrier.hint')}</span>
-      </div>
+      </div>}
 
-      {!carrier && !carrierForm && (
+      {hired && !carrier && !carrierForm && (
         <Button size="sm" variant="ghost" style={{ alignSelf: 'flex-start' }} onClick={() => setCarrierForm(true)}>
           <Plus size={13} />
           {t('transport.carrier.assign')}
         </Button>
       )}
 
-      {carrier && !carrierForm && (
+      {hired && carrier && !carrierForm && (
         <div className="row" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           <span>
             <b>{companyName(carrier.carrierCompanyId)}</b> · {fmtAmount(carrier.rate)}
@@ -100,7 +100,7 @@ export function TripEconomics({ tripId }: { tripId: string }) {
         </div>
       )}
 
-      {carrierForm && (
+      {hired && carrierForm && (
         <div className="stack" style={{ gap: 10, border: '1px solid var(--line)', borderRadius: 8, padding: 10 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 10 }}>
             <Field label={t('transport.carrier.company')}>

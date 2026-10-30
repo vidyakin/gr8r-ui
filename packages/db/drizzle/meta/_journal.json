@@ -519,6 +519,13 @@
       "when": 1793369807112,
       "tag": "0082_driver_trip_pay",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1793373003874,
+      "tag": "0083_hired_trips",
+      "breakpoints": true
     }
   ]
 }

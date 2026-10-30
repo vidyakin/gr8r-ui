@@ -42,7 +42,6 @@ import {
   documents,
   employeeAccruals,
   employeePayroll,
-  fleetTripCarriers,
   fleetTripStops,
   fleetTrips,
   members,
@@ -436,7 +435,7 @@ async function tripAccrualsReport(
         eq(fleetTrips.workspaceId, workspaceId),
         eq(fleetTrips.status, 'done'),
         // рейс наёмного перевозчика свой водитель не вёз
-        sql`not exists (select 1 from ${fleetTripCarriers} where ${fleetTripCarriers.tripId} = ${fleetTrips.id})`,
+        eq(fleetTrips.hired, false),
         sql`${fleetTrips.dateTo} >= ${from}::date`,
         sql`${fleetTrips.dateTo} <= ${to}::date`,
       ),
@@ -464,7 +463,7 @@ async function tripAccrualsReport(
   const taken = new Set(already.map(r => `${r.tripId}:${r.memberId}:${kindBase.get(r.kindId) ?? ''}`));
 
   for (const t of trips) {
-    const drivers = [t.driverMemberId, ...(t.coDriverMemberId ? [t.coDriverMemberId] : [])];
+    const drivers = [t.driverMemberId, t.coDriverMemberId].filter((m): m is string => !!m);
     for (const memberId of drivers) {
       const add = (base: PayrollBaseType, amount: string) => {
         if (dec(amount) <= 0n) return;

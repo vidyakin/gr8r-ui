@@ -126,6 +126,7 @@ export function TripDialog({ id, defaults, onClose }: { id: string | null; defau
   const open = planned || status === 'in_transit';
   const vehicleId = trip?.vehicleId ?? defaults?.vehicleId ?? vehicles[0]?.id ?? '';
   const vehicleDriver = vehicles.find(v => v.id === vehicleId)?.driverMemberId ?? null;
+  const own = (v: Values) => !v.hired;
   const fields: FieldDef[] = [
     { key: 'kind', label: t('trips.field.kind'), type: 'select', options: TRIP_KINDS.map(k => ({ value: k, label: t(`trips.kind.${k}`) })) },
     { key: 'name', label: t('trips.field.name'), type: 'text' },
@@ -133,9 +134,10 @@ export function TripDialog({ id, defaults, onClose }: { id: string | null; defau
     { key: 'dateTo', label: t('trips.field.dateTo'), type: 'date', hint: t('trips.kind.intercity') },
     { key: 'startTime', label: t('trips.field.startTime'), type: 'time' },
     { key: 'endTime', label: t('trips.field.endTime'), type: 'time' },
-    { key: 'vehicleId', label: t('trips.field.vehicle'), type: 'select', options: vehicles.map(v => ({ value: v.id, label: `${v.plate} ${v.name}`.trim() })), required: true },
-    { key: 'driverMemberId', label: t('trips.field.driver'), type: 'select', options: drivers.map(m => ({ value: m.id, label: m.name })), required: true },
-    { key: 'coDriverMemberId', label: t('trips.field.coDriver'), type: 'select', options: [{ value: '_none', label: t('trips.field.none') }, ...drivers.map(m => ({ value: m.id, label: m.name }))] },
+    { key: 'hired', label: t('trips.field.hired'), type: 'check' },
+    { key: 'vehicleId', label: t('trips.field.vehicle'), type: 'select', options: vehicles.map(v => ({ value: v.id, label: `${v.plate} ${v.name}`.trim() })), required: true, when: own },
+    { key: 'driverMemberId', label: t('trips.field.driver'), type: 'select', options: drivers.map(m => ({ value: m.id, label: m.name })), required: true, when: own },
+    { key: 'coDriverMemberId', label: t('trips.field.coDriver'), type: 'select', when: own, options: [{ value: '_none', label: t('trips.field.none') }, ...drivers.map(m => ({ value: m.id, label: m.name }))] },
     { key: 'comment', label: t('trips.field.comment'), type: 'textarea' },
   ];
   const payload = (v: Values) =>
@@ -147,9 +149,10 @@ export function TripDialog({ id, defaults, onClose }: { id: string | null; defau
           dateTo: v.kind === 'intercity' ? orNull(v.dateTo) : null,
           startTime: orNull(v.startTime),
           endTime: orNull(v.endTime),
-          vehicleId: String(v.vehicleId),
-          driverMemberId: String(v.driverMemberId),
-          coDriverMemberId: v.coDriverMemberId && v.coDriverMemberId !== '_none' ? String(v.coDriverMemberId) : null,
+          hired: !!v.hired,
+          vehicleId: v.hired ? null : String(v.vehicleId),
+          driverMemberId: v.hired ? null : String(v.driverMemberId),
+          coDriverMemberId: !v.hired && v.coDriverMemberId && v.coDriverMemberId !== '_none' ? String(v.coDriverMemberId) : null,
           comment: String(v.comment),
         }
       : { name: String(v.name), startTime: orNull(v.startTime), endTime: orNull(v.endTime), comment: String(v.comment) };
@@ -169,7 +172,7 @@ export function TripDialog({ id, defaults, onClose }: { id: string | null; defau
         description={trip ? t(`trips.status.${trip.status}`) : undefined}
         size="lg"
         fields={fields}
-        lockedKeys={planned ? [] : ['kind', 'dateFrom', 'dateTo', 'vehicleId', 'driverMemberId', 'coDriverMemberId']}
+        lockedKeys={planned ? [] : ['kind', 'dateFrom', 'dateTo', 'hired', 'vehicleId', 'driverMemberId', 'coDriverMemberId']}
         initial={{
           kind: trip?.kind ?? 'city',
           name: trip?.name ?? '',
@@ -177,6 +180,7 @@ export function TripDialog({ id, defaults, onClose }: { id: string | null; defau
           dateTo: trip && trip.dateTo !== trip.dateFrom ? trip.dateTo : '',
           startTime: hm(trip?.startTime),
           endTime: hm(trip?.endTime),
+          hired: trip?.hired ?? false,
           vehicleId,
           driverMemberId: trip?.driverMemberId ?? vehicleDriver ?? drivers[0]?.id ?? '',
           coDriverMemberId: trip?.coDriverMemberId ?? '_none',
@@ -199,7 +203,7 @@ export function TripDialog({ id, defaults, onClose }: { id: string | null; defau
               <Button variant="ghost" onClick={() => downloadTransportWaybillPdf(ws, { tripId: trip.id }, { failed: t('trips.tn.failed'), timeout: t('trips.tn.timeout') }).catch(e => toast.error(errorMessage(e)))}>
                 {t('trips.tn.pdf')}
               </Button>
-              {status !== 'cancelled' && !trip.waybills.some(w => w.status !== 'cancelled') && (
+              {status !== 'cancelled' && !trip.hired && !trip.waybills.some(w => w.status !== 'cancelled') && (
                 <Button variant="ghost" onClick={async () => void (await api('POST', `/${trip.id}/waybill`))}>
                   {t('trips.action.waybill')}
                 </Button>
@@ -329,7 +333,7 @@ export function TripDialog({ id, defaults, onClose }: { id: string | null; defau
                   <span>{t('trips.card.docs')}:</span>
                   {trip.waybills.length ? trip.waybills.map(w => <Badge key={w.id} tone="gray">{w.number}</Badge>) : <span>{t('trips.card.noWaybill')}</span>}
                 </div>
-                <TripEconomics tripId={trip.id} />
+                <TripEconomics tripId={trip.id} hired={trip.hired} />
               </>
             )}
           </div>

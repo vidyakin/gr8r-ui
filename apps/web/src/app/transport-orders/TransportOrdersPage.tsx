@@ -94,7 +94,7 @@ function TripPickDialog({ orderId, onClose }: { orderId: string; onClose: () => 
         <Field label={t('transport.orders.tripPicker.pickTrip')}>
           {p =>
             trips.length ? (
-              <Select id={p.id} aria-label={t('transport.orders.tripPicker.pickTrip')} value={tripId} onValueChange={setTripId} options={trips.map(tr => ({ value: tr.id, label: `${tr.number} ${tr.plate}` }))} />
+              <Select id={p.id} aria-label={t('transport.orders.tripPicker.pickTrip')} value={tripId} onValueChange={setTripId} options={trips.map(tr => ({ value: tr.id, label: `${tr.number} ${tr.plate || tr.carrierName || ''}`.trim() }))} />
             ) : (
               <span className="muted">{t('transport.orders.tripPicker.noTrips')}</span>
             )

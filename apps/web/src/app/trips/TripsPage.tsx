@@ -39,7 +39,7 @@ export function TripsPage() {
       { id: 'kind', header: t('trips.col.kind'), width: 130, value: r => r.kind, cell: r => <span className="muted">{t(`trips.kind.${r.kind}`).split(' (')[0]}</span> },
       { id: 'name', header: t('trips.field.name'), width: 200, value: r => r.name, cell: r => <span className="trunc">{r.name || '—'}</span> },
       { id: 'vehicle', header: t('trips.col.vehicle'), width: 120, value: r => r.plate, cell: r => r.plate },
-      { id: 'driver', header: t('trips.col.driver'), width: 170, value: r => r.driverName, cell: r => <span className="trunc">{r.driverName}</span> },
+      { id: 'driver', header: t('trips.col.driver'), width: 170, value: r => r.driverName, cell: r => <span className="trunc">{r.hired ? [r.carrierName ?? t('trips.hiredLane'), r.driverName].filter(Boolean).join(' · ') : r.driverName}</span> },
       { id: 'stops', header: t('trips.col.stops'), width: 90, align: 'right', value: r => r.stopsTotal, cell: r => <span className="num">{r.stopsDone}/{r.stopsTotal}</span> },
       {
         id: 'load',

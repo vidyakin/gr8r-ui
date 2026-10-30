@@ -183,6 +183,20 @@ describe('заявка на перевозку: жизненный цикл, р�
   });
 
   describe('экспедирование: наём перевозчика и маржа рейса', () => {
+    test('перевозчика можно назначить только наёмному рейсу, у него нет своих машины и водителя', async () => {
+      expect((await owner.put(`/transport-orders/trips/${tripId}/carrier`, { carrierCompanyId: carrierCompany, rate: '1' })).body.error.code).toBe('trip_not_hired');
+      expect((await owner.patch(`/trips/${tripId}`, { hired: true })).status).toBe(200);
+      const trip = (await owner.get(`/trips/${tripId}`)).body;
+      expect(trip).toMatchObject({ hired: true, vehicleId: null, driverMemberId: null, limits: { capacityKg: null } });
+      expect((await owner.post(`/trips/${tripId}/start`)).body.error.code).toBe('carrier_not_assigned');
+      expect((await owner.post(`/trips/${tripId}/waybill`)).body.error.code).toBe('trip_hired_no_waybill');
+      // без признака машина и водитель обязательны
+      expect((await owner.post('/trips', { dateFrom: day(0) })).body.error.code).toBe('trip_transport_required');
+      // наёмный рейс не занимает машину: она свободна на те же даты
+      const free = await mk(owner, '/trips', { dateFrom: day(0), vehicleId: truck, driverMemberId: drv1, kind: 'intercity', dateTo: day(1) });
+      await owner.del(`/trips/${free.id}`);
+    });
+
     test('наём перевозчика на рейс: одна запись на рейс, ставка и реквизиты для договора-заявки', async () => {
       const carrier = await owner.put(`/transport-orders/trips/${tripId}/carrier`, { carrierCompanyId: carrierCompany, rate: '28000', vehiclePlate: 'К777КК16', driverName: 'Иванов И.И.', contractNumber: 'ДЗ-1', contractDate: day(0) });
       expect(carrier.status).toBe(200);
@@ -231,6 +245,19 @@ describe('заявка на перевозку: жизненный цикл, р�
       const after = await owner.get(`/transport-orders/trips/${tripId}/margin`);
       expect(after.body.forwarding).toBeNull();
       expect(after.body.carrierRate).toBe('0.00');
+    });
+
+    test('наёмный рейс показывает реквизиты перевозчика, возврат к своим снимает перевозчика', async () => {
+      await owner.put(`/transport-orders/trips/${tripId}/carrier`, { carrierCompanyId: carrierCompany, rate: '30000', vehiclePlate: 'К777КК16', driverName: 'Иванов И.И.' });
+      const list = (await owner.get('/trips')).body.items as any[];
+      expect(list.find(x => x.id === tripId)).toMatchObject({ carrierName: 'ООО «Перевозчик»', plate: 'К777КК16', driverName: 'Иванов И.И.' });
+      const tn = await owner.post('/trips/tn', { tripId });
+      expect(tn.status).toBeLessThan(300);
+      const tnPage = await owner.get<string>(`/trips/tn/${tn.body.id}/print`);
+      for (const x of ['ООО «Перевозчик»', 'К777КК16', 'Иванов И.И.']) expect(tnPage.body).toContain(x);
+      expect((await owner.patch(`/trips/${tripId}`, { hired: false })).body.error.code).toBe('trip_transport_required');
+      expect((await owner.patch(`/trips/${tripId}`, { hired: false, vehicleId: truck, driverMemberId: drv1 })).status).toBe(200);
+      expect((await owner.get(`/transport-orders/trips/${tripId}/carrier`)).body.item).toBeNull();
     });
   });
 });

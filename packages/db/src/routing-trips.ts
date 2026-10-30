@@ -143,7 +143,7 @@ async function distribute(sql: Sql, run: RoutingRunRow, only: string[] | null): 
       .from(fleetTrips)
       .where(and(lte(fleetTrips.dateFrom, date), gte(fleetTrips.dateTo, date), inArray(fleetTrips.status, ['planned', 'in_transit'])));
     const inactive = new Set((await db.select({ id: members.id }).from(members).where(ne(members.status, 'active'))).map(m => m.id));
-    return { board, settings, adapter, busyVehicles: new Set(busy.map(b => b.vehicleId)), busyDrivers: new Set(busy.flatMap(b => [b.driver, ...(b.co ? [b.co] : [])])), inactive };
+    return { board, settings, adapter, busyVehicles: new Set(busy.map(b => b.vehicleId)), busyDrivers: new Set(busy.flatMap(b => [b.driver, b.co])), inactive };
   });
   const { board, settings, adapter } = data;
   const skipped: RoutingRunSummary['skippedVehicles'] = [];

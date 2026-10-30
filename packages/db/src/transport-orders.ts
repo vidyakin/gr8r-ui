@@ -387,7 +387,8 @@ export async function getFleetTripCarrier(db: Db, tripId: string): Promise<Fleet
 }
 
 export async function saveFleetTripCarrier(db: Db, ctx: DocCtx, tripId: string, input: FleetTripCarrierInput): Promise<FleetTripCarrierRow> {
-  await loadTrip(db, tripId);
+  const trip = await loadTrip(db, tripId);
+  if (!trip.hired) throw new DomainError(422, 'trip_not_hired', 'Mark the trip as hired before assigning a carrier');
   await assertCompany(db, input.carrierCompanyId, 'carrier');
   const values = {
     workspaceId: ctx.workspaceId,
@@ -482,13 +483,13 @@ const sumQty = (values: string[]) => fmt(values.reduce((s, v) => s + dec(v), 0n)
     свой транспорт не работал: топлива нет, отдельно показывается маржа экспедитора. Видна только администраторам, как и затраты автопарка. */
 export async function tripMargin(db: Db, ctx: DocCtx, tripId: string): Promise<TripMarginView> {
   if (ctx.role !== 'owner' && ctx.role !== 'admin') throw new DomainError(403, 'forbidden', 'Trip margin is visible to admins and owners');
-  await loadTrip(db, tripId);
+  const trip = await loadTrip(db, tripId);
   const orders = await db.select({ amount: transportOrders.amount }).from(transportOrders).where(and(eq(transportOrders.tripId, tripId), sql`${transportOrders.status} != 'cancelled'`));
   const ordersAmount = sumMoney(orders.map(o => o.amount));
   const extra = await listFleetTripCosts(db, tripId);
   const otherCosts = sumMoney(extra.map(c => c.amount));
   const carrier = await getFleetTripCarrier(db, tripId);
-  const fuel = carrier ? [] : await db.select({ amount: fleetFuelEntries.amount }).from(fleetFuelEntries).innerJoin(fleetWaybills, eq(fleetWaybills.id, fleetFuelEntries.waybillId)).where(eq(fleetWaybills.tripId, tripId));
+  const fuel = trip.hired ? [] : await db.select({ amount: fleetFuelEntries.amount }).from(fleetFuelEntries).innerJoin(fleetWaybills, eq(fleetWaybills.id, fleetFuelEntries.waybillId)).where(eq(fleetWaybills.tripId, tripId));
   const r = computeTripMargin({
     ordersAmount,
     fuelAmount: sumMoney(fuel.map(f => f.amount)),

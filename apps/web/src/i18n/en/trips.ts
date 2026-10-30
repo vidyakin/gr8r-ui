@@ -16,7 +16,9 @@ export const trips = {
   stopStatus: { planned: 'Planned', arrived: 'Arrived', done: 'Done', failed: 'Failed' },
   source: { manual: 'Manual', delivery: 'Delivery', transport_order: 'Transport order' },
   col: { number: 'Trip', date: 'Date', kind: 'Type', vehicle: 'Vehicle', driver: 'Driver', stops: 'Stops', load: 'Load', status: 'Status', km: 'Straight, km' },
+  hiredLane: 'Hired carrier',
   field: {
+    hired: 'Hired carrier',
     kind: 'Trip type',
     name: 'Name',
     dateFrom: 'Start date',

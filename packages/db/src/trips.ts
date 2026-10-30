@@ -29,7 +29,7 @@ import { createPaymentLink } from './integrations';
 import { payableOf } from './settlements';
 import { clearRoute, requestGeocode } from './routing';
 import { assertMember, createWaybill, loadVehicle, nextNumber, type WaybillRow } from './fleet';
-import { cashRegisters, deliveries, documentLines, documents, fleetDriverReturns, fleetDriverPayments, fleetDriverRegisters, fleetDriverEvents, fleetTripStops, fleetTrips, fleetVehicles, fleetWaybills, members, workspaces } from './schema';
+import { cashRegisters, deliveries, documentLines, documents, fleetDriverReturns, fleetDriverPayments, fleetDriverRegisters, fleetDriverEvents, companies, fleetTripCarriers, fleetTripStops, fleetTrips, fleetVehicles, fleetWaybills, members, workspaces } from './schema';
 
 export type TripRow = typeof fleetTrips.$inferSelect;
 export type TripStopRow = typeof fleetTripStops.$inferSelect;
@@ -114,7 +114,7 @@ async function assertAssignable(db: Db, vehicleId: string, driverId: string, coD
 /** Проверка вместимости после изменения точек: запрет — по настройке, иначе предупреждение остаётся в карточке */
 async function enforceCapacity(db: Db, ctx: DocCtx, t: TripRow): Promise<void> {
   const mode = await tripCapacityMode(db, ctx.workspaceId);
-  if (mode !== 'block') return;
+  if (mode !== 'block' || !t.vehicleId) return;
   const v = await loadVehicle(db, t.vehicleId);
   const over = loadOf(await loadStops(db, t.id)).overloadsOf(limitsOf(v));
   if (over.length) throw new DomainError(422, 'trip_overloaded', 'The load exceeds the capacity of the vehicle', { overloads: over });
@@ -129,10 +129,20 @@ export interface TripInput {
   dateTo?: string | null;
   startTime?: string | null;
   endTime?: string | null;
-  vehicleId: string;
-  driverMemberId: string;
+  hired?: boolean;
+  vehicleId?: string | null;
+  driverMemberId?: string | null;
   coDriverMemberId?: string | null;
   comment?: string;
+}
+
+/** Исполнитель рейса: наёмный перевозчик без своих машины и водителей или обязательные машина и водитель. Проверяет, что они свободны */
+async function resolveTransport(db: Db, t: { id?: string; dateFrom: string; dateTo: string; startTime?: string | null; endTime?: string | null; hired: boolean; vehicleId?: string | null; driverMemberId?: string | null; coDriverMemberId?: string | null }) {
+  if (t.hired) return { hired: true, vehicleId: null, driverMemberId: null, coDriverMemberId: null };
+  if (!t.vehicleId || !t.driverMemberId) throw new DomainError(422, 'trip_transport_required', 'Select a vehicle and a driver or mark the trip as hired');
+  await assertAssignable(db, t.vehicleId, t.driverMemberId, t.coDriverMemberId);
+  await assertFree(db, { ...t, vehicleId: t.vehicleId, driverMemberId: t.driverMemberId });
+  return { hired: false, vehicleId: t.vehicleId, driverMemberId: t.driverMemberId, coDriverMemberId: t.coDriverMemberId ?? null };
 }
 
 function span(kind: TripRow['kind'], dateFrom: string, dateTo: string | null | undefined): string {
@@ -145,8 +155,7 @@ export async function createTrip(db: Db, ctx: DocCtx, input: TripInput): Promise
   const kind = input.kind ?? 'city';
   const dateTo = span(kind, input.dateFrom, input.dateTo);
   if (input.startTime && input.endTime && dateTo === input.dateFrom && input.endTime <= input.startTime) throw new DomainError(422, 'trip_dates_invalid', 'The trip ends before it starts');
-  await assertAssignable(db, input.vehicleId, input.driverMemberId, input.coDriverMemberId);
-  await assertFree(db, { ...input, dateTo });
+  const transport = await resolveTransport(db, { ...input, hired: input.hired ?? false, dateTo });
   const number = await nextNumber(db, ctx.workspaceId, 'fleet_trips', 'РС', input.dateFrom);
   const [row] = await db
     .insert(fleetTrips)
@@ -159,9 +168,7 @@ export async function createTrip(db: Db, ctx: DocCtx, input: TripInput): Promise
       dateTo,
       startTime: input.startTime ?? null,
       endTime: input.endTime ?? null,
-      vehicleId: input.vehicleId,
-      driverMemberId: input.driverMemberId,
-      coDriverMemberId: input.coDriverMemberId ?? null,
+      ...transport,
       comment: input.comment ?? '',
     })
     .returning();
@@ -174,22 +181,20 @@ export async function createTrip(db: Db, ctx: DocCtx, input: TripInput): Promise
 export async function updateTrip(db: Db, ctx: DocCtx, id: string, input: Partial<TripInput>): Promise<TripRow> {
   const cur = await loadTrip(db, id, true);
   assertOpen(cur);
-  const structural = input.kind !== undefined || input.dateFrom !== undefined || input.dateTo !== undefined || input.vehicleId !== undefined || input.driverMemberId !== undefined || input.coDriverMemberId !== undefined;
+  const structural = input.hired !== undefined || input.kind !== undefined || input.dateFrom !== undefined || input.dateTo !== undefined || input.vehicleId !== undefined || input.driverMemberId !== undefined || input.coDriverMemberId !== undefined;
   if (structural && cur.status !== 'planned') throw new DomainError(409, 'trip_not_planned', 'The vehicle, driver and dates can be changed in a planned trip only');
   const next = {
     kind: input.kind ?? cur.kind,
     dateFrom: input.dateFrom ?? cur.dateFrom,
-    vehicleId: input.vehicleId ?? cur.vehicleId,
-    driverMemberId: input.driverMemberId ?? cur.driverMemberId,
+    hired: input.hired ?? cur.hired,
+    vehicleId: input.vehicleId !== undefined ? input.vehicleId : cur.vehicleId,
+    driverMemberId: input.driverMemberId !== undefined ? input.driverMemberId : cur.driverMemberId,
     coDriverMemberId: input.coDriverMemberId !== undefined ? input.coDriverMemberId : cur.coDriverMemberId,
     startTime: input.startTime !== undefined ? input.startTime : cur.startTime,
     endTime: input.endTime !== undefined ? input.endTime : cur.endTime,
   };
   const dateTo = span(next.kind, next.dateFrom, input.dateTo !== undefined ? input.dateTo : cur.dateTo);
-  if (structural) {
-    await assertAssignable(db, next.vehicleId, next.driverMemberId, next.coDriverMemberId);
-    await assertFree(db, { id, ...next, dateTo });
-  }
+  const transport = structural ? await resolveTransport(db, { id, ...next, dateTo }) : { hired: cur.hired, vehicleId: cur.vehicleId, driverMemberId: cur.driverMemberId, coDriverMemberId: next.coDriverMemberId };
   const [row] = await db
     .update(fleetTrips)
     .set({
@@ -199,22 +204,22 @@ export async function updateTrip(db: Db, ctx: DocCtx, id: string, input: Partial
       dateTo,
       startTime: next.startTime ?? null,
       endTime: next.endTime ?? null,
-      vehicleId: next.vehicleId,
-      driverMemberId: next.driverMemberId,
-      coDriverMemberId: next.coDriverMemberId ?? null,
+      ...transport,
       comment: input.comment ?? cur.comment,
       updatedAt: new Date(),
     })
     .where(eq(fleetTrips.id, id))
     .returning();
-  if (next.driverMemberId !== cur.driverMemberId) {
-    await db.update(deliveries).set({ courierMemberId: next.driverMemberId, updatedAt: new Date() }).where(inArray(deliveries.id, db.select({ id: fleetTripStops.deliveryId }).from(fleetTripStops).where(and(eq(fleetTripStops.tripId, id), sql`${fleetTripStops.deliveryId} is not null`, inArray(fleetTripStops.status, ['planned', 'arrived'])))));
+  // рейс снова везут свои: договор с наёмным перевозчиком больше не действует
+  if (cur.hired && !transport.hired) await db.delete(fleetTripCarriers).where(eq(fleetTripCarriers.tripId, id));
+  if (transport.driverMemberId !== cur.driverMemberId) {
+    await db.update(deliveries).set({ courierMemberId: transport.driverMemberId, updatedAt: new Date() }).where(inArray(deliveries.id, db.select({ id: fleetTripStops.deliveryId }).from(fleetTripStops).where(and(eq(fleetTripStops.tripId, id), sql`${fleetTripStops.deliveryId} is not null`, inArray(fleetTripStops.status, ['planned', 'arrived'])))));
   }
   if (next.dateFrom !== cur.dateFrom || dateTo !== cur.dateTo) {
     // точки вне нового периода переезжают на его границы
     await db.update(fleetTripStops).set({ day: sql`least(greatest(${fleetTripStops.day}, ${next.dateFrom}::date), ${dateTo}::date)` }).where(eq(fleetTripStops.tripId, id));
   }
-  if (next.vehicleId !== cur.vehicleId) await enforceCapacity(db, ctx, row!);
+  if (transport.vehicleId !== cur.vehicleId) await enforceCapacity(db, ctx, row!);
   await event(db, ctx, 'fleet_trip', 'updated', id, { number: cur.number, changes: Object.keys(input) });
   return row!;
 }
@@ -244,6 +249,10 @@ export async function startTrip(db: Db, ctx: DocCtx, id: string): Promise<TripRo
   if (t.status !== 'planned') throw new DomainError(409, 'invalid_status', 'Only a planned trip can be started');
   const stops = await loadStops(db, id);
   if (!stops.length) throw new DomainError(422, 'trip_empty', 'Add at least one stop before sending the trip');
+  if (t.hired) {
+    const [carrier] = await db.select({ id: fleetTripCarriers.id }).from(fleetTripCarriers).where(eq(fleetTripCarriers.tripId, id)).limit(1);
+    if (!carrier) throw new DomainError(422, 'carrier_not_assigned', 'Assign a hired carrier before sending the trip');
+  }
   await enforceCapacity(db, ctx, t);
   const [row] = await db.update(fleetTrips).set({ status: 'in_transit', startedAt: new Date(), updatedAt: new Date() }).where(eq(fleetTrips.id, id)).returning();
   for (const s of stops) {
@@ -497,6 +506,7 @@ export async function setStopStatus(db: Db, ctx: DocCtx, tripId: string, stopId:
 export async function createTripWaybill(db: Db, ctx: DocCtx, tripId: string): Promise<WaybillRow> {
   const t = await loadTrip(db, tripId, true);
   if (t.status === 'cancelled') throw new DomainError(409, 'trip_closed', 'A cancelled trip has no waybill');
+  if (!t.vehicleId || !t.driverMemberId) throw new DomainError(422, 'trip_hired_no_waybill', 'A trip of a hired carrier has no waybill of ours');
   const [have] = await db.select({ id: fleetWaybills.id, number: fleetWaybills.number }).from(fleetWaybills).where(and(eq(fleetWaybills.tripId, tripId), ne(fleetWaybills.status, 'cancelled'))).limit(1);
   if (have) throw new DomainError(409, 'trip_waybill_exists', `The trip already has waybill ${have.number}`, { waybillId: have.id, number: have.number });
   const stops = await loadStops(db, tripId);
@@ -522,6 +532,8 @@ export interface TripWarning {
 }
 
 export interface TripView extends TripRow {
+  /** У наёмного рейса госномер, машина и водитель — из реквизитов перевозчика */
+  carrierName: string | null;
   plate: string;
   vehicleName: string;
   driverName: string;
@@ -537,22 +549,27 @@ export interface TripView extends TripRow {
 async function viewRows(db: Db, rows: TripRow[]): Promise<TripView[]> {
   if (!rows.length) return [];
   const ids = rows.map(r => r.id);
-  const vehicles = new Map((await db.select().from(fleetVehicles).where(inArray(fleetVehicles.id, [...new Set(rows.map(r => r.vehicleId))]))).map(v => [v.id, v]));
-  const people = new Map((await db.select({ id: members.id, name: members.name }).from(members).where(inArray(members.id, [...new Set(rows.flatMap(r => [r.driverMemberId, ...(r.coDriverMemberId ? [r.coDriverMemberId] : [])]))]))).map(m => [m.id, m.name]));
+  const vehicles = new Map((await db.select().from(fleetVehicles).where(inArray(fleetVehicles.id, [...new Set(rows.flatMap(r => (r.vehicleId ? [r.vehicleId] : [])))]))).map(v => [v.id, v]));
+  const people = new Map((await db.select({ id: members.id, name: members.name }).from(members).where(inArray(members.id, [...new Set(rows.flatMap(r => [r.driverMemberId, r.coDriverMemberId].filter((m): m is string => !!m)))]))).map(m => [m.id, m.name]));
+  const carriers = new Map(
+    (await db.select({ c: fleetTripCarriers, name: companies.name }).from(fleetTripCarriers).innerJoin(companies, eq(companies.id, fleetTripCarriers.carrierCompanyId)).where(inArray(fleetTripCarriers.tripId, ids))).map(r => [r.c.tripId, r]),
+  );
   const stops = await db.select().from(fleetTripStops).where(inArray(fleetTripStops.tripId, ids)).orderBy(asc(fleetTripStops.seq));
   const byTrip = new Map<string, TripStopRow[]>();
   for (const s of stops) byTrip.set(s.tripId, [...(byTrip.get(s.tripId) ?? []), s]);
   return rows.map(r => {
-    const v = vehicles.get(r.vehicleId)!;
+    const v = r.vehicleId ? vehicles.get(r.vehicleId) : undefined;
+    const carrier = carriers.get(r.id);
     const ss = byTrip.get(r.id) ?? [];
     const { load, overloadsOf } = loadOf(ss);
-    const limits = limitsOf(v);
+    const limits = v ? limitsOf(v) : { capacityKg: null, volumeM3: null, pallets: null };
     const route = routeStraightKm(ss.map(s => ({ lat: s.lat === null ? null : Number(s.lat), lon: s.lon === null ? null : Number(s.lon) })));
     return {
       ...r,
-      plate: v.plate,
-      vehicleName: v.name,
-      driverName: people.get(r.driverMemberId) ?? '',
+      carrierName: carrier?.name ?? null,
+      plate: v?.plate ?? carrier?.c.vehiclePlate ?? '',
+      vehicleName: v?.name ?? carrier?.c.vehicleModel ?? '',
+      driverName: (r.driverMemberId ? people.get(r.driverMemberId) : carrier?.c.driverName) ?? '',
       coDriverName: r.coDriverMemberId ? (people.get(r.coDriverMemberId) ?? null) : null,
       limits,
       load,

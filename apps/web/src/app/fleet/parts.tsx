@@ -25,14 +25,18 @@ export function TermBadge({ state, daysLeft }: { state: DocTermState; daysLeft: 
   return <Badge tone={TERM_TONE[state]}>{text}</Badge>;
 }
 
-export type FieldDef =
+export type Values = Record<string, string | boolean>;
+
+export type FieldDef = (
   | { key: string; label: string; type: 'text' | 'date' | 'time' | 'datetime'; hint?: string; required?: boolean }
   | { key: string; label: string; type: 'number'; hint?: string; required?: boolean }
   | { key: string; label: string; type: 'textarea'; hint?: string }
   | { key: string; label: string; type: 'select'; options: SelectOption[]; hint?: string; required?: boolean }
-  | { key: string; label: string; type: 'check' };
-
-export type Values = Record<string, string | boolean>;
+  | { key: string; label: string; type: 'check' }
+) & {
+  /** Поле показывается и проверяется только при этом условии */
+  when?: (v: Values) => boolean;
+};
 
 /** Диалог формы по описанию полей. Значения — строки (числа и даты отдаёт вызывающий код), флажки — boolean. */
 export function FormDialog({
@@ -69,7 +73,8 @@ export function FormDialog({
   const [v, setV] = React.useState<Values>(initial);
   const [busy, setBusy] = React.useState(false);
   const set = (patch: Values) => setV(s => ({ ...s, ...patch }));
-  const missing = fields.some(f => 'required' in f && f.required && !String(v[f.key] ?? '').trim());
+  const shown = fields.filter(f => !f.when || f.when(v));
+  const missing = shown.some(f => 'required' in f && f.required && !String(v[f.key] ?? '').trim());
   const submit = async () => {
     setBusy(true);
     try {
@@ -94,7 +99,7 @@ export function FormDialog({
       >
         <div className="stack" style={{ gap: 12 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 12 }}>
-            {fields.map(f =>
+            {shown.map(f =>
               f.type === 'check' ? (
                 <label key={f.key} className="row" style={{ gap: 8, alignSelf: 'end', minHeight: 36 }}>
                   <input type="checkbox" checked={!!v[f.key]} disabled={lockedKeys?.includes(f.key)} onChange={e => set({ [f.key]: e.target.checked })} />

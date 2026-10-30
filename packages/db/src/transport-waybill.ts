@@ -15,7 +15,7 @@ import {
   fleetDriverProfiles,
   fleetTripStops,
   fleetTrips,
-  fleetVehicles,
+  fleetTripCarriers, fleetVehicles,
   members,
   organizations,
   products,
@@ -196,14 +196,18 @@ export async function transportWaybillPrintData(db: Db, id: string): Promise<Tra
   const only = list.length === 1 ? list[0]! : null;
   const consignee: TnParty | null = list.length > 1 ? null : only ? { name: only.name, inn: only.inn, kpp: only.kpp, address: only.address, phone: only.phone, contact: only.contact } : emptyParty();
 
-  const [vehicle] = trip ? await db.select().from(fleetVehicles).where(eq(fleetVehicles.id, trip.vehicleId)).limit(1) : [];
-  const driverIds = trip ? [trip.driverMemberId, ...(trip.coDriverMemberId ? [trip.coDriverMemberId] : [])] : courierId ? [courierId] : [];
+  const [vehicle] = trip?.vehicleId ? await db.select().from(fleetVehicles).where(eq(fleetVehicles.id, trip.vehicleId)).limit(1) : [];
+  const driverIds = trip ? [trip.driverMemberId, trip.coDriverMemberId].filter((m): m is string => !!m) : courierId ? [courierId] : [];
+  // наёмный рейс: перевозчик, машина и водитель из реквизитов договора-заявки
+  const [hired] = trip?.hired ? await db.select({ c: fleetTripCarriers, company: companies }).from(fleetTripCarriers).innerJoin(companies, eq(companies.id, fleetTripCarriers.carrierCompanyId)).where(eq(fleetTripCarriers.tripId, trip.id)).limit(1) : [];
+  if (hired) carrierCompany = hired.company;
   const drivers: { name: string; licenseNumber: string }[] = [];
   for (const mid of driverIds) {
     const [m] = await db.select({ name: members.name }).from(members).where(eq(members.id, mid)).limit(1);
     const [p] = await db.select({ n: fleetDriverProfiles.licenseNumber }).from(fleetDriverProfiles).where(eq(fleetDriverProfiles.memberId, mid)).limit(1);
     drivers.push({ name: m?.name ?? '', licenseNumber: p?.n ?? '' });
   }
+  if (hired?.c.driverName) drivers.push({ name: hired.c.driverName, licenseNumber: hired.c.driverLicense });
   const only1 = list.length === 1;
   return {
     number: w.number,
@@ -217,7 +221,7 @@ export async function transportWaybillPrintData(db: Db, id: string): Promise<Tra
     documents: docs,
     loadingDate,
     carrier: carrierCompany ? companyParty(carrierCompany) : orgParty,
-    vehicle: vehicle ? { plate: vehicle.plate, model: [vehicle.make, vehicle.model].filter(Boolean).join(' ') || vehicle.name, capacityKg: vehicle.capacityKg ? fmt(dec(vehicle.capacityKg), 0) : '' } : { plate: '', model: '', capacityKg: '' },
+    vehicle: vehicle ? { plate: vehicle.plate, model: [vehicle.make, vehicle.model].filter(Boolean).join(' ') || vehicle.name, capacityKg: vehicle.capacityKg ? fmt(dec(vehicle.capacityKg), 0) : '' } : { plate: hired?.c.vehiclePlate ?? '', model: hired?.c.vehicleModel ?? '', capacityKg: '' },
     drivers,
     price: price > 0n ? fmt(price, 2) : '',
     reference: trip ? `рейс ${trip.number}` : '',

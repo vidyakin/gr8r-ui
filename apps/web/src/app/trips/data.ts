@@ -18,8 +18,10 @@ export interface Trip {
   dateTo: string;
   startTime: string | null;
   endTime: string | null;
-  vehicleId: string;
-  driverMemberId: string;
+  hired: boolean;
+  carrierName: string | null;
+  vehicleId: string | null;
+  driverMemberId: string | null;
   coDriverMemberId: string | null;
   comment: string;
   plate: string;

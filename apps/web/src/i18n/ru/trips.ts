@@ -19,7 +19,9 @@ export const trips: Widen<typeof T> = {
   stopStatus: { planned: 'В плане', arrived: 'Прибыл', done: 'Выполнена', failed: 'Не выполнена' },
   source: { manual: 'Вручную', delivery: 'Доставка', transport_order: 'Заявка на перевозку' },
   col: { number: 'Рейс', date: 'Дата', kind: 'Вид', vehicle: 'Машина', driver: 'Водитель', stops: 'Точек', load: 'Загрузка', status: 'Статус', km: 'По прямой, км' },
+  hiredLane: 'Наёмный перевозчик',
   field: {
+    hired: 'Наёмный перевозчик',
     kind: 'Вид рейса',
     name: 'Название',
     dateFrom: 'Дата начала',
