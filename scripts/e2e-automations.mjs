@@ -47,7 +47,7 @@ for (const f of (await api('GET', '/flows?limit=100')).items.filter(f => f.name 
 
 // 1. редактор: триггер → действие → действие
 await page.goto(`${WEB}/#/automations`);
-await page.getByText('Deal won → create a Kickoff task').first().waitFor();
+await page.getByText('Сделка выиграна → создать задачу «Старт проекта»').first().waitFor();
 ok((await page.locator('tr.dt-click').count()) >= 2, 'list shows the two demo automations');
 await page.getByRole('button', { name: 'New automation' }).click();
 await page.waitForURL(/#\/automations\/flow\//);
@@ -62,7 +62,7 @@ await page.locator('.pal-item', { hasText: 'Update field' }).click();
 await pick('Field', 'Priority');
 await page.getByLabel('New value').fill('10');
 await page.locator('.pal-item', { hasText: 'Notify member' }).click();
-await pick('Recipient', 'Tanjim Islam');
+await pick('Recipient', 'Андрей Волков');
 await page.getByLabel('Message').fill('Priority escalated to 10');
 await page.getByLabel('Link to task (optional)').fill('{{trigger.recordId}}');
 ok((await page.locator('.react-flow__node').count()) === 3 && (await page.locator('.react-flow__edge').count()) === 2, 'three connected nodes on the canvas');

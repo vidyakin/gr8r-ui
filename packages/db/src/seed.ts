@@ -93,34 +93,34 @@ export const defaultStatusRows = (workspaceId: string, list: { id: string; name:
 async function seedMeta(db: Db, wsId: string, sys: Map<string, string>, creator: string | null) {
   const taskEntity = sys.get('task')!;
   await db.insert(fields).values([
-    { workspaceId: wsId, entityId: taskEntity, key: 'story_points', name: 'Story points', type: 'number', filterable: true, options: { min: 0, max: 100 }, sortOrder: 0 },
-    { workspaceId: wsId, entityId: taskEntity, key: 'client', name: 'Client', type: 'ref', options: { refEntity: 'company' }, sortOrder: 1 },
+    { workspaceId: wsId, entityId: taskEntity, key: 'story_points', name: 'Оценка (story points)', type: 'number', filterable: true, options: { min: 0, max: 100 }, sortOrder: 0 },
+    { workspaceId: wsId, entityId: taskEntity, key: 'client', name: 'Клиент', type: 'ref', options: { refEntity: 'company' }, sortOrder: 1 },
   ]);
 
   const supplierEntity = uuidv7();
-  await db.insert(entities).values({ id: supplierEntity, workspaceId: wsId, key: 'suppliers', name: 'Suppliers', kind: 'custom', icon: 'truck', titleField: 'name', sortOrder: 10 });
+  await db.insert(entities).values({ id: supplierEntity, workspaceId: wsId, key: 'suppliers', name: 'Поставщики', kind: 'custom', icon: 'truck', titleField: 'name', sortOrder: 10 });
   const choice = (value: string, color: string) => ({ value, label: value, color });
   const supplierFields = [
-    { key: 'name', name: 'Name', type: 'text', required: true, options: {} },
-    { key: 'category', name: 'Category', type: 'select', filterable: true, options: { choices: [choice('Hardware', 'blue'), choice('Software', 'violet'), choice('Logistics', 'amber'), choice('Materials', 'teal'), choice('Services', 'green')] } },
-    { key: 'rating', name: 'Rating', type: 'number', filterable: true, options: { min: 0, max: 5 } },
-    { key: 'contact_email', name: 'Contact email', type: 'email', options: {} },
-    { key: 'website', name: 'Website', type: 'url', options: {} },
-    { key: 'notes', name: 'Notes', type: 'long_text', options: {} },
+    { key: 'name', name: 'Название', type: 'text', required: true, options: {} },
+    { key: 'category', name: 'Категория', type: 'select', filterable: true, options: { choices: [choice('Оборудование', 'blue'), choice('Программы', 'violet'), choice('Логистика', 'amber'), choice('Материалы', 'teal'), choice('Услуги', 'green')] } },
+    { key: 'rating', name: 'Рейтинг', type: 'number', filterable: true, options: { min: 0, max: 5 } },
+    { key: 'contact_email', name: 'Почта для связи', type: 'email', options: {} },
+    { key: 'website', name: 'Сайт', type: 'url', options: {} },
+    { key: 'notes', name: 'Заметки', type: 'long_text', options: {} },
   ] as const;
   const inserted = await db
     .insert(fields)
     .values(supplierFields.map((f, i) => ({ workspaceId: wsId, entityId: supplierEntity, sortOrder: i, ...f, options: f.options as never })))
     .returning({ id: fields.id, key: fields.key, type: fields.type, filterable: fields.filterable });
   const rows: [string, string, number, string, string, string][] = [
-    ['Northwind Components', 'Hardware', 4.5, 'sales@northwind.example', 'https://northwind.example', 'Main source of PCBs and connectors. Net 30.'],
-    ['Cloudline Hosting', 'Software', 4.8, 'support@cloudline.example', 'https://cloudline.example', 'Managed Kubernetes and object storage.'],
-    ['Fastlane Freight', 'Logistics', 3.9, 'dispatch@fastlane.example', 'https://fastlane.example', 'Pallet shipping across the EU. Occasional delays at customs.'],
-    ['Green Pack Materials', 'Materials', 4.2, 'orders@greenpack.example', 'https://greenpack.example', 'Recycled packaging, minimum order 500 units.'],
-    ['Pixel Foundry', 'Services', 4.7, 'hello@pixelfoundry.example', 'https://pixelfoundry.example', 'Contract illustration and motion design.'],
-    ['Ironside Metalworks', 'Materials', 3.5, 'quotes@ironside.example', 'https://ironside.example', 'Custom brackets; lead time 3 weeks.'],
-    ['Lumen Displays', 'Hardware', 4.1, 'b2b@lumen.example', 'https://lumen.example', 'Touch panels for kiosks.'],
-    ['Quill Legal', 'Services', 4.9, 'desk@quill.example', 'https://quill.example', 'Contracts and compliance reviews.'],
+    ['Северный Компонент', 'Оборудование', 4.5, 'sales@severnyy.example', 'https://severnyy.example', 'Основной источник плат и разъёмов. Оплата в течение 30 дней.'],
+    ['Облачная линия', 'Программы', 4.8, 'support@oblako.example', 'https://oblako.example', 'Управляемый Kubernetes и объектное хранилище.'],
+    ['Быстрый рейс', 'Логистика', 3.9, 'dispatch@reys.example', 'https://reys.example', 'Перевозка паллет по стране. Иногда бывают задержки на таможне.'],
+    ['Зелёная упаковка', 'Материалы', 4.2, 'orders@upakovka.example', 'https://upakovka.example', 'Упаковка из вторсырья, минимальный заказ — 500 штук.'],
+    ['Пиксель-мастерская', 'Услуги', 4.7, 'hello@pixel.example', 'https://pixel.example', 'Иллюстрации и анимация на заказ.'],
+    ['Железный бок', 'Материалы', 3.5, 'quotes@zhelezo.example', 'https://zhelezo.example', 'Кронштейны на заказ; срок изготовления 3 недели.'],
+    ['Люмен Дисплеи', 'Оборудование', 4.1, 'b2b@lumen.example', 'https://lumen.example', 'Сенсорные панели для киосков.'],
+    ['Перо и Право', 'Услуги', 4.9, 'desk@pravo.example', 'https://pravo.example', 'Договоры и проверка соответствия требованиям.'],
   ];
   await db.insert(records).values(
     rows.map(([name, category, rating, contact_email, website, notes], i) => ({
@@ -313,7 +313,7 @@ export async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: strin
   await db.insert(contacts).values(crm.contacts.map(c => ({ id: U(c.id), workspaceId: wsId, companyId: U(c.company), name: c.name, title: c.title, email: c.email, phone: c.phone, ownerId: U(c.owner), createdAt: new Date(c.created) })));
   // Воронки (задача 1176): сделки демо живут в основной воронке «Продажи», старые ключи стадий → её этапы
   const pipes = await seedDealPipelines(db, wsId);
-  const REASON_INDEX: Record<string, number> = { 'Price too high': 0, 'Chose a competitor': 1, 'No budget': 2, 'No decision': 3, 'Bad timing': 4, 'Requirements changed': 5 };
+  const REASON_INDEX: Record<string, number> = { 'Слишком дорого': 0, 'Выбрали конкурента': 1, 'Нет бюджета': 2, 'Не приняли решение': 3, 'Не вовремя': 4, 'Изменились требования': 5 };
   await db.insert(deals).values(
     crm.deals.map(x => ({
       id: U(x.id),

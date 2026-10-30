@@ -11,10 +11,10 @@ let aid = 0;
 const uid = (p: string) => p + ++aid;
 
 export const TEAMS_SEED: Team[] = [
-  { id: 'design', name: 'Design', icon: 'palette', c: '#8662C9', desc: 'Product design, brand, and research' },
-  { id: 'eng', name: 'Engineering', icon: 'code', c: '#3B82C4', desc: 'Web, mobile, and platform engineering' },
-  { id: 'mkt', name: 'Marketing', icon: 'megaphone', c: '#C54B78', desc: 'Campaigns, content, and growth' },
-  { id: 'product', name: 'Product', icon: 'target', c: '#C48A1E', desc: 'Roadmap, planning, and QA' },
+  { id: 'design', name: 'Дизайн', icon: 'palette', c: '#8662C9', desc: 'Продуктовый дизайн, бренд и исследования' },
+  { id: 'eng', name: 'Разработка', icon: 'code', c: '#3B82C4', desc: 'Веб, мобильная и платформенная разработка' },
+  { id: 'mkt', name: 'Маркетинг', icon: 'megaphone', c: '#C54B78', desc: 'Кампании, контент и рост' },
+  { id: 'product', name: 'Продукт', icon: 'target', c: '#C48A1E', desc: 'Дорожная карта, планирование и тестирование' },
 ];
 
 /** Оценка из старого формата ('3d', '4h', '30m') в часы: день = 8 часов */
@@ -34,106 +34,106 @@ export function seed(): WorkspaceData {
   const members: Member[] = [
     {
       id: 'm1',
-      name: 'Tanjim Islam',
+      name: 'Андрей Волков',
       email: 'hello@gr8rstudio.com',
       role: 'Owner',
       team: 'product',
-      title: 'Head of Product',
+      title: 'Руководитель продукта',
       c: '#5A67D8',
       status: 'active',
       last: 0,
-      tz: 'San Francisco',
+      tz: 'Сан-Франциско',
     },
     {
       id: 'm2',
-      name: 'Sarah Chen',
+      name: 'Мария Чернова',
       email: 'sarah@gr8rstudio.com',
       role: 'Admin',
       team: 'design',
-      title: 'Design Lead',
+      title: 'Руководитель дизайна',
       c: '#C54B78',
       status: 'active',
       last: 4,
-      tz: 'New York',
+      tz: 'Нью-Йорк',
     },
     {
       id: 'm3',
-      name: 'John Carter',
+      name: 'Иван Карпов',
       email: 'john@gr8rstudio.com',
       role: 'Member',
       team: 'eng',
-      title: 'Frontend Engineer',
+      title: 'Фронтенд-разработчик',
       c: '#3B82C4',
       status: 'active',
       last: 22,
-      tz: 'London',
+      tz: 'Лондон',
     },
     {
       id: 'm4',
-      name: 'Emma Wilson',
+      name: 'Елена Орлова',
       email: 'emma@gr8rstudio.com',
       role: 'Member',
       team: 'design',
-      title: 'Product Designer',
+      title: 'Продуктовый дизайнер',
       c: '#23918A',
       status: 'active',
       last: 9,
-      tz: 'Berlin',
+      tz: 'Берлин',
     },
     {
       id: 'm5',
-      name: 'Priya Patel',
+      name: 'Полина Шацкая',
       email: 'priya@gr8rstudio.com',
       role: 'Member',
       team: 'mkt',
-      title: 'Content Strategist',
+      title: 'Контент-стратег',
       c: '#C48A1E',
       status: 'active',
       last: 95,
-      tz: 'Toronto',
+      tz: 'Торонто',
     },
     {
       id: 'm6',
-      name: 'Marcus Lee',
+      name: 'Максим Лебедев',
       email: 'marcus@gr8rstudio.com',
       role: 'Member',
       team: 'eng',
-      title: 'Backend Engineer',
+      title: 'Бэкенд-разработчик',
       c: '#8662C9',
       status: 'active',
       last: 240,
-      tz: 'Singapore',
+      tz: 'Сингапур',
     },
     {
       id: 'm7',
-      name: 'Lena Fischer',
+      name: 'Лариса Фомина',
       email: 'lena@gr8rstudio.com',
       role: 'Admin',
       team: 'product',
-      title: 'QA Lead',
+      title: 'Руководитель тестирования',
       c: '#3D8E5F',
       status: 'active',
       last: 1500,
-      tz: 'Munich',
+      tz: 'Мюнхен',
     },
     {
       id: 'm8',
-      name: 'Diego Alvarez',
+      name: 'Денис Алексеев',
       email: 'diego@freelance.io',
       role: 'Guest',
       team: 'mkt',
-      title: 'Freelance Copywriter',
+      title: 'Фриланс-копирайтер',
       c: '#C0612B',
       status: 'invited',
       last: null,
-      tz: 'Madrid',
+      tz: 'Мадрид',
     },
   ];
   const projects: Project[] = [
     {
       id: 'p1',
       key: 'WEB',
-      name: 'Website Redesign',
+      name: 'Редизайн сайта',
       module: 'general',
       icon: 'globe',
       color: 'indigo',
@@ -144,18 +144,18 @@ export function seed(): WorkspaceData {
       start: dOff(-30),
       fav: true,
       members: ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7'],
-      desc: 'Rebuild gr8rstudio.com with a clearer information architecture, a responsive component library, and a faster CMS-driven blog.',
+      desc: 'Пересобрать сайт с более понятной структурой, адаптивной библиотекой компонентов и быстрым блогом на CMS.',
       milestones: [
-        { name: 'Wireframes signed off', date: dOff(2) },
-        { name: 'Dev handoff', date: dOff(14) },
-        { name: 'Public launch', date: dOff(24) },
+        { name: 'Макеты согласованы', date: dOff(2) },
+        { name: 'Передача в разработку', date: dOff(14) },
+        { name: 'Публичный запуск', date: dOff(24) },
       ],
       last: 12,
     },
     {
       id: 'p2',
       key: 'MOB',
-      name: 'Mobile App',
+      name: 'Мобильное приложение',
       module: 'general',
       icon: 'smartphone',
       color: 'blue',
@@ -166,17 +166,17 @@ export function seed(): WorkspaceData {
       start: dOff(-45),
       fav: true,
       members: ['m1', 'm3', 'm4', 'm6', 'm7'],
-      desc: 'Native iOS and Android client for field teams with offline sync, push notifications, and biometric sign-in.',
+      desc: 'Нативный клиент для iOS и Android для выездных команд: офлайн-синхронизация, push-уведомления и вход по биометрии.',
       milestones: [
-        { name: 'Beta build', date: dOff(9) },
-        { name: 'App Store submission', date: dOff(45) },
+        { name: 'Бета-сборка', date: dOff(9) },
+        { name: 'Отправка в App Store', date: dOff(45) },
       ],
       last: 48,
     },
     {
       id: 'p3',
       key: 'MKT',
-      name: 'Marketing Campaign',
+      name: 'Маркетинговая кампания',
       module: 'general',
       icon: 'megaphone',
       color: 'rose',
@@ -187,17 +187,17 @@ export function seed(): WorkspaceData {
       start: dOff(-10),
       fav: false,
       members: ['m1', 'm4', 'm5', 'm7', 'm8'],
-      desc: 'Q4 awareness campaign across paid social, email, and a launch webinar targeting operations leads.',
+      desc: 'Осенняя кампания по узнаваемости: платные соцсети, рассылки и вебинар для руководителей операционных отделов.',
       milestones: [
-        { name: 'Creative lock', date: dOff(12) },
-        { name: 'Campaign live', date: dOff(21) },
+        { name: 'Креативы утверждены', date: dOff(12) },
+        { name: 'Запуск кампании', date: dOff(21) },
       ],
       last: 130,
     },
     {
       id: 'p4',
       key: 'LCH',
-      name: 'Product Launch',
+      name: 'Запуск продукта',
       module: 'general',
       icon: 'rocket',
       color: 'amber',
@@ -208,17 +208,17 @@ export function seed(): WorkspaceData {
       start: dOff(-21),
       fav: false,
       members: ['m1', 'm2', 'm3', 'm5', 'm7'],
-      desc: 'Coordinate the Workflows 2.0 launch: pricing, docs, press, and sales enablement across teams.',
+      desc: 'Согласовать запуск «Процессов 2.0»: цены, документация, пресса и подготовка продаж во всех командах.',
       milestones: [
-        { name: 'Go / no-go', date: dOff(11) },
-        { name: 'Launch day', date: dOff(12) },
+        { name: 'Решение о запуске', date: dOff(11) },
+        { name: 'День запуска', date: dOff(12) },
       ],
       last: 35,
     },
     {
       id: 'p5',
       key: 'DS',
-      name: 'Design System',
+      name: 'Дизайн-система',
       module: 'general',
       icon: 'component',
       color: 'violet',
@@ -229,14 +229,14 @@ export function seed(): WorkspaceData {
       start: dOff(-60),
       fav: false,
       members: ['m2', 'm3', 'm4'],
-      desc: 'Shared tokens, components, and documentation used by web and mobile teams.',
-      milestones: [{ name: 'v2 tokens', date: dOff(3) }],
+      desc: 'Общие токены, компоненты и документация для веб- и мобильной команд.',
+      milestones: [{ name: 'Токены v2', date: dOff(3) }],
       last: 300,
     },
     {
       id: 'p6',
       key: 'CP',
-      name: 'Customer Portal',
+      name: 'Клиентский портал',
       module: 'general',
       icon: 'building-2',
       color: 'teal',
@@ -248,14 +248,14 @@ export function seed(): WorkspaceData {
       fav: false,
       members: ['m6', 'm7'],
       private: true,
-      desc: 'Self-serve billing and support portal for enterprise customers. Restricted during contract review.',
+      desc: 'Портал самообслуживания по оплатам и поддержке для крупных клиентов. Доступ ограничен на время согласования договора.',
       milestones: [],
       last: 2880,
     },
     {
       id: 'p7',
       key: 'MW',
-      name: 'Marketing Website',
+      name: 'Маркетинговый сайт',
       module: 'general',
       icon: 'layout-grid',
       color: 'green',
@@ -266,7 +266,7 @@ export function seed(): WorkspaceData {
       start: dOff(-80),
       fav: false,
       members: ['m1', 'm3', 'm5'],
-      desc: 'Launch site for the spring release. Shipped and handed to the web team for maintenance.',
+      desc: 'Сайт к весеннему релизу. Выпущен и передан веб-команде на поддержку.',
       milestones: [],
       last: 26000,
     },
@@ -307,27 +307,27 @@ export function seed(): WorkspaceData {
     );
   };
   // Website Redesign
-  t('p1', 'Audit existing navigation', 'done', 'm2', 'high', -12, ['research'], { est: '2d', len: 5, age: 28 });
-  t('p1', 'Summarize stakeholder interviews', 'done', 'm1', 'medium', -9, ['research'], { est: '1d', age: 26 });
-  t('p1', 'Create homepage wireframes', 'review', 'm2', 'high', 1, ['design'], {
+  t('p1', 'Аудит текущей навигации', 'done', 'm2', 'high', -12, ['research'], { est: '2d', len: 5, age: 28 });
+  t('p1', 'Свести интервью с заинтересованными сторонами', 'done', 'm1', 'medium', -9, ['research'], { est: '1d', age: 26 });
+  t('p1', 'Нарисовать макеты главной страницы', 'review', 'm2', 'high', 1, ['design'], {
     est: '3d',
     len: 7,
     fav: true,
-    desc: '<p>Low-fidelity wireframes for the new homepage covering <b>desktop, tablet, and mobile</b> breakpoints.</p><ul><li>Hero with product value proposition</li><li>Customer logos and proof points</li><li>Feature overview linking to product pages</li></ul><p>Reference the navigation audit for IA decisions.</p>',
+    desc: '<p>Схематичные макеты новой главной страницы для <b>десктопа, планшета и телефона</b>.</p><ul><li>Первый экран с ценностью продукта</li><li>Логотипы клиентов и подтверждающие факты</li><li>Обзор возможностей со ссылками на страницы продукта</li></ul><p>Решения по структуре брать из аудита навигации.</p>',
     subtasks: [
-      sub('s1', 'Desktop layout', true, 8),
-      sub('s2', 'Tablet layout', true, 5),
-      sub('s3', 'Mobile layout', true, 5),
+      sub('s1', 'Макет для десктопа', true, 8),
+      sub('s2', 'Макет для планшета', true, 5),
+      sub('s3', 'Макет для телефона', true, 5),
       sub(
         's4',
-        'Annotate interactions',
+        'Описать взаимодействия',
         false,
         null,
         [
-          sub('s30', 'Hover & focus states', false, 3, [sub('s31', 'Navigation menu', true, 1.5), sub('s32', 'Buttons & form fields', false, 1.5, [], { assignee: 'm4' })], { assignee: 'm2', due: dOff(1) }),
-          sub('s33', 'Scroll & sticky behavior', false, 2),
+          sub('s30', 'Состояния наведения и фокуса', false, 3, [sub('s31', 'Меню навигации', true, 1.5), sub('s32', 'Кнопки и поля форм', false, 1.5, [], { assignee: 'm4' })], { assignee: 'm2', due: dOff(1) }),
+          sub('s33', 'Прокрутка и закрепление', false, 2),
         ],
-        { assignee: 'm2', due: dOff(1), note: 'Annotations go in the Figma file, one frame per breakpoint.' },
+        { assignee: 'm2', due: dOff(1), note: 'Пометки лежат в файле Figma, по одному кадру на каждое разрешение.' },
       ),
     ],
     attachments: [
@@ -335,87 +335,87 @@ export function seed(): WorkspaceData {
       { id: 'a2', name: 'nav-audit-findings.pdf', type: 'pdf', size: '860 KB', by: 'm2', at: minsAgo(8000) },
     ],
   });
-  t('p1', 'Finalize navigation', 'progress', 'm3', 'high', 0, ['design', 'frontend'], {
+  t('p1', 'Доработать навигацию', 'progress', 'm3', 'high', 0, ['design', 'frontend'], {
     est: '2d',
     len: 4,
     subtasks: [
-      sub('s5', 'Primary nav structure', true, 6),
-      sub('s6', 'Mega-menu content', false, null, [sub('s34', 'Column groupings', true, 3), sub('s35', 'Copy review', false, 2)]),
-      sub('s7', 'Mobile drawer behavior', false, 4),
+      sub('s5', 'Структура главного меню', true, 6),
+      sub('s6', 'Содержимое мега-меню', false, null, [sub('s34', 'Группировка колонок', true, 3), sub('s35', 'Вычитка текстов', false, 2)]),
+      sub('s7', 'Поведение мобильного меню', false, 4),
     ],
   });
-  t('p1', 'Design responsive navigation', 'progress', 'm4', 'medium', 3, ['design'], {
+  t('p1', 'Спроектировать адаптивную навигацию', 'progress', 'm4', 'medium', 3, ['design'], {
     est: '3d',
     len: 6,
-    subtasks: [sub('s8', 'Breakpoint rules', true, 6), sub('s9', 'Sticky header states', false, 4)],
+    subtasks: [sub('s8', 'Правила для разрешений', true, 6), sub('s9', 'Состояния закреплённой шапки', false, 4)],
   });
-  t('p1', 'Prepare design system tokens', 'todo', 'm1', 'medium', 6, ['design'], { est: '2d', len: 4 });
-  t('p1', 'Review responsive layouts', 'todo', 'm4', 'medium', 8, ['qa', 'design'], { est: '1d', len: 3 });
-  t('p1', 'Prepare developer handoff', 'todo', 'm2', 'high', 14, ['frontend'], { est: '2d', len: 4, deps: ['t3', 't5'] });
-  t('p1', 'Design mobile onboarding', 'progress', 'm4', 'urgent', -1, ['design'], {
+  t('p1', 'Подготовить токены дизайн-системы', 'todo', 'm1', 'medium', 6, ['design'], { est: '2d', len: 4 });
+  t('p1', 'Проверить адаптивные макеты', 'todo', 'm4', 'medium', 8, ['qa', 'design'], { est: '1d', len: 3 });
+  t('p1', 'Подготовить передачу разработчикам', 'todo', 'm2', 'high', 14, ['frontend'], { est: '2d', len: 4, deps: ['t3', 't5'] });
+  t('p1', 'Спроектировать мобильное знакомство с приложением', 'progress', 'm4', 'urgent', -1, ['design'], {
     est: '3d',
     len: 6,
     subtasks: [
-      sub('s10', 'Welcome screens', true, 8),
-      sub('s11', 'Permission prompts', false, null, [sub('s36', 'Legal review copy', false, 3), sub('s37', 'Fallback states', false, null, [sub('s38', 'Denied', false, 1.5), sub('s39', 'Restricted by parental controls', false, 1.5)])]),
-      sub('s12', 'Empty states', false, 4),
+      sub('s10', 'Приветственные экраны', true, 8),
+      sub('s11', 'Запросы разрешений', false, null, [sub('s36', 'Тексты на проверку юристам', false, 3), sub('s37', 'Запасные состояния', false, null, [sub('s38', 'Отказ', false, 1.5), sub('s39', 'Ограничено родительским контролем', false, 1.5)])]),
+      sub('s12', 'Пустые состояния', false, 4),
     ],
   });
-  t('p1', 'Write homepage copy', 'backlog', 'm5', 'low', 18, ['content'], { est: '2d' });
-  t('p1', 'Set up analytics events', 'backlog', 'm6', 'medium', 20, ['backend', 'growth'], { est: '1d' });
-  t('p1', 'Accessibility audit of templates', 'backlog', 'm7', 'high', 22, ['qa'], { est: '2d' });
-  t('p1', 'Build hero component', 'todo', 'm3', 'medium', 10, ['frontend'], { est: '2d', len: 3, deps: ['t3'] });
-  t('p1', 'Image optimization pipeline', 'review', 'm6', 'low', 2, ['backend'], { est: '1d', len: 5 });
-  t('p1', 'Weekly design sync notes', 'todo', 'm1', 'low', 2, ['content'], { recur: 'Weekly', est: '30m', len: 0 });
-  t('p1', 'Migrate blog to new CMS', 'backlog', 'm3', 'medium', 28, ['backend'], { est: '5d', len: 8 });
-  t('p1', 'Footer and legal pages', 'done', 'm5', 'low', -5, ['frontend'], { est: '1d' });
-  t('p1', 'Fix broken anchor links on pricing', 'done', 'm3', 'medium', -3, ['bug'], { est: '2h', len: 1 });
+  t('p1', 'Написать тексты главной страницы', 'backlog', 'm5', 'low', 18, ['content'], { est: '2d' });
+  t('p1', 'Настроить события аналитики', 'backlog', 'm6', 'medium', 20, ['backend', 'growth'], { est: '1d' });
+  t('p1', 'Аудит доступности шаблонов', 'backlog', 'm7', 'high', 22, ['qa'], { est: '2d' });
+  t('p1', 'Сверстать компонент первого экрана', 'todo', 'm3', 'medium', 10, ['frontend'], { est: '2d', len: 3, deps: ['t3'] });
+  t('p1', 'Конвейер оптимизации изображений', 'review', 'm6', 'low', 2, ['backend'], { est: '1d', len: 5 });
+  t('p1', 'Заметки с еженедельной встречи дизайнеров', 'todo', 'm1', 'low', 2, ['content'], { recur: 'Weekly', est: '30m', len: 0 });
+  t('p1', 'Перенести блог на новую CMS', 'backlog', 'm3', 'medium', 28, ['backend'], { est: '5d', len: 8 });
+  t('p1', 'Подвал и юридические страницы', 'done', 'm5', 'low', -5, ['frontend'], { est: '1d' });
+  t('p1', 'Починить битые якорные ссылки на странице цен', 'done', 'm3', 'medium', -3, ['bug'], { est: '2h', len: 1 });
   // Mobile App
-  t('p2', 'Onboarding flow prototype', 'progress', 'm4', 'high', 4, ['design'], { est: '3d', len: 6 });
-  t('p2', 'Push notification service', 'progress', 'm6', 'high', 6, ['backend'], { est: '5d', len: 9 });
-  t('p2', 'Offline mode sync', 'todo', 'm3', 'urgent', 5, ['frontend', 'backend'], { est: '8d', len: 10, deps: ['t20'] });
-  t('p2', 'App Store screenshots', 'backlog', 'm5', 'low', 40, ['content'], { est: '1d' });
-  t('p2', 'Crash reporting setup', 'done', 'm6', 'medium', -8, ['backend'], { est: '1d' });
-  t('p2', 'Biometric sign-in', 'review', 'm3', 'high', 2, ['frontend'], { est: '3d', len: 6 });
-  t('p2', 'Settings screen redesign', 'todo', 'm4', 'medium', 9, ['design'], { est: '2d' });
-  t('p2', 'Triage beta tester feedback', 'todo', 'm1', 'medium', 0, ['research'], { est: '4h', len: 1, recur: 'Weekly' });
-  t('p2', 'Crash on Android 12 when rotating', 'todo', 'm3', 'urgent', 1, ['bug'], { est: '1d', len: 1 });
+  t('p2', 'Прототип сценария знакомства', 'progress', 'm4', 'high', 4, ['design'], { est: '3d', len: 6 });
+  t('p2', 'Сервис push-уведомлений', 'progress', 'm6', 'high', 6, ['backend'], { est: '5d', len: 9 });
+  t('p2', 'Синхронизация в офлайн-режиме', 'todo', 'm3', 'urgent', 5, ['frontend', 'backend'], { est: '8d', len: 10, deps: ['t20'] });
+  t('p2', 'Скриншоты для App Store', 'backlog', 'm5', 'low', 40, ['content'], { est: '1d' });
+  t('p2', 'Настройка отчётов о сбоях', 'done', 'm6', 'medium', -8, ['backend'], { est: '1d' });
+  t('p2', 'Вход по биометрии', 'review', 'm3', 'high', 2, ['frontend'], { est: '3d', len: 6 });
+  t('p2', 'Редизайн экрана настроек', 'todo', 'm4', 'medium', 9, ['design'], { est: '2d' });
+  t('p2', 'Разобрать отзывы бета-тестеров', 'todo', 'm1', 'medium', 0, ['research'], { est: '4h', len: 1, recur: 'Weekly' });
+  t('p2', 'Сбой на Android 12 при повороте экрана', 'todo', 'm3', 'urgent', 1, ['bug'], { est: '1d', len: 1 });
   // Marketing Campaign
-  t('p3', 'Campaign brief', 'done', 'm5', 'medium', -6, ['content'], { est: '1d' });
-  t('p3', 'Landing page copy', 'progress', 'm5', 'medium', 4, ['content'], { est: '2d' });
-  t('p3', 'Paid social creatives', 'todo', 'm4', 'high', 7, ['design', 'growth'], { est: '3d', len: 5 });
-  t('p3', 'Email nurture sequence', 'todo', 'm8', 'medium', 9, ['content'], { est: '2d' });
-  t('p3', 'Influencer outreach list', 'backlog', 'm7', 'low', null, ['growth']);
-  t('p3', 'Launch webinar deck', 'todo', 'm1', 'medium', 15, ['content'], { est: '2d' });
-  t('p3', 'Budget approval', 'review', 'm1', 'urgent', -2, [], { est: '1h', len: 1 });
+  t('p3', 'Бриф кампании', 'done', 'm5', 'medium', -6, ['content'], { est: '1d' });
+  t('p3', 'Тексты посадочной страницы', 'progress', 'm5', 'medium', 4, ['content'], { est: '2d' });
+  t('p3', 'Креативы для платных соцсетей', 'todo', 'm4', 'high', 7, ['design', 'growth'], { est: '3d', len: 5 });
+  t('p3', 'Цепочка прогревающих писем', 'todo', 'm8', 'medium', 9, ['content'], { est: '2d' });
+  t('p3', 'Список блогеров для рассылки', 'backlog', 'm7', 'low', null, ['growth']);
+  t('p3', 'Презентация для вебинара', 'todo', 'm1', 'medium', 15, ['content'], { est: '2d' });
+  t('p3', 'Согласование бюджета', 'review', 'm1', 'urgent', -2, [], { est: '1h', len: 1 });
   // Product Launch
-  t('p4', 'Launch readiness checklist', 'progress', 'm1', 'urgent', 3, ['qa'], {
+  t('p4', 'Чек-лист готовности к запуску', 'progress', 'm1', 'urgent', 3, ['qa'], {
     est: '1d',
     len: 10,
     subtasks: [
-      sub('s20', 'Docs published', true, 2),
-      sub('s21', 'Pricing live', false, 1),
-      sub('s22', 'Support trained', false, null, [sub('s40', 'Sales team walkthrough', false, 1), sub('s41', 'Support playbook', false, 2)]),
-      sub('s23', 'Status page updated', true, 0.5),
+      sub('s20', 'Документация опубликована', true, 2),
+      sub('s21', 'Цены опубликованы', false, 1),
+      sub('s22', 'Поддержка обучена', false, null, [sub('s40', 'Разбор для отдела продаж', false, 1), sub('s41', 'Инструкция для поддержки', false, 2)]),
+      sub('s23', 'Страница статуса обновлена', true, 0.5),
     ],
   });
-  t('p4', 'Pricing page update', 'todo', 'm2', 'high', 6, ['design', 'frontend'], { est: '2d' });
-  t('p4', 'Press release draft', 'review', 'm5', 'medium', 1, ['content'], { est: '1d' });
-  t('p4', 'Sales enablement docs', 'todo', 'm7', 'medium', 8, ['content'], { est: '2d' });
-  t('p4', 'Release notes', 'backlog', 'm3', 'low', 11, ['content'], { est: '4h' });
-  t('p4', 'Go / no-go meeting', 'todo', 'm1', 'high', 11, [], { est: '1h', len: 0 });
+  t('p4', 'Обновить страницу цен', 'todo', 'm2', 'high', 6, ['design', 'frontend'], { est: '2d' });
+  t('p4', 'Черновик пресс-релиза', 'review', 'm5', 'medium', 1, ['content'], { est: '1d' });
+  t('p4', 'Материалы для отдела продаж', 'todo', 'm7', 'medium', 8, ['content'], { est: '2d' });
+  t('p4', 'Заметки о релизе', 'backlog', 'm3', 'low', 11, ['content'], { est: '4h' });
+  t('p4', 'Встреча по решению о запуске', 'todo', 'm1', 'high', 11, [], { est: '1h', len: 0 });
   // Design System
-  t('p5', 'Color tokens v2', 'done', 'm2', 'high', -4, ['design'], { est: '3d' });
-  t('p5', 'Button component audit', 'progress', 'm2', 'medium', 5, ['design', 'frontend'], { est: '2d' });
-  t('p5', 'Form field states', 'todo', 'm4', 'medium', 12, ['design'], { est: '3d' });
-  t('p5', 'Icon library cleanup', 'backlog', 'm4', 'low', null, ['design']);
-  t('p5', 'Documentation site', 'todo', 'm3', 'medium', 20, ['frontend'], { est: '5d', len: 8 });
-  t('p5', 'Dark mode palette', 'review', 'm2', 'high', 2, ['design'], { est: '2d' });
+  t('p5', 'Цветовые токены v2', 'done', 'm2', 'high', -4, ['design'], { est: '3d' });
+  t('p5', 'Аудит компонента кнопки', 'progress', 'm2', 'medium', 5, ['design', 'frontend'], { est: '2d' });
+  t('p5', 'Состояния полей форм', 'todo', 'm4', 'medium', 12, ['design'], { est: '3d' });
+  t('p5', 'Чистка библиотеки иконок', 'backlog', 'm4', 'low', null, ['design']);
+  t('p5', 'Сайт документации', 'todo', 'm3', 'medium', 20, ['frontend'], { est: '5d', len: 8 });
+  t('p5', 'Палитра тёмной темы', 'review', 'm2', 'high', 2, ['design'], { est: '2d' });
   // Marketing Website (complete)
-  t('p7', 'Launch site QA', 'done', 'm3', 'high', -20, ['qa']);
-  t('p7', 'Spring release hero video', 'done', 'm5', 'medium', -24, ['content']);
+  t('p7', 'Тестирование сайта перед запуском', 'done', 'm3', 'high', -20, ['qa']);
+  t('p7', 'Видео на первом экране весеннего релиза', 'done', 'm5', 'medium', -24, ['content']);
   // Customer portal (restricted)
-  t('p6', 'Billing API contract', 'todo', 'm6', 'high', 30, ['backend']);
+  t('p6', 'Контракт API биллинга', 'todo', 'm6', 'high', 30, ['backend']);
 
   const tk = (id: string) => T.find(x => x.id === id)!;
   // completed metadata
@@ -426,40 +426,40 @@ export function seed(): WorkspaceData {
       task: 't3',
       by: 'm4',
       at: minsAgo(260),
-      text: 'Tablet layout feels crowded around the logo strip. Could we drop to four logos under 1024px?',
+      text: 'На планшете полоса с логотипами выглядит тесно. Может, оставим четыре логотипа при ширине меньше 1024 px?',
       re: { '👍': ['m2', 'm3'] },
     },
-    { id: 'c2', task: 't3', by: 'm2', at: minsAgo(210), text: 'Good call. Updated in v3 — @Tanjim Islam can you review before Thursday?', re: {} },
+    { id: 'c2', task: 't3', by: 'm2', at: minsAgo(210), text: 'Хорошая мысль. Обновила в v3 — @Андрей Волков, посмотришь до четверга?', re: {} },
     {
       id: 'c3',
       task: 't3',
       by: 'm3',
       at: minsAgo(95),
-      text: 'Hero spacing maps cleanly to our 8pt scale. No blockers from engineering.',
+      text: 'Отступы первого экрана ложатся на нашу сетку в 8 pt. Со стороны разработки препятствий нет.',
       re: { '🎉': ['m2'] },
     },
-    { id: 'c4', task: 't4', by: 'm3', at: minsAgo(400), text: "Mega-menu content still pending from marketing. I'll stub it for now.", re: {} },
-    { id: 'c5', task: 't4', by: 'm5', at: minsAgo(120), text: '@John Carter content is in the shared doc now — six columns max.', re: { '👍': ['m3'] } },
-    { id: 'c6', task: 't9', by: 'm1', at: minsAgo(55), text: 'This slipped past yesterday — @Emma Wilson anything blocking the permission prompts?', re: {} },
-    { id: 'c7', task: 't24', by: 'm7', at: minsAgo(700), text: 'Face ID fallback to passcode works on iOS 17; testing Android next.', re: {} },
-    { id: 'c8', task: 't34', by: 'm2', at: minsAgo(1500), text: 'Finance needs the channel split before approving.', re: {} },
-    { id: 'c9', task: 't35', by: 'm7', at: minsAgo(200), text: 'Support training moved to Monday. @Tanjim Islam please confirm the status page copy.', re: {} },
+    { id: 'c4', task: 't4', by: 'm3', at: minsAgo(400), text: "Содержимое мега-меню от маркетинга ещё не пришло. Пока поставлю заглушку.", re: {} },
+    { id: 'c5', task: 't4', by: 'm5', at: minsAgo(120), text: '@Иван Карпов, содержимое уже в общем документе — не больше шести колонок.', re: { '👍': ['m3'] } },
+    { id: 'c6', task: 't9', by: 'm1', at: minsAgo(55), text: 'Это не успели вчера — @Елена Орлова, что-то мешает с запросами разрешений?', re: {} },
+    { id: 'c7', task: 't24', by: 'm7', at: minsAgo(700), text: 'Переход с Face ID на код-пароль работает на iOS 17; дальше проверяю Android.', re: {} },
+    { id: 'c8', task: 't34', by: 'm2', at: minsAgo(1500), text: 'Финансистам нужна разбивка по каналам, иначе не согласуют.', re: {} },
+    { id: 'c9', task: 't35', by: 'm7', at: minsAgo(200), text: 'Обучение поддержки перенесли на понедельник. @Андрей Волков, подтверди текст страницы статуса.', re: {} },
   ];
   const A = (by: string, verb: string, task: string | null, project: string, m: number, extra = ''): Activity => ({ id: uid('a'), by, verb, task, project, at: minsAgo(m), extra });
   const activity: Activity[] = [
-    A('m2', 'moved', 't3', 'p1', 38, 'to Review'),
-    A('m3', 'completed', 't18', 'p1', 90),
-    A('m4', 'commented on', 't19', 'p2', 140),
-    A('m1', 'changed priority of', 't9', 'p1', 180, 'to 10'),
-    A('m6', 'added a file to', 't14', 'p1', 260),
-    A('m5', 'created', 't30', 'p3', 330),
-    A('m2', 'assigned', 't8', 'p1', 420, 'to Sarah Chen'),
-    A('m7', 'completed', 't23', 'p2', 1300),
-    A('m3', 'moved', 't24', 'p2', 1500, 'to Review'),
-    A('m1', 'created project', null, 'p4', 30000),
-    A('m2', 'created project', null, 'p1', 43000),
-    A('m4', 'completed', 't41', 'p5', 5600),
-    A('m5', 'completed', 't17', 'p1', 7200),
+    A('m2', 'перенесла', 't3', 'p1', 38, 'на проверку'),
+    A('m3', 'завершил', 't18', 'p1', 90),
+    A('m4', 'прокомментировала', 't19', 'p2', 140),
+    A('m1', 'изменил приоритет задачи', 't9', 'p1', 180, 'на 10'),
+    A('m6', 'добавил файл к задаче', 't14', 'p1', 260),
+    A('m5', 'создала', 't30', 'p3', 330),
+    A('m2', 'назначила', 't8', 'p1', 420, 'на Марию Чернову'),
+    A('m7', 'завершила', 't23', 'p2', 1300),
+    A('m3', 'перенёс', 't24', 'p2', 1500, 'на проверку'),
+    A('m1', 'создал проект', null, 'p4', 30000),
+    A('m2', 'создала проект', null, 'p1', 43000),
+    A('m4', 'завершила', 't41', 'p5', 5600),
+    A('m5', 'завершила', 't17', 'p1', 7200),
   ];
   const notifs: Notification[] = [
     {
@@ -467,19 +467,19 @@ export function seed(): WorkspaceData {
       type: 'mention',
       by: 'm2',
       task: 't3',
-      text: 'mentioned you in',
-      snippet: 'Updated in v3 — @Tanjim Islam can you review before Thursday?',
+      text: 'упомянула вас в',
+      snippet: 'Обновила в v3 — @Андрей Волков, посмотришь до четверга?',
       at: minsAgo(210),
       read: false,
     },
-    { id: 'n2', type: 'assign', by: 'm3', task: 't28', text: 'assigned you', snippet: 'Due today · Priority 5', at: minsAgo(300), read: false },
+    { id: 'n2', type: 'assign', by: 'm3', task: 't28', text: 'назначил вам', snippet: 'Срок сегодня · Приоритет 5', at: minsAgo(300), read: false },
     {
       id: 'n3',
       type: 'comment',
       by: 'm4',
       task: 't9',
-      text: 'commented on',
-      snippet: 'Permission prompts need legal review — drafting now.',
+      text: 'прокомментировала',
+      snippet: 'Запросы разрешений нужно показать юристам — уже готовлю тексты.',
       at: minsAgo(40),
       read: false,
     },
@@ -488,19 +488,19 @@ export function seed(): WorkspaceData {
       type: 'mention',
       by: 'm7',
       task: 't35',
-      text: 'mentioned you in',
-      snippet: 'Support training moved to Monday. @Tanjim Islam please confirm the status page copy.',
+      text: 'упомянула вас в',
+      snippet: 'Обучение поддержки перенесли на понедельник. @Андрей Волков, подтверди текст страницы статуса.',
       at: minsAgo(200),
       read: false,
     },
-    { id: 'n5', type: 'update', by: 'm2', task: 't3', text: 'moved to Review', snippet: 'To Do → Review', at: minsAgo(38), read: true },
+    { id: 'n5', type: 'update', by: 'm2', task: 't3', text: 'перенесла на проверку', snippet: 'К выполнению → Проверка', at: minsAgo(38), read: true },
     {
       id: 'n6',
       type: 'update',
       by: null,
       project: 'p4',
-      text: 'Product Launch is at risk',
-      snippet: '3 tasks due this week are not started',
+      text: 'Запуск продукта под угрозой',
+      snippet: '3 задачи со сроком на этой неделе не начаты',
       at: minsAgo(600),
       read: false,
     },
@@ -509,22 +509,22 @@ export function seed(): WorkspaceData {
       type: 'comment',
       by: 'm2',
       task: 't34',
-      text: 'commented on',
-      snippet: 'Finance needs the channel split before approving.',
+      text: 'прокомментировала',
+      snippet: 'Финансистам нужна разбивка по каналам, иначе не согласуют.',
       at: minsAgo(1500),
       read: true,
     },
-    { id: 'n8', type: 'assign', by: 'm2', task: 't6', text: 'assigned you', snippet: 'Due in 6 days', at: minsAgo(2900), read: true },
-    { id: 'n9', type: 'update', by: 'm3', task: 't18', text: 'completed', snippet: 'Fix broken anchor links on pricing', at: minsAgo(90), read: true },
-    { id: 'n10', type: 'update', by: null, task: 't28', text: 'is due today', snippet: 'Triage beta tester feedback', at: minsAgo(20), read: false },
+    { id: 'n8', type: 'assign', by: 'm2', task: 't6', text: 'назначила вам', snippet: 'Срок через 6 дней', at: minsAgo(2900), read: true },
+    { id: 'n9', type: 'update', by: 'm3', task: 't18', text: 'завершил', snippet: 'Починить битые якорные ссылки на странице цен', at: minsAgo(90), read: true },
+    { id: 'n10', type: 'update', by: null, task: 't28', text: 'срок сегодня', snippet: 'Разобрать отзывы бета-тестеров', at: minsAgo(20), read: false },
   ];
   const events: CalendarEvent[] = [
-    { id: 'e1', title: 'Design review', date: dOff(1), time: '10:00', project: 'p1' },
-    { id: 'e2', title: 'Sprint planning', date: dOff(5), time: '09:30', project: 'p2' },
-    { id: 'e3', title: 'Launch sync', date: dOff(0), time: '15:00', project: 'p4' },
-    { id: 'e4', title: 'Stakeholder demo', date: dOff(9), time: '14:00', project: 'p1' },
-    { id: 'e5', title: 'Campaign kickoff', date: dOff(-3), time: '11:00', project: 'p3' },
-    { id: 'e6', title: 'Retro', date: dOff(12), time: '16:00', project: 'p2' },
+    { id: 'e1', title: 'Обзор дизайна', date: dOff(1), time: '10:00', project: 'p1' },
+    { id: 'e2', title: 'Планирование спринта', date: dOff(5), time: '09:30', project: 'p2' },
+    { id: 'e3', title: 'Синхронизация по запуску', date: dOff(0), time: '15:00', project: 'p4' },
+    { id: 'e4', title: 'Демо для заинтересованных сторон', date: dOff(9), time: '14:00', project: 'p1' },
+    { id: 'e5', title: 'Старт кампании', date: dOff(-3), time: '11:00', project: 'p3' },
+    { id: 'e6', title: 'Ретроспектива', date: dOff(12), time: '16:00', project: 'p2' },
   ];
   const files: ProjectFile[] = [
     { id: 'f1', project: 'p1', name: 'homepage-wireframes-v3.fig', type: 'fig', size: '4.2 MB', by: 'm2', at: minsAgo(300), task: 't3' },
@@ -545,73 +545,73 @@ export function seed(): WorkspaceData {
   const timeLogs: TimeLog[] = [];
   const L = (title: string, sb: string | null, by: string, hours: number, daysAgo: number, note = '') =>
     timeLogs.push({ id: 'l' + (timeLogs.length + 1), task: byTitle(title), ...(sb ? { sub: sb } : null), by, hours, date: dOff(-daysAgo), note });
-  const WF = 'Create homepage wireframes';
-  L(WF, 's1', 'm2', 6.5, 19, 'First pass of the desktop layout');
-  L(WF, 's1', 'm2', 2.5, 16, 'Revisions after the design review');
+  const WF = 'Нарисовать макеты главной страницы';
+  L(WF, 's1', 'm2', 6.5, 19, 'Первый проход по макету для десктопа');
+  L(WF, 's1', 'm2', 2.5, 16, 'Правки после обзора дизайна');
   L(WF, 's2', 'm2', 5, 14);
-  L(WF, 's3', 'm2', 4.5, 12, 'Mobile breakpoints');
-  L(WF, null, 'm2', 3, 8, 'Stakeholder walkthrough');
-  L(WF, null, 'm3', 2, 6, 'Feasibility review with engineering');
-  L(WF, null, 'm4', 1.5, 5, 'Tablet feedback');
-  L(WF, 's31', 'm2', 1.5, 3, 'Nav hover states');
+  L(WF, 's3', 'm2', 4.5, 12, 'Разрешения для телефонов');
+  L(WF, null, 'm2', 3, 8, 'Показ заинтересованным сторонам');
+  L(WF, null, 'm3', 2, 6, 'Оценка реализуемости с разработкой');
+  L(WF, null, 'm4', 1.5, 5, 'Отзывы по планшетной версии');
+  L(WF, 's31', 'm2', 1.5, 3, 'Состояния наведения в меню');
   L(WF, 's33', 'm2', 1, 2);
-  L(WF, null, 'm2', 2, 1, 'v3 updates');
-  L('Audit existing navigation', null, 'm2', 6, 27, 'Crawled every top-level page');
-  L('Audit existing navigation', null, 'm2', 5, 26);
-  L('Audit existing navigation', null, 'm2', 4.5, 25, 'Findings write-up');
-  L('Summarize stakeholder interviews', null, 'm1', 3, 24);
-  L('Summarize stakeholder interviews', null, 'm1', 3.5, 23, 'Themes and quotes');
-  L('Finalize navigation', 's5', 'm3', 5, 5);
-  L('Finalize navigation', 's5', 'm3', 2, 4);
-  L('Finalize navigation', null, 'm5', 1, 3, 'Content check');
-  L('Finalize navigation', 's34', 'm3', 2.5, 2);
-  L('Finalize navigation', null, 'm3', 3, 1, 'Mega-menu prototype');
-  L('Design responsive navigation', 's8', 'm4', 4, 4);
-  L('Design responsive navigation', 's8', 'm4', 3, 3);
-  L('Design responsive navigation', null, 'm4', 1, 2);
-  L('Design responsive navigation', 's9', 'm4', 2.5, 1);
-  const MO = 'Design mobile onboarding';
+  L(WF, null, 'm2', 2, 1, 'Обновления v3');
+  L('Аудит текущей навигации', null, 'm2', 6, 27, 'Обошёл все страницы верхнего уровня');
+  L('Аудит текущей навигации', null, 'm2', 5, 26);
+  L('Аудит текущей навигации', null, 'm2', 4.5, 25, 'Описание выводов');
+  L('Свести интервью с заинтересованными сторонами', null, 'm1', 3, 24);
+  L('Свести интервью с заинтересованными сторонами', null, 'm1', 3.5, 23, 'Темы и цитаты');
+  L('Доработать навигацию', 's5', 'm3', 5, 5);
+  L('Доработать навигацию', 's5', 'm3', 2, 4);
+  L('Доработать навигацию', null, 'm5', 1, 3, 'Проверка контента');
+  L('Доработать навигацию', 's34', 'm3', 2.5, 2);
+  L('Доработать навигацию', null, 'm3', 3, 1, 'Прототип мега-меню');
+  L('Спроектировать адаптивную навигацию', 's8', 'm4', 4, 4);
+  L('Спроектировать адаптивную навигацию', 's8', 'm4', 3, 3);
+  L('Спроектировать адаптивную навигацию', null, 'm4', 1, 2);
+  L('Спроектировать адаптивную навигацию', 's9', 'm4', 2.5, 1);
+  const MO = 'Спроектировать мобильное знакомство с приложением';
   L(MO, 's10', 'm4', 7, 10);
-  L(MO, 's10', 'm4', 3.5, 9, 'Illustrations');
-  L(MO, null, 'm4', 6, 8, 'Prototype in Figma');
-  L(MO, 's36', 'm4', 3, 6, 'Rewrote after legal comments');
+  L(MO, 's10', 'm4', 3.5, 9, 'Иллюстрации');
+  L(MO, null, 'm4', 6, 8, 'Прототип в Figma');
+  L(MO, 's36', 'm4', 3, 6, 'Переписал после замечаний юристов');
   L(MO, 's38', 'm4', 2, 5);
-  L(MO, null, 'm4', 5, 4, 'Interaction polish');
-  L(MO, null, 'm1', 1, 2, 'Review');
-  L('Prepare design system tokens', null, 'm1', 2, 1);
-  L('Build hero component', null, 'm3', 4, 2);
-  L('Build hero component', null, 'm3', 2.5, 1, 'Responsive image handling');
-  L('Image optimization pipeline', null, 'm6', 5, 3);
-  L('Image optimization pipeline', null, 'm6', 2, 1, 'Benchmarks');
-  L('Footer and legal pages', null, 'm5', 7.5, 6);
-  L('Fix broken anchor links on pricing', null, 'm3', 2.5, 3, 'Also fixed two redirects');
-  L('Onboarding flow prototype', null, 'm4', 8, 3);
-  L('Onboarding flow prototype', null, 'm4', 6.5, 2);
-  L('Onboarding flow prototype', null, 'm4', 4, 1);
-  L('Push notification service', null, 'm6', 8, 4);
-  L('Push notification service', null, 'm6', 8, 3, 'APNs integration');
-  L('Push notification service', null, 'm6', 6, 2);
-  L('Push notification service', null, 'm6', 5.5, 1);
-  L('Biometric sign-in', null, 'm3', 7, 6);
-  L('Biometric sign-in', null, 'm3', 8, 5, 'Face ID and fingerprint');
-  L('Biometric sign-in', null, 'm3', 6.5, 2, 'Fallback to passcode');
-  L('Crash reporting setup', null, 'm6', 6, 9);
-  L('Offline mode sync', null, 'm3', 8, 1, 'Conflict resolution spike');
-  L('Triage beta tester feedback', null, 'm1', 1.5, 7);
-  L('Triage beta tester feedback', null, 'm1', 2, 0, 'Weekly triage');
-  L('Landing page copy', null, 'm5', 6, 2);
-  L('Landing page copy', null, 'm5', 4.5, 1, 'Second draft');
-  L('Launch readiness checklist', 's20', 'm1', 1.5, 5);
-  L('Launch readiness checklist', 's20', 'm1', 2, 4, 'API reference');
-  L('Launch readiness checklist', 's23', 'm1', 0.5, 3);
-  L('Launch readiness checklist', null, 'm1', 1, 1, 'Go-live review');
-  L('Press release draft', null, 'm5', 5, 2);
-  L('Color tokens v2', null, 'm2', 10, 14);
-  L('Color tokens v2', null, 'm2', 8, 12);
-  L('Color tokens v2', null, 'm2', 7, 10, 'Contrast audit');
-  L('Dark mode palette', null, 'm2', 6, 3);
-  L('Dark mode palette', null, 'm2', 5, 1, 'Tuning surfaces');
-  L('Button component audit', null, 'm2', 3.5, 0);
+  L(MO, null, 'm4', 5, 4, 'Доводка взаимодействий');
+  L(MO, null, 'm1', 1, 2, 'Проверка');
+  L('Подготовить токены дизайн-системы', null, 'm1', 2, 1);
+  L('Сверстать компонент первого экрана', null, 'm3', 4, 2);
+  L('Сверстать компонент первого экрана', null, 'm3', 2.5, 1, 'Адаптивная загрузка изображений');
+  L('Конвейер оптимизации изображений', null, 'm6', 5, 3);
+  L('Конвейер оптимизации изображений', null, 'm6', 2, 1, 'Замеры скорости');
+  L('Подвал и юридические страницы', null, 'm5', 7.5, 6);
+  L('Починить битые якорные ссылки на странице цен', null, 'm3', 2.5, 3, 'Заодно исправил два перенаправления');
+  L('Прототип сценария знакомства', null, 'm4', 8, 3);
+  L('Прототип сценария знакомства', null, 'm4', 6.5, 2);
+  L('Прототип сценария знакомства', null, 'm4', 4, 1);
+  L('Сервис push-уведомлений', null, 'm6', 8, 4);
+  L('Сервис push-уведомлений', null, 'm6', 8, 3, 'Интеграция с APNs');
+  L('Сервис push-уведомлений', null, 'm6', 6, 2);
+  L('Сервис push-уведомлений', null, 'm6', 5.5, 1);
+  L('Вход по биометрии', null, 'm3', 7, 6);
+  L('Вход по биометрии', null, 'm3', 8, 5, 'Face ID и отпечаток пальца');
+  L('Вход по биометрии', null, 'm3', 6.5, 2, 'Переход на код-пароль');
+  L('Настройка отчётов о сбоях', null, 'm6', 6, 9);
+  L('Синхронизация в офлайн-режиме', null, 'm3', 8, 1, 'Исследование разрешения конфликтов');
+  L('Разобрать отзывы бета-тестеров', null, 'm1', 1.5, 7);
+  L('Разобрать отзывы бета-тестеров', null, 'm1', 2, 0, 'Еженедельный разбор');
+  L('Тексты посадочной страницы', null, 'm5', 6, 2);
+  L('Тексты посадочной страницы', null, 'm5', 4.5, 1, 'Второй черновик');
+  L('Чек-лист готовности к запуску', 's20', 'm1', 1.5, 5);
+  L('Чек-лист готовности к запуску', 's20', 'm1', 2, 4, 'Справочник по API');
+  L('Чек-лист готовности к запуску', 's23', 'm1', 0.5, 3);
+  L('Чек-лист готовности к запуску', null, 'm1', 1, 1, 'Проверка перед запуском');
+  L('Черновик пресс-релиза', null, 'm5', 5, 2);
+  L('Цветовые токены v2', null, 'm2', 10, 14);
+  L('Цветовые токены v2', null, 'm2', 8, 12);
+  L('Цветовые токены v2', null, 'm2', 7, 10, 'Аудит контрастности');
+  L('Палитра тёмной темы', null, 'm2', 6, 3);
+  L('Палитра тёмной темы', null, 'm2', 5, 1, 'Подбор цветов поверхностей');
+  L('Аудит компонента кнопки', null, 'm2', 3.5, 0);
   const tmp = tk('t3');
   tmp.updated = minsAgo(38);
   return {
@@ -629,6 +629,6 @@ export function seed(): WorkspaceData {
     timeLogs,
     projOrder: projects.map(p => p.id),
     statuses: STATUSES.map(s => ({ id: s.id, name: s.name, color: `var(--st-${s.id})`, builtin: true })),
-    savedViews: [{ id: 'v1', project: 'p1', name: 'High priority', type: 'list', filters: [{ f: 'priority', v: ['10', '8'] }] }],
+    savedViews: [{ id: 'v1', project: 'p1', name: 'Высокий приоритет', type: 'list', filters: [{ f: 'priority', v: ['10', '8'] }] }],
   };
 }

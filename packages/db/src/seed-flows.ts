@@ -9,28 +9,28 @@ const edge = (source: string, target: string, sourceHandle: string | null = null
 export async function seedFlows(db: Db, wsId: string, createdBy: string | null, kickoffProjectId: string) {
   const defs: { name: string; description: string; graph: FlowGraph; triggerType: string }[] = [
     {
-      name: 'Task moved to Review → notify the project lead',
-      description: 'When a task changes status to Review, the lead of its project gets a notification.',
+      name: 'Задача на проверке → уведомить руководителя проекта',
+      description: 'Когда задача переходит в статус «Review», руководитель её проекта получает уведомление.',
       triggerType: 'trigger.field_changed',
       graph: {
         nodes: [
           node('trigger', 'trigger.field_changed', 0, 80, { entity: 'task', field: 'status', to: 'review' }),
-          node('notify', 'action.notify', 320, 80, { recipientId: '{{trigger.project.leadId}}', text: 'moved a task to Review', snippet: '{{trigger.record.key}} · {{trigger.record.title}}', taskId: '{{trigger.recordId}}' }),
+          node('notify', 'action.notify', 320, 80, { recipientId: '{{trigger.project.leadId}}', text: 'перевёл задачу на проверку', snippet: '{{trigger.record.key}} · {{trigger.record.title}}', taskId: '{{trigger.recordId}}' }),
         ],
         edges: [edge('trigger', 'notify')],
       },
     },
     {
-      name: 'Deal won → create a Kickoff task',
-      description: 'When a deal moves to Won, a “Kickoff” task is created in the project.',
+      name: 'Сделка выиграна → создать задачу «Старт проекта»',
+      description: 'Когда сделка переходит в «Выиграна», в проекте создаётся задача «Старт проекта».',
       triggerType: 'trigger.deal_won',
       graph: {
         nodes: [
           node('trigger', 'trigger.deal_won', 0, 80, {}),
           node('task', 'action.create_task', 320, 80, {
             projectId: kickoffProjectId,
-            title: 'Kickoff',
-            description: 'Deal “{{trigger.record.name}}” was won ({{trigger.record.amount}} {{trigger.record.currency}}). Start the project.',
+            title: 'Старт проекта',
+            description: 'Сделка «{{trigger.record.name}}» выиграна ({{trigger.record.amount}} {{trigger.record.currency}}). Запустите проект.',
             assigneeId: '{{trigger.record.ownerId}}',
             priority: '8',
             status: 'todo',
@@ -41,25 +41,25 @@ export async function seedFlows(db: Db, wsId: string, createdBy: string | null, 
       },
     },
     {
-      name: 'Work order done → notify the responsible',
-      description: 'When a work order reaches the Done state, the person responsible for it gets a notification.',
+      name: 'Заказ-наряд выполнен → уведомить ответственного',
+      description: 'Когда заказ-наряд переходит в состояние «Выполнен», ответственный за него получает уведомление.',
       triggerType: 'trigger.field_changed',
       graph: {
         nodes: [
           node('trigger', 'trigger.field_changed', 0, 80, { entity: 'document', field: 'state', to: 'done' }),
-          node('notify', 'action.notify', 320, 80, { recipientId: '{{trigger.record.responsibleId}}', text: 'completed a work order', snippet: '{{trigger.record.number}}' }),
+          node('notify', 'action.notify', 320, 80, { recipientId: '{{trigger.record.responsibleId}}', text: 'выполнен заказ-наряд', snippet: '{{trigger.record.number}}' }),
         ],
         edges: [edge('trigger', 'notify')],
       },
     },
     {
-      name: 'Repair work order is ready → tell the client',
-      description: 'When a repair work order reaches the Ready state, the person responsible gets a notification “tell the client” (mail and SMS are postponed).',
+      name: 'Ремонт готов → сообщить клиенту',
+      description: 'Когда заказ-наряд на ремонт переходит в состояние «Готов», ответственный получает уведомление «сообщить клиенту» (почта и SMS отложены).',
       triggerType: 'trigger.field_changed',
       graph: {
         nodes: [
           node('trigger', 'trigger.field_changed', 0, 80, { entity: 'document', field: 'state', to: 'ready' }),
-          node('notify', 'action.notify', 320, 80, { recipientId: '{{trigger.record.responsibleId}}', text: 'repair is ready: tell the client', snippet: '{{trigger.record.number}}' }),
+          node('notify', 'action.notify', 320, 80, { recipientId: '{{trigger.record.responsibleId}}', text: 'ремонт готов: сообщите клиенту', snippet: '{{trigger.record.number}}' }),
         ],
         edges: [edge('trigger', 'notify')],
       },

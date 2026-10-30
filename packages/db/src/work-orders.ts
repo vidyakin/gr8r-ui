@@ -33,19 +33,19 @@ import { markRepairReturned, syncWarrantyKind } from './repair';
 
 /** Состояния вида «Default»: по одному на категорию (миграция и сид создают такой набор) */
 export const DEFAULT_WORK_ORDER_STATES: { key: string; label: string; category: WorkOrderStateCategory; color: string }[] = [
-  { key: 'new', label: 'New', category: 'new', color: 'gray' },
-  { key: 'scheduled', label: 'Scheduled', category: 'scheduled', color: 'blue' },
-  { key: 'in_progress', label: 'In progress', category: 'in_progress', color: 'amber' },
-  { key: 'done', label: 'Done', category: 'done', color: 'green' },
-  { key: 'delivered', label: 'Delivered', category: 'delivered', color: 'teal' },
-  { key: 'cancelled', label: 'Cancelled', category: 'cancelled', color: 'red' },
+  { key: 'new', label: 'Новый', category: 'new', color: 'gray' },
+  { key: 'scheduled', label: 'Запланирован', category: 'scheduled', color: 'blue' },
+  { key: 'in_progress', label: 'В работе', category: 'in_progress', color: 'amber' },
+  { key: 'done', label: 'Выполнен', category: 'done', color: 'green' },
+  { key: 'delivered', label: 'Передан', category: 'delivered', color: 'teal' },
+  { key: 'cancelled', label: 'Отменён', category: 'cancelled', color: 'red' },
 ];
 
 /** Создаёт вид заказ-нарядов по умолчанию с набором состояний (для новых воркспейсов; для существующих — миграция) */
 export async function ensureWorkOrderKind(db: Db, workspaceId: string): Promise<string> {
   const [found] = await db.select({ id: workOrderKinds.id }).from(workOrderKinds).where(and(eq(workOrderKinds.workspaceId, workspaceId), eq(workOrderKinds.isDefault, true))).limit(1);
   if (found) return found.id;
-  const [kind] = await db.insert(workOrderKinds).values({ workspaceId, name: 'Default', isDefault: true, sortOrder: 0 }).returning({ id: workOrderKinds.id });
+  const [kind] = await db.insert(workOrderKinds).values({ workspaceId, name: 'Основной', isDefault: true, sortOrder: 0 }).returning({ id: workOrderKinds.id });
   await db.insert(documentStates).values(DEFAULT_WORK_ORDER_STATES.map((s, i) => ({ workspaceId, kindId: kind!.id, key: s.key, label: s.label, color: s.color, category: s.category, sortOrder: i })));
   return kind!.id;
 }
