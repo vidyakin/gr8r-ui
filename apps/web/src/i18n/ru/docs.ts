@@ -992,6 +992,7 @@ export const docs: Widen<typeof D> = {
     stock_transfer: 'Перемещение товаров',
     write_off: 'Списание товаров',
     stock_posting: 'Оприходование товаров',
+    opening_stock: 'Начальные остатки товаров',
     inventory_count: 'Инвентаризация',
     production_order: 'Заказ на производство',
     production: 'Производство',

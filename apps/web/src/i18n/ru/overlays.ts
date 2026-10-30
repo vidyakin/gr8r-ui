@@ -396,6 +396,7 @@ export const overlays: Widen<typeof O> = {
       stock_transfer: 'Перемещение между складами',
       write_off: 'Списание',
       stock_posting: 'Оприходование',
+      opening_stock: 'Начальные остатки товаров',
       inventory_count: 'Инвентаризация',
       production_order: 'Заказ на производство',
       production: 'Производство',

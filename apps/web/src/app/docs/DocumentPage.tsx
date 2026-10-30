@@ -736,7 +736,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       <td className="r">
                         <NumCell
                           value={l.price}
-                          disabled={!editable || (doc.type === 'stock_posting' && !isAdmin)}
+                          disabled={!editable || ((doc.type === 'stock_posting' || doc.type === 'opening_stock') && !isAdmin)}
                           invalid={!!err.price}
                           label={internal ? t('docs.document.cellCost') : t('docs.document.cellPrice')}
                           cell={`${i}:2`}

@@ -325,7 +325,7 @@ export const saveDocumentLines = saveLines;
     Цену оприходования вправе задать admin и owner, остальным сервер подставляет текущую среднюю */
 async function internalPrice(db: Db, ctx: DocCtx, doc: DocumentRow, l: ResolvedLine, prev?: string): Promise<string> {
   const type = doc.type as DocumentType;
-  if (type !== 'stock_posting') return '0';
+  if (type !== 'stock_posting' && type !== 'opening_stock') return '0';
   const canSet = ctx.role === 'owner' || ctx.role === 'admin';
   if (canSet && dec(l.price) > 0n) return l.price;
   if (prev !== undefined) return prev;
@@ -811,7 +811,7 @@ export async function applyDocumentMoves(db: Db, ctx: DocCtx, doc: DocumentRow, 
     const req: MoveRequest = { warehouseId: m.warehouseId, productId: m.productId, lineId: m.lineId, qty: dec(m.qty), direction: m.direction };
     if (type === 'receipt') req.cost = div(dec(org?.taxSystem === 'usn' ? l.total : l.net), dec(l.qty)); // при УСН входной НДС входит в себестоимость
     if (type === 'customer_return' && l.sourceLineId && returnCosts.has(l.sourceLineId)) req.cost = returnCosts.get(l.sourceLineId);
-    if (type === 'stock_posting') req.cost = dec(l.price); // цена оприходования — себестоимость прихода
+    if (type === 'stock_posting' || type === 'opening_stock') req.cost = dec(l.price); // цена оприходования — себестоимость прихода
     if (type === 'stock_transfer' && m.direction === 'in') req.costFromLine = true; // приход по фактической цене расхода
     return req;
   });

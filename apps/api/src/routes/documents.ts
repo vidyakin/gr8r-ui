@@ -318,7 +318,7 @@ export const documentRoutes = new Hono<AppEnv>()
       .select({ net: sql<string>`coalesce(sum(${documents.amountNet}), 0)::text`, vat: sql<string>`coalesce(sum(${documents.vatTotal}), 0)::text`, total: sql<string>`coalesce(sum(${documents.total}), 0)::text` })
       .from(documents)
       .leftJoin(companies, eq(companies.id, documents.counterpartyId))
-      .where(and(where, ne(documents.status, 'cancelled'), sql`${documents.type} not in ('stock_transfer','write_off','stock_posting')`));
+      .where(and(where, ne(documents.status, 'cancelled'), sql`${documents.type} not in ('stock_transfer','write_off','stock_posting','opening_stock')`));
     const rows = await ctx.db
       .select({ doc: documents, counterpartyName: companies.name, organizationName: organizations.name, warehouseName: warehouses.name, targetWarehouseName: targetWh.name })
       .from(documents)
@@ -353,7 +353,7 @@ export const documentRoutes = new Hono<AppEnv>()
             from stock_moves m
             join documents on documents.id = m.document_id
             left join companies on companies.id = documents.counterparty_id
-            where ${where ?? sql`true`} and documents.status <> 'cancelled' and documents.type in ('stock_transfer','write_off','stock_posting')
+            where ${where ?? sql`true`} and documents.status <> 'cancelled' and documents.type in ('stock_transfer','write_off','stock_posting','opening_stock')
             group by documents.id
           ) t`)
       : [];

@@ -118,12 +118,14 @@ describe('document types', () => {
     expect(DOCUMENT_META.act.stock).toBeNull();
   });
   test('internal documents: no counterparty, their own line role', () => {
-    expect(documentTypesOf('stock')).toEqual(['stock_transfer', 'write_off', 'stock_posting', 'inventory_count']);
+    expect(documentTypesOf('stock')).toEqual(['stock_transfer', 'write_off', 'stock_posting', 'opening_stock', 'inventory_count']);
     expect(DOCUMENT_META.stock_transfer.party).toBeNull();
     expect(DOCUMENT_META.write_off.costItemKind).toBe('expense');
     expect(DOCUMENT_META.stock_posting.costItemKind).toBe('income');
     expect(lineRole('write_off')).toBe('out');
     expect(lineRole('stock_posting')).toBe('in');
+    expect(lineRole('opening_stock')).toBe('in');
+    expect(DOCUMENT_META.opening_stock.costItemKind).toBeUndefined();
     expect(lineRole('stock_transfer')).toBeNull(); // обе стороны задаёт шапка
     expect(lineRole('invoice')).toBeNull();
   });
