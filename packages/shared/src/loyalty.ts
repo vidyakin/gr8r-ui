@@ -10,39 +10,46 @@ export type LoyaltyCardKind = (typeof LOYALTY_CARD_KINDS)[number];
 export const LOYALTY_TX_KINDS = ['accrual', 'redemption', 'expiration', 'reversal'] as const;
 export type LoyaltyTxKind = (typeof LOYALTY_TX_KINDS)[number];
 
-export const DISCOUNT_SOURCES = ['manual', 'rule'] as const;
+export const DISCOUNT_SOURCES = ['manual', 'rule', 'card'] as const;
 export type DiscountSource = (typeof DISCOUNT_SOURCES)[number];
 
-/** Правило-кандидат на применение (уже отфильтровано по условиям в БД — дата, время, сумма, клиент, вид цен, товар, промокод) */
+/** Скидка-кандидат на применение (уже отфильтрована по условиям в БД — дата, время, сумма, клиент, вид цен, товар,
+    промокод). source различает происхождение: правило `discount_rules` или скидка карты лояльности (дисконтной —
+    постоянный процент, накопительной — процент по текущей шкале). Карта лояльности участвует в выборе наибольшей
+    наравне с правилами, но сама не суммируется (stackable у карты — не предусмотрено 1С). */
 export interface DiscountCandidate {
+  /** id правила или карты — в зависимости от source */
   ruleId: string;
   discountPct: string;
   stackable: boolean;
+  source?: 'rule' | 'card';
 }
 
-/** Из подходящих правил: берём наибольший процент среди несуммируемых (или среди всех, если все суммируемые — тогда
+/** Из подходящих правил и карты: берём наибольший процент среди несуммируемых (или среди всех, если все суммируемые — тогда
     «наибольший» это первый кандидат для совместимости отображения «от какого правила» строки), затем добавляем
     сумму процентов суммируемых правил, отличных от уже выбранного. Ручная скидка сюда не передаётся — она не замещается. */
 export interface ResolvedDiscount {
   /** Итоговый процент скидки строки/документа */
   pct: string;
-  /** Правило, давшее наибольший (несуммируемый) процент — для отображения «от какого правила» (null, если скидки нет) */
+  /** id правила или карты, давшей наибольший (несуммируемый) процент — для отображения «от какого правила» (null, если скидки нет) */
   primaryRuleId: string | null;
+  /** Источник primaryRuleId: 'rule' | 'card' | null (нет скидки) */
+  primarySource: 'rule' | 'card' | null;
 }
 
 export function resolveDiscountPct(candidates: DiscountCandidate[]): ResolvedDiscount {
-  if (candidates.length === 0) return { pct: '0.00', primaryRuleId: null };
+  if (candidates.length === 0) return { pct: '0.00', primaryRuleId: null, primarySource: null };
   const sole = candidates.filter(c => !c.stackable);
   const stackable = candidates.filter(c => c.stackable);
-  // наибольшая несуммируемая скидка; если несуммируемых нет — наибольшая среди суммируемых становится базовой
+  // наибольшая несуммируемая скидка (правило или карта); если несуммируемых нет — наибольшая среди суммируемых становится базовой
   const base = (sole.length > 0 ? sole : stackable).reduce((best, c) => (dec(c.discountPct) > dec(best.discountPct) ? c : best));
   let total = dec(base.discountPct);
   for (const c of stackable) {
-    if (c.ruleId === base.ruleId) continue;
+    if (c.ruleId === base.ruleId && c.source === base.source) continue;
     total += dec(c.discountPct);
   }
   if (total > dec('100')) total = dec('100');
-  return { pct: fmt(total, 2), primaryRuleId: base.ruleId };
+  return { pct: fmt(total, 2), primaryRuleId: base.ruleId, primarySource: base.source ?? 'rule' };
 }
 
 export interface DocLineForRedemption {

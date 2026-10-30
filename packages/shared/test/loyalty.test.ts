@@ -3,7 +3,7 @@ import { accrualPoints, cumulativePctByScale, distributeRedemption, fifoExpiredP
 
 describe('выбор скидки из правил', () => {
   test('без правил — нет скидки', () => {
-    expect(resolveDiscountPct([])).toEqual({ pct: '0.00', primaryRuleId: null });
+    expect(resolveDiscountPct([])).toEqual({ pct: '0.00', primaryRuleId: null, primarySource: null });
   });
   test('несуммируемые — берём наибольший процент', () => {
     const r = resolveDiscountPct([
@@ -11,7 +11,7 @@ describe('выбор скидки из правил', () => {
       { ruleId: 'b', discountPct: '10', stackable: false },
       { ruleId: 'c', discountPct: '7', stackable: false },
     ]);
-    expect(r).toEqual({ pct: '10.00', primaryRuleId: 'b' });
+    expect(r).toEqual({ pct: '10.00', primaryRuleId: 'b', primarySource: 'rule' });
   });
   test('суммируемые складываются с наибольшей несуммируемой', () => {
     const r = resolveDiscountPct([
@@ -19,14 +19,14 @@ describe('выбор скидки из правил', () => {
       { ruleId: 'b', discountPct: '3', stackable: true },
       { ruleId: 'c', discountPct: '2', stackable: true },
     ]);
-    expect(r).toEqual({ pct: '15.00', primaryRuleId: 'a' });
+    expect(r).toEqual({ pct: '15.00', primaryRuleId: 'a', primarySource: 'rule' });
   });
   test('только суммируемые — базовая самая большая, остальные добавляются', () => {
     const r = resolveDiscountPct([
       { ruleId: 'a', discountPct: '3', stackable: true },
       { ruleId: 'b', discountPct: '5', stackable: true },
     ]);
-    expect(r).toEqual({ pct: '8.00', primaryRuleId: 'b' });
+    expect(r).toEqual({ pct: '8.00', primaryRuleId: 'b', primarySource: 'rule' });
   });
   test('сумма ограничена 100%', () => {
     const r = resolveDiscountPct([
@@ -34,6 +34,27 @@ describe('выбор скидки из правил', () => {
       { ruleId: 'b', discountPct: '70', stackable: true },
     ]);
     expect(r.pct).toBe('100.00');
+  });
+  test('карта — кандидат наравне с правилами: карта больше правила, выигрывает карта', () => {
+    const r = resolveDiscountPct([
+      { ruleId: 'rule-a', discountPct: '7', stackable: false, source: 'rule' },
+      { ruleId: 'card-1', discountPct: '10', stackable: false, source: 'card' },
+    ]);
+    expect(r).toEqual({ pct: '10.00', primaryRuleId: 'card-1', primarySource: 'card' });
+  });
+  test('карта — кандидат наравне с правилами: правило больше карты, выигрывает правило', () => {
+    const r = resolveDiscountPct([
+      { ruleId: 'rule-a', discountPct: '15', stackable: false, source: 'rule' },
+      { ruleId: 'card-1', discountPct: '10', stackable: false, source: 'card' },
+    ]);
+    expect(r).toEqual({ pct: '15.00', primaryRuleId: 'rule-a', primarySource: 'rule' });
+  });
+  test('карта суммируемая складывается с лучшей несуммируемой, как и правило', () => {
+    const r = resolveDiscountPct([
+      { ruleId: 'rule-a', discountPct: '10', stackable: false, source: 'rule' },
+      { ruleId: 'card-1', discountPct: '3', stackable: true, source: 'card' },
+    ]);
+    expect(r).toEqual({ pct: '13.00', primaryRuleId: 'rule-a', primarySource: 'rule' });
   });
 });
 
