@@ -71,6 +71,7 @@ import {
   UserRound,
   FileClock,
   Route,
+  Waypoints,
   type LucideIcon,
   UserPlus,
 } from 'lucide-react';
@@ -157,6 +158,9 @@ export const SECTIONS = {
   fleetFuel: { path: '/fleet/fuel', name: 'Fuel', icon: Fuel },
   fleetService: { path: '/fleet/service', name: 'Service and repairs', icon: Wrench },
   fleetFines: { path: '/fleet/fines', name: 'Fines', icon: ReceiptText },
+  // Транспорт: рейсы и диспетчер (задача 1211)
+  trips: { path: '/trips', name: 'Trips', icon: Waypoints },
+  dispatch: { path: '/trips/dispatch', name: 'Dispatcher', icon: CalendarRange },
   // Договоры и биллинг
   contracts: { path: '/contracts', name: 'Contracts', icon: FileSignature },
   tariffPlans: { path: '/tariff-plans', name: 'Tariff plans', icon: ListChecks },
@@ -234,7 +238,7 @@ export const NAV_GROUPS = {
   },
   transport: {
     icon: Truck,
-    items: [{ id: 'fleet' }, { id: 'fleetVehicles' }, { id: 'fleetDrivers' }, { id: 'fleetDocuments' }, { id: 'fleetWaybills' }, { id: 'fleetFuel' }, { id: 'fleetService' }, { id: 'fleetFines' }],
+    items: [{ id: 'dispatch' }, { id: 'trips' }, { id: 'fleet' }, { id: 'fleetVehicles' }, { id: 'fleetDrivers' }, { id: 'fleetDocuments' }, { id: 'fleetWaybills' }, { id: 'fleetFuel' }, { id: 'fleetService' }, { id: 'fleetFines' }],
   },
   finance: {
     icon: Landmark,

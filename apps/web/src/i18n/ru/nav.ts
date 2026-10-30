@@ -69,6 +69,8 @@ export const sections: Widen<typeof S> = {
   fleetWaybills: 'Путевые листы',
   fleetFuel: 'Топливо',
   fleetService: 'ТО и ремонты',
+  trips: 'Рейсы',
+  dispatch: 'Диспетчер',
   fleetFines: 'Штрафы',
   contracts: 'Договоры',
   tariffPlans: 'Тарифные планы',

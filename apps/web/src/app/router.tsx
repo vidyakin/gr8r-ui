@@ -93,6 +93,8 @@ import { WaybillsPage } from './fleet/WaybillsPage';
 import { FuelPage } from './fleet/FuelPage';
 import { ServicePage } from './fleet/ServicePage';
 import { FinesPage } from './fleet/FinesPage';
+import { TripsPage } from './trips/TripsPage';
+import { DispatchPage } from './trips/DispatchPage';
 import { InventoryPage } from './docs/InventoryPage';
 import { InUsePage } from './docs/InUsePage';
 import { SerialsPage } from './docs/SerialsPage';
@@ -105,7 +107,7 @@ import { FlowEditorPage } from './automations/FlowEditorPage';
 
 /* Hash-роутинг, как в оригинале: работает на любом статическом хостинге без настройки rewrite.
    Чтобы перенести раздел, замените PlaceholderPage на его компонент. */
-const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.archive, SECTIONS.crm, SECTIONS.crmLeads, SECTIONS.crmAds, SECTIONS.crmDeals, SECTIONS.crmFunnel, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities, SECTIONS.crmSalesPlan, SECTIONS.crmAppointments, SECTIONS.catalog, SECTIONS.production, SECTIONS.productionOrders, SECTIONS.productionWorkbench, SECTIONS.productionStages, SECTIONS.workOrders, SECTIONS.serials, SECTIONS.repairItems, SECTIONS.servicesTimesheet, SECTIONS.servicesPlanner, SECTIONS.servicesReports, SECTIONS.workCenters, SECTIONS.sales, SECTIONS.purchases, SECTIONS.stockDocs, SECTIONS.processingDocs, SECTIONS.inventory, SECTIONS.inUse, SECTIONS.automations, SECTIONS.settings, SECTIONS.system, SECTIONS.productionPiecework, SECTIONS.productionPlanner, SECTIONS.productionResources, SECTIONS.contracts, SECTIONS.tariffPlans, SECTIONS.billing, SECTIONS.productionNeeds, SECTIONS.productionPlans, SECTIONS.productionPlanOrders, SECTIONS.productionClosing, SECTIONS.productionWip, SECTIONS.productionReports, SECTIONS.otherCosts, SECTIONS.deliveries, SECTIONS.myDeliveries, SECTIONS.fleet, SECTIONS.fleetVehicles, SECTIONS.fleetDrivers, SECTIONS.fleetDocuments, SECTIONS.fleetWaybills, SECTIONS.fleetFuel, SECTIONS.fleetService, SECTIONS.fleetFines].map(s => s.path));
+const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.archive, SECTIONS.crm, SECTIONS.crmLeads, SECTIONS.crmAds, SECTIONS.crmDeals, SECTIONS.crmFunnel, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities, SECTIONS.crmSalesPlan, SECTIONS.crmAppointments, SECTIONS.catalog, SECTIONS.production, SECTIONS.productionOrders, SECTIONS.productionWorkbench, SECTIONS.productionStages, SECTIONS.workOrders, SECTIONS.serials, SECTIONS.repairItems, SECTIONS.servicesTimesheet, SECTIONS.servicesPlanner, SECTIONS.servicesReports, SECTIONS.workCenters, SECTIONS.sales, SECTIONS.purchases, SECTIONS.stockDocs, SECTIONS.processingDocs, SECTIONS.inventory, SECTIONS.inUse, SECTIONS.automations, SECTIONS.settings, SECTIONS.system, SECTIONS.productionPiecework, SECTIONS.productionPlanner, SECTIONS.productionResources, SECTIONS.contracts, SECTIONS.tariffPlans, SECTIONS.billing, SECTIONS.productionNeeds, SECTIONS.productionPlans, SECTIONS.productionPlanOrders, SECTIONS.productionClosing, SECTIONS.productionWip, SECTIONS.productionReports, SECTIONS.otherCosts, SECTIONS.deliveries, SECTIONS.myDeliveries, SECTIONS.fleet, SECTIONS.fleetVehicles, SECTIONS.fleetDrivers, SECTIONS.fleetDocuments, SECTIONS.fleetWaybills, SECTIONS.fleetFuel, SECTIONS.fleetService, SECTIONS.fleetFines, SECTIONS.trips, SECTIONS.dispatch].map(s => s.path));
 
 export const router = createHashRouter([
   {
@@ -230,6 +232,8 @@ export const router = createHashRouter([
       { path: SECTIONS.fleetFuel.path, element: <FuelPage /> },
       { path: SECTIONS.fleetService.path, element: <ServicePage /> },
       { path: SECTIONS.fleetFines.path, element: <FinesPage /> },
+      { path: SECTIONS.trips.path, element: <TripsPage /> },
+      { path: SECTIONS.dispatch.path, element: <DispatchPage /> },
       // Договоры и биллинг
       { path: SECTIONS.contracts.path, element: <ContractsPage /> },
       { path: SECTIONS.tariffPlans.path, element: <TariffPlansPage /> },

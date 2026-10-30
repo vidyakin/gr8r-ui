@@ -47,6 +47,7 @@ export function FormDialog({
   onClose,
   footerExtra,
   hideSubmit,
+  lockedKeys,
 }: {
   title: string;
   description?: string;
@@ -61,6 +62,8 @@ export function FormDialog({
   footerExtra?: React.ReactNode | ((v: Values, close: () => void) => React.ReactNode);
   /** Не показывать кнопку «Сохранить» (только действия в подвале) */
   hideSubmit?: boolean;
+  /** Поля только для чтения (рейс после отправки) */
+  lockedKeys?: readonly string[];
 }) {
   const t = useT();
   const [v, setV] = React.useState<Values>(initial);
@@ -94,19 +97,20 @@ export function FormDialog({
             {fields.map(f =>
               f.type === 'check' ? (
                 <label key={f.key} className="row" style={{ gap: 8, alignSelf: 'end', minHeight: 36 }}>
-                  <input type="checkbox" checked={!!v[f.key]} onChange={e => set({ [f.key]: e.target.checked })} />
+                  <input type="checkbox" checked={!!v[f.key]} disabled={lockedKeys?.includes(f.key)} onChange={e => set({ [f.key]: e.target.checked })} />
                   {f.label}
                 </label>
               ) : (
                 <Field key={f.key} label={f.label} {...('hint' in f && f.hint ? { hint: f.hint } : {})} className={f.type === 'textarea' ? 'fleet-wide' : ''}>
                   {p =>
                     f.type === 'select' ? (
-                      <Select id={p.id} aria-label={f.label} value={String(v[f.key] ?? '')} onValueChange={x => set({ [f.key]: x })} options={f.options} />
+                      <Select id={p.id} aria-label={f.label} disabled={lockedKeys?.includes(f.key)} value={String(v[f.key] ?? '')} onValueChange={x => set({ [f.key]: x })} options={f.options} />
                     ) : f.type === 'textarea' ? (
-                      <Textarea id={p.id} rows={2} value={String(v[f.key] ?? '')} onChange={e => set({ [f.key]: e.target.value })} />
+                      <Textarea id={p.id} rows={2} disabled={lockedKeys?.includes(f.key)} value={String(v[f.key] ?? '')} onChange={e => set({ [f.key]: e.target.value })} />
                     ) : (
                       <Input
                         {...p}
+                        disabled={lockedKeys?.includes(f.key)}
                         type={f.type === 'date' ? 'date' : f.type === 'time' ? 'time' : f.type === 'datetime' ? 'datetime-local' : 'text'}
                         {...(f.type === 'number' ? { inputMode: 'decimal' as const } : {})}
                         value={String(v[f.key] ?? '')}
