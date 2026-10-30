@@ -8,7 +8,7 @@ sources:
   - apps/web/src/app/production/MaterialAllocationPage.tsx
   - apps/web/src/app/production/closing-data.ts
   - apps/web/src/app/settings/documents.tsx
-verified:
+verified: ccbb5cda2a
 screenshots: []
 ---
 

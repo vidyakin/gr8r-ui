@@ -8,7 +8,7 @@ sources:
   - apps/web/src/app/production/PieceworkPage.tsx
   - apps/web/src/app/production/ResourcesPage.tsx
   - apps/web/src/app/money/PayControls.tsx
-verified:
+verified: ccbb5cda2a
 screenshots: []
 ---
 

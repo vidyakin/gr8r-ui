@@ -8,7 +8,7 @@ sources:
   - apps/web/src/app/docs/requisites.tsx
   - apps/web/src/app/catalog/CatalogPage.tsx
   - apps/web/src/app/money/OpeningPages.tsx
-verified: 97c290e090
+verified: ccbb5cda2a
 screenshots: []
 ---
 

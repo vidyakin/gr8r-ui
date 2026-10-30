@@ -10,7 +10,7 @@ sources:
   - apps/web/src/app/docs/JournalPage.tsx
   - apps/web/src/app/money/PayControls.tsx
   - apps/web/src/app/money/PaymentPage.tsx
-verified: 0be71fa5f9
+verified: ccbb5cda2a
 screenshots: []
 ---
 
