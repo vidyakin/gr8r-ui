@@ -53,7 +53,7 @@ export const pages: Widen<typeof P> = {
     },
   },
   timeline: {
-    title: 'Диаграмма',
+    title: 'Диаграмма Ганта',
     subline: 'Сроки, зависимости и вехи по проектам.',
   },
   calendar: {
@@ -336,7 +336,7 @@ export const pages: Widen<typeof P> = {
       list: 'Список',
       table: 'Таблица',
       calendar: 'Календарь',
-      timeline: 'Диаграмма',
+      timeline: 'Диаграмма Ганта',
       files: 'Файлы',
       activity: 'Активность',
     },
@@ -344,7 +344,7 @@ export const pages: Widen<typeof P> = {
   overview: {
     title: 'Обзор воркспейса',
     subline: 'Состояние всех проектов воркспейса «{name}».',
-    timeline: 'Диаграмма',
+    timeline: 'Диаграмма Ганта',
     newProject: 'Новый проект',
     statProjects: 'Проекты',
     statProjectsNote: 'завершено: {count}',

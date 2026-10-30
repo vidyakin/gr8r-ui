@@ -248,7 +248,7 @@ export const views: Widen<typeof V> = {
     month: 'Месяц',
     task: 'Задача',
     milestones: 'Контрольные точки',
-    empty: 'Таймлайн пуст',
+    empty: 'Диаграмма Ганта пуста',
     emptyHint: 'Создайте задачи — они появятся здесь.',
     moved: '«{title}» сдвинута на {days} дн. позже',
     monthsShort: { jan: 'янв', feb: 'фев', mar: 'мар', apr: 'апр', may: 'май', jun: 'июн', jul: 'июл', aug: 'авг', sep: 'сен', oct: 'окт', nov: 'ноя', dec: 'дек' },
