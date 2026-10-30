@@ -40,7 +40,7 @@ import { recordEvent } from './events';
 import { applyStockMoves, defaultPostingCost, documentCosts, documentLineCosts, loadInventorySettings, revertStockMoves, sourceMoveCosts, syncReservations, type MoveRequest } from './stock';
 import { syncWorkOrderResources } from './planning';
 import { assertPeriodOpen, assertServiceCostItems, clearPeriodCosts, syncPeriodCosts } from './cost-closing';
-import { bankAccounts, companies, contracts, paymentLinks, costItems, documentCounters, documentLines, documentStates, documents, investmentProjects, materialAllocationItems, members, organizations, products, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials } from './schema';
+import { bankAccounts, companies, deals, contracts, paymentLinks, costItems, documentCounters, documentLines, documentStates, documents, investmentProjects, materialAllocationItems, members, organizations, products, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials } from './schema';
 import { assertInvestmentTarget, investmentOpen } from './investments';
 import { assertContractOfCompany, contractDocumentProducts, contractPlanProductIds, defaultContract } from './contracts';
 import { ensureVariant, specParamsOfProduct } from './variants';
@@ -408,6 +408,16 @@ async function assertInUseHolder(db: Db, memberId: string | null, workCenterId: 
   }
 }
 
+/** Сделка документа: документ с контрагентом создаётся только для сделки с контрагентом; контрагент по умолчанию — контрагент сделки (задача 1252) */
+async function resolveDeal(db: Db, dealId: string, partyType: boolean, counterpartyId: string | null): Promise<string> {
+  if (!partyType) throw new DomainError(422, 'deal_document_type', 'Only documents with a counterparty can be linked to a deal');
+  const [d] = await db.select({ id: deals.id, companyId: deals.companyId, archivedAt: deals.archivedAt }).from(deals).where(eq(deals.id, dealId)).limit(1);
+  if (!d) throw new DomainError(422, 'invalid_reference', 'The deal does not exist');
+  if (!d.companyId) throw new DomainError(422, 'deal_company_required', 'The deal has no counterparty: set a company on the deal first');
+  if (counterpartyId && counterpartyId !== d.companyId) throw new DomainError(422, 'deal_counterparty_mismatch', 'The counterparty differs from the counterparty of the deal');
+  return d.companyId;
+}
+
 export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateInput): Promise<string> {
   const meta = DOCUMENT_META[input.type];
   let organizationId = input.organizationId ?? null;
@@ -422,7 +432,9 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
     warehouseId = w?.id ?? null;
   }
   // внутренний документ: контрагента нет, вид операции задаёт тип
-  const counterpartyId = meta.party === null ? null : input.counterpartyId ?? null;
+  let counterpartyId = meta.party === null ? null : input.counterpartyId ?? null;
+  const dealId = input.dealId ?? null;
+  if (dealId) counterpartyId = await resolveDeal(db, dealId, meta.party !== null, counterpartyId);
   const operation = operationOf(input.type, input.operation);
   const inUseMemberId = input.type === 'stock_transfer' ? input.inUseMemberId ?? null : null;
   const inUseWorkCenterId = input.type === 'stock_transfer' ? input.inUseWorkCenterId ?? null : null;
@@ -466,6 +478,7 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
       operation,
       organizationId,
       counterpartyId,
+      dealId,
       contractId,
       priceKindId: meta.party !== null ? (input.priceKindId ?? null) : null,
       warehouseId,
@@ -908,6 +921,8 @@ export async function createBasedOn(db: Db, ctx: DocCtx, sourceId: string, targe
     type: target,
     organizationId: src.organizationId,
     counterpartyId: src.counterpartyId,
+    // документ на основании остаётся в той же сделке
+    dealId: src.dealId,
     warehouseId: src.warehouseId ?? undefined,
     priceIncludesVat: src.priceIncludesVat,
     comment: src.comment,

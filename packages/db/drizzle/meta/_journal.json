@@ -470,6 +470,13 @@
       "when": 1793351375915,
       "tag": "0072_flow_private_projects",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1793364550561,
+      "tag": "0074_document_deal",
+      "breakpoints": true
     }
   ]
 }
