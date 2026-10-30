@@ -60,9 +60,11 @@ CREATE TABLE "document_line_discounts" (
 	"workspace_id" uuid NOT NULL,
 	"source" text DEFAULT 'manual' NOT NULL,
 	"rule_id" uuid,
+	"card_id" uuid,
 	CONSTRAINT "document_line_discounts_ws_line_uq" UNIQUE("workspace_id","line_id"),
-	CONSTRAINT "document_line_discounts_source_chk" CHECK ("document_line_discounts"."source" in ('manual','rule')),
-	CONSTRAINT "document_line_discounts_rule_src_chk" CHECK ("document_line_discounts"."source" = 'rule' or "document_line_discounts"."rule_id" is null)
+	CONSTRAINT "document_line_discounts_source_chk" CHECK ("document_line_discounts"."source" in ('manual','rule','card')),
+	CONSTRAINT "document_line_discounts_rule_src_chk" CHECK ("document_line_discounts"."source" = 'rule' or "document_line_discounts"."rule_id" is null),
+	CONSTRAINT "document_line_discounts_card_src_chk" CHECK ("document_line_discounts"."source" = 'card' or "document_line_discounts"."card_id" is null)
 );
 --> statement-breakpoint
 CREATE TABLE "document_loyalty" (
@@ -154,6 +156,7 @@ ALTER TABLE "discount_rules" ADD CONSTRAINT "discount_rules_workspace_id_workspa
 ALTER TABLE "document_line_discounts" ADD CONSTRAINT "document_line_discounts_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "document_line_discounts" ADD CONSTRAINT "document_line_discounts_line_fk" FOREIGN KEY ("workspace_id","line_id") REFERENCES "public"."document_lines"("workspace_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "document_line_discounts" ADD CONSTRAINT "document_line_discounts_rule_fk" FOREIGN KEY ("workspace_id","rule_id") REFERENCES "public"."discount_rules"("workspace_id","id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "document_line_discounts" ADD CONSTRAINT "document_line_discounts_card_fk" FOREIGN KEY ("workspace_id","card_id") REFERENCES "public"."loyalty_cards"("workspace_id","id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "document_loyalty" ADD CONSTRAINT "document_loyalty_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "document_loyalty" ADD CONSTRAINT "document_loyalty_document_fk" FOREIGN KEY ("workspace_id","document_id") REFERENCES "public"."documents"("workspace_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "document_loyalty" ADD CONSTRAINT "document_loyalty_promo_fk" FOREIGN KEY ("workspace_id","promo_code_id") REFERENCES "public"."promo_codes"("workspace_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint

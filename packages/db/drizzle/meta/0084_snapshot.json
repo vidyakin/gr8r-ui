@@ -35441,6 +35441,12 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
+        },
+        "card_id": {
+          "name": "card_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -35487,6 +35493,21 @@
           ],
           "onDelete": "set null",
           "onUpdate": "no action"
+        },
+        "document_line_discounts_card_fk": {
+          "name": "document_line_discounts_card_fk",
+          "tableFrom": "document_line_discounts",
+          "tableTo": "loyalty_cards",
+          "columnsFrom": [
+            "workspace_id",
+            "card_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -35504,11 +35525,15 @@
       "checkConstraints": {
         "document_line_discounts_source_chk": {
           "name": "document_line_discounts_source_chk",
-          "value": "\"document_line_discounts\".\"source\" in ('manual','rule')"
+          "value": "\"document_line_discounts\".\"source\" in ('manual','rule','card')"
         },
         "document_line_discounts_rule_src_chk": {
           "name": "document_line_discounts_rule_src_chk",
           "value": "\"document_line_discounts\".\"source\" = 'rule' or \"document_line_discounts\".\"rule_id\" is null"
+        },
+        "document_line_discounts_card_src_chk": {
+          "name": "document_line_discounts_card_src_chk",
+          "value": "\"document_line_discounts\".\"source\" = 'card' or \"document_line_discounts\".\"card_id\" is null"
         }
       },
       "isRLSEnabled": false
