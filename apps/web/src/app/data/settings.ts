@@ -65,11 +65,11 @@ export function useSettings() {
   const { setMyPrefs } = useSession();
   const prefs = useMyPrefs();
   const set = React.useCallback(
-    (patch: Partial<Settings>) => {
-      const lp: Partial<LocalSettings> = {};
+    (patch: Record<string, unknown>) => {
+      const lp: Record<string, unknown> = {};
       const up: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(patch)) (LOCAL_KEYS.includes(k as keyof LocalSettings) ? lp : up)[k] = v;
-      if (Object.keys(lp).length) setLocal(lp);
+      if (Object.keys(lp).length) setLocal(lp as Partial<LocalSettings>);
       if (Object.keys(up).length) setMyPrefs(up as Partial<UserPrefs>).catch(e => toast.error(errorMessage(e)));
     },
     [setMyPrefs],

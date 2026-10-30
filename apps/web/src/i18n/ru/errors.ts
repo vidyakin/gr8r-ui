@@ -20,6 +20,8 @@ export const errors: Widen<typeof E> = {
   internal_error: 'Внутренняя ошибка сервера',
   rate_limited: 'Слишком много попыток. Повторите через {retryAfterSeconds} с.',
   invalid_credentials: 'Неверный email или пароль',
+  wrong_password: 'Текущий пароль указан неверно',
+  current_session: 'Текущую сессию завершает кнопка «Выйти»',
   email_taken: 'Пользователь с таким email уже есть',
   slug_taken: 'Этот адрес воркспейса уже занят',
   validation_error: 'Проверьте значение «{path}»',

@@ -4,7 +4,6 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { ChevronDown, ListChecks, ListFilter, Plus, SearchX, Settings, Share2, Star, UserPlus } from 'lucide-react';
 import { Button, EmptyState, IconButton, Tooltip, toast } from '@/components/ui';
 import { cn } from '@/lib/utils';
-import { useMyPrefs } from '../data/settings';
 import { useWorkspace } from '../data/store';
 import { useMyPrefs } from '../data/settings';
 import { PROJECT_STATUS, applyView, canSee, groupTasks, project as findProject, tasksOf } from '../data/selectors';

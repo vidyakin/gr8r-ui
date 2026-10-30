@@ -324,7 +324,7 @@ export const settings: Widen<typeof S> = {
   /* ---------------- security: password ---------------- */
   password: {
     lead: 'Используйте длинный пароль, который не используете больше нигде.',
-    updated: 'Пароль обновлён. Остальные сессии остались активными.',
+    updated: 'Пароль обновлён. Остальные сессии завершены.',
     current: 'Текущий пароль',
     new: 'Новый пароль',
     confirm: 'Подтвердите новый пароль',
@@ -347,6 +347,8 @@ export const settings: Widen<typeof S> = {
     signOutAllOk: 'Завершить остальные',
     signOutAll: 'Остальные сессии завершены',
     signOutAllBtn: 'Завершить все остальные сессии',
+    unknownDevice: 'Неизвестное устройство',
+    signedInAt: 'Вход: {date}',
   },
 
   /* ---------------- security: 2fa ---------------- */
@@ -382,31 +384,16 @@ export const settings: Widen<typeof S> = {
 
   /* ---------------- billing: plan ---------------- */
   plan: {
-    lead: 'Ваша подписка и использование.',
+    lead: 'Ваш тариф, модули, сроки и лимиты.',
     currentPlan: 'Текущий тариф',
-    perMember: '$12 за участника в месяц',
-    renews: 'Продление {date} · оплата помесячно',
-    viewInvoices: 'Посмотреть счета',
-    usage: {
-      members: 'Участники',
-      storage: 'Хранилище',
-      projects: 'Проекты',
-    },
-    current: 'Текущий',
-    currentPlanBtn: 'Текущий тариф',
-    downgrade: 'Перейти на бесплатный',
-    upgrade: 'Перейти на платный',
-    priceMember: '/участник/мес.',
-    confirmTitle: '{action} на {plan}?',
-    confirmBody: '{count} участников × ${price}/мес. = ${total}/мес., пропорционально с сегодняшнего дня, списание на Visa, оканчивающуюся на 4242.',
-    confirmOkDowngrade: 'Перейти на бесплатный',
-    confirmOkUpgrade: 'Перейти на {plan}',
-    switched: 'Теперь вы на тарифе «{plan}»',
-    pricing: {
-      free: { name: 'Бесплатный', price: '$0', features: 'До 3 участников|Без ограничений по задачам|5 ГБ хранилища' },
-      team: { name: 'Команда', price: '$12', features: 'До 50 участников|Таймлайн и настраиваемые виды|100 ГБ хранилища|Доступ для гостей' },
-      business: { name: 'Бизнес', price: '$24', features: 'Без ограничений по участникам|Расширенные права|SAML SSO|1 ТБ хранилища' },
-    },
+    noPlan: 'Тариф не назначен',
+    trial: 'Пробный',
+    until: 'Действует до {date}',
+    unlimitedTerm: 'Без срока',
+    needMore: 'Нужно больше?',
+    limits: 'Лимиты и использование',
+    usedOf: '{used} из {max}',
+    modules: 'Модули',
   },
 
   /* ---------------- billing: payment ---------------- */

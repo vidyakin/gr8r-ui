@@ -19,6 +19,8 @@ export const errors = {
   internal_error: 'Internal server error',
   rate_limited: 'Too many attempts. Try again in {retryAfterSeconds} s.',
   invalid_credentials: 'Invalid email or password',
+  wrong_password: 'The current password is incorrect',
+  current_session: 'Use “Sign out” to end the current session',
   email_taken: 'An account with this email already exists',
   slug_taken: 'This workspace address is already taken',
   validation_error: 'Check the value of “{path}”',

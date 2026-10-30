@@ -149,4 +149,52 @@ describe('auth', () => {
     await c.patch(`/workspaces/${wsId}`, { locale: null }, wsId);
     expect((await c.get('/auth/me')).body.workspaces[0].locale).toBeNull();
   });
+
+  test('personal settings: prefs are merged by key and validated', async () => {
+    const c = new Client();
+    await c.signup();
+    const a = await c.patch('/auth/me', { prefs: { tz: 'Europe/Berlin', weekStart: '0' } });
+    expect(a.status).toBe(200);
+    const b = await c.patch('/auth/me', { prefs: { timeFmt: '24' } });
+    expect(b.body.user.prefs).toEqual({ tz: 'Europe/Berlin', weekStart: '0', timeFmt: '24' });
+    expect((await c.get('/auth/me')).body.user.prefs.tz).toBe('Europe/Berlin');
+    expect((await c.patch('/auth/me', { prefs: { tz: 'Mars/Base' } })).status).toBe(400);
+    expect((await c.patch('/auth/me', { locale: 'ru' })).body.user.prefs.tz).toBe('Europe/Berlin');
+  });
+
+  test('change password: needs the current one, closes other sessions', async () => {
+    const c = new Client();
+    const { user } = await c.signup({ password: 'password123' });
+    const other = new Client();
+    await other.post('/auth/signin', { email: user.email, password: 'password123' });
+    expect((await c.post('/auth/password', { current: 'nope-nope-1', next: 'new-password-1' })).body.error.code).toBe('wrong_password');
+    const ok = await c.post('/auth/password', { current: 'password123', next: 'new-password-1' });
+    expect(ok.status).toBe(200);
+    expect(ok.body.closedSessions).toBe(1);
+    expect((await other.get('/auth/me')).status).toBe(401);
+    expect((await c.get('/auth/me')).status).toBe(200);
+    expect((await new Client().post('/auth/signin', { email: user.email, password: 'new-password-1' })).status).toBe(200);
+  });
+
+  test('sessions: list own, sign out one or all others', async () => {
+    const c = new Client();
+    const { user } = await c.signup({ password: 'password123' });
+    const s2 = new Client();
+    await s2.post('/auth/signin', { email: user.email, password: 'password123' });
+    const s3 = new Client();
+    await s3.post('/auth/signin', { email: user.email, password: 'password123' });
+    const list = (await c.get('/auth/sessions')).body.items as { id: string; current: boolean }[];
+    expect(list).toHaveLength(3);
+    expect(list.filter(x => x.current)).toHaveLength(1);
+    const cur = list.find(x => x.current)!;
+    expect((await c.del(`/auth/sessions/${cur.id}`)).status).toBe(400);
+    const other = list.find(x => !x.current)!;
+    expect((await c.del(`/auth/sessions/${other.id}`)).status).toBe(200);
+    expect((await c.del('/auth/sessions')).body.closed).toBe(1);
+    expect((await c.get('/auth/me')).status).toBe(200);
+    // чужую сессию удалить нельзя
+    const stranger = new Client();
+    await stranger.signup();
+    expect((await stranger.del(`/auth/sessions/${cur.id}`)).status).toBe(404);
+  });
 });
