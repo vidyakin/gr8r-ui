@@ -28,5 +28,6 @@ import { licensing } from './licensing';
 import { fleet } from './fleet';
 import { trips } from './trips';
 import { views } from './views';
+import { help } from './help';
 
-export const en = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, repeat, appt, delivery, positions, leads, ads, secrets, money, payroll, pricing, licensing, fleet, trips };
+export const en = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, repeat, appt, delivery, positions, leads, ads, secrets, money, payroll, pricing, licensing, fleet, trips, help };

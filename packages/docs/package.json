@@ -1,0 +1,15 @@
+{
+  "name": "@gr8r/docs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "marked": "^16.4.0"
+  }
+}

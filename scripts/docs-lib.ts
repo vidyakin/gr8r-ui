@@ -1,19 +1,13 @@
 /* Общее для docs:check, docs:verify и теста покрытия: чтение статей пользовательской документации (docs/user). */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
+import { parseHeader, type Frontmatter } from '../packages/docs/src/header';
 
 export const ROOT = resolve(import.meta.dir, '..');
 export const DOCS_DIR = join(ROOT, 'docs/user');
 const ROUTES_FILE = join(ROOT, 'apps/web/src/app/routes.ts');
 
-export interface Frontmatter {
-  title?: string;
-  sections: string[];
-  module?: string;
-  sources: string[];
-  verified?: string;
-  screenshots: string[];
-}
+export type { Frontmatter };
 
 export interface Article {
   /** путь от корня репозитория */
@@ -30,57 +24,10 @@ export interface Article {
   errors: string[];
 }
 
-const unquote = (s: string) => s.trim().replace(/^(['"])(.*)\1$/, '$2');
-const LIST_KEYS = ['sections', 'sources', 'screenshots'] as const;
-type ListKey = (typeof LIST_KEYS)[number];
-const isListKey = (k: string): k is ListKey => (LIST_KEYS as readonly string[]).includes(k);
-
-/** Шапка: `key: значение`, `key: [a, b]` или список строк `- a` под ключом. Остальное — ошибка. */
+/** Статья: путь, папка и разбор шапки (сам разбор — пакет @gr8r/docs, его же использует приложение) */
 export function parseArticle(file: string, text: string): Article {
   const rel = relative(DOCS_DIR, join(ROOT, file)).split('/');
-  const art: Article = {
-    file,
-    folder: rel.length > 1 ? rel[0]! : '',
-    howto: rel[0] === 'howto',
-    fm: { sections: [], sources: [], screenshots: [] },
-    body: text,
-    hasHeader: false,
-    errors: [],
-  };
-  const m = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(text);
-  if (!m) return art;
-  art.hasHeader = true;
-  art.body = text.slice(m[0].length);
-  const known = ['title', 'sections', 'module', 'sources', 'verified', 'screenshots'];
-  let key: string | null = null;
-  for (const raw of m[1]!.split(/\r?\n/)) {
-    if (!raw.trim() || raw.trim().startsWith('#')) continue;
-    const item = /^\s+-\s+(.*)$/.exec(raw);
-    if (item) {
-      if (key && isListKey(key)) art.fm[key].push(unquote(item[1]!));
-      else art.errors.push(`лишний элемент списка: «${raw.trim()}»`);
-      continue;
-    }
-    const kv = /^([a-z_]+):\s*(.*)$/.exec(raw);
-    if (!kv) {
-      art.errors.push(`не разобрана строка шапки: «${raw.trim()}»`);
-      continue;
-    }
-    key = kv[1]!;
-    const val = kv[2]!.trim();
-    if (!known.includes(key)) {
-      art.errors.push(`неизвестное поле шапки «${key}»`);
-      key = null;
-    } else if (isListKey(key)) {
-      if (val.startsWith('[')) {
-        if (!val.endsWith(']')) art.errors.push(`список «${key}» не закрыт скобкой`);
-        const inner = val.replace(/^\[/, '').replace(/\]$/, '').trim();
-        art.fm[key].push(...(inner ? inner.split(',').map(unquote).filter(Boolean) : []));
-        key = null;
-      } else if (val) art.errors.push(`поле «${key}» — список: [a, b] или строки «- a»`);
-    } else if (val) (art.fm as unknown as Record<string, string>)[key] = unquote(val);
-  }
-  return art;
+  return { file, folder: rel.length > 1 ? rel[0]! : '', howto: rel[0] === 'howto', ...parseHeader(text) };
 }
 
 /** Все статьи (без README, шаблонов `_…` и служебных папок) */

@@ -12,6 +12,7 @@ import {
   CircleCheck,
   ClockAlert,
   Command,
+  CircleHelp,
   ContactRound,
   Folder,
   FolderKanban,
@@ -65,6 +66,9 @@ import { useInvite } from './invite';
 import { useSectionAccess } from '../positions/access';
 import { useProjectForms } from './project-forms';
 import { useShortcuts } from './shortcuts';
+import { useHelp } from './help';
+import { searchDocs, type Catalog } from '@gr8r/docs';
+import type { ModuleId } from '@gr8r/shared';
 import { useSession } from '../data/session';
 import { useTaskDrawer } from './task-drawer';
 import { useTaskForm } from './task-form';
@@ -260,6 +264,7 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
   const projectForms = useProjectForms();
   const invite = useInvite();
   const shortcuts = useShortcuts();
+  const help = useHelp();
   const drawer = useTaskDrawer();
   const dark = useIsDark();
   const toggleDark = useToggleDark();
@@ -268,6 +273,12 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
   const access = useSectionAccess();
 
   const [q, setQ] = React.useState(init.q);
+  // Тексты справки подгружаются, когда в строке что-то набрано (в основной чанк они не входят)
+  const [helpCat, setHelpCat] = React.useState<Catalog | null>(null);
+  const wantHelp = q.trim().length >= 2;
+  React.useEffect(() => {
+    if (wantHelp && !helpCat) void import('../help/bundle').then(m => setHelpCat(m.catalog));
+  }, [wantHelp, helpCat]);
   const recordHits = useRecordHits(q);
   const catalogHits = useCatalogHits(q);
   const docHits = useDocumentHits(q);
@@ -323,6 +334,7 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
     { id: 'c-dark', name: t(dark ? 'overlays.palette.cmd.darkOn' : 'overlays.palette.cmd.darkOff'), icon: dark ? Sun : Moon, kbd: `${MOD} ⇧ L`, run: toggleDark },
     { id: 'c-inv', name: t('overlays.palette.cmd.inviteMember'), icon: UserPlus, run: () => invite.open() },
     { id: 'c-side', name: t('overlays.palette.cmd.toggleSidebar'), icon: PanelLeft, kbd: '[', run: toggleSidebar },
+    { id: 'c-help', name: t('help.cmdOpen'), icon: CircleHelp, kbd: 'F1', run: () => help.open() },
     { id: 'c-keys', name: t('overlays.palette.cmd.keyboardShortcuts'), icon: Keyboard, kbd: '?', run: () => shortcuts.open() },
     { id: 'c-out', name: t('overlays.palette.cmd.signOut'), icon: LogOut, run: () => void session.signOut().then(() => navigate('/signin')) },
   ];
@@ -434,6 +446,12 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
         groups.push({
           name: t('overlays.palette.group.documents'),
           items: docHits.slice(0, lim).map(d => ({ id: 'doc-' + d.id, icon: SECTIONS.sales.icon, name: `${tOEnum('documentType', d.type, typeLabel(d.type))} ${d.number ?? `(${t('overlays.palette.draftNumber')})`}`, sub: `${d.counterpartyName ?? t('overlays.palette.noCounterparty')} · ${tOEnum('documentStatus', d.status, STATUS_LABEL[d.status])}`, r: fmtMoney(d.total), run: () => go(`/documents/${d.id}`) })),
+        });
+      // Статьи справки
+      if (sc === 'all' && helpCat)
+        groups.push({
+          name: t('help.group'),
+          items: searchDocs(helpCat, query, a => !a.fm.module || access.module(a.fm.module as ModuleId), 4).map(h => ({ id: 'h-' + h.article.id, icon: CircleHelp, name: h.article.title, sub: h.snippet, run: () => help.open({ article: h.article.id }) })),
         });
       // CRM — только в общем поиске, после основных групп
       if (sc === 'all' && crmUi && access.section('crm') && access.module('crm')) {
