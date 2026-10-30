@@ -1,20 +1,6 @@
 {
   "_": "Разделы, для которых статья ещё не написана (задачи 1239–1244). Написал статью — убери id отсюда. Новый раздел без статьи и без записи здесь роняет тест docs-coverage.",
   "sections": [
-    "home",
-    "inbox",
-    "mytasks",
-    "favorites",
-    "overview",
-    "projects",
-    "tasks",
-    "calendar",
-    "timeline",
-    "members",
-    "activity",
-    "archive",
-    "search",
-    "settings",
     "system"
   ]
 }
