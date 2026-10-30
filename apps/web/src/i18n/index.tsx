@@ -5,10 +5,12 @@ import * as React from 'react';
 import { en } from './en';
 import { ru } from './ru';
 import { getLocale, intlLocale, useLocale, type Locale } from './locale';
+import { useFormatPrefsVersion } from './format-prefs';
 import type { Plural, Widen } from './types';
 
 export * from './locale';
 export * from './format';
+export * from './format-prefs';
 export type { Plural, Widen } from './types';
 
 type Leaves<T, P extends string = ''> = {
@@ -70,9 +72,10 @@ export function useT() {
   return t;
 }
 
-/** Перемонтирует дерево при смене языка: обычные функции (fmtDate, money) тоже перечитают язык. Состояние экранов при этом
+/** Перемонтирует дерево при смене языка и личных настроек показа дат: обычные функции (fmtDate, money) тоже перечитают язык. Состояние экранов при этом
     сбрасывается — язык меняют редко, а кеш React Query живёт вне дерева */
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const locale = useLocale();
-  return <React.Fragment key={locale}>{children}</React.Fragment>;
+  const fmt = useFormatPrefsVersion();
+  return <React.Fragment key={`${locale}:${fmt}`}>{children}</React.Fragment>;
 }

@@ -5,7 +5,7 @@ import { Check } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger, toast } from '@/components/ui';
 import { Calendar } from '@/components/shadcn/calendar';
 import { cn } from '@/lib/utils';
-import { useT } from '@/i18n';
+import { useT, weekStartsOn } from '@/i18n';
 import { dOff, iso, parse, today } from '../../lib/dates';
 
 export interface PickItem {
@@ -139,7 +139,7 @@ export function DatePopover({ trigger, value, onChange, align = 'start' }: { tri
             </button>
           )}
         </div>
-        <Calendar mode="single" weekStartsOn={1} selected={value ? parse(value) : undefined} defaultMonth={value ? parse(value) : undefined} onSelect={d => d && set(iso(d))} />
+        <Calendar mode="single" weekStartsOn={weekStartsOn()} selected={value ? parse(value) : undefined} defaultMonth={value ? parse(value) : undefined} onSelect={d => d && set(iso(d))} />
       </PopoverContent>
     </Popover>
   );

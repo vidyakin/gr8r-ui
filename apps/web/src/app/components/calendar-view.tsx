@@ -7,7 +7,7 @@ import { ArrowUpRight, Calendar, ChevronLeft, ChevronRight, Clock, Folder, Plus,
 import { Button, IconButton, Popover, PopoverContent, PopoverTrigger, Segmented, toast } from '@/components/ui';
 import { PriorityIcon, StatusIcon } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
-import { useT } from '@/i18n';
+import { useT, weekStartsOn } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { project, projectColor } from '../data/selectors';
 import { diffDays, fmtDate, iso, parse, sod, today } from '../lib/dates';
@@ -17,14 +17,13 @@ import { ProjectDot } from './project';
 
 const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 const MONTH_LONG_KEYS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] as const;
-const WEEK_START = 1;
 
 const addDays = (d: Date, n: number) => {
   const x = new Date(d);
   x.setDate(x.getDate() + n);
   return x;
 };
-const startOfWeek = (d: Date) => addDays(sod(d), -((d.getDay() - WEEK_START + 7) % 7));
+const startOfWeek = (d: Date) => addDays(sod(d), -((d.getDay() - weekStartsOn() + 7) % 7));
 
 /** Свойства источника перетаскивания: карточка задачи в ячейке дня */
 type DragSrc = { draggable: true; onDragStart: (e: React.DragEvent) => void; onDragEnd: () => void };
@@ -236,7 +235,7 @@ export function CalendarView({ tasks, onAdd, events }: { tasks: Task[]; onAdd?: 
       <>
         <div className="cal-h">
           {Array.from({ length: 7 }, (_, i) => (
-            <div key={i}>{tt(`views.calendar.weekDaysShort.${WEEKDAY_KEYS[(i + WEEK_START) % 7]}`)}</div>
+            <div key={i}>{tt(`views.calendar.weekDaysShort.${WEEKDAY_KEYS[(i + weekStartsOn()) % 7]}`)}</div>
           ))}
         </div>
         <div className="cal-g" style={{ gridTemplateRows: `repeat(${days.length / 7},minmax(112px,1fr))` }}>

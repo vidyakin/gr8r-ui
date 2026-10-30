@@ -2,7 +2,8 @@
 import * as React from 'react';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { ApiError, UNAUTHORIZED_EVENT, apiFor, ok } from './api';
-import { resolveLocale, setLocale, type Locale } from '@/i18n';
+import { resolveLocale, setFormatPrefs, setLocale, type Locale } from '@/i18n';
+import { resolveUserPrefs, type UserPrefs } from '@gr8r/shared';
 
 export interface SessionUser {
   id: string;
@@ -10,6 +11,8 @@ export interface SessionUser {
   name: string;
   /** Личный язык интерфейса; null — как в воркспейсе */
   locale: string | null;
+  /** Личные настройки (users.prefs): частичный объект, полный набор — resolveUserPrefs */
+  prefs?: Record<string, unknown>;
   /** Оператор установки: раздел «Арендаторы» в настройках */
   isOperator?: boolean;
 }
@@ -57,6 +60,8 @@ interface SessionCtx {
   refreshWorkspaces: () => Promise<WorkspaceRef[]>;
   /** Личный язык интерфейса (null — как в воркспейсе); сохраняется на сервере */
   setMyLocale: (locale: Locale | null) => Promise<void>;
+  /** Сохранить часть личных настроек: сразу в кэше, затем на сервере (при ошибке кэш возвращается) */
+  setMyPrefs: (patch: Partial<UserPrefs>) => Promise<void>;
 }
 
 const Ctx = React.createContext<SessionCtx | null>(null);
@@ -93,6 +98,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     if (data) setLocale(resolveLocale(data.user.locale, active?.locale));
   }, [data?.user.locale, active?.locale]);
+
+  // Личный формат дат и времени для форматтеров вне React
+  React.useEffect(() => {
+    if (data) setFormatPrefs(resolveUserPrefs(data.user.prefs));
+  }, [data?.user.prefs]);
 
   const value = React.useMemo<SessionCtx>(() => {
     const set = (d: SessionData | null) => qc.setQueryData(SESSION_KEY, d);
@@ -136,6 +146,19 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setMyLocale: async locale => {
         const { user } = await ok<{ user: SessionUser }>(apiFor().auth.me.$patch({ json: { locale } }));
         if (data) set({ ...data, user });
+      },
+      setMyPrefs: async patch => {
+        const prev = qc.getQueryData<SessionData | null>(SESSION_KEY);
+        if (!prev) return;
+        set({ ...prev, user: { ...prev.user, prefs: { ...prev.user.prefs, ...patch } } });
+        try {
+          const { user } = await ok<{ user: SessionUser }>(apiFor().auth.me.$patch({ json: { prefs: patch } }));
+          const cur = qc.getQueryData<SessionData | null>(SESSION_KEY);
+          if (cur) set({ ...cur, user: { ...cur.user, prefs: user.prefs } });
+        } catch (e) {
+          set(prev);
+          throw e;
+        }
       },
     };
   }, [qc, q.isPending, data, workspaces, active]);

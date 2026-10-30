@@ -5,7 +5,7 @@ import { Label, Popover, PopoverContent, PopoverTrigger } from '@/components/ui'
 import { Calendar } from '@/components/shadcn/calendar';
 import { PriorityIcon, StatusIcon, priorityName, type Priority, type Status } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
-import { useT } from '@/i18n';
+import { useT, weekStartsOn } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { PriorityPopover } from '../components/priority-panel';
 import { LABELS, canSee, member, project, statusOf, visibleProjects } from '../data/selectors';
@@ -80,7 +80,7 @@ function DateChip({ label, icon, text, value, onChange }: { label: string; icon:
           )}
         </div>
         <div className="msep" />
-        <Calendar mode="single" weekStartsOn={1} selected={value ? parse(value) : undefined} defaultMonth={value ? parse(value) : undefined} onSelect={d => d && pick(iso(d))} />
+        <Calendar mode="single" weekStartsOn={weekStartsOn()} selected={value ? parse(value) : undefined} defaultMonth={value ? parse(value) : undefined} onSelect={d => d && pick(iso(d))} />
       </PopoverContent>
     </Popover>
   );

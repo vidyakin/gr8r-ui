@@ -18,7 +18,7 @@ import { activityName, activityVerb, stageName } from './labels';
 import { useCrm } from './store';
 import { useCrmUi } from './ui-context';
 import { useMembersWith } from '../positions/data';
-import { fmtDateTime, useT } from '@/i18n';
+import { fmtDateTime, useT, weekStartsOn } from '@/i18n';
 import type { ActivityType, CrmActivity, Deal, StageId } from './types';
 
 /** Имя участника воркспейса по id — для сортировки и подписей в таблицах */
@@ -271,7 +271,7 @@ export function DateField({ value, onChange, label }: { value: string; onChange:
             </button>
           ))}
         </div>
-        <Calendar mode="single" weekStartsOn={1} selected={parse(value)} defaultMonth={parse(value)} onSelect={d => d && set(iso(d))} />
+        <Calendar mode="single" weekStartsOn={weekStartsOn()} selected={parse(value)} defaultMonth={parse(value)} onSelect={d => d && set(iso(d))} />
       </PopoverContent>
     </Popover>
   );

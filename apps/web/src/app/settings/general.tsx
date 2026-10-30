@@ -356,6 +356,9 @@ export function LanguageSection({ title }: { title: string }) {
   );
 }
 
+/** Часовые пояса для личной настройки (IANA); пусто — пояс браузера */
+const TIME_ZONES = ['UTC', 'Europe/London', 'Europe/Berlin', 'Europe/Kyiv', 'Europe/Moscow', 'Europe/Istanbul', 'Asia/Dubai', 'Asia/Tashkent', 'Asia/Almaty', 'Asia/Kolkata', 'Asia/Bangkok', 'Asia/Singapore', 'Asia/Shanghai', 'Asia/Tokyo', 'Asia/Vladivostok', 'Australia/Sydney', 'Pacific/Auckland', 'America/Sao_Paulo', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles'];
+
 export function DateTimeSection({ title }: { title: string }) {
   const t = useT();
   const [s, set] = useSettings();
@@ -364,7 +367,7 @@ export function DateTimeSection({ title }: { title: string }) {
       <SettingsHead title={title} lead={t('settings.dateTime.lead')} />
       <WorkspaceTimeZone />
       <SRow t={t('settings.dateTime.timezone')} d={t('settings.dateTime.timezoneHint')}>
-        <PrefSelect label="tz" value={s.tz} options={['(GMT-08:00) Pacific Time', '(GMT-05:00) Eastern Time', '(GMT+00:00) London', '(GMT+01:00) Berlin', '(GMT+08:00) Singapore']} onChange={tz => set({ tz })} />
+        <PrefSelect label="tz" value={s.tz} options={[['', t('settings.dateTime.timezoneBrowser')], ...TIME_ZONES.map(z => [z, z] as [string, string]), ...(s.tz && !TIME_ZONES.includes(s.tz) ? [[s.tz, s.tz] as [string, string]] : [])]} onChange={tz => set({ tz })} />
       </SRow>
       <SRow
         t={t('settings.dateTime.dateFormat')}
@@ -378,7 +381,7 @@ export function DateTimeSection({ title }: { title: string }) {
           label="dateFmt"
           value={s.dateFmt}
           options={[
-            ['MMM d', 'Oct 1'],
+            ['MMM d', t('settings.dateTime.dateByLanguage')],
             ['d/M', '1/10'],
             ['M/d', '10/1'],
             ['yyyy-MM-dd', '2026-10-01'],
@@ -403,6 +406,7 @@ export function DateTimeSection({ title }: { title: string }) {
           label="timeFmt"
           value={s.timeFmt}
           options={[
+            ['auto', t('settings.dateTime.timeByLanguage')],
             ['12', t('settings.dateTime.format12')],
             ['24', t('settings.dateTime.format24')],
           ]}

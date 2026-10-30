@@ -174,7 +174,10 @@ export const settings = {
   dateTime: {
     lead: 'How dates and times appear across the workspace.',
     timezone: 'Time zone',
-    timezoneHint: 'Used for due dates and reminders.',
+    timezoneHint: 'Applies to times of creation and changes (dates of tasks and documents do not shift).',
+    timezoneBrowser: 'Browser time zone',
+    dateByLanguage: 'By language (Oct 1)',
+    timeByLanguage: 'By language',
     dateFormat: 'Date format',
     weekStart: 'Start week on',
     timeFormat: 'Time format',
@@ -250,6 +253,7 @@ export const settings = {
       overdue: { t: 'When my task is overdue' },
     },
     saved: 'Notification preferences saved',
+    channelsNote: 'These switches control notifications inside the app. Email and push notifications, @mention and overdue alerts are not connected yet, so their switches are hidden.',
   },
 
   /* ---------------- profile ---------------- */

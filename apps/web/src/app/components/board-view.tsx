@@ -7,6 +7,7 @@ import { useT } from '@/i18n';
 import { StatusIcon, type Status } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
 import { useWorkspace, type TaskPatch } from '../data/store';
+import { useMyPrefs } from '../data/settings';
 import { newStatusKey } from '../lib/uuid';
 import { countSubs } from '../data/subtasks';
 import { LABELS, STATUS_PALETTE, commentsOf, fmtHours, planOfTask, project as findProject, sortTasks } from '../data/selectors';
@@ -391,8 +392,11 @@ function Composer({ onSubmit, onCancel }: { onSubmit: (title: string) => void; o
   );
 }
 
-export function BoardView({ tasks, defaultProject, project, showSubtasks = false, density = 'full' }: BoardViewProps) {
+export function BoardView({ tasks: allTasks, defaultProject, project, showSubtasks = false, density = 'full' }: BoardViewProps) {
   const { data, dispatch } = useWorkspace();
+  // Личная настройка «Показывать завершённые задачи на досках»
+  const { showDoneBoard } = useMyPrefs();
+  const tasks = React.useMemo(() => (showDoneBoard ? allTasks : allTasks.filter(t => t.status !== 'done')), [allTasks, showDoneBoard]);
   const statuses = data.statuses;
   const compact = density === 'compact';
   // Новая колонка (поле имени справа), переименование и удаление пользовательских колонок

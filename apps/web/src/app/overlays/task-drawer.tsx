@@ -6,6 +6,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { ConfirmDialog, ContextMenu, ContextMenuContent, ContextMenuTrigger, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { newId, useWorkspace } from '../data/store';
+import { useMyPrefs } from '../data/settings';
 import { canSee, project as findProject } from '../data/selectors';
 import { fileSize } from '../data/selectors';
 import { countSubs, findSub } from '../data/subtasks';
@@ -65,6 +66,10 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
 
   const dataRef = React.useRef(data);
   dataRef.current = data;
+  // Личные предпочтения: где открывать задачи и спрашивать ли перед удалением
+  const prefs = useMyPrefs();
+  const prefsRef = React.useRef(prefs);
+  prefsRef.current = prefs;
   const stRef = React.useRef(st);
   stRef.current = st;
   const editorRef = React.useRef<((taskId: string) => void) | null>(null);
@@ -89,7 +94,7 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
     setSt({
       taskId,
       subId: subId && findSub(task.subtasks, subId) ? subId : null,
-      full: !!prev && prev.taskId === taskId && prev.full,
+      full: prev && prev.taskId === taskId ? prev.full : prefsRef.current.openTasks === 'full',
       tab: prev?.tab ?? 'comments',
       enter: !prev || prev.taskId !== taskId,
     });
@@ -222,7 +227,7 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
       open: task => open(task.id),
       // Форма редактирования — режим формы задачи (A.editTask)
       edit: task => editorRef.current?.(task.id),
-      askDelete: task => setConfirm(task),
+      askDelete: task => (prefsRef.current.confirmDel ? setConfirm(task) : deleteTaskRef.current(task)),
       archive: task => {
         const snap = dataRef.current;
         dispatch({ type: 'task/archive', id: task.id });
@@ -242,11 +247,13 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
     [open, dispatch, windows, t],
   );
 
+  const deleteTaskRef = React.useRef<(task: Task) => void>(() => {});
   const deleteTask = (task: Task) => {
     const snap = dataRef.current;
     dispatch({ type: 'task/delete', ids: [task.id] });
     toast(t('overlays.taskDrawer.deleted', { title: task.title }), { action: { label: t('common.undo'), onClick: () => dispatch({ type: 'data/restore', data: snap }) } });
   };
+  deleteTaskRef.current = deleteTask;
 
   const shared = React.useMemo<PanelShared>(
     () => ({ uploads, drafts, setDraft: (id, v) => setDrafts(d => ({ ...d, [id]: v })), onFiles, openTask: open }),

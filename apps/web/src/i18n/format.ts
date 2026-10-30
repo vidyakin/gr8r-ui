@@ -1,6 +1,7 @@
 /* Форматирование чисел, денег и дат по текущему языку. Только для показа: ru-RU даёт запятую и неразрывные пробелы,
    поэтому значения input, CSV и печатные формы так не форматируются. Форматтеры Intl кешируются по локали и опциям */
 import { getLocale, intlLocale } from './locale';
+import { getFormatPrefs } from './format-prefs';
 
 const numCache = new Map<string, Intl.NumberFormat>();
 const dateCache = new Map<string, Intl.DateTimeFormat>();
@@ -32,10 +33,23 @@ export const fmtCurrency = (n: number | string | null | undefined, currency = 'U
 /** Сокращённая запись: 48.5K / 48,5 тыс. */
 export const fmtCompact = (n: number, opts?: Intl.NumberFormatOptions) => fmtNumber(n, { notation: 'compact', maximumFractionDigits: 1, ...opts });
 
-export const fmtDateTimeIntl = (d: Date | string | number, opts: Intl.DateTimeFormatOptions) => dateFmt(opts).format(new Date(d));
+const hasTime = (o: Intl.DateTimeFormatOptions) => !!(o.hour || o.minute || o.timeStyle);
 
-/** Дата и время: «Oct 23, 2026, 2:30 PM» / «23 окт. 2026 г., 14:30» */
-export const fmtDateTime = (d: Date | string | number) => fmtDateTimeIntl(d, { dateStyle: 'medium', timeStyle: 'short' });
+/** Личный формат времени (12/24 часа) применяется ко всем форматам с часами; «auto» — по языку */
+function withTimeFmt(opts: Intl.DateTimeFormatOptions): Intl.DateTimeFormatOptions {
+  const f = getFormatPrefs().timeFmt;
+  return hasTime(opts) && f !== 'auto' ? { ...opts, hour12: f === '12' } : opts;
+}
+
+/** Часовой пояс здесь не применяется: даты — календарные дни или время суток, собранные в локальном поясе (иначе день съедет) */
+export const fmtDateTimeIntl = (d: Date | string | number, opts: Intl.DateTimeFormatOptions) => dateFmt(withTimeFmt(opts)).format(new Date(d));
+
+/** Момент времени (метка с сервера) в личном часовом поясе (Настройки → Дата и время; пусто — пояс браузера) и формате времени:
+    «Oct 23, 2026, 2:30 PM» / «23 окт. 2026 г., 14:30» */
+export const fmtDateTime = (d: Date | string | number) => {
+  const tz = getFormatPrefs().tz;
+  return dateFmt(withTimeFmt({ dateStyle: 'medium', timeStyle: 'short', ...(tz ? { timeZone: tz } : {}) })).format(new Date(d));
+};
 
 /** Разбор числа, введённого по правилам языка: en «50,000.5» → 50000.5, ru «50 000,5» → 50000.5 */
 export function parseNumber(s: string): number {

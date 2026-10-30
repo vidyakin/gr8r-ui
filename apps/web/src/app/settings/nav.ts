@@ -41,9 +41,6 @@ export const SET_NAV: [string, [id: string, nameKey: string, icon: LucideIcon][]
   [
     'notifications',
     [
-      ['notif-email', 'notifEmail', Mail],
-      ['notif-push', 'notifPush', Smartphone],
-      ['notif-mentions', 'notifMentions', AtSign],
       ['notif-assign', 'notifAssign', UserCheck],
     ],
   ],
@@ -60,7 +57,6 @@ export const SET_NAV: [string, [id: string, nameKey: string, icon: LucideIcon][]
     [
       ['password', 'password', KeyRound],
       ['sessions', 'sessions', MonitorSmartphone],
-      ['2fa', 'twofa', ShieldCheck],
     ],
   ],
   [
