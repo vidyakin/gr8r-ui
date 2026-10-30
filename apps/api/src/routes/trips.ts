@@ -11,7 +11,10 @@ import {
   createTripWaybill,
   deleteTrip,
   dispatchBoard,
+  ensureTransportWaybill,
+  getTransportWaybill,
   getTrip,
+  transportWaybillPrintData,
   listTrips,
   removeStop,
   reorderStops,
@@ -23,7 +26,10 @@ import {
   updateStop,
   updateTrip,
 } from '@gr8r/db';
-import { dispatchQuery, idParam, renderRouteSheet, tripAddDelivery, tripQuery, tripSave, tripSettingsSave, tripStopOrder, tripStopSave, tripStopStatus, tripStopUpdate, tripUpdate } from '@gr8r/shared';
+import { dispatchQuery, idParam, renderRouteSheet, renderTransportWaybill, tnCreate, tripAddDelivery, tripQuery, tripSave, tripSettingsSave, tripStopOrder, tripStopSave, tripStopStatus, tripStopUpdate, tripUpdate } from '@gr8r/shared';
+import { documentExports, jobs } from '@gr8r/db';
+import { and, eq } from 'drizzle-orm';
+import { AppError } from '../errors';
 import { ctxOf, validationHook } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';
@@ -35,6 +41,33 @@ const ok = { ok: true } as const;
 
 export const tripRoutes = new Hono<AppEnv>()
   .get('/settings', async c => c.json({ capacityMode: await tripCapacityMode(ctxOf(c).db, ctxOf(c).workspaceId) }))
+  // транспортная накладная (1214): выдать номер (повторно — тот же), HTML-страница, PDF задачей воркеру
+  .post('/tn', write, zValidator('json', tnCreate, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json(await ensureTransportWaybill(ctx.db, docCtx(ctx), c.req.valid('json')));
+  })
+  .get('/tn/:id', zValidator('param', idParam, validationHook), async c => c.json(await getTransportWaybill(ctxOf(c).db, c.req.valid('param').id)))
+  .get('/tn/:id/print', zValidator('param', idParam, validationHook), async c => {
+    const data = await transportWaybillPrintData(ctxOf(c).db, c.req.valid('param').id);
+    c.header('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'");
+    c.header('X-Content-Type-Options', 'nosniff');
+    return c.html(renderTransportWaybill(data));
+  })
+  .post('/tn/:id/pdf', write, zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const w = await getTransportWaybill(ctx.db, c.req.valid('param').id);
+    const [row] = await ctx.db.insert(documentExports).values({ workspaceId: ctx.workspaceId, name: `${w.number}.pdf`, contentType: 'application/pdf', requestedBy: ctx.memberId }).returning({ id: documentExports.id, name: documentExports.name, status: documentExports.status });
+    await ctx.db.insert(jobs).values({ workspaceId: ctx.workspaceId, type: 'transport.waybill_pdf', payload: { exportId: row!.id, waybillId: w.id } });
+    return c.json(row!, 202);
+  })
+  .get('/tn-files/:id', zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const [row] = await ctx.db.select().from(documentExports).where(and(eq(documentExports.id, c.req.valid('param').id), eq(documentExports.workspaceId, ctx.workspaceId), eq(documentExports.contentType, 'application/pdf'))).limit(1);
+    if (!row) throw new AppError(404, 'not_found', 'File not found');
+    if (c.req.query('download') !== '1') return c.json({ id: row.id, name: row.name, status: row.status, size: row.size, error: row.error });
+    if (row.status !== 'ready' || !row.data) throw new AppError(409, 'not_ready', row.status === 'failed' ? `PDF generation failed: ${row.error}` : 'The PDF is not ready yet');
+    return new Response(new Uint8Array(row.data), { headers: { 'content-type': 'application/pdf', 'content-disposition': `attachment; filename="${row.name}"`, 'content-length': String(row.data.length), 'x-content-type-options': 'nosniff' } });
+  })
   .put('/settings', requireRole('admin'), zValidator('json', tripSettingsSave, validationHook), async c => {
     const ctx = ctxOf(c);
     return c.json(await saveTripSettings(ctx.db, docCtx(ctx), c.req.valid('json').capacityMode));

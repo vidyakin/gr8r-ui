@@ -2,8 +2,8 @@
    (индексы полей конструктора), PDF печатных форм, ZIP-архив выгрузки счетов, закрытие периода (production.close_period)
    и выполнение запусков автоматизаций (flow.run). */
 import { and, eq, inArray } from 'drizzle-orm';
-import { BANK_SYNC_JOB, buildPrintData, renderDocumentHtml, settlementActHtml, createFieldIndex, integrationRuntime, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, isUuid, jobs, withContext, type Db, type Sql } from '@gr8r/db';
-import { FIELD_TYPES, renderPrintForm, type FieldType, type PrintForm } from '@gr8r/shared';
+import { BANK_SYNC_JOB, buildPrintData, renderDocumentHtml, settlementActHtml, transportWaybillPrintData, createFieldIndex, integrationRuntime, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, isUuid, jobs, withContext, type Db, type Sql } from '@gr8r/db';
+import { FIELD_TYPES, renderPrintForm, renderTransportWaybill, type FieldType, type PrintForm } from '@gr8r/shared';
 import { loadRequestForHook, markRequestHookSent } from '@gr8r/db';
 import { runClosePeriod } from './production-closing';
 import { executeRun } from './flows/engine';
@@ -173,6 +173,22 @@ export const jobHandlers: Record<string, (job: JobRow, h: JobContext) => Promise
         }),
       );
       const bytes = await pdfRuntime.render(html, 'invoice'); // акт — A4 портрет
+      await h.read(db => archiveRuntime.store.save(db, { id: row.id, workspaceId: row.workspaceId }, bytes));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await h.read(db => db.update(documentExports).set({ status: 'failed', error: msg.slice(0, 1000), finishedAt: new Date() }).where(eq(documentExports.id, row.id)));
+    }
+  },
+  /** Транспортная накладная → PDF (1214). Файл — в document_exports, как акт сверки; ошибка помечает файл failed, накладную можно заказать заново */
+  'transport.waybill_pdf': async (job, h) => {
+    const p = job.payload as { exportId?: unknown; waybillId?: unknown };
+    if (!isUuid(p.exportId) || !isUuid(p.waybillId)) throw new Error('transport.waybill_pdf job: payload.exportId and payload.waybillId must be uuids');
+    const exportId = p.exportId;
+    const row = await h.read(async db => (await db.select().from(documentExports).where(eq(documentExports.id, exportId)).limit(1))[0]);
+    if (!row) return;
+    try {
+      const html = await h.read(async db => renderTransportWaybill(await transportWaybillPrintData(db, p.waybillId as string)));
+      const bytes = await pdfRuntime.render(html, 'invoice'); // A4 портрет
       await h.read(db => archiveRuntime.store.save(db, { id: row.id, workspaceId: row.workspaceId }, bytes));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

@@ -46,7 +46,7 @@ export async function claimJobs(sql: Sql, o: WorkerOptions): Promise<JobRow[]> {
 }
 
 /** Задачи, которые только читают данные: в режиме «только чтение» после окончания срока модуля они ещё работают */
-const READONLY_SAFE_JOBS = new Set(['document.pdf', 'settlement.act_pdf', 'billing.export_zip']);
+const READONLY_SAFE_JOBS = new Set(['document.pdf', 'settlement.act_pdf', 'billing.export_zip', 'transport.waybill_pdf']);
 
 /** Выполняет одну задачу; успех → done, ошибка → повтор с экспоненциальной паузой или failed после max_attempts */
 async function runJob(sql: Sql, job: JobRow, o: WorkerOptions): Promise<void> {

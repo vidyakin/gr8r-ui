@@ -57,5 +57,8 @@ export const tripStopOrder = z.object({ stopIds: z.array(uuid).min(1).max(500) }
 export const tripStopStatus = z.object({ status: z.enum(STOP_STATUSES), comment: text(1000).optional() });
 export const tripAddDelivery = z.object({ deliveryId: uuid, index: z.number().int().min(0).max(500).optional() });
 
+/** Транспортная накладная (1214): область — рейс, точка рейса или доставка; нужна ровно одна из ссылок (доставка может сопровождаться рейсом) */
+export const tnCreate = z.object({ tripId: uuid.optional(), stopId: uuid.optional(), deliveryId: uuid.optional() }).refine(v => !!(v.tripId || v.stopId || v.deliveryId), { message: 'tripId, stopId or deliveryId is required' });
+
 export const tripSettingsSave = z.object({ capacityMode: z.enum(TRIP_CAPACITY_MODES) });
 export const dispatchQuery = z.object({ date: isoDate });
