@@ -59,4 +59,16 @@
 - **Оператор установки** (`users.is_operator`) — единственное чтение через всех арендаторов из API: `SECURITY DEFINER`-функция
   `app_operator_tenants()` отдаёт только метаданные. Удаление арендатора целиком — воркер и CLI под `app_worker`, которому для этого выдан
   `DELETE` на `users` (пользователи без других членств). Подробно — `deploy.md`.
+- **Закрытые проекты** (`projects.is_private` или `access = 'private'`) закрыты на уровне БД, а не фильтрами в маршрутах (миграция
+  `0071_private_projects.sql`). Проект видят: участники (`project_members`), руководитель (`lead_id`), создатель (`created_by`, чтобы видеть проект
+  сразу при создании, до записи участников) и owner/admin воркспейса (`memberships.role`). Функция `app_project_visible(...)` (SECURITY INVOKER,
+  по `app.user_id`/`app.workspace_id`) подключена RESTRICTIVE-политикой `private_project` к `projects`; остальные таблицы (`tasks`, `comments`,
+  `comment_reactions`, `time_logs`, `files`, `activity`, `notifications`, `saved_views`, `calendar_events`) ссылаются на видимые строки родителя
+  (`project_id IN (SELECT id FROM projects)` и т. п.), поэтому чтение, запись и перенос в закрытый проект без доступа невозможны, а прямой вызов
+  API по id даёт 404 (запись — 403 от RLS). Выбран RLS, а не фильтр по участникам в `work.ts`: фильтры пришлось бы повторять в каждом
+  маршруте, включая поиск, календарь, отчёты и будущие. Журнал `events` хранит снимки записей, поэтому `GET /events` скрывает события закрытых
+  проектов через `app_event_hidden(entity, record_id)` (SECURITY DEFINER, владелец `app_worker`). Роль `app_worker` (воркер, автоматизации)
+  политики не видит. Ограничения: конверт WebSocket (тип, сущность, id без содержимого) приходит всем участникам воркспейса; таблицы
+  производства и услуг со ссылкой на `task_id` (`work_order_assignments` и др.) не фильтруются — системные проекты модулей закрытыми не бывают.
+  Тесты: `apps/api/test/private-projects.test.ts`.
 - Крупному клиенту позже можно выделить отдельную схему или БД — код от этого не меняется.

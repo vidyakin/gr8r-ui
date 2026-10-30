@@ -78,7 +78,7 @@ export const projectRoutes = crud({
   defaultSort: 'sortOrder',
   search: [projects.name, projects.key, projects.description],
   filters: (q, ctx) => [favoriteFilter(ctx, 'project', projects.id, q.fav), q.status ? eq(projects.status, q.status) : undefined, q.teamId ? eq(projects.teamId, q.teamId) : undefined, q.leadId ? eq(projects.leadId, q.leadId) : undefined,  q.module ? eq(projects.module, q.module) : undefined],
-  prepareCreate: async (ctx, body) => ({ sortOrder: body.sortOrder ?? (await nextOrder(ctx, projects)), ...(await customForCreate(ctx, 'project', body.custom)) }),
+  prepareCreate: async (ctx, body) => ({ createdBy: ctx.memberId, sortOrder: body.sortOrder ?? (await nextOrder(ctx, projects)), ...(await customForCreate(ctx, 'project', body.custom)) }),
   prepareUpdate: (ctx, existing, body) => customForUpdate(ctx, 'project', existing.custom, body.custom, existing.id),
   afterCreate: async (ctx, row, body) => {
     await setProjectMembers(ctx, row.id, body.members ?? [{ memberId: ctx.memberId, permission: 'admin' }]);
@@ -444,5 +444,6 @@ export const eventRoutes = crud({
   sortable: { id: events.id, createdAt: events.createdAt },
   defaultSort: 'id',
   disabled: ['create', 'update', 'delete'],
-  filters: q => [dsql`${events.id} > ${q.since ?? '00000000-0000-0000-0000-000000000000'}::uuid`, q.entity ? eq(events.entity, q.entity) : undefined, q.type ? eq(events.type, q.type) : undefined, q.recordId ? eq(events.recordId, q.recordId) : undefined],
+  // события закрытых проектов (со снимками записей в payload) участнику без доступа не отдаём
+  filters: q => [dsql`not app_event_hidden(${events.entity}, ${events.recordId})`, dsql`${events.id} > ${q.since ?? '00000000-0000-0000-0000-000000000000'}::uuid`, q.entity ? eq(events.entity, q.entity) : undefined, q.type ? eq(events.type, q.type) : undefined, q.recordId ? eq(events.recordId, q.recordId) : undefined],
 });

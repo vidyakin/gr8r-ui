@@ -42,7 +42,10 @@ export const projects = pgTable(
     leadId: uuid('lead_id'),
     startDate: date('start_date', { mode: 'string' }),
     dueDate: date('due_date', { mode: 'string' }),
+    /** Закрытый проект: видят только участники проекта, руководитель, создатель и owner/admin воркспейса (RLS, миграция 0071) */
     isPrivate: boolean('is_private').notNull().default(false),
+    /** Создатель: видит закрытый проект сразу при создании, до записи участников */
+    createdBy: uuid('created_by'),
     /** Общий доступ (форма Share) */
     access: text('access', { enum: ['private', 'workspace'] }).notNull().default('workspace'),
     description: text('description').notNull().default(''),

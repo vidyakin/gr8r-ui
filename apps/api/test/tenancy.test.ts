@@ -86,7 +86,7 @@ describe('HTTP: tenant boundary', () => {
     expect(t.status).toBe(422);
     // комментарий к чужой задаче
     const cm = await A.c.post('/comments', { taskId: B.task.id, body: 'sneaky' });
-    expect(cm.status).toBe(422);
+    expect([403, 422]).toContain(cm.status); // 403 — политика закрытых проектов (RLS) срабатывает раньше внешнего ключа
     // сделка с чужой компанией
     const d = await A.c.post('/deals', { name: 'sneaky', companyId: B.company.id });
     expect(d.status).toBe(422);
