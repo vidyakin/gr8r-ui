@@ -62,3 +62,18 @@ export const tnCreate = z.object({ tripId: uuid.optional(), stopId: uuid.optiona
 
 export const tripSettingsSave = z.object({ capacityMode: z.enum(TRIP_CAPACITY_MODES) });
 export const dispatchQuery = z.object({ date: isoDate });
+
+/** Водительская отметка: координаты задаются парой; POD ограничен и хранится в БД. */
+export const driverStopEvent = z.object({
+  clientId: z.uuid(),
+  status: z.enum(['arrived', 'done', 'failed']),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
+  comment: z.string().max(1000).optional(),
+  photo: z.string().max(2_097_152).optional(),
+  signature: z.string().max(524_288).optional(),
+}).refine(v => (v.latitude === undefined) === (v.longitude === undefined), { message: 'Coordinates must be supplied together' });
+
+export const driverCashPayment = z.object({ clientId: z.uuid(), amount: decimal.refine(v => /^\d+(?:\.\d{1,2})?$/.test(v) && Number(v) > 0, 'Positive amount with at most two decimals required') });
+
+export const driverPartialReturn = z.object({ clientId: z.uuid(), lines: z.array(z.object({ lineId: z.uuid(), qty: decimal.refine(v => /^\d+(?:\.\d{1,3})?$/.test(v) && Number(v) > 0, 'Positive quantity required') })).min(1).max(200) }).refine(v => new Set(v.lines.map(l => l.lineId)).size === v.lines.length, 'Duplicate lines');

@@ -2,6 +2,10 @@ import type { Widen } from '../types';
 import type { errors as E } from '../en/errors';
 
 export const errors: Widen<typeof E> = {
+  driver_payment_conflict: 'Этот идентификатор уже использован для другой оплаты.',
+  driver_return_conflict: 'Этот идентификатор уже использован для другого возврата.',
+  return_requires_realization: 'Для возврата нужна проведённая реализация.',
+  invalid_return_quantity: 'Количество возврата превышает доступное.',
   unknown: 'Что-то пошло не так',
   network: 'Сервер недоступен',
   not_found: 'Запись не найдена',
@@ -368,6 +372,8 @@ export const errors: Widen<typeof E> = {
   warehouse_not_empty: 'На складе ещё есть остаток: сначала переместите или спишите его',
   work_order_kind_required: 'У заказ-наряда не указан вид',
   work_order_state_only: 'Заказ-наряд проводится при переходе в состояние «Выполнен»',
+  trip_not_yours: 'Рейс не назначен вам',
+  driver_event_conflict: 'Этот идентификатор уже использован для другой отметки',
   workspace_invalid: 'Идентификатор воркспейса — не корректный UUID',
   workspace_required: 'Нужен заголовок X-Workspace-Id',
 };

@@ -26,3 +26,5 @@ createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </StrictMode>,
 );
+
+if (import.meta.env.PROD && 'serviceWorker' in navigator) void navigator.serviceWorker.register('/driver-sw.js');

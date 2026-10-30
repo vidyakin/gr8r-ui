@@ -160,6 +160,7 @@ export const SECTIONS = {
   fleetFines: { path: '/fleet/fines', name: 'Fines', icon: ReceiptText },
   // Транспорт: рейсы и диспетчер (задача 1211)
   trips: { path: '/trips', name: 'Trips', icon: Waypoints },
+  driverWorkplace: { path: '/trips/driver', name: 'Driver workplace', icon: UserRound },
   dispatch: { path: '/trips/dispatch', name: 'Dispatcher', icon: CalendarRange },
   // Договоры и биллинг
   contracts: { path: '/contracts', name: 'Contracts', icon: FileSignature },
@@ -238,7 +239,7 @@ export const NAV_GROUPS = {
   },
   transport: {
     icon: Truck,
-    items: [{ id: 'dispatch' }, { id: 'trips' }, { id: 'fleet' }, { id: 'fleetVehicles' }, { id: 'fleetDrivers' }, { id: 'fleetDocuments' }, { id: 'fleetWaybills' }, { id: 'fleetFuel' }, { id: 'fleetService' }, { id: 'fleetFines' }],
+    items: [{ id: 'driverWorkplace' }, { id: 'dispatch' }, { id: 'trips' }, { id: 'fleet' }, { id: 'fleetVehicles' }, { id: 'fleetDrivers' }, { id: 'fleetDocuments' }, { id: 'fleetWaybills' }, { id: 'fleetFuel' }, { id: 'fleetService' }, { id: 'fleetFines' }],
   },
   finance: {
     icon: Landmark,
