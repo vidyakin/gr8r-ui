@@ -80,6 +80,8 @@ export const payrollLineInput = z.object({
   ndfl: money.optional(),
   insurance: money.optional(),
   reflectionId: uuid.nullish(),
+  /** Рейс, за который начислена оплата водителю (trip_* базы, задача 1224); пусто для прочих видов */
+  tripId: uuid.nullish(),
   comment: z.string().trim().max(500).default(''),
 });
 export type PayrollLineInput = z.infer<typeof payrollLineInput>;

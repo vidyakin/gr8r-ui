@@ -335,6 +335,7 @@ async function savePayrollLines(db: Db, ctx: DocCtx, doc: DocRow, inputs: Payrol
       ndfl: deduction ? '0.00' : (l.ndfl ?? ndflOf(l.amount, emps.get(l.memberId)?.ndflRate ?? '13')),
       insurance: deduction ? '0.00' : (l.insurance ?? insuranceOf(l.amount, insuranceRate, kind.insurable)),
       reflectionId: l.reflectionId ?? emps.get(l.memberId)?.reflectionId ?? null,
+      tripId: l.tripId ?? null,
       comment: l.comment?.trim() ?? '',
     } satisfies typeof payrollLines.$inferInsert;
   });
@@ -409,25 +410,21 @@ async function salesByResponsible(db: Db, workspaceId: string, from: string, to:
 }
 
 /** Начисления водителям по фактически завершённым рейсам за период: за рейс, за км маршрута, за точку доставки (done),
-    суточные по междугородним рейсам (день рейса — каждый день dateFrom..dateTo). Считается по каждому базовому виду отдельно,
-    совместный водитель получает начисление по тем же ставкам, что основной (решение задачи 1224 — ставки не делятся).
-    Рейс относится ровно к одному периоду по дате завершения (finishedAt, в её отсутствие — dateTo), повторный «Заполнить»
-    пересчитывает с нуля — без двойного начисления, как сдельная выработка (pieceworkReport) */
+    суточные по междугородним рейсам (день рейса — каждый день dateFrom..dateTo). Одна запись на сотрудника × вид × рейс
+    (строка документа получает trip_id и номер рейса в комментарии); совместный водитель получает начисление по тем же
+    ставкам, что основной (решение задачи 1224 — ставки не делятся). Рейс относится ровно к одному периоду по дате
+    завершения (finishedAt, в её отсутствие — dateTo). Рейс, по которому у сотрудника этот вид уже есть в другом
+    неотменённом документе начисления (кроме самого заполняемого — его старые строки будут заменены), не включается:
+    это защита от двойного начисления; повторное «Заполнить» того же документа пересчитывает его собственные строки. */
 async function tripAccrualsReport(
   db: Db,
   workspaceId: string,
   from: string,
   to: string,
   rates: { tripPieceworkRate: string; tripKmRate: string; tripStopRate: string; tripPerdiemRate: string },
-): Promise<Map<string, Record<PayrollBaseType, string>>> {
-  const zero = { trip_piecework: '0', trip_km: '0', trip_stop: '0', trip_perdiem: '0' } as Record<PayrollBaseType, string>;
-  const result = new Map<string, Record<PayrollBaseType, string>>();
-  const add = (memberId: string, base: PayrollBaseType, amount: string) => {
-    if (dec(amount) <= 0n) return;
-    const row = result.get(memberId) ?? { ...zero };
-    row[base] = fmt(dec(row[base]) + dec(amount), 2);
-    result.set(memberId, row);
-  };
+  excludeDocumentId: string,
+): Promise<{ memberId: string; tripId: string; tripNumber: string; base: PayrollBaseType; amount: string }[]> {
+  const out: { memberId: string; tripId: string; tripNumber: string; base: PayrollBaseType; amount: string }[] = [];
 
   const trips = await db
     .select()
@@ -440,7 +437,7 @@ async function tripAccrualsReport(
         sql`coalesce(${fleetTrips.finishedAt}::date, ${fleetTrips.dateTo}) <= ${to}::date`,
       ),
     );
-  if (!trips.length) return result;
+  if (!trips.length) return out;
 
   const tripIds = trips.map(t => t.id);
   const stopCounts = new Map<string, number>();
@@ -453,20 +450,45 @@ async function tripAccrualsReport(
     for (const r of rows) stopCounts.set(r.tripId, Number(r.n));
   }
 
+  // уже начислено по рейсу × сотруднику × виду в других неотменённых документах — такой рейс пропускаем (защита от двойного начисления)
+  const already = await db
+    .select({ tripId: payrollLines.tripId, memberId: payrollLines.memberId, kindId: payrollLines.kindId })
+    .from(payrollLines)
+    .innerJoin(documents, eq(documents.id, payrollLines.documentId))
+    .where(and(eq(payrollLines.workspaceId, workspaceId), inArray(payrollLines.tripId, tripIds), ne(documents.status, 'cancelled'), ne(documents.id, excludeDocumentId)));
+  const kindBase = new Map((await db.select({ id: payrollKinds.id, baseType: payrollKinds.baseType }).from(payrollKinds).where(eq(payrollKinds.workspaceId, workspaceId))).map(k => [k.id, k.baseType]));
+  const taken = new Set(already.map(r => `${r.tripId}:${r.memberId}:${kindBase.get(r.kindId) ?? ''}`));
+
   for (const t of trips) {
     const drivers = [t.driverMemberId, ...(t.coDriverMemberId ? [t.coDriverMemberId] : [])];
     for (const memberId of drivers) {
-      add(memberId, 'trip_piecework', tripAccrualAmount(1, rates.tripPieceworkRate));
-      if (t.routeKm) add(memberId, 'trip_km', tripAccrualAmount(t.routeKm, rates.tripKmRate));
+      const add = (base: PayrollBaseType, amount: string) => {
+        if (dec(amount) <= 0n) return;
+        if (taken.has(`${t.id}:${memberId}:${base}`)) return;
+        out.push({ memberId, tripId: t.id, tripNumber: t.number, base, amount });
+      };
+      add('trip_piecework', tripAccrualAmount(1, rates.tripPieceworkRate));
+      if (t.routeKm) add('trip_km', tripAccrualAmount(t.routeKm, rates.tripKmRate));
       const stops = stopCounts.get(t.id) ?? 0;
-      if (stops > 0) add(memberId, 'trip_stop', tripAccrualAmount(stops, rates.tripStopRate));
+      if (stops > 0) add('trip_stop', tripAccrualAmount(stops, rates.tripStopRate));
       if (t.kind === 'intercity') {
         const days = dateRange(t.dateFrom, t.dateTo).length;
-        if (days > 0) add(memberId, 'trip_perdiem', tripAccrualAmount(days, rates.tripPerdiemRate));
+        if (days > 0) add('trip_perdiem', tripAccrualAmount(days, rates.tripPerdiemRate));
       }
     }
   }
-  return result;
+  return out;
+}
+
+/** Сумма оплаты водителю за рейс (задача 1224): amount + insurance строк с этим trip_id в проведённых документах начисления.
+    Берёт маржа рейса (задача 1223) — поэтому только проведённые суммы, ещё не выплата, а начисленная затрата. */
+export async function tripDriverPay(db: Db, tripId: string): Promise<string> {
+  const [row] = await db
+    .select({ s: sql<string>`coalesce(sum(${payrollLines.amount} + ${payrollLines.insurance}), 0)::text` })
+    .from(payrollLines)
+    .innerJoin(documents, eq(documents.id, payrollLines.documentId))
+    .where(and(eq(payrollLines.tripId, tripId), eq(documents.status, 'posted')));
+  return fmt(dec(row?.s ?? '0'), 2);
 }
 
 /** Заполнить: оклад по графику, сдельная по нарядам, процент от продаж и премии. Строки разовых начислений и удержаний сохраняются */
@@ -506,7 +528,9 @@ export async function fillPayroll(db: Db, ctx: DocCtx, id: string, memberIds?: s
   for (const r of await pieceworkReport(db, { from, to })) pw.set(r.memberId, (pw.get(r.memberId) ?? 0n) + dec(r.amount));
   const wantMargin = [...planned.values()].some(a => a.percentBasis === 'margin' && a.percent !== null);
   const sales = await salesByResponsible(db, ctx.workspaceId, from, to, wantMargin);
-  const tripAccruals = await tripAccrualsReport(db, ctx.workspaceId, from, to, { tripPieceworkRate, tripKmRate, tripStopRate, tripPerdiemRate });
+  const tripAccruals = await tripAccrualsReport(db, ctx.workspaceId, from, to, { tripPieceworkRate, tripKmRate, tripStopRate, tripPerdiemRate }, id);
+  const tripByMember = new Map<string, (typeof tripAccruals)[number][]>();
+  for (const t of tripAccruals) tripByMember.set(t.memberId, [...(tripByMember.get(t.memberId) ?? []), t]);
 
   const auto: PayrollLineInput[] = [];
   for (const { m, e } of emps) {
@@ -545,8 +569,8 @@ export async function fillPayroll(db: Db, ctx: DocCtx, id: string, memberIds?: s
     }
     const pieceSum = pw.get(m.id) ?? 0n;
     if (pieceSum > 0n) push(kinds.get('piecework')!.id, fmt(pieceSum, 2), '0', fmt(pieceSum, 2));
-    const trip = tripAccruals.get(m.id);
-    if (trip) for (const base of TRIP_BASE_TYPES) if (dec(trip[base]) > 0n) push(kinds.get(base)!.id, trip[base], '0', trip[base]);
+    // одна строка на сотрудника × вид × рейс, номер рейса — в комментарии (задача 1224)
+    for (const t of tripByMember.get(m.id) ?? []) push(kinds.get(t.base)!.id, t.amount, '0', t.amount, { tripId: t.tripId, comment: `рейс ${t.tripNumber}` });
   }
 
   // сохраняем ручные строки (разовые, удержания) и строки сотрудников вне выборки
@@ -556,7 +580,7 @@ export async function fillPayroll(db: Db, ctx: DocCtx, id: string, memberIds?: s
     const isAuto = b === 'salary' || b === 'piecework' || b === 'sales_percent' || b === 'bonus' || (TRIP_BASE_TYPES as readonly string[]).includes(b ?? '');
     return !(isAuto && (!memberIds?.length || memberIds.includes(l.memberId)));
   });
-  const keepInputs: PayrollLineInput[] = keepRows.map(l => ({ id: l.id, memberId: l.memberId, kindId: l.kindId, base: l.base, rate: l.rate, workedDays: l.workedDays, normDays: l.normDays, amount: l.amount, ndfl: l.ndfl, insurance: l.insurance, reflectionId: l.reflectionId, comment: l.comment }));
+  const keepInputs: PayrollLineInput[] = keepRows.map(l => ({ id: l.id, memberId: l.memberId, kindId: l.kindId, base: l.base, rate: l.rate, workedDays: l.workedDays, normDays: l.normDays, amount: l.amount, ndfl: l.ndfl, insurance: l.insurance, reflectionId: l.reflectionId, tripId: l.tripId, comment: l.comment }));
   await savePayrollLines(db, ctx, doc, [...keepInputs, ...auto]);
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.updated', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { documentType: 'payroll', filled: true } });
 }
