@@ -6,7 +6,7 @@ sources:
   - apps/web/src/app/docs/JournalPage.tsx
   - apps/web/src/app/docs/DocumentPage.tsx
   - apps/api/src/routes/documents.ts
-verified: 51f4355cc6
+verified: 66905e9009
 screenshots: []
 ---
 

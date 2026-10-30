@@ -8,7 +8,7 @@ sources:
   - apps/web/src/app/automations/node-i18n.ts
   - apps/web/src/i18n/ru/automations.ts
   - packages/shared/src/automations/nodes/*.ts
-verified: 0271cd253e
+verified: 66905e9009
 screenshots: []
 ---
 
