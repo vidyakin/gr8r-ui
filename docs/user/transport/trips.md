@@ -11,7 +11,7 @@ sources:
   - packages/db/src/trips.ts
   - packages/db/src/transport-waybill.ts
   - packages/shared/src/trips.ts
-verified: ea4561be23
+verified: 5e2f33dcbb
 screenshots: []
 ---
 
