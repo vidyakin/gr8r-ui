@@ -27,6 +27,7 @@
 @import './crm.css' layer(components);
 @import './appointments.css' layer(components);
 @import './palette.css' layer(components);
+@import './help.css' layer(components);
 @import './settings.css' layer(components);
 @import './data-model.css' layer(components);
 @import './catalog.css' layer(components);

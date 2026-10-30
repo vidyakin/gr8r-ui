@@ -1,6 +1,7 @@
 /* Оверлеи приложения: карточка задачи и формы. Каждый открывается своим хуком из любого места,
    поэтому вызывающему коду не нужно знать, где и как рисуется окно. */
 import * as React from 'react';
+import { HelpProvider } from './help';
 import { InviteProvider } from './invite';
 import { PaletteProvider } from './palette';
 import { ProjectFormsProvider } from './project-forms';
@@ -19,7 +20,9 @@ export function OverlayProviders({ children }: { children: React.ReactNode }) {
           <InviteProvider>
             <TeamFormProvider>
               <ShortcutsProvider>
-                <PaletteProvider>{children}</PaletteProvider>
+                <HelpProvider>
+                  <PaletteProvider>{children}</PaletteProvider>
+                </HelpProvider>
               </ShortcutsProvider>
             </TeamFormProvider>
           </InviteProvider>
@@ -37,4 +40,5 @@ export { useProjectForms } from './project-forms';
 export { useInvite } from './invite';
 export { useTeamForm } from './team-form';
 export { useShortcuts } from './shortcuts';
+export { useHelp } from './help';
 export { PaletteHost, usePalette } from './palette';

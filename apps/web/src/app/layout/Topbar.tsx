@@ -1,6 +1,6 @@
 /* Верхняя панель — порт renderTopbar() и crumbs() из shell/layout.js */
 import { Link, useLocation, useMatch } from 'react-router';
-import { Bell, Building2, ChevronDown, CircleCheck, FolderPlus, Handshake, Menu as MenuIcon, Plus, Search, UserPlus, Users, ContactRound } from 'lucide-react';
+import { Bell, Building2, CircleHelp, ChevronDown, CircleCheck, FolderPlus, Handshake, Menu as MenuIcon, Plus, Search, UserPlus, Users, ContactRound } from 'lucide-react';
 import { Button, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tooltip } from '@/components/ui';
 import { useWorkspace } from '../data/store';
 import { project } from '../data/selectors';
@@ -11,7 +11,7 @@ import { MemberAvatar } from '../components/workspace';
 import { ProjectIcon } from '../components/project';
 import { UserMenu } from './UserMenu';
 import { MOD } from '../lib/platform';
-import { useInvite, usePalette, useProjectForms, useTaskForm, useTeamForm } from '../overlays';
+import { useHelp, useInvite, usePalette, useProjectForms, useTaskForm, useTeamForm } from '../overlays';
 import { useCrm } from '../crm/store';
 import { useCrmUi } from '../crm/ui-context';
 import { company as crmCompany } from '../crm/selectors';
@@ -89,6 +89,7 @@ export function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
   const invite = useInvite();
   const teamForm = useTeamForm();
   const palette = usePalette();
+  const help = useHelp();
   const crmUi = useCrmUi();
   const inCrm = !!useMatch('/crm/*');
   const t = useT();
@@ -126,6 +127,9 @@ export function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
         <span className="lbltxt">{t('nav.searchHint')}</span>
         <span className="kbd">{MOD}K</span>
       </button>
+      <IconButton label={t('help.open')} shortcut="F1" onClick={() => help.toggle()}>
+        <CircleHelp size={16} />
+      </IconButton>
       <Tooltip content={SECTIONS.notifications.name}>
         <Link to={SECTIONS.notifications.path} className="ibtn" aria-label={SECTIONS.notifications.name}>
           <Bell size={16} />

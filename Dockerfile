@@ -10,6 +10,7 @@ COPY apps/worker/package.json apps/worker/
 COPY apps/web/package.json apps/web/
 COPY apps/landing/package.json apps/landing/
 COPY packages/shared/package.json packages/shared/
+COPY packages/docs/package.json packages/docs/
 COPY packages/db/package.json packages/db/
 RUN bun install --frozen-lockfile
 COPY . .
