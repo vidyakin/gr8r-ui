@@ -36,6 +36,8 @@ export interface PieceworkLine {
   orderNumber: string | null;
   releaseNumber: string | null;
   releaseDocumentId: string | null;
+  productId: string | null;
+  orderDocumentId: string | null;
   assignmentId: string | null;
 }
 

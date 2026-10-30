@@ -5,7 +5,7 @@ import { usePriceKinds } from '../pricing/data';
 import * as React from 'react';
 import { CircleAlert, FileSignature, Plus, Trash2 } from 'lucide-react';
 import { BILLING_PACKAGE_LABELS, BILLING_PACKAGES, BILLING_PERIODICITIES, BILLING_PERIODICITY_LABELS, CONTRACT_KIND_LABELS, CONTRACT_KINDS, EXTRA_PRODUCT_POLICIES, EXTRA_PRODUCT_POLICY_LABELS, type ContractKind, type ExtraProductPolicy } from '@gr8r/shared';
-import { Alert, Badge, Button, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
+import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, Tab, Tabs, TabsList, toast } from '@/components/ui';
 import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/gr8r/data-table';
 import { FilterBar, useFilterState } from '@/components/gr8r/filter-bar';
 import { useT } from '@/i18n';
@@ -22,8 +22,10 @@ export function ContractsPage() {
   const api = useBillingApi();
   const filters = useFilterState();
   const t = useT();
-  const contracts = useContracts({ q: filters.q || undefined });
+  const [tab, setTab] = React.useState<'active' | 'archived'>('active');
+  const contracts = useContracts({ q: filters.q || undefined, archived: tab === 'archived' });
   const [creating, setCreating] = React.useState(false);
+  const [editing, setEditing] = React.useState<Contract | null>(null);
 
   const columns: Column<Contract>[] = [
     { id: 'number', header: t('docs.contracts.col.number'), width: 140, value: c => c.number, cell: c => <span className="mono">{c.number || '—'}</span> },
@@ -58,27 +60,38 @@ export function ContractsPage() {
         sort={{ options: columns.filter(c => c.value).map(c => ({ id: c.id, name: c.header })), value: table.sort.id, dir: table.sort.dir, onChange: table.setSort }}
         columns={columnsMenu(columns, table)}
       />
+      <Tabs value={tab} onValueChange={v => setTab(v as 'active' | 'archived')}>
+        <TabsList>
+          <Tab value="active">{t('docs.contracts.activeTab')}</Tab>
+          <Tab value="archived">{t('docs.contracts.archivedTab')}</Tab>
+        </TabsList>
+      </Tabs>
       <div className="pane">
         {contracts.isPending ? (
           <Skeleton w="100%" h={120} />
         ) : !contracts.data?.items.length ? (
-          <EmptyState icon={<FileSignature size={20} />} title={t('docs.contracts.emptyTitle')} action={canWrite ? <Button onClick={() => setCreating(true)}>{t('docs.contracts.newContract')}</Button> : undefined}>
-            {t('docs.contracts.emptyHint')}
-          </EmptyState>
+          tab === 'archived' ? (
+            <EmptyState icon={<FileSignature size={20} />} title={t('docs.contracts.noArchived')} />
+          ) : (
+            <EmptyState icon={<FileSignature size={20} />} title={t('docs.contracts.emptyTitle')} action={canWrite ? <Button onClick={() => setCreating(true)}>{t('docs.contracts.newContract')}</Button> : undefined}>
+              {t('docs.contracts.emptyHint')}
+            </EmptyState>
+          )
         ) : (
-          <DataTable columns={columns} table={table} rows={contracts.data.items} getId={c => c.id} aria-label={t('docs.contracts.contractsAria')} />
+          <DataTable columns={columns} table={table} rows={contracts.data.items} getId={c => c.id} onRowClick={c => setEditing(c)} aria-label={t('docs.contracts.contractsAria')} />
         )}
       </div>
       {creating && <ContractDialog api={api} onClose={() => setCreating(false)} />}
+      {editing && <ContractDialog api={api} contract={editing} readOnly={!canWrite} archived={tab === 'archived'} onClose={() => setEditing(null)} />}
     </div>
   );
 }
 
 /** Диалог договора: реквизиты, срок действия и условия биллинга */
-function ContractDialog({ api, onClose, contract }: { api: ReturnType<typeof useBillingApi>; onClose: () => void; contract?: Contract }) {
+export function ContractDialog({ api, onClose, contract, companyId, readOnly, archived = false }: { api: ReturnType<typeof useBillingApi>; onClose: () => void; contract?: Contract; /** Контрагент задан (вызов из его карточки) */ companyId?: { id: string; name: string }; readOnly?: boolean; archived?: boolean }) {
   const plans = useTariffPlans();
   const t = useT();
-  const [company, setCompany] = React.useState<{ id: string; name: string } | null>(contract ? { id: contract.companyId, name: contract.companyName } : null);
+  const [company, setCompany] = React.useState<{ id: string; name: string } | null>(contract ? { id: contract.companyId, name: contract.companyName } : (companyId ?? null));
   const [number, setNumber] = React.useState(contract?.number ?? '');
   const [date, setDate] = React.useState(contract?.date ?? new Date().toISOString().slice(0, 10));
   const [kind, setKind] = React.useState<ContractKind>(contract?.kind ?? 'customer');
@@ -95,6 +108,25 @@ function ContractDialog({ api, onClose, contract }: { api: ReturnType<typeof use
   const [periodicity, setPeriodicity] = React.useState(contract?.periodicity ?? 'month');
   const [billingDay, setBillingDay] = React.useState(String(contract?.billingDay ?? 1));
   const [documentPackage, setDocumentPackage] = React.useState<'invoice' | 'invoice_act'>(contract?.documentPackage ?? 'invoice');
+
+  const [archiving, setArchiving] = React.useState(false);
+  const [signing, setSigning] = React.useState(false);
+  const [signDate, setSignDate] = React.useState(new Date().toISOString().slice(0, 10));
+
+  const archive = async () => {
+    if (!contract) return;
+    if (await api('DELETE', `/contracts/${contract.id}`)) onClose();
+  };
+  const restore = async () => {
+    if (!contract) return;
+    if (await api('POST', `/contracts/${contract.id}/restore`)) onClose();
+  };
+  const sign = async (signed: boolean) => {
+    if (!contract) return;
+    const r = await api('PATCH', `/contracts/${contract.id}`, signed ? { isSigned: true, date: signDate } : { isSigned: false });
+    if (r) onClose();
+    else toast.error(t('docs.contracts.signError'));
+  };
 
   const save = async () => {
     if (!company) return toast.error(t('docs.contracts.chooseCustomer'));
@@ -128,7 +160,7 @@ function ContractDialog({ api, onClose, contract }: { api: ReturnType<typeof use
     <Dialog open onOpenChange={v => !v && onClose()}>
       <DialogContent title={contract ? t('docs.contracts.editContract') : t('docs.contracts.newContract')}>
         <div className="stack" style={{ gap: 12 }}>
-          <Field label={t('docs.contracts.counterparty')}>{({ id }) => <CounterpartyPicker id={id} value={company?.name ?? ''} onPick={c => setCompany({ id: c.id, name: c.name })} />}</Field>
+          <Field label={t('docs.contracts.counterparty')}>{({ id }) => <CounterpartyPicker id={id} value={company?.name ?? ''} disabled={!!contract || !!companyId} onPick={c => setCompany({ id: c.id, name: c.name })} />}</Field>
           <div className="row" style={{ gap: 8 }}>
             <Field label={t('docs.contracts.number')}>{({ id }) => <Input id={id} value={number} onChange={e => setNumber(e.target.value)} placeholder={t('docs.contracts.numberPlaceholder')} />}</Field>
             <Field label={t('docs.contracts.date')}>{({ id }) => <Input id={id} type="date" value={date} onChange={e => setDate(e.target.value)} />}</Field>
@@ -176,14 +208,51 @@ function ContractDialog({ api, onClose, contract }: { api: ReturnType<typeof use
             </>
           )}
           <div className="row" style={{ justifyContent: 'flex-end', gap: 8 }}>
+            {contract && !readOnly && (
+              <>
+                {archived ? (
+                  <Button variant="ghost" onClick={() => void restore()}>
+                    {t('docs.contracts.restore')}
+                  </Button>
+                ) : (
+                  <>
+                    <Button variant="ghost" onClick={() => (contract.isSigned ? void sign(false) : setSigning(true))}>
+                      {contract.isSigned ? t('docs.contracts.unsignBtn') : t('docs.contracts.signBtn')}
+                    </Button>
+                    <Button variant="ghost" onClick={() => setArchiving(true)}>
+                      {t('docs.contracts.archive')}
+                    </Button>
+                  </>
+                )}
+                <span className="sp" style={{ flex: 1 }} />
+              </>
+            )}
             <Button variant="ghost" onClick={onClose}>
               {t('common.cancel')}
             </Button>
-            <Button variant="primary" onClick={() => void save()}>
-              {t('common.save')}
-            </Button>
+            {!readOnly && (
+              <Button variant="primary" onClick={() => void save()}>
+                {t('common.save')}
+              </Button>
+            )}
           </div>
         </div>
+        <ConfirmDialog open={archiving} onOpenChange={setArchiving} title={t('docs.contracts.archiveTitle')} description={t('docs.contracts.archiveHint')} confirmLabel={t('docs.contracts.archiveConfirm')} cancelLabel={t('common.cancel')} onConfirm={() => void archive()} />
+        <Dialog open={signing} onOpenChange={setSigning}>
+          <DialogContent size="sm" title={t('docs.contracts.signTitle')} description={t('docs.contracts.signHint')}>
+            <div className="stack" style={{ gap: 12 }}>
+              <Field label={t('docs.contracts.signDate')}>{({ id }) => <Input id={id} type="date" value={signDate} onChange={e => setSignDate(e.target.value)} />}</Field>
+              <div className="row" style={{ justifyContent: 'flex-end', gap: 8 }}>
+                <Button variant="ghost" onClick={() => setSigning(false)}>
+                  {t('common.cancel')}
+                </Button>
+                <Button variant="primary" onClick={() => void sign(true)}>
+                  {t('docs.contracts.signBtn')}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   );

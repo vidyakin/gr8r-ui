@@ -216,6 +216,8 @@ export const documentStateChange = z.object({
   /** Причина отмены заказ-наряда: обязательна для состояния категории «cancelled» */
   cancelReason: z.string().trim().max(1000).optional(),
 });
+/** Отмена документа: причина (необязательна для API, интерфейс её запрашивает) */
+export const documentCancel = z.object({ reason: z.string().trim().max(1000).optional() });
 export const pdfRequest = z.object({ form: z.enum(PRINT_FORMS), templateId: uuid.optional() });
 export const printParam = z.object({ id: uuid, form: z.enum(PRINT_FORMS) });
 /** Печать формы quote по шаблону КП: ?template=<id> */

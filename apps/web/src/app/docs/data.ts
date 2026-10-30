@@ -158,6 +158,8 @@ export function useDocTemplates(opts: { usedOnly?: boolean } = {}) {
 export interface DocDetail extends Omit<DocListItem, 'organizationName' | 'counterpartyName' | 'warehouseName'> {
   numberYear: number | null;
   numberSeq: number | null;
+  /** Причина отмены документа */
+  cancelReason?: string | null;
   currency: string;
   organization: { id: string; name: string } | null;
   counterparty: { id: string; name: string; inn: string } | null;

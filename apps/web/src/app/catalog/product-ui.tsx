@@ -11,7 +11,7 @@ import { fmtDate } from '../lib/dates';
 import { useCanWrite, useCustomRows } from '../meta/custom-fields';
 import { FieldInput, FieldValue } from '../meta/field-ui';
 import type { MetaField } from '../meta/data';
-import { attributeAsField, flattenTree, useAttributes, useCompanies, useGenerateVariants, useProductMutations, useSaveWorkNorm, useUnits, useVariants, useWorkCenters, useWorkNorms, type CategoryNode, type Product } from './data';
+import { attributeAsField, flattenTree, useAttributes, useCatalogApi, useCompanies, useIsAdmin, useGenerateVariants, useProductMutations, useSaveWorkNorm, useUnits, useVariants, useWorkCenters, useWorkNorms, type CategoryNode, type Product } from './data';
 import { StockLevelsTab } from './stock-levels';
 import { t, tEnum, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
@@ -63,14 +63,84 @@ export function CategorySelect({ tree, value, onChange, id, label = t('catalog.p
 
 export function UnitSelect({ value, onChange, id, label = t('catalog.product.unit') }: { value: string; onChange: (v: string) => void; id?: string; label?: string }) {
   const units = useUnits();
+  const isAdmin = useIsAdmin();
+  const [adding, setAdding] = React.useState(false);
   return (
-    <select className="select" id={id} aria-label={label} value={value} onChange={e => onChange(e.target.value)}>
-      {(units.data ?? []).map(u => (
-        <option key={u.code} value={u.code}>
-          {u.symbol} — {u.name} ({u.code})
-        </option>
-      ))}
-    </select>
+    <>
+      <select
+        className="select"
+        id={id}
+        aria-label={label}
+        value={value}
+        onChange={e => (e.target.value === NEW_UNIT ? setAdding(true) : onChange(e.target.value))}
+      >
+        {(units.data ?? []).map(u => (
+          <option key={u.code} value={u.code}>
+            {u.symbol} — {u.name} ({u.code})
+          </option>
+        ))}
+        {isAdmin && <option value={NEW_UNIT}>{t('catalog.product.addUnit')}</option>}
+      </select>
+      {adding && <UnitDialog onClose={() => setAdding(false)} onCreated={onChange} />}
+    </>
+  );
+}
+
+const NEW_UNIT = '__new_unit__';
+
+/** Своя единица измерения (справочник единиц воркспейса, добавляет admin и выше) */
+function UnitDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (code: string) => void }) {
+  const tt = useT();
+  const api = useCatalogApi();
+  const [code, setCode] = React.useState('');
+  const [name, setName] = React.useState('');
+  const [symbol, setSymbol] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const valid = /^\d{3,4}$/.test(code.trim()) && !!name.trim() && !!symbol.trim();
+  const submit = async () => {
+    if (!valid) return toast.error(tt('catalog.product.unitError'));
+    setBusy(true);
+    const r = await api('POST', '/units', { code: code.trim(), name: name.trim(), symbol: symbol.trim() });
+    setBusy(false);
+    if (!r) return;
+    toast(tt('catalog.product.unitAdded', { name: name.trim() }));
+    onCreated(code.trim());
+    onClose();
+  };
+  return (
+    <Dialog open onOpenChange={o => !o && onClose()}>
+      <DialogContent
+        size="sm"
+        title={tt('catalog.product.addUnitTitle')}
+        description={tt('catalog.product.addUnitDesc')}
+        footer={
+          <>
+            <span className="sp" />
+            <Button variant="ghost" onClick={onClose}>
+              {tt('common.cancel')}
+            </Button>
+            <Button variant="primary" disabled={busy || !valid} onClick={() => void submit()}>
+              {tt('common.save')}
+            </Button>
+          </>
+        }
+      >
+        <form
+          className="stack"
+          style={{ gap: 12 }}
+          onSubmit={e => {
+            e.preventDefault();
+            e.stopPropagation();
+            void submit();
+          }}
+        >
+          <Field label={tt('catalog.product.unitCode')} hint={tt('catalog.product.unitCodeHint')}>{p => <Input {...p} autoFocus inputMode="numeric" value={code} onChange={e => setCode(e.target.value)} />}</Field>
+          <Field label={tt('catalog.product.unitName')}>{p => <Input {...p} value={name} onChange={e => setName(e.target.value)} />}</Field>
+          <Field label={tt('catalog.product.unitSymbol')}>{p => <Input {...p} value={symbol} maxLength={20} onChange={e => setSymbol(e.target.value)} />}</Field>
+          <button type="submit" hidden />
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -6,7 +6,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Ban, Calculator, ChevronDown, CircleAlert, ClipboardList, Copy, Ellipsis, FileSignature, FileText, PackageCheck, PackageX, Plus, Printer, RotateCcw, Send, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
 import { amountInWordsRu, basedOnTargets, computeDocument, dec, DEFECT_MODES, DOCUMENT_META, fmt as fmtDec, hasQuoteVariants, isInvestmentFactType, MATERIAL_OWNER_LABELS, PRINT_FORM_LABELS, TOLLING_ROLE_LABELS, TOLLING_ROLES, TRANSFER_OPERATIONS, VAT_LABELS, VAT_RATES, type DefectMode, type DocumentType, type TollingRole, type VatRate } from '@gr8r/shared';
-import { Badge, Button, ConfirmDialog, EmptyState, Field, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Segmented, Select, Skeleton, toast } from '@/components/ui';
+import { Badge, Button, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Segmented, Select, Skeleton, toast } from '@/components/ui';
 import { useCanWrite } from '../meta/custom-fields';
 import { money, unitSymbol, useIsAdmin, useUnits, type Product } from '../catalog/data';
 import { uuidv7 } from '../lib/uuid';
@@ -398,11 +398,12 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   };
   const serverLine = new Map(doc.lines.map(l => [l.id, l]));
 
-  const run = async (action: 'post' | 'unpost' | 'restore' | 'cancel') => {
+  const [cancelReason, setCancelReason] = React.useState('');
+  const run = async (action: 'post' | 'unpost' | 'restore' | 'cancel', body?: unknown) => {
     setBusy(true);
     try {
       if (action === 'post' && !(await flush())) return;
-      const r = await api<DocDetail>('POST', `/documents/${doc.id}/${action}`);
+      const r = await api<DocDetail>('POST', `/documents/${doc.id}/${action}`, body);
       if (r)
         toast(
           action === 'post'
@@ -1089,6 +1090,11 @@ function DocumentView({ doc }: { doc: DocDetail }) {
         </div>
       </div>
 
+      {doc.status === 'cancelled' && doc.cancelReason && (
+        <p className="muted" style={{ margin: '0 0 8px' }}>
+          {t('docs.document.cancelReason')}: {doc.cancelReason}
+        </p>
+      )}
       <section className="doc-head panel" aria-label={t('docs.document.headerAria')}>
         <Field label={t('docs.document.organization')}>
           {p => (
@@ -1457,16 +1463,42 @@ function DocumentView({ doc }: { doc: DocDetail }) {
         </Field>
       </section>
 
-      <ConfirmDialog
+      <Dialog
         open={confirm === 'cancel'}
-        onOpenChange={o => !o && setConfirm(null)}
-        title={t('docs.document.cancelTitle')}
-        description={hasNumber ? t('docs.document.cancelKeepNumber', { title: docTitle(doc) }) : t('docs.document.cancelNoNumber')}
-        confirmLabel={t('docs.document.cancelConfirm')}
-        cancelLabel={t('docs.document.cancelKeep')}
-        danger
-        onConfirm={() => void run('cancel')}
-      />
+        onOpenChange={o => {
+          if (!o) setConfirm(null);
+          setCancelReason('');
+        }}
+      >
+        <DialogContent
+          size="sm"
+          title={t('docs.document.cancelTitle')}
+          description={hasNumber ? t('docs.document.cancelKeepNumber', { title: docTitle(doc) }) : t('docs.document.cancelNoNumber')}
+          footer={
+            <>
+              <span className="sp" />
+              <Button variant="ghost" onClick={() => setConfirm(null)}>
+                {t('docs.document.cancelKeep')}
+              </Button>
+              <Button
+                variant="danger"
+                disabled={busy || !cancelReason.trim()}
+                onClick={() => {
+                  const reason = cancelReason.trim();
+                  setConfirm(null);
+                  void run('cancel', { reason });
+                }}
+              >
+                {t('docs.document.cancelConfirm')}
+              </Button>
+            </>
+          }
+        >
+          <Field label={t('docs.document.cancelReason')} hint={t('docs.document.cancelHint')}>
+            {p => <Input {...p} autoFocus value={cancelReason} placeholder={t('docs.document.cancelReasonPlaceholder')} maxLength={1000} onChange={e => setCancelReason(e.target.value)} />}
+          </Field>
+        </DialogContent>
+      </Dialog>
       <ConfirmDialog open={confirm === 'delete'} onOpenChange={o => !o && setConfirm(null)} title={t('docs.document.deleteTitleDoc')} description={t('docs.document.deleteHintDoc')} confirmLabel={t('docs.document.deleteConfirm')} cancelLabel={t('docs.document.cancelKeep')} danger onConfirm={() => void remove()} />
       {paramsLine &&
         (() => {

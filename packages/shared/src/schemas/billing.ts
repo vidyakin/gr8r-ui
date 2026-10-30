@@ -70,6 +70,8 @@ export const contractQuery = listQuery.extend({
   companyId: uuid.optional(),
   kind: z.enum(CONTRACT_KINDS).optional(),
   isService: z.coerce.boolean().optional(),
+  /** 'true' — архивные договоры, иначе действующие */
+  archived: z.enum(['true', 'false']).optional(),
 });
 
 /* ---------------- биллинг ---------------- */
