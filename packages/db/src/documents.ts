@@ -367,6 +367,8 @@ export interface DocumentCreateInput {
   responsibleId?: string | null;
   /** Документ-основание: выпуск производства, из которого сделан документ (списание брака) */
   basedOnId?: string | null;
+  /** Сделка CRM: документ создан из неё, контрагент по умолчанию — контрагент сделки */
+  dealId?: string | null;
   lines?: DocumentLineInput[];
   custom?: Record<string, unknown>;
 }

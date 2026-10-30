@@ -85,6 +85,8 @@ export interface DocListItem {
   organizationName: string;
   counterpartyId: string | null;
   counterpartyName: string | null;
+  /** Сделка CRM, из которой создан документ */
+  dealId?: string | null;
   /** Договор документа */
   contractId: string | null;
   /** Вид заказ-наряда (только у work_order): по нему и ключу состояния находится подпись состояния */
@@ -223,6 +225,8 @@ export interface DocListParams {
   status?: string[];
   organizationId?: string;
   counterpartyId?: string;
+  /** Документы сделки CRM */
+  dealId?: string;
   q?: string;
   sort?: string;
 }
@@ -245,6 +249,7 @@ export function useDocuments(params: DocListParams) {
       if (params.status?.length) sp.set('status', params.status.join(','));
       if (params.organizationId) sp.set('organizationId', params.organizationId);
       if (params.counterpartyId) sp.set('counterpartyId', params.counterpartyId);
+      if (params.dealId) sp.set('dealId', params.dealId);
       if (params.q) sp.set('q', params.q);
       return call<DocList>(ws, 'GET', `/documents?${sp}`);
     },
