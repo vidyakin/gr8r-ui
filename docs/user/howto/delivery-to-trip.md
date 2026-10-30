@@ -8,7 +8,7 @@ sources:
   - apps/web/src/app/trips/TripsPage.tsx
   - apps/web/src/app/trips/TripDialog.tsx
   - apps/web/src/app/fleet/WaybillsPage.tsx
-verified: 28e6a048b4
+verified: 2b46a1e911
 screenshots: []
 ---
 
