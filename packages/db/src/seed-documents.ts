@@ -108,7 +108,7 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
     .values({
       workspaceId: wsId,
       name: 'ИП Сидоров Алексей Викторович',
-      industry: 'Retail',
+      industry: 'Розничная торговля',
       size: '1–10',
       city: 'Москва',
       kind: 'sole_proprietor',

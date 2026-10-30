@@ -329,15 +329,15 @@ describe('отчёт-воронка', () => {
     const rep = (await f.get(`/deal-funnel?from=2020-01-01&to=${to}`)).body;
     expect(rep.totals).toMatchObject({ deals: 6, open: 4, won: 1, lost: 1 });
     const by = Object.fromEntries(rep.rows.map((r: any) => [r.name, r]));
-    expect(by.Lead).toMatchObject({ count: 1, amount: '100.00', reached: 6 });
-    expect(by.Qualified).toMatchObject({ count: 1, reached: 5, conversion: 83.3 });
-    expect(by.Proposal).toMatchObject({ count: 1, reached: 3 });
-    expect(by.Negotiation).toMatchObject({ count: 1, reached: 2, weighted: '600.00' });
-    expect(by.Won).toMatchObject({ count: 1, amount: '1600.00' });
-    expect(by.Lost).toMatchObject({ count: 1 });
+    expect(by["Лид"]).toMatchObject({ count: 1, amount: '100.00', reached: 6 });
+    expect(by["Квалифицирован"]).toMatchObject({ count: 1, reached: 5, conversion: 83.3 });
+    expect(by["Предложение"]).toMatchObject({ count: 1, reached: 3 });
+    expect(by["Переговоры"]).toMatchObject({ count: 1, reached: 2, weighted: '600.00' });
+    expect(by["Выиграна"]).toMatchObject({ count: 1, amount: '1600.00' });
+    expect(by["Проиграна"]).toMatchObject({ count: 1 });
     // прогноз = Σ сумма × вероятность открытых этапов: 100·10% + 200·25% + 400·50% + 800·75%
     expect(rep.totals.weighted).toBe('860.00');
-    expect(by.Lead.avgDays).not.toBeNull();
+    expect(by["Лид"].avgDays).not.toBeNull();
     // период вне диапазона — пусто
     expect((await f.get('/deal-funnel?from=2001-01-01&to=2001-02-01')).body.totals.deals).toBe(0);
   });

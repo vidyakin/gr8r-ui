@@ -38,33 +38,40 @@ export interface PipelineTemplate {
   stages: StageTemplate[];
 }
 
-/** Шаблоны при создании воронки: набор этапов с категориями (названия — английские, в интерфейсе их можно править) */
+/** Шаблоны при создании воронки: набор этапов с категориями (названия русские; в настройках их можно править) */
 export const PIPELINE_TEMPLATES: PipelineTemplate[] = [
   {
     key: 'sale',
-    name: 'Sales',
-    stages: LEGACY_DEAL_STAGES.map(s => ({ name: s.name, category: s.category, probability: s.probability, color: s.color })),
+    name: 'Продажи',
+    stages: [
+      { name: 'Лид', category: 'in_progress', probability: 10, color: 'gray' },
+      { name: 'Квалифицирован', category: 'in_progress', probability: 25, color: 'blue' },
+      { name: 'Предложение', category: 'in_progress', probability: 50, color: 'violet' },
+      { name: 'Переговоры', category: 'in_progress', probability: 75, color: 'amber' },
+      { name: 'Выиграна', category: 'won', probability: 100, color: 'green' },
+      { name: 'Проиграна', category: 'lost', probability: 0, color: 'red' },
+    ],
   },
   {
     key: 'service',
-    name: 'Service',
+    name: 'Сервис',
     stages: [
-      { name: 'Request', category: 'in_progress', probability: 20, color: 'gray' },
-      { name: 'Diagnostics', category: 'in_progress', probability: 40, color: 'blue' },
-      { name: 'Estimate approval', category: 'in_progress', probability: 60, color: 'violet' },
-      { name: 'In work', category: 'in_progress', probability: 80, color: 'amber' },
-      { name: 'Completed', category: 'won', probability: 100, color: 'green' },
-      { name: 'Cancelled', category: 'lost', probability: 0, color: 'red' },
+      { name: 'Заявка', category: 'in_progress', probability: 20, color: 'gray' },
+      { name: 'Диагностика', category: 'in_progress', probability: 40, color: 'blue' },
+      { name: 'Согласование сметы', category: 'in_progress', probability: 60, color: 'violet' },
+      { name: 'В работе', category: 'in_progress', probability: 80, color: 'amber' },
+      { name: 'Выполнено', category: 'won', probability: 100, color: 'green' },
+      { name: 'Отменено', category: 'lost', probability: 0, color: 'red' },
     ],
   },
   {
     key: 'repeat',
-    name: 'Repeat sales',
+    name: 'Повторные продажи',
     stages: [
-      { name: 'Reminder', category: 'in_progress', probability: 30, color: 'gray' },
-      { name: 'Offer sent', category: 'in_progress', probability: 55, color: 'violet' },
-      { name: 'Reordered', category: 'won', probability: 100, color: 'green' },
-      { name: 'No reorder', category: 'lost', probability: 0, color: 'red' },
+      { name: 'Напоминание', category: 'in_progress', probability: 30, color: 'gray' },
+      { name: 'Предложение отправлено', category: 'in_progress', probability: 55, color: 'violet' },
+      { name: 'Повторный заказ', category: 'won', probability: 100, color: 'green' },
+      { name: 'Без повторного заказа', category: 'lost', probability: 0, color: 'red' },
     ],
   },
 ];

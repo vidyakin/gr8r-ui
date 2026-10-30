@@ -70,7 +70,7 @@ describe('work order: states and categories', () => {
   test('a new work order gets the default kind and the first state of the new category', async () => {
     const kinds = (await owner.get('/work-order-kinds')).body.items as any[];
     expect(kinds.length).toBe(1);
-    expect(kinds[0]).toMatchObject({ name: 'Default', isDefault: true });
+    expect(kinds[0]).toMatchObject({ name: 'Основной', isDefault: true });
     const states = (await owner.get('/document-states')).body.items as any[];
     expect(states.map(s => s.category).sort()).toEqual(['cancelled', 'delivered', 'done', 'in_progress', 'new', 'scheduled']);
 
@@ -78,7 +78,7 @@ describe('work order: states and categories', () => {
     expect(doc.state).toBe('new');
     expect(doc.status).toBe('draft');
     expect(doc.number).toBeNull();
-    expect(doc.kindName).toBe('Default');
+    expect(doc.kindName).toBe('Основной');
     // состояния задаёт воркспейс: у документа свой набор
     expect(doc.states.map((s: any) => s.key)).toEqual(['new', 'scheduled', 'in_progress', 'done', 'delivered', 'cancelled']);
   });

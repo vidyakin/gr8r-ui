@@ -251,10 +251,10 @@ describe('seed', () => {
     expect(await count('warehouses', `where workspace_id = '${acme!.id}'`)).toBe(1);
 
     // дерево подзадач и зависимости сохранены, id участников в подзадачах — настоящие uuid
-    const [wf] = await admin`select subtasks, deps, plan_hours from tasks where title = 'Create homepage wireframes'`;
+    const [wf] = await admin`select subtasks, deps, plan_hours from tasks where title = 'Нарисовать макеты главной страницы'`;
     expect(wf!.subtasks).toHaveLength(4);
     expect(wf!.subtasks[3].assignee).toMatch(V7);
-    const [handoff] = await admin`select deps from tasks where title = 'Prepare developer handoff'`;
+    const [handoff] = await admin`select deps from tasks where title = 'Подготовить передачу разработчикам'`;
     expect(handoff!.deps).toHaveLength(2);
     expect(Number(wf!.plan_hours)).toBe(24);
 
