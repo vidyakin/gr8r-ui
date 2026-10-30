@@ -2,6 +2,7 @@
    Сетка работает на телефонной ширине: горизонтальная прокрутка, закреплённая колонка времени. */
 import { useResolvePrices } from '../pricing/data';
 import * as React from 'react';
+import { Link } from 'react-router';
 import { freeStarts, OCCUPYING_STATUSES, productFitsSpecialist, slotsNeeded, type AppointmentStatus } from '@gr8r/shared';
 import { Badge, Button, Dialog, DialogContent, Field, Input, Segmented, Select, Textarea, toast } from '@/components/ui';
 import { fmtAmount, fmtDateTimeIntl, useT } from '@/i18n';
@@ -277,6 +278,17 @@ export function ApptDialog({ appt, onClose, onMove }: { appt: Appt | null; onClo
           </p>
           {appt.comment && <p style={{ margin: 0, fontSize: 13 }}>{appt.comment}</p>}
           {appt.cancelReason && <p className="muted" style={{ margin: 0, fontSize: 13 }}>{t('appt.card.reason')}: {appt.cancelReason}</p>}
+          {appt.workOrderId ? (
+            <p style={{ margin: 0, fontSize: 13 }}>
+              {t('appt.card.workOrder')}: <Link to={`/documents/${appt.workOrderId}`} className="crm-link">{appt.workOrderNumber ?? t('appt.card.workOrder')}</Link>
+            </p>
+          ) : (
+            appt.status !== 'cancelled' && appt.status !== 'no_show' && (
+              <div>
+                <Button size="sm" onClick={() => act.mutate({ path: `/${appt.id}/work-order` }, { onSuccess: () => { toast(t('appt.card.workOrderCreated')); onClose(); }, onError: e => toast.error(errorMessage(e)) })} disabled={act.isPending}>{t('appt.card.createWorkOrder')}</Button>
+              </div>
+            )
+          )}
           {open && !cancelling && (
             <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
               {appt.status === 'booked' && <Button size="sm" onClick={() => run('confirm')} disabled={act.isPending}>{t('appt.card.confirm')}</Button>}

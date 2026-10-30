@@ -7,6 +7,7 @@ import {
   appointmentDetail,
   createAppointment,
   createAppointmentClient,
+  createAppointmentWorkOrder,
   createServiceDay,
   dayBoard,
   deleteDocument,
@@ -175,6 +176,12 @@ export const appointmentRoutes = new Hono<AppEnv>()
   .post('/:id/came', member, zValidator('param', idParam, validationHook), async c => status(c, 'came'))
   .post('/:id/no-show', member, zValidator('param', idParam, validationHook), async c => status(c, 'no_show'))
   .post('/:id/cancel', member, zValidator('param', idParam, validationHook), zValidator('json', appointmentCancel, validationHook), async c => status(c, 'cancelled', c.req.valid('json').reason))
+  .post('/:id/work-order', member, zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const { id } = c.req.valid('param');
+    const { documentId } = await createAppointmentWorkOrder(ctx.db, docCtx(ctx), id);
+    return c.json({ documentId, appointment: await appointmentDetail(ctx.db, id) }, 201);
+  })
   .post('/:id/move', member, zValidator('param', idParam, validationHook), zValidator('json', appointmentMove, validationHook), async c => {
     const ctx = ctxOf(c);
     const { id } = c.req.valid('param');

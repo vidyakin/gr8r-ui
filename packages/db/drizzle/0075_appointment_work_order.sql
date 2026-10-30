@@ -1,0 +1,2 @@
+ALTER TABLE "appointments" ADD COLUMN "work_order_id" uuid;--> statement-breakpoint
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_work_order_fk" FOREIGN KEY ("workspace_id","work_order_id") REFERENCES "public"."documents"("workspace_id","id") ON DELETE SET NULL ("work_order_id") ON UPDATE no action;

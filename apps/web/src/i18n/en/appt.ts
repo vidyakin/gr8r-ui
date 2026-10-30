@@ -57,6 +57,9 @@ export const appt = {
     cancelSubmit: 'Cancel appointment',
     reason: 'Reason',
     done: 'Done',
+    createWorkOrder: 'Create work order',
+    workOrderCreated: 'Work order created',
+    workOrder: 'Work order',
   },
   unclosed: {
     empty: 'All days are closed',

@@ -69,6 +69,8 @@ export const appointments = pgTable(
     comment: text('comment').notNull().default(''),
     /** Строка документа «Оказанные услуги за день», в которую запись попала (SET NULL по списку колонок — правка миграции) */
     dayLineId: uuid('day_line_id'),
+    /** Заказ-наряд, созданный из записи (задача 1252): повторно не создаётся; удалили заказ-наряд — ссылка очищается */
+    workOrderId: uuid('work_order_id'),
     createdBy: uuid('created_by'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -80,6 +82,7 @@ export const appointments = pgTable(
     foreignKey({ columns: [t.workspaceId, t.companyId], foreignColumns: [companies.workspaceId, companies.id], name: 'appointments_company_fk' }),
     foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'appointments_product_fk' }),
     foreignKey({ columns: [t.workspaceId, t.dayLineId], foreignColumns: [serviceDayLines.workspaceId, serviceDayLines.id], name: 'appointments_day_line_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.workOrderId], foreignColumns: [documents.workspaceId, documents.id], name: 'appointments_work_order_fk' }).onDelete('set null'),
     check('appointments_status_chk', sql`${t.status} in ('booked','confirmed','came','no_show','cancelled')`),
     check('appointments_slots_chk', sql`${t.slots} >= 1 and ${t.startMin} >= 0 and ${t.startMin} + ${t.slots} * ${t.slotMinutes} <= 1440`),
     check('appointments_client_chk', sql`${t.contactId} is not null or ${t.companyId} is not null`),
