@@ -39,7 +39,7 @@ export const requireSession = createMiddleware<AppEnv>(async (c, next) => {
     await setContext(tx as Tx, {});
     const db = drizzleOf(tx as Tx);
     const [r] = await db
-      .select({ id: users.id, email: users.email, name: users.name, locale: users.locale, isOperator: users.isOperator })
+      .select({ id: users.id, email: users.email, name: users.name, locale: users.locale, prefs: users.prefs, isOperator: users.isOperator })
       .from(sessions)
       .innerJoin(users, eq(users.id, sessions.userId))
       .where(and(eq(sessions.id, id), gt(sessions.expiresAt, new Date())))

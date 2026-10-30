@@ -13,6 +13,8 @@ export const users = pgTable(
     name: text('name').notNull(),
     /** Язык интерфейса ('en' | 'ru'); null — как в воркспейсе */
     locale: text('locale'),
+    /** Личные настройки (часовой пояс, формат даты, начало недели, предпочтения, уведомления): частичный объект, схема — userPrefsSchema в shared */
+    prefs: jsonb('prefs').$type<Record<string, unknown>>().notNull().default({}),
     /** Оператор установки: видит список арендаторов, создаёт и удаляет их (выдаёт CLI `bun run operator grant`) */
     isOperator: boolean('is_operator').notNull().default(false),
     createdAt: createdAt(),
