@@ -1,11 +1,11 @@
 ---
 title: Склады
-sections: []
+sections: [settings]
 module: core
 sources:
   - apps/web/src/app/settings/documents.tsx
   - apps/api/src/routes/documents.ts
-verified:
+verified: 313b2283c2
 screenshots: []
 ---
 
