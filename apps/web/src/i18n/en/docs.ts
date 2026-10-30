@@ -991,6 +991,7 @@ export const docs = {
     stock_transfer: 'Stock transfer',
     write_off: 'Write-off',
     stock_posting: 'Goods posting',
+    opening_stock: 'Opening stock',
     inventory_count: 'Inventory count',
     production_order: 'Production order',
     production: 'Production',

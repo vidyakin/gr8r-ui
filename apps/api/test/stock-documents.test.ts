@@ -271,4 +271,32 @@ describe('state of a document', () => {
     expect(r.status).toBe(422);
     expect(r.body.error.code).toBe('state_not_allowed');
   });
+  test('opening stock: posts without a cost item, gives quantity and cost, unposting removes them, closed period blocks', async () => {
+    const nut = await goods('Гайка');
+    const d = await mk(owner, '/documents', { type: 'opening_stock', warehouseId: whA, date: '2026-01-10', lines: [line(nut, 5, 12)] });
+    expect(d.costItemId ?? null).toBeNull();
+    expect(d.lines[0]).toMatchObject({ price: '12.00', stockRole: 'in' });
+    // статья доходов не нужна и вида «затраты» тоже: документ просто проводится
+    expect((await act(owner, d.id, 'post')).status).toBe(200);
+    expect(await balance(nut, whA)).toMatchObject({ qty: '5.000', avgCost: '12.0000', value: '60.00' });
+    const moves = (await owner.get(`/stock/moves?documentId=${d.id}`)).body.items as any[];
+    expect(moves).toHaveLength(1);
+    expect(Number(moves[0].cost)).toBe(12);
+    // закрытый период: ни проведения, ни отмены
+    expect((await owner.patch('/production/periods/settings', { closedThrough: '2026-01-31' })).status).toBe(200);
+    const blocked = await act(owner, d.id, 'unpost');
+    expect(blocked.status).toBe(422);
+    expect(blocked.body.error.code).toBe('period_closed');
+    const late = await mk(owner, '/documents', { type: 'opening_stock', warehouseId: whA, date: '2026-01-11', lines: [line(nut, 1, 12)] });
+    const lateRes = await act(owner, late.id, 'post');
+    expect(lateRes.status).toBe(422);
+    expect(lateRes.body.error.code).toBe('period_closed');
+    expect((await owner.patch('/production/periods/settings', { closedThrough: null })).status).toBe(200);
+    // отмена проведения снимает остаток
+    expect((await act(owner, d.id, 'unpost')).status).toBe(200);
+    expect((await balance(nut, whA))?.qty ?? '0.000').toBe('0.000');
+    // без склада не проводится
+    const noWh = await mk(owner, '/documents', { type: 'opening_stock', warehouseId: null, lines: [line(nut, 1, 12)] });
+    expect((await act(owner, noWh.id, 'post')).body.error.code).toBe('warehouse_required');
+  });
 });

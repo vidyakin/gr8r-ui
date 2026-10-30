@@ -6,7 +6,7 @@ import type { VatRate } from './constants';
 
 /* ---------------- типы и статусы ---------------- */
 
-export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'inventory_count', 'production_order', 'production', 'work_order', 'piecework_order', 'other_costs', 'material_allocation', 'tolling_receipt', 'tolling_report', 'tolling_return', 'sales_plan', 'service_day', 'cash_receipt', 'cash_payment', 'bank_receipt', 'bank_payment', 'advance_report', 'payment_request', 'opening_balance', 'payroll', 'payroll_statement', 'price_setting'] as const;
+export const DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'realization', 'act', 'customer_return', 'supplier_order', 'receipt', 'supplier_return', 'stock_transfer', 'write_off', 'stock_posting', 'opening_stock', 'inventory_count', 'production_order', 'production', 'work_order', 'piecework_order', 'other_costs', 'material_allocation', 'tolling_receipt', 'tolling_report', 'tolling_return', 'sales_plan', 'service_day', 'cash_receipt', 'cash_payment', 'bank_receipt', 'bank_payment', 'advance_report', 'payment_request', 'opening_balance', 'payroll', 'payroll_statement', 'price_setting'] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 export const DOCUMENT_STATUSES = ['draft', 'posted', 'cancelled'] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
@@ -152,6 +152,8 @@ export const DOCUMENT_META: Record<DocumentType, DocumentTypeMeta> = {
   stock_transfer: { label: 'Stock transfer', group: 'stock', prefix: 'ПМ', stock: null, party: null, basedOn: [], fulfils: false, forms: ['torg13'], stockRole: 'transfer', operation: 'transfer', states: TRANSIT_STATES },
   write_off: { label: 'Write-off', group: 'stock', prefix: 'СП', stock: null, party: null, basedOn: ['inventory_count', 'production'], fulfils: false, forms: ['torg16'], stockRole: 'out', costItemKind: 'expense' },
   stock_posting: { label: 'Goods posting', group: 'stock', prefix: 'ОП', stock: null, party: null, basedOn: ['inventory_count'], fulfils: false, forms: [], stockRole: 'in', costItemKind: 'income' },
+  // начальные остатки товаров (задача 1252): приход на склад по себестоимости без статьи доходов и без влияния на финансовый результат
+  opening_stock: { label: 'Opening stock', group: 'stock', prefix: 'НОТ', stock: null, party: null, basedOn: [], fulfils: false, forms: [], stockRole: 'in' },
   // инвентаризация: остатки не двигает, результат оформляется списанием и оприходованием на основании
   inventory_count: { label: 'Inventory count', group: 'stock', prefix: 'ИНВ', stock: null, party: null, basedOn: [], fulfils: false, forms: ['inv3'], isOrder: true },
   // производство: заказ на производство и выпуск (списание материалов + приход продукции)
@@ -230,6 +232,7 @@ export const DOCUMENT_LABELS_RU: Record<DocumentType, string> = {
   stock_transfer: 'Перемещение между складами',
   write_off: 'Списание',
   stock_posting: 'Оприходование',
+  opening_stock: 'Ввод начальных остатков товаров',
   inventory_count: 'Инвентаризация',
   production_order: 'Заказ на производство',
   production: 'Производство (выпуск)',
