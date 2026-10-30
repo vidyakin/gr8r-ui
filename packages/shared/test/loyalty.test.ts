@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { accrualPoints, cumulativePctByScale, distributeRedemption, redemptionLimit, resolveDiscountPct, reversalPointsForReturn } from '../src';
+import { accrualPoints, cumulativePctByScale, distributeRedemption, fifoExpiredPoints, redemptionLimit, resolveDiscountPct, reversalPointsForReturn } from '../src';
 
 describe('выбор скидки из правил', () => {
   test('без правил — нет скидки', () => {
@@ -105,5 +105,43 @@ describe('сторно баллов при возврате', () => {
   });
   test('нулевая сумма исходного документа', () => {
     expect(reversalPointsForReturn('50.00', '0.00', '0.00')).toBe('0.00');
+  });
+});
+
+describe('FIFO-сгорание баллов', () => {
+  const d = (s: string) => new Date(s);
+  test('без расходов — весь просроченный лот сгорает', () => {
+    const lots = [{ id: 'l1', createdAt: d('2026-01-01'), points: '50.00', expiresAt: d('2026-06-01') }];
+    expect(fifoExpiredPoints(lots, '0', d('2026-07-01'))).toEqual([{ lotId: 'l1', points: '50.00' }]);
+  });
+  test('лот без срока не сгорает', () => {
+    const lots = [{ id: 'l1', createdAt: d('2026-01-01'), points: '50.00', expiresAt: null }];
+    expect(fifoExpiredPoints(lots, '0', d('2026-07-01'))).toEqual([]);
+  });
+  test('срок не наступил — не сгорает', () => {
+    const lots = [{ id: 'l1', createdAt: d('2026-01-01'), points: '50.00', expiresAt: d('2026-12-01') }];
+    expect(fifoExpiredPoints(lots, '0', d('2026-07-01'))).toEqual([]);
+  });
+  test('расход гасит самый старый лот первым (FIFO)', () => {
+    const lots = [
+      { id: 'l1', createdAt: d('2026-01-01'), points: '50.00', expiresAt: d('2026-06-01') },
+      { id: 'l2', createdAt: d('2026-02-01'), points: '30.00', expiresAt: d('2026-12-01') },
+    ];
+    // списано 40 — гасит l1 целиком (50) частично? нет: 40 < 50, гасит 40 из l1, остаток l1 = 10 истёк → сгорает 10
+    const r = fifoExpiredPoints(lots, '40', d('2026-07-01'));
+    expect(r).toEqual([{ lotId: 'l1', points: '10.00' }]);
+  });
+  test('расход превышает первый лот — переходит на следующий по хронологии', () => {
+    const lots = [
+      { id: 'l1', createdAt: d('2026-01-01'), points: '50.00', expiresAt: d('2026-06-01') },
+      { id: 'l2', createdAt: d('2026-02-01'), points: '30.00', expiresAt: d('2026-06-15') },
+    ];
+    // списано 60 — гасит l1 (50) целиком и 10 из l2; оба лота просрочены к июлю → l2 остаток 20 сгорает
+    const r = fifoExpiredPoints(lots, '60', d('2026-07-01'));
+    expect(r).toEqual([{ lotId: 'l2', points: '20.00' }]);
+  });
+  test('расход покрывает всё — ничего не сгорает', () => {
+    const lots = [{ id: 'l1', createdAt: d('2026-01-01'), points: '50.00', expiresAt: d('2026-06-01') }];
+    expect(fifoExpiredPoints(lots, '50', d('2026-07-01'))).toEqual([]);
   });
 });

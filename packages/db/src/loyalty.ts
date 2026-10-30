@@ -7,6 +7,7 @@ import {
   accrualPoints,
   dec,
   distributeRedemption,
+  fifoExpiredPoints,
   fmt,
   redemptionLimit,
   resolveDiscountPct,
@@ -588,26 +589,28 @@ export async function applyLoyaltyOnReturn(db: Db, ctx: DocCtx, returnDoc: Docum
 
 /* ======================= Сгорание баллов (воркер) ======================= */
 
-/** Сгорание истёкших баллов: по картам с остатком начислений, у которых expires_at <= now и ещё не списаны полностью (FIFO).
-    Простая модель: суммарный остаток непогашенных начислений с истёкшим сроком сгорает одним движением 'expiration' на карту.
-    Запускается периодической задачей воркера (apps/worker). Возвращает число карт со сгоревшими баллами. */
+/** Сгорание истёкших баллов в порядке FIFO (план, «Сгорание через заданный срок»): для карт с начислениями (лотами),
+    у которых истёк expires_at <= now, сабый старый лот расходуется первым (fifoExpiredPoints из @gr8r/shared);
+    непогашенный остаток просроченных лотов сгорает одним движением 'expiration' на лот (идемпотентно: повторный
+    запуск не создаст второй расход, потому что уже списанный лот учитывается в расходе следующего вызова).
+    Читается весь журнал карты (не только истёкшие лоты) — расходные движения надвигают от самого раннего лота.
+    Задача периодически загоняется воркером (apps/worker/src/loyalty-expiration.ts). Возвращает число созданных движений 'expiration'. */
 export async function runLoyaltyExpiration(db: Db, workspaceId: string, now = new Date()): Promise<number> {
-  const expired = await db
-    .select({ cardId: loyaltyTransactions.cardId, points: sql<string>`sum(${loyaltyTransactions.points})::text` })
+  const cardIds = await db
+    .selectDistinct({ cardId: loyaltyTransactions.cardId })
     .from(loyaltyTransactions)
-    .where(and(eq(loyaltyTransactions.workspaceId, workspaceId), eq(loyaltyTransactions.kind, 'accrual'), lte(loyaltyTransactions.expiresAt, now)))
-    .groupBy(loyaltyTransactions.cardId);
+    .where(and(eq(loyaltyTransactions.workspaceId, workspaceId), eq(loyaltyTransactions.kind, 'accrual'), lte(loyaltyTransactions.expiresAt, now)));
   let count = 0;
-  for (const row of expired) {
-    // уже сгоревшее по этой карте (защита от повторного запуска) — остаток карты, ограниченный непогашенной частью истёкших начислений
-    const [already] = await db.select({ s: sql<string>`coalesce(sum(${loyaltyTransactions.points}), 0)::text` }).from(loyaltyTransactions).where(and(eq(loyaltyTransactions.cardId, row.cardId), eq(loyaltyTransactions.kind, 'expiration')));
-    const expiredTotal = dec(row.points);
-    const alreadyBurned = -dec(already?.s ?? '0');
-    const balance = await loyaltyCardBalance(db, row.cardId);
-    const toBurn = [expiredTotal - alreadyBurned, dec(balance)].reduce((a, b) => (b < a ? b : a));
-    if (toBurn <= 0n) continue;
-    await db.insert(loyaltyTransactions).values({ workspaceId, cardId: row.cardId, kind: 'expiration', points: fmt(-toBurn, 2), comment: 'Сгорание истёкших баллов' });
-    count++;
+  for (const { cardId } of cardIds) {
+    const txs = await db.select().from(loyaltyTransactions).where(and(eq(loyaltyTransactions.cardId, cardId), ne(loyaltyTransactions.kind, 'expiration'))).orderBy(asc(loyaltyTransactions.createdAt));
+    const lots = txs.filter(t => t.kind === 'accrual').map(t => ({ id: t.id, createdAt: t.createdAt, points: t.points, expiresAt: t.expiresAt }));
+    if (!lots.length) continue;
+    const spend = txs.filter(t => t.kind !== 'accrual').reduce((a, t) => a + (dec(t.points) < 0n ? -dec(t.points) : 0n), 0n);
+    const burned = fifoExpiredPoints(lots, fmt(spend, 2), now);
+    for (const lot of burned) {
+      await db.insert(loyaltyTransactions).values({ workspaceId, cardId, kind: 'expiration', points: fmt(-dec(lot.points), 2), reversesId: lot.lotId, comment: 'Сгорание истёкших баллов' });
+      count++;
+    }
   }
   return count;
 }

@@ -115,3 +115,39 @@ export function reversalPointsForReturn(originalAccrual: string, originalDocTota
   const share = (dec(returnedAmount) * dec(originalAccrual)) / docTotal;
   return fmt(share, 2);
 }
+
+/** Одно начисление баллов (лот) с сроком годности, для расчёта сгорания FIFO */
+export interface AccrualLot {
+  id: string;
+  /** Надо сохранять порядок создания (FIFO: раньше начисленный лот сгорает/расходуется раньше) */
+  createdAt: Date;
+  points: string;
+  expiresAt: Date | null;
+}
+
+/** Частичное/полное сгорание одного лота */
+export interface ExpiredLot {
+  lotId: string;
+  points: string;
+}
+
+/** FIFO-сгорание баллов карты на момент now: лоты (начисления) расходуются расходными движениями
+    (списание/сгорание/отрицательное сторно) в хронологии от самого раннего лота: каждый расход
+    гасит непогашенный остаток лотов, надвигаются с начала списка (самый старый лот тратится первым).
+    После расходов остатки лотов с истёкшим сроком (expiresAt <= now) сгорают полностью.
+    spentPoints — абсолютная сумма всех расходных движений по карте (redemption + предыдущие expiration + отрицательные reversal, все как позитивные суммы),
+    которые ещё не сопоставлены лотам (они не привязаны к лоту напрямую). Лоты должны быть переданы в порядке createdAt возрастания. */
+export function fifoExpiredPoints(lots: AccrualLot[], spentPoints: string, now: Date): ExpiredLot[] {
+  let remainingSpend = dec(spentPoints);
+  const out: ExpiredLot[] = [];
+  for (const lot of lots) {
+    let lotRemaining = dec(lot.points);
+    if (remainingSpend > 0n) {
+      const consumed = remainingSpend < lotRemaining ? remainingSpend : lotRemaining;
+      lotRemaining -= consumed;
+      remainingSpend -= consumed;
+    }
+    if (lotRemaining > 0n && lot.expiresAt && lot.expiresAt <= now) out.push({ lotId: lot.id, points: fmt(lotRemaining, 2) });
+  }
+  return out;
+}

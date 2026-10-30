@@ -3,6 +3,7 @@ import { purgeTenantsOnce, scheduleBankSyncs, createSql, databaseUrl, ddlDatabas
 import { closeBrowser } from './pdf/render';
 import { scheduleFlowsOnce } from './flows/triggers';
 import { runBillingOnce } from './billing';
+import { runLoyaltyExpirationOnce } from './loyalty-expiration';
 import { runDealOverdueOnce } from './deal-overdue';
 import { runNextContactsOnce } from './next-contacts';
 import { runAppointmentsOnce } from './appointments';
@@ -77,6 +78,9 @@ while (!stopping) {
       lastBillingHour = hour;
       const n = await runBillingOnce(sql);
       if (n) o.log(`issued ${n} billing invoice(s)`);
+      // сгорание баллов лояльности: раз в час, по FIFO истёкших начислений, повтор не списывает дважды
+      const expired = await runLoyaltyExpirationOnce(sql);
+      if (expired) o.log(`expired ${expired} loyalty point lot(s)`);
       // следующий контакт с клиентом (повторные продажи): дела на сегодня по часовому поясу арендатора, повтор в тот же день ничего не создаёт
       const calls = await runNextContactsOnce(sql);
       if (calls) o.log(`created ${calls} next-contact task(s)`);
