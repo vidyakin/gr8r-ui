@@ -35,6 +35,8 @@ export const inviteCreateBody = z.object({
   /** Id профиля участника (status invited), если его выбирает клиент: на него сразу можно ссылаться (проекты, задачи) */
   memberId: clientId,
 });
+/** Новая ссылка для неотвеченного приглашения (почта пока не подключена — ссылку передают вручную) */
+export const inviteLinkBody = z.object({ email });
 export const inviteAcceptBody = z.object({ token: z.string().min(10).max(200) });
 export const roleChangeBody = z.object({ role: z.enum(ROLES) });
 export const workspaceParam = z.object({ id: uuid });

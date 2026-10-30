@@ -139,6 +139,24 @@ describe('workspaces', () => {
     expect((await friend.post('/invites/accept', { token: inv.body.token })).status).toBe(404);
   });
 
+  test('повтор приглашения выдаёт новую рабочую ссылку; старая перестаёт работать; только admin', async () => {
+    const owner = new Client();
+    await owner.signup();
+    const ws = owner.workspaceId!;
+    const friend = new Client();
+    await friend.signup();
+    const inv = await owner.post(`/workspaces/${ws}/invites`, { email: friend.user!.email });
+    expect((await friend.post(`/workspaces/${ws}/invites/link`, { email: friend.user!.email })).status).toBe(403);
+    expect((await owner.post(`/workspaces/${ws}/invites/link`, { email: 'nobody@test.dev' })).status).toBe(404);
+    const again = await owner.post(`/workspaces/${ws}/invites/link`, { email: friend.user!.email });
+    expect(again.status).toBe(200);
+    expect(again.body.token).not.toBe(inv.body.token);
+    expect((await friend.post('/invites/accept', { token: inv.body.token })).status).toBe(404);
+    expect((await friend.post('/invites/accept', { token: again.body.token })).status).toBe(200);
+    // принятое приглашение повторить нельзя
+    expect((await owner.post(`/workspaces/${ws}/invites/link`, { email: friend.user!.email })).status).toBe(404);
+  });
+
   test('workspace details visible to members only', async () => {
     const a = new Client();
     await a.signup({ workspaceName: 'Alpha WS' });

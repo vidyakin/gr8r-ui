@@ -1,9 +1,9 @@
 /* Воркспейсы: список моих, создание, настройки, приглашения (токен вместо почты — пока), смена роли, принятие приглашения. */
 import { zValidator } from '@hono/zod-validator';
-import { and, count, eq, gt, isNull, sql as dsql } from 'drizzle-orm';
+import { and, count, desc, eq, gt, isNull, sql as dsql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { assertLimit, invites, members, memberships, recordEvent, uuidv7, withContext, workspaces } from '@gr8r/db';
-import { inviteAcceptBody, inviteCreateBody, memberParam, roleChangeBody, workspaceCreateBody, workspaceParam, workspaceUpdateBody, idParam } from '@gr8r/shared';
+import { inviteAcceptBody, inviteCreateBody, inviteLinkBody, memberParam, roleChangeBody, workspaceCreateBody, workspaceParam, workspaceUpdateBody, idParam } from '@gr8r/shared';
 import { AppError, forbidden, notFound } from './errors';
 import { ctxOf, validationHook } from './crud';
 import { requireRole, requireSession, sha256, tenant } from './middleware';
@@ -73,6 +73,21 @@ export const workspaceRoutes = new Hono<AppEnv>()
     await recordEvent(db, { workspaceId, type: 'member.invited', entity: 'invite', recordId: invite!.id, actorId: memberId, payload: { email, role } });
     // Токен отдаётся один раз (почты пока нет — передайте ссылку вручную)
     return c.json({ invite: invite!, token, memberId: profileId! }, 201);
+  })
+  // Повторить приглашение: письма не уходят, поэтому выдаём новую ссылку (старая перестаёт работать), срок снова 7 дней
+  .post('/:id/invites/link', requireRole('admin'), zValidator('json', inviteLinkBody, validationHook), async c => {
+    const { db, workspaceId, memberId } = ctxOf(c);
+    const { email } = c.req.valid('json');
+    const [last] = await db.select({ id: invites.id }).from(invites).where(and(eq(dsql`lower(${invites.email})`, email.toLowerCase()), isNull(invites.acceptedAt))).orderBy(desc(invites.createdAt)).limit(1);
+    if (!last) throw new AppError(404, 'invite_not_found', 'No pending invite for this address');
+    const token = newInviteToken(workspaceId);
+    const [invite] = await db
+      .update(invites)
+      .set({ tokenHash: sha256(token), expiresAt: new Date(Date.now() + INVITE_TTL_MS) })
+      .where(eq(invites.id, last.id))
+      .returning({ id: invites.id, email: invites.email, role: invites.role, expiresAt: invites.expiresAt });
+    await recordEvent(db, { workspaceId, type: 'member.invite_relinked', entity: 'invite', recordId: invite!.id, actorId: memberId, payload: { email } });
+    return c.json({ invite, token });
   })
   .delete('/:id/invites/:inviteId', requireRole('admin'), async c => {
     const { db, workspaceId, memberId } = ctxOf(c);
