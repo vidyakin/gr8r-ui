@@ -1,5 +1,6 @@
 /* Рейсы и экран диспетчера (задача 1211). Английский словарь — источник ключей: ./ru повторяет его форму. */
 export const trips = {
+  driver: { title: 'Driver workplace', empty: 'No trips today', navigation: 'Open navigation', arrived: 'Arrived', delivered: 'Delivered', refused: 'Refused', photo: 'Photo', signature: 'Recipient signature', clear: 'Clear signature', amount: 'Amount', cash: 'Accept cash', link: 'Create payment link', partial: 'Return selected goods', quantity: 'Return quantity', send: 'Send', online: 'Online', offline: 'Offline', queued: 'Waiting to send', retry: 'Retry sending', failure: 'Could not send. Check the connection or operation details.', noLocation: 'Location unavailable', proof: 'Proof of delivery', saved: 'Saved', confirmDiscard: 'Confirm removal', cancelDiscard: 'Keep operation', discard: 'Discard first queued operation', photoLarge: 'The photo is too large. Choose an image smaller than 1.5 MB.', returnNote: 'Returns require a posted shipment.' },
   title: 'Trips',
   lead: 'A trip is a vehicle, a driver and a route: stops in the order of the round, a capacity check and a waybill.',
   new: 'New trip',

@@ -1,7 +1,7 @@
 /* Рейсы (задача 1211; docs/architecture/trips.md): рейс = машина + водитель(и) + период + точки в порядке объезда. Контроль вместимости
    (предупреждение или запрет — настройка воркспейса), временные окна, статусы план → в пути → выполнен / отменён, путевой лист из рейса,
    синхронизация с доставками (курьер, статус), экран диспетчера. Расчёты нагрузки и расстояния — чистые функции из @gr8r/shared (trips.ts). */
-import { and, asc, desc, eq, gte, inArray, lte, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNotNull, lte, ne, or, sql } from 'drizzle-orm';
 import {
   TRIP_CAPACITY_SETTING,
   dec,
@@ -17,15 +17,19 @@ import {
   type TripCapacityMode,
   type TripLoad,
   type VehicleLimits,
+  type VatRate,
 } from '@gr8r/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { changeDeliveryStatus, listDeliveries, type DeliveryView } from './delivery';
-import type { DocCtx } from './documents';
+import { createBasedOn, postDocument, updateDocument, type DocCtx } from './documents';
+import { createPayment } from './payments';
+import { createPaymentLink } from './integrations';
+import { payableOf } from './settlements';
 import { clearRoute, requestGeocode } from './routing';
 import { assertMember, createWaybill, loadVehicle, nextNumber, type WaybillRow } from './fleet';
-import { deliveries, documents, fleetTripStops, fleetTrips, fleetVehicles, fleetWaybills, members, workspaces } from './schema';
+import { cashRegisters, deliveries, documentLines, documents, fleetDriverReturns, fleetDriverPayments, fleetDriverRegisters, fleetDriverEvents, fleetTripStops, fleetTrips, fleetVehicles, fleetWaybills, members, workspaces } from './schema';
 
 export type TripRow = typeof fleetTrips.$inferSelect;
 export type TripStopRow = typeof fleetTripStops.$inferSelect;
@@ -649,4 +653,131 @@ export async function tripPrintData(db: Db, ctx: DocCtx, id: string): Promise<Ro
     })),
     total: fmt(total, 2),
   };
+}
+
+/** Отметка назначенного водителя. Блокировка рейса сериализует повтор одной операции. */
+export async function recordDriverStopEvent(db: Db, ctx: DocCtx, tripId: string, stopId: string, input: {
+  clientId: string; status: 'arrived' | 'done' | 'failed'; latitude?: number; longitude?: number;
+  comment?: string; photo?: string; signature?: string;
+}) {
+  const trip = await loadTrip(db, tripId, true);
+  if (!ctx.memberId || (trip.driverMemberId !== ctx.memberId && trip.coDriverMemberId !== ctx.memberId))
+    throw new DomainError(403, 'trip_not_yours', 'Trip is not assigned to this driver');
+  const [previous] = await db.select().from(fleetDriverEvents).where(and(eq(fleetDriverEvents.workspaceId, ctx.workspaceId), eq(fleetDriverEvents.clientId, input.clientId))).limit(1);
+  if (previous) {
+    if (previous.tripId !== tripId || previous.stopId !== stopId || previous.driverMemberId !== ctx.memberId || previous.status !== input.status ||
+      previous.comment !== (input.comment ?? '') || previous.photo !== (input.photo ?? null) || previous.signature !== (input.signature ?? null) ||
+      (previous.latitude === null ? input.latitude !== undefined : input.latitude === undefined || Number(previous.latitude) !== Number(input.latitude.toFixed(6))) ||
+      (previous.longitude === null ? input.longitude !== undefined : input.longitude === undefined || Number(previous.longitude) !== Number(input.longitude.toFixed(6))))
+      throw new DomainError(409, 'driver_event_conflict', 'Client ID already used for another event');
+    return previous;
+  }
+  const [stop] = await db.select({ status: fleetTripStops.status }).from(fleetTripStops).where(and(eq(fleetTripStops.id, stopId), eq(fleetTripStops.tripId, tripId))).limit(1);
+  if (!stop) throw notFound('stop');
+  if (stop.status === 'done' || stop.status === 'failed') throw new DomainError(409, 'stop_finished', 'Stop is already finished');
+  await setStopStatus(db, ctx, tripId, stopId, input.status, input.comment);
+  const [row] = await db.insert(fleetDriverEvents).values({
+    workspaceId: ctx.workspaceId, tripId, stopId, driverMemberId: ctx.memberId, clientId: input.clientId,
+    status: input.status, latitude: input.latitude?.toString(), longitude: input.longitude?.toString(),
+    comment: input.comment ?? '', photo: input.photo, signature: input.signature,
+  }).returning();
+  return row!;
+}
+
+/** Рейсы дня только для назначенного водителя, с точками в порядке объезда. */
+export async function driverTripsForDate(db: Db, ctx: DocCtx, date: string) {
+  if (!ctx.memberId) return [];
+  const trips = await db.select({ id: fleetTrips.id, number: fleetTrips.number, name: fleetTrips.name, status: fleetTrips.status, dateFrom: fleetTrips.dateFrom, dateTo: fleetTrips.dateTo })
+    .from(fleetTrips).where(and(lte(fleetTrips.dateFrom, date), gte(fleetTrips.dateTo, date), ne(fleetTrips.status, 'cancelled'), or(eq(fleetTrips.driverMemberId, ctx.memberId), eq(fleetTrips.coDriverMemberId, ctx.memberId))))
+    .orderBy(asc(fleetTrips.startTime), asc(fleetTrips.number));
+  return Promise.all(trips.map(async trip => ({ ...trip, stops: await Promise.all((await loadStops(db, trip.id)).map(async stop => {
+    // Фото и подпись тяжёлые (до 2,5 МБ на отметку): в списке только признаки, сами данные — driverStopProof
+    const events = await db
+      .select({ id: fleetDriverEvents.id, status: fleetDriverEvents.status, createdAt: fleetDriverEvents.createdAt, hasPhoto: sql<boolean>`${fleetDriverEvents.photo} is not null`, hasSignature: sql<boolean>`${fleetDriverEvents.signature} is not null` })
+      .from(fleetDriverEvents)
+      .where(eq(fleetDriverEvents.stopId, stop.id))
+      .orderBy(asc(fleetDriverEvents.createdAt));
+    const [delivery] = stop.deliveryId ? await db.select({ documentId: deliveries.documentId }).from(deliveries).where(eq(deliveries.id, stop.deliveryId)).limit(1) : [];
+    const lines = delivery ? await db.select({ id: documentLines.id, name: documentLines.name, qty: documentLines.qty, unitCode: documentLines.unitCode }).from(documentLines).where(eq(documentLines.documentId, delivery.documentId)).orderBy(asc(documentLines.sortOrder)) : [];
+    return { ...stop, events, lines };
+  })) })));
+}
+
+/** Фото и подпись получателя по точке: только водителю рейса */
+export async function driverStopProof(db: Db, ctx: DocCtx, tripId: string, stopId: string) {
+  const trip = await loadTrip(db, tripId, true);
+  if (!ctx.memberId || (trip.driverMemberId !== ctx.memberId && trip.coDriverMemberId !== ctx.memberId)) throw new DomainError(403, 'trip_not_yours', 'Trip is not assigned to this driver');
+  return db
+    .select({ id: fleetDriverEvents.id, photo: fleetDriverEvents.photo, signature: fleetDriverEvents.signature })
+    .from(fleetDriverEvents)
+    .where(and(eq(fleetDriverEvents.tripId, tripId), eq(fleetDriverEvents.stopId, stopId), or(isNotNull(fleetDriverEvents.photo), isNotNull(fleetDriverEvents.signature))))
+    .orderBy(asc(fleetDriverEvents.createdAt));
+}
+
+/** Наличные через обычный приходный документ; повтор клиента возвращает тот же документ. */
+export async function driverCashPayment(db: Db, ctx: DocCtx, tripId: string, stopId: string, input: { clientId: string; amount: string }) {
+  const trip = await loadTrip(db, tripId, true);
+  if (!ctx.memberId || (trip.driverMemberId !== ctx.memberId && trip.coDriverMemberId !== ctx.memberId)) throw new DomainError(403, 'trip_not_yours', 'Trip is not assigned to this driver');
+  await db.execute(sql`select pg_advisory_xact_lock(hashtextextended(${ctx.workspaceId + ':' + input.clientId}, 0))`);
+  const [previous] = await db.select().from(fleetDriverPayments).where(and(eq(fleetDriverPayments.workspaceId, ctx.workspaceId), eq(fleetDriverPayments.clientId, input.clientId))).limit(1);
+  if (previous) {
+    if (previous.tripId !== tripId || previous.stopId !== stopId || previous.driverMemberId !== ctx.memberId || dec(previous.amount) !== dec(input.amount)) throw new DomainError(409, 'driver_payment_conflict', 'Client ID already used for another payment');
+    return { id: previous.paymentId };
+  }
+  const [source] = await db.select({ document: documents }).from(fleetTripStops)
+    .innerJoin(deliveries, eq(deliveries.id, fleetTripStops.deliveryId))
+    .innerJoin(documents, eq(documents.id, deliveries.documentId))
+    .where(and(eq(fleetTripStops.id, stopId), eq(fleetTripStops.tripId, tripId))).limit(1);
+  if (!source) throw new DomainError(404, 'not_found', 'Delivery not found');
+  await db.execute(sql`select pg_advisory_xact_lock(hashtextextended(${ctx.workspaceId + ':payment:' + source.document.id}, 0))`);
+  const info = await payableOf(db, source.document.id);
+  if (!info || info.status.side !== 'customer') throw new DomainError(422, 'not_payable', 'Document is not payable');
+  if (dec(input.amount) > dec(info.status.remaining)) throw new DomainError(422, 'amount_exceeds_remaining', 'Amount exceeds remaining balance');
+  await db.execute(sql`select pg_advisory_xact_lock(hashtextextended(${ctx.workspaceId + ':' + ctx.memberId + ':' + source.document.organizationId}, 0))`);
+  let [register] = await db.select().from(fleetDriverRegisters).where(and(eq(fleetDriverRegisters.workspaceId, ctx.workspaceId), eq(fleetDriverRegisters.driverMemberId, ctx.memberId), eq(fleetDriverRegisters.organizationId, source.document.organizationId))).limit(1);
+  if (!register) {
+    const [driver] = await db.select({ name: members.name }).from(members).where(eq(members.id, ctx.memberId)).limit(1);
+    const [cash] = await db.insert(cashRegisters).values({ workspaceId: ctx.workspaceId, organizationId: source.document.organizationId, responsibleId: ctx.memberId, name: `Касса водителя: ${driver?.name ?? ctx.memberId}` }).returning();
+    [register] = await db.insert(fleetDriverRegisters).values({ workspaceId: ctx.workspaceId, driverMemberId: ctx.memberId, organizationId: source.document.organizationId, cashRegisterId: cash!.id }).returning();
+  }
+  const id = await createPayment(db, ctx, { type: 'cash_receipt', operation: 'from_customer', organizationId: source.document.organizationId, cashRegisterId: register!.cashRegisterId, counterpartyId: info.counterpartyId, basedOnId: source.document.id, lines: [{ settlementDocumentId: info.status.rootId, contractId: info.contractId ?? undefined, amount: input.amount, comment: '' }] });
+  await postDocument(db, ctx, id);
+  await db.insert(fleetDriverPayments).values({ workspaceId: ctx.workspaceId, clientId: input.clientId, tripId, stopId, driverMemberId: ctx.memberId, paymentId: id, amount: input.amount });
+  return { id };
+}
+
+export async function driverPaymentLink(db: Db, ctx: DocCtx, tripId: string, stopId: string, input: { returnUrl: string; amount?: string }) {
+  const trip = await loadTrip(db, tripId, true);
+  if (!ctx.memberId || (trip.driverMemberId !== ctx.memberId && trip.coDriverMemberId !== ctx.memberId)) throw new DomainError(403, 'trip_not_yours', 'Trip is not assigned to this driver');
+  const [source] = await db.select({ documentId: deliveries.documentId }).from(fleetTripStops).innerJoin(deliveries, eq(deliveries.id, fleetTripStops.deliveryId)).where(and(eq(fleetTripStops.id, stopId), eq(fleetTripStops.tripId, tripId))).limit(1);
+  if (!source) throw new DomainError(404, 'not_found', 'Delivery not found');
+  return createPaymentLink(db, ctx, { documentId: source.documentId, ...input });
+}
+
+/** Возврат на основании проведённой реализации с исходной себестоимостью. */
+export async function driverPartialReturn(db: Db, ctx: DocCtx, tripId: string, stopId: string, input: { clientId: string; lines: { lineId: string; qty: string }[] }) {
+  const trip = await loadTrip(db, tripId, true);
+  if (!ctx.memberId || (trip.driverMemberId !== ctx.memberId && trip.coDriverMemberId !== ctx.memberId)) throw new DomainError(403, 'trip_not_yours', 'Trip is not assigned to this driver');
+  const lines = input.lines.map(l => ({ lineId: l.lineId, qty: fmt(dec(l.qty), 3) })).sort((a, b) => a.lineId.localeCompare(b.lineId));
+  await db.execute(sql`select pg_advisory_xact_lock(hashtextextended(${ctx.workspaceId + ':' + input.clientId}, 0))`);
+  const [previous] = await db.select().from(fleetDriverReturns).where(and(eq(fleetDriverReturns.workspaceId, ctx.workspaceId), eq(fleetDriverReturns.clientId, input.clientId))).limit(1);
+  if (previous) {
+    if (previous.tripId !== tripId || previous.stopId !== stopId || previous.driverMemberId !== ctx.memberId || previous.lines.length !== lines.length || previous.lines.some((l, i) => l.lineId !== lines[i]!.lineId || l.qty !== lines[i]!.qty)) throw new DomainError(409, 'driver_return_conflict', 'Client ID already used for another return');
+    return { id: previous.returnId };
+  }
+  const [source] = await db.select({ document: documents }).from(fleetTripStops).innerJoin(deliveries, eq(deliveries.id, fleetTripStops.deliveryId)).innerJoin(documents, eq(documents.id, deliveries.documentId)).where(and(eq(fleetTripStops.id, stopId), eq(fleetTripStops.tripId, tripId))).limit(1);
+  if (!source) throw new DomainError(404, 'not_found', 'Delivery not found');
+  if (source.document.type !== 'realization' || source.document.status !== 'posted') throw new DomainError(422, 'return_requires_realization', 'A posted shipment is required for a return');
+  await db.execute(sql`select pg_advisory_xact_lock(hashtextextended(${ctx.workspaceId + ':return:' + source.document.id}, 0))`);
+  const id = await createBasedOn(db, ctx, source.document.id, 'customer_return');
+  const generated = await db.select().from(documentLines).where(eq(documentLines.documentId, id));
+  const selected = lines.map(l => {
+    const row = generated.find(r => r.sourceLineId === l.lineId);
+    if (!row || dec(l.qty) > dec(row.qty)) throw new DomainError(422, 'invalid_return_quantity', 'Return quantity exceeds available quantity');
+    return { id: row.id, productId: row.productId, qty: l.qty, price: row.price, discountPct: row.discountPct, vatRate: row.vatRate as VatRate, name: row.name, unitCode: row.unitCode, groupName: row.groupName };
+  });
+  await updateDocument(db, ctx, id, { lines: selected });
+  await postDocument(db, ctx, id);
+  await db.insert(fleetDriverReturns).values({ workspaceId: ctx.workspaceId, clientId: input.clientId, tripId, stopId, driverMemberId: ctx.memberId, returnId: id, lines });
+  return { id };
 }

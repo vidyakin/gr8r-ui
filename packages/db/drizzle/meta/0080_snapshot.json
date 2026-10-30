@@ -1,6 +1,6 @@
 {
   "id": "fc07e5f3-2603-4f71-8b1f-5b347cf6a27a",
-  "prevId": "860242c5-785f-4253-bb69-829e1b07cdb3",
+  "prevId": "13d4df06-c484-49f4-bc17-fa376cdf5a84",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -32093,6 +32093,620 @@
       },
       "isRLSEnabled": false
     },
+    "public.fleet_driver_events": {
+      "name": "fleet_driver_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "uuid_generate_v7()"
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trip_id": {
+          "name": "trip_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stop_id": {
+          "name": "stop_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "driver_member_id": {
+          "name": "driver_member_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "latitude": {
+          "name": "latitude",
+          "type": "numeric(9, 6)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "longitude": {
+          "name": "longitude",
+          "type": "numeric(9, 6)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "comment": {
+          "name": "comment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "photo": {
+          "name": "photo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "signature": {
+          "name": "signature",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "fleet_driver_events_stop_idx": {
+          "name": "fleet_driver_events_stop_idx",
+          "columns": [
+            {
+              "expression": "stop_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "fleet_driver_events_workspace_id_workspaces_id_fk": {
+          "name": "fleet_driver_events_workspace_id_workspaces_id_fk",
+          "tableFrom": "fleet_driver_events",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "fleet_driver_events_trip_fk": {
+          "name": "fleet_driver_events_trip_fk",
+          "tableFrom": "fleet_driver_events",
+          "tableTo": "fleet_trips",
+          "columnsFrom": [
+            "workspace_id",
+            "trip_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "fleet_driver_events_stop_fk": {
+          "name": "fleet_driver_events_stop_fk",
+          "tableFrom": "fleet_driver_events",
+          "tableTo": "fleet_trip_stops",
+          "columnsFrom": [
+            "workspace_id",
+            "stop_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "fleet_driver_events_driver_fk": {
+          "name": "fleet_driver_events_driver_fk",
+          "tableFrom": "fleet_driver_events",
+          "tableTo": "members",
+          "columnsFrom": [
+            "workspace_id",
+            "driver_member_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "fleet_driver_events_ws_client_uq": {
+          "name": "fleet_driver_events_ws_client_uq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "workspace_id",
+            "client_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "fleet_driver_events_status_chk": {
+          "name": "fleet_driver_events_status_chk",
+          "value": "\"fleet_driver_events\".\"status\" in ('arrived','done','failed')"
+        },
+        "fleet_driver_events_coords_chk": {
+          "name": "fleet_driver_events_coords_chk",
+          "value": "(\"fleet_driver_events\".\"latitude\" is null and \"fleet_driver_events\".\"longitude\" is null) or (\"fleet_driver_events\".\"latitude\" is not null and \"fleet_driver_events\".\"longitude\" is not null and \"fleet_driver_events\".\"latitude\" between -90 and 90 and \"fleet_driver_events\".\"longitude\" between -180 and 180)"
+        },
+        "fleet_driver_events_pod_size_chk": {
+          "name": "fleet_driver_events_pod_size_chk",
+          "value": "coalesce(octet_length(\"fleet_driver_events\".\"photo\"), 0) <= 2097152 and coalesce(octet_length(\"fleet_driver_events\".\"signature\"), 0) <= 524288"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.fleet_driver_payments": {
+      "name": "fleet_driver_payments",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "uuid_generate_v7()"
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trip_id": {
+          "name": "trip_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stop_id": {
+          "name": "stop_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "driver_member_id": {
+          "name": "driver_member_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payment_id": {
+          "name": "payment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(18, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "fleet_driver_payments_workspace_id_workspaces_id_fk": {
+          "name": "fleet_driver_payments_workspace_id_workspaces_id_fk",
+          "tableFrom": "fleet_driver_payments",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "fleet_driver_payments_trip_fk": {
+          "name": "fleet_driver_payments_trip_fk",
+          "tableFrom": "fleet_driver_payments",
+          "tableTo": "fleet_trips",
+          "columnsFrom": [
+            "workspace_id",
+            "trip_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fleet_driver_payments_stop_fk": {
+          "name": "fleet_driver_payments_stop_fk",
+          "tableFrom": "fleet_driver_payments",
+          "tableTo": "fleet_trip_stops",
+          "columnsFrom": [
+            "workspace_id",
+            "stop_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fleet_driver_payments_driver_fk": {
+          "name": "fleet_driver_payments_driver_fk",
+          "tableFrom": "fleet_driver_payments",
+          "tableTo": "members",
+          "columnsFrom": [
+            "workspace_id",
+            "driver_member_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fleet_driver_payments_payment_fk": {
+          "name": "fleet_driver_payments_payment_fk",
+          "tableFrom": "fleet_driver_payments",
+          "tableTo": "documents",
+          "columnsFrom": [
+            "workspace_id",
+            "payment_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "fleet_driver_payments_client_uq": {
+          "name": "fleet_driver_payments_client_uq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "workspace_id",
+            "client_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.fleet_driver_registers": {
+      "name": "fleet_driver_registers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "uuid_generate_v7()"
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "driver_member_id": {
+          "name": "driver_member_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cash_register_id": {
+          "name": "cash_register_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "fleet_driver_registers_workspace_id_workspaces_id_fk": {
+          "name": "fleet_driver_registers_workspace_id_workspaces_id_fk",
+          "tableFrom": "fleet_driver_registers",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "fleet_driver_registers_driver_fk": {
+          "name": "fleet_driver_registers_driver_fk",
+          "tableFrom": "fleet_driver_registers",
+          "tableTo": "members",
+          "columnsFrom": [
+            "workspace_id",
+            "driver_member_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fleet_driver_registers_org_fk": {
+          "name": "fleet_driver_registers_org_fk",
+          "tableFrom": "fleet_driver_registers",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "workspace_id",
+            "organization_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fleet_driver_registers_cash_fk": {
+          "name": "fleet_driver_registers_cash_fk",
+          "tableFrom": "fleet_driver_registers",
+          "tableTo": "cash_registers",
+          "columnsFrom": [
+            "workspace_id",
+            "cash_register_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "fleet_driver_registers_driver_org_uq": {
+          "name": "fleet_driver_registers_driver_org_uq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "workspace_id",
+            "driver_member_id",
+            "organization_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.fleet_driver_returns": {
+      "name": "fleet_driver_returns",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "uuid_generate_v7()"
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trip_id": {
+          "name": "trip_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stop_id": {
+          "name": "stop_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "driver_member_id": {
+          "name": "driver_member_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "return_id": {
+          "name": "return_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lines": {
+          "name": "lines",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "fleet_driver_returns_workspace_id_workspaces_id_fk": {
+          "name": "fleet_driver_returns_workspace_id_workspaces_id_fk",
+          "tableFrom": "fleet_driver_returns",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "fleet_driver_returns_trip_fk": {
+          "name": "fleet_driver_returns_trip_fk",
+          "tableFrom": "fleet_driver_returns",
+          "tableTo": "fleet_trips",
+          "columnsFrom": [
+            "workspace_id",
+            "trip_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fleet_driver_returns_stop_fk": {
+          "name": "fleet_driver_returns_stop_fk",
+          "tableFrom": "fleet_driver_returns",
+          "tableTo": "fleet_trip_stops",
+          "columnsFrom": [
+            "workspace_id",
+            "stop_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fleet_driver_returns_driver_fk": {
+          "name": "fleet_driver_returns_driver_fk",
+          "tableFrom": "fleet_driver_returns",
+          "tableTo": "members",
+          "columnsFrom": [
+            "workspace_id",
+            "driver_member_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fleet_driver_returns_document_fk": {
+          "name": "fleet_driver_returns_document_fk",
+          "tableFrom": "fleet_driver_returns",
+          "tableTo": "documents",
+          "columnsFrom": [
+            "workspace_id",
+            "return_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "fleet_driver_returns_client_uq": {
+          "name": "fleet_driver_returns_client_uq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "workspace_id",
+            "client_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.fleet_routing_runs": {
       "name": "fleet_routing_runs",
       "schema": "",
@@ -33094,209 +33708,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.fleet_trip_carriers": {
-      "name": "fleet_trip_carriers",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "uuid_generate_v7()"
-        },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "trip_id": {
-          "name": "trip_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "carrier_company_id": {
-          "name": "carrier_company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "rate": {
-          "name": "rate",
-          "type": "numeric(18, 2)",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'0'"
-        },
-        "vehicle_plate": {
-          "name": "vehicle_plate",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "vehicle_model": {
-          "name": "vehicle_model",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "driver_name": {
-          "name": "driver_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "driver_phone": {
-          "name": "driver_phone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "driver_license": {
-          "name": "driver_license",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "contract_number": {
-          "name": "contract_number",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "contract_date": {
-          "name": "contract_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "comment": {
-          "name": "comment",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "fleet_trip_carriers_trip_uq": {
-          "name": "fleet_trip_carriers_trip_uq",
-          "columns": [
-            {
-              "expression": "trip_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "fleet_trip_carriers_carrier_idx": {
-          "name": "fleet_trip_carriers_carrier_idx",
-          "columns": [
-            {
-              "expression": "carrier_company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "fleet_trip_carriers_workspace_id_workspaces_id_fk": {
-          "name": "fleet_trip_carriers_workspace_id_workspaces_id_fk",
-          "tableFrom": "fleet_trip_carriers",
-          "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "fleet_trip_carriers_trip_fk": {
-          "name": "fleet_trip_carriers_trip_fk",
-          "tableFrom": "fleet_trip_carriers",
-          "tableTo": "fleet_trips",
-          "columnsFrom": [
-            "workspace_id",
-            "trip_id"
-          ],
-          "columnsTo": [
-            "workspace_id",
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "fleet_trip_carriers_company_fk": {
-          "name": "fleet_trip_carriers_company_fk",
-          "tableFrom": "fleet_trip_carriers",
-          "tableTo": "companies",
-          "columnsFrom": [
-            "workspace_id",
-            "carrier_company_id"
-          ],
-          "columnsTo": [
-            "workspace_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "fleet_trip_carriers_ws_id_uq": {
-          "name": "fleet_trip_carriers_ws_id_uq",
-          "nullsNotDistinct": false,
-          "columns": [
-            "workspace_id",
-            "id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "fleet_trip_carriers_rate_chk": {
-          "name": "fleet_trip_carriers_rate_chk",
-          "value": "\"fleet_trip_carriers\".\"rate\" >= 0"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.fleet_trip_costs": {
       "name": "fleet_trip_costs",
       "schema": "",
@@ -33556,6 +33967,166 @@
         "transport_order_points_kind_chk": {
           "name": "transport_order_points_kind_chk",
           "value": "\"transport_order_points\".\"kind\" in ('load','unload')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.transport_rate_schedules": {
+      "name": "transport_rate_schedules",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "uuid_generate_v7()"
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_place": {
+          "name": "from_place",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "to_place": {
+          "name": "to_place",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "body_type": {
+          "name": "body_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "rate_kind": {
+          "name": "rate_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'flat'"
+        },
+        "rate": {
+          "name": "rate",
+          "type": "numeric(18, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "distance_km": {
+          "name": "distance_km",
+          "type": "numeric(9, 1)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "comment": {
+          "name": "comment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "transport_rate_schedules_route_idx": {
+          "name": "transport_rate_schedules_route_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "from_place",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "to_place",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "transport_rate_schedules_workspace_id_workspaces_id_fk": {
+          "name": "transport_rate_schedules_workspace_id_workspaces_id_fk",
+          "tableFrom": "transport_rate_schedules",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "transport_rate_schedules_ws_id_uq": {
+          "name": "transport_rate_schedules_ws_id_uq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "workspace_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "transport_rate_schedules_rate_chk": {
+          "name": "transport_rate_schedules_rate_chk",
+          "value": "\"transport_rate_schedules\".\"rate_kind\" in ('flat','per_km','per_ton')"
+        },
+        "transport_rate_schedules_amount_chk": {
+          "name": "transport_rate_schedules_amount_chk",
+          "value": "\"transport_rate_schedules\".\"rate\" >= 0"
         }
       },
       "isRLSEnabled": false
@@ -33949,8 +34520,8 @@
       },
       "isRLSEnabled": false
     },
-    "public.transport_rate_schedules": {
-      "name": "transport_rate_schedules",
+    "public.fleet_trip_carriers": {
+      "name": "fleet_trip_carriers",
       "schema": "",
       "columns": {
         "id": {
@@ -33966,39 +34537,17 @@
           "primaryKey": false,
           "notNull": true
         },
-        "name": {
-          "name": "name",
-          "type": "text",
+        "trip_id": {
+          "name": "trip_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "from_place": {
-          "name": "from_place",
-          "type": "text",
+        "carrier_company_id": {
+          "name": "carrier_company_id",
+          "type": "uuid",
           "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "to_place": {
-          "name": "to_place",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "body_type": {
-          "name": "body_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "rate_kind": {
-          "name": "rate_kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'flat'"
+          "notNull": true
         },
         "rate": {
           "name": "rate",
@@ -34007,9 +34556,51 @@
           "notNull": true,
           "default": "'0'"
         },
-        "distance_km": {
-          "name": "distance_km",
-          "type": "numeric(9, 1)",
+        "vehicle_plate": {
+          "name": "vehicle_plate",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "vehicle_model": {
+          "name": "vehicle_model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "driver_name": {
+          "name": "driver_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "driver_phone": {
+          "name": "driver_phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "driver_license": {
+          "name": "driver_license",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "contract_number": {
+          "name": "contract_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "contract_date": {
+          "name": "contract_date",
+          "type": "date",
           "primaryKey": false,
           "notNull": false
         },
@@ -34033,32 +34624,29 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "archived_at": {
-          "name": "archived_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
-        "transport_rate_schedules_route_idx": {
-          "name": "transport_rate_schedules_route_idx",
+        "fleet_trip_carriers_trip_uq": {
+          "name": "fleet_trip_carriers_trip_uq",
           "columns": [
             {
-              "expression": "workspace_id",
+              "expression": "trip_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
-            },
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "fleet_trip_carriers_carrier_idx": {
+          "name": "fleet_trip_carriers_carrier_idx",
+          "columns": [
             {
-              "expression": "from_place",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "to_place",
+              "expression": "carrier_company_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -34071,9 +34659,9 @@
         }
       },
       "foreignKeys": {
-        "transport_rate_schedules_workspace_id_workspaces_id_fk": {
-          "name": "transport_rate_schedules_workspace_id_workspaces_id_fk",
-          "tableFrom": "transport_rate_schedules",
+        "fleet_trip_carriers_workspace_id_workspaces_id_fk": {
+          "name": "fleet_trip_carriers_workspace_id_workspaces_id_fk",
+          "tableFrom": "fleet_trip_carriers",
           "tableTo": "workspaces",
           "columnsFrom": [
             "workspace_id"
@@ -34083,12 +34671,42 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "fleet_trip_carriers_trip_fk": {
+          "name": "fleet_trip_carriers_trip_fk",
+          "tableFrom": "fleet_trip_carriers",
+          "tableTo": "fleet_trips",
+          "columnsFrom": [
+            "workspace_id",
+            "trip_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "fleet_trip_carriers_company_fk": {
+          "name": "fleet_trip_carriers_company_fk",
+          "tableFrom": "fleet_trip_carriers",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "workspace_id",
+            "carrier_company_id"
+          ],
+          "columnsTo": [
+            "workspace_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "transport_rate_schedules_ws_id_uq": {
-          "name": "transport_rate_schedules_ws_id_uq",
+        "fleet_trip_carriers_ws_id_uq": {
+          "name": "fleet_trip_carriers_ws_id_uq",
           "nullsNotDistinct": false,
           "columns": [
             "workspace_id",
@@ -34098,13 +34716,9 @@
       },
       "policies": {},
       "checkConstraints": {
-        "transport_rate_schedules_rate_chk": {
-          "name": "transport_rate_schedules_rate_chk",
-          "value": "\"transport_rate_schedules\".\"rate_kind\" in ('flat','per_km','per_ton')"
-        },
-        "transport_rate_schedules_amount_chk": {
-          "name": "transport_rate_schedules_amount_chk",
-          "value": "\"transport_rate_schedules\".\"rate\" >= 0"
+        "fleet_trip_carriers_rate_chk": {
+          "name": "fleet_trip_carriers_rate_chk",
+          "value": "\"fleet_trip_carriers\".\"rate\" >= 0"
         }
       },
       "isRLSEnabled": false

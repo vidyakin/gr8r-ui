@@ -117,7 +117,7 @@ export const MODULES: readonly ModuleDef[] = [
     id: 'transport',
     requires: ['trade'],
     paths: ['/fleet', '/trips', '/transport-orders'],
-    sections: ['fleet', 'fleetVehicles', 'fleetDrivers', 'fleetDocuments', 'fleetWaybills', 'fleetFuel', 'fleetService', 'fleetFines', 'trips', 'dispatch', 'transportOrders', 'rateSchedules'],
+    sections: ['fleet', 'fleetVehicles', 'fleetDrivers', 'fleetDocuments', 'fleetWaybills', 'fleetFuel', 'fleetService', 'fleetFines', 'trips', 'dispatch', 'driverWorkplace', 'transportOrders', 'rateSchedules'],
     jobs: ['routing.geocode', 'routing.distribute', 'routing.optimize', 'transport.waybill_pdf'],
     nodes: ['trigger.fleet_document_expiring', 'trigger.trip_status'],
   }),

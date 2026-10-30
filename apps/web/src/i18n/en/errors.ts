@@ -1,6 +1,10 @@
 /* Ошибки API по коду (error.code). Параметры берутся из error.details. На английском приоритет у текста сервера —
    он точнее; ключ здесь нужен, чтобы перевести код на другие языки (см. errorMessage в data/api.ts) */
 export const errors = {
+  driver_payment_conflict: 'This payment identifier was already used for another payment.',
+  driver_return_conflict: 'This return identifier was already used for another return.',
+  return_requires_realization: 'A posted shipment is required for a return.',
+  invalid_return_quantity: 'The returned quantity exceeds the available quantity.',
   unknown: 'Something went wrong',
   network: 'Could not reach the server',
   not_found: 'The record was not found',
@@ -367,6 +371,8 @@ export const errors = {
   warehouse_not_empty: 'The warehouse still has stock: move or write it off first',
   work_order_kind_required: 'The work order has no kind',
   work_order_state_only: 'A work order is posted when it moves to the Done state',
+  trip_not_yours: 'Trip is not assigned to you',
+  driver_event_conflict: 'This client ID was used for a different event',
   workspace_invalid: 'Workspace id is not a valid UUID',
   workspace_required: 'X-Workspace-Id header is required',
 };
