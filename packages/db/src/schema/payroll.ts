@@ -7,6 +7,7 @@ import { archivedAt, createdAt, money, pk, updatedAt } from './columns';
 import { costItems, documents, organizations } from './documents';
 import { members, wsCol } from './people';
 import { workCenters } from './production';
+import { fleetTrips } from './trips';
 
 /** Способ отражения: статья затрат + участок, куда идёт начисление */
 export const payrollReflections = pgTable(
@@ -45,7 +46,7 @@ export const payrollKinds = pgTable(
   },
   t => [
     unique('payroll_kinds_ws_id_uq').on(t.workspaceId, t.id),
-    check('payroll_kinds_base_chk', sql`${t.baseType} in ('salary','piecework','sales_percent','bonus','one_time','deduction')`),
+    check('payroll_kinds_base_chk', sql`${t.baseType} in ('salary','piecework','sales_percent','bonus','one_time','deduction','trip_piecework','trip_km','trip_stop','trip_perdiem')`),
     uniqueIndex('payroll_kinds_system_uq').on(t.workspaceId, t.systemKey).where(sql`${t.systemKey} is not null`),
   ],
 );
@@ -120,7 +121,9 @@ export const payrollHeaders = pgTable(
   ],
 );
 
-/** Строки начисления: сотрудник × вид; удержание — вид с базой deduction */
+/** Строки начисления: сотрудник × вид; удержание — вид с базой deduction.
+    trip_id (задача 1224) — рейс, за который начислена оплата водителю (trip_* базы); пусто для прочих видов.
+    Используется для прослеживания начисления к рейсу (например, для маржи рейса — задача 1223), значение не влияет на расчёт зарплаты */
 export const payrollLines = pgTable(
   'payroll_lines',
   {
@@ -138,6 +141,7 @@ export const payrollLines = pgTable(
     ndfl: money('ndfl').notNull().default('0'),
     insurance: money('insurance').notNull().default('0'),
     reflectionId: uuid('reflection_id'),
+    tripId: uuid('trip_id'),
     comment: text('comment').notNull().default(''),
     createdAt: createdAt(),
   },
@@ -147,9 +151,11 @@ export const payrollLines = pgTable(
     foreignKey({ columns: [t.workspaceId, t.memberId], foreignColumns: [members.workspaceId, members.id], name: 'payroll_lines_member_fk' }),
     foreignKey({ columns: [t.workspaceId, t.kindId], foreignColumns: [payrollKinds.workspaceId, payrollKinds.id], name: 'payroll_lines_kind_fk' }),
     foreignKey({ columns: [t.workspaceId, t.reflectionId], foreignColumns: [payrollReflections.workspaceId, payrollReflections.id], name: 'payroll_lines_reflection_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.tripId], foreignColumns: [fleetTrips.workspaceId, fleetTrips.id], name: 'payroll_lines_trip_fk' }),
     check('payroll_lines_amount_chk', sql`${t.amount} >= 0 and ${t.ndfl} >= 0 and ${t.insurance} >= 0`),
     index('payroll_lines_doc_idx').on(t.documentId, t.sortOrder),
     index('payroll_lines_member_idx').on(t.memberId),
+    index('payroll_lines_trip_idx').on(t.tripId),
   ],
 );
 
