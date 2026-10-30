@@ -350,9 +350,9 @@ export async function recalcDocumentDiscounts(db: Db, ctx: DocCtx, id: string, p
 async function applyDiscountsToDraft(db: Db, ctx: DocCtx, doc: DocumentRow, promoCode: string | null | undefined): Promise<string | null> {
   const rows = await db.select({ id: documentLines.id, productId: documentLines.productId, qty: documentLines.qty }).from(documentLines).where(eq(documentLines.documentId, doc.id));
   if (!rows.length) return null;
+  const dl = await documentLoyaltyOf(db, doc.id);
   let effectivePromoCode: string | null = promoCode ?? null;
   if (promoCode === undefined) {
-    const dl = await documentLoyaltyOf(db, doc.id);
     if (dl?.promoCodeId) {
       const [pc] = await db.select({ code: promoCodes.code }).from(promoCodes).where(eq(promoCodes.id, dl.promoCodeId)).limit(1);
       effectivePromoCode = pc?.code ?? null;
@@ -364,11 +364,21 @@ async function applyDiscountsToDraft(db: Db, ctx: DocCtx, doc: DocumentRow, prom
     customerId: doc.counterpartyId,
     documentNetTotal: totals.net,
     promoCode: effectivePromoCode,
+    cardId: dl?.loyaltyCardId ?? null,
     lines: rows.map(l => ({ id: l.id, productId: l.productId, qty: l.qty, priceKindId: doc.priceKindId })),
   });
   if (!r.byLine.size) return r.promoRuleId;
   for (const [lineId, d] of r.byLine) await db.update(documentLines).set({ discountPct: d.pct }).where(eq(documentLines.id, lineId));
-  await saveLineDiscountSources(db, ctx.workspaceId, [...r.byLine.entries()].map(([lineId, d]) => ({ lineId, source: d.ruleId ? 'rule' as const : 'manual' as const, ruleId: d.ruleId })));
+  await saveLineDiscountSources(
+    db,
+    ctx.workspaceId,
+    [...r.byLine.entries()].map(([lineId, d]) => ({
+      lineId,
+      source: d.ruleId ? ('rule' as const) : d.cardId ? ('card' as const) : ('manual' as const),
+      ruleId: d.ruleId,
+      cardId: d.cardId,
+    })),
+  );
   await recalcLines(db, doc);
   return r.promoRuleId;
 }
