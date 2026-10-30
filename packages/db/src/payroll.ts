@@ -413,7 +413,8 @@ async function salesByResponsible(db: Db, workspaceId: string, from: string, to:
     суточные по междугородним рейсам (день рейса — каждый день dateFrom..dateTo). Одна запись на сотрудника × вид × рейс
     (строка документа получает trip_id и номер рейса в комментарии); совместный водитель получает начисление по тем же
     ставкам, что основной (решение задачи 1224 — ставки не делятся). Рейс относится ровно к одному периоду по дате
-    завершения (finishedAt, в её отсутствие — dateTo). Рейс, по которому у сотрудника этот вид уже есть в другом
+    окончания (dateTo) — дате самого рейса, а не моменту, когда диспетчер отметил его выполненным (finishedAt может
+    быть позже из-за задержки с отметкой). Рейс, по которому у сотрудника этот вид уже есть в другом
     неотменённом документе начисления (кроме самого заполняемого — его старые строки будут заменены), не включается:
     это защита от двойного начисления; повторное «Заполнить» того же документа пересчитывает его собственные строки. */
 async function tripAccrualsReport(
@@ -433,8 +434,8 @@ async function tripAccrualsReport(
       and(
         eq(fleetTrips.workspaceId, workspaceId),
         eq(fleetTrips.status, 'done'),
-        sql`coalesce(${fleetTrips.finishedAt}::date, ${fleetTrips.dateTo}) >= ${from}::date`,
-        sql`coalesce(${fleetTrips.finishedAt}::date, ${fleetTrips.dateTo}) <= ${to}::date`,
+        sql`${fleetTrips.dateTo} >= ${from}::date`,
+        sql`${fleetTrips.dateTo} <= ${to}::date`,
       ),
     );
   if (!trips.length) return out;
