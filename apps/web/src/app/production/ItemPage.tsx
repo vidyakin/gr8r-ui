@@ -238,7 +238,7 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
           {tt('production.section.production')}
         </Link>
         <ChevronRight size={13} className="faint" />
-        <span className="muted">{item.kind === 'semi' ? tt('production.line.kind.semi') : tt('production.line.kind.material')}</span>
+        <span className="muted">{item.kind === 'semi' ? tt('production.line.kind.semi') : tt('production.line.kind.product')}</span>
       </div>
       <div className="ph" style={{ marginBottom: 12 }}>
         <div className="grow" style={{ minWidth: 260 }}>
@@ -346,13 +346,13 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
         <label>
           <span className="label">{tt('production.field.type')}</span>
           <select className="select" value={item.kind} disabled={!canWrite} aria-label={tt('production.field.type')} onChange={e => m.updateItem.mutate({ id: item.id, patch: { kind: e.target.value } })}>
-            <option value="product">{tt('production.line.kind.material')}</option>
+            <option value="product">{tt('production.line.kind.product')}</option>
             <option value="semi">{tt('production.line.kind.semi')}</option>
           </select>
         </label>
         <label>
-          <span className="label">{tt('production.line.fields.kind')}</span>
-          <select className="select" value={item.mode ?? 'assembly'} disabled={!canWrite} aria-label={tt('production.line.fields.kind')} onChange={e => m.updateItem.mutate({ id: item.id, patch: { mode: e.target.value } })}>
+          <span className="label">{tt('production.item.mode')}</span>
+          <select className="select" value={item.mode ?? 'assembly'} disabled={!canWrite} aria-label={tt('production.item.mode')} onChange={e => m.updateItem.mutate({ id: item.id, patch: { mode: e.target.value } })}>
             <option value="assembly">{tt('productionEnums.operation.assembly')}</option>
             <option value="disassembly">{tt('productionEnums.operation.disassembly')}</option>
           </select>
@@ -370,16 +370,16 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
           <ParamInput label={tt('production.item.batchQty')} numeric value={qtyText(item.batchQty)} disabled={!canWrite} onCommit={v => Number(v) > 0 && m.updateItem.mutate({ id: item.id, patch: { batchQty: Number(v) } })} />
         </label>
         <label>
-          <span className="label">{tt('productionEnums.componentKind.material')}, %</span>
-          <ParamInput label={tt('productionEnums.componentKind.material')} numeric value={trimZeros(Number(item.overheadPct).toFixed(2))} disabled={!canWrite} onCommit={v => Number(v) >= 0 && m.updateItem.mutate({ id: item.id, patch: { overheadPct: Number(v) } })} />
+          <span className="label">{tt('production.item.overheadPct')}</span>
+          <ParamInput label={tt('production.item.overheadPct')} numeric value={trimZeros(Number(item.overheadPct).toFixed(2))} disabled={!canWrite} onCommit={v => Number(v) >= 0 && m.updateItem.mutate({ id: item.id, patch: { overheadPct: Number(v) } })} />
         </label>
         <label>
           <span className="label">{tt('production.item.bomLeadDays')}</span>
           <ParamInput label={tt('production.item.bomLeadDays')} numeric value={String(item.leadDays ?? 0)} disabled={!canWrite} onCommit={v => Number(v) >= 0 && m.updateItem.mutate({ id: item.id, patch: { leadDays: Number(v) } })} />
         </label>
         <label>
-          <span className="label">{tt('production.stages.title')}</span>
-          <select className="select" value={item.productionKindId ?? ''} disabled={!canWrite} aria-label={tt('production.stages.title')} onChange={e => m.updateItem.mutate({ id: item.id, patch: { productionKindId: e.target.value || null } })}>
+          <span className="label">{tt('production.item.productionKind')}</span>
+          <select className="select" value={item.productionKindId ?? ''} disabled={!canWrite} aria-label={tt('production.item.productionKind')} onChange={e => m.updateItem.mutate({ id: item.id, patch: { productionKindId: e.target.value || null } })}>
             <option value="">{tt('production.item.bomNoStages')}</option>
             {snap.kinds.map(k => (
               <option key={k.id} value={k.id}>

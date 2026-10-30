@@ -290,7 +290,6 @@ export const errors = {
   invalid_type: 'This document is not of the required type',
   invalid_warehouse_kind: 'A work center can only be tied to a workshop warehouse',
   invalid_waste: 'Only goods can be returnable waste',
-  invite_not_found: 'Invite not found or expired',
   item_not_stockable: 'The item has no product in the catalogue: there is nothing to disassemble',
   kind_in_use: 'Work orders of this kind exist: delete them first',
   last_owner: 'A workspace must keep at least one owner',

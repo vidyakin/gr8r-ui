@@ -103,7 +103,7 @@ export function ProductionStagesPage() {
         open={!!removing}
         onOpenChange={o => !o && setRemoving(null)}
         danger
-        title={t('production.stages.kind.new')}
+        title={t('production.stages.kind.removeTitle')}
         description={removing ? <><b>{removing.name}</b></> : undefined}
         confirmLabel={t('production.common.delete')}
         cancelLabel={t('production.common.cancel')}
@@ -152,7 +152,7 @@ function KindDialog({ kind, onClose }: { kind?: ProductionKind; onClose: () => v
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
-        title={kind ? tt('production.stages.kind.new') : tt('production.stages.kind.new')}
+        title={kind ? tt('production.stages.kind.edit') : tt('production.stages.kind.new')}
         description={tt('production.stages.subtitle')}
         footer={
           <>

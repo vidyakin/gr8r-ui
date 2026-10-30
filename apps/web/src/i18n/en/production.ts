@@ -319,6 +319,9 @@ export const production = {
     type: 'Type',
     batch: 'Batch',
     batchQty: 'Batch quantity',
+    mode: 'Mode',
+    overheadPct: 'Overhead, %',
+    productionKind: 'Production kind',
     trackBatch: 'Track batches',
     invoices: 'Invoices',
     costBasis: 'Cost basis',
@@ -547,7 +550,7 @@ export const production = {
     titlePrefix: 'Production order',
     recalculate: 'Recalculate composition',
     notFound: 'Production order not found',
-    notFoundHint: 'This order does not exist or belongs to another workspace.',
+    notFoundHint: 'This order does not exist or you have no access to it.',
     backToOrders: 'Back to orders',
     headerAria: 'Order header',
     hint: {
@@ -820,7 +823,7 @@ export const production = {
   plan: {
     title: 'Production plan: {name}',
     notFound: 'Plan not found',
-    notFoundHint: 'This plan does not exist or belongs to another workspace.',
+    notFoundHint: 'This plan does not exist or you have no access to it.',
     backToPlans: 'Back to plans',
     section: 'Section',
     noItems: 'Add a product to the production catalogue first',
@@ -1170,7 +1173,9 @@ export const production = {
     title: 'Production stages',
     subtitle: 'Production kinds and the ordered stages each kind goes through. Finished goods arrive only after the last stage.',
     kind: {
-      new: 'New kind',
+      new: 'New production kind',
+      edit: 'Edit production kind',
+      removeTitle: 'Delete production kind?',
       noKinds: 'No production kinds yet',
       noKindsHint: 'Production kinds define how a product is built and through which stages.',
       col: {
@@ -1666,6 +1671,7 @@ export const production = {
       waste: 'A product received from the production. Posted to the waste warehouse at the final stage and valued by the “Waste price source” setting.',
     },
     kind: {
+      product: 'Product',
       material: 'Material',
       semi: 'Semi-finished',
       work: 'Work',
