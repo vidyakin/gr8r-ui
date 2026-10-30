@@ -272,6 +272,30 @@ export function solveGreedy(problem: VrpProblem, speedKmh: number): VrpSolution 
     s.pos = jobIdx.get(j.id) ?? s.pos;
   };
 
+  // машины без базы стартуют с разных концов: зерно маршрута — точка, самая дальняя от центра и уже занятых зёрен
+  if (located.length) {
+    const taken: number[] = st.filter(s => s.pos !== null).map(s => s.pos!);
+    const cx = located.reduce((a, j) => a + j.location!.lat, 0) / located.length;
+    const cy = located.reduce((a, j) => a + j.location!.lon, 0) / located.length;
+    const used = new Set<number>();
+    for (const s of st) {
+      if (s.pos !== null) continue;
+      let bi = -1;
+      let bd = -1;
+      located.forEach((j, i) => {
+        if (used.has(i)) return;
+        const d = taken.length ? Math.min(...taken.map(t => straightKm(pts[t]!, j.location!))) : straightKm({ lat: cx, lon: cy }, j.location!);
+        if (d > bd) {
+          bd = d;
+          bi = i;
+        }
+      });
+      if (bi < 0) break;
+      used.add(bi);
+      taken.push(bi);
+      s.pos = bi;
+    }
+  }
   const left = new Set(located.map(j => j.id));
   for (const strict of [true, false]) {
     for (;;) {

@@ -11,7 +11,13 @@ import {
   createTripWaybill,
   deleteTrip,
   dispatchBoard,
+  getRun,
   getTrip,
+  listRuns,
+  routingView,
+  saveRoutingSettings,
+  startDistribute,
+  startOptimize,
   listTrips,
   removeStop,
   reorderStops,
@@ -23,7 +29,7 @@ import {
   updateStop,
   updateTrip,
 } from '@gr8r/db';
-import { dispatchQuery, idParam, renderRouteSheet, tripAddDelivery, tripQuery, tripSave, tripSettingsSave, tripStopOrder, tripStopSave, tripStopStatus, tripStopUpdate, tripUpdate } from '@gr8r/shared';
+import { dispatchQuery, idParam, routingDistribute, routingOptimize, routingSettingsSave, renderRouteSheet, tripAddDelivery, tripQuery, tripSave, tripSettingsSave, tripStopOrder, tripStopSave, tripStopStatus, tripStopUpdate, tripUpdate } from '@gr8r/shared';
 import { ctxOf, validationHook } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';
@@ -39,6 +45,22 @@ export const tripRoutes = new Hono<AppEnv>()
     const ctx = ctxOf(c);
     return c.json(await saveTripSettings(ctx.db, docCtx(ctx), c.req.valid('json').capacityMode));
   })
+  /* маршрутизация (задача 1213): настройки провайдера, запуск «Распределить», запуски */
+  .get('/routing', async c => {
+    const ctx = ctxOf(c);
+    return c.json(await routingView(ctx.db, ctx.workspaceId, ctx.role === 'admin' || ctx.role === 'owner'));
+  })
+  .put('/routing', requireRole('admin'), zValidator('json', routingSettingsSave, validationHook), async c => {
+    const ctx = ctxOf(c);
+    await saveRoutingSettings(ctx.db, docCtx(ctx), c.req.valid('json'));
+    return c.json(await routingView(ctx.db, ctx.workspaceId, true));
+  })
+  .post('/routing/distribute', write, zValidator('json', routingDistribute, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json(await startDistribute(ctx.db, docCtx(ctx), c.req.valid('json')), 202);
+  })
+  .get('/routing/runs', zValidator('query', z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), tripId: z.uuid().optional() }), validationHook), async c => c.json({ items: await listRuns(ctxOf(c).db, c.req.valid('query')) }))
+  .get('/routing/runs/:id', zValidator('param', idParam, validationHook), async c => c.json(await getRun(ctxOf(c).db, c.req.valid('param').id)))
   .get('/dispatch', zValidator('query', dispatchQuery, validationHook), async c => {
     const ctx = ctxOf(c);
     return c.json(await dispatchBoard(ctx.db, docCtx(ctx), c.req.valid('query').date));
@@ -72,6 +94,10 @@ export const tripRoutes = new Hono<AppEnv>()
   .post('/:id/cancel', write, zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
     return c.json(await cancelTrip(ctx.db, docCtx(ctx), c.req.valid('param').id));
+  })
+  .post('/:id/optimize', write, zValidator('param', idParam, validationHook), zValidator('json', routingOptimize, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json(await startOptimize(ctx.db, docCtx(ctx), c.req.valid('param').id, c.req.valid('json').reorder), 202);
   })
   .post('/:id/waybill', write, zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);

@@ -2,7 +2,7 @@
    (индексы полей конструктора), PDF печатных форм, ZIP-архив выгрузки счетов, закрытие периода (production.close_period)
    и выполнение запусков автоматизаций (flow.run). */
 import { and, eq, inArray } from 'drizzle-orm';
-import { BANK_SYNC_JOB, buildPrintData, renderDocumentHtml, settlementActHtml, createFieldIndex, integrationRuntime, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, isUuid, jobs, withContext, type Db, type Sql } from '@gr8r/db';
+import { BANK_SYNC_JOB, DISTRIBUTE_JOB, GEOCODE_JOB, OPTIMIZE_JOB, executeRoutingRun, runGeocode, buildPrintData, renderDocumentHtml, settlementActHtml, createFieldIndex, integrationRuntime, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, isUuid, jobs, withContext, type Db, type Sql } from '@gr8r/db';
 import { FIELD_TYPES, renderPrintForm, type FieldType, type PrintForm } from '@gr8r/shared';
 import { loadRequestForHook, markRequestHookSent } from '@gr8r/db';
 import { runClosePeriod } from './production-closing';
@@ -124,6 +124,23 @@ export const jobHandlers: Record<string, (job: JobRow, h: JobContext) => Promise
     const paymentId = (job.payload as { paymentId?: unknown }).paymentId;
     if (typeof paymentId !== 'string' || !paymentId || paymentId.length > 64) throw new Error('yookassa.payment job: payload.paymentId must be a string');
     await processYooPayment(h.sql, job.workspaceId, paymentId, integrationRuntime.deps);
+  },
+  /** Геокодирование адреса доставки или точки рейса (задача 1213); временный сбой провайдера — повтор, на последней попытке — статус ошибки */
+  [GEOCODE_JOB]: async (job, h) => {
+    const p = job.payload as { kind?: unknown; id?: unknown };
+    if ((p.kind !== 'delivery' && p.kind !== 'stop') || !isUuid(p.id)) throw new Error('routing.geocode job: payload.kind and payload.id are required');
+    await runGeocode(h.sql, job.workspaceId, p.kind, p.id, job.attempts >= job.maxAttempts);
+  },
+  /** «Распределить» на день и «Оптимизировать порядок» рейса: ошибка записывается в запуск, задача не повторяется (рейсы не должны задвоиться) */
+  [DISTRIBUTE_JOB]: async (job, h) => {
+    const p = job.payload as { runId?: unknown; vehicleIds?: unknown };
+    if (!isUuid(p.runId)) throw new Error('routing.distribute job: payload.runId must be a uuid');
+    await executeRoutingRun(h.sql, job.workspaceId, p.runId, { vehicleIds: Array.isArray(p.vehicleIds) ? p.vehicleIds.filter(isUuid) : null });
+  },
+  [OPTIMIZE_JOB]: async (job, h) => {
+    const p = job.payload as { runId?: unknown; reorder?: unknown };
+    if (!isUuid(p.runId)) throw new Error('routing.optimize job: payload.runId must be a uuid');
+    await executeRoutingRun(h.sql, job.workspaceId, p.runId, { reorder: p.reorder !== false });
   },
   /** Выполнение (или продолжение после задержки / повтора) запуска автоматизации */
   'flow.run': async (job, h) => {

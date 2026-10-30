@@ -36,6 +36,9 @@ export const deliverySave = z.object({
   courierMemberId: uuid.nullish(),
   carrierCompanyId: uuid.nullish(),
   comment: z.string().max(2000).optional(),
+  /** Координаты адреса вручную (задача 1213); null — сбросить и геокодировать заново */
+  lat: z.number().min(-90).max(90).nullish(),
+  lon: z.number().min(-180).max(180).nullish(),
   /** Пересчитать цену и себестоимость по тарифу (иначе значения остаются, как заданы) */
   recalc: z.boolean().optional(),
   /** Пересчитать вес по строкам документа */
