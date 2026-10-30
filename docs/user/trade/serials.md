@@ -70,7 +70,7 @@ screenshots: []
 
 ## Связанные статьи
 
-- [Изделия в ремонте](../services/repair-items.md)
+- [Изделия в ремонте](../services/repair.md)
 - [Номенклатура и каталог](../catalog/catalog.md)
 - [Закупки](purchases.md)
 - [Продажи](sales.md)
