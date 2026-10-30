@@ -271,6 +271,7 @@ export function PayrollPage() {
                 <th style={{ width: 110 }} className="r">{tt('payroll.ndfl')}</th>
                 <th style={{ width: 110 }} className="r">{tt('payroll.insurance')}</th>
                 <th style={{ width: 180 }}>{tt('payroll.reflection')}</th>
+                <th>{tt('payroll.comment')}</th>
                 <th style={{ width: 36 }} />
               </tr>
             </thead>
@@ -299,6 +300,7 @@ export function PayrollPage() {
                     <td>
                       <Select aria-label={tt('payroll.reflection')} disabled={!editable} value={l.reflectionId} onValueChange={v => set({ reflectionId: v })} options={[{ value: '', label: tt('payroll.noReflection') }, ...(reflections.data ?? []).map(r => ({ value: r.id, label: r.name }))]} />
                     </td>
+                    <td><Input aria-label={tt('payroll.comment')} disabled={!editable} value={l.comment} onChange={e => set({ comment: e.target.value })} /></td>
                     <td>{editable && <IconButton label={tt('payroll.remove')} onClick={() => setLines(prev => prev.filter((_, j) => j !== i))}><Trash2 size={14} /></IconButton>}</td>
                   </tr>
                 );

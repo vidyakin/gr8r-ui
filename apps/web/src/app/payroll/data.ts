@@ -170,7 +170,7 @@ export function useEmployees() {
 }
 export function usePayrollSettings() {
   const ws = useWsId();
-  return useQuery({ queryKey: payrollKey(ws, 'settings'), queryFn: () => call<{ insuranceRate: string }>(ws, 'GET', '/payroll/settings') });
+  return useQuery({ queryKey: payrollKey(ws, 'settings'), queryFn: () => call<{ insuranceRate: string; tripPieceworkRate: string; tripKmRate: string; tripStopRate: string; tripPerdiemRate: string }>(ws, 'GET', '/payroll/settings') });
 }
 export function usePayrolls() {
   const ws = useWsId();
@@ -228,6 +228,7 @@ export function usePayrollApi() {
     addKind: (body: Record<string, unknown>) => wrap(call(ws, 'POST', '/payroll/kinds', body)),
     removeKind: (id: string) => wrap(call(ws, 'DELETE', `/payroll/kinds/${id}`)),
     setInsuranceRate: (insuranceRate: string) => wrap(call(ws, 'PATCH', '/payroll/settings', { insuranceRate })),
+    setTripRate: (field: 'tripPieceworkRate' | 'tripKmRate' | 'tripStopRate' | 'tripPerdiemRate', value: string) => wrap(call(ws, 'PATCH', '/payroll/settings', { [field]: value })),
     /** Реестр на банк: файл сохраняется через ссылку на blob */
     downloadRegistry: async (id: string) => {
       const res = await fetch(`${API_BASE()}/payroll/statements/${id}/registry`, { credentials: 'include', headers: { 'X-Workspace-Id': ws } });
