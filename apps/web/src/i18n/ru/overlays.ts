@@ -97,8 +97,6 @@ export const overlays: Widen<typeof O> = {
     suggested: {
       overdue: 'Просроченные задачи',
       mine: 'Задачи, назначенные мне',
-      highPriority: 'Важные задачи в проекте «Редизайн сайта»',
-      files: 'Файлы проекта «Редизайн сайта»',
     },
     commentSub: 'к задаче «{title}»',
     noCounterparty: 'Без контрагента',

@@ -96,8 +96,6 @@ export const overlays = {
     suggested: {
       overdue: 'Overdue tasks',
       mine: 'Tasks assigned to me',
-      highPriority: 'High priority in Website Redesign',
-      files: 'Files in Website Redesign',
     },
     commentSub: 'on {title}',
     noCounterparty: 'No counterparty',
