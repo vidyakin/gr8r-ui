@@ -7,6 +7,7 @@ import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { assertPeriodOpen } from './cost-closing';
+import { requestGeocode, syncStopCoords } from './routing';
 import { memberHasFunction, memberIdsWithFunction } from './positions';
 import { updateDocument, type DocCtx } from './documents';
 import { companies, contacts, costItems, deliveries, deliveryMethods, documentLines, documents, fleetTrips, fleetTripStops, members, products } from './schema';
@@ -150,6 +151,9 @@ export interface DeliveryInput {
   courierMemberId?: string | null;
   carrierCompanyId?: string | null;
   comment?: string;
+  /** Координаты адреса вручную (задача 1213); оба null — сбросить и геокодировать заново */
+  lat?: number | null;
+  lon?: number | null;
   recalc?: boolean;
   recalcWeight?: boolean;
 }
@@ -228,12 +232,21 @@ export async function saveDelivery(db: Db, ctx: DocCtx, documentId: string, inpu
   let status: DeliveryStatus = (base?.status ?? 'new') as DeliveryStatus;
   if (v.courierMemberId && status === 'new') status = 'assigned';
   if (!v.courierMemberId && status === 'assigned') status = 'new';
+  // координаты (задача 1213): вручную — как есть; изменившийся адрес сбрасывает найденные геокодером и ставит новый поиск
+  const manual = input.lat !== undefined || input.lon !== undefined;
+  const addrChanged = !base || v.address !== base.address;
+  let geo: Partial<typeof deliveries.$inferInsert> = {};
+  if (manual && input.lat != null && input.lon != null) geo = { lat: input.lat.toFixed(6), lon: input.lon.toFixed(6), geoSource: 'manual', geoStatus: 'ok' };
+  else if (manual || (addrChanged && base?.geoSource !== 'manual')) geo = { lat: null, lon: null, geoSource: null, geoStatus: null };
+  const needGeocode = !!v.address.trim() && geo.geoSource !== 'manual' && (manual || addrChanged || (!base?.lat && !base?.geoStatus));
   let row: DeliveryRow;
   if (base) {
-    [row] = await db.update(deliveries).set({ ...v, price, ourCost, status, updatedAt: new Date() }).where(eq(deliveries.id, base.id)).returning() as [DeliveryRow];
+    [row] = await db.update(deliveries).set({ ...v, ...geo, price, ourCost, status, updatedAt: new Date() }).where(eq(deliveries.id, base.id)).returning() as [DeliveryRow];
   } else {
-    [row] = await db.insert(deliveries).values({ workspaceId: ctx.workspaceId, documentId, ...v, price, ourCost, status }).returning() as [DeliveryRow];
+    [row] = await db.insert(deliveries).values({ workspaceId: ctx.workspaceId, documentId, ...v, ...geo, price, ourCost, status }).returning() as [DeliveryRow];
   }
+  if (manual && geo.geoSource === 'manual') await syncStopCoords(db, row.id, row.lat, row.lon);
+  if (needGeocode && row.geoSource !== 'manual') await requestGeocode(db, ctx.workspaceId, 'delivery', row.id);
   await syncExpense(db, ctx, row);
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: base ? 'delivery.updated' : 'delivery.created', entity: 'delivery', recordId: row.id, actorId: ctx.memberId, payload: { documentId, changes: Object.keys(input) } });
   return (await loadDelivery(db, row.id)) as DeliveryRow;

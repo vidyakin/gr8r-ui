@@ -2,7 +2,7 @@
    Таблицы арендатора (workspace_id + RLS), ссылки — составные FK. Точка ссылается на доставку (delivery_id) или, в будущем, на заявку
    на перевозку (source_kind/source_id без внешнего ключа до задачи 1223). */
 import { sql } from 'drizzle-orm';
-import { check, date, foreignKey, index, integer, numeric, pgTable, text, time, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, date, foreignKey, index, integer, jsonb, numeric, pgTable, text, time, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { createdAt, pk, ts, updatedAt } from './columns';
 import { deliveries } from './delivery';
 import { fleetVehicles } from './fleet';
@@ -28,6 +28,11 @@ export const fleetTrips = pgTable(
     comment: text('comment').notNull().default(''),
     startedAt: ts('started_at'),
     finishedAt: ts('finished_at'),
+    /** Расчёт маршрута (задача 1213): длина, время в пути (без стоянок), откуда числа (провайдер или прямая) и когда считали; пусто — не считали или порядок менялся после */
+    routeKm: numeric('route_km', { precision: 9, scale: 1 }),
+    routeMin: integer('route_min'),
+    routeSource: text('route_source', { enum: ['provider', 'straight'] }),
+    routedAt: ts('routed_at'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -72,6 +77,14 @@ export const fleetTripStops = pgTable(
     weightKg: numeric('weight_kg', { precision: 18, scale: 3 }).notNull().default('0'),
     volumeM3: numeric('volume_m3', { precision: 12, scale: 3 }).notNull().default('0'),
     pallets: integer('pallets').notNull().default(0),
+    /** Геокодирование адреса точки (задача 1213) */
+    geoSource: text('geo_source', { enum: ['manual', 'geocoder'] }),
+    geoStatus: text('geo_status', { enum: ['pending', 'ok', 'approx', 'not_found', 'error'] }),
+    /** Участок от предыдущей точки (или от базы) и ожидаемое прибытие: минуты от полуночи первого дня рейса; опоздание относительно окна */
+    legKm: numeric('leg_km', { precision: 9, scale: 1 }),
+    legMin: integer('leg_min'),
+    etaMin: integer('eta_min'),
+    etaLate: boolean('eta_late').notNull().default(false),
     status: text('status', { enum: ['planned', 'arrived', 'done', 'failed'] }).notNull().default('planned'),
     arrivedAt: ts('arrived_at'),
     doneAt: ts('done_at'),
@@ -122,3 +135,43 @@ export const transportWaybills = pgTable(
     index('transport_waybills_delivery_idx').on(t.deliveryId),
   ],
 );
+/** Запуски маршрутизации (задача 1213): «Распределить» на день и «Оптимизировать порядок» рейса. Строка создаётся в API,
+    задача воркера ведёт статус и пишет итог — по ней интерфейс показывает ход и результат */
+export const fleetRoutingRuns = pgTable(
+  'fleet_routing_runs',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    kind: text('kind', { enum: ['distribute', 'optimize'] }).notNull(),
+    status: text('status', { enum: ['queued', 'running', 'done', 'failed'] }).notNull().default('queued'),
+    /** День распределения; для оптимизации — день начала рейса */
+    date: date('date', { mode: 'string' }).notNull(),
+    tripId: uuid('trip_id'),
+    requestedBy: uuid('requested_by'),
+    /** Чем считали: провайдер или прямая; предупреждение — провайдер ответил ошибкой, и расчёт сделан по прямой */
+    source: text('source', { enum: ['provider', 'straight'] }),
+    warning: text('warning'),
+    /** Итог: созданные рейсы, число точек, нераспределённые доставки, пропущенные машины с причиной */
+    summary: jsonb('summary').$type<RoutingRunSummary>(),
+    error: text('error'),
+    createdAt: createdAt(),
+    finishedAt: ts('finished_at'),
+  },
+  t => [
+    unique('fleet_routing_runs_ws_id_uq').on(t.workspaceId, t.id),
+    check('fleet_routing_runs_kind_chk', sql`${t.kind} in ('distribute','optimize')`),
+    check('fleet_routing_runs_status_chk', sql`${t.status} in ('queued','running','done','failed')`),
+    index('fleet_routing_runs_date_idx').on(t.workspaceId, t.date, t.createdAt),
+  ],
+);
+
+export interface RoutingRunSummary {
+  tripIds: string[];
+  stops: number;
+  unassigned: { deliveryId: string; reason: string }[];
+  skippedVehicles: { vehicleId: string; reason: string }[];
+  /** «Оптимизировать порядок»: длина и время в пути, менялся ли порядок */
+  routeKm?: number;
+  routeMin?: number;
+  reordered?: boolean;
+}

@@ -117,8 +117,8 @@ export const MODULES: readonly ModuleDef[] = [
     requires: ['trade'],
     paths: ['/fleet', '/trips'],
     sections: ['fleet', 'fleetVehicles', 'fleetDrivers', 'fleetDocuments', 'fleetWaybills', 'fleetFuel', 'fleetService', 'fleetFines', 'trips', 'dispatch'],
+    jobs: ['routing.geocode', 'routing.distribute', 'routing.optimize', 'transport.waybill_pdf'],
     nodes: ['trigger.fleet_document_expiring', 'trigger.trip_status'],
-    jobs: ['transport.waybill_pdf'],
   }),
   // Документооборот (сессия 48): модуль заведён заранее, разделы, пути и задачи добавит задача 1191+
   def({ id: 'docflow' }),

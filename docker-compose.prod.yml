@@ -62,8 +62,34 @@ services:
       DATABASE_URL_DDL: postgres://gr8r_ddl:${DDL_DB_PASSWORD}@postgres:5432/gr8r
       SECRETS_KEY: ${SECRETS_KEY}
       OPERATOR_LEAD_HOOK_URL: ${OPERATOR_LEAD_HOOK_URL:-}
+      # Свои серверы маршрутизации оператора (задача 1213, профиль routing ниже): http://osrm:5000, http://vroom:3000. Пусто — только адреса арендаторов
+      ROUTING_OSRM_URL: ${ROUTING_OSRM_URL:-}
+      ROUTING_VROOM_URL: ${ROUTING_VROOM_URL:-}
+      ROUTING_NOMINATIM_URL: ${ROUTING_NOMINATIM_URL:-}
     depends_on:
       migrate: { condition: service_completed_successfully }
+
+  # Необязательно (задача 1213): OSRM + VROOM для маршрутов на своём сервере. Запуск: --profile routing; в .env.prod задать
+  # ROUTING_OSRM_URL=http://osrm:5000 и ROUTING_VROOM_URL=http://vroom:3000. Данные OSRM готовит оператор один раз (docs/architecture/routing.md):
+  # ./osrm/region.osm.pbf → osrm-extract / osrm-partition / osrm-customize в ./osrm. Наружу порты не публикуются.
+  # Образы и команды собраны по документации проектов, на живом сервере не проверялись.
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend:latest
+    profiles: [routing]
+    restart: unless-stopped
+    command: osrm-routed --algorithm mld --max-table-size 500 /data/region.osrm
+    volumes:
+      - ./osrm:/data:ro
+  vroom:
+    image: ghcr.io/vroom-project/vroom-docker:v1.14.0
+    profiles: [routing]
+    restart: unless-stopped
+    environment:
+      VROOM_ROUTER: osrm
+    volumes:
+      - ./vroom-conf:/conf
+    depends_on:
+      - osrm
 
   web:
     build: { context: ., target: web }

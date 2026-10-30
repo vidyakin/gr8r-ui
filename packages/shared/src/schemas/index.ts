@@ -28,3 +28,4 @@ export * from './integrations';
 export * from './pipelines';
 export * from './fleet';
 export * from './trips';
+export * from './routing';

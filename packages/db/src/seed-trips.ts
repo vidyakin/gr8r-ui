@@ -30,15 +30,15 @@ export async function seedTrips(db: Db, ctx: DocCtx, o: { gazelId: string; mazId
     : [];
   const fresh: string[] = [];
   const spots = [
-    { address: 'Москва, Ленинградский пр-т, 39', window: ['09:00', '11:00'], weight: '320' },
-    { address: 'Москва, ул. Тверская, 15', window: ['11:00', '13:00'], weight: '180' },
-    { address: 'Москва, Варшавское ш., 125', window: ['15:00', '17:00'], weight: '410' },
-    { address: 'Москва, Волгоградский пр-т, 32', window: ['17:00', '19:00'], weight: '260' },
-    { address: 'Москва, ул. Новый Арбат, 24', window: ['16:00', '18:00'], weight: '90' },
+    { address: 'Москва, Ленинградский пр-т, 39', lat: 55.7916, lon: 37.544, window: ['09:00', '11:00'], weight: '320' },
+    { address: 'Москва, ул. Тверская, 15', lat: 55.7616, lon: 37.6086, window: ['11:00', '13:00'], weight: '180' },
+    { address: 'Москва, Варшавское ш., 125', lat: 55.6082, lon: 37.6064, window: ['15:00', '17:00'], weight: '410' },
+    { address: 'Москва, Волгоградский пр-т, 32', lat: 55.7108, lon: 37.7282, window: ['17:00', '19:00'], weight: '260' },
+    { address: 'Москва, ул. Новый Арбат, 24', lat: 55.7522, lon: 37.5895, window: ['16:00', '18:00'], weight: '90' },
   ];
   for (const [i, ord] of orders.entries()) {
     const sp = spots[i]!;
-    const d = await saveDelivery(db, ctx, ord.id, { methodId: method!.id, distanceKm: '12', deliveryDate: iso(0), address: sp.address, windowFrom: sp.window[0]!, windowTo: sp.window[1]!, weightKg: sp.weight });
+    const d = await saveDelivery(db, ctx, ord.id, { methodId: method!.id, distanceKm: '12', deliveryDate: iso(0), address: sp.address, windowFrom: sp.window[0]!, windowTo: sp.window[1]!, weightKg: sp.weight, lat: sp.lat, lon: sp.lon });
     fresh.push(d.id);
   }
   const pool = [...free.map(f => f.id), ...fresh];

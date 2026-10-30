@@ -1,6 +1,6 @@
 {
   "id": "51aac414-afb4-4de0-88ce-86b9b002adc2",
-  "prevId": "d2362ad7-3ac5-42d2-8247-7593ef84211e",
+  "prevId": "17ece8f9-6bc6-4141-b9df-afdf7d8af28a",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -22446,6 +22446,30 @@
           "notNull": true,
           "default": "'0'"
         },
+        "lat": {
+          "name": "lat",
+          "type": "numeric(9, 6)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lon": {
+          "name": "lon",
+          "type": "numeric(9, 6)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "geo_source": {
+          "name": "geo_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "geo_status": {
+          "name": "geo_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "weight_kg": {
           "name": "weight_kg",
           "type": "numeric(18, 3)",
@@ -31907,6 +31931,160 @@
       },
       "isRLSEnabled": false
     },
+    "public.fleet_routing_runs": {
+      "name": "fleet_routing_runs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "uuid_generate_v7()"
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'queued'"
+        },
+        "date": {
+          "name": "date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trip_id": {
+          "name": "trip_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "requested_by": {
+          "name": "requested_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "warning": {
+          "name": "warning",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "summary": {
+          "name": "summary",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "fleet_routing_runs_date_idx": {
+          "name": "fleet_routing_runs_date_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "fleet_routing_runs_workspace_id_workspaces_id_fk": {
+          "name": "fleet_routing_runs_workspace_id_workspaces_id_fk",
+          "tableFrom": "fleet_routing_runs",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "fleet_routing_runs_ws_id_uq": {
+          "name": "fleet_routing_runs_ws_id_uq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "workspace_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "fleet_routing_runs_kind_chk": {
+          "name": "fleet_routing_runs_kind_chk",
+          "value": "\"fleet_routing_runs\".\"kind\" in ('distribute','optimize')"
+        },
+        "fleet_routing_runs_status_chk": {
+          "name": "fleet_routing_runs_status_chk",
+          "value": "\"fleet_routing_runs\".\"status\" in ('queued','running','done','failed')"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.fleet_trip_stops": {
       "name": "fleet_trip_stops",
       "schema": "",
@@ -32040,6 +32218,43 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
+        },
+        "geo_source": {
+          "name": "geo_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "geo_status": {
+          "name": "geo_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "leg_km": {
+          "name": "leg_km",
+          "type": "numeric(9, 1)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "leg_min": {
+          "name": "leg_min",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "eta_min": {
+          "name": "eta_min",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "eta_late": {
+          "name": "eta_late",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "status": {
           "name": "status",
@@ -32298,6 +32513,30 @@
         },
         "finished_at": {
           "name": "finished_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "route_km": {
+          "name": "route_km",
+          "type": "numeric(9, 1)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "route_min": {
+          "name": "route_min",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "route_source": {
+          "name": "route_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "routed_at": {
+          "name": "routed_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false

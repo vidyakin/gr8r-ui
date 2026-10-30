@@ -2,7 +2,7 @@
    события fleet_trip, delivery и fleet_* сбрасывают их (app/data/realtime.ts). */
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Overload, StopKind, StopSource, StopStatus, TripCapacityMode, TripKind, TripLoad, TripStatus, VehicleLimits } from '@gr8r/shared';
+import type { Overload, RoutingSettings, TileConfig, StopKind, StopSource, StopStatus, TripCapacityMode, TripKind, TripLoad, TripStatus, VehicleLimits } from '@gr8r/shared';
 import { API_BASE, errorMessage } from '../data/api';
 import { toast } from '@/components/ui';
 import { call, useWsId } from '../meta/data';
@@ -32,6 +32,11 @@ export interface Trip {
   stopsTotal: number;
   stopsDone: number;
   straightKm: string | null;
+  /** Расчёт маршрута (задача 1213): длина и время в пути; пусто — не считали или порядок менялся после расчёта */
+  routeKm: string | null;
+  routeMin: number | null;
+  routeSource: 'provider' | 'straight' | null;
+  routedAt: string | null;
 }
 
 export interface TripStop {
@@ -59,6 +64,11 @@ export interface TripStop {
   deliveryStatus: string | null;
   documentNumber: string | null;
   documentTotal: string | null;
+  legMin: number | null;
+  /** Ожидаемое прибытие: минуты от полуночи первого дня рейса */
+  etaMin: number | null;
+  etaLate: boolean;
+  geoStatus: 'pending' | 'ok' | 'approx' | 'not_found' | 'error' | null;
 }
 
 export interface TripWarning {
@@ -75,7 +85,7 @@ export interface TripDetail extends Trip {
 }
 
 export interface DispatchTrip extends Trip {
-  stops: { id: string; seq: number; kind: StopKind; title: string; address: string; day: string; windowFrom: string | null; windowTo: string | null; status: StopStatus; weightKg: string }[];
+  stops: { id: string; seq: number; kind: StopKind; title: string; address: string; day: string; windowFrom: string | null; windowTo: string | null; status: StopStatus; weightKg: string; lat: string | null; lon: string | null; legKm: string | null; legMin: number | null; etaMin: number | null; etaLate: boolean }[];
 }
 
 export interface DispatchDelivery {
@@ -83,6 +93,8 @@ export interface DispatchDelivery {
   documentNumber: string | null;
   counterpartyName: string | null;
   address: string;
+  lat: string | null;
+  lon: string | null;
   windowFrom: string | null;
   windowTo: string | null;
   weightKg: string;
@@ -100,6 +112,27 @@ export interface Dispatch {
   trips: DispatchTrip[];
 }
 
+export interface RoutingView {
+  settings: RoutingSettings;
+  tile: TileConfig;
+  secrets: { yandexGeocoder: boolean; yandexRouter: boolean };
+  capabilities: { geocode: boolean; matrix: boolean; solve: boolean };
+  server: { osrm: boolean; vroom: boolean; nominatim: boolean };
+}
+
+export interface RoutingRun {
+  id: string;
+  kind: 'distribute' | 'optimize';
+  status: 'queued' | 'running' | 'done' | 'failed';
+  date: string;
+  tripId: string | null;
+  source: 'provider' | 'straight' | null;
+  warning: string | null;
+  error: string | null;
+  createdAt: string;
+  summary: { tripIds: string[]; stops: number; unassigned: { deliveryId: string; reason: string }[]; skippedVehicles: { vehicleId: string; reason: string }[]; routeKm?: number; routeMin?: number; reordered?: boolean } | null;
+}
+
 const qs = (o: Record<string, string | number | undefined | null>) => {
   const sp = new URLSearchParams();
   for (const [k, v] of Object.entries(o)) if (v !== undefined && v !== null && v !== '') sp.set(k, String(v));
@@ -115,6 +148,8 @@ function useTripQuery<T>(key: unknown[], path: string, enabled = true) {
 export const useTrips = (o: { from?: string; to?: string; vehicleId?: string; status?: string; kind?: string; q?: string }) => useTripQuery<{ items: Trip[]; total: number }>(['list', o], qs({ ...o, limit: 200 }));
 export const useTrip = (id: string | null) => useTripQuery<TripDetail>(['one', id], `/${id}`, !!id);
 export const useDispatch = (date: string) => useTripQuery<Dispatch>(['dispatch', date], `/dispatch${qs({ date })}`);
+export const useRouting = () => useTripQuery<RoutingView>(['routing'], '/routing');
+export const useRoutingRuns = (o: { date?: string; tripId?: string }) => useTripQuery<{ items: RoutingRun[] }>(['runs', o], `/routing/runs${qs(o)}`, !!(o.date || o.tripId));
 export const useTripSettings = () => useTripQuery<{ capacityMode: TripCapacityMode }>(['settings'], '/settings');
 
 /** Мутация: ошибка — тостом по коду, успех — обновление кэша автопарка (рейсы, доставки) */

@@ -38,6 +38,11 @@ export interface DeliveryItem {
   windowFrom: string | null;
   windowTo: string | null;
   distanceKm: string;
+  /** Координаты адреса (задача 1213): геокодер в фоне или вручную */
+  lat: string | null;
+  lon: string | null;
+  geoSource: 'manual' | 'geocoder' | null;
+  geoStatus: 'pending' | 'ok' | 'approx' | 'not_found' | 'error' | null;
   weightKg: string;
   price: string;
   /** Себестоимость и расход — только admin и owner */

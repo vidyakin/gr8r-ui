@@ -38,3 +38,5 @@ export * from './pipelines';
 export * from './licensing';
 export * from './fleet';
 export * from './trips';
+export * from './routing';
+export * from './routing-adapters';

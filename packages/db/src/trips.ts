@@ -23,6 +23,7 @@ import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { changeDeliveryStatus, listDeliveries, type DeliveryView } from './delivery';
 import type { DocCtx } from './documents';
+import { clearRoute, requestGeocode } from './routing';
 import { assertMember, createWaybill, loadVehicle, nextNumber, type WaybillRow } from './fleet';
 import { deliveries, documents, fleetTripStops, fleetTrips, fleetVehicles, fleetWaybills, members, workspaces } from './schema';
 
@@ -340,6 +341,8 @@ export async function addStop(db: Db, ctx: DocCtx, tripId: string, input: StopIn
       address: input.address ?? '',
       lat: coord(input.lat),
       lon: coord(input.lon),
+      geoSource: input.lat != null && input.lon != null ? 'manual' : null,
+      geoStatus: input.lat != null && input.lon != null ? 'ok' : null,
       contactName: input.contactName ?? '',
       contactPhone: input.contactPhone ?? '',
       day,
@@ -352,6 +355,8 @@ export async function addStop(db: Db, ctx: DocCtx, tripId: string, input: StopIn
     },
     input.index,
   );
+  if (row.geoSource !== 'manual' && row.address.trim()) await requestGeocode(db, ctx.workspaceId, 'stop', row.id);
+  await clearRoute(db, [t.id]);
   await enforceCapacity(db, ctx, t);
   await event(db, ctx, 'fleet_trip', 'updated', tripId, { number: t.number, changes: ['stops'] });
   return row;
@@ -381,6 +386,10 @@ async function addDeliveryStop(db: Db, ctx: DocCtx, t: TripRow, deliveryId: stri
       deliveryId,
       title: doc?.number ?? '',
       address: d.address,
+      lat: d.lat,
+      lon: d.lon,
+      geoSource: d.geoSource,
+      geoStatus: d.geoStatus,
       contactName: d.contactName,
       contactPhone: d.contactPhone,
       day,
@@ -392,6 +401,8 @@ async function addDeliveryStop(db: Db, ctx: DocCtx, t: TripRow, deliveryId: stri
     },
     index,
   );
+  if (!d.lat && !d.geoStatus && d.address.trim()) await requestGeocode(db, ctx.workspaceId, 'delivery', d.id);
+  await clearRoute(db, [t.id]);
   // курьер доставки — водитель рейса; дата — день точки
   await db.update(deliveries).set({ courierMemberId: t.driverMemberId, deliveryDate: day, ...(d.status === 'new' ? { status: 'assigned' as const } : {}), updatedAt: new Date() }).where(eq(deliveries.id, deliveryId));
   if (t.status === 'in_transit') await changeDeliveryStatus(db, ctx, deliveryId, 'in_transit', undefined, true);
@@ -416,7 +427,13 @@ export async function updateStop(db: Db, ctx: DocCtx, tripId: string, stopId: st
   for (const k of ['kind', 'title', 'address', 'contactName', 'contactPhone', 'weightKg', 'volumeM3', 'pallets', 'comment'] as const) if (input[k] !== undefined) (set as Record<string, unknown>)[k] = input[k];
   if (input.lat !== undefined) set.lat = coord(input.lat);
   if (input.lon !== undefined) set.lon = coord(input.lon);
+  const manualCoords = (input.lat !== undefined || input.lon !== undefined) && (set.lat ?? null) !== null && (set.lon ?? null) !== null;
+  const addrChanged = input.address !== undefined && input.address !== s.address;
+  if (manualCoords) Object.assign(set, { geoSource: 'manual', geoStatus: 'ok' });
+  else if ((input.lat !== undefined || input.lon !== undefined) || (addrChanged && s.geoSource !== 'manual')) Object.assign(set, { lat: null, lon: null, geoSource: null, geoStatus: null });
   const [row] = await db.update(fleetTripStops).set(set).where(eq(fleetTripStops.id, stopId)).returning();
+  if (!manualCoords && row!.geoSource !== 'manual' && row!.address.trim() && (addrChanged || input.lat !== undefined || input.lon !== undefined)) await requestGeocode(db, ctx.workspaceId, 'stop', stopId);
+  await clearRoute(db, [t.id]);
   await enforceCapacity(db, ctx, t);
   await event(db, ctx, 'fleet_trip', 'updated', tripId, { number: t.number, changes: ['stops'] });
   return row!;
@@ -432,6 +449,7 @@ export async function removeStop(db: Db, ctx: DocCtx, tripId: string, stopId: st
   await releaseDeliveries(db, ctx, [s]);
   await db.delete(fleetTripStops).where(eq(fleetTripStops.id, stopId));
   await renumber(db, stops.filter(x => x.id !== stopId).map(x => x.id));
+  await clearRoute(db, [t.id]);
   await event(db, ctx, 'fleet_trip', 'updated', tripId, { number: t.number, changes: ['stops'] });
 }
 
@@ -443,6 +461,7 @@ export async function reorderStops(db: Db, ctx: DocCtx, tripId: string, stopIds:
   const same = stopIds.length === stops.length && new Set(stopIds).size === stops.length && stops.every(s => stopIds.includes(s.id));
   if (!same) throw new DomainError(422, 'trip_order_invalid', 'The order must list every stop of the trip exactly once');
   await renumber(db, stopIds);
+  await clearRoute(db, [t.id]);
   await event(db, ctx, 'fleet_trip', 'updated', tripId, { number: t.number, changes: ['order'] });
   return loadStops(db, tripId);
 }
@@ -568,7 +587,7 @@ export async function getTrip(db: Db, ctx: DocCtx, id: string) {
     .where(eq(fleetTripStops.tripId, id))
     .orderBy(asc(fleetTripStops.seq));
   const route = routeStraightKm(stopRows.map(r => ({ lat: r.s.lat === null ? null : Number(r.s.lat), lon: r.s.lon === null ? null : Number(r.s.lon) })));
-  const stops: TripStopView[] = stopRows.map((r, i) => ({ ...r.s, legKm: route?.legs[i] ?? null, deliveryStatus: r.deliveryStatus ?? null, documentNumber: r.documentNumber ?? null, documentTotal: r.documentTotal ?? null }));
+  const stops: TripStopView[] = stopRows.map((r, i) => ({ ...r.s, legKm: r.s.legKm ?? route?.legs[i] ?? null, deliveryStatus: r.deliveryStatus ?? null, documentNumber: r.documentNumber ?? null, documentTotal: r.documentTotal ?? null }));
   const warnings: TripWarning[] = windowOrderConflicts(stopRows.map(r => ({ seq: r.s.seq, windowFrom: r.s.windowFrom, windowTo: r.s.windowTo }))).map(seq => ({ code: 'window_order' as const, seq }));
   if (view!.overloads.length) warnings.push({ code: 'overload', overloads: view!.overloads });
   const waybills = await db
@@ -588,6 +607,9 @@ export async function dispatchBoard(db: Db, ctx: DocCtx, date: string) {
   );
   const all = await listDeliveries(db, ctx, { to: date, limit: 200 });
   const unassigned: DeliveryView[] = all.items.filter(d => (d.status === 'new' || d.status === 'assigned') && !activeIds.has(d.id) && (d.deliveryDate === null || d.deliveryDate <= date));
+  const geo = new Map(
+    unassigned.length ? (await db.select({ id: deliveries.id, lat: deliveries.lat, lon: deliveries.lon }).from(deliveries).where(inArray(deliveries.id, unassigned.map(d => d.id)))).map(r => [r.id, r] as const) : [],
+  );
   const trips = await db.select().from(fleetTrips).where(and(lte(fleetTrips.dateFrom, date), gte(fleetTrips.dateTo, date), ne(fleetTrips.status, 'cancelled'))).orderBy(asc(fleetTrips.startTime), asc(fleetTrips.number));
   const views = await viewRows(db, trips);
   const stops = trips.length ? await db.select().from(fleetTripStops).where(inArray(fleetTripStops.tripId, trips.map(t => t.id))).orderBy(asc(fleetTripStops.seq)) : [];
@@ -596,10 +618,10 @@ export async function dispatchBoard(db: Db, ctx: DocCtx, date: string) {
   return {
     date,
     capacityMode: await tripCapacityMode(db, ctx.workspaceId),
-    unassigned: unassigned.map(d => ({ id: d.id, documentNumber: d.documentNumber, counterpartyName: d.counterpartyName, address: d.address, windowFrom: hhmm(d.windowFrom), windowTo: hhmm(d.windowTo), weightKg: d.weightKg, deliveryDate: d.deliveryDate, status: d.status, documentTotal: d.documentTotal })),
+    unassigned: unassigned.map(d => ({ id: d.id, documentNumber: d.documentNumber, counterpartyName: d.counterpartyName, address: d.address, lat: geo.get(d.id)?.lat ?? null, lon: geo.get(d.id)?.lon ?? null, windowFrom: hhmm(d.windowFrom), windowTo: hhmm(d.windowTo), weightKg: d.weightKg, deliveryDate: d.deliveryDate, status: d.status, documentTotal: d.documentTotal })),
     vehicles: vehicles.map(v => ({ id: v.id, plate: v.plate, name: v.name, capacityKg: v.capacityKg, volumeM3: v.volumeM3, pallets: v.pallets, driverMemberId: v.driverMemberId })),
     drivers,
-    trips: views.map(v => ({ ...v, stops: stops.filter(s => s.tripId === v.id).map(s => ({ id: s.id, seq: s.seq, kind: s.kind, title: s.title, address: s.address, day: s.day, windowFrom: hhmm(s.windowFrom), windowTo: hhmm(s.windowTo), status: s.status, weightKg: s.weightKg })) })),
+    trips: views.map(v => ({ ...v, stops: stops.filter(s => s.tripId === v.id).map(s => ({ id: s.id, seq: s.seq, kind: s.kind, title: s.title, address: s.address, day: s.day, windowFrom: hhmm(s.windowFrom), windowTo: hhmm(s.windowTo), status: s.status, weightKg: s.weightKg, lat: s.lat, lon: s.lon, legKm: s.legKm, legMin: s.legMin, etaMin: s.etaMin, etaLate: s.etaLate })) })),
   };
 }
 
