@@ -283,6 +283,7 @@ export interface TenantArchiveHeader {
 
 /** Выгрузка арендатора. Читает под app_user с app.workspace_id: RLS отдаёт ровно строки этого арендатора */
 export async function exportTenant(sql: Sql, workspaceId: string): Promise<string> {
+  // app_worker: архив целиком, под app_user RLS скрыл бы закрытые проекты и всё, что в них
   return withContext(sql, { workspaceId }, async (_db, tx) => {
     const [ws] = await tx`select name, slug, to_jsonb(w)::text as row from workspaces w where id = ${workspaceId}`;
     if (!ws) throw new DomainError(404, 'not_found', 'Workspace not found');
@@ -299,7 +300,7 @@ export async function exportTenant(sql: Sql, workspaceId: string): Promise<strin
       if (r!.n > 0) lines.push(`${t}\t${r!.rows}`);
     }
     return lines.join('\n') + '\n';
-  });
+  }, 'app_worker');
 }
 
 export function readArchiveHeader(archive: string): TenantArchiveHeader {

@@ -70,6 +70,7 @@ describe('tenants', () => {
     expect((await admin`select 1 from users where lower(email) = ${a.ownerEmail}`).length).toBe(0);
     const idx = await admin`select indexname from pg_indexes where indexname = any(${fieldIds.map(f => `idx_cf_${f}`)})`;
     expect(idx.length).toBe(0);
+    await deleteTenant(sql, ddl, b.workspaceId); // демо-данные с датами «от сегодня» мешают воркерам в других файлах
   }, 60_000);
 
   test('выгрузка → удаление → загрузка восстанавливает данные без потерь', async () => {
@@ -86,6 +87,7 @@ describe('tenants', () => {
     expect(n).toBe(0);
     const [m] = await admin`select u.email from memberships m join users u on u.id = m.user_id where m.workspace_id = ${t.workspaceId} and m.role = 'owner'`;
     expect(m!.email).toBe(t.ownerEmail);
+    await deleteTenant(sql, ddl, t.workspaceId);
   }, 60_000);
 
   test('загрузка сопоставляет владельца с существующим пользователем по email', async () => {
