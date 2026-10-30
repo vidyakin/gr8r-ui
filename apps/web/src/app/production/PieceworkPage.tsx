@@ -6,6 +6,7 @@ import { Badge, Button, Dialog, DialogClose, DialogContent, EmptyState, Field, I
 import { useCanWrite } from '../meta/custom-fields';
 import { STATUS_LABEL, STATUS_TONE } from '../docs/data';
 import { useOperations, useOperationRates, usePieceworkApi, usePieceworkOrders, usePieceworkReport, type OperationRow } from './piecework-data';
+import { PieceworkOrderDialog } from './PieceworkOrderDialog';
 import { t, useT } from '@/i18n';
 
 const TABS = [
@@ -49,13 +50,22 @@ function OrdersTab({ canWrite }: { canWrite: boolean }) {
   const [to, setTo] = React.useState('');
   const list = usePieceworkOrders({ from: from || undefined, to: to || undefined });
   const rows = list.data?.items ?? [];
+  const [open, setOpen] = React.useState<string | 'new' | null>(null);
 
   return (
     <>
-      <div className="row" style={{ gap: 16, padding: '0 var(--gutter) 12px' }}>
+      <div className="row" style={{ gap: 16, padding: '0 var(--gutter) 12px', alignItems: 'flex-end' }}>
         <Field className="field-row" label={tt('production.common.from')}>{p => <Input {...p} type="date" value={from} onChange={e => setFrom(e.target.value)} />}</Field>
         <Field className="field-row" label={tt('production.common.to')}>{p => <Input {...p} type="date" value={to} onChange={e => setTo(e.target.value)} />}</Field>
+        <span style={{ flex: 1 }} />
+        {canWrite && (
+          <Button variant="primary" onClick={() => setOpen('new')}>
+            <Plus size={14} />
+            {tt('production.piecework.orders.new')}
+          </Button>
+        )}
       </div>
+      {open && <PieceworkOrderDialog id={open === 'new' ? undefined : open} onClose={() => setOpen(null)} />}
       {list.isError ? (
         <EmptyState icon={<CircleAlert size={20} />} error title={tt('production.piecework.orders.loadFailed')} action={<Button size="sm" onClick={() => list.refetch()}>{tt('production.common.retry')}</Button>}>
           {(list.error as Error).message}
@@ -87,7 +97,7 @@ function OrdersTab({ canWrite }: { canWrite: boolean }) {
             </thead>
             <tbody>
               {rows.map(r => (
-                <tr key={r.id}>
+                <tr key={r.id} tabIndex={0} style={{ cursor: 'pointer' }} onClick={() => setOpen(r.id)} onKeyDown={e => e.key === 'Enter' && setOpen(r.id)}>
                   <td className="mono">{r.number ?? <span className="faint">{tt('production.common.draft')}</span>}</td>
                   <td className="num muted">{r.date}</td>
                   <td className="trunc">{r.memberName}</td>
