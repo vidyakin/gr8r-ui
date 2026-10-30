@@ -19,6 +19,24 @@ export async function ensureDatabase(url: string): Promise<void> {
   }
 }
 
+/** Тестовая база с ICU-локалью: lower() и ILIKE понимают кириллицу, даже если кластер создан с locale C.
+    Базу другой локали пересоздаёт — вызывать только для тестовых баз. */
+export async function ensureTestDatabase(url: string): Promise<void> {
+  const u = new URL(url);
+  const name = decodeURIComponent(u.pathname.slice(1));
+  const ident = `"${name.replace(/"/g, '""')}"`;
+  u.pathname = '/postgres';
+  const admin = postgres(u.toString(), { max: 1, onnotice: () => {} });
+  try {
+    const [row] = await admin`select datlocprovider as provider from pg_database where datname = ${name}`;
+    if (row?.provider === 'i') return;
+    if (row) await admin.unsafe(`drop database ${ident}`);
+    await admin.unsafe(`create database ${ident} template template0 encoding 'UTF8' locale_provider icu icu_locale 'und'`);
+  } finally {
+    await admin.end();
+  }
+}
+
 /** Применяет SQL-миграции из packages/db/drizzle (структура, uuid v7, роли, RLS) */
 export async function runMigrations(url: string): Promise<void> {
   const sql = postgres(url, { max: 1, onnotice: () => {} });

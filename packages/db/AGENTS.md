@@ -38,6 +38,7 @@
 - Typecheck: `bun run --filter @gr8r/db typecheck`.
 - Тесты: `bun test packages/db/test`. Большая часть проверок сервисов — тесты API в `apps/api/test`.
   `test/setup.ts` пересоздаёт `gr8r_test` на каждый запуск, рантайм ходит не суперпользователем (`gr8r_app`).
+  База создаётся с ICU-локалью (`ensureTestDatabase`), поэтому кириллица в `lower()` и `ILIKE` работает и в кластере с locale C (`scripts/pgtest.sh`).
 
 ## Частые ошибки
 - Таблица с `workspace_id` без `app_secure_tenant_table` — данные видны всем арендаторам.
