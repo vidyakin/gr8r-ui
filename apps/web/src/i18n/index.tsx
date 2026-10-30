@@ -43,6 +43,8 @@ export function t(key: TKey, params?: TParams): string {
     let pr = pluralRules.get(l);
     if (!pr) pluralRules.set(l, (pr = new Intl.PluralRules(intlLocale(l))));
     v = v[pr.select(count) as keyof Plural] ?? v.other;
+    // «#» в формах множественного числа — само число
+    v = v.replace(/#/g, String(count));
   }
   return interpolate(v, params);
 }

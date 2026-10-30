@@ -1,6 +1,7 @@
 /* Чистые функции над данными воркспейса — порт «lookups» из core/store.js.
    Не зависят от React: их легко тестировать и переиспользовать на сервере. */
 import { PRIORITIES, priorityName } from '@/components/gr8r/task';
+import { t } from '@/i18n';
 import { diffDays, parse, today } from '../lib/dates';
 import { flattenSubs, subtreeIds } from './subtasks';
 import type { FileKind, LabelId, Notification, Project, ProjectColor, ProjectStatus, StatusDef, Subtask, Task, TimeLog, WorkspaceData } from './types';
@@ -112,13 +113,13 @@ export function notifTarget(d: WorkspaceData, n: Notification) {
   return { task: t, project: p };
 }
 
-/** Группа ленты по дате: Today / Yesterday / This week / Earlier */
+/** Группа ленты по дате: сегодня / вчера / на этой неделе / ранее — подпись на языке интерфейса */
 export function dayBucket(ts: number) {
   const n = diffDays(new Date(ts), today());
-  if (n === 0) return 'Today';
-  if (n === -1) return 'Yesterday';
-  if (n > -7) return 'This week';
-  return 'Earlier';
+  if (n === 0) return t('crm.activities.bucket.today');
+  if (n === -1) return t('crm.activities.bucket.yesterday');
+  if (n > -7) return t('crm.activities.bucket.week');
+  return t('crm.activities.bucket.earlier');
 }
 
 /* ---------- фильтры списков (порт shell/view-engine.js) ---------- */
