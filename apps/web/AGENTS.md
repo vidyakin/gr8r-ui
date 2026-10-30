@@ -27,13 +27,15 @@
 - Суммы документа считать `computeDocument` из `@gr8r/shared`, деньги — `decimal.ts`, без float.
 - В браузере хранятся только настройки вида (тема, плотность, свёрнутый сайдбар, окна).
 - Ошибки API показываются по коду (`errors.*` в словаре).
+- Изменил экран или поведение — обнови статью в `docs/user/` (поле `sources` её шапки ищет файлы экрана) и `verified` (`bun run docs:verify <файл>`) в том же коммите. Новый раздел в `SECTIONS` — статья или запись в `docs/user/pending.json`, иначе падает `i18n/docs-coverage.test.ts`. Формат — `docs/user/README.md`.
 
 ## Команды
 - Typecheck: `bun run --filter @gr8r/web typecheck`; сборка `bun run build`.
-- Тесты из корня: `bun test apps/web/src/i18n/i18n.test.ts`, `bun test apps/web/src/lib`.
+- Тесты из корня: `bun test apps/web/src/i18n/i18n.test.ts`, `bun test apps/web/src/lib`, покрытие справки `bun test apps/web/src/i18n/docs-coverage.test.ts` (тесты корня поднимают тестовую БД — задай `TEST_ADMIN_DATABASE_URL` на кластер `./scripts/pgtest.sh`, имя `*_test`).
 - Запуск: `bun run dev` из корня (api + worker + web), вход `demo@gr8r.dev` / `demo1234`.
 
 ## Частые ошибки
 - Строка в JSX без `t()` или ключ только в `en`.
 - Свой форматтер числа через `toFixed` вместо `i18n/format.ts`.
 - Новый раздел добавлен в роутер, но не в `SECTIONS` — нет в навигации и крошках.
+- Экран изменён, а статья в `docs/user/` и её `verified` нет — `bun run docs:check` покажет её устаревшей.

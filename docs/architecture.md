@@ -19,6 +19,7 @@
 - [Вторая левая панель](architecture/second-sidebar.md)
 - [Языки интерфейса](architecture/i18n.md)
 - [Этапы](architecture/stages.md) — что сделано и следующие шаги
+- Пользовательская документация (справка и сайт) — `docs/user/README.md`: формат статей, `bun run docs:check`, `docs:verify`; план — `docs/plans/2026-10-30-user-docs.md`
 
 ## Задачи и автоматизации
 
