@@ -27,7 +27,8 @@ export function TripEconomics({ tripId }: { tripId: string }) {
   const [cf, setCf] = React.useState(() => carrierFields(carrier));
   React.useEffect(() => setCf(carrierFields(carrier)), [carrier]);
   const [addingCost, setAddingCost] = React.useState(false);
-  const [costForm, setCostForm] = React.useState({ costItemId: costItems[0]?.id ?? '', amount: '', comment: '' });
+  const [costDraft, setCostForm] = React.useState({ costItemId: '', amount: '', comment: '' });
+  const costForm = { ...costDraft, costItemId: costDraft.costItemId || (costItems[0]?.id ?? '') };
 
   const saveCarrier = async () => {
     if (!cf.carrierCompanyId) return;
@@ -55,7 +56,7 @@ export function TripEconomics({ tripId }: { tripId: string }) {
     if (!costForm.costItemId || !costForm.amount) return;
     if (await api('POST', `/trips/${tripId}/costs`, costForm)) {
       toast.success(t('transport.costs.saved'));
-      setCostForm({ costItemId: costItems[0]?.id ?? '', amount: '', comment: '' });
+      setCostForm({ costItemId: '', amount: '', comment: '' });
       setAddingCost(false);
     }
   };

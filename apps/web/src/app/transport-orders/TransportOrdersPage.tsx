@@ -32,7 +32,8 @@ function BillingDialog({ orderId, kind, onClose }: { orderId: string; kind: 'inv
   const t = useT();
   const api = useTransportApi();
   const products = useProducts({ kind: 'service', active: true }).data ?? [];
-  const [productId, setProductId] = React.useState(products[0]?.id ?? '');
+  const [picked, setProductId] = React.useState('');
+  const productId = picked || (products[0]?.id ?? '');
   const submit = async () => {
     if (!productId) return;
     const r = await api<{ documentId: string }>('POST', `/${orderId}/${kind}`, { productId });
@@ -67,7 +68,8 @@ function TripPickDialog({ orderId, onClose }: { orderId: string; onClose: () => 
   const t = useT();
   const api = useTransportApi();
   const trips = useTrips({ status: 'planned' }).data?.items ?? [];
-  const [tripId, setTripId] = React.useState(trips[0]?.id ?? '');
+  const [picked, setTripId] = React.useState('');
+  const tripId = picked || (trips[0]?.id ?? '');
   const submit = async () => {
     if (!tripId) return;
     const r = await api('POST', `/${orderId}/trip`, { tripId });
@@ -114,7 +116,8 @@ export function TransportOrderDialog({ id, onClose }: { id: string | null; onClo
   const order = id ? detail.data : null;
   const orgs = useOrganizations();
 
-  const [organizationId, setOrganizationId] = React.useState(order?.organizationId ?? orgs.data?.[0]?.id ?? '');
+  const [pickedOrg, setOrganizationId] = React.useState(order?.organizationId ?? '');
+  const organizationId = pickedOrg || (orgs.data?.[0]?.id ?? '');
   const [customer, setCustomer] = React.useState<{ id: string; name: string } | null>(null);
   const [date, setDate] = React.useState(order?.date ?? iso(today()));
   const [fromPlace, setFromPlace] = React.useState(order?.fromPlace ?? '');

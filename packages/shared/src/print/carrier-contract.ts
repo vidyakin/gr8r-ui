@@ -47,7 +47,7 @@ const KIND_RU: Record<CarrierContractStop['kind'], string> = { load: 'Погру
 
 const party = (p: CarrierContractParty): string => [p.name, p.inn && `ИНН ${p.inn}`, p.kpp && `КПП ${p.kpp}`, p.address, p.phone && `тел.: ${p.phone}`].filter(Boolean).map(esc).join(', ');
 
-const window = (s: CarrierContractStop): string => (s.windowFrom || s.windowTo ? `${s.windowFrom ?? ''}–${s.windowTo ?? ''}` : '');
+const window = (s: CarrierContractStop): string => (s.windowFrom || s.windowTo ? `${s.windowFrom?.slice(0, 5) ?? ''}–${s.windowTo?.slice(0, 5) ?? ''}` : '');
 
 export function renderCarrierContract(d: CarrierContractPrintData): string {
   const title = d.contractNumber ? `Договор-заявка № ${esc(d.contractNumber)}${d.contractDate ? ` от ${dateRu(d.contractDate)}` : ''}` : `Договор-заявка к рейсу ${esc(d.tripNumber)} от ${dateRu(d.tripDate)}`;
