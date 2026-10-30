@@ -47,6 +47,12 @@ describe('каталог модулей', () => {
     for (const n of NODE_LIST) expect(MODULE_OF_NODE.get(n.type), `узел ${n.type}`).toBeTruthy();
     for (const type of MODULE_OF_NODE.keys()) expect(NODE_LIST.map(n => n.type), `узел ${type}`).toContain(type);
   });
+  test('транспорт (автопарк и рейсы): пути /fleet и /trips, узел рейса, зависимость от торговли', () => {
+    expect(MODULE_OF_PATH.get('/fleet')).toBe('transport');
+    expect(MODULE_OF_PATH.get('/trips')).toBe('transport');
+    expect(MODULE_OF_NODE.get('trigger.trip_status')).toBe('transport');
+    expect(resolveModules(['transport']).has('trade')).toBe(true);
+  });
   test('зависимости: production тянет trade, payroll — money и trade', () => {
     expect([...resolveModules(['production'])].sort()).toEqual(['core', 'production', 'trade']);
     expect(resolveModules(['payroll']).has('trade')).toBe(true);
@@ -69,7 +75,7 @@ describe('запрет по модулю', () => {
 
   test('тариф «только ядро»: прямой вызов API выключенного модуля — 403 module_disabled, ядро работает', async () => {
     expect((await license(tenant, corePlan)).status).toBe(200);
-    for (const path of ['/deals', '/leads', '/documents', '/payments', '/production/needs', '/work-orders', '/flows', '/payroll', '/bank-connections']) {
+    for (const path of ['/deals', '/leads', '/documents', '/payments', '/production/needs', '/work-orders', '/flows', '/payroll', '/bank-connections', '/fleet', '/trips']) {
       const r = await tenant.get(path);
       expect(r.status, path).toBe(403);
       expect(r.body.error.code, path).toBe('module_disabled');

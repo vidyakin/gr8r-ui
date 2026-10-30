@@ -1,0 +1,119 @@
+/* Рейсы (задача 1211, docs/architecture/trips.md): рейсы, точки в порядке объезда, статусы, путевой лист из рейса, экран диспетчера,
+   маршрутный лист рейса. Правила — packages/db/src/trips.ts. Читает любой участник, правит member и выше, настройку вместимости — admin и owner. */
+import { zValidator } from '@hono/zod-validator';
+import { Hono } from 'hono';
+import { z } from 'zod';
+import {
+  addStop,
+  cancelTrip,
+  completeTrip,
+  createTrip,
+  createTripWaybill,
+  deleteTrip,
+  dispatchBoard,
+  getTrip,
+  listTrips,
+  removeStop,
+  reorderStops,
+  saveTripSettings,
+  setStopStatus,
+  startTrip,
+  tripCapacityMode,
+  tripPrintData,
+  updateStop,
+  updateTrip,
+} from '@gr8r/db';
+import { dispatchQuery, idParam, renderRouteSheet, tripAddDelivery, tripQuery, tripSave, tripSettingsSave, tripStopOrder, tripStopSave, tripStopStatus, tripStopUpdate, tripUpdate } from '@gr8r/shared';
+import { ctxOf, validationHook } from '../crud';
+import { requireRole } from '../middleware';
+import type { AppEnv } from '../types';
+
+const write = requireRole('member');
+const docCtx = (c: ReturnType<typeof ctxOf>) => ({ workspaceId: c.workspaceId, memberId: c.memberId, role: c.role });
+const stopParam = z.object({ id: z.uuid(), stopId: z.uuid() });
+const ok = { ok: true } as const;
+
+export const tripRoutes = new Hono<AppEnv>()
+  .get('/settings', async c => c.json({ capacityMode: await tripCapacityMode(ctxOf(c).db, ctxOf(c).workspaceId) }))
+  .put('/settings', requireRole('admin'), zValidator('json', tripSettingsSave, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json(await saveTripSettings(ctx.db, docCtx(ctx), c.req.valid('json').capacityMode));
+  })
+  .get('/dispatch', zValidator('query', dispatchQuery, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json(await dispatchBoard(ctx.db, docCtx(ctx), c.req.valid('query').date));
+  })
+  .get('/', zValidator('query', tripQuery, validationHook), async c => c.json(await listTrips(ctxOf(c).db, c.req.valid('query'))))
+  .post('/', write, zValidator('json', tripSave, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json(await createTrip(ctx.db, docCtx(ctx), c.req.valid('json')), 201);
+  })
+  .get('/:id', zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json(await getTrip(ctx.db, docCtx(ctx), c.req.valid('param').id));
+  })
+  .patch('/:id', write, zValidator('param', idParam, validationHook), zValidator('json', tripUpdate, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json(await updateTrip(ctx.db, docCtx(ctx), c.req.valid('param').id, c.req.valid('json')));
+  })
+  .delete('/:id', write, zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    await deleteTrip(ctx.db, docCtx(ctx), c.req.valid('param').id);
+    return c.json(ok);
+  })
+  .post('/:id/start', write, zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json(await startTrip(ctx.db, docCtx(ctx), c.req.valid('param').id));
+  })
+  .post('/:id/complete', write, zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json(await completeTrip(ctx.db, docCtx(ctx), c.req.valid('param').id));
+  })
+  .post('/:id/cancel', write, zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json(await cancelTrip(ctx.db, docCtx(ctx), c.req.valid('param').id));
+  })
+  .post('/:id/waybill', write, zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json(await createTripWaybill(ctx.db, docCtx(ctx), c.req.valid('param').id), 201);
+  })
+  /* точки */
+  .post('/:id/stops', write, zValidator('param', idParam, validationHook), zValidator('json', tripStopSave, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json(await addStop(ctx.db, docCtx(ctx), c.req.valid('param').id, c.req.valid('json')), 201);
+  })
+  // перетаскивание доставки в рейс (экран диспетчера)
+  .post('/:id/deliveries', write, zValidator('param', idParam, validationHook), zValidator('json', tripAddDelivery, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const b = c.req.valid('json');
+    return c.json(await addStop(ctx.db, docCtx(ctx), c.req.valid('param').id, { sourceKind: 'delivery', deliveryId: b.deliveryId, ...(b.index !== undefined ? { index: b.index } : {}) }), 201);
+  })
+  .put('/:id/order', write, zValidator('param', idParam, validationHook), zValidator('json', tripStopOrder, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json({ items: await reorderStops(ctx.db, docCtx(ctx), c.req.valid('param').id, c.req.valid('json').stopIds) });
+  })
+  .patch('/:id/stops/:stopId', write, zValidator('param', stopParam, validationHook), zValidator('json', tripStopUpdate, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const p = c.req.valid('param');
+    return c.json(await updateStop(ctx.db, docCtx(ctx), p.id, p.stopId, c.req.valid('json')));
+  })
+  .delete('/:id/stops/:stopId', write, zValidator('param', stopParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const p = c.req.valid('param');
+    await removeStop(ctx.db, docCtx(ctx), p.id, p.stopId);
+    return c.json(ok);
+  })
+  .post('/:id/stops/:stopId/status', write, zValidator('param', stopParam, validationHook), zValidator('json', tripStopStatus, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const p = c.req.valid('param');
+    const b = c.req.valid('json');
+    return c.json(await setStopStatus(ctx.db, docCtx(ctx), p.id, p.stopId, b.status, b.comment));
+  })
+  // маршрутный лист рейса: готовая HTML-страница (в интерфейсе — в iframe)
+  .get('/:id/print', zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const data = await tripPrintData(ctx.db, docCtx(ctx), c.req.valid('param').id);
+    c.header('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'");
+    c.header('X-Content-Type-Options', 'nosniff');
+    return c.html(renderRouteSheet(data));
+  });
