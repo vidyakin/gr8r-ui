@@ -65,6 +65,11 @@ export const deliveries = pgTable(
     windowFrom: time('window_from'),
     windowTo: time('window_to'),
     distanceKm: numeric('distance_km', { precision: 12, scale: 3 }).notNull().default('0'),
+    /** Координаты адреса (задача 1213): геокодер в фоне при сохранении или ввод вручную; источник и итог геокодирования */
+    lat: numeric('lat', { precision: 9, scale: 6 }),
+    lon: numeric('lon', { precision: 9, scale: 6 }),
+    geoSource: text('geo_source', { enum: ['manual', 'geocoder'] }),
+    geoStatus: text('geo_status', { enum: ['pending', 'ok', 'approx', 'not_found', 'error'] }),
     weightKg: numeric('weight_kg', { precision: 18, scale: 3 }).notNull().default('0'),
     /** Цена для клиента и наша себестоимость: посчитаны по тарифу, можно поправить */
     price: money('price').notNull().default('0'),

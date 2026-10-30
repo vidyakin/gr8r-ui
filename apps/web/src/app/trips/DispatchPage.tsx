@@ -1,14 +1,15 @@
 /* Транспорт → Диспетчер (задача 1211): нераспределённые доставки слева, машины на день с таймлайном справа. Доставку перетаскивают на рейс
-   (добавляется точкой) или на свободную машину (создаётся рейс на день). Без перетаскивания — выбор «В рейс…». Карта и кнопка «Распределить»
-   появятся с задачей 1213: порядок точек уже хранится, расстояние по прямой считается при наличии координат. */
+   (добавляется точкой) или на свободную машину (создаётся рейс на день). Без перетаскивания — выбор «В рейс…». Задача 1213: кнопка «Распределить»
+   (задача воркера собирает рейсы и порядок точек, ход и итог — в полосе запуска) и карта рейсов дня. */
 import * as React from 'react';
-import { ChevronLeft, ChevronRight, GripVertical, Plus } from 'lucide-react';
-import { Badge, Button, IconButton, Skeleton, toast } from '@/components/ui';
+import { ChevronLeft, ChevronRight, GripVertical, Plus, Shuffle } from 'lucide-react';
+import { Alert, Badge, Button, IconButton, Skeleton, toast } from '@/components/ui';
 import { fmtNumber, useT } from '@/i18n';
 import { fmtDate, iso, parse, today } from '../lib/dates';
 import { FleetHead } from '../fleet/parts';
 import { STOP_TONE, TRIP_TONE, TripDialog, useOverloadText } from './TripDialog';
-import { useDispatch, useTripApi, type Dispatch, type DispatchDelivery, type DispatchTrip } from './data';
+import { RouteMapView, etaText, mapStops, tripColor } from './map';
+import { useDispatch, useRoutingRuns, useTripApi, type Dispatch, type DispatchDelivery, type DispatchTrip } from './data';
 
 const FROM_H = 6;
 const TO_H = 22;
@@ -51,6 +52,7 @@ function DeliveryCard({ d, targets, onPlace }: { d: DispatchDelivery; targets: {
           {(d.windowFrom || d.windowTo) && <span className="num">{[d.windowFrom, d.windowTo].filter(Boolean).join('–')}</span>}
           <span className="num">{t('trips.dispatch.weight', { kg: fmtNumber(d.weightKg) })}</span>
           {late && <Badge tone="red">{t('trips.dispatch.overdue')}</Badge>}
+          {d.lat === null && <Badge tone="gray" title={t('trips.dispatch.noCoordsHint')}>{t('trips.dispatch.noCoords')}</Badge>}
         </div>
         <select
           aria-label={t('trips.dispatch.addTo')}
@@ -123,13 +125,41 @@ function TripBar({ trip, date, over, onOpen, onDropDelivery }: { trip: DispatchT
           {trip.stops
             .filter(s => s.day === date)
             .map(s => (
-              <Badge key={s.id} tone={STOP_TONE[s.status]} title={s.address || s.title}>
+              <Badge key={s.id} tone={s.etaLate ? 'red' : STOP_TONE[s.status]} title={s.address || s.title}>
                 {s.seq}
-                {s.windowFrom ? ` ${s.windowFrom}` : ''}
+                {s.etaMin !== null ? ` ~${etaText(s.etaMin)}` : s.windowFrom ? ` ${s.windowFrom}` : ''}
               </Badge>
             ))}
         </span>
       </button>
+    </div>
+  );
+}
+
+/** Полоса последнего запуска «Распределить»: ход, итог, предупреждение провайдера, причины, по которым доставки остались нераспределёнными */
+function RunBanner({ run }: { run: NonNullable<ReturnType<typeof useRoutingRuns>['data']>['items'][number] }) {
+  const t = useT();
+  const [hidden, setHidden] = React.useState<string | null>(null);
+  if (hidden === run.id) return null;
+  const sum = run.summary;
+  const tone = run.status === 'failed' ? 'danger' : run.status === 'done' ? (sum && sum.unassigned.length ? 'warn' : 'ok') : 'info';
+  const reasons = sum ? [...new Set([...sum.unassigned.map(u => u.reason), ...sum.skippedVehicles.map(v => v.reason)])] : [];
+  return (
+    <div style={{ padding: '0 var(--gutter) 12px' }}>
+      <Alert tone={tone} action={run.status === 'done' || run.status === 'failed' ? <Button size="sm" variant="ghost" onClick={() => setHidden(run.id)}>{t('trips.run.hide')}</Button> : undefined}>
+        <div>
+          <span>
+            {run.status === 'queued' || run.status === 'running'
+              ? t('trips.run.running')
+              : run.status === 'failed'
+                ? t('trips.run.failed', { error: run.error ?? '' })
+                : t('trips.run.done', { trips: sum?.tripIds.length ?? 0, stops: sum?.stops ?? 0, left: sum?.unassigned.length ?? 0 })}
+            {run.status === 'done' && ` · ${t(`trips.run.source.${run.source ?? 'straight'}`)}`}
+            {run.warning && ` · ${t('trips.run.warning', { text: run.warning })}`}
+            {reasons.length > 0 && ` · ${reasons.map(r => t(`trips.run.reason.${r}` as Parameters<typeof t>[0])).join(', ')}`}
+          </span>
+        </div>
+      </Alert>
     </div>
   );
 }
@@ -141,6 +171,12 @@ export function DispatchPage() {
   const board = useDispatch(date).data;
   const [open, setOpen] = React.useState<{ id: string | null; defaults?: { vehicleId?: string; date?: string } } | null>(null);
   const [hotLane, setHotLane] = React.useState<string | null>(null);
+  const runs = useRoutingRuns({ date }).data?.items ?? [];
+  const run = runs[0];
+  const running = run?.status === 'queued' || run?.status === 'running';
+  const distribute = async () => {
+    if (await api('POST', '/routing/distribute', { date })) toast(t('trips.dispatch.distributeStarted'));
+  };
   const shift = (n: number) => setDate(iso(new Date(parse(date).getTime() + n * 86400000)));
 
   const place = async (b: Dispatch, deliveryId: string, target: { tripId: string } | { vehicleId: string }) => {
@@ -187,6 +223,10 @@ export function DispatchPage() {
             <input className="input" type="date" aria-label={t('trips.col.date')} value={date} onChange={e => e.target.value && setDate(e.target.value)} style={{ width: 150 }} />
             <IconButton label={t('trips.dispatch.next')} onClick={() => shift(1)}><ChevronRight size={15} /></IconButton>
             <Button size="sm" variant="ghost" onClick={() => setDate(iso(today()))}>{t('trips.dispatch.today')}</Button>
+            <Button size="sm" variant="secondary" disabled={running} onClick={() => void distribute()}>
+              <Shuffle size={13} />
+              {t('trips.dispatch.distribute')}
+            </Button>
             <Button size="sm" onClick={() => setOpen({ id: null, defaults: { date } })}>
               <Plus size={13} />
               {t('trips.new')}
@@ -194,6 +234,7 @@ export function DispatchPage() {
           </>
         }
       />
+      {run && <RunBanner run={run} />}
       <div style={{ display: 'flex', gap: 16, padding: '0 var(--gutter) 24px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <section style={{ flex: '0 0 320px', maxWidth: '100%' }} className="stack">
           <div className="label" style={{ marginBottom: 8 }}>{t('trips.dispatch.unassigned')} · {board.unassigned.length}</div>
@@ -256,6 +297,13 @@ export function DispatchPage() {
               );
             })}
           </div>
+          <div className="label" style={{ margin: '16px 0 8px' }}>{t('trips.dispatch.map')}</div>
+          <RouteMapView
+            height={380}
+            routes={board.trips.map((x, i) => ({ id: x.id, color: tripColor(i), label: `${x.number} · ${x.plate}`, stops: mapStops(x.stops) }))}
+            free={board.unassigned.flatMap(d => (d.lat !== null && d.lon !== null ? [{ id: d.id, lat: Number(d.lat), lon: Number(d.lon), label: '•', title: d.address || d.documentNumber || '' }] : []))}
+            onRouteClick={id => setOpen({ id })}
+          />
         </section>
       </div>
       {open && <TripDialog key={open.id ?? 'new'} id={open.id} {...(open.defaults ? { defaults: open.defaults } : {})} onClose={() => setOpen(null)} />}

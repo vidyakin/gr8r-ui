@@ -1,0 +1,7 @@
+/* Карта рейсов (задача 1213): номерные метки точек на Leaflet */
+.rm-wrap { position: relative; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--hover); }
+.rm-wrap .leaflet-container { font: inherit; height: 100%; width: 100%; }
+.rm-pin { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; color: #fff; font-size: 11px; font-weight: 600; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .45); }
+.rm-pin.late { outline: 2px solid #d92d20; }
+.rm-pin.free { background: #667085; border-radius: 4px; }
+.rm-pin.depot { background: #101828; border-radius: 4px; }
