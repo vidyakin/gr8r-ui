@@ -10,7 +10,7 @@ sources:
   - apps/web/src/app/finance/DocInvestmentField.tsx
   - apps/web/src/i18n/ru/finance.ts
   - apps/api/src/routes/investments.ts
-verified:
+verified: 0271cd253e
 screenshots: []
 ---
 

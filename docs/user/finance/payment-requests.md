@@ -6,7 +6,7 @@ sources:
   - apps/web/src/app/money/RequestPages.tsx
   - apps/web/src/i18n/ru/money.ts
   - apps/api/src/routes/payment-calendar.ts
-verified:
+verified: 0271cd253e
 screenshots: []
 ---
 

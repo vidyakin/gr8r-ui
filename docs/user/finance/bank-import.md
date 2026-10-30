@@ -6,7 +6,7 @@ sources:
   - apps/web/src/app/money/BankImportPage.tsx
   - apps/web/src/i18n/ru/money.ts
   - apps/api/src/routes/bank-import.ts
-verified:
+verified: 0271cd253e
 screenshots: []
 ---
 

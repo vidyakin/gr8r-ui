@@ -8,7 +8,7 @@ sources:
   - apps/web/src/app/money/PayControls.tsx
   - apps/web/src/i18n/ru/secrets.ts
   - apps/api/src/routes/integrations.ts
-verified:
+verified: 0271cd253e
 screenshots: []
 ---
 

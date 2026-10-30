@@ -8,7 +8,7 @@ sources:
   - apps/web/src/app/settings/leads.tsx
   - apps/web/src/i18n/ru/secrets.ts
   - apps/api/src/routes/secrets.ts
-verified:
+verified: 0271cd253e
 screenshots: []
 ---
 

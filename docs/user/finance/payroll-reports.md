@@ -6,7 +6,7 @@ sources:
   - apps/web/src/app/payroll/PayrollAdminPages.tsx
   - apps/web/src/i18n/ru/payroll.ts
   - apps/api/src/routes/payroll.ts
-verified:
+verified: 0271cd253e
 screenshots: []
 ---
 

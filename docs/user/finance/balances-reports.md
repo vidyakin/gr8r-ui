@@ -6,7 +6,7 @@ sources:
   - apps/web/src/app/money/ReportPages.tsx
   - apps/web/src/i18n/ru/money.ts
   - apps/api/src/routes/payments.ts
-verified:
+verified: 0271cd253e
 screenshots: []
 ---
 

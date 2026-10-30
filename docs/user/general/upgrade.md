@@ -9,7 +9,7 @@ sources:
   - apps/web/src/app/settings/plans.tsx
   - apps/web/src/app/settings/requests.tsx
   - apps/web/src/i18n/ru/licensing.ts
-verified:
+verified: 0271cd253e
 screenshots: []
 ---
 
