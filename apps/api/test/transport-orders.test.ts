@@ -99,10 +99,19 @@ describe('заявка на перевозку: жизненный цикл, р�
     });
     orderId = order.id;
     expect(order).toMatchObject({ number: expect.stringMatching(/^ЗП-\d{4}-\d{5}$/), status: 'draft', amount: '40000.00' });
+    expect((await owner.patch(`/transport-orders/${orderId}`, { comment: 'Звонить заранее' })).body.comment).toBe('Звонить заранее');
 
     const got = await owner.get(`/transport-orders/${orderId}`);
     expect(got.body.points).toHaveLength(2);
     expect(got.body.points[0]).toMatchObject({ kind: 'load', address: 'Москва, ул. Складская, 1' });
+    expect(got.body.customerName).toBeTruthy();
+    expect((await owner.get('/transport-orders')).body.items.find((x: any) => x.id === orderId).customerName).toBe(got.body.customerName);
+  });
+
+  test('комментарий сохраняется при создании', async () => {
+    const o = await mk(owner, '/transport-orders', { date: day(0), organizationId: orgId, customerCompanyId: customer, comment: 'С гидробортом' });
+    expect(o.comment).toBe('С гидробортом');
+    await owner.del(`/transport-orders/${o.id}`);
   });
 
   test('сумму можно задать вручную (договорная), статус меняется по переходам', async () => {
@@ -117,6 +126,10 @@ describe('заявка на перевозку: жизненный цикл, р�
   test('заявка создаёт рейс через точки (sourceKind=transport_order) и привязывается к нему', async () => {
     const trip = await mk(owner, '/trips', { dateFrom: day(0), vehicleId: truck, driverMemberId: drv1, kind: 'intercity', dateTo: day(1) });
     tripId = trip.id;
+    const draft = await mk(owner, '/transport-orders', { date: day(0), organizationId: orgId, customerCompanyId: customer, points: [{ kind: 'load', address: 'А' }] });
+    expect((await owner.post(`/transport-orders/${draft.id}/trip`, { tripId })).body.error.code).toBe('transport_order_not_confirmed');
+    await owner.del(`/transport-orders/${draft.id}`);
+
     const attached = await owner.post(`/transport-orders/${orderId}/trip`, { tripId });
     expect(attached.status).toBe(200);
     expect(attached.body.tripId).toBe(tripId);
@@ -125,8 +138,20 @@ describe('заявка на перевозку: жизненный цикл, р�
     const stops = tripView.body.stops as any[];
     expect(stops).toHaveLength(2);
     expect(stops.every((s: any) => s.sourceKind === 'transport_order' && s.sourceId === orderId)).toBe(true);
+    expect(stops.map((s: any) => s.kind)).toEqual(['load', 'unload']);
+    expect(stops[0].weightKg).toBe(stops[1].weightKg);
 
     expect((await owner.post(`/transport-orders/${orderId}/trip`, { tripId })).status).toBe(409); // уже привязана
+  });
+
+  test('отмена заявки убирает её незавершённые точки из открытого рейса', async () => {
+    const o = await mk(owner, '/transport-orders', { date: day(0), organizationId: orgId, customerCompanyId: customer, amount: '100', points: [{ kind: 'load', address: 'Отменяемая погрузка' }] });
+    await owner.post(`/transport-orders/${o.id}/status`, { status: 'confirmed' });
+    await owner.post(`/transport-orders/${o.id}/trip`, { tripId });
+    expect(((await owner.get(`/trips/${tripId}`)).body.stops as any[]).some(s => s.sourceId === o.id)).toBe(true);
+    expect((await owner.post(`/transport-orders/${o.id}/status`, { status: 'cancelled' })).status).toBe(200);
+    expect(((await owner.get(`/trips/${tripId}`)).body.stops as any[]).some(s => s.sourceId === o.id)).toBe(false);
+    expect((await owner.post(`/transport-orders/${o.id}/trip`, { tripId })).status).toBe(409);
   });
 
   test('счёт и акт на услугу «Перевозка» на сумму заявки, повторно не создаются', async () => {
@@ -199,6 +224,8 @@ describe('заявка на перевозку: жизненный цикл, р�
       expect(margin.body.carrierRate).toBe('30000.00');
       expect(margin.body.otherCosts).toBe('1500.00');
       expect(margin.body.forwarding).toMatchObject({ margin: '5000.00' });
+      expect(margin.body.fuelAmount).toBe('0.00');
+      expect((await member.get(`/transport-orders/trips/${tripId}/margin`)).status).toBe(403);
 
       await owner.del(`/transport-orders/trips/${tripId}/carrier`);
       const after = await owner.get(`/transport-orders/trips/${tripId}/margin`);

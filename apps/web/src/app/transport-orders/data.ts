@@ -62,6 +62,7 @@ export interface TransportOrder {
   status: TransportOrderStatus;
   organizationId: string;
   customerCompanyId: string;
+  customerName: string | null;
   fromPlace: string;
   toPlace: string;
   readyDate: string | null;
@@ -147,7 +148,7 @@ export interface FleetTripCost {
 
 export interface TripMargin {
   income: string;
-  fleetCosts: string;
+  fuelAmount: string;
   carrierRate: string;
   otherCosts: string;
   totalCosts: string;
@@ -166,7 +167,7 @@ export function useFleetTripCosts(tripId: string | null) {
   return useQuery({ queryKey: transportKey(ws, 'trip-costs', tripId), queryFn: () => call<{ items: FleetTripCost[] }>(ws, 'GET', `/transport-orders/trips/${tripId}/costs`), enabled: !!tripId, staleTime: Infinity });
 }
 
-export function useTripMargin(tripId: string | null) {
+export function useTripMargin(tripId: string | null, enabled = true) {
   const ws = useWsId();
-  return useQuery({ queryKey: transportKey(ws, 'trip-margin', tripId), queryFn: () => call<TripMargin>(ws, 'GET', `/transport-orders/trips/${tripId}/margin`), enabled: !!tripId, staleTime: Infinity });
+  return useQuery({ queryKey: transportKey(ws, 'trip-margin', tripId), queryFn: () => call<TripMargin>(ws, 'GET', `/transport-orders/trips/${tripId}/margin`), enabled: !!tripId && enabled, staleTime: Infinity });
 }

@@ -17,18 +17,16 @@ describe('computeTransportRateAmount', () => {
 });
 
 describe('computeTripMargin', () => {
-  test('доход минус затраты автопарка, наёмного перевозчика и прочих статей', () => {
+  test('доход минус топливо, наёмный перевозчик и прочие статьи', () => {
     const r = computeTripMargin({
       ordersAmount: '50000',
-      fleetFuelAmount: '8000',
-      fleetRepairAmount: '2000',
-      fleetFinesAmount: '0',
+      fuelAmount: '10000',
       carrierRate: null,
       otherCosts: '1500',
     });
     expect(r).toEqual({
       income: '50000.00',
-      fleetCosts: '10000.00',
+      fuelAmount: '10000.00',
       carrierRate: '0.00',
       otherCosts: '1500.00',
       totalCosts: '11500.00',

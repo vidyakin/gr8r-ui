@@ -5,7 +5,7 @@ import * as React from 'react';
 import { Plus, Printer, Trash2 } from 'lucide-react';
 import { Badge, Button, Field, IconButton, Input, Select, toast } from '@/components/ui';
 import { fmtAmount, useT } from '@/i18n';
-import { useCompanies } from '../catalog/data';
+import { useCompanies, useIsAdmin } from '../catalog/data';
 import { useCostItems } from '../docs/data';
 import { errorMessage } from '../data/api';
 import { useFleetTripCarrier, useFleetTripCosts, useTransportApi, useTripMargin, type FleetTripCarrier } from './data';
@@ -21,7 +21,7 @@ export function TripEconomics({ tripId }: { tripId: string }) {
   const costItems = useCostItems('expense').data ?? [];
   const carrier = useFleetTripCarrier(tripId).data?.item ?? null;
   const costs = useFleetTripCosts(tripId).data?.items ?? [];
-  const margin = useTripMargin(tripId).data;
+  const margin = useTripMargin(tripId, useIsAdmin()).data;
 
   const [carrierForm, setCarrierForm] = React.useState(false);
   const [cf, setCf] = React.useState(() => carrierFields(carrier));
@@ -62,8 +62,8 @@ export function TripEconomics({ tripId }: { tripId: string }) {
   const removeCost = async (id: string) => {
     if (await api('DELETE', `/trips/${tripId}/costs/${id}`)) toast.success(t('transport.costs.removed'));
   };
-  const costItemName = (id: string) => costItems.find(c => c.id === id)?.name ?? id;
-  const companyName = (id: string) => companies.find(c => c.id === id)?.name ?? id;
+  const costItemName = (id: string) => costItems.find(c => c.id === id)?.name ?? '—';
+  const companyName = (id: string) => companies.find(c => c.id === id)?.name ?? '—';
 
   return (
     <div className="stack" style={{ gap: 10 }}>
@@ -156,7 +156,7 @@ export function TripEconomics({ tripId }: { tripId: string }) {
         <div key={c.id} className="row" style={{ gap: 8, alignItems: 'center' }}>
           <span style={{ flex: 1 }}>{costItemName(c.costItemId)}{c.comment ? ` · ${c.comment}` : ''}</span>
           <b className="num">{fmtAmount(c.amount)}</b>
-          <IconButton label={t('transport.costs.removed')} size="sm" onClick={() => void removeCost(c.id)}><Trash2 size={13} /></IconButton>
+          <IconButton label={t('common.delete')} size="sm" onClick={() => void removeCost(c.id)}><Trash2 size={13} /></IconButton>
         </div>
       ))}
       {addingCost ? (
@@ -193,6 +193,9 @@ export function TripEconomics({ tripId }: { tripId: string }) {
           <div className="label">{t('transport.carrier.margin.title')}</div>
           <div className="row" style={{ gap: 12, flexWrap: 'wrap' }}>
             <span className="muted">{t('transport.carrier.margin.income')}: <b className="num">{fmtAmount(margin.income)}</b></span>
+            <span className="muted">{t('transport.carrier.margin.fuelAmount')}: <b className="num">{fmtAmount(margin.fuelAmount)}</b></span>
+            <span className="muted">{t('transport.carrier.margin.carrierRate')}: <b className="num">{fmtAmount(margin.carrierRate)}</b></span>
+            <span className="muted">{t('transport.carrier.margin.otherCosts')}: <b className="num">{fmtAmount(margin.otherCosts)}</b></span>
             <span className="muted">{t('transport.carrier.margin.totalCosts')}: <b className="num">{fmtAmount(margin.totalCosts)}</b></span>
             <Badge tone={Number(margin.margin) >= 0 ? 'green' : 'red'}>
               {t('transport.carrier.margin.margin')}: {fmtAmount(margin.margin)}

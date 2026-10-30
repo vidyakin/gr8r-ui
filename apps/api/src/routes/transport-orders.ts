@@ -1,5 +1,5 @@
 /* Заявки на перевозку, тарифы по направлениям и экспедирование (задача 1223, docs/architecture/transport-orders.md).
-   Правила — packages/db/src/transport-orders.ts. Читает любой участник, правит member и выше. */
+   Правила — packages/db/src/transport-orders.ts. Читает любой участник, правит member и выше, маржу рейса видят администраторы. */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import {
@@ -15,13 +15,12 @@ import {
   deleteTransportOrder,
   getFleetTripCarrier,
   listFleetTripCosts,
-  listOrderPoints,
   listRateSchedules,
   listTransportOrders,
-  loadTransportOrder,
   saveFleetTripCarrier,
   setTransportOrderStatus,
   suggestRateSchedule,
+  transportOrderDetail,
   tripMargin,
   updateFleetTripCost,
   updateRateSchedule,
@@ -82,12 +81,7 @@ export const transportOrderRoutes = new Hono<AppEnv>()
     const ctx = ctxOf(c);
     return c.json(await createTransportOrder(ctx.db, docCtx(ctx), c.req.valid('json')), 201);
   })
-  .get('/:id', zValidator('param', idParam, validationHook), async c => {
-    const db = ctxOf(c).db;
-    const order = await loadTransportOrder(db, c.req.valid('param').id);
-    const points = await listOrderPoints(db, order.id);
-    return c.json({ ...order, points });
-  })
+  .get('/:id', zValidator('param', idParam, validationHook), async c => c.json(await transportOrderDetail(ctxOf(c).db, c.req.valid('param').id)))
   .patch('/:id', write, zValidator('param', idParam, validationHook), zValidator('json', transportOrderUpdate, validationHook), async c => {
     const ctx = ctxOf(c);
     return c.json(await updateTransportOrder(ctx.db, docCtx(ctx), c.req.valid('param').id, c.req.valid('json')));

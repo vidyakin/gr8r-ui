@@ -30,7 +30,6 @@ export const transport = {
     card: {
       titleNew: 'New transport order',
       titleEdit: 'Transport order {number}',
-      tabMain: 'Order',
       tabPoints: 'Route points',
       organization: 'Organization',
       customer: 'Customer',
@@ -69,6 +68,8 @@ export const transport = {
     },
     action: {
       confirm: 'Confirm',
+      start: 'Start',
+      finish: 'Complete',
       cancel: 'Cancel order',
       createTrip: 'Attach to trip',
       invoice: 'Issue invoice',
@@ -151,7 +152,7 @@ export const transport = {
     margin: {
       title: 'Trip margin',
       income: 'Income (orders)',
-      fleetCosts: 'Fleet costs',
+      fuelAmount: 'Fuel',
       carrierRate: 'Carrier rate',
       otherCosts: 'Other costs',
       totalCosts: 'Total costs',

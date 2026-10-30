@@ -33,7 +33,6 @@ export const transport: Widen<typeof T> = {
     card: {
       titleNew: 'Новая заявка на перевозку',
       titleEdit: 'Заявка на перевозку {number}',
-      tabMain: 'Заявка',
       tabPoints: 'Точки маршрута',
       organization: 'Организация',
       customer: 'Заказчик',
@@ -72,6 +71,8 @@ export const transport: Widen<typeof T> = {
     },
     action: {
       confirm: 'Подтвердить',
+      start: 'В работу',
+      finish: 'Выполнена',
       cancel: 'Отменить заявку',
       createTrip: 'Закрепить за рейсом',
       invoice: 'Выставить счёт',
@@ -154,7 +155,7 @@ export const transport: Widen<typeof T> = {
     margin: {
       title: 'Маржа рейса',
       income: 'Доход (заявки)',
-      fleetCosts: 'Затраты автопарка',
+      fuelAmount: 'Топливо',
       carrierRate: 'Ставка перевозчику',
       otherCosts: 'Прочие затраты',
       totalCosts: 'Итого затраты',

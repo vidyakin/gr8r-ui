@@ -1,5 +1,5 @@
 /* Заявки на перевозку (задача 1223): список заявок заказчиков, карточка заявки — шапка (организация, заказчик, маршрут,
-   груз, ставка) и вкладка с точками маршрута, действия — подтвердить/отменить, создать рейс, выставить счёт/акт. */
+   груз, ставка), вкладка с точками маршрута и комментарий внизу, действия — статусы, закрепить за рейсом, выставить счёт/акт. */
 import * as React from 'react';
 import { FileSignature, Plus, Trash2 } from 'lucide-react';
 import { TRANSPORT_ORDER_STATUSES, TRANSPORT_RATE_KINDS, computeTransportRateAmount, type TransportOrderStatus } from '@gr8r/shared';
@@ -114,7 +114,6 @@ export function TransportOrderDialog({ id, onClose }: { id: string | null; onClo
   const order = id ? detail.data : null;
   const orgs = useOrganizations();
 
-  const [tab, setTab] = React.useState<'main' | 'points'>('main');
   const [organizationId, setOrganizationId] = React.useState(order?.organizationId ?? orgs.data?.[0]?.id ?? '');
   const [customer, setCustomer] = React.useState<{ id: string; name: string } | null>(null);
   const [date, setDate] = React.useState(order?.date ?? iso(today()));
@@ -140,7 +139,7 @@ export function TransportOrderDialog({ id, onClose }: { id: string | null; onClo
   React.useEffect(() => {
     if (!order) return;
     setOrganizationId(order.organizationId);
-    setCustomer({ id: order.customerCompanyId, name: '' });
+    setCustomer({ id: order.customerCompanyId, name: order.customerName ?? '' });
     setDate(order.date);
     setFromPlace(order.fromPlace);
     setToPlace(order.toPlace);
@@ -155,6 +154,9 @@ export function TransportOrderDialog({ id, onClose }: { id: string | null; onClo
     setRate(String(Number(order.rate)));
     setDistanceKm(order.distanceKm ? String(Number(order.distanceKm)) : '');
     setComment(order.comment);
+    // договорная сумма отличается от расчётной: показываем и сохраняем её, а не пересчитываем
+    const calc = computeTransportRateAmount({ rateKind: order.rateKind, rate: order.rate }, { distanceKm: order.distanceKm ?? '0', weightKg: order.weightKg });
+    setAmountOverride(order.amount === calc ? null : order.amount);
     setPoints(order.points.map(p => ({ kind: p.kind, address: p.address, contactName: p.contactName, contactPhone: p.contactPhone })));
   }, [order]);
 
@@ -234,30 +236,29 @@ export function TransportOrderDialog({ id, onClose }: { id: string | null; onClo
               {order && status === 'draft' && (
                 <Button variant="ghost" onClick={() => setAsk('delete')}>{t('transport.orders.action.delete')}</Button>
               )}
-              {order && !order.tripId && !final && (
+              {order && status === 'confirmed' && (
+                <Button variant="secondary" onClick={() => void setStatus('in_progress')}>{t('transport.orders.action.start')}</Button>
+              )}
+              {order && status === 'in_progress' && (
+                <Button variant="secondary" onClick={() => void setStatus('done')}>{t('transport.orders.action.finish')}</Button>
+              )}
+              {order && !order.tripId && (status === 'confirmed' || status === 'in_progress') && (
                 <Button variant="secondary" onClick={() => setTripPick(true)}>{t('transport.orders.action.createTrip')}</Button>
               )}
-              {order && !order.invoiceDocumentId && (
+              {order && status !== 'cancelled' && !order.invoiceDocumentId && (
                 <Button variant="ghost" onClick={() => setBilling('invoice')}>{t('transport.orders.action.invoice')}</Button>
               )}
               {order && order.tripId && (
                 <Button variant="ghost" onClick={() => openCarrierContract(ws, order.tripId!).catch(e => toast.error(errorMessage(e)))}>{t('transport.orders.action.printCarrierContract')}</Button>
               )}
-              {order && order.invoiceDocumentId && !order.actDocumentId && (
+              {order && status !== 'cancelled' && !order.actDocumentId && (
                 <Button variant="ghost" onClick={() => setBilling('act')}>{t('transport.orders.action.act')}</Button>
               )}
             </>
           }
         >
           <div className="stack" style={{ gap: 12 }}>
-            <Tabs value={tab} onValueChange={v => setTab(v as 'main' | 'points')}>
-              <TabsList>
-                <Tab value="main">{t('transport.orders.card.tabMain')}</Tab>
-                <Tab value="points" count={points.length || undefined}>{t('transport.orders.card.tabPoints')}</Tab>
-              </TabsList>
-            </Tabs>
-            {tab === 'main' ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 12 }}>
                 <Field label={t('transport.orders.card.organization')}>
                   {p => <Select id={p.id} aria-label={t('transport.orders.card.organization')} disabled={!editable} value={organizationId} onValueChange={setOrganizationId} options={(orgs.data ?? []).map(o => ({ value: o.id, label: o.name }))} />}
                 </Field>
@@ -289,12 +290,13 @@ export function TransportOrderDialog({ id, onClose }: { id: string | null; onClo
                     {t('transport.orders.card.rateScheduleAuto')}: {fmtNumber(suggest.rate)}
                   </Button>
                 )}
-                <Field label={t('transport.orders.card.comment')} className="fleet-wide">
-                  {p => <Textarea id={p.id} rows={2} disabled={!editable} value={comment} onChange={e => setComment(e.target.value)} />}
-                </Field>
-              </div>
-            ) : (
-              <div className="stack" style={{ gap: 8 }}>
+            </div>
+            <Tabs value="points">
+              <TabsList>
+                <Tab value="points" count={points.length || undefined}>{t('transport.orders.card.tabPoints')}</Tab>
+              </TabsList>
+            </Tabs>
+            <div className="stack" style={{ gap: 8 }}>
                 <div className="muted">{t('transport.orders.card.pointsHint')}</div>
                 {points.map((p, i) => (
                   <div key={i} className="row" style={{ gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', borderTop: i ? '1px solid var(--line)' : undefined, paddingTop: i ? 8 : 0 }}>
@@ -331,8 +333,10 @@ export function TransportOrderDialog({ id, onClose }: { id: string | null; onClo
                     </Button>
                   </div>
                 )}
-              </div>
-            )}
+            </div>
+            <Field label={t('transport.orders.card.comment')}>
+              {p => <Textarea id={p.id} rows={2} disabled={!editable} value={comment} onChange={e => setComment(e.target.value)} />}
+            </Field>
           </div>
           <ConfirmDialog
             open={ask !== null}
@@ -373,6 +377,7 @@ export function TransportOrdersPage() {
     () => [
       { id: 'number', header: t('transport.orders.col.number'), width: 140, value: r => r.number, cell: r => <b>{r.number}</b> },
       { id: 'date', header: t('transport.orders.col.date'), width: 110, value: r => r.date, cell: r => <span className="num">{fmtDate(parse(r.date))}</span> },
+      { id: 'customer', header: t('transport.orders.col.customer'), width: 180, value: r => r.customerName ?? '', cell: r => <span className="trunc">{r.customerName || '—'}</span> },
       { id: 'route', header: t('transport.orders.col.route'), width: 220, value: r => `${r.fromPlace} ${r.toPlace}`, cell: r => <span className="trunc">{[r.fromPlace, r.toPlace].filter(Boolean).join(' → ') || '—'}</span> },
       { id: 'cargo', header: t('transport.orders.col.cargo'), width: 180, value: r => r.cargoName, cell: r => <span className="trunc">{r.cargoName || '—'}</span> },
       { id: 'amount', header: t('transport.orders.col.amount'), width: 130, align: 'right', value: r => Number(r.amount), cell: r => <span className="num">{fmtNumber(r.amount)}</span> },

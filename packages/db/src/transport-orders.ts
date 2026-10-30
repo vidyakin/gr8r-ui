@@ -2,18 +2,16 @@
    Заявка — документ заказчика (маршрут, груз, ставка клиенту). Из неё: рейс (точки добавляются как source_kind='transport_order',
    см. trips.ts), счёт и акт на услугу «Перевозка» (documents). Экспедирование — наём перевозчика на рейс (fleet_trip_carriers,
    одна запись на рейс) и прочие затраты рейса (fleet_trip_costs). Маржа рейса и подбор тарифа — чистые функции @gr8r/shared. */
-import { and, asc, desc, eq, gte, isNull, lte, sql } from 'drizzle-orm';
-import { computeForwardingMargin, computeTransportRateAmount, computeTripMargin, findRateSchedule, type CarrierContractPrintData, type TransportOrderStatus, type TransportRateKind } from '@gr8r/shared';
+import { and, asc, desc, eq, getTableColumns, gte, isNull, lte, sql } from 'drizzle-orm';
+import { computeForwardingMargin, computeTransportRateAmount, computeTripMargin, dec, findRateSchedule, fmt, type CarrierContractPrintData, type TransportOrderStatus, type TransportRateKind } from '@gr8r/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
 import type { DocCtx } from './documents';
 import { createDocument } from './documents';
 import { nextNumber } from './fleet';
-import { fleetCosts } from './fleet';
-import { loadTrip } from './trips';
-import { addStop } from './trips';
-import { companies, costItems, fleetTripCarriers, fleetTripCosts, fleetTripStops, organizations, transportOrderPoints, transportOrders, transportRateSchedules } from './schema';
+import { addStop, loadTrip, removeStop } from './trips';
+import { companies, costItems, fleetFuelEntries, fleetTripCarriers, fleetTripCosts, fleetTripStops, fleetWaybills, organizations, products, transportOrderPoints, transportOrders, transportRateSchedules } from './schema';
 
 const notFound = (what: string) => new DomainError(404, 'not_found', `${what} not found`);
 async function event(db: Db, ctx: DocCtx, entity: string, action: string, id: string, payload: Record<string, unknown> = {}) {
@@ -191,6 +189,7 @@ export async function createTransportOrder(db: Db, ctx: DocCtx, input: Transport
       rate: input.rate ?? '0',
       distanceKm: input.distanceKm ?? null,
       amount,
+      comment: input.comment ?? '',
     })
     .returning();
   await replacePoints(db, ctx, row!.id, input.points);
@@ -257,9 +256,18 @@ const TRANSITIONS: Record<TransportOrderStatus, TransportOrderStatus[]> = {
   cancelled: [],
 };
 
+/** Отмена заявки: её незавершённые точки уходят из открытого рейса; из завершённого рейса ничего не убираем */
+async function releaseOrderStops(db: Db, ctx: DocCtx, order: TransportOrderRow): Promise<void> {
+  const trip = await loadTrip(db, order.tripId!);
+  if (trip.status === 'done' || trip.status === 'cancelled') return;
+  const stops = await db.select().from(fleetTripStops).where(and(eq(fleetTripStops.tripId, trip.id), eq(fleetTripStops.sourceKind, 'transport_order'), eq(fleetTripStops.sourceId, order.id)));
+  for (const s of stops) if (s.status !== 'done' && s.status !== 'failed') await removeStop(db, ctx, trip.id, s.id);
+}
+
 export async function setTransportOrderStatus(db: Db, ctx: DocCtx, id: string, status: TransportOrderStatus): Promise<TransportOrderRow> {
   const cur = await loadTransportOrder(db, id, true);
   if (!TRANSITIONS[cur.status as TransportOrderStatus].includes(status)) throw new DomainError(409, 'invalid_transition', `Cannot move the order from "${cur.status}" to "${status}"`);
+  if (status === 'cancelled' && cur.tripId) await releaseOrderStops(db, ctx, cur);
   const [row] = await db.update(transportOrders).set({ status, updatedAt: new Date() }).where(eq(transportOrders.id, id)).returning();
   await event(db, ctx, 'transport_order', 'status_changed', id, { number: cur.number, from: cur.status, to: status });
   return row!;
@@ -283,7 +291,7 @@ export interface TransportOrderQuery {
   offset?: number;
 }
 
-export async function listTransportOrders(db: Db, q: TransportOrderQuery = {}): Promise<TransportOrderRow[]> {
+export async function listTransportOrders(db: Db, q: TransportOrderQuery = {}): Promise<(TransportOrderRow & { customerName: string | null })[]> {
   const where = and(
     q.from ? gte(transportOrders.date, q.from) : undefined,
     q.to ? lte(transportOrders.date, q.to) : undefined,
@@ -292,22 +300,41 @@ export async function listTransportOrders(db: Db, q: TransportOrderQuery = {}): 
     q.tripId ? eq(transportOrders.tripId, q.tripId) : undefined,
     q.q ? sql`(${transportOrders.number} ilike ${'%' + q.q + '%'} or ${transportOrders.cargoName} ilike ${'%' + q.q + '%'} or ${transportOrders.fromPlace} ilike ${'%' + q.q + '%'} or ${transportOrders.toPlace} ilike ${'%' + q.q + '%'})` : undefined,
   );
-  return db.select().from(transportOrders).where(where).orderBy(desc(transportOrders.date), desc(transportOrders.number)).limit(q.limit ?? 200).offset(q.offset ?? 0);
+  return db
+    .select({ ...getTableColumns(transportOrders), customerName: companies.name })
+    .from(transportOrders)
+    .leftJoin(companies, eq(companies.id, transportOrders.customerCompanyId))
+    .where(where)
+    .orderBy(desc(transportOrders.date), desc(transportOrders.number))
+    .limit(q.limit ?? 200)
+    .offset(q.offset ?? 0);
+}
+
+/** Карточка заявки: строка, имя заказчика и точки маршрута */
+export async function transportOrderDetail(db: Db, id: string): Promise<TransportOrderRow & { customerName: string; points: TransportOrderPointRow[] }> {
+  const order = await loadTransportOrder(db, id);
+  const [customer] = await db.select({ name: companies.name }).from(companies).where(eq(companies.id, order.customerCompanyId)).limit(1);
+  return { ...order, customerName: customer?.name ?? '', points: await listOrderPoints(db, id) };
 }
 
 /* ---------------- заявка → рейс ---------------- */
 
-/** Создаёт рейс из заявки (tripId не передан) или добавляет точки заявки в существующий рейс.
-    Точки заявки (загрузка/разгрузка) становятся точками рейса с sourceKind='transport_order' (см. trips.ts addStop). */
+/** Закрепляет подтверждённую заявку за существующим рейсом: рейсу нужны машина и водитель, поэтому он создаётся в разделе рейсов.
+    Точки заявки становятся точками рейса с sourceKind='transport_order' (см. trips.ts addStop). Вес и объём заявки ставятся один раз:
+    на первую погрузку и последнюю выгрузку, иначе контроль вместимости считал бы груз несколько раз. */
 export async function attachTransportOrderToTrip(db: Db, ctx: DocCtx, orderId: string, tripId?: string): Promise<TransportOrderRow> {
   const order = await loadTransportOrder(db, orderId, true);
   if (order.tripId) throw new DomainError(409, 'transport_order_has_trip', 'The order is already attached to a trip');
+  if (order.status !== 'confirmed' && order.status !== 'in_progress') throw new DomainError(409, 'transport_order_not_confirmed', 'Only a confirmed order can be attached to a trip');
   const points = await listOrderPoints(db, orderId);
   if (!points.length) throw new DomainError(422, 'transport_order_no_points', 'Add at least one route point before creating a trip');
-  let trip = tripId ? await loadTrip(db, tripId, true) : null;
+  const trip = tripId ? await loadTrip(db, tripId, true) : null;
   if (!trip) throw new DomainError(422, 'trip_required', 'Select an existing trip for the order (create it first in Trips)');
+  const firstLoad = points.find(p => p.kind === 'load');
+  const lastUnload = points.filter(p => p.kind === 'unload').at(-1);
   for (const p of points) {
-    await addStop(db, ctx, trip.id, { kind: p.kind === 'load' ? 'delivery' : 'delivery', sourceKind: 'transport_order', sourceId: order.id, address: p.address, contactName: p.contactName, contactPhone: p.contactPhone, weightKg: order.weightKg, volumeM3: order.volumeM3 });
+    const cargo = p === firstLoad || p === lastUnload ? { weightKg: order.weightKg, volumeM3: order.volumeM3 } : {};
+    await addStop(db, ctx, trip.id, { kind: p.kind, title: order.number, sourceKind: 'transport_order', sourceId: order.id, address: p.address, contactName: p.contactName, contactPhone: p.contactPhone, ...cargo });
   }
   const [row] = await db.update(transportOrders).set({ tripId: trip.id, updatedAt: new Date() }).where(eq(transportOrders.id, orderId)).returning();
   await event(db, ctx, 'transport_order', 'attached_to_trip', orderId, { number: order.number, tripId: trip.id });
@@ -324,12 +351,14 @@ export async function billTransportOrder(db: Db, ctx: DocCtx, orderId: string, t
   if (order.status === 'cancelled') throw new DomainError(422, 'transport_order_cancelled', 'A cancelled order cannot be billed');
   const existing = target === 'invoice' ? order.invoiceDocumentId : order.actDocumentId;
   if (existing) throw new DomainError(409, 'already_billed', `A ${target === 'invoice' ? 'invoice' : 'act'} has already been created for this order`);
+  const [product] = await db.select({ unitCode: products.unitCode }).from(products).where(eq(products.id, productId)).limit(1);
+  if (!product) throw new DomainError(422, 'invalid_reference', 'The service does not exist');
   const docId = await createDocument(db, ctx, {
     type: SERVICE_TYPE[target],
     organizationId: order.organizationId,
     counterpartyId: order.customerCompanyId,
     comment: `${order.number}: ${order.fromPlace} → ${order.toPlace}`,
-    lines: [{ productId, name: `Перевозка ${order.fromPlace} — ${order.toPlace} (${order.number})`, unitCode: '796', qty: '1', price: order.amount, discountPct: '0' }],
+    lines: [{ productId, name: `Перевозка ${order.fromPlace} — ${order.toPlace} (${order.number})`, unitCode: product.unitCode, qty: '1', price: order.amount, discountPct: '0' }],
   });
   await db.update(transportOrders).set(target === 'invoice' ? { invoiceDocumentId: docId, updatedAt: new Date() } : { actDocumentId: docId, updatedAt: new Date() }).where(eq(transportOrders.id, orderId));
   await event(db, ctx, 'transport_order', `${target}_created`, orderId, { number: order.number, documentId: docId });
@@ -434,7 +463,7 @@ export async function deleteFleetTripCost(db: Db, ctx: DocCtx, id: string): Prom
 
 export interface TripMarginView {
   income: string;
-  fleetCosts: string;
+  fuelAmount: string;
   carrierRate: string;
   otherCosts: string;
   totalCosts: string;
@@ -443,22 +472,24 @@ export interface TripMarginView {
   forwarding: { margin: string; marginPct: string | null } | null;
 }
 
-/** Маржа рейса: доход заявок рейса минус затраты автопарка (топливо/ремонт/штрафы за период рейса), ставка наёмному перевозчику
-    и прочие статьи (fleet_trip_costs). Если рейс отдан перевозчику — отдельно показывается маржа экспедитора. */
+const sumMoney = (values: string[]) => fmt(values.reduce((s, v) => s + dec(v), 0n), 2);
+const sumQty = (values: string[]) => fmt(values.reduce((s, v) => s + dec(v), 0n), 3);
+
+/** Маржа рейса: доход заявок рейса минус топливо по путевым листам этого рейса, ставка наёмному перевозчику и прочие статьи
+    (fleet_trip_costs). Ремонты и штрафы к рейсу не относятся: они идут в затраты автопарка за период. Если рейс отдан перевозчику,
+    свой транспорт не работал: топлива нет, отдельно показывается маржа экспедитора. Видна только администраторам, как и затраты автопарка. */
 export async function tripMargin(db: Db, ctx: DocCtx, tripId: string): Promise<TripMarginView> {
-  const trip = await loadTrip(db, tripId);
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') throw new DomainError(403, 'forbidden', 'Trip margin is visible to admins and owners');
+  await loadTrip(db, tripId);
   const orders = await db.select({ amount: transportOrders.amount }).from(transportOrders).where(and(eq(transportOrders.tripId, tripId), sql`${transportOrders.status} != 'cancelled'`));
-  const ordersAmount = orders.reduce((s, o) => s + Number(o.amount), 0).toFixed(2);
-  const costs = await fleetCosts(db, ctx, { from: trip.dateFrom, to: trip.dateTo });
-  const vehicleCost = costs.items.find(c => c.vehicleId === trip.vehicleId);
+  const ordersAmount = sumMoney(orders.map(o => o.amount));
   const extra = await listFleetTripCosts(db, tripId);
-  const otherCosts = extra.reduce((s, c) => s + Number(c.amount), 0).toFixed(2);
+  const otherCosts = sumMoney(extra.map(c => c.amount));
   const carrier = await getFleetTripCarrier(db, tripId);
+  const fuel = carrier ? [] : await db.select({ amount: fleetFuelEntries.amount }).from(fleetFuelEntries).innerJoin(fleetWaybills, eq(fleetWaybills.id, fleetFuelEntries.waybillId)).where(eq(fleetWaybills.tripId, tripId));
   const r = computeTripMargin({
     ordersAmount,
-    fleetFuelAmount: vehicleCost?.fuelAmount ?? '0',
-    fleetRepairAmount: vehicleCost?.repairAmount ?? '0',
-    fleetFinesAmount: vehicleCost?.finesAmount ?? '0',
+    fuelAmount: sumMoney(fuel.map(f => f.amount)),
     carrierRate: carrier?.rate ?? null,
     otherCosts,
   });
@@ -489,9 +520,10 @@ export async function carrierContractPrintData(db: Db, tripId: string): Promise<
   const stops = await db.select().from(fleetTripStops).where(eq(fleetTripStops.tripId, tripId)).orderBy(asc(fleetTripStops.seq));
 
   const cargoName = orders.length ? orders.map(o => o.cargoName).filter(Boolean).join('; ') : '';
-  const weightKg = orders.length ? orders.reduce((s, o) => s + Number(o.weightKg), 0).toFixed(3) : stops.reduce((s, p) => s + Number(p.weightKg), 0).toFixed(3);
-  const volumeM3 = orders.length ? orders.reduce((s, o) => s + Number(o.volumeM3), 0).toFixed(3) : stops.reduce((s, p) => s + Number(p.volumeM3), 0).toFixed(3);
-  const places = orders.length ? orders.reduce((s, o) => s + o.places, 0) : stops.reduce((s, p) => s + p.pallets, 0);
+  const loads = stops.filter(p => p.kind === 'load');
+  const weightKg = sumQty(orders.length ? orders.map(o => o.weightKg) : loads.map(p => p.weightKg));
+  const volumeM3 = sumQty(orders.length ? orders.map(o => o.volumeM3) : loads.map(p => p.volumeM3));
+  const places = orders.length ? orders.reduce((s, o) => s + o.places, 0) : loads.reduce((s, p) => s + p.pallets, 0);
   const bodyType = orders.find(o => o.bodyType)?.bodyType ?? '';
 
   return {

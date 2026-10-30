@@ -23,15 +23,13 @@ export function computeTransportRateAmount(input: TransportRateInput, ctx: { dis
   return fmt(rate, 2);
 }
 
-/** Маржа рейса: доход (сумма ставок заявок рейса) минус затраты (топливо+ремонт+штрафы автопарка за период рейса,
+/** Маржа рейса: доход (сумма ставок заявок рейса) минус затраты (топливо по путевым листам рейса,
     ставка наёмному перевозчику, прочие затраты рейса статьями). Все суммы — строки decimal, результат тоже. */
 export interface TripMarginInput {
   /** Сумма ставок клиентам по заявкам, закреплённым за рейсом */
   ordersAmount: string;
-  /** Затраты автопарка: топливо, ремонт, штрафы (fleetCosts по машине рейса за его период) */
-  fleetFuelAmount?: string;
-  fleetRepairAmount?: string;
-  fleetFinesAmount?: string;
+  /** Топливо по путевым листам рейса */
+  fuelAmount?: string;
   /** Ставка наёмному перевозчику (экспедирование), пусто — рейс свой */
   carrierRate?: string | null;
   /** Прочие затраты рейса статьями (fleet_trip_costs) */
@@ -41,7 +39,7 @@ export interface TripMarginInput {
 export interface TripMarginResult {
   income: string;
   /** Затраты без учёта наёмного перевозчика — для своего рейса это полные затраты */
-  fleetCosts: string;
+  fuelAmount: string;
   carrierRate: string;
   otherCosts: string;
   totalCosts: string;
@@ -52,15 +50,15 @@ export interface TripMarginResult {
 
 export function computeTripMargin(input: TripMarginInput): TripMarginResult {
   const income = dec(input.ordersAmount);
-  const fleetCosts = dec(input.fleetFuelAmount ?? '0') + dec(input.fleetRepairAmount ?? '0') + dec(input.fleetFinesAmount ?? '0');
+  const fuelAmount = dec(input.fuelAmount ?? '0');
   const carrierRate = dec(input.carrierRate ?? '0');
   const otherCosts = dec(input.otherCosts ?? '0');
-  const totalCosts = fleetCosts + carrierRate + otherCosts;
+  const totalCosts = fuelAmount + carrierRate + otherCosts;
   const margin = income - totalCosts;
   const marginPct = income > 0n ? fmt(div(mul(margin, dec('100')), income), 2) : null;
   return {
     income: fmt(income, 2),
-    fleetCosts: fmt(fleetCosts, 2),
+    fuelAmount: fmt(fuelAmount, 2),
     carrierRate: fmt(carrierRate, 2),
     otherCosts: fmt(otherCosts, 2),
     totalCosts: fmt(totalCosts, 2),
