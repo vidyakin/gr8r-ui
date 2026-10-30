@@ -7,7 +7,7 @@ sources:
   - apps/web/src/app/overlays/palette.tsx
   - apps/web/src/app/overlays/shortcuts.tsx
   - apps/web/src/app/data/search.ts
-verified:
+verified: 512113da80
 screenshots: []
 ---
 

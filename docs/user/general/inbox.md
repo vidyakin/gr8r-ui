@@ -5,7 +5,7 @@ module: core
 sources:
   - apps/web/src/app/pages/InboxPage.tsx
   - apps/web/src/app/components/conversation.tsx
-verified:
+verified: 512113da80
 screenshots: []
 ---
 
