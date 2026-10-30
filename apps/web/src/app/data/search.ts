@@ -37,7 +37,7 @@ export function searchAll(d: WorkspaceData, query: string): SearchResults {
 /* ---------- недавние запросы: живут в localStorage, как и остальные настройки интерфейса ---------- */
 
 const KEY = 'gr8r-ui.recent-searches';
-const SEED = ['homepage', 'Sarah', 'wireframes'];
+const SEED: string[] = []; // стартовых подсказок нет: показываем только то, что пользователь искал сам
 let cache: string[] | null = null;
 const subs = new Set<() => void>();
 

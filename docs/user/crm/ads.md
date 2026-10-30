@@ -8,7 +8,7 @@ sources:
   - apps/web/src/app/crm/ad-data.ts
   - apps/web/src/app/settings/lead-sources.tsx
   - apps/api/src/routes/ad.ts
-verified: cb96f21e23
+verified: be436e0621
 screenshots: []
 ---
 
@@ -85,6 +85,6 @@ screenshots: []
 ## Связанные статьи
 
 - [Лиды](leads.md)
-- [Компании](companies.md)
+- [Контрагенты](companies.md)
 - [Сделки и воронки](deals.md)
 - [Сводка CRM](dashboard.md)

@@ -25,6 +25,7 @@ import { UpgradePage } from './licensing/UpgradePage';
 import { NotFoundPage, PlaceholderPage } from './pages/PlaceholderPage';
 import { ForgotPage, ResetPage, SignInPage, SignUpPage, VerifyPage } from './pages/AuthPages';
 import { OnboardingPage } from './pages/OnboardingPage';
+import { JoinPage } from './pages/JoinPage';
 import { RequireAuth } from './layout/RequireAuth';
 import { SECTIONS } from './routes';
 import { CrmProvider } from './crm/store';
@@ -276,4 +277,5 @@ export const router = createHashRouter([
   { path: '/reset', element: <ResetPage /> },
   { path: '/verify', element: <VerifyPage /> },
   { path: '/onboarding', element: <OnboardingPage /> },
+  { path: '/join/:token', element: <JoinPage /> },
 ]);

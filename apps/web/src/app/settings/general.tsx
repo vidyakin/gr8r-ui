@@ -131,14 +131,16 @@ export function WorkspaceSection({ title }: { title: string }) {
           </div>
         </div>
       </form>
-      <div className="sblock">
+      {session.active?.role === 'owner' && (
+        <div className="sblock">
         <h2 style={{ color: 'var(--red)' }}>{t('settings.workspace.dangerZone')}</h2>
         <SRow t={t('settings.workspace.deleteTitle', { name: ws.name })} d={t('settings.workspace.deleteBody')}>
           <Button variant="danger-ghost" style={{ border: '1px solid color-mix(in srgb,var(--red) 35%,transparent)' }} onClick={() => setConfirm(true)}>
             {t('settings.workspace.deleteOk')}
           </Button>
         </SRow>
-      </div>
+        </div>
+      )}
       {confirm && (
         <ConfirmModal
           onClose={() => setConfirm(false)}

@@ -1,6 +1,6 @@
-import { and, eq, inArray, max, type SQL } from 'drizzle-orm';
+import { and, eq, exists, inArray, max, not, type SQL } from 'drizzle-orm';
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
-import { activity, members, notifications, resolveAttribution, tasks, users, type AttributionState } from '@gr8r/db';
+import { activity, favorites, members, notifications, resolveAttribution, tasks, users, type AttributionState } from '@gr8r/db';
 import { notifyEnabled } from '@gr8r/shared';
 import type { Ctx } from '../crud';
 import { AppError } from '../errors';
@@ -59,4 +59,32 @@ export async function attributionPatch(
   const byId = body.sourceId !== undefined || body.campaignId !== undefined;
   if (!byId && body.source === undefined && body.referrerCompanyId === undefined && body.referrerContactId === undefined) return {};
   return resolveAttribution(ctx.db, ctx.workspaceId, { sourceId: body.sourceId, campaignId: body.campaignId, sourceName: byId ? undefined : body.source, referrerCompanyId: body.referrerCompanyId, referrerContactId: body.referrerContactId }, existing);
+}
+
+
+/* ---- Личное избранное: хранится по участнику (favorites), а не флагом на записи ---- */
+export type FavEntity = 'project' | 'task';
+
+/** Какие из записей в избранном у текущего участника */
+export async function favoriteSet(ctx: Ctx, entity: FavEntity, ids: string[]): Promise<Set<string>> {
+  if (!ids.length) return new Set();
+  const rows = await ctx.db
+    .select({ id: favorites.recordId })
+    .from(favorites)
+    .where(and(eq(favorites.memberId, ctx.memberId), eq(favorites.entity, entity), inArray(favorites.recordId, ids)));
+  return new Set(rows.map(r => r.id));
+}
+
+/** Поставить или снять избранное текущего участника */
+export async function setFavorite(ctx: Ctx, entity: FavEntity, recordId: string, on: boolean | undefined): Promise<void> {
+  if (on === undefined) return;
+  if (on) await ctx.db.insert(favorites).values({ workspaceId: ctx.workspaceId, memberId: ctx.memberId, entity, recordId }).onConflictDoNothing();
+  else await ctx.db.delete(favorites).where(and(eq(favorites.memberId, ctx.memberId), eq(favorites.entity, entity), eq(favorites.recordId, recordId)));
+}
+
+/** Условие списка «только избранное / без избранного» для текущего участника */
+export function favoriteFilter(ctx: Ctx, entity: FavEntity, idCol: PgColumn, want: boolean | undefined): SQL | undefined {
+  if (want === undefined) return undefined;
+  const sub = ctx.db.select({ one: favorites.recordId }).from(favorites).where(and(eq(favorites.memberId, ctx.memberId), eq(favorites.entity, entity), eq(favorites.recordId, idCol)));
+  return want ? exists(sub) : not(exists(sub));
 }

@@ -33,7 +33,6 @@ import {
   Search,
   SearchX,
   Settings,
-  SignalHigh,
   Sun,
   User,
   UserPlus,
@@ -372,7 +371,8 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
     const r = searchAll(data, query);
     const lim = sc === 'all' ? 4 : 12;
     if (mode === 'search' && !query) {
-      groups.push({
+      if (recent.length)
+        groups.push({
         name: t('overlays.palette.group.recentSearches'),
         items: recent.map(s => ({
           id: 'r-' + s,
@@ -390,8 +390,6 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
         items: [
           { id: 's-over', icon: ClockAlert, name: t('overlays.palette.suggested.overdue'), run: () => go(SECTIONS.tasks.path, { filter: 'overdue' }) },
           { id: 's-mine', icon: User, name: t('overlays.palette.suggested.mine'), run: section('mytasks') },
-          { id: 's-high', icon: SignalHigh, name: t('overlays.palette.suggested.highPriority'), run: () => go('/projects/p1/v:v1') },
-          { id: 's-files', icon: Paperclip, name: t('overlays.palette.suggested.files'), run: () => go('/projects/p1/files') },
         ],
       });
     } else if (query) {

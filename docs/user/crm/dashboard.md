@@ -5,7 +5,7 @@ module: crm
 sources:
   - apps/web/src/app/crm/DashboardPage.tsx
   - apps/web/src/app/crm/selectors.ts
-verified: cb96f21e23
+verified: be436e0621
 screenshots: []
 ---
 
@@ -56,5 +56,5 @@ screenshots: []
 
 - [Сделки и воронки](deals.md)
 - [Воронка продаж](funnel.md)
-- [Активность](activities.md)
+- [Дела](activities.md)
 - [Реклама и источники](ads.md)

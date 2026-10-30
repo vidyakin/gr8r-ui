@@ -9,7 +9,7 @@ sources:
   - apps/web/src/app/crm/AttributionFields.tsx
   - apps/api/src/routes/leads.ts
   - apps/api/src/routes/hooks.ts
-verified: cb96f21e23
+verified: be436e0621
 screenshots: []
 ---
 
@@ -105,6 +105,6 @@ screenshots: []
 ## Связанные статьи
 
 - [Сделки и воронки](deals.md)
-- [Компании](companies.md)
+- [Контрагенты](companies.md)
 - [Контакты](contacts.md)
 - [Реклама и источники](ads.md)

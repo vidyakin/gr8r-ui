@@ -449,6 +449,20 @@
       "when": 1793350445284,
       "tag": "0069_user_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1793350445285,
+      "tag": "0070_personal_favorites",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1793351374915,
+      "tag": "0071_private_projects",
+      "breakpoints": true
     }
   ]
 }
