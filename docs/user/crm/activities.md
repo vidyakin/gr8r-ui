@@ -7,7 +7,7 @@ sources:
   - apps/web/src/app/crm/components.tsx
   - apps/web/src/app/crm/store.tsx
   - apps/api/src/routes/crm.ts
-verified: be436e0621
+verified: e83d4a4fb1
 screenshots: []
 ---
 

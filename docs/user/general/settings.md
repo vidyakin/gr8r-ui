@@ -10,7 +10,7 @@ sources:
   - apps/web/src/app/settings/account.tsx
   - apps/web/src/app/overlays/new-workspace.tsx
   - apps/web/src/app/layout/UserMenu.tsx
-verified: 97c290e090
+verified: e83d4a4fb1
 screenshots: []
 ---
 

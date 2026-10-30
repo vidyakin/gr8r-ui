@@ -12,7 +12,7 @@ sources:
   - apps/web/src/app/components/files-view.tsx
   - apps/web/src/app/overlays/project-forms.tsx
   - apps/web/src/app/overlays/project-dialogs.tsx
-verified: be436e0621
+verified: e83d4a4fb1
 screenshots: []
 ---
 

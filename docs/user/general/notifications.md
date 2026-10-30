@@ -7,7 +7,7 @@ sources:
   - apps/web/src/app/components/conversation.tsx
   - apps/web/src/app/settings/personal.tsx
   - apps/api/src/routes/work.ts
-verified: 7237b33e50
+verified: e83d4a4fb1
 screenshots: []
 ---
 
