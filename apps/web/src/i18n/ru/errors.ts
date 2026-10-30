@@ -217,6 +217,7 @@ export const errors: Widen<typeof E> = {
   trip_stop_day: 'День точки вне периода рейса',
   trip_waybill_exists: 'У рейса уже есть путевой лист',
   stop_finished: 'Завершённую точку нельзя менять',
+  delivery_not_in_trip: 'Доставки нет в этом рейсе',
   delivery_in_trip: 'Доставка в рейсе: курьер и статус задаются рейсом',
   delivery_finished: 'Доставка уже завершена',
   vehicle_unavailable: 'Машина в ремонте или выведена из работы',

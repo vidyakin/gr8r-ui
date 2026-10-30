@@ -79,6 +79,7 @@ export const trips = {
     save: 'Save',
     open: 'Open',
   },
+  tn: { print: 'Print waybill (TN)', pdf: 'Waybill PDF', failed: 'Waybill PDF failed', timeout: 'The PDF is taking too long, try again later' },
   confirm: { cancel: 'Cancel the trip? Unfinished deliveries return to "new".', delete: 'Delete the planned trip?' },
   warn: {
     overload: 'Over capacity: {items}',

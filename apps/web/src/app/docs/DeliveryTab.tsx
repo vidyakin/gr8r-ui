@@ -3,7 +3,7 @@
    статус; кнопка «Добавить в документ» кладёт строку-услугу «Доставка». Себестоимость видят admin и owner. */
 import * as React from 'react';
 import { Link } from 'react-router';
-import { Plus, Trash2, Truck } from 'lucide-react';
+import { Plus, Printer, Trash2, Truck } from 'lucide-react';
 import { DELIVERY_STATUSES, type DeliveryStatus } from '@gr8r/shared';
 import { Badge, Button, ConfirmDialog, EmptyState, Field, Input, Select, Skeleton, Textarea, toast, type Tone } from '@/components/ui';
 import { fmtAmount, useT } from '@/i18n';
@@ -12,6 +12,9 @@ import { useWorkspace } from '../data/store';
 import { useMembersWith } from '../positions/data';
 import { useCanWrite } from '../meta/custom-fields';
 import { CounterpartyPicker } from './pickers';
+import { errorMessage } from '../data/api';
+import { useWsId } from '../meta/data';
+import { downloadTransportWaybillPdf, openTransportWaybill } from '../trips/data';
 import { useCanSeeCost, useDocsApi, typeLabel, type DocDetail } from './data';
 import { useDeliveryMethods, useDocumentDelivery, type DeliveryItem } from './delivery-data';
 
@@ -61,6 +64,7 @@ export function DeliveryTab({ doc }: { doc: DocDetail }) {
   const seeCost = useCanSeeCost();
   const methods = useDeliveryMethods();
   const allMembers = useWorkspace().data.members;
+  const ws = useWsId();
   const q = useDocumentDelivery(doc.id);
   const item = q.data?.delivery ?? null;
   const members = useMembersWith(allMembers, 'courier', [item?.courierMemberId]); // курьеры (задача 1172)
@@ -140,6 +144,13 @@ export function DeliveryTab({ doc }: { doc: DocDetail }) {
         {item.originDocumentId && <span className="faint" style={{ fontSize: 12 }}>{t('delivery.tab.inherited')}</span>}
         {item.expensedAt && item.expenseAmount && <span className="faint" style={{ fontSize: 12 }}>{t('delivery.tab.expense', { amount: fmtAmount(item.expenseAmount), date: fmtDate(parse(item.expensedAt)) })}</span>}
         <span className="sp" />
+        <Button size="sm" variant="ghost" onClick={() => openTransportWaybill(ws, { deliveryId: item.id }).catch(e => toast.error(errorMessage(e)))}>
+          <Printer size={13} />
+          {t('trips.tn.print')}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => downloadTransportWaybillPdf(ws, { deliveryId: item.id }, { failed: t('trips.tn.failed'), timeout: t('trips.tn.timeout') }).catch(e => toast.error(errorMessage(e)))}>
+          {t('trips.tn.pdf')}
+        </Button>
         <Select aria-label={t('delivery.tab.status')} value={item.status} disabled={dis} onValueChange={v => void changeStatus(v)} options={DELIVERY_STATUSES.map(s => ({ value: s, label: t(`delivery.status.${s}`) }))} />
       </div>
       {doc.type === 'work_order' && <p className="faint" style={{ fontSize: 12 }}>{t('delivery.tab.costInWorkOrder')}</p>}

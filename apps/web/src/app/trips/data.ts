@@ -148,3 +148,42 @@ export async function openTripPrint(ws: string, id: string): Promise<void> {
   const w = window.open(url, '_blank');
   if (w) w.addEventListener('load', () => w.print());
 }
+
+/** Транспортная накладная (1214): выдать номер (повторно — тот же) и открыть печатную форму; область — рейс, точка или доставка */
+export interface TnScope {
+  tripId?: string;
+  stopId?: string;
+  deliveryId?: string;
+}
+
+export async function openTransportWaybill(ws: string, scope: TnScope): Promise<void> {
+  const w = await call<{ id: string }>(ws, 'POST', '/trips/tn', scope);
+  const r = await fetch(`${API_BASE()}/trips/tn/${w.id}/print`, { credentials: 'include', headers: { 'X-Workspace-Id': ws } });
+  if (!r.ok) throw new Error(`Request failed (${r.status})`);
+  const url = URL.createObjectURL(new Blob([await r.text()], { type: 'text/html;charset=utf-8' }));
+  const win = window.open(url, '_blank');
+  if (win) win.addEventListener('load', () => win.print());
+}
+
+/** ТН в PDF: задача воркеру, опрос статуса, скачивание */
+export async function downloadTransportWaybillPdf(ws: string, scope: TnScope, msg: { failed: string; timeout: string }): Promise<void> {
+  const w = await call<{ id: string }>(ws, 'POST', '/trips/tn', scope);
+  const file = await call<{ id: string; name: string }>(ws, 'POST', `/trips/tn/${w.id}/pdf`, {});
+  for (let i = 0; i < 60; i++) {
+    await new Promise(r => setTimeout(r, 1000));
+    const st = await call<{ status: string; error?: string }>(ws, 'GET', `/trips/tn-files/${file.id}`);
+    if (st.status === 'failed') throw new Error(st.error || msg.failed);
+    if (st.status === 'ready') {
+      const res = await fetch(`${API_BASE()}/trips/tn-files/${file.id}?download=1`, { credentials: 'include', headers: { 'X-Workspace-Id': ws } });
+      if (!res.ok) throw new Error(msg.failed);
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      return;
+    }
+  }
+  throw new Error(msg.timeout);
+}

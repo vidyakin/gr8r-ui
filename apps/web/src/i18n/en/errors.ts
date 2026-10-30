@@ -216,6 +216,7 @@ export const errors = {
   trip_stop_day: 'The stop day is outside the trip period',
   trip_waybill_exists: 'The trip already has a waybill',
   stop_finished: 'A finished stop cannot be changed',
+  delivery_not_in_trip: 'The delivery is not in this trip',
   delivery_in_trip: 'The delivery is in a trip: its courier and status come from the trip',
   delivery_finished: 'The delivery is already finished',
   vehicle_unavailable: 'The vehicle is in repair or out of service',

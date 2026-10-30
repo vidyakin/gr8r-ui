@@ -6,12 +6,13 @@ import { STOP_KINDS, TRIP_KINDS } from '@gr8r/shared';
 import { Badge, Button, IconButton, toast } from '@/components/ui';
 import { fmtNumber, useT } from '@/i18n';
 import { fmtDate, iso, parse, today } from '../lib/dates';
+import { errorMessage } from '../data/api';
 import { useWorkspace } from '../data/store';
 import { useMembersWith } from '../positions/data';
 import { useWsId } from '../meta/data';
 import { useVehicles } from '../fleet/data';
 import { FormDialog, intOrNull, num, orNull, type FieldDef, type Values } from '../fleet/parts';
-import { openTripPrint, useTrip, useTripApi, type TripDetail, type TripStop } from './data';
+import { downloadTransportWaybillPdf, openTransportWaybill, openTripPrint, useTrip, useTripApi, type TripDetail, type TripStop } from './data';
 
 export const TRIP_TONE = { planned: 'gray', in_transit: 'accent', done: 'green', cancelled: 'red' } as const;
 export const STOP_TONE = { planned: 'gray', arrived: 'amber', done: 'green', failed: 'red' } as const;
@@ -177,6 +178,13 @@ export function TripDialog({ id, defaults, onClose }: { id: string | null; defau
               <Button variant="ghost" onClick={() => openTripPrint(ws, trip.id).catch(e => toast.error(String(e instanceof Error ? e.message : e)))}>
                 <Printer size={13} />
                 {t('trips.action.print')}
+              </Button>
+              <Button variant="ghost" onClick={() => openTransportWaybill(ws, { tripId: trip.id }).catch(e => toast.error(errorMessage(e)))}>
+                <Printer size={13} />
+                {t('trips.tn.print')}
+              </Button>
+              <Button variant="ghost" onClick={() => downloadTransportWaybillPdf(ws, { tripId: trip.id }, { failed: t('trips.tn.failed'), timeout: t('trips.tn.timeout') }).catch(e => toast.error(errorMessage(e)))}>
+                {t('trips.tn.pdf')}
               </Button>
               {status !== 'cancelled' && !trip.waybills.some(w => w.status !== 'cancelled') && (
                 <Button variant="ghost" onClick={async () => void (await api('POST', `/${trip.id}/waybill`))}>
