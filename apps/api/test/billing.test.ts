@@ -273,4 +273,16 @@ describe('billing: the worker task', () => {
     docs = (await owner.get(`/documents?type=invoice&limit=200`)).body.items as any[];
     expect(docs.some(d => d.comment.includes('2027-02') && d.contractId === c4)).toBe(true);
   });
+  test('contract: archive (even if used), archived list, restore; document cancel keeps its reason', async () => {
+    const c = await mk(owner, '/contracts', { companyId: customer, number: 'АРХ-1', date: '2027-01-01', kind: 'customer', validFrom: '2027-01-01' });
+    const doc = await mk(owner, '/documents', { type: 'realization', counterpartyId: customer, contractId: c.id, date: '2027-01-10', lines: [{ productId: repair, qty: '1', price: '100' }] });
+    expect((await owner.del(`/contracts/${c.id}`)).body).toMatchObject({ archived: true });
+    expect(((await owner.get(`/contracts?companyId=${customer}`)).body.items as any[]).some(x => x.id === c.id)).toBe(false);
+    expect(((await owner.get(`/contracts?companyId=${customer}&archived=true`)).body.items as any[]).some(x => x.id === c.id)).toBe(true);
+    expect((await owner.post(`/contracts/${c.id}/restore`)).status).toBe(200);
+    expect((await owner.post(`/documents/${doc.id}/cancel`, { reason: 'Клиент отказался' })).status).toBe(200);
+    expect((await owner.get(`/documents/${doc.id}`)).body).toMatchObject({ status: 'cancelled', cancelReason: 'Клиент отказался' });
+    expect((await owner.post(`/documents/${doc.id}/restore`)).status).toBe(200);
+    expect((await owner.get(`/documents/${doc.id}`)).body.cancelReason).toBeNull();
+  });
 });
