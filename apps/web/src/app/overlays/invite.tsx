@@ -2,7 +2,7 @@
 import * as React from 'react';
 import { Info, Link } from 'lucide-react';
 import { Button, Dialog, DialogClose, DialogContent, Field, Textarea, toast } from '@/components/ui';
-import { useT } from '@/i18n';
+import { tEnum, useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import type { Member } from '../data/types';
 
@@ -120,7 +120,7 @@ function InviteDialog({ open, onOpenChange, opts }: { open: boolean; onOpenChang
               </label>
               <select className="select" id="inv-role" value={role} onChange={e => setRole(e.target.value as Member['role'])}>
                 {INVITE_ROLES.map(r => (
-                  <option key={r}>{r}</option>
+                  <option key={r} value={r}>{tEnum('role', r, r)}</option>
                 ))}
               </select>
             </div>

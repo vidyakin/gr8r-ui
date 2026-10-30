@@ -3,7 +3,8 @@
    realtime (см. data/realtime.ts) помечает кэш устаревшим по событиям entity / field / record. */
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { FieldOptions, FieldType } from '@gr8r/shared';
+import { SYSTEM_ENTITIES, type FieldOptions, type FieldType } from '@gr8r/shared';
+import { tEnum } from '@/i18n';
 import { toast } from '@/components/ui';
 import { API_BASE, errorMessage, ok } from '../data/api';
 import { useSession } from '../data/session';
@@ -91,7 +92,14 @@ const NONE: MetaEntity[] = [];
 /** Действующие сущности (без удалённых) */
 export function useEntities(): MetaEntity[] {
   const { data } = useAllEntities();
-  return React.useMemo(() => (data ?? NONE).filter(e => !e.archivedAt), [data]);
+  return React.useMemo(
+    () =>
+      (data ?? NONE)
+        .filter(e => !e.archivedAt)
+        // встроенные сущности с исходным названием показываем на языке интерфейса
+        .map(e => (e.kind === 'system' && SYSTEM_ENTITIES.some(s => s.key === e.key && s.name === e.name) ? { ...e, name: tEnum('systemEntity', e.key, e.name) } : e)),
+    [data],
+  );
 }
 
 export const useCustomEntities = () => {

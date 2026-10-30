@@ -26,7 +26,7 @@ import { SerialsButton } from './serials-ui';
 import { DeliveryTab } from './DeliveryTab';
 import { DocTabs, type DocTab } from './doc-tabs';
 import { DocInvestmentField } from '../finance/DocInvestmentField';
-import { hasKey, t, useT, type TKey } from '@/i18n';
+import { hasKey, t, tEnum, tProductionEnum, useT, type TKey } from '@/i18n';
 import { handleNumericArrow } from '@/lib/numeric-step';
 import { useWsId } from '../meta/data';
 
@@ -87,6 +87,9 @@ interface Form {
   lines: FormLine[];
 }
 
+/** Подпись состояния документа: «в пути» и заказ на производство переводятся, состояния заказ-нарядов — данные пользователя */
+const stateLabel = (type: string, key: string, label?: string) =>
+  type === 'stock_transfer' ? tEnum('transit', key, label ?? key) : type === 'production_order' ? tProductionEnum('productionOrderState', key, label ?? key) : label ?? key;
 const trimNum = (s: string) => (s.includes('.') ? s.replace(/0+$/, '').replace(/\.$/, '') : s);
 
 /** Адрес журнала группы: продажи, закупки или складские документы */
@@ -690,7 +693,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                             disabled={!editable}
                             value={l.tollingRole ?? 'product'}
                             onValueChange={v => patchLine(l.key, { tollingRole: v as TollingRole })}
-                            options={TOLLING_ROLES.map(r => ({ value: r, label: TOLLING_ROLE_LABELS[r] }))}
+                            options={TOLLING_ROLES.map(r => ({ value: r, label: tEnum('tollingRole', r, TOLLING_ROLE_LABELS[r]) }))}
                           />
                         </td>
                       )}
@@ -750,7 +753,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                             <select className="input cell-input" aria-label={t('docs.document.cellVat')} disabled={!editable} value={l.vatRate} onChange={e => patchLine(l.key, { vatRate: e.target.value as VatRate })}>
                               {VAT_RATES.map(r => (
                                 <option key={r} value={r}>
-                                  {VAT_LABELS[r]}
+                                  {tEnum('vat', r, VAT_LABELS[r])}
                                 </option>
                               ))}
                             </select>
@@ -880,7 +883,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                   <tr key={c.id}>
                     <td className="trunc">{c.kind === 'work' ? c.operation || t('docs.document.workKind') : c.kind === 'expense' ? t('docs.document.expenseKind') : c.kind === 'semi' ? t('docs.document.semiKind') : t('docs.document.materialKind')}</td>
                     <td>
-                      <Badge tone={c.ownerKind === 'customer' ? 'accent' : 'gray'}>{MATERIAL_OWNER_LABELS[c.ownerKind]}</Badge>
+                      <Badge tone={c.ownerKind === 'customer' ? 'accent' : 'gray'}>{tProductionEnum('materialOwner', c.ownerKind, MATERIAL_OWNER_LABELS[c.ownerKind])}</Badge>
                     </td>
                     <td className="r num">{c.kind === 'work' ? c.hours : c.qty}</td>
                     <td className="r num">{c.actualCost === null ? '—' : money(c.actualCost)}</td>
@@ -922,7 +925,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             <Badge tone={STATUS_TONE[doc.status]} dot>
               {STATUS_LABEL[doc.status]}
             </Badge>
-            {doc.state && <Badge tone="violet">{(doc.states ?? meta.states)?.find(s => s.key === doc.state)?.label ?? doc.state}</Badge>}
+            {doc.state && <Badge tone="violet">{stateLabel(doc.type, doc.state, (doc.states ?? meta.states)?.find(s => s.key === doc.state)?.label)}</Badge>}
           </h1>
           <span className="faint" style={{ fontSize: 12 }} aria-live="polite" data-testid="save-state">
             {doc.status !== 'draft' ? (doc.postedAt ? `${t('docs.status.posted')} ${fmtDate(new Date(doc.postedAt))}` : '') : save === 'saving' ? t('docs.document.save.saving') : save === 'dirty' ? t('docs.document.save.dirty') : save === 'invalid' ? t('docs.document.save.invalid') : save === 'error' ? t('docs.document.save.error') : t('docs.document.save.saved')}
@@ -1026,7 +1029,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       if (await flush()) navigate(`/documents/${doc.id}/print/${f}`);
                     }}
                   >
-                    {f === 'quote' ? t('docs.quotes.standardForm') : PRINT_FORM_LABELS[f]}
+                    {f === 'quote' ? t('docs.quotes.standardForm') : tEnum('printForm', f, PRINT_FORM_LABELS[f])}
                   </MenuItem>
                 ))}
                 {meta.forms.includes('quote') && (
@@ -1436,7 +1439,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                   .filter(r => r.rate !== 'none')
                   .map(r => (
                     <div key={r.rate}>
-                      <dt>{t('docs.document.totals.vatRate', { rate: VAT_LABELS[r.rate as VatRate] })}</dt>
+                      <dt>{t('docs.document.totals.vatRate', { rate: tEnum('vat', r.rate, VAT_LABELS[r.rate as VatRate]) })}</dt>
                       <dd className="num">{money(r.vat)}</dd>
                     </div>
                   ))
@@ -1549,7 +1552,7 @@ export function DocRef({ d }: { d: DocLink }) {
     <span className="doc-ref">
       {/* у распределения материалов своя форма */}
       <Link className="crm-link" to={d.type === 'material_allocation' ? `/material-allocations/${d.id}` : `/documents/${d.id}`}>
-        {typeLabel(d.type)} {d.number ?? '(draft)'}
+        {typeLabel(d.type)} {d.number ?? t('docs.document.draftRef')}
       </Link>
       <Badge tone={STATUS_TONE[d.status]}>{STATUS_LABEL[d.status]}</Badge>
       {d.total !== undefined && <span className="num muted">{money(d.total)}</span>}

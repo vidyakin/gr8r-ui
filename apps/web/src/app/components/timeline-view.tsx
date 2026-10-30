@@ -5,7 +5,7 @@ import { Crosshair, Diamond, Plus, ChartGantt } from 'lucide-react';
 import { Button, EmptyState, Segmented, Select, Tooltip, toast } from '@/components/ui';
 import { StatusIcon } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
-import { useT } from '@/i18n';
+import { monthShort, useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { applyView, canSee, groupTasks, projectColor, project as findProject, task as findTask, tasksOf, visibleProjects, type GroupBy } from '../data/selectors';
 import { countSubs } from '../data/subtasks';
@@ -17,7 +17,6 @@ import { ViewToolbar, useListView, type ViewApi } from './view-toolbar';
 import { TimeGrid } from './time-grid';
 import { useTaskForm } from '../overlays';
 
-const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const WEEK_START = 1;
 const RH = 36;
 
@@ -61,7 +60,7 @@ export function TimelineControls({ tl }: { tl: TimelineApi }) {
       />
       <Button variant="ghost" onClick={tl.goToday}>
         <Crosshair size={14} />
-        Today
+        {tt('views.timeline.today')}
       </Button>
     </>
   );
@@ -245,7 +244,7 @@ export function TimelineView({ tasks, project: p, tl, id = 'tl', onNewTask }: Ti
         id: t.id,
         patch: { due: iso(addDays(parse(t.due!), days)), start: t.start ? iso(addDays(parse(t.start), days)) : null },
       });
-      toast(`Moved “${t.title}” ${Math.abs(days)} day${Math.abs(days) > 1 ? 's' : ''} ${days > 0 ? 'later' : 'earlier'}`, { duration: 2200 });
+      toast(tt(days > 0 ? 'views.timeline.movedLater' : 'views.timeline.movedEarlier', { title: t.title, count: Math.abs(days) }), { duration: 2200 });
     };
     addEventListener('pointermove', mv);
     addEventListener('pointerup', up);
@@ -329,7 +328,7 @@ export function TimelineView({ tasks, project: p, tl, id = 'tl', onNewTask }: Ti
       ? dayList.map(d => ({ label: Number(d.slice(8)), span: 1, className: d === todayKey ? 'today' : undefined }))
       : Array.from({ length: nDays / 7 }, (_, i) => {
           const d = addDays(rs, i * 7);
-          return { label: `${MON[d.getMonth()]} ${d.getDate()}`, span: 7 };
+          return { label: `${monthShort(d.getMonth())} ${d.getDate()}`, span: 7 };
         });
 
   return (
@@ -337,7 +336,7 @@ export function TimelineView({ tasks, project: p, tl, id = 'tl', onNewTask }: Ti
       days={dayList}
       dayWidth={dw}
       headerCells={headerCells}
-      leftTitle="Task"
+      leftTitle={tt('views.timeline.task')}
       rowHeight={RH}
       height={H + 40}
       today={todayKey}

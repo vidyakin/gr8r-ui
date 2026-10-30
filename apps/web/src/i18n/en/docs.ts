@@ -257,6 +257,7 @@ export const docs = {
 
   /* ----------- карточка документа (DocumentPage) ----------- */
   document: {
+    draftRef: '(draft)',
     title: 'Document',
     createError: 'Could not create the document',
     notFound: 'Document not found',

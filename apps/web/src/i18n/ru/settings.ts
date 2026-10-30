@@ -711,6 +711,10 @@ export const settings: Widen<typeof S> = {
     fieldTypes: {
       text: 'Текст',
       longtext: 'Длинный текст',
+      long_text: 'Длинный текст',
+      datetime: 'Дата и время',
+      boolean: 'Флажок',
+      user: 'Участник',
       number: 'Число',
       money: 'Деньги',
       percent: 'Процент',

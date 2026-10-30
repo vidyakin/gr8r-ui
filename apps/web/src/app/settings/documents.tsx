@@ -8,7 +8,7 @@ import { useCompanies, useIsAdmin } from '../catalog/data';
 import { BankAccountsEditor, RequisitesFields, checkRequisites, type RequisitesValue } from '../docs/requisites';
 import { useCostItems, useDocsApi, useInventorySettings, useOrganizations, useWarehouses, type CostItem, type Organization, type Warehouse } from '../docs/data';
 import { SettingsHead, SRow, Toggle } from './parts';
-import { t as tFn, hasKey, useT, type TKey } from '@/i18n';
+import { t as tFn, hasKey, tEnum, useT, type TKey } from '@/i18n';
 
 /** Подпись значения из settings.enums.* с локальным fallback (для случая, когда справочник шире словаря) */
 function enumLabel(group: 'costItem' | 'warehouseKind' | 'costDistribution' | 'taxSystem' | 'materialPriceSource' | 'workOrderStateCategory', value: string, fallback: string): string {
@@ -61,7 +61,7 @@ export function OrganizationsSection({ title }: { title: string }) {
                   </div>
                   <div className="d">
                     {o.inn ? t('settings.organizations.innKpp', { inn: o.inn }) : t('settings.organizations.noInn')}
-                    {o.kpp ? ` · ${t('settings.organizations.kpp', { kpp: o.kpp })}` : ''} · {enumLabel('taxSystem', o.taxSystem, TAX_SYSTEM_LABELS[o.taxSystem])} · {t('settings.organizations.vat', { rate: VAT_LABELS[o.defaultVatRate] })}
+                    {o.kpp ? ` · ${t('settings.organizations.kpp', { kpp: o.kpp })}` : ''} · {enumLabel('taxSystem', o.taxSystem, TAX_SYSTEM_LABELS[o.taxSystem])} · {t('settings.organizations.vat', { rate: tEnum('vat', o.defaultVatRate, VAT_LABELS[o.defaultVatRate]) })}
                   </div>
                 </div>
                 {isAdmin && (
@@ -221,7 +221,7 @@ function OrganizationDialog({ org, onClose }: { org?: Organization; onClose: () 
                 <select className="select" id={p.id} value={f.defaultVatRate} onChange={e => setF({ ...f, defaultVatRate: e.target.value as VatRate })}>
                   {VAT_RATES.map(v => (
                     <option key={v} value={v}>
-                      {VAT_LABELS[v]}
+                      {tEnum('vat', v, VAT_LABELS[v])}
                     </option>
                   ))}
                 </select>

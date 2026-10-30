@@ -28,9 +28,9 @@ export const automations = {
     },
     trigger_schedule: {
       label: 'Schedule',
-      description: 'Starts on a cron schedule (UTC, checked once a minute).',
+      description: 'Starts on a cron schedule (workspace time zone, checked once a minute).',
       params: {
-        cron: 'Schedule (cron, UTC)',
+        cron: 'Schedule (cron, workspace time zone)',
       },
     },
     trigger_manual: {
@@ -136,6 +136,51 @@ export const automations = {
         body: 'Comment',
       },
     },
+    trigger_payment_posted: {
+      label: 'Payment posted',
+      description: 'Starts when a cash or bank payment document is posted.',
+      params: {},
+    },
+    trigger_document_paid: {
+      label: 'Document paid',
+      description: 'Starts when a payment is applied to a document. Check the remaining amount to react to full payment.',
+      params: { onlyFullyPaid: 'Only when fully paid' },
+    },
+    trigger_deal_stage_changed: {
+      label: 'Deal moved to a stage',
+      description: 'Starts when a deal moves to another stage or pipeline, optionally to a specific pipeline or stage.',
+      params: { pipelineId: 'Pipeline (optional)', stageId: 'New stage (optional)' },
+    },
+    trigger_deal_won: {
+      label: 'Deal won',
+      description: 'Starts when a deal moves to a stage of the "won" category.',
+      params: { pipelineId: 'Pipeline (optional)' },
+    },
+    trigger_deal_lost: {
+      label: 'Deal lost',
+      description: 'Starts when a deal moves to a stage of the "lost" category.',
+      params: { pipelineId: 'Pipeline (optional)' },
+    },
+    trigger_deal_stage_overdue: {
+      label: 'Deal exceeded the stage time limit',
+      description: 'Starts once, when a deal has stayed on a stage longer than the stage time limit (checked on a schedule).',
+      params: { pipelineId: 'Pipeline (optional)', stageId: 'Stage (optional)' },
+    },
+    trigger_fleet_document_expiring: {
+      label: 'Vehicle or driver document expires',
+      description: 'Starts once when the term of a fleet document (insurance, inspection, driver license, medical certificate…) is about to end or has ended (checked daily).',
+      params: { documentKind: 'Document kind (optional)', stage: 'When' },
+    },
+    trigger_trip_status: {
+      label: 'Trip sent or completed',
+      description: 'Starts when a trip leaves (status "in transit") or is completed. The payload has the trip number, vehicle and driver.',
+      params: { stage: 'When' },
+    },
+    action_move_deal: {
+      label: 'Move deal to a stage',
+      description: 'Moves a deal to a stage (or to the first stage of another pipeline). Required fields of the stage are checked.',
+      params: { dealId: 'Deal ID', pipelineId: 'Pipeline (optional)', stageId: 'Stage (optional)', lostReason: 'Lost reason (for a "lost" stage)' },
+    },
   },
   list: {
     title: 'Automations',
@@ -214,7 +259,7 @@ export const automations = {
     },
     metaLine: '{kind} trigger · version {v} · started {time} · took {duration}',
     openFlow: 'Open flow',
-    rowMeta: '{count, plural, one {# step} other {# steps}}',
+    rowMeta: { one: '# step', other: '# steps' },
     status: {
       succeeded: 'Succeeded',
       failed: 'Failed',

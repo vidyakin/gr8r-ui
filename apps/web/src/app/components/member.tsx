@@ -19,7 +19,7 @@ import {
   MenuTrigger,
   toast,
 } from '@/components/ui';
-import { useT } from '@/i18n';
+import { tEnum, useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { allTasks, me as selectMe } from '../data/selectors';
 import type { Member } from '../data/types';
@@ -116,7 +116,7 @@ const RoleItems = ({ m, actions }: { m: Member; actions: MemberActions }) => {
       {ASSIGNABLE_ROLES.map(r => (
         <MenuRadioItem key={r} value={r} style={{ height: 'auto', padding: '7px 8px', alignItems: 'flex-start' }}>
           <div style={{ whiteSpace: 'normal' }}>
-            <div style={{ fontWeight: 500 }}>{r}</div>
+            <div style={{ fontWeight: 500 }}>{tEnum('role', r, r)}</div>
             <div className="faint" style={{ fontSize: 11.5 }}>
               {HINTS[r]}
             </div>
@@ -135,14 +135,14 @@ export function RoleCell({ m, actions }: { m: Member; actions: MemberActions }) 
     return (
       <span className="pillbtn">
         {m.role === 'Owner' && <Crown size={13} />}
-        {m.role}
+        {tEnum('role', m.role, m.role)}
       </span>
     );
   return (
     <Menu>
       <MenuTrigger asChild>
-        <button className="pillbtn bordered" aria-label={tt('views.member.roleFor', { role: m.role })}>
-          {m.role}
+        <button className="pillbtn bordered" aria-label={tt('views.member.roleFor', { role: tEnum('role', m.role, m.role) })}>
+          {tEnum('role', m.role, m.role)}
           <ChevronDown size={12} />
         </button>
       </MenuTrigger>

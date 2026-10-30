@@ -8,7 +8,7 @@ import { PriorityIcon, StatusIcon, priorityName, type Status } from '@/component
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
 import { useWorkspace, type TaskPatch } from '../data/store';
-import { LABELS, isOverdue, member, project, statusOf } from '../data/selectors';
+import { LABELS, isOverdue, member, project, statusName, statusOf } from '../data/selectors';
 import { dOff, iso, parse, relDate } from '../lib/dates';
 import type { Task } from '../data/types';
 import { MemberAvatar } from './workspace';
@@ -73,15 +73,15 @@ export function StatusField({ task: t, variant = 'pill' }: { task: Task; variant
   const st = statusOf(data, t.status) ?? { name: t.status };
   return (
     <PillMenu<Status>
-      label={`Status: ${st.name}`}
+      label={`Status: ${'id' in st ? statusName(st) : st.name}`}
       {...variantProps(variant)}
       value={t.status}
       onChange={status => update({ status })}
-      options={data.statuses.map(s => ({ value: s.id, label: s.name, icon: <StatusIcon status={s.id} /> }))}
+      options={data.statuses.map(s => ({ value: s.id, label: statusName(s), icon: <StatusIcon status={s.id} /> }))}
       trigger={
         <>
           <StatusIcon status={t.status} />
-          <span>{st.name}</span>
+          <span>{'id' in st ? statusName(st) : st.name}</span>
         </>
       }
     />

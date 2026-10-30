@@ -5,7 +5,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ArrowLeft, CircleAlert, Download, Printer } from 'lucide-react';
 import { DOCUMENT_META, isCashDocType, PRINT_FORMS, PRINT_FORM_LABELS, printOrientation, type PrintForm } from '@gr8r/shared';
 import { Button, EmptyState, Select, Skeleton, toast } from '@/components/ui';
-import { useT } from '@/i18n';
+import { tEnum, useT } from '@/i18n';
 import { API_BASE } from '../data/api';
 import { call, useWsId } from '../meta/data';
 import { docTitle, useDocTemplates, useDocument } from './data';
@@ -22,7 +22,7 @@ export function PrintPage() {
   const templates = useDocTemplates();
   const template = templateId ? templates.data?.find(x => x.id === templateId) : undefined;
   /** Подпись формы: шаблон КП, стандартное КП или форма из списка */
-  const formLabel = (f: string) => (f === 'quote' ? t('docs.quotes.standardForm') : PRINT_FORM_LABELS[f as PrintForm]);
+  const formLabel = (f: string) => (f === 'quote' ? t('docs.quotes.standardForm') : tEnum('printForm', f, PRINT_FORM_LABELS[f as PrintForm]));
   const ws = useWsId();
   const doc = useDocument(id);
   const frame = React.useRef<HTMLIFrameElement>(null);

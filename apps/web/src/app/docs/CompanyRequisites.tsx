@@ -1,7 +1,7 @@
 /* Реквизиты контрагента: вкладка в карточке компании. */
 import { Skeleton } from '@/components/ui';
 import { COMPANY_KIND_LABELS } from '@gr8r/shared';
-import { useT } from '@/i18n';
+import { tEnum, useT } from '@/i18n';
 import { useCompanyRequisites } from './data';
 
 export function CompanyRequisitesTab({ companyId }: { companyId: string }) {
@@ -14,7 +14,7 @@ export function CompanyRequisitesTab({ companyId }: { companyId: string }) {
     <div className="page" style={{ maxWidth: 980, paddingTop: 12 }}>
       <dl className="kv">
         <dt>{t('docs.requisites.kind')}</dt>
-        <dd>{COMPANY_KIND_LABELS[r.kind]}</dd>
+        <dd>{tEnum('companyKind', r.kind, COMPANY_KIND_LABELS[r.kind])}</dd>
         <dt>{t('docs.requisites.fullName')}</dt>
         <dd>{r.name}</dd>
         {r.inn && (

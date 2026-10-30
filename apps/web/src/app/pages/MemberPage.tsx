@@ -12,7 +12,7 @@ import { WeekBars } from '../components/time-summary';
 import { MemberMenu, useMemberActions } from '../components/member';
 import { NotFoundPage } from './PlaceholderPage';
 import { MemberPositions } from '../positions/MemberPositions';
-import { useT } from '@/i18n';
+import { tEnum, useT } from '@/i18n';
 
 export function MemberPage() {
   const t = useT();
@@ -52,7 +52,7 @@ export function MemberPage() {
             <h1 style={{ fontSize: 'var(--fs-2xl)', margin: 0, fontWeight: 600, letterSpacing: '-.02em' }}>{m.name}</h1>
             <Badge>
               {m.role === 'Owner' && <Crown size={11} />}
-              {m.role}
+              {tEnum('role', m.role, m.role)}
             </Badge>
             {m.status === 'invited' && <Badge tone="amber">{t('pages.member.invitePending')}</Badge>}
           </div>

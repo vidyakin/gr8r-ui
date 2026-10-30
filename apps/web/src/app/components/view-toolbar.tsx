@@ -5,9 +5,9 @@ import { ArrowUpDown, Boxes, Calendar, CircleDot, Columns3, Folder, ListFilter, 
 import { Badge, Button, Input, Menu, MenuCheckboxItem, MenuContent, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger } from '@/components/ui';
 import { PRIORITIES, PriorityIcon, StatusIcon } from '@/components/gr8r/task';
 import { TASK_MODULES, TASK_MODULE_LABELS } from '@gr8r/shared';
-import { useT } from '@/i18n';
+import { tEnum, useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
-import { canSee, visibleProjects, type Filter, type FilterField, type GroupBy, type ListView, type SortField } from '../data/selectors';
+import { canSee, statusName, visibleProjects, type Filter, type FilterField, type GroupBy, type ListView, type SortField } from '../data/selectors';
 import { MemberAvatar } from './workspace';
 import { ProjectDot } from './project';
 
@@ -21,7 +21,7 @@ function useFields(): Record<FilterField, { name: string; icon: React.ReactNode;
   const { data } = useWorkspace();
   const tt = useT();
   return {
-    status: { name: tt('views.toolbar.field.status'), icon: <CircleDot size={15} />, options: data.statuses.map(s => ({ id: s.id, name: s.name, icon: <StatusIcon status={s.id} /> })) },
+    status: { name: tt('views.toolbar.field.status'), icon: <CircleDot size={15} />, options: data.statuses.map(s => ({ id: s.id, name: statusName(s), icon: <StatusIcon status={s.id} /> })) },
     assignee: {
       name: tt('views.toolbar.field.assignee'),
       icon: <User size={15} />,
@@ -52,7 +52,7 @@ function useFields(): Record<FilterField, { name: string; icon: React.ReactNode;
     module: {
       name: tt('views.toolbar.field.module'),
       icon: <Boxes size={15} />,
-      options: TASK_MODULES.map(m => ({ id: m, name: TASK_MODULE_LABELS[m] })),
+      options: TASK_MODULES.map(m => ({ id: m, name: tEnum('taskModule', m, TASK_MODULE_LABELS[m]) })),
     },
   };
 }
@@ -279,7 +279,7 @@ export function ViewToolbar({ api, left, right, group, columns, resetWidths = tr
                   <FilterMenu api={api}>
                     <button style={{ display: 'inline-flex', gap: 5, alignItems: 'center' }}>
                       {React.cloneElement(F.icon as React.ReactElement<{ size: number }>, { size: 12 })}
-                      <b>{F.name}</b> is <span>{names.length > 2 ? tt('views.toolbar.selected', { n: names.length }) : names.join(', ')}</span>
+                      <b>{F.name}</b> {tt('ui.is')} <span>{names.length > 2 ? tt('views.toolbar.selected', { count: names.length }) : names.join(', ')}</span>
                     </button>
                   </FilterMenu>
                   <button className="ibtn" aria-label={tt('views.toolbar.removeFilter')} onClick={() => api.removeFilter(f.f)}>

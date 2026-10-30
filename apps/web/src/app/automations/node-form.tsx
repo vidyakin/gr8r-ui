@@ -5,7 +5,7 @@ import * as React from 'react';
 import { Braces } from 'lucide-react';
 import { AUTOMATION_SYSTEM_ENTITIES, BUILTIN_FIELDS, nodeParamsJsonSchema, type AnyNodeDef, type FieldOptions, type FieldType } from '@gr8r/shared';
 import { IconButton, Input, Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger, Select, Switch, Textarea } from '@/components/ui';
-import { useT } from '@/i18n';
+import { tEnum, useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { useLeadStatuses } from '../leads/data';
 import { usePipelines } from '../crm/pipelines';
@@ -51,7 +51,7 @@ export function useFormEnv(triggerEntity: string | undefined, stepIds: FormEnv['
       const meta = byKey.get(key);
       return {
         key,
-        name: meta?.name ?? AUTOMATION_SYSTEM_ENTITIES.find(e => e.key === key)?.name ?? key,
+        name: meta?.name ?? tEnum('systemEntity', key, AUTOMATION_SYSTEM_ENTITIES.find(e => e.key === key)?.name ?? key),
         fields: [
           ...(BUILTIN_FIELDS[key] ?? []).map(f => ({ key: f.key, name: f.name, type: f.type, options: f.options ?? {}, builtin: true, writable: f.writable })),
           ...activeFields(meta).map(f => ({ key: f.key, name: f.name, type: f.type, options: f.options, builtin: false, writable: true })),

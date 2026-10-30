@@ -705,6 +705,10 @@ export const settings = {
     fieldTypes: {
       text: 'Text',
       longtext: 'Long text',
+      long_text: 'Long text',
+      datetime: 'Date & time',
+      boolean: 'Checkbox',
+      user: 'Member',
       number: 'Number',
       money: 'Money',
       percent: 'Percent',

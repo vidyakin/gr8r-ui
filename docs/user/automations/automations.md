@@ -9,7 +9,7 @@ sources:
   - apps/web/src/app/automations/node-form.tsx
   - apps/web/src/i18n/ru/automations.ts
   - apps/api/src/routes/flows.ts
-verified: 0271cd253e
+verified: 66905e9009
 screenshots: []
 ---
 

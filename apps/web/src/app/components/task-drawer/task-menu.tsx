@@ -7,7 +7,7 @@ import { StatusIcon } from '@/components/gr8r/task';
 import { PriorityPanel } from '../priority-panel';
 import { useT } from '@/i18n';
 import { useWorkspace, type TaskPatch } from '../../data/store';
-import { canSee, projectColor } from '../../data/selectors';
+import { canSee, projectColor, statusName } from '../../data/selectors';
 import type { Task } from '../../data/types';
 import { MemberAvatar, useTaskActions } from '../workspace';
 
@@ -68,7 +68,7 @@ export function TaskMenuItems({ task: t, context, hideOpen, hideWindow }: { task
         {view === 'status' &&
           data.statuses.map((s, i) => (
             <Item key={s.id} icon={<StatusIcon status={s.id} />} shortcut={i < 9 ? String(i + 1) : undefined} onSelect={() => update({ status: s.id })}>
-              {s.name}
+              {statusName(s)}
               {ck(t.status === s.id)}
             </Item>
           ))}

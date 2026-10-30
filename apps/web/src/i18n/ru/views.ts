@@ -6,6 +6,7 @@ import type { views as V } from '../en/views';
 
 export const views: Widen<typeof V> = {
   task: {
+    timeColumn: 'Время',
     noPriority: 'Без приоритета',
     priorityLabel: 'Приоритет {n}',
     comments: { one: '{n} комментарий', few: '{n} комментария', many: '{n} комментариев', other: '{n} комментария' },
@@ -27,6 +28,8 @@ export const views: Widen<typeof V> = {
     copyright: '© 2026 FutureERP · Условия · Конфиденциальность',
     toggleTheme: 'Сменить тему',
   },
+
+  groups: { overdue: 'Просрочено', today: 'Сегодня', week: 'Ближайшие 7 дней', later: 'Позже', nodate: 'Без срока', all: 'Все задачи', unassigned: 'Не назначено' },
 
   toolbar: {
     searchTasks: 'Поиск задач',
@@ -251,6 +254,8 @@ export const views: Widen<typeof V> = {
     empty: 'Таймлайн пуст',
     emptyHint: 'Создайте задачи — они появятся здесь.',
     moved: '«{title}» сдвинута на {days} дн. позже',
+    movedLater: { one: '«{title}» сдвинута на # день позже', few: '«{title}» сдвинута на # дня позже', many: '«{title}» сдвинута на # дней позже', other: '«{title}» сдвинута на # дня позже' },
+    movedEarlier: { one: '«{title}» сдвинута на # день раньше', few: '«{title}» сдвинута на # дня раньше', many: '«{title}» сдвинута на # дней раньше', other: '«{title}» сдвинута на # дня раньше' },
     monthsShort: { jan: 'янв', feb: 'фев', mar: 'мар', apr: 'апр', may: 'май', jun: 'июн', jul: 'июл', aug: 'авг', sep: 'сен', oct: 'окт', nov: 'ноя', dec: 'дек' },
   },
 
