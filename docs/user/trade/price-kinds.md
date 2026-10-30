@@ -8,7 +8,7 @@ sources:
   - apps/web/src/app/pricing/ProductPrices.tsx
   - apps/web/src/app/pricing/CompanyPriceKind.tsx
   - apps/api/src/routes/pricing.ts
-verified:
+verified: 51f4355cc6
 screenshots: []
 ---
 

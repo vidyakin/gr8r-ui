@@ -7,7 +7,7 @@ sources:
   - apps/web/src/app/docs/serials-ui.tsx
   - apps/web/src/app/docs/serials-data.ts
   - apps/api/src/routes/serials.ts
-verified:
+verified: 51f4355cc6
 screenshots: []
 ---
 

@@ -7,7 +7,7 @@ sources:
   - apps/web/src/app/pricing/PublicPricePage.tsx
   - apps/web/src/app/pricing/data.ts
   - apps/api/src/routes/pricing.ts
-verified:
+verified: 51f4355cc6
 screenshots: []
 ---
 

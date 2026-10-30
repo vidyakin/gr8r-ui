@@ -7,7 +7,7 @@ sources:
   - apps/web/src/app/docs/quote-variants.tsx
   - apps/api/src/routes/doc-templates.ts
   - packages/shared/src/print/quote.ts
-verified:
+verified: 51f4355cc6
 screenshots: []
 ---
 
