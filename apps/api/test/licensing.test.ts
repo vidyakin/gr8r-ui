@@ -51,6 +51,7 @@ describe('каталог модулей', () => {
     expect(MODULE_OF_PATH.get('/fleet')).toBe('transport');
     expect(MODULE_OF_PATH.get('/trips')).toBe('transport');
     expect(MODULE_OF_NODE.get('trigger.trip_status')).toBe('transport');
+    expect(MODULE_OF_JOB.get('transport.waybill_pdf')).toBe('transport');
     expect(resolveModules(['transport']).has('trade')).toBe(true);
   });
   test('зависимости: production тянет trade, payroll — money и trade', () => {
