@@ -367,6 +367,8 @@ export const errors = {
   warehouse_not_empty: 'The warehouse still has stock: move or write it off first',
   work_order_kind_required: 'The work order has no kind',
   work_order_state_only: 'A work order is posted when it moves to the Done state',
+  trip_not_yours: 'Trip is not assigned to you',
+  driver_event_conflict: 'This client ID was used for a different event',
   workspace_invalid: 'Workspace id is not a valid UUID',
   workspace_required: 'X-Workspace-Id header is required',
 };

@@ -25,7 +25,7 @@ import { changeDeliveryStatus, listDeliveries, type DeliveryView } from './deliv
 import type { DocCtx } from './documents';
 import { clearRoute, requestGeocode } from './routing';
 import { assertMember, createWaybill, loadVehicle, nextNumber, type WaybillRow } from './fleet';
-import { deliveries, documents, fleetTripStops, fleetTrips, fleetVehicles, fleetWaybills, members, workspaces } from './schema';
+import { deliveries, documents, fleetDriverEvents, fleetTripStops, fleetTrips, fleetVehicles, fleetWaybills, members, workspaces } from './schema';
 
 export type TripRow = typeof fleetTrips.$inferSelect;
 export type TripStopRow = typeof fleetTripStops.$inferSelect;
@@ -649,4 +649,42 @@ export async function tripPrintData(db: Db, ctx: DocCtx, id: string): Promise<Ro
     })),
     total: fmt(total, 2),
   };
+}
+
+/** Отметка назначенного водителя. Блокировка рейса сериализует повтор одной операции. */
+export async function recordDriverStopEvent(db: Db, ctx: DocCtx, tripId: string, stopId: string, input: {
+  clientId: string; status: 'arrived' | 'done' | 'failed'; latitude?: number; longitude?: number;
+  comment?: string; photo?: string; signature?: string;
+}) {
+  const trip = await loadTrip(db, tripId, true);
+  if (!ctx.memberId || (trip.driverMemberId !== ctx.memberId && trip.coDriverMemberId !== ctx.memberId))
+    throw new DomainError(403, 'trip_not_yours', 'Trip is not assigned to this driver');
+  const [previous] = await db.select().from(fleetDriverEvents).where(and(eq(fleetDriverEvents.workspaceId, ctx.workspaceId), eq(fleetDriverEvents.clientId, input.clientId))).limit(1);
+  if (previous) {
+    if (previous.tripId !== tripId || previous.stopId !== stopId || previous.driverMemberId !== ctx.memberId || previous.status !== input.status ||
+      previous.comment !== (input.comment ?? '') || previous.photo !== (input.photo ?? null) || previous.signature !== (input.signature ?? null) ||
+      (previous.latitude === null ? input.latitude !== undefined : input.latitude === undefined || Number(previous.latitude) !== Number(input.latitude.toFixed(6))) ||
+      (previous.longitude === null ? input.longitude !== undefined : input.longitude === undefined || Number(previous.longitude) !== Number(input.longitude.toFixed(6))))
+      throw new DomainError(409, 'driver_event_conflict', 'Client ID already used for another event');
+    return previous;
+  }
+  const [stop] = await db.select({ status: fleetTripStops.status }).from(fleetTripStops).where(and(eq(fleetTripStops.id, stopId), eq(fleetTripStops.tripId, tripId))).limit(1);
+  if (!stop) throw notFound('stop');
+  if (stop.status === 'done' || stop.status === 'failed') throw new DomainError(409, 'stop_finished', 'Stop is already finished');
+  await setStopStatus(db, ctx, tripId, stopId, input.status, input.comment);
+  const [row] = await db.insert(fleetDriverEvents).values({
+    workspaceId: ctx.workspaceId, tripId, stopId, driverMemberId: ctx.memberId, clientId: input.clientId,
+    status: input.status, latitude: input.latitude?.toString(), longitude: input.longitude?.toString(),
+    comment: input.comment ?? '', photo: input.photo, signature: input.signature,
+  }).returning();
+  return row!;
+}
+
+/** Рейсы дня только для назначенного водителя, с точками в порядке объезда. */
+export async function driverTripsForDate(db: Db, ctx: DocCtx, date: string) {
+  if (!ctx.memberId) return [];
+  const trips = await db.select({ id: fleetTrips.id, number: fleetTrips.number, name: fleetTrips.name, status: fleetTrips.status, dateFrom: fleetTrips.dateFrom, dateTo: fleetTrips.dateTo })
+    .from(fleetTrips).where(and(lte(fleetTrips.dateFrom, date), gte(fleetTrips.dateTo, date), ne(fleetTrips.status, 'cancelled'), or(eq(fleetTrips.driverMemberId, ctx.memberId), eq(fleetTrips.coDriverMemberId, ctx.memberId))))
+    .orderBy(asc(fleetTrips.startTime), asc(fleetTrips.number));
+  return Promise.all(trips.map(async trip => ({ ...trip, stops: await loadStops(db, trip.id) })));
 }

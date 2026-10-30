@@ -491,6 +491,13 @@
       "when": 1793364557011,
       "tag": "0075_appointment_work_order",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1793365435484,
+      "tag": "0076_driver_events",
+      "breakpoints": true
     }
   ]
 }

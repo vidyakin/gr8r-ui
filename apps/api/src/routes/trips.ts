@@ -26,13 +26,15 @@ import {
   reorderStops,
   saveTripSettings,
   setStopStatus,
+  recordDriverStopEvent,
+  driverTripsForDate,
   startTrip,
   tripCapacityMode,
   tripPrintData,
   updateStop,
   updateTrip,
 } from '@gr8r/db';
-import { dispatchQuery, idParam, renderRouteSheet, renderTransportWaybill, routingDistribute, routingOptimize, routingSettingsSave, tnCreate, tripAddDelivery, tripQuery, tripSave, tripSettingsSave, tripStopOrder, tripStopSave, tripStopStatus, tripStopUpdate, tripUpdate } from '@gr8r/shared';
+import { driverStopEvent, dispatchQuery, idParam, renderRouteSheet, renderTransportWaybill, routingDistribute, routingOptimize, routingSettingsSave, tnCreate, tripAddDelivery, tripQuery, tripSave, tripSettingsSave, tripStopOrder, tripStopSave, tripStopStatus, tripStopUpdate, tripUpdate } from '@gr8r/shared';
 import { documentExports, jobs } from '@gr8r/db';
 import { and, eq } from 'drizzle-orm';
 import { AppError } from '../errors';
@@ -46,6 +48,15 @@ const stopParam = z.object({ id: z.uuid(), stopId: z.uuid() });
 const ok = { ok: true } as const;
 
 export const tripRoutes = new Hono<AppEnv>()
+  .get('/driver/mine', zValidator('query', z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }), validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json({ items: await driverTripsForDate(ctx.db, docCtx(ctx), c.req.valid('query').date) });
+  })
+  .post('/driver/:id/stops/:stopId/events', write, zValidator('param', stopParam, validationHook), zValidator('json', driverStopEvent, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const { id, stopId } = c.req.valid('param');
+    return c.json(await recordDriverStopEvent(ctx.db, docCtx(ctx), id, stopId, c.req.valid('json')));
+  })
   .get('/settings', async c => c.json({ capacityMode: await tripCapacityMode(ctxOf(c).db, ctxOf(c).workspaceId) }))
   // транспортная накладная (1214): выдать номер (повторно — тот же), HTML-страница, PDF задачей воркеру
   .post('/tn', write, zValidator('json', tnCreate, validationHook), async c => {

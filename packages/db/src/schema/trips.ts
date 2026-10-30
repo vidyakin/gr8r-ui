@@ -175,3 +175,29 @@ export interface RoutingRunSummary {
   routeMin?: number;
   reordered?: boolean;
 }
+
+/** Неизменяемые отметки водителя; client_id защищает повторную отправку из очереди. */
+export const fleetDriverEvents = pgTable('fleet_driver_events', {
+  id: pk(),
+  workspaceId: wsCol(),
+  tripId: uuid('trip_id').notNull(),
+  stopId: uuid('stop_id').notNull(),
+  driverMemberId: uuid('driver_member_id').notNull(),
+  clientId: uuid('client_id').notNull(),
+  status: text('status', { enum: ['arrived', 'done', 'failed'] }).notNull(),
+  latitude: numeric('latitude', { precision: 9, scale: 6 }),
+  longitude: numeric('longitude', { precision: 9, scale: 6 }),
+  comment: text('comment').notNull().default(''),
+  photo: text('photo'),
+  signature: text('signature'),
+  createdAt: createdAt(),
+}, t => [
+  unique('fleet_driver_events_ws_client_uq').on(t.workspaceId, t.clientId),
+  foreignKey({ columns: [t.workspaceId, t.tripId], foreignColumns: [fleetTrips.workspaceId, fleetTrips.id], name: 'fleet_driver_events_trip_fk' }).onDelete('cascade'),
+  foreignKey({ columns: [t.workspaceId, t.stopId], foreignColumns: [fleetTripStops.workspaceId, fleetTripStops.id], name: 'fleet_driver_events_stop_fk' }).onDelete('cascade'),
+  foreignKey({ columns: [t.workspaceId, t.driverMemberId], foreignColumns: [members.workspaceId, members.id], name: 'fleet_driver_events_driver_fk' }),
+  check('fleet_driver_events_status_chk', sql`${t.status} in ('arrived','done','failed')`),
+  check('fleet_driver_events_coords_chk', sql`(${t.latitude} is null and ${t.longitude} is null) or (${t.latitude} is not null and ${t.longitude} is not null and ${t.latitude} between -90 and 90 and ${t.longitude} between -180 and 180)`),
+  check('fleet_driver_events_pod_size_chk', sql`coalesce(octet_length(${t.photo}), 0) <= 2097152 and coalesce(octet_length(${t.signature}), 0) <= 524288`),
+  index('fleet_driver_events_stop_idx').on(t.stopId, t.createdAt),
+]);

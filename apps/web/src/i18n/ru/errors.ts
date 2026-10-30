@@ -368,6 +368,8 @@ export const errors: Widen<typeof E> = {
   warehouse_not_empty: 'На складе ещё есть остаток: сначала переместите или спишите его',
   work_order_kind_required: 'У заказ-наряда не указан вид',
   work_order_state_only: 'Заказ-наряд проводится при переходе в состояние «Выполнен»',
+  trip_not_yours: 'Рейс не назначен вам',
+  driver_event_conflict: 'Этот идентификатор уже использован для другой отметки',
   workspace_invalid: 'Идентификатор воркспейса — не корректный UUID',
   workspace_required: 'Нужен заголовок X-Workspace-Id',
 };
