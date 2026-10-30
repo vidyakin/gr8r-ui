@@ -1,6 +1,6 @@
 /* Транспорт → Рейсы (задача 1211): список рейсов с отбором по периоду, машине, статусу и виду, карточка рейса, настройка контроля вместимости. */
 import * as React from 'react';
-import { Plus, Waypoints } from 'lucide-react';
+import { Plus, Settings2, Waypoints } from 'lucide-react';
 import { TRIP_KINDS, TRIP_STATUSES } from '@gr8r/shared';
 import { Badge, Button, EmptyState, Field, Input, Select, Skeleton } from '@/components/ui';
 import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
@@ -10,7 +10,8 @@ import { useIsAdmin } from '../catalog/data';
 import { useVehicles } from '../fleet/data';
 import { FleetHead } from '../fleet/parts';
 import { TRIP_TONE, TripDialog, useOverloadText } from './TripDialog';
-import { useTripApi, useTripSettings, useTrips, type Trip } from './data';
+import { RoutingSettingsDialog } from './RoutingSettings';
+import { useRouting, useTripApi, useTripSettings, useTrips, type Trip } from './data';
 
 const ALL = 'all';
 
@@ -21,6 +22,8 @@ export function TripsPage() {
   const overloadText = useOverloadText();
   const vehicles = useVehicles().data?.items ?? [];
   const settings = useTripSettings().data;
+  const routing = useRouting().data;
+  const [routingOpen, setRoutingOpen] = React.useState(false);
   const [from, setFrom] = React.useState(iso(new Date(today().getTime() - 14 * 86400000)));
   const [to, setTo] = React.useState(iso(new Date(today().getTime() + 14 * 86400000)));
   const [vehicle, setVehicle] = React.useState(ALL);
@@ -50,7 +53,7 @@ export function TripsPage() {
           </span>
         ),
       },
-      { id: 'km', header: t('trips.col.km'), width: 120, align: 'right', value: r => Number(r.straightKm ?? 0), cell: r => <span className="num muted">{r.straightKm ? fmtNumber(r.straightKm) : '—'}</span> },
+      { id: 'km', header: t('trips.col.km'), width: 120, align: 'right', value: r => Number(r.routeKm ?? r.straightKm ?? 0), cell: r => <span className="num muted">{r.routeKm ?? r.straightKm ? fmtNumber((r.routeKm ?? r.straightKm)!) : '—'}</span> },
       { id: 'status', header: t('trips.col.status'), width: 120, value: r => r.status, cell: r => <Badge tone={TRIP_TONE[r.status]}>{t(`trips.status.${r.status}`)}</Badge> },
     ],
     [t, overloadText],
@@ -62,10 +65,18 @@ export function TripsPage() {
         title={t('trips.title')}
         lead={t('trips.lead')}
         actions={
+          <>
+            {isAdmin && routing && (
+              <Button size="sm" variant="ghost" onClick={() => setRoutingOpen(true)}>
+                <Settings2 size={13} />
+                {t('trips.routing.open')}
+              </Button>
+            )}
           <Button size="sm" onClick={() => setEdit('new')}>
             <Plus size={13} />
             {t('trips.new')}
           </Button>
+          </>
         }
       />
       <section className="panel plain" style={{ margin: '0 var(--gutter) 16px' }}>
@@ -102,6 +113,7 @@ export function TripsPage() {
       ) : (
         <DataTable aria-label={t('trips.title')} columns={columns} rows={list.data?.items ?? []} table={table} getId={r => r.id} onRowClick={r => setEdit(r.id)} empty={<EmptyState icon={<Waypoints size={20} />} title={t('trips.empty')}>{t('trips.emptyHint')}</EmptyState>} />
       )}
+      {routingOpen && routing && <RoutingSettingsDialog view={routing} onClose={() => setRoutingOpen(false)} />}
       {edit && <TripDialog key={edit} id={edit === 'new' ? null : edit} onClose={() => setEdit(null)} />}
     </div>
   );

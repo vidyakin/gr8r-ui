@@ -213,6 +213,8 @@ export const errors = {
   trip_not_started: 'Send the trip before marking its stops',
   trip_overloaded: 'The load exceeds the capacity of the vehicle',
   trip_order_invalid: 'The order must list every stop of the trip exactly once',
+  routing_run_busy: 'A calculation for this is already running',
+  trip_changed: 'The trip was changed while the route was being calculated: run it again',
   trip_stop_day: 'The stop day is outside the trip period',
   trip_waybill_exists: 'The trip already has a waybill',
   stop_finished: 'A finished stop cannot be changed',
