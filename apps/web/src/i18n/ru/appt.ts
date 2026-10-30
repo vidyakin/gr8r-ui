@@ -57,6 +57,9 @@ export const appt = {
     cancelSubmit: 'Отменить запись',
     reason: 'Причина',
     done: 'Готово',
+    createWorkOrder: 'Создать заказ-наряд',
+    workOrderCreated: 'Заказ-наряд создан',
+    workOrder: 'Заказ-наряд',
   },
   unclosed: {
     empty: 'Все дни закрыты',

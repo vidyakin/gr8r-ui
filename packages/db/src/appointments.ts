@@ -25,6 +25,7 @@ import {
 } from '@gr8r/shared';
 import type { Db } from './client';
 import { DOCUMENT_HOOKS } from './document-hooks';
+import { createWorkOrderAssignment } from './work-orders';
 import { createDocument, deleteDocument, postDocument, unpostDocument, type DocCtx } from './documents';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
@@ -37,6 +38,7 @@ import {
   companies,
   contacts,
   crmActivities,
+  documentLines,
   documents,
   members,
   notifications,
@@ -192,6 +194,8 @@ const apptSelect = {
   price: appointments.price,
   comment: appointments.comment,
   dayLineId: appointments.dayLineId,
+  workOrderId: appointments.workOrderId,
+  workOrderNumber: documents.number,
   contactName: contacts.name,
   contactPhone: contacts.phone,
   companyName: companies.name,
@@ -213,6 +217,8 @@ export type AppointmentView = {
   price: string;
   comment: string;
   dayLineId: string | null;
+  workOrderId: string | null;
+  workOrderNumber: string | null;
   contactName: string | null;
   contactPhone: string | null;
   companyName: string | null;
@@ -232,7 +238,8 @@ function baseQuery(db: Db) {
     .leftJoin(contacts, eq(contacts.id, appointments.contactId))
     .leftJoin(companies, eq(companies.id, appointments.companyId))
     .leftJoin(products, eq(products.id, appointments.productId))
-    .leftJoin(members, eq(members.id, appointments.specialistId));
+    .leftJoin(members, eq(members.id, appointments.specialistId))
+    .leftJoin(documents, eq(documents.id, appointments.workOrderId));
 }
 
 export async function appointmentDetail(db: Db, id: string): Promise<AppointmentView> {
@@ -428,6 +435,34 @@ export async function setAppointmentStatus(db: Db, ctx: DocCtx, id: string, to: 
   if (to === 'cancelled' && !reason?.trim()) throw new DomainError(422, 'cancel_reason_required', 'Enter the reason for cancelling the appointment');
   await db.update(appointments).set({ status: to, cancelReason: to === 'cancelled' ? reason!.trim() : null, updatedAt: new Date() }).where(eq(appointments.id, id));
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'appointment.updated', entity: 'appointment', recordId: id, actorId: ctx.memberId, payload: { changes: { status: { from: a.status, to } } } });
+}
+
+/** Заказ-наряд из записи (задача 1252): заказчик — клиент записи, строка — услуга по цене записи, исполнитель — специалист.
+    Запись ссылается на заказ-наряд; повтор — 409 work_order_exists (блокировка строки записи закрывает гонку) */
+export async function createAppointmentWorkOrder(db: Db, ctx: DocCtx, id: string): Promise<{ documentId: string }> {
+  const a = await loadAppt(db, id);
+  if (a.workOrderId) throw new DomainError(409, 'work_order_exists', 'A work order has already been created from this appointment', { documentId: a.workOrderId });
+  if (a.status === 'cancelled' || a.status === 'no_show') throw new DomainError(409, 'invalid_status', 'A work order cannot be created from a cancelled appointment or a no-show');
+  const counterpartyId = await saleCompanyOf(db, ctx, a);
+  const documentId = await createDocument(db, ctx, {
+    type: 'work_order',
+    counterpartyId,
+    date: a.date,
+    comment: a.comment,
+    responsibleId: a.specialistId,
+    lines: [{ productId: a.productId, qty: '1', price: a.price, discountPct: '0' }],
+  });
+  const [line] = await db.select({ id: documentLines.id }).from(documentLines).where(eq(documentLines.documentId, documentId)).limit(1);
+  await createWorkOrderAssignment(db, ctx, documentId, {
+    assigneeId: a.specialistId,
+    ...(line ? { lineId: line.id } : {}),
+    startDate: a.date,
+    dueDate: a.date,
+    plannedHours: ((a.slots * a.slotMinutes) / 60).toFixed(3),
+  });
+  await db.update(appointments).set({ workOrderId: documentId, updatedAt: new Date() }).where(eq(appointments.id, id));
+  await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'appointment.updated', entity: 'appointment', recordId: id, actorId: ctx.memberId, payload: { changes: { workOrderId: { from: null, to: documentId } } } });
+  return { documentId };
 }
 
 /** Перенос на другой слот или к другому специалисту: проверки те же, свою запись пересечением не считаем */

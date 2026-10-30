@@ -261,3 +261,34 @@ describe('isolation', () => {
     expect(rows[0]!.n).toBe(0);
   });
 });
+
+describe('work order from an appointment', () => {
+  test('creates one work order with client, service and executor; repeat gives 409; foreign workspace gets 404', async () => {
+    const a = (await book(owner, { date: '2026-11-23', startMin: 690, price: '1700' })).body;
+    const r = await owner.post(`/appointments/${a.id}/work-order`, {});
+    expect(r.status).toBe(201);
+    const docId = r.body.documentId as string;
+    expect(r.body.appointment.workOrderId).toBe(docId);
+    const doc = (await owner.get(`/documents/${docId}`)).body;
+    expect(doc.type).toBe('work_order');
+    expect(doc.date).toBe('2026-11-23');
+    expect(doc.lines).toHaveLength(1);
+    expect(doc.lines[0].productId).toBe(massage30);
+    const [asg] = await admin`select a.task_id, t.assignee_id from work_order_assignments a join tasks t on t.id = a.task_id where a.document_id = ${docId}`;
+    expect(asg!.assignee_id).toBe(specId);
+    // клиент без компании получил компанию-физлицо, она — заказчик заказ-наряда
+    const [c] = await admin`select company_id from contacts where id = ${clientA}`;
+    expect(doc.counterpartyId).toBe(c!.company_id);
+    // повтор не плодит второй
+    const again = await owner.post(`/appointments/${a.id}/work-order`, {});
+    expect(again.status).toBe(409);
+    expect(again.body.error?.code ?? again.body.code).toBe('work_order_exists');
+    const n = await admin`select count(*)::int as n from appointments where work_order_id = ${docId}`;
+    expect(n[0]!.n).toBe(1);
+    expect((await other.post(`/appointments/${a.id}/work-order`, {})).status).toBe(404);
+    // отменённая запись заказ-наряд не создаёт
+    const b = (await book(owner, { date: '2026-11-23', startMin: 660 })).body;
+    await owner.post(`/appointments/${b.id}/cancel`, { reason: 'x' });
+    expect((await owner.post(`/appointments/${b.id}/work-order`, {})).status).toBe(409);
+  });
+});

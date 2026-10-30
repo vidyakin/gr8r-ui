@@ -134,6 +134,7 @@ export const errors: Widen<typeof E> = {
   secret_corrupted: 'Секрет не расшифровывается текущим ключом сервера',
   invalid_secret_key: 'Недопустимое имя секрета',
   service_not_provided: 'Этот специалист не оказывает такую услугу',
+  work_order_exists: 'Заказ-наряд по этой записи уже создан',
   appointment_in_day_document: 'Запись уже в документе дня: цену меняйте там',
   invalid_slots: 'Часть слотов не лежит на сетке графика',
   invalid_qty: 'Количество должно быть больше нуля',

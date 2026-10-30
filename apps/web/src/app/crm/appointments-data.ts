@@ -23,6 +23,8 @@ export interface Appt {
   price: string;
   comment: string;
   dayLineId: string | null;
+  workOrderId: string | null;
+  workOrderNumber: string | null;
   clientName: string;
   contactPhone: string | null;
   productName: string | null;

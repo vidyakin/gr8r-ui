@@ -133,6 +133,7 @@ export const errors = {
   secret_corrupted: 'The secret cannot be decrypted with the current server key',
   invalid_secret_key: 'Invalid secret name',
   service_not_provided: 'This specialist does not provide this service',
+  work_order_exists: 'A work order has already been created from this appointment',
   appointment_in_day_document: 'The appointment is already in a document of the day: change the price there',
   invalid_slots: 'Some slots do not lie on the schedule grid',
   invalid_qty: 'The quantity must be greater than zero',

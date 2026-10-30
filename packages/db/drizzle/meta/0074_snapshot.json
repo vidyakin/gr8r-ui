@@ -1,6 +1,6 @@
 {
   "id": "894b43be-1453-41e4-b039-b0e3f59ab48c",
-  "prevId": "cd2e966d-6646-4020-8c7f-b879ab928418",
+  "prevId": "ea5f36ee-a333-45e4-ba82-f5c519be3307",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -13435,7 +13435,7 @@
       "checkConstraints": {
         "documents_type_chk": {
           "name": "documents_type_chk",
-          "value": "\"documents\".\"type\" in ('quote','customer_order','invoice','realization','act','customer_return','supplier_order','receipt','supplier_return','stock_transfer','write_off','stock_posting','inventory_count','production_order','production','work_order','piecework_order','other_costs','material_allocation','tolling_receipt','tolling_report','tolling_return','sales_plan','service_day','cash_receipt','cash_payment','bank_receipt','bank_payment','advance_report','payment_request','opening_balance','payroll','payroll_statement','price_setting')"
+          "value": "\"documents\".\"type\" in ('quote','customer_order','invoice','realization','act','customer_return','supplier_order','receipt','supplier_return','stock_transfer','write_off','stock_posting','opening_stock','inventory_count','production_order','production','work_order','piecework_order','other_costs','material_allocation','tolling_receipt','tolling_report','tolling_return','sales_plan','service_day','cash_receipt','cash_payment','bank_receipt','bank_payment','advance_report','payment_request','opening_balance','payroll','payroll_statement','price_setting')"
         },
         "documents_status_chk": {
           "name": "documents_status_chk",
