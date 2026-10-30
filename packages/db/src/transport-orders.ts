@@ -215,7 +215,10 @@ export async function updateTransportOrder(db: Db, ctx: DocCtx, id: string, inpu
     weightKg: input.weightKg ?? cur.weightKg,
     amount: input.amount,
   };
-  const amount = amountOf(next);
+  // сумма пересчитывается только если явно задана или изменились составляющие расчёта ставки;
+  // иначе правка несвязанного поля (комментарий, статус) сбросит ранее заданную вручную сумму
+  const rateChanged = input.rateKind !== undefined || input.rate !== undefined || input.distanceKm !== undefined || input.weightKg !== undefined;
+  const amount = input.amount !== undefined ? input.amount : rateChanged ? amountOf(next) : cur.amount;
   const [row] = await db
     .update(transportOrders)
     .set({
