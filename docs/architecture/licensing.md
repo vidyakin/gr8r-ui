@@ -7,7 +7,7 @@
 Модуль — запись в коде, не таблица: `id`, зависимости `requires`, корневые пути API (`paths`), публичные вебхуки (`hooks`), разделы меню (`sections`,
 id из `SECTIONS`), пункты настроек (`settings`, id из `SET_NAV`), типы задач воркера (`jobs`) и типы узлов автоматизаций (`nodes`).
 Модули: `core` (всегда), `crm`, `trade`, `production` (→ trade), `services` (→ trade), `money` (→ trade), `payroll` (→ money), `automations`,
-`integrations` (→ money), `docflow` (пока пустой), `transport` (→ trade; автопарк, `fleet.md`: путь `/fleet`, разделы `fleet*`, узел `trigger.fleet_document_expiring`; тариф «Полный» (`all_modules`) включает его у существующих арендаторов без миграции данных). Один путь, раздел, задача или узел принадлежит ровно одному модулю (иначе ошибка при загрузке модуля).
+`integrations` (→ money), `docflow` (пока пустой), `transport` (→ trade; автопарк `fleet.md` и рейсы `trips.md`: пути `/fleet`, `/trips`, разделы `fleet*`, `trips`, `dispatch`, узлы `trigger.fleet_document_expiring`, `trigger.trip_status`; тариф «Полный» (`all_modules`) включает его у существующих арендаторов без миграции данных). Один путь, раздел, задача или узел принадлежит ровно одному модулю (иначе ошибка при загрузке модуля).
 
 **Новый путь, раздел, задача или узел обязан попасть в каталог.** Это проверяют тесты: `apps/api/test/licensing.test.ts` (каждый путь `TENANT_PATHS`, тип задачи в
 `jobHandlers` и узел `NODE_LIST`), `apps/web/src/app/licensing/modules.test.ts` (каждый ключ `SECTIONS`); путь в `TENANT_PATHS` без модуля роняет сборку приложения.
