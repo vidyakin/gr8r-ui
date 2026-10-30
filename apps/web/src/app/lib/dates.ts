@@ -1,7 +1,7 @@
 /* Работа с датами — порт core/utils.js из gr8r-studio */
 import type { IsoDate } from '../data/types';
 import { DAY, dOff, iso, minsAgo, sod, today } from '@gr8r/shared/demo';
-import { fmtDateTimeIntl, t, weekdayShort } from '@/i18n';
+import { fmtDateTimeIntl, getFormatPrefs, t, weekdayShort } from '@/i18n';
 
 /* Базовые помощники (DAY, sod, today, iso, dOff, minsAgo) живут в shared — их же используют сиды. */
 export { DAY, dOff, iso, minsAgo, sod, today };
@@ -14,11 +14,20 @@ export const parse = (s: IsoDate) => {
 /** Разница в днях a − b */
 export const diffDays = (a: Date, b: Date) => Math.round((sod(a).getTime() - sod(b).getTime()) / DAY);
 
-/** «Oct 30» / «30 окт.», с годом — если год не текущий (по языку интерфейса) */
+/** «Oct 30» / «30 окт.», с годом — если год не текущий (по языку интерфейса); личный числовой формат — «30/10», «10/30», «2026-10-30» */
 export function fmtDate(s: IsoDate | Date, long = false) {
   if (!s) return '—'; // дата не задана (с сервера проект может прийти без сроков)
   const d = typeof s === 'string' ? parse(s) : s;
   const withYear = long || d.getFullYear() !== new Date().getFullYear();
+  const f = getFormatPrefs().dateFmt;
+  if (f !== 'MMM d') {
+    // Личный числовой формат (Настройки → Дата и время)
+    const dd = d.getDate();
+    const mm = d.getMonth() + 1;
+    if (f === 'yyyy-MM-dd') return `${d.getFullYear()}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+    const base = f === 'd/M' ? `${dd}/${mm}` : `${mm}/${dd}`;
+    return withYear ? `${base}/${d.getFullYear()}` : base;
+  }
   return fmtDateTimeIntl(d, { month: 'short', day: 'numeric', ...(withYear ? { year: 'numeric' } : {}) });
 }
 

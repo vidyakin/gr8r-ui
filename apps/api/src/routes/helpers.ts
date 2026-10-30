@@ -1,6 +1,7 @@
-import { and, inArray, max, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, max, type SQL } from 'drizzle-orm';
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
-import { activity, notifications, resolveAttribution, tasks, type AttributionState } from '@gr8r/db';
+import { activity, members, notifications, resolveAttribution, tasks, users, type AttributionState } from '@gr8r/db';
+import { notifyEnabled } from '@gr8r/shared';
 import type { Ctx } from '../crud';
 import { AppError } from '../errors';
 
@@ -9,9 +10,18 @@ export async function addActivity(ctx: Ctx, a: { verb: string; taskId?: string |
   await ctx.db.insert(activity).values({ workspaceId: ctx.workspaceId, actorId: ctx.memberId, verb: a.verb, taskId: a.taskId ?? null, projectId: a.projectId ?? null, extra: a.extra ?? '' });
 }
 
-/** Уведомление участнику; себе не отправляется */
+/** Личный переключатель уведомления внутри приложения (Настройки → Уведомления) по типу; типы без переключателя приходят всегда.
+    Автоматизации (воркер, insertNotification) — явное действие сценария, переключатели на них не действуют */
+const PREF_OF_TYPE: Partial<Record<'mention' | 'assign' | 'comment' | 'update', string>> = { assign: 'assign_self', update: 'assign_status' };
+
+/** Уведомление участнику; себе не отправляется; учитывает личные настройки получателя */
 export async function notify(ctx: Ctx, n: { to: string | null | undefined; type: 'mention' | 'assign' | 'comment' | 'update'; text: string; snippet?: string; taskId?: string | null; projectId?: string | null }) {
   if (!n.to || n.to === ctx.memberId) return;
+  const key = PREF_OF_TYPE[n.type];
+  if (key) {
+    const [r] = await ctx.db.select({ prefs: users.prefs }).from(members).innerJoin(users, eq(users.id, members.userId)).where(eq(members.id, n.to)).limit(1);
+    if (r && !notifyEnabled(r.prefs, key)) return;
+  }
   await ctx.db.insert(notifications).values({
     workspaceId: ctx.workspaceId,
     recipientId: n.to,

@@ -1,16 +1,18 @@
-/* Настройки: Security и Billing — порт ветвей password, sessions, 2fa, plan, payment, invoices из settingsBody (pages/settings.js).
-   Смена пароля, 2FA, оплата и тарифы зависят от бэкенда: формы валидируют ввод и показывают тосты, реального действия нет. */
+/* Настройки: безопасность и оплата. Смена пароля, сессии и тариф работают на настоящих данных (/auth/password, /auth/sessions, /license);
+   способ оплаты и счета — пока демонстрационные. */
 import * as React from 'react';
 import { useNavigate } from 'react-router';
-import { Check, CircleAlert, CircleCheck, CreditCard, Gem, LogOut, Monitor, ShieldAlert, ShieldCheck, ShieldOff, Smartphone } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Check, CircleAlert, CircleCheck, CreditCard, LogOut, Monitor, Smartphone, Sparkles } from 'lucide-react';
+import { LIMIT_KEYS, MODULE_IDS, usageOf, type LimitKey } from '@gr8r/shared';
 import { Badge, Button, toast } from '@/components/ui';
-import { useWorkspace } from '../data/store';
-import { useSettings, type Plan } from '../data/settings';
+import { ApiError, apiFor, errorMessage, ok } from '../data/api';
+import { useLicense, useLicenseUsage } from '../licensing/data';
 import { dOff, fmtDate } from '../lib/dates';
 import { ConfirmModal, type ConfirmSpec } from '../overlays/project-dialogs';
 import { SECTIONS } from '../routes';
 import { PasswordStrength, SRow, SettingsHead } from './parts';
-import { useT } from '@/i18n';
+import { fmtDateTime, fmtDateTimeIntl, fmtNumber, useT } from '@/i18n';
 
 const ErrText = ({ children }: { children: React.ReactNode }) => (
   <span className="err">
@@ -35,19 +37,7 @@ export function PasswordSection({ title }: { title: string }) {
   const [e, setE] = React.useState<{ cur?: string; pw?: string; conf?: string }>({});
   const [done, setDone] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
-  React.useEffect(() => {
-    if (!saving) return;
-    const timeoutId = setTimeout(() => {
-      setSaving(false);
-      setDone(true);
-      setCur('');
-      setPw('');
-      setConf('');
-      toast(t('settings.password.saved'));
-    }, 800);
-    return () => clearTimeout(timeoutId);
-  }, [saving]);
-  const submit = (ev: React.FormEvent) => {
+  const submit = async (ev: React.FormEvent) => {
     ev.preventDefault();
     const n: typeof e = {};
     setDone(false);
@@ -55,7 +45,21 @@ export function PasswordSection({ title }: { title: string }) {
     if (pw.length < 10 || !/[0-9\W]/.test(pw)) n.pw = t('settings.password.rule');
     if (pw !== conf) n.conf = t('settings.password.mismatch');
     setE(n);
-    if (!Object.keys(n).length) setSaving(true);
+    if (Object.keys(n).length) return;
+    setSaving(true);
+    try {
+      await ok(apiFor().auth.password.$post({ json: { current: cur, next: pw } }));
+      setDone(true);
+      setCur('');
+      setPw('');
+      setConf('');
+      toast(t('settings.password.saved'));
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'wrong_password') setE({ cur: errorMessage(err) });
+      else toast.error(errorMessage(err));
+    } finally {
+      setSaving(false);
+    }
   };
   return (
     <>
@@ -99,43 +103,67 @@ export function PasswordSection({ title }: { title: string }) {
   );
 }
 
+interface SessionRow {
+  id: string;
+  createdAt: string;
+  ip: string | null;
+  userAgent: string | null;
+  current: boolean;
+}
+
+/** «Chrome · macOS» из User-Agent (грубо: браузер и система) */
+function deviceOf(ua: string | null, unknown: string): { name: string; mobile: boolean } {
+  if (!ua) return { name: unknown, mobile: false };
+  const browser = /Edg\//.test(ua) ? 'Edge' : /OPR\/|Opera/.test(ua) ? 'Opera' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : '';
+  const os = /iPhone|iPad/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : '';
+  return { name: [browser, os].filter(Boolean).join(' · ') || unknown, mobile: /iPhone|Android|Mobile/.test(ua) };
+}
+
 export function SessionsSection({ title }: { title: string }) {
   const t = useT();
-  const [s, set] = useSettings();
+  const qc = useQueryClient();
   const [dlg, ask] = useConfirm();
+  const q = useQuery({ queryKey: ['sessions'], queryFn: async () => (await ok<{ items: SessionRow[] }>(apiFor().auth.sessions.$get())).items });
+  const items = q.data ?? [];
+  const refresh = () => qc.invalidateQueries({ queryKey: ['sessions'] });
+  const signOut = async (id: string) => {
+    try {
+      await ok(apiFor().auth.sessions[':id'].$delete({ param: { id } }));
+      toast(t('settings.sessions.signedOut'));
+      refresh();
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  };
   return (
     <>
       <SettingsHead title={title} lead={t('settings.sessions.lead')} />
-      {s.sessions.map(x => (
-        <SRow
-          key={x.id}
-          t={
-            <span className="row" style={{ gap: 8 }}>
-              {x.dev.includes('iPhone') ? <Smartphone size={15} /> : <Monitor size={15} />}
-              {x.dev}
-              {x.cur && <Badge tone="green">{t('settings.sessions.thisDevice')}</Badge>}
-            </span>
-          }
-          d={`${x.loc} · ${x.at}`}
-        >
-          {!x.cur && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                set({ sessions: s.sessions.filter(y => y.id !== x.id) });
-                toast(t('settings.sessions.signedOut'));
-              }}
-            >
-              {t('settings.sessions.signOut')}
-            </Button>
-          )}
-        </SRow>
-      ))}
+      {items.map(x => {
+        const dev = deviceOf(x.userAgent, t('settings.sessions.unknownDevice'));
+        return (
+          <SRow
+            key={x.id}
+            t={
+              <span className="row" style={{ gap: 8 }}>
+                {dev.mobile ? <Smartphone size={15} /> : <Monitor size={15} />}
+                {dev.name}
+                {x.current && <Badge tone="green">{t('settings.sessions.thisDevice')}</Badge>}
+              </span>
+            }
+            d={`${x.ip ? `${x.ip} · ` : ''}${t('settings.sessions.signedInAt', { date: fmtDateTime(x.createdAt) })}`}
+          >
+            {!x.current && (
+              <Button variant="secondary" size="sm" onClick={() => signOut(x.id)}>
+                {t('settings.sessions.signOut')}
+              </Button>
+            )}
+          </SRow>
+        );
+      })}
       <div style={{ marginTop: 16 }}>
         <Button
           variant="danger-ghost"
-          disabled={s.sessions.length <= 1}
+          disabled={items.filter(x => !x.current).length === 0}
           onClick={() =>
             ask({
               title: t('settings.sessions.signOutAllTitle'),
@@ -143,9 +171,14 @@ export function SessionsSection({ title }: { title: string }) {
               ok: t('settings.sessions.signOutAllOk'),
               danger: true,
               icon: LogOut,
-              run: () => {
-                set({ sessions: s.sessions.filter(y => y.cur) });
-                toast(t('settings.sessions.signOutAll'));
+              run: async () => {
+                try {
+                  await ok(apiFor().auth.sessions.$delete());
+                  toast(t('settings.sessions.signOutAll'));
+                  refresh();
+                } catch (e) {
+                  toast.error(errorMessage(e));
+                }
               },
             })
           }
@@ -158,157 +191,24 @@ export function SessionsSection({ title }: { title: string }) {
   );
 }
 
-const RECOVERY = ['7KQ2-M8PX', 'D4TN-9WRE', 'HV3C-QZ6L', 'P2YB-J7SK', 'R9FG-4NUD', 'X6MA-T3HE'];
-
-/** Заглушка QR-кода: 11×11 клеток с тремя «позиционными» метками, как в оригинале */
-function QrStub() {
-  const t = useT();
-  return (
-    <div style={{ width: 132, height: 132, display: 'grid', gridTemplateColumns: 'repeat(11,1fr)', gap: 1, padding: 8, background: '#fff', borderRadius: 8, border: '1px solid var(--border)' }} aria-label={t('settings.twofa.qrAria')}>
-      {Array.from({ length: 121 }, (_, i) => {
-        const r = Math.floor(i / 11);
-        const c = i % 11;
-        const f = (r < 3 && c < 3) || (r < 3 && c > 7) || (r > 7 && c < 3);
-        const on = f ? !((r === 1 && c === 1) || (r === 1 && c === 9) || (r === 9 && c === 1)) : (i * 7919) % 13 < 6;
-        return <i key={i} style={{ background: on ? '#1D1C1A' : '#fff' }} />;
-      })}
-    </div>
-  );
-}
-
-export function TwoFactorSection({ title }: { title: string }) {
-  const t = useT();
-  const [s, set] = useSettings();
-  const [setup, setSetup] = React.useState(false);
-  const [code, setCode] = React.useState('');
-  const [err, setErr] = React.useState('');
-  const [dlg, ask] = useConfirm();
-  const verify = (ev: React.FormEvent) => {
-    ev.preventDefault();
-    if (!/^\d{6}$/.test(code.trim())) return setErr(t('settings.twofa.codeInvalid'));
-    setErr('');
-    setSetup(false);
-    setCode('');
-    set({ tfa: true });
-    toast(t('settings.twofa.enabled'));
-  };
-  return (
-    <>
-      <SettingsHead title={title} lead={t('settings.twofa.lead')} />
-      {s.tfa ? (
-        <>
-          <div className="alert ok">
-            <ShieldCheck size={16} />
-            <div>
-              <b>{t('settings.twofa.on.title')}</b>
-              <div className="muted">{t('settings.twofa.on.hint')}</div>
-            </div>
-          </div>
-          <div className="sblock">
-            <h2>{t('settings.twofa.recovery')}</h2>
-            <p className="muted" style={{ fontSize: 13, margin: '1em 0' }}>
-              {t('settings.twofa.recoveryHint')}
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,max-content)', gap: '6px 28px', fontFamily: 'var(--mono)', fontSize: 13, padding: 14, border: '1px solid var(--border)', borderRadius: 'var(--r)', background: 'var(--sunken)', userSelect: 'all' }}>
-              {RECOVERY.map(c => (
-                <span key={c}>{c}</span>
-              ))}
-            </div>
-            <div style={{ marginTop: 14 }}>
-              <Button
-                variant="danger-ghost"
-                onClick={() =>
-                  ask({
-                    title: t('settings.twofa.turnOffTitle'),
-                    body: t('settings.twofa.turnOffBody'),
-                    ok: t('settings.twofa.turnOffOk'),
-                    danger: true,
-                    icon: ShieldOff,
-                    run: () => {
-                      set({ tfa: false });
-                      toast(t('settings.twofa.turnOff'));
-                    },
-                  })
-                }
-              >
-                {t('settings.twofa.turnOffBtn')}
-              </Button>
-            </div>
-          </div>
-        </>
-      ) : setup ? (
-        <div className="panel" style={{ padding: 18, display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-          <QrStub />
-          <div className="grow col" style={{ gap: 10, minWidth: 220 }}>
-            <div>
-              <b>{t('settings.twofa.setupTitle')}</b>
-              <div className="muted" style={{ fontSize: 13 }}>
-                {t('settings.twofa.setupHint')}
-              </div>
-            </div>
-            <div>
-              <b>{t('settings.twofa.setupCode')}</b>
-            </div>
-            <form onSubmit={verify} className="row">
-              <input className={`input mono ${err ? 'is-error' : ''}`} id="tfa-code" inputMode="numeric" maxLength={6} placeholder={t('settings.twofa.codePlaceholder')} style={{ width: 130, letterSpacing: '.2em', fontSize: 15 }} autoFocus value={code} onChange={e => setCode(e.target.value)} aria-label={t('settings.twofa.codeAria')} />
-              <Button variant="primary" type="submit">
-                {t('settings.twofa.verify')}
-              </Button>
-              <Button
-                variant="ghost"
-                type="button"
-                onClick={() => {
-                  setSetup(false);
-                  setErr('');
-                }}
-              >
-                {t('settings.common.cancel')}
-              </Button>
-            </form>
-            {err ? <ErrText>{err}</ErrText> : <span className="hint">{t('settings.twofa.codeHint')}</span>}
-          </div>
-        </div>
-      ) : (
-        <div className="panel" style={{ padding: 18 }}>
-          <div className="row" style={{ gap: 14, alignItems: 'flex-start' }}>
-            <span className="ftype" style={{ '--c': 'var(--amber)', width: 36, height: 36 } as React.CSSProperties}>
-              <ShieldAlert size={18} />
-            </span>
-            <div className="grow">
-              <b>{t('settings.twofa.off.title')}</b>
-              <p className="muted" style={{ margin: '4px 0 12px', fontSize: 13 }}>
-                {t('settings.twofa.off.hint')}
-              </p>
-              <Button variant="primary" onClick={() => setSetup(true)}>
-                {t('settings.twofa.off.btn')}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-      {dlg}
-    </>
-  );
-}
-
 /* ---------- Billing ---------- */
 
-const PRICE: Record<Plan, number> = { Free: 0, Team: 12, Business: 24 };
-
-type PlanKey = 'free' | 'team' | 'business';
-const PLAN_KEY: Record<Plan, PlanKey> = { Free: 'free', Team: 'team', Business: 'business' };
-
+/** Тариф, модули, сроки, лимиты и использование — по настоящей лицензии воркспейса (GET /license, /license/usage) */
 export function PlanSection({ title }: { title: string }) {
   const t = useT();
-  const { data } = useWorkspace();
-  const [s, set] = useSettings();
   const navigate = useNavigate();
-  const [dlg, ask] = useConfirm();
-  const usage: [string, number, number, string][] = [
-    [t('settings.plan.usage.members'), data.members.length, 10, ''],
-    [t('settings.plan.usage.storage'), 12.4, 100, ' GB'],
-    [t('settings.plan.usage.projects'), data.projects.length, 50, ''],
-  ];
+  const view = useLicense().data;
+  const lu = useLicenseUsage().data;
+  const date = (iso: string) => fmtDateTimeIntl(iso, { dateStyle: 'medium' });
+  const name = (id: (typeof MODULE_IDS)[number]) => t(`licensing.modules.${id}.name` as const);
+  const planName = view?.plan.name ?? t('settings.plan.noPlan');
+  const state = (id: (typeof MODULE_IDS)[number]) => {
+    const s = view?.states[id];
+    if (!s || s.state === 'off') return null;
+    if (s.state === 'readonly') return { tone: 'amber' as const, label: t('licensing.upgrade.status.readonly', { date: date(s.readonlyUntil!) }) };
+    if (s.expiresAt) return { tone: 'accent' as const, label: t('settings.plan.until', { date: date(s.expiresAt) }) };
+    return { tone: 'green' as const, label: t('settings.plan.unlimitedTerm') };
+  };
   return (
     <>
       <SettingsHead title={title} lead={t('settings.plan.lead')} />
@@ -317,94 +217,57 @@ export function PlanSection({ title }: { title: string }) {
           <div>
             <div className="eyebrow">{t('settings.plan.currentPlan')}</div>
             <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-.015em', marginTop: 4 }}>
-              {s.plan} <span className="muted" style={{ fontSize: 14, fontWeight: 400 }}>· {t('settings.plan.perMember')}</span>
+              {planName} {view?.isTrial && <Badge tone="accent">{t('settings.plan.trial')}</Badge>}
             </div>
             <div className="muted" style={{ fontSize: 13 }}>
-              {t('settings.plan.renews', { date: fmtDate(dOff(7), true) })}
+              {view?.plan.expiresAt ? t('settings.plan.until', { date: date(view.plan.expiresAt) }) : t('settings.plan.unlimitedTerm')}
             </div>
           </div>
           <span className="sp" />
-          <Button variant="secondary" onClick={() => navigate(`${SECTIONS.settings.path}/invoices`)}>
-            {t('settings.plan.viewInvoices')}
+          <Button variant="secondary" onClick={() => navigate(SECTIONS.upgrade.path)}>
+            <Sparkles size={14} />
+            {t('settings.plan.needMore')}
           </Button>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 18, marginTop: 18 }}>
-          {usage.map(([n, v, m, u]) => (
-            <div key={n}>
-              <div className="row" style={{ fontSize: 12.5, marginBottom: 6 }}>
-                <span className="muted">{n}</span>
-                <span className="sp" />
-                <span className="num">
-                  {v}
-                  {u} of {m}
-                  {u}
-                </span>
-              </div>
-              <div className="meter">
-                <i style={{ width: `${(v / m) * 100}%`, ...(v / m > 0.75 ? { background: 'var(--amber)' } : {}) }} />
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 12 }}>
-        {(['Free', 'Team', 'Business'] as Plan[]).map(n => {
-          const k = PLAN_KEY[n];
-          const cur = s.plan === n;
-          const pr = t(`settings.plan.pricing.${k}.price`);
-          const fs = t(`settings.plan.pricing.${k}.features`).split('|');
+      <div className="sblock">
+        <h2>{t('settings.plan.limits')}</h2>
+        {lu && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 18, marginTop: 12 }}>
+            {LIMIT_KEYS.map((k: LimitKey) => {
+              const used = Math.round(usageOf(lu.usage, k) * 10) / 10;
+              const max = lu.limits[k];
+              const has = typeof max === 'number';
+              return (
+                <div key={k}>
+                  <div className="row" style={{ fontSize: 12.5, marginBottom: 6 }}>
+                    <span className="muted">{t(`licensing.limits.${k}` as const)}</span>
+                    <span className="sp" />
+                    <span className="num">{has ? t('settings.plan.usedOf', { used: fmtNumber(used), max: fmtNumber(max) }) : `${fmtNumber(used)} · ${t('licensing.limits.unlimited')}`}</span>
+                  </div>
+                  {has && (
+                    <div className="meter">
+                      <i style={{ width: `${max > 0 ? Math.min(100, (used / max) * 100) : 100}%`, ...(max === 0 || used / max > 0.75 ? { background: 'var(--amber)' } : {}) }} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      <div className="sblock" style={{ marginTop: 18 }}>
+        <h2>{t('settings.plan.modules')}</h2>
+        {MODULE_IDS.filter(id => id !== 'core').map(id => {
+          const s = state(id);
           return (
-            <div key={n} className={`plan ${cur ? 'cur' : ''}`}>
-              <div className="row">
-                <b>{t(`settings.plan.pricing.${k}.name`)}</b>
-                {cur && <Badge tone="accent">{t('settings.plan.current')}</Badge>}
-              </div>
-              <div className="pr">
-                {pr}
-                <span className="muted" style={{ fontSize: 12.5, fontWeight: 400 }}>
-                  {' '}
-                  {t('settings.plan.priceMember')}
-                </span>
-              </div>
-              <ul>
-                {fs.map(f => (
-                  <li key={f}>
-                    <Check size={13} />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <div style={{ marginTop: 8 }}>
-                {cur ? (
-                  <Button block disabled>
-                    {t('settings.plan.currentPlanBtn')}
-                  </Button>
-                ) : (
-                  <Button
-                    block
-                    variant={n === 'Business' ? 'primary' : 'secondary'}
-                    onClick={() =>
-                      ask({
-                        title: t('settings.plan.confirmTitle', { action: n === 'Free' ? t('settings.plan.downgrade') : t('settings.plan.upgrade'), plan: t(`settings.plan.pricing.${k}.name`) }),
-                        body: t('settings.plan.confirmBody', { count: data.members.length, price: PRICE[n], total: data.members.length * PRICE[n] }),
-                        ok: n === 'Free' ? t('settings.plan.confirmOkDowngrade') : t('settings.plan.confirmOkUpgrade', { plan: t(`settings.plan.pricing.${k}.name`) }),
-                        icon: Gem,
-                        run: () => {
-                          set({ plan: n });
-                          toast(t('settings.plan.switched', { plan: t(`settings.plan.pricing.${k}.name`) }));
-                        },
-                      })
-                    }
-                  >
-                    {n === 'Free' ? t('settings.plan.downgrade') : t('settings.plan.upgrade')}
-                  </Button>
-                )}
-              </div>
+            <div key={id} className="srow">
+              <span>{name(id)}</span>
+              {s ? <Badge tone={s.tone}>{s.label}</Badge> : <Badge tone="gray">{t('licensing.upgrade.status.off')}</Badge>}
             </div>
           );
         })}
       </div>
-      {dlg}
     </>
   );
 }

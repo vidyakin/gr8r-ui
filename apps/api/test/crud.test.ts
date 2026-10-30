@@ -208,6 +208,24 @@ describe('other resources', () => {
     expect((await me.get('/notifications?read=false')).body.total).toBe(0);
   });
 
+  test('notifications: the personal switch for assignments is respected', async () => {
+    const me = new Client();
+    await me.signup();
+    const p = await me.project('NTP');
+    const mine = (await me.get('/members')).body.items[0];
+    const buddy = new Client();
+    await buddy.signup();
+    const inv = await me.post(`/workspaces/${me.workspaceId}/invites`, { email: buddy.user!.email });
+    await buddy.post('/invites/accept', { token: inv.body.token });
+    buddy.workspaceId = me.workspaceId;
+    await me.patch('/auth/me', { prefs: { np: { assign_self: false } } });
+    await buddy.post('/tasks', { projectId: p.id, title: 'Silent', assigneeId: mine.id });
+    expect((await me.get('/notifications')).body.total).toBe(0);
+    await me.patch('/auth/me', { prefs: { np: { assign_self: true } } });
+    await buddy.post('/tasks', { projectId: p.id, title: 'Loud', assigneeId: mine.id });
+    expect((await me.get('/notifications')).body.total).toBe(1);
+  });
+
   test('time logs: validation, member defaults to the current user', async () => {
     const t = await c.task(project.id, 'Timed');
     const ok = await c.post('/time-logs', { taskId: t.id, hours: 1.5, logDate: '2026-10-01', note: 'work' });

@@ -5,7 +5,7 @@ import { Crosshair, Diamond, Plus, ChartGantt } from 'lucide-react';
 import { Button, EmptyState, Segmented, Select, Tooltip, toast } from '@/components/ui';
 import { StatusIcon } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
-import { monthShort, useT } from '@/i18n';
+import { monthShort, useT, weekStartsOn } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { applyView, canSee, groupTasks, projectColor, project as findProject, task as findTask, tasksOf, visibleProjects, type GroupBy } from '../data/selectors';
 import { countSubs } from '../data/subtasks';
@@ -17,7 +17,6 @@ import { ViewToolbar, useListView, type ViewApi } from './view-toolbar';
 import { TimeGrid } from './time-grid';
 import { useTaskForm } from '../overlays';
 
-const WEEK_START = 1;
 const RH = 36;
 
 type Zoom = 'week' | 'month';
@@ -71,7 +70,7 @@ const addDays = (d: Date, n: number) => {
   x.setDate(x.getDate() + n);
   return x;
 };
-const startOfWeek = (d: Date) => addDays(d, -((d.getDay() - WEEK_START + 7) % 7));
+const startOfWeek = (d: Date) => addDays(d, -((d.getDay() - weekStartsOn() + 7) % 7));
 
 /** Прогресс полосы (taskProg из core/store.js) */
 const taskProg = (t: Task) => {

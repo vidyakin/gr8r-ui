@@ -1,112 +1,82 @@
-/* Личные настройки, которым не нужен бэкенд (язык — не здесь, а в src/i18n и users.locale), — состояние Settings из S.prefs / D().notifPrefs / sessions / tfa / plan оригинала.
-   Тема, акцент, плотность и движение живут в Gr8rProvider (usePrefs), имя и воркспейс — в store.tsx. */
+/* Настройки. Личные настройки пользователя (часовой пояс, формат даты, начало недели, предпочтения, уведомления) лежат на сервере
+   в users.prefs и приходят с сессией (session.user.prefs): они следуют за человеком на другие устройства. В браузере остаются
+   только настройки этого устройства (проверка орфографии) и заготовки прав воркспейса, которые ещё не ходят на сервер.
+   Язык — не здесь, а в src/i18n и users.locale; тема, плотность и движение — в Gr8rProvider (usePrefs). */
 import * as React from 'react';
+import { resolveUserPrefs, USER_PREFS_DEFAULTS, type UserPrefs } from '@gr8r/shared';
+import { toast } from '@/components/ui';
+import { useSession } from './session';
+import { errorMessage } from './api';
 
-export interface Session {
-  id: string;
-  dev: string;
-  loc: string;
-  at: string;
-  cur?: boolean;
-}
-
-export type Plan = 'Free' | 'Team' | 'Business';
-
-export interface Settings {
+/** Настройки, которые хранятся только в этом браузере */
+interface LocalSettings {
   spell: boolean;
-  tz: string;
-  dateFmt: string;
-  weekStart: string;
-  timeFmt: string;
-  defaultTab: string;
-  showDoneBoard: boolean;
   permCreate: boolean;
   permGuests: boolean;
   permPublic: boolean;
-  home: string;
-  openTasks: string;
-  confirmDel: boolean;
-  /** Уведомления: email_*, push_*, mention_*, assign_* */
-  np: Record<string, boolean>;
-  sessions: Session[];
-  tfa: boolean;
-  plan: Plan;
 }
+
+export type Settings = LocalSettings & UserPrefs;
 
 const KEY = 'gr8r-ui.settings';
 
-export const DEFAULT_SETTINGS: Settings = {
-  spell: true,
-  tz: '(GMT-08:00) Pacific Time',
-  dateFmt: 'MMM d',
-  weekStart: '1',
-  timeFmt: '12',
-  defaultTab: 'board',
-  showDoneBoard: true,
-  permCreate: true,
-  permGuests: true,
-  permPublic: false,
-  home: 'home',
-  openTasks: 'drawer',
-  confirmDel: true,
-  np: {
-    email_mention: true,
-    email_assign: true,
-    email_digest: true,
-    email_comment: false,
-    push_mention: true,
-    push_assign: true,
-    push_comment: true,
-    push_due: true,
-    mention_all: true,
-    mention_team: true,
-    mention_ws: false,
-    assign_self: true,
-    assign_status: true,
-    assign_over: true,
-  },
-  sessions: [
-    { id: 'se1', dev: 'MacBook Pro · Chrome', loc: 'San Francisco, US', at: 'Active now', cur: true },
-    { id: 'se2', dev: 'iPhone 15 · Gr8r app', loc: 'San Francisco, US', at: '2 hours ago' },
-    { id: 'se3', dev: 'Windows · Edge', loc: 'Oakland, US', at: 'Sep 12' },
-  ],
-  tfa: false,
-  plan: 'Team',
-};
+const LOCAL_DEFAULTS: LocalSettings = { spell: true, permCreate: true, permGuests: true, permPublic: false };
+const LOCAL_KEYS = Object.keys(LOCAL_DEFAULTS) as (keyof LocalSettings)[];
 
-function read(): Settings {
+function read(): LocalSettings {
   try {
     const j = JSON.parse(localStorage.getItem(KEY) || '{}');
-    return { ...DEFAULT_SETTINGS, ...j, np: { ...DEFAULT_SETTINGS.np, ...(j.np || {}) } };
+    return { ...LOCAL_DEFAULTS, ...Object.fromEntries(LOCAL_KEYS.filter(k => typeof j[k] === 'boolean').map(k => [k, j[k]])) };
   } catch {
-    return DEFAULT_SETTINGS;
+    return LOCAL_DEFAULTS;
   }
 }
 
-let state: Settings = read();
+let local: LocalSettings = read();
 const subs = new Set<() => void>();
 
-function set(patch: Partial<Settings>) {
-  state = { ...state, ...patch };
+function setLocal(patch: Partial<LocalSettings>) {
+  local = { ...local, ...patch };
   try {
-    localStorage.setItem(KEY, JSON.stringify(state));
+    localStorage.setItem(KEY, JSON.stringify(local));
   } catch {
     /* хранилище недоступно — работаем в памяти */
   }
   subs.forEach(f => f());
 }
 
-/** Настройки с сохранением в localStorage; [значения, patch] */
+export const DEFAULT_SETTINGS: Settings = { ...LOCAL_DEFAULTS, ...USER_PREFS_DEFAULTS };
+
+/** Личные настройки (с сервера, с умолчаниями) — без заготовок этого устройства */
+export function useMyPrefs(): UserPrefs {
+  const { user } = useSession();
+  return React.useMemo(() => resolveUserPrefs(user?.prefs), [user?.prefs]);
+}
+
+/** Все настройки: [значения, patch]. Личные ключи пишутся на сервер (в кэше сразу, при ошибке — откат и сообщение), остальные — в браузер */
 export function useSettings() {
-  const s = React.useSyncExternalStore(
+  const loc = React.useSyncExternalStore(
     cb => {
       subs.add(cb);
       return () => subs.delete(cb);
     },
-    () => state,
+    () => local,
   );
-  return [s, set] as const;
+  const { setMyPrefs } = useSession();
+  const prefs = useMyPrefs();
+  const set = React.useCallback(
+    (patch: Record<string, unknown>) => {
+      const lp: Record<string, unknown> = {};
+      const up: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(patch)) (LOCAL_KEYS.includes(k as keyof LocalSettings) ? lp : up)[k] = v;
+      if (Object.keys(lp).length) setLocal(lp as Partial<LocalSettings>);
+      if (Object.keys(up).length) setMyPrefs(up as Partial<UserPrefs>).catch(e => toast.error(errorMessage(e)));
+    },
+    [setMyPrefs],
+  );
+  const value = React.useMemo<Settings>(() => ({ ...loc, ...prefs }), [loc, prefs]);
+  return [value, set] as const;
 }
 
-/** Сброс к исходным (после «Delete workspace», как восстановление демо-данных в оригинале) */
-export const resetSettings = () => set({ ...DEFAULT_SETTINGS, np: { ...DEFAULT_SETTINGS.np } });
+/** Сброс настроек этого устройства (после «Delete workspace») */
+export const resetSettings = () => setLocal(LOCAL_DEFAULTS);

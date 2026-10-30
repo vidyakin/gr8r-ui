@@ -6,7 +6,7 @@ import { Label, Menu, MenuContent, MenuRadioGroup, MenuRadioItem, MenuTrigger, P
 import { Calendar } from '@/components/shadcn/calendar';
 import { PriorityIcon, StatusIcon, priorityName, type Status } from '@/components/gr8r/task';
 import { cn } from '@/lib/utils';
-import { useT } from '@/i18n';
+import { useT, weekStartsOn } from '@/i18n';
 import { useWorkspace, type TaskPatch } from '../data/store';
 import { LABELS, isOverdue, member, project, statusName, statusOf } from '../data/selectors';
 import { dOff, iso, parse, relDate } from '../lib/dates';
@@ -176,7 +176,7 @@ export function DueField({ task: t, trigger, className }: { task: Task; trigger?
             </button>
           )}
         </div>
-        <Calendar mode="single" weekStartsOn={1} selected={t.due ? parse(t.due) : undefined} defaultMonth={t.due ? parse(t.due) : undefined} onSelect={d => d && set(iso(d))} />
+        <Calendar mode="single" weekStartsOn={weekStartsOn()} selected={t.due ? parse(t.due) : undefined} defaultMonth={t.due ? parse(t.due) : undefined} onSelect={d => d && set(iso(d))} />
       </PopoverContent>
     </Popover>
   );

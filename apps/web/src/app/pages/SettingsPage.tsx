@@ -22,7 +22,7 @@ import { useLicense } from '../licensing/data';
 import { MODULE_OF_SETTING } from '@gr8r/shared';
 import { useSession } from '../data/session';
 import { NotificationsSection, PreferencesSection, ProfileSection, ShortcutsSection } from '../settings/personal';
-import { InvoicesSection, PasswordSection, PaymentSection, PlanSection, SessionsSection, TwoFactorSection } from '../settings/account';
+import { InvoicesSection, PasswordSection, PaymentSection, PlanSection, SessionsSection } from '../settings/account';
 import { NotFoundPage } from './PlaceholderPage';
 import { useT, type TKey } from '@/i18n';
 
@@ -80,9 +80,6 @@ function Body({ sec, title }: { sec: string; title: string }) {
       return <TenantsSection title={title} />;
     case 'product-kinds':
       return <ProductKindsSection title={title} />;
-    case 'notif-email':
-    case 'notif-push':
-    case 'notif-mentions':
     case 'notif-assign':
       return <NotificationsSection id={sec} title={title} />;
     case 'profile':
@@ -95,8 +92,6 @@ function Body({ sec, title }: { sec: string; title: string }) {
       return <PasswordSection title={title} />;
     case 'sessions':
       return <SessionsSection title={title} />;
-    case '2fa':
-      return <TwoFactorSection title={title} />;
     case 'plan':
       return <PlanSection title={title} />;
     case 'payment':

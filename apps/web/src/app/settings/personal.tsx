@@ -16,38 +16,13 @@ import { useT, type TKey } from '@/i18n';
 type NotifRow = [labelKey: string, key: string];
 
 const NOTIF: Record<string, { leadKey: string; rows: NotifRow[] }> = {
-  'notif-email': {
-    leadKey: 'settings.notifications.email.lead',
-    rows: [
-      ['settings.notifications.email.mentions', 'email_mention'],
-      ['settings.notifications.email.assignments', 'email_assign'],
-      ['settings.notifications.email.comments', 'email_comment'],
-      ['settings.notifications.email.digest', 'email_digest'],
-    ],
-  },
-  'notif-push': {
-    leadKey: 'settings.notifications.push.lead',
-    rows: [
-      ['settings.notifications.push.mentions', 'push_mention'],
-      ['settings.notifications.push.assignments', 'push_assign'],
-      ['settings.notifications.push.comments', 'push_comment'],
-      ['settings.notifications.push.due', 'push_due'],
-    ],
-  },
-  'notif-mentions': {
-    leadKey: 'settings.notifications.mentions.lead',
-    rows: [
-      ['settings.notifications.mentions.all', 'mention_all'],
-      ['settings.notifications.mentions.team', 'mention_team'],
-      ['settings.notifications.mentions.workspace', 'mention_ws'],
-    ],
-  },
+  // Работают только переключатели, которые сервер учитывает при создании уведомлений внутри приложения (notify в apps/api/src/routes/helpers.ts).
+  // Рассылок email и push, упоминаний @ и напоминаний о просрочке пока нет — их переключатели скрыты
   'notif-assign': {
     leadKey: 'settings.notifications.assign.lead',
     rows: [
       ['settings.notifications.assign.self', 'assign_self'],
       ['settings.notifications.assign.status', 'assign_status'],
-      ['settings.notifications.assign.overdue', 'assign_over'],
     ],
   },
 };
@@ -59,6 +34,9 @@ export function NotificationsSection({ id, title }: { id: string; title: string 
   return (
     <>
       <SettingsHead title={title} lead={t(leadKey as TKey)} />
+      <p className="faint" style={{ margin: '0 0 8px' }}>
+        {t('settings.notifications.channelsNote')}
+      </p>
       {rows.map(([labelKey, k]) => (
         <SRow key={k} t={t(`${labelKey}.t` as TKey)} d={t(`${labelKey}.d` as TKey)}>
           <Toggle label={k} checked={!!s.np[k]} notify={t('settings.notifications.saved')} onChange={v => set({ np: { ...s.np, [k]: v } })} />

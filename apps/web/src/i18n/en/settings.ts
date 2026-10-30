@@ -174,7 +174,10 @@ export const settings = {
   dateTime: {
     lead: 'How dates and times appear across the workspace.',
     timezone: 'Time zone',
-    timezoneHint: 'Used for due dates and reminders.',
+    timezoneHint: 'Applies to times of creation and changes (dates of tasks and documents do not shift).',
+    timezoneBrowser: 'Browser time zone',
+    dateByLanguage: 'By language (Oct 1)',
+    timeByLanguage: 'By language',
     dateFormat: 'Date format',
     weekStart: 'Start week on',
     timeFormat: 'Time format',
@@ -250,6 +253,7 @@ export const settings = {
       overdue: { t: 'When my task is overdue' },
     },
     saved: 'Notification preferences saved',
+    channelsNote: 'These switches control notifications inside the app. Email and push notifications, @mention and overdue alerts are not connected yet, so their switches are hidden.',
   },
 
   /* ---------------- profile ---------------- */
@@ -314,7 +318,7 @@ export const settings = {
   /* ---------------- security: password ---------------- */
   password: {
     lead: "Use a long password you don't use anywhere else.",
-    updated: 'Password updated. Other sessions stay signed in.',
+    updated: 'Password updated. Other sessions were signed out.',
     current: 'Current password',
     new: 'New password',
     confirm: 'Confirm new password',
@@ -337,6 +341,8 @@ export const settings = {
     signOutAllOk: 'Sign out others',
     signOutAll: 'Signed out of other sessions',
     signOutAllBtn: 'Sign out of all other sessions',
+    unknownDevice: 'Unknown device',
+    signedInAt: 'Signed in {date}',
   },
 
   /* ---------------- security: 2fa ---------------- */
@@ -372,31 +378,16 @@ export const settings = {
 
   /* ---------------- billing: plan ---------------- */
   plan: {
-    lead: 'Your subscription and usage.',
+    lead: 'Your plan, modules, terms and limits.',
     currentPlan: 'Current plan',
-    perMember: '$12 per member / month',
-    renews: 'Renews {date} · Billed monthly',
-    viewInvoices: 'View invoices',
-    usage: {
-      members: 'Members',
-      storage: 'Storage',
-      projects: 'Projects',
-    },
-    current: 'Current',
-    currentPlanBtn: 'Current plan',
-    downgrade: 'Downgrade',
-    upgrade: 'Upgrade',
-    priceMember: '/member/mo',
-    confirmTitle: '{action} to {plan}?',
-    confirmBody: '{count} members × ${price}/month = ${total}/month, prorated from today and billed to Visa ending 4242.',
-    confirmOkDowngrade: 'Downgrade',
-    confirmOkUpgrade: 'Upgrade to {plan}',
-    switched: "You're now on the {plan} plan",
-    pricing: {
-      free: { name: 'Free', price: '$0', features: 'Up to 3 members|Unlimited tasks|5 GB storage' },
-      team: { name: 'Team', price: '$12', features: 'Up to 50 members|Timelines & custom views|100 GB storage|Guest access' },
-      business: { name: 'Business', price: '$24', features: 'Unlimited members|Advanced permissions|SAML SSO|1 TB storage' },
-    },
+    noPlan: 'No plan assigned',
+    trial: 'Trial',
+    until: 'Valid until {date}',
+    unlimitedTerm: 'No expiry date',
+    needMore: 'Need more?',
+    limits: 'Limits and usage',
+    usedOf: '{used} of {max}',
+    modules: 'Modules',
   },
 
   /* ---------------- billing: payment ---------------- */

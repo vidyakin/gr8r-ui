@@ -1,11 +1,11 @@
 /* Аутентификация: регистрация, вход, выход, /auth/me. Argon2id через Bun.password, сессии в БД (id = sha256 токена),
    cookie httpOnly + SameSite=Lax (+ Secure в production). Вход и регистрация ограничены rate-limit'ом в таблице rate_limits. */
 import { zValidator } from '@hono/zod-validator';
-import { eq, sql as dsql } from 'drizzle-orm';
+import { and, desc, eq, ne, sql as dsql } from 'drizzle-orm';
 import { Hono, type Context } from 'hono';
 import { deleteCookie, setCookie } from 'hono/cookie';
 import { rateLimits, sessions, users, withContext, type Sql } from '@gr8r/db';
-import { meUpdateBody, signinBody, signupBody } from '@gr8r/shared';
+import { meUpdateBody, passwordChangeBody, signinBody, signupBody } from '@gr8r/shared';
 import { AppError } from './errors';
 import { validationHook } from './crud';
 import { requireSession, sha256, SESSION_COOKIE } from './middleware';
@@ -60,7 +60,7 @@ export const authRoutes = new Hono<AppEnv>()
     const user = await withContext(sql, {}, async db => {
       const [taken] = await db.select({ id: users.id }).from(users).where(eq(dsql`lower(${users.email})`, body.email)).limit(1);
       if (taken) throw new AppError(409, 'email_taken', 'An account with this email already exists');
-      const [u] = await db.insert(users).values({ email: body.email, passwordHash, name: body.name }).returning({ id: users.id, email: users.email, name: users.name, locale: users.locale, isOperator: users.isOperator });
+      const [u] = await db.insert(users).values({ email: body.email, passwordHash, name: body.name }).returning({ id: users.id, email: users.email, name: users.name, locale: users.locale, prefs: users.prefs, isOperator: users.isOperator });
       return u!;
     });
     await startSession(c, user.id, cfg);
@@ -79,7 +79,7 @@ export const authRoutes = new Hono<AppEnv>()
     if (!found || !ok) throw new AppError(401, 'invalid_credentials', 'Invalid email or password');
     await clear(sql, `signin:email:${email}`);
     await startSession(c, found.id, cfg);
-    const user = { id: found.id, email: found.email, name: found.name, locale: found.locale, isOperator: found.isOperator };
+    const user = { id: found.id, email: found.email, name: found.name, locale: found.locale, prefs: found.prefs, isOperator: found.isOperator };
     return c.json({ user, workspaces: await listMyWorkspaces(sql, found.id) });
   })
   .post('/signout', requireSession, async c => {
@@ -91,12 +91,54 @@ export const authRoutes = new Hono<AppEnv>()
     const user = c.get('user');
     return c.json({ user, workspaces: await listMyWorkspaces(c.get('sql'), user.id) });
   })
-  // Личные настройки: пока только язык интерфейса
+  // Личные настройки: язык интерфейса (locale) и/или часть prefs (часовой пояс, формат даты, предпочтения, уведомления); prefs сливаются по ключам
   .patch('/me', requireSession, zValidator('json', meUpdateBody, validationHook), async c => {
-    const { locale } = c.req.valid('json');
+    const { locale, prefs } = c.req.valid('json');
     const me = c.get('user');
+    const set: Record<string, unknown> = {};
+    if (locale !== undefined) set.locale = locale;
+    if (prefs && Object.keys(prefs).length) set.prefs = dsql`${users.prefs} || ${JSON.stringify(prefs)}::jsonb`;
+    const cols = { id: users.id, email: users.email, name: users.name, locale: users.locale, prefs: users.prefs, isOperator: users.isOperator };
     const [user] = await withContext(c.get('sql'), { userId: me.id }, db =>
-      db.update(users).set({ locale }).where(eq(users.id, me.id)).returning({ id: users.id, email: users.email, name: users.name, locale: users.locale, isOperator: users.isOperator }),
+      Object.keys(set).length ? db.update(users).set(set).where(eq(users.id, me.id)).returning(cols) : db.select(cols).from(users).where(eq(users.id, me.id)),
     );
     return c.json({ user: user! });
+  })
+  // Смена пароля: нужен текущий; все остальные сессии закрываются (вход, украденный вместе со старым паролем, перестаёт работать)
+  .post('/password', requireSession, zValidator('json', passwordChangeBody, validationHook), async c => {
+    const sql = c.get('sql');
+    const me = c.get('user');
+    const { current, next } = c.req.valid('json');
+    await hit(sql, c.get('config'), `password:user:${me.id}`);
+    const found = await withContext(sql, {}, async db => (await db.select({ hash: users.passwordHash }).from(users).where(eq(users.id, me.id)).limit(1))[0]);
+    if (!found || !(await Bun.password.verify(current, found.hash))) throw new AppError(400, 'wrong_password', 'The current password is incorrect');
+    const passwordHash = await Bun.password.hash(next, { algorithm: 'argon2id' });
+    const closed = await withContext(sql, { userId: me.id }, async db => {
+      await db.update(users).set({ passwordHash }).where(eq(users.id, me.id));
+      return db.delete(sessions).where(and(eq(sessions.userId, me.id), ne(sessions.id, c.get('sessionId')))).returning({ id: sessions.id });
+    });
+    await clear(sql, `password:user:${me.id}`);
+    return c.json({ ok: true as const, closedSessions: closed.length });
+  })
+  // Мои сессии (токен в БД не хранится: id — его sha256, наружу отдаётся как есть, войти по нему нельзя)
+  .get('/sessions', requireSession, async c => {
+    const me = c.get('user');
+    const rows = await withContext(c.get('sql'), { userId: me.id }, db =>
+      db.select({ id: sessions.id, createdAt: sessions.createdAt, expiresAt: sessions.expiresAt, ip: sessions.ip, userAgent: sessions.userAgent }).from(sessions).where(and(eq(sessions.userId, me.id), dsql`${sessions.expiresAt} > now()`)).orderBy(desc(sessions.createdAt)),
+    );
+    return c.json({ items: rows.map(r => ({ ...r, current: r.id === c.get('sessionId') })) });
+  })
+  // «Выйти на остальных»: все мои сессии, кроме текущей
+  .delete('/sessions', requireSession, async c => {
+    const me = c.get('user');
+    const rows = await withContext(c.get('sql'), { userId: me.id }, db => db.delete(sessions).where(and(eq(sessions.userId, me.id), ne(sessions.id, c.get('sessionId')))).returning({ id: sessions.id }));
+    return c.json({ closed: rows.length });
+  })
+  .delete('/sessions/:id', requireSession, async c => {
+    const me = c.get('user');
+    const id = c.req.param('id');
+    if (id === c.get('sessionId')) throw new AppError(400, 'current_session', 'Use sign out to end the current session');
+    const rows = await withContext(c.get('sql'), { userId: me.id }, db => db.delete(sessions).where(and(eq(sessions.userId, me.id), eq(sessions.id, id))).returning({ id: sessions.id }));
+    if (!rows.length) throw new AppError(404, 'not_found', 'Session not found');
+    return c.json({ ok: true as const });
   });

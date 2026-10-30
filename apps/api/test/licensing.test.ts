@@ -533,4 +533,13 @@ describe('доступ к тарифам', () => {
     expect((await c.get('/license')).body.modules).toEqual([...MODULE_IDS]);
     expect(uniq()).toBeTruthy();
   });
+
+  test('GET /license/usage: limits of the plan and current usage of the tenant', async () => {
+    const c = new Client();
+    await c.signup();
+    const r = await c.get('/license/usage');
+    expect(r.status).toBe(200);
+    expect(r.body.usage.members).toBeGreaterThanOrEqual(1);
+    expect(typeof r.body.limits).toBe('object');
+  });
 });

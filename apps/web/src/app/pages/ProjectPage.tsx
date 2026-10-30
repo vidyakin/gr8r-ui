@@ -5,6 +5,7 @@ import { ChevronDown, ListChecks, ListFilter, Plus, SearchX, Settings, Share2, S
 import { Button, EmptyState, IconButton, Tooltip, toast } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '../data/store';
+import { useMyPrefs } from '../data/settings';
 import { PROJECT_STATUS, applyView, canSee, groupTasks, project as findProject, tasksOf } from '../data/selectors';
 import type { Project, SavedView } from '../data/types';
 import { BoardOptions, BoardView, useBoardDensity, useBoardSubtasks } from '../components/board-view';
@@ -26,11 +27,12 @@ const PTABS: string[] = ['overview', 'board', 'list', 'table', 'calendar', 'time
 export function ProjectPage() {
   const { id, tab } = useParams();
   const { data } = useWorkspace();
+  const prefs = useMyPrefs();
   const p = findProject(data, id);
   if (!p) return <Page404 />;
   if (!canSee(data, p)) return <StateDenied project={p} />;
   // key: при смене проекта состояние фильтров вида сбрасывается (в оригинале оно хранится по ключу проекта)
-  return <ProjectView key={p.id} project={p} tab={tab || 'board'} />;
+  return <ProjectView key={p.id} project={p} tab={tab || prefs.defaultTab} />;
 }
 
 function ProjectView({ project: p, tab }: { project: Project; tab: string }) {

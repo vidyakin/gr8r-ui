@@ -14,6 +14,8 @@ export interface SessionUser {
   email: string;
   name: string;
   locale: string | null;
+  /** Личные настройки (users.prefs): частичный объект, полный набор даёт resolveUserPrefs */
+  prefs: Record<string, unknown>;
   /** Оператор установки (users.is_operator): доступ к /admin/tenants */
   isOperator: boolean;
 }

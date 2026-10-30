@@ -1,4 +1,6 @@
-import { createHashRouter } from 'react-router';
+import * as React from 'react';
+import { Navigate, createHashRouter } from 'react-router';
+import { useMyPrefs } from './data/settings';
 import { AppShell } from './layout/AppShell';
 import { HomePage } from './pages/HomePage';
 import { DesignSystemPage } from './pages/DesignSystemPage';
@@ -109,6 +111,17 @@ import { FlowEditorPage } from './automations/FlowEditorPage';
    Чтобы перенести раздел, замените PlaceholderPage на его компонент. */
 const PORTED = new Set([SECTIONS.home, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.archive, SECTIONS.crm, SECTIONS.crmLeads, SECTIONS.crmAds, SECTIONS.crmDeals, SECTIONS.crmFunnel, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities, SECTIONS.crmSalesPlan, SECTIONS.crmAppointments, SECTIONS.catalog, SECTIONS.production, SECTIONS.productionOrders, SECTIONS.productionWorkbench, SECTIONS.productionStages, SECTIONS.workOrders, SECTIONS.serials, SECTIONS.repairItems, SECTIONS.servicesTimesheet, SECTIONS.servicesPlanner, SECTIONS.servicesReports, SECTIONS.workCenters, SECTIONS.sales, SECTIONS.purchases, SECTIONS.stockDocs, SECTIONS.processingDocs, SECTIONS.inventory, SECTIONS.inUse, SECTIONS.automations, SECTIONS.settings, SECTIONS.system, SECTIONS.productionPiecework, SECTIONS.productionPlanner, SECTIONS.productionResources, SECTIONS.contracts, SECTIONS.tariffPlans, SECTIONS.billing, SECTIONS.productionNeeds, SECTIONS.productionPlans, SECTIONS.productionPlanOrders, SECTIONS.productionClosing, SECTIONS.productionWip, SECTIONS.productionReports, SECTIONS.otherCosts, SECTIONS.deliveries, SECTIONS.myDeliveries, SECTIONS.fleet, SECTIONS.fleetVehicles, SECTIONS.fleetDrivers, SECTIONS.fleetDocuments, SECTIONS.fleetWaybills, SECTIONS.fleetFuel, SECTIONS.fleetService, SECTIONS.fleetFines, SECTIONS.trips, SECTIONS.dispatch].map(s => s.path));
 
+/** Личная настройка «Открывать при запуске»: один раз за загрузку приложения корень `/` ведёт на выбранный раздел, дальше — обычная «Главная» */
+let startHandled = false;
+function StartPage() {
+  const { home } = useMyPrefs();
+  const [redirect] = React.useState(() => !startHandled && home !== 'home');
+  React.useEffect(() => {
+    startHandled = true;
+  }, []);
+  return redirect ? <Navigate to={home === 'inbox' ? SECTIONS.inbox.path : SECTIONS.mytasks.path} replace /> : <HomePage />;
+}
+
 export const router = createHashRouter([
   {
     // CRM-хранилище живёт над оболочкой: из него берут данные крошки в топбаре и пункт «New deal»
@@ -122,7 +135,7 @@ export const router = createHashRouter([
       </RequireAuth>
     ),
     children: [
-      { index: true, element: <HomePage /> },
+      { index: true, element: <StartPage /> },
       { path: SECTIONS.inbox.path, element: <InboxPage /> },
       { path: SECTIONS.mytasks.path, element: <MyTasksPage /> },
       { path: SECTIONS.favorites.path, element: <FavoritesPage /> },
