@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { ArrowDown, ArrowUp, Plus, Printer, Route, Timer, Trash2 } from 'lucide-react';
 import { STOP_KINDS, TRIP_KINDS } from '@gr8r/shared';
-import { Badge, Button, IconButton, toast } from '@/components/ui';
+import { Badge, Button, ConfirmDialog, IconButton, toast } from '@/components/ui';
 import { fmtNumber, useT } from '@/i18n';
 import { fmtDate, iso, parse, today } from '../lib/dates';
 import { errorMessage } from '../data/api';
@@ -118,6 +118,7 @@ export function TripDialog({ id, defaults, onClose }: { id: string | null; defau
   const calculating = lastRun?.status === 'queued' || lastRun?.status === 'running';
   const optimize = async (reorder: boolean) => void (id && (await api('POST', `/${id}/optimize`, { reorder })));
   const [stopEdit, setStopEdit] = React.useState<TripStop | 'new' | null>(null);
+  const [ask, setAsk] = React.useState<'delete' | 'cancel' | null>(null);
   if (id && !trip) return null;
   const status = trip?.status ?? 'planned';
   const planned = status === 'planned';
@@ -203,15 +204,24 @@ export function TripDialog({ id, defaults, onClose }: { id: string | null; defau
                 </Button>
               )}
               {planned && (
-                <Button variant="ghost" onClick={async () => { if (window.confirm(t('trips.confirm.delete')) && (await api('DELETE', `/${trip.id}`))) close(); }}>
+                <Button variant="ghost" onClick={() => setAsk('delete')}>
                   {t('trips.action.delete')}
                 </Button>
               )}
               {open && (
-                <Button variant="ghost" onClick={async () => { if (window.confirm(t('trips.confirm.cancel')) && (await api('POST', `/${trip.id}/cancel`))) close(); }}>
+                <Button variant="ghost" onClick={() => setAsk('cancel')}>
                   {t('trips.action.cancel')}
                 </Button>
               )}
+              <ConfirmDialog
+                open={ask !== null}
+                onOpenChange={o => !o && setAsk(null)}
+                danger
+                title={ask === 'delete' ? t('trips.confirm.delete') : t('trips.confirm.cancel')}
+                confirmLabel={ask === 'delete' ? t('trips.action.delete') : t('trips.action.cancel')}
+                cancelLabel={t('trips.confirm.keep')}
+                onConfirm={() => void (async () => { if (await api(ask === 'delete' ? 'DELETE' : 'POST', ask === 'delete' ? `/${trip.id}` : `/${trip.id}/cancel`)) close(); })()}
+              />
               {planned && (
                 <Button variant="secondary" onClick={async () => { if ((await save(v)) && (await api('POST', `/${trip.id}/start`))) close(); }}>
                   {t('trips.action.start')}
