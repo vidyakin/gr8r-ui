@@ -149,7 +149,7 @@ export const catalog = {
 export const enums = {
   vat: { none: 'No VAT' },
   /** Периодичность биллинга по договору (месяц / квартал / год) — см. BILLING_PERIODICITY_LABELS в @gr8r/shared */
-  periodicity: { month: 'Month', quarter: 'Quarter', year: 'Year' },
+  periodicity: { month: 'Monthly', quarter: 'Quarterly', year: 'Yearly' },
   replenishment: { purchase: 'Purchase', production: 'Production', transfer: 'Transfer' },
   docStatus: { draft: 'Draft', posted: 'Posted', cancelled: 'Cancelled' },
   fieldType: {
@@ -170,6 +170,46 @@ export const enums = {
     email: 'Email',
     phone: 'Phone',
   },
+  /** Подписи из @gr8r/shared: PRINT_FORM_LABELS и др. (печатные формы переводятся только названием, содержимое — русское) */
+  printForm: {
+    quote: 'Commercial proposal',
+    invoice: 'Invoice for payment',
+    upd: 'UPD',
+    act: 'Service act',
+    torg12: 'TORG-12',
+    inv3: 'INV-3 (inventory list)',
+    torg16: 'TORG-16 (write-off act)',
+    torg13: 'TORG-13 (internal transfer)',
+    work_order: 'Work order (job sheet)',
+    piecework: 'Piecework order',
+    warranty_card: 'Warranty card',
+    repair_receipt: 'Repair acceptance act',
+    repair_return: 'Repair return act',
+    ko1: 'Cash receipt order (KO-1)',
+    ko2: 'Cash payment order (KO-2)',
+    bank_receipt: 'Receipt to bank account',
+    payment_order: 'Payment order (0401060)',
+    advance_report: 'Advance report (AO-1)',
+    opening_balance: 'Opening balances',
+  },
+  workOrderCategory: { new: 'New', scheduled: 'Scheduled', in_progress: 'In progress', done: 'Done', delivered: 'Delivered', cancelled: 'Cancelled' },
+  workOrderBilling: { norm: 'By norm', hours: 'By actual hours' },
+  contractKind: { k_customer: 'Customer', k_supplier: 'Supplier', k_other: 'Other' },
+  billingPackage: { invoice: 'Invoice only', invoice_act: 'Invoice and act' },
+  extraPolicy: { allow: 'Allow', warn: 'Warn', forbid: 'Forbid' },
+  transit: { shipped: 'Shipped', received: 'Received' },
+  tollingRole: { product: 'Products', material: 'Materials', waste: 'Waste' },
+  needsMethod: { orders: 'By orders, min/max', sales_minmax: 'By sales, min/max', sales_statistics: 'By sales statistics' },
+  companyKind: { legal: 'Legal entity', sole_proprietor: 'Sole proprietor', individual: 'Individual' },
+  taskModule: { general: 'General', production: 'Production', services: 'Services' },
+  productionKind: { product: 'Product', semi: 'Semi-finished' },
+  /** Роли воркспейса: в данных хранятся с заглавной буквы */
+  role: { Owner: 'Owner', Admin: 'Admin', Member: 'Member', Guest: 'Guest' },
+  projectStatus: { planning: 'Planning', active: 'In progress', risk: 'At risk', hold: 'On hold', complete: 'Completed' },
+  /** Встроенные статусы задач (колонки доски по умолчанию) */
+  taskStatus: { backlog: 'Backlog', todo: 'To do', progress: 'In progress', review: 'Review', done: 'Done' },
+  /** Встроенные сущности конструктора */
+  systemEntity: { task: 'Tasks', project: 'Projects', deal: 'Deals', company: 'Companies', contact: 'Contacts', product: 'Products', lead: 'Leads', document: 'Documents' },
   /** Подписи этапов CRM */
   stage: { lead: 'Lead', qualified: 'Qualified', proposal: 'Proposal', negotiation: 'Negotiation', won: 'Won', lost: 'Lost' },
 };

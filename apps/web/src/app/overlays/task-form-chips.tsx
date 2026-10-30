@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { PriorityPopover } from '../components/priority-panel';
-import { LABELS, canSee, member, project, statusOf, visibleProjects } from '../data/selectors';
+import { LABELS, canSee, member, project, statusName, statusOf, visibleProjects } from '../data/selectors';
 import type { IsoDate, LabelId } from '../data/types';
 import { dOff, fmtDate, iso, parse } from '../lib/dates';
 import { PillMenu } from '../components/fields';
@@ -181,11 +181,11 @@ export function FormChips({ form, set }: { form: TaskFormState; set: (patch: Par
         className="bordered"
         value={form.status}
         onChange={v => set({ status: v })}
-        options={data.statuses.map(s => ({ value: s.id, label: s.name, icon: <StatusIcon status={s.id} /> }))}
+        options={data.statuses.map(s => ({ value: s.id, label: statusName(s), icon: <StatusIcon status={s.id} /> }))}
         trigger={
           <>
             <StatusIcon status={form.status} />
-            <span>{st.name}</span>
+            <span>{'id' in st ? statusName(st) : st.name}</span>
           </>
         }
       />

@@ -4,7 +4,7 @@ import { TASK_MODULE_LABELS } from '@gr8r/shared';
 import { IconButton, Menu, MenuContent, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger, Progress, Tooltip, toast } from '@/components/ui';
 import { Badge } from '@/components/ui';
 import { cn } from '@/lib/utils';
-import { useT } from '@/i18n';
+import { tEnum, useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { PROJECT_STATUS, canSee, progressOf, projectColor, tasksOf, visibleProjects } from '../data/selectors';
 import { ago, fmtDate, minsAgo } from '../lib/dates';
@@ -159,7 +159,7 @@ export function ProjectCard({ project: p }: { project: Project }) {
                 <Star size={12} />
               </span>
             )}
-            {p.module !== 'general' && <Badge tone="accent">{TASK_MODULE_LABELS[p.module]}</Badge>}
+            {p.module !== 'general' && <Badge tone="accent">{tEnum('taskModule', p.module, TASK_MODULE_LABELS[p.module])}</Badge>}
             {p.private && (
               <Tooltip content={tt('views.project.private')}>
                 <span className="faint">

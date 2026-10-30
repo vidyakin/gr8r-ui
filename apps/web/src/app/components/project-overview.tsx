@@ -5,7 +5,7 @@ import { Badge, Button, EmptyState } from '@/components/ui';
 import { StatusIcon } from '@/components/gr8r/task';
 import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
-import { dayBucket, fmtHours, isOverdue, member, progressOf, projectColor, sortTasks, task as findTask, taskTime, tasksOf, totalTime } from '../data/selectors';
+import { statusName, dayBucket, fmtHours, isOverdue, member, progressOf, projectColor, sortTasks, task as findTask, taskTime, tasksOf, totalTime } from '../data/selectors';
 import type { Activity as ActivityRec, Project, Status } from '../data/types';
 import { diffDays, fmtDate, parse, today } from '../lib/dates';
 import { NamedIcon } from './icons';
@@ -91,7 +91,7 @@ export function ProjectOverview({ project: p, onTab, onStatusList }: OverviewPro
               </div>
               <div className="stackbar" style={{ height: 8, marginBottom: 12 }}>
                 {cnt.map(c => (
-                  <i key={c.s.id} style={{ width: `${(c.n / Math.max(ts.length, 1)) * 100}%`, background: `var(--st-${c.s.id})` }} title={tt('views.project.statusCount', { status: c.s.name, count: c.n })} />
+                  <i key={c.s.id} style={{ width: `${(c.n / Math.max(ts.length, 1)) * 100}%`, background: `var(--st-${c.s.id})` }} title={tt('views.project.statusCount', { status: statusName(c.s), count: c.n })} />
                 ))}
               </div>
               <div className="row" style={{ flexWrap: 'wrap', gap: 14, fontSize: 12.5 }}>

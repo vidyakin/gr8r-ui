@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { useWorkspace, type TaskPatch } from '../data/store';
 import { newStatusKey } from '../lib/uuid';
 import { countSubs } from '../data/subtasks';
-import { LABELS, STATUS_PALETTE, commentsOf, fmtHours, planOfTask, project as findProject, sortTasks } from '../data/selectors';
+import { LABELS, STATUS_PALETTE, statusName, commentsOf, fmtHours, planOfTask, project as findProject, sortTasks } from '../data/selectors';
 import type { StatusDef, Subtask, Task } from '../data/types';
 import { clipWords, htmlToText } from '../lib/text';
 import { useTaskDrawer, useTaskForm } from '../overlays';
@@ -460,7 +460,7 @@ export function BoardView({ tasks, defaultProject, project, showSubtasks = false
     } else order = colTs.length ? colTs[colTs.length - 1].order + 1 : t.order;
     const moved = t.status !== col;
     patch(t.id, moved ? { order, status: col } : { order });
-    if (moved) toast(tt('views.board.movedTo', { title: t.title, status: statuses.find(s => s.id === col)?.name ?? '' }), { duration: 2200 });
+    if (moved) toast(tt('views.board.movedTo', { title: t.title, status: statusName(statuses.find(s => s.id === col) ?? { id: col, name: '' }) }), { duration: 2200 });
   };
 
   // Новая задача встаёт в начало колонки
@@ -491,7 +491,7 @@ export function BoardView({ tasks, defaultProject, project, showSubtasks = false
               className={cn('bcol collapsed', over && 'over')}
               role="button"
               tabIndex={0}
-              aria-label={tt('views.board.expandColumn', { name: s.name })}
+              aria-label={tt('views.board.expandColumn', { name: statusName(s) })}
               title={tt('views.board.expand')}
               onClick={() => setCollapsed(c => ({ ...c, [s.id]: false }))}
               onKeyDown={e => e.key === 'Enter' && setCollapsed(c => ({ ...c, [s.id]: false }))}
@@ -500,7 +500,7 @@ export function BoardView({ tasks, defaultProject, project, showSubtasks = false
             >
               <StatusIcon status={s.id} />
               <span className="vname">
-                {s.name}
+                {statusName(s)}
                 <span className="faint">{col.length}</span>
               </span>
             </div>
@@ -523,7 +523,7 @@ export function BoardView({ tasks, defaultProject, project, showSubtasks = false
           );
         const doneAll = s.id !== 'done';
         return (
-          <section key={s.id} className={cn('bcol', over && 'over')} aria-label={s.name} onDragOver={e => onDragOver(e, s.id)} onDragLeave={e => !e.currentTarget.contains(e.relatedTarget as Node) && setDrop(null)} onDrop={onDrop}>
+          <section key={s.id} className={cn('bcol', over && 'over')} aria-label={statusName(s)} onDragOver={e => onDragOver(e, s.id)} onDragLeave={e => !e.currentTarget.contains(e.relatedTarget as Node) && setDrop(null)} onDrop={onDrop}>
             {renaming === s.id ? (
               <ColumnNameField
                 initial={s.name}
@@ -538,11 +538,11 @@ export function BoardView({ tasks, defaultProject, project, showSubtasks = false
             ) : (
             <div className="bcol-h">
               <StatusIcon status={s.id} />
-              <span className="trunc">{s.name}</span>
+              <span className="trunc">{statusName(s)}</span>
               <span className="cnt">{col.length}</span>
               <span className="acts">
                 <Tooltip content={tt('views.board.addCard')}>
-                  <button className="ibtn ibtn-xs" aria-label={tt('views.board.addColumnTo', { name: s.name })} onClick={() => setComposer(s.id)}>
+                  <button className="ibtn ibtn-xs" aria-label={tt('views.board.addColumnTo', { name: statusName(s) })} onClick={() => setComposer(s.id)}>
                     <Plus size={14} />
                   </button>
                 </Tooltip>
@@ -553,7 +553,7 @@ export function BoardView({ tasks, defaultProject, project, showSubtasks = false
                     </button>
                   </MenuTrigger>
                   <MenuContent align="end">
-                    <MenuLabel>{s.name}</MenuLabel>
+                    <MenuLabel>{statusName(s)}</MenuLabel>
                     <MenuItem icon={<Plus size={15} />} onSelect={() => setComposer(s.id)}>
                       {tt('views.board.addCard')}
                     </MenuItem>

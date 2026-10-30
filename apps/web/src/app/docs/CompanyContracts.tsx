@@ -12,7 +12,7 @@ export function CompanyContractsTab({ companyId }: { companyId: string }) {
   const t = useT();
   const columns: Column<Contract>[] = [
     { id: 'number', header: t('docs.counterpartyContracts.col.number'), width: 140, value: c => c.number, cell: c => <span className="mono">{c.number || '—'}</span> },
-    { id: 'kind', header: t('docs.counterpartyContracts.col.kind'), width: 110, value: c => CONTRACT_KIND_LABELS[c.kind], cell: c => <span className="muted">{CONTRACT_KIND_LABELS[c.kind]}</span> },
+    { id: 'kind', header: t('docs.counterpartyContracts.col.kind'), width: 110, value: c => tEnum('contractKind', 'k_' + c.kind, CONTRACT_KIND_LABELS[c.kind]), cell: c => <span className="muted">{tEnum('contractKind', 'k_' + c.kind, CONTRACT_KIND_LABELS[c.kind])}</span> },
     { id: 'valid', header: t('docs.counterpartyContracts.col.valid'), width: 200, value: c => c.validFrom, cell: c => <span className="num muted">{c.validTo ? `${fmtDate(parse(c.validFrom))} — ${fmtDate(parse(c.validTo))}` : `${fmtDate(parse(c.validFrom))} — ${t('docs.counterpartyContracts.indefinite')}`}</span> },
     { id: 'service', header: t('docs.counterpartyContracts.col.billing'), width: 140, value: c => (c.isService ? c.periodicity ?? '' : ''), cell: c => (c.isService ? <Badge tone="accent">{c.periodicity ? tEnum('periodicity', c.periodicity, BILLING_PERIODICITY_LABELS[c.periodicity]) : t('docs.counterpartyContracts.service')}</Badge> : <span className="faint">—</span>) },
     { id: 'signed', header: t('docs.counterpartyContracts.col.signed'), width: 100, value: c => (c.isSigned ? t('common.yes') : t('common.no')), cell: c => (c.isSigned ? <Badge tone="green">{t('docs.counterpartyContracts.signed')}</Badge> : <span className="faint">{t('common.no')}</span>) },

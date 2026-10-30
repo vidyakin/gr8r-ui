@@ -11,7 +11,7 @@ import { ProjectIcon, ProjectStatus } from '../components/project';
 import { useInvite, useTeamForm } from '../overlays';
 import { NotFoundPage } from './PlaceholderPage';
 import { TeamsGrid } from './MembersPage';
-import { useT } from '@/i18n';
+import { tEnum, useT } from '@/i18n';
 
 /** Все команды воркспейса (маршрут /teams, в сайдбаре отдельного пункта нет — туда ведёт крошка) */
 export function TeamsPage() {
@@ -147,7 +147,7 @@ export function TeamPage() {
                   {m.title}
                 </div>
               </div>
-              <Badge>{m.role}</Badge>
+              <Badge>{tEnum('role', m.role, m.role)}</Badge>
             </div>
           ))}
         </section>

@@ -1,7 +1,7 @@
 /* Чистые функции над данными воркспейса — порт «lookups» из core/store.js.
    Не зависят от React: их легко тестировать и переиспользовать на сервере. */
 import { PRIORITIES, priorityName } from '@/components/gr8r/task';
-import { t } from '@/i18n';
+import { t, tEnum } from '@/i18n';
 import { diffDays, parse, today } from '../lib/dates';
 import { flattenSubs, subtreeIds } from './subtasks';
 import type { FileKind, LabelId, Notification, Project, ProjectColor, ProjectStatus, StatusDef, Subtask, Task, TimeLog, WorkspaceData } from './types';
@@ -9,6 +9,12 @@ import type { FileKind, LabelId, Notification, Project, ProjectColor, ProjectSta
 /** Статусы воркспейса в порядке колонок доски */
 export const statusesOf = (d: Pick<WorkspaceData, 'statuses'>): StatusDef[] => d.statuses;
 export const statusOf = (d: Pick<WorkspaceData, 'statuses'>, id: string): StatusDef | undefined => d.statuses.find(s => s.id === id);
+
+/** Исходные английские названия пяти встроенных колонок (сид воркспейса) */
+const DEFAULT_STATUS_NAMES: Record<string, string> = { backlog: 'Backlog', todo: 'To Do', progress: 'In Progress', review: 'Review', done: 'Done' };
+/** Название колонки для показа: нетронутые встроенные переводятся, переименованные и свои — как есть */
+export const statusName = (s: { id: string; name: string }): string =>
+  DEFAULT_STATUS_NAMES[s.id] === s.name ? tEnum('taskStatus', s.id, s.name) : s.name;
 
 /** Палитра цветов новых колонок (по кругу) */
 export const STATUS_PALETTE = ['var(--blue)', 'var(--teal)', 'var(--rose)', 'var(--orange)', 'var(--violet)', 'var(--green)'];
@@ -24,12 +30,19 @@ export const PROJECT_COLORS: Record<ProjectColor, string> = {
   slate: '#6B7280',
 };
 
+/** name — геттер: язык читается при обращении, перевод — enums.projectStatus */
+const projectStatus = (id: ProjectStatus, en: string, c: string) => ({
+  get name() {
+    return tEnum('projectStatus', id, en);
+  },
+  c,
+});
 export const PROJECT_STATUS: Record<ProjectStatus, { name: string; c: string }> = {
-  planning: { name: 'Planning', c: 'var(--gray)' },
-  active: { name: 'In Progress', c: 'var(--blue)' },
-  risk: { name: 'At Risk', c: 'var(--red)' },
-  hold: { name: 'On Hold', c: 'var(--amber)' },
-  complete: { name: 'Completed', c: 'var(--green)' },
+  planning: projectStatus('planning', 'Planning', 'var(--gray)'),
+  active: projectStatus('active', 'In Progress', 'var(--blue)'),
+  risk: projectStatus('risk', 'At Risk', 'var(--red)'),
+  hold: projectStatus('hold', 'On Hold', 'var(--amber)'),
+  complete: projectStatus('complete', 'Completed', 'var(--green)'),
 };
 
 /** Метки задач (LABELS из core/constants.js) */
@@ -182,7 +195,7 @@ const DUE_BUCKETS = [
 export function groupTasks(d: WorkspaceData, ts: Task[], g: GroupBy): TaskBucket[] {
   if (g === 'none') return [{ key: 'all', name: 'All tasks', tasks: ts }];
   let groups: Omit<TaskBucket, 'tasks'>[];
-  if (g === 'status') groups = statusesOf(d).map(s => ({ key: s.id, name: s.name, set: { status: s.id } }));
+  if (g === 'status') groups = statusesOf(d).map(s => ({ key: s.id, name: statusName(s), set: { status: s.id } }));
   else if (g === 'priority') groups = [...PRIORITIES.map(p => ({ key: String(p), name: priorityName(p), set: { priority: p as number | null } })), { key: 'none', name: priorityName(null), set: { priority: null } }];
   else if (g === 'assignee')
     groups = [...d.members.map(m => ({ key: m.id, name: m.name, set: { assignee: m.id } })), { key: 'none', name: 'Unassigned', set: { assignee: null } }];

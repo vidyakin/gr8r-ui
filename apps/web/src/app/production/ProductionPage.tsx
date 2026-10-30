@@ -6,7 +6,7 @@ import { MANUFACTURED_KINDS } from '@gr8r/shared';
 import { Badge, Button, Dialog, DialogClose, DialogContent, EmptyState, Field, Input, Segmented, Skeleton, toast } from '@/components/ui';
 import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/gr8r/data-table';
 import { FilterBar, useFilterState, type FilterField } from '@/components/gr8r/filter-bar';
-import { t } from '@/i18n';
+import { t, tEnum } from '@/i18n';
 import { fmtDate } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';
 import { money, unitSymbol, useUnits } from '../catalog/data';
@@ -14,6 +14,7 @@ import { UnitSelect } from '../catalog/product-ui';
 import { useCosting, useProductionMutations, useSnapshot, type Item } from './data';
 
 const KIND_LABEL = { product: 'Product', semi: 'Semi-finished' } as const;
+const kindLabel = (k: keyof typeof KIND_LABEL) => tEnum('productionKind', k, KIND_LABEL[k]);
 
 export function ProductionPage() {
   const navigate = useNavigate();
@@ -56,7 +57,7 @@ export function ProductionPage() {
         ),
       },
       { id: 'code', header: t('production.field.code'), width: 130, value: i => i.code, cell: i => (i.code ? <span className="mono">{i.code}</span> : <span className="faint">—</span>) },
-      { id: 'kind', header: t('production.field.type'), width: 130, value: i => KIND_LABEL[i.kind], cell: i => <Badge tone={i.kind === 'semi' ? 'violet' : 'accent'}>{KIND_LABEL[i.kind]}</Badge> },
+      { id: 'kind', header: t('production.field.type'), width: 130, value: i => kindLabel(i.kind), cell: i => <Badge tone={i.kind === 'semi' ? 'violet' : 'accent'}>{kindLabel(i.kind)}</Badge> },
       { id: 'lines', header: t('production.item.col.lineNo'), width: 80, align: 'right', value: i => i.lines.length },
       { id: 'batch', header: t('production.item.batch'), width: 100, align: 'right', value: i => Number(i.batchQty), cell: i => <span className="num">{Number(i.batchQty)} {unitSymbol(units.data, i.unitCode)}</span> },
       {
@@ -82,7 +83,7 @@ export function ProductionPage() {
     return (snap.data?.materials ?? []).filter(m => used.has(m.id)).map(m => ({ id: m.id, name: m.name })).sort((a, b) => a.name.localeCompare(b.name));
   }, [snap.data]);
   const filterFields: FilterField[] = [
-    { id: 'kind', name: t('production.field.type'), icon: <Layers size={15} />, options: MANUFACTURED_KINDS.map(k => ({ id: k, name: KIND_LABEL[k] })) },
+    { id: 'kind', name: t('production.field.type'), icon: <Layers size={15} />, options: MANUFACTURED_KINDS.map(k => ({ id: k, name: kindLabel(k) })) },
     { id: 'contains', name: 'Contains', icon: <Package size={15} />, options: containsOptions },
   ];
   const newBtn = canWrite && (
@@ -205,7 +206,7 @@ function NewItemDialog({ onClose, onCreated }: { onClose: () => void; onCreated:
             void submit();
           }}
         >
-          <Segmented aria-label={t('production.field.type')} value={kind} onValueChange={setKind} items={MANUFACTURED_KINDS.map(k => ({ value: k, label: KIND_LABEL[k] }))} />
+          <Segmented aria-label={t('production.field.type')} value={kind} onValueChange={setKind} items={MANUFACTURED_KINDS.map(k => ({ value: k, label: kindLabel(k) }))} />
           <Field label={t('production.field.name')} error={err.name}>
             {p => <Input {...p} autoFocus value={name} onChange={e => (setName(e.target.value), setErr({}))} />}
           </Field>

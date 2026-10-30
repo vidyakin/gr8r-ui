@@ -17,7 +17,7 @@ import { STATUS_LABEL, STATUS_TONE, docsKey, useDocsApi, useCanSeeCost, useDocum
 import { useQueryClient } from '@tanstack/react-query';
 import { useWsId } from '../meta/data';
 import { DocumentResourcesPanel } from '../production/ProductionOrderPage';
-import { useT } from '@/i18n';
+import { tEnum, useT } from '@/i18n';
 import { DocTabs, type DocTab } from './doc-tabs';
 import { WorkOrderCostPanel } from './work-order-cost';
 import { CustomerMaterialsPanel, RepairItemPanel } from './repair-ui';
@@ -261,14 +261,14 @@ export function WorkOrderPanel({ doc, lead }: { doc: DocDetail; lead: (DocTab | 
             />
           )}
         </Field>
-        <Field label={t('docs.workOrders.stateLabel')} hint={current ? WORK_ORDER_CATEGORY_LABELS[current.category] : undefined}>
+        <Field label={t('docs.workOrders.stateLabel')} hint={current ? tEnum('workOrderCategory', current.category, WORK_ORDER_CATEGORY_LABELS[current.category]) : undefined}>
           {p => (
             <Select
               id={p.id}
               disabled={!canWrite || pending !== null}
               value={doc.state ?? ''}
               onValueChange={onPickState}
-              options={kindStates.map(s => ({ value: s.key, label: `${s.label} · ${WORK_ORDER_CATEGORY_LABELS[s.category]}` }))}
+              options={kindStates.map(s => ({ value: s.key, label: `${s.label} · ${tEnum('workOrderCategory', s.category, WORK_ORDER_CATEGORY_LABELS[s.category])}` }))}
               aria-label={t('docs.workOrders.state.ariaLabel')}
             />
           )}
@@ -311,7 +311,7 @@ export function WorkOrderPanel({ doc, lead }: { doc: DocDetail; lead: (DocTab | 
                               disabled={!editable}
                               value={l.billing}
                               onValueChange={v => void saveBilling(l.lineId, v as WorkOrderBillingMode)}
-                              options={WORK_ORDER_BILLING_MODES.map(m => ({ value: m, label: WORK_ORDER_BILLING_LABELS[m] }))}
+                              options={WORK_ORDER_BILLING_MODES.map(m => ({ value: m, label: tEnum('workOrderBilling', m, WORK_ORDER_BILLING_LABELS[m]) }))}
                             />
                           </td>
                           <td className="r num">{l.actualHours}</td>

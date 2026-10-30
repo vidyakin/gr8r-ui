@@ -4,7 +4,7 @@ import * as React from 'react';
 import { CircleAlert, Plus, Star, Trash2 } from 'lucide-react';
 import { COMPANY_KINDS, COMPANY_KIND_LABELS, isValidAccount, isValidBik, validateRequisites, type CompanyKind } from '@gr8r/shared';
 import { Badge, Button, Field, IconButton, Input, toast } from '@/components/ui';
-import { useT } from '@/i18n';
+import { tEnum, useT } from '@/i18n';
 import { useDocsApi, useBankAccounts, type BankAccount } from './data';
 
 export interface RequisitesValue {
@@ -30,7 +30,7 @@ export function RequisitesFields({ value, onChange, errors, disabled }: { value:
             <select className="select" id={p.id} disabled={disabled} value={value.kind} onChange={e => onChange({ kind: e.target.value as CompanyKind })}>
               {COMPANY_KINDS.map(k => (
                 <option key={k} value={k}>
-                  {COMPANY_KIND_LABELS[k]}
+                  {tEnum('companyKind', k, COMPANY_KIND_LABELS[k])}
                 </option>
               ))}
             </select>

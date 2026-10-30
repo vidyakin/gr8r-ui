@@ -16,7 +16,7 @@ import { useWorkCenters } from '../catalog/data';
 import { fmtDate, parse } from '../lib/dates';
 import { needsKey, useProductionNeeds, type NeedsRow as ProductionNeedsRow, type SupplierOrdersResult } from './orders-data';
 import { calcKey, useNeedsCalculation, useNeedsDraftsApi, type NeedsCalcParams, type NeedsCalcRow } from './plans-data';
-import { tProductionEnum, useT } from '@/i18n';
+import { tEnum, tProductionEnum, useT } from '@/i18n';
 
 type Step = 'recommendations' | 'planning' | 'orders';
 const STEPS: { id: Step; name: string }[] = [
@@ -187,7 +187,7 @@ export function ProductionNeedsPage() {
                 <option value="all">{tt('production.needs.sourceAll')}</option>
                 {Object.entries(STOCK_REPLENISHMENT_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>
-                    {label}
+                    {tEnum('replenishment', value, label)}
                   </option>
                 ))}
               </select>
@@ -197,7 +197,7 @@ export function ProductionNeedsPage() {
               <select className="select" aria-label={tt('production.needs.method')} value={params.method} onChange={e => set({ method: e.target.value as NeedsMethod })}>
                 {Object.entries(NEEDS_METHOD_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>
-                    {label}
+                    {tEnum('needsMethod', value, label)}
                   </option>
                 ))}
               </select>
@@ -306,12 +306,12 @@ export function ProductionNeedsPage() {
                               <select className="select" aria-label={tt('production.needs.replenishmentFor', { name: r.productName })} value={modeOf(r)} onChange={e => edit(r, { replenishment: e.target.value as StockReplenishment })}>
                                 {(Object.keys(STOCK_REPLENISHMENT_LABELS) as StockReplenishment[]).map(m => (
                                   <option key={m} value={m}>
-                                    {STOCK_REPLENISHMENT_LABELS[m]}
+                                    {tEnum('replenishment', m, STOCK_REPLENISHMENT_LABELS[m])}
                                   </option>
                                 ))}
                               </select>
                             ) : (
-                              STOCK_REPLENISHMENT_LABELS[r.replenishment]
+                              tEnum('replenishment', r.replenishment, STOCK_REPLENISHMENT_LABELS[r.replenishment])
                             )}
                           </td>
                           <td className="r num">{r.balance}</td>

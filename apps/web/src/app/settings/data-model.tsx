@@ -13,7 +13,7 @@ import { ChoiceLabel, FIELD_ICONS } from '../meta/field-ui';
 import { ENTITY_ICON_NAMES, entityIcon } from '../meta/icons';
 import { activeFields, call, metaKey, useAllEntities, useWsId, type MetaEntity, type MetaField } from '../meta/data';
 import { SettingsHead } from './parts';
-import { useT } from '@/i18n';
+import { tEnum, useT } from '@/i18n';
 
 /* ---------------- запросы с обновлением метаданных ---------------- */
 
@@ -242,7 +242,7 @@ function EntityEditor({ entity: e, canEdit, onDeleted }: { entity: MetaEntity; c
                 </span>
                 {f.key === e.titleField && custom && <Badge tone="accent">{t('settings.dataModel.titleBadge')}</Badge>}
               </span>
-              <span className="muted">{FIELD_TYPE_LABELS[f.type]}</span>
+              <span className="muted">{tEnum('fieldType', f.type, FIELD_TYPE_LABELS[f.type])}</span>
               <span className="row hide-s" style={{ gap: 4, flexWrap: 'wrap' }}>
                 {f.required && <Badge>{t('settings.dataModel.required')}</Badge>}
                 {f.unique && <Badge>{t('settings.dataModel.unique')}</Badge>}

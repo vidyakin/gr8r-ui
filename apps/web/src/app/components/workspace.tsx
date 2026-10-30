@@ -5,7 +5,7 @@ import { DueDate, PriorityIcon, StatusIcon, priorityName } from '@/components/gr
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
 import { ago, parse, relDate } from '../lib/dates';
-import { member, project, statusOf, task as findTask } from '../data/selectors';
+import { member, project, statusName, statusOf, task as findTask } from '../data/selectors';
 import { useWorkspace } from '../data/store';
 import type { Activity, Task } from '../data/types';
 import { ProjectDot } from './project';
@@ -74,7 +74,7 @@ export function MiniTaskRow({ task: t, showProject = true, showAssignee = true, 
       }}
     >
       <Checkbox round checked={done} onChange={() => actions.toggleDone(t)} onClick={e => e.stopPropagation()} aria-label={tt('views.task.markComplete')} />
-      <Tooltip content={st.name}>
+      <Tooltip content={'id' in st ? statusName(st) : st.name}>
         <span>
           <StatusIcon status={t.status} />
         </span>

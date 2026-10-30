@@ -8,7 +8,7 @@ import { BILLING_PACKAGE_LABELS, BILLING_PACKAGES, BILLING_PERIODICITIES, BILLIN
 import { Alert, Badge, Button, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
 import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/gr8r/data-table';
 import { FilterBar, useFilterState } from '@/components/gr8r/filter-bar';
-import { useT } from '@/i18n';
+import { tEnum, useT } from '@/i18n';
 import { useCanWrite } from '../meta/custom-fields';
 import { fmtDate, parse } from '../lib/dates';
 import { useBillingApi, useContracts, useTariffPlans, type Contract, type TariffPlan } from './billing-data';
@@ -28,9 +28,9 @@ export function ContractsPage() {
   const columns: Column<Contract>[] = [
     { id: 'number', header: t('docs.contracts.col.number'), width: 140, value: c => c.number, cell: c => <span className="mono">{c.number || '—'}</span> },
     { id: 'company', header: t('docs.contracts.col.counterparty'), width: 240, value: c => c.companyName, cell: c => <span className="trunc">{c.companyName}</span> },
-    { id: 'kind', header: t('docs.contracts.col.kind'), width: 110, value: c => CONTRACT_KIND_LABELS[c.kind], cell: c => <span className="muted">{CONTRACT_KIND_LABELS[c.kind]}</span> },
+    { id: 'kind', header: t('docs.contracts.col.kind'), width: 110, value: c => tEnum('contractKind', 'k_' + c.kind, CONTRACT_KIND_LABELS[c.kind]), cell: c => <span className="muted">{tEnum('contractKind', 'k_' + c.kind, CONTRACT_KIND_LABELS[c.kind])}</span> },
     { id: 'period', header: t('docs.contracts.col.valid'), width: 200, value: c => `${c.validFrom}…${c.validTo ?? ''}`, cell: c => <span className="num muted">{c.validTo ? `${fmtDate(parse(c.validFrom))} — ${fmtDate(parse(c.validTo))}` : `${fmtDate(parse(c.validFrom))} — ${t('docs.contracts.indefiniteShort')}`}</span> },
-    { id: 'service', header: t('docs.contracts.periodicity'), width: 150, value: c => (c.isService ? c.periodicity ?? '' : ''), cell: c => (c.isService ? <Badge tone="accent">{c.periodicity ? BILLING_PERIODICITY_LABELS[c.periodicity] : t('docs.contracts.isService')}</Badge> : <span className="faint">—</span>) },
+    { id: 'service', header: t('docs.contracts.periodicity'), width: 150, value: c => (c.isService ? c.periodicity ?? '' : ''), cell: c => (c.isService ? <Badge tone="accent">{c.periodicity ? tEnum('periodicity', c.periodicity, BILLING_PERIODICITY_LABELS[c.periodicity]) : t('docs.contracts.isService')}</Badge> : <span className="faint">—</span>) },
     { id: 'signed', header: t('docs.contracts.col.signed'), width: 100, value: c => (c.isSigned ? t('common.yes') : t('common.no')), cell: c => (c.isSigned ? <Badge tone="green">{t('docs.contracts.signed')}</Badge> : <span className="faint">{t('common.no')}</span>) },
     { id: 'default', header: t('docs.contracts.defaultForCustomer'), width: 100, value: c => (c.isDefault ? t('common.yes') : t('common.no')), cell: c => (c.isDefault ? <Badge tone="accent">{t('docs.contracts.defaultShort')}</Badge> : <span className="faint">—</span>) },
   ];
@@ -132,7 +132,7 @@ function ContractDialog({ api, onClose, contract }: { api: ReturnType<typeof use
           <div className="row" style={{ gap: 8 }}>
             <Field label={t('docs.contracts.number')}>{({ id }) => <Input id={id} value={number} onChange={e => setNumber(e.target.value)} placeholder={t('docs.contracts.numberPlaceholder')} />}</Field>
             <Field label={t('docs.contracts.date')}>{({ id }) => <Input id={id} type="date" value={date} onChange={e => setDate(e.target.value)} />}</Field>
-            <Field label={t('docs.contracts.kind')}>{({ id }) => <Select id={id} value={kind} onValueChange={v => setKind(v as ContractKind)} options={CONTRACT_KINDS.map(k => ({ value: k, label: CONTRACT_KIND_LABELS[k] }))} />}</Field>
+            <Field label={t('docs.contracts.kind')}>{({ id }) => <Select id={id} value={kind} onValueChange={v => setKind(v as ContractKind)} options={CONTRACT_KINDS.map(k => ({ value: k, label: tEnum('contractKind', 'k_' + k, CONTRACT_KIND_LABELS[k]) }))} />}</Field>
           </div>
           <div className="row" style={{ gap: 8 }}>
             <Field label={t('docs.contracts.validFrom')}>{({ id }) => <Input id={id} type="date" value={validFrom} onChange={e => setValidFrom(e.target.value)} />}</Field>
@@ -169,9 +169,9 @@ function ContractDialog({ api, onClose, contract }: { api: ReturnType<typeof use
                     />
                   )}
                 </Field>
-                <Field label={t('docs.contracts.periodicity')}>{({ id }) => <Select id={id} value={periodicity} onValueChange={v => setPeriodicity(v as (typeof BILLING_PERIODICITIES)[number])} options={BILLING_PERIODICITIES.map(p => ({ value: p, label: BILLING_PERIODICITY_LABELS[p] }))} />}</Field>
+                <Field label={t('docs.contracts.periodicity')}>{({ id }) => <Select id={id} value={periodicity} onValueChange={v => setPeriodicity(v as (typeof BILLING_PERIODICITIES)[number])} options={BILLING_PERIODICITIES.map(p => ({ value: p, label: tEnum('periodicity', p, BILLING_PERIODICITY_LABELS[p]) }))} />}</Field>
                 <Field label={t('docs.contracts.billingDay')}>{({ id }) => (<Input id={id} value={billingDay} onChange={e => setBillingDay(e.target.value)} />)}</Field>
-                <Field label={t('docs.contracts.documents')}>{({ id }) => <Select id={id} value={documentPackage} onValueChange={v => setDocumentPackage(v as 'invoice' | 'invoice_act')} options={BILLING_PACKAGES.map(p => ({ value: p, label: BILLING_PACKAGE_LABELS[p] }))} />}</Field>
+                <Field label={t('docs.contracts.documents')}>{({ id }) => <Select id={id} value={documentPackage} onValueChange={v => setDocumentPackage(v as 'invoice' | 'invoice_act')} options={BILLING_PACKAGES.map(p => ({ value: p, label: tEnum('billingPackage', p, BILLING_PACKAGE_LABELS[p]) }))} />}</Field>
               </div>
             </>
           )}
@@ -222,7 +222,7 @@ export function TariffPlansPage() {
                   <div>
                     <b>{p.name}</b>{' '}
                     <Badge tone={p.extraProductPolicy === 'forbid' ? 'red' : p.extraProductPolicy === 'warn' ? 'amber' : 'gray'}>
-                      {t('docs.contracts.extraProducts')}: {EXTRA_PRODUCT_POLICY_LABELS[p.extraProductPolicy]}
+                      {t('docs.contracts.extraProducts')}: {tEnum('extraPolicy', p.extraProductPolicy, EXTRA_PRODUCT_POLICY_LABELS[p.extraProductPolicy])}
                     </Badge>
                     <div className="faint" style={{ fontSize: 12 }}>
                       {t('docs.contracts.positionsCount', { n: p.lines.length })}
@@ -239,7 +239,7 @@ export function TariffPlansPage() {
         )}
         <div className="doc-add">
           <Input aria-label={t('docs.contracts.tariffNameAria')} value={name} placeholder={t('docs.contracts.tariffNamePlaceholder')} onChange={e => setName(e.target.value)} />
-          <Select value={policy} onValueChange={v => setPolicy(v as ExtraProductPolicy)} options={EXTRA_PRODUCT_POLICIES.map(p => ({ value: p, label: EXTRA_PRODUCT_POLICY_LABELS[p] }))} />
+          <Select value={policy} onValueChange={v => setPolicy(v as ExtraProductPolicy)} options={EXTRA_PRODUCT_POLICIES.map(p => ({ value: p, label: tEnum('extraPolicy', p, EXTRA_PRODUCT_POLICY_LABELS[p]) }))} />
           <Button
             size="sm"
             variant="ghost"

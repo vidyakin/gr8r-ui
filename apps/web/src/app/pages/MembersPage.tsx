@@ -10,7 +10,7 @@ import { MemberAvatar, MemberStack } from '../components/workspace';
 import { NamedIcon } from '../components/icons';
 import { MemberMenu, MemberStatus, RoleCell, useMemberActions } from '../components/member';
 import { useInvite, useTeamForm } from '../overlays';
-import { useT } from '@/i18n';
+import { tEnum, useT } from '@/i18n';
 
 type TabId = 'members' | 'teams' | 'roles';
 const ROLES = ['Owner', 'Admin', 'Member', 'Guest'] as const;
@@ -37,7 +37,7 @@ export function PermsTable() {
           <tr>
             <th style={{ paddingLeft: 14 }}>{t('pages.members.permsPermission')}</th>
             {ROLES.map(r => (
-              <th key={r}>{r}</th>
+              <th key={r}>{tEnum('role', r, r)}</th>
             ))}
           </tr>
         </thead>
@@ -165,7 +165,7 @@ export function MembersPage() {
             <div style={{ width: 200 }}>
               <Input size="sm" icon={<Search size={13} />} placeholder={t('pages.members.searchPlaceholder')} aria-label={t('pages.members.searchLabel')} value={q} onChange={e => setQ(e.target.value)} />
             </div>
-            <Segmented value={role} onValueChange={setRole} items={['all', ...ROLES].map(r => ({ value: r, label: r === 'all' ? t('pages.members.all') : r }))} />
+            <Segmented value={role} onValueChange={setRole} items={['all', ...ROLES].map(r => ({ value: r, label: r === 'all' ? t('pages.members.all') : tEnum('role', r, r) }))} />
           </div>
           <div className="panel" style={{ overflowX: 'auto' }}>
             {ms.length ? (
