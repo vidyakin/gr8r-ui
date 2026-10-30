@@ -15,21 +15,6 @@
     "archive",
     "search",
     "settings",
-    "system",
-    "production",
-    "productionOrders",
-    "productionWorkbench",
-    "productionPlans",
-    "productionPlanOrders",
-    "productionStages",
-    "productionPiecework",
-    "productionPlanner",
-    "productionResources",
-    "productionClosing",
-    "productionWip",
-    "productionReports",
-    "otherCosts",
-    "materialAllocation",
-    "workCenters"
+    "system"
   ]
 }
