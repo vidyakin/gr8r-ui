@@ -1,7 +1,7 @@
 /* Учётные записи, сессии, воркспейсы (арендаторы), членство и приглашения. */
 import { sql } from 'drizzle-orm';
 import { boolean, check, date, index, integer, jsonb, numeric, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import { archivedAt, createdAt, pk, ts, updatedAt } from './columns';
+import { archivedAt, createdAt, money, pk, ts, updatedAt } from './columns';
 
 /** Глобальные учётные записи (не арендаторские: без workspace_id и без RLS) */
 export const users = pgTable(
@@ -65,6 +65,11 @@ export const workspaces = pgTable(
     closeMovesLock: boolean('close_moves_lock').notNull().default(false),
     /** Ставка страховых взносов на зарплату, % (задача 1184) */
     payrollInsuranceRate: numeric('payroll_insurance_rate', { precision: 5, scale: 2 }).notNull().default('30'),
+    /** Ставки оплаты водителям за рейсы (задача 1224, документ «Начисление зарплаты»): за рейс, за км, за точку, суточные за день междугороднего рейса */
+    payrollTripPieceworkRate: money('payroll_trip_piecework_rate').notNull().default('0'),
+    payrollTripKmRate: money('payroll_trip_km_rate').notNull().default('0'),
+    payrollTripStopRate: money('payroll_trip_stop_rate').notNull().default('0'),
+    payrollTripPerdiemRate: money('payroll_trip_perdiem_rate').notNull().default('0'),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     /** regular — клиент, demo — демо-арендатор оператора со сроком жизни expires_at (docs/architecture/deploy.md) */
     kind: text('kind', { enum: ['regular', 'demo'] }).notNull().default('regular'),

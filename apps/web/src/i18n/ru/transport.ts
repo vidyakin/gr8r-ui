@@ -156,6 +156,7 @@ export const transport: Widen<typeof T> = {
       title: 'Маржа рейса',
       income: 'Доход (заявки)',
       fuelAmount: 'Топливо',
+      driverPay: 'Зарплата водителя',
       carrierRate: 'Ставка перевозчику',
       otherCosts: 'Прочие затраты',
       totalCosts: 'Итого затраты',

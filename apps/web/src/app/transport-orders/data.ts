@@ -149,6 +149,7 @@ export interface FleetTripCost {
 export interface TripMargin {
   income: string;
   fuelAmount: string;
+  driverPay: string;
   carrierRate: string;
   otherCosts: string;
   totalCosts: string;

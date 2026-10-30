@@ -512,6 +512,13 @@
       "when": 1793366668257,
       "tag": "0080_transport_orders",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1793369807112,
+      "tag": "0082_driver_trip_pay",
+      "breakpoints": true
     }
   ]
 }

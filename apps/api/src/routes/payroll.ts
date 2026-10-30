@@ -24,7 +24,6 @@ import {
   payslip,
   payslipPrintData,
   payStatement,
-  setInsuranceRate,
   settlementsReport,
   statementDetail,
   statementPrintData,
@@ -32,6 +31,7 @@ import {
   updateEmployeePayroll,
   updatePayroll,
   updatePayrollKind,
+  updatePayrollSettings,
   updateReflection,
   updateStatement,
 } from '@gr8r/db';
@@ -104,7 +104,7 @@ export const payrollRoutes = new Hono<AppEnv>()
   .get('/settings', async c => c.json(await payrollSettings(ctxOf(c).db, ctxOf(c).workspaceId)))
   .patch('/settings', zValidator('json', payrollSettingsUpdate, validationHook), async c => {
     const ctx = ctxOf(c);
-    await setInsuranceRate(ctx.db, ctx.workspaceId, c.req.valid('json').insuranceRate);
+    await updatePayrollSettings(ctx.db, ctx.workspaceId, c.req.valid('json'));
     return c.json(await payrollSettings(ctx.db, ctx.workspaceId));
   })
   .get('/kinds', async c => c.json({ items: await listPayrollKinds(ctxOf(c).db, ctxOf(c).workspaceId) }))

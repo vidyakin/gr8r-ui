@@ -7,7 +7,7 @@ sources:
   - apps/web/src/app/payroll/data.ts
   - apps/web/src/i18n/ru/payroll.ts
   - apps/api/src/routes/payroll.ts
-verified: 0271cd253e
+verified: 208f6ea36c
 screenshots: []
 ---
 

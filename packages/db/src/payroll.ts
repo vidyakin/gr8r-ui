@@ -19,6 +19,8 @@ import {
   salaryByDays,
   salaryRegistryCsv,
   SYSTEM_PAYROLL_KINDS,
+  TRIP_BASE_TYPES,
+  tripAccrualAmount,
   type PayrollBaseType,
   type PayrollLineInput,
   type PayrollStatementPrintData,
@@ -40,6 +42,9 @@ import {
   documents,
   employeeAccruals,
   employeePayroll,
+  fleetTripCarriers,
+  fleetTripStops,
+  fleetTrips,
   members,
   organizations,
   paymentLines,
@@ -134,13 +139,58 @@ export async function archiveReflection(db: Db, id: string): Promise<void> {
   await db.update(payrollReflections).set({ archivedAt: new Date() }).where(eq(payrollReflections.id, id));
 }
 
-export async function payrollSettings(db: Db, workspaceId: string): Promise<{ insuranceRate: string }> {
-  const [w] = await db.select({ r: workspaces.payrollInsuranceRate }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
-  return { insuranceRate: w?.r ?? '30' };
+export interface PayrollSettings {
+  insuranceRate: string;
+  /** Ставки оплаты водителям по рейсам (задача 1224) */
+  tripPieceworkRate: string;
+  tripKmRate: string;
+  tripStopRate: string;
+  tripPerdiemRate: string;
+}
+
+export async function payrollSettings(db: Db, workspaceId: string): Promise<PayrollSettings> {
+  const [w] = await db
+    .select({
+      insuranceRate: workspaces.payrollInsuranceRate,
+      tripPieceworkRate: workspaces.payrollTripPieceworkRate,
+      tripKmRate: workspaces.payrollTripKmRate,
+      tripStopRate: workspaces.payrollTripStopRate,
+      tripPerdiemRate: workspaces.payrollTripPerdiemRate,
+    })
+    .from(workspaces)
+    .where(eq(workspaces.id, workspaceId))
+    .limit(1);
+  return {
+    insuranceRate: w?.insuranceRate ?? '30',
+    tripPieceworkRate: w?.tripPieceworkRate ?? '0',
+    tripKmRate: w?.tripKmRate ?? '0',
+    tripStopRate: w?.tripStopRate ?? '0',
+    tripPerdiemRate: w?.tripPerdiemRate ?? '0',
+  };
+}
+
+export interface PayrollSettingsPatch {
+  insuranceRate?: string;
+  tripPieceworkRate?: string;
+  tripKmRate?: string;
+  tripStopRate?: string;
+  tripPerdiemRate?: string;
 }
 
 export async function setInsuranceRate(db: Db, workspaceId: string, rate: string): Promise<void> {
   await db.update(workspaces).set({ payrollInsuranceRate: rate }).where(eq(workspaces.id, workspaceId));
+}
+
+/** Обновить ставку страховых взносов и/или ставки оплаты рейсов (задача 1224): переданы только заданные поля */
+export async function updatePayrollSettings(db: Db, workspaceId: string, patch: PayrollSettingsPatch): Promise<void> {
+  const set: Record<string, string> = {};
+  if (patch.insuranceRate !== undefined) set.payrollInsuranceRate = patch.insuranceRate;
+  if (patch.tripPieceworkRate !== undefined) set.payrollTripPieceworkRate = patch.tripPieceworkRate;
+  if (patch.tripKmRate !== undefined) set.payrollTripKmRate = patch.tripKmRate;
+  if (patch.tripStopRate !== undefined) set.payrollTripStopRate = patch.tripStopRate;
+  if (patch.tripPerdiemRate !== undefined) set.payrollTripPerdiemRate = patch.tripPerdiemRate;
+  if (Object.keys(set).length === 0) return;
+  await db.update(workspaces).set(set).where(eq(workspaces.id, workspaceId));
 }
 
 /* ---------------- кадровые данные ---------------- */
@@ -286,6 +336,7 @@ async function savePayrollLines(db: Db, ctx: DocCtx, doc: DocRow, inputs: Payrol
       ndfl: deduction ? '0.00' : (l.ndfl ?? ndflOf(l.amount, emps.get(l.memberId)?.ndflRate ?? '13')),
       insurance: deduction ? '0.00' : (l.insurance ?? insuranceOf(l.amount, insuranceRate, kind.insurable)),
       reflectionId: l.reflectionId ?? emps.get(l.memberId)?.reflectionId ?? null,
+      tripId: l.tripId ?? null,
       comment: l.comment?.trim() ?? '',
     } satisfies typeof payrollLines.$inferInsert;
   });
@@ -359,6 +410,91 @@ async function salesByResponsible(db: Db, workspaceId: string, from: string, to:
   return { revenue, margin };
 }
 
+/** Начисления водителям по фактически завершённым рейсам за период: за рейс, за км маршрута, за выполненную точку любого вида,
+    суточные по междугородним рейсам (день рейса — каждый день dateFrom..dateTo). Одна запись на сотрудника × вид × рейс
+    (строка документа получает trip_id и номер рейса в комментарии); совместный водитель получает начисление по тем же
+    ставкам, что основной (решение задачи 1224 — ставки не делятся). Рейс относится ровно к одному периоду по дате
+    окончания (dateTo) — дате самого рейса, а не моменту, когда диспетчер отметил его выполненным (finishedAt может
+    быть позже из-за задержки с отметкой). Рейс, по которому у сотрудника этот вид уже есть в другом
+    неотменённом документе начисления (кроме самого заполняемого — его старые строки будут заменены), не включается:
+    это защита от двойного начисления; повторное «Заполнить» того же документа пересчитывает его собственные строки. */
+async function tripAccrualsReport(
+  db: Db,
+  workspaceId: string,
+  from: string,
+  to: string,
+  rates: { tripPieceworkRate: string; tripKmRate: string; tripStopRate: string; tripPerdiemRate: string },
+  excludeDocumentId: string,
+): Promise<{ memberId: string; tripId: string; tripNumber: string; base: PayrollBaseType; amount: string }[]> {
+  const out: { memberId: string; tripId: string; tripNumber: string; base: PayrollBaseType; amount: string }[] = [];
+
+  const trips = await db
+    .select()
+    .from(fleetTrips)
+    .where(
+      and(
+        eq(fleetTrips.workspaceId, workspaceId),
+        eq(fleetTrips.status, 'done'),
+        // рейс наёмного перевозчика свой водитель не вёз
+        sql`not exists (select 1 from ${fleetTripCarriers} where ${fleetTripCarriers.tripId} = ${fleetTrips.id})`,
+        sql`${fleetTrips.dateTo} >= ${from}::date`,
+        sql`${fleetTrips.dateTo} <= ${to}::date`,
+      ),
+    );
+  if (!trips.length) return out;
+
+  const tripIds = trips.map(t => t.id);
+  const stopCounts = new Map<string, number>();
+  if (dec(rates.tripStopRate) > 0n) {
+    const rows = await db
+      .select({ tripId: fleetTripStops.tripId, n: sql<string>`count(*)` })
+      .from(fleetTripStops)
+      .where(and(inArray(fleetTripStops.tripId, tripIds), eq(fleetTripStops.status, 'done')))
+      .groupBy(fleetTripStops.tripId);
+    for (const r of rows) stopCounts.set(r.tripId, Number(r.n));
+  }
+
+  // уже начислено по рейсу × сотруднику × виду в других неотменённых документах — такой рейс пропускаем (защита от двойного начисления)
+  const already = await db
+    .select({ tripId: payrollLines.tripId, memberId: payrollLines.memberId, kindId: payrollLines.kindId })
+    .from(payrollLines)
+    .innerJoin(documents, eq(documents.id, payrollLines.documentId))
+    .where(and(eq(payrollLines.workspaceId, workspaceId), inArray(payrollLines.tripId, tripIds), ne(documents.status, 'cancelled'), ne(documents.id, excludeDocumentId)));
+  const kindBase = new Map((await db.select({ id: payrollKinds.id, baseType: payrollKinds.baseType }).from(payrollKinds).where(eq(payrollKinds.workspaceId, workspaceId))).map(k => [k.id, k.baseType]));
+  const taken = new Set(already.map(r => `${r.tripId}:${r.memberId}:${kindBase.get(r.kindId) ?? ''}`));
+
+  for (const t of trips) {
+    const drivers = [t.driverMemberId, ...(t.coDriverMemberId ? [t.coDriverMemberId] : [])];
+    for (const memberId of drivers) {
+      const add = (base: PayrollBaseType, amount: string) => {
+        if (dec(amount) <= 0n) return;
+        if (taken.has(`${t.id}:${memberId}:${base}`)) return;
+        out.push({ memberId, tripId: t.id, tripNumber: t.number, base, amount });
+      };
+      add('trip_piecework', tripAccrualAmount(1, rates.tripPieceworkRate));
+      if (t.routeKm) add('trip_km', tripAccrualAmount(t.routeKm, rates.tripKmRate));
+      const stops = stopCounts.get(t.id) ?? 0;
+      if (stops > 0) add('trip_stop', tripAccrualAmount(stops, rates.tripStopRate));
+      if (t.kind === 'intercity') {
+        const days = dateRange(t.dateFrom, t.dateTo).length;
+        if (days > 0) add('trip_perdiem', tripAccrualAmount(days, rates.tripPerdiemRate));
+      }
+    }
+  }
+  return out;
+}
+
+/** Сумма оплаты водителю за рейс (задача 1224): amount + insurance строк с этим trip_id в проведённых документах начисления.
+    Берёт маржа рейса (задача 1223) — поэтому только проведённые суммы, ещё не выплата, а начисленная затрата. */
+export async function tripDriverPay(db: Db, tripId: string): Promise<string> {
+  const [row] = await db
+    .select({ s: sql<string>`coalesce(sum(${payrollLines.amount} + ${payrollLines.insurance}), 0)::text` })
+    .from(payrollLines)
+    .innerJoin(documents, eq(documents.id, payrollLines.documentId))
+    .where(and(eq(payrollLines.tripId, tripId), eq(documents.status, 'posted')));
+  return fmt(dec(row?.s ?? '0'), 2);
+}
+
 /** Заполнить: оклад по графику, сдельная по нарядам, процент от продаж и премии. Строки разовых начислений и удержаний сохраняются */
 export async function fillPayroll(db: Db, ctx: DocCtx, id: string, memberIds?: string[]): Promise<void> {
   const doc = await loadDoc(db, id, 'payroll', true);
@@ -369,7 +505,7 @@ export async function fillPayroll(db: Db, ctx: DocCtx, id: string, memberIds?: s
   const to = periodEndOf(from);
   const kinds = await ensurePayrollKinds(db, ctx.workspaceId);
   const kindById = new Map([...kinds.values()].map(k => [k.id, k]));
-  const { insuranceRate } = await payrollSettings(db, ctx.workspaceId);
+  const { insuranceRate, tripPieceworkRate, tripKmRate, tripStopRate, tripPerdiemRate } = await payrollSettings(db, ctx.workspaceId);
 
   const empRows = await db
     .select({ m: members, e: employeePayroll })
@@ -396,6 +532,9 @@ export async function fillPayroll(db: Db, ctx: DocCtx, id: string, memberIds?: s
   for (const r of await pieceworkReport(db, { from, to })) pw.set(r.memberId, (pw.get(r.memberId) ?? 0n) + dec(r.amount));
   const wantMargin = [...planned.values()].some(a => a.percentBasis === 'margin' && a.percent !== null);
   const sales = await salesByResponsible(db, ctx.workspaceId, from, to, wantMargin);
+  const tripAccruals = await tripAccrualsReport(db, ctx.workspaceId, from, to, { tripPieceworkRate, tripKmRate, tripStopRate, tripPerdiemRate }, id);
+  const tripByMember = new Map<string, (typeof tripAccruals)[number][]>();
+  for (const t of tripAccruals) tripByMember.set(t.memberId, [...(tripByMember.get(t.memberId) ?? []), t]);
 
   const auto: PayrollLineInput[] = [];
   for (const { m, e } of emps) {
@@ -434,16 +573,18 @@ export async function fillPayroll(db: Db, ctx: DocCtx, id: string, memberIds?: s
     }
     const pieceSum = pw.get(m.id) ?? 0n;
     if (pieceSum > 0n) push(kinds.get('piecework')!.id, fmt(pieceSum, 2), '0', fmt(pieceSum, 2));
+    // одна строка на сотрудника × вид × рейс, номер рейса — в комментарии (задача 1224)
+    for (const t of tripByMember.get(m.id) ?? []) push(kinds.get(t.base)!.id, t.amount, '0', t.amount, { tripId: t.tripId, comment: `рейс ${t.tripNumber}` });
   }
 
   // сохраняем ручные строки (разовые, удержания) и строки сотрудников вне выборки
   const existing = await db.select().from(payrollLines).where(eq(payrollLines.documentId, id)).orderBy(asc(payrollLines.sortOrder));
   const keepRows = existing.filter(l => {
     const b = kindById.get(l.kindId)?.baseType;
-    const isAuto = b === 'salary' || b === 'piecework' || b === 'sales_percent' || b === 'bonus';
+    const isAuto = b === 'salary' || b === 'piecework' || b === 'sales_percent' || b === 'bonus' || (TRIP_BASE_TYPES as readonly string[]).includes(b ?? '');
     return !(isAuto && (!memberIds?.length || memberIds.includes(l.memberId)));
   });
-  const keepInputs: PayrollLineInput[] = keepRows.map(l => ({ id: l.id, memberId: l.memberId, kindId: l.kindId, base: l.base, rate: l.rate, workedDays: l.workedDays, normDays: l.normDays, amount: l.amount, ndfl: l.ndfl, insurance: l.insurance, reflectionId: l.reflectionId, comment: l.comment }));
+  const keepInputs: PayrollLineInput[] = keepRows.map(l => ({ id: l.id, memberId: l.memberId, kindId: l.kindId, base: l.base, rate: l.rate, workedDays: l.workedDays, normDays: l.normDays, amount: l.amount, ndfl: l.ndfl, insurance: l.insurance, reflectionId: l.reflectionId, tripId: l.tripId, comment: l.comment }));
   await savePayrollLines(db, ctx, doc, [...keepInputs, ...auto]);
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.updated', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { documentType: 'payroll', filled: true } });
 }

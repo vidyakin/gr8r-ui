@@ -25,7 +25,14 @@ export const payrollReflectionCreate = z.object({
 });
 export const payrollReflectionUpdate = toPatch(payrollReflectionCreate.omit({ id: true }));
 
-export const payrollSettingsUpdate = z.object({ insuranceRate: percent });
+export const payrollSettingsUpdate = z.object({
+  insuranceRate: percent.optional(),
+  /** Ставки оплаты водителям по рейсам (задача 1224): за рейс, за км, за точку, суточные за день междугороднего рейса */
+  tripPieceworkRate: money.optional(),
+  tripKmRate: money.optional(),
+  tripStopRate: money.optional(),
+  tripPerdiemRate: money.optional(),
+});
 
 /* ---------------- кадровые данные ---------------- */
 
@@ -73,6 +80,8 @@ export const payrollLineInput = z.object({
   ndfl: money.optional(),
   insurance: money.optional(),
   reflectionId: uuid.nullish(),
+  /** Рейс, за который начислена оплата водителю (trip_* базы, задача 1224); пусто для прочих видов */
+  tripId: uuid.nullish(),
   comment: z.string().trim().max(500).default(''),
 });
 export type PayrollLineInput = z.infer<typeof payrollLineInput>;

@@ -139,8 +139,10 @@ function Dictionaries() {
   const costItems = useCostItems('expense');
   const centers = useWorkCenters();
   const [rate, setRate] = React.useState<string | null>(null);
+  const [tripRate, setTripRate] = React.useState<Partial<Record<'tripPieceworkRate' | 'tripKmRate' | 'tripStopRate' | 'tripPerdiemRate', string>>>({});
   const [refl, setRefl] = React.useState({ name: '', costItemId: '', workCenterId: '' });
   const [kind, setKind] = React.useState({ name: '', baseType: 'one_time' });
+  const tripRateFields = ['tripPieceworkRate', 'tripKmRate', 'tripStopRate', 'tripPerdiemRate'] as const;
   return (
     <section className="panel" style={{ margin: '0 var(--gutter) 16px', padding: 12 }} aria-label={tt('payroll.employees.dictionaries')}>
       <h3 style={{ marginTop: 0 }}>{tt('payroll.employees.dictionaries')}</h3>
@@ -148,6 +150,22 @@ function Dictionaries() {
         <Field label={tt('payroll.employees.insuranceRate')}>
           {p => <Input {...p} inputMode="decimal" value={rate ?? settings.data?.insuranceRate ?? ''} onChange={ev => setRate(ev.target.value)} onBlur={() => rate !== null && void guarded(async () => { await api.setInsuranceRate(rate); setRate(null); })} />}
         </Field>
+      </div>
+      <h4 style={{ margin: '12px 0 4px' }}>{tt('payroll.employees.tripRates')}</h4>
+      <div className="doc-head">
+        {tripRateFields.map(f => (
+          <Field key={f} label={tt(`payroll.employees.${f}`)}>
+            {p => (
+              <Input
+                {...p}
+                inputMode="decimal"
+                value={tripRate[f] ?? settings.data?.[f] ?? ''}
+                onChange={ev => setTripRate({ ...tripRate, [f]: ev.target.value })}
+                onBlur={() => tripRate[f] !== undefined && void guarded(async () => { await api.setTripRate(f, tripRate[f]!); setTripRate({ ...tripRate, [f]: undefined }); })}
+              />
+            )}
+          </Field>
+        ))}
       </div>
       <table className="dtbl" aria-label={tt('payroll.employees.reflections')}>
         <thead>

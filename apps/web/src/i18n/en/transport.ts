@@ -153,6 +153,7 @@ export const transport = {
       title: 'Trip margin',
       income: 'Income (orders)',
       fuelAmount: 'Fuel',
+      driverPay: 'Driver pay',
       carrierRate: 'Carrier rate',
       otherCosts: 'Other costs',
       totalCosts: 'Total costs',

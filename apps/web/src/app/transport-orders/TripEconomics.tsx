@@ -195,6 +195,7 @@ export function TripEconomics({ tripId }: { tripId: string }) {
           <div className="row" style={{ gap: 12, flexWrap: 'wrap' }}>
             <span className="muted">{t('transport.carrier.margin.income')}: <b className="num">{fmtAmount(margin.income)}</b></span>
             <span className="muted">{t('transport.carrier.margin.fuelAmount')}: <b className="num">{fmtAmount(margin.fuelAmount)}</b></span>
+            <span className="muted">{t('transport.carrier.margin.driverPay')}: <b className="num">{fmtAmount(margin.driverPay)}</b></span>
             <span className="muted">{t('transport.carrier.margin.carrierRate')}: <b className="num">{fmtAmount(margin.carrierRate)}</b></span>
             <span className="muted">{t('transport.carrier.margin.otherCosts')}: <b className="num">{fmtAmount(margin.otherCosts)}</b></span>
             <span className="muted">{t('transport.carrier.margin.totalCosts')}: <b className="num">{fmtAmount(margin.totalCosts)}</b></span>

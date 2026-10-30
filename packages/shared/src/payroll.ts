@@ -1,9 +1,10 @@
 /* Зарплата (задача 1184): виды начислений, чистые расчёты оклада по табелю, НДФЛ, взносов и процента от продаж.
    Без БД: те же функции использует сервер при заполнении и проведении и интерфейс. Правила — docs/architecture/payroll.md. */
-import { dec, fmt, pctOf, roundDiv } from './decimal';
+import { dec, fmt, mul, pctOf, roundDiv } from './decimal';
 
-/** Базы начисления: по ним сервис заполняет строки документа */
-export const PAYROLL_BASE_TYPES = ['salary', 'piecework', 'sales_percent', 'bonus', 'one_time', 'deduction'] as const;
+/** Базы начисления: по ним сервис заполняет строки документа.
+    trip_piecework/trip_km/trip_stop/trip_perdiem — оплата водителям по рейсам (задача 1224) */
+export const PAYROLL_BASE_TYPES = ['salary', 'piecework', 'sales_percent', 'bonus', 'one_time', 'deduction', 'trip_piecework', 'trip_km', 'trip_stop', 'trip_perdiem'] as const;
 export type PayrollBaseType = (typeof PAYROLL_BASE_TYPES)[number];
 /** Системные виды: создаются при первом обращении, не удаляются */
 export interface SystemPayrollKind {
@@ -19,9 +20,15 @@ export const SYSTEM_PAYROLL_KINDS: SystemPayrollKind[] = [
   { key: 'bonus', name: 'Премия', insurable: true },
   { key: 'one_time', name: 'Разовое начисление', insurable: true },
   { key: 'deduction', name: 'Удержание', insurable: false },
+  { key: 'trip_piecework', name: 'Оплата за рейс', insurable: true },
+  { key: 'trip_km', name: 'Оплата за км', insurable: true },
+  { key: 'trip_stop', name: 'Оплата за точку', insurable: true },
+  { key: 'trip_perdiem', name: 'Суточные (междугородние рейсы)', insurable: false },
 ];
 /** Виды, которые задаются плановыми начислениями сотрудника (остальные — факт периода или разовые строки) */
 export const PLANNED_BASE_TYPES: PayrollBaseType[] = ['salary', 'sales_percent', 'bonus'];
+/** Виды оплаты водителям по фактически выполненным рейсам за период: пересчитываются при каждом «Заполнить», как сдельная (без двойного начисления) */
+export const TRIP_BASE_TYPES: PayrollBaseType[] = ['trip_piecework', 'trip_km', 'trip_stop', 'trip_perdiem'];
 export const isDeductionBase = (b: string): boolean => b === 'deduction';
 
 export const PERCENT_BASES = ['revenue', 'margin'] as const;
@@ -53,6 +60,14 @@ export function salaryByDays(salary: string, workedDays: number, normDays: numbe
   if (normDays <= 0 || workedDays <= 0) return '0.00';
   const worked = Math.min(workedDays, normDays);
   return fmt(roundDiv(dec(salary) * BigInt(worked), BigInt(normDays)), 2);
+}
+
+/** Начисление водителю за рейс: количество (рейсов, км, точек или дней) × ставка. Неположительное количество или ставка — ноль */
+export function tripAccrualAmount(qty: string | number, rate: string): string {
+  const q = typeof qty === 'number' ? dec(String(qty)) : dec(qty);
+  const r = dec(rate);
+  if (q <= 0n || r <= 0n) return '0.00';
+  return fmt(mul(q, r), 2);
 }
 
 /** Процент от базы (выручки или маржи): округление до копеек; неположительная база начисления не даёт */

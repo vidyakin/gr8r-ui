@@ -10,6 +10,7 @@ import { recordEvent } from './events';
 import type { DocCtx } from './documents';
 import { createDocument } from './documents';
 import { nextNumber } from './fleet';
+import { tripDriverPay } from './payroll';
 import { addStop, loadTrip, removeStop } from './trips';
 import { companies, costItems, fleetFuelEntries, fleetTripCarriers, fleetTripCosts, fleetTripStops, fleetWaybills, organizations, products, transportOrderPoints, transportOrders, transportRateSchedules } from './schema';
 
@@ -464,6 +465,7 @@ export async function deleteFleetTripCost(db: Db, ctx: DocCtx, id: string): Prom
 export interface TripMarginView {
   income: string;
   fuelAmount: string;
+  driverPay: string;
   carrierRate: string;
   otherCosts: string;
   totalCosts: string;
@@ -475,7 +477,7 @@ export interface TripMarginView {
 const sumMoney = (values: string[]) => fmt(values.reduce((s, v) => s + dec(v), 0n), 2);
 const sumQty = (values: string[]) => fmt(values.reduce((s, v) => s + dec(v), 0n), 3);
 
-/** Маржа рейса: доход заявок рейса минус топливо по путевым листам этого рейса, ставка наёмному перевозчику и прочие статьи
+/** Маржа рейса: доход заявок рейса минус топливо по путевым листам этого рейса, зарплата водителей по проведённым начислениям, ставка наёмному перевозчику и прочие статьи
     (fleet_trip_costs). Ремонты и штрафы к рейсу не относятся: они идут в затраты автопарка за период. Если рейс отдан перевозчику,
     свой транспорт не работал: топлива нет, отдельно показывается маржа экспедитора. Видна только администраторам, как и затраты автопарка. */
 export async function tripMargin(db: Db, ctx: DocCtx, tripId: string): Promise<TripMarginView> {
@@ -490,6 +492,7 @@ export async function tripMargin(db: Db, ctx: DocCtx, tripId: string): Promise<T
   const r = computeTripMargin({
     ordersAmount,
     fuelAmount: sumMoney(fuel.map(f => f.amount)),
+    driverPay: await tripDriverPay(db, tripId),
     carrierRate: carrier?.rate ?? null,
     otherCosts,
   });

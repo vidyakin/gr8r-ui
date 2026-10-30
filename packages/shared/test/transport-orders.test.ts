@@ -20,13 +20,15 @@ describe('computeTripMargin', () => {
   test('доход минус топливо, наёмный перевозчик и прочие статьи', () => {
     const r = computeTripMargin({
       ordersAmount: '50000',
-      fuelAmount: '10000',
+      fuelAmount: '8000',
+      driverPay: '2000',
       carrierRate: null,
       otherCosts: '1500',
     });
     expect(r).toEqual({
       income: '50000.00',
-      fuelAmount: '10000.00',
+      fuelAmount: '8000.00',
+      driverPay: '2000.00',
       carrierRate: '0.00',
       otherCosts: '1500.00',
       totalCosts: '11500.00',
