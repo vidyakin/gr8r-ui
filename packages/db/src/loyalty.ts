@@ -5,6 +5,7 @@
 import { and, asc, desc, eq, inArray, isNull, lte, ne, sql } from 'drizzle-orm';
 import {
   accrualPoints,
+  cumulativePctByScale,
   dec,
   distributeRedemption,
   fifoExpiredPoints,
@@ -441,56 +442,79 @@ export async function candidateRulesForLine(
       });
       if (!matches) continue;
     }
-    out.push({ ruleId: r.id, discountPct: r.discountPct, stackable: r.stackable });
+    out.push({ ruleId: r.id, discountPct: r.discountPct, stackable: r.stackable, source: 'rule' });
   }
   return out;
 }
 
-/** Применение автоматических скидок к строкам документа: для каждой строки считает процент из правил (+ промокод) и пишет его
-    в document_lines.discount_pct и document_line_discounts (источник 'rule'). Строки с ручной скидкой (source='manual') не трогает —
-    их должна отфильтровать вызывающая сторона до вызова (см. applyAutoDiscountsOnSave, которая это делает).
+/** Скидка-кандидат от активной карты лояльности документа (решение 1 задачи 1179): дисконтная карта даёт свой постоянный
+    процент; накопительная — процент по шкале программы (loyalty_programs.cumulative_scale) от суммы покупок клиента
+    (сумма total проведённых документов LOYALTY_SALE_TYPES, без учёта текущего черновика). Бонусная карта скидку не даёт
+    (у неё только баллы) — возвращает пустой список. Карта не суммируется с другими скидками (stackable: false),
+    участвует в выборе наибольшей наравне с правилами через общий resolveDiscountPct. */
+export async function cardDiscountCandidate(db: Db, workspaceId: string, p: { cardId: string | null; date: string }): Promise<DiscountCandidate[]> {
+  if (!p.cardId) return [];
+  const [card] = await db.select().from(loyaltyCards).where(and(eq(loyaltyCards.workspaceId, workspaceId), eq(loyaltyCards.id, p.cardId), isNull(loyaltyCards.archivedAt), eq(loyaltyCards.isActive, true))).limit(1);
+  if (!card) return [];
+  if (card.kind === 'discount') return [{ ruleId: card.id, discountPct: card.discountPct!, stackable: false, source: 'card' }];
+  if (card.kind !== 'cumulative') return [];
+  const [program] = await db.select({ scale: loyaltyPrograms.cumulativeScale }).from(loyaltyPrograms).where(eq(loyaltyPrograms.workspaceId, workspaceId)).limit(1);
+  if (!program?.scale.length) return [];
+  const [sum] = await db
+    .select({ s: sql<string>`coalesce(sum(${documents.total}), 0)::text` })
+    .from(documents)
+    .where(and(eq(documents.workspaceId, workspaceId), eq(documents.counterpartyId, card.customerId), eq(documents.status, 'posted'), inArray(documents.type, LOYALTY_SALE_TYPES as unknown as string[])));
+  const pct = cumulativePctByScale(sum?.s ?? '0', program.scale);
+  if (dec(pct) <= 0n) return [];
+  return [{ ruleId: card.id, discountPct: pct, stackable: false, source: 'card' }];
+}
+
+/** Применение автоматических скидок к строкам документа: для каждой строки считает процент из правил + карты лояльности документа (решение 1
+    задачи 1179 — карта на равных с правилами, выбирается наибольшая) + промокод, и возвращает применённые проценты. Карта не зависит от
+    строки (действует на документ целиком), поэтому её кандидат один и добавляется к кандидатам каждой строки.
     Возвращает применённые проценты по строкам — вызывающая сторона (документ-сервис) должна пересчитать суммы через computeLine. */
 export async function autoDiscountForLines(
   db: Db,
   workspaceId: string,
-  p: { date: string; time?: string | undefined; customerId: string | null; documentNetTotal: string; promoCode?: string | null | undefined; lines: LineForDiscount[] },
-): Promise<{ promoRuleId: string | null; byLine: Map<string, { pct: string; ruleId: string | null }> }> {
+  p: { date: string; time?: string | undefined; customerId: string | null; documentNetTotal: string; promoCode?: string | null | undefined; cardId?: string | null | undefined; lines: LineForDiscount[] },
+): Promise<{ promoRuleId: string | null; byLine: Map<string, { pct: string; ruleId: string | null; cardId: string | null }> }> {
   const promoRule = p.promoCode ? await validPromoCode(db, workspaceId, p.promoCode, p.date) : null;
   if (p.promoCode && !promoRule) throw new DomainError(422, 'invalid_promo_code', 'The promo code is invalid, expired, or its usage limit is reached');
   const time = p.time ?? '12:00:00';
-  const byLine = new Map<string, { pct: string; ruleId: string | null }>();
+  const cardCandidates = await cardDiscountCandidate(db, workspaceId, { cardId: p.cardId ?? null, date: p.date });
+  const byLine = new Map<string, { pct: string; ruleId: string | null; cardId: string | null }>();
   for (const line of p.lines) {
-    const candidates = await candidateRulesForLine(db, workspaceId, { date: p.date, time, customerId: p.customerId, documentNetTotal: p.documentNetTotal, line, promoRuleId: promoRule?.ruleId ?? null });
-    const resolved = resolveDiscountPct(candidates);
-    byLine.set(line.id, { pct: resolved.pct, ruleId: resolved.primaryRuleId });
+    const ruleCandidates = await candidateRulesForLine(db, workspaceId, { date: p.date, time, customerId: p.customerId, documentNetTotal: p.documentNetTotal, line, promoRuleId: promoRule?.ruleId ?? null });
+    const resolved = resolveDiscountPct([...ruleCandidates, ...cardCandidates]);
+    byLine.set(line.id, { pct: resolved.pct, ruleId: resolved.primarySource === 'rule' ? resolved.primaryRuleId : null, cardId: resolved.primarySource === 'card' ? resolved.primaryRuleId : null });
   }
   return { promoRuleId: promoRule?.ruleId ?? null, byLine };
 }
 
-/** Записывает источник скидки строки (правило применилось) — используется после автоподстановки, когда шапка документа сохраняет строки */
-export async function saveLineDiscountSources(db: Db, workspaceId: string, entries: { lineId: string; source: 'manual' | 'rule'; ruleId: string | null }[]): Promise<void> {
+/** Записывает источник скидки строки (правило, карта или ручная правка) — используется после автоподстановки, когда шапка документа сохраняет строки */
+export async function saveLineDiscountSources(db: Db, workspaceId: string, entries: { lineId: string; source: 'manual' | 'rule' | 'card'; ruleId: string | null; cardId?: string | null }[]): Promise<void> {
   if (!entries.length) return;
   await db.delete(documentLineDiscounts).where(inArray(documentLineDiscounts.lineId, entries.map(e => e.lineId)));
-  await db.insert(documentLineDiscounts).values(entries.map(e => ({ workspaceId, lineId: e.lineId, source: e.source, ruleId: e.ruleId })));
+  await db.insert(documentLineDiscounts).values(entries.map(e => ({ workspaceId, lineId: e.lineId, source: e.source, ruleId: e.ruleId, cardId: e.cardId ?? null })));
 }
 
-/** Источники скидок строк документа (manual/rule) из document_line_discounts; строки без записи считаются 'manual'
+/** Источники скидок строк документа (manual/rule/card) из document_line_discounts; строки без записи считаются 'manual'
     (скидка задана пользователем вручную при создании строки и ещё не пересчитывалась автоматикой). */
-async function lineDiscountSources(db: Db, lineIds: string[]): Promise<Map<string, 'manual' | 'rule'>> {
+async function lineDiscountSources(db: Db, lineIds: string[]): Promise<Map<string, 'manual' | 'rule' | 'card'>> {
   if (!lineIds.length) return new Map();
   const rows = await db.select({ lineId: documentLineDiscounts.lineId, source: documentLineDiscounts.source }).from(documentLineDiscounts).where(inArray(documentLineDiscounts.lineId, lineIds));
   return new Map(rows.map(r => [r.lineId, r.source]));
 }
 
-/** Автопересчёт скидок правил по строкам документа (план, п.2): применяется и при сохранении черновика, и по кнопке
+/** Автопересчёт скидок правил и карты по строкам документа (план, п.1-2): применяется и при сохранении черновика, и по кнопке
     «Пересчитать скидки» (recalcDocumentDiscounts в documents.ts). Строки с ранее поставленной ручной скидкой
     (document_line_discounts.source = 'manual') не трогает — их процент и источник остаются как есть.
-    Возвращает проценты только для строк, которые пересчитаны правилами, — чтобы вызывающая сторона обновила document_lines. */
+    Возвращает проценты только для строк, которые пересчитаны автоматически — чтобы вызывающая сторона обновила document_lines. */
 export async function applyAutoDiscountsOnSave(
   db: Db,
   workspaceId: string,
-  p: { date: string; time?: string | undefined; customerId: string | null; documentNetTotal: string; promoCode?: string | null | undefined; lines: LineForDiscount[] },
-): Promise<{ promoRuleId: string | null; byLine: Map<string, { pct: string; ruleId: string | null }> }> {
+  p: { date: string; time?: string | undefined; customerId: string | null; documentNetTotal: string; promoCode?: string | null | undefined; cardId?: string | null | undefined; lines: LineForDiscount[] },
+): Promise<{ promoRuleId: string | null; byLine: Map<string, { pct: string; ruleId: string | null; cardId: string | null }> }> {
   const sources = await lineDiscountSources(db, p.lines.map(l => l.id));
   const autoLines = p.lines.filter(l => sources.get(l.id) !== 'manual');
   if (!autoLines.length) return { promoRuleId: null, byLine: new Map() };
