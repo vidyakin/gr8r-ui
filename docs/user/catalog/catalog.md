@@ -6,7 +6,7 @@ sources:
   - apps/web/src/app/catalog/*.tsx
   - apps/web/src/app/settings/positions.tsx
   - apps/api/src/routes/catalog.ts
-verified: 51f4355cc6
+verified: ea4561be23
 screenshots: []
 ---
 

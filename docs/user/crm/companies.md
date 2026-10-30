@@ -9,7 +9,7 @@ sources:
   - apps/web/src/app/docs/CompanyRequisites.tsx
   - apps/web/src/app/docs/CompanyContracts.tsx
   - apps/api/src/routes/crm.ts
-verified: cb96f21e23
+verified: ea4561be23
 screenshots: []
 ---
 

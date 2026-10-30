@@ -8,7 +8,7 @@ sources:
   - apps/web/src/app/production/piecework-data.ts
   - apps/api/src/routes/piecework.ts
   - packages/db/src/piecework.ts
-verified: ef07a48275
+verified: ea4561be23
 screenshots: []
 ---
 
