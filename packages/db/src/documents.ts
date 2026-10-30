@@ -40,7 +40,7 @@ import { recordEvent } from './events';
 import { applyStockMoves, defaultPostingCost, documentCosts, documentLineCosts, loadInventorySettings, revertStockMoves, sourceMoveCosts, syncReservations, type MoveRequest } from './stock';
 import { syncWorkOrderResources } from './planning';
 import { assertPeriodOpen, assertServiceCostItems, clearPeriodCosts, syncPeriodCosts } from './cost-closing';
-import { bankAccounts, companies, deals, contracts, paymentLinks, costItems, documentCounters, documentLines, documentStates, documents, investmentProjects, materialAllocationItems, members, organizations, products, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials } from './schema';
+import { bankAccounts, companies, deals, contracts, paymentLinks, costItems, documentCounters, documentLines, documentStates, documents, investmentProjects, materialAllocationItems, members, organizations, products, promoCodes, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials } from './schema';
 import { assertInvestmentTarget, investmentOpen } from './investments';
 import { assertContractOfCompany, contractDocumentProducts, contractPlanProductIds, defaultContract } from './contracts';
 import { ensureVariant, specParamsOfProduct } from './variants';
@@ -48,6 +48,7 @@ import { checkParamValues, loadCategoryAttributeDefs } from './specs';
 import { uuidv7 } from './uuid';
 import { saveSerials, checkInventorySerials, lineSerialsView } from './serials';
 import { applySaleNextContact } from './repeat-sales';
+import { applyAutoDiscountsOnSave, applyLoyaltyOnPost, applyLoyaltyOnReturn, DISCOUNT_DOCUMENT_TYPES, documentLoyaltyOf, LOYALTY_RETURN_TYPES, LOYALTY_SALE_TYPES, reverseLoyaltyOnUnpost, saveDocumentLoyalty, saveLineDiscountSources } from './loyalty';
 import { inheritDelivery } from './delivery';
 import { payableOf, postAccrual, removeSettlementMoves } from './settlements';
 import { repairPrintData, syncWarrantyKind, workOrderKindType } from './repair';
@@ -144,6 +145,8 @@ interface ResolvedLine {
   qty: string;
   price: string;
   discountPct: string;
+  /** Скидка введена вручную в форме (задача 1179): такую строку автоскидка не трогает */
+  discountManual: boolean;
   vatRate: VatRate;
   /** Роль строки выпуска (производства): приход или расход */
   stockRole?: 'in' | 'out';
@@ -183,6 +186,7 @@ async function resolveLines(db: Db, inputs: DocumentLineInput[], existingIds: Se
       qty: l.qty,
       price: l.price,
       discountPct: l.discountPct ?? '0',
+      discountManual: l.discountManual ?? false,
       vatRate: (l.vatRate ?? p.vatRate) as VatRate,
       stockRole: l.stockRole,
       bookQty: l.bookQty ?? '0',
@@ -313,13 +317,68 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
     if (existingIds.has(l.id)) await db.update(documentLines).set(values).where(eq(documentLines.id, l.id));
     else await db.insert(documentLines).values({ ...values, id: l.id, workspaceId: ctx.workspaceId, documentId: doc.id });
   }
+  // ручная скидка строки (задача 1179): источник записывается сразу, чтобы автопересчёт ниже её не перезаписал
+  const manual = resolved.filter(l => l.discountManual);
+  if (manual.length) await saveLineDiscountSources(db, ctx.workspaceId, manual.map(l => ({ lineId: l.id, source: 'manual' as const, ruleId: null })));
   // серийные номера строк (задача 1099): присланный список заменяет прежний
   for (const [i, l] of resolved.entries()) if (inputs[i]?.serials !== undefined) await saveSerials(db, ctx.workspaceId, doc.id, { lineId: l.id }, inputs[i]!.serials!);
   await writeTotals(db, doc.id);
+  // автоскидки (задача 1179): автоматически при каждом сохранении черновика продажи (как и по кнопке «Пересчитать скидки»)
+  if ((DISCOUNT_DOCUMENT_TYPES as readonly string[]).includes(type) && doc.status === 'draft') await applyDiscountsToDraft(db, ctx, doc, undefined);
 }
 
 /** Замена строк документа для вариантов КП (quotes.ts) */
 export const saveDocumentLines = saveLines;
+
+/** Автоскидки (задача 1179): подбирает правила для каждой строки черновика продажи (все 6 типов — DISCOUNT_DOCUMENT_TYPES) по дате,
+    клиенту и виду цен, применяется промокод (если указан), записывает discountPct на строки и источники. Строки с ранее
+    поставленной вручную скидкой не трогает (applyAutoDiscountsOnSave). Пересчёт цены/суммы строки и итогов — как при обычном
+    сохранении строк. Вызывается и по кнопке «Пересчитать скидки», и автоматически при сохранении черновика (см. saveLines). */
+export async function recalcDocumentDiscounts(db: Db, ctx: DocCtx, id: string, promoCode?: string | null): Promise<void> {
+  const doc = await loadDoc(db, id, true);
+  const type = doc.type as DocumentType;
+  if (!(DISCOUNT_DOCUMENT_TYPES as readonly string[]).includes(type)) throw new DomainError(422, 'invalid_document_type', 'Automatic discounts apply only to quotes, orders, invoices, sales, acts and work orders');
+  if (doc.status !== 'draft') throw new DomainError(409, 'not_draft', 'A posted or cancelled document cannot be recalculated: unpost it first');
+  const applied = await applyDiscountsToDraft(db, ctx, doc, promoCode ?? null);
+  if (promoCode !== undefined) await saveDocumentLoyaltyRule(db, ctx.workspaceId, id, applied, promoCode ?? null);
+}
+
+/** Общая реализация пересчёта скидок черновика (используется кнопкой «Пересчитать скидки» и автопересчётом при сохранении строк).
+    promoCode === undefined — автопересчёт без явной правки промокода: берётся уже сохранённый на документе (document_loyalty), если есть.
+    Не подтягивает промокод снова, чтобы не сбрасывать счётчик использования при каждом автопересчёте.
+    promoCode === null — явный сброс промокода (кнопка пересчитает без него). Возвращает promoRuleId применённого промокода. */
+async function applyDiscountsToDraft(db: Db, ctx: DocCtx, doc: DocumentRow, promoCode: string | null | undefined): Promise<string | null> {
+  const rows = await db.select({ id: documentLines.id, productId: documentLines.productId, qty: documentLines.qty }).from(documentLines).where(eq(documentLines.documentId, doc.id));
+  if (!rows.length) return null;
+  let effectivePromoCode: string | null = promoCode ?? null;
+  if (promoCode === undefined) {
+    const dl = await documentLoyaltyOf(db, doc.id);
+    if (dl?.promoCodeId) {
+      const [pc] = await db.select({ code: promoCodes.code }).from(promoCodes).where(eq(promoCodes.id, dl.promoCodeId)).limit(1);
+      effectivePromoCode = pc?.code ?? null;
+    }
+  }
+  const totals = computeTotals((await db.select({ net: documentLines.net, vatAmount: documentLines.vatAmount, total: documentLines.total, vatRate: documentLines.vatRate }).from(documentLines).where(eq(documentLines.documentId, doc.id))) as any);
+  const r = await applyAutoDiscountsOnSave(db, ctx.workspaceId, {
+    date: doc.date,
+    customerId: doc.counterpartyId,
+    documentNetTotal: totals.net,
+    promoCode: effectivePromoCode,
+    lines: rows.map(l => ({ id: l.id, productId: l.productId, qty: l.qty, priceKindId: doc.priceKindId })),
+  });
+  if (!r.byLine.size) return r.promoRuleId;
+  for (const [lineId, d] of r.byLine) await db.update(documentLines).set({ discountPct: d.pct }).where(eq(documentLines.id, lineId));
+  await saveLineDiscountSources(db, ctx.workspaceId, [...r.byLine.entries()].map(([lineId, d]) => ({ lineId, source: d.ruleId ? 'rule' as const : 'manual' as const, ruleId: d.ruleId })));
+  await recalcLines(db, doc);
+  return r.promoRuleId;
+}
+
+async function saveDocumentLoyaltyRule(db: Db, workspaceId: string, documentId: string, promoRuleId: string | null, promoCode: string | null): Promise<void> {
+  if (!promoCode) return;
+  if (!promoRuleId) return;
+  const [row] = await db.select({ id: promoCodes.id }).from(promoCodes).where(and(eq(promoCodes.workspaceId, workspaceId), eq(promoCodes.code, promoCode))).limit(1);
+  if (row) await saveDocumentLoyalty(db, workspaceId, documentId, { promoCodeId: row.id });
+}
 
 /** Цена строки внутреннего документа: у списания и перемещения — ноль, у оприходования — себестоимость прихода.
     Цену оприходования вправе задать admin и owner, остальным сервер подставляет текущую среднюю */
@@ -806,6 +865,9 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<voi
   // повторные продажи (задача 1133): у покупателя ставится дата следующего контакта
   await applySaleNextContact(db, ctx, doc, lines);
   const [after] = await db.select({ number: documents.number, total: documents.total }).from(documents).where(eq(documents.id, id)).limit(1);
+  // лояльность (задача 1179): списание/начисление баллов по карте, промокод — на продажах; частичное сторно баллов — на возврате
+  if ((LOYALTY_SALE_TYPES as readonly string[]).includes(type)) await applyLoyaltyOnPost(db, ctx, { ...doc, number: after!.number, total: after!.total }, lines);
+  else if ((LOYALTY_RETURN_TYPES as readonly string[]).includes(type) && doc.basedOnId) await applyLoyaltyOnReturn(db, ctx, { ...doc, number: after!.number, total: after!.total }, doc.basedOnId);
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.posted', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { documentType: type, number: after!.number, total: after!.total, warnings: contractWarnings } });
 }
 
@@ -850,6 +912,8 @@ export async function unpostDocument(db: Db, ctx: DocCtx, id: string, opts: { re
   await syncAfterChange(db, ctx, { ...doc, status: 'draft' }, await linesOf(db, id), false);
   await DOCUMENT_HOOKS[doc.type as DocumentType]?.afterUnpost?.(db, ctx, { ...doc, status: 'draft' }, await linesOf(db, id));
   if (!isCashDocType(doc.type)) await removeSettlementMoves(db, ctx.workspaceId, id);
+  // лояльность (задача 1179): сторно баллов, начисленных/списанных при проведении; возврат счётчика промокода
+  if ((LOYALTY_SALE_TYPES as readonly string[]).includes(type)) await reverseLoyaltyOnUnpost(db, ctx, doc);
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.unposted', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { documentType: type, number: doc.number } });
 }
 

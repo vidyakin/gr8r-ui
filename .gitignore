@@ -7,6 +7,9 @@ dist
 .dev-pids
 .pgtest
 
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+graft/
+
 # Прод: переменные и данные на сервере
 .env.prod
 backups/

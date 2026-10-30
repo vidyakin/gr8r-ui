@@ -32,3 +32,4 @@ export * from './licensing';
 export * from './fleet';
 export * from './trips';
 export * from './transport-orders';
+export * from './loyalty';

@@ -526,6 +526,13 @@
       "when": 1793373003874,
       "tag": "0083_hired_trips",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1793380293170,
+      "tag": "0084_loyalty",
+      "breakpoints": true
     }
   ]
 }

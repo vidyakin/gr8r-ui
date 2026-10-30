@@ -28,6 +28,7 @@ export * from './positions';
 export * from './payments';
 export * from './payroll';
 export * from './pricing';
+export * from './loyalty';
 export * from './payment-calendar';
 export * from './bank-statement';
 export * from './bank-api';

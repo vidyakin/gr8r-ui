@@ -49,6 +49,7 @@ import { paymentCalendarRoutes, paymentRequestRoutes } from './routes/payment-ca
 import { openingBalanceRoutes } from './routes/opening-balances';
 import { payrollRoutes } from './routes/payroll';
 import { pricingRoutes } from './routes/pricing';
+import { loyaltyRoutes } from './routes/loyalty';
 import { docTemplateRoutes } from './routes/doc-templates';
 import { bankImportRoutes } from './routes/bank-import';
 import { flowRoutes, flowRunRoutes } from './routes/flows';
@@ -167,6 +168,7 @@ function buildTenantApi() {
     .route('/opening-balances', openingBalanceRoutes)
     .route('/payroll', payrollRoutes)
     .route('/pricing', pricingRoutes)
+    .route('/loyalty', loyaltyRoutes)
     .route('/doc-templates', docTemplateRoutes)
     .route('/bank-import', bankImportRoutes)
     .route('/cash-registers', cashRegisterRoutes)

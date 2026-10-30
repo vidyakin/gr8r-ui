@@ -121,6 +121,9 @@ export const documentLineInput = z
     qty: nonNeg(),
     price: nonNeg(),
     discountPct: pct.default('0'),
+    /** Скидка строки правилась вручную (задача 1179): автоскидка такую строку больше не перезаписывает.
+        Клиент передаёт true, когда пользователь сам поменял discountPct в форме; иначе источник не трогаем. */
+    discountManual: z.boolean().optional(),
     /** Пусто — ставка товара */
     vatRate: z.enum(VAT_RATES).optional(),
     /** Учётное количество по остаткам (инвентаризация): разница с qty — недостача или излишек */
