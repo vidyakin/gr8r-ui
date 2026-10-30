@@ -247,20 +247,25 @@ export const documentLoyalty = pgTable(
   ],
 );
 
-/** Расширение document_lines: источник скидки строки — ручная правка или подставленная правилом. */
+/** Расширение document_lines: источник скидки строки — ручная правка, правило или карта лояльности (дисконтная/накопительная).
+    Скидка карты участвует в выборе наибольшей наравне с правилами (задача 1179, решение 1). */
 export const documentLineDiscounts = pgTable(
   'document_line_discounts',
   {
     lineId: uuid('line_id').primaryKey(),
     workspaceId: wsCol(),
-    source: text('source', { enum: ['manual', 'rule'] }).notNull().default('manual'),
+    source: text('source', { enum: ['manual', 'rule', 'card'] }).notNull().default('manual'),
     ruleId: uuid('rule_id'),
+    /** Карта, давшая скидку строки (только source = 'card') */
+    cardId: uuid('card_id'),
   },
   t => [
     foreignKey({ columns: [t.workspaceId, t.lineId], foreignColumns: [documentLines.workspaceId, documentLines.id], name: 'document_line_discounts_line_fk' }).onDelete('cascade'),
     foreignKey({ columns: [t.workspaceId, t.ruleId], foreignColumns: [discountRules.workspaceId, discountRules.id], name: 'document_line_discounts_rule_fk' }).onDelete('set null'),
-    check('document_line_discounts_source_chk', sql`${t.source} in ('manual','rule')`),
+    foreignKey({ columns: [t.workspaceId, t.cardId], foreignColumns: [loyaltyCards.workspaceId, loyaltyCards.id], name: 'document_line_discounts_card_fk' }).onDelete('set null'),
+    check('document_line_discounts_source_chk', sql`${t.source} in ('manual','rule','card')`),
     check('document_line_discounts_rule_src_chk', sql`${t.source} = 'rule' or ${t.ruleId} is null`),
+    check('document_line_discounts_card_src_chk', sql`${t.source} = 'card' or ${t.cardId} is null`),
     unique('document_line_discounts_ws_line_uq').on(t.workspaceId, t.lineId),
   ],
 );
