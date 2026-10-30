@@ -12,6 +12,9 @@ import { useProducts } from '../catalog/data';
 import { FleetHead } from '../fleet/parts';
 import { CounterpartyPicker } from '../docs/pickers';
 import { useTrips } from '../trips/data';
+import { useWsId } from '../meta/data';
+import { openCarrierContract } from './print';
+import { errorMessage } from '../data/api';
 import {
   useSuggestRateSchedule,
   useTransportApi,
@@ -105,6 +108,7 @@ const newPoint = (kind: 'load' | 'unload'): PointDraft => ({ kind, address: '', 
 
 export function TransportOrderDialog({ id, onClose }: { id: string | null; onClose: () => void }) {
   const t = useT();
+  const ws = useWsId();
   const api = useTransportApi();
   const detail = useTransportOrder(id);
   const order = id ? detail.data : null;
@@ -235,6 +239,9 @@ export function TransportOrderDialog({ id, onClose }: { id: string | null; onClo
               )}
               {order && !order.invoiceDocumentId && (
                 <Button variant="ghost" onClick={() => setBilling('invoice')}>{t('transport.orders.action.invoice')}</Button>
+              )}
+              {order && order.tripId && (
+                <Button variant="ghost" onClick={() => openCarrierContract(ws, order.tripId!).catch(e => toast.error(errorMessage(e)))}>{t('transport.orders.action.printCarrierContract')}</Button>
               )}
               {order && order.invoiceDocumentId && !order.actDocumentId && (
                 <Button variant="ghost" onClick={() => setBilling('act')}>{t('transport.orders.action.act')}</Button>
