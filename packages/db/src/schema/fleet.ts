@@ -7,6 +7,7 @@ import { products } from './catalog';
 import { companies } from './crm';
 import { costItems, documents, warehouses } from './documents';
 import { members, wsCol } from './people';
+import { fleetTrips } from './trips';
 
 const km = (name: string) => numeric(name, { precision: 12, scale: 3 });
 const liters = (name: string) => numeric(name, { precision: 12, scale: 3 });
@@ -145,6 +146,8 @@ export const fleetWaybills = pgTable(
     uniqueIndex('fleet_waybills_ws_number_uq').on(t.workspaceId, t.number),
     foreignKey({ columns: [t.workspaceId, t.vehicleId], foreignColumns: [fleetVehicles.workspaceId, fleetVehicles.id], name: 'fleet_waybills_vehicle_fk' }),
     foreignKey({ columns: [t.workspaceId, t.driverMemberId], foreignColumns: [members.workspaceId, members.id], name: 'fleet_waybills_driver_fk' }),
+    // рейс (задача 1211): внешний ключ с SET NULL по колонке дописан в миграции 0065 вручную (drizzle не умеет форму со списком колонок)
+    foreignKey({ columns: [t.workspaceId, t.tripId], foreignColumns: [fleetTrips.workspaceId, fleetTrips.id], name: 'fleet_waybills_trip_fk' }).onDelete('set null'),
     check('fleet_waybills_status_chk', sql`${t.status} in ('draft','issued','closed','cancelled')`),
     check('fleet_waybills_nums_chk', sql`${t.odometerOut} >= 0 and ${t.fuelOut} >= 0 and (${t.odometerBack} is null or ${t.odometerBack} >= ${t.odometerOut})`),
     index('fleet_waybills_date_idx').on(t.workspaceId, t.date),

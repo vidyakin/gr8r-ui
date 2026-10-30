@@ -27,3 +27,4 @@ export * from './secrets';
 export * from './integrations';
 export * from './pipelines';
 export * from './fleet';
+export * from './trips';

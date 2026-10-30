@@ -30,3 +30,4 @@ export * from './pricing';
 export * from './pipelines';
 export * from './licensing';
 export * from './fleet';
+export * from './trips';

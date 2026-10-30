@@ -111,13 +111,13 @@ export const MODULES: readonly ModuleDef[] = [
     settings: ['integrations'],
     jobs: ['bank.sync', 'yookassa.payment'],
   }),
-  // Транспорт (сессия 50, docs/architecture/fleet.md): автопарк; рейсы, ТК и заявки на перевозку добавят задачи 1211+
+  // Транспорт (сессия 50, docs/architecture/fleet.md): автопарк, рейсы и экран диспетчера (1211); ТК и заявки на перевозку добавят задачи 1215+
   def({
     id: 'transport',
     requires: ['trade'],
-    paths: ['/fleet'],
-    sections: ['fleet', 'fleetVehicles', 'fleetDrivers', 'fleetDocuments', 'fleetWaybills', 'fleetFuel', 'fleetService', 'fleetFines'],
-    nodes: ['trigger.fleet_document_expiring'],
+    paths: ['/fleet', '/trips'],
+    sections: ['fleet', 'fleetVehicles', 'fleetDrivers', 'fleetDocuments', 'fleetWaybills', 'fleetFuel', 'fleetService', 'fleetFines', 'trips', 'dispatch'],
+    nodes: ['trigger.fleet_document_expiring', 'trigger.trip_status'],
   }),
   // Документооборот (сессия 48): модуль заведён заранее, разделы, пути и задачи добавит задача 1191+
   def({ id: 'docflow' }),

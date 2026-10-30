@@ -80,7 +80,7 @@ async function costItemId(db: Db, ws: string, key: string): Promise<string> {
 export { FLEET_COST_ITEMS };
 
 /** Следующий номер документа автопарка «ПЛ-2026-00001»: под блокировкой, чтобы параллельные запросы не взяли один номер */
-async function nextNumber(db: Db, ws: string, table: 'fleet_waybills' | 'fleet_repairs', prefix: string, date: string): Promise<string> {
+export async function nextNumber(db: Db, ws: string, table: 'fleet_waybills' | 'fleet_repairs' | 'fleet_trips', prefix: string, date: string): Promise<string> {
   await db.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`fleet:${table}:${ws}`}, 0))`);
   const year = date.slice(0, 4);
   const like = `${prefix}-${year}-%`;
@@ -112,14 +112,14 @@ export interface VehicleInput {
   comment?: string;
 }
 
-async function loadVehicle(db: Db, id: string, lock = false): Promise<VehicleRow> {
+export async function loadVehicle(db: Db, id: string, lock = false): Promise<VehicleRow> {
   const q = db.select().from(fleetVehicles).where(eq(fleetVehicles.id, id)).limit(1);
   const [row] = await (lock ? q.for('update') : q);
   if (!row) throw notFound('vehicle');
   return row;
 }
 
-async function assertMember(db: Db, id: string | null | undefined): Promise<void> {
+export async function assertMember(db: Db, id: string | null | undefined): Promise<void> {
   if (!id) return;
   const [m] = await db.select({ id: members.id }).from(members).where(eq(members.id, id)).limit(1);
   if (!m) throw new DomainError(422, 'invalid_reference', 'The member does not exist');

@@ -17,6 +17,7 @@ import dealLost from './trigger-deal-lost';
 import dealStageChanged from './trigger-deal-stage-changed';
 import dealStageOverdue from './trigger-deal-stage-overdue';
 import fleetDocumentExpiring from './trigger-fleet-document-expiring';
+import tripStatus from './trigger-trip-status';
 import dealWon from './trigger-deal-won';
 import leadCreated from './trigger-lead-created';
 import leadStatusChanged from './trigger-lead-status-changed';
@@ -42,6 +43,7 @@ export const NODE_LIST: AnyNodeDef[] = [
   dealLost,
   dealStageOverdue,
   fleetDocumentExpiring,
+  tripStatus,
   // Условия и управление потоком
   condition,
   delay,

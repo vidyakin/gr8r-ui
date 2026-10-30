@@ -9,7 +9,7 @@ import { recordEvent } from './events';
 import { assertPeriodOpen } from './cost-closing';
 import { memberHasFunction, memberIdsWithFunction } from './positions';
 import { updateDocument, type DocCtx } from './documents';
-import { companies, contacts, costItems, deliveries, deliveryMethods, documentLines, documents, members, products } from './schema';
+import { companies, contacts, costItems, deliveries, deliveryMethods, documentLines, documents, fleetTrips, fleetTripStops, members, products } from './schema';
 
 export type DeliveryRow = typeof deliveries.$inferSelect;
 export type DeliveryMethodRow = typeof deliveryMethods.$inferSelect;
@@ -186,6 +186,10 @@ export async function saveDelivery(db: Db, ctx: DocCtx, documentId: string, inpu
   if (doc.status === 'cancelled') throw new DomainError(409, 'invalid_status', 'A cancelled document has no delivery');
   await assertAssignees(db, input);
   const [cur] = await db.select().from(deliveries).where(eq(deliveries.documentId, documentId)).for('update').limit(1);
+  if (cur && input.courierMemberId !== undefined && input.courierMemberId !== cur.courierMemberId) {
+    const inTrip = await activeTripOfDelivery(db, cur.id);
+    if (inTrip) throw new DomainError(409, 'delivery_in_trip', `The courier of this delivery is set by trip ${inTrip.number}`, { tripId: inTrip.tripId });
+  }
   const canCost = isAdmin(ctx.role);
   const base = cur ?? null;
   const def = base ? null : await counterpartyDefaults(db, doc.counterpartyId);
@@ -278,11 +282,32 @@ async function syncExpense(db: Db, ctx: DocCtx, d: DeliveryRow): Promise<void> {
 
 const COURIER_STATUSES: DeliveryStatus[] = ['in_transit', 'delivered', 'failed'];
 
+/** Рейс (задача 1211), в который входит доставка, пока он не выполнен и не отменён: курьер и машина доставки — из рейса */
+export async function activeTripOfDelivery(db: Db, deliveryId: string): Promise<{ tripId: string; number: string } | null> {
+  const [r] = await db
+    .select({ tripId: fleetTrips.id, number: fleetTrips.number })
+    .from(fleetTripStops)
+    .innerJoin(fleetTrips, eq(fleetTrips.id, fleetTripStops.tripId))
+    .where(and(eq(fleetTripStops.deliveryId, deliveryId), inArray(fleetTrips.status, ['planned', 'in_transit'])))
+    .limit(1);
+  return r ?? null;
+}
+
+/** Статус точки рейса следует за статусом доставки (доставлена → выполнена, не доставлена → отказ, остальное → в плане) */
+async function syncStopFromDelivery(db: Db, deliveryId: string, status: DeliveryStatus): Promise<void> {
+  const stopStatus = status === 'delivered' ? 'done' : status === 'failed' ? 'failed' : 'planned';
+  const now = new Date();
+  await db
+    .update(fleetTripStops)
+    .set({ status: stopStatus, doneAt: stopStatus === 'planned' ? null : now, updatedAt: now })
+    .where(and(eq(fleetTripStops.deliveryId, deliveryId), stopStatus === 'planned' ? inArray(fleetTripStops.status, ['done', 'failed']) : sql`${fleetTripStops.status} <> ${stopStatus}`, inArray(fleetTripStops.tripId, db.select({ id: fleetTrips.id }).from(fleetTrips).where(inArray(fleetTrips.status, ['planned', 'in_transit'])))));
+}
+
 /** Смена статуса. Курьер-участник меняет только свои доставки и только на «в пути / доставлена / не доставлена».
     «Доставлена» пишет расход, возврат из «доставлена» снимает его; доставка без курьера не может уйти «в пути» у своего курьера */
-export async function changeDeliveryStatus(db: Db, ctx: DocCtx, id: string, status: DeliveryStatus, comment?: string): Promise<DeliveryRow> {
+export async function changeDeliveryStatus(db: Db, ctx: DocCtx, id: string, status: DeliveryStatus, comment?: string, viaTrip = false): Promise<DeliveryRow> {
   const d = await loadDelivery(db, id, true);
-  const scope = await courierScope(db, ctx);
+  const scope = viaTrip ? null : await courierScope(db, ctx);
   if (scope) {
     if (d.courierMemberId !== scope) throw new DomainError(403, 'delivery_not_yours', 'This delivery is assigned to another courier');
     if (!COURIER_STATUSES.includes(status)) throw new DomainError(403, 'delivery_status_forbidden', 'A courier can mark a delivery as in transit, delivered or failed only');
@@ -292,9 +317,14 @@ export async function changeDeliveryStatus(db: Db, ctx: DocCtx, id: string, stat
   if ((status === 'assigned' || (meth?.kind === 'own_courier' && ['in_transit', 'delivered'].includes(status))) && !d.courierMemberId) throw new DomainError(422, 'courier_required', 'Assign a courier first');
   const set: Partial<typeof deliveries.$inferInsert> = { status, updatedAt: new Date() };
   if (comment !== undefined) set.comment = comment;
+  if (status === 'new' && !viaTrip) {
+    const inTrip = await activeTripOfDelivery(db, id);
+    if (inTrip) throw new DomainError(409, 'delivery_in_trip', `The delivery is in trip ${inTrip.number}: take it out of the trip first`, { tripId: inTrip.tripId });
+  }
   if (status === 'new') set.courierMemberId = null;
   const [row] = await db.update(deliveries).set(set).where(eq(deliveries.id, id)).returning();
   await syncExpense(db, ctx, row!);
+  await syncStopFromDelivery(db, id, status);
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'delivery.status_changed', entity: 'delivery', recordId: id, actorId: ctx.memberId, payload: { documentId: d.documentId, from: d.status, to: status } });
   return loadDelivery(db, id);
 }
@@ -302,6 +332,8 @@ export async function changeDeliveryStatus(db: Db, ctx: DocCtx, id: string, stat
 export async function assignCourier(db: Db, ctx: DocCtx, id: string, courierMemberId: string | null): Promise<DeliveryRow> {
   const d = await loadDelivery(db, id, true);
   if (d.status === 'delivered' || d.status === 'failed') throw new DomainError(409, 'delivery_closed', 'The delivery is already finished');
+  const inTrip = await activeTripOfDelivery(db, id);
+  if (inTrip && courierMemberId !== d.courierMemberId) throw new DomainError(409, 'delivery_in_trip', `The courier of this delivery is set by trip ${inTrip.number}`, { tripId: inTrip.tripId });
   await assertAssignees(db, { courierMemberId });
   const status: DeliveryStatus = courierMemberId ? (d.status === 'new' ? 'assigned' : (d.status as DeliveryStatus)) : d.status === 'assigned' ? 'new' : (d.status as DeliveryStatus);
   await db.update(deliveries).set({ courierMemberId, status, updatedAt: new Date() }).where(eq(deliveries.id, id));
