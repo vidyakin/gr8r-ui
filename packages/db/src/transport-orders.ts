@@ -3,7 +3,7 @@
    см. trips.ts), счёт и акт на услугу «Перевозка» (documents). Экспедирование — наём перевозчика на рейс (fleet_trip_carriers,
    одна запись на рейс) и прочие затраты рейса (fleet_trip_costs). Маржа рейса и подбор тарифа — чистые функции @gr8r/shared. */
 import { and, asc, desc, eq, gte, isNull, lte, sql } from 'drizzle-orm';
-import { computeForwardingMargin, computeTransportRateAmount, computeTripMargin, findRateSchedule, type TransportOrderStatus, type TransportRateKind } from '@gr8r/shared';
+import { computeForwardingMargin, computeTransportRateAmount, computeTripMargin, findRateSchedule, type CarrierContractPrintData, type TransportOrderStatus, type TransportRateKind } from '@gr8r/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
@@ -13,7 +13,7 @@ import { nextNumber } from './fleet';
 import { fleetCosts } from './fleet';
 import { loadTrip } from './trips';
 import { addStop } from './trips';
-import { companies, costItems, fleetTripCarriers, fleetTripCosts, organizations, transportOrderPoints, transportOrders, transportRateSchedules } from './schema';
+import { companies, costItems, fleetTripCarriers, fleetTripCosts, fleetTripStops, organizations, transportOrderPoints, transportOrders, transportRateSchedules } from './schema';
 
 const notFound = (what: string) => new DomainError(404, 'not_found', `${what} not found`);
 async function event(db: Db, ctx: DocCtx, entity: string, action: string, id: string, payload: Record<string, unknown> = {}) {
@@ -464,4 +464,55 @@ export async function tripMargin(db: Db, ctx: DocCtx, tripId: string): Promise<T
   });
   const forwarding = carrier ? computeForwardingMargin(ordersAmount, carrier.rate) : null;
   return { ...r, forwarding };
+}
+
+/* ---------------- печать договора-заявки перевозчику ---------------- */
+
+type Company = typeof companies.$inferSelect;
+const contractParty = (c: Company) => ({ name: c.name, inn: c.inn, kpp: c.kpp, address: c.legalAddress || c.actualAddress || c.city, phone: '' });
+
+/** Данные печатной формы договора-заявки перевозчику (экспедирование, задача 1223): наш статус — экспедитор (организация по первой
+    заявке рейса или первая организация арендатора), перевозчик — наёмная компания рейса, маршрут — точки рейса, груз — суммарно
+    по заявкам рейса (или по точкам, если заявок нет). Требует назначенного наёмного перевозчика. */
+export async function carrierContractPrintData(db: Db, tripId: string): Promise<CarrierContractPrintData> {
+  const trip = await loadTrip(db, tripId);
+  const carrier = await getFleetTripCarrier(db, tripId);
+  if (!carrier) throw new DomainError(422, 'carrier_not_assigned', 'The trip has no hired carrier assigned');
+  const [carrierCompany] = await db.select().from(companies).where(eq(companies.id, carrier.carrierCompanyId)).limit(1);
+  if (!carrierCompany) throw notFound('carrier company');
+
+  const orders = await db.select().from(transportOrders).where(and(eq(transportOrders.tripId, tripId), sql`${transportOrders.status} != 'cancelled'`)).orderBy(asc(transportOrders.createdAt));
+  let org: typeof organizations.$inferSelect | undefined;
+  if (orders[0]) [org] = await db.select().from(organizations).where(eq(organizations.id, orders[0].organizationId)).limit(1);
+  if (!org) [org] = await db.select().from(organizations).orderBy(asc(organizations.createdAt)).limit(1);
+
+  const stops = await db.select().from(fleetTripStops).where(eq(fleetTripStops.tripId, tripId)).orderBy(asc(fleetTripStops.seq));
+
+  const cargoName = orders.length ? orders.map(o => o.cargoName).filter(Boolean).join('; ') : '';
+  const weightKg = orders.length ? orders.reduce((s, o) => s + Number(o.weightKg), 0).toFixed(3) : stops.reduce((s, p) => s + Number(p.weightKg), 0).toFixed(3);
+  const volumeM3 = orders.length ? orders.reduce((s, o) => s + Number(o.volumeM3), 0).toFixed(3) : stops.reduce((s, p) => s + Number(p.volumeM3), 0).toFixed(3);
+  const places = orders.length ? orders.reduce((s, o) => s + o.places, 0) : stops.reduce((s, p) => s + p.pallets, 0);
+  const bodyType = orders.find(o => o.bodyType)?.bodyType ?? '';
+
+  return {
+    tripNumber: trip.number,
+    tripDate: trip.dateFrom,
+    customer: org ? { name: org.name, inn: org.inn, kpp: org.kpp, address: org.legalAddress, phone: org.phone } : { name: '', inn: '', kpp: '', address: '', phone: '' },
+    carrier: contractParty(carrierCompany),
+    stops: stops.map(s => ({ kind: s.kind, address: s.address, day: s.day, windowFrom: s.windowFrom, windowTo: s.windowTo, contactName: s.contactName, contactPhone: s.contactPhone })),
+    cargoName,
+    weightKg,
+    volumeM3,
+    places,
+    bodyType,
+    vehiclePlate: carrier.vehiclePlate,
+    vehicleModel: carrier.vehicleModel,
+    driverName: carrier.driverName,
+    driverPhone: carrier.driverPhone,
+    driverLicense: carrier.driverLicense,
+    rate: carrier.rate,
+    contractNumber: carrier.contractNumber,
+    contractDate: carrier.contractDate,
+    comment: carrier.comment,
+  };
 }

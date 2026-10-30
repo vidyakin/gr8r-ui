@@ -170,6 +170,15 @@ describe('заявка на перевозку: жизненный цикл, р�
       expect(got.body.item.rate).toBe('30000.00');
     });
 
+    test('печать договора-заявки перевозчику: стороны, маршрут, машина, водитель, ставка', async () => {
+      await owner.put(`/transport-orders/trips/${tripId}/carrier`, { carrierCompanyId: carrierCompany, rate: '30000', vehiclePlate: 'К777КК16', driverName: 'Иванов И.И.' });
+      const print = await owner.get<string>(`/transport-orders/trips/${tripId}/contract/print`);
+      expect(print.status).toBe(200);
+      expect(print.headers.get('content-type')).toContain('text/html');
+      for (const s of ['ООО «Перевозчик»', 'К777КК16', 'Иванов И.И.', '30 000,00', 'Москва, ул. Складская, 1', 'Казань, ул. Приёмная, 2']) expect(print.body).toContain(s);
+      expect((await other.get(`/transport-orders/trips/${tripId}/contract/print`)).status).toBe(404);
+    });
+
     test('прочие затраты рейса статьёй затрат', async () => {
       const cost = await owner.post(`/transport-orders/trips/${tripId}/costs`, { costItemId: costItem, amount: '1500', comment: 'Платная дорога' });
       expect(cost.status).toBe(201);

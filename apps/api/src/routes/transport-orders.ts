@@ -7,6 +7,7 @@ import {
   archiveRateSchedule,
   attachTransportOrderToTrip,
   billTransportOrder,
+  carrierContractPrintData,
   createRateSchedule,
   createTransportOrder,
   deleteFleetTripCarrier,
@@ -36,6 +37,7 @@ import {
   rateScheduleQuery,
   rateScheduleSave,
   rateScheduleUpdate,
+  renderCarrierContract,
   transportOrderBilling,
   transportOrderQuery,
   transportOrderSave,
@@ -147,4 +149,11 @@ export const transportOrderRoutes = new Hono<AppEnv>()
   .get('/trips/:id/margin', zValidator('param', tripIdParam, validationHook), async c => {
     const ctx = ctxOf(c);
     return c.json(await tripMargin(ctx.db, docCtx(ctx), c.req.valid('param').id));
+  })
+  // договор-заявка наёмному перевозчику (задача 1223): готовая HTML-страница
+  .get('/trips/:id/contract/print', zValidator('param', tripIdParam, validationHook), async c => {
+    const data = await carrierContractPrintData(ctxOf(c).db, c.req.valid('param').id);
+    c.header('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'");
+    c.header('X-Content-Type-Options', 'nosniff');
+    return c.html(renderCarrierContract(data));
   });
