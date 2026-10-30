@@ -8,7 +8,7 @@ import { Logo } from '../components/brand';
 import { AuthCard, AuthShell, FieldErr, SocialButtons, StrengthMeter, useBusy, useLoading } from '../components/auth-shell';
 import { errorMessage } from '../data/api';
 import { useSession } from '../data/session';
-import { EMAIL_RE, authForm, pwWeak } from '../lib/auth';
+import { EMAIL_RE, authForm, pendingInvite, pwWeak } from '../lib/auth';
 import { SECTIONS } from '../routes';
 import { useT } from '@/i18n';
 
@@ -54,7 +54,8 @@ export function SignInPage() {
     void run(async () => {
       try {
         await session.signIn(em, pw);
-        navigate(SECTIONS.home.path, { replace: true });
+        const inv = pendingInvite.get();
+        navigate(inv ? `/join/${inv}` : SECTIONS.home.path, { replace: true });
         toast(tr('pages.auth.signedIn', { email: em }));
       } catch (e) {
         setErr({ pw: errorMessage(e) });
@@ -148,7 +149,8 @@ export function SignUpPage() {
     void run(async () => {
       try {
         await session.signUp({ email: em, password: pw, name: nm });
-        navigate('/onboarding', { replace: true });
+        const inv = pendingInvite.get();
+        navigate(inv ? `/join/${inv}` : '/onboarding', { replace: true });
       } catch (e) {
         const msg = errorMessage(e);
         setErr(/email/i.test(msg) ? { email: msg } : { pw: msg });

@@ -1,7 +1,7 @@
 /* Онбординг — порт renderOnboarding из pages/auth.js и действий onbSet/onbNext/onbFinish из actions/actions.js */
 import * as React from 'react';
 import { Navigate, useNavigate } from 'react-router';
-import { ArrowLeft, ArrowRight, Building2, Check, CircleCheck, Link, UserPlus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Building2, Check, CircleCheck, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/ui';
 import { AuthCard, AuthShell, FieldErr } from '../components/auth-shell';
@@ -10,7 +10,6 @@ import { makeKey } from '../data/store';
 import { apiFor, errorMessage, ok } from '../data/api';
 import { useSession, type WorkspaceRef } from '../data/session';
 import { TEMPLATES } from '../overlays/project-dialogs';
-import { inviteLink } from '../overlays/invite';
 import { EMAIL_RE } from '../lib/auth';
 import { dOff } from '../lib/dates';
 import { uuidv7 } from '../lib/uuid';
@@ -316,18 +315,6 @@ export function OnboardingPage() {
             <input key={i} className="input input-lg" id={`o-inv-${i}`} placeholder={tr('pages.onboarding.invitePlaceholder')} type="email" value={o.invites[i]} aria-label={tr('pages.onboarding.inviteAria', { n: i + 1 })} onChange={e => set({ invites: o.invites.map((v, j) => (j === i ? e.target.value.trim() : v)) })} />
           ))}
         </div>
-        <button
-          type="button"
-          className="btn btn-ghost btn-sm"
-          style={{ alignSelf: 'flex-start' }}
-          onClick={() => {
-            navigator.clipboard?.writeText(inviteLink(o.url || 'workspace')).catch(() => {});
-            toast(tr('pages.onboarding.inviteLinkCopied'));
-          }}
-        >
-          <Link size={13} />
-          {tr('pages.onboarding.copyInvite')}
-        </button>
         {nav(tr('pages.onboarding.sendInvites'), true)}
       </>
     );

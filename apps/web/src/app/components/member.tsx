@@ -24,6 +24,7 @@ import { useWorkspace } from '../data/store';
 import { allTasks, me as selectMe } from '../data/selectors';
 import type { Member } from '../data/types';
 import { useTaskForm } from '../overlays';
+import { useCopyInviteLink } from '../overlays/invite';
 
 /** Роли, которые можно назначить (Owner — только владелец воркспейса) */
 export const ASSIGNABLE_ROLES = ['Admin', 'Member', 'Guest'] as const;
@@ -43,6 +44,7 @@ export function useMemberActions() {
   const tt = useT();
   const { pathname } = useLocation();
   const taskForm = useTaskForm();
+  const copyInviteLink = useCopyInviteLink();
   const [removing, setRemoving] = React.useState<Member | null>(null);
 
   const openTasks = (m: Member) => allTasks(data).filter(t => t.assignee === m.id && t.status !== 'done').length;
@@ -95,7 +97,7 @@ export function useMemberActions() {
       navigator.clipboard?.writeText(m.email).catch(() => {});
       toast(tt('views.member.emailCopied'));
     },
-    resend: (m: Member) => toast(tt('views.member.inviteResent', { email: m.email })),
+    resend: (m: Member) => void copyInviteLink(m.email),
     setRole: (m: Member, role: Member['role']) => {
       if (role === m.role) return;
       dispatch({ type: 'member/setRole', id: m.id, role });

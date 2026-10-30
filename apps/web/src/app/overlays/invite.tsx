@@ -3,6 +3,8 @@ import * as React from 'react';
 import { Info, Link } from 'lucide-react';
 import { Button, Dialog, DialogClose, DialogContent, Field, Textarea, toast } from '@/components/ui';
 import { useT } from '@/i18n';
+import { apiFor, errorMessage, ok } from '../data/api';
+import { useSession } from '../data/session';
 import { useWorkspace } from '../data/store';
 import type { Member } from '../data/types';
 
@@ -20,8 +22,27 @@ const Ctx = React.createContext<InviteApi | null>(null);
 const INVITE_ROLES: Member['role'][] = ['Member', 'Admin', 'Guest'];
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 
-/** Ссылка-приглашение воркспейса (в оригинале — фиксированный токен) */
-export const inviteLink = (wsUrl: string) => `https://gr8rstudio.com/join/${wsUrl}-7f3k2`;
+/** Рабочая ссылка-приглашение: токен привязан к адресу и действует 7 дней (маршрут `/join/:token`, hash-роутинг) */
+export const inviteLink = (token: string) => `${window.location.origin}${window.location.pathname}#/join/${token}`;
+
+/** Выдаёт новую ссылку для неотвеченного приглашения и копирует её. Писем нет (почта не подключена), ссылку передают вручную */
+export function useCopyInviteLink() {
+  const t = useT();
+  const wsId = useSession().active?.id;
+  return React.useCallback(
+    async (email: string) => {
+      if (!wsId) return;
+      try {
+        const r = await ok<{ token: string }>(apiFor().workspaces[':id'].invites.link.$post({ param: { id: wsId }, json: { email } }));
+        await navigator.clipboard?.writeText(inviteLink(r.token)).catch(() => {});
+        toast(t('overlays.invite.linkCopiedFor', { email }));
+      } catch (e) {
+        toast.error(errorMessage(e));
+      }
+    },
+    [wsId, t],
+  );
+}
 
 function InviteDialog({ open, onOpenChange, opts }: { open: boolean; onOpenChange: (v: boolean) => void; opts: InviteOptions }) {
   const { data, dispatch } = useWorkspace();
@@ -30,8 +51,8 @@ function InviteDialog({ open, onOpenChange, opts }: { open: boolean; onOpenChang
   const [role, setRole] = React.useState<Member['role']>('Member');
   const [team, setTeam] = React.useState('');
   const [error, setError] = React.useState('');
-  const [sending, setSending] = React.useState(false);
-  const timer = React.useRef<number>(undefined);
+  const [created, setCreated] = React.useState<string[] | null>(null);
+  const copyLink = useCopyInviteLink();
 
   // Каждое открытие начинается с чистой формы
   React.useEffect(() => {
@@ -40,13 +61,11 @@ function InviteDialog({ open, onOpenChange, opts }: { open: boolean; onOpenChang
     setRole('Member');
     setTeam(opts.team && data.teams.some(t => t.id === opts.team) ? opts.team : (data.teams[0]?.id ?? ''));
     setError('');
-    setSending(false);
+    setCreated(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
-  React.useEffect(() => () => clearTimeout(timer.current), []);
 
   const submit = () => {
-    if (sending) return;
     const list = emails
       .split(/[\s,;]+/)
       .map(s => s.trim())
@@ -55,18 +74,12 @@ function InviteDialog({ open, onOpenChange, opts }: { open: boolean; onOpenChang
     if (!list.length) return setError(t('overlays.invite.noEmails'));
     if (bad) return setError(t('overlays.invite.invalidEmail', { email: bad }));
     setError('');
-    setSending(true);
-    // Короткая пауза на кнопке, как loadingBtn в оригинале
-    timer.current = window.setTimeout(() => {
-      dispatch({ type: 'member/invite', emails: list, role, team });
-      onOpenChange(false);
-      toast(t('overlays.invite.sent', { count: list.length }));
-    }, 600);
-  };
-
-  const copyLink = () => {
-    navigator.clipboard?.writeText(inviteLink(data.ws.url)).catch(() => {});
-    toast(t('overlays.invite.linkCopied'));
+    // Профиль «приглашён» создаётся сразу; письма не уходят, поэтому дальше показываем ссылки для передачи вручную
+    const fresh = list.filter((e, i) => list.indexOf(e) === i && !data.members.some(m => m.email === e));
+    if (!fresh.length) return setError(t('overlays.invite.allExist'));
+    dispatch({ type: 'member/invite', emails: list, role, team });
+    setCreated(fresh);
+    toast(t('overlays.invite.sent', { count: fresh.length }));
   };
 
   return (
@@ -76,20 +89,35 @@ function InviteDialog({ open, onOpenChange, opts }: { open: boolean; onOpenChang
         description={t('overlays.invite.description')}
         footer={
           <>
-            <Button variant="ghost" onClick={copyLink}>
-              <Link size={14} />
-              {t('overlays.invite.copyLink')}
-            </Button>
             <span className="sp" />
             <DialogClose asChild>
-              <Button variant="secondary">{t('common.cancel')}</Button>
+              <Button variant="secondary">{created ? t('overlays.invite.done') : t('common.cancel')}</Button>
             </DialogClose>
-            <Button variant="primary" type="submit" form="invite-form" loading={sending}>
-              {t('overlays.invite.send')}
-            </Button>
+            {!created && (
+              <Button variant="primary" type="submit" form="invite-form">
+                {t('overlays.invite.send')}
+              </Button>
+            )}
           </>
         }
       >
+        {created ? (
+          <div className="col" style={{ gap: 10 }}>
+            <div className="alert info">
+              <Info size={14} />
+              <span>{t('overlays.invite.linksHint')}</span>
+            </div>
+            {created.map(e => (
+              <div key={e} className="row" style={{ gap: 10 }}>
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{e}</span>
+                <Button variant="secondary" onClick={() => void copyLink(e)}>
+                  <Link size={14} />
+                  {t('overlays.invite.copyLink')}
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : (
         <form
           id="invite-form"
           className="contents"
@@ -145,6 +173,7 @@ function InviteDialog({ open, onOpenChange, opts }: { open: boolean; onOpenChang
             </span>
           </div>
         </form>
+        )}
       </DialogContent>
     </Dialog>
   );

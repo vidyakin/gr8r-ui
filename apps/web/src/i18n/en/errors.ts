@@ -5,6 +5,7 @@ export const errors = {
   network: 'Could not reach the server',
   not_found: 'The record was not found',
   forbidden: 'You do not have permission to do this',
+  invite_not_found: 'No pending invite for this address, or the link has expired',
   unauthorized: 'Please sign in again',
   conflict: 'A record with the same unique value already exists',
   module_expired: 'The module’s term has ended: it is read-only. Extend the plan to edit data',
