@@ -96,7 +96,13 @@ describe('транспортная накладная', () => {
     const a = await owner.post('/trips/tn', { deliveryId: d.id });
     const f = await owner.post(`/trips/tn/${a.body.id}/pdf`, {});
     expect(f.status).toBe(202);
+    expect(f.body.name).toBe('TN-00005.pdf'.replace('00005', a.body.number.slice(3)));
     expect((await owner.get(`/trips/tn-files/${f.body.id}`)).body.status).toBe('pending');
+    // готовый файл отдаётся с ASCII-именем (кириллица в Content-Disposition ломает заголовок)
+    await admin.unsafe(`update document_exports set status='ready', data='\\x25504446', size=4 where id='${f.body.id}'`);
+    const dl = await owner.get(`/trips/tn-files/${f.body.id}?download=1`);
+    expect(dl.status).toBe(200);
+    expect(dl.headers.get('content-type')).toBe('application/pdf');
     const jobs = (await admin.unsafe(`select type from jobs where workspace_id='${ws}' and type='transport.waybill_pdf'`)) as any[];
     expect(jobs.length).toBeGreaterThan(0);
   });

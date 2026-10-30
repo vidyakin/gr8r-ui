@@ -56,7 +56,7 @@ export const tripRoutes = new Hono<AppEnv>()
   .post('/tn/:id/pdf', write, zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
     const w = await getTransportWaybill(ctx.db, c.req.valid('param').id);
-    const [row] = await ctx.db.insert(documentExports).values({ workspaceId: ctx.workspaceId, name: `${w.number}.pdf`, contentType: 'application/pdf', requestedBy: ctx.memberId }).returning({ id: documentExports.id, name: documentExports.name, status: documentExports.status });
+    const [row] = await ctx.db.insert(documentExports).values({ workspaceId: ctx.workspaceId, name: `TN-${w.number.replace(/\D+/g, '')}.pdf`, contentType: 'application/pdf', requestedBy: ctx.memberId }).returning({ id: documentExports.id, name: documentExports.name, status: documentExports.status });
     await ctx.db.insert(jobs).values({ workspaceId: ctx.workspaceId, type: 'transport.waybill_pdf', payload: { exportId: row!.id, waybillId: w.id } });
     return c.json(row!, 202);
   })
