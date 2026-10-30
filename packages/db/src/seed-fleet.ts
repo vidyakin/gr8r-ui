@@ -21,6 +21,7 @@ import {
 } from './fleet';
 import { memberIdsWithFunction } from './positions';
 import { members } from './schema';
+import { seedTrips } from './seed-trips';
 
 const iso = (daysAhead: number) => new Date(Date.now() + daysAhead * 864e5).toISOString().slice(0, 10);
 const at = (daysAhead: number, hhmm: string) => `${iso(daysAhead)}T${hhmm}:00.000Z`;
@@ -96,4 +97,6 @@ export async function seedFleet(db: Db, ctx: DocCtx) {
     ],
   });
   await postRepair(db, ctx, rep.id);
+  // рейсы (задача 1211): доставки сида в городских рейсах на сегодня и междугородний на завтра
+  await seedTrips(db, ctx, { gazelId: gazel.id, mazId: maz.id, transitId: transit.id, driver1: d1, driver2: d2 });
 }

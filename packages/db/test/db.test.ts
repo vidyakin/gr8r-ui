@@ -145,10 +145,10 @@ describe('seed', () => {
     expect(await count('documents', `${w} and based_on_id is not null`)).toBe(19);
     // доставка (задача 1100): два способа, три доставки в разных статусах, расход «Доставка» у доставленной, два курьера, веса у двух товаров
     expect(await count('delivery_methods', w)).toBe(2);
-    expect(await count('deliveries', w)).toBe(3);
-    expect(await count('deliveries', `${w} and status = 'delivered' and expense_amount is not null`)).toBe(1);
-    expect(await count('deliveries', `${w} and status = 'assigned'`)).toBe(1);
-    expect(await count('deliveries', `${w} and status = 'in_transit'`)).toBe(1);
+    expect(await count('deliveries', w)).toBe(8); // три доставки сида доставок + пять на заказах для рейсов (1211)
+    expect(await count('deliveries', `${w} and status = 'delivered' and expense_amount is not null`)).toBe(2); // вторая — точка рейса, вручённая в сиде рейсов
+    expect(await count('deliveries', `${w} and status = 'assigned'`)).toBe(2); // планового рейса
+    expect(await count('deliveries', `${w} and status = 'in_transit'`)).toBe(3); // заказ-наряд и две точки рейса в пути
     expect(await count('member_positions', `${w} and position_id in (select id from positions where functions @> array['courier'])`)).toBe(2);
     // должности (задача 1172, 1210): пять должностей (в том числе «Водитель»), восемь назначений (курьеры — ещё и водители), три вида номенклатуры; виды у мебели, монтажа и двух услуг массажа
     expect(await count('positions', w)).toBe(5);
@@ -158,6 +158,11 @@ describe('seed', () => {
     expect(await count('fleet_waybills', w)).toBe(7);
     expect(await count('fleet_fuel_entries', w)).toBe(3);
     expect(await count('fleet_documents', w)).toBe(12);
+    // рейсы (задача 1211): три рейса (в пути, план, междугородний), доставки в точках, путевые листы привязаны к рейсам
+    expect(await count('fleet_trips', w)).toBe(3);
+    expect(await count('fleet_trips', `${w} and status = 'in_transit'`)).toBe(1);
+    expect(await count('fleet_trip_stops', `${w} and delivery_id is not null`)).toBeGreaterThanOrEqual(3);
+    expect(await count('fleet_waybills', `${w} and trip_id is not null`)).toBeGreaterThanOrEqual(1);
     expect(await count('product_kinds', w)).toBe(3);
     expect(await count('position_product_kinds', w)).toBe(1);
     expect(await count('products', `${w} and product_kind_id is not null`)).toBeGreaterThan(5);
