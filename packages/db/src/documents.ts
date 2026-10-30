@@ -628,17 +628,17 @@ export async function deleteDocument(db: Db, ctx: DocCtx, id: string): Promise<v
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.deleted', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { documentType: doc.type } });
 }
 
-export async function cancelDocument(db: Db, ctx: DocCtx, id: string): Promise<void> {
+export async function cancelDocument(db: Db, ctx: DocCtx, id: string, reason?: string): Promise<void> {
   const doc = await loadDoc(db, id, true);
   if (doc.status !== 'draft') throw new DomainError(409, 'invalid_status', doc.status === 'posted' ? 'Unpost the document before cancelling it' : 'The document is already cancelled');
-  await db.update(documents).set({ status: 'cancelled', updatedAt: new Date() }).where(eq(documents.id, id));
-  await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.cancelled', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { documentType: doc.type, number: doc.number } });
+  await db.update(documents).set({ status: 'cancelled', cancelReason: reason?.trim() || null, updatedAt: new Date() }).where(eq(documents.id, id));
+  await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.cancelled', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { documentType: doc.type, number: doc.number, ...(reason?.trim() ? { reason: reason.trim() } : {}) } });
 }
 
 export async function restoreDocument(db: Db, ctx: DocCtx, id: string): Promise<void> {
   const doc = await loadDoc(db, id, true);
   if (doc.status !== 'cancelled') throw new DomainError(409, 'invalid_status', 'Only a cancelled document can be restored');
-  await db.update(documents).set({ status: 'draft', updatedAt: new Date() }).where(eq(documents.id, id));
+  await db.update(documents).set({ status: 'draft', cancelReason: null, updatedAt: new Date() }).where(eq(documents.id, id));
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.restored', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { documentType: doc.type } });
 }
 

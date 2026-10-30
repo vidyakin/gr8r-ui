@@ -75,6 +75,7 @@ import {
   DOCUMENT_META,
   documentCreate,
   documentQuery,
+  documentCancel,
   documentStateChange,
   documentSerialsSave,
   documentTypesOf,
@@ -455,8 +456,12 @@ export const documentRoutes = new Hono<AppEnv>()
   .post('/:id/cancel', write, zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;
+    // тело необязательно: причина отмены (старые клиенты вызывают без тела)
+    const raw = await c.req.json().catch(() => ({}));
+    const parsed = documentCancel.safeParse(raw ?? {});
+    if (!parsed.success) throw new AppError(422, 'validation_error', 'Invalid cancellation reason');
     await payrollGuard(c, ctx, id);
-    await cancelDocument(ctx.db, docCtx(ctx), id);
+    await cancelDocument(ctx.db, docCtx(ctx), id, parsed.data.reason);
     return c.json(await documentDetail(ctx.db, id));
   })
   .post('/:id/restore', write, zValidator('param', idParam, validationHook), async c => {
