@@ -151,6 +151,7 @@ export function useLoyaltyApi() {
     archiveRule: (id: string) => wrap(call(ws, 'DELETE', `/loyalty/discount-rules/${id}`)),
     restoreRule: (id: string) => wrap(call(ws, 'POST', `/loyalty/discount-rules/${id}/restore`)),
     savePromo: (body: PromoCodeBody) => wrap(call<PromoCode>(ws, 'POST', '/loyalty/promo-codes', body)),
+    issuePromos: (body: { ruleId: string; count: number; prefix?: string | undefined; validFrom: string | null; validTo: string | null; usageLimit: number | null }) => wrap(call<{ codes: string[] }>(ws, 'POST', '/loyalty/promo-codes/issue', body)),
     updatePromo: (id: string, body: Partial<PromoCodeBody>) => wrap(call<PromoCode>(ws, 'PATCH', `/loyalty/promo-codes/${id}`, body)),
     archivePromo: (id: string) => wrap(call(ws, 'DELETE', `/loyalty/promo-codes/${id}`)),
     updateProgram: (body: Partial<LoyaltyProgram>) => wrap(call<LoyaltyProgram>(ws, 'PATCH', '/loyalty/program', body)),

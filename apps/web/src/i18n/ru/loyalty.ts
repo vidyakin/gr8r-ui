@@ -74,7 +74,6 @@ export const loyalty: typeof en = {
     count: 'Сколько кодов',
     countHint: 'До 200 за раз',
     issued: 'Выпущено кодов: {n}',
-    issuedPartial: 'Выпущено {n} из {total}: {error}',
     archiveTitle: 'Убрать промокод в архив?',
     exhausted: 'Исчерпан',
     expired: 'Просрочен',

@@ -72,7 +72,6 @@ export const loyalty = {
     count: 'How many codes',
     countHint: 'Up to 200 at once',
     issued: 'Codes issued: {n}',
-    issuedPartial: 'Issued {n} of {total}: {error}',
     archiveTitle: 'Archive the promo code?',
     exhausted: 'Exhausted',
     expired: 'Expired',

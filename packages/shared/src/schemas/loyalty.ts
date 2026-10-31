@@ -41,6 +41,7 @@ export const promoCodeIssue = z.object({
   ruleId: uuid,
   count: z.number().int().min(1).max(1000),
   prefix: z.string().trim().max(20).optional(),
+  usageLimit: promoCodeBody.shape.usageLimit,
   validFrom: promoCodeBody.shape.validFrom,
   validTo: promoCodeBody.shape.validTo,
 });

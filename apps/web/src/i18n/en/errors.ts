@@ -392,5 +392,6 @@ export const errors = {
   invalid_document_type: 'Automatic discounts apply only to quotes, orders, invoices, sales, acts and work orders',
   invalid_promo_code: 'The promo code does not exist, has expired or its usage limit is reached',
   loyalty_card_inactive: 'The loyalty card is not active',
+  loyalty_card_foreign: 'The loyalty card belongs to another customer',
   promo_code_exhausted: 'The promo code usage limit has just been reached: remove the code or try again',
 };

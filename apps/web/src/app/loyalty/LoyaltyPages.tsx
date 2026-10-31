@@ -387,18 +387,8 @@ function PromoDialog({ promo, batch, onClose }: { promo: PromoCode | null; batch
         onClose();
         return;
       }
-      // пакет выпускается по одному коду; при ошибке уже выпущенные остаются
-      let done = 0;
-      try {
-        while (done < n) {
-          await api.savePromo({ id: uuidv7(), code: randomCode(prefix.trim().toUpperCase()), ...common });
-          done++;
-        }
-      } catch (e) {
-        toast.error(t('loyalty.promo.issuedPartial', { n: done, total: n, error: errorMessage(e) }));
-        return;
-      }
-      toast(t('loyalty.promo.issued', { n: done }));
+      await api.issuePromos({ ...common, count: n, prefix: prefix.trim().toUpperCase() || undefined });
+      toast(t('loyalty.promo.issued', { n }));
       onClose();
     });
 

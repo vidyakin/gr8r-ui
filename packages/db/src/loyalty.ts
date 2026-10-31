@@ -191,12 +191,12 @@ export async function createPromoCode(db: Db, ctx: DocCtx, input: PromoCodeInput
   return row!.id;
 }
 
-/** Пакетный выпуск кодов одного правила (рассылка 1092 будет выдавать их клиентам): префикс и случайный хвост, каждый код на одно использование */
-export async function issuePromoCodes(db: Db, ctx: DocCtx, input: { ruleId: string; count: number; prefix?: string | undefined; validFrom?: string | null | undefined; validTo?: string | null | undefined }): Promise<string[]> {
+/** Пакетный выпуск кодов одного правила (рассылка 1092 будет выдавать их клиентам): префикс и случайный хвост, по умолчанию каждый код на одно использование */
+export async function issuePromoCodes(db: Db, ctx: DocCtx, input: { ruleId: string; count: number; prefix?: string | undefined; validFrom?: string | null | undefined; validTo?: string | null | undefined; usageLimit?: number | null | undefined }): Promise<string[]> {
   const codes: string[] = [];
   for (let i = 0; i < input.count; i++) {
     const code = `${input.prefix ?? ''}${crypto.randomUUID().replaceAll('-', '').slice(0, 10).toUpperCase()}`;
-    await createPromoCode(db, ctx, { code, ruleId: input.ruleId, validFrom: input.validFrom ?? null, validTo: input.validTo ?? null, usageLimit: 1 });
+    await createPromoCode(db, ctx, { code, ruleId: input.ruleId, validFrom: input.validFrom ?? null, validTo: input.validTo ?? null, usageLimit: input.usageLimit === undefined ? 1 : input.usageLimit });
     codes.push(code);
   }
   return codes;
