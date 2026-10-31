@@ -8,6 +8,9 @@ import {
   BadgeRussianRuble,
   ScrollText,
   Tags,
+  Percent,
+  Ticket,
+  Gift,
   FilePenLine,
   FileSpreadsheet,
   UserRoundCog,
@@ -173,6 +176,11 @@ export const SECTIONS = {
   priceList: { path: '/pricing', name: 'Price list', icon: ScrollText },
   priceSettings: { path: '/pricing/settings', name: 'Price settings', icon: FilePenLine },
   priceKinds: { path: '/pricing/kinds', name: 'Price kinds', icon: Tags },
+  // Автоскидки и карты лояльности (задача 1179); карточка карты — /loyalty/cards/:id, в меню её нет
+  discountRules: { path: '/loyalty/rules', name: 'Discount rules', icon: Percent },
+  promoCodes: { path: '/loyalty/promo-codes', name: 'Promo codes', icon: Ticket },
+  loyaltyCards: { path: '/loyalty/cards', name: 'Loyalty cards', icon: CreditCard },
+  loyaltyProgram: { path: '/loyalty/program', name: 'Loyalty program', icon: Gift },
   // Деньги: оплаты, остатки, ДДС, задолженность
   money: { path: '/money', name: 'Payments', icon: Banknote },
   moneyCalendar: { path: '/money/calendar', name: 'Payment calendar', icon: CalendarRange },
@@ -234,7 +242,7 @@ export const NAV_GROUPS = {
   trade: {
     icon: Store,
     // расчёт потребностей открывается из закупок и склада — тот же экран, что и в производстве
-    items: [{ id: 'sales' }, { id: 'purchases' }, { id: 'stockDocs' }, { id: 'processingDocs' }, { id: 'inventory' }, { id: 'inUse' }, { id: 'serials' }, { id: 'productionNeeds', label: 'nav.stockNeeds' }, { id: 'priceList' }, { id: 'priceSettings' }, { id: 'priceKinds' }],
+    items: [{ id: 'sales' }, { id: 'purchases' }, { id: 'stockDocs' }, { id: 'processingDocs' }, { id: 'inventory' }, { id: 'inUse' }, { id: 'serials' }, { id: 'productionNeeds', label: 'nav.stockNeeds' }, { id: 'priceList' }, { id: 'priceSettings' }, { id: 'priceKinds' }, { id: 'discountRules' }, { id: 'promoCodes' }, { id: 'loyaltyCards' }, { id: 'loyaltyProgram' }],
   },
   services: {
     icon: BriefcaseBusiness,
@@ -292,6 +300,10 @@ const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
   priceList: 'catalog',
   priceSettings: 'catalog',
   priceKinds: 'catalog',
+  discountRules: 'catalog',
+  promoCodes: 'catalog',
+  loyaltyCards: 'catalog',
+  loyaltyProgram: 'catalog',
   production: 'production',
   productionOrders: 'production',
   productionWorkbench: 'production',

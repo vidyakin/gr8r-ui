@@ -388,4 +388,9 @@ export const errors = {
   driver_event_conflict: 'This client ID was used for a different event',
   workspace_invalid: 'Workspace id is not a valid UUID',
   workspace_required: 'X-Workspace-Id header is required',
+  discount_pct_required: 'Enter the percent of the discount card',
+  invalid_document_type: 'Automatic discounts apply only to quotes, orders, invoices, sales, acts and work orders',
+  invalid_promo_code: 'The promo code does not exist, has expired or its usage limit is reached',
+  loyalty_card_inactive: 'The loyalty card is not active',
+  promo_code_exhausted: 'The promo code usage limit has just been reached: remove the code or try again',
 };

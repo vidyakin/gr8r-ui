@@ -40,7 +40,7 @@ import { recordEvent } from './events';
 import { applyStockMoves, defaultPostingCost, documentCosts, documentLineCosts, loadInventorySettings, revertStockMoves, sourceMoveCosts, syncReservations, type MoveRequest } from './stock';
 import { syncWorkOrderResources } from './planning';
 import { assertPeriodOpen, assertServiceCostItems, clearPeriodCosts, syncPeriodCosts } from './cost-closing';
-import { bankAccounts, companies, deals, contracts, paymentLinks, costItems, documentCounters, documentLineDiscounts, documentLines, documentStates, documents, investmentProjects, materialAllocationItems, members, organizations, products, promoCodes, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials } from './schema';
+import { bankAccounts, companies, deals, contracts, discountRules, loyaltyCards, paymentLinks, costItems, documentCounters, documentLineDiscounts, documentLines, documentStates, documents, investmentProjects, materialAllocationItems, members, organizations, products, promoCodes, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials } from './schema';
 import { assertInvestmentTarget, investmentOpen } from './investments';
 import { assertContractOfCompany, contractDocumentProducts, contractPlanProductIds, defaultContract } from './contracts';
 import { ensureVariant, specParamsOfProduct } from './variants';
@@ -1062,6 +1062,21 @@ export interface DocumentLineView extends DocumentLineRow {
   planned: string;
   /** Для строк реализации и поступления: уже возвращено проведёнными возвратами */
   returned: string;
+  /** Источник скидки строки (задача 1179): null — скидки нет или запись об источнике отсутствует */
+  discountSource: 'manual' | 'rule' | 'card' | null;
+  discountRuleId: string | null;
+  discountRuleName: string | null;
+  discountCardId: string | null;
+  discountCardNumber: string | null;
+}
+
+/** Промокод, карта и списание баллов документа для формы (код и номер карты — готовыми строками) */
+async function documentLoyaltyView(db: Db, id: string) {
+  const dl = await documentLoyaltyOf(db, id);
+  if (!dl) return null;
+  const [pc] = dl.promoCodeId ? await db.select({ code: promoCodes.code }).from(promoCodes).where(eq(promoCodes.id, dl.promoCodeId)).limit(1) : [];
+  const [card] = dl.loyaltyCardId ? await db.select({ number: loyaltyCards.number, kind: loyaltyCards.kind }).from(loyaltyCards).where(eq(loyaltyCards.id, dl.loyaltyCardId)).limit(1) : [];
+  return { promoCodeId: dl.promoCodeId, promoCode: pc?.code ?? null, loyaltyCardId: dl.loyaltyCardId, loyaltyCardNumber: card?.number ?? null, loyaltyCardKind: card?.kind ?? null, pointsRedeemed: dl.pointsRedeemed };
 }
 
 export async function documentDetail(db: Db, id: string) {
@@ -1109,8 +1124,27 @@ export async function documentDetail(db: Db, id: string) {
   const shipped = isOrder ? await sums(documentLines.originLineId, FULFIL_TYPES, true) : new Map<string, string>();
   const planned = isOrder ? await sums(documentLines.originLineId, FULFIL_TYPES, false) : new Map<string, string>();
   const returned = isReturnable ? await sums(documentLines.sourceLineId, [type === 'realization' ? 'customer_return' : 'supplier_return'], true) : new Map<string, string>();
-  const lines: DocumentLineView[] = rows.map(r => ({ ...r.line, sku: r.sku, kind: r.kind, trackSerials: r.trackSerials, shipped: fmt(dec(shipped.get(r.line.id) ?? 0), 3), planned: fmt(dec(planned.get(r.line.id) ?? 0), 3), returned: fmt(dec(returned.get(r.line.id) ?? 0), 3) }));
+  const lines: DocumentLineView[] = rows.map(r => ({ ...r.line, sku: r.sku, kind: r.kind, trackSerials: r.trackSerials, shipped: fmt(dec(shipped.get(r.line.id) ?? 0), 3), planned: fmt(dec(planned.get(r.line.id) ?? 0), 3), returned: fmt(dec(returned.get(r.line.id) ?? 0), 3), discountSource: null, discountRuleId: null, discountRuleName: null, discountCardId: null, discountCardNumber: null }));
+  // источники скидок строк (ручная / правило / карта) — для отметки в форме документа
+  const srcRows = ids.length
+    ? await db
+        .select({ lineId: documentLineDiscounts.lineId, source: documentLineDiscounts.source, ruleId: documentLineDiscounts.ruleId, ruleName: discountRules.name, cardId: documentLineDiscounts.cardId, cardNumber: loyaltyCards.number })
+        .from(documentLineDiscounts)
+        .leftJoin(discountRules, eq(discountRules.id, documentLineDiscounts.ruleId))
+        .leftJoin(loyaltyCards, eq(loyaltyCards.id, documentLineDiscounts.cardId))
+        .where(inArray(documentLineDiscounts.lineId, ids))
+    : [];
+  const srcOf = new Map(srcRows.map(r => [r.lineId, r]));
+  for (const l of lines) {
+    const s = srcOf.get(l.id);
+    l.discountSource = s?.source ?? null;
+    l.discountRuleId = s?.ruleId ?? null;
+    l.discountRuleName = s?.ruleName ?? null;
+    l.discountCardId = s?.cardId ?? null;
+    l.discountCardNumber = s?.cardNumber ?? null;
+  }
   const totals = computeTotals(lines.map(l => ({ net: l.net, vatAmount: l.vatAmount, total: l.total, vatRate: l.vatRate })));
+  const loyalty = await documentLoyaltyView(db, id);
   const [targetWh] = doc.targetWarehouseId ? await db.select({ id: warehouses.id, name: warehouses.name, kind: warehouses.kind }).from(warehouses).where(eq(warehouses.id, doc.targetWarehouseId)).limit(1) : [];
   const [costItem] = doc.costItemId ? await db.select({ id: costItems.id, name: costItems.name, kind: costItems.kind }).from(costItems).where(eq(costItems.id, doc.costItemId)).limit(1) : [];
   // получатель имущества в эксплуатацию: сотрудник или участок
@@ -1121,7 +1155,7 @@ export async function documentDetail(db: Db, id: string) {
   // внутренний документ: стоимость по себестоимости (сумма qty × cost движений)
   const costs = DOCUMENT_META[type].party === null ? await documentCosts(db, [id]) : new Map<string, string>();
   const [investmentProject] = doc.investmentProjectId ? await db.select({ id: investmentProjects.id, name: investmentProjects.name, status: investmentProjects.status }).from(investmentProjects).where(eq(investmentProjects.id, doc.investmentProjectId)).limit(1) : [];
-  return { ...doc, investmentProject: investmentProject ?? null, organization: org ?? null, counterparty: cp ?? null, contract: contract ?? null, warehouse: wh ?? null, targetWarehouse: targetWh ?? null, costItem: costItem ?? null, workCenter: workCenter ?? null, inUseMember: inUseMember ?? null, inUseWorkCenter: inUseWorkCenter ?? null, costTotal: costs.get(id) ?? '0.00', basedOn: base ?? null, children, lines, totals, serials: await lineSerialsView(db, id), variants: hasQuoteVariants(type) ? await variantsOf(db, doc) : [] };
+  return { ...doc, investmentProject: investmentProject ?? null, organization: org ?? null, counterparty: cp ?? null, contract: contract ?? null, warehouse: wh ?? null, targetWarehouse: targetWh ?? null, costItem: costItem ?? null, workCenter: workCenter ?? null, inUseMember: inUseMember ?? null, inUseWorkCenter: inUseWorkCenter ?? null, costTotal: costs.get(id) ?? '0.00', basedOn: base ?? null, children, lines, loyalty, totals, serials: await lineSerialsView(db, id), variants: hasQuoteVariants(type) ? await variantsOf(db, doc) : [] };
 }
 
 /* ---------------- данные для печатной формы ---------------- */
