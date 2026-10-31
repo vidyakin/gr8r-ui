@@ -8,7 +8,7 @@ sources:
   - apps/web/src/app/docs/DocLoyalty.tsx
   - apps/api/src/routes/loyalty.ts
   - packages/db/src/loyalty.ts
-verified: 0000000000
+verified: 271d76f476
 screenshots: []
 ---
 

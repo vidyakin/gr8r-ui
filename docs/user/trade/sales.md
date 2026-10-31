@@ -9,7 +9,7 @@ sources:
   - apps/web/src/app/docs/quote-variants.tsx
   - apps/web/src/app/docs/pickers.tsx
   - apps/api/src/routes/documents.ts
-verified: 21f33aa159
+verified: 271d76f476
 screenshots: []
 ---
 
