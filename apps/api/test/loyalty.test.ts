@@ -247,6 +247,15 @@ describe('points and money on posting', () => {
     expect(await balance(card.id)).toBe('100.00');
   });
 
+  test('a return created on the basis of a sale can be saved with an empty tolling role', async () => {
+    const d = await doc(owner, 'realization', [line(product, 1, 1000)]);
+    await post(d.id);
+    const ret = (await owner.post(`/documents/${d.id}/based-on`, { type: 'customer_return' })).body;
+    expect(ret.lines[0].tollingRole).toBeNull();
+    const r = await owner.patch(`/documents/${ret.id}`, { lines: [{ id: ret.lines[0].id, productId: product, qty: '1', price: '1000', tollingRole: null }] });
+    expect(r.status).toBe(200);
+  });
+
   test('a partial return refunds points in proportion', async () => {
     await owner.patch('/loyalty/program', { accrualPct: 10, redemptionLimitPct: 50 });
     const { company, card } = await bonus('REFUND-2', '7704340310');
