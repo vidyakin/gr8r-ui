@@ -10,7 +10,7 @@ sources:
   - apps/web/src/app/settings/nav.ts
   - apps/api/src/routes/work-orders.ts
   - packages/db/src/work-orders.ts
-verified: 21f33aa159
+verified: 4aac4c62a8
 screenshots: []
 ---
 
