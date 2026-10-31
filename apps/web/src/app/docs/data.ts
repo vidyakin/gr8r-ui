@@ -68,6 +68,10 @@ export interface DocLine {
   workCenterId: string | null;
   /** Вкладка строки отчёта о переработке: продукция, использованное сырьё или отходы */
   tollingRole: TollingRole | null;
+  /** Источник скидки строки (задача 1179): ручная, правило или карта; нет записи — null */
+  discountSource?: 'manual' | 'rule' | 'card' | null;
+  discountRuleName?: string | null;
+  discountCardNumber?: string | null;
 }
 
 export interface DocListItem {
@@ -158,6 +162,8 @@ export function useDocTemplates(opts: { usedOnly?: boolean } = {}) {
 }
 
 export interface DocDetail extends Omit<DocListItem, 'organizationName' | 'counterpartyName' | 'warehouseName'> {
+  /** Промокод, карта лояльности и списание баллов документа (задача 1179); нет записи — null */
+  loyalty?: { promoCodeId: string | null; promoCode: string | null; loyaltyCardId: string | null; loyaltyCardNumber: string | null; loyaltyCardKind: 'discount' | 'bonus' | 'cumulative' | null; pointsRedeemed: string } | null;
   numberYear: number | null;
   numberSeq: number | null;
   /** Причина отмены документа */
