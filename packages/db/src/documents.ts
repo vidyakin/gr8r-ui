@@ -48,7 +48,7 @@ import { checkParamValues, loadCategoryAttributeDefs } from './specs';
 import { uuidv7 } from './uuid';
 import { saveSerials, checkInventorySerials, lineSerialsView } from './serials';
 import { applySaleNextContact } from './repeat-sales';
-import { applyAutoDiscountsOnSave, applyLoyaltyOnPost, applyLoyaltyOnReturn, applyLoyaltyRedemption, reverseLoyaltyOnReturnUnpost, validPromoCode, DISCOUNT_DOCUMENT_TYPES, documentLoyaltyOf, LOYALTY_RETURN_TYPES, LOYALTY_SALE_TYPES, reverseLoyaltyOnUnpost, saveDocumentLoyalty, saveLineDiscountSources } from './loyalty';
+import { applyAutoDiscountsOnSave, applyLoyaltyOnPost, applyLoyaltyOnReturn, applyLoyaltyRedemption, applyLoyaltyReturnRefund, reverseLoyaltyOnReturnUnpost, validPromoCode, DISCOUNT_DOCUMENT_TYPES, documentLoyaltyOf, LOYALTY_RETURN_TYPES, LOYALTY_SALE_TYPES, reverseLoyaltyOnUnpost, saveDocumentLoyalty, saveLineDiscountSources } from './loyalty';
 import { inheritDelivery } from './delivery';
 import { payableOf, postAccrual, removeSettlementMoves } from './settlements';
 import { repairPrintData, syncWarrantyKind, workOrderKindType } from './repair';
@@ -887,6 +887,7 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<voi
 
   // лояльность (задача 1179): списание баллов уменьшает суммы строк до начисления взаиморасчётов
   if ((LOYALTY_SALE_TYPES as readonly string[]).includes(type) && (await applyLoyaltyRedemption(db, ctx, doc))) await writeTotals(db, id);
+  if ((LOYALTY_RETURN_TYPES as readonly string[]).includes(type) && doc.basedOnId && (await applyLoyaltyReturnRefund(db, ctx, doc, doc.basedOnId))) await writeTotals(db, id);
 
   const num = doc.numberSeq === null ? await nextNumber(db, doc) : null;
   await db
@@ -952,7 +953,10 @@ export async function unpostDocument(db: Db, ctx: DocCtx, id: string, opts: { re
   if ((LOYALTY_SALE_TYPES as readonly string[]).includes(type)) {
     await reverseLoyaltyOnUnpost(db, ctx, doc);
     await recalcLines(db, doc);
-  } else if ((LOYALTY_RETURN_TYPES as readonly string[]).includes(type)) await reverseLoyaltyOnReturnUnpost(db, ctx, doc);
+  } else if ((LOYALTY_RETURN_TYPES as readonly string[]).includes(type)) {
+    await reverseLoyaltyOnReturnUnpost(db, ctx, doc);
+    await recalcLines(db, doc);
+  }
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.unposted', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { documentType: type, number: doc.number } });
 }
 

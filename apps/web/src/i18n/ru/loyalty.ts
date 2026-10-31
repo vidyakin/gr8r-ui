@@ -130,6 +130,8 @@ export const loyalty: typeof en = {
   },
   doc: {
     tab: 'Скидки и лояльность',
+    paidWithPoints: 'Оплачено баллами',
+    returnedPoints: 'Возвращено баллами',
     promoCode: 'Промокод',
     promoPlaceholder: 'Введите код',
     card: 'Карта лояльности',

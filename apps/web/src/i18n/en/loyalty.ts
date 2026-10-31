@@ -127,6 +127,8 @@ export const loyalty = {
     saved: 'Program saved',
   },
   doc: {
+    paidWithPoints: 'Paid with points',
+    returnedPoints: 'Returned as points',
     tab: 'Discounts and loyalty',
     promoCode: 'Promo code',
     promoPlaceholder: 'Enter a code',

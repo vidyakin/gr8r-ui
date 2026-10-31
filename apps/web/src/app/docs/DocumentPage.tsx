@@ -1462,6 +1462,12 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                     </div>
                   ))
               )}
+              {doc.status === 'posted' && dec(doc.loyalty?.pointsRedeemed ?? '0') > 0n && (
+                <div>
+                  <dt>{doc.type === 'customer_return' ? t('loyalty.doc.returnedPoints') : t('loyalty.doc.paidWithPoints')}</dt>
+                  <dd className="num">{money(doc.loyalty!.pointsRedeemed)}</dd>
+                </div>
+              )}
               <div className="grand">
                 <dt>{t('docs.document.totals.total')}{form.priceIncludesVat ? t('docs.document.totals.totalIncluded').replace(t('docs.document.totals.total'), '') : ''}</dt>
                 <dd className="num" data-testid="total-sum">

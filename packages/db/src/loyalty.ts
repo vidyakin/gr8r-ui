@@ -602,7 +602,13 @@ export async function applyLoyaltyRedemption(db: Db, ctx: DocCtx, doc: DocumentR
   if (points !== dl.pointsRedeemed) await db.update(documentLoyalty).set({ pointsRedeemed: points }).where(eq(documentLoyalty.documentId, doc.id));
   if (capped <= 0n) return false;
   await db.insert(loyaltyTransactions).values({ workspaceId: ctx.workspaceId, cardId: card.id, documentId: doc.id, kind: 'redemption', points: fmt(-capped, 2), comment: 'Списание баллов' });
-  const lines = await db.select({ id: documentLines.id, total: documentLines.total, vatRate: documentLines.vatRate }).from(documentLines).where(eq(documentLines.documentId, doc.id));
+  await reduceLineTotals(db, doc.id, points);
+  return true;
+}
+
+/** Уменьшает суммы строк на баллы: распределение с остатком копеек, НДС пересчитывается. Итоги документа — за вызывающей стороной */
+async function reduceLineTotals(db: Db, documentId: string, points: string): Promise<void> {
+  const lines = await db.select({ id: documentLines.id, total: documentLines.total, vatRate: documentLines.vatRate }).from(documentLines).where(eq(documentLines.documentId, documentId));
   const shares = new Map(distributeRedemption(lines.map(l => ({ id: l.id, total: l.total })), points).map(r => [r.lineId, dec(r.points)]));
   for (const l of lines) {
     const share = shares.get(l.id) ?? 0n;
@@ -610,6 +616,31 @@ export async function applyLoyaltyRedemption(db: Db, ctx: DocCtx, doc: DocumentR
     const a = computeLine({ qty: '1', price: fmt(dec(l.total) - share, 2), discountPct: '0', vatRate: l.vatRate as VatRate }, true);
     await db.update(documentLines).set({ net: a.net, vatAmount: a.vatAmount, total: a.total }).where(eq(documentLines.id, l.id));
   }
+}
+
+/** Возврат продажи, частично оплаченной баллами, до начисления взаиморасчётов: баллы возвращаются на карту пропорционально доле
+    возврата в сумме продажи до списания, деньгами возвращается остаток. Сколько баллов вернулось, пишется в document_loyalty
+    возврата. Возвращает true, если суммы строк изменились. */
+export async function applyLoyaltyReturnRefund(db: Db, ctx: DocCtx, returnDoc: DocumentRow, sourceDocId: string): Promise<boolean> {
+  const dl = await documentLoyaltyOf(db, sourceDocId);
+  if (!dl?.loyaltyCardId) return false;
+  const [redemption] = await db.select().from(loyaltyTransactions).where(and(eq(loyaltyTransactions.documentId, sourceDocId), eq(loyaltyTransactions.kind, 'redemption'))).orderBy(desc(loyaltyTransactions.createdAt)).limit(1);
+  if (!redemption) return false;
+  const rest = -(await unreversedPoints(db, redemption));
+  if (rest <= 0n) return false;
+  const [source] = await db.select({ total: documents.total }).from(documents).where(eq(documents.id, sourceDocId)).limit(1);
+  const [fresh] = await db.select({ total: documents.total }).from(documents).where(eq(documents.id, returnDoc.id)).limit(1);
+  const redeemed = -dec(redemption.points);
+  const gross = dec(source?.total ?? '0') + redeemed;
+  const returned = dec(fresh?.total ?? '0');
+  const share = dec(reversalPointsForReturn(fmt(redeemed, 2), fmt(gross, 2), fmt(returned, 2)));
+  const capped = [share, rest, returned].reduce((a, b) => (b < a ? b : a));
+  if (capped <= 0n) return false;
+  const points = fmt(capped, 2);
+  await db.insert(loyaltyTransactions).values({ workspaceId: ctx.workspaceId, cardId: redemption.cardId, documentId: returnDoc.id, kind: 'reversal', points, reversesId: redemption.id, comment: 'Возврат списанных баллов' });
+  const row = { loyaltyCardId: redemption.cardId, pointsRedeemed: points };
+  await db.insert(documentLoyalty).values({ documentId: returnDoc.id, workspaceId: ctx.workspaceId, ...row }).onConflictDoUpdate({ target: documentLoyalty.documentId, set: row });
+  await reduceLineTotals(db, returnDoc.id, points);
   return true;
 }
 
@@ -665,9 +696,12 @@ export async function reverseLoyaltyOnReturnUnpost(db: Db, ctx: DocCtx, doc: Doc
     net.set(t.reversesId, { cardId: t.cardId, points: cur.points + dec(t.points) });
   }
   for (const [reversesId, { cardId, points }] of net) {
-    if (points === 0n) continue;
-    await db.insert(loyaltyTransactions).values({ workspaceId: ctx.workspaceId, cardId, documentId: doc.id, kind: 'reversal', points: fmt(-points, 2), reversesId, comment: `Отмена проведения возврата ${doc.number ?? doc.id}` });
+    // возвращённые баллы, уже потраченные клиентом, забрать нельзя
+    const undo = points > 0n ? cappedByBalance(points, await loyaltyCardBalance(db, cardId)) : points;
+    if (undo === 0n) continue;
+    await db.insert(loyaltyTransactions).values({ workspaceId: ctx.workspaceId, cardId, documentId: doc.id, kind: 'reversal', points: fmt(-undo, 2), reversesId, comment: `Отмена проведения возврата ${doc.number ?? doc.id}` });
   }
+  await db.delete(documentLoyalty).where(eq(documentLoyalty.documentId, doc.id));
 }
 
 /** Возврат от покупателя (customer_return): частичное сторно баллов, начисленных по исходной отгрузке/акту, пропорционально

@@ -224,6 +224,46 @@ describe('points and money on posting', () => {
     expect(await balance(card.id)).toBe('0.00');
   });
 
+  test('returning a sale paid with points refunds the paid money and returns the points to the card', async () => {
+    await owner.patch('/loyalty/program', { accrualPct: 10, redemptionLimitPct: 50 });
+    const { company, card } = await bonus('REFUND-1', '7720518494');
+    await post((await sale(company, card.id)).id); // +100
+    const d = await sale(company, card.id, '100');
+    await post(d.id); // -100 +90
+    expect(await balance(card.id)).toBe('90.00');
+    const ret = (await owner.post(`/documents/${d.id}/based-on`, { type: 'customer_return' })).body;
+    await post(ret.id);
+    const posted = (await owner.get(`/documents/${ret.id}`)).body;
+    expect(posted.total).toBe('900.00');
+    expect(posted.loyalty.pointsRedeemed).toBe('100.00');
+    expect(await balance(card.id)).toBe('100.00'); // +100 списанные, -90 начисленные
+    await owner.post(`/documents/${ret.id}/unpost`);
+    const draft = (await owner.get(`/documents/${ret.id}`)).body;
+    expect(draft.total).toBe('1000.00');
+    expect(draft.loyalty).toBeNull();
+    expect(await balance(card.id)).toBe('90.00');
+    await post(ret.id);
+    expect((await owner.get(`/documents/${ret.id}`)).body.total).toBe('900.00');
+    expect(await balance(card.id)).toBe('100.00');
+  });
+
+  test('a partial return refunds points in proportion', async () => {
+    await owner.patch('/loyalty/program', { accrualPct: 10, redemptionLimitPct: 50 });
+    const { company, card } = await bonus('REFUND-2', '7704340310');
+    const first = await doc(owner, 'realization', [line(product, 2, 1000)], { counterpartyId: company });
+    await owner.put(`/loyalty/documents/${first.id}/loyalty`, { loyaltyCardId: card.id });
+    await post(first.id); // +200
+    const d = await doc(owner, 'realization', [line(product, 2, 1000)], { counterpartyId: company });
+    await owner.put(`/loyalty/documents/${d.id}/loyalty`, { loyaltyCardId: card.id, pointsRedeemed: '200' });
+    await post(d.id); // -200 +180, сумма 1800
+    expect((await owner.get(`/documents/${d.id}`)).body.total).toBe('1800.00');
+    const ret = (await owner.post(`/documents/${d.id}/based-on`, { type: 'customer_return' })).body;
+    await owner.patch(`/documents/${ret.id}`, { lines: [{ id: ret.lines[0].id, productId: product, qty: '1', price: '1000' }] });
+    await post(ret.id);
+    expect((await owner.get(`/documents/${ret.id}`)).body.total).toBe('900.00');
+    expect(await balance(card.id)).toBe('190.00'); // 180 +100 списанных -90 начисленных
+  });
+
   test('a card of another customer is rejected', async () => {
     const { card } = await bonus('ALIEN-1', '7743013901');
     const d = await doc(owner, 'realization', [line(product, 1, 1000)]);
