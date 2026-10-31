@@ -45,6 +45,7 @@ import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';
 
 const admin = requireRole('admin');
+const write = requireRole('member');
 const docCtx = (ctx: Ctx) => ({ workspaceId: ctx.workspaceId, memberId: ctx.memberId, role: ctx.role });
 const docIdParam = z.object({ id: uuid });
 
@@ -115,32 +116,32 @@ export const loyaltyRoutes = new Hono<AppEnv>()
     return c.json({ items: await listLoyaltyCards(ctx.db, ctx.workspaceId, c.req.valid('query')) });
   })
   .get('/cards/:id', zValidator('param', idParam, validationHook), async c => c.json(await loyaltyCardDetail(ctxOf(c).db, c.req.valid('param').id)))
-  .post('/cards', admin, zValidator('json', loyaltyCardCreate, validationHook), async c => {
+  .post('/cards', write, zValidator('json', loyaltyCardCreate, validationHook), async c => {
     const ctx = ctxOf(c);
     const id = await createLoyaltyCard(ctx.db, docCtx(ctx), c.req.valid('json'));
     return c.json(await loyaltyCardDetail(ctx.db, id), 201);
   })
-  .patch('/cards/:id', admin, zValidator('param', idParam, validationHook), zValidator('json', loyaltyCardUpdate, validationHook), async c => {
+  .patch('/cards/:id', write, zValidator('param', idParam, validationHook), zValidator('json', loyaltyCardUpdate, validationHook), async c => {
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;
     await updateLoyaltyCard(ctx.db, docCtx(ctx), id, c.req.valid('json'));
     return c.json(await loyaltyCardDetail(ctx.db, id));
   })
-  .delete('/cards/:id', admin, zValidator('param', idParam, validationHook), async c => {
+  .delete('/cards/:id', write, zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;
     await archiveLoyaltyCard(ctx.db, docCtx(ctx), id);
     return c.json({ id, archived: true as const });
   })
   /* ---------- скидки и лояльность документа (черновик продажи/заказ-наряда) ---------- */
-  .post('/documents/:id/recalc-discounts', zValidator('param', docIdParam, validationHook), zValidator('json', discountRecalcBody, validationHook), async c => {
+  .post('/documents/:id/recalc-discounts', write, zValidator('param', docIdParam, validationHook), zValidator('json', discountRecalcBody, validationHook), async c => {
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;
     await recalcDocumentDiscounts(ctx.db, docCtx(ctx), id, c.req.valid('json').promoCode ?? null);
     return c.json({ id, recalculated: true as const });
   })
   .get('/documents/:id/loyalty', zValidator('param', docIdParam, validationHook), async c => c.json(await documentLoyaltyOf(ctxOf(c).db, c.req.valid('param').id)))
-  .put('/documents/:id/loyalty', zValidator('param', docIdParam, validationHook), zValidator('json', documentLoyaltyBody, validationHook), async c => {
+  .put('/documents/:id/loyalty', write, zValidator('param', docIdParam, validationHook), zValidator('json', documentLoyaltyBody, validationHook), async c => {
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;
     await saveDocumentLoyalty(ctx.db, ctx.workspaceId, id, c.req.valid('json'));
