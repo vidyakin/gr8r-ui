@@ -171,6 +171,101 @@ describe('points expiration: two lots', () => {
   });
 });
 
+describe('points and money on posting', () => {
+  const bonus = async (number: string, inn: string) => {
+    const company = (await mk(owner, '/companies', { name: `ООО ${number}`, inn })).id;
+    return { company, card: await mk(owner, '/loyalty/cards', { number, customerId: company, kind: 'bonus' }) };
+  };
+  const balance = async (id: string) => (await owner.get(`/loyalty/cards/${id}`)).body.balance;
+  const sale = async (company: string, card: string, points?: string) => {
+    const d = await doc(owner, 'realization', [line(product, 1, 1000)], { counterpartyId: company });
+    await owner.put(`/loyalty/documents/${d.id}/loyalty`, { loyaltyCardId: card, ...(points ? { pointsRedeemed: points } : {}) });
+    return d;
+  };
+
+  test('redeemed points reduce the document total, unposting restores it', async () => {
+    await owner.patch('/loyalty/program', { accrualPct: 10, redemptionLimitPct: 50 });
+    const { company, card } = await bonus('MONEY-1', '7702070139');
+    await post((await sale(company, card.id)).id); // +100
+    const d = await sale(company, card.id, '100');
+    await post(d.id);
+    const posted = (await owner.get(`/documents/${d.id}`)).body;
+    expect(posted.total).toBe('900.00');
+    expect(posted.lines[0].total).toBe('900.00');
+    expect(await balance(card.id)).toBe('90.00'); // 100 - 100 + 10% от 900
+    await owner.post(`/documents/${d.id}/unpost`);
+    expect((await owner.get(`/documents/${d.id}`)).body.total).toBe('1000.00');
+    expect(await balance(card.id)).toBe('100.00');
+  });
+
+  test('post-unpost cycles do not reverse twice', async () => {
+    const { company, card } = await bonus('CYCLE-1', '7710140679');
+    const d = await sale(company, card.id);
+    for (let i = 0; i < 3; i++) {
+      await post(d.id);
+      expect(await balance(card.id)).toBe('100.00');
+      await owner.post(`/documents/${d.id}/unpost`);
+      expect(await balance(card.id)).toBe('0.00');
+    }
+  });
+
+  test('return and its unposting, then unposting the sale: the balance is never negative', async () => {
+    const { company, card } = await bonus('RET-1', '7707049388');
+    const d = await sale(company, card.id);
+    await post(d.id);
+    const ret = (await owner.post(`/documents/${d.id}/based-on`, { type: 'customer_return' })).body;
+    await post(ret.id);
+    expect(await balance(card.id)).toBe('0.00');
+    await owner.post(`/documents/${ret.id}/unpost`);
+    expect(await balance(card.id)).toBe('100.00');
+    await post(ret.id);
+    await owner.post(`/documents/${ret.id}/unpost`);
+    await owner.post(`/documents/${d.id}/unpost`);
+    expect(await balance(card.id)).toBe('0.00');
+  });
+
+  test('a card of another customer is rejected', async () => {
+    const { card } = await bonus('ALIEN-1', '7743013901');
+    const d = await doc(owner, 'realization', [line(product, 1, 1000)]);
+    const r = await owner.put(`/loyalty/documents/${d.id}/loyalty`, { loyaltyCardId: card.id });
+    expect(r.status).toBe(422);
+    expect(r.body.error.code).toBe('loyalty_card_foreign');
+  });
+
+  test('the based-on document keeps the card', async () => {
+    const { company, card } = await bonus('CHAIN-1', '7714698320');
+    const order = await doc(owner, 'customer_order', [line(product, 1, 1000)], { counterpartyId: company });
+    await owner.put(`/loyalty/documents/${order.id}/loyalty`, { loyaltyCardId: card.id });
+    await post(order.id);
+    const sh = (await owner.post(`/documents/${order.id}/based-on`, { type: 'realization' })).body;
+    expect((await owner.get(`/loyalty/documents/${sh.id}/loyalty`)).body.loyaltyCardId).toBe(card.id);
+  });
+});
+
+describe('promo code on a document', () => {
+  test('a batch of one-time codes', async () => {
+    const rule = await mk(owner, '/loyalty/discount-rules', { name: 'Рассылка 5', discountPct: 5, stackable: false, promoOnly: true });
+    const r = await owner.post('/loyalty/promo-codes/issue', { ruleId: rule.id, count: 3, prefix: 'MAIL-' });
+    expect(r.status).toBe(201);
+    expect(new Set(r.body.codes).size).toBe(3);
+    expect(r.body.codes[0]).toStartWith('MAIL-');
+    await owner.del(`/loyalty/discount-rules/${rule.id}`);
+  });
+
+  test('any letter case counts against the limit, recalculation keeps the code, null removes it', async () => {
+    const rule = await mk(owner, '/loyalty/discount-rules', { name: 'Промо 25', discountPct: 25, stackable: false, promoOnly: true });
+    const promo = await mk(owner, '/loyalty/promo-codes', { code: 'CaseCode', ruleId: rule.id, usageLimit: 1 });
+    const d = await doc(owner, 'realization', [line(product, 1, 1000)]);
+    await owner.post(`/loyalty/documents/${d.id}/recalc-discounts`, { promoCode: 'casecode' });
+    expect((await owner.get(`/loyalty/documents/${d.id}/loyalty`)).body.promoCodeId).toBe(promo.id);
+    await owner.post(`/loyalty/documents/${d.id}/recalc-discounts`, {});
+    expect((await owner.get(`/documents/${d.id}`)).body.lines[0].discountPct).toBe('25.00');
+    await owner.post(`/loyalty/documents/${d.id}/recalc-discounts`, { promoCode: null });
+    expect((await owner.get(`/documents/${d.id}`)).body.lines[0].discountPct).toBe('0.00');
+    expect((await owner.get(`/loyalty/documents/${d.id}/loyalty`)).body.promoCodeId).toBeNull();
+  });
+});
+
 describe('promo codes: validity window and usage limit', () => {
   test('an expired promo code is rejected', async () => {
     const rule = await mk(owner, '/loyalty/discount-rules', { name: 'Промо-правило', discountPct: 15, stackable: false, promoOnly: true });
@@ -217,7 +312,7 @@ describe('bonus card: accrual, redemption, reversal on unpost, partial reversal 
 
   test('cancelling posting reverses both accrual and redemption', async () => {
     const card = await mk(owner, '/loyalty/cards', { number: 'BONUS-002', customerId: customer2, kind: 'bonus' });
-    const d = await doc(owner, 'realization', [line(product, 1, 1000)]);
+    const d = await doc(owner, 'realization', [line(product, 1, 1000)], { counterpartyId: customer2 });
     await owner.put(`/loyalty/documents/${d.id}/loyalty`, { loyaltyCardId: card.id });
     await post(d.id);
     const after = (await owner.get(`/loyalty/cards/${card.id}`)).body;

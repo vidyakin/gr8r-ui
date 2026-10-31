@@ -1,6 +1,6 @@
 /* Скидки и лояльность (задача 1179): правила автоматических скидок, промокоды, карты лояльности (дисконтные,
    бонусные, накопительные) и журнал движений баллов. Таблицы арендатора (workspace_id + RLS);
-   связи — составные внешние ключи (workspace_id, id). Подробности — docs/architecture/loyalty.md. */
+   связи — составные внешние ключи (workspace_id, id). Подробности — docs/architecture/pricing.md. */
 import { sql } from 'drizzle-orm';
 import { boolean, check, date, foreignKey, index, integer, jsonb, numeric, pgTable, text, time, timestamp, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { archivedAt, createdAt, money, pk, updatedAt } from './columns';

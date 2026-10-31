@@ -1,5 +1,5 @@
 /* Скидки и лояльность (задача 1179): правила автоматических скидок, промокоды, карты лояльности и журнал баллов.
-   Правила — docs/architecture/loyalty.md. Хуки интегрируются в общий postDocument/unpostDocument через applyLoyalty*
+   Правила — docs/architecture/pricing.md. Хуки интегрируются в общий postDocument/unpostDocument через applyLoyalty*
    (вызываются из documents.ts), а не через DOCUMENT_HOOKS — расчёт скидок и баллов общий для нескольких типов документов,
    как и повторные продажи (repeat-sales.ts). */
 import { and, asc, desc, eq, inArray, isNull, lte, ne, sql } from 'drizzle-orm';
@@ -14,9 +14,11 @@ import {
   resolveDiscountPct,
   reversalPointsForReturn,
   type DiscountCandidate,
+  computeLine,
+  type VatRate,
 } from '@gr8r/shared';
 import type { Db } from './client';
-import type { DocCtx, DocumentLineRow, DocumentRow } from './documents';
+import type { DocCtx, DocumentRow } from './documents';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
 import {
@@ -35,6 +37,8 @@ import {
   productCategories,
   products,
   promoCodes,
+  documentLines,
+  workspaces,
 } from './schema';
 
 /** Документы, на которых действуют автоскидки правил (план, п.2): все шесть документов продаж от КП до заказ-наряда. */
@@ -187,6 +191,17 @@ export async function createPromoCode(db: Db, ctx: DocCtx, input: PromoCodeInput
   return row!.id;
 }
 
+/** Пакетный выпуск кодов одного правила (рассылка 1092 будет выдавать их клиентам): префикс и случайный хвост, каждый код на одно использование */
+export async function issuePromoCodes(db: Db, ctx: DocCtx, input: { ruleId: string; count: number; prefix?: string | undefined; validFrom?: string | null | undefined; validTo?: string | null | undefined }): Promise<string[]> {
+  const codes: string[] = [];
+  for (let i = 0; i < input.count; i++) {
+    const code = `${input.prefix ?? ''}${crypto.randomUUID().replaceAll('-', '').slice(0, 10).toUpperCase()}`;
+    await createPromoCode(db, ctx, { code, ruleId: input.ruleId, validFrom: input.validFrom ?? null, validTo: input.validTo ?? null, usageLimit: 1 });
+    codes.push(code);
+  }
+  return codes;
+}
+
 export async function updatePromoCode(db: Db, ctx: DocCtx, id: string, patch: Partial<Omit<PromoCodeInput, 'id'>>): Promise<void> {
   const [cur] = await db.select().from(promoCodes).where(eq(promoCodes.id, id)).limit(1);
   if (!cur) throw new DomainError(404, 'not_found', 'promo code not found');
@@ -224,7 +239,7 @@ export async function listPromoCodes(db: Db, workspaceId: string, opts: { archiv
 }
 
 /** Проверка промокода на дату: активен, в периоде действия, лимит не выбран. Не инкрементирует счётчик — это делает проведение документа */
-async function validPromoCode(db: Db, workspaceId: string, code: string, date: string): Promise<(typeof promoCodes.$inferSelect) | null> {
+export async function validPromoCode(db: Db, workspaceId: string, code: string, date: string): Promise<(typeof promoCodes.$inferSelect) | null> {
   const [row] = await db
     .select()
     .from(promoCodes)
@@ -454,21 +469,26 @@ export async function candidateRulesForLine(
     (сумма total проведённых документов LOYALTY_SALE_TYPES, без учёта текущего черновика). Бонусная карта скидку не даёт
     (у неё только баллы) — возвращает пустой список. Карта не суммируется с другими скидками (stackable: false),
     участвует в выборе наибольшей наравне с правилами через общий resolveDiscountPct. */
-export async function cardDiscountCandidate(db: Db, workspaceId: string, p: { cardId: string | null; date: string }): Promise<DiscountCandidate[]> {
+export async function cardDiscountCandidate(db: Db, workspaceId: string, p: { cardId: string | null; date: string; customerId: string | null }): Promise<DiscountCandidate[]> {
   if (!p.cardId) return [];
   const [card] = await db.select().from(loyaltyCards).where(and(eq(loyaltyCards.workspaceId, workspaceId), eq(loyaltyCards.id, p.cardId), isNull(loyaltyCards.archivedAt), eq(loyaltyCards.isActive, true))).limit(1);
-  if (!card) return [];
+  if (!card || card.customerId !== p.customerId) return [];
   if (card.kind === 'discount') return [{ ruleId: card.id, discountPct: card.discountPct!, stackable: false, source: 'card' }];
   if (card.kind !== 'cumulative') return [];
   const [program] = await db.select({ scale: loyaltyPrograms.cumulativeScale }).from(loyaltyPrograms).where(eq(loyaltyPrograms.workspaceId, workspaceId)).limit(1);
   if (!program?.scale.length) return [];
   const [sum] = await db
-    .select({ s: sql<string>`coalesce(sum(${documents.total}), 0)::text` })
+    .select({ s: sql<string>`coalesce(sum(case when ${inArray(documents.type, LOYALTY_RETURN_TYPES as unknown as string[])} then -${documents.total} else ${documents.total} end), 0)::text` })
     .from(documents)
-    .where(and(eq(documents.workspaceId, workspaceId), eq(documents.counterpartyId, card.customerId), eq(documents.status, 'posted'), inArray(documents.type, LOYALTY_SALE_TYPES as unknown as string[])));
+    .where(and(eq(documents.workspaceId, workspaceId), eq(documents.counterpartyId, card.customerId), eq(documents.status, 'posted'), inArray(documents.type, [...LOYALTY_SALE_TYPES, ...LOYALTY_RETURN_TYPES] as unknown as string[])));
   const pct = cumulativePctByScale(sum?.s ?? '0', program.scale);
   if (dec(pct) <= 0n) return [];
   return [{ ruleId: card.id, discountPct: pct, stackable: false, source: 'card' }];
+}
+
+async function workspaceTimeNow(db: Db, workspaceId: string): Promise<string> {
+  const [ws] = await db.select({ timezone: workspaces.timezone }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
+  return new Intl.DateTimeFormat('en-GB', { timeZone: ws?.timezone ?? 'UTC', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date());
 }
 
 /** Применение автоматических скидок к строкам документа: для каждой строки считает процент из правил + карты лояльности документа (решение 1
@@ -482,8 +502,9 @@ export async function autoDiscountForLines(
 ): Promise<{ promoRuleId: string | null; byLine: Map<string, { pct: string; ruleId: string | null; cardId: string | null }> }> {
   const promoRule = p.promoCode ? await validPromoCode(db, workspaceId, p.promoCode, p.date) : null;
   if (p.promoCode && !promoRule) throw new DomainError(422, 'invalid_promo_code', 'The promo code is invalid, expired, or its usage limit is reached');
-  const time = p.time ?? '12:00:00';
-  const cardCandidates = await cardDiscountCandidate(db, workspaceId, { cardId: p.cardId ?? null, date: p.date });
+  // у документа только дата, поэтому условие по часам проверяется по текущему времени арендатора
+  const time = p.time ?? (await workspaceTimeNow(db, workspaceId));
+  const cardCandidates = await cardDiscountCandidate(db, workspaceId, { cardId: p.cardId ?? null, date: p.date, customerId: p.customerId });
   const byLine = new Map<string, { pct: string; ruleId: string | null; cardId: string | null }>();
   for (const line of p.lines) {
     const ruleCandidates = await candidateRulesForLine(db, workspaceId, { date: p.date, time, customerId: p.customerId, documentNetTotal: p.documentNetTotal, line, promoRuleId: promoRule?.ruleId ?? null });
@@ -521,7 +542,6 @@ export async function applyAutoDiscountsOnSave(
   // автоматика всегда пишет источник, поэтому процент без записи поставил человек
   const isManual = (l: LineForDiscount) => { const s = sources.get(l.id); return s === 'manual' || (!s && dec(l.discountPct ?? '0') > 0n); };
   const autoLines = p.lines.filter(l => !isManual(l));
-  if (!autoLines.length) return { promoRuleId: null, byLine: new Map() };
   return autoDiscountForLines(db, workspaceId, { ...p, lines: autoLines });
 }
 
@@ -533,10 +553,21 @@ export interface DocumentLoyaltyInput {
   pointsRedeemed?: string | undefined;
 }
 
+/** Карта документа: действующая и того же клиента, иначе можно списать чужие баллы */
+async function assertCardOfCustomer(db: Db, cardId: string, customerId: string | null) {
+  const [card] = await db.select().from(loyaltyCards).where(eq(loyaltyCards.id, cardId)).limit(1);
+  if (!card || !card.isActive || card.archivedAt) throw new DomainError(422, 'loyalty_card_inactive', 'The loyalty card is not active');
+  if (card.customerId !== customerId) throw new DomainError(422, 'loyalty_card_foreign', 'The loyalty card belongs to another customer');
+  return card;
+}
+
 /** Сохранение выбора карты/промокода на черновике документа (до проведения) — отдельная таблица 1:1 с documents */
 export async function saveDocumentLoyalty(db: Db, workspaceId: string, documentId: string, input: DocumentLoyaltyInput): Promise<void> {
   const hasAny = input.promoCodeId !== undefined || input.loyaltyCardId !== undefined || input.pointsRedeemed !== undefined;
   if (!hasAny) return;
+  const [doc] = await db.select({ status: documents.status, counterpartyId: documents.counterpartyId }).from(documents).where(eq(documents.id, documentId)).limit(1);
+  if (doc && doc.status !== 'draft') throw new DomainError(409, 'not_draft', 'A posted or cancelled document cannot be changed: unpost it first');
+  if (input.loyaltyCardId) await assertCardOfCustomer(db, input.loyaltyCardId, doc?.counterpartyId ?? null);
   const [cur] = await db.select().from(documentLoyalty).where(eq(documentLoyalty.documentId, documentId)).limit(1);
   const next = {
     promoCodeId: input.promoCodeId !== undefined ? input.promoCodeId : cur?.promoCodeId ?? null,
@@ -554,48 +585,88 @@ export async function documentLoyaltyOf(db: Db, documentId: string) {
   return row ?? null;
 }
 
-/** Применяется из postDocument (documents.ts) после записи статуса 'posted', для типов LOYALTY_SALE_TYPES:
-    списывает баллы карты (регистрирует движение redemption) и начисляет баллы по программе (движение accrual).
-    Промокод — инкремент счётчика использования. Все суммы — в рублях документа (total c НДС), 1 балл = 1 ₽. */
-export async function applyLoyaltyOnPost(db: Db, ctx: DocCtx, doc: DocumentRow, lines: DocumentLineRow[]): Promise<void> {
+/** Списание баллов при проведении, до начисления взаиморасчётов: уменьшает суммы строк (распределение с остатком копеек, НДС
+    пересчитывается), поэтому к оплате идёт сумма за вычетом баллов. Итоги документа пересчитывает вызывающая сторона,
+    отмена проведения возвращает суммы пересчётом строк. Возвращает true, если суммы строк изменились. */
+export async function applyLoyaltyRedemption(db: Db, ctx: DocCtx, doc: DocumentRow): Promise<boolean> {
+  const dl = await documentLoyaltyOf(db, doc.id);
+  if (!dl?.loyaltyCardId) return false;
+  const card = await assertCardOfCustomer(db, dl.loyaltyCardId, doc.counterpartyId);
+  if (card.kind !== 'bonus' || dec(dl.pointsRedeemed) <= 0n) return false;
+  const program = await ensureLoyaltyProgram(db, ctx.workspaceId);
+  const [fresh] = await db.select({ total: documents.total }).from(documents).where(eq(documents.id, doc.id)).limit(1);
+  const limit = redemptionLimit(fresh?.total ?? '0.00', program.redemptionLimitPct);
+  const balance = await loyaltyCardBalance(db, card.id);
+  const capped = [dec(dl.pointsRedeemed), dec(limit), dec(balance)].reduce((a, b) => (b < a ? b : a));
+  const points = fmt(capped, 2);
+  if (points !== dl.pointsRedeemed) await db.update(documentLoyalty).set({ pointsRedeemed: points }).where(eq(documentLoyalty.documentId, doc.id));
+  if (capped <= 0n) return false;
+  await db.insert(loyaltyTransactions).values({ workspaceId: ctx.workspaceId, cardId: card.id, documentId: doc.id, kind: 'redemption', points: fmt(-capped, 2), comment: `Списание по документу ${doc.number ?? doc.id}` });
+  const lines = await db.select({ id: documentLines.id, total: documentLines.total, vatRate: documentLines.vatRate }).from(documentLines).where(eq(documentLines.documentId, doc.id));
+  const shares = new Map(distributeRedemption(lines.map(l => ({ id: l.id, total: l.total })), points).map(r => [r.lineId, dec(r.points)]));
+  for (const l of lines) {
+    const share = shares.get(l.id) ?? 0n;
+    if (share <= 0n) continue;
+    const a = computeLine({ qty: '1', price: fmt(dec(l.total) - share, 2), discountPct: '0', vatRate: l.vatRate as VatRate }, true);
+    await db.update(documentLines).set({ net: a.net, vatAmount: a.vatAmount, total: a.total }).where(eq(documentLines.id, l.id));
+  }
+  return true;
+}
+
+/** Применяется из postDocument после записи статуса 'posted', для типов LOYALTY_SALE_TYPES: счётчик промокода и начисление баллов
+    от суммы документа, уже уменьшенной списанием (applyLoyaltyRedemption). 1 балл = 1 ₽. */
+export async function applyLoyaltyOnPost(db: Db, ctx: DocCtx, doc: DocumentRow): Promise<void> {
   const dl = await documentLoyaltyOf(db, doc.id);
   if (dl?.promoCodeId) await incrementPromoUsage(db, dl.promoCodeId);
   if (!dl?.loyaltyCardId) return;
   const [card] = await db.select().from(loyaltyCards).where(eq(loyaltyCards.id, dl.loyaltyCardId)).limit(1);
-  if (!card || !card.isActive) throw new DomainError(422, 'loyalty_card_inactive', 'The loyalty card is not active');
+  if (card?.kind !== 'bonus') return;
   const program = await ensureLoyaltyProgram(db, ctx.workspaceId);
-  const docTotal = doc.total ?? '0.00';
-  let pointsToRedeem = dec(dl.pointsRedeemed) > 0n ? dl.pointsRedeemed : '0.00';
-  if (card.kind === 'bonus' && dec(pointsToRedeem) > 0n) {
-    const limit = redemptionLimit(docTotal, program.redemptionLimitPct);
-    const balance = await loyaltyCardBalance(db, card.id);
-    const capped = [dec(pointsToRedeem), dec(limit), dec(balance)].reduce((a, b) => (b < a ? b : a));
-    pointsToRedeem = fmt(capped, 2);
-    if (dec(pointsToRedeem) > 0n) {
-      await db.insert(loyaltyTransactions).values({ workspaceId: ctx.workspaceId, cardId: card.id, documentId: doc.id, kind: 'redemption', points: fmt(-dec(pointsToRedeem), 2), comment: `Списание по документу ${doc.number ?? doc.id}` });
-      if (pointsToRedeem !== dl.pointsRedeemed) await db.update(documentLoyalty).set({ pointsRedeemed: pointsToRedeem }).where(eq(documentLoyalty.documentId, doc.id));
-      // распределение по строкам — для отчётности (не меняет суммы строк, скидка уже учтена в discount_pct)
-      void distributeRedemption(lines.map(l => ({ id: l.id, total: l.total })), pointsToRedeem);
-    }
-  }
-  if (card.kind === 'bonus') {
-    const accrual = accrualPoints(docTotal, pointsToRedeem, program.accrualPct);
-    if (dec(accrual) > 0n) {
-      const expiresAt = program.expirationDays ? new Date(Date.now() + program.expirationDays * 86400000) : null;
-      await db.insert(loyaltyTransactions).values({ workspaceId: ctx.workspaceId, cardId: card.id, documentId: doc.id, kind: 'accrual', points: accrual, expiresAt, comment: `Начисление по документу ${doc.number ?? doc.id}` });
-    }
-  }
+  const accrual = accrualPoints(doc.total ?? '0.00', '0.00', program.accrualPct);
+  if (dec(accrual) <= 0n) return;
+  const expiresAt = program.expirationDays ? new Date(Date.now() + program.expirationDays * 86400000) : null;
+  await db.insert(loyaltyTransactions).values({ workspaceId: ctx.workspaceId, cardId: card.id, documentId: doc.id, kind: 'accrual', points: accrual, expiresAt, comment: `Начисление по документу ${doc.number ?? doc.id}` });
 }
 
-/** Применяется из unpostDocument: сторнирует движения по документу (новое движение reversal на ту же сумму с обратным знаком),
-    возвращает счётчик промокода. История не удаляется — остаток возвращается встречным движением. */
+/** Сколько от движения осталось не сторнировано: сторно ссылаются на него через reverses_id, в том числе сторно от возвратов */
+async function unreversedPoints(db: Db, tx: typeof loyaltyTransactions.$inferSelect): Promise<bigint> {
+  const rows = await db.select({ points: loyaltyTransactions.points }).from(loyaltyTransactions).where(and(eq(loyaltyTransactions.reversesId, tx.id), eq(loyaltyTransactions.kind, 'reversal')));
+  return rows.reduce((a, r) => a + dec(r.points), dec(tx.points));
+}
+
+/** Сторно начисления не больше остатка карты: потраченные и сгоревшие баллы забрать уже нельзя, остаток не уходит в минус */
+const cappedByBalance = (points: bigint, balance: string): bigint => {
+  const b = dec(balance);
+  return b <= 0n ? 0n : points < b ? points : b;
+};
+
+/** Применяется из unpostDocument: сторнирует ещё не сторнированную часть движений документа, сначала списания, потом начисления,
+    возвращает счётчик промокода. История не удаляется. Суммы строк возвращает вызывающая сторона пересчётом. */
 export async function reverseLoyaltyOnUnpost(db: Db, ctx: DocCtx, doc: DocumentRow): Promise<void> {
   const dl = await documentLoyaltyOf(db, doc.id);
   if (dl?.promoCodeId) await decrementPromoUsage(db, dl.promoCodeId);
   if (!dl?.loyaltyCardId) return;
-  const txs = await db.select().from(loyaltyTransactions).where(and(eq(loyaltyTransactions.documentId, doc.id), ne(loyaltyTransactions.kind, 'reversal')));
-  for (const tx of txs) {
-    await db.insert(loyaltyTransactions).values({ workspaceId: ctx.workspaceId, cardId: tx.cardId, documentId: doc.id, kind: 'reversal', points: fmt(-dec(tx.points), 2), reversesId: tx.id, comment: `Отмена проведения документа ${doc.number ?? doc.id}` });
+  const txs = await db.select().from(loyaltyTransactions).where(and(eq(loyaltyTransactions.documentId, doc.id), inArray(loyaltyTransactions.kind, ['redemption', 'accrual'])));
+  for (const tx of [...txs.filter(t => t.kind === 'redemption'), ...txs.filter(t => t.kind === 'accrual')]) {
+    let rest = await unreversedPoints(db, tx);
+    if (rest > 0n) rest = cappedByBalance(rest, await loyaltyCardBalance(db, tx.cardId));
+    if (rest === 0n) continue;
+    await db.insert(loyaltyTransactions).values({ workspaceId: ctx.workspaceId, cardId: tx.cardId, documentId: doc.id, kind: 'reversal', points: fmt(-rest, 2), reversesId: tx.id, comment: `Отмена проведения документа ${doc.number ?? doc.id}` });
+  }
+}
+
+/** Отмена проведения возврата: встречное движение к его сторно, начисление исходной продажи снова считается не сторнированным */
+export async function reverseLoyaltyOnReturnUnpost(db: Db, ctx: DocCtx, doc: DocumentRow): Promise<void> {
+  const txs = await db.select().from(loyaltyTransactions).where(and(eq(loyaltyTransactions.documentId, doc.id), eq(loyaltyTransactions.kind, 'reversal')));
+  const net = new Map<string, { cardId: string; points: bigint }>();
+  for (const t of txs) {
+    if (!t.reversesId) continue;
+    const cur = net.get(t.reversesId) ?? { cardId: t.cardId, points: 0n };
+    net.set(t.reversesId, { cardId: t.cardId, points: cur.points + dec(t.points) });
+  }
+  for (const [reversesId, { cardId, points }] of net) {
+    if (points === 0n) continue;
+    await db.insert(loyaltyTransactions).values({ workspaceId: ctx.workspaceId, cardId, documentId: doc.id, kind: 'reversal', points: fmt(-points, 2), reversesId, comment: `Отмена проведения возврата ${doc.number ?? doc.id}` });
   }
 }
 
@@ -608,7 +679,9 @@ export async function applyLoyaltyOnReturn(db: Db, ctx: DocCtx, returnDoc: Docum
   if (!sourceDoc?.total || dec(sourceDoc.total) <= 0n) return;
   const [accrualTx] = await db.select().from(loyaltyTransactions).where(and(eq(loyaltyTransactions.documentId, sourceDocId), eq(loyaltyTransactions.kind, 'accrual'))).orderBy(desc(loyaltyTransactions.createdAt)).limit(1);
   if (!accrualTx) return;
-  const amount = reversalPointsForReturn(accrualTx.points, sourceDoc.total, returnDoc.total ?? '0.00');
+  const share = dec(reversalPointsForReturn(accrualTx.points, sourceDoc.total, returnDoc.total ?? '0.00'));
+  const rest = await unreversedPoints(db, accrualTx);
+  const amount = fmt(cappedByBalance(share < rest ? share : rest, await loyaltyCardBalance(db, accrualTx.cardId)), 2);
   if (dec(amount) <= 0n) return;
   await db.insert(loyaltyTransactions).values({ workspaceId: ctx.workspaceId, cardId: accrualTx.cardId, documentId: returnDoc.id, kind: 'reversal', points: fmt(-dec(amount), 2), reversesId: accrualTx.id, comment: `Возврат по документу ${returnDoc.number ?? returnDoc.id}` });
 }
@@ -634,8 +707,9 @@ export async function runLoyaltyExpiration(db: Db, workspaceId: string, now = ne
     const alreadyExpired = await db.select({ reversesId: loyaltyTransactions.reversesId, points: loyaltyTransactions.points }).from(loyaltyTransactions).where(and(eq(loyaltyTransactions.cardId, cardId), eq(loyaltyTransactions.kind, 'expiration')));
     const burnedByLot = new Map(alreadyExpired.filter(t => t.reversesId).map(t => [t.reversesId!, -dec(t.points)]));
     const lots = txs.filter(t => t.kind === 'accrual').map(t => ({ id: t.id, createdAt: t.createdAt, points: fmt(dec(t.points) - (burnedByLot.get(t.id) ?? 0n), 2), expiresAt: t.expiresAt }));
-    const spend = txs.filter(t => t.kind !== 'accrual').reduce((a, t) => a + (dec(t.points) < 0n ? -dec(t.points) : 0n), 0n);
-    const burned = fifoExpiredPoints(lots, fmt(spend, 2), now).filter(lot => !burnedByLot.has(lot.lotId));
+    // расход — итог списаний и сторно: отменённое списание не должно гасить лоты
+    const spend = txs.filter(t => t.kind !== 'accrual').reduce((a, t) => a - dec(t.points), 0n);
+    const burned = fifoExpiredPoints(lots, fmt(spend > 0n ? spend : 0n, 2), now).filter(lot => !burnedByLot.has(lot.lotId));
     for (const lot of burned) {
       await db.insert(loyaltyTransactions).values({ workspaceId, cardId, kind: 'expiration', points: fmt(-dec(lot.points), 2), reversesId: lot.lotId, comment: 'Сгорание истёкших баллов' });
       count++;

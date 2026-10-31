@@ -1,6 +1,6 @@
 /* Скидки и лояльность (задача 1179): правила автоматических скидок, промокоды, программа и карты лояльности.
    Пересчёт скидок строк и выбор карты/промокода документа — отдельные действия на черновике; списание/начисление
-   баллов происходит при проведении (packages/db/src/loyalty.ts, вызывается из documents.ts). Правила — docs/architecture/loyalty.md. */
+   баллов происходит при проведении (packages/db/src/loyalty.ts, вызывается из documents.ts). Правила — docs/architecture/pricing.md. */
 import { zValidator } from '@hono/zod-validator';
 import {
   archiveDiscountRule,
@@ -9,6 +9,7 @@ import {
   createDiscountRule,
   createLoyaltyCard,
   createPromoCode,
+  issuePromoCodes,
   discountRuleDetail,
   documentLoyaltyOf,
   ensureLoyaltyProgram,
@@ -35,6 +36,7 @@ import {
   loyaltyCardUpdate,
   loyaltyProgramUpdate,
   promoCodeCreate,
+  promoCodeIssue,
   promoCodeUpdate,
   uuid,
 } from '@gr8r/shared';
@@ -85,6 +87,10 @@ export const loyaltyRoutes = new Hono<AppEnv>()
     const ctx = ctxOf(c);
     const archived = c.req.query('archived') === 'true';
     return c.json({ items: await listPromoCodes(ctx.db, ctx.workspaceId, { archived }) });
+  })
+  .post('/promo-codes/issue', admin, zValidator('json', promoCodeIssue, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json({ codes: await issuePromoCodes(ctx.db, docCtx(ctx), c.req.valid('json')) }, 201);
   })
   .post('/promo-codes', admin, zValidator('json', promoCodeCreate, validationHook), async c => {
     const ctx = ctxOf(c);
@@ -137,7 +143,7 @@ export const loyaltyRoutes = new Hono<AppEnv>()
   .post('/documents/:id/recalc-discounts', write, zValidator('param', docIdParam, validationHook), zValidator('json', discountRecalcBody, validationHook), async c => {
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;
-    await recalcDocumentDiscounts(ctx.db, docCtx(ctx), id, c.req.valid('json').promoCode ?? null);
+    await recalcDocumentDiscounts(ctx.db, docCtx(ctx), id, c.req.valid('json').promoCode);
     return c.json({ id, recalculated: true as const });
   })
   .get('/documents/:id/loyalty', zValidator('param', docIdParam, validationHook), async c => c.json(await documentLoyaltyOf(ctxOf(c).db, c.req.valid('param').id)))

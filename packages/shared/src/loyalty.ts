@@ -1,6 +1,6 @@
 /* Скидки и лояльность (задача 1179): чистые расчёты — выбор скидки из подходящих правил (с учётом «суммировать»),
    распределение списания баллов по строкам документа, процент накопительной карты по шкале. Деньги — строки
-   и decimal.ts, без float. Правила — docs/architecture/loyalty.md. */
+   и decimal.ts, без float. Правила — docs/architecture/pricing.md. */
 import { dec, fmt, pctOf, roundDiv, type Dec } from './decimal';
 import { toKop, fmtKop } from './documents';
 

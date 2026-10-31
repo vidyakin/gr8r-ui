@@ -48,7 +48,7 @@ import { checkParamValues, loadCategoryAttributeDefs } from './specs';
 import { uuidv7 } from './uuid';
 import { saveSerials, checkInventorySerials, lineSerialsView } from './serials';
 import { applySaleNextContact } from './repeat-sales';
-import { applyAutoDiscountsOnSave, applyLoyaltyOnPost, applyLoyaltyOnReturn, DISCOUNT_DOCUMENT_TYPES, documentLoyaltyOf, LOYALTY_RETURN_TYPES, LOYALTY_SALE_TYPES, reverseLoyaltyOnUnpost, saveDocumentLoyalty, saveLineDiscountSources } from './loyalty';
+import { applyAutoDiscountsOnSave, applyLoyaltyOnPost, applyLoyaltyOnReturn, applyLoyaltyRedemption, reverseLoyaltyOnReturnUnpost, validPromoCode, DISCOUNT_DOCUMENT_TYPES, documentLoyaltyOf, LOYALTY_RETURN_TYPES, LOYALTY_SALE_TYPES, reverseLoyaltyOnUnpost, saveDocumentLoyalty, saveLineDiscountSources } from './loyalty';
 import { inheritDelivery } from './delivery';
 import { payableOf, postAccrual, removeSettlementMoves } from './settlements';
 import { repairPrintData, syncWarrantyKind, workOrderKindType } from './repair';
@@ -353,8 +353,10 @@ export async function recalcDocumentDiscounts(db: Db, ctx: DocCtx, id: string, p
   const type = doc.type as DocumentType;
   if (!(DISCOUNT_DOCUMENT_TYPES as readonly string[]).includes(type)) throw new DomainError(422, 'invalid_document_type', 'Automatic discounts apply only to quotes, orders, invoices, sales, acts and work orders');
   if (doc.status !== 'draft') throw new DomainError(409, 'not_draft', 'A posted or cancelled document cannot be recalculated: unpost it first');
-  const applied = await applyDiscountsToDraft(db, ctx, doc, promoCode ?? null);
-  if (promoCode !== undefined) await saveDocumentLoyaltyRule(db, ctx.workspaceId, id, applied, promoCode ?? null);
+  const applied = await applyDiscountsToDraft(db, ctx, doc, promoCode);
+  // null — код снят, строка — код применён, undefined — остаётся сохранённый
+  if (promoCode === null) await saveDocumentLoyalty(db, ctx.workspaceId, id, { promoCodeId: null });
+  else if (promoCode !== undefined) await saveDocumentLoyaltyRule(db, ctx.workspaceId, id, applied, promoCode);
 }
 
 /** Общая реализация пересчёта скидок черновика (используется кнопкой «Пересчитать скидки» и автопересчётом при сохранении строк).
@@ -369,7 +371,8 @@ async function applyDiscountsToDraft(db: Db, ctx: DocCtx, doc: DocumentRow, prom
   if (promoCode === undefined) {
     if (dl?.promoCodeId) {
       const [pc] = await db.select({ code: promoCodes.code }).from(promoCodes).where(eq(promoCodes.id, dl.promoCodeId)).limit(1);
-      effectivePromoCode = pc?.code ?? null;
+      // истёкший или исчерпанный сохранённый код не мешает править черновик: скидка просто не действует, при проведении сработает лимит
+      effectivePromoCode = pc && (await validPromoCode(db, ctx.workspaceId, pc.code, doc.date)) ? pc.code : null;
     }
   }
   const totals = computeTotals((await db.select({ net: documentLines.net, vatAmount: documentLines.vatAmount, total: documentLines.total, vatRate: documentLines.vatRate }).from(documentLines).where(eq(documentLines.documentId, doc.id))) as any);
@@ -406,7 +409,7 @@ async function applyDiscountsToDraft(db: Db, ctx: DocCtx, doc: DocumentRow, prom
 async function saveDocumentLoyaltyRule(db: Db, workspaceId: string, documentId: string, promoRuleId: string | null, promoCode: string | null): Promise<void> {
   if (!promoCode) return;
   if (!promoRuleId) return;
-  const [row] = await db.select({ id: promoCodes.id }).from(promoCodes).where(and(eq(promoCodes.workspaceId, workspaceId), eq(promoCodes.code, promoCode))).limit(1);
+  const [row] = await db.select({ id: promoCodes.id }).from(promoCodes).where(and(eq(promoCodes.workspaceId, workspaceId), sql`lower(${promoCodes.code}) = lower(${promoCode})`)).limit(1);
   if (row) await saveDocumentLoyalty(db, workspaceId, documentId, { promoCodeId: row.id });
 }
 
@@ -882,6 +885,9 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<voi
     await applyDocumentMoves(db, ctx, doc, lines);
   }
 
+  // лояльность (задача 1179): списание баллов уменьшает суммы строк до начисления взаиморасчётов
+  if ((LOYALTY_SALE_TYPES as readonly string[]).includes(type) && (await applyLoyaltyRedemption(db, ctx, doc))) await writeTotals(db, id);
+
   const num = doc.numberSeq === null ? await nextNumber(db, doc) : null;
   await db
     .update(documents)
@@ -896,7 +902,7 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<voi
   await applySaleNextContact(db, ctx, doc, lines);
   const [after] = await db.select({ number: documents.number, total: documents.total }).from(documents).where(eq(documents.id, id)).limit(1);
   // лояльность (задача 1179): списание/начисление баллов по карте, промокод — на продажах; частичное сторно баллов — на возврате
-  if ((LOYALTY_SALE_TYPES as readonly string[]).includes(type)) await applyLoyaltyOnPost(db, ctx, { ...doc, number: after!.number, total: after!.total }, lines);
+  if ((LOYALTY_SALE_TYPES as readonly string[]).includes(type)) await applyLoyaltyOnPost(db, ctx, { ...doc, number: after!.number, total: after!.total });
   else if ((LOYALTY_RETURN_TYPES as readonly string[]).includes(type) && doc.basedOnId) await applyLoyaltyOnReturn(db, ctx, { ...doc, number: after!.number, total: after!.total }, doc.basedOnId);
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.posted', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { documentType: type, number: after!.number, total: after!.total, warnings: contractWarnings } });
 }
@@ -943,7 +949,10 @@ export async function unpostDocument(db: Db, ctx: DocCtx, id: string, opts: { re
   await DOCUMENT_HOOKS[doc.type as DocumentType]?.afterUnpost?.(db, ctx, { ...doc, status: 'draft' }, await linesOf(db, id));
   if (!isCashDocType(doc.type)) await removeSettlementMoves(db, ctx.workspaceId, id);
   // лояльность (задача 1179): сторно баллов, начисленных/списанных при проведении; возврат счётчика промокода
-  if ((LOYALTY_SALE_TYPES as readonly string[]).includes(type)) await reverseLoyaltyOnUnpost(db, ctx, doc);
+  if ((LOYALTY_SALE_TYPES as readonly string[]).includes(type)) {
+    await reverseLoyaltyOnUnpost(db, ctx, doc);
+    await recalcLines(db, doc);
+  } else if ((LOYALTY_RETURN_TYPES as readonly string[]).includes(type)) await reverseLoyaltyOnReturnUnpost(db, ctx, doc);
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.unposted', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { documentType: type, number: doc.number } });
 }
 
@@ -1029,6 +1038,11 @@ export async function createBasedOn(db: Db, ctx: DocCtx, sourceId: string, targe
     lines: newLines,
   });
   await db.update(documents).set({ basedOnId: sourceId }).where(eq(documents.id, id));
+  // карта и промокод идут по цепочке продажи: промокод считается использованным при проведении отгрузки
+  if ((DISCOUNT_DOCUMENT_TYPES as readonly string[]).includes(target)) {
+    const dl = await documentLoyaltyOf(db, sourceId);
+    if (dl) await saveDocumentLoyalty(db, ctx.workspaceId, id, { loyaltyCardId: dl.loyaltyCardId, promoCodeId: dl.promoCodeId, pointsRedeemed: dl.pointsRedeemed });
+  }
   const created = await linesOf(db, id);
   for (const [i, l] of created.entries()) await db.update(documentLines).set({ sourceLineId: meta[i]!.source, originLineId: meta[i]!.origin }).where(eq(documentLines.id, l.id));
   // реализация на основании заказа наследует его доставку (задача 1100)

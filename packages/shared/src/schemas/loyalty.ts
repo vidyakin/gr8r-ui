@@ -37,6 +37,13 @@ export const promoCodeBody = z.object({
   usageLimit: z.number().int().min(0).nullish(),
 });
 export const promoCodeCreate = promoCodeBody;
+export const promoCodeIssue = z.object({
+  ruleId: uuid,
+  count: z.number().int().min(1).max(1000),
+  prefix: z.string().trim().max(20).optional(),
+  validFrom: promoCodeBody.shape.validFrom,
+  validTo: promoCodeBody.shape.validTo,
+});
 export const promoCodeUpdate = toPatch(promoCodeBody.omit({ id: true }));
 
 export const loyaltyProgramUpdate = z.object({
