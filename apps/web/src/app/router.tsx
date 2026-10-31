@@ -72,6 +72,7 @@ import { PaymentPage } from './money/PaymentPage';
 import { PaymentCalendarPage } from './money/CalendarPage';
 import { RequestPage, RequestsPage } from './money/RequestPages';
 import { OpeningPage, OpeningsPage } from './money/OpeningPages';
+import { DiscountRulesPage, LoyaltyCardPage, LoyaltyCardsPage, LoyaltyProgramPage, PromoCodesPage } from './loyalty/LoyaltyPages';
 import { PriceKindsPage, PriceListPage, PriceSettingPage, PriceSettingsPage } from './pricing/PricingPages';
 import { PublicPricePage } from './pricing/PublicPricePage';
 import { QuoteTemplatesPage } from './docs/QuoteTemplatesPage';
@@ -205,6 +206,11 @@ export const router = createHashRouter([
       { path: SECTIONS.priceSettings.path, element: <PriceSettingsPage /> },
       { path: `${SECTIONS.priceSettings.path}/:id`, element: <PriceSettingPage /> },
       { path: SECTIONS.priceKinds.path, element: <PriceKindsPage /> },
+      { path: SECTIONS.discountRules.path, element: <DiscountRulesPage /> },
+      { path: SECTIONS.promoCodes.path, element: <PromoCodesPage /> },
+      { path: SECTIONS.loyaltyCards.path, element: <LoyaltyCardsPage /> },
+      { path: `${SECTIONS.loyaltyCards.path}/:id`, element: <LoyaltyCardPage /> },
+      { path: SECTIONS.loyaltyProgram.path, element: <LoyaltyProgramPage /> },
       { path: SECTIONS.payroll.path, element: <PayrollsPage /> },
       { path: SECTIONS.payrollStatements.path, element: <StatementsPage /> },
       { path: `${SECTIONS.payrollStatements.path}/:id`, element: <StatementPage /> },

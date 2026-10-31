@@ -406,7 +406,7 @@ async function applyDiscountsToDraft(db: Db, ctx: DocCtx, doc: DocumentRow, prom
 async function saveDocumentLoyaltyRule(db: Db, workspaceId: string, documentId: string, promoRuleId: string | null, promoCode: string | null): Promise<void> {
   if (!promoCode) return;
   if (!promoRuleId) return;
-  const [row] = await db.select({ id: promoCodes.id }).from(promoCodes).where(and(eq(promoCodes.workspaceId, workspaceId), eq(promoCodes.code, promoCode))).limit(1);
+  const [row] = await db.select({ id: promoCodes.id }).from(promoCodes).where(and(eq(promoCodes.workspaceId, workspaceId), sql`lower(${promoCodes.code}) = lower(${promoCode})`)).limit(1);
   if (row) await saveDocumentLoyalty(db, workspaceId, documentId, { promoCodeId: row.id });
 }
 
