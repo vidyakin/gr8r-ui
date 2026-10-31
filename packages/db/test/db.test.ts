@@ -116,6 +116,16 @@ describe('seed', () => {
     expect(await count('companies', `${w} and inn <> ''`)).toBe(5);
     expect(await count('bank_accounts', `${w} and company_id is not null`)).toBe(5);
     expect(await count('documents', w)).toBe(76); // + черновик КП с двумя вариантами; + виды цен: проведённая установка цен поставщика и черновик повышения розницы; // + зарплата: начисление за прошлый месяц и черновик за текущий, две ведомости, две выплаты; // + ввод начальных остатков, + 5 документов платёжного календаря (4 заявки на расход и оплата заявки), + 12 документов денег (оплаты, подотчёт, акты физлица); // + проведённый план продаж, + поступление и продажа смартфона, ремонтный и гарантийный заказ-наряды, заказ покупателя на окно, цепочка разборки, документы переработки и факт инвестпроекта
+    // скидки и лояльность (задача 1179): 4 правила (одно только по промокоду), промокод, программа, три карты и три движения баллов
+    expect(await count('discount_rules', w)).toBe(4);
+    expect(await count('discount_rules', `${w} and promo_only and not stackable`)).toBe(1);
+    expect(await count('discount_rules', `${w} and stackable`)).toBe(1);
+    expect(await count('promo_codes', `${w} and usage_limit = 100`)).toBe(1);
+    expect(await count('loyalty_programs', `${w} and accrual_pct = 5 and jsonb_array_length(cumulative_scale) = 3`)).toBe(1);
+    expect(await count('loyalty_cards', w)).toBe(3);
+    expect(await count('loyalty_cards', `${w} and kind = 'discount' and discount_pct = 5`)).toBe(1);
+    expect(await count('loyalty_transactions', w)).toBe(3);
+    expect(Number((await admin`select coalesce(sum(points), 0)::float as s from loyalty_transactions where workspace_id = ${demo!.id}`)[0]!.s)).toBe(1350);
     expect(await count('price_kinds', `${w} and archived_at is null`)).toBe(5); // «Розничная», «Закупочная», «Оптовая», «Дилерская» и цены поставщика
     expect(await count('product_prices', `${w} and document_id is not null`)).toBeGreaterThan(0);
     expect(await count('documents', `${w} and type = 'payment_request' and state = 'approved'`)).toBe(1);
