@@ -370,6 +370,8 @@ export async function loyaltyCardDetail(db: Db, id: string) {
 
 /** discountPct существующей строки и её источник — чтобы не перезаписывать ручную скидку при автопересчёте */
 export interface LineForDiscount {
+  /** Текущий процент строки: строка с процентом без записи об источнике считается ручной */
+  discountPct?: string;
   id: string;
   productId: string;
   qty: string;
@@ -498,8 +500,8 @@ export async function saveLineDiscountSources(db: Db, workspaceId: string, entri
   await db.insert(documentLineDiscounts).values(entries.map(e => ({ workspaceId, lineId: e.lineId, source: e.source, ruleId: e.ruleId, cardId: e.cardId ?? null })));
 }
 
-/** Источники скидок строк документа (manual/rule/card) из document_line_discounts; строки без записи считаются 'manual'
-    (скидка задана пользователем вручную при создании строки и ещё не пересчитывалась автоматикой). */
+/** Источники скидок строк документа (manual/rule/card) из document_line_discounts. Записи нет у строк без скидки и у строк,
+    чей процент задан не автоматикой (черновики до задачи 1179, новая строка с процентом) — см. applyAutoDiscountsOnSave. */
 async function lineDiscountSources(db: Db, lineIds: string[]): Promise<Map<string, 'manual' | 'rule' | 'card'>> {
   if (!lineIds.length) return new Map();
   const rows = await db.select({ lineId: documentLineDiscounts.lineId, source: documentLineDiscounts.source }).from(documentLineDiscounts).where(inArray(documentLineDiscounts.lineId, lineIds));
@@ -516,11 +518,11 @@ export async function applyAutoDiscountsOnSave(
   p: { date: string; time?: string | undefined; customerId: string | null; documentNetTotal: string; promoCode?: string | null | undefined; cardId?: string | null | undefined; lines: LineForDiscount[] },
 ): Promise<{ promoRuleId: string | null; byLine: Map<string, { pct: string; ruleId: string | null; cardId: string | null }> }> {
   const sources = await lineDiscountSources(db, p.lines.map(l => l.id));
-  const autoLines = p.lines.filter(l => sources.get(l.id) !== 'manual');
+  // автоматика всегда пишет источник, поэтому процент без записи поставил человек
+  const isManual = (l: LineForDiscount) => { const s = sources.get(l.id); return s === 'manual' || (!s && dec(l.discountPct ?? '0') > 0n); };
+  const autoLines = p.lines.filter(l => !isManual(l));
   if (!autoLines.length) return { promoRuleId: null, byLine: new Map() };
-  const r = await autoDiscountForLines(db, workspaceId, { ...p, lines: autoLines });
-  for (const lineId of r.byLine.keys()) if (sources.get(lineId) === 'manual') r.byLine.delete(lineId);
-  return r;
+  return autoDiscountForLines(db, workspaceId, { ...p, lines: autoLines });
 }
 
 /* ======================= Лояльность документа: списание и начисление при проведении ======================= */
@@ -627,10 +629,13 @@ export async function runLoyaltyExpiration(db: Db, workspaceId: string, now = ne
   let count = 0;
   for (const { cardId } of cardIds) {
     const txs = await db.select().from(loyaltyTransactions).where(and(eq(loyaltyTransactions.cardId, cardId), ne(loyaltyTransactions.kind, 'expiration'))).orderBy(asc(loyaltyTransactions.createdAt));
-    const lots = txs.filter(t => t.kind === 'accrual').map(t => ({ id: t.id, createdAt: t.createdAt, points: t.points, expiresAt: t.expiresAt }));
-    if (!lots.length) continue;
+    // сгоревшая часть лота (движение 'expiration' с reversesId на него) вычитается из лота: остаток лота уже погашен расходом,
+    // поэтому расход не зачитывается следующим лотам второй раз, а повторный проход ничего не сжигает
+    const alreadyExpired = await db.select({ reversesId: loyaltyTransactions.reversesId, points: loyaltyTransactions.points }).from(loyaltyTransactions).where(and(eq(loyaltyTransactions.cardId, cardId), eq(loyaltyTransactions.kind, 'expiration')));
+    const burnedByLot = new Map(alreadyExpired.filter(t => t.reversesId).map(t => [t.reversesId!, -dec(t.points)]));
+    const lots = txs.filter(t => t.kind === 'accrual').map(t => ({ id: t.id, createdAt: t.createdAt, points: fmt(dec(t.points) - (burnedByLot.get(t.id) ?? 0n), 2), expiresAt: t.expiresAt }));
     const spend = txs.filter(t => t.kind !== 'accrual').reduce((a, t) => a + (dec(t.points) < 0n ? -dec(t.points) : 0n), 0n);
-    const burned = fifoExpiredPoints(lots, fmt(spend, 2), now);
+    const burned = fifoExpiredPoints(lots, fmt(spend, 2), now).filter(lot => !burnedByLot.has(lot.lotId));
     for (const lot of burned) {
       await db.insert(loyaltyTransactions).values({ workspaceId, cardId, kind: 'expiration', points: fmt(-dec(lot.points), 2), reversesId: lot.lotId, comment: 'Сгорание истёкших баллов' });
       count++;

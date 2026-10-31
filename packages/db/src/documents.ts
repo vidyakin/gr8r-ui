@@ -40,7 +40,7 @@ import { recordEvent } from './events';
 import { applyStockMoves, defaultPostingCost, documentCosts, documentLineCosts, loadInventorySettings, revertStockMoves, sourceMoveCosts, syncReservations, type MoveRequest } from './stock';
 import { syncWorkOrderResources } from './planning';
 import { assertPeriodOpen, assertServiceCostItems, clearPeriodCosts, syncPeriodCosts } from './cost-closing';
-import { bankAccounts, companies, deals, contracts, paymentLinks, costItems, documentCounters, documentLines, documentStates, documents, investmentProjects, materialAllocationItems, members, organizations, products, promoCodes, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials } from './schema';
+import { bankAccounts, companies, deals, contracts, paymentLinks, costItems, documentCounters, documentLineDiscounts, documentLines, documentStates, documents, investmentProjects, materialAllocationItems, members, organizations, products, promoCodes, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials } from './schema';
 import { assertInvestmentTarget, investmentOpen } from './investments';
 import { assertContractOfCompany, contractDocumentProducts, contractPlanProductIds, defaultContract } from './contracts';
 import { ensureVariant, specParamsOfProduct } from './variants';
@@ -185,7 +185,8 @@ async function resolveLines(db: Db, inputs: DocumentLineInput[], existingIds: Se
       unitCode: l.unitCode ?? p.unitCode,
       qty: l.qty,
       price: l.price,
-      discountPct: l.discountPct ?? '0',
+      // discountManual: false — вернуть строку автоскидке: ручной процент сбрасывается
+      discountPct: l.discountManual === false ? '0' : (l.discountPct ?? '0'),
       discountManual: l.discountManual ?? false,
       vatRate: (l.vatRate ?? p.vatRate) as VatRate,
       stockRole: l.stockRole,
@@ -259,11 +260,12 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
   const type = doc.type as DocumentType;
   const meta = DOCUMENT_META[type];
   const existing = await db
-    .select({ id: documentLines.id, price: documentLines.price, stockRole: documentLines.stockRole, costItemId: documentLines.costItemId, workCenterId: documentLines.workCenterId, groupName: documentLines.groupName })
+    .select({ id: documentLines.id, price: documentLines.price, discountPct: documentLines.discountPct, stockRole: documentLines.stockRole, costItemId: documentLines.costItemId, workCenterId: documentLines.workCenterId, groupName: documentLines.groupName })
     .from(documentLines)
     .where(eq(documentLines.documentId, doc.id));
   const existingIds = new Set(existing.map(e => e.id));
   const prevPrice = new Map(existing.map(e => [e.id, e.price]));
+  const prevDiscount = new Map(existing.map(e => [e.id, e.discountPct]));
   const prevRole = new Map(existing.map(e => [e.id, e.stockRole]));
   const prevCostItem = new Map(existing.map(e => [e.id, e.costItemId]));
   const prevCenter = new Map(existing.map(e => [e.id, e.workCenterId]));
@@ -317,14 +319,26 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
     if (existingIds.has(l.id)) await db.update(documentLines).set(values).where(eq(documentLines.id, l.id));
     else await db.insert(documentLines).values({ ...values, id: l.id, workspaceId: ctx.workspaceId, documentId: doc.id });
   }
-  // ручная скидка строки (задача 1179): источник записывается сразу, чтобы автопересчёт ниже её не перезаписал
-  const manual = resolved.filter(l => l.discountManual);
-  if (manual.length) await saveLineDiscountSources(db, ctx.workspaceId, manual.map(l => ({ lineId: l.id, source: 'manual' as const, ruleId: null })));
+  // ручная скидка строки (задача 1179): явный флаг или процент, отличный от сохранённого. Источник записывается сразу, чтобы
+  // автопересчёт ниже её не перезаписал. Клиент, не знающий флага, присылает прежний процент авто-строки — она остаётся автоматической
+  const autoDiscountType = (DISCOUNT_DOCUMENT_TYPES as readonly string[]).includes(type);
+  if (autoDiscountType) {
+    const manual = resolved.filter((l, i) => {
+      const input = inputs[i];
+      if (input?.discountManual !== undefined) return input.discountManual;
+      const prev = prevDiscount.get(l.id);
+      return prev !== undefined && input?.discountPct !== undefined && dec(prev) !== dec(input.discountPct);
+    });
+    if (manual.length) await saveLineDiscountSources(db, ctx.workspaceId, manual.map(l => ({ lineId: l.id, source: 'manual' as const, ruleId: null })));
+    const toAuto = resolved.filter((_, i) => inputs[i]?.discountManual === false).map(l => l.id);
+    if (toAuto.length) await db.delete(documentLineDiscounts).where(inArray(documentLineDiscounts.lineId, toAuto));
+  }
   // серийные номера строк (задача 1099): присланный список заменяет прежний
   for (const [i, l] of resolved.entries()) if (inputs[i]?.serials !== undefined) await saveSerials(db, ctx.workspaceId, doc.id, { lineId: l.id }, inputs[i]!.serials!);
   await writeTotals(db, doc.id);
   // автоскидки (задача 1179): автоматически при каждом сохранении черновика продажи (как и по кнопке «Пересчитать скидки»)
-  if ((DISCOUNT_DOCUMENT_TYPES as readonly string[]).includes(type) && doc.status === 'draft') await applyDiscountsToDraft(db, ctx, doc, undefined);
+  // документ на основании наследует скидки строк: при сохранении не пересчитывается, только по кнопке
+  if (autoDiscountType && doc.status === 'draft' && !doc.basedOnId) await applyDiscountsToDraft(db, ctx, doc, undefined);
 }
 
 /** Замена строк документа для вариантов КП (quotes.ts) */
@@ -348,7 +362,7 @@ export async function recalcDocumentDiscounts(db: Db, ctx: DocCtx, id: string, p
     Не подтягивает промокод снова, чтобы не сбрасывать счётчик использования при каждом автопересчёте.
     promoCode === null — явный сброс промокода (кнопка пересчитает без него). Возвращает promoRuleId применённого промокода. */
 async function applyDiscountsToDraft(db: Db, ctx: DocCtx, doc: DocumentRow, promoCode: string | null | undefined): Promise<string | null> {
-  const rows = await db.select({ id: documentLines.id, productId: documentLines.productId, qty: documentLines.qty }).from(documentLines).where(eq(documentLines.documentId, doc.id));
+  const rows = await db.select({ id: documentLines.id, productId: documentLines.productId, qty: documentLines.qty, discountPct: documentLines.discountPct }).from(documentLines).where(eq(documentLines.documentId, doc.id));
   if (!rows.length) return null;
   const dl = await documentLoyaltyOf(db, doc.id);
   let effectivePromoCode: string | null = promoCode ?? null;
@@ -365,16 +379,22 @@ async function applyDiscountsToDraft(db: Db, ctx: DocCtx, doc: DocumentRow, prom
     documentNetTotal: totals.net,
     promoCode: effectivePromoCode,
     cardId: dl?.loyaltyCardId ?? null,
-    lines: rows.map(l => ({ id: l.id, productId: l.productId, qty: l.qty, priceKindId: doc.priceKindId })),
+    lines: rows.map(l => ({ id: l.id, productId: l.productId, qty: l.qty, discountPct: l.discountPct, priceKindId: doc.priceKindId })),
   });
   if (!r.byLine.size) return r.promoRuleId;
   for (const [lineId, d] of r.byLine) await db.update(documentLines).set({ discountPct: d.pct }).where(eq(documentLines.id, lineId));
+  // строка без подошедшего правила/карты (0 %, ни ruleId, ни cardId) — запись в document_line_discounts не нужна: следующий
+  // автопересчёт должен снова рассматривать её как не прошедшую автоподстановку, а не как 'manual' (иначе промокод/правило,
+  // добавленные позже, её больше не увидят). Старую запись (от прежнего правила/карты) всё равно нужно убрать.
+  const withSource = [...r.byLine.entries()].filter(([, d]) => d.ruleId || d.cardId);
+  const withoutSource = [...r.byLine.keys()].filter(lineId => !withSource.some(([id]) => id === lineId));
+  if (withoutSource.length) await db.delete(documentLineDiscounts).where(inArray(documentLineDiscounts.lineId, withoutSource));
   await saveLineDiscountSources(
     db,
     ctx.workspaceId,
-    [...r.byLine.entries()].map(([lineId, d]) => ({
+    withSource.map(([lineId, d]) => ({
       lineId,
-      source: d.ruleId ? ('rule' as const) : d.cardId ? ('card' as const) : ('manual' as const),
+      source: d.ruleId ? ('rule' as const) : ('card' as const),
       ruleId: d.ruleId,
       cardId: d.cardId,
     })),
@@ -1005,6 +1025,7 @@ export async function createBasedOn(db: Db, ctx: DocCtx, sourceId: string, targe
     dueDate: target === 'invoice' ? src.dueDate : null,
     // инвестпроект переходит в документ-исполнитель и возврат, если проект ещё принимает документы
     investmentProjectId: src.investmentProjectId && isInvestmentFactType(target) && (await investmentOpen(db, src.investmentProjectId)) ? src.investmentProjectId : null,
+    basedOnId: sourceId,
     lines: newLines,
   });
   await db.update(documents).set({ basedOnId: sourceId }).where(eq(documents.id, id));

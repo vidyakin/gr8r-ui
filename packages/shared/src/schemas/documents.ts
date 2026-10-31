@@ -120,7 +120,7 @@ export const documentLineInput = z
       .optional(),
     qty: nonNeg(),
     price: nonNeg(),
-    discountPct: pct.default('0'),
+    discountPct: pct.optional(),
     /** Скидка строки правилась вручную (задача 1179): автоскидка такую строку больше не перезаписывает.
         Клиент передаёт true, когда пользователь сам поменял discountPct в форме; иначе источник не трогаем. */
     discountManual: z.boolean().optional(),
