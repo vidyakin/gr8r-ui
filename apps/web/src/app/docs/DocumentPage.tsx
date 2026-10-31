@@ -5,7 +5,7 @@ import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Ban, Calculator, ChevronDown, CircleAlert, ClipboardList, Copy, Ellipsis, FileSignature, FileText, PackageCheck, PackageX, Plus, Printer, RotateCcw, Send, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
-import { amountInWordsRu, basedOnTargets, computeDocument, dec, DEFECT_MODES, DOCUMENT_META, fmt as fmtDec, hasQuoteVariants, isInvestmentFactType, MATERIAL_OWNER_LABELS, PRINT_FORM_LABELS, TOLLING_ROLE_LABELS, TOLLING_ROLES, TRANSFER_OPERATIONS, VAT_LABELS, VAT_RATES, type DefectMode, type DocumentType, type TollingRole, type VatRate } from '@gr8r/shared';
+import { amountInWordsRu, basedOnTargets, computeDocument, computeTotals, dec, DEFECT_MODES, DOCUMENT_META, fmt as fmtDec, hasQuoteVariants, isInvestmentFactType, MATERIAL_OWNER_LABELS, PRINT_FORM_LABELS, TOLLING_ROLE_LABELS, TOLLING_ROLES, TRANSFER_OPERATIONS, VAT_LABELS, VAT_RATES, type DefectMode, type DocumentType, type TollingRole, type VatRate } from '@gr8r/shared';
 import { Badge, Button, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Segmented, Select, Skeleton, toast } from '@/components/ui';
 import { useCanWrite } from '../meta/custom-fields';
 import { money, unitSymbol, useIsAdmin, useUnits, type Product } from '../catalog/data';
@@ -380,13 +380,19 @@ function DocumentView({ doc }: { doc: DocDetail }) {
 
   const calc = React.useMemo(() => {
     const valid = form.lines.filter(l => l.productId && lineOk(l, isCount));
+    // проведённый документ со списанием баллов: суммы строк уменьшены на сервере, из цены и скидки их не получить
+    if (doc.status === 'posted' && dec(doc.loyalty?.pointsRedeemed ?? '0') > 0n) {
+      const byId = new Map(doc.lines.map(l => [l.id, l]));
+      const rows = valid.flatMap(l => { const s = byId.get(l.key); return s ? [{ key: l.key, net: s.net, vatAmount: s.vatAmount, total: s.total, vatRate: s.vatRate }] : []; });
+      return { byKey: new Map(rows.map(r => [r.key, r])), totals: computeTotals(rows) };
+    }
     try {
       const r = computeDocument(valid.map(l => ({ qty: num(l.qty), price: num(l.price), discountPct: num(l.discountPct || '0'), vatRate: l.vatRate })), form.priceIncludesVat);
       return { byKey: new Map(valid.map((l, i) => [l.key, r.lines[i]!])), totals: r.totals };
     } catch {
       return { byKey: new Map(), totals: { net: '0.00', vat: '0.00', total: '0.00', byRate: [] as { rate: string; net: string; vat: string; total: string }[] } };
     }
-  }, [form.lines, form.priceIncludesVat]);
+  }, [form.lines, form.priceIncludesVat, doc.status, doc.loyalty?.pointsRedeemed, doc.lines]);
   /** Группы строк (КП, заказ, счёт): колонка «Группа» и итоги по группам */
   const hasGroups = !internal && (hasQuoteVariants(doc.type) || doc.type === 'invoice');
   const groupTotals = React.useMemo(() => {

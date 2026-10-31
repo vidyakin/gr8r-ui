@@ -601,7 +601,7 @@ export async function applyLoyaltyRedemption(db: Db, ctx: DocCtx, doc: DocumentR
   const points = fmt(capped, 2);
   if (points !== dl.pointsRedeemed) await db.update(documentLoyalty).set({ pointsRedeemed: points }).where(eq(documentLoyalty.documentId, doc.id));
   if (capped <= 0n) return false;
-  await db.insert(loyaltyTransactions).values({ workspaceId: ctx.workspaceId, cardId: card.id, documentId: doc.id, kind: 'redemption', points: fmt(-capped, 2), comment: `Списание по документу ${doc.number ?? doc.id}` });
+  await db.insert(loyaltyTransactions).values({ workspaceId: ctx.workspaceId, cardId: card.id, documentId: doc.id, kind: 'redemption', points: fmt(-capped, 2), comment: 'Списание баллов' });
   const lines = await db.select({ id: documentLines.id, total: documentLines.total, vatRate: documentLines.vatRate }).from(documentLines).where(eq(documentLines.documentId, doc.id));
   const shares = new Map(distributeRedemption(lines.map(l => ({ id: l.id, total: l.total })), points).map(r => [r.lineId, dec(r.points)]));
   for (const l of lines) {
