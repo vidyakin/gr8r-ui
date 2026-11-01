@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ArrowLeft, CircleAlert, Download, Printer } from 'lucide-react';
-import { DOCUMENT_META, isCashDocType, PRINT_FORMS, PRINT_FORM_LABELS, printOrientation, type PrintForm } from '@gr8r/shared';
+import { CONTRACT_FORM_BY_TYPE, DOCUMENT_META, isCashDocType, isContractForm, PRINT_FORMS, usesTemplate, PRINT_FORM_LABELS, printOrientation, type PrintForm } from '@gr8r/shared';
 import { Button, EmptyState, Select, Skeleton, toast } from '@/components/ui';
 import { tEnum, useT } from '@/i18n';
 import { API_BASE } from '../data/api';
@@ -18,11 +18,11 @@ export function PrintPage() {
   const navigate = useNavigate();
   // КП по шаблону: /documents/:id/print/quote?template=<id>
   const [search] = useSearchParams();
-  const templateId = form === 'quote' ? search.get('template') : null;
-  const templates = useDocTemplates();
+  const templateId = form && usesTemplate(form) ? search.get('template') : null;
+  const templates = useDocTemplates({ purpose: 'all' });
   const template = templateId ? templates.data?.find(x => x.id === templateId) : undefined;
   /** Подпись формы: шаблон КП, стандартное КП или форма из списка */
-  const formLabel = (f: string) => (f === 'quote' ? t('docs.quotes.standardForm') : tEnum('printForm', f, PRINT_FORM_LABELS[f as PrintForm]));
+  const formLabel = (f: string) => (f === 'quote' ? t('docs.quotes.standardForm') : isContractForm(f) ? t(`docs.quotes.purpose.${f as 'contract_order'}`) : tEnum('printForm', f, PRINT_FORM_LABELS[f as PrintForm]));
   const ws = useWsId();
   const doc = useDocument(id);
   const frame = React.useRef<HTMLIFrameElement>(null);
@@ -103,7 +103,7 @@ export function PrintPage() {
         </EmptyState>
       </div>
     );
-  const forms = doc.data ? DOCUMENT_META[doc.data.type].forms : [];
+  const forms = doc.data ? [...DOCUMENT_META[doc.data.type].forms, ...(CONTRACT_FORM_BY_TYPE[doc.data.type] && doc.data.contractId ? [CONTRACT_FORM_BY_TYPE[doc.data.type]!] : [])] : [];
   const landscape = printOrientation(form as PrintForm) === 'landscape';
 
   return (

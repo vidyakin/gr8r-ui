@@ -78,3 +78,4 @@ export * from './routing';
 export * from './routing-trips';
 export * from './file-store';
 export * from './attachments';
+export * from './contract-print';

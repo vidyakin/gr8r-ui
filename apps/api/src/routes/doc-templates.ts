@@ -4,14 +4,14 @@ import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { archiveTemplate, createTemplate, getTemplate, listTemplates, updateTemplate } from '@gr8r/db';
-import { docTemplateCreate, docTemplateUpdate, idParam, queryBool } from '@gr8r/shared';
+import { DOC_TEMPLATE_PURPOSES, docTemplateCreate, docTemplateUpdate, idParam, queryBool } from '@gr8r/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';
 
 const write = requireRole('member');
 const docCtx = (ctx: Ctx) => ({ workspaceId: ctx.workspaceId, memberId: ctx.memberId, role: ctx.role });
-const listQuery = z.object({ purpose: z.enum(['quote']).optional(), used: queryBool.optional(), archived: queryBool.optional() });
+const listQuery = z.object({ purpose: z.enum(DOC_TEMPLATE_PURPOSES).optional(), used: queryBool.optional(), archived: queryBool.optional() });
 
 export const docTemplateRoutes = new Hono<AppEnv>()
   .get('/', zValidator('query', listQuery, validationHook), async c => {

@@ -33,7 +33,7 @@ API `apps/api/src/routes/documents.ts` (варианты, печать) и `rout
 
 ## Шаблоны КП
 - `doc_templates`: название, `purpose` (в БД перечень 1С: `quote`, `contract`, `contract_order`, `contract_invoice`,
-  `contract_work_order`; API принимает только `quote`), `body`, `is_used` («Используется» — в меню «Печать»),
+  `contract_work_order`; договорные назначения — `contracts.md`), `body`, `is_used` («Используется» — в меню «Печать»),
   `only_author` (видит и печатает только автор — даже admin), `with_images` («С картинками» — колонка с основной картинкой
   товара в `{{Товары}}` и `{{Варианты}}`), `author_id`, архив вместо удаления.
 - API `/doc-templates`: список (`purpose`, `used`, `archived`), карточка, создание — member+, правка и удаление — автор или
@@ -50,5 +50,4 @@ API `apps/api/src/routes/documents.ts` (варианты, печать) и `rout
   (`products.image_attachment_id`, миниатюра `/api/attachments/<id>/content?thumb=256`, ~48px); перед печатью/PDF
   `inlineAttachmentImages` инлайнит картинки в `data:base64` (PDF не ходит в сеть, предпросмотр в iframe не грузит относительные
   ссылки). Товар без картинки печатается с пустой ячейкой.
-- Не сделано: загрузка docx/odt и вкладка «Файлы», отправка по почте (задача 1092), шаблоны договоров,
-  связь КП со сделкой CRM.
+- Не сделано: загрузка docx/odt и вкладка «Файлы», отправка по почте (задача 1092), связь КП со сделкой CRM.

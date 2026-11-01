@@ -2,7 +2,7 @@
    (индексы полей конструктора), PDF печатных форм, ZIP-архив выгрузки счетов, закрытие периода (production.close_period)
    и выполнение запусков автоматизаций (flow.run). */
 import { and, eq, inArray } from 'drizzle-orm';
-import { BANK_SYNC_JOB, buildPrintData, renderDocumentHtml, settlementActHtml, transportWaybillPrintData, DISTRIBUTE_JOB, GEOCODE_JOB, OPTIMIZE_JOB, executeRoutingRun, runGeocode, createFieldIndex, integrationRuntime, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, isUuid, jobs, withContext, type Db, type Sql } from '@gr8r/db';
+import { BANK_SYNC_JOB, buildPrintData, renderContractHtml, renderDocumentHtml, settlementActHtml, transportWaybillPrintData, DISTRIBUTE_JOB, GEOCODE_JOB, OPTIMIZE_JOB, executeRoutingRun, runGeocode, createFieldIndex, integrationRuntime, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, contractFiles, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, isUuid, jobs, withContext, type Db, type Sql } from '@gr8r/db';
 import { FIELD_TYPES, renderPrintForm, renderTransportWaybill, type FieldType, type PrintForm } from '@gr8r/shared';
 import { loadRequestForHook, markRequestHookSent } from '@gr8r/db';
 import { runClosePeriod } from './production-closing';
@@ -169,6 +169,21 @@ export const jobHandlers: Record<string, (job: JobRow, h: JobContext) => Promise
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       await h.read(db => db.update(documentFiles).set({ status: 'failed', error: msg.slice(0, 1000), finishedAt: new Date() }).where(eq(documentFiles.id, file.id)));
+    }
+  },
+  /** Договор без документа → PDF (шаблон с назначением «Договор»); файл лежит в contract_files. Ошибка не повторяется вслепую */
+  'contract.pdf': async (job, h) => {
+    const fileId = (job.payload as { fileId?: unknown }).fileId;
+    if (!isUuid(fileId)) throw new Error('contract.pdf job: payload.fileId must be a uuid');
+    const file = await h.read(async db => (await db.select().from(contractFiles).where(eq(contractFiles.id, fileId)).limit(1))[0]);
+    if (!file) return; // договор удалён вместе с файлом
+    try {
+      const html = await h.read(db => renderContractHtml(db, { contractId: file.contractId, purpose: 'contract', templateId: file.templateId, memberId: file.requestedBy }));
+      const bytes = await pdfRuntime.render(html, 'invoice'); // договор — A4 портрет
+      await h.read(db => db.update(contractFiles).set({ status: 'ready', data: Buffer.from(bytes), size: bytes.length, error: null, finishedAt: new Date() }).where(eq(contractFiles.id, file.id)));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await h.read(db => db.update(contractFiles).set({ status: 'failed', error: msg.slice(0, 1000), finishedAt: new Date() }).where(eq(contractFiles.id, file.id)));
     }
   },
   /** Акт сверки взаиморасчётов → PDF. Акт не документ учёта, поэтому файл лежит в document_exports (contentType application/pdf).

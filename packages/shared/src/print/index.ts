@@ -9,3 +9,4 @@ export * from './quote';
 export * from './waybill';
 export * from './transport-waybill';
 export * from './carrier-contract';
+export * from './contract';

@@ -1,13 +1,15 @@
 /* Договоры, тарифные планы и биллинг (этап 8 «УНФ: Услуги»).
    Все таблицы арендаторские (workspace_id + RLS), связи внутри арендатора — составные внешние ключи (workspace_id, id). */
 import { sql } from 'drizzle-orm';
-import { boolean, check, date, foreignKey, index, integer, jsonb, numeric, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, customType, date, foreignKey, index, integer, jsonb, numeric, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import type { BillingBreakdownPayload } from '@gr8r/shared';
-import { archivedAt, createdAt, money, pk, updatedAt } from './columns';
+import { archivedAt, createdAt, money, pk, ts, updatedAt } from './columns';
 import { products } from './catalog';
 import { companies } from './crm';
 import { documents, organizations } from './documents';
 import { wsCol } from './people';
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => 'bytea' });
 
 /** Тарифный план договора обслуживания: набор позиций и правило для номенклатуры вне плана */
 export const tariffPlans = pgTable(
@@ -99,6 +101,12 @@ export const contracts = pgTable(
     /** Пакет документов: только счёт или счёт и акт */
     documentPackage: text('document_package', { enum: ['invoice', 'invoice_act'] }).notNull().default('invoice'),
     note: text('note').notNull().default(''),
+    /** Для печати договора (шаблоны, docs/architecture/contracts.md): основание полномочий руководителя организации
+        («доверенности № …»; пусто — «Устава») и подписант контрагента с должностью и основанием */
+    orgSignerBasis: text('org_signer_basis').notNull().default(''),
+    partySignerName: text('party_signer_name').notNull().default(''),
+    partySignerTitle: text('party_signer_title').notNull().default(''),
+    partySignerBasis: text('party_signer_basis').notNull().default(''),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
     archivedAt: archivedAt(),
@@ -185,5 +193,31 @@ export const billingBreakdowns = pgTable(
     unique('billing_breakdowns_ws_id_uq').on(t.workspaceId, t.id),
     foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'billing_breakdowns_document_fk' }).onDelete('cascade'),
     uniqueIndex('billing_breakdowns_document_uq').on(t.workspaceId, t.documentId),
+  ],
+);
+
+/** PDF договора, заказанный из карточки договора (без документа): тот же путь, что document_files, — задача воркера
+    contract.pdf; файл лежит в БД. PDF «договор + документ» живёт в document_files (форма contract_order…) */
+export const contractFiles = pgTable(
+  'contract_files',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    contractId: uuid('contract_id').notNull(),
+    /** Шаблон договора: null — встроенный шаблон */
+    templateId: uuid('template_id'),
+    status: text('status', { enum: ['pending', 'ready', 'failed'] }).notNull().default('pending'),
+    contentType: text('content_type').notNull().default('application/pdf'),
+    size: integer('size').notNull().default(0),
+    data: bytea('data'),
+    error: text('error'),
+    requestedBy: uuid('requested_by'),
+    createdAt: createdAt(),
+    finishedAt: ts('finished_at'),
+  },
+  t => [
+    foreignKey({ columns: [t.workspaceId, t.contractId], foreignColumns: [contracts.workspaceId, contracts.id], name: 'contract_files_contract_fk' }).onDelete('cascade'),
+    check('contract_files_status_chk', sql`${t.status} in ('pending','ready','failed')`),
+    index('contract_files_contract_idx').on(t.contractId, t.createdAt),
   ],
 );
