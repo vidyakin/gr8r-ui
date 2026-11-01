@@ -2,6 +2,14 @@
 import { describe, expect, test } from 'bun:test';
 import { Client, addMember } from './helpers';
 
+/** multipart-форма с файлом (как у загрузки вложений) */
+const form = (fields: Record<string, string>, name = 'a.txt', content = 'hello') => {
+  const fd = new FormData();
+  for (const [k, v] of Object.entries(fields)) fd.set(k, v);
+  fd.set('file', new File([content], name, { type: 'text/plain' }));
+  return fd;
+};
+
 async function setup() {
   const owner = new Client();
   await owner.signup();
@@ -14,7 +22,7 @@ async function setup() {
   const t = await owner.task(p.id, 'Secret task');
   const comment = (await owner.post('/comments', { taskId: t.id, body: 'secret note' })).body;
   const log = (await owner.post('/time-logs', { taskId: t.id, hours: '1.5', logDate: '2026-10-01' })).body;
-  const file = (await owner.post('/files', { projectId: p.id, name: 'plan.pdf' })).body;
+  const file = await owner.form('POST', '/attachments', form({ entityType: 'task', entityId: t.id }, 'plan.pdf', 'pdf'));
   const ev = (await owner.post('/calendar-events', { projectId: p.id, title: 'Secret meeting', eventDate: '2026-10-02' })).body;
   const view = (await owner.post('/saved-views', { projectId: p.id, name: 'Mine', type: 'list' })).body;
   return { owner, insider, outsider, admin, open, p, t, comment, log, file, ev, view };
@@ -40,8 +48,8 @@ describe('закрытые проекты', () => {
     expect((await o.get(`/comments/${s.comment.id}`)).status).toBe(404);
     expect((await o.get(`/time-logs?taskId=${s.t.id}`)).body.items).toHaveLength(0);
     expect((await o.get(`/time-logs/${s.log.id}`)).status).toBe(404);
-    expect((await o.get(`/files?projectId=${s.p.id}`)).body.items).toHaveLength(0);
-    expect((await o.get(`/files/${s.file.id}`)).status).toBe(404);
+    // вложения задачи закрытого проекта скрыты (права «как у объекта»)
+    expect((await o.get(`/attachments?entityType=task&entityId=${s.t.id}`)).body.items).toHaveLength(0);
     expect((await o.get('/calendar-events')).body.items.map((x: any) => x.id)).not.toContain(s.ev.id);
     expect((await o.get(`/saved-views?projectId=${s.p.id}`)).body.items).toHaveLength(0);
     const activity = (await o.get('/activity')).body.items as any[];
@@ -60,7 +68,7 @@ describe('закрытые проекты', () => {
     expect((await o.del(`/tasks/${s.t.id}`)).status).toBe(404);
     expect((await o.post('/comments', { taskId: s.t.id, body: 'hi' })).status).toBeGreaterThanOrEqual(400);
     expect((await o.post('/time-logs', { taskId: s.t.id, hours: '1', logDate: '2026-10-01' })).status).toBeGreaterThanOrEqual(400);
-    expect((await o.post('/files', { projectId: s.p.id, name: 'x.pdf' })).status).toBeGreaterThanOrEqual(400);
+    expect((await o.form('POST', '/attachments', form({ entityType: 'task', entityId: s.t.id }, 'x.pdf'))).status).toBeGreaterThanOrEqual(400);
     expect((await o.post('/calendar-events', { projectId: s.p.id, title: 'x', eventDate: '2026-10-02' })).status).toBeGreaterThanOrEqual(400);
     expect((await o.patch(`/projects/${s.p.id}`, { name: 'Hacked', isPrivate: false, access: 'workspace' })).status).toBe(404);
     expect((await o.del(`/projects/${s.p.id}`)).status).toBe(404);
