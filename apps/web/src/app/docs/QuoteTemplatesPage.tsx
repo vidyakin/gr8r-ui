@@ -4,11 +4,11 @@
    Правит и удаляет автор или admin+ (проверяет сервер). Рендер — packages/shared/src/print/quote.ts. */
 import * as React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { FileStack, Plus, Save, Trash2 } from 'lucide-react';
+import { FileStack, FileText, Plus, Save, Trash2, Upload } from 'lucide-react';
 import { CONTRACT_TEMPLATE_BLOCKS, CONTRACT_TEMPLATE_PARAMS, DEFAULT_CONTRACT_TEMPLATES, DEFAULT_QUOTE_TEMPLATE, DOC_TEMPLATE_PURPOSES, QUOTE_TEMPLATE_BLOCKS, QUOTE_TEMPLATE_PARAMS, type DocTemplatePurpose } from '@gr8r/shared';
 import { Badge, Button, ConfirmDialog, EmptyState, Field, Input, Select, Skeleton, Switch, Textarea, toast } from '@/components/ui';
 import { useT } from '@/i18n';
-import { errorMessage } from '../data/api';
+import { errorMessage, ok, API_BASE } from '../data/api';
 import { useCanWrite } from '../meta/custom-fields';
 import { call, useWsId } from '../meta/data';
 import { useDocTemplates, type DocTemplate } from './data';
@@ -34,6 +34,7 @@ export function QuoteTemplatesPage() {
   const [draft, setDraft] = React.useState<Draft | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [confirm, setConfirm] = React.useState(false);
+  const fileInput = React.useRef<HTMLInputElement>(null);
   const area = React.useRef<HTMLTextAreaElement>(null);
   const current = list.data?.find(x => x.id === selected) ?? null;
 
@@ -85,6 +86,36 @@ export function QuoteTemplatesPage() {
     await refresh();
   };
 
+  // Загрузка .docx-шаблона (задача 1195): файл становится шаблоном, параметры — на проверку
+  const uploadDocx = async (file: File) => {
+    if (!/\.docx$/i.test(file.name)) {
+      toast.error(t('docs.quotes.uploadDocxWrongType'));
+      return;
+    }
+    const fd = new FormData();
+    fd.set('file', file);
+    fd.set('purpose', purpose === 'all' ? 'contract' : purpose);
+    // multipart — не через call() (он шлёт JSON), а напрямую с ok()
+    const r = await run(() =>
+      ok<DocTemplate & { tags: string[] }>(
+        fetch(`${API_BASE()}/doc-templates/docx`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'X-Workspace-Id': ws },
+          body: fd,
+        }),
+      ),
+    );
+    if (!r) return;
+    await refresh();
+    setSelected(r.id);
+    // незнакомые параметры — предупреждение
+    const known = new Set([...QUOTE_TEMPLATE_PARAMS, ...CONTRACT_TEMPLATE_PARAMS, 'Товары']);
+    const unknown = (r.tags ?? []).filter(x => !known.has(x));
+    if (unknown.length) toast.info(t('docs.quotes.docxUnknownTags', { tags: unknown.join(', ') }));
+    else toast(t('docs.quotes.saved'));
+  };
+
   /** Вставить параметр или блок в позицию курсора; блок — отдельной строкой */
   const insert = (text: string, block: boolean) => {
     if (!draft) return;
@@ -124,6 +155,21 @@ export function QuoteTemplatesPage() {
         </div>
         {canWrite && (
           <div className="acts">
+            <input
+              ref={fileInput}
+              type="file"
+              accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              style={{ display: 'none' }}
+              onChange={e => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (f) void uploadDocx(f);
+              }}
+            />
+            <Button variant="ghost" onClick={() => fileInput.current?.click()} disabled={busy} title={t('docs.quotes.uploadDocxHint')}>
+              <Upload size={14} />
+              {t('docs.quotes.uploadDocx')}
+            </Button>
             <Button variant="primary" onClick={() => void create()} disabled={busy}>
               <Plus size={14} />
               {t('docs.quotes.newTemplate')}
@@ -145,6 +191,7 @@ export function QuoteTemplatesPage() {
                 <button type="button" className={`nav-item${x.id === selected ? ' on' : ''}`} aria-current={x.id === selected ? 'true' : undefined} onClick={() => setSelected(x.id)} style={{ width: '100%', textAlign: 'left', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', padding: '6px 8px' }}>
                   <span className="trunc">{x.name}</span>
                   {purpose === 'all' && <Badge tone="accent">{t(`docs.quotes.purpose.${x.purpose}`)}</Badge>}
+                  {x.source === 'docx' && <Badge tone="gray">{t('docs.quotes.docxTemplateBadge')}</Badge>}
                   {!x.isUsed && <Badge tone="gray">{t('docs.quotes.notUsed')}</Badge>}
                   {x.onlyAuthor && <Badge tone="amber">{t('docs.quotes.onlyAuthorBadge')}</Badge>}
                 </button>
@@ -170,33 +217,44 @@ export function QuoteTemplatesPage() {
                   {t('docs.quotes.withImages')}
                 </label>
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'start' }}>
-                <div style={{ flex: '3 1 380px', minWidth: 0 }}>
-                  <Field label={t('docs.quotes.body')} hint={current.purpose === 'quote' ? t('docs.quotes.markupHint') : `${t('docs.quotes.markupHint')} ${t('docs.quotes.contractHint')}`}>
-                    {p => <Textarea {...p} ref={area} value={draft.body} disabled={!canWrite} rows={24} spellCheck={false} className="mono" style={{ fontSize: 12, width: '100%' }} onChange={e => setDraft({ ...draft, body: e.target.value })} />}
-                  </Field>
+              {current.source === 'docx' ? (
+                // docx-шаблон: текст в Word, здесь — только скачивание и настройки выше
+                <div className="stack" style={{ gap: 8 }}>
+                  <div className="muted" style={{ fontSize: 12 }}>{t('docs.quotes.docxTemplateNote')}</div>
+                  <a href={`${API_BASE()}/doc-templates/${current.id}/docx`} target="_blank" rel="noreferrer" className="btn ghost" style={{ display: 'inline-flex', gap: 6, alignItems: 'center', width: 'fit-content' }}>
+                    <FileText size={14} />
+                    {t('docs.quotes.docxDownload')}
+                  </a>
                 </div>
-                <div style={{ flex: '1 1 200px', display: 'grid', gap: 6 }}>
-                  <div className="muted" style={{ fontSize: 12 }}>
-                    {t('docs.quotes.blocks')}
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'start' }}>
+                  <div style={{ flex: '3 1 380px', minWidth: 0 }}>
+                    <Field label={t('docs.quotes.body')} hint={current.purpose === 'quote' ? t('docs.quotes.markupHint') : `${t('docs.quotes.markupHint')} ${t('docs.quotes.contractHint')}`}>
+                      {p => <Textarea {...p} ref={area} value={draft.body} disabled={!canWrite} rows={24} spellCheck={false} className="mono" style={{ fontSize: 12, width: '100%' }} onChange={e => setDraft({ ...draft, body: e.target.value })} />}
+                    </Field>
                   </div>
-                  {(current.purpose === 'quote' ? QUOTE_TEMPLATE_BLOCKS : CONTRACT_TEMPLATE_BLOCKS).map(b => (
-                    <Button key={b} size="sm" disabled={!canWrite} onClick={() => insert(`{{${b}}}`, true)}>
-                      {b}
-                    </Button>
-                  ))}
-                  <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-                    {t('docs.quotes.params')}
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                    {(current.purpose === 'quote' ? QUOTE_TEMPLATE_PARAMS : CONTRACT_TEMPLATE_PARAMS).map(p => (
-                      <Button key={p} size="sm" variant="ghost" disabled={!canWrite} onClick={() => insert(`{{${p}}}`, false)}>
-                        {p}
+                  <div style={{ flex: '1 1 200px', display: 'grid', gap: 6 }}>
+                    <div className="muted" style={{ fontSize: 12 }}>
+                      {t('docs.quotes.blocks')}
+                    </div>
+                    {(current.purpose === 'quote' ? QUOTE_TEMPLATE_BLOCKS : CONTRACT_TEMPLATE_BLOCKS).map(b => (
+                      <Button key={b} size="sm" disabled={!canWrite} onClick={() => insert(`{{${b}}}`, true)}>
+                        {b}
                       </Button>
                     ))}
+                    <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+                      {t('docs.quotes.params')}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      {(current.purpose === 'quote' ? QUOTE_TEMPLATE_PARAMS : CONTRACT_TEMPLATE_PARAMS).map(p => (
+                        <Button key={p} size="sm" variant="ghost" disabled={!canWrite} onClick={() => insert(`{{${p}}}`, false)}>
+                          {p}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
               {canWrite && (
                 <div className="row" style={{ gap: 8, justifyContent: 'space-between' }}>
                   <Button variant="ghost" onClick={() => setConfirm(true)} disabled={busy}>

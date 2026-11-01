@@ -2,7 +2,7 @@
    (индексы полей конструктора), PDF печатных форм, ZIP-архив выгрузки счетов, закрытие периода (production.close_period)
    и выполнение запусков автоматизаций (flow.run). */
 import { and, eq, inArray } from 'drizzle-orm';
-import { BANK_SYNC_JOB, buildPrintData, renderContractHtml, renderDocumentHtml, settlementActHtml, transportWaybillPrintData, DISTRIBUTE_JOB, GEOCODE_JOB, OPTIMIZE_JOB, executeRoutingRun, runGeocode, createFieldIndex, integrationRuntime, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, contractFiles, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, isUuid, jobs, withContext, type Db, type Sql } from '@gr8r/db';
+import { BANK_SYNC_JOB, buildPrintData, renderContractDocxFile, renderContractHtml, renderDocumentHtml, settlementActHtml, transportWaybillPrintData, DISTRIBUTE_JOB, GEOCODE_JOB, OPTIMIZE_JOB, executeRoutingRun, runGeocode, createFieldIndex, integrationRuntime, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, addVersion, createAttachment, contractFiles, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, isUuid, jobs, withContext, type Db, type Sql } from '@gr8r/db';
 import { FIELD_TYPES, renderPrintForm, renderTransportWaybill, type FieldType, type PrintForm } from '@gr8r/shared';
 import { loadRequestForHook, markRequestHookSent } from '@gr8r/db';
 import { runClosePeriod } from './production-closing';
@@ -184,6 +184,28 @@ export const jobHandlers: Record<string, (job: JobRow, h: JobContext) => Promise
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       await h.read(db => db.update(contractFiles).set({ status: 'failed', error: msg.slice(0, 1000), finishedAt: new Date() }).where(eq(contractFiles.id, file.id)));
+    }
+  },
+  /** DOCX-шаблон договора (задача 1195): заполнение реквизитами, результат — вложение договора/документа;
+      повторная генерация той же пары (объект + шаблон) добавляет новую версию того же вложения */
+  'document.docx': async (job, h) => {
+    const p = job.payload as { attachmentId?: unknown; entityType?: unknown; entityId?: unknown; contractId?: unknown; documentId?: unknown; templateId?: unknown; requestedBy?: unknown; name?: unknown };
+    if (!isUuid(p.entityId) || !isUuid(p.templateId)) throw new Error('document.docx job: payload.entityId and payload.templateId must be uuids');
+    const entityType = p.entityType === 'document' ? 'document' : 'contract';
+    try {
+      // рендер под app_worker (RLS обходится), содержимое шаблона и данные договора читаются напрямую
+      const bytes = await h.read(db => renderContractDocxFile(db, { contractId: p.contractId as string, documentId: (p.documentId as string) ?? null, templateId: p.templateId as string }));
+      const name = `${String(p.name ?? 'document').replace(/\.docx$/i, '')}.docx`;
+      const memberId = isUuid(p.requestedBy) ? (p.requestedBy as string) : '';
+      // вложение кладём под app_user от имени заказчика (RLS и лимиты места) — как шаг автоматизации
+      await withContext(h.sql, { workspaceId: job.workspaceId, system: true }, async db => {
+        if (isUuid(p.attachmentId)) await addVersion(db, { workspaceId: job.workspaceId!, memberId, role: 'member' }, p.attachmentId as string, { name, mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', data: bytes });
+        else await createAttachment(db, { workspaceId: job.workspaceId!, memberId, role: 'member' }, entityType, p.entityId as string, { name, mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', data: bytes });
+      });
+    } catch (e) {
+      // ошибка не повторяется вслепую: вложение создаём с пометкой в имени не нужно — просто логируем и падаем без повторов
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(`document.docx failed: ${msg.slice(0, 500)}`);
     }
   },
   /** Акт сверки взаиморасчётов → PDF. Акт не документ учёта, поэтому файл лежит в document_exports (contentType application/pdf).

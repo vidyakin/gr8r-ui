@@ -1,12 +1,13 @@
 /* Печать договоров по шаблонам (docs/architecture/contracts.md): данные сторон и договора, шаблон назначения
    (contract, contract_order, contract_invoice, contract_work_order) или встроенный. Рендер — чистая функция в shared/print/contract.ts. */
-import { eq } from 'drizzle-orm';
-import { renderContract, type ContractPrintData, type DocTemplatePurpose, type PrintOrganization, type PrintParty } from '@gr8r/shared';
+import { and, desc, eq, sql } from 'drizzle-orm';
+import { renderContract, renderContractDocx, type ContractPrintData, type DocTemplatePurpose, type PrintOrganization, type PrintParty } from '@gr8r/shared';
 import type { Db } from './client';
 import { buildPrintData, defaultBank } from './documents';
 import { DomainError } from './errors';
+import { getFileStore } from './file-store';
 import { getTemplate } from './quotes';
-import { companies, contracts, organizations } from './schema';
+import { attachmentVersions, companies, contracts, docTemplates, organizations } from './schema';
 
 export type ContractPurpose = Exclude<DocTemplatePurpose, 'quote'>;
 
@@ -66,4 +67,35 @@ export async function renderContractHtml(db: Db, p: { contractId: string; docume
     body = t.body;
   }
   return renderContract(await contractPrintData(db, p.contractId, p.documentId), p.purpose, body);
+}
+
+/** Заполняет .docx шаблона данными договора (с документом или без) и возвращает байты готового файла.
+    Рендер — чистая функция в shared/print/contract-docx.ts. Ошибка разбора шаблона — 422 template_invalid */
+export async function renderContractDocxFile(db: Db, p: { contractId: string; documentId?: string | null; templateId: string }): Promise<Uint8Array> {
+  const [t] = await db.select().from(docTemplates).where(and(eq(docTemplates.id, p.templateId), eq(docTemplates.workspaceId, sql`(select app_workspace_id())`))).limit(1);
+  if (!t || t.archivedAt) throw new DomainError(404, 'not_found', 'template not found');
+  if (t.source !== 'docx' || !t.docxAttachmentId) throw new DomainError(422, 'not_docx_template', 'Template is not a DOCX template');
+  const tpl = await docxContentById(db, t.docxAttachmentId);
+  try {
+    return renderContractDocx(tpl, await contractPrintData(db, p.contractId, p.documentId));
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new DomainError(422, 'template_invalid', `DOCX render failed: ${msg.slice(0, 300)}`);
+  }
+}
+
+/** Содержимое .docx вложения по id вложения (вызывается для шаблона своего воркспейса, RLS уже проверен) */
+async function docxContentById(db: Db, attachmentId: string): Promise<Uint8Array> {
+  const store = getFileStore();
+  if (!store) throw new DomainError(503, 'storage_unavailable', 'File storage is not configured');
+  const [v] = await db
+    .select({ version: attachmentVersions.version, storageKey: attachmentVersions.storageKey })
+    .from(attachmentVersions)
+    .where(eq(attachmentVersions.attachmentId, attachmentId))
+    .orderBy(desc(attachmentVersions.version))
+    .limit(1);
+  if (!v?.storageKey) throw new DomainError(404, 'file_content_missing', 'DOCX template content is not available');
+  const data = await store.get(v.storageKey);
+  if (!data) throw new DomainError(404, 'file_content_missing', 'DOCX template content is not available');
+  return data;
 }

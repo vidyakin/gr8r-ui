@@ -110,6 +110,37 @@ export async function activateVariant(db: Db, ctx: DocCtx, id: string, variantId
   await changed(db, ctx, id);
 }
 
+/* ---------------- шаблоны DOCX (задача 1195) ---------------- */
+
+/** Загруженный .docx становится шаблоном: вложение (entity doc_template) + запись doc_templates.source='docx'.
+    Возвращает шаблон и список найденных в файле параметров (незнакомые фронтенд предупредит). */
+export async function createDocxTemplate(db: Db, ctx: DocCtx, file: { name: string; data: Uint8Array; mime?: string | null }, input: { purpose: TemplateRow['purpose']; name?: string; onlyAuthor?: boolean }): Promise<{ template: TemplateRow; tags: string[] }> {
+  const { docxTemplateTags } = await import('@gr8r/shared');
+  let tags: string[];
+  try {
+    tags = docxTemplateTags(file.data);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new DomainError(422, 'template_invalid', `Invalid DOCX template: ${msg.slice(0, 300)}`);
+  }
+  const t = await createTemplate(db, ctx, { name: input.name?.trim() || file.name.replace(/\.docx$/i, ''), purpose: input.purpose, onlyAuthor: input.onlyAuthor ?? false });
+  const { createAttachment } = await import('./attachments');
+  const actor = { workspaceId: ctx.workspaceId, memberId: ctx.memberId ?? '', role: ctx.role ?? 'owner' };
+  const { attachment } = await createAttachment(db, actor, 'doc_template', t.id, { name: file.name, mime: file.mime ?? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', data: file.data });
+  const [updated] = await db.update(docTemplates).set({ source: 'docx', docxAttachmentId: attachment.id, updatedAt: new Date() }).where(eq(docTemplates.id, t.id)).returning();
+  return { template: updated!, tags };
+}
+
+/** Скачивание исходного .docx шаблона (без заполнения) */
+export async function readDocxTemplate(db: Db, ctx: DocCtx, id: string): Promise<{ name: string; data: Uint8Array }> {
+  const t = await getTemplate(db, ctx, id);
+  if (t.source !== 'docx' || !t.docxAttachmentId) throw new DomainError(422, 'not_docx_template', 'Template is not a DOCX template');
+  const { readContent } = await import('./attachments');
+  const actor = { workspaceId: ctx.workspaceId, memberId: ctx.memberId ?? '', role: ctx.role ?? 'owner' };
+  const { data } = await readContent(db, actor, t.docxAttachmentId);
+  return { name: t.name, data };
+}
+
 export async function renameVariant(db: Db, ctx: DocCtx, id: string, variantId: string, name: string): Promise<void> {
   await loadDraft(db, id);
   const r = await db.update(documentVariants).set({ name, updatedAt: new Date() }).where(and(eq(documentVariants.id, variantId), eq(documentVariants.documentId, id))).returning({ id: documentVariants.id });

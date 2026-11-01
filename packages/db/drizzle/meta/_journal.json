@@ -554,6 +554,13 @@
       "when": 1793316271652,
       "tag": "0087_contract_templates",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1793316271652,
+      "tag": "0088_docx_templates",
+      "breakpoints": true
     }
   ]
 }
