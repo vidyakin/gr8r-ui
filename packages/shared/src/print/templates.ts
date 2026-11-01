@@ -634,5 +634,9 @@ export function renderPrintForm(form: PrintForm, data: PrintData): string {
     case 'advance_report':
     case 'opening_balance':
       throw new Error('Money forms are rendered by renderMoneyForm');
+    case 'contract_order':
+    case 'contract_invoice':
+    case 'contract_work_order':
+      throw new Error('Contract forms are rendered by renderContract');
   }
 }

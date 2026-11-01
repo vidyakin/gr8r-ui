@@ -547,6 +547,13 @@
       "when": 1793900000000,
       "tag": "0086_product_images",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1793316271652,
+      "tag": "0087_contract_templates",
+      "breakpoints": true
     }
   ]
 }

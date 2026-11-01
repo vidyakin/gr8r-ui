@@ -3,7 +3,7 @@
    Суммы строк и итоги документа в форме считает та же чистая функция, что и сервер при проведении (computeDocument из @gr8r/shared). */
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { DOCUMENT_META, type CompanyKind, type CostDistribution, type CostItemKind, type DefectMode, type DocumentGroup, type DocumentStatus, type DocumentType, type FileRef, type MaterialOwner, type TaxSystem, type TollingRole, type VatRate, type WarehouseKind, type WasteValuation, type WorkOrderBillingMode, type WorkOrderStateCategory } from '@gr8r/shared';
+import { DOCUMENT_META, type CompanyKind, type CostDistribution, type CostItemKind, type DefectMode, type DocTemplatePurpose, type DocumentGroup, type DocumentStatus, type DocumentType, type FileRef, type MaterialOwner, type TaxSystem, type TollingRole, type VatRate, type WarehouseKind, type WasteValuation, type WorkOrderBillingMode, type WorkOrderStateCategory } from '@gr8r/shared';
 import { hasKey, t, type TKey } from '@/i18n';
 import { toast } from '@/components/ui';
 import type { Tone } from '@/components/ui';
@@ -144,7 +144,7 @@ export interface DocVariant {
 export interface DocTemplate {
   id: string;
   name: string;
-  purpose: 'quote';
+  purpose: DocTemplatePurpose;
   body: string;
   isUsed: boolean;
   onlyAuthor: boolean;
@@ -155,11 +155,12 @@ export interface DocTemplate {
 }
 
 /** Шаблоны КП: только используемые (меню «Печать») или все (справочник) */
-export function useDocTemplates(opts: { usedOnly?: boolean } = {}) {
+export function useDocTemplates(opts: { usedOnly?: boolean; purpose?: DocTemplatePurpose | 'all' } = {}) {
   const ws = useWsId();
+  const purpose = opts.purpose ?? 'quote';
   return useQuery({
-    queryKey: ['ws', ws, 'doc-templates', opts.usedOnly ? 'used' : 'all'],
-    queryFn: async () => (await call<{ items: DocTemplate[] }>(ws, 'GET', `/doc-templates?purpose=quote${opts.usedOnly ? '&used=true' : ''}`)).items,
+    queryKey: ['ws', ws, 'doc-templates', purpose, opts.usedOnly ? 'used' : 'all'],
+    queryFn: async () => (await call<{ items: DocTemplate[] }>(ws, 'GET', `/doc-templates?${purpose === 'all' ? '' : `purpose=${purpose}&`}${opts.usedOnly ? 'used=true' : ''}`)).items,
   });
 }
 

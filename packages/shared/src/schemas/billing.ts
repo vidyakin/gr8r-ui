@@ -64,6 +64,11 @@ export const contractCreate = z.object({
   /** Пакет документов: только счёт или счёт и акт */
   documentPackage: z.enum(BILLING_PACKAGES).default('invoice'),
   note: z.string().trim().max(5000).default(''),
+  /** Стороны для печати договора: основание полномочий руководителя организации и подписант контрагента */
+  orgSignerBasis: z.string().trim().max(300).default(''),
+  partySignerName: z.string().trim().max(200).default(''),
+  partySignerTitle: z.string().trim().max(200).default(''),
+  partySignerBasis: z.string().trim().max(300).default(''),
 });
 export const contractUpdate = toPatch(contractCreate.omit({ id: true, companyId: true }));
 export const contractQuery = listQuery.extend({

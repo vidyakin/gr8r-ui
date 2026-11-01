@@ -12,9 +12,17 @@ export const DOCUMENT_STATUSES = ['draft', 'posted', 'cancelled'] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
 export const DOCUMENT_GROUPS = ['sales', 'purchases', 'stock', 'production', 'tolling', 'cash', 'payroll'] as const;
 export type DocumentGroup = (typeof DOCUMENT_GROUPS)[number];
-export const PRINT_FORMS = ['quote', 'invoice', 'upd', 'act', 'torg12', 'inv3', 'torg16', 'torg13', 'work_order', 'piecework', 'warranty_card', 'repair_receipt', 'repair_return', 'ko1', 'ko2', 'bank_receipt', 'payment_order', 'advance_report', 'opening_balance'] as const;
+export const PRINT_FORMS = ['quote', 'invoice', 'upd', 'act', 'torg12', 'inv3', 'torg16', 'torg13', 'work_order', 'piecework', 'warranty_card', 'repair_receipt', 'repair_return', 'ko1', 'ko2', 'bank_receipt', 'payment_order', 'advance_report', 'opening_balance', 'contract_order', 'contract_invoice', 'contract_work_order'] as const;
 export type PrintForm = (typeof PRINT_FORMS)[number];
-export const PRINT_FORM_LABELS: Record<PrintForm, string> = { quote: 'Commercial proposal', invoice: 'Invoice for payment', upd: 'UPD', act: 'Service act', torg12: 'TORG-12', inv3: 'INV-3 (inventory list)', torg16: 'TORG-16 (write-off act)', torg13: 'TORG-13 (internal transfer)', work_order: 'Work order (job sheet)', piecework: 'Piecework order', warranty_card: 'Warranty card', repair_receipt: 'Repair acceptance act', repair_return: 'Repair return act', ko1: 'Cash receipt order (KO-1)', ko2: 'Cash payment order (KO-2)', bank_receipt: 'Receipt to bank account', payment_order: 'Payment order (0401060)', advance_report: 'Advance report (AO-1)', opening_balance: 'Opening balances' };
+export const PRINT_FORM_LABELS: Record<PrintForm, string> = { quote: 'Commercial proposal', invoice: 'Invoice for payment', upd: 'UPD', act: 'Service act', torg12: 'TORG-12', inv3: 'INV-3 (inventory list)', torg16: 'TORG-16 (write-off act)', torg13: 'TORG-13 (internal transfer)', work_order: 'Work order (job sheet)', piecework: 'Piecework order', warranty_card: 'Warranty card', repair_receipt: 'Repair acceptance act', repair_return: 'Repair return act', ko1: 'Cash receipt order (KO-1)', ko2: 'Cash payment order (KO-2)', bank_receipt: 'Receipt to bank account', payment_order: 'Payment order (0401060)', advance_report: 'Advance report (AO-1)', opening_balance: 'Opening balances', contract_order: 'Contract + customer order', contract_invoice: 'Contract + invoice', contract_work_order: 'Contract + work order' };
+
+/** Составная форма «Договор + документ»: договор берётся из documents.contract_id, шаблон — с одноимённым назначением (docs/architecture/contracts.md) */
+export const CONTRACT_FORM_BY_TYPE: Partial<Record<string, PrintForm>> = { customer_order: 'contract_order', invoice: 'contract_invoice', work_order: 'contract_work_order' };
+export const isContractForm = (f: string): boolean => f === 'contract_order' || f === 'contract_invoice' || f === 'contract_work_order';
+/** Печатная форма доступна типу документа: обычные формы и составная с договором */
+export const formAllowedFor = (type: string, form: PrintForm): boolean => (DOCUMENT_META as Record<string, { forms: PrintForm[] }>)[type]?.forms.includes(form) === true || CONTRACT_FORM_BY_TYPE[type] === form;
+/** Форма печатается по шаблону из справочника (КП и договоры) */
+export const usesTemplate = (f: string): boolean => f === 'quote' || isContractForm(f);
 
 /** Вид склада: обычный склад, цех участка и служебный склад «в пути» */
 export const WAREHOUSE_KINDS = ['warehouse', 'workshop', 'transit'] as const;

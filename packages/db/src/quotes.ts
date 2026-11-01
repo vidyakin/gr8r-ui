@@ -163,7 +163,7 @@ export async function getTemplate(db: Db, ctx: DocCtx, id: string): Promise<Temp
 
 export interface TemplateInput {
   name?: string;
-  purpose?: 'quote';
+  purpose?: TemplateRow['purpose'];
   body?: string;
   isUsed?: boolean;
   onlyAuthor?: boolean;

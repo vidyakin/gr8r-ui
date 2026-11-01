@@ -55,6 +55,7 @@ export const errors = {
   serial_in_transit: 'Serial number {serial} is in transit between warehouses',
   serial_not_in_transit: 'Serial number {serial} is not in transit',
   no_lines: 'Add at least one line before posting',
+  contract_required: 'The document has no contract: choose a contract in the document first',
   variant_lines_in_use: 'Lines of the main variant are used by other documents, a calculation or a delivery: the main variant cannot be changed',
   variants_not_available: 'Only quotes and customer orders have proposal variants',
   not_draft: 'Only a draft can be edited or deleted: unpost the document first',

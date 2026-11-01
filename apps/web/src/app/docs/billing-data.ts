@@ -36,6 +36,10 @@ export interface Contract {
   billingDay: number;
   documentPackage: 'invoice' | 'invoice_act';
   note: string;
+  orgSignerBasis: string;
+  partySignerName: string;
+  partySignerTitle: string;
+  partySignerBasis: string;
   /** Совпадающий номер договора — предупреждение, не ошибка */
   warnings: string[];
 }
