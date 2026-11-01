@@ -2,6 +2,7 @@
    Все функции работают на переданной транзакции арендатора (Db под withContext): изоляцию дают политики RLS, поэтому в запросах нет ручных
    фильтров по workspace_id. Правила проведения и склада описаны в docs/architecture/documents.md и stock.md. */
 import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { archiveAttachmentsOf } from './attachments';
 import {
   canChangeState,
   computeLine,
@@ -732,6 +733,7 @@ export async function deleteDocument(db: Db, ctx: DocCtx, id: string): Promise<v
   if (doc.status !== 'draft') throw new DomainError(409, 'not_draft', 'Only drafts can be deleted: unpost or cancel the document instead');
   if (doc.numberSeq !== null) throw new DomainError(409, 'numbered', 'The document has been posted before and keeps its number: cancel it instead of deleting');
   await db.delete(documents).where(eq(documents.id, id));
+  await archiveAttachmentsOf(db, ctx.workspaceId, 'document', id);
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.deleted', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { documentType: doc.type } });
 }
 

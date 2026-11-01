@@ -1,6 +1,7 @@
 /* Точка входа воркера: опрос jobs + outbox, ускорение по LISTEN gr8r_events. */
 import { purgeTenantsOnce, scheduleBankSyncs, createSql, databaseUrl, ddlDatabaseUrl, EVENTS_CHANNEL, listenChannel } from '@gr8r/db';
 import { closeBrowser } from './pdf/render';
+import { runAttachmentGcOnce } from './attachment-gc';
 import { scheduleFlowsOnce } from './flows/triggers';
 import { runBillingOnce } from './billing';
 import { runLoyaltyExpirationOnce } from './loyalty-expiration';
@@ -84,6 +85,9 @@ while (!stopping) {
       // следующий контакт с клиентом (повторные продажи): дела на сегодня по часовому поясу арендатора, повтор в тот же день ничего не создаёт
       const calls = await runNextContactsOnce(sql);
       if (calls) o.log(`created ${calls} next-contact task(s)`);
+      // файлы: объекты архивных вложений и осиротевшие ключи
+      const gc = await runAttachmentGcOnce(sql);
+      if (gc) o.log(`attachments gc: removed ${gc} object(s)`);
       // воронки продаж: сделки, просрочившие норматив дней на этапе
       const overdue = await runDealOverdueOnce(sql);
       if (overdue) o.log(`deal stage overdue: ${overdue}`);

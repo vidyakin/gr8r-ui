@@ -7,7 +7,7 @@ import { getTableColumns } from 'drizzle-orm';
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import type { Context } from 'hono';
 import { Hono } from 'hono';
-import { recordEvent, type Db, type Tx } from '@gr8r/db';
+import { archiveAttachmentsOf, recordEvent, type Db, type Tx } from '@gr8r/db';
 import { idParam, type ListQuery, type Page, type Role } from '@gr8r/shared';
 import type { z } from 'zod';
 import { AppError, badRequest, notFound } from './errors';
@@ -183,12 +183,14 @@ export function crud<T extends AnyTable, CS extends z.ZodType, US extends z.ZodT
       if (hard) {
         await ctx.db.delete(table).where(eq(table.id, id));
         await recordEvent(ctx.db, { workspaceId: ctx.workspaceId, type: `${o.entity}.deleted`, entity: o.entity, recordId: id, actorId: ctx.memberId, payload: {} });
+        await archiveAttachmentsOf(ctx.db, ctx.workspaceId, o.entity, id); // вложения удалённого объекта уходят в архив
         await o.afterDelete?.(ctx, existing);
         return c.json({ id, deleted: true as const, archived: false as const });
       }
       if (!(existing as AnyRec).archivedAt) {
         await ctx.db.update(table).set({ archivedAt: new Date(), ...(hasUpdated ? { updatedAt: new Date() } : {}) } as never).where(eq(table.id, id));
         await recordEvent(ctx.db, { workspaceId: ctx.workspaceId, type: `${o.entity}.archived`, entity: o.entity, recordId: id, actorId: ctx.memberId, payload: {} });
+        await archiveAttachmentsOf(ctx.db, ctx.workspaceId, o.entity, id);
         await o.afterDelete?.(ctx, existing);
       }
       return c.json({ id, deleted: false as const, archived: true as const });

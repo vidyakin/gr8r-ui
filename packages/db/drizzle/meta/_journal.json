@@ -533,6 +533,13 @@
       "when": 1793380293170,
       "tag": "0084_loyalty",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1793534062442,
+      "tag": "0085_attachments",
+      "breakpoints": true
     }
   ]
 }

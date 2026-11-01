@@ -5,6 +5,7 @@ import { usePriceKinds } from '../pricing/data';
 import * as React from 'react';
 import { CircleAlert, FileSignature, Plus, Trash2 } from 'lucide-react';
 import { BILLING_PACKAGE_LABELS, BILLING_PACKAGES, BILLING_PERIODICITIES, BILLING_PERIODICITY_LABELS, CONTRACT_KIND_LABELS, CONTRACT_KINDS, EXTRA_PRODUCT_POLICIES, EXTRA_PRODUCT_POLICY_LABELS, type ContractKind, type ExtraProductPolicy } from '@gr8r/shared';
+import { AttachmentsPanel } from '@/components/gr8r/attachments-panel';
 import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, Tab, Tabs, TabsList, toast } from '@/components/ui';
 import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/gr8r/data-table';
 import { FilterBar, useFilterState } from '@/components/gr8r/filter-bar';
@@ -207,6 +208,7 @@ export function ContractDialog({ api, onClose, contract, companyId, readOnly, ar
               </div>
             </>
           )}
+          {contract && <AttachmentsPanel entityType="contract" entityId={contract.id} />}
           <div className="row" style={{ justifyContent: 'flex-end', gap: 8 }}>
             {contract && !readOnly && (
               <>

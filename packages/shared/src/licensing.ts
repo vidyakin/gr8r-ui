@@ -33,7 +33,7 @@ export const MODULES: readonly ModuleDef[] = [
   def({
     id: 'core',
     paths: [
-      '/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/files', '/activity', '/events',
+      '/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/attachments', '/activity', '/events',
       '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/organizations', '/bank-accounts', '/warehouses', '/cost-items',
       '/companies', '/contacts', '/positions', '/product-kinds', '/secrets', '/license',
     ],

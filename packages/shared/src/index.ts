@@ -42,3 +42,4 @@ export * from './trips';
 export * from './transport-orders';
 export * from './routing';
 export * from './routing-adapters';
+export * from './attachments';

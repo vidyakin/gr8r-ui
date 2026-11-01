@@ -4,6 +4,16 @@
 #   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 # Наружу открыты только 80/443 (Caddy). Postgres и API портов на хосте не публикуют.
 
+x-s3-env: &s3-env
+  S3_ENDPOINT: http://minio:9000
+  S3_REGION: us-east-1
+  S3_BUCKET: gr8r
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY:?задайте S3_ACCESS_KEY}
+  S3_SECRET_KEY: ${S3_SECRET_KEY:?задайте S3_SECRET_KEY}
+  S3_FORCE_PATH_STYLE: '1'
+  FILE_MAX_BYTES: ${FILE_MAX_BYTES:-52428800}
+  STORAGE_QUOTA_BYTES: ${STORAGE_QUOTA_BYTES:-}
+
 x-db-env: &db-env
   ADMIN_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?задайте POSTGRES_PASSWORD}@postgres:5432/gr8r
   DATABASE_URL: postgres://gr8r_app:${APP_DB_PASSWORD:?задайте APP_DB_PASSWORD}@postgres:5432/gr8r
@@ -26,6 +36,36 @@ services:
       timeout: 3s
       retries: 20
 
+  # Хранилище вложений (docs/architecture/attachments.md). Порты наружу не публикуются: файлы отдаёт только API.
+  # Данные — том miniodata; в бэкап (раздел «Бэкап» в deploy.md) он не входит, копируйте отдельно.
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z # на Docker Hub образы MinIO больше не публикуются
+    restart: unless-stopped
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY}
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Разовая задача при каждом запуске: бакет вложений (идемпотентно)
+  minio-init:
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z # mc входит в образ сервера
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - mc alias set local http://minio:9000 "$${S3_ACCESS_KEY}" "$${S3_SECRET_KEY}" && mc mb --ignore-existing local/gr8r
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+    depends_on:
+      minio: { condition: service_healthy }
+    restart: 'no'
+
   # Разовая задача при каждом `up`: миграции (идемпотентно), роли gr8r_app/gr8r_ddl. Через неё же запускается CLI оператора:
   #   docker compose -f docker-compose.prod.yml --env-file .env.prod run --rm migrate bun run tenant list
   migrate:
@@ -45,7 +85,7 @@ services:
     build: { context: ., target: api }
     restart: unless-stopped
     environment:
-      <<: *db-env
+      <<: [*db-env, *s3-env]
       API_PORT: 3000
       COOKIE_SECURE: '1'
       TRUST_PROXY: '1' # Caddy → nginx → api: первый адрес X-Forwarded-For ставит Caddy
@@ -53,12 +93,13 @@ services:
       SECRETS_KEY: ${SECRETS_KEY:?задайте SECRETS_KEY (openssl rand -hex 32)}
     depends_on:
       migrate: { condition: service_completed_successfully }
+      minio-init: { condition: service_completed_successfully }
 
   worker:
     build: { context: ., target: worker }
     restart: unless-stopped
     environment:
-      <<: *db-env
+      <<: [*db-env, *s3-env]
       DATABASE_URL_DDL: postgres://gr8r_ddl:${DDL_DB_PASSWORD}@postgres:5432/gr8r
       SECRETS_KEY: ${SECRETS_KEY}
       OPERATOR_LEAD_HOOK_URL: ${OPERATOR_LEAD_HOOK_URL:-}
@@ -68,6 +109,7 @@ services:
       ROUTING_NOMINATIM_URL: ${ROUTING_NOMINATIM_URL:-}
     depends_on:
       migrate: { condition: service_completed_successfully }
+      minio-init: { condition: service_completed_successfully }
 
   # Необязательно (задача 1213): OSRM + VROOM для маршрутов на своём сервере. Запуск: --profile routing; в .env.prod задать
   # ROUTING_OSRM_URL=http://osrm:5000 и ROUTING_VROOM_URL=http://vroom:3000. Данные OSRM готовит оператор один раз (docs/architecture/routing.md):
@@ -136,5 +178,6 @@ services:
 
 volumes:
   pgdata:
+  miniodata:
   caddy_data:
   caddy_config:

@@ -32,14 +32,14 @@ export class Client {
     private defaultHeaders: Record<string, string> = {},
   ) {}
 
-  async req<T = any>(method: string, path: string, opts: { json?: unknown; raw?: Uint8Array; ws?: string | null; headers?: Record<string, string> } = {}): Promise<Res<T>> {
+  async req<T = any>(method: string, path: string, opts: { json?: unknown; raw?: Uint8Array; form?: FormData; ws?: string | null; headers?: Record<string, string> } = {}): Promise<Res<T>> {
     const headers: Record<string, string> = { ...this.defaultHeaders, ...opts.headers };
     if (this.cookie) headers.cookie = this.cookie;
     const ws = opts.ws === undefined ? this.workspaceId : opts.ws;
     if (ws) headers['x-workspace-id'] = ws;
     if (opts.json !== undefined) headers['content-type'] = 'application/json';
     if (opts.raw) headers['content-type'] = 'application/octet-stream';
-    const res = await this.application.request(path, { method, headers, body: opts.raw ?? (opts.json !== undefined ? JSON.stringify(opts.json) : undefined) });
+    const res = await this.application.request(path, { method, headers, body: opts.form ?? opts.raw ?? (opts.json !== undefined ? JSON.stringify(opts.json) : undefined) });
     const set = res.headers.getSetCookie?.() ?? [];
     for (const c of set) {
       const [pair] = c.split(';');
@@ -55,6 +55,8 @@ export class Client {
     }
     return { status: res.status, body, headers: res.headers, bytes };
   }
+  /** multipart/form-data (загрузка вложений) */
+  form = <T = any>(method: string, path: string, form: FormData, ws?: string | null) => this.req<T>(method, path, { form, ws });
   upload = <T = any>(path: string, raw: Uint8Array, ws?: string | null) => this.req<T>('POST', path, { raw, ws });
   get = <T = any>(path: string, ws?: string | null) => this.req<T>('GET', path, { ws });
   post = <T = any>(path: string, json?: unknown, ws?: string | null) => this.req<T>('POST', path, { json: json ?? {}, ws });

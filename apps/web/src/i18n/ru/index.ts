@@ -29,7 +29,9 @@ import { licensing } from './licensing';
 import { fleet } from './fleet';
 import { trips } from './trips';
 import { transport } from './transport';
+import { attachments } from './attachments';
 import { views } from './views';
 import { help } from './help';
 
-export const ru = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, repeat, appt, delivery, positions, leads, ads, secrets, money, payroll, pricing, loyalty, licensing, fleet, trips, transport, help };
+export const ru = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, repeat, appt, delivery, positions, leads, ads, secrets, money, payroll, pricing, loyalty, licensing, fleet, trips, transport, help, attachments };
+

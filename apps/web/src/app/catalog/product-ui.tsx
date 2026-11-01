@@ -5,6 +5,7 @@ import { ProductPricesBlock } from '../pricing/ProductPrices';
 import { useProductKinds } from '../positions/data';
 import { Barcode, Building2, CircleAlert, CircleDollarSign, FolderTree, Hash, Layers, Package, Percent, Power, Repeat, Ruler, ScanBarcode, Shapes, Tag, Tags, Timer, Trash2, Truck, Wrench, type LucideIcon } from 'lucide-react';
 import { PRODUCT_KINDS, VAT_LABELS, VAT_RATES, validateRecord, type ProductKind } from '@gr8r/shared';
+import { AttachmentsPanel } from '@/components/gr8r/attachments-panel';
 import { Button, ConfirmDialog, Dialog, DialogClose, DialogContent, Field, Input, MenuItem, Segmented, Switch, toast } from '@/components/ui';
 import { DrawerSection, EntityDrawer } from '@/components/gr8r/entity-drawer';
 import { fmtDate } from '../lib/dates';
@@ -381,6 +382,9 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
             </dl>
           </DrawerSection>
         )}
+        <DrawerSection title={t('attachments.title')}>
+          <AttachmentsPanel entityType="product" entityId={p.id} />
+        </DrawerSection>
       </EntityDrawer>
       <ConfirmDialog
         open={confirm}

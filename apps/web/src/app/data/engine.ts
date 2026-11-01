@@ -97,7 +97,7 @@ const RES: Record<CollName, (api: Api) => AnyRec> = {
   tasks: a => a.tasks,
   comments: a => a.comments,
   timeLogs: a => a['time-logs'],
-  files: a => a.files,
+  files: a => a.attachments,
   savedViews: a => a['saved-views'],
   events: a => a['calendar-events'],
   notifs: a => a.notifications,
@@ -373,6 +373,7 @@ export function collectionsFor(entity: string): CollName[] {
     case 'calendar_event':
       return ['events'];
     case 'file':
+    case 'attachment':
       return ['files', 'activity'];
     case 'company':
       return ['companies'];

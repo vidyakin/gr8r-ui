@@ -7,6 +7,7 @@ import { useWorkspace } from '../data/store';
 import { resetSettings, useSettings } from '../data/settings';
 import { apiFor, errorMessage, ok } from '../data/api';
 import { useSession } from '../data/session';
+import { fmtBytes, useAttachmentActions, useStorage } from '../data/attachments';
 import { dOff, fmtDate } from '../lib/dates';
 import { WorkspaceLogo } from '../components/brand';
 import { ProjectIcon } from '../components/project';
@@ -168,7 +169,52 @@ export function WorkspaceSection({ title }: { title: string }) {
           }}
         />
       )}
+      <StorageQuota />
     </>
+  );
+}
+
+/** Занятый объём хранилища файлов и квота воркспейса (docs/architecture/attachments.md); квоту меняет только owner */
+function StorageQuota() {
+  const t = useT();
+  const session = useSession();
+  const info = useStorage();
+  const act = useAttachmentActions();
+  const owner = session.active?.role === 'owner';
+  const [mb, setMb] = React.useState<string | null>(null);
+  const u = info.data;
+  if (!u) return null;
+  const MB = 1024 * 1024;
+  const shown = mb ?? (u.custom && u.quotaBytes !== null ? String(Math.round(u.quotaBytes / MB)) : '');
+  const used = fmtBytes(u.usedBytes, t);
+  return (
+    <SRow
+      t={t('attachments.storage.title')}
+      d={
+        <>
+          {u.quotaBytes === null ? t('attachments.storage.unlimited', { used }) : t('attachments.storage.used', { used, quota: fmtBytes(u.quotaBytes, t) })}
+          <br />
+          {t('attachments.storage.maxFile', { size: fmtBytes(u.maxFileBytes, t) })}. {owner ? t('attachments.storage.quotaHint') : t('attachments.storage.ownerOnly')}
+        </>
+      }
+    >
+      <input className="input" type="number" min={0} style={{ width: 110 }} aria-label={t('attachments.storage.quotaMb')} placeholder={t('attachments.storage.quotaMb')} disabled={!owner} value={shown} onChange={e => setMb(e.target.value)} />
+      <Button
+        size="sm"
+        disabled={!owner || mb === null}
+        onClick={() =>
+          act
+            .setQuota(mb === '' ? null : Math.round(Number(mb) * MB))
+            .then(() => {
+              setMb(null);
+              toast(t('attachments.storage.saved'));
+            })
+            .catch(e => toast.error(errorMessage(e)))
+        }
+      >
+        {t('attachments.storage.save')}
+      </Button>
+    </SRow>
   );
 }
 

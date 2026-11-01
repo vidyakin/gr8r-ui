@@ -15,6 +15,7 @@ import {
   saveTariffPlanLines,
   tariffPlans,
   tariffPlanLinesOf,
+  archiveAttachmentsOf,
 } from '@gr8r/db';
 import { contractCreate, contractQuery, contractUpdate, idParam, tariffPlanCreate, tariffPlanLinesUpdate, tariffPlanQuery, tariffPlanUpdate } from '@gr8r/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
@@ -126,6 +127,7 @@ export const contractRoutes = new Hono<AppEnv>()
     const [existing] = await ctx.db.select().from(contracts).where(and(eq(contracts.id, id), eq(contracts.workspaceId, ctx.workspaceId))).limit(1);
     if (!existing) throw notFound('contract');
     await ctx.db.update(contracts).set({ archivedAt: new Date(), isDefault: false, updatedAt: new Date() }).where(eq(contracts.id, id));
+    await archiveAttachmentsOf(ctx.db, ctx.workspaceId, 'contract', id);
     return c.json({ id, deleted: false as const, archived: true as const });
   })
   .post('/:id/restore', write, zValidator('param', idParam, validationHook), async c => {

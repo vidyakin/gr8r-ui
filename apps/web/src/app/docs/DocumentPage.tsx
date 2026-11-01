@@ -27,6 +27,7 @@ import { DeliveryTab } from './DeliveryTab';
 import { DocTabs, type DocTab } from './doc-tabs';
 import { DocLoyaltyFields } from './DocLoyalty';
 import { DISCOUNT_DOC_TYPES } from '../loyalty/data';
+import { AttachmentsPanel } from '@/components/gr8r/attachments-panel';
 import { DocInvestmentField } from '../finance/DocInvestmentField';
 import { hasKey, t, tEnum, tProductionEnum, useT, type TKey } from '@/i18n';
 import { handleNumericArrow } from '@/lib/numeric-step';
@@ -922,6 +923,8 @@ function DocumentView({ doc }: { doc: DocDetail }) {
       count: wasteRows.length,
       content: <WasteTab rows={wasteRows} editable={editable} seeCost={isAdmin} onSave={waste => saveAccounting({ waste })} />,
     },
+    // вложения документа (docs/architecture/attachments.md)
+    { id: 'files', label: t('attachments.tab'), content: <AttachmentsPanel entityType="document" entityId={doc.id} /> },
   ];
 
   return (

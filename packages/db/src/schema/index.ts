@@ -33,3 +33,4 @@ export * from './fleet';
 export * from './trips';
 export * from './transport-orders';
 export * from './loyalty';
+export * from './attachments';

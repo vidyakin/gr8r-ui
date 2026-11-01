@@ -51,7 +51,7 @@ SEED=1 docker compose up --build       # то же + демо-данные
 ```
 
 Приложение — http://localhost:8080 (nginx отдаёт фронтенд и проксирует `/api/*` в API, включая WebSocket `/api/ws`),
-API — http://localhost:3000, консоль MinIO — http://localhost:9001. Пароли и порты переопределяются в `.env`.
+API — http://localhost:3000, консоль MinIO — http://localhost:9001 (бакет вложений создаёт `minio-init`). Пароли и порты переопределяются в `.env`.
 `migrate` — разовый сервис: применяет миграции, создаёт логин-роль `gr8r_app` и роль для DDL `gr8r_ddl` и (при `SEED=1`) наполняет БД; `api` и `worker` стартуют после него. Подключение `DATABASE_URL_DDL` (роль-владелец) есть только у воркера: DDL — индексы полей конструктора — выполняет он, по задачам из таблицы `jobs`.
 
 ### Без Docker

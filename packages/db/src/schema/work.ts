@@ -3,7 +3,6 @@
    чтобы запись одного арендатора не могла сослаться на запись другого даже в обход API. */
 import { sql } from 'drizzle-orm';
 import {
-  bigint,
   boolean,
   check,
   date,
@@ -256,31 +255,6 @@ export const notifications = pgTable(
   t => [
     foreignKey({ columns: [t.workspaceId, t.recipientId], foreignColumns: [members.workspaceId, members.id], name: 'notif_recipient_fk' }).onDelete('cascade'),
     index('notifications_recipient_idx').on(t.workspaceId, t.recipientId, t.createdAt),
-  ],
-);
-
-/** Метаданные файлов проекта/задачи. Сами файлы — в S3-совместимом хранилище (storage_key) */
-export const files = pgTable(
-  'files',
-  {
-    id: pk(),
-    workspaceId: wsCol(),
-    projectId: uuid('project_id'),
-    taskId: uuid('task_id'),
-    name: text('name').notNull(),
-    kind: text('kind', { enum: ['fig', 'pdf', 'zip', 'img', 'sheet', 'doc', 'code', 'other'] }).notNull().default('other'),
-    mime: text('mime'),
-    sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull().default(0),
-    storageKey: text('storage_key'),
-    uploadedBy: uuid('uploaded_by'),
-    createdAt: createdAt(),
-    archivedAt: archivedAt(),
-  },
-  t => [
-    foreignKey({ columns: [t.workspaceId, t.projectId], foreignColumns: [projects.workspaceId, projects.id], name: 'files_project_fk' }).onDelete('cascade'),
-    foreignKey({ columns: [t.workspaceId, t.taskId], foreignColumns: [tasks.workspaceId, tasks.id], name: 'files_task_fk' }).onDelete('cascade'),
-    index('files_project_idx').on(t.projectId),
-    index('files_task_idx').on(t.taskId),
   ],
 );
 
