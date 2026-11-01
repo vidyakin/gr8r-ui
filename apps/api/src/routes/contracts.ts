@@ -21,7 +21,7 @@ import {
   tariffPlanLinesOf,
   archiveAttachmentsOf,
 } from '@gr8r/db';
-import { contractCreate, contractPdfRequest, contractQuery, contractUpdate, idParam, tariffPlanCreate, tariffPlanLinesUpdate, tariffPlanQuery, tariffPlanUpdate } from '@gr8r/shared';
+import { contractCreate, contractDocxRequest, contractPdfRequest, contractQuery, contractUpdate, idParam, tariffPlanCreate, tariffPlanLinesUpdate, tariffPlanQuery, tariffPlanUpdate } from '@gr8r/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError, notFound } from '../errors';
 import { requireRole } from '../middleware';
@@ -161,6 +161,21 @@ export const contractRoutes = new Hono<AppEnv>()
     const [file] = await ctx.db.insert(contractFiles).values({ workspaceId: ctx.workspaceId, contractId: id, templateId: templateId ?? null, requestedBy: ctx.memberId }).returning({ id: contractFiles.id, status: contractFiles.status });
     await ctx.db.insert(jobs).values({ workspaceId: ctx.workspaceId, type: 'contract.pdf', payload: { fileId: file!.id } });
     return c.json(file!, 202);
+  })
+  // DOCX-договор (задача 1195): заполнение загруженного .docx-шаблона; задача воркера document.docx —
+  // результат складывается во вложения договора (документа), новая версия при повторной генерации
+  .post('/:id/docx', write, zValidator('param', idParam, validationHook), zValidator('json', contractDocxRequest, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    const { templateId } = c.req.valid('json');
+    const [existing] = await ctx.db.select({ id: contracts.id }).from(contracts).where(eq(contracts.id, id)).limit(1);
+    if (!existing) throw notFound('contract');
+    // шаблон проверяется сразу (доступность автору, источник — docx), чтобы не ставить задачу, которая заведомо упадёт
+    const tpl = await getTemplate(ctx.db, { workspaceId: ctx.workspaceId, memberId: ctx.memberId, role: ctx.role }, templateId);
+    if (tpl.archivedAt) throw notFound('template');
+    if (tpl.source !== 'docx' || !tpl.docxAttachmentId) throw new AppError(422, 'not_docx_template', 'The template is not a DOCX template');
+    await ctx.db.insert(jobs).values({ workspaceId: ctx.workspaceId, type: 'document.docx', payload: { entityType: 'contract', entityId: id, contractId: id, templateId, requestedBy: ctx.memberId, name: 'Договор' } });
+    return c.json({ ok: true }, 202);
   })
   .get('/:id/pdf/:fileId', zValidator('param', z.object({ id: idParam.shape.id, fileId: idParam.shape.id }), validationHook), async c => {
     const ctx = ctxOf(c);

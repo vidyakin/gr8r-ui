@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { computeDocument, CONTRACT_TEMPLATE_BLOCKS, CONTRACT_TEMPLATE_PARAMS, DEFAULT_CONTRACT_TEMPLATES, renderContract, renderContractBody, type ContractPrintData, type PrintData, type PrintLine } from '../src';
+import { docxTemplateTags, renderContractDocx } from '../src/print/contract-docx';
+import PizZip from 'pizzip';
 
 const raw = [{ sku: 'A', name: 'Стол <дуб>', unitCode: '796', unitSymbol: 'шт', qty: '2.000', price: '1000.00', discountPct: '0', vatRate: 'none' }];
 const calc = computeDocument(raw, true);
@@ -65,5 +67,74 @@ describe('шаблоны договоров', () => {
   test('списки параметров и блоков для редактора', () => {
     expect(CONTRACT_TEMPLATE_PARAMS).toContain('Контрагент в лице');
     expect(CONTRACT_TEMPLATE_BLOCKS).toEqual(['Товары', 'Подписи сторон']);
+  });
+});
+
+describe('DOCX-шаблоны (задача 1195)', () => {
+  const esc = (s: string) => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+  const run = (t: string) => (t ? `<w:r><w:t xml:space="preserve">${esc(t)}</w:t></w:r>` : '');
+  /** Минимальный .docx: только [Content_Types].xml, связи и word/document.xml; разбивка {{…}} на прогоны — как после Word */
+  const docx = (body: string): Uint8Array => {
+    const doc = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}<w:sectPr/></w:body></w:document>`;
+    const ct = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`;
+    const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`;
+    const zip = new PizZip();
+    zip.file('[Content_Types].xml', ct);
+    zip.file('_rels/.rels', rels);
+    zip.file('word/document.xml', doc);
+    return zip.generate({ type: 'uint8array' }) as Uint8Array;
+  };
+  const texts = (b: Uint8Array): string[] => {
+    const xml = new PizZip(b).file('word/document.xml')?.asText() ?? '';
+    return [...xml.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map(m => m[1]!.replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&').replaceAll(' ', ' ')).filter(t => t.trim());
+  };
+
+  test('разорванные Word-прогоны внутри {{…}} склеиваются, параметры подставляются', () => {
+    // «{{Номер договора}}» разрезан между прогонами — Word так сохраняет после правок
+    const b = docx(`<w:p>${run('Договор № {')}${run('{Номер дог')}${run('овора}} от {')}${run('{Дата догово')}${run('ра}}')}</w:p><w:p>${run('Стороны: {{Организация}} и {{Контрагент}}')}</w:p>`);
+    const out = renderContractDocx(b, data());
+    const t = texts(out).join(' ');
+    expect(t).toContain('Договор № Д-15');
+    expect(t).toContain('от 1 марта 2026 г.');
+    expect(t).toContain('Стороны: ООО «Ромашка» и ИП Петров <П.П.>');
+  });
+
+  test('повтор строки таблицы с {{#Товары}}…{{/Товары}}: по строке на каждую строку документа', () => {
+    // Метка цикла — в первой ячейке строки-шаблона, закрывающая — в последней (как требует docxtemplater)
+    const b = docx(
+      `<w:tbl><w:tr>` +
+        `<w:tc><w:p>${run('{{#Товары}}')}</w:p></w:tc>` +
+        `<w:tc><w:p>${run('{{Наименование}}')}</w:p></w:tc>` +
+        `<w:tc><w:p>${run('{{Количество}}')}</w:p></w:tc>` +
+        `<w:tc><w:p>${run('{{Единица}}')}</w:p></w:tc>` +
+        `<w:tc><w:p>${run('{{Цена}}')}</w:p></w:tc>` +
+        `<w:tc><w:p>${run('{{Сумма}}')}</w:p></w:tc>` +
+        `<w:tc><w:p>${run('{{/Товары}}')}</w:p></w:tc>` +
+        `</w:tr></w:tbl>`,
+    );
+    const out = renderContractDocx(b, data({}, true));
+    const t = texts(out);
+    expect(t.filter(x => x === 'Стол <дуб>').length).toBe(1);
+    expect(t.join(' ')).toContain('шт');
+    expect(t.join(' ')).toContain('2 000,00');
+  });
+
+  test('сумма прописью и реквизиты документа подставляются', () => {
+    const b = docx(`<w:p>${run('Итого {{Сумма}} ({{Сумма прописью}}), НДС {{НДС}}')}</w:p>`);
+    const t = texts(renderContractDocx(b, data({}, true))).join(' ');
+    expect(t).toContain('2 000,00');
+    expect(t).toContain('Две тысячи рублей 00 копеек');
+    expect(t).toContain('без НДС');
+  });
+
+  test('список найденных параметров (проверка шаблона при загрузке)', () => {
+    const b = docx(`<w:p>${run('{{Номер договора}} {{Нет такого параметра}} {{#Товары}}{{Наименование}}{{/Товары}}')}</w:p>`);
+    const tags = docxTemplateTags(b);
+    expect(tags).toContain('Номер договора');
+    expect(tags).toContain('Нет такого параметра');
+    expect(tags).toContain('Наименование');
   });
 });

@@ -146,6 +146,10 @@ export interface DocTemplate {
   name: string;
   purpose: DocTemplatePurpose;
   body: string;
+  /** Источник шаблона: текст или загруженный .docx (задача 1195) */
+  source: 'body' | 'docx';
+  /** Вложение с .docx-шаблоном (source = 'docx') */
+  docxAttachmentId: string | null;
   isUsed: boolean;
   onlyAuthor: boolean;
   /** «С картинками» (задача 1192): первая колонка таблицы товаров — картинка товара */

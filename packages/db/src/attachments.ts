@@ -7,7 +7,7 @@ import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { attachmentKey, getFileStore, sha256Hex, storageSettings, type FileStore } from './file-store';
 import { assertLimit } from './licensing';
-import { attachments, attachmentVersions, companies, contacts, contracts, deals, documents, leads, products, projectMembers, projects, tasks, workspaces } from './schema';
+import { attachments, attachmentVersions, companies, contacts, contracts, deals, docTemplates, documents, leads, products, projectMembers, projects, tasks, workspaces } from './schema';
 
 export type Attachment = typeof attachments.$inferSelect;
 export type AttachmentVersion = typeof attachmentVersions.$inferSelect;
@@ -52,6 +52,12 @@ const RESOLVERS: Record<AttachmentEntityType, Resolver> = {
   deal: (db, a, id) => plain(db, a, db.select({ id: deals.id }).from(deals).where(and(eq(deals.id, id), eq(deals.workspaceId, a.workspaceId)))),
   lead: (db, a, id) => plain(db, a, db.select({ id: leads.id }).from(leads).where(and(eq(leads.id, id), eq(leads.workspaceId, a.workspaceId)))),
   product: (db, a, id) => plain(db, a, db.select({ id: products.id }).from(products).where(and(eq(products.id, id), eq(products.workspaceId, a.workspaceId)))),
+  /** .docx-шаблон печати (задача 1195): права — как у шаблона, правка — автор или admin+ */
+  doc_template: async (db, a, id) => {
+    const [t] = await db.select({ authorId: docTemplates.authorId }).from(docTemplates).where(and(eq(docTemplates.id, id), eq(docTemplates.workspaceId, a.workspaceId)));
+    if (!t) return 'none';
+    return atLeast(a.role, 'admin') || t.authorId === a.memberId ? 'write' : 'read';
+  },
   project: (db, a, id) => projectAccess(db, a, id),
   task: async (db, a, id) => {
     const [t] = await db.select({ projectId: tasks.projectId }).from(tasks).where(and(eq(tasks.id, id), eq(tasks.workspaceId, a.workspaceId)));

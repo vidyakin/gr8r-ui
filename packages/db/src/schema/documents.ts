@@ -5,6 +5,7 @@ import { bigint, boolean, check, customType, date, foreignKey, index, integer, j
 import type { FileRef } from '@gr8r/shared';
 import { archivedAt, createdAt, money, pk, ts, updatedAt } from './columns';
 import { products, units } from './catalog';
+import { attachments } from './attachments';
 import { companies } from './crm';
 import { investmentProjects } from './investments';
 import { members, wsCol } from './people';
@@ -485,6 +486,10 @@ export const docTemplates = pgTable(
     purpose: text('purpose', { enum: ['quote', 'contract', 'contract_order', 'contract_invoice', 'contract_work_order'] }).notNull().default('quote'),
     /** Текст шаблона: простая разметка с параметрами {{…}} (packages/shared/src/print/quote.ts) */
     body: text('body').notNull().default(''),
+    /** Источник шаблона: текст body или загруженный .docx (задача 1195) */
+    source: text('source', { enum: ['body', 'docx'] }).notNull().default('body'),
+    /** Вложение с .docx-шаблоном (source = 'docx') */
+    docxAttachmentId: uuid('docx_attachment_id'),
     /** «Используется»: шаблон виден в меню «Печать» */
     isUsed: boolean('is_used').notNull().default(true),
     /** «Доступность»: шаблон видит и печатает только автор */
@@ -499,8 +504,11 @@ export const docTemplates = pgTable(
   t => [
     unique('doc_templates_ws_id_uq').on(t.workspaceId, t.id),
     foreignKey({ columns: [t.workspaceId, t.authorId], foreignColumns: [members.workspaceId, members.id], name: 'doc_templates_author_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.docxAttachmentId], foreignColumns: [attachments.workspaceId, attachments.id], name: 'doc_templates_docx_attachment_fk' }).onDelete('set null'),
     check('doc_templates_purpose_chk', sql`${t.purpose} in ('quote','contract','contract_order','contract_invoice','contract_work_order')`),
+    check('doc_templates_source_chk', sql`${t.source} in ('body','docx')`),
     index('doc_templates_ws_purpose_idx').on(t.workspaceId, t.purpose),
+    index('doc_templates_docx_attachment_idx').on(t.docxAttachmentId),
   ],
 );
 

@@ -254,8 +254,21 @@ export const docTemplateCreate = z.object({
 /** Назначение шаблона после создания не меняется */
 export const docTemplateUpdate = toPatch(docTemplateCreate.omit({ id: true, purpose: true }));
 
+/** Загрузка .docx-шаблона (задача 1195): вложение с шаблоном привязывается к шаблону печати */
+export const docTemplateDocxUpload = z.object({
+  purpose: z.enum(DOC_TEMPLATE_PURPOSES).default('contract'),
+  name: shortText.optional(),
+  onlyAuthor: z.boolean().default(false),
+  /** Список параметров из файла — возвращается для предупреждения о незнакомых */
+});
+
 /** PDF договора без документа */
 export const contractPdfRequest = z.object({ templateId: uuid.optional() });
+
+/** DOCX-договор (задача 1195): генерация из загруженного .docx-шаблона; результат — вложение договора */
+export const contractDocxRequest = z.object({ templateId: uuid });
+/** id вложения для повторной генерации (новая версия) — опционально */
+export const documentDocxRequest = z.object({ templateId: uuid, documentId: uuid.optional(), attachmentId: uuid.optional() });
 
 /* ---------------- склад ---------------- */
 

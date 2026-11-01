@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "qrcode-generator": "^2.0.4",
-    "zod": "^4.1.0"
+    "zod": "^4.1.0",
+    "docxtemplater": "^3.71.1",
+    "pizzip": "^3.3.0"
   }
 }

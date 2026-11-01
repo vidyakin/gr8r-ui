@@ -12,6 +12,8 @@ import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/
 import { FilterBar, useFilterState } from '@/components/gr8r/filter-bar';
 import { tEnum, useT } from '@/i18n';
 import { useCanWrite } from '../meta/custom-fields';
+import { call, useWsId } from '../meta/data';
+import { errorMessage } from '../data/api';
 import { fmtDate, parse } from '../lib/dates';
 import { useBillingApi, useContracts, useTariffPlans, type Contract, type TariffPlan } from './billing-data';
 import { useDocTemplates } from './data';
@@ -116,11 +118,23 @@ export function ContractDialog({ api, onClose, contract, companyId, readOnly, ar
   const [partySignerTitle, setPartySignerTitle] = React.useState(contract?.partySignerTitle ?? '');
   const [partySignerBasis, setPartySignerBasis] = React.useState(contract?.partySignerBasis ?? '');
   const navigate = useNavigate();
+  const ws = useWsId();
   const templates = useDocTemplates({ purpose: 'contract', usedOnly: true });
 
   const [archiving, setArchiving] = React.useState(false);
   const [signing, setSigning] = React.useState(false);
   const [signDate, setSignDate] = React.useState(new Date().toISOString().slice(0, 10));
+
+  // DOCX-договор (задача 1195): задача воркера document.docx, результат — во вложениях договора
+  const downloadDocx = async (templateId: string) => {
+    if (!contract) return;
+    try {
+      await call(ws, 'POST', `/contracts/${contract.id}/docx`, { templateId });
+      toast(t('docs.contracts.docxQueued'));
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  };
 
   const archive = async () => {
     if (!contract) return;
@@ -266,11 +280,17 @@ export function ContractDialog({ api, onClose, contract, companyId, readOnly, ar
                     {t('docs.contracts.printStandard')}
                   </MenuItem>
                   {(templates.data ?? []).length > 0 && <MenuSeparator />}
-                  {(templates.data ?? []).map(tp => (
-                    <MenuItem key={tp.id} icon={<FileText size={15} />} onSelect={() => navigate(`/contracts/${contract.id}/print?template=${tp.id}`)}>
-                      {tp.name}
-                    </MenuItem>
-                  ))}
+                  {(templates.data ?? []).map(tp =>
+                    tp.source === 'docx' ? (
+                      <MenuItem key={tp.id} icon={<FileText size={15} />} onSelect={() => void downloadDocx(tp.id)}>
+                        {tp.name}
+                      </MenuItem>
+                    ) : (
+                      <MenuItem key={tp.id} icon={<FileText size={15} />} onSelect={() => navigate(`/contracts/${contract.id}/print?template=${tp.id}`)}>
+                        {tp.name}
+                      </MenuItem>
+                    ),
+                  )}
                   <MenuSeparator />
                   <MenuItem icon={<ClipboardList size={15} />} onSelect={() => navigate('/crm/quote-templates')}>
                     {t('docs.contracts.printAllTemplates')}
