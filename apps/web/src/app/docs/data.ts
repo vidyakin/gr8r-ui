@@ -148,6 +148,8 @@ export interface DocTemplate {
   body: string;
   isUsed: boolean;
   onlyAuthor: boolean;
+  /** «С картинками» (задача 1192): первая колонка таблицы товаров — картинка товара */
+  withImages: boolean;
   authorId: string | null;
   updatedAt: string;
 }

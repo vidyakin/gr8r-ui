@@ -1037,6 +1037,8 @@ export const docs = {
     templateName: 'Name (shown in the Print menu)',
     isUsed: 'Used (shown in the Print menu)',
     onlyAuthor: 'Only the author sees it',
+    withImages: 'With images',
+    withImagesHint: 'The first column of the product table shows the product’s main image',
     body: 'Text',
     markupHint: '“# ” — heading, “## ” — subheading, a blank line — new paragraph, **bold**. A line whose parameters are all empty is not printed.',
     blocks: 'Blocks (on a separate line)',

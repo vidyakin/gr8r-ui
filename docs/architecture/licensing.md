@@ -59,9 +59,9 @@ API: `requireModule` — `off` → 403 `module_disabled`; `readonly` и мето
 строки лицензии нет. Самостоятельная регистрация пробного периода не получает.
 
 ## Лимиты (задача 1207)
-Ключи (`LIMIT_KEYS`): `members` (участники без отключённых + неотвеченные приглашения), `organizations`, `warehouses` (не в архиве), `storageMb` (МБ: `files.size_bytes` + PDF `document_files` + архивы `document_exports`).
+Ключи (`LIMIT_KEYS`): `members` (участники без отключённых + неотвеченные приглашения), `organizations`, `warehouses` (не в архиве), `storageMb` (МБ: размеры версий неархивных вложений `attachment_versions` + PDF `document_files` + архивы `document_exports`).
 Нет ключа — без ограничения, `0` — добавлять нельзя. Итог = лимиты тарифа, поверх них персональные арендатора (`app_license_of`: `limits`, `planLimits`, `ownLimits`). Использование — `app_usage_of(ws)`/`app_workspace_usage()`.
-`assertLimit(db, key, add)` (`packages/db/src/licensing.ts`) → 403 `limit_exceeded` `{limit, max, used}` при создании приглашения, организации, склада, файла; существующее не трогается. Файлы в S3 ещё не используются,
+`assertLimit(db, key, add)` (`packages/db/src/licensing.ts`) → 403 `limit_exceeded` `{limit, max, used}` при создании приглашения, организации, склада, загрузке вложения (`docs/architecture/attachments.md`); существующее не трогается.
 PDF воркера лимит не блокирует. Новое место создания сущности с лимитом должно вызвать `assertLimit`.
 
 ## «Нужно больше?» и заявки (задача 1208)

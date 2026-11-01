@@ -8,7 +8,7 @@
 | Схемы | Zod — общие для API и фронтенда (`packages/shared`) |
 | Фронтенд | React 19 + Vite, TanStack Query для серверного состояния; клиент API — `@gr8r/api/client` (hono/client) |
 | Реальное время | WebSocket (`upgradeWebSocket` из `hono/bun`), события по арендатору |
-| Файлы | S3-совместимое хранилище (MinIO локально); пока PDF печатных форм лежат в БД (`document_files`), интерфейс `PdfStore` готов под S3 |
+| Файлы | S3-совместимое хранилище (MinIO локально): вложения к объектам (`attachments.md`); PDF печатных форм лежат в БД (`document_files`), `s3PdfStore` — заготовка |
 | Фоновые задачи | таблица `jobs` + воркер на `FOR UPDATE SKIP LOCKED` (без внешних брокеров) |
 | Запуск | Docker Compose: postgres, minio, api, worker, web; тот же compose — на VPS |
 

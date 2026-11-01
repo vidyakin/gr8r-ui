@@ -3,9 +3,10 @@
 import * as React from 'react';
 import { ProductPricesBlock } from '../pricing/ProductPrices';
 import { useProductKinds } from '../positions/data';
-import { Barcode, Building2, CircleAlert, CircleDollarSign, FolderTree, Hash, Layers, Package, Percent, Power, Repeat, Ruler, ScanBarcode, Shapes, Tag, Tags, Timer, Trash2, Truck, Wrench, type LucideIcon } from 'lucide-react';
+import { Barcode, Building2, CircleAlert, CircleDollarSign, FolderTree, Hash, Layers, Package, Percent, Power, Repeat, Ruler, ScanBarcode, Shapes, Star, Tag, Tags, Timer, Trash2, Truck, Upload, Wrench, type LucideIcon } from 'lucide-react';
 import { PRODUCT_KINDS, VAT_LABELS, VAT_RATES, validateRecord, type ProductKind } from '@gr8r/shared';
-import { Button, ConfirmDialog, Dialog, DialogClose, DialogContent, Field, Input, MenuItem, Segmented, Switch, toast } from '@/components/ui';
+import { AttachmentsPanel } from '@/components/gr8r/attachments-panel';
+import { Button, ConfirmDialog, Dialog, DialogClose, DialogContent, Field, Input, IconButton, MenuItem, Segmented, Switch, toast } from '@/components/ui';
 import { DrawerSection, EntityDrawer } from '@/components/gr8r/entity-drawer';
 import { fmtDate } from '../lib/dates';
 import { useCanWrite, useCustomRows } from '../meta/custom-fields';
@@ -15,6 +16,9 @@ import { attributeAsField, flattenTree, useAttributes, useCatalogApi, useCompani
 import { StockLevelsTab } from './stock-levels';
 import { t, tEnum, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
+import { API_BASE } from '../data/api';
+import { useAttachments, useAttachmentActions } from '../data/attachments';
+import { useWsId } from '../meta/data';
 
 /** Служебное «поле» для обычной колонки товара, чтобы редактировать её тем же FieldInput */
 const col = (key: string, name: string, type: MetaField['type']): MetaField => ({
@@ -153,6 +157,85 @@ export function VatSelect({ value, onChange, id }: { value: string; onChange: (v
         </option>
       ))}
     </select>
+  );
+}
+
+/* ---------------- галерея картинок (задача 1192) ---------------- */
+
+/** URL картинки-вложения: воркспейс — query-параметром (с cookie сессии <img> проходит сам) */
+export const attachmentImageUrl = (id: string, size: 128 | 256 | 512, ws: string) => `${API_BASE()}/attachments/${id}/content?thumb=${size}&workspace=${ws}`;
+
+/** Сетка миниатюр image-вложений товара: загрузка, «сделать основной», архив; порядок — по дате загрузки */
+function ProductGallery({ product: p, canWrite, onSetMain }: { product: Product; canWrite: boolean; onSetMain: (attachmentId: string | null) => void }) {
+  const t = useT();
+  const ws = useWsId();
+  const list = useAttachments('product', p.id);
+  const act = useAttachmentActions();
+  const [busy, setBusy] = React.useState<string[]>([]);
+  const input = React.useRef<HTMLInputElement>(null);
+  const images = (list.data ?? []).filter(a => (a.mime ?? '').startsWith('image/')).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const guard = (pr: Promise<unknown>) => pr.catch(e => toast.error(errorMessage(e)));
+
+  const upload = async (files: FileList | null) => {
+    if (!files) return;
+    for (const f of [...files]) {
+      if (!f.type.startsWith('image/')) continue;
+      setBusy(b => [...b, f.name]);
+      try {
+        await act.upload('product', p.id, f);
+      } catch (e) {
+        toast.error(t('attachments.uploadFailed', { name: f.name, reason: errorMessage(e) }));
+      } finally {
+        setBusy(b => b.filter(x => x !== f.name));
+      }
+    }
+  };
+
+  if (!images.length && !canWrite) return <p className="muted" style={{ margin: 0 }}>{t('catalog.product.noImages')}</p>;
+  return (
+    <div style={{ display: 'grid', gap: 8 }}>
+      {canWrite && (
+        <div>
+          <input ref={input} type="file" accept="image/*" multiple hidden onChange={e => { void upload(e.target.files); e.target.value = ''; }} />
+          <Button size="sm" onClick={() => input.current?.click()} disabled={!!busy.length}>
+            <Upload size={14} /> {t('catalog.product.uploadImage')}
+          </Button>
+          {busy.map(name => (
+            <div key={name} role="status" style={{ color: 'var(--text-2)', fontSize: 12, marginTop: 4 }}>
+              {t('attachments.uploading', { name })}
+            </div>
+          ))}
+        </div>
+      )}
+      {!images.length ? (
+        <p className="muted" style={{ margin: 0 }}>{t('catalog.product.noImages')}</p>
+      ) : (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {images.map(a => {
+            const main = a.id === p.imageAttachmentId;
+            return (
+              <figure key={a.id} style={{ margin: 0, position: 'relative', width: 96, borderRadius: 8, border: main ? '2px solid var(--accent)' : '1px solid var(--border)', padding: 4, background: 'var(--surface)' }}>
+                <img src={attachmentImageUrl(a.id, 256, ws)} alt={a.name} style={{ width: '100%', height: 84, objectFit: 'contain', display: 'block' }} loading="lazy" />
+                {main && <span className="badge" style={{ position: 'absolute', top: 6, left: 6 }}>{t('catalog.product.mainImage')}</span>}
+                <figcaption style={{ fontSize: 11, color: 'var(--text-3)', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</figcaption>
+                {canWrite && (
+                  <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginTop: 2 }}>
+                    {!main && (
+                      <Button size="sm" variant="ghost" onClick={() => onSetMain(a.id)}>
+                        <Star size={12} /> {t('catalog.product.makeMain')}
+                      </Button>
+                    )}
+                    <IconButton size="xs" label={t('attachments.archive')} onClick={() => void guard(act.archive(a.id))}>
+                      <Trash2 size={12} />
+                    </IconButton>
+                  </div>
+                )}
+              </figure>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -381,6 +464,12 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
             </dl>
           </DrawerSection>
         )}
+        <DrawerSection title={t('catalog.product.gallery')}>
+          <ProductGallery product={p} canWrite={canWrite} onSetMain={id => save({ imageAttachmentId: id })} />
+        </DrawerSection>
+        <DrawerSection title={t('attachments.title')}>
+          <AttachmentsPanel entityType="product" entityId={p.id} />
+        </DrawerSection>
       </EntityDrawer>
       <ConfirmDialog
         open={confirm}

@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
 import { useWsId } from '../meta/data';
 import { searchProducts, money, type Product } from '../catalog/data';
+import { attachmentImageUrl } from '../catalog/product-ui';
 import { searchCompanies, type CompanyHit } from './data';
 
 export interface ComboProps<T> {
@@ -203,7 +204,7 @@ export function ProductPicker({ value, onPick, disabled, invalid, inputRef, onKe
       onPick={onPick}
       renderItem={p => (
         <>
-          {p.kind === 'service' ? <Wrench size={13} className="faint" /> : <Package size={13} className="faint" />}
+          {p.imageAttachmentId ? <img src={attachmentImageUrl(p.imageAttachmentId, 128, ws)} alt="" style={{ width: 20, height: 20, objectFit: 'contain', borderRadius: 3, flexShrink: 0 }} loading="lazy" /> : p.kind === 'service' ? <Wrench size={13} className="faint" /> : <Package size={13} className="faint" />}
           <span className="trunc grow">{p.name}</span>
           {p.sku && <span className="mono faint" style={{ fontSize: 11 }}>{p.sku}</span>}
           <span className="num muted" style={{ fontSize: 12 }}>{money(p[price])}</span>

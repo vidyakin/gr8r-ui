@@ -7,6 +7,8 @@ import { ConfirmDialog, ContextMenu, ContextMenuContent, ContextMenuTrigger, toa
 import { useT } from '@/i18n';
 import { newId, useWorkspace } from '../data/store';
 import { useMyPrefs } from '../data/settings';
+import { errorMessage } from '../data/api';
+import { useAttachmentActions } from '../data/attachments';
 import { canSee, project as findProject } from '../data/selectors';
 import { fileSize } from '../data/selectors';
 import { countSubs, findSub } from '../data/subtasks';
@@ -76,8 +78,6 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
   const panel = React.useRef<HTMLElement>(null);
   const opener = React.useRef<HTMLElement | null>(null);
   const trig = React.useRef<HTMLSpanElement>(null);
-  const timers = React.useRef<number[]>([]);
-  React.useEffect(() => () => timers.current.forEach(clearInterval), []);
 
   const open = React.useCallback((taskId: string, subId?: string) => {
     const d = dataRef.current;
@@ -200,26 +200,23 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
     return () => document.removeEventListener('contextmenu', onCtx, true);
   }, []);
 
-  // Загрузка файлов — имитация прогресса, по завершении файл прикрепляется к задаче (handleFiles)
+  // Загрузка файлов задачи — вложения в хранилище (docs/architecture/attachments.md); процент неизвестен, показываем «идёт»
+  const attach = useAttachmentActions();
   const onFiles = React.useCallback(
     (files: FileList | null, task: Task) => {
       if (!files || !files.length) return;
       [...files].forEach(file => {
-        const up: UploadItem = { id: newId('u'), name: file.name, size: fileSize(file.size), task: task.id, pct: 0 };
+        const up: UploadItem = { id: newId('u'), name: file.name, size: fileSize(file.size), task: task.id, pct: 50 };
         setUploads(u => [...u, up]);
-        let pct = 0;
-        const iv = window.setInterval(() => {
-          pct = Math.min(100, pct + 9 + Math.round(Math.random() * 22));
-          if (pct < 100) return setUploads(u => u.map(x => (x.id === up.id ? { ...x, pct } : x)));
-          clearInterval(iv);
-          setUploads(u => u.filter(x => x.id !== up.id));
-          dispatch({ type: 'task/attach', id: task.id, file: { name: up.name, size: up.size } });
-          toast(t('overlays.taskDrawer.uploaded', { name: up.name }));
-        }, 220);
-        timers.current.push(iv);
+        attach
+          .upload('task', task.id, file)
+          .then(() => toast(t('overlays.taskDrawer.uploaded', { name: up.name })))
+          .catch(e => toast.error(errorMessage(e)))
+          .finally(() => setUploads(u => u.filter(x => x.id !== up.id)));
       });
     },
-    [dispatch, t],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [t],
   );
 
   const commands = React.useMemo<TaskCommands>(

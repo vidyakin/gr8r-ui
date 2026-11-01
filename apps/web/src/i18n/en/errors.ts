@@ -394,4 +394,10 @@ export const errors = {
   loyalty_card_inactive: 'The loyalty card is not active',
   loyalty_card_foreign: 'The loyalty card belongs to another customer',
   promo_code_exhausted: 'The promo code usage limit has just been reached: remove the code or try again',
+  attachment_too_large: 'The file is larger than {maxBytes} bytes',
+  storage_quota_exceeded: 'The workspace storage quota is exceeded: archive unneeded files or ask the owner to raise the quota',
+  storage_unavailable: 'File storage is not configured on this server',
+  file_content_missing: 'The file content is no longer stored',
+  attachment_archived: 'The file is archived: restore it before adding a version',
+
 };

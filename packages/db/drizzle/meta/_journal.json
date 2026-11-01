@@ -533,6 +533,20 @@
       "when": 1793380293170,
       "tag": "0084_loyalty",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1793534062442,
+      "tag": "0085_attachments",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1793900000000,
+      "tag": "0086_product_images",
+      "breakpoints": true
     }
   ]
 }

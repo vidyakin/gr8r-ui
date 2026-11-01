@@ -108,6 +108,8 @@ export const products = pgTable(
     weightKg: numeric('weight_kg', { precision: 18, scale: 3 }),
     /** Вид номенклатуры (задача 1172, необязательный): тип вида совпадает с kind товара */
     productKindId: uuid('product_kind_id'),
+    /** Основная картинка (задача 1192): вложение товара (entity_type = product, mime image/*); пусто — первая загруженная */
+    imageAttachmentId: uuid('image_attachment_id'),
     custom: jsonb('custom').$type<Record<string, unknown>>().notNull().default({}),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

@@ -1,5 +1,6 @@
 /* Карточка лида (задача 1175): поля, поиск дублей (при вводе и по сохранённому лиду) с кнопкой «Объединить», лента касаний,
    переход к конвертации. Новый лид создаётся здесь же. Пользовательские поля — из конструктора (сущность lead). */
+import { AttachmentsPanel } from '@/components/gr8r/attachments-panel';
 import * as React from 'react';
 import { Link } from 'react-router';
 import { Archive, ArrowRightLeft, Building2, Handshake, User } from 'lucide-react';
@@ -250,6 +251,7 @@ export function LeadCard({ leadId, onClose, onConvert }: { leadId: string | null
               {t('leads.card.utm')}: {Object.entries(current.custom).filter(([k]) => k.startsWith('utm_')).map(([k, v]) => `${k}=${String(v)}`).join(', ')}
             </div>
           )}
+          {leadId && <AttachmentsPanel entityType="lead" entityId={leadId} />}
           {leadId && <Feed leadId={leadId} />}
         </div>
         <ConfirmDialog open={!!mergeWith} onOpenChange={o => !o && setMergeWith(null)} title={t('leads.dup.mergeConfirmTitle')} description={t('leads.dup.mergeConfirm', { name: mergeWith?.name ?? '' })} confirmLabel={t('leads.dup.merge')} onConfirm={() => void merge()} />

@@ -13,9 +13,10 @@ import { fmtDate } from '../lib/dates';
 import { tEnum, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { AttributesDialog, CategoryDialog, CategoryTree, DeleteCategoryDialog } from './category-ui';
-import { ProductDrawer, ProductFormDialog } from './product-ui';
+import { ProductDrawer, ProductFormDialog, attachmentImageUrl } from './product-ui';
 import { useProductKinds } from '../positions/data';
 import { buildCategoryTree, categoryPath, flattenTree, money, unitSymbol, useCategories, useIsAdmin, useProduct, useProducts, useUnits, type CategoryNode, type Product } from './data';
+import { useWsId } from '../meta/data';
 
 type Dialog = { type: 'category'; edit?: CategoryNode; parent?: CategoryNode | null } | { type: 'attributes'; category: CategoryNode } | { type: 'delete'; category: CategoryNode } | { type: 'product' } | null;
 
@@ -25,6 +26,7 @@ export function CatalogPage() {
   const [sp, setSp] = useSearchParams();
   const canWrite = useCanWrite();
   const isAdmin = useIsAdmin();
+  const ws = useWsId();
   const categories = useCategories();
   const units = useUnits();
   const [dialog, setDialog] = React.useState<Dialog>(null);
@@ -85,7 +87,7 @@ export function CatalogPage() {
         value: p => p.name,
         cell: p => (
           <span className="row" style={{ gap: 8, minWidth: 0 }}>
-            {p.kind === 'service' ? <Wrench size={14} className="faint" aria-label={t('catalog.kind.service')} /> : <Package size={14} className="faint" aria-label={t('catalog.kind.goods')} />}
+            {p.imageAttachmentId ? <img src={attachmentImageUrl(p.imageAttachmentId, 128, ws)} alt="" style={{ width: 28, height: 28, objectFit: 'contain', borderRadius: 4, flexShrink: 0 }} loading="lazy" /> : p.kind === 'service' ? <Wrench size={14} className="faint" aria-label={t('catalog.kind.service')} /> : <Package size={14} className="faint" aria-label={t('catalog.kind.goods')} />}
             <span className="trunc" style={{ fontWeight: 450, opacity: p.isActive ? 1 : 0.6, paddingLeft: p.parentProductId ? 14 : 0 }}>
               {p.parentProductId && <span className="faint" aria-hidden="true">↳ </span>}
               {p.name}

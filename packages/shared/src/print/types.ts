@@ -64,6 +64,8 @@ export interface PrintLine {
   serials?: { serial: string; warrantyUntil: string | null }[];
   /** Гарантия на товар, мес. */
   warrantyMonths?: number | null;
+  /** Картинка товара (задача 1192): относительный URL /attachments/<id>/content?thumb=…; пусто — нет картинки */
+  image?: string;
   /** Группа строки (справочно): пусто — без группы */
   group?: string;
 }

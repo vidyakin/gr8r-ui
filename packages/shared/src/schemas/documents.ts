@@ -248,6 +248,8 @@ export const docTemplateCreate = z.object({
   body: z.string().max(100_000).default(''),
   isUsed: z.boolean().default(true),
   onlyAuthor: z.boolean().default(false),
+  /** «С картинками» (задача 1192): первая колонка таблицы товаров — картинка товара */
+  withImages: z.boolean().default(false),
 });
 export const docTemplateUpdate = toPatch(docTemplateCreate.omit({ id: true }));
 

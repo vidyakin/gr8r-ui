@@ -76,3 +76,5 @@ export * from './transport-orders';
 export * from './transport-waybill';
 export * from './routing';
 export * from './routing-trips';
+export * from './file-store';
+export * from './attachments';
