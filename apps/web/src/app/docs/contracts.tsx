@@ -278,7 +278,6 @@ export function ContractDialog({ api, onClose, contract, companyId, readOnly, ar
                 </MenuContent>
               </Menu>
             )}
-            )}
             <Button variant="ghost" onClick={onClose}>
               {t('common.cancel')}
             </Button>
