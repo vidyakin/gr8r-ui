@@ -5,7 +5,7 @@ import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Ban, Calculator, ChevronDown, CircleAlert, ClipboardList, Copy, Ellipsis, FileSignature, FileText, PackageCheck, PackageX, Plus, Printer, RotateCcw, Send, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
-import { amountInWordsRu, basedOnTargets, computeDocument, dec, DEFECT_MODES, DOCUMENT_META, fmt as fmtDec, hasQuoteVariants, isInvestmentFactType, MATERIAL_OWNER_LABELS, PRINT_FORM_LABELS, TOLLING_ROLE_LABELS, TOLLING_ROLES, TRANSFER_OPERATIONS, VAT_LABELS, VAT_RATES, type DefectMode, type DocumentType, type TollingRole, type VatRate } from '@gr8r/shared';
+import { amountInWordsRu, basedOnTargets, computeDocument, computeTotals, dec, DEFECT_MODES, DOCUMENT_META, fmt as fmtDec, hasQuoteVariants, isInvestmentFactType, MATERIAL_OWNER_LABELS, PRINT_FORM_LABELS, TOLLING_ROLE_LABELS, TOLLING_ROLES, TRANSFER_OPERATIONS, VAT_LABELS, VAT_RATES, type DefectMode, type DocumentType, type TollingRole, type VatRate } from '@gr8r/shared';
 import { Badge, Button, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Segmented, Select, Skeleton, toast } from '@/components/ui';
 import { useCanWrite } from '../meta/custom-fields';
 import { money, unitSymbol, useIsAdmin, useUnits, type Product } from '../catalog/data';
@@ -25,6 +25,8 @@ import { WorkOrderPanel } from './work-orders';
 import { SerialsButton } from './serials-ui';
 import { DeliveryTab } from './DeliveryTab';
 import { DocTabs, type DocTab } from './doc-tabs';
+import { DocLoyaltyFields } from './DocLoyalty';
+import { DISCOUNT_DOC_TYPES } from '../loyalty/data';
 import { DocInvestmentField } from '../finance/DocInvestmentField';
 import { hasKey, t, tEnum, tProductionEnum, useT, type TKey } from '@/i18n';
 import { handleNumericArrow } from '@/lib/numeric-step';
@@ -57,6 +59,8 @@ interface FormLine {
   tollingRole: TollingRole | null;
   /** Группа строки (справочно, сумма по группе в форме и печати) */
   groupName: string;
+  /** Ручная скидка (задача 1179): true — процент ввёл человек, false — вернуть автоскидке; пусто — не менялась. Уходит на сервер один раз */
+  discountManual?: boolean;
 }
 
 interface Form {
@@ -152,7 +156,7 @@ function toPayload(f: Form) {
     comment: f.comment,
     lines: f.lines
       .filter(l => l.productId)
-      .map(l => ({ id: l.key, productId: l.productId!, name: l.name, unitCode: l.unitCode, qty: num(l.qty), price: num(l.price), discountPct: num(l.discountPct || '0'), vatRate: l.vatRate, bookQty: num(l.bookQty || '0'), receivedQty: num(l.receivedQty || '0'), costItemId: l.costItemId, workCenterId: l.workCenterId, params: l.params ?? {}, tollingRole: l.tollingRole, groupName: l.groupName.trim() })),
+      .map(l => ({ id: l.key, ...(l.discountManual !== undefined ? { discountManual: l.discountManual } : {}), productId: l.productId!, name: l.name, unitCode: l.unitCode, qty: num(l.qty), price: num(l.price), discountPct: num(l.discountPct || '0'), vatRate: l.vatRate, bookQty: num(l.bookQty || '0'), receivedQty: num(l.receivedQty || '0'), costItemId: l.costItemId, workCenterId: l.workCenterId, params: l.params ?? {}, tollingRole: l.tollingRole, groupName: l.groupName.trim() })),
   };
 }
 
@@ -234,6 +238,8 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   /** Режим «по итогам смены»: строки материалов — нормы, их списывает документ «Распределение материалов» */
   const shiftMode = hasDefect && doc.materialMode === 'shift';
   const items = doc.items ?? [];
+  /** Документ продаж с автоскидками (задача 1179): у строки отметка источника скидки, в шапке — промокод и карта */
+  const discountAuto = !internal && DISCOUNT_DOC_TYPES.includes(doc.type);
   const wasteRows = (doc.components ?? []).filter(c => c.kind === 'waste');
   const compositionRows = (doc.components ?? []).filter(c => c.kind !== 'waste');
   /** Брак «на расходы» проведённого выпуска ждёт списания */
@@ -293,6 +299,8 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     if (version.current === v) {
       dirty.current = false;
       setSave('saved');
+      // автоскидки пересчитаны сервером при сохранении: подтягиваем проценты автоматических строк, флаги ручной правки уже учтены
+      if (DISCOUNT_DOC_TYPES.includes(doc.type)) setForm(cur => ({ ...cur, lines: cur.lines.map(l => { const s = r.lines.find(x => x.id === l.key); return s ? { ...l, discountPct: trimNum(s.discountPct), discountManual: undefined } : l; }) }));
     }
     return true;
   }, [api, doc.id]);
@@ -372,13 +380,19 @@ function DocumentView({ doc }: { doc: DocDetail }) {
 
   const calc = React.useMemo(() => {
     const valid = form.lines.filter(l => l.productId && lineOk(l, isCount));
+    // проведённый документ со списанием баллов: суммы строк уменьшены на сервере, из цены и скидки их не получить
+    if (doc.status === 'posted' && dec(doc.loyalty?.pointsRedeemed ?? '0') > 0n) {
+      const byId = new Map(doc.lines.map(l => [l.id, l]));
+      const rows = valid.flatMap(l => { const s = byId.get(l.key); return s ? [{ key: l.key, net: s.net, vatAmount: s.vatAmount, total: s.total, vatRate: s.vatRate }] : []; });
+      return { byKey: new Map(rows.map(r => [r.key, r])), totals: computeTotals(rows) };
+    }
     try {
       const r = computeDocument(valid.map(l => ({ qty: num(l.qty), price: num(l.price), discountPct: num(l.discountPct || '0'), vatRate: l.vatRate })), form.priceIncludesVat);
       return { byKey: new Map(valid.map((l, i) => [l.key, r.lines[i]!])), totals: r.totals };
     } catch {
       return { byKey: new Map(), totals: { net: '0.00', vat: '0.00', total: '0.00', byRate: [] as { rate: string; net: string; vat: string; total: string }[] } };
     }
-  }, [form.lines, form.priceIncludesVat]);
+  }, [form.lines, form.priceIncludesVat, doc.status, doc.loyalty?.pointsRedeemed, doc.lines]);
   /** Группы строк (КП, заказ, счёт): колонка «Группа» и итоги по группам */
   const hasGroups = !internal && (hasQuoteVariants(doc.type) || doc.type === 'invoice');
   const groupTotals = React.useMemo(() => {
@@ -571,7 +585,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                   </th>
                   {!internal && (
                     <>
-                      <th style={{ width: 72 }} className="r">
+                      <th style={{ width: discountAuto ? 150 : 72 }} className="r">
                         {t('docs.document.colDiscPct')}
                       </th>
                       <th style={{ width: 84 }}>{t('docs.document.colVat')}</th>
@@ -747,7 +761,10 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       {!internal && (
                         <>
                           <td className="r">
-                            <NumCell value={l.discountPct} disabled={!editable} invalid={!!err.discountPct} label={t('docs.document.cellDiscPct')} cell={`${i}:3`} onKeyDown={cellKey(i, 3)} onChange={v => patchLine(l.key, { discountPct: v })} />
+                            <div className="row" style={{ gap: 4, justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
+                              {discountAuto && <DiscountSource line={l} server={srv} editable={editable} onAuto={() => patchLine(l.key, { discountPct: '0', discountManual: false })} />}
+                              <NumCell value={l.discountPct} disabled={!editable} invalid={!!err.discountPct} label={t('docs.document.cellDiscPct')} cell={`${i}:3`} onKeyDown={cellKey(i, 3)} onChange={v => patchLine(l.key, { discountPct: v, ...(discountAuto ? { discountManual: true } : {}) })} />
+                            </div>
                           </td>
                           <td>
                             <select className="input cell-input" aria-label={t('docs.document.cellVat')} disabled={!editable} value={l.vatRate} onChange={e => patchLine(l.key, { vatRate: e.target.value as VatRate })}>
@@ -1347,6 +1364,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             )}
           </Field>
         )}
+        {discountAuto && <DocLoyaltyFields doc={doc} customerId={form.counterpartyId} editable={editable} total={calc.totals.total} flush={flush} load={() => api<DocDetail>('GET', `/documents/${doc.id}`)} onApplied={applyServer} />}
       </section>
 
       {hasQuoteVariants(doc.type) && <QuoteVariants doc={doc} editable={editable} total={calc.totals.total} flush={flush} api={(m, p, j) => api(m, p, j)} onApplied={applyServer} />}
@@ -1444,6 +1462,12 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                     </div>
                   ))
               )}
+              {doc.status === 'posted' && dec(doc.loyalty?.pointsRedeemed ?? '0') > 0n && (
+                <div>
+                  <dt>{doc.type === 'customer_return' ? t('loyalty.doc.returnedPoints') : t('loyalty.doc.paidWithPoints')}</dt>
+                  <dd className="num">{money(doc.loyalty!.pointsRedeemed)}</dd>
+                </div>
+              )}
               <div className="grand">
                 <dt>{t('docs.document.totals.total')}{form.priceIncludesVat ? t('docs.document.totals.totalIncluded').replace(t('docs.document.totals.total'), '') : ''}</dt>
                 <dd className="num" data-testid="total-sum">
@@ -1525,6 +1549,27 @@ function countDiff(lines: FormLine[], server: Map<string, { bookQty: string }>):
     else if (diff > 0) surplus++;
   }
   return { shortage, surplus };
+}
+
+/** Отметка источника скидки строки: ручная / правило / карта; у ручной — действие «вернуть автоскидку» */
+function DiscountSource({ line, server, editable, onAuto }: { line: FormLine; server: { discountSource?: 'manual' | 'rule' | 'card' | null; discountRuleName?: string | null; discountCardNumber?: string | null } | undefined; editable: boolean; onAuto: () => void }) {
+  const t = useT();
+  // правка в форме ещё не сохранена: ручная — по флагу, возвращённая автоматике — без отметки до ответа сервера
+  const source = line.discountManual === true ? 'manual' : line.discountManual === false ? null : (server?.discountSource ?? null);
+  if (!source) return null;
+  const tip = source === 'manual' ? t('loyalty.doc.sourceManualTip') : source === 'rule' ? t('loyalty.doc.sourceRuleTip', { name: server?.discountRuleName ?? '' }) : t('loyalty.doc.sourceCardTip', { number: server?.discountCardNumber ?? '' });
+  return (
+    <>
+      <Badge tone={source === 'manual' ? 'amber' : source === 'rule' ? 'accent' : 'violet'} title={tip}>
+        {source === 'manual' ? t('loyalty.doc.sourceManual') : source === 'rule' ? t('loyalty.doc.sourceRule') : t('loyalty.doc.sourceCard')}
+      </Badge>
+      {source === 'manual' && editable && (
+        <IconButton size="xs" label={t('loyalty.doc.toAuto')} onClick={onAuto}>
+          <RotateCcw size={12} />
+        </IconButton>
+      )}
+    </>
+  );
 }
 
 function NumCell({ value, onChange, disabled, invalid, label, cell, onKeyDown }: { value: string; onChange: (v: string) => void; disabled: boolean; invalid: boolean; label: string; cell: string; onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void }) {

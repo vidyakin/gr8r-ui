@@ -389,4 +389,10 @@ export const errors: Widen<typeof E> = {
   driver_event_conflict: 'Этот идентификатор уже использован для другой отметки',
   workspace_invalid: 'Идентификатор воркспейса — не корректный UUID',
   workspace_required: 'Нужен заголовок X-Workspace-Id',
+  discount_pct_required: 'Укажите процент дисконтной карты',
+  invalid_document_type: 'Автоскидки действуют только в предложениях, заказах, счетах, реализациях, актах и заказ-нарядах',
+  invalid_promo_code: 'Промокод не найден, просрочен или исчерпан',
+  loyalty_card_inactive: 'Карта лояльности не активна',
+  loyalty_card_foreign: 'Карта принадлежит другому клиенту',
+  promo_code_exhausted: 'Лимит промокода только что исчерпан: уберите код или повторите',
 };

@@ -61,6 +61,10 @@ export function useCrumbs(): Crumb[] {
     if (b === 'settings' && c) return [{ label: S.priceSettings.name, to: S.priceSettings.path }, { label: t('nav.crumbs.document') }];
     return [{ label: b === 'kinds' ? S.priceKinds.name : b === 'settings' ? S.priceSettings.name : S.priceList.name }];
   }
+  if (a === 'loyalty') {
+    if (b === 'cards' && c) return [{ label: S.loyaltyCards.name, to: S.loyaltyCards.path }, { label: t('loyalty.cards.edit') }];
+    return [{ label: b === 'promo-codes' ? S.promoCodes.name : b === 'cards' ? S.loyaltyCards.name : b === 'program' ? S.loyaltyProgram.name : S.discountRules.name }];
+  }
   if (a === 'inventory') return [{ label: S.inventory.name }];
   if (a === 'stock-docs') return [{ label: S.stockDocs.name }];
   if (a === 'material-allocations') return b ? [{ label: S.materialAllocation.name, to: SECTIONS.materialAllocation.path }, { label: t('nav.crumbs.document') }] : [{ label: S.materialAllocation.name }];

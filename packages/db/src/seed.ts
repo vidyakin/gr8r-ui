@@ -13,6 +13,7 @@ import { seedFlows } from './seed-flows';
 import { seedPlanning } from './seed-planning';
 import { seedContracts } from './seed-contracts';
 import { ensurePriceKinds } from './pricing';
+import { seedLoyalty } from './seed-loyalty';
 import { seedPricing } from './seed-pricing';
 import { seedRepeatSales } from './seed-repeat-sales';
 import { seedPositions } from './seed-positions';
@@ -385,6 +386,9 @@ export async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: strin
 
   // Виды цен (после всех товаров): оптовая, дилерская, цены поставщика, установка цен
   await seedPricing(db, { workspaceId: wsId, memberId: U(d.me), role: 'owner' }, { supplierId: U('co8'), customerId: U('co4') });
+
+  // Скидки и лояльность: правила, промокод, программа, три карты (задача 1179)
+  await seedLoyalty(db, { workspaceId: wsId, memberId: U(d.me), role: 'owner' }, { customerId: U('co4'), secondCustomerId: U('co1') });
 
   // Лиды: статусы, форма сайта, лиды с касаниями и один сконвертированный (задача 1175)
   await seedLeads(db, wsId, U(d.me));

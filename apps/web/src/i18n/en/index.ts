@@ -10,6 +10,7 @@ import { meta } from './meta';
 import { money } from './money';
 import { payroll } from './payroll';
 import { pricing } from './pricing';
+import { loyalty } from './loyalty';
 import { nav, projectTabs, sections } from './nav';
 import { overlays } from './overlays';
 import { pages } from './pages';
@@ -31,4 +32,4 @@ import { transport } from './transport';
 import { views } from './views';
 import { help } from './help';
 
-export const en = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, repeat, appt, delivery, positions, leads, ads, secrets, money, payroll, pricing, licensing, fleet, trips, transport, help };
+export const en = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, repeat, appt, delivery, positions, leads, ads, secrets, money, payroll, pricing, loyalty, licensing, fleet, trips, transport, help };

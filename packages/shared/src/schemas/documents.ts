@@ -120,7 +120,10 @@ export const documentLineInput = z
       .optional(),
     qty: nonNeg(),
     price: nonNeg(),
-    discountPct: pct.default('0'),
+    discountPct: pct.optional(),
+    /** Скидка строки правилась вручную (задача 1179): автоскидка такую строку больше не перезаписывает.
+        Клиент передаёт true, когда пользователь сам поменял discountPct в форме; иначе источник не трогаем. */
+    discountManual: z.boolean().optional(),
     /** Пусто — ставка товара */
     vatRate: z.enum(VAT_RATES).optional(),
     /** Учётное количество по остаткам (инвентаризация): разница с qty — недостача или излишек */
@@ -134,7 +137,8 @@ export const documentLineInput = z
     /** Участок строки-услуги (поступление): участные затраты идут на выпуск своего участка */
     workCenterId: uuid.nullish(),
     /** Вкладка строки отчёта о переработке: продукция, использованное сырьё или отходы */
-    tollingRole: z.enum(TOLLING_ROLES).optional(),
+    // у строки документа на основании роли нет: форма присылает null
+    tollingRole: z.enum(TOLLING_ROLES).nullish(),
     /** Значения параметров спецификации изделия (заказ покупателя): состав выпуска считается формулами строк спецификации */
     params: paramValues.optional(),
     /** Группа строки (справочно, сумма по группе в форме и печати): пусто — без группы */

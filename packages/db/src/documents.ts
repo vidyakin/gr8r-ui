@@ -40,7 +40,7 @@ import { recordEvent } from './events';
 import { applyStockMoves, defaultPostingCost, documentCosts, documentLineCosts, loadInventorySettings, revertStockMoves, sourceMoveCosts, syncReservations, type MoveRequest } from './stock';
 import { syncWorkOrderResources } from './planning';
 import { assertPeriodOpen, assertServiceCostItems, clearPeriodCosts, syncPeriodCosts } from './cost-closing';
-import { bankAccounts, companies, deals, contracts, paymentLinks, costItems, documentCounters, documentLines, documentStates, documents, investmentProjects, materialAllocationItems, members, organizations, products, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials } from './schema';
+import { bankAccounts, companies, deals, contracts, discountRules, loyaltyCards, paymentLinks, costItems, documentCounters, documentLineDiscounts, documentLines, documentStates, documents, investmentProjects, materialAllocationItems, members, organizations, products, promoCodes, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials } from './schema';
 import { assertInvestmentTarget, investmentOpen } from './investments';
 import { assertContractOfCompany, contractDocumentProducts, contractPlanProductIds, defaultContract } from './contracts';
 import { ensureVariant, specParamsOfProduct } from './variants';
@@ -48,6 +48,7 @@ import { checkParamValues, loadCategoryAttributeDefs } from './specs';
 import { uuidv7 } from './uuid';
 import { saveSerials, checkInventorySerials, lineSerialsView } from './serials';
 import { applySaleNextContact } from './repeat-sales';
+import { applyAutoDiscountsOnSave, applyLoyaltyOnPost, applyLoyaltyOnReturn, applyLoyaltyRedemption, applyLoyaltyReturnRefund, reverseLoyaltyOnReturnUnpost, validPromoCode, DISCOUNT_DOCUMENT_TYPES, documentLoyaltyOf, LOYALTY_RETURN_TYPES, LOYALTY_SALE_TYPES, reverseLoyaltyOnUnpost, saveDocumentLoyalty, saveLineDiscountSources } from './loyalty';
 import { inheritDelivery } from './delivery';
 import { payableOf, postAccrual, removeSettlementMoves } from './settlements';
 import { repairPrintData, syncWarrantyKind, workOrderKindType } from './repair';
@@ -144,6 +145,8 @@ interface ResolvedLine {
   qty: string;
   price: string;
   discountPct: string;
+  /** Скидка введена вручную в форме (задача 1179): такую строку автоскидка не трогает */
+  discountManual: boolean;
   vatRate: VatRate;
   /** Роль строки выпуска (производства): приход или расход */
   stockRole?: 'in' | 'out';
@@ -182,7 +185,9 @@ async function resolveLines(db: Db, inputs: DocumentLineInput[], existingIds: Se
       unitCode: l.unitCode ?? p.unitCode,
       qty: l.qty,
       price: l.price,
-      discountPct: l.discountPct ?? '0',
+      // discountManual: false — вернуть строку автоскидке: ручной процент сбрасывается
+      discountPct: l.discountManual === false ? '0' : (l.discountPct ?? '0'),
+      discountManual: l.discountManual ?? false,
       vatRate: (l.vatRate ?? p.vatRate) as VatRate,
       stockRole: l.stockRole,
       bookQty: l.bookQty ?? '0',
@@ -255,11 +260,12 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
   const type = doc.type as DocumentType;
   const meta = DOCUMENT_META[type];
   const existing = await db
-    .select({ id: documentLines.id, price: documentLines.price, stockRole: documentLines.stockRole, costItemId: documentLines.costItemId, workCenterId: documentLines.workCenterId, groupName: documentLines.groupName })
+    .select({ id: documentLines.id, price: documentLines.price, discountPct: documentLines.discountPct, stockRole: documentLines.stockRole, costItemId: documentLines.costItemId, workCenterId: documentLines.workCenterId, groupName: documentLines.groupName })
     .from(documentLines)
     .where(eq(documentLines.documentId, doc.id));
   const existingIds = new Set(existing.map(e => e.id));
   const prevPrice = new Map(existing.map(e => [e.id, e.price]));
+  const prevDiscount = new Map(existing.map(e => [e.id, e.discountPct]));
   const prevRole = new Map(existing.map(e => [e.id, e.stockRole]));
   const prevCostItem = new Map(existing.map(e => [e.id, e.costItemId]));
   const prevCenter = new Map(existing.map(e => [e.id, e.workCenterId]));
@@ -313,13 +319,99 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
     if (existingIds.has(l.id)) await db.update(documentLines).set(values).where(eq(documentLines.id, l.id));
     else await db.insert(documentLines).values({ ...values, id: l.id, workspaceId: ctx.workspaceId, documentId: doc.id });
   }
+  // ручная скидка строки (задача 1179): явный флаг или процент, отличный от сохранённого. Источник записывается сразу, чтобы
+  // автопересчёт ниже её не перезаписал. Клиент, не знающий флага, присылает прежний процент авто-строки — она остаётся автоматической
+  const autoDiscountType = (DISCOUNT_DOCUMENT_TYPES as readonly string[]).includes(type);
+  if (autoDiscountType) {
+    const manual = resolved.filter((l, i) => {
+      const input = inputs[i];
+      if (input?.discountManual !== undefined) return input.discountManual;
+      const prev = prevDiscount.get(l.id);
+      return prev !== undefined && input?.discountPct !== undefined && dec(prev) !== dec(input.discountPct);
+    });
+    if (manual.length) await saveLineDiscountSources(db, ctx.workspaceId, manual.map(l => ({ lineId: l.id, source: 'manual' as const, ruleId: null })));
+    const toAuto = resolved.filter((_, i) => inputs[i]?.discountManual === false).map(l => l.id);
+    if (toAuto.length) await db.delete(documentLineDiscounts).where(inArray(documentLineDiscounts.lineId, toAuto));
+  }
   // серийные номера строк (задача 1099): присланный список заменяет прежний
   for (const [i, l] of resolved.entries()) if (inputs[i]?.serials !== undefined) await saveSerials(db, ctx.workspaceId, doc.id, { lineId: l.id }, inputs[i]!.serials!);
   await writeTotals(db, doc.id);
+  // автоскидки (задача 1179): автоматически при каждом сохранении черновика продажи (как и по кнопке «Пересчитать скидки»)
+  // документ на основании наследует скидки строк: при сохранении не пересчитывается, только по кнопке
+  if (autoDiscountType && doc.status === 'draft' && !doc.basedOnId) await applyDiscountsToDraft(db, ctx, doc, undefined);
 }
 
 /** Замена строк документа для вариантов КП (quotes.ts) */
 export const saveDocumentLines = saveLines;
+
+/** Автоскидки (задача 1179): подбирает правила для каждой строки черновика продажи (все 6 типов — DISCOUNT_DOCUMENT_TYPES) по дате,
+    клиенту и виду цен, применяется промокод (если указан), записывает discountPct на строки и источники. Строки с ранее
+    поставленной вручную скидкой не трогает (applyAutoDiscountsOnSave). Пересчёт цены/суммы строки и итогов — как при обычном
+    сохранении строк. Вызывается и по кнопке «Пересчитать скидки», и автоматически при сохранении черновика (см. saveLines). */
+export async function recalcDocumentDiscounts(db: Db, ctx: DocCtx, id: string, promoCode?: string | null): Promise<void> {
+  const doc = await loadDoc(db, id, true);
+  const type = doc.type as DocumentType;
+  if (!(DISCOUNT_DOCUMENT_TYPES as readonly string[]).includes(type)) throw new DomainError(422, 'invalid_document_type', 'Automatic discounts apply only to quotes, orders, invoices, sales, acts and work orders');
+  if (doc.status !== 'draft') throw new DomainError(409, 'not_draft', 'A posted or cancelled document cannot be recalculated: unpost it first');
+  const applied = await applyDiscountsToDraft(db, ctx, doc, promoCode);
+  // null — код снят, строка — код применён, undefined — остаётся сохранённый
+  if (promoCode === null) await saveDocumentLoyalty(db, ctx.workspaceId, id, { promoCodeId: null });
+  else if (promoCode !== undefined) await saveDocumentLoyaltyRule(db, ctx.workspaceId, id, applied, promoCode);
+}
+
+/** Общая реализация пересчёта скидок черновика (используется кнопкой «Пересчитать скидки» и автопересчётом при сохранении строк).
+    promoCode === undefined — автопересчёт без явной правки промокода: берётся уже сохранённый на документе (document_loyalty), если есть.
+    Не подтягивает промокод снова, чтобы не сбрасывать счётчик использования при каждом автопересчёте.
+    promoCode === null — явный сброс промокода (кнопка пересчитает без него). Возвращает promoRuleId применённого промокода. */
+async function applyDiscountsToDraft(db: Db, ctx: DocCtx, doc: DocumentRow, promoCode: string | null | undefined): Promise<string | null> {
+  const rows = await db.select({ id: documentLines.id, productId: documentLines.productId, qty: documentLines.qty, discountPct: documentLines.discountPct }).from(documentLines).where(eq(documentLines.documentId, doc.id));
+  if (!rows.length) return null;
+  const dl = await documentLoyaltyOf(db, doc.id);
+  let effectivePromoCode: string | null = promoCode ?? null;
+  if (promoCode === undefined) {
+    if (dl?.promoCodeId) {
+      const [pc] = await db.select({ code: promoCodes.code }).from(promoCodes).where(eq(promoCodes.id, dl.promoCodeId)).limit(1);
+      // истёкший или исчерпанный сохранённый код не мешает править черновик: скидка просто не действует, при проведении сработает лимит
+      effectivePromoCode = pc && (await validPromoCode(db, ctx.workspaceId, pc.code, doc.date)) ? pc.code : null;
+    }
+  }
+  const totals = computeTotals((await db.select({ net: documentLines.net, vatAmount: documentLines.vatAmount, total: documentLines.total, vatRate: documentLines.vatRate }).from(documentLines).where(eq(documentLines.documentId, doc.id))) as any);
+  const r = await applyAutoDiscountsOnSave(db, ctx.workspaceId, {
+    date: doc.date,
+    customerId: doc.counterpartyId,
+    documentNetTotal: totals.net,
+    promoCode: effectivePromoCode,
+    cardId: dl?.loyaltyCardId ?? null,
+    lines: rows.map(l => ({ id: l.id, productId: l.productId, qty: l.qty, discountPct: l.discountPct, priceKindId: doc.priceKindId })),
+  });
+  if (!r.byLine.size) return r.promoRuleId;
+  for (const [lineId, d] of r.byLine) await db.update(documentLines).set({ discountPct: d.pct }).where(eq(documentLines.id, lineId));
+  // строка без подошедшего правила/карты (0 %, ни ruleId, ни cardId) — запись в document_line_discounts не нужна: следующий
+  // автопересчёт должен снова рассматривать её как не прошедшую автоподстановку, а не как 'manual' (иначе промокод/правило,
+  // добавленные позже, её больше не увидят). Старую запись (от прежнего правила/карты) всё равно нужно убрать.
+  const withSource = [...r.byLine.entries()].filter(([, d]) => d.ruleId || d.cardId);
+  const withoutSource = [...r.byLine.keys()].filter(lineId => !withSource.some(([id]) => id === lineId));
+  if (withoutSource.length) await db.delete(documentLineDiscounts).where(inArray(documentLineDiscounts.lineId, withoutSource));
+  await saveLineDiscountSources(
+    db,
+    ctx.workspaceId,
+    withSource.map(([lineId, d]) => ({
+      lineId,
+      source: d.ruleId ? ('rule' as const) : ('card' as const),
+      ruleId: d.ruleId,
+      cardId: d.cardId,
+    })),
+  );
+  await recalcLines(db, doc);
+  return r.promoRuleId;
+}
+
+async function saveDocumentLoyaltyRule(db: Db, workspaceId: string, documentId: string, promoRuleId: string | null, promoCode: string | null): Promise<void> {
+  if (!promoCode) return;
+  if (!promoRuleId) return;
+  const [row] = await db.select({ id: promoCodes.id }).from(promoCodes).where(and(eq(promoCodes.workspaceId, workspaceId), sql`lower(${promoCodes.code}) = lower(${promoCode})`)).limit(1);
+  if (row) await saveDocumentLoyalty(db, workspaceId, documentId, { promoCodeId: row.id });
+}
 
 /** Цена строки внутреннего документа: у списания и перемещения — ноль, у оприходования — себестоимость прихода.
     Цену оприходования вправе задать admin и owner, остальным сервер подставляет текущую среднюю */
@@ -793,6 +885,10 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<voi
     await applyDocumentMoves(db, ctx, doc, lines);
   }
 
+  // лояльность (задача 1179): списание баллов уменьшает суммы строк до начисления взаиморасчётов
+  if ((LOYALTY_SALE_TYPES as readonly string[]).includes(type) && (await applyLoyaltyRedemption(db, ctx, doc))) await writeTotals(db, id);
+  if ((LOYALTY_RETURN_TYPES as readonly string[]).includes(type) && doc.basedOnId && (await applyLoyaltyReturnRefund(db, ctx, doc, doc.basedOnId))) await writeTotals(db, id);
+
   const num = doc.numberSeq === null ? await nextNumber(db, doc) : null;
   await db
     .update(documents)
@@ -806,6 +902,9 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<voi
   // повторные продажи (задача 1133): у покупателя ставится дата следующего контакта
   await applySaleNextContact(db, ctx, doc, lines);
   const [after] = await db.select({ number: documents.number, total: documents.total }).from(documents).where(eq(documents.id, id)).limit(1);
+  // лояльность (задача 1179): списание/начисление баллов по карте, промокод — на продажах; частичное сторно баллов — на возврате
+  if ((LOYALTY_SALE_TYPES as readonly string[]).includes(type)) await applyLoyaltyOnPost(db, ctx, { ...doc, number: after!.number, total: after!.total });
+  else if ((LOYALTY_RETURN_TYPES as readonly string[]).includes(type) && doc.basedOnId) await applyLoyaltyOnReturn(db, ctx, { ...doc, number: after!.number, total: after!.total }, doc.basedOnId);
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.posted', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { documentType: type, number: after!.number, total: after!.total, warnings: contractWarnings } });
 }
 
@@ -850,6 +949,14 @@ export async function unpostDocument(db: Db, ctx: DocCtx, id: string, opts: { re
   await syncAfterChange(db, ctx, { ...doc, status: 'draft' }, await linesOf(db, id), false);
   await DOCUMENT_HOOKS[doc.type as DocumentType]?.afterUnpost?.(db, ctx, { ...doc, status: 'draft' }, await linesOf(db, id));
   if (!isCashDocType(doc.type)) await removeSettlementMoves(db, ctx.workspaceId, id);
+  // лояльность (задача 1179): сторно баллов, начисленных/списанных при проведении; возврат счётчика промокода
+  if ((LOYALTY_SALE_TYPES as readonly string[]).includes(type)) {
+    await reverseLoyaltyOnUnpost(db, ctx, doc);
+    await recalcLines(db, doc);
+  } else if ((LOYALTY_RETURN_TYPES as readonly string[]).includes(type)) {
+    await reverseLoyaltyOnReturnUnpost(db, ctx, doc);
+    await recalcLines(db, doc);
+  }
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.unposted', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { documentType: type, number: doc.number } });
 }
 
@@ -931,9 +1038,15 @@ export async function createBasedOn(db: Db, ctx: DocCtx, sourceId: string, targe
     dueDate: target === 'invoice' ? src.dueDate : null,
     // инвестпроект переходит в документ-исполнитель и возврат, если проект ещё принимает документы
     investmentProjectId: src.investmentProjectId && isInvestmentFactType(target) && (await investmentOpen(db, src.investmentProjectId)) ? src.investmentProjectId : null,
+    basedOnId: sourceId,
     lines: newLines,
   });
   await db.update(documents).set({ basedOnId: sourceId }).where(eq(documents.id, id));
+  // карта и промокод идут по цепочке продажи: промокод считается использованным при проведении отгрузки
+  if ((DISCOUNT_DOCUMENT_TYPES as readonly string[]).includes(target)) {
+    const dl = await documentLoyaltyOf(db, sourceId);
+    if (dl) await saveDocumentLoyalty(db, ctx.workspaceId, id, { loyaltyCardId: dl.loyaltyCardId, promoCodeId: dl.promoCodeId, pointsRedeemed: dl.pointsRedeemed });
+  }
   const created = await linesOf(db, id);
   for (const [i, l] of created.entries()) await db.update(documentLines).set({ sourceLineId: meta[i]!.source, originLineId: meta[i]!.origin }).where(eq(documentLines.id, l.id));
   // реализация на основании заказа наследует его доставку (задача 1100)
@@ -953,6 +1066,21 @@ export interface DocumentLineView extends DocumentLineRow {
   planned: string;
   /** Для строк реализации и поступления: уже возвращено проведёнными возвратами */
   returned: string;
+  /** Источник скидки строки (задача 1179): null — скидки нет или запись об источнике отсутствует */
+  discountSource: 'manual' | 'rule' | 'card' | null;
+  discountRuleId: string | null;
+  discountRuleName: string | null;
+  discountCardId: string | null;
+  discountCardNumber: string | null;
+}
+
+/** Промокод, карта и списание баллов документа для формы (код и номер карты — готовыми строками) */
+async function documentLoyaltyView(db: Db, id: string) {
+  const dl = await documentLoyaltyOf(db, id);
+  if (!dl) return null;
+  const [pc] = dl.promoCodeId ? await db.select({ code: promoCodes.code }).from(promoCodes).where(eq(promoCodes.id, dl.promoCodeId)).limit(1) : [];
+  const [card] = dl.loyaltyCardId ? await db.select({ number: loyaltyCards.number, kind: loyaltyCards.kind }).from(loyaltyCards).where(eq(loyaltyCards.id, dl.loyaltyCardId)).limit(1) : [];
+  return { promoCodeId: dl.promoCodeId, promoCode: pc?.code ?? null, loyaltyCardId: dl.loyaltyCardId, loyaltyCardNumber: card?.number ?? null, loyaltyCardKind: card?.kind ?? null, pointsRedeemed: dl.pointsRedeemed };
 }
 
 export async function documentDetail(db: Db, id: string) {
@@ -1000,8 +1128,27 @@ export async function documentDetail(db: Db, id: string) {
   const shipped = isOrder ? await sums(documentLines.originLineId, FULFIL_TYPES, true) : new Map<string, string>();
   const planned = isOrder ? await sums(documentLines.originLineId, FULFIL_TYPES, false) : new Map<string, string>();
   const returned = isReturnable ? await sums(documentLines.sourceLineId, [type === 'realization' ? 'customer_return' : 'supplier_return'], true) : new Map<string, string>();
-  const lines: DocumentLineView[] = rows.map(r => ({ ...r.line, sku: r.sku, kind: r.kind, trackSerials: r.trackSerials, shipped: fmt(dec(shipped.get(r.line.id) ?? 0), 3), planned: fmt(dec(planned.get(r.line.id) ?? 0), 3), returned: fmt(dec(returned.get(r.line.id) ?? 0), 3) }));
+  const lines: DocumentLineView[] = rows.map(r => ({ ...r.line, sku: r.sku, kind: r.kind, trackSerials: r.trackSerials, shipped: fmt(dec(shipped.get(r.line.id) ?? 0), 3), planned: fmt(dec(planned.get(r.line.id) ?? 0), 3), returned: fmt(dec(returned.get(r.line.id) ?? 0), 3), discountSource: null, discountRuleId: null, discountRuleName: null, discountCardId: null, discountCardNumber: null }));
+  // источники скидок строк (ручная / правило / карта) — для отметки в форме документа
+  const srcRows = ids.length
+    ? await db
+        .select({ lineId: documentLineDiscounts.lineId, source: documentLineDiscounts.source, ruleId: documentLineDiscounts.ruleId, ruleName: discountRules.name, cardId: documentLineDiscounts.cardId, cardNumber: loyaltyCards.number })
+        .from(documentLineDiscounts)
+        .leftJoin(discountRules, eq(discountRules.id, documentLineDiscounts.ruleId))
+        .leftJoin(loyaltyCards, eq(loyaltyCards.id, documentLineDiscounts.cardId))
+        .where(inArray(documentLineDiscounts.lineId, ids))
+    : [];
+  const srcOf = new Map(srcRows.map(r => [r.lineId, r]));
+  for (const l of lines) {
+    const s = srcOf.get(l.id);
+    l.discountSource = s?.source ?? null;
+    l.discountRuleId = s?.ruleId ?? null;
+    l.discountRuleName = s?.ruleName ?? null;
+    l.discountCardId = s?.cardId ?? null;
+    l.discountCardNumber = s?.cardNumber ?? null;
+  }
   const totals = computeTotals(lines.map(l => ({ net: l.net, vatAmount: l.vatAmount, total: l.total, vatRate: l.vatRate })));
+  const loyalty = await documentLoyaltyView(db, id);
   const [targetWh] = doc.targetWarehouseId ? await db.select({ id: warehouses.id, name: warehouses.name, kind: warehouses.kind }).from(warehouses).where(eq(warehouses.id, doc.targetWarehouseId)).limit(1) : [];
   const [costItem] = doc.costItemId ? await db.select({ id: costItems.id, name: costItems.name, kind: costItems.kind }).from(costItems).where(eq(costItems.id, doc.costItemId)).limit(1) : [];
   // получатель имущества в эксплуатацию: сотрудник или участок
@@ -1012,7 +1159,7 @@ export async function documentDetail(db: Db, id: string) {
   // внутренний документ: стоимость по себестоимости (сумма qty × cost движений)
   const costs = DOCUMENT_META[type].party === null ? await documentCosts(db, [id]) : new Map<string, string>();
   const [investmentProject] = doc.investmentProjectId ? await db.select({ id: investmentProjects.id, name: investmentProjects.name, status: investmentProjects.status }).from(investmentProjects).where(eq(investmentProjects.id, doc.investmentProjectId)).limit(1) : [];
-  return { ...doc, investmentProject: investmentProject ?? null, organization: org ?? null, counterparty: cp ?? null, contract: contract ?? null, warehouse: wh ?? null, targetWarehouse: targetWh ?? null, costItem: costItem ?? null, workCenter: workCenter ?? null, inUseMember: inUseMember ?? null, inUseWorkCenter: inUseWorkCenter ?? null, costTotal: costs.get(id) ?? '0.00', basedOn: base ?? null, children, lines, totals, serials: await lineSerialsView(db, id), variants: hasQuoteVariants(type) ? await variantsOf(db, doc) : [] };
+  return { ...doc, investmentProject: investmentProject ?? null, organization: org ?? null, counterparty: cp ?? null, contract: contract ?? null, warehouse: wh ?? null, targetWarehouse: targetWh ?? null, costItem: costItem ?? null, workCenter: workCenter ?? null, inUseMember: inUseMember ?? null, inUseWorkCenter: inUseWorkCenter ?? null, costTotal: costs.get(id) ?? '0.00', basedOn: base ?? null, children, lines, loyalty, totals, serials: await lineSerialsView(db, id), variants: hasQuoteVariants(type) ? await variantsOf(db, doc) : [] };
 }
 
 /* ---------------- данные для печатной формы ---------------- */
