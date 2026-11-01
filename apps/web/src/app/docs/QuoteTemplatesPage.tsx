@@ -18,9 +18,10 @@ interface Draft {
   body: string;
   isUsed: boolean;
   onlyAuthor: boolean;
+  withImages: boolean;
 }
 
-const toDraft = (x: DocTemplate): Draft => ({ name: x.name, body: x.body, isUsed: x.isUsed, onlyAuthor: x.onlyAuthor });
+const toDraft = (x: DocTemplate): Draft => ({ name: x.name, body: x.body, isUsed: x.isUsed, onlyAuthor: x.onlyAuthor, withImages: x.withImages });
 
 export function QuoteTemplatesPage() {
   const t = useT();
@@ -145,6 +146,10 @@ export function QuoteTemplatesPage() {
                 <label className="row" style={{ gap: 6 }}>
                   <Switch checked={draft.onlyAuthor} disabled={!canWrite} onChange={e => setDraft({ ...draft, onlyAuthor: e.target.checked })} />
                   {t('docs.quotes.onlyAuthor')}
+                </label>
+                <label className="row" style={{ gap: 6 }} title={t('docs.quotes.withImagesHint')}>
+                  <Switch checked={draft.withImages} disabled={!canWrite} onChange={e => setDraft({ ...draft, withImages: e.target.checked })} />
+                  {t('docs.quotes.withImages')}
                 </label>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'start' }}>

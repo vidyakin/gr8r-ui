@@ -24,6 +24,7 @@ import {
 import type { Db } from './client';
 import { buildPrintData, defaultBank } from './documents';
 import { renderQuoteHtml } from './quotes';
+import { inlineAttachmentImages } from './attachments';
 import { DomainError } from './errors';
 import { openingDetail } from './opening-balances';
 import { cashOrderData, paymentDetail, printOrg, settlementActData } from './payments';
@@ -164,7 +165,7 @@ export async function renderDocumentHtml(db: Db, id: string, form: PrintForm, op
   if (!DOCUMENT_META[doc.type as DocumentType].forms.includes(form)) throw new DomainError(422, 'form_not_available', `The "${form}" form is not available for this document type`);
   if (isMoneyForm(form)) return renderMoneyForm(await moneyPrintData(db, id, form));
   // КП: стандартная форма или шаблон КП (docs/architecture/quotes.md)
-  if (form === 'quote') return renderQuoteHtml(db, await buildPrintData(db, id), opts.templateId, opts.memberId ?? null);
+  if (form === 'quote') return inlineAttachmentImages(db, await renderQuoteHtml(db, await buildPrintData(db, id), opts.templateId, opts.memberId ?? null));
   return renderPrintForm(form, await buildPrintData(db, id));
 }
 
