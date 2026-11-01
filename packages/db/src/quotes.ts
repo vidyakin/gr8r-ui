@@ -167,12 +167,14 @@ export interface TemplateInput {
   body?: string;
   isUsed?: boolean;
   onlyAuthor?: boolean;
+  /** «С картинками» (задача 1192): первая колонка таблицы товаров — картинка товара */
+  withImages?: boolean;
 }
 
 export async function createTemplate(db: Db, ctx: DocCtx, input: TemplateInput & { id?: string; name: string }): Promise<TemplateRow> {
   const [t] = await db
     .insert(docTemplates)
-    .values({ id: input.id, workspaceId: ctx.workspaceId, name: input.name, purpose: input.purpose ?? 'quote', body: input.body ?? '', isUsed: input.isUsed ?? true, onlyAuthor: input.onlyAuthor ?? false, authorId: ctx.memberId })
+    .values({ id: input.id, workspaceId: ctx.workspaceId, name: input.name, purpose: input.purpose ?? 'quote', body: input.body ?? '', isUsed: input.isUsed ?? true, onlyAuthor: input.onlyAuthor ?? false, withImages: input.withImages ?? false, authorId: ctx.memberId })
     .returning();
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'doc_template.created', entity: 'doc_template', recordId: t!.id, actorId: ctx.memberId });
   return t!;
@@ -204,5 +206,6 @@ export async function renderQuoteHtml(db: Db, data: PrintData, templateId: strin
   if (!templateId) return renderQuote(data);
   const t = await getTemplate(db, { workspaceId: '', memberId }, templateId);
   if (t.purpose !== 'quote' || t.archivedAt) throw new DomainError(404, 'not_found', 'template not found');
-  return renderQuote(data, t.body);
+  // флажок шаблона «с картинками» — первая колонка таблицы товаров (задача 1192)
+  return renderQuote(data, t.body, { withImages: t.withImages });
 }

@@ -80,6 +80,8 @@ export interface Product {
   weightKg: string | null;
   /** Вид номенклатуры (задача 1172) */
   productKindId: string | null;
+  /** Основная картинка: вложение товара (задача 1192); пусто — нет */
+  imageAttachmentId: string | null;
   custom: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;

@@ -6,6 +6,12 @@ import { amountInWordsRu } from '../ru';
 import { dateLongRu, dateRu, esc, groupedRows, html, moneyRu, qtyRu } from './templates';
 import type { PrintData, PrintLine, PrintVariant } from './types';
 
+/** Параметры рендера КП: флажок шаблона «с картинками» (задача 1192) */
+export interface QuoteRenderOptions {
+  /** Первая колонка таблицы товаров — картинка (PrintLine.image) */
+  withImages?: boolean;
+}
+
 /** Параметры для подстановки: имя → значение по данным печати */
 const PARAMS: Record<string, (d: PrintData) => string> = {
   Номер: d => d.number ?? '(черновик)',
@@ -35,15 +41,16 @@ const PARAMS: Record<string, (d: PrintData) => string> = {
   Комментарий: d => d.comment,
 };
 
-/** Блоки: ставятся отдельной строкой */
-const BLOCKS: Record<string, (d: PrintData) => string> = {
-  Товары: d => linesTable(d, { name: '', main: true, lines: d.lines, totals: d.totals }),
-  Варианты: d => variantsBlock(d),
-  Подписи: d => signs(d),
-};
+/** Блоки: ставятся отдельной строкой (зависят от параметров рендера, например флажка «с картинками») */
+const blocksOf =
+  (opts: QuoteRenderOptions = {}): Record<string, (d: PrintData) => string> => ({
+    Товары: d => linesTable(d, { name: '', main: true, lines: d.lines, totals: d.totals }, opts),
+    Варианты: d => variantsBlock(d, opts),
+    Подписи: d => signs(d),
+  });
 
 export const QUOTE_TEMPLATE_PARAMS = Object.keys(PARAMS);
-export const QUOTE_TEMPLATE_BLOCKS = Object.keys(BLOCKS);
+export const QUOTE_TEMPLATE_BLOCKS = Object.keys(blocksOf());
 
 /** Текст стандартной формы «Коммерческое предложение»; с него же начинается новый шаблон */
 export const DEFAULT_QUOTE_TEMPLATE = `# Коммерческое предложение № {{Номер}} от {{Дата}}
@@ -65,30 +72,30 @@ export const DEFAULT_QUOTE_TEMPLATE = `# Коммерческое предлож
 
 const PLACEHOLDER = /\{\{\s*([^{}]+?)\s*\}\}/g;
 
-function linesTable(d: PrintData, v: PrintVariant): string {
+function linesTable(d: PrintData, v: PrintVariant, opts: QuoteRenderOptions = {}): string {
   const amount = (l: PrintLine) => (d.priceIncludesVat ? l.total : l.net);
   const disc = v.lines.some(l => Number(l.discountPct) > 0);
-  const cols = disc ? 6 : 5;
+  const cols = (disc ? 6 : 5) + (opts.withImages ? 1 : 0);
   const rows = groupedRows(
     v.lines,
     l =>
-      `<tr><td class="center">${l.n}</td><td>${esc(l.name)}</td><td class="right">${qtyRu(l.qty)}</td><td class="center">${esc(l.unitSymbol)}</td><td class="right">${moneyRu(l.price)}</td>${disc ? `<td class="right">${Number(l.discountPct) > 0 ? `${qtyRu(l.discountPct)}%` : ''}</td>` : ''}<td class="right">${moneyRu(amount(l))}</td></tr>`,
+      `<tr>${opts.withImages ? `<td class="center">${l.image ? `<img src="${esc(l.image)}" alt="" style="width:48px;height:48px;object-fit:contain">` : ''}</td>` : ''}<td class="center">${l.n}</td><td>${esc(l.name)}</td><td class="right">${qtyRu(l.qty)}</td><td class="center">${esc(l.unitSymbol)}</td><td class="right">${moneyRu(l.price)}</td>${disc ? `<td class="right">${Number(l.discountPct) > 0 ? `${qtyRu(l.discountPct)}%` : ''}</td>` : ''}<td class="right">${moneyRu(amount(l))}</td></tr>`,
     (name, sum) => `<tr class="grp"><td colspan="${cols}" class="bold">${esc(name)}</td><td class="right bold">${moneyRu(sum)}</td></tr>`,
     amount,
   );
   const t = v.totals;
   const vat = v.lines.every(l => l.vatRate === 'none') ? 'Без НДС' : moneyRu(t.vat);
-  return `<table class="grid" style="margin-top:6px"><thead><tr><th style="width:28px">№</th><th>Товары (работы, услуги)</th><th style="width:56px">Кол-во</th><th style="width:40px">Ед.</th><th style="width:84px">Цена</th>${disc ? '<th style="width:56px">Скидка</th>' : ''}<th style="width:92px">Сумма</th></tr></thead><tbody>${rows}</tbody></table>
+  return `<table class="grid" style="margin-top:6px"><thead><tr>${opts.withImages ? '<th style="width:60px">&nbsp;</th>' : ''}<th style="width:28px">№</th><th>Товары (работы, услуги)</th><th style="width:56px">Кол-во</th><th style="width:40px">Ед.</th><th style="width:84px">Цена</th>${disc ? '<th style="width:56px">Скидка</th>' : ''}<th style="width:92px">Сумма</th></tr></thead><tbody>${rows}</tbody></table>
 <table class="totals" style="margin-top:4px"><tr><td class="bold">${d.priceIncludesVat ? 'Итого' : 'Итого (без НДС)'}:</td><td class="bold" style="width:100px">${moneyRu(d.priceIncludesVat ? t.total : t.net)}</td></tr>
 <tr><td class="bold">${d.priceIncludesVat ? 'В том числе НДС' : 'Сумма НДС'}:</td><td class="bold">${vat}</td></tr>
 <tr><td class="bold">Всего:</td><td class="bold">${moneyRu(t.total)}</td></tr></table>`;
 }
 
 /** Все варианты: у каждого заголовок, таблица и итог; без вариантов — таблица строк документа */
-function variantsBlock(d: PrintData): string {
+function variantsBlock(d: PrintData, opts: QuoteRenderOptions): string {
   const vs = d.variants ?? [];
-  if (vs.length < 2) return linesTable(d, { name: '', main: true, lines: d.lines, totals: d.totals });
-  return vs.map(v => `<h2 style="margin-top:10px">${esc(v.name)}</h2>${linesTable(d, v)}<div class="small">${esc(amountInWordsRu(v.totals.total))}</div>`).join('');
+  if (vs.length < 2) return linesTable(d, { name: '', main: true, lines: d.lines, totals: d.totals }, opts);
+  return vs.map(v => `<h2 style="margin-top:10px">${esc(v.name)}</h2>${linesTable(d, v, opts)}<div class="small">${esc(amountInWordsRu(v.totals.total))}</div>`).join('');
 }
 
 function signs(d: PrintData): string {
@@ -124,7 +131,8 @@ function inline(text: string, d: PrintData): string | null {
 }
 
 /** Тело шаблона → HTML без обёртки страницы */
-export function renderQuoteBody(body: string, d: PrintData): string {
+export function renderQuoteBody(body: string, d: PrintData, opts: QuoteRenderOptions = {}): string {
+  const BLOCKS = blocksOf(opts);
   const out: string[] = [];
   let para: string[] = [];
   const flush = () => {
@@ -156,6 +164,6 @@ export function renderQuoteBody(body: string, d: PrintData): string {
 }
 
 /** Страница КП по шаблону; без шаблона — стандартная форма */
-export function renderQuote(d: PrintData, body: string = DEFAULT_QUOTE_TEMPLATE): string {
-  return html(d, 'portrait', `<div class="quote">${renderQuoteBody(body, d)}</div>`);
+export function renderQuote(d: PrintData, body: string = DEFAULT_QUOTE_TEMPLATE, opts: QuoteRenderOptions = {}): string {
+  return html(d, 'portrait', `<div class="quote">${renderQuoteBody(body, d, opts)}</div>`);
 }

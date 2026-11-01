@@ -95,6 +95,8 @@ export const productCreate = z.object({
   weightKg: decimal.nullish().refine(v => v == null || Number(v) >= 0, 'Expected a non-negative weight'),
   /** Вид номенклатуры (задача 1172, необязательный): тип вида должен совпадать с kind товара */
   productKindId: uuid.nullish(),
+  /** Основная картинка: вложение товара (entity_type = product, mime image/*, задача 1192) */
+  imageAttachmentId: uuid.nullish(),
   custom: customData.optional(),
 });
 export const productUpdate = toPatch(productCreate.omit({ id: true }));

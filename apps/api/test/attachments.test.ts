@@ -186,6 +186,92 @@ describe('права как у объекта', () => {
   });
 });
 
+/* ---------------- картинки товаров (задача 1192) ---------------- */
+
+describe('картинки товара', () => {
+  // настоящий PNG 300x200 — есть что уменьшать до 128px
+  const PNG = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAASwAAADICAIAAADdvUsCAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAFHElEQVR4nO3VQQ0AQQzDwEVSEMcfQGAdjDwykhE4tfryHRhgIL0QHvsMMJDqKxKhE2TgROgIGLjlb+wT9jdAtiWIsL8Bsi1BhP0NkG0JIuxvgGxLEGF/A2Rbggj7GyDbEkTY3wDZliDC/gbItgQR9jdAtiWIsL8Bsi1BhP0NkG0JIuxvgGxLEGF/A2Rbggj7GyDbEkTY3wDZliDC/gbItgQR9jdAtiWIsL8Bsi1BhP0NkG0JIuxvgGxLEGF/A2Rbggj7GyDbEkTY3wDZliDC/gbItgQR9jdAtiWIsL8Bsi1BhP0NkG0JIuxvgGxLEGF/A2Rbggj7GyDbEkTY3wDZliDC/gbItgQR9jdAtiWIsL8Bsi1BhP0NkG0JIuxvgGxLEGF/A2Rbggj7GyDbEkTY3wDZliDC/gbItgQR9jdAtiWIsL8Bsi1BhP0NkG0JIuxvgGxLEGF/A2Rbggj7GyDbEkTY3wDZliDC/gbItgQR9jdAtiWIsL8Bsi1BhP0NkG0JIuxvgGxLEGF/A2Rbggj7GyDbEkTY3wDZliDC/gbItgQR9jdAtiWIsL8Bsi1BhP0NkG0JIuxvgGxLEGF/A2Rbggj7GyDbEkTY3wDZliDC/gbItgQR9jdAtiWIsL8Bsi1BhP0NkG0JIuxvgGxLEGF/A4wbEGF/A2Rbggj7GyDbEkTY3wDZliDC/gbItgQR9jdAtiWIsL8Bsi1BhP0NkG0JIuxvgGxLEGF/A2Rbggj7GyDbEkTY3wDZliDC/gbItgQR9jdAtiWIsL8Bsi1BhP0NkG0JIuxvgGxLEGF/A2Rbggj7GyDbEkTY3wDZliDC/gbItgQR9jdAtiWIsL8Bsi1BhP0NkG0JIuxvgGxLEGF/A2Rbggj7GyDbEkTY3wDZliDC/gbItgQR9jdAtiWIsL8Bsi1BhP0NkG0JIuxvgGxLEGF/A2Rbggj7GyDbEkTY3wDZliDC/gbItgQR9jdAtiWIsL8Bsi1BhP0NkG0JIuxvgGxLEGF/A2Rbggj7GyDbEkTY3wDZliDC/gbItgQR9jdAtiWIsL8Bsi1BhP0NkG0JIuxvgGxLEGF/A2Rbggj7GyDbEkTY3wDZliDC/gbItgQR9jdAtiWIsL8Bsi1BhP0NkG0JIuxvgGxLEGF/A2Rbggj7GyDbEkTY3wDZliDC/gbItgQR9jdAtiWIsL8Bsi1BhP0NkG0JIuxvgGxLEGF/A2Rbggj7GyDbEkTY3wDZliDC/gbItgQR9jdAtiWIsL8Bsi1BhP0NkG0JIuxvgGxLEGF/A2Rbggj7GyDbEkTY3wDZliDC/gbItgQR9jdAtiWIsL8Bsi1BhP0NkG0JIuxvgGxLEGF/A2Rbggj7GyDbEkTY3wDZliDC/gbItgQR9jdAtiWIsL8Bsi1BhP0NkG0JIuxvgGxLEGF/A2Rbggj7GyDbEkTY3wDZliDC/gbItgQR9jdAtiWIsL8Bsi1BhP0NkG0JIuxvgGxLEGF/A2Rbggj7GyDbEkTY3wDZliDC/gbItgQR9jdAtiWIsL8Bsi1BhP0NkG0JIuxvgGxLEGF/A2Rbggj7GyDbEkTY3wDZliDC/gbItgQR9jfAuAER9jdAtiWIsL8Bsi1BhP0NkG0JIuxvgGxLEGF/A2Rbggj7GyDbEkTY3wDZliDC/gbItgQR9jdAtiWIsL8Bsi1BhP0NkG0JIuxvgGxLEGF/A2Rbggj7GyDbEkTY3wDZliDC/gbItgQR9jdAtiWIsL8Bsi3hB+4XaAEEqPZHAAAAAElFTkSuQmCC'), c => c.charCodeAt(0));
+  let productId: string;
+  let productId2: string;
+
+  beforeAll(async () => {
+    productId = (await owner.post('/products', { name: 'Телефон', sku: 'IMG-1', kind: 'goods', price: 1000, vatRate: 'none' })).body.id;
+    productId2 = (await owner.post('/products', { name: 'Чехол', sku: 'IMG-2', kind: 'goods', price: 500, vatRate: 'none' })).body.id;
+  });
+
+  function imgForm(entityType: string, entityId: string) {
+    const f = new FormData();
+    f.set('entityType', entityType);
+    f.set('entityId', entityId);
+    f.set('file', new File([PNG], 'pic.png', { type: 'image/png' }));
+    return f;
+  }
+  const uploadImg = (c: Client, entityType: string, entityId: string) => c.form('POST', '/attachments', imgForm(entityType, entityId));
+
+  test('первая загруженная картинка становится основной, миниатюра меньше оригинала и кэшируется', async () => {
+    const first = await uploadImg(owner, 'product', productId);
+    expect(first.status).toBe(201);
+    // основная картинка проставилась сама
+    const product = (await owner.get(`/products/${productId}`)).body;
+    expect(product.imageAttachmentId).toBe(first.body.id);
+    // вторая картинка основной не становится
+    const second = await uploadImg(owner, 'product', productId);
+    expect(second.status).toBe(201);
+    expect((await owner.get(`/products/${productId}`)).body.imageAttachmentId).toBe(first.body.id);
+    // миниатюра: image/*, меньше оригинала, отдаётся с кэшем на час
+    const thumb = await owner.get(`/attachments/${first.body.id}/content?thumb=128`);
+    expect(thumb.status).toBe(200);
+    expect(thumb.headers.get('content-type')).toBe('image/png');
+    expect(thumb.bytes.length).toBeGreaterThan(0);
+    expect(thumb.bytes.length).toBeLessThan(PNG.length);
+    expect(thumb.headers.get('cache-control')).toBe('private, max-age=3600');
+    // ключ миниатюры — рядом с версией: <ws>/<att>/<version>/t128
+    expect([...store.objects.keys()]).toContain(`${ws}/${first.body.id}/1/t128`);
+    // не-картинке миниатюра не положена
+    const txt = await upload(owner, 'product', productId, 'note.txt', 'hello');
+    expect((await owner.get(`/attachments/${txt.body.id}/content?thumb=128`)).body.error.code).toBe('not_an_image');
+  });
+
+  test('«сделать основной»: PATCH products, чужая или не-картинка — 422', async () => {
+    const first = (await owner.get(`/attachments?entityType=product&entityId=${productId}`)).body.items.find((x: any) => (x.mime ?? '').startsWith('image/'));
+    const secondImg = (await uploadImg(owner, 'product', productId)).body.id;
+    const r = await owner.patch(`/products/${productId}`, { imageAttachmentId: secondImg });
+    expect(r.status).toBe(200);
+    expect(r.body.imageAttachmentId).toBe(secondImg);
+    // обратно
+    expect((await owner.patch(`/products/${productId}`, { imageAttachmentId: first.id })).body.imageAttachmentId).toBe(first.id);
+    // чужой товар
+    const otherProductImg = (await uploadImg(owner, 'product', productId2)).body.id;
+    expect((await owner.patch(`/products/${productId}`, { imageAttachmentId: otherProductImg })).status).toBe(422);
+    // не-картинка (вложение этого же товара, но text/plain)
+    const txt = (await upload(owner, 'product', productId, 'readme.txt', 'hi')).body.id;
+    expect((await owner.patch(`/products/${productId}`, { imageAttachmentId: txt })).status).toBe(422);
+    // архивная картинка не становится основной
+    const archivable = (await uploadImg(owner, 'product', productId)).body.id;
+    await owner.del(`/attachments/${archivable}`);
+    expect((await owner.patch(`/products/${productId}`, { imageAttachmentId: archivable })).status).toBe(422);
+    // сброс: null очищает
+    expect((await owner.patch(`/products/${productId2}`, { imageAttachmentId: null })).body.imageAttachmentId).toBeNull();
+  });
+
+  test('предпросмотр КП по шаблону с картинками содержит инлайн data:img', async () => {
+    // у товара уже есть основная картинка; шаблон с флажком «с картинками»
+    const tpl = await owner.post('/doc-templates', { name: 'КП с картинками', body: '# КП {{Номер}}\n\n{{Товары}}', withImages: true });
+    expect(tpl.status).toBe(201);
+    expect(tpl.body.withImages).toBe(true);
+    const companyId = (await owner.post('/companies', { name: 'ООО Картинки' })).body.id;
+    const doc = await owner.post('/documents', { type: 'quote', counterpartyId: companyId, lines: [{ productId, qty: '1', price: '1000', vatRate: 'none' }] });
+    const html = (await owner.get(`/documents/${doc.body.id}/print/quote?template=${tpl.body.id}`)).body as string;
+    // флажок шаблона добавил колонку с картинкой, картинка инлайнится (PDF не ходит в сеть)
+    expect(html).toContain('<img');
+    expect(html).toContain('src="data:image/png;base64,');
+    // без флажка — без картинок
+    const tplPlain = await owner.post('/doc-templates', { name: 'КП без картинок', body: '# КП {{Номер}}\n\n{{Товары}}' });
+    const html2 = (await owner.get(`/documents/${doc.body.id}/print/quote?template=${tplPlain.body.id}`)).body as string;
+    expect(html2).not.toContain('<img');
+  });
+});
+
 describe('сборка мусора', () => {
   test('удаляет объекты давно архивных вложений и осиротевшие ключи', async () => {
     const r = await upload(owner, 'company', companyId, 'gc.txt', 'gc');

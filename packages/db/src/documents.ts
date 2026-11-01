@@ -1228,8 +1228,10 @@ export async function buildPrintData(db: Db, id: string): Promise<PrintData> {
   // серийные номера строк и гарантия товаров (гарантийный талон)
   const serialsByLine = new Map<string, { serial: string; warrantyUntil: string | null }[]>();
   for (const sr of await lineSerialsView(db, id)) if (sr.lineId) serialsByLine.set(sr.lineId, [...(serialsByLine.get(sr.lineId) ?? []), { serial: sr.serial, warrantyUntil: sr.warrantyUntil }]);
-  const warrantyRows = d.lines.length ? await db.select({ id: products.id, m: products.warrantyMonths }).from(products).where(inArray(products.id, [...new Set(d.lines.map(l => l.productId))])) : [];
+  const warrantyRows = d.lines.length ? await db.select({ id: products.id, m: products.warrantyMonths, img: products.imageAttachmentId }).from(products).where(inArray(products.id, [...new Set(d.lines.map(l => l.productId))])) : [];
   const warrantyBy = new Map(warrantyRows.map(w => [w.id, w.m]));
+  // картинка товара для КП с картинками (задача 1192): относительный URL, инлайнится при рендере PDF
+  const imageBy = new Map(warrantyRows.map(w => [w.id, w.img ? `/api/attachments/${w.img}/content?thumb=256` : '']));
   const party: PrintParty = co
     ? { name: co.name, fullName: co.name, inn: co.inn, kpp: co.kpp, ogrn: co.ogrn, address: co.legalAddress || co.city, phone: '', bank: await defaultBank(db, { companyId: co.id }) }
     : { name: '', fullName: '', inn: '', kpp: '', ogrn: '', address: '', phone: '', bank: null };
@@ -1276,6 +1278,7 @@ export async function buildPrintData(db: Db, id: string): Promise<PrintData> {
       kind: l.kind,
       ...(serialsByLine.has(l.id) ? { serials: serialsByLine.get(l.id)! } : {}),
       warrantyMonths: warrantyBy.get(l.productId) ?? null,
+      image: imageBy.get(l.productId) || undefined,
       group: l.groupName,
     })),
     totals: d.totals,

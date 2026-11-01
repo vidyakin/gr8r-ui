@@ -4,7 +4,7 @@ import { zValidator } from '@hono/zod-validator';
 import { asc, eq, inArray, max, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { assertProductKind, attributeDefs, companies, generateVariants, listVariants, productCategories, products, recordEvent, recordProductPrice, specParamsOfProduct, units, uuidv7 } from '@gr8r/db';
+import { assertProductKind, attributeDefs, attachments, companies, generateVariants, listVariants, productCategories, products, recordEvent, recordProductPrice, specParamsOfProduct, units, uuidv7 } from '@gr8r/db';
 import { attributeCreate, attributeUpdate, categoryCreate, categoryQuery, categoryUpdate, destroyQuery, idParam, keyFromName, productCreate, productQuery, productUpdate, unitCreate, unitQuery, unitUpdate, type RecordData } from '@gr8r/shared';
 import { crud, ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError, notFound } from '../errors';
@@ -211,6 +211,8 @@ export const productRoutes = crud({
     if (body.kind !== undefined || body.productKindId !== undefined) await assertProductKind(ctx.db, body.kind ?? existing.kind, body.productKindId !== undefined ? body.productKindId : existing.productKindId);
     if (body.defaultSupplierId) await assertSupplier(ctx, body.defaultSupplierId);
     if (body.parentProductId !== undefined && body.parentProductId && body.parentProductId !== existing.parentProductId) await assertVariantParent(ctx, body.parentProductId);
+    // основная картинка — вложение этого же товара (задача 1192)
+    if (body.imageAttachmentId !== undefined && body.imageAttachmentId !== null) await assertProductImage(ctx, existing.id, body.imageAttachmentId);
     const out: Record<string, unknown> = { ...(await customForUpdate(ctx, 'product', existing.custom, body.custom, existing.id)) };
     const categoryChanged = body.categoryId !== undefined && (body.categoryId ?? null) !== existing.categoryId;
     if (categoryChanged || body.attrs !== undefined) {
@@ -244,6 +246,15 @@ export const productRoutes = crud({
     if (n) throw new AppError(422, 'variants_exist', `“${row.name}” has ${n} variant${n === 1 ? '' : 's'}: remove them first`);
   },
 });
+
+/** Основная картинка: живое image-вложение этого же товара */
+async function assertProductImage(ctx: Ctx, productId: string, attachmentId: string): Promise<void> {
+  const [a] = await ctx.db.select({ id: attachments.id, entityType: attachments.entityType, entityId: attachments.entityId, archivedAt: attachments.archivedAt }).from(attachments).where(eq(attachments.id, attachmentId)).limit(1);
+  if (!a || a.entityType !== 'product' || a.entityId !== productId) throw new AppError(422, 'invalid_image', 'The image must be an attachment of this product');
+  if (a.archivedAt) throw new AppError(422, 'invalid_image', 'The image attachment is archived');
+  const [v] = await ctx.db.execute(sql`select mime from attachment_versions where attachment_id = ${attachmentId} order by version desc limit 1`).then(r => (r as unknown as { mime: string | null }[]));
+  if (!v?.mime || !v.mime.startsWith('image/')) throw new AppError(422, 'invalid_image', 'The attachment is not an image');
+}
 
 /** Родитель варианта: вариант не может быть родителем другого варианта */
 async function assertVariantParent(ctx: Ctx, parentId: string): Promise<void> {

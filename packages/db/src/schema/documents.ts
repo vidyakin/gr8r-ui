@@ -489,6 +489,8 @@ export const docTemplates = pgTable(
     isUsed: boolean('is_used').notNull().default(true),
     /** «Доступность»: шаблон видит и печатает только автор */
     onlyAuthor: boolean('only_author').notNull().default(false),
+    /** «С картинками» (задача 1192): первая колонка таблицы товаров — картинка товара */
+    withImages: boolean('with_images').notNull().default(false),
     authorId: uuid('author_id'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

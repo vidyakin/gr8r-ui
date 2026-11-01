@@ -3,7 +3,7 @@
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { addVersion, archiveAttachment, createAttachment, getAttachment, listAttachments, readContent, renameAttachment, restoreAttachment, setStorageQuota, storageSettings, storageUsage } from '@gr8r/db';
+import { addVersion, archiveAttachment, createAttachment, getAttachment, listAttachments, readContent, readThumb, restoreAttachment, renameAttachment, setStorageQuota, storageSettings, storageUsage, type ThumbSize } from '@gr8r/db';
 import { attachmentQuery, attachmentQuotaBody, attachmentUpdate, idParam } from '@gr8r/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError, badRequest } from '../errors';
@@ -34,7 +34,7 @@ async function readUpload(c: import('hono').Context<AppEnv>): Promise<{ file: Fi
 
 const bytesOf = async (f: File) => new Uint8Array(await f.arrayBuffer());
 const disposition = (name: string, inline: boolean) => `${inline ? 'inline' : 'attachment'}; filename="${name.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(name)}`;
-const versionParam = z.object({ version: z.coerce.number().int().positive().optional() });
+const versionParam = z.object({ version: z.coerce.number().int().positive().optional(), thumb: z.enum(['128', '256', '512']).optional() });
 
 const view = (a: { id: string }, extra: object) => ({ ...a, ...extra });
 
@@ -86,9 +86,13 @@ export const attachmentRoutes = new Hono<AppEnv>()
   })
   .get('/:id/content', zValidator('param', idParam, validationHook), zValidator('query', versionParam, validationHook), async c => {
     const ctx = ctxOf(c);
-    const f = await readContent(ctx.db, actorOf(ctx), c.req.valid('param').id, c.req.valid('query').version);
+    // "128"|"256"|"512" из query → число; 0/NaN → undefined (без миниатюры)
+    const thumbRaw = c.req.valid('query').thumb;
+    const thumb = thumbRaw ? (Number(thumbRaw) as ThumbSize) : undefined;
+    // миниатюра — без номера версии (текущая) и без параметров сохранения: маленькая и редко меняется
+    const f = thumb ? await readThumb(ctx.db, actorOf(ctx), c.req.valid('param').id, thumb) : await readContent(ctx.db, actorOf(ctx), c.req.valid('param').id, c.req.valid('query').version);
     const inline = c.req.query('inline') === '1' && /^(image\/(png|jpeg|gif|webp)|application\/pdf)$/.test(f.mime);
-    return new Response(new Blob([new Uint8Array(f.data)]), { headers: { 'content-type': f.mime, 'content-length': String(f.data.length), 'content-disposition': disposition(f.name, inline), 'x-content-type-options': 'nosniff', 'cache-control': 'private, no-store' } });
+    return new Response(new Blob([new Uint8Array(f.data)]), { headers: { 'content-type': f.mime, 'content-length': String(f.data.length), 'content-disposition': disposition(f.name, inline), 'x-content-type-options': 'nosniff', 'cache-control': thumb ? 'private, max-age=3600' : 'private, no-store' } });
   })
   .patch('/:id', write, zValidator('param', idParam, validationHook), zValidator('json', attachmentUpdate, validationHook), async c => {
     const ctx = ctxOf(c);

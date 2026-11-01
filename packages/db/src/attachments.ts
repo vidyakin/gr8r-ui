@@ -192,6 +192,78 @@ const requireStore = (): FileStore => {
   return s;
 };
 
+/* ---------------- миниатюры (задача 1192) ---------------- */
+
+export const THUMB_SIZES = [128, 256, 512] as const;
+export type ThumbSize = (typeof THUMB_SIZES)[number];
+
+/** Ключ миниатюры: рядом с версией — <ws>/<att>/<version>/t<size> */
+const thumbKey = (versionKey: string, size: ThumbSize) => `${versionKey}/t${size}`;
+
+/** Миниатюра картинки (без апскейла): кэшируется в сторе рядом с версией, при ошибке ресайза — исходные данные */
+async function thumbOf(store: FileStore, mime: string, data: Uint8Array, versionKey: string, size: ThumbSize): Promise<{ mime: string; data: Uint8Array }> {
+  const key = thumbKey(versionKey, size);
+  const cached = await store.get(key);
+  if (cached) return { mime, data: cached };
+  let out: Uint8Array;
+  try {
+    const sharp = (await import('sharp')).default;
+    out = new Uint8Array(await sharp(Buffer.from(data)).rotate().resize(size, size, { fit: 'inside', withoutEnlargement: true }).toBuffer());
+  } catch {
+    return { mime, data }; // не картинка или битые данные — отдаём как есть
+  }
+  await store.put(key, out, mime);
+  return { mime, data: out };
+}
+
+/** Содержимое миниатюры текущей (или указанной) версии; только для image/* */
+export async function readThumb(db: Db, a: Actor, id: string, size: ThumbSize, version?: number): Promise<{ name: string; mime: string; data: Uint8Array }> {
+  const att = await load(db, a, id, 'read');
+  const [v] = await db
+    .select()
+    .from(attachmentVersions)
+    .where(and(eq(attachmentVersions.attachmentId, id), eq(attachmentVersions.version, version ?? att.currentVersion)));
+  if (!v) throw notFound();
+  const mime = v.mime || 'application/octet-stream';
+  if (!mime.startsWith('image/')) throw new DomainError(422, 'not_an_image', 'Thumbnails are only available for images');
+  const store = requireStore();
+  if (!v.storageKey) throw new DomainError(404, 'file_content_missing', 'File content is not available');
+  const data = await store.get(v.storageKey);
+  if (!data) throw new DomainError(404, 'file_content_missing', 'File content is not available');
+  return { name: att.name, mime, data: (await thumbOf(store, mime, data, v.storageKey, size)).data };
+}
+
+/** Инлайнит картинки-вложения в HTML печатной формы: src="/attachments/<id>/content…" → data:<mime>;base64 (PDF не ходит в сеть) */
+export async function inlineAttachmentImages(db: Db, html: string, size: ThumbSize = 256): Promise<string> {
+  const ids = [...new Set([...html.matchAll(/src="(?:https?:\/\/[^\"]*)?\/(?:api\/)?attachments\/([0-9a-f-]{36})\/content[^"]*"/gi)].map(m => m[1]!))];
+  if (!ids.length) return html;
+  const inline = new Map<string, string | null>();
+  for (const id of ids) {
+    let data: string | null = null;
+    try {
+      const [att] = await db.select().from(attachments).where(eq(attachments.id, id)).limit(1);
+      if (att && !att.archivedAt) {
+        const [v] = await db
+          .select()
+          .from(attachmentVersions)
+          .where(and(eq(attachmentVersions.attachmentId, id), eq(attachmentVersions.version, att.currentVersion)));
+        if (v?.storageKey && (v.mime ?? '').startsWith('image/')) {
+          const store = getFileStore();
+          const raw = store ? await store.get(v.storageKey) : null;
+          if (raw && store) data = `data:${v.mime};base64,${Buffer.from((await thumbOf(store, v.mime!, raw, v.storageKey, size)).data).toString('base64')}`;
+        }
+      }
+    } catch {
+      // картинка недоступна — оставляем ссылку
+    }
+    inline.set(id, data);
+  }
+  return html.replace(/src="(https?:\/\/[^\"]*)?\/(?:api\/)?attachments\/([0-9a-f-]{36})\/content[^"]*"/gi, (all, _origin: string | undefined, id: string) => {
+    const d = inline.get(id);
+    return d ? `src="${d}"` : all;
+  });
+}
+
 export interface UploadInput {
   name: string;
   mime?: string | null;
@@ -229,6 +301,13 @@ export async function createAttachment(db: Db, a: Actor, entityType: string, ent
     .returning();
   const version = await putVersion(db, a, att!.id, 1, input);
   await recordEvent(db, { workspaceId: a.workspaceId, type: 'attachment.created', entity: 'attachment', recordId: att!.id, actorId: a.memberId, payload: { entityType, entityId, name: input.name, size: input.data.length } });
+  // первая картинка товара становится основной (задача 1192)
+  if (entityType === 'product' && (input.mime ?? '').startsWith('image/')) {
+    await db
+      .update(products)
+      .set({ imageAttachmentId: att!.id, updatedAt: new Date() })
+      .where(and(eq(products.id, entityId), eq(products.workspaceId, a.workspaceId), isNull(products.imageAttachmentId)));
+  }
   return { attachment: att!, version };
 }
 
@@ -285,8 +364,6 @@ export async function archiveAttachmentsOf(db: Db, workspaceId: string, entityTy
 
 /* ---------------- сборка мусора (воркер) ---------------- */
 
-const ATTACHMENT_KEY = /^[0-9a-f]{8}-[0-9a-f-]{27}\/[0-9a-f]{8}-[0-9a-f-]{27}\/\d+$/;
-
 export interface GcResult {
   archivedObjects: number;
   orphanObjects: number;
@@ -305,14 +382,17 @@ export async function collectAttachmentGarbage(db: Db, store: FileStore, retenti
     .limit(500);
   for (const v of old) {
     await store.delete(v.key!);
+    // миниатюры лежат рядом с версией: <ключ>/t<размер>
+    for (const o of await store.list(`${v.key}/`)) if (/\/t\d+$/.test(o.key)) await store.delete(o.key);
     await db.update(attachmentVersions).set({ storageKey: null }).where(eq(attachmentVersions.id, v.id));
     res.archivedObjects++;
   }
   const known = new Set((await db.select({ key: attachmentVersions.storageKey }).from(attachmentVersions).where(isNotNull(attachmentVersions.storageKey))).map(r => r.key));
   const dayAgo = now.getTime() - 86_400_000;
-  // Сиротой считается только ключ вида <workspace>/<attachment>/<номер>: в том же бакете лежат и другие файлы (картинки товаров и т. п.)
+  // Сиротой считается только ключ вида <workspace>/<attachment>/<номер> (или его миниатюра): в том же бакете лежат и другие файлы
+  const ORPHAN_KEY = /^[0-9a-f]{8}-[0-9a-f-]{27}\/[0-9a-f]{8}-[0-9a-f-]{27}\/\d+(\/t\d+)?$/;
   for (const o of await store.list('')) {
-    if (!ATTACHMENT_KEY.test(o.key) || known.has(o.key) || o.lastModified.getTime() > dayAgo) continue;
+    if (!ORPHAN_KEY.test(o.key) || (o.key.includes('/t') ? known.has(o.key.slice(0, o.key.lastIndexOf('/'))) : known.has(o.key)) || o.lastModified.getTime() > dayAgo) continue;
     await store.delete(o.key);
     res.orphanObjects++;
   }
