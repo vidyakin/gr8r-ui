@@ -49,6 +49,12 @@ export interface DocLine {
   kind: 'goods' | 'service' | 'work' | 'operation';
   /** Товар с учётом по серийным номерам */
   trackSerials?: boolean;
+  /** Товар с партионным учётом (задача 1187) */
+  trackBatches?: boolean;
+  /** Партия строки (задача 1187) */
+  batchNumber: string | null;
+  batchProducedAt: string | null;
+  batchExpiresAt: string | null;
   shipped: string;
   planned: string;
   returned: string;

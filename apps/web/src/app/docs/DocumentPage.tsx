@@ -23,6 +23,7 @@ import { usePriceKinds, useResolvePrices } from '../pricing/data';
 import { useBillingBreakdown, useContracts } from './billing-data';
 import { WorkOrderPanel } from './work-orders';
 import { SerialsButton } from './serials-ui';
+import { BatchButton } from './batch-ui';
 import { DeliveryTab } from './DeliveryTab';
 import { DocTabs, type DocTab } from './doc-tabs';
 import { DocLoyaltyFields } from './DocLoyalty';
@@ -62,6 +63,10 @@ interface FormLine {
   groupName: string;
   /** Ручная скидка (задача 1179): true — процент ввёл человек, false — вернуть автоскидке; пусто — не менялась. Уходит на сервер один раз */
   discountManual?: boolean;
+  /** Партия строки (задача 1187): номер партии прихода и даты */
+  batchNumber: string;
+  batchProducedAt: string;
+  batchExpiresAt: string;
 }
 
 interface Form {
@@ -122,7 +127,7 @@ function toForm(d: DocDetail): Form {
     dueDate: d.dueDate ?? '',
     priceIncludesVat: d.priceIncludesVat,
     comment: d.comment,
-    lines: d.lines.map(l => ({ key: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, qty: trimNum(l.qty), price: l.price, discountPct: trimNum(l.discountPct), vatRate: l.vatRate, bookQty: trimNum(l.bookQty), receivedQty: trimNum(l.receivedQty), costItemId: l.costItemId, workCenterId: l.workCenterId, params: (l as { params?: Record<string, unknown> }).params ?? {}, tollingRole: l.tollingRole ?? null, groupName: l.groupName ?? '' })),
+    lines: d.lines.map(l => ({ key: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, qty: trimNum(l.qty), price: l.price, discountPct: trimNum(l.discountPct), vatRate: l.vatRate, bookQty: trimNum(l.bookQty), receivedQty: trimNum(l.receivedQty), costItemId: l.costItemId, workCenterId: l.workCenterId, params: (l as { params?: Record<string, unknown> }).params ?? {}, tollingRole: l.tollingRole ?? null, groupName: l.groupName ?? '', batchNumber: l.batchNumber ?? '', batchProducedAt: l.batchProducedAt ?? '', batchExpiresAt: l.batchExpiresAt ?? '' })),
   };
 }
 
@@ -157,7 +162,7 @@ function toPayload(f: Form) {
     comment: f.comment,
     lines: f.lines
       .filter(l => l.productId)
-      .map(l => ({ id: l.key, ...(l.discountManual !== undefined ? { discountManual: l.discountManual } : {}), productId: l.productId!, name: l.name, unitCode: l.unitCode, qty: num(l.qty), price: num(l.price), discountPct: num(l.discountPct || '0'), vatRate: l.vatRate, bookQty: num(l.bookQty || '0'), receivedQty: num(l.receivedQty || '0'), costItemId: l.costItemId, workCenterId: l.workCenterId, params: l.params ?? {}, tollingRole: l.tollingRole, groupName: l.groupName.trim() })),
+      .map(l => ({ id: l.key, ...(l.discountManual !== undefined ? { discountManual: l.discountManual } : {}), productId: l.productId!, name: l.name, unitCode: l.unitCode, qty: num(l.qty), price: num(l.price), discountPct: num(l.discountPct || '0'), vatRate: l.vatRate, bookQty: num(l.bookQty || '0'), receivedQty: num(l.receivedQty || '0'), costItemId: l.costItemId, workCenterId: l.workCenterId, params: l.params ?? {}, tollingRole: l.tollingRole, groupName: l.groupName.trim(), batchNumber: l.batchNumber.trim() || null, batchProducedAt: l.batchProducedAt.trim() || null, batchExpiresAt: l.batchExpiresAt.trim() || null })),
   };
 }
 
@@ -316,7 +321,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   };
   const patchLine = (key: string, patch: Partial<FormLine>) => edit(f => ({ ...f, lines: f.lines.map(l => (l.key === key ? { ...l, ...patch } : l)) }));
   const addLine = (at?: number) => {
-    const line: FormLine = { key: uuidv7(), productId: null, name: '', unitCode: '796', qty: '1', price: '', discountPct: '', vatRate: '20', bookQty: '0', receivedQty: '0', costItemId: null, workCenterId: null, params: {}, tollingRole: defaultTollingRole, groupName: '' };
+    const line: FormLine = { key: uuidv7(), productId: null, name: '', unitCode: '796', qty: '1', price: '', discountPct: '', vatRate: '20', bookQty: '0', receivedQty: '0', costItemId: null, workCenterId: null, params: {}, tollingRole: defaultTollingRole, groupName: '', batchNumber: '', batchProducedAt: '', batchExpiresAt: '' };
     const index = at ?? latest.current.lines.length;
     focusReq.current = { row: index, col: 0 };
     edit(f => ({ ...f, lines: [...f.lines.slice(0, index), line, ...f.lines.slice(index)] }));
@@ -788,6 +793,9 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       <td>
                         {srv?.trackSerials && (
                           <SerialsButton doc={doc} lineId={l.key} productId={l.productId ?? ''} name={l.name} qty={l.qty} serials={doc.serials ?? []} editable={editable} warehouseId={doc.warehouse?.id ?? null} incoming={meta.stock === 'in' || meta.stockRole === 'in' || srv.stockRole === 'in'} />
+                        )}
+                        {editable && srv?.trackBatches && (meta.stock === 'in' || meta.stockRole === 'in' || srv.stockRole === 'in') && (
+                          <BatchButton line={l} onChange={patch => patchLine(l.key, patch)} />
                         )}
                         {editable && doc.type === 'customer_order' && l.productId && (
                           <IconButton size="xs" label={t('docs.document.parameters')} onClick={() => setParamsLine(l.key)}>

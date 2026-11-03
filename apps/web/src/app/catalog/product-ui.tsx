@@ -43,6 +43,7 @@ const F = {
   get purchasePrice() { return col('purchasePrice', t('catalog.product.purchasePrice'), 'number'); },
   get normHours() { return col('normHours', t('catalog.product.normHours'), 'number'); },
   get warrantyMonths() { return col('warrantyMonths', t('serials.product.warrantyMonths'), 'number'); },
+  get shelfLifeDays() { return col('shelfLifeDays', t('serials.product.shelfLifeDays'), 'number'); },
   get repeatSaleDays() { return col('repeatSaleDays', t('repeat.product.repeatDays'), 'number'); },
   get appointmentMinutes() { return col('appointmentMinutes', t('appt.product.minutes'), 'number'); },
   get weightKg() { return col('weightKg', t('delivery.product.weight'), 'number'); },
@@ -359,6 +360,8 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
           ...(p.kind === 'goods'
             ? [
                 row(ScanBarcode, t('serials.product.track'), <Switch checked={p.trackSerials} aria-label={t('serials.product.track')} onChange={e => save({ trackSerials: e.target.checked })} />, p.trackSerials ? t('common.yes') : t('common.no')),
+                row(Package, t('serials.product.trackBatches'), <Switch checked={p.trackBatches} aria-label={t('serials.product.trackBatches')} onChange={e => save({ trackBatches: e.target.checked })} />, p.trackBatches ? t('common.yes') : t('common.no')),
+                ...(p.trackBatches ? [row(Timer, t('serials.product.shelfLifeDays'), <FieldInput field={F.shelfLifeDays} value={p.shelfLifeDays ?? 0} onChange={v => save({ shelfLifeDays: Number(v) > 0 ? Math.round(Number(v)) : null })} />, String(p.shelfLifeDays ?? '—'))] : []),
               ]
             : []),
           row(Timer, t('serials.product.warrantyMonths'), <FieldInput field={F.warrantyMonths} value={p.warrantyMonths ?? 0} onChange={v => save({ warrantyMonths: Number(v) ? Math.round(Number(v)) : null })} />, String(p.warrantyMonths ?? '—')),

@@ -44,6 +44,7 @@ export * from './investments';
 export * from './production-reports';
 export * from './service-reports';
 export * from './serials';
+export * from './batches';
 export * from './repair';
 export * from './repeat-sales';
 export * from './sales-plan';

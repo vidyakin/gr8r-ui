@@ -6,6 +6,7 @@ import { dec, div, fmt, mul, pctOf, replayMoves, stockIn, stockOut, weightedAvgC
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { applySerialMoves, revertSerialEvents } from './serials';
+import { assignBatches, revertBatches, type BatchLineInput } from './batches';
 import { documentLines, documents, manufacturedItems, productionComponents, productionHeaders, productionItems, products, stockBalances, stockCostAdjustments, stockMoves, stockReservations, workspaces } from './schema';
 
 export interface StockKey {
@@ -57,20 +58,29 @@ export interface MoveRequest extends StockKey {
   costFromLine?: boolean;
   /** Фаза движения: 1 — основная, 2 — приёмка (перемещение «в пути») */
   phase?: number;
+  /** Партия (задача 1187): проставляется assignBatches — приходу при создании партии, расходу порцией FEFO */
+  batchId?: string | null;
 }
 
 /** Записывает движения документа и обновляет остатки (в той же транзакции). Расход списывается по текущей средней; приход
     пересчитывает среднюю. Расходы пишутся раньше приходов: цена прихода перемещения — фактическая цена расхода той же строки.
     Уход в минус запрещён, пока воркспейс не разрешил его настройкой.
     `opts.inCost` считает цену прихода после расходов (выпуск: себестоимость партии из списанных материалов и работ).
-    Возвращает фактическую цену расхода по каждой строке */
-export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: string; date: string }, reqs: MoveRequest[], settings: InventorySettings, opts?: { inCost?: (lineId: string | null, outCost: Map<string, Dec>) => Dec | undefined }): Promise<Map<string, Dec>> {
+    Возвращает фактическую цену расхода по каждой строке. Партионный учёт (задача 1187): перед записью `assignBatches`
+    разбивает расходы товаров с track_batches по партиям FEFO и привязывает приходы к партиям строк */
+export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: string; date: string }, reqs: MoveRequest[], settings: InventorySettings, opts?: { inCost?: (lineId: string | null, outCost: Map<string, Dec>) => Dec | undefined; lineBatches?: Map<string, BatchLineInput> }): Promise<Map<string, Dec>> {
   if (!reqs.length) return new Map();
+  // партии до блокировки остатков: создание партий и разбивка расходов по порциям сумм не меняют
+  reqs = await assignBatches(db, workspaceId, doc, reqs, opts?.lineBatches ?? new Map());
   const state = await lockBalances(db, workspaceId, reqs);
   const rows: (typeof stockMoves.$inferInsert)[] = [];
   const need = new Map<string, Dec>();
-  /** Фактическая цена расхода по строке документа — ею оценивается приход перемещения */
+  /** Фактическая цена расхода по строке документа — ею оценивается приход перемещения.
+      Расход порциями FEFO даёт несколько цен — берём средневзвешенную по количеству */
   const outCost = new Map<string, Dec>();
+  /** Сумма (цена × количество) и количество по строке — для средневзвешенной цены расхода */
+  const outSum = new Map<string, Dec>();
+  const outQty = new Map<string, Dec>();
   const apply = (r: MoveRequest) => {
     const k = keyOf(r);
     const s = state.get(k)!;
@@ -78,16 +88,21 @@ export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: st
       const cost = opts?.inCost?.(r.lineId, outCost) ?? r.cost ?? (r.costFromLine && r.lineId ? outCost.get(r.lineId) : undefined) ?? s.avg;
       const next = stockIn(s, r.qty, cost);
       state.set(k, next);
-      rows.push({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentId: doc.id, documentLineId: r.lineId, qty: fmt(r.qty, 3), cost: fmt(cost, 4), movedAt: doc.date, phase: r.phase ?? 1 });
+      rows.push({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentId: doc.id, documentLineId: r.lineId, batchId: r.batchId ?? null, qty: fmt(r.qty, 3), cost: fmt(cost, 4), movedAt: doc.date, phase: r.phase ?? 1 });
     } else {
       need.set(k, (need.get(k) ?? 0n) + r.qty);
       const o = stockOut(s, r.qty);
       state.set(k, o.state);
-      if (r.lineId) outCost.set(r.lineId, o.cost);
-      rows.push({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentId: doc.id, documentLineId: r.lineId, qty: fmt(-r.qty, 3), cost: fmt(o.cost, 4), movedAt: doc.date, phase: r.phase ?? 1 });
+      // расход порциями FEFO: цена строки — средневзвешенная по порциям (приход перемещения оценивается ею целиком)
+      if (r.lineId) {
+        outSum.set(r.lineId, (outSum.get(r.lineId) ?? 0n) + o.cost * r.qty);
+        outQty.set(r.lineId, (outQty.get(r.lineId) ?? 0n) + r.qty);
+      }
+      rows.push({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentId: doc.id, documentLineId: r.lineId, batchId: r.batchId ?? null, qty: fmt(-r.qty, 3), cost: fmt(o.cost, 4), movedAt: doc.date, phase: r.phase ?? 1 });
     }
   };
   for (const r of reqs) if (r.direction === 'out') apply(r);
+  for (const [lineId, sum] of outSum) outCost.set(lineId, sum / (outQty.get(lineId) ?? 1n));
   if (!settings.allowNegativeStock) {
     const shortages = new Map<string, { key: StockKey; available: Dec; needed: Dec }>();
     for (const [k, s] of state) {
@@ -104,7 +119,8 @@ export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: st
   }
   for (const r of reqs) if (r.direction === 'in') apply(r);
   await db.insert(stockMoves).values(rows);
-  // серийные номера товаров с учётом по номерам: проверка и события (задача 1099)
+  // серийные номера товаров с учётом по номерам: проверка и события (задача 1099).
+  // Номера считаются по исходным движениям документа: порции FEFO (задача 1187) на номера не влияют
   await applySerialMoves(db, workspaceId, doc, reqs);
   for (const [k, s] of state) {
     const [warehouseId, productId] = k.split(':') as [string, string];
@@ -168,6 +184,8 @@ export async function revertStockMoves(db: Db, workspaceId: string, documentId: 
   if (adjusted) await lockWorkspaceBalances(db, workspaceId);
   await lockBalances(db, workspaceId, keys);
   await db.delete(stockMoves).where(scope);
+  // партии документа без остатка удаляются (отменился их приход); партия с остатком остаётся (списания чужих документов на неё ссылаются)
+  await revertBatches(db, workspaceId, documentId);
   const bad: StockKey[] = [];
   for (const k of keys) {
     const moves = await db

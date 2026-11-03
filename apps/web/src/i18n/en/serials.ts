@@ -129,6 +129,6 @@ export const serials = {
     kindType: { repair: 'Repair', warranty: 'Warranty repair' },
   },
   kindType: { label: 'Type', regular: 'Regular', repair: 'Repair', warranty: 'Warranty repair' },
-  product: { track: 'Track serial numbers', trackHint: 'Stock documents require serial numbers by quantity', warrantyMonths: 'Warranty, months' },
+  product: { track: 'Track serial numbers', trackHint: 'Stock documents require serial numbers by quantity', warrantyMonths: 'Warranty, months', trackBatches: 'Track batches', trackBatchesHint: 'Receipts create batches, write-offs use FEFO (first expired, first out)', shelfLifeDays: 'Shelf life, days' },
   report: { warrantyCost: 'Warranty repair cost (cost item “Warranty repair”)' },
 };

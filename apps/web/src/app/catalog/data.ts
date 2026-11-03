@@ -71,6 +71,10 @@ export interface Product {
   isActive: boolean;
   /** Учёт по серийным номерам и гарантия, мес. */
   trackSerials: boolean;
+  /** Партионный учёт (задача 1187) */
+  trackBatches: boolean;
+  /** Срок годности, дней */
+  shelfLifeDays: number | null;
   warrantyMonths: number | null;
   /** Повторить продажу через, дн. (пусто — нет) */
   repeatSaleDays: number | null;

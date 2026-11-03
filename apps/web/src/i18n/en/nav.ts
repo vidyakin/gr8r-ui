@@ -56,6 +56,7 @@ export const sections = {
   processingDocs: 'Documents of processing',
   inventory: 'Inventory',
   inUse: 'In use',
+  batches: 'Batches',
   serials: 'Serial numbers',
   repairItems: 'Items in repair',
   deliveries: 'Deliveries',

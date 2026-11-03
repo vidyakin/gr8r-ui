@@ -45,3 +45,14 @@ export const customerMaterialInput = z.object({
 export const customerMaterialsSave = z.object({ materials: z.array(customerMaterialInput).max(200) });
 
 export const repairItemsQuery = listQuery.extend({ open: z.enum(['1', '0']).optional(), kindType: z.enum(['repair', 'warranty']).optional() });
+
+/* Партии и сроки годности (задача 1187): отчёт по остаткам партий и фильтры истекающих */
+
+export const batchQuery = listQuery.extend({
+  productId: uuid.optional(),
+  warehouseId: uuid.optional(),
+  /** Истекает в течение N дней (включая сегодня) */
+  days: z.coerce.number().int().min(0).max(3650).optional(),
+  /** Только просроченные (годен до раньше сегодня) */
+  expired: z.coerce.boolean().optional(),
+});

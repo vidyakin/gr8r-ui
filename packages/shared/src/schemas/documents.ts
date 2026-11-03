@@ -145,6 +145,12 @@ export const documentLineInput = z
     groupName: z.string().trim().max(200).optional(),
     /** Серийные номера строки (товары с учётом по номерам): список заменяет прежние */
     serials: z.array(z.string().trim().min(1).max(100)).max(2000).optional(),
+    /** Партия строки (задача 1187): номер партии прихода */
+    batchNumber: z.string().trim().max(100).nullish(),
+    /** Дата выработки партии */
+    batchProducedAt: isoDate.nullish(),
+    /** Годен до партии; пусто — берётся срок годности товара */
+    batchExpiresAt: isoDate.nullish(),
   })
   // нулевое количество допустимо только у строки инвентаризации: там qty — фактическое, учётное лежит в bookQty
   .refine(l => Number(l.qty) !== 0 || l.bookQty !== undefined, { message: 'Must be greater than zero', path: ['qty'] });

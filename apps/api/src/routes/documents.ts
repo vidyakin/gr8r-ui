@@ -59,6 +59,7 @@ import {
   lineSerialsView,
   saveSerials,
   activateVariant,
+  batchBalances,
   createVariant,
   deleteVariant,
   renameVariant,
@@ -67,6 +68,7 @@ import {
 } from '@gr8r/db';
 import {
   bankAccountCreate,
+  batchQuery,
   bankAccountUpdate,
   basedOnCreate,
   costItemCreate,
@@ -615,6 +617,13 @@ export const costItemRoutes = crud({
 /* ---------------- склад ---------------- */
 
 export const stockRoutes = new Hono<AppEnv>()
+  // остатки партий по складам и товарам (задача 1187): номер партии, даты, количество; фильтр истекающих
+  .get('/batches', zValidator('query', batchQuery, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const q = c.req.valid('query');
+    const rows = await batchBalances(ctx.db, ctx.workspaceId, { warehouseId: q.warehouseId, productId: q.productId, days: q.days, expired: q.expired });
+    return c.json({ items: rows, total: rows.length });
+  })
   // остатки по складам и товарам: количество, резерв, доступно, средняя себестоимость, стоимость
   .get('/balances', zValidator('query', stockBalanceQuery, validationHook), async c => {
     const ctx = ctxOf(c);

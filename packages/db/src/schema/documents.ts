@@ -298,6 +298,12 @@ export const documentLines = pgTable(
     tollingRole: text('tolling_role', { enum: ['product', 'material', 'waste'] }),
     /** Группа строки (справочно, сумма по группе в форме и печати): пусто — без группы */
     groupName: text('group_name').notNull().default(''),
+    /** Партия строки (задача 1187): номер партии прихода; пусто — партия не задана */
+    batchNumber: text('batch_number'),
+    /** Дата выработки партии строки */
+    batchProducedAt: date('batch_produced_at', { mode: 'string' }),
+    /** Годен до партии строки; пусто — берётся срок годности товара */
+    batchExpiresAt: date('batch_expires_at', { mode: 'string' }),
     createdAt: createdAt(),
   },
   t => [
@@ -339,6 +345,41 @@ export const documentCounters = pgTable(
 );
 
 /** Движения склада, записываются при проведении (qty со знаком: приход +, расход −). seq задаёт порядок пересчёта средней */
+/** Партия товара (задача 1187, docs/architecture/stock.md «Партионный учёт»): товар с флагом products.track_batches —
+    каждая приходная строка создаёт партию (номер, дата выработки, годен до), расходные движения FEFO ссылаются
+    на партию через stock_moves.batch_id. Остаток партии — производное от движений (сумма qty по batch_id).
+    Себестоимость средняя по складу не меняется: партия задаёт только порядок списания и прослеживаемость */
+export const stockBatches = pgTable(
+  'stock_batches',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    warehouseId: uuid('warehouse_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    /** Номер партии (как в документе поставщика); уникален с товаром и складом */
+    number: text('number').notNull(),
+    /** Дата выработки (производства или прихода); пусто — не указана */
+    producedAt: date('produced_at', { mode: 'string' }),
+    /** Годен до; пусто — партия без срока (списывается последней) */
+    expiresAt: date('expires_at', { mode: 'string' }),
+    /** Строка прихода, создавшая партию: прослеживаемость «от документа» */
+    documentLineId: uuid('document_line_id'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    unique('stock_batches_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.warehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'stock_batches_warehouse_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'stock_batches_product_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.documentLineId], foreignColumns: [t.workspaceId, t.id], name: 'stock_batches_line_fk' }).onDelete('set null'),
+    check('stock_batches_number_chk', sql`${t.number} <> ''`),
+    uniqueIndex('stock_batches_key_uq').on(t.workspaceId, t.warehouseId, t.productId, t.number),
+    // FEFO: выборка партий товара на складе по дате истечения (без срока — в конец)
+    index('stock_batches_fefo_idx').on(t.workspaceId, t.warehouseId, t.productId, t.expiresAt),
+    index('stock_batches_product_idx').on(t.workspaceId, t.productId),
+  ],
+);
+
 export const stockMoves = pgTable(
   'stock_moves',
   {
@@ -349,6 +390,8 @@ export const stockMoves = pgTable(
     productId: uuid('product_id').notNull(),
     documentId: uuid('document_id').notNull(),
     documentLineId: uuid('document_line_id'),
+    /** Партия (задача 1187): приход с партией создаёт/пополняет её, расход FEFO ссылается на списанную партию */
+    batchId: uuid('batch_id'),
     qty: numeric('qty', { precision: 18, scale: 3 }).notNull(),
     /** Приход: цена единицы без НДС (или с НДС при УСН); расход: себестоимость по средней на момент списания */
     cost: numeric('cost', { precision: 18, scale: 4 }).notNull().default('0'),
@@ -363,11 +406,13 @@ export const stockMoves = pgTable(
     foreignKey({ columns: [t.workspaceId, t.warehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'stock_moves_warehouse_fk' }),
     foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'stock_moves_product_fk' }),
     foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'stock_moves_document_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.batchId], foreignColumns: [stockBatches.workspaceId, stockBatches.id], name: 'stock_moves_batch_fk' }),
     check('stock_moves_qty_chk', sql`${t.qty} <> 0`),
     check('stock_moves_phase_chk', sql`${t.phase} in (1,2)`),
     index('stock_moves_card_idx').on(t.workspaceId, t.warehouseId, t.productId, t.seq),
     index('stock_moves_product_idx').on(t.workspaceId, t.productId, t.seq),
     index('stock_moves_document_idx').on(t.documentId),
+    index('stock_moves_batch_idx').on(t.workspaceId, t.batchId),
   ],
 );
 
@@ -389,6 +434,7 @@ export const stockBalances = pgTable(
     index('stock_balances_product_idx').on(t.workspaceId, t.productId),
   ],
 );
+
 
 /** Резерв под проведённый заказ покупателя: по строке заказа, количество = заказано − отгружено.
     Резерв выпущенной продукции — по строке выпуска (production_line_id): продукция, выпущенная под заказ покупателя, закреплена за ним */

@@ -86,6 +86,10 @@ export const productCreate = z.object({
   isActive: z.boolean().default(true),
   /** Учёт по серийным номерам: складские документы требуют номера по количеству */
   trackSerials: z.boolean().default(false),
+  /** Партионный учёт (задача 1187): приход создаёт партию, расход списывается FEFO */
+  trackBatches: z.boolean().default(false),
+  /** Срок годности, дней (задача 1187): при приходе дата истечения = дата документа + срок; пусто — без срока */
+  shelfLifeDays: z.number().int().min(1).max(3650).nullish(),
   /** Гарантия, мес. (пусто — без гарантии) */
   warrantyMonths: z.number().int().min(0).max(600).nullish(),
   /** Повторить продажу через, дн. (задача 1133; пусто — нет): после продажи у компании ставится дата следующего контакта */

@@ -131,6 +131,6 @@ export const serials: Widen<typeof S> = {
     kindType: { repair: 'Ремонт', warranty: 'Гарантийный ремонт' },
   },
   kindType: { label: 'Тип', regular: 'Обычный', repair: 'Ремонт', warranty: 'Гарантийный ремонт' },
-  product: { track: 'Учёт по серийным номерам', trackHint: 'Складские документы требуют серийные номера по количеству', warrantyMonths: 'Гарантия, мес.' },
+  product: { track: 'Учёт по серийным номерам', trackHint: 'Складские документы требуют серийные номера по количеству', warrantyMonths: 'Гарантия, мес.', trackBatches: 'Партионный учёт', trackBatchesHint: 'Приход создаёт партию, списание по партиям FEFO (раньше истекает — раньше списывается)', shelfLifeDays: 'Срок годности, дней' },
   report: { warrantyCost: 'Затраты гарантийного ремонта (статья «Гарантийный ремонт»)' },
 };

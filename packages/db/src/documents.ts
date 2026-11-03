@@ -165,6 +165,10 @@ interface ResolvedLine {
   params: Record<string, unknown>;
   /** Группа строки; undefined — оставить прежнюю */
   groupName?: string;
+  /** Партия строки (задача 1187): номер партии прихода и даты */
+  batchNumber: string | null;
+  batchProducedAt: string | null;
+  batchExpiresAt: string | null;
 }
 
 /** Подставляет из товара название, единицу и ставку НДС, которых нет в строке; новые строки — только по действующим товарам.
@@ -198,6 +202,9 @@ async function resolveLines(db: Db, inputs: DocumentLineInput[], existingIds: Se
       tollingRole: l.tollingRole ?? null,
       params: l.params ?? {},
       groupName: l.groupName,
+      batchNumber: l.batchNumber?.trim() || null,
+      batchProducedAt: l.batchProducedAt ?? null,
+      batchExpiresAt: l.batchExpiresAt ?? null,
     };
   });
 }
@@ -261,7 +268,7 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
   const type = doc.type as DocumentType;
   const meta = DOCUMENT_META[type];
   const existing = await db
-    .select({ id: documentLines.id, price: documentLines.price, discountPct: documentLines.discountPct, stockRole: documentLines.stockRole, costItemId: documentLines.costItemId, workCenterId: documentLines.workCenterId, groupName: documentLines.groupName })
+    .select({ id: documentLines.id, price: documentLines.price, discountPct: documentLines.discountPct, stockRole: documentLines.stockRole, costItemId: documentLines.costItemId, workCenterId: documentLines.workCenterId, groupName: documentLines.groupName, batchNumber: documentLines.batchNumber, batchProducedAt: documentLines.batchProducedAt, batchExpiresAt: documentLines.batchExpiresAt })
     .from(documentLines)
     .where(eq(documentLines.documentId, doc.id));
   const existingIds = new Set(existing.map(e => e.id));
@@ -271,6 +278,9 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
   const prevCostItem = new Map(existing.map(e => [e.id, e.costItemId]));
   const prevCenter = new Map(existing.map(e => [e.id, e.workCenterId]));
   const prevGroup = new Map(existing.map(e => [e.id, e.groupName]));
+  const prevBatch = new Map(existing.map(e => [e.id, e.batchNumber]));
+  const prevBatchProduced = new Map(existing.map(e => [e.id, e.batchProducedAt]));
+  const prevBatchExpires = new Map(existing.map(e => [e.id, e.batchExpiresAt]));
   const resolved = await resolveLines(db, inputs, existingIds, type);
   // заказ покупателя: комбинация значений параметров с флажком «разрез склада» даёт вариант товара.
   // Вариант создаётся лениво (первый заказ комбинации) и заменяет товар в строке: склад, резервы и документы работают по нему
@@ -303,6 +313,10 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
       params: l.params ?? {},
       // группа строки (справочно): клиент, не знающий групп, её не сбрасывает
       groupName: l.groupName ?? prevGroup.get(l.id) ?? '',
+      // партия строки (задача 1187): номер партии и даты — клиент не знающий партий, их не сбрасывает
+      batchNumber: l.batchNumber ?? prevBatch.get(l.id) ?? null,
+      batchProducedAt: l.batchProducedAt ?? prevBatchProduced.get(l.id) ?? null,
+      batchExpiresAt: l.batchExpiresAt ?? prevBatchExpires.get(l.id) ?? null,
     };
     // приём и возврат давальческого сырья ничего не продают: цена строки нулевая, НДС нет
     if (meta.noPrice) {
@@ -931,7 +945,10 @@ export async function applyDocumentMoves(db: Db, ctx: DocCtx, doc: DocumentRow, 
     if (type === 'stock_transfer' && m.direction === 'in') req.costFromLine = true; // приход по фактической цене расхода
     return req;
   });
-  await applyStockMoves(db, ctx.workspaceId, { id: doc.id, date: doc.date }, reqs, await loadInventorySettings(db, ctx.workspaceId));
+  await applyStockMoves(db, ctx.workspaceId, { id: doc.id, date: doc.date }, reqs, await loadInventorySettings(db, ctx.workspaceId), {
+    // партии строк (задача 1187): номер партии и даты прихода — по ним создаются партии
+    lineBatches: new Map(lines.filter(l => l.batchNumber).map(l => [l.id, { number: l.batchNumber, producedAt: l.batchProducedAt, expiresAt: l.batchExpiresAt }])),
+  });
 }
 
 /** repost — документ снимается, чтобы сразу провести заново (дописывание в документ дня): свои запреты отмены не проверяются */
@@ -1063,6 +1080,8 @@ export interface DocumentLineView extends DocumentLineRow {
   kind: 'goods' | 'service' | 'work' | 'operation';
   /** Товар с учётом по серийным номерам */
   trackSerials: boolean;
+  /** Товар с партионным учётом (задача 1187) */
+  trackBatches: boolean;
   /** Для строк заказов: исполнено проведёнными документами (отгружено / получено) и запланировано (с черновиками) */
   shipped: string;
   planned: string;
@@ -1109,7 +1128,7 @@ export async function documentDetail(db: Db, id: string) {
     for (const { createdAt: _, ...a } of allocs) if (!children.some(c => c.id === a.id)) children.push(a);
   }
   const rows = await db
-    .select({ line: documentLines, sku: products.sku, kind: products.kind, trackSerials: products.trackSerials })
+    .select({ line: documentLines, sku: products.sku, kind: products.kind, trackSerials: products.trackSerials, trackBatches: products.trackBatches })
     .from(documentLines)
     .innerJoin(products, eq(products.id, documentLines.productId))
     .where(eq(documentLines.documentId, id))
@@ -1130,7 +1149,7 @@ export async function documentDetail(db: Db, id: string) {
   const shipped = isOrder ? await sums(documentLines.originLineId, FULFIL_TYPES, true) : new Map<string, string>();
   const planned = isOrder ? await sums(documentLines.originLineId, FULFIL_TYPES, false) : new Map<string, string>();
   const returned = isReturnable ? await sums(documentLines.sourceLineId, [type === 'realization' ? 'customer_return' : 'supplier_return'], true) : new Map<string, string>();
-  const lines: DocumentLineView[] = rows.map(r => ({ ...r.line, sku: r.sku, kind: r.kind, trackSerials: r.trackSerials, shipped: fmt(dec(shipped.get(r.line.id) ?? 0), 3), planned: fmt(dec(planned.get(r.line.id) ?? 0), 3), returned: fmt(dec(returned.get(r.line.id) ?? 0), 3), discountSource: null, discountRuleId: null, discountRuleName: null, discountCardId: null, discountCardNumber: null }));
+  const lines: DocumentLineView[] = rows.map(r => ({ ...r.line, sku: r.sku, kind: r.kind, trackSerials: r.trackSerials, trackBatches: r.trackBatches, shipped: fmt(dec(shipped.get(r.line.id) ?? 0), 3), planned: fmt(dec(planned.get(r.line.id) ?? 0), 3), returned: fmt(dec(returned.get(r.line.id) ?? 0), 3), discountSource: null, discountRuleId: null, discountRuleName: null, discountCardId: null, discountCardNumber: null }));
   // источники скидок строк (ручная / правило / карта) — для отметки в форме документа
   const srcRows = ids.length
     ? await db

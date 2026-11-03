@@ -98,6 +98,10 @@ export const products = pgTable(
     isActive: boolean('is_active').notNull().default(true),
     /** Учёт по серийным номерам (задача 1099): складские документы требуют номера по количеству */
     trackSerials: boolean('track_serials').notNull().default(false),
+    /** Партионный учёт (задача 1187): расходные движения списываются по партиям FEFO, у строки — срок годности */
+    trackBatches: boolean('track_batches').notNull().default(false),
+    /** Срок годности, дней (задача 1187): при выпуске дата истечения = дата документа + срок; пусто — без срока */
+    shelfLifeDays: integer('shelf_life_days'),
     /** Гарантия, мес.: при продаже номер получает «гарантия до» = дата продажи + срок */
     warrantyMonths: integer('warranty_months'),
     /** Повторить продажу через, дн. (задача 1133): при продаже у компании ставится дата следующего контакта; пусто — нет */
@@ -132,6 +136,7 @@ export const products = pgTable(
     check('products_repeat_days_chk', sql`${t.repeatSaleDays} is null or ${t.repeatSaleDays} between 1 and 3650`),
     check('products_weight_chk', sql`${t.weightKg} is null or ${t.weightKg} >= 0`),
     check('products_warranty_chk', sql`${t.warrantyMonths} is null or ${t.warrantyMonths} between 0 and 600`),
+    check('products_shelf_life_chk', sql`${t.shelfLifeDays} is null or ${t.shelfLifeDays} > 0`),
     uniqueIndex('products_ws_sku_uq').on(t.workspaceId, sql`lower(${t.sku})`).where(sql`${t.sku} <> ''`),
     uniqueIndex('products_ws_barcode_uq').on(t.workspaceId, t.barcode).where(sql`${t.barcode} <> ''`),
     // одна комбинация параметров у товара — один вариант (jsonb сравнивается без учёта порядка ключей)
