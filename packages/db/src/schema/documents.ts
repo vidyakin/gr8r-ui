@@ -371,7 +371,7 @@ export const stockBatches = pgTable(
     unique('stock_batches_ws_id_uq').on(t.workspaceId, t.id),
     foreignKey({ columns: [t.workspaceId, t.warehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'stock_batches_warehouse_fk' }),
     foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'stock_batches_product_fk' }),
-    foreignKey({ columns: [t.workspaceId, t.documentLineId], foreignColumns: [t.workspaceId, t.id], name: 'stock_batches_line_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.documentLineId], foreignColumns: [documentLines.workspaceId, documentLines.id], name: 'stock_batches_line_fk' }).onDelete('set null'),
     check('stock_batches_number_chk', sql`${t.number} <> ''`),
     uniqueIndex('stock_batches_key_uq').on(t.workspaceId, t.warehouseId, t.productId, t.number),
     // FEFO: выборка партий товара на складе по дате истечения (без срока — в конец)

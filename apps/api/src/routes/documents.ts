@@ -621,7 +621,7 @@ export const stockRoutes = new Hono<AppEnv>()
   .get('/batches', zValidator('query', batchQuery, validationHook), async c => {
     const ctx = ctxOf(c);
     const q = c.req.valid('query');
-    const rows = await batchBalances(ctx.db, ctx.workspaceId, { warehouseId: q.warehouseId, productId: q.productId, days: q.days, expired: q.expired });
+    const rows = await batchBalances(ctx.db, ctx.workspaceId, { warehouseId: q.warehouseId, productId: q.productId, days: q.days, expired: q.expired, q: q.q });
     return c.json({ items: rows, total: rows.length });
   })
   // остатки по складам и товарам: количество, резерв, доступно, средняя себестоимость, стоимость

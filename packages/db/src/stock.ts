@@ -2,7 +2,7 @@
    Остаток по (склад, товар) блокируется строкой stock_balances (FOR UPDATE, в порядке ключей — без взаимных блокировок),
    поэтому параллельные проведения не могут уйти в минус одновременно и порядок движений (seq) совпадает с порядком блокировок. */
 import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
-import { dec, div, fmt, mul, pctOf, replayMoves, stockIn, stockOut, weightedAvgCost, DOCUMENT_META, DOCUMENT_TYPES, type Dec, type DocumentType, type InventorySettings, type StockState } from '@gr8r/shared';
+import { dec, div, fmt, mul, pctOf, stockIn, stockOut, weightedAvgCost, DOCUMENT_META, DOCUMENT_TYPES, type Dec, type DocumentType, type InventorySettings, type StockState } from '@gr8r/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { applySerialMoves, revertSerialEvents } from './serials';
@@ -62,6 +62,37 @@ export interface MoveRequest extends StockKey {
   batchId?: string | null;
 }
 
+/** Порции одного прихода по одной цене округляются как целая строка. Состояние
+    до строки сохраняется, чтобы каждая следующая порция не округляла уже округлённую среднюю.
+    Расход, другая строка/склад/фаза или другая цена завершают группу. */
+function stockMovementAccumulator() {
+  let receipt: { group: string | undefined; before: StockState; qty: Dec; cost: Dec } | undefined;
+  return (state: StockState, qty: Dec, cost: Dec, group?: string): { state: StockState; cost: Dec } => {
+    if (qty < 0n) {
+      receipt = undefined;
+      return stockOut(state, -qty);
+    }
+    if (!group || receipt?.group !== group || receipt.cost !== cost) receipt = { group, before: state, qty: 0n, cost };
+    receipt.qty += qty;
+    return { state: stockIn(receipt.before, receipt.qty, cost), cost };
+  };
+}
+
+/** Перечитывает движения одной пары склад/товар, сохраняя гранулярность строк для округления. */
+function replayBatchMoves(moves: { qty: string; cost: string; lineId: string | null; phase: number }[]) {
+  const advance = stockMovementAccumulator();
+  let state: StockState = { qty: 0n, avg: 0n };
+  let minQty = 0n;
+  const replayed = moves.map(m => {
+    const qty = dec(m.qty);
+    const next = advance(state, qty, dec(m.cost), m.lineId ? `${m.lineId}:${m.phase}` : undefined);
+    state = next.state;
+    if (state.qty < minQty) minQty = state.qty;
+    return { qty, cost: next.cost };
+  });
+  return { state, moves: replayed, minQty };
+}
+
 /** Записывает движения документа и обновляет остатки (в той же транзакции). Расход списывается по текущей средней; приход
     пересчитывает среднюю. Расходы пишутся раньше приходов: цена прихода перемещения — фактическая цена расхода той же строки.
     Уход в минус запрещён, пока воркспейс не разрешил его настройкой.
@@ -70,9 +101,11 @@ export interface MoveRequest extends StockKey {
     разбивает расходы товаров с track_batches по партиям FEFO и привязывает приходы к партиям строк */
 export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: string; date: string }, reqs: MoveRequest[], settings: InventorySettings, opts?: { inCost?: (lineId: string | null, outCost: Map<string, Dec>) => Dec | undefined; lineBatches?: Map<string, BatchLineInput> }): Promise<Map<string, Dec>> {
   if (!reqs.length) return new Map();
-  // партии до блокировки остатков: создание партий и разбивка расходов по порциям сумм не меняют
-  reqs = await assignBatches(db, workspaceId, doc, reqs, opts?.lineBatches ?? new Map());
+  const serialReqs = reqs;
   const state = await lockBalances(db, workspaceId, reqs);
+  // FEFO читает остатки только под общей блокировкой склада/товара: соседнее проведение
+  // должно завершить запись движений до выбора доступных партий.
+  reqs = await assignBatches(db, workspaceId, doc, reqs, opts?.lineBatches ?? new Map());
   const rows: (typeof stockMoves.$inferInsert)[] = [];
   const need = new Map<string, Dec>();
   /** Фактическая цена расхода по строке документа — ею оценивается приход перемещения.
@@ -81,17 +114,18 @@ export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: st
   /** Сумма (цена × количество) и количество по строке — для средневзвешенной цены расхода */
   const outSum = new Map<string, Dec>();
   const outQty = new Map<string, Dec>();
+  const advance = stockMovementAccumulator();
   const apply = (r: MoveRequest) => {
     const k = keyOf(r);
     const s = state.get(k)!;
     if (r.direction === 'in') {
       const cost = opts?.inCost?.(r.lineId, outCost) ?? r.cost ?? (r.costFromLine && r.lineId ? outCost.get(r.lineId) : undefined) ?? s.avg;
-      const next = stockIn(s, r.qty, cost);
-      state.set(k, next);
+      const next = advance(s, r.qty, cost, r.lineId ? `${k}:${r.lineId}:${r.phase ?? 1}` : undefined);
+      state.set(k, next.state);
       rows.push({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentId: doc.id, documentLineId: r.lineId, batchId: r.batchId ?? null, qty: fmt(r.qty, 3), cost: fmt(cost, 4), movedAt: doc.date, phase: r.phase ?? 1 });
     } else {
       need.set(k, (need.get(k) ?? 0n) + r.qty);
-      const o = stockOut(s, r.qty);
+      const o = advance(s, -r.qty, 0n);
       state.set(k, o.state);
       // расход порциями FEFO: цена строки — средневзвешенная по порциям (приход перемещения оценивается ею целиком)
       if (r.lineId) {
@@ -120,8 +154,8 @@ export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: st
   for (const r of reqs) if (r.direction === 'in') apply(r);
   await db.insert(stockMoves).values(rows);
   // серийные номера товаров с учётом по номерам: проверка и события (задача 1099).
-  // Номера считаются по исходным движениям документа: порции FEFO (задача 1187) на номера не влияют
-  await applySerialMoves(db, workspaceId, doc, reqs);
+  // Серийные номера принадлежат целой строке, а не каждой порции FEFO.
+  await applySerialMoves(db, workspaceId, doc, serialReqs);
   for (const [k, s] of state) {
     const [warehouseId, productId] = k.split(':') as [string, string];
     await db.update(stockBalances).set({ qty: fmt(s.qty, 3), avgCost: fmt(s.avg, 4), updatedAt: new Date() }).where(and(eq(stockBalances.warehouseId, warehouseId), eq(stockBalances.productId, productId)));
@@ -175,7 +209,7 @@ export async function documentCosts(db: Db, documentIds: string[]): Promise<Map<
     `phase` — отменить только одну фазу (перемещение «в пути»: отмена приёмки) */
 export async function revertStockMoves(db: Db, workspaceId: string, documentId: string, settings: InventorySettings, phase?: number): Promise<void> {
   const scope = phase ? and(eq(stockMoves.documentId, documentId), eq(stockMoves.phase, phase)) : eq(stockMoves.documentId, documentId);
-  const own = await db.select({ warehouseId: stockMoves.warehouseId, productId: stockMoves.productId }).from(stockMoves).where(scope);
+  const own = await db.select({ warehouseId: stockMoves.warehouseId, productId: stockMoves.productId, batchId: stockMoves.batchId }).from(stockMoves).where(scope);
   if (!own.length) return;
   await revertSerialEvents(db, workspaceId, documentId, phase);
   const keys = uniqueKeys(own);
@@ -184,16 +218,15 @@ export async function revertStockMoves(db: Db, workspaceId: string, documentId: 
   if (adjusted) await lockWorkspaceBalances(db, workspaceId);
   await lockBalances(db, workspaceId, keys);
   await db.delete(stockMoves).where(scope);
-  // партии документа без остатка удаляются (отменился их приход); партия с остатком остаётся (списания чужих документов на неё ссылаются)
-  await revertBatches(db, workspaceId, documentId);
+  await revertBatches(db, workspaceId, [...new Set(own.flatMap(m => m.batchId ? [m.batchId] : []))], settings.allowNegativeStock);
   const bad: StockKey[] = [];
   for (const k of keys) {
     const moves = await db
-      .select({ id: stockMoves.id, qty: stockMoves.qty, cost: stockMoves.cost })
+      .select({ id: stockMoves.id, qty: stockMoves.qty, cost: stockMoves.cost, lineId: stockMoves.documentLineId, phase: stockMoves.phase })
       .from(stockMoves)
       .where(and(eq(stockMoves.warehouseId, k.warehouseId), eq(stockMoves.productId, k.productId)))
       .orderBy(asc(stockMoves.seq));
-    const r = replayMoves(moves.map(m => ({ qty: dec(m.qty), cost: dec(m.cost) })));
+    const r = replayBatchMoves(moves);
     for (const [i, m] of moves.entries()) {
       const cost = fmt(r.moves[i]!.cost, 4);
       if (dec(m.qty) < 0n && cost !== m.cost) await db.update(stockMoves).set({ cost }).where(eq(stockMoves.id, m.id));
@@ -234,6 +267,7 @@ export async function recomputeStockCosts(db: Db, workspaceId: string): Promise<
       warehouseId: stockMoves.warehouseId,
       productId: stockMoves.productId,
       lineId: stockMoves.documentLineId,
+      phase: stockMoves.phase,
       type: documents.type,
       qty: stockMoves.qty,
       cost: stockMoves.cost,
@@ -322,6 +356,7 @@ export async function recomputeStockCosts(db: Db, workspaceId: string): Promise<
   /** Удорожание единицы последнего расхода по строке документа */
   const outDelta = new Map<string, Dec>();
   let changed = 0;
+  const advance = stockMovementAccumulator();
   for (const m of moves) {
     const k = keyOf(m);
     const s = state.get(k) ?? { qty: 0n, avg: 0n };
@@ -330,7 +365,7 @@ export async function recomputeStockCosts(db: Db, workspaceId: string): Promise<
     const own = dec(m.own);
     let delta: Dec;
     if (qty < 0n) {
-      const o = stockOut(s, -qty);
+      const o = advance(s, qty, 0n);
       state.set(k, o.state);
       delta = r4(o.cost) - base;
       if (m.lineId) outDelta.set(m.lineId, delta);
@@ -350,7 +385,7 @@ export async function recomputeStockCosts(db: Db, workspaceId: string): Promise<
       else if (m.type === 'customer_return' && m.lineId) chain = outDelta.get(sourceOf.get(m.lineId) ?? '') ?? 0n;
       if (m.type === 'production' && m.lineId) chain += allocByLine.get(m.lineId) ?? 0n;
       delta = r4(own + chain);
-      state.set(k, stockIn(s, qty, base + delta));
+      state.set(k, advance(s, qty, base + delta, m.lineId ? `${k}:${m.lineId}:${m.phase}` : undefined).state);
     }
     if (delta === dec(m.delta)) continue;
     changed++;
@@ -439,11 +474,11 @@ export async function revalueMove(db: Db, workspaceId: string, moveId: string, c
   await lockBalances(db, workspaceId, [key]);
   await db.update(stockMoves).set({ cost: fmt(cost, 4) }).where(eq(stockMoves.id, moveId));
   const moves = await db
-    .select({ id: stockMoves.id, qty: stockMoves.qty, cost: stockMoves.cost })
+    .select({ id: stockMoves.id, qty: stockMoves.qty, cost: stockMoves.cost, lineId: stockMoves.documentLineId, phase: stockMoves.phase })
     .from(stockMoves)
     .where(and(eq(stockMoves.warehouseId, key.warehouseId), eq(stockMoves.productId, key.productId)))
     .orderBy(asc(stockMoves.seq));
-  const r = replayMoves(moves.map(m => ({ qty: dec(m.qty), cost: dec(m.cost) })));
+  const r = replayBatchMoves(moves);
   for (const [i, m] of moves.entries()) {
     const c = fmt(r.moves[i]!.cost, 4);
     if (dec(m.qty) < 0n && c !== m.cost) await db.update(stockMoves).set({ cost: c }).where(eq(stockMoves.id, m.id));

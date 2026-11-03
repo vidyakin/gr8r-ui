@@ -3,11 +3,11 @@
    расход списывается FEFO — по партиям с самой ранней датой истечения (без срока — последними).
    Вызывается из applyStockMoves: приходы помечаются batchId, расходы разбиваются по партиям.
    Себестоимость средняя по складу не меняется — партия задаёт только порядок списания и прослеживаемость. */
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, ilike, inArray, sql } from 'drizzle-orm';
 import { addDays, dec, fmt, type Dec } from '@gr8r/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
-import { documentLines, products, stockBatches } from './schema';
+import { documentLines, products, stockBatches, stockMoves, warehouses } from './schema';
 import type { MoveRequest } from './stock';
 
 /** Товары с партионным учётом среди переданных */
@@ -30,101 +30,114 @@ export interface BatchLineInput {
   expiresAt?: string | null;
 }
 
-/** Разбивает расходы по партиям FEFO и собирает приходы. Возвращает обновлённые reqs:
-    у расходов — порции с batchId (по движению на партию), у приходов — batchId партии.
-    Сами движения пишет applyStockMoves: здесь только распределение, количества не меняются */
+type BatchDates = Pick<typeof stockBatches.$inferSelect, 'number' | 'producedAt' | 'expiresAt'>;
+type AvailableBatch = BatchDates & { id: string; qty: Dec };
+
+/** Создаёт партию именно на складе движения. Вызывается под блокировкой остатка склада/товара. */
+async function receiptBatch(db: Db, workspaceId: string, r: MoveRequest, dates: BatchDates): Promise<string> {
+  const [batch] = await db.insert(stockBatches)
+    .values({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentLineId: r.lineId, ...dates })
+    .onConflictDoUpdate({ target: [stockBatches.workspaceId, stockBatches.warehouseId, stockBatches.productId, stockBatches.number], set: { updatedAt: new Date() } })
+    .returning({ id: stockBatches.id });
+  return batch!.id;
+}
+
+/** Распределяет FEFO под блокировками applyStockMoves. Перемещения сохраняют каждую
+    порцию и даты, но получают отдельную партию на принимающем складе. */
 export async function assignBatches(db: Db, workspaceId: string, doc: { id: string; date: string }, reqs: MoveRequest[], lineBatches: Map<string, BatchLineInput>): Promise<MoveRequest[]> {
   const tracked = await batchTrackedProducts(db, reqs.map(r => r.productId));
   if (!tracked.size) return reqs;
   const out: MoveRequest[] = [];
-  // 1. расходы: FEFO — партии с ранней датой истечения первыми (null — в конец), внутри даты — по времени создания
-  const outBatchOfLine = new Map<string, string>();
-  const keys = [...new Set(reqs.filter(r => r.direction === 'out' && tracked.has(r.productId)).map(r => `${r.warehouseId}:${r.productId}`))];
-  const fefo = new Map<string, { id: string; qty: Dec }[]>();
-  if (keys.length) {
-    const rows = await db
-      .select({
-        id: stockBatches.id,
-        warehouseId: stockBatches.warehouseId,
-        productId: stockBatches.productId,
-        qty: sql<string>`(select coalesce(sum(m.qty), 0) from stock_moves m where m.batch_id = stock_batches.id)`,
-      })
-      .from(stockBatches)
-      .where(
-        and(
-          eq(stockBatches.workspaceId, workspaceId),
-          inArray(stockBatches.productId, [...tracked.keys()]),
-          inArray(stockBatches.warehouseId, [...new Set(keys.map(k => k.split(':')[0]!))]),
-        ),
-      )
-      .orderBy(asc(stockBatches.warehouseId), asc(stockBatches.productId), sql`${stockBatches.expiresAt} asc nulls last`, asc(stockBatches.createdAt));
+  const outOfLine = new Map<string, MoveRequest[]>();
+  const withdrawals = reqs.filter(r => r.direction === 'out' && tracked.has(r.productId));
+  const fefo = new Map<string, AvailableBatch[]>();
+  const byId = new Map<string, AvailableBatch>();
+  if (withdrawals.length) {
+    const rows = await db.select({
+      id: stockBatches.id, warehouseId: stockBatches.warehouseId, productId: stockBatches.productId,
+      number: stockBatches.number, producedAt: stockBatches.producedAt, expiresAt: stockBatches.expiresAt,
+      qty: sql<string>`(select coalesce(sum(m.qty), 0) from stock_moves m where m.batch_id = stock_batches.id)`,
+    }).from(stockBatches).where(and(
+      eq(stockBatches.workspaceId, workspaceId),
+      inArray(stockBatches.productId, [...tracked.keys()]),
+      inArray(stockBatches.warehouseId, [...new Set(withdrawals.map(r => r.warehouseId))]),
+    )).orderBy(sql`${stockBatches.expiresAt} asc nulls last`, asc(stockBatches.createdAt), asc(stockBatches.id));
     for (const row of rows) {
-      const qty = dec(row.qty);
-      if (qty <= 0n) continue;
-      const k = `${row.warehouseId}:${row.productId}`;
-      fefo.set(k, [...(fefo.get(k) ?? []), { id: row.id, qty }]);
+      const batch = { ...row, qty: dec(row.qty) };
+      byId.set(batch.id, batch);
+      const key = `${row.warehouseId}:${row.productId}`;
+      const list = fefo.get(key) ?? [];
+      list.push(batch);
+      fefo.set(key, list);
     }
   }
+  // Приёмка выбирает порции своей отправки. Общий FEFO склада «в пути» может
+  // содержать тот же товар из других перемещений, включая более ранние партии.
+  const shipped = withdrawals.some(r => r.phase === 2)
+    ? await db.select().from(stockMoves).where(and(
+      eq(stockMoves.workspaceId, workspaceId), eq(stockMoves.documentId, doc.id),
+      eq(stockMoves.phase, 1), gt(stockMoves.qty, '0'),
+    )).orderBy(asc(stockMoves.seq))
+    : [];
   for (const r of reqs) {
     if (r.direction !== 'out') continue;
-    if (!tracked.has(r.productId)) {
-      out.push(r);
-      continue;
-    }
+    if (!tracked.has(r.productId)) { out.push(r); continue; }
+    const portions: MoveRequest[] = [];
     let left = r.qty;
-    for (const b of fefo.get(`${r.warehouseId}:${r.productId}`) ?? []) {
-      if (left <= 0n) break;
-      if (b.qty <= 0n) continue;
-      const take = b.qty < left ? b.qty : left;
-      b.qty -= take;
-      left -= take;
-      if (r.lineId) outBatchOfLine.set(r.lineId, b.id);
-      out.push({ ...r, qty: take, batchId: b.id });
+    const take = (qty: Dec, batch?: AvailableBatch) => {
+      if (qty <= 0n) return;
+      left -= qty;
+      if (batch) batch.qty -= qty;
+      portions.push({ ...r, qty, batchId: batch?.id ?? null });
+    };
+    if (r.phase === 2) {
+      for (const m of shipped) {
+        if (left <= 0n) break;
+        if (m.documentLineId !== r.lineId || m.warehouseId !== r.warehouseId || m.productId !== r.productId) continue;
+        const batch = m.batchId ? byId.get(m.batchId) : undefined;
+        const qty = dec(m.qty) < left ? dec(m.qty) : left;
+        if (m.batchId && (!batch || batch.qty < qty)) throw new DomainError(422, 'stock_conflict', 'The shipped batch is no longer available');
+        take(qty, batch);
+      }
+      if (left > 0n) throw new DomainError(422, 'stock_conflict', 'The shipment does not contain the requested quantity');
+    } else {
+      for (const batch of fefo.get(`${r.warehouseId}:${r.productId}`) ?? []) {
+        if (left <= 0n) break;
+        take(batch.qty < left ? batch.qty : left, batch);
+      }
+      // Остаток до включения партионного учёта (или разрешённый минус) остаётся без партии.
+      if (left > 0n) take(left);
     }
-    if (left > 0n) out.push({ ...r, qty: left }); // нет партий (например, товар включили задним числом) — списываем без партии
+    out.push(...portions);
+    if (r.lineId) outOfLine.set(r.lineId, [...(outOfLine.get(r.lineId) ?? []), ...portions]);
   }
-  // 2. приходы: партия строки — своя (номер из строки); для перемещения «в пути» — та же, что списана со склада отправителя
-  const batchOfLine = new Map<string, string>();
   for (const r of reqs) {
     if (r.direction !== 'in') continue;
-    if (!tracked.has(r.productId) || !r.lineId) {
-      out.push(r);
+    if (!tracked.has(r.productId) || !r.lineId) { out.push(r); continue; }
+    if (r.costFromLine) {
+      let left = r.qty;
+      for (const portion of outOfLine.get(r.lineId) ?? []) {
+        if (left <= 0n) break;
+        const qty = portion.qty < left ? portion.qty : left;
+        const source = portion.batchId ? byId.get(portion.batchId)! : null;
+        const batchId = source ? await receiptBatch(db, workspaceId, r, { number: source.number, producedAt: source.producedAt, expiresAt: source.expiresAt }) : null;
+        out.push({ ...r, qty, batchId });
+        left -= qty;
+      }
+      if (left > 0n) throw new DomainError(422, 'stock_conflict', 'The transfer has no matching withdrawal');
       continue;
     }
     const product = tracked.get(r.productId)!;
     const input = lineBatches.get(r.lineId) ?? {};
     const number = (input.number ?? '').trim();
-    if (!number) {
-      // перемещение «в пути»: партия та же, что ушла со склада отправителя (её создал приход отправителя)
-      const inherited = outBatchOfLine.get(r.lineId);
-      if (inherited) {
-        batchOfLine.set(r.lineId, inherited);
-        out.push({ ...r, batchId: inherited });
-        continue;
-      }
-      throw new DomainError(422, 'batch_number_required', `"${product.name}": enter a batch number for the receipt line`, { productId: r.productId, lineId: r.lineId });
-    }
-    const expiresAt = input.expiresAt ?? (product.shelfLifeDays ? addDays(doc.date, product.shelfLifeDays) : null);
-    const producedAt = input.producedAt ?? doc.date;
-    const [existing] = await db
-      .select({ id: stockBatches.id })
-      .from(stockBatches)
-      .where(and(eq(stockBatches.workspaceId, workspaceId), eq(stockBatches.warehouseId, r.warehouseId), eq(stockBatches.productId, r.productId), eq(stockBatches.number, number)))
-      .limit(1);
-    let batchId = existing?.id;
-    if (!batchId) {
-      const [created] = await db
-        .insert(stockBatches)
-        .values({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, number, producedAt, expiresAt, documentLineId: r.lineId })
-        .onConflictDoUpdate({ target: [stockBatches.workspaceId, stockBatches.warehouseId, stockBatches.productId, stockBatches.number], set: { updatedAt: new Date() } })
-        .returning({ id: stockBatches.id });
-      batchId = created!.id;
-    }
-    batchOfLine.set(r.lineId, batchId);
+    if (!number) throw new DomainError(422, 'batch_number_required', `"${product.name}": enter a batch number for the receipt line`, { productId: r.productId, lineId: r.lineId });
+    const batchId = await receiptBatch(db, workspaceId, r, {
+      number, producedAt: input.producedAt ?? doc.date,
+      expiresAt: input.expiresAt ?? (product.shelfLifeDays ? addDays(doc.date, product.shelfLifeDays) : null),
+    });
     out.push({ ...r, batchId });
   }
-  // порядок движений: расходы раньше приходов (как в applyStockMoves)
-  return [...out.filter(r => r.direction === 'out'), ...out.filter(r => r.direction !== 'out')];
+  return out;
 }
 
 /** Партии строк документа для формы и печати: строка → партия (номер, даты) */
@@ -136,14 +149,21 @@ export async function lineBatchesView(db: Db, documentId: string) {
   return rows.filter(r => r.lineId);
 }
 
-/** Отмена проведения: партии документа без остатка удаляются (приходы этого документа), партия с остатком остаётся.
-    Ссылки на партию у расходов чужих документов не трогаем — их списание уже прошло */
-export async function revertBatches(db: Db, workspaceId: string, documentId: string): Promise<void> {
+/** После удаления движений проверяет все затронутые партии, включая пополнение чужой партии.
+    Нулевой остаток не означает отсутствие ссылок: удалять можно только партии без движений. */
+export async function revertBatches(db: Db, workspaceId: string, batchIds: string[], allowNegativeStock: boolean): Promise<void> {
+  if (!batchIds.length) return;
   const rows = await db
-    .select({ id: stockBatches.id, qty: sql<string>`(select coalesce(sum(m.qty), 0) from stock_moves m where m.batch_id = stock_batches.id)` })
+    .select({
+      id: stockBatches.id,
+      qty: sql<string>`(select coalesce(sum(m.qty), 0) from stock_moves m where m.batch_id = stock_batches.id)`,
+      used: sql<boolean>`exists(select 1 from stock_moves m where m.batch_id = stock_batches.id)`,
+    })
     .from(stockBatches)
-    .where(and(eq(stockBatches.workspaceId, workspaceId), eq(stockBatches.documentLineId, sql`any(select id from ${documentLines} where document_id = ${documentId})`)));
-  const empty = rows.filter(r => dec(r.qty) <= 0n).map(r => r.id);
+    .where(and(eq(stockBatches.workspaceId, workspaceId), inArray(stockBatches.id, batchIds)));
+  const negative = rows.filter(r => dec(r.qty) < 0n);
+  if (!allowNegativeStock && negative.length) throw new DomainError(422, 'stock_conflict', 'Cannot unpost: later movements need these batches. Unpost the dependent documents first.', { batchIds: negative.map(r => r.id) });
+  const empty = rows.filter(r => !r.used).map(r => r.id);
   if (empty.length) await db.delete(stockBatches).where(inArray(stockBatches.id, empty));
 }
 
@@ -154,18 +174,23 @@ export async function batchBalances(db: Db, workspaceId: string, opts: { warehou
     .select({
       batchId: stockBatches.id,
       warehouseId: stockBatches.warehouseId,
+      warehouseName: warehouses.name,
       productId: stockBatches.productId,
+      productName: products.name,
       number: stockBatches.number,
       producedAt: stockBatches.producedAt,
       expiresAt: stockBatches.expiresAt,
       qty: sql<string>`(select coalesce(sum(m.qty), 0) from stock_moves m where m.batch_id = stock_batches.id)`,
     })
     .from(stockBatches)
+    .innerJoin(products, eq(products.id, stockBatches.productId))
+    .innerJoin(warehouses, eq(warehouses.id, stockBatches.warehouseId))
     .where(
       and(
         eq(stockBatches.workspaceId, workspaceId),
         opts.warehouseId ? eq(stockBatches.warehouseId, opts.warehouseId) : undefined,
         opts.productId ? eq(stockBatches.productId, opts.productId) : undefined,
+        opts.q?.trim() ? ilike(stockBatches.number, `%${opts.q.trim().replace(/[%_\\]/g, m => '\\' + m)}%`) : undefined,
         opts.expired ? sql`${stockBatches.expiresAt} < ${today}` : undefined,
         opts.days !== undefined ? sql`${stockBatches.expiresAt} is not null and ${stockBatches.expiresAt} <= (current_date + ${opts.days} * interval '1 day')` : undefined,
       ),

@@ -2256,6 +2256,7 @@ DOCUMENT_HOOKS.production = {
       туда же (себестоимость услуги — наши затраты), наш склад выпуск не трогает */
   post: async (db, ctx, doc, lines) => {
     const { items, components } = await loadPlan(db, doc.id);
+    const lineBatches = new Map(lines.filter(l => l.batchNumber).map(l => [l.id, { number: l.batchNumber, producedAt: l.batchProducedAt, expiresAt: l.batchExpiresAt }]));
     // разборка: списывается исходный товар, приходуются выходные продукты (стоимость делится между ними)
     if (doc.operation === 'disassembly') {
       const lineQty = new Map(lines.map(l => [l.id, dec(l.qty)]));
@@ -2276,7 +2277,7 @@ DOCUMENT_HOOKS.production = {
       const wasteComps = (await isFinalStage(db, dHeader?.stageId ?? null)) ? components.filter(c => c.kind === 'waste') : [];
       const wh = await releaseWarehouses(db, doc);
       for (const c of wasteComps) inReqs.push({ warehouseId: wh.waste!, productId: c.productId!, lineId: null, qty: dec(c.qty), direction: 'in', cost: wasteValuation === 'accounting' ? dec(c.price ?? '0') : 0n });
-      await applyStockMoves(db, ctx.workspaceId, { id: doc.id, date: doc.date }, inReqs, settings);
+      await applyStockMoves(db, ctx.workspaceId, { id: doc.id, date: doc.date }, inReqs, settings, { lineBatches });
       // факт по составу: списанное количество и себестоимость строки
       for (const c of components) {
         if (c.kind === 'work') {
@@ -2398,6 +2399,7 @@ DOCUMENT_HOOKS.production = {
     }
     await applyStockMoves(db, ctx.workspaceId, { id: doc.id, date: doc.date }, inReqs, settings, {
       inCost: lineId => (lineId ? unitOf.get(lineId) : undefined),
+      lineBatches,
     });
     // давальские движения выпуска: сырьё давальца и продукция на его остатке (наш склад не меняется)
     if (custReqs.length && ownerCompanyId) await applyCustomerStockMoves(db, ctx.workspaceId, { id: doc.id, date: doc.date }, custReqs);

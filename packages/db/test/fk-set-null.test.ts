@@ -1,7 +1,10 @@
 /* Составные FK (workspace_id, X) с ON DELETE SET NULL: при удалении родителя обнуляется только X, а не workspace_id (NOT NULL).
    Без списка колонок Postgres обнуляет весь ключ — удаление родителя падает с not-null violation. */
 import { describe, expect, test } from 'bun:test';
+import { getTableName } from 'drizzle-orm';
+import { getTableConfig } from 'drizzle-orm/pg-core';
 import { createSql, adminDatabaseUrl } from '../src';
+import { stockBatches } from '../src/schema';
 import { runSeed } from '../src/seed';
 
 interface Fk { name: string; child: string; parent: string; childCols: string[]; parentCols: string[]; def: string }
@@ -19,6 +22,18 @@ async function compositeSetNullFks(admin: ReturnType<typeof createSql>): Promise
 }
 
 describe('composite FKs with ON DELETE SET NULL', () => {
+  test('the declared batch origin FK matches the migrated document-line reference', async () => {
+    const fk = getTableConfig(stockBatches).foreignKeys.find(f => f.getName() === 'stock_batches_line_fk')!;
+    const admin = createSql(adminDatabaseUrl(), { max: 1 });
+    try {
+      const [actual] = await admin`select confrelid::regclass::text as parent from pg_constraint where conname='stock_batches_line_fk'`;
+      expect(actual!.parent).toBe('document_lines');
+      expect(getTableName(fk.reference().foreignTable)).toBe(actual!.parent);
+    } finally {
+      await admin.end();
+    }
+  });
+
   test('null out only their own column, never workspace_id', async () => {
     const admin = createSql(adminDatabaseUrl(), { max: 1 });
     const fks = await compositeSetNullFks(admin);

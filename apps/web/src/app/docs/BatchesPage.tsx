@@ -6,6 +6,7 @@ import { Badge, Button, EmptyState, Skeleton, type Tone } from '@/components/ui'
 import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/gr8r/data-table';
 import { FilterBar, useFilterState } from '@/components/gr8r/filter-bar';
 import { useT } from '@/i18n';
+import { fmtNumber } from '@/i18n/format';
 import { fmtDate, parse } from '../lib/dates';
 import { call, useWsId } from '../meta/data';
 import { docsKey } from './data';
@@ -14,14 +15,16 @@ import { useQuery } from '@tanstack/react-query';
 export interface BatchItem {
   batchId: string;
   warehouseId: string;
+  warehouseName: string;
   productId: string;
+  productName: string;
   number: string;
   producedAt: string | null;
   expiresAt: string | null;
   qty: string;
 }
 
-export function useBatches(params: { warehouseId?: string; productId?: string; days?: number; expired?: boolean }, enabled = true) {
+export function useBatches(params: { warehouseId?: string; productId?: string; days?: number; expired?: boolean; q?: string }, enabled = true) {
   const ws = useWsId();
   return useQuery({
     queryKey: docsKey(ws, 'batches', params),
@@ -31,6 +34,7 @@ export function useBatches(params: { warehouseId?: string; productId?: string; d
       if (params.productId) sp.set('productId', params.productId);
       if (params.days !== undefined) sp.set('days', String(params.days));
       if (params.expired) sp.set('expired', '1');
+      if (params.q) sp.set('q', params.q);
       return call<{ items: BatchItem[]; total: number }>(ws, 'GET', `/stock/batches?${sp}`);
     },
     enabled,
@@ -59,17 +63,22 @@ export function BatchesPage() {
   const t = useT();
   const filters = useFilterState();
   const [days, setDays] = React.useState<string>('');
+  const [q, setQ] = React.useState('');
+  React.useEffect(() => {
+    const timer = setTimeout(() => setQ(filters.q.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [filters.q]);
   const expired = filters.values.expired?.[0] === '1';
   const daysNum = days.trim() === '' ? undefined : Math.max(0, Math.round(Number(days) || 0));
-  const list = useBatches({ expired, days: daysNum });
+  const list = useBatches({ expired, days: daysNum, q: q || undefined });
   const rows = list.data?.items ?? [];
 
   const columns = React.useMemo<Column<BatchItem>[]>(
     () => [
       { id: 'number', header: t('batches.list.number'), width: 160, value: r => r.number, cell: r => <span className="mono" style={{ fontWeight: 450 }}>{r.number}</span> },
-      { id: 'product', header: t('batches.list.product'), width: 260, value: r => r.productId, cell: () => <span className="trunc" /> },
-      { id: 'warehouse', header: t('batches.list.warehouse'), width: 170, value: r => r.warehouseId, cell: () => <span className="trunc muted" /> },
-      { id: 'qty', header: t('batches.list.qty'), width: 110, value: r => Number(r.qty), cell: r => <span className="r num">{Number(r.qty)}</span> },
+      { id: 'product', header: t('batches.list.product'), width: 260, value: r => r.productName, cell: r => <span className="trunc">{r.productName}</span> },
+      { id: 'warehouse', header: t('batches.list.warehouse'), width: 170, value: r => r.warehouseName, cell: r => <span className="trunc muted">{r.warehouseName}</span> },
+      { id: 'qty', header: t('batches.list.qty'), width: 110, value: r => Number(r.qty), cell: r => <span className="r num">{fmtNumber(r.qty)}</span> },
       { id: 'producedAt', header: t('batches.list.producedAt'), width: 120, value: r => r.producedAt ?? '', cell: r => (r.producedAt ? <span className="num muted">{fmtDate(parse(r.producedAt))}</span> : <span className="faint">—</span>) },
       { id: 'expiresAt', header: t('batches.list.expiresAt'), width: 190, value: r => r.expiresAt ?? '', cell: r => <Expiry until={r.expiresAt} /> },
     ],

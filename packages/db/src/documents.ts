@@ -166,9 +166,9 @@ interface ResolvedLine {
   /** Группа строки; undefined — оставить прежнюю */
   groupName?: string;
   /** Партия строки (задача 1187): номер партии прихода и даты */
-  batchNumber: string | null;
-  batchProducedAt: string | null;
-  batchExpiresAt: string | null;
+  batchNumber?: string | null;
+  batchProducedAt?: string | null;
+  batchExpiresAt?: string | null;
 }
 
 /** Подставляет из товара название, единицу и ставку НДС, которых нет в строке; новые строки — только по действующим товарам.
@@ -202,9 +202,9 @@ async function resolveLines(db: Db, inputs: DocumentLineInput[], existingIds: Se
       tollingRole: l.tollingRole ?? null,
       params: l.params ?? {},
       groupName: l.groupName,
-      batchNumber: l.batchNumber?.trim() || null,
-      batchProducedAt: l.batchProducedAt ?? null,
-      batchExpiresAt: l.batchExpiresAt ?? null,
+      batchNumber: l.batchNumber === undefined ? undefined : l.batchNumber?.trim() || null,
+      batchProducedAt: l.batchProducedAt,
+      batchExpiresAt: l.batchExpiresAt,
     };
   });
 }
@@ -314,9 +314,9 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
       // группа строки (справочно): клиент, не знающий групп, её не сбрасывает
       groupName: l.groupName ?? prevGroup.get(l.id) ?? '',
       // партия строки (задача 1187): номер партии и даты — клиент не знающий партий, их не сбрасывает
-      batchNumber: l.batchNumber ?? prevBatch.get(l.id) ?? null,
-      batchProducedAt: l.batchProducedAt ?? prevBatchProduced.get(l.id) ?? null,
-      batchExpiresAt: l.batchExpiresAt ?? prevBatchExpires.get(l.id) ?? null,
+      batchNumber: l.batchNumber === undefined ? prevBatch.get(l.id) ?? null : l.batchNumber,
+      batchProducedAt: l.batchProducedAt === undefined ? prevBatchProduced.get(l.id) ?? null : l.batchProducedAt,
+      batchExpiresAt: l.batchExpiresAt === undefined ? prevBatchExpires.get(l.id) ?? null : l.batchExpiresAt,
     };
     // приём и возврат давальческого сырья ничего не продают: цена строки нулевая, НДС нет
     if (meta.noPrice) {
