@@ -23,7 +23,8 @@ const mk = async (c: Client, path: string, body: Record<string, unknown>) => {
   return r.body as any;
 };
 const today = () => new Date().toISOString().slice(0, 10);
-const shift = (days: number) => new Date(Date.now() + days * 864e5).toISOString().slice(0, 10);
+/** Дата со сдвигом от понедельника (не от «сегодня»): срок заказа не прыгает в другой период в зависимости от дня недели */
+const fromMonday = (weeks: number, days: number) => new Date(Date.parse(`${monday(weeks)}T00:00:00Z`) + days * 864e5).toISOString().slice(0, 10);
 /** Понедельник недели, в которой живёт сегодняшняя дата (периоды плана начинаются с понедельника) */
 const monday = (weeks = 0) => {
   const d = new Date();
@@ -122,7 +123,7 @@ describe('production plan', () => {
 describe('filling the plan', () => {
   test('fill by customer orders: the open remainder goes to the period of the shipment date', async () => {
     // 5 стульев под заказом покупателя со сроком во второй период
-    const order = await mk(owner, '/documents', { type: 'customer_order', counterpartyId: customer, dueDate: shift(9), lines: [{ productId: table, qty: '5', price: '5000', discountPct: '0' }] });
+    const order = await mk(owner, '/documents', { type: 'customer_order', counterpartyId: customer, dueDate: fromMonday(1, 2), lines: [{ productId: table, qty: '5', price: '5000', discountPct: '0' }] });
     expect((await owner.post(`/documents/${order.id}/post`)).status).toBe(200);
     const p = await plan({}, '0');
     await owner.post(`/production-plans/${p.id}/fill`, { source: 'customer_orders', mode: 'replace', periods: 3 });
