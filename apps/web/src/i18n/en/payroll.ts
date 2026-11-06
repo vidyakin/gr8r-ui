@@ -80,6 +80,8 @@ export const payroll = {
     card: 'Card or account for the registry',
     advanceAmount: 'Advance, amount',
     advancePercent: 'Advance, % of salary',
+    hourlyRate: 'Hourly rate, RUB',
+    hourlyRateHint: 'When set, the shift cost uses it instead of the salary divided by the monthly hours norm',
     accruals: 'Planned accruals',
     validFrom: 'Valid from',
     value: 'Amount or percent',

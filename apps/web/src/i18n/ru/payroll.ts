@@ -82,6 +82,8 @@ export const payroll: typeof en = {
     card: 'Карта или счёт для реестра',
     advanceAmount: 'Аванс, сумма',
     advancePercent: 'Аванс, % от оклада',
+    hourlyRate: 'Почасовая ставка, руб.',
+    hourlyRateHint: 'Если задана, стоимость часа в смене считается из неё, а не из оклада и нормы часов',
     accruals: 'Плановые начисления',
     validFrom: 'Действует с',
     value: 'Сумма или процент',

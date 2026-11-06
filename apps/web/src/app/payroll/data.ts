@@ -47,6 +47,8 @@ export interface Employee {
   cardAccount: string;
   advanceAmount: string | null;
   advancePercent: string | null;
+  /** Почасовая ставка (задача 1271): из неё стоимость часа в табеле прораба, иначе оклад / норма часов */
+  hourlyRate: string | null;
   accruals: Accrual[];
 }
 

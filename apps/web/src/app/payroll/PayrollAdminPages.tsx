@@ -48,6 +48,7 @@ function EmployeeCard({ e }: { e: Employee }) {
     cardAccount: e.cardAccount,
     advanceAmount: e.advanceAmount ?? '',
     advancePercent: e.advancePercent ?? '',
+    hourlyRate: e.hourlyRate ?? '',
   });
   const [acc, setAcc] = React.useState({ kindId: '', validFrom: today().slice(0, 8) + '01', value: '', basis: 'revenue' });
   const planned = (kinds.data ?? []).filter(k => ['salary', 'sales_percent', 'bonus'].includes(k.baseType));
@@ -64,6 +65,8 @@ function EmployeeCard({ e }: { e: Employee }) {
         cardAccount: draft.cardAccount,
         advanceAmount: draft.advanceAmount || null,
         advancePercent: draft.advancePercent || null,
+        // пустое поле очищает ставку: стоимость часа тогда считается по окладу
+        hourlyRate: draft.hourlyRate || null,
       });
       toast(tt('payroll.saved'), { duration: 1500 });
     });
@@ -94,6 +97,7 @@ function EmployeeCard({ e }: { e: Employee }) {
         <Field label={tt('payroll.employees.card')}>{p => <Input {...p} value={draft.cardAccount} onChange={ev => setDraft({ ...draft, cardAccount: ev.target.value })} />}</Field>
         <Field label={tt('payroll.employees.advanceAmount')}>{p => <Input {...p} inputMode="decimal" value={draft.advanceAmount} onChange={ev => setDraft({ ...draft, advanceAmount: ev.target.value })} />}</Field>
         <Field label={tt('payroll.employees.advancePercent')}>{p => <Input {...p} inputMode="decimal" value={draft.advancePercent} onChange={ev => setDraft({ ...draft, advancePercent: ev.target.value })} />}</Field>
+        <Field label={tt('payroll.employees.hourlyRate')} hint={tt('payroll.employees.hourlyRateHint')}>{p => <Input {...p} inputMode="decimal" value={draft.hourlyRate} onChange={ev => setDraft({ ...draft, hourlyRate: ev.target.value })} />}</Field>
       </div>
       <table className="dtbl" aria-label={tt('payroll.employees.accruals')}>
         <thead>

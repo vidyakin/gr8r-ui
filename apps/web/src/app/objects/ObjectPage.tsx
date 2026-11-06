@@ -1,7 +1,8 @@
-/* Карточка объекта объектного учёта (задача 1268): шапка с полями и вкладки «Смета», «Вехи», «Бюджет», «Задачи», «Документы», «Платежи», «Склад».
+/* Карточка объекта объектного учёта (задача 1268): шапка с полями и вкладки «Смета», «Вехи», «Бюджет», «Табель», «Задачи», «Документы», «Платежи», «Склад».
    Деньги в вкладках видят owner и admin (их маскирует сервер); создание объекта заводит проект задач.
    Смета (задача 1269) — отдельная вкладка: основная смета, допработы, редактор позиций и заказы.
-   Процент выполнения и вехи (задача 1272): индикатор и способ расчёта в шапке, вехи — отдельная вкладка. */
+   Процент выполнения и вехи (задача 1272): индикатор и способ расчёта в шапке, вехи — отдельная вкладка.
+   Табель (задача 1271): смены по датам и табель работников за месяц — отдельная вкладка ShiftsTab. */
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { Archive, CircleAlert, Save } from 'lucide-react';
@@ -21,6 +22,7 @@ import { useObjectEstimates } from './estimates-data';
 import { EstimateTab } from './EstimateTab';
 import { MilestonesTab } from './MilestonesTab';
 import { BudgetTab } from './BudgetTab';
+import { ShiftsTab } from './ShiftsTab';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const blank = (): ObjectInput => ({ number: '', name: '', customerId: null, address: '', startDate: today(), dueDate: null, status: 'planning', managerId: null, revenueMode: 'acts', overheadPct: '', budgetPolicy: 'warn', progressMode: 'tasks_closed', progressManual: '', projectId: null, warehouseId: null, note: '', foremen: [], contracts: [] });
@@ -336,6 +338,13 @@ export function ObjectPage() {
                 label: tt('objects.milestones.title'),
                 count: undefined,
                 content: <MilestonesTab objectId={detail!.id} canWrite={canWrite && !archived} />,
+              },
+              // Табель прораба (задача 1271): смены по датам и табель за месяц
+              {
+                id: 'shifts',
+                label: tt('shifts.tab.title'),
+                count: undefined,
+                content: <ShiftsTab objectId={detail!.id} />,
               },
               {
                 id: 'budget',

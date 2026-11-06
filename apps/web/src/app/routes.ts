@@ -174,6 +174,8 @@ export const SECTIONS = {
   rateSchedules: { path: '/transport-orders/rates', name: 'Rate schedules', icon: ListChecks },
   // Договоры и биллинг
   objects: { path: '/objects', name: 'Objects', icon: Building2 },
+  // Табель прораба (задача 1271): смены бригады на объекте
+  shift: { path: '/shifts', name: 'Foreman shift', icon: ScanBarcode },
   contracts: { path: '/contracts', name: 'Contracts', icon: FileSignature },
   tariffPlans: { path: '/tariff-plans', name: 'Tariff plans', icon: ListChecks },
   billing: { path: '/billing', name: 'Billing', icon: ReceiptText },
@@ -344,6 +346,7 @@ const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
   servicesReports: 'services',
   contracts: 'services',
   objects: 'trade',
+  shift: 'trade',
   tariffPlans: 'services',
   billing: 'services',
   deliveries: 'deliveries',

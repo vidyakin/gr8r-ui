@@ -7,7 +7,7 @@ import { useSession } from '../data/session';
 import { SECTIONS, type SectionId } from '../routes';
 
 /** Раздел меню → опция, без которой он скрыт (вкладка «Партии» нужна пищевому производству) */
-export const INDUSTRY_OF_SECTION: Partial<Record<SectionId, IndustryOption>> = { batches: 'food', objects: 'construction' };
+export const INDUSTRY_OF_SECTION: Partial<Record<SectionId, IndustryOption>> = { batches: 'food', objects: 'construction', shift: 'construction' };
 
 /** Включённые опции воркспейса; null — ещё не загружены (тогда показываем всё) */
 export function useEnabledIndustries(): Set<IndustryOption> | null {

@@ -79,6 +79,7 @@ export const sections: Widen<typeof S> = {
   dispatch: 'Диспетчер',
   fleetFines: 'Штрафы',
   objects: 'Объекты',
+  shift: 'Смена прораба',
   contracts: 'Договоры',
   tariffPlans: 'Тарифные планы',
   priceList: 'Прайс-лист',

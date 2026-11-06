@@ -10,6 +10,8 @@ import { MemberAvatar, MemberStack } from '../components/workspace';
 import { NamedIcon } from '../components/icons';
 import { MemberMenu, MemberStatus, RoleCell, useMemberActions } from '../components/member';
 import { useInvite, useTeamForm } from '../overlays';
+import { WorkerDialog } from '../shifts/MemberLabour';
+import { useIsAdmin } from '../catalog/data';
 import { tEnum, useT } from '@/i18n';
 
 type TabId = 'members' | 'teams' | 'roles';
@@ -111,6 +113,7 @@ export function MembersPage() {
   const navigate = useNavigate();
   const invite = useInvite();
   const teamForm = useTeamForm();
+  const admin = useIsAdmin();
   const actions = useMemberActions();
   const [tab, setTab] = React.useState<TabId>('members');
   const [q, setQ] = React.useState('');
@@ -132,6 +135,8 @@ export function MembersPage() {
           </p>
         </div>
         <div className="acts">
+          {/* Рабочие без входа и печать бейджей (задача 1271): участники без учётной записи */}
+          {admin && <WorkerDialog />}
           <Button variant="primary" onClick={() => invite.open()}>
             <UserPlus size={14} />
             {t('pages.members.inviteMember')}

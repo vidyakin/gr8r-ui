@@ -77,6 +77,7 @@ export const sections = {
   dispatch: 'Dispatcher',
   fleetFines: 'Fines',
   objects: 'Objects',
+  shift: 'Foreman shift',
   contracts: 'Contracts',
   tariffPlans: 'Tariff plans',
   billing: 'Billing',

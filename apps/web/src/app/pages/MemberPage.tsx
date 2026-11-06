@@ -12,6 +12,7 @@ import { WeekBars } from '../components/time-summary';
 import { MemberMenu, useMemberActions } from '../components/member';
 import { NotFoundPage } from './PlaceholderPage';
 import { MemberPositions } from '../positions/MemberPositions';
+import { BadgePanel } from '../shifts/MemberLabour';
 import { tEnum, useT } from '@/i18n';
 
 export function MemberPage() {
@@ -131,6 +132,8 @@ export function MemberPage() {
           )}
         </section>
         <div className="stack">
+          {/* Табельный номер и бейдж (задача 1271): выпуск и печать — только admin */}
+          <BadgePanel memberId={m.id} />
           <section className="panel">
             <div className="panel-h">
               <h2>{t('pages.member.activeProjects')}</h2>

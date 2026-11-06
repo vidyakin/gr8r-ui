@@ -33,6 +33,7 @@
 @import './catalog.css' layer(components);
 @import './docs.css' layer(components);
 @import './finance.css' layer(components);
+@import './shifts.css' layer(components);
 @import './automations.css' layer(components);
 @import './auth.css' layer(components);
 
