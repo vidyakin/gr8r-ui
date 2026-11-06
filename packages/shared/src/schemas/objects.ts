@@ -63,8 +63,9 @@ const milestoneHead = z.object({
   note: z.string().max(5000).default(''),
 });
 
-/** Ровно одно из amount/pct: и при создании, и при правке (правка проверяет сервис по объединённой строке) */
-export const objectMilestoneCreate = milestoneHead.refine(v => (v.amount == null) !== (v.pct == null), { message: 'Set either amount or percent, not both', path: ['amount'] });
+/** Ровно одно из amount/pct проверяет сервис (422 milestone_amount_required): при создании — по телу,
+    при правке — по объединённой строке, иначе PATCH одного поля не смог бы проверить пару */
+export const objectMilestoneCreate = milestoneHead;
 
 export const objectMilestoneUpdate = toPatch(milestoneHead.omit({ id: true }));
 

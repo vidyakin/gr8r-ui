@@ -163,10 +163,11 @@ describe('вехи объекта', () => {
 
   test('создание вехи: сумма или процент, но не оба', async () => {
     const both = await owner.post(`/objects/${target}/milestones`, { name: 'Оба', amount: '1000', pct: '10' });
-    expect(both.status).toBe(400);
+    expect(both.status).toBe(422);
+    expect(both.body.error.code).toBe('milestone_amount_required');
     const neither = await owner.post(`/objects/${target}/milestones`, { name: 'Ничего' });
-    expect(neither.status).toBe(400);
-    // сервис тоже проверяет: веха без суммы и процента не сохранится
+    expect(neither.status).toBe(422);
+    expect(neither.body.error.code).toBe('milestone_amount_required');
     const created = await owner.post(`/objects/${target}/milestones`, { name: 'Аванс', kind: 'advance', pct: '30' });
     expect(created.status).toBe(201);
     expect(created.body).toMatchObject({ name: 'Аванс', kind: 'advance', pct: '30.00', value: '30000.00', invoiced: null, paid: null });
