@@ -139,15 +139,15 @@ export function milestoneAmount(m: { amount?: string | null | undefined; pct?: s
   return fmt(pctOf(dec(contractValue), dec(m.pct)), 2);
 }
 
-/** Суммы по вехам: выполнено, принято; выставлено и оплачено появятся с актами и счетами (задача 1273) */
+/** Суммы по вехам: выполнено, принято, выставлено и оплачено (из связанных актов, задача 1273) */
 export interface MilestoneTotals {
   /** Сумма вех; null — у процента нет стоимости договора (нет согласованной сметы) */
   total: string | null;
   done: string | null;
   accepted: string | null;
-  /** «Выставлено» и «Оплачено» здесь не хранятся — их даст задача 1273 (акты и счета) */
-  invoiced: null;
-  paid: null;
+  /** Выставлено и оплачено: суммы документов актов по вехам; null — актов по вехам этого вида ещё нет */
+  invoiced: string | null;
+  paid: string | null;
 }
 
 export interface ObjectMilestonesSummary {
@@ -159,7 +159,8 @@ export interface ObjectMilestonesSummary {
   advance: MilestoneTotals;
 }
 
-/** Сводка по вехам: этапы отдельно от аванса. Процент вехи считается от стоимости договора. */
+/** Сводка по вехам: этапы отдельно от аванса. Процент вехи считается от стоимости договора.
+    «Выставлено» и «оплачено» сюда не входят: их считает сервис по связанным актам (objectMilestonesView). */
 export function summarizeMilestones(milestones: ObjectMilestoneLike[], contractValue: string | null): ObjectMilestonesSummary {
   const sums = (kind: MilestoneKind) => {
     const rows = milestones.filter(m => m.kind === kind);

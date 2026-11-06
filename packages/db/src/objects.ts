@@ -37,6 +37,8 @@ export interface ObjectInput {
   managerId?: string | null | undefined;
   revenueMode?: ObjectRow['revenueMode'] | undefined;
   overheadPct?: string | undefined;
+  /** Ставка часа для заказчика (задача 1273): выручка «по часам» = часы смен × ставка */
+  customerHourRate?: string | null | undefined;
   /** Контроль бюджета объекта (задача 1270) */
   budgetPolicy?: ObjectRow['budgetPolicy'] | undefined;
   /** Как считать процент выполнения объекта (задача 1272) */
@@ -168,6 +170,7 @@ export async function createObject(db: Db, ctx: { workspaceId: string; memberId:
       managerId: input.managerId ?? null,
       revenueMode: input.revenueMode ?? 'acts',
       overheadPct: overheadPct!,
+      customerHourRate: input.customerHourRate ?? null,
       budgetPolicy: input.budgetPolicy ?? 'warn',
       progressMode: input.progressMode ?? 'tasks_closed',
       progressManual: input.progressManual ?? null,
@@ -199,6 +202,7 @@ export async function updateObject(db: Db, ctx: { workspaceId: string; memberId:
   if (input.managerId !== undefined) set.managerId = input.managerId;
   if (input.revenueMode !== undefined) set.revenueMode = input.revenueMode;
   if (input.overheadPct !== undefined) set.overheadPct = input.overheadPct;
+  if (input.customerHourRate !== undefined) set.customerHourRate = input.customerHourRate;
   if (input.budgetPolicy !== undefined) set.budgetPolicy = input.budgetPolicy;
   if (input.progressMode !== undefined) set.progressMode = input.progressMode;
   if (input.progressManual !== undefined) set.progressManual = input.progressManual;

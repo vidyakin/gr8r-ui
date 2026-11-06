@@ -84,6 +84,7 @@ export * from './file-store';
 export * from './attachments';
 export * from './objects';
 export * from './object-budget';
+export * from './object-acts';
 export * from './object-progress';
 export * from './object-shifts';
 export * from './estimates';

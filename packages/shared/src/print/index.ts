@@ -12,3 +12,4 @@ export * from './transport-waybill';
 export * from './carrier-contract';
 export * from './contract';
 export * from './contract-docx';
+export * from './object-acts';

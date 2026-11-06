@@ -2,9 +2,11 @@
    Проекты задач создаются здесь же — как это делает сервис при создании объекта.
    Смета (задача 1269): у первого объекта согласованная основная смета (2 раздела по 3 позиции) и допработа в черновике.
    Процент выполнения и вехи (задача 1272): у первого объекта аванс и два этапа, у пары позиций сметы выполненный объём.
-   Табель прораба (задача 1271): бригада из трёх рабочих без входа с бейджами и две подтверждённые смены прошлой недели. */
+   Табель прораба (задача 1271): бригада из трёх рабочих без входа с бейджами и две подтверждённые смены прошлой недели.
+   Выручка (задача 1273): у первого объекта подписанный акт по объёмам за прошлый месяц с выставленными счётом и актом. */
 import { eq } from 'drizzle-orm';
 import type { Db } from './client';
+import { createObjectAct, invoiceObjectAct, signObjectAct, suggestAct } from './object-acts';
 import { confirmShift, createShift, saveShift } from './object-shifts';
 import { addEmployeeAccrual, ensurePayrollKinds, updateEmployeePayroll } from './payroll';
 import { members, objectEstimateItems, objectEstimateSections, objectEstimates, objectForemen, objectMilestones, objects, projects, warehouses } from './schema';
@@ -83,6 +85,7 @@ export async function seedObjects(
   await seedMilestones(db, wsId, inserted[0]!);
   const crew = await seedCrew(db, wsId, memberId);
   await seedShifts(db, wsId, memberId, inserted[0]!, crew);
+  await seedActs(db, wsId, memberId, inserted[0]!);
   return { objects: inserted.length };
 }
 
@@ -200,4 +203,29 @@ async function seedShifts(db: Db, wsId: string, memberId: string, objectId: stri
     });
     await confirmShift(db, ctx, id);
   }
+}
+
+/** Подписанный акт по объёмам за прошлый месяц и выставленные из него счёт и акт оказания услуг (задача 1273).
+    Объёмы — предложенные сервисом: выполненное минус уже принятое. Сид закрывает месяц выпуска, поэтому документы
+    акта остаются черновиками (их проводят после открытия периода): это штатное поведение выставления. */
+async function seedActs(db: Db, wsId: string, memberId: string, objectId: string): Promise<void> {
+  const ctx = { workspaceId: wsId, memberId, role: 'owner' as const };
+  const [object] = await db.select({ number: objects.number }).from(objects).where(eq(objects.id, objectId)).limit(1);
+  if (!object) return;
+  // последний день прошлого месяца: отчётный период акта
+  const now = new Date();
+  const actDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0)).toISOString().slice(0, 10);
+  const periodFrom = `${actDate.slice(0, 7)}-01`;
+  const suggestion = await suggestAct(db, objectId, { kind: 'volumes', from: periodFrom, to: actDate });
+  if (!suggestion.lines.length) return;
+  const act = await createObjectAct(db, ctx, objectId, {
+    kind: 'volumes',
+    actDate,
+    periodFrom,
+    periodTo: actDate,
+    note: `Приёмка работ за ${periodFrom.slice(0, 7)}: выполненное по смете принято заказчиком`,
+    lines: suggestion.lines.map(l => ({ estimateItemId: l.estimateItemId!, qty: l.qty })),
+  });
+  await signObjectAct(db, ctx, act.id);
+  await invoiceObjectAct(db, ctx, act.id);
 }

@@ -29,6 +29,8 @@ export const objects = pgTable(
     revenueMode: text('revenue_mode', { enum: ['acts', 'milestones', 'hours'] }).notNull().default('acts'),
     /** Процент накладных от прямых затрат */
     overheadPct: numeric('overhead_pct', { precision: 5, scale: 2 }).notNull().default('0'),
+    /** Ставка часа для заказчика (задача 1273): выручка «по часам» = подтверждённые часы смен × ставка; пусто — акт по часам не создать */
+    customerHourRate: money('customer_hour_rate'),
     /** Контроль бюджета (задача 1270): none — не контролировать, warn — предупредить, block — запретить проведение */
     budgetPolicy: text('budget_policy', { enum: ['none', 'warn', 'block'] }).notNull().default('warn'),
     /** Как считать процент выполнения (задача 1272): по закрытым задачам, среднему прогрессу, весам, объёмам сметы, вручную */
@@ -56,6 +58,7 @@ export const objects = pgTable(
     check('objects_status_chk', sql`${t.status} in ('planning','active','hold','done','closed')`),
     check('objects_revenue_mode_chk', sql`${t.revenueMode} in ('acts','milestones','hours')`),
     check('objects_overhead_chk', sql`${t.overheadPct} >= 0 and ${t.overheadPct} <= 100`),
+    check('objects_customer_hour_rate_chk', sql`${t.customerHourRate} is null or ${t.customerHourRate} >= 0`),
     check('objects_budget_policy_chk', sql`${t.budgetPolicy} in ('none','warn','block')`),
     check('objects_progress_mode_chk', sql`${t.progressMode} in ('tasks_closed','tasks_avg','task_weights','estimate_volume','manual')`),
     check('objects_progress_manual_chk', sql`${t.progressManual} is null or (${t.progressManual} >= 0 and ${t.progressManual} <= 100)`),
@@ -326,6 +329,105 @@ export const objectShiftVolumes = pgTable(
     foreignKey({ columns: [t.workspaceId, t.estimateItemId], foreignColumns: [objectEstimateItems.workspaceId, objectEstimateItems.id], name: 'object_shift_volumes_item_fk' }).onDelete('cascade'),
     check('object_shift_volumes_qty_chk', sql`${t.qty} > 0`),
     index('object_shift_volumes_shift_idx').on(t.workspaceId, t.shiftId),
+  ],
+);
+
+/** Акт выполненных работ объекта (задача 1273, docs/architecture/construction.md): три вида — по объёмам (КС-2),
+    по вехе этапа и по подтверждённым часам смен. Черновик → подписан заказчиком (принято); подписание фиксирует строки.
+    «Выставлено» — счёт и документ «Акт оказания услуг», созданные из подписанного акта. */
+export const objectActs = pgTable(
+  'object_acts',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    objectId: uuid('object_id').notNull(),
+    /** Номер акта: КС-<код объекта>-<порядковый> */
+    number: text('number').notNull().default(''),
+    actDate: date('act_date', { mode: 'string' }).notNull(),
+    /** Отчётный период акта */
+    periodFrom: date('period_from', { mode: 'string' }).notNull(),
+    periodTo: date('period_to', { mode: 'string' }).notNull(),
+    /** volumes — по объёмам (КС-2), milestone — по вехе этапа, hours — по подтверждённым часам смен */
+    kind: text('kind', { enum: ['volumes', 'milestone', 'hours'] }).notNull().default('volumes'),
+    /** Веха, по которой выставлен акт (только kind = 'milestone') */
+    milestoneId: uuid('milestone_id'),
+    /** draft — черновик, signed — подписан заказчиком (принято) */
+    status: text('status', { enum: ['draft', 'signed'] }).notNull().default('draft'),
+    signedAt: ts('signed_at'),
+    signedBy: uuid('signed_by'),
+    /** Счёт, выставленный из акта: составной FK (workspace_id, invoice_document_id) → documents добавляет миграция 0100 */
+    invoiceDocumentId: uuid('invoice_document_id'),
+    /** Документ «Акт оказания услуг»: выручка и взаиморасчёты с заказчиком (составной FK — в миграции 0100) */
+    actDocumentId: uuid('act_document_id'),
+    note: text('note').notNull().default(''),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    unique('object_acts_ws_id_uq').on(t.workspaceId, t.id),
+    uniqueIndex('object_acts_ws_number_uq').on(t.workspaceId, t.number),
+    foreignKey({ columns: [t.workspaceId, t.objectId], foreignColumns: [objects.workspaceId, objects.id], name: 'object_acts_object_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.milestoneId], foreignColumns: [objectMilestones.workspaceId, objectMilestones.id], name: 'object_acts_milestone_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.signedBy], foreignColumns: [members.workspaceId, members.id], name: 'object_acts_signed_by_fk' }).onDelete('set null'),
+    check('object_acts_kind_chk', sql`${t.kind} in ('volumes','milestone','hours')`),
+    check('object_acts_status_chk', sql`${t.status} in ('draft','signed')`),
+    check('object_acts_period_chk', sql`${t.periodFrom} <= ${t.periodTo}`),
+    // подпись и её автор ставятся вместе; у акта по вехе веха обязательна
+    check('object_acts_signed_chk', sql`(${t.status} = 'draft' and ${t.signedAt} is null and ${t.signedBy} is null) or (${t.status} = 'signed' and ${t.signedAt} is not null)`),
+    check('object_acts_milestone_kind_chk', sql`(${t.kind} = 'milestone') = (${t.milestoneId} is not null)`),
+    index('object_acts_object_idx').on(t.workspaceId, t.objectId, t.actDate),
+    index('object_acts_milestone_idx').on(t.workspaceId, t.milestoneId),
+  ],
+);
+
+/** Строка акта: позиция сметы (по объёмам) или строка вехи / часов. Цена — цена согласованной сметы без НДС. */
+export const objectActLines = pgTable(
+  'object_act_lines',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    actId: uuid('act_id').notNull(),
+    /** Позиция сметы (по объёмам): из неё берутся цена, единица и ставка НДС */
+    estimateItemId: uuid('estimate_item_id'),
+    sortOrder: integer('sort_order').notNull().default(0),
+    name: text('name').notNull(),
+    unitCode: text('unit_code').notNull().default('796'),
+    qty: numeric('qty', { precision: 18, scale: 3 }).notNull(),
+    /** Цена заказчику без НДС */
+    price: money('price').notNull().default('0'),
+    vatRate: text('vat_rate').notNull().default('20'),
+    /** Сумма без НДС: количество × цена до копейки */
+    amount: money('amount').notNull().default('0'),
+    createdAt: createdAt(),
+  },
+  t => [
+    unique('object_act_lines_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.actId], foreignColumns: [objectActs.workspaceId, objectActs.id], name: 'object_act_lines_act_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.estimateItemId], foreignColumns: [objectEstimateItems.workspaceId, objectEstimateItems.id], name: 'object_act_lines_item_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.unitCode], foreignColumns: [units.workspaceId, units.code], name: 'object_act_lines_unit_fk' }),
+    check('object_act_lines_qty_chk', sql`${t.qty} > 0 and ${t.price} >= 0 and ${t.amount} >= 0`),
+    check('object_act_lines_vat_chk', sql`${t.vatRate} in ('none','0','5','7','10','20')`),
+    index('object_act_lines_act_idx').on(t.actId, t.sortOrder),
+    index('object_act_lines_item_idx').on(t.workspaceId, t.estimateItemId),
+  ],
+);
+
+/** Часы смен, вошедшие в акт «по часам»: один час смены — только в одном акте (уникальность пары воркспейс + строка часов) */
+export const objectActShiftHours = pgTable(
+  'object_act_shift_hours',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    actId: uuid('act_id').notNull(),
+    shiftHourId: uuid('shift_hour_id').notNull(),
+    createdAt: createdAt(),
+  },
+  t => [
+    unique('object_act_shift_hours_ws_id_uq').on(t.workspaceId, t.id),
+    unique('object_act_shift_hours_hour_uq').on(t.workspaceId, t.shiftHourId),
+    foreignKey({ columns: [t.workspaceId, t.actId], foreignColumns: [objectActs.workspaceId, objectActs.id], name: 'object_act_shift_hours_act_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.shiftHourId], foreignColumns: [objectShiftHours.workspaceId, objectShiftHours.id], name: 'object_act_shift_hours_hour_fk' }).onDelete('cascade'),
+    index('object_act_shift_hours_act_idx').on(t.actId),
   ],
 );
 

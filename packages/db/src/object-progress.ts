@@ -17,6 +17,7 @@ import {
   type ObjectProgressMode,
 } from '@gr8r/shared';
 import type { Db } from './client';
+import { milestoneActAmounts } from './object-acts';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { objectEstimateItems, objectEstimates, objectMilestones, objects, tasks } from './schema';
@@ -108,13 +109,16 @@ export async function objectProgress(db: Db, objectId: string): Promise<ObjectPr
 
 /* ---------------- вехи: чтение ---------------- */
 
-/** Веха для интерфейса: сумма для отображения и отметки; «выставлено»/«оплачено» появятся с задачей 1273 */
+/** Веха для интерфейса: сумма для отображения, отметки и деньги связанного акта (задача 1273) */
 export interface ObjectMilestoneView extends ObjectMilestoneRow {
   /** Сумма вехи: amount или pct × стоимость договора; null — у процента нет стоимости договора */
   value: string | null;
-  /** Выставлено и оплачено — задача 1273 (акты и счета), здесь не хранятся */
-  invoiced: null;
-  paid: null;
+  /** Выставлено: сумма документа акта по вехе; null — акта ещё нет */
+  invoiced: string | null;
+  /** Оплачено по взаиморасчётам документа акта; null — акта ещё нет */
+  paid: string | null;
+  /** Акт, которым закрыта веха */
+  act: { id: string; number: string } | null;
 }
 
 export interface ObjectMilestonesView {
@@ -125,22 +129,51 @@ export interface ObjectMilestonesView {
   summary: ObjectMilestonesSummary;
 }
 
-const toView = (row: ObjectMilestoneRow, contractValue: string | null): ObjectMilestoneView => ({
+interface MilestoneActMoney {
+  invoiced: string;
+  paid: string;
+  actId: string;
+  actNumber: string;
+}
+
+const toView = (row: ObjectMilestoneRow, contractValue: string | null, money?: MilestoneActMoney | undefined): ObjectMilestoneView => ({
   ...row,
   value: milestoneAmount(row, contractValue),
-  invoiced: null,
-  paid: null,
+  // деньги вехи — из связанного подписанного акта (задача 1273): счёт и акт оказания услуг
+  invoiced: money ? money.invoiced : null,
+  paid: money ? money.paid : null,
+  act: money ? { id: money.actId, number: money.actNumber } : null,
 });
 
 /** Вехи объекта с суммой каждой и сводкой «выполнено / принято / выставлено / оплачено» (этапы и аванс отдельно) */
 export async function objectMilestonesView(db: Db, objectId: string): Promise<ObjectMilestonesView> {
   await assertLiveObject(db, objectId);
-  const [rows, contractValue] = await Promise.all([
+  const [rows, contractValue, actMoney] = await Promise.all([
     db.select().from(objectMilestones).where(eq(objectMilestones.objectId, objectId)).orderBy(asc(objectMilestones.sortOrder), asc(objectMilestones.id)),
     objectContractValue(db, objectId),
+    milestoneActAmounts(db, objectId),
   ]);
   const summary = summarizeMilestones(rows, contractValue);
-  return { objectId, contractValue, items: rows.map(r => toView(r, contractValue)), summary };
+  // «выставлено» и «оплачено» по вехам — из связанных актов: суммируем по видам (этапы и аванс отдельно)
+  const totals = (kind: 'stage' | 'advance') => {
+    const own = rows.filter(r => r.kind === kind && actMoney.has(r.id));
+    if (!own.length) return { invoiced: null, paid: null };
+    let invoiced = 0n;
+    let paid = 0n;
+    for (const r of own) {
+      invoiced += dec(actMoney.get(r.id)!.invoiced);
+      paid += dec(actMoney.get(r.id)!.paid);
+    }
+    return { invoiced: fmt(invoiced, 2), paid: fmt(paid, 2) };
+  };
+  const stages = totals('stage');
+  const advance = totals('advance');
+  const full = {
+    ...summary,
+    stages: { ...summary.stages, ...stages },
+    advance: { ...summary.advance, ...advance },
+  };
+  return { objectId, contractValue, items: rows.map(r => toView(r, contractValue, actMoney.get(r.id))), summary: full };
 }
 
 /* ---------------- вехи: запись ---------------- */
@@ -256,7 +289,8 @@ export async function setMilestoneAccepted(db: Db, ctx: MilestoneCtx, objectId: 
   return row!;
 }
 
-/** Строка вехи из ответа (после записи) — с суммой для отображения */
+/** Строка вехи из ответа (после записи) — с суммой для отображения и деньгами акта */
 export async function milestoneView(db: Db, objectId: string, row: ObjectMilestoneRow): Promise<ObjectMilestoneView> {
-  return toView(row, await objectContractValue(db, objectId));
+  const money = await milestoneActAmounts(db, objectId);
+  return toView(row, await objectContractValue(db, objectId), money.get(row.id));
 }
