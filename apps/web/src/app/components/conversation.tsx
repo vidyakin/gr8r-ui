@@ -46,6 +46,8 @@ export function NotifIcon({ n }: { n: Notification }) {
 export function NotifText({ n }: { n: Notification }) {
   const { data } = useWorkspace();
   const { task: t, project: p } = notifTarget(data, n);
+  // уведомление об объекте (сводка о ходе работ, задача 1277): заголовок — сам текст, ссылка ведёт в карточку объекта
+  if (!n.by && n.object && !t) return <b style={{ fontWeight: 600 }}>{n.text}</b>;
   if (!n.by && p && !t) return <b style={{ fontWeight: 600 }}>{n.text}</b>;
   if (!n.by && t)
     return (

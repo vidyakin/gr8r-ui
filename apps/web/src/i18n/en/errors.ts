@@ -309,6 +309,7 @@ export const errors = {
   shift_empty: 'Add hours or completed volumes before confirming the shift',
   estimate_has_facts: 'The estimate cannot be returned to draft: the object already has confirmed shifts, accepted subcontract acts or signed customer acts',
   forecast_reason_required: 'Give a reason for changing the forecast',
+  report_recipients_required: 'Select at least one digest recipient: an active workspace member',
   badge_not_found: 'The badge code is unknown or revoked: no record was created',
   executor_required: 'The piecework order has no executor',
   extra_product_forbidden: 'The product is not in the tariff plan: selling it under this contract is forbidden',

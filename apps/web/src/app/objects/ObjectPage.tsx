@@ -29,6 +29,8 @@ import { ShiftsTab } from './ShiftsTab';
 import { ActsTab } from './ActsTab';
 import { SubcontractTab } from './SubcontractTab';
 import { ForecastTab } from './ForecastTab';
+import { ReportPanel } from './ReportPanel';
+import { usePrintOpener } from '../money/data';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const blank = (): ObjectInput => ({ number: '', name: '', customerId: null, address: '', startDate: today(), dueDate: null, status: 'planning', managerId: null, revenueMode: 'acts', overheadPct: '', customerHourRate: '', budgetPolicy: 'warn', progressMode: 'tasks_closed', progressManual: '', projectId: null, warehouseId: null, note: '', foremen: [], contracts: [] });
@@ -43,6 +45,7 @@ export function ObjectPage() {
   // отмена подписи акта — admin и выше (задача 1273)
   const canAdmin = ['owner', 'admin'].includes(useSession().active?.role ?? '');
   const api = useObjectApi();
+  const openPrint = usePrintOpener();
   const doc = useObject(isNew ? undefined : id);
   const detail = isNew ? null : doc.data;
   const summary = useObjectSummary(isNew ? undefined : id);
@@ -334,6 +337,17 @@ export function ObjectPage() {
         </Field>
         <Field label={tt('objects.field.note')}>{p => <Input {...p} disabled={!editable} value={form.note ?? ''} onChange={e => set('note', e.target.value)} />}</Field>
       </section>
+
+      {/* Сводка о ходе работ по расписанию (задача 1277): расписание, «Отправить сейчас» и печать для заказчика */}
+      {!isNew && detail && (
+        <ReportPanel
+          objectId={detail.id}
+          objectName={detail.name}
+          managerId={detail.managerId}
+          canWrite={canWrite && !archived}
+          onPrint={() => void openPrint(`/objects/${detail.id}/progress-report`).catch(e => toast.error(errorMessage(e)))}
+        />
+      )}
 
       {!isNew && (
         <div style={{ padding: '0 var(--gutter)' }}>

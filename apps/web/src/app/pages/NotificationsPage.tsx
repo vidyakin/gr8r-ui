@@ -21,7 +21,9 @@ function NotificationRow({ n }: { n: Notification }) {
   const { task, project: proj } = notifTarget(data, n);
   const activate = () => {
     dispatch({ type: 'notif/setRead', id: n.id, read: true });
-    if (task) open(task);
+    // уведомление о сводке о ходе работ открывает карточку объекта (задача 1277)
+    if (n.object) navigate(`/objects/${n.object}`);
+    else if (task) open(task);
     else if (proj) navigate(`/projects/${proj.id}`);
   };
   return (
@@ -35,7 +37,7 @@ function NotificationRow({ n }: { n: Notification }) {
           <MentionText text={n.snippet} />
         </div>
         <div className="faint" style={{ fontSize: 11.5, marginTop: 4 }}>
-          {proj ? `${proj.name} · ` : ''}
+          {n.object ? `${t('objects.report.notificationLabel')} · ` : proj ? `${proj.name} · ` : ''}
           {ago(n.at)}
         </div>
       </div>

@@ -10,7 +10,15 @@
 
 ## Задачи `jobs`
 `index.create`/`index.drop` (DDL индексов полей конструктора), `flow.run`, `document.pdf`, `billing.export_zip`,
-`production.close_period`, `bank.sync` (загрузка операций банка по API), `yookassa.payment` (проверка платежа ЮКассы), `noop`.
+`production.close_period`, `bank.sync` (загрузка операций банка по API), `yookassa.payment` (проверка платежа ЮКассы),
+`object.progress_report` (сводка о ходе объекта по расписанию: уведомления получателям), `noop`.
+
+## Периодические проходы
+`src/index.ts` раз в минуту: `scheduleFlowsOnce` (автоматизации по расписанию), раз в 5 минут `scheduleBankSyncs`,
+`purgeTenantsOnce`; раз в час — `runBillingOnce`, `runLoyaltyExpirationOnce`, `runNextContactsOnce`, `runAppointmentsOnce`, `runFleetOnce`, `runAttachmentGcOnce`, `runDealOverdueOnce`.
+Раз в минуту — `runObjectReportsOnce` (сводка о ходе объекта, задача 1277): выбирает объекты с наступившим днём и временем
+по часовому поясу воркспейса и ставит задачу `object.progress_report`; выключенный модуль `trade` и опция `construction`
+объект пропускают. Проходы обязаны быть идемпотентными: журналы, `last_sent_at` и отметки `notified_*` пишутся в той же транзакции.
 
 ## Структура `src/`
 - `flows/` — движок автоматизаций: `engine.ts` (пошаговый запуск), `triggers.ts` (события и расписание → запуски), `records.ts` (действия над данными), `runtime.ts` (порты `NodeRuntime`), `http.ts` (исходящие запросы с защитой от SSRF).

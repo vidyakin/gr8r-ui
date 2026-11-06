@@ -333,7 +333,7 @@ export function buildSpecs(ws: string, statusIds: Map<string, string>) {
   const notifs = list<Notification>({
     name: 'notifs',
     query: { sort: '-createdAt' },
-    from: ((r: Rows['notifs']): Notification => ({ id: r.id, type: r.type, by: r.actorId, task: r.taskId ?? undefined, project: r.projectId ?? undefined, text: r.text, snippet: r.snippet, at: ms(r.createdAt), read: r.read })) as never,
+    from: ((r: Rows['notifs']): Notification => ({ id: r.id, type: r.type, by: r.actorId, task: r.taskId ?? undefined, project: r.projectId ?? undefined, object: r.objectId ?? undefined, text: r.text, snippet: r.snippet, at: ms(r.createdAt), read: r.read })) as never,
     fields: { read: v => ({ read: v }) },
     canCreate: () => false, // уведомления создаёт сервер
     remove: 'none',
