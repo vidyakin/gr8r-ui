@@ -2,7 +2,7 @@
    Создание и правка — member и выше; удаление = архив, только admin и выше. */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
-import { archiveObject, createObject, getObject, listObjects, objectSummary, updateObject } from '@gr8r/db';
+import { archiveObject, createObject, getObject, listObjects, objectBudget, objectSummary, updateObject } from '@gr8r/db';
 import { idParam, objectCreate, objectQuery, objectUpdate } from '@gr8r/shared';
 import { ctxOf, validationHook } from '../crud';
 import { requireRole } from '../middleware';
@@ -26,6 +26,11 @@ export const objectRoutes = new Hono<AppEnv>()
     const ctx = ctxOf(c);
     const { id } = c.req.valid('param');
     return c.json(await objectSummary(ctx.db, id, ctx.role));
+  })
+  // бюджет объекта по категориям (задача 1270): суммы — только owner/admin, остальным null-поля
+  .get('/:id/budget', zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json(await objectBudget(ctx.db, c.req.valid('param').id, ctx.role));
   })
   .get('/:id', zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);

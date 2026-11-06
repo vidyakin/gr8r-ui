@@ -24,6 +24,12 @@ export type ObjectStatus = (typeof OBJECT_STATUSES)[number];
 /** Способ выручки объекта: акты фактических объёмов, вехи, часы */
 export const REVENUE_MODES = ['acts', 'milestones', 'hours'] as const;
 export type RevenueMode = (typeof REVENUE_MODES)[number];
+/** Контроль бюджета объекта (задача 1270): не контролировать, предупредить, запретить проведение */
+export const BUDGET_POLICIES = ['none', 'warn', 'block'] as const;
+export type BudgetPolicy = (typeof BUDGET_POLICIES)[number];
+/** Категории затрат объекта (задача 1270): материалы, труд, субподряд, прочие прямые затраты */
+export const OBJECT_COST_CATEGORIES = ['material', 'labor', 'subcontract', 'other'] as const;
+export type ObjectCostCategory = (typeof OBJECT_COST_CATEGORIES)[number];
 
 /** Модуль задач: general — обычные задачи, production — производство, services — услуги.
     Модуль задачи совпадает с модулем проекта, в котором она лежит (у каждого модуля свой системный проект) */

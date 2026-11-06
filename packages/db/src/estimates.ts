@@ -27,6 +27,7 @@ import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { createProductionOrder } from './production';
 import { assertObjectRef } from './objects';
+import { objectCostFacts } from './object-budget';
 import {
   manufacturedItems,
   members,
@@ -245,9 +246,11 @@ export async function getEstimate(db: Db, id: string, role: Role | undefined): P
 }
 
 /** Точка расширения план-факта: фактические суммы и часы по позициям сметы.
-    Пока фактов нет (их подключат задачи 1271/1274/1275) — пустая карта, поэтому остаток равен плану.
-    Реализация этих задач вернёт сюда факт по позиции: выручку по актам, стоимость материалов и труд из табеля. */
-export async function estimateFacts(_db: Db, _estimateId: string): Promise<Record<string, EstimateLineTotals>> {
+    Факт задачи 1270 считается по категориям объекта (`objectCostFacts`) и по позициям пока не распределяется: вкладка
+    «Смета» показывает его в итогах по категориям, а у строк факт нулевой (распределение — задачи 1271/1274/1275). */
+export async function estimateFacts(db: Db, estimateId: string): Promise<Record<string, EstimateLineTotals>> {
+  const [row] = await db.select({ objectId: objectEstimates.objectId }).from(objectEstimates).where(eq(objectEstimates.id, estimateId)).limit(1);
+  if (row) await objectCostFacts(db, row.objectId);
   return {};
 }
 

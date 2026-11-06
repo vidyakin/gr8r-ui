@@ -2,6 +2,7 @@
    и план-факт по позициям. Чистые функции на десятичных из decimal.ts — одни и те же на сервере и в интерфейсе.
    Деньги без НДС, считаются целыми копейками по строкам, итоги — сумма округлённых строк (как в документах). */
 import { dec, div, fmt, mul, type Dec } from './decimal';
+import type { ObjectCostCategory } from './constants';
 
 /** Вид сметы: основная смета объекта или дополнение (допработы) */
 export const ESTIMATE_KINDS = ['main', 'change'] as const;
@@ -21,6 +22,15 @@ export type EstimateItemKind = (typeof ESTIMATE_ITEM_KINDS)[number];
 
 /** Позиции, из которых создаётся заказ поставщику (нужен товар каталога) */
 export const SUPPLIER_ORDER_ITEM_KINDS: readonly EstimateItemKind[] = ['material', 'subcontract'];
+
+/** Вид позиции сметы → категория затрат объекта (задача 1270): щиты — это материалы, работы — труд */
+export const ESTIMATE_KIND_CATEGORY: Record<EstimateItemKind, ObjectCostCategory> = {
+  work: 'labor',
+  material: 'material',
+  panel: 'material',
+  subcontract: 'subcontract',
+  other: 'other',
+};
 
 const round = (v: Dec, dp: number): Dec => dec(fmt(v, dp));
 

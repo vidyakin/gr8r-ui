@@ -83,5 +83,6 @@ export * from './routing-trips';
 export * from './file-store';
 export * from './attachments';
 export * from './objects';
+export * from './object-budget';
 export * from './estimates';
 export * from './contract-print';

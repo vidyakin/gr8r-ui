@@ -37,6 +37,8 @@ export interface ObjectInput {
   managerId?: string | null | undefined;
   revenueMode?: ObjectRow['revenueMode'] | undefined;
   overheadPct?: string | undefined;
+  /** Контроль бюджета объекта (задача 1270) */
+  budgetPolicy?: ObjectRow['budgetPolicy'] | undefined;
   projectId?: string | null | undefined;
   warehouseId?: string | null | undefined;
   note?: string | undefined;
@@ -162,6 +164,7 @@ export async function createObject(db: Db, ctx: { workspaceId: string; memberId:
       managerId: input.managerId ?? null,
       revenueMode: input.revenueMode ?? 'acts',
       overheadPct: overheadPct!,
+      budgetPolicy: input.budgetPolicy ?? 'warn',
       projectId,
       warehouseId: input.warehouseId ?? null,
       note: input.note ?? '',
@@ -190,6 +193,7 @@ export async function updateObject(db: Db, ctx: { workspaceId: string; memberId:
   if (input.managerId !== undefined) set.managerId = input.managerId;
   if (input.revenueMode !== undefined) set.revenueMode = input.revenueMode;
   if (input.overheadPct !== undefined) set.overheadPct = input.overheadPct;
+  if (input.budgetPolicy !== undefined) set.budgetPolicy = input.budgetPolicy;
   if (input.projectId !== undefined) set.projectId = input.projectId;
   if (input.warehouseId !== undefined) set.warehouseId = input.warehouseId;
   if (input.note !== undefined) set.note = input.note;

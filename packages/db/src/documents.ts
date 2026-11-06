@@ -42,6 +42,7 @@ import { applyStockMoves, defaultPostingCost, documentCosts, documentLineCosts, 
 import { syncWorkOrderResources } from './planning';
 import { assertPeriodOpen, assertServiceCostItems, clearPeriodCosts, syncPeriodCosts } from './cost-closing';
 import { assertObjectRef } from './objects';
+import { documentBudgetWarnings } from './object-budget';
 import { bankAccounts, companies, deals, contracts, discountRules, loyaltyCards, paymentLinks, costItems, documentCounters, documentLineDiscounts, documentLines, documentStates, documents, investmentProjects, materialAllocationItems, members, organizations, products, promoCodes, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials, objects } from './schema';
 import { assertInvestmentTarget, investmentOpen } from './investments';
 import { assertContractOfCompany, contractDocumentProducts, contractPlanProductIds, defaultContract } from './contracts';
@@ -937,6 +938,9 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<str
 
   await syncAfterChange(db, ctx, doc, lines, true);
   await hook?.afterPost?.(db, ctx, doc, lines);
+  // контроль бюджета объекта (задача 1270): факт считается после записи движений и статуса,
+  // block бросает 422 budget_exceeded и откатывает проведение, warn добавляет код предупреждения в ответ
+  contractWarnings.push(...(await documentBudgetWarnings(db, ctx, { id, type, objectId: doc.objectId })));
   // взаиморасчёты (задача 1174б): начисление долга контрагента и зачёт авансов
   await postAccrual(db, ctx.workspaceId, id);
   // повторные продажи (задача 1133): у покупателя ставится дата следующего контакта

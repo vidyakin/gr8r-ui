@@ -29,6 +29,8 @@ export const objects = pgTable(
     revenueMode: text('revenue_mode', { enum: ['acts', 'milestones', 'hours'] }).notNull().default('acts'),
     /** Процент накладных от прямых затрат */
     overheadPct: numeric('overhead_pct', { precision: 5, scale: 2 }).notNull().default('0'),
+    /** Контроль бюджета (задача 1270): none — не контролировать, warn — предупредить, block — запретить проведение */
+    budgetPolicy: text('budget_policy', { enum: ['none', 'warn', 'block'] }).notNull().default('warn'),
     /** Свой проект задач (график, Гант): составной FK (workspace_id, project_id) → projects добавляет миграция */
     projectId: uuid('project_id'),
     /** Склад объекта (необязательно): составной FK (workspace_id, warehouse_id) → warehouses добавляет миграция */
@@ -48,6 +50,7 @@ export const objects = pgTable(
     check('objects_status_chk', sql`${t.status} in ('planning','active','hold','done','closed')`),
     check('objects_revenue_mode_chk', sql`${t.revenueMode} in ('acts','milestones','hours')`),
     check('objects_overhead_chk', sql`${t.overheadPct} >= 0 and ${t.overheadPct} <= 100`),
+    check('objects_budget_policy_chk', sql`${t.budgetPolicy} in ('none','warn','block')`),
     index('objects_ws_status_idx').on(t.workspaceId, t.status),
   ],
 );
