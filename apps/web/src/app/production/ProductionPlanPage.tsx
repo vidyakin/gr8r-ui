@@ -4,7 +4,9 @@
    полуфабрикаты — кнопкой; заказы по плану — из рабочего места «Orders by plan». */
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { CircleAlert, Layers, Send, Trash2, TriangleAlert, Wand2, X } from 'lucide-react';
+import { CircleAlert, CopyPlus, Layers, Send, SlidersHorizontal, Trash2, TriangleAlert, Wand2, X } from 'lucide-react';
+import { paramsKey } from '@gr8r/shared';
+import { ParamsDialog } from '../docs/calculation';
 import { Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
 import { DocForm } from '@/components/gr8r/doc-form';
 import { DateInput } from '@/components/gr8r/date-picker';
@@ -56,30 +58,46 @@ function PlanView({ plan }: { plan: PlanDetail }) {
   const save = (patch: Record<string, unknown>) => api.update.mutate({ id: plan.id, body: patch });
 
   const items = snap.data?.items ?? [];
+  // параметрическое изделие: свои параметры или формулы и условия в строках (ключи могут быть характеристиками категории)
+  const parametric = React.useMemo(
+    () => new Set(items.filter(i => ((i as { params?: unknown[] }).params ?? []).length > 0 || i.lines.some(l => (l as { qtyExpr?: string | null }).qtyExpr || (l as { condition?: string | null }).condition)).map(i => i.id)),
+    [items],
+  );
   const products = plan.lines.filter(l => !l.isSemi);
   const semis = plan.lines.filter(l => l.isSemi);
-  const setLines = (lines: { id?: string; itemId: string; periodStart: string; qty: string; isSemi?: boolean }[]) =>
-    save({ lines: lines.map(l => ({ ...(l.id ? { id: l.id } : {}), itemId: l.itemId, periodStart: l.periodStart, qty: l.qty, isSemi: l.isSemi ?? false })) });
-  const setQty = (lineId: string, qty: string) => setLines(plan.lines.map(l => (l.id === lineId ? { id: l.id, itemId: l.itemId, periodStart: l.periodStart, qty, isSemi: l.isSemi } : { id: l.id, itemId: l.itemId, periodStart: l.periodStart, qty: l.qty, isSemi: l.isSemi })));
-  /** Строки группируются по изделию: одна строка таблицы, колонки — периоды */
+  type LineDraft = { id?: string; itemId: string; periodStart: string; qty: string; isSemi?: boolean; params?: Record<string, unknown> };
+  // строка уходит на сервер целиком, с параметрами: без них правка количества стёрла бы значения
+  const draft = (l: PlanLine): LineDraft => ({ id: l.id, itemId: l.itemId, periodStart: l.periodStart, qty: l.qty, isSemi: l.isSemi, params: l.params });
+  const setLines = (lines: LineDraft[]) =>
+    save({ lines: lines.map(l => ({ ...(l.id ? { id: l.id } : {}), itemId: l.itemId, periodStart: l.periodStart, qty: l.qty, isSemi: l.isSemi ?? false, params: l.params ?? {} })) });
+  const setQty = (lineId: string, qty: string) => setLines(plan.lines.map(l => (l.id === lineId ? { ...draft(l), qty } : draft(l))));
+  /** Ключ группы: изделие, полуфабрикат или продукция и набор значений параметров — одно изделие с разными параметрами идёт разными строками */
+  const groupKey = (l: { itemId: string; isSemi: boolean; params?: Record<string, unknown> }) => `${l.itemId}|${l.isSemi ? 'semi' : 'product'}|${paramsKey(l.params)}`;
+  const skippedLines = React.useMemo(() => new Set((needs.data?.skipped ?? []).map(x => x.lineId)), [needs.data]);
+  /** Строки группируются по изделию и параметрам: одна строка таблицы, колонки — периоды */
   const groups = React.useMemo(() => {
-    const map = new Map<string, { key: string; itemId: string; itemName: string; isSemi: boolean; cells: PlanLine[]; total: number }>();
+    const map = new Map<string, { key: string; itemId: string; itemName: string; productId: string | null; isSemi: boolean; params: Record<string, unknown>; cells: PlanLine[]; total: number; skipped: boolean }>();
     for (const l of plan.lines) {
-      const key = `${l.itemId}|${l.isSemi ? 'semi' : 'product'}`;
-      const cur = map.get(key) ?? { key, itemId: l.itemId, itemName: l.itemName, isSemi: l.isSemi, cells: [], total: 0 };
+      const key = groupKey(l);
+      const cur = map.get(key) ?? { key, itemId: l.itemId, itemName: l.itemName, productId: l.productId, isSemi: l.isSemi, params: l.params ?? {}, cells: [], total: 0, skipped: false };
       cur.cells.push(l);
       cur.total += Number(l.qty);
+      cur.skipped ||= skippedLines.has(l.id);
       map.set(key, cur);
     }
-    return [...map.values()].sort((a, b) => Number(a.isSemi) - Number(b.isSemi) || a.itemName.localeCompare(b.itemName));
-  }, [plan.lines]);
-  const addCell = (itemId: string, isSemi: boolean, periodStart: string) =>
-    setLines([...plan.lines.map(l => ({ id: l.id, itemId: l.itemId, periodStart: l.periodStart, qty: l.qty, isSemi: l.isSemi })), { itemId, periodStart, qty: '1', isSemi }]);
-  const removeGroup = (g: { key: string }) => setLines(plan.lines.filter(l => `${l.itemId}|${l.isSemi ? 'semi' : 'product'}` !== g.key).map(l => ({ id: l.id, itemId: l.itemId, periodStart: l.periodStart, qty: l.qty, isSemi: l.isSemi })));
+    return [...map.values()].sort((a, b) => Number(a.isSemi) - Number(b.isSemi) || a.itemName.localeCompare(b.itemName) || paramsKey(a.params).localeCompare(paramsKey(b.params)));
+  }, [plan.lines, skippedLines]);
+  type Group = (typeof groups)[number];
+  const addCell = (g: Pick<Group, 'itemId' | 'isSemi' | 'params'>, periodStart: string) =>
+    setLines([...plan.lines.map(draft), { itemId: g.itemId, periodStart, qty: '1', isSemi: g.isSemi, params: g.params }]);
+  const removeGroup = (g: { key: string }) => setLines(plan.lines.filter(l => groupKey(l) !== g.key).map(draft));
+  // значения параметров меняются у всех ячеек группы сразу
+  const setGroupParams = (g: Group, params: Record<string, unknown>) => setLines(plan.lines.map(l => (groupKey(l) === g.key ? { ...draft(l), params } : draft(l))));
+  const [paramsOf, setParamsOf] = React.useState<Group | null>(null);
   const addLine = (periodStart: string) => {
     const item = items.find(i => !products.some(l => l.itemId === i.id)) ?? items[0];
     if (!item) return toast.error(tt('production.plan.noItems'));
-    addCell(item.id, false, periodStart);
+    addCell({ itemId: item.id, isSemi: false, params: {} }, periodStart);
   };
 
   return (
@@ -219,8 +237,30 @@ function PlanView({ plan }: { plan: PlanDetail }) {
                       {groups.map(g => (
                         <tr key={g.key} data-row={g.isSemi ? 'semi' : undefined}>
                           <td className="trunc">
-                            {g.itemName}
-                            {g.isSemi && <span className="faint"> · {tt('production.plan.semiFinished')}</span>}
+                            <div className="row" style={{ gap: 4, alignItems: 'center' }}>
+                              <span className="trunc">
+                                {g.itemName}
+                                {g.isSemi && <span className="faint"> · {tt('production.plan.semiFinished')}</span>}
+                              </span>
+                              {g.skipped && (
+                                <span title={tt('production.plan.skippedBadge')} style={{ color: 'var(--warn, #b45309)', display: 'inline-flex' }}>
+                                  <TriangleAlert size={13} aria-label={tt('production.plan.skippedBadge')} />
+                                </span>
+                              )}
+                              {canWrite && !g.isSemi && g.productId && (parametric.has(g.itemId) || Object.keys(g.params).length > 0) && (
+                                <>
+                                  <IconButton size="sm" label={tt('production.plan.paramsAria', { name: g.itemName })} onClick={() => setParamsOf(g)}>
+                                    <SlidersHorizontal size={13} />
+                                  </IconButton>
+                                  {Object.keys(g.params).length > 0 && (
+                                    <IconButton size="sm" label={tt('production.plan.addVariant', { name: g.itemName })} onClick={() => addCell({ itemId: g.itemId, isSemi: false, params: {} }, plan.periods[0]!)}>
+                                      <CopyPlus size={13} />
+                                    </IconButton>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                            {Object.keys(g.params).length > 0 && <div className="faint trunc" style={{ fontSize: 11.5 }}>{paramsText(g.params)}</div>}
                           </td>
                           {plan.periods.map(p => {
                             const cell = g.cells.find(x => x.periodStart === p);
@@ -228,12 +268,12 @@ function PlanView({ plan }: { plan: PlanDetail }) {
                               <td key={p} className="r num">
                                 {cell ? (
                                   canWrite ? (
-                                    <Input aria-label={tt('production.plan.cellAria', { name: g.itemName, period: p })} inputMode="decimal" value={cell.qty} onChange={e => setQty(cell.id, e.target.value)} style={{ textAlign: 'right' }} />
+                                    <QtyCell label={tt('production.plan.cellAria', { name: g.itemName, period: p })} value={cell.qty} onCommit={v => setQty(cell.id, v)} />
                                   ) : (
                                     cell.qty
                                   )
                                 ) : canWrite ? (
-                                  <Button size="sm" onClick={() => addCell(g.itemId, g.isSemi, p)} aria-label={tt('production.plan.addAria', { name: g.itemName, period: p })}>
+                                  <Button size="sm" onClick={() => addCell(g, p)} aria-label={tt('production.plan.addAria', { name: g.itemName, period: p })}>
                                     +
                                   </Button>
                                 ) : (
@@ -310,6 +350,17 @@ function PlanView({ plan }: { plan: PlanDetail }) {
       />
 
       <FillDialog open={fill} onClose={() => setFill(false)} onFill={(source, mode, periods) => api.fill.mutate({ id: plan.id, source, mode, periods })} />
+      {paramsOf?.productId && (
+        <PlanParamsDialog
+          productId={paramsOf.productId}
+          productName={paramsOf.itemName}
+          values={paramsOf.params}
+          onClose={next => {
+            if (next && paramsKey(next) !== paramsKey(paramsOf.params)) setGroupParams(paramsOf, next);
+            setParamsOf(null);
+          }}
+        />
+      )}
       <ConfirmDialog
         open={confirm}
         onOpenChange={o => !o && setConfirm(false)}
@@ -328,6 +379,40 @@ function PlanView({ plan }: { plan: PlanDetail }) {
   );
 }
 
+/** Количество в ячейке плана: правится локально, сохраняется по Enter или уходу с поля — без запроса на каждую цифру */
+function QtyCell({ label, value, onCommit }: { label: string; value: string; onCommit: (v: string) => void }) {
+  const [v, setV] = React.useState(value);
+  React.useEffect(() => setV(value), [value]);
+  const commit = () => {
+    const next = v.trim().replace(',', '.');
+    if (!next || Number.isNaN(Number(next))) return setV(value);
+    if (Number(next) !== Number(value)) onCommit(next);
+  };
+  return (
+    <Input
+      aria-label={label}
+      inputMode="decimal"
+      value={v}
+      onChange={e => setV(e.target.value)}
+      onBlur={commit}
+      onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
+      style={{ textAlign: 'right' }}
+    />
+  );
+}
+
+/** Значения параметров строкой: «width: 3, color: white» */
+const paramsText = (p: Record<string, unknown>) =>
+  Object.entries(p)
+    .map(([k, v]) => `${k}: ${typeof v === 'boolean' ? (v ? '✓' : '—') : String(v)}`)
+    .join(', ');
+
+/** Параметры строки плана: правятся в черновике и применяются ко всей группе при закрытии диалога — одним сохранением */
+function PlanParamsDialog({ productId, productName, values, onClose }: { productId: string; productName: string; values: Record<string, unknown>; onClose: (next: Record<string, unknown> | null) => void }) {
+  const [draft, setDraft] = React.useState(values);
+  return <ParamsDialog productId={productId} productName={productName} values={draft} onChange={setDraft} onClose={() => onClose(draft)} />;
+}
+
 /** Потребности плана: материалы, полуфабрикаты, часы участков против мощности, трудозатраты */
 function NeedsTabs({ plan, needs, pending }: { plan: PlanDetail; needs: ReturnType<typeof useProductionPlanNeeds>['data']; pending: boolean }) {
   const [tab, setTab] = React.useState<'materials' | 'semis' | 'load' | 'labor'>('materials');
@@ -340,6 +425,42 @@ function NeedsTabs({ plan, needs, pending }: { plan: PlanDetail; needs: ReturnTy
     );
   return (
     <section className="panel" aria-label={tt('production.plan.needs')}>
+      {(needs?.skipped.length ?? 0) > 0 && (
+        <div role="status" style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
+          <div className="row" style={{ gap: 8, alignItems: 'center', color: 'var(--warn, #b45309)', fontWeight: 600, fontSize: 13 }}>
+            <TriangleAlert size={14} />
+            {tt('production.plan.skippedTitle', { count: needs!.skipped.length })}
+          </div>
+          <p className="faint" style={{ margin: '2px 0 8px', fontSize: 12 }}>
+            {tt('production.plan.skippedHint')}
+          </p>
+          <table className="dtbl" aria-label={tt('production.plan.skippedTable')}>
+            <thead>
+              <tr>
+                <th>{tt('production.plan.col.product')}</th>
+                <th style={{ width: 120 }}>{tt('production.plan.col.period')}</th>
+                <th className="r" style={{ width: 100 }}>{tt('production.plan.col.qty')}</th>
+                <th>{tt('production.plan.col.reason')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {needs!.skipped.map(x => (
+                <tr key={x.lineId}>
+                  <td className="trunc">
+                    {x.itemName}
+                    {Object.keys(x.params).length > 0 && <span className="faint"> · {paramsText(x.params)}</span>}
+                  </td>
+                  <td className="muted">{fmtDate(parse(x.periodStart))}</td>
+                  <td className="r num">{x.qty}</td>
+                  <td className="muted" title={x.message}>
+                    {tt(`production.plan.skipReason.${x.reason}`)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
       <nav className="tabs doc-tabs" aria-label={tt('production.plan.needSections')}>
         {(
           [

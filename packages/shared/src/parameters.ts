@@ -121,3 +121,10 @@ export const sameVariant = (a: Record<string, string>, b: Record<string, string>
   const kb = Object.keys(b).sort();
   return ka.length === kb.length && ka.every((k, i) => k === kb[i] && a[k] === b[k]);
 };
+/** Значимые значения параметров: пустые (null, undefined, '') отбрасываются */
+export const cleanParams = (p: Record<string, unknown> | null | undefined): Record<string, unknown> =>
+  Object.fromEntries(Object.entries(p ?? {}).filter(([, v]) => v !== null && v !== undefined && v !== ''));
+
+/** Ключ набора значений параметров: одинаковые наборы (в любом порядке ключей) дают один ключ — по нему суммируются строки плана */
+export const paramsKey = (p: Record<string, unknown> | null | undefined): string =>
+  JSON.stringify(Object.entries(cleanParams(p)).sort(([a], [b]) => a.localeCompare(b)));

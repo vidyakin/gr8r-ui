@@ -41,6 +41,8 @@ export function useRealtime(ws: string, engine: Engine) {
       // Документы, организации, склады, счета, остатки: запросы ['ws', id, 'docs', …]; проведение меняет и среднюю себестоимость в производстве
       if (['document', 'organization', 'warehouse', 'bank_account', 'product', 'company', 'unit', 'cost_item', 'deal', 'sales_plan_scenario', 'appointment', 'specialist_schedule', 'contact', 'delivery', 'delivery_method', 'position', 'product_kind', 'cash_register', 'cash_flow_item', 'price_kind', 'price_list_link', 'discount_rule', 'promo_code', 'loyalty_card', 'loyalty_program'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'docs'] });
       if (e.entity === 'document') void qc.invalidateQueries({ queryKey: ['ws', ws, 'production'] });
+      // План производства: карточка, потребности, журнал и «Заказы по плану» — ['ws', id, 'production-plans', …]
+      if (e.entity === 'production_plan' || e.entity === 'document') void qc.invalidateQueries({ queryKey: ['ws', ws, 'production-plans'] });
       // Автопарк (задача 1210): события fleet_* (машины, документы, путевые листы, топливо, ТО, ремонты, штрафы), должности водителей;
       // рейсы (задача 1211) — fleet_trip; доставки меняют экран диспетчера
       if (e.entity.startsWith('fleet_') || e.entity === 'position' || e.entity === 'delivery') void qc.invalidateQueries({ queryKey: ['ws', ws, 'fleet'] });

@@ -7,6 +7,7 @@ import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import {
   dec,
   explodeBom,
+  withItemParams,
   fmt,
   startBeforeLead,
   salesMinMax,
@@ -405,9 +406,9 @@ async function demandFlows(db: Db, productIds: string[], query: NeedsQuery): Pro
         const left = fmt(dec(l.line.qty) - l.ordered, 3);
         let explosion;
         try {
-          explosion = explodeBom(graph.inputs, l.line.itemId, left);
+          explosion = explodeBom(withItemParams(graph.inputs, l.line.itemId, l.line.params), l.line.itemId, left);
         } catch {
-          continue; // цикл в спецификации — план в расчёт потребностей не попадает
+          continue; // цикл или нет значений параметров — строка в расчёт не попадает; причина видна в потребностях плана
         }
         // материалы плана списывает склад участка-диспетчера (без участка — склад по умолчанию)
         for (const m of explosion.materials) if (!m.expense && productIds.includes(m.productId)) out.push({ productId: m.productId, warehouseId: l.materialsWarehouseId, date: l.line.periodStart, qty: m.qty, source: 'plan', documentId: null, label: l.name });

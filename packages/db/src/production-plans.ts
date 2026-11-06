@@ -7,6 +7,9 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql, type SQL } from 'drizzle-orm';
 import {
   averageQty,
+  BomCycleError,
+  BomFormulaError,
+  cleanParams,
   dec,
   explodeBom,
   fmt,
@@ -17,6 +20,9 @@ import {
   planPeriods,
   semiPlan,
   startBeforeLead,
+  paramsKey,
+  passParams,
+  withItemParams,
   type Dec,
   type Explosion,
 } from '@gr8r/shared';
@@ -26,7 +32,8 @@ import { recordEvent } from './events';
 import type { DocCtx } from './documents';
 import { createProductionOrder, GOOD_QTY, loadProductionGraph } from './production';
 import { calendarContext, type CalendarContext } from './planning';
-import { documentLines, documents, manufacturedItems, productionItems, productionPlanLines, productionPlans, warehouses, workCenters } from './schema';
+import { documentLines, documents, manufacturedItems, productionItems, productionPlanLines, productionPlans, products, warehouses, workCenters } from './schema';
+import { checkParamValues, loadSpecParams, specParamFields } from './specs';
 
 export type PlanRow = typeof productionPlans.$inferSelect;
 
@@ -36,6 +43,8 @@ export interface PlanLineInput {
   periodStart: string;
   qty: string;
   isSemi?: boolean;
+  /** Значения параметров спецификации (параметрическое изделие) */
+  params?: Record<string, unknown>;
 }
 
 /** Строка плана в карточке: продукт, период, количество, дата запуска и план-факт */
@@ -49,6 +58,8 @@ export interface PlanLineView {
   periodStart: string;
   qty: string;
   isSemi: boolean;
+  /** Значения параметров спецификации; пусто — изделие без параметров */
+  params: Record<string, unknown>;
   /** Дата запуска: выпуск минус дни на изготовление по рабочему календарю */
   startDate: string;
   /** Заказано по плану: позиции заказов на производство этой строки */
@@ -114,6 +125,7 @@ export async function planLines(db: Db, planId: string): Promise<PlanLineView[]>
       periodStart: r.line.periodStart,
       qty: r.line.qty,
       isSemi: r.line.isSemi,
+      params: r.line.params ?? {},
       startDate: startBeforeLead(cal.defaultCalendar, cal.holidays, cal.exceptions, r.line.periodStart, r.item.leadDays),
       ordered: fmt(own.reduce((a, o) => a + dec(o.qty), 0n), 3),
       produced: fmt(own.reduce((a, o) => a + (producedBy.get(o.id) ?? 0n), 0n), 3),
@@ -185,20 +197,41 @@ async function writeLines(db: Db, ctx: DocCtx, plan: PlanRow, lines: PlanLineInp
     if (dec(l.qty) < 0n) throw new DomainError(422, 'invalid_quantity', 'The quantity must not be negative');
     if (!periods.has(l.periodStart)) throw new DomainError(422, 'invalid_period', `${l.periodStart} is not a period of this plan`);
   }
-  const old = await db.select({ id: productionPlanLines.id }).from(productionPlanLines).where(eq(productionPlanLines.planId, plan.id));
+  // значения параметров — тем же правилом, что в строке заказа: тип, варианты select, лишние ключи (422 invalid_params)
+  const fields = new Map<string, Awaited<ReturnType<typeof specParamFields>>>();
+  const paramsOf = async (l: PlanLineInput): Promise<Record<string, unknown>> => {
+    const values = cleanParams(l.params);
+    if (!Object.keys(values).length) return {};
+    if (!fields.has(l.itemId)) fields.set(l.itemId, await specParamFields(db, l.itemId));
+    return checkParamValues(fields.get(l.itemId)!, values);
+  };
+  const checked = await Promise.all(lines.map(paramsOf));
+  const old = await db.select().from(productionPlanLines).where(eq(productionPlanLines.planId, plan.id));
+  const oldById = new Map(old.map(r => [r.id, r]));
   const drop = old.filter(r => !keep.has(r.id)).map(r => r.id);
   if (drop.length) await db.delete(productionPlanLines).where(inArray(productionPlanLines.id, drop));
-  const fresh = lines.filter(l => !l.id || !keep.has(l.id));
+  // сохраняемые строки обновляются целиком (количество, период, параметры, порядок), остальные вставляются
+  const rows = lines.map((l, n) => ({ l, params: checked[n]!, n }));
+  const changed = (l: PlanLineInput, params: Record<string, unknown>, n: number): boolean => {
+    const o = oldById.get(l.id!)!;
+    return o.itemId !== l.itemId || o.periodStart !== l.periodStart || dec(o.qty) !== dec(l.qty) || o.isSemi !== (l.isSemi ?? false) || paramsKey(o.params) !== paramsKey(params) || o.sortOrder !== n;
+  };
+  for (const { l, params, n } of rows.filter(r => r.l.id && keep.has(r.l.id) && oldById.has(r.l.id) && changed(r.l, r.params, r.n)))
+    await db
+      .update(productionPlanLines)
+      .set({ itemId: l.itemId, periodStart: l.periodStart, qty: l.qty, isSemi: l.isSemi ?? false, params, sortOrder: n, updatedAt: new Date() })
+      .where(eq(productionPlanLines.id, l.id!));
+  const fresh = rows.filter(r => !r.l.id || !keep.has(r.l.id) || !oldById.has(r.l.id));
   if (fresh.length)
     await db.insert(productionPlanLines).values(
-      fresh.map((l, n) => ({
-        ...(l.id && keep.has(l.id) ? { id: l.id } : {}),
+      fresh.map(({ l, params, n }) => ({
         workspaceId: ctx.workspaceId,
         planId: plan.id,
         itemId: l.itemId,
         periodStart: l.periodStart,
         qty: l.qty,
         isSemi: l.isSemi ?? false,
+        params,
         sortOrder: n,
       })),
     );
@@ -299,10 +332,20 @@ function historyRange(from: string, step: 'week' | 'month', periods: number): { 
   return { from: d.toISOString().slice(0, 10), to: shiftDays(from, -1) };
 }
 
-/** Продукция, которая продаётся со склада: пара «товар → изделие» */
-async function madeItems(db: Db): Promise<Map<string, string>> {
-  const items = await db.select({ id: manufacturedItems.id, productId: manufacturedItems.productId }).from(manufacturedItems).where(isNotNull(manufacturedItems.productId));
-  return new Map(items.filter(i => i.productId).map(i => [i.productId!, i.id]));
+/** Продукция, которая продаётся со склада: товар → изделие и значения параметров. Вариант товара (цвет, размер) ведёт к
+    изделию основы, а его значения разреза становятся параметрами строки плана; значения строки документа их дополняют */
+async function madeItems(db: Db): Promise<(productId: string, lineParams?: Record<string, unknown> | null) => { itemId: string; params: Record<string, unknown> } | null> {
+  const items = await db.select({ id: manufacturedItems.id, productId: manufacturedItems.productId }).from(manufacturedItems).where(and(isNotNull(manufacturedItems.productId), isNull(manufacturedItems.archivedAt)));
+  const byProduct = new Map(items.filter(i => i.productId).map(i => [i.productId!, i.id]));
+  const variants = await db.select({ id: products.id, parentId: products.parentProductId, values: products.variantValues }).from(products).where(isNotNull(products.parentProductId));
+  const variantOf = new Map(variants.map(v => [v.id, v]));
+  return (productId, lineParams) => {
+    const own = byProduct.get(productId);
+    if (own) return { itemId: own, params: cleanParams(lineParams) };
+    const v = variantOf.get(productId);
+    const parentItem = v?.parentId ? byProduct.get(v.parentId) : undefined;
+    return parentItem ? { itemId: parentItem, params: cleanParams({ ...v!.values, ...(lineParams ?? {}) }) } : null;
+  };
 }
 
 /** Заполнение плана по статистике выпуска, статистике продаж или заказам покупателей.
@@ -311,39 +354,52 @@ export async function fillProductionPlan(db: Db, ctx: DocCtx, id: string, input:
   const plan = await loadPlan(db, id, true);
   const periods = planPeriodList(plan);
   const range = historyRange(plan.periodFrom, plan.step, input.periods);
-  const computed = new Map<string, string>();
-  const bump = (itemId: string, period: string, qty: string) => {
-    const key = `${itemId}|${period}`;
-    computed.set(key, fmt(dec(computed.get(key) ?? '0') + dec(qty), 3));
+  // ключ строки — изделие, период и набор значений параметров: одно изделие с разными параметрами — разные строки
+  const computed = new Map<string, { itemId: string; periodStart: string; params: Record<string, unknown>; qty: string }>();
+  const lineKey = (itemId: string, period: string, params: Record<string, unknown> | null | undefined) => `${itemId}|${period}|${paramsKey(params)}`;
+  const bump = (itemId: string, period: string, qty: string, params: Record<string, unknown> = {}) => {
+    const key = lineKey(itemId, period, params);
+    const cur = computed.get(key);
+    computed.set(key, { itemId, periodStart: period, params: cleanParams(params), qty: fmt(dec(cur?.qty ?? '0') + dec(qty), 3) });
   };
   if (input.source === 'output') {
     const rows = await db
-      .select({ itemId: productionItems.itemId, qty: productionItems.qty })
+      .select({ itemId: productionItems.itemId, qty: productionItems.qty, params: productionItems.params })
       .from(productionItems)
       .innerJoin(documents, eq(documents.id, productionItems.documentId))
       .where(and(eq(documents.type, 'production'), eq(documents.status, 'posted'), sql`${documents.date} between ${range.from} and ${range.to}`));
-    const acc = new Map<string, string[]>();
-    for (const r of rows) acc.set(r.itemId, [...(acc.get(r.itemId) ?? []), r.qty]);
-    for (const [itemId, values] of acc) {
+    const acc = new Map<string, { itemId: string; params: Record<string, unknown>; values: string[] }>();
+    for (const r of rows) {
+      const k = `${r.itemId}|${paramsKey(r.params)}`;
+      const cur = acc.get(k) ?? { itemId: r.itemId, params: cleanParams(r.params), values: [] };
+      cur.values.push(r.qty);
+      acc.set(k, cur);
+    }
+    for (const { itemId, params, values } of acc.values()) {
       const avg = averageQty(values); // средний выпуск за период
       if (dec(avg) <= 0n) continue;
-      for (const p of periods) bump(itemId, p, avg);
+      for (const p of periods) bump(itemId, p, avg, params);
     }
   } else if (input.source === 'sales') {
     const rows = await db
-      .select({ productId: documentLines.productId, qty: documentLines.qty })
+      .select({ productId: documentLines.productId, qty: documentLines.qty, params: documentLines.params })
       .from(documentLines)
       .innerJoin(documents, eq(documents.id, documentLines.documentId))
       .where(and(eq(documents.type, 'realization'), eq(documents.status, 'posted'), sql`${documents.date} between ${range.from} and ${range.to}`));
-    const acc = new Map<string, string[]>();
-    for (const r of rows) acc.set(r.productId, [...(acc.get(r.productId) ?? []), r.qty]);
     const itemOf = await madeItems(db);
-    for (const [productId, values] of acc) {
-      const itemId = itemOf.get(productId);
-      if (!itemId) continue;
+    const acc = new Map<string, { itemId: string; params: Record<string, unknown>; values: string[] }>();
+    for (const r of rows) {
+      const made = itemOf(r.productId, r.params);
+      if (!made) continue;
+      const k = `${made.itemId}|${paramsKey(made.params)}`;
+      const cur = acc.get(k) ?? { ...made, values: [] };
+      cur.values.push(r.qty);
+      acc.set(k, cur);
+    }
+    for (const { itemId, params, values } of acc.values()) {
       const avg = averageQty(values);
       if (dec(avg) <= 0n) continue;
-      for (const p of periods) bump(itemId, p, avg);
+      for (const p of periods) bump(itemId, p, avg, params);
     }
   } else {
     // неотгруженный и не покрытый производством остаток открытых заказов покупателей — в период по сроку отгрузки
@@ -351,6 +407,7 @@ export async function fillProductionPlan(db: Db, ctx: DocCtx, id: string, input:
       .select({
         productId: documentLines.productId,
         qty: documentLines.qty,
+        params: documentLines.params,
         dueDate: documents.dueDate,
         date: documents.date,
         shipped: sql<string>`coalesce((select sum(f.qty) from document_lines f join documents d2 on d2.id = f.document_id where f.origin_line_id = document_lines.id and d2.type = 'realization' and d2.status = 'posted'), 0)`,
@@ -362,25 +419,30 @@ export async function fillProductionPlan(db: Db, ctx: DocCtx, id: string, input:
     const itemOf = await madeItems(db);
     for (const o of rows) {
       const left = dec(o.qty) - dec(o.shipped) - dec(o.covered);
-      const itemId = itemOf.get(o.productId);
-      if (left <= 0n || !itemId) continue;
+      const made = itemOf(o.productId, o.params);
+      if (left <= 0n || !made) continue;
       const period = planPeriodOf(periods, o.dueDate ?? o.date);
       if (!period) continue;
-      bump(itemId, period, fmt(left, 3));
+      bump(made.itemId, period, fmt(left, 3), made.params);
     }
   }
   const existing = await db.select().from(productionPlanLines).where(eq(productionPlanLines.planId, id));
-  const next = new Map<string, string>();
+  // в строку плана идут только ключи параметров спецификации изделия: лишние значения документа отбрасываются
+  const specKeys = await loadSpecParams(db, ctx.workspaceId);
+  const own = (itemId: string, params: Record<string, unknown>) => passParams(params, specKeys.get(itemId)?.keys ?? []) ?? {};
+  const next = new Map<string, { itemId: string; periodStart: string; params: Record<string, unknown>; qty: string }>();
+  const add = (itemId: string, periodStart: string, params: Record<string, unknown>, qty: string) => {
+    const p = own(itemId, params);
+    const key = lineKey(itemId, periodStart, p);
+    next.set(key, { itemId, periodStart, params: p, qty: fmt(dec(next.get(key)?.qty ?? '0') + dec(qty), 3) });
+  };
   const keep = new Set<string>();
-  if (input.mode === 'add') for (const e of existing.filter(e => !e.isSemi)) next.set(`${e.itemId}|${e.periodStart}`, e.qty);
-  for (const [key, qty] of computed) next.set(key, fmt(dec(next.get(key) ?? '0') + dec(qty), 3));
+  if (input.mode === 'add') for (const e of existing.filter(e => !e.isSemi)) add(e.itemId, e.periodStart, e.params ?? {}, e.qty);
+  for (const c of computed.values()) add(c.itemId, c.periodStart, c.params, c.qty);
   for (const e of existing.filter(e => e.isSemi)) keep.add(e.id);
   const rows: PlanLineInput[] = [
-    ...[...next.entries()].map(([key, qty]) => {
-      const [itemId, periodStart] = key.split('|');
-      return { itemId, periodStart, qty, isSemi: false };
-    }),
-    ...existing.filter(e => e.isSemi).map(e => ({ id: e.id, itemId: e.itemId, periodStart: e.periodStart, qty: e.qty, isSemi: true })),
+    ...[...next.values()].map(r => ({ itemId: r.itemId, periodStart: r.periodStart, qty: r.qty, isSemi: false, params: r.params })),
+    ...existing.filter(e => e.isSemi).map(e => ({ id: e.id, itemId: e.itemId, periodStart: e.periodStart, qty: e.qty, isSemi: true, params: e.params ?? {} })),
   ];
   await writeLines(db, ctx, plan, rows, keep, true);
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'production_plan.updated', entity: 'production_plan', recordId: id, actorId: ctx.memberId, payload: { fill: input.source } });
@@ -398,14 +460,17 @@ export async function planSemiFinished(db: Db, ctx: DocCtx, id: string, itemIds:
   const periods = planPeriodList(plan);
   const rows = await db.select().from(productionPlanLines).where(eq(productionPlanLines.planId, id));
   const products = rows.filter(r => !r.isSemi && (!itemIds.length || itemIds.includes(r.itemId)));
-  const acc = new Map<string, Dec>();
+  const acc = new Map<string, { itemId: string; periodStart: string; params: Record<string, unknown>; qty: Dec }>();
+  const keysOf = new Map(graph.inputs.map(i => [i.id, i.paramKeys ?? []]));
   for (const r of products) {
     let explosion: Explosion;
     try {
-      explosion = explodeBom(graph.inputs, r.itemId, r.qty);
+      explosion = explodeBom(withItemParams(graph.inputs, r.itemId, r.params), r.itemId, r.qty);
     } catch {
-      continue; // цикл в спецификации — строка пропускается, план не падает
+      continue; // цикл в спецификации или не хватает значений параметров — строка пропускается, план не падает (видно в потребностях)
     }
+    // полуфабрикат получает значения строки по совпадающим ключам — как при развороте спецификации
+    const semiParams = (itemId: string) => passParams(r.params, keysOf.get(itemId) ?? []) ?? {};
     // количества полуфабриката уже развёрнуты на количество строки — норма на единицу не применяется второй раз
     // сдвинутая на срок изготовления дата попадает в тот период плана, куда она попала
     for (const s of explosion.semis) {
@@ -416,24 +481,22 @@ export async function planSemiFinished(db: Db, ctx: DocCtx, id: string, itemIds:
         () => 0,
       );
       for (const o of out) {
-        const key = `${o.itemId}|${o.periodStart}`;
-        acc.set(key, (acc.get(key) ?? 0n) + dec(o.qty));
+        const params = semiParams(o.itemId);
+        const key = `${o.itemId}|${o.periodStart}|${paramsKey(params)}`;
+        acc.set(key, { itemId: o.itemId, periodStart: o.periodStart, params, qty: (acc.get(key)?.qty ?? 0n) + dec(o.qty) });
       }
     }
   }
   // сдвинутый на срок изготовления период может выйти за пределы плана — в него такая строка не пишется
-  const semis: PlanLineInput[] = [...acc.entries()]
-    .map(([key, qty]) => {
-      const [itemId, periodStart] = key.split('|');
-      return { itemId, periodStart, qty: fmt(qty, 3), isSemi: true };
-    })
+  const semis: PlanLineInput[] = [...acc.values()]
+    .map(a => ({ itemId: a.itemId, periodStart: a.periodStart, qty: fmt(a.qty, 3), isSemi: true, params: a.params }))
     .filter(s => s.periodStart >= plan.periodFrom && s.periodStart <= plan.periodTo);
   const keep = new Set(rows.map(r => r.id));
   await writeLines(
     db,
     ctx,
     plan,
-    [...products.map(r => ({ id: r.id, itemId: r.itemId, periodStart: r.periodStart, qty: r.qty, isSemi: false })), ...semis],
+    [...products.map(r => ({ id: r.id, itemId: r.itemId, periodStart: r.periodStart, qty: r.qty, isSemi: false, params: r.params ?? {} })), ...semis],
     keep,
     false,
   );
@@ -453,6 +516,26 @@ export async function removePlanSemi(db: Db, ctx: DocCtx, id: string): Promise<P
 
 /* ---------------- потребности ---------------- */
 
+/** Строка плана, не попавшая в потребности: почему её состав не развернуть */
+export interface PlanNeedsSkip {
+  lineId: string;
+  itemId: string;
+  itemName: string;
+  periodStart: string;
+  qty: string;
+  params: Record<string, unknown>;
+  /** missing_params — у параметрического изделия нет значений; cycle — цикл в спецификации; formula — ошибка формулы */
+  reason: 'missing_params' | 'cycle' | 'formula';
+  message: string;
+}
+
+/** Причина пропуска строки по ошибке разворота */
+export function skipReason(e: unknown): Pick<PlanNeedsSkip, 'reason' | 'message'> {
+  if (e instanceof BomCycleError) return { reason: 'cycle', message: e.message };
+  if (e instanceof BomFormulaError && e.code === 'formula_param') return { reason: 'missing_params', message: e.message };
+  return { reason: 'formula', message: e instanceof Error ? e.message : String(e) };
+}
+
 /** Материалы, потребление и выпуск полуфабрикатов, часы участков против мощности и трудозатраты — развёрткой по периодам */
 export async function productionPlanNeeds(db: Db, id: string) {
   const plan = await loadPlan(db, id);
@@ -466,12 +549,16 @@ export async function productionPlanNeeds(db: Db, id: string) {
   const produced = new Map<string, Dec>();
   const hoursByPeriod = new Map<string, Map<string, Dec>>();
   const totalHours = new Map<string, Dec>();
+  const skipped: PlanNeedsSkip[] = [];
+  const itemName = new Map(graph.items.map(i => [i.id, i.name]));
   for (const l of lines) {
     if (dec(l.qty) <= 0n) continue;
     let explosion: Explosion;
     try {
-      explosion = explodeBom(graph.inputs, l.itemId, l.qty);
-    } catch {
+      explosion = explodeBom(withItemParams(graph.inputs, l.itemId, l.params), l.itemId, l.qty);
+    } catch (e) {
+      // строка не разворачивается — в потребности не идёт, но видна в списке пропущенных с причиной
+      skipped.push({ lineId: l.id, itemId: l.itemId, itemName: itemName.get(l.itemId) ?? l.itemId, periodStart: l.periodStart, qty: l.qty, params: l.params ?? {}, ...skipReason(e) });
       continue;
     }
     if (l.isSemi) produced.set(l.itemId, (produced.get(l.itemId) ?? 0n) + dec(l.qty));
@@ -538,6 +625,7 @@ export async function productionPlanNeeds(db: Db, id: string) {
       .sort((a, b) => a.name.localeCompare(b.name)),
     load,
     labor,
+    skipped: skipped.sort((a, b) => a.itemName.localeCompare(b.itemName) || a.periodStart.localeCompare(b.periodStart)),
   };
 }
 
@@ -595,7 +683,7 @@ export async function createOrdersByPlan(
       plannedStart: `${lines[0]!.startDate}T00:00:00.000Z`,
       plannedEnd: `${period}T00:00:00.000Z`,
       comment: input.comment?.trim() || `Production plan ${plan.name}`,
-      items: lines.map(l => ({ itemId: l.itemId, qty: fmt(dec(l.qty) - dec(l.ordered), 3), planLineId: l.id })),
+      items: lines.map(l => ({ itemId: l.itemId, qty: fmt(dec(l.qty) - dec(l.ordered), 3), planLineId: l.id, params: l.params })),
     });
     created.push({ id: orderId, periodStart: period, qty: fmt(lines.reduce((a, l) => a + (dec(l.qty) - dec(l.ordered)), 0n), 3), itemNames: lines.map(l => l.itemName) });
   }

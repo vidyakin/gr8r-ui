@@ -362,6 +362,8 @@ export const productionPlanLineInput = z.object({
   qty: nonNeg(1e9),
   /** Строка полуфабриката (добавлена кнопкой «Plan semi-finished») */
   isSemi: z.boolean().default(false),
+  /** Значения параметров спецификации (параметрическое изделие): по ним считаются потребности плана */
+  params: paramValues.default({}),
 });
 
 export const productionPlanCreate = z.object({

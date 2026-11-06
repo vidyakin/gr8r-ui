@@ -34,6 +34,8 @@ export interface PlanLine {
   periodStart: string;
   qty: string;
   isSemi: boolean;
+  /** Значения параметров спецификации; пусто — изделие без параметров */
+  params: Record<string, unknown>;
   startDate: string;
   ordered: string;
   produced: string;
@@ -51,6 +53,19 @@ export interface PlanNeeds {
   semis: { itemId: string; name: string; consumed: string; produced: string; balance: string; status: 'surplus' | 'deficit' }[];
   load: { period: string; workCenterId: string | null; workCenterName: string; hours: string; capacity: string; shortage: string }[];
   labor: { workCenterId: string | null; workCenterName: string; hours: string; amount: string | null }[];
+  /** Строки, состав которых не развернуть: нет значений параметров, цикл или ошибка формулы */
+  skipped: PlanNeedsSkip[];
+}
+
+export interface PlanNeedsSkip {
+  lineId: string;
+  itemId: string;
+  itemName: string;
+  periodStart: string;
+  qty: string;
+  params: Record<string, unknown>;
+  reason: 'missing_params' | 'cycle' | 'formula';
+  message: string;
 }
 
 export const planKey = (ws: string, ...rest: unknown[]) => ['ws', ws, 'production-plans', ...rest] as const;
@@ -125,6 +140,12 @@ export function useProductionPlanApi() {
   });
   const update = useMutation({
     mutationFn: (v: { id: string; body: Record<string, unknown> }) => call<PlanDetail>(ws, 'PATCH', `/production-plans/${v.id}`, v.body),
+    // ответ — свежая карточка: кладём её в кэш сразу, потребности и списки пересчитываются запросом
+    onSuccess: (detail, v) => {
+      qc.setQueryData(planKey(ws, 'plan', v.id), detail);
+      void qc.invalidateQueries({ queryKey: planKey(ws, 'needs', v.id) });
+      void qc.invalidateQueries({ queryKey: planKey(ws, 'list') });
+    },
     onError: e => toast.error(errorMessage(e)),
   });
   const remove = useMutation({

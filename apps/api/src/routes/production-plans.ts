@@ -58,7 +58,7 @@ export const productionPlanRoutes = new Hono<AppEnv>()
       warehouseId: body.warehouseId,
       workCenterId: body.workCenterId ?? null,
       comment: body.comment,
-      lines: body.lines.map(l => ({ itemId: l.itemId, periodStart: l.periodStart, qty: l.qty, isSemi: l.isSemi })),
+      lines: body.lines.map(l => ({ itemId: l.itemId, periodStart: l.periodStart, qty: l.qty, isSemi: l.isSemi, params: l.params })),
     });
     return c.json(await productionPlanDetail(ctx.db, id), 201);
   })
@@ -74,7 +74,7 @@ export const productionPlanRoutes = new Hono<AppEnv>()
       warehouseId: body.warehouseId,
       workCenterId: body.workCenterId,
       comment: body.comment,
-      lines: body.lines?.map(l => ({ id: l.id, itemId: l.itemId, periodStart: l.periodStart, qty: l.qty, isSemi: l.isSemi })),
+      lines: body.lines?.map(l => ({ id: l.id, itemId: l.itemId, periodStart: l.periodStart, qty: l.qty, isSemi: l.isSemi, params: l.params })),
     });
     return c.json(await productionPlanDetail(ctx.db, c.req.valid('param').id));
   })

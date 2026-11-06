@@ -269,6 +269,8 @@ export const productionPlanLines = pgTable(
     qty: numeric('qty', { precision: 18, scale: 3 }).notNull().default('0'),
     /** Строка полуфабриката (добавляется кнопкой «Запланировать полуфабрикаты») */
     isSemi: boolean('is_semi').notNull().default(false),
+    /** Значения параметров спецификации: по ним считаются формулы состава (пусто — изделие без параметров) */
+    params: jsonb('params').$type<Record<string, unknown>>().notNull().default({}),
     sortOrder: integer('sort_order').notNull().default(0),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

@@ -180,6 +180,12 @@ export function lineEnabled(l: BomLineInput, params: Record<string, unknown> | n
   }
 }
 
+/** Входы разворота, где у изделия `itemId` заданы значения параметров строки (плана, заказа). Без значений — входы как есть:
+    изделие без параметров разворачивается по-прежнему, а параметрическое падает на формуле с понятной ошибкой */
+export function withItemParams(inputs: BomItemInput[], itemId: string, params: Record<string, unknown> | null | undefined): BomItemInput[] {
+  return params && Object.keys(params).length ? inputs.map(i => (i.id === itemId ? { ...i, params } : i)) : inputs;
+}
+
 /** Значения параметров для вложенной продукции: по совпадающим ключам (у полуфабриката свой список параметров) */
 export function passParams(params: Record<string, unknown> | null | undefined, keys: string[]): Record<string, unknown> | null {
   if (!params) return null;
