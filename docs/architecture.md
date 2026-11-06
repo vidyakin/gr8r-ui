@@ -51,6 +51,7 @@
 - [Разборка](architecture/production-disassembly.md)
 - [Возвратные отходы и брак](architecture/production-waste.md)
 - [Контроль качества и входной контроль](architecture/quality.md) — причины брака, ОТК выпуска, анализы партий, карантин и переделка
+- [Рейтинг поставщиков](architecture/supplier-rating.md) — расчёт на лету по проведённым документам, настройки воркспейса
 - [Распределение материалов по итогам смены](architecture/production-shift-allocation.md)
 - [Операции, исполнители и сдельный наряд](architecture/piecework.md)
 - [Планирование загрузки ресурсов](architecture/resource-planning.md)

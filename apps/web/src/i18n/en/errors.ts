@@ -372,6 +372,7 @@ export const errors = {
   production_item_required: 'The goods to disassemble must belong to the composition of the production document',
   quantity_required: 'Set the quantity of every line in the extended mode',
   same_warehouse: 'The source warehouse must differ from the target one',
+  supplier_rating_blocked: 'Supplier rating level D: posting is blocked by workspace policy',
   service_line_only: 'The processor reports services, not goods',
   source_warehouse_required: 'Choose the source warehouse for replenishment by transfer',
   spec_kind_forbidden: 'A disassembly specification has outputs, waste and work operations only',
