@@ -407,7 +407,7 @@ function NodePanel({ nodeId, def, params, env, readOnly, issues, onChange, onRem
 
 function FlowPanel({ name, description, setDescription, issues, nodes, onPick, env, triggerField, readOnly }: { name: string; description: string; setDescription: (v: string) => void; issues: GraphIssue[]; nodes: RFNode[]; onPick: (id: string) => void; env: ReturnType<typeof useFormEnv>; triggerField?: string; readOnly: boolean }) {
   const t = useT();
-  const vars = React.useMemo(() => templateVariables(env, triggerField), [env, triggerField]);
+  const vars = React.useMemo(() => templateVariables(t, env, triggerField), [t, env, triggerField]);
   return (
     <div className="ae-p">
       <div className="ae-ph">

@@ -71,9 +71,8 @@ export function useFormEnv(triggerEntity: string | undefined, stepIds: FormEnv['
 
 /* ---------------- подстановки ---------------- */
 
-/** Переменные, доступные шаблонам `{{…}}` в этом flow */
-export function templateVariables(env: FormEnv, triggerField?: string): { group: string; items: string[] }[] {
-  const t = useT();
+/** Переменные, доступные шаблонам `{{…}}` в этом flow (чистая функция: t передётся снаружи, чтобы вызывать из useMemo) */
+export function templateVariables(t: ReturnType<typeof useT>, env: FormEnv, triggerField?: string): { group: string; items: string[] }[] {
   const out: { group: string; items: string[] }[] = [];
   const e = env.entities.find(x => x.key === env.triggerEntity);
   const trig = ['trigger.recordId', 'trigger.entity'];
@@ -91,7 +90,7 @@ export function templateVariables(env: FormEnv, triggerField?: string): { group:
 
 function VarMenu({ env, triggerField, onPick }: { env: FormEnv; triggerField?: string; onPick: (v: string) => void }) {
   const t = useT();
-  const groups = React.useMemo(() => templateVariables(env, triggerField), [env, triggerField, t]);
+  const groups = React.useMemo(() => templateVariables(t, env, triggerField), [t, env, triggerField]);
   return (
     <Menu>
       <MenuTrigger asChild>
