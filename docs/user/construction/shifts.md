@@ -13,7 +13,7 @@ sources:
   - packages/shared/src/labor-cost.ts
   - packages/shared/src/print/badges.ts
   - packages/db/src/schema/objects.ts
-verified: aefc7b29d5
+verified: 9456c2d9ea
 screenshots: []
 ---
 

@@ -11,7 +11,7 @@ sources:
   - packages/db/src/object-budget.ts
   - packages/db/src/schema/objects.ts
   - packages/shared/src/constants.ts
-verified: aefc7b29d5
+verified: 9456c2d9ea
 screenshots: []
 ---
 

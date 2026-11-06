@@ -13,7 +13,7 @@ sources:
   - packages/db/src/object-progress.ts
   - packages/shared/src/object-progress.ts
   - packages/shared/src/schemas/objects.ts
-verified: aefc7b29d5
+verified: 9456c2d9ea
 screenshots: []
 ---
 
