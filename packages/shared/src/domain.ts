@@ -110,6 +110,8 @@ export interface Task {
   desc: string;
   /** Заказчик (id компании) — только у задач модуля services */
   company?: string | null;
+  /** Объект объектного учёта (задача 1268) */
+  object?: string | null;
   /** План в часах; если не задан, считается суммой плана подзадач */
   planHours: number | null;
   created: number;

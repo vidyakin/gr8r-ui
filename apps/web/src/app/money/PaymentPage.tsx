@@ -13,6 +13,7 @@ import { useCostItems, useDocuments, useOrganizations, typeLabel } from '../docs
 import { CounterpartyPicker } from '../docs/pickers';
 import { useBankAccounts } from '../docs/data';
 import { useCashFlowItems, useCashRegisters, usePayment, usePaymentApi, type PaymentBody } from './data';
+import { ObjectSelect, useObjectFieldVisible } from '../objects/fields';
 
 interface Line {
   id: string;
@@ -22,11 +23,12 @@ interface Line {
   amount: string;
   cashFlowItemId: string;
   costItemId: string | null;
+  objectId: string | null;
   comment: string;
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
-const newLine = (): Line => ({ id: crypto.randomUUID(), settlementDocumentId: null, counterpartyId: null, counterpartyName: '', amount: '', cashFlowItemId: '', costItemId: null, comment: '' });
+const newLine = (): Line => ({ id: crypto.randomUUID(), settlementDocumentId: null, counterpartyId: null, counterpartyName: '', amount: '', cashFlowItemId: '', costItemId: null, objectId: null, comment: '' });
 /** Печатная форма документа: КО-1, КО-2, поступление на счёт, платёжное поручение 0401060, АО-1 */
 const PRINT_FORM: Record<string, string> = { cash_receipt: 'ko1', cash_payment: 'ko2', bank_receipt: 'bank_receipt', bank_payment: 'payment_order', advance_report: 'advance_report' };
 
@@ -86,7 +88,7 @@ export function PaymentPage() {
     setCounterpartyName(detail.counterparty?.name ?? '');
     setMemberId(detail.accountableMemberId ?? '');
     setComment(detail.comment);
-    setLines(detail.lines.length ? detail.lines.map(l => ({ id: l.id, settlementDocumentId: l.settlementDocumentId, counterpartyId: l.counterpartyId, counterpartyName: l.counterpartyName ?? '', amount: l.amount, cashFlowItemId: l.cashFlowItemId, costItemId: l.costItemId, comment: l.comment })) : [newLine()]);
+    setLines(detail.lines.length ? detail.lines.map(l => ({ id: l.id, settlementDocumentId: l.settlementDocumentId, counterpartyId: l.counterpartyId, counterpartyName: l.counterpartyName ?? '', amount: l.amount, cashFlowItemId: l.cashFlowItemId, costItemId: l.costItemId, objectId: l.objectId ?? null, comment: l.comment })) : [newLine()]);
   }, [detail]);
 
   const editable = canWrite && (!detail || detail.status === 'draft');
@@ -130,12 +132,15 @@ export function PaymentPage() {
       amount: l.amount || '0',
       cashFlowItemId: l.cashFlowItemId || defaultItem(isAdvance ? (l.counterpartyId ? 'to_supplier' : '') : operation) || flowItems[0]?.id || undefined,
       costItemId: l.costItemId,
+      objectId: l.objectId,
       comment: l.comment,
     })),
   });
 
   const valid = lines.length > 0 && lines.every(l => Number(l.amount) > 0) && !!organizationId;
   const total = lines.reduce((s, l) => s + Number(l.amount || 0), 0);
+  // Объект в строке платежа: при включённой опции construction или если значение уже задано
+  const showObject = useObjectFieldVisible(lines.some(l => l.objectId) ? 'set' : null);
 
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -312,6 +317,7 @@ export function PaymentPage() {
                 {(settle || isAdvance) && <th style={{ width: 260 }}>{tt('money.form.settlementDocument')}</th>}
                 {!isTransfer && <th style={{ width: 200 }}>{tt('money.form.cashFlowItem')}</th>}
                 {(isAdvance || operation === 'other_expense' || operation === 'other_income') && <th style={{ width: 180 }}>{tt('money.form.costItem')}</th>}
+                {showObject && <th style={{ width: 220 }}>{tt('objects.field.object')}</th>}
                 <th style={{ width: 130 }} className="r">{tt('money.form.amount')}</th>
                 <th>{tt('money.form.comment')}</th>
                 <th style={{ width: 36 }} />
@@ -370,6 +376,11 @@ export function PaymentPage() {
                           onValueChange={v => set({ costItemId: v || null })}
                           options={[{ value: '', label: tt('money.form.none') }, ...(costItems.data ?? []).map(c => ({ value: c.id, label: c.name }))]}
                         />
+                      </td>
+                    )}
+                    {showObject && (
+                      <td>
+                        <ObjectSelect value={l.objectId} disabled={!editable} onChange={v => set({ objectId: v })} ariaLabel={tt('objects.field.object')} />
                       </td>
                     )}
                     <td className="r">

@@ -68,6 +68,8 @@ export function useRealtime(ws: string, engine: Engine) {
       if (e.entity === 'license') void qc.invalidateQueries({ queryKey: ['ws', ws] });
       if (e.entity === 'position' || e.entity === 'product_kind') void qc.invalidateQueries({ queryKey: ['ws', ws, 'catalog'] });
       if (e.entity === 'secret') void qc.invalidateQueries({ queryKey: ['ws', ws, 'secrets'] });
+      // Объекты объектного учёта (задача 1268): карточка, список и проекты задач
+      if (e.entity === 'object' || e.entity === 'object_foreman' || e.entity === 'object_contract') void qc.invalidateQueries({ queryKey: ['ws', ws, 'objects'] });
       // Название воркспейса, моя роль, состав участников
       if (e.entity === 'workspace' || e.type.startsWith('member.')) void qc.invalidateQueries({ queryKey: ['session'] });
     };

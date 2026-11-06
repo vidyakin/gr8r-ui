@@ -172,6 +172,7 @@ export const SECTIONS = {
   transportOrders: { path: '/transport-orders', name: 'Transport orders', icon: FileSignature },
   rateSchedules: { path: '/transport-orders/rates', name: 'Rate schedules', icon: ListChecks },
   // Договоры и биллинг
+  objects: { path: '/objects', name: 'Objects', icon: Building2 },
   contracts: { path: '/contracts', name: 'Contracts', icon: FileSignature },
   tariffPlans: { path: '/tariff-plans', name: 'Tariff plans', icon: ListChecks },
   billing: { path: '/billing', name: 'Billing', icon: ReceiptText },
@@ -340,6 +341,7 @@ const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
   servicesPlanner: 'services',
   servicesReports: 'services',
   contracts: 'services',
+  objects: 'trade',
   tariffPlans: 'services',
   billing: 'services',
   deliveries: 'deliveries',

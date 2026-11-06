@@ -32,6 +32,7 @@ import { DocLoyaltyFields } from './DocLoyalty';
 import { DISCOUNT_DOC_TYPES } from '../loyalty/data';
 import { AttachmentsPanel } from '@/components/gr8r/attachments-panel';
 import { DocInvestmentField } from '../finance/DocInvestmentField';
+import { ObjectField } from '../objects/fields';
 import { hasKey, t, tEnum, tProductionEnum, useT, type TKey } from '@/i18n';
 import { handleNumericArrow } from '@/lib/numeric-step';
 import { useWsId } from '../meta/data';
@@ -92,6 +93,8 @@ interface Form {
   tollingOrderId: string | null;
   /** Инвестпроект: документ идёт в факт проекта */
   investmentProjectId: string | null;
+  /** Объект объектного учёта */
+  objectId: string | null;
   date: string;
   dueDate: string;
   priceIncludesVat: boolean;
@@ -125,6 +128,7 @@ function toForm(d: DocDetail): Form {
     inUseWorkCenterId: d.inUseWorkCenter?.id ?? null,
     tollingOrderId: d.tollingOrderId ?? null,
     investmentProjectId: d.investmentProjectId ?? null,
+    objectId: d.objectId ?? null,
     date: d.date,
     dueDate: d.dueDate ?? '',
     priceIncludesVat: d.priceIncludesVat,
@@ -158,6 +162,7 @@ function toPayload(f: Form) {
     inUseWorkCenterId: f.inUseWorkCenterId,
     tollingOrderId: f.tollingOrderId,
     investmentProjectId: f.investmentProjectId,
+    objectId: f.objectId,
     date: f.date,
     dueDate: f.dueDate || null,
     priceIncludesVat: f.priceIncludesVat,
@@ -1403,6 +1408,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
           </Field>
         )}
         {isInvestmentFactType(doc.type) && <DocInvestmentField value={form.investmentProjectId} current={doc.investmentProject} disabled={!editable} onChange={v => edit(f => ({ ...f, investmentProjectId: v }))} />}
+        <ObjectField value={form.objectId} current={doc.object} disabled={!editable} onChange={v => edit(f => ({ ...f, objectId: v }))} />
         <Field label={t('docs.header.date')}>{p => <Input {...p} type="date" disabled={!editable} value={form.date} onChange={e => edit(f => ({ ...f, date: e.target.value }))} />}</Field>
         {(doc.type === 'invoice' || doc.type === 'quote' || doc.type === 'customer_order') && (
           <Field label={doc.type === 'quote' ? t('docs.document.validUntil') : doc.type === 'invoice' ? t('docs.document.payBy') : t('docs.document.dueDate')}>

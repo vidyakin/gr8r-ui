@@ -35,6 +35,8 @@ export interface PaymentLine {
   costItemId: string | null;
   costItemName: string | null;
   investmentProjectId: string | null;
+  /** Объект объектного учёта (задача 1268) */
+  objectId: string | null;
   comment: string;
 }
 

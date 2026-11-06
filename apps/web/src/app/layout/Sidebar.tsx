@@ -289,7 +289,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
 
         <div className="sgroup">
           <div className="sgroup-h">{t('nav.groups.workspace')}</div>
-          {(['overview', 'projects', 'tasks', 'calendar', 'timeline', 'members', 'activity'] as const).map(id => (
+          {(['overview', 'objects', 'projects', 'tasks', 'calendar', 'timeline', 'members', 'activity'] as const).map(id => (
             <SectionItem key={id} id={id} collapsed={collapsed} />
           ))}
         </div>

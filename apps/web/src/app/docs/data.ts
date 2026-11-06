@@ -113,6 +113,9 @@ export interface DocListItem {
   /** Инвестпроект: документ идёт в факт проекта */
   investmentProjectId?: string | null;
   investmentProject?: { id: string; name: string } | null;
+  /** Объект объектного учёта (задача 1268) */
+  objectId?: string | null;
+  object?: { id: string; number: string; name: string } | null;
   /** Вид операции: «Переработка» у заказа на переработку и отчёта переработчика */
   operation?: string | null;
   workCenter?: { id: string; name: string } | null;

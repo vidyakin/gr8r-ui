@@ -75,6 +75,7 @@ export const sections = {
   driverWorkplace: 'Driver workplace',
   dispatch: 'Dispatcher',
   fleetFines: 'Fines',
+  objects: 'Objects',
   contracts: 'Contracts',
   tariffPlans: 'Tariff plans',
   billing: 'Billing',

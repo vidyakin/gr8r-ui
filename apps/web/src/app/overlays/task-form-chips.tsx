@@ -25,6 +25,8 @@ export interface TaskFormState {
   due: IsoDate | null;
   start: IsoDate | null;
   labels: LabelId[];
+  /** Объект объектного учёта (задача 1268) */
+  object: string | null;
   recur: string | null;
   subtasks: { id: string; title: string }[];
   files: { name: string; size: string; file: File }[];

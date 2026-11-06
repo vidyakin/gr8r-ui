@@ -2,7 +2,7 @@
 import * as React from 'react';
 import { useLocation } from 'react-router';
 import { CircleAlert, Circle, Paperclip, Plus, X } from 'lucide-react';
-import { Button, Dialog, DialogClose, DialogContent, Input, Switch, Textarea, toast } from '@/components/ui';
+import { Button, Dialog, DialogClose, DialogContent, Input, Select, Switch, Textarea, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import type { Task } from '../data/types';
 import { nextKey, uid, useWorkspace } from '../data/store';
@@ -12,6 +12,8 @@ import { MOD } from '../lib/platform';
 import { KindIcon } from '../components/files-view';
 import { FormChips, type TaskFormState } from './task-form-chips';
 import { TaskEditorCtx, useTaskDrawer } from './task-drawer';
+import { useObjectFieldVisible } from '../objects/fields';
+import { useObjectOptions } from '../objects/data';
 
 export type TaskDefaults = Partial<Pick<Task, 'project' | 'status' | 'assignee' | 'priority' | 'due' | 'labels'>>;
 
@@ -32,6 +34,7 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
   const uploadToTask = useUploadToTask();
   const drawer = useTaskDrawer();
   const location = useLocation();
+  const objectOptions = useObjectOptions();
   const [isOpen, setOpen] = React.useState(false);
   const [form, setForm] = React.useState<TaskFormState | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -66,6 +69,7 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
       due: defaults.due ?? null,
       start: null,
       labels: defaults.labels ?? [],
+      object: null,
       recur: null,
       subtasks: [],
       files: [],
@@ -88,6 +92,7 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
       due: t.due,
       start: t.start,
       labels: [...t.labels],
+      object: t.object ?? null,
       recur: t.recur,
       subtasks: t.subtasks.map(x => ({ id: x.id, title: x.title })),
       files: [],
@@ -120,6 +125,7 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
   }, [open]);
 
   const set = (patch: Partial<TaskFormState>) => setForm(f => f && { ...f, ...patch });
+  const showObject = useObjectFieldVisible(form?.object ?? null);
 
   const submit = () => {
     if (!form) return;
@@ -145,6 +151,7 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
           due: form.due,
           start: form.start && form.due && form.start > form.due ? form.due : form.start,
           labels: form.labels,
+          object: form.object,
           recur: form.recur,
           // Оставленные подзадачи сохраняют своё состояние и вложенность, новые добавляются открытыми
           ...(same ? {} : { subtasks: form.subtasks.map(s => task.subtasks.find(x => x.id === s.id) ?? { ...s, done: false, subtasks: [] }) }),
@@ -171,6 +178,7 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
         due: form.due,
         start: form.start && form.due && form.start > form.due ? form.due : form.start,
         labels: form.labels,
+        object: form.object,
         recur: form.recur,
         subtasks: form.subtasks.map(s => ({ ...s, done: false, subtasks: [] })),
         desc: form.desc ? `<p>${esc(form.desc)}</p>` : '',
@@ -276,6 +284,17 @@ export function TaskFormProvider({ children }: { children: React.ReactNode }) {
                 <Textarea id="f-desc" placeholder={t('overlays.taskForm.descPlaceholder')} rows={3} value={form.desc} onChange={e => set({ desc: e.target.value })} />
               </div>
               <FormChips form={form} set={set} />
+              {showObject && (
+                <div className="field">
+                  <span className="label">{t('objects.field.object')}</span>
+                  <Select
+                    value={form.object ?? ''}
+                    onValueChange={v => set({ object: v || null })}
+                    options={[{ value: '', label: t('objects.field.none') }, ...(objectOptions.data ?? []).map(o => ({ value: o.id, label: `${o.number} · ${o.name}` }))]}
+                    aria-label={t('objects.field.object')}
+                  />
+                </div>
+              )}
               <div className="field">
                 <span className="label">{t('overlays.taskForm.subtasks')}</span>
                 {form.subtasks.map(s => (

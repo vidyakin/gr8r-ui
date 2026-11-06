@@ -61,7 +61,7 @@ export const sectionIds = (): string[] => routesBlock('SECTIONS').flatMap(l => /
 export const navGroupIds = (): string[] => routesBlock('NAV_GROUPS').flatMap(l => /^ {2}(\w+): \{/.exec(l)?.[1] ?? []);
 
 /** Папки статей вне групп меню (см. docs/user/README.md) */
-export const EXTRA_FOLDERS = ['general', 'crm', 'catalog', 'automations'];
+export const EXTRA_FOLDERS = ['general', 'crm', 'catalog', 'automations', 'construction'];
 
 export interface Pending {
   sections: string[];
