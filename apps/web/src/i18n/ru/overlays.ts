@@ -162,6 +162,8 @@ export const overlays: Widen<typeof O> = {
     subPlaceholder: 'Добавьте подзадачу и нажмите Enter',
     attachments: 'Вложения',
     attachFiles: 'Прикрепить файлы',
+    weight: 'Вес',
+    weightHint: 'Вес задачи в проценте выполнения объекта; пусто — 1',
   },
   taskDrawer: {
     noAccess: 'У вас нет доступа к этой задаче',

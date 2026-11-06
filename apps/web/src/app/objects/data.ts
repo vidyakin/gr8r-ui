@@ -1,7 +1,7 @@
 /* Объекты объектного учёта на клиенте (задача 1268): список, карточка, сводка и действия.
    Запросы живут под ['ws', id, 'objects', …]: событие object.* сбрасывает их через realtime. */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { BudgetPolicy, ObjectCostCategory, ObjectStatus, RevenueMode } from '@gr8r/shared';
+import type { BudgetPolicy, MilestoneKind, ObjectCostCategory, ObjectProgressMode, ObjectStatus, RevenueMode } from '@gr8r/shared';
 import { call, useWsId } from '../meta/data';
 
 export interface ObjectListItem {
@@ -20,6 +20,10 @@ export interface ObjectListItem {
   overheadPct: string;
   /** Контроль бюджета объекта (задача 1270) */
   budgetPolicy: BudgetPolicy;
+  /** Как считать процент выполнения (задача 1272) */
+  progressMode: ObjectProgressMode;
+  /** Ручной процент выполнения 0–100 */
+  progressManual: string | null;
   projectId: string | null;
   projectName: string | null;
   warehouseId: string | null;
@@ -44,6 +48,8 @@ export interface ObjectInput {
   revenueMode?: RevenueMode;
   overheadPct?: string;
   budgetPolicy?: BudgetPolicy;
+  progressMode?: ObjectProgressMode;
+  progressManual?: string | null;
   projectId?: string | null;
   warehouseId?: string | null;
   note?: string;
@@ -119,8 +125,7 @@ export function useObjectBudget(id: string | undefined) {
 }
 
 /** Задачи объекта — обычный список задач; карточка показывает их во вкладке «Задачи» */
-export function useObjectTasks(id: string | undefined) {
-  const ws = useWsId();
+export function useObjectTasks(id: string | undefined) {  const ws = useWsId();
   return useQuery({
     queryKey: objectsKey(ws, 'tasks', id),
     queryFn: () => call<{ items: ObjectTaskRow[] }>(ws, 'GET', `/tasks?objectId=${id}&limit=200&archived=include&sort=sortOrder`),
@@ -153,5 +158,99 @@ export function useObjectApi() {
     create: create.mutateAsync,
     update: (id: string, body: Partial<ObjectInput>) => update.mutateAsync({ id, body }),
     archive: (id: string) => archive.mutateAsync(id),
+  };
+}
+
+/* ---------------- процент выполнения и вехи объекта (задача 1272) ---------------- */
+
+export interface ObjectProgress {
+  objectId: string;
+  mode: ObjectProgressMode;
+  progressManual: string | null;
+  /** Процент с одним знаком после запятой; null — базы расчёта нет */
+  percent: string | null;
+  base: {
+    tasks: { total: number; closed: number; weightTotal: string; weightClosed: string };
+    estimate: { lines: number; revenue: string; doneRevenue: string } | null;
+  };
+  contractValue: string | null;
+}
+
+export interface ObjectMilestone {
+  id: string;
+  objectId: string;
+  sortOrder: number;
+  name: string;
+  dueDate: string | null;
+  kind: MilestoneKind;
+  amount: string | null;
+  pct: string | null;
+  doneAt: string | null;
+  acceptedAt: string | null;
+  note: string;
+  /** Сумма вехи: amount или pct × стоимость договора; null — нет согласованной сметы */
+  value: string | null;
+  /** Выставлено и оплачено — задача 1273 (акты и счета) */
+  invoiced: null;
+  paid: null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Суммы по вехам: этапы и аванс отдельно */
+export interface ObjectMilestoneTotals {
+  total: string | null;
+  done: string | null;
+  accepted: string | null;
+  invoiced: null;
+  paid: null;
+}
+
+export interface ObjectMilestones {
+  objectId: string;
+  contractValue: string | null;
+  items: ObjectMilestone[];
+  summary: { contractValue: string | null; stages: ObjectMilestoneTotals; advance: ObjectMilestoneTotals };
+}
+
+export interface MilestoneInput {
+  name: string;
+  dueDate?: string | null;
+  kind?: MilestoneKind;
+  amount?: string | null;
+  pct?: string | null;
+  note?: string;
+}
+
+/** Процент выполнения объекта: способ, процент и база расчёта */
+export function useObjectProgress(id: string | undefined) {
+  const ws = useWsId();
+  return useQuery({ queryKey: objectsKey(ws, 'progress', id), queryFn: () => call<ObjectProgress>(ws, 'GET', `/objects/${id}/progress`), enabled: !!id });
+}
+
+/** Вехи объекта и сводка «выполнено / принято / выставлено / оплачено» */
+export function useObjectMilestones(id: string | undefined) {
+  const ws = useWsId();
+  return useQuery({ queryKey: objectsKey(ws, 'milestones', id), queryFn: () => call<ObjectMilestones>(ws, 'GET', `/objects/${id}/milestones`), enabled: !!id });
+}
+
+export function useObjectMilestoneApi() {
+  const ws = useWsId();
+  const qc = useQueryClient();
+  const done = async () => {
+    await qc.invalidateQueries({ queryKey: ['ws', ws, 'objects'] });
+    await qc.invalidateQueries({ queryKey: ['ws', ws, 'tasks'] });
+  };
+  const wrap = async <T>(p: Promise<T>): Promise<T> => {
+    const r = await p;
+    await done();
+    return r;
+  };
+  return {
+    create: (objectId: string, body: MilestoneInput) => wrap(call<ObjectMilestone>(ws, 'POST', `/objects/${objectId}/milestones`, body)),
+    update: (objectId: string, id: string, body: Partial<MilestoneInput>) => wrap(call<ObjectMilestone>(ws, 'PATCH', `/objects/${objectId}/milestones/${id}`, body)),
+    remove: (objectId: string, id: string) => wrap(call(ws, 'DELETE', `/objects/${objectId}/milestones/${id}`)),
+    setDone: (objectId: string, id: string, value: boolean) => wrap(call<ObjectMilestone>(ws, 'POST', `/objects/${objectId}/milestones/${id}/done`, { done: value })),
+    setAccepted: (objectId: string, id: string, value: boolean) => wrap(call<ObjectMilestone>(ws, 'POST', `/objects/${objectId}/milestones/${id}/accept`, { accepted: value })),
   };
 }

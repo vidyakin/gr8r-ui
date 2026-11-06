@@ -161,6 +161,8 @@ export const overlays = {
     subPlaceholder: 'Add a subtask and press Enter',
     attachments: 'Attachments',
     attachFiles: 'Attach files',
+    weight: 'Weight',
+    weightHint: 'Task weight in the object completion percentage; empty — 1',
   },
   taskDrawer: {
     noAccess: 'You don’t have access to that task',

@@ -1,11 +1,12 @@
-/* Карточка объекта объектного учёта (задача 1268): шапка с полями и вкладки «Смета», «Задачи», «Документы», «Платежи», «Склад».
+/* Карточка объекта объектного учёта (задача 1268): шапка с полями и вкладки «Смета», «Вехи», «Бюджет», «Задачи», «Документы», «Платежи», «Склад».
    Деньги в вкладках видят owner и admin (их маскирует сервер); создание объекта заводит проект задач.
-   Смета (задача 1269) — отдельная вкладка: основная смета, допработы, редактор позиций и заказы. */
+   Смета (задача 1269) — отдельная вкладка: основная смета, допработы, редактор позиций и заказы.
+   Процент выполнения и вехи (задача 1272): индикатор и способ расчёта в шапке, вехи — отдельная вкладка. */
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { Archive, CircleAlert, Save } from 'lucide-react';
-import { BUDGET_POLICIES, OBJECT_STATUSES, REVENUE_MODES, type BudgetPolicy, type ObjectStatus, type RevenueMode } from '@gr8r/shared';
-import { Badge, Button, Checkbox, ConfirmDialog, EmptyState, Field, Input, Select, Skeleton, toast } from '@/components/ui';
+import { BUDGET_POLICIES, OBJECT_PROGRESS_MODES, OBJECT_STATUSES, REVENUE_MODES, type BudgetPolicy, type ObjectProgressMode, type ObjectStatus, type RevenueMode } from '@gr8r/shared';
+import { Badge, Button, Checkbox, ConfirmDialog, EmptyState, Field, Input, Progress, Select, Skeleton, toast } from '@/components/ui';
 import { fmtAmount, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { useWorkspace } from '../data/store';
@@ -15,13 +16,14 @@ import { useWarehouses } from '../docs/data';
 import { DocTabs } from '../docs/doc-tabs';
 import { fmtDate } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';
-import { useObject, useObjectApi, useObjectSummary, useObjectTasks, type ObjectInput } from './data';
+import { useObject, useObjectApi, useObjectProgress, useObjectSummary, useObjectTasks, type ObjectInput } from './data';
 import { useObjectEstimates } from './estimates-data';
 import { EstimateTab } from './EstimateTab';
+import { MilestonesTab } from './MilestonesTab';
 import { BudgetTab } from './BudgetTab';
 
 const today = () => new Date().toISOString().slice(0, 10);
-const blank = (): ObjectInput => ({ number: '', name: '', customerId: null, address: '', startDate: today(), dueDate: null, status: 'planning', managerId: null, revenueMode: 'acts', overheadPct: '', budgetPolicy: 'warn', projectId: null, warehouseId: null, note: '', foremen: [], contracts: [] });
+const blank = (): ObjectInput => ({ number: '', name: '', customerId: null, address: '', startDate: today(), dueDate: null, status: 'planning', managerId: null, revenueMode: 'acts', overheadPct: '', budgetPolicy: 'warn', progressMode: 'tasks_closed', progressManual: '', projectId: null, warehouseId: null, note: '', foremen: [], contracts: [] });
 const trim = (v: string | null | undefined) => (v == null ? '' : v.replace(/\.00$/, '').replace(/(\.\d)0$/, '$1'));
 
 export function ObjectPage() {
@@ -34,6 +36,7 @@ export function ObjectPage() {
   const doc = useObject(isNew ? undefined : id);
   const detail = isNew ? null : doc.data;
   const summary = useObjectSummary(isNew ? undefined : id);
+  const progress = useObjectProgress(isNew ? undefined : id);
   const tasks = useObjectTasks(isNew ? undefined : id);
   const estimates = useObjectEstimates(isNew ? undefined : id);
   const companies = useCompanies();
@@ -61,6 +64,8 @@ export function ObjectPage() {
       revenueMode: detail.revenueMode,
       overheadPct: trim(detail.overheadPct),
       budgetPolicy: detail.budgetPolicy,
+      progressMode: detail.progressMode,
+      progressManual: trim(detail.progressManual),
       projectId: detail.projectId,
       warehouseId: detail.warehouseId,
       note: detail.note,
@@ -80,7 +85,16 @@ export function ObjectPage() {
     }
     setBusy(true);
     try {
-      const body: ObjectInput = { ...form, overheadPct: form.overheadPct || undefined, startDate: form.startDate || null, dueDate: form.dueDate || null, customerId: form.customerId || null, managerId: form.managerId || null, warehouseId: form.warehouseId || null };
+      const body: ObjectInput = {
+        ...form,
+        overheadPct: form.overheadPct || undefined,
+        progressManual: form.progressManual?.trim() ? form.progressManual.trim() : null,
+        startDate: form.startDate || null,
+        dueDate: form.dueDate || null,
+        customerId: form.customerId || null,
+        managerId: form.managerId || null,
+        warehouseId: form.warehouseId || null,
+      };
       if (detail) await api.update(detail.id, body);
       else {
         const created = await api.create(body);
@@ -126,6 +140,8 @@ export function ObjectPage() {
     );
 
   const s = summary.data;
+  // ширина полосы — только показ: процент приходит строкой с одним знаком после запятой
+  const progressPct = progress.data?.percent == null ? 0 : Number(progress.data.percent);
 
   return (
     <div className="page flush">
@@ -142,6 +158,17 @@ export function ObjectPage() {
           </p>
         </div>
         <div className="acts">
+          {!isNew && (
+            <div className="row" style={{ gap: 8, alignItems: 'center', minWidth: 200 }} title={tt('objects.progress.title')}>
+              <Progress value={progressPct} tone={progressPct >= 100 ? 'green' : undefined} aria-label={tt('objects.progress.title')} />
+              <span className="num" style={{ fontSize: 13, fontWeight: 600 }}>
+                {progress.data?.percent == null ? '—' : `${progress.data.percent}%`}
+              </span>
+              <span className="faint" style={{ fontSize: 11 }}>
+                {progress.data?.percent == null ? tt('objects.progress.empty') : tt(`objects.progress.mode.${progress.data.mode}`)}
+              </span>
+            </div>
+          )}
           {archived && <Badge tone="neutral">{tt('objects.common.archived')}</Badge>}
           {editable && (
             <>
@@ -232,6 +259,23 @@ export function ObjectPage() {
             />
           )}
         </Field>
+        <Field label={tt('objects.field.progressMode')} hint={tt('objects.field.progressModeHint')}>
+          {p => (
+            <Select
+              id={p.id}
+              disabled={!editable}
+              value={form.progressMode ?? 'tasks_closed'}
+              onValueChange={v => set('progressMode', v as ObjectProgressMode)}
+              options={OBJECT_PROGRESS_MODES.map(x => ({ value: x, label: tt(`objects.progress.mode.${x}`) }))}
+              aria-label={tt('objects.field.progressMode')}
+            />
+          )}
+        </Field>
+        {form.progressMode === 'manual' && (
+          <Field label={tt('objects.field.progressManual')} hint={tt('objects.field.progressManualHint')}>
+            {p => <Input {...p} inputMode="decimal" disabled={!editable} value={form.progressManual ?? ''} onChange={e => set('progressManual', e.target.value)} />}
+          </Field>
+        )}
         <Field label={tt('objects.field.warehouse')}>
           {p => (
             <Select
@@ -286,6 +330,12 @@ export function ObjectPage() {
                 label: tt('estimates.title'),
                 count: estimates.data?.length,
                 content: <EstimateTab objectId={detail!.id} objectName={detail!.name} canWrite={canWrite && !archived} />,
+              },
+              {
+                id: 'milestones',
+                label: tt('objects.milestones.title'),
+                count: undefined,
+                content: <MilestonesTab objectId={detail!.id} canWrite={canWrite && !archived} />,
               },
               {
                 id: 'budget',

@@ -187,6 +187,8 @@ interface RowDraft {
   price: string;
   costPrice: string;
   laborHours: string;
+  /** Выполненный объём (задача 1272) */
+  doneQty: string;
   sectionKey: string | null;
 }
 
@@ -209,6 +211,7 @@ const toDraft = (d: EstimateDetail): { sections: SectionDraft[]; rows: RowDraft[
     price: trim(i.price),
     costPrice: i.costPrice == null ? '' : trim(i.costPrice),
     laborHours: trim(i.laborHours),
+    doneQty: trim(i.doneQty),
     sectionKey: i.sectionId,
   })),
 });
@@ -222,6 +225,8 @@ function EstimateEditor({ detail, canWrite, isAdmin }: { detail: EstimateDetail;
   const units = useUnits();
   const [draft, setDraft] = React.useState(() => toDraft(detail));
   const [dirty, setDirty] = React.useState(false);
+  // выполненные объёмы согласованной сметы — факт, сохраняются отдельным запросом
+  const [doneDirty, setDoneDirty] = React.useState<Record<string, string>>({});
   const [header, setHeader] = React.useState({ name: detail.name, number: detail.number });
   const [dialog, setDialog] = React.useState<'import' | 'supplier' | 'production' | 'remove' | null>(null);
   const signature = `${detail.id}:${detail.updatedAt}`;
@@ -233,6 +238,7 @@ function EstimateEditor({ detail, canWrite, isAdmin }: { detail: EstimateDetail;
     setDraft(toDraft(detail));
     setHeader({ name: detail.name, number: detail.number });
     setDirty(false);
+    setDoneDirty({});
   }, [signature, detail]);
 
   const editable = canWrite && detail.status === 'draft';
@@ -246,7 +252,7 @@ function EstimateEditor({ detail, canWrite, isAdmin }: { detail: EstimateDetail;
   const addRow = (sectionKey: string | null) =>
     change(d => ({
       ...d,
-      rows: [...d.rows, { key: uid(), kind: 'work', name: '', productId: null, productName: '', manufacturedItemId: null, unitCode: '796', qty: '1', price: '0', costPrice: '', laborHours: '', sectionKey }],
+      rows: [...d.rows, { key: uid(), kind: 'work', name: '', productId: null, productName: '', manufacturedItemId: null, unitCode: '796', qty: '1', price: '0', costPrice: '', laborHours: '', doneQty: '0', sectionKey }],
     }));
   const removeRow = (key: string) => change(d => ({ ...d, rows: d.rows.filter(r => r.key !== key) }));
   const addSection = () => change(d => ({ ...d, sections: [...d.sections, { key: uid(), name: tt('estimates.section') }] }));
@@ -283,6 +289,7 @@ function EstimateEditor({ detail, canWrite, isAdmin }: { detail: EstimateDetail;
           price: num(r.price) || '0',
           costPrice: num(r.costPrice) || '0',
           laborHours: num(r.laborHours) || '0',
+          doneQty: num(r.doneQty) || '0',
           manufacturedItemId: r.kind === 'panel' ? r.manufacturedItemId : null,
         })),
       });
@@ -290,8 +297,18 @@ function EstimateEditor({ detail, canWrite, isAdmin }: { detail: EstimateDetail;
       toast(tt('estimates.saved'), { duration: 1500 });
     });
   };
+  // сохранение выполненных объёмов у согласованной сметы: это факт, состав не меняется
+  const saveDone = async () => {
+    const items = Object.entries(doneDirty).map(([id, doneQty]) => ({ id, doneQty: num(doneQty) || '0' }));
+    if (!items.length) return;
+    await run(async () => {
+      await api.saveDoneQty(detail.id, items);
+      setDoneDirty({});
+      toast(tt('estimates.saved'), { duration: 1500 });
+    });
+  };
 
-  const colCount = 12 + (detail.canSeeCost ? 2 : 0) + (editable ? 1 : 0);
+  const colCount = 13 + (detail.canSeeCost ? 2 : 0) + (editable ? 1 : 0);
 
   const renderRow = (r: RowDraft, n: number) => {
     const line = computeEstimateTotals([{ kind: r.kind, qty: num(r.qty) || '0', price: num(r.price) || '0', costPrice: detail.canSeeCost ? num(r.costPrice) || '0' : '0', laborHours: num(r.laborHours) || '0' }]);
@@ -327,6 +344,23 @@ function EstimateEditor({ detail, canWrite, isAdmin }: { detail: EstimateDetail;
           {editable ? <Select aria-label={tt('estimates.columns.unit')} value={r.unitCode} onValueChange={v => patchRow(r.key, { unitCode: v })} options={unitOptions} /> : unitOptions.find(u => u.value === r.unitCode)?.label.split(' · ')[0] ?? r.unitCode}
         </td>
         <td>{editable ? <input className="input cell-input r" inputMode="decimal" aria-label={tt('estimates.columns.qty')} value={r.qty} onChange={e => patchRow(r.key, { qty: e.target.value })} /> : fmtNumber(num(r.qty))}</td>
+        <td>
+          {canWrite ? (
+            <input
+              className="input cell-input r"
+              inputMode="decimal"
+              aria-label={tt('estimates.columns.doneQty')}
+              value={r.doneQty}
+              onChange={e => {
+                patchRow(r.key, { doneQty: e.target.value });
+                // у согласованной сметы состав не правится — выполненный объём сохраняется отдельно
+                if (!editable) setDoneDirty(d => ({ ...d, [r.key]: e.target.value }));
+              }}
+            />
+          ) : (
+            fmtNumber(num(r.doneQty))
+          )}
+        </td>
         <td>{editable ? <input className="input cell-input r" inputMode="decimal" aria-label={tt('estimates.columns.price')} value={r.price} onChange={e => patchRow(r.key, { price: e.target.value })} /> : fmtAmount(r.price)}</td>
         <td className="r num">{fmtAmount(line.revenue)}</td>
         {detail.canSeeCost && (
@@ -366,6 +400,9 @@ function EstimateEditor({ detail, canWrite, isAdmin }: { detail: EstimateDetail;
         {editable && (
           <Button variant="primary" disabled={busy || !dirty} onClick={() => void save()}><Save size={14} />{tt('estimates.actions.save')}</Button>
         )}
+        {!editable && canWrite && (
+          <Button variant="primary" disabled={busy || !Object.keys(doneDirty).length} onClick={() => void saveDone()}><Save size={14} />{tt('estimates.actions.save')}</Button>
+        )}
         {editable && (
           <Button disabled={busy || !detail.items.length} onClick={() => void run(() => api.approve(detail.id))}><FileSpreadsheet size={14} />{tt('estimates.actions.approve')}</Button>
         )}
@@ -400,6 +437,7 @@ function EstimateEditor({ detail, canWrite, isAdmin }: { detail: EstimateDetail;
               <th style={{ width: 170 }}>{tt('estimates.columns.item')}</th>
               <th style={{ width: 110 }}>{tt('estimates.columns.unit')}</th>
               <th style={{ width: 90 }} className="r">{tt('estimates.columns.qty')}</th>
+              <th style={{ width: 100 }} className="r">{tt('estimates.columns.doneQty')}</th>
               <th style={{ width: 110 }} className="r">{tt('estimates.columns.price')}</th>
               <th style={{ width: 120 }} className="r">{tt('estimates.columns.amount')}</th>
               {detail.canSeeCost && <th style={{ width: 110 }} className="r">{tt('estimates.columns.costPrice')}</th>}
@@ -699,6 +737,7 @@ function ImportDialog({ estimateId, onClose }: { estimateId: string; onClose: ()
                       <th style={{ width: 40 }}>#</th>
                       <th>{tt('estimates.columns.name')}</th>
                       <th style={{ width: 90 }} className="r">{tt('estimates.columns.qty')}</th>
+              <th style={{ width: 100 }} className="r">{tt('estimates.columns.doneQty')}</th>
                       <th style={{ width: 110 }} className="r">{tt('estimates.columns.price')}</th>
                       {map.costPrice !== '' && <th style={{ width: 110 }} className="r">{tt('estimates.columns.costPrice')}</th>}
                     </tr>

@@ -60,6 +60,8 @@ export interface EstimateItem {
   /** null — нет права видеть себестоимость */
   costPrice: string | null;
   laborHours: string;
+  /** Выполненный объём (задача 1272): факт, правится и у согласованной сметы */
+  doneQty: string;
   manufacturedItemId: string | null;
   manufacturedItemName: string | null;
   note: string;
@@ -93,6 +95,8 @@ export interface EstimateItemInput {
   vatRate?: string;
   costPrice?: string;
   laborHours?: string;
+  /** Выполненный объём: не больше qty (422 done_qty_exceeds) */
+  doneQty?: string;
   manufacturedItemId?: string | null;
   note?: string;
 }
@@ -160,6 +164,8 @@ export function useEstimateApi() {
     save: (id: string, body: Partial<{ name: string; number: string; note: string }>) => wrap(call<EstimateDetail>(ws, 'PATCH', `/estimates/${id}`, body)),
     remove: (id: string) => wrap(call(ws, 'DELETE', `/estimates/${id}`)),
     saveItems: (id: string, body: EstimateContentBody) => wrap(call<EstimateDetail>(ws, 'PUT', `/estimates/${id}/items`, body)),
+    // выполненные объёмы — отдельным запросом: это факт, а не состав, и правится у согласованной сметы
+    saveDoneQty: (id: string, items: { id: string; doneQty: string }[]) => wrap(call<EstimateDetail>(ws, 'PATCH', `/estimates/${id}/done-qty`, { items })),
     approve: (id: string) => wrap(call<EstimateDetail>(ws, 'POST', `/estimates/${id}/approve`)),
     unapprove: (id: string) => wrap(call<EstimateDetail>(ws, 'POST', `/estimates/${id}/unapprove`)),
     addChange: (id: string, body: { name: string; note?: string }) => wrap(call<EstimateDetail>(ws, 'POST', `/estimates/${id}/changes`, body)),

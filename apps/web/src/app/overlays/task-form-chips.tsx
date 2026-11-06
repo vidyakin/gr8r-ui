@@ -27,6 +27,8 @@ export interface TaskFormState {
   labels: LabelId[];
   /** Объект объектного учёта (задача 1268) */
   object: string | null;
+  /** Вес задачи для процента выполнения объекта (задача 1272): пусто — 1, показывается только у задачи объекта */
+  weight: string;
   recur: string | null;
   subtasks: { id: string; title: string }[];
   files: { name: string; size: string; file: File }[];
@@ -246,6 +248,19 @@ export function FormChips({ form, set }: { form: TaskFormState; set: (patch: Par
           )
         }
       />
+      {form.object && (
+        <label className="pillbtn bordered row" style={{ gap: 6 }} title={t('overlays.taskForm.weightHint')}>
+          <span>{t('overlays.taskForm.weight')}</span>
+          <input
+            className="input"
+            style={{ width: 56, padding: '0 4px', border: 'none', background: 'transparent' }}
+            inputMode="decimal"
+            aria-label={t('overlays.taskForm.weight')}
+            value={form.weight}
+            onChange={e => set({ weight: e.target.value })}
+          />
+        </label>
+      )}
       <PillMenu<string>
         label={t('overlays.taskForm.repeat')}
         className={cn('bordered')}

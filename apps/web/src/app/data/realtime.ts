@@ -72,7 +72,8 @@ export function useRealtime(ws: string, engine: Engine) {
       // Сметы объекта (задача 1269): вкладка «Смета» и каталог объектов
       // Бюджет объекта (задача 1270) считается по проведённым документам и платежам, поэтому любое событие документа
       // перечитывает и объекты (вкладка «Бюджет» и факт по категориям во вкладке «Смета»)
-      if (['object', 'object_foreman', 'object_contract', 'object_estimate', 'document'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'objects'] });
+      // Процент выполнения и вехи (задача 1272): меняются от задач (закрытые статусы, веса) и вех объекта
+      if (['object', 'object_foreman', 'object_contract', 'object_estimate', 'object_milestone', 'document', 'task'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'objects'] });
       // Рейтинг поставщиков (задача 1276): считается на лету по документам, контрагентам и настройкам воркспейса
       if (['document', 'company', 'workspace'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'supplier-ratings'] });
       // Название воркспейса, моя роль, состав участников
