@@ -5,6 +5,8 @@ import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { CircleAlert, FilePlus2, Plus, Trash2 } from 'lucide-react';
 import { Badge, Button, ConfirmDialog, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
+import { DocForm } from '@/components/gr8r/doc-form';
+import { DateInput } from '@/components/gr8r/date-picker';
 import { useCanWrite } from '../meta/custom-fields';
 import { DocTabs } from '../docs/doc-tabs';
 import { useWarehouses } from '../docs/data';
@@ -245,13 +247,13 @@ export function MaterialAllocationPage() {
   const mismatch = rows.length > 0 && check.some(c => Math.abs(c.fact - c.distributed) > 1e-6);
 
   return (
-    <div className="page doc-page">
+    <DocForm>
       <div className="doc-bar">
         <div className="doc-title">
           <h1>{detail ? (detail.number ?? t('production.allocation.title')) : t('production.allocation.newTitle')}</h1>
           {detail && <Badge tone={detail.status === 'posted' ? 'green' : 'gray'} dot>{tProductionEnum('docStatus', detail.status, detail.status)}</Badge>}
         </div>
-        <div className="acts">
+        <div className="doc-actions">
           {editable && (
             <Button variant="primary" disabled={busy || !valid} onClick={() => void save()}>
               {detail ? t('production.common.save') : t('production.common.create')}
@@ -276,18 +278,17 @@ export function MaterialAllocationPage() {
       </div>
 
       <section className="panel doc-head" aria-label={t('production.field.date')}>
-        <Field label={t('production.allocation.fields.date')} hint={t('production.allocation.fields.dateHint')}>{p => <Input {...p} type="date" disabled={!editable} value={date} onChange={e => changeDate(e.target.value)} />}</Field>
+        <Field label={t('production.allocation.fields.date')} hint={t('production.allocation.fields.dateHint')}>{p => <DateInput {...p} disabled={!editable} value={date} onChange={changeDate} />}</Field>
         <Field label={t('production.allocation.fields.periodFrom')} hint={t('production.allocation.fields.periodFromHint')}>
           {p => (
-            <Input
+            <DateInput
               {...p}
-              type="date"
               disabled={!editable}
               value={periodFrom}
               max={date || undefined}
-              onChange={e => {
+              onChange={v => {
                 setPeriodTouched(true);
-                setPeriodFrom(e.target.value);
+                setPeriodFrom(v);
               }}
             />
           )}
@@ -575,6 +576,6 @@ export function MaterialAllocationPage() {
           description=""
         />
       )}
-    </div>
+    </DocForm>
   );
 }

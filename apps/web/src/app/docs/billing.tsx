@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { CircleAlert, Download, FileDown, ReceiptText } from 'lucide-react';
 import { Badge, Button, EmptyState, Field, Select, Skeleton, toast } from '@/components/ui';
+import { DocForm, DocHeader } from '@/components/gr8r/doc-form';
 import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
 import { useT } from '@/i18n';
 import { money } from '../catalog/data';
@@ -90,88 +91,89 @@ export function BillingPage() {
   };
 
   return (
-    <div className="page flush">
-      <div className="ph">
-        <div>
-          <h1>{t('docs.billing.title')}</h1>
-          <p>{t('docs.billing.lead')}</p>
-        </div>
-        <div className="acts">
-          {isAdmin && (
-            <Button variant="ghost" disabled={preview.isFetching} onClick={() => void exportPdf()}>
-              <FileDown size={14} />
-              {t('docs.billing.exportPdf')}
-            </Button>
-          )}
-          {isAdmin && (
-            <Button variant="primary" disabled={preview.isFetching} onClick={() => void run()}>
-              <ReceiptText size={14} />
-              {t('docs.billing.run')}
-            </Button>
-          )}
-        </div>
-      </div>
-      <div className="pane">
-        <div className="row" style={{ gap: 8, marginBottom: 12 }}>
-          <Field label={t('docs.billing.period')} hint={t('docs.billing.periodHint')}>
-            {({ id }) => <Select id={id} value={period} onValueChange={v => setPeriod(v)} options={periodOptions(t)} />}
-          </Field>
-        </div>
-        {preview.isPending ? (
-          <Skeleton w="100%" h={120} />
-        ) : !items.length ? (
-          <EmptyState icon={<ReceiptText size={20} />} title={t('docs.billing.emptyTitle')}>
-            {t('docs.billing.emptyHint')}
-          </EmptyState>
-        ) : (
-          <div className="stack" style={{ gap: 12 }}>
-            {items.map(item => (
-              <BillingCard key={item.contractId} item={item} />
-            ))}
-          </div>
-        )}
-        {result && (
-          <div style={{ marginTop: 16 }}>
-            <h2>{t('docs.billing.resultTitle')}</h2>
-            <div className="stack" style={{ gap: 6, marginTop: 8 }}>
-              {result.map(i => (
-                <div key={i.contractId} className="row" style={{ justifyContent: 'space-between' }}>
-                  <span>{i.contractNumber || i.contractId}</span>
-                  {i.skipped ? <span className="faint">{i.reason}</span> : <Badge tone="green">{i.number ?? t('docs.journal.draft')}</Badge>}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        {exported && (
-          <div style={{ marginTop: 16 }}>
-            <h2>{t('docs.billing.exportTitle')}</h2>
-            <div className="row" style={{ justifyContent: 'space-between', marginTop: 8 }}>
-              <span>
-                {exported.name} ·{' '}
-                {exported.status === 'pending' ? t('docs.billing.statusPending') : exported.status === 'ready' ? t('docs.billing.statusReady') : exported.status === 'failed' ? t('docs.billing.statusFailed', { err: exported.error ?? t('common.unknownError') }) : exported.status}
-              </span>
-              {exported.status === 'ready' && (
-                <Button variant="secondary" onClick={() => void downloadArchive()}>
-                  <Download size={14} />
-                  {t('docs.billing.download')}
+    <DocForm
+      header={
+        <DocHeader
+          title={t('docs.billing.title')}
+          subtitle={t('docs.billing.lead')}
+          actions={
+            <>
+              {isAdmin && (
+                <Button variant="ghost" disabled={preview.isFetching} onClick={() => void exportPdf()}>
+                  <FileDown size={14} />
+                  {t('docs.billing.exportPdf')}
                 </Button>
               )}
-            </div>
-          </div>
-        )}
-        <div style={{ marginTop: 24 }}>
-          <h2>{t('docs.billing.reportTitle')}</h2>
-          {report.isPending ? (
-            <Skeleton w="100%" h={80} />
-          ) : !report.data?.items.length ? (
-            <EmptyState size="sm" icon={<CircleAlert size={18} />} title={t('docs.billing.reportEmpty')} />
-          ) : (
-            <ReportTable items={report.data.items} />
-          )}
-        </div>
+              {isAdmin && (
+                <Button variant="primary" disabled={preview.isFetching} onClick={() => void run()}>
+                  <ReceiptText size={14} />
+                  {t('docs.billing.run')}
+                </Button>
+              )}
+            </>
+          }
+        />
+      }
+    >
+      <div className="row" style={{ gap: 8 }}>
+        <Field label={t('docs.billing.period')} hint={t('docs.billing.periodHint')}>
+          {({ id }) => <Select id={id} value={period} onValueChange={v => setPeriod(v)} options={periodOptions(t)} />}
+        </Field>
       </div>
-    </div>
+      {preview.isPending ? (
+        <Skeleton w="100%" h={120} />
+      ) : !items.length ? (
+        <EmptyState icon={<ReceiptText size={20} />} title={t('docs.billing.emptyTitle')}>
+          {t('docs.billing.emptyHint')}
+        </EmptyState>
+      ) : (
+        <div className="stack" style={{ gap: 12 }}>
+          {items.map(item => (
+            <BillingCard key={item.contractId} item={item} />
+          ))}
+        </div>
+      )}
+      {result && (
+        <div>
+          <h2>{t('docs.billing.resultTitle')}</h2>
+          <div className="stack" style={{ gap: 6, marginTop: 8 }}>
+            {result.map(i => (
+              <div key={i.contractId} className="row" style={{ justifyContent: 'space-between' }}>
+                <span>{i.contractNumber || i.contractId}</span>
+                {i.skipped ? <span className="faint">{i.reason}</span> : <Badge tone="green">{i.number ?? t('docs.journal.draft')}</Badge>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {exported && (
+        <div>
+          <h2>{t('docs.billing.exportTitle')}</h2>
+          <div className="row" style={{ justifyContent: 'space-between', marginTop: 8 }}>
+            <span>
+              {exported.name} ·{' '}
+              {exported.status === 'pending' ? t('docs.billing.statusPending') : exported.status === 'ready' ? t('docs.billing.statusReady') : exported.status === 'failed' ? t('docs.billing.statusFailed', { err: exported.error ?? t('common.unknownError') }) : exported.status}
+            </span>
+            {exported.status === 'ready' && (
+              <Button variant="secondary" onClick={() => void downloadArchive()}>
+                <Download size={14} />
+                {t('docs.billing.download')}
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+      <div>
+        <h2>{t('docs.billing.reportTitle')}</h2>
+        {report.isPending ? (
+          <Skeleton w="100%" h={80} />
+        ) : !report.data?.items.length ? (
+          <EmptyState size="sm" icon={<CircleAlert size={18} />} title={t('docs.billing.reportEmpty')} />
+        ) : (
+          <ReportTable items={report.data.items} />
+        )}
+      </div>
+    </DocForm>
   );
 }
 

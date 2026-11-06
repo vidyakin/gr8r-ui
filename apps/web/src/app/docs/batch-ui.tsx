@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { Package } from 'lucide-react';
 import { Button, Dialog, DialogContent, IconButton, Input } from '@/components/ui';
+import { DateInput } from '@/components/gr8r/date-picker';
 import { useT } from '@/i18n';
 
 export interface BatchLine {
@@ -36,11 +37,11 @@ export function BatchButton({ line, onChange }: { line: BatchLine; onChange: (pa
               </label>
               <label className="col" style={{ gap: 4 }}>
                 <span className="muted">{t('batches.entry.producedAt')}</span>
-                <Input type="date" value={line.batchProducedAt} onChange={e => onChange({ batchProducedAt: e.target.value })} />
+                <DateInput value={line.batchProducedAt} onChange={v => onChange({ batchProducedAt: v })} />
               </label>
               <label className="col" style={{ gap: 4 }}>
                 <span className="muted">{t('batches.entry.expiresAt')}</span>
-                <Input type="date" value={line.batchExpiresAt} onChange={e => onChange({ batchExpiresAt: e.target.value })} />
+                <DateInput value={line.batchExpiresAt} onChange={v => onChange({ batchExpiresAt: v })} />
               </label>
             </div>
           </DialogContent>

@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router';
 import { BILLING_PACKAGE_LABELS, BILLING_PACKAGES, BILLING_PERIODICITIES, BILLING_PERIODICITY_LABELS, CONTRACT_KIND_LABELS, CONTRACT_KINDS, EXTRA_PRODUCT_POLICIES, EXTRA_PRODUCT_POLICY_LABELS, type ContractKind, type ExtraProductPolicy } from '@gr8r/shared';
 import { AttachmentsPanel } from '@/components/gr8r/attachments-panel';
 import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Select, Skeleton, Tab, Tabs, TabsList, toast } from '@/components/ui';
+import { DateInput } from '@/components/gr8r/date-picker';
 import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/gr8r/data-table';
 import { FilterBar, useFilterState } from '@/components/gr8r/filter-bar';
 import { tEnum, useT } from '@/i18n';
@@ -190,12 +191,12 @@ export function ContractDialog({ api, onClose, contract, companyId, readOnly, ar
           <Field label={t('docs.contracts.counterparty')}>{({ id }) => <CounterpartyPicker id={id} value={company?.name ?? ''} disabled={!!contract || !!companyId} onPick={c => setCompany({ id: c.id, name: c.name })} />}</Field>
           <div className="row" style={{ gap: 8 }}>
             <Field label={t('docs.contracts.number')}>{({ id }) => <Input id={id} value={number} onChange={e => setNumber(e.target.value)} placeholder={t('docs.contracts.numberPlaceholder')} />}</Field>
-            <Field label={t('docs.contracts.date')}>{({ id }) => <Input id={id} type="date" value={date} onChange={e => setDate(e.target.value)} />}</Field>
+            <Field label={t('docs.contracts.date')}>{({ id }) => <DateInput id={id} value={date} onChange={setDate} />}</Field>
             <Field label={t('docs.contracts.kind')}>{({ id }) => <Select id={id} value={kind} onValueChange={v => setKind(v as ContractKind)} options={CONTRACT_KINDS.map(k => ({ value: k, label: tEnum('contractKind', 'k_' + k, CONTRACT_KIND_LABELS[k]) }))} />}</Field>
           </div>
           <div className="row" style={{ gap: 8 }}>
-            <Field label={t('docs.contracts.validFrom')}>{({ id }) => <Input id={id} type="date" value={validFrom} onChange={e => setValidFrom(e.target.value)} />}</Field>
-            <Field label={t('docs.contracts.validTo')}>{({ id }) => (<Input id={id} type="date" value={validTo} onChange={e => setValidTo(e.target.value)} />)}</Field>
+            <Field label={t('docs.contracts.validFrom')}>{({ id }) => <DateInput id={id} value={validFrom} onChange={setValidFrom} />}</Field>
+            <Field label={t('docs.contracts.validTo')}>{({ id }) => (<DateInput id={id} value={validTo} onChange={setValidTo} />)}</Field>
             <Field label={t('docs.contracts.category')}>{({ id }) => <Input id={id} value={category} onChange={e => setCategory(e.target.value)} placeholder={t('docs.contracts.categoryPlaceholder')} />}</Field>
           </div>
           <div className="row" style={{ gap: 8 }}>
@@ -312,7 +313,7 @@ export function ContractDialog({ api, onClose, contract, companyId, readOnly, ar
         <Dialog open={signing} onOpenChange={setSigning}>
           <DialogContent size="sm" title={t('docs.contracts.signTitle')} description={t('docs.contracts.signHint')}>
             <div className="stack" style={{ gap: 12 }}>
-              <Field label={t('docs.contracts.signDate')}>{({ id }) => <Input id={id} type="date" value={signDate} onChange={e => setSignDate(e.target.value)} />}</Field>
+              <Field label={t('docs.contracts.signDate')}>{({ id }) => <DateInput id={id} value={signDate} onChange={setSignDate} />}</Field>
               <div className="row" style={{ justifyContent: 'flex-end', gap: 8 }}>
                 <Button variant="ghost" onClick={() => setSigning(false)}>
                   {t('common.cancel')}
@@ -340,14 +341,14 @@ export function TariffPlansPage() {
   const [openId, setOpenId] = React.useState<string | null>(null);
 
   return (
-    <div className="page flush">
+    <div className="page">
       <div className="ph">
         <div>
           <h1>{t('docs.contracts.tariffTitle')}</h1>
           <p>{t('docs.contracts.tariffLead')}</p>
         </div>
       </div>
-      <div className="pane">
+      <div>
         {plans.isPending ? (
           <Skeleton w="100%" h={120} />
         ) : !plans.data?.length ? (

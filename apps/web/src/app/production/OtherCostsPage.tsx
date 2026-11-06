@@ -4,6 +4,8 @@ import * as React from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { CircleAlert, FilePlus2, Plus, Trash2 } from 'lucide-react';
 import { Badge, Button, ConfirmDialog, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
+import { DocForm, DocHeader } from '@/components/gr8r/doc-form';
+import { DateInput } from '@/components/gr8r/date-picker';
 import { useCanWrite } from '../meta/custom-fields';
 import { useCostItems, useWorkOrders } from '../docs/data';
 import { useSnapshot } from './data';
@@ -167,50 +169,49 @@ export function OtherCostsDocumentPage() {
 
   if (!isNew && doc.isPending)
     return (
-      <div className="page flush">
-        <div className="ph">
-          <Skeleton w={260} h={24} />
-        </div>
-      </div>
+      <DocForm header={<div className="doc-bar"><Skeleton w={260} h={24} /></div>} />
     );
 
   return (
-    <div className="page flush">
-      <div className="ph">
-        <div>
-          <h1>{detail?.number ?? t('production.otherCosts.newTitle')}</h1>
-          <p>{detail ? (detail.status === 'posted' ? t('docs.commentHint.document') : '') : t('production.otherCosts.subtitle')}</p>
-        </div>
-        <div className="acts">
-          {editable && (
-            <Button variant="primary" disabled={busy || !valid} onClick={() => void (detail ? void save() : void save())}>
-              {detail ? t('production.common.save') : t('production.common.create')}
-            </Button>
-          )}
-          {detail && (
+    <DocForm
+      header={
+        <DocHeader
+          title={detail?.number ?? t('production.otherCosts.newTitle')}
+          subtitle={detail ? (detail.status === 'posted' ? t('docs.commentHint.document') : '') : t('production.otherCosts.subtitle')}
+          actions={
             <>
-              {detail.status === 'draft' && (
-                <Button disabled={busy || !valid} onClick={() => void post()}>
-                  {t('production.piecework.post')}
+              {editable && (
+                <Button variant="primary" disabled={busy || !valid} onClick={() => void (detail ? void save() : void save())}>
+                  {detail ? t('production.common.save') : t('production.common.create')}
                 </Button>
               )}
-              {detail.status === 'posted' && (
-                <Button disabled={busy} onClick={() => void api.unpost(detail.id).then(() => toast(t('production.common.unpost'), { duration: 1500 }))}>
-                  {t('production.common.unpost')}
-                </Button>
-              )}
-              {detail.status === 'draft' && (
-                <Button variant="ghost" onClick={() => setRemoving(true)}>
-                  {t('production.common.delete')}
-                </Button>
+              {detail && (
+                <>
+                  {detail.status === 'draft' && (
+                    <Button disabled={busy || !valid} onClick={() => void post()}>
+                      {t('production.piecework.post')}
+                    </Button>
+                  )}
+                  {detail.status === 'posted' && (
+                    <Button disabled={busy} onClick={() => void api.unpost(detail.id).then(() => toast(t('production.common.unpost'), { duration: 1500 }))}>
+                      {t('production.common.unpost')}
+                    </Button>
+                  )}
+                  {detail.status === 'draft' && (
+                    <Button variant="ghost" onClick={() => setRemoving(true)}>
+                      {t('production.common.delete')}
+                    </Button>
+                  )}
+                </>
               )}
             </>
-          )}
-        </div>
-      </div>
+          }
+        />
+      }
+    >
 
       <section className="panel doc-head" aria-label={t('production.field.date')}>
-        <Field label={t('production.otherCosts.fields.date')}>{p => <Input {...p} type="date" disabled={!editable} value={date} onChange={e => setDate(e.target.value)} />}</Field>
+        <Field label={t('production.otherCosts.fields.date')}>{p => <DateInput {...p} disabled={!editable} value={date} onChange={setDate} />}</Field>
         <Field label={t('production.otherCosts.fields.workOrder')} hint={t('production.otherCosts.fields.workOrderHint')}>
           {p => (
             <Select
@@ -319,7 +320,7 @@ export function OtherCostsDocumentPage() {
           description=""
         />
       )}
-    </div>
+    </DocForm>
   );
 }
 

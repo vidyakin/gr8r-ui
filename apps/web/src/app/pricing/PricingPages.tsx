@@ -4,6 +4,8 @@ import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { CircleAlert, Copy, Download, FilePlus2, Link as LinkIcon, Percent, Plus, Printer, Trash2, Upload, Wand2 } from 'lucide-react';
 import { Badge, Button, Checkbox, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
+import { DocForm, DocHeader } from '@/components/gr8r/doc-form';
+import { DateInput } from '@/components/gr8r/date-picker';
 import { fmtAmount, fmtNumber, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { useCanWrite } from '../meta/custom-fields';
@@ -496,33 +498,32 @@ export function PriceSettingPage() {
 
   if (!isNew && q.isPending)
     return (
-      <div className="page flush">
-        <div className="ph">
-          <Skeleton w={260} h={24} />
-        </div>
-      </div>
+      <DocForm header={<div className="doc-bar"><Skeleton w={260} h={24} /></div>} />
     );
 
   return (
-    <div className="page flush">
-      <div className="ph">
-        <div>
-          <h1>{detail?.number ?? tt('pricing.settings.newTitle')}</h1>
-          <p>{tt('pricing.settings.title')}</p>
-        </div>
-        <div className="acts">
-          {detail && <StatusBadge status={detail.status} />}
-          {editable && <Button disabled={busy || !organizationId} onClick={() => void open('fill')}><Wand2 size={14} />{tt('pricing.fill.title')}</Button>}
-          {editable && <Button disabled={busy || !lines.length} onClick={() => void open('mass')}><Percent size={14} />{tt('pricing.mass.title')}</Button>}
-          {editable && <Button variant="primary" disabled={busy || !valid} onClick={() => void save()}>{detail ? tt('pricing.save') : tt('pricing.create')}</Button>}
-          {detail && detail.status === 'draft' && editable && <Button disabled={busy || !valid} onClick={() => void post()}>{tt('pricing.post')}</Button>}
-          {detail && detail.status === 'posted' && isAdmin && <Button disabled={busy} onClick={() => void run(() => api.action(detail.id, 'unpost'))}>{tt('pricing.unpost')}</Button>}
-          {detail && detail.status === 'draft' && editable && <Button variant="ghost" onClick={() => setRemoving(true)}>{tt('pricing.delete')}</Button>}
-        </div>
-      </div>
+    <DocForm
+      header={
+        <DocHeader
+          title={detail?.number ?? tt('pricing.settings.newTitle')}
+          subtitle={tt('pricing.settings.title')}
+          actions={
+            <>
+              {detail && <StatusBadge status={detail.status} />}
+              {editable && <Button disabled={busy || !organizationId} onClick={() => void open('fill')}><Wand2 size={14} />{tt('pricing.fill.title')}</Button>}
+              {editable && <Button disabled={busy || !lines.length} onClick={() => void open('mass')}><Percent size={14} />{tt('pricing.mass.title')}</Button>}
+              {editable && <Button variant="primary" disabled={busy || !valid} onClick={() => void save()}>{detail ? tt('pricing.save') : tt('pricing.create')}</Button>}
+              {detail && detail.status === 'draft' && editable && <Button disabled={busy || !valid} onClick={() => void post()}>{tt('pricing.post')}</Button>}
+              {detail && detail.status === 'posted' && isAdmin && <Button disabled={busy} onClick={() => void run(() => api.action(detail.id, 'unpost'))}>{tt('pricing.unpost')}</Button>}
+              {detail && detail.status === 'draft' && editable && <Button variant="ghost" onClick={() => setRemoving(true)}>{tt('pricing.delete')}</Button>}
+            </>
+          }
+        />
+      }
+    >
 
       <section className="panel doc-head" aria-label={tt('pricing.date')}>
-        <Field label={tt('pricing.date')}>{p => <Input {...p} type="date" disabled={!editable} value={date} onChange={e => setDate(e.target.value)} />}</Field>
+        <Field label={tt('pricing.date')}>{p => <DateInput {...p} disabled={!editable} value={date} onChange={setDate} />}</Field>
         <Field label={tt('pricing.organization')}>
           {p => <Select id={p.id} disabled={!editable || !!detail?.number} value={organizationId} onValueChange={setOrganizationId} options={(orgs.data ?? []).map(o => ({ value: o.id, label: o.name }))} aria-label={tt('pricing.organization')} />}
         </Field>
@@ -579,7 +580,7 @@ export function PriceSettingPage() {
       {dialog === 'fill' && targetId && <FillDialog settingId={targetId} kinds={kinds.data ?? []} run={run} onClose={() => setDialog(null)} />}
       {dialog === 'mass' && targetId && <MassDialog settingId={targetId} run={run} onClose={() => setDialog(null)} />}
       <ConfirmDialog open={removing} onOpenChange={setRemoving} title={tt('pricing.deleteTitle')} confirmLabel={tt('pricing.delete')} onConfirm={() => run(async () => { await api.remove(detail!.id); await navigate('/pricing/settings'); })} />
-    </div>
+    </DocForm>
   );
 }
 
@@ -687,7 +688,7 @@ function LinksDialog({ kinds, onClose }: { kinds: PriceKind[]; onClose: () => vo
             <KindChecks kinds={publicKinds} value={picked} onChange={setPicked} label={tt('pricing.links.kinds')} />
             <div className="row" style={{ gap: 8 }}>
               <Field label={tt('pricing.links.category')}>{p => <Select id={p.id} value={categoryId} placeholder={tt('pricing.allCategories')} onValueChange={setCategoryId} options={[{ value: '', label: tt('pricing.allCategories') }, ...(cats.data ?? []).map(c => ({ value: c.id, label: c.name }))]} />}</Field>
-              <Field label={tt('pricing.links.expires')}>{p => <Input {...p} type="date" value={expires} onChange={e => setExpires(e.target.value)} />}</Field>
+              <Field label={tt('pricing.links.expires')}>{p => <DateInput {...p} value={expires} onChange={setExpires} />}</Field>
             </div>
             <label className="row" style={{ gap: 6 }}>
               <Checkbox checked={inStock} onChange={e => setInStock(e.target.checked)} /> {tt('pricing.inStock')}
@@ -743,23 +744,26 @@ export function PriceListPage() {
   const q = usePriceList(params, !!retailId);
   const data = q.data;
   return (
-    <div className="page flush">
-      <div className="ph">
-        <div>
-          <h1>{tt('pricing.list.title')}</h1>
-          <p>{tt('pricing.list.subtitle')}</p>
-        </div>
-        <div className="acts">
-          <Button disabled={!data} onClick={() => void run(() => api.openPrint(params))}><Printer size={14} />{tt('pricing.list.print')}</Button>
-          <Button disabled={!data} onClick={() => void run(() => api.exportFile(params, 'xlsx'))}><Download size={14} />Excel</Button>
-          <Button disabled={!data} onClick={() => void run(() => api.exportFile(params, 'csv'))}>CSV</Button>
-          {isAdmin && <Button onClick={() => setDialog('import')}><Upload size={14} />{tt('pricing.import.title')}</Button>}
-          {isAdmin && <Button onClick={() => setDialog('links')}><LinkIcon size={14} />{tt('pricing.links.title')}</Button>}
-        </div>
-      </div>
+    <DocForm
+      header={
+        <DocHeader
+          title={tt('pricing.list.title')}
+          subtitle={tt('pricing.list.subtitle')}
+          actions={
+            <>
+              <Button disabled={!data} onClick={() => void run(() => api.openPrint(params))}><Printer size={14} />{tt('pricing.list.print')}</Button>
+              <Button disabled={!data} onClick={() => void run(() => api.exportFile(params, 'xlsx'))}><Download size={14} />Excel</Button>
+              <Button disabled={!data} onClick={() => void run(() => api.exportFile(params, 'csv'))}>CSV</Button>
+              {isAdmin && <Button onClick={() => setDialog('import')}><Upload size={14} />{tt('pricing.import.title')}</Button>}
+              {isAdmin && <Button onClick={() => setDialog('links')}><LinkIcon size={14} />{tt('pricing.links.title')}</Button>}
+            </>
+          }
+        />
+      }
+    >
 
       <section className="panel doc-head" aria-label={tt('pricing.list.filters')}>
-        <Field label={tt('pricing.date')}>{p => <Input {...p} type="date" value={date} onChange={e => setDate(e.target.value || today())} />}</Field>
+        <Field label={tt('pricing.date')}>{p => <DateInput {...p} value={date} onChange={v => setDate(v || today())} />}</Field>
         <Field label={tt('pricing.category')}>{p => <Select id={p.id} value={categoryId} placeholder={tt('pricing.allCategories')} onValueChange={setCategoryId} options={[{ value: '', label: tt('pricing.allCategories') }, ...(cats.data ?? []).map(c => ({ value: c.id, label: c.name }))]} />}</Field>
         <Field label={tt('pricing.search')}>{p => <Input {...p} value={search} onChange={e => setSearch(e.target.value)} placeholder={tt('pricing.searchPlaceholder')} />}</Field>
         <label className="row" style={{ gap: 6, alignSelf: 'end' }}>
@@ -781,7 +785,7 @@ export function PriceListPage() {
       ) : !data.items.length ? (
         <EmptyState icon={<CircleAlert size={20} />} title={tt('pricing.list.empty')}>{tt('pricing.list.emptyHint')}</EmptyState>
       ) : (
-        <div className="table-wrap" style={{ padding: '0 var(--gutter) 24px' }}>
+        <div className="table-wrap">
           <table className="dtbl" aria-label={tt('pricing.list.title')}>
             <thead>
               <tr>
@@ -811,6 +815,6 @@ export function PriceListPage() {
       )}
       {dialog === 'import' && <ImportDialog onClose={() => setDialog(null)} />}
       {dialog === 'links' && <LinksDialog kinds={kinds.data ?? []} onClose={() => setDialog(null)} />}
-    </div>
+    </DocForm>
   );
 }

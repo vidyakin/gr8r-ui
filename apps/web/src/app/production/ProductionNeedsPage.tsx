@@ -17,6 +17,7 @@ import { fmtDate, parse } from '../lib/dates';
 import { needsKey, useProductionNeeds, type NeedsRow as ProductionNeedsRow, type SupplierOrdersResult } from './orders-data';
 import { calcKey, useNeedsCalculation, useNeedsDraftsApi, type NeedsCalcParams, type NeedsCalcRow } from './plans-data';
 import { tEnum, tProductionEnum, useT } from '@/i18n';
+import { NumberField } from '@/components/gr8r/number-field';
 
 type Step = 'recommendations' | 'planning' | 'orders';
 const STEPS: { id: Step; name: string }[] = [
@@ -180,9 +181,9 @@ export function ProductionNeedsPage() {
             ))}
           </nav>
 
-          <div className="panel" style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-            <label className="fld" style={{ maxWidth: 180 }}>
-              <span className="lbl">{tt('production.needs.replenishment')}</span>
+          <div className="panel" style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', margin: '12px var(--gutter) 0', padding: '12px 14px' }}>
+            <label className="field" style={{ maxWidth: 180 }}>
+              <span className="label">{tt('production.needs.replenishment')}</span>
               <select className="select" aria-label={tt('production.needs.replenishment')} value={params.replenishment} onChange={e => set({ replenishment: e.target.value as NeedsCalcParams['replenishment'] })}>
                 <option value="all">{tt('production.needs.sourceAll')}</option>
                 {Object.entries(STOCK_REPLENISHMENT_LABELS).map(([value, label]) => (
@@ -192,8 +193,8 @@ export function ProductionNeedsPage() {
                 ))}
               </select>
             </label>
-            <label className="fld" style={{ maxWidth: 200 }}>
-              <span className="lbl">{tt('production.needs.method')}</span>
+            <label className="field" style={{ maxWidth: 200 }}>
+              <span className="label">{tt('production.needs.method')}</span>
               <select className="select" aria-label={tt('production.needs.method')} value={params.method} onChange={e => set({ method: e.target.value as NeedsMethod })}>
                 {Object.entries(NEEDS_METHOD_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>
@@ -202,24 +203,24 @@ export function ProductionNeedsPage() {
                 ))}
               </select>
             </label>
-            <label className="fld" style={{ maxWidth: 130 }}>
-              <span className="lbl">{tt('production.needs.step')}</span>
+            <label className="field" style={{ maxWidth: 130 }}>
+              <span className="label">{tt('production.needs.step')}</span>
               <select className="select" aria-label={tt('production.needs.step')} value={params.step} onChange={e => set({ step: e.target.value as NeedsCalcParams['step'] })}>
                 <option value="day">{tt('production.needs.stepDay')}</option>
                 <option value="week">{tt('production.needs.stepWeek')}</option>
                 <option value="month">{tt('production.needs.stepMonth')}</option>
               </select>
             </label>
-            <label className="fld" style={{ width: 90 }}>
-              <span className="lbl">{tt('production.needs.periods')}</span>
-              <input className="inp num" type="number" min="1" max="60" aria-label={tt('production.needs.periods')} value={params.periods} onChange={e => set({ periods: Number(e.target.value) || 1 })} />
+            <label className="field" style={{ width: 118 }}>
+              <span className="label">{tt('production.needs.periods')}</span>
+              <NumberField min={1} max={60} value={params.periods} aria-label={tt('production.needs.periods')} onChange={v => set({ periods: Math.max(1, v) })} />
             </label>
-            <label className="fld" style={{ maxWidth: 160 }}>
-              <span className="lbl">{tt('production.needs.from')}</span>
+            <label className="field" style={{ maxWidth: 160 }}>
+              <span className="label">{tt('production.needs.from')}</span>
               <input className="inp" type="date" aria-label={tt('production.needs.from')} value={from} onChange={e => { setFrom(e.target.value); set({ from: e.target.value }); }} />
             </label>
-            <label className="fld" style={{ maxWidth: 180 }}>
-              <span className="lbl">{tt('production.needs.warehouseLabel')}</span>
+            <label className="field" style={{ maxWidth: 180 }}>
+              <span className="label">{tt('production.needs.warehouseLabel')}</span>
               <select className="select" aria-label={tt('production.needs.warehouseLabel')} value={params.warehouseId ?? ''} disabled={!params.byWarehouse} onChange={e => set({ warehouseId: e.target.value || undefined })}>
                 <option value="">{tt('production.needs.warehouseAny')}</option>
                 {(warehouses.data ?? []).map(w => (
@@ -229,16 +230,16 @@ export function ProductionNeedsPage() {
                 ))}
               </select>
             </label>
-            <label className="fld" style={{ width: 60 }}>
-              <span className="lbl">{tt('production.needs.byWarehouse')}</span>
+            <label className="field" style={{ width: 60 }}>
+              <span className="label">{tt('production.needs.byWarehouse')}</span>
               <input type="checkbox" className="check" aria-label={tt('production.needs.byWarehouse')} checked={params.byWarehouse} onChange={e => set({ byWarehouse: e.target.checked })} />
             </label>
-            <label className="fld" style={{ width: 120 }}>
-              <span className="lbl">{tt('production.needs.safetyDays')}</span>
+            <label className="field" style={{ width: 120 }}>
+              <span className="label">{tt('production.needs.safetyDays')}</span>
               <input className="inp num" type="number" min="0" max="365" aria-label={tt('production.needs.safetyDays')} value={params.safetyDays} onChange={e => set({ safetyDays: Number(e.target.value) || 0 })} />
             </label>
-            <label className="fld" style={{ width: 120 }}>
-              <span className="lbl">{tt('production.needs.safetyPct')}</span>
+            <label className="field" style={{ width: 120 }}>
+              <span className="label">{tt('production.needs.safetyPct')}</span>
               <input className="inp num" type="number" min="-100" max="1000" aria-label={tt('production.needs.safetyPct')} value={params.safetyPct ?? ''} placeholder={'0'} onChange={e => set({ safetyPct: e.target.value === '' ? undefined : e.target.value })} />
             </label>
           </div>
@@ -248,44 +249,46 @@ export function ProductionNeedsPage() {
               {(calc.error as Error).message}
             </EmptyState>
           ) : calc.isPending ? (
-            <div style={{ padding: 16 }}>
+            <div style={{ padding: '16px var(--gutter)' }}>
               <Skeleton w="100%" h={36} />
             </div>
           ) : !rows.length ? (
-            <EmptyState icon={<PackageSearch size={20} />} title={tt('production.needs.emptyTitle')}>
-              {tt('production.needs.emptyHint')}
-            </EmptyState>
+            <div style={{ padding: '0 var(--gutter)' }}>
+              <EmptyState icon={<PackageSearch size={20} />} title={tt('production.needs.emptyTitle')}>
+                {tt('production.needs.emptyHint')}
+              </EmptyState>
+            </div>
           ) : step === 'orders' ? (
             <OrdersStep drafts={created} onPost={() => void postAll()} />
           ) : (
-            <div className="table-wrap">
-              <table className="dtbl" aria-label={tt('production.needs.table')}>
+            <div className="table-wrap cq" style={{ padding: '0 var(--gutter) 24px' }}>
+              <table className="dtbl wth" aria-label={tt('production.needs.table')}>
                 <thead>
                   <tr>
                     {step === 'planning' && <th style={{ width: 34 }} />}
                     <th>{tt('production.needs.col.product')}</th>
-                    <th style={{ width: 150 }}>{tt('production.needs.col.warehouse')}</th>
+                    <th style={{ width: 120 }}>{tt('production.needs.col.warehouse')}</th>
                     <th style={{ width: 110 }}>{tt('production.needs.col.replenishment')}</th>
-                    <th style={{ width: 90 }} className="r">
+                    <th style={{ width: 72 }} className="r">
                       {tt('production.needs.col.balance')}
                     </th>
-                    <th style={{ width: 80 }} className="r">
+                    <th style={{ width: 64 }} className="r col-aux">
                       {tt('production.needs.col.reserved')}
                     </th>
-                    <th style={{ width: 90 }} className="r">
+                    <th style={{ width: 84 }} className="r col-aux">
                       {tt('production.needs.col.minmax')}
                     </th>
-                    <th style={{ width: 110 }} className="r">
+                    <th style={{ width: 96 }} className="r">
                       {step === 'planning' ? tt('production.needs.col.order') : tt('production.needs.col.recommendation')}
                     </th>
-                    <th style={{ width: 90 }} className="r">
+                    <th style={{ width: 84 }} className="r">
                       {tt('production.needs.col.overdue')}
                     </th>
-                    <th style={{ width: 110 }}>{tt('production.needs.col.due')}</th>
-                    <th style={{ width: 100 }} className="r">
+                    <th style={{ width: 116 }}>{tt('production.needs.col.due')}</th>
+                    <th style={{ width: 80 }} className="r col-aux">
                       {tt('production.needs.col.amount')}
                     </th>
-                    <th style={{ width: 150 }}>{step === 'planning' ? tt('production.needs.col.source') : tt('production.needs.col.supplier')}</th>
+                    <th style={{ width: 140 }}>{step === 'planning' ? tt('production.needs.col.source') : tt('production.needs.col.supplier')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -315,8 +318,8 @@ export function ProductionNeedsPage() {
                             )}
                           </td>
                           <td className="r num">{r.balance}</td>
-                          <td className="r num muted">{r.reserved}</td>
-                          <td className="r num muted">
+                          <td className="r num muted col-aux">{r.reserved}</td>
+                          <td className="r num muted col-aux">
                             {r.minQty} / {r.maxQty}
                           </td>
                           <td className="r num">
@@ -345,7 +348,7 @@ export function ProductionNeedsPage() {
                               '—'
                             )}
                           </td>
-                          <td className="r num">{r.amount ?? <span className="faint">—</span>}</td>
+                          <td className="r num col-aux">{r.amount ?? <span className="faint">—</span>}</td>
                           <td className="trunc muted">
                             {step === 'planning' && canWrite && modeOf(r) === 'production' ? (
                               <select className="select" aria-label={tt('production.needs.workCenterFor', { name: r.productName })} value={editOf(r).workCenterId ?? ''} onChange={e => edit(r, { workCenterId: e.target.value || undefined })}>
@@ -444,7 +447,7 @@ function OrdersStep({ drafts, onPost }: { drafts: { id: string; type: string; nu
   const list = useDraftList(drafts.map(d => d.id));
   const docs = list.data?.items ?? [];
   return (
-    <section className="panel" aria-label={tt('production.needs.draftsLabel')}>
+    <section className="panel" style={{ margin: '0 var(--gutter)' }} aria-label={tt('production.needs.draftsLabel')}>
       <div className="ph" style={{ padding: '12px 14px 8px' }}>
         <div>
           <h2 style={{ fontSize: 15 }}>{tt('production.needs.draftsTitle')}</h2>
@@ -544,9 +547,9 @@ function ProductionOrdersNeeds() {
   };
 
   return (
-    <div className="table-wrap">
+    <div className="table-wrap" style={{ padding: '0 var(--gutter) 24px' }}>
       {canWrite && (
-        <div style={{ padding: 12 }}>
+        <div style={{ padding: '12px 0' }}>
           <Button variant="primary" disabled={busy || !selected.length} onClick={() => void create()}>
             <Truck size={14} />
             {tt('production.needs.createSupplierOrders')}

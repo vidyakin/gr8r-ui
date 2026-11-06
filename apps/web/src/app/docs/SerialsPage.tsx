@@ -4,6 +4,7 @@ import * as React from 'react';
 import { Link } from 'react-router';
 import { CircleAlert, ScanBarcode, Search } from 'lucide-react';
 import { Badge, Button, Dialog, DialogContent, EmptyState, Field, Input, Skeleton, Textarea, toast, type Tone } from '@/components/ui';
+import { DateInput } from '@/components/gr8r/date-picker';
 import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/gr8r/data-table';
 import { FilterBar, useFilterState } from '@/components/gr8r/filter-bar';
 import { useT } from '@/i18n';
@@ -189,7 +190,7 @@ export function SerialCardDialog({ id, onClose }: { id: string; onClose: () => v
             </dl>
             {c.status === 'sold' && (
               <Field label={t('serials.card.warranty')} hint={t('serials.card.warrantyHint')}>
-                {p => <Input id={p.id} type="date" disabled={!canWrite} value={until ?? c.warrantyUntil ?? ''} onChange={e => setUntil(e.target.value)} />}
+                {p => <DateInput id={p.id} disabled={!canWrite} value={until ?? c.warrantyUntil ?? ''} onChange={setUntil} />}
               </Field>
             )}
             <Field label={t('serials.card.note')}>{p => <Textarea id={p.id} rows={2} disabled={!canWrite} value={note ?? c.note} onChange={e => setNote(e.target.value)} />}</Field>

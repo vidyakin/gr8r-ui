@@ -210,6 +210,61 @@
     border-color var(--dur),
     box-shadow var(--dur);
 }
+/* DateInput — кнопка в виде поля ввода: выровнять текст влево (кнопки центруют по умолчанию) */
+button.input {
+  text-align: left;
+}
+/* NumberField — числовое поле со степпером: корпус как у .input, справа кнопки −/+ */
+.numfield {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  height: var(--h-md);
+  padding: 0 4px 0 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  transition:
+    border-color var(--dur),
+    box-shadow var(--dur);
+}
+.numfield:hover {
+  border-color: color-mix(in srgb, var(--border-strong) 60%, var(--text-3));
+}
+.numfield:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.numfield input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font-size: var(--fs);
+  color: var(--text);
+}
+.numfield input:focus {
+  outline: none;
+}
+.numfield input:disabled {
+  color: var(--text-3);
+}
+.numfield input::placeholder {
+  color: var(--text-3);
+}
+/* нативные спин-стрелки не нужны — у нас свои кнопки */
+.numfield input::-webkit-outer-spin-button,
+.numfield input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.numfield input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
 .input-lg {
   height: var(--h-lg);
 }

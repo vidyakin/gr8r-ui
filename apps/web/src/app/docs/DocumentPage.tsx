@@ -7,6 +7,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Ban, Calculator, ChevronDown, CircleAlert, ClipboardList, Copy, Ellipsis, FileSignature, FileText, PackageCheck, PackageX, Plus, Printer, RotateCcw, Send, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
 import { amountInWordsRu, basedOnTargets, computeDocument, computeTotals, dec, DEFECT_MODES, DOCUMENT_META, fmt as fmtDec, hasQuoteVariants, isInvestmentFactType, MATERIAL_OWNER_LABELS, PRINT_FORM_LABELS, TOLLING_ROLE_LABELS, TOLLING_ROLES, TRANSFER_OPERATIONS, VAT_LABELS, VAT_RATES, CONTRACT_FORM_BY_TYPE, type DefectMode, type DocTemplatePurpose, type DocumentType, type TollingRole, type VatRate } from '@gr8r/shared';
 import { Badge, Button, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Segmented, Select, Skeleton, toast } from '@/components/ui';
+import { DocForm } from '@/components/gr8r/doc-form';
+import { DateInput } from '@/components/gr8r/date-picker';
 import { useCanWrite } from '../meta/custom-fields';
 import { money, unitSymbol, useIsAdmin, useUnits, type Product } from '../catalog/data';
 import { uuidv7 } from '../lib/uuid';
@@ -969,7 +971,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   ];
 
   return (
-    <div className="page doc-page">
+    <DocForm>
       <div className="doc-bar">
         <div className="doc-title">
           <nav className="muted" style={{ fontSize: 12.5 }} aria-label={t('docs.document.headerAria')}>
@@ -1412,10 +1414,10 @@ function DocumentView({ doc }: { doc: DocDetail }) {
         )}
         {isInvestmentFactType(doc.type) && <DocInvestmentField value={form.investmentProjectId} current={doc.investmentProject} disabled={!editable} onChange={v => edit(f => ({ ...f, investmentProjectId: v }))} />}
         <ObjectField value={form.objectId} current={doc.object} disabled={!editable} onChange={v => edit(f => ({ ...f, objectId: v }))} />
-        <Field label={t('docs.header.date')}>{p => <Input {...p} type="date" disabled={!editable} value={form.date} onChange={e => edit(f => ({ ...f, date: e.target.value }))} />}</Field>
+        <Field label={t('docs.header.date')}>{p => <DateInput {...p} disabled={!editable} value={form.date} onChange={v => edit(f => ({ ...f, date: v }))} />}</Field>
         {(doc.type === 'invoice' || doc.type === 'quote' || doc.type === 'customer_order') && (
           <Field label={doc.type === 'quote' ? t('docs.document.validUntil') : doc.type === 'invoice' ? t('docs.document.payBy') : t('docs.document.dueDate')}>
-            {p => <Input {...p} type="date" disabled={!editable} value={form.dueDate} onChange={e => edit(f => ({ ...f, dueDate: e.target.value }))} />}
+            {p => <DateInput {...p} disabled={!editable} value={form.dueDate} onChange={v => edit(f => ({ ...f, dueDate: v }))} />}
           </Field>
         )}
         <Field label={t('docs.header.number')} hint={hasNumber ? undefined : t('docs.document.numberHintAuto')}>
@@ -1606,7 +1608,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
           return <ParamsDialog productId={l.productId} productName={l.name} values={l.params ?? {}} onChange={v => patchLine(l.key, { params: v })} onClose={() => setParamsLine(null)} />;
         })()}
       {calcOpen && <CalculationDialog documentId={doc.id} onClose={() => setCalcOpen(false)} onApplied={() => void api('GET', `/documents/${doc.id}`)} />}
-    </div>
+    </DocForm>
   );
 }
 

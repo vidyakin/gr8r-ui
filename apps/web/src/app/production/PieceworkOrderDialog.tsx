@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Badge, Button, ConfirmDialog, Dialog, DialogContent, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
+import { DateInput } from '@/components/gr8r/date-picker';
 import { useWorkspace } from '../data/store';
 import { useWorkCenters } from '../catalog/data';
 import { useCanWrite } from '../meta/custom-fields';
@@ -179,7 +180,7 @@ export function PieceworkOrderDialog({ id, onClose }: { id?: string; onClose: ()
         ) : (
           <div className="stack" style={{ gap: 12 }}>
             <div className="row" style={{ gap: 8 }}>
-              <Field label={tt('production.piecework.orders.form.date')}>{p => <Input {...p} type="date" disabled={!editable} value={date} onChange={e => setDate(e.target.value)} />}</Field>
+              <Field label={tt('production.piecework.orders.form.date')}>{p => <DateInput {...p} disabled={!editable} value={date} onChange={setDate} />}</Field>
               <Field label={tt('production.piecework.orders.col.executor')} error={errors.member}>
                 {p =>
                   id ? (

@@ -6,6 +6,7 @@ import { Link } from 'react-router';
 import { Plus, Printer, Trash2, Truck } from 'lucide-react';
 import { DELIVERY_STATUSES, type DeliveryStatus } from '@gr8r/shared';
 import { Badge, Button, ConfirmDialog, EmptyState, Field, Input, Select, Skeleton, Textarea, toast, type Tone } from '@/components/ui';
+import { DateInput } from '@/components/gr8r/date-picker';
 import { fmtAmount, useT } from '@/i18n';
 import { fmtDate, parse } from '../lib/dates';
 import { useWorkspace } from '../data/store';
@@ -168,7 +169,7 @@ export function DeliveryTab({ doc }: { doc: DocDetail }) {
             <Select id={p.id} disabled={dis} value={form.methodId} onValueChange={v => set({ methodId: v })} options={[{ value: NONE, label: t('delivery.tab.noMethod') }, ...(methods.data ?? []).map(m => ({ value: m.id, label: m.name }))]} aria-label={t('delivery.tab.method')} />
           )}
         </Field>
-        <Field label={t('delivery.tab.date')}>{p => <Input {...p} type="date" disabled={dis} value={form.deliveryDate} onChange={e => set({ deliveryDate: e.target.value })} />}</Field>
+        <Field label={t('delivery.tab.date')}>{p => <DateInput {...p} disabled={dis} value={form.deliveryDate} onChange={v => set({ deliveryDate: v })} />}</Field>
         <Field label={t('delivery.tab.from')}>{p => <Input {...p} type="time" disabled={dis} value={form.windowFrom} onChange={e => set({ windowFrom: e.target.value })} />}</Field>
         <Field label={t('delivery.tab.to')}>{p => <Input {...p} type="time" disabled={dis} value={form.windowTo} onChange={e => set({ windowTo: e.target.value })} />}</Field>
         <Field label={t('delivery.tab.address')} className="span-2">{p => <Input {...p} disabled={dis} value={form.address} onChange={e => set({ address: e.target.value })} />}</Field>

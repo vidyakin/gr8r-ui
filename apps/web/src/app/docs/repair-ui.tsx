@@ -5,6 +5,7 @@ import * as React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button, Field, IconButton, Input, Select, Textarea, toast } from '@/components/ui';
+import { DateInput } from '@/components/gr8r/date-picker';
 import { useT } from '@/i18n';
 import { useCompanies } from '../catalog/data';
 import { fmtDate, parse } from '../lib/dates';
@@ -93,8 +94,8 @@ export function RepairItemPanel({ doc, editable }: { doc: DocDetail; editable: b
         </Field>
         <Field label={t('serials.repair.name')}>{p => <Input id={p.id} disabled={!editable} value={f.name} placeholder={t('serials.repair.namePlaceholder')} onChange={e => set({ name: e.target.value })} />}</Field>
         <Field label={t('serials.repair.serial')}>{p => <Input id={p.id} className="mono" disabled={!editable} value={f.serialText} placeholder={t('serials.repair.serialPlaceholder')} onChange={e => set({ serialText: e.target.value })} />}</Field>
-        <Field label={t('serials.repair.receivedAt')}>{p => <Input id={p.id} type="date" disabled={!editable} value={f.receivedAt} onChange={e => set({ receivedAt: e.target.value })} />}</Field>
-        <Field label={t('serials.repair.returnedAt')}>{p => <Input id={p.id} type="date" disabled={!editable} value={f.returnedAt} onChange={e => set({ returnedAt: e.target.value })} />}</Field>
+        <Field label={t('serials.repair.receivedAt')}>{p => <DateInput id={p.id} disabled={!editable} value={f.receivedAt} onChange={v => set({ receivedAt: v })} />}</Field>
+        <Field label={t('serials.repair.returnedAt')}>{p => <DateInput id={p.id} disabled={!editable} value={f.returnedAt} onChange={v => set({ returnedAt: v })} />}</Field>
       </div>
       {serialQ && lookup.data && (
         <div role="status" className="panel" style={{ padding: 10 }} data-testid="warranty-hint">
@@ -134,8 +135,8 @@ export function RepairItemPanel({ doc, editable }: { doc: DocDetail; editable: b
             />
           )}
         </Field>
-        <Field label={t('serials.repair.outsourcedAt')}>{p => <Input id={p.id} type="date" disabled={!editable} value={f.outsourcedAt} onChange={e => set({ outsourcedAt: e.target.value })} />}</Field>
-        <Field label={t('serials.repair.outsourceReturnedAt')}>{p => <Input id={p.id} type="date" disabled={!editable} value={f.outsourceReturnedAt} onChange={e => set({ outsourceReturnedAt: e.target.value })} />}</Field>
+        <Field label={t('serials.repair.outsourcedAt')}>{p => <DateInput id={p.id} disabled={!editable} value={f.outsourcedAt} onChange={v => set({ outsourcedAt: v })} />}</Field>
+        <Field label={t('serials.repair.outsourceReturnedAt')}>{p => <DateInput id={p.id} disabled={!editable} value={f.outsourceReturnedAt} onChange={v => set({ outsourceReturnedAt: v })} />}</Field>
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
         {editable && (

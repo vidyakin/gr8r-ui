@@ -5,6 +5,8 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { CalendarRange, CircleAlert, FileText, Plus, Send, Trash2, Undo2, Wand2 } from 'lucide-react';
 import { MATERIAL_OWNERS, MATERIAL_OWNER_LABELS, PRODUCTION_ORDER_STATES } from '@gr8r/shared';
 import { Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
+import { DocForm } from '@/components/gr8r/doc-form';
+import { DateInput } from '@/components/gr8r/date-picker';
 import { fmtDate } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';
 import { money, useIsAdmin } from '../catalog/data';
@@ -111,7 +113,7 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
   const remaining = order.items.map(i => Math.max(0, Number(i.qty) - Number(i.produced)));
 
   return (
-    <div className="page doc-page">
+    <DocForm>
       <div className="doc-bar">
         <div className="doc-title">
           <nav className="muted" style={{ fontSize: 12.5 }} aria-label={tt('production.section.orders')}>
@@ -211,8 +213,8 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
             />
           )}
         </Field>
-        <Field label={tt('production.field.plannedStart')}>{p => <Input {...p} type="date" disabled={!editable} value={order.plannedStart ? order.plannedStart.slice(0, 10) : ''} onChange={e => save({ plannedStart: e.target.value ? new Date(e.target.value).toISOString() : null })} />}</Field>
-        <Field label={tt('production.field.plannedEnd')}>{p => <Input {...p} type="date" disabled={!editable} value={order.plannedEnd ? order.plannedEnd.slice(0, 10) : ''} onChange={e => save({ plannedEnd: e.target.value ? new Date(e.target.value).toISOString() : null })} />}</Field>
+        <Field label={tt('production.field.plannedStart')}>{p => <DateInput {...p} disabled={!editable} value={order.plannedStart ? order.plannedStart.slice(0, 10) : ''} onChange={v => save({ plannedStart: v ? new Date(v).toISOString() : null })} />}</Field>
+        <Field label={tt('production.field.plannedEnd')}>{p => <DateInput {...p} disabled={!editable} value={order.plannedEnd ? order.plannedEnd.slice(0, 10) : ''} onChange={v => save({ plannedEnd: v ? new Date(v).toISOString() : null })} />}</Field>
         <WasteHeaderFields
           valuation={order.wasteValuation}
           wasteWarehouseId={order.wasteWarehouseId}
@@ -427,7 +429,7 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
       </section>
 
       <ConfirmDialog open={confirm} onOpenChange={o => !o && undefined} title={tt('production.order.deleteDraft')} description={tt('production.order.deleteDraftHint')} confirmLabel={tt('production.common.delete')} cancelLabel={tt('production.order.keep')} danger onConfirm={() => undefined} />
-    </div>
+    </DocForm>
   );
 }
 
@@ -724,8 +726,8 @@ function ResourcesDialog({ orderId, onClose, onSave }: { orderId: string; onClos
                 ))}
               </select>
               <Input aria-label={tt('production.field.hours')} inputMode="decimal" value={r.hours} onChange={e => setRows(prev => prev.map((x, n) => (n === i ? { ...x, hours: e.target.value } : x)))} style={{ width: 90 }} />
-              <Input aria-label={tt('production.order.from')} type="date" value={r.startAt} onChange={e => setRows(prev => prev.map((x, n) => (n === i ? { ...x, startAt: e.target.value } : x)))} style={{ width: 150 }} />
-              <Input aria-label={tt('production.order.to')} type="date" value={r.endAt} onChange={e => setRows(prev => prev.map((x, n) => (n === i ? { ...x, endAt: e.target.value } : x)))} style={{ width: 150 }} />
+              <DateInput aria-label={tt('production.order.from')} value={r.startAt} onChange={v => setRows(prev => prev.map((x, n) => (n === i ? { ...x, startAt: v } : x)))} style={{ width: 150 }} />
+              <DateInput aria-label={tt('production.order.to')} value={r.endAt} onChange={v => setRows(prev => prev.map((x, n) => (n === i ? { ...x, endAt: v } : x)))} style={{ width: 150 }} />
               <button type="button" className="ibtn ibtn-xs" aria-label={tt('production.order.removeResource')} onClick={() => setRows(prev => prev.filter((_, n) => n !== i))}>
                 <Trash2 size={13} />
               </button>

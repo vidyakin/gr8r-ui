@@ -42,6 +42,11 @@
   letter-spacing: -0.022em;
   line-height: 1.2;
 }
+.doc-title p {
+  margin: 4px 0 0;
+  color: var(--text-2);
+  font-size: var(--fs);
+}
 .doc-actions {
   margin-left: auto;
   display: flex;
@@ -94,6 +99,20 @@
 }
 .dtbl tbody tr:last-child td {
   border-bottom: 0;
+}
+/* Широкие таблицы расчётов: заголовки переносятся на вторую строку;
+   .cq делает обёртку контейнером — в узком месте второстепенные колонки (.col-aux) прячутся,
+   чтобы таблица не уезжала влево горизонтальным скроллом */
+.dtbl.wth th {
+  white-space: normal;
+}
+.cq {
+  container-type: inline-size;
+}
+@container (max-width: 1020px) {
+  .col-aux {
+    display: none;
+  }
 }
 .cell-input {
   height: 30px;

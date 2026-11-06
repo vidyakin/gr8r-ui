@@ -6,6 +6,8 @@ import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { CircleAlert, Layers, Send, Trash2, TriangleAlert, Wand2, X } from 'lucide-react';
 import { Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
+import { DocForm } from '@/components/gr8r/doc-form';
+import { DateInput } from '@/components/gr8r/date-picker';
 import { fmtDate, parse } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';
 import { useWarehouses } from '../docs/data';
@@ -81,7 +83,7 @@ function PlanView({ plan }: { plan: PlanDetail }) {
   };
 
   return (
-    <div className="page doc-page">
+    <DocForm>
       <div className="doc-bar">
         <div className="doc-title">
           <nav className="muted" style={{ fontSize: 12.5 }} aria-label={tt('production.plan.section')}>
@@ -152,8 +154,8 @@ function PlanView({ plan }: { plan: PlanDetail }) {
             />
           )}
         </Field>
-        <Field label={tt('production.plan.periodFrom')}>{p => <Input {...p} type="date" disabled={!canWrite} value={plan.periodFrom} onChange={e => save({ periodFrom: e.target.value })} />}</Field>
-        <Field label={tt('production.plan.periodTo')}>{p => <Input {...p} type="date" disabled={!canWrite} value={plan.periodTo} onChange={e => save({ periodTo: e.target.value })} />}</Field>
+        <Field label={tt('production.plan.periodFrom')}>{p => <DateInput {...p} disabled={!canWrite} value={plan.periodFrom} onChange={v => save({ periodFrom: v })} />}</Field>
+        <Field label={tt('production.plan.periodTo')}>{p => <DateInput {...p} disabled={!canWrite} value={plan.periodTo} onChange={v => save({ periodTo: v })} />}</Field>
         <Field label={tt('production.plan.warehouse')} hint={tt('production.plan.warehouseHint')}>
           {p => (
             <Select
@@ -322,7 +324,7 @@ function PlanView({ plan }: { plan: PlanDetail }) {
           void api.remove.mutateAsync(plan.id);
         }}
       />
-    </div>
+    </DocForm>
   );
 }
 

@@ -4,6 +4,7 @@ import * as React from 'react';
 import { Link, useNavigate } from 'react-router';
 import { CircleAlert, ClipboardList, Factory } from 'lucide-react';
 import { Badge, Button, EmptyState, Skeleton, toast } from '@/components/ui';
+import { DocForm, DocHeader } from '@/components/gr8r/doc-form';
 import { fmtDate, parse } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';
 import { useWorkCenters } from '../catalog/data';
@@ -64,25 +65,28 @@ export function PlanOrdersPage() {
   );
 
   return (
-    <div className="page flush">
-      <div className="ph">
-        <div>
-          <h1>{tt('production.planOrders.title')}</h1>
-          <p>{tt('production.planOrders.subtitle')}</p>
-        </div>
-        <div className="acts">
-          <Button onClick={() => navigate('/production/plans')}>{tt('production.planOrders.toPlans')}</Button>
-          {canWrite && (
-            <Button variant="primary" disabled={!selected.length} onClick={() => void create()}>
-              <ClipboardList size={14} />
-              {tt('production.planOrders.createOrders')}
-            </Button>
-          )}
-        </div>
-      </div>
-      <div className="panel" style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-        <label className="fld" style={{ maxWidth: 200 }}>
-          <span className="lbl">{tt('production.planOrders.period')}</span>
+    <DocForm
+      header={
+        <DocHeader
+          title={tt('production.planOrders.title')}
+          subtitle={tt('production.planOrders.subtitle')}
+          actions={
+            <>
+              <Button onClick={() => navigate('/production/plans')}>{tt('production.planOrders.toPlans')}</Button>
+              {canWrite && (
+                <Button variant="primary" disabled={!selected.length} onClick={() => void create()}>
+                  <ClipboardList size={14} />
+                  {tt('production.planOrders.createOrders')}
+                </Button>
+              )}
+            </>
+          }
+        />
+      }
+    >
+      <div className="panel" style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', padding: '12px 14px' }}>
+        <label className="field" style={{ maxWidth: 200 }}>
+          <span className="label">{tt('production.planOrders.period')}</span>
           <select className="select" aria-label={tt('production.planOrders.period')} value={period} onChange={e => setPeriod(e.target.value)}>
             <option value="">{tt('production.planOrders.allPeriods')}</option>
             {periods.map(p => (
@@ -92,8 +96,8 @@ export function PlanOrdersPage() {
             ))}
           </select>
         </label>
-        <label className="fld" style={{ maxWidth: 220 }}>
-          <span className="lbl">{tt('production.planOrders.workCenter')}</span>
+        <label className="field" style={{ maxWidth: 220 }}>
+          <span className="label">{tt('production.planOrders.workCenter')}</span>
           <select className="select" aria-label={tt('production.planOrders.workCenter')} value={center} onChange={e => setCenter(e.target.value)}>
             <option value="">{tt('production.planOrders.anyWorkCenter')}</option>
             {(centers.data?.items ?? []).map(c => (
@@ -157,6 +161,6 @@ export function PlanOrdersPage() {
           </section>
         ))
       )}
-    </div>
+    </DocForm>
   );
 }
