@@ -100,11 +100,23 @@ export interface SubcontractOrder {
   accepted: string;
 }
 
+export interface SubcontractParty {
+  counterpartyId: string;
+  counterpartyName: string;
+  presented: string;
+  accepted: string;
+  rejected: string;
+  paid: string;
+  acts: number;
+}
+
 export interface SubcontractSummary {
   objectId: string;
   amounts: SubcontractAmounts;
   reasons: SubcontractReason[];
   orders: SubcontractOrder[];
+  /** Сводка по субподрядчикам объекта */
+  counterparties: SubcontractParty[];
 }
 
 export interface SubcontractList {

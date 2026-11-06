@@ -686,6 +686,32 @@ export function SubcontractTab({ objectId, canWrite, canAdmin }: { objectId: str
         )}
       </div>
 
+      {/* Сводка по субподрядчикам: те же состояния в разрезе контрагента */}
+      {list.subcontract.counterparties.length > 1 && (
+        <div className="stack" style={{ gap: 2 }}>
+          <div className="faint" style={{ fontSize: 12 }}>
+            {tt('objects.subcontract.byCounterparty')}
+          </div>
+          {list.subcontract.counterparties.map(p => (
+            <div key={p.counterpartyId} className="row" style={{ gap: 10, fontSize: 12, flexWrap: 'wrap' }}>
+              <span>{p.counterpartyName}</span>
+              <span className="faint">
+                {tt('objects.subcontract.presented')} <span className="num">{fmtAmount(p.presented)}</span>
+              </span>
+              <span className="faint">
+                {tt('objects.subcontract.accepted')} <span className="num">{fmtAmount(p.accepted)}</span>
+              </span>
+              <span className="faint">
+                {tt('objects.subcontract.rejected')} <span className="num">{fmtAmount(p.rejected)}</span>
+              </span>
+              <span className="faint">
+                {tt('objects.subcontract.paid')} <span className="num">{fmtAmount(p.paid)}</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Отклонённое по причинам справочника брака */}
       {list.subcontract.reasons.length > 0 && (
         <div className="stack" style={{ gap: 2 }}>

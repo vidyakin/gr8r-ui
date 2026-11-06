@@ -791,6 +791,20 @@ export interface ObjectSubcontractView {
   reasons: ObjectSubcontractReasonSummary[];
   /** Заказы субподрядчикам: документы supplier_order с объектом, у которых есть строки-услуги */
   orders: SubcontractOrderView[];
+  /** Сводка по каждому субподрядчику объекта: предъявлено, принято, отклонено, оплачено */
+  counterparties: SubcontractPartySummary[];
+}
+
+/** Сводка по субподрядчику: те же состояния, что и по объекту, но в разрезе контрагента */
+export interface SubcontractPartySummary {
+  counterpartyId: string;
+  counterpartyName: string;
+  presented: string;
+  accepted: string;
+  rejected: string;
+  paid: string;
+  /** Счетов актов: сколько актов у этого субподрядчика */
+  acts: number;
 }
 
 export type ObjectSubcontractReasonSummary = ObjectSubcontractRejectReason;
@@ -895,6 +909,22 @@ export async function objectSubcontractSummary(db: Db, objectId: string): Promis
       }
     }
   }
+  // сводка по субподрядчикам: суммы состояний в разрезе контрагента
+  const parties = new Map<string, { name: string; presented: bigint; accepted: bigint; rejected: bigint; paid: bigint; acts: number }>();
+  for (const v of views) {
+    const p = parties.get(v.counterpartyId) ?? { name: v.counterpartyName, presented: 0n, accepted: 0n, rejected: 0n, paid: 0n, acts: 0 };
+    p.acts++;
+    if (v.status === 'rejected') p.rejected += dec(v.totals.presented);
+    else {
+      p.presented += dec(v.totals.presented);
+      if (v.status === 'accepted') {
+        p.accepted += dec(v.totals.accepted);
+        p.rejected += dec(v.totals.rejected);
+        p.paid += dec(v.paid);
+      }
+    }
+    parties.set(v.counterpartyId, p);
+  }
   const ordered = orders.length ? orders.reduce((sum, o) => sum + dec(o.ordered), 0n) : null;
   return {
     objectId,
@@ -907,6 +937,17 @@ export async function objectSubcontractSummary(db: Db, objectId: string): Promis
     },
     reasons: [...reasons.values()].map(r => ({ reasonId: r.reasonId, reasonName: r.reasonName, amount: fmt(r.amount, 2), qty: fmt(r.qty, 3) })).sort((a, b) => (dec(b.amount) > dec(a.amount) ? 1 : -1)),
     orders,
+    counterparties: [...parties.entries()]
+      .map(([counterpartyId, p]) => ({
+        counterpartyId,
+        counterpartyName: p.name,
+        presented: fmt(p.presented, 2),
+        accepted: fmt(p.accepted, 2),
+        rejected: fmt(p.rejected, 2),
+        paid: fmt(p.paid, 2),
+        acts: p.acts,
+      }))
+      .sort((a, b) => (dec(b.accepted) > dec(a.accepted) ? 1 : -1)),
   };
 }
 

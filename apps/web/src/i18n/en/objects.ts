@@ -234,6 +234,7 @@ export const objects = {
     unacceptConfirm: 'Unaccept act {number}? The receipt and write-off are unposted and cancelled; payments must be refunded first',
     receiptDocument: 'Service receipt',
     writeOffDocument: 'Material write-off',
+    byCounterparty: 'By subcontractor',
     rejectedByReason: 'Rejected by reason',
     periodClosed: 'The period is closed: the documents stay drafts — post them after the period is opened',
     nothingInOrder: 'Nothing left to accept for this order',

@@ -182,6 +182,9 @@ describe('приёмка и отклонение', () => {
     expect(total.amounts).toMatchObject({ presented: '10000.00', accepted: '7000.00', rejected: '3000.00' });
     expect(total.reasons).toHaveLength(1);
     expect(total.reasons[0]).toMatchObject({ reasonId, reasonName: 'Нарушение геометрии', amount: '3000.00', qty: '3.000' });
+    // сводка по субподрядчику: те же состояния в разрезе контрагента
+    expect(total.counterparties).toHaveLength(1);
+    expect(total.counterparties[0]).toMatchObject({ counterpartyName: 'ООО «ВидеоМонтаж»', acts: 1, presented: '10000.00', accepted: '7000.00', rejected: '3000.00' });
     expect((await budgetOf(obj.id)).categories.subcontract.fact).toBe('7000.00');
 
     // строка акта хранит отклонённое количество и причину
