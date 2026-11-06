@@ -70,6 +70,10 @@ export const workspaces = pgTable(
     payrollTripKmRate: money('payroll_trip_km_rate').notNull().default('0'),
     payrollTripStopRate: money('payroll_trip_stop_rate').notNull().default('0'),
     payrollTripPerdiemRate: money('payroll_trip_perdiem_rate').notNull().default('0'),
+    /** Рейтинг поставщиков: веса показателей (задача 1276) */
+    supplierRatingWeights: jsonb('supplier_rating_weights').$type<{ onTime: number; completeness: number; quality: number }>().notNull().default(sql`'{"onTime":40,"completeness":30,"quality":30}'::jsonb`),
+    /** Политика при уровне D: none | warn | block */
+    supplierRatingDPolicy: text('supplier_rating_d_policy').notNull().default('none'),
     /** Отраслевые опции (задача 1258, docs/architecture/industry-options.md): food — пищевое производство,
         construction — строительство и монтаж. Включают owner и admin; это настройка вида интерфейса, не модуль тарифа */
     industryOptions: text('industry_options')
@@ -96,6 +100,7 @@ export const workspaces = pgTable(
     // Отраслевые опции — только из известного списка (INDUSTRY_OPTIONS в @gr8r/shared)
     check('workspaces_industry_options_chk', sql`${t.industryOptions} <@ ARRAY['food','construction']::text[]`),
     check('workspaces_object_overhead_chk', sql`${t.objectOverheadPct} >= 0 and ${t.objectOverheadPct} <= 100`),
+    check('workspaces_supplier_rating_d_policy_chk', sql`${t.supplierRatingDPolicy} in ('none','warn','block')`),
   ],
 );
 

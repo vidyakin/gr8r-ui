@@ -441,7 +441,9 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     setBusy(true);
     try {
       if (action === 'post' && !(await flush())) return;
-      const r = await api<DocDetail>('POST', `/documents/${doc.id}/${action}`, body);
+      const r = await api<DocDetail & { warnings?: string[] }>('POST', `/documents/${doc.id}/${action}`, body);
+      // предупреждения проведения (рейтинг поставщика D — задача 1276, политика тарифа договора): код переводим, текст показываем как есть
+      for (const w of r?.warnings ?? []) toast(w === 'supplier_rating_level_d' ? t('docs.document.warnSupplierRatingD') : w, { duration: 6000 });
       if (r)
         toast(
           action === 'post'

@@ -439,8 +439,8 @@ export const documentRoutes = new Hono<AppEnv>()
     // заказ-наряд проводит состояние «выполнен», вручную его не проводят
     assertWorkOrderPostingByState((await documentTypeOf(ctx, id)) as DocumentType);
     await payrollGuard(c, ctx, id);
-    await postDocument(ctx.db, docCtx(ctx), id);
-    return c.json(await documentDetail(ctx.db, id));
+    const warnings = await postDocument(ctx.db, docCtx(ctx), id);
+    return c.json({ ...(await documentDetail(ctx.db, id)), warnings });
   })
   // серийные номера строки документа или материала заказ-наряда (у товаров с учётом по номерам); список заменяется целиком
   .put('/:id/serials', write, zValidator('param', idParam, validationHook), zValidator('json', documentSerialsSave, validationHook), async c => {

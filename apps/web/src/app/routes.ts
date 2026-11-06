@@ -146,6 +146,7 @@ export const SECTIONS = {
   servicesPlanner: { path: '/services/planner', name: 'Service planner', icon: CalendarRange },
   servicesReports: { path: '/services/reports', name: 'Service reports', icon: ChartNoAxesCombined },
   purchases: { path: '/purchases', name: 'Purchases', icon: ShoppingCart },
+  supplierRatings: { path: '/supplier-ratings', name: 'Supplier ratings', icon: Star },
   stockDocs: { path: '/stock-docs', name: 'Stock documents', icon: ArrowLeftRight },
   processingDocs: { path: '/processing-docs', name: 'Documents of processing', icon: PackageSearch },
   inventory: { path: '/inventory', name: 'Inventory', icon: Boxes },

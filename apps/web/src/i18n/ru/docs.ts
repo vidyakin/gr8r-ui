@@ -313,6 +313,7 @@ export const docs: Widen<typeof D> = {
     },
 
     /* тосты */
+    warnSupplierRatingD: 'У поставщика рейтинг D: проверьте заказ перед отправкой',
     toastPosted: 'Проведён{number}',
     toastPostedNumber: ' {number}',
     toastUnposted: 'Отмена проведения: документ снова черновик',

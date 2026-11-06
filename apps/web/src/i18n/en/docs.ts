@@ -312,6 +312,7 @@ export const docs = {
     },
 
     /* тосты: проведение, отмена проведения, удаление */
+    warnSupplierRatingD: 'The supplier has rating D: check the order before sending it',
     toastPosted: 'Posted{number}',
     toastPostedNumber: ' {number}',
     toastUnposted: 'Unposted: the document is a draft again',
