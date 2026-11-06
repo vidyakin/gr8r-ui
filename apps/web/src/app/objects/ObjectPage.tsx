@@ -1,5 +1,6 @@
-/* Карточка объекта объектного учёта (задача 1268): шапка с полями и вкладки «Задачи», «Документы», «Платежи», «Склад».
-   Деньги в вкладках видят owner и admin (их маскирует сервер); создание объекта заводит проект задач. */
+/* Карточка объекта объектного учёта (задача 1268): шапка с полями и вкладки «Смета», «Задачи», «Документы», «Платежи», «Склад».
+   Деньги в вкладках видят owner и admin (их маскирует сервер); создание объекта заводит проект задач.
+   Смета (задача 1269) — отдельная вкладка: основная смета, допработы, редактор позиций и заказы. */
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { Archive, CircleAlert, Save } from 'lucide-react';
@@ -15,6 +16,8 @@ import { DocTabs } from '../docs/doc-tabs';
 import { fmtDate } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';
 import { useObject, useObjectApi, useObjectSummary, useObjectTasks, type ObjectInput } from './data';
+import { useObjectEstimates } from './estimates-data';
+import { EstimateTab } from './EstimateTab';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const blank = (): ObjectInput => ({ number: '', name: '', customerId: null, address: '', startDate: today(), dueDate: null, status: 'planning', managerId: null, revenueMode: 'acts', overheadPct: '', projectId: null, warehouseId: null, note: '', foremen: [], contracts: [] });
@@ -31,6 +34,7 @@ export function ObjectPage() {
   const detail = isNew ? null : doc.data;
   const summary = useObjectSummary(isNew ? undefined : id);
   const tasks = useObjectTasks(isNew ? undefined : id);
+  const estimates = useObjectEstimates(isNew ? undefined : id);
   const companies = useCompanies();
   const warehouses = useWarehouses();
   const wsData = useWorkspace().data;
@@ -263,6 +267,12 @@ export function ObjectPage() {
           <DocTabs
             label={tt('objects.list.title')}
             tabs={[
+              {
+                id: 'estimate',
+                label: tt('estimates.title'),
+                count: estimates.data?.length,
+                content: <EstimateTab objectId={detail!.id} objectName={detail!.name} canWrite={canWrite && !archived} />,
+              },
               {
                 id: 'tasks',
                 label: tt('objects.tabs.tasks'),

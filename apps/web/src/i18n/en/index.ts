@@ -34,7 +34,8 @@ import { attachments } from './attachments';
 import { views } from './views';
 import { help } from './help';
 import { objects } from './objects';
+import { estimates } from './estimates';
 import { supplierRating } from './supplier-rating';
 
-export const en = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, batches, repeat, appt, delivery, positions, leads, ads, secrets, money, payroll, pricing, loyalty, licensing, fleet, trips, transport, help, attachments, objects, supplierRating };
+export const en = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, batches, repeat, appt, delivery, positions, leads, ads, secrets, money, payroll, pricing, loyalty, licensing, fleet, trips, transport, help, attachments, objects, estimates, supplierRating };
 

@@ -69,7 +69,8 @@ export function useRealtime(ws: string, engine: Engine) {
       if (e.entity === 'position' || e.entity === 'product_kind') void qc.invalidateQueries({ queryKey: ['ws', ws, 'catalog'] });
       if (e.entity === 'secret') void qc.invalidateQueries({ queryKey: ['ws', ws, 'secrets'] });
       // Объекты объектного учёта (задача 1268): карточка, список и проекты задач
-      if (e.entity === 'object' || e.entity === 'object_foreman' || e.entity === 'object_contract') void qc.invalidateQueries({ queryKey: ['ws', ws, 'objects'] });
+      // Сметы объекта (задача 1269): вкладка «Смета» и каталог объектов
+      if (e.entity === 'object' || e.entity === 'object_foreman' || e.entity === 'object_contract' || e.entity === 'object_estimate') void qc.invalidateQueries({ queryKey: ['ws', ws, 'objects'] });
       // Рейтинг поставщиков (задача 1276): считается на лету по документам, контрагентам и настройкам воркспейса
       if (['document', 'company', 'workspace'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'supplier-ratings'] });
       // Название воркспейса, моя роль, состав участников
