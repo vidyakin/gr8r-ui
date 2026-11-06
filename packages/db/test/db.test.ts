@@ -53,7 +53,7 @@ describe('seed', () => {
     const [demo] = await admin`select id from workspaces where slug = 'gr8rstudio'`;
     const w = `where workspace_id = '${demo!.id}'`;
     expect(await count('members', w)).toBe(src.members.length);
-    expect(await count('projects', w)).toBe(9); // 7 демо + системные проекты модулей (production, services)
+    expect(await count('projects', w)).toBe(11); // 7 демо + системные проекты модулей (production, services) + проекты двух демо-объектов (1268)
     expect(await count('tasks', w)).toBe(src.tasks.length + 3); // + задача-назначение заказ-наряда, задача операции производства и консультация по договору
     expect(await count('statuses', w)).toBe(5);
     expect(await count('teams', w)).toBe(4);
@@ -112,7 +112,7 @@ describe('seed', () => {
 
     // документы и склад: организация, склады, реквизиты, проведённые цепочки, остатки и резерв
     expect(await count('organizations', `${w} and name = 'ООО «Гр8р Студия»' and tax_system = 'osn' and default_vat_rate = '20' and is_default`)).toBe(1);
-    expect(await count('warehouses', w)).toBe(7); // основной, цех, склад готовой продукции, служебный «в пути», склад переработчика, склад отходов и склад брака
+    expect(await count('warehouses', w)).toBe(9); // основной, цех, склад готовой продукции, служебный «в пути», склад переработчика, склад отходов, склад брака, карантин сырья (1186) и склад объекта (1268)
     expect(await count('companies', `${w} and inn <> ''`)).toBe(5);
     expect(await count('bank_accounts', `${w} and company_id is not null`)).toBe(5);
     expect(await count('documents', w)).toBe(76); // + черновик КП с двумя вариантами; + виды цен: проведённая установка цен поставщика и черновик повышения розницы; // + зарплата: начисление за прошлый месяц и черновик за текущий, две ведомости, две выплаты; // + ввод начальных остатков, + 5 документов платёжного календаря (4 заявки на расход и оплата заявки), + 12 документов денег (оплаты, подотчёт, акты физлица); // + проведённый план продаж, + поступление и продажа смартфона, ремонтный и гарантийный заказ-наряды, заказ покупателя на окно, цепочка разборки, документы переработки и факт инвестпроекта
