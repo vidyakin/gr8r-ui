@@ -422,6 +422,11 @@ export const objects = {
     empty: 'No tasks linked to this object',
     count: 'Tasks: {count}',
   },
+  // текстовая шапка сохранённого объекта
+  facts: {
+    dates: 'Dates',
+    reportOff: 'Off',
+  },
   common: {
     save: 'Save',
     saved: 'Saved',

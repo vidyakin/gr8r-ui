@@ -1,10 +1,11 @@
-/* Блок «Сводка о ходе работ» карточки объекта (задача 1277, docs/architecture/construction.md):
+/* Боковая карточка «Сводка о ходе работ» объекта (открывается из шапки объекта) (задача 1277, docs/architecture/construction.md):
    включение, день недели и время в часовом поясе воркспейса, получатели — участники воркспейса,
    последняя отправка и кнопка «Отправить сейчас». Рядом — печать отчёта для заказчика (почта отложена, задача 1092).
    Расписание правит admin и выше или ответственный объекта; кнопка «Отправить сейчас» — member и выше. */
 import * as React from 'react';
 import { Send, Printer } from 'lucide-react';
 import { Button, Checkbox, Field, Input, Select, Skeleton, toast } from '@/components/ui';
+import { EntityDrawer } from '@/components/gr8r/entity-drawer';
 import { fmtDateTime, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { useWorkspace } from '../data/store';
@@ -13,7 +14,15 @@ import { useObjectReportApi, useObjectReportSchedule } from './report-data';
 
 const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 
-export function ReportPanel({ objectId, objectName, managerId, canWrite, onPrint }: { objectId: string; objectName: string; managerId: string | null; canWrite: boolean; onPrint: () => void }) {
+export function ReportPanel({ objectId, objectName, objectNumber, managerId, canWrite, onPrint, onClose }: {
+  objectId: string;
+  objectName: string;
+  objectNumber: string;
+  managerId: string | null;
+  canWrite: boolean;
+  onPrint: () => void;
+  onClose: () => void;
+}) {
   const tt = useT();
   const ws = useWorkspace().data;
   const role = useSession().active?.role ?? 'guest';
@@ -38,6 +47,7 @@ export function ReportPanel({ objectId, objectName, managerId, canWrite, onPrint
     try {
       await api.saveSchedule.mutateAsync({ enabled: form.enabled, weekday: form.weekday, time: form.time, recipientIds: form.recipientIds });
       toast(tt('objects.common.saved'), { duration: 1500 });
+      onClose();
     } catch (e) {
       toast.error(errorMessage(e));
     } finally {
@@ -57,80 +67,98 @@ export function ReportPanel({ objectId, objectName, managerId, canWrite, onPrint
     }
   };
 
-  if (schedule.isPending) return <section className="panel" style={{ padding: 16 }}><Skeleton w="100%" h={90} /></section>;
-
   return (
-    <section className="panel" style={{ margin: '0 var(--gutter) 12px' }} aria-label={tt('objects.report.title')}>
-      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <div>
-          <h2 style={{ fontSize: 14, fontWeight: 600 }}>{tt('objects.report.title')}</h2>
-          <p className="faint" style={{ fontSize: 12, marginTop: 2 }}>
-            {tt('objects.report.hint')}
-          </p>
-        </div>
-        <div className="row" style={{ gap: 8 }}>
-          <Button variant="ghost" onClick={onPrint} title={tt('objects.report.printHint')} aria-label={`${tt('objects.report.print')}: ${objectName}`}>
-            <Printer size={14} />
-            {tt('objects.report.print')}
+    <EntityDrawer
+      label={`${tt('objects.report.title')}: ${objectName}`}
+      crumb={<span className="mono faint">{objectNumber}</span>}
+      title={tt('objects.report.title')}
+      subtitle={objectName}
+      actions={
+        canEdit && (
+          <Button size="sm" variant="primary" disabled={busy || schedule.isPending} onClick={() => void save()}>
+            {tt('objects.common.save')}
           </Button>
-          <Button variant="secondary" disabled={busy || !canWrite} onClick={() => void sendNow()}>
-            <Send size={14} />
-            {tt('objects.report.sendNow')}
-          </Button>
+        )
+      }
+      onClose={onClose}
+    >
+      <p className="faint" style={{ fontSize: 12, marginTop: 8 }}>
+        {tt('objects.report.hint')}
+      </p>
+      <div className="row" style={{ gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+        <Button variant="secondary" disabled={busy || !canWrite} onClick={() => void sendNow()}>
+          <Send size={14} />
+          {tt('objects.report.sendNow')}
+        </Button>
+        <Button variant="ghost" onClick={onPrint} title={tt('objects.report.printHint')} aria-label={`${tt('objects.report.print')}: ${objectName}`}>
+          <Printer size={14} />
+          {tt('objects.report.print')}
+        </Button>
+      </div>
+      {schedule.isPending ? (
+        <div style={{ marginTop: 12 }}>
+          <Skeleton w="100%" h={90} />
         </div>
-      </div>
-      <div className="doc-head">
-        <Field label={tt('objects.report.enabled')} hint={tt('objects.report.enabledHint')}>
-          {() => (
-            <label className="row" style={{ gap: 8, fontSize: 13 }}>
-              <Checkbox checked={form.enabled} disabled={!canEdit} onChange={e => setForm(f => ({ ...f, enabled: e.target.checked }))} />
-              {tt('objects.report.enabledLabel')}
-            </label>
-          )}
-        </Field>
-        <Field label={tt('objects.report.weekday')}>
-          {p => (
-            <Select
-              id={p.id}
-              disabled={!canEdit}
-              value={String(form.weekday)}
-              onValueChange={v => setForm(f => ({ ...f, weekday: Number(v) }))}
-              options={WEEKDAYS.map(d => ({ value: String(d), label: tt(`objects.report.weekdays.${d}`) }))}
-              aria-label={tt('objects.report.weekday')}
-            />
-          )}
-        </Field>
-        <Field label={tt('objects.report.time')} hint={tt('objects.report.timeHint', { timezone: schedule.data?.timezone ?? 'UTC' })}>
-          {p => <Input {...p} type="time" disabled={!canEdit} value={form.time} onChange={e => setForm(f => ({ ...f, time: e.target.value || '09:00' }))} />}
-        </Field>
-        <Field label={tt('objects.report.lastSent')}>
-          {() => <div className="doc-ro">{schedule.data?.lastSentAt ? fmtDateTime(schedule.data.lastSentAt) : tt('objects.report.neverSent')}</div>}
-        </Field>
-        <Field label={tt('objects.report.recipients')} hint={tt('objects.report.recipientsHint')}>
-          {() => (
-            <div className="col" style={{ gap: 4 }}>
-              {members.map(m => (
-                <label key={m.id} className="row" style={{ gap: 8, fontSize: 13 }}>
-                  <Checkbox
-                    checked={form.recipientIds.includes(m.id)}
-                    disabled={!canEdit}
-                    onChange={e => setForm(f => ({ ...f, recipientIds: e.target.checked ? [...f.recipientIds, m.id] : f.recipientIds.filter(x => x !== m.id) }))}
-                  />
-                  {m.name}
-                </label>
-              ))}
-            </div>
-          )}
-        </Field>
-      </div>
+      ) : (
+        <div className="doc-head obj-edit">
+          <Field label={tt('objects.report.enabled')} hint={tt('objects.report.enabledHint')}>
+            {() => (
+              <label className="row" style={{ gap: 8, fontSize: 13 }}>
+                <Checkbox checked={form.enabled} disabled={!canEdit} onChange={e => setForm(f => ({ ...f, enabled: e.target.checked }))} />
+                {tt('objects.report.enabledLabel')}
+              </label>
+            )}
+          </Field>
+          <Field label={tt('objects.report.lastSent')}>
+            {() => <div className="doc-ro">{schedule.data?.lastSentAt ? fmtDateTime(schedule.data.lastSentAt) : tt('objects.report.neverSent')}</div>}
+          </Field>
+          <Field label={tt('objects.report.weekday')}>
+            {p => (
+              <Select
+                id={p.id}
+                disabled={!canEdit}
+                value={String(form.weekday)}
+                onValueChange={v => setForm(f => ({ ...f, weekday: Number(v) }))}
+                options={WEEKDAYS.map(d => ({ value: String(d), label: tt(`objects.report.weekdays.${d}`) }))}
+                aria-label={tt('objects.report.weekday')}
+              />
+            )}
+          </Field>
+          <Field label={tt('objects.report.time')} hint={tt('objects.report.timeHint', { timezone: schedule.data?.timezone ?? 'UTC' })}>
+            {p => <Input {...p} type="time" disabled={!canEdit} value={form.time} onChange={e => setForm(f => ({ ...f, time: e.target.value || '09:00' }))} />}
+          </Field>
+          <div className="doc-wide">
+            <Field label={tt('objects.report.recipients')} hint={tt('objects.report.recipientsHint')}>
+              {() => (
+                <div className="col" style={{ gap: 4 }}>
+                  {members.map(m => (
+                    <label key={m.id} className="row" style={{ gap: 8, fontSize: 13 }}>
+                      <Checkbox
+                        checked={form.recipientIds.includes(m.id)}
+                        disabled={!canEdit}
+                        onChange={e => setForm(f => ({ ...f, recipientIds: e.target.checked ? [...f.recipientIds, m.id] : f.recipientIds.filter(x => x !== m.id) }))}
+                      />
+                      {m.name}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </Field>
+          </div>
+        </div>
+      )}
       {canEdit && (
-        <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
-          <Button variant="primary" disabled={busy} onClick={() => void save()}>
+        <div className="row obj-edit-f">
+          <span style={{ flex: 1 }} />
+          <Button variant="ghost" onClick={onClose}>
+            {tt('common.cancel')}
+          </Button>
+          <Button variant="primary" disabled={busy || schedule.isPending} onClick={() => void save()}>
             {tt('objects.common.save')}
           </Button>
         </div>
       )}
-    </section>
+    </EntityDrawer>
   );
 }
 

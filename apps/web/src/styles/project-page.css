@@ -68,3 +68,59 @@
   display: flex;
   flex-direction: column;
 }
+/* Шапка сохранённого объекта: поля текстом в несколько колонок, правка — в боковой карточке */
+.obj-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px 20px;
+  margin: 0 var(--gutter) 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: var(--fs-sm);
+}
+.obj-facts > div {
+  min-width: 0;
+}
+.obj-facts > .wide {
+  grid-column: 1 / -1;
+}
+.obj-facts dt {
+  color: var(--text-3);
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+.obj-facts dd {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.obj-facts > .wide dd {
+  white-space: normal;
+}
+.obj-facts-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+/* поля в боковой карточке: две колонки, без собственной рамки */
+.drawer .doc-head.obj-edit {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0;
+  margin-top: 14px;
+}
+.obj-edit-f {
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+@media (max-width: 640px) {
+  .drawer .doc-head.obj-edit {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
