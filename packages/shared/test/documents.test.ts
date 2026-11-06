@@ -150,7 +150,7 @@ describe('stock plan', () => {
   });
   test('transfer: two sides per line — out of the header warehouse and into the target', () => {
     expect(stockPlan({ type: 'stock_transfer', warehouseId: 'w1', targetWarehouseId: 'w2' }, [line])).toEqual([
-      { lineId: 'l1', productId: 'p1', warehouseId: 'w1', qty: '5', direction: 'out', role: 'out' },
+      { lineId: 'l1', productId: 'p1', warehouseId: 'w1', qty: '5', direction: 'out', role: 'out', transfer: true },
       { lineId: 'l1', productId: 'p1', warehouseId: 'w2', qty: '5', direction: 'in', role: 'in' },
     ]);
   });
