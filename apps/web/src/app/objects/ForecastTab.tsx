@@ -31,7 +31,8 @@ const money = (v: string | null | undefined) => (v == null ? '—' : fmtAmount(v
 const hours = (v: string | null | undefined) => (v == null ? '—' : fmtNumber(v, { maximumFractionDigits: 3 }));
 const percentText = (v: string | null) => (v == null ? '—' : `${fmtNumber(v, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`);
 /** Убыток (отрицательные числа) — красным */
-const negClass = (v: string | null | undefined) => (v != null && v.startsWith('-') ? 'r num neg' : 'r num');
+// отклонение = прогноз − план: красным только перерасход (положительное), экономия (минус) — обычным цветом
+const negClass = (v: string | null | undefined) => (v != null && !v.startsWith('-') && /[1-9]/.test(v) ? 'r num neg' : 'r num');
 
 /** Цель ручной правки остатка: позиция сметы или категория затрат целиком */
 interface EditTarget {
