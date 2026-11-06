@@ -645,6 +645,13 @@
       "when": 1793900014000,
       "tag": "0100_object_acts",
       "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1793900015000,
+      "tag": "0101_object_subcontract",
+      "breakpoints": true
     }
   ]
 }

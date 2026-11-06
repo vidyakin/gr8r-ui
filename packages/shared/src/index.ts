@@ -48,5 +48,6 @@ export * from './supplier-rating';
 export * from './estimates';
 export * from './object-progress';
 export * from './object-acts';
+export * from './object-subcontract';
 export * from './labor-cost';
 export * from './badge';

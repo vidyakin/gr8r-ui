@@ -91,6 +91,8 @@ const SYSTEM_COST_ITEMS: { key: string; name: string; kind: 'expense' | 'income'
   { key: 'izlishki', name: 'Излишки', kind: 'income' },
   { key: 'garantiynyy_remont', name: 'Гарантийный ремонт', kind: 'expense' },
   { key: 'dostavka', name: 'Доставка', kind: 'expense' },
+  // материалы субподрядчику (задача 1274): списание со склада объекта при приёмке акта субподрядчика
+  { key: 'subcontract_materials', name: 'Материалы субподрядчику', kind: 'expense' },
   ...FLEET_COST_ITEMS.map(i => ({ key: i.key, name: i.name, kind: 'expense' as const })),
 ];
 

@@ -125,3 +125,69 @@ export const objectActQuery = listQuery.extend({ from: isoDate.optional(), to: i
 export type ObjectActCreate = z.infer<typeof objectActCreate>;
 export type ObjectActUpdate = z.infer<typeof objectActUpdate>;
 export type ObjectActSuggestionParams = z.infer<typeof objectActSuggestionQuery>;
+
+/* ---------------- субподряд (задача 1274) ---------------- */
+
+/** Строка акта субподрядчика: что предъявил подрядчик и сколько приняли */
+const subActLineInput = z.object({
+  /** Позиция сметы вида subcontract (необязательна) */
+  estimateItemId: uuid.nullish(),
+  /** Наименование; пусто — из позиции сметы */
+  name: z.string().trim().min(1).max(500).optional(),
+  /** Единица ОКЕИ; пусто — из позиции сметы */
+  unitCode: z.string().trim().min(1).max(20).optional(),
+  /** Предъявлено, больше нуля */
+  qty: decimal.refine(v => Number(v) > 0, 'The presented quantity must be greater than zero'),
+  /** Цена субподрядчика без НДС; пусто — из позиции сметы */
+  price: decimal.refine(v => Number(v) >= 0, 'The price cannot be negative').optional(),
+  /** Принято: пусто — всё предъявленное; меньше qty — нужна причина отклонения */
+  acceptedQty: decimal.refine(v => Number(v) >= 0, 'The accepted quantity cannot be negative').optional(),
+  /** Причина отклонения (справочник причин брака) */
+  defectReasonId: uuid.nullish(),
+  note: z.string().max(1000).default(''),
+});
+
+/** Материал, израсходованный субподрядчиком: списывается со склада объекта при приёмке */
+const subActMaterialInput = z.object({
+  productId: uuid,
+  qty: decimal.refine(v => Number(v) > 0, 'The quantity must be greater than zero'),
+  note: z.string().max(1000).default(''),
+});
+
+/** Тело создания акта субподрядчика: контрагент, документ подрядчика, период и строки (без строк — из заказа) */
+const subActHead = z.object({
+  id: clientId,
+  /** Субподрядчик (companies) */
+  counterpartyId: uuid,
+  /** Заказ-основание (supplier_order): по нему предлагаются строки и проверяется, что принято не больше заказанного */
+  orderId: uuid.nullish(),
+  /** Номер документа субподрядчика */
+  docNumber: z.string().trim().max(100).default(''),
+  /** Дата документа субподрядчика */
+  docDate: isoDate,
+  /** Период работ: пусто — с начала месяца по дату документа */
+  periodFrom: isoDate.optional(),
+  periodTo: isoDate.optional(),
+  /** Строки акта; пусто и есть заказ — предложенные строки заказа полностью */
+  lines: z.array(subActLineInput).max(500).optional(),
+  /** Израсходованные материалы со склада объекта */
+  materials: z.array(subActMaterialInput).max(200).default([]),
+  note: z.string().max(5000).default(''),
+});
+
+export const objectSubActCreate = subActHead;
+
+/** Правка черновика: undefined — не трогать, null — очистить. Строки заменяются списком */
+export const objectSubActUpdate = toPatch(subActHead.omit({ id: true, orderId: true }));
+
+/** Список актов объекта за период по дате документа подрядчика */
+export const objectSubActQuery = listQuery.extend({ from: isoDate.optional(), to: isoDate.optional() });
+
+/** Предложение строк из заказа: остаток к приёмке по строкам-услугам заказа */
+export const objectSubActSuggestionQuery = z.object({ orderId: uuid });
+
+/** Отклонение акта целиком: причина обязательна */
+export const objectSubActReject = z.object({ reason: z.string().trim().min(1).max(1000) });
+
+export type ObjectSubActCreate = z.infer<typeof objectSubActCreate>;
+export type ObjectSubActUpdate = z.infer<typeof objectSubActUpdate>;

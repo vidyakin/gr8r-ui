@@ -373,7 +373,7 @@ export async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: strin
   // Документы и склад: организация, склады, реквизиты, цепочки закупок и продаж (проводятся настоящими сервисами)
   const docs = await seedDocuments(db, wsId, U(d.me), { atlas: U('co8'), northwind: U('co1'), quanta: U('co4'), skyline: U('co10') });
   // Объекты объектного учёта: два демо-объекта, у одного свой склад (задача 1268)
-  await seedObjects(db, wsId, U(d.me), { north: U('co1'), himki: U('co4') });
+  await seedObjects(db, wsId, U(d.me), { north: U('co1'), himki: U('co4'), subcontractor: U('co8') });
   // Договоры и тарифные планы: договор обслуживания демо-клиента
   const [demoOrg] = await db.select({ id: organizations.id }).from(organizations).where(eq(organizations.workspaceId, wsId)).limit(1);
   await seedContracts(db, wsId, demoOrg!.id, U('co4'), docs.workOrder);

@@ -100,7 +100,7 @@ describe('seed', () => {
     expect(await count('units', w)).toBeGreaterThanOrEqual(19);
     expect(await count('product_categories', w)).toBe(5);
     expect(await count('products', `${w} and kind = 'goods'`)).toBe(31); // + смартфон с учётом по номерам, стекло, профиль, краска, окно и его вариант, брус, заготовка, обрезок и обрезки дуба (отход)
-    expect(await count('products', `${w} and kind = 'service'`)).toBe(7); // + окраска подрядчиком, две услуги массажа и служебная «Работы по объекту» (акты 1273)
+    expect(await count('products', `${w} and kind = 'service'`)).toBe(9); // + окраска подрядчиком, две услуги массажа, служебные «Работы по объекту» (1273) и «Субподрядные работы» (1274) и услуга субподряда видеонаблюдения
     expect(await count('products', `${w} and kind = 'work'`)).toBe(2);
     expect(await count('products', `${w} and kind = 'operation'`)).toBe(1);
     expect(await count('work_centers', w)).toBe(2);
@@ -116,7 +116,7 @@ describe('seed', () => {
     expect(await count('warehouses', w)).toBe(9); // основной, цех, склад готовой продукции, служебный «в пути», склад переработчика, склад отходов, склад брака, карантин сырья (1186) и склад объекта (1268)
     expect(await count('companies', `${w} and inn <> ''`)).toBe(5);
     expect(await count('bank_accounts', `${w} and company_id is not null`)).toBe(5);
-    expect(await count('documents', w)).toBe(78); // + счёт и акт оказания услуг по подписанному акту объекта (1273); + черновик КП с двумя вариантами; + виды цен: проведённая установка цен поставщика и черновик повышения розницы; // + зарплата: начисление за прошлый месяц и черновик за текущий, две ведомости, две выплаты; // + ввод начальных остатков, + 5 документов платёжного календаря (4 заявки на расход и оплата заявки), + 12 документов денег (оплаты, подотчёт, акты физлица); // + проведённый план продаж, + поступление и продажа смартфона, ремонтный и гарантийный заказ-наряды, заказ покупателя на окно, цепочка разборки, документы переработки и факт инвестпроекта
+    expect(await count('documents', w)).toBe(83); // + счёт и акт оказания услуг по подписанному акту объекта (1273), + заказ субподрядчику, поступление и перемещение фанеры, поступление услуг субподряда и списание материалов (1274); + черновик КП с двумя вариантами; + виды цен: проведённая установка цен поставщика и черновик повышения розницы; // + зарплата: начисление за прошлый месяц и черновик за текущий, две ведомости, две выплаты; // + ввод начальных остатков, + 5 документов платёжного календаря (4 заявки на расход и оплата заявки), + 12 документов денег (оплаты, подотчёт, акты физлица); // + проведённый план продаж, + поступление и продажа смартфона, ремонтный и гарантийный заказ-наряды, заказ покупателя на окно, цепочка разборки, документы переработки и факт инвестпроекта
     // скидки и лояльность (задача 1179): 4 правила (одно только по промокоду), промокод, программа, три карты и три движения баллов
     expect(await count('discount_rules', w)).toBe(4);
     expect(await count('discount_rules', `${w} and promo_only and not stackable`)).toBe(1);
@@ -152,7 +152,7 @@ describe('seed', () => {
     expect(await count('investment_projects', `${w} and status = 'draft'`)).toBe(1);
     expect(await count('documents', `${w} and investment_project_id is not null and status = 'posted'`)).toBe(3);
     expect(await count('investment_cost_items', w)).toBe(1);
-    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(70);
+    expect(await count('documents', `${w} and status = 'posted' and number is not null`)).toBe(75); // + пять проведённых документов субподряда (1274)
     expect(await count('documents', `${w} and based_on_id is not null`)).toBe(19);
     // доставка (задача 1100): два способа, три доставки в разных статусах, расход «Доставка» у доставленной, два курьера, веса у двух товаров
     expect(await count('delivery_methods', w)).toBe(2);
@@ -180,7 +180,7 @@ describe('seed', () => {
     expect(await count('products', `${w} and weight_kg is not null`)).toBe(2);
     expect(await count('cost_items', `${w} and system_key = 'dostavka'`)).toBe(1);
     expect(await count('deliveries', `${w} and line_id is not null`)).toBe(1); // строка-услуга добавлена в черновик заказа
-    expect(await count('documents', `${w} and type in ('stock_transfer','write_off','inventory_count')`)).toBe(8); // + брусья в цех и передача переработчику
+    expect(await count('documents', `${w} and type in ('stock_transfer','write_off','inventory_count')`)).toBe(10); // + брусья в цех и передача переработчику; + перемещение фанеры на склад объекта и списание материалов субподрядчику (1274)
     // производство: заказ на производство и выпуск со списанием материалов
     expect(await count('documents', `${w} and type = 'production_order'`)).toBe(5);
     expect(await count('documents', `${w} and type = 'production'`)).toBe(4);

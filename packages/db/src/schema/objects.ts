@@ -7,7 +7,7 @@ import { archivedAt, createdAt, money, pk, ts, updatedAt } from './columns';
 import { products, units } from './catalog';
 import { companies } from './crm';
 import { members, wsCol } from './people';
-import { manufacturedItems } from './production';
+import { defectReasons, manufacturedItems } from './production';
 
 export const objects = pgTable(
   'objects',
@@ -428,6 +428,126 @@ export const objectActShiftHours = pgTable(
     foreignKey({ columns: [t.workspaceId, t.actId], foreignColumns: [objectActs.workspaceId, objectActs.id], name: 'object_act_shift_hours_act_fk' }).onDelete('cascade'),
     foreignKey({ columns: [t.workspaceId, t.shiftHourId], foreignColumns: [objectShiftHours.workspaceId, objectShiftHours.id], name: 'object_act_shift_hours_hour_fk' }).onDelete('cascade'),
     index('object_act_shift_hours_act_idx').on(t.actId),
+  ],
+);
+
+/* Субподряд (задача 1274, docs/architecture/construction.md). Заказ субподрядчику — существующий документ supplier_order
+   с object_id, отдельной таблицы у заказа нет. Акт субподрядчика — документ подрядчика с приёмкой: черновик → принят | отклонён.
+   Строки акта: позиция сметы (subcontract, необязательна), предъявлено qty и принято accepted_qty; причина отклонения —
+   справочник причин брака (defect_reasons). Материалы акта списываются со склада объекта при приёмке.
+   Ссылки на документы (заказ, поступление, списание) объявлены в SQL-миграции 0101: schema/documents.ts импортирует объекты,
+   обратный импорт замкнул бы круг. */
+
+/** Акт субподрядчика: документ подрядчика за период с приёмкой. draft → accepted | rejected */
+export const objectSubActs = pgTable(
+  'object_sub_acts',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    objectId: uuid('object_id').notNull(),
+    /** Субподрядчик (companies) */
+    counterpartyId: uuid('counterparty_id').notNull(),
+    /** Заказ субподрядчику (документ supplier_order), необязательное основание */
+    orderId: uuid('order_id'),
+    /** Номер нашего акта: СА-<код объекта>-<порядковый> */
+    number: text('number').notNull().default(''),
+    /** Номер документа субподрядчика */
+    docNumber: text('doc_number').notNull().default(''),
+    /** Дата документа субподрядчика */
+    docDate: date('doc_date', { mode: 'string' }).notNull(),
+    periodFrom: date('period_from', { mode: 'string' }).notNull(),
+    periodTo: date('period_to', { mode: 'string' }).notNull(),
+    /** draft — черновик, accepted — принят, rejected — отклонён целиком с причиной */
+    status: text('status', { enum: ['draft', 'accepted', 'rejected'] }).notNull().default('draft'),
+    acceptedAt: ts('accepted_at'),
+    acceptedBy: uuid('accepted_by'),
+    rejectedAt: ts('rejected_at'),
+    rejectedBy: uuid('rejected_by'),
+    /** Причина отклонения акта целиком */
+    rejectReason: text('reject_reason').notNull().default(''),
+    /** Поступление услуг, созданное при приёмке: составной FK — в миграции 0101 */
+    receiptDocumentId: uuid('receipt_document_id'),
+    /** Списание материалов субподрядчику со склада объекта (если материалы указаны) */
+    writeOffDocumentId: uuid('write_off_document_id'),
+    note: text('note').notNull().default(''),
+    createdBy: uuid('created_by'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    unique('object_sub_acts_ws_id_uq').on(t.workspaceId, t.id),
+    uniqueIndex('object_sub_acts_ws_number_uq').on(t.workspaceId, t.number),
+    foreignKey({ columns: [t.workspaceId, t.objectId], foreignColumns: [objects.workspaceId, objects.id], name: 'object_sub_acts_object_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.counterpartyId], foreignColumns: [companies.workspaceId, companies.id], name: 'object_sub_acts_counterparty_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.acceptedBy], foreignColumns: [members.workspaceId, members.id], name: 'object_sub_acts_accepted_by_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.rejectedBy], foreignColumns: [members.workspaceId, members.id], name: 'object_sub_acts_rejected_by_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.createdBy], foreignColumns: [members.workspaceId, members.id], name: 'object_sub_acts_created_by_fk' }).onDelete('set null'),
+    check('object_sub_acts_status_chk', sql`${t.status} in ('draft','accepted','rejected')`),
+    check('object_sub_acts_period_chk', sql`${t.periodFrom} <= ${t.periodTo}`),
+    // отметки приёмки и отклонения ставятся вместе со статусом
+    check(
+      'object_sub_acts_state_chk',
+      sql`(${t.status} = 'draft' and ${t.acceptedAt} is null and ${t.rejectedAt} is null) or (${t.status} = 'accepted' and ${t.acceptedAt} is not null) or (${t.status} = 'rejected' and ${t.rejectedAt} is not null)`,
+    ),
+    index('object_sub_acts_object_idx').on(t.workspaceId, t.objectId, t.docDate),
+    index('object_sub_acts_order_idx').on(t.workspaceId, t.orderId),
+    index('object_sub_acts_counterparty_idx').on(t.workspaceId, t.counterpartyId),
+  ],
+);
+
+/** Строка акта субподрядчика: предъявлено qty и принято accepted_qty (≤ qty); отклонение — с причиной брака */
+export const objectSubActLines = pgTable(
+  'object_sub_act_lines',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    actId: uuid('act_id').notNull(),
+    /** Позиция сметы вида subcontract (необязательна: акт может быть без сметы) */
+    estimateItemId: uuid('estimate_item_id'),
+    sortOrder: integer('sort_order').notNull().default(0),
+    name: text('name').notNull(),
+    unitCode: text('unit_code').notNull().default('796'),
+    /** Предъявлено субподрядчиком */
+    qty: numeric('qty', { precision: 18, scale: 3 }).notNull(),
+    /** Цена субподрядчика без НДС */
+    price: money('price').notNull().default('0'),
+    /** Принято: только принятое идёт в поступление услуг; меньше qty — нужна причина отклонения */
+    acceptedQty: numeric('accepted_qty', { precision: 18, scale: 3 }).notNull().default('0'),
+    defectReasonId: uuid('defect_reason_id'),
+    note: text('note').notNull().default(''),
+    createdAt: createdAt(),
+  },
+  t => [
+    unique('object_sub_act_lines_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.actId], foreignColumns: [objectSubActs.workspaceId, objectSubActs.id], name: 'object_sub_act_lines_act_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.estimateItemId], foreignColumns: [objectEstimateItems.workspaceId, objectEstimateItems.id], name: 'object_sub_act_lines_item_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.defectReasonId], foreignColumns: [defectReasons.workspaceId, defectReasons.id], name: 'object_sub_act_lines_reason_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.unitCode], foreignColumns: [units.workspaceId, units.code], name: 'object_sub_act_lines_unit_fk' }),
+    check('object_sub_act_lines_qty_chk', sql`${t.qty} > 0 and ${t.price} >= 0 and ${t.acceptedQty} >= 0 and ${t.acceptedQty} <= ${t.qty}`),
+    index('object_sub_act_lines_act_idx').on(t.actId, t.sortOrder),
+    index('object_sub_act_lines_item_idx').on(t.workspaceId, t.estimateItemId),
+  ],
+);
+
+/** Материалы, израсходованные субподрядчиком: при приёмке списываются со склада объекта (факт material) */
+export const objectSubActMaterials = pgTable(
+  'object_sub_act_materials',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    actId: uuid('act_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    qty: numeric('qty', { precision: 18, scale: 3 }).notNull(),
+    note: text('note').notNull().default(''),
+    createdAt: createdAt(),
+  },
+  t => [
+    unique('object_sub_act_materials_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.actId], foreignColumns: [objectSubActs.workspaceId, objectSubActs.id], name: 'object_sub_act_materials_act_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'object_sub_act_materials_product_fk' }),
+    check('object_sub_act_materials_qty_chk', sql`${t.qty} > 0`),
+    index('object_sub_act_materials_act_idx').on(t.actId),
+    index('object_sub_act_materials_product_idx').on(t.workspaceId, t.productId),
   ],
 );
 

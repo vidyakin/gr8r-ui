@@ -3,19 +3,37 @@
    Смета (задача 1269): у первого объекта согласованная основная смета (2 раздела по 3 позиции) и допработа в черновике.
    Процент выполнения и вехи (задача 1272): у первого объекта аванс и два этапа, у пары позиций сметы выполненный объём.
    Табель прораба (задача 1271): бригада из трёх рабочих без входа с бейджами и две подтверждённые смены прошлой недели.
-   Выручка (задача 1273): у первого объекта подписанный акт по объёмам за прошлый месяц с выставленными счётом и актом. */
+   Выручка (задача 1273): у первого объекта подписанный акт по объёмам за прошлый месяц с выставленными счётом и актом.
+   Субподряд (задача 1274): у первого объекта позиция субподряда в смете, заказ субподрядчику и принятый акт субподрядчика
+   с частичным отклонением (причина из справочника причин брака) и списанием материала со склада объекта. */
 import { eq } from 'drizzle-orm';
 import type { Db } from './client';
 import { createObjectAct, invoiceObjectAct, signObjectAct, suggestAct } from './object-acts';
+import { createDocument, postDocument } from './documents';
+import { acceptSubAct, createSubAct } from './object-subcontract';
 import { confirmShift, createShift, saveShift } from './object-shifts';
 import { addEmployeeAccrual, ensurePayrollKinds, updateEmployeePayroll } from './payroll';
-import { members, objectEstimateItems, objectEstimateSections, objectEstimates, objectForemen, objectMilestones, objects, projects, warehouses } from './schema';
+import {
+  defectReasons,
+  members,
+  objectEstimateItems,
+  objectEstimateSections,
+  objectEstimates,
+  objectForemen,
+  objectMilestones,
+  objects,
+  productCategories,
+  products,
+  projects,
+  warehouses,
+  workspaces,
+} from './schema';
 
 export async function seedObjects(
   db: Db,
   wsId: string,
   memberId: string,
-  refs: { north: string; himki: string },
+  refs: { north: string; himki: string; subcontractor: string },
 ): Promise<{ objects: number }> {
   const [siteWarehouse] = await db
     .insert(warehouses)
@@ -81,16 +99,18 @@ export async function seedObjects(
     inserted.push(object!.id);
   }
   await db.insert(objectForemen).values([{ workspaceId: wsId, objectId: inserted[0]!, memberId }]);
-  await seedEstimates(db, wsId, memberId, inserted[0]!);
+  const subcontract = await seedSubcontractProducts(db, wsId);
+  await seedEstimates(db, wsId, memberId, inserted[0]!, subcontract);
   await seedMilestones(db, wsId, inserted[0]!);
   const crew = await seedCrew(db, wsId, memberId);
   await seedShifts(db, wsId, memberId, inserted[0]!, crew);
   await seedActs(db, wsId, memberId, inserted[0]!);
+  await seedSubcontract(db, wsId, memberId, inserted[0]!, siteWarehouse!.id, refs.subcontractor, subcontract);
   return { objects: inserted.length };
 }
 
 /** Смета демо-объекта: согласованная основная (снимок цен и норм) и допработа в черновике. Суммы без НДС. */
-async function seedEstimates(db: Db, wsId: string, memberId: string, objectId: string): Promise<void> {
+async function seedEstimates(db: Db, wsId: string, memberId: string, objectId: string, subcontract: SubcontractRefs): Promise<void> {
   const [main] = await db
     .insert(objectEstimates)
     .values({
@@ -123,6 +143,22 @@ async function seedEstimates(db: Db, wsId: string, memberId: string, objectId: s
     { workspaceId: wsId, estimateId: main!.id, sectionId: materials[0]!.id, sortOrder: 3, kind: 'material', name: 'Кабель ВВГнг-LS 3×2,5', unitCode: '006', qty: '500', price: '120', costPrice: '85', vatRate: '20' },
     { workspaceId: wsId, estimateId: main!.id, sectionId: materials[0]!.id, sortOrder: 4, kind: 'panel', name: 'Щит распределительный ЩР-1 (сборка)', unitCode: '796', qty: '2', price: '45000', costPrice: '32000', vatRate: '20' },
     { workspaceId: wsId, estimateId: main!.id, sectionId: materials[0]!.id, sortOrder: 5, kind: 'material', name: 'Лоток металлический 100×50', unitCode: '006', qty: '120', price: '680', costPrice: '520', vatRate: '20' },
+    // субподряд (задача 1274): позиция с товаром-услугой каталога — по ней создаётся заказ субподрядчику
+    {
+      workspaceId: wsId,
+      estimateId: main!.id,
+      sectionId: works[0]!.id,
+      sortOrder: 6,
+      kind: 'subcontract',
+      name: 'Монтаж системы видеонаблюдения (субподряд)',
+      productId: subcontract.serviceId,
+      unitCode: '796',
+      qty: '10',
+      price: '15000',
+      costPrice: '12000',
+      vatRate: '20',
+      note: 'Работы ООО «Атлас Машиностроение»: камеры, регистратор, пусконаладка',
+    },
   ]);
 
   const [change] = await db
@@ -228,4 +264,124 @@ async function seedActs(db: Db, wsId: string, memberId: string, objectId: string
   });
   await signObjectAct(db, ctx, act.id);
   await invoiceObjectAct(db, ctx, act.id);
+}
+
+/** Товары субподряда демо-объекта (задача 1274): услуга каталога для заказа и материал со склада объекта */
+interface SubcontractRefs {
+  /** Услуга «Монтаж системы видеонаблюдения (субподряд)»: строка заказа и позиции сметы */
+  serviceId: string;
+  /** Материал, который субподрядчик расходует со склада объекта */
+  materialId: string;
+}
+
+/** Услуга-работа субподряда (одна на воркспейс) и материал монтажа из демо-каталога */
+async function seedSubcontractProducts(db: Db, wsId: string): Promise<SubcontractRefs> {
+  const [services] = await db.select({ id: productCategories.id }).from(productCategories).where(eq(productCategories.name, 'Услуги')).limit(1);
+  const [existing] = await db.select({ id: products.id }).from(products).where(eq(products.name, 'Монтаж системы видеонаблюдения')).limit(1);
+  const serviceId =
+    existing?.id ??
+    (
+      await db
+        .insert(products)
+        .values({
+          workspaceId: wsId,
+          kind: 'service',
+          sku: 'SV-CCTV',
+          name: 'Монтаж системы видеонаблюдения',
+          description: 'Работы субподрядчика: камеры, регистратор, пусконаладка',
+          unitCode: '796',
+          vatRate: '20',
+          price: '15000.00',
+          purchasePrice: '12000.00',
+          categoryId: services?.id ?? null,
+        })
+        .returning({ id: products.id })
+    )[0]!.id;
+  // материал монтажа — фанера из демо-каталога (артикул MT-PLY-18): лежит на складе объекта
+  const [material] = await db.select({ id: products.id }).from(products).where(eq(products.sku, 'MT-PLY-18')).limit(1);
+  if (!material) throw new Error('Демо-каталог без фанеры: материал субподряда не из чего взять');
+  return { serviceId, materialId: material.id };
+}
+
+/** Субподряд демо-объекта (задача 1274): заказ субподрядчику из позиции сметы, материалы на складе объекта
+    и принятый акт субподрядчика с частичным отклонением. Документы проводятся, поэтому на время сида
+    дата запрета снимается и возвращается обратно: иначе они остались бы черновиками. */
+async function seedSubcontract(
+  db: Db,
+  wsId: string,
+  memberId: string,
+  objectId: string,
+  objectWarehouseId: string,
+  subcontractorId: string,
+  refs: SubcontractRefs,
+): Promise<void> {
+  const ctx = { workspaceId: wsId, memberId, role: 'owner' as const };
+  const now = new Date();
+  // последний день прошлого месяца — период работ субподрядчика
+  const docDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0)).toISOString().slice(0, 10);
+  const periodFrom = `${docDate.slice(0, 7)}-01`;
+  const [mainWarehouse] = await db.select({ id: warehouses.id }).from(warehouses).where(eq(warehouses.code, 'MAIN')).limit(1);
+  const [reason] = await db.select({ id: defectReasons.id, name: defectReasons.name }).from(defectReasons).where(eq(defectReasons.name, 'Дефект материала')).limit(1);
+  const [item] = await db
+    .select({ id: objectEstimateItems.id })
+    .from(objectEstimateItems)
+    .where(eq(objectEstimateItems.productId, refs.serviceId))
+    .limit(1);
+  if (!mainWarehouse || !reason || !item) return;
+
+  // дата запрета снимается на время сида: документы субподряда должны быть проведены
+  const [lock] = await db.select({ closedThrough: workspaces.closedThrough }).from(workspaces).where(eq(workspaces.id, wsId)).limit(1);
+  await db.update(workspaces).set({ closedThrough: null }).where(eq(workspaces.id, wsId));
+  try {
+    // заказ субподрядчику: строка-работа по закупочной цене каталога, объект — объект сметы
+    const orderId = await createDocument(db, ctx, {
+      type: 'supplier_order',
+      counterpartyId: subcontractorId,
+      warehouseId: objectWarehouseId,
+      objectId,
+      date: docDate,
+      comment: 'Монтаж системы видеонаблюдения: заказ субподрядчику',
+      lines: [{ productId: refs.serviceId, qty: '10', price: '12000', discountPct: '0' }],
+    });
+    await postDocument(db, ctx, orderId);
+
+    // материал монтажа приходит на основной склад и перемещается на склад объекта
+    const stock = await createDocument(db, ctx, {
+      type: 'receipt',
+      counterpartyId: subcontractorId,
+      warehouseId: mainWarehouse.id,
+      date: docDate,
+      priceIncludesVat: false,
+      comment: 'Фанера под монтаж видеонаблюдения',
+      lines: [{ productId: refs.materialId, qty: '10', price: '1850', discountPct: '0' }],
+    });
+    await postDocument(db, ctx, stock);
+    const transfer = await createDocument(db, ctx, {
+      type: 'stock_transfer',
+      warehouseId: mainWarehouse.id,
+      targetWarehouseId: objectWarehouseId,
+      objectId,
+      date: docDate,
+      comment: 'Фанера на склад объекта для субподрядчика',
+      lines: [{ productId: refs.materialId, qty: '10', price: '0', discountPct: '0' }],
+    });
+    await postDocument(db, ctx, transfer);
+
+    // акт субподрядчика: предъявлено 10 камер, принято 9, одна с дефектом материала; 4 листа фанеры израсходовано
+    const act = await createSubAct(db, ctx, objectId, {
+      counterpartyId: subcontractorId,
+      orderId,
+      docNumber: 'ВМ-14',
+      docDate,
+      periodFrom,
+      periodTo: docDate,
+      lines: [{ estimateItemId: item.id, qty: '10', acceptedQty: '9', defectReasonId: reason.id, note: 'Одна камера с дефектом материала' }],
+      materials: [{ productId: refs.materialId, qty: '4', note: 'Фанера под крепление камер' }],
+      note: `Акт субподрядчика за ${periodFrom.slice(0, 7)}: частичная приёмка с причиной отклонения`,
+    });
+    await acceptSubAct(db, ctx, act.id);
+  } finally {
+    // возвращаем дату запрета: демо-период снова закрыт
+    await db.update(workspaces).set({ closedThrough: lock?.closedThrough ?? null }).where(eq(workspaces.id, wsId));
+  }
 }

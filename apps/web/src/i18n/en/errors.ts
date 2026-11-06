@@ -293,6 +293,13 @@ export const errors = {
   act_has_payments: 'The act has payments: refund them before unsigned the act',
   act_has_documents: 'The act has invoices and a service act: delete those documents first',
   act_milestone_used: 'The milestone is already closed by an act',
+  // субподряд (задача 1274): акт субподрядчика, приёмка и материалы
+  sub_act_empty: 'There is nothing to accept: add lines or materials to the subcontractor act',
+  sub_act_not_draft: 'The subcontractor act is already processed: an admin can unaccept it first',
+  sub_act_exceeds_order: 'The accepted quantity exceeds the ordered quantity of the subcontract order',
+  sub_act_has_payments: 'The receipt has payments: refund them before unaccepting the act',
+  rejection_reason_required: 'Select a rejection reason for the rejected quantity',
+  object_warehouse_required: 'Select the object warehouse to write off the subcontractor materials',
   customer_rate_required: 'Set the customer hour rate on the object to invoice hours',
   milestone_required: 'Select the milestone of the object to invoice',
   shift_hours_exceed: 'A worker cannot have more than 24 hours per shift',
