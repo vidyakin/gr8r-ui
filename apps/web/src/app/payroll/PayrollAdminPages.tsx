@@ -10,6 +10,7 @@ import { useOrganizations, useCostItems } from '../docs/data';
 import { useWorkCenters } from '../catalog/data';
 import { fmtDate } from '../lib/dates';
 import { useEmployees, usePayrollApi, usePayrollKinds, usePayrollSettings, usePayslip, useReflections, useSettlementsReport, useSummaryReport, type Employee } from './data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -82,8 +83,8 @@ function EmployeeCard({ e }: { e: Employee }) {
         <Button size="sm" variant="primary" onClick={() => void save()}>{tt('payroll.save')}</Button>
       </div>
       <div className="doc-head">
-        <Field label={tt('payroll.employees.hired')}>{p => <Input {...p} type="date" value={draft.hiredAt} onChange={ev => setDraft({ ...draft, hiredAt: ev.target.value })} />}</Field>
-        <Field label={tt('payroll.employees.fired')}>{p => <Input {...p} type="date" value={draft.firedAt} onChange={ev => setDraft({ ...draft, firedAt: ev.target.value })} />}</Field>
+        <Field label={tt('payroll.employees.hired')}>{p => <DateInput {...p} value={draft.hiredAt} onChange={v => setDraft({ ...draft, hiredAt: v })} />}</Field>
+        <Field label={tt('payroll.employees.fired')}>{p => <DateInput {...p} value={draft.firedAt} onChange={v => setDraft({ ...draft, firedAt: v })} />}</Field>
         <Field label={tt('payroll.organization')}>
           {p => <Select id={p.id} value={draft.organizationId} onValueChange={v => setDraft({ ...draft, organizationId: v })} aria-label={tt('payroll.organization')} options={[{ value: '', label: '—' }, ...(orgs.data ?? []).map(o => ({ value: o.id, label: o.name }))]} />}
         </Field>
@@ -119,7 +120,7 @@ function EmployeeCard({ e }: { e: Employee }) {
           ))}
           <tr>
             <td><Select aria-label={tt('payroll.kind')} value={acc.kindId} onValueChange={v => setAcc({ ...acc, kindId: v })} options={planned.map(k => ({ value: k.id, label: k.name }))} /></td>
-            <td><Input aria-label={tt('payroll.employees.validFrom')} type="date" value={acc.validFrom} onChange={ev => setAcc({ ...acc, validFrom: ev.target.value })} /></td>
+            <td><DateInput aria-label={tt('payroll.employees.validFrom')} value={acc.validFrom} onChange={v => setAcc({ ...acc, validFrom: v })} /></td>
             <td className="r">
               <div className="row">
                 {accKind?.baseType === 'sales_percent' && <Select aria-label={tt('payroll.employees.basis')} value={acc.basis} onValueChange={v => setAcc({ ...acc, basis: v })} options={[{ value: 'revenue', label: tt('payroll.employees.bases.revenue') }, { value: 'margin', label: tt('payroll.employees.bases.margin') }]} />}
@@ -279,8 +280,8 @@ export function PayrollReportsPage() {
         </div>
       </div>
       <section className="panel doc-head" aria-label={tt('payroll.period')}>
-        <Field label={tt('payroll.reports.from')}>{p => <Input {...p} type="date" value={from} onChange={e => setFrom(e.target.value)} />}</Field>
-        <Field label={tt('payroll.reports.to')}>{p => <Input {...p} type="date" value={to} onChange={e => setTo(e.target.value)} />}</Field>
+        <Field label={tt('payroll.reports.from')}>{p => <DateInput {...p} value={from} onChange={v => setFrom(v)} />}</Field>
+        <Field label={tt('payroll.reports.to')}>{p => <DateInput {...p} value={to} onChange={v => setTo(v)} />}</Field>
       </section>
       <div style={{ padding: '0 var(--gutter)' }}>
         <Tabs value={tab} onValueChange={v => setTab(v as 'settlements' | 'summary')}>

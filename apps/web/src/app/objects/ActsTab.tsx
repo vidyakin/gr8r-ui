@@ -13,6 +13,7 @@ import { fmtDate } from '../lib/dates';
 import { usePrintOpener } from '../money/data';
 import { useObjectMilestones } from './data';
 import { useActSuggestion, useObjectAct, useObjectActApi, useObjectActs, type ActInput, type ObjectAct, type ObjectRevenue } from './acts-data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const monthStart = (d: string) => `${d.slice(0, 7)}-01`;
@@ -127,9 +128,9 @@ function ActDialog({ objectId, onClose }: { objectId: string; onClose: () => voi
                 />
               )}
             </Field>
-            <Field label={tt('objects.acts.actDate')}>{p => <Input {...p} type="date" value={actDate} onChange={e => setActDate(e.target.value || today())} />}</Field>
-            <Field label={tt('objects.acts.periodFrom')}>{p => <Input {...p} type="date" value={periodFrom} onChange={e => setPeriodFrom(e.target.value || monthStart(today()))} />}</Field>
-            <Field label={tt('objects.acts.periodTo')}>{p => <Input {...p} type="date" value={periodTo} onChange={e => setPeriodTo(e.target.value || today())} />}</Field>
+            <Field label={tt('objects.acts.actDate')}>{p => <DateInput {...p} value={actDate} onChange={v => setActDate(v || today())} required />}</Field>
+            <Field label={tt('objects.acts.periodFrom')}>{p => <DateInput {...p} value={periodFrom} onChange={v => setPeriodFrom(v || monthStart(today()))} required />}</Field>
+            <Field label={tt('objects.acts.periodTo')}>{p => <DateInput {...p} value={periodTo} onChange={v => setPeriodTo(v || today())} required />}</Field>
           </div>
           {kind === 'milestone' && (
             <Field label={tt('objects.acts.milestone')} hint={tt('objects.acts.milestoneHint')}>

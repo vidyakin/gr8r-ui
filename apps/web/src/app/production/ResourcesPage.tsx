@@ -6,6 +6,7 @@ import { Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, Empty
 import { useIsAdmin } from '../catalog/data';
 import { usePlanningApi, useCalendarExceptions, useCalendars, useHolidays, useResources, type WorkCalendar } from './planning-data';
 import { useT } from '@/i18n';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 type Tab = 'resources' | 'calendars' | 'holidays' | 'exceptions';
 
@@ -182,7 +183,7 @@ function HolidaysTab() {
     <div style={{ padding: '0 var(--gutter) 24px', display: 'grid', gap: 12 }}>
       {isAdmin && (
         <div className="row" style={{ gap: 8 }}>
-          <Input aria-label={tt('production.resources.holidayDate')} type="date" value={date} onChange={e => setDate(e.target.value)} style={{ width: 180 }} />
+          <DateInput aria-label={tt('production.resources.holidayDate')} value={date} onChange={v => setDate(v)} style={{ width: 180 }} />
           <Input aria-label={tt('production.resources.holidayName')} placeholder={tt('production.resources.holidayPlaceholder')} value={name} onChange={e => setName(e.target.value)} style={{ width: 240 }} />
           <Button onClick={add} disabled={!date}>
             <Plus size={14} />
@@ -263,8 +264,8 @@ function ExceptionsTab() {
                 </option>
               ))}
           </select>
-          <Input aria-label={tt('production.resources.from')} type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ width: 160 }} />
-          <Input aria-label={tt('production.resources.to')} type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ width: 160 }} />
+          <DateInput aria-label={tt('production.resources.from')} value={dateFrom} onChange={v => setDateFrom(v)} style={{ width: 160 }} />
+          <DateInput aria-label={tt('production.resources.to')} value={dateTo} onChange={v => setDateTo(v)} style={{ width: 160 }} />
           <Button onClick={add} disabled={!scopeId || !dateFrom}>
             <Plus size={14} />
             {tt('production.resources.addException')}
@@ -491,7 +492,7 @@ function CalendarDialog({ id, onClose }: { id?: string; onClose: () => void }) {
                 {p => <Input {...p} value={cycle} onChange={e => setCycle(e.target.value.replace(/[^01]/g, ''))} />}
               </Field>
               <Field label={tt('production.resources.cycleStarts')} error={err.cycleStart}>
-                {p => <Input {...p} type="date" value={cycleStart} onChange={e => (setCycleStart(e.target.value), setErr({}))} />}
+                {p => <DateInput {...p} value={cycleStart} onChange={v => (setCycleStart(v), setErr({}))} />}
               </Field>
             </>
           )}

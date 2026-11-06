@@ -23,6 +23,7 @@ import {
   type TransportOrder,
   type TransportOrderPoint,
 } from './data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const ALL = 'all';
 export const ORDER_TONE: Record<TransportOrderStatus, 'gray' | 'amber' | 'accent' | 'green' | 'red'> = { draft: 'gray', confirmed: 'amber', in_progress: 'accent', done: 'green', cancelled: 'red' };
@@ -268,11 +269,11 @@ export function TransportOrderDialog({ id, onClose }: { id: string | null; onClo
                 <Field label={t('transport.orders.card.customer')}>
                   {p => <CounterpartyPicker id={p.id} value={customer?.name ?? ''} disabled={!editable} onPick={c => setCustomer({ id: c.id, name: c.name })} />}
                 </Field>
-                <Field label={t('transport.orders.card.date')}>{p => <Input {...p} type="date" disabled={!editable} value={date} onChange={e => setDate(e.target.value)} />}</Field>
+                <Field label={t('transport.orders.card.date')}>{p => <DateInput {...p} disabled={!editable} value={date} onChange={v => setDate(v)} />}</Field>
                 <Field label={t('transport.orders.card.fromPlace')}>{p => <Input {...p} disabled={!editable} value={fromPlace} onChange={e => setFromPlace(e.target.value)} />}</Field>
                 <Field label={t('transport.orders.card.toPlace')}>{p => <Input {...p} disabled={!editable} value={toPlace} onChange={e => setToPlace(e.target.value)} />}</Field>
-                <Field label={t('transport.orders.card.readyDate')}>{p => <Input {...p} type="date" disabled={!editable} value={readyDate} onChange={e => setReadyDate(e.target.value)} />}</Field>
-                <Field label={t('transport.orders.card.deliveryDate')}>{p => <Input {...p} type="date" disabled={!editable} value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} />}</Field>
+                <Field label={t('transport.orders.card.readyDate')}>{p => <DateInput {...p} disabled={!editable} value={readyDate} onChange={v => setReadyDate(v)} />}</Field>
+                <Field label={t('transport.orders.card.deliveryDate')}>{p => <DateInput {...p} disabled={!editable} value={deliveryDate} onChange={v => setDeliveryDate(v)} />}</Field>
                 <Field label={t('transport.orders.card.cargoName')}>{p => <Input {...p} disabled={!editable} value={cargoName} onChange={e => setCargoName(e.target.value)} />}</Field>
                 <Field label={t('transport.orders.card.weightKg')}>{p => <Input {...p} inputMode="decimal" disabled={!editable} value={weightKg} onChange={e => setWeightKg(e.target.value)} />}</Field>
                 <Field label={t('transport.orders.card.volumeM3')}>{p => <Input {...p} inputMode="decimal" disabled={!editable} value={volumeM3} onChange={e => setVolumeM3(e.target.value)} />}</Field>
@@ -404,8 +405,8 @@ export function TransportOrdersPage() {
       />
       <section className="panel plain" style={{ margin: '0 var(--gutter) 16px' }}>
         <div className="row" style={{ gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <Field label={t('transport.orders.from')}>{p => <Input {...p} type="date" value={from} max={to} onChange={e => setFrom(e.target.value || from)} />}</Field>
-          <Field label={t('transport.orders.to')}>{p => <Input {...p} type="date" value={to} min={from} onChange={e => setTo(e.target.value || to)} />}</Field>
+          <Field label={t('transport.orders.from')}>{p => <DateInput {...p} value={from} max={to} onChange={v => setFrom(v || from)} required />}</Field>
+          <Field label={t('transport.orders.to')}>{p => <DateInput {...p} value={to} min={from} onChange={v => setTo(v || to)} required />}</Field>
           <Field label={t('transport.orders.col.status')}>
             {p => <Select id={p.id} aria-label={t('transport.orders.col.status')} value={status} onValueChange={setStatus} options={[{ value: ALL, label: t('transport.orders.all') }, ...TRANSPORT_ORDER_STATUSES.map(s => ({ value: s, label: t(`transport.orders.status.${s}`) }))]} />}
           </Field>

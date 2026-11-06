@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useSearchParams } from 'react-router';
 import { X } from 'lucide-react';
-import { Field, IconButton, Input, Select } from '@/components/ui';
+import { Field, IconButton, Select } from '@/components/ui';
 import { useT, type TKey } from '@/i18n';
 import { iso, today } from '../../lib/dates';
 import { useWorkspace } from '../../data/store';
@@ -14,6 +14,7 @@ import { LoadTab } from './LoadTab';
 import { ScheduleTab } from './ScheduleTab';
 import { StatesTab } from './StatesTab';
 import type { ServiceReportFilter } from './service-reports-data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 export interface ServiceTabProps {
   filter: ServiceReportFilter;
@@ -68,8 +69,8 @@ export function ServiceReportsPage() {
 
       <section className="panel plain" style={{ margin: '0 var(--gutter) 16px' }}>
         <div className="row" style={{ gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <Field label={tt('serviceReports.filters.from')}>{p => <Input {...p} type="date" value={from} max={to} onChange={e => setFrom(e.target.value || monthStart())} />}</Field>
-          <Field label={tt('serviceReports.filters.to')}>{p => <Input {...p} type="date" value={to} min={from} onChange={e => setTo(e.target.value || iso(today()))} />}</Field>
+          <Field label={tt('serviceReports.filters.from')}>{p => <DateInput {...p} value={from} max={to} onChange={v => setFrom(v || monthStart())} required />}</Field>
+          <Field label={tt('serviceReports.filters.to')}>{p => <DateInput {...p} value={to} min={from} onChange={v => setTo(v || iso(today()))} required />}</Field>
           <Field label={tt('serviceReports.filters.client')}>
             {p => (
               <div className="row" style={{ gap: 4, alignItems: 'center' }}>

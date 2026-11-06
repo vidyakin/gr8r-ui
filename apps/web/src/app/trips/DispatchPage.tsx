@@ -10,6 +10,7 @@ import { FleetHead } from '../fleet/parts';
 import { STOP_TONE, TRIP_TONE, TripDialog, useOverloadText } from './TripDialog';
 import { RouteMapView, etaText, mapStops, tripColor } from './map';
 import { useDispatch, useRoutingRuns, useTripApi, type Dispatch, type DispatchDelivery, type DispatchTrip } from './data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const FROM_H = 6;
 const TO_H = 22;
@@ -220,7 +221,7 @@ export function DispatchPage() {
         actions={
           <>
             <IconButton label={t('trips.dispatch.prev')} onClick={() => shift(-1)}><ChevronLeft size={15} /></IconButton>
-            <input className="input" type="date" aria-label={t('trips.col.date')} value={date} onChange={e => e.target.value && setDate(e.target.value)} style={{ width: 150 }} />
+            <DateInput aria-label={t('trips.col.date')} value={date} onChange={v => v && setDate(v)} style={{ width: 150 }} required />
             <IconButton label={t('trips.dispatch.next')} onClick={() => shift(1)}><ChevronRight size={15} /></IconButton>
             <Button size="sm" variant="ghost" onClick={() => setDate(iso(today()))}>{t('trips.dispatch.today')}</Button>
             <Button size="sm" variant="secondary" disabled={running} onClick={() => void distribute()}>

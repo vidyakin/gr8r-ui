@@ -16,6 +16,7 @@ import { useT } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { useShiftObjects, useShift, useShiftOptions, useShiftApi, type BadgeLookup, type ShiftSaveBody, type ShiftView } from '../objects/shifts-data';
 import { BadgeScanner } from './BadgeScanner';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 /** Часы работника в черновике экрана: одна строка на работника с выбранной позицией сметы */
 interface CrewRow {
@@ -100,7 +101,7 @@ function ShiftPicker() {
             />
           )}
         </Field>
-        <Field label={tt('shifts.pick.date')}>{p => <Input {...p} type="date" value={date} onChange={e => setDate(e.target.value)} />}</Field>
+        <Field label={tt('shifts.pick.date')}>{p => <DateInput {...p} value={date} onChange={v => setDate(v)} />}</Field>
       </div>
       <div className="shift-actions">
         <Button variant="primary" disabled={!objectId || busy} onClick={() => void open()}>

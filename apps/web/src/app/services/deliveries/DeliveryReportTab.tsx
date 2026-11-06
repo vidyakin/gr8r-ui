@@ -2,7 +2,7 @@
    курьерам и периодам. Себестоимость и маржа приходят только admin и owner: остальным колонок нет. */
 import * as React from 'react';
 import { dec, marginPct } from '@gr8r/shared';
-import { Field, Input, Select } from '@/components/ui';
+import { Field, Select } from '@/components/ui';
 import { fmtAmount, fmtNumber, useT } from '@/i18n';
 import { iso, today } from '../../lib/dates';
 import { BarChart, type BarGroup } from '../../production/reports/BarChart';
@@ -10,6 +10,7 @@ import { ReportTable, type ReportColumn } from '../../production/reports/ReportT
 import { ChartPanel, ReportState } from '../../production/reports/shared';
 import { useCanSeeCost } from '../../docs/data';
 import { useDeliveryReport, type DeliveryReportRow } from '../../docs/delivery-data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const money = { format: (v: string) => fmtAmount(v), scale: 2 };
 const count = { format: (v: string) => fmtNumber(v, { maximumFractionDigits: 0 }), scale: 0 };
@@ -56,8 +57,8 @@ export function DeliveryReportTab() {
     <>
       <section className="panel plain" style={{ margin: '0 var(--gutter) 16px' }}>
         <div className="row" style={{ gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <Field label={t('delivery.list.from')}>{p => <Input {...p} type="date" value={from} max={to} onChange={e => setFrom(e.target.value || from)} />}</Field>
-          <Field label={t('delivery.list.to')}>{p => <Input {...p} type="date" value={to} min={from} onChange={e => setTo(e.target.value || to)} />}</Field>
+          <Field label={t('delivery.list.from')}>{p => <DateInput {...p} value={from} max={to} onChange={v => setFrom(v || from)} required />}</Field>
+          <Field label={t('delivery.list.to')}>{p => <DateInput {...p} value={to} min={from} onChange={v => setTo(v || to)} required />}</Field>
           <Field label={t('delivery.report.by')}>
             {p => (
               <Select

@@ -17,6 +17,7 @@ import { contactsOfCompany } from './selectors';
 import { useCrm, type DealPatch } from './store';
 import { CrmUiCtx, type CrmUi, type DealDefaults } from './ui-context';
 import type { StageId } from './types';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 type Drawer = { kind: 'deal' | 'contact'; id: string } | null;
 type Dlg =
@@ -96,7 +97,7 @@ function MoveDealDialog({ id, to, onCancel, onConfirm }: { id: string; to: Stage
                 {label(k)}
               </label>
               {k === 'closeDate' ? (
-                <input className="input" id={`req-${k}`} type="date" value={vals[k] ?? ''} onChange={e => set(k, e.target.value)} />
+                <DateInput id={`req-${k}`} value={vals[k] ?? ''} onChange={v => set(k, v)} />
               ) : k === 'contact' ? (
                 <select className="select" id={`req-${k}`} value={vals[k] ?? ''} onChange={e => set(k, e.target.value)}>
                   <option value="">—</option>

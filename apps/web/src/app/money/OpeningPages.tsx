@@ -15,6 +15,7 @@ import { useContracts } from '../docs/billing-data';
 import { CounterpartyPicker } from '../docs/pickers';
 import { useCashRegisters, useOrgBankAccounts } from './data';
 import { useOpening, useOpeningApi, useOpenings, type OpeningKind } from './opening-data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const MONEY_KINDS: OpeningKind[] = ['cash', 'bank'];
@@ -256,7 +257,7 @@ export function OpeningPage() {
       </div>
 
       <section className="panel doc-head" aria-label={tt('money.common.date')}>
-        <Field label={tt('money.common.date')}>{p => <Input {...p} type="date" disabled={!editable} value={date} onChange={e => setDate(e.target.value)} />}</Field>
+        <Field label={tt('money.common.date')}>{p => <DateInput {...p} disabled={!editable} value={date} onChange={v => setDate(v)} />}</Field>
         <Field label={tt('money.form.organization')}>
           {p => <Select id={p.id} disabled={!editable || !!detail?.number} value={organizationId} onValueChange={v => { setOrganizationId(v); setLines(prev => prev.map(l => ({ ...l, accountId: MONEY_KINDS.includes(l.kind) ? '' : l.accountId }))); }} options={(orgs.data ?? []).map(o => ({ value: o.id, label: o.name }))} aria-label={tt('money.form.organization')} />}
         </Field>

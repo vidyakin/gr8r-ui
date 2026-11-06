@@ -13,6 +13,7 @@ import { useMembersWith } from '../positions/data';
 import { useWsId } from '../meta/data';
 import { openWaybillPrint, useFleetApi, useVehicles, useWaybill, useWaybills, type Waybill } from './data';
 import { FleetHead, FormDialog, fromLocalInput, num, toLocalInput, type FieldDef } from './parts';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const ALL = 'all';
 export const WAYBILL_TONE: Record<WaybillStatus, 'gray' | 'accent' | 'green' | 'red'> = { draft: 'gray', issued: 'accent', closed: 'green', cancelled: 'red' };
@@ -221,8 +222,8 @@ export function WaybillsPage() {
       />
       <section className="panel plain" style={{ margin: '0 var(--gutter) 16px' }}>
         <div className="row" style={{ gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <Field label={t('fleet.from')}>{p => <Input {...p} type="date" value={from} max={to} onChange={e => setFrom(e.target.value || from)} />}</Field>
-          <Field label={t('fleet.to')}>{p => <Input {...p} type="date" value={to} min={from} onChange={e => setTo(e.target.value || to)} />}</Field>
+          <Field label={t('fleet.from')}>{p => <DateInput {...p} value={from} max={to} onChange={v => setFrom(v || from)} required />}</Field>
+          <Field label={t('fleet.to')}>{p => <DateInput {...p} value={to} min={from} onChange={v => setTo(v || to)} required />}</Field>
           <Field label={t('fleet.waybill.vehicle')}>
             {p => <Select id={p.id} aria-label={t('fleet.waybill.vehicle')} value={vehicle} onValueChange={setVehicle} options={[{ value: ALL, label: t('fleet.all') }, ...vehicles.map(v => ({ value: v.id, label: v.plate }))]} />}
           </Field>

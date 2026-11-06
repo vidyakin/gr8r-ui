@@ -12,6 +12,7 @@ import { useOrganizations, useDocuments, typeLabel } from '../docs/data';
 import { CounterpartyPicker } from '../docs/pickers';
 import { useIsAdmin } from '../catalog/data';
 import { useCashFlowItems, useRequest, useRequestApi, useRequests } from './data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const TONE = { draft: 'gray', pending: 'amber', approved: 'accent', paid: 'green', rejected: 'red', cancelled: 'neutral' } as const;
@@ -275,8 +276,8 @@ export function RequestPage() {
             />
           )}
         </Field>
-        <Field label={tt('money.common.date')}>{p => <Input {...p} type="date" disabled={!editable} value={date} onChange={e => setDate(e.target.value)} />}</Field>
-        <Field label={tt('money.request.dueDate')}>{p => <Input {...p} type="date" disabled={!editable} value={dueDate} onChange={e => setDueDate(e.target.value)} />}</Field>
+        <Field label={tt('money.common.date')}>{p => <DateInput {...p} disabled={!editable} value={date} onChange={v => setDate(v)} />}</Field>
+        <Field label={tt('money.request.dueDate')}>{p => <DateInput {...p} disabled={!editable} value={dueDate} onChange={v => setDueDate(v)} />}</Field>
         <Field label={tt('money.form.organization')}>
           {p => <Select id={p.id} disabled={!editable || !!detail?.number} value={organizationId} onValueChange={setOrganizationId} options={(orgs.data ?? []).map(o => ({ value: o.id, label: o.name }))} aria-label={tt('money.form.organization')} />}
         </Field>

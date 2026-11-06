@@ -10,6 +10,7 @@ import { useT } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';
 import { SettingsHead, SRow } from './parts';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 export interface PlanRow {
   id: string;
@@ -355,7 +356,7 @@ export function TenantLicenseDialog({ tenant, onClose }: { tenant: { id: string;
                 {p => <Select {...p} value={planId} onValueChange={setPlanId} options={(plans.data?.items ?? []).map(x => ({ value: x.id, label: x.name }))} />}
               </Field>
               <Field label={t('licensing.operator.planExpires')} hint={t('licensing.operator.noExpiry')}>
-                {p => <Input {...p} type="date" value={planExpires} onChange={e => setPlanExpires(e.target.value)} />}
+                {p => <DateInput {...p} value={planExpires} onChange={v => setPlanExpires(v)} />}
               </Field>
               <label className="row" style={{ gap: 6, paddingBottom: 8 }}>
                 <Checkbox checked={isTrial} onChange={e => setIsTrial(e.target.checked)} />
@@ -377,7 +378,7 @@ export function TenantLicenseDialog({ tenant, onClose }: { tenant: { id: string;
                       {g && (
                         <label className="row muted" style={{ gap: 6 }}>
                           {t('licensing.operator.addonExpires')}
-                          <Input type="date" size="sm" value={g.expiresAt} aria-label={t('licensing.operator.addonExpires')} onChange={e => setGrants(list => list.map(x => (x.module === m.id ? { ...x, expiresAt: e.target.value } : x)))} />
+                          <DateInput size="sm" value={g.expiresAt} aria-label={t('licensing.operator.addonExpires')} onChange={v => setGrants(list => list.map(x => (x.module === m.id ? { ...x, expiresAt: v } : x)))} />
                         </label>
                       )}
                     </div>

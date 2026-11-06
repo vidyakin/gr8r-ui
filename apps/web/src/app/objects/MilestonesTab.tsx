@@ -10,6 +10,7 @@ import { fmtAmount, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { fmtDate } from '../lib/dates';
 import { useObjectMilestoneApi, useObjectMilestones, type MilestoneInput, type ObjectMilestone } from './data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const trim = (v: string | null | undefined) => (v == null ? '' : v.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1'));
 
@@ -77,7 +78,7 @@ function MilestoneDialog({ objectId, milestone, onClose }: { objectId: string; m
               />
             )}
           </Field>
-          <Field label={tt('objects.milestones.dueDate')}>{p => <Input {...p} type="date" value={form.dueDate} onChange={e => set('dueDate', e.target.value)} />}</Field>
+          <Field label={tt('objects.milestones.dueDate')}>{p => <DateInput {...p} value={form.dueDate} onChange={v => set('dueDate', v)} />}</Field>
           <Field label={tt('objects.milestones.amountField')}>
             {p => <Input {...p} inputMode="decimal" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value, pct: '' }))} />}
           </Field>

@@ -21,6 +21,7 @@ import {
   type SupplierRatingDPolicy,
   type SupplierRatingRow,
 } from './supplier-rating-data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const LEVEL_TONE: Record<SupplierRatingLevel, Tone> = { A: 'green', B: 'accent', C: 'amber', D: 'red' };
 
@@ -123,11 +124,11 @@ export function SupplierRatingsPage() {
         sort={{ options: columns.filter(c => c.value).map(c => ({ id: c.id, name: c.header })), value: table.sort.id, dir: table.sort.dir, onChange: table.setSort }}
         left={
           <div className="row" style={{ gap: 6, alignItems: 'center' }}>
-            <Input size="sm" type="date" aria-label={t('supplierRating.period.from')} value={from} max={to} onChange={e => e.target.value && setFrom(e.target.value)} style={{ width: 148 }} />
+            <DateInput size="sm" aria-label={t('supplierRating.period.from')} value={from} max={to} onChange={v => v && setFrom(v)} style={{ width: 148 }} required />
             <span className="muted" style={{ fontSize: 13 }}>
               {t('supplierRating.period.to')}
             </span>
-            <Input size="sm" type="date" aria-label={t('supplierRating.period.to')} value={to} min={from} onChange={e => e.target.value && setTo(e.target.value)} style={{ width: 148 }} />
+            <DateInput size="sm" aria-label={t('supplierRating.period.to')} value={to} min={from} onChange={v => v && setTo(v)} style={{ width: 148 }} required />
             <Button size="sm" variant="ghost" onClick={resetPeriod}>
               {t('supplierRating.period.reset')}
             </Button>

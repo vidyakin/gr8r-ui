@@ -8,6 +8,7 @@ import { STATUS_LABEL, STATUS_TONE } from '../docs/data';
 import { useOperations, useOperationRates, usePieceworkApi, usePieceworkOrders, usePieceworkReport, type OperationRow } from './piecework-data';
 import { PieceworkOrderDialog } from './PieceworkOrderDialog';
 import { t, useT } from '@/i18n';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const TABS = [
   { id: 'orders', name: 'piecework.tab.orders' },
@@ -55,8 +56,8 @@ function OrdersTab({ canWrite }: { canWrite: boolean }) {
   return (
     <>
       <div className="row" style={{ gap: 16, padding: '0 var(--gutter) 12px', alignItems: 'flex-end' }}>
-        <Field className="field-row" label={tt('production.common.from')}>{p => <Input {...p} type="date" value={from} onChange={e => setFrom(e.target.value)} />}</Field>
-        <Field className="field-row" label={tt('production.common.to')}>{p => <Input {...p} type="date" value={to} onChange={e => setTo(e.target.value)} />}</Field>
+        <Field className="field-row" label={tt('production.common.from')}>{p => <DateInput {...p} value={from} onChange={v => setFrom(v)} />}</Field>
+        <Field className="field-row" label={tt('production.common.to')}>{p => <DateInput {...p} value={to} onChange={v => setTo(v)} />}</Field>
         <span style={{ flex: 1 }} />
         {canWrite && (
           <Button variant="primary" onClick={() => setOpen('new')}>
@@ -131,8 +132,8 @@ function OutputTab() {
   return (
     <>
       <div className="row" style={{ gap: 16, padding: '0 var(--gutter) 12px' }}>
-        <Field className="field-row" label={tt('production.common.from')}>{p => <Input {...p} type="date" value={from} onChange={e => setFrom(e.target.value)} />}</Field>
-        <Field className="field-row" label={tt('production.common.to')}>{p => <Input {...p} type="date" value={to} onChange={e => setTo(e.target.value)} />}</Field>
+        <Field className="field-row" label={tt('production.common.from')}>{p => <DateInput {...p} value={from} onChange={v => setFrom(v)} />}</Field>
+        <Field className="field-row" label={tt('production.common.to')}>{p => <DateInput {...p} value={to} onChange={v => setTo(v)} />}</Field>
       </div>
       {report.isPending ? (
         <div style={{ padding: 16 }}>
@@ -296,7 +297,7 @@ function RateDialog({ operation, onClose, onSave }: { operation: OperationRow; o
           }}
         >
           <Field label={tt('production.piecework.rates.validFrom')} error={err.validFrom}>
-            {p => <Input {...p} type="date" value={validFrom} onChange={e => (setValidFrom(e.target.value), setErr({}))} />}
+            {p => <DateInput {...p} value={validFrom} onChange={v => (setValidFrom(v), setErr({}))} />}
           </Field>
           <Field label={tt('production.piecework.rates.rate')} error={err.rate} hint={tt('production.piecework.rates.rateHint')}>
             {p => <Input {...p} inputMode="decimal" value={rate} onChange={e => (setRate(e.target.value), setErr({}))} />}

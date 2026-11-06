@@ -12,6 +12,7 @@ import { FleetHead } from '../fleet/parts';
 import { TRIP_TONE, TripDialog, useOverloadText } from './TripDialog';
 import { RoutingSettingsDialog } from './RoutingSettings';
 import { useRouting, useTripApi, useTripSettings, useTrips, type Trip } from './data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const ALL = 'all';
 
@@ -81,8 +82,8 @@ export function TripsPage() {
       />
       <section className="panel plain" style={{ margin: '0 var(--gutter) 16px' }}>
         <div className="row" style={{ gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <Field label={t('trips.from')}>{p => <Input {...p} type="date" value={from} max={to} onChange={e => setFrom(e.target.value || from)} />}</Field>
-          <Field label={t('trips.to')}>{p => <Input {...p} type="date" value={to} min={from} onChange={e => setTo(e.target.value || to)} />}</Field>
+          <Field label={t('trips.from')}>{p => <DateInput {...p} value={from} max={to} onChange={v => setFrom(v || from)} required />}</Field>
+          <Field label={t('trips.to')}>{p => <DateInput {...p} value={to} min={from} onChange={v => setTo(v || to)} required />}</Field>
           <Field label={t('trips.field.vehicle')}>
             {p => <Select id={p.id} aria-label={t('trips.field.vehicle')} value={vehicle} onValueChange={setVehicle} options={[{ value: ALL, label: t('trips.all') }, ...vehicles.map(v => ({ value: v.id, label: v.plate }))]} />}
           </Field>

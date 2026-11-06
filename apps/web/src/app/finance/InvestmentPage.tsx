@@ -34,6 +34,7 @@ import { useCanSeeAmounts, useInvestment, useInvestmentApi, type InvestmentDetai
 import { amount, num, statusTone } from './InvestmentsPage';
 import { PlanFactTab } from './PlanFactTab';
 import { ProjectStatus } from '../components/project';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 type Line = InvestmentInput['lines'][number];
 
@@ -255,7 +256,7 @@ export function InvestmentPage() {
             />
           )}
         </Field>
-        <Field label={tt('finance.field.startDate')}>{p => <Input {...p} type="date" disabled={!planEditable} value={form.startDate} onChange={e => set('startDate', e.target.value)} onBlur={() => set('startDate', start)} />}</Field>
+        <Field label={tt('finance.field.startDate')}>{p => <DateInput {...p} disabled={!planEditable} value={form.startDate} onChange={v => set('startDate', v ? periodStart(v, kind) : v)} />}</Field>
         <Field label={tt('finance.field.periods')}>{p => <Input {...p} inputMode="decimal" disabled={!planEditable} value={String(form.periods)} onChange={e => set('periods', Number(e.target.value.replace(/\D/g, '')) || 0)} />}</Field>
         <Field label={t('money.investment.factBasis')}>
           {p => (

@@ -8,6 +8,7 @@ import { fmtDate } from '../lib/dates';
 import { useCanSeeAmounts as useCanManage } from '../finance/data';
 import { typeLabel, useOrganizations } from '../docs/data';
 import { useBalances, useCashFlowItems, useCashFlowReport, useCashRegisters, useDebtReport, useRefsApi } from './data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const yearStart = () => `${new Date().getFullYear()}-01-01`;
@@ -64,7 +65,7 @@ export function BalancesPage() {
   return (
     <div className="page flush">
       <Head title={tt('money.balances.title')} lead={tt('money.balances.subtitle')}>
-        <Field label={tt('money.common.asOf')}>{p => <Input {...p} type="date" value={asOf} onChange={e => setAsOf(e.target.value)} />}</Field>
+        <Field label={tt('money.common.asOf')}>{p => <DateInput {...p} value={asOf} onChange={v => setAsOf(v)} />}</Field>
       </Head>
       <Loading q={q} />
       {d && !d.cash.length && !d.bank.length ? (
@@ -120,8 +121,8 @@ export function CashFlowPage() {
   return (
     <div className="page flush">
       <Head title={tt('money.cashFlow.title')} lead={tt('money.cashFlow.subtitle')}>
-        <Field label={tt('money.common.from')}>{p => <Input {...p} type="date" value={from} onChange={e => setFrom(e.target.value)} />}</Field>
-        <Field label={tt('money.common.to')}>{p => <Input {...p} type="date" value={to} onChange={e => setTo(e.target.value)} />}</Field>
+        <Field label={tt('money.common.from')}>{p => <DateInput {...p} value={from} onChange={v => setFrom(v)} />}</Field>
+        <Field label={tt('money.common.to')}>{p => <DateInput {...p} value={to} onChange={v => setTo(v)} />}</Field>
         <Field label={tt('money.cashFlow.groupBy')}>
           {p => (
             <Select
@@ -192,7 +193,7 @@ export function DebtsPage({ side }: { side: 'customer' | 'supplier' }) {
   return (
     <div className="page flush">
       <Head title={customer ? tt('money.debts.receivables') : tt('money.debts.payables')} lead={customer ? tt('money.debts.receivablesSubtitle') : tt('money.debts.payablesSubtitle')}>
-        <Field label={tt('money.common.asOf')}>{p => <Input {...p} type="date" value={asOf} onChange={e => setAsOf(e.target.value)} />}</Field>
+        <Field label={tt('money.common.asOf')}>{p => <DateInput {...p} value={asOf} onChange={v => setAsOf(v)} />}</Field>
       </Head>
       <Loading q={q} />
       {d && !d.rows.length ? (

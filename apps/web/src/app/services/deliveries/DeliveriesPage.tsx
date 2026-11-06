@@ -14,6 +14,7 @@ import { openRouteSheet, useCouriers, useDeliveries, useDeliveryMethods, type De
 import { useWsId } from '../../meta/data';
 import { useWorkspace } from '../../data/store';
 import { DeliveryReportTab } from './DeliveryReportTab';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const ALL = 'all';
 const NONE = 'none';
@@ -126,8 +127,8 @@ function DeliveriesList() {
     <>
       <section className="panel plain" style={{ margin: '0 var(--gutter) 16px' }}>
         <div className="row" style={{ gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <Field label={t('delivery.list.from')}>{p => <Input {...p} type="date" value={from} max={to} onChange={e => setFrom(e.target.value || iso(today()))} />}</Field>
-          <Field label={t('delivery.list.to')}>{p => <Input {...p} type="date" value={to} min={from} onChange={e => setTo(e.target.value || from)} />}</Field>
+          <Field label={t('delivery.list.from')}>{p => <DateInput {...p} value={from} max={to} onChange={v => setFrom(v || iso(today()))} required />}</Field>
+          <Field label={t('delivery.list.to')}>{p => <DateInput {...p} value={to} min={from} onChange={v => setTo(v || from)} required />}</Field>
           <Field label={t('delivery.list.courier')}>
             {p => <Select id={p.id} value={courier} onValueChange={setCourier} aria-label={t('delivery.list.courier')} options={[{ value: ALL, label: t('delivery.list.allCouriers') }, ...(courierOptions.length ? courierOptions : members).map(m => ({ value: m.id, label: m.name }))]} />}
           </Field>

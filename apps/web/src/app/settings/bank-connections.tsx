@@ -12,6 +12,7 @@ import { useOrganizations } from '../docs/data';
 import { call, useWsId } from '../meta/data';
 import { useOrgBankAccounts } from '../money/data';
 import { SRow } from './parts';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 type PartKey = 'token' | 'client_id' | 'client_secret' | 'refresh_token' | 'tls_cert' | 'tls_key' | 'shop_id' | 'secret_key';
 
@@ -203,7 +204,7 @@ function AddForm({ onDone }: { onDone: (body: Record<string, unknown>) => Promis
       <Field label={t('secrets.bank.provider')}>
         {p => <Select id={p.id} value={provider} onValueChange={v => setProvider(v as ConnectionProvider)} options={CONNECTION_PROVIDERS.map(v => ({ value: v, label: t(`secrets.bank.providers.${v}`) }))} aria-label={t('secrets.bank.provider')} />}
       </Field>
-      {provider !== 'yookassa' && <Field label={t('secrets.bank.syncFrom')}>{p => <Input {...p} type="date" value={syncFrom} onChange={e => setSyncFrom(e.target.value)} />}</Field>}
+      {provider !== 'yookassa' && <Field label={t('secrets.bank.syncFrom')}>{p => <DateInput {...p} value={syncFrom} onChange={v => setSyncFrom(v)} />}</Field>}
       {provider !== 'yookassa' && (
         <label className="row" style={{ gap: 6, height: 32 }}>
           <input type="checkbox" checked={autoPost} onChange={e => setAutoPost(e.target.checked)} /> {t('secrets.bank.autoPost')}

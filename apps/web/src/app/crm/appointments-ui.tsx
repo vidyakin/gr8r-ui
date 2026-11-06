@@ -10,6 +10,7 @@ import { errorMessage } from '../data/api';
 import { useProducts } from '../catalog/data';
 import { useCrm } from './store';
 import { useApptMutation, useDayBoard, useFreeSlot, useSpecialists, type Appt, type DayColumn } from './appointments-data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 /** Время «09:30» по языку интерфейса */
 export const fmtMin = (m: number) => fmtDateTimeIntl(new Date(2000, 0, 1, Math.floor(m / 60), m % 60), { hour: '2-digit', minute: '2-digit' });
@@ -236,7 +237,7 @@ export function BookDialog({ open, onOpenChange, preset }: { open: boolean; onOp
           </Field>
           <div className="row" style={{ gap: 12, flexWrap: 'wrap' }}>
             <Field label={t('appt.book.specialist')}>{p => <Select id={p.id} value={specialistId} onValueChange={v => { setSpecialistId(v); setStartMin(null); const sp = (specs.data ?? []).find(x => x.memberId === v); if (product && !productFitsSpecialist(product.productKindId, sp?.productKindIds ?? null)) setProductId(''); }} options={specialists.map(s => ({ value: s.memberId, label: s.name }))} placeholder={t('appt.book.pickSpecialist')} aria-label={t('appt.book.specialist')} />}</Field>
-            <Field label={t('appt.book.date')}>{p => <Input {...p} type="date" value={date} onChange={e => { setDate(e.target.value); setStartMin(null); }} />}</Field>
+            <Field label={t('appt.book.date')}>{p => <DateInput {...p} value={date} onChange={v => { setDate(v); setStartMin(null); }} />}</Field>
             <Field label={t('appt.book.time')}>
               {p => <Select id={p.id} value={startMin === null ? '' : String(startMin)} onValueChange={v => setStartMin(Number(v))} options={starts.map(s => ({ value: String(s), label: fmtMin(s) }))} placeholder={col && !starts.length ? t('appt.book.noSlots') : t('appt.book.pickTime')} aria-label={t('appt.book.time')} />}
             </Field>

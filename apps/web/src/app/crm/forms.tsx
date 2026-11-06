@@ -13,6 +13,7 @@ import { newCrmId, useCrm } from './store';
 import type { DealDefaults } from './ui-context';
 import { useMembersWith } from '../positions/data';
 import type { StageId } from './types';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 /** Поле формы: подпись, содержимое и ошибка */
 function FormField({ id, label, error, grow, children }: { id: string; label: string; error?: string; grow?: boolean; children: React.ReactNode }) {
@@ -181,7 +182,7 @@ export function DealFormDialog({ defaults, onClose, onCreated }: { defaults: Dea
           </select>
         </FormField>
         <FormField id="nd-close" label={t('crm.deals.form.fieldCloseDate')} grow>
-          <input type="date" className="input" id="nd-close" value={f.close} onChange={e => e.target.value && set('close', e.target.value)} />
+          <DateInput id="nd-close" value={f.close} onChange={v => v && set('close', v)} required />
         </FormField>
         <FormField id="nd-owner" label={t('crm.deals.form.fieldOwner')} grow>
           <OwnerSelect id="nd-owner" value={f.owner} onChange={v => set('owner', v)} />

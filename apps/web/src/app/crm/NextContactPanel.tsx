@@ -7,6 +7,7 @@ import { useT } from '@/i18n';
 import { fmtDate } from '../lib/dates';
 import { useCrm } from './store';
 import type { Company } from './types';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 export function NextContactPanel({ company: co }: { company: Company }) {
   const t = useT();
@@ -21,7 +22,7 @@ export function NextContactPanel({ company: co }: { company: Company }) {
             {t('repeat.nextContact.date')}
             {co.nextContactDate ? ` · ${fmtDate(co.nextContactDate, true)}` : ` · ${t('repeat.nextContact.none')}`}
           </span>
-          <Input type="date" value={co.nextContactDate ?? ''} onChange={e => dispatch({ type: 'company/update', id: co.id, patch: { nextContactDate: e.target.value } })} aria-label={t('repeat.nextContact.date')} />
+          <DateInput value={co.nextContactDate ?? ''} onChange={v => dispatch({ type: 'company/update', id: co.id, patch: { nextContactDate: v } })} aria-label={t('repeat.nextContact.date')} />
         </label>
         <label className="field" style={{ display: 'grid', gap: 4 }}>
           <span className="muted" style={{ fontSize: 12 }}>{t('repeat.nextContact.note')}</span>

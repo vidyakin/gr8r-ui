@@ -14,6 +14,7 @@ import { useOrganizations, useWarehouses } from '../docs/data';
 import { useCanEditPlan, usePeriodLabel } from './SalesPlanPage';
 import { useMembersWith } from '../positions/data';
 import { usePlan, useSalesPlanMutation, useScenarios, type PlanDetail, type PlanLine } from './sales-plan-data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const NONE = 'none';
 type Row = { id?: string; periodStart: string; value: string; amount: string; qty: string };
@@ -101,7 +102,7 @@ function PlanForm({ plan }: { plan: PlanDetail }) {
           <Field label={tt('repeat.doc.scenario')}>
             {p => <Select id={p.id} value={scenarioId} disabled={!canEdit} onValueChange={onScenario} options={(scenarios.data ?? []).filter(s => !s.archivedAt || s.id === scenarioId).map(s => ({ value: s.id, label: s.name }))} aria-label={tt('repeat.doc.scenario')} />}
           </Field>
-          <Field label={tt('repeat.doc.start')}>{p => <Input {...p} type="date" value={start} disabled={!canEdit} onChange={e => { setStart(e.target.value); setRows([]); }} />}</Field>
+          <Field label={tt('repeat.doc.start')}>{p => <DateInput {...p} value={start} disabled={!canEdit} onChange={v => { setStart(v); setRows([]); }} />}</Field>
           <Field label={tt('repeat.doc.organization')}>
             {p => <Select id={p.id} value={org} disabled={!canEdit} onValueChange={setOrg} options={(orgs.data ?? []).map(o => ({ value: o.id, label: o.name }))} aria-label={tt('repeat.doc.organization')} />}
           </Field>

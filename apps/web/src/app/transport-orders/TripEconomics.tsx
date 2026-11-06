@@ -11,6 +11,7 @@ import { errorMessage } from '../data/api';
 import { useFleetTripCarrier, useFleetTripCosts, useTransportApi, useTripMargin, type FleetTripCarrier } from './data';
 import { openCarrierContract } from './print';
 import { useWsId } from '../meta/data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 /** Блок «наёмный перевозчик, затраты, маржа» в карточке рейса. Показывается только для сохранённого рейса. */
 export function TripEconomics({ tripId, hired }: { tripId: string; hired: boolean }) {
@@ -136,7 +137,7 @@ export function TripEconomics({ tripId, hired }: { tripId: string; hired: boolea
               {p => <Input {...p} value={cf.contractNumber} onChange={e => setCf(s => ({ ...s, contractNumber: e.target.value }))} />}
             </Field>
             <Field label={t('transport.carrier.contractDate')}>
-              {p => <Input {...p} type="date" value={cf.contractDate} onChange={e => setCf(s => ({ ...s, contractDate: e.target.value }))} />}
+              {p => <DateInput {...p} value={cf.contractDate} onChange={v => setCf(s => ({ ...s, contractDate: v }))} />}
             </Field>
           </div>
           <Field label={t('transport.carrier.comment')}>

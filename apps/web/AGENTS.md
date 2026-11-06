@@ -14,11 +14,16 @@
 - `app/data/` — общий слой: `api.ts` (клиент `@gr8r/api/client` на воркспейс, разбор ошибок), `realtime.ts` (WebSocket и инвалидация кэша),
   `store.tsx` + `engine.ts` (состояние задач и проектов: reducer, оптимистичная запись в кэш, отправка разницы в API), `session.tsx`.
 - `components/ui/` — базовый кит (button, dialog, select, menu, floating-window…), экспорт через `index.ts`.
-- `components/gr8r/` — составные: `data-table`, `entity-drawer`, `filter-bar`, `kanban`, `panel`, `task`.
+- `components/gr8r/` — составные: `data-table`, `entity-drawer` (боковая карточка: правка записи, настройки), `filter-bar`, `kanban`, `panel`, `task`,
+  `doc-form`, `date-picker` (`DateInput`), `number-field`.
 - `i18n/` — `t()`, `useT()`, словари `en/*` (источник ключей) и `ru/*`, форматтеры `format.ts`.
 
 ## Правила
 - Сначала искать готовое в `components/ui` и `components/gr8r`, не дублировать.
+- Страница-документ — каркас `DocForm`/`DocHeader` (`components/gr8r/doc-form.tsx`), числа со степпером — `NumberField`.
+- Все поля дат во всех документах, карточках, фильтрах и диалогах — только `DateInput` (`components/gr8r/date-picker.tsx`): календарь проекта
+  с быстрыми датами, `min`/`max`, `size="sm"` для фильтров и строк таблиц, `required` — без кнопки «Очистить». Нативный
+  `<input type="date">` запрещён, сторож — `src/lib/no-native-date.test.ts`.
 - Все тексты — `t('ns.key')`. Новый ключ — в `i18n/en/<ns>.ts` и обязательно в `i18n/ru/<ns>.ts` (иначе ошибка типов).
   Даты, числа, деньги — `fmtNumber`, `fmtCurrency`, `fmtDateTime`… из `i18n/format.ts`, не `toFixed` и не `toLocaleString`.
   Значения `input`, CSV и печать форматтерами не форматируются.
@@ -31,11 +36,12 @@
 
 ## Команды
 - Typecheck: `bun run --filter @gr8r/web typecheck`; сборка `bun run build`.
-- Тесты из корня: `bun test apps/web/src/i18n/i18n.test.ts`, `bun test apps/web/src/lib`, покрытие справки `bun test apps/web/src/i18n/docs-coverage.test.ts` (тесты корня поднимают тестовую БД — задай `TEST_ADMIN_DATABASE_URL` на кластер `./scripts/pgtest.sh`, имя `*_test`).
+- Тесты из корня: `bun test apps/web/src/i18n/i18n.test.ts`, `bun test apps/web/src/lib` (тесты без БД удобнее гонять из `apps/web`: там нет preload корня), покрытие справки `bun test apps/web/src/i18n/docs-coverage.test.ts` (тесты корня поднимают тестовую БД — задай `TEST_ADMIN_DATABASE_URL` на кластер `./scripts/pgtest.sh`, имя `*_test`).
 - Запуск: `bun run dev` из корня (api + worker + web), вход `demo@gr8r.dev` / `demo1234`.
 
 ## Частые ошибки
 - Строка в JSX без `t()` или ключ только в `en`.
+- Нативный `<Input type="date">` вместо `DateInput` — падает `src/lib/no-native-date.test.ts`.
 - Свой форматтер числа через `toFixed` вместо `i18n/format.ts`.
 - Новый раздел добавлен в роутер, но не в `SECTIONS` — нет в навигации и крошках.
 - Экран изменён, а статья в `docs/user/` и её `verified` нет — `bun run docs:check` покажет её устаревшей.

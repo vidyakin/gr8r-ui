@@ -18,6 +18,7 @@ import { needsKey, useProductionNeeds, type NeedsRow as ProductionNeedsRow, type
 import { calcKey, useNeedsCalculation, useNeedsDraftsApi, type NeedsCalcParams, type NeedsCalcRow } from './plans-data';
 import { tEnum, tProductionEnum, useT } from '@/i18n';
 import { NumberField } from '@/components/gr8r/number-field';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 type Step = 'recommendations' | 'planning' | 'orders';
 const STEPS: { id: Step; name: string }[] = [
@@ -217,7 +218,7 @@ export function ProductionNeedsPage() {
             </label>
             <label className="field" style={{ maxWidth: 160 }}>
               <span className="label">{tt('production.needs.from')}</span>
-              <input className="inp" type="date" aria-label={tt('production.needs.from')} value={from} onChange={e => { setFrom(e.target.value); set({ from: e.target.value }); }} />
+              <DateInput aria-label={tt('production.needs.from')} value={from} onChange={v => { setFrom(v); set({ from: v }); }} size="sm" />
             </label>
             <label className="field" style={{ maxWidth: 180 }}>
               <span className="label">{tt('production.needs.warehouseLabel')}</span>
@@ -341,7 +342,7 @@ export function ProductionNeedsPage() {
                           <td className="num muted">
                             {step === 'planning' && canWrite ? (
                               // дата поступления: правится, но не раньше «сегодня + срок»
-                              <input className="inp" type="date" aria-label={tt('production.needs.dateFor', { name: r.productName })} min={earliestDate(r, modeOf(r))} value={dateOf(r)} onChange={e => edit(r, { date: e.target.value })} />
+                              <DateInput aria-label={tt('production.needs.dateFor', { name: r.productName })} min={earliestDate(r, modeOf(r))} value={dateOf(r)} onChange={v => edit(r, { date: v })} size="sm" />
                             ) : r.dueDate ? (
                               fmtDate(parse(r.dueDate))
                             ) : (

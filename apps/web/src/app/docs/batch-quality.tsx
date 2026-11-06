@@ -6,6 +6,7 @@ import { Badge, Button, Dialog, DialogClose, DialogContent, EmptyState, Field, I
 import { useT } from '@/i18n';
 import { fmtDate, parse } from '../lib/dates';
 import { useBatchAnalyses, useBatchQualityApi, useCanEditBatches } from './data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const STATUS_TONE: Record<BatchStatus, Tone> = { ok: 'green', quarantine: 'amber', rejected: 'red' };
 
@@ -151,7 +152,7 @@ export function BatchQualityDialog({ batch, onClose }: { batch: { batchId: strin
                 )}
               </Field>
               <Field label={t('batches.quality.date')} className="grow">
-                {p => <Input {...p} type="date" value={date} onChange={e => setDate(e.target.value)} />}
+                {p => <DateInput {...p} value={date} onChange={v => setDate(v)} />}
               </Field>
               <Button variant="primary" type="submit" disabled={busy}>
                 {t('batches.quality.add')}

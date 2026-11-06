@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Link } from 'react-router';
 import { Phone, Printer, Truck } from 'lucide-react';
-import { Button, Dialog, DialogContent, EmptyState, Field, Input, Skeleton, Textarea, toast, Badge } from '@/components/ui';
+import { Button, Dialog, DialogContent, EmptyState, Field, Skeleton, Textarea, toast, Badge } from '@/components/ui';
 import { fmtAmount, useT } from '@/i18n';
 import { iso, today } from '../../lib/dates';
 import { useDocsApi } from '../../docs/data';
@@ -12,6 +12,7 @@ import { DELIVERY_TONE } from '../../docs/DeliveryTab';
 import { openRouteSheet, useMyDeliveries, type DeliveryItem } from '../../docs/delivery-data';
 import { useWsId } from '../../meta/data';
 import { dec, fmt } from '@gr8r/shared';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 export function MyDeliveriesPage() {
   const t = useT();
@@ -39,7 +40,7 @@ export function MyDeliveriesPage() {
         </div>
       </div>
       <div className="row" style={{ gap: 8, alignItems: 'flex-end', marginBottom: 12 }}>
-        <Field label={t('delivery.mine.date')}>{p => <Input {...p} type="date" value={date} onChange={e => setDate(e.target.value || iso(today()))} />}</Field>
+        <Field label={t('delivery.mine.date')}>{p => <DateInput {...p} value={date} onChange={v => setDate(v || iso(today()))} required />}</Field>
         <Button size="sm" variant="ghost" disabled={!items.length} onClick={() => openRouteSheet(ws, null, date).catch(e => toast.error(String(e instanceof Error ? e.message : e)))}>
           <Printer size={13} />
           {t('delivery.mine.print')}

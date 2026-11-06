@@ -34,6 +34,7 @@ import { ReportPanel } from './ReportPanel';
 import { useObjectReportSchedule, type ReportSchedule } from './report-data';
 import type { ObjectListItem } from './data';
 import { usePrintOpener } from '../money/data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const blank = (): ObjectInput => ({ number: '', name: '', customerId: null, address: '', startDate: today(), dueDate: null, status: 'planning', managerId: null, revenueMode: 'acts', overheadPct: '', customerHourRate: '', budgetPolicy: 'warn', progressMode: 'tasks_closed', progressManual: '', projectId: null, warehouseId: null, note: '', foremen: [], contracts: [] });
@@ -220,8 +221,8 @@ export function ObjectPage() {
             />
           )}
         </Field>
-        <Field label={tt('objects.field.startDate')}>{p => <Input {...p} type="date" disabled={!editable} value={form.startDate ?? ''} onChange={e => set('startDate', e.target.value || null)} />}</Field>
-        <Field label={tt('objects.field.dueDate')}>{p => <Input {...p} type="date" disabled={!editable} value={form.dueDate ?? ''} onChange={e => set('dueDate', e.target.value || null)} />}</Field>
+        <Field label={tt('objects.field.startDate')}>{p => <DateInput {...p} disabled={!editable} value={form.startDate ?? ''} onChange={v => set('startDate', v || null)} required />}</Field>
+        <Field label={tt('objects.field.dueDate')}>{p => <DateInput {...p} disabled={!editable} value={form.dueDate ?? ''} onChange={v => set('dueDate', v || null)} required />}</Field>
         <Field label={tt('objects.field.revenueMode')}>
           {p => (
             <Select

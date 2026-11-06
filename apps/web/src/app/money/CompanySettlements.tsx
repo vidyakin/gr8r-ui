@@ -2,13 +2,14 @@
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, Printer, Wallet } from 'lucide-react';
-import { Button, EmptyState, Field, Input, Select, toast } from '@/components/ui';
+import { Button, EmptyState, Field, Select, toast } from '@/components/ui';
 import { fmtAmount, useT } from '@/i18n';
 import { API_BASE, errorMessage } from '../data/api';
 import { fmtDate } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';
 import { call, useWsId } from '../meta/data';
 import { moneyKey, usePrintOpener, useSettlementCard } from './data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -78,8 +79,8 @@ export function CompanySettlementsTab({ companyId }: { companyId: string }) {
             />
           )}
         </Field>
-        <Field label={tt('money.common.from')}>{p => <Input {...p} type="date" value={from} onChange={e => setFrom(e.target.value)} />}</Field>
-        <Field label={tt('money.common.to')}>{p => <Input {...p} type="date" value={to} onChange={e => setTo(e.target.value)} />}</Field>
+        <Field label={tt('money.common.from')}>{p => <DateInput {...p} value={from} onChange={v => setFrom(v)} />}</Field>
+        <Field label={tt('money.common.to')}>{p => <DateInput {...p} value={to} onChange={v => setTo(v)} />}</Field>
       </div>
       {card.data && !card.data.sides.length && <EmptyState icon={<Wallet size={20} />} title={tt('money.card.empty')} />}
       {card.data?.sides.map(s => (

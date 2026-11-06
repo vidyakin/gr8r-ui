@@ -24,6 +24,7 @@ import {
   type LoyaltyCard,
   type PromoCode,
 } from './data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 function useRun() {
   const [busy, setBusy] = React.useState(false);
@@ -207,8 +208,8 @@ function RuleDialog({ rule, onClose }: { rule: DiscountRule | null; onClose: () 
             <Checkbox checked={promoOnly} onChange={e => setPromoOnly(e.target.checked)} /> {t('loyalty.rules.promoOnly')}
           </label>
           <div className="row" style={{ gap: 8 }}>
-            <Field label={t('loyalty.rules.validFrom')}>{p => <Input {...p} type="date" value={validFrom} onChange={e => setValidFrom(e.target.value)} />}</Field>
-            <Field label={t('loyalty.rules.validTo')}>{p => <Input {...p} type="date" value={validTo} onChange={e => setValidTo(e.target.value)} />}</Field>
+            <Field label={t('loyalty.rules.validFrom')}>{p => <DateInput {...p} value={validFrom} onChange={v => setValidFrom(v)} />}</Field>
+            <Field label={t('loyalty.rules.validTo')}>{p => <DateInput {...p} value={validTo} onChange={v => setValidTo(v)} />}</Field>
           </div>
           <Field label={t('loyalty.rules.weekdays')} hint={weekdays.length ? undefined : t('loyalty.any')}>
             {() => (
@@ -423,8 +424,8 @@ function PromoDialog({ promo, batch, onClose }: { promo: PromoCode | null; batch
             {p => <Select id={p.id} value={ruleId} onValueChange={setRuleId} placeholder={t('loyalty.promo.pickRule')} options={(rules.data ?? []).map(r => ({ value: r.id, label: r.name }))} />}
           </Field>
           <div className="row" style={{ gap: 8 }}>
-            <Field label={t('loyalty.promo.validFrom')}>{p => <Input {...p} type="date" value={validFrom} onChange={e => setValidFrom(e.target.value)} />}</Field>
-            <Field label={t('loyalty.promo.validTo')}>{p => <Input {...p} type="date" value={validTo} onChange={e => setValidTo(e.target.value)} />}</Field>
+            <Field label={t('loyalty.promo.validFrom')}>{p => <DateInput {...p} value={validFrom} onChange={v => setValidFrom(v)} />}</Field>
+            <Field label={t('loyalty.promo.validTo')}>{p => <DateInput {...p} value={validTo} onChange={v => setValidTo(v)} />}</Field>
           </div>
           <Field label={t('loyalty.promo.limit')} hint={t('loyalty.promo.limitHint')}>{p => <Input {...p} inputMode="numeric" value={limit} onChange={e => setLimit(e.target.value)} />}</Field>
         </div>

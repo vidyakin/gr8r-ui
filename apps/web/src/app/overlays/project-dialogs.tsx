@@ -9,6 +9,7 @@ import type { Project, ProjectColor, SavedView } from '../data/types';
 import { NamedIcon } from '../components/icons';
 import { MemberAvatar } from '../components/workspace';
 import { Modal, ModalTitle } from './modal-shell';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 /* ---------- проект: создание и настройки ---------- */
 
@@ -146,7 +147,7 @@ export function ProjectDialog({ edit, initial, onSubmit, onClose }: { edit?: Pro
             <label className="label" htmlFor="p-due">
               {t('overlays.projectDialog.dueLabel')}
             </label>
-            <input type="date" className="input" id="p-due" value={f.due || ''} onChange={e => set('due', e.target.value)} />
+            <DateInput id="p-due" value={f.due || ''} onChange={v => set('due', v)} />
           </div>
         </div>
         {!edit && (

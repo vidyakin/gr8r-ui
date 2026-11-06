@@ -15,6 +15,7 @@ import { CounterpartyPicker } from '../docs/pickers';
 import { useBankAccounts } from '../docs/data';
 import { useCashFlowItems, useCashRegisters, usePayment, usePaymentApi, type PaymentBody } from './data';
 import { ObjectSelect, useObjectFieldVisible } from '../objects/fields';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 interface Line {
   id: string;
@@ -245,7 +246,7 @@ export function PaymentPage() {
             )}
           </Field>
         )}
-        <Field label={tt('money.common.date')}>{p => <Input {...p} type="date" disabled={!editable} value={date} onChange={e => setDate(e.target.value)} />}</Field>
+        <Field label={tt('money.common.date')}>{p => <DateInput {...p} disabled={!editable} value={date} onChange={v => setDate(v)} />}</Field>
         <Field label={tt('money.form.organization')}>
           {p => (
             <Select id={p.id} disabled={!editable || !!detail?.number} value={organizationId} onValueChange={setOrganizationId} options={(orgs.data ?? []).map(o => ({ value: o.id, label: o.name }))} aria-label={tt('money.form.organization')} />

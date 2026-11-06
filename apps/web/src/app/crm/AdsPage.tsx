@@ -11,6 +11,7 @@ import { dOff, fmtDate, iso } from '../lib/dates';
 import { ReportState } from '../production/reports/shared';
 import { StatusBadge } from '../leads/StatusBadge';
 import { useAdApi, useAdCampaigns, useAdExpenses, useAdReport, useLeadSources, type AdCampaign, type AdGroupBy, type AdReportRow } from './ad-data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 export function AdsPage() {
   const t = useT();
@@ -75,9 +76,9 @@ function ReportTab() {
   return (
     <>
       <div className="toolbar" style={{ margin: '0 var(--gutter)', gap: 8, flexWrap: 'wrap' }}>
-        <Input type="date" aria-label={t('ads.report.from')} value={from} max={to} onChange={e => e.target.value && setFrom(e.target.value)} style={{ width: 150 }} />
+        <DateInput aria-label={t('ads.report.from')} value={from} max={to} onChange={v => v && setFrom(v)} style={{ width: 150 }} required />
         <span className="faint">—</span>
-        <Input type="date" aria-label={t('ads.report.to')} value={to} min={from} onChange={e => e.target.value && setTo(e.target.value)} style={{ width: 150 }} />
+        <DateInput aria-label={t('ads.report.to')} value={to} min={from} onChange={v => v && setTo(v)} style={{ width: 150 }} required />
         <Select size="sm" aria-label={t('ads.report.groupBy')} value={groupBy} onValueChange={v => setGroupBy(v as AdGroupBy)} options={[{ value: 'source', label: t('ads.report.bySource') }, { value: 'campaign', label: t('ads.report.byCampaign') }, { value: 'referrer', label: t('ads.report.byReferrer') }]} />
       </div>
       <ReportState q={q} isEmpty={d => !d.rows.length}>
@@ -242,7 +243,7 @@ function Expenses({ campaign, canEdit }: { campaign: AdCampaign; canEdit: boolea
       )}
       {canEdit && (
         <div className="row" style={{ gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <Field label={t('ads.expense.date')}>{p => <Input {...p} type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)} style={{ width: 150 }} />}</Field>
+          <Field label={t('ads.expense.date')}>{p => <DateInput {...p} value={date} onChange={v => v && setDate(v)} style={{ width: 150 }} required />}</Field>
           <Field label={t('ads.expense.amount')}>{p => <Input {...p} inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} style={{ width: 130 }} />}</Field>
           <Field label={t('ads.expense.comment')}>{p => <Input {...p} maxLength={1000} value={comment} onChange={e => setComment(e.target.value)} style={{ width: 240 }} />}</Field>
           <Button size="sm" disabled={!valid} onClick={() => void add()}>
@@ -300,8 +301,8 @@ function CampaignDialog({ campaign, onClose }: { campaign: AdCampaign | null; on
           <Field label={t('ads.col.source')}>{p => <Select {...p} value={f.sourceId} onValueChange={v => set({ sourceId: v })} options={sources.map(s => ({ value: s.id, label: s.name }))} />}</Field>
           <Field label={t('ads.campaign.utm')} hint={t('ads.campaign.utmHint')}>{p => <Input {...p} maxLength={200} value={f.utmCampaign} onChange={e => set({ utmCampaign: e.target.value })} />}</Field>
           <Field label={t('ads.campaign.budget')}>{p => <Input {...p} inputMode="decimal" value={f.budget} onChange={e => set({ budget: e.target.value })} />}</Field>
-          <Field label={t('ads.campaign.start')}>{p => <Input {...p} type="date" value={f.startDate} onChange={e => set({ startDate: e.target.value })} />}</Field>
-          <Field label={t('ads.campaign.end')}>{p => <Input {...p} type="date" value={f.endDate} onChange={e => set({ endDate: e.target.value })} />}</Field>
+          <Field label={t('ads.campaign.start')}>{p => <DateInput {...p} value={f.startDate} onChange={v => set({ startDate: v })} />}</Field>
+          <Field label={t('ads.campaign.end')}>{p => <DateInput {...p} value={f.endDate} onChange={v => set({ endDate: v })} />}</Field>
         </div>
         <Field label={t('ads.campaign.comment')}>{p => <Textarea {...p} rows={2} maxLength={5000} value={f.comment} onChange={e => set({ comment: e.target.value })} />}</Field>
       </DialogContent>

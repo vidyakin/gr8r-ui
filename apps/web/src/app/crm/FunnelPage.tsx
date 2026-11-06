@@ -7,6 +7,7 @@ import { dOff, iso, today } from '../lib/dates';
 import { ReportState } from '../production/reports/shared';
 import { colorVar } from './stages';
 import { useFunnel, usePipelines } from './pipelines';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 export function FunnelPage() {
   const t = useT();
@@ -31,11 +32,11 @@ export function FunnelPage() {
         <Select value={active?.id ?? ''} aria-label={t('crm.pipelines.pipeline')} onValueChange={setPipelineId} options={list.map(p => ({ value: p.id, label: p.name }))} />
         <label className="row" style={{ gap: 6, fontSize: 13 }}>
           {t('crm.funnel.from')}
-          <input type="date" className="input" value={from} max={to} onChange={e => e.target.value && setFrom(e.target.value)} />
+          <DateInput value={from} max={to} onChange={v => v && setFrom(v)} required />
         </label>
         <label className="row" style={{ gap: 6, fontSize: 13 }}>
           {t('crm.funnel.to')}
-          <input type="date" className="input" value={to} min={from} onChange={e => e.target.value && setTo(e.target.value)} />
+          <DateInput value={to} min={from} onChange={v => v && setTo(v)} required />
         </label>
       </div>
       <ReportState q={q} isEmpty={d => !d.totals.deals}>

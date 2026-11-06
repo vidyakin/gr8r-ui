@@ -13,6 +13,7 @@ import { fmtDate } from '../lib/dates';
 import { useEntities, searchRefs, useRefTitle, useWsId, type MetaField } from './data';
 import { entityIcon } from './icons';
 import { fmtCurrency, fmtDateTime, fmtNumber } from '@/i18n';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 export const FIELD_ICONS: Record<FieldType, LucideIcon> = {
   text: TextCursorInput,
@@ -322,7 +323,7 @@ export function FieldInput({ field: f, value, onChange, live, id, invalid }: Fie
         <Draft value={str} live={live} onCommit={v => onChange(clear(v))} render={p => <Textarea id={id} rows={3} aria-label={f.name} invalid={invalid} {...(p as React.ComponentProps<'textarea'>)} />} />
       );
     case 'date':
-      return <input type="date" className="input" id={id} aria-label={f.name} aria-invalid={invalid || undefined} value={str} onChange={e => onChange(clear(e.target.value))} />;
+      return <DateInput id={id} aria-label={f.name} invalid={invalid} value={str} onChange={v => onChange(clear(v))} />;
     case 'datetime':
       return (
         <input

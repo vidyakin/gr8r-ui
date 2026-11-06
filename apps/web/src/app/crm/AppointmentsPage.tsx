@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { CalendarCheck, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { addDaysIso, weekStartOf } from '@gr8r/shared';
-import { Badge, Button, EmptyState, Field, Input, Select, Skeleton, toast } from '@/components/ui';
+import { Badge, Button, EmptyState, Field, Select, Skeleton, toast } from '@/components/ui';
 import { fmtDateTimeIntl, useT, weekdayShort } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { errorMessage } from '../data/api';
@@ -16,6 +16,7 @@ import { ScheduleEditor } from './ScheduleEditor';
 import { ApptDialog, BookDialog, Board, isoToday, type BoardCol, type BookPreset } from './appointments-ui';
 import { useMembersWith } from '../positions/data';
 import { useApptMutation, useDayBoard, useSpecialists, useUnclosedDays, useWeekBoard, type Appt, type DayDoc } from './appointments-data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const TABS = ['day', 'week', 'unclosed', 'schedules'] as const;
 type Tab = (typeof TABS)[number];
@@ -85,7 +86,7 @@ function DateNav({ date, setDate, step, children }: { date: string; setDate: (d:
     <div className="row" style={{ gap: 8, padding: '12px var(--gutter) 10px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
       {children && <div style={{ marginRight: 8 }}>{children}</div>}
       <Button size="sm" variant="ghost" aria-label={t('appt.board.prev')} onClick={() => setDate(addDaysIso(date, -step))}><ChevronLeft size={14} /></Button>
-      <Input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)} aria-label={t('appt.book.date')} style={{ width: 160 }} />
+      <DateInput value={date} onChange={v => v && setDate(v)} aria-label={t('appt.book.date')} style={{ width: 160 }} required />
       <Button size="sm" variant="ghost" aria-label={t('appt.board.next')} onClick={() => setDate(addDaysIso(date, step))}><ChevronRight size={14} /></Button>
       <Button size="sm" onClick={() => setDate(isoToday())}>{t('appt.board.today')}</Button>
     </div>

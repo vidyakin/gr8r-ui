@@ -16,7 +16,10 @@ export function DateInput({
   disabled,
   placeholder,
   invalid,
+  min,
   max,
+  size,
+  required,
   id,
   'aria-label': ariaLabel,
   'aria-describedby': ariaDescribedBy,
@@ -28,8 +31,14 @@ export function DateInput({
   disabled?: boolean;
   placeholder?: string;
   invalid?: boolean;
+  /** Запретить даты раньше указанной */
+  min?: string;
   /** Запретить даты позже указанной (включительно с ней) */
   max?: string;
+  /** Размер как у Input: sm — для фильтров и строк таблиц */
+  size?: 'sm' | 'md';
+  /** Обязательное поле: без кнопки «Очистить» (фильтры периода, дата документа) */
+  required?: boolean;
   id?: string;
   'aria-label'?: string;
   'aria-describedby'?: string;
@@ -55,7 +64,7 @@ export function DateInput({
           type="button"
           id={id}
           disabled={disabled}
-          className={cn('input', invalid && 'is-error', className)}
+          className={cn('input', size === 'sm' && 'search-sm w-full', invalid && 'is-error', className)}
           style={style}
           aria-label={ariaLabel}
           aria-describedby={ariaDescribedBy}
@@ -70,7 +79,7 @@ export function DateInput({
               {q.label}
             </button>
           ))}
-          {value && (
+          {value && !required && (
             <button type="button" className="badge" style={{ color: 'var(--red)' }} onClick={() => set(null)}>
               {tt('views.field.clear')}
             </button>
@@ -83,7 +92,7 @@ export function DateInput({
           weekStartsOn={weekStartsOn()}
           selected={value ? parse(value) : undefined}
           defaultMonth={value ? parse(value) : undefined}
-          disabled={max ? { after: parse(max) } : undefined}
+          disabled={min || max ? [...(min ? [{ before: parse(min) }] : []), ...(max ? [{ after: parse(max) }] : [])] : undefined}
           onSelect={d => d && set(iso(d))}
         />
       </PopoverContent>

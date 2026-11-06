@@ -12,6 +12,7 @@ import { typeLabel, useDocuments, useOrganizations } from '../docs/data';
 import { CounterpartyPicker } from '../docs/pickers';
 import { useCanWrite } from '../meta/custom-fields';
 import { useBankImportApi, useCashFlowItems, useOrgBankAccounts, type BankImportPreview, type BankImportResult, type BankImportRow } from './data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const OPERATIONS = { in: ['from_customer', 'supplier_refund', 'other_income'], out: ['to_supplier', 'customer_refund', 'other_expense'] } as const;
 const isOther = (op: string | null) => op === 'other_income' || op === 'other_expense';
@@ -312,8 +313,8 @@ function OrdersExport() {
         <Field label={tt('money.form.bankAccount')}>
           {p => <Select id={p.id} value={account} onValueChange={setAccountId} options={(accounts.data ?? []).map(b => ({ value: b.id, label: `${b.bankName} · ${b.account}` }))} aria-label={tt('money.form.bankAccount')} />}
         </Field>
-        <Field label={tt('money.common.from')}>{p => <Input {...p} type="date" value={from} onChange={e => setFrom(e.target.value)} />}</Field>
-        <Field label={tt('money.common.to')}>{p => <Input {...p} type="date" value={to} onChange={e => setTo(e.target.value)} />}</Field>
+        <Field label={tt('money.common.from')}>{p => <DateInput {...p} value={from} onChange={v => setFrom(v)} />}</Field>
+        <Field label={tt('money.common.to')}>{p => <DateInput {...p} value={to} onChange={v => setTo(v)} />}</Field>
         <Button
           disabled={!account}
           onClick={() =>

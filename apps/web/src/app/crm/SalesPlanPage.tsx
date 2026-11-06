@@ -15,6 +15,7 @@ import { BarChart, type BarGroup } from '../production/reports/BarChart';
 import { ReportTable, type GroupLevel, type ReportColumn } from '../production/reports/ReportTable';
 import { ChartPanel, ReportState } from '../production/reports/shared';
 import { useAnalysis, usePlans, useSalesPlanMutation, useScenarios, type PlanDetail, type PlanFactCell, type Periodicity, type SalesPlanDimension, type Scenario } from './sales-plan-data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const ALL = 'all';
 
@@ -254,8 +255,8 @@ function AnalysisTab() {
           <Field label={tt('repeat.fact.scenario')}>
             {p => <Select id={p.id} value={sid} onValueChange={setScenarioId} options={list.map(s => ({ value: s.id, label: s.name }))} placeholder={tt('repeat.fact.pickScenario')} aria-label={tt('repeat.fact.scenario')} />}
           </Field>
-          <Field label={tt('repeat.fact.from')}>{p => <Input {...p} type="date" value={from} max={to} onChange={e => setFrom(e.target.value || from)} />}</Field>
-          <Field label={tt('repeat.fact.to')}>{p => <Input {...p} type="date" value={to} min={from} onChange={e => setTo(e.target.value || to)} />}</Field>
+          <Field label={tt('repeat.fact.from')}>{p => <DateInput {...p} value={from} max={to} onChange={v => setFrom(v || from)} required />}</Field>
+          <Field label={tt('repeat.fact.to')}>{p => <DateInput {...p} value={to} min={from} onChange={v => setTo(v || to)} required />}</Field>
           <Field label={tt('repeat.fact.warehouse')}>
             {p => <Select id={p.id} value={warehouse} onValueChange={setWarehouse} options={[{ value: ALL, label: tt('repeat.fact.all') }, ...(whs.data ?? []).map(w => ({ value: w.id, label: w.name }))]} aria-label={tt('repeat.fact.warehouse')} />}
           </Field>

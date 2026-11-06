@@ -2,7 +2,7 @@
    перерасход против нормы) — затраты видят admin и owner. */
 import * as React from 'react';
 import { Link } from 'react-router';
-import { Badge, Field, Input, Skeleton } from '@/components/ui';
+import { Badge, Field, Skeleton } from '@/components/ui';
 import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
 import { fmtAmount, fmtNumber, useT } from '@/i18n';
 import { iso, today, fmtDate, parse } from '../lib/dates';
@@ -10,6 +10,7 @@ import { useIsAdmin } from '../catalog/data';
 import { SECTIONS } from '../routes';
 import { useFleetCosts, useFleetDocs, useFleetSummary, useServicePlans, type VehicleCost } from './data';
 import { FleetHead, TermBadge } from './parts';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 function Stat({ label, value, tone, to }: { label: string; value: number; tone?: 'red' | 'amber'; to: string }) {
   return (
@@ -86,8 +87,8 @@ export function FleetPage() {
           <section className="panel plain" style={{ margin: '0 var(--gutter) 16px' }}>
             <div className="row" style={{ gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <h2 style={{ margin: 0 }}>{t('fleet.costs.title')}</h2>
-              <Field label={t('fleet.from')}>{p => <Input {...p} type="date" value={from} max={to} onChange={e => setFrom(e.target.value || from)} />}</Field>
-              <Field label={t('fleet.to')}>{p => <Input {...p} type="date" value={to} min={from} onChange={e => setTo(e.target.value || to)} />}</Field>
+              <Field label={t('fleet.from')}>{p => <DateInput {...p} value={from} max={to} onChange={v => setFrom(v || from)} required />}</Field>
+              <Field label={t('fleet.to')}>{p => <DateInput {...p} value={to} min={from} onChange={v => setTo(v || to)} required />}</Field>
             </div>
             <p className="faint" style={{ fontSize: 12, margin: '8px 0 0' }}>{t('fleet.costs.hint')}</p>
           </section>

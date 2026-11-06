@@ -21,6 +21,7 @@ import {
   type SubcontractAmounts,
   type SubcontractSummary,
 } from './subcontract-data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const monthStart = (d: string) => `${d.slice(0, 7)}-01`;
@@ -231,9 +232,9 @@ function SubActDialog({ objectId, orders, onClose }: { objectId: string; orders:
             <Field label={tt('objects.subcontract.docNumber')}>
               {p => <Input {...p} value={docNumber} onChange={e => setDocNumber(e.target.value)} />}
             </Field>
-            <Field label={tt('objects.subcontract.docDate')}>{p => <Input {...p} type="date" value={docDate} onChange={e => setDocDate(e.target.value || today())} />}</Field>
-            <Field label={tt('objects.subcontract.periodFrom')}>{p => <Input {...p} type="date" value={periodFrom} onChange={e => setPeriodFrom(e.target.value || monthStart(today()))} />}</Field>
-            <Field label={tt('objects.subcontract.periodTo')}>{p => <Input {...p} type="date" value={periodTo} onChange={e => setPeriodTo(e.target.value || today())} />}</Field>
+            <Field label={tt('objects.subcontract.docDate')}>{p => <DateInput {...p} value={docDate} onChange={v => setDocDate(v || today())} required />}</Field>
+            <Field label={tt('objects.subcontract.periodFrom')}>{p => <DateInput {...p} value={periodFrom} onChange={v => setPeriodFrom(v || monthStart(today()))} required />}</Field>
+            <Field label={tt('objects.subcontract.periodTo')}>{p => <DateInput {...p} value={periodTo} onChange={v => setPeriodTo(v || today())} required />}</Field>
           </div>
           {error && (
             <p className="faint" style={{ color: 'var(--red)' }}>

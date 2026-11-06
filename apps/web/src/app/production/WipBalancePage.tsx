@@ -4,11 +4,12 @@
 import * as React from 'react';
 import { Link } from 'react-router';
 import { CircleAlert, Layers } from 'lucide-react';
-import { Alert, Button, EmptyState, Field, Input, Select, Skeleton } from '@/components/ui';
+import { Alert, Button, EmptyState, Field, Select, Skeleton } from '@/components/ui';
 import { fmtAmount, fmtNumber, useT } from '@/i18n';
 import { fmtDate } from '../lib/dates';
 import { useSnapshot } from './data';
 import { useWipBalance } from './wip-data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const ALL = 'all';
 const today = () => new Date().toISOString().slice(0, 10);
@@ -35,7 +36,7 @@ export function WipBalancePage() {
 
       <section className="panel plain" style={{ margin: '0 var(--gutter) 16px' }}>
         <div className="row" style={{ gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <Field label={tt('production.wip.date')}>{p => <Input {...p} type="date" value={date} onChange={e => setDate(e.target.value || today())} />}</Field>
+          <Field label={tt('production.wip.date')}>{p => <DateInput {...p} value={date} onChange={v => setDate(v || today())} required />}</Field>
           <Field label={tt('production.wip.workCenter')}>
             {p => (
               <Select

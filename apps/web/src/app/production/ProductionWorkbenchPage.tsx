@@ -8,6 +8,7 @@ import { useCanWrite } from '../meta/custom-fields';
 import { STATE_LABEL, STATE_TONE } from './orders-data';
 import { useWorkbench, useWorkbenchExecute, type WorkbenchMode, type WorkbenchOrder, type WorkbenchRow } from './workbench-data';
 import { tProductionEnum, useT } from '@/i18n';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 /** Состояние этапа строки: отмечен ли и сколько выпустить */
 interface StageState {
@@ -136,7 +137,7 @@ export function ProductionWorkbenchPage() {
               { value: 'extended', label: tt('production.workbench.mode.extended') },
             ]}
           />
-          <Input aria-label={tt('production.workbench.date')} type="date" value={date} onChange={e => setDate(e.target.value)} style={{ width: 150 }} />
+          <DateInput aria-label={tt('production.workbench.date')} value={date} onChange={v => setDate(v)} style={{ width: 150 }} />
           <Button onClick={() => void list.refetch()} title={tt('production.common.refresh')}>
             <RefreshCw size={14} />
           </Button>
@@ -236,7 +237,7 @@ export function ProductionWorkbenchPage() {
                 )}
               </Field>
               <Field label={tt('production.workbench.panel.plannedUntil')} hint={tt('production.workbench.panel.plannedUntilHint')}>
-                {p => <Input {...p} type="date" value={to} onChange={e => setTo(e.target.value)} />}
+                {p => <DateInput {...p} value={to} onChange={v => setTo(v)} />}
               </Field>
               <Field label={tt('production.workbench.panel.defaultCenter')} hint={tt('production.workbench.panel.defaultCenterHint')}>
                 {p => (

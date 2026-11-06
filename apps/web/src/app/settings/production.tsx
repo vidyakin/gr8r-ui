@@ -2,12 +2,13 @@
 import * as React from 'react';
 import { Link } from 'react-router';
 import { MATERIAL_PRICE_SOURCES, WASTE_PRICE_SOURCES, type MaterialPriceSource, type WastePriceSource } from '@gr8r/shared';
-import { Alert, Button, Field, Input, Radio, Skeleton, toast } from '@/components/ui';
+import { Alert, Button, Field, Radio, Skeleton, toast } from '@/components/ui';
 import { useIsAdmin } from '../catalog/data';
 import { useProductionApi, useSnapshot } from '../production/data';
 import { usePeriods, usePeriodSettings } from '../production/closing-data';
 import { SettingsHead, Toggle } from './parts';
 import { useT } from '@/i18n';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 export function ProductionSection({ title }: { title: string }) {
   const t = useT();
@@ -109,7 +110,7 @@ export function ProductionSection({ title }: { title: string }) {
           <Field label={t('settings.production.periodClosing.lockLabel')}>
             {p => (
               <div className="row" style={{ gap: 8 }}>
-                <Input {...p} type="date" value={periods.data?.closedThrough ?? ''} disabled={!isAdmin} onChange={e => void lock.mutateAsync({ closedThrough: e.target.value || null }).catch(err => toast.error(err.message))} />
+                <DateInput {...p} value={periods.data?.closedThrough ?? ''} disabled={!isAdmin} onChange={v => void lock.mutateAsync({ closedThrough: v || null }).catch(err => toast.error(err.message))} />
                 <Button size="sm" disabled={!isAdmin || !periods.data?.closedThrough} onClick={() => void lock.mutateAsync({ closedThrough: null }).then(() => toast(t('settings.production.periodClosing.unlocked'), { duration: 1500 }))}>
                   {t('settings.production.periodClosing.unlock')}
                 </Button>

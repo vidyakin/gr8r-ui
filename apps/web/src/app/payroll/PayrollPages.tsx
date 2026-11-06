@@ -24,6 +24,7 @@ import {
   type PayoutMethod,
   type StatementKind,
 } from './data';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const thisMonth = () => today().slice(0, 7);
@@ -250,7 +251,7 @@ export function PayrollPage() {
 
       <section className="panel doc-head" aria-label={tt('payroll.period')}>
         <Field label={tt('payroll.period')}>{p => <Input {...p} type="month" disabled={!editable} value={period} onChange={e => setPeriod(e.target.value)} />}</Field>
-        <Field label={tt('payroll.date')}>{p => <Input {...p} type="date" disabled={!editable} value={date} onChange={e => setDate(e.target.value)} />}</Field>
+        <Field label={tt('payroll.date')}>{p => <DateInput {...p} disabled={!editable} value={date} onChange={v => setDate(v)} />}</Field>
         <Field label={tt('payroll.organization')}>
           {p => <Select id={p.id} disabled={!editable || !!detail?.number} value={organizationId} onValueChange={setOrganizationId} options={(orgs.data ?? []).map(o => ({ value: o.id, label: o.name }))} aria-label={tt('payroll.organization')} />}
         </Field>
@@ -508,7 +509,7 @@ export function StatementPage() {
 
       <section className="panel doc-head" aria-label={tt('payroll.period')}>
         <Field label={tt('payroll.period')}>{p => <Input {...p} type="month" disabled={!editable} value={period} onChange={e => setPeriod(e.target.value)} />}</Field>
-        <Field label={tt('payroll.date')}>{p => <Input {...p} type="date" disabled={!editable} value={date} onChange={e => setDate(e.target.value)} />}</Field>
+        <Field label={tt('payroll.date')}>{p => <DateInput {...p} disabled={!editable} value={date} onChange={v => setDate(v)} />}</Field>
         <Field label={tt('payroll.statements.kind')}>
           {p => <Select id={p.id} disabled={!editable} value={kind} onValueChange={v => setKind(v as StatementKind)} options={(['advance', 'settlement'] as const).map(k => ({ value: k, label: tt(`payroll.statements.kinds.${k}`) }))} aria-label={tt('payroll.statements.kind')} />}
         </Field>

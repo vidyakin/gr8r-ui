@@ -2,7 +2,7 @@
    Общие отборы: период, участок, изделие (где вкладка их использует). Чтобы добавить отчёт, допишите вкладку в REPORT_TABS. */
 import * as React from 'react';
 import { useSearchParams } from 'react-router';
-import { Field, Input, Select } from '@/components/ui';
+import { Field, Select } from '@/components/ui';
 import { useT, type TKey } from '@/i18n';
 import { iso, today } from '../../lib/dates';
 import { useSnapshot } from '../data';
@@ -18,6 +18,7 @@ import { WipMovementTab } from './WipMovementTab';
 import { WorkOrderCostTab } from './WorkOrderCostTab';
 import type { ReportFilter } from './reports-data';
 import type { FilterKey, TabProps } from './shared';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 interface ReportTabDef {
   id: string;
@@ -78,8 +79,8 @@ export function ProductionReportsPage() {
           <div className="row" style={{ gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             {has('period') && (
               <>
-                <Field label={tt('production.reports.from')}>{p => <Input {...p} type="date" value={from} max={to} onChange={e => setFrom(e.target.value || monthStart())} />}</Field>
-                <Field label={tt('production.reports.to')}>{p => <Input {...p} type="date" value={to} min={from} onChange={e => setTo(e.target.value || iso(today()))} />}</Field>
+                <Field label={tt('production.reports.from')}>{p => <DateInput {...p} value={from} max={to} onChange={v => setFrom(v || monthStart())} required />}</Field>
+                <Field label={tt('production.reports.to')}>{p => <DateInput {...p} value={to} min={from} onChange={v => setTo(v || iso(today()))} required />}</Field>
               </>
             )}
             {has('center') && (

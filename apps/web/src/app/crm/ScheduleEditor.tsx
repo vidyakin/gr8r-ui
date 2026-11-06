@@ -3,12 +3,13 @@
 import * as React from 'react';
 import { Trash2 } from 'lucide-react';
 import { gridStarts, SLOT_MINUTES, weekdayOf } from '@gr8r/shared';
-import { Button, Field, IconButton, Input, Select, toast } from '@/components/ui';
+import { Button, Field, IconButton, Select, toast } from '@/components/ui';
 import { fmtDateTimeIntl, useT, weekdayShort } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { fmtDate, parse } from '../lib/dates';
 import { useApptMutation, useSchedule, type ScheduleView } from './appointments-data';
 import { fmtMin } from './appointments-ui';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 const DAYS = [1, 2, 3, 4, 5, 6, 7];
 const halfHours = (from: number, to: number) => Array.from({ length: (to - from) / 30 + 1 }, (_, i) => from + i * 30);
@@ -106,7 +107,7 @@ function Editor({ view, canEdit }: { view: ScheduleView; canEdit: boolean }) {
         {canEdit && (
           <div className="stack" style={{ gap: 8, marginTop: 8 }}>
             <div className="row" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <Field label={t('appt.sched.date')}>{p => <Input {...p} type="date" value={exDate} onChange={e => setExDate(e.target.value)} />}</Field>
+              <Field label={t('appt.sched.date')}>{p => <DateInput {...p} value={exDate} onChange={v => setExDate(v)} />}</Field>
               <Field label={t('appt.sched.kind')}>{p => <Select id={p.id} value={exMode} onValueChange={v => setExMode(v as 'off' | 'own')} options={[{ value: 'off', label: t('appt.sched.dayOff') }, { value: 'own', label: t('appt.sched.ownKind') }]} aria-label={t('appt.sched.kind')} />}</Field>
               <Button size="sm" disabled={!exDate || save.isPending} onClick={addEx}>{t('appt.sched.addException')}</Button>
             </div>

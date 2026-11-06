@@ -3,10 +3,11 @@
 import * as React from 'react';
 import { useNavigate } from 'react-router';
 import { CalendarClock, CircleAlert, Clock3 } from 'lucide-react';
-import { Button, EmptyState, Field, Input, Select, Skeleton } from '@/components/ui';
+import { Button, EmptyState, Field, Select, Skeleton } from '@/components/ui';
 import { useWorkspace } from '../data/store';
 import { useTimesheet } from './data';
 import { useT } from '@/i18n';
+import { DateInput } from '@/components/gr8r/date-picker';
 
 export function TimesheetPage() {
   const t = useT();
@@ -30,8 +31,8 @@ export function TimesheetPage() {
         <Field label={t('docs.timesheet.member')}>
           {p => <Select id={p.id} value={memberId || undefined} onValueChange={setMemberId} options={members.map(m => ({ value: m.id, label: m.name }))} placeholder={t('docs.timesheet.allMembers')} aria-label={t('docs.timesheet.member')} />}
         </Field>
-        <Field label={t('docs.timesheet.from')}>{p => <Input {...p} type="date" value={from} onChange={e => setFrom(e.target.value)} />}</Field>
-        <Field label={t('docs.timesheet.to')}>{p => <Input {...p} type="date" value={to} onChange={e => setTo(e.target.value)} />}</Field>
+        <Field label={t('docs.timesheet.from')}>{p => <DateInput {...p} value={from} onChange={v => setFrom(v)} />}</Field>
+        <Field label={t('docs.timesheet.to')}>{p => <DateInput {...p} value={to} onChange={v => setTo(v)} />}</Field>
       </div>
       {sheet.isError ? (
         <EmptyState icon={<CircleAlert size={20} />} error title={t('docs.timesheet.loadError')} action={<Button size="sm" onClick={() => sheet.refetch()}>{t('docs.timesheet.retry')}</Button>}>
