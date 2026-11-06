@@ -2,7 +2,8 @@
    Деньги в вкладках видят owner и admin (их маскирует сервер); создание объекта заводит проект задач.
    Смета (задача 1269) — отдельная вкладка: основная смета, допработы, редактор позиций и заказы.
    Процент выполнения и вехи (задача 1272): индикатор и способ расчёта в шапке, вехи — отдельная вкладка.
-   Табель (задача 1271): смены по датам и табель работников за месяц — отдельная вкладка ShiftsTab. */
+   Табель (задача 1271): смены по датам и табель работников за месяц — отдельная вкладка ShiftsTab.
+   Субподряд (задача 1274): заказы субподрядчикам и акты субподрядчика с приёмкой — вкладка SubcontractTab. */
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { Archive, CircleAlert, Save } from 'lucide-react';
@@ -25,6 +26,7 @@ import { MilestonesTab } from './MilestonesTab';
 import { BudgetTab } from './BudgetTab';
 import { ShiftsTab } from './ShiftsTab';
 import { ActsTab } from './ActsTab';
+import { SubcontractTab } from './SubcontractTab';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const blank = (): ObjectInput => ({ number: '', name: '', customerId: null, address: '', startDate: today(), dueDate: null, status: 'planning', managerId: null, revenueMode: 'acts', overheadPct: '', customerHourRate: '', budgetPolicy: 'warn', progressMode: 'tasks_closed', progressManual: '', projectId: null, warehouseId: null, note: '', foremen: [], contracts: [] });
@@ -348,6 +350,13 @@ export function ObjectPage() {
                 label: tt('objects.acts.title'),
                 count: undefined,
                 content: <ActsTab objectId={detail!.id} canWrite={canWrite && !archived} canAdmin={canAdmin} />,
+              },
+              // Субподряд (задача 1274): заказы субподрядчикам, акты с приёмкой и материалы со склада объекта
+              {
+                id: 'subcontract',
+                label: tt('objects.subcontract.title'),
+                count: undefined,
+                content: <SubcontractTab objectId={detail!.id} canWrite={canWrite && !archived} canAdmin={canAdmin} />,
               },
               {
                 id: 'milestones',
