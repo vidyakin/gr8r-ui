@@ -217,8 +217,10 @@ export function usePaymentApi() {
       return r;
     },
     action: async (id: string, action: 'post' | 'unpost' | 'cancel' | 'restore') => {
-      await call(ws, 'POST', `/documents/${id}/${action}`);
+      // ответ проведения несёт предупреждения (превышение бюджета объекта — задача 1270)
+      const r = await call<{ warnings?: string[] }>(ws, 'POST', `/documents/${id}/${action}`);
       await refresh();
+      return r;
     },
     remove: async (id: string) => {
       await call(ws, 'DELETE', `/documents/${id}`);
@@ -434,8 +436,10 @@ export function useRequestApi() {
       return r;
     },
     action: async (id: string, action: 'post' | 'unpost' | 'cancel' | 'restore') => {
-      await call(ws, 'POST', `/documents/${id}/${action}`);
+      // ответ проведения несёт предупреждения (превышение бюджета объекта — задача 1270)
+      const r = await call<{ warnings?: string[] }>(ws, 'POST', `/documents/${id}/${action}`);
       await refresh();
+      return r;
     },
     remove: async (id: string) => {
       await call(ws, 'DELETE', `/documents/${id}`);

@@ -1,7 +1,7 @@
 /* Объекты объектного учёта на клиенте (задача 1268): список, карточка, сводка и действия.
    Запросы живут под ['ws', id, 'objects', …]: событие object.* сбрасывает их через realtime. */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ObjectStatus, RevenueMode } from '@gr8r/shared';
+import type { BudgetPolicy, ObjectCostCategory, ObjectStatus, RevenueMode } from '@gr8r/shared';
 import { call, useWsId } from '../meta/data';
 
 export interface ObjectListItem {
@@ -18,6 +18,8 @@ export interface ObjectListItem {
   managerName: string | null;
   revenueMode: RevenueMode;
   overheadPct: string;
+  /** Контроль бюджета объекта (задача 1270) */
+  budgetPolicy: BudgetPolicy;
   projectId: string | null;
   projectName: string | null;
   warehouseId: string | null;
@@ -41,6 +43,7 @@ export interface ObjectInput {
   managerId?: string | null;
   revenueMode?: RevenueMode;
   overheadPct?: string;
+  budgetPolicy?: BudgetPolicy;
   projectId?: string | null;
   warehouseId?: string | null;
   note?: string;
@@ -87,6 +90,32 @@ export function useObject(id: string | undefined) {
 export function useObjectSummary(id: string | undefined) {
   const ws = useWsId();
   return useQuery({ queryKey: objectsKey(ws, 'summary', id), queryFn: () => call<ObjectSummary>(ws, 'GET', `/objects/${id}/summary`), enabled: !!id });
+}
+
+/* ---------------- бюджет объекта (задача 1270) ---------------- */
+
+/** Суммы одной категории затрат: null — нет права видеть стоимость (не owner/admin) */
+export interface ObjectBudgetCategory {
+  budget: string | null;
+  fact: string | null;
+  rest: string | null;
+  over: boolean;
+}
+
+export interface ObjectBudget {
+  objectId: string;
+  policy: BudgetPolicy;
+  /** Согласованная смета есть: без неё бюджета нет и контроль не действует */
+  hasEstimate: boolean;
+  categories: Record<ObjectCostCategory, ObjectBudgetCategory>;
+  totals: ObjectBudgetCategory;
+  canSeeCost: boolean;
+}
+
+/** Бюджет объекта: бюджет, факт и остаток по категориям; перечитывается событием object.* и проведением документов */
+export function useObjectBudget(id: string | undefined) {
+  const ws = useWsId();
+  return useQuery({ queryKey: objectsKey(ws, 'budget', id), queryFn: () => call<ObjectBudget>(ws, 'GET', `/objects/${id}/budget`), enabled: !!id });
 }
 
 /** Задачи объекта — обычный список задач; карточка показывает их во вкладке «Задачи» */

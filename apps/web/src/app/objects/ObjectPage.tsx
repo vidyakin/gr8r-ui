@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { Archive, CircleAlert, Save } from 'lucide-react';
-import { OBJECT_STATUSES, REVENUE_MODES, type ObjectStatus, type RevenueMode } from '@gr8r/shared';
+import { BUDGET_POLICIES, OBJECT_STATUSES, REVENUE_MODES, type BudgetPolicy, type ObjectStatus, type RevenueMode } from '@gr8r/shared';
 import { Badge, Button, Checkbox, ConfirmDialog, EmptyState, Field, Input, Select, Skeleton, toast } from '@/components/ui';
 import { fmtAmount, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
@@ -18,9 +18,10 @@ import { useCanWrite } from '../meta/custom-fields';
 import { useObject, useObjectApi, useObjectSummary, useObjectTasks, type ObjectInput } from './data';
 import { useObjectEstimates } from './estimates-data';
 import { EstimateTab } from './EstimateTab';
+import { BudgetTab } from './BudgetTab';
 
 const today = () => new Date().toISOString().slice(0, 10);
-const blank = (): ObjectInput => ({ number: '', name: '', customerId: null, address: '', startDate: today(), dueDate: null, status: 'planning', managerId: null, revenueMode: 'acts', overheadPct: '', projectId: null, warehouseId: null, note: '', foremen: [], contracts: [] });
+const blank = (): ObjectInput => ({ number: '', name: '', customerId: null, address: '', startDate: today(), dueDate: null, status: 'planning', managerId: null, revenueMode: 'acts', overheadPct: '', budgetPolicy: 'warn', projectId: null, warehouseId: null, note: '', foremen: [], contracts: [] });
 const trim = (v: string | null | undefined) => (v == null ? '' : v.replace(/\.00$/, '').replace(/(\.\d)0$/, '$1'));
 
 export function ObjectPage() {
@@ -59,6 +60,7 @@ export function ObjectPage() {
       managerId: detail.managerId,
       revenueMode: detail.revenueMode,
       overheadPct: trim(detail.overheadPct),
+      budgetPolicy: detail.budgetPolicy,
       projectId: detail.projectId,
       warehouseId: detail.warehouseId,
       note: detail.note,
@@ -218,6 +220,18 @@ export function ObjectPage() {
         <Field label={tt('objects.field.overheadPct')} hint={tt('objects.field.overheadHint')}>
           {p => <Input {...p} inputMode="decimal" disabled={!editable} value={form.overheadPct ?? ''} onChange={e => set('overheadPct', e.target.value)} />}
         </Field>
+        <Field label={tt('objects.field.budgetPolicy')} hint={tt('objects.field.budgetPolicyHint')}>
+          {p => (
+            <Select
+              id={p.id}
+              disabled={!editable}
+              value={form.budgetPolicy ?? 'warn'}
+              onValueChange={v => set('budgetPolicy', v as BudgetPolicy)}
+              options={BUDGET_POLICIES.map(x => ({ value: x, label: tt(`objects.budgetPolicy.${x}`) }))}
+              aria-label={tt('objects.field.budgetPolicy')}
+            />
+          )}
+        </Field>
         <Field label={tt('objects.field.warehouse')}>
           {p => (
             <Select
@@ -272,6 +286,11 @@ export function ObjectPage() {
                 label: tt('estimates.title'),
                 count: estimates.data?.length,
                 content: <EstimateTab objectId={detail!.id} objectName={detail!.name} canWrite={canWrite && !archived} />,
+              },
+              {
+                id: 'budget',
+                label: tt('objects.budget.title'),
+                content: <BudgetTab objectId={detail!.id} />,
               },
               {
                 id: 'tasks',

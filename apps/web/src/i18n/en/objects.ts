@@ -22,6 +22,8 @@ export const objects = {
     revenueMode: 'Revenue method',
     overheadPct: 'Overhead, %',
     overheadHint: 'Share of overheads on direct costs; the workspace default is used when empty',
+    budgetPolicy: 'When the budget is exceeded',
+    budgetPolicyHint: 'What to do when a document or payment makes the actual cost exceed the approved estimate budget',
     warehouse: 'Object warehouse',
     address: 'Address',
     note: 'Note',
@@ -70,6 +72,34 @@ export const objects = {
     qty: 'Quantity',
     cost: 'Cost',
     empty: 'The object has no warehouse or it is empty',
+  },
+  budget: {
+    title: 'Budget',
+    column: {
+      category: 'Cost category',
+      budget: 'Budget',
+      fact: 'Actual',
+      rest: 'Remaining',
+      fill: 'Used',
+    },
+    category: {
+      material: 'Materials',
+      labor: 'Labor',
+      subcontract: 'Subcontract',
+      // ключ не 'other': объект с полем other тип словаря принимает за форму множественного числа
+      otherCosts: 'Other direct costs',
+    },
+    total: 'Total',
+    over: 'Over budget',
+    noEstimate: 'Agree the main estimate to set the budget: without it the budget is empty and control does not apply',
+    hidden: 'Budget amounts are visible to owners and admins only',
+    hint: 'Budget — the approved main estimate and approved change orders (quantity × planned unit cost). Actual — posted documents and payments linked to the object, net of VAT: materials at write-off cost, subcontract for services in receipts, other direct costs for other costs and expense payments without a basis document. Labor is not counted yet (time sheets are a separate task).',
+    warnExceeded: 'The budget of the “{category}” category is exceeded',
+  },
+  budgetPolicy: {
+    none: 'Do not control',
+    warn: 'Warn',
+    block: 'Forbid',
   },
   tasks: {
     empty: 'No tasks linked to this object',

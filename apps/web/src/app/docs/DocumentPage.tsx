@@ -33,6 +33,7 @@ import { DISCOUNT_DOC_TYPES } from '../loyalty/data';
 import { AttachmentsPanel } from '@/components/gr8r/attachments-panel';
 import { DocInvestmentField } from '../finance/DocInvestmentField';
 import { ObjectField } from '../objects/fields';
+import { warningText } from '../data/warnings';
 import { hasKey, t, tEnum, tProductionEnum, useT, type TKey } from '@/i18n';
 import { handleNumericArrow } from '@/lib/numeric-step';
 import { useWsId } from '../meta/data';
@@ -442,8 +443,8 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     try {
       if (action === 'post' && !(await flush())) return;
       const r = await api<DocDetail & { warnings?: string[] }>('POST', `/documents/${doc.id}/${action}`, body);
-      // предупреждения проведения (рейтинг поставщика D — задача 1276, политика тарифа договора): код переводим, текст показываем как есть
-      for (const w of r?.warnings ?? []) toast(w === 'supplier_rating_level_d' ? t('docs.document.warnSupplierRatingD') : w, { duration: 6000 });
+      // предупреждения проведения: рейтинг поставщика D (задача 1276), политика тарифа договора, превышение бюджета объекта (задача 1270)
+      for (const w of r?.warnings ?? []) toast(warningText(t, w), { duration: 6000 });
       if (r)
         toast(
           action === 'post'

@@ -277,6 +277,7 @@ export const errors = {
   duplicate_name: 'This name already exists',
   entity_in_use: 'Other entities refer to this one. Remove those fields first',
   estimate_approved: 'The estimate is approved: return it to draft before changing it',
+  budget_exceeded: 'The cost exceeds the object budget: the object is set to forbid posting over budget',
   estimate_exists: 'The object already has a main estimate',
   estimate_has_changes: 'The estimate has approved change orders: delete them first',
   estimate_not_approved: 'Approve the main estimate before adding change orders',

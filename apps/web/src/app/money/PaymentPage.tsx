@@ -7,6 +7,7 @@ import { operationNeedsAccountable, operationNeedsCounterparty, operationSettlem
 import { Alert, Badge, Button, ConfirmDialog, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
 import { fmtAmount, tProductionEnum, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
+import { warningText } from '../data/warnings';
 import { useWorkspace } from '../data/store';
 import { useCanWrite } from '../meta/custom-fields';
 import { useCostItems, useDocuments, useOrganizations, typeLabel } from '../docs/data';
@@ -162,7 +163,9 @@ export function PaymentPage() {
     run(async () => {
       if (!detail) return;
       await api.update(detail.id, body());
-      await api.action(detail.id, 'post');
+      // предупреждения проведения: превышение бюджета объекта (задача 1270) и другие коды сервера
+      const r = await api.action(detail.id, 'post');
+      for (const w of r?.warnings ?? []) toast(warningText(tt, w), { duration: 6000 });
       toast(tt('money.common.posted'), { duration: 1500 });
     });
 

@@ -3,7 +3,7 @@
    только owner/admin (в ответе null), поэтому колонки и итоги себестоимости скрываются по detail.canSeeCost. */
 import * as React from 'react';
 import { Copy, Factory, FileSpreadsheet, Plus, Save, Trash2, Truck, Undo2 } from 'lucide-react';
-import { computeEstimateTotals, dec, ESTIMATE_ITEM_KINDS, fmt, type EstimateItemKind } from '@gr8r/shared';
+import { computeEstimateTotals, dec, ESTIMATE_ITEM_KINDS, fmt, OBJECT_COST_CATEGORIES, type EstimateItemKind, type ObjectCostCategory } from '@gr8r/shared';
 import { Badge, Button, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
 import { fmtAmount, fmtNumber, useT, type TKey } from '@/i18n';
 import { useCompanies, useUnits } from '../catalog/data';
@@ -11,7 +11,7 @@ import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';
 import { useSession } from '../data/session';
 import { ProductPicker } from '../docs/pickers';
-import { useObjectOptions } from './data';
+import { useObjectBudget, useObjectOptions } from './data';
 import { useEstimate, useEstimateApi, useObjectEstimates, type EstimateDetail, type EstimateImportRow, type EstimateSummary } from './estimates-data';
 
 /** Подписи видов позиций и статусов: ключи словаря заданы явно, чтобы шаблонные строки не теряли тип */
@@ -26,6 +26,13 @@ const STATUS_LABEL: Record<'draft' | 'approved' | 'rejected', TKey> = {
   draft: 'estimates.status.draft',
   approved: 'estimates.status.approved',
   rejected: 'estimates.changeStatus.rejected',
+};
+/** Категории факта затрат объекта (задача 1270): ключ other назван otherCosts — 'other' ломает тип словаря */
+const BUDGET_CATEGORY_LABEL: Record<ObjectCostCategory, TKey> = {
+  material: 'objects.budget.category.material',
+  labor: 'objects.budget.category.labor',
+  subcontract: 'objects.budget.category.subcontract',
+  other: 'objects.budget.category.otherCosts',
 };
 const CHANGE_STATUS_LABEL: Record<'draft' | 'approved' | 'rejected', TKey> = {
   draft: 'estimates.changeStatus.draft',
@@ -207,6 +214,8 @@ const toDraft = (d: EstimateDetail): { sections: SectionDraft[]; rows: RowDraft[
 });
 
 function EstimateEditor({ detail, canWrite, isAdmin }: { detail: EstimateDetail; canWrite: boolean; isAdmin: boolean }) {
+  // факт затрат объекта (задача 1270) считается по категориям, а не по позициям сметы
+  const budget = useObjectBudget(detail.objectId);
   const tt = useT();
   const api = useEstimateApi();
   const { busy, run } = useRun();
@@ -492,6 +501,33 @@ function EstimateEditor({ detail, canWrite, isAdmin }: { detail: EstimateDetail;
           </div>
           <div className="faint" style={{ fontSize: 11 }}>{tt('estimates.planFactHint')}</div>
         </div>
+        {detail.canSeeCost && budget.data?.hasEstimate && (
+          <div className="panel" style={{ padding: 12, minWidth: 260 }}>
+            <div className="faint" style={{ fontSize: 12 }}>{tt('estimates.factByCategory')}</div>
+            <table className="dtbl" aria-label={tt('estimates.factByCategory')}>
+              <thead>
+                <tr>
+                  <th>{tt('objects.budget.column.category')}</th>
+                  <th className="r">{tt('objects.budget.column.fact')}</th>
+                  <th className="r">{tt('objects.budget.column.rest')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {OBJECT_COST_CATEGORIES.map(cat => {
+                  const c = budget.data!.categories[cat];
+                  return (
+                    <tr key={cat}>
+                      <td>{tt(BUDGET_CATEGORY_LABEL[cat])}</td>
+                      <td className="r num">{c.fact == null ? '—' : fmtAmount(c.fact)}</td>
+                      <td className={c.over ? 'r num neg' : 'r num'}>{c.rest == null ? '—' : fmtAmount(c.rest)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <div className="faint" style={{ fontSize: 11 }}>{tt('estimates.factByCategoryHint')}</div>
+          </div>
+        )}
       </div>
 
       {dialog === 'import' && <ImportDialog estimateId={detail.id} onClose={() => setDialog(null)} />}

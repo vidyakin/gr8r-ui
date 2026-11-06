@@ -50,6 +50,8 @@ export const estimates = {
   },
   planFact: 'Plan and actual',
   planFactHint: 'The actual is filled in when costs of materials and work are collected; for now it is zero.',
+  factByCategory: 'Actual cost by category',
+  factByCategoryHint: 'The actual is collected by cost category: it is not distributed between estimate lines yet.',
   approved: 'The estimate is approved: the composition and prices are a snapshot and cannot be edited.',
   approvedPrices: 'Prices are fixed at approval: catalogue and purchase price changes do not affect the estimate.',
   unsaved: 'There are unsaved changes',
