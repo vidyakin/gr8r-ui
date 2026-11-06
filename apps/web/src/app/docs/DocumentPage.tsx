@@ -25,6 +25,7 @@ import { WorkOrderPanel } from './work-orders';
 import { SerialsButton } from './serials-ui';
 import { BatchButton } from './batch-ui';
 import { DeliveryTab } from './DeliveryTab';
+import { QcTab } from './QcTab';
 import { DocTabs, type DocTab } from './doc-tabs';
 import { DocLoyaltyFields } from './DocLoyalty';
 import { DISCOUNT_DOC_TYPES } from '../loyalty/data';
@@ -518,6 +519,15 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     }
   };
 
+  /** «На переделку»: заказ на производство на брак позиции выпуска */
+  const reworkItem = async (itemId: string, qty: string) => {
+    const r = await api<{ id: string }>('POST', `/production/${doc.id}/rework`, { itemId, qty });
+    if (r) {
+      toast(t('production.qc.reworkDone'));
+      navigate(`/production/orders/${r.id}`);
+    }
+  };
+
   // гарантийный ремонт не продаётся: счёт на его основании недоступен
   const targets = basedOnTargets(doc.type).filter(x => !(doc.kindType === 'warranty' && x === 'invoice'));
   const lineCount = form.lines.filter(l => l.productId).length;
@@ -933,6 +943,12 @@ function DocumentView({ doc }: { doc: DocDetail }) {
       label: t('production.waste.tab'),
       count: wasteRows.length,
       content: <WasteTab rows={wasteRows} editable={editable} seeCost={isAdmin} onSave={waste => saveAccounting({ waste })} />,
+    },
+    hasDefect && items.some(i => Number(i.defectQty) > 0) && {
+      id: 'qc',
+      label: t('production.qc.tab'),
+      count: items.filter(i => Number(i.defectQty) > 0).length,
+      content: <QcTab doc={doc} editable={editable} canWrite={canWrite} onSave={qc => saveAccounting({ qc })} onRework={reworkItem} />,
     },
     // вложения документа (docs/architecture/attachments.md)
     { id: 'files', label: t('attachments.tab'), content: <AttachmentsPanel entityType="document" entityId={doc.id} /> },

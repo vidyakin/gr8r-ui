@@ -1906,4 +1906,41 @@ export const production = {
       hint: 'Receipt is the cost of the intermediate stages of the period; write-off is the part taken into the product by the final stage. The closing balance equals the work in progress screen on the end date.',
     },
   },
+
+  /** Справочник причин брака (задача 1186) */
+  defectReasons: {
+    title: 'Defect reasons',
+    one: 'defect reason',
+    subtitle: 'Why products are rejected by quality control. The reason is chosen in the production release.',
+    table: 'Defect reasons table',
+    new: 'New reason',
+    newTitle: 'New defect reason',
+    edit: 'Edit defect reason',
+    col: { name: 'Name', note: 'Note' },
+    empty: 'No defect reasons yet',
+    emptyHint: 'Add reasons such as cracks, wrong weight or damaged packaging.',
+    archiveHint: 'the reason will leave the list, past releases keep it.',
+  },
+
+  /** ОТК выпуска продукции (задача 1186) */
+  qc: {
+    tab: 'Quality control',
+    aria: 'Quality control of the defect',
+    colProduct: 'Product',
+    colDefect: 'Defect',
+    colReason: 'Reason',
+    colCulprit: 'Culprit',
+    colNote: 'QC note',
+    reasonPlaceholder: 'Choose a reason',
+    culpritPlaceholder: 'Choose a member',
+    none: 'Not set',
+    empty: 'No defects in this release. Enter the defect quantity in the products table first.',
+    rework: 'Send to rework',
+    reworkTitle: 'Rework of the defect',
+    reworkQty: 'Quantity to rework',
+    reworkHint: 'A production order for the same product is created. Defect quantity: {qty}.',
+    reworkCreate: 'Create order',
+    reworkDone: 'The rework order is created',
+    saved: 'Saved',
+  },
 };

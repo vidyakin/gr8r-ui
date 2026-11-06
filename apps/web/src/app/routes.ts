@@ -44,6 +44,7 @@ import {
   Package,
   PackageSearch,
   Wrench,
+  ShieldAlert,
   Workflow,
   Boxes,
   PackageCheck,
@@ -135,6 +136,7 @@ export const SECTIONS = {
   otherCosts: { path: '/other-costs', name: 'Other costs', icon: ReceiptText },
   materialAllocation: { path: '/material-allocations', name: 'Material allocation', icon: Split },
   workCenters: { path: '/work-centers', name: 'Work centers', icon: Wrench },
+  defectReasons: { path: '/production/defect-reasons', name: 'Defect reasons', icon: ShieldAlert },
   // Автоматизации
   automations: { path: '/automations', name: 'Automations', icon: Workflow },
   // Документы продаж и закупок, склад
@@ -237,6 +239,7 @@ export const NAV_GROUPS = {
         'otherCosts',
         'materialAllocation',
         'workCenters',
+        'defectReasons',
       ] as const
     ).map(id => ({ id })),
   },
@@ -321,6 +324,7 @@ const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
   otherCosts: 'production',
   materialAllocation: 'production',
   workCenters: 'production',
+  defectReasons: 'production',
   automations: 'automations',
   sales: 'trade',
   purchases: 'trade',

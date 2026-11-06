@@ -46,6 +46,7 @@ export const sections: Widen<typeof S> = {
   productionClosing: 'Закрытие месяца',
   otherCosts: 'Прочие затраты',
   materialAllocation: 'Распределение материалов',
+  defectReasons: 'Причины брака',
   workCenters: 'Участки',
   automations: 'Автоматизации',
   sales: 'Продажи',

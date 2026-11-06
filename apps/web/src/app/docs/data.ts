@@ -229,7 +229,7 @@ export interface DocDetail extends Omit<DocListItem, 'organizationName' | 'count
   plannedEnd?: string | null;
   components?: { id: string; kind: 'material' | 'semi' | 'work' | 'expense' | 'output' | 'waste'; ownerKind: MaterialOwner; productId: string | null; productName: string; operation: string; qty: string; hours: string; price: string | null; plannedCost: string | null; actualCost: string | null }[];
   /** Позиции выпуска: брак и строка документа с продукцией */
-  items?: { id: string; itemId: string; qty: string; documentLineId: string | null; defectQty: string; defectMode: DefectMode | null; disposalDocumentId: string | null }[];
+  items?: { id: string; itemId: string; qty: string; documentLineId: string | null; defectQty: string; defectMode: DefectMode | null; disposalDocumentId: string | null; defectReasonId?: string | null; defectMemberId?: string | null; qcNote?: string }[];
   /** Стоимость возвратных отходов выпуска и склады отходов и брака (пусто: как на участке) */
   wasteValuation?: WasteValuation;
   /** Режим материалов выпуска: при выпуске или по итогам смены */
