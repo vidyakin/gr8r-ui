@@ -131,3 +131,63 @@ describe('quality control', () => {
     expect((await owner.del(`/defect-reasons/${created.body.id}`)).status).toBe(200);
   });
 });
+
+describe('OTK of a production release', () => {
+  let center: string;
+  let item: string;
+  let release: any;
+  let itemId: string;
+
+  beforeAll(async () => {
+    const wood = (await ok(await owner.post('/products', { name: 'Брус ОТК', price: 100, purchasePrice: 80, vatRate: 'none' }), 'wood')).id;
+    const workshop = (await ok(await owner.post('/warehouses', { name: 'Цех ОТК', kind: 'workshop' }), 'workshop')).id;
+    const fg = (await ok(await owner.post('/warehouses', { name: 'Готовая ОТК' }), 'fg')).id;
+    const defectWh = (await ok(await owner.post('/warehouses', { name: 'Брак ОТК' }), 'defectWh')).id;
+    center = (await ok(await owner.post('/work-centers', { name: 'Участок ОТК', hourlyRate: 100, warehouseId: workshop, outputWarehouseId: fg, defectWarehouseId: defectWh }), 'center')).id;
+    const prod = (await ok(await owner.post('/products', { name: 'Стол ОТК', price: 5000 }), 'prod')).id;
+    item = (await ok(await owner.post('/manufactured-items', { name: 'Стол ОТК', productId: prod }), 'item')).id;
+    await ok(await owner.post(`/manufactured-items/${item}/lines`, { kind: 'material', productId: wood, qty: 2 }), 'line');
+    const rc = await ok(await owner.post('/documents', { type: 'receipt', counterpartyId: supplier, warehouseId: workshop, lines: [{ productId: wood, qty: 100, price: 80 }] }), 'rc');
+    await ok(await owner.post(`/documents/${rc.id}/post`), 'post rc');
+    const o = await ok(await owner.post('/production-orders', { workCenterId: center, items: [{ itemId: item, qty: '4' }] }), 'order');
+    await owner.post(`/production-orders/${o.id}/fill-from-bom`);
+    await owner.post(`/documents/${o.id}/post`);
+    const detail = (await owner.get(`/production-orders/${o.id}`)).body;
+    release = await ok(await owner.post(`/production-orders/${o.id}/production`, { date: '2026-03-02', lines: [{ orderItemId: detail.items[0].id, qty: '4' }] }), 'release');
+    itemId = release.items[0].id;
+  });
+
+  test('reason without defect is 422, then defect + reason + culprit + note; a note-only patch keeps the reason', async () => {
+    const reason = (await ok(await owner.post('/defect-reasons', { name: 'Трещина ОТК' }), 'reason')).id;
+    const me = (await owner.get('/members')).body.items[0].id;
+    const bad = await owner.patch(`/production-orders/${release.id}/accounting`, { qc: [{ itemId, defectReasonId: reason }] });
+    expect(bad.status).toBe(422);
+    expect(bad.body.error.code).toBe('defect_required');
+    await ok(await owner.patch(`/production-orders/${release.id}/accounting`, { defects: [{ itemId, defectQty: '2', defectMode: 'expense' }] }), 'defects');
+    await ok(await owner.patch(`/production-orders/${release.id}/accounting`, { qc: [{ itemId, defectReasonId: reason, defectMemberId: me, qcNote: 'при сушке' }] }), 'qc');
+    await ok(await owner.patch(`/production-orders/${release.id}/accounting`, { qc: [{ itemId, qcNote: 'повторно' }] }), 'note only');
+    const it = (await owner.get(`/documents/${release.id}`)).body.items[0];
+    expect(it).toMatchObject({ defectReasonId: reason, defectMemberId: me, qcNote: 'повторно' });
+    await ok(await owner.patch(`/production-orders/${release.id}/accounting`, { qc: [{ itemId, defectReasonId: null }] }), 'clear');
+    const cleared = (await owner.get(`/documents/${release.id}`)).body.items[0];
+    expect(cleared.defectReasonId).toBeNull();
+    expect(cleared.defectMemberId).toBe(me);
+  });
+
+  test('rework: 422 no_defects without defects, then an order for the defect quantity', async () => {
+    const o2 = await ok(await owner.post('/production-orders', { workCenterId: center, items: [{ itemId: item, qty: '2' }] }), 'order2');
+    await owner.post(`/production-orders/${o2.id}/fill-from-bom`);
+    await owner.post(`/documents/${o2.id}/post`);
+    const d2 = (await owner.get(`/production-orders/${o2.id}`)).body;
+    const clean = await ok(await owner.post(`/production-orders/${o2.id}/production`, { date: '2026-03-03', lines: [{ orderItemId: d2.items[0].id, qty: '2' }] }), 'clean');
+    await ok(await owner.post(`/documents/${clean.id}/post`), 'post clean');
+    const none = await owner.post(`/production/${clean.id}/rework`, { itemId: clean.items[0].id });
+    expect(none.status).toBe(422);
+    expect(none.body.error.code).toBe('no_defects');
+
+    await ok(await owner.post(`/documents/${release.id}/post`), 'post release');
+    const rw = await ok(await owner.post(`/production/${release.id}/rework`, { itemId }), 'rework');
+    const order = (await owner.get(`/production-orders/${rw.id}`)).body;
+    expect(order.items[0].qty).toBe('2.000');
+  });
+});

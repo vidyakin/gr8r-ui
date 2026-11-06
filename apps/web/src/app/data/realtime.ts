@@ -37,7 +37,7 @@ export function useRealtime(ws: string, engine: Engine) {
       if (e.entity === 'record') for (const k of ['records', 'record', 'ref-title', 'ref-search']) void qc.invalidateQueries({ queryKey: ['ws', ws, k] });
       // Каталог и производство: отдельные запросы ['ws', id, 'catalog' | 'production', …]
       if (['unit', 'product_category', 'attribute_def', 'product'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'catalog'] });
-      if (['work_center', 'manufactured_item', 'bom_line', 'product', 'workspace'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'production'] });
+      if (['work_center', 'defect_reason', 'manufactured_item', 'bom_line', 'product', 'workspace'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'production'] });
       // Документы, организации, склады, счета, остатки: запросы ['ws', id, 'docs', …]; проведение меняет и среднюю себестоимость в производстве
       if (['document', 'organization', 'warehouse', 'bank_account', 'product', 'company', 'unit', 'cost_item', 'deal', 'sales_plan_scenario', 'appointment', 'specialist_schedule', 'contact', 'delivery', 'delivery_method', 'position', 'product_kind', 'cash_register', 'cash_flow_item', 'price_kind', 'price_list_link', 'discount_rule', 'promo_code', 'loyalty_card', 'loyalty_program'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'docs'] });
       if (e.entity === 'document') void qc.invalidateQueries({ queryKey: ['ws', ws, 'production'] });

@@ -2603,8 +2603,8 @@ async function applyQcPatch(db: Db, ctx: DocCtx, docId: string, qc: { itemId: st
     await db
       .update(productionItems)
       .set({
-        defectReasonId: q.defectReasonId ?? null,
-        defectMemberId: q.defectMemberId ?? null,
+        ...(q.defectReasonId !== undefined ? { defectReasonId: q.defectReasonId } : {}),
+        ...(q.defectMemberId !== undefined ? { defectMemberId: q.defectMemberId } : {}),
         ...(q.qcNote !== undefined ? { qcNote: q.qcNote ?? '' } : {}),
       })
       .where(eq(productionItems.id, it.id));
