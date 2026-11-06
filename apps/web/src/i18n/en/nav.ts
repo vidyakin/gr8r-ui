@@ -180,6 +180,7 @@ export const nav = {
   crumbs: {
     investment: 'Investment project',
     object: 'Object',
+    shift: 'Shift',
     data: 'Data',
     company: 'Company',
     member: 'Member',

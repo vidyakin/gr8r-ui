@@ -10,6 +10,7 @@ import { CircleAlert, History, Save, ShieldCheck, Undo2 } from 'lucide-react';
 import { Badge, Button, EmptyState, Field, Input, Select, Skeleton, toast } from '@/components/ui';
 import { dec, fmt } from '@gr8r/shared';
 import { fmtAmount, fmtNumber } from '@/i18n/format';
+import { fmtDateTime } from '@/i18n/format';
 import { fmtDate, iso, today } from '../lib/dates';
 import { useT } from '@/i18n';
 import { errorMessage } from '../data/api';
@@ -250,7 +251,7 @@ function ShiftEditor({ id }: { id: string }) {
         <div className="row faint" style={{ gap: 14, flexWrap: 'wrap', fontSize: 12 }}>
           <span>{fmtDate(s.workDate)}</span>
           <span>{tt('shifts.field.foreman')}: {s.foremanName}</span>
-          {s.confirmedAt && <span>{fmtDate(s.confirmedAt)}</span>}
+          {s.confirmedAt && <span>{fmtDateTime(s.confirmedAt)}</span>}
         </div>
         {confirmed && <p className="faint" style={{ margin: 0, fontSize: 12 }}>{tt('shifts.locked.confirmed')}</p>}
         {!s.canWrite && <p className="faint" style={{ margin: 0, fontSize: 12 }}>{tt('shifts.locked.notWritable')}</p>}
@@ -422,7 +423,7 @@ function ShiftEditor({ id }: { id: string }) {
               <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
                 <strong style={{ fontSize: 13 }}>{tt(`shifts.log.action.${l.action}` as 'shifts.log.action.created')}</strong>
                 <span className="faint" style={{ fontSize: 11 }}>
-                  {fmtDate(l.at)} {l.authorName ? `· ${tt('shifts.log.by', { name: l.authorName })}` : ''}
+                  {fmtDateTime(l.at)} {l.authorName ? `· ${tt('shifts.log.by', { name: l.authorName })}` : ''}
                 </span>
               </div>
               {l.reason && (

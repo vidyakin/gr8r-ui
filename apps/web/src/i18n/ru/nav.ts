@@ -179,6 +179,7 @@ export const nav: Widen<typeof N> = {
   crumbs: {
     investment: 'Инвестпроект',
     object: 'Объект',
+    shift: 'Смена',
     data: 'Данные',
     company: 'Контрагент',
     member: 'Участник',
