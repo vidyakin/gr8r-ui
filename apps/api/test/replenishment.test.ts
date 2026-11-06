@@ -21,6 +21,10 @@ const mk = async (c: Client, path: string, body: Record<string, unknown>) => {
 };
 const today = () => new Date().toISOString().slice(0, 10);
 const shift = (days: number) => new Date(Date.now() + days * 864e5).toISOString().slice(0, 10);
+/** Дата в текущей неделе: среда, но не раньше сегодня (срок не уходит ни в прошлое, ни в следующую неделю) */
+const thisWeek = () => [today(), fromMonday(0, 2)].sort().reverse()[0];
+/** Дата со сдвигом от понедельника (не от «сегодня») */
+const fromMonday = (weeks: number, days: number) => new Date(Date.parse(`${monday(weeks)}T00:00:00Z`) + days * 864e5).toISOString().slice(0, 10);
 /** Понедельник текущей недели — начала периодов расчёта (шаг неделя) */
 const monday = (weeks = 0) => {
   const d = new Date();
@@ -115,7 +119,7 @@ describe('needs calculation by orders with min/max', () => {
     // остаток 2, заказ покупателя на 5 в первом периоде, min 10 / max 20 → 25
     await receipt(material, '2');
     await levels(material, [{ warehouseId: main, minQty: '10', maxQty: '20', replenishment: 'purchase' }]);
-    const order = await mk(owner, '/documents', { type: 'customer_order', counterpartyId: customer, dueDate: shift(2), lines: [{ productId: material, qty: '5', price: '100', discountPct: '0' }] });
+    const order = await mk(owner, '/documents', { type: 'customer_order', counterpartyId: customer, dueDate: thisWeek(), lines: [{ productId: material, qty: '5', price: '100', discountPct: '0' }] });
     await owner.post(`/documents/${order.id}/post`);
     const calc = (await owner.get(`/production/needs/calculate?method=orders&step=week&periods=4&from=${monday()}&byWarehouse=true&warehouseId=${main}`)).body;
     const row = calc.rows.find((r: any) => r.productId === material);
@@ -256,13 +260,14 @@ describe('drafts of the orders step', () => {
     const res = await owner.post('/production/needs/orders', {
       replenishment: 'production',
       workCenterId: (await owner.get('/work-centers')).body.items[0].id,
-      lines: [{ productId: product, warehouseId: main, qty: '4', date: monday(1) }],
+      // monday(2): в воскресенье monday(1) — завтра, а раньше «сегодня + срок изготовления» заказ не начать
+      lines: [{ productId: product, warehouseId: main, qty: '4', date: monday(2) }],
     });
     expect(res.status).toBe(201);
     const order = (await owner.get(`/production-orders/${res.body.orders[0].id}`)).body;
     expect(order.type).toBe('production_order');
     expect(order.status).toBe('draft');
-    expect(order.plannedEnd.slice(0, 10)).toBe(monday(1));
+    expect(order.plannedEnd.slice(0, 10)).toBe(monday(2));
     expect(order.items[0].qty).toBe('4.000');
     expect(order.targetWarehouseId).toBe(main);
   });
@@ -303,8 +308,8 @@ describe('drafts of the orders step', () => {
   });
 
   test('separate orders per customer order split the group', async () => {
-    const o1 = await mk(owner, '/documents', { type: 'customer_order', counterpartyId: customer, dueDate: shift(2), lines: [{ productId: material, qty: '3', price: '100', discountPct: '0' }] });
-    const o2 = await mk(owner, '/documents', { type: 'customer_order', counterpartyId: customer, dueDate: shift(9), lines: [{ productId: material, qty: '4', price: '100', discountPct: '0' }] });
+    const o1 = await mk(owner, '/documents', { type: 'customer_order', counterpartyId: customer, dueDate: thisWeek(), lines: [{ productId: material, qty: '3', price: '100', discountPct: '0' }] });
+    const o2 = await mk(owner, '/documents', { type: 'customer_order', counterpartyId: customer, dueDate: fromMonday(1, 2), lines: [{ productId: material, qty: '4', price: '100', discountPct: '0' }] });
     await owner.post(`/documents/${o1.id}/post`);
     await owner.post(`/documents/${o2.id}/post`);
     const res = await owner.post('/production/needs/orders', {
@@ -350,7 +355,7 @@ describe('review fixes (stage 5)', () => {
       { warehouseId: main, minQty: '0', maxQty: '0', replenishment: 'purchase' },
       { warehouseId: shop, minQty: '0', maxQty: '0', replenishment: 'purchase' },
     ]);
-    const order = await mk(owner, '/documents', { type: 'customer_order', counterpartyId: customer, warehouseId: shop, dueDate: shift(2), lines: [{ productId: p, qty: '5', price: '100', discountPct: '0' }] });
+    const order = await mk(owner, '/documents', { type: 'customer_order', counterpartyId: customer, warehouseId: shop, dueDate: thisWeek(), lines: [{ productId: p, qty: '5', price: '100', discountPct: '0' }] });
     await owner.post(`/documents/${order.id}/post`);
     const rows = (await owner.get(`/production/needs/calculate?step=week&periods=2&from=${monday()}&byWarehouse=true`)).body.rows.filter((r: any) => r.productId === p);
     expect(rows.find((r: any) => r.warehouseId === shop).recommendation).toBe('5.000');
