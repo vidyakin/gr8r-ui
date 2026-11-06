@@ -33,6 +33,8 @@ export async function listMyWorkspaces(sql: Sql, userId: string) {
         brand: workspaces.brand,
         createdAt: workspaces.createdAt,
         role: memberships.role,
+        // Отраслевые опции воркспейса (задача 1258): по ним интерфейс прячет партии, сроки годности и карантин
+        industryOptions: workspaces.industryOptions,
         // Язык воркспейса по умолчанию (settings.locale), null — не задан
         locale: dsql<string | null>`${workspaces.settings}->>'locale'`,
       })

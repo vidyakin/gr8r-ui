@@ -3,6 +3,7 @@ import { ROLES } from '../constants';
 import { clientId, uuid } from './common';
 import { localeSchema } from '../i18n';
 import { isLimitKey, MODULE_IDS } from '../licensing';
+import { INDUSTRY_OPTIONS } from '../industry';
 
 const email = z.string().trim().toLowerCase().max(254).pipe(z.email());
 const password = z.string().min(8, 'Password must be at least 8 characters').max(200);
@@ -26,8 +27,12 @@ export const workspaceCreateBody = z.object({
     .optional(),
   color: z.string().max(32).optional(),
 });
-/** locale — язык воркспейса по умолчанию (workspaces.settings.locale), null — снять */
-export const workspaceUpdateBody = workspaceCreateBody.partial().extend({ locale: localeSchema.nullable().optional() });
+/** locale — язык воркспейса по умолчанию (workspaces.settings.locale), null — снять;
+    industryOptions — отраслевые опции воркспейса целиком (кто включён — задаёт клиент; только owner и admin) */
+export const workspaceUpdateBody = workspaceCreateBody.partial().extend({
+  locale: localeSchema.nullable().optional(),
+  industryOptions: z.array(z.enum(INDUSTRY_OPTIONS)).max(INDUSTRY_OPTIONS.length).optional(),
+});
 
 export const inviteCreateBody = z.object({
   email,

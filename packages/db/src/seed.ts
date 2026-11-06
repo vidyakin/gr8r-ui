@@ -3,6 +3,7 @@
    Сид идёт тем же путём, что и приложение: под ролью app_user с настройками RLS (политики проверяют и его). */
 import { eq, sql as dsql } from 'drizzle-orm';
 import type { FieldType, LegacyDealStage, Subtask } from '@gr8r/shared';
+import { ALL_INDUSTRY_OPTIONS } from '@gr8r/shared';
 import { seed as demoWorkspace, seedCrm } from '@gr8r/shared/demo';
 import type { Db, Sql } from './client';
 import { withContext } from './context';
@@ -162,7 +163,7 @@ export async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: strin
   };
   const Uo = (old?: string | null) => (old ? U(old) : null);
 
-  await db.insert(workspaces).values({ id: wsId, name: opts.name ?? d.ws.name, slug: opts.slug ?? d.ws.url, color: d.ws.c, brand: d.ws.brand ?? false, createdBy: ownerUserId });
+  await db.insert(workspaces).values({ id: wsId, name: opts.name ?? d.ws.name, slug: opts.slug ?? d.ws.url, color: d.ws.c, brand: d.ws.brand ?? false, createdBy: ownerUserId, industryOptions: ALL_INDUSTRY_OPTIONS });
   await db.insert(memberships).values(
     d.members
       .filter(m => userIds.has(m.id))
@@ -407,7 +408,7 @@ async function seedOtherWorkspace(db: Db, wsId: string, userId: string) {
   const memberId = uuidv7();
   const projectId = uuidv7();
   const companyId = uuidv7();
-  await db.insert(workspaces).values({ id: wsId, name: 'Acme Corp', slug: 'acme', color: '#C54B78', createdBy: userId });
+  await db.insert(workspaces).values({ id: wsId, name: 'Acme Corp', slug: 'acme', color: '#C54B78', createdBy: userId, industryOptions: ALL_INDUSTRY_OPTIONS });
   await db.insert(memberships).values({ workspaceId: wsId, userId, role: 'owner' });
   await db.insert(members).values({ id: memberId, workspaceId: wsId, userId, email: OTHER_USER.email, name: OTHER_USER.name, title: 'Founder', color: '#C54B78', role: 'owner' });
   await registerSystemEntities(db, wsId);

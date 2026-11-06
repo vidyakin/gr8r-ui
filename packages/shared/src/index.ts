@@ -37,6 +37,7 @@ export * from './ad-report';
 export * from './qr';
 export * from './pipelines';
 export * from './licensing';
+export * from './industry';
 export * from './fleet';
 export * from './trips';
 export * from './transport-orders';

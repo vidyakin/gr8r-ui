@@ -70,6 +70,12 @@ export const workspaces = pgTable(
     payrollTripKmRate: money('payroll_trip_km_rate').notNull().default('0'),
     payrollTripStopRate: money('payroll_trip_stop_rate').notNull().default('0'),
     payrollTripPerdiemRate: money('payroll_trip_perdiem_rate').notNull().default('0'),
+    /** Отраслевые опции (задача 1258, docs/architecture/industry-options.md): food — пищевое производство,
+        construction — строительство и монтаж. Включают owner и admin; это настройка вида интерфейса, не модуль тарифа */
+    industryOptions: text('industry_options')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     /** regular — клиент, demo — демо-арендатор оператора со сроком жизни expires_at (docs/architecture/deploy.md) */
     kind: text('kind', { enum: ['regular', 'demo'] }).notNull().default('regular'),
@@ -82,7 +88,12 @@ export const workspaces = pgTable(
     updatedAt: updatedAt(),
     archivedAt: archivedAt(),
   },
-  t => [uniqueIndex('workspaces_slug_uq').on(sql`lower(${t.slug})`), check('workspaces_kind_chk', sql`${t.kind} in ('regular','demo')`)],
+  t => [
+    uniqueIndex('workspaces_slug_uq').on(sql`lower(${t.slug})`),
+    check('workspaces_kind_chk', sql`${t.kind} in ('regular','demo')`),
+    // Отраслевые опции — только из известного списка (INDUSTRY_OPTIONS в @gr8r/shared)
+    check('workspaces_industry_options_chk', sql`${t.industryOptions} <@ ARRAY['food','construction']::text[]`),
+  ],
 );
 
 /** Доступ пользователя к воркспейсу и его роль (источник правды для проверки прав) */
