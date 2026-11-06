@@ -150,18 +150,19 @@ describe('стоимость часа и снимок', () => {
     expect(confirmed.status).toBe(200);
     const view = (await owner.get(`/shifts/${id}`)).body;
     const rate = salaryRate(44000, '2026-10-15');
-    expect(view.hours.map((h: any) => [h.costRate, h.costAmount])).toEqual([
-      ['650.00', '5200.00'],
-      [rate, (Number(rate) * 8).toFixed(2)],
-      [null, null],
-    ]);
+    // порядок строк в ответе не определён (вставлены одной пачкой) — сверяем по работнику
+    const cost = Object.fromEntries(view.hours.map((h: any) => [h.memberId, [h.costRate, h.costAmount]]));
+    expect(cost[hourly.id]).toEqual(['650.00', '5200.00']);
+    expect(cost[salaried.id]).toEqual([rate, (Number(rate) * 8).toFixed(2)]);
+    expect(cost[none.id]).toEqual([null, null]);
     // сумма смены не считается, пока у строки нет стоимости: пробел, не ноль
     expect(view.totalAmount).toBeNull();
     expect(view.noRate).toBe(1);
 
     // снимок: новая ставка прошлые затраты не меняет
     await owner.put(`/payroll/employees/${hourly.id}`, { hourlyRate: '1000' });
-    expect((await owner.get(`/shifts/${id}`)).body.hours[0].costRate).toBe('650.00');
+    const snapshot = (await owner.get(`/shifts/${id}`)).body.hours.find((h: any) => h.memberId === hourly.id);
+    expect(snapshot.costRate).toBe('650.00');
 
     // труд в бюджете объекта — сумма подтверждённых смен, строка без ставки не входит
     const budget = (await owner.get(`/objects/${obj.id}/budget`)).body;

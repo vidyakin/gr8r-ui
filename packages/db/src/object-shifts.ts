@@ -233,8 +233,17 @@ async function loadShift(db: Db, id: string, lock = false): Promise<ShiftRow> {
 
 /** Строки смены: часы и объёмы (порядок — по имени работника и позиции) */
 async function shiftRows(db: Db, shiftId: string): Promise<{ hours: ShiftHourRow[]; volumes: ShiftVolumeRow[] }> {
-  const hours = await db.select().from(objectShiftHours).where(eq(objectShiftHours.shiftId, shiftId)).orderBy(asc(objectShiftHours.createdAt));
-  const volumes = await db.select().from(objectShiftVolumes).where(eq(objectShiftVolumes.shiftId, shiftId)).orderBy(asc(objectShiftVolumes.createdAt));
+  // вставка пачкой даёт одинаковый created_at: порядок добираем по ключу строки, чтобы ответ был стабильным
+  const hours = await db
+    .select()
+    .from(objectShiftHours)
+    .where(eq(objectShiftHours.shiftId, shiftId))
+    .orderBy(asc(objectShiftHours.createdAt), asc(objectShiftHours.memberId), asc(objectShiftHours.estimateItemId));
+  const volumes = await db
+    .select()
+    .from(objectShiftVolumes)
+    .where(eq(objectShiftVolumes.shiftId, shiftId))
+    .orderBy(asc(objectShiftVolumes.createdAt), asc(objectShiftVolumes.estimateItemId));
   return { hours, volumes };
 }
 
