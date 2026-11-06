@@ -78,7 +78,6 @@ export const objectContracts = pgTable(
   },
   t => [
     unique('object_contracts_ws_id_uq').on(t.workspaceId, t.objectId, t.contractId),
-    check('object_contracts_object_chk', sql`${t.objectId} is not null and ${t.contractId} is not null`),
     foreignKey({ columns: [t.workspaceId, t.objectId], foreignColumns: [objects.workspaceId, objects.id], name: 'object_contracts_object_fk' }).onDelete('cascade'),
     index('object_contracts_object_idx').on(t.objectId),
   ],
