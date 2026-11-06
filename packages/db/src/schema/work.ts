@@ -24,6 +24,7 @@ import { archivedAt, createdAt, hours, pk, ts, updatedAt } from './columns';
 import { companies } from './crm';
 import { products } from './catalog';
 import { members, teams, wsCol } from './people';
+import { objects } from './objects';
 
 export const projects = pgTable(
   'projects',
@@ -140,6 +141,8 @@ export const tasks = pgTable(
     assigneeId: uuid('assignee_id'),
     /** Заказчик: только у задач модуля services (время можно записать по заказчику без заказ-наряда) */
     companyId: uuid('company_id'),
+    /** Объект объектного учёта (задача 1268) */
+    objectId: uuid('object_id'),
     /** Вид работ (номенклатура): по нему время по заказчику без заказ-наряда попадает в биллинг */
     workProductId: uuid('work_product_id'),
     /** Шкала 1–10 (10 — самый срочный); null — без приоритета */
@@ -170,6 +173,7 @@ export const tasks = pgTable(
     foreignKey({ columns: [t.workspaceId, t.projectId], foreignColumns: [projects.workspaceId, projects.id], name: 'tasks_project_fk' }),
     foreignKey({ columns: [t.workspaceId, t.assigneeId], foreignColumns: [members.workspaceId, members.id], name: 'tasks_assignee_fk' }),
     foreignKey({ columns: [t.workspaceId, t.companyId], foreignColumns: [companies.workspaceId, companies.id], name: 'tasks_company_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.objectId], foreignColumns: [objects.workspaceId, objects.id], name: 'tasks_object_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.workProductId], foreignColumns: [products.workspaceId, products.id], name: 'tasks_work_product_fk' }),
     foreignKey({ columns: [t.workspaceId, t.status], foreignColumns: [statuses.workspaceId, statuses.key], name: 'tasks_status_fk' }),
     check('tasks_priority_chk', sql`${t.priority} is null or ${t.priority} between 1 and 10`),
@@ -180,6 +184,7 @@ export const tasks = pgTable(
     index('tasks_ws_module_idx').on(t.workspaceId, t.module),
     index('tasks_ws_assignee_idx').on(t.workspaceId, t.assigneeId),
     index('tasks_ws_company_idx').on(t.workspaceId, t.companyId),
+    index('tasks_object_idx').on(t.workspaceId, t.objectId),
     index('tasks_ws_due_idx').on(t.workspaceId, t.dueDate),
   ],
 );
@@ -265,6 +270,8 @@ export const timeLogs = pgTable(
     id: pk(),
     workspaceId: wsCol(),
     taskId: uuid('task_id').notNull(),
+    /** Объект объектного учёта (задача 1268), необязательно */
+    objectId: uuid('object_id'),
     subId: text('sub_id'),
     memberId: uuid('member_id').notNull(),
     hours: hours('hours').notNull(),
@@ -276,9 +283,11 @@ export const timeLogs = pgTable(
   t => [
     foreignKey({ columns: [t.workspaceId, t.taskId], foreignColumns: [tasks.workspaceId, tasks.id], name: 'tl_task_fk' }).onDelete('cascade'),
     foreignKey({ columns: [t.workspaceId, t.memberId], foreignColumns: [members.workspaceId, members.id], name: 'tl_member_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.objectId], foreignColumns: [objects.workspaceId, objects.id], name: 'time_logs_object_fk' }).onDelete('set null'),
     check('time_logs_hours_chk', sql`${t.hours} > 0`),
     index('time_logs_task_idx').on(t.taskId),
     index('time_logs_ws_date_idx').on(t.workspaceId, t.logDate),
+    index('time_logs_object_idx').on(t.workspaceId, t.objectId),
   ],
 );
 

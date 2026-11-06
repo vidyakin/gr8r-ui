@@ -9,6 +9,7 @@ import { attachments } from './attachments';
 import { companies } from './crm';
 import { investmentProjects } from './investments';
 import { members, wsCol } from './people';
+import { objects } from './objects';
 
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => 'bytea' });
 
@@ -199,6 +200,8 @@ export const documents = pgTable(
     tollingOrderId: uuid('tolling_order_id'),
     /** Инвестпроект: весь документ идёт в факт этого проекта */
     investmentProjectId: uuid('investment_project_id'),
+    /** Объект объектного учёта (задача 1268): аналитика затрат и выручки */
+    objectId: uuid('object_id'),
     /** Оплаты (группа cash): касса или банковский счёт организации, «куда» при перемещении денег, подотчётное лицо.
         Внешние ключи (workspace_id, …) на cash_registers / bank_accounts / members добавляет миграция 0041 (схема касс ссылается на документы) */
     cashRegisterId: uuid('cash_register_id'),
@@ -240,6 +243,7 @@ export const documents = pgTable(
     foreignKey({ columns: [t.workspaceId, t.basedOnId], foreignColumns: [t.workspaceId, t.id], name: 'documents_based_on_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.responsibleId], foreignColumns: [members.workspaceId, members.id], name: 'documents_responsible_fk' }),
     foreignKey({ columns: [t.workspaceId, t.investmentProjectId], foreignColumns: [investmentProjects.workspaceId, investmentProjects.id], name: 'documents_investment_project_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.objectId], foreignColumns: [objects.workspaceId, objects.id], name: 'documents_object_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.tollingOrderId], foreignColumns: [t.workspaceId, t.id], name: 'documents_tolling_order_fk' }).onDelete('set null'),
     check('documents_type_chk', sql`${t.type} in ('quote','customer_order','invoice','realization','act','customer_return','supplier_order','receipt','supplier_return','stock_transfer','write_off','stock_posting','opening_stock','inventory_count','production_order','production','work_order','piecework_order','other_costs','material_allocation','tolling_receipt','tolling_report','tolling_return','sales_plan','service_day','cash_receipt','cash_payment','bank_receipt','bank_payment','advance_report','payment_request','opening_balance','payroll','payroll_statement','price_setting')`),
     check('documents_status_chk', sql`${t.status} in ('draft','posted','cancelled')`),
@@ -260,6 +264,7 @@ export const documents = pgTable(
     index('documents_contract_idx').on(t.workspaceId, t.contractId),
     index('documents_based_on_idx').on(t.basedOnId),
     index('documents_investment_project_idx').on(t.investmentProjectId),
+    index('documents_object_idx').on(t.workspaceId, t.objectId),
   ],
 );
 

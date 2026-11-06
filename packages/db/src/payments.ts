@@ -50,6 +50,7 @@ import {
 } from './schema';
 import { assertPeriodOpen } from './cost-closing';
 import { requestPaidAmounts, syncRequestPaid } from './request-paid';
+import { assertObjectRef } from './objects';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const CASH_TYPES = ['cash_receipt', 'cash_payment', 'bank_receipt', 'bank_payment', 'advance_report'] as const;
@@ -137,6 +138,7 @@ export async function saveLines(db: Db, ctx: DocCtx, doc: DocRow, inputs: Paymen
   const rows: (typeof paymentLines.$inferInsert)[] = [];
   for (const [i, l] of inputs.entries()) {
     if (dec(l.amount) <= 0n) throw new DomainError(422, 'invalid_amount', 'The amount must be greater than zero');
+    if (l.objectId) await assertObjectRef(db, l.objectId);
     const lineCompany = l.counterpartyId ?? doc.counterpartyId;
     let settlementDocumentId: string | null = null;
     let contractId = l.contractId ?? null;
@@ -168,6 +170,7 @@ export async function saveLines(db: Db, ctx: DocCtx, doc: DocRow, inputs: Paymen
       cashFlowItemId,
       costItemId: l.costItemId ?? null,
       investmentProjectId: l.investmentProjectId ?? null,
+      objectId: l.objectId ?? null,
       comment: l.comment?.trim() ?? '',
     });
   }

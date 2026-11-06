@@ -44,6 +44,8 @@ export const paymentLineInput = z.object({
   cashFlowItemId: uuid.nullish(),
   costItemId: uuid.nullish(),
   investmentProjectId: uuid.nullish(),
+  /** Объект объектного учёта (задача 1268) */
+  objectId: uuid.nullish(),
   comment: z.string().trim().max(500).default(''),
 });
 export type PaymentLineInput = z.infer<typeof paymentLineInput>;

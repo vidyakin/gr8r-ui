@@ -32,3 +32,4 @@ export * from './trips';
 export * from './transport-orders';
 export * from './routing';
 export * from './loyalty';
+export * from './objects';

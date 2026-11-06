@@ -9,6 +9,7 @@ import { bankAccounts, costItems, documents, organizations } from './documents';
 import { investmentProjects } from './investments';
 import { contracts } from './billing';
 import { members, wsCol } from './people';
+import { objects } from './objects';
 
 /** Кассы наличных */
 export const cashRegisters = pgTable(
@@ -79,6 +80,8 @@ export const paymentLines = pgTable(
     /** Прочий доход/расход и расход подотчётного: статья затрат */
     costItemId: uuid('cost_item_id'),
     investmentProjectId: uuid('investment_project_id'),
+    /** Объект объектного учёта (задача 1268): аналитика платежа */
+    objectId: uuid('object_id'),
     comment: text('comment').notNull().default(''),
     createdAt: createdAt(),
   },
@@ -93,8 +96,10 @@ export const paymentLines = pgTable(
     foreignKey({ columns: [t.workspaceId, t.cashFlowItemId], foreignColumns: [cashFlowItems.workspaceId, cashFlowItems.id], name: 'payment_lines_cash_flow_item_fk' }),
     foreignKey({ columns: [t.workspaceId, t.costItemId], foreignColumns: [costItems.workspaceId, costItems.id], name: 'payment_lines_cost_item_fk' }),
     foreignKey({ columns: [t.workspaceId, t.investmentProjectId], foreignColumns: [investmentProjects.workspaceId, investmentProjects.id], name: 'payment_lines_investment_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.objectId], foreignColumns: [objects.workspaceId, objects.id], name: 'payment_lines_object_fk' }).onDelete('set null'),
     index('payment_lines_doc_idx').on(t.documentId, t.sortOrder),
     index('payment_lines_settlement_idx').on(t.settlementDocumentId),
+    index('payment_lines_object_idx').on(t.workspaceId, t.objectId),
   ],
 );
 

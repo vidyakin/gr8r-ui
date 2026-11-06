@@ -83,6 +83,8 @@ export const taskCreate = z.object({
   assigneeId: uuid.nullish(),
   /** Заказчик: только у задач модуля services (время по заказчику без заказ-наряда) */
   companyId: uuid.nullish(),
+  /** Объект объектного учёта (задача 1268) */
+  objectId: uuid.nullish(),
   priority: z.number().int().min(1).max(10).nullish(),
   dueDate: isoDate.nullish(),
   startDate: isoDate.nullish(),
@@ -99,6 +101,7 @@ export const taskCreate = z.object({
 export const taskUpdate = toPatch(taskCreate.omit({ id: true, key: true }));
 export const taskQuery = listQuery.extend({
   projectId: uuid.optional(),
+  objectId: uuid.optional(),
   module: z.enum(TASK_MODULES).optional(),
   status: z.string().max(32).optional(),
   assigneeId: z.union([uuid, z.literal('none')]).optional(),
@@ -119,6 +122,8 @@ export const reactionBody = z.object({ emoji: z.string().min(1).max(16) });
 export const timeLogCreate = z.object({
   id: clientId,
   taskId: uuid,
+  /** Объект объектного учёта (задача 1268), необязательно */
+  objectId: uuid.nullish(),
   subId: z.string().max(64).nullish(),
   /** По умолчанию — текущий участник; указывать другого может только admin */
   memberId: uuid.optional(),

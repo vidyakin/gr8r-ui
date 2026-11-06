@@ -59,6 +59,7 @@ import { z } from 'zod';
 import { crud, ctxOf, validationHook } from '../crud';
 import { AppError, forbidden, notFound } from '../errors';
 import { hasRole } from '../middleware';
+import { assertObjectRef } from '@gr8r/db';
 import { customForCreate, customForUpdate } from '../meta/service';
 import { addActivity, assertTasksExist, favoriteFilter, favoriteSet, nextOrder, notify, setFavorite } from './helpers';
 
@@ -185,6 +186,7 @@ export const taskRoutes = crud({
     const module = await projectModuleOf(ctx, body.projectId);
     if (body.module && body.module !== module) throw new AppError(422, 'module_mismatch', 'A task must be in a project of the same module');
     await assertTaskCompany(ctx, body.companyId, module);
+    if (body.objectId) await assertObjectRef(ctx.db, body.objectId);
     return {
       key,
       module,
@@ -212,6 +214,7 @@ export const taskRoutes = crud({
     }
     if (body.module !== undefined && body.module !== (patch.module ?? existing.module)) throw new AppError(422, 'module_mismatch', 'A task must be in a project of the same module');
     await assertTaskCompany(ctx, body.companyId, (patch.module as string) ?? existing.module);
+    if (body.objectId) await assertObjectRef(ctx.db, body.objectId);
     // задача ушла из модуля services — заказчик у неё не нужен (его допускает только services)
     if (patch.module && patch.module !== 'services' && existing.companyId && body.companyId === undefined) patch.companyId = null;
     if (body.status && body.status !== existing.status) {
@@ -304,12 +307,14 @@ export const timeLogRoutes = crud({
   defaultSort: '-logDate',
   search: [timeLogs.note],
   filters: q => [q.taskId ? eq(timeLogs.taskId, q.taskId) : undefined, q.memberId ? eq(timeLogs.memberId, q.memberId) : undefined, q.from ? gte(timeLogs.logDate, q.from) : undefined, q.to ? lte(timeLogs.logDate, q.to) : undefined],
-  prepareCreate: (ctx, body) => {
+  prepareCreate: async (ctx, body) => {
     if (body.memberId && body.memberId !== ctx.memberId && !hasRole(ctx.c, 'admin')) throw forbidden('Only an admin can log time for other members');
+    if (body.objectId) await assertObjectRef(ctx.db, body.objectId);
     return { memberId: body.memberId ?? ctx.memberId };
   },
-  prepareUpdate: (ctx, existing) => {
+  prepareUpdate: async (ctx, existing, body) => {
     ownOrAdmin(ctx, existing.memberId);
+    if (body.objectId) await assertObjectRef(ctx.db, body.objectId);
     return {};
   },
   beforeDelete: (ctx, row) => ownOrAdmin(ctx, row.memberId),

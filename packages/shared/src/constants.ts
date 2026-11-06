@@ -18,6 +18,13 @@ export type Role = (typeof ROLES)[number];
 
 export const PROJECT_STATUSES = ['planning', 'active', 'risk', 'hold', 'complete'] as const;
 
+/** Статусы объекта объектного учёта (задача 1268) */
+export const OBJECT_STATUSES = ['planning', 'active', 'hold', 'done', 'closed'] as const;
+export type ObjectStatus = (typeof OBJECT_STATUSES)[number];
+/** Способ выручки объекта: акты фактических объёмов, вехи, часы */
+export const REVENUE_MODES = ['acts', 'milestones', 'hours'] as const;
+export type RevenueMode = (typeof REVENUE_MODES)[number];
+
 /** Модуль задач: general — обычные задачи, production — производство, services — услуги.
     Модуль задачи совпадает с модулем проекта, в котором она лежит (у каждого модуля свой системный проект) */
 export const TASK_MODULES = ['general', 'production', 'services'] as const;

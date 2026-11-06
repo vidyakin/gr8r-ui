@@ -184,6 +184,8 @@ export const documentCreate = z.object({
   workCenterId: uuid.nullish(),
   /** Инвестпроект: документ идёт в факт проекта */
   investmentProjectId: uuid.nullish(),
+  /** Объект объектного учёта (задача 1268) */
+  objectId: uuid.nullish(),
   /** Вид заказ-наряда (только у work_order): пусто — вид по умолчанию */
   workOrderKindId: uuid.nullish(),
   /** Пусто — сегодня */
@@ -212,6 +214,8 @@ export const documentQuery = listQuery.extend({
   contractId: uuid.optional(),
   /** Документы сделки */
   dealId: uuid.optional(),
+  /** Документы объекта */
+  objectId: uuid.optional(),
   warehouseId: uuid.optional(),
   basedOnId: uuid.optional(),
   from: isoDate.optional(),

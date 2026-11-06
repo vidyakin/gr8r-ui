@@ -41,7 +41,8 @@ import { recordEvent } from './events';
 import { applyStockMoves, defaultPostingCost, documentCosts, documentLineCosts, loadInventorySettings, revertStockMoves, sourceMoveCosts, syncReservations, type MoveRequest } from './stock';
 import { syncWorkOrderResources } from './planning';
 import { assertPeriodOpen, assertServiceCostItems, clearPeriodCosts, syncPeriodCosts } from './cost-closing';
-import { bankAccounts, companies, deals, contracts, discountRules, loyaltyCards, paymentLinks, costItems, documentCounters, documentLineDiscounts, documentLines, documentStates, documents, investmentProjects, materialAllocationItems, members, organizations, products, promoCodes, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials } from './schema';
+import { assertObjectRef } from './objects';
+import { bankAccounts, companies, deals, contracts, discountRules, loyaltyCards, paymentLinks, costItems, documentCounters, documentLineDiscounts, documentLines, documentStates, documents, investmentProjects, materialAllocationItems, members, organizations, products, promoCodes, tasks, units, warehouses, workCenters, workOrderAssignments, workOrderKinds, workOrderMaterials, objects } from './schema';
 import { assertInvestmentTarget, investmentOpen } from './investments';
 import { assertContractOfCompany, contractDocumentProducts, contractPlanProductIds, defaultContract } from './contracts';
 import { ensureVariant, specParamsOfProduct } from './variants';
@@ -462,6 +463,8 @@ export interface DocumentCreateInput {
   workCenterId?: string | null;
   /** Инвестпроект: документ идёт в факт проекта (только у типов из INVESTMENT_FACT_TYPES) */
   investmentProjectId?: string | null;
+  /** Объект объектного учёта (задача 1268) */
+  objectId?: string | null;
   /** Вид перемещения: сразу, «в пути», в эксплуатацию или обратно (только у перемещения между складами) */
   operation?: string;
   /** Получатель в эксплуатацию: участник или участок (ровно один) */
@@ -559,6 +562,8 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
   if (tollingOrderId) await assertProcessingOrder(db, tollingOrderId);
   const investmentProjectId = input.investmentProjectId ?? null;
   if (investmentProjectId) await assertInvestmentTarget(db, investmentProjectId, input.type);
+  const objectId = input.objectId ?? null;
+  if (objectId) await assertObjectRef(db, objectId);
   // договор: заданный или по умолчанию у контрагента; его условия подставляются в документ
   let contractId: string | null = null;
   let contract: Awaited<ReturnType<typeof defaultContract>> = null;
@@ -599,6 +604,7 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
       inUseWorkCenterId,
       tollingOrderId,
       investmentProjectId,
+      objectId,
       basedOnId: input.basedOnId ?? null,
       priceIncludesVat: input.priceIncludesVat ?? true,
       comment: input.comment ?? '',
@@ -632,6 +638,8 @@ export interface DocumentPatch {
   /** Участок списания: стоимость уходит в косвенные затраты участка (только у списания) */
   workCenterId?: string | null;
   investmentProjectId?: string | null;
+  /** Объект объектного учёта (задача 1268) */
+  objectId?: string | null;
   /** Вид перемещения (только у перемещения между складами) */
   operation?: string;
   /** Получатель в эксплуатацию: участник или участок */
@@ -701,6 +709,10 @@ export async function updateDocument(db: Db, ctx: DocCtx, id: string, patch: Doc
   if (patch.investmentProjectId !== undefined && patch.investmentProjectId !== doc.investmentProjectId) {
     if (patch.investmentProjectId) await assertInvestmentTarget(db, patch.investmentProjectId, type);
     set.investmentProjectId = patch.investmentProjectId;
+  }
+  if (patch.objectId !== undefined && patch.objectId !== doc.objectId) {
+    if (patch.objectId) await assertObjectRef(db, patch.objectId);
+    set.objectId = patch.objectId;
   }
   if (patch.inUseMemberId !== undefined && type === 'stock_transfer') set.inUseMemberId = patch.inUseMemberId;
   if (patch.inUseWorkCenterId !== undefined && type === 'stock_transfer') set.inUseWorkCenterId = patch.inUseWorkCenterId;
@@ -1188,7 +1200,8 @@ export async function documentDetail(db: Db, id: string) {
   // внутренний документ: стоимость по себестоимости (сумма qty × cost движений)
   const costs = DOCUMENT_META[type].party === null ? await documentCosts(db, [id]) : new Map<string, string>();
   const [investmentProject] = doc.investmentProjectId ? await db.select({ id: investmentProjects.id, name: investmentProjects.name, status: investmentProjects.status }).from(investmentProjects).where(eq(investmentProjects.id, doc.investmentProjectId)).limit(1) : [];
-  return { ...doc, investmentProject: investmentProject ?? null, organization: org ?? null, counterparty: cp ?? null, contract: contract ?? null, warehouse: wh ?? null, targetWarehouse: targetWh ?? null, costItem: costItem ?? null, workCenter: workCenter ?? null, inUseMember: inUseMember ?? null, inUseWorkCenter: inUseWorkCenter ?? null, costTotal: costs.get(id) ?? '0.00', basedOn: base ?? null, children, lines, loyalty, totals, serials: await lineSerialsView(db, id), variants: hasQuoteVariants(type) ? await variantsOf(db, doc) : [] };
+  const [object] = doc.objectId ? await db.select({ id: objects.id, number: objects.number, name: objects.name }).from(objects).where(eq(objects.id, doc.objectId)).limit(1) : [];
+  return { ...doc, investmentProject: investmentProject ?? null, object: object ?? null, organization: org ?? null, counterparty: cp ?? null, contract: contract ?? null, warehouse: wh ?? null, targetWarehouse: targetWh ?? null, costItem: costItem ?? null, workCenter: workCenter ?? null, inUseMember: inUseMember ?? null, inUseWorkCenter: inUseWorkCenter ?? null, costTotal: costs.get(id) ?? '0.00', basedOn: base ?? null, children, lines, loyalty, totals, serials: await lineSerialsView(db, id), variants: hasQuoteVariants(type) ? await variantsOf(db, doc) : [] };
 }
 
 /* ---------------- данные для печатной формы ---------------- */
