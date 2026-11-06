@@ -17,6 +17,7 @@ import {
   importEstimateRows,
   listObjectEstimates,
   saveEstimateContent,
+  saveEstimateDoneQty,
   unapproveEstimate,
   updateEstimate,
 } from '@gr8r/db';
@@ -25,6 +26,7 @@ import {
   estimateContent,
   estimateCopy,
   estimateCreate,
+  estimateDoneQty,
   estimateImport,
   estimateProductionOrder,
   estimateSupplierOrder,
@@ -111,6 +113,12 @@ export const estimateRoutes = new Hono<AppEnv>()
     const ctx = ctxOf(c);
     const { id } = c.req.valid('param');
     return c.json(await saveEstimateContent(ctx.db, estCtx(ctx), id, c.req.valid('json')));
+  })
+  // выполненные объёмы (задача 1272): факт, правится и у согласованной сметы; больше объёма — 422 done_qty_exceeds
+  .patch('/:id/done-qty', member, zValidator('param', idParam, validationHook), zValidator('json', estimateDoneQty, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const { id } = c.req.valid('param');
+    return c.json(await saveEstimateDoneQty(ctx.db, estCtx(ctx), id, c.req.valid('json').items));
   })
   /* ---------- согласование ---------- */
   .post('/:id/approve', member, zValidator('param', idParam, validationHook), async c => {

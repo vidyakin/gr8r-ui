@@ -122,6 +122,12 @@ function assertDraft(row: EstimateRow): void {
   if (row.status === 'approved') throw new DomainError(422, 'estimate_approved', 'An approved estimate cannot be changed: return it to draft first');
 }
 
+/** Выполненный объём не больше объёма позиции (422 done_qty_exceeds) */
+function assertDoneQty(qty: string, doneQty: string): void {
+  if (dec(doneQty) > dec(qty)) throw new DomainError(422, 'done_qty_exceeds', 'The completed quantity cannot exceed the line quantity', { qty, doneQty });
+  if (dec(doneQty) < 0n) throw new DomainError(422, 'invalid_value', 'The completed quantity cannot be negative');
+}
+
 /** Товар и изделие производства должны быть своего воркспейса и не в архиве; единица — из справочника ОКЕИ воркспейса */
 async function assertItemRefs(db: Db, input: EstimateContentInput): Promise<void> {
   const productIds = [...new Set(input.items.map(i => i.productId).filter((x): x is string => !!x))];
@@ -333,6 +339,10 @@ export async function saveEstimateContent(db: Db, ctx: EstimateCtx, id: string, 
   const dropItems = existingItems.filter(i => !keepItems.has(i.id)).map(i => i.id);
   if (dropItems.length) await db.delete(objectEstimateItems).where(inArray(objectEstimateItems.id, dropItems));
   for (const [n, i] of input.items.entries()) {
+    const prev = existingItems.find(e => e.id === i.id);
+    // выполненный объём — факт (задача 1272): не указан — сохраняем прежний, больше объёма — 422
+    const doneQty = i.doneQty ?? prev?.doneQty ?? '0';
+    assertDoneQty(i.qty, doneQty);
     const values = {
       sectionId: i.sectionId ?? null,
       sortOrder: n,
@@ -345,6 +355,7 @@ export async function saveEstimateContent(db: Db, ctx: EstimateCtx, id: string, 
       vatRate: i.vatRate,
       costPrice: i.costPrice,
       laborHours: i.laborHours,
+      doneQty,
       manufacturedItemId: i.manufacturedItemId ?? null,
       note: i.note,
     };
@@ -353,6 +364,23 @@ export async function saveEstimateContent(db: Db, ctx: EstimateCtx, id: string, 
   }
   await db.update(objectEstimates).set({ updatedAt: new Date() }).where(eq(objectEstimates.id, id));
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'object_estimate.updated', entity: 'object_estimate', recordId: id, actorId: ctx.memberId, payload: { items: input.items.length, sections: input.sections.length } });
+  return getEstimate(db, id, ctx.role);
+}
+
+/** Выполненные объёмы позиций сметы: правится и у согласованной сметы — это факт, а не состав.
+    Пока вводится вручную во вкладке «Смета»; позже обновится сменным отчётом (задача 1271). */
+export async function saveEstimateDoneQty(db: Db, ctx: EstimateCtx, id: string, items: { id: string; doneQty: string }[]): Promise<EstimateDetail> {
+  const estimate = await loadEstimate(db, id);
+  const rows = await loadItems(db, id);
+  const byId = new Map(rows.map(r => [r.id, r]));
+  for (const i of items) {
+    const row = byId.get(i.id);
+    if (!row) throw new DomainError(422, 'invalid_reference', 'An estimate line of this estimate does not exist');
+    assertDoneQty(row.qty, i.doneQty);
+    if (row.doneQty !== i.doneQty) await db.update(objectEstimateItems).set({ doneQty: i.doneQty }).where(eq(objectEstimateItems.id, i.id));
+  }
+  await db.update(objectEstimates).set({ updatedAt: new Date() }).where(eq(objectEstimates.id, id));
+  await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'object_estimate.updated', entity: 'object_estimate', recordId: id, actorId: ctx.memberId, payload: { doneQty: items.length, objectId: estimate.objectId } });
   return getEstimate(db, id, ctx.role);
 }
 

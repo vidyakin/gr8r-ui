@@ -31,6 +31,12 @@ export const objects = pgTable(
     overheadPct: numeric('overhead_pct', { precision: 5, scale: 2 }).notNull().default('0'),
     /** Контроль бюджета (задача 1270): none — не контролировать, warn — предупредить, block — запретить проведение */
     budgetPolicy: text('budget_policy', { enum: ['none', 'warn', 'block'] }).notNull().default('warn'),
+    /** Как считать процент выполнения (задача 1272): по закрытым задачам, среднему прогрессу, весам, объёмам сметы, вручную */
+    progressMode: text('progress_mode', { enum: ['tasks_closed', 'tasks_avg', 'task_weights', 'estimate_volume', 'manual'] })
+      .notNull()
+      .default('tasks_closed'),
+    /** Ручной процент выполнения 0–100 (только для режима manual) */
+    progressManual: numeric('progress_manual', { precision: 5, scale: 2 }),
     /** Свой проект задач (график, Гант): составной FK (workspace_id, project_id) → projects добавляет миграция */
     projectId: uuid('project_id'),
     /** Склад объекта (необязательно): составной FK (workspace_id, warehouse_id) → warehouses добавляет миграция */
@@ -51,6 +57,8 @@ export const objects = pgTable(
     check('objects_revenue_mode_chk', sql`${t.revenueMode} in ('acts','milestones','hours')`),
     check('objects_overhead_chk', sql`${t.overheadPct} >= 0 and ${t.overheadPct} <= 100`),
     check('objects_budget_policy_chk', sql`${t.budgetPolicy} in ('none','warn','block')`),
+    check('objects_progress_mode_chk', sql`${t.progressMode} in ('tasks_closed','tasks_avg','task_weights','estimate_volume','manual')`),
+    check('objects_progress_manual_chk', sql`${t.progressManual} is null or (${t.progressManual} >= 0 and ${t.progressManual} <= 100)`),
     index('objects_ws_status_idx').on(t.workspaceId, t.status),
   ],
 );
@@ -172,6 +180,8 @@ export const objectEstimateItems = pgTable(
     costPrice: money('cost_price').notNull().default('0'),
     /** Норма часов на единицу (для работ) */
     laborHours: numeric('labor_hours', { precision: 18, scale: 3 }).notNull().default('0'),
+    /** Выполненный объём (задача 1272): факт выполнения, вводится вручную; позже обновляет сменный отчёт (1271) */
+    doneQty: numeric('done_qty', { precision: 18, scale: 3 }).notNull().default('0'),
     /** Изделие производства (для щитов): из него создаётся заказ на производство */
     manufacturedItemId: uuid('manufactured_item_id'),
     note: text('note').notNull().default(''),
@@ -187,8 +197,48 @@ export const objectEstimateItems = pgTable(
     check('object_estimate_items_kind_chk', sql`${t.kind} in ('work','material','panel','subcontract','other')`),
     check('object_estimate_items_vat_chk', sql`${t.vatRate} in ('none','0','5','7','10','20')`),
     check('object_estimate_items_amounts_chk', sql`${t.qty} >= 0 and ${t.price} >= 0 and ${t.costPrice} >= 0 and ${t.laborHours} >= 0`),
+    check('object_estimate_items_done_qty_chk', sql`${t.doneQty} >= 0 and ${t.doneQty} <= ${t.qty}`),
     index('object_estimate_items_estimate_idx').on(t.estimateId, t.sortOrder),
     index('object_estimate_items_section_idx').on(t.sectionId),
     index('object_estimate_items_product_idx').on(t.productId),
+  ],
+);
+
+/** Вехи объекта (задача 1272): этап (выполнение) или аванс (деньги вперёд, не выполнение).
+    Сумма вехи — фиксированная сумма или процент стоимости договора (согласованная смета и согласованные допработы).
+    Выполнено и принято заказчиком — разные отметки: принято только после выполнено.
+    «Выставлено» и «Оплачено» здесь не хранятся — их даст задача 1273 (акты и счета). */
+export const objectMilestones = pgTable(
+  'object_milestones',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    objectId: uuid('object_id').notNull(),
+    sortOrder: integer('sort_order').notNull().default(0),
+    name: text('name').notNull(),
+    dueDate: date('due_date', { mode: 'string' }),
+    /** stage — этап (выполнение), advance — аванс (деньги вперёд, не выполнение) */
+    kind: text('kind', { enum: ['stage', 'advance'] }).notNull().default('stage'),
+    /** Фиксированная сумма без НДС; ровно одно из amount/pct */
+    amount: money('amount'),
+    /** Процент стоимости договора; ровно одно из amount/pct */
+    pct: numeric('pct', { precision: 5, scale: 2 }),
+    /** Выполнено */
+    doneAt: ts('done_at'),
+    /** Принято заказчиком (только если выполнено) */
+    acceptedAt: ts('accepted_at'),
+    note: text('note').notNull().default(''),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    unique('object_milestones_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.objectId], foreignColumns: [objects.workspaceId, objects.id], name: 'object_milestones_object_fk' }).onDelete('cascade'),
+    check('object_milestones_kind_chk', sql`${t.kind} in ('stage','advance')`),
+    // сумма вехи: фиксированная сумма или процент стоимости договора, но не оба и не ничего
+    check('object_milestones_amount_chk', sql`((${t.amount} is null) <> (${t.pct} is null)) and (${t.amount} is null or ${t.amount} >= 0) and (${t.pct} is null or (${t.pct} >= 0 and ${t.pct} <= 100))`),
+    // принято заказчиком только после того, как выполнено
+    check('object_milestones_accepted_chk', sql`${t.acceptedAt} is null or ${t.doneAt} is not null`),
+    index('object_milestones_object_idx').on(t.workspaceId, t.objectId, t.sortOrder),
   ],
 );

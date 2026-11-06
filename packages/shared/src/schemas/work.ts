@@ -85,6 +85,8 @@ export const taskCreate = z.object({
   companyId: uuid.nullish(),
   /** Объект объектного учёта (задача 1268) */
   objectId: uuid.nullish(),
+  /** Вес задачи для процента выполнения объекта (задача 1272): пусто — 1 */
+  weight: decimal.nullish(),
   priority: z.number().int().min(1).max(10).nullish(),
   dueDate: isoDate.nullish(),
   startDate: isoDate.nullish(),

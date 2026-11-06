@@ -30,6 +30,13 @@ export const estimateItemInput = z.object({
   /** Изделие производства (для щитов) */
   manufacturedItemId: uuid.nullish(),
   note: z.string().max(1000).default(''),
+  /** Выполненный объём (задача 1272): факт, правится и у согласованной сметы; не больше qty */
+  doneQty: decimal.nullish(),
+});
+
+/** Выполненные объёмы позиций сметы: правится и у согласованной сметы — это факт, а не состав */
+export const estimateDoneQty = z.object({
+  items: z.array(z.object({ id: uuid, doneQty: decimal })).max(2000).default([]),
 });
 
 /** Пакетное сохранение содержимого сметы: разделы и позиции одним запросом */
@@ -109,3 +116,4 @@ export type EstimateImportRow = z.infer<typeof estimateImportRow>;
 export type EstimateSupplierOrder = z.infer<typeof estimateSupplierOrder>;
 export type EstimateProductionOrder = z.infer<typeof estimateProductionOrder>;
 export type EstimateCopy = z.infer<typeof estimateCopy>;
+export type EstimateDoneQty = z.infer<typeof estimateDoneQty>;

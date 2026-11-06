@@ -114,6 +114,8 @@ export interface Task {
   object?: string | null;
   /** План в часах; если не задан, считается суммой плана подзадач */
   planHours: number | null;
+  /** Вес задачи для процента выполнения объекта (задача 1272): строка numeric(10,2); null — 1 */
+  weight?: string | null;
   created: number;
   updated: number;
   completedAt?: number;

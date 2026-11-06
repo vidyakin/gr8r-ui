@@ -39,6 +39,10 @@ export interface ObjectInput {
   overheadPct?: string | undefined;
   /** Контроль бюджета объекта (задача 1270) */
   budgetPolicy?: ObjectRow['budgetPolicy'] | undefined;
+  /** Как считать процент выполнения объекта (задача 1272) */
+  progressMode?: ObjectRow['progressMode'] | undefined;
+  /** Ручной процент выполнения 0–100 */
+  progressManual?: string | null | undefined;
   projectId?: string | null | undefined;
   warehouseId?: string | null | undefined;
   note?: string | undefined;
@@ -165,6 +169,8 @@ export async function createObject(db: Db, ctx: { workspaceId: string; memberId:
       revenueMode: input.revenueMode ?? 'acts',
       overheadPct: overheadPct!,
       budgetPolicy: input.budgetPolicy ?? 'warn',
+      progressMode: input.progressMode ?? 'tasks_closed',
+      progressManual: input.progressManual ?? null,
       projectId,
       warehouseId: input.warehouseId ?? null,
       note: input.note ?? '',
@@ -194,6 +200,8 @@ export async function updateObject(db: Db, ctx: { workspaceId: string; memberId:
   if (input.revenueMode !== undefined) set.revenueMode = input.revenueMode;
   if (input.overheadPct !== undefined) set.overheadPct = input.overheadPct;
   if (input.budgetPolicy !== undefined) set.budgetPolicy = input.budgetPolicy;
+  if (input.progressMode !== undefined) set.progressMode = input.progressMode;
+  if (input.progressManual !== undefined) set.progressManual = input.progressManual;
   if (input.projectId !== undefined) set.projectId = input.projectId;
   if (input.warehouseId !== undefined) set.warehouseId = input.warehouseId;
   if (input.note !== undefined) set.note = input.note;

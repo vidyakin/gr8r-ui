@@ -11,6 +11,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   primaryKey,
   smallint,
@@ -147,6 +148,8 @@ export const tasks = pgTable(
     workProductId: uuid('work_product_id'),
     /** Шкала 1–10 (10 — самый срочный); null — без приоритета */
     priority: smallint('priority'),
+    /** Вес задачи для процента выполнения объекта (задача 1272): null — 1 */
+    weight: numeric('weight', { precision: 10, scale: 2 }),
     dueDate: date('due_date', { mode: 'string' }),
     startDate: date('start_date', { mode: 'string' }),
     labels: text('labels').array().notNull().default(sql`'{}'::text[]`),
@@ -177,6 +180,7 @@ export const tasks = pgTable(
     foreignKey({ columns: [t.workspaceId, t.workProductId], foreignColumns: [products.workspaceId, products.id], name: 'tasks_work_product_fk' }),
     foreignKey({ columns: [t.workspaceId, t.status], foreignColumns: [statuses.workspaceId, statuses.key], name: 'tasks_status_fk' }),
     check('tasks_priority_chk', sql`${t.priority} is null or ${t.priority} between 1 and 10`),
+    check('tasks_weight_chk', sql`${t.weight} is null or ${t.weight} > 0`),
     check('tasks_module_chk', sql`${t.module} in ('general','production','services')`),
     // заказчик есть только у задач модуля services
     check('tasks_company_chk', sql`${t.companyId} is null or ${t.module} = 'services'`),

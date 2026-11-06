@@ -1,8 +1,9 @@
 /* Демо объектов объектного учёта (задача 1268): два объекта по-русски, у одного свой склад.
    Проекты задач создаются здесь же — как это делает сервис при создании объекта.
-   Смета (задача 1269): у первого объекта согласованная основная смета (2 раздела по 3 позиции) и допработа в черновике. */
+   Смета (задача 1269): у первого объекта согласованная основная смета (2 раздела по 3 позиции) и допработа в черновике.
+   Процент выполнения и вехи (задача 1272): у первого объекта аванс и два этапа, у пары позиций сметы выполненный объём. */
 import type { Db } from './client';
-import { objectEstimateItems, objectEstimateSections, objectEstimates, objectForemen, objects, projects, warehouses } from './schema';
+import { objectEstimateItems, objectEstimateSections, objectEstimates, objectForemen, objectMilestones, objects, projects, warehouses } from './schema';
 
 export async function seedObjects(
   db: Db,
@@ -75,6 +76,7 @@ export async function seedObjects(
   }
   await db.insert(objectForemen).values([{ workspaceId: wsId, objectId: inserted[0]!, memberId }]);
   await seedEstimates(db, wsId, memberId, inserted[0]!);
+  await seedMilestones(db, wsId, inserted[0]!);
   return { objects: inserted.length };
 }
 
@@ -105,8 +107,9 @@ async function seedEstimates(db: Db, wsId: string, memberId: string, objectId: s
     .returning({ id: objectEstimateSections.id });
 
   await db.insert(objectEstimateItems).values([
-    { workspaceId: wsId, estimateId: main!.id, sectionId: works[0]!.id, sortOrder: 0, kind: 'work', name: 'Прокладка кабеля в лотке и гофре', unitCode: '006', qty: '480', price: '250', costPrice: '150', laborHours: '0.12', vatRate: '20' },
-    { workspaceId: wsId, estimateId: main!.id, sectionId: works[0]!.id, sortOrder: 1, kind: 'work', name: 'Монтаж распределительного щита', unitCode: '796', qty: '2', price: '12000', costPrice: '7000', laborHours: '6', vatRate: '20' },
+    // выполненный объём (задача 1272): трассы проложены, щиты смонтированы
+    { workspaceId: wsId, estimateId: main!.id, sectionId: works[0]!.id, sortOrder: 0, kind: 'work', name: 'Прокладка кабеля в лотке и гофре', unitCode: '006', qty: '480', price: '250', costPrice: '150', laborHours: '0.12', vatRate: '20', doneQty: '480' },
+    { workspaceId: wsId, estimateId: main!.id, sectionId: works[0]!.id, sortOrder: 1, kind: 'work', name: 'Монтаж распределительного щита', unitCode: '796', qty: '2', price: '12000', costPrice: '7000', laborHours: '6', vatRate: '20', doneQty: '2' },
     { workspaceId: wsId, estimateId: main!.id, sectionId: works[0]!.id, sortOrder: 2, kind: 'work', name: 'Пусконаладка и сдача линий', unitCode: '796', qty: '1', price: '25000', costPrice: '12000', laborHours: '16', vatRate: '20' },
     { workspaceId: wsId, estimateId: main!.id, sectionId: materials[0]!.id, sortOrder: 3, kind: 'material', name: 'Кабель ВВГнг-LS 3×2,5', unitCode: '006', qty: '500', price: '120', costPrice: '85', vatRate: '20' },
     { workspaceId: wsId, estimateId: main!.id, sectionId: materials[0]!.id, sortOrder: 4, kind: 'panel', name: 'Щит распределительный ЩР-1 (сборка)', unitCode: '796', qty: '2', price: '45000', costPrice: '32000', vatRate: '20' },
@@ -134,5 +137,14 @@ async function seedEstimates(db: Db, wsId: string, memberId: string, objectId: s
   await db.insert(objectEstimateItems).values([
     { workspaceId: wsId, estimateId: change!.id, sectionId: extra[0]!.id, sortOrder: 0, kind: 'work', name: 'Монтаж подрозетников и розеток', unitCode: '796', qty: '24', price: '900', costPrice: '600', laborHours: '0.5', vatRate: '20' },
     { workspaceId: wsId, estimateId: change!.id, sectionId: extra[0]!.id, sortOrder: 1, kind: 'material', name: 'Кабель ВВГнг-LS 3×1,5', unitCode: '006', qty: '180', price: '75', costPrice: '52', vatRate: '20' },
+  ]);
+}
+
+/** Вехи демо-объекта (задача 1272): аванс отдельно, «Кабельные трассы» выполнены. Проценты — от стоимости договора. */
+async function seedMilestones(db: Db, wsId: string, objectId: string): Promise<void> {
+  await db.insert(objectMilestones).values([
+    { workspaceId: wsId, objectId, sortOrder: 0, name: 'Аванс заказчика', kind: 'advance', pct: '30', note: 'Аванс 30% на закупку материалов — не выполнение' },
+    { workspaceId: wsId, objectId, sortOrder: 1, name: 'Кабельные трассы', kind: 'stage', pct: '40', doneAt: new Date('2026-11-20T12:00:00Z'), note: 'Лотки и кабель проложены' },
+    { workspaceId: wsId, objectId, sortOrder: 2, name: 'Пусконаладка', kind: 'stage', pct: '30', note: 'Пусконаладка и сдача линий заказчику' },
   ]);
 }
