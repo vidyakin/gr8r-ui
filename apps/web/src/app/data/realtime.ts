@@ -70,6 +70,8 @@ export function useRealtime(ws: string, engine: Engine) {
       if (e.entity === 'secret') void qc.invalidateQueries({ queryKey: ['ws', ws, 'secrets'] });
       // Объекты объектного учёта (задача 1268): карточка, список и проекты задач
       if (e.entity === 'object' || e.entity === 'object_foreman' || e.entity === 'object_contract') void qc.invalidateQueries({ queryKey: ['ws', ws, 'objects'] });
+      // Рейтинг поставщиков (задача 1276): считается на лету по документам, контрагентам и настройкам воркспейса
+      if (['document', 'company', 'workspace'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'supplier-ratings'] });
       // Название воркспейса, моя роль, состав участников
       if (e.entity === 'workspace' || e.type.startsWith('member.')) void qc.invalidateQueries({ queryKey: ['session'] });
     };

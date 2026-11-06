@@ -248,7 +248,7 @@ export const NAV_GROUPS = {
   trade: {
     icon: Store,
     // расчёт потребностей открывается из закупок и склада — тот же экран, что и в производстве
-    items: [{ id: 'sales' }, { id: 'purchases' }, { id: 'stockDocs' }, { id: 'processingDocs' }, { id: 'inventory' }, { id: 'inUse' }, { id: 'serials' }, { id: 'batches' }, { id: 'productionNeeds', label: 'nav.stockNeeds' }, { id: 'priceList' }, { id: 'priceSettings' }, { id: 'priceKinds' }, { id: 'discountRules' }, { id: 'promoCodes' }, { id: 'loyaltyCards' }, { id: 'loyaltyProgram' }],
+    items: [{ id: 'sales' }, { id: 'purchases' }, { id: 'supplierRatings' }, { id: 'stockDocs' }, { id: 'processingDocs' }, { id: 'inventory' }, { id: 'inUse' }, { id: 'serials' }, { id: 'batches' }, { id: 'productionNeeds', label: 'nav.stockNeeds' }, { id: 'priceList' }, { id: 'priceSettings' }, { id: 'priceKinds' }, { id: 'discountRules' }, { id: 'promoCodes' }, { id: 'loyaltyCards' }, { id: 'loyaltyProgram' }],
   },
   services: {
     icon: BriefcaseBusiness,
@@ -330,6 +330,7 @@ const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
   automations: 'automations',
   sales: 'trade',
   purchases: 'trade',
+  supplierRatings: 'trade',
   processingDocs: 'trade',
   stockDocs: 'stock',
   inventory: 'stock',

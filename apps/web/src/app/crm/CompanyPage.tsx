@@ -21,6 +21,7 @@ import { CompanyRequisitesTab } from '../docs/CompanyRequisites';
 import { CompanyContractsTab } from '../docs/CompanyContracts';
 import { CompanyDocumentsTab } from '../docs/CompanyDocuments';
 import { CompanySettlementsTab } from '../money/CompanySettlements';
+import { SupplierRatingBadge } from '../docs/SupplierRatingsPage';
 import { NextContactPanel } from './NextContactPanel';
 import { ClientAppointments } from './ClientAppointments';
 import { CompanyPriceKind } from '../pricing/CompanyPriceKind';
@@ -158,6 +159,7 @@ function CompanyView({ company: co, tab }: { company: Company; tab: string }) {
         <div className="t">
           <CompanyLogo name={co.name} size={36} className="lg" />
           <h1>{co.name}</h1>
+          <SupplierRatingBadge companyId={co.id} />
           <Badge>{industryName(co.industry, co.industry)}</Badge>
           <Badge tone="gray">{sizeName(co.size, co.size)} {t('crm.companies.overview.sizeUnit')}</Badge>
           <span className="sp" />

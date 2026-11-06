@@ -55,6 +55,7 @@ export const sections: Widen<typeof S> = {
   servicesPlanner: 'Планирование услуг',
   servicesReports: 'Отчёты по услугам',
   purchases: 'Закупки',
+  supplierRatings: 'Рейтинг поставщиков',
   stockDocs: 'Складские документы',
   processingDocs: 'Документы переработки',
   inventory: 'Остатки',

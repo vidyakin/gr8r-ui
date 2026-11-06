@@ -53,6 +53,7 @@ export const sections = {
   servicesPlanner: 'Service planner',
   servicesReports: 'Service reports',
   purchases: 'Purchases',
+  supplierRatings: 'Supplier ratings',
   stockDocs: 'Stock documents',
   processingDocs: 'Documents of processing',
   inventory: 'Inventory',
