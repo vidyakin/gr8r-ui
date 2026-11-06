@@ -206,6 +206,30 @@ describe('бюджет и права', () => {
     expect((await owner.get(`/shifts/${id}`)).body.status).toBe('draft');
   });
 
+  test('warn: подтверждение сверх бюджета проходит с предупреждением budget_exceeded:<категория>', async () => {
+    const obj = await object('SH-11', { budgetPolicy: 'warn' });
+    const items = await estimate(obj.id, [{ kind: 'work', name: 'Работа', qty: '1', costPrice: '100' }]);
+    const w = await worker('Предупреждение', 'Т-1101');
+    await owner.put(`/payroll/employees/${w.id}`, { hourlyRate: '500' });
+    const id = await shift(owner, obj.id, '2026-10-22', [{ memberId: w.id, hours: '8', estimateItemId: items.items[0].id }]);
+    const confirmed = await owner.post(`/shifts/${id}/confirm`, {});
+    expect(confirmed.status).toBe(200);
+    expect(confirmed.body.warnings).toContain('budget_exceeded:labor');
+    expect(confirmed.body.status).toBe('confirmed');
+    expect((await owner.get(`/objects/${obj.id}/budget`)).body.categories.labor).toEqual({ budget: '100.00', fact: '5200.00', rest: '-5100.00', over: true });
+  });
+
+  test('объём больше количества позиции — 422 done_qty_exceeds, смена не подтверждена', async () => {
+    const obj = await object('SH-12');
+    const items = await estimate(obj.id, [{ kind: 'work', name: 'Работа', qty: '2' }]);
+    const w = await worker('Перевыполнение', 'Т-1202');
+    const id = await shift(owner, obj.id, '2026-10-23', [{ memberId: w.id, hours: '4', estimateItemId: items.items[0].id }], [{ estimateItemId: items.items[0].id, qty: '3' }]);
+    const bad = await owner.post(`/shifts/${id}/confirm`, {});
+    expect(bad.status).toBe(422);
+    expect(bad.body.error.code).toBe('done_qty_exceeds');
+    expect((await owner.get(`/shifts/${id}`)).body.status).toBe('draft');
+  });
+
   test('прораб ведёт только свои объекты; без назначения — 403, свои объекты видны в списке', async () => {
     const mine = await object('SH-7', { foremen: [foremanId] });
     const foreign = await object('SH-8', { foremen: [] });
