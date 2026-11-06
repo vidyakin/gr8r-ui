@@ -35,3 +35,4 @@ export * from './loyalty';
 export * from './objects';
 export * from './estimates';
 export * from './object-shifts';
+export * from './object-forecast';

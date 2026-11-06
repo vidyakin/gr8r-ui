@@ -28,6 +28,7 @@ import { recordEvent } from './events';
 import { createProductionOrder } from './production';
 import { assertObjectRef } from './objects';
 import { objectCostFacts } from './object-budget';
+import { objectHasFacts } from './object-forecast';
 import {
   manufacturedItems,
   members,
@@ -409,11 +410,14 @@ export async function approveEstimate(db: Db, ctx: EstimateCtx, id: string): Pro
 }
 
 /** Возврат в черновик: только owner/admin (маршрут требует admin+).
-    TODO (задача 1275): запретить, если по смете уже есть факты затрат — сейчас фактов нет, поэтому разрешаем. */
+    Запрещён, если по объекту уже есть факт (задача 1275): подтверждённые смены, принятые акты субподряда или
+    подписанные акты заказчику — иначе снимок цен и норм разошёлся бы с уже учтёнными затратами. */
 export async function unapproveEstimate(db: Db, ctx: EstimateCtx, id: string): Promise<EstimateRow> {
   if (!canSeeCost(ctx.role)) throw new DomainError(403, 'forbidden', 'Only the owner or an admin can return an estimate to draft');
   const row = await loadEstimate(db, id);
   if (row.status !== 'approved') throw new DomainError(422, 'invalid_status', 'The estimate is not approved');
+  if (await objectHasFacts(db, row.objectId))
+    throw new DomainError(422, 'estimate_has_facts', 'The estimate cannot be returned to draft: the object already has facts');
   const [updated] = await db
     .update(objectEstimates)
     .set({ status: 'draft', approvedAt: null, approvedBy: null, ...(row.kind === 'change' ? { changeStatus: 'draft' as const } : {}), updatedAt: new Date() })

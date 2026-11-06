@@ -652,6 +652,13 @@
       "when": 1793900015000,
       "tag": "0101_object_subcontract",
       "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1793900016000,
+      "tag": "0102_object_forecast",
+      "breakpoints": true
     }
   ]
 }

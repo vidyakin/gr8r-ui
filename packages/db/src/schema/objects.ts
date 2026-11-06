@@ -571,3 +571,40 @@ export const objectShiftLog = pgTable(
     index('object_shift_log_shift_idx').on(t.workspaceId, t.shiftId, t.at),
   ],
 );
+
+/* Прогноз прибыли объекта (задача 1275, docs/architecture/construction.md). Ответственный (owner/admin) может заменить
+   остаток прогноза — ожидаемые оставшиеся затраты — по позиции сметы или по категории затрат целиком. Правка всегда
+   с причиной и автором; ровно одна цель. Уникальность по объекту и цели — частичные уникальные индексы в миграции 0102. */
+export const objectForecastOverrides = pgTable(
+  'object_forecast_overrides',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    objectId: uuid('object_id').notNull(),
+    /** Позиция сметы: удаление позиции удаляет и правку */
+    estimateItemId: uuid('estimate_item_id'),
+    /** Категория затрат, если правка на категорию целиком */
+    category: text('category', { enum: ['material', 'labor', 'subcontract', 'other'] }),
+    /** Новое значение остатка (ожидаемых затрат) без НДС */
+    remaining: money('remaining').notNull(),
+    /** Причина правки — обязательна */
+    reason: text('reason').notNull(),
+    /** Кто заменил оценку */
+    authorId: uuid('author_id'),
+    createdAt: createdAt(),
+  },
+  t => [
+    unique('object_forecast_overrides_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.objectId], foreignColumns: [objects.workspaceId, objects.id], name: 'object_forecast_overrides_object_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.estimateItemId], foreignColumns: [objectEstimateItems.workspaceId, objectEstimateItems.id], name: 'object_forecast_overrides_item_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.authorId], foreignColumns: [members.workspaceId, members.id], name: 'object_forecast_overrides_author_fk' }).onDelete('set null'),
+    // ровно одна цель: позиция сметы или категория
+    check('object_forecast_overrides_target_chk', sql`((${t.estimateItemId} is null) <> (${t.category} is null))`),
+    check('object_forecast_overrides_category_chk', sql`${t.category} is null or ${t.category} in ('material','labor','subcontract','other')`),
+    check('object_forecast_overrides_remaining_chk', sql`${t.remaining} >= 0`),
+    check('object_forecast_overrides_reason_chk', sql`btrim(${t.reason}) <> ''`),
+    uniqueIndex('object_forecast_overrides_item_uq').on(t.objectId, t.estimateItemId).where(sql`${t.estimateItemId} is not null`),
+    uniqueIndex('object_forecast_overrides_category_uq').on(t.objectId, t.category).where(sql`${t.category} is not null`),
+    index('object_forecast_overrides_object_idx').on(t.workspaceId, t.objectId),
+  ],
+);

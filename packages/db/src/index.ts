@@ -89,4 +89,5 @@ export * from './object-subcontract';
 export * from './object-progress';
 export * from './object-shifts';
 export * from './estimates';
+export * from './object-forecast';
 export * from './contract-print';
