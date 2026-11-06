@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { BUDGET_POLICIES, OBJECT_STATUSES, REVENUE_MODES } from '../constants';
 import { OBJECT_ACT_KINDS } from '../object-acts';
 import { MILESTONE_KINDS, OBJECT_PROGRESS_MODES } from '../object-progress';
+import { REPORT_TIME_RE } from '../object-reports';
 import { clientId, decimal, isoDate, listQuery, shortText, toPatch, uuid } from './common';
 
 const head = {
@@ -191,3 +192,23 @@ export const objectSubActReject = z.object({ reason: z.string().trim().min(1).ma
 
 export type ObjectSubActCreate = z.infer<typeof objectSubActCreate>;
 export type ObjectSubActUpdate = z.infer<typeof objectSubActUpdate>;
+
+/* ---------- сводка о ходе объекта по расписанию (задача 1277) ---------- */
+
+/** Настройка «Сводка о ходе работ»: включена, день недели (1–7) и время «HH:MM» в часовом поясе воркспейса,
+    получатели — участники воркспейса (пусто — ответственный и прорабы объекта) */
+const reportScheduleHead = z.object({
+  enabled: z.boolean().default(true),
+  /** 1 — понедельник … 7 — воскресенье */
+  weekday: z.number().int().min(1).max(7).default(1),
+  time: z.string().regex(REPORT_TIME_RE, 'The time must be HH:MM'),
+  /** Получатели: участники воркспейса; пусто — ответственный и прорабы объекта */
+  recipientIds: z.array(uuid).max(200).default([]),
+});
+
+export const objectReportScheduleSave = reportScheduleHead;
+
+/** Период печатного отчёта о ходе работ: пусто — с начала текущего месяца по сегодня */
+export const objectProgressReportQuery = z.object({ from: isoDate.optional(), to: isoDate.optional() });
+
+export type ObjectReportScheduleSave = z.infer<typeof objectReportScheduleSave>;

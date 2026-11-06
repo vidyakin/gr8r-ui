@@ -5,7 +5,8 @@
    Табель прораба (задача 1271): бригада из трёх рабочих без входа с бейджами и две подтверждённые смены прошлой недели.
    Выручка (задача 1273): у первого объекта подписанный акт по объёмам за прошлый месяц с выставленными счётом и актом.
    Субподряд (задача 1274): у первого объекта позиция субподряда в смете, заказ субподрядчику и принятый акт субподрядчика
-   с частичным отклонением (причина из справочника причин брака) и списанием материала со склада объекта. */
+   с частичным отклонением (причина из справочника причин брака) и списанием материала со склада объекта.
+   Сводка о ходе работ (задача 1277): у первого объекта включённое расписание — понедельник, 09:00, ответственный. */
 import { eq } from 'drizzle-orm';
 import type { Db } from './client';
 import { createObjectAct, invoiceObjectAct, signObjectAct, suggestAct } from './object-acts';
@@ -21,6 +22,7 @@ import {
   objectEstimates,
   objectForemen,
   objectMilestones,
+  objectReportSchedules,
   objects,
   productCategories,
   products,
@@ -99,6 +101,8 @@ export async function seedObjects(
     inserted.push(object!.id);
   }
   await db.insert(objectForemen).values([{ workspaceId: wsId, objectId: inserted[0]!, memberId }]);
+  // Сводка о ходе работ (задача 1277): у первого объекта включена, по понедельникам в 09:00, получатель — ответственный
+  await db.insert(objectReportSchedules).values({ workspaceId: wsId, objectId: inserted[0]!, enabled: true, weekday: 1, time: '09:00', recipientIds: [memberId] });
   const subcontract = await seedSubcontractProducts(db, wsId);
   await seedEstimates(db, wsId, memberId, inserted[0]!, subcontract);
   await seedMilestones(db, wsId, inserted[0]!);

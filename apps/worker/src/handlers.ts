@@ -2,7 +2,7 @@
    (индексы полей конструктора), PDF печатных форм, ZIP-архив выгрузки счетов, закрытие периода (production.close_period)
    и выполнение запусков автоматизаций (flow.run). */
 import { and, eq, inArray } from 'drizzle-orm';
-import { BANK_SYNC_JOB, buildPrintData, renderContractDocxFile, renderContractHtml, renderDocumentHtml, settlementActHtml, transportWaybillPrintData, DISTRIBUTE_JOB, GEOCODE_JOB, OPTIMIZE_JOB, executeRoutingRun, runGeocode, createFieldIndex, integrationRuntime, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, addVersion, createAttachment, contractFiles, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, isUuid, jobs, withContext, type Db, type Sql } from '@gr8r/db';
+import { BANK_SYNC_JOB, buildPrintData, OBJECT_REPORT_JOB, runScheduledObjectReport, renderContractDocxFile, renderContractHtml, renderDocumentHtml, settlementActHtml, transportWaybillPrintData, DISTRIBUTE_JOB, GEOCODE_JOB, OPTIMIZE_JOB, executeRoutingRun, runGeocode, createFieldIndex, integrationRuntime, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, addVersion, createAttachment, contractFiles, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, isUuid, jobs, withContext, type Db, type Sql } from '@gr8r/db';
 import { FIELD_TYPES, renderPrintForm, renderTransportWaybill, type FieldType, type PrintForm } from '@gr8r/shared';
 import { loadRequestForHook, markRequestHookSent } from '@gr8r/db';
 import { runClosePeriod } from './production-closing';
@@ -141,6 +141,16 @@ export const jobHandlers: Record<string, (job: JobRow, h: JobContext) => Promise
     const p = job.payload as { runId?: unknown; reorder?: unknown };
     if (!isUuid(p.runId)) throw new Error('routing.optimize job: payload.runId must be a uuid');
     await executeRoutingRun(h.sql, job.workspaceId, p.runId, { reorder: p.reorder !== false });
+  },
+  /** Сводка о ходе объекта по расписанию (задача 1277): уведомления получателям, ссылка на объект, last_sent_at.
+      Повтор задачи в том же окне ничего не делает: расписание перепроверяется по времени воркспейса */
+  [OBJECT_REPORT_JOB]: async (job, h) => {
+    const p = job.payload as { scheduleId?: unknown; at?: unknown };
+    if (!isUuid(p.scheduleId)) throw new Error('object.progress_report job: payload.scheduleId must be a uuid');
+    if (!job.workspaceId) return;
+    // окно проверяется на момент постановки задачи: задержка очереди не сдвигает день и время отправки
+    const at = typeof p.at === 'string' && !Number.isNaN(Date.parse(p.at)) ? new Date(p.at) : new Date();
+    await withContext(h.sql, { workspaceId: job.workspaceId, system: true }, db => runScheduledObjectReport(db, p.scheduleId as string, at));
   },
   /** Выполнение (или продолжение после задержки / повтора) запуска автоматизации */
   'flow.run': async (job, h) => {

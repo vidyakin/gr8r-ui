@@ -50,5 +50,6 @@ export * from './object-progress';
 export * from './object-forecast';
 export * from './object-acts';
 export * from './object-subcontract';
+export * from './object-reports';
 export * from './labor-cost';
 export * from './badge';

@@ -17,6 +17,7 @@ import { estimateRoutes, objectEstimateRoutes } from './routes/estimates';
 import { objectActObjectRoutes, objectActRoutes } from './routes/object-acts';
 import { objectSubActObjectRoutes, objectSubActRoutes } from './routes/object-subcontract';
 import { objectForecastObjectRoutes, objectForecastRoutes } from './routes/object-forecast';
+import { objectReportRoutes } from './routes/object-reports';
 import { memberLaborRoutes, objectShiftObjectRoutes, objectShiftRoutes } from './routes/object-shifts';
 import { attachmentRoutes } from './routes/attachments';
 import { Hub } from './realtime';
@@ -223,6 +224,7 @@ function buildTenantApi() {
     .route('/objects', objectActObjectRoutes)
     .route('/objects', objectSubActObjectRoutes)
     .route('/objects', objectForecastObjectRoutes)
+    .route('/objects', objectReportRoutes)
     .route('/shifts', objectShiftRoutes)
     .route('/object-acts', objectActRoutes)
     .route('/objects-forecast', objectForecastRoutes)

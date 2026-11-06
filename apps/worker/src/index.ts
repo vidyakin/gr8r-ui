@@ -7,6 +7,7 @@ import { runBillingOnce } from './billing';
 import { runLoyaltyExpirationOnce } from './loyalty-expiration';
 import { runDealOverdueOnce } from './deal-overdue';
 import { runNextContactsOnce } from './next-contacts';
+import { runObjectReportsOnce } from './object-reports';
 import { runAppointmentsOnce } from './appointments';
 import { runFleetOnce } from './fleet';
 import { defaultOptions, processEventsOnce, processJobsOnce, requeueStale } from './worker';
@@ -62,6 +63,9 @@ while (!stopping) {
       lastMinute = minute;
       const n = await scheduleFlowsOnce(sql); // автоматизации по расписанию: раз в минуту, повтор той же минуты ничего не создаёт
       if (n) o.log(`scheduled ${n} flow run(s)`);
+      // сводка о ходе объекта по расписанию (задача 1277): окно дня и времени считается по часовому поясу воркспейса
+      const digests = await runObjectReportsOnce(sql);
+      if (digests) o.log(`queued ${digests} object report job(s)`);
       // загрузка операций банков по API: подключения, у которых прошёл интервал (BANK_SYNC_INTERVAL_MIN, по умолчанию 60 минут), проверка раз в 5 минут
       if (minute % 5 === 0) {
         const banks = await scheduleBankSyncs(sql);

@@ -256,6 +256,8 @@ export const notifications = pgTable(
     actorId: uuid('actor_id'),
     taskId: uuid('task_id').references(() => tasks.id, { onDelete: 'cascade' }),
     projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+    /** Объект объектного учёта: уведомление открывает карточку объекта (сводка о ходе работ, задача 1277) */
+    objectId: uuid('object_id'),
     text: text('text').notNull(),
     snippet: text('snippet').notNull().default(''),
     read: boolean('read').notNull().default(false),
@@ -263,7 +265,9 @@ export const notifications = pgTable(
   },
   t => [
     foreignKey({ columns: [t.workspaceId, t.recipientId], foreignColumns: [members.workspaceId, members.id], name: 'notif_recipient_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.objectId], foreignColumns: [objects.workspaceId, objects.id], name: 'notif_object_fk' }).onDelete('set null'),
     index('notifications_recipient_idx').on(t.workspaceId, t.recipientId, t.createdAt),
+    index('notifications_object_idx').on(t.workspaceId, t.objectId),
   ],
 );
 

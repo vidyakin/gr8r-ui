@@ -2,7 +2,7 @@
    Таблицы арендатора (workspace_id + RLS), связи — составные FK. Ссылки на проекты задач, склады и договоры
    добавляются в SQL-миграции, чтобы не замыкать круг импортов схем (objects ↔ work/documents/billing). */
 import { sql } from 'drizzle-orm';
-import { check, date, foreignKey, index, integer, jsonb, numeric, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, date, foreignKey, index, integer, jsonb, numeric, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { archivedAt, createdAt, money, pk, ts, updatedAt } from './columns';
 import { products, units } from './catalog';
 import { companies } from './crm';
@@ -606,5 +606,41 @@ export const objectForecastOverrides = pgTable(
     uniqueIndex('object_forecast_overrides_item_uq').on(t.objectId, t.estimateItemId).where(sql`${t.estimateItemId} is not null`),
     uniqueIndex('object_forecast_overrides_category_uq').on(t.objectId, t.category).where(sql`${t.category} is not null`),
     index('object_forecast_overrides_object_idx').on(t.workspaceId, t.objectId),
+  ],
+);
+
+/* Сводка о ходе работ по расписанию (задача 1277, docs/architecture/construction.md).
+   У объекта одна настройка: включена ли сводка, день недели и время в часовом поясе воркспейса, получатели —
+   участники воркспейса (пусто — ответственный и прорабы объекта). Задача воркера object.progress_report раз в минуту
+   отправляет внутренние уведомления со сводкой; last_sent_at делает повторный проход в том же окне безопасным. */
+export const objectReportSchedules = pgTable(
+  'object_report_schedules',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    objectId: uuid('object_id').notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+    /** День недели: 1 — понедельник … 7 — воскресенье */
+    weekday: integer('weekday').notNull().default(1),
+    /** Время отправки «HH:MM» в часовом поясе воркспейса */
+    time: text('time').notNull().default('09:00'),
+    /** Получатели — участники воркспейса; пусто — ответственный и прорабы объекта (проверяет сервис) */
+    recipientIds: uuid('recipient_ids')
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
+    /** Последняя отправка: повторный проход в том же окне ничего не отправляет */
+    lastSentAt: ts('last_sent_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    unique('object_report_schedules_ws_id_uq').on(t.workspaceId, t.id),
+    // у объекта ровно одна настройка сводки
+    unique('object_report_schedules_object_uq').on(t.workspaceId, t.objectId),
+    foreignKey({ columns: [t.workspaceId, t.objectId], foreignColumns: [objects.workspaceId, objects.id], name: 'object_report_schedules_object_fk' }).onDelete('cascade'),
+    check('object_report_schedules_weekday_chk', sql`${t.weekday} between 1 and 7`),
+    check('object_report_schedules_time_chk', sql`${t.time} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
+    index('object_report_schedules_ws_idx').on(t.workspaceId, t.enabled),
   ],
 );

@@ -156,6 +156,8 @@ export interface Notification {
   by: string | null;
   task?: string;
   project?: string;
+  /** Объект объектного учёта: уведомление открывает карточку объекта (сводка о ходе работ, задача 1277) */
+  object?: string;
   text: string;
   snippet: string;
   at: number;
