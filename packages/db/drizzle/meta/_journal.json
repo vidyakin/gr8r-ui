@@ -603,6 +603,13 @@
       "when": 1793900008000,
       "tag": "0094_supplier_rating",
       "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1793900009000,
+      "tag": "0095_object_estimates",
+      "breakpoints": true
     }
   ]
 }

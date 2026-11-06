@@ -363,6 +363,8 @@ export interface ProductionOrderInput {
   finalWorkCenterId?: string | null;
   warehouseId?: string | null;
   targetWarehouseId?: string | null;
+  /** Объект объектного учёта (задача 1268): заказ приходит в аналитику объекта */
+  objectId?: string | null;
   date?: string;
   plannedStart?: string | null;
   plannedEnd?: string | null;
@@ -435,6 +437,7 @@ export async function createProductionOrder(db: Db, ctx: DocCtx, input: Producti
     organizationId: null,
     warehouseId: input.warehouseId ?? undefined,
     targetWarehouseId: input.targetWarehouseId ?? undefined,
+    objectId: input.objectId ?? undefined,
     operation,
     date: input.date,
     comment: input.comment ?? '',
@@ -496,6 +499,8 @@ export interface ProductionOrderPatch {
   finalWorkCenterId?: string | null;
   warehouseId?: string | null;
   targetWarehouseId?: string | null;
+  /** Объект объектного учёта (задача 1268): заказ приходит в аналитику объекта */
+  objectId?: string | null;
   date?: string;
   plannedStart?: string | null;
   plannedEnd?: string | null;
