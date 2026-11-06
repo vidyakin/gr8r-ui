@@ -748,3 +748,52 @@ export const searchCompanies = async (ws: string, q: string, limit = 8) => {
 };
 
 export const searchDocuments = async (ws: string, q: string, limit = 5) => (await call<{ items: DocListItem[] }>(ws, 'GET', `/documents?limit=${limit}&q=${encodeURIComponent(q)}`)).items;
+
+/* ---------------- контроль качества партий (задача 1186) ---------------- */
+
+export interface BatchAnalysis {
+  id: string;
+  indicator: string;
+  result: string;
+  norm: string;
+  passed: boolean | null;
+  analyzedAt: string;
+  note: string;
+  createdByName: string | null;
+}
+
+/** Анализы партии (входной контроль) */
+export function useBatchAnalyses(batchId: string | null) {
+  const ws = useWsId();
+  return useQuery({
+    queryKey: docsKey(ws, 'batch-analyses', batchId),
+    queryFn: () => call<{ items: BatchAnalysis[] }>(ws, 'GET', `/stock/batches/${batchId}/analyses`),
+    enabled: !!batchId,
+    staleTime: 10_000,
+  });
+}
+
+/** Роль member и выше: анализы и статус партии ведёт участник, гость только читает */
+export function useCanEditBatches() {
+  const { active } = useSession();
+  return active?.role === 'owner' || active?.role === 'admin' || active?.role === 'member';
+}
+
+/** Запись по партии (анализы, статус): обновляет кэш партий и анализов, ошибку показывает тостом; null при ошибке */
+export function useBatchQualityApi() {
+  const ws = useWsId();
+  const qc = useQueryClient();
+  return React.useCallback(
+    async (method: 'POST' | 'PATCH' | 'DELETE', path: string, body?: unknown) => {
+      try {
+        const r = await call<unknown>(ws, method, path, body);
+        await Promise.all([qc.invalidateQueries({ queryKey: docsKey(ws, 'batches') }), qc.invalidateQueries({ queryKey: docsKey(ws, 'batch-analyses') })]);
+        return r ?? {};
+      } catch (e) {
+        toast.error(errorMessage(e));
+        return null;
+      }
+    },
+    [ws, qc],
+  );
+}

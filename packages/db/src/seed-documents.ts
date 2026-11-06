@@ -11,7 +11,7 @@ import { ensureModuleProject, issueTaskKey } from './modules';
 import { fillCountSheet } from './inventory';
 import { createTemplate, createVariant } from './quotes';
 import './internal-ops';
-import { bankAccounts, companies, costItems, documentLines, organizations, productManufacturing, products, stockLevels, tasks, timeLogs, warehouses, workCenters, workspaces, manufacturedItems } from './schema';
+import { bankAccounts, companies, costItems, defectReasons, documentLines, organizations, productManufacturing, products, stockLevels, tasks, timeLogs, warehouses, workCenters, workspaces, manufacturedItems } from './schema';
 import { productionPlanLines, productionPlans } from './schema';
 import { planPeriods } from '@gr8r/shared';
 import { createProductionFromOrder, createProductionOrder, createSupplierOrdersForOrder, fillOrderFromBom, setComponentOwner } from './production';
@@ -91,6 +91,12 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
   // отходы и брак производства приходуются на свои склады
   const [wasteWh] = await db.insert(warehouses).values({ workspaceId: wsId, name: 'Склад отходов', code: 'WST', address: 'Московская обл., г. Химки, ул. Заводская, 7, цех' }).returning();
   const [defectWh] = await db.insert(warehouses).values({ workspaceId: wsId, name: 'Склад брака', code: 'DEF', address: 'Московская обл., г. Химки, ул. Заводская, 7, цех' }).returning();
+  // входной контроль (задача 1186): карантинный склад сырья и справочник причин брака
+  await db.insert(warehouses).values({ workspaceId: wsId, name: 'Карантин сырья', code: 'QRN', address: 'Московская обл., г. Химки, ул. Заводская, 7', kind: 'quarantine' });
+  await db.insert(defectReasons).values([
+    { workspaceId: wsId, name: 'Нарушение геометрии', note: 'Размеры вне допуска' },
+    { workspaceId: wsId, name: 'Дефект материала', note: 'Трещины, сучки, расслоение' },
+  ]);
   await db.update(workCenters).set({ warehouseId: shop!.id, outputWarehouseId: fg!.id, wasteWarehouseId: wasteWh!.id, defectWarehouseId: defectWh!.id }).where(eq(workCenters.workspaceId, wsId));
 
   /* ---------- реквизиты контрагентов (пять компаний) ---------- */

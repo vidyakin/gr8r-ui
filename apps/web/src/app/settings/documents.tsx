@@ -441,7 +441,7 @@ export function WarehousesSection({ title }: { title: string }) {
               <div key={w.id} className="srow">
                 <div style={{ minWidth: 0 }}>
                   <div className="t">
-                    {w.name} {w.code && <span className="mono faint">{w.code}</span>} {w.isDefault && <Badge tone="accent">{t('settings.warehouses.default')}</Badge>} {w.kind !== 'warehouse' && <Badge tone="gray">{enumLabel('warehouseKind', w.kind, w.kind === 'workshop' ? 'Workshop' : 'In transit')}</Badge>} {w.counterpartyId && <Badge tone="accent">{t('settings.warehouses.counterparty')}</Badge>}
+                    {w.name} {w.code && <span className="mono faint">{w.code}</span>} {w.isDefault && <Badge tone="accent">{t('settings.warehouses.default')}</Badge>} {w.kind !== 'warehouse' && <Badge tone="gray">{enumLabel('warehouseKind', w.kind, w.kind === 'workshop' ? 'Workshop' : w.kind === 'quarantine' ? 'Quarantine' : 'In transit')}</Badge>} {w.counterpartyId && <Badge tone="accent">{t('settings.warehouses.counterparty')}</Badge>}
                   </div>
                   <div className="d">{w.address || t('settings.warehouses.noAddress')}</div>
                 </div>
@@ -558,6 +558,7 @@ function WarehouseDialog({ wh, onClose }: { wh?: Warehouse; onClose: () => void 
                 <option value="warehouse">{enumLabel('warehouseKind', 'warehouse', 'Warehouse')}</option>
                 <option value="workshop">{enumLabel('warehouseKind', 'workshop', 'Workshop')}</option>
                 <option value="transit">{enumLabel('warehouseKind', 'transit', 'In transit')}</option>
+                <option value="quarantine">{enumLabel('warehouseKind', 'quarantine', 'Quarantine')}</option>
               </select>
             )}
           </Field>

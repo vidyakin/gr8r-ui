@@ -186,8 +186,8 @@ export async function createBatchAnalysis(db: Db, ctx: DocCtx, batchId: string, 
 }
 
 /** Правка анализа */
-export async function updateBatchAnalysis(db: Db, ctx: DocCtx, id: string, patch: { indicator?: string; result?: string; norm?: string; passed?: boolean | null; analyzedAt?: string; note?: string }): Promise<void> {
-  const [row] = await db.select().from(batchAnalyses).where(and(eq(batchAnalyses.workspaceId, ctx.workspaceId), eq(batchAnalyses.id, id))).limit(1).for('update');
+export async function updateBatchAnalysis(db: Db, ctx: DocCtx, batchId: string, id: string, patch: { indicator?: string; result?: string; norm?: string; passed?: boolean | null; analyzedAt?: string; note?: string }): Promise<void> {
+  const [row] = await db.select().from(batchAnalyses).where(and(eq(batchAnalyses.workspaceId, ctx.workspaceId), eq(batchAnalyses.batchId, batchId), eq(batchAnalyses.id, id))).limit(1).for('update');
   if (!row) throw new DomainError(404, 'not_found', 'analysis not found');
   await db
     .update(batchAnalyses)
@@ -204,8 +204,8 @@ export async function updateBatchAnalysis(db: Db, ctx: DocCtx, id: string, patch
 }
 
 /** Удаление анализа */
-export async function deleteBatchAnalysis(db: Db, ctx: DocCtx, id: string): Promise<void> {
-  const deleted = await db.delete(batchAnalyses).where(and(eq(batchAnalyses.workspaceId, ctx.workspaceId), eq(batchAnalyses.id, id))).returning({ id: batchAnalyses.id });
+export async function deleteBatchAnalysis(db: Db, ctx: DocCtx, batchId: string, id: string): Promise<void> {
+  const deleted = await db.delete(batchAnalyses).where(and(eq(batchAnalyses.workspaceId, ctx.workspaceId), eq(batchAnalyses.batchId, batchId), eq(batchAnalyses.id, id))).returning({ id: batchAnalyses.id });
   if (!deleted.length) throw new DomainError(404, 'not_found', 'analysis not found');
 }
 

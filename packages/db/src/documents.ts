@@ -936,10 +936,17 @@ export async function applyDocumentMoves(db: Db, ctx: DocCtx, doc: DocumentRow, 
   const [org] = await db.select({ taxSystem: organizations.taxSystem }).from(organizations).where(eq(organizations.id, doc.organizationId)).limit(1);
   const returnCosts = type === 'customer_return' ? await sourceMoveCosts(db, goods.map(l => l.sourceLineId).filter((x): x is string => !!x)) : new Map<string, bigint>();
   const byLine = new Map(lines.map(l => [l.id, l]));
+  // решения ОТК (задача 1186): возврат поставщику и списание на статью «брак» разрешены с карантина и для партий не в ok
+  let qualityExit = type === 'supplier_return';
+  if (type === 'write_off') {
+    const itemIds = [...new Set([doc.costItemId, ...lines.map(l => l.costItemId)].filter((x): x is string => !!x))];
+    if (itemIds.length) qualityExit = (await db.select({ id: costItems.id }).from(costItems).where(and(inArray(costItems.id, itemIds), eq(costItems.systemKey, 'brak'))).limit(1)).length > 0;
+  }
   const reqs: MoveRequest[] = plan.map(m => {
     const l = byLine.get(m.lineId)!;
     const req: MoveRequest = { warehouseId: m.warehouseId, productId: m.productId, lineId: m.lineId, qty: dec(m.qty), direction: m.direction };
     if (m.transfer) req.transfer = true; // расход в составе перемещения (карантин снимается перемещением)
+    if (qualityExit && m.direction === 'out') req.qualityExit = true;
     if (type === 'receipt') req.cost = div(dec(org?.taxSystem === 'usn' ? l.total : l.net), dec(l.qty)); // при УСН входной НДС входит в себестоимость
     if (type === 'customer_return' && l.sourceLineId && returnCosts.has(l.sourceLineId)) req.cost = returnCosts.get(l.sourceLineId);
     if (type === 'stock_posting' || type === 'opening_stock') req.cost = dec(l.price); // цена оприходования — себестоимость прихода

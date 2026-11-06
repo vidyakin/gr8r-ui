@@ -553,7 +553,7 @@ export const settings = {
         code: 'Code',
         address: 'Address',
         kind: 'Kind',
-        kindHint: 'A workshop warehouse receives the materials of a work center; the transit warehouse is a service one',
+        kindHint: 'A workshop warehouse receives the materials of a work center; the transit warehouse is a service one; goods on a quarantine warehouse wait for quality control and can only be moved (accepted batches), returned to the supplier or written off as defects',
         counterparty: 'Counterparty warehouse',
         counterpartyHint: 'A storage place at the counterparty: our materials handed over for processing there',
         counterpartyNo: 'No',
@@ -763,7 +763,7 @@ export const settings = {
   /* ---------------- подписи значений перечислений (свой неймспейс) ---------------- */
   enums: {
     costItem: { expense: 'Expense', income: 'Income' },
-    warehouseKind: { warehouse: 'Warehouse', workshop: 'Workshop', transit: 'In transit' },
+    warehouseKind: { warehouse: 'Warehouse', workshop: 'Workshop', transit: 'In transit', quarantine: 'Quarantine' },
     costDistribution: {
       none: 'Do not allocate',
       output_qty: 'By output quantity',

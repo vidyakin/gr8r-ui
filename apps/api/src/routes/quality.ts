@@ -42,12 +42,12 @@ export const batchQualityRoutes = new Hono<AppEnv>()
   })
   .patch('/batches/:id/analyses/:analysisId', write, zValidator('param', analysisParam, validationHook), zValidator('json', batchAnalysisUpdate, validationHook), async c => {
     const ctx = ctxOf(c);
-    await updateBatchAnalysis(ctx.db, docCtx(ctx), c.req.valid('param').analysisId, c.req.valid('json'));
+    await updateBatchAnalysis(ctx.db, docCtx(ctx), c.req.valid('param').id, c.req.valid('param').analysisId, c.req.valid('json'));
     return c.json({ ok: true as const });
   })
   .delete('/batches/:id/analyses/:analysisId', write, zValidator('param', analysisParam, validationHook), async c => {
     const ctx = ctxOf(c);
-    await deleteBatchAnalysis(ctx.db, docCtx(ctx), c.req.valid('param').analysisId);
+    await deleteBatchAnalysis(ctx.db, docCtx(ctx), c.req.valid('param').id, c.req.valid('param').analysisId);
     return c.json({ ok: true as const });
   })
   // статус входного контроля партии: ok — допущена, quarantine — на карантине, rejected — отклонена

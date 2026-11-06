@@ -8,6 +8,7 @@ import { addDays, dec, fmt, type Dec } from '@gr8r/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { documentLines, products, stockBatches, stockMoves, warehouses } from './schema';
+import { quarantineWarehouses } from './quarantine';
 import type { MoveRequest } from './stock';
 
 /** Товары с партионным учётом среди переданных */
@@ -30,16 +31,24 @@ export interface BatchLineInput {
   expiresAt?: string | null;
 }
 
+type BatchStatus = (typeof stockBatches.$inferSelect)['status'];
 type BatchDates = Pick<typeof stockBatches.$inferSelect, 'number' | 'producedAt' | 'expiresAt'>;
-type AvailableBatch = BatchDates & { id: string; qty: Dec };
+type AvailableBatch = BatchDates & { id: string; qty: Dec; status: BatchStatus };
 
 /** Создаёт партию именно на складе движения. Вызывается под блокировкой остатка склада/товара. */
-async function receiptBatch(db: Db, workspaceId: string, r: MoveRequest, dates: BatchDates): Promise<string> {
+async function receiptBatch(db: Db, workspaceId: string, r: MoveRequest, dates: BatchDates, status: BatchStatus): Promise<string> {
+  // статус задаётся только при создании партии; у существующей партии (тот же номер) он не меняется
   const [batch] = await db.insert(stockBatches)
-    .values({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentLineId: r.lineId, ...dates })
+    .values({ workspaceId, warehouseId: r.warehouseId, productId: r.productId, documentLineId: r.lineId, status, ...dates })
     .onConflictDoUpdate({ target: [stockBatches.workspaceId, stockBatches.warehouseId, stockBatches.productId, stockBatches.number], set: { updatedAt: new Date() } })
     .returning({ id: stockBatches.id });
   return batch!.id;
+}
+
+/** Отказ: товар лежит в партиях, не допущенных входным контролем */
+function blocked(batches: { number: string; status: BatchStatus }[], r: MoveRequest): DomainError {
+  const list = batches.map(b => `${b.number} (${b.status})`).join(', ');
+  return new DomainError(422, 'batch_blocked', `Batches not accepted by quality control cannot be issued: ${list}`, { productId: r.productId, warehouseId: r.warehouseId, lineId: r.lineId });
 }
 
 /** Распределяет FEFO под блокировками applyStockMoves. Перемещения сохраняют каждую
@@ -47,6 +56,7 @@ async function receiptBatch(db: Db, workspaceId: string, r: MoveRequest, dates: 
 export async function assignBatches(db: Db, workspaceId: string, doc: { id: string; date: string }, reqs: MoveRequest[], lineBatches: Map<string, BatchLineInput>): Promise<MoveRequest[]> {
   const tracked = await batchTrackedProducts(db, reqs.map(r => r.productId));
   if (!tracked.size) return reqs;
+  const quarantine = await quarantineWarehouses(db, workspaceId);
   const out: MoveRequest[] = [];
   const outOfLine = new Map<string, MoveRequest[]>();
   const withdrawals = reqs.filter(r => r.direction === 'out' && tracked.has(r.productId));
@@ -55,7 +65,7 @@ export async function assignBatches(db: Db, workspaceId: string, doc: { id: stri
   if (withdrawals.length) {
     const rows = await db.select({
       id: stockBatches.id, warehouseId: stockBatches.warehouseId, productId: stockBatches.productId,
-      number: stockBatches.number, producedAt: stockBatches.producedAt, expiresAt: stockBatches.expiresAt,
+      number: stockBatches.number, status: stockBatches.status, producedAt: stockBatches.producedAt, expiresAt: stockBatches.expiresAt,
       qty: sql<string>`(select coalesce(sum(m.qty), 0) from stock_moves m where m.batch_id = stock_batches.id)`,
     }).from(stockBatches).where(and(
       eq(stockBatches.workspaceId, workspaceId),
@@ -101,9 +111,28 @@ export async function assignBatches(db: Db, workspaceId: string, doc: { id: stri
       }
       if (left > 0n) throw new DomainError(422, 'stock_conflict', 'The shipment does not contain the requested quantity');
     } else {
-      for (const batch of fefo.get(`${r.warehouseId}:${r.productId}`) ?? []) {
+      const all = fefo.get(`${r.warehouseId}:${r.productId}`) ?? [];
+      // Контроль качества (задача 1186): обычный расход и перемещение берут только партии ok;
+      // возврат поставщику и списание на брак — любые партии склада.
+      if (!r.qualityExit) {
+        const wanted = lineBatches.get(r.lineId ?? '')?.number?.trim();
+        const named = wanted ? all.find(b => b.number === wanted) : undefined;
+        if (named && named.status !== 'ok') throw blocked([named], r);
+      }
+      for (const batch of r.qualityExit ? all : all.filter(b => b.status === 'ok')) {
         if (left <= 0n) break;
         take(batch.qty < left ? batch.qty : left, batch);
+      }
+      if (left > 0n && !r.qualityExit) {
+        // Остаток не в ok: если он лежит в заблокированных партиях — отказ. Свободный остаток без партий
+        // (до включения партионного учёта) и разрешённый минус остаются без партии, как раньше.
+        const held = all.filter(b => b.status !== 'ok' && b.qty > 0n);
+        if (held.length) {
+          const [free] = await db.select({ qty: sql<string>`coalesce(sum(${stockMoves.qty}), 0)` }).from(stockMoves).where(and(
+            eq(stockMoves.workspaceId, workspaceId), eq(stockMoves.warehouseId, r.warehouseId), eq(stockMoves.productId, r.productId), sql`${stockMoves.batchId} is null`,
+          ));
+          if (left > dec(free?.qty ?? '0')) throw blocked(held, r);
+        }
       }
       // Остаток до включения партионного учёта (или разрешённый минус) остаётся без партии.
       if (left > 0n) take(left);
@@ -120,7 +149,8 @@ export async function assignBatches(db: Db, workspaceId: string, doc: { id: stri
         if (left <= 0n) break;
         const qty = portion.qty < left ? portion.qty : left;
         const source = portion.batchId ? byId.get(portion.batchId)! : null;
-        const batchId = source ? await receiptBatch(db, workspaceId, r, { number: source.number, producedAt: source.producedAt, expiresAt: source.expiresAt }) : null;
+        // статус партии-источника переносится на партию-получатель (принятая партия остаётся ok, непринятая не размывается)
+        const batchId = source ? await receiptBatch(db, workspaceId, r, { number: source.number, producedAt: source.producedAt, expiresAt: source.expiresAt }, source.status) : null;
         out.push({ ...r, qty, batchId });
         left -= qty;
       }
@@ -134,7 +164,7 @@ export async function assignBatches(db: Db, workspaceId: string, doc: { id: stri
     const batchId = await receiptBatch(db, workspaceId, r, {
       number, producedAt: input.producedAt ?? doc.date,
       expiresAt: input.expiresAt ?? (product.shelfLifeDays ? addDays(doc.date, product.shelfLifeDays) : null),
-    });
+    }, quarantine.has(r.warehouseId) ? 'quarantine' : 'ok'); // приход на карантинный склад создаёт партию на карантине
     out.push({ ...r, batchId });
   }
   return out;
@@ -178,6 +208,7 @@ export async function batchBalances(db: Db, workspaceId: string, opts: { warehou
       productId: stockBatches.productId,
       productName: products.name,
       number: stockBatches.number,
+      status: stockBatches.status,
       producedAt: stockBatches.producedAt,
       expiresAt: stockBatches.expiresAt,
       qty: sql<string>`(select coalesce(sum(m.qty), 0) from stock_moves m where m.batch_id = stock_batches.id)`,

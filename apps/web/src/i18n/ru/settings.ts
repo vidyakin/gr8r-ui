@@ -559,7 +559,7 @@ export const settings: Widen<typeof S> = {
         code: 'Код',
         address: 'Адрес',
         kind: 'Вид',
-        kindHint: 'Склад-цех принимает материалы участка; «в пути» — служебный склад',
+        kindHint: 'Склад-цех принимает материалы участка; «в пути» — служебный склад; товар на карантине ждёт входного контроля: его можно переместить (принятые партии), вернуть поставщику или списать в брак',
         counterparty: 'Склад контрагента',
         counterpartyHint: 'Место хранения у контрагента: наши материалы, переданные ему в переработку',
         counterpartyNo: 'Нет',
@@ -767,7 +767,7 @@ export const settings: Widen<typeof S> = {
   },
   enums: {
     costItem: { expense: 'Расход', income: 'Доход' },
-    warehouseKind: { warehouse: 'Склад', workshop: 'Цех', transit: 'В пути' },
+    warehouseKind: { warehouse: 'Склад', workshop: 'Цех', transit: 'В пути', quarantine: 'Карантин' },
     costDistribution: {
       none: 'Не распределять',
       output_qty: 'По объёму выпуска',
