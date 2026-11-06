@@ -164,19 +164,20 @@ export function DueField({ task: t, trigger, className }: { task: Task; trigger?
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" collisionPadding={8} className="!max-w-none !p-1" onClick={e => e.stopPropagation()}>
-        <div className="flex max-w-[248px] flex-wrap gap-1 p-1 pb-0">
+        <div className="flex max-w-[252px] flex-wrap gap-1 p-1">
           {QUICK.map(([label, n]) => (
-            <button key={label} className="btn btn-sm btn-ghost" onClick={() => set(dOff(n))}>
+            <button key={label} className="badge" onClick={() => set(dOff(n))}>
               {label}
             </button>
           ))}
           {t.due && (
-            <button className="btn btn-sm btn-ghost" onClick={() => set(null)}>
+            <button className="badge" onClick={() => set(null)}>
               {tt('views.field.clear')}
             </button>
           )}
         </div>
-        <Calendar mode="single" weekStartsOn={weekStartsOn()} selected={t.due ? parse(t.due) : undefined} defaultMonth={t.due ? parse(t.due) : undefined} onSelect={d => d && set(iso(d))} />
+        <div className="msep" />
+        <Calendar compact mode="single" weekStartsOn={weekStartsOn()} selected={t.due ? parse(t.due) : undefined} defaultMonth={t.due ? parse(t.due) : undefined} onSelect={d => d && set(iso(d))} />
       </PopoverContent>
     </Popover>
   );

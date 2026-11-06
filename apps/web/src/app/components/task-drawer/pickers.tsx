@@ -127,19 +127,20 @@ export function DatePopover({ trigger, value, onChange, align = 'start' }: { tri
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent align={align} collisionPadding={8} className="!max-w-none !p-1" onClick={e => e.stopPropagation()}>
-        <div className="flex max-w-[248px] flex-wrap gap-1 p-1 pb-0">
+        <div className="flex max-w-[252px] flex-wrap gap-1 p-1">
           {quick.map(q => (
-            <button key={q.label} className="btn btn-sm btn-ghost" onClick={() => set(dOff(q.n()))}>
+            <button key={q.label} className="badge" onClick={() => set(dOff(q.n()))}>
               {q.label}
             </button>
           ))}
           {value && (
-            <button className="btn btn-sm btn-ghost" style={{ color: 'var(--red)' }} onClick={() => set(null)}>
+            <button className="badge" style={{ color: 'var(--red)' }} onClick={() => set(null)}>
               {tt('views.field.clear')}
             </button>
           )}
         </div>
-        <Calendar mode="single" weekStartsOn={weekStartsOn()} selected={value ? parse(value) : undefined} defaultMonth={value ? parse(value) : undefined} onSelect={d => d && set(iso(d))} />
+        <div className="msep" />
+        <Calendar compact mode="single" weekStartsOn={weekStartsOn()} selected={value ? parse(value) : undefined} defaultMonth={value ? parse(value) : undefined} onSelect={d => d && set(iso(d))} />
       </PopoverContent>
     </Popover>
   );

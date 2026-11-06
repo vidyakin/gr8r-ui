@@ -160,7 +160,8 @@ export const PopoverClose = P.Close;
 export function PopoverContent({ className, sideOffset = 4, align = 'start', ...props }: React.ComponentProps<typeof P.Content>) {
   return (
     <P.Portal>
-      <P.Content sideOffset={sideOffset} align={align} className={cn('pop pad', className)} {...props} />
+      {/* data-slot нужен shadcn-календарю: внутри поповера он становится прозрачным (иначе бежевый фон bg-background) */}
+      <P.Content data-slot="popover-content" sideOffset={sideOffset} align={align} className={cn('pop pad', className)} {...props} />
     </P.Portal>
   );
 }

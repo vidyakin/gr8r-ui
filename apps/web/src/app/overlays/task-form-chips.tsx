@@ -84,7 +84,7 @@ function DateChip({ label, icon, text, value, onChange }: { label: string; icon:
           )}
         </div>
         <div className="msep" />
-        <Calendar mode="single" weekStartsOn={weekStartsOn()} selected={value ? parse(value) : undefined} defaultMonth={value ? parse(value) : undefined} onSelect={d => d && pick(iso(d))} />
+        <Calendar compact mode="single" weekStartsOn={weekStartsOn()} selected={value ? parse(value) : undefined} defaultMonth={value ? parse(value) : undefined} onSelect={d => d && pick(iso(d))} />
       </PopoverContent>
     </Popover>
   );

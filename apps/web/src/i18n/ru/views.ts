@@ -490,7 +490,7 @@ export const views: Widen<typeof V> = {
     dateClear: 'Сбросить',
     dateToday: 'Сегодня',
     dateTomorrow: 'Завтра',
-    dateNextWeek: 'Следующая неделя',
+    dateNextWeek: 'След. неделя',
     dateIn2Weeks: 'Через 2 недели',
   },
 
@@ -611,7 +611,7 @@ export const views: Widen<typeof V> = {
     today: 'Сегодня',
     tomorrow: 'Завтра',
     yesterday: 'Вчера',
-    nextWeek: 'Следующая неделя',
+    nextWeek: 'След. неделя',
     setDueDate: 'Указать срок',
     setStartDate: 'Указать дату начала',
     setDate: 'Указать дату',

@@ -25,9 +25,12 @@ function Calendar({
   buttonVariant = "ghost",
   formatters,
   components,
+  /** Компактный вид как в оригинале (Gr8r Studio): месяц слева, стрелки справа, плотная сетка 252×2px */
+  compact,
   ...props
 }: React.ComponentProps<typeof DayPicker> & {
   buttonVariant?: React.ComponentProps<typeof Button>["variant"]
+  compact?: boolean
 }) {
   const defaultClassNames = getDefaultClassNames()
 
@@ -39,6 +42,7 @@ function Calendar({
         "group/calendar bg-background p-3 [--cell-size:--spacing(8)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
         String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
         String.raw`rtl:**:[.rdp-button\_previous>svg]:rotate-180`,
+        compact && "w-[252px] p-1.5 pb-0.5",
         className
       )}
       captionLayout={captionLayout}
@@ -51,25 +55,30 @@ function Calendar({
         root: cn("w-fit", defaultClassNames.root),
         months: cn(
           "relative flex flex-col gap-4 md:flex-row",
+          compact && "gap-1.5",
           defaultClassNames.months
         ),
-        month: cn("flex w-full flex-col gap-4", defaultClassNames.month),
+        month: cn("flex w-full flex-col gap-4", compact && "gap-1.5", defaultClassNames.month),
         nav: cn(
           "absolute inset-x-0 top-0 flex w-full items-center justify-between gap-1",
+          compact && "h-8 justify-end",
           defaultClassNames.nav
         ),
         button_previous: cn(
           buttonVariants({ variant: buttonVariant }),
           "size-(--cell-size) p-0 select-none aria-disabled:opacity-50",
+          compact && "size-7",
           defaultClassNames.button_previous
         ),
         button_next: cn(
           buttonVariants({ variant: buttonVariant }),
           "size-(--cell-size) p-0 select-none aria-disabled:opacity-50",
+          compact && "size-7",
           defaultClassNames.button_next
         ),
         month_caption: cn(
           "flex h-(--cell-size) w-full items-center justify-center px-(--cell-size)",
+          compact && "h-8 justify-start pl-1 pr-[60px]",
           defaultClassNames.month_caption
         ),
         dropdowns: cn(
@@ -89,15 +98,17 @@ function Calendar({
           captionLayout === "label"
             ? "text-sm"
             : "flex h-8 items-center gap-1 rounded-md pr-1 pl-2 text-sm [&>svg]:size-3.5 [&>svg]:text-muted-foreground",
+          compact && "text-[13px] font-semibold",
           defaultClassNames.caption_label
         ),
         month_grid: cn("w-full border-collapse", defaultClassNames.month_grid),
-        weekdays: cn("flex", defaultClassNames.weekdays),
+        weekdays: cn("flex", compact && "gap-0.5", defaultClassNames.weekdays),
         weekday: cn(
           "flex-1 rounded-md text-[0.8rem] font-normal text-muted-foreground select-none",
+          compact && "rounded-none py-[3px] text-[11px]",
           defaultClassNames.weekday
         ),
-        week: cn("mt-2 flex w-full", defaultClassNames.week),
+        week: cn("mt-2 flex w-full", compact && "mt-0.5 gap-0.5", defaultClassNames.week),
         week_number_header: cn(
           "w-(--cell-size) select-none",
           defaultClassNames.week_number_header
@@ -111,6 +122,7 @@ function Calendar({
           props.showWeekNumber
             ? "[&:nth-child(2)[data-selected=true]_button]:rounded-l-md"
             : "[&:first-child[data-selected=true]_button]:rounded-l-md",
+          compact && "aspect-auto",
           defaultClassNames.day
         ),
         range_start: cn(
@@ -121,6 +133,7 @@ function Calendar({
         range_end: cn("rounded-r-md bg-accent", defaultClassNames.range_end),
         today: cn(
           "rounded-md bg-accent text-accent-foreground data-[selected=true]:rounded-none",
+          compact && "bg-transparent text-inherit",
           defaultClassNames.today
         ),
         outside: cn(
@@ -132,6 +145,10 @@ function Calendar({
           defaultClassNames.disabled
         ),
         hidden: cn("invisible", defaultClassNames.hidden),
+        day_button: compact ? cn(
+          "h-[30px] min-w-0 rounded-[6px] text-xs font-normal data-[selected-single=true]:font-semibold hover:bg-[var(--surface-2)] hover:text-current dark:hover:bg-[var(--surface-2)] dark:hover:text-current",
+          defaultClassNames.day_button
+        ) : undefined,
         ...classNames,
       }}
       components={{
@@ -148,14 +165,14 @@ function Calendar({
         Chevron: ({ className, orientation, ...props }) => {
           if (orientation === "left") {
             return (
-              <ChevronLeftIcon className={cn("size-4", className)} {...props} />
+              <ChevronLeftIcon className={cn(compact ? "size-3.5" : "size-4", className)} {...props} />
             )
           }
 
           if (orientation === "right") {
             return (
               <ChevronRightIcon
-                className={cn("size-4", className)}
+                className={cn(compact ? "size-3.5" : "size-4", className)}
                 {...props}
               />
             )
