@@ -2,7 +2,7 @@
 import * as React from 'react';
 import { useNavigate } from 'react-router';
 import { Archive, Check, CircleCheck, Crown, Monitor, Moon, Sun, UserPlus } from 'lucide-react';
-import { Badge, Button, Segmented, Select, Tooltip, toast, usePrefs, type Accent, type Density, type Motion, type ThemeMode } from '@/components/ui';
+import { Badge, Button, Segmented, Select, Switch, Tooltip, toast, usePrefs, type Accent, type Density, type Motion, type ThemeMode } from '@/components/ui';
 import { useWorkspace } from '../data/store';
 import { resetSettings, useSettings } from '../data/settings';
 import { apiFor, errorMessage, ok } from '../data/api';
@@ -18,6 +18,7 @@ import { ConfirmModal } from '../overlays/project-dialogs';
 import { SECTIONS } from '../routes';
 import { PermsTable, TeamsGrid } from '../pages/MembersPage';
 import { useBillingApi, useWorkspaceTimezone } from '../docs/billing-data';
+import { INDUSTRY_OPTIONS, type IndustryOption } from '@gr8r/shared';
 import { useIsAdmin } from '../catalog/data';
 import { PrefSelect, SRow, SettingsHead, Toggle } from './parts';
 import { LOCALES, getLocale, isLocale, setLocale, useT, type Locale } from '@/i18n';
@@ -60,6 +61,47 @@ function WorkspaceTimeZone() {
         aria-label={t('settings.workspace.timezone')}
       />
     </SRow>
+  );
+}
+
+/** Отраслевые опции воркспейса (задача 1258, docs/architecture/industry-options.md): бесплатная настройка вида,
+    а не модуль тарифа. Выключенная опция прячет свои разделы и поля, данные и проведение документов не меняются */
+function IndustryOptions() {
+  const t = useT();
+  const session = useSession();
+  const isAdmin = useIsAdmin();
+  const ws = session.active;
+  const [busy, setBusy] = React.useState(false);
+  // Пока идёт сохранение, тулблеры показывают выбранное значение (после ответа берём его из сессии)
+  const [pending, setPending] = React.useState<IndustryOption[] | null>(null);
+  const enabled = new Set<IndustryOption>(pending ?? ws?.industryOptions ?? []);
+  // PATCH /workspaces/:id { industryOptions } — набор целиком; меняет owner и admin
+  const save = (option: IndustryOption, on: boolean) => {
+    if (!ws || busy) return;
+    const next = INDUSTRY_OPTIONS.filter(o => (o === option ? on : enabled.has(o)));
+    setPending(next);
+    setBusy(true);
+    apiFor()
+      .workspaces[':id'].$patch({ param: { id: ws.id }, json: { industryOptions: next } })
+      .then(r => ok(r))
+      .then(() => session.refreshWorkspaces())
+      .then(() => toast(t('settings.workspace.industry.saved'), { duration: 1500 }))
+      .catch(e => toast.error(errorMessage(e)))
+      .finally(() => {
+        setPending(null);
+        setBusy(false);
+      });
+  };
+  return (
+    <div className="sblock">
+      <h2>{t('settings.workspace.industry.title')}</h2>
+      <SRow t={t('settings.workspace.industry.food')} d={t('settings.workspace.industry.lead')}>
+        <Switch checked={enabled.has('food')} disabled={!isAdmin || busy} aria-label={t('settings.workspace.industry.food')} onChange={e => save('food', e.target.checked)} />
+      </SRow>
+      <SRow t={t('settings.workspace.industry.construction')} d={isAdmin ? undefined : t('settings.workspace.industry.ownerOnly')}>
+        <Switch checked={enabled.has('construction')} disabled={!isAdmin || busy} aria-label={t('settings.workspace.industry.construction')} onChange={e => save('construction', e.target.checked)} />
+      </SRow>
+    </div>
   );
 }
 
@@ -132,6 +174,7 @@ export function WorkspaceSection({ title }: { title: string }) {
           </div>
         </div>
       </form>
+      <IndustryOptions />
       {session.active?.role === 'owner' && (
         <div className="sblock">
         <h2 style={{ color: 'var(--red)' }}>{t('settings.workspace.dangerZone')}</h2>

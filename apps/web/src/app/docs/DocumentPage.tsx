@@ -24,6 +24,7 @@ import { useBillingBreakdown, useContracts } from './billing-data';
 import { WorkOrderPanel } from './work-orders';
 import { SerialsButton } from './serials-ui';
 import { BatchButton } from './batch-ui';
+import { useIndustry } from '../industry/data';
 import { DeliveryTab } from './DeliveryTab';
 import { QcTab } from './QcTab';
 import { DocTabs, type DocTab } from './doc-tabs';
@@ -197,6 +198,8 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const ws = useWsId();
+  // Отраслевая опция «Пищевое производство» (задача 1258): без неё поля партии в строках нет (колонки таблицы не меняются)
+  const foodIndustry = useIndustry('food');
   const rawApi = useDocsApi();
   /** Ответ сервера (карточка документа) сразу попадает в кэш: форма видит новый статус и номер без ожидания повторного запроса */
   const api = React.useCallback(
@@ -424,6 +427,9 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     setSave('saved');
   };
   const serverLine = new Map(doc.lines.map(l => [l.id, l]));
+  // Партия строки — отраслевая опция «Пищевое производство» (задача 1258): без неё поля нет, кроме документа,
+  // у которого есть товар с партионным учётом — иначе его нельзя провести (номер партии обязателен)
+  const batchField = foodIndustry || doc.lines.some(l => l.trackBatches);
 
   const [cancelReason, setCancelReason] = React.useState('');
   const run = async (action: 'post' | 'unpost' | 'restore' | 'cancel', body?: unknown) => {
@@ -804,7 +810,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                         {srv?.trackSerials && (
                           <SerialsButton doc={doc} lineId={l.key} productId={l.productId ?? ''} name={l.name} qty={l.qty} serials={doc.serials ?? []} editable={editable} warehouseId={doc.warehouse?.id ?? null} incoming={meta.stock === 'in' || meta.stockRole === 'in' || srv.stockRole === 'in'} />
                         )}
-                        {editable && srv?.trackBatches && (meta.stock === 'in' || meta.stockRole === 'in' || srv.stockRole === 'in') && (
+                        {editable && batchField && srv?.trackBatches && (meta.stock === 'in' || meta.stockRole === 'in' || srv.stockRole === 'in') && (
                           <BatchButton line={l} onChange={patch => patchLine(l.key, patch)} />
                         )}
                         {editable && doc.type === 'customer_order' && l.productId && (

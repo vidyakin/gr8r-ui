@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { ProductPricesBlock } from '../pricing/ProductPrices';
 import { useProductKinds } from '../positions/data';
+import { useIndustry } from '../industry/data';
 import { Barcode, Building2, CircleAlert, CircleDollarSign, FolderTree, Hash, Layers, Package, Percent, Power, Repeat, Ruler, ScanBarcode, Shapes, Star, Tag, Tags, Timer, Trash2, Truck, Upload, Wrench, type LucideIcon } from 'lucide-react';
 import { PRODUCT_KINDS, VAT_LABELS, VAT_RATES, validateRecord, type ProductKind } from '@gr8r/shared';
 import { AttachmentsPanel } from '@/components/gr8r/attachments-panel';
@@ -244,6 +245,9 @@ function ProductGallery({ product: p, canWrite, onSetMain }: { product: Product;
 
 export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { product: Product; tree: CategoryNode[]; onClose: () => void; onOpenCategory: (id: string) => void }) {
   const canWrite = useCanWrite();
+  // Партии — отраслевая опция «Пищевое производство» (задача 1258): без неё полей нет, но
+  // у товара с уже включённым учётом переключатель остаётся, чтобы его можно было выключить
+  const batchUi = useIndustry('food') || p.trackBatches;
   const m = useProductMutations();
   const attrs = useAttributes(p.categoryId);
   const [confirm, setConfirm] = React.useState(false);
@@ -360,8 +364,12 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
           ...(p.kind === 'goods'
             ? [
                 row(ScanBarcode, t('serials.product.track'), <Switch checked={p.trackSerials} aria-label={t('serials.product.track')} onChange={e => save({ trackSerials: e.target.checked })} />, p.trackSerials ? t('common.yes') : t('common.no')),
-                row(Package, t('serials.product.trackBatches'), <Switch checked={p.trackBatches} aria-label={t('serials.product.trackBatches')} onChange={e => save({ trackBatches: e.target.checked })} />, p.trackBatches ? t('common.yes') : t('common.no')),
-                ...(p.trackBatches ? [row(Timer, t('serials.product.shelfLifeDays'), <FieldInput field={F.shelfLifeDays} value={p.shelfLifeDays ?? 0} onChange={v => save({ shelfLifeDays: Number(v) > 0 ? Math.round(Number(v)) : null })} />, String(p.shelfLifeDays ?? '—'))] : []),
+                ...(batchUi
+                  ? [
+                      row(Package, t('serials.product.trackBatches'), <Switch checked={p.trackBatches} aria-label={t('serials.product.trackBatches')} onChange={e => save({ trackBatches: e.target.checked })} />, p.trackBatches ? t('common.yes') : t('common.no')),
+                      ...(p.trackBatches ? [row(Timer, t('serials.product.shelfLifeDays'), <FieldInput field={F.shelfLifeDays} value={p.shelfLifeDays ?? 0} onChange={v => save({ shelfLifeDays: Number(v) > 0 ? Math.round(Number(v)) : null })} />, String(p.shelfLifeDays ?? '—'))] : []),
+                    ]
+                  : []),
               ]
             : []),
           row(Timer, t('serials.product.warrantyMonths'), <FieldInput field={F.warrantyMonths} value={p.warrantyMonths ?? 0} onChange={v => save({ warrantyMonths: Number(v) ? Math.round(Number(v)) : null })} />, String(p.warrantyMonths ?? '—')),

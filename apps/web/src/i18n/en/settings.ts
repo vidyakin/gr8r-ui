@@ -143,6 +143,20 @@ export const settings = {
     timezone: 'Workspace time zone',
     timezoneHint: 'Billing periods and automation schedules are counted in this time zone.',
     timezoneSaved: 'Time zone saved',
+    industry: {
+      title: 'Industry',
+      lead: 'Free view settings: turn on what your workspace does. Turning an option off only hides its fields and sections — nothing is deleted, and documents post exactly as before.',
+      ownerOnly: 'Only an owner or admin can change industry options.',
+      saved: 'Industry options saved',
+      food: 'Food production (batches, shelf life, quarantine)',
+      construction: 'Construction and installation (in development)',
+      options: {
+        food: 'Food production',
+        construction: 'Construction and installation',
+      },
+      hiddenTitle: 'Section is hidden',
+      hiddenBody: 'The section belongs to the “{option}” industry option, which is off for this workspace. An owner or admin can turn it on in Settings → Workspace.',
+    },
   },
 
   /* ---------------- appearance ---------------- */

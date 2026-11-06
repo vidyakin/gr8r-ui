@@ -7,6 +7,7 @@ import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent
 import { useCompanies, useIsAdmin } from '../catalog/data';
 import { BankAccountsEditor, RequisitesFields, checkRequisites, type RequisitesValue } from '../docs/requisites';
 import { useCostItems, useDocsApi, useInventorySettings, useOrganizations, useWarehouses, type CostItem, type Organization, type Warehouse } from '../docs/data';
+import { useIndustry } from '../industry/data';
 import { SettingsHead, SRow, Toggle } from './parts';
 import { t as tFn, hasKey, tEnum, useT, type TKey } from '@/i18n';
 
@@ -505,10 +506,14 @@ function WarehouseDialog({ wh, onClose }: { wh?: Warehouse; onClose: () => void 
   const t = useT();
   const api = useDocsApi();
   const companies = useCompanies();
+  // Карантин — вид склада для входного контроля, он есть только у пищевого производства (задача 1258).
+  // Уже созданный карантинный склад показываем как есть — выключение опции ничего не меняет в данных
+  const food = useIndustry('food');
   const [name, setName] = React.useState(wh?.name ?? '');
   const [code, setCode] = React.useState(wh?.code ?? '');
   const [address, setAddress] = React.useState(wh?.address ?? '');
   const [kind, setKind] = React.useState<WarehouseKind>(wh?.kind ?? 'warehouse');
+  const quarantine = food || kind === 'quarantine';
   // склад контрагента: на стороне переработчика хранятся наши материалы, отданные ему в переработку
   const [counterpartyId, setCounterpartyId] = React.useState(wh?.counterpartyId ?? '');
   const [err, setErr] = React.useState('');
@@ -558,7 +563,7 @@ function WarehouseDialog({ wh, onClose }: { wh?: Warehouse; onClose: () => void 
                 <option value="warehouse">{enumLabel('warehouseKind', 'warehouse', 'Warehouse')}</option>
                 <option value="workshop">{enumLabel('warehouseKind', 'workshop', 'Workshop')}</option>
                 <option value="transit">{enumLabel('warehouseKind', 'transit', 'In transit')}</option>
-                <option value="quarantine">{enumLabel('warehouseKind', 'quarantine', 'Quarantine')}</option>
+                {quarantine && <option value="quarantine">{enumLabel('warehouseKind', 'quarantine', 'Quarantine')}</option>}
               </select>
             )}
           </Field>

@@ -4,6 +4,7 @@ import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { ApiError, UNAUTHORIZED_EVENT, apiFor, ok } from './api';
 import { resolveLocale, setFormatPrefs, setLocale, type Locale } from '@/i18n';
 import { resolveUserPrefs, type UserPrefs } from '@gr8r/shared';
+import type { IndustryOption } from '@gr8r/shared';
 
 export interface SessionUser {
   id: string;
@@ -26,6 +27,8 @@ export interface WorkspaceRef {
   brand: boolean;
   createdAt: string;
   role: 'owner' | 'admin' | 'member' | 'guest';
+  /** Отраслевые опции (задача 1258): включённые настройки вида интерфейса, пусто — всё выключено */
+  industryOptions: IndustryOption[];
   /** Язык воркспейса по умолчанию (settings.locale) */
   locale: string | null;
 }
