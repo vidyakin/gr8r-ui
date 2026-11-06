@@ -171,6 +171,8 @@ export const taskRoutes = crud({
   search: [tasks.title, tasks.key, tasks.description],
   filters: (q, ctx) => [
     q.projectId ? eq(tasks.projectId, q.projectId) : undefined,
+    // задачи объекта (задача 1268): карточка объекта просит только свои
+    q.objectId ? eq(tasks.objectId, q.objectId) : undefined,
     q.module ? eq(tasks.module, q.module) : undefined,
     q.status ? eq(tasks.status, q.status) : undefined,
     q.assigneeId === 'none' ? isNull(tasks.assigneeId) : q.assigneeId ? eq(tasks.assigneeId, q.assigneeId) : undefined,

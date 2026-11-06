@@ -54,6 +54,8 @@ export function useCrumbs(): Crumb[] {
       ...(p ? [{ label: p.name, icon: <ProjectIcon project={p} size={11} className="!size-4 !rounded" /> }] : []),
     ];
   }
+  // карточка объекта (задача 1268)
+  if (a === 'objects' && b) return [{ label: S.objects.name, to: SECTIONS.objects.path }, { label: t('nav.crumbs.object') }];
   if (a === 'members' && b) return [{ label: S.members.name, to: SECTIONS.members.path }, { label: data.members.find(m => m.id === b)?.name ?? t('nav.crumbs.member') }];
   if (a === 'automations') return b === 'flow' ? [{ label: S.automations.name, to: SECTIONS.automations.path }, { label: t('nav.crumbs.editor') }] : [{ label: S.automations.name }];
   if (a === 'catalog') return [{ label: S.catalog.name }];

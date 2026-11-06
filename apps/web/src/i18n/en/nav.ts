@@ -177,6 +177,7 @@ export const nav = {
   // хлебные крошки
   crumbs: {
     investment: 'Investment project',
+    object: 'Object',
     data: 'Data',
     company: 'Company',
     member: 'Member',

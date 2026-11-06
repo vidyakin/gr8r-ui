@@ -133,6 +133,11 @@ describe('аналитика object_id и карточка', () => {
     const time = await mk(owner, '/time-logs', { taskId: task.id, hours: '2', logDate: '2026-10-12', objectId });
     expect(time.objectId).toBe(objectId);
 
+    // список задач по объекту — только задачи объекта (вторая задача без объекта в нём не видна)
+    await mk(owner, '/tasks', { projectId, title: 'Задача без объекта' });
+    const byObject = await owner.get(`/tasks?objectId=${objectId}`);
+    expect(byObject.body.items.map((x: { id: string }) => x.id)).toEqual([task.id]);
+
     // чужой объект в задаче и времени — 422
     expect((await owner.post('/tasks', { projectId, title: 'Чужая', objectId: '00000000-0000-7000-8000-000000000000' })).status).toBe(422);
 

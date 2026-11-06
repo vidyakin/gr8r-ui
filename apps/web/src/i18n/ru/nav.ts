@@ -176,6 +176,7 @@ export const nav: Widen<typeof N> = {
   accountMenu: 'Меню аккаунта',
   crumbs: {
     investment: 'Инвестпроект',
+    object: 'Объект',
     data: 'Данные',
     company: 'Контрагент',
     member: 'Участник',

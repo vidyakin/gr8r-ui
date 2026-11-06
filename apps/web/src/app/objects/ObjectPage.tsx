@@ -8,6 +8,7 @@ import { Badge, Button, Checkbox, ConfirmDialog, EmptyState, Field, Input, Selec
 import { fmtAmount, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { useWorkspace } from '../data/store';
+import { statusName } from '../data/selectors';
 import { useCompanies } from '../catalog/data';
 import { useWarehouses } from '../docs/data';
 import { DocTabs } from '../docs/doc-tabs';
@@ -32,7 +33,9 @@ export function ObjectPage() {
   const tasks = useObjectTasks(isNew ? undefined : id);
   const companies = useCompanies();
   const warehouses = useWarehouses();
-  const members = useWorkspace().data.members.filter(m => m.status === 'active');
+  const wsData = useWorkspace().data;
+  const members = wsData.members.filter(m => m.status === 'active');
+  const statuses = wsData.statuses;
   const [form, setForm] = React.useState<ObjectInput>(blank);
   const [busy, setBusy] = React.useState(false);
   const [archiving, setArchiving] = React.useState(false);
@@ -280,7 +283,7 @@ export function ObjectPage() {
                           <tr key={x.id}>
                             <td className="mono">{x.key}</td>
                             <td>{x.title}</td>
-                            <td className="muted">{x.status}</td>
+                            <td className="muted">{statusName(statuses.find(st => st.id === x.status) ?? { id: x.status, name: x.status })}</td>
                             <td className="muted">{x.dueDate ? fmtDate(x.dueDate) : '—'}</td>
                           </tr>
                         ))}
