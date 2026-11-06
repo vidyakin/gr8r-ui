@@ -75,7 +75,8 @@ export function useRealtime(ws: string, engine: Engine) {
       // Процент выполнения и вехи (задача 1272): меняются от задач (закрытые статусы, веса) и вех объекта
       // Акты объекта (задача 1273): вкладка «Акты» и «Оплачено» у вех меняются от актов и оплат документов
       // Субподряд (задача 1274): акты субподрядчика меняют сводку субподряда и факт бюджета объекта
-      if (['object', 'object_foreman', 'object_contract', 'object_estimate', 'object_milestone', 'object_act', 'object_sub_act', 'document', 'task'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'objects'] });
+      // Прогноз прибыли (задача 1275): правки остатка и портфель объектов
+      if (['object', 'object_foreman', 'object_contract', 'object_estimate', 'object_milestone', 'object_act', 'object_sub_act', 'object_forecast', 'document', 'task'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'objects'] });
       // Табель прораба (задача 1271): смены объекта; подтверждение меняет объёмы сметы, бюджет и табель
       if (e.entity === 'object_shift') {
         void qc.invalidateQueries({ queryKey: ['ws', ws, 'shifts'] });

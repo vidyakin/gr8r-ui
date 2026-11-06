@@ -3,7 +3,8 @@
    Смета (задача 1269) — отдельная вкладка: основная смета, допработы, редактор позиций и заказы.
    Процент выполнения и вехи (задача 1272): индикатор и способ расчёта в шапке, вехи — отдельная вкладка.
    Табель (задача 1271): смены по датам и табель работников за месяц — отдельная вкладка ShiftsTab.
-   Субподряд (задача 1274): заказы субподрядчикам и акты субподрядчика с приёмкой — вкладка SubcontractTab. */
+   Субподряд (задача 1274): заказы субподрядчикам и акты субподрядчика с приёмкой — вкладка SubcontractTab.
+   Прогноз прибыли (задача 1275): вкладка «Прогноз» только у owner/admin — остальным сервер отвечает 403. */
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { Archive, CircleAlert, Save } from 'lucide-react';
@@ -27,6 +28,7 @@ import { BudgetTab } from './BudgetTab';
 import { ShiftsTab } from './ShiftsTab';
 import { ActsTab } from './ActsTab';
 import { SubcontractTab } from './SubcontractTab';
+import { ForecastTab } from './ForecastTab';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const blank = (): ObjectInput => ({ number: '', name: '', customerId: null, address: '', startDate: today(), dueDate: null, status: 'planning', managerId: null, revenueMode: 'acts', overheadPct: '', customerHourRate: '', budgetPolicy: 'warn', progressMode: 'tasks_closed', progressManual: '', projectId: null, warehouseId: null, note: '', foremen: [], contracts: [] });
@@ -376,6 +378,16 @@ export function ObjectPage() {
                 label: tt('objects.budget.title'),
                 content: <BudgetTab objectId={detail!.id} />,
               },
+              // Прогноз прибыли (задача 1275): только owner/admin — остальным вкладки нет, сервер отвечает 403
+              ...(canAdmin
+                ? [
+                    {
+                      id: 'forecast',
+                      label: tt('objects.forecast.title'),
+                      content: <ForecastTab objectId={detail!.id} />,
+                    },
+                  ]
+                : []),
               {
                 id: 'tasks',
                 label: tt('objects.tabs.tasks'),

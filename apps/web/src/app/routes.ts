@@ -174,6 +174,8 @@ export const SECTIONS = {
   rateSchedules: { path: '/transport-orders/rates', name: 'Rate schedules', icon: ListChecks },
   // Договоры и биллинг
   objects: { path: '/objects', name: 'Objects', icon: Building2 },
+  // Прогноз прибыли по объектам (задача 1275): портфель — только owner/admin, остальным сервер отвечает 403
+  objectsForecast: { path: '/objects/forecast', name: 'Profit forecast', icon: ChartNoAxesCombined },
   // Табель прораба (задача 1271): смены бригады на объекте
   shift: { path: '/shifts', name: 'Foreman shift', icon: ScanBarcode },
   contracts: { path: '/contracts', name: 'Contracts', icon: FileSignature },
