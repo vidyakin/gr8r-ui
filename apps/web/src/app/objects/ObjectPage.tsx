@@ -10,6 +10,7 @@ import { BUDGET_POLICIES, OBJECT_PROGRESS_MODES, OBJECT_STATUSES, REVENUE_MODES,
 import { Badge, Button, Checkbox, ConfirmDialog, EmptyState, Field, Input, Progress, Select, Skeleton, toast } from '@/components/ui';
 import { fmtAmount, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
+import { useSession } from '../data/session';
 import { useWorkspace } from '../data/store';
 import { statusName } from '../data/selectors';
 import { useCompanies } from '../catalog/data';
@@ -23,9 +24,10 @@ import { EstimateTab } from './EstimateTab';
 import { MilestonesTab } from './MilestonesTab';
 import { BudgetTab } from './BudgetTab';
 import { ShiftsTab } from './ShiftsTab';
+import { ActsTab } from './ActsTab';
 
 const today = () => new Date().toISOString().slice(0, 10);
-const blank = (): ObjectInput => ({ number: '', name: '', customerId: null, address: '', startDate: today(), dueDate: null, status: 'planning', managerId: null, revenueMode: 'acts', overheadPct: '', budgetPolicy: 'warn', progressMode: 'tasks_closed', progressManual: '', projectId: null, warehouseId: null, note: '', foremen: [], contracts: [] });
+const blank = (): ObjectInput => ({ number: '', name: '', customerId: null, address: '', startDate: today(), dueDate: null, status: 'planning', managerId: null, revenueMode: 'acts', overheadPct: '', customerHourRate: '', budgetPolicy: 'warn', progressMode: 'tasks_closed', progressManual: '', projectId: null, warehouseId: null, note: '', foremen: [], contracts: [] });
 const trim = (v: string | null | undefined) => (v == null ? '' : v.replace(/\.00$/, '').replace(/(\.\d)0$/, '$1'));
 
 export function ObjectPage() {
@@ -34,6 +36,8 @@ export function ObjectPage() {
   const isNew = !id || id === 'new';
   const navigate = useNavigate();
   const canWrite = useCanWrite();
+  // отмена подписи акта — admin и выше (задача 1273)
+  const canAdmin = ['owner', 'admin'].includes(useSession().active?.role ?? '');
   const api = useObjectApi();
   const doc = useObject(isNew ? undefined : id);
   const detail = isNew ? null : doc.data;
@@ -65,6 +69,7 @@ export function ObjectPage() {
       managerId: detail.managerId,
       revenueMode: detail.revenueMode,
       overheadPct: trim(detail.overheadPct),
+      customerHourRate: trim(detail.customerHourRate),
       budgetPolicy: detail.budgetPolicy,
       progressMode: detail.progressMode,
       progressManual: trim(detail.progressManual),
@@ -90,6 +95,7 @@ export function ObjectPage() {
       const body: ObjectInput = {
         ...form,
         overheadPct: form.overheadPct || undefined,
+        customerHourRate: form.customerHourRate?.trim() ? form.customerHourRate.trim() : null,
         progressManual: form.progressManual?.trim() ? form.progressManual.trim() : null,
         startDate: form.startDate || null,
         dueDate: form.dueDate || null,
@@ -249,6 +255,10 @@ export function ObjectPage() {
         <Field label={tt('objects.field.overheadPct')} hint={tt('objects.field.overheadHint')}>
           {p => <Input {...p} inputMode="decimal" disabled={!editable} value={form.overheadPct ?? ''} onChange={e => set('overheadPct', e.target.value)} />}
         </Field>
+        {/* Ставка часа для заказчика (задача 1273): выручка «по часам» = подтверждённые часы смен × ставка */}
+        <Field label={tt('objects.field.customerHourRate')} hint={tt('objects.field.customerHourRateHint')}>
+          {p => <Input {...p} inputMode="decimal" disabled={!editable} value={form.customerHourRate ?? ''} onChange={e => set('customerHourRate', e.target.value)} />}
+        </Field>
         <Field label={tt('objects.field.budgetPolicy')} hint={tt('objects.field.budgetPolicyHint')}>
           {p => (
             <Select
@@ -332,6 +342,12 @@ export function ObjectPage() {
                 label: tt('estimates.title'),
                 count: estimates.data?.length,
                 content: <EstimateTab objectId={detail!.id} objectName={detail!.name} canWrite={canWrite && !archived} />,
+              },
+              {
+                id: 'acts',
+                label: tt('objects.acts.title'),
+                count: undefined,
+                content: <ActsTab objectId={detail!.id} canWrite={canWrite && !archived} canAdmin={canAdmin} />,
               },
               {
                 id: 'milestones',

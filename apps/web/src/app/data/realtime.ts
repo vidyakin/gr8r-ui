@@ -73,7 +73,8 @@ export function useRealtime(ws: string, engine: Engine) {
       // Бюджет объекта (задача 1270) считается по проведённым документам и платежам, поэтому любое событие документа
       // перечитывает и объекты (вкладка «Бюджет» и факт по категориям во вкладке «Смета»)
       // Процент выполнения и вехи (задача 1272): меняются от задач (закрытые статусы, веса) и вех объекта
-      if (['object', 'object_foreman', 'object_contract', 'object_estimate', 'object_milestone', 'document', 'task'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'objects'] });
+      // Акты объекта (задача 1273): вкладка «Акты» и «Оплачено» у вех меняются от актов и оплат документов
+      if (['object', 'object_foreman', 'object_contract', 'object_estimate', 'object_milestone', 'object_act', 'document', 'task'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'objects'] });
       // Табель прораба (задача 1271): смены объекта; подтверждение меняет объёмы сметы, бюджет и табель
       if (e.entity === 'object_shift') {
         void qc.invalidateQueries({ queryKey: ['ws', ws, 'shifts'] });

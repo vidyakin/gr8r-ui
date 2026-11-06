@@ -18,6 +18,8 @@ export interface ObjectListItem {
   managerName: string | null;
   revenueMode: RevenueMode;
   overheadPct: string;
+  /** Ставка часа для заказчика (задача 1273) */
+  customerHourRate: string | null;
   /** Контроль бюджета объекта (задача 1270) */
   budgetPolicy: BudgetPolicy;
   /** Как считать процент выполнения (задача 1272) */
@@ -47,6 +49,8 @@ export interface ObjectInput {
   managerId?: string | null;
   revenueMode?: RevenueMode;
   overheadPct?: string;
+  /** Ставка часа для заказчика: null — очистить */
+  customerHourRate?: string | null;
   budgetPolicy?: BudgetPolicy;
   progressMode?: ObjectProgressMode;
   progressManual?: string | null;
@@ -190,9 +194,11 @@ export interface ObjectMilestone {
   note: string;
   /** Сумма вехи: amount или pct × стоимость договора; null — нет согласованной сметы */
   value: string | null;
-  /** Выставлено и оплачено — задача 1273 (акты и счета) */
-  invoiced: null;
-  paid: null;
+  /** Выставлено и оплачено — из связанного акта (задача 1273) */
+  invoiced: string | null;
+  paid: string | null;
+  /** Акт, которым закрыта веха */
+  act: { id: string; number: string } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -202,8 +208,8 @@ export interface ObjectMilestoneTotals {
   total: string | null;
   done: string | null;
   accepted: string | null;
-  invoiced: null;
-  paid: null;
+  invoiced: string | null;
+  paid: string | null;
 }
 
 export interface ObjectMilestones {

@@ -1,6 +1,6 @@
 /* Вехи объекта (задача 1272): вкладка карточки — этапы и аванс с суммой или процентом от стоимости договора,
    отметки «Выполнено» и «Принято», сводка «выполнено / принято / выставлено / оплачено» по этапам и отдельной строкой аванс.
-   «Выставлено» и «Оплачено» появятся с актами и счетами (задача 1273) — сейчас сервер отдаёт null.
+   «Выставлено» и «Оплачено» заполняются из связанного акта (задача 1273): счёт и акт оказания услуг, оплаты.
    Деньги вех (цена заказчику, без НДС) видят все участники. */
 import * as React from 'react';
 import { CircleAlert, CircleCheck, Pencil, Plus, Trash2 } from 'lucide-react';
@@ -92,7 +92,7 @@ function MilestoneDialog({ objectId, milestone, onClose }: { objectId: string; m
 }
 
 /** Строка сводки: суммы или «—», если процент ещё не от чего считать */
-function SummaryRow({ title, totals, hint }: { title: string; totals: { total: string | null; done: string | null; accepted: string | null; invoiced: null; paid: null }; hint?: string }) {
+function SummaryRow({ title, totals, hint }: { title: string; totals: { total: string | null; done: string | null; accepted: string | null; invoiced: string | null; paid: string | null }; hint?: string }) {
   const cells = [totals.total, totals.done, totals.accepted, totals.invoiced, totals.paid];
   return (
     <tr>
@@ -202,11 +202,11 @@ export function MilestonesTab({ objectId, canWrite }: { objectId: string; canWri
                         {m.acceptedAt ? fmtDate(m.acceptedAt.slice(0, 10)) : tt('objects.milestones.markAccepted')}
                       </Button>
                     </td>
-                    <td className="r num faint" title={tt('objects.milestones.notAvailable')}>
-                      —
+                    <td className="r num" title={m.act ? `${tt('objects.acts.act')} ${m.act.number}` : tt('objects.milestones.noAct')}>
+                      {m.invoiced == null ? '—' : fmtAmount(m.invoiced)}
                     </td>
-                    <td className="r num faint" title={tt('objects.milestones.notAvailable')}>
-                      —
+                    <td className="r num" title={m.act ? `${tt('objects.acts.act')} ${m.act.number}` : tt('objects.milestones.noAct')}>
+                      {m.paid == null ? '—' : fmtAmount(m.paid)}
                     </td>
                     {canWrite && (
                       <td>
@@ -227,11 +227,6 @@ export function MilestonesTab({ objectId, canWrite }: { objectId: string; canWri
             <tfoot>
               <SummaryRow title={tt('objects.milestones.stages')} totals={list.summary.stages} />
               <SummaryRow title={tt('objects.milestones.advance')} totals={list.summary.advance} hint={tt('objects.milestones.notCounted')} />
-              <tr>
-                <td colSpan={6} className="faint" style={{ fontSize: 11 }}>
-                  {tt('objects.milestones.notAvailable')}
-                </td>
-              </tr>
             </tfoot>
           </table>
         </div>
