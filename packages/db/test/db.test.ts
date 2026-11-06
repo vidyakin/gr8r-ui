@@ -52,7 +52,8 @@ describe('seed', () => {
     const crm = seedCrm();
     const [demo] = await admin`select id from workspaces where slug = 'gr8rstudio'`;
     const w = `where workspace_id = '${demo!.id}'`;
-    expect(await count('members', w)).toBe(src.members.length);
+    // + трое рабочих без входа бригады демо-объекта (табель прораба, задача 1271)
+    expect(await count('members', w)).toBe(src.members.length + 3);
     expect(await count('projects', w)).toBe(11); // 7 демо + системные проекты модулей (production, services) + проекты двух демо-объектов (1268)
     expect(await count('tasks', w)).toBe(src.tasks.length + 3); // + задача-назначение заказ-наряда, задача операции производства и консультация по договору
     expect(await count('statuses', w)).toBe(5);

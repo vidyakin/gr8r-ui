@@ -1,9 +1,13 @@
 /* Демо объектов объектного учёта (задача 1268): два объекта по-русски, у одного свой склад.
    Проекты задач создаются здесь же — как это делает сервис при создании объекта.
    Смета (задача 1269): у первого объекта согласованная основная смета (2 раздела по 3 позиции) и допработа в черновике.
-   Процент выполнения и вехи (задача 1272): у первого объекта аванс и два этапа, у пары позиций сметы выполненный объём. */
+   Процент выполнения и вехи (задача 1272): у первого объекта аванс и два этапа, у пары позиций сметы выполненный объём.
+   Табель прораба (задача 1271): бригада из трёх рабочих без входа с бейджами и две подтверждённые смены прошлой недели. */
+import { eq } from 'drizzle-orm';
 import type { Db } from './client';
-import { objectEstimateItems, objectEstimateSections, objectEstimates, objectForemen, objectMilestones, objects, projects, warehouses } from './schema';
+import { confirmShift, createShift, saveShift } from './object-shifts';
+import { addEmployeeAccrual, ensurePayrollKinds, updateEmployeePayroll } from './payroll';
+import { members, objectEstimateItems, objectEstimateSections, objectEstimates, objectForemen, objectMilestones, objects, projects, warehouses } from './schema';
 
 export async function seedObjects(
   db: Db,
@@ -77,6 +81,8 @@ export async function seedObjects(
   await db.insert(objectForemen).values([{ workspaceId: wsId, objectId: inserted[0]!, memberId }]);
   await seedEstimates(db, wsId, memberId, inserted[0]!);
   await seedMilestones(db, wsId, inserted[0]!);
+  const crew = await seedCrew(db, wsId, memberId);
+  await seedShifts(db, wsId, memberId, inserted[0]!, crew);
   return { objects: inserted.length };
 }
 
@@ -147,4 +153,51 @@ async function seedMilestones(db: Db, wsId: string, objectId: string): Promise<v
     { workspaceId: wsId, objectId, sortOrder: 1, name: 'Кабельные трассы', kind: 'stage', pct: '40', doneAt: new Date('2026-11-20T12:00:00Z'), note: 'Лотки и кабель проложены' },
     { workspaceId: wsId, objectId, sortOrder: 2, name: 'Пусконаладка', kind: 'stage', pct: '30', note: 'Пусконаладка и сдача линий заказчику' },
   ]);
+}
+
+/** Бригада демо-объекта (задача 1271): трое рабочих без входа с табельными номерами и бейджами.
+    Стоимость часа: у первого почасовая ставка, у второго оклад (или оклада нет — стоимость не считается),
+    у третьего ничего — пробел «нет ставки». Демо-пользователь — прораб этого объекта (назначен выше). */
+async function seedCrew(db: Db, wsId: string, memberId: string): Promise<string[]> {
+  const workers = [
+    { name: 'Смирнов Пётр', personnelNumber: 'Т-101', title: 'Электромонтажник', hourlyRate: '650.00' as string | null, salary: null as string | null },
+    { name: 'Кузнецов Иван', personnelNumber: 'Т-102', title: 'Электромонтажник', hourlyRate: null, salary: '45000.00' },
+    { name: 'Морозов Алексей', personnelNumber: 'Т-103', title: 'Помощник электромонтажника', hourlyRate: null, salary: null },
+  ];
+  const kinds = await ensurePayrollKinds(db, wsId);
+  const ids: string[] = [];
+  for (const w of workers) {
+    const code = `W${w.personnelNumber.replace(/\D/g, '').padStart(8, '0')}`;
+    const [row] = await db
+      .insert(members)
+      .values({ workspaceId: wsId, userId: null, email: `worker-${code.toLowerCase()}@workers.invalid`, name: w.name, title: w.title, personnelNumber: w.personnelNumber, badgeCode: code, role: 'member', status: 'active' })
+      .returning({ id: members.id });
+    ids.push(row!.id);
+    if (w.hourlyRate || w.salary) {
+      await updateEmployeePayroll(db, { workspaceId: wsId, memberId }, row!.id, { hourlyRate: w.hourlyRate });
+      if (w.salary) await addEmployeeAccrual(db, { workspaceId: wsId, memberId }, { memberId: row!.id, kindId: kinds.get('salary')!.id, validFrom: '2026-01-01', amount: w.salary, percentBasis: 'revenue' });
+    }
+  }
+  return ids;
+}
+
+/** Две подтверждённые смены прошлой недели (задача 1271): часы по позициям сметы и выполненный объём один раз на бригаду */
+async function seedShifts(db: Db, wsId: string, memberId: string, objectId: string, crew: string[]): Promise<void> {
+  const items = await db.select({ id: objectEstimateItems.id, name: objectEstimateItems.name, kind: objectEstimateItems.kind, qty: objectEstimateItems.qty, doneQty: objectEstimateItems.doneQty }).from(objectEstimateItems).where(eq(objectEstimateItems.estimateId, (await db.select({ id: objectEstimates.id }).from(objectEstimates).where(eq(objectEstimates.objectId, objectId)).limit(1))[0]!.id));
+  const cable = items.find(i => i.kind === 'work' && i.name.includes('Прокладка'));
+  const commissioning = items.find(i => i.kind === 'work' && i.name.includes('Пусконаладка'));
+  const ctx = { workspaceId: wsId, memberId, role: 'owner' as const };
+  const day = (back: number) => new Date(Date.now() - back * 864e5).toISOString().slice(0, 10);
+  const shifts = [
+    { date: day(8), hours: ['8', '8', '8'], volume: null as { itemId: string; qty: string } | null, note: 'Прокладка трасс в подъездах 1–2' },
+    { date: day(7), hours: ['8', '8', '4'], volume: commissioning ? { itemId: commissioning.id, qty: '0.5' } : null, note: 'Подготовка к пусконаладке, мастер уехал на другой объект' },
+  ];
+  for (const s of shifts) {
+    const id = await createShift(db, ctx, objectId, { workDate: s.date, foremanId: memberId, note: s.note });
+    await saveShift(db, ctx, id, {
+      hours: crew.map((workerId, i) => ({ memberId: workerId, hours: s.hours[i]!, estimateItemId: cable?.id ?? null, note: '' })),
+      volumes: s.volume ? [{ estimateItemId: s.volume.itemId, qty: s.volume.qty }] : [],
+    });
+    await confirmShift(db, ctx, id);
+  }
 }

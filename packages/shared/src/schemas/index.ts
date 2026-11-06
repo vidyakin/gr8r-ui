@@ -34,3 +34,4 @@ export * from './routing';
 export * from './loyalty';
 export * from './objects';
 export * from './estimates';
+export * from './object-shifts';

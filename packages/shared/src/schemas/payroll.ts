@@ -47,6 +47,8 @@ export const employeePayrollUpdate = z.object({
   cardAccount: z.string().trim().max(40).optional(),
   advanceAmount: money.nullish(),
   advancePercent: percent.nullish(),
+  /** Почасовая ставка (задача 1271): из неё стоимость часа в табеле, иначе оклад / норма часов */
+  hourlyRate: money.nullish(),
 });
 
 /** Плановое начисление сотрудника: с даты действует (история); нулевое значение прекращает начисление */

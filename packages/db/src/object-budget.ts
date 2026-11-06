@@ -3,7 +3,8 @@
    Факт категории — проведённые документы и платежи с аналитикой объекта, без НДС:
    материалы — себестоимость расхода по движениям склада (списание, выпуск, распределение материалов, заказ-наряд),
    субподряд — строки-услуги поступлений, прочие — «Прочие затраты» и расходные платежи без документа-основания,
-   труд — 0 (табель — задача 1271). Деньги — decimal (dec/fmt), без float. Всё в транзакции вызывающего. */
+   труд — сумма cost_amount подтверждённых смен объекта (табель прораба). Деньги — decimal (dec/fmt), без float.
+   Всё в транзакции вызывающего. */
 import { and, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import {
   dec,
@@ -26,6 +27,8 @@ import {
   objectEstimateItems,
   objectEstimates,
   objects,
+  objectShiftHours,
+  objectShifts,
   paymentLines,
   products,
   stockCostAdjustments,
@@ -114,10 +117,16 @@ export async function objectCostFacts(db: Db, objectId: string): Promise<ObjectC
         sql`${documents.operation} is distinct from 'money_transfer'`,
       ),
     );
+  // труд: сумма подтверждённых смен объекта (табель прораба, задача 1271). Строка без стоимости часа
+  // (нет ни почасовой ставки, ни оклада) даёт пробел, а не ноль: cost_amount пустой
+  const [labor] = await db
+    .select({ s: sql<string>`coalesce(sum(coalesce(${objectShiftHours.costAmount}, 0)), 0)::text` })
+    .from(objectShiftHours)
+    .innerJoin(objectShifts, and(eq(objectShifts.workspaceId, objectShiftHours.workspaceId), eq(objectShifts.id, objectShiftHours.shiftId)))
+    .where(and(eq(objectShifts.objectId, objectId), eq(objectShifts.status, 'confirmed')));
   return {
     material: money(material?.s),
-    // труд: подтверждённые часы табеля — задача 1271, пока 0
-    labor: money('0'),
+    labor: money(labor?.s),
     subcontract: money(subcontract?.s),
     other: money(fmt(dec(otherCosts?.s) + dec(payments?.s), 2)),
   };

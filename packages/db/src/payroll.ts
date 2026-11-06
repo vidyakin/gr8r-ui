@@ -204,6 +204,8 @@ export interface EmployeePayrollPatch {
   cardAccount?: string | undefined;
   advanceAmount?: string | null | undefined;
   advancePercent?: string | null | undefined;
+  /** Почасовая ставка (задача 1271): стоимость часа в табеле прораба, иначе оклад / норма часов */
+  hourlyRate?: string | null | undefined;
 }
 
 export async function listEmployees(db: Db, workspaceId: string) {
@@ -230,6 +232,7 @@ export async function listEmployees(db: Db, workspaceId: string) {
     cardAccount: r.e?.cardAccount ?? '',
     advanceAmount: r.e?.advanceAmount ?? null,
     advancePercent: r.e?.advancePercent ?? null,
+    hourlyRate: r.e?.hourlyRate ?? null,
     accruals: accruals.filter(a => a.memberId === r.m.id).map(a => ({ ...a, kindName: kinds.get(a.kindId)?.name ?? '', baseType: kinds.get(a.kindId)?.baseType ?? '' })),
   }));
 }
@@ -238,7 +241,8 @@ export async function updateEmployeePayroll(db: Db, ctx: DocCtx, memberId: strin
   const [m] = await db.select({ id: members.id }).from(members).where(eq(members.id, memberId)).limit(1);
   if (!m) throw new DomainError(404, 'not_found', 'employee not found');
   const set: Partial<typeof employeePayroll.$inferInsert> = { updatedAt: new Date() };
-  for (const k of ['hiredAt', 'firedAt', 'organizationId', 'workCenterId', 'reflectionId', 'advanceAmount', 'advancePercent'] as const) if (patch[k] !== undefined) set[k] = patch[k] as never;
+  for (const k of ['hiredAt', 'firedAt', 'organizationId', 'workCenterId', 'reflectionId', 'advanceAmount', 'advancePercent', 'hourlyRate'] as const)
+    if (patch[k] !== undefined) set[k] = patch[k] as never;
   if (patch.ndflRate !== undefined) set.ndflRate = patch.ndflRate;
   if (patch.cardAccount !== undefined) set.cardAccount = patch.cardAccount;
   await db.insert(employeePayroll).values({ workspaceId: ctx.workspaceId, memberId, ...set }).onConflictDoUpdate({ target: [employeePayroll.workspaceId, employeePayroll.memberId], set });

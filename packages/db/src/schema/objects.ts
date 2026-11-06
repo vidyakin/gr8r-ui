@@ -2,7 +2,7 @@
    Таблицы арендатора (workspace_id + RLS), связи — составные FK. Ссылки на проекты задач, склады и договоры
    добавляются в SQL-миграции, чтобы не замыкать круг импортов схем (objects ↔ work/documents/billing). */
 import { sql } from 'drizzle-orm';
-import { check, date, foreignKey, index, integer, numeric, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { check, date, foreignKey, index, integer, jsonb, numeric, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { archivedAt, createdAt, money, pk, ts, updatedAt } from './columns';
 import { products, units } from './catalog';
 import { companies } from './crm';
@@ -240,5 +240,112 @@ export const objectMilestones = pgTable(
     // принято заказчиком только после того, как выполнено
     check('object_milestones_accepted_chk', sql`${t.acceptedAt} is null or ${t.doneAt} is not null`),
     index('object_milestones_object_idx').on(t.workspaceId, t.objectId, t.sortOrder),
+  ],
+);
+
+/** Смена прораба (задача 1271): итог часов бригады за дату на объекте. Черновик → подтверждена;
+    правка подтверждённой — только admin/owner с причиной и записью в журнал. Уникальна (объект, дата, прораб). */
+export const objectShifts = pgTable(
+  'object_shifts',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    objectId: uuid('object_id').notNull(),
+    workDate: date('work_date', { mode: 'string' }).notNull(),
+    /** Прораб, ведущий смену */
+    foremanId: uuid('foreman_id').notNull(),
+    /** draft — черновик, confirmed — подтверждена: часы и объёмы пошли в факт объекта */
+    status: text('status', { enum: ['draft', 'confirmed'] }).notNull().default('draft'),
+    confirmedBy: uuid('confirmed_by'),
+    confirmedAt: ts('confirmed_at'),
+    note: text('note').notNull().default(''),
+    createdBy: uuid('created_by'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    unique('object_shifts_ws_id_uq').on(t.workspaceId, t.id),
+    unique('object_shifts_object_date_uq').on(t.objectId, t.workDate, t.foremanId),
+    foreignKey({ columns: [t.workspaceId, t.objectId], foreignColumns: [objects.workspaceId, objects.id], name: 'object_shifts_object_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.foremanId], foreignColumns: [members.workspaceId, members.id], name: 'object_shifts_foreman_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.confirmedBy], foreignColumns: [members.workspaceId, members.id], name: 'object_shifts_confirmed_by_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.createdBy], foreignColumns: [members.workspaceId, members.id], name: 'object_shifts_created_by_fk' }).onDelete('set null'),
+    check('object_shifts_status_chk', sql`${t.status} in ('draft','confirmed')`),
+    check('object_shifts_confirmed_chk', sql`(${t.status} = 'draft' and ${t.confirmedAt} is null and ${t.confirmedBy} is null) or (${t.status} = 'confirmed' and ${t.confirmedAt} is not null)`),
+    index('object_shifts_object_idx').on(t.workspaceId, t.objectId, t.workDate),
+    index('object_shifts_foreman_idx').on(t.workspaceId, t.foremanId, t.workDate),
+  ],
+);
+
+/** Часы работника в смене с распределением по позиции сметы вида work (пусто — часы без позиции).
+    Стоимость часа и сумма строки — снимок при подтверждении: новая ставка прошлые затраты не меняет.
+    Нет ни почасовой ставки, ни оклада — cost_rate и cost_amount пустые (пробел, не ноль). */
+export const objectShiftHours = pgTable(
+  'object_shift_hours',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    shiftId: uuid('shift_id').notNull(),
+    memberId: uuid('member_id').notNull(),
+    estimateItemId: uuid('estimate_item_id'),
+    hours: numeric('hours', { precision: 6, scale: 2 }).notNull(),
+    costRate: money('cost_rate'),
+    costAmount: money('cost_amount'),
+    note: text('note').notNull().default(''),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    unique('object_shift_hours_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.shiftId], foreignColumns: [objectShifts.workspaceId, objectShifts.id], name: 'object_shift_hours_shift_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.memberId], foreignColumns: [members.workspaceId, members.id], name: 'object_shift_hours_member_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.estimateItemId], foreignColumns: [objectEstimateItems.workspaceId, objectEstimateItems.id], name: 'object_shift_hours_item_fk' }).onDelete('set null'),
+    check('object_shift_hours_hours_chk', sql`${t.hours} > 0 and ${t.hours} <= 24`),
+    check('object_shift_hours_cost_chk', sql`(${t.costRate} is null or ${t.costRate} >= 0) and (${t.costAmount} is null or ${t.costAmount} >= 0)`),
+    index('object_shift_hours_shift_idx').on(t.workspaceId, t.shiftId),
+    index('object_shift_hours_member_idx').on(t.workspaceId, t.memberId),
+  ],
+);
+
+/** Сменный отчёт объёмов: выполненный объём по позиции сметы, один раз на бригаду (не на работника).
+    При подтверждении смены прибавляется к object_estimate_items.done_qty, при отмене — вычитается. */
+export const objectShiftVolumes = pgTable(
+  'object_shift_volumes',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    shiftId: uuid('shift_id').notNull(),
+    estimateItemId: uuid('estimate_item_id').notNull(),
+    qty: numeric('qty', { precision: 18, scale: 3 }).notNull(),
+    createdAt: createdAt(),
+  },
+  t => [
+    unique('object_shift_volumes_ws_id_uq').on(t.workspaceId, t.id),
+    unique('object_shift_volumes_shift_item_uq').on(t.shiftId, t.estimateItemId),
+    foreignKey({ columns: [t.workspaceId, t.shiftId], foreignColumns: [objectShifts.workspaceId, objectShifts.id], name: 'object_shift_volumes_shift_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.estimateItemId], foreignColumns: [objectEstimateItems.workspaceId, objectEstimateItems.id], name: 'object_shift_volumes_item_fk' }).onDelete('cascade'),
+    check('object_shift_volumes_qty_chk', sql`${t.qty} > 0`),
+    index('object_shift_volumes_shift_idx').on(t.workspaceId, t.shiftId),
+  ],
+);
+
+/** Журнал смены: кто, когда, что было → что стало и почему (правка подтверждённой — только admin/owner) */
+export const objectShiftLog = pgTable(
+  'object_shift_log',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    shiftId: uuid('shift_id').notNull(),
+    authorId: uuid('author_id'),
+    at: ts('at').notNull().defaultNow(),
+    action: text('action').notNull(),
+    before: jsonb('before'),
+    after: jsonb('after'),
+    reason: text('reason').notNull().default(''),
+  },
+  t => [
+    foreignKey({ columns: [t.workspaceId, t.shiftId], foreignColumns: [objectShifts.workspaceId, objectShifts.id], name: 'object_shift_log_shift_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.authorId], foreignColumns: [members.workspaceId, members.id], name: 'object_shift_log_author_fk' }).onDelete('set null'),
+    index('object_shift_log_shift_idx').on(t.workspaceId, t.shiftId, t.at),
   ],
 );

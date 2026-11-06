@@ -44,6 +44,10 @@ export const members = pgTable(
     tz: text('tz').notNull().default(''),
     /** Рабочий график сотрудника (пусто — график воркспейса по умолчанию) */
     calendarId: uuid('calendar_id'),
+    /** Код бейджа работника (задача 1271): уникален среди непустых; выпускается и заменяется в карточке участника */
+    badgeCode: text('badge_code'),
+    /** Табельный номер (задача 1271): печатается на бейдже, вводится вручную */
+    personnelNumber: text('personnel_number'),
     lastSeenAt: ts('last_seen_at'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -52,6 +56,10 @@ export const members = pgTable(
     unique('members_ws_id_uq').on(t.workspaceId, t.id),
     uniqueIndex('members_ws_email_uq').on(t.workspaceId, sql`lower(${t.email})`),
     uniqueIndex('members_ws_user_uq').on(t.workspaceId, t.userId),
+    // код бейджа уникален в воркспейсе среди непустых (пустой код — бейдж не выпущен)
+    uniqueIndex('members_ws_badge_uq')
+      .on(t.workspaceId, t.badgeCode)
+      .where(sql`${t.badgeCode} is not null and ${t.badgeCode} <> ''`),
     foreignKey({ columns: [t.workspaceId, t.teamId], foreignColumns: [teams.workspaceId, teams.id], name: 'members_team_fk' }),
     foreignKey({ columns: [t.workspaceId, t.calendarId], foreignColumns: [workCalendars.workspaceId, workCalendars.id], name: 'members_calendar_fk' }),
     check('members_role_chk', sql`${t.role} in ('owner','admin','member','guest')`),

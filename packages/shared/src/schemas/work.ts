@@ -148,6 +148,8 @@ export const memberUpdate = z.object({
   teamId: uuid.nullish(),
   tz: z.string().max(100).optional(),
   status: z.enum(MEMBER_STATUSES).optional(),
+  /** Табельный номер (задача 1271): печатается на бейдже; пусто — очистить */
+  personnelNumber: z.string().trim().max(50).nullish(),
 });
 export const memberQuery = listQuery.extend({ teamId: uuid.optional(), status: z.enum(MEMBER_STATUSES).optional(), role: z.enum(['owner', 'admin', 'member', 'guest']).optional() });
 

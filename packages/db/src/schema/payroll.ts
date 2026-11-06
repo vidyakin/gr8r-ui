@@ -68,6 +68,8 @@ export const employeePayroll = pgTable(
     cardAccount: text('card_account').notNull().default(''),
     advanceAmount: money('advance_amount'),
     advancePercent: numeric('advance_percent', { precision: 5, scale: 2 }),
+    /** Почасовая ставка (задача 1271): если задана — стоимость часа в табеле берётся из неё, иначе оклад / норма часов */
+    hourlyRate: money('hourly_rate'),
     updatedAt: updatedAt(),
   },
   t => [
@@ -77,6 +79,7 @@ export const employeePayroll = pgTable(
     foreignKey({ columns: [t.workspaceId, t.workCenterId], foreignColumns: [workCenters.workspaceId, workCenters.id], name: 'employee_payroll_work_center_fk' }),
     foreignKey({ columns: [t.workspaceId, t.reflectionId], foreignColumns: [payrollReflections.workspaceId, payrollReflections.id], name: 'employee_payroll_reflection_fk' }),
     check('employee_payroll_ndfl_chk', sql`${t.ndflRate} >= 0 and ${t.ndflRate} <= 100`),
+    check('employee_payroll_hourly_rate_chk', sql`${t.hourlyRate} is null or ${t.hourlyRate} >= 0`),
   ],
 );
 

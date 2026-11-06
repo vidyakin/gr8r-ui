@@ -4,6 +4,7 @@ export * from './bom';
 export * from './route-sheet';
 export * from './payments';
 export * from './payroll';
+export * from './badges';
 export * from './pricing';
 export * from './quote';
 export * from './waybill';
