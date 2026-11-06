@@ -84,6 +84,17 @@ describe('supplier rating', () => {
     expect(detail.body.qualityRate).toBeLessThan(100);
   });
 
+  test('supplier return lowers quality', async () => {
+    const s5 = (await ok(await owner.post('/companies', { name: 'Поставщик возвратов' }), 's5')).id;
+    const rc = await ok(await owner.post('/documents', { type: 'receipt', counterpartyId: s5, warehouseId: warehouse, date: '2026-11-05', lines: [{ productId: product, qty: 10, price: 20, batchNumber: 'BRET' }] }), 'receipt');
+    await postDoc(rc.id);
+    const ret = await ok(await owner.post('/documents', { type: 'supplier_return', counterpartyId: s5, warehouseId: warehouse, date: '2026-11-06', lines: [{ productId: product, qty: 2, price: 20, batchNumber: 'BRET' }] }), 'return');
+    await postDoc(ret.id);
+    const detail = await owner.get(`/supplier-ratings/${s5}?from=2026-01-01&to=2026-12-31`);
+    // 2 из 10 возвращены — качество 80%, не выше 100%
+    expect(detail.body.qualityRate).toBe(80);
+  });
+
   test('no data -> null', async () => {
     const s4 = (await ok(await owner.post('/companies', { name: 'Пустой поставщик' }), 's4')).id;
     const detail = await owner.get(`/supplier-ratings/${s4}?from=2026-01-01&to=2026-12-31`);

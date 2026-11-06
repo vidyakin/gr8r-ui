@@ -170,7 +170,7 @@ async function calculate(db: Db, workspaceId: string, from: string, to: string):
     if (receivedQ > 0n) {
       const rejPct = Number(rejectedQ * 10000n / receivedQ) / 100;
       const retPct = Number(returnedQ * 10000n / receivedQ) / 100;
-      qualityRate = 100 - rejPct + retPct;
+      qualityRate = 100 - rejPct - retPct; // брак и возвраты поставщику снижают качество
       if (qualityRate < 0) qualityRate = 0;
       if (qualityRate > 100) qualityRate = 100;
     }
