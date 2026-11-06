@@ -10,6 +10,7 @@ export * from './meta';
 export * from './catalog';
 export * from './errors';
 export * from './documents';
+export * from './supplier-rating';
 export * from './loyalty';
 export * from './stock';
 export * from './customer-stock';

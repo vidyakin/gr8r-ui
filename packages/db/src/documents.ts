@@ -53,6 +53,7 @@ import { applyAutoDiscountsOnSave, applyLoyaltyOnPost, applyLoyaltyOnReturn, app
 import { inheritDelivery } from './delivery';
 import { payableOf, postAccrual, removeSettlementMoves } from './settlements';
 import { repairPrintData, syncWarrantyKind, workOrderKindType } from './repair';
+import { loadSupplierRatingSettings, supplierRatingLevelOf } from './supplier-rating';
 import { printVariants, variantsOf } from './quotes';
 
 export interface DocCtx {
@@ -844,7 +845,7 @@ async function checkLimits(db: Db, doc: DocumentRow, lines: DocumentLineRow[]): 
   }
 }
 
-export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<void> {
+export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<string[]> {
   const doc = await loadDoc(db, id, true);
   const type = doc.type as DocumentType;
   const meta = DOCUMENT_META[type];
@@ -865,6 +866,17 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<voi
       if (outside.length) {
         if (c.extraProductPolicy === 'forbid') throw new DomainError(422, 'extra_product_forbidden', `«${outside[0]!.name}» is not in the tariff plan: selling it under this contract is forbidden`);
         if (c.extraProductPolicy === 'warn') contractWarnings.push(`«${outside.map(l => l.name).join('», «')}» is not in the tariff plan`);
+      }
+    }
+  }
+  // рейтинг поставщика: политика при уровне D (задача 1276)
+  if (type === 'supplier_order' && doc.counterpartyId) {
+    const srSettings = await loadSupplierRatingSettings(db, ctx.workspaceId);
+    if (srSettings.dPolicy !== 'none') {
+      const level = await supplierRatingLevelOf(db, ctx.workspaceId, doc.counterpartyId);
+      if (level === 'D') {
+        if (srSettings.dPolicy === 'block') throw new DomainError(422, 'supplier_rating_blocked', 'Supplier rating level D');
+        contractWarnings.push('supplier_rating_level_d');
       }
     }
   }
@@ -922,6 +934,7 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<voi
   if ((LOYALTY_SALE_TYPES as readonly string[]).includes(type)) await applyLoyaltyOnPost(db, ctx, { ...doc, number: after!.number, total: after!.total });
   else if ((LOYALTY_RETURN_TYPES as readonly string[]).includes(type) && doc.basedOnId) await applyLoyaltyOnReturn(db, ctx, { ...doc, number: after!.number, total: after!.total }, doc.basedOnId);
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.posted', entity: 'document', recordId: id, actorId: ctx.memberId, payload: { documentType: type, number: after!.number, total: after!.total, warnings: contractWarnings } });
+  return contractWarnings;
 }
 
 /** Движения склада по документу (общий путь): план строк → расходы и приходы. Продажи, закупки и обычное перемещение.

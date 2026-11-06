@@ -589,6 +589,13 @@
       "when": 1793900006000,
       "tag": "0092_industry_options",
       "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1793900008000,
+      "tag": "0094_supplier_rating",
+      "breakpoints": true
     }
   ]
 }

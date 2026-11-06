@@ -44,3 +44,4 @@ export * from './transport-orders';
 export * from './routing';
 export * from './routing-adapters';
 export * from './attachments';
+export * from './supplier-rating';
