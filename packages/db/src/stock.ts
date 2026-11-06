@@ -7,6 +7,7 @@ import type { Db } from './client';
 import { DomainError } from './errors';
 import { applySerialMoves, revertSerialEvents } from './serials';
 import { assignBatches, revertBatches, type BatchLineInput } from './batches';
+import { assertNoQuarantineOut } from './quarantine';
 import { documentLines, documents, manufacturedItems, productionComponents, productionHeaders, productionItems, products, stockBalances, stockCostAdjustments, stockMoves, stockReservations, workspaces } from './schema';
 
 export interface StockKey {
@@ -58,6 +59,8 @@ export interface MoveRequest extends StockKey {
   costFromLine?: boolean;
   /** Фаза движения: 1 — основная, 2 — приёмка (перемещение «в пути») */
   phase?: number;
+  /** Расход в составе перемещения (задача 1186): с карантинного склада такой расход разрешён — перемещение снимает карантин */
+  transfer?: boolean;
   /** Партия (задача 1187): проставляется assignBatches — приходу при создании партии, расходу порцией FEFO */
   batchId?: string | null;
 }
@@ -101,6 +104,8 @@ function replayBatchMoves(moves: { qty: string; cost: string; lineId: string | n
     разбивает расходы товаров с track_batches по партиям FEFO и привязывает приходы к партиям строк */
 export async function applyStockMoves(db: Db, workspaceId: string, doc: { id: string; date: string }, reqs: MoveRequest[], settings: InventorySettings, opts?: { inCost?: (lineId: string | null, outCost: Map<string, Dec>) => Dec | undefined; lineBatches?: Map<string, BatchLineInput> }): Promise<Map<string, Dec>> {
   if (!reqs.length) return new Map();
+  // карантин (задача 1186): с карантинного склада нельзя списывать товар; перемещение из карантина разрешено и снимает карантин
+  await assertNoQuarantineOut(db, workspaceId, reqs);
   const serialReqs = reqs;
   const state = await lockBalances(db, workspaceId, reqs);
   // FEFO читает остатки только под общей блокировкой склада/товара: соседнее проведение

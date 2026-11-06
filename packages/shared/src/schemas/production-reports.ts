@@ -8,6 +8,9 @@ const period = { from: isoDate, to: isoDate };
 /** Выпуск продукции: период, участок, изделие */
 export const releaseReportQuery = z.object({ ...period, workCenterId: uuid.optional(), itemId: uuid.optional() });
 
+/** Статистика брака по участкам и исполнителям (задача 1186): период и участок */
+export const defectReportQuery = z.object({ ...period, workCenterId: uuid.optional() });
+
 /** Заказы на производство: период, участок, изделие; дата «сегодня» нужна для просрочки */
 export const ordersReportQuery = z.object({ ...period, workCenterId: uuid.optional(), itemId: uuid.optional(), today: isoDate.optional() });
 

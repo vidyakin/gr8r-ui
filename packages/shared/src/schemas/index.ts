@@ -12,6 +12,7 @@ export * from './billing';
 export * from './calculations';
 export * from './investments';
 export * from './production-reports';
+export * from './quality';
 export * from './service-reports';
 export * from './serials';
 export * from './sales-plan';

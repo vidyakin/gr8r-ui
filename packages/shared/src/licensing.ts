@@ -62,7 +62,7 @@ export const MODULES: readonly ModuleDef[] = [
   def({
     id: 'production',
     requires: ['trade'],
-    paths: ['/work-centers', '/manufactured-items', '/bom-lines', '/production', '/production-orders', '/production-plans', '/order-calculations', '/other-costs', '/material-allocations'],
+    paths: ['/work-centers', '/manufactured-items', '/bom-lines', '/production', '/production-orders', '/production-plans', '/order-calculations', '/other-costs', '/material-allocations', '/defect-reasons'],
     sections: [
       'production', 'productionOrders', 'productionWorkbench', 'productionNeeds', 'productionPlans', 'productionPlanOrders', 'productionStages', 'productionPiecework', 'productionPlanner',
       'productionResources', 'productionClosing', 'productionWip', 'productionReports', 'otherCosts', 'materialAllocation', 'workCenters',

@@ -5,7 +5,7 @@ import { boolean, check, date, foreignKey, index, integer, jsonb, numeric, pgTab
 import type { SpecParamDef } from '@gr8r/shared';
 import { archivedAt, createdAt, money, pk, ts, updatedAt } from './columns';
 import { products, units } from './catalog';
-import { costItems, documentLines, documents, stockMoves, warehouses } from './documents';
+import { costItems, documentLines, documents, stockBatches, stockMoves, warehouses } from './documents';
 import { members, wsCol } from './people';
 import { tasks } from './work';
 import { workCalendars } from './calendars';
@@ -393,6 +393,12 @@ export const productionItems = pgTable(
     defectUnitCost: numeric('defect_unit_cost', { precision: 18, scale: 4 }),
     /** Черновик write_off, созданный кнопкой «Списать брак» (для защиты от дубля и связи) */
     disposalDocumentId: uuid('disposal_document_id'),
+    /** Причина брака (задача 1186, справочник defect_reasons) */
+    defectReasonId: uuid('defect_reason_id'),
+    /** Виновный сотрудник (необязательно) */
+    defectMemberId: uuid('defect_member_id'),
+    /** Примечание ОТК по позиции выпуска */
+    qcNote: text('qc_note').notNull().default(''),
     sortOrder: integer('sort_order').notNull().default(0),
     createdAt: createdAt(),
   },
@@ -407,6 +413,8 @@ export const productionItems = pgTable(
     foreignKey({ columns: [t.workspaceId, t.documentLineId], foreignColumns: [documentLines.workspaceId, documentLines.id], name: 'production_items_line_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.planLineId], foreignColumns: [productionPlanLines.workspaceId, productionPlanLines.id], name: 'production_items_plan_line_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.disposalDocumentId], foreignColumns: [documents.workspaceId, documents.id], name: 'production_items_disposal_document_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.defectReasonId], foreignColumns: [defectReasons.workspaceId, defectReasons.id], name: 'production_items_defect_reason_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.defectMemberId], foreignColumns: [members.workspaceId, members.id], name: 'production_items_defect_member_fk' }).onDelete('set null'),
     check('production_items_qty_chk', sql`${t.qty} > 0`),
     check('production_items_defect_chk', sql`${t.defectQty} >= 0 and ${t.defectQty} <= ${t.qty}`),
     check('production_items_defect_mode_chk', sql`${t.defectMode} is null or ${t.defectMode} in ('waste','cost','expense')`),
@@ -597,6 +605,65 @@ export const processingServiceCosts = pgTable(
     uniqueIndex('processing_service_costs_document_uq').on(t.workspaceId, t.documentId),
     index('processing_service_costs_order_idx').on(t.workspaceId, t.processingOrderId),
     index('processing_service_costs_closing_idx').on(t.workspaceId, t.closingId),
+  ],
+);
+
+/* ---------------- качество: причины брака и анализы партий (задача 1186) ----------------
+
+   ОТК выпуска и входной контроль сырья. Справочник причин брака ведёт admin и выше: им помечается
+   брак позиции выпуска (production_items.defect_reason_id), там же виновный сотрудник и примечание ОТК.
+   Входной контроль ведётся по партиям (stock_batches, задача 1187): показатели анализов, норма и
+   соответствие; карантинный склад (warehouses.kind = 'quarantine') блокирует расход до перемещения. */
+
+/** Причина брака: справочник воркспейса; имя уникально среди действующих */
+export const defectReasons = pgTable(
+  'defect_reasons',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    name: text('name').notNull(),
+    /** Примечание: когда применяется причина */
+    note: text('note').notNull().default(''),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    archivedAt: archivedAt(),
+  },
+  t => [
+    unique('defect_reasons_ws_id_uq').on(t.workspaceId, t.id),
+    uniqueIndex('defect_reasons_ws_name_uq').on(t.workspaceId, sql`lower(${t.name})`).where(sql`${t.archivedAt} is null`),
+  ],
+);
+
+/** Анализ партии (входной контроль): показатель, результат, норма и соответствие. Паспорт качества партии */
+export const batchAnalyses = pgTable(
+  'batch_analyses',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    /** Партия товара, которую проверяют */
+    batchId: uuid('batch_id').notNull(),
+    /** Показатель: что проверяли (влажность, кислотность, органолептика) */
+    indicator: text('indicator').notNull(),
+    /** Результат анализа */
+    result: text('result').notNull().default(''),
+    /** Норма или допустимый диапазон */
+    norm: text('norm').notNull().default(''),
+    /** Соответствие норме: пусто — не определено */
+    passed: boolean('passed'),
+    /** Дата анализа (по умолчанию дата документа) */
+    analyzedAt: date('analyzed_at', { mode: 'string' }).notNull(),
+    /** Кто ввёл анализ */
+    createdBy: uuid('created_by'),
+    note: text('note').notNull().default(''),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    unique('batch_analyses_ws_id_uq').on(t.workspaceId, t.id),
+    foreignKey({ columns: [t.workspaceId, t.batchId], foreignColumns: [stockBatches.workspaceId, stockBatches.id], name: 'batch_analyses_batch_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.createdBy], foreignColumns: [members.workspaceId, members.id], name: 'batch_analyses_member_fk' }).onDelete('set null'),
+    check('batch_analyses_indicator_chk', sql`${t.indicator} <> ''`),
+    index('batch_analyses_batch_idx').on(t.workspaceId, t.batchId, t.analyzedAt),
   ],
 );
 

@@ -45,6 +45,8 @@ export * from './production-reports';
 export * from './service-reports';
 export * from './serials';
 export * from './batches';
+export * from './quarantine';
+export * from './quality';
 export * from './repair';
 export * from './repeat-sales';
 export * from './sales-plan';

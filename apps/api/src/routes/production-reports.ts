@@ -2,8 +2,8 @@
    стоимость нормативного состава — только admin и owner (maskBomReport). Правила — packages/db/src/production-reports.ts. */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
-import { bomReport, canSeeCost, costPlanFactReport, loadReport, maskBomReport, maskCostPlanFact, maskWipMovement, ordersReport, planFactReport, releaseCostReport, releaseReport, wipMovementReport, workOrderCostReport } from '@gr8r/db';
-import { bomReportQuery, costPlanFactReportQuery, loadReportQuery, ordersReportQuery, planFactReportQuery, releaseCostReportQuery, releaseReportQuery, wipMovementReportQuery, workOrderCostReportQuery } from '@gr8r/shared';
+import { bomReport, canSeeCost, costPlanFactReport, defectReport, loadReport, maskBomReport, maskCostPlanFact, maskWipMovement, ordersReport, planFactReport, releaseCostReport, releaseReport, wipMovementReport, workOrderCostReport } from '@gr8r/db';
+import { bomReportQuery, costPlanFactReportQuery, defectReportQuery, loadReportQuery, ordersReportQuery, planFactReportQuery, releaseCostReportQuery, releaseReportQuery, wipMovementReportQuery, workOrderCostReportQuery } from '@gr8r/shared';
 import { ctxOf, validationHook } from '../crud';
 import { AppError } from '../errors';
 import type { AppEnv } from '../types';
@@ -48,4 +48,9 @@ export const productionReportRoutes = new Hono<AppEnv>()
   .get('/reports/load', zValidator('query', loadReportQuery, validationHook), async c => {
     const ctx = ctxOf(c);
     return c.json(await loadReport(ctx.db, ctx.workspaceId, c.req.valid('query')));
+  })
+  // статистика брака по участкам, виновным и причинам (задача 1186): любой участник
+  .get('/reports/defects', zValidator('query', defectReportQuery, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json(await defectReport(ctx.db, ctx.workspaceId, c.req.valid('query')));
   });

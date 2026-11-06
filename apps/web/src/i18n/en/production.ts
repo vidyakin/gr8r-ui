@@ -1779,7 +1779,7 @@ export const production = {
     title: 'Production reports',
     subtitle: 'Output, orders, cost, work in progress, bill of materials and work center load. Click a row to open its document.',
     tabs: 'Reports',
-    tab: { release: 'Production output', orders: 'Production orders', planFact: 'Plan vs actual', bom: 'Bill of materials', load: 'Work center load', releaseCost: 'Release cost', costPlanFact: 'Cost plan vs actual', wipMovement: 'WIP movement', workOrderCost: 'Work order cost' },
+    tab: { release: 'Production output', orders: 'Production orders', planFact: 'Plan vs actual', bom: 'Bill of materials', load: 'Work center load', releaseCost: 'Release cost', costPlanFact: 'Cost plan vs actual', wipMovement: 'WIP movement', workOrderCost: 'Work order cost', defect: 'Defects' },
     from: 'From',
     to: 'To',
     allCenters: 'All work centers',
@@ -1793,6 +1793,7 @@ export const production = {
     emptyHint: 'Change the period or the filters.',
     amountsRestricted: 'Costs are visible to the workspace owner and administrators only.',
     col: { date: 'Date', workCenter: 'Work center', product: 'Product' },
+    defects: { member: 'Responsible', reason: 'Reason', qty: 'Defects', released: 'Released', percent: 'Defect rate' },
     release: { document: 'Release document', qty: 'Released', defect: 'Defect', good: 'Good' },
     orders: {
       order: 'Order',

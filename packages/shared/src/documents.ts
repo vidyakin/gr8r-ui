@@ -24,8 +24,8 @@ export const formAllowedFor = (type: string, form: PrintForm): boolean => (DOCUM
 /** Форма печатается по шаблону из справочника (КП и договоры) */
 export const usesTemplate = (f: string): boolean => f === 'quote' || isContractForm(f);
 
-/** Вид склада: обычный склад, цех участка и служебный склад «в пути» */
-export const WAREHOUSE_KINDS = ['warehouse', 'workshop', 'transit'] as const;
+/** Вид склада: обычный склад, цех участка, служебный склад «в пути» и карантинный (входной контроль сырья) */
+export const WAREHOUSE_KINDS = ['warehouse', 'workshop', 'transit', 'quarantine'] as const;
 export type WarehouseKind = (typeof WAREHOUSE_KINDS)[number];
 /** Статья затрат или доходов */
 export const COST_ITEM_KINDS = ['expense', 'income'] as const;
@@ -355,6 +355,8 @@ export interface PlannedMove {
   qty: string;
   direction: 'in' | 'out';
   role: StockRole;
+  /** Расход в составе перемещения (задача 1186): с карантинного склада такой расход разрешён — перемещение снимает карантин */
+  transfer?: boolean;
 }
 
 /** План движений склада по документу: у продаж и закупок направление задаёт тип документа, у внутренних — роль строки.
@@ -380,7 +382,7 @@ export function stockPlan(doc: StockPlanDoc, lines: StockPlanLine[]): PlannedMov
       moves.push({ lineId: l.id, productId: l.productId, warehouseId: to, qty: l.qty, direction: 'in', role: 'in' });
     } else if (role === 'transfer') {
       if (!doc.warehouseId || !doc.targetWarehouseId) continue;
-      moves.push({ lineId: l.id, productId: l.productId, warehouseId: doc.warehouseId, qty: l.qty, direction: 'out', role: 'out' });
+      moves.push({ lineId: l.id, productId: l.productId, warehouseId: doc.warehouseId, qty: l.qty, direction: 'out', role: 'out', transfer: true });
       moves.push({ lineId: l.id, productId: l.productId, warehouseId: doc.targetWarehouseId, qty: l.qty, direction: 'in', role: 'in' });
     }
   }

@@ -86,8 +86,8 @@ export const warehouses = pgTable(
     name: text('name').notNull(),
     code: text('code').notNull().default(''),
     address: text('address').notNull().default(''),
-    /** Вид склада: обычный склад, склад-цех участка, служебный склад «в пути» */
-    kind: text('kind', { enum: ['warehouse', 'workshop', 'transit'] }).notNull().default('warehouse'),
+    /** Вид склада: обычный склад, склад-цех участка, служебный склад «в пути», карантинный склад (входной контроль сырья) */
+    kind: text('kind', { enum: ['warehouse', 'workshop', 'transit', 'quarantine'] }).notNull().default('warehouse'),
     /** Склад контрагента: место хранения на стороне контрагента (склад переработчика) */
     counterpartyId: uuid('counterparty_id'),
     isDefault: boolean('is_default').notNull().default(false),
@@ -100,6 +100,8 @@ export const warehouses = pgTable(
     foreignKey({ columns: [t.workspaceId, t.counterpartyId], foreignColumns: [companies.workspaceId, companies.id], name: 'warehouses_counterparty_fk' }),
     uniqueIndex('warehouses_default_uq').on(t.workspaceId).where(sql`${t.isDefault} and ${t.archivedAt} is null`),
     uniqueIndex('warehouses_ws_name_uq').on(t.workspaceId, sql`lower(${t.name})`).where(sql`${t.archivedAt} is null`),
+    // задача 1186: карантинный склад (входной контроль сырья) — расход с него запрещён
+    check('warehouses_kind_chk', sql`${t.kind} in ('warehouse','workshop','transit','quarantine')`),
   ],
 );
 
@@ -364,6 +366,8 @@ export const stockBatches = pgTable(
     expiresAt: date('expires_at', { mode: 'string' }),
     /** Строка прихода, создавшая партию: прослеживаемость «от документа» */
     documentLineId: uuid('document_line_id'),
+    /** Статус входного контроля (задача 1186): ok — допущена, quarantine — на карантине, rejected — отклонена */
+    status: text('status', { enum: ['ok', 'quarantine', 'rejected'] }).notNull().default('ok'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -373,6 +377,7 @@ export const stockBatches = pgTable(
     foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'stock_batches_product_fk' }),
     foreignKey({ columns: [t.workspaceId, t.documentLineId], foreignColumns: [documentLines.workspaceId, documentLines.id], name: 'stock_batches_line_fk' }).onDelete('set null'),
     check('stock_batches_number_chk', sql`${t.number} <> ''`),
+    check('stock_batches_status_chk', sql`${t.status} in ('ok','quarantine','rejected')`),
     uniqueIndex('stock_batches_key_uq').on(t.workspaceId, t.warehouseId, t.productId, t.number),
     // FEFO: выборка партий товара на складе по дате истечения (без срока — в конец)
     index('stock_batches_fefo_idx').on(t.workspaceId, t.warehouseId, t.productId, t.expiresAt),

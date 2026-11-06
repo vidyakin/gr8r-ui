@@ -70,7 +70,7 @@ async function shipTransfer(db: Db, ctx: DocCtx, doc: DocumentRow, lines: Docume
   const goods = await goodsLines(db, lines);
   const reqs: MoveRequest[] = [];
   for (const l of goods) {
-    reqs.push({ warehouseId: doc.warehouseId!, productId: l.productId, lineId: l.id, qty: dec(l.qty), direction: 'out' });
+    reqs.push({ warehouseId: doc.warehouseId!, productId: l.productId, lineId: l.id, qty: dec(l.qty), direction: 'out', transfer: true });
     reqs.push({ warehouseId: transitId, productId: l.productId, lineId: l.id, qty: dec(l.qty), direction: 'in', costFromLine: true });
   }
   await applyStockMoves(db, ctx.workspaceId, { id: doc.id, date: doc.date }, reqs, await loadInventorySettings(db, ctx.workspaceId));
@@ -88,7 +88,7 @@ async function receiveTransfer(db: Db, ctx: DocCtx, doc: DocumentRow, lines: Doc
     if (qty < 0n || qty > dec(l.qty)) throw new DomainError(422, 'invalid_received_qty', `"${l.name}": the accepted quantity must not exceed the shipped one`);
     await db.update(documentLines).set({ receivedQty: fmt(qty, 3) }).where(eq(documentLines.id, l.id));
     if (qty <= 0n) continue;
-    reqs.push({ warehouseId: transitId, productId: l.productId, lineId: l.id, qty, direction: 'out', phase: 2 });
+    reqs.push({ warehouseId: transitId, productId: l.productId, lineId: l.id, qty, direction: 'out', phase: 2, transfer: true });
     reqs.push({ warehouseId: doc.targetWarehouseId!, productId: l.productId, lineId: l.id, qty, direction: 'in', costFromLine: true, phase: 2 });
   }
   if (!reqs.length) throw new DomainError(422, 'nothing_received', 'Accept at least one line');

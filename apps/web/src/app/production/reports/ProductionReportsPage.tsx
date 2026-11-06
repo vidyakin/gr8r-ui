@@ -8,6 +8,7 @@ import { iso, today } from '../../lib/dates';
 import { useSnapshot } from '../data';
 import { BomTab } from './BomTab';
 import { CostPlanFactTab } from './CostPlanFactTab';
+import { DefectsTab } from './DefectsTab';
 import { LoadTab } from './LoadTab';
 import { OrdersTab } from './OrdersTab';
 import { PlanFactTab } from './PlanFactTab';
@@ -37,6 +38,7 @@ export const REPORT_TABS: ReportTabDef[] = [
   { id: 'work-order-cost', label: 'production.reports.tab.workOrderCost', filters: ['period'], Component: WorkOrderCostTab },
   { id: 'bom', label: 'production.reports.tab.bom', filters: [], Component: BomTab },
   { id: 'load', label: 'production.reports.tab.load', filters: ['period', 'center'], Component: LoadTab },
+  { id: 'defect', label: 'production.reports.tab.defect', filters: ['period', 'center'], Component: DefectsTab },
 ];
 
 const ALL = 'all';

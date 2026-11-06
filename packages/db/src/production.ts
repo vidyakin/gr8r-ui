@@ -16,7 +16,7 @@ import { recordEvent } from './events';
 import { applyCustomerStockMoves, revertCustomerStockMoves, type CustomerMoveRequest } from './customer-stock';
 import { applyStockMoves, loadAvgCosts, loadInventorySettings, recomputeStockCosts, revalueMove, type MoveRequest } from './stock';
 import { materialRows, reduceReservation, releaseOrderMaterials, reserveChildOutput, reserveOrderMaterials, restoreReservation, supplierForProduct } from './materials';
-import { bomLines, companies, documentLines, documents, manufacturedItems, materialAllocationItems, pieceworkLines, productionOperations, productManufacturing, productionComponents, productionHeaders, productionItems, productionPlacements, productionStages, products, stockMoves, stockReservations, warehouses, workCenters, workspaces } from './schema';
+import { bomLines, companies, defectReasons, documentLines, documents, manufacturedItems, materialAllocationItems, members, pieceworkLines, productionOperations, productManufacturing, productionComponents, productionHeaders, productionItems, productionPlacements, productionStages, products, stockMoves, stockReservations, warehouses, workCenters, workspaces } from './schema';
 import { FINAL_STAGE, itemStagePlan, listProductionKinds, stageDef, stageKey, type StageDef } from './production-stages';
 import { checkParamValues, loadSpecParams, resolveSpecForProduct, specParamFields } from './specs';
 import { ensureVariant, isVariant } from './variants';
@@ -2570,6 +2570,8 @@ export interface ProductionAccountingPatch {
   defectWarehouseId?: string | null;
   /** Брак по позициям выпуска (у заказа брака нет) */
   defects?: { itemId: string; defectQty: string; defectMode?: DefectMode | null }[];
+  /** ОТК (задача 1186): причина брака, виновный и примечание по позиции выпуска */
+  qc?: { itemId: string; defectReasonId?: string | null; defectMemberId?: string | null; qcNote?: string | null }[];
   /** Вкладка «Отходы» целиком: строки с id обновляются, без id — новые, пропавшие удаляются. Цену задают только admin и owner */
   waste?: { id?: string; productId: string; qty: string; price?: string | null }[];
 }
@@ -2579,6 +2581,34 @@ async function defaultWastePrice(db: Db, workspaceId: string, productId: string)
   const [p] = await db.select({ price: products.price, purchasePrice: products.purchasePrice }).from(products).where(eq(products.id, productId)).limit(1);
   if (!p) return null;
   return resolveMaterialPrice(await loadWastePriceSource(db, workspaceId), p, (await loadAvgCosts(db, [productId])).get(productId));
+}
+
+/** Запись ОТК по позициям выпуска (задача 1186): причина брака, виновный, примечание.
+    Причина и виновный осмысленны только у брака: сначала задают количество брака, потом его причину.
+    Вызывается из updateProductionAccounting для черновика выпуска */
+async function applyQcPatch(db: Db, ctx: DocCtx, docId: string, qc: { itemId: string; defectReasonId?: string | null; defectMemberId?: string | null; qcNote?: string | null }[]): Promise<void> {
+  const items = await db.select().from(productionItems).where(eq(productionItems.documentId, docId));
+  for (const q of qc) {
+    const it = items.find(i => i.id === q.itemId);
+    if (!it) throw new DomainError(422, 'invalid_reference', 'The position does not belong to this document');
+    if (dec(it.defectQty) <= 0n && (q.defectReasonId || q.defectMemberId)) throw new DomainError(422, 'defect_required', 'Set the defect quantity before its reason and culprit');
+    if (q.defectReasonId) {
+      const [r] = await db.select({ id: defectReasons.id }).from(defectReasons).where(and(eq(defectReasons.workspaceId, ctx.workspaceId), eq(defectReasons.id, q.defectReasonId))).limit(1);
+      if (!r) throw new DomainError(422, 'invalid_reference', 'The defect reason does not exist');
+    }
+    if (q.defectMemberId) {
+      const [m] = await db.select({ id: members.id }).from(members).where(and(eq(members.workspaceId, ctx.workspaceId), eq(members.id, q.defectMemberId))).limit(1);
+      if (!m) throw new DomainError(422, 'invalid_reference', 'The member does not exist');
+    }
+    await db
+      .update(productionItems)
+      .set({
+        defectReasonId: q.defectReasonId ?? null,
+        defectMemberId: q.defectMemberId ?? null,
+        ...(q.qcNote !== undefined ? { qcNote: q.qcNote ?? '' } : {}),
+      })
+      .where(eq(productionItems.id, it.id));
+  }
 }
 
 /** Правка шапки (оценка отходов, склады отходов и брака), вкладки «Отходы» и брака проводимого вручную выпуска или заказа (только черновик) */
@@ -2622,6 +2652,11 @@ export async function updateProductionAccounting(db: Db, ctx: DocCtx, docId: str
       assertDefect(dec(it.qty), defect, d.defectMode ?? null, final);
       await db.update(productionItems).set({ defectQty: fmt(defect, 3), defectMode: defect > 0n ? d.defectMode ?? null : null, defectUnitCost: null }).where(eq(productionItems.id, it.id));
     }
+  }
+  if (patch.qc) {
+    // ОТК (задача 1186): причина брака, виновный и примечание по позиции выпуска
+    if (doc.type !== 'production') throw new DomainError(422, 'defect_order_forbidden', 'A defect is recorded in a production release, not in an order');
+    await applyQcPatch(db, ctx, docId, patch.qc);
   }
   if (patch.waste) {
     if (!final) throw new DomainError(422, 'waste_final_stage_only', 'The waste is received by the final stage only');

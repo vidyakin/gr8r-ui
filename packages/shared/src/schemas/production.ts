@@ -1010,6 +1010,8 @@ export const productionAccountingUpdate = z
     wasteWarehouseId: uuid.nullish(),
     defectWarehouseId: uuid.nullish(),
     defects: z.array(z.object({ itemId: uuid, defectQty: decimal, defectMode: z.enum(DEFECT_MODES).nullish() })).max(200).optional(),
+    /** ОТК (задача 1186): причина брака, виновный и примечание по позиции выпуска */
+    qc: z.array(z.object({ itemId: uuid, defectReasonId: uuid.nullish(), defectMemberId: uuid.nullish(), qcNote: z.string().trim().max(500).nullish() })).max(200).optional(),
     waste: z.array(z.object({ id: uuid.optional(), productId: uuid, qty: positive(1e9), price: decimal.nullish() })).max(200).optional(),
   })
   .strict();

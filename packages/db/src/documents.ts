@@ -939,6 +939,7 @@ export async function applyDocumentMoves(db: Db, ctx: DocCtx, doc: DocumentRow, 
   const reqs: MoveRequest[] = plan.map(m => {
     const l = byLine.get(m.lineId)!;
     const req: MoveRequest = { warehouseId: m.warehouseId, productId: m.productId, lineId: m.lineId, qty: dec(m.qty), direction: m.direction };
+    if (m.transfer) req.transfer = true; // расход в составе перемещения (карантин снимается перемещением)
     if (type === 'receipt') req.cost = div(dec(org?.taxSystem === 'usn' ? l.total : l.net), dec(l.qty)); // при УСН входной НДС входит в себестоимость
     if (type === 'customer_return' && l.sourceLineId && returnCosts.has(l.sourceLineId)) req.cost = returnCosts.get(l.sourceLineId);
     if (type === 'stock_posting' || type === 'opening_stock') req.cost = dec(l.price); // цена оприходования — себестоимость прихода

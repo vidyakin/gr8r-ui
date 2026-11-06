@@ -1743,7 +1743,7 @@ export const production: Widen<typeof C> = {
     title: 'Отчёты производства',
     subtitle: 'Выпуск, заказы, себестоимость, НЗП, нормативный состав и загрузка участков. Клик по строке открывает документ.',
     tabs: 'Отчёты',
-    tab: { release: 'Выпуск продукции', orders: 'Заказы на производство', planFact: 'План-факт производства', bom: 'Нормативный состав', load: 'Загрузка участков', releaseCost: 'Себестоимость выпуска', costPlanFact: 'План-факт себестоимости', wipMovement: 'НЗП с движением', workOrderCost: 'Себестоимость заказ-нарядов' },
+    tab: { release: 'Выпуск продукции', orders: 'Заказы на производство', planFact: 'План-факт производства', bom: 'Нормативный состав', load: 'Загрузка участков', releaseCost: 'Себестоимость выпуска', costPlanFact: 'План-факт себестоимости', wipMovement: 'НЗП с движением', workOrderCost: 'Себестоимость заказ-нарядов', defect: 'Брак и ОТК' },
     from: 'С',
     to: 'По',
     allCenters: 'Все участки',
@@ -1757,6 +1757,7 @@ export const production: Widen<typeof C> = {
     emptyHint: 'Измените период или отборы.',
     amountsRestricted: 'Стоимость видна только владельцу и администраторам рабочего пространства.',
     col: { date: 'Дата', workCenter: 'Участок', product: 'Изделие' },
+    defects: { member: 'Ответственный', reason: 'Причина', qty: 'Брак', released: 'Выпуск', percent: 'Доля брака' },
     release: { document: 'Документ выпуска', qty: 'Выпущено', defect: 'Брак', good: 'Годное' },
     orders: {
       order: 'Заказ',

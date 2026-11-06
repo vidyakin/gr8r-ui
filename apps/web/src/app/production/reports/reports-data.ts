@@ -146,6 +146,18 @@ export interface WipMovementRow {
   closingAmount: string | null;
 }
 
+export interface DefectReportRow {
+  workCenterId: string | null;
+  workCenterName: string | null;
+  memberId: string | null;
+  memberName: string | null;
+  reasonId: string | null;
+  reasonName: string | null;
+  defectQty: string;
+  releasedQty: string;
+  defectPct: string;
+}
+
 /** Параметры запроса без пустых значений */
 const qs = (p: Record<string, string | undefined>) => new URLSearchParams(Object.entries(p).filter((e): e is [string, string] => !!e[1])).toString();
 
@@ -171,6 +183,7 @@ export const useBomReport = (p: { itemId: string; qty: string; priceMode: string
 export const useReleaseCostReport = (f: ReportFilter) => useReport<{ rows: CostReportRow[]; indirectItems: { costItemId: string | null; name: string; amount: string }[] }>('release-cost', { ...f }, !!f.from && !!f.to);
 export const useCostPlanFactReport = (f: ReportFilter) => useReport<{ rows: CostPlanFactRow[] }>('cost-plan-fact', { ...f }, !!f.from && !!f.to);
 export const useWipMovementReport = (f: ReportFilter) => useReport<{ rows: WipMovementRow[]; closingTotal: string | null }>('wip-movement', { from: f.from, to: f.to, workCenterId: f.workCenterId }, !!f.from && !!f.to);
+export const useDefectReport = (f: ReportFilter) => useReport<{ rows: DefectReportRow[] }>('defects', { from: f.from, to: f.to, workCenterId: f.workCenterId }, !!f.from && !!f.to);
 
 /** Себестоимость заказ-нарядов, выполненных за период (задача 1096) */
 export interface WorkOrderCostReportRow {
