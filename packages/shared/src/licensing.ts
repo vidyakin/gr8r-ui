@@ -57,7 +57,7 @@ export const MODULES: readonly ModuleDef[] = [
     paths: ['/documents', '/stock', '/stock-levels', '/pricing', '/loyalty', '/processing', '/processor-reports', '/supplier-orders', '/serials', '/doc-templates'],
     hooks: ['prices'],
     sections: ['sales', 'purchases', 'stockDocs', 'processingDocs', 'inventory', 'inUse', 'serials', 'batches', 'priceList', 'priceSettings', 'priceKinds', 'discountRules', 'promoCodes', 'loyaltyCards', 'loyaltyProgram', 'crmQuoteTemplates'],
-    jobs: ['document.pdf', 'settlement.act_pdf'],
+    jobs: ['document.pdf', 'document.docx', 'settlement.act_pdf'],
   }),
   def({
     id: 'production',
@@ -65,7 +65,7 @@ export const MODULES: readonly ModuleDef[] = [
     paths: ['/work-centers', '/manufactured-items', '/bom-lines', '/production', '/production-orders', '/production-plans', '/order-calculations', '/other-costs', '/material-allocations', '/defect-reasons'],
     sections: [
       'production', 'productionOrders', 'productionWorkbench', 'productionNeeds', 'productionPlans', 'productionPlanOrders', 'productionStages', 'productionPiecework', 'productionPlanner',
-      'productionResources', 'productionClosing', 'productionWip', 'productionReports', 'otherCosts', 'materialAllocation', 'workCenters',
+      'productionResources', 'productionClosing', 'productionWip', 'productionReports', 'otherCosts', 'materialAllocation', 'workCenters', 'defectReasons',
     ],
     settings: ['production'],
     jobs: ['production.close_period'],
@@ -76,7 +76,7 @@ export const MODULES: readonly ModuleDef[] = [
     paths: ['/work-orders', '/work-order-assignments', '/work-order-kinds', '/document-states', '/services', '/contracts', '/tariff-plans', '/billing', '/deliveries', '/delivery-methods', '/appointments', '/repair-items'],
     sections: ['workOrders', 'repairItems', 'servicesTimesheet', 'servicesPlanner', 'servicesReports', 'contracts', 'tariffPlans', 'billing', 'deliveries', 'myDeliveries', 'crmAppointments'],
     settings: ['work-orders', 'delivery-methods'],
-    jobs: ['billing.export_zip'],
+    jobs: ['billing.export_zip', 'contract.pdf'],
   }),
   def({
     id: 'money',
