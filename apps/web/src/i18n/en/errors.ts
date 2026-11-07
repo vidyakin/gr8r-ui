@@ -384,6 +384,7 @@ export const errors = {
   not_work_line: 'Only a work line can be billed by hours',
   not_work_order: 'This document is not a work order',
   nothing_received: 'Accept at least one line',
+  nothing_by_ship_date: 'No order line has a shipping date up to the chosen date',
   nothing_to_create: 'Everything from this production order is already produced',
   numbered: 'The document has been posted before and keeps its number: cancel it instead of deleting',
   operation_has_work: 'The work on this operation is already marked: its executor cannot be changed',

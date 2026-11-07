@@ -68,6 +68,8 @@ export interface DocLine {
   receivedQty: string;
   /** Группа строки (справочно): пусто — без группы */
   groupName?: string;
+  /** Срок отгрузки строки (заказ покупателя) */
+  shipBy?: string | null;
   /** Статья косвенных затрат строки-услуги поступления */
   costItemId: string | null;
   /** Участок строки-услуги поступления */
@@ -126,6 +128,13 @@ export interface DocListItem {
   /** Стоимость по себестоимости (внутренние документы); member и guest её не видят (null) */
   costTotal?: string | null;
   basedOnId: string | null;
+  /** Источник привлечения (документы продаж) */
+  sourceId?: string | null;
+  campaignId?: string | null;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmContent?: string;
   comment: string;
   createdAt: string;
   updatedAt: string;

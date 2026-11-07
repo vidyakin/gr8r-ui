@@ -480,7 +480,7 @@ export const documentRoutes = new Hono<AppEnv>()
   .post('/:id/based-on', write, zValidator('param', idParam, validationHook), zValidator('json', basedOnCreate, validationHook), async c => {
     const ctx = ctxOf(c);
     const id = c.req.valid('param').id;
-    const type = c.req.valid('json').type;
+    const { type, shipBy } = c.req.valid('json');
     // списание и оприходование по результатам инвентаризации: строго по разнице
     if (type === 'write_off' || type === 'stock_posting') {
       const [src] = await ctx.db.select({ type: documents.type }).from(documents).where(eq(documents.id, id)).limit(1);
@@ -517,7 +517,7 @@ export const documentRoutes = new Hono<AppEnv>()
       const docId = await createProductionFromCustomerOrder(ctx.db, docCtx(ctx), { customerOrderId: id, lines: [] });
       return c.json(await documentDetail(ctx.db, docId), 201);
     }
-    const created = await createBasedOn(ctx.db, docCtx(ctx), id, type);
+    const created = await createBasedOn(ctx.db, docCtx(ctx), id, type, { shipBy });
     return c.json(await documentDetail(ctx.db, created), 201);
   })
   // состояние документа (отдельно от проведения): переход проверяется по метаданным типа

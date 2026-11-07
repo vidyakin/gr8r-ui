@@ -6,7 +6,7 @@ import type { PgColumn } from 'drizzle-orm/pg-core';
 import type { AdReportInput, LeadSourceKind } from '@gr8r/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
-import { adCampaignExpenses, adCampaigns, companies, contacts, deals, leadSources, leads } from './schema';
+import { adCampaignExpenses, adCampaigns, companies, contacts, deals, documents, leadSources, leads } from './schema';
 
 export interface Attribution {
   sourceId: string | null;
@@ -166,6 +166,17 @@ export async function adReportData(db: Db, q: { from: string; to: string; groupB
   const currencies = (await db.selectDistinct({ c: deals.currency }).from(deals).where(wonWhere)).map(r => r.c).sort();
 
   if (byReferrer) return { rows: [...rows.values()], currencies };
+  // выручка по проведённым реализациям с источником / кампанией (задача «Источник привлечения в документах»):
+  // дата реализации в периоде; возвраты покупателей не вычитаются
+  const docKey = bySource ? documents.sourceId : documents.campaignId;
+  for (const r of await db
+    .select({ key: sql<string | null>`${docKey}`, n: sql<number>`count(*)::int`, sum: sql<string>`coalesce(sum(${documents.total}), 0)::text` })
+    .from(documents)
+    .where(and(eq(documents.type, 'realization'), eq(documents.status, 'posted'), gte(documents.date, q.from), lte(documents.date, q.to), sql`${documents.sourceId} is not null`))
+    .groupBy(docKey)) {
+    Object.assign(row(r.key), { salesRevenue: r.sum, shipments: r.n });
+  }
+  for (const r of rows.values()) r.salesRevenue ??= '0';
   const expKey = bySource ? adCampaigns.sourceId : adCampaigns.id;
   for (const r of await db
     .select({ key: expKey, sum: sql<string>`coalesce(sum(${adCampaignExpenses.amount}), 0)::text` })

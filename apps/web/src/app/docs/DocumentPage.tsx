@@ -21,6 +21,7 @@ import { STATUS_LABEL, STATUS_TONE, docTitle, docsKey, typeLabel, useCostItems, 
 import { QuoteVariants } from './quote-variants';
 import { CalculationDialog, ParamsDialog } from './calculation';
 import { CounterpartyPicker, ProductPicker } from './pickers';
+import { AttributionFields } from '../crm/AttributionFields';
 import { usePriceKinds, useResolvePrices } from '../pricing/data';
 import { useBillingBreakdown, useContracts } from './billing-data';
 import { WorkOrderPanel } from './work-orders';
@@ -67,6 +68,8 @@ interface FormLine {
   tollingRole: TollingRole | null;
   /** Группа строки (справочно, сумма по группе в форме и печати) */
   groupName: string;
+  /** Срок отгрузки строки (заказ покупателя): пусто — не задан */
+  shipBy: string;
   /** Ручная скидка (задача 1179): true — процент ввёл человек, false — вернуть автоскидке; пусто — не менялась. Уходит на сервер один раз */
   discountManual?: boolean;
   /** Партия строки (задача 1187): номер партии прихода и даты */
@@ -98,12 +101,22 @@ interface Form {
   investmentProjectId: string | null;
   /** Объект объектного учёта */
   objectId: string | null;
+  /** Источник привлечения (документы продаж) */
+  sourceId: string | null;
+  campaignId: string | null;
+  utmSource: string;
+  utmMedium: string;
+  utmCampaign: string;
+  utmContent: string;
   date: string;
   dueDate: string;
   priceIncludesVat: boolean;
   comment: string;
   lines: FormLine[];
 }
+
+/** Типы документов продаж с источником привлечения (как ATTRIBUTION_TYPES в packages/db/src/documents.ts) */
+const ATTRIBUTION_TYPES: readonly DocumentType[] = ['quote', 'customer_order', 'invoice', 'realization', 'act'];
 
 /** Подпись состояния документа: «в пути» и заказ на производство переводятся, состояния заказ-нарядов — данные пользователя */
 const stateLabel = (type: string, key: string, label?: string) =>
@@ -132,11 +145,17 @@ function toForm(d: DocDetail): Form {
     tollingOrderId: d.tollingOrderId ?? null,
     investmentProjectId: d.investmentProjectId ?? null,
     objectId: d.objectId ?? null,
+    sourceId: d.sourceId ?? null,
+    campaignId: d.campaignId ?? null,
+    utmSource: d.utmSource ?? '',
+    utmMedium: d.utmMedium ?? '',
+    utmCampaign: d.utmCampaign ?? '',
+    utmContent: d.utmContent ?? '',
     date: d.date,
     dueDate: d.dueDate ?? '',
     priceIncludesVat: d.priceIncludesVat,
     comment: d.comment,
-    lines: d.lines.map(l => ({ key: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, qty: trimNum(l.qty), price: l.price, discountPct: trimNum(l.discountPct), vatRate: l.vatRate, bookQty: trimNum(l.bookQty), receivedQty: trimNum(l.receivedQty), costItemId: l.costItemId, workCenterId: l.workCenterId, params: (l as { params?: Record<string, unknown> }).params ?? {}, tollingRole: l.tollingRole ?? null, groupName: l.groupName ?? '', batchNumber: l.batchNumber ?? '', batchProducedAt: l.batchProducedAt ?? '', batchExpiresAt: l.batchExpiresAt ?? '' })),
+    lines: d.lines.map(l => ({ key: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, qty: trimNum(l.qty), price: l.price, discountPct: trimNum(l.discountPct), vatRate: l.vatRate, bookQty: trimNum(l.bookQty), receivedQty: trimNum(l.receivedQty), costItemId: l.costItemId, workCenterId: l.workCenterId, params: (l as { params?: Record<string, unknown> }).params ?? {}, tollingRole: l.tollingRole ?? null, groupName: l.groupName ?? '', shipBy: l.shipBy ?? '', batchNumber: l.batchNumber ?? '', batchProducedAt: l.batchProducedAt ?? '', batchExpiresAt: l.batchExpiresAt ?? '' })),
   };
 }
 
@@ -166,13 +185,19 @@ function toPayload(f: Form) {
     tollingOrderId: f.tollingOrderId,
     investmentProjectId: f.investmentProjectId,
     objectId: f.objectId,
+    sourceId: f.sourceId,
+    campaignId: f.campaignId,
+    utmSource: f.utmSource,
+    utmMedium: f.utmMedium,
+    utmCampaign: f.utmCampaign,
+    utmContent: f.utmContent,
     date: f.date,
     dueDate: f.dueDate || null,
     priceIncludesVat: f.priceIncludesVat,
     comment: f.comment,
     lines: f.lines
       .filter(l => l.productId)
-      .map(l => ({ id: l.key, ...(l.discountManual !== undefined ? { discountManual: l.discountManual } : {}), productId: l.productId!, name: l.name, unitCode: l.unitCode, qty: num(l.qty), price: num(l.price), discountPct: num(l.discountPct || '0'), vatRate: l.vatRate, bookQty: num(l.bookQty || '0'), receivedQty: num(l.receivedQty || '0'), costItemId: l.costItemId, workCenterId: l.workCenterId, params: l.params ?? {}, tollingRole: l.tollingRole, groupName: l.groupName.trim(), batchNumber: l.batchNumber.trim() || null, batchProducedAt: l.batchProducedAt.trim() || null, batchExpiresAt: l.batchExpiresAt.trim() || null })),
+      .map(l => ({ id: l.key, ...(l.discountManual !== undefined ? { discountManual: l.discountManual } : {}), productId: l.productId!, name: l.name, unitCode: l.unitCode, qty: num(l.qty), price: num(l.price), discountPct: num(l.discountPct || '0'), vatRate: l.vatRate, bookQty: num(l.bookQty || '0'), receivedQty: num(l.receivedQty || '0'), costItemId: l.costItemId, workCenterId: l.workCenterId, params: l.params ?? {}, tollingRole: l.tollingRole, groupName: l.groupName.trim(), shipBy: l.shipBy || null, batchNumber: l.batchNumber.trim() || null, batchProducedAt: l.batchProducedAt.trim() || null, batchExpiresAt: l.batchExpiresAt.trim() || null })),
   };
 }
 
@@ -282,6 +307,9 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   // параметры строки заказа и калькуляция заказа покупателя
   const [paramsLine, setParamsLine] = React.useState<string | null>(null);
   const [calcOpen, setCalcOpen] = React.useState(false);
+  /** Диалог «Отгрузка по дату»: реализация на основании заказа с отбором строк по сроку отгрузки */
+  const [shipByOpen, setShipByOpen] = React.useState(false);
+  const [shipByDate, setShipByDate] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const latest = React.useRef(form);
   latest.current = form;
@@ -333,7 +361,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   };
   const patchLine = (key: string, patch: Partial<FormLine>) => edit(f => ({ ...f, lines: f.lines.map(l => (l.key === key ? { ...l, ...patch } : l)) }));
   const addLine = (at?: number) => {
-    const line: FormLine = { key: uuidv7(), productId: null, name: '', unitCode: '796', qty: '1', price: '', discountPct: '', vatRate: '20', bookQty: '0', receivedQty: '0', costItemId: null, workCenterId: null, params: {}, tollingRole: defaultTollingRole, groupName: '', batchNumber: '', batchProducedAt: '', batchExpiresAt: '' };
+    const line: FormLine = { key: uuidv7(), productId: null, name: '', unitCode: '796', qty: '1', price: '', discountPct: '', vatRate: '20', bookQty: '0', receivedQty: '0', costItemId: null, workCenterId: null, params: {}, tollingRole: defaultTollingRole, groupName: '', shipBy: '', batchNumber: '', batchProducedAt: '', batchExpiresAt: '' };
     const index = at ?? latest.current.lines.length;
     focusReq.current = { row: index, col: 0 };
     edit(f => ({ ...f, lines: [...f.lines.slice(0, index), line, ...f.lines.slice(index)] }));
@@ -413,6 +441,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   }, [form.lines, form.priceIncludesVat, doc.status, doc.loyalty?.pointsRedeemed, doc.lines]);
   /** Группы строк (КП, заказ, счёт): колонка «Группа» и итоги по группам */
   const hasGroups = !internal && (hasQuoteVariants(doc.type) || doc.type === 'invoice');
+  const hasShipBy = doc.type === 'customer_order';
   const groupTotals = React.useMemo(() => {
     const m = new Map<string, bigint>();
     for (const l of form.lines) {
@@ -461,9 +490,9 @@ function DocumentView({ doc }: { doc: DocDetail }) {
       setBusy(false);
     }
   };
-  const createBasedOn = async (type: DocumentType) => {
+  const createBasedOn = async (type: DocumentType, shipBy?: string) => {
     if (!(await flush())) return;
-    const r = await api<DocDetail>('POST', `/documents/${doc.id}/based-on`, { type });
+    const r = await api<DocDetail>('POST', `/documents/${doc.id}/based-on`, { type, ...(shipBy ? { shipBy } : {}) });
     if (r) {
       toast(t('docs.document.toastCreatedFrom', { type: typeLabel(type).toLowerCase(), source: doc.number ?? t('docs.document.toastCreatedFromDraft') }));
       // прочие затраты — свой экран
@@ -566,6 +595,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                   <th style={{ width: 34 }}>{t('docs.document.colNum')}</th>
                   <th>{t('docs.document.colProduct')}</th>
                   {hasGroups && <th style={{ width: 150 }}>{t('docs.quotes.colGroup')}</th>}
+                  {hasShipBy && <th style={{ width: 150 }}>{t('docs.document.colShipBy')}</th>}
                   <th style={{ width: 56 }}>{t('docs.document.colUnit')}</th>
                   {isCount && (
                     <th style={{ width: 96 }} className="r">
@@ -661,6 +691,11 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                           ) : (
                             <span className="muted trunc">{l.groupName}</span>
                           )}
+                        </td>
+                      )}
+                      {hasShipBy && (
+                        <td>
+                          {editable ? <DateInput size="sm" aria-label={t('docs.document.colShipBy')} value={l.shipBy} onChange={v => patchLine(l.key, { shipBy: v })} /> : <span className="muted">{l.shipBy ? fmtDate(l.shipBy) : ''}</span>}
                         </td>
                       )}
                       <td className="muted">{unitSymbol(units.data, l.unitCode)}</td>
@@ -1048,7 +1083,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
               </MenuTrigger>
               <MenuContent align="end">
                 {targets.map(t => (
-                  <MenuItem key={t} icon={<FileText size={15} />} onSelect={() => void createBasedOn(t)}>
+                  <MenuItem key={t} icon={<FileText size={15} />} onSelect={() => (doc.type === 'customer_order' && t === 'realization' ? setShipByOpen(true) : void createBasedOn(t))}>
                     {typeLabel(t)}
                   </MenuItem>
                 ))}
@@ -1420,6 +1455,14 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             {p => <DateInput {...p} disabled={!editable} value={form.dueDate} onChange={v => edit(f => ({ ...f, dueDate: v }))} />}
           </Field>
         )}
+        {ATTRIBUTION_TYPES.includes(doc.type) && (
+          <>
+            <AttributionFields noReferrer disabled={!editable} value={{ sourceId: form.sourceId, campaignId: form.campaignId }} onChange={v => edit(f => ({ ...f, sourceId: v.sourceId, campaignId: v.campaignId }))} />
+            {(['utmSource', 'utmMedium', 'utmCampaign', 'utmContent'] as const).map(k => (
+              <Field key={k} label={t(`docs.document.${k}`)}>{p => <Input {...p} disabled={!editable} value={form[k]} maxLength={300} onChange={e => edit(f => ({ ...f, [k]: e.target.value }))} />}</Field>
+            ))}
+          </>
+        )}
         <Field label={t('docs.header.number')} hint={hasNumber ? undefined : t('docs.document.numberHintAuto')}>
           {p => <Input {...p} readOnly value={doc.number ?? ''} placeholder="—" className="mono" />}
         </Field>
@@ -1598,6 +1641,32 @@ function DocumentView({ doc }: { doc: DocDetail }) {
           <Field label={t('docs.document.cancelReason')} hint={t('docs.document.cancelHint')}>
             {p => <Input {...p} autoFocus value={cancelReason} placeholder={t('docs.document.cancelReasonPlaceholder')} maxLength={1000} onChange={e => setCancelReason(e.target.value)} />}
           </Field>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={shipByOpen} onOpenChange={setShipByOpen}>
+        <DialogContent
+          size="sm"
+          title={t('docs.document.shipByTitle')}
+          description={t('docs.document.shipByHint')}
+          footer={
+            <>
+              <span className="sp" />
+              <Button variant="ghost" onClick={() => setShipByOpen(false)}>
+                {t('docs.document.cancelKeep')}
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setShipByOpen(false);
+                  void createBasedOn('realization', shipByDate || undefined);
+                }}
+              >
+                {t('docs.document.shipByCreate')}
+              </Button>
+            </>
+          }
+        >
+          <Field label={t('docs.document.shipByDate')}>{p => <DateInput {...p} value={shipByDate} onChange={setShipByDate} />}</Field>
         </DialogContent>
       </Dialog>
       <ConfirmDialog open={confirm === 'delete'} onOpenChange={o => !o && setConfirm(null)} title={t('docs.document.deleteTitleDoc')} description={t('docs.document.deleteHintDoc')} confirmLabel={t('docs.document.deleteConfirm')} cancelLabel={t('docs.document.cancelKeep')} danger onConfirm={() => void remove()} />

@@ -67,6 +67,7 @@ function ReportTab() {
       <td className="r num">{fmtNumber(r.newClients)}</td>
       <td className="r num">{fmtNumber(r.wonDeals)}</td>
       <td className="r num">{fmtAmount(r.revenue)}</td>
+      <td className="r num">{r.salesRevenue === undefined ? '—' : fmtAmount(r.salesRevenue)}</td>
       <td className="r num">{fmtAmount(r.expense)}</td>
       <td className="r num">{amountOrDash(r.cpl)}</td>
       <td className="r num">{amountOrDash(r.cac)}</td>
@@ -94,6 +95,7 @@ function ReportTab() {
                   <th className="r">{t('ads.col.newClients')}</th>
                   <th className="r">{t('ads.col.wonDeals')}</th>
                   <th className="r">{t('ads.col.revenue')}</th>
+                  <th className="r">{t('ads.col.salesRevenue')}</th>
                   <th className="r">{t('ads.col.expense')}</th>
                   <th className="r">{t('ads.col.cpl')}</th>
                   <th className="r">{t('ads.col.cac')}</th>

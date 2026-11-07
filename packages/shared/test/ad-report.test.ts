@@ -24,4 +24,15 @@ describe('отчёт по каналам', () => {
     ]);
     expect(total).toMatchObject({ leads: 4, converted: 1, revenue: '1000.00', expense: '400.50', conversion: '25.0', cpl: '100.13', romi: '149.7' });
   });
+  test('выручка по реализациям: строка нормализуется, итог — сумма; без неё поля не появляются', () => {
+    const base = { leads: 0, converted: 0, newClients: 0, wonDeals: 0, revenue: '0', expense: '0' };
+    expect(adReportRow({ key: 'a', ...base, salesRevenue: '1500', shipments: 2 })).toMatchObject({ salesRevenue: '1500.00', shipments: 2 });
+    expect('salesRevenue' in adReportRow({ key: 'a', ...base })).toBe(false);
+    const { total } = buildAdReport([
+      { key: 'a', ...base, salesRevenue: '1500', shipments: 2 },
+      { key: 'b', ...base, salesRevenue: '0.50', shipments: 1 },
+    ]);
+    expect(total).toMatchObject({ salesRevenue: '1500.50', shipments: 3 });
+    expect('salesRevenue' in buildAdReport([{ key: 'a', ...base }]).total).toBe(false);
+  });
 });
