@@ -4,6 +4,7 @@
 export const agentTokens = {
   lead: 'Tokens for agents: a script, an MCP client or an AI assistant works on behalf of an employee. A token can only narrow the employee’s rights — never widen them.',
   onlySelf: 'You can issue a token only for yourself. Admins and owners can issue tokens for any employee.',
+  serviceBadge: 'Service employee',
   guestReadOnly: 'A guest employee can only get a read-only token',
   empty: 'No tokens yet',
   emptyHint: 'Issue a token so an agent can work in the system on behalf of an employee.',

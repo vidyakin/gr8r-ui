@@ -3,7 +3,7 @@
    его права: роль, должности и разделы остаются сотрудника. */
 import * as React from 'react';
 import { Copy, KeyRound, Plus, UserPlus } from 'lucide-react';
-import { POSITION_SECTIONS, type PositionSection } from '@gr8r/shared';
+import { visibleSections, type PositionSection } from '@gr8r/shared';
 import { Alert, Badge, Button, Checkbox, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, Input, Select, Skeleton, Switch, toast } from '@/components/ui';
 import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
 import { DateInput } from '@/components/gr8r/date-picker';
@@ -11,7 +11,7 @@ import { useT, fmtDateTime } from '@/i18n';
 import { useIsAdmin } from '../catalog/data';
 import { useSession } from '../data/session';
 import { useWorkspace } from '../data/store';
-import { usePositions } from '../positions/data';
+import { usePositions, useMyAccess } from '../positions/data';
 import { SettingsHead } from './parts';
 import { useApiTokens, useApiTokensApi, type ApiTokenCreated, type ApiTokenItem } from './agent-access-data';
 
@@ -26,6 +26,9 @@ function tokenStatus(item: ApiTokenItem): 'active' | 'revoked' | 'expired' {
 
 /** Срок действия до конца выбранного дня (ISO) */
 const endOfDay = (v: string) => `${v}T23:59:59.000Z`;
+
+/** Служебный сотрудник — без человека: почта агента заканчивается на @agents.invalid */
+const SERVICE_EMAIL = '@agents.invalid';
 
 /* ---------- диалог выпуска токена ---------- */
 
@@ -45,6 +48,22 @@ function IssueTokenDialog({ open, onOpenChange, onIssued }: { open: boolean; onO
   const [busy, setBusy] = React.useState(false);
 
   const people = React.useMemo(() => (data.members ?? []).filter(m => m.status === 'active'), [data.members]);
+  const access = useMyAccess();
+  const positions = usePositions();
+
+  /** Выбранный сотрудник: гость — только токен на чтение */
+  const selected = people.find(m => m.id === (memberId || data.me));
+  const isGuestMember = selected?.role === 'Guest';
+
+  /** Разделы, видимые выбранному сотруднику: свои — из доступа, чужие — по его должностям */
+  const memberSections = React.useMemo<PositionSection[]>(() => {
+    const id = memberId || data.me;
+    if (!id) return [];
+    if (id === data.me && access.data) return access.data.sections;
+    const m = people.find(x => x.id === id);
+    const ps = (positions.data ?? []).filter(p => p.memberIds.includes(id)).map(p => ({ sections: p.sections }));
+    return visibleSections(m?.role.toLowerCase(), ps);
+  }, [memberId, data.me, access.data, people, positions.data]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -55,6 +74,14 @@ function IssueTokenDialog({ open, onOpenChange, onIssued }: { open: boolean; onO
     setSections([]);
     setExpiresAt('');
   }, [open, data.me]);
+
+  // Гостю — только чтение: сервер такие токены не принимает
+  React.useEffect(() => {
+    if (isGuestMember) {
+      setReadOnly(true);
+      setCanPost(false);
+    }
+  }, [isGuestMember]);
 
   const submit = async () => {
     if (!name.trim() || busy) return;
@@ -104,7 +131,15 @@ function IssueTokenDialog({ open, onOpenChange, onIssued }: { open: boolean; onO
                   value={memberId || data.me}
                   onValueChange={setMemberId}
                   aria-label={t('agentTokens.form.member')}
-                  options={people.map(m => ({ value: m.id, label: m.id === data.me ? t('agentTokens.form.memberSelf', { name: m.name }) : m.name }))}
+                  options={people.map(m => ({
+                    value: m.id,
+                    label: (
+                      <span className="row" style={{ gap: 6 }}>
+                        {m.id === data.me ? t('agentTokens.form.memberSelf', { name: m.name }) : m.name}
+                        {m.email.endsWith(SERVICE_EMAIL) && <Badge tone="amber">{t('agentTokens.serviceBadge')}</Badge>}
+                      </span>
+                    ),
+                  }))}
                 />
               )}
             </Field>
@@ -112,7 +147,7 @@ function IssueTokenDialog({ open, onOpenChange, onIssued }: { open: boolean; onO
             <Alert tone="info">{t('agentTokens.onlySelf')}</Alert>
           )}
           <label className="row" style={{ gap: 8 }}>
-            <Switch checked={readOnly} disabled={isGuest} onChange={e => setReadOnly(e.target.checked)} aria-label={t('agentTokens.form.readOnly')} />
+            <Switch checked={readOnly} disabled={isGuest || isGuestMember} onChange={e => setReadOnly(e.target.checked)} aria-label={t('agentTokens.form.readOnly')} />
             <span>
               {t('agentTokens.form.readOnly')}
               <span className="faint" style={{ display: 'block', fontSize: 12 }}>
@@ -121,7 +156,7 @@ function IssueTokenDialog({ open, onOpenChange, onIssued }: { open: boolean; onO
             </span>
           </label>
           <label className="row" style={{ gap: 8, opacity: readOnly ? 0.55 : 1 }}>
-            <Switch checked={!readOnly && canPost} disabled={readOnly || isGuest} onChange={e => setCanPost(e.target.checked)} aria-label={t('agentTokens.form.canPost')} />
+            <Switch checked={!readOnly && canPost} disabled={readOnly || isGuest || isGuestMember} onChange={e => setCanPost(e.target.checked)} aria-label={t('agentTokens.form.canPost')} />
             <span>
               {t('agentTokens.form.canPost')}
               <span className="faint" style={{ display: 'block', fontSize: 12 }}>
@@ -129,13 +164,13 @@ function IssueTokenDialog({ open, onOpenChange, onIssued }: { open: boolean; onO
               </span>
             </span>
           </label>
-          {isGuest && <Alert tone="info">{t('agentTokens.guestReadOnly')}</Alert>}
+          {(isGuest || isGuestMember) && <Alert tone="info">{t('agentTokens.guestReadOnly')}</Alert>}
           <div>
             <div className="label" style={{ marginBottom: 4 }}>
               {t('agentTokens.form.sections')}
             </div>
             <div className="row" style={{ gap: 14, flexWrap: 'wrap' }}>
-              {POSITION_SECTIONS.map(s => (
+              {memberSections.map(s => (
                 <label key={s} className="row" style={{ gap: 6, fontSize: 13 }}>
                   <Checkbox checked={sections.includes(s)} onChange={() => setSections(toggle(sections, s))} aria-label={t(`positions.section.${s}`)} />
                   {t(`positions.section.${s}`)}
