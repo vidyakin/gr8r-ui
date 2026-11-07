@@ -652,6 +652,7 @@ export const views: Widen<typeof V> = {
     removedAttachment: 'удалил(а) вложение',
     renamed: 'переименовал(а) задачу',
     you: 'Вы',
+    viaAgent: 'через агента «{name}»',
   },
 
   priority: {

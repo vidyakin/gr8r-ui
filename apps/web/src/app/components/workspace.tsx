@@ -113,7 +113,7 @@ export function ActivityItem({ a, showProject }: { a: Activity; showProject?: bo
     <div className="fitem">
       <MemberAvatar id={a.by} size="sm" />
       <div className="min-w-0 flex-1">
-        <b>{m?.id === data.me ? tt('views.activity.you') : m?.name || 'Someone'}</b> <span className="muted">{a.verb}</span>{' '}
+        <b>{m?.id === data.me ? tt('views.activity.you') : m?.name || 'Someone'}</b>{a.agent ? <span className="faint"> · {tt('views.activity.viaAgent', { name: a.agent })}</span> : null} <span className="muted">{a.verb}</span>{' '}
         {t ? (
           <span className="obj" role="button" tabIndex={0} onClick={() => open(t)} onKeyDown={e => e.key === 'Enter' && open(t)}>
             {t.title}

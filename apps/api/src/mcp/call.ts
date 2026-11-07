@@ -2,6 +2,7 @@
    Новых проверок прав не добавляет — на каждом вызове действуют requireSession (токен не отозван/не истёк), tenant()
    под app_user с RLS, модуль лицензии, разделы токена, должности, роль и maskCost обычного запроса. */
 import type { Hono } from 'hono';
+import { INTERNAL_HEADER, INTERNAL_SECRET } from '../token-rate';
 import type { AppEnv } from '../types';
 
 export type CallResult = { ok: true; data: unknown } | { ok: false; code: string; message: string; status: number };
@@ -18,7 +19,7 @@ export async function callApi(
   const url = entries.length ? `${path}?${new URLSearchParams(entries.map(([k, v]): [string, string] => [k, String(v)]))}` : path;
   let res: Response;
   try {
-    res = await app.request(url, { method: 'GET', headers: { authorization, 'x-workspace-id': workspaceId } });
+    res = await app.request(url, { method: 'GET', headers: { authorization, 'x-workspace-id': workspaceId, [INTERNAL_HEADER]: INTERNAL_SECRET } });
   } catch (e) {
     return { ok: false, code: 'internal_error', message: e instanceof Error ? e.message : 'Internal request failed', status: 500 };
   }

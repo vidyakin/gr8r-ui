@@ -148,6 +148,8 @@ export interface Activity {
   project: string | null;
   at: number;
   extra: string;
+  /** Изменение сделал агент по токену: название токена (задача 1287) */
+  agent?: string;
 }
 
 export interface Notification {

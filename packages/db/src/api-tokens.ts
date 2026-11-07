@@ -148,3 +148,11 @@ export async function createServiceMember(db: Db, ctx: ApiTokenCtx, input: { nam
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'member.created', entity: 'member', recordId: member!.id, actorId: ctx.memberId, payload: { name: input.name, isService: true } });
   return { memberId: member!.id };
 }
+
+/** Подпись «через агента»: к строкам с apiTokenId добавить apiTokenName (название токена; отозванные тоже) */
+export async function withApiTokenNames<R extends { apiTokenId: string | null }>(db: Db, rows: R[]): Promise<(R & { apiTokenName: string | null })[]> {
+  const ids = [...new Set(rows.map(r => r.apiTokenId).filter((v): v is string => !!v))];
+  const names = new Map<string, string>();
+  if (ids.length) for (const t of await db.select({ id: apiTokens.id, name: apiTokens.name }).from(apiTokens).where(inArray(apiTokens.id, ids))) names.set(t.id, t.name);
+  return rows.map(r => ({ ...r, apiTokenName: r.apiTokenId ? (names.get(r.apiTokenId) ?? null) : null }));
+}

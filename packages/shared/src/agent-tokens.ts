@@ -131,3 +131,13 @@ export const TOKEN_OPEN_PATHS: Set<string> = new Set<string>([
   '/license',
   '/api-tokens',
 ]);
+
+/** Запрос, который проводит, оплачивает или удаляет: токену агента нужен can_post (docs/architecture/mcp.md, «Запись»).
+    DELETE — всегда; POST …/post, …/unpost, …/cancel; создание оплаты (POST /payments, /payments/from-document) */
+export function isTokenPostingRequest(method: string, path: string): boolean {
+  const m = method.toUpperCase();
+  if (m === 'DELETE') return true;
+  if (m !== 'POST') return false;
+  const p = path.replace(/\/+$/, '');
+  return /\/(post|unpost|cancel)$/.test(p) || p === '/payments' || p === '/payments/from-document';
+}

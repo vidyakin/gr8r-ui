@@ -712,6 +712,7 @@ export const views = {
     removedAttachment: 'removed attachment',
     renamed: 'renamed the task',
     you: 'You',
+    viaAgent: 'via agent “{name}”',
   },
 
   /* Приоритет */

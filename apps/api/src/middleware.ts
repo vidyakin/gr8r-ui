@@ -4,7 +4,8 @@ import { getCookie } from 'hono/cookie';
 import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import { drizzleOf, isUuid, memberSections, readMyAccess, memberships, members, sessions, setContext, users, type Tx } from '@gr8r/db';
-import { ROLES, TOKEN_PATH_SECTIONS, moduleOfApiPath, tokenApiRoot, type ModuleId, type PositionSection, type Role } from '@gr8r/shared';
+import { ROLES, TOKEN_PATH_SECTIONS, isTokenPostingRequest, moduleOfApiPath, tokenApiRoot, type ModuleId, type PositionSection, type Role } from '@gr8r/shared';
+import { INTERNAL_HEADER, INTERNAL_SECRET, hitTokenRate } from './token-rate';
 import { AppError, Rollback, dbUnavailable, forbidden, unauthorized } from './errors';
 import type { AppEnv, ModuleAccessSets } from './types';
 
@@ -83,6 +84,8 @@ export const requireSession = createMiddleware<AppEnv>(async (c, next) => {
   const bearer = readBearer(c);
   if (bearer) {
     await resolveApiToken(c, bearer);
+    // внутренние вызовы инструментов MCP уже учтены запросом /mcp
+    if (c.req.header(INTERNAL_HEADER) !== INTERNAL_SECRET) hitTokenRate(c.get('apiToken')!.id);
   } else {
     const token = readToken(c);
     if (!token) throw unauthorized();
@@ -173,6 +176,8 @@ export const tenant = (source: 'header' | 'param' = 'header') =>
       // Ограничения токена агента (docs/architecture/agent-tokens.md): только чтение и разделы
       if (apiToken) {
         if (apiToken.readOnly && !SAFE_METHODS.has(c.req.method)) throw new AppError(403, 'token_read_only', 'The access token is read-only');
+        if (!apiToken.canPost && isTokenPostingRequest(c.req.method, c.req.path))
+          throw new AppError(403, 'token_cannot_post', 'The access token is not allowed to post, pay or delete');
         const root = tokenApiRoot(c.req.path);
         const sections = TOKEN_PATH_SECTIONS.get(root);
         if (sections && apiToken.sections && !sections.some(s => apiToken.sections!.includes(s)))

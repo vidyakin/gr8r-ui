@@ -240,6 +240,8 @@ export const activity = pgTable(
     taskId: uuid('task_id').references(() => tasks.id, { onDelete: 'set null' }),
     projectId: uuid('project_id').references(() => projects.id, { onDelete: 'set null' }),
     extra: text('extra').notNull().default(''),
+    /** Токен агента, которым записана строка (default из app.api_token_id, задача 1287) */
+    apiTokenId: uuid('api_token_id').default(sql`nullif(current_setting('app.api_token_id', true), '')::uuid`),
     createdAt: createdAt(),
   },
   t => [index('activity_ws_created_idx').on(t.workspaceId, t.createdAt), index('activity_project_idx').on(t.projectId)],

@@ -343,7 +343,7 @@ export function buildSpecs(ws: string, statusIds: Map<string, string>) {
     name: 'activity',
     query: { sort: '-createdAt' },
     firstPageOnly: true,
-    from: ((r: Rows['activity']): Activity => ({ id: r.id, by: r.actorId ?? '', verb: r.verb, task: r.taskId, project: r.projectId, at: ms(r.createdAt), extra: r.extra })) as never,
+    from: ((r: Rows['activity']): Activity => ({ id: r.id, by: r.actorId ?? '', verb: r.verb, task: r.taskId, project: r.projectId, at: ms(r.createdAt), extra: r.extra, agent: r.apiTokenName ?? undefined })) as never,
     fields: {},
     canCreate: () => false, // ленту пишет сервер вместе с изменением
     remove: 'none',

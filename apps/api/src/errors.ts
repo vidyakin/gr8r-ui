@@ -75,6 +75,9 @@ export const onError: ErrorHandler<AppEnv> = (err, c) => {
     console.error(`[${requestId}] unhandled error:`, err);
     app = new AppError(500, 'internal_error', 'Internal server error');
   }
+  // лимит частоты: клиенту подсказка, через сколько секунд повторить
+  const retryAfter = (app.details as { retryAfter?: number } | undefined)?.retryAfter;
+  if (app.status === 429 && retryAfter) c.header('Retry-After', String(retryAfter));
   const body: ApiError = { error: { code: app.code, message: app.message, ...(app.details !== undefined ? { details: app.details } : {}), requestId } };
   return c.json(body, app.status);
 };

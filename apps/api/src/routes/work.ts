@@ -59,7 +59,7 @@ import { z } from 'zod';
 import { crud, ctxOf, validationHook } from '../crud';
 import { AppError, forbidden, notFound } from '../errors';
 import { hasRole, requireRole } from '../middleware';
-import { assertObjectRef, sanitizeRichText } from '@gr8r/db';
+import { assertObjectRef, sanitizeRichText, withApiTokenNames } from '@gr8r/db';
 import { customForCreate, customForUpdate } from '../meta/service';
 import { addActivity, assertTasksExist, favoriteFilter, favoriteSet, nextOrder, notify, setFavorite } from './helpers';
 
@@ -420,6 +420,8 @@ export const activityRoutes = crud({
   search: [activity.verb, activity.extra],
   disabled: ['create', 'update', 'delete'],
   filters: q => [q.projectId ? eq(activity.projectId, q.projectId) : undefined, q.taskId ? eq(activity.taskId, q.taskId) : undefined, q.actorId ? eq(activity.actorId, q.actorId) : undefined],
+  // «через агента: <название токена>» (задача 1287)
+  decorate: (ctx, rows) => withApiTokenNames(ctx.db, rows),
 });
 
 /** Журнал событий (только чтение): `?since=<event id>` — догнать пропущенное после обрыва WebSocket (uuid v7 сортируется по времени) */
@@ -435,4 +437,5 @@ export const eventRoutes = crud({
   disabled: ['create', 'update', 'delete'],
   // события закрытых проектов (со снимками записей в payload) участнику без доступа не отдаём
   filters: q => [dsql`not app_event_hidden(${events.entity}, ${events.recordId})`, dsql`${events.id} > ${q.since ?? '00000000-0000-0000-0000-000000000000'}::uuid`, q.entity ? eq(events.entity, q.entity) : undefined, q.type ? eq(events.type, q.type) : undefined, q.recordId ? eq(events.recordId, q.recordId) : undefined],
+  decorate: (ctx, rows) => withApiTokenNames(ctx.db, rows),
 });

@@ -584,7 +584,8 @@ function TaskBody(p: DrawerPanelProps & { tt: ReturnType<typeof useT>; update: (
                       <MemberAvatar id={a.by} size="sm" tooltip={false} />
                     </span>
                     <span className="grow">
-                      <b>{m?.id === data.me ? p.tt('views.activity.you') : m?.name}</b> {a.verb.replace(/ of$/, '')}
+                      <b>{m?.id === data.me ? p.tt('views.activity.you') : m?.name}</b>
+                      {a.agent ? <span className="faint"> · {p.tt('views.activity.viaAgent', { name: a.agent })}</span> : null} {a.verb.replace(/ of$/, '')}
                       {a.extra ? ' ' + a.extra : ''}
                     </span>
                     <time className="faint" style={{ fontSize: 11.5 }}>

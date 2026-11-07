@@ -680,6 +680,13 @@
       "when": 1794000000000,
       "tag": "0105_api_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1794010000000,
+      "tag": "0106_agent_writes",
+      "breakpoints": true
     }
   ]
 }
