@@ -196,15 +196,18 @@ function IssuedTokenDialog({ token, onClose }: { token: string | null; onClose: 
   const t = useT();
   const session = useSession();
   const wsId = session.active?.id ?? '';
-  const copy = async () => {
-    if (!token) return;
+  // MCP-сервер за тем же прокси, что и API (docs/architecture/mcp.md)
+  const mcpUrl = `${window.location.origin}/api/mcp`;
+  const claudeCmd = `claude mcp add --transport http gr8r ${mcpUrl} --header "Authorization: Bearer ${token ?? ''}"`;
+  const copyText = async (text: string, done: string) => {
     try {
-      await navigator.clipboard.writeText(token);
-      toast(t('agentTokens.shown.copied'));
+      await navigator.clipboard.writeText(text);
+      toast(done);
     } catch {
       toast.error(t('agentTokens.shown.copyFailed'));
     }
   };
+  const copy = () => token && copyText(token, t('agentTokens.shown.copied'));
   return (
     <Dialog open={!!token} onOpenChange={o => !o && onClose()}>
       <DialogContent
@@ -233,6 +236,20 @@ function IssuedTokenDialog({ token, onClose }: { token: string | null; onClose: 
               {t('agentTokens.shown.example')}
             </div>
             <pre className="code">{`Authorization: Bearer ${token ?? ''}\nX-Workspace-Id: ${wsId}`}</pre>
+          </div>
+          <div>
+            <div className="row" style={{ marginBottom: 4 }}>
+              <div className="label">{t('agentTokens.shown.mcp')}</div>
+              <span className="sp" />
+              <Button variant="ghost" size="sm" onClick={() => copyText(claudeCmd, t('agentTokens.shown.mcpCopied'))}>
+                <Copy size={14} />
+                {t('agentTokens.shown.mcpCopy')}
+              </Button>
+            </div>
+            <pre className="code">{`${mcpUrl}\n\n${claudeCmd}`}</pre>
+            <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+              {t('agentTokens.shown.mcpHint')}
+            </div>
           </div>
         </div>
       </DialogContent>

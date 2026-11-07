@@ -78,7 +78,7 @@ async function resolveApiToken(c: Context<AppEnv>, raw: string): Promise<void> {
 }
 
 /** Сессия → пользователь. Запрос идёт под app_user без арендатора (users/sessions не под RLS).
-    Authorization: Bearer имеет приоритет над cookie; токен агента пускается только на пути TENANT_PATHS и GET /auth/me */
+    Authorization: Bearer имеет приоритет над cookie; токен агента пускается только на пути TENANT_PATHS, GET /auth/me и /mcp */
 export const requireSession = createMiddleware<AppEnv>(async (c, next) => {
   const bearer = readBearer(c);
   if (bearer) {
@@ -104,7 +104,7 @@ export const requireSession = createMiddleware<AppEnv>(async (c, next) => {
     c.set('sessionId', id);
   }
   if (c.get('apiToken')) {
-    const allowed = (c.req.method === 'GET' && c.req.path === '/auth/me') || (moduleOfApiPath(c.req.path) !== null && tokenApiRoot(c.req.path) !== '/api-tokens');
+    const allowed = (c.req.method === 'GET' && c.req.path === '/auth/me') || c.req.path === '/mcp' || (moduleOfApiPath(c.req.path) !== null && tokenApiRoot(c.req.path) !== '/api-tokens');
     if (!allowed) throw new AppError(403, 'token_forbidden', 'The access token cannot use this endpoint');
   }
   await next();
