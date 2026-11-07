@@ -33,7 +33,7 @@ import { WorkspaceLogo } from '../components/brand';
 import { NamedIcon } from '../components/icons';
 import { UserMenu } from './UserMenu';
 import { MemberAvatar } from '../components/workspace';
-import { useProjectForms, useShortcuts, useTeamForm } from '../overlays';
+import { useHelp, useProjectForms, useShortcuts, useTeamForm } from '../overlays';
 import { useCustomEntities } from '../meta/data';
 import { entityIcon } from '../meta/icons';
 import { t, useT } from '@/i18n';
@@ -211,6 +211,7 @@ function ProjectItem({ id, collapsed }: { id: string; collapsed: boolean }) {
 export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const { data } = useWorkspace();
   const shortcuts = useShortcuts();
+  const help = useHelp();
   const unreadInbox = data.notifs.filter(n => !n.read && n.type !== 'update').length;
   const unreadAll = data.notifs.filter(n => !n.read).length;
   const myDue = allTasks(data).filter(t => t.assignee === data.me && t.status !== 'done' && t.due && diffDays(parse(t.due), today()) <= 0).length;
@@ -371,7 +372,9 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
             </button>
           </MenuTrigger>
           <MenuContent side="top">
-            <MenuItem icon={<BookOpen size={15} />}>{t('nav.documentation')}</MenuItem>
+            <MenuItem icon={<BookOpen size={15} />} shortcut="F1" onSelect={() => help.open()}>
+              {t('nav.documentation')}
+            </MenuItem>
             <MenuItem icon={<Keyboard size={15} />} shortcut="?" onSelect={() => shortcuts.open()}>
               {t('nav.shortcuts')}
             </MenuItem>
