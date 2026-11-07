@@ -449,5 +449,12 @@ export const errors: Widen<typeof E> = {
   storage_unavailable: 'Хранилище файлов на сервере не настроено',
   file_content_missing: 'Содержимое файла больше не хранится',
   attachment_archived: 'Файл в архиве: сначала верните его',
+  token_invalid: 'Токен неизвестен, отозван или истёк',
+  token_forbidden: 'Токен не может выполнить это действие',
+  token_read_only: 'Токен только для чтения: он не может менять данные',
+  token_section_forbidden: 'В этот токен не включён раздел',
+  token_guest_write: 'Гость может выпускать только токены для чтения',
+  token_sections_exceed: 'Токен не может включать разделы, которых нет у сотрудника',
+  token_can_post_read_only: 'Токен только для чтения не может проводить, оплачивать и удалять',
 
 };

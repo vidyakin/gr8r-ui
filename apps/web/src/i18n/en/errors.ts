@@ -448,5 +448,12 @@ export const errors = {
   storage_unavailable: 'File storage is not configured on this server',
   file_content_missing: 'The file content is no longer stored',
   attachment_archived: 'The file is archived: restore it before adding a version',
+  token_invalid: 'The token is unknown, revoked or expired',
+  token_forbidden: 'The token cannot perform this action',
+  token_read_only: 'The token is read-only: it cannot change data',
+  token_section_forbidden: 'The token does not include this section',
+  token_guest_write: 'A guest can issue read-only tokens only',
+  token_sections_exceed: 'The token cannot include sections the employee does not have',
+  token_can_post_read_only: 'A read-only token cannot post, pay or delete',
 
 };
