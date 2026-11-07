@@ -190,6 +190,12 @@ export async function memberHasFunction(db: Db, memberId: string, fn: PositionFu
   return positionsOfMember(memberId, cx.positions, cx.links).some(p => p.functions.includes(fn));
 }
 
+/** Видимые разделы участника (проверка путей API по должностям, apps/api requireSection) */
+export async function memberSections(db: Db, memberId: string, role: Role): Promise<PositionSection[]> {
+  const cx = await loadPositionContext(db);
+  return visibleSections(role, positionsOfMember(memberId, cx.positions, cx.links));
+}
+
 /** Должности и видимые разделы текущего участника (для интерфейса) */
 export async function myPositions(db: Db, memberId: string, role: Role) {
   const cx = await loadPositionContext(db);

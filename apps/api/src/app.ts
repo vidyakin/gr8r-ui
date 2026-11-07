@@ -9,8 +9,8 @@ import { adminRoutes } from './admin';
 import { authRoutes } from './auth';
 import { loadConfig } from './env';
 import { AppError, dbUnavailable, forbidden, onError, onNotFound } from './errors';
-import { requireModule, requireSession, requestLogger, tenant } from './middleware';
-import { MODULE_OF_PATH } from '@gr8r/shared';
+import { requireModule, requireSection, requireSession, requestLogger, tenant } from './middleware';
+import { MODULE_OF_PATH, SECTION_OF_API_PATH } from '@gr8r/shared';
 import { licenseRoutes } from './routes/license';
 import { objectRoutes } from './routes/objects';
 import { estimateRoutes, objectEstimateRoutes } from './routes/estimates';
@@ -106,6 +106,9 @@ function buildTenantApi() {
     const module = MODULE_OF_PATH.get(p);
     if (!module) throw new Error(`Tenant path ${p} does not belong to any module (packages/shared/src/licensing.ts)`);
     const chain = module === 'core' ? [requireSession, tenant()] : [requireSession, tenant(), requireModule(module)];
+    // путь одного раздела закрыт участнику, которому раздел скрыт должностями (docs/architecture/positions.md)
+    const section = SECTION_OF_API_PATH.get(p);
+    if (section) chain.push(requireSection(section));
     guarded.use(p, ...chain);
     guarded.use(`${p}/*`, ...chain);
   }

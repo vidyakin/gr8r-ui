@@ -3,8 +3,8 @@ import { and, eq, gt } from 'drizzle-orm';
 import { getCookie } from 'hono/cookie';
 import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
-import { drizzleOf, isUuid, readMyAccess, memberships, members, sessions, setContext, users, type Tx } from '@gr8r/db';
-import { ROLES, type ModuleId, type Role } from '@gr8r/shared';
+import { drizzleOf, isUuid, memberSections, readMyAccess, memberships, members, sessions, setContext, users, type Tx } from '@gr8r/db';
+import { ROLES, type ModuleId, type PositionSection, type Role } from '@gr8r/shared';
 import { AppError, Rollback, dbUnavailable, forbidden, unauthorized } from './errors';
 import type { AppEnv, ModuleAccessSets } from './types';
 
@@ -143,6 +143,18 @@ export async function accessOf(c: Context<AppEnv>): Promise<ModuleAccessSets> {
 
 /** Модули, в которых арендатор может писать */
 export const modulesOf = async (c: Context<AppEnv>): Promise<Set<ModuleId>> => (await accessOf(c)).active;
+
+/** Запрет по разделу должности (docs/architecture/positions.md): путь раздела, скрытого должностями участника, отвечает
+    403 section_forbidden на чтение и запись. admin и owner — без ограничений, как в меню */
+export const requireSection = (section: PositionSection) =>
+  createMiddleware<AppEnv>(async (c, next) => {
+    const role = c.get('role');
+    if (role !== 'owner' && role !== 'admin') {
+      const sections = await memberSections(c.get('db'), c.get('memberId'), role);
+      if (!sections.includes(section)) throw new AppError(403, 'section_forbidden', `Section "${section}" is hidden by your positions`, { section });
+    }
+    await next();
+  });
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 

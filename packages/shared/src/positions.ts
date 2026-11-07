@@ -10,6 +10,29 @@ export type PositionFunction = (typeof POSITION_FUNCTIONS)[number];
 export const POSITION_SECTIONS = ['crm', 'trade', 'stock', 'services', 'deliveries', 'production', 'finance', 'projects', 'catalog', 'automations', 'transport'] as const;
 export type PositionSection = (typeof POSITION_SECTIONS)[number];
 
+/** Корневые пути API, которые принадлежат только одному разделу (их не вызывают экраны других разделов). Сервер закрывает их
+    участнику, у которого раздел скрыт должностями (apps/api, requireSection). Общие пути (документы, товары, контрагенты, сделки
+    и оплаты — их читают карточки и документы других разделов) не ограничиваются: это видимость меню, а не права.
+    docs/architecture/positions.md, «Проверка на сервере». */
+export const SECTION_OF_API_PATH: ReadonlyMap<string, PositionSection> = new Map<string, PositionSection>([
+  ['/flows', 'automations'],
+  ['/flow-runs', 'automations'],
+  ['/payroll', 'finance'],
+  ['/investments', 'finance'],
+  ['/payment-calendar', 'finance'],
+  ['/cash-flow-items', 'finance'],
+  ['/cash-registers', 'finance'],
+  ['/bank-import', 'finance'],
+  ['/opening-balances', 'finance'],
+  ['/deal-funnel', 'crm'],
+  ['/ad-campaigns', 'crm'],
+  ['/ad-expenses', 'crm'],
+  ['/ad-report', 'crm'],
+  ['/sales-plan', 'crm'],
+  ['/production-plans', 'production'],
+  ['/bom-lines', 'production'],
+]);
+
 /** Тип вида номенклатуры совпадает с видом товара каталога */
 export const PRODUCT_KIND_TYPES = ['goods', 'service', 'work'] as const;
 export type ProductKindType = (typeof PRODUCT_KIND_TYPES)[number];
@@ -36,7 +59,7 @@ export function positionsOfMember(memberId: string, positions: readonly Position
 }
 
 /** Видимые разделы меню: admin/owner и участник без должностей видят всё; иначе — объединение разделов его должностей
-    (должность с пустым набором разделов открывает все). Это видимость интерфейса, права API не затрагиваются. */
+    (должность с пустым набором разделов открывает все). Меню скрывает разделы, сервер закрывает пути SECTION_OF_API_PATH. */
 export function visibleSections(role: Role | string | undefined, memberPositions: readonly Pick<PositionDef, 'sections'>[]): PositionSection[] {
   const all = [...POSITION_SECTIONS];
   if (isAdminRole(role) || !memberPositions.length) return all;
