@@ -153,6 +153,8 @@ export const documentLineInput = z
     batchProducedAt: isoDate.nullish(),
     /** Годен до партии; пусто — берётся срок годности товара */
     batchExpiresAt: isoDate.nullish(),
+    /** Строка состава заказа на производство (только перемещение): по ней считается «передано» и лимит сверх нормы; null — снять */
+    productionComponentId: uuid.nullish(),
   })
   // нулевое количество допустимо только у строки инвентаризации: там qty — фактическое, учётное лежит в bookQty
   .refine(l => Number(l.qty) !== 0 || l.bookQty !== undefined, { message: 'Must be greater than zero', path: ['qty'] });

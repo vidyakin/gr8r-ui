@@ -591,6 +591,13 @@ export const settings = {
         avgCost: { title: 'Average warehouse cost', desc: 'Moving average cost of the stock, weighted across warehouses. A material that is not in stock yet is priced at its purchase price.' },
       },
     },
+    overtransfer: {
+      title: 'Material transfer over the norm',
+      hint: 'A transfer of materials to production under a production order may exceed the norm of the order by this percent. Above the limit the transfer cannot be posted. A work center can set its own value.',
+      label: 'Allowed excess, %',
+      saved: 'Allowed excess saved',
+      invalid: 'Enter a non-negative number',
+    },
     wastePriceSource: {
       title: 'Returnable waste price source',
       hint: 'Used to value the returnable waste of every bill of materials. The cost of the released product is reduced accordingly.',

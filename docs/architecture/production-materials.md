@@ -20,6 +20,18 @@ API — `apps/api/src/routes/production-orders.ts` и `routes/production.ts`, к
   ни к одному заказу на производство.
 - **Дочерние заказы на полуфабрикаты.** Кнопка «Create semi-finished orders» (`POST /production-orders/:id/semi-orders`) по дефициту полуфабриката создаёт черновики
   `production_order` с `parent_document_id` и записью размещения у строки материала родителя. Выпуск дочернего заказа резервирует полуфабрикат под строку материала родителя.
+- **Передача материалов (сверх нормы).** Строка перемещения (`stock_transfer`, операции `transfer` и `in_transit`) может ссылаться на строку состава заказа:
+  `document_lines.production_component_id` (миграция `0109_material_overtransfer.sql`, FK `ON DELETE SET NULL`; только у перемещений, `saveLines` сохраняет ссылку при правке строк:
+  `undefined` — не трогать, `null` — снять). Код — `packages/db/src/material-transfer.ts`. «Передано» = сумма `qty` проведённых перемещений по ссылке (склад-назначение не важен);
+  отмена проведения уменьшает его сама — значение всегда считается заново. Лимит — `need × (1 + допуск, %/100)` (`overTransferLimit`, shared). Допуск: `work_centers.material_overtransfer_pct`
+  участка заказа (`production_headers.work_center_id`), если задан (null — не задан), иначе `workspaces.settings.materialOvertransferPct` (по умолчанию 0; `PATCH /production/settings`, admin).
+  Проверка — в хуке `check` перемещения (`DOCUMENT_HOOKS.stock_transfer`, `assertTransferWithinNorm`): строки состава блокируются `pg_advisory_xact_lock` по id (по возрастанию),
+  затем сумма «уже передано» (без этого документа) + количество перемещения сравнивается с пределом; сверх — 422 `transfer_exceeds_norm` (details: `need`, `pct`, `limit`, `transferred`, `available`).
+  Привязка к чужому товару/не-заказу — 422 `transfer_component_mismatch` / `invalid_reference`; ссылка у не-переносной операции — `transfer_component_operation`. Перемещения без ссылки лимитом не затрагиваются.
+  Кнопка «Create transfer» (`POST /production-orders/:id/transfer`, `createTransferFromOrder` в `materials.ts`) создаёт черновик «на основании» заказа (`based_on_id`): со склада заказа на склад-цех участка,
+  строки — недостающие материалы (норма − передано проведёнными; давальческие строки пропускаются). Нет склад-цеха у участка — 422 `work_center_warehouse_required`. `materialCoverage` дополнен
+  `transferred`, `overTransferred = max(передано − нужно, 0)` и `transferLimit`; в карточке заказа — колонка «Передано» (с пометкой «сверх нормы»).
+  Списание материалов в выпуске этим лимитом **не** ограничивается (он считается только на передачу).
 - **Сводная потребность.** `GET /production/needs` — по материалам проведённых незакрытых заказов: нужно, в резерве, размещено, свободно, к поступлению, дефицит
   (дефицит = нужно − резерв − размещено − свободно; свободно не бывает меньше нуля — перерезерв заказов покупателей дефицит не раздувает; в карточке заказа «Не обеспечено» = нужно − резерв − размещено, без учёта свободного остатка — как в 1С).
   `POST /production/needs/supplier-orders` создаёт черновики заказов поставщику по поставщику товара: `products.default_supplier_id`, иначе — поставщик последнего

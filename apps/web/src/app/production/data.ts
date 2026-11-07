@@ -93,6 +93,8 @@ export interface WorkCenter {
   defectWarehouseId?: string | null;
   /** Режим материалов выпусков: при выпуске или по итогам смены */
   materialMode?: 'on_release' | 'shift';
+  /** Допуск передачи материалов, %: пусто — настройка воркспейса */
+  materialOvertransferPct?: string | null;
   note: string;
   archivedAt: string | null;
 }

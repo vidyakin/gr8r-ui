@@ -2,7 +2,7 @@
 import * as React from 'react';
 import { Link } from 'react-router';
 import { MATERIAL_PRICE_SOURCES, WASTE_PRICE_SOURCES, type MaterialPriceSource, type WastePriceSource } from '@gr8r/shared';
-import { Alert, Button, Field, Radio, Skeleton, toast } from '@/components/ui';
+import { Alert, Button, Field, Input, Radio, Skeleton, toast } from '@/components/ui';
 import { useIsAdmin } from '../catalog/data';
 import { useProductionApi, useSnapshot } from '../production/data';
 import { usePeriods, usePeriodSettings } from '../production/closing-data';
@@ -24,6 +24,17 @@ export function ProductionSection({ title }: { title: string }) {
   const [pickedWaste, setPickedWaste] = React.useState<WastePriceSource | null>(null);
   const currentMat = pickedMat ?? savedMat;
   const currentWaste = pickedWaste ?? savedWaste ?? 'purchase';
+  // допустимое превышение передачи материалов, %: правится в поле, сохраняется при уходе из поля
+  const savedOver = snap.data?.settings.materialOvertransferPct;
+  const [over, setOver] = React.useState<string | null>(null);
+  const saveOver = async () => {
+    if (over === null) return;
+    const v = over.trim() === '' ? '0' : over.trim();
+    if (!(Number(v) >= 0)) return void toast.error(t('settings.production.overtransfer.invalid'));
+    const ok = await api('PATCH', '/production/settings', { materialOvertransferPct: v });
+    if (ok) toast(t('settings.production.overtransfer.saved'), { duration: 1500 });
+    setOver(null);
+  };
 
   const chooseMat = async (v: MaterialPriceSource) => {
     if (v === currentMat) return;
@@ -100,6 +111,15 @@ export function ProductionSection({ title }: { title: string }) {
             {t('settings.production.onlyAdmins')}
           </Alert>
         )}
+      </div>
+      <div className="sblock">
+        <h2>{t('settings.production.overtransfer.title')}</h2>
+        <p className="muted" style={{ margin: '4px 0 12px' }}>
+          {t('settings.production.overtransfer.hint')}
+        </p>
+        <Field label={t('settings.production.overtransfer.label')}>
+          {p => <Input {...p} inputMode="decimal" disabled={!isAdmin || snap.isPending} value={over ?? String(Number(savedOver ?? 0))} onChange={e => setOver(e.target.value)} onBlur={() => void saveOver()} />}
+        </Field>
       </div>
       <div className="sblock">
         <h2>{t('settings.production.periodClosing.title')}</h2>

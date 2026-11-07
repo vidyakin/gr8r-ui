@@ -124,6 +124,12 @@ export interface MaterialCoverageRow {
   free: string;
   /** Статус обеспечения */
   status: 'full' | 'partial' | 'none';
+  /** Передано перемещениями под заказ */
+  transferred: string;
+  /** Передано сверх нормы */
+  overTransferred: string;
+  /** Предел передачи: норма с допуском */
+  transferLimit: string;
   /** Склад резерва */
   reserveWarehouseId: string | null;
   /** Свободно для резерва на складе резерва */
@@ -287,5 +293,14 @@ export function useProductionOrderApi() {
     },
     onError: e => toast.error(errorMessage(e)),
   });
-  return { run, create, update, accounting, fill, produce, setState, schedule, reserve, semiOrders, supplierOrders };
+  // перемещение материалов на склад-цех: черновик со ссылками на строки состава
+  const transfer = useMutation({
+    mutationFn: (id: string) => call<{ id: string }>(ws, 'POST', `/production-orders/${id}/transfer`, {}),
+    onSuccess: () => {
+      toast(t('production.coverage.transferCreated'));
+      settle();
+    },
+    onError: e => toast.error(errorMessage(e)),
+  });
+  return { run, create, update, accounting, fill, produce, setState, schedule, reserve, semiOrders, supplierOrders, transfer };
 }

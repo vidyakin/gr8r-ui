@@ -1,8 +1,9 @@
 /* Обеспечение материалов заказа на производство: переключатель «Show stock», колонки обеспечения с цветом,
    расшифровки (резервы по складам, размещение по документам, к поступлению), правка резерва и кнопки
-   «Create semi-finished orders» и «Create supplier orders». */
+   «Create semi-finished orders», «Create supplier orders» и «Create transfer» (перемещение материалов на склад-цех). */
 import * as React from 'react';
-import { Boxes, PackageSearch, Pencil, Truck } from 'lucide-react';
+import { ArrowRightLeft, Boxes, PackageSearch, Pencil, Truck } from 'lucide-react';
+import { useNavigate } from 'react-router';
 import { Badge, Button, Dialog, DialogClose, DialogContent, Field, Input, Select } from '@/components/ui';
 import { useCanWrite } from '../meta/custom-fields';
 import { useWarehouses } from '../docs/data';
@@ -52,6 +53,9 @@ export function MaterialStockBlock({ orderId, canWrite, onEdit }: { orderId: str
             <th style={{ width: 100 }} className="r">
               {tt('production.coverage.col.incoming')}
             </th>
+            <th style={{ width: 110 }} className="r">
+              {tt('production.coverage.col.transferred')}
+            </th>
             <th style={{ width: 120 }}>{tt('production.coverage.col.coverage')}</th>
             {canWrite && <th style={{ width: 40 }} />}
           </tr>
@@ -80,6 +84,14 @@ export function MaterialStockBlock({ orderId, canWrite, onEdit }: { orderId: str
                 <button type="button" className="num underline decoration-dotted cursor-pointer" onClick={() => setDrill({ row: r, kind: 'incoming' })} title={tt('production.coverage.drill.incoming')}>
                   {r.incoming}
                 </button>
+              </td>
+              <td className="r num">
+                {r.transferred}
+                {Number(r.overTransferred) > 0 && (
+                  <div className="faint" style={{ color: 'var(--amber, #b45309)' }} title={tt('production.coverage.overTransferredHint', { limit: r.transferLimit })}>
+                    {tt('production.coverage.overTransferred', { qty: r.overTransferred })}
+                  </div>
+                )}
               </td>
               <td>
                 <Badge tone={COVERAGE_TONE[r.status]} dot>
@@ -219,6 +231,7 @@ export function SupplyButtons({ orderId }: { orderId: string }) {
   const tt = useT();
   const canWrite = useCanWrite();
   const api = useProductionOrderApi();
+  const navigate = useNavigate();
   if (!canWrite) return null;
   return (
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -229,6 +242,10 @@ export function SupplyButtons({ orderId }: { orderId: string }) {
       <Button size="sm" variant="ghost" onClick={() => void api.supplierOrders.mutateAsync({ id: orderId })}>
         <Truck size={13} />
         {tt('production.coverage.createSupplier')}
+      </Button>
+      <Button size="sm" variant="ghost" onClick={() => void api.transfer.mutateAsync(orderId).then(r => navigate(`/documents/${r.id}`))}>
+        <ArrowRightLeft size={13} />
+        {tt('production.coverage.createTransfer')}
       </Button>
     </div>
   );

@@ -24,6 +24,7 @@ export * from './specs';
 export * from './variants';
 export * from './calculations';
 export * from './materials';
+export * from './material-transfer';
 export * from './needs';
 export * from './production-plans';
 export * from './stock-levels';

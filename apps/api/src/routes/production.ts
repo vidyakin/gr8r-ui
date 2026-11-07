@@ -4,7 +4,7 @@
 import { zValidator } from '@hono/zod-validator';
 import { asc, and, eq, inArray, isNull, max, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { bomLines, calculateNeeds, createNeedsDrafts, createNeedsSupplierOrders, listProductionKinds, loadAvgCosts, manufacturedItems, postNeedsDrafts, productCategories, productionKinds, productionNeeds, productionStages, products, recordEvent, stockBalances, stockReservations, warehouses, workCenters, workspaces, writeOffDefects } from '@gr8r/db';
+import { pctFromSettings, bomLines, calculateNeeds, createNeedsDrafts, createNeedsSupplierOrders, listProductionKinds, loadAvgCosts, manufacturedItems, postNeedsDrafts, productCategories, productionKinds, productionNeeds, productionStages, products, recordEvent, stockBalances, stockReservations, warehouses, workCenters, workspaces, writeOffDefects } from '@gr8r/db';
 import {
   bomLineCreate,
   bomLineUpdate,
@@ -27,6 +27,7 @@ import {
   needsCalculateQuery,
   needsOrdersCreate,
   needsPostCreate,
+  fmt,
   parseParamJson,
   productionNeedsQuery,
   productionSettingsUpdate,
@@ -69,6 +70,7 @@ export async function loadSettings(ctx: Ctx): Promise<ProductionSettings> {
   return {
     materialPriceSource: MATERIAL_PRICE_SOURCES.includes(v as MaterialPriceSource) ? (v as MaterialPriceSource) : 'purchase',
     wastePriceSource: WASTE_PRICE_SOURCES.includes(wasteSource as WastePriceSource) ? (wasteSource as WastePriceSource) : 'purchase',
+    materialOvertransferPct: fmt(pctFromSettings(ws?.settings), 2),
   };
 }
 

@@ -371,6 +371,8 @@ export const documentLines = pgTable(
     batchProducedAt: date('batch_produced_at', { mode: 'string' }),
     /** Годен до партии строки; пусто — берётся срок годности товара */
     batchExpiresAt: date('batch_expires_at', { mode: 'string' }),
+    /** Строка состава заказа на производство (перемещение материалов под заказ): FK только в миграции — схема производства ссылается на документы */
+    productionComponentId: uuid('production_component_id'),
     createdAt: createdAt(),
   },
   t => [

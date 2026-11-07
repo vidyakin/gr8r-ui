@@ -1,6 +1,7 @@
 /* Перемещение «в пути» и передача в эксплуатацию: виды перемещения, у которых своя логика проведения.
    Здесь же — служебный склад «в пути» (один на воркспейс) и количественный учёт имущества «у кого» (сотрудник или участок).
    Хуки типа регистрируются в этом файле, чтобы общий сервис документов не знал про эти режимы. */
+import { assertTransferWithinNorm } from './material-transfer';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { dec, fmt } from '@gr8r/shared';
 import type { Db } from './client';
@@ -127,7 +128,7 @@ async function returnFromOperation(db: Db, ctx: DocCtx, doc: DocumentRow, lines:
 /* ---------------- регистрация хуков ---------------- */
 
 DOCUMENT_HOOKS.stock_transfer = {
-  check: async (db, _ctx, doc, lines) => {
+  check: async (db, ctx, doc, lines) => {
     const goods = await goodsLines(db, lines);
     if (!goods.length) throw new DomainError(422, 'no_lines', 'Add at least one line before posting');
     // возврат из эксплуатации склад не меняет — склад ему не нужен
@@ -138,6 +139,8 @@ DOCUMENT_HOOKS.stock_transfer = {
       const [c] = await db.select({ kind: costItems.kind }).from(costItems).where(eq(costItems.id, doc.costItemId)).limit(1);
       if (c?.kind !== 'expense') throw new DomainError(422, 'cost_item_kind_mismatch', 'This document needs an expense cost item');
     }
+    // передача материалов под заказ на производство: не больше нормы с допуском (проверка под блокировкой строк состава)
+    await assertTransferWithinNorm(db, ctx, doc, lines);
   },
   post: async (db, ctx, doc, lines) => {
     if (doc.operation === 'in_transit') return shipTransfer(db, ctx, doc, lines);
