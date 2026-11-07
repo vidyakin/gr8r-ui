@@ -4,7 +4,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { DOCUMENT_GROUPS, DOCUMENT_STATUSES, DOCUMENT_TYPES } from '@gr8r/shared';
 import { z } from 'zod';
-import type { CallResult } from './call';
+import type { CallResult, WriteMethod } from './call';
 import { ENTITY_KIND_NAMES, ENTITY_KINDS, REPORT_NAMES, REPORTS, type EntityKindName } from './kinds';
 
 /** Предел текста результата инструмента, символов */
@@ -15,8 +15,11 @@ const MAX_LIMIT = 100;
 const SEARCH_KINDS: EntityKindName[] = ['company', 'contact', 'product', 'deal', 'lead', 'project', 'task', 'document', 'contract', 'object'];
 
 export type ApiCaller = (path: string, query?: Record<string, string | number | undefined>) => Promise<CallResult>;
+/** Запись: POST/PATCH в тот же маршрут API, права проверяет сам маршрут */
+export type ApiSender = (method: WriteMethod, path: string, body: unknown) => Promise<CallResult>;
 export interface ToolContext {
   call: ApiCaller;
+  send: ApiSender;
   token: { id: string; workspaceId: string; memberId: string; readOnly: boolean; sections: string[] | null; canPost: boolean };
 }
 
@@ -24,6 +27,10 @@ const limitArg = z.number().int().min(1).max(MAX_LIMIT).optional().describe(`Pag
 const offsetArg = z.number().int().min(0).optional().describe('Rows to skip / Сколько строк пропустить');
 const uuidArg = (what: string) => z.string().uuid().describe(what);
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+/** Десятичное число строкой, как в схемах @gr8r/shared: "2.5" */
+const decimalArg = z.union([z.string().regex(/^-?\d+(\.\d+)?$/), z.number().finite()]);
+/** Типы документов, которые агент создаёт черновиком через MCP (остальные — в своих разделах) */
+const MCP_DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'supplier_order', 'receipt'] as const;
 
 /** JSON-текст результата с обрезкой длинных списков */
 export function toText(data: unknown, max = MCP_MAX_CHARS): string {
@@ -69,8 +76,10 @@ function titleOf(row: Record<string, unknown>, field: string): string {
 const page = (limit?: number, offset?: number) => ({ limit: limit ?? DEFAULT_LIMIT, offset: offset ?? 0 });
 
 export function registerTools(server: McpServer, ctx: ToolContext) {
-  const { call } = ctx;
+  const { call, send } = ctx;
   const ro = { readOnlyHint: true, openWorldHint: false } as const;
+  /** Аннотация записи: destructiveHint — только у действия, меняющего остатки и статусы необратимо */
+  const rw = (destructive: boolean) => ({ readOnlyHint: false, destructiveHint: destructive, idempotentHint: false, openWorldHint: false }) as const;
 
   server.registerTool(
     'whoami',
@@ -231,4 +240,158 @@ export function registerTools(server: McpServer, ctx: ToolContext) {
     },
     async ({ report, params }) => answer(await call(REPORTS[report], params ?? {})),
   );
+
+  /* ---------- запись (задача 1287, docs/architecture/mcp.md, «Запись») ----------
+     Инструменты записи регистрируются только токену не только для чтения: у read_only их нет в tools/list.
+     Каждый вызов — обычный POST/PATCH маршрута API: роль, разделы токена, модуль и can_post проверяет сам маршрут. */
+  if (!ctx.token.readOnly) {
+    server.registerTool(
+      'create_task',
+      {
+        description:
+          'Create a task in a project (title, description, assignee, status, priority, due date) / Создать задачу в проекте (название, описание, исполнитель, статус, приоритет, срок)',
+        inputSchema: {
+          projectId: uuidArg('Project id / Id проекта'),
+          title: z.string().trim().min(1).max(500).describe('Task title / Название задачи'),
+          description: z.string().max(100_000).optional().describe('Description (plain text or safe HTML) / Описание'),
+          assigneeId: uuidArg('Assignee member id / Id исполнителя').nullish(),
+          status: z.string().min(1).max(32).optional().describe('Status key, default todo / Статус, по умолчанию todo'),
+          priority: z.number().int().min(1).max(10).nullish().describe('Priority 1–10 / Приоритет'),
+          dueDate: isoDate.nullish().describe('Due date, YYYY-MM-DD / Срок'),
+        },
+        annotations: rw(false),
+      },
+      async ({ projectId, title, description, assigneeId, status, priority, dueDate }) =>
+        answer(await send('POST', '/tasks', { projectId, title, description, assigneeId, status, priority, dueDate })),
+    );
+
+    server.registerTool(
+      'update_task',
+      {
+        description: 'Update a task: title, status, assignee, priority or due date / Изменить задачу: название, статус, исполнитель, приоритет или срок',
+        inputSchema: {
+          id: uuidArg('Task id / Id задачи'),
+          title: z.string().trim().min(1).max(500).optional().describe('New title / Новое название'),
+          status: z.string().min(1).max(32).optional().describe('Status key / Статус'),
+          assigneeId: uuidArg('Assignee member id, null to clear / Id исполнителя, null — снять').nullish(),
+          priority: z.number().int().min(1).max(10).nullish().describe('Priority 1–10, null to clear / Приоритет, null — снять'),
+          dueDate: isoDate.nullish().describe('Due date, YYYY-MM-DD, null to clear / Срок, null — снять'),
+        },
+        annotations: rw(false),
+      },
+      async ({ id, title, status, assigneeId, priority, dueDate }) =>
+        answer(await send('PATCH', `/tasks/${id}`, { title, status, assigneeId, priority, dueDate })),
+    );
+
+    server.registerTool(
+      'add_comment',
+      {
+        description: 'Add a comment to a task / Добавить комментарий к задаче',
+        inputSchema: {
+          taskId: uuidArg('Task id / Id задачи'),
+          body: z.string().trim().min(1).max(20_000).describe('Comment text / Текст комментария'),
+        },
+        annotations: rw(false),
+      },
+      async ({ taskId, body }) => answer(await send('POST', '/comments', { taskId, body })),
+    );
+
+    server.registerTool(
+      'create_deal',
+      {
+        description:
+          'Create a deal in CRM (name, company, amount, pipeline and stage, close date) / Создать сделку в CRM (название, контрагент, сумма, воронка и этап, дата закрытия)',
+        inputSchema: {
+          name: z.string().trim().min(1).max(200).describe('Deal name / Название сделки'),
+          companyId: uuidArg('Company (counterparty) id / Id контрагента').nullish(),
+          amount: decimalArg.optional().describe('Amount as a decimal string, e.g. "1500.00" / Сумма строкой'),
+          currency: z.string().length(3).optional().describe('Currency code (ISO 4217), default USD / Код валюты'),
+          pipelineId: uuidArg('Pipeline id, default is the main pipeline / Id воронки').nullish(),
+          stageId: uuidArg('Stage id, default is the first stage / Id этапа').nullish(),
+          closeDate: isoDate.nullish().describe('Expected close date, YYYY-MM-DD / Ожидаемая дата закрытия'),
+        },
+        annotations: rw(false),
+      },
+      async ({ name, companyId, amount, currency, pipelineId, stageId, closeDate }) =>
+        answer(await send('POST', '/deals', { name, companyId, amount, currency, pipelineId, stageId, closeDate })),
+    );
+
+    server.registerTool(
+      'update_deal',
+      {
+        description: 'Update a deal: name, amount, stage or close date / Изменить сделку: название, сумма, этап или дата закрытия',
+        inputSchema: {
+          id: uuidArg('Deal id / Id сделки'),
+          name: z.string().trim().min(1).max(200).optional().describe('New name / Новое название'),
+          amount: decimalArg.optional().describe('Amount as a decimal string / Сумма строкой'),
+          stageId: uuidArg('Stage id / Id этапа').nullish(),
+          closeDate: isoDate.nullish().describe('Expected close date, YYYY-MM-DD / Ожидаемая дата закрытия'),
+        },
+        annotations: rw(false),
+      },
+      async ({ id, name, amount, stageId, closeDate }) => answer(await send('PATCH', `/deals/${id}`, { name, amount, stageId, closeDate })),
+    );
+
+    server.registerTool(
+      'create_lead',
+      {
+        description: 'Create a lead (name, company name, phone, email, comment, source) / Создать лид (название, компания, телефон, email, комментарий, источник)',
+        inputSchema: {
+          name: z.string().trim().min(1).max(200).describe('Lead name / Название лида'),
+          companyName: z.string().trim().max(200).optional().describe('Company name / Название компании'),
+          phone: z.string().trim().max(50).optional().describe('Phone / Телефон'),
+          email: z.string().trim().max(254).optional().describe('Email / Электронная почта'),
+          comment: z.string().max(5000).optional().describe('Comment / Комментарий'),
+          source: z.string().trim().max(200).optional().describe('Source name (found or created in the dictionary) / Источник по названию'),
+        },
+        annotations: rw(false),
+      },
+      async ({ name, companyName, phone, email, comment, source }) =>
+        answer(await send('POST', '/leads', { name, companyName, phone, email, comment, source })),
+    );
+
+    server.registerTool(
+      'create_document',
+      {
+        description:
+          'Create a draft document (quote, customer order, invoice, supplier order or receipt) with optional lines; it stays a draft until posted / Создать черновик документа (КП, заказ покупателя, счёт, заказ поставщику или приход) со строками; до проведения он остаётся черновиком',
+        inputSchema: {
+          type: z.enum(MCP_DOCUMENT_TYPES).describe('Document type / Тип документа'),
+          counterpartyId: uuidArg('Counterparty (company) id / Id контрагента').nullish(),
+          organizationId: uuidArg('Own organization id, default is the main one / Id своей организации').nullish(),
+          warehouseId: uuidArg('Warehouse id / Id склада').nullish(),
+          dealId: uuidArg('Deal id the document is made from / Id сделки, из которой создан документ').nullish(),
+          date: isoDate.optional().describe('Document date, default today / Дата документа, по умолчанию сегодня'),
+          comment: z.string().max(5000).optional().describe('Comment / Комментарий'),
+          lines: z
+            .array(
+              z.object({
+                productId: uuidArg('Product id / Id товара'),
+                qty: decimalArg.describe('Quantity as a decimal string, e.g. "2.5" / Количество строкой'),
+                price: decimalArg.describe('Price as a decimal string, e.g. "1500.00" / Цена строкой'),
+              }),
+            )
+            .max(500)
+            .optional()
+            .describe('Document lines / Строки документа'),
+        },
+        annotations: rw(false),
+      },
+      async ({ type, counterpartyId, organizationId, warehouseId, dealId, date, comment, lines }) =>
+        answer(await send('POST', '/documents', { type, counterpartyId, organizationId, warehouseId, dealId, date, comment, lines })),
+    );
+
+    // проведение меняет нумерацию, остатки и финансы: только токену с правом «Проводить, оплачивать, удалять» (can_post)
+    if (ctx.token.canPost) {
+      server.registerTool(
+        'post_document',
+        {
+          description: 'Post a draft document: assign its number and apply stock and finance movements / Провести черновик документа: присвоить номер, изменить остатки и финансы',
+          inputSchema: { id: uuidArg('Document id / Id документа') },
+          annotations: rw(true),
+        },
+        async ({ id }) => answer(await send('POST', `/documents/${id}/post`, {})),
+      );
+    }
+  }
 }
