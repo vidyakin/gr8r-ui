@@ -69,6 +69,7 @@ import { leadFormRoutes, leadRoutes, leadStatusRoutes } from './routes/leads';
 import { dealFunnelRoutes, dealLostReasonRoutes, dealPipelineRoutes, dealStageRoutes } from './routes/pipelines';
 import { adCampaignRoutes, adExpenseRoutes, adReportRoutes, leadSourceRoutes } from './routes/ad';
 import { entityRoutes } from './routes/meta';
+import { mcpRoutes } from './mcp/server';
 import { dataSearchRoutes, recordsRoutes } from './routes/records';
 import {
   activityRoutes,
@@ -241,6 +242,8 @@ export function createApp(deps: AppDeps) {
   const config: AppConfig = { ...loadConfig(), ...deps.config };
   const hub = deps.hub ?? new Hub(databaseUrl());
   const tenantApi = buildTenantApi();
+  // MCP вызывает маршруты всего приложения (apps/api/src/mcp): ссылка ставится после сборки
+  let self: Hono<AppEnv> | null = null;
 
   const app = new Hono<AppEnv>()
     .use('*', async (c, next) => {
@@ -281,6 +284,7 @@ export function createApp(deps: AppDeps) {
     .route('/invites', inviteRoutes)
     .route('/admin', adminRoutes)
     .route('/hooks', hookRoutes)
+    .route('/mcp', mcpRoutes(() => self!))
     // WebSocket: сессия (cookie) → членство → подписка на события воркспейса. Воркспейс — ?workspace=<uuid> (браузер не ставит заголовки)
     .get(
       '/ws',
@@ -327,6 +331,7 @@ export function createApp(deps: AppDeps) {
     .route('/', tenantApi)
     .onError(onError)
     .notFound(onNotFound);
+  self = app as unknown as Hono<AppEnv>;
 
   return { app, hub };
 }

@@ -93,3 +93,17 @@ Claude Desktop (через `mcp-remote`, `claude_desktop_config.json`):
 разделом CRM находит контрагента и не содержит документов; `list_documents` тем же токеном — `isError` с
 `token_section_forbidden`; `get_entity` чужого id — `isError` (404); обрезка длинного ответа; все пути `ENTITY_KINDS` есть в
 `TENANT_PATHS`.
+
+## Фактическая реализация
+Соответствует контракту. Уточнения:
+- Код — `apps/api/src/mcp/{server,tools,call,kinds}.ts`; маршрут `/mcp` подключён в `createApp` после `/hooks`, ссылка на
+  приложение для внутренних вызовов передаётся функцией (`mcpRoutes(() => self)`).
+- Без Bearer (в том числе с одной cookie) — 401 `token_required` до `requireSession`.
+- `run_report`: `cash_flow`, `receivables`, `payables` (`/payments/reports/…`), `deal_funnel` (`/deal-funnel`), `sales_plan`
+  (`/sales-plan/analysis` — у `/sales-plan` нет корневого GET), `payment_calendar` (`/payment-calendar`), `production_release`
+  (`/production/reports/release`), `service_states` (`/services/reports/states`).
+- `search` по умолчанию ищет в видах `company, contact, product, deal, lead, project, task, document, contract, object` (5
+  записей на вид, параметр `kinds` сужает); заголовок записи — первое непустое из поля вида, `name`, `title`, `number`,
+  `subject`, `key`.
+- `whoami` возвращает `GET /auth/me` и ограничения токена (`readOnly`, `sections`, `canPost`).
+- Тесты — `apps/api/test/mcp.test.ts` (12).

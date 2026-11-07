@@ -61,6 +61,10 @@ export const agentTokens: Widen<typeof A> = {
     copyFailed: 'Не удалось скопировать токен',
     example: 'Пример запроса',
     close: 'Готово',
+    mcp: 'MCP-сервер (Claude, Cursor и другие агенты)',
+    mcpCopy: 'Копировать команду',
+    mcpCopied: 'Команда для Claude Code скопирована',
+    mcpHint: 'Адрес и готовая команда для Claude Code. В Cursor добавьте адрес и заголовок Authorization в mcp.json.',
   },
   service: {
     add: 'Добавить служебного сотрудника',

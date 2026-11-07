@@ -61,6 +61,10 @@ export const agentTokens = {
     copyFailed: 'Could not copy the token',
     example: 'Example of a request',
     close: 'Done',
+    mcp: 'MCP server (Claude, Cursor and other agents)',
+    mcpCopy: 'Copy command',
+    mcpCopied: 'Claude Code command copied',
+    mcpHint: 'Address and a ready command for Claude Code. In Cursor, add the address and the Authorization header to mcp.json.',
   },
   service: {
     add: 'Add service employee',
