@@ -75,6 +75,15 @@ function titleOf(row: Record<string, unknown>, field: string): string {
 
 const page = (limit?: number, offset?: number) => ({ limit: limit ?? DEFAULT_LIMIT, offset: offset ?? 0 });
 
+/** Одновременных внутренних запросов инструмента — не больше четырёх: пул соединений API общий, а пачка из десяти
+    видов занимала его целиком и запросы ждали друг друга (docs/architecture/mcp.md, «Лимиты ответа»). */
+const TOOL_CONCURRENCY = 4;
+const inChunks = async <T, R>(items: T[], fn: (item: T) => Promise<R>): Promise<R[]> => {
+  const out: R[] = [];
+  for (let i = 0; i < items.length; i += TOOL_CONCURRENCY) out.push(...(await Promise.all(items.slice(i, i + TOOL_CONCURRENCY).map(fn))));
+  return out;
+};
+
 export function registerTools(server: McpServer, ctx: ToolContext) {
   const { call, send } = ctx;
   const ro = { readOnlyHint: true, openWorldHint: false } as const;
@@ -109,15 +118,13 @@ export function registerTools(server: McpServer, ctx: ToolContext) {
     },
     async ({ query, kinds, limit }) => {
       const list = kinds?.length ? kinds : SEARCH_KINDS;
-      const groups = await Promise.all(
-        list.map(async kind => {
-          const k = ENTITY_KINDS[kind];
-          const r = await call(k.path, { q: query, limit: limit ?? 5 });
-          if (!r.ok) return null;
-          const items = ((r.data as { items?: Record<string, unknown>[] } | null)?.items ?? []).map(row => ({ id: row.id, title: titleOf(row, k.title) }));
-          return items.length ? { kind, items } : null;
-        }),
-      );
+      const groups = await inChunks(list, async kind => {
+        const k = ENTITY_KINDS[kind];
+        const r = await call(k.path, { q: query, limit: limit ?? 5 });
+        if (!r.ok) return null;
+        const items = ((r.data as { items?: Record<string, unknown>[] } | null)?.items ?? []).map(row => ({ id: row.id, title: titleOf(row, k.title) }));
+        return items.length ? { kind, items } : null;
+      });
       return ok({ groups: groups.filter(Boolean) });
     },
   );
