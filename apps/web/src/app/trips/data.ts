@@ -1,5 +1,6 @@
 /* Рейсы на клиенте (задача 1211, docs/architecture/trips.md): запросы и мутации. Ключи кэша — под ['ws', id, 'fleet', 'trips', …]:
    события fleet_trip, delivery и fleet_* сбрасывают их (app/data/realtime.ts). */
+import { withPrintCsp } from '@/lib/print-csp';
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Overload, RoutingSettings, TileConfig, StopKind, StopSource, StopStatus, TripCapacityMode, TripKind, TripLoad, TripStatus, VehicleLimits } from '@gr8r/shared';
@@ -181,7 +182,7 @@ export async function openTripPrint(ws: string, id: string): Promise<void> {
     const body = await r.json().catch(() => null);
     throw new Error(body?.error?.message ?? `Request failed (${r.status})`);
   }
-  const url = URL.createObjectURL(new Blob([await r.text()], { type: 'text/html;charset=utf-8' }));
+  const url = URL.createObjectURL(new Blob([withPrintCsp(await r.text())], { type: 'text/html;charset=utf-8' }));
   const w = window.open(url, '_blank');
   if (w) w.addEventListener('load', () => w.print());
 }
@@ -197,7 +198,7 @@ export async function openTransportWaybill(ws: string, scope: TnScope): Promise<
   const w = await call<{ id: string }>(ws, 'POST', '/trips/tn', scope);
   const r = await fetch(`${API_BASE()}/trips/tn/${w.id}/print`, { credentials: 'include', headers: { 'X-Workspace-Id': ws } });
   if (!r.ok) throw new Error(`Request failed (${r.status})`);
-  const url = URL.createObjectURL(new Blob([await r.text()], { type: 'text/html;charset=utf-8' }));
+  const url = URL.createObjectURL(new Blob([withPrintCsp(await r.text())], { type: 'text/html;charset=utf-8' }));
   const win = window.open(url, '_blank');
   if (win) win.addEventListener('load', () => win.print());
 }

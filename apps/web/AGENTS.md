@@ -42,6 +42,8 @@
 ## Частые ошибки
 - Строка в JSX без `t()` или ключ только в `en`.
 - Нативный `<Input type="date">` вместо `DateInput` — падает `src/lib/no-native-date.test.ts`.
+- `innerHTML`/`dangerouslySetInnerHTML` с данными пользователя без очистки (`cleanRichText`, DOMPurify) — хранимый XSS.
+- Окно печати из HTML ответа API (`blob:`, `document.write`) без `withPrintCsp` — падает `src/lib/print-csp-guard.test.ts`.
 - Свой форматтер числа через `toFixed` вместо `i18n/format.ts`.
 - Новый раздел добавлен в роутер, но не в `SECTIONS` — нет в навигации и крошках.
 - Экран изменён, а статья в `docs/user/` и её `verified` нет — `bun run docs:check` покажет её устаревшей.

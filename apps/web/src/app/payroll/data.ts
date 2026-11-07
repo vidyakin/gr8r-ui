@@ -1,5 +1,6 @@
 /* Зарплата на клиенте (задача 1184): начисление, ведомость, кадровые данные, справочники, отчёты и расчётный листок.
    Ключи — под ['ws', id, 'docs', 'payroll', …]: события документов инвалидируют их вместе с остальными документами. */
+import { withPrintCsp } from '@/lib/print-csp';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { DocumentStatus } from '@gr8r/shared';
 import { API_BASE, ok } from '../data/api';
@@ -246,7 +247,7 @@ export function usePayrollApi() {
     openPrint: async (path: string) => {
       const res = await fetch(`${API_BASE()}${path}`, { credentials: 'include', headers: { 'X-Workspace-Id': ws } });
       if (!res.ok) await ok(res);
-      window.open(URL.createObjectURL(new Blob([await res.text()], { type: 'text/html;charset=utf-8' })), '_blank');
+      window.open(URL.createObjectURL(new Blob([withPrintCsp(await res.text())], { type: 'text/html;charset=utf-8' })), '_blank');
     },
   };
 }

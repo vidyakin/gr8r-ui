@@ -1,5 +1,6 @@
 /* Деньги на клиенте (задача 1174б): оплаты, кассы, статьи ДДС, остатки, отчёты и взаиморасчёты.
    Запросы лежат под ['ws', id, 'docs', 'money', …]: события документов инвалидируют их вместе с остальными документами. */
+import { withPrintCsp } from '@/lib/print-csp';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { DocumentStatus, PaymentLineInput, PaymentState } from '@gr8r/shared';
 import { API_BASE, ok } from '../data/api';
@@ -298,7 +299,8 @@ export function usePrintOpener() {
   return async (path: string) => {
     const res = await fetch(`${API_BASE()}${path}`, { credentials: 'include', headers: { 'X-Workspace-Id': ws } });
     if (!res.ok) throw new Error(`${res.status}`);
-    const url = URL.createObjectURL(new Blob([await res.text()], { type: 'text/html;charset=utf-8' }));
+    // blob: живёт на origin приложения и теряет CSP ответа — запрет скриптов вставляем в саму страницу
+    const url = URL.createObjectURL(new Blob([withPrintCsp(await res.text())], { type: 'text/html;charset=utf-8' }));
     window.open(url, '_blank');
   };
 }

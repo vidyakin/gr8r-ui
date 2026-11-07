@@ -1,5 +1,6 @@
 /* Виды цен и прайс-листы на клиенте (задача 1178). Ключи — под ['ws', id, 'docs', 'pricing', …]:
    события документов, товаров и видов цен инвалидируют их вместе с остальными документами. */
+import { withPrintCsp } from '@/lib/print-csp';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { DocumentStatus } from '@gr8r/shared';
 import { API_BASE, ok } from '../data/api';
@@ -259,7 +260,7 @@ export function usePricingApi() {
     openPrint: async (p: PriceListParams) => {
       const res = await fetch(`${API_BASE()}/pricing/price-list/print?${qs(p)}`, { credentials: 'include', headers: { 'X-Workspace-Id': ws } });
       if (!res.ok) await ok(res);
-      window.open(URL.createObjectURL(new Blob([await res.text()], { type: 'text/html;charset=utf-8' })), '_blank');
+      window.open(URL.createObjectURL(new Blob([withPrintCsp(await res.text())], { type: 'text/html;charset=utf-8' })), '_blank');
     },
   };
 }

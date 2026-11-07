@@ -1,8 +1,8 @@
 /* Исходящие HTTP-запросы узла «HTTP-запрос» с защитой от SSRF: только http(s), без учётных данных в адресе, имя хоста
    и все его адреса из DNS не должны быть частными/служебными, редиректы идут вручную с той же проверкой на каждом шаге.
    Таймаут и лимит размера ответа обязательны. Временные сбои (сеть, таймаут, 408/429/5xx) — TransientError: шаг повторится.
-   Ограничение: между проверкой DNS и подключением адрес теоретически может смениться (DNS rebinding) — полностью это закрывает
-   только исходящий прокси/фаервол на уровне сети. */
+   DNS rebinding: подключение идёт к уже проверенному адресу (IP подставляется в URL, Host и имя TLS — исходные, сертификат
+   проверяется по имени хоста), поэтому второй DNS-запрос в момент подключения ничего не меняет. */
 import { lookup } from 'node:dns/promises';
 import { isForbiddenHostname, isIpLiteral, isPrivateAddress, TransientError, type HttpRequest, type HttpResult } from '@gr8r/shared';
 
@@ -27,6 +27,11 @@ const DROP_HEADERS = new Set(['host', 'content-length', 'connection', 'transfer-
 
 /** Бросает обычную Error, если адрес запрещён. Возвращает разобранный URL */
 export async function assertPublicUrl(raw: string, o: Pick<HttpOptions, 'allowPrivate' | 'resolve'>): Promise<URL> {
+  return (await resolvePublic(raw, o)).url;
+}
+
+/** Проверенный адрес назначения: URL и IP, к которому подключаться (null — хост уже IP или проверка отключена) */
+export async function resolvePublic(raw: string, o: Pick<HttpOptions, 'allowPrivate' | 'resolve'>): Promise<{ url: URL; address: string | null }> {
   let url: URL;
   try {
     url = new URL(raw);
@@ -35,11 +40,11 @@ export async function assertPublicUrl(raw: string, o: Pick<HttpOptions, 'allowPr
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('Only http and https URLs are allowed');
   if (url.username || url.password) throw new Error('Credentials in the URL are not allowed');
-  if (o.allowPrivate) return url;
+  if (o.allowPrivate) return { url, address: null };
   const host = url.hostname.replace(/^\[|\]$/g, '');
   if (isIpLiteral(host)) {
     if (isPrivateAddress(host)) throw new Error('Requests to private or local addresses are blocked');
-    return url;
+    return { url, address: null };
   }
   if (isForbiddenHostname(host)) throw new Error('Requests to private or local addresses are blocked');
   let addrs: string[];
@@ -52,7 +57,15 @@ export async function assertPublicUrl(raw: string, o: Pick<HttpOptions, 'allowPr
   }
   if (!addrs.length) throw new Error(`Host not found: ${host}`);
   if (addrs.some(isPrivateAddress)) throw new Error('Requests to private or local addresses are blocked');
-  return url;
+  return { url, address: addrs[0]! };
+}
+
+/** Запрос к закреплённому адресу: IP в URL, исходный Host и имя TLS (SNI и проверка сертификата по имени хоста) */
+export function pinnedRequest(url: URL, address: string | null): { target: URL; host: string | null; serverName: string | null } {
+  if (!address) return { target: url, host: null, serverName: null };
+  const target = new URL(url.toString());
+  target.hostname = address.includes(':') ? `[${address}]` : address;
+  return { target, host: url.host, serverName: url.protocol === 'https:' ? url.hostname : null };
 }
 
 async function readLimited(res: Response, max: number): Promise<string> {
@@ -76,14 +89,22 @@ async function readLimited(res: Response, max: number): Promise<string> {
 export async function guardedFetch(req: HttpRequest, o: HttpOptions = defaultHttpOptions()): Promise<HttpResult> {
   let method = req.method.toUpperCase();
   let body = req.body;
-  let url = await assertPublicUrl(req.url, o);
+  let { url, address } = await resolvePublic(req.url, o);
   const headers: Record<string, string> = { 'user-agent': 'gr8r-automation/1.0' };
   for (const [k, v] of Object.entries(req.headers)) if (!DROP_HEADERS.has(k.toLowerCase())) headers[k.toLowerCase()] = v;
 
   for (let hop = 0; ; hop++) {
     let res: Response;
     try {
-      res = await fetch(url, { method, headers, body: method === 'GET' || method === 'HEAD' ? undefined : body, redirect: 'manual', signal: AbortSignal.timeout(o.timeoutMs) });
+      const pin = pinnedRequest(url, address);
+      res = await fetch(pin.target, {
+        method,
+        headers: pin.host ? { ...headers, host: pin.host } : headers,
+        body: method === 'GET' || method === 'HEAD' ? undefined : body,
+        redirect: 'manual',
+        signal: AbortSignal.timeout(o.timeoutMs),
+        ...(pin.serverName ? { tls: { serverName: pin.serverName } } : {}),
+      } as RequestInit);
     } catch (e) {
       const name = (e as Error).name;
       throw new TransientError(name === 'TimeoutError' || name === 'AbortError' ? `Request timed out after ${o.timeoutMs} ms` : `Network error: ${(e as Error).message}`);
@@ -91,7 +112,7 @@ export async function guardedFetch(req: HttpRequest, o: HttpOptions = defaultHtt
     if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
       await res.body?.cancel();
       if (hop >= o.maxRedirects) throw new Error('Too many redirects');
-      url = await assertPublicUrl(new URL(res.headers.get('location')!, url).toString(), o);
+      ({ url, address } = await resolvePublic(new URL(res.headers.get('location')!, url).toString(), o));
       if (res.status === 303 || ((res.status === 301 || res.status === 302) && method === 'POST')) {
         method = 'GET';
         body = undefined;

@@ -1,6 +1,7 @@
 /* Экран продукции: шапка (код, тип, единица, партия, накладные), дерево спецификации с раскрытием полуфабрикатов
    (материал / полуфабрикат / работа) и итог внизу. Любая правка строки пересчитывает дерево и итоги мгновенно:
    расчёт идёт на клиенте функцией computeBomCost, сервер подтверждает запись следом. */
+import { withPrintCsp } from '@/lib/print-csp';
 import * as React from 'react';
 import { handleNumericArrow } from '@/lib/numeric-step';
 import { Link, useNavigate, useParams } from 'react-router';
@@ -104,13 +105,17 @@ export function printSpec(ws: string, itemId: string, form: 'short' | 'expanded'
     })
     .then(html => {
       win.document.open();
-      win.document.write(html);
+      win.document.write(withPrintCsp(html)); // окно на origin приложения: скрипты печатной формы запрещены
       win.document.close();
       win.focus();
       setTimeout(() => win.print(), 300);
     })
     .catch(e => {
-      win.document.write(`<p style="font:13px sans-serif">${e instanceof Error ? e.message : String(e)}</p>`);
+      // текст ошибки приходит с сервера — только как текст, не как HTML
+      const p = win.document.createElement('p');
+      p.style.font = '13px sans-serif';
+      p.textContent = e instanceof Error ? e.message : String(e);
+      win.document.body.replaceChildren(p);
     });
 }
 

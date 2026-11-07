@@ -58,8 +58,8 @@ import {
 import { z } from 'zod';
 import { crud, ctxOf, validationHook } from '../crud';
 import { AppError, forbidden, notFound } from '../errors';
-import { hasRole } from '../middleware';
-import { assertObjectRef } from '@gr8r/db';
+import { hasRole, requireRole } from '../middleware';
+import { assertObjectRef, sanitizeRichText } from '@gr8r/db';
 import { customForCreate, customForUpdate } from '../meta/service';
 import { addActivity, assertTasksExist, favoriteFilter, favoriteSet, nextOrder, notify, setFavorite } from './helpers';
 
@@ -195,6 +195,8 @@ export const taskRoutes = crud({
       sortOrder: body.sortOrder ?? (await nextOrder(ctx, tasks, eq(tasks.projectId, body.projectId))),
       createdBy: ctx.memberId,
       completedAt: body.status === 'done' ? new Date() : null,
+      // описание вставляется в интерфейс как HTML: в базу — только разрешённая разметка (хранимый XSS)
+      description: sanitizeRichText(body.description ?? ''),
       ...(await customForCreate(ctx, 'task', body.custom)),
     };
   },
@@ -205,6 +207,7 @@ export const taskRoutes = crud({
   },
   prepareUpdate: async (ctx, existing, body) => {
     const patch: Record<string, unknown> = { ...(await customForUpdate(ctx, 'task', existing.custom, body.custom, existing.id)) };
+    if (body.description !== undefined) patch.description = sanitizeRichText(body.description);
     if (body.deps) {
       if (body.deps.includes(existing.id)) throw new AppError(422, 'invalid_dependency', 'A task cannot depend on itself');
       await assertTasksExist(ctx, body.deps);
@@ -281,7 +284,7 @@ export const commentRoutes = crud({
       return { ...r, re };
     });
   },
-}).post('/:id/reactions', zValidator('param', idParam, validationHook), zValidator('json', reactionBody, validationHook), async c => {
+}).post('/:id/reactions', requireRole('member'), zValidator('param', idParam, validationHook), zValidator('json', reactionBody, validationHook), async c => {
   // Переключатель реакции текущего участника: есть — снимает, нет — ставит
   const ctx = ctxOf(c);
   const { id } = c.req.valid('param');

@@ -15,7 +15,7 @@
   "dependencies": {
     "@gr8r/db": "workspace:*",
     "@gr8r/shared": "workspace:*",
-    "drizzle-orm": "^0.44.0",
+    "drizzle-orm": "^0.45.4",
     "playwright-core": "1.56.1"
   }
 }

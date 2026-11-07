@@ -1,5 +1,6 @@
 /* Печать договора-заявки наёмному перевозчику (задача 1223, docs/architecture/transport-orders.md, п. 8 «Экспедирование»):
    страница с сервера открывается в новой вкладке и сразу печатается, как маршрутный лист рейса (../trips/data.ts). */
+import { withPrintCsp } from '@/lib/print-csp';
 import { API_BASE } from '../data/api';
 
 export async function openCarrierContract(ws: string, tripId: string): Promise<void> {
@@ -8,7 +9,7 @@ export async function openCarrierContract(ws: string, tripId: string): Promise<v
     const body = await r.json().catch(() => null);
     throw new Error(body?.error?.message ?? `Request failed (${r.status})`);
   }
-  const url = URL.createObjectURL(new Blob([await r.text()], { type: 'text/html;charset=utf-8' }));
+  const url = URL.createObjectURL(new Blob([withPrintCsp(await r.text())], { type: 'text/html;charset=utf-8' }));
   const w = window.open(url, '_blank');
   if (w) w.addEventListener('load', () => w.print());
 }

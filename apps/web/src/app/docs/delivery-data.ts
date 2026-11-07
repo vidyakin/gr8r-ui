@@ -1,5 +1,6 @@
 /* Доставка на клиенте (задача 1100): способы, доставка документа, список, «мои доставки», отчёт, курьеры.
    Ключи кэша под ['ws', id, 'docs', 'delivery', …]: события delivery / document обновляют их вместе с журналами. */
+import { withPrintCsp } from '@/lib/print-csp';
 import { useQuery } from '@tanstack/react-query';
 import type { DeliveryKind, DeliveryRateInput, DeliveryStatus } from '@gr8r/shared';
 import { API_BASE } from '../data/api';
@@ -145,7 +146,7 @@ export async function openRouteSheet(ws: string, courierId: string | null, date:
     const body = await r.json().catch(() => null);
     throw new Error(body?.error?.message ?? `Request failed (${r.status})`);
   }
-  const url = URL.createObjectURL(new Blob([await r.text()], { type: 'text/html;charset=utf-8' }));
+  const url = URL.createObjectURL(new Blob([withPrintCsp(await r.text())], { type: 'text/html;charset=utf-8' }));
   const w = window.open(url, '_blank');
   if (w) w.addEventListener('load', () => w.print());
 }

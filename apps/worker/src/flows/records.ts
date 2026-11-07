@@ -25,6 +25,7 @@ import {
   tasks,
   assignLead as assignLeadService,
   insertLead,
+  sanitizeRichText,
   type Db,
   dealLostReasons,
   moveDeal,
@@ -256,7 +257,7 @@ export async function createTask(
       key: `${p.key}-${p.n}`,
       projectId,
       title: a.title.trim(),
-      description: a.description ?? '',
+      description: sanitizeRichText(a.description ?? ''), // описание из шаблона автоматизации — та же очистка HTML, что в API
       status,
       assigneeId: a.assigneeId || null,
       priority: a.priority ?? null,

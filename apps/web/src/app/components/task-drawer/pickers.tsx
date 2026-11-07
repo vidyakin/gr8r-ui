@@ -1,5 +1,6 @@
 /* Поповеры карточки задачи — порт popList / поповера date из overlays/popovers.js, autosize и rte из actions/actions.js.
    ListPopover — список с поиском (labels, deps, recur, estimate, project, subassignee), DatePopover — быстрые даты + календарь. */
+import DOMPurify from 'dompurify';
 import * as React from 'react';
 import { Check } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger, toast } from '@/components/ui';
@@ -174,6 +175,17 @@ export const AutoTextarea = React.forwardRef<HTMLTextAreaElement, React.Componen
   );
 });
 
+/** Безопасный HTML описания: разметка панели форматирования, ссылки только http(s)/mailto — как sanitizeRichText на сервере */
+export function cleanRichText(html: string): string {
+  return html
+    ? DOMPurify.sanitize(html, {
+        ALLOWED_TAGS: ['b', 'strong', 'i', 'em', 'u', 's', 'strike', 'ul', 'ol', 'li', 'h4', 'p', 'div', 'br', 'a', 'blockquote', 'code', 'pre'],
+        ALLOWED_ATTR: ['href', 'target', 'rel'],
+        ALLOWED_URI_REGEXP: /^(?:https?:|mailto:)/i,
+      })
+    : html;
+}
+
 /** Редактор описания (data-rte в оригинале): contenteditable + execCommand, панель форматирования */
 export function RichText({ html, onChange, labelledBy, className }: { html: string; onChange: (html: string) => void; labelledBy: string; className?: string }) {
   const tt = useT();
@@ -181,7 +193,10 @@ export function RichText({ html, onChange, labelledBy, className }: { html: stri
   // Содержимое ставим вручную, чтобы не сбрасывать курсор при наборе
   React.useLayoutEffect(() => {
     const el = ref.current;
-    if (el && el.innerHTML !== html) el.innerHTML = html;
+    if (!el) return;
+    // описание приходит с сервера и от других участников: перед вставкой — та же разметка, что умеет панель (хранимый XSS)
+    const safe = cleanRichText(html);
+    if (el.innerHTML !== safe) el.innerHTML = safe;
   }, [html]);
   return (
     <div

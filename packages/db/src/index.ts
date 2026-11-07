@@ -92,3 +92,4 @@ export * from './estimates';
 export * from './object-forecast';
 export * from './object-reports';
 export * from './contract-print';
+export { sanitizeRichText } from './rich-text';

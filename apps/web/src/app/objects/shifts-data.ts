@@ -2,6 +2,7 @@
    сменный отчёт объёмов, табель за период, бейджи и рабочие без входа.
    Запросы живут под ['ws', id, 'objects', …] и ['ws', id, 'shifts', …]: событие object_shift.* сбрасывает их через realtime.
    Ставки и суммы сервер отдаёт только owner/admin — остальным приходит null. */
+import { withPrintCsp } from '@/lib/print-csp';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { API_BASE, ok } from '../data/api';
 import { call, useWsId } from '../meta/data';
@@ -236,5 +237,5 @@ export async function openBadgesPrint(ws: string, ids?: string[]): Promise<void>
   const qs = ids?.length ? `?ids=${ids.join(',')}` : '';
   const res = await fetch(`${API_BASE()}/members/badges/print${qs}`, { credentials: 'include', headers: { 'X-Workspace-Id': ws } });
   if (!res.ok) await ok(res);
-  window.open(URL.createObjectURL(new Blob([await res.text()], { type: 'text/html;charset=utf-8' })), '_blank');
+  window.open(URL.createObjectURL(new Blob([withPrintCsp(await res.text())], { type: 'text/html;charset=utf-8' })), '_blank');
 }

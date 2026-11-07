@@ -85,6 +85,16 @@
   `docker compose config` на этом ключе падает). CLI — в контейнере `api` (там весь код и `ADMIN_DATABASE_URL`), `./archives` смонтирован в него.
   Цепочка IP: прокси Coolify → nginx → api, `TRUST_PROXY=1`. Что Traefik Coolify не доверяет входящему `X-Forwarded-For` (поведение по
   умолчанию, `forwardedHeaders` без `insecure`), на сервере не проверялось — проверка в README. В Coolify не разворачивался.
+- **Заголовки безопасности** — в `docker/nginx.conf` (отдаёт и HSTS: TLS снимает Caddy или прокси Coolify). У приложения CSP: скрипты
+  только свои (`script-src 'self'`), стили свои и inline, шрифты Google, картинки `https:`/`data:`/`blob:`, `frame-ancestors 'none'`;
+  плюс `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy` (камера — сканер бейджей, геолокация — экран водителя).
+  У ответов API свой CSP (печатные формы `default-src 'none'`), nginx его не перекрывает. `add_header` в `location` отменяет заголовки
+  уровня `server` — набор повторён в каждом `location`. Проверено: прод-сборка веба под этим CSP (вход, главная, карточка задачи, печать
+  счёта) — нарушений нет; в nginx-контейнере не поднималось. Окна печати (`blob:`/`document.write` на origin приложения) получают тот же
+  запрет скриптов тегом `<meta>` — `apps/web/src/lib/print-csp.ts`, сторож `print-csp-guard.test.ts`.
+- **HTML описаний** (описание задачи вставляется как HTML): очистка по белому списку тегов панели форматирования на записи
+  (`sanitizeRichText`, `packages/db/src/rich-text.ts` — API и узел «Создать задачу») и DOMPurify перед вставкой в редакторе
+  (`cleanRichText`, `task-drawer/pickers.tsx`). Тест — `apps/api/test/security.test.ts`.
 - `docker-compose.yml` — для локального запуска всего стека (порты открыты, пароли по умолчанию), на сервер его не ставить.
 - Проверено локально (`DOMAIN=localhost`, Docker Desktop): сборка образов, миграции с нуля, вход через Caddy, CLI оператора. На реальном VPS с
   настоящим доменом не проверялось.

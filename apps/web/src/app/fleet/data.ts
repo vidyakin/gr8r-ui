@@ -1,5 +1,6 @@
 /* Автопарк на клиенте (задача 1210, docs/architecture/fleet.md): запросы и мутации. Ключи кэша под ['ws', id, 'fleet', …]:
    события fleet_* обновляют их (app/data/realtime.ts), документы «Списание» от ремонтов — через ключи документов. */
+import { withPrintCsp } from '@/lib/print-csp';
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { DocTermState, FleetDocKind, FineStatus, RepairKind, RepairStatus, ServiceDue, VehicleKind, VehicleStatus, WaybillFuelResult, WaybillStatus, FuelType } from '@gr8r/shared';
@@ -270,7 +271,7 @@ export async function openWaybillPrint(ws: string, id: string): Promise<void> {
     const body = await r.json().catch(() => null);
     throw new Error(body?.error?.message ?? `Request failed (${r.status})`);
   }
-  const url = URL.createObjectURL(new Blob([await r.text()], { type: 'text/html;charset=utf-8' }));
+  const url = URL.createObjectURL(new Blob([withPrintCsp(await r.text())], { type: 'text/html;charset=utf-8' }));
   const w = window.open(url, '_blank');
   if (w) w.addEventListener('load', () => w.print());
 }
