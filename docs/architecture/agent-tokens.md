@@ -11,7 +11,8 @@
 - `prefix text` — первые 12 символов токена для показа в списке (`gr8r_ab12cd3`);
 - `read_only bool not null default true`;
 - `sections text[]` — `null` = все разделы сотрудника; иначе подмножество `POSITION_SECTIONS`;
-- `can_post bool not null default false` — право проводить, оплачивать, удалять (используется инструментами MCP, задача 1287);
+- `can_post bool not null default false` — право проводить, оплачивать, удалять (проверяется в `tenant()` для HTTP-запросов,
+  задачи 1287);
 - `expires_at timestamptz null`, `last_used_at timestamptz null`, `revoked_at timestamptz null`, `created_at`.
 
 `events.api_token_id uuid null` (без FK) с `default nullif(current_setting('app.api_token_id', true), '')::uuid` — событие,
@@ -36,12 +37,15 @@ read_only, sections, can_post` для неотозванного и неистё
 3. `tenant()`: заголовок `X-Workspace-Id` обязан совпасть с воркспейсом токена, участник — с `member_id` токена,
    иначе 403 `token_forbidden`. Выставляет `app.api_token_id`.
 4. `read_only` → любой метод кроме GET/HEAD/OPTIONS → 403 `token_read_only`.
-5. Разделы токена: `TOKEN_PATH_SECTIONS` (`@gr8r/shared`) — **каждый** корень `TENANT_PATHS` либо сопоставлен списку
+5. `can_post` (`isTokenPostingRequest` из `@gr8r/shared`): запрос, который проводит, оплачивает или удаляет (`DELETE`,
+   `POST …/post`, `…/unpost`, `…/cancel`, создание оплаты), без этого права получает 403 `token_cannot_post`. Работает и в
+   обход MCP: `DELETE /documents/:id` и `POST /documents/:id/post` по токену без `can_post` тоже отказывают.
+6. Разделы токена: `TOKEN_PATH_SECTIONS` (`@gr8r/shared`) — **каждый** корень `TENANT_PATHS` либо сопоставлен списку
    разделов, либо внесён в `TOKEN_OPEN_PATHS` (участники, уведомления, справочники единиц и т. п.). Тест проверяет полноту.
    Путь с разделами пропускается, если пересечение с `sections` токена не пусто (`/documents` → trade, stock, finance,
    services, production…). Иначе 403 `token_section_forbidden`. В отличие от `SECTION_OF_API_PATH` (должности, только пути
    одного раздела) здесь закрыты и общие пути: интерфейс токеном не пользуется.
-6. Должности сотрудника (`requireSection`) и роль действуют как обычно — токен не может дать больше, чем есть у сотрудника.
+7. Должности сотрудника (`requireSection`) и роль действуют как обычно — токен не может дать больше, чем есть у сотрудника.
 
 ## API `/api-tokens` (только по cookie)
 - `GET /api-tokens` — admin/owner: все токены воркспейса; остальные — свои. Элемент: `id, name, prefix, memberId,
@@ -74,8 +78,10 @@ read_only, sections, can_post` для неотозванного и неистё
   токен деактивированного участника или участника без привязанного пользователя не действует (401 `token_invalid`).
 - Проверка пути в `requireSession` идёт по `moduleOfApiPath` (корни `TENANT_PATHS` = ключи `MODULE_OF_PATH`), а `/api-tokens`
   исключается явно; это избавляет middleware от импорта `TENANT_PATHS` из `app.ts` (циклическая зависимость).
-- Ограничения `read_only` и разделов токена проверяются внутри `tenant()` (после проверки воркспейса/участника), чтобы
-  не менять цепочку `buildTenantApi`. `can_post` в HTTP-маршрутах не проверяется: он используется инструментами MCP (задача 1287).
+- Ограничения `read_only`, `can_post` и разделов токена проверяются внутри `tenant()` (после проверки воркспейса/участника),
+  чтобы не менять цепочку `buildTenantApi` (`token_cannot_post`, `token_section_forbidden`).
+- Лимит частоты запросов токена (`API_TOKEN_RATE_LIMIT`, 120 в минуту по умолчанию) — в `requireSession`: 429
+  `token_rate_limited` с `Retry-After`; внутренние вызовы инструментов MCP не считаются (docs/architecture/mcp.md).
 - Создание токена с `sections: []` допустимо и означает «только открытые пути» (`TOKEN_OPEN_PATHS`), `null` — все разделы сотрудника.
 - Гость (`guest`) может выпускать и отзывать только свои токены; маршрут стоит на `requireRole('guest')`, запрет на запись
   для гостя (кроме `readOnly: true`) — в сервисе (`token_guest_write`).
