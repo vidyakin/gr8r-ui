@@ -112,9 +112,9 @@ export async function stockAging(db: Db, workspaceId: string, f: StockAgingFilte
       from layers
     )
     select a.warehouse_id, w.name as warehouse_name, a.product_id, p.name as product_name, p.sku, p.unit_code, p.category_id,
-           sum(a.qty)::numeric(18,3)::text as qty, round(sum(a.val), 2)::text as value,
+           sum(a.qty)::numeric(18,3)::text as qty, round(sum(a.val), 2)::numeric(18,2)::text as value,
            ${sql.join([0, 1, 2, 3, 4].map(b => sql.raw(`coalesce(sum(a.qty) filter (where a.b = ${b}), 0)::numeric(18,3)::text as q${b}`)), sql`, `)},
-           ${sql.join([0, 1, 2, 3, 4].map(b => sql.raw(`coalesce(round(sum(a.val) filter (where a.b = ${b}), 2), 0)::text as v${b}`)), sql`, `)}
+           ${sql.join([0, 1, 2, 3, 4].map(b => sql.raw(`coalesce(round(sum(a.val) filter (where a.b = ${b}), 2), 0)::numeric(18,2)::text as v${b}`)), sql`, `)}
     from aged a
     join products p on p.workspace_id = ${workspaceId}::uuid and p.id = a.product_id
     join warehouses w on w.workspace_id = ${workspaceId}::uuid and w.id = a.warehouse_id

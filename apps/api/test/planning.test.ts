@@ -96,7 +96,7 @@ describe('resources and calendars', () => {
     expect(items.find((h: any) => h.date === '2026-04-30')).toMatchObject({ kind: 'short', shortHours: '1.00' });
     expect(items.find((h: any) => h.date === '2026-05-01')).toMatchObject({ kind: 'off', shortHours: '0.00' });
     // сокращение нельзя нулевым
-    expect((await owner.post('/production/holidays', { date: '2026-04-29', kind: 'short', shortHours: 0 })).status).toBe(422);
+    expect((await owner.post('/production/holidays', { date: '2026-04-29', kind: 'short', shortHours: 0 })).status).toBe(400);
     const load = await owner.get('/production/load?from=2026-04-29&to=2026-05-01&rowType=resource');
     expect(load.body.holidays).toContain('2026-05-01');
     expect(load.body.shortDays).toEqual({ '2026-04-30': '1.00' });

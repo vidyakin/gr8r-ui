@@ -196,7 +196,7 @@ describe('cost of a unit', () => {
   test('material price source is a workspace setting (admin only); avg_cost falls back to the purchase price until stock exists', async () => {
     expect((await member.patch('/production/settings', { materialPriceSource: 'price' })).status).toBe(403);
     expect((await owner.patch('/production/settings', { materialPriceSource: 'bogus' })).status).toBe(400);
-    expect((await owner.get('/production/settings')).body).toEqual({ materialPriceSource: 'purchase', wastePriceSource: 'purchase' });
+    expect((await owner.get('/production/settings')).body).toEqual({ materialOvertransferPct: '0.00', materialPriceSource: 'purchase', wastePriceSource: 'purchase' });
     expect((await owner.patch('/production/settings', { materialPriceSource: 'price' })).body).toEqual({ materialPriceSource: 'price', wastePriceSource: 'purchase' });
     const r = await cost(table);
     expect(r.source).toBe('price');
