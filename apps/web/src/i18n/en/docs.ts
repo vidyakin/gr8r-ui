@@ -224,6 +224,36 @@ export const docs = {
     },
   },
 
+  /* ----------- коды и номенклатура контрагентов ----------- */
+  partner: {
+    codesTitle: 'Our code at the counterparty',
+    codesHint: 'The customer or supplier number the counterparty assigned to us, per our organization. Printed on the supplier order.',
+    noOrganizations: 'No organizations yet.',
+    codePlaceholder: 'Code',
+    codeSaved: 'Code saved',
+    codeCleared: 'Code removed',
+    defaultOrg: 'Default',
+    articlesTitle: 'Counterparty items',
+    articlesHint: 'How this counterparty names our products: its SKU and item name. Shown in purchase and sales document lines, printed on the supplier order, and used when picking products.',
+    colProduct: 'Product',
+    colArticle: 'Counterparty SKU',
+    colName: 'Name at counterparty',
+    colCompany: 'Counterparty',
+    articlePlaceholder: 'SKU',
+    namePlaceholder: 'Name',
+    addProduct: 'Add product',
+    pickProduct: 'Find a product to add',
+    noArticles: 'No items yet.',
+    noProductArticles: 'No counterparty has its own SKU for this product.',
+    saved: 'Saved',
+    removed: 'Removed',
+    remove: 'Remove {name}',
+    save: 'Save',
+    lineArticle: 'SKU {article}',
+    addCompany: 'Add counterparty',
+    pickCompany: 'Find a counterparty to add',
+  },
+
   /* ----------- реквизиты контрагента ----------- */
   requisites: {
     kind: 'Type',

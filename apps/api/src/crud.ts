@@ -42,6 +42,8 @@ export interface CrudOptions<T extends AnyTable, CS extends z.ZodType, US extend
   defaultSort?: string;
   /** Колонки для поиска ?q= */
   search?: PgColumn[];
+  /** Дополнительное условие поиска ?q=, объединяется с колонками через OR (например, по связанной таблице) */
+  searchExtra?: (term: string, q: z.output<QS>) => SQL | undefined;
   /** Фильтры списка из проверенного query */
   filters?: (q: z.output<QS>, ctx: Ctx) => (SQL | undefined)[];
   /** Постоянное ограничение видимости (например, уведомления только адресату) */
@@ -63,7 +65,7 @@ export interface CrudOptions<T extends AnyTable, CS extends z.ZodType, US extend
   decorate?: (ctx: Ctx, rows: Row<T>[]) => Promise<(Row<T> & E)[]>;
 }
 
-const escapeLike = (s: string) => s.replace(/[\\%_]/g, m => '\\' + m);
+export const escapeLike = (s: string) => s.replace(/[\\%_]/g, m => '\\' + m);
 
 /** Поля, не попадающие в патч/события вручную */
 const SERVER_FIELDS = ['id', 'workspaceId', 'createdAt'];
@@ -106,7 +108,7 @@ export function crud<T extends AnyTable, CS extends z.ZodType, US extends z.ZodT
 
   const baseWhere = (ctx: Ctx, q: ListQuery & AnyRec): SQL | undefined => {
     const conds: (SQL | undefined)[] = [o.scope?.(ctx), ...(o.filters?.(q as z.output<QS>, ctx) ?? [])];
-    if (q.q && o.search?.length) conds.push(or(...o.search.map(col => ilike(col, `%${escapeLike(q.q!)}%`))));
+    if (q.q && o.search?.length) conds.push(or(...o.search.map(col => ilike(col, `%${escapeLike(q.q!)}%`)), o.searchExtra?.(q.q, q as z.output<QS>)));
     if (hasArchive) {
       if (q.archived === 'exclude') conds.push(isNull(cols.archivedAt));
       else if (q.archived === 'only') conds.push(isNotNull(cols.archivedAt));

@@ -8,6 +8,8 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import {
   bankAccounts,
+  counterpartyCodes,
+  productPartnerArticles,
   renderDocumentHtml,
   documentServiceCost,
   processingOrderCost,
@@ -70,6 +72,8 @@ import {
   bankAccountCreate,
   batchQuery,
   bankAccountUpdate,
+  counterpartyCodeSet,
+  partnerArticleSet,
   basedOnCreate,
   costItemCreate,
   costItemQuery,
@@ -237,6 +241,105 @@ function bankAccountList(ownerTable: typeof companies | typeof organizations, ki
 
 export const companyBankRoutes = bankAccountList(companies, 'company', 'member');
 export const organizationBankRoutes = bankAccountList(organizations, 'organization', 'admin');
+
+/* ---------------- коды и номенклатура контрагентов ---------------- */
+
+const companyOrgParam = z.object({ id: uuid, organizationId: uuid });
+const companyProductParam = z.object({ id: uuid, productId: uuid });
+
+/** /companies/:id/codes, /companies/:id/articles: наш код у контрагента и его артикулы товаров (чтение — любой, запись — member+) */
+export const companyPartnerRoutes = new Hono<AppEnv>()
+  // по каждой нашей организации: код у контрагента (null — не задан)
+  .get('/:id/codes', zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    const [co] = await ctx.db.select({ id: companies.id }).from(companies).where(eq(companies.id, id)).limit(1);
+    if (!co) throw notFound('company');
+    const orgs = await ctx.db.select({ id: organizations.id, name: organizations.name, isDefault: organizations.isDefault }).from(organizations).where(isNull(organizations.archivedAt)).orderBy(desc(organizations.isDefault), asc(organizations.name));
+    const codes = await ctx.db.select({ organizationId: counterpartyCodes.organizationId, code: counterpartyCodes.code }).from(counterpartyCodes).where(eq(counterpartyCodes.companyId, id));
+    const byOrg = new Map(codes.map(x => [x.organizationId, x.code]));
+    const items = orgs.map(o => ({ organizationId: o.id, organizationName: o.name, isDefault: o.isDefault, code: byOrg.get(o.id) ?? null }));
+    return c.json({ items, total: items.length, limit: items.length, offset: 0 });
+  })
+  // задать код (пустой — удалить)
+  .put('/:id/codes/:organizationId', write, zValidator('param', companyOrgParam, validationHook), zValidator('json', counterpartyCodeSet, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const { id, organizationId } = c.req.valid('param');
+    const { code } = c.req.valid('json');
+    const [co] = await ctx.db.select({ id: companies.id }).from(companies).where(eq(companies.id, id)).limit(1);
+    if (!co) throw notFound('company');
+    const [org] = await ctx.db.select({ id: organizations.id }).from(organizations).where(eq(organizations.id, organizationId)).limit(1);
+    if (!org) throw notFound('organization');
+    if (!code) {
+      await ctx.db.delete(counterpartyCodes).where(and(eq(counterpartyCodes.companyId, id), eq(counterpartyCodes.organizationId, organizationId)));
+    } else {
+      await ctx.db
+        .insert(counterpartyCodes)
+        .values({ workspaceId: ctx.workspaceId, companyId: id, organizationId, code })
+        .onConflictDoUpdate({ target: [counterpartyCodes.workspaceId, counterpartyCodes.companyId, counterpartyCodes.organizationId], set: { code, updatedAt: new Date() } });
+    }
+    await recordEvent(ctx.db, { workspaceId: ctx.workspaceId, type: 'counterparty_code.updated', entity: 'counterparty_code', recordId: id, actorId: ctx.memberId, payload: { companyId: id, organizationId, cleared: !code } });
+    return c.json({ organizationId, code: code || null });
+  })
+  // артикулы товаров у контрагента (?q= по артикулу, наименованию у контрагента и нашему названию)
+  .get('/:id/articles', zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    const [co] = await ctx.db.select({ id: companies.id }).from(companies).where(eq(companies.id, id)).limit(1);
+    if (!co) throw notFound('company');
+    const items = await ctx.db
+      .select({ id: productPartnerArticles.id, companyId: productPartnerArticles.companyId, productId: productPartnerArticles.productId, productName: products.name, productSku: products.sku, article: productPartnerArticles.article, name: productPartnerArticles.name })
+      .from(productPartnerArticles)
+      .innerJoin(products, eq(products.id, productPartnerArticles.productId))
+      .where(eq(productPartnerArticles.companyId, id))
+      .orderBy(asc(products.name))
+      .limit(1000);
+    return c.json({ items, total: items.length, limit: 1000, offset: 0 });
+  })
+  .put('/:id/articles/:productId', write, zValidator('param', companyProductParam, validationHook), zValidator('json', partnerArticleSet, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const { id, productId } = c.req.valid('param');
+    const { article, name } = c.req.valid('json');
+    const [co] = await ctx.db.select({ id: companies.id }).from(companies).where(eq(companies.id, id)).limit(1);
+    if (!co) throw notFound('company');
+    const [pr] = await ctx.db.select({ id: products.id }).from(products).where(eq(products.id, productId)).limit(1);
+    if (!pr) throw notFound('product');
+    if (!article && !name) {
+      await ctx.db.delete(productPartnerArticles).where(and(eq(productPartnerArticles.companyId, id), eq(productPartnerArticles.productId, productId)));
+      await recordEvent(ctx.db, { workspaceId: ctx.workspaceId, type: 'product_partner_article.deleted', entity: 'product_partner_article', recordId: productId, actorId: ctx.memberId, payload: { companyId: id, productId } });
+      return c.json({ companyId: id, productId, article: '', name: '', deleted: true as const });
+    }
+    const [row] = await ctx.db
+      .insert(productPartnerArticles)
+      .values({ workspaceId: ctx.workspaceId, companyId: id, productId, article, name })
+      .onConflictDoUpdate({ target: [productPartnerArticles.workspaceId, productPartnerArticles.companyId, productPartnerArticles.productId], set: { article, name, updatedAt: new Date() } })
+      .returning();
+    await recordEvent(ctx.db, { workspaceId: ctx.workspaceId, type: 'product_partner_article.updated', entity: 'product_partner_article', recordId: row!.id, actorId: ctx.memberId, payload: { companyId: id, productId } });
+    return c.json(row!);
+  })
+  .delete('/:id/articles/:productId', write, zValidator('param', companyProductParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const { id, productId } = c.req.valid('param');
+    const deleted = await ctx.db.delete(productPartnerArticles).where(and(eq(productPartnerArticles.companyId, id), eq(productPartnerArticles.productId, productId))).returning({ id: productPartnerArticles.id });
+    if (!deleted.length) throw notFound('product_partner_article');
+    await recordEvent(ctx.db, { workspaceId: ctx.workspaceId, type: 'product_partner_article.deleted', entity: 'product_partner_article', recordId: productId, actorId: ctx.memberId, payload: { companyId: id, productId } });
+    return c.json({ companyId: id, productId, deleted: true as const });
+  });
+
+/** /products/:id/articles: артикулы товара у контрагентов (для карточки товара) */
+export const productPartnerRoutes = new Hono<AppEnv>().get('/:id/articles', zValidator('param', idParam, validationHook), async c => {
+  const ctx = ctxOf(c);
+  const id = c.req.valid('param').id;
+  const [pr] = await ctx.db.select({ id: products.id }).from(products).where(eq(products.id, id)).limit(1);
+  if (!pr) throw notFound('product');
+  const items = await ctx.db
+    .select({ id: productPartnerArticles.id, companyId: productPartnerArticles.companyId, companyName: companies.name, productId: productPartnerArticles.productId, article: productPartnerArticles.article, name: productPartnerArticles.name })
+    .from(productPartnerArticles)
+    .innerJoin(companies, eq(companies.id, productPartnerArticles.companyId))
+    .where(eq(productPartnerArticles.productId, id))
+    .orderBy(asc(companies.name));
+  return c.json({ items, total: items.length, limit: items.length, offset: 0 });
+});
 
 /** Правка и удаление счёта по id: счета организаций — admin+, счета контрагентов — member+ */
 export const bankAccountRoutes = new Hono<AppEnv>()

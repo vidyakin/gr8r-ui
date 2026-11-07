@@ -33,7 +33,7 @@ import { productionReportRoutes } from './routes/production-reports';
 import { planningRoutes } from './routes/planning';
 import { productionWorkbenchRoutes } from './routes/production-workbench';
 import { companyRoutes, contactRoutes, crmActivityRoutes, dealRoutes } from './routes/crm';
-import { bankAccountRoutes, companyBankRoutes, costItemRoutes, documentRoutes, organizationBankRoutes, organizationRoutes, stockRoutes, warehouseRoutes } from './routes/documents';
+import { bankAccountRoutes, companyBankRoutes, companyPartnerRoutes, productPartnerRoutes, costItemRoutes, documentRoutes, organizationBankRoutes, organizationRoutes, stockRoutes, warehouseRoutes } from './routes/documents';
 import { supplierRatingRoutes } from './routes/supplier-ratings';
 import { componentOwnerRoutes, processorReportRoutes, processorTransferRoutes, tollingRoutes } from './routes/tolling';
 import { documentStateRoutes, workOrderAssignmentRoutes, workOrderKindRoutes, workOrderRoutes } from './routes/work-orders';
@@ -131,6 +131,7 @@ function buildTenantApi() {
     .route('/events', eventRoutes)
     .route('/companies', companyRoutes)
     .route('/companies', companyBankRoutes)
+    .route('/companies', companyPartnerRoutes)
     .route('/contacts', contactRoutes)
     .route('/deals', dealRoutes)
     .route('/deal-pipelines', dealPipelineRoutes)
@@ -153,6 +154,7 @@ function buildTenantApi() {
     .route('/attribute-defs', attributeRoutes)
     .route('/products', productRoutes)
     .route('/products', variantRoutes)
+    .route('/products', productPartnerRoutes)
     .route('/work-centers', workCenterRoutes)
     .route('/manufactured-items', itemRoutes)
     .route('/bom-lines', bomLineRoutes)

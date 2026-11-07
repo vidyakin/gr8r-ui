@@ -399,6 +399,56 @@ export function useBankAccounts(owner: 'companies' | 'organizations', id: string
   return useQuery({ queryKey: docsKey(ws, 'bank', owner, id), queryFn: async () => (await call<{ items: BankAccount[] }>(ws, 'GET', `/${owner}/${id}/bank-accounts`)).items, enabled: !!id, staleTime: Infinity });
 }
 
+/* ---------------- коды и номенклатура контрагентов ---------------- */
+
+/** Наш код у контрагента по организации (null — не задан) */
+export interface CounterpartyCode {
+  organizationId: string;
+  organizationName: string;
+  isDefault: boolean;
+  code: string | null;
+}
+/** Артикул и наименование товара у контрагента (список контрагента) */
+export interface PartnerArticleRow {
+  id: string;
+  companyId: string;
+  productId: string;
+  productName: string;
+  productSku: string;
+  article: string;
+  name: string;
+}
+/** Артикул товара у контрагента (список товара) */
+export interface ProductPartnerArticle {
+  id: string;
+  companyId: string;
+  companyName: string;
+  productId: string;
+  article: string;
+  name: string;
+}
+
+export function useCounterpartyCodes(companyId: string | undefined) {
+  const ws = useWsId();
+  return useQuery({ queryKey: docsKey(ws, 'partner-codes', companyId), queryFn: async () => (await call<{ items: CounterpartyCode[] }>(ws, 'GET', `/companies/${companyId}/codes`)).items, enabled: !!companyId, staleTime: Infinity });
+}
+
+export function useCompanyArticles(companyId: string | null | undefined) {
+  const ws = useWsId();
+  return useQuery({ queryKey: docsKey(ws, 'partner-articles', companyId), queryFn: async () => (await call<{ items: PartnerArticleRow[] }>(ws, 'GET', `/companies/${companyId}/articles`)).items, enabled: !!companyId, staleTime: Infinity });
+}
+
+/** Артикулы контрагента по товарам: productId → запись (для строк документа и подбора) */
+export function useCompanyArticleMap(companyId: string | null | undefined) {
+  const q = useCompanyArticles(companyId);
+  return React.useMemo(() => new Map((companyId ? (q.data ?? []) : []).map(a => [a.productId, a])), [q.data, companyId]);
+}
+
+export function useProductArticles(productId: string | undefined) {
+  const ws = useWsId();
+  return useQuery({ queryKey: docsKey(ws, 'product-articles', productId), queryFn: async () => (await call<{ items: ProductPartnerArticle[] }>(ws, 'GET', `/products/${productId}/articles`)).items, enabled: !!productId, staleTime: Infinity });
+}
+
 export interface CompanyRequisites {
   id: string;
   name: string;

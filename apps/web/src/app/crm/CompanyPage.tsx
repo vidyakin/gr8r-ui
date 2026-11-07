@@ -18,6 +18,7 @@ import { useCrm } from './store';
 import { useCrmUi } from './ui-context';
 import { useCustomRows } from '../meta/custom-fields';
 import { CompanyRequisitesTab } from '../docs/CompanyRequisites';
+import { CompanyPartnerTab } from '../docs/partner-codes';
 import { CompanyContractsTab } from '../docs/CompanyContracts';
 import { CompanyDocumentsTab } from '../docs/CompanyDocuments';
 import { CompanySettlementsTab } from '../money/CompanySettlements';
@@ -37,6 +38,7 @@ const TABS: [string, LucideIcon][] = [
   ['contacts', Users],
   ['activity', Activity],
   ['requisites', FileText],
+  ['codes', Tags],
   ['contracts', FileSignature],
   ['documents', Files],
   ['settlements', Wallet],
@@ -141,6 +143,7 @@ function CompanyView({ company: co, tab }: { company: Company; tab: string }) {
       </div>
     );
   } else if (tab === 'requisites') body = <CompanyRequisitesTab companyId={co.id} />;
+  else if (tab === 'codes') body = <CompanyPartnerTab companyId={co.id} />;
   else if (tab === 'contracts') body = <CompanyContractsTab companyId={co.id} companyName={co.name} />;
   else if (tab === 'documents') body = <CompanyDocumentsTab companyId={co.id} />;
   else if (tab === 'settlements') body = <CompanySettlementsTab companyId={co.id} />;

@@ -153,6 +153,37 @@ ${signBlock(o)}`,
   );
 }
 
+/* ---------------- заказ поставщику (с артикулами контрагента) ---------------- */
+
+function supplierOrderForm(d: PrintData): string {
+  const o = d.organization;
+  const withNames = d.lines.some(l => l.partnerName);
+  const rows = groupedRows(
+    d.lines,
+    l => `<tr><td class="center">${l.n}</td><td>${esc(l.partnerArticle ?? '')}</td><td>${esc(l.partnerName || l.name)}${l.partnerName && l.partnerName !== l.name ? `<div class="small">${esc(l.name)}</div>` : ''}</td><td class="right">${qtyRu(l.qty)}</td><td class="center">${esc(l.unitSymbol)}</td><td class="right">${unitEff(l, d.priceIncludesVat)}</td><td class="right">${moneyRu(d.priceIncludesVat ? l.total : l.net)}</td></tr>`,
+    (name, sum) => `<tr class="grp"><td colspan="6" class="bold">${esc(name)}</td><td class="right bold">${moneyRu(sum)}</td></tr>`,
+    l => (d.priceIncludesVat ? l.total : l.net),
+  );
+  const t = d.totals;
+  const vatText = d.lines.every(l => l.vatRate === 'none') ? 'Без НДС' : moneyRu(t.vat);
+  return html(
+    d,
+    'portrait',
+    `<h1>${numberTitle(d, 'Заказ поставщику')}</h1><div class="hr"></div>
+<div class="party"><b>Поставщик:</b> ${partyLine(d.party)}</div>
+<div class="party"><b>Покупатель:</b> ${partyLine(o)}</div>
+${d.ourCode ? `<div class="party"><b>Наш код у поставщика:</b> ${esc(d.ourCode)}</div>` : ''}
+${d.dueDate ? `<div class="party"><b>Поставить до:</b> ${esc(dateRu(d.dueDate))}</div>` : ''}
+<table class="grid" style="margin-top:8px"><thead><tr><th style="width:28px">№</th><th style="width:110px">Артикул поставщика</th><th>${withNames ? 'Наименование у поставщика' : 'Наименование'}</th><th style="width:56px">Кол-во</th><th style="width:40px">Ед.</th><th style="width:84px">Цена</th><th style="width:92px">Сумма</th></tr></thead><tbody>${rows}</tbody></table>
+<table class="totals" style="margin-top:4px"><tr><td class="bold">${d.priceIncludesVat ? 'Итого' : 'Итого (без НДС)'}:</td><td class="bold" style="width:100px">${moneyRu(d.priceIncludesVat ? t.total : t.net)}</td></tr>
+<tr><td class="bold">${d.priceIncludesVat ? 'В том числе НДС' : 'Сумма НДС'}:</td><td class="bold">${vatText}</td></tr>
+<tr><td class="bold">Всего:</td><td class="bold">${moneyRu(t.total)}</td></tr></table>
+<div class="words">Всего наименований ${d.lines.length}, на сумму ${moneyRu(t.total)} руб.<br><b>${esc(amountInWordsRu(t.total))}</b></div>
+${d.comment ? `<div class="party small">${esc(d.comment)}</div>` : ''}
+${signBlock(o)}`,
+  );
+}
+
 /** Группы строк по порядку первого появления; строки без группы — без подзаголовка */
 export function lineGroups(lines: PrintLine[]): { name: string; lines: PrintLine[] }[] {
   const out: { name: string; lines: PrintLine[] }[] = [];
@@ -617,6 +648,8 @@ export function renderPrintForm(form: PrintForm, data: PrintData): string {
       return torg16Form(data);
     case 'torg13':
       return torg13Form(data);
+    case 'supplier_order':
+      return supplierOrderForm(data);
     case 'work_order':
       return workOrderForm(data);
     case 'piecework':

@@ -111,4 +111,6 @@ export const productQuery = listQuery.extend({
   kind: z.enum(PRODUCT_KINDS).optional(),
   active: queryBool.optional(),
   productKindId: uuid.optional(),
+  /** Контрагент документа: поиск ?q= находит и по артикулу контрагента, ответ дополняется его артикулом и наименованием */
+  counterpartyId: uuid.optional(),
 });
