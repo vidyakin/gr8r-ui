@@ -456,5 +456,7 @@ export const errors = {
   token_sections_exceed: 'The token cannot include sections the employee does not have',
   token_can_post_read_only: 'A read-only token cannot post, pay or delete',
   token_expires_past: 'The expiration date is in the past',
+  token_cannot_post: 'The token is not allowed to post, pay or delete: issue it with the “Post, pay, delete” permission',
+  token_rate_limited: 'Too many requests for this access token. Try again in {retryAfter} s.',
 
 };
