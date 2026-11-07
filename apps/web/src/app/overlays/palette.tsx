@@ -71,6 +71,7 @@ import type { ModuleId } from '@gr8r/shared';
 import { useSession } from '../data/session';
 import { useTaskDrawer } from './task-drawer';
 import { useTaskForm } from './task-form';
+import { useTrackOpen } from '@/lib/use-track-open';
 
 export interface PaletteApi {
   /** Открыть палитру команд; query подставляется в поле ввода */
@@ -254,6 +255,7 @@ export function PaletteHost() {
 }
 
 function PaletteWindow({ init, close }: { init: PaletteState; close: () => void }) {
+  useTrackOpen('palette', init.mode);
   const { data } = useWorkspace();
   const crm = useCrm();
   const crmUi = React.useContext(CrmUiCtx);

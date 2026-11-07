@@ -1,7 +1,7 @@
 # Весь стек: postgres 16, minio (S3), миграции, api, worker, web.
 #   docker compose up --build            # поднять
 #   SEED=1 docker compose up --build     # + демо-данные (demo@gr8r.dev / demo1234)
-# Приложение: http://localhost:8080   API напрямую: http://localhost:3000   MinIO: http://localhost:9001
+# Приложение: http://localhost:8080   API напрямую: http://localhost:3000   MinIO: http://localhost:9001   Umami: http://localhost:3100
 # Пароли и порты можно переопределить в .env (см. .env.example).
 
 x-s3-env: &s3-env
@@ -106,8 +106,44 @@ services:
       migrate: { condition: service_completed_successfully }
       minio-init: { condition: service_completed_successfully }
 
+  # Аналитика активности (docs/architecture/analytics.md): Umami со своей базой umami в этом же Postgres, данные наружу не уходят.
+  # Разовая задача при каждом запуске: роль и база umami (идемпотентно, работает и на уже существующем томе)
+  umami-init:
+    image: postgres:16-alpine
+    entrypoint: ['/bin/sh', '/umami-init.sh']
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gr8r}
+      UMAMI_DB_PASSWORD: ${UMAMI_DB_PASSWORD:-umami}
+    volumes:
+      - ./docker/umami-init.sh:/umami-init.sh:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: 'no'
+
+  # Трекер доступен приложению через nginx (/stats/), панель — http://localhost:3100 (admin / umami — сразу смените пароль)
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-v2.19.0 # версию закрепляем: обновление — осознанно, с чтением changelog
+    environment:
+      DATABASE_URL: postgresql://umami:${UMAMI_DB_PASSWORD:-umami}@postgres:5432/umami
+      APP_SECRET: ${UMAMI_APP_SECRET:-dev-only-umami-secret}
+      TRACKER_SCRIPT_NAME: m.js
+      COLLECT_API_ENDPOINT: /api/m
+      DISABLE_TELEMETRY: '1'
+    ports:
+      - '${UMAMI_PORT:-3100}:3000'
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:3000/api/heartbeat || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    depends_on:
+      umami-init: { condition: service_completed_successfully }
+
   web:
     build: { context: ., target: web }
+    environment:
+      UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-} # ID сайта из панели Umami: включает трекер без пересборки
     ports:
       - '${WEB_PORT:-8080}:80'
     depends_on:

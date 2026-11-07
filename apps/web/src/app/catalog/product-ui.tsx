@@ -278,6 +278,7 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
   return (
     <>
       <EntityDrawer
+        trackName="catalog-product"
         label={t('catalog.product.label', { name: p.name })}
         onClose={onClose}
         crumb={

@@ -133,9 +133,44 @@ services:
     depends_on:
       - osrm
 
+  # Аналитика активности (docs/architecture/analytics.md): Umami со своей базой umami в этом же Postgres, данные наружу не уходят.
+  # Разовая задача при каждом запуске: роль и база umami (идемпотентно, работает и на уже существующем томе)
+  umami-init:
+    image: postgres:16-alpine
+    entrypoint: ['/bin/sh', '/umami-init.sh']
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      UMAMI_DB_PASSWORD: ${UMAMI_DB_PASSWORD:?задайте UMAMI_DB_PASSWORD (openssl rand -hex 24)}
+    volumes:
+      - ./docker/umami-init.sh:/umami-init.sh:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: 'no'
+
+  # Трекер доступен приложению через nginx (/stats/), панель — https://${UMAMI_DOMAIN} через Caddy
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-v2.19.0 # версию закрепляем: обновление — осознанно, с чтением changelog
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://umami:${UMAMI_DB_PASSWORD:?задайте UMAMI_DB_PASSWORD (openssl rand -hex 24)}@postgres:5432/umami
+      APP_SECRET: ${UMAMI_APP_SECRET:?задайте UMAMI_APP_SECRET (openssl rand -hex 32)}
+      TRACKER_SCRIPT_NAME: m.js
+      COLLECT_API_ENDPOINT: /api/m
+      DISABLE_TELEMETRY: '1'
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:3000/api/heartbeat || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    depends_on:
+      umami-init: { condition: service_completed_successfully }
+
   web:
     build: { context: ., target: web }
     restart: unless-stopped
+    environment:
+      UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-} # ID сайта из панели Umami: включает трекер без пересборки
     depends_on:
       - api
 
@@ -144,6 +179,7 @@ services:
     restart: unless-stopped
     environment:
       DOMAIN: ${DOMAIN}
+      UMAMI_DOMAIN: ${UMAMI_DOMAIN:-stats.${DOMAIN}}
     ports:
       - '80:80'
       - '443:443'

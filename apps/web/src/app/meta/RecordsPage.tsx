@@ -381,6 +381,7 @@ function RecordDrawer({ entity, id, rows, onClose }: { entity: MetaEntity; id: s
   return (
     <>
       <EntityDrawer
+        trackName={`record:${entity.key}`}
         label={t('meta.records.drawerLabel', { entity: entity.name, title })}
         onClose={onClose}
         crumb={
@@ -432,7 +433,7 @@ function RecordDrawer({ entity, id, rows, onClose }: { entity: MetaEntity; id: s
 function NotFoundDrawer({ onClose }: { onClose: () => void }) {
   const t = useT();
   return (
-    <EntityDrawer label={t('meta.records.notFound')} title={t('meta.records.notFound')} onClose={onClose}>
+    <EntityDrawer trackName="not-found" label={t('meta.records.notFound')} title={t('meta.records.notFound')} onClose={onClose}>
       <p className="muted">{t('meta.records.notFoundHint')}</p>
     </EntityDrawer>
   );

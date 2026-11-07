@@ -220,6 +220,7 @@ function TaskWindowView({ win: w, z }: { win: TaskWindow; z: number }) {
 
   return (
     <FloatingWindow
+      trackName="task"
       ref={ref}
       label={label}
       zIndex={z}

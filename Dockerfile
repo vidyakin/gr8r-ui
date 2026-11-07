@@ -48,5 +48,6 @@ RUN bun run --cwd apps/web build
 
 FROM nginx:1.27-alpine AS web
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --chmod=755 docker/web-config.sh /docker-entrypoint.d/40-gr8r-config.sh
 COPY --from=web-build /app/apps/web/dist /usr/share/nginx/html
 EXPOSE 80

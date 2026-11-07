@@ -104,6 +104,7 @@ export function DealDrawer({ id }: { id: string }) {
   return (
     <>
       <EntityDrawer
+        trackName="crm-deal"
         label={t('crm.deals.drawer.dealLabel', { name: d.name })}
         onClose={ui.closeDrawer}
         crumb={
@@ -314,6 +315,7 @@ export function ContactDrawer({ id }: { id: string }) {
   const customRows = useCustomRows('contact', c.custom, patch => dispatch({ type: 'contact/update', id: c.id, patch: { custom: { ...c.custom, ...patch } } }));
   return (
     <EntityDrawer
+      trackName="crm-contact"
       label={t('crm.contacts.drawer.contactLabel', { name: c.name })}
       onClose={ui.closeDrawer}
       crumb={

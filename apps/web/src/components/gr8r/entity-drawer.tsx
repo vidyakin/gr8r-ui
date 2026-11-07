@@ -5,6 +5,7 @@ import * as React from 'react';
 import { Ellipsis, Maximize2, Minimize2, X, type LucideIcon } from 'lucide-react';
 import { IconButton, Menu, MenuContent, MenuTrigger, Tab, Tabs, TabsContent, TabsList } from '@/components/ui';
 import { cn } from '@/lib/utils';
+import { useTrackOpen } from '@/lib/use-track-open';
 import { t } from '@/i18n';
 
 export interface DrawerField {
@@ -40,6 +41,8 @@ export interface EntityDrawerProps {
   /** Секции между полями и вкладками */
   children?: React.ReactNode;
   tabs?: DrawerTab[];
+  /** Стабильное имя карточки для аналитики (не текст и не данные записи) */
+  trackName?: string;
   onClose: () => void;
 }
 
@@ -78,7 +81,8 @@ function TitleInput({ value, onCommit, label }: { value: string; onCommit: (v: s
   );
 }
 
-export function EntityDrawer({ label, crumb, actions, menu, title, onTitleChange, subtitle, banner, fields, children, tabs, onClose }: EntityDrawerProps) {
+export function EntityDrawer({ label, crumb, actions, menu, title, onTitleChange, subtitle, banner, fields, children, tabs, trackName, onClose }: EntityDrawerProps) {
+  useTrackOpen('drawer', trackName);
   const [full, setFull] = React.useState(false);
   const [enter, setEnter] = React.useState(true);
   const [tab, setTab] = React.useState<string | undefined>(tabs?.[0]?.id);

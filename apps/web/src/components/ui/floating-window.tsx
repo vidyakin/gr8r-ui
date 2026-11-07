@@ -3,6 +3,7 @@
    поэтому содержимое не перерисовывается на каждое движение. На узком экране (≤640px) окно — лист снизу без перетаскивания. */
 import * as React from 'react';
 import { cn } from '@/lib/utils';
+import { useTrackOpen } from '@/lib/use-track-open';
 
 export interface WindowGeometry {
   x: number;
@@ -47,6 +48,8 @@ export interface FloatingWindowProps {
   onReset?: () => void;
   /** z-index внутри слоя окон */
   zIndex?: number;
+  /** Стабильное имя окна для аналитики (не текст и не данные записи) */
+  trackName?: string;
   className?: string;
   children: React.ReactNode;
 }
@@ -54,9 +57,10 @@ export interface FloatingWindowProps {
 type Gesture = { kind: 'move' | 'size'; px: number; py: number; start: WindowGeometry };
 
 export const FloatingWindow = React.forwardRef<HTMLElement, FloatingWindowProps>(function FloatingWindow(
-  { label, title, actions, geometry, onGeometryChange, onRaise, onReset, zIndex, className, children },
+  { label, title, actions, geometry, onGeometryChange, onRaise, onReset, zIndex, trackName, className, children },
   ref,
 ) {
+  useTrackOpen('window', trackName);
   const sheet = useIsSheet();
   const [live, setLive] = React.useState<WindowGeometry | null>(null);
   const gesture = React.useRef<Gesture | null>(null);

@@ -5,3 +5,10 @@
 	encode gzip
 	reverse_proxy web:80
 }
+
+# Панель Umami (аналитика, docs/architecture/analytics.md): отдельный поддомен, нужна A-запись. UMAMI_DOMAIN задаёт compose
+# (по умолчанию stats.$DOMAIN). Трекер на приложение приходит через nginx по /stats/ того же origin, не через этот адрес.
+{$UMAMI_DOMAIN} {
+	encode gzip
+	reverse_proxy umami:3000
+}

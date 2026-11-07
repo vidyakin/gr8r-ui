@@ -381,6 +381,7 @@ export function ObjectPage() {
       {/* Изменение объекта — боковая карточка, как у задач: поля, «Сохранить» и «В архив» */}
       {panel === 'edit' && detail && (
         <EntityDrawer
+          trackName="object-edit"
           label={`${tt('objects.field.object')}: ${detail.name}`}
           crumb={<span className="mono faint">{detail.number}</span>}
           title={detail.name}

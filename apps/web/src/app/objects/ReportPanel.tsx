@@ -69,6 +69,7 @@ export function ReportPanel({ objectId, objectName, objectNumber, managerId, can
 
   return (
     <EntityDrawer
+      trackName="object-report"
       label={`${tt('objects.report.title')}: ${objectName}`}
       crumb={<span className="mono faint">{objectNumber}</span>}
       title={tt('objects.report.title')}

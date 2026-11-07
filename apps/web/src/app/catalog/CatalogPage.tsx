@@ -231,7 +231,7 @@ function DrawerHost({ id, rows, tree, onClose, onOpenCategory }: { id: string; r
   const t = useT();
   if (!product)
     return single.isError ? (
-      <EntityDrawer label={t('catalog.notFoundTitle')} title={t('catalog.notFoundTitle')} onClose={onClose}>
+      <EntityDrawer trackName="not-found" label={t('catalog.notFoundTitle')} title={t('catalog.notFoundTitle')} onClose={onClose}>
         <p className="muted">{t('catalog.notFoundText')}</p>
       </EntityDrawer>
     ) : null;

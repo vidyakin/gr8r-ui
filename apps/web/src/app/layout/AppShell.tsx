@@ -16,6 +16,8 @@ import { PageBoundary } from '../components/error-states';
 import { SectionGuard, useSectionAccess } from '../positions/access';
 import { LicenseBanner } from '../licensing/LicenseBanner';
 import { t } from '@/i18n';
+import { identifyUser, trackPageview } from '@/lib/analytics';
+import { useSession } from '../data/session';
 
 const COLLAPSED_KEY = 'gr8r-ui.sidebar-collapsed';
 
@@ -86,6 +88,15 @@ export function AppShell() {
   React.useEffect(() => {
     if (!mnav) back();
   }, [mnav, back]);
+  // Аналитика (docs/architecture/analytics.md): без ID сайта оба вызова — no-op. identify раньше просмотра: он ставит в очередь первым
+  const session = useSession();
+  const analyticsUser = session.user?.id;
+  const analyticsWs = session.active?.id;
+  const analyticsRole = session.active?.role;
+  React.useEffect(() => {
+    if (analyticsUser) identifyUser({ userId: analyticsUser, workspaceId: analyticsWs, role: analyticsRole });
+  }, [analyticsUser, analyticsWs, analyticsRole]);
+  React.useEffect(() => trackPageview(location.pathname), [location.pathname]);
   const title = `${crumbs.map(c => c.label).join(' · ')} · ${data.ws.name}`;
   React.useEffect(() => {
     document.title = title;

@@ -122,6 +122,7 @@ function ProductCard({ productId, row, onClose }: { productId: string; row?: Sto
   const seeCost = mine.some(b => b.value !== null);
   return (
     <EntityDrawer
+      trackName="inventory-product"
       label={t('docs.inventory.cardLabel', { name: first?.name ?? t('docs.inventory.productFallback') })}
       crumb={t('docs.inventory.crumb')}
       title={first?.name ?? t('docs.inventory.productFallback')}

@@ -95,6 +95,9 @@
 - **HTML описаний** (описание задачи вставляется как HTML): очистка по белому списку тегов панели форматирования на записи
   (`sanitizeRichText`, `packages/db/src/rich-text.ts` — API и узел «Создать задачу») и DOMPurify перед вставкой в редакторе
   (`cleanRichText`, `task-drawer/pickers.tsx`). Тест — `apps/api/test/security.test.ts`.
+- **Аналитика Umami** ([analytics.md](analytics.md)): во всех трёх compose-файлах сервисы `umami` и разовый `umami-init` (база и роль `umami` в том же Postgres,
+  создаются и на существующем томе). Обязательные переменные: `UMAMI_DB_PASSWORD`, `UMAMI_APP_SECRET`; необязательные: `UMAMI_DOMAIN` (панель через Caddy, по умолчанию
+  `stats.$DOMAIN`), `UMAMI_WEBSITE_ID` (у `web`: включает трекер без пересборки). Трекер — на том же origin через nginx `/stats/`, CSP не меняется.
 - `docker-compose.yml` — для локального запуска всего стека (порты открыты, пароли по умолчанию), на сервер его не ставить.
 - Проверено локально (`DOMAIN=localhost`, Docker Desktop): сборка образов, миграции с нуля, вход через Caddy, CLI оператора. На реальном VPS с
   настоящим доменом не проверялось.
