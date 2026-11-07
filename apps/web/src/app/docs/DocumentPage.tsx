@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Ban, Calculator, ChevronDown, CircleAlert, ClipboardList, Copy, Ellipsis, FileSignature, FileText, PackageCheck, PackageX, Plus, Printer, RotateCcw, Send, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
+import { ArrowLeftRight, Ban, Calculator, ChevronDown, CircleAlert, ClipboardList, Copy, Ellipsis, FileSignature, FileText, PackageCheck, PackageX, Plus, Printer, RotateCcw, Send, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
 import { amountInWordsRu, basedOnTargets, computeDocument, computeTotals, dec, DEFECT_MODES, DOCUMENT_META, fmt as fmtDec, hasQuoteVariants, isInvestmentFactType, MATERIAL_OWNER_LABELS, PRINT_FORM_LABELS, TOLLING_ROLE_LABELS, TOLLING_ROLES, TRANSFER_OPERATIONS, VAT_LABELS, VAT_RATES, CONTRACT_FORM_BY_TYPE, type DefectMode, type DocTemplatePurpose, type DocumentType, type TollingRole, type VatRate } from '@gr8r/shared';
 import { Badge, Button, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Segmented, Select, Skeleton, toast } from '@/components/ui';
 import { DocForm } from '@/components/gr8r/doc-form';
@@ -20,6 +20,7 @@ import { MaterialModeField, WasteHeaderFields, WasteTab } from '../production/Wa
 import { STATUS_LABEL, STATUS_TONE, docTitle, docsKey, typeLabel, useCostItems, useDocsApi, useDocTemplates, useDocument, useOrganizations, useProcessingOrders, useWarehouses, type DocDetail, type DocLink } from './data';
 import { QuoteVariants } from './quote-variants';
 import { CalculationDialog, ParamsDialog } from './calculation';
+import { StockMovesDialog } from './stock-moves-dialog';
 import { CounterpartyPicker, ProductPicker } from './pickers';
 import { usePriceKinds, useResolvePrices } from '../pricing/data';
 import { useBillingBreakdown, useContracts } from './billing-data';
@@ -460,6 +461,13 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     } finally {
       setBusy(false);
     }
+  };
+  /** «Движения»: у черновика сначала сохраняется правка — расчёт идёт по сохранённому документу */
+  const [movesOpen, setMovesOpen] = React.useState(false);
+  const hasStockMoves = (!!meta.stock || !!meta.stockRole || doc.type === 'production') && (doc.status === 'posted' || (doc.status === 'draft' && canWrite && doc.type !== 'work_order'));
+  const openMoves = async () => {
+    if (doc.status === 'draft' && !(await flush())) return;
+    setMovesOpen(true);
   };
   const createBasedOn = async (type: DocumentType) => {
     if (!(await flush())) return;
@@ -1011,6 +1019,12 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             <Button disabled={busy} onClick={() => void cancelReception()}>
               <Undo2 size={14} />
               {t('docs.document.cancelReception')}
+            </Button>
+          )}
+          {hasStockMoves && (
+            <Button disabled={busy} onClick={() => void openMoves()}>
+              <ArrowLeftRight size={14} />
+              {t('docs.stockMoves.button')}
             </Button>
           )}
           {canWrite && doc.status === 'draft' && !isWorkOrder && (
@@ -1600,6 +1614,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
           </Field>
         </DialogContent>
       </Dialog>
+      {movesOpen && <StockMovesDialog docId={doc.id} onClose={() => setMovesOpen(false)} />}
       <ConfirmDialog open={confirm === 'delete'} onOpenChange={o => !o && setConfirm(null)} title={t('docs.document.deleteTitleDoc')} description={t('docs.document.deleteHintDoc')} confirmLabel={t('docs.document.deleteConfirm')} cancelLabel={t('docs.document.cancelKeep')} danger onConfirm={() => void remove()} />
       {paramsLine &&
         (() => {

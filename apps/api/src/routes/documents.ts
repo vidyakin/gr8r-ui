@@ -60,6 +60,8 @@ import {
   saveSerials,
   activateVariant,
   batchBalances,
+  documentMovesView,
+  stockAging,
   createVariant,
   deleteVariant,
   renameVariant,
@@ -97,6 +99,7 @@ import {
   printQuery,
   variantCreate,
   variantUpdate,
+  stockAgingQuery,
   stockBalanceQuery,
   stockMoveQuery,
   validateRequisites,
@@ -442,6 +445,19 @@ export const documentRoutes = new Hono<AppEnv>()
     const warnings = await postDocument(ctx.db, docCtx(ctx), id);
     return c.json({ ...(await documentDetail(ctx.db, id)), warnings });
   })
+  // движения склада документа: проведённого — фактические, черновика — какие сделает проведение (проведение в savepoint с откатом, данные не меняются)
+  .get('/:id/stock-moves', zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    const [d] = await ctx.db.select({ status: documents.status }).from(documents).where(eq(documents.id, id)).limit(1);
+    if (!d) throw notFound('document');
+    // расчёт проведения берёт блокировки остатков и документа — как само проведение, поэтому гостю (только чтение) недоступен
+    if (d.status === 'draft' && !hasRole(c, 'member')) throw new AppError(403, 'forbidden', 'Previewing the movements of a draft requires write access');
+    const r = await documentMovesView(ctx.db, docCtx(ctx), id);
+    // стоимость (цена и сумма) видят только admin и owner
+    const seeCost = canSeeCost(ctx.role);
+    return c.json({ ...r, moves: r.moves.map(m => (seeCost ? m : { ...m, cost: null, amount: null })), costVisible: seeCost });
+  })
   // серийные номера строки документа или материала заказ-наряда (у товаров с учётом по номерам); список заменяется целиком
   .put('/:id/serials', write, zValidator('param', idParam, validationHook), zValidator('json', documentSerialsSave, validationHook), async c => {
     const ctx = ctxOf(c);
@@ -623,6 +639,19 @@ export const stockRoutes = new Hono<AppEnv>()
     const q = c.req.valid('query');
     const rows = await batchBalances(ctx.db, ctx.workspaceId, { warehouseId: q.warehouseId, productId: q.productId, days: q.days, expired: q.expired, q: q.q });
     return c.json({ items: rows, total: rows.length });
+  })
+  // старение запасов: остаток на дату по складу и товару по возрасту поступления (0–30, 31–60, 61–90, 91–180, >180 дней)
+  .get('/aging', zValidator('query', stockAgingQuery, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const r = await stockAging(ctx.db, ctx.workspaceId, c.req.valid('query'));
+    // стоимость видят только admin и owner
+    if (canSeeCost(ctx.role)) return c.json({ ...r, costVisible: true });
+    return c.json({
+      asOf: r.asOf,
+      items: r.items.map(i => ({ ...i, value: null, bucketsValue: null })),
+      totals: { ...r.totals, value: null, bucketsValue: null },
+      costVisible: false,
+    });
   })
   // остатки по складам и товарам: количество, резерв, доступно, средняя себестоимость, стоимость
   .get('/balances', zValidator('query', stockBalanceQuery, validationHook), async c => {

@@ -299,6 +299,14 @@ export const stockMoveQuery = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 });
 
+/** Отчёт «Старение запасов»: отборы по складу, категории (с вложенными), товару и дате отчёта (по умолчанию сегодня) */
+export const stockAgingQuery = z.object({
+  warehouseId: uuid.optional(),
+  categoryId: uuid.optional(),
+  productId: uuid.optional(),
+  asOf: isoDate.optional(),
+});
+
 /** Настройки склада воркспейса (хранятся в workspaces.settings) */
 export const inventorySettingsUpdate = z.object({ allowNegativeStock: z.boolean() });
 export interface InventorySettings {
