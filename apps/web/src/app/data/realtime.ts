@@ -48,6 +48,8 @@ export function useRealtime(ws: string, engine: Engine) {
       if (e.entity.startsWith('fleet_') || e.entity === 'position' || e.entity === 'delivery') void qc.invalidateQueries({ queryKey: ['ws', ws, 'fleet'] });
       // Заявки на перевозку и экономика рейса (задача 1223): ['ws', id, 'transport-orders', …]
       if (e.entity.startsWith('transport_') || e.entity.startsWith('fleet_')) void qc.invalidateQueries({ queryKey: ['ws', ws, 'transport-orders'] });
+      // Шаблоны проектов: ['ws', id, 'project-templates', …]
+      if (e.entity === 'project_template') void qc.invalidateQueries({ queryKey: ['ws', ws, 'project-templates'] });
       // Шаблоны КП: ['ws', id, 'doc-templates', …]
       if (e.entity === 'doc_template') void qc.invalidateQueries({ queryKey: ['ws', ws, 'doc-templates'] });
       // Отчёты услуг лежат под 'docs'; задачи и записи времени меняют план, факт и просрочку (задача 1097)

@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router';
-import { Archive, ArrowDown, ArrowUp, ArrowUpRight, Calendar, CircleCheck, Clock, Copy, Ellipsis, Link2, Lock, Pencil, Share2, Star, Trash2 } from 'lucide-react';
+import { Archive, ArrowDown, BookmarkPlus, ArrowUp, ArrowUpRight, Calendar, CircleCheck, Clock, Copy, Ellipsis, Link2, Lock, Pencil, Share2, Star, Trash2 } from 'lucide-react';
 import { TASK_MODULE_LABELS } from '@gr8r/shared';
 import { IconButton, Menu, MenuContent, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger, Progress, Tooltip, toast } from '@/components/ui';
 import { Badge } from '@/components/ui';
@@ -111,6 +111,9 @@ export function ProjectMenu({ project: p, className, style }: { project: Project
         </MenuItem>
         <MenuItem icon={<Copy size={15} />} onSelect={() => projectForms.duplicate(p.id)}>
           {tt('views.project.duplicate')}
+        </MenuItem>
+        <MenuItem icon={<BookmarkPlus size={15} />} onSelect={() => projectForms.saveTemplate(p.id)}>
+          {tt('projectTemplates.save.menu')}
         </MenuItem>
         <MenuSeparator />
         {idx > 0 && (

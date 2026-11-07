@@ -10,6 +10,7 @@ import { NamedIcon } from '../components/icons';
 import { MemberAvatar } from '../components/workspace';
 import { Modal, ModalTitle } from './modal-shell';
 import { DateInput } from '@/components/gr8r/date-picker';
+import { useProjectTemplates } from '../settings/project-templates-data';
 
 /* ---------- проект: создание и настройки ---------- */
 
@@ -35,7 +36,10 @@ export interface ProjectFormValues {
   team: string;
   lead: string;
   due: string;
+  /** blank / id встроенного набора / `saved:<id>` — сохранённый шаблон проекта */
   tmpl: string;
+  /** Дата старта для сохранённого шаблона (день 1 шаблона) */
+  start: string;
 }
 
 export function ProjectDialog({ edit, initial, onSubmit, onClose }: { edit?: Project; initial: ProjectFormValues; onSubmit: (f: ProjectFormValues) => void; onClose: () => void }) {
@@ -43,6 +47,8 @@ export function ProjectDialog({ edit, initial, onSubmit, onClose }: { edit?: Pro
   const t = useT();
   const [f, setF] = React.useState(initial);
   const [err, setErr] = React.useState('');
+  const saved = useProjectTemplates(true);
+  const savedId = f.tmpl.startsWith('saved:') ? f.tmpl.slice(6) : null;
   const nameRef = React.useRef<HTMLInputElement>(null);
   const set = <K extends keyof ProjectFormValues>(k: K, v: ProjectFormValues[K]) => setF(s => ({ ...s, [k]: v }));
 
@@ -143,12 +149,22 @@ export function ProjectDialog({ edit, initial, onSubmit, onClose }: { edit?: Pro
                 ))}
             </select>
           </div>
-          <div className="field" style={{ flex: 1, minWidth: 150 }}>
-            <label className="label" htmlFor="p-due">
-              {t('overlays.projectDialog.dueLabel')}
-            </label>
-            <DateInput id="p-due" value={f.due || ''} onChange={v => set('due', v)} />
-          </div>
+          {savedId ? (
+            <div className="field" style={{ flex: 1, minWidth: 150 }}>
+              <label className="label" htmlFor="p-start">
+                {t('projectTemplates.create.startLabel')}
+              </label>
+              <DateInput id="p-start" required value={f.start} onChange={v => set('start', v)} />
+              <span className="faint" style={{ fontSize: 12 }}>{t('projectTemplates.create.startHint')}</span>
+            </div>
+          ) : (
+            <div className="field" style={{ flex: 1, minWidth: 150 }}>
+              <label className="label" htmlFor="p-due">
+                {t('overlays.projectDialog.dueLabel')}
+              </label>
+              <DateInput id="p-due" value={f.due || ''} onChange={v => set('due', v)} />
+            </div>
+          )}
         </div>
         {!edit && (
           <div className="field">
@@ -172,6 +188,28 @@ export function ProjectDialog({ edit, initial, onSubmit, onClose }: { edit?: Pro
                 </button>
               ))}
             </div>
+            {!!saved.data?.length && (
+              <>
+                <span className="label" style={{ marginTop: 10 }}>{t('projectTemplates.create.label')}</span>
+                <div className="tmpls" role="radiogroup">
+                  {saved.data.map(tm => (
+                    <button
+                      key={tm.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={f.tmpl === `saved:${tm.id}`}
+                      className={'opt' + (f.tmpl === `saved:${tm.id}` ? ' on' : '')}
+                      style={{ padding: 10 }}
+                      onClick={() => setF(s => ({ ...s, tmpl: `saved:${tm.id}`, icon: tm.icon, color: tm.color in PROJECT_COLORS ? (tm.color as ProjectColor) : s.color }))}
+                    >
+                      <NamedIcon name={tm.icon} size={16} />
+                      <b style={{ fontSize: 12.5 }}>{tm.name}</b>
+                      <span>{t('projectTemplates.create.tasks', { tasks: tm.taskCount })}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
       </form>
@@ -374,6 +412,53 @@ export function ShareDialog({ projectId, onClose, onCopyLink }: { projectId: str
 }
 
 /* ---------- сохранение вида ---------- */
+
+/* ---------- проект как шаблон ---------- */
+
+export function SaveTemplateDialog({ initialName, initialDesc, onSubmit, onClose }: { initialName: string; initialDesc: string; onSubmit: (name: string, desc: string) => Promise<void>; onClose: () => void }) {
+  const t = useT();
+  const [name, setName] = React.useState(initialName);
+  const [desc, setDesc] = React.useState(initialDesc);
+  const [busy, setBusy] = React.useState(false);
+  return (
+    <Modal title={t('projectTemplates.save.title')} sub={t('projectTemplates.save.lead')} size="sm" onClose={onClose} formId="st-form">
+      <form
+        id="st-form"
+        className="modal-b"
+        noValidate
+        onSubmit={async e => {
+          e.preventDefault();
+          if (!name.trim() || busy) return;
+          setBusy(true);
+          await onSubmit(name.trim(), desc);
+          setBusy(false);
+        }}
+      >
+        <div className="field">
+          <label className="label" htmlFor="st-name">
+            {t('projectTemplates.save.nameLabel')}
+          </label>
+          <Input id="st-name" data-af maxLength={200} value={name} onChange={e => setName(e.target.value)} />
+        </div>
+        <div className="field">
+          <label className="label" htmlFor="st-desc">
+            {t('projectTemplates.save.descLabel')}
+          </label>
+          <Textarea id="st-desc" rows={2} value={desc} onChange={e => setDesc(e.target.value)} />
+        </div>
+      </form>
+      <div className="modal-f">
+        <span className="sp" />
+        <Button variant="secondary" type="button" onClick={onClose}>
+          {t('common.cancel')}
+        </Button>
+        <Button variant="primary" type="submit" form="st-form" disabled={!name.trim() || busy}>
+          {t('projectTemplates.save.submit')}
+        </Button>
+      </div>
+    </Modal>
+  );
+}
 
 export function SaveViewDialog({ filters, type, onSubmit, onClose }: { filters: SavedView['filters']; type: SavedView['type']; onSubmit: (name: string, type: SavedView['type']) => void; onClose: () => void }) {
   const t = useT();

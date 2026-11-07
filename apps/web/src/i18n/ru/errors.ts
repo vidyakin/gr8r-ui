@@ -369,6 +369,7 @@ export const errors: Widen<typeof E> = {
   later_month_closed: 'Закрыт более поздний месяц: сначала откройте его',
   method_not_allowed: 'Для этой сущности операция не поддерживается',
   module_mismatch: 'Задача должна лежать в проекте того же модуля',
+  template_disabled: 'Шаблон проекта отключён',
   module_project_protected: 'Проект модуля нельзя удалить или архивировать',
   module_project_unavailable: 'Не удалось создать проект модуля: слишком много проектов с таким ключом',
   nested_variants: 'У варианта не может быть своих вариантов',

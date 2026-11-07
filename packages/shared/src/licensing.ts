@@ -35,10 +35,10 @@ export const MODULES: readonly ModuleDef[] = [
     paths: [
       '/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/attachments', '/activity', '/events',
       '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/organizations', '/bank-accounts', '/warehouses', '/cost-items',
-      '/companies', '/contacts', '/positions', '/product-kinds', '/secrets', '/license', '/api-tokens',
+      '/companies', '/contacts', '/positions', '/product-kinds', '/secrets', '/license', '/api-tokens', '/project-templates',
     ],
     sections: ['home', 'inbox', 'mytasks', 'favorites', 'notifications', 'overview', 'projects', 'tasks', 'calendar', 'timeline', 'members', 'activity', 'archive', 'search', 'settings', 'upgrade', 'system', 'catalog', 'crmCompanies', 'crmContacts'],
-    settings: ['workspace', 'appearance', 'language', 'datetime', 'members', 'teams', 'projects', 'permissions', 'data-model', 'organizations', 'warehouses', 'cost-items', 'positions', 'product-kinds'],
+    settings: ['workspace', 'appearance', 'language', 'datetime', 'members', 'teams', 'projects', 'permissions', 'data-model', 'organizations', 'warehouses', 'cost-items', 'positions', 'product-kinds', 'project-templates'],
     jobs: ['noop', 'index.create', 'index.drop', 'module_request.notify'],
   }),
   def({

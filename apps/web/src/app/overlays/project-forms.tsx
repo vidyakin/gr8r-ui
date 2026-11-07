@@ -7,7 +7,8 @@ import { useWorkspace, uid } from '../data/store';
 import { dOff } from '../lib/dates';
 import { me, project as findProject, tasksOf } from '../data/selectors';
 import type { SavedView } from '../data/types';
-import { ConfirmModal, ProjectDialog, SaveViewDialog, ShareDialog, TEMPLATES, type ConfirmSpec, type ProjectFormValues } from './project-dialogs';
+import { useCreateProjectFromTemplate, useProjectTemplatesApi } from '../settings/project-templates-data';
+import { ConfirmModal, ProjectDialog, SaveTemplateDialog, SaveViewDialog, ShareDialog, TEMPLATES, type ConfirmSpec, type ProjectFormValues } from './project-dialogs';
 
 export interface ProjectFormsApi {
   /** Новый проект */
@@ -18,6 +19,8 @@ export interface ProjectFormsApi {
   share(projectId: string): void;
   /** Сохранить текущие фильтры как вид проекта (filters — из useListView страницы проекта) */
   saveView(projectId: string, filters?: SavedView['filters'], type?: SavedView['type']): void;
+  /** Сохранить проект как шаблон: окно с названием */
+  saveTemplate(projectId: string): void;
   /** Копия проекта вместе с задачами */
   duplicate(projectId: string): void;
   /** Архивация с подтверждением */
@@ -32,6 +35,7 @@ type Dlg =
   | { kind: 'create' }
   | { kind: 'edit'; id: string }
   | { kind: 'share'; id: string }
+  | { kind: 'saveTemplate'; id: string }
   | { kind: 'saveView'; id: string; filters: SavedView['filters']; type: SavedView['type'] }
   | { kind: 'confirm'; spec: ConfirmSpec };
 
@@ -43,6 +47,8 @@ export function ProjectFormsProvider({ children }: { children: React.ReactNode }
   const { pathname } = useLocation();
   const t = useT();
   const [dlg, setDlg] = React.useState<Dlg | null>(null);
+  const templatesApi = useProjectTemplatesApi();
+  const createFromTemplate = useCreateProjectFromTemplate();
   // Свежие данные и маршрут для колбэков, которые живут дольше одного рендера (Undo, подтверждения)
   const live = React.useRef({ data, pathname });
   live.current = { data, pathname };
@@ -90,6 +96,7 @@ export function ProjectFormsProvider({ children }: { children: React.ReactNode }
           },
         });
       },
+      saveTemplate: id => setDlg({ kind: 'saveTemplate', id }),
       remove: id => {
         const p = findProject(live.current.data, id);
         if (!p) return;
@@ -126,9 +133,18 @@ export function ProjectFormsProvider({ children }: { children: React.ReactNode }
       {children}
       {dlg?.kind === 'create' && (
         <ProjectDialog
-          initial={{ name: '', desc: '', icon: 'folder', color: 'indigo', team: me(data).team, lead: data.me, due: dOff(30), tmpl: 'blank' }}
+          initial={{ name: '', desc: '', icon: 'folder', color: 'indigo', team: me(data).team, lead: data.me, due: dOff(30), tmpl: 'blank', start: dOff(0) }}
           onClose={close}
-          onSubmit={f => {
+          onSubmit={async f => {
+            // сохранённый шаблон проекта: сервер создаёт проект и задачи со сроками от даты старта
+            if (f.tmpl.startsWith('saved:')) {
+              const r = await createFromTemplate(f.tmpl.slice(6), { name: f.name, startDate: f.start, description: f.desc, icon: f.icon, color: f.color, teamId: f.team || null, leadId: f.lead || null });
+              if (!r) return;
+              close();
+              navigate(`/projects/${r.id}/board`);
+              toast(t('projectTemplates.create.created', { name: f.name, count: r.taskCount }));
+              return;
+            }
             const id = uid('p');
             const starter = TEMPLATES.find(tmpl => tmpl.id === f.tmpl)?.tasks ?? [];
             dispatch({ type: 'project/create', id, form: { name: f.name, desc: f.desc, icon: f.icon, color: f.color, team: f.team, lead: f.lead, due: f.due }, tasks: starter });
@@ -141,13 +157,26 @@ export function ProjectFormsProvider({ children }: { children: React.ReactNode }
       {editing && (
         <ProjectDialog
           edit={editing}
-          initial={{ name: editing.name, desc: editing.desc, icon: editing.icon, color: editing.color, team: editing.team, lead: editing.lead, due: editing.due, tmpl: 'blank' }}
+          initial={{ name: editing.name, desc: editing.desc, icon: editing.icon, color: editing.color, team: editing.team, lead: editing.lead, due: editing.due, tmpl: 'blank', start: '' }}
           onClose={close}
           onSubmit={(f: ProjectFormValues) => {
             const { name, desc, icon, color, team, lead, due } = f;
             dispatch({ type: 'project/update', id: editing.id, patch: { name, desc, icon, color, team, lead, due, members: [...new Set([...editing.members, lead])] } });
             close();
             toast(t('overlays.projectForms.updated'));
+          }}
+        />
+      )}
+      {dlg?.kind === 'saveTemplate' && (
+        <SaveTemplateDialog
+          initialName={findProject(data, dlg.id)?.name ?? ''}
+          initialDesc=""
+          onClose={close}
+          onSubmit={async (name, desc) => {
+            if (await templatesApi('POST', '/from-project', { projectId: dlg.id, name, ...(desc.trim() ? { description: desc } : {}) })) {
+              close();
+              toast(t('projectTemplates.save.saved', { name }));
+            }
           }}
         />
       )}
