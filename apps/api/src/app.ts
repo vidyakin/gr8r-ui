@@ -47,6 +47,7 @@ import { fleetRoutes } from './routes/fleet';
 import { tripRoutes } from './routes/trips';
 import { transportOrderRoutes } from './routes/transport-orders';
 import { positionRoutes, productKindRoutes } from './routes/positions';
+import { projectTemplateRoutes } from './routes/project-templates';
 import { secretRoutes } from './routes/secrets';
 import { bankConnectionRoutes, paymentLinkRoutes } from './routes/integrations';
 import { serviceRoutes } from './routes/services';
@@ -99,7 +100,7 @@ export interface AppDeps {
 }
 
 /** Ресурсы арендатора: каждый путь защищён цепочкой «сессия → членство → транзакция с RLS» */
-export const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/activity', '/events', '/companies', '/contacts', '/deals', '/deal-pipelines', '/deal-stages', '/deal-lost-reasons', '/deal-funnel', '/crm-activities', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production', '/production-orders', '/production-plans', '/stock-levels', '/organizations', '/bank-accounts', '/warehouses', '/cost-items', '/documents', '/order-calculations', '/stock', '/flows', '/flow-runs', '/work-orders', '/work-order-assignments', '/work-order-kinds', '/document-states', '/services', '/contracts', '/tariff-plans', '/billing', '/other-costs', '/material-allocations', '/investments', '/processing', '/processor-reports', '/supplier-orders', '/serials', '/repair-items', '/sales-plan', '/appointments', '/delivery-methods', '/deliveries', '/positions', '/product-kinds', '/leads', '/lead-statuses', '/lead-forms', '/lead-sources', '/ad-campaigns', '/ad-expenses', '/ad-report', '/secrets', '/payments', '/payment-calendar', '/payment-requests', '/opening-balances', '/bank-import', '/cash-registers', '/cash-flow-items', '/bank-connections', '/payment-links', '/payroll', '/pricing', '/loyalty', '/doc-templates', '/license', '/fleet', '/trips', '/transport-orders', '/attachments', '/defect-reasons', '/objects', '/supplier-ratings', '/estimates', '/shifts', '/object-acts', '/sub-acts', '/objects-forecast', '/api-tokens'];
+export const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/activity', '/events', '/companies', '/contacts', '/deals', '/deal-pipelines', '/deal-stages', '/deal-lost-reasons', '/deal-funnel', '/crm-activities', '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/work-centers', '/manufactured-items', '/bom-lines', '/production', '/production-orders', '/production-plans', '/stock-levels', '/organizations', '/bank-accounts', '/warehouses', '/cost-items', '/documents', '/order-calculations', '/stock', '/flows', '/flow-runs', '/work-orders', '/work-order-assignments', '/work-order-kinds', '/document-states', '/services', '/contracts', '/tariff-plans', '/billing', '/other-costs', '/material-allocations', '/investments', '/processing', '/processor-reports', '/supplier-orders', '/serials', '/repair-items', '/sales-plan', '/appointments', '/delivery-methods', '/deliveries', '/positions', '/product-kinds', '/leads', '/lead-statuses', '/lead-forms', '/lead-sources', '/ad-campaigns', '/ad-expenses', '/ad-report', '/secrets', '/payments', '/payment-calendar', '/payment-requests', '/opening-balances', '/bank-import', '/cash-registers', '/cash-flow-items', '/bank-connections', '/payment-links', '/payroll', '/pricing', '/loyalty', '/doc-templates', '/license', '/fleet', '/trips', '/transport-orders', '/attachments', '/defect-reasons', '/objects', '/supplier-ratings', '/estimates', '/shifts', '/object-acts', '/sub-acts', '/objects-forecast', '/api-tokens', '/project-templates'];
 
 function buildTenantApi() {
   const guarded = new Hono<AppEnv>();
@@ -202,6 +203,7 @@ function buildTenantApi() {
     .route('/trips', tripRoutes)
     .route('/transport-orders', transportOrderRoutes)
     .route('/positions', positionRoutes)
+    .route('/project-templates', projectTemplateRoutes)
     .route('/product-kinds', productKindRoutes)
     .route('/secrets', secretRoutes)
     .route('/bank-connections', bankConnectionRoutes)

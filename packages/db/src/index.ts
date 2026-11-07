@@ -54,6 +54,7 @@ export * from './sales-plan';
 export * from './appointments';
 export * from './delivery';
 export * from './positions';
+export * from './project-templates';
 export * from './settlements';
 export * from './payments';
 export * from './payment-requests';

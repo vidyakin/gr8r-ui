@@ -364,6 +364,7 @@ export const errors = {
   later_month_closed: 'A later month is closed: reopen it first',
   method_not_allowed: 'This operation is not supported for this entity',
   module_mismatch: 'A task must be in a project of the same module',
+  template_disabled: 'The project template is disabled',
   module_project_protected: 'A module project cannot be deleted or archived',
   module_project_unavailable: 'Cannot create the module project: too many projects use the same key',
   nested_variants: 'A variant cannot have variants of its own',

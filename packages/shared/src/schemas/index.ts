@@ -19,6 +19,7 @@ export * from './sales-plan';
 export * from './appointments';
 export * from './delivery';
 export * from './positions';
+export * from './project-templates';
 export * from './payments';
 export * from './payroll';
 export * from './pricing';

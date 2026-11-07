@@ -22,6 +22,7 @@ export const TOKEN_PATH_SECTIONS: Map<string, PositionSection[]> = new Map<strin
   ['/comments', ['projects']],
   ['/time-logs', ['projects']],
   ['/saved-views', ['projects']],
+  ['/project-templates', ['projects']],
   ['/calendar-events', ['projects']],
   ['/activity', ['projects']],
   // CRM: сделки, лиды, реклама, план продаж

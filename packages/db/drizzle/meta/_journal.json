@@ -687,6 +687,13 @@
       "when": 1794010000000,
       "tag": "0106_agent_writes",
       "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1794020000000,
+      "tag": "0112_project_templates",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,42 @@
+/* Шаблоны проектов: список в настройках, «Сохранить как шаблон», создание проекта из шаблона.
+   Английский словарь — источник ключей: ./ru повторяет его форму. */
+export const projectTemplates = {
+  settings: {
+    lead: 'A project saved as a template: tasks with subtasks, deadlines as "day N from start", assignees by position. Create new projects from it with a start date.',
+    onlyAdmins: 'Only admins and owners can rename, disable or delete templates.',
+    empty: 'No project templates yet',
+    emptyHint: 'Open a project and choose "Save as template" in its menu.',
+    summary: '{tasks} tasks, {subtasks} subtasks',
+    duration: 'Duration {days} days',
+    disabled: 'Disabled',
+    disabledHint: 'A disabled template is hidden from the choice when creating a project.',
+    nameLabel: 'Name',
+    rename: 'Rename',
+    save: 'Save',
+    cancel: 'Cancel',
+    enable: 'Enable',
+    disable: 'Disable',
+    delete: 'Delete',
+    confirmDelete: 'Delete the template "{name}"? Projects created from it stay as they are.',
+    renamed: 'Template renamed',
+    enabledToast: 'Template enabled',
+    disabledToast: 'Template disabled',
+    deleted: 'Template deleted',
+  },
+  save: {
+    menu: 'Save as template',
+    title: 'Save project as template',
+    lead: 'Statuses, milestones, tasks with subtasks and checklists are saved. Deadlines become "day N from start", assignees become positions; done tasks start over as to do.',
+    nameLabel: 'Template name',
+    descLabel: 'Description',
+    submit: 'Save template',
+    saved: 'Template "{name}" saved',
+  },
+  create: {
+    label: 'Saved templates',
+    startLabel: 'Start date',
+    startHint: 'Day 1 of the template is the start date.',
+    tasks: '{tasks} tasks',
+    created: 'Project "{name}" created from the template: {count} tasks',
+  },
+};
