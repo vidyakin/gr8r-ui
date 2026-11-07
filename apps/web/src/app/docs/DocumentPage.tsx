@@ -17,7 +17,7 @@ import { useWorkspace } from '../data/store';
 import { PayControls } from '../money/PayControls';
 import { useSnapshot } from '../production/data';
 import { MaterialModeField, WasteHeaderFields, WasteTab } from '../production/WasteTab';
-import { STATUS_LABEL, STATUS_TONE, docTitle, docsKey, typeLabel, useCostItems, useDocsApi, useDocTemplates, useDocument, useOrganizations, useProcessingOrders, useWarehouses, type DocDetail, type DocLink } from './data';
+import { STATUS_LABEL, STATUS_TONE, docTitle, docsKey, typeLabel, useCompanyArticleMap, useCostItems, useDocsApi, useDocTemplates, useDocument, useOrganizations, useProcessingOrders, useWarehouses, type DocDetail, type DocLink } from './data';
 import { QuoteVariants } from './quote-variants';
 import { CalculationDialog, ParamsDialog } from './calculation';
 import { StockMovesDialog } from './stock-moves-dialog';
@@ -301,6 +301,9 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const whOptions = (warehouses.data ?? []).filter(w => (!w.archivedAt || w.id === form.warehouseId) && w.kind !== 'transit');
 
   const [form, setForm] = React.useState<Form>(() => toForm(doc));
+  // номенклатура контрагента: артикул контрагента в строках закупок и продаж и подбор товара по нему
+  const partnerId = meta.party !== null ? form.counterpartyId : null;
+  const partnerArts = useCompanyArticleMap(partnerId);
   /** Принятое количество по строкам (перемещение «в пути»): редактируется при приёмке */
   const [received, setReceived] = React.useState<Record<string, string>>(() => Object.fromEntries(doc.lines.map(l => [l.id, trimNum(l.receivedQty) || trimNum(l.qty)])));
   const [save, setSave] = React.useState<SaveState>('saved');
@@ -685,11 +688,16 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       <td className="faint num">{i + 1}</td>
                       <td>
                         {editable ? (
-                          <ProductPicker value={l.name} dataCell={`${i}:0`} price={priceField} onKeyDown={cellKey(i, 0)} onPick={p => pickProduct(l.key, i, p)} invalid={save === 'invalid' && !l.productId} />
+                          <ProductPicker value={l.name} dataCell={`${i}:0`} price={priceField} counterpartyId={partnerId} partnerArticles={partnerArts} onKeyDown={cellKey(i, 0)} onPick={p => pickProduct(l.key, i, p)} invalid={save === 'invalid' && !l.productId} />
                         ) : (
                           <span className="trunc" title={l.name}>
                             {l.name} {srv?.sku && <span className="mono faint" style={{ fontSize: 11 }}>{srv.sku}</span>}
                           </span>
+                        )}
+                        {l.productId && partnerArts.get(l.productId)?.article && (
+                          <div className="mono faint" style={{ fontSize: 11 }} title={partnerArts.get(l.productId)?.name || undefined}>
+                            {t('docs.partner.lineArticle', { article: partnerArts.get(l.productId)!.article })}
+                          </div>
                         )}
                       </td>
                       {hasGroups && (

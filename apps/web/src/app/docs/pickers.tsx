@@ -186,7 +186,7 @@ export function CounterpartyPicker({ value, onPick, disabled, invalid, id, place
 
 /* ---------------- товар из каталога ---------------- */
 
-export function ProductPicker({ value, onPick, disabled, invalid, inputRef, onKeyDown, dataCell, price, placeholder }: { value: string; onPick: (p: Product) => void; disabled?: boolean; invalid?: boolean; inputRef?: React.Ref<HTMLInputElement>; onKeyDown?: ComboProps<Product>['onKeyDown']; dataCell?: string; price: 'price' | 'purchasePrice'; placeholder?: string }) {
+export function ProductPicker({ value, onPick, disabled, invalid, inputRef, onKeyDown, dataCell, price, placeholder, counterpartyId, partnerArticles }: { counterpartyId?: string | null; partnerArticles?: Map<string, { article: string; name: string }>; value: string; onPick: (p: Product) => void; disabled?: boolean; invalid?: boolean; inputRef?: React.Ref<HTMLInputElement>; onKeyDown?: ComboProps<Product>['onKeyDown']; dataCell?: string; price: 'price' | 'purchasePrice'; placeholder?: string }) {
   const ws = useWsId();
   const t = useT();
   return (
@@ -199,13 +199,14 @@ export function ProductPicker({ value, onPick, disabled, invalid, inputRef, onKe
       inputRef={inputRef}
       onKeyDown={onKeyDown}
       dataCell={dataCell}
-      search={q => searchProducts(ws, q, undefined, 10)}
+      search={q => searchProducts(ws, q, undefined, 10, counterpartyId)}
       itemKey={p => p.id}
       onPick={onPick}
       renderItem={p => (
         <>
           {p.imageAttachmentId ? <img src={attachmentImageUrl(p.imageAttachmentId, 128, ws)} alt="" style={{ width: 20, height: 20, objectFit: 'contain', borderRadius: 3, flexShrink: 0 }} loading="lazy" /> : p.kind === 'service' ? <Wrench size={13} className="faint" /> : <Package size={13} className="faint" />}
           <span className="trunc grow">{p.name}</span>
+          {partnerArticles?.get(p.id)?.article && <span className="mono accent" style={{ fontSize: 11 }} title={partnerArticles.get(p.id)?.name || undefined}>{t('docs.partner.lineArticle', { article: partnerArticles.get(p.id)!.article })}</span>}
           {p.sku && <span className="mono faint" style={{ fontSize: 11 }}>{p.sku}</span>}
           <span className="num muted" style={{ fontSize: 12 }}>{money(p[price])}</span>
         </>

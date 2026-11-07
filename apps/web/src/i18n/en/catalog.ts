@@ -194,6 +194,7 @@ export const enums = {
     inv3: 'INV-3 (inventory list)',
     torg16: 'TORG-16 (write-off act)',
     torg13: 'TORG-13 (internal transfer)',
+    supplier_order: 'Supplier order',
     work_order: 'Work order (job sheet)',
     piecework: 'Piecework order',
     warranty_card: 'Warranty card',

@@ -23,3 +23,12 @@
   `warehouse` (обычный), `workshop` (склад-цех участка, к нему привязывается участок) и `transit` (служебный склад «в пути», этап 0б; из выбора скрыт).
 - Интерфейс: Settings → Organizations (форма с реквизитами и проверкой на месте, подписанты, налогообложение, ссылки на печать и подписи, счета) и Warehouses (+ настройка
   «Allow negative stock»); в карточке компании CRM вкладка **Requisites** (тип, ИНН/КПП/ОГРН, адреса, счета).
+- **Коды и номенклатура контрагентов** (как «Номенклатура поставщиков» в 1С; миграция `0108_partner_codes.sql`, код `packages/db/src/partner-articles.ts`, маршруты `companyPartnerRoutes` / `productPartnerRoutes` в `apps/api/src/routes/documents.ts`):
+  - `counterparty_codes (company_id, organization_id, code)` — наш код у контрагента (номер клиента или поставщика, присвоенный им нам) по каждой нашей организации; уникален по паре, пустой код удаляет запись.
+    API: `GET /companies/:id/codes` (по всем неархивным организациям, `code: null` — не задан), `PUT /companies/:id/codes/:organizationId {code}`.
+  - `product_partner_articles (company_id, product_id, article, name)` — артикул и наименование товара у контрагента; уникальна по паре (контрагент, товар), хотя бы одно из полей непустое.
+    API: `GET /companies/:id/articles`, `PUT|DELETE /companies/:id/articles/:productId {article, name}` (оба пустые — удаление), `GET /products/:id/articles`. Запись — member и выше, события `counterparty_code.*`, `product_partner_article.*`.
+  - Оба набора — таблицы арендатора: составные FK `(workspace_id, …)`, RLS через `app_secure_tenant_table`, каскадное удаление вместе с контрагентом, организацией и товаром.
+  - Подбор товара: `GET /products?q=&counterpartyId=` дополнительно (через `searchExtra` в `crud()`) находит товары по артикулу и наименованию у контрагента. `documentDetail` отдаёт в строках `partnerArticle` / `partnerName` по контрагенту документа.
+  - Печатная форма `supplier_order` («Заказ поставщику», первая форма этого типа): колонка «Артикул поставщика», наименование у поставщика и «Наш код у поставщика» для организации документа (`PrintData.ourCode`, `PrintLine.partnerArticle`).
+  - Интерфейс: вкладка «Коды» карточки контрагента (`apps/web/src/app/docs/partner-codes.tsx`: коды по организациям и таблица номенклатуры), блок «Номенклатура контрагента» в карточке товара, артикул под названием товара в строках документов с контрагентом (`DocumentPage.tsx`, `ProductPicker` ищет и показывает артикул).

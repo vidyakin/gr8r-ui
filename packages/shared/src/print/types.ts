@@ -68,6 +68,9 @@ export interface PrintLine {
   image?: string;
   /** Группа строки (справочно): пусто — без группы */
   group?: string;
+  /** Артикул и наименование товара у контрагента документа (номенклатура контрагента) */
+  partnerArticle?: string;
+  partnerName?: string;
 }
 
 /** Вариант КП для печати: основной — строки документа */
@@ -121,6 +124,8 @@ export interface PrintData {
   holderName?: string;
   /** Вид операции документа (перемещение) */
   operation?: string;
+  /** Наш код у контрагента документа для организации документа (заказ поставщику) */
+  ourCode?: string;
   /** Заказ-наряд: вид, состояние, материалы и исполнители */
   workOrder?: {
     kindName: string;

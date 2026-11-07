@@ -6,7 +6,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { assertProductKind, attributeDefs, attachments, companies, generateVariants, listVariants, productCategories, products, recordEvent, recordProductPrice, specParamsOfProduct, units, uuidv7 } from '@gr8r/db';
 import { attributeCreate, attributeUpdate, categoryCreate, categoryQuery, categoryUpdate, destroyQuery, idParam, keyFromName, productCreate, productQuery, productUpdate, unitCreate, unitQuery, unitUpdate, type RecordData } from '@gr8r/shared';
-import { crud, ctxOf, validationHook, type Ctx } from '../crud';
+import { crud, ctxOf, validationHook, type Ctx, escapeLike } from '../crud';
 import { AppError, notFound } from '../errors';
 import { requireRole } from '../middleware';
 import { assertAttributeKeyFree, assertUnit, chainIds, effectiveAttributes, loadCategory, subtreeWhere, validateAttrs } from '../catalog/service';
@@ -187,6 +187,11 @@ export const productRoutes = crud({
   sortable: { name: products.name, sku: products.sku, kind: products.kind, price: products.price, purchasePrice: products.purchasePrice, createdAt: products.createdAt, updatedAt: products.updatedAt },
   defaultSort: 'name',
   search: [products.name, products.sku, products.barcode],
+  // подбор в документе с контрагентом: находит и по артикулу / наименованию товара у контрагента
+  searchExtra: (term, q) =>
+    q.counterpartyId
+      ? sql`${products.id} in (select pa.product_id from product_partner_articles pa where pa.company_id = ${q.counterpartyId} and (pa.article ilike ${`%${escapeLike(term)}%`} or pa.name ilike ${`%${escapeLike(term)}%`}))`
+      : undefined,
   filters: q => [
     q.kind ? eq(products.kind, q.kind) : undefined,
     q.active !== undefined ? eq(products.isActive, q.active) : undefined,

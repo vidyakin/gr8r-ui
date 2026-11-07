@@ -38,6 +38,7 @@ import type { Db } from './client';
 import { DomainError } from './errors';
 import { DOCUMENT_HOOKS, DOCUMENT_CREATED_HOOKS, STATE_HOOKS, STATE_PROVIDERS, type StatePayload } from './document-hooks';
 import { recordEvent } from './events';
+import { counterpartyCodeFor, partnerArticlesFor } from './partner-articles';
 import { applyStockMoves, defaultPostingCost, documentCosts, documentLineCosts, loadInventorySettings, revertStockMoves, sourceMoveCosts, syncReservations, type MoveRequest } from './stock';
 import { syncWorkOrderResources } from './planning';
 import { assertPeriodOpen, assertServiceCostItems, clearPeriodCosts, syncPeriodCosts } from './cost-closing';
@@ -1219,6 +1220,9 @@ export interface DocumentLineView extends DocumentLineRow {
   discountRuleName: string | null;
   discountCardId: string | null;
   discountCardNumber: string | null;
+  /** Артикул и наименование товара у контрагента документа (пусто — не заданы) */
+  partnerArticle: string;
+  partnerName: string;
 }
 
 /** Промокод, карта и списание баллов документа для формы (код и номер карты — готовыми строками) */
@@ -1275,7 +1279,14 @@ export async function documentDetail(db: Db, id: string) {
   const shipped = isOrder ? await sums(documentLines.originLineId, FULFIL_TYPES, true) : new Map<string, string>();
   const planned = isOrder ? await sums(documentLines.originLineId, FULFIL_TYPES, false) : new Map<string, string>();
   const returned = isReturnable ? await sums(documentLines.sourceLineId, [type === 'realization' ? 'customer_return' : 'supplier_return'], true) : new Map<string, string>();
-  const lines: DocumentLineView[] = rows.map(r => ({ ...r.line, sku: r.sku, kind: r.kind, trackSerials: r.trackSerials, trackBatches: r.trackBatches, shipped: fmt(dec(shipped.get(r.line.id) ?? 0), 3), planned: fmt(dec(planned.get(r.line.id) ?? 0), 3), returned: fmt(dec(returned.get(r.line.id) ?? 0), 3), discountSource: null, discountRuleId: null, discountRuleName: null, discountCardId: null, discountCardNumber: null }));
+  const lines: DocumentLineView[] = rows.map(r => ({ ...r.line, sku: r.sku, kind: r.kind, trackSerials: r.trackSerials, trackBatches: r.trackBatches, shipped: fmt(dec(shipped.get(r.line.id) ?? 0), 3), planned: fmt(dec(planned.get(r.line.id) ?? 0), 3), returned: fmt(dec(returned.get(r.line.id) ?? 0), 3), discountSource: null, discountRuleId: null, discountRuleName: null, discountCardId: null, discountCardNumber: null, partnerArticle: '', partnerName: '' }));
+  // номенклатура контрагента: артикул и наименование товара у контрагента документа
+  const partner = await partnerArticlesFor(db, doc.counterpartyId, lines.map(l => l.productId));
+  for (const l of lines) {
+    const pa = partner.get(l.productId);
+    l.partnerArticle = pa?.article ?? '';
+    l.partnerName = pa?.name ?? '';
+  }
   // источники скидок строк (ручная / правило / карта) — для отметки в форме документа
   const srcRows = ids.length
     ? await db
@@ -1426,6 +1437,7 @@ export async function buildPrintData(db: Db, id: string): Promise<PrintData> {
       warrantyMonths: warrantyBy.get(l.productId) ?? null,
       image: imageBy.get(l.productId) || undefined,
       group: l.groupName,
+      ...(l.partnerArticle || l.partnerName ? { partnerArticle: l.partnerArticle, partnerName: l.partnerName } : {}),
     })),
     totals: d.totals,
     ...(d.type === 'work_order' ? { workOrder: await workOrderPrintData(db, d) } : {}),
@@ -1438,6 +1450,7 @@ export async function buildPrintData(db: Db, id: string): Promise<PrintData> {
     costItemName: d.costItem?.name,
     holderName: d.inUseMember?.name ?? d.inUseWorkCenter?.name,
     operation: d.operation ?? undefined,
+    ourCode: (await counterpartyCodeFor(db, d.counterpartyId, d.organizationId)) || undefined,
   };
   if (hasQuoteVariants(d.type)) {
     const [resp] = d.responsibleId ? await db.select({ name: members.name }).from(members).where(eq(members.id, d.responsibleId)).limit(1) : [];

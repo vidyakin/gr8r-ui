@@ -180,8 +180,10 @@ export function useGenerateVariants() {
 }
 
 /** Поиск товаров для выбора в формах (материал в спецификации, товар изделия) */
-export const searchProducts = async (ws: string, q: string, kind?: ProductKind, limit = 12) => {
+export const searchProducts = async (ws: string, q: string, kind?: ProductKind, limit = 12, counterpartyId?: string | null) => {
   const sp = new URLSearchParams({ limit: String(limit), sort: 'name', active: 'true' });
+  // контрагент документа: поиск находит и по артикулу контрагента
+  if (counterpartyId) sp.set('counterpartyId', counterpartyId);
   if (q) sp.set('q', q);
   if (kind) sp.set('kind', kind);
   return (await call<{ items: Product[] }>(ws, 'GET', `/products?${sp}`)).items;

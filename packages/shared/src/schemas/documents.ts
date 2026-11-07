@@ -325,3 +325,13 @@ export const inventorySettingsUpdate = z.object({ allowNegativeStock: z.boolean(
 export interface InventorySettings {
   allowNegativeStock: boolean;
 }
+
+/* ---------------- коды и номенклатура контрагентов (docs/architecture/counterparties.md) ---------------- */
+
+/** Наш код у контрагента для одной нашей организации; пустая строка — удалить код */
+export const counterpartyCodeSet = z.object({ code: z.string().trim().max(64) });
+/** Артикул и наименование товара у контрагента; оба пустые — удалить запись */
+export const partnerArticleSet = z.object({
+  article: z.string().trim().max(100).default(''),
+  name: z.string().trim().max(300).default(''),
+});

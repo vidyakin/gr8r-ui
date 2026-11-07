@@ -694,6 +694,13 @@
       "when": 1794020000000,
       "tag": "0107_sales_cutoff_utm",
       "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1794020010000,
+      "tag": "0108_partner_codes",
+      "breakpoints": true
     }
   ]
 }

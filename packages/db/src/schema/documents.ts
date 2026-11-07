@@ -80,6 +80,52 @@ export const bankAccounts = pgTable(
   ],
 );
 
+/** Наш код у контрагента (номер клиента/поставщика, присвоенный им нам) — по каждой нашей организации (docs/architecture/counterparties.md) */
+export const counterpartyCodes = pgTable(
+  'counterparty_codes',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    companyId: uuid('company_id').notNull(),
+    organizationId: uuid('organization_id').notNull(),
+    code: text('code').notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    unique('counterparty_codes_ws_id_uq').on(t.workspaceId, t.id),
+    unique('counterparty_codes_company_org_uq').on(t.workspaceId, t.companyId, t.organizationId),
+    foreignKey({ columns: [t.workspaceId, t.companyId], foreignColumns: [companies.workspaceId, companies.id], name: 'counterparty_codes_company_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.organizationId], foreignColumns: [organizations.workspaceId, organizations.id], name: 'counterparty_codes_org_fk' }).onDelete('cascade'),
+    check('counterparty_codes_code_chk', sql`char_length(${t.code}) between 1 and 64`),
+    index('counterparty_codes_org_idx').on(t.workspaceId, t.organizationId),
+  ],
+);
+
+/** Номенклатура контрагента (как «Номенклатура поставщиков» 1С): артикул и наименование товара у контрагента */
+export const productPartnerArticles = pgTable(
+  'product_partner_articles',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    companyId: uuid('company_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    article: text('article').notNull().default(''),
+    name: text('name').notNull().default(''),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    unique('product_partner_articles_ws_id_uq').on(t.workspaceId, t.id),
+    unique('product_partner_articles_company_product_uq').on(t.workspaceId, t.companyId, t.productId),
+    foreignKey({ columns: [t.workspaceId, t.companyId], foreignColumns: [companies.workspaceId, companies.id], name: 'product_partner_articles_company_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'product_partner_articles_product_fk' }).onDelete('cascade'),
+    check('product_partner_articles_len_chk', sql`char_length(${t.article}) <= 100 and char_length(${t.name}) <= 300 and (${t.article} <> '' or ${t.name} <> '')`),
+    index('product_partner_articles_product_idx').on(t.workspaceId, t.productId),
+    index('product_partner_articles_article_idx').on(t.workspaceId, t.companyId, t.article),
+  ],
+);
+
 export const warehouses = pgTable(
   'warehouses',
   {
