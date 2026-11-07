@@ -11,6 +11,9 @@ export const tokenApiRoot = (path: string) => '/' + (path.split('/')[1] ?? '');
  * Корневой путь API → разделы, пересечение которых с sections токена даёт доступ.
  * /documents — документы всех торговых/складских/финансовых/сервисных/производственных разделов.
  */
+/** Справочники, которые читают все предметные разделы (контрагенты, номенклатура, склады, организации) */
+const REFERENCE_SECTIONS: PositionSection[] = ['catalog', 'crm', 'trade', 'stock', 'services', 'deliveries', 'production', 'finance'];
+
 export const TOKEN_PATH_SECTIONS: Map<string, PositionSection[]> = new Map<string, PositionSection[]>([
   // Задачи, проекты и всё рабочее пространство
   ['/projects', ['projects']],
@@ -37,15 +40,15 @@ export const TOKEN_PATH_SECTIONS: Map<string, PositionSection[]> = new Map<strin
   ['/ad-report', ['crm']],
   ['/sales-plan', ['crm']],
   // Торговля и склад
-  ['/documents', ['trade', 'stock', 'finance', 'services', 'production']],
-  ['/stock', ['trade']],
-  ['/stock-levels', ['trade']],
+  ['/documents', ['trade', 'stock', 'finance', 'services', 'production', 'deliveries']],
+  ['/stock', ['trade', 'stock', 'production']],
+  ['/stock-levels', ['trade', 'stock', 'production', 'catalog']],
   ['/pricing', ['trade']],
   ['/loyalty', ['trade']],
   ['/processing', ['trade']],
   ['/processor-reports', ['trade']],
   ['/supplier-orders', ['trade']],
-  ['/serials', ['trade']],
+  ['/serials', ['stock', 'services']],
   ['/doc-templates', ['trade']],
   ['/objects', ['trade']],
   ['/supplier-ratings', ['trade']],
@@ -98,33 +101,33 @@ export const TOKEN_PATH_SECTIONS: Map<string, PositionSection[]> = new Map<strin
   // Автоматизации
   ['/flows', ['automations']],
   ['/flow-runs', ['automations']],
+  // Журнал событий несёт данные записей всех разделов, секреты — интеграции автоматизаций
+  ['/events', ['automations']],
+  ['/secrets', ['automations']],
   // Справочники (номенклатура, контрагенты, организации, склады, статьи затрат, должности)
-  ['/companies', ['catalog']],
-  ['/contacts', ['catalog']],
-  ['/units', ['catalog']],
-  ['/product-categories', ['catalog']],
-  ['/attribute-defs', ['catalog']],
-  ['/products', ['catalog']],
-  ['/organizations', ['catalog']],
+  ['/companies', REFERENCE_SECTIONS],
+  ['/contacts', REFERENCE_SECTIONS],
+  ['/units', REFERENCE_SECTIONS],
+  ['/product-categories', REFERENCE_SECTIONS],
+  ['/attribute-defs', REFERENCE_SECTIONS],
+  ['/products', REFERENCE_SECTIONS],
+  ['/organizations', REFERENCE_SECTIONS],
   ['/bank-accounts', ['catalog']],
-  ['/warehouses', ['catalog']],
+  ['/warehouses', REFERENCE_SECTIONS],
   ['/cost-items', ['catalog']],
   ['/positions', ['catalog']],
-  ['/product-kinds', ['catalog']],
+  ['/product-kinds', REFERENCE_SECTIONS],
 ]);
 
-/** Пути, доступные любому токену независимо от разделов: участники, уведомления, журнал, справочники конструктора,
-    вложения, лицензия и секреты (секреты на запись и так под admin/owner) */
+/** Пути, доступные любому токену независимо от разделов: участники, уведомления, справочники конструктора, вложения, лицензия */
 export const TOKEN_OPEN_PATHS: Set<string> = new Set<string>([
   '/notifications',
   '/members',
   '/teams',
-  '/events',
   '/entities',
   '/data',
   '/data-search',
   '/attachments',
-  '/secrets',
   '/license',
   '/api-tokens',
 ]);
