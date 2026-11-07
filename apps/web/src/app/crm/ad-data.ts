@@ -54,6 +54,9 @@ export interface AdReportRow {
   wonDeals: number;
   revenue: string;
   expense: string;
+  /** Выручка по проведённым реализациям с источником / кампанией; нет — разрез «кто привёл» */
+  salesRevenue?: string;
+  shipments?: number;
   conversion: string | null;
   cpl: string | null;
   cac: string | null;

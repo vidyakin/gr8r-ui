@@ -143,6 +143,8 @@ export const documentLineInput = z
     params: paramValues.optional(),
     /** Группа строки (справочно, сумма по группе в форме и печати): пусто — без группы */
     groupName: z.string().trim().max(200).optional(),
+    /** Срок отгрузки строки (заказ покупателя): undefined — оставить прежний, null — очистить */
+    shipBy: isoDate.nullish(),
     /** Серийные номера строки (товары с учётом по номерам): список заменяет прежние */
     serials: z.array(z.string().trim().min(1).max(100)).max(2000).optional(),
     /** Партия строки (задача 1187): номер партии прихода */
@@ -197,6 +199,13 @@ export const documentCreate = z.object({
   responsibleId: uuid.nullish(),
   /** Название основного варианта КП (КП и заказ покупателя, когда вариантов несколько) */
   variantName: z.string().trim().min(1).max(200).nullish(),
+  /** Источник привлечения (КП, заказ покупателя, реализация): рекламный источник, кампания, метки utm_* */
+  sourceId: uuid.nullish(),
+  campaignId: uuid.nullish(),
+  utmSource: z.string().trim().max(300).optional(),
+  utmMedium: z.string().trim().max(300).optional(),
+  utmCampaign: z.string().trim().max(300).optional(),
+  utmContent: z.string().trim().max(300).optional(),
   lines: z.array(documentLineInput).max(500).optional(),
   custom: customData.optional(),
 });
@@ -222,7 +231,11 @@ export const documentQuery = listQuery.extend({
   to: isoDate.optional(),
 });
 
-export const basedOnCreate = z.object({ type: z.enum(DOCUMENT_TYPES) });
+export const basedOnCreate = z.object({
+  type: z.enum(DOCUMENT_TYPES),
+  /** Отгрузка по дату (реализация на основании заказа): в документ попадают строки со сроком отгрузки не позже этой даты. Без даты — все строки */
+  shipBy: isoDate.optional(),
+});
 /** Смена состояния документа (отдельно от проведения) */
 export const documentStateChange = z.object({
   state: z.string().trim().regex(/^[a-z][a-z0-9_]*$/, 'State key: lowercase letters, digits and underscores'),

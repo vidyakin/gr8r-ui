@@ -53,6 +53,7 @@ import { saveSerials, checkInventorySerials, lineSerialsView } from './serials';
 import { applySaleNextContact } from './repeat-sales';
 import { applyAutoDiscountsOnSave, applyLoyaltyOnPost, applyLoyaltyOnReturn, applyLoyaltyRedemption, applyLoyaltyReturnRefund, reverseLoyaltyOnReturnUnpost, validPromoCode, DISCOUNT_DOCUMENT_TYPES, documentLoyaltyOf, LOYALTY_RETURN_TYPES, LOYALTY_SALE_TYPES, reverseLoyaltyOnUnpost, saveDocumentLoyalty, saveLineDiscountSources } from './loyalty';
 import { inheritDelivery } from './delivery';
+import { resolveAttribution } from './ad';
 import { payableOf, postAccrual, removeSettlementMoves } from './settlements';
 import { repairPrintData, syncWarrantyKind, workOrderKindType } from './repair';
 import { loadSupplierRatingSettings, supplierRatingLevelOf } from './supplier-rating';
@@ -170,6 +171,8 @@ interface ResolvedLine {
   params: Record<string, unknown>;
   /** Группа строки; undefined — оставить прежнюю */
   groupName?: string;
+  /** Срок отгрузки строки: undefined — оставить прежний, null — очистить */
+  shipBy?: string | null;
   /** Партия строки (задача 1187): номер партии прихода и даты */
   batchNumber?: string | null;
   batchProducedAt?: string | null;
@@ -207,6 +210,7 @@ async function resolveLines(db: Db, inputs: DocumentLineInput[], existingIds: Se
       tollingRole: l.tollingRole ?? null,
       params: l.params ?? {},
       groupName: l.groupName,
+      shipBy: l.shipBy,
       batchNumber: l.batchNumber === undefined ? undefined : l.batchNumber?.trim() || null,
       batchProducedAt: l.batchProducedAt,
       batchExpiresAt: l.batchExpiresAt,
@@ -273,7 +277,7 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
   const type = doc.type as DocumentType;
   const meta = DOCUMENT_META[type];
   const existing = await db
-    .select({ id: documentLines.id, price: documentLines.price, discountPct: documentLines.discountPct, stockRole: documentLines.stockRole, costItemId: documentLines.costItemId, workCenterId: documentLines.workCenterId, groupName: documentLines.groupName, batchNumber: documentLines.batchNumber, batchProducedAt: documentLines.batchProducedAt, batchExpiresAt: documentLines.batchExpiresAt })
+    .select({ id: documentLines.id, price: documentLines.price, discountPct: documentLines.discountPct, stockRole: documentLines.stockRole, costItemId: documentLines.costItemId, workCenterId: documentLines.workCenterId, groupName: documentLines.groupName, shipBy: documentLines.shipBy, batchNumber: documentLines.batchNumber, batchProducedAt: documentLines.batchProducedAt, batchExpiresAt: documentLines.batchExpiresAt })
     .from(documentLines)
     .where(eq(documentLines.documentId, doc.id));
   const existingIds = new Set(existing.map(e => e.id));
@@ -283,6 +287,7 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
   const prevCostItem = new Map(existing.map(e => [e.id, e.costItemId]));
   const prevCenter = new Map(existing.map(e => [e.id, e.workCenterId]));
   const prevGroup = new Map(existing.map(e => [e.id, e.groupName]));
+  const prevShipBy = new Map(existing.map(e => [e.id, e.shipBy]));
   const prevBatch = new Map(existing.map(e => [e.id, e.batchNumber]));
   const prevBatchProduced = new Map(existing.map(e => [e.id, e.batchProducedAt]));
   const prevBatchExpires = new Map(existing.map(e => [e.id, e.batchExpiresAt]));
@@ -318,6 +323,8 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
       params: l.params ?? {},
       // группа строки (справочно): клиент, не знающий групп, её не сбрасывает
       groupName: l.groupName ?? prevGroup.get(l.id) ?? '',
+      // срок отгрузки: undefined — прежний, null — очистить
+      shipBy: l.shipBy === undefined ? prevShipBy.get(l.id) ?? null : l.shipBy,
       // партия строки (задача 1187): номер партии и даты — клиент не знающий партий, их не сбрасывает
       batchNumber: l.batchNumber === undefined ? prevBatch.get(l.id) ?? null : l.batchNumber,
       batchProducedAt: l.batchProducedAt === undefined ? prevBatchProduced.get(l.id) ?? null : l.batchProducedAt,
@@ -447,6 +454,46 @@ async function internalPrice(db: Db, ctx: DocCtx, doc: DocumentRow, l: ResolvedL
 
 /* ---------------- создание, правка, удаление ---------------- */
 
+/* ---------------- источник привлечения документа ---------------- */
+
+/** Типы документов продаж, у которых есть источник привлечения: он идёт по цепочке КП → заказ → счёт → реализация / акт */
+export const ATTRIBUTION_TYPES: readonly DocumentType[] = ['quote', 'customer_order', 'invoice', 'realization', 'act'];
+const UTM_KEYS = ['utmSource', 'utmMedium', 'utmCampaign', 'utmContent'] as const;
+type UtmKey = (typeof UTM_KEYS)[number];
+const UTM_CUSTOM: Record<UtmKey, string> = { utmSource: 'utm_source', utmMedium: 'utm_medium', utmCampaign: 'utm_campaign', utmContent: 'utm_content' };
+
+interface DocAttribution {
+  sourceId: string | null;
+  campaignId: string | null;
+  utmSource: string;
+  utmMedium: string;
+  utmCampaign: string;
+  utmContent: string;
+}
+
+const textOf = (v: unknown) => (typeof v === 'string' ? v.trim().slice(0, 300) : '');
+
+/** Источник привлечения нового документа продаж. Явно заданное (в том числе null) выигрывает; недостающее подставляется
+    из сделки документа, затем из контрагента: источник и кампания — их колонки, метки utm — одноимённые ключи `custom`
+    (`utm_source`… — их пишет вебхук формы в лид). Кампания задаёт источник (`resolveAttribution`, 422 `campaign_source_mismatch`). */
+async function newDocAttribution(db: Db, ctx: DocCtx, input: Partial<Record<UtmKey, string>> & { sourceId?: string | null; campaignId?: string | null }, dealId: string | null, counterpartyId: string | null): Promise<DocAttribution> {
+  const [deal] = dealId ? await db.select({ sourceId: deals.sourceId, campaignId: deals.campaignId, custom: deals.custom }).from(deals).where(eq(deals.id, dealId)).limit(1) : [];
+  const [company] = counterpartyId ? await db.select({ sourceId: companies.sourceId, campaignId: companies.campaignId, custom: companies.custom }).from(companies).where(eq(companies.id, counterpartyId)).limit(1) : [];
+  let sourceId = input.sourceId;
+  let campaignId = input.campaignId;
+  if (sourceId === undefined && campaignId === undefined) {
+    // источник и кампания берутся парой из первой записи, где источник задан
+    const from = [deal, company].find(r => r?.sourceId || r?.campaignId);
+    sourceId = from?.sourceId ?? undefined;
+    campaignId = from?.campaignId ?? undefined;
+  }
+  const attr = await resolveAttribution(db, ctx.workspaceId, { sourceId, campaignId });
+  const utm = {} as Record<UtmKey, string>;
+  for (const k of UTM_KEYS) utm[k] = input[k] !== undefined ? textOf(input[k]) : textOf(deal?.custom?.[UTM_CUSTOM[k]]) || textOf(company?.custom?.[UTM_CUSTOM[k]]);
+  return { sourceId: attr.sourceId, campaignId: attr.campaignId, ...utm };
+}
+
+
 export interface DocumentCreateInput {
   id?: string;
   type: DocumentType;
@@ -483,6 +530,13 @@ export interface DocumentCreateInput {
   basedOnId?: string | null;
   /** Сделка CRM: документ создан из неё, контрагент по умолчанию — контрагент сделки */
   dealId?: string | null;
+  /** Источник привлечения (документы продаж): undefined — подставить из сделки / контрагента, null — без источника */
+  sourceId?: string | null;
+  campaignId?: string | null;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmContent?: string;
   lines?: DocumentLineInput[];
   custom?: Record<string, unknown>;
 }
@@ -581,6 +635,7 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
     }
   }
   await assertRefs(db, { organizationId, counterpartyId, warehouseId, targetWarehouseId, costItemId, workCenterId, responsibleId: input.responsibleId });
+  const attribution = ATTRIBUTION_TYPES.includes(input.type) ? await newDocAttribution(db, ctx, input, dealId, counterpartyId) : null;
   if (needsTargetWarehouse(operation) && (!targetWarehouseId || targetWarehouseId === warehouseId)) throw new DomainError(422, 'target_warehouse_required', 'Select another warehouse to move the goods to');
   if (operation === 'to_operation' || operation === 'from_operation') await assertInUseHolder(db, inUseMemberId, inUseWorkCenterId);
   if (costItemId) await assertCostItemKind(db, input.type, costItemId, operation === 'to_operation' ? 'expense' : undefined);
@@ -610,6 +665,7 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
       investmentProjectId,
       objectId,
       basedOnId: input.basedOnId ?? null,
+      ...(attribution ?? {}),
       priceIncludesVat: input.priceIncludesVat ?? true,
       comment: input.comment ?? '',
       responsibleId: input.responsibleId ?? ctx.memberId,
@@ -656,6 +712,13 @@ export interface DocumentPatch {
   responsibleId?: string | null;
   /** Название основного варианта КП (КП и заказ покупателя) */
   variantName?: string | null;
+  /** Источник привлечения (документы продаж): рекламный источник, кампания, метки utm_* */
+  sourceId?: string | null;
+  campaignId?: string | null;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmContent?: string;
   lines?: DocumentLineInput[];
   custom?: Record<string, unknown>;
 }
@@ -745,6 +808,14 @@ export async function updateDocument(db: Db, ctx: DocCtx, id: string, patch: Doc
   if (patch.comment !== undefined) set.comment = patch.comment;
   if (patch.responsibleId !== undefined) set.responsibleId = patch.responsibleId;
   if (patch.variantName !== undefined && hasQuoteVariants(type)) set.variantName = patch.variantName;
+  if (ATTRIBUTION_TYPES.includes(type)) {
+    if (patch.sourceId !== undefined || patch.campaignId !== undefined) {
+      const attr = await resolveAttribution(db, ctx.workspaceId, { sourceId: patch.sourceId, campaignId: patch.campaignId }, { sourceId: doc.sourceId, campaignId: doc.campaignId });
+      set.sourceId = attr.sourceId;
+      set.campaignId = attr.campaignId;
+    }
+    for (const k of UTM_KEYS) if (patch[k] !== undefined) set[k] = textOf(patch[k]);
+  }
   if (patch.custom) set.custom = { ...doc.custom, ...patch.custom };
   const [after] = await db.update(documents).set(set).where(eq(documents.id, id)).returning();
   if (patch.lines) {
@@ -1035,7 +1106,7 @@ async function syncAfterChange(db: Db, ctx: DocCtx, doc: DocumentRow, lines: Doc
 
 /** Создаёт черновик указанного типа из документа: шапка и строки копируются, связь хранится в based_on_id и в строках (source / origin).
     Для документов, исполняющих заказ, количество строки = остаток к исполнению (заказано − уже в документах цепочки); для возвратов — остаток к возврату */
-export async function createBasedOn(db: Db, ctx: DocCtx, sourceId: string, target: DocumentType): Promise<string> {
+export async function createBasedOn(db: Db, ctx: DocCtx, sourceId: string, target: DocumentType, opts: { shipBy?: string } = {}): Promise<string> {
   const src = await loadDoc(db, sourceId);
   const srcType = src.type as DocumentType;
   if (src.status === 'cancelled') throw new DomainError(422, 'invalid_based_on', 'A cancelled document cannot be a basis');
@@ -1065,9 +1136,17 @@ export async function createBasedOn(db: Db, ctx: DocCtx, sourceId: string, targe
     if (origins.length) for (const o of await db.select({ id: documentLines.id, qty: documentLines.qty }).from(documentLines).where(inArray(documentLines.id, origins))) originQty.set(o.id, dec(o.qty));
   }
 
+  // «Отгрузка по дату»: реализация на основании заказа берёт только строки со сроком отгрузки не позже даты отбора
+  // (строка без срока в отбор по дате не попадает); без даты — все строки
+  const cutoff = srcType === 'customer_order' && target === 'realization' ? opts.shipBy : undefined;
+  let cutOff = 0;
   const newLines: DocumentLineInput[] = [];
   const meta: { source: string; origin: string | null }[] = [];
   for (const l of srcLines) {
+    if (cutoff && !(l.shipBy && l.shipBy <= cutoff)) {
+      cutOff++;
+      continue;
+    }
     let qty = dec(l.qty);
     if (isReturn) qty = dec(l.qty) - (planned.get(l.id) ?? 0n);
     else if (fulfils) {
@@ -1079,9 +1158,10 @@ export async function createBasedOn(db: Db, ctx: DocCtx, sourceId: string, targe
       }
     }
     if (qty <= 0n) continue;
-    newLines.push({ productId: l.productId, name: l.name, unitCode: l.unitCode, qty: fmt(qty, 3), price: l.price, discountPct: l.discountPct, vatRate: l.vatRate as VatRate, groupName: l.groupName });
+    newLines.push({ productId: l.productId, name: l.name, unitCode: l.unitCode, qty: fmt(qty, 3), price: l.price, discountPct: l.discountPct, vatRate: l.vatRate as VatRate, groupName: l.groupName, shipBy: l.shipBy });
     meta.push({ source: l.id, origin: isOrder ? l.id : l.originLineId });
   }
+  if (!newLines.length && cutOff) throw new DomainError(422, 'nothing_by_ship_date', 'No order line has a shipping date up to the chosen date');
   if (!newLines.length) throw new DomainError(422, 'nothing_to_create', isReturn ? 'Everything has already been returned' : 'Everything from this document is already covered by other documents');
 
   const id = await createDocument(db, ctx, {
@@ -1097,6 +1177,13 @@ export async function createBasedOn(db: Db, ctx: DocCtx, sourceId: string, targe
     // инвестпроект переходит в документ-исполнитель и возврат, если проект ещё принимает документы
     investmentProjectId: src.investmentProjectId && isInvestmentFactType(target) && (await investmentOpen(db, src.investmentProjectId)) ? src.investmentProjectId : null,
     basedOnId: sourceId,
+    // источник привлечения идёт по цепочке; чего в основании нет — подставится из сделки и контрагента
+    sourceId: src.sourceId ?? undefined,
+    campaignId: src.campaignId ?? undefined,
+    utmSource: src.utmSource || undefined,
+    utmMedium: src.utmMedium || undefined,
+    utmCampaign: src.utmCampaign || undefined,
+    utmContent: src.utmContent || undefined,
     lines: newLines,
   });
   await db.update(documents).set({ basedOnId: sourceId }).where(eq(documents.id, id));

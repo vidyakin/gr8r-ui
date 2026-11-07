@@ -14,6 +14,7 @@ export const ads = {
     newClients: 'New clients',
     wonDeals: 'Won deals',
     revenue: 'Revenue',
+    salesRevenue: 'Shipped sales',
     expense: 'Spend',
     cpl: 'Cost per lead',
     cac: 'Cost per client',
@@ -33,7 +34,7 @@ export const ads = {
     total: 'Total',
     empty: 'No leads, deals or spend in this period',
     mixedCurrency: 'Won deals are in different currencies ({list}): revenue is summed as is',
-    hint: 'Leads and new clients — by creation date; revenue — won deals by close date; conversion — share of the period’s leads that were converted; ROMI = (revenue − spend) / spend.',
+    hint: 'Leads and new clients — by creation date; revenue — won deals by close date; shipped sales — posted shipments (realizations) with a source or campaign, by document date; conversion — share of the period’s leads that were converted; ROMI = (revenue − spend) / spend.',
   },
   campaign: {
     new: 'New campaign',

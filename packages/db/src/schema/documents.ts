@@ -6,6 +6,7 @@ import type { FileRef } from '@gr8r/shared';
 import { archivedAt, createdAt, money, pk, ts, updatedAt } from './columns';
 import { products, units } from './catalog';
 import { attachments } from './attachments';
+import { adCampaigns, leadSources } from './ad';
 import { companies } from './crm';
 import { investmentProjects } from './investments';
 import { members, wsCol } from './people';
@@ -215,6 +216,13 @@ export const documents = pgTable(
     dealId: uuid('deal_id'),
     /** Название основного варианта КП (строки документа): null — вариантов нет; остальные варианты — document_variants */
     variantName: text('variant_name'),
+    /** Источник привлечения (продажи: КП, заказ, реализация): рекламный источник и кампания из справочников CRM (миграция 0107) */
+    sourceId: uuid('source_id'),
+    campaignId: uuid('campaign_id'),
+    utmSource: text('utm_source').notNull().default(''),
+    utmMedium: text('utm_medium').notNull().default(''),
+    utmCampaign: text('utm_campaign').notNull().default(''),
+    utmContent: text('utm_content').notNull().default(''),
     currency: text('currency').notNull().default('RUB'),
     /** Цены «НДС в т.ч.» (true) или «НДС сверху» (false) */
     priceIncludesVat: boolean('price_includes_vat').notNull().default(true),
@@ -242,6 +250,8 @@ export const documents = pgTable(
     foreignKey({ columns: [t.workspaceId, t.inUseMemberId], foreignColumns: [members.workspaceId, members.id], name: 'documents_in_use_member_fk' }),
     foreignKey({ columns: [t.workspaceId, t.basedOnId], foreignColumns: [t.workspaceId, t.id], name: 'documents_based_on_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.responsibleId], foreignColumns: [members.workspaceId, members.id], name: 'documents_responsible_fk' }),
+    foreignKey({ columns: [t.workspaceId, t.sourceId], foreignColumns: [leadSources.workspaceId, leadSources.id], name: 'documents_source_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.campaignId], foreignColumns: [adCampaigns.workspaceId, adCampaigns.id], name: 'documents_campaign_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.investmentProjectId], foreignColumns: [investmentProjects.workspaceId, investmentProjects.id], name: 'documents_investment_project_fk' }),
     foreignKey({ columns: [t.workspaceId, t.objectId], foreignColumns: [objects.workspaceId, objects.id], name: 'documents_object_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.tollingOrderId], foreignColumns: [t.workspaceId, t.id], name: 'documents_tolling_order_fk' }).onDelete('set null'),
@@ -265,6 +275,8 @@ export const documents = pgTable(
     index('documents_based_on_idx').on(t.basedOnId),
     index('documents_investment_project_idx').on(t.investmentProjectId),
     index('documents_object_idx').on(t.workspaceId, t.objectId),
+    index('documents_source_idx').on(t.workspaceId, t.sourceId).where(sql`${t.sourceId} is not null`),
+    index('documents_campaign_idx').on(t.workspaceId, t.campaignId).where(sql`${t.campaignId} is not null`),
   ],
 );
 
@@ -305,6 +317,8 @@ export const documentLines = pgTable(
     tollingRole: text('tolling_role', { enum: ['product', 'material', 'waste'] }),
     /** Группа строки (справочно, сумма по группе в форме и печати): пусто — без группы */
     groupName: text('group_name').notNull().default(''),
+    /** Срок отгрузки строки (заказ покупателя; реализация копирует): отбор «отгрузка по дату»; пусто — срок не задан */
+    shipBy: date('ship_by', { mode: 'string' }),
     /** Партия строки (задача 1187): номер партии прихода; пусто — партия не задана */
     batchNumber: text('batch_number'),
     /** Дата выработки партии строки */

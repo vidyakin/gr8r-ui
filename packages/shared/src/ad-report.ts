@@ -17,6 +17,10 @@ export interface AdReportInput {
   revenue: string;
   /** Расходы на рекламу */
   expense: string;
+  /** Выручка по проведённым реализациям с источником / кампанией (по дате реализации); нет — не считалась (разрез «кто привёл») */
+  salesRevenue?: string;
+  /** Проведённых реализаций */
+  shipments?: number;
 }
 
 export interface AdReportRow extends AdReportInput {
@@ -39,6 +43,7 @@ export function adReportRow(r: AdReportInput): AdReportRow {
     ...r,
     revenue: fmt(revenue, 2),
     expense: fmt(expense, 2),
+    ...(r.salesRevenue !== undefined ? { salesRevenue: fmt(dec(r.salesRevenue), 2) } : {}),
     conversion: ratio(dec(r.converted) * 100n, dec(r.leads), 1),
     cpl: ratio(expense, dec(r.leads), 2),
     cac: ratio(expense, dec(r.newClients), 2),
@@ -52,8 +57,10 @@ export function buildAdReport(rows: AdReportInput[]): { rows: AdReportRow[]; tot
     (s, r) => ({ leads: s.leads + r.leads, converted: s.converted + r.converted, newClients: s.newClients + r.newClients, wonDeals: s.wonDeals + r.wonDeals, revenue: add(s.revenue, dec(r.revenue)), expense: add(s.expense, dec(r.expense)) }),
     { leads: 0, converted: 0, newClients: 0, wonDeals: 0, revenue: 0n as Dec, expense: 0n as Dec },
   );
+  const withSales = rows.some(r => r.salesRevenue !== undefined);
+  const sales = rows.reduce((s, r) => ({ revenue: add(s.revenue, dec(r.salesRevenue ?? '0')), n: s.n + (r.shipments ?? 0) }), { revenue: 0n as Dec, n: 0 });
   return {
     rows: rows.map(adReportRow),
-    total: adReportRow({ key: null, leads: t.leads, converted: t.converted, newClients: t.newClients, wonDeals: t.wonDeals, revenue: fmt(t.revenue, 2), expense: fmt(t.expense, 2) }),
+    total: adReportRow({ key: null, leads: t.leads, converted: t.converted, newClients: t.newClients, wonDeals: t.wonDeals, revenue: fmt(t.revenue, 2), expense: fmt(t.expense, 2), ...(withSales ? { salesRevenue: fmt(sales.revenue, 2), shipments: sales.n } : {}) }),
   };
 }
