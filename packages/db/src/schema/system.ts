@@ -17,6 +17,8 @@ export const events = pgTable(
     recordId: uuid('record_id'),
     /** members.id инициатора (без FK: событие переживает участника) */
     actorId: uuid('actor_id'),
+    /** Токен доступа агента, которым записан запрос (default из настройки app.api_token_id, без правки мест вызова recordEvent) */
+    apiTokenId: uuid('api_token_id').default(sql`nullif(current_setting('app.api_token_id', true), '')::uuid`),
     payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
     createdAt: createdAt(),
     processedAt: ts('processed_at'),

@@ -4,7 +4,7 @@ import { getCookie } from 'hono/cookie';
 import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import { drizzleOf, isUuid, memberSections, readMyAccess, memberships, members, sessions, setContext, users, type Tx } from '@gr8r/db';
-import { ROLES, type ModuleId, type PositionSection, type Role } from '@gr8r/shared';
+import { ROLES, TOKEN_PATH_SECTIONS, moduleOfApiPath, tokenApiRoot, type ModuleId, type PositionSection, type Role } from '@gr8r/shared';
 import { AppError, Rollback, dbUnavailable, forbidden, unauthorized } from './errors';
 import type { AppEnv, ModuleAccessSets } from './types';
 
@@ -26,29 +26,87 @@ export const requestLogger = createMiddleware<AppEnv>(async (c, next) => {
   }
 });
 
-/** Токен сессии — только из httpOnly cookie (Authorization/Bearer не поддерживается: токен не отдаётся в теле ответов) */
+/** Токен сессии — только из httpOnly cookie (в теле ответов не отдаётся) */
 const readToken = (c: Context<AppEnv>): string | null => getCookie(c, SESSION_COOKIE) ?? null;
 
-/** Сессия → пользователь. Запрос идёт под app_user без арендатора (users/sessions не под RLS) */
-export const requireSession = createMiddleware<AppEnv>(async (c, next) => {
-  const token = readToken(c);
-  if (!token) throw unauthorized();
-  const id = sha256(token);
+/** Токен доступа агента — заголовок Authorization: Bearer gr8r_… (приоритет над cookie) */
+const readBearer = (c: Context<AppEnv>): string | null => {
+  const h = c.req.header('authorization');
+  if (!h?.startsWith('Bearer ')) return null;
+  return h.slice('Bearer '.length).trim() || null;
+};
+
+interface ApiTokenRow {
+  id: string;
+  workspace_id: string;
+  member_id: string;
+  user_id: string;
+  read_only: boolean;
+  sections: string[] | null;
+  can_post: boolean;
+}
+
+/** Токен агента → пользователь участника + apiToken в контекст. Поиск идёт без арендатора через SECURITY DEFINER-функцию */
+async function resolveApiToken(c: Context<AppEnv>, raw: string): Promise<void> {
+  if (!raw.startsWith('gr8r_')) throw new AppError(401, 'token_invalid', 'The access token is invalid');
+  const hash = sha256(raw);
   const sql = c.get('sql');
   const row = await sql.begin(async tx => {
     await setContext(tx as Tx, {});
+    const [t] = (await tx`select * from app_api_token_lookup(${hash})`) as unknown as [ApiTokenRow?];
+    if (!t) return null;
     const db = drizzleOf(tx as Tx);
-    const [r] = await db
+    const [u] = await db
       .select({ id: users.id, email: users.email, name: users.name, locale: users.locale, prefs: users.prefs, isOperator: users.isOperator })
-      .from(sessions)
-      .innerJoin(users, eq(users.id, sessions.userId))
-      .where(and(eq(sessions.id, id), gt(sessions.expiresAt, new Date())))
+      .from(users)
+      .where(eq(users.id, t.user_id))
       .limit(1);
-    return r;
+    if (!u) return null;
+    return { t, u };
   });
-  if (!row) throw unauthorized('Session is invalid or expired');
-  c.set('user', row);
-  c.set('sessionId', id);
+  if (!row) throw new AppError(401, 'token_invalid', 'The access token is invalid or expired');
+  c.set('user', row.u);
+  c.set('sessionId', '');
+  c.set('apiToken', {
+    id: row.t.id,
+    workspaceId: row.t.workspace_id,
+    memberId: row.t.member_id,
+    readOnly: row.t.read_only,
+    sections: (row.t.sections as PositionSection[] | null) ?? null,
+    canPost: row.t.can_post,
+  });
+}
+
+/** Сессия → пользователь. Запрос идёт под app_user без арендатора (users/sessions не под RLS).
+    Authorization: Bearer имеет приоритет над cookie; токен агента пускается только на пути TENANT_PATHS и GET /auth/me */
+export const requireSession = createMiddleware<AppEnv>(async (c, next) => {
+  const bearer = readBearer(c);
+  if (bearer) {
+    await resolveApiToken(c, bearer);
+  } else {
+    const token = readToken(c);
+    if (!token) throw unauthorized();
+    const id = sha256(token);
+    const sql = c.get('sql');
+    const row = await sql.begin(async tx => {
+      await setContext(tx as Tx, {});
+      const db = drizzleOf(tx as Tx);
+      const [r] = await db
+        .select({ id: users.id, email: users.email, name: users.name, locale: users.locale, prefs: users.prefs, isOperator: users.isOperator })
+        .from(sessions)
+        .innerJoin(users, eq(users.id, sessions.userId))
+        .where(and(eq(sessions.id, id), gt(sessions.expiresAt, new Date())))
+        .limit(1);
+      return r;
+    });
+    if (!row) throw unauthorized('Session is invalid or expired');
+    c.set('user', row);
+    c.set('sessionId', id);
+  }
+  if (c.get('apiToken')) {
+    const allowed = (c.req.method === 'GET' && c.req.path === '/auth/me') || (moduleOfApiPath(c.req.path) !== null && tokenApiRoot(c.req.path) !== '/api-tokens');
+    if (!allowed) throw new AppError(403, 'token_forbidden', 'The access token cannot use this endpoint');
+  }
   await next();
 });
 
@@ -101,7 +159,9 @@ export const tenant = (source: 'header' | 'param' = 'header') =>
     }
 
     async function inTx(t: Tx) {
-      await setContext(t, { userId: user.id });
+      const apiToken = c.get('apiToken');
+      if (apiToken && wsId !== apiToken.workspaceId) throw new AppError(403, 'token_forbidden', 'The token does not belong to this workspace');
+      await setContext(t, { userId: user.id, apiTokenId: apiToken?.id });
       const db = drizzleOf(t);
       // Членство видно по политике memberships (user_id = app.user_id); чужой воркспейс даст пустой результат
       const [ms] = await db.select({ role: memberships.role }).from(memberships).where(and(eq(memberships.workspaceId, wsId), eq(memberships.userId, user.id))).limit(1);
@@ -109,6 +169,15 @@ export const tenant = (source: 'header' | 'param' = 'header') =>
       await t`select set_config('app.workspace_id', ${wsId}, true)`;
       const [me] = await db.select({ id: members.id, status: members.status }).from(members).where(and(eq(members.workspaceId, wsId), eq(members.userId, user.id))).limit(1);
       if (!me || me.status === 'deactivated') throw forbidden('Your membership in this workspace is deactivated');
+      if (apiToken && me.id !== apiToken.memberId) throw new AppError(403, 'token_forbidden', 'The token member does not match this session');
+      // Ограничения токена агента (docs/architecture/agent-tokens.md): только чтение и разделы
+      if (apiToken) {
+        if (apiToken.readOnly && !SAFE_METHODS.has(c.req.method)) throw new AppError(403, 'token_read_only', 'The access token is read-only');
+        const root = tokenApiRoot(c.req.path);
+        const sections = TOKEN_PATH_SECTIONS.get(root);
+        if (sections && apiToken.sections && !sections.some(s => apiToken.sections!.includes(s)))
+          throw new AppError(403, 'token_section_forbidden', `The access token is not allowed to use "${root}"`, { sections });
+      }
       c.set('tx', t);
       c.set('db', db);
       c.set('workspaceId', wsId);

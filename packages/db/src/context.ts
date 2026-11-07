@@ -6,6 +6,8 @@ import { drizzleOf, type Db, type Sql, type Tx } from './client';
 export interface DbContext {
   userId?: string | null;
   workspaceId?: string | null;
+  /** Токен доступа агента: события запроса помечаются им (events.api_token_id, default из настройки) */
+  apiTokenId?: string | null;
   /** Действие системы без пользователя (шаг автоматизации): закрытые проекты видны, изоляция воркспейса действует */
   system?: boolean;
 }
@@ -17,6 +19,7 @@ export async function setContext(tx: Tx, ctx: DbContext, role: AppRole = 'app_us
   await tx.unsafe(`set local role ${role}`);
   if (ctx.userId) await tx`select set_config('app.user_id', ${ctx.userId}, true)`;
   if (ctx.workspaceId) await tx`select set_config('app.workspace_id', ${ctx.workspaceId}, true)`;
+  if (ctx.apiTokenId) await tx`select set_config('app.api_token_id', ${ctx.apiTokenId}, true)`;
   if (ctx.system) await tx`select set_config('app.system', 'on', true)`;
 }
 

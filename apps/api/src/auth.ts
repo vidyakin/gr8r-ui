@@ -75,7 +75,9 @@ export const authRoutes = new Hono<AppEnv>()
     await hit(sql, cfg, `signin:ip:${c.get('ip')}`);
     await hit(sql, cfg, `signin:email:${email}`);
     const found = await withContext(sql, {}, async db => (await db.select().from(users).where(eq(dsql`lower(${users.email})`, email)).limit(1))[0]);
-    const ok = await Bun.password.verify(password, found?.passwordHash ?? (await getDummyHash()));
+    // Служебный пользователь (агент) по паролю не входит: пароль не проверяется вовсе, но время ответа сохраняется
+    const verifyAgainst = found && !found.isService ? found.passwordHash : await getDummyHash();
+    const ok = await Bun.password.verify(password, verifyAgainst);
     if (!found || !ok) throw new AppError(401, 'invalid_credentials', 'Invalid email or password');
     await clear(sql, `signin:email:${email}`);
     await startSession(c, found.id, cfg);

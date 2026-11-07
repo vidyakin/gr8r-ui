@@ -1,5 +1,5 @@
 import type { Db, Sql, Tx } from '@gr8r/db';
-import type { ModuleAccess, ModuleId, ModuleState, Role } from '@gr8r/shared';
+import type { ModuleAccess, ModuleId, ModuleState, PositionSection, Role } from '@gr8r/shared';
 
 /** Модули арендатора на момент запроса: можно писать (active), можно читать (readable) и состояния со сроками */
 export interface ModuleAccessSets {
@@ -60,5 +60,14 @@ export interface AppEnv {
     role: Role;
     /** Модули арендатора (действующие и читаемые): заполняется лениво (`accessOf(c)`), один запрос на HTTP-запрос */
     access: ModuleAccessSets;
+    /** Токен доступа агента (Authorization: Bearer): заполняет requireSession; null у обычной cookie-сессии */
+    apiToken?: {
+      id: string;
+      workspaceId: string;
+      memberId: string;
+      readOnly: boolean;
+      sections: PositionSection[] | null;
+      canPost: boolean;
+    };
   };
 }

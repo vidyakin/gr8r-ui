@@ -35,7 +35,7 @@ export const MODULES: readonly ModuleDef[] = [
     paths: [
       '/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/attachments', '/activity', '/events',
       '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/organizations', '/bank-accounts', '/warehouses', '/cost-items',
-      '/companies', '/contacts', '/positions', '/product-kinds', '/secrets', '/license',
+      '/companies', '/contacts', '/positions', '/product-kinds', '/secrets', '/license', '/api-tokens',
     ],
     sections: ['home', 'inbox', 'mytasks', 'favorites', 'notifications', 'overview', 'projects', 'tasks', 'calendar', 'timeline', 'members', 'activity', 'archive', 'search', 'settings', 'upgrade', 'system', 'catalog', 'crmCompanies', 'crmContacts'],
     settings: ['workspace', 'appearance', 'language', 'datetime', 'members', 'teams', 'projects', 'permissions', 'data-model', 'organizations', 'warehouses', 'cost-items', 'positions', 'product-kinds'],

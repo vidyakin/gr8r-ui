@@ -17,6 +17,8 @@ export const users = pgTable(
     prefs: jsonb('prefs').$type<Record<string, unknown>>().notNull().default({}),
     /** Оператор установки: видит список арендаторов, создаёт и удаляет их (выдаёт CLI `bun run operator grant`) */
     isOperator: boolean('is_operator').notNull().default(false),
+    /** Служебный пользователь агента: вход по паролю запрещён (password_hash = '!service'), работает только по токену доступа */
+    isService: boolean('is_service').notNull().default(false),
     createdAt: createdAt(),
     lastLoginAt: ts('last_login_at'),
   },
