@@ -79,6 +79,7 @@ import {
   Waypoints,
   type LucideIcon,
   UserPlus,
+  Hourglass,
 } from 'lucide-react';
 import type { PositionSection } from '@gr8r/shared';
 import { hasKey, t, type TKey } from '@/i18n';
@@ -155,6 +156,7 @@ export const SECTIONS = {
   inUse: { path: '/stock/in-use', name: 'In use', icon: PackageCheck },
   serials: { path: '/serials', name: 'Serial numbers', icon: ScanBarcode },
   batches: { path: '/batches', name: 'Batches', icon: Package },
+  stockAging: { path: '/stock/aging', name: 'Stock aging', icon: Hourglass },
   repairItems: { path: '/repair-items', name: 'Items in repair', icon: Wrench },
   deliveries: { path: '/deliveries', name: 'Deliveries', icon: Truck },
   myDeliveries: { path: '/deliveries/mine', name: 'My deliveries', icon: PackageCheck },
@@ -254,7 +256,7 @@ export const NAV_GROUPS = {
   trade: {
     icon: Store,
     // расчёт потребностей открывается из закупок и склада — тот же экран, что и в производстве
-    items: [{ id: 'sales' }, { id: 'purchases' }, { id: 'supplierRatings' }, { id: 'stockDocs' }, { id: 'processingDocs' }, { id: 'inventory' }, { id: 'inUse' }, { id: 'serials' }, { id: 'batches' }, { id: 'productionNeeds', label: 'nav.stockNeeds' }, { id: 'priceList' }, { id: 'priceSettings' }, { id: 'priceKinds' }, { id: 'discountRules' }, { id: 'promoCodes' }, { id: 'loyaltyCards' }, { id: 'loyaltyProgram' }],
+    items: [{ id: 'sales' }, { id: 'purchases' }, { id: 'supplierRatings' }, { id: 'stockDocs' }, { id: 'processingDocs' }, { id: 'inventory' }, { id: 'inUse' }, { id: 'serials' }, { id: 'batches' }, { id: 'stockAging' }, { id: 'productionNeeds', label: 'nav.stockNeeds' }, { id: 'priceList' }, { id: 'priceSettings' }, { id: 'priceKinds' }, { id: 'discountRules' }, { id: 'promoCodes' }, { id: 'loyaltyCards' }, { id: 'loyaltyProgram' }],
   },
   services: {
     icon: BriefcaseBusiness,
@@ -343,6 +345,7 @@ const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
   inUse: 'stock',
   serials: 'stock',
   batches: 'stock',
+  stockAging: 'stock',
   workOrders: 'services',
   repairItems: 'services',
   servicesTimesheet: 'services',

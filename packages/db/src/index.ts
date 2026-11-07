@@ -46,6 +46,8 @@ export * from './production-reports';
 export * from './service-reports';
 export * from './serials';
 export * from './batches';
+export * from './stock-preview';
+export * from './stock-aging';
 export * from './quarantine';
 export * from './quality';
 export * from './repair';

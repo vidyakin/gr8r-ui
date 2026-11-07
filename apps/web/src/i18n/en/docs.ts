@@ -196,6 +196,43 @@ export const docs = {
     },
   },
 
+  /* ----------- движения документа до проведения ----------- */
+  stockMoves: {
+    button: 'Movements',
+    title: 'Stock movements',
+    previewLead: 'What posting will do to the stock. This is a calculation: nothing is saved, no number is taken.',
+    actualLead: 'Movements written by the posted document.',
+    empty: 'This document does not move any stock.',
+    loadError: 'Could not load the movements',
+    cannotPost: 'The document cannot be posted right now',
+    close: 'Close',
+    col: { warehouse: 'Warehouse', product: 'Product', batch: 'Batch', qty: 'Quantity', cost: 'Price', amount: 'Amount' },
+    receiving: 'receiving',
+  },
+
+  /* ----------- старение запасов ----------- */
+  stockAging: {
+    title: 'Stock aging',
+    lead: 'Stock on hand by age of receipt: how long it has been on the shelf. Batches are aged by their first receipt, other stock by FIFO over receipts.',
+    ariaLabel: 'Stock aging',
+    loadError: 'Could not load the report',
+    asOf: 'As of',
+    warehouse: 'Warehouse',
+    category: 'Category',
+    allWarehouses: 'All warehouses',
+    allCategories: 'All categories',
+    searchPlaceholder: 'Search by product or SKU',
+    showQty: 'Quantity',
+    showValue: 'Value',
+    valueHint: 'Valued at receipt prices (FIFO layers), so it can differ from the average-cost value in Inventory.',
+    emptyTitle: 'No stock',
+    emptyHint: 'There is no stock on hand for these filters.',
+    stockTotal: 'On hand',
+    over180Share: 'Older than 180 days',
+    col: { product: 'Product', sku: 'SKU', warehouse: 'Warehouse', total: 'Total' },
+    bucket: { b0: '0–30 d', b1: '31–60 d', b2: '61–90 d', b3: '91–180 d', b4: '>180 d' },
+  },
+
   /* ----------- договоры контрагента (карточка) ----------- */
   counterpartyContracts: {
     ariaLabel: 'Counterparty contracts',
