@@ -151,7 +151,7 @@ export function useLoad(from: string, to: string, rowType: LoadRowType) {
   const ws = useWsId();
   return useQuery({
     queryKey: planningKey(ws, 'load', from, to, rowType),
-    queryFn: () => call<{ rows: PlannerRow[]; entries: PlannerEntry[]; holidays: string[] }>(ws, 'GET', `/production/load?from=${from}&to=${to}&rowType=${rowType}`),
+    queryFn: () => call<{ rows: PlannerRow[]; entries: PlannerEntry[]; holidays: string[]; shortDays?: Record<string, string> }>(ws, 'GET', `/production/load?from=${from}&to=${to}&rowType=${rowType}`),
     staleTime: 15_000,
   });
 }
@@ -171,7 +171,7 @@ export function useCalendars() {
 /** Праздники воркспейса */
 export function useHolidays() {
   const ws = useWsId();
-  return useQuery({ queryKey: planningKey(ws, 'holidays'), queryFn: () => call<{ items: { date: string; name: string }[] }>(ws, 'GET', '/production/holidays'), staleTime: 30_000 });
+  return useQuery({ queryKey: planningKey(ws, 'holidays'), queryFn: () => call<{ items: { date: string; name: string; kind: 'off' | 'short'; shortHours: string }[] }>(ws, 'GET', '/production/holidays'), staleTime: 30_000 });
 }
 
 /** Исключения из графика */

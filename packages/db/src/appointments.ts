@@ -22,6 +22,7 @@ import {
   type ScheduleDef,
   productFitsSpecialist,
   specialistProductKindIds,
+  type HolidayCalendar,
 } from '@gr8r/shared';
 import type { Db } from './client';
 import { DOCUMENT_HOOKS } from './document-hooks';
@@ -110,8 +111,9 @@ async function exceptionsOf(db: Db, memberId: string, from?: string, to?: string
   if (to) conds.push(lte(specialistScheduleExceptions.date, to));
   return db.select({ date: specialistScheduleExceptions.date, slots: specialistScheduleExceptions.slots, note: specialistScheduleExceptions.note }).from(specialistScheduleExceptions).where(and(...conds)).orderBy(asc(specialistScheduleExceptions.date));
 }
-async function holidaysOf(db: Db, ws: string): Promise<string[]> {
-  return (await db.select({ date: workspaceHolidays.date }).from(workspaceHolidays).where(eq(workspaceHolidays.workspaceId, ws))).map(h => h.date);
+async function holidaysOf(db: Db, ws: string): Promise<HolidayCalendar> {
+  const rows = await db.select({ date: workspaceHolidays.date, kind: workspaceHolidays.kind, shortHours: workspaceHolidays.shortHours }).from(workspaceHolidays).where(eq(workspaceHolidays.workspaceId, ws));
+  return { off: rows.filter(h => h.kind === 'off').map(h => h.date), short: Object.fromEntries(rows.filter(h => h.kind === 'short').map(h => [h.date, h.shortHours])) };
 }
 
 /** Исключение на дату: выходной (slots = null) или свой набор слотов; запись на этот день не должна ломаться */
@@ -165,7 +167,7 @@ export async function scheduleView(db: Db, ws: string, memberId: string) {
   const m = await assertMember(db, memberId);
   const sch = await loadSchedule(db, memberId);
   const exceptions = await exceptionsOf(db, memberId, addDaysIso(new Date().toISOString().slice(0, 10), -31));
-  return { memberId, name: m.name, schedule: sch ? { ...defOf(sch) } : null, exceptions, holidays: await holidaysOf(db, ws) };
+  return { memberId, name: m.name, schedule: sch ? { ...defOf(sch) } : null, exceptions, holidays: (await holidaysOf(db, ws)).off };
 }
 
 /* ---------------- занятость и сетки ---------------- */
@@ -295,7 +297,7 @@ async function columnsOf(db: Db, ws: string, specialistId: string, dates: string
     slotMinutes: cx.def.slotMinutes,
     dayStartMin: cx.def.dayStartMin,
     dayEndMin: cx.def.dayEndMin,
-    holiday: cx.holidays.includes(date),
+    holiday: cx.holidays.off.includes(date),
     unclosed: unclosed.has(`${specialistId}|${date}`),
     appointments: rows.filter(r => r.date === date).map(r => view(r) as AppointmentView),
   }));

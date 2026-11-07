@@ -94,14 +94,42 @@ export function isWorkingDay(cal: CalendarDef | null, date: string): boolean {
   return days.includes(weekday(date));
 }
 
+/** Праздники воркспейса: off — нерабочие дни, short — сокращённые дни (дата → на сколько часов короче, десятичная строка) */
+export interface HolidayCalendar {
+  off: string[];
+  short: Record<string, string>;
+}
+/** Праздники в расчётах: простой список дат (все — выходные) или календарь с сокращёнными днями */
+export type Holidays = string[] | HolidayCalendar;
+
+/** Дата — выходной праздник */
+export const isHolidayOff = (h: Holidays, date: string): boolean => (Array.isArray(h) ? h.includes(date) : h.off.includes(date));
+/** На сколько часов сокращён день (0 — день полный) */
+export const shortReduction = (h: Holidays, date: string): Dec => {
+  if (Array.isArray(h)) return 0n;
+  const v = h.short[date];
+  return v ? dec(v) : 0n;
+};
+/** Сумма сокращений рабочих дней списка (не больше часов графика в день): на столько меньше норма часов месяца */
+export function shortDaysTotal(cal: CalendarDef | null, days: string[], holidays: Holidays, exceptions: CalendarException[] = []): Dec {
+  const perDay = dec((cal ?? DEFAULT_CALENDAR).hoursPerDay);
+  let total = 0n;
+  for (const d of days) {
+    if (!isWorkingDayWith(cal, d, holidays, exceptions)) continue;
+    const r = shortReduction(holidays, d);
+    total += r > perDay ? perDay : r;
+  }
+  return total;
+}
+
 /** Рабочий ли день с учётом праздников и исключений */
 export function isWorkingDayWith(
   cal: CalendarDef | null,
   date: string,
-  holidays: string[] = [],
+  holidays: Holidays = [],
   exceptions: CalendarException[] = [],
 ): boolean {
-  if (holidays.includes(date)) return false;
+  if (isHolidayOff(holidays, date)) return false;
   if (exceptions.some(e => date >= e.dateFrom && date <= e.dateTo)) return false;
   return isWorkingDay(cal, date);
 }
@@ -111,12 +139,14 @@ export function capacityOf(
   cal: CalendarDef | null,
   date: string,
   capacityHoursPerDay: string | null,
-  holidays: string[] = [],
+  holidays: Holidays = [],
   exceptions: CalendarException[] = [],
 ): Dec {
   if (!isWorkingDayWith(cal, date, holidays, exceptions)) return 0n;
-  if (capacityHoursPerDay !== null && capacityHoursPerDay !== '') return dec(capacityHoursPerDay);
-  return dec((cal ?? DEFAULT_CALENDAR).hoursPerDay);
+  const base = capacityHoursPerDay !== null && capacityHoursPerDay !== '' ? dec(capacityHoursPerDay) : dec((cal ?? DEFAULT_CALENDAR).hoursPerDay);
+  // сокращённый предпраздничный день: на N часов меньше, но не ниже нуля
+  const left = base - shortReduction(holidays, date);
+  return left > 0n ? left : 0n;
 }
 
 /* ---------------- загрузка ---------------- */
@@ -190,7 +220,7 @@ export function computeLoad(
   entries: LoadEntry[],
   from: string,
   to: string,
-  holidays: string[] = [],
+  holidays: Holidays = [],
   exceptionsByScope: ExceptionsByScope = {},
 ): LoadRowResult[] {
   const days = dateRange(from, to);
@@ -260,7 +290,7 @@ export interface ScheduleResult {
 export type BusyLoad = Record<string, Record<string, string>>;
 
 export interface AutoScheduleOptions {
-  holidays?: string[];
+  holidays?: Holidays;
   exceptionsByScope?: ExceptionsByScope;
   /** Занятая мощность другими заказами */
   busy?: BusyLoad;
@@ -412,13 +442,16 @@ export interface ShiftSpan {
 }
 
 /** Смена, начавшаяся в этот день. Смена через полночь заканчивается в следующем дне */
-export function shiftSpan(cal: CalendarDef | null, date: string, timeZone: string): ShiftSpan {
+export function shiftSpan(cal: CalendarDef | null, date: string, timeZone: string, reduceHours: Dec = 0n): ShiftSpan {
   const sh = shiftOf(cal);
   const start = zonedInstant(date, sh.startHour, 0, timeZone);
   const crosses = shiftCrossesMidnight(sh);
   const endDay = crosses || sh.endHour >= 24 ? addDays(date, 1) : date;
   const endHour = sh.endHour >= 24 ? 0 : sh.endHour;
-  return { start, end: zonedInstant(endDay, endHour, 0, timeZone) };
+  const end = zonedInstant(endDay, endHour, 0, timeZone);
+  // сокращённый день: смена заканчивается раньше (не раньше своего начала)
+  const cut = Number((reduceHours * 3_600_000n) / ONE);
+  return { start, end: cut > 0 ? new Date(Math.max(start.getTime(), end.getTime() - cut)) : end };
 }
 
 /** Смены, покрывающие локальный день: своя смена и хвост смены предыдущего дня (ночная смена) */
@@ -426,14 +459,14 @@ export function spansForDay(
   cal: CalendarDef | null,
   date: string,
   timeZone: string,
-  holidays: string[] = [],
+  holidays: Holidays = [],
   exceptions: CalendarException[] = [],
 ): ShiftSpan[] {
   const spans: ShiftSpan[] = [];
-  if (isWorkingDayWith(cal, date, holidays, exceptions)) spans.push(shiftSpan(cal, date, timeZone));
+  if (isWorkingDayWith(cal, date, holidays, exceptions)) spans.push(shiftSpan(cal, date, timeZone, shortReduction(holidays, date)));
   const prev = addDays(date, -1);
   if (isWorkingDayWith(cal, prev, holidays, exceptions)) {
-    const s = shiftSpan(cal, prev, timeZone);
+    const s = shiftSpan(cal, prev, timeZone, shortReduction(holidays, prev));
     // хвост вчерашней смены живёт в сегодняшнем дне
     if (s.end > zonedInstant(date, 0, 0, timeZone)) spans.push(s);
   }
@@ -521,7 +554,7 @@ export interface HourlyLoadResult {
 export interface HourlyLoadOptions {
   /** Пояс воркспейса: часы смены и границы дней считаются в нём */
   timeZone?: string;
-  holidays?: string[];
+  holidays?: Holidays;
   exceptionsByScope?: ExceptionsByScope;
   /** Длина слота, минут (60 — час, 30 — полчаса) */
   slotMinutes?: number;
@@ -571,7 +604,7 @@ export function computeHourlyLoad(rows: HourlyRow[], entries: HourlyEntry[], fro
     for (const day of [addDays(dayFrom, -1), ...days]) {
       const spans = spansForDay(row.calendar, day, timeZone, holidays, exc);
       spansByDay.set(day, spans);
-      if (isWorkingDayWith(row.calendar, day, holidays, exc)) ownSpans.set(day, shiftSpan(row.calendar, day, timeZone));
+      if (isWorkingDayWith(row.calendar, day, holidays, exc)) ownSpans.set(day, shiftSpan(row.calendar, day, timeZone, shortReduction(holidays, day)));
     }
 
     const slots: HourlySlot[] = [];

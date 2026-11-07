@@ -52,3 +52,12 @@ describe('nearest free', () => {
     expect(findNearestFree([full], 90, { date: '2026-11-02', startMin: 0 })).toBeNull();
   });
 });
+
+describe('сокращённый предпраздничный день', () => {
+  test('отпадают слоты, заканчивающиеся позже конца дня минус сокращение', () => {
+    const def: ScheduleDef = { slotMinutes: 60, dayStartMin: 540, dayEndMin: 1020, week: { '4': [540, 600, 900, 960] } };
+    const date = '2026-04-30'; // четверг
+    expect(workingSlots(def, date, [], { off: [], short: { [date]: '1' } })).toEqual([540, 600, 900]);
+    expect(workingSlots(def, date, [], [])).toEqual([540, 600, 900, 960]);
+  });
+});

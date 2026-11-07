@@ -708,6 +708,13 @@
       "when": 1794020020000,
       "tag": "0109_material_overtransfer",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1794020030000,
+      "tag": "0110_short_days",
+      "breakpoints": true
     }
   ]
 }

@@ -796,10 +796,16 @@ export const workCalendarCreate = z.object({
 export const workCalendarUpdate = toPatch(workCalendarCreate.omit({ id: true }));
 
 /** Праздник воркспейса */
+export const HOLIDAY_KINDS = ['off', 'short'] as const;
+export type HolidayKind = (typeof HOLIDAY_KINDS)[number];
 export const holidayInput = z.object({
   date: isoDate,
   name: z.string().trim().max(200).default(''),
-});
+    /** off — выходной или праздник, short — сокращённый день */
+    kind: z.enum(HOLIDAY_KINDS).default('off'),
+    /** Для сокращённого дня: на сколько часов короче (по умолчанию 1, как в РФ) */
+    shortHours: z.number().gt(0).max(23).default(1),
+  });
 
 /** Исключение из графика: отпуск, больничный, ремонт */
 export const calendarExceptionInput = z.object({

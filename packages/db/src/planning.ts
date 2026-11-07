@@ -12,6 +12,7 @@ import {
   type BusyLoad,
   type CalendarDef,
   type CalendarException,
+  type HolidayCalendar,
   type ExceptionsByScope,
   type HourlyEntry,
   type HourlyLoadResult,
@@ -110,18 +111,20 @@ export async function archiveCalendar(db: Db, ctx: DocCtx, id: string): Promise<
 }
 
 /** Праздники воркспейса */
-export async function listHolidays(db: Db, workspaceId: string): Promise<{ date: string; name: string }[]> {
+export async function listHolidays(db: Db, workspaceId: string): Promise<{ date: string; name: string; kind: 'off' | 'short'; shortHours: string }[]> {
   const rows = await db.select().from(workspaceHolidays).where(eq(workspaceHolidays.workspaceId, workspaceId)).orderBy(asc(workspaceHolidays.date));
-  return rows.map(h => ({ date: h.date, name: h.name }));
+  return rows.map(h => ({ date: h.date, name: h.name, kind: h.kind, shortHours: h.shortHours }));
 }
 
 /** Добавить или убрать праздник */
-export async function setHoliday(db: Db, ctx: DocCtx, date: string, name: string): Promise<void> {
+export async function setHoliday(db: Db, ctx: DocCtx, date: string, name: string, kind: 'off' | 'short' = 'off', shortHours = 1): Promise<void> {
+  if (kind === 'short' && !(shortHours > 0)) throw new DomainError(422, 'validation_error', 'Short day must be shorter by more than zero hours');
+  const hours = kind === 'short' ? shortHours.toFixed(2) : '0';
   await db
     .insert(workspaceHolidays)
-    .values({ workspaceId: ctx.workspaceId, date, name: name.trim() })
-    .onConflictDoUpdate({ target: [workspaceHolidays.workspaceId, workspaceHolidays.date], set: { name: name.trim() } });
-  await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'work_calendar.updated', entity: 'work_calendar', recordId: null, actorId: ctx.memberId, payload: { holiday: date } });
+    .values({ workspaceId: ctx.workspaceId, date, name: name.trim(), kind, shortHours: hours })
+    .onConflictDoUpdate({ target: [workspaceHolidays.workspaceId, workspaceHolidays.date], set: { name: name.trim(), kind, shortHours: hours } });
+  await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'work_calendar.updated', entity: 'work_calendar', recordId: null, actorId: ctx.memberId, payload: { holiday: date, kind } });
 }
 
 /** Убрать праздник */
@@ -287,7 +290,8 @@ export interface CalendarContext {
   calendars: Map<string, CalendarDef>;
   /** График по умолчанию (графика воркспейса) */
   defaultCalendar: CalendarDef | null;
-  holidays: string[];
+  /** Выходные и сокращённые дни: передаётся в расчёты как есть */
+  holidays: HolidayCalendar;
   exceptions: CalendarException[];
   exceptionsByScope: ExceptionsByScope;
 }
@@ -305,7 +309,11 @@ export async function calendarContext(db: Db, workspaceId: string): Promise<Cale
   const rows = await db.select().from(workCalendars).where(isNull(workCalendars.archivedAt));
   const calendars = new Map(rows.map(c => [c.id, toCalendarDef(c)]));
   const def = rows.find(c => c.isDefault) ?? null;
-  const holidays = (await db.select({ date: workspaceHolidays.date }).from(workspaceHolidays).where(eq(workspaceHolidays.workspaceId, workspaceId))).map(h => h.date);
+  const holidayRows = await db.select({ date: workspaceHolidays.date, kind: workspaceHolidays.kind, shortHours: workspaceHolidays.shortHours }).from(workspaceHolidays).where(eq(workspaceHolidays.workspaceId, workspaceId));
+  const holidays: HolidayCalendar = {
+    off: holidayRows.filter(h => h.kind === 'off').map(h => h.date),
+    short: Object.fromEntries(holidayRows.filter(h => h.kind === 'short').map(h => [h.date, h.shortHours])),
+  };
   const exceptions = await listExceptions(db, workspaceId);
   const exceptionsByScope: ExceptionsByScope = {};
   for (const e of exceptions) {
@@ -428,12 +436,12 @@ export async function workspaceLoad(
   db: Db,
   workspaceId: string,
   query: LoadQuery,
-): Promise<{ rows: LoadRow[]; entries: LoadEntry[]; result: LoadRowResult[]; holidays: string[] }> {
+): Promise<{ rows: LoadRow[]; entries: LoadEntry[]; result: LoadRowResult[]; holidays: string[]; shortDays: Record<string, string> }> {
   const ctx = await calendarContext(db, workspaceId);
   const rows = await loadRows(db, workspaceId, query.rowType, ctx);
   const entries = await loadEntries(db, workspaceId, query.from, query.to);
   const result = computeLoad(rows, entries, query.from, query.to, ctx.holidays, ctx.exceptionsByScope);
-  return { rows, entries, result, holidays: ctx.holidays };
+  return { rows, entries, result, holidays: ctx.holidays.off, shortDays: ctx.holidays.short };
 }
 
 /* ---------------- автопланирование заказа ---------------- */

@@ -89,6 +89,19 @@ describe('resources and calendars', () => {
     expect((await owner.del(`/production/calendar-exceptions/${exc.id}`)).status).toBe(200);
   });
 
+  test('a short pre-holiday day keeps the kind and hours and is returned by the load endpoint', async () => {
+    expect((await owner.post('/production/holidays', { date: '2026-04-30', name: 'Предпраздничный', kind: 'short', shortHours: 1 })).status).toBe(200);
+    expect((await owner.post('/production/holidays', { date: '2026-05-01', name: 'Праздник' })).status).toBe(200);
+    const items = (await owner.get('/production/holidays')).body.items;
+    expect(items.find((h: any) => h.date === '2026-04-30')).toMatchObject({ kind: 'short', shortHours: '1.00' });
+    expect(items.find((h: any) => h.date === '2026-05-01')).toMatchObject({ kind: 'off', shortHours: '0.00' });
+    // сокращение нельзя нулевым
+    expect((await owner.post('/production/holidays', { date: '2026-04-29', kind: 'short', shortHours: 0 })).status).toBe(422);
+    const load = await owner.get('/production/load?from=2026-04-29&to=2026-05-01&rowType=resource');
+    expect(load.body.holidays).toContain('2026-05-01');
+    expect(load.body.shortDays).toEqual({ '2026-04-30': '1.00' });
+  });
+
   test('the resources of another workspace are not visible', async () => {
     await mk(owner, '/production/resources', { name: 'Только наш станок' });
     expect((await other.get('/production/resources')).body.items).toHaveLength(0);

@@ -16,7 +16,16 @@ API — `apps/api/src/routes/planning.ts`, клиент — `apps/web/src/app/pr
   is_default)`: недельный (рабочие дни недели и часы) или циклический (2/2, сутки через трое) с датой начала цикла.
   График назначается участнику (`members.calendar_id`), участку (`work_centers.calendar_id`) и ресурсу
   (`resources.calendar_id`); без назначения — график воркспейса по умолчанию (`is_default`, он один), а если его нет —
-  пятидневка 8 часов. **Праздники воркспейса** — `workspace_holidays (workspace_id, date, name)`; **исключения**
+  пятидневка 8 часов. **Календарь воркспейса** — `workspace_holidays (workspace_id, date, name, kind: off|short, short_hours)`:
+  `off` — выходной или праздник, `short` — предпраздничный сокращённый день на `short_hours` часов короче (в РФ — 1; миграция `0111`).
+  В чистых функциях `planning.ts` параметр `holidays` — `Holidays` = `string[]` (все выходные) или `HolidayCalendar { off, short }`;
+  `calendarContext` отдаёт второй вид. Сокращение учитывают: `capacityOf` (мощность дня минус сокращение, не ниже нуля — загрузка,
+  автопланирование, мощность участка плана производства, отчёт услуг), `shiftSpan`/`spansForDay` (смена кончается раньше — часовая загрузка),
+  `workingSlots` записи на приём (отпадают слоты, заканчивающиеся позже «конец дня − сокращение»), норма часов месяца для себестоимости
+  труда (`monthNormHours(..., shortHours)` + `shortDaysTotal`). Сокращённый день остаётся рабочим: `isWorkingDayWith`, дни норма/факт зарплаты
+  и `startBeforeLead` его считают как обычный. `GET /production/load` отдаёт `holidays` (выходные) и `shortDays` (дата → часы);
+  `POST /production/holidays` принимает `kind` и `shortHours`.
+   **исключения**
   (отпуск, больничный, ремонт) — `calendar_exceptions (scope: member|work_center|resource, scope_id, date_from, date_to)`:
   они снимают рабочий день у конкретного сотрудника, участка или ресурса.
 - **Расчёт загрузки** — чистая функция `computeLoad` в `packages/shared/src/planning.ts`: часы записей распределяются

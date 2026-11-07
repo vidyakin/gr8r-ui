@@ -37,7 +37,7 @@ export const workCalendars = pgTable(
   ],
 );
 
-/** Праздники воркспейса: общий календарь нерабочих дней */
+/** Праздники воркспейса: общий календарь нерабочих и сокращённых дней */
 export const workspaceHolidays = pgTable(
   'workspace_holidays',
   {
@@ -45,9 +45,17 @@ export const workspaceHolidays = pgTable(
     /** Дата праздника */
     date: date('date', { mode: 'string' }).notNull(),
     name: text('name').notNull().default(''),
+    /** off — выходной или праздник, short — сокращённый предпраздничный день */
+    kind: text('kind', { enum: ['off', 'short'] }).notNull().default('off'),
+    /** Для сокращённого дня: на сколько часов короче (в РФ — 1) */
+    shortHours: numeric('short_hours', { precision: 5, scale: 2 }).notNull().default('0'),
     createdAt: createdAt(),
   },
-  t => [primaryKey({ columns: [t.workspaceId, t.date] })],
+  t => [
+    primaryKey({ columns: [t.workspaceId, t.date] }),
+    check('workspace_holidays_kind_chk', sql`${t.kind} in ('off','short')`),
+    check('workspace_holidays_short_chk', sql`(${t.kind} = 'off' and ${t.shortHours} = 0) or (${t.kind} = 'short' and ${t.shortHours} > 0)`),
+  ],
 );
 
 /** Исключение из графика: отпуск, больничный, ремонт — у сотрудника, участка или ресурса */
