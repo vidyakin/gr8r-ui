@@ -197,7 +197,7 @@ describe('cost of a unit', () => {
     expect((await member.patch('/production/settings', { materialPriceSource: 'price' })).status).toBe(403);
     expect((await owner.patch('/production/settings', { materialPriceSource: 'bogus' })).status).toBe(400);
     expect((await owner.get('/production/settings')).body).toEqual({ materialOvertransferPct: '0.00', materialPriceSource: 'purchase', wastePriceSource: 'purchase' });
-    expect((await owner.patch('/production/settings', { materialPriceSource: 'price' })).body).toEqual({ materialPriceSource: 'price', wastePriceSource: 'purchase' });
+    expect((await owner.patch('/production/settings', { materialPriceSource: 'price' })).body).toEqual({ materialOvertransferPct: '0.00', materialPriceSource: 'price', wastePriceSource: 'purchase' });
     const r = await cost(table);
     expect(r.source).toBe('price');
     // доска: материалы 2*100*1.1 = 220 + 8*3 = 24 -> 244
