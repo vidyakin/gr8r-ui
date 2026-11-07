@@ -34,6 +34,7 @@ export const settings = {
       teams: 'Teams',
       projects: 'Projects',
       permissions: 'Permissions',
+      agentAccess: 'Agent access',
       dataModel: 'Data model',
       production: 'Production',
       organizations: 'Organizations',

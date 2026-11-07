@@ -37,6 +37,7 @@ import { objects } from './objects';
 import { estimates } from './estimates';
 import { supplierRating } from './supplier-rating';
 import { shifts } from './shifts';
+import { agentTokens } from './agent-tokens';
 
-export const en = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, batches, repeat, appt, delivery, positions, leads, ads, secrets, money, payroll, pricing, loyalty, licensing, fleet, trips, transport, help, attachments, objects, estimates, supplierRating, shifts };
+export const en = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, batches, repeat, appt, delivery, positions, leads, ads, secrets, money, payroll, pricing, loyalty, licensing, fleet, trips, transport, help, attachments, objects, estimates, supplierRating, shifts, agentTokens };
 

@@ -35,6 +35,7 @@ export const settings: Widen<typeof S> = {
       teams: 'Команды',
       projects: 'Проекты',
       permissions: 'Права',
+      agentAccess: 'Доступ для агентов',
       dataModel: 'Модель данных',
       production: 'Производство',
       organizations: 'Организации',

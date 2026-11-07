@@ -70,6 +70,8 @@ export function useRealtime(ws: string, engine: Engine) {
       if (e.entity === 'license') void qc.invalidateQueries({ queryKey: ['ws', ws] });
       if (e.entity === 'position' || e.entity === 'product_kind') void qc.invalidateQueries({ queryKey: ['ws', ws, 'catalog'] });
       if (e.entity === 'secret') void qc.invalidateQueries({ queryKey: ['ws', ws, 'secrets'] });
+      // Токены доступа для агентов (задача 1285): запросы ['ws', id, 'api-tokens']
+      if (e.entity === 'api_token') void qc.invalidateQueries({ queryKey: ['ws', ws, 'api-tokens'] });
       // Объекты объектного учёта (задача 1268): карточка, список и проекты задач
       // Сметы объекта (задача 1269): вкладка «Смета» и каталог объектов
       // Бюджет объекта (задача 1270) считается по проведённым документам и платежам, поэтому любое событие документа

@@ -21,6 +21,7 @@ export const SET_NAV: [string, [id: string, nameKey: string, icon: LucideIcon][]
       ['teams', 'teams', UsersRound],
       ['projects', 'projects', FolderKanban],
       ['permissions', 'permissions', Shield],
+      ['agent-access', 'agentAccess', KeyRound],
       ['data-model', 'dataModel', Database],
       ['production', 'production', Factory],
       ['organizations', 'organizations', Building2],
