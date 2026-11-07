@@ -3,6 +3,7 @@ import * as React from 'react';
 import { NavLink, useMatch, useNavigate } from 'react-router';
 import {
   BookOpen,
+  Newspaper,
   ChartGantt,
   ChevronRight,
   ChevronsUpDown,
@@ -374,6 +375,9 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           <MenuContent side="top">
             <MenuItem icon={<BookOpen size={15} />} shortcut="F1" onSelect={() => help.open()}>
               {t('nav.documentation')}
+            </MenuItem>
+            <MenuItem icon={<Newspaper size={15} />} onSelect={() => navigate(SECTIONS.changelog.path)}>
+              {t('sections.changelog')}
             </MenuItem>
             <MenuItem icon={<Keyboard size={15} />} shortcut="?" onSelect={() => shortcuts.open()}>
               {t('nav.shortcuts')}

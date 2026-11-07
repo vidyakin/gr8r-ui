@@ -11,4 +11,11 @@ export const help = {
   noArticle: 'There is no article about this section yet. Pick one from the contents.',
   cmdOpen: 'Help',
   group: 'Help',
+  /** Страница «Что нового» (журнал доработок docs/changelog.md, записи только по-русски) */
+  whatsNew: {
+    title: 'What’s new',
+    lead: 'What was added to FutureERP and when. Entries are in Russian.',
+    allModules: 'All modules',
+    loadError: 'Could not load the change log',
+  },
 } as const;

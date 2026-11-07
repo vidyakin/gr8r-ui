@@ -22,6 +22,7 @@ import { ArchivePage } from './pages/ArchivePage';
 import { TeamPage, TeamsPage } from './pages/TeamPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { UpgradePage } from './licensing/UpgradePage';
+import { ChangelogPage } from './changelog/ChangelogPage';
 import { NotFoundPage, PlaceholderPage } from './pages/PlaceholderPage';
 import { ForgotPage, ResetPage, SignInPage, SignUpPage, VerifyPage } from './pages/AuthPages';
 import { OnboardingPage } from './pages/OnboardingPage';
@@ -164,6 +165,7 @@ export const router = createHashRouter([
       { path: SECTIONS.search.path, element: <SearchPage /> },
       { path: SECTIONS.archive.path, element: <ArchivePage /> },
       { path: SECTIONS.upgrade.path, element: <UpgradePage /> },
+      { path: SECTIONS.changelog.path, element: <ChangelogPage /> },
       { path: SECTIONS.settings.path, element: <SettingsPage /> },
       { path: `${SECTIONS.settings.path}/:section`, element: <SettingsPage /> },
       { path: SECTIONS.system.path, element: <DesignSystemPage /> },

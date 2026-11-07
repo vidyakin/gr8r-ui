@@ -15,6 +15,7 @@ export const sections = {
   archive: 'Archive',
   search: 'Search',
   upgrade: 'Need more?',
+  changelog: 'What’s new',
   settings: 'Settings',
   system: 'Design system',
   crm: 'Dashboard',

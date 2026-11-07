@@ -6,6 +6,7 @@ import {
   Megaphone,
   Archive,
   BadgeRussianRuble,
+  Newspaper,
   ScrollText,
   Tags,
   Percent,
@@ -105,6 +106,7 @@ export const SECTIONS = {
   search: { path: '/search', name: 'Search', icon: Search },
   settings: { path: '/settings', name: 'Settings', icon: Settings },
   upgrade: { path: '/upgrade', name: 'Need more?', icon: Sparkles },
+  changelog: { path: '/changelog', name: 'What’s new', icon: Newspaper },
   system: { path: '/design-system', name: 'Design system', icon: Component },
   // Демо-модуль CRM (src/app/crm)
   crm: { path: '/crm', name: 'Dashboard', icon: ChartNoAxesCombined },
