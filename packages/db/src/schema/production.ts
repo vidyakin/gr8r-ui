@@ -33,6 +33,8 @@ export const workCenters = pgTable(
     defectWarehouseId: uuid('defect_warehouse_id'),
     /** Режим списания материалов выпусков участка: при выпуске или по итогам смены (документ «Распределение материалов») */
     materialMode: text('material_mode', { enum: ['on_release', 'shift'] }).notNull().default('on_release'),
+    /** Допустимое превышение передачи материалов по заказу, %: пусто — настройка воркспейса materialOvertransferPct */
+    materialOvertransferPct: numeric('material_overtransfer_pct', { precision: 7, scale: 2 }),
     note: text('note').notNull().default(''),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -40,6 +42,7 @@ export const workCenters = pgTable(
   },
   t => [
     unique('work_centers_ws_id_uq').on(t.workspaceId, t.id),
+    check('work_centers_overtransfer_chk', sql`${t.materialOvertransferPct} is null or ${t.materialOvertransferPct} >= 0`),
     check('work_centers_material_mode_chk', sql`${t.materialMode} in ('on_release','shift')`),
     check('work_centers_rate_chk', sql`${t.hourlyRate} >= 0`),
     foreignKey({ columns: [t.workspaceId, t.warehouseId], foreignColumns: [warehouses.workspaceId, warehouses.id], name: 'work_centers_warehouse_fk' }),

@@ -118,6 +118,7 @@ function CenterDialog({ wc, workshops, stores, onClose }: { wc?: WorkCenter; wor
   const [wasteWh, setWasteWh] = React.useState(wc?.wasteWarehouseId ?? '');
   const [defectWh, setDefectWh] = React.useState(wc?.defectWarehouseId ?? '');
   const [materialMode, setMaterialMode] = React.useState<'on_release' | 'shift'>(wc?.materialMode ?? 'on_release');
+  const [overPct, setOverPct] = React.useState(wc?.materialOvertransferPct != null ? String(Number(wc.materialOvertransferPct)) : '');
   const [note, setNote] = React.useState(wc?.note ?? '');
   const [err, setErr] = React.useState<Record<string, string>>({});
   const [busy, setBusy] = React.useState(false);
@@ -125,10 +126,11 @@ function CenterDialog({ wc, workshops, stores, onClose }: { wc?: WorkCenter; wor
     const errs: Record<string, string> = {};
     if (!name.trim()) errs.name = tt('common.enterName');
     if (rate.trim() !== '' && !(Number(rate) >= 0)) errs.rate = tt('catalog.product.nonNegative');
+    if (overPct.trim() !== '' && !(Number(overPct) >= 0)) errs.overPct = tt('catalog.product.nonNegative');
     setErr(errs);
     if (Object.keys(errs).length) return;
     setBusy(true);
-    const body = { name: name.trim(), code: code.trim(), hourlyRate: rate.trim() === '' ? 0 : Number(rate), warehouseId: warehouseId || null, outputWarehouseId: outputWh || null, wasteWarehouseId: wasteWh || null, defectWarehouseId: defectWh || null, materialMode, note: note.trim() };
+    const body = { name: name.trim(), code: code.trim(), hourlyRate: rate.trim() === '' ? 0 : Number(rate), warehouseId: warehouseId || null, outputWarehouseId: outputWh || null, wasteWarehouseId: wasteWh || null, defectWarehouseId: defectWh || null, materialMode, materialOvertransferPct: overPct.trim() === '' ? null : Number(overPct), note: note.trim() };
     const r = wc ? await api('PATCH', `/work-centers/${wc.id}`, body) : await api('POST', '/work-centers', body);
     setBusy(false);
     if (!r) return;
@@ -214,6 +216,9 @@ function CenterDialog({ wc, workshops, stores, onClose }: { wc?: WorkCenter; wor
                 ]}
               />
             )}
+          </Field>
+          <Field label={tt('production.workCenters.fields.overtransfer')} hint={tt('production.workCenters.fields.overtransferHint')} error={err.overPct}>
+            {p => <Input {...p} inputMode="decimal" value={overPct} onChange={e => setOverPct(e.target.value)} />}
           </Field>
           <Field label={tt('production.workCenters.fields.comment')}>{p => <Input {...p} value={note} onChange={e => setNote(e.target.value)} />}</Field>
           <button type="submit" hidden />

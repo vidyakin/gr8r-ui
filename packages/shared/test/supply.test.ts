@@ -1,6 +1,7 @@
 /* Обеспечение строки материала: чистая функция покрытия (нужно, списано, зарезервировано, размещено, не обеспечено, свободно, к поступлению, статус). */
 import { describe, expect, test } from 'bun:test';
-import { materialCoverage } from '../src/supply';
+import { dec } from '../src/decimal';
+import { materialCoverage, overTransferLimit } from '../src/supply';
 
 const base = {
   need: '10',
@@ -63,5 +64,44 @@ describe('material coverage', () => {
   test('incoming goods are shown as they are', () => {
     const c = materialCoverage({ ...base, need: '10', incoming: '3.5' });
     expect(c.incoming).toBe('3.500');
+  });
+
+  test('without transfers the transferred columns are zero', () => {
+    const c = materialCoverage(base);
+    expect(c.transferred).toBe('0.000');
+    expect(c.overTransferred).toBe('0.000');
+    expect(c.transferLimit).toBe('10.000');
+  });
+
+  test('a transfer within the need is not over-transferred', () => {
+    const c = materialCoverage({ ...base, transferred: '7.5' });
+    expect(c.transferred).toBe('7.500');
+    expect(c.overTransferred).toBe('0.000');
+  });
+
+  test('a transfer above the need is shown as over-transferred', () => {
+    const c = materialCoverage({ ...base, transferred: '10.5', overtransferPct: '10' });
+    expect(c.transferred).toBe('10.500');
+    expect(c.overTransferred).toBe('0.500');
+    expect(c.transferLimit).toBe('11.000');
+  });
+
+  test('transfers do not change reserve or status', () => {
+    const c = materialCoverage({ ...base, reserved: '4', transferred: '12' });
+    expect(c.status).toBe('partial');
+    expect(c.notEnsured).toBe('6.000');
+  });
+});
+
+describe('over-transfer limit', () => {
+  test('zero percent is the plain norm', () => {
+    expect(overTransferLimit(dec('10'), 0n)).toBe(dec('10'));
+  });
+  test('norm × (1 + pct / 100)', () => {
+    expect(overTransferLimit(dec('10'), dec('5'))).toBe(dec('10.5'));
+    expect(overTransferLimit(dec('3'), dec('33.33'))).toBe(dec('3.9999'));
+  });
+  test('a negative percent is treated as zero', () => {
+    expect(overTransferLimit(dec('10'), dec('-5'))).toBe(dec('10'));
   });
 });

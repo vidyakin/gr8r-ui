@@ -1,6 +1,6 @@
 /* Обеспечение материалов заказа на производство: чистая функция покрытия строки материала.
    Одна и та же функция считает сервер (карточка заказа, экран потребностей) и интерфейс (цвет обеспечения). */
-import { dec, fmt, type Dec } from './decimal';
+import { dec, fmt, pctOf, type Dec } from './decimal';
 
 /** Статус обеспечения строки материала: полностью, частично или совсем не обеспечено */
 export type CoverageStatus = 'full' | 'partial' | 'none';
@@ -21,6 +21,10 @@ export interface MaterialCoverageInput {
   onHand: string;
   /** Все резервы товара на складах (свои и чужие) */
   reservedTotal: string;
+  /** Передано перемещениями под заказ (проведённые, со ссылкой на строку состава); пусто — 0 */
+  transferred?: string;
+  /** Допуск передачи сверх нормы, % (участок или воркспейс); пусто — 0 */
+  overtransferPct?: string;
 }
 
 /** Покрытие строки материала */
@@ -43,9 +47,21 @@ export interface MaterialCoverage {
   free: string;
   /** Статус обеспечения */
   status: CoverageStatus;
+  /** Передано перемещениями под заказ */
+  transferred: string;
+  /** Передано сверх нормы: max(передано − нужно, 0) */
+  overTransferred: string;
+  /** Предел передачи: нужно × (1 + допуск, %) */
+  transferLimit: string;
 }
 
 const nonNeg = (v: Dec): Dec => (v > 0n ? v : 0n);
+
+/** Предел передачи материала: норма × (1 + допуск, %/100). Допуск меньше нуля считается нулём */
+export function overTransferLimit(need: Dec, pct: Dec): Dec {
+  const n = nonNeg(need);
+  return n + pctOf(n, nonNeg(pct));
+}
 
 /** Обеспечение строки материала: нужно, списано, зарезервировано, размещено, не обеспечено, свободно, к поступлению, статус.
     Обеспеченным считается резерв плюс размещение: заказанное поставщикам количество товар тоже обеспечивает */
@@ -58,6 +74,7 @@ export function materialCoverage(input: MaterialCoverageInput): MaterialCoverage
   const ensured = reserved + placed;
   const notEnsured = nonNeg(required - ensured);
   // свободно не бывает меньше нуля: перерезерв заказов покупателей не создаёт «отрицательного» остатка
+  const transferred = nonNeg(dec(input.transferred));
   const free = nonNeg(dec(input.onHand) - dec(input.reservedTotal));
   const status: CoverageStatus = required <= 0n ? 'full' : ensured >= required ? 'full' : ensured > 0n ? 'partial' : 'none';
   return {
@@ -70,5 +87,8 @@ export function materialCoverage(input: MaterialCoverageInput): MaterialCoverage
     notEnsured: fmt(notEnsured, 3),
     free: fmt(free, 3),
     status,
+    transferred: fmt(transferred, 3),
+    overTransferred: fmt(nonNeg(transferred - need), 3),
+    transferLimit: fmt(overTransferLimit(need, dec(input.overtransferPct)), 3),
   };
 }

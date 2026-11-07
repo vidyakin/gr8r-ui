@@ -13,6 +13,7 @@ import {
   createProductionOrder,
   createProductionOrderFromCustomerOrder,
   createSemiOrders,
+  createTransferFromOrder,
   createSupplierOrdersForOrder,
   deleteDocument,
   documentDetail,
@@ -198,6 +199,12 @@ export const productionOrderRoutes = new Hono<AppEnv>()
     const ctx = ctxOf(c);
     const res = await createSemiOrders(ctx.db, docCtx(ctx), c.req.valid('param').id, { date: c.req.valid('json').date });
     return c.json(res, 201);
+  })
+  // перемещение материалов на склад-цех участка: недостающие материалы состава, строки ссылаются на строки состава
+  .post('/:id/transfer', write, zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = await createTransferFromOrder(ctx.db, docCtx(ctx), c.req.valid('param').id);
+    return c.json({ id }, 201);
   })
   // заказы поставщику по не обеспеченным материалам (размещение)
   .post('/:id/supplier-orders', write, zValidator('param', idParam, validationHook), zValidator('json', supplierOrdersCreate, validationHook), async c => {

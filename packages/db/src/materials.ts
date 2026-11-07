@@ -5,9 +5,11 @@ import { dec, fmt, materialCoverage, type Dec, type MaterialCoverage, type Mater
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { DOCUMENT_HOOKS } from './document-hooks';
-import { documentLines, documents, products, productionComponents, productionHeaders, productionPlacements, stockBalances, stockMoves, stockReservations, warehouses } from './schema';
+import { documentLines, documents, products, productionComponents, productionHeaders, productionPlacements, stockBalances, stockMoves, stockReservations, warehouses, workCenters } from './schema';
 import { customerStockBalances } from './schema';
 import { lockFreeStock } from './stock';
+import { missingTransferLines, overtransferPct, transferredByComponent } from './material-transfer';
+import { createDocument, type DocCtx } from './documents';
 
 const key = (warehouseId: string, productId: string) => `${warehouseId}:${productId}`;
 
@@ -175,7 +177,8 @@ export async function materialRows(db: Db, orderId: string): Promise<MaterialRow
   const productIds = [...new Set(comps.map(c => c.productId!))];
   const prodRows = await db.select({ id: products.id, name: products.name, unitCode: products.unitCode }).from(products).where(inArray(products.id, productIds));
   const byProduct = new Map(prodRows.map(p => [p.id, p]));
-  const [written, reserved, placements] = await Promise.all([writtenByComponent(db, ids), reservedByComponent(db, ids), placementsByComponent(db, ids)]);
+  const [written, reserved, placements, transferred] = await Promise.all([writtenByComponent(db, ids), reservedByComponent(db, ids), placementsByComponent(db, ids), transferredByComponent(db, ids)]);
+  const pct = await overtransferPct(db, comps[0]!.workspaceId, orderId);
   // давальское сырьё заказа на переработку обеспечивает давалец: свой резерв и дефицит по нему не считаем
   const customerQty = await customerAvailability(db, orderId, productIds);
   const customerComponents = new Set(comps.filter(c => c.ownerKind === 'customer').map(c => c.id));
@@ -214,6 +217,8 @@ export async function materialRows(db: Db, orderId: string): Promise<MaterialRow
       incoming: fmt(incoming, 3),
       onHand: fmt(totalHand, 3),
       reservedTotal: fmt(resByProduct.get(c.productId!) ?? 0n, 3),
+      transferred: fmt(transferred.get(c.id) ?? 0n, 3),
+      overtransferPct: fmt(pct, 2),
     });
     const reserveWarehouseId = own[0]?.r.warehouseId ?? null;
     // свободно для резерва на складе резерва: остаток минус все резервы этого склада
@@ -412,6 +417,33 @@ export async function reserveChildOutput(db: Db, workspaceId: string, releaseId:
       else await db.insert(stockReservations).values({ workspaceId, documentId: comp.documentId, productionComponentId: comp.id, warehouseId: doc.targetWarehouseId, productId: comp.productId, qty: fmt(take, 3) });
     }
   }
+}
+
+/* ---------------- передача материалов ---------------- */
+
+/** Перемещение «на основании» заказа на производство: недостающие материалы состава (норма − передано) со склада заказа
+    на склад-цех участка заказа; у строк — ссылка на строку состава. Создаётся черновик, проводит его пользователь */
+export async function createTransferFromOrder(db: Db, ctx: DocCtx, orderId: string): Promise<string> {
+  const [order] = await db.select().from(documents).where(eq(documents.id, orderId)).limit(1);
+  if (!order || order.type !== 'production_order') throw new DomainError(404, 'not_found', 'The production order does not exist');
+  if (order.status === 'cancelled') throw new DomainError(422, 'invalid_based_on', 'A cancelled document cannot be a basis');
+  const [header] = await db.select({ workCenterId: productionHeaders.workCenterId }).from(productionHeaders).where(eq(productionHeaders.documentId, orderId)).limit(1);
+  const [center] = header?.workCenterId ? await db.select({ warehouseId: workCenters.warehouseId }).from(workCenters).where(eq(workCenters.id, header.workCenterId)).limit(1) : [];
+  if (!center?.warehouseId) throw new DomainError(422, 'work_center_warehouse_required', 'Set the shop warehouse of the work center of this order first');
+  if (order.warehouseId && order.warehouseId === center.warehouseId) throw new DomainError(422, 'target_warehouse_required', 'The order already takes materials from the shop warehouse');
+  const missing = await missingTransferLines(db, orderId);
+  if (!missing.length) throw new DomainError(422, 'nothing_to_create', 'All materials of this production order are already transferred');
+  const prods = await db.select({ id: products.id, name: products.name, unitCode: products.unitCode }).from(products).where(inArray(products.id, missing.map(m => m.productId)));
+  const byProduct = new Map(prods.map(p => [p.id, p]));
+  return createDocument(db, ctx, {
+    type: 'stock_transfer',
+    operation: 'transfer',
+    organizationId: order.organizationId,
+    warehouseId: order.warehouseId ?? undefined,
+    targetWarehouseId: center.warehouseId,
+    basedOnId: orderId,
+    lines: missing.map(m => ({ productId: m.productId, name: byProduct.get(m.productId)?.name, unitCode: byProduct.get(m.productId)?.unitCode, qty: fmt(m.qty, 3), price: '0', productionComponentId: m.componentId })),
+  });
 }
 
 /* ---------------- поставщик по умолчанию ---------------- */

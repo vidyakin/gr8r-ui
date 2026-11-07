@@ -30,6 +30,8 @@ export const workCenterCreate = z.object({
   defectWarehouseId: uuid.nullish(),
   /** Режим материалов выпусков участка: при выпуске (по умолчанию) или по итогам смены */
   materialMode: z.enum(MATERIAL_MODES).default('on_release'),
+  /** Допустимое превышение передачи материалов по заказу, %: пусто — настройка воркспейса */
+  materialOvertransferPct: nonNeg(1000).nullish(),
   note: z.string().max(1000).default(''),
 });
 export const workCenterUpdate = toPatch(workCenterCreate.omit({ id: true }));
@@ -231,9 +233,13 @@ export const productionSettingsUpdate = z
     materialPriceSource: z.enum(MATERIAL_PRICE_SOURCES).optional(),
     /** Учётная цена возвратных отходов: purchase (по умолчанию) | price | avg_cost */
     wastePriceSource: z.enum(WASTE_PRICE_SOURCES).optional(),
+    /** Допустимое превышение передачи материалов по заказу на производство, % (по умолчанию 0) */
+    materialOvertransferPct: nonNeg(1000).optional(),
   })
   .strict();
 export interface ProductionSettings {
+  /** Допустимое превышение передачи материалов, % (строка, 0 по умолчанию) */
+  materialOvertransferPct: string;
   materialPriceSource: (typeof MATERIAL_PRICE_SOURCES)[number];
   wastePriceSource: (typeof WASTE_PRICE_SOURCES)[number];
 }

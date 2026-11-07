@@ -53,6 +53,7 @@ import { saveSerials, checkInventorySerials, lineSerialsView } from './serials';
 import { applySaleNextContact } from './repeat-sales';
 import { applyAutoDiscountsOnSave, applyLoyaltyOnPost, applyLoyaltyOnReturn, applyLoyaltyRedemption, applyLoyaltyReturnRefund, reverseLoyaltyOnReturnUnpost, validPromoCode, DISCOUNT_DOCUMENT_TYPES, documentLoyaltyOf, LOYALTY_RETURN_TYPES, LOYALTY_SALE_TYPES, reverseLoyaltyOnUnpost, saveDocumentLoyalty, saveLineDiscountSources } from './loyalty';
 import { inheritDelivery } from './delivery';
+import { assertTransferComponents } from './material-transfer';
 import { payableOf, postAccrual, removeSettlementMoves } from './settlements';
 import { repairPrintData, syncWarrantyKind, workOrderKindType } from './repair';
 import { loadSupplierRatingSettings, supplierRatingLevelOf } from './supplier-rating';
@@ -174,6 +175,8 @@ interface ResolvedLine {
   batchNumber?: string | null;
   batchProducedAt?: string | null;
   batchExpiresAt?: string | null;
+  /** Строка состава заказа на производство (перемещение под заказ); undefined — оставить прежнюю, null — снять */
+  productionComponentId?: string | null;
 }
 
 /** Подставляет из товара название, единицу и ставку НДС, которых нет в строке; новые строки — только по действующим товарам.
@@ -210,6 +213,7 @@ async function resolveLines(db: Db, inputs: DocumentLineInput[], existingIds: Se
       batchNumber: l.batchNumber === undefined ? undefined : l.batchNumber?.trim() || null,
       batchProducedAt: l.batchProducedAt,
       batchExpiresAt: l.batchExpiresAt,
+      productionComponentId: l.productionComponentId,
     };
   });
 }
@@ -273,7 +277,7 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
   const type = doc.type as DocumentType;
   const meta = DOCUMENT_META[type];
   const existing = await db
-    .select({ id: documentLines.id, price: documentLines.price, discountPct: documentLines.discountPct, stockRole: documentLines.stockRole, costItemId: documentLines.costItemId, workCenterId: documentLines.workCenterId, groupName: documentLines.groupName, batchNumber: documentLines.batchNumber, batchProducedAt: documentLines.batchProducedAt, batchExpiresAt: documentLines.batchExpiresAt })
+    .select({ id: documentLines.id, price: documentLines.price, discountPct: documentLines.discountPct, stockRole: documentLines.stockRole, costItemId: documentLines.costItemId, workCenterId: documentLines.workCenterId, groupName: documentLines.groupName, batchNumber: documentLines.batchNumber, batchProducedAt: documentLines.batchProducedAt, batchExpiresAt: documentLines.batchExpiresAt, productionComponentId: documentLines.productionComponentId })
     .from(documentLines)
     .where(eq(documentLines.documentId, doc.id));
   const existingIds = new Set(existing.map(e => e.id));
@@ -286,11 +290,13 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
   const prevBatch = new Map(existing.map(e => [e.id, e.batchNumber]));
   const prevBatchProduced = new Map(existing.map(e => [e.id, e.batchProducedAt]));
   const prevBatchExpires = new Map(existing.map(e => [e.id, e.batchExpiresAt]));
+  const prevComponent = new Map(existing.map(e => [e.id, e.productionComponentId]));
   const resolved = await resolveLines(db, inputs, existingIds, type);
   // заказ покупателя: комбинация значений параметров с флажком «разрез склада» даёт вариант товара.
   // Вариант создаётся лениво (первый заказ комбинации) и заменяет товар в строке: склад, резервы и документы работают по нему
   if (type === 'customer_order') await resolveLineVariants(db, ctx, resolved);
   await assertRefs(db, { costItemId: resolved.find(l => l.costItemId)?.costItemId ?? null, workCenterId: resolved.find(l => l.workCenterId)?.workCenterId ?? null });
+  if (type === 'stock_transfer') await assertTransferComponents(db, resolved.filter(l => l.productionComponentId));
   const keep = new Set(resolved.map(l => l.id));
   const drop = [...existingIds].filter(id => !keep.has(id));
   if (drop.length) await db.delete(documentLines).where(inArray(documentLines.id, drop));
@@ -322,6 +328,8 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
       batchNumber: l.batchNumber === undefined ? prevBatch.get(l.id) ?? null : l.batchNumber,
       batchProducedAt: l.batchProducedAt === undefined ? prevBatchProduced.get(l.id) ?? null : l.batchProducedAt,
       batchExpiresAt: l.batchExpiresAt === undefined ? prevBatchExpires.get(l.id) ?? null : l.batchExpiresAt,
+      // ссылка на строку состава заказа (только перемещение): undefined — не трогаем, null — снимаем
+      productionComponentId: type !== 'stock_transfer' ? null : l.productionComponentId === undefined ? prevComponent.get(l.id) ?? null : l.productionComponentId,
     };
     // приём и возврат давальческого сырья ничего не продают: цена строки нулевая, НДС нет
     if (meta.noPrice) {
