@@ -17,6 +17,7 @@ import {
   laborCostAmount,
   laborHourCost,
   monthNormHours,
+  shortDaysTotal,
   normalizeBadgeCode,
   SHIFT_HOURS_MAX,
   type Role,
@@ -362,7 +363,8 @@ export async function memberHourCosts(db: Db, workspaceId: string, memberIds: st
     const calendar = (calendarId ? cal.calendars.get(calendarId) : null) ?? cal.defaultCalendar;
     const exceptions = exceptionsFor(cal.exceptionsByScope, 'member', memberId);
     const workingDays = monthDays.filter(d => isWorkingDayWith(calendar, d, cal.holidays, exceptions)).length;
-    const norm = monthNormHours(workingDays, (calendar ?? DEFAULT_CALENDAR).hoursPerDay);
+    const shortHours = fmt(shortDaysTotal(calendar, monthDays, cal.holidays, exceptions), 2);
+    const norm = monthNormHours(workingDays, (calendar ?? DEFAULT_CALENDAR).hoursPerDay, shortHours);
     const cost = laborHourCost({
       hourlyRate: empByMember.get(memberId)?.hourlyRate ?? null,
       salary: salaryByMember.get(memberId) ?? null,

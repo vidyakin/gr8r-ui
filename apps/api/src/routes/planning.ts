@@ -103,8 +103,8 @@ export const planningRoutes = new Hono<AppEnv>()
   .post('/holidays', admin, zValidator('json', holidayInput, validationHook), async c => {
     const ctx = ctxOf(c);
     const body = c.req.valid('json');
-    await setHoliday(ctx.db, docCtx(ctx), body.date, body.name);
-    return c.json({ date: body.date, name: body.name });
+    await setHoliday(ctx.db, docCtx(ctx), body.date, body.name, body.kind, body.shortHours);
+    return c.json({ date: body.date, name: body.name, kind: body.kind });
   })
   .delete('/holidays/:date', admin, zValidator('param', dateParam, validationHook), async c => {
     const ctx = ctxOf(c);
@@ -205,7 +205,7 @@ export const planningRoutes = new Hono<AppEnv>()
     const ctx = ctxOf(c);
     const q = c.req.valid('query');
     const load = await workspaceLoad(ctx.db, ctx.workspaceId, { from: q.from, to: q.to, rowType: q.rowType });
-    return c.json({ rows: load.result, entries: load.entries, holidays: load.holidays });
+    return c.json({ rows: load.result, entries: load.entries, holidays: load.holidays, shortDays: load.shortDays });
   })
   /* ---------------- сдвиг операции в планировщике ---------------- */
   .patch('/operations/:id/move', write, zValidator('param', idParam, validationHook), zValidator('json', moveOperationInput, validationHook), async c => {

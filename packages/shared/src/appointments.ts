@@ -1,6 +1,8 @@
 /* Запись на приём (задача 1171): чистые правила слотов без БД — сетка недели, исключения, праздники, пересечения, поиск свободного.
    Время — минуты от полуночи, даты — YYYY-MM-DD в часовом поясе воркспейса. Раздел docs/architecture/appointments.md. */
 
+import { isHolidayOff, shortReduction, type Holidays } from './planning';
+
 export const SLOT_MINUTES = [15, 30, 45, 60, 90] as const;
 export const APPOINTMENT_STATUSES = ['booked', 'confirmed', 'came', 'no_show', 'cancelled'] as const;
 export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
@@ -57,12 +59,17 @@ export const isGridStart = (def: Pick<ScheduleDef, 'slotMinutes' | 'dayStartMin'
   start >= def.dayStartMin && start + def.slotMinutes <= def.dayEndMin && (start - def.dayStartMin) % def.slotMinutes === 0;
 
 /** Рабочие слоты дня: недельная сетка → исключение на дату (заменяет сетку) → праздник (день без слотов, если нет своего исключения) */
-export function workingSlots(def: ScheduleDef, date: string, exceptions: ScheduleException[] = [], holidays: string[] = []): number[] {
+export function workingSlots(def: ScheduleDef, date: string, exceptions: ScheduleException[] = [], holidays: Holidays = []): number[] {
   const ex = exceptions.find(e => e.date === date);
   let base: number[];
   if (ex) base = ex.slots ?? [];
-  else if (holidays.includes(date)) base = [];
-  else base = def.week[String(weekdayOf(date))] ?? [];
+  else if (isHolidayOff(holidays, date)) base = [];
+  else {
+    base = def.week[String(weekdayOf(date))] ?? [];
+    // сокращённый день: отпадают слоты, которые заканчиваются позже (конец дня − сокращение)
+    const cut = Number(shortReduction(holidays, date) * 60n / 1_000_000n);
+    if (cut > 0) base = base.filter(s => s + def.slotMinutes <= def.dayEndMin - cut);
+  }
   return [...new Set(base)].filter(s => isGridStart(def, s)).sort((a, b) => a - b);
 }
 

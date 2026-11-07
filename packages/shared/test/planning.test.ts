@@ -9,12 +9,18 @@ import {
   isWorkingDayWith,
   computeHourlyLoad,
   shiftOf,
+  shortDaysTotal,
+  spansForDay,
+  dateRange,
+  type HolidayCalendar,
   type CalendarDef,
   type HourlyEntry,
   type HourlyRow,
   type LoadEntry,
   type LoadRow,
 } from '../src/planning';
+import { fmt } from '../src/decimal';
+import { monthNormHours } from '../src/labor-cost';
 
 const weekly: CalendarDef = { id: 'c1', kind: 'weekly', pattern: { weekdays: [1, 2, 3, 4, 5] }, cycleStart: null, hoursPerDay: '8' };
 const cyclic: CalendarDef = { id: 'c2', kind: 'cycle', pattern: { cycle: [1, 1, 0, 0] }, cycleStart: '2026-01-05', hoursPerDay: '12' };
@@ -289,5 +295,41 @@ describe('hourly load', () => {
     // в UTC этот же интервал — до начала смены
     const res2 = computeHourlyLoad([memberRow], [assignment('e1', '2026-10-19T07:00:00Z', '2026-10-19T09:00:00Z')], '2026-10-19T00:00:00Z', '2026-10-20T00:00:00Z', { timeZone: 'UTC' });
     expect(res2.warnings.filter(w => w.code === 'outside_shift')).toHaveLength(1);
+  });
+});
+
+describe('сокращённые предпраздничные дни', () => {
+  const cal: CalendarDef = { id: null, kind: 'weekly', pattern: { weekdays: [1, 2, 3, 4, 5], startHour: 9, endHour: 17 }, cycleStart: null, hoursPerDay: '8' };
+  const hol: HolidayCalendar = { off: ['2026-05-01'], short: { '2026-04-30': '1' } };
+  test('мощность дня уменьшается на сокращение, выходной остаётся нулём', () => {
+    expect(fmt(capacityOf(cal, '2026-04-30', null, hol, []), 2)).toBe('7.00');
+    expect(fmt(capacityOf(cal, '2026-04-29', null, hol, []), 2)).toBe('8.00');
+    expect(capacityOf(cal, '2026-05-01', null, hol, [])).toBe(0n);
+    expect(fmt(capacityOf(cal, '2026-04-30', '6', hol, []), 2)).toBe('5.00');
+  });
+  test('сокращение больше мощности даёт ноль, день остаётся рабочим', () => {
+    const big: HolidayCalendar = { off: [], short: { '2026-04-30': '10' } };
+    expect(capacityOf(cal, '2026-04-30', null, big, [])).toBe(0n);
+    expect(isWorkingDayWith(cal, '2026-04-30', big, [])).toBe(true);
+  });
+  test('старый вид — список дат — работает как раньше', () => {
+    expect(isWorkingDayWith(cal, '2026-05-01', ['2026-05-01'], [])).toBe(false);
+    expect(fmt(capacityOf(cal, '2026-04-30', null, ['2026-05-01'], []), 2)).toBe('8.00');
+  });
+  test('смена сокращённого дня кончается раньше', () => {
+    const [span] = spansForDay(cal, '2026-04-30', 'UTC', hol, []);
+    expect(span!.end.toISOString()).toBe('2026-04-30T16:00:00.000Z');
+  });
+  test('сумма сокращений за месяц и норма часов', () => {
+    const days = dateRange('2026-04-01', '2026-04-30');
+    expect(fmt(shortDaysTotal(cal, days, hol, []), 2)).toBe('1.00');
+    expect(monthNormHours(22, '8', '1.00')).toBe('175.00');
+  });
+  test('загрузка: перегрузка считается по сокращённой мощности', () => {
+    const rows: LoadRow[] = [{ id: 'r', rowType: 'resource', name: 'R', capacityHoursPerDay: null, calendar: cal }];
+    const entries: LoadEntry[] = [{ id: 'e', kind: 'resource', title: '', rowType: 'resource', rowId: 'r', start: '2026-04-30', end: '2026-04-30', hours: '7.5' }];
+    const res = computeLoad(rows, entries, '2026-04-30', '2026-04-30', hol, {});
+    expect(res[0]!.days[0]!.capacity).toBe('7.00');
+    expect(res[0]!.days[0]!.overloaded).toBe(true);
   });
 });

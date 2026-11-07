@@ -169,10 +169,15 @@ function HolidaysTab() {
   const api = usePlanningApi();
   const [date, setDate] = React.useState('');
   const [name, setName] = React.useState('');
+  const [kind, setKind] = React.useState<'off' | 'short'>('off');
+  const [hours, setHours] = React.useState('1');
+  const hoursNum = Number(hours.replace(',', '.'));
+  const validHours = kind === 'off' || (hoursNum > 0 && hoursNum <= 23);
 
   const add = async () => {
-    if (!date) return;
-    if (await api('POST', '/production/holidays', { date, name })) {
+    if (!date || !validHours) return;
+    const body = kind === 'short' ? { date, name, kind, shortHours: hoursNum } : { date, name, kind };
+    if (await api('POST', '/production/holidays', body)) {
       toast(tt('production.resources.holidayAdded'));
       setDate('');
       setName('');
@@ -185,7 +190,19 @@ function HolidaysTab() {
         <div className="row" style={{ gap: 8 }}>
           <DateInput aria-label={tt('production.resources.holidayDate')} value={date} onChange={v => setDate(v)} style={{ width: 180 }} />
           <Input aria-label={tt('production.resources.holidayName')} placeholder={tt('production.resources.holidayPlaceholder')} value={name} onChange={e => setName(e.target.value)} style={{ width: 240 }} />
-          <Button onClick={add} disabled={!date}>
+          <Segmented
+            value={kind}
+            aria-label={tt('production.resources.holidayKindOff')}
+            onValueChange={v => setKind(v as 'off' | 'short')}
+            items={[
+              { value: 'off', label: tt('production.resources.holidayKindOff') },
+              { value: 'short', label: tt('production.resources.holidayKindShort') },
+            ]}
+          />
+          {kind === 'short' && (
+            <Input aria-label={tt('production.resources.holidayShortHours')} title={tt('production.resources.holidayShortHours')} inputMode="decimal" value={hours} onChange={e => setHours(e.target.value)} style={{ width: 70 }} />
+          )}
+          <Button onClick={add} disabled={!date || !validHours}>
             <Plus size={14} />
             {tt('production.resources.addHoliday')}
           </Button>
@@ -203,6 +220,7 @@ function HolidaysTab() {
                 {h.date}
               </span>
               <span className="grow">{h.name}</span>
+              {h.kind === 'short' && <Badge>{tt('production.resources.shortDayBadge', { n: Number(h.shortHours) })}</Badge>}
               {isAdmin && (
                 <button type="button" className="ibtn ibtn-xs" aria-label={tt('production.resources.deleteDate', { date: h.date })} onClick={() => api('DELETE', `/production/holidays/${h.date}`)}>
                   <Trash2 size={13} />

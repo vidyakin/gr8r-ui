@@ -3,7 +3,7 @@
    по правилу мин./макс., методики «по продажам: min-max» и «по статистике продаж со страховым запасом».
    Количества считаются на десятичных из decimal.ts, наружу идут строками с тремя знаками. */
 import { dec, div, fmt, mul, pctOf, roundDiv, type Dec } from './decimal';
-import { addDays, capacityOf, dateRange, isWorkingDayWith, type CalendarDef, type CalendarException } from './planning';
+import { addDays, capacityOf, dateRange, isWorkingDayWith, type CalendarDef, type CalendarException, type Holidays } from './planning';
 
 /* ---------------- периоды плана ---------------- */
 
@@ -41,7 +41,7 @@ export function planPeriodOf(periods: string[], date: string): string | null {
 }
 
 /** Дата запуска: дата выпуска минус lead_days рабочих дней по календарю (сдвиг через выходной и праздник) */
-export function startBeforeLead(cal: CalendarDef | null, holidays: string[], exceptions: CalendarException[], dueDate: string, leadDays: number): string {
+export function startBeforeLead(cal: CalendarDef | null, holidays: Holidays, exceptions: CalendarException[], dueDate: string, leadDays: number): string {
   let d = dueDate;
   let left = Math.max(0, Math.trunc(leadDays));
   for (let i = 0; left > 0 && i < 1000; i++) {
@@ -204,7 +204,7 @@ export function loadVsCapacity(hours: string, capacity: string): { capacity: str
 export function periodCapacity(
   cal: CalendarDef | null,
   capacityHoursPerDay: string | null,
-  holidays: string[],
+  holidays: Holidays,
   exceptions: CalendarException[],
   from: string,
   to: string,

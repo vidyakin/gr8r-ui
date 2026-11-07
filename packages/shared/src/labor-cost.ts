@@ -34,12 +34,14 @@ export interface LaborHourCost {
   monthNormHours: string | null;
 }
 
-/** Норма часов месяца: рабочие дни месяца по графику × часов в день графика (0 — считать нечего) */
-export function monthNormHours(workingDays: number, hoursPerDay: string): string {
+/** Норма часов месяца: рабочие дни месяца по графику × часов в день графика минус часы сокращённых дней (0 — считать нечего) */
+export function monthNormHours(workingDays: number, hoursPerDay: string, shortHours = '0'): string {
   if (workingDays <= 0) return '0.00';
   const perDay = dec(hoursPerDay);
   if (perDay <= 0n) return '0.00';
-  return fmt(mul(dec(String(workingDays)), perDay), 2);
+  // сокращённые предпраздничные дни уменьшают норму часов
+  const norm = mul(dec(String(workingDays)), perDay) - dec(shortHours);
+  return fmt(norm > 0n ? norm : 0n, 2);
 }
 
 /** Стоимость часа: почасовая ставка, иначе оклад / норма часов; плюс страховые взносы. Без float */

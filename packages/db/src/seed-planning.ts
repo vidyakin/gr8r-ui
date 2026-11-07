@@ -38,6 +38,7 @@ export async function seedPlanning(db: Db, wsId: string) {
   await db.insert(workspaceHolidays).values([
     { workspaceId: wsId, date: '2026-01-01', name: 'Новый год' },
     { workspaceId: wsId, date: '2026-05-01', name: 'Праздник Весны и Труда' },
+    { workspaceId: wsId, date: '2026-04-30', name: 'Предпраздничный день', kind: 'short', shortHours: '1' },
   ]);
 
   /* ---------- участки: мощность и график ---------- */
@@ -72,5 +73,5 @@ export async function seedPlanning(db: Db, wsId: string) {
     .limit(1);
   if (work) await db.insert(productResources).values({ workspaceId: wsId, productId: work.id, resourceId: bench, hoursPerUnit: '0.500' });
 
-  return { calendars: 2, holidays: 2, resources: 3 };
+  return { calendars: 2, holidays: 3, resources: 3 };
 }
