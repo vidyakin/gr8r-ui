@@ -6,7 +6,7 @@ import { Hono } from 'hono';
 import { AppError } from '../errors';
 import { requireSession } from '../middleware';
 import type { AppEnv } from '../types';
-import { callApi } from './call';
+import { callApi, type Query, type WriteMethod } from './call';
 import { registerTools } from './tools';
 
 const hasBearer = (h: string | undefined) => !!h && /^bearer\s+\S/i.test(h);
@@ -28,8 +28,10 @@ export function mcpRoutes(getApp: () => Hono<AppEnv>) {
       const authorization = c.req.header('authorization')!;
 
       const server = new McpServer({ name: 'gr8r', version: '1.0.0' }, { capabilities: { tools: {} } });
+      const base = { authorization, workspaceId: token.workspaceId };
       registerTools(server, {
-        call: (path, query = {}) => callApi(getApp(), path, query, authorization, token.workspaceId),
+        call: (path: string, query: Query = {}) => callApi(getApp(), path, { ...base, query }),
+        send: (method: WriteMethod, path: string, body: unknown) => callApi(getApp(), path, { ...base, method, body }),
         token: { ...token, sections: token.sections ?? null },
       });
       const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
