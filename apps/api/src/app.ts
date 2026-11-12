@@ -112,7 +112,8 @@ function buildTenantApi() {
     // путь одного раздела закрыт участнику, которому раздел скрыт должностями (docs/architecture/positions.md)
     const section = SECTION_OF_API_PATH.get(p);
     if (section) chain.push(requireSection(section));
-    guarded.use(p, ...chain);
+    // Шаблон `${p}/*` в Hono совпадает и с самим `${p}`: второй use(p, …) прогонял цепочку дважды — вложенная транзакция
+    // ждала второе соединение, и пачка запросов к корневым путям исчерпывала пул (взаимная блокировка до дедлайна)
     guarded.use(`${p}/*`, ...chain);
   }
   return guarded
