@@ -180,6 +180,13 @@ export const nav: Widen<typeof N> = {
   newTask: 'Новая задача',
   inviteMember: 'Пригласить участника',
   accountMenu: 'Меню аккаунта',
+  tabs: {
+    label: 'Открытые страницы',
+    close: 'Закрыть вкладку',
+    closeOthers: 'Закрыть остальные',
+    closeRight: 'Закрыть вкладки справа',
+    closeAll: 'Закрыть все вкладки',
+  },
   crumbs: {
     investment: 'Инвестпроект',
     object: 'Объект',

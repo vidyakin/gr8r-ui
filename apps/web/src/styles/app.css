@@ -370,6 +370,89 @@ svg.logo {
   color: var(--text-4);
   font-size: 12px;
 }
+/* Вкладки открытых страниц (app/layout/PageTabs.tsx): полоса под верхней панелью, прокручивается по горизонтали */
+.ptabs {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 34px;
+  padding: 0 12px 0 calc(var(--gutter) - 8px);
+  border-bottom: 1px solid var(--border);
+  background: var(--sunken);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.ptabs::-webkit-scrollbar {
+  display: none;
+}
+.ptabs:empty {
+  display: none;
+}
+.ptab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 96px;
+  max-width: 220px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+  transition: color var(--dur), background var(--dur);
+}
+.ptab:hover {
+  color: var(--text-2);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+}
+.ptab.on {
+  color: var(--text);
+  font-weight: 500;
+  background: var(--surface);
+  border-color: var(--border);
+  margin-bottom: -1px;
+  height: 29px;
+}
+.ptab-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+  height: 100%;
+  padding: 0 4px 0 10px;
+  text-align: left;
+}
+.ptab-x {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-right: 5px;
+  border-radius: 4px;
+  color: var(--text-3);
+  opacity: 0;
+  transition: opacity var(--dur), background var(--dur);
+}
+.ptab:hover .ptab-x,
+.ptab.on .ptab-x,
+.ptab-x:focus-visible {
+  opacity: 1;
+}
+.ptab-x:hover {
+  background: var(--sunken);
+  color: var(--text);
+}
+@media (max-width: 900px) {
+  .ptabs {
+    display: none;
+  }
+}
 .topsearch {
   display: flex;
   align-items: center;

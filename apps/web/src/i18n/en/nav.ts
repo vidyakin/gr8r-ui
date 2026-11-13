@@ -180,6 +180,14 @@ export const nav = {
   newTask: 'New task',
   inviteMember: 'Invite member',
   accountMenu: 'Account menu',
+  // вкладки открытых страниц
+  tabs: {
+    label: 'Open pages',
+    close: 'Close tab',
+    closeOthers: 'Close other tabs',
+    closeRight: 'Close tabs to the right',
+    closeAll: 'Close all tabs',
+  },
   // хлебные крошки
   crumbs: {
     investment: 'Investment project',

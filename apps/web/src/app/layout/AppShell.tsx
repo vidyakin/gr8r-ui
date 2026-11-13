@@ -10,6 +10,7 @@ import { SECTIONS, type SectionId } from '../routes';
 import { Sidebar } from './Sidebar';
 import { SidePanel, SidePanelProvider, useSidePanelState } from './SidePanel';
 import { Topbar, useCrumbs } from './Topbar';
+import { PageTabs } from './PageTabs';
 import { OverlayProviders, PaletteHost, TaskWindowsHost } from '../overlays';
 import { CrmOverlays } from '../crm/overlays';
 import { PageBoundary } from '../components/error-states';
@@ -117,6 +118,7 @@ export function AppShell() {
       {mnav && <div className="side-scrim" onClick={() => setMnav(false)} />}
       <main className="main" id="main">
         <Topbar onOpenNav={() => setMnav(true)} />
+        <PageTabs ws={analyticsWs ?? ''} pageKey={pageKey} title={crumbs.at(-1)?.label ?? ''} />
         <LicenseBanner />
         {/* key перезапускает анимацию появления при смене страницы */}
         <div key={pageKey} className="content fx-route" id="main-content" tabIndex={-1}>
