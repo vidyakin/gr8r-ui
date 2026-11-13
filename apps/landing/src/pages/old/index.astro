@@ -1,0 +1,9 @@
+---
+/* Первая версия лендинга — для сравнения с новой */
+import Base from '../../layouts/Base.astro';
+import OldRoot from '../../old/OldRoot';
+---
+
+<Base title="Старый лендинг — FutureERP" description="Прежняя версия лендинга FutureERP.">
+  <OldRoot client:only="react" variant="classic" />
+</Base>

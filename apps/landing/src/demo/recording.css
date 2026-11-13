@@ -1,0 +1,448 @@
+/* Кадры «записей» модулей (.rec, .stage, d-*): общие для нового и старого лендинга */
+/* ============================================================
+   «Запись»: рамка, кадр, курсор, строка управления
+   ============================================================ */
+.rec {
+  margin: 0;
+}
+.rec-frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  box-shadow: 0 32px 64px -36px rgba(28, 25, 20, 0.22);
+}
+.stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  transform-origin: 0 0;
+  background: var(--surface);
+  font-size: var(--fs);
+  user-select: none;
+}
+.rec-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 14px;
+  color: var(--text-3);
+}
+.rec-btn {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--border-strong);
+  color: var(--text-2);
+  transition: background var(--dur);
+}
+.rec-btn:hover {
+  background: var(--surface-2);
+}
+.rec-cap {
+  min-width: 0;
+  line-height: 1.45;
+}
+@keyframes recPulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 40;
+  pointer-events: none;
+  transition-property: transform, opacity;
+  transition-timing-function: cubic-bezier(0.45, 0.05, 0.25, 1), ease;
+  will-change: transform;
+}
+.cursor svg {
+  position: relative;
+  z-index: 1;
+  margin: -2px 0 0 -2px;
+  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.25));
+  transition: transform 0.12s var(--ease);
+  transform-origin: 2px 2px;
+}
+.cursor.down svg {
+  transform: scale(0.88);
+}
+.cursor.gone {
+  opacity: 0;
+}
+.cursor .ring {
+  position: absolute;
+  left: -12px;
+  top: -12px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  opacity: 0;
+}
+.cursor.down .ring {
+  animation: clickRing 0.42s var(--ease);
+}
+@keyframes clickRing {
+  from {
+    opacity: 0.7;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+.ghost {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 30;
+  width: 236px;
+  pointer-events: none;
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.45, 0.05, 0.25, 1);
+}
+.ghost .kcard {
+  box-shadow: var(--shadow-drag);
+}
+.stage.compact .ghost {
+  width: 188px;
+}
+
+/* ---------- оболочка приложения в кадре ---------- */
+.d-shell {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  height: 100%;
+}
+.stage.compact .d-shell {
+  grid-template-columns: minmax(0, 1fr);
+}
+.d-shell .main {
+  min-height: 0;
+}
+.d-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-top: 20px;
+}
+.d-page-in {
+  display: flex;
+  flex-direction: column;
+  animation: dIn 0.28s var(--ease) both;
+}
+.d-ph {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 var(--gutter);
+  margin-bottom: 14px;
+}
+.d-ph h1 {
+  margin: 0;
+  font-size: var(--fs-2xl);
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  line-height: 1.2;
+}
+.d-ph p {
+  margin-top: 4px;
+  color: var(--text-2);
+  font-size: var(--fs);
+}
+.d-tabs {
+  padding: 0 var(--gutter);
+}
+.d-toolbar {
+  display: flex;
+  gap: 6px;
+  padding: 12px var(--gutter);
+}
+
+/* медиазапросы приложения срабатывают по ширине окна, а не кадра — возвращаем настольный вид */
+.stage {
+  --gutter: 24px;
+  --topbar-h: 46px;
+}
+.stage.compact {
+  --gutter: 16px;
+}
+.stage .crumbs .sep {
+  display: inline;
+}
+.stage .topbar .ibtn,
+.stage .topbar .btn {
+  min-width: 0;
+  min-height: 0;
+}
+.stage .board {
+  overflow: hidden;
+  padding-bottom: 14px;
+}
+.stage .bcol {
+  width: 241px;
+}
+.stage.compact .bcol {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 180px;
+}
+.stage .doc-head {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.stage.compact .doc-head {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.stage .doc-bottom {
+  grid-template-columns: minmax(0, 1fr) 360px;
+}
+.stage.compact .doc-bottom {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* ---------- элементы сцен ---------- */
+.d-edit {
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 0 0 4px var(--accent-soft);
+}
+.d-input {
+  min-height: 20px;
+  font-size: var(--fs-md);
+  font-weight: 500;
+}
+.d-hint {
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
+}
+.caret {
+  display: inline-block;
+  width: 1px;
+  height: 1.1em;
+  margin-left: 1px;
+  vertical-align: -0.15em;
+  background: var(--text);
+  animation: caret 1s steps(1) infinite;
+}
+@keyframes caret {
+  50% {
+    opacity: 0;
+  }
+}
+.d-fresh {
+  animation: dFresh 1.6s var(--ease);
+}
+@keyframes dFresh {
+  from {
+    box-shadow:
+      0 0 0 1px var(--accent),
+      0 0 0 4px var(--accent-soft);
+    transform: translateY(-3px);
+  }
+}
+.d-flash {
+  border-radius: 4px;
+  animation: dFlash 1.6s var(--ease);
+}
+@keyframes dFlash {
+  from {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+}
+.d-row-hot td {
+  animation: dRow 2.2s var(--ease);
+}
+@keyframes dRow {
+  from {
+    background: var(--accent-soft);
+  }
+}
+.d-pop {
+  animation: popIn 0.22s var(--spring) both;
+}
+@keyframes dIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.d-doc {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 0 var(--gutter);
+}
+.d-doc .d-tabs {
+  padding: 0;
+  margin-bottom: -6px;
+}
+.d-sel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.d-sel .chev {
+  margin-left: auto;
+  color: var(--text-3);
+}
+.d-focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.d-ph-text {
+  color: var(--text-3);
+}
+.d-cell {
+  height: 30px;
+  padding: 0 8px;
+}
+.d-cell.r {
+  justify-content: flex-end;
+}
+.d-popover {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 0;
+  min-width: 300px;
+  max-width: 420px;
+  padding: 4px;
+  animation: popIn 0.16s var(--ease) both;
+}
+.d-addline {
+  padding: 6px 8px;
+  border-top: 1px solid var(--divider);
+}
+.d-seg {
+  display: inline-flex;
+  height: var(--h-md);
+}
+.d-seg span {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  border-radius: var(--r-sm);
+}
+.d-seg span[data-state='on'] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+.d-report {
+  margin: 0 var(--gutter);
+  overflow: hidden;
+}
+.d-report .dtbl th,
+.d-report .dtbl td {
+  padding: 11px 14px;
+}
+.d-src {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.d-src i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+.d-romi {
+  color: var(--green);
+  font-weight: 500;
+}
+.d-total td {
+  font-weight: 600;
+  border-top: 1px solid var(--border);
+}
+
+/* диалог и уведомление внутри кадра: у приложения они fixed к окну */
+.d-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 90px;
+  background: var(--overlay);
+}
+.d-modal .modal {
+  max-width: 400px;
+}
+.d-toast {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  z-index: 25;
+  animation: dIn 0.25s var(--ease) both;
+}
+.d-toast svg {
+  color: var(--green);
+}
+.stage .appt-cell {
+  min-width: 0;
+}
+.stage .appt-scroll {
+  overflow: hidden;
+}
+.d-wb {
+  margin: 0 var(--gutter);
+  padding: 0;
+  overflow: hidden;
+}
+.d-wb .dtbl td,
+.d-wb .dtbl th {
+  white-space: nowrap;
+}
+.d-wb-group {
+  padding: 6px 10px;
+  background: var(--surface-2);
+}
+.d-off {
+  opacity: 0.5;
+}
+.d-ok {
+  color: var(--green);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .l-panel,
+  .l-step-ic,
+  .caret,
+  .d-fresh,
+  .d-flash,
+  .d-row-hot td,
+  .d-pop,
+  .d-toast,
+  .d-page-in {
+    animation: none;
+  }
+}
+.d-delta {
+  margin-right: 8px;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--green);
+  animation: dIn 0.4s var(--ease) both;
+}

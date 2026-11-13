@@ -1,0 +1,198 @@
+---
+/* Новая главная (вариант C): статичный HTML, интерактивные острова — запись, модули, форма заявки */
+import Base from '../layouts/Base.astro';
+import { ArrowRight, Blocks, Server, ShieldCheck, FileText, Phone, Inbox, Briefcase, Factory, Truck, Wallet, TrendingUp, Minus, Check, Plus, Menu } from 'lucide-react';
+import { Brand } from '../demo/shell';
+import HeroRecording from '../home/HeroRecording';
+import ModuleSwitcher from '../home/ModuleSwitcher';
+import LeadFormIsland from '../home/LeadFormIsland';
+import { t, home, flowSteps } from '../i18n';
+import '../demo/frame.css';
+import '../home/home.css';
+
+const APP_URL = import.meta.env.VITE_APP_URL ?? '/app/';
+const h = home();
+const factIcons = [Blocks, Server, ShieldCheck, FileText];
+const flowIcons = [Phone, Inbox, Briefcase, Factory, Truck, Wallet, TrendingUp];
+const steps = flowSteps();
+const links = [
+  ['#modules', t('home.nav.modules')],
+  ['#how', t('home.nav.how')],
+  ['#compare', t('home.nav.compare')],
+  ['#price', t('home.nav.price')],
+  ['#faq', t('home.nav.faq')],
+];
+const num = (i: number) => String(i + 1).padStart(2, '0');
+---
+
+<Base title={t('home.title')} description={t('home.description')} theme="light">
+  <div class="h-page">
+    <a class="h-skip" href="#main">{t('nav.skip')}</a>
+
+    <header class="h-header">
+      <div class="h-bar">
+        <a class="h-logo" href="/" aria-label="FutureERP">
+          <Brand size={28} />
+          <span class="h-logo-text"><span class="h-logo-a">FUTURE</span><span class="h-logo-b">ERP</span></span>
+        </a>
+        <nav class="h-menu" aria-label={t('home.nav.label')}>
+          {links.map(([href, label]) => <a href={href}>{label}</a>)}
+        </nav>
+        <div class="h-bar-actions">
+          <a class="h-link" href={APP_URL}>{t('home.nav.signIn')}</a>
+          <a class="h-btn h-btn-sm" href={APP_URL}>{t('home.nav.openDemo')}</a>
+          <details class="h-burger">
+            <summary aria-label={t('home.nav.menu')}><Menu size={22} /></summary>
+            <nav class="h-burger-list" aria-label={t('home.nav.label')}>
+              {links.map(([href, label]) => <a href={href}>{label}</a>)}
+            </nav>
+          </details>
+        </div>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="h-hero" aria-labelledby="h-hero-title">
+        <div class="h-wrap">
+          <div class="h-hero-text">
+            <p class="h-pill"><span class="h-dot"></span>{t('home.hero.audience')}</p>
+            <h1 id="h-hero-title">{t('home.hero.titleStart')}<span class="h-accent-text">{t('home.hero.titleAccent')}</span>{t('home.hero.titleEnd')}</h1>
+            <p class="h-lead">{t('home.hero.lead')}</p>
+            <div class="h-cta">
+              <a class="h-btn" href={APP_URL}>{t('home.hero.demo')}<ArrowRight size={16} /></a>
+              <a class="h-btn h-btn-2" href="#request">{t('home.hero.call')}</a>
+            </div>
+            <p class="h-hint">{t('home.hero.hint')}</p>
+          </div>
+          <div class="h-hero-rec"><HeroRecording client:visible /></div>
+        </div>
+      </section>
+
+      <section class="h-facts" aria-label={t('home.facts.label')}>
+        <ul class="h-facts-in">
+          {h.facts.items.map(([title, text], i) => {
+            const Icon = factIcons[i];
+            return (
+              <li>
+                <Icon size={22} class="h-ico" aria-hidden="true" />
+                <div><strong>{title}</strong><span>{text}</span></div>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
+      <section class="h-sec" id="modules" aria-labelledby="h-modules-title">
+        <div class="h-wrap">
+          <div class="h-sec-head">
+            <h2 id="h-modules-title">{t('home.modules.title')}</h2>
+            <p>{t('home.modules.lead')}</p>
+          </div>
+          <ModuleSwitcher client:visible />
+        </div>
+      </section>
+
+      <section class="h-how" id="how" aria-labelledby="h-how-title">
+        <div class="h-wrap">
+          <p class="h-label">{t('home.flow.label')}</p>
+          <h2 id="h-how-title">{t('home.flow.title')}</h2>
+          <ol class="h-steps">
+            {steps.map(([step, example], i) => {
+              const Icon = flowIcons[i];
+              return (
+                <li class:list={['h-step', i === steps.length - 1 && 'h-step-last']}>
+                  <div class="h-step-top"><Icon size={20} aria-hidden="true" /><span class="h-step-n">{num(i)}</span></div>
+                  <div class="h-step-body"><strong>{step}</strong><span>{example}</span></div>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      </section>
+
+      <section class="h-sec h-compare" id="compare" aria-labelledby="h-compare-title">
+        <div class="h-wrap">
+          <h2 id="h-compare-title">{t('home.compare.title')}</h2>
+          <p class="h-lead-sm">{t('home.compare.lead')}</p>
+          <table class="h-table">
+            <thead>
+              <tr>
+                <th scope="col">{t('home.compare.criterion')}</th>
+                <th scope="col" class="h-was">{t('home.compare.was')}</th>
+                <th scope="col" class="h-now">{t('home.compare.now')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {h.compare.rows.map(([crit, was, now]) => (
+                <tr>
+                  <th scope="row">{crit}</th>
+                  <td data-label={t('home.compare.was')}><Minus size={16} class="h-ico-was" aria-hidden="true" /><span>{was}</span></td>
+                  <td data-label={t('home.compare.now')}><Check size={16} class="h-ico" aria-hidden="true" /><span>{now}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="h-sec h-price" id="price" aria-labelledby="h-price-title">
+        <div class="h-wrap">
+          <div class="h-sec-head">
+            <h2 id="h-price-title">{t('home.price.title')}</h2>
+            <p>{t('home.price.lead')}</p>
+          </div>
+          <div class="h-price-box">
+            <ol class="h-price-steps">
+              {h.price.steps.map(([title, text], i) => (
+                <li><span class="h-price-n">{num(i)}</span><div><h3>{title}</h3><p>{text}</p></div></li>
+              ))}
+            </ol>
+            <div class="h-price-cta">
+              <h3>{t('home.price.ctaTitle')}</h3>
+              <p>{t('home.price.ctaText')}</p>
+              <a class="h-btn" href="#request">{t('home.price.cta')}<ArrowRight size={16} /></a>
+              <a class="h-btn h-btn-dark" href={APP_URL}>{t('home.price.demo')}</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="h-faq" id="faq" aria-labelledby="h-faq-title">
+        <div class="h-wrap h-faq-in">
+          <h2 id="h-faq-title">{t('home.faq.title')}</h2>
+          <div class="h-faq-list">
+            {h.faq.items.map(([q, a]) => (
+              <details>
+                <summary><span>{q}</span><Plus size={20} class="h-plus" aria-hidden="true" /></summary>
+                <p>{a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section class="h-final-sec" id="request" aria-labelledby="h-final-title">
+        <div class="h-wrap">
+          <div class="h-final">
+            <div class="h-final-text">
+              <h2 id="h-final-title">{t('home.final.title')}</h2>
+              <p>{t('home.final.lead')}</p>
+              <a class="h-btn h-btn-white" href={APP_URL}>{t('home.final.demo')}<ArrowRight size={16} /></a>
+            </div>
+            <div class="h-final-form">
+              <h3>{t('form.title')}</h3>
+              <LeadFormIsland client:visible />
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="h-footer">
+      <div class="h-wrap h-footer-in">
+        <span>{t('footer.rights', { year: new Date().getFullYear() })}</span>
+        <span class="h-footer-r"><a href="/docs/">{t('footer.docs')}</a><span>{t('footer.langs')}</span></span>
+      </div>
+    </footer>
+  </div>
+</Base>

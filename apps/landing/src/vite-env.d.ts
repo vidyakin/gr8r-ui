@@ -1,4 +1,4 @@
-/// <reference types="vite/client" />
+/// <reference types="astro/client" />
 interface ImportMetaEnv {
   readonly VITE_APP_URL?: string;
   readonly VITE_LEAD_FORM_TOKEN?: string;

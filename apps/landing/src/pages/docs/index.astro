@@ -1,0 +1,9 @@
+---
+/* Документация (/docs): приложение на React целиком, адрес статьи — в хеше */
+import Base from '../../layouts/Base.astro';
+import DocsRoot from '../../docs/DocsRoot';
+---
+
+<Base title="Документация — FutureERP" description="Документация FutureERP: руководство по разделам и сценарии «как сделать».">
+  <DocsRoot client:only="react" />
+</Base>
