@@ -53,13 +53,37 @@ body { background: var(--h-page); color: var(--h-ink); font-family: 'Geist', sys
 .h-burger-list a:hover { background: var(--h-bg); }
 
 /* Первый экран */
-.h-hero { padding-top: 72px; }
+.h-hero { padding-top: 72px; position: relative; isolation: isolate; overflow-x: clip; }
+/* Фон первого экрана: сетка точек, гаснущая к краям, и мягкая аура, медленно меняющая цвет.
+   Аура держится ниже шапки, чтобы на её краю не было шва */
+.h-hero::before, .h-hero::after { content: ''; position: absolute; z-index: -1; pointer-events: none; }
+.h-hero::before {
+  inset: 0 0 auto; height: 760px;
+  background: radial-gradient(circle, rgba(74,86,226,.22) 1px, transparent 1.5px) 0 0 / 22px 22px;
+  -webkit-mask: radial-gradient(ellipse 60% 70% at 50% 30%, #000 30%, transparent 80%);
+  mask: radial-gradient(ellipse 60% 70% at 50% 30%, #000 30%, transparent 80%);
+}
+.h-hero::after {
+  left: 50%; top: 40px; width: min(1100px, 100%); height: 520px; translate: -50% 0;
+  background:
+    radial-gradient(closest-side at 28% 45%, rgba(245,161,93,.45), transparent),
+    radial-gradient(closest-side at 72% 40%, rgba(23,128,198,.38), transparent),
+    radial-gradient(closest-side at 50% 70%, rgba(231,47,248,.22), transparent);
+  filter: blur(40px);
+  animation: h-aura 18s ease-in-out infinite alternate;
+}
+@keyframes h-aura {
+  0% { transform: rotate(0deg) scale(1); filter: blur(40px) hue-rotate(0deg); }
+  50% { transform: rotate(8deg) scale(1.08); filter: blur(40px) hue-rotate(-35deg); }
+  100% { transform: rotate(-6deg) scale(.96); filter: blur(40px) hue-rotate(40deg); }
+}
+@media (prefers-reduced-motion: reduce) { .h-hero::after { animation: none; } }
 .h-hero-text { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 24px; }
 .h-pill { display: inline-flex; align-items: center; gap: 8px; background: var(--h-accent-soft); color: var(--h-accent); font: 500 14px/1 'Geist', system-ui, sans-serif; padding: 8px 14px; border-radius: 999px; }
 .h-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--h-accent); }
 .h-hero-text h1 { font-size: 64px; font-weight: 600; line-height: 1.05; letter-spacing: -.03em; }
 /* Акцент в заголовке: наклонный гротеск и градиент слева направо */
-.h-accent-text { font-family: 'Inter Tight', 'Geist', system-ui, sans-serif; font-style: italic; font-weight: 600; letter-spacing: -.035em; padding-right: .06em; background: linear-gradient(90deg, #c14603, #1780c6); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.h-accent-text { font-family: 'Inter Tight', 'Geist', system-ui, sans-serif; font-style: italic; font-weight: 600; letter-spacing: -.035em; padding-right: .06em; background: linear-gradient(87.33deg, #c14603 11.15%, #1780c6 62.12%); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .h-lead { font-size: 20px; line-height: 1.45; color: var(--h-ink-2); max-width: 640px; }
 .h-cta { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
 .h-hint { font-size: 14px; color: var(--h-ink-3); }
@@ -197,6 +221,8 @@ body { background: var(--h-page); color: var(--h-ink); font-family: 'Geist', sys
   .h-burger { display: block; }
   .h-logo-text { font-size: 20px; }
   .h-hero { padding-top: 32px; }
+  .h-hero::before { height: 560px; background-size: 18px 18px; }
+  .h-hero::after { top: 0; height: 380px; }
   .h-hero-text { align-items: flex-start; text-align: left; gap: 20px; }
   .h-hero-text h1 { font-size: 34px; }
   .h-lead { font-size: 17px; }
