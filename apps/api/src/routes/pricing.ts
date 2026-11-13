@@ -78,7 +78,7 @@ import { ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError } from '../errors';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';
-import { buildXlsx, readTable, toCsv, type Cell } from '../xlsx';
+import { buildXlsx, readTable, toCsv, XlsxError, type Cell } from '../xlsx';
 
 const admin = requireRole('admin');
 const docCtx = (ctx: Ctx) => ({ workspaceId: ctx.workspaceId, memberId: ctx.memberId, role: ctx.role });
@@ -114,9 +114,12 @@ async function readPriceFile(c: import('hono').Context<AppEnv>): Promise<{ file:
   const bytes = new Uint8Array(await file.arrayBuffer());
   let table: string[][];
   try {
-    table = readTable(file.name || 'file', bytes);
-  } catch {
-    throw new AppError(422, 'import_file_invalid', 'The file cannot be read: use XLSX or CSV');
+    // прайс поставщика: до 300 000 строк, распакованный XML книги до 512 МБ (файл до 50 МБ)
+    table = readTable(file.name || 'file', bytes, { maxRows: 300_000, maxUnpacked: 512 * 1024 * 1024 });
+  } catch (e) {
+    if (e instanceof XlsxError && e.reason === 'xls') throw new AppError(422, 'import_file_xls', 'Legacy XLS is not supported: save the file as XLSX');
+    if (e instanceof XlsxError && e.reason === 'too_large') throw new AppError(422, 'import_file_too_large', 'The workbook is too large to read');
+    throw new AppError(422, 'price_file_invalid', 'The file cannot be read: use XLSX or CSV');
   }
   const fields: Record<string, string> = {};
   for (const [k, v] of Object.entries(body)) if (typeof v === 'string') fields[k] = v;

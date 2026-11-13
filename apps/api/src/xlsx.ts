@@ -71,11 +71,27 @@ export function zipStore(files: { name: string; data: Uint8Array }[]): Uint8Arra
   return out;
 }
 
-const MAX_FILES = 200;
+/** Ошибка чтения таблицы с причиной: too_large — распакованная книга больше предела, xls — старый формат Excel */
+export class XlsxError extends Error {
+  constructor(
+    public reason: 'too_large' | 'xls',
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/** Части книги XLSX, нужные для чтения листов: без картинок, стилей и прочего */
+const isWorkbookPart = (n: string) => n === '[Content_Types].xml' || n === 'xl/workbook.xml' || n === 'xl/sharedStrings.xml' || /^xl\/worksheets\/sheet\d+\.xml$/.test(n);
+
+/** Записей в каталоге архива: прайсы с картинками товаров содержат тысячи файлов (xl/media/*), сам каталог читается дёшево */
+const MAX_FILES = 20000;
+/** Распакованный объём по умолчанию — защита от zip-бомб; считаются только извлекаемые части */
 const MAX_UNPACKED = 40 * 1024 * 1024;
 
-/** Файлы архива по имени (только метод 0 и 8); keep — какие части извлекать (по умолчанию книга XLSX) */
-export function zipRead(bytes: Uint8Array, keep: (name: string) => boolean = n => n.startsWith('xl/') || n === '[Content_Types].xml'): Map<string, Uint8Array> {
+/** Файлы архива по имени (только метод 0 и 8); keep — какие части извлекать (по умолчанию книга XLSX без картинок);
+    maxUnpacked — предел распакованного объёма извлекаемых частей */
+export function zipRead(bytes: Uint8Array, keep: (name: string) => boolean = isWorkbookPart, maxUnpacked = MAX_UNPACKED): Map<string, Uint8Array> {
   const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let eocd = -1;
   for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65557); i--) {
@@ -101,13 +117,13 @@ export function zipRead(bytes: Uint8Array, keep: (name: string) => boolean = n =
     const local = v.getUint32(p + 42, true);
     const name = dec.decode(bytes.subarray(p + 46, p + 46 + nameLen));
     p += 46 + nameLen + extraLen + commentLen;
-    total += usize;
-    if (total > MAX_UNPACKED) throw new Error('the archive is too large');
     if (!keep(name)) continue;
+    total += usize;
+    if (total > maxUnpacked) throw new XlsxError('too_large', 'the archive is too large');
     const dataStart = local + 30 + v.getUint16(local + 26, true) + v.getUint16(local + 28, true);
     const raw = bytes.subarray(dataStart, dataStart + csize);
     if (method === 0) out.set(name, raw);
-    else if (method === 8) out.set(name, new Uint8Array(inflateRawSync(raw, { maxOutputLength: MAX_UNPACKED })));
+    else if (method === 8) out.set(name, new Uint8Array(inflateRawSync(raw, { maxOutputLength: maxUnpacked })));
   }
   return out;
 }
@@ -157,9 +173,11 @@ const colIndex = (ref: string): number => {
   return n - 1;
 };
 
-/** Первый лист книги → таблица строк (пустые ячейки — пустая строка). Не более 20 000 строк и 100 колонок */
-export function readXlsx(bytes: Uint8Array): string[][] {
-  const files = zipRead(bytes);
+/** Первый лист книги → таблица строк (пустые ячейки — пустая строка). Не более maxRows строк и 100 колонок;
+    maxUnpacked — предел распакованного XML (большой прайс в 50 МБ разворачивается в сотни МБ) */
+export function readXlsx(bytes: Uint8Array, opts: { maxRows?: number; maxUnpacked?: number } = {}): string[][] {
+  const maxRows = opts.maxRows ?? 20000;
+  const files = zipRead(bytes, isWorkbookPart, opts.maxUnpacked ?? MAX_UNPACKED);
   const text = (name: string) => (files.has(name) ? dec.decode(files.get(name)!) : '');
   const sst: string[] = [];
   const sharedXml = text('xl/sharedStrings.xml');
@@ -171,7 +189,7 @@ export function readXlsx(bytes: Uint8Array): string[][] {
   for (const rm of xml.matchAll(/<row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/row>)/g)) {
     const rowNo = /\sr="(\d+)"/.exec(rm[1] ?? '')?.[1];
     const rowIdx = rowNo ? Number(rowNo) - 1 : out.length;
-    if (rowIdx >= 20000) break;
+    if (rowIdx >= maxRows) break;
     const row: string[] = out[rowIdx] ?? [];
     for (const cm of (rm[2] ?? '').matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
       const attrs = cm[1] ?? '';
@@ -197,7 +215,7 @@ export function readXlsx(bytes: Uint8Array): string[][] {
 /* ---------------- CSV ---------------- */
 
 /** CSV с разделителем «;» или «,» (определяется по первой строке), кавычки по RFC 4180 */
-export function parseCsv(text: string): string[][] {
+export function parseCsv(text: string, maxRows = 20000): string[][] {
   const src = text.replace(/^﻿/, '');
   const first = src.split(/\r?\n/, 1)[0] ?? '';
   const delim = (first.match(/;/g)?.length ?? 0) >= (first.match(/,/g)?.length ?? 0) && first.includes(';') ? ';' : first.includes('\t') ? '\t' : ',';
@@ -220,7 +238,7 @@ export function parseCsv(text: string): string[][] {
       cur = '';
       rows.push(row);
       row = [];
-      if (rows.length >= 20000) break;
+      if (rows.length >= maxRows) break;
     } else cur += ch;
   }
   if (cur !== '' || row.length) (row.push(cur), rows.push(row));
@@ -235,9 +253,19 @@ export function toCsv(rows: Cell[][]): string {
   return '﻿' + rows.map(r => r.map(q).join(';')).join('\r\n');
 }
 
-/** Таблица из загруженного файла: XLSX, CSV или DOCX (таблицы документа, docx.ts) */
-export function readTable(fileName: string, bytes: Uint8Array): string[][] {
+/** Текст CSV: UTF-8, а если байты не UTF-8 — Windows-1251 (так выгружают 1С и Excel) */
+function decodeText(bytes: Uint8Array): string {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder('windows-1251').decode(bytes);
+  }
+}
+
+/** Таблица из загруженного файла: XLSX, CSV или DOCX (таблицы документа, docx.ts). Старый XLS (OLE2) — XlsxError('xls') */
+export function readTable(fileName: string, bytes: Uint8Array, opts: { maxRows?: number; maxUnpacked?: number } = {}): string[][] {
   if (/\.docx$/i.test(fileName)) return readDocxTables(bytes);
-  if (/\.xlsx$/i.test(fileName) || (bytes[0] === 0x50 && bytes[1] === 0x4b)) return readXlsx(bytes);
-  return parseCsv(dec.decode(bytes));
+  if (bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0) throw new XlsxError('xls', 'legacy XLS is not supported');
+  if (/\.xlsx$/i.test(fileName) || (bytes[0] === 0x50 && bytes[1] === 0x4b)) return readXlsx(bytes, opts);
+  return parseCsv(decodeText(bytes), opts.maxRows);
 }
