@@ -757,6 +757,13 @@
       "when": 1794020090000,
       "tag": "0116_estimate_supplier_markup",
       "breakpoints": true
+    },
+    {
+      "idx": 113,
+      "version": "7",
+      "when": 1794020100000,
+      "tag": "0117_supplier_prices",
+      "breakpoints": true
     }
   ]
 }
