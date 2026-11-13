@@ -37,3 +37,11 @@
 - **Коды ошибок** (en/ru в `errors.ts`): `supplier_profile_exists`, `supplier_profile_invalid`, `supplier_price_date_invalid`, `supplier_price_empty`, `supplier_price_applied`, `supplier_line_price_invalid`.
 - **Тесты:** `apps/api/test/supplier-prices.test.ts` (сервис через `withContext`, MemoryFileStore).
 - **Не сделано (этапы 5–9):** маршруты, экраны, `GET /pricing/products/:id/suppliers`, `deleteSupplierPrice`, документация. Применение пишет цены построчно (`recordPriceKindPrice` — 2 запроса на товар): для прайсов в десятки тысяч строк при необходимости заменить пакетной вставкой.
+
+### Доработка: две колонки цены (миграция 0120)
+
+- **Профиль:** вместо `price_col` — `price_net_col` (без НДС) и `price_gross_col` (с НДС), обе необязательны, но CHECK требует хотя бы одну. Перенос: прежняя колонка → `price_gross_col`, если последний прайс профиля загружен с НДС или прайсов не было, иначе → `price_net_col`.
+- **Строки:** `price` заменена на `price_net` и `price_gross` (перенос по `prices_include_vat` прайса). Поле `prices_include_vat` у прайса **удалено**: флажок больше не приходит от клиента, а какие цены есть, видно по самим строкам. Загрузка не принимает `pricesIncludeVat`.
+- **Разбор при загрузке:** читаются обе колонки профиля. Пустая ячейка — цена `null`; непустая нечисловая в любой из заданных колонок или обе пустые — строка `skipped` / `price_invalid`.
+- **Правило выбора при применении** (`pickSupplierLinePrice`): у вида цен поставщика `includes_vat = true` — берётся «с НДС», иначе «без НДС», без пересчёта; если нужной цены в строке нет — берётся другая и приводится `convertPriceVatBase` (ставка `none` → `vat_rate_none`, строка skipped).
+- **Экран:** окно формата — пять списков колонок (подпись «буква — заголовок») над образцом из первых 10 строк; на экране прайса колонки «Цена без НДС» / «Цена с НДС», пустая во всём прайсе скрыта.

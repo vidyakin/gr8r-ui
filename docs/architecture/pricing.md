@@ -48,17 +48,17 @@
 
 ## Прайсы поставщиков
 
-Код: схема `packages/db/src/schema/supplier-prices.ts` (миграция `0117_supplier_prices.sql`), сервис `packages/db/src/supplier-prices.ts`,
+Код: схема `packages/db/src/schema/supplier-prices.ts` (миграции `0117_supplier_prices.sql`, `0120_supplier_price_cols.sql`), сервис `packages/db/src/supplier-prices.ts`,
 API `/pricing/supplier-*` и `/pricing/products/:productId/suppliers` в `apps/api/src/routes/pricing.ts`, экраны `apps/web/src/app/pricing/supplier-price*.tsx`
 (вкладка «Прайсы» карточки контрагента и маршрут `/crm/companies/:id/prices/:priceId`). Проект — `docs/superpowers/specs/2026-11-11-supplier-price-upload-design.md`, план и решения — `docs/superpowers/plans/2026-11-11-supplier-price-upload.md`.
 
-- **Сущности:** `supplier_price_profiles` (формат файла поставщика: первая строка данных, номера колонок артикула, наименования, цены, единицы; архив вместо удаления),
-  `supplier_prices` (загруженный прайс: дата действия, «цены с НДС», вложение `supplier_price`, счётчики, `draft|applied`), `supplier_price_lines` (строка файла:
-  `matched|unmatched|conflict|skipped`, `candidates`, `note`).
+- **Сущности:** `supplier_price_profiles` (формат файла поставщика: первая строка данных, номера колонок артикула, наименования, цены без НДС и цены с НДС (нужна хотя бы одна), единицы; архив вместо удаления),
+  `supplier_prices` (загруженный прайс: дата действия, вложение `supplier_price`, счётчики, `draft|applied`), `supplier_price_lines` (строка файла:
+  `matched|unmatched|conflict|skipped`, `candidates`, `note`, цены `price_net` и `price_gross`).
 - **Поток:** файл (XLSX/CSV, `readTable`) → строки по профилю → сопоставление **только** по `product_partner_articles` этого контрагента → разбор: выбор кандидата,
   привязка из каталога (артикул сохраняется в `product_partner_articles`), «Найти по названиям» (точное имя), «Создать товары», пропуск → «Применить»: цены matched-строк
-  пишутся в вид цен поставщика (`price_kinds.supplier_id`, создаётся при первой загрузке) через `recordPriceKindPrice` с датой действия; база НДС приводится
-  `convertPriceVatBase` (`@gr8r/shared`), товар со ставкой «без НДС» при разных базах пропускается (`vat_rate_none`). Применённый прайс только для чтения.
+  пишутся в вид цен поставщика (`price_kinds.supplier_id`, создаётся при первой загрузке) через `recordPriceKindPrice` с датой действия. Цена выбирается по базе вида (`price_kinds.includes_vat`): есть цена в той же базе — берётся как есть,
+  иначе другая приводится `convertPriceVatBase` (`@gr8r/shared`); товар со ставкой «без НДС» при разных базах пропускается (`vat_rate_none`). Применённый прайс только для чтения.
 - **Права:** всё — admin и owner (`requireRole('admin')`), у member 403; колонка «Цена» в номенклатуре контрагента карточки товара — тоже только admin+.
 - **Хранилище:** файл прайса — вложение в S3 (MinIO в dev: `docker compose up -d minio minio-init`, без него загрузка отвечает 500).
 
