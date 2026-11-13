@@ -20,7 +20,7 @@ const mk = async (c: Client, path: string, body: Record<string, unknown>) => {
   if (r.status !== 201) throw new Error(`${path}: ${r.status} ${JSON.stringify(r.body)}`);
   return r.body as any;
 };
-const xlsxFile = (rows: Row[], name = 'price.xlsx') => new File([buildXlsx('Прайс', rows) as unknown as BlobPart], name);
+const xlsxFile = (rows: Row[], name = 'price.xlsx') => new File([buildXlsx('Прайс', rows) as unknown as ArrayBuffer], name);
 const grid = (...data: Row[]): Row[] => [['Прайс ООО «Ромашка»'], ['Арт.', 'Наименование', 'Цена', 'Ед.'], ...data];
 const upload = (c: Client, rows: Row[], over: Record<string, string> = {}) => {
   const f = new FormData();
