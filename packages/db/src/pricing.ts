@@ -354,8 +354,22 @@ export async function refreshPriceCache(db: Db, workspaceId: string, productIds:
 /** Ручная запись истории цен вида на дату (document_id = NULL). Правки одного дня не копятся: прежняя ручная запись
     той же даты, вида и товара заменяется. Общая для карточки товара и загрузки прайса поставщика */
 export async function recordPriceKindPrice(db: Db, workspaceId: string, kindId: string, productId: string, price: string, date = today()): Promise<void> {
-  await db.delete(productPrices).where(and(eq(productPrices.priceKindId, kindId), eq(productPrices.productId, productId), eq(productPrices.date, date), isNull(productPrices.documentId)));
-  await db.insert(productPrices).values({ workspaceId, priceKindId: kindId, productId, date, price: fmt(dec(price), 2) });
+  await recordPriceKindPrices(db, workspaceId, kindId, [{ productId, price }], date);
+}
+
+/** Пакетный вариант: один DELETE прежних ручных записей вида/даты по списку товаров и вставка пачками.
+    Товар в списке дважды — действует последняя цена. Общая для прайса поставщика и карточки товара */
+export async function recordPriceKindPrices(db: Db, workspaceId: string, kindId: string, items: { productId: string; price: string }[], date = today()): Promise<void> {
+  const last = new Map<string, string>();
+  for (const i of items) last.set(i.productId, fmt(dec(i.price), 2));
+  if (!last.size) return;
+  const ids = [...last.keys()];
+  const CHUNK = 1000;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const part = ids.slice(i, i + CHUNK);
+    await db.delete(productPrices).where(and(eq(productPrices.priceKindId, kindId), inArray(productPrices.productId, part), eq(productPrices.date, date), isNull(productPrices.documentId)));
+    await db.insert(productPrices).values(part.map(productId => ({ workspaceId, priceKindId: kindId, productId, date, price: last.get(productId)! })));
+  }
 }
 
 /** Цена, введённая в карточке товара или при создании, — запись истории «Розничной» / «Закупочной» на сегодня */

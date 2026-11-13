@@ -7,8 +7,8 @@ import { convertPriceVatBase, parsePriceCell } from '@gr8r/shared';
 import type { Db } from './client';
 import { archiveAttachmentsOf, createAttachment, type Actor } from './attachments';
 import { DomainError } from './errors';
-import { recordEvent } from './events';
-import { recordPriceKindPrice, resolvePrices } from './pricing';
+import { recordEvent, recordEvents } from './events';
+import { recordPriceKindPrices, resolvePrices } from './pricing';
 import { companies, organizations, priceKinds, productPartnerArticles, products, supplierPriceLines, supplierPriceProfiles, supplierPrices, units } from './schema';
 import { uuidv7 } from './uuid';
 
@@ -167,16 +167,16 @@ function matchArticle(idx: Map<string, string[]>, article: string): MatchResult 
 
 /** Пересчёт счётчиков прайса по его строкам (total — все сохранённые строки) */
 export async function recountSupplierPrice(db: Db, workspaceId: string, priceId: string): Promise<void> {
-  const rows = await db
-    .select({ status: supplierPriceLines.status, n: sql<number>`count(*)::int` })
-    .from(supplierPriceLines)
-    .where(and(eq(supplierPriceLines.workspaceId, workspaceId), eq(supplierPriceLines.priceId, priceId)))
-    .groupBy(supplierPriceLines.status);
-  const n = (s: string) => rows.find(r => r.status === s)?.n ?? 0;
-  await db
-    .update(supplierPrices)
-    .set({ linesTotal: rows.reduce((a, r) => a + r.n, 0), linesMatched: n('matched'), linesUnmatched: n('unmatched'), linesConflict: n('conflict') })
-    .where(and(eq(supplierPrices.workspaceId, workspaceId), eq(supplierPrices.id, priceId)));
+  await db.execute(sql`
+    update supplier_prices p set lines_total = c.total, lines_matched = c.matched, lines_unmatched = c.unmatched, lines_conflict = c.conflict
+    from (
+      select count(*)::int as total,
+             (count(*) filter (where status = 'matched'))::int as matched,
+             (count(*) filter (where status = 'unmatched'))::int as unmatched,
+             (count(*) filter (where status = 'conflict'))::int as conflict
+      from supplier_price_lines where workspace_id = ${workspaceId} and price_id = ${priceId}
+    ) c
+    where p.workspace_id = ${workspaceId} and p.id = ${priceId}`);
 }
 
 /* ---------------- загрузка ---------------- */
@@ -249,7 +249,7 @@ export async function uploadSupplierPrice(db: Db, actor: Actor, input: UploadSup
     const m = matchArticle(idx, d.article);
     return { workspaceId: ws, priceId, rowNo: d.rowNo, article: d.article, name: d.name, unitCode, priceNet: d.net, priceGross: d.gross, productId: m.productId, status: m.status, note: '', candidates: m.candidates };
   });
-  for (let i = 0; i < values.length; i += 500) await db.insert(supplierPriceLines).values(values.slice(i, i + 500));
+  for (let i = 0; i < values.length; i += 2000) await db.insert(supplierPriceLines).values(values.slice(i, i + 2000));
   await recountSupplierPrice(db, ws, priceId);
   const price = await getSupplierPrice(db, ws, priceId);
   await recordEvent(db, { workspaceId: ws, type: 'supplier_price.uploaded', entity: 'supplier_price', recordId: priceId, actorId: actor.memberId, payload: { companyId: input.companyId, lines: price.linesTotal, matched: price.linesMatched } });
@@ -293,24 +293,44 @@ async function loadLine(db: Db, workspaceId: string, priceId: string, lineId: st
   return row;
 }
 
-/** Артикул (и наименование) поставщика товара — в product_partner_articles: в следующий раз строка найдётся сама.
-    У товара одна запись на контрагента: прежний артикул заменяется */
-async function savePartnerArticle(db: Db, workspaceId: string, companyId: string, productId: string, article: string, name: string): Promise<void> {
-  const a = article.slice(0, 100);
-  const n = name.slice(0, 300);
-  if (!a && !n) return;
-  await db
-    .insert(productPartnerArticles)
-    .values({ workspaceId, companyId, productId, article: a, name: n })
-    .onConflictDoUpdate({
-      target: [productPartnerArticles.workspaceId, productPartnerArticles.companyId, productPartnerArticles.productId],
-      set: { article: a || sql`${productPartnerArticles.article}`, name: n || sql`${productPartnerArticles.name}`, updatedAt: new Date() },
-    });
+/** Артикулы (и наименования) поставщика товаров — в product_partner_articles: в следующий раз строка найдётся сама.
+    У товара одна запись на контрагента: прежний артикул заменяется (пустой — прежнее значение остаётся). Пакет: один INSERT … ON CONFLICT на пачку */
+async function savePartnerArticles(db: Db, workspaceId: string, companyId: string, items: { productId: string; article: string; name: string }[]): Promise<void> {
+  // один товар в пачке дважды — ON CONFLICT не любит повторов: сводим, поздняя непустая запись перекрывает раннюю
+  const merged = new Map<string, { article: string; name: string }>();
+  for (const i of items) {
+    const a = i.article.slice(0, 100);
+    const n = i.name.slice(0, 300);
+    if (!a && !n) continue;
+    const prev = merged.get(i.productId);
+    merged.set(i.productId, { article: a || prev?.article || '', name: n || prev?.name || '' });
+  }
+  const rows = [...merged].map(([productId, v]) => ({ workspaceId, companyId, productId, article: v.article, name: v.name }));
+  for (let i = 0; i < rows.length; i += 1000) {
+    await db
+      .insert(productPartnerArticles)
+      .values(rows.slice(i, i + 1000))
+      .onConflictDoUpdate({
+        target: [productPartnerArticles.workspaceId, productPartnerArticles.companyId, productPartnerArticles.productId],
+        set: {
+          article: sql`case when excluded.article <> '' then excluded.article else ${productPartnerArticles.article} end`,
+          name: sql`case when excluded.name <> '' then excluded.name else ${productPartnerArticles.name} end`,
+          updatedAt: new Date(),
+        },
+      });
+  }
 }
 
-async function bindLine(db: Db, price: SupplierPrice, line: SupplierPriceLine, productId: string): Promise<void> {
-  await savePartnerArticle(db, price.workspaceId, price.companyId, productId, line.article, line.name);
-  await db.update(supplierPriceLines).set({ productId, status: 'matched', note: '', candidates: [] }).where(eq(supplierPriceLines.id, line.id));
+/** Привязка строк к товарам пакетом: артикулы поставщика и UPDATE … FROM (VALUES …) пачками */
+async function bindLines(db: Db, price: SupplierPrice, binds: { line: SupplierPriceLine; productId: string }[]): Promise<void> {
+  await savePartnerArticles(db, price.workspaceId, price.companyId, binds.map(b => ({ productId: b.productId, article: b.line.article, name: b.line.name })));
+  for (let i = 0; i < binds.length; i += 2000) {
+    const part = binds.slice(i, i + 2000);
+    await db.execute(sql`
+      update supplier_price_lines l set product_id = v.pid, status = 'matched', note = '', candidates = '[]'::jsonb
+      from (values ${sql.join(part.map(b => sql`(${b.line.id}::uuid, ${b.productId}::uuid)`), sql`, `)}) as v(id, pid)
+      where l.id = v.id and l.workspace_id = ${price.workspaceId}`);
+  }
 }
 
 export interface SupplierLinePatch {
@@ -329,7 +349,7 @@ export async function updateSupplierPriceLine(db: Db, actor: Actor, priceId: str
     if (!hasLinePrice(line)) throw new DomainError(422, 'supplier_line_price_invalid', 'The line has no valid price');
     const [p] = await db.select({ id: products.id }).from(products).where(and(eq(products.workspaceId, ws), eq(products.id, patch.productId), isNull(products.archivedAt)));
     if (!p) throw new DomainError(422, 'invalid_reference', 'The product does not exist');
-    await bindLine(db, price, line, p.id);
+    await bindLines(db, price, [{ line, productId: p.id }]);
   } else if (patch.skip === true) {
     await db.update(supplierPriceLines).set({ status: 'skipped', note: 'manual' }).where(eq(supplierPriceLines.id, line.id));
   } else if (patch.skip === false && line.status === 'skipped') {
@@ -362,15 +382,24 @@ export async function matchSupplierLinesByName(db: Db, actor: Actor, priceId: st
   const byName = new Map<string, string[]>();
   for (const p of all) byName.set(norm(p.name), [...(byName.get(norm(p.name)) ?? []), p.id]);
   const res = { matched: 0, ambiguous: 0, notFound: 0 };
+  const binds: { line: SupplierPriceLine; productId: string }[] = [];
+  const cands: { id: string; hit: string[] }[] = [];
   for (const l of lines) {
     const hit = byName.get(norm(l.name)) ?? [];
     if (hit.length === 1) {
-      await bindLine(db, price, l, hit[0]!);
+      binds.push({ line: l, productId: hit[0]! });
       res.matched++;
     } else if (hit.length > 1) {
-      await db.update(supplierPriceLines).set({ candidates: hit }).where(eq(supplierPriceLines.id, l.id));
+      cands.push({ id: l.id, hit });
       res.ambiguous++;
     } else res.notFound++;
+  }
+  await bindLines(db, price, binds);
+  for (let i = 0; i < cands.length; i += 2000) {
+    await db.execute(sql`
+      update supplier_price_lines l set candidates = v.c::jsonb
+      from (values ${sql.join(cands.slice(i, i + 2000).map(c => sql`(${c.id}::uuid, ${JSON.stringify(c.hit)}::text)`), sql`, `)}) as v(id, c)
+      where l.id = v.id and l.workspace_id = ${ws}`);
   }
   await recountSupplierPrice(db, ws, priceId);
   if (res.matched) await recordEvent(db, { workspaceId: ws, type: 'supplier_price_line.updated', entity: 'supplier_price_line', actorId: actor.memberId, payload: { priceId, matchedByName: res.matched } });
@@ -387,6 +416,8 @@ export async function createProductsForSupplierLines(db: Db, actor: Actor, price
   const vatRate = org?.vat ?? '20';
   const byArticle = new Map<string, string>();
   const res = { created: 0, skipped: 0 };
+  const newRows: (typeof products.$inferInsert)[] = [];
+  const binds: { line: SupplierPriceLine; productId: string }[] = [];
   for (const l of lines) {
     const name = (l.name || l.article).trim();
     if (!name) {
@@ -396,14 +427,19 @@ export async function createProductsForSupplierLines(db: Db, actor: Actor, price
     const key = norm(l.article);
     let productId = key ? byArticle.get(key) : undefined;
     if (!productId) {
-      const [p] = await db.insert(products).values({ workspaceId: ws, kind: 'goods', name: name.slice(0, 300), unitCode: l.unitCode ?? '796', price: '0', vatRate }).returning();
-      productId = p!.id;
+      productId = uuidv7();
+      newRows.push({ id: productId, workspaceId: ws, kind: 'goods', name: name.slice(0, 300), unitCode: l.unitCode ?? '796', price: '0', vatRate });
       if (key) byArticle.set(key, productId);
       res.created++;
-      await recordEvent(db, { workspaceId: ws, type: 'product.created', entity: 'product', recordId: productId, actorId: actor.memberId, payload: { record: p } });
     }
-    await bindLine(db, price, l, productId);
+    binds.push({ line: l, productId });
   }
+  // товары пачками; событие product.created — по одному на товар (на него подписаны автоматизации), но вставкой пачки
+  for (let i = 0; i < newRows.length; i += 1000) {
+    const made = await db.insert(products).values(newRows.slice(i, i + 1000)).returning();
+    await recordEvents(db, made.map(p => ({ workspaceId: ws, type: 'product.created', entity: 'product', recordId: p.id, actorId: actor.memberId, payload: { record: p } })));
+  }
+  await bindLines(db, price, binds);
   await recountSupplierPrice(db, ws, priceId);
   if (res.created) await recordEvent(db, { workspaceId: ws, type: 'supplier_price_line.updated', entity: 'supplier_price_line', actorId: actor.memberId, payload: { priceId, createdProducts: res.created } });
   return res;
@@ -446,9 +482,14 @@ async function planApply(db: Db, price: SupplierPrice): Promise<SupplierApplyPre
   const last = new Map<string, SupplierPriceLine>();
   for (const l of matched) if (l.productId && hasLinePrice(l)) last.set(l.productId, l);
   const ids = [...last.keys()];
-  const prods = ids.length ? await db.select({ id: products.id, name: products.name, vatRate: products.vatRate }).from(products).where(and(eq(products.workspaceId, ws), inArray(products.id, ids))) : [];
-  const info = new Map(prods.map(p => [p.id, p]));
-  const current = await resolvePrices(db, ws, kind.id, ids, price.date);
+  // пачки по 5000 id — предел параметров запроса; «было» — resolvePrices пачкой на каждые 5000 товаров
+  const info = new Map<string, { id: string; name: string; vatRate: string }>();
+  const current = new Map<string, { price: string | null }>();
+  for (let i = 0; i < ids.length; i += 5000) {
+    const part = ids.slice(i, i + 5000);
+    for (const p of await db.select({ id: products.id, name: products.name, vatRate: products.vatRate }).from(products).where(and(eq(products.workspaceId, ws), inArray(products.id, part)))) info.set(p.id, p);
+    for (const [k, v] of await resolvePrices(db, ws, kind.id, part, price.date)) current.set(k, v);
+  }
   const items: SupplierApplyItem[] = [];
   for (const l of [...last.values()].sort((a, b) => a.rowNo - b.rowNo)) {
     const p = info.get(l.productId!);
@@ -465,7 +506,7 @@ export async function previewSupplierPriceApply(db: Db, workspaceId: string, pri
 }
 
 /** Применяет цены: запись product_prices по виду цен поставщика на дату действия (document_id NULL; прежняя ручная запись
-    той же даты, вида и товара заменяется — recordPriceKindPrice). Товары вне прайса не меняются. Прайс становится applied */
+    той же даты, вида и товара заменяется — recordPriceKindPrices). Товары вне прайса не меняются. Прайс становится applied */
 export async function applySupplierPrice(db: Db, actor: Actor, priceId: string, opts: { date?: string | undefined } = {}): Promise<{ price: SupplierPrice; applied: number; skipped: SupplierApplyItem[] }> {
   const ws = actor.workspaceId;
   await db.select({ id: supplierPrices.id }).from(supplierPrices).where(and(eq(supplierPrices.workspaceId, ws), eq(supplierPrices.id, priceId))).for('update');
@@ -474,8 +515,8 @@ export async function applySupplierPrice(db: Db, actor: Actor, priceId: string, 
   const price = opts.date ? { ...current, date: opts.date } : current;
   const plan = await planApply(db, price);
   const skipped = plan.items.filter(i => i.next === null);
-  for (const i of plan.items) if (i.next !== null) await recordPriceKindPrice(db, ws, plan.kindId, i.productId, i.next, price.date);
-  if (skipped.length) await db.update(supplierPriceLines).set({ status: 'skipped', note: 'vat_rate_none' }).where(inArray(supplierPriceLines.id, skipped.map(s => s.lineId)));
+  await recordPriceKindPrices(db, ws, plan.kindId, plan.items.flatMap(i => (i.next !== null ? [{ productId: i.productId, price: i.next }] : [])), price.date);
+  for (let i = 0; i < skipped.length; i += 5000) await db.update(supplierPriceLines).set({ status: 'skipped', note: 'vat_rate_none' }).where(inArray(supplierPriceLines.id, skipped.slice(i, i + 5000).map(s => s.lineId)));
   await recountSupplierPrice(db, ws, priceId);
   const [done] = await db.update(supplierPrices).set({ status: 'applied', appliedAt: new Date(), date: price.date }).where(and(eq(supplierPrices.workspaceId, ws), eq(supplierPrices.id, priceId))).returning();
   const applied = plan.items.length - skipped.length;
