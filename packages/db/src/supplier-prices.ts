@@ -5,7 +5,7 @@
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { convertPriceVatBase, parsePriceCell } from '@gr8r/shared';
 import type { Db } from './client';
-import { createAttachment, type Actor } from './attachments';
+import { archiveAttachmentsOf, createAttachment, type Actor } from './attachments';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { recordPriceKindPrice, resolvePrices } from './pricing';
@@ -466,4 +466,62 @@ export async function applySupplierPrice(db: Db, actor: Actor, priceId: string, 
   const applied = plan.items.length - skipped.length;
   await recordEvent(db, { workspaceId: ws, type: 'supplier_price.applied', entity: 'supplier_price', recordId: priceId, actorId: actor.memberId, payload: { companyId: price.companyId, kindId: plan.kindId, date: price.date, applied, skipped: skipped.length } });
   return { price: done!, applied, skipped };
+}
+
+/* ---------------- удаление, карточка, поставщики товара ---------------- */
+
+/** Удаление черновика: строки каскадом, файл-вложение — в архив (общий сервис вложений). Применённый прайс не удаляется */
+export async function deleteSupplierPrice(db: Db, actor: Actor, priceId: string): Promise<void> {
+  const ws = actor.workspaceId;
+  const price = await loadDraft(db, ws, priceId);
+  await archiveAttachmentsOf(db, ws, 'supplier_price', priceId);
+  await db.delete(supplierPrices).where(and(eq(supplierPrices.workspaceId, ws), eq(supplierPrices.id, priceId)));
+  await recordEvent(db, { workspaceId: ws, type: 'supplier_price.deleted', entity: 'supplier_price', recordId: priceId, actorId: actor.memberId, payload: { companyId: price.companyId } });
+}
+
+export interface SupplierPriceProductRef {
+  id: string;
+  name: string;
+  sku: string;
+}
+
+/** Прайс со строками (фильтр по статусу) и справочником товаров: привязанные и кандидаты — для экрана разбора */
+export async function supplierPriceDetail(db: Db, workspaceId: string, id: string, status?: SupplierPriceLine['status']): Promise<{ price: SupplierPrice; lines: SupplierPriceLine[]; products: SupplierPriceProductRef[] }> {
+  const price = await getSupplierPrice(db, workspaceId, id);
+  const lines = await listSupplierPriceLines(db, workspaceId, id, status);
+  const ids = [...new Set(lines.flatMap(l => [...(l.productId ? [l.productId] : []), ...l.candidates]))];
+  const prods = ids.length ? await db.select({ id: products.id, name: products.name, sku: products.sku }).from(products).where(and(eq(products.workspaceId, workspaceId), inArray(products.id, ids))) : [];
+  return { price, lines, products: prods };
+}
+
+export interface ProductSupplierRow {
+  companyId: string;
+  companyName: string;
+  article: string;
+  name: string;
+  kindId: string | null;
+  /** Цена вида цен поставщика на дату; null — вида или цены нет */
+  price: string | null;
+}
+
+/** Поставщики товара (контрагенты с его артикулом) с ценой вида цен поставщика на дату — блок карточки товара */
+export async function productSupplierPrices(db: Db, workspaceId: string, productId: string, date: string): Promise<ProductSupplierRow[]> {
+  const rows = await db
+    .select({ companyId: productPartnerArticles.companyId, companyName: companies.name, article: productPartnerArticles.article, name: productPartnerArticles.name })
+    .from(productPartnerArticles)
+    .innerJoin(companies, and(eq(companies.workspaceId, productPartnerArticles.workspaceId), eq(companies.id, productPartnerArticles.companyId)))
+    .where(and(eq(productPartnerArticles.workspaceId, workspaceId), eq(productPartnerArticles.productId, productId)))
+    .orderBy(asc(companies.name));
+  const out: ProductSupplierRow[] = [];
+  for (const r of rows) {
+    const [kind] = await db
+      .select({ id: priceKinds.id })
+      .from(priceKinds)
+      .where(and(eq(priceKinds.workspaceId, workspaceId), eq(priceKinds.supplierId, r.companyId), isNull(priceKinds.archivedAt)))
+      .orderBy(asc(priceKinds.createdAt))
+      .limit(1);
+    const price = kind ? ((await resolvePrices(db, workspaceId, kind.id, [productId], date)).get(productId)?.price ?? null) : null;
+    out.push({ ...r, kindId: kind?.id ?? null, price });
+  }
+  return out;
 }

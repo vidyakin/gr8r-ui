@@ -56,6 +56,12 @@ export function useRealtime(ws: string, engine: Engine) {
       if (e.entity === 'task' || e.entity === 'time_log' || e.entity === 'member') void qc.invalidateQueries({ queryKey: ['ws', ws, 'docs', 'service-reports'] });
       // Планирование загрузки: графики, ресурсы, операции и документы меняют план
       if (['work_calendar', 'resource', 'document', 'task'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'planning'] });
+      // Прайсы поставщиков: ['ws', id, 'supplier-prices', …]; применение меняет цены товаров (виды цен и карточка товара — под 'docs' и 'catalog')
+      if (e.entity.startsWith('supplier_price')) {
+        void qc.invalidateQueries({ queryKey: ['ws', ws, 'supplier-prices'] });
+        void qc.invalidateQueries({ queryKey: ['ws', ws, 'docs'] });
+        void qc.invalidateQueries({ queryKey: ['ws', ws, 'catalog'] });
+      }
       // Лиды (задача 1175): запросы ['ws', id, 'leads', …]; конвертация и объединение меняют лиды, контрагентов, контакты, сделки и касания
       if (['lead', 'lead_status', 'lead_form', 'crm_activity', 'company', 'contact', 'deal'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'leads'] });
       // Воронки продаж (задача 1176): ['ws', id, 'pipelines', …] — воронки, этапы, причины, история и отчёт; сделка меняет историю и отчёт
