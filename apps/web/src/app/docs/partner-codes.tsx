@@ -4,11 +4,12 @@ import * as React from 'react';
 import { Trash2 } from 'lucide-react';
 import { DrawerSection } from '@/components/gr8r/entity-drawer';
 import { IconButton, Input, Skeleton, toast } from '@/components/ui';
-import { useT } from '@/i18n';
+import { fmtAmount, useT } from '@/i18n';
+import { useIsAdmin } from '../catalog/data';
 import { useCanWrite } from '../meta/custom-fields';
 import { useWsId } from '../meta/data';
 import { searchProducts } from '../catalog/data';
-import { useCompanyArticles, useCounterpartyCodes, useDocsApi, useProductArticles, type CounterpartyCode } from './data';
+import { useCompanyArticles, useCounterpartyCodes, useDocsApi, useProductArticles, useProductSupplierPrices, type CounterpartyCode } from './data';
 import { Combo, CounterpartyPicker } from './pickers';
 
 /** Поле кода одной организации: сохраняется при уходе фокуса, пустое значение удаляет код */
@@ -37,7 +38,7 @@ function CodeRow({ companyId, row, canEdit }: { companyId: string; row: Counterp
 }
 
 /** Строка «товар ↔ контрагент»: артикул и наименование у контрагента, сохранение при уходе фокуса из пары полей */
-function ArticleRow({ label, title, initial, canEdit, onSave, onRemove }: { label: React.ReactNode; title: string; initial?: { article: string; name: string }; canEdit: boolean; onSave: (article: string, name: string) => Promise<boolean>; onRemove: () => void }) {
+function ArticleRow({ label, title, initial, canEdit, onSave, onRemove, priceCell }: { label: React.ReactNode; title: string; initial?: { article: string; name: string }; canEdit: boolean; onSave: (article: string, name: string) => Promise<boolean>; onRemove: () => void; priceCell?: React.ReactNode }) {
   const t = useT();
   const [article, setArticle] = React.useState(initial?.article ?? '');
   const [name, setName] = React.useState(initial?.name ?? '');
@@ -62,6 +63,7 @@ function ArticleRow({ label, title, initial, canEdit, onSave, onRemove }: { labe
       <td>
         <Input aria-label={t('docs.partner.colName')} placeholder={t('docs.partner.namePlaceholder')} maxLength={300} disabled={!canEdit} value={name} onChange={e => setName(e.target.value)} onBlur={() => void commit()} />
       </td>
+      {priceCell}
       <td>
         {canEdit && (
           <IconButton size="xs" label={t('docs.partner.remove', { name: title })} onClick={onRemove}>
@@ -193,6 +195,10 @@ export function ProductPartnerArticles({ productId }: { productId: string }) {
   const canWrite = useCanWrite();
   const api = useDocsApi();
   const list = useProductArticles(productId);
+  const isAdmin = useIsAdmin();
+  const prices = useProductSupplierPrices(productId, isAdmin);
+  const priceOf = (companyId: string) => prices.data?.find(p => p.companyId === companyId)?.price ?? null;
+  const priceCell = (companyId?: string) => (isAdmin ? <td className="num">{companyId && priceOf(companyId) ? fmtAmount(priceOf(companyId)) : '—'}</td> : undefined);
   const [drafts, setDrafts] = React.useState<Draft[]>([]);
   const savedCompanies = new Set((list.data ?? []).map(a => a.companyId));
 
@@ -222,15 +228,16 @@ export function ProductPartnerArticles({ productId }: { productId: string }) {
                     <th>{t('docs.partner.colCompany')}</th>
                     <th style={{ width: 130 }}>{t('docs.partner.colArticle')}</th>
                     <th style={{ width: 170 }}>{t('docs.partner.colName')}</th>
+                    {isAdmin && <th className="num" style={{ width: 100 }}>{t('docs.partner.colPrice')}</th>}
                     <th style={{ width: 34 }} />
                   </tr>
                 </thead>
                 <tbody>
                   {list.data?.map(a => (
-                    <ArticleRow key={a.companyId} label={a.companyName} title={a.companyName} initial={a} canEdit={canWrite} onSave={(article, name) => save(a.companyId, article, name)} onRemove={() => void api('DELETE', `/companies/${a.companyId}/articles/${productId}`)} />
+                    <ArticleRow key={a.companyId} label={a.companyName} title={a.companyName} initial={a} canEdit={canWrite} priceCell={priceCell(a.companyId)} onSave={(article, name) => save(a.companyId, article, name)} onRemove={() => void api('DELETE', `/companies/${a.companyId}/articles/${productId}`)} />
                   ))}
                   {drafts.map(d => (
-                    <ArticleRow key={d.id} label={d.name} title={d.name} canEdit onSave={(article, name) => save(d.id, article, name)} onRemove={() => setDrafts(x => x.filter(y => y.id !== d.id))} />
+                    <ArticleRow key={d.id} label={d.name} title={d.name} canEdit priceCell={priceCell(d.id)} onSave={(article, name) => save(d.id, article, name)} onRemove={() => setDrafts(x => x.filter(y => y.id !== d.id))} />
                   ))}
                 </tbody>
               </table>

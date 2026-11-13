@@ -276,6 +276,7 @@ export const docs = {
     colArticle: 'Counterparty SKU',
     colName: 'Name at counterparty',
     colCompany: 'Counterparty',
+    colPrice: 'Price',
     articlePlaceholder: 'SKU',
     namePlaceholder: 'Name',
     addProduct: 'Add product',

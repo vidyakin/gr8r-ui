@@ -458,6 +458,16 @@ export function useProductArticles(productId: string | undefined) {
   return useQuery({ queryKey: docsKey(ws, 'product-articles', productId), queryFn: async () => (await call<{ items: ProductPartnerArticle[] }>(ws, 'GET', `/products/${productId}/articles`)).items, enabled: !!productId, staleTime: Infinity });
 }
 
+/** Цена вида цен поставщика на сегодня по контрагентам товара (только admin+: маршрут закрыт для member) */
+export function useProductSupplierPrices(productId: string | undefined, enabled: boolean) {
+  const ws = useWsId();
+  return useQuery({
+    queryKey: ['ws', ws, 'supplier-prices', 'product', productId],
+    queryFn: async () => (await call<{ items: { companyId: string; price: string | null }[] }>(ws, 'GET', `/pricing/products/${productId}/suppliers`)).items,
+    enabled: !!productId && enabled,
+  });
+}
+
 export interface CompanyRequisites {
   id: string;
   name: string;

@@ -277,6 +277,7 @@ export const docs: Widen<typeof D> = {
     colArticle: 'Артикул контрагента',
     colName: 'Наименование у контрагента',
     colCompany: 'Контрагент',
+    colPrice: 'Цена',
     articlePlaceholder: 'Артикул',
     namePlaceholder: 'Наименование',
     addProduct: 'Добавить товар',
