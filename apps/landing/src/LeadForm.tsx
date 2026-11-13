@@ -1,9 +1,12 @@
-/* Заявка с лендинга — лидом в CRM оператора через публичный вебхук форм: POST /api/hooks/leads/<токен> (docs/architecture/leads.md).
-   Токен формы задаётся при сборке (VITE_LEAD_FORM_TOKEN); без него форма не отправляется и говорит об этом */
+/* Заявка с лендинга — лидом в CRM оператора через публичный вебхук форм (docs/architecture/leads.md).
+   Адрес задаётся при сборке: VITE_LEAD_FORM_URL — полный адрес вебхука из «Настройки → Формы лидов» (лендинг на другом домене,
+   у вебхука открытый CORS), или VITE_LEAD_FORM_TOKEN — токен, тогда POST /api/hooks/leads/<токен> на тот же домен.
+   Без них форма не отправляется и говорит об этом */
 import * as React from 'react';
 import { t } from './i18n';
 
-const TOKEN = import.meta.env.VITE_LEAD_FORM_TOKEN as string | undefined;
+const TOKEN = (import.meta.env.VITE_LEAD_FORM_TOKEN as string | undefined)?.trim();
+const ENDPOINT = (import.meta.env.VITE_LEAD_FORM_URL as string | undefined)?.trim() || (TOKEN ? `/api/hooks/leads/${encodeURIComponent(TOKEN)}` : undefined);
 
 type Status = 'idle' | 'sending' | 'done' | 'error';
 
@@ -18,10 +21,12 @@ export function LeadForm() {
     const contact = get('contact');
     if (!contact) return setInvalid(true);
     setInvalid(false);
-    if (!TOKEN) return;
+    if (!ENDPOINT) return;
+    // Ловушка для ботов: скрытое поле заполняют только они — делаем вид, что заявка ушла
+    if (get('website')) return setStatus('done');
     setStatus('sending');
     try {
-      const res = await fetch(`/api/hooks/leads/${encodeURIComponent(TOKEN)}`, {
+      const res = await fetch(ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -47,6 +52,7 @@ export function LeadForm() {
 
   return (
     <form className="l-form" onSubmit={submit} noValidate>
+      <input className="l-trap" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" />
       <label className="field">
         <span className="label">{t('form.name')}</span>
         <input className="input input-lg" name="name" autoComplete="name" maxLength={200} />
@@ -69,10 +75,10 @@ export function LeadForm() {
         <textarea className="textarea" name="comment" rows={4} maxLength={5000} placeholder={t('form.commentPh')} />
       </label>
       <div className="l-span l-form-foot">
-        <button className="btn btn-primary btn-lg" type="submit" disabled={!TOKEN || status === 'sending'}>
+        <button className="btn btn-primary btn-lg" type="submit" disabled={!ENDPOINT || status === 'sending'}>
           {status === 'sending' ? t('form.sending') : t('form.submit')}
         </button>
-        {!TOKEN && <span className="hint">{t('form.off')}</span>}
+        {!ENDPOINT && <span className="hint">{t('form.off')}</span>}
         {status === 'error' && (
           <span className="err" role="alert">
             {t('form.error')}

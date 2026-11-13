@@ -277,3 +277,6 @@ body { background: var(--h-page); color: var(--h-ink); font-family: 'Geist', sys
   .h-final-text p { font-size: 16px; }
   .h-footer-in { flex-direction: column; }
 }
+
+/* Ловушка для ботов в форме заявки: поле вне экрана, люди его не видят */
+.l-trap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
