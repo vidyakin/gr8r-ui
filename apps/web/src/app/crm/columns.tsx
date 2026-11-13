@@ -1,5 +1,6 @@
 /* Описания колонок DataTable для сделок, компаний и контактов (фабрики с t) */
 import { Mail } from 'lucide-react';
+import { Badge } from '@/components/ui';
 import type { Column } from '@/components/gr8r/data-table';
 type TFunction = (key: any, params?: Record<string, string | number | null | undefined>) => string;
 import { ago, fmtDate } from '../lib/dates';
@@ -31,6 +32,9 @@ export function dealSorts(t: TFunction) {
   return ['name', 'company', 'stage', 'amount', 'close', 'owner', 'created'].map(id => ({ id, name: cols.find(c => c.id === id)!.header }));
 }
 
+const roleText = (r: { isCustomer?: boolean; isSupplier?: boolean }, t: TFunction) =>
+  [r.isCustomer !== false && t('crm.companies.role.customer'), r.isSupplier && t('crm.companies.role.supplier')].filter(Boolean).join(', ');
+
 export function companyColumns(t: TFunction): Column<CompanyRow>[] {
   return [
     {
@@ -47,6 +51,18 @@ export function companyColumns(t: TFunction): Column<CompanyRow>[] {
       ),
     },
     { id: 'industry', header: t('crm.companies.col.industry'), width: 150, value: r => r.industry },
+    {
+      id: 'role',
+      header: t('crm.companies.col.role'),
+      width: 170,
+      value: r => roleText(r, t),
+      cell: r => (
+        <span className="row" style={{ gap: 4 }}>
+          {r.isCustomer !== false && <Badge tone="gray">{t('crm.companies.role.customer')}</Badge>}
+          {r.isSupplier && <Badge>{t('crm.companies.role.supplier')}</Badge>}
+        </span>
+      ),
+    },
     { id: 'size', header: t('crm.companies.col.size'), width: 100, mobile: false, value: r => r.size },
     { id: 'owner', header: t('crm.companies.col.owner'), width: 150, value: r => r.ownerName, cell: r => <OwnerCell id={r.owner} /> },
     { id: 'open', header: t('crm.companies.col.open'), width: 104, align: 'right', value: r => r.open, total: rs => <b>{rs.reduce((a, r) => a + r.open, 0)}</b> },

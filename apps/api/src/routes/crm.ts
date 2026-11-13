@@ -40,6 +40,7 @@ export const companyRoutes = crud({
     q.industry ? eq(companies.industry, q.industry) : undefined,
     q.sourceId ? eq(companies.sourceId, q.sourceId) : undefined,
     q.campaignId ? eq(companies.campaignId, q.campaignId) : undefined,
+    q.role === 'supplier' ? eq(companies.isSupplier, true) : q.role === 'customer' ? eq(companies.isCustomer, true) : undefined,
   ],
   prepareCreate: async (ctx, body) => {
     assertRequisites(body);

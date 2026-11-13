@@ -15,7 +15,7 @@ export interface CrmUi {
   openContact(id: string): void;
   closeDrawer(): void;
   newDeal(defaults?: DealDefaults): void;
-  newCompany(): void;
+  newCompany(defaults?: { supplier?: boolean }): void;
   newContact(defaults?: { company?: string }): void;
   /** Смена этапа: «выиграна» подтверждается, «проиграна» спрашивает причину, этап с обязательными полями — их значения; остальные применяются сразу */
   moveDeal(id: string, stage: StageId, before?: string | null): void;

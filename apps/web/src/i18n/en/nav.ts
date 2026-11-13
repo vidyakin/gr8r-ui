@@ -31,6 +31,7 @@ export const sections = {
   crmQuoteTemplates: 'Proposal templates',
   catalog: 'Catalog',
   production: 'Products',
+  suppliers: 'Suppliers',
   productionOrders: 'Production orders',
   productionWorkbench: 'Production release',
   productionNeeds: 'Needs',

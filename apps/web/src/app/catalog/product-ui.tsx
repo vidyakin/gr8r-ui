@@ -13,7 +13,7 @@ import { fmtDate } from '../lib/dates';
 import { useCanWrite, useCustomRows } from '../meta/custom-fields';
 import { FieldInput, FieldValue } from '../meta/field-ui';
 import type { MetaField } from '../meta/data';
-import { attributeAsField, flattenTree, useAttributes, useCatalogApi, useCompanies, useIsAdmin, useGenerateVariants, useProductMutations, useSaveWorkNorm, useUnits, useVariants, useWorkCenters, useWorkNorms, type CategoryNode, type Product } from './data';
+import { attributeAsField, flattenTree, useAttributes, useCatalogApi, useSuppliers, useIsAdmin, useGenerateVariants, useProductMutations, useSaveWorkNorm, useUnits, useVariants, useWorkCenters, useWorkNorms, type CategoryNode, type Product } from './data';
 import { StockLevelsTab } from './stock-levels';
 import { ProductPartnerArticles } from '../docs/partner-codes';
 import { t, tEnum, useT } from '@/i18n';
@@ -272,7 +272,7 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
   // норма времени и участок по умолчанию — только у работ (вид номенклатуры «Работа»)
   const norms = useWorkNorms();
   const centers = useWorkCenters();
-  const companies = useCompanies();
+  const companies = useSuppliers(p.defaultSupplierId);
   const productKinds = useProductKinds();
   const saveNorm = useSaveWorkNorm();
   const norm = p.kind === 'work' ? (norms.data?.items ?? []).find(n => n.productId === p.id) : undefined;

@@ -30,6 +30,9 @@ export const companies = pgTable(
     /** Вид цен контрагента: подставляется в документы (задача 1178; внешний ключ ставит миграция 0051) */
     priceKindId: uuid('price_kind_id'),
     settlementMode: text('settlement_mode', { enum: ['by_documents', 'by_counterparty'] }).notNull().default('by_documents'),
+    /** Роль контрагента: может быть и покупателем, и поставщиком (пункт меню «Поставщики») */
+    isCustomer: boolean('is_customer').notNull().default(true),
+    isSupplier: boolean('is_supplier').notNull().default(false),
     nextContactDate: date('next_contact_date', { mode: 'string' }),
     nextContactNote: text('next_contact_note').notNull().default(''),
     /** Источник привлечения и кампания (задача 1177); кто привёл — для источника-партнёра или контактного лица

@@ -221,6 +221,10 @@ export const crm = {
     noResults: 'No companies found',
     noResultsHint: 'No companies match these filters.',
     clearFilters: 'Clear filters',
+    role: { label: 'Role', customer: 'Customer', supplier: 'Supplier' },
+    suppliersTitle: 'Suppliers',
+    suppliersSummary: '{count} suppliers',
+    suppliersNew: 'New supplier',
     industries: { i0: 'Logistics', i1: 'Energy', i2: 'Healthcare', i3: 'Retail', i4: 'Fintech', i5: 'Media', i6: 'Food & Beverage', i7: 'Manufacturing', i8: 'Education', i9: 'Real Estate', i10: 'Software', i11: 'Travel' },
     sizes: { i0: '1–10', i1: '11–50', i2: '51–200', i3: '201–1000', i4: '1000+' },
     col: {
@@ -233,6 +237,7 @@ export const crm = {
       contacts: 'Contacts',
       last: 'Last activity',
       city: 'City',
+      role: 'Role',
     },
     group: {
       none: 'None',
