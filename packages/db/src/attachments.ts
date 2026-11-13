@@ -7,7 +7,7 @@ import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { attachmentKey, getFileStore, sha256Hex, storageSettings, type FileStore } from './file-store';
 import { assertLimit } from './licensing';
-import { attachments, attachmentVersions, companies, contacts, contracts, deals, docTemplates, documents, leads, products, projectMembers, projects, tasks, workspaces } from './schema';
+import { attachments, attachmentVersions, companies, contacts, contracts, deals, docTemplates, documents, leads, products, projectMembers, projects, supplierPrices, tasks, workspaces } from './schema';
 
 export type Attachment = typeof attachments.$inferSelect;
 export type AttachmentVersion = typeof attachmentVersions.$inferSelect;
@@ -57,6 +57,12 @@ const RESOLVERS: Record<AttachmentEntityType, Resolver> = {
     const [t] = await db.select({ authorId: docTemplates.authorId }).from(docTemplates).where(and(eq(docTemplates.id, id), eq(docTemplates.workspaceId, a.workspaceId)));
     if (!t) return 'none';
     return atLeast(a.role, 'admin') || t.authorId === a.memberId ? 'write' : 'read';
+  },
+  /** Файл прайса поставщика: цены поставщиков скрыты от участников — прайс виден и правится только admin+ */
+  supplier_price: async (db, a, id) => {
+    if (!atLeast(a.role, 'admin')) return 'none';
+    const [p] = await db.select({ id: supplierPrices.id }).from(supplierPrices).where(and(eq(supplierPrices.id, id), eq(supplierPrices.workspaceId, a.workspaceId)));
+    return p ? 'write' : 'none';
   },
   project: (db, a, id) => projectAccess(db, a, id),
   task: async (db, a, id) => {

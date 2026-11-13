@@ -351,13 +351,17 @@ export async function refreshPriceCache(db: Db, workspaceId: string, productIds:
   }
 }
 
+/** Ручная запись истории цен вида на дату (document_id = NULL). Правки одного дня не копятся: прежняя ручная запись
+    той же даты, вида и товара заменяется. Общая для карточки товара и загрузки прайса поставщика */
+export async function recordPriceKindPrice(db: Db, workspaceId: string, kindId: string, productId: string, price: string, date = today()): Promise<void> {
+  await db.delete(productPrices).where(and(eq(productPrices.priceKindId, kindId), eq(productPrices.productId, productId), eq(productPrices.date, date), isNull(productPrices.documentId)));
+  await db.insert(productPrices).values({ workspaceId, priceKindId: kindId, productId, date, price: fmt(dec(price), 2) });
+}
+
 /** Цена, введённая в карточке товара или при создании, — запись истории «Розничной» / «Закупочной» на сегодня */
 export async function recordProductPrice(db: Db, workspaceId: string, productId: string, which: 'retail' | 'purchase', price: string, date = today()): Promise<void> {
   const sys = await ensurePriceKinds(db, workspaceId);
-  const kind = sys[which];
-  // правки одного дня не копятся: ручная запись того же дня заменяется
-  await db.delete(productPrices).where(and(eq(productPrices.priceKindId, kind.id), eq(productPrices.productId, productId), eq(productPrices.date, date), isNull(productPrices.documentId)));
-  await db.insert(productPrices).values({ workspaceId, priceKindId: kind.id, productId, date, price: fmt(dec(price), 2) });
+  await recordPriceKindPrice(db, workspaceId, sys[which].id, productId, price, date);
 }
 
 /** Перенос текущих цен карточек в историю (демо-данные и товары, созданные прямой вставкой) */

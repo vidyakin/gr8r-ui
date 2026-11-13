@@ -4,7 +4,7 @@ import { FILE_KINDS } from './constants';
 import type { FileKind } from './domain';
 
 /** Типы объектов, к которым прикрепляются файлы. Новый тип — добавить сюда и в реестр сервиса (packages/db/src/attachments.ts) */
-export const ATTACHMENT_ENTITY_TYPES = ['document', 'contract', 'company', 'contact', 'deal', 'lead', 'task', 'project', 'product', 'doc_template'] as const;
+export const ATTACHMENT_ENTITY_TYPES = ['document', 'contract', 'company', 'contact', 'deal', 'lead', 'task', 'project', 'product', 'doc_template', 'supplier_price'] as const;
 export type AttachmentEntityType = (typeof ATTACHMENT_ENTITY_TYPES)[number];
 
 /** Предел размера одного файла по умолчанию, байт (окружение FILE_MAX_BYTES) */
