@@ -81,6 +81,8 @@ async function resolveApiToken(c: Context<AppEnv>, raw: string): Promise<void> {
 /** Сессия → пользователь. Запрос идёт под app_user без арендатора (users/sessions не под RLS).
     Authorization: Bearer имеет приоритет над cookie; токен агента пускается только на пути TENANT_PATHS, GET /auth/me и /mcp */
 export const requireSession = createMiddleware<AppEnv>(async (c, next) => {
+  // Повторное совпадение цепочки в том же запросе: сессия уже проверена, второе соединение из пула не берём
+  if (c.get('user')) return next();
   const bearer = readBearer(c);
   if (bearer) {
     await resolveApiToken(c, bearer);
@@ -138,6 +140,9 @@ function closableTx(tx: Tx, isOpen: () => boolean): Tx {
  */
 export const tenant = (source: 'header' | 'param' = 'header') =>
   createMiddleware<AppEnv>(async (c, next) => {
+    // Транзакция арендатора уже открыта этим запросом: вложенная ждала бы второе соединение, держа первое, —
+    // при пачке параллельных запросов пул исчерпывается и всё стоит до дедлайна
+    if (c.get('tx')) return next();
     const raw = source === 'param' ? c.req.param('id') : c.req.header('x-workspace-id');
     if (!raw) throw new AppError(400, 'workspace_required', 'X-Workspace-Id header is required');
     if (!isUuid(raw)) throw new AppError(400, 'workspace_invalid', 'Workspace id is not a valid UUID');
