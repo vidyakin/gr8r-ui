@@ -562,3 +562,9 @@ ol {
 
 /* Ловушка для ботов в форме заявки: поле вне экрана, люди его не видят */
 .l-trap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+
+/* Согласие на обработку данных в форме заявки */
+.l-consent label { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 1.45; color: var(--text-2, #4a505c); cursor: pointer; }
+.l-consent .check { flex: none; margin-top: 1px; }
+.l-consent a { color: var(--accent, #4a56e2); text-decoration: underline; text-underline-offset: 2px; }
+.l-consent .err { display: block; margin: 6px 0 0 26px; }

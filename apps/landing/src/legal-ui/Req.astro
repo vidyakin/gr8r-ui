@@ -1,0 +1,6 @@
+---
+/* Реквизит оператора: заглушка в [скобках] подсвечивается, чтобы её было видно до публикации */
+import { isPlaceholder } from '../legal';
+const { v } = Astro.props as { v: string };
+---
+{isPlaceholder(v) ? <mark class="lg-todo">{v}</mark> : v}

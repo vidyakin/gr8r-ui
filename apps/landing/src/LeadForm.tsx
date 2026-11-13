@@ -13,14 +13,18 @@ type Status = 'idle' | 'sending' | 'done' | 'error';
 export function LeadForm() {
   const [status, setStatus] = React.useState<Status>('idle');
   const [invalid, setInvalid] = React.useState(false);
+  // Согласие на обработку персональных данных — отдельной галочкой, по умолчанию снята (152-ФЗ)
+  const [noConsent, setNoConsent] = React.useState(false);
 
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     const get = (k: string) => String(f.get(k) ?? '').trim();
     const contact = get('contact');
-    if (!contact) return setInvalid(true);
-    setInvalid(false);
+    const consent = f.get('consent') === 'on';
+    setInvalid(!contact);
+    setNoConsent(!consent);
+    if (!contact || !consent) return;
     if (!ENDPOINT) return;
     // Ловушка для ботов: скрытое поле заполняют только они — делаем вид, что заявка ушла
     if (get('website')) return setStatus('done');
@@ -74,6 +78,22 @@ export function LeadForm() {
         <span className="label">{t('form.comment')}</span>
         <textarea className="textarea" name="comment" rows={4} maxLength={5000} placeholder={t('form.commentPh')} />
       </label>
+      <div className="l-span l-consent">
+        <label>
+          <input className="check" type="checkbox" name="consent" aria-invalid={noConsent} aria-describedby={noConsent ? 'consent-err' : undefined} onChange={e => e.currentTarget.checked && setNoConsent(false)} />
+          <span>
+            {t('form.consentStart')}
+            <a href="/consent/" target="_blank" rel="noopener">{t('form.consentLink')}</a>
+            {t('form.consentMid')}
+            <a href="/privacy/" target="_blank" rel="noopener">{t('form.policyLink')}</a>
+          </span>
+        </label>
+        {noConsent && (
+          <span className="err" id="consent-err">
+            {t('form.consentRequired')}
+          </span>
+        )}
+      </div>
       <div className="l-span l-form-foot">
         <button className="btn btn-primary btn-lg" type="submit" disabled={!ENDPOINT || status === 'sending'}>
           {status === 'sending' ? t('form.sending') : t('form.submit')}

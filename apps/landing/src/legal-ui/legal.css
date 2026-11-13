@@ -1,0 +1,18 @@
+/* Юридические страницы: узкая колонка текста на белой карточке */
+.lg-back { margin-left: auto; font-size: 15px; color: var(--h-ink-2); }
+.lg-main { padding: 48px var(--h-pad) 96px; }
+.lg-doc { max-width: 820px; margin: 0 auto; background: var(--h-surface); border: 1px solid var(--h-line); border-radius: 20px; padding: 56px 64px; font-size: 16px; line-height: 1.6; color: var(--h-ink-2); }
+.lg-doc h1 { font-size: 36px; line-height: 1.15; letter-spacing: -.02em; font-weight: 600; color: var(--h-ink); }
+.lg-date { margin-top: 8px; font-size: 14px; color: var(--h-ink-3); }
+.lg-doc h2 { margin-top: 36px; font-size: 20px; font-weight: 600; color: var(--h-ink); }
+.lg-doc p, .lg-doc ul { margin-top: 12px; }
+.lg-doc ul { padding-left: 22px; list-style: disc; }
+.lg-doc li + li { margin-top: 6px; }
+.lg-doc a { color: var(--h-accent); text-decoration: underline; text-underline-offset: 2px; }
+.lg-doc strong { color: var(--h-ink); font-weight: 600; }
+.lg-todo { background: #fff1b8; color: #7a5200; border-radius: 4px; padding: 0 4px; }
+@media (max-width: 760px) {
+  .lg-main { padding: 24px var(--h-pad) 64px; }
+  .lg-doc { padding: 28px 20px; border-radius: 16px; font-size: 15px; }
+  .lg-doc h1 { font-size: 28px; }
+}

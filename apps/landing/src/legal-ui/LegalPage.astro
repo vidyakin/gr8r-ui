@@ -1,0 +1,38 @@
+---
+/* Оболочка юридических страниц (/privacy, /consent): шапка с логотипом, текст документа, подвал главной */
+import Base from '../layouts/Base.astro';
+import { Brand } from '../demo/shell';
+import { legalDate } from '../legal';
+import '../demo/frame.css';
+import '../home/home.css';
+import './legal.css';
+
+const { title, description } = Astro.props as { title: string; description: string };
+---
+
+<Base title={`${title} — FutureERP`} description={description} theme="light">
+  <div class="h-page">
+    <header class="h-header">
+      <div class="h-bar">
+        <a class="h-logo" href="/" aria-label="FutureERP">
+          <Brand size={28} />
+          <span class="h-logo-text"><span class="h-logo-a">FUTURE</span><span class="h-logo-b">ERP</span></span>
+        </a>
+        <a class="h-link lg-back" href="/">← На главную</a>
+      </div>
+    </header>
+    <main class="lg-main">
+      <article class="lg-doc">
+        <h1>{title}</h1>
+        <p class="lg-date">Редакция от {legalDate}</p>
+        <slot />
+      </article>
+    </main>
+    <footer class="h-footer">
+      <div class="h-wrap h-footer-in">
+        <span>© {new Date().getFullYear()} FutureERP</span>
+        <span class="h-footer-r"><a href="/privacy/">Политика конфиденциальности</a><a href="/consent/">Согласие на обработку данных</a></span>
+      </div>
+    </footer>
+  </div>
+</Base>

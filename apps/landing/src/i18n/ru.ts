@@ -148,8 +148,13 @@ export const ru = {
     error: 'Не получилось отправить. Попробуйте ещё раз.',
     required: 'Укажите телефон или почту',
     off: 'Форма заявки ещё не подключена.',
+    consentStart: 'Даю ',
+    consentLink: 'согласие на обработку персональных данных',
+    consentMid: ' и принимаю ',
+    policyLink: 'политику конфиденциальности',
+    consentRequired: 'Без согласия мы не сможем принять заявку',
   },
-  footer: { rights: '© {year} FutureERP', langs: 'Интерфейс на русском и английском', docs: 'Документация' },
+  footer: { rights: '© {year} FutureERP', langs: 'Интерфейс на русском и английском', docs: 'Документация', privacy: 'Политика конфиденциальности' },
   /** Главная страница на Astro (вариант C из макета futureERP.pen). Названия и описания модулей — alternative.modules, возможности — modules.<id>.features */
   home: {
     title: 'FutureERP — сделки, производство и деньги в одной системе',
