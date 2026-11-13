@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { applyMarkup, changeByPercent, convertPriceVatBase, dec, hasKindCycle, pickPriceKind, priceStr, roundPrice } from '../src';
+import { applyMarkup, changeByPercent, convertPriceVatBase, dec, hasKindCycle, parsePriceCell, pickPriceKind, priceStr, roundPrice } from '../src';
 
 const r = (step: string, mode: 'math' | 'up' = 'math', nine = false) => ({ step, mode, nine });
 
@@ -72,5 +72,19 @@ describe('convertPriceVatBase: приведение к базе вида цен'
   test('ставка none при разных базах — привести нельзя', () => {
     expect(convertPriceVatBase('100', true, false, 'none')).toBeNull();
     expect(convertPriceVatBase('100', false, true, 'none')).toBeNull();
+  });
+});
+
+describe('parsePriceCell — ячейка цены из файла поставщика', () => {
+  test('длинная дробь из Excel округляется до копеек, запятая и пробелы', () => {
+    expect(parsePriceCell('1384.4508196720001')).toBe('1384.45');
+    expect(parsePriceCell('1 234,50')).toBe('1234.50');
+  });
+  test('экспоненциальная запись XLSX', () => {
+    expect(parsePriceCell('1.2E3')).toBe('1200.00');
+    expect(parsePriceCell('5E-2')).toBe('0.05');
+  });
+  test('текст вместо цены — не цена', () => {
+    expect(parsePriceCell('Цена по запросу')).toBeNull();
   });
 });

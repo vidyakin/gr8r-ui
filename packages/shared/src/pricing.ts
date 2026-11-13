@@ -112,6 +112,8 @@ export function parsePriceCell(v: unknown): string | null {
   if (v === null || v === undefined) return null;
   if (typeof v === 'number') return Number.isFinite(v) && v >= 0 ? priceStr(dec(v)) : null;
   const s = String(v).replace(/[\s ]/g, '').replace(',', '.').replace(/[₽р.]+$/i, '');
+  // XLSX хранит числа и в экспоненциальной записи (1.2E3, 5E-2)
+  if (/^\d+(\.\d+)?[eE][+-]?\d+$/.test(s)) return parsePriceCell(Number(s));
   if (!/^\d+(\.\d+)?$/.test(s)) return null;
   return priceStr(dec(s));
 }
