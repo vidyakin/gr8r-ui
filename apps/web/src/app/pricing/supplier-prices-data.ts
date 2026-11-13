@@ -13,7 +13,8 @@ export interface SupplierProfile {
   firstRow: number;
   articleCol: number;
   nameCol: number | null;
-  priceCol: number;
+  priceNetCol: number | null;
+  priceGrossCol: number | null;
   unitCol: number | null;
 }
 export type SupplierProfileBody = Omit<SupplierProfile, 'id'> & { id?: string };
@@ -28,7 +29,6 @@ export interface SupplierPrice {
   kindId: string;
   date: string;
   status: 'draft' | 'applied';
-  pricesIncludeVat: boolean;
   attachmentId: string | null;
   fileName: string;
   fileSize: number;
@@ -46,7 +46,8 @@ export interface SupplierPriceLine {
   article: string;
   name: string;
   unitCode: string | null;
-  price: string | null;
+  priceNet: string | null;
+  priceGross: string | null;
   productId: string | null;
   status: SupplierLineStatus;
   note: string;
@@ -121,12 +122,11 @@ export function useSupplierPricesApi() {
     },
     saveProfile: (b: SupplierProfileBody) => call<SupplierProfile>(ws, 'POST', '/pricing/supplier-profiles', b),
     deleteProfile: (id: string) => call(ws, 'DELETE', `/pricing/supplier-profiles/${id}`),
-    upload: (b: { companyId: string; profileId: string; date: string; pricesIncludeVat: boolean; name: string; file: File }) => {
+    upload: (b: { companyId: string; profileId: string; date: string; name: string; file: File }) => {
       const f = new FormData();
       f.set('companyId', b.companyId);
       f.set('profileId', b.profileId);
       f.set('date', b.date);
-      f.set('pricesIncludeVat', b.pricesIncludeVat ? 'true' : 'false');
       if (b.name.trim()) f.set('name', b.name.trim());
       f.set('file', b.file);
       return form<{ price: SupplierPrice; lines: SupplierPriceLine[] }>('/pricing/supplier-prices/upload', f);

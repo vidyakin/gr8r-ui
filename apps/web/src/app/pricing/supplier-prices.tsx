@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Link, useNavigate } from 'react-router';
 import { Download, FileUp, Pencil, Plus, Trash2 } from 'lucide-react';
-import { Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, Switch, toast } from '@/components/ui';
+import { Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
 import { DateInput } from '@/components/gr8r/date-picker';
 import { NumberField } from '@/components/gr8r/number-field';
 import { useT } from '@/i18n';
@@ -232,21 +232,31 @@ function ProfilesList({ items, loading, canWrite, onEdit }: { items: SupplierPro
 
 function profileSummary(t: ReturnType<typeof useT>, p: SupplierProfile) {
   const col = (n: number | null) => (n ? String(n) : t('supplierPrices.formats.none'));
-  return t('supplierPrices.formats.summary', { row: p.firstRow, article: col(p.articleCol), name: col(p.nameCol), price: col(p.priceCol), unit: col(p.unitCol) });
+  return t('supplierPrices.formats.summary', { row: p.firstRow, article: col(p.articleCol), name: col(p.nameCol), net: col(p.priceNetCol), gross: col(p.priceGrossCol), unit: col(p.unitCol) });
 }
 
 /* ---------------- настройка формата по файлу-образцу ---------------- */
 
-type Role = 'article' | 'name' | 'price' | 'unit';
-const ROLES: Role[] = ['article', 'name', 'price', 'unit'];
+type Role = 'article' | 'name' | 'priceNet' | 'priceGross' | 'unit';
+const ROLES: Role[] = ['article', 'name', 'priceNet', 'priceGross', 'unit'];
 type Cols = Record<Role, number | null>;
+const SAMPLE_ROWS = 10;
+const NONE = 'none';
+
+/** Номер колонки (1-based) → буква как в таблицах: 1 → A, 27 → AA */
+const colLetter = (n: number): string => {
+  let s = '';
+  for (let x = n; x > 0; x = Math.floor((x - 1) / 26)) s = String.fromCharCode(65 + ((x - 1) % 26)) + s;
+  return s;
+};
+const clip = (v: string, n = 36) => (v.length > n ? `${v.slice(0, n - 1)}…` : v);
 
 function ProfileDialog({ companyId, profile, onClose }: { companyId: string; profile: SupplierProfile | null; onClose: () => void }) {
   const t = useT();
   const api = useSupplierPricesApi();
   const [name, setName] = React.useState(profile?.name ?? '');
   const [firstRow, setFirstRow] = React.useState(profile?.firstRow ?? 2);
-  const [cols, setCols] = React.useState<Cols>({ article: profile?.articleCol ?? null, name: profile?.nameCol ?? null, price: profile?.priceCol ?? null, unit: profile?.unitCol ?? null });
+  const [cols, setCols] = React.useState<Cols>({ article: profile?.articleCol ?? null, name: profile?.nameCol ?? null, priceNet: profile?.priceNetCol ?? null, priceGross: profile?.priceGrossCol ?? null, unit: profile?.unitCol ?? null });
   const [preview, setPreview] = React.useState<ProfilePreview | null>(null);
   const [busy, setBusy] = React.useState(false);
   const fileRef = React.useRef<HTMLInputElement>(null);
@@ -262,22 +272,22 @@ function ProfileDialog({ companyId, profile, onClose }: { companyId: string; pro
       setBusy(false);
     }
   };
-  /** Роль на колонку: колонка 1-based; прежняя колонка роли и прежняя роль колонки освобождаются */
-  const setRole = (col: number, role: Role | 'none') =>
+  /** Колонка для поля: одна колонка файла — одно поле, прежнее поле этой колонки освобождается */
+  const setCol = (role: Role, col: number | null) =>
     setCols(c => {
       const next = { ...c };
-      for (const r of ROLES) if (next[r] === col) next[r] = null;
-      if (role !== 'none') next[role] = col;
+      if (col !== null) for (const r of ROLES) if (next[r] === col) next[r] = null;
+      next[role] = col;
       return next;
     });
-  const roleOf = (col: number): Role | 'none' => ROLES.find(r => cols[r] === col) ?? 'none';
+  const roleOf = (col: number): Role | null => ROLES.find(r => cols[r] === col) ?? null;
 
-  const missing = !name.trim() ? t('supplierPrices.profile.needName') : !cols.article || !cols.price ? t('supplierPrices.profile.needArticlePrice') : null;
+  const missing = !name.trim() ? t('supplierPrices.profile.needName') : !cols.article || (!cols.priceNet && !cols.priceGross) ? t('supplierPrices.profile.needArticlePrice') : null;
   const save = async () => {
-    if (missing || !cols.article || !cols.price) return;
+    if (missing || !cols.article) return;
     setBusy(true);
     try {
-      await api.saveProfile({ id: profile?.id, companyId, name: name.trim(), firstRow, articleCol: cols.article, nameCol: cols.name, priceCol: cols.price, unitCol: cols.unit });
+      await api.saveProfile({ id: profile?.id, companyId, name: name.trim(), firstRow, articleCol: cols.article, nameCol: cols.name, priceNetCol: cols.priceNet, priceGrossCol: cols.priceGross, unitCol: cols.unit });
       toast(t('supplierPrices.formats.saved'));
       onClose();
     } catch (e) {
@@ -288,7 +298,27 @@ function ProfileDialog({ companyId, profile, onClose }: { companyId: string; pro
   };
 
   const gridCols = preview ? Math.min(preview.columns, MAX_GRID_COLS) : 0;
-  const roleOptions = [{ value: 'none', label: t('supplierPrices.profile.role.none') }, ...ROLES.map(r => ({ value: r, label: t(`supplierPrices.profile.role.${r}` as const) }))];
+  const sampleRows = preview ? preview.rows.slice(0, SAMPLE_ROWS) : [];
+  /** Подпись колонки в списке: заголовок (строка перед первой строкой данных) или первое непустое значение данных */
+  const colTitle = (ci: number): string => {
+    const head = firstRow > 1 ? (sampleRows[firstRow - 2]?.[ci] ?? '').trim() : '';
+    if (head) return head;
+    for (let ri = firstRow - 1; ri < sampleRows.length; ri++) {
+      const v = (sampleRows[ri]?.[ci] ?? '').trim();
+      if (v) return v;
+    }
+    return '';
+  };
+  const colOptions = [
+    { value: NONE, label: t('supplierPrices.profile.none') },
+    ...Array.from({ length: gridCols }, (_, i) => ({ value: String(i + 1), label: `${colLetter(i + 1)}${colTitle(i) ? ` — ${clip(colTitle(i))}` : ''}` })),
+  ];
+  const roleLabel = (r: Role) => t(`supplierPrices.profile.role.${r}` as const);
+  const roleField = (role: Role, optional?: boolean) => (
+    <Field label={roleLabel(role) + (optional ? ` (${t('supplierPrices.profile.optional')})` : '')} key={role}>
+      {f => <Select id={f.id} size="sm" value={cols[role] ? String(cols[role]) : NONE} onValueChange={v => setCol(role, v === NONE ? null : Number(v))} options={colOptions} />}
+    </Field>
+  );
 
   return (
     <Dialog open onOpenChange={v => !v && onClose()}>
@@ -327,29 +357,40 @@ function ProfileDialog({ companyId, profile, onClose }: { companyId: string; pro
           </p>
         ) : (
           <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 10, marginBottom: 10 }}>
+              {roleField('article')}
+              {roleField('name')}
+              {roleField('priceNet')}
+              {roleField('priceGross')}
+              {roleField('unit', true)}
+            </div>
             <p className="muted" style={{ fontSize: 12.5, margin: '0 0 6px' }}>
-              {preview.fileName}. {t('supplierPrices.profile.gridHint')}
+              {preview.fileName}. {t('supplierPrices.profile.gridHint', { n: SAMPLE_ROWS })}
             </p>
-            <div style={{ overflow: 'auto', maxHeight: 360, border: '1px solid var(--border)', borderRadius: 6 }}>
-              <table className="dtbl" aria-label={t('supplierPrices.profile.sample')} style={{ minWidth: 'max-content' }}>
-                <thead style={{ position: 'sticky', top: 0, zIndex: 1, background: 'var(--surface)' }}>
+            <div style={{ overflow: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
+              <table className="dtbl" aria-label={t('supplierPrices.profile.sample')} style={{ minWidth: 'max-content', fontSize: 12 }}>
+                <thead style={{ background: 'var(--surface)' }}>
                   <tr>
-                    <th style={{ width: 56 }}>{t('supplierPrices.profile.row')}</th>
-                    {Array.from({ length: gridCols }, (_, i) => (
-                      <th key={i} style={{ minWidth: 130 }}>
-                        <Select size="sm" aria-label={t('supplierPrices.profile.roleLabel', { col: i + 1 })} value={roleOf(i + 1)} onValueChange={v => setRole(i + 1, v as Role | 'none')} options={roleOptions} />
-                      </th>
-                    ))}
+                    <th style={{ width: 44 }}>{t('supplierPrices.profile.row')}</th>
+                    {Array.from({ length: gridCols }, (_, i) => {
+                      const r = roleOf(i + 1);
+                      return (
+                        <th key={i} style={{ minWidth: 90, background: r ? 'var(--accent-soft)' : undefined }}>
+                          <div>{colLetter(i + 1)}</div>
+                          {r && <div style={{ fontWeight: 500, fontSize: 11 }}>{roleLabel(r)}</div>}
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
-                  {preview.rows.map((r, ri) => {
+                  {sampleRows.map((r, ri) => {
                     const rowNo = ri + 1;
                     return (
-                      <tr key={ri} onClick={() => setFirstRow(rowNo)} style={{ cursor: 'pointer', background: rowNo === firstRow ? 'var(--accent-soft)' : undefined }} className={cn(rowNo < firstRow && 'faint')} aria-selected={rowNo === firstRow}>
+                      <tr key={ri} onClick={() => setFirstRow(rowNo)} style={{ cursor: 'pointer', outline: rowNo === firstRow ? '2px solid var(--accent)' : undefined, outlineOffset: -2 }} className={cn(rowNo < firstRow && 'faint')} aria-selected={rowNo === firstRow}>
                         <td className="faint">{rowNo}</td>
                         {Array.from({ length: gridCols }, (_, ci) => (
-                          <td key={ci} style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: rowNo >= firstRow && roleOf(ci + 1) !== 'none' ? 'var(--accent-soft)' : undefined }}>
+                          <td key={ci} style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: rowNo >= firstRow && roleOf(ci + 1) ? 'var(--accent-soft)' : undefined }}>
                             {r[ci] ?? ''}
                           </td>
                         ))}
@@ -376,7 +417,6 @@ function UploadDialog({ companyId, profiles, onClose }: { companyId: string; pro
   const [file, setFile] = React.useState<File | null>(null);
   const [name, setName] = React.useState('');
   const [date, setDate] = React.useState(today());
-  const [withVat, setWithVat] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
   const fileRef = React.useRef<HTMLInputElement>(null);
 
@@ -384,7 +424,7 @@ function UploadDialog({ companyId, profiles, onClose }: { companyId: string; pro
     if (!file || !profileId || !date) return;
     setBusy(true);
     try {
-      const r = await api.upload({ companyId, profileId, date, pricesIncludeVat: withVat, name: name || file.name.replace(/\.[^.]+$/, ''), file });
+      const r = await api.upload({ companyId, profileId, date, name: name || file.name.replace(/\.[^.]+$/, ''), file });
       toast(t('supplierPrices.upload.uploaded'));
       onClose();
       navigate(supplierPricePath(companyId, r.price.id));
@@ -425,10 +465,6 @@ function UploadDialog({ companyId, profiles, onClose }: { companyId: string; pro
           </Field>
           <Field label={t('supplierPrices.upload.name')}>{f => <Input {...f} maxLength={200} placeholder={file ? file.name.replace(/\.[^.]+$/, '') : t('supplierPrices.upload.namePlaceholder')} value={name} onChange={e => setName(e.target.value)} />}</Field>
           <Field label={t('supplierPrices.upload.date')}>{f => <DateInput id={f.id} required value={date} onChange={setDate} />}</Field>
-          <label className="row" style={{ gap: 8, cursor: 'pointer' }}>
-            <Switch checked={withVat} onChange={e => setWithVat(e.target.checked)} />
-            {t('supplierPrices.upload.withVat')}
-          </label>
         </div>
       </DialogContent>
     </Dialog>

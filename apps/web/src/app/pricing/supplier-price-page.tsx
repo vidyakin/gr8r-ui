@@ -51,6 +51,9 @@ export function SupplierPricePage() {
     return c;
   }, [lines]);
   const shown = React.useMemo(() => (lines ?? []).filter(l => filter === 'all' || l.status === filter), [lines, filter]);
+  // колонку цены скрываем, если она пуста во всём прайсе
+  const showNet = (lines ?? []).some(l => l.priceNet !== null);
+  const showGross = (lines ?? []).some(l => l.priceGross !== null);
   React.useEffect(() => setLimit(PAGE_SIZE), [filter, priceId]);
 
   const refresh = () => qc.invalidateQueries({ queryKey: supplierPricesKey(ws) });
@@ -146,7 +149,6 @@ export function SupplierPricePage() {
         <span>
           {t('supplierPrices.page.date')}: {fmtDate(price.date)}
         </span>
-        <span>{price.pricesIncludeVat ? t('supplierPrices.page.vatIn') : t('supplierPrices.page.vatEx')}</span>
         {price.attachmentId && (
           <button type="button" className="row" style={{ gap: 4, color: 'inherit', textDecoration: 'underline', background: 'none', border: 0, padding: 0, cursor: 'pointer', font: 'inherit' }} onClick={() => void download()}>
             <Download size={12} />
@@ -174,7 +176,8 @@ export function SupplierPricePage() {
               <th style={{ width: 150 }}>{t('supplierPrices.page.colArticle')}</th>
               <th>{t('supplierPrices.page.colName')}</th>
               <th style={{ width: 60 }}>{t('supplierPrices.page.colUnit')}</th>
-              <th style={{ width: 110, textAlign: 'right' }}>{t('supplierPrices.page.colPrice')}</th>
+              {showNet && <th style={{ width: 110, textAlign: 'right' }}>{t('supplierPrices.page.colPriceNet')}</th>}
+              {showGross && <th style={{ width: 110, textAlign: 'right' }}>{t('supplierPrices.page.colPriceGross')}</th>}
               <th style={{ width: 280 }}>{t('supplierPrices.page.colProduct')}</th>
               <th style={{ width: 150 }}>{t('supplierPrices.page.colStatus')}</th>
               {editable && <th style={{ width: 190 }} />}
@@ -182,7 +185,7 @@ export function SupplierPricePage() {
           </thead>
           <tbody>
             {shown.slice(0, limit).map(l => (
-              <LineRow key={l.id} line={l} editable={editable} busy={busy} products={products} unitLabel={l.unitCode ? unitSymbol(units.data, l.unitCode) : t('supplierPrices.page.unitNone')} onPick={() => setPicking(l)} onPatch={body => void patch(l, body)} />
+              <LineRow key={l.id} showNet={showNet} showGross={showGross} line={l} editable={editable} busy={busy} products={products} unitLabel={l.unitCode ? unitSymbol(units.data, l.unitCode) : t('supplierPrices.page.unitNone')} onPick={() => setPicking(l)} onPatch={body => void patch(l, body)} />
             ))}
           </tbody>
         </table>
@@ -219,7 +222,7 @@ export function SupplierPricePage() {
 
 /* ---------------- строка ---------------- */
 
-function LineRow({ line: l, editable, busy, products, unitLabel, onPick, onPatch }: { line: SupplierPriceLine; editable: boolean; busy: boolean; products: Map<string, { id: string; name: string; sku: string }>; unitLabel: string; onPick: () => void; onPatch: (b: { productId?: string; skip?: boolean }) => void }) {
+function LineRow({ line: l, showNet, showGross, editable, busy, products, unitLabel, onPick, onPatch }: { line: SupplierPriceLine; showNet: boolean; showGross: boolean; editable: boolean; busy: boolean; products: Map<string, { id: string; name: string; sku: string }>; unitLabel: string; onPick: () => void; onPatch: (b: { productId?: string; skip?: boolean }) => void }) {
   const t = useT();
   const product = l.productId ? products.get(l.productId) : undefined;
   const noteKey = l.note ? (`supplierPrices.page.note.${l.note}` as const) : null;
@@ -230,7 +233,8 @@ function LineRow({ line: l, editable, busy, products, unitLabel, onPick, onPatch
       <td>{l.article}</td>
       <td>{l.name}</td>
       <td>{unitLabel}</td>
-      <td style={{ textAlign: 'right' }}>{l.price === null ? '—' : fmtAmount(l.price)}</td>
+      {showNet && <td style={{ textAlign: 'right' }}>{l.priceNet === null ? '—' : fmtAmount(l.priceNet)}</td>}
+      {showGross && <td style={{ textAlign: 'right' }}>{l.priceGross === null ? '—' : fmtAmount(l.priceGross)}</td>}
       <td>
         {product ? (
           <>
