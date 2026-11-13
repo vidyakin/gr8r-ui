@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { applyMarkup, changeByPercent, dec, hasKindCycle, pickPriceKind, priceStr, roundPrice } from '../src';
+import { applyMarkup, changeByPercent, convertPriceVatBase, dec, hasKindCycle, pickPriceKind, priceStr, roundPrice } from '../src';
 
 const r = (step: string, mode: 'math' | 'up' = 'math', nine = false) => ({ step, mode, nine });
 
@@ -51,4 +51,26 @@ test('цикл расчётных видов', () => {
   const m: Record<string, string> = { a: 'b', b: 'c', c: 'a' };
   expect(hasKindCycle('a', id => m[id])).toBe(true);
   expect(hasKindCycle('x', id => ({ x: 'y' })[id])).toBe(false);
+});
+
+describe('convertPriceVatBase: приведение к базе вида цен', () => {
+  test('базы совпадают — цена как есть, даже при ставке none', () => {
+    expect(convertPriceVatBase('120', true, true, '20')).toBe('120.00');
+    expect(convertPriceVatBase('100.5', false, false, 'none')).toBe('100.50');
+  });
+  test('с НДС → без НДС', () => {
+    expect(convertPriceVatBase('120', true, false, '20')).toBe('100.00');
+    expect(convertPriceVatBase('110', true, false, '10')).toBe('100.00');
+    expect(convertPriceVatBase('100', true, false, '20')).toBe('83.33');
+    expect(convertPriceVatBase('50', true, false, '0')).toBe('50.00');
+  });
+  test('без НДС → с НДС', () => {
+    expect(convertPriceVatBase('100', false, true, '20')).toBe('120.00');
+    expect(convertPriceVatBase('99.99', false, true, '20')).toBe('119.99');
+    expect(convertPriceVatBase('10.05', false, true, '5')).toBe('10.55');
+  });
+  test('ставка none при разных базах — привести нельзя', () => {
+    expect(convertPriceVatBase('100', true, false, 'none')).toBeNull();
+    expect(convertPriceVatBase('100', false, true, 'none')).toBeNull();
+  });
 });

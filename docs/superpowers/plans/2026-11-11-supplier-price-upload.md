@@ -26,4 +26,14 @@
 
 ## Фактическая реализация
 
-Этапы 1–4: см. раздел ниже (заполняется по мере выполнения).
+### Этапы 1–4 (готово)
+
+- **Схема.** Миграция 0117 вручную + журнал (снимков после 0088 нет). Колонка `note` в строках — причина пропуска (`price_invalid`, `manual`, `vat_rate_none`). Дополнительно к спеке: `supplier_price_profiles.archived_at` (удаление профиля — архив, на него ссылаются прайсы), `name_col`/`unit_col` необязательны.
+- **Сервис** `packages/db/src/supplier-prices.ts`: `saveSupplierProfile` / `archiveSupplierProfile` / `listSupplierProfiles`; `uploadSupplierPrice` (получает таблицу `rows` из `readTable`, шапка включена; номера строк 1-based как в файле); `ensureSupplierPriceKind`; `updateSupplierPriceLine`, `matchSupplierLinesByName`, `createProductsForSupplierLines`; `previewSupplierPriceApply`, `applySupplierPrice`. Права admin+ проверяет маршрут (этап 5); файл-вложение `supplier_price` доступно только admin+ (резолвер в `attachments.ts`).
+- **Общая функция.** `recordPriceKindPrice(db, ws, kindId, productId, price, date)` вынесена из `recordProductPrice`, её вызывают карточка товара (retail/purchase) и применение прайса. Поведение карточки не менялось (тесты каталога и цен зелёные).
+- **НДС.** `convertPriceVatBase` в `packages/shared/src/pricing.ts` (decimal, одно округление до копейки), юнит-тесты в `packages/shared/test/pricing.test.ts`.
+- **Решения по открытым вопросам спеки (раздел 7):** (1) повтор той же даты заменяет записи вида/товара/даты с `document_id IS NULL`, остальные остаются; (2) ставка `none` при разных базах — строка не пишется, помечается `skipped` с `note = vat_rate_none`, предупреждение возвращается в `skipped` результата и в сводке (`warning`); при совпадении баз `none` не мешает; (3) без колонки единицы (`unit_col`) `unit_code` пуст, при создании товара берётся «шт» (`796`); непонятная единица из файла тоже даёт `796`.
+- **Прочие решения.** Вид цен поставщика создаётся с `includes_vat` по умолчанию (true), а не по флагу первой загрузки. Артикул у товара один на контрагента (уникальность в `product_partner_articles`): привязка заменяет прежний. «Найти по названиям» и «Создать товар» — только для `unmatched` с наименованием; при неоднозначности статус остаётся `unmatched`, кандидаты в `candidates`. Если товар встречается в прайсе дважды, действует последняя строка. Дата действия при применении может быть переопределена (`opts.date`).
+- **Коды ошибок** (en/ru в `errors.ts`): `supplier_profile_exists`, `supplier_profile_invalid`, `supplier_price_date_invalid`, `supplier_price_empty`, `supplier_price_applied`, `supplier_line_price_invalid`.
+- **Тесты:** `apps/api/test/supplier-prices.test.ts` (сервис через `withContext`, MemoryFileStore).
+- **Не сделано (этапы 5–9):** маршруты, экраны, `GET /pricing/products/:id/suppliers`, `deleteSupplierPrice`, документация. Применение пишет цены построчно (`recordPriceKindPrice` — 2 запроса на товар): для прайсов в десятки тысяч строк при необходимости заменить пакетной вставкой.

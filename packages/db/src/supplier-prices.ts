@@ -3,11 +3,12 @@
    Вызывается под контекстом арендатора (RLS). Права (admin+) проверяет маршрут API; файл читает API (readTable) и отдаёт строки сюда.
    Деньги — строки и decimal из @gr8r/shared. */
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { parsePriceCell } from '@gr8r/shared';
+import { convertPriceVatBase, parsePriceCell } from '@gr8r/shared';
 import type { Db } from './client';
 import { createAttachment, type Actor } from './attachments';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
+import { recordPriceKindPrice, resolvePrices } from './pricing';
 import { companies, organizations, priceKinds, productPartnerArticles, products, supplierPriceLines, supplierPriceProfiles, supplierPrices, units } from './schema';
 import { uuidv7 } from './uuid';
 
@@ -391,4 +392,78 @@ export async function createProductsForSupplierLines(db: Db, actor: Actor, price
   await recountSupplierPrice(db, ws, priceId);
   if (res.created) await recordEvent(db, { workspaceId: ws, type: 'supplier_price_line.updated', entity: 'supplier_price_line', actorId: actor.memberId, payload: { priceId, createdProducts: res.created } });
   return res;
+}
+
+/* ---------------- применение ---------------- */
+
+export interface SupplierApplyItem {
+  lineId: string;
+  rowNo: number;
+  productId: string;
+  productName: string;
+  article: string;
+  /** Цена вида на дату действия до применения; null — цены ещё нет */
+  current: string | null;
+  /** Цена, которая будет записана (в базе НДС вида цен); null — строка не пишется (см. warning) */
+  next: string | null;
+  /** vat_rate_none — ставка товара «без НДС» при разных базах: привести цену нельзя */
+  warning: 'vat_rate_none' | null;
+}
+
+export interface SupplierApplyPreview {
+  priceId: string;
+  kindId: string;
+  kindName: string;
+  date: string;
+  items: SupplierApplyItem[];
+}
+
+/** План записи: только matched-строки; товар в файле дважды — действует последняя строка. skipped/unmatched/conflict не пишутся */
+async function planApply(db: Db, price: SupplierPrice): Promise<SupplierApplyPreview> {
+  const ws = price.workspaceId;
+  const [kind] = await db.select().from(priceKinds).where(and(eq(priceKinds.workspaceId, ws), eq(priceKinds.id, price.kindId)));
+  if (!kind) throw new DomainError(404, 'not_found', 'price kind not found');
+  const matched = await db
+    .select()
+    .from(supplierPriceLines)
+    .where(and(eq(supplierPriceLines.workspaceId, ws), eq(supplierPriceLines.priceId, price.id), eq(supplierPriceLines.status, 'matched')))
+    .orderBy(asc(supplierPriceLines.rowNo));
+  const last = new Map<string, SupplierPriceLine>();
+  for (const l of matched) if (l.productId && l.price !== null) last.set(l.productId, l);
+  const ids = [...last.keys()];
+  const prods = ids.length ? await db.select({ id: products.id, name: products.name, vatRate: products.vatRate }).from(products).where(and(eq(products.workspaceId, ws), inArray(products.id, ids))) : [];
+  const info = new Map(prods.map(p => [p.id, p]));
+  const current = await resolvePrices(db, ws, kind.id, ids, price.date);
+  const items: SupplierApplyItem[] = [];
+  for (const l of [...last.values()].sort((a, b) => a.rowNo - b.rowNo)) {
+    const p = info.get(l.productId!);
+    if (!p) continue;
+    const next = convertPriceVatBase(l.price!, price.pricesIncludeVat, kind.includesVat, p.vatRate);
+    items.push({ lineId: l.id, rowNo: l.rowNo, productId: p.id, productName: p.name, article: l.article, current: current.get(p.id)?.price ?? null, next, warning: next === null ? 'vat_rate_none' : null });
+  }
+  return { priceId: price.id, kindId: kind.id, kindName: kind.name, date: price.date, items };
+}
+
+/** Сводка «было → стало» по сопоставленным строкам черновика; ничего не пишет */
+export async function previewSupplierPriceApply(db: Db, workspaceId: string, priceId: string): Promise<SupplierApplyPreview> {
+  return planApply(db, await loadDraft(db, workspaceId, priceId));
+}
+
+/** Применяет цены: запись product_prices по виду цен поставщика на дату действия (document_id NULL; прежняя ручная запись
+    той же даты, вида и товара заменяется — recordPriceKindPrice). Товары вне прайса не меняются. Прайс становится applied */
+export async function applySupplierPrice(db: Db, actor: Actor, priceId: string, opts: { date?: string | undefined } = {}): Promise<{ price: SupplierPrice; applied: number; skipped: SupplierApplyItem[] }> {
+  const ws = actor.workspaceId;
+  await db.select({ id: supplierPrices.id }).from(supplierPrices).where(and(eq(supplierPrices.workspaceId, ws), eq(supplierPrices.id, priceId))).for('update');
+  const current = await loadDraft(db, ws, priceId);
+  if (opts.date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(opts.date)) throw new DomainError(422, 'supplier_price_date_invalid', 'Price date must be YYYY-MM-DD');
+  const price = opts.date ? { ...current, date: opts.date } : current;
+  const plan = await planApply(db, price);
+  const skipped = plan.items.filter(i => i.next === null);
+  for (const i of plan.items) if (i.next !== null) await recordPriceKindPrice(db, ws, plan.kindId, i.productId, i.next, price.date);
+  if (skipped.length) await db.update(supplierPriceLines).set({ status: 'skipped', note: 'vat_rate_none' }).where(inArray(supplierPriceLines.id, skipped.map(s => s.lineId)));
+  await recountSupplierPrice(db, ws, priceId);
+  const [done] = await db.update(supplierPrices).set({ status: 'applied', appliedAt: new Date(), date: price.date }).where(and(eq(supplierPrices.workspaceId, ws), eq(supplierPrices.id, priceId))).returning();
+  const applied = plan.items.length - skipped.length;
+  await recordEvent(db, { workspaceId: ws, type: 'supplier_price.applied', entity: 'supplier_price', recordId: priceId, actorId: actor.memberId, payload: { companyId: price.companyId, kindId: plan.kindId, date: price.date, applied, skipped: skipped.length } });
+  return { price: done!, applied, skipped };
 }

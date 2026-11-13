@@ -1,6 +1,6 @@
 /* Виды цен и прайс-листы (задача 1178): чистые расчёты — правило расчётного вида, округление, выбор вида цен документа.
    Правила — docs/architecture/pricing.md. Деньги — строки и decimal.ts, без float. */
-import { dec, fmt, pctOf, type Dec } from './decimal';
+import { dec, fmt, pctOf, roundDiv, type Dec } from './decimal';
 
 export const PRICE_METHODS = ['manual', 'derived', 'cost_based'] as const;
 export type PriceMethod = (typeof PRICE_METHODS)[number];
@@ -136,4 +136,17 @@ export function detectImportColumns(header: string[], kinds: { id: string; name:
     if (k) priceColumns.push({ column, priceKindId: k.id });
   });
   return { skuColumn: find(/^(артикул|sku|код|арт\.?)$/), nameColumn: find(/^(наименование|название|товар|номенклатура|name)$/), priceColumns };
+}
+
+/** Приведение цены прайса поставщика к базе вида цен (с НДС / без НДС) по ставке товара, до копейки.
+    Базы совпадают — цена как есть. Ставка 'none' при разных базах — null (привести нельзя, строку пропускают).
+    с НДС → без: цена × 100 / (100 + ставка); без НДС → с НДС: цена × (100 + ставка) / 100 (как lineKop в documents.ts) */
+export function convertPriceVatBase(price: string, fileIncludesVat: boolean, kindIncludesVat: boolean, vatRate: string): string | null {
+  const p = dec(price);
+  if (fileIncludesVat === kindIncludesVat) return priceStr(p);
+  if (!/^\d+$/.test(vatRate)) return null;
+  const r = BigInt(vatRate);
+  // dec — масштаб 10⁻⁶: умножаем и делим целыми, округление до копейки делает priceStr
+  const out = fileIncludesVat ? roundDiv(p * 100n, 100n + r) : roundDiv(p * (100n + r), 100n);
+  return priceStr(out);
 }
