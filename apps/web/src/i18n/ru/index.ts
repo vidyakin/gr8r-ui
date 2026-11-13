@@ -37,8 +37,9 @@ import { help } from './help';
 import { objects } from './objects';
 import { estimates } from './estimates';
 import { supplierRating } from './supplier-rating';
+import { supplierPrices } from './supplier-prices';
 import { shifts } from './shifts';
 import { agentTokens } from './agent-tokens';
 
-export const ru = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, batches, repeat, appt, delivery, positions, projectTemplates, leads, ads, secrets, money, payroll, pricing, loyalty, licensing, fleet, trips, transport, help, attachments, objects, estimates, supplierRating, shifts, agentTokens };
+export const ru = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, batches, repeat, appt, delivery, positions, projectTemplates, leads, ads, secrets, money, payroll, pricing, loyalty, licensing, fleet, trips, transport, help, attachments, objects, estimates, supplierRating, supplierPrices, shifts, agentTokens };
 
