@@ -2,13 +2,13 @@
    загрузка строк по профилю, сопоставление по артикулам контрагента, разбор, применение цен в вид цен поставщика.
    Вызывается под контекстом арендатора (RLS). Права (admin+) проверяет маршрут API; файл читает API (readTable) и отдаёт строки сюда.
    Деньги — строки и decimal из @gr8r/shared. */
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { parsePriceCell } from '@gr8r/shared';
 import type { Db } from './client';
 import { createAttachment, type Actor } from './attachments';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
-import { companies, priceKinds, productPartnerArticles, products, supplierPriceLines, supplierPriceProfiles, supplierPrices, units } from './schema';
+import { companies, organizations, priceKinds, productPartnerArticles, products, supplierPriceLines, supplierPriceProfiles, supplierPrices, units } from './schema';
 import { uuidv7 } from './uuid';
 
 export type SupplierPriceProfile = typeof supplierPriceProfiles.$inferSelect;
@@ -262,3 +262,133 @@ export async function listSupplierPriceLines(db: Db, workspaceId: string, priceI
     .orderBy(asc(supplierPriceLines.rowNo));
 }
 
+
+/* ---------------- разбор строк (только для draft) ---------------- */
+
+async function loadDraft(db: Db, workspaceId: string, priceId: string): Promise<SupplierPrice> {
+  const price = await getSupplierPrice(db, workspaceId, priceId);
+  if (price.status !== 'draft') throw new DomainError(409, 'supplier_price_applied', 'The price list is already applied and cannot be changed');
+  return price;
+}
+
+async function loadLine(db: Db, workspaceId: string, priceId: string, lineId: string): Promise<SupplierPriceLine> {
+  const [row] = await db.select().from(supplierPriceLines).where(and(eq(supplierPriceLines.workspaceId, workspaceId), eq(supplierPriceLines.priceId, priceId), eq(supplierPriceLines.id, lineId)));
+  if (!row) throw new DomainError(404, 'not_found', 'line not found');
+  return row;
+}
+
+/** Артикул (и наименование) поставщика товара — в product_partner_articles: в следующий раз строка найдётся сама.
+    У товара одна запись на контрагента: прежний артикул заменяется */
+async function savePartnerArticle(db: Db, workspaceId: string, companyId: string, productId: string, article: string, name: string): Promise<void> {
+  const a = article.slice(0, 100);
+  const n = name.slice(0, 300);
+  if (!a && !n) return;
+  await db
+    .insert(productPartnerArticles)
+    .values({ workspaceId, companyId, productId, article: a, name: n })
+    .onConflictDoUpdate({
+      target: [productPartnerArticles.workspaceId, productPartnerArticles.companyId, productPartnerArticles.productId],
+      set: { article: a || sql`${productPartnerArticles.article}`, name: n || sql`${productPartnerArticles.name}`, updatedAt: new Date() },
+    });
+}
+
+async function bindLine(db: Db, price: SupplierPrice, line: SupplierPriceLine, productId: string): Promise<void> {
+  await savePartnerArticle(db, price.workspaceId, price.companyId, productId, line.article, line.name);
+  await db.update(supplierPriceLines).set({ productId, status: 'matched', note: '', candidates: [] }).where(eq(supplierPriceLines.id, line.id));
+}
+
+export interface SupplierLinePatch {
+  /** Привязать товар (из кандидатов или любой) */
+  productId?: string | undefined;
+  /** true — пропустить строку, false — снять пропуск */
+  skip?: boolean | undefined;
+}
+
+/** Ручной разбор строки: привязка товара с записью артикула / пропуск / снятие пропуска */
+export async function updateSupplierPriceLine(db: Db, actor: Actor, priceId: string, lineId: string, patch: SupplierLinePatch): Promise<SupplierPriceLine> {
+  const ws = actor.workspaceId;
+  const price = await loadDraft(db, ws, priceId);
+  const line = await loadLine(db, ws, priceId, lineId);
+  if (patch.productId !== undefined) {
+    if (line.price === null) throw new DomainError(422, 'supplier_line_price_invalid', 'The line has no valid price');
+    const [p] = await db.select({ id: products.id }).from(products).where(and(eq(products.workspaceId, ws), eq(products.id, patch.productId), isNull(products.archivedAt)));
+    if (!p) throw new DomainError(422, 'invalid_reference', 'The product does not exist');
+    await bindLine(db, price, line, p.id);
+  } else if (patch.skip === true) {
+    await db.update(supplierPriceLines).set({ status: 'skipped', note: 'manual' }).where(eq(supplierPriceLines.id, line.id));
+  } else if (patch.skip === false && line.status === 'skipped') {
+    if (line.price === null) throw new DomainError(422, 'supplier_line_price_invalid', 'The line has no valid price');
+    if (line.productId) await db.update(supplierPriceLines).set({ status: 'matched', note: '' }).where(eq(supplierPriceLines.id, line.id));
+    else {
+      const m = matchArticle(await articleIndex(db, ws, price.companyId), line.article);
+      await db.update(supplierPriceLines).set({ status: m.status, productId: m.productId, candidates: m.candidates, note: '' }).where(eq(supplierPriceLines.id, line.id));
+    }
+  }
+  await recountSupplierPrice(db, ws, priceId);
+  await recordEvent(db, { workspaceId: ws, type: 'supplier_price_line.updated', entity: 'supplier_price_line', recordId: lineId, actorId: actor.memberId, payload: { priceId } });
+  return loadLine(db, ws, priceId, lineId);
+}
+
+const unmatchedLines = (db: Db, ws: string, priceId: string, lineIds?: string[]) =>
+  db
+    .select()
+    .from(supplierPriceLines)
+    .where(and(eq(supplierPriceLines.workspaceId, ws), eq(supplierPriceLines.priceId, priceId), eq(supplierPriceLines.status, 'unmatched'), lineIds ? inArray(supplierPriceLines.id, lineIds) : undefined))
+    .orderBy(asc(supplierPriceLines.rowNo));
+
+/** «Найти по названиям» для unmatched-строк: точное совпадение наименования без регистра и краёв (как matchImportRows).
+    Один товар — подставляется с артикулом; несколько — кандидаты для ручного выбора (статус остаётся unmatched); нет — без изменений */
+export async function matchSupplierLinesByName(db: Db, actor: Actor, priceId: string, lineIds?: string[]): Promise<{ matched: number; ambiguous: number; notFound: number }> {
+  const ws = actor.workspaceId;
+  const price = await loadDraft(db, ws, priceId);
+  const lines = (await unmatchedLines(db, ws, priceId, lineIds)).filter(l => l.name.trim());
+  const all = await db.select({ id: products.id, name: products.name }).from(products).where(and(eq(products.workspaceId, ws), isNull(products.archivedAt)));
+  const byName = new Map<string, string[]>();
+  for (const p of all) byName.set(norm(p.name), [...(byName.get(norm(p.name)) ?? []), p.id]);
+  const res = { matched: 0, ambiguous: 0, notFound: 0 };
+  for (const l of lines) {
+    const hit = byName.get(norm(l.name)) ?? [];
+    if (hit.length === 1) {
+      await bindLine(db, price, l, hit[0]!);
+      res.matched++;
+    } else if (hit.length > 1) {
+      await db.update(supplierPriceLines).set({ candidates: hit }).where(eq(supplierPriceLines.id, l.id));
+      res.ambiguous++;
+    } else res.notFound++;
+  }
+  await recountSupplierPrice(db, ws, priceId);
+  if (res.matched) await recordEvent(db, { workspaceId: ws, type: 'supplier_price_line.updated', entity: 'supplier_price_line', actorId: actor.memberId, payload: { priceId, matchedByName: res.matched } });
+  return res;
+}
+
+/** «Создать товар» для выбранных (или всех) unmatched-строк: наименование и единица из файла, цена продажи 0, НДС по умолчанию
+    организации, артикул поставщика сразу. Строки без наименования и артикула пропускаются; одинаковый артикул в файле — один товар */
+export async function createProductsForSupplierLines(db: Db, actor: Actor, priceId: string, lineIds?: string[]): Promise<{ created: number; skipped: number }> {
+  const ws = actor.workspaceId;
+  const price = await loadDraft(db, ws, priceId);
+  const lines = await unmatchedLines(db, ws, priceId, lineIds);
+  const [org] = await db.select({ vat: organizations.defaultVatRate }).from(organizations).where(and(eq(organizations.workspaceId, ws), isNull(organizations.archivedAt))).orderBy(desc(organizations.isDefault), asc(organizations.createdAt)).limit(1);
+  const vatRate = org?.vat ?? '20';
+  const byArticle = new Map<string, string>();
+  const res = { created: 0, skipped: 0 };
+  for (const l of lines) {
+    const name = (l.name || l.article).trim();
+    if (!name) {
+      res.skipped++;
+      continue;
+    }
+    const key = norm(l.article);
+    let productId = key ? byArticle.get(key) : undefined;
+    if (!productId) {
+      const [p] = await db.insert(products).values({ workspaceId: ws, kind: 'goods', name: name.slice(0, 300), unitCode: l.unitCode ?? '796', price: '0', vatRate }).returning();
+      productId = p!.id;
+      if (key) byArticle.set(key, productId);
+      res.created++;
+      await recordEvent(db, { workspaceId: ws, type: 'product.created', entity: 'product', recordId: productId, actorId: actor.memberId, payload: { record: p } });
+    }
+    await bindLine(db, price, l, productId);
+  }
+  await recountSupplierPrice(db, ws, priceId);
+  if (res.created) await recordEvent(db, { workspaceId: ws, type: 'supplier_price_line.updated', entity: 'supplier_price_line', actorId: actor.memberId, payload: { priceId, createdProducts: res.created } });
+  return res;
+}

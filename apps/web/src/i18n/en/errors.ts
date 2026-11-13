@@ -187,6 +187,8 @@ export const errors = {
   supplier_profile_invalid: 'Set the format name, the first data row and the article and price columns',
   supplier_price_date_invalid: 'Enter the price effective date',
   supplier_price_empty: 'The file has no data rows for this format',
+  supplier_price_applied: 'The price list is already applied and cannot be changed',
+  supplier_line_price_invalid: 'The line has no valid price',
   price_kind_cycle: 'The price kinds refer to each other in a circle',
   price_nine_step: 'The "up to 9" rounding needs a step of 10 or 100',
   price_kind_system: 'A system price kind cannot be archived',

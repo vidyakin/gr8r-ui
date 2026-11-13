@@ -188,6 +188,8 @@ export const errors: Widen<typeof E> = {
   supplier_profile_invalid: 'Укажите название формата, первую строку данных и колонки артикула и цены',
   supplier_price_date_invalid: 'Укажите дату действия цен',
   supplier_price_empty: 'В файле нет строк с данными по этому формату',
+  supplier_price_applied: 'Прайс уже применён и не редактируется',
+  supplier_line_price_invalid: 'В строке нет корректной цены',
   price_kind_cycle: 'Виды цен ссылаются друг на друга по кругу',
   price_nine_step: 'Округление «до 9» возможно при шаге 10 или 100',
   price_kind_system: 'Системный вид цен нельзя убрать в архив',

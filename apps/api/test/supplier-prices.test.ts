@@ -10,6 +10,9 @@ import {
   saveSupplierProfile,
   setFileStore,
   uploadSupplierPrice,
+  updateSupplierPriceLine,
+  matchSupplierLinesByName,
+  createProductsForSupplierLines,
   withContext,
   type Actor,
   type Db,
@@ -132,5 +135,61 @@ describe('загрузка прайса', () => {
     expect(lines.map(l => [l.status, l.productId])).toEqual([['matched', bolt], ['unmatched', null]]);
     expect((await run(db => listSupplierPriceLines(db, ws, lines[0]!.priceId))).length).toBe(2);
     expect((await run(db => getSupplierPrice(db, ws, lines[0]!.priceId))).linesMatched).toBe(1);
+  });
+});
+
+describe('разбор строк', () => {
+  test('привязка, поиск по названиям, создание товара, пропуск; повторная загрузка находит по артикулу', async () => {
+    const washer = (await mk(owner, '/products', { name: 'Шайба 8', unitCode: '796', price: 1, vatRate: '20' })).id;
+    const dup1 = (await mk(owner, '/products', { name: 'Дубль', unitCode: '796', price: 1, vatRate: '20' })).id;
+    const dup2 = (await mk(owner, '/products', { name: 'дубль', unitCode: '796', price: 1, vatRate: '20' })).id;
+    const rows = table(['W-1', '  шайба 8 ', '2', 'шт'], ['D-1', 'Дубль', '3', ''], ['NEW-1', 'Новинка товар', '4,5', 'шт'], ['NEW-2', 'Лишнее', '5', ''], ['', 'Без артикула', '6', '']);
+    const { price, lines } = await run(db => uploadSupplierPrice(db, actor, { companyId: supplier, profileId, date: '2026-11-05', pricesIncludeVat: true, rows }));
+    const at = (art: string) => lines.find(l => l.article === art)!;
+    expect(price.linesUnmatched).toBe(5);
+
+    // поиск по названиям: один товар — подставлен, два — кандидаты, нет — остаётся
+    const m = await run(db => matchSupplierLinesByName(db, actor, price.id));
+    expect(m).toEqual({ matched: 1, ambiguous: 1, notFound: 3 });
+    const after = await run(db => listSupplierPriceLines(db, ws, price.id));
+    const get = (art: string) => after.find(l => l.article === art)!;
+    expect(get('W-1')).toMatchObject({ status: 'matched', productId: washer });
+    expect(get('D-1')).toMatchObject({ status: 'unmatched', productId: null });
+    expect([...get('D-1').candidates].sort()).toEqual([dup1, dup2].sort());
+    expect((await owner.get(`/products/${washer}/articles`)).body.items[0]).toMatchObject({ article: 'W-1' });
+
+    // ручной выбор из кандидатов записывает артикул
+    const bound = await run(db => updateSupplierPriceLine(db, actor, price.id, at('D-1').id, { productId: dup2 }));
+    expect(bound).toMatchObject({ status: 'matched', productId: dup2, candidates: [] });
+    expect((await owner.get(`/products/${dup2}/articles`)).body.items[0]).toMatchObject({ article: 'D-1' });
+
+    // пропуск и снятие пропуска
+    const sk = await run(db => updateSupplierPriceLine(db, actor, price.id, at('NEW-2').id, { skip: true }));
+    expect(sk).toMatchObject({ status: 'skipped', note: 'manual' });
+    expect((await run(db => getSupplierPrice(db, ws, price.id))).linesUnmatched).toBe(2);
+    expect(await run(db => updateSupplierPriceLine(db, actor, price.id, at('NEW-2').id, { skip: false }))).toMatchObject({ status: 'unmatched', note: '' });
+
+    // создание товаров для выбранной строки, затем для всех оставшихся
+    const c1 = await run(db => createProductsForSupplierLines(db, actor, price.id, [at('NEW-1').id]));
+    expect(c1).toEqual({ created: 1, skipped: 0 });
+    const created = (await run(db => listSupplierPriceLines(db, ws, price.id))).find(l => l.article === 'NEW-1')!;
+    expect(created.status).toBe('matched');
+    const [np] = await admin`select name, unit_code, price, vat_rate, kind from products where id = ${created.productId!}`;
+    expect(np).toMatchObject({ name: 'Новинка товар', unit_code: '796', price: '0.00', vat_rate: '20', kind: 'goods' });
+    expect((await owner.get(`/products/${created.productId}/articles`)).body.items[0]).toMatchObject({ article: 'NEW-1' });
+    const c2 = await run(db => createProductsForSupplierLines(db, actor, price.id));
+    expect(c2.created).toBe(2); // NEW-2 и строка без артикула (по названию)
+    const final = await run(db => getSupplierPrice(db, ws, price.id));
+    expect(final).toMatchObject({ linesMatched: 5, linesUnmatched: 0, linesTotal: 5 });
+
+    // повторная загрузка: все находятся по артикулу
+    const again = await run(db => uploadSupplierPrice(db, actor, { companyId: supplier, profileId, date: '2026-11-06', pricesIncludeVat: true, rows: table(['W-1', '', '2', ''], ['D-1', '', '3', ''], ['NEW-1', '', '4', ''], ['NEW-2', '', '5', '']) }));
+    expect(again.lines.map(l => l.status)).toEqual(['matched', 'matched', 'matched', 'matched']);
+  });
+
+  test('строка с неверной ценой не привязывается; чужая строка — 404', async () => {
+    const { price, lines } = await run(db => uploadSupplierPrice(db, actor, { companyId: supplier, profileId, date: '2026-11-07', pricesIncludeVat: true, rows: table(['Q-1', 'q', 'abc', '']) }));
+    expect(await errCode(run(db => updateSupplierPriceLine(db, actor, price.id, lines[0]!.id, { productId: bolt })))).toBe('supplier_line_price_invalid');
+    expect(await errCode(run(db => updateSupplierPriceLine(db, actor, price.id, price.id, { skip: true })))).toBe('not_found');
   });
 });
