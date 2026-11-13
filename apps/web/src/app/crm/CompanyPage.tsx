@@ -2,7 +2,7 @@
 import * as React from 'react';
 import { Link, useParams } from 'react-router';
 import { Activity, Briefcase, FileSignature, FileText, Files, CircleDollarSign, ExternalLink, Globe, LayoutDashboard, CalendarCheck, Wallet, MapPin, Plus, Ruler, Tags, User, UserPlus, Users, Clock, Megaphone, Paperclip, type LucideIcon } from 'lucide-react';
-import { Badge, Button, EmptyState, Tooltip } from '@/components/ui';
+import { Badge, Button, Checkbox, Choice, EmptyState, Tooltip } from '@/components/ui';
 import { DataTable, useDataTable } from '@/components/gr8r/data-table';
 import { Panel, Stat } from '@/components/gr8r/panel';
 import { useT } from '@/i18n';
@@ -284,6 +284,14 @@ function Overview({ company: co }: { company: Company }) {
                 </dt>
                 <dd>
                   <OwnerField value={co.owner} onChange={owner => dispatch({ type: 'company/update', id: co.id, patch: { owner } })} />
+                </dd>
+                <dt>
+                  <Users size={14} />
+                  {t('crm.companies.role.label')}
+                </dt>
+                <dd className="row" style={{ gap: 16 }}>
+                  <Choice><Checkbox checked={co.isCustomer !== false} onChange={e => dispatch({ type: 'company/update', id: co.id, patch: { isCustomer: e.target.checked } })} /> {t('crm.companies.role.customer')}</Choice>
+                  <Choice><Checkbox checked={!!co.isSupplier} onChange={e => dispatch({ type: 'company/update', id: co.id, patch: { isSupplier: e.target.checked } })} /> {t('crm.companies.role.supplier')}</Choice>
                 </dd>
                 <dt>
                   <Clock size={14} />

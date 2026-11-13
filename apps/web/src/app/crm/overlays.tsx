@@ -22,7 +22,7 @@ import { DateInput } from '@/components/gr8r/date-picker';
 type Drawer = { kind: 'deal' | 'contact'; id: string } | null;
 type Dlg =
   | { kind: 'deal'; defaults: DealDefaults }
-  | { kind: 'company' }
+  | { kind: 'company'; supplier?: boolean }
   | { kind: 'contact'; defaults: { company?: string } }
   | { kind: 'move'; id: string; stage: StageId; before: string | null }
   | null;
@@ -218,7 +218,7 @@ export function CrmOverlays({ children }: { children: React.ReactNode }) {
       openContact: id => openDrawer({ kind: 'contact', id }),
       closeDrawer: () => setDrawer(null),
       newDeal: (defaults = {}) => setDlg({ kind: 'deal', defaults }),
-      newCompany: () => setDlg({ kind: 'company' }),
+      newCompany: d => setDlg({ kind: 'company', supplier: d?.supplier }),
       newContact: (defaults = {}) => setDlg({ kind: 'contact', defaults }),
       moveDeal: (id, to, before = null) => requestMove(id, to, before),
       moveDealTo: (id, target) => {
@@ -251,6 +251,7 @@ export function CrmOverlays({ children }: { children: React.ReactNode }) {
       )}
       {dlg?.kind === 'company' && (
         <CompanyFormDialog
+          supplier={dlg.supplier}
           onClose={closeDlg}
           onCreated={id => {
             toast(t('crm.companies.openCompanyToast'), { action: { label: t('crm.common.add'), onClick: () => navigate(`/crm/companies/${id}`) } });

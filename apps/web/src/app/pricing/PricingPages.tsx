@@ -9,7 +9,7 @@ import { DateInput } from '@/components/gr8r/date-picker';
 import { fmtAmount, fmtNumber, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { useCanWrite } from '../meta/custom-fields';
-import { useCategories, useCompanies, useIsAdmin } from '../catalog/data';
+import { useCategories, useIsAdmin, useSuppliers } from '../catalog/data';
 import { fmtDate } from '../lib/dates';
 import { useOrganizations } from '../docs/data';
 import { ProductField } from '../docs/position-field';
@@ -64,7 +64,6 @@ function KindDialog({ kind, onClose }: { kind: PriceKind | null; onClose: () => 
   const tt = useT();
   const api = usePricingApi();
   const kinds = usePriceKinds();
-  const companies = useCompanies();
   const { busy, run } = useRun();
   const [name, setName] = React.useState(kind?.name ?? '');
   const [method, setMethod] = React.useState<PriceKind['method']>(kind?.method ?? 'manual');
@@ -76,6 +75,7 @@ function KindDialog({ kind, onClose }: { kind: PriceKind | null; onClose: () => 
   const [nine, setNine] = React.useState(kind?.roundToNine ?? false);
   const [vat, setVat] = React.useState(kind?.includesVat ?? true);
   const [supplierId, setSupplierId] = React.useState(kind?.supplierId ?? '');
+  const suppliers = useSuppliers(supplierId);
   const [fromReceipts, setFromReceipts] = React.useState(kind?.updateFromReceipts ?? false);
   const system = !!kind?.systemKey;
   const rule = method !== 'manual';
@@ -150,7 +150,7 @@ function KindDialog({ kind, onClose }: { kind: PriceKind | null; onClose: () => 
           </label>
           {!system && method === 'manual' && (
             <Field label={tt('pricing.kinds.supplier')} hint={tt('pricing.kinds.supplierHint')}>
-              {p => <Select id={p.id} value={supplierId} placeholder={tt('pricing.kinds.noSupplier')} onValueChange={setSupplierId} options={[{ value: '', label: tt('pricing.kinds.noSupplier') }, ...(companies.data ?? []).map(c => ({ value: c.id, label: c.name }))]} />}
+              {p => <Select id={p.id} value={supplierId} placeholder={tt('pricing.kinds.noSupplier')} onValueChange={setSupplierId} options={[{ value: '', label: tt('pricing.kinds.noSupplier') }, ...(suppliers.data ?? []).map(c => ({ value: c.id, label: c.name }))]} />}
             </Field>
           )}
           {(supplierId || kind?.systemKey === 'purchase') && (

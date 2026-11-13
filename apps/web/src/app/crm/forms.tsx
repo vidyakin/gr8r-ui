@@ -1,7 +1,7 @@
 /* Формы CRM «New deal», «New company», «New contact» — Dialog в стиле формы новой задачи (overlays/task-form.tsx) */
 import * as React from 'react';
 import { CircleAlert, DollarSign } from 'lucide-react';
-import { Button, Checkbox, Dialog, DialogClose, DialogContent, Input } from '@/components/ui';
+import { Button, Checkbox, Choice, Dialog, DialogClose, DialogContent, Input } from '@/components/ui';
 import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { dOff } from '../lib/dates';
@@ -207,11 +207,11 @@ export function DealFormDialog({ defaults, onClose, onCreated }: { defaults: Dea
 
 /* ---------- компания ---------- */
 
-export function CompanyFormDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
+export function CompanyFormDialog({ supplier, onClose, onCreated }: { supplier?: boolean; onClose: () => void; onCreated: (id: string) => void }) {
   const { data: ws } = useWorkspace();
   const { dispatch } = useCrm();
   const t = useT();
-  const [f, setF] = React.useState({ name: '', industry: INDUSTRIES[0], size: SIZES[2], owner: ws.me, website: '', city: '' });
+  const [f, setF] = React.useState({ name: '', industry: INDUSTRIES[0], size: SIZES[2], owner: ws.me, website: '', city: '', isCustomer: !supplier, isSupplier: !!supplier });
   const [err, setErr] = React.useState<string>();
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF(s => ({ ...s, [k]: v }));
 
@@ -219,7 +219,7 @@ export function CompanyFormDialog({ onClose, onCreated }: { onClose: () => void;
     const name = f.name.trim();
     if (!name) return setErr(t('crm.companies.form.errName'));
     const id = newCrmId('co');
-    dispatch({ type: 'company/create', company: { id, name, industry: f.industry, size: f.size, owner: f.owner, website: f.website.trim() || undefined, city: f.city.trim() } });
+    dispatch({ type: 'company/create', company: { id, name, industry: f.industry, size: f.size, owner: f.owner, website: f.website.trim() || undefined, city: f.city.trim(), isCustomer: f.isCustomer, isSupplier: f.isSupplier } });
     onClose();
     onCreated(id);
   };
@@ -267,6 +267,10 @@ export function CompanyFormDialog({ onClose, onCreated }: { onClose: () => void;
         <FormField id="nc-city" label={t('crm.companies.form.fieldCity')} grow>
           <Input id="nc-city" placeholder={t('crm.companies.form.placeholderCity')} value={f.city} onChange={e => set('city', e.target.value)} />
         </FormField>
+      </div>
+      <div className="row" style={{ gap: 16 }}>
+        <Choice><Checkbox checked={f.isCustomer} onChange={e => set('isCustomer', e.target.checked)} /> {t('crm.companies.role.customer')}</Choice>
+        <Choice><Checkbox checked={f.isSupplier} onChange={e => set('isSupplier', e.target.checked)} /> {t('crm.companies.role.supplier')}</Choice>
       </div>
     </FormDialog>
   );

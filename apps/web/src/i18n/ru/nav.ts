@@ -33,6 +33,7 @@ export const sections: Widen<typeof S> = {
   crmQuoteTemplates: 'Шаблоны КП',
   catalog: 'Каталог',
   production: 'Продукция',
+  suppliers: 'Поставщики',
   productionOrders: 'Заказы на производство',
   productionWorkbench: 'Выпуск продукции',
   productionNeeds: 'Потребности',

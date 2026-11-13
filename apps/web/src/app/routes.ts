@@ -124,6 +124,7 @@ export const SECTIONS = {
   // Каталог и производство
   catalog: { path: '/catalog', name: 'Catalog', icon: Package },
   production: { path: '/production', name: 'Production', icon: Factory },
+  suppliers: { path: '/production/suppliers', name: 'Suppliers', icon: Building2 },
   productionOrders: { path: '/production/orders', name: 'Production orders', icon: ClipboardList },
   productionWorkbench: { path: '/production/workbench', name: 'Production release', icon: Play },
   productionNeeds: { path: '/production/needs', name: 'Needs', icon: PackageSearch },
@@ -234,6 +235,7 @@ export const NAV_GROUPS = {
     items: (
       [
         'production',
+        'suppliers',
         'productionWorkbench',
         'productionOrders',
         'productionNeeds',
@@ -319,6 +321,7 @@ const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
   loyaltyCards: 'catalog',
   loyaltyProgram: 'catalog',
   production: 'production',
+  suppliers: 'production',
   productionOrders: 'production',
   productionWorkbench: 'production',
   productionNeeds: 'production',

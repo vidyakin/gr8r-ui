@@ -110,6 +110,19 @@ export function useCompanies() {
   return useQuery({ queryKey: catalogKey(ws, 'companies'), queryFn: async () => (await call<{ items: { id: string; name: string }[] }>(ws, 'GET', '/companies?limit=200')).items, staleTime: Infinity });
 }
 
+/** Контрагенты с флажком «Поставщик»; выбранный раньше (selected) остаётся в списке, даже если флажок снят */
+export function useSuppliers(selected?: string | null) {
+  const ws = useWsId();
+  const all = useCompanies();
+  const q = useQuery({ queryKey: catalogKey(ws, 'suppliers'), queryFn: async () => (await call<{ items: { id: string; name: string }[] }>(ws, 'GET', '/companies?role=supplier&limit=200')).items, staleTime: 30_000 });
+  const items = React.useMemo(() => {
+    const list = q.data ?? [];
+    const extra = selected && !list.some(c => c.id === selected) ? all.data?.find(c => c.id === selected) : undefined;
+    return extra ? [...list, extra] : list;
+  }, [q.data, all.data, selected]);
+  return { ...q, data: items };
+}
+
 export function useUnits() {
   const ws = useWsId();
   return useQuery({ queryKey: catalogKey(ws, 'units'), queryFn: async () => (await call<{ items: Unit[] }>(ws, 'GET', '/units?limit=200')).items, staleTime: Infinity });

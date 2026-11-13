@@ -957,6 +957,10 @@ export async function postDocument(db: Db, ctx: DocCtx, id: string): Promise<str
   if (doc.type !== 'price_setting') await assertPeriodOpen(db, ctx.workspaceId, doc.date);
   if (doc.investmentProjectId && !(await investmentOpen(db, doc.investmentProjectId))) throw new DomainError(422, 'investment_closed', 'The investment project is closed or archived: unlink it before posting');
   if (meta.party && !doc.counterpartyId) throw new DomainError(422, 'counterparty_required', meta.party === 'customer' ? 'Select a customer before posting' : 'Select a supplier before posting');
+  // документ закупки с контрагентом без флажка «Поставщик» — ставим флажок
+  if (meta.party === 'supplier' && doc.counterpartyId) {
+    await db.update(companies).set({ isSupplier: true }).where(and(eq(companies.workspaceId, ctx.workspaceId), eq(companies.id, doc.counterpartyId), eq(companies.isSupplier, false)));
+  }
   // договор: должен быть того же контрагента и организации и действовать на дату документа
   const contractWarnings: string[] = [];
   if (doc.contractId) {

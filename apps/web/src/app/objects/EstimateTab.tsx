@@ -12,7 +12,7 @@ import { computeEstimateTotals, dec, ESTIMATE_ITEM_KINDS, fmt, OBJECT_COST_CATEG
 import { Alert, Badge, Button, Checkbox, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Menu, MenuContent, MenuItem, MenuRadioGroup, MenuRadioItem, MenuTrigger, Select, Skeleton, Tab, Tabs, TabsContent, TabsList, Tooltip, toast } from '@/components/ui';
 import { NumberField } from '@/components/gr8r/number-field';
 import { fmtAmount, fmtDateTime, fmtNumber, useT, type TKey } from '@/i18n';
-import { buildCategoryTree, useCategories, useCompanies, useProducts, useUnits } from '../catalog/data';
+import { buildCategoryTree, useCategories, useCompanies, useProducts, useSuppliers, useUnits } from '../catalog/data';
 import { ProductFormDialog } from '../catalog/product-ui';
 import { errorMessage } from '../data/api';
 import { SECTIONS } from '../routes';
@@ -335,6 +335,7 @@ function EstimateEditor({ detail, canWrite, isAdmin, markupHost }: { detail: Est
   // единая наценка, %: пусто — не задана (цены не пересчитываются)
   const [markup, setMarkup] = React.useState(() => trim(detail.markupPct));
   const companies = useCompanies();
+  const supplierList = useSuppliers().data;
   const [dirty, setDirty] = React.useState(false);
   // раздел правится по клику по названию: сначала текст, потом поле ввода
   const [editingSection, setEditingSection] = React.useState<string | null>(null);
@@ -589,7 +590,7 @@ function EstimateEditor({ detail, canWrite, isAdmin, markupHost }: { detail: Est
                   aria-label={tt('estimates.columns.supplier')}
                   value={r.supplierId ?? NO_SUPPLIER}
                   onValueChange={v => setSupplier(r, v === NO_SUPPLIER ? null : v)}
-                  options={[{ value: NO_SUPPLIER, label: tt('estimates.supplierNone') }, ...(companies.data ?? []).map(c => ({ value: c.id, label: c.name }))]}
+                  options={[{ value: NO_SUPPLIER, label: tt('estimates.supplierNone') }, ...(r.supplierId && !supplierList.some(c => c.id === r.supplierId) ? [...supplierList, { id: r.supplierId, name: companies.data?.find(c => c.id === r.supplierId)?.name ?? '' }] : supplierList).map(c => ({ value: c.id, label: c.name }))]}
                 />
               ) : <span>{companies.data?.find(c => c.id === r.supplierId)?.name ?? ''}</span>
             ) : null}
@@ -1433,7 +1434,7 @@ function SupplierOrderDialog({ estimateId, onClose }: { estimateId: string; onCl
   const tt = useT();
   const api = useEstimateApi();
   const { busy, run } = useRun();
-  const companies = useCompanies();
+  const companies = useSuppliers(null);
   const [supplierId, setSupplierId] = React.useState('');
   const [comment, setComment] = React.useState('');
   return (

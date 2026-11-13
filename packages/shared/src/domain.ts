@@ -257,6 +257,9 @@ export interface Company {
   website: string;
   city: string;
   created: number;
+  /** Роль контрагента: покупатель и/или поставщик */
+  isCustomer?: boolean;
+  isSupplier?: boolean;
   /** Следующий контакт (задача 1133): дата YYYY-MM-DD и заметка; пустая строка — не запланирован */
   nextContactDate?: string;
   nextContactNote?: string;

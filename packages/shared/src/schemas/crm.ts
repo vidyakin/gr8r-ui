@@ -26,6 +26,9 @@ export const companyCreate = z.object({
   settlementMode: z.enum(['by_documents', 'by_counterparty']).default('by_documents'),
   /** Вид цен контрагента: подставляется в документы (задача 1178) */
   priceKindId: uuid.nullish(),
+  /** Роль контрагента: покупатель и/или поставщик */
+  isCustomer: z.boolean().default(true),
+  isSupplier: z.boolean().default(false),
   nextContactDate: isoDate.nullish(),
   nextContactNote: z.string().trim().max(500).default(''),
   /** Источник привлечения и кампания (задача 1177) */
@@ -33,7 +36,7 @@ export const companyCreate = z.object({
   custom: customData.optional(),
 });
 export const companyUpdate = toPatch(companyCreate.omit({ id: true }));
-export const companyQuery = listQuery.extend({ ownerId: uuid.optional(), industry: z.string().max(200).optional(), sourceId: uuid.optional(), campaignId: uuid.optional() });
+export const companyQuery = listQuery.extend({ ownerId: uuid.optional(), industry: z.string().max(200).optional(), sourceId: uuid.optional(), campaignId: uuid.optional(), role: z.enum(['customer', 'supplier']).optional() });
 
 export const contactCreate = z.object({
   id: clientId,

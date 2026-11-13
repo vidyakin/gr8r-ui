@@ -23,8 +23,8 @@ export type CrmAction =
   /** patch — поля, которые нужны этапу (обязательные): уходят тем же запросом, что и смена этапа. lostReasonId — причина из справочника */
   | { type: 'deal/move'; id: string; stage: StageId; before?: string | null; by: string; lostReasonId?: string; lostReason?: string; patch?: DealPatch }
   | { type: 'deal/delete'; id: string }
-  | { type: 'company/create'; company: Pick<Company, 'name' | 'industry' | 'size' | 'owner'> & Partial<Pick<Company, 'id' | 'website' | 'city'>> }
-  | { type: 'company/update'; id: string; patch: Partial<Pick<Company, 'name' | 'industry' | 'size' | 'owner' | 'website' | 'city' | 'custom' | 'nextContactDate' | 'nextContactNote'>> }
+  | { type: 'company/create'; company: Pick<Company, 'name' | 'industry' | 'size' | 'owner'> & Partial<Pick<Company, 'id' | 'website' | 'city' | 'isCustomer' | 'isSupplier'>> }
+  | { type: 'company/update'; id: string; patch: Partial<Pick<Company, 'name' | 'industry' | 'size' | 'owner' | 'website' | 'city' | 'isCustomer' | 'isSupplier' | 'custom' | 'nextContactDate' | 'nextContactNote'>> }
   | { type: 'contact/create'; contact: Pick<Contact, 'name' | 'company' | 'owner'> & Partial<Pick<Contact, 'id' | 'title' | 'email' | 'phone'>> }
   | { type: 'contact/update'; id: string; patch: Partial<Pick<Contact, 'name' | 'title' | 'email' | 'phone' | 'owner' | 'company' | 'custom'>> }
   | { type: 'activity/add'; activity: NewActivity }
