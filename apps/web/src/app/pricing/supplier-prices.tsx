@@ -10,6 +10,8 @@ import { useT } from '@/i18n';
 import { fmtDateTime, fmtNumber } from '@/i18n/format';
 import { cn } from '@/lib/utils';
 import { errorMessage } from '../data/api';
+import { fmtBytes } from '../data/attachments';
+import { fmtDate } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';
 import { SECTIONS } from '../routes';
 import { useSupplierPrices, useSupplierPricesApi, useSupplierProfiles, type ProfilePreview, type SupplierPrice, type SupplierProfile } from './supplier-prices-data';
@@ -123,7 +125,7 @@ function PricesList({ companyId, canWrite, loading, items, emptyHint }: { compan
                   {fmtDateTime(p.createdAt)}
                 </div>
               </td>
-              <td>{p.date}</td>
+              <td>{fmtDate(p.date)}</td>
               <td>
                 <Badge tone={p.status === 'applied' ? 'green' : 'amber'}>{t(`supplierPrices.tab.status.${p.status}` as const)}</Badge>
               </td>
@@ -410,7 +412,7 @@ function UploadDialog({ companyId, profiles, onClose }: { companyId: string; pro
       >
         <div className="stack" style={{ display: 'grid', gap: 12 }}>
           <Field label={t('supplierPrices.upload.profile')}>{f => <Select id={f.id} value={profileId} onValueChange={setProfileId} options={profiles.map(p => ({ value: p.id, label: p.name }))} />}</Field>
-          <Field label={t('supplierPrices.upload.file')} hint={file ? `${fmtNumber(file.size / 1024, { maximumFractionDigits: 0 })} KB` : undefined}>
+          <Field label={t('supplierPrices.upload.file')} hint={file ? fmtBytes(file.size, t) : undefined}>
             {() => (
               <div>
                 <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" hidden onChange={e => setFile(e.target.files?.[0] ?? null)} />

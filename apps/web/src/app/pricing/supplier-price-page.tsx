@@ -8,6 +8,7 @@ import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent
 import { DateInput } from '@/components/gr8r/date-picker';
 import { useT } from '@/i18n';
 import { fmtAmount, fmtDateTime, fmtNumber } from '@/i18n/format';
+import { fmtDate } from '../lib/dates';
 import { errorMessage } from '../data/api';
 import { useWsId } from '../meta/data';
 import { useCanWrite } from '../meta/custom-fields';
@@ -143,7 +144,7 @@ export function SupplierPricePage() {
       </div>
       <div className="row muted" style={{ gap: 14, flexWrap: 'wrap', fontSize: 12.5, margin: '6px 0 12px' }}>
         <span>
-          {t('supplierPrices.page.date')}: {price.date}
+          {t('supplierPrices.page.date')}: {fmtDate(price.date)}
         </span>
         <span>{price.pricesIncludeVat ? t('supplierPrices.page.vatIn') : t('supplierPrices.page.vatEx')}</span>
         {price.attachmentId && (
