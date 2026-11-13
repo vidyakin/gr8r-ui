@@ -1,13 +1,13 @@
 ---
 title: Загрузка прайсов поставщиков
-sections: []
+sections: [crmCompanies]
 module: trade
 sources:
   - apps/web/src/app/pricing/supplier-prices.tsx
   - apps/web/src/app/pricing/supplier-price-page.tsx
   - apps/web/src/app/pricing/supplier-prices-data.ts
   - apps/api/src/routes/pricing.ts
-verified:
+verified: 8f18131cc8
 screenshots: []
 ---
 
