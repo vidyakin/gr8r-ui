@@ -81,6 +81,7 @@ import { OpeningPage, OpeningsPage } from './money/OpeningPages';
 import { DiscountRulesPage, LoyaltyCardPage, LoyaltyCardsPage, LoyaltyProgramPage, PromoCodesPage } from './loyalty/LoyaltyPages';
 import { PriceKindsPage, PriceListPage, PriceSettingPage, PriceSettingsPage } from './pricing/PricingPages';
 import { PublicPricePage } from './pricing/PublicPricePage';
+import { SupplierPricePage } from './pricing/supplier-price-page';
 import { QuoteTemplatesPage } from './docs/QuoteTemplatesPage';
 import { PayrollPage, PayrollsPage, StatementPage, StatementsPage } from './payroll/PayrollPages';
 import { EmployeesPage, PayrollReportsPage, PayslipPage } from './payroll/PayrollAdminPages';
@@ -176,6 +177,7 @@ export const router = createHashRouter([
       { path: SECTIONS.crmFunnel.path, element: <CrmFunnelPage /> },
       { path: SECTIONS.crmDeals.path, element: <CrmDealsPage /> },
       { path: SECTIONS.crmCompanies.path, element: <CrmCompaniesPage /> },
+      { path: `${SECTIONS.crmCompanies.path}/:id/prices/:priceId`, element: <SupplierPricePage /> },
       { path: `${SECTIONS.crmCompanies.path}/:id/:tab?`, element: <CrmCompanyPage /> },
       { path: SECTIONS.crmContacts.path, element: <CrmContactsPage /> },
       { path: SECTIONS.crmActivities.path, element: <CrmActivitiesPage /> },

@@ -1,7 +1,7 @@
 /* Страница компании — шапка как у страницы проекта и вкладки Overview / Deals / Contacts / Activity */
 import * as React from 'react';
 import { Link, useParams } from 'react-router';
-import { Activity, Briefcase, FileSignature, FileText, Files, CircleDollarSign, ExternalLink, Globe, LayoutDashboard, CalendarCheck, Wallet, MapPin, Plus, Ruler, Tags, User, UserPlus, Users, Clock, Megaphone, Paperclip, type LucideIcon } from 'lucide-react';
+import { Activity, Briefcase, FileSignature, FileText, Files, CircleDollarSign, ExternalLink, Globe, LayoutDashboard, CalendarCheck, Wallet, MapPin, Plus, Ruler, Tags, User, UserPlus, Users, Clock, Megaphone, Paperclip, FileSpreadsheet, type LucideIcon } from 'lucide-react';
 import { Badge, Button, Checkbox, Choice, EmptyState, Tooltip } from '@/components/ui';
 import { DataTable, useDataTable } from '@/components/gr8r/data-table';
 import { Panel, Stat } from '@/components/gr8r/panel';
@@ -19,6 +19,8 @@ import { useCrmUi } from './ui-context';
 import { useCustomRows } from '../meta/custom-fields';
 import { CompanyRequisitesTab } from '../docs/CompanyRequisites';
 import { CompanyPartnerTab } from '../docs/partner-codes';
+import { CompanySupplierPricesTab } from '../pricing/supplier-prices';
+import { useIsAdmin } from '../catalog/data';
 import { CompanyContractsTab } from '../docs/CompanyContracts';
 import { CompanyDocumentsTab } from '../docs/CompanyDocuments';
 import { CompanySettlementsTab } from '../money/CompanySettlements';
@@ -39,6 +41,7 @@ const TABS: [string, LucideIcon][] = [
   ['activity', Activity],
   ['requisites', FileText],
   ['codes', Tags],
+  ['prices', FileSpreadsheet],
   ['contracts', FileSignature],
   ['documents', Files],
   ['settlements', Wallet],
@@ -66,6 +69,7 @@ function CompanyView({ company: co, tab }: { company: Company; tab: string }) {
   const stats = companyStats(data, co.id);
   const deals = dealsOfCompany(data, co.id);
   const acts = activitiesOfCompany(data, co.id);
+  const isAdmin = useIsAdmin();
   const counts: Record<string, number | undefined> = { deals: deals.length, contacts: stats.contacts, activity: acts.length };
 
   let body: React.ReactNode;
@@ -144,6 +148,7 @@ function CompanyView({ company: co, tab }: { company: Company; tab: string }) {
     );
   } else if (tab === 'requisites') body = <CompanyRequisitesTab companyId={co.id} />;
   else if (tab === 'codes') body = <CompanyPartnerTab companyId={co.id} />;
+  else if (tab === 'prices' && isAdmin) body = <CompanySupplierPricesTab companyId={co.id} />;
   else if (tab === 'contracts') body = <CompanyContractsTab companyId={co.id} companyName={co.name} />;
   else if (tab === 'documents') body = <CompanyDocumentsTab companyId={co.id} />;
   else if (tab === 'settlements') body = <CompanySettlementsTab companyId={co.id} />;
@@ -185,7 +190,7 @@ function CompanyView({ company: co, tab }: { company: Company; tab: string }) {
           </div>
         </div>
         <nav className="tabs" aria-label={t('crm.companies.title')}>
-          {TABS.map(([k, Icon]) => (
+          {TABS.filter(([k]) => k !== 'prices' || isAdmin).map(([k, Icon]) => (
             <Link key={k} to={`/crm/companies/${co.id}/${k}`} className={cn('tab', tab === k && 'on')} aria-current={tab === k ? 'page' : undefined}>
               <Icon size={14} />
               {t(`crm.companies.tabs.${k}` as any)}
