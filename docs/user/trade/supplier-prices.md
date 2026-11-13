@@ -7,7 +7,7 @@ sources:
   - apps/web/src/app/pricing/supplier-price-page.tsx
   - apps/web/src/app/pricing/supplier-prices-data.ts
   - apps/api/src/routes/pricing.ts
-verified: a39d854e08
+verified: 3af629e73a
 screenshots: []
 ---
 
