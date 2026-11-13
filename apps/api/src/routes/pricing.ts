@@ -5,6 +5,20 @@ import { zValidator } from '@hono/zod-validator';
 import { asc, desc, isNull } from 'drizzle-orm';
 import {
   archivePriceKind,
+  archiveSupplierProfile,
+  applySupplierPrice,
+  createProductsForSupplierLines,
+  deleteSupplierPrice,
+  listSupplierPrices,
+  listSupplierProfiles,
+  matchSupplierLinesByName,
+  previewSupplierPriceApply,
+  productSupplierPrices,
+  saveSupplierProfile,
+  supplierPriceDetail,
+  updateSupplierPriceLine,
+  uploadSupplierPrice,
+  getSupplierPrice,
   canSeeCost,
   createPriceKind,
   createPriceLink,
@@ -45,6 +59,15 @@ import {
   priceSettingMass,
   priceSettingQuery,
   priceSettingUpdate,
+  supplierPriceApplyBody,
+  supplierPriceDetailQuery,
+  supplierPriceLineParam,
+  supplierPriceLinePatch,
+  supplierPriceLinesBody,
+  supplierPriceUploadFields,
+  supplierPricesQuery,
+  supplierProfileBody,
+  supplierProfilesQuery,
   productPricesQuery,
   renderPriceList,
   uuid,
@@ -72,6 +95,30 @@ async function loadPriceList(ctx: Ctx, q: z.output<typeof priceListQuery>) {
 }
 
 const MAX_FILE = 10 * 1024 * 1024;
+
+/** multipart с файлом прайса поставщика: Content-Length до чтения тела, затем фактический размер; таблица — через readTable */
+async function readPriceFile(c: import('hono').Context<AppEnv>): Promise<{ file: File; bytes: Uint8Array; table: string[][]; fields: Record<string, string> }> {
+  if (Number(c.req.header('content-length') ?? 0) > MAX_FILE + 64 * 1024) throw new AppError(413, 'attachment_too_large', `File is larger than ${MAX_FILE} bytes`, { maxBytes: MAX_FILE });
+  let body: Record<string, string | File | (string | File)[]>;
+  try {
+    body = await c.req.parseBody();
+  } catch {
+    throw new AppError(400, 'bad_request', 'Expected multipart/form-data');
+  }
+  const file = body.file;
+  if (!(file instanceof File)) throw new AppError(400, 'bad_request', 'Field "file" is required');
+  if (!file.size || file.size > MAX_FILE) throw new AppError(422, 'import_file_invalid', 'The file is empty or too large');
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let table: string[][];
+  try {
+    table = readTable(file.name || 'file', bytes);
+  } catch {
+    throw new AppError(422, 'import_file_invalid', 'The file cannot be read: use XLSX or CSV');
+  }
+  const fields: Record<string, string> = {};
+  for (const [k, v] of Object.entries(body)) if (typeof v === 'string') fields[k] = v;
+  return { file, bytes, table, fields };
+}
 
 /** Файл → таблица строк; ошибки разбора — 422 */
 function tableOf(body: z.output<typeof priceImportPreview>): string[][] {
@@ -262,4 +309,81 @@ export const pricingRoutes = new Hono<AppEnv>()
     const id = c.req.valid('param').id;
     await revokePriceLink(ctx.db, docCtx(ctx), id);
     return c.json({ id, revoked: true as const });
+  })
+  /* ---------- прайсы поставщиков (admin: цены поставщиков скрыты от участников) ---------- */
+  .get('/supplier-profiles', admin, zValidator('query', supplierProfilesQuery, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json({ items: await listSupplierProfiles(ctx.db, ctx.workspaceId, c.req.valid('query').companyId) });
+  })
+  .post('/supplier-profiles', admin, zValidator('json', supplierProfileBody, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const b = c.req.valid('json');
+    const row = await saveSupplierProfile(ctx.db, docCtx(ctx), b);
+    return c.json(row, b.id ? 200 : 201);
+  })
+  // сетка файла-образца для настройки колонок: первые строки и число колонок
+  .post('/supplier-profiles/preview', admin, async c => {
+    const { file, table } = await readPriceFile(c);
+    return c.json({ fileName: file.name, totalRows: table.length, columns: table.reduce((m, r) => Math.max(m, r.length), 0), rows: table.slice(0, 30) });
+  })
+  .delete('/supplier-profiles/:id', admin, zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    await archiveSupplierProfile(ctx.db, docCtx(ctx), id);
+    return c.json({ id, archived: true as const });
+  })
+  .get('/supplier-prices', admin, zValidator('query', supplierPricesQuery, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json({ items: await listSupplierPrices(ctx.db, ctx.workspaceId, c.req.valid('query').companyId) });
+  })
+  // multipart: file, companyId, profileId, date, pricesIncludeVat, name?
+  .post('/supplier-prices/upload', admin, async c => {
+    const ctx = ctxOf(c);
+    const { file, bytes, table, fields } = await readPriceFile(c);
+    const f = supplierPriceUploadFields.safeParse(fields);
+    if (!f.success) throw new AppError(400, 'validation_error', 'Invalid upload fields', { issues: f.error.issues });
+    const r = await uploadSupplierPrice(ctx.db, docCtx(ctx), { ...f.data, rows: table, file: { name: file.name || 'price', mime: file.type || null, data: bytes } });
+    return c.json({ price: r.price, lines: r.lines }, 201);
+  })
+  .get('/supplier-prices/:id', admin, zValidator('param', idParam, validationHook), zValidator('query', supplierPriceDetailQuery, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json(await supplierPriceDetail(ctx.db, ctx.workspaceId, c.req.valid('param').id, c.req.valid('query').status));
+  })
+  .delete('/supplier-prices/:id', admin, zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    await deleteSupplierPrice(ctx.db, docCtx(ctx), id);
+    return c.json({ id, deleted: true as const });
+  })
+  .patch('/supplier-prices/:id/lines/:lineId', admin, zValidator('param', supplierPriceLineParam, validationHook), zValidator('json', supplierPriceLinePatch, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const { id, lineId } = c.req.valid('param');
+    const line = await updateSupplierPriceLine(ctx.db, docCtx(ctx), id, lineId, c.req.valid('json'));
+    return c.json({ line, price: await getSupplierPrice(ctx.db, ctx.workspaceId, id) });
+  })
+  .post('/supplier-prices/:id/match-by-name', admin, zValidator('param', idParam, validationHook), zValidator('json', supplierPriceLinesBody, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    const r = await matchSupplierLinesByName(ctx.db, docCtx(ctx), id, c.req.valid('json').lineIds);
+    return c.json({ ...r, price: await getSupplierPrice(ctx.db, ctx.workspaceId, id) });
+  })
+  .post('/supplier-prices/:id/create-products', admin, zValidator('param', idParam, validationHook), zValidator('json', supplierPriceLinesBody, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    const r = await createProductsForSupplierLines(ctx.db, docCtx(ctx), id, c.req.valid('json').lineIds);
+    return c.json({ ...r, price: await getSupplierPrice(ctx.db, ctx.workspaceId, id) });
+  })
+  // сводка «было → стало» без записи
+  .get('/supplier-prices/:id/preview-apply', admin, zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json(await previewSupplierPriceApply(ctx.db, ctx.workspaceId, c.req.valid('param').id));
+  })
+  .post('/supplier-prices/:id/apply', admin, zValidator('param', idParam, validationHook), zValidator('json', supplierPriceApplyBody, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json(await applySupplierPrice(ctx.db, docCtx(ctx), c.req.valid('param').id, { date: c.req.valid('json').date }));
+  })
+  // поставщики товара: артикул, наименование, цена вида цен поставщика на сегодня (карточка товара, admin)
+  .get('/products/:productId/suppliers', admin, zValidator('param', productParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json({ items: await productSupplierPrices(ctx.db, ctx.workspaceId, c.req.valid('param').productId, today()) });
   });

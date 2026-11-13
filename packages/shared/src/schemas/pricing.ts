@@ -137,3 +137,36 @@ export const priceListLinkCreate = z.object({
   expiresAt: isoDate.nullish(),
 });
 export const priceListLinkUpdate = toPatch(priceListLinkCreate);
+
+/* ---------------- прайсы поставщиков (docs/superpowers/specs/2026-11-11-supplier-price-upload-design.md) ---------------- */
+
+/** Диапазоны колонок/строки проверяет сервис (supplier_profile_invalid), здесь — только форма */
+const col = z.number().int().min(0).max(1000);
+export const supplierProfileBody = z.object({
+  /** Есть id — обновление, иначе создание */
+  id: uuid.optional(),
+  companyId: uuid,
+  name: z.string().trim().max(200),
+  firstRow: col,
+  articleCol: col,
+  nameCol: col.nullish(),
+  priceCol: col,
+  unitCol: col.nullish(),
+});
+export const supplierProfilesQuery = z.object({ companyId: uuid });
+export const supplierPricesQuery = z.object({ companyId: uuid });
+/** Поля multipart-загрузки прайса (файл — поле `file`) */
+export const supplierPriceUploadFields = z.object({
+  companyId: uuid,
+  profileId: uuid,
+  date: isoDate,
+  pricesIncludeVat: z.enum(['true', 'false', '1', '0']).transform(v => v === 'true' || v === '1'),
+  name: z.string().trim().max(200).optional(),
+});
+export const supplierPriceDetailQuery = z.object({ status: z.enum(['matched', 'unmatched', 'conflict', 'skipped']).optional() });
+export const supplierPriceLinePatch = z
+  .object({ productId: uuid.optional(), skip: z.boolean().optional() })
+  .refine(v => (v.productId !== undefined) !== (v.skip !== undefined), 'Pass either productId or skip');
+export const supplierPriceLinesBody = z.object({ lineIds: z.array(uuid).max(5000).optional() });
+export const supplierPriceApplyBody = z.object({ date: isoDate.optional() });
+export const supplierPriceLineParam = z.object({ id: uuid, lineId: uuid });
