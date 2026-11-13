@@ -94,7 +94,10 @@ async function loadPriceList(ctx: Ctx, q: z.output<typeof priceListQuery>) {
   return { kinds, date, ...list };
 }
 
-const MAX_FILE = 10 * 1024 * 1024;
+// до 50 МБ — как общий лимит вложений (FILE_MAX_BYTES) и client_max_body_size 55m в nginx
+const MAX_FILE = 50 * 1024 * 1024;
+/** Загрузка цен в «Установку цен» (base64 в JSON) — прежний лимит */
+const IMPORT_MAX_FILE = 10 * 1024 * 1024;
 
 /** multipart с файлом прайса поставщика: Content-Length до чтения тела, затем фактический размер; таблица — через readTable */
 async function readPriceFile(c: import('hono').Context<AppEnv>): Promise<{ file: File; bytes: Uint8Array; table: string[][]; fields: Record<string, string> }> {
@@ -128,7 +131,7 @@ function tableOf(body: z.output<typeof priceImportPreview>): string[][] {
   } catch {
     throw new AppError(422, 'import_file_invalid', 'The file cannot be read');
   }
-  if (!bytes.length || bytes.length > MAX_FILE) throw new AppError(422, 'import_file_invalid', 'The file is empty or too large');
+  if (!bytes.length || bytes.length > IMPORT_MAX_FILE) throw new AppError(422, 'import_file_invalid', 'The file is empty or too large');
   try {
     return readTable(body.fileName, bytes);
   } catch {

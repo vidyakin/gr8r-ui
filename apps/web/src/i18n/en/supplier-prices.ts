@@ -42,7 +42,7 @@ export const supplierPrices = {
     sample: 'Sample file',
     pickFile: 'Choose a sample file',
     changeFile: 'Choose another file',
-    sampleHint: 'XLSX or CSV up to 10 MB. Only the first 30 rows are shown.',
+    sampleHint: 'XLSX or CSV up to 50 MB. Only the first 30 rows are shown.',
     gridHint: 'First {n} rows of the file. Click a row to mark it as the first data row.',
     name: 'Format name',
     namePlaceholder: 'Retail 2026',

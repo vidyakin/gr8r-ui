@@ -44,7 +44,7 @@ export const supplierPrices: typeof en = {
     sample: 'Файл-образец',
     pickFile: 'Выбрать файл-образец',
     changeFile: 'Выбрать другой файл',
-    sampleHint: 'XLSX или CSV до 10 МБ. Показаны первые 30 строк.',
+    sampleHint: 'XLSX или CSV до 50 МБ. Показаны первые 30 строк.',
     gridHint: 'Первые {n} строк файла. Нажмите на строку, чтобы отметить первую строку данных.',
     name: 'Название формата',
     namePlaceholder: 'Розница 2026',
