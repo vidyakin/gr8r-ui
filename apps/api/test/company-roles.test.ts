@@ -1,4 +1,4 @@
-/* Роль контрагента: флажки покупатель/поставщик, фильтр списка, флажок при проведении закупки, разметка миграции 0118. */
+/* Роль контрагента: флажки покупатель/поставщик, фильтр списка, флажок при проведении закупки, разметка миграции 0119. */
 import { beforeAll, describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { Client, admin } from './helpers';
@@ -51,7 +51,7 @@ describe('company roles', () => {
     expect((await owner.get(`/companies/${co.id}`)).body).toMatchObject({ isSupplier: true, isCustomer: true });
   });
 
-  test('migration 0118 marks existing counterparties', async () => {
+  test('migration 0119 marks existing counterparties', async () => {
     const sup = await mk('/companies', { name: 'Миграция: поставщик' });
     const both = await mk('/companies', { name: 'Миграция: оба' });
     const cust = await mk('/companies', { name: 'Миграция: покупатель' });
@@ -60,7 +60,7 @@ describe('company roles', () => {
     await mkDoc('invoice', both.id);
     await mkDoc('invoice', cust.id);
     await admin`update companies set is_supplier = false, is_customer = true where workspace_id = ${ws}`;
-    const stmts = readFileSync(new URL('../../../packages/db/drizzle/0118_company_roles.sql', import.meta.url), 'utf8').split('--> statement-breakpoint');
+    const stmts = readFileSync(new URL('../../../packages/db/drizzle/0119_company_roles.sql', import.meta.url), 'utf8').split('--> statement-breakpoint');
     // две последние инструкции — разметка (первые две добавляют колонки, они уже применены)
     await admin.unsafe(stmts[stmts.length - 2]!);
     await admin.unsafe(stmts[stmts.length - 1]!);

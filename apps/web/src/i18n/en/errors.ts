@@ -88,6 +88,7 @@ export const errors = {
   // брак и возвратные отходы (задача 1136)
   waste_exceeds_cost: 'Returnable waste costs more than the whole release',
   waste_tolling_forbidden: 'Returnable waste is not allowed when processing customer materials',
+  token_required: 'MCP requires an access token (Authorization: Bearer)',
   formula_param: 'Fill in the values of the specification parameters: a quantity formula needs them',
   formula_error: 'A quantity formula of the specification cannot be calculated',
   cost_access_required: 'The cost report is available to the workspace owner and administrators only',
