@@ -1,7 +1,7 @@
 /* Загрузка прайсов поставщиков (миграция 0117, docs/superpowers/specs/2026-11-11-supplier-price-upload-design.md):
    профили формата файла, загруженные прайсы и их строки. Таблицы арендатора, связи — составные FK. */
 import { sql } from 'drizzle-orm';
-import { boolean, check, date, foreignKey, index, integer, jsonb, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { check, date, foreignKey, index, integer, jsonb, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { archivedAt, createdAt, money, pk, ts, updatedAt } from './columns';
 import { attachments } from './attachments';
 import { products } from './catalog';
@@ -20,7 +20,9 @@ export const supplierPriceProfiles = pgTable(
     firstRow: integer('first_row').notNull().default(1),
     articleCol: integer('article_col').notNull(),
     nameCol: integer('name_col'),
-    priceCol: integer('price_col').notNull(),
+    /** Колонки цены без НДС и с НДС: нужна хотя бы одна */
+    priceNetCol: integer('price_net_col'),
+    priceGrossCol: integer('price_gross_col'),
     unitCol: integer('unit_col'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -29,7 +31,7 @@ export const supplierPriceProfiles = pgTable(
   t => [
     unique('supplier_price_profiles_ws_id_uq').on(t.workspaceId, t.id),
     foreignKey({ columns: [t.workspaceId, t.companyId], foreignColumns: [companies.workspaceId, companies.id], name: 'supplier_price_profiles_company_fk' }),
-    check('supplier_price_profiles_cols_chk', sql`${t.firstRow} >= 1 and ${t.articleCol} >= 1 and ${t.priceCol} >= 1 and (${t.nameCol} is null or ${t.nameCol} >= 1) and (${t.unitCol} is null or ${t.unitCol} >= 1)`),
+    check('supplier_price_profiles_cols_chk', sql`${t.firstRow} >= 1 and ${t.articleCol} >= 1 and (${t.priceNetCol} is not null or ${t.priceGrossCol} is not null) and (${t.priceNetCol} is null or ${t.priceNetCol} >= 1) and (${t.priceGrossCol} is null or ${t.priceGrossCol} >= 1) and (${t.nameCol} is null or ${t.nameCol} >= 1) and (${t.unitCol} is null or ${t.unitCol} >= 1)`),
     uniqueIndex('supplier_price_profiles_name_uq').on(t.workspaceId, t.companyId, sql`lower(${t.name})`).where(sql`${t.archivedAt} is null`),
     index('supplier_price_profiles_company_idx').on(t.workspaceId, t.companyId),
   ],
@@ -49,8 +51,6 @@ export const supplierPrices = pgTable(
     /** Дата действия цен */
     date: date('date', { mode: 'string' }).notNull(),
     status: text('status', { enum: ['draft', 'applied'] }).notNull().default('draft'),
-    /** Цены в файле указаны с НДС */
-    pricesIncludeVat: boolean('prices_include_vat').notNull().default(true),
     attachmentId: uuid('attachment_id'),
     fileName: text('file_name').notNull().default(''),
     fileSize: integer('file_size').notNull().default(0),
@@ -87,8 +87,9 @@ export const supplierPriceLines = pgTable(
     name: text('name').notNull().default(''),
     /** Единица (код ОКЕИ), распознанная из файла */
     unitCode: text('unit_code'),
-    /** Цена из файла; null — не разобрана (строка skipped) */
-    price: money('price'),
+    /** Цены из файла без НДС и с НДС; обе null — не разобраны (строка skipped) */
+    priceNet: money('price_net'),
+    priceGross: money('price_gross'),
     productId: uuid('product_id'),
     status: text('status', { enum: ['matched', 'unmatched', 'conflict', 'skipped'] }).notNull(),
     /** Причина пропуска (price_invalid, manual, vat_rate_none…) */

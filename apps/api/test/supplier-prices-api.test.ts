@@ -25,7 +25,7 @@ const grid = (...data: Row[]): Row[] => [['Прайс ООО «Ромашка»'
 const upload = (c: Client, rows: Row[], over: Record<string, string> = {}) => {
   const f = new FormData();
   f.set('file', xlsxFile(rows));
-  for (const [k, v] of Object.entries({ companyId: supplier, profileId, date: '2026-01-01', pricesIncludeVat: 'true', ...over })) f.set(k, v);
+  for (const [k, v] of Object.entries({ companyId: supplier, profileId, date: '2026-01-01', ...over })) f.set(k, v);
   return c.form('POST', '/pricing/supplier-prices/upload', f);
 };
 
@@ -53,7 +53,7 @@ describe('права', () => {
     f.set('file', xlsxFile(grid()));
     const calls = [
       member.get(`/pricing/supplier-profiles?companyId=${supplier}`),
-      member.post('/pricing/supplier-profiles', { companyId: supplier, name: 'x', firstRow: 1, articleCol: 1, priceCol: 2 }),
+      member.post('/pricing/supplier-profiles', { companyId: supplier, name: 'x', firstRow: 1, articleCol: 1, priceGrossCol: 2 }),
       member.form('POST', '/pricing/supplier-profiles/preview', f),
       member.get(`/pricing/supplier-prices?companyId=${supplier}`),
       member.form('POST', '/pricing/supplier-prices/upload', f),
@@ -84,12 +84,16 @@ describe('сценарий', () => {
     csv.set('file', new File(['Арт.;Цена\nB-8;5'], 'p.csv'));
     expect((await owner.form('POST', '/pricing/supplier-profiles/preview', csv)).body.totalRows).toBe(2);
 
-    const body = { companyId: supplier, name: 'Розница', firstRow: 3, articleCol: 1, nameCol: 2, priceCol: 3, unitCol: 4 };
+    const body = { companyId: supplier, name: 'Розница', firstRow: 3, articleCol: 1, nameCol: 2, priceGrossCol: 3, unitCol: 4 };
     const c = await owner.post('/pricing/supplier-profiles', body);
     expect(c.status).toBe(201);
     profileId = c.body.id;
     expect((await owner.post('/pricing/supplier-profiles', { ...body, id: profileId })).status).toBe(200);
     expect((await owner.post('/pricing/supplier-profiles', { ...body, name: 'розница' })).body.error.code).toBe('supplier_profile_exists');
+    // нужна хотя бы одна колонка цены; обе — можно
+    const noPrice = await owner.post('/pricing/supplier-profiles', { companyId: supplier, name: 'Без цены', firstRow: 1, articleCol: 1 });
+    expect(noPrice.body.error.code).toBe('supplier_profile_invalid');
+    expect((await owner.post('/pricing/supplier-profiles', { companyId: (await mk(owner, '/companies', { name: 'ООО «Вторая»' })).id, name: 'Обе', firstRow: 1, articleCol: 1, priceNetCol: 2, priceGrossCol: 3 })).body).toMatchObject({ priceNetCol: 2, priceGrossCol: 3 });
     const l = await owner.get(`/pricing/supplier-profiles?companyId=${supplier}`);
     expect(l.body.items.map((p: any) => p.id)).toEqual([profileId]);
   });

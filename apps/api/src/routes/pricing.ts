@@ -336,7 +336,7 @@ export const pricingRoutes = new Hono<AppEnv>()
     const ctx = ctxOf(c);
     return c.json({ items: await listSupplierPrices(ctx.db, ctx.workspaceId, c.req.valid('query').companyId) });
   })
-  // multipart: file, companyId, profileId, date, pricesIncludeVat, name?
+  // multipart: file, companyId, profileId, date, name?
   .post('/supplier-prices/upload', admin, async c => {
     const ctx = ctxOf(c);
     const { file, bytes, table, fields } = await readPriceFile(c);

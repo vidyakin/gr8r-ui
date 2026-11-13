@@ -771,6 +771,13 @@
       "when": 1794020120000,
       "tag": "0119_company_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "7",
+      "when": 1794020130000,
+      "tag": "0120_supplier_price_cols",
+      "breakpoints": true
     }
   ]
 }

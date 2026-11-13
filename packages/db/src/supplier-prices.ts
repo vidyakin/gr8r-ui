@@ -18,6 +18,16 @@ export type SupplierPriceLine = typeof supplierPriceLines.$inferSelect;
 
 const cell = (row: string[], col: number | null | undefined): string => (col ? String(row[col - 1] ?? '').trim() : '');
 const norm = (s: string) => s.trim().toLowerCase();
+const hasLinePrice = (l: { priceNet: string | null; priceGross: string | null }) => l.priceNet !== null || l.priceGross !== null;
+
+/** Цена строки в базе НДС вида цен: есть цена в той же базе — берётся как есть, иначе другая приводится по ставке товара
+    (null — нужна пересчётная цена, а ставка «без НДС»; или цен в строке нет) */
+export function pickSupplierLinePrice(l: { priceNet: string | null; priceGross: string | null }, kindIncludesVat: boolean, vatRate: string): string | null {
+  const own = kindIncludesVat ? l.priceGross : l.priceNet;
+  if (own !== null) return own;
+  const other = kindIncludesVat ? l.priceNet : l.priceGross;
+  return other === null ? null : convertPriceVatBase(other, !kindIncludesVat, kindIncludesVat, vatRate);
+}
 
 async function loadCompany(db: Db, workspaceId: string, companyId: string) {
   const [c] = await db.select({ id: companies.id, name: companies.name }).from(companies).where(and(eq(companies.workspaceId, workspaceId), eq(companies.id, companyId)));
@@ -35,7 +45,9 @@ export interface SupplierProfileInput {
   firstRow: number;
   articleCol: number;
   nameCol?: number | null | undefined;
-  priceCol: number;
+  /** Колонки цены без НДС и с НДС: нужна хотя бы одна */
+  priceNetCol?: number | null | undefined;
+  priceGrossCol?: number | null | undefined;
   unitCol?: number | null | undefined;
 }
 
@@ -49,7 +61,7 @@ export async function listSupplierProfiles(db: Db, workspaceId: string, companyI
 
 function assertProfileInput(i: SupplierProfileInput): void {
   const ok = (n: number | null | undefined) => n === null || n === undefined || (Number.isInteger(n) && n >= 1);
-  if (!i.name.trim() || !Number.isInteger(i.firstRow) || i.firstRow < 1 || !ok(i.articleCol) || !ok(i.priceCol) || !ok(i.nameCol) || !ok(i.unitCol))
+  if (!i.name.trim() || !Number.isInteger(i.firstRow) || i.firstRow < 1 || !ok(i.articleCol) || !ok(i.priceNetCol) || !ok(i.priceGrossCol) || (i.priceNetCol == null && i.priceGrossCol == null) || !ok(i.nameCol) || !ok(i.unitCol))
     throw new DomainError(422, 'supplier_profile_invalid', 'Profile name, first row and columns must be set');
 }
 
@@ -64,7 +76,7 @@ export async function saveSupplierProfile(db: Db, actor: Actor, input: SupplierP
     .from(supplierPriceProfiles)
     .where(and(eq(supplierPriceProfiles.workspaceId, ws), eq(supplierPriceProfiles.companyId, input.companyId), isNull(supplierPriceProfiles.archivedAt), sql`lower(${supplierPriceProfiles.name}) = ${norm(name)}`));
   if (dup.some(d => d.id !== input.id)) throw new DomainError(409, 'supplier_profile_exists', 'A format with this name already exists for the supplier');
-  const values = { name, firstRow: input.firstRow, articleCol: input.articleCol, nameCol: input.nameCol ?? null, priceCol: input.priceCol, unitCol: input.unitCol ?? null };
+  const values = { name, firstRow: input.firstRow, articleCol: input.articleCol, nameCol: input.nameCol ?? null, priceNetCol: input.priceNetCol ?? null, priceGrossCol: input.priceGrossCol ?? null, unitCol: input.unitCol ?? null };
   if (!input.id) {
     const [row] = await db.insert(supplierPriceProfiles).values({ workspaceId: ws, companyId: input.companyId, ...values }).returning();
     await recordEvent(db, { workspaceId: ws, type: 'supplier_price_profile.created', entity: 'supplier_price_profile', recordId: row!.id, actorId: actor.memberId, payload: { companyId: input.companyId } });
@@ -176,7 +188,6 @@ export interface UploadSupplierPriceInput {
   name?: string | undefined;
   /** Дата действия цен, YYYY-MM-DD */
   date: string;
-  pricesIncludeVat: boolean;
   /** Строки файла как таблица (результат readTable), с нулевой строкой-шапкой включительно */
   rows: string[][];
   file?: { name: string; mime?: string | null; data: Uint8Array } | undefined;
@@ -194,14 +205,19 @@ export async function uploadSupplierPrice(db: Db, actor: Actor, input: UploadSup
   if (!profile) throw new DomainError(404, 'not_found', 'profile not found');
   const company = await loadCompany(db, ws, input.companyId);
 
-  type Draft = { rowNo: number; article: string; name: string; unitText: string; price: string | null };
+  type Draft = { rowNo: number; article: string; name: string; unitText: string; net: string | null; gross: string | null; invalid: boolean };
   const drafts: Draft[] = [];
   for (let i = profile.firstRow - 1; i < input.rows.length; i++) {
     const row = input.rows[i] ?? [];
     const article = cell(row, profile.articleCol);
-    const priceRaw = cell(row, profile.priceCol);
-    if (!article && !priceRaw) continue;
-    drafts.push({ rowNo: i + 1, article, name: cell(row, profile.nameCol), unitText: cell(row, profile.unitCol), price: parsePriceCell(priceRaw) });
+    const netRaw = cell(row, profile.priceNetCol);
+    const grossRaw = cell(row, profile.priceGrossCol);
+    if (!article && !netRaw && !grossRaw) continue;
+    const net = netRaw ? parsePriceCell(netRaw) : null;
+    const gross = grossRaw ? parsePriceCell(grossRaw) : null;
+    // нечисловое значение в любой из заданных колонок или обе пустые — строка skipped (price_invalid)
+    const invalid = (!!netRaw && net === null) || (!!grossRaw && gross === null) || (net === null && gross === null);
+    drafts.push({ rowNo: i + 1, article, name: cell(row, profile.nameCol), unitText: cell(row, profile.unitCol), net, gross, invalid });
   }
   if (!drafts.length) throw new DomainError(422, 'supplier_price_empty', 'The file has no data rows for this format');
 
@@ -216,7 +232,6 @@ export async function uploadSupplierPrice(db: Db, actor: Actor, input: UploadSup
     name,
     kindId: kind.id,
     date: input.date,
-    pricesIncludeVat: input.pricesIncludeVat,
     fileName: input.file?.name ?? '',
     fileSize: input.file?.data.length ?? 0,
     createdBy: actor.memberId,
@@ -230,9 +245,9 @@ export async function uploadSupplierPrice(db: Db, actor: Actor, input: UploadSup
   const unitMap = await resolveUnitCodes(db, ws, drafts.map(d => d.unitText));
   const values = drafts.map(d => {
     const unitCode = d.unitText ? (unitMap.get(norm(d.unitText)) ?? '796') : null;
-    if (d.price === null) return { workspaceId: ws, priceId, rowNo: d.rowNo, article: d.article, name: d.name, unitCode, price: null, productId: null, status: 'skipped' as const, note: 'price_invalid', candidates: [] as string[] };
+    if (d.invalid) return { workspaceId: ws, priceId, rowNo: d.rowNo, article: d.article, name: d.name, unitCode, priceNet: null, priceGross: null, productId: null, status: 'skipped' as const, note: 'price_invalid', candidates: [] as string[] };
     const m = matchArticle(idx, d.article);
-    return { workspaceId: ws, priceId, rowNo: d.rowNo, article: d.article, name: d.name, unitCode, price: d.price, productId: m.productId, status: m.status, note: '', candidates: m.candidates };
+    return { workspaceId: ws, priceId, rowNo: d.rowNo, article: d.article, name: d.name, unitCode, priceNet: d.net, priceGross: d.gross, productId: m.productId, status: m.status, note: '', candidates: m.candidates };
   });
   for (let i = 0; i < values.length; i += 500) await db.insert(supplierPriceLines).values(values.slice(i, i + 500));
   await recountSupplierPrice(db, ws, priceId);
@@ -311,14 +326,14 @@ export async function updateSupplierPriceLine(db: Db, actor: Actor, priceId: str
   const price = await loadDraft(db, ws, priceId);
   const line = await loadLine(db, ws, priceId, lineId);
   if (patch.productId !== undefined) {
-    if (line.price === null) throw new DomainError(422, 'supplier_line_price_invalid', 'The line has no valid price');
+    if (!hasLinePrice(line)) throw new DomainError(422, 'supplier_line_price_invalid', 'The line has no valid price');
     const [p] = await db.select({ id: products.id }).from(products).where(and(eq(products.workspaceId, ws), eq(products.id, patch.productId), isNull(products.archivedAt)));
     if (!p) throw new DomainError(422, 'invalid_reference', 'The product does not exist');
     await bindLine(db, price, line, p.id);
   } else if (patch.skip === true) {
     await db.update(supplierPriceLines).set({ status: 'skipped', note: 'manual' }).where(eq(supplierPriceLines.id, line.id));
   } else if (patch.skip === false && line.status === 'skipped') {
-    if (line.price === null) throw new DomainError(422, 'supplier_line_price_invalid', 'The line has no valid price');
+    if (!hasLinePrice(line)) throw new DomainError(422, 'supplier_line_price_invalid', 'The line has no valid price');
     if (line.productId) await db.update(supplierPriceLines).set({ status: 'matched', note: '' }).where(eq(supplierPriceLines.id, line.id));
     else {
       const m = matchArticle(await articleIndex(db, ws, price.companyId), line.article);
@@ -429,7 +444,7 @@ async function planApply(db: Db, price: SupplierPrice): Promise<SupplierApplyPre
     .where(and(eq(supplierPriceLines.workspaceId, ws), eq(supplierPriceLines.priceId, price.id), eq(supplierPriceLines.status, 'matched')))
     .orderBy(asc(supplierPriceLines.rowNo));
   const last = new Map<string, SupplierPriceLine>();
-  for (const l of matched) if (l.productId && l.price !== null) last.set(l.productId, l);
+  for (const l of matched) if (l.productId && hasLinePrice(l)) last.set(l.productId, l);
   const ids = [...last.keys()];
   const prods = ids.length ? await db.select({ id: products.id, name: products.name, vatRate: products.vatRate }).from(products).where(and(eq(products.workspaceId, ws), inArray(products.id, ids))) : [];
   const info = new Map(prods.map(p => [p.id, p]));
@@ -438,7 +453,7 @@ async function planApply(db: Db, price: SupplierPrice): Promise<SupplierApplyPre
   for (const l of [...last.values()].sort((a, b) => a.rowNo - b.rowNo)) {
     const p = info.get(l.productId!);
     if (!p) continue;
-    const next = convertPriceVatBase(l.price!, price.pricesIncludeVat, kind.includesVat, p.vatRate);
+    const next = pickSupplierLinePrice(l, kind.includesVat, p.vatRate);
     items.push({ lineId: l.id, rowNo: l.rowNo, productId: p.id, productName: p.name, article: l.article, current: current.get(p.id)?.price ?? null, next, warning: next === null ? 'vat_rate_none' : null });
   }
   return { priceId: price.id, kindId: kind.id, kindName: kind.name, date: price.date, items };

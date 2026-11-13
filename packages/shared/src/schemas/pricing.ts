@@ -150,7 +150,9 @@ export const supplierProfileBody = z.object({
   firstRow: col,
   articleCol: col,
   nameCol: col.nullish(),
-  priceCol: col,
+  /** Колонки цены без НДС и с НДС: нужна хотя бы одна (проверяет сервис, supplier_profile_invalid) */
+  priceNetCol: col.nullish(),
+  priceGrossCol: col.nullish(),
   unitCol: col.nullish(),
 });
 export const supplierProfilesQuery = z.object({ companyId: uuid });
@@ -160,7 +162,6 @@ export const supplierPriceUploadFields = z.object({
   companyId: uuid,
   profileId: uuid,
   date: isoDate,
-  pricesIncludeVat: z.enum(['true', 'false', '1', '0']).transform(v => v === 'true' || v === '1'),
   name: z.string().trim().max(200).optional(),
 });
 export const supplierPriceDetailQuery = z.object({ status: z.enum(['matched', 'unmatched', 'conflict', 'skipped']).optional() });
