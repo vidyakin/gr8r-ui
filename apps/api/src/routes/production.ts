@@ -297,6 +297,7 @@ export const itemRoutes = crud({
   search: [manufacturedItems.name, manufacturedItems.code],
   filters: (q, ctx) => [
     q.kind ? eq(manufacturedItems.kind, q.kind) : undefined,
+    q.productId ? eq(manufacturedItems.productId, q.productId) : undefined,
     // «содержит материал/операцию»: товар или операция есть в строках спецификации (у работы — операция строки)
     q.contains ? inArray(manufacturedItems.id, ctx.db.select({ id: bomLines.itemId }).from(bomLines).where(eq(bomLines.productId, q.contains))) : undefined,
   ],
@@ -532,8 +533,10 @@ export const bomLineRoutes = new Hono<AppEnv>()
     const foreign: Record<LineRow['kind'], string[]> = { material: ['childItemId', 'semiMode', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], semi: ['productId', 'scrapPct', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], work: ['childItemId', 'semiMode', 'qty', 'scrapPct'], expense: ['childItemId', 'semiMode', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], output: ['childItemId', 'semiMode', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost'], waste: ['childItemId', 'semiMode', 'operation', 'workCenterId', 'hours', 'rate', 'fixedCost', 'scrapPct', 'costShare'] };
     const bad = foreign[line.kind].find(k => (body as Record<string, unknown>)[k] !== undefined);
     if (bad) throw new AppError(400, 'validation_error', `${bad}: not applicable to a ${line.kind} line`, { issues: [{ path: bad, message: `Not applicable to a ${line.kind} line` }] });
+    // снять товар можно только с работы (операция каталога необязательна), у остальных строк он обязателен
+    if (body.productId === null && line.kind !== 'work') throw new AppError(400, 'validation_error', 'productId: Choose a product', { issues: [{ path: 'productId', message: 'Choose a product' }] });
     const next = { ...line, ...Object.fromEntries(Object.entries(body).filter(([, v]) => v !== undefined)) } as LineRow;
-    if (line.kind === 'work' && !(Number(next.hours) > 0 || Number(next.fixedCost ?? 0) > 0) && !next.productId) throw new AppError(400, 'validation_error', 'hours: Set hours or a fixed cost', { issues: [{ path: 'hours', message: 'Set hours or a fixed cost' }] });
+    if (line.kind === 'work' && !(Number(next.hours) > 0 || !!next.qtyExpr?.trim() || Number(next.fixedCost ?? 0) > 0) && !next.productId) throw new AppError(400, 'validation_error', 'hours: Set hours or a fixed cost', { issues: [{ path: 'hours', message: 'Set hours or a fixed cost' }] });
     const refChanged = next.productId !== line.productId || next.childItemId !== line.childItemId || next.workCenterId !== line.workCenterId;
     const { unitCode } = refChanged ? await checkLine(ctx, line.itemId, next) : { unitCode: line.unitCode };
     await assertFormulas(ctx, line.itemId, body);

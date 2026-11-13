@@ -9,7 +9,7 @@ sources:
   - apps/web/src/app/production/ProductionWorkbenchPage.tsx
   - apps/web/src/app/production/WorkCentersPage.tsx
   - apps/web/src/app/docs/DocumentPage.tsx
-verified: 21f33aa159
+verified: d20f32daff
 screenshots: []
 ---
 
@@ -21,7 +21,7 @@ screenshots: []
 
 ## Что понадобится заранее
 
-- Изделие со спецификацией в разделе «Производство» ([Изделия и спецификации](../production/items-bom.md)): материалы, работы, при необходимости вид производства с этапами ([Этапы производства](../production/stages.md)).
+- Изделие со спецификацией в разделе «Производство» → «Продукция» ([Изделия и спецификации](../production/items-bom.md)): материалы, работы, при необходимости вид производства с этапами ([Этапы производства](../production/stages.md)).
 - Участок с настроенными складами продукции и материалов ([Рабочие участки](../production/work-centers.md)).
 - Проведённый заказ покупателя на это изделие ([Продажи](../trade/sales.md)).
 - Поставщики и закупочные цены в карточках материалов.

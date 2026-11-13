@@ -234,6 +234,7 @@ export const fleet = {
     line: { part: 'Part', work: 'Work' },
     stockPart: 'Part from stock',
     boughtPart: 'Bought separately',
+    clearPart: 'Switch to a separately bought part',
     lineName: 'Name',
     qty: 'Qty',
     price: 'Price',

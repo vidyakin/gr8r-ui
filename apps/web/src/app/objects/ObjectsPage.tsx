@@ -63,41 +63,53 @@ export function ObjectsPage() {
         </EmptyState>
       ) : (
         <div className="table-wrap" style={{ padding: '0 var(--gutter) 24px' }}>
-          <table className="dtbl" aria-label={tt('objects.list.table')}>
+          {/* строка объекта в два ряда: код на оба ряда; 1-й — название, дата начала, статус; 2-й — заказчик, проект, дата окончания, ответственный */}
+          <table className="dtbl two-row" aria-label={tt('objects.list.table')}>
+            <colgroup>
+              <col style={{ width: 120 }} />
+              <col />
+              <col />
+              <col style={{ width: 130 }} />
+              <col style={{ width: 200 }} />
+            </colgroup>
             <thead>
               <tr>
-                <th style={{ width: 120 }}>{tt('objects.field.number')}</th>
-                <th>{tt('objects.field.name')}</th>
-                <th style={{ width: 220 }}>{tt('objects.field.customer')}</th>
-                <th style={{ width: 130 }}>{tt('objects.field.status')}</th>
-                <th style={{ width: 110 }}>{tt('objects.field.startDate')}</th>
-                <th style={{ width: 110 }}>{tt('objects.field.dueDate')}</th>
-                <th style={{ width: 180 }}>{tt('objects.field.manager')}</th>
-                <th style={{ width: 180 }}>{tt('objects.field.project')}</th>
+                <th rowSpan={2}>{tt('objects.field.number')}</th>
+                <th colSpan={2}>{tt('objects.field.name')}</th>
+                <th>{tt('objects.field.startDate')}</th>
+                <th>{tt('objects.field.status')}</th>
+              </tr>
+              <tr>
+                <th>{tt('objects.field.customer')}</th>
+                <th>{tt('objects.field.project')}</th>
+                <th>{tt('objects.field.dueDate')}</th>
+                <th>{tt('objects.field.manager')}</th>
               </tr>
             </thead>
-            <tbody>
-              {rows.map(r => (
-                <tr key={r.id}>
-                  <td className="mono">
+            {rows.map(r => (
+              <tbody key={r.id}>
+                <tr>
+                  <td className="mono" rowSpan={2}>
                     <Link to={`/objects/${r.id}`} className="crm-link">
                       {r.number}
                     </Link>
                   </td>
-                  <td>{r.name}</td>
-                  <td className="muted">{r.customerName ?? '—'}</td>
+                  <td colSpan={2} style={{ fontWeight: 500 }}>{r.name}</td>
+                  <td className="muted">{r.startDate ? fmtDate(r.startDate) : '—'}</td>
                   <td>
                     <Badge tone={statusTone(r.status)} dot>
                       {tt(`objects.status.${r.status}`)}
                     </Badge>
                   </td>
-                  <td className="muted">{r.startDate ? fmtDate(r.startDate) : '—'}</td>
+                </tr>
+                <tr>
+                  <td className="muted">{r.customerName ?? '—'}</td>
+                  <td className="muted">{r.projectName ?? '—'}</td>
                   <td className="muted">{r.dueDate ? fmtDate(r.dueDate) : '—'}</td>
                   <td className="muted">{r.managerName ?? '—'}</td>
-                  <td className="muted">{r.projectName ?? '—'}</td>
                 </tr>
-              ))}
-            </tbody>
+              </tbody>
+            ))}
           </table>
         </div>
       )}

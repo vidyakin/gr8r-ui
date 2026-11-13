@@ -2,7 +2,7 @@
    комбинация таких параметров даёт вариант товара. Значения параметров вводятся в строках заказов. */
 import * as React from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { paramKeyFromName, type SpecParamDef } from '@gr8r/shared';
+import { paramKeyFromName, specParams, type SpecParamDef } from '@gr8r/shared';
 import { Button, IconButton, Input, toast } from '@/components/ui';
 import { useProductionMutations, type Item } from './data';
 import { useT } from '@/i18n';
@@ -19,31 +19,41 @@ export function ParamEditor({ item, canWrite }: { item: Item; canWrite: boolean 
 
   const save = (next: SpecParamDef[]) => {
     setDraft(next);
+    // недозаполненные параметры (пустое название, ключ, варианты) живут в черновике — сервер их не примет
+    if (!specParams.safeParse(next).success) return;
     m.updateItem.mutate(
       { id: item.id, patch: { params: next } },
-      { onSettled: () => setDraft(null) },
+      { onSettled: () => setDraft(d => (d === next ? null : d)) },
     );
   };
 
   const patch = (i: number, p: Partial<SpecParamDef>) => save(rows.map((r, n) => (n === i ? { ...r, ...p } : r)));
 
+  const head = (
+    <div className="param-head">
+      <span className="param-title">{tt('production.params.heading')}</span>
+      {canWrite && (
+        <Button size="sm" variant="secondary" onClick={() => save([...rows, emptyParam()])}>
+          <Plus size={14} />
+          {tt('production.params.add')}
+        </Button>
+      )}
+    </div>
+  );
+
   if (!rows.length)
     return (
       <div className="bom-params" aria-label={tt('production.params.title')}>
+        {head}
         <span className="faint">{tt('production.params.noParamsHint')}</span>
-        {canWrite && (
-          <Button size="sm" variant="secondary" onClick={() => save([emptyParam()])}>
-            <Plus size={14} />
-            {tt('production.params.add')}
-          </Button>
-        )}
       </div>
     );
 
   return (
     <div className="bom-params" aria-label={tt('production.params.title')}>
+      {head}
       {rows.map((p, i) => (
-        <React.Fragment key={i}>
+        <div key={i} className="bom-params-row param-row">
           <label>
             <span className="label">{tt('production.field.name')}</span>
             <Input
@@ -52,7 +62,9 @@ export function ParamEditor({ item, canWrite }: { item: Item; canWrite: boolean 
               disabled={!canWrite}
               onChange={e => {
                 const name = e.target.value;
-                patch(i, { name, key: p.key || paramKeyFromName(name) });
+                // ключ следует за названием, пока его не правили руками
+                const auto = !p.key || p.key === paramKeyFromName(p.name, `param_${i + 1}`);
+                patch(i, auto ? { name, key: paramKeyFromName(name, `param_${i + 1}`) } : { name });
               }}
             />
           </label>
@@ -109,14 +121,8 @@ export function ParamEditor({ item, canWrite }: { item: Item; canWrite: boolean 
               <Trash2 size={15} />
             </IconButton>
           )}
-        </React.Fragment>
+        </div>
       ))}
-      {canWrite && (
-        <Button size="sm" variant="secondary" onClick={() => save([...rows, emptyParam()])}>
-          <Plus size={14} />
-          {tt('production.params.add')}
-        </Button>
-      )}
     </div>
   );
 }

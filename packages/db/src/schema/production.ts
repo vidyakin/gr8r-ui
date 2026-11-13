@@ -9,6 +9,7 @@ import { costItems, documentLines, documents, stockBatches, stockMoves, warehous
 import { members, wsCol } from './people';
 import { tasks } from './work';
 import { workCalendars } from './calendars';
+import { objectEstimateItems } from './objects';
 
 export const workCenters = pgTable(
   'work_centers',
@@ -380,6 +381,8 @@ export const productionItems = pgTable(
     stageId: uuid('stage_id'),
     /** Строка плана производства, из которой позиция заказа (заказы по плану не дублируются) */
     planLineId: uuid('plan_line_id'),
+    /** Строка сметы объекта, из которой создана позиция («Заказ на производство» в строке сметы) */
+    estimateItemId: uuid('estimate_item_id'),
     /** Фактическая себестоимость позиции на этом этапе (материалы + работы + накладные) */
     stageCost: numeric('stage_cost', { precision: 18, scale: 4 }),
     /** Часть stage_cost, пришедшая из проведённых распределений материалов смены (с накладными); доходит до прихода продукции корректировкой */
@@ -420,6 +423,7 @@ export const productionItems = pgTable(
     foreignKey({ columns: [t.workspaceId, t.disposalDocumentId], foreignColumns: [documents.workspaceId, documents.id], name: 'production_items_disposal_document_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.defectReasonId], foreignColumns: [defectReasons.workspaceId, defectReasons.id], name: 'production_items_defect_reason_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.defectMemberId], foreignColumns: [members.workspaceId, members.id], name: 'production_items_defect_member_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.estimateItemId], foreignColumns: [objectEstimateItems.workspaceId, objectEstimateItems.id], name: 'production_items_estimate_item_fk' }).onDelete('set null'),
     check('production_items_qty_chk', sql`${t.qty} > 0`),
     check('production_items_defect_chk', sql`${t.defectQty} >= 0 and ${t.defectQty} <= ${t.qty}`),
     check('production_items_defect_mode_chk', sql`${t.defectMode} is null or ${t.defectMode} in ('waste','cost','expense')`),
@@ -427,6 +431,7 @@ export const productionItems = pgTable(
     index('production_items_source_idx').on(t.sourceItemId),
     index('production_items_plan_line_idx').on(t.planLineId),
     index('production_items_customer_line_idx').on(t.customerOrderLineId),
+    index('production_items_estimate_item_idx').on(t.workspaceId, t.estimateItemId).where(sql`${t.estimateItemId} is not null`),
   ],
 );
 

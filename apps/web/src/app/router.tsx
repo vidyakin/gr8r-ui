@@ -185,7 +185,8 @@ export const router = createHashRouter([
       { path: SECTIONS.crmQuoteTemplates.path, element: <QuoteTemplatesPage /> },
       { path: `${SECTIONS.crmAppointments.path}/day/:id`, element: <CrmServiceDayPage /> },
       // Каталог и производство
-      { path: `${SECTIONS.catalog.path}/:productId?`, element: <CatalogPage /> },
+      // handle.pageKey: открытие карточки товара (смена :productId) не пересоздаёт страницу — таблица не моргает
+      { path: `${SECTIONS.catalog.path}/:productId?`, element: <CatalogPage />, handle: { pageKey: SECTIONS.catalog.path } },
       { path: SECTIONS.production.path, element: <ProductionPage /> },
       { path: SECTIONS.workCenters.path, element: <WorkCentersPage /> },
       { path: SECTIONS.defectReasons.path, element: <DefectReasonsPage /> },
@@ -262,7 +263,7 @@ export const router = createHashRouter([
       { path: SECTIONS.processingDocs.path, element: <ProcessingPage /> },
       { path: '/documents/:id', element: <DocumentPage /> },
       { path: '/documents/:id/print/:form', element: <PrintPage /> },
-      { path: `${SECTIONS.inventory.path}/:productId?`, element: <InventoryPage /> },
+      { path: `${SECTIONS.inventory.path}/:productId?`, element: <InventoryPage />, handle: { pageKey: SECTIONS.inventory.path } },
       { path: SECTIONS.inUse.path, element: <InUsePage /> },
       { path: SECTIONS.serials.path, element: <SerialsPage /> },
       { path: SECTIONS.batches.path, element: <BatchesPage /> },

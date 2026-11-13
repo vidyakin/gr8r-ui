@@ -118,9 +118,9 @@ export function useUnits() {
 /** Обозначение единицы по коду ОКЕИ */
 export const unitSymbol = (units: Unit[] | undefined, code: string) => units?.find(u => u.code === code)?.symbol ?? code;
 
-export function useCategories() {
+export function useCategories(enabled = true) {
   const ws = useWsId();
-  return useQuery({ queryKey: catalogKey(ws, 'categories'), queryFn: async () => (await call<{ items: Category[] }>(ws, 'GET', '/product-categories')).items, staleTime: Infinity });
+  return useQuery({ queryKey: catalogKey(ws, 'categories'), enabled, queryFn: async () => (await call<{ items: Category[] }>(ws, 'GET', '/product-categories')).items, staleTime: Infinity });
 }
 
 export function useAttributes(categoryId: string | null | undefined) {
@@ -135,13 +135,14 @@ export function useAttributes(categoryId: string | null | undefined) {
 
 const PAGE = 200;
 
-export function useProducts(params: ProductParams = {}) {
+export function useProducts(params: ProductParams = {}, { enabled = true, all = false } = {}) {
   const ws = useWsId();
   return useQuery({
-    queryKey: catalogKey(ws, 'products', params),
+    queryKey: catalogKey(ws, 'products', params, ...(all ? ['all'] : [])),
+    enabled,
     queryFn: async () => {
       const rows: Product[] = [];
-      for (let offset = 0; offset < 2000; ) {
+      for (let offset = 0; all || offset < 2000; ) {
         const sp = new URLSearchParams({ limit: String(PAGE), offset: String(offset), sort: 'name' });
         if (params.categoryId) sp.set('categoryId', params.categoryId);
         if (params.q) sp.set('q', params.q);

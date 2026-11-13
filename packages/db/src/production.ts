@@ -11,7 +11,7 @@ import type { Db } from './client';
 import { canSeeCost } from './cost';
 import { DomainError } from './errors';
 import { DOCUMENT_HOOKS, STATE_HOOKS } from './document-hooks';
-import { createDocument, postDocument, unpostDocument, assertProcessingOrder, type DocCtx } from './documents';
+import { createDocument, assignDocumentNumber, postDocument, unpostDocument, assertProcessingOrder, type DocCtx } from './documents';
 import { recordEvent } from './events';
 import { applyCustomerStockMoves, revertCustomerStockMoves, type CustomerMoveRequest } from './customer-stock';
 import { applyStockMoves, loadAvgCosts, loadInventorySettings, recomputeStockCosts, revalueMove, type MoveRequest } from './stock';
@@ -377,7 +377,7 @@ export interface ProductionOrderInput {
   /** Склад отходов и склад брака; пусто — с участка (отходы: склад отходов, затем склад продукции; брак: склад брака, затем отходов) */
   wasteWarehouseId?: string | null;
   defectWarehouseId?: string | null;
-  items: { itemId: string; qty: string; customerOrderLineId?: string | null; planLineId?: string | null; params?: Record<string, unknown> | null }[];
+  items: { itemId: string; qty: string; customerOrderLineId?: string | null; planLineId?: string | null; estimateItemId?: string | null; params?: Record<string, unknown> | null }[];
 }
 
 /** Вариант товара по строке заказа покупателя: строка ссылается на вариант — выпускается он */
@@ -443,6 +443,8 @@ export async function createProductionOrder(db: Db, ctx: DocCtx, input: Producti
     comment: input.comment ?? '',
     lines: [],
   });
+  // номер сразу, ещё черновиком: такой заказ уже не удалить, только отменить
+  await assignDocumentNumber(db, id);
   // склады по умолчанию берутся с участка — чтобы выпуск знал, куда отправлять возвратные отходы и брак
   let wasteWarehouseId: string | null = input.wasteWarehouseId ?? null;
   let defectWarehouseId: string | null = input.defectWarehouseId ?? null;
@@ -481,6 +483,7 @@ export async function createProductionOrder(db: Db, ctx: DocCtx, input: Producti
         unitCode: byItem.get(i.itemId)!.unitCode,
         customerOrderLineId: i.customerOrderLineId ?? null,
         planLineId: i.planLineId ?? null,
+        estimateItemId: i.estimateItemId ?? null,
         params: resolved[n]!.params,
         productVariantId: resolved[n]!.variantId,
         sortOrder: n,
@@ -509,7 +512,7 @@ export interface ProductionOrderPatch {
   wasteValuation?: WasteValuation | null;
   wasteWarehouseId?: string | null;
   defectWarehouseId?: string | null;
-  items?: { itemId: string; qty: string; customerOrderLineId?: string | null; planLineId?: string | null; params?: Record<string, unknown> | null }[];
+  items?: { itemId: string; qty: string; customerOrderLineId?: string | null; planLineId?: string | null; estimateItemId?: string | null; params?: Record<string, unknown> | null }[];
 }
 
 /** Правка заказа на производство: шапка и позиции */
@@ -560,6 +563,9 @@ export async function updateProductionOrder(db: Db, ctx: DocCtx, id: string, pat
     }
     const resolved: { params: Record<string, unknown>; variantId: string | null }[] = [];
     for (const i of patch.items) resolved.push(await itemParams(db, ctx, byItem.get(i.itemId)!, i));
+    // связь со строкой сметы переживает правку позиций: ищем по прежним позициям с тем же изделием
+    const prevLinks = await db.select({ itemId: productionItems.itemId, estimateItemId: productionItems.estimateItemId }).from(productionItems).where(eq(productionItems.documentId, id));
+    const linkOf = (itemId: string) => prevLinks.find(p => p.itemId === itemId && p.estimateItemId)?.estimateItemId ?? null;
     await db.delete(productionItems).where(eq(productionItems.documentId, id));
     if (patch.items.length)
       await db.insert(productionItems).values(
@@ -571,6 +577,7 @@ export async function updateProductionOrder(db: Db, ctx: DocCtx, id: string, pat
           unitCode: byItem.get(i.itemId)!.unitCode,
           customerOrderLineId: i.customerOrderLineId ?? null,
           planLineId: i.planLineId ?? null,
+          estimateItemId: i.estimateItemId !== undefined ? i.estimateItemId : linkOf(i.itemId),
           params: resolved[n]!.params,
           productVariantId: resolved[n]!.variantId,
           sortOrder: n,

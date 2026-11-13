@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { CalendarRange, CircleAlert, FileText, Plus, Send, Trash2, Undo2, Wand2 } from 'lucide-react';
 import { MATERIAL_OWNERS, MATERIAL_OWNER_LABELS, PRODUCTION_ORDER_STATES } from '@gr8r/shared';
-import { Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
+import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
 import { DocForm } from '@/components/gr8r/doc-form';
 import { DateInput } from '@/components/gr8r/date-picker';
 import { fmtDate } from '../lib/dates';
@@ -21,6 +21,8 @@ import { useDocumentResources, usePlanningApi, useResources } from './planning-d
 import { MaterialStockBlock, ReserveDialog, StockToggle, SupplyButtons } from './material-stock';
 import type { MaterialCoverageRow } from './orders-data';
 import { DocTabs } from '../docs/doc-tabs';
+import { ProductField } from '../docs/position-field';
+import type { Item } from './data';
 import { t, tProductionEnum, useT } from '@/i18n';
 
 export function ProductionOrderPage() {
@@ -76,6 +78,14 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
   const changeItem = (index: number, patch: { itemId?: string; qty?: string }) => {
     const next = order.items.map((it, n) => (n === index ? { itemId: patch.itemId ?? it.itemId, qty: patch.qty ?? it.qty, customerOrderLineId: it.customerOrderLineId } : { itemId: it.itemId, qty: it.qty, customerOrderLineId: it.customerOrderLineId }));
     setItems(next);
+  };
+  // в строке выбирается товар, спецификация — по товару: одна — сразу, несколько — выбор в окне
+  const [specChoice, setSpecChoice] = React.useState<{ index: number; name: string; specs: Item[] } | null>(null);
+  const pickProduct = (index: number, p: { id: string; name: string }) => {
+    const specs = products.filter(s => s.productId === p.id && !s.isInvalid);
+    if (!specs.length) return void toast.error(tt('production.order.noSpecForProduct', { name: p.name }));
+    if (specs.length === 1) return changeItem(index, { itemId: specs[0]!.id });
+    setSpecChoice({ index, name: p.name, specs });
   };
   const removeItem = (index: number) => setItems(order.items.filter((_, n) => n !== index).map(i => ({ itemId: i.itemId, qty: i.qty, customerOrderLineId: i.customerOrderLineId })));
 
@@ -226,6 +236,34 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
         />
       </section>
 
+      {(() => {
+        // изделия без товара каталога: выпуск на склад и разборка упадут — предупредить заранее
+        const missing = order.items.filter(it => !it.productId && !snap.data?.items.find(s => s.id === it.itemId)?.productId);
+        return missing.length && order.status !== 'cancelled' ? (
+          <Alert tone="warn" title={tt('production.order.noProductTitle')}>
+            {tt('production.order.noProductText')}{' '}
+            {missing.map(it => (
+              <Link key={it.id} className="link" to={`/production/${it.itemId}`} style={{ marginRight: 8 }}>
+                {it.name}
+              </Link>
+            ))}
+          </Alert>
+        ) : null;
+      })()}
+      {specChoice && (
+        <Dialog open onOpenChange={v => !v && setSpecChoice(null)}>
+          <DialogContent title={tt('production.order.chooseSpecTitle')} description={tt('production.order.chooseSpecHint', { name: specChoice.name })}>
+            <div className="stack" style={{ gap: 4 }}>
+              {specChoice.specs.map(s => (
+                <Button key={s.id} variant="ghost" className="justify-start" onClick={() => (changeItem(specChoice.index, { itemId: s.id }), setSpecChoice(null))}>
+                  <span className="trunc">{s.name}</span>
+                  {s.code && <span className="mono faint" style={{ fontSize: 11 }}>{s.code}</span>}
+                </Button>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
       <DocTabs
         label={t('docs.tabsLabel')}
         tabs={[
@@ -258,16 +296,7 @@ function OrderView({ order }: { order: NonNullable<ReturnType<typeof useProducti
                         <tr key={it.id} data-row={n}>
                           <td className="faint num">{n + 1}</td>
                           <td>
-                            {editable ? (
-                              <Select
-                                aria-label={tt('production.field.product')}
-                                value={it.itemId}
-                                onValueChange={v => changeItem(n, { itemId: v })}
-                                options={products.map(p => ({ value: p.id, label: p.name }))}
-                              />
-                            ) : (
-                              <span className="trunc">{it.name}</span>
-                            )}
+                            <ProductField id={it.productId ?? snap.data?.items.find(s => s.id === it.itemId)?.productId ?? null} name={it.name} disabled={!editable} aria-label={tt('production.field.product')} onPick={p => pickProduct(n, p)} />
                           </td>
                           <td className="r">
                             {editable ? (

@@ -100,6 +100,37 @@
 .dtbl tbody tr:last-child td {
   border-bottom: 0;
 }
+/* Таблица «строка в два ряда» (список объектов): каждая запись — свой <tbody>, разделитель только между записями */
+.dtbl.two-row th {
+  padding: 4px 8px;
+}
+.dtbl.two-row thead tr:first-child th:not([rowspan]) {
+  border-bottom: 0;
+  padding-top: 7px;
+}
+.dtbl.two-row thead tr:last-child th {
+  padding-bottom: 7px;
+}
+.dtbl.two-row tbody tr:first-child td:not([rowspan]) {
+  border-bottom: 0;
+  padding-top: 7px;
+  padding-bottom: 1px;
+}
+.dtbl.two-row tbody tr:last-child td,
+.dtbl.two-row tbody td[rowspan] {
+  border-bottom: 1px solid var(--divider);
+  padding-bottom: 7px;
+}
+.dtbl.two-row tbody:last-child td {
+  border-bottom: 0;
+}
+.dtbl.two-row tbody td[rowspan] {
+  vertical-align: top;
+  padding-top: 7px;
+}
+.dtbl.two-row tbody:hover td {
+  background: var(--surface-2);
+}
 /* Широкие таблицы расчётов: заголовки переносятся на вторую строку;
    .cq делает обёртку контейнером — в узком месте второстепенные колонки (.col-aux) прячутся,
    чтобы таблица не уезжала влево горизонтальным скроллом */
@@ -120,6 +151,31 @@
 }
 .cell-input.r {
   text-align: right;
+}
+/* название раздела сметы: жирное, с пунктирным подчёркиванием, по клику превращается в поле ввода */
+.sec-name {
+  font-weight: 600;
+  text-decoration: underline dotted var(--border-strong);
+  text-underline-offset: 3px;
+}
+.sec-name-edit {
+  cursor: pointer;
+}
+.sec-name-edit:hover {
+  text-decoration-color: var(--text-2);
+}
+/* числовое поле со степпером в ячейке таблицы: высота ячейки, число справа */
+.numfield.cell-num {
+  height: 30px;
+  padding: 0 4px 0 8px;
+}
+.numfield.cell-num input {
+  text-align: right;
+}
+/* название сметы в первом ряду — рядом с чипами смет (там же номер и статус) */
+.est-title {
+  width: 280px;
+  max-width: 100%;
 }
 .doc-lines .combo .input {
   height: 30px;

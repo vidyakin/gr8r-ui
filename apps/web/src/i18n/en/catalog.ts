@@ -90,7 +90,11 @@ export const catalog = {
     deletedCleared: { one: 'Deleted “{name}” and cleared {count} value', other: 'Deleted “{name}” and cleared {count} values' },
     typeToConfirm: 'Type “{key}” to confirm',
   },
+  produced: 'Produced',
+  notProduced: 'Not produced',
+  producedFilter: 'Production',
   product: {
+    producedBy: 'Specifications',
     addUnit: '+ Add unit…',
     addUnitTitle: 'New unit of measure',
     addUnitDesc: 'A custom unit appears in all unit lists of the workspace.',

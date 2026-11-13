@@ -265,7 +265,11 @@ export const production: Widen<typeof C> = {
   },
 
   list: {
-    title: 'Производство',
+    title: 'Продукция',
+    noProduct: 'Нет товара в каталоге',
+    noProductHint: 'Изделие не привязано к товару каталога: его нельзя выпустить на склад и продать. Привяжите товар в карточке изделия.',
+    stockFilter: 'Товар в каталоге',
+    stockLinked: 'Привязан',
     summary: { one: '{count} позиция', few: '{count} позиции', many: '{count} позиций', other: '{count} позиции' },
     newProduct: 'Новая позиция',
     noProducts: 'Пока ничего не выпускается',
@@ -289,6 +293,13 @@ export const production: Widen<typeof C> = {
   },
 
   item: {
+    catalogProduct: 'Товар в каталоге',
+    noCatalogProduct: 'Не привязан: на склад не выпустить',
+    createProduct: 'Создать товар',
+    unlinkProduct: 'Отвязать товар каталога',
+    productCreated: 'Товар «{name}» создан и привязан',
+    createProductToo: 'Создать товар в каталоге',
+    createProductHint: 'Товаром каталога изделие выпускается на склад и продаётся. Полуфабрикату он нужен, только если тот хранится на складе.',
     title: 'Продукция: {name}',
     notFoundTitle: 'Позиция не найдена',
     notFoundText: 'Такой позиции нет или она в архиве.',
@@ -334,6 +345,10 @@ export const production: Widen<typeof C> = {
     bomMissingPriceHint: 'В каталоге нет цены {source}: материал считается бесплатным',
     bomPriceSource: 'Цены материалов: {source}.',
     bomChangePriceSource: 'Изменить',
+    calcValues: 'Значения для расчёта',
+    calcValuesHint: 'Значения для расчёта — только для себестоимости на этой странице, в заказах задаются свои',
+    calcValuesNeeded: 'Себестоимость считается по формулам строк: задайте значения для расчёта выше',
+    formulaLine: 'Строка «{line}»: {error}',
     bomCostLine: 'Себестоимость не может быть рассчитана',
     bomDragToReorder: 'Перетащите, чтобы изменить порядок',
     bomHoursOf: 'Часы: {name}',
@@ -446,6 +461,11 @@ export const production: Widen<typeof C> = {
   },
 
   order: {
+    noProductTitle: 'Часть продукции не привязана к каталогу',
+    noProductText: 'Её нельзя выпустить на склад или разобрать. Привяжите товар каталога в карточке изделия:',
+    noSpecForProduct: 'У товара «{name}» нет действующей спецификации для этой операции',
+    chooseSpecTitle: 'Выберите спецификацию',
+    chooseSpecHint: 'У товара «{name}» несколько спецификаций — выберите, по какой производить.',
     title: 'Заказ на производство {number}',
     titleDraft: 'Заказ на производство (черновик)',
     newOrder: 'Новый заказ на производство',
@@ -1565,6 +1585,7 @@ export const production: Widen<typeof C> = {
 
   params: {
     title: 'Параметры спецификации',
+    heading: 'Параметры',
     add: 'Добавить параметр',
     noParams: 'Параметров пока нет',
     noParamsHint: 'Параметров нет: состав продукции одинаковый для любого заказа.',
@@ -1611,6 +1632,7 @@ export const production: Widen<typeof C> = {
       stock: 'Брать со склада',
       explode: 'Раскрыть в материалы',
     },
+    insertParam: 'Вставить параметр «{name}»',
     fields: {
       kind: 'Тип',
       stage: 'Этап',
@@ -1628,6 +1650,8 @@ export const production: Widen<typeof C> = {
       workCenter: 'Участок',
       operation: 'Операция',
       operationName: 'Название работы',
+      amountExpr: 'Формула суммы',
+      byFormula: 'По формуле',
       expr: 'Формула количества',
       exprHint: 'Считается по параметрам продукции. Пусто: количество берётся из поля выше.',
       owner: 'Чей материал',
@@ -1652,6 +1676,7 @@ export const production: Widen<typeof C> = {
       workCenterNo: 'Необязательно: без участка задайте ставку ниже.',
       rate: 'Пусто: ставка берётся из участка.',
       fixed: 'Прибавляется к часам × ставку.',
+      amountExpr: 'Сумма работы на партию по параметрам спецификации, вместо «Фикс». Пусто: берётся «Фикс».',
       condition: 'Строка попадает в состав только при истинном условии. Пусто: строка всегда входит в состав.',
       waste: 'Продукция, получаемая в производстве. Приходуется на склад отходов финальным этапом и оценивается по настройке «Источник цены отходов».',
     },

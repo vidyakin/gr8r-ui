@@ -30,7 +30,7 @@ export const sections = {
   crmAppointments: 'Appointments',
   crmQuoteTemplates: 'Proposal templates',
   catalog: 'Catalog',
-  production: 'Production',
+  production: 'Products',
   productionOrders: 'Production orders',
   productionWorkbench: 'Production release',
   productionNeeds: 'Needs',

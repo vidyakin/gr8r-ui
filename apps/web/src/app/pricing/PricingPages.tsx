@@ -12,7 +12,7 @@ import { useCanWrite } from '../meta/custom-fields';
 import { useCategories, useCompanies, useIsAdmin } from '../catalog/data';
 import { fmtDate } from '../lib/dates';
 import { useOrganizations } from '../docs/data';
-import { ProductPicker } from '../docs/pickers';
+import { ProductField } from '../docs/position-field';
 import {
   usePriceKinds,
   usePriceLinks,
@@ -550,7 +550,7 @@ export function PriceSettingPage() {
                 return (
                   <tr key={l.id}>
                     <td className="faint num">{i + 1}</td>
-                    <td><ProductPicker value={l.productName} price="price" disabled={!editable} invalid={isDup} onPick={p => set({ productId: p.id, productName: p.name, sku: p.sku, price: l.price || p.price })} /></td>
+                    <td><ProductField id={l.productId} name={l.productName} aria-label={tt('pricing.product')} price="price" disabled={!editable} invalid={isDup} onPick={p => set({ productId: p.id, productName: p.name, sku: p.sku, price: l.price || p.price })} /></td>
                     <td className="mono muted">{l.sku}</td>
                     <td><Select aria-label={tt('pricing.kind')} disabled={!editable} value={l.priceKindId} onValueChange={v => set({ priceKindId: v })} options={kindOptions} /></td>
                     <td className="r num muted">{l.oldPrice === null ? '' : fmtAmount(l.oldPrice)}</td>

@@ -4,6 +4,7 @@ import { CircleAlert, Factory, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, Input, Segmented, Skeleton, toast } from '@/components/ui';
 import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
 import { t, useT } from '@/i18n';
+import { parseNumber } from '@/i18n/format';
 import { money, useIsAdmin } from '../catalog/data';
 import { useWarehouses } from '../docs/data';
 import { useProductionApi, useSnapshot, type WorkCenter } from './data';
@@ -125,12 +126,12 @@ function CenterDialog({ wc, workshops, stores, onClose }: { wc?: WorkCenter; wor
   const submit = async () => {
     const errs: Record<string, string> = {};
     if (!name.trim()) errs.name = tt('common.enterName');
-    if (rate.trim() !== '' && !(Number(rate) >= 0)) errs.rate = tt('catalog.product.nonNegative');
-    if (overPct.trim() !== '' && !(Number(overPct) >= 0)) errs.overPct = tt('catalog.product.nonNegative');
+    if (rate.trim() !== '' && !(parseNumber(rate) >= 0)) errs.rate = tt('catalog.product.nonNegative');
+    if (overPct.trim() !== '' && !(parseNumber(overPct) >= 0)) errs.overPct = tt('catalog.product.nonNegative');
     setErr(errs);
     if (Object.keys(errs).length) return;
     setBusy(true);
-    const body = { name: name.trim(), code: code.trim(), hourlyRate: rate.trim() === '' ? 0 : Number(rate), warehouseId: warehouseId || null, outputWarehouseId: outputWh || null, wasteWarehouseId: wasteWh || null, defectWarehouseId: defectWh || null, materialMode, materialOvertransferPct: overPct.trim() === '' ? null : Number(overPct), note: note.trim() };
+    const body = { name: name.trim(), code: code.trim(), hourlyRate: rate.trim() === '' ? 0 : parseNumber(rate), warehouseId: warehouseId || null, outputWarehouseId: outputWh || null, wasteWarehouseId: wasteWh || null, defectWarehouseId: defectWh || null, materialMode, materialOvertransferPct: overPct.trim() === '' ? null : parseNumber(overPct), note: note.trim() };
     const r = wc ? await api('PATCH', `/work-centers/${wc.id}`, body) : await api('POST', '/work-centers', body);
     setBusy(false);
     if (!r) return;

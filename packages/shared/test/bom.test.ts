@@ -286,3 +286,18 @@ describe('возвратные отходы (задача 1136)', () => {
     expect(e.materials).toHaveLength(1);
   });
 });
+
+describe('формула суммы у работы', () => {
+  // формула работы считает фиксированную сумму на партию: 300 ₽ за автомат
+  const board = item('board', { paramKeys: ['automats'], params: { automats: 6 }, lines: [work('w', { workCenterId: 'assembly', hours: '1', fixedCost: '999', qtyExpr: 'automats * 300' })] });
+
+  test('себестоимость: часы × ставка + сумма по формуле вместо fixedCost', () => {
+    const n = computeBomCost([board], 'board', pricing);
+    expect(n.lines[0]).toMatchObject({ kind: 'work', cost: fmt(dec('2200')) }); // 1 ч × 400 + 6 × 300
+  });
+
+  test('развёртка: фиксированная сумма работы по формуле, часы из поля', () => {
+    const ex = explodeBom([board], 'board', '1');
+    expect(ex.works[0]).toMatchObject({ hours: '1.000', fixedCost: '1800.00' });
+  });
+});

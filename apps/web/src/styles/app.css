@@ -762,8 +762,8 @@ h3.sub {
     transform: scaleX(0);
   }
 }
-/* route change: content rises in, lightly staggered */
-.fx-route > .page > *,
+/* route change: content rises in, lightly staggered; боковая карточка анимируется сама (.drawer.enter) */
+.fx-route > .page > *:not(.drawer, .drawer-scrim),
 .fx-route > .fullstate {
   animation: riseIn 0.36s var(--ease) both;
 }

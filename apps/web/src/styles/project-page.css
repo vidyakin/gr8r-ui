@@ -51,6 +51,19 @@
 .kv > dt svg {
   color: var(--text-4);
 }
+/* карточки (EntityDrawer): колонка меток по самой длинной метке, не шире 220px; длинная переносится */
+.kv.kv-auto {
+  grid-template-columns: fit-content(220px) minmax(0, 1fr);
+  column-gap: 12px;
+}
+.kv.kv-auto > dt {
+  height: auto;
+  min-height: 30px;
+  line-height: 1.25;
+}
+.kv.kv-auto > dt svg {
+  flex-shrink: 0;
+}
 @media (max-width: 900px) {
   .proj-h {
     padding-top: 16px;

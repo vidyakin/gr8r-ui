@@ -286,7 +286,11 @@ export const production = {
 
   /** Журнал производства — список выпущенной продукции и полуфабрикатов */
   list: {
-    title: 'Production',
+    title: 'Products',
+    noProduct: 'No catalog product',
+    noProductHint: 'The item is not linked to a catalog product: it cannot be released to stock or sold. Link it in the item card.',
+    stockFilter: 'Catalog product',
+    stockLinked: 'Linked',
     summary: { one: '{count} item', other: '{count} items' },
     newProduct: 'New product',
     noProducts: 'No products yet',
@@ -311,6 +315,13 @@ export const production = {
 
   /** Карточка товара (полуфабриката / продукции): спецификация, себестоимость */
   item: {
+    catalogProduct: 'Catalog product',
+    noCatalogProduct: 'Not linked: cannot be released to stock',
+    createProduct: 'Create product',
+    unlinkProduct: 'Unlink the catalog product',
+    productCreated: 'Product “{name}” created and linked',
+    createProductToo: 'Create a product in the catalog',
+    createProductHint: 'The catalog product is used to release the item to stock and sell it. A semi-finished product needs it only if it is kept in stock.',
     title: 'Product: {name}',
     notFoundTitle: 'Product not found',
     notFoundText: 'This product does not exist or was archived.',
@@ -356,6 +367,10 @@ export const production = {
     bomMissingPriceHint: 'No {source} in the catalog: this material is counted as free',
     bomPriceSource: 'Material prices: {source}.',
     bomChangePriceSource: 'Change',
+    calcValues: 'Values for calculation',
+    calcValuesHint: 'Values for calculation — only for the cost on this page; orders set their own',
+    calcValuesNeeded: 'Cost depends on parameters: enter values for calculation above',
+    formulaLine: 'Line “{line}”: {error}',
     bomCostLine: 'The cost cannot be calculated',
     bomDragToReorder: 'Drag to reorder',
     bomHoursOf: 'Hours of {name}',
@@ -470,6 +485,11 @@ export const production = {
 
   /** Карточка заказа на производство */
   order: {
+    noProductTitle: 'Some products are not linked to the catalog',
+    noProductText: 'They cannot be released to stock or disassembled. Link a catalog product in the item card:',
+    noSpecForProduct: '{name} has no valid specification for this operation',
+    chooseSpecTitle: 'Choose a specification',
+    chooseSpecHint: '{name} has several specifications — choose the one to produce by.',
     title: 'Production order {number}',
     titleDraft: 'Production order (draft)',
     newOrder: 'New production order',
@@ -1597,6 +1617,7 @@ export const production = {
   /** Редактор параметров спецификации */
   params: {
     title: 'Specification parameters',
+    heading: 'Parameters',
     add: 'Add parameter',
     noParams: 'No parameters yet',
     noParamsHint: 'No parameters: the composition of the product is the same for every order.',
@@ -1644,6 +1665,7 @@ export const production = {
       stock: 'Take from stock',
       explode: 'Expand to materials',
     },
+    insertParam: 'Insert parameter “{name}”',
     fields: {
       kind: 'Type',
       stage: 'Stage',
@@ -1661,6 +1683,8 @@ export const production = {
       workCenter: 'Work center',
       operation: 'Operation',
       operationName: 'Name of the work',
+      amountExpr: 'Amount formula',
+      byFormula: 'By formula',
       expr: 'Quantity formula',
       exprHint: 'Counted over the parameters of the product. Empty: the quantity above.',
       owner: 'Material owner',
@@ -1685,6 +1709,7 @@ export const production = {
       workCenterNo: 'Optional: without a center, set the rate below.',
       rate: 'Empty: the rate of the work center.',
       fixed: 'Added to hours × rate.',
+      amountExpr: 'Work amount per batch from the specification parameters, instead of “Fixed”. Empty: “Fixed” is used.',
       condition: 'The line is included in the composition only when the condition is true. Empty: the line is always included.',
       waste: 'A product received from the production. Posted to the waste warehouse at the final stage and valued by the “Waste price source” setting.',
     },

@@ -120,6 +120,8 @@ export const objectEstimates = pgTable(
     /** Статус допработ: draft | approved | rejected (у основной сметы — null) */
     changeStatus: text('change_status', { enum: ['draft', 'approved', 'rejected'] }),
     note: text('note').notNull().default(''),
+    /** Единая наценка на себестоимость, %; null — не задана, цены строк не пересчитываются */
+    markupPct: numeric('markup_pct', { precision: 7, scale: 2 }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -188,6 +190,10 @@ export const objectEstimateItems = pgTable(
     /** Изделие производства (для щитов): из него создаётся заказ на производство */
     manufacturedItemId: uuid('manufactured_item_id'),
     note: text('note').notNull().default(''),
+    /** Поставщик материала/субподряда: по его виду цен считается себестоимость (видят owner/admin) */
+    supplierId: uuid('supplier_id'),
+    /** Замок строки: заблокированная строка не пересчитывается автоматически (видят owner/admin) */
+    locked: boolean('locked').notNull().default(false),
     createdAt: createdAt(),
   },
   t => [
@@ -197,6 +203,7 @@ export const objectEstimateItems = pgTable(
     foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'object_estimate_items_product_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.unitCode], foreignColumns: [units.workspaceId, units.code], name: 'object_estimate_items_unit_fk' }),
     foreignKey({ columns: [t.workspaceId, t.manufacturedItemId], foreignColumns: [manufacturedItems.workspaceId, manufacturedItems.id], name: 'object_estimate_items_manufactured_fk' }).onDelete('set null'),
+    foreignKey({ columns: [t.workspaceId, t.supplierId], foreignColumns: [companies.workspaceId, companies.id], name: 'object_estimate_items_supplier_fk' }).onDelete('set null'),
     check('object_estimate_items_kind_chk', sql`${t.kind} in ('work','material','panel','subcontract','other')`),
     check('object_estimate_items_vat_chk', sql`${t.vatRate} in ('none','0','5','7','10','20')`),
     check('object_estimate_items_amounts_chk', sql`${t.qty} >= 0 and ${t.price} >= 0 and ${t.costPrice} >= 0 and ${t.laborHours} >= 0`),
@@ -642,5 +649,40 @@ export const objectReportSchedules = pgTable(
     check('object_report_schedules_weekday_chk', sql`${t.weekday} between 1 and 7`),
     check('object_report_schedules_time_chk', sql`${t.time} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
     index('object_report_schedules_ws_idx').on(t.workspaceId, t.enabled),
+  ],
+);
+
+/* Импорт сметы из документа (docx): извлечённая из файла таблица и ИИ-разметка строк. Строку создаёт
+   маршрут /estimates/import/document, разметку делает задача воркера estimate.ai_extract (без ключа ИИ —
+   сразу done с ai_result = null, фронт показывает сопоставление колонок по table). estimate_id без FK:
+   строка импорта — журнал, переживает удаление сметы. */
+export const estimateImports = pgTable(
+  'estimate_imports',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    /** Смета, в которую импортируют */
+    estimateId: uuid('estimate_id'),
+    fileName: text('file_name').notNull(),
+    status: text('status', { enum: ['ready', 'pending', 'done', 'failed'] }).notNull().default('pending'),
+    /** Извлечённая из документа таблица: {header, rows} */
+    table: jsonb('table').notNull(),
+    /** Разметка ИИ (packages/shared, estimateAiResult): mapping + строки сметы; null — ИИ не настроен или не справился */
+    aiResult: jsonb('ai_result'),
+    /** Почему ИИ не дал результат (фронт показывает fallback и предупреждение) */
+    aiError: text('ai_error'),
+    /** Подсказка пользователя для ИИ («возьми только раздел ЭМ») — уходит в промпт разметки */
+    hint: text('hint'),
+    /** Метаданные документа: pageCount/pdfType (pdf), selectedPages */
+    meta: jsonb('meta'),
+    /** Исходный markdown постранично (pdf-inspector) для просмотра «документ как его видит разбор» */
+    source: jsonb('source'),
+    error: text('error'),
+    createdAt: createdAt(),
+    finishedAt: ts('finished_at'),
+  },
+  t => [
+    unique('estimate_imports_ws_id_uq').on(t.workspaceId, t.id),
+    index('estimate_imports_ws_created_idx').on(t.workspaceId, t.createdAt),
   ],
 );

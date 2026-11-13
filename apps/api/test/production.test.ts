@@ -87,6 +87,9 @@ describe('items and bill of materials', () => {
     expect((await owner.patch(`/bom-lines/${w.id}`, { hours: 0 })).status).toBe(400); // ни часов, ни фикса
     expect((await owner.patch(`/bom-lines/${w.id}`, { hours: 2, rate: 1000 })).body).toMatchObject({ hours: '2.000', rate: '1000.00' });
     expect((await owner.patch(`/bom-lines/${w.id}`, { rate: null })).body.rate).toBeNull();
+    // окно работы без операции каталога шлёт productId: null — у работы допустимо, у материала нет
+    expect((await owner.patch(`/bom-lines/${w.id}`, { operation: 'Распил ровный', productId: null, workCenterId: carpentry, hours: 2, rate: null, fixedCost: null })).body).toMatchObject({ operation: 'Распил ровный', productId: null });
+    expect((await owner.patch(`/bom-lines/${m.id}`, { productId: null })).status).toBe(400);
     expect((await owner.del(`/bom-lines/${m.id}`)).body.deleted).toBe(true);
     expect((await owner.get(`/manufactured-items/${i.id}/lines`)).body.total).toBe(2);
   });

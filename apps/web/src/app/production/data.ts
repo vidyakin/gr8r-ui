@@ -3,7 +3,7 @@
    (той же, что на сервере), поэтому любая правка строки пересчитывает дерево и итоги мгновенно, не дожидаясь ответа сервера. */
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BomCycleError, BomFormulaError, computeBomCost, resolveMaterialPrice, wouldCreateCycle, type BomItemInput, type CostNode, type MaterialPriceSource, type ProductKind, type ProductionSettings, type SemiMode, type SpecParamDef } from '@gr8r/shared';
+import { BomCycleError, BomFormulaError, computeBomCost, resolveMaterialPrice, withItemParams, wouldCreateCycle, type BomItemInput, type CostNode, type MaterialPriceSource, type ProductKind, type ProductionSettings, type SemiMode, type SpecParamDef } from '@gr8r/shared';
 import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';
@@ -189,6 +189,8 @@ export interface Costing {
   /** Дерево себестоимости изделия; null — расчёт невозможен (циклы) */
   tree: CostNode | null;
   error: string | null;
+  /** Ошибка формулы строки: код (`formula_param` — не заданы значения параметров) и строка спецификации */
+  formula?: { code: string; lineId: string };
 }
 
 /** Функция расчёта себестоимости по снимку: подставляет цены по выбранному источнику и ставки участков */
@@ -201,12 +203,14 @@ export function makeCosting(snap: Snapshot) {
     wastePrice: (id: string) => (mats.has(id) ? resolveMaterialPrice(snap.settings.wastePriceSource, mats.get(id)!, mats.get(id)!.avgCost) : null),
     workCenterRate: (id: string) => rates.get(id),
   };
-  return (itemId: string): Costing => {
+  /** params — значения параметров изделия для расчёта (на странице спецификации — «значения для расчёта») */
+  return (itemId: string, params?: Record<string, unknown> | null): Costing => {
     try {
-      return { tree: computeBomCost(inputs, itemId, pricing), error: null };
+      return { tree: computeBomCost(withItemParams(inputs, itemId, params), itemId, pricing), error: null };
     } catch (e) {
       // формулы строк требуют значений параметров — без них себестоимость не считается
-      return { tree: null, error: e instanceof BomCycleError ? e.message : e instanceof BomFormulaError ? e.message : errorMessage(e) };
+      if (e instanceof BomFormulaError) return { tree: null, error: e.message, formula: { code: e.code, lineId: e.lineId } };
+      return { tree: null, error: e instanceof BomCycleError ? e.message : errorMessage(e) };
     }
   };
 }

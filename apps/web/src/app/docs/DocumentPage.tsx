@@ -21,7 +21,8 @@ import { STATUS_LABEL, STATUS_TONE, docTitle, docsKey, typeLabel, useCompanyArti
 import { QuoteVariants } from './quote-variants';
 import { CalculationDialog, ParamsDialog } from './calculation';
 import { StockMovesDialog } from './stock-moves-dialog';
-import { CounterpartyPicker, ProductPicker } from './pickers';
+import { CounterpartyPicker } from './pickers';
+import { ProductField } from './position-field';
 import { AttributionFields } from '../crm/AttributionFields';
 import { usePriceKinds, useResolvePrices } from '../pricing/data';
 import { useBillingBreakdown, useContracts } from './billing-data';
@@ -407,11 +408,11 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     const r = focusReq.current;
     if (!r) return;
     focusReq.current = null;
-    document.querySelector<HTMLInputElement>(`[data-cell="${r.row}:${r.col}"]`)?.focus();
+    document.querySelector<HTMLElement>(`[data-cell="${r.row}:${r.col}"]`)?.focus();
   });
 
-  const cellKey = (row: number, col: number) => (e: React.KeyboardEvent<HTMLInputElement>) => {
-    const to = (r: number, c: number) => document.querySelector<HTMLInputElement>(`[data-cell="${r}:${c}"]`);
+  const cellKey = (row: number, col: number) => (e: React.KeyboardEvent<HTMLElement>) => {
+    const to = (r: number, c: number) => document.querySelector<HTMLElement>(`[data-cell="${r}:${c}"]`);
     const rows = latest.current.lines.length;
     // в числовых ячейках стрелки меняют число (NumCell), по строкам ходят только из ячейки товара
     if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && col === 0) {
@@ -688,11 +689,12 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       <td className="faint num">{i + 1}</td>
                       <td>
                         {editable ? (
-                          <ProductPicker value={l.name} dataCell={`${i}:0`} price={priceField} counterpartyId={partnerId} partnerArticles={partnerArts} onKeyDown={cellKey(i, 0)} onPick={p => pickProduct(l.key, i, p)} invalid={save === 'invalid' && !l.productId} />
+                          <ProductField id={l.productId} name={l.name} dataCell={`${i}:0`} price={priceField} counterpartyId={partnerId} partnerArticles={partnerArts} onKeyDown={cellKey(i, 0)} onPick={p => pickProduct(l.key, i, p)} invalid={save === 'invalid' && !l.productId} />
                         ) : (
-                          <span className="trunc" title={l.name}>
-                            {l.name} {srv?.sku && <span className="mono faint" style={{ fontSize: 11 }}>{srv.sku}</span>}
-                          </span>
+                          <div className="row" style={{ gap: 4, minWidth: 0 }}>
+                            <ProductField id={l.productId} name={l.name} disabled onPick={() => undefined} />
+                            {srv?.sku && <span className="mono faint" style={{ fontSize: 11 }}>{srv.sku}</span>}
+                          </div>
                         )}
                         {l.productId && partnerArts.get(l.productId)?.article && (
                           <div className="mono faint" style={{ fontSize: 11 }} title={partnerArts.get(l.productId)?.name || undefined}>

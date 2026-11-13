@@ -109,6 +109,7 @@ export const appt = {
     total: 'Total',
     addGoods: 'Add goods',
     removeRow: 'Remove line',
+    serviceNotAllowed: 'This item cannot be chosen here: the specialist does not provide this kind of service, or the line type does not match.',
     empty: 'No lines yet: use “Fill”.',
     sales: 'Sales created',
   },

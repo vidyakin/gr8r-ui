@@ -15,26 +15,13 @@ export function useSpecParams(productId: string | null | undefined) {
   return useQuery({ queryKey: ['ws', ws, 'spec-params', productId], queryFn: async () => (await call<{ params: SpecParamDef[] }>(ws, 'GET', `/products/${productId}/params`)).params, enabled: !!productId, staleTime: 60_000 });
 }
 
-/** Диалог значений параметров строки заказа */
-export function ParamsDialog({ productId, productName, values, onChange, onClose }: { productId: string; productName: string; values: Record<string, unknown>; onChange: (v: Record<string, unknown>) => void; onClose: () => void }) {
+/** Поля значений параметров спецификации: число, выбор, флажок (общие для окна параметров строки и заказа на производство) */
+export function SpecParamFields({ params, loading, values, onChange }: { params: SpecParamDef[]; loading?: boolean; values: Record<string, unknown>; onChange: (v: Record<string, unknown>) => void }) {
   const t = useT();
-  const params = useSpecParams(productId);
-  const list = params.data ?? [];
+  const list = params;
   return (
-    <Dialog open onOpenChange={o => !o && onClose()}>
-      <DialogContent
-        title={t('docs.calculation.dialog.paramsTitle')}
-        description={productName}
-        footer={
-          <>
-            <span className="sp" />
-            <DialogClose asChild>
-              <Button variant="secondary">{t('docs.calculation.dialog.close')}</Button>
-            </DialogClose>
-          </>
-        }
-      >
-        {params.isPending ? (
+    <>
+        {loading ? (
           <Skeleton w="100%" h={28} />
         ) : !list.length ? (
           <p className="muted" style={{ margin: 0 }}>
@@ -72,6 +59,29 @@ export function ParamsDialog({ productId, productName, values, onChange, onClose
             ))}
           </div>
         )}
+    </>
+  );
+}
+
+/** Диалог значений параметров строки заказа */
+export function ParamsDialog({ productId, productName, values, onChange, onClose }: { productId: string; productName: string; values: Record<string, unknown>; onChange: (v: Record<string, unknown>) => void; onClose: () => void }) {
+  const t = useT();
+  const params = useSpecParams(productId);
+  return (
+    <Dialog open onOpenChange={o => !o && onClose()}>
+      <DialogContent
+        title={t('docs.calculation.dialog.paramsTitle')}
+        description={productName}
+        footer={
+          <>
+            <span className="sp" />
+            <DialogClose asChild>
+              <Button variant="secondary">{t('docs.calculation.dialog.close')}</Button>
+            </DialogClose>
+          </>
+        }
+      >
+        <SpecParamFields params={params.data ?? []} loading={params.isPending} values={values} onChange={onChange} />
       </DialogContent>
     </Dialog>
   );

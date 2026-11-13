@@ -22,6 +22,7 @@ import { DocTabs, type DocTab } from './doc-tabs';
 import { WorkOrderCostPanel } from './work-order-cost';
 import { CustomerMaterialsPanel, RepairItemPanel } from './repair-ui';
 import { SerialsButton } from './serials-ui';
+import { ProductField } from './position-field';
 
 /** Тон бейджа по категории состояния */
 const CATEGORY_TONE: Record<WorkOrderStateCategory, Tone> = {
@@ -549,24 +550,11 @@ function MaterialEditor({ onAdd }: { onAdd: (productId: string, qty: string) => 
   const t = useT();
   const [productId, setProductId] = React.useState('');
   const [qty, setQty] = React.useState('1');
-  const [products, setProducts] = React.useState<{ id: string; name: string; sku: string }[]>([]);
-  const ws = useWsId();
-
-  React.useEffect(() => {
-    let alive = true;
-    void (async () => {
-      const { call } = await import('../meta/data');
-      const r = await call<{ items: { id: string; name: string; sku: string }[] }>(ws, 'GET', '/products?kind=goods&active=true&limit=200');
-      if (alive) setProducts(r.items);
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [ws]);
+  const [productName, setProductName] = React.useState('');
 
   return (
     <div className="doc-add">
-      <Select value={productId} aria-label={t('docs.workOrders.materials.addAria')} onValueChange={setProductId} options={products.map(p => ({ value: p.id, label: p.name }))} placeholder={t('docs.workOrders.materials.addPlaceholder')} />
+      <ProductField id={productId} name={productName} productKind="goods" aria-label={t('docs.workOrders.materials.addAria')} placeholder={t('docs.workOrders.materials.addPlaceholder')} onPick={p => (setProductId(p.id), setProductName(p.name))} />
       <Input aria-label={t('docs.workOrders.materials.qtyAria')} inputMode="decimal" value={qty} onChange={e => setQty(e.target.value)} className="num" />
       <Button
         size="sm"
@@ -575,6 +563,7 @@ function MaterialEditor({ onAdd }: { onAdd: (productId: string, qty: string) => 
         onClick={() => {
           void onAdd(productId, qty);
           setProductId('');
+          setProductName('');
           setQty('1');
         }}
       >

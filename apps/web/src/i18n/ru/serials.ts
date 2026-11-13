@@ -74,6 +74,7 @@ export const serials: Widen<typeof S> = {
     lead: 'Изделие принадлежит клиенту: на ваш склад оно не попадает и остатки не меняет.',
     product: 'Товар из каталога',
     productPlaceholder: 'Не из каталога',
+    productClear: 'Убрать товар каталога',
     name: 'Название',
     namePlaceholder: 'Название изделия произвольным текстом',
     serial: 'Серийный номер',

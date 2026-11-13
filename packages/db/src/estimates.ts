@@ -2,7 +2,7 @@
    согласование (снимок цен и норм), допработы, импорт строк, заказы из позиций и план-факт.
    Всё в транзакции вызывающего; изменение + событие — в одной транзакции. Внутренние стоимости (себестоимость,
    маржа, плановая стоимость единицы) отдаются только owner/admin (`canSeeCost`), остальным — null. */
-import { and, asc, count, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull, ne, sql as dsql } from 'drizzle-orm';
 import {
   computeEstimateTotals,
   estimatePlanFact,
@@ -11,7 +11,10 @@ import {
   type EstimateContentInput,
   type EstimateCopy,
   type EstimateCreate,
+  type EstimateAiResult,
   type EstimateImportRow,
+  type EstimateImportExtract,
+  type EstimateTableFile,
   type EstimateItemKind,
   type EstimateProductionOrder,
   type EstimateSupplierOrder,
@@ -26,16 +29,23 @@ import { createDocument, type DocCtx } from './documents';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { createProductionOrder } from './production';
+import { resolvePrices } from './pricing';
 import { assertObjectRef } from './objects';
 import { objectCostFacts } from './object-budget';
 import { objectHasFacts } from './object-forecast';
 import {
+  companies,
+  estimateImports,
+  documents,
+  jobs,
   manufacturedItems,
   members,
   objectEstimateItems,
   objectEstimateSections,
   objectEstimates,
   objects,
+  priceKinds,
+  productionItems,
   products,
   units,
 } from './schema';
@@ -50,10 +60,15 @@ export interface EstimateCtx extends DocCtx {
 }
 
 /** Позиция с подписями товара и изделия производства; плановая стоимость — только owner/admin */
-export interface EstimateItemView extends Omit<EstimateItemRow, 'costPrice'> {
+export interface EstimateItemView extends Omit<EstimateItemRow, 'costPrice' | 'supplierId' | 'locked'> {
   costPrice: string | null;
+  /** Поставщик и замок строки — тоже только owner/admin (иначе null) */
+  supplierId: string | null;
+  locked: boolean | null;
   productName: string | null;
   manufacturedItemName: string | null;
+  /** Заказы на производство, созданные из строки */
+  productionOrders: { id: string; number: string | null }[];
   totals: { revenue: string; cost: string | null; hours: string };
 }
 
@@ -144,6 +159,11 @@ async function assertItemRefs(db: Db, input: EstimateContentInput): Promise<void
   const codes = [...new Set(input.items.map(i => i.unitCode))];
   const unitRows = await db.select({ code: units.code }).from(units).where(inArray(units.code, codes));
   if (unitRows.length !== codes.length) throw new DomainError(422, 'invalid_reference', 'The unit is not in the OKЕИ list');
+  const supplierIds = [...new Set(input.items.map(i => i.supplierId).filter((x): x is string => !!x))];
+  if (supplierIds.length) {
+    const rows = await db.select({ id: companies.id }).from(companies).where(inArray(companies.id, supplierIds));
+    if (rows.length !== supplierIds.length) throw new DomainError(422, 'invalid_reference', 'A supplier does not exist');
+  }
 }
 
 /** Разделы, на которые ссылаются позиции: только разделы этой сметы (или разделы из этого же пакета) */
@@ -178,6 +198,8 @@ async function estimateViews(db: Db, rows: EstimateRow[], role: Role | undefined
     const { approvedBy, ...rest } = r;
     return {
       ...rest,
+      // единая наценка — внутренняя величина: участники её не видят
+      markupPct: showCost ? r.markupPct : null,
       approvedByName: approvedBy ? (approverName.get(approvedBy) ?? null) : null,
       totals: maskTotals(computeEstimateTotals(own), showCost),
       itemCount: own.length,
@@ -223,6 +245,21 @@ export async function getEstimate(db: Db, id: string, role: Role | undefined): P
     productIds.length ? db.select({ id: products.id, name: products.name }).from(products).where(inArray(products.id, productIds)) : [],
     manufacturedIds.length ? db.select({ id: manufacturedItems.id, name: manufacturedItems.name }).from(manufacturedItems).where(inArray(manufacturedItems.id, manufacturedIds)) : [],
   ]);
+  // заказы на производство по строкам сметы (отменённые не показываем)
+  const orderRows = itemRows.length
+    ? await db
+        .select({ estimateItemId: productionItems.estimateItemId, id: documents.id, number: documents.number, createdAt: documents.createdAt })
+        .from(productionItems)
+        .innerJoin(documents, eq(documents.id, productionItems.documentId))
+        .where(and(inArray(productionItems.estimateItemId, itemRows.map(i => i.id)), eq(documents.type, 'production_order'), ne(documents.status, 'cancelled')))
+        .orderBy(asc(documents.createdAt))
+    : [];
+  const ordersByItem = new Map<string, { id: string; number: string | null }[]>();
+  for (const o of orderRows) {
+    const list = ordersByItem.get(o.estimateItemId!) ?? [];
+    if (!list.some(x => x.id === o.id)) list.push({ id: o.id, number: o.number });
+    ordersByItem.set(o.estimateItemId!, list);
+  }
   const productName = new Map(prods.map(p => [p.id, p.name]));
   const manufName = new Map(manufs.map(m => [m.id, m.name]));
   const items: EstimateItemView[] = itemRows.map(i => {
@@ -230,8 +267,11 @@ export async function getEstimate(db: Db, id: string, role: Role | undefined): P
     return {
       ...i,
       costPrice: showCost ? i.costPrice : null,
+      supplierId: showCost ? i.supplierId : null,
+      locked: showCost ? i.locked : null,
       productName: i.productId ? (productName.get(i.productId) ?? null) : null,
       manufacturedItemName: i.manufacturedItemId ? (manufName.get(i.manufacturedItemId) ?? null) : null,
+      productionOrders: ordersByItem.get(i.id) ?? [],
       totals: { revenue: line.revenue, cost: showCost ? line.cost : null, hours: line.hours },
     };
   });
@@ -325,6 +365,7 @@ export async function saveEstimateContent(db: Db, ctx: EstimateCtx, id: string, 
   assertDraft(row);
   assertItemSections(input);
   await assertItemRefs(db, input);
+  const showCost = canSeeCost(ctx.role);
 
   const existingSections = await loadSections(db, id);
   const keepSections = new Set(input.sections.map(s => s.id).filter((x): x is string => !!x));
@@ -344,6 +385,10 @@ export async function saveEstimateContent(db: Db, ctx: EstimateCtx, id: string, 
     // выполненный объём — факт (задача 1272): не указан — сохраняем прежний, больше объёма — 422
     const doneQty = i.doneQty ?? prev?.doneQty ?? '0';
     assertDoneQty(i.qty, doneQty);
+    // себестоимость, поставщик и замок — внутренние: участник их не меняет (у новой строки — значения по умолчанию)
+    const internal = showCost
+      ? { costPrice: i.costPrice, supplierId: i.supplierId === undefined ? (prev?.supplierId ?? null) : i.supplierId, locked: i.locked ?? prev?.locked ?? false }
+      : { costPrice: prev?.costPrice ?? '0', supplierId: prev?.supplierId ?? null, locked: prev?.locked ?? false };
     const values = {
       sectionId: i.sectionId ?? null,
       sortOrder: n,
@@ -354,7 +399,7 @@ export async function saveEstimateContent(db: Db, ctx: EstimateCtx, id: string, 
       qty: i.qty,
       price: i.price,
       vatRate: i.vatRate,
-      costPrice: i.costPrice,
+      ...internal,
       laborHours: i.laborHours,
       doneQty,
       manufacturedItemId: i.manufacturedItemId ?? null,
@@ -363,7 +408,8 @@ export async function saveEstimateContent(db: Db, ctx: EstimateCtx, id: string, 
     if (i.id && existingItems.some(e => e.id === i.id)) await db.update(objectEstimateItems).set(values).where(eq(objectEstimateItems.id, i.id));
     else await db.insert(objectEstimateItems).values({ ...(i.id ? { id: i.id } : {}), workspaceId: ctx.workspaceId, estimateId: id, ...values });
   }
-  await db.update(objectEstimates).set({ updatedAt: new Date() }).where(eq(objectEstimates.id, id));
+  // единая наценка: undefined — не трогать, null — снять; участник её не меняет
+  await db.update(objectEstimates).set({ updatedAt: new Date(), ...(showCost && input.markupPct !== undefined ? { markupPct: input.markupPct } : {}) }).where(eq(objectEstimates.id, id));
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'object_estimate.updated', entity: 'object_estimate', recordId: id, actorId: ctx.memberId, payload: { items: input.items.length, sections: input.sections.length } });
   return getEstimate(db, id, ctx.role);
 }
@@ -383,6 +429,23 @@ export async function saveEstimateDoneQty(db: Db, ctx: EstimateCtx, id: string, 
   await db.update(objectEstimates).set({ updatedAt: new Date() }).where(eq(objectEstimates.id, id));
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'object_estimate.updated', entity: 'object_estimate', recordId: id, actorId: ctx.memberId, payload: { doneQty: items.length, objectId: estimate.objectId } });
   return getEstimate(db, id, ctx.role);
+}
+
+/** Цены поставщика на сегодня: неархивный вид цен с supplier_id = поставщик, цены — через resolvePrices.
+    Нет вида или цены — товара нет в ответе. Только owner/admin (403): цена закупки — внутренняя величина. */
+export async function supplierProductPrices(db: Db, ctx: EstimateCtx, supplierId: string, productIds: string[]): Promise<{ productId: string; price: string }[]> {
+  if (!canSeeCost(ctx.role)) throw new DomainError(403, 'forbidden', 'Only the owner or an admin can see supplier prices');
+  const [kind] = await db
+    .select({ id: priceKinds.id })
+    .from(priceKinds)
+    .where(and(eq(priceKinds.workspaceId, ctx.workspaceId), eq(priceKinds.supplierId, supplierId), isNull(priceKinds.archivedAt)))
+    .orderBy(asc(priceKinds.sortOrder), asc(priceKinds.createdAt))
+    .limit(1);
+  if (!kind || !productIds.length) return [];
+  const prices = await resolvePrices(db, ctx.workspaceId, kind.id, [...new Set(productIds)], today());
+  const out: { productId: string; price: string }[] = [];
+  for (const [productId, r] of prices) if (r.price !== null) out.push({ productId, price: r.price });
+  return out;
 }
 
 /* ---------------- согласование ---------------- */
@@ -456,6 +519,7 @@ export async function copyEstimateToObject(db: Db, ctx: EstimateCtx, objectId: s
   const [source] = await db.select().from(objectEstimates).where(eq(objectEstimates.id, input.estimateId)).limit(1);
   if (!source) throw new DomainError(404, 'not_found', 'estimate not found');
   const created = await createEstimate(db, ctx, objectId, { name: input.name?.trim() || source.name, number: '', note: source.note });
+  if (source.markupPct != null) await db.update(objectEstimates).set({ markupPct: source.markupPct }).where(eq(objectEstimates.id, created.id));
   const sections = await loadSections(db, source.id);
   const items = await loadItems(db, source.id);
   const sectionMap = new Map<string, string>();
@@ -478,6 +542,8 @@ export async function copyEstimateToObject(db: Db, ctx: EstimateCtx, objectId: s
         price: i.price,
         vatRate: i.vatRate,
         costPrice: i.costPrice,
+        supplierId: i.supplierId,
+        locked: i.locked,
         laborHours: i.laborHours,
         manufacturedItemId: i.manufacturedItemId,
         note: i.note,
@@ -544,6 +610,104 @@ export async function importEstimateRows(db: Db, ctx: EstimateCtx, id: string, r
   return getEstimate(db, id, ctx.role);
 }
 
+/* ---------------- импорт сметы из документа (docx) ---------------- */
+
+/** Задача воркера: ИИ-разметка строк импорта сметы из документа */
+export const ESTIMATE_AI_JOB = 'estimate.ai_extract';
+
+/** Импорт документа: таблица извлечена маршрутом. ready (PDF) — задача не ставится, её поставит
+ * runEstimateImportExtract после выбора страниц и подсказки; иначе разметку сразу делает ESTIMATE_AI_JOB */
+export async function createEstimateImport(
+  db: Db,
+  ctx: EstimateCtx,
+  input: { estimateId: string | null; fileName: string; table: EstimateTableFile; status?: 'ready' | 'pending'; meta?: Record<string, unknown>; source?: { page: number; markdown: string }[] },
+): Promise<string> {
+  const [row] = await db
+    .insert(estimateImports)
+    .values({ workspaceId: ctx.workspaceId, estimateId: input.estimateId, fileName: input.fileName.slice(0, 200), table: input.table, status: input.status ?? 'pending', meta: input.meta, source: input.source })
+    .returning({ id: estimateImports.id });
+  const id = row!.id;
+  if ((input.status ?? 'pending') === 'pending') await db.insert(jobs).values({ workspaceId: ctx.workspaceId, type: ESTIMATE_AI_JOB, payload: { importId: id } });
+  return id;
+}
+
+/** Импорт документа со своего воркспейса: таблица и результат ИИ-разметки */
+export async function getEstimateImport(db: Db, workspaceId: string, id: string): Promise<EstimateImportDoc> {
+  const [row] = await db.select().from(estimateImports).where(and(eq(estimateImports.workspaceId, workspaceId), eq(estimateImports.id, id))).limit(1);
+  if (!row) throw new DomainError(404, 'not_found', 'Estimate import not found');
+  const [job] = await db.select({
+    status: jobs.status, attempt: jobs.attempts, maxAttempts: jobs.maxAttempts,
+    retryAt: jobs.runAt, error: jobs.lastError,
+  }).from(jobs).where(and(
+    eq(jobs.workspaceId, workspaceId), eq(jobs.type, ESTIMATE_AI_JOB),
+    dsql`${jobs.payload}->>'importId' = ${id}`,
+  )).orderBy(desc(jobs.createdAt), desc(jobs.id)).limit(1);
+  return { ...row, status: row.status === 'pending' && job?.status === 'failed' ? 'failed' : row.status, job: job ?? null };
+}
+
+/** Запуск разметки PDF (готовый к выбору страниц импорт): строки фильтруются по страницам,
+ * подсказка сохраняется и уходит в промпт, ставится задача ИИ */
+export async function runEstimateImportExtract(db: Db, ctx: EstimateCtx, id: string, input: EstimateImportExtract): Promise<void> {
+  await db.select({ id: estimateImports.id }).from(estimateImports)
+    .where(and(eq(estimateImports.workspaceId, ctx.workspaceId), eq(estimateImports.id, id))).for('update');
+  const row = await getEstimateImport(db, ctx.workspaceId, id);
+  const retry = (row.status === 'done' || row.status === 'failed') && !(row.aiResult as EstimateAiResult | null)?.rows?.length;
+  if (row.status !== 'ready' && !retry) throw new DomainError(422, 'import_not_ready', 'The import is already being marked up');
+  let table = row.table as EstimateTableFile;
+  const sourceMeta = (row.meta ?? {}) as { pageCount?: number; selectedPages?: number[] | null };
+  if (input.regions) {
+    const pageCount = sourceMeta.pageCount;
+    if (!pageCount || input.regions.some(region => region.page > pageCount)) {
+      throw new DomainError(422, 'import_file_invalid', 'A selected area is outside the PDF');
+    }
+    table = { header: [], rows: [], rowPages: [] };
+  } else if (!table.rows.length) {
+    throw new DomainError(422, 'import_pdf_scanned', 'Select areas for image recognition on this PDF');
+  } else if (input.pages?.length && table.rowPages?.length) {
+    const keep = new Set(input.pages);
+    const idx = table.rows.map((_, i) => i).filter(i => keep.has(table.rowPages![i]!));
+    table = { ...table, rows: idx.map(i => table.rows[i]!), rowPages: idx.map(i => table.rowPages![i]!) };
+    if (table.rows.length < 2) throw new DomainError(422, 'import_file_invalid', 'The selected pages have no data rows');
+  }
+  const selectedPages = input.regions ? [...new Set(input.regions.map(region => region.page))] : input.pages ?? (retry ? sourceMeta.selectedPages ?? null : null);
+  const meta = { ...sourceMeta, selectedPages, visual: !!input.regions };
+  const [updated] = await db
+    .update(estimateImports)
+    .set({ status: 'pending', hint: input.hint ?? row.hint ?? null, table, meta, aiError: null, error: null, aiResult: null, finishedAt: null })
+    .where(and(eq(estimateImports.workspaceId, ctx.workspaceId), eq(estimateImports.id, id)))
+    .returning({ id: estimateImports.id });
+  if (!updated) throw new DomainError(422, 'import_not_ready', 'The import is already being marked up');
+  await db.insert(jobs).values({
+    workspaceId: ctx.workspaceId, type: ESTIMATE_AI_JOB,
+    payload: { importId: id, ...(input.regions ? { regions: input.regions } : {}) },
+  });
+}
+
+/** Исходный markdown импорта документа (pdf): страницы как их разобрал pdf-inspector */
+export async function getEstimateImportSource(db: Db, workspaceId: string, id: string): Promise<{ page: number; markdown: string }[]> {
+  const [row] = await db.select({ source: estimateImports.source }).from(estimateImports).where(and(eq(estimateImports.workspaceId, workspaceId), eq(estimateImports.id, id))).limit(1);
+  if (!row) throw new DomainError(404, 'not_found', 'Estimate import not found');
+  return (row.source as { page: number; markdown: string }[] | null) ?? [];
+}
+
+/** Записать результат ИИ-разметки (задача воркера): null + причина — fallback на сопоставление колонок */
+export async function saveEstimateImportAi(db: Db, workspaceId: string, id: string, aiResult: EstimateAiResult | null, aiError: string | null): Promise<void> {
+  await db
+    .update(estimateImports)
+    .set({ status: 'done', aiResult, aiError: aiError?.slice(0, 500) ?? null, finishedAt: new Date() })
+    .where(and(eq(estimateImports.workspaceId, workspaceId), eq(estimateImports.id, id)));
+}
+
+export type EstimateImportDoc = typeof estimateImports.$inferSelect & {
+  job: {
+    status: 'queued' | 'running' | 'done' | 'failed';
+    attempt: number;
+    maxAttempts: number;
+    retryAt: Date;
+    error: string | null;
+  } | null;
+};
+
 /* ---------------- заказы из позиций ---------------- */
 
 /** Позиции для заказа: выбранные (или все подходящие) с заполненной ссылкой */
@@ -583,8 +747,20 @@ export async function createSupplierOrderFromEstimate(db: Db, ctx: EstimateCtx, 
 export async function createProductionOrderFromEstimate(db: Db, ctx: EstimateCtx, estimateId: string, input: EstimateProductionOrder): Promise<{ id: string; lines: number }> {
   const estimate = await loadEstimate(db, estimateId);
   const object = await assertObjectRef(db, estimate.objectId);
-  const lines = await orderItems(db, estimateId, ['panel'], 'manufacturedItemId', input.itemIds);
-  if (!lines.length) throw new DomainError(422, 'nothing_to_create', 'The estimate has no panel lines with a production item');
+  let items: { itemId: string; qty: string; estimateItemId: string; params?: Record<string, unknown> }[];
+  if (input.lines?.length) {
+    // строки окна «Заказ на производство» строки сметы: каждая должна быть щитом этой сметы
+    const own = new Map((await loadItems(db, estimateId)).map(i => [i.id, i]));
+    for (const l of input.lines) {
+      const row = own.get(l.estimateItemId);
+      if (!row || row.kind !== 'panel') throw new DomainError(422, 'invalid_reference', 'The line does not belong to this estimate or is not a panel');
+    }
+    items = input.lines.map(l => ({ itemId: l.manufacturedItemId, qty: l.qty, estimateItemId: l.estimateItemId, ...(l.params ? { params: l.params } : {}) }));
+  } else {
+    const lines = await orderItems(db, estimateId, ['panel'], 'manufacturedItemId', input.itemIds);
+    items = lines.map(l => ({ itemId: l.manufacturedItemId!, qty: l.qty, estimateItemId: l.id }));
+  }
+  if (!items.length) throw new DomainError(422, 'nothing_to_create', 'The estimate has no panel lines with a production item');
   const id = await createProductionOrder(
     db,
     { workspaceId: ctx.workspaceId, memberId: ctx.memberId, ...(ctx.role ? { role: ctx.role } : {}) },
@@ -593,8 +769,8 @@ export async function createProductionOrderFromEstimate(db: Db, ctx: EstimateCtx
       date: input.date ?? today(),
       comment: input.comment?.trim() || `Смета ${estimate.number} — ${object.name}`.trim(),
       objectId: object.id,
-      items: lines.map(l => ({ itemId: l.manufacturedItemId!, qty: l.qty })),
+      items,
     },
   );
-  return { id, lines: lines.length };
+  return { id, lines: items.length };
 }

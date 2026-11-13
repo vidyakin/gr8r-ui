@@ -7,7 +7,12 @@ import { Button, Dialog, DialogClose, DialogContent, Field, Input, toast } from 
 import { uuidv7 } from '../lib/uuid';
 import { searchProducts, unitSymbol, useUnits, type Product } from '../catalog/data';
 import { useWsId } from '../meta/data';
-import { useT } from '@/i18n';
+import { fmtNumber, useT } from '@/i18n';
+import { NumberField } from '@/components/gr8r/number-field';
+import { MoneyInput } from '@/components/gr8r/money-input';
+
+/** Быстрые значения часов работы */
+const QUICK_HOURS = [0.5, 1, 1.5, 2];
 import { canInclude, type BomLine, type Item, type Material, type ProductionMutations, type Snapshot } from './data';
 
 const toMaterial = (p: Product): Material => ({ id: p.id, name: p.name, sku: p.sku, kind: p.kind, unitCode: p.unitCode, price: p.price, purchasePrice: p.purchasePrice, archived: false });
@@ -104,21 +109,46 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
     }
   };
   const qtyExprError = exprError(qtyExpr);
+  // формула: у материала заменяет «Количество» (в строку уходит прежнее или 1), у работы — «Фикс» (сумму)
+  const byFormula = !!qtyExpr.trim();
+  // вставка ключа параметра в формулу по месту курсора
+  const exprRef = React.useRef<HTMLInputElement>(null);
+  const insertKey = (key: string) => {
+    const el = exprRef.current;
+    const from = el?.selectionStart ?? qtyExpr.length;
+    const to = el?.selectionEnd ?? from;
+    setQtyExpr(qtyExpr.slice(0, from) + key + qtyExpr.slice(to));
+    setErr({});
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(from + key.length, from + key.length);
+    });
+  };
+  const paramChips = (
+    <div className="quick-chips">
+      {(item.params ?? []).map(p => (
+        <button key={p.key} type="button" className="badge" title={p.name} aria-label={tt('production.line.insertParam', { name: p.name || p.key })} onClick={() => insertKey(p.key)}>
+          {p.key}
+        </button>
+      ))}
+    </div>
+  );
   const conditionError = exprError(condition);
 
   const submit = async () => {
-    const num = (v: string) => (v.trim() === '' ? undefined : Number(v));
+    const num = (v: string) => (v.trim() === '' ? undefined : Number(v.trim().replace(',', '.')));
+    const qtyNum = byFormula ? (Number(qty.replace(',', '.')) > 0 ? Number(qty.replace(',', '.')) : 1) : num(qty);
     const body: Record<string, unknown> = {
       stageId: prodKind ? stageId || null : null,
       ...(kind === 'material' || kind === 'expense'
-        ? { kind, productId: material?.id, qty: num(qty), scrapPct: kind === 'material' ? (num(scrap) ?? 0) : 0, ...(qtyExpr.trim() ? { qtyExpr: qtyExpr.trim() } : {}), ...(condition.trim() ? { condition: condition.trim() } : {}) }
+        ? { kind, productId: material?.id, qty: qtyNum, scrapPct: kind === 'material' ? (num(scrap) ?? 0) : 0, qtyExpr: qtyExpr.trim() || null, condition: condition.trim() || null }
         : kind === 'output'
-          ? { kind, productId: material?.id, qty: num(qty), ...(costShare.trim() ? { costShare: Number(costShare) } : {}), ...(qtyExpr.trim() ? { qtyExpr: qtyExpr.trim() } : {}), ...(condition.trim() ? { condition: condition.trim() } : {}) }
+          ? { kind, productId: material?.id, qty: qtyNum, ...(costShare.trim() ? { costShare: Number(costShare) } : {}), qtyExpr: qtyExpr.trim() || null, condition: condition.trim() || null }
           : kind === 'semi'
-            ? { kind, childItemId: childId || undefined, qty: num(qty), semiMode: mode, ...(qtyExpr.trim() ? { qtyExpr: qtyExpr.trim() } : {}), ...(condition.trim() ? { condition: condition.trim() } : {}) }
+            ? { kind, childItemId: childId || undefined, qty: qtyNum, semiMode: mode, qtyExpr: qtyExpr.trim() || null, condition: condition.trim() || null }
             : kind === 'waste'
-              ? { kind, productId: material?.id, qty: num(qty), ...(qtyExpr.trim() ? { qtyExpr: qtyExpr.trim() } : {}), ...(condition.trim() ? { condition: condition.trim() } : {}) }
-              : { kind, operation: operation.trim(), productId: opProduct || null, workCenterId: center || null, hours: num(hours) ?? 0, rate: rate.trim() === '' ? null : Number(rate), fixedCost: fixed.trim() === '' ? null : Number(fixed) }),
+              ? { kind, productId: material?.id, qty: qtyNum, qtyExpr: qtyExpr.trim() || null, condition: condition.trim() || null }
+              : { kind, operation: operation.trim(), productId: opProduct || null, workCenterId: center || null, hours: num(hours) ?? 0, rate: num(rate) ?? null, fixedCost: byFormula ? null : (num(fixed) ?? null), qtyExpr: qtyExpr.trim() || null }),
     };
     if (qtyExprError || conditionError) {
       setErr({ ...(qtyExprError ? { qtyExpr: qtyExprError } : {}), ...(conditionError ? { condition: conditionError } : {}) });
@@ -189,7 +219,7 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
               </Field>
               <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
                 <Field label={material ? tt('production.line.fields.qtyUnit', { unit: unitSymbol(units.data, material.unitCode) }) : tt('production.field.quantity')} className="grow" error={err.qty}>
-                  {p => <Input {...p} inputMode="decimal" value={qty} onChange={e => setQty(e.target.value)} />}
+                  {p => <Input {...p} inputMode="decimal" value={byFormula ? '' : qty} disabled={byFormula} placeholder={byFormula ? tt('production.line.fields.byFormula') : undefined} onChange={e => setQty(e.target.value)} />}
                 </Field>
                 <Field label={tt('production.line.fields.scrap')} className="grow" hint={tt('production.line.hints.scrap')} error={err.scrapPct}>
                   {p => <Input {...p} inputMode="decimal" value={scrap} onChange={e => setScrap(e.target.value)} />}
@@ -213,7 +243,7 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
                 )}
               </Field>
               <Field label={tt('production.field.quantity')} error={err.qty}>
-                {p => <Input {...p} inputMode="decimal" value={qty} onChange={e => setQty(e.target.value)} />}
+                {p => <Input {...p} inputMode="decimal" value={byFormula ? '' : qty} disabled={byFormula} placeholder={byFormula ? tt('production.line.fields.byFormula') : undefined} onChange={e => setQty(e.target.value)} />}
               </Field>
               <Field label={tt('production.line.fields.mode')} hint={tt('production.line.hints.semiMode')}>
                 {p => (
@@ -231,7 +261,7 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
                 {() => <ProductPicker kind="service" value={material} onChange={mat => (setMaterial(mat), setErr({}))} invalid={!!err.productId} />}
               </Field>
               <Field label={tt('production.field.quantity')} error={err.qty}>
-                {p => <Input {...p} inputMode="decimal" value={qty} onChange={e => setQty(e.target.value)} />}
+                {p => <Input {...p} inputMode="decimal" value={byFormula ? '' : qty} disabled={byFormula} placeholder={byFormula ? tt('production.line.fields.byFormula') : undefined} onChange={e => setQty(e.target.value)} />}
               </Field>
             </>
           )}
@@ -242,7 +272,7 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
               </Field>
               <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
                 <Field label={material ? tt('production.line.fields.qtyUnit', { unit: unitSymbol(units.data, material.unitCode) }) : tt('production.field.quantity')} className="grow" error={err.qty}>
-                  {p => <Input {...p} inputMode="decimal" value={qty} onChange={e => setQty(e.target.value)} />}
+                  {p => <Input {...p} inputMode="decimal" value={byFormula ? '' : qty} disabled={byFormula} placeholder={byFormula ? tt('production.line.fields.byFormula') : undefined} onChange={e => setQty(e.target.value)} />}
                 </Field>
                 <Field label={tt('production.line.fields.costShare')} className="grow" hint={tt('production.line.hints.costShare')} error={err.costShare}>
                   {p => <Input {...p} inputMode="decimal" placeholder={'60'} value={costShare} onChange={e => setCostShare(e.target.value)} />}
@@ -256,14 +286,19 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
                 {() => <ProductPicker value={material} onChange={mat => (setMaterial(mat), setErr({}))} invalid={!!err.productId} />}
               </Field>
               <Field label={material ? tt('production.line.fields.qtyUnit', { unit: unitSymbol(units.data, material.unitCode) }) : tt('production.field.quantity')} error={err.qty}>
-                {p => <Input {...p} inputMode="decimal" value={qty} onChange={e => setQty(e.target.value)} />}
+                {p => <Input {...p} inputMode="decimal" value={byFormula ? '' : qty} disabled={byFormula} placeholder={byFormula ? tt('production.line.fields.byFormula') : undefined} onChange={e => setQty(e.target.value)} />}
               </Field>
             </>
           )}
           {(kind === 'material' || kind === 'semi' || kind === 'expense' || kind === 'output' || kind === 'waste') && paramKeys.length > 0 && (
             <>
               <Field label={tt('production.line.fields.expr')} hint={tt('production.line.fields.exprHint', { example: 'width * height / 1000000 * 1.05' })} error={err.qtyExpr ?? qtyExprError}>
-                {p => <Input {...p} placeholder={'width * height / 1000000 * 1.05'} value={qtyExpr} onChange={e => setQtyExpr(e.target.value)} invalid={!!(err.qtyExpr ?? qtyExprError)} />}
+                {p => (
+                  <>
+                    <Input {...p} ref={exprRef} placeholder={'width * height / 1000000 * 1.05'} value={qtyExpr} onChange={e => setQtyExpr(e.target.value)} invalid={!!(err.qtyExpr ?? qtyExprError)} />
+                    {paramChips}
+                  </>
+                )}
               </Field>
               <Field label={tt('production.line.fields.condition')} hint={tt('production.line.hints.condition')} error={err.condition ?? conditionError}>
                 {p => <Input {...p} placeholder={`color = 'white'`} value={condition} onChange={e => setCondition(e.target.value)} invalid={!!(err.condition ?? conditionError)} />}
@@ -313,14 +348,39 @@ export function LineDialog({ kind, item, line, snap, m, onClose }: { kind: BomLi
                 )}
               </Field>
               <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
-                <Field label={tt('production.field.hours')} className="grow" error={err.hours}>
-                  {p => <Input {...p} inputMode="decimal" value={hours} onChange={e => (setHours(e.target.value), setErr({}))} />}
+                <Field label={tt('production.field.hours')} className="hours-field" error={err.hours}>
+                  {p => (
+                    <>
+                      <NumberField id={p.id} aria-label={tt('production.field.hours')} decimal min={0} step={0.5} value={hours} onChange={v => (setHours(String(v)), setErr({}))} />
+                      {(
+                        <div className="quick-chips">
+                          {QUICK_HOURS.map(h => (
+                            <button key={h} type="button" className={'badge' + (Number(hours.replace(',', '.')) === h ? ' accent' : '')} onClick={() => (setHours(String(h)), setErr({}))}>
+                              {fmtNumber(h)}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </Field>
+                {paramKeys.length > 0 && (
+                  <Field label={tt('production.line.fields.amountExpr')} className="grow" hint={tt('production.line.hints.amountExpr')} error={err.qtyExpr ?? qtyExprError}>
+                    {p => (
+                      <>
+                        <Input {...p} ref={exprRef} placeholder={paramKeys[0] + ' * 300'} value={qtyExpr} onChange={e => setQtyExpr(e.target.value)} invalid={!!(err.qtyExpr ?? qtyExprError)} />
+                        {paramChips}
+                      </>
+                    )}
+                  </Field>
+                )}
+              </div>
+              <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
                 <Field label={tt('production.line.fields.ratePerHour')} className="grow" hint={tt('production.line.hints.rate')}>
-                  {p => <Input {...p} inputMode="decimal" value={rate} onChange={e => setRate(e.target.value)} />}
+                  {p => <MoneyInput {...p} value={rate} onChange={setRate} />}
                 </Field>
                 <Field label={tt('production.line.fields.fixed')} className="grow" hint={tt('production.line.hints.fixed')}>
-                  {p => <Input {...p} inputMode="decimal" value={fixed} onChange={e => setFixed(e.target.value)} />}
+                  {p => <MoneyInput {...p} value={byFormula ? '' : fixed} disabled={byFormula} placeholder={byFormula ? tt('production.line.fields.byFormula') : undefined} onChange={setFixed} />}
                 </Field>
               </div>
             </>

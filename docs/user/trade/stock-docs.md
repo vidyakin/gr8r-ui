@@ -8,7 +8,7 @@ sources:
   - apps/web/src/app/docs/PrintPage.tsx
   - apps/web/src/app/settings/documents.tsx
   - apps/api/src/routes/documents.ts
-verified: 07011eb940
+verified: d20f32daff
 screenshots: []
 ---
 
@@ -30,6 +30,8 @@ screenshots: []
   - начальные остатки — только склад (статьи нет);
   - инвентаризация — склад.
   Контрагента у этих документов нет, НДС в строках не учитывается.
+
+Товар в строке подбирается кнопкой с лупой, клик по названию открывает карточку товара — см. «Позиция в строке» в статье [Продажи](sales.md).
 
 ## Типовые действия
 

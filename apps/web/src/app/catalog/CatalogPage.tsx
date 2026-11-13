@@ -2,7 +2,7 @@
    Выбранная категория живёт в адресе (?category=…), карточка — в пути (/catalog/:productId). */
 import * as React from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
-import { CircleAlert, Package, Plus, Shapes, Wrench } from 'lucide-react';
+import { Factory, CircleAlert, Package, Plus, Shapes, Wrench } from 'lucide-react';
 import { VAT_LABELS, type ProductKind } from '@gr8r/shared';
 import { Badge, Button, EmptyState, Skeleton } from '@/components/ui';
 import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/gr8r/data-table';
@@ -17,6 +17,7 @@ import { ProductDrawer, ProductFormDialog, attachmentImageUrl } from './product-
 import { useProductKinds } from '../positions/data';
 import { buildCategoryTree, categoryPath, flattenTree, money, unitSymbol, useCategories, useIsAdmin, useProduct, useProducts, useUnits, type CategoryNode, type Product } from './data';
 import { useWsId } from '../meta/data';
+import { useSnapshot } from '../production/data';
 
 type Dialog = { type: 'category'; edit?: CategoryNode; parent?: CategoryNode | null } | { type: 'attributes'; category: CategoryNode } | { type: 'delete'; category: CategoryNode } | { type: 'product' } | null;
 
@@ -59,10 +60,14 @@ export function CatalogPage() {
   const status = filters.values.status ?? [];
   const productKinds = useProductKinds();
   const pkFilter = filters.values.productKind ?? [];
+  // «Производимые»: товары, к которым привязана спецификация производства
+  const producedFilter = filters.values.produced ?? [];
+  const prodSnap = useSnapshot();
+  const producedIds = React.useMemo(() => new Set((prodSnap.data?.items ?? []).map(i => i.productId).filter((x): x is string => !!x)), [prodSnap.data]);
   const list = useProducts({ categoryId: selected ?? undefined, q: q || undefined, kind: kind.length === 1 ? kind[0] : undefined, active: status.length === 1 ? status[0] === 'active' : undefined });
   // варианты показываются вложенно под товаром-родителем
   const rows = React.useMemo(() => {
-    const all = (list.data ?? []).filter(p => !pkFilter.length || (p.productKindId && pkFilter.includes(p.productKindId))); // фильтр по виду номенклатуры (задача 1172)
+    const all = (list.data ?? []).filter(p => (!pkFilter.length || (p.productKindId && pkFilter.includes(p.productKindId))) && (!producedFilter.length || producedFilter.includes(producedIds.has(p.id) ? 'yes' : 'no'))); // фильтр по виду номенклатуры (задача 1172)
     const variants = all.filter(p => p.parentProductId);
     const parents = all.filter(p => !p.parentProductId);
     const byParent = new Map<string, typeof all>();
@@ -73,7 +78,7 @@ export function CatalogPage() {
       for (const v of byParent.get(p.id) ?? []) out.push(v);
     }
     return out;
-  }, [list.data, pkFilter.join('|')]);
+  }, [list.data, pkFilter.join('|'), producedFilter.join('|'), producedIds]);
 
   const open = (p: Product) => navigate({ pathname: `/catalog/${p.id}`, search: sp.toString() });
   const closeDrawer = () => navigate({ pathname: '/catalog', search: sp.toString() });
@@ -115,6 +120,7 @@ export function CatalogPage() {
     { id: 'kind', name: t('common.type'), icon: <Package size={15} />, options: [{ id: 'goods', name: t('catalog.kind.goods') }, { id: 'service', name: t('catalog.kind.service') }] },
     ...((productKinds.data ?? []).length ? [{ id: 'productKind', name: t('positions.product.filter'), icon: <Shapes size={15} />, options: (productKinds.data ?? []).map(k => ({ id: k.id, name: k.name })) }] : []),
     { id: 'status', name: t('common.status'), icon: <CircleAlert size={15} />, options: [{ id: 'active', name: t('common.active') }, { id: 'inactive', name: t('common.inactive') }] },
+    ...(prodSnap.data ? [{ id: 'produced', name: t('catalog.producedFilter'), icon: <Factory size={15} />, options: [{ id: 'yes', name: t('catalog.produced') }, { id: 'no', name: t('catalog.notProduced') }] }] : []),
   ];
 
   if (categories.isPending)
@@ -213,10 +219,8 @@ export function CatalogPage() {
           tree={tree}
           initialCategory={selected}
           onClose={() => setDialog(null)}
-          onCreated={p => {
-            setDialog(null);
-            open(p);
-          }}
+          // карточку нового товара не открываем: остаёмся в списке
+          onCreated={() => setDialog(null)}
         />
       )}
       {productId && <DrawerHost id={productId} rows={rows} tree={tree} onClose={closeDrawer} onOpenCategory={id => (closeDrawer(), setSelected(id))} />}

@@ -1,6 +1,6 @@
 /* Смета объекта (задача 1269): итоги сметы — сумма заказчику, плановая себестоимость, часы и маржа без float. */
 import { describe, expect, test } from 'bun:test';
-import { computeEstimateTotals, estimateLineTotals, estimatePlanFact } from '@gr8r/shared';
+import { computeEstimateTotals, estimateLineTotals, estimatePlanFact, priceFromMarkup } from '@gr8r/shared';
 
 const item = (over: Partial<{ id: string; kind: string; qty: string; price: string; costPrice: string; laborHours: string }> = {}) => ({
   kind: 'work',
@@ -42,5 +42,18 @@ describe('смета: итоги', () => {
     });
     const [withFact] = estimatePlanFact(items, { a: { revenue: '150.00', cost: '100.00', hours: '1.500' } });
     expect(withFact!.remaining).toEqual({ revenue: '50.00', cost: '40.00', hours: '0.500' });
+  });
+});
+
+describe('смета: цена от наценки', () => {
+  test('себестоимость × (1 + наценка/100) с округлением до копейки', () => {
+    expect(priceFromMarkup('100', '25')).toBe('125.00');
+    expect(priceFromMarkup('10.01', '12.5')).toBe('11.26');
+    expect(priceFromMarkup('0.10', '0.2')).toBe('0.10');
+    expect(priceFromMarkup('99.99', '-10')).toBe('89.99');
+  });
+  test('наценка не задана — цену не считаем', () => {
+    expect(priceFromMarkup('100', null)).toBeNull();
+    expect(priceFromMarkup('100', undefined)).toBeNull();
   });
 });

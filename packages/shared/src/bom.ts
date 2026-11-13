@@ -95,6 +95,8 @@ export interface CostLine {
   cost: string;
   /** Материал не оценён: у товара нет цены по выбранному источнику */
   missingPrice?: boolean;
+  /** Количество на партию, посчитанное формулой строки (`qtyExpr`); у строк без формулы нет */
+  qty?: string;
   /** Рассчитанное дерево полуфабриката */
   child?: CostNode;
 }
@@ -164,6 +166,11 @@ export function lineQty(l: BomLineInput, params: Record<string, unknown> | null 
   } catch (e) {
     throw formulaError(lineId, e);
   }
+}
+
+/** Фиксированная сумма работы: формула строки (`qtyExpr` у работы считает сумму на партию), иначе обычный `fixedCost` */
+export function lineFixedCost(l: BomLineInput, params: Record<string, unknown> | null | undefined, keys: string[], lineId = l.id): Dec {
+  return l.qtyExpr?.trim() ? lineQty(l, params, keys, lineId) : dec(l.fixedCost);
 }
 
 /** Условие строки: пустое условие — строка всегда; ложное — строка исключается из состава */
@@ -269,29 +276,32 @@ export function computeBomCost(items: BomItemInput[], rootId: string, pricing: B
     for (const l of item.lines) {
       if (!lineEnabled(l, params, keys)) continue;
       const qty = lineQty(l, params, keys);
+      const fq = l.qtyExpr?.trim() ? { qty: fmt(qty) } : {};
       if (l.kind === 'material' || l.kind === 'expense') {
         const price = l.productId ? pricing.materialPrice(l.productId) : null;
         const cost = withPct(mul(qty, dec(price)), dec(l.scrapPct));
         total.m += cost;
         direct += cost;
-        lines.push({ id: l.id, kind: l.kind, cost: fmt(cost), ...(price === null || price === undefined ? { missingPrice: true } : {}) });
+        lines.push({ id: l.id, kind: l.kind, cost: fmt(cost), ...fq, ...(price === null || price === undefined ? { missingPrice: true } : {}) });
       } else if (l.kind === 'work') {
         const own = l.rate !== null && l.rate !== undefined && l.rate !== '';
         const rate = own ? l.rate : l.workCenterId ? pricing.workCenterRate(l.workCenterId) : null;
-        const cost = add(mul(dec(l.hours), dec(rate)), dec(l.fixedCost));
+        // у работы формула строки считает фиксированную сумму (вместо fixedCost)
+        const fixed = l.qtyExpr?.trim() ? qty : dec(l.fixedCost);
+        const cost = add(mul(dec(l.hours), dec(rate)), fixed);
         total.w += cost;
         direct += cost;
         lines.push({ id: l.id, kind: 'work', cost: fmt(cost) });
       } else if (l.kind === 'output') {
         // выходной продукт разборки: он не затрата, а результат — его стоимость считается при выпуске
-        lines.push({ id: l.id, kind: 'output', cost: fmt(0n) });
+        lines.push({ id: l.id, kind: 'output', cost: fmt(0n), ...fq });
       } else if (l.kind === 'waste') {
         // возвратный отход: не затрата, а вычет из себестоимости по учётной цене отхода (wastePriceSource).
         // В «direct» (база накладных) не входит: накладные считаются от прямых затрат без вычета отходов.
         const price = l.productId ? (pricing.wastePrice ?? pricing.materialPrice)(l.productId) : null;
         const cost = mul(qty, dec(price));
         total.wa -= cost;
-        lines.push({ id: l.id, kind: 'waste', cost: fmt(-cost), ...(price === null || price === undefined ? { missingPrice: true } : {}) });
+        lines.push({ id: l.id, kind: 'waste', cost: fmt(-cost), ...fq, ...(price === null || price === undefined ? { missingPrice: true } : {}) });
       } else {
         const childItem = l.childItemId ? byId.get(l.childItemId) : undefined;
         const child = l.childItemId && childItem ? node(l.childItemId, passParams(params, childItem.paramKeys ?? [])) : undefined;
@@ -301,7 +311,7 @@ export function computeBomCost(items: BomItemInput[], rootId: string, pricing: B
           total.w += mul(qty, cu.w);
           total.o += mul(qty, cu.o);
         }
-        lines.push({ id: l.id, kind: 'semi', cost: fmt(cu ? mul(qty, cu.m + cu.w + cu.o) : 0n), ...(child ? { child } : {}) });
+        lines.push({ id: l.id, kind: 'semi', cost: fmt(cu ? mul(qty, cu.m + cu.w + cu.o) : 0n), ...fq, ...(child ? { child } : {}) });
       }
     }
     total.o += pctOf(direct, dec(item.overheadPct));
@@ -472,7 +482,7 @@ export function explodeBom(items: BomItemInput[], rootId: string, qty: string): 
         const q = mul(lineQty(l, params, keys), scale);
         materials.push({ productId: l.productId!, qty: fmt(withPct(q, dec(l.scrapPct)), 3), unitCode: l.unitCode ?? null, stageId: stage, ...(l.kind === 'expense' ? { expense: true } : {}) });
       } else if (l.kind === 'work') {
-        works.push({ operation: l.operation ?? '', operationId: l.productId ?? null, workCenterId: l.workCenterId ?? null, hours: fmt(mul(dec(l.hours), scale), 3), rate: l.rate ?? null, fixedCost: l.fixedCost ?? null, stageId: stage });
+        works.push({ operation: l.operation ?? '', operationId: l.productId ?? null, workCenterId: l.workCenterId ?? null, hours: fmt(mul(dec(l.hours), scale), 3), rate: l.rate ?? null, fixedCost: l.qtyExpr?.trim() ? fmt(lineFixedCost(l, params, keys), 2) : (l.fixedCost ?? null), stageId: stage });
       } else if (l.kind === 'output') {
         // выходной продукт разборки: получается из исходного сырья, а не расходуется
         const q = mul(lineQty(l, params, keys), scale);

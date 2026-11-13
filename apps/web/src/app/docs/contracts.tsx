@@ -19,7 +19,7 @@ import { fmtDate, parse } from '../lib/dates';
 import { useBillingApi, useContracts, useTariffPlans, type Contract, type TariffPlan } from './billing-data';
 import { useDocTemplates } from './data';
 import { CounterpartyPicker } from './pickers';
-import { useProducts } from '../catalog/data';
+import { ProductField } from './position-field';
 
 /* ---------------- contracts ---------------- */
 
@@ -404,7 +404,6 @@ export function TariffPlansPage() {
 
 /** Позиции тарифного плана: товар, количество, цена, абонплата и представление в счёте */
 function TariffPlanLines({ plan, api }: { plan: TariffPlan; api: ReturnType<typeof useBillingApi> }) {
-  const products = useProducts();
   const t = useT();
   const [lines, setLines] = React.useState(plan.lines);
   React.useEffect(() => setLines(plan.lines), [plan.id, plan.lines.length]);
@@ -420,14 +419,11 @@ function TariffPlanLines({ plan, api }: { plan: TariffPlan; api: ReturnType<type
     <div className="stack" style={{ gap: 8, marginTop: 8 }}>
       {lines.map((l, i) => (
         <div key={l.id || i} className="row" style={{ gap: 8 }}>
-          <Select
-            value={l.productId}
-            onValueChange={v => {
-              const p = (products.data ?? []).find(x => x.id === v);
-              setLines(prev => prev.map((x, j) => (j === i ? { ...x, productId: v, productName: p?.name ?? x.productName, unitCode: p?.unitCode ?? x.unitCode, vatRate: p?.vatRate ?? x.vatRate } : x)));
-            }}
-            placeholder={t('docs.contracts.chooseProduct')}
-            options={(products.data ?? []).map(p => ({ value: p.id, label: p.name }))}
+          <ProductField
+            id={l.productId}
+            name={l.productName}
+            aria-label={t('docs.contracts.chooseProduct')}
+            onPick={p => setLines(prev => prev.map((x, j) => (j === i ? { ...x, productId: p.id, productName: p.name, unitCode: p.unitCode ?? x.unitCode, vatRate: p.vatRate ?? x.vatRate } : x)))}
           />
           <Input aria-label={t('docs.contracts.col.qty')} inputMode="decimal" value={l.qty} onChange={e => setLines(prev => prev.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x)))} />
           <Input aria-label={t('docs.contracts.col.price')} inputMode="decimal" value={l.price} onChange={e => setLines(prev => prev.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))} />

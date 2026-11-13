@@ -1,7 +1,7 @@
 /* Смета объекта (задача 1269, docs/architecture/construction.md): виды позиций и статусы, расчёт итогов сметы
    и план-факт по позициям. Чистые функции на десятичных из decimal.ts — одни и те же на сервере и в интерфейсе.
    Деньги без НДС, считаются целыми копейками по строкам, итоги — сумма округлённых строк (как в документах). */
-import { dec, div, fmt, mul, type Dec } from './decimal';
+import { dec, div, fmt, mul, roundDiv, withPct, type Dec } from './decimal';
 import type { ObjectCostCategory } from './constants';
 
 /** Вид сметы: основная смета объекта или дополнение (допработы) */
@@ -124,4 +124,12 @@ export function estimatePlanFact(items: EstimateItemLike[], factByItemId: Record
       },
     };
   });
+}
+
+/** Цена строки из себестоимости и единой наценки: себестоимость × (1 + наценка/100), округление до копейки.
+    Наценка не задана (null/пусто) — null: цену не пересчитываем. */
+export function priceFromMarkup(costPrice: string, markupPct: string | null | undefined): string | null {
+  if (markupPct == null || markupPct === '') return null;
+  const kopecks = 10_000n; // масштаб decimal.ts — 10^-6, копейка — 10^-2
+  return fmt(roundDiv(withPct(dec(costPrice), dec(markupPct)), kopecks) * kopecks, 2);
 }

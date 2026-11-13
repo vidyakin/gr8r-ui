@@ -105,6 +105,8 @@ export const itemQuery = listQuery.extend({
   kind: z.enum(MANUFACTURED_KINDS).optional(),
   /** Фильтр списка «Содержит материал/операцию»: товар (материал, расход) или операция есть в строках спецификации */
   contains: uuid.optional(),
+  /** Спецификации одного товара (выбор спецификации в заказе из строки сметы) */
+  productId: uuid.optional(),
 });
 
 /* ---------------- строки спецификации ---------------- */
@@ -168,7 +170,8 @@ export const bomLineCreate = z
     } else {
       // работа: операция (товар каталога) или текстовое название; часы и ставка — норма строки
       need(!!v.operation || !!v.productId, 'operation', 'Name the operation or choose one from the catalogue');
-      need((v.hours !== undefined && Number(v.hours) > 0) || (v.fixedCost != null && Number(v.fixedCost) > 0) || !!v.productId, 'hours', 'Set hours or a fixed cost');
+      // часы или сумма — числом либо формулой суммы над параметрами спецификации
+      need((v.hours !== undefined && Number(v.hours) > 0) || !!v.qtyExpr?.trim() || (v.fixedCost != null && Number(v.fixedCost) > 0) || !!v.productId, 'hours', 'Set hours or a fixed cost');
       need(v.semiMode === undefined, 'semiMode', 'Not applicable to a work line');
     }
   });
@@ -176,7 +179,8 @@ export const bomLineCreate = z
 export const bomLineUpdate = z
   .object({
     qty: positive(1e9).optional(),
-    productId: uuid.optional(),
+    /** null — только у работы: отвязать операцию каталога (у остальных строк товар обязателен, проверка в обработчике) */
+    productId: uuid.nullish(),
     scrapPct: nonNeg(1000).optional(),
     /** output: доля стоимости исходного товара, % */
     costShare: nonNeg(1000).nullish(),

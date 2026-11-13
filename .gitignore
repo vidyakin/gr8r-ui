@@ -6,8 +6,13 @@ dist
 *.log
 .dev-pids
 .pgtest
+.serena
+.playwright-mcp
 
 # Прод: переменные и данные на сервере
 .env.prod
 backups/
 archives/
+graft
+graft.db*
+output

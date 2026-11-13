@@ -16,9 +16,11 @@ import { useWsId } from '../meta/data';
 import { money, unitSymbol, useUnits, type Unit } from '../catalog/data';
 import { UnitSelect } from '../catalog/product-ui';
 import { PRICE_SOURCE_LABEL, useCosting, useExplosion, useProductionMutations, useSnapshot, type BomLine, type Item, type Material, type NeedRow, type ProductionMutations, type Snapshot, type WorkCenter } from './data';
-import { t, useT } from '@/i18n';
+import { parseNumber, t, useT } from '@/i18n';
 import { LineDialog } from './line-dialog';
 import { ParamEditor } from './params-editor';
+import { ItemProductField } from './item-product';
+import { NumberField } from '@/components/gr8r/number-field';
 
 const trimZeros = (s: string) => (s.includes('.') ? s.replace(/\.?0+$/, '') : s);
 const qtyText = (v: string) => trimZeros(Number(v).toFixed(3));
@@ -86,7 +88,11 @@ function detail(line: BomLine, c: Ctx) {
     <span className="faint">
       {center && <>{center.name} · </>}
       {Number(line.hours) > 0 && <>{t('production.common.perHour', { amount: money(rate) })}</>}
-      {Number(line.fixedCost ?? 0) > 0 && <>{Number(line.hours) > 0 ? ' + ' : ''}{c.tt('production.item.fixedCost', { amount: money(line.fixedCost) })}</>}
+      {line.qtyExpr ? (
+        <>{Number(line.hours) > 0 ? ' + ' : ''}{c.tt('production.item.formula', { expr: line.qtyExpr })}</>
+      ) : (
+        Number(line.fixedCost ?? 0) > 0 && <>{Number(line.hours) > 0 ? ' + ' : ''}{c.tt('production.item.fixedCost', { amount: money(line.fixedCost) })}</>
+      )}
     </span>
   );
 }
@@ -141,6 +147,20 @@ export function ItemPage() {
   return <ItemScreen key={item.id} snap={snap.data} item={item} />;
 }
 
+/** Значение для расчёта: введённое, иначе по умолчанию — у числа 1, у выбора первый вариант (дерево видно сразу) */
+function calcValue(p: Item['params'][number], values: Record<string, string>): string {
+  const v = values[p.key];
+  if (v !== undefined && v.trim() !== '') return v;
+  return p.type === 'number' ? '1' : p.type === 'select' ? (p.options?.choices?.[0]?.value ?? '') : 'false';
+}
+
+/** Название строки спецификации для сообщения об ошибке формулы */
+function formulaLineName(item: Item, lineId: string, ctx: Ctx): string {
+  const l = item.lines.find(x => x.id === lineId);
+  if (!l) return '';
+  return (l.productId && ctx.mats.get(l.productId)?.name) || (l.childItemId && ctx.items.get(l.childItemId)?.name) || l.note || '';
+}
+
 function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
   const navigate = useNavigate();
   const canWrite = useCanWrite();
@@ -149,7 +169,20 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
   const m = useProductionMutations();
   const tt = useT();
   const costing = useCosting(snap)!;
-  const { tree, error } = costing(item.id);
+  // значения параметров только для расчёта себестоимости на этой странице: не сохраняются, в заказах задаются свои
+  const [calcValues, setCalcValues] = React.useState<Record<string, string>>({});
+  const specParams = item.params ?? [];
+  const calcParams = React.useMemo(() => {
+    if (!specParams.length) return null;
+    const out: Record<string, unknown> = {};
+    for (const p of specParams) {
+      const v = calcValue(p, calcValues);
+      if (p.type === 'boolean') out[p.key] = v === 'true';
+      else if (v && v.trim() !== '') out[p.key] = p.type === 'number' ? Number(parseNumber(v)) : v;
+    }
+    return out;
+  }, [specParams, calcValues]);
+  const { tree, error, formula } = costing(item.id, calcParams);
   // вид производства изделия: этапы, на которых расходуются материалы и выполняются операции
   const kind = snap.kinds.find(k => k.id === item.productionKindId) ?? null;
   const stageName = (id: string | null) => (id ? (kind?.stages.find(x => x.id === id)?.name ?? null) : null);
@@ -347,19 +380,18 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
         </div>
       </div>
 
+      {/* шапка в два ряда: 1-й — товар каталога (широкий), тип, код, ед.; 2-й — режим, числовые поля, вид производства */}
       <div className="bom-params" aria-label={tt('production.params.title')}>
+        <div className="bom-params-row r1">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+          <span className="label">{tt('production.item.catalogProduct')}</span>
+          <ItemProductField item={item} canWrite={canWrite} />
+        </div>
         <label>
           <span className="label">{tt('production.field.type')}</span>
           <select className="select" value={item.kind} disabled={!canWrite} aria-label={tt('production.field.type')} onChange={e => m.updateItem.mutate({ id: item.id, patch: { kind: e.target.value } })}>
             <option value="product">{tt('production.line.kind.product')}</option>
             <option value="semi">{tt('production.line.kind.semi')}</option>
-          </select>
-        </label>
-        <label>
-          <span className="label">{tt('production.item.mode')}</span>
-          <select className="select" value={item.mode ?? 'assembly'} disabled={!canWrite} aria-label={tt('production.item.mode')} onChange={e => m.updateItem.mutate({ id: item.id, patch: { mode: e.target.value } })}>
-            <option value="assembly">{tt('productionEnums.operation.assembly')}</option>
-            <option value="disassembly">{tt('productionEnums.operation.disassembly')}</option>
           </select>
         </label>
         <label>
@@ -370,17 +402,26 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
           <span className="label">{tt('production.field.unit')}</span>
           {canWrite ? <UnitSelect value={item.unitCode} onChange={unitCode => m.updateItem.mutate({ id: item.id, patch: { unitCode } })} /> : <span>{unit}</span>}
         </label>
+        </div>
+        <div className="bom-params-row r2">
+        <label>
+          <span className="label">{tt('production.item.mode')}</span>
+          <select className="select" value={item.mode ?? 'assembly'} disabled={!canWrite} aria-label={tt('production.item.mode')} onChange={e => m.updateItem.mutate({ id: item.id, patch: { mode: e.target.value } })}>
+            <option value="assembly">{tt('productionEnums.operation.assembly')}</option>
+            <option value="disassembly">{tt('productionEnums.operation.disassembly')}</option>
+          </select>
+        </label>
         <label>
           <span className="label">{tt('production.item.batchQty')}</span>
-          <ParamInput label={tt('production.item.batchQty')} numeric value={qtyText(item.batchQty)} disabled={!canWrite} onCommit={v => Number(v) > 0 && m.updateItem.mutate({ id: item.id, patch: { batchQty: Number(v) } })} />
+          <NumParam label={tt('production.item.batchQty')} decimal min={0} value={Number(item.batchQty)} disabled={!canWrite} onCommit={v => v > 0 && m.updateItem.mutate({ id: item.id, patch: { batchQty: v } })} />
         </label>
         <label>
           <span className="label">{tt('production.item.overheadPct')}</span>
-          <ParamInput label={tt('production.item.overheadPct')} numeric value={trimZeros(Number(item.overheadPct).toFixed(2))} disabled={!canWrite} onCommit={v => Number(v) >= 0 && m.updateItem.mutate({ id: item.id, patch: { overheadPct: Number(v) } })} />
+          <NumParam label={tt('production.item.overheadPct')} decimal min={0} value={Number(item.overheadPct)} disabled={!canWrite} onCommit={v => m.updateItem.mutate({ id: item.id, patch: { overheadPct: v } })} />
         </label>
         <label>
           <span className="label">{tt('production.item.bomLeadDays')}</span>
-          <ParamInput label={tt('production.item.bomLeadDays')} numeric value={String(item.leadDays ?? 0)} disabled={!canWrite} onCommit={v => Number(v) >= 0 && m.updateItem.mutate({ id: item.id, patch: { leadDays: Number(v) } })} />
+          <NumParam label={tt('production.item.bomLeadDays')} min={0} value={item.leadDays ?? 0} disabled={!canWrite} onCommit={v => m.updateItem.mutate({ id: item.id, patch: { leadDays: Math.round(v) } })} />
         </label>
         <label>
           <span className="label">{tt('production.item.productionKind')}</span>
@@ -395,17 +436,52 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
         </label>
         <label>
           <span className="label">{tt('production.item.bomNeedFor')}</span>
-          <ParamInput label={tt('production.item.bomNeedFor')} numeric value={needQty} onCommit={v => Number(v) > 0 && setNeedQty(v)} />
+          <NumParam label={tt('production.item.bomNeedFor')} decimal min={0} value={Number(needQty)} onCommit={v => v > 0 && setNeedQty(String(v))} />
         </label>
         <label>
           <span className="label">{tt('production.item.bomInvalid')}</span>
           <input type="checkbox" aria-label={tt('production.item.bomInvalid')} checked={!!item.isInvalid} disabled={!canWrite} onChange={e => m.updateItem.mutate({ id: item.id, patch: { isInvalid: e.currentTarget.checked } })} />
         </label>
+        </div>
       </div>
 
       <ParamEditor item={item} canWrite={canWrite} />
 
-      {error && <Alert tone="danger" title={tt('production.item.bomCostLine')}>{error}</Alert>}
+      {specParams.length > 0 && (
+        <div className="bom-params calc-values" aria-label={tt('production.item.calcValues')}>
+          <span className="faint">{tt('production.item.calcValuesHint')}</span>
+          <div className="bom-params-row param-row">
+            {specParams.map(p => (
+              <label key={p.key}>
+                <span className="label">{p.name || p.key}</span>
+                {p.type === 'select' ? (
+                  <select className="select" aria-label={p.name} value={calcValue(p, calcValues)} onChange={e => setCalcValues(s => ({ ...s, [p.key]: e.target.value }))}>
+                    <option value="" />
+                    {(p.options?.choices ?? []).map(c => (
+                      <option key={c.value} value={c.value}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : p.type === 'boolean' ? (
+                  <input type="checkbox" aria-label={p.name} checked={calcValue(p, calcValues) === 'true'} onChange={e => setCalcValues(s => ({ ...s, [p.key]: e.target.checked ? 'true' : 'false' }))} />
+                ) : (
+                  <NumberField aria-label={p.name} decimal min={0} value={calcValue(p, calcValues)} onChange={v => setCalcValues(s => ({ ...s, [p.key]: String(v) }))} />
+                )}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {error &&
+        (formula?.code === 'formula_param' ? (
+          <Alert tone="warn" title={tt('production.item.calcValuesNeeded')} />
+        ) : (
+          <Alert tone="danger" title={tt('production.item.bomCostLine')}>
+            {formula ? tt('production.item.formulaLine', { line: formulaLineName(item, formula.lineId, ctx), error }) : error}
+          </Alert>
+        ))}
 
       <div className="bom" role="treegrid" aria-label={tt('production.item.bom')}>
         <div className="bom-row head" role="row">
@@ -445,9 +521,12 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
           const root = f.depth === 0;
           const I = KIND_ICON[l.kind];
           const isOpen = open.has(f.key);
-          const scaledQty = fmt(mul(dec(l.kind === 'work' ? l.hours : l.qty), f.scale), 3);
+          // строка с формулой: количество считается (у работы формула считает сумму, часы правятся) по параметрам (значениям для расчёта), руками не правится
+          const byFormula = l.kind !== 'work' && !!l.qtyExpr?.trim();
+          const scaledQty = fmt(mul(dec(byFormula ? (f.cost.qty ?? '0') : l.kind === 'work' ? l.hours : l.qty), f.scale), 3);
           const scaledCost = fmt(mul(dec(f.cost.cost), f.scale), 2);
           const editable = root && canWrite;
+          const qtyEditable = editable && !byFormula;
           const kindLabelKey: Record<typeof l.kind, string> = {
             material: 'productionEnums.componentKind.material',
             semi: 'productionEnums.componentKind.semi',
@@ -511,7 +590,11 @@ function ItemScreen({ snap, item }: { snap: Snapshot; item: Item }) {
                   {root && l.stageId && stageName(l.stageId) && <Badge tone="gray">{stageName(l.stageId)}</Badge>}
                 </span>
                 <span className="r num">
-                  {editable ? (
+                  {byFormula && !f.cost.qty ? (
+                    <span className="faint" title={tt('production.item.formula', { expr: l.qtyExpr! })}>ƒ</span>
+                  ) : byFormula ? (
+                    <span title={tt('production.item.formula', { expr: l.qtyExpr! })}>{trimZeros(scaledQty)}</span>
+                  ) : qtyEditable ? (
                     <QtyInput
                       label={l.kind === 'work' ? tt('production.item.bomHoursOf', { name: lineTitle(l, ctx) }) : tt('production.item.bomQtyOf', { name: lineTitle(l, ctx) })}
                       value={qtyText(l.kind === 'work' ? l.hours : l.qty)}
@@ -728,8 +811,10 @@ function countMissing(n: CostNode): number {
 
 /** Поле параметра: черновик, значение уходит по Enter или потере фокуса */
 function ParamInput({ value, onCommit, label, numeric, disabled }: { value: string; onCommit: (v: string) => void; label: string; numeric?: boolean; disabled?: boolean }) {
-  const [v, setV] = React.useState(value);
-  React.useEffect(() => setV(value), [value]);
+  // дробь показываем через запятую, как в NumberField
+  const shown = value.replace('.', ',');
+  const [v, setV] = React.useState(shown);
+  React.useEffect(() => setV(shown), [shown]);
   return (
     <input
       className="input"
@@ -744,13 +829,46 @@ function ParamInput({ value, onCommit, label, numeric, disabled }: { value: stri
   );
 }
 
-/** Количество в строке: правка на месте, пересчёт идёт сразу после Enter или потери фокуса */
-function QtyInput({ value, onCommit, label }: { value: string; onCommit: (v: number) => void; label: string }) {
+/** Числовой параметр шапки: наш NumberField с −/+; значение уходит при потере фокуса или через полсекунды после последнего изменения */
+function NumParam({ value, onCommit, label, decimal, min, disabled }: { value: number; onCommit: (v: number) => void; label: string; decimal?: boolean; min?: number; disabled?: boolean }) {
   const [v, setV] = React.useState(value);
   React.useEffect(() => setV(value), [value]);
+  const timer = React.useRef<number | undefined>(undefined);
+  const latest = React.useRef({ v, value, onCommit });
+  latest.current = { v, value, onCommit };
+  const flush = () => {
+    clearTimeout(timer.current);
+    const { v: cur, value: was, onCommit: commit } = latest.current;
+    if (Number.isFinite(cur) && cur !== was) commit(cur);
+  };
+  React.useEffect(() => () => clearTimeout(timer.current), []);
+  return (
+    <NumberField
+      aria-label={label}
+      decimal={decimal}
+      min={min}
+      disabled={disabled}
+      value={v}
+      onChange={n => {
+        setV(n);
+        clearTimeout(timer.current);
+        timer.current = window.setTimeout(flush, 500);
+      }}
+      onBlur={flush}
+    />
+  );
+}
+
+/** Количество в строке: правка на месте, пересчёт идёт сразу после Enter или потери фокуса */
+function QtyInput({ value, onCommit, label }: { value: string; onCommit: (v: number) => void; label: string }) {
+  // дробь показываем через запятую, как в NumberField
+  const shown = value.replace('.', ',');
+  const [v, setV] = React.useState(shown);
+  React.useEffect(() => setV(shown), [shown]);
   const commit = () => {
-    const n = Number(v);
-    if (v.trim() === '' || !Number.isFinite(n) || n < 0) return setV(value);
+    // запятая и точка — оба разделителя: «2,5» не должно откатываться
+    const n = Number(v.trim().replace(',', '.'));
+    if (v.trim() === '' || !Number.isFinite(n) || n < 0) return setV(shown);
     if (n !== Number(value)) onCommit(n);
   };
   return <input className="input bom-qty" inputMode="decimal" aria-label={label} value={v} onChange={e => setV(e.target.value)} onBlur={commit} onKeyDown={e => (e.key === 'Enter' ? e.currentTarget.blur() : handleNumericArrow(e))} />;

@@ -2,9 +2,11 @@
    (индексы полей конструктора), PDF печатных форм, ZIP-архив выгрузки счетов, закрытие периода (production.close_period)
    и выполнение запусков автоматизаций (flow.run). */
 import { and, eq, inArray } from 'drizzle-orm';
-import { BANK_SYNC_JOB, buildPrintData, OBJECT_REPORT_JOB, runScheduledObjectReport, renderContractDocxFile, renderContractHtml, renderDocumentHtml, settlementActHtml, transportWaybillPrintData, DISTRIBUTE_JOB, GEOCODE_JOB, OPTIMIZE_JOB, executeRoutingRun, runGeocode, createFieldIndex, integrationRuntime, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, addVersion, createAttachment, contractFiles, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, isUuid, jobs, withContext, type Db, type Sql } from '@gr8r/db';
-import { FIELD_TYPES, renderPrintForm, renderTransportWaybill, type FieldType, type PrintForm } from '@gr8r/shared';
+import { BANK_SYNC_JOB, buildPrintData, OBJECT_REPORT_JOB, runScheduledObjectReport, renderContractDocxFile, renderContractHtml, renderDocumentHtml, settlementActHtml, transportWaybillPrintData, DISTRIBUTE_JOB, GEOCODE_JOB, OPTIMIZE_JOB, executeRoutingRun, runGeocode, createFieldIndex, integrationRuntime, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, addVersion, createAttachment, contractFiles, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, getEstimateImport, isUuid, jobs, saveEstimateImportAi, withContext, type Db, type Sql } from '@gr8r/db';
+import { FIELD_TYPES, renderPrintForm, renderTransportWaybill, TransientError, type EstimatePdfRegion, type EstimateTableFile, type FieldType, type PrintForm } from '@gr8r/shared';
 import { loadRequestForHook, markRequestHookSent } from '@gr8r/db';
+import { extractEstimateRegions, extractEstimateRows } from './ai/estimate-extract';
+import { llmRuntime } from './ai/llm';
 import { runClosePeriod } from './production-closing';
 import { executeRun } from './flows/engine';
 import { startRunsForEvent } from './flows/triggers';
@@ -217,6 +219,37 @@ export const jobHandlers: Record<string, (job: JobRow, h: JobContext) => Promise
       const msg = e instanceof Error ? e.message : String(e);
       throw new Error(`document.docx failed: ${msg.slice(0, 500)}`);
     }
+  },
+  /** ИИ-разметка импорта сметы из документа (docx): читает estimate_imports, зовёт модель через
+      OpenAI-совместимый API (ai/llm.ts), пишет результат. Нет AI_API_KEY — сразу done без разметки
+      (фронт уходит на сопоставление колонок); сеть/429/5xx — TransientError (повтор задачи),
+      кривой ответ модели — done с ai_error (тоже fallback, повторять бессмысленно) */
+  'estimate.ai_extract': async (job, h) => {
+    const p = job.payload as { importId?: unknown; regions?: EstimatePdfRegion[] };
+    if (!isUuid(p.importId)) throw new Error('estimate.ai_extract job: payload.importId must be a uuid');
+    const importId = p.importId as string;
+    const row = await h.read(db => getEstimateImport(db, job.workspaceId!, importId));
+    if (row.status !== 'pending') return; // уже размечен: повтор задачи после успеха ничего не делает
+    const save = (result: Awaited<ReturnType<typeof extractEstimateRows>> | null, error: string | null) =>
+      h.read(async db => {
+        await saveEstimateImportAi(db, job.workspaceId!, importId, result, error);
+        if (p.regions) await db.update(jobs).set({ payload: { importId } }).where(eq(jobs.id, job.id));
+      });
+    if (!llmRuntime.config()) {
+      await save(null, 'AI is not configured: set AI_API_KEY');
+      return;
+    }
+    let result;
+    try {
+      result = p.regions
+        ? await extractEstimateRegions(p.regions, row.hint)
+        : await extractEstimateRows(row.table as EstimateTableFile, row.hint);
+    } catch (e) {
+      if (e instanceof TransientError && job.attempts < job.maxAttempts) throw e;
+      await save(null, (e instanceof Error ? e.message : String(e)).slice(0, 500));
+      return;
+    }
+    await save(result, null);
   },
   /** Акт сверки взаиморасчётов → PDF. Акт не документ учёта, поэтому файл лежит в document_exports (contentType application/pdf).
       Ошибка формирования не повторяется вслепую: файл помечается failed с текстом, акт можно заказать заново */

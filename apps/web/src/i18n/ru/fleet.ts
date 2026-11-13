@@ -236,6 +236,7 @@ export const fleet: Widen<typeof F> = {
     line: { part: 'Запчасть', work: 'Работа' },
     stockPart: 'Запчасть со склада',
     boughtPart: 'Куплена отдельно',
+    clearPart: 'Вернуть в «куплена отдельно»',
     lineName: 'Наименование',
     qty: 'Кол-во',
     price: 'Цена',

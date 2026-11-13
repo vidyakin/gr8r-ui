@@ -3,15 +3,16 @@
    по машине (раздел «Автопарк»). Проведённое ТО по пункту регламента отмечает его выполненным. */
 import * as React from 'react';
 import { Link } from 'react-router';
-import { Plus, Wrench } from 'lucide-react';
+import { Plus, Wrench, X } from 'lucide-react';
 import { REPAIR_KINDS, type RepairKind } from '@gr8r/shared';
-import { Badge, Button, EmptyState, Field, Input, Select, Skeleton } from '@/components/ui';
+import { Badge, Button, EmptyState, Field, IconButton, Input, Select, Skeleton } from '@/components/ui';
 import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
 import { fmtAmount, fmtNumber, useT } from '@/i18n';
 import { dec, add as decAdd, mul as decMul, fmt as decFmt } from '@gr8r/shared';
 import { iso, today, fmtDate, parse } from '../lib/dates';
 import { useProducts } from '../catalog/data';
 import { useWarehouses } from '../docs/data';
+import { ProductField } from '../docs/position-field';
 import { useFleetApi, useRepair, useRepairs, useServicePlans, useVehicles, type Repair, type RepairLine, type ServicePlan } from './data';
 import { FleetHead, FormDialog, intOrNull, num, orNull } from './parts';
 import { DateInput } from '@/components/gr8r/date-picker';
@@ -199,7 +200,14 @@ function RepairDialog({ id, onClose }: { id: string | null; onClose: () => void 
             <div key={i} className="row" style={{ gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <Badge tone={l.kind === 'part' ? 'accent' : 'violet'}>{t(`fleet.repair.line.${l.kind}`)}</Badge>
               {l.kind === 'part' && (
-                <Select size="sm" disabled={!draft} aria-label={t('fleet.repair.stockPart')} value={l.productId ?? NONE} onValueChange={x => setLine(i, { productId: x === NONE ? null : x, name: x === NONE ? l.name : goods.find(g => g.id === x)?.name ?? l.name })} options={[{ value: NONE, label: t('fleet.repair.boughtPart') }, ...goods.map(g => ({ value: g.id, label: g.name }))]} />
+                <div className="row" style={{ gap: 2, minWidth: 200, width: 240 }}>
+                  <ProductField className="grow" id={l.productId} name={l.name} productKind="goods" disabled={!draft} aria-label={t('fleet.repair.stockPart')} placeholder={t('fleet.repair.boughtPart')} onPick={pr => setLine(i, { productId: pr.id, name: pr.name })} />
+                  {draft && l.productId && (
+                    <IconButton size="xs" label={t('fleet.repair.clearPart')} onClick={() => setLine(i, { productId: null })}>
+                      <X size={13} />
+                    </IconButton>
+                  )}
+                </div>
               )}
               <Input size="sm" style={{ minWidth: 220, flex: 1 }} disabled={!draft} aria-label={t('fleet.repair.lineName')} placeholder={t('fleet.repair.lineName')} value={l.name} onChange={e => setLine(i, { name: e.target.value })} />
               <Input size="sm" style={{ width: 80 }} inputMode="decimal" disabled={!draft} aria-label={t('fleet.repair.qty')} value={l.qty} onChange={e => setLine(i, { qty: e.target.value })} />

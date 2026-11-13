@@ -3,17 +3,34 @@
    предложение перевести заказ-наряд в гарантийный вид. */
 import * as React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, X } from 'lucide-react';
 import { Button, Field, IconButton, Input, Select, Textarea, toast } from '@/components/ui';
 import { DateInput } from '@/components/gr8r/date-picker';
 import { useT } from '@/i18n';
-import { useCompanies } from '../catalog/data';
+import { useCompanies, useProduct } from '../catalog/data';
 import { fmtDate, parse } from '../lib/dates';
-import { call, useWsId } from '../meta/data';
+import { useWsId } from '../meta/data';
+import { ProductField } from './position-field';
 import { docsKey, useDocsApi, useWorkOrderKinds, type DocDetail } from './data';
 import { useCustomerMaterials, useRepairItem, useSerialLookup, type CustomerMaterial } from './serials-data';
 
 const NONE = '__none__';
+
+/** Выбор товара в карточке: название берём из каталога по id */
+function GoodsPick({ id, onChange, disabled, label, placeholder, clearLabel }: { id: string | null | undefined; onChange: (id: string | null) => void; disabled?: boolean; label: string; placeholder: string; clearLabel: string }) {
+  const product = useProduct(id || undefined);
+  const [picked, setPicked] = React.useState('');
+  return (
+    <div className="flex items-center min-w-0" style={{ gap: 2 }}>
+      <ProductField className="grow" id={id} name={(id && (product.data?.name ?? picked)) || ''} productKind="goods" disabled={disabled} aria-label={label} placeholder={placeholder} onPick={p => (setPicked(p.name), onChange(p.id))} />
+      {!disabled && id && (
+        <IconButton size="xs" label={clearLabel} onClick={() => onChange(null)}>
+          <X size={13} />
+        </IconButton>
+      )}
+    </div>
+  );
+}
 
 export function RepairItemPanel({ doc, editable }: { doc: DocDetail; editable: boolean }) {
   const t = useT();
@@ -23,7 +40,6 @@ export function RepairItemPanel({ doc, editable }: { doc: DocDetail; editable: b
   const item = useRepairItem(doc.id, true);
   const kinds = useWorkOrderKinds();
   const companies = useCompanies();
-  const [products, setProducts] = React.useState<{ id: string; name: string }[]>([]);
   const [f, setF] = React.useState({ productId: '', name: '', serialText: '', defect: '', completeness: '', appearance: '', receivedAt: '', returnedAt: '', outsourceCompanyId: '', outsourcedAt: '', outsourceReturnedAt: '' });
   const [loaded, setLoaded] = React.useState(false);
   React.useEffect(() => {
@@ -32,13 +48,6 @@ export function RepairItemPanel({ doc, editable }: { doc: DocDetail; editable: b
     setF({ productId: r?.productId ?? '', name: r?.name ?? '', serialText: r?.serialText ?? '', defect: r?.defect ?? '', completeness: r?.completeness ?? '', appearance: r?.appearance ?? '', receivedAt: r?.receivedAt ?? doc.date, returnedAt: r?.returnedAt ?? '', outsourceCompanyId: r?.outsourceCompanyId ?? '', outsourcedAt: r?.outsourcedAt ?? '', outsourceReturnedAt: r?.outsourceReturnedAt ?? '' });
     setLoaded(true);
   }, [item.isPending, item.data, loaded, doc.date]);
-  React.useEffect(() => {
-    let alive = true;
-    void call<{ items: { id: string; name: string }[] }>(ws, 'GET', '/products?kind=goods&active=true&limit=200').then(r => alive && setProducts(r.items));
-    return () => {
-      alive = false;
-    };
-  }, [ws]);
 
   // проверка гарантии по введённому номеру (с паузой)
   const [serialQ, setSerialQ] = React.useState('');
@@ -82,14 +91,8 @@ export function RepairItemPanel({ doc, editable }: { doc: DocDetail; editable: b
       {doc.kindType === 'warranty' && <p style={{ margin: 0 }}>{t('serials.repair.warrantyNoRevenue')}</p>}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
         <Field label={t('serials.repair.product')}>
-          {p => (
-            <Select
-              id={p.id}
-              disabled={!editable}
-              value={f.productId || NONE}
-              onValueChange={v => set({ productId: v === NONE ? '' : v })}
-              options={[{ value: NONE, label: t('serials.repair.productPlaceholder') }, ...products.map(x => ({ value: x.id, label: x.name }))]}
-            />
+          {() => (
+            <GoodsPick id={f.productId} disabled={!editable} label={t('serials.repair.product')} placeholder={t('serials.repair.productPlaceholder')} clearLabel={t('serials.repair.productClear')} onChange={v => set({ productId: v ?? '' })} />
           )}
         </Field>
         <Field label={t('serials.repair.name')}>{p => <Input id={p.id} disabled={!editable} value={f.name} placeholder={t('serials.repair.namePlaceholder')} onChange={e => set({ name: e.target.value })} />}</Field>
@@ -164,14 +167,6 @@ export function CustomerMaterialsPanel({ doc, editable }: { doc: DocDetail; edit
   const list = useCustomerMaterials(doc.id);
   const [rows, setRows] = React.useState<Partial<CustomerMaterial>[] | null>(null);
   const current = rows ?? list.data ?? [];
-  const [products, setProducts] = React.useState<{ id: string; name: string }[]>([]);
-  React.useEffect(() => {
-    let alive = true;
-    void call<{ items: { id: string; name: string }[] }>(ws, 'GET', '/products?active=true&limit=200').then(r => alive && setProducts(r.items));
-    return () => {
-      alive = false;
-    };
-  }, [ws]);
   const patch = (i: number, p: Partial<CustomerMaterial>) => setRows(current.map((r, k) => (k === i ? { ...r, ...p } : r)));
   const save = async () => {
     const r = await api('PUT', `/work-orders/${doc.id}/customer-materials`, { materials: current.map(m => ({ id: m.id, productId: m.productId ?? null, name: m.name ?? '', qty: m.qty || '1', comment: m.comment ?? '' })) });
@@ -199,13 +194,7 @@ export function CustomerMaterialsPanel({ doc, editable }: { doc: DocDetail; edit
             {current.map((m, i) => (
               <tr key={m.id ?? `new-${i}`}>
                 <td>
-                  <Select
-                    aria-label={t('serials.customerMaterials.product')}
-                    disabled={!editable}
-                    value={m.productId ?? NONE}
-                    onValueChange={v => patch(i, { productId: v === NONE ? null : v })}
-                    options={[{ value: NONE, label: t('serials.customerMaterials.productPlaceholder') }, ...products.map(x => ({ value: x.id, label: x.name }))]}
-                  />
+                  <GoodsPick id={m.productId} disabled={!editable} label={t('serials.customerMaterials.product')} placeholder={t('serials.customerMaterials.productPlaceholder')} clearLabel={t('serials.repair.productClear')} onChange={v => patch(i, { productId: v })} />
                 </td>
                 <td><Input aria-label={t('serials.customerMaterials.name')} disabled={!editable} value={m.name ?? ''} onChange={e => patch(i, { name: e.target.value })} /></td>
                 <td><Input aria-label={t('serials.customerMaterials.qty')} className="num" inputMode="decimal" disabled={!editable} value={m.qty ?? '1'} onChange={e => patch(i, { qty: e.target.value })} /></td>

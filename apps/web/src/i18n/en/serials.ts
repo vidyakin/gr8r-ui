@@ -72,6 +72,7 @@ export const serials = {
     lead: 'The item belongs to the customer: it does not enter your warehouse and changes no stock.',
     product: 'Product from the catalog',
     productPlaceholder: 'Not from the catalog',
+    productClear: 'Clear the catalog product',
     name: 'Name',
     namePlaceholder: 'Free-form name of the item',
     serial: 'Serial number',

@@ -528,6 +528,20 @@ button.input {
   }
 }
 
+/* быстрые значения под полем: маленькие бейджи-кнопки */
+.quick-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.quick-chips .badge {
+  cursor: pointer;
+}
+.quick-chips .badge:hover {
+  border-color: var(--border-strong, var(--text-3));
+}
+
 /* badges / pills / chips */
 .badge {
   display: inline-flex;

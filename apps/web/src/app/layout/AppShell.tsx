@@ -2,7 +2,7 @@
    В отличие от оригинала, React перерисовывает только изменившиеся части,
    поэтому фокус и прокрутка сохраняются сами, без ручного восстановления. */
 import * as React from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router';
+import { NavLink, Outlet, useLocation, useMatches } from 'react-router';
 import { Ellipsis } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '../data/store';
@@ -49,7 +49,9 @@ export function AppShell() {
   const { data } = useWorkspace();
   const location = useLocation();
   // Вкладки проекта не пересоздают страницу: фильтры вида живут, пока открыт тот же проект (как S.views в оригинале)
-  const pageKey = location.pathname.replace(/^(\/projects\/[^/]+)\/.*$/, '$1').replace(/^(\/settings)\/.*$/, '$1');
+  // Маршрут может задать свой ключ (handle.pageKey): список с боковой карточкой по адресу не пересоздаётся при её открытии
+  const routeKey = (useMatches().at(-1)?.handle as { pageKey?: string } | undefined)?.pageKey;
+  const pageKey = routeKey ?? location.pathname.replace(/^(\/projects\/[^/]+)\/.*$/, '$1').replace(/^(\/settings)\/.*$/, '$1');
   const crumbs = useCrumbs();
   const [collapsed, setCollapsed] = React.useState(() => {
     try {

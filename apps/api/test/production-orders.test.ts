@@ -67,7 +67,8 @@ describe('production order', () => {
     expect(o.type).toBe('production_order');
     expect(o.state).toBe('planned');
     expect(o.status).toBe('draft');
-    expect(o.number).toBeNull();
+    // номер есть сразу, до проведения; проведение его не меняет, удалить такой черновик нельзя
+    expect(o.number).toMatch(/^ЗП-\d{4}-\d{5}$/);
     expect(o.items).toHaveLength(1);
     expect(o.items[0]).toMatchObject({ itemId: item, qty: '2.000', produced: '0.000' });
 
@@ -85,10 +86,21 @@ describe('production order', () => {
     expect((await owner.post(`/documents/${empty.id}/post`)).body.error.code).toBe('no_items');
   });
 
-  test('posting assigns the number; the state is separate from posting', async () => {
+  test('a numbered draft cannot be deleted', async () => {
+    const o = await order('1');
+    expect(o.number).toMatch(/^ЗП-/);
+    const del = await owner.del(`/documents/${o.id}`);
+    expect(del.status).toBe(409);
+    expect(del.body.error.code).toBe('numbered');
+    const posted = await owner.post(`/documents/${o.id}/post`);
+    expect(posted.body.number).toBe(o.number);
+  });
+
+  test('posting keeps the number; the state is separate from posting', async () => {
     const o = await order('2');
     const posted = await owner.post(`/documents/${o.id}/post`);
     expect(posted.status).toBe(200);
+    expect(posted.body.number).toBe(o.number);
     expect(posted.body.number).toMatch(/^ЗП-\d{4}-\d{5}$/);
     // состояние меняется отдельно от проведения
     expect((await owner.post(`/production-orders/${o.id}/state`, { state: 'in_progress' })).body.state).toBe('in_progress');

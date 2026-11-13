@@ -2,6 +2,7 @@
    XLSX — zip с XML внутри: пишем без сжатия (метод 0), читаем и сжатые (inflate из node:zlib). Формулы не вычисляются (читается кэшированное значение),
    защита от «бомб»: лимиты на число файлов в архиве и размер распакованных данных. */
 import { inflateRawSync } from 'node:zlib';
+import { readDocxTables } from './docx';
 
 export type Cell = string | number | null;
 
@@ -73,8 +74,8 @@ export function zipStore(files: { name: string; data: Uint8Array }[]): Uint8Arra
 const MAX_FILES = 200;
 const MAX_UNPACKED = 40 * 1024 * 1024;
 
-/** Файлы архива по имени (только метод 0 и 8) */
-export function zipRead(bytes: Uint8Array): Map<string, Uint8Array> {
+/** Файлы архива по имени (только метод 0 и 8); keep — какие части извлекать (по умолчанию книга XLSX) */
+export function zipRead(bytes: Uint8Array, keep: (name: string) => boolean = n => n.startsWith('xl/') || n === '[Content_Types].xml'): Map<string, Uint8Array> {
   const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let eocd = -1;
   for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65557); i--) {
@@ -102,7 +103,7 @@ export function zipRead(bytes: Uint8Array): Map<string, Uint8Array> {
     p += 46 + nameLen + extraLen + commentLen;
     total += usize;
     if (total > MAX_UNPACKED) throw new Error('the archive is too large');
-    if (!name.startsWith('xl/') && name !== '[Content_Types].xml') continue;
+    if (!keep(name)) continue;
     const dataStart = local + 30 + v.getUint16(local + 26, true) + v.getUint16(local + 28, true);
     const raw = bytes.subarray(dataStart, dataStart + csize);
     if (method === 0) out.set(name, raw);
@@ -149,7 +150,7 @@ export function buildXlsx(sheetName: string, rows: Cell[][]): Uint8Array {
   ]);
 }
 
-const unXml = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&amp;/g, '&');
+export const unXml = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&amp;/g, '&');
 const colIndex = (ref: string): number => {
   let n = 0;
   for (const ch of ref.replace(/[^A-Z]/g, '')) n = n * 26 + (ch.charCodeAt(0) - 64);
@@ -234,8 +235,9 @@ export function toCsv(rows: Cell[][]): string {
   return '﻿' + rows.map(r => r.map(q).join(';')).join('\r\n');
 }
 
-/** Таблица из загруженного файла: по расширению XLSX или CSV */
+/** Таблица из загруженного файла: XLSX, CSV или DOCX (таблицы документа, docx.ts) */
 export function readTable(fileName: string, bytes: Uint8Array): string[][] {
+  if (/\.docx$/i.test(fileName)) return readDocxTables(bytes);
   if (/\.xlsx$/i.test(fileName) || (bytes[0] === 0x50 && bytes[1] === 0x4b)) return readXlsx(bytes);
   return parseCsv(dec.decode(bytes));
 }

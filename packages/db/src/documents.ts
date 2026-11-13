@@ -907,6 +907,15 @@ async function nextNumber(db: Db, doc: DocumentRow): Promise<{ number: string; y
   return { number: formatDocumentNumber(doc.type as DocumentType, year, c!.n), year, seq: c!.n };
 }
 
+/** Присваивает номер документу сразу (например, черновику заказа на производство), если его ещё нет; проведение номер не меняет */
+export async function assignDocumentNumber(db: Db, id: string): Promise<void> {
+  const [doc] = await db.select().from(documents).where(eq(documents.id, id)).limit(1);
+  if (!doc) throw new DomainError(404, 'not_found', 'document not found');
+  if (doc.numberSeq !== null) return;
+  const num = await nextNumber(db, doc);
+  await db.update(documents).set({ number: num.number, numberYear: num.year, numberSeq: num.seq }).where(eq(documents.id, id));
+}
+
 /* ---------------- проведение ---------------- */
 
 /** Не больше, чем заказано (исполнение заказа) и не больше, чем отгружено (возврат): суммы проведённых документов цепочки + этот */

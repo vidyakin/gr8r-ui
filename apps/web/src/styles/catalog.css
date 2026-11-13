@@ -200,8 +200,8 @@
   padding: 2px 6px;
 }
 .bom-params {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 12px;
   margin-bottom: 16px;
   padding: 12px;
@@ -209,6 +209,36 @@
   border-radius: var(--r-lg);
   background: var(--surface);
 }
+.bom-params-row {
+  display: grid;
+  gap: 12px;
+}
+/* 1-й ряд: товар каталога забирает место, тип/код/ед. — узкие */
+.bom-params-row.r1 {
+  grid-template-columns: minmax(0, 3fr) repeat(3, minmax(0, 1fr));
+}
+/* 2-й ряд: режим и числовые поля поровну, флажок «Недействительна» по содержимому */
+.bom-params-row.r2 {
+  grid-template-columns: repeat(6, minmax(0, 1fr)) auto;
+}
+/* параметр спецификации — одной строкой: название и ключ шире, флажки и корзина по содержимому */
+.bom-params-row.param-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+.param-row > label { flex: 1 1 0; }
+.param-row > label:nth-child(1) { flex-grow: 2; }
+.param-row > label:nth-child(2) { flex-grow: 1.5; }
+.param-row > label:has(input[type='checkbox']) { flex: 0 0 auto; align-items: center; }
+.param-row > label:has(input[type='checkbox']) input { height: 30px; }
+.param-row > label:nth-child(6):not(:has(input[type='checkbox'])) { flex-grow: 2; }
+.calc-values .param-row > label { flex: 0 0 200px; }
+.calc-values .param-row > label:has(input[type='checkbox']) { flex: 0 0 auto; }
+/* окно строки спецификации: часы работы узкие, рядом формула часов */
+.hours-field { flex: 0 0 150px; min-width: 0; }
+.param-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.param-title { font-weight: 600; font-size: var(--fs-sm, 13px); }
 .bom-params label {
   display: flex;
   flex-direction: column;
@@ -385,8 +415,15 @@
 }
 
 @media (max-width: 900px) {
-  .bom-params {
+  .bom-params-row.r1,
+  .bom-params-row.r2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .bom-params-row.param-row { flex-wrap: wrap; }
+  .param-row > label { flex-basis: 40%; }
+  .param-row > label:has(input[type='checkbox']) { flex-basis: auto; }
+  .bom-params-row.r1 > :first-child {
+    grid-column: span 2;
   }
   .bom-total {
     grid-template-columns: minmax(0, 1fr);

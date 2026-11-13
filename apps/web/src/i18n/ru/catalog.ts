@@ -97,7 +97,11 @@ export const catalog: Widen<typeof C> = {
     },
     typeToConfirm: 'Введите «{key}» для подтверждения',
   },
+  produced: 'Производимые',
+  notProduced: 'Не производимые',
+  producedFilter: 'Производство',
   product: {
+    producedBy: 'Спецификации',
     addUnit: '+ Добавить единицу…',
     addUnitTitle: 'Новая единица измерения',
     addUnitDesc: 'Своя единица появится во всех списках единиц воркспейса.',

@@ -2,6 +2,7 @@
    произвольные секции и вкладки. Устроена по образцу карточки задачи (app/overlays/task-drawer.tsx), но ничего не знает
    о задачах: Esc закрывает, фокус уходит в карточку и возвращается туда, откуда её открыли, в полноэкранном режиме Tab не выходит за её пределы. */
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import { Ellipsis, Maximize2, Minimize2, X, type LucideIcon } from 'lucide-react';
 import { IconButton, Menu, MenuContent, MenuTrigger, Tab, Tabs, TabsContent, TabsList } from '@/components/ui';
 import { cn } from '@/lib/utils';
@@ -44,6 +45,8 @@ export interface EntityDrawerProps {
   /** Стабильное имя карточки для аналитики (не текст и не данные записи) */
   trackName?: string;
   onClose: () => void;
+  /** Закрывать по клику вне карточки (кроме поповеров, меню, диалогов и уведомлений) */
+  closeOnOutside?: boolean;
 }
 
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([type=hidden]):not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"]),[contenteditable="true"]';
@@ -81,7 +84,7 @@ function TitleInput({ value, onCommit, label }: { value: string; onCommit: (v: s
   );
 }
 
-export function EntityDrawer({ label, crumb, actions, menu, title, onTitleChange, subtitle, banner, fields, children, tabs, trackName, onClose }: EntityDrawerProps) {
+export function EntityDrawer({ label, crumb, actions, menu, title, onTitleChange, subtitle, banner, fields, children, tabs, trackName, onClose, closeOnOutside }: EntityDrawerProps) {
   useTrackOpen('drawer', trackName);
   const [full, setFull] = React.useState(false);
   const [enter, setEnter] = React.useState(true);
@@ -118,6 +121,32 @@ export function EntityDrawer({ label, crumb, actions, menu, title, onTitleChange
     return () => document.removeEventListener('keydown', onKey);
   }, []);
 
+  // Клик вне карточки закрывает её. Нажатие и отпускание — оба снаружи (выделение текста из карточки не закрывает);
+  // если клик сам сменил адрес (открыл другую строку), не перебиваем его
+  React.useEffect(() => {
+    if (!closeOnOutside) return;
+    const KEEP = '[data-radix-popper-content-wrapper], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-sonner-toaster], .drawer';
+    const outside = (e: Event) => {
+      const el = e.target as Element | null;
+      return !!el?.isConnected && !panel.current?.contains(el) && !el.closest?.(KEEP);
+    };
+    let armed: string | null = null;
+    const onDown = (e: PointerEvent) => {
+      armed = e.button === 0 && outside(e) && !document.querySelector('[role="dialog"][aria-modal="true"]:not(.drawer), [role="alertdialog"]') ? window.location.href : null;
+    };
+    const onClick = (e: MouseEvent) => {
+      const was = armed;
+      armed = null;
+      if (was && was === window.location.href && outside(e)) closeRef.current();
+    };
+    document.addEventListener('pointerdown', onDown, true);
+    document.addEventListener('click', onClick);
+    return () => {
+      document.removeEventListener('pointerdown', onDown, true);
+      document.removeEventListener('click', onClick);
+    };
+  }, [closeOnOutside]);
+
   // Tab в полноэкранном режиме не уходит за пределы карточки
   const onPanelKey = (e: React.KeyboardEvent) => {
     if (e.key !== 'Tab' || !full) return;
@@ -133,7 +162,8 @@ export function EntityDrawer({ label, crumb, actions, menu, title, onTitleChange
     }
   };
 
-  return (
+  // Портал в body: предок с transform (анимация появления вкладок документа) иначе ограничил бы position: fixed своими рамками
+  return createPortal(
     <>
       {full && <div className="drawer-scrim full" onClick={onClose} />}
       <aside ref={panel} className={cn('drawer', full && 'full', enter && 'enter')} role="dialog" aria-modal={full} aria-label={label} tabIndex={-1} onKeyDown={onPanelKey}>
@@ -169,7 +199,7 @@ export function EntityDrawer({ label, crumb, actions, menu, title, onTitleChange
           )}
           {subtitle && <div className="muted" style={{ marginTop: 2 }}>{subtitle}</div>}
           {fields && (
-            <dl className="kv" style={{ marginTop: 12, ...(full ? { gridTemplateColumns: '112px minmax(0,1fr) 112px minmax(0,1fr)' } : null) }}>
+            <dl className="kv kv-auto" style={{ marginTop: 12, ...(full ? { gridTemplateColumns: 'fit-content(220px) minmax(0,1fr) fit-content(220px) minmax(0,1fr)' } : null) }}>
               {fields.map(f => (
                 <React.Fragment key={f.label}>
                   <dt>
@@ -202,7 +232,8 @@ export function EntityDrawer({ label, crumb, actions, menu, title, onTitleChange
           )}
         </div>
       </aside>
-    </>
+    </>,
+    document.body,
   );
 }
 

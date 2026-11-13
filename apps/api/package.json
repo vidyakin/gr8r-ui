@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
+    "@firecrawl/pdf-inspector": "^1.25.2",
     "@gr8r/db": "workspace:*",
     "@gr8r/shared": "workspace:*",
     "@hono/zod-validator": "^0.7.0",

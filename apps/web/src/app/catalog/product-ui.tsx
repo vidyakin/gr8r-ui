@@ -4,7 +4,7 @@ import * as React from 'react';
 import { ProductPricesBlock } from '../pricing/ProductPrices';
 import { useProductKinds } from '../positions/data';
 import { useIndustry } from '../industry/data';
-import { Barcode, Building2, CircleAlert, CircleDollarSign, FolderTree, Hash, Layers, Package, Percent, Power, Repeat, Ruler, ScanBarcode, Shapes, Star, Tag, Tags, Timer, Trash2, Truck, Upload, Wrench, type LucideIcon } from 'lucide-react';
+import { Barcode, Building2, Factory, CircleAlert, CircleDollarSign, FolderTree, Hash, Layers, Package, Percent, Power, Repeat, Ruler, ScanBarcode, Shapes, Star, Tag, Tags, Timer, Trash2, Truck, Upload, Wrench, type LucideIcon } from 'lucide-react';
 import { PRODUCT_KINDS, VAT_LABELS, VAT_RATES, validateRecord, type ProductKind } from '@gr8r/shared';
 import { AttachmentsPanel } from '@/components/gr8r/attachments-panel';
 import { Button, ConfirmDialog, Dialog, DialogClose, DialogContent, Field, Input, IconButton, MenuItem, Segmented, Switch, toast } from '@/components/ui';
@@ -17,10 +17,14 @@ import { attributeAsField, flattenTree, useAttributes, useCatalogApi, useCompani
 import { StockLevelsTab } from './stock-levels';
 import { ProductPartnerArticles } from '../docs/partner-codes';
 import { t, tEnum, useT } from '@/i18n';
+import { parseNumber } from '@/i18n/format';
 import { errorMessage } from '../data/api';
 import { API_BASE } from '../data/api';
 import { useAttachments, useAttachmentActions } from '../data/attachments';
 import { useWsId } from '../meta/data';
+import { Link } from 'react-router';
+import { useSnapshot } from '../production/data';
+import { SECTIONS } from '../routes';
 
 /** Служебное «поле» для обычной колонки товара, чтобы редактировать её тем же FieldInput */
 const col = (key: string, name: string, type: MetaField['type']): MetaField => ({
@@ -279,6 +283,7 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
   return (
     <>
       <EntityDrawer
+        closeOnOutside
         trackName="catalog-product"
         label={t('catalog.product.label', { name: p.name })}
         onClose={onClose}
@@ -321,6 +326,11 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
             ) : (
               <span className="faint">—</span>
             ),
+          },
+          {
+            icon: Factory,
+            label: t('catalog.product.producedBy'),
+            value: <ProducedBy productId={p.id} />,
           },
           {
             icon: Shapes,
@@ -505,15 +515,14 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
 
 /* ---------------- создание ---------------- */
 
-export function ProductFormDialog({ tree, initialCategory, onClose, onCreated }: { tree: CategoryNode[]; initialCategory: string | null; onClose: () => void; onCreated: (p: Product) => void }) {
+export function ProductFormDialog({ tree, initialCategory, initialName = '', initialUnitCode = '796', onClose, onCreated }: { tree: CategoryNode[]; initialCategory: string | null; initialName?: string; initialUnitCode?: string; onClose: () => void; onCreated: (p: Product) => void }) {
   const m = useProductMutations();
-  const units = useUnits();
   const [kind, setKind] = React.useState<ProductKind>('goods');
-  const [name, setName] = React.useState('');
+  const [name, setName] = React.useState(initialName);
   const [sku, setSku] = React.useState('');
   const [barcode, setBarcode] = React.useState('');
   const [categoryId, setCategoryId] = React.useState<string | null>(initialCategory);
-  const [unitCode, setUnitCode] = React.useState('796');
+  const [unitCode, setUnitCode] = React.useState(initialUnitCode);
   const [vat, setVat] = React.useState('20');
   const [price, setPrice] = React.useState('');
   const [purchase, setPurchase] = React.useState('');
@@ -524,16 +533,14 @@ export function ProductFormDialog({ tree, initialCategory, onClose, onCreated }:
   const t = useT();
   const fields = (attrList.data ?? []).map(attributeAsField);
 
-  // Смена типа подставляет подходящую единицу: час для услуг, штука для товаров
-  React.useEffect(() => {
-    if (units.data) setUnitCode(u => (kind === 'service' && u === '796' ? '356' : kind === 'goods' && u === '356' ? '796' : u));
-  }, [kind, units.data]);
   React.useEffect(() => setAttrs({}), [categoryId]);
 
   const submit = async () => {
     const errs: Record<string, string> = {};
     if (!name.trim()) errs.name = t('common.enterName');
-    for (const [k, v] of [['price', price], ['purchasePrice', purchase]] as const) if (v.trim() !== '' && !(Number(v) >= 0)) errs[k] = t('catalog.product.nonNegative');
+    // цены вводят по правилам языка: «500,00» в русском интерфейсе
+    const num = (v: string) => (v.trim() === '' ? 0 : parseNumber(v));
+    for (const [k, v] of [['price', price], ['purchasePrice', purchase]] as const) if (!(num(v) >= 0)) errs[k] = t('catalog.product.nonNegative');
     if (barcode.trim() && !/^\d{8,14}$/.test(barcode.trim())) errs.barcode = t('catalog.product.barcodeDigits');
     const check = validateRecord(fields, attrs, 'create');
     if (!check.ok) for (const [k, msg] of Object.entries(check.errors)) errs[`attr:${k}`] = msg;
@@ -541,7 +548,7 @@ export function ProductFormDialog({ tree, initialCategory, onClose, onCreated }:
     if (Object.keys(errs).length || !check.ok) return;
     setBusy(true);
     try {
-      const row = await m.create.mutateAsync({ kind, name: name.trim(), sku: sku.trim(), barcode: barcode.trim(), categoryId, unitCode, vatRate: vat, price: price.trim() || '0', purchasePrice: purchase.trim() || '0', attrs: check.data });
+      const row = await m.create.mutateAsync({ kind, name: name.trim(), sku: sku.trim(), barcode: barcode.trim(), categoryId, unitCode, vatRate: vat, price: String(num(price)), purchasePrice: String(num(purchase)), attrs: check.data });
       toast(t('catalog.product.added', { name: row.name }));
       onCreated(row);
     } catch (e) {
@@ -575,7 +582,10 @@ export function ProductFormDialog({ tree, initialCategory, onClose, onCreated }:
             void submit();
           }}
         >
-          <Segmented aria-label={t('catalog.product.type')} value={kind} onValueChange={setKind} items={PRODUCT_KINDS.map(k => ({ value: k, label: kindLabel(k) }))} />
+          <Segmented aria-label={t('catalog.product.type')} value={kind} onValueChange={next => {
+            setKind(next);
+            setUnitCode(unit => next === 'service' && unit === '796' ? '356' : next === 'goods' && unit === '356' ? '796' : unit);
+          }} items={PRODUCT_KINDS.map(k => ({ value: k, label: kindLabel(k) }))} />
           <Field label={t('common.name')} error={errors.name}>
             {p => <Input {...p} autoFocus value={name} onChange={e => (setName(e.target.value), setErrors(s => ({ ...s, name: '' })))} />}
           </Field>
@@ -646,5 +656,22 @@ function AttrFormRow({ field: f, error, children }: { field: MetaField; error?: 
         </span>
       )}
     </div>
+  );
+}
+
+/** Спецификации производства, которыми выпускается товар (изделие привязано к товару каталога) */
+function ProducedBy({ productId }: { productId: string }) {
+  const snap = useSnapshot();
+  const specs = (snap.data?.items ?? []).filter(i => i.productId === productId);
+  if (!specs.length) return <span className="faint">—</span>;
+  return (
+    <span className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+      {specs.map(s => (
+        <Link key={s.id} className="crm-link" to={`${SECTIONS.production.path}/${s.id}`}>
+          {s.name}
+          {s.isInvalid ? ` (${t('production.item.bomInvalid').toLowerCase()})` : ''}
+        </Link>
+      ))}
+    </span>
   );
 }
