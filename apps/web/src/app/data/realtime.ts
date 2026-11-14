@@ -2,6 +2,7 @@
    соответствующие коллекции кэша помечаются устаревшими и перечитываются (пока в полёте свои запросы — после них, чтобы
    не затереть оптимистичное состояние). Обрыв: переподключение с `?since=<id последнего события>`, сервер досылает пропущенное. */
 import * as React from 'react';
+import { createInvalidationBatcher } from './invalidate-batch';
 import { useQueryClient } from '@tanstack/react-query';
 import { apiFor, ok } from './api';
 import { collectionsFor, type Engine } from './engine';
@@ -26,6 +27,9 @@ export function useRealtime(ws: string, engine: Engine) {
     let pingTimer: ReturnType<typeof setInterval> | undefined;
     const seen = new Set<string>();
 
+    // Сбросы кэша копятся пакетом: массовая операция шлёт тысячи событий подряд (invalidate-batch.ts)
+    const batch = createInvalidationBatcher(qc);
+
     const onEvent = (e: EventEnvelope) => {
       if (seen.has(e.id)) return; // дедупликация: событие может прийти и в реальном времени, и в досылке
       seen.add(e.id);
@@ -33,53 +37,53 @@ export function useRealtime(ws: string, engine: Engine) {
       if (e.id > since) since = e.id;
       engine.refresh(collectionsFor(e.entity));
       // Конструктор сущностей: метаданные и записи пользовательских сущностей живут в отдельных запросах
-      if (e.entity === 'entity' || e.entity === 'field') void qc.invalidateQueries({ queryKey: ['ws', ws, 'meta'] });
-      if (e.entity === 'record') for (const k of ['records', 'record', 'ref-title', 'ref-search']) void qc.invalidateQueries({ queryKey: ['ws', ws, k] });
+      if (e.entity === 'entity' || e.entity === 'field') batch.add(['ws', ws, 'meta']);
+      if (e.entity === 'record') for (const k of ['records', 'record', 'ref-title', 'ref-search']) batch.add(['ws', ws, k]);
       // Каталог и производство: отдельные запросы ['ws', id, 'catalog' | 'production', …]
-      if (['unit', 'product_category', 'attribute_def', 'product'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'catalog'] });
-      if (['work_center', 'defect_reason', 'manufactured_item', 'bom_line', 'product', 'workspace'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'production'] });
+      if (['unit', 'product_category', 'attribute_def', 'product'].includes(e.entity)) batch.add(['ws', ws, 'catalog']);
+      if (['work_center', 'defect_reason', 'manufactured_item', 'bom_line', 'product', 'workspace'].includes(e.entity)) batch.add(['ws', ws, 'production']);
       // Документы, организации, склады, счета, остатки: запросы ['ws', id, 'docs', …]; проведение меняет и среднюю себестоимость в производстве
-      if (['document', 'organization', 'warehouse', 'bank_account', 'product', 'company', 'unit', 'cost_item', 'deal', 'sales_plan_scenario', 'appointment', 'specialist_schedule', 'contact', 'delivery', 'delivery_method', 'position', 'product_kind', 'cash_register', 'cash_flow_item', 'price_kind', 'price_list_link', 'discount_rule', 'promo_code', 'loyalty_card', 'loyalty_program', 'counterparty_code', 'product_partner_article'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'docs'] });
-      if (e.entity === 'document') void qc.invalidateQueries({ queryKey: ['ws', ws, 'production'] });
+      if (['document', 'organization', 'warehouse', 'bank_account', 'product', 'company', 'unit', 'cost_item', 'deal', 'sales_plan_scenario', 'appointment', 'specialist_schedule', 'contact', 'delivery', 'delivery_method', 'position', 'product_kind', 'cash_register', 'cash_flow_item', 'price_kind', 'price_list_link', 'discount_rule', 'promo_code', 'loyalty_card', 'loyalty_program', 'counterparty_code', 'product_partner_article'].includes(e.entity)) batch.add(['ws', ws, 'docs']);
+      if (e.entity === 'document') batch.add(['ws', ws, 'production']);
       // План производства: карточка, потребности, журнал и «Заказы по плану» — ['ws', id, 'production-plans', …]
-      if (e.entity === 'production_plan' || e.entity === 'document') void qc.invalidateQueries({ queryKey: ['ws', ws, 'production-plans'] });
+      if (e.entity === 'production_plan' || e.entity === 'document') batch.add(['ws', ws, 'production-plans']);
       // Автопарк (задача 1210): события fleet_* (машины, документы, путевые листы, топливо, ТО, ремонты, штрафы), должности водителей;
       // рейсы (задача 1211) — fleet_trip; доставки меняют экран диспетчера
-      if (e.entity.startsWith('fleet_') || e.entity === 'position' || e.entity === 'delivery') void qc.invalidateQueries({ queryKey: ['ws', ws, 'fleet'] });
+      if (e.entity.startsWith('fleet_') || e.entity === 'position' || e.entity === 'delivery') batch.add(['ws', ws, 'fleet']);
       // Заявки на перевозку и экономика рейса (задача 1223): ['ws', id, 'transport-orders', …]
-      if (e.entity.startsWith('transport_') || e.entity.startsWith('fleet_')) void qc.invalidateQueries({ queryKey: ['ws', ws, 'transport-orders'] });
+      if (e.entity.startsWith('transport_') || e.entity.startsWith('fleet_')) batch.add(['ws', ws, 'transport-orders']);
       // Шаблоны проектов: ['ws', id, 'project-templates', …]
-      if (e.entity === 'project_template') void qc.invalidateQueries({ queryKey: ['ws', ws, 'project-templates'] });
+      if (e.entity === 'project_template') batch.add(['ws', ws, 'project-templates']);
       // Шаблоны КП: ['ws', id, 'doc-templates', …]
-      if (e.entity === 'doc_template') void qc.invalidateQueries({ queryKey: ['ws', ws, 'doc-templates'] });
+      if (e.entity === 'doc_template') batch.add(['ws', ws, 'doc-templates']);
       // Отчёты услуг лежат под 'docs'; задачи и записи времени меняют план, факт и просрочку (задача 1097)
-      if (e.entity === 'task' || e.entity === 'time_log' || e.entity === 'member') void qc.invalidateQueries({ queryKey: ['ws', ws, 'docs', 'service-reports'] });
+      if (e.entity === 'task' || e.entity === 'time_log' || e.entity === 'member') batch.add(['ws', ws, 'docs', 'service-reports']);
       // Планирование загрузки: графики, ресурсы, операции и документы меняют план
-      if (['work_calendar', 'resource', 'document', 'task'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'planning'] });
+      if (['work_calendar', 'resource', 'document', 'task'].includes(e.entity)) batch.add(['ws', ws, 'planning']);
       // Прайсы поставщиков: ['ws', id, 'supplier-prices', …]; применение меняет цены товаров (виды цен и карточка товара — под 'docs' и 'catalog')
       if (e.entity.startsWith('supplier_price')) {
-        void qc.invalidateQueries({ queryKey: ['ws', ws, 'supplier-prices'] });
-        void qc.invalidateQueries({ queryKey: ['ws', ws, 'docs'] });
-        void qc.invalidateQueries({ queryKey: ['ws', ws, 'catalog'] });
+        batch.add(['ws', ws, 'supplier-prices']);
+        batch.add(['ws', ws, 'docs']);
+        batch.add(['ws', ws, 'catalog']);
       }
       // Лиды (задача 1175): запросы ['ws', id, 'leads', …]; конвертация и объединение меняют лиды, контрагентов, контакты, сделки и касания
-      if (['lead', 'lead_status', 'lead_form', 'crm_activity', 'company', 'contact', 'deal'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'leads'] });
+      if (['lead', 'lead_status', 'lead_form', 'crm_activity', 'company', 'contact', 'deal'].includes(e.entity)) batch.add(['ws', ws, 'leads']);
       // Воронки продаж (задача 1176): ['ws', id, 'pipelines', …] — воронки, этапы, причины, история и отчёт; сделка меняет историю и отчёт
-      if (['deal', 'deal_pipeline', 'deal_stage', 'deal_lost_reason'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'pipelines'] });
+      if (['deal', 'deal_pipeline', 'deal_stage', 'deal_lost_reason'].includes(e.entity)) batch.add(['ws', ws, 'pipelines']);
       // Реклама (задача 1177): ['ws', id, 'ad', …] — справочники, расходы и отчёт по каналам (лиды, клиенты, сделки входят в отчёт)
-      if (['lead_source', 'ad_campaign', 'ad_expense', 'lead', 'company', 'deal'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'ad'] });
-      if (e.entity === 'lead_source' || e.entity === 'ad_campaign') void qc.invalidateQueries({ queryKey: ['ws', ws, 'leads'] });
+      if (['lead_source', 'ad_campaign', 'ad_expense', 'lead', 'company', 'deal'].includes(e.entity)) batch.add(['ws', ws, 'ad']);
+      if (e.entity === 'lead_source' || e.entity === 'ad_campaign') batch.add(['ws', ws, 'leads']);
       // Автоматизации: flow и журнал запусков
-      if (e.entity === 'flow' || e.entity === 'flow_run') void qc.invalidateQueries({ queryKey: ['ws', ws, 'automations'] });
+      if (e.entity === 'flow' || e.entity === 'flow_run') batch.add(['ws', ws, 'automations']);
       // Должности и виды номенклатуры (задача 1172); смена должностей участника приходит событием member.updated
-      if (['position', 'product_kind'].includes(e.entity) || e.type.startsWith('member.')) void qc.invalidateQueries({ queryKey: ['ws', ws, 'positions'] });
+      if (['position', 'product_kind'].includes(e.entity) || e.type.startsWith('member.')) batch.add(['ws', ws, 'positions']);
       // Лицензия (задача 1205): набор модулей изменился — перечитываем всё, что принадлежит воркспейсу (раздел мог появиться или пропасть)
-      if (e.entity === 'attachment') void qc.invalidateQueries({ queryKey: ['ws', ws, 'attachments'] });
-      if (e.entity === 'license') void qc.invalidateQueries({ queryKey: ['ws', ws] });
-      if (e.entity === 'position' || e.entity === 'product_kind') void qc.invalidateQueries({ queryKey: ['ws', ws, 'catalog'] });
-      if (e.entity === 'secret') void qc.invalidateQueries({ queryKey: ['ws', ws, 'secrets'] });
+      if (e.entity === 'attachment') batch.add(['ws', ws, 'attachments']);
+      if (e.entity === 'license') batch.add(['ws', ws]);
+      if (e.entity === 'position' || e.entity === 'product_kind') batch.add(['ws', ws, 'catalog']);
+      if (e.entity === 'secret') batch.add(['ws', ws, 'secrets']);
       // Токены доступа для агентов (задача 1285): запросы ['ws', id, 'api-tokens']
-      if (e.entity === 'api_token') void qc.invalidateQueries({ queryKey: ['ws', ws, 'api-tokens'] });
+      if (e.entity === 'api_token') batch.add(['ws', ws, 'api-tokens']);
       // Объекты объектного учёта (задача 1268): карточка, список и проекты задач
       // Сметы объекта (задача 1269): вкладка «Смета» и каталог объектов
       // Бюджет объекта (задача 1270) считается по проведённым документам и платежам, поэтому любое событие документа
@@ -89,17 +93,17 @@ export function useRealtime(ws: string, engine: Engine) {
       // Субподряд (задача 1274): акты субподрядчика меняют сводку субподряда и факт бюджета объекта
       // Прогноз прибыли (задача 1275): правки остатка и портфель объектов
       // Сводка о ходе работ по расписанию (задача 1277): настройка расписания и отправка уведомлений
-      if (['object', 'object_foreman', 'object_contract', 'object_estimate', 'object_milestone', 'object_act', 'object_sub_act', 'object_forecast', 'object_report', 'document', 'task'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'objects'] });
+      if (['object', 'object_foreman', 'object_contract', 'object_estimate', 'object_milestone', 'object_act', 'object_sub_act', 'object_forecast', 'object_report', 'document', 'task'].includes(e.entity)) batch.add(['ws', ws, 'objects']);
       // Табель прораба (задача 1271): смены объекта; подтверждение меняет объёмы сметы, бюджет и табель
       if (e.entity === 'object_shift') {
-        void qc.invalidateQueries({ queryKey: ['ws', ws, 'shifts'] });
-        void qc.invalidateQueries({ queryKey: ['ws', ws, 'objects'] });
-        void qc.invalidateQueries({ queryKey: ['ws', ws, 'estimates'] });
+        batch.add(['ws', ws, 'shifts']);
+        batch.add(['ws', ws, 'objects']);
+        batch.add(['ws', ws, 'estimates']);
       }
       // Рейтинг поставщиков (задача 1276): считается на лету по документам, контрагентам и настройкам воркспейса
-      if (['document', 'company', 'workspace'].includes(e.entity)) void qc.invalidateQueries({ queryKey: ['ws', ws, 'supplier-ratings'] });
+      if (['document', 'company', 'workspace'].includes(e.entity)) batch.add(['ws', ws, 'supplier-ratings']);
       // Название воркспейса, моя роль, состав участников
-      if (e.entity === 'workspace' || e.type.startsWith('member.')) void qc.invalidateQueries({ queryKey: ['session'] });
+      if (e.entity === 'workspace' || e.type.startsWith('member.')) batch.add(['session']);
     };
 
     const connect = async () => {
@@ -140,6 +144,7 @@ export function useRealtime(ws: string, engine: Engine) {
 
     return () => {
       closed = true;
+      batch.dispose();
       clearTimeout(retryTimer);
       clearInterval(pingTimer);
       sock?.close();
