@@ -1,3 +1,5 @@
+// первым: прямая ссылка без хеша переносится в хеш до создания роутера
+import './lib/path-to-hash';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
