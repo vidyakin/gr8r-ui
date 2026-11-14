@@ -1,8 +1,8 @@
 /* Вкладки открытых страниц (как в 1С): каждый раздел или карточка, открытые по адресу, копятся вкладкой над содержимым.
    Вкладка — ключ страницы (тот же pageKey, что пересоздаёт .content) и последний адрес в ней; переход внутри страницы
    (вкладка проекта, параметры поиска, боковая карточка списка) обновляет адрес вкладки, а не плодит новые.
-   Список хранится в localStorage на воркспейс и восстанавливается после перезагрузки. Отрисовывается только активная
-   страница: несохранённый ввод на скрытой вкладке не держится — как и раньше при переходе. */
+   Список хранится в localStorage на воркспейс и восстанавливается после перезагрузки. Содержимое вкладок рисует
+   TabPages.tsx: последние KEEP_ALIVE вкладок остаются живыми в <Activity>, остальные выгружены. */
 import * as React from 'react';
 import { useLocation, useMatches, useNavigate } from 'react-router';
 import { X } from 'lucide-react';
@@ -62,30 +62,44 @@ function sectionOf(pathname: string): Section | undefined {
   return best;
 }
 
-export function PageTabs({ ws, pageKey: shellKey, title }: { ws: string; pageKey: string; title: string }) {
-  const t = useT();
+export interface PageTabsState {
+  tabs: PageTab[];
+  /** Ключ вкладки текущего адреса */
+  activeKey: string;
+  /** Ключи в порядке последней активации, свежие первыми (не сохраняется) */
+  recent: string[];
+  close: (keys: string[]) => void;
+}
+
+/** Состояние вкладок: держит AppShell, им пользуются полоса (PageTabs) и содержимое (TabPages) */
+export function usePageTabs({ ws, pageKey: shellKey, title }: { ws: string; pageKey: string; title: string }): PageTabsState {
   const location = useLocation();
   // Подвкладка карточки в адресе (параметр :tab — проект, контрагент, редактор автоматизации) — та же вкладка
   const sub = (useMatches().at(-1)?.params as { tab?: string } | undefined)?.tab;
-  const pageKey = sub && shellKey.endsWith('/' + sub) ? shellKey.slice(0, -sub.length - 1) : shellKey;
+  const activeKey = sub && shellKey.endsWith('/' + sub) ? shellKey.slice(0, -sub.length - 1) : shellKey;
   const navigate = useNavigate();
   const url = location.pathname + location.search;
   const [tabs, setTabs] = React.useState<PageTab[]>(() => load(ws));
+  const [recent, setRecent] = React.useState<string[]>([]);
   const loadedWs = React.useRef(ws);
   const prevKey = React.useRef<string | null>(null);
-  const stripRef = React.useRef<HTMLDivElement>(null);
 
   // Смена воркспейса — свой набор вкладок
   if (loadedWs.current !== ws) {
     loadedWs.current = ws;
     prevKey.current = null;
     setTabs(load(ws));
+    setRecent([]);
   }
 
   React.useEffect(() => {
-    setTabs(list => upsertTab(list, { key: pageKey, url, title }, prevKey.current));
-    prevKey.current = pageKey;
-  }, [pageKey, url, title]);
+    setTabs(list => upsertTab(list, { key: activeKey, url, title }, prevKey.current));
+    prevKey.current = activeKey;
+  }, [activeKey, url, title]);
+
+  React.useEffect(() => {
+    setRecent(r => (r[0] === activeKey ? r : [activeKey, ...r.filter(k => k !== activeKey)].slice(0, MAX_TABS)));
+  }, [activeKey]);
 
   React.useEffect(() => {
     try {
@@ -95,23 +109,33 @@ export function PageTabs({ ws, pageKey: shellKey, title }: { ws: string; pageKey
     }
   }, [ws, tabs]);
 
-  // Активная вкладка всегда видна в полосе
-  React.useEffect(() => {
-    stripRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  }, [pageKey, tabs.length]);
-
   const close = (keys: string[]) => {
     const drop = new Set(keys);
     const rest = tabs.filter(x => !drop.has(x.key));
-    if (drop.has(pageKey)) {
+    setRecent(r => r.filter(k => !drop.has(k)));
+    if (drop.has(activeKey)) {
       // Закрыли активную — переходим на соседа справа, иначе слева; последней не стало — на главную
-      const i = tabs.findIndex(x => x.key === pageKey);
+      const i = tabs.findIndex(x => x.key === activeKey);
       const near = tabs.slice(i + 1).find(x => !drop.has(x.key)) ?? tabs.slice(0, i).reverse().find(x => !drop.has(x.key));
       prevKey.current = null;
       setTabs(rest);
       navigate(near ? near.url : SECTIONS.home.path);
     } else setTabs(rest);
   };
+
+  return { tabs, activeKey, recent, close };
+}
+
+export function PageTabs({ state }: { state: PageTabsState }) {
+  const t = useT();
+  const navigate = useNavigate();
+  const { tabs, activeKey: pageKey, close } = state;
+  const stripRef = React.useRef<HTMLDivElement>(null);
+
+  // Активная вкладка всегда видна в полосе
+  React.useEffect(() => {
+    stripRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [pageKey, tabs.length]);
 
   return (
     <div ref={stripRef} className="ptabs" role="tablist" aria-label={t('nav.tabs.label')}>

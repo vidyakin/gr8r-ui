@@ -2,7 +2,7 @@
    В отличие от оригинала, React перерисовывает только изменившиеся части,
    поэтому фокус и прокрутка сохраняются сами, без ручного восстановления. */
 import * as React from 'react';
-import { NavLink, Outlet, useLocation, useMatches } from 'react-router';
+import { NavLink, useLocation, useMatches, type RouteObject } from 'react-router';
 import { Ellipsis } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '../data/store';
@@ -10,11 +10,11 @@ import { SECTIONS, type SectionId } from '../routes';
 import { Sidebar } from './Sidebar';
 import { SidePanel, SidePanelProvider, useSidePanelState } from './SidePanel';
 import { Topbar, useCrumbs } from './Topbar';
-import { PageTabs } from './PageTabs';
+import { PageTabs, usePageTabs } from './PageTabs';
+import { TabPages } from './TabPages';
 import { OverlayProviders, PaletteHost, TaskWindowsHost } from '../overlays';
 import { CrmOverlays } from '../crm/overlays';
-import { PageBoundary } from '../components/error-states';
-import { SectionGuard, useSectionAccess } from '../positions/access';
+import { useSectionAccess } from '../positions/access';
 import { LicenseBanner } from '../licensing/LicenseBanner';
 import { t } from '@/i18n';
 import { identifyUser, trackPageview } from '@/lib/analytics';
@@ -46,7 +46,7 @@ function BottomNav({ onMore }: { onMore: () => void }) {
   );
 }
 
-export function AppShell() {
+export function AppShell({ pages }: { pages: RouteObject[] }) {
   const { data } = useWorkspace();
   const location = useLocation();
   // Вкладки проекта не пересоздают страницу: фильтры вида живут, пока открыт тот же проект (как S.views в оригинале)
@@ -100,6 +100,7 @@ export function AppShell() {
     if (analyticsUser) identifyUser({ userId: analyticsUser, workspaceId: analyticsWs, role: analyticsRole });
   }, [analyticsUser, analyticsWs, analyticsRole]);
   React.useEffect(() => trackPageview(location.pathname), [location.pathname]);
+  const tabs = usePageTabs({ ws: analyticsWs ?? '', pageKey, title: crumbs.at(-1)?.label ?? '' });
   const title = `${crumbs.map(c => c.label).join(' · ')} · ${data.ws.name}`;
   React.useEffect(() => {
     document.title = title;
@@ -118,16 +119,10 @@ export function AppShell() {
       {mnav && <div className="side-scrim" onClick={() => setMnav(false)} />}
       <main className="main" id="main">
         <Topbar onOpenNav={() => setMnav(true)} />
-        <PageTabs ws={analyticsWs ?? ''} pageKey={pageKey} title={crumbs.at(-1)?.label ?? ''} />
+        <PageTabs state={tabs} />
         <LicenseBanner />
-        {/* key перезапускает анимацию появления при смене страницы */}
-        <div key={pageKey} className="content fx-route" id="main-content" tabIndex={-1}>
-          <PageBoundary resetKey={location.pathname}>
-            <SectionGuard>
-              <Outlet />
-            </SectionGuard>
-          </PageBoundary>
-        </div>
+        {/* Каждая открытая вкладка — своя страница со своим адресом; живые скрыты в <Activity> */}
+        <TabPages pages={pages} tabs={tabs.tabs} activeKey={tabs.activeKey} recent={tabs.recent} />
       </main>
       <BottomNav onMore={() => setMnav(true)} />
       <TaskWindowsHost />

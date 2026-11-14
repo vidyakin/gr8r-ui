@@ -10,8 +10,9 @@ import { SessionProvider } from '@/app/data/session';
 import { router } from '@/app/router';
 import { I18nProvider } from '@/i18n';
 
-// Данные воркспейса актуальны, пока их не отметит устаревшими событие realtime или своя мутация (staleTime: Infinity)
-const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: Infinity } } });
+// Данные воркспейса актуальны, пока их не отметит устаревшими событие realtime или своя мутация (staleTime: Infinity).
+// gcTime 30 минут: у скрытой вкладки (layout/TabPages.tsx) нет наблюдателей, её данные не должны пропадать через 5 минут
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: Infinity, gcTime: 30 * 60_000 } } });
 
 if (import.meta.env.DEV) (window as unknown as { __qc: QueryClient }).__qc = queryClient; // для отладки в консоли браузера
 

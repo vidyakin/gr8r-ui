@@ -100,10 +100,11 @@ export function useSupplierPrices(companyId: string) {
   const ws = useWsId();
   return useQuery({ queryKey: supplierPricesKey(ws, 'list', companyId), queryFn: async () => (await call<{ items: SupplierPrice[] }>(ws, 'GET', `/pricing/supplier-prices?companyId=${companyId}`)).items });
 }
-/** Прайс со всеми строками: фильтр по статусу и счётчики считаются на клиенте */
+/** Прайс со всеми строками: фильтр по статусу и счётчики считаются на клиенте.
+    Бывает 76 тысяч строк: в кэше не держим (gcTime: 0), вкладка прайса не живёт в фоне (handle.keepAlive: false) */
 export function useSupplierPriceDetail(id: string | undefined) {
   const ws = useWsId();
-  return useQuery({ queryKey: supplierPricesKey(ws, 'detail', id ?? ''), enabled: !!id, queryFn: () => call<SupplierPriceDetail>(ws, 'GET', `/pricing/supplier-prices/${id}`) });
+  return useQuery({ queryKey: supplierPricesKey(ws, 'detail', id ?? ''), enabled: !!id, gcTime: 0, queryFn: () => call<SupplierPriceDetail>(ws, 'GET', `/pricing/supplier-prices/${id}`) });
 }
 export function useSupplierApplyPreview(id: string, enabled: boolean) {
   const ws = useWsId();
