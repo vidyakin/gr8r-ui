@@ -3,8 +3,8 @@
 import * as React from 'react';
 import { Link, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Download, PackagePlus, Search, SkipForward, Undo2 } from 'lucide-react';
-import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, Segmented, Select, Skeleton, toast, type Tone } from '@/components/ui';
+import { ArrowLeft, Download, PackagePlus, PackageSearch, Replace, Search, SkipForward, Undo2 } from 'lucide-react';
+import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Segmented, Select, Skeleton, toast, type Tone } from '@/components/ui';
 import { DateInput } from '@/components/gr8r/date-picker';
 import { useT } from '@/i18n';
 import { fmtAmount, fmtDateTime, fmtNumber } from '@/i18n/format';
@@ -180,7 +180,7 @@ export function SupplierPricePage() {
               {showGross && <th style={{ width: 110, textAlign: 'right' }}>{t('supplierPrices.page.colPriceGross')}</th>}
               <th style={{ width: 280 }}>{t('supplierPrices.page.colProduct')}</th>
               <th style={{ width: 150 }}>{t('supplierPrices.page.colStatus')}</th>
-              {editable && <th style={{ width: 190 }} />}
+              {editable && <th style={{ width: 72 }} />}
             </tr>
           </thead>
           <tbody>
@@ -276,21 +276,20 @@ function LineRow({ line: l, showNet, showGross, editable, busy, products, unitLa
       {editable && (
         <td>
           <span className="row" style={{ gap: 4, justifyContent: 'flex-end' }}>
+            {/* Действия строки — иконками с подсказками, чтобы не раздувать таблицу */}
             {l.status !== 'skipped' && (
-              <Button size="sm" variant="ghost" disabled={busy} onClick={onPick}>
-                {l.productId ? t('supplierPrices.page.changeProduct') : t('supplierPrices.page.pickProduct')}
-              </Button>
+              <IconButton size="xs" disabled={busy} label={l.productId ? t('supplierPrices.page.changeProduct') : t('supplierPrices.page.pickProduct')} onClick={onPick}>
+                {l.productId ? <Replace size={14} /> : <PackageSearch size={14} />}
+              </IconButton>
             )}
             {l.status === 'skipped' ? (
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => onPatch({ skip: false })}>
-                <Undo2 size={12} />
-                {t('supplierPrices.page.unskip')}
-              </Button>
+              <IconButton size="xs" disabled={busy} label={t('supplierPrices.page.unskip')} onClick={() => onPatch({ skip: false })}>
+                <Undo2 size={14} />
+              </IconButton>
             ) : (
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => onPatch({ skip: true })}>
-                <SkipForward size={12} />
-                {t('supplierPrices.page.skip')}
-              </Button>
+              <IconButton size="xs" disabled={busy} label={t('supplierPrices.page.skip')} onClick={() => onPatch({ skip: true })}>
+                <SkipForward size={14} />
+              </IconButton>
             )}
           </span>
         </td>
