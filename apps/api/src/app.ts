@@ -21,7 +21,7 @@ import { objectForecastObjectRoutes, objectForecastRoutes } from './routes/objec
 import { objectReportRoutes } from './routes/object-reports';
 import { memberLaborRoutes, objectShiftObjectRoutes, objectShiftRoutes } from './routes/object-shifts';
 import { attachmentRoutes } from './routes/attachments';
-import { Hub } from './realtime';
+import { Hub, coalesceEvents, eventMessage } from './realtime';
 import { attributeRoutes, categoryRoutes, productRoutes, unitRoutes, variantRoutes } from './routes/catalog';
 import { bomLineRoutes, itemRoutes, productionRoutes, workCenterRoutes } from './routes/production';
 import { productionOrderRoutes } from './routes/production-orders';
@@ -323,7 +323,9 @@ export function createApp(deps: AppDeps) {
             // Догоняем пропущенное: события после since (id — uuid v7). Клиент дедуплицирует по event.id
             if (since && isUuid(since)) {
               const missed = await withContext(sql, { userId, workspaceId: wsId }, db => db.select().from(events).where(gt(events.id, since)).orderBy(events.id).limit(500));
-              for (const e of missed) ws.send(JSON.stringify({ type: 'event', event: { id: e.id, workspaceId: e.workspaceId, type: e.type, entity: e.entity, recordId: e.recordId, actorId: e.actorId, createdAt: e.createdAt.toISOString() }, replay: true }));
+              // свёрнуто по паре «сущность + тип», как и живой поток (realtime.ts)
+              const envelopes = missed.map(e => ({ id: e.id, workspaceId: e.workspaceId, type: e.type, entity: e.entity, recordId: e.recordId, actorId: e.actorId, createdAt: e.createdAt.toISOString() }));
+              for (const c of coalesceEvents(envelopes)) ws.send(eventMessage(c, { replay: true }));
             }
           },
           onMessage: (evt, ws) => {

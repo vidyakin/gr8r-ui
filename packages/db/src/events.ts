@@ -51,14 +51,17 @@ export async function recordEvent(db: Db, e: NewEvent) {
   return row!;
 }
 
-/** Пакет событий одним INSERT и одним NOTIFY-запросом (массовые операции: по одному событию на запись, но без запроса на каждое) */
-export async function recordEvents(db: Db, list: NewEvent[]): Promise<void> {
+/** Пакет событий одним INSERT и одним NOTIFY-запросом (массовые операции: по одному событию на запись, но без запроса на каждое).
+    `notify: false` — тихая запись: события попадают в журнал (автоматизации воркер находит опросом), но по WebSocket не рассылаются;
+    операция сама пишет одно итоговое событие, по которому клиенты перечитывают списки (так работает «Создать товары» по прайсу) */
+export async function recordEvents(db: Db, list: NewEvent[], { notify = true }: { notify?: boolean } = {}): Promise<void> {
   const CHUNK = 500;
   for (let i = 0; i < list.length; i += CHUNK) {
     const rows = await db
       .insert(events)
       .values(list.slice(i, i + CHUNK).map(e => ({ workspaceId: e.workspaceId, type: e.type, entity: e.entity, recordId: e.recordId ?? null, actorId: e.actorId ?? null, payload: e.payload ?? {} })))
       .returning();
+    if (!notify) continue;
     const envelopes: EventEnvelope[] = rows.map(row => ({ id: row.id, workspaceId: row.workspaceId, type: row.type, entity: row.entity, recordId: row.recordId, actorId: row.actorId, createdAt: row.createdAt.toISOString() }));
     await db.execute(sql`select pg_notify(${EVENTS_CHANNEL}, e) from (values ${sql.join(envelopes.map(e => sql`(${JSON.stringify(e)}::text)`), sql`, `)}) as t(e)`);
   }

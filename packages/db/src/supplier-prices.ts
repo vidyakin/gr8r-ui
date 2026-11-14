@@ -434,10 +434,11 @@ export async function createProductsForSupplierLines(db: Db, actor: Actor, price
     }
     binds.push({ line: l, productId });
   }
-  // товары пачками; событие product.created — по одному на товар (на него подписаны автоматизации), но вставкой пачки
+  // товары пачками; событие product.created — по одному на товар (на него подписаны автоматизации), но вставкой пачки и без
+  // рассылки по WebSocket: загрузка прайса тихая, клиенты перечитают списки по одному итоговому событию ниже
   for (let i = 0; i < newRows.length; i += 1000) {
     const made = await db.insert(products).values(newRows.slice(i, i + 1000)).returning();
-    await recordEvents(db, made.map(p => ({ workspaceId: ws, type: 'product.created', entity: 'product', recordId: p.id, actorId: actor.memberId, payload: { record: p } })));
+    await recordEvents(db, made.map(p => ({ workspaceId: ws, type: 'product.created', entity: 'product', recordId: p.id, actorId: actor.memberId, payload: { record: p } })), { notify: false });
   }
   await bindLines(db, price, binds);
   await recountSupplierPrice(db, ws, priceId);
