@@ -83,7 +83,6 @@ export const supplierPrices = {
     colUnit: 'Unit',
     colPriceNet: 'Price without VAT',
     colPriceGross: 'Price with VAT',
-    colProduct: 'Our product',
     colStatus: 'Status',
     noLines: 'No rows with this status',
     note: { price_invalid: 'No valid price', manual: 'Skipped manually', vat_rate_none: 'Product has no VAT rate' },

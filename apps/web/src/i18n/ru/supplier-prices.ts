@@ -85,7 +85,6 @@ export const supplierPrices: typeof en = {
     colUnit: 'Ед.',
     colPriceNet: 'Цена без НДС',
     colPriceGross: 'Цена с НДС',
-    colProduct: 'Наш товар',
     colStatus: 'Статус',
     noLines: 'Нет строк с таким статусом',
     note: { price_invalid: 'Нет корректной цены', manual: 'Пропущено вручную', vat_rate_none: 'У товара не задана ставка НДС' },

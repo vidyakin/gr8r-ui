@@ -3,8 +3,8 @@
 import * as React from 'react';
 import { Link, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Download, PackagePlus, PackageSearch, Replace, Search, SkipForward, Undo2 } from 'lucide-react';
-import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Segmented, Select, Skeleton, toast, type Tone } from '@/components/ui';
+import { ArrowLeft, CircleAlert, CircleCheck, CircleHelp, CircleMinus, Download, PackagePlus, PackageSearch, Replace, Search, SkipForward, Undo2 } from 'lucide-react';
+import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Menu, MenuContent, MenuItem, MenuTrigger, Segmented, Skeleton, Tooltip, toast, type Tone } from '@/components/ui';
 import { DateInput } from '@/components/gr8r/date-picker';
 import { useT } from '@/i18n';
 import { fmtAmount, fmtDateTime, fmtNumber } from '@/i18n/format';
@@ -13,7 +13,7 @@ import { errorMessage } from '../data/api';
 import { useWsId } from '../meta/data';
 import { useCanWrite } from '../meta/custom-fields';
 import { unitSymbol, useUnits } from '../catalog/data';
-import { CatalogPickDialog } from '../docs/position-field';
+import { CatalogPickDialog, ProductCard } from '../docs/position-field';
 import { company as findCompany } from '../crm/selectors';
 import { useCrm } from '../crm/store';
 import { supplierPricesKey, useSupplierApplyPreview, useSupplierPriceDetail, useSupplierPricesApi, type SupplierLineStatus, type SupplierPrice, type SupplierPriceLine } from './supplier-prices-data';
@@ -36,6 +36,8 @@ export function SupplierPricePage() {
   const [limit, setLimit] = React.useState(PAGE_SIZE);
   const [busy, setBusy] = React.useState(false);
   const [picking, setPicking] = React.useState<SupplierPriceLine | null>(null);
+  // Карточка привязанного товара — боковая панель, как в каталоге и документах
+  const [productCard, setProductCard] = React.useState<string | null>(null);
   const [createOpen, setCreateOpen] = React.useState(false);
   const [applyOpen, setApplyOpen] = React.useState(false);
 
@@ -178,14 +180,13 @@ export function SupplierPricePage() {
               <th style={{ width: 60 }}>{t('supplierPrices.page.colUnit')}</th>
               {showNet && <th style={{ width: 110, textAlign: 'right' }}>{t('supplierPrices.page.colPriceNet')}</th>}
               {showGross && <th style={{ width: 110, textAlign: 'right' }}>{t('supplierPrices.page.colPriceGross')}</th>}
-              <th style={{ width: 280 }}>{t('supplierPrices.page.colProduct')}</th>
-              <th style={{ width: 150 }}>{t('supplierPrices.page.colStatus')}</th>
+              <th style={{ width: 64, textAlign: 'center' }}>{t('supplierPrices.page.colStatus')}</th>
               {editable && <th style={{ width: 72 }} />}
             </tr>
           </thead>
           <tbody>
             {shown.slice(0, limit).map(l => (
-              <LineRow key={l.id} showNet={showNet} showGross={showGross} line={l} editable={editable} busy={busy} products={products} unitLabel={l.unitCode ? unitSymbol(units.data, l.unitCode) : t('supplierPrices.page.unitNone')} onPick={() => setPicking(l)} onPatch={body => void patch(l, body)} />
+              <LineRow key={l.id} showNet={showNet} showGross={showGross} line={l} editable={editable} busy={busy} products={products} unitLabel={l.unitCode ? unitSymbol(units.data, l.unitCode) : t('supplierPrices.page.unitNone')} onPick={() => setPicking(l)} onPatch={body => void patch(l, body)} onOpenProduct={setProductCard} />
             ))}
           </tbody>
         </table>
@@ -215,6 +216,7 @@ export function SupplierPricePage() {
         cancelLabel={t('pricing.cancel')}
         onConfirm={() => void createProducts()}
       />
+      {productCard && <ProductCard id={productCard} onClose={() => setProductCard(null)} />}
       {applyOpen && <ApplyDialog price={price} leftCount={counts.unmatched + counts.conflict} onClose={() => setApplyOpen(false)} onApplied={() => void refresh()} />}
     </div>
   );
@@ -222,11 +224,8 @@ export function SupplierPricePage() {
 
 /* ---------------- строка ---------------- */
 
-function LineRow({ line: l, showNet, showGross, editable, busy, products, unitLabel, onPick, onPatch }: { line: SupplierPriceLine; showNet: boolean; showGross: boolean; editable: boolean; busy: boolean; products: Map<string, { id: string; name: string; sku: string }>; unitLabel: string; onPick: () => void; onPatch: (b: { productId?: string; skip?: boolean }) => void }) {
+function LineRow({ line: l, showNet, showGross, editable, busy, products, unitLabel, onPick, onPatch, onOpenProduct }: { line: SupplierPriceLine; showNet: boolean; showGross: boolean; editable: boolean; busy: boolean; products: Map<string, { id: string; name: string; sku: string }>; unitLabel: string; onPick: () => void; onPatch: (b: { productId?: string; skip?: boolean }) => void; onOpenProduct: (id: string) => void }) {
   const t = useT();
-  const product = l.productId ? products.get(l.productId) : undefined;
-  const noteKey = l.note ? (`supplierPrices.page.note.${l.note}` as const) : null;
-  const note = noteKey && ['price_invalid', 'manual', 'vat_rate_none'].includes(l.note) ? t(noteKey as 'supplierPrices.page.note.manual') : l.note;
   return (
     <tr>
       <td className="faint">{l.rowNo}</td>
@@ -235,43 +234,8 @@ function LineRow({ line: l, showNet, showGross, editable, busy, products, unitLa
       <td>{unitLabel}</td>
       {showNet && <td style={{ textAlign: 'right' }}>{l.priceNet === null ? '—' : fmtAmount(l.priceNet)}</td>}
       {showGross && <td style={{ textAlign: 'right' }}>{l.priceGross === null ? '—' : fmtAmount(l.priceGross)}</td>}
-      <td>
-        {product ? (
-          <>
-            <div>{product.name}</div>
-            <div className="faint" style={{ fontSize: 11.5 }}>
-              {product.sku}
-            </div>
-          </>
-        ) : l.status === 'conflict' && l.candidates.length ? (
-          <Select
-            size="sm"
-            disabled={!editable || busy}
-            placeholder={t('supplierPrices.page.pickCandidate')}
-            aria-label={t('supplierPrices.page.candidates', { n: l.candidates.length })}
-            value=""
-            onValueChange={v => v && onPatch({ productId: v })}
-            options={l.candidates.map(c => {
-              const p = products.get(c);
-              return { value: c, label: p ? `${p.name} (${p.sku})` : c };
-            })}
-          />
-        ) : (
-          <span className="faint">—</span>
-        )}
-        {!product && l.status === 'unmatched' && l.candidates.length > 0 && (
-          <div className="faint" style={{ fontSize: 11.5 }}>
-            {t('supplierPrices.page.candidates', { n: l.candidates.length })}
-          </div>
-        )}
-      </td>
-      <td>
-        <Badge tone={STATUS_TONE[l.status]}>{t(`supplierPrices.page.status.${l.status}` as const)}</Badge>
-        {note && l.status === 'skipped' && (
-          <div className="faint" style={{ fontSize: 11.5 }}>
-            {note}
-          </div>
-        )}
+      <td style={{ textAlign: 'center' }}>
+        <StatusIcon line={l} products={products} editable={editable} busy={busy} onPatch={onPatch} onOpenProduct={onOpenProduct} />
       </td>
       {editable && (
         <td>
@@ -295,6 +259,56 @@ function LineRow({ line: l, showNet, showGross, editable, busy, products, unitLa
         </td>
       )}
     </tr>
+  );
+}
+
+/** Статус строки иконкой: найдено — зелёная, подсказка — наш товар, щелчок открывает его карточку; не найдено — красная;
+    конфликт — жёлтая, щелчок — выбор из кандидатов; пропущено — серая */
+function StatusIcon({ line: l, products, editable, busy, onPatch, onOpenProduct }: { line: SupplierPriceLine; products: Map<string, { id: string; name: string; sku: string }>; editable: boolean; busy: boolean; onPatch: (b: { productId?: string }) => void; onOpenProduct: (id: string) => void }) {
+  const t = useT();
+  const status = t(`supplierPrices.page.status.${l.status}` as const);
+  const color = `var(--${STATUS_TONE[l.status]})`;
+  const product = l.productId ? products.get(l.productId) : undefined;
+  const productLabel = (p: { name: string; sku: string }) => (p.sku ? `${p.name} (${p.sku})` : p.name);
+
+  if (l.status === 'matched' && product)
+    return (
+      <IconButton size="xs" style={{ color }} label={productLabel(product)} onClick={() => onOpenProduct(product.id)}>
+        <CircleCheck size={16} />
+      </IconButton>
+    );
+
+  if (l.status === 'conflict' && editable && l.candidates.length)
+    return (
+      <Menu>
+        <MenuTrigger asChild>
+          <IconButton size="xs" style={{ color }} disabled={busy} label={`${status} · ${t('supplierPrices.page.pickCandidate')}`}>
+            <CircleHelp size={16} />
+          </IconButton>
+        </MenuTrigger>
+        <MenuContent align="end">
+          {l.candidates.map(c => {
+            const p = products.get(c);
+            return (
+              <MenuItem key={c} onSelect={() => onPatch({ productId: c })}>
+                {p ? productLabel(p) : c}
+              </MenuItem>
+            );
+          })}
+        </MenuContent>
+      </Menu>
+    );
+
+  const noteKey = l.note && ['price_invalid', 'manual', 'vat_rate_none'].includes(l.note) ? (`supplierPrices.page.note.${l.note}` as 'supplierPrices.page.note.manual') : null;
+  const extra = l.status === 'skipped' ? (noteKey ? t(noteKey) : l.note) : l.candidates.length ? t('supplierPrices.page.candidates', { n: l.candidates.length }) : null;
+  const Icon = l.status === 'skipped' ? CircleMinus : l.status === 'conflict' ? CircleHelp : CircleAlert;
+  const label = extra ? `${status} · ${extra}` : status;
+  return (
+    <Tooltip content={label}>
+      <span role="img" aria-label={label} tabIndex={0} style={{ color, display: 'inline-flex', verticalAlign: 'middle' }}>
+        <Icon size={16} />
+      </span>
+    </Tooltip>
   );
 }
 
