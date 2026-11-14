@@ -2,7 +2,7 @@
    Всё живёт в кэше TanStack Query под ключом ['ws', id, 'catalog', …]; realtime помечает его устаревшим по событиям
    unit / product_category / attribute_def / product (см. data/realtime.ts). */
 import * as React from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { FieldOptions, FieldType, ProductKind, VatRate } from '@gr8r/shared';
 import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
@@ -147,6 +147,41 @@ export function useAttributes(categoryId: string | null | undefined) {
 }
 
 const PAGE = 200;
+
+/** Страница списка каталога: по 100 строк, фильтры и сортировка — на сервере */
+export const CATALOG_PAGE = 100;
+
+/** Список каталога постранично (виртуальная прокрутка подгружает следующие страницы); total — всего по фильтрам на сервере */
+export function useProductPages(params: ProductParams & { productKindId?: string; sort?: string }) {
+  const ws = useWsId();
+  const q = useInfiniteQuery({
+    queryKey: catalogKey(ws, 'product-pages', params),
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) => {
+      const sp = new URLSearchParams({ limit: String(CATALOG_PAGE), offset: String(pageParam), sort: params.sort || 'name' });
+      if (params.categoryId) sp.set('categoryId', params.categoryId);
+      if (params.q) sp.set('q', params.q);
+      if (params.kind) sp.set('kind', params.kind);
+      if (params.active !== undefined) sp.set('active', String(params.active));
+      if (params.productKindId) sp.set('productKindId', params.productKindId);
+      return call<{ items: Product[]; total: number; offset: number }>(ws, 'GET', `/products?${sp}`);
+    },
+    getNextPageParam: (last, pages) => {
+      const loaded = pages.reduce((n, p) => n + p.items.length, 0);
+      return last.items.length && loaded < last.total ? loaded : undefined;
+    },
+    staleTime: Infinity,
+    placeholderData: prev => prev,
+  });
+  const rows = React.useMemo(() => (q.data?.pages ?? []).flatMap(p => p.items), [q.data]);
+  return { ...q, rows, total: q.data?.pages[0]?.total ?? 0 };
+}
+
+/** Всего позиций в каталоге (с товарами без категории — дерево считает только по категориям) */
+export function useProductTotal() {
+  const ws = useWsId();
+  return useQuery({ queryKey: catalogKey(ws, 'product-total'), queryFn: async () => (await call<{ total: number }>(ws, 'GET', '/products?limit=1')).total, staleTime: Infinity });
+}
 
 export function useProducts(params: ProductParams = {}, { enabled = true, all = false } = {}) {
   const ws = useWsId();

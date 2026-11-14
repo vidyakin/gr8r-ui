@@ -5,6 +5,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { Factory, CircleAlert, Package, Plus, Shapes, Wrench } from 'lucide-react';
 import { VAT_LABELS, type ProductKind } from '@gr8r/shared';
 import { Badge, Button, EmptyState, Skeleton } from '@/components/ui';
+import { fmtNumber } from '@/i18n/format';
 import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/gr8r/data-table';
 import { FilterBar, useFilterState, type FilterField } from '@/components/gr8r/filter-bar';
 import { EntityDrawer } from '@/components/gr8r/entity-drawer';
@@ -15,9 +16,12 @@ import { errorMessage } from '../data/api';
 import { AttributesDialog, CategoryDialog, CategoryTree, DeleteCategoryDialog } from './category-ui';
 import { ProductDrawer, ProductFormDialog, attachmentImageUrl } from './product-ui';
 import { useProductKinds } from '../positions/data';
-import { buildCategoryTree, categoryPath, flattenTree, money, unitSymbol, useCategories, useIsAdmin, useProduct, useProducts, useUnits, type CategoryNode, type Product } from './data';
+import { buildCategoryTree, categoryPath, flattenTree, money, unitSymbol, useCategories, useIsAdmin, useProduct, useProductPages, useProductTotal, useUnits, type CategoryNode, type Product } from './data';
 import { useWsId } from '../meta/data';
 import { useSnapshot } from '../production/data';
+
+/** Колонки, сортируемые на сервере: id колонки → ключ ?sort= у GET /products */
+const SORT_KEYS: Record<string, string> = { name: 'name', sku: 'sku', price: 'price', purchase: 'purchasePrice', created: 'createdAt' };
 
 type Dialog = { type: 'category'; edit?: CategoryNode; parent?: CategoryNode | null } | { type: 'attributes'; category: CategoryNode } | { type: 'delete'; category: CategoryNode } | { type: 'product' } | null;
 
@@ -41,7 +45,9 @@ export function CatalogPage() {
 
   const tree = React.useMemo(() => buildCategoryTree(categories.data ?? []), [categories.data]);
   const flat = React.useMemo(() => flattenTree(tree), [tree]);
-  const total = React.useMemo(() => (categories.data ?? []).reduce((s, c) => s + c.productCount, 0), [categories.data]);
+  // «Все позиции» — с сервера: в дереве считаются только товары с категорией (товары из прайса бывают без неё)
+  const productTotal = useProductTotal();
+  const total = productTotal.data ?? (categories.data ?? []).reduce((s, c) => s + c.productCount, 0);
   const catParam = sp.get('category');
   const selected = catParam && flat.some(c => c.id === catParam) ? catParam : null;
   const setSelected = (id: string | null) =>
@@ -64,21 +70,37 @@ export function CatalogPage() {
   const producedFilter = filters.values.produced ?? [];
   const prodSnap = useSnapshot();
   const producedIds = React.useMemo(() => new Set((prodSnap.data?.items ?? []).map(i => i.productId).filter((x): x is string => !!x)), [prodSnap.data]);
-  const list = useProducts({ categoryId: selected ?? undefined, q: q || undefined, kind: kind.length === 1 ? kind[0] : undefined, active: status.length === 1 ? status[0] === 'active' : undefined });
-  // варианты показываются вложенно под товаром-родителем
+  // Список — страницами по 100 с сервера (фильтры и сортировка там же), таблица прокручивается виртуально.
+  // В браузере остаются только фильтры, которых нет в API: несколько видов номенклатуры сразу и «Производимые»
+  const table = useDataTable<Product>([], { sort: { id: 'name', dir: 1 }, hidden: ['productKind', 'barcode', 'created'] });
+  const sortKey = table.sort.id ? SORT_KEYS[table.sort.id] : undefined;
+  const list = useProductPages({
+    categoryId: selected ?? undefined,
+    q: q || undefined,
+    kind: kind.length === 1 ? kind[0] : undefined,
+    active: status.length === 1 ? status[0] === 'active' : undefined,
+    productKindId: pkFilter.length === 1 ? pkFilter[0] : undefined,
+    sort: sortKey ? `${table.sort.dir < 0 ? '-' : ''}${sortKey}` : 'name',
+  });
+  const clientFiltered = pkFilter.length > 1 || producedFilter.length > 0;
+  // варианты показываются вложенно под товаром-родителем, если он уже загружен; иначе — на своём месте
   const rows = React.useMemo(() => {
-    const all = (list.data ?? []).filter(p => (!pkFilter.length || (p.productKindId && pkFilter.includes(p.productKindId))) && (!producedFilter.length || producedFilter.includes(producedIds.has(p.id) ? 'yes' : 'no'))); // фильтр по виду номенклатуры (задача 1172)
-    const variants = all.filter(p => p.parentProductId);
-    const parents = all.filter(p => !p.parentProductId);
-    const byParent = new Map<string, typeof all>();
-    for (const v of variants) byParent.set(v.parentProductId!, [...(byParent.get(v.parentProductId!) ?? []), v]);
+    const all = list.rows.filter(p => (pkFilter.length < 2 || (p.productKindId && pkFilter.includes(p.productKindId))) && (!producedFilter.length || producedFilter.includes(producedIds.has(p.id) ? 'yes' : 'no'))); // фильтр по виду номенклатуры (задача 1172)
+    const ids = new Set(all.map(p => p.id));
+    const byParent = new Map<string, Product[]>();
+    for (const v of all) if (v.parentProductId && ids.has(v.parentProductId)) byParent.set(v.parentProductId, [...(byParent.get(v.parentProductId) ?? []), v]);
     const out: Product[] = [];
-    for (const p of parents) {
+    for (const p of all) {
+      if (p.parentProductId && ids.has(p.parentProductId)) continue;
       out.push(p);
       for (const v of byParent.get(p.id) ?? []) out.push(v);
     }
     return out;
-  }, [list.data, pkFilter.join('|'), producedFilter.join('|'), producedIds]);
+  }, [list.rows, pkFilter.join('|'), producedFilter.join('|'), producedIds]);
+  const loadMore = React.useCallback(() => {
+    // cancelRefetch: false — повторный вызов, пока страница грузится, не перезапрашивает её
+    if (list.hasNextPage && !list.isFetchingNextPage) void list.fetchNextPage({ cancelRefetch: false });
+  }, [list.hasNextPage, list.isFetchingNextPage, list.fetchNextPage]);
 
   const open = (p: Product) => navigate({ pathname: `/catalog/${p.id}`, search: sp.toString() });
   const closeDrawer = () => navigate({ pathname: '/catalog', search: sp.toString() });
@@ -103,18 +125,17 @@ export function CatalogPage() {
         ),
       },
       { id: 'sku', header: t('catalog.col.sku'), width: 130, value: p => p.sku, cell: p => (p.sku ? <span className="mono">{p.sku}</span> : <span className="faint">—</span>) },
-      { id: 'productKind', header: t('positions.product.kind'), width: 150, defaultHidden: true, value: p => p.productKindId ?? '', cell: p => <span className="muted trunc">{(productKinds.data ?? []).find(k => k.id === p.productKindId)?.name ?? '—'}</span> },
-      { id: 'category', header: t('catalog.col.category'), width: 190, value: p => categoryPath(categories.data, p.categoryId), cell: p => <span className="trunc muted">{categoryPath(categories.data, p.categoryId).split(' / ').pop() || '—'}</span> },
-      { id: 'unit', header: t('catalog.col.unit'), width: 72, value: p => unitSymbol(units.data, p.unitCode) },
-      { id: 'vat', header: t('catalog.col.vat'), width: 84, value: p => tEnum('vat', p.vatRate, VAT_LABELS[p.vatRate]) },
+      { id: 'productKind', header: t('positions.product.kind'), width: 150, defaultHidden: true, sortable: false, value: p => p.productKindId ?? '', cell: p => <span className="muted trunc">{(productKinds.data ?? []).find(k => k.id === p.productKindId)?.name ?? '—'}</span> },
+      { id: 'category', header: t('catalog.col.category'), width: 190, sortable: false, value: p => categoryPath(categories.data, p.categoryId), cell: p => <span className="trunc muted">{categoryPath(categories.data, p.categoryId).split(' / ').pop() || '—'}</span> },
+      { id: 'unit', header: t('catalog.col.unit'), width: 72, sortable: false, value: p => unitSymbol(units.data, p.unitCode) },
+      { id: 'vat', header: t('catalog.col.vat'), width: 84, sortable: false, value: p => tEnum('vat', p.vatRate, VAT_LABELS[p.vatRate]) },
       { id: 'price', header: t('catalog.col.price'), width: 120, align: 'right', value: p => Number(p.price), cell: p => <span className="num">{money(p.price)}</span> },
       { id: 'purchase', header: t('catalog.col.purchase'), width: 120, align: 'right', value: p => Number(p.purchasePrice), cell: p => <span className="num">{money(p.purchasePrice)}</span> },
-      { id: 'barcode', header: t('catalog.col.barcode'), width: 140, defaultHidden: true, value: p => p.barcode, cell: p => (p.barcode ? <span className="mono">{p.barcode}</span> : <span className="faint">—</span>) },
+      { id: 'barcode', header: t('catalog.col.barcode'), width: 140, defaultHidden: true, sortable: false, value: p => p.barcode, cell: p => (p.barcode ? <span className="mono">{p.barcode}</span> : <span className="faint">—</span>) },
       { id: 'created', header: t('catalog.col.created'), width: 112, defaultHidden: true, value: p => Date.parse(p.createdAt), cell: p => <span className="muted num">{fmtDate(new Date(p.createdAt))}</span> },
     ],
     [categories.data, units.data, productKinds.data, t],
   );
-  const table = useDataTable(columns);
 
   const filterFields: FilterField[] = [
     { id: 'kind', name: t('common.type'), icon: <Package size={15} />, options: [{ id: 'goods', name: t('catalog.kind.goods') }, { id: 'service', name: t('catalog.kind.service') }] },
@@ -146,7 +167,7 @@ export function CatalogPage() {
           <h1>{t('catalog.title')}</h1>
           <p>
             {selectedNode ? `${selectedNode.name}: ` : ''}
-            {t(filters.count || q ? 'catalog.summaryMatch' : 'catalog.summary', { count: rows.length })}
+            {t(filters.count || q ? 'catalog.summaryMatch' : 'catalog.summary', { count: clientFiltered ? rows.length : list.total })}
           </p>
         </div>
         <div className="acts">{newProduct}</div>
@@ -175,7 +196,7 @@ export function CatalogPage() {
             search={{ value: filters.q, onChange: filters.setQ, placeholder: t('catalog.searchPlaceholder') }}
             fields={filterFields}
             filters={filters}
-            sort={{ options: columns.filter(c => c.value).map(c => ({ id: c.id, name: c.header })), value: table.sort.id, dir: table.sort.dir, onChange: table.setSort }}
+            sort={{ options: columns.filter(c => c.value && c.sortable !== false).map(c => ({ id: c.id, name: c.header })), value: table.sort.id, dir: table.sort.dir, onChange: table.setSort }}
             columns={columnsMenu(columns, table)}
           />
           {list.isError ? (
@@ -199,6 +220,19 @@ export function CatalogPage() {
               getId={p => p.id}
               onRowClick={open}
               showTotals={false}
+              manualSort
+              virtual
+              onEndReached={loadMore}
+              footer={
+                list.hasNextPage ? (
+                  <span className="row muted" style={{ gap: 10, fontSize: 12.5 }}>
+                    {t('catalog.loaded', { loaded: fmtNumber(list.rows.length), total: fmtNumber(list.total) })}
+                    <Button size="sm" variant="ghost" loading={list.isFetchingNextPage} onClick={loadMore}>
+                      {t('catalog.loadMore')}
+                    </Button>
+                  </span>
+                ) : undefined
+              }
               onNew={canWrite ? () => setDialog({ type: 'product' }) : undefined}
               newLabel={t('catalog.newProduct')}
               empty={

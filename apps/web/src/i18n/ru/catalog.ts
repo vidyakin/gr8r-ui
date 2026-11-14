@@ -5,6 +5,8 @@ export const catalog: Widen<typeof C> = {
   title: 'Каталог',
   summary: { one: '{count} позиция', few: '{count} позиции', many: '{count} позиций', other: '{count} позиции' },
   summaryMatch: { one: 'Найдена {count} позиция', few: 'Найдено {count} позиции', many: 'Найдено {count} позиций', other: 'Найдено {count} позиции' },
+  loaded: 'Загружено {loaded} из {total}',
+  loadMore: 'Загрузить ещё',
   products: 'Товары и услуги',
   productsTable: 'Таблица товаров и услуг',
   newProduct: 'Новая позиция',

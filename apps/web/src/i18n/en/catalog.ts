@@ -3,6 +3,8 @@ export const catalog = {
   title: 'Catalog',
   summary: { one: '{count} item', other: '{count} items' },
   summaryMatch: { one: '{count} item match', other: '{count} items match' },
+  loaded: 'Loaded {loaded} of {total}',
+  loadMore: 'Load more',
   products: 'Products',
   productsTable: 'Products table',
   newProduct: 'New product',

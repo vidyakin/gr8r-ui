@@ -1,5 +1,6 @@
 /* DataTable<T> — обобщённая таблица: описание колонок, сортировка по заголовку, группы с итогами, выбор колонок,
    ширина колонок перетаскиванием, клик по строке, пустое состояние и карточки вместо таблицы на ≤640px.
+   Для больших списков: virtual (в DOM только видимые строки), manualSort (порядок задаёт сервер), onEndReached + footer (подгрузка страниц).
    Разметка и CSS-классы (.tbl, .thi, .rsz, .grow-row…) те же, что у таблицы задач (app/components/table-view.tsx). */
 import * as React from 'react';
 import { ArrowDown, ArrowUp, Plus, SearchX } from 'lucide-react';
@@ -112,16 +113,77 @@ export interface DataTableProps<T> {
   empty?: React.ReactNode;
   /** Своя карточка строки для телефона */
   renderCard?: (row: T) => React.ReactNode;
+  /** Строки уже отсортированы сервером: заголовок меняет table.sort, но таблица порядок не трогает */
+  manualSort?: boolean;
+  /** Виртуальная прокрутка: в DOM только видимые строки (+ запас), высота строки меряется по отрисованным. Без групп */
+  virtual?: boolean;
+  /** Прокрутка дошла до конца загруженных строк — подгрузить следующую страницу */
+  onEndReached?: () => void;
+  /** Под строками: «Загрузить ещё», «Загружаем…» */
+  footer?: React.ReactNode;
   'aria-label': string;
+}
+
+const OVERSCAN = 12;
+
+/** Видимый диапазон строк по прокрутке контейнера; средняя высота строки уточняется по уже отрисованным строкам */
+function useVirtualRange(enabled: boolean, count: number, el: HTMLDivElement | null, body: React.RefObject<HTMLTableSectionElement | null>, onEndReached?: () => void) {
+  const [view, setView] = React.useState({ top: 0, height: 800 });
+  const rowH = React.useRef(37);
+  const endRef = React.useRef(onEndReached);
+  endRef.current = onEndReached;
+  // контейнер — состояние (callback-ref): таблица могла смонтироваться пустой, и прокрутка появляется позже
+  React.useEffect(() => {
+    if (!enabled || !el) return;
+    const update = () => {
+      setView({ top: el.scrollTop, height: el.clientHeight });
+      // до конца прокрутки меньше двух экранов — просим следующую страницу (только по прокрутке пользователя, без цепочки)
+      if (el.scrollHeight - el.scrollTop - el.clientHeight < el.clientHeight * 2) endRef.current?.();
+    };
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', update);
+      ro.disconnect();
+    };
+  }, [enabled, el]);
+  // уточняем высоту строки по фактически отрисованным строкам данных
+  React.useLayoutEffect(() => {
+    const rows = body.current?.querySelectorAll<HTMLTableRowElement>('tr[data-id]');
+    if (!enabled || !rows?.length) return;
+    let h = 0;
+    rows.forEach(r => (h += r.offsetHeight));
+    const avg = h / rows.length;
+    if (avg > 0 && Math.abs(avg - rowH.current) > 0.5) rowH.current = avg;
+  });
+  if (!enabled) return { start: 0, end: count, before: 0, after: 0 };
+  const h = rowH.current;
+  const start = Math.max(0, Math.floor(view.top / h) - OVERSCAN);
+  const end = Math.min(count, Math.ceil((view.top + view.height) / h) + OVERSCAN);
+  return { start, end, before: start * h, after: (count - end) * h };
 }
 
 const cellValue = <T,>(c: Column<T>, row: T) => (c.cell ? c.cell(row) : (c.value?.(row) ?? <span className="faint">—</span>));
 
-export function DataTable<T>({ columns, rows, table, getId, onRowClick, groupBy, showTotals = true, totalLabel = t('ui.total'), onNew, newLabel = t('ui.new'), empty, renderCard, ...rest }: DataTableProps<T>) {
+export function DataTable<T>({ columns, rows, table, getId, onRowClick, groupBy, showTotals = true, totalLabel = t('ui.total'), onNew, newLabel = t('ui.new'), empty, renderCard, manualSort, virtual, onEndReached, footer, ...rest }: DataTableProps<T>) {
   const cols = columns.filter((c, i) => i === 0 || !table.hidden.includes(c.id));
   const width = (c: Column<T>) => table.colW[c.id] ?? c.width;
   const totalW = cols.reduce((a, c) => a + width(c), 0);
-  const sorted = React.useMemo(() => sortRows(rows, columns, table.sort), [rows, columns, table.sort]);
+  const sorted = React.useMemo(() => (manualSort ? rows : sortRows(rows, columns, table.sort)), [rows, columns, table.sort, manualSort]);
+  const [wrapEl, setWrapEl] = React.useState<HTMLDivElement | null>(null);
+  const bodyRef = React.useRef<HTMLTableSectionElement>(null);
+  const range = useVirtualRange(!!virtual && !groupBy, sorted.length, wrapEl, bodyRef, onEndReached);
+  // карточки на телефоне не виртуализуются: следующая страница — когда низ списка показался на экране
+  const cardsEnd = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    const el = cardsEnd.current;
+    if (!el || !onEndReached) return;
+    const io = new IntersectionObserver(es => es.some(e => e.isIntersecting) && onEndReached());
+    io.observe(el);
+    return () => io.disconnect();
+  }, [onEndReached, rows.length]);
 
   const groups = React.useMemo(() => {
     if (!groupBy) return null;
@@ -203,7 +265,7 @@ export function DataTable<T>({ columns, rows, table, getId, onRowClick, groupBy,
 
   return (
     <>
-      <div className="tbl-wrap hide-m">
+      <div className="tbl-wrap hide-m" ref={setWrapEl}>
         <table className="tbl" style={{ width: totalW }} {...rest}>
           <colgroup>
             {cols.map(c => (
@@ -233,7 +295,12 @@ export function DataTable<T>({ columns, rows, table, getId, onRowClick, groupBy,
               })}
             </tr>
           </thead>
-          <tbody>
+          <tbody ref={bodyRef}>
+            {range.before > 0 && (
+              <tr aria-hidden="true">
+                <td colSpan={cols.length} style={{ height: range.before, padding: 0, border: 0 }} />
+              </tr>
+            )}
             {groups
               ? groups.map(g => (
                   <React.Fragment key={g.key}>
@@ -256,7 +323,19 @@ export function DataTable<T>({ columns, rows, table, getId, onRowClick, groupBy,
                     {g.rows.map(bodyRow)}
                   </React.Fragment>
                 ))
-              : sorted.map(bodyRow)}
+              : sorted.slice(range.start, range.end).map(bodyRow)}
+            {range.after > 0 && (
+              <tr aria-hidden="true">
+                <td colSpan={cols.length} style={{ height: range.after, padding: 0, border: 0 }} />
+              </tr>
+            )}
+            {footer && (
+              <tr>
+                <td className="sticky" colSpan={cols.length}>
+                  {footer}
+                </td>
+              </tr>
+            )}
             {onNew && (
               <tr>
                 <td className="sticky cellbtn" colSpan={cols.length} style={{ color: 'var(--text-3)' }} onClick={onNew}>
@@ -315,6 +394,8 @@ export function DataTable<T>({ columns, rows, table, getId, onRowClick, groupBy,
             ))}
           </div>
         )}
+        {footer}
+        {onEndReached && <div ref={cardsEnd} aria-hidden="true" style={{ height: 1 }} />}
         {onNew && (
           <button className="addcard" style={{ marginTop: 4 }} onClick={onNew}>
             <Plus size={14} />
