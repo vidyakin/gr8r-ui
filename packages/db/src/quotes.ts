@@ -25,7 +25,7 @@ async function loadDraft(db: Db, id: string): Promise<DocRow> {
 /** Снимок строк документа (основной вариант) */
 async function snapshot(db: Db, documentId: string): Promise<VariantLine[]> {
   const rows = await db.select().from(documentLines).where(eq(documentLines.documentId, documentId)).orderBy(asc(documentLines.sortOrder), asc(documentLines.createdAt));
-  return rows.map(l => ({ id: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, qty: l.qty, price: l.price, discountPct: l.discountPct, vatRate: l.vatRate, groupName: l.groupName, params: l.params, sourceLineId: l.sourceLineId, originLineId: l.originLineId }));
+  return rows.map(l => ({ id: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, unitFactor: l.unitFactor, qty: l.qty, price: l.price, discountPct: l.discountPct, vatRate: l.vatRate, groupName: l.groupName, params: l.params, sourceLineId: l.sourceLineId, originLineId: l.originLineId }));
 }
 
 /** Суммы строк снимка и итоги — по текущему способу указания НДС документа */
@@ -45,7 +45,7 @@ async function restore(db: Db, ctx: DocCtx, doc: DocRow, lines: VariantLine[]): 
     db,
     ctx,
     doc,
-    lines.map(l => ({ id: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, qty: l.qty, price: l.price, discountPct: l.discountPct, vatRate: l.vatRate as VatRate, groupName: l.groupName, params: l.params as DocumentLineInput["params"] })),
+    lines.map(l => ({ id: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, ...(l.unitFactor ? { unitFactor: l.unitFactor } : {}), qty: l.qty, price: l.price, discountPct: l.discountPct, vatRate: l.vatRate as VatRate, groupName: l.groupName, params: l.params as DocumentLineInput["params"] })),
     doc.priceIncludesVat,
   );
   for (const l of lines) if (l.sourceLineId || l.originLineId) await db.update(documentLines).set({ sourceLineId: l.sourceLineId, originLineId: l.originLineId }).where(eq(documentLines.id, l.id));

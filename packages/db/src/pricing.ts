@@ -204,7 +204,9 @@ export async function resolvePrices(db: Db, workspaceId: string, kindId: string,
   // ручные записи на дату
   const hist = new Map<string, string>();
   const rows = await db.execute<{ price_kind_id: string; product_id: string; price: string }>(sql`
-    select distinct on (price_kind_id, product_id) price_kind_id, product_id, price::text as price
+    select distinct on (price_kind_id, product_id) price_kind_id, product_id,
+      -- цена за упаковку (прайс поставщика) приводится к базовой единице: производные виды и документы считают в ней
+      (case when unit_factor = 1 then price else round(price / unit_factor, 2) end)::text as price
     from product_prices
     where workspace_id = ${workspaceId} and date <= ${date} and price_kind_id in ${sql`(${sql.join([...chain].map(c => sql`${c}::uuid`), sql`, `)})`} and product_id in ${sql`(${sql.join(allIds.map(c => sql`${c}::uuid`), sql`, `)})`}
     order by price_kind_id, product_id, date desc, id desc`);
@@ -319,7 +321,7 @@ export async function productPricesByKind(db: Db, workspaceId: string, productId
 export async function productPriceHistory(db: Db, workspaceId: string, productId: string, canSeeCost: boolean) {
   const kinds = new Map((await listPriceKinds(db, workspaceId, { canSeeCost, archived: true })).map(k => [k.id, k]));
   const rows = await db
-    .select({ id: productPrices.id, priceKindId: productPrices.priceKindId, date: productPrices.date, price: productPrices.price, documentId: productPrices.documentId, number: documents.number })
+    .select({ id: productPrices.id, priceKindId: productPrices.priceKindId, date: productPrices.date, price: productPrices.price, unitCode: productPrices.unitCode, unitFactor: productPrices.unitFactor, documentId: productPrices.documentId, number: documents.number })
     .from(productPrices)
     .leftJoin(documents, eq(documents.id, productPrices.documentId))
     .where(and(eq(productPrices.workspaceId, workspaceId), eq(productPrices.productId, productId)))
@@ -359,16 +361,17 @@ export async function recordPriceKindPrice(db: Db, workspaceId: string, kindId: 
 
 /** Пакетный вариант: один DELETE прежних ручных записей вида/даты по списку товаров и вставка пачками.
     Товар в списке дважды — действует последняя цена. Общая для прайса поставщика и карточки товара */
-export async function recordPriceKindPrices(db: Db, workspaceId: string, kindId: string, items: { productId: string; price: string }[], date = today()): Promise<void> {
-  const last = new Map<string, string>();
-  for (const i of items) last.set(i.productId, fmt(dec(i.price), 2));
+export async function recordPriceKindPrices(db: Db, workspaceId: string, kindId: string, items: { productId: string; price: string; unitCode?: string | null; unitFactor?: string | null }[], date = today()): Promise<void> {
+  // цена за единицу unit_code (упаковку прайса); без единицы — за базовую
+  const last = new Map<string, { price: string; unitCode: string | null; unitFactor: string }>();
+  for (const i of items) last.set(i.productId, { price: fmt(dec(i.price), 2), unitCode: i.unitCode ?? null, unitFactor: i.unitCode && i.unitFactor ? fmt(dec(i.unitFactor), 6) : '1' });
   if (!last.size) return;
   const ids = [...last.keys()];
   const CHUNK = 1000;
   for (let i = 0; i < ids.length; i += CHUNK) {
     const part = ids.slice(i, i + CHUNK);
     await db.delete(productPrices).where(and(eq(productPrices.priceKindId, kindId), inArray(productPrices.productId, part), eq(productPrices.date, date), isNull(productPrices.documentId)));
-    await db.insert(productPrices).values(part.map(productId => ({ workspaceId, priceKindId: kindId, productId, date, price: last.get(productId)! })));
+    await db.insert(productPrices).values(part.map(productId => ({ workspaceId, priceKindId: kindId, productId, date, ...last.get(productId)! })));
   }
 }
 

@@ -60,7 +60,11 @@ export const productPrices = pgTable(
     priceKindId: uuid('price_kind_id').notNull(),
     productId: uuid('product_id').notNull(),
     date: date('date', { mode: 'string' }).notNull(),
+    /** Цена за единицу unit_code (упаковку из прайса поставщика); пусто — за базовую единицу товара */
     price: money('price').notNull(),
+    unitCode: text('unit_code'),
+    /** Базовых единиц в единице цены: цена за базовую = price / unit_factor */
+    unitFactor: numeric('unit_factor', { precision: 18, scale: 6 }).notNull().default('1'),
     documentId: uuid('document_id'),
     lineId: uuid('line_id'),
     createdAt: createdAt(),
@@ -70,6 +74,7 @@ export const productPrices = pgTable(
     foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'product_prices_product_fk' }).onDelete('cascade'),
     foreignKey({ columns: [t.workspaceId, t.documentId], foreignColumns: [documents.workspaceId, documents.id], name: 'product_prices_document_fk' }).onDelete('cascade'),
     check('product_prices_price_chk', sql`${t.price} >= 0`),
+    check('product_prices_unit_factor_chk', sql`${t.unitFactor} > 0`),
     index('product_prices_lookup_idx').on(t.workspaceId, t.priceKindId, t.productId, t.date),
     index('product_prices_product_idx').on(t.workspaceId, t.productId),
     index('product_prices_document_idx').on(t.documentId),

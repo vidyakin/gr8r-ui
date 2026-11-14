@@ -5,6 +5,7 @@ import { Button } from '@/components/ui';
 import { fmtAmount, useT } from '@/i18n';
 import { fmtDate } from '../lib/dates';
 import { usePriceHistory, useProductPrices } from './data';
+import { unitSymbol, useUnits } from '../catalog/data';
 
 export function ProductPricesBlock({ productId }: { productId: string }) {
   const tt = useT();
@@ -12,6 +13,7 @@ export function ProductPricesBlock({ productId }: { productId: string }) {
   const prices = useProductPrices(productId);
   const history = usePriceHistory(productId, open);
   const rows = prices.data ?? [];
+  const units = useUnits();
   return (
     <div className="stack" style={{ gap: 4 }}>
       {rows.map(r => (
@@ -33,7 +35,7 @@ export function ProductPricesBlock({ productId }: { productId: string }) {
               <tr key={h.id}>
                 <td className="muted">{fmtDate(h.date)}</td>
                 <td>{h.priceKindName}</td>
-                <td className="r num">{fmtAmount(h.price)}</td>
+                <td className="r num">{h.unitCode ? tt('supplierPrices.page.perUnit', { price: fmtAmount(h.price), unit: unitSymbol(units.data, h.unitCode) }) : fmtAmount(h.price)}</td>
                 <td className="muted">{h.number ?? ''}</td>
               </tr>
             ))}

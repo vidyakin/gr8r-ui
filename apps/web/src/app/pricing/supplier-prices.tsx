@@ -232,13 +232,13 @@ function ProfilesList({ items, loading, canWrite, onEdit }: { items: SupplierPro
 
 function profileSummary(t: ReturnType<typeof useT>, p: SupplierProfile) {
   const col = (n: number | null) => (n ? String(n) : t('supplierPrices.formats.none'));
-  return t('supplierPrices.formats.summary', { row: p.firstRow, article: col(p.articleCol), name: col(p.nameCol), net: col(p.priceNetCol), gross: col(p.priceGrossCol), unit: col(p.unitCol) });
+  return t('supplierPrices.formats.summary', { row: p.firstRow, article: col(p.articleCol), name: col(p.nameCol), net: col(p.priceNetCol), gross: col(p.priceGrossCol), unit: col(p.unitCol), factor: col(p.factorCol) });
 }
 
 /* ---------------- настройка формата по файлу-образцу ---------------- */
 
-type Role = 'article' | 'name' | 'priceNet' | 'priceGross' | 'unit';
-const ROLES: Role[] = ['article', 'name', 'priceNet', 'priceGross', 'unit'];
+type Role = 'article' | 'name' | 'priceNet' | 'priceGross' | 'unit' | 'factor';
+const ROLES: Role[] = ['article', 'name', 'priceNet', 'priceGross', 'unit', 'factor'];
 type Cols = Record<Role, number | null>;
 const SAMPLE_ROWS = 10;
 const NONE = 'none';
@@ -256,7 +256,7 @@ function ProfileDialog({ companyId, profile, onClose }: { companyId: string; pro
   const api = useSupplierPricesApi();
   const [name, setName] = React.useState(profile?.name ?? '');
   const [firstRow, setFirstRow] = React.useState(profile?.firstRow ?? 2);
-  const [cols, setCols] = React.useState<Cols>({ article: profile?.articleCol ?? null, name: profile?.nameCol ?? null, priceNet: profile?.priceNetCol ?? null, priceGross: profile?.priceGrossCol ?? null, unit: profile?.unitCol ?? null });
+  const [cols, setCols] = React.useState<Cols>({ article: profile?.articleCol ?? null, name: profile?.nameCol ?? null, priceNet: profile?.priceNetCol ?? null, priceGross: profile?.priceGrossCol ?? null, unit: profile?.unitCol ?? null, factor: profile?.factorCol ?? null });
   const [preview, setPreview] = React.useState<ProfilePreview | null>(null);
   const [busy, setBusy] = React.useState(false);
   const fileRef = React.useRef<HTMLInputElement>(null);
@@ -287,7 +287,7 @@ function ProfileDialog({ companyId, profile, onClose }: { companyId: string; pro
     if (missing || !cols.article) return;
     setBusy(true);
     try {
-      await api.saveProfile({ id: profile?.id, companyId, name: name.trim(), firstRow, articleCol: cols.article, nameCol: cols.name, priceNetCol: cols.priceNet, priceGrossCol: cols.priceGross, unitCol: cols.unit });
+      await api.saveProfile({ id: profile?.id, companyId, name: name.trim(), firstRow, articleCol: cols.article, nameCol: cols.name, priceNetCol: cols.priceNet, priceGrossCol: cols.priceGross, unitCol: cols.unit, factorCol: cols.factor });
       toast(t('supplierPrices.formats.saved'));
       onClose();
     } catch (e) {
@@ -363,6 +363,7 @@ function ProfileDialog({ companyId, profile, onClose }: { companyId: string; pro
               {roleField('priceNet')}
               {roleField('priceGross')}
               {roleField('unit', true)}
+              {roleField('factor', true)}
             </div>
             <p className="muted" style={{ fontSize: 12.5, margin: '0 0 6px' }}>
               {preview.fileName}. {t('supplierPrices.profile.gridHint', { n: SAMPLE_ROWS })}

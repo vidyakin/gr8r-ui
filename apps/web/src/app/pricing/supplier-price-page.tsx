@@ -186,7 +186,7 @@ export function SupplierPricePage() {
           </thead>
           <tbody>
             {shown.slice(0, limit).map(l => (
-              <LineRow key={l.id} showNet={showNet} showGross={showGross} line={l} editable={editable} busy={busy} products={products} unitLabel={l.unitCode ? unitSymbol(units.data, l.unitCode) : t('supplierPrices.page.unitNone')} onPick={() => setPicking(l)} onPatch={body => void patch(l, body)} onOpenProduct={setProductCard} />
+              <LineRow key={l.id} showNet={showNet} showGross={showGross} line={l} editable={editable} busy={busy} products={products} unitLabel={l.unitCode ? (l.unitFactor && Number(l.unitFactor) !== 1 ? t('supplierPrices.page.unitFactor', { unit: unitSymbol(units.data, l.unitCode), factor: fmtNumber(l.unitFactor, { maximumFractionDigits: 6 }) }) : unitSymbol(units.data, l.unitCode)) : t('supplierPrices.page.unitNone')} onPick={() => setPicking(l)} onPatch={body => void patch(l, body)} onOpenProduct={setProductCard} />
             ))}
           </tbody>
         </table>
@@ -299,7 +299,7 @@ function StatusIcon({ line: l, products, editable, busy, onPatch, onOpenProduct 
       </Menu>
     );
 
-  const noteKey = l.note && ['price_invalid', 'manual', 'vat_rate_none'].includes(l.note) ? (`supplierPrices.page.note.${l.note}` as 'supplierPrices.page.note.manual') : null;
+  const noteKey = l.note && ['price_invalid', 'manual', 'vat_rate_none', 'unit_unknown'].includes(l.note) ? (`supplierPrices.page.note.${l.note}` as 'supplierPrices.page.note.manual') : null;
   const extra = l.status === 'skipped' ? (noteKey ? t(noteKey) : l.note) : l.candidates.length ? t('supplierPrices.page.candidates', { n: l.candidates.length }) : null;
   const Icon = l.status === 'skipped' ? CircleMinus : l.status === 'conflict' ? CircleHelp : CircleAlert;
   const label = extra ? `${status} · ${extra}` : status;
@@ -323,6 +323,9 @@ function ApplyDialog({ price, leftCount, onClose, onApplied }: { price: Supplier
   const items = preview.data?.items ?? [];
   const warnings = items.filter(i => i.warning);
   const writable = items.filter(i => !i.warning);
+  // цена за упаковку — колонка «за базовую единицу» справочно (1500 ₽/ящ → 15 ₽/шт)
+  const hasPacks = writable.some(i => i.unitCode);
+  const units = useUnits();
 
   const apply = async () => {
     setBusy(true);
@@ -370,7 +373,7 @@ function ApplyDialog({ price, leftCount, onClose, onApplied }: { price: Supplier
               {!!warnings.length && (
                 <Alert tone="warn" title={t('supplierPrices.page.warnTitle', { n: warnings.length })}>
                   {warnings.slice(0, 10).map(w => (
-                    <div key={w.lineId}>{t('supplierPrices.page.warnVat', { row: w.rowNo, name: w.productName })}</div>
+                    <div key={w.lineId}>{t(w.warning === 'unit_unknown' ? 'supplierPrices.page.warnUnit' : 'supplierPrices.page.warnVat', { row: w.rowNo, name: w.productName })}</div>
                   ))}
                 </Alert>
               )}
@@ -382,7 +385,8 @@ function ApplyDialog({ price, leftCount, onClose, onApplied }: { price: Supplier
                       <tr>
                         <th>{t('supplierPrices.page.colName')}</th>
                         <th style={{ width: 110, textAlign: 'right' }}>{t('supplierPrices.page.colWas')}</th>
-                        <th style={{ width: 110, textAlign: 'right' }}>{t('supplierPrices.page.colNow')}</th>
+                        <th style={{ width: 130, textAlign: 'right' }}>{t('supplierPrices.page.colNow')}</th>
+                        {hasPacks && <th style={{ width: 120, textAlign: 'right' }}>{t('supplierPrices.page.colBase')}</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -397,7 +401,12 @@ function ApplyDialog({ price, leftCount, onClose, onApplied }: { price: Supplier
                           <td style={{ textAlign: 'right' }} className="muted">
                             {i.current === null ? '—' : fmtAmount(i.current)}
                           </td>
-                          <td style={{ textAlign: 'right', fontWeight: 500 }}>{i.next === null ? '—' : fmtAmount(i.next)}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 500 }}>{i.next === null ? '—' : i.unitCode ? t('supplierPrices.page.perUnit', { price: fmtAmount(i.next), unit: unitSymbol(units.data, i.unitCode) }) : fmtAmount(i.next)}</td>
+                          {hasPacks && (
+                            <td style={{ textAlign: 'right' }} className="muted">
+                              {i.unitCode && i.nextBase !== null ? t('supplierPrices.page.perUnit', { price: fmtAmount(i.nextBase), unit: unitSymbol(units.data, i.baseUnitCode) }) : ''}
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>

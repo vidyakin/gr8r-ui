@@ -5,7 +5,7 @@ import { Trash2 } from 'lucide-react';
 import { DrawerSection } from '@/components/gr8r/entity-drawer';
 import { IconButton, Input, Skeleton, toast } from '@/components/ui';
 import { fmtAmount, useT } from '@/i18n';
-import { useIsAdmin } from '../catalog/data';
+import { unitSymbol, useIsAdmin, useUnits } from '../catalog/data';
 import { useCanWrite } from '../meta/custom-fields';
 import { useWsId } from '../meta/data';
 import { searchProducts } from '../catalog/data';
@@ -190,7 +190,7 @@ export function CompanyPartnerTab({ companyId }: { companyId: string }) {
 }
 
 /** Блок «Артикулы контрагентов» карточки товара */
-export function ProductPartnerArticles({ productId }: { productId: string }) {
+export function ProductPartnerArticles({ productId, baseUnit = '796' }: { productId: string; baseUnit?: string }) {
   const t = useT();
   const canWrite = useCanWrite();
   const api = useDocsApi();
@@ -198,7 +198,22 @@ export function ProductPartnerArticles({ productId }: { productId: string }) {
   const isAdmin = useIsAdmin();
   const prices = useProductSupplierPrices(productId, isAdmin);
   const priceOf = (companyId: string) => prices.data?.find(p => p.companyId === companyId)?.price ?? null;
-  const priceCell = (companyId?: string) => (isAdmin ? <td className="num">{companyId && priceOf(companyId) ? fmtAmount(priceOf(companyId)) : '—'}</td> : undefined);
+  const units = useUnits();
+  // цена за упаковку прайса и справочно за базовую единицу: «1 500,00 / упак» и «15,00 / шт»
+  const priceText = (companyId: string) => {
+    const r = prices.data?.find(p => p.companyId === companyId);
+    if (!r?.price) return '—';
+    if (!r.unitPrice || !r.unitCode) return fmtAmount(r.price);
+    return (
+      <>
+        {t('supplierPrices.page.perUnit', { price: fmtAmount(r.unitPrice), unit: unitSymbol(units.data, r.unitCode) })}
+        <div className="faint" style={{ fontSize: 11.5 }}>
+          {t('supplierPrices.page.perUnit', { price: fmtAmount(r.price), unit: unitSymbol(units.data, baseUnit) })}
+        </div>
+      </>
+    );
+  };
+  const priceCell = (companyId?: string) => (isAdmin ? <td className="num">{companyId && priceOf(companyId) ? priceText(companyId) : '—'}</td> : undefined);
   const [drafts, setDrafts] = React.useState<Draft[]>([]);
   const savedCompanies = new Set((list.data ?? []).map(a => a.companyId));
 
@@ -228,7 +243,7 @@ export function ProductPartnerArticles({ productId }: { productId: string }) {
                     <th>{t('docs.partner.colCompany')}</th>
                     <th style={{ width: 130 }}>{t('docs.partner.colArticle')}</th>
                     <th style={{ width: 170 }}>{t('docs.partner.colName')}</th>
-                    {isAdmin && <th className="num" style={{ width: 100 }}>{t('docs.partner.colPrice')}</th>}
+                    {isAdmin && <th className="num" style={{ width: 130 }}>{t('docs.partner.colPrice')}</th>}
                     <th style={{ width: 34 }} />
                   </tr>
                 </thead>

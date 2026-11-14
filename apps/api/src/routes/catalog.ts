@@ -4,8 +4,8 @@ import { zValidator } from '@hono/zod-validator';
 import { asc, eq, inArray, max, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { assertProductKind, attributeDefs, attachments, companies, generateVariants, listVariants, productCategories, products, recordEvent, recordProductPrice, specParamsOfProduct, units, uuidv7 } from '@gr8r/db';
-import { attributeCreate, attributeUpdate, categoryCreate, categoryQuery, categoryUpdate, destroyQuery, idParam, keyFromName, productCreate, productQuery, productUpdate, unitCreate, unitQuery, unitUpdate, type RecordData } from '@gr8r/shared';
+import { assertProductKind, listProductUnits, saveProductUnits, attributeDefs, attachments, companies, generateVariants, listVariants, productCategories, products, recordEvent, recordProductPrice, specParamsOfProduct, units, uuidv7 } from '@gr8r/db';
+import { attributeCreate, attributeUpdate, categoryCreate, categoryQuery, categoryUpdate, destroyQuery, idParam, keyFromName, productCreate, productQuery, productUnitsBody, productUpdate, unitCreate, unitQuery, unitUpdate, type RecordData } from '@gr8r/shared';
 import { crud, ctxOf, validationHook, type Ctx, escapeLike } from '../crud';
 import { AppError, notFound } from '../errors';
 import { requireRole } from '../middleware';
@@ -284,6 +284,20 @@ export const variantRoutes = new Hono<AppEnv>()
     const ctx = ctxOf(c);
     const items = await listVariants(ctx.db, c.req.valid('param').id);
     return c.json({ items, total: items.length, limit: items.length, offset: 0 });
+  })
+  // упаковки товара: единицы с коэффициентом в базовую («ящик = 100 шт»)
+  .get('/:id/units', zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const id = c.req.valid('param').id;
+    const [p] = await ctx.db.select({ unitCode: products.unitCode }).from(products).where(eq(products.id, id)).limit(1);
+    if (!p) throw notFound('product');
+    // базовая единица — для выбора единицы в строке документа
+    return c.json({ baseUnitCode: p.unitCode, items: await listProductUnits(ctx.db, ctx.workspaceId, id) });
+  })
+  .put('/:id/units', requireRole('member'), zValidator('param', idParam, validationHook), zValidator('json', productUnitsBody, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const items = await saveProductUnits(ctx.db, { workspaceId: ctx.workspaceId, memberId: ctx.memberId, role: ctx.role }, c.req.valid('param').id, c.req.valid('json').items);
+    return c.json({ items });
   })
   // «создать все комбинации»: по select-параметрам с флажком «разрез склада»
   .post('/:id/variants/generate', requireRole('member'), zValidator('param', idParam, validationHook), async c => {

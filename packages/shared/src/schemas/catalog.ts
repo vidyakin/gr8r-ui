@@ -114,3 +114,17 @@ export const productQuery = listQuery.extend({
   /** Контрагент документа: поиск ?q= находит и по артикулу контрагента, ответ дополняется его артикулом и наименованием */
   counterpartyId: uuid.optional(),
 });
+
+/** Упаковки товара (единицы с коэффициентом, docs/plans/2026-11-14-product-packages.md): список заменяет прежний */
+export const productUnitsBody = z.object({
+  items: z
+    .array(
+      z.object({
+        unitCode: z.string().trim().regex(/^\d{3,4}$/),
+        /** Базовых единиц в одной такой: «ящик = 100 шт» → 100 */
+        factor: z.string().trim().regex(/^\d{1,12}(\.\d{1,6})?$/),
+      }),
+    )
+    .max(20),
+});
+export type ProductUnitsBody = z.infer<typeof productUnitsBody>;

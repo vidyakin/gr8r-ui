@@ -8,9 +8,10 @@ import { ArrowLeftRight, Ban, Calculator, ChevronDown, CircleAlert, ClipboardLis
 import { amountInWordsRu, basedOnTargets, computeDocument, computeTotals, dec, DEFECT_MODES, DOCUMENT_META, fmt as fmtDec, hasQuoteVariants, isInvestmentFactType, MATERIAL_OWNER_LABELS, PRINT_FORM_LABELS, TOLLING_ROLE_LABELS, TOLLING_ROLES, TRANSFER_OPERATIONS, VAT_LABELS, VAT_RATES, CONTRACT_FORM_BY_TYPE, type DefectMode, type DocTemplatePurpose, type DocumentType, type TollingRole, type VatRate } from '@gr8r/shared';
 import { Badge, Button, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Segmented, Select, Skeleton, toast } from '@/components/ui';
 import { DocForm } from '@/components/gr8r/doc-form';
+import { LineUnitCell, rescalePrice, rescaleQty } from './line-unit';
 import { DateInput } from '@/components/gr8r/date-picker';
 import { useCanWrite } from '../meta/custom-fields';
-import { money, unitSymbol, useIsAdmin, useUnits, type Product } from '../catalog/data';
+import { money, useIsAdmin, useUnits, type Product } from '../catalog/data';
 import { uuidv7 } from '../lib/uuid';
 import { fmtDate } from '../lib/dates';
 import { useWorkspace } from '../data/store';
@@ -52,7 +53,11 @@ interface FormLine {
   productId: string | null;
   name: string;
   unitCode: string;
+  /** Базовых единиц в единице строки (упаковка); у базовой — 1 */
+  unitFactor: string;
+  /** Количество в единице строки (не в базовых): сервер переводит его в базовые по unitFactor */
   qty: string;
+  /** Цена за единицу строки */
   price: string;
   discountPct: string;
   vatRate: VatRate;
@@ -157,7 +162,7 @@ function toForm(d: DocDetail): Form {
     dueDate: d.dueDate ?? '',
     priceIncludesVat: d.priceIncludesVat,
     comment: d.comment,
-    lines: d.lines.map(l => ({ key: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, qty: trimNum(l.qty), price: l.price, discountPct: trimNum(l.discountPct), vatRate: l.vatRate, bookQty: trimNum(l.bookQty), receivedQty: trimNum(l.receivedQty), costItemId: l.costItemId, workCenterId: l.workCenterId, params: (l as { params?: Record<string, unknown> }).params ?? {}, tollingRole: l.tollingRole ?? null, groupName: l.groupName ?? '', shipBy: l.shipBy ?? '', batchNumber: l.batchNumber ?? '', batchProducedAt: l.batchProducedAt ?? '', batchExpiresAt: l.batchExpiresAt ?? '' })),
+    lines: d.lines.map(l => ({ key: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, unitFactor: l.unitFactor ?? '1', qty: trimNum(l.unitQty ?? l.qty), price: l.price, discountPct: trimNum(l.discountPct), vatRate: l.vatRate, bookQty: trimNum(l.bookQty), receivedQty: trimNum(l.receivedQty), costItemId: l.costItemId, workCenterId: l.workCenterId, params: (l as { params?: Record<string, unknown> }).params ?? {}, tollingRole: l.tollingRole ?? null, groupName: l.groupName ?? '', shipBy: l.shipBy ?? '', batchNumber: l.batchNumber ?? '', batchProducedAt: l.batchProducedAt ?? '', batchExpiresAt: l.batchExpiresAt ?? '' })),
   };
 }
 
@@ -199,7 +204,7 @@ function toPayload(f: Form) {
     comment: f.comment,
     lines: f.lines
       .filter(l => l.productId)
-      .map(l => ({ id: l.key, ...(l.discountManual !== undefined ? { discountManual: l.discountManual } : {}), productId: l.productId!, name: l.name, unitCode: l.unitCode, qty: num(l.qty), price: num(l.price), discountPct: num(l.discountPct || '0'), vatRate: l.vatRate, bookQty: num(l.bookQty || '0'), receivedQty: num(l.receivedQty || '0'), costItemId: l.costItemId, workCenterId: l.workCenterId, params: l.params ?? {}, tollingRole: l.tollingRole, groupName: l.groupName.trim(), shipBy: l.shipBy || null, batchNumber: l.batchNumber.trim() || null, batchProducedAt: l.batchProducedAt.trim() || null, batchExpiresAt: l.batchExpiresAt.trim() || null })),
+      .map(l => ({ id: l.key, ...(l.discountManual !== undefined ? { discountManual: l.discountManual } : {}), productId: l.productId!, name: l.name, unitCode: l.unitCode, qty: num(l.qty), unitQty: num(l.qty), price: num(l.price), discountPct: num(l.discountPct || '0'), vatRate: l.vatRate, bookQty: num(l.bookQty || '0'), receivedQty: num(l.receivedQty || '0'), costItemId: l.costItemId, workCenterId: l.workCenterId, params: l.params ?? {}, tollingRole: l.tollingRole, groupName: l.groupName.trim(), shipBy: l.shipBy || null, batchNumber: l.batchNumber.trim() || null, batchProducedAt: l.batchProducedAt.trim() || null, batchExpiresAt: l.batchExpiresAt.trim() || null })),
   };
 }
 
@@ -366,14 +371,14 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   };
   const patchLine = (key: string, patch: Partial<FormLine>) => edit(f => ({ ...f, lines: f.lines.map(l => (l.key === key ? { ...l, ...patch } : l)) }));
   const addLine = (at?: number) => {
-    const line: FormLine = { key: uuidv7(), productId: null, name: '', unitCode: '796', qty: '1', price: '', discountPct: '', vatRate: '20', bookQty: '0', receivedQty: '0', costItemId: null, workCenterId: null, params: {}, tollingRole: defaultTollingRole, groupName: '', shipBy: '', batchNumber: '', batchProducedAt: '', batchExpiresAt: '' };
+    const line: FormLine = { key: uuidv7(), productId: null, name: '', unitCode: '796', unitFactor: '1', qty: '1', price: '', discountPct: '', vatRate: '20', bookQty: '0', receivedQty: '0', costItemId: null, workCenterId: null, params: {}, tollingRole: defaultTollingRole, groupName: '', shipBy: '', batchNumber: '', batchProducedAt: '', batchExpiresAt: '' };
     const index = at ?? latest.current.lines.length;
     focusReq.current = { row: index, col: 0 };
     edit(f => ({ ...f, lines: [...f.lines.slice(0, index), line, ...f.lines.slice(index)] }));
   };
   const pickProduct = (key: string, row: number, p: Product) => {
     // у внутренних документов цена — себестоимость: её подставляет сервер
-    patchLine(key, { productId: p.id, name: p.name, unitCode: p.unitCode, vatRate: p.vatRate, price: internal ? '0' : trimNum(p[priceField]) || '0', qty: latest.current.lines.find(l => l.key === key)?.qty || '1', costItemId: p.kind === 'service' ? (latest.current.lines.find(l => l.key === key)?.costItemId ?? null) : null, workCenterId: p.kind === 'service' ? (latest.current.lines.find(l => l.key === key)?.workCenterId ?? null) : null });
+    patchLine(key, { productId: p.id, name: p.name, unitCode: p.unitCode, unitFactor: '1', vatRate: p.vatRate, price: internal ? '0' : trimNum(p[priceField]) || '0', qty: latest.current.lines.find(l => l.key === key)?.qty || '1', costItemId: p.kind === 'service' ? (latest.current.lines.find(l => l.key === key)?.costItemId ?? null) : null, workCenterId: p.kind === 'service' ? (latest.current.lines.find(l => l.key === key)?.workCenterId ?? null) : null });
     focusReq.current = { row, col: 1 };
     // цена по виду цен документа на его дату (договор, контрагент, вид заказ-наряда…); карточка товара — пока ответа нет
     if (!internal && meta.party !== null) {
@@ -608,7 +613,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                   <th>{t('docs.document.colProduct')}</th>
                   {hasGroups && <th style={{ width: 150 }}>{t('docs.quotes.colGroup')}</th>}
                   {hasShipBy && <th style={{ width: 150 }}>{t('docs.document.colShipBy')}</th>}
-                  <th style={{ width: 56 }}>{t('docs.document.colUnit')}</th>
+                  <th style={{ width: 76 }}>{t('docs.document.colUnit')}</th>
                   {isCount && (
                     <th style={{ width: 96 }} className="r">
                       {t('docs.document.colBook')}
@@ -716,7 +721,14 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                           {editable ? <DateInput size="sm" aria-label={t('docs.document.colShipBy')} value={l.shipBy} onChange={v => patchLine(l.key, { shipBy: v })} /> : <span className="muted">{l.shipBy ? fmtDate(l.shipBy) : ''}</span>}
                         </td>
                       )}
-                      <td className="muted">{unitSymbol(units.data, l.unitCode)}</td>
+                      <td className="muted">
+                        <LineUnitCell
+                          line={l}
+                          editable={editable && !isCount && !inTransit && !meta.production}
+                          units={units.data}
+                          onChange={(unitCode, unitFactor) => patchLine(l.key, { unitCode, unitFactor, qty: rescaleQty(l.qty, l.unitFactor, unitFactor), price: rescalePrice(l.price, l.unitFactor, unitFactor) })}
+                        />
+                      </td>
                       {isCount && <td className="r num muted">{trimNum(srv?.bookQty ?? '0') || '0'}</td>}
                       <td className="r">
                         <NumCell value={l.qty} disabled={!editable || (shiftMode && srv?.stockRole === 'out')} invalid={!!err.qty} label={t('docs.document.cellQty')} cell={`${i}:1`} onKeyDown={cellKey(i, 1)} onChange={v => patchLine(l.key, { qty: v })} />
@@ -741,8 +753,8 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       )}
                       {isOrder && doc.status !== 'draft' && (
                         <>
-                          <td className="r num muted">{trimNum(srv?.shipped ?? '0') || '0'}</td>
-                          <td className="r num">{trimNum(String(Math.max(0, Number(l.qty) - shipped).toFixed(3))) || '0'}</td>
+                          <td className="r num muted">{trimNum(String((shipped / (Number(l.unitFactor) || 1)).toFixed(3))) || '0'}</td>
+                          <td className="r num">{trimNum(String(Math.max(0, Number(l.qty) - shipped / (Number(l.unitFactor) || 1)).toFixed(3))) || '0'}</td>
                         </>
                       )}
                       {meta.production && (

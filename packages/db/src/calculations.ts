@@ -204,9 +204,10 @@ export async function applyCalculationPrices(db: Db, workspaceId: string, calcul
   for (const [lineId, unitCost] of byLine) {
     const [docLine] = await db.select().from(documentLines).where(and(eq(documentLines.id, lineId), eq(documentLines.workspaceId, workspaceId))).limit(1);
     if (!docLine) continue;
-    const price = fmt(withPct(dec(unitCost), markup), 2);
+    // себестоимость — за базовую единицу, цена строки — за её единицу (упаковку)
+    const price = fmt(mul(withPct(dec(unitCost), markup), dec(docLine.unitFactor)), 2);
     // суммы строки и итоги документа пересчитываются вместе с ценой
-    const amounts = computeLine({ qty: docLine.qty, price, discountPct: docLine.discountPct, vatRate: docLine.vatRate }, includesVat);
+    const amounts = computeLine({ qty: docLine.qty, unitFactor: docLine.unitFactor, price, discountPct: docLine.discountPct, vatRate: docLine.vatRate }, includesVat);
     await db.update(documentLines).set({ price, net: amounts.net, vatAmount: amounts.vatAmount, total: amounts.total }).where(eq(documentLines.id, lineId));
     applied++;
   }

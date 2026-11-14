@@ -38,7 +38,11 @@ export interface DocLine {
   productId: string;
   name: string;
   unitCode: string;
+  /** Количество в базовых единицах товара */
   qty: string;
+  /** Количество в единице строки (упаковке) и коэффициент единицы */
+  unitQty?: string;
+  unitFactor?: string;
   price: string;
   discountPct: string;
   vatRate: VatRate;
@@ -463,7 +467,8 @@ export function useProductSupplierPrices(productId: string | undefined, enabled:
   const ws = useWsId();
   return useQuery({
     queryKey: ['ws', ws, 'supplier-prices', 'product', productId],
-    queryFn: async () => (await call<{ items: { companyId: string; price: string | null }[] }>(ws, 'GET', `/pricing/products/${productId}/suppliers`)).items,
+    // price — за базовую единицу; unitPrice — за единицу прайса (упаковку), если цена записана за неё
+    queryFn: async () => (await call<{ items: { companyId: string; price: string | null; unitPrice: string | null; unitCode: string | null; unitFactor: string | null }[] }>(ws, 'GET', `/pricing/products/${productId}/suppliers`)).items,
     enabled: !!productId && enabled,
   });
 }

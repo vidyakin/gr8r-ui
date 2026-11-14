@@ -11,6 +11,7 @@ export * from './catalog';
 export * from './errors';
 export * from './documents';
 export * from './partner-articles';
+export * from './product-units';
 export * from './supplier-prices';
 export * from './supplier-rating';
 export * from './loyalty';

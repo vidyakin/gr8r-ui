@@ -118,7 +118,13 @@ export const documentLineInput = z
       .trim()
       .regex(/^\d{3,4}$/)
       .optional(),
+    /** Количество в базовых единицах товара (остатки и движения — в них) */
     qty: nonNeg(),
+    /** Количество в единице строки (упаковке): есть — сервер пересчитывает qty = unitQty × коэффициент (так присылает форма) */
+    unitQty: nonNeg().optional(),
+    /** Коэффициент единицы строки (копия строки «на основании»); пусто — прежний у строки или из упаковки товара */
+    unitFactor: nonNeg().optional(),
+    /** Цена за единицу строки */
     price: nonNeg(),
     discountPct: pct.optional(),
     /** Скидка строки правилась вручную (задача 1179): автоскидка такую строку больше не перезаписывает.
@@ -157,7 +163,8 @@ export const documentLineInput = z
     productionComponentId: uuid.nullish(),
   })
   // нулевое количество допустимо только у строки инвентаризации: там qty — фактическое, учётное лежит в bookQty
-  .refine(l => Number(l.qty) !== 0 || l.bookQty !== undefined, { message: 'Must be greater than zero', path: ['qty'] });
+  .refine(l => Number(l.qty) !== 0 || l.bookQty !== undefined, { message: 'Must be greater than zero', path: ['qty'] })
+  .refine(l => l.unitFactor === undefined || Number(l.unitFactor) > 0, { message: 'Must be greater than zero', path: ['unitFactor'] });
 export type DocumentLineInput = z.infer<typeof documentLineInput>;
 
 export const documentCreate = z.object({

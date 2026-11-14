@@ -336,7 +336,11 @@ export const documentLines = pgTable(
     productId: uuid('product_id').notNull(),
     name: text('name').notNull(),
     unitCode: text('unit_code').notNull().default('796'),
+    /** Количество — всегда в базовых единицах товара (остатки, движения, резервы) */
     qty: numeric('qty', { precision: 18, scale: 3 }).notNull(),
+    /** Коэффициент единицы строки на момент ввода: базовых единиц в одной единице строки (упаковки, миграция 0121) */
+    unitFactor: numeric('unit_factor', { precision: 18, scale: 6 }).notNull().default('1'),
+    /** Цена — за единицу строки; сумма = qty / unit_factor × price */
     price: money('price').notNull().default('0'),
     discountPct: numeric('discount_pct', { precision: 7, scale: 2 }).notNull().default('0'),
     vatRate: text('vat_rate').notNull().default('20'),
@@ -384,6 +388,7 @@ export const documentLines = pgTable(
     foreignKey({ columns: [t.workspaceId, t.sourceLineId], foreignColumns: [t.workspaceId, t.id], name: 'document_lines_source_fk' }).onDelete('set null'),
     foreignKey({ columns: [t.workspaceId, t.originLineId], foreignColumns: [t.workspaceId, t.id], name: 'document_lines_origin_fk' }).onDelete('set null'),
     check('document_lines_qty_chk', sql`${t.qty} >= 0 and ${t.price} >= 0 and ${t.discountPct} >= 0 and ${t.discountPct} <= 100`),
+    check('document_lines_unit_factor_chk', sql`${t.unitFactor} > 0`),
     check('document_lines_book_qty_chk', sql`${t.bookQty} >= 0 and ${t.receivedQty} >= 0`),
     check('document_lines_vat_chk', sql`${t.vatRate} in ('none','0','5','7','10','20')`),
     check('document_lines_stock_role_chk', sql`${t.stockRole} is null or ${t.stockRole} in ('in','out')`),

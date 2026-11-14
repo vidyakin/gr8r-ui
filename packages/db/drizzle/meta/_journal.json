@@ -778,6 +778,13 @@
       "when": 1794020130000,
       "tag": "0120_supplier_price_cols",
       "breakpoints": true
+    },
+    {
+      "idx": 116,
+      "version": "7",
+      "when": 1794020140000,
+      "tag": "0121_product_units",
+      "breakpoints": true
     }
   ]
 }

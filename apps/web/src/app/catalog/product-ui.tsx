@@ -15,6 +15,7 @@ import { FieldInput, FieldValue } from '../meta/field-ui';
 import type { MetaField } from '../meta/data';
 import { attributeAsField, flattenTree, useAttributes, useCatalogApi, useSuppliers, useIsAdmin, useGenerateVariants, useProductMutations, useSaveWorkNorm, useUnits, useVariants, useWorkCenters, useWorkNorms, type CategoryNode, type Product } from './data';
 import { StockLevelsTab } from './stock-levels';
+import { ProductUnitsSection } from './product-units';
 import { ProductPartnerArticles } from '../docs/partner-codes';
 import { t, tEnum, useT } from '@/i18n';
 import { parseNumber } from '@/i18n/format';
@@ -439,8 +440,9 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
             </dl>
           )}
         </DrawerSection>
+        {p.kind === 'goods' && <ProductUnitsSection product={p} />}
         <StockLevelsTab productId={p.id} />
-        <ProductPartnerArticles productId={p.id} />
+        <ProductPartnerArticles productId={p.id} baseUnit={p.unitCode} />
         {!p.parentProductId && (
           <DrawerSection title={t('catalog.product.variants')} count={variants.data?.length || undefined}>
             <p className="muted" style={{ margin: '0 0 8px' }}>

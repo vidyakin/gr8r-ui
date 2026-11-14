@@ -128,6 +128,34 @@ export function useUnits() {
   return useQuery({ queryKey: catalogKey(ws, 'units'), queryFn: async () => (await call<{ items: Unit[] }>(ws, 'GET', '/units?limit=200')).items, staleTime: Infinity });
 }
 
+/** Упаковка товара: единица с коэффициентом в базовую («упак = 100 шт») */
+export interface ProductUnit {
+  unitCode: string;
+  /** Базовых единиц в одной такой, строкой numeric(18,6) */
+  factor: string;
+}
+
+/** Упаковки товара; событие product.updated сбрасывает ключ каталога */
+export function useProductUnits(productId: string | null | undefined) {
+  const ws = useWsId();
+  return useQuery({
+    queryKey: catalogKey(ws, 'product-units', productId),
+    enabled: !!productId,
+    queryFn: async () => call<{ baseUnitCode: string; items: ProductUnit[] }>(ws, 'GET', `/products/${productId}/units`),
+    staleTime: 60_000,
+  });
+}
+
+export function useSaveProductUnits(productId: string) {
+  const ws = useWsId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (items: ProductUnit[]) => (await call<{ items: ProductUnit[] }>(ws, 'PUT', `/products/${productId}/units`, { items })).items,
+    onSuccess: items => qc.setQueryData(catalogKey(ws, 'product-units', productId), (old: { baseUnitCode: string; items: ProductUnit[] } | undefined) => (old ? { ...old, items } : old)),
+    onError: e => toast.error(errorMessage(e)),
+  });
+}
+
 /** Обозначение единицы по коду ОКЕИ */
 export const unitSymbol = (units: Unit[] | undefined, code: string) => units?.find(u => u.code === code)?.symbol ?? code;
 

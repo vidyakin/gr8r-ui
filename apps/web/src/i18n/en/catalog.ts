@@ -163,6 +163,21 @@ export const catalog = {
     add: 'Add a level',
     none: 'No stock levels — the product does not take part in the needs calculation',
   },
+  /** Упаковки товара: единицы с коэффициентом в базовую */
+  packs: {
+    title: 'Units and packages',
+    hint: 'Stock is kept in the base unit. A package is another unit with a factor, e.g. 1 box = 100 pcs: documents can use it, and the stock moves in base units.',
+    base: 'Base unit',
+    unit: 'Unit',
+    factor: 'Base units in one',
+    add: 'Add package',
+    remove: 'Remove {unit}',
+    save: 'Save',
+    none: 'No packages: documents use the base unit only.',
+    equals: '1 {unit} = {factor} {base}',
+    saved: 'Packages saved',
+    invalidFactor: 'The factor must be a number greater than zero',
+  },
 };
 
 /** Подписи значений из @gr8r/shared (VAT_LABELS, FIELD_TYPE_LABELS, …): переводятся по значению, без перевода — подпись из shared */

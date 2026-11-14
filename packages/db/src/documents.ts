@@ -12,6 +12,7 @@ import {
   FLEET_COST_ITEMS,
   dec,
   div,
+  mul,
   fmt,
   formatDocumentNumber,
   addDays,
@@ -33,6 +34,8 @@ import {
   isInvestmentFactType,
   isCashDocType,
   hasQuoteVariants,
+  baseQtyOf,
+  unitQtyOf,
 } from '@gr8r/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
@@ -50,6 +53,7 @@ import { assertContractOfCompany, contractDocumentProducts, contractPlanProductI
 import { ensureVariant, specParamsOfProduct } from './variants';
 import { checkParamValues, loadCategoryAttributeDefs } from './specs';
 import { uuidv7 } from './uuid';
+import { productUnitsOf } from './product-units';
 import { saveSerials, checkInventorySerials, lineSerialsView } from './serials';
 import { applySaleNextContact } from './repeat-sales';
 import { applyAutoDiscountsOnSave, applyLoyaltyOnPost, applyLoyaltyOnReturn, applyLoyaltyRedemption, applyLoyaltyReturnRefund, reverseLoyaltyOnReturnUnpost, validPromoCode, DISCOUNT_DOCUMENT_TYPES, documentLoyaltyOf, LOYALTY_RETURN_TYPES, LOYALTY_SALE_TYPES, reverseLoyaltyOnUnpost, saveDocumentLoyalty, saveLineDiscountSources } from './loyalty';
@@ -151,7 +155,11 @@ interface ResolvedLine {
   productId: string;
   name: string;
   unitCode: string;
+  /** Базовых единиц в единице строки (упаковка), на момент ввода */
+  unitFactor: string;
+  /** Количество в базовых единицах */
   qty: string;
+  /** Цена за единицу строки */
   price: string;
   discountPct: string;
   /** Скидка введена вручную в форме (задача 1179): такую строку автоскидка не трогает */
@@ -185,22 +193,42 @@ interface ResolvedLine {
 
 /** Подставляет из товара название, единицу и ставку НДС, которых нет в строке; новые строки — только по действующим товарам.
     У инвентаризации количество строки — фактическое (нулевое значит «товара нет»), у остальных типов оно строго положительно */
-async function resolveLines(db: Db, inputs: DocumentLineInput[], existingIds: Set<string>, type: DocumentType): Promise<ResolvedLine[]> {
+async function resolveLines(db: Db, inputs: DocumentLineInput[], existing: Map<string, { unitCode: string; unitFactor: string; productId: string }>, type: DocumentType): Promise<ResolvedLine[]> {
   const ids = [...new Set(inputs.map(l => l.productId))];
   const rows = ids.length ? await db.select().from(products).where(inArray(products.id, ids)) : [];
   const by = new Map(rows.map(p => [p.id, p]));
+  const packs = await productUnitsOf(db, ids);
   return inputs.map(l => {
     const p = by.get(l.productId);
     if (!p) throw new DomainError(422, 'invalid_reference', 'A line refers to a product that does not exist');
     const id = l.id ?? uuidv7();
-    if (p.archivedAt && !existingIds.has(id)) throw new DomainError(422, 'invalid_reference', `Product "${p.name}" is archived`);
-    if (type !== 'inventory_count' && dec(l.qty) <= 0n) throw new DomainError(422, 'invalid_qty', `"${p.name}": the quantity must be greater than zero`);
+    if (p.archivedAt && !existing.has(id)) throw new DomainError(422, 'invalid_reference', `Product "${p.name}" is archived`);
+    // единица строки и её коэффициент (упаковки): явный коэффициент (копия строки) → прежний той же строки → базовая 1 → упаковка товара → 1
+    const unitCode = l.unitCode ?? p.unitCode;
+    const prev = existing.get(id);
+    const unitFactor =
+      l.unitFactor !== undefined
+        ? fmt(dec(l.unitFactor), 6)
+        : prev && prev.unitCode === unitCode && prev.productId === p.id
+          ? prev.unitFactor
+          : unitCode === p.unitCode
+            ? '1.000000'
+            : (packs.get(p.id)?.find(u => u.unitCode === unitCode)?.factor ?? '1.000000');
+    // форма присылает количество в единице строки (unitQty) — в базовые единицы переводит сервер
+    let qty = l.qty;
+    if (l.unitQty !== undefined) {
+      const base = baseQtyOf(l.unitQty, unitFactor);
+      if (base === null) throw new DomainError(422, 'invalid_qty', `"${p.name}": the quantity in base units must have at most 3 decimal places`);
+      qty = base;
+    }
+    if (type !== 'inventory_count' && dec(qty) <= 0n) throw new DomainError(422, 'invalid_qty', `"${p.name}": the quantity must be greater than zero`);
     return {
       id,
       productId: p.id,
       name: l.name?.trim() || p.name,
-      unitCode: l.unitCode ?? p.unitCode,
-      qty: l.qty,
+      unitCode,
+      unitFactor,
+      qty,
       price: l.price,
       // discountManual: false — вернуть строку автоскидке: ручной процент сбрасывается
       discountPct: l.discountManual === false ? '0' : (l.discountPct ?? '0'),
@@ -208,7 +236,7 @@ async function resolveLines(db: Db, inputs: DocumentLineInput[], existingIds: Se
       vatRate: (l.vatRate ?? p.vatRate) as VatRate,
       stockRole: l.stockRole,
       bookQty: l.bookQty ?? '0',
-      receivedQty: l.receivedQty ?? (type === 'stock_transfer' ? l.qty : '0'),
+      receivedQty: l.receivedQty ?? (type === 'stock_transfer' ? qty : '0'),
       costItemId: l.costItemId ?? null,
       workCenterId: l.workCenterId ?? null,
       tollingRole: l.tollingRole ?? null,
@@ -282,7 +310,7 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
   const type = doc.type as DocumentType;
   const meta = DOCUMENT_META[type];
   const existing = await db
-    .select({ id: documentLines.id, price: documentLines.price, discountPct: documentLines.discountPct, stockRole: documentLines.stockRole, costItemId: documentLines.costItemId, workCenterId: documentLines.workCenterId, groupName: documentLines.groupName, shipBy: documentLines.shipBy, batchNumber: documentLines.batchNumber, batchProducedAt: documentLines.batchProducedAt, batchExpiresAt: documentLines.batchExpiresAt, productionComponentId: documentLines.productionComponentId })
+    .select({ id: documentLines.id, productId: documentLines.productId, unitCode: documentLines.unitCode, unitFactor: documentLines.unitFactor, price: documentLines.price, discountPct: documentLines.discountPct, stockRole: documentLines.stockRole, costItemId: documentLines.costItemId, workCenterId: documentLines.workCenterId, groupName: documentLines.groupName, shipBy: documentLines.shipBy, batchNumber: documentLines.batchNumber, batchProducedAt: documentLines.batchProducedAt, batchExpiresAt: documentLines.batchExpiresAt, productionComponentId: documentLines.productionComponentId })
     .from(documentLines)
     .where(eq(documentLines.documentId, doc.id));
   const existingIds = new Set(existing.map(e => e.id));
@@ -297,7 +325,7 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
   const prevBatchProduced = new Map(existing.map(e => [e.id, e.batchProducedAt]));
   const prevBatchExpires = new Map(existing.map(e => [e.id, e.batchExpiresAt]));
   const prevComponent = new Map(existing.map(e => [e.id, e.productionComponentId]));
-  const resolved = await resolveLines(db, inputs, existingIds, type);
+  const resolved = await resolveLines(db, inputs, new Map(existing.map(e => [e.id, e])), type);
   // заказ покупателя: комбинация значений параметров с флажком «разрез склада» даёт вариант товара.
   // Вариант создаётся лениво (первый заказ комбинации) и заменяет товар в строке: склад, резервы и документы работают по нему
   if (type === 'customer_order') await resolveLineVariants(db, ctx, resolved);
@@ -311,6 +339,7 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
     const values = {
       name: l.name,
       unitCode: l.unitCode,
+      unitFactor: l.unitFactor,
       qty: l.qty,
       price: l.price,
       discountPct: l.discountPct,
@@ -458,7 +487,8 @@ async function internalPrice(db: Db, ctx: DocCtx, doc: DocumentRow, l: ResolvedL
   if (canSet && dec(l.price) > 0n) return l.price;
   if (prev !== undefined) return prev;
   const cost = await defaultPostingCost(db, doc.warehouseId, l.productId);
-  return cost.cost;
+  // себестоимость — за базовую единицу, цена строки — за её единицу (упаковку)
+  return dec(l.unitFactor) === 1_000_000n ? cost.cost : fmt(mul(dec(cost.cost), dec(l.unitFactor)), 2);
 }
 
 /* ---------------- создание, правка, удаление ---------------- */
@@ -1073,7 +1103,8 @@ export async function applyDocumentMoves(db: Db, ctx: DocCtx, doc: DocumentRow, 
     if (qualityExit && m.direction === 'out') req.qualityExit = true;
     if (type === 'receipt') req.cost = div(dec(org?.taxSystem === 'usn' ? l.total : l.net), dec(l.qty)); // при УСН входной НДС входит в себестоимость
     if (type === 'customer_return' && l.sourceLineId && returnCosts.has(l.sourceLineId)) req.cost = returnCosts.get(l.sourceLineId);
-    if (type === 'stock_posting' || type === 'opening_stock') req.cost = dec(l.price); // цена оприходования — себестоимость прихода
+    // цена оприходования — себестоимость прихода; цена строки за её единицу, себестоимость — за базовую
+    if (type === 'stock_posting' || type === 'opening_stock') req.cost = div(dec(l.price), dec(l.unitFactor));
     if (type === 'stock_transfer' && m.direction === 'in') req.costFromLine = true; // приход по фактической цене расхода
     return req;
   });
@@ -1180,7 +1211,7 @@ export async function createBasedOn(db: Db, ctx: DocCtx, sourceId: string, targe
       }
     }
     if (qty <= 0n) continue;
-    newLines.push({ productId: l.productId, name: l.name, unitCode: l.unitCode, qty: fmt(qty, 3), price: l.price, discountPct: l.discountPct, vatRate: l.vatRate as VatRate, groupName: l.groupName, shipBy: l.shipBy });
+    newLines.push({ productId: l.productId, name: l.name, unitCode: l.unitCode, unitFactor: l.unitFactor, qty: fmt(qty, 3), price: l.price, discountPct: l.discountPct, vatRate: l.vatRate as VatRate, groupName: l.groupName, shipBy: l.shipBy });
     meta.push({ source: l.id, origin: isOrder ? l.id : l.originLineId });
   }
   if (!newLines.length && cutOff) throw new DomainError(422, 'nothing_by_ship_date', 'No order line has a shipping date up to the chosen date');
@@ -1224,6 +1255,8 @@ export async function createBasedOn(db: Db, ctx: DocCtx, sourceId: string, targe
 /* ---------------- карточка документа ---------------- */
 
 export interface DocumentLineView extends DocumentLineRow {
+  /** Количество в единице строки (qty — в базовых единицах) */
+  unitQty: string;
   sku: string;
   kind: 'goods' | 'service' | 'work' | 'operation';
   /** Товар с учётом по серийным номерам */
@@ -1300,7 +1333,7 @@ export async function documentDetail(db: Db, id: string) {
   const shipped = isOrder ? await sums(documentLines.originLineId, FULFIL_TYPES, true) : new Map<string, string>();
   const planned = isOrder ? await sums(documentLines.originLineId, FULFIL_TYPES, false) : new Map<string, string>();
   const returned = isReturnable ? await sums(documentLines.sourceLineId, [type === 'realization' ? 'customer_return' : 'supplier_return'], true) : new Map<string, string>();
-  const lines: DocumentLineView[] = rows.map(r => ({ ...r.line, sku: r.sku, kind: r.kind, trackSerials: r.trackSerials, trackBatches: r.trackBatches, shipped: fmt(dec(shipped.get(r.line.id) ?? 0), 3), planned: fmt(dec(planned.get(r.line.id) ?? 0), 3), returned: fmt(dec(returned.get(r.line.id) ?? 0), 3), discountSource: null, discountRuleId: null, discountRuleName: null, discountCardId: null, discountCardNumber: null, partnerArticle: '', partnerName: '' }));
+  const lines: DocumentLineView[] = rows.map(r => ({ ...r.line, unitQty: unitQtyOf(r.line.qty, r.line.unitFactor), sku: r.sku, kind: r.kind, trackSerials: r.trackSerials, trackBatches: r.trackBatches, shipped: fmt(dec(shipped.get(r.line.id) ?? 0), 3), planned: fmt(dec(planned.get(r.line.id) ?? 0), 3), returned: fmt(dec(returned.get(r.line.id) ?? 0), 3), discountSource: null, discountRuleId: null, discountRuleName: null, discountCardId: null, discountCardNumber: null, partnerArticle: '', partnerName: '' }));
   // номенклатура контрагента: артикул и наименование товара у контрагента документа
   const partner = await partnerArticlesFor(db, doc.counterpartyId, lines.map(l => l.productId));
   for (const l of lines) {
@@ -1444,7 +1477,8 @@ export async function buildPrintData(db: Db, id: string): Promise<PrintData> {
       name: l.name,
       unitCode: l.unitCode,
       unitSymbol: symbol.get(l.unitCode) ?? l.unitCode,
-      qty: l.qty,
+      // печать — в единице строки (упаковке), цена за неё же
+      qty: l.unitQty,
       price: l.price,
       discountPct: l.discountPct,
       vatRate: l.vatRate,

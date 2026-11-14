@@ -70,7 +70,10 @@ export interface PriceHistoryRow {
   priceKindId: string;
   priceKindName: string;
   date: string;
+  /** Цена за единицу unitCode (упаковку из прайса поставщика); unitCode null — за базовую */
   price: string;
+  unitCode: string | null;
+  unitFactor: string;
   documentId: string | null;
   number: string | null;
 }

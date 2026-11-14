@@ -2,15 +2,16 @@
    загрузка строк по профилю, сопоставление по артикулам контрагента, разбор, применение цен в вид цен поставщика.
    Вызывается под контекстом арендатора (RLS). Права (admin+) проверяет маршрут API; файл читает API (readTable) и отдаёт строки сюда.
    Деньги — строки и decimal из @gr8r/shared. */
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { convertPriceVatBase, parsePriceCell } from '@gr8r/shared';
+import { and, asc, desc, eq, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { basePriceOf, convertPriceVatBase, dec, fmt, parsePriceCell } from '@gr8r/shared';
 import type { Db } from './client';
 import { archiveAttachmentsOf, createAttachment, type Actor } from './attachments';
 import { DomainError } from './errors';
 import { recordEvent, recordEvents } from './events';
 import { recordPriceKindPrices, resolvePrices } from './pricing';
-import { companies, organizations, priceKinds, productPartnerArticles, products, supplierPriceLines, supplierPriceProfiles, supplierPrices, units } from './schema';
+import { companies, organizations, priceKinds, productPartnerArticles, productPrices, products, supplierPriceLines, supplierPriceProfiles, supplierPrices, units } from './schema';
 import { uuidv7 } from './uuid';
+import { ensureProductUnits, normFactor, productUnitsOf } from './product-units';
 
 export type SupplierPriceProfile = typeof supplierPriceProfiles.$inferSelect;
 export type SupplierPrice = typeof supplierPrices.$inferSelect;
@@ -49,6 +50,8 @@ export interface SupplierProfileInput {
   priceNetCol?: number | null | undefined;
   priceGrossCol?: number | null | undefined;
   unitCol?: number | null | undefined;
+  /** Колонка кратности: базовых единиц в единице прайса */
+  factorCol?: number | null | undefined;
 }
 
 export async function listSupplierProfiles(db: Db, workspaceId: string, companyId: string): Promise<SupplierPriceProfile[]> {
@@ -61,7 +64,7 @@ export async function listSupplierProfiles(db: Db, workspaceId: string, companyI
 
 function assertProfileInput(i: SupplierProfileInput): void {
   const ok = (n: number | null | undefined) => n === null || n === undefined || (Number.isInteger(n) && n >= 1);
-  if (!i.name.trim() || !Number.isInteger(i.firstRow) || i.firstRow < 1 || !ok(i.articleCol) || !ok(i.priceNetCol) || !ok(i.priceGrossCol) || (i.priceNetCol == null && i.priceGrossCol == null) || !ok(i.nameCol) || !ok(i.unitCol))
+  if (!i.name.trim() || !Number.isInteger(i.firstRow) || i.firstRow < 1 || !ok(i.articleCol) || !ok(i.priceNetCol) || !ok(i.priceGrossCol) || (i.priceNetCol == null && i.priceGrossCol == null) || !ok(i.nameCol) || !ok(i.unitCol) || !ok(i.factorCol))
     throw new DomainError(422, 'supplier_profile_invalid', 'Profile name, first row and columns must be set');
 }
 
@@ -76,7 +79,7 @@ export async function saveSupplierProfile(db: Db, actor: Actor, input: SupplierP
     .from(supplierPriceProfiles)
     .where(and(eq(supplierPriceProfiles.workspaceId, ws), eq(supplierPriceProfiles.companyId, input.companyId), isNull(supplierPriceProfiles.archivedAt), sql`lower(${supplierPriceProfiles.name}) = ${norm(name)}`));
   if (dup.some(d => d.id !== input.id)) throw new DomainError(409, 'supplier_profile_exists', 'A format with this name already exists for the supplier');
-  const values = { name, firstRow: input.firstRow, articleCol: input.articleCol, nameCol: input.nameCol ?? null, priceNetCol: input.priceNetCol ?? null, priceGrossCol: input.priceGrossCol ?? null, unitCol: input.unitCol ?? null };
+  const values = { name, firstRow: input.firstRow, articleCol: input.articleCol, nameCol: input.nameCol ?? null, priceNetCol: input.priceNetCol ?? null, priceGrossCol: input.priceGrossCol ?? null, unitCol: input.unitCol ?? null, factorCol: input.factorCol ?? null };
   if (!input.id) {
     const [row] = await db.insert(supplierPriceProfiles).values({ workspaceId: ws, companyId: input.companyId, ...values }).returning();
     await recordEvent(db, { workspaceId: ws, type: 'supplier_price_profile.created', entity: 'supplier_price_profile', recordId: row!.id, actorId: actor.memberId, payload: { companyId: input.companyId } });
@@ -135,6 +138,29 @@ export async function resolveUnitCodes(db: Db, workspaceId: string, texts: strin
   for (const u of all) for (const k of [u.name, u.symbol, u.code]) if (norm(k) && !byKey.has(norm(k))) byKey.set(norm(k), u.code);
   for (const t of wanted) out.set(t, byKey.get(t.replace(/\.$/, '')) ?? byKey.get(t) ?? '796');
   return out;
+}
+
+/** Единица цены строки прайса для товара: { unitCode: null } — базовая единица; factor null — коэффициент неизвестен.
+    Единица = базовая товара — коэффициент 1 (кратность в штуках — минимальная партия, не упаковка);
+    иначе кратность из файла, а без неё — упаковка товара с этой единицей */
+export function supplierLineUnit(line: { unitCode: string | null; unitFactor: string | null }, baseUnit: string, packs: { unitCode: string; factor: string }[]): { unitCode: string | null; factor: string | null } {
+  if (!line.unitCode || line.unitCode === baseUnit) return { unitCode: null, factor: '1.000000' };
+  const factor = line.unitFactor ?? packs.find(p => p.unitCode === line.unitCode)?.factor ?? null;
+  return { unitCode: line.unitCode, factor };
+}
+
+/** Упаковки, которых нет у привязанных товаров: единица прайса с известной кратностью заводится упаковкой */
+async function ensureLinePacks(db: Db, workspaceId: string, binds: { line: SupplierPriceLine; productId: string }[]): Promise<void> {
+  const withUnit = binds.filter(b => b.line.unitCode && b.line.unitFactor);
+  if (!withUnit.length) return;
+  const ids = [...new Set(withUnit.map(b => b.productId))];
+  const base = new Map<string, string>();
+  for (let i = 0; i < ids.length; i += 5000) for (const p of await db.select({ id: products.id, unitCode: products.unitCode }).from(products).where(inArray(products.id, ids.slice(i, i + 5000)))) base.set(p.id, p.unitCode);
+  await ensureProductUnits(
+    db,
+    workspaceId,
+    withUnit.filter(b => b.line.unitCode !== base.get(b.productId)).map(b => ({ productId: b.productId, unitCode: b.line.unitCode!, factor: b.line.unitFactor! })),
+  );
 }
 
 interface MatchResult {
@@ -205,7 +231,7 @@ export async function uploadSupplierPrice(db: Db, actor: Actor, input: UploadSup
   if (!profile) throw new DomainError(404, 'not_found', 'profile not found');
   const company = await loadCompany(db, ws, input.companyId);
 
-  type Draft = { rowNo: number; article: string; name: string; unitText: string; net: string | null; gross: string | null; invalid: boolean };
+  type Draft = { rowNo: number; article: string; name: string; unitText: string; factor: string | null; net: string | null; gross: string | null; invalid: boolean };
   const drafts: Draft[] = [];
   for (let i = profile.firstRow - 1; i < input.rows.length; i++) {
     const row = input.rows[i] ?? [];
@@ -217,7 +243,10 @@ export async function uploadSupplierPrice(db: Db, actor: Actor, input: UploadSup
     const gross = grossRaw ? parsePriceCell(grossRaw) : null;
     // нечисловое значение в любой из заданных колонок или обе пустые — строка skipped (price_invalid)
     const invalid = (!!netRaw && net === null) || (!!grossRaw && gross === null) || (net === null && gross === null);
-    drafts.push({ rowNo: i + 1, article, name: cell(row, profile.nameCol), unitText: cell(row, profile.unitCol), net, gross, invalid });
+    // кратность: число > 0 (запятая как разделитель); пусто или мусор — не задана
+    const factorRaw = cell(row, profile.factorCol).replace(/\s/g, '').replace(',', '.');
+    const factor = /^\d+(\.\d+)?$/.test(factorRaw) ? normFactor(factorRaw) : null;
+    drafts.push({ rowNo: i + 1, article, name: cell(row, profile.nameCol), unitText: cell(row, profile.unitCol), factor, net, gross, invalid });
   }
   if (!drafts.length) throw new DomainError(422, 'supplier_price_empty', 'The file has no data rows for this format');
 
@@ -244,10 +273,12 @@ export async function uploadSupplierPrice(db: Db, actor: Actor, input: UploadSup
   const idx = await articleIndex(db, ws, input.companyId);
   const unitMap = await resolveUnitCodes(db, ws, drafts.map(d => d.unitText));
   const values = drafts.map(d => {
-    const unitCode = d.unitText ? (unitMap.get(norm(d.unitText)) ?? '796') : null;
-    if (d.invalid) return { workspaceId: ws, priceId, rowNo: d.rowNo, article: d.article, name: d.name, unitCode, priceNet: null, priceGross: null, productId: null, status: 'skipped' as const, note: 'price_invalid', candidates: [] as string[] };
+    // единица прайса: из колонки единицы; кратность > 1 без единицы — «упаковка» (778)
+    const unitCode = d.unitText ? (unitMap.get(norm(d.unitText)) ?? '796') : d.factor && dec(d.factor) > 1_000_000n ? '778' : null;
+    const unitFactor = d.factor;
+    if (d.invalid) return { workspaceId: ws, priceId, rowNo: d.rowNo, article: d.article, name: d.name, unitCode, unitFactor, priceNet: null, priceGross: null, productId: null, status: 'skipped' as const, note: 'price_invalid', candidates: [] as string[] };
     const m = matchArticle(idx, d.article);
-    return { workspaceId: ws, priceId, rowNo: d.rowNo, article: d.article, name: d.name, unitCode, priceNet: d.net, priceGross: d.gross, productId: m.productId, status: m.status, note: '', candidates: m.candidates };
+    return { workspaceId: ws, priceId, rowNo: d.rowNo, article: d.article, name: d.name, unitCode, unitFactor, priceNet: d.net, priceGross: d.gross, productId: m.productId, status: m.status, note: '', candidates: m.candidates };
   });
   for (let i = 0; i < values.length; i += 2000) await db.insert(supplierPriceLines).values(values.slice(i, i + 2000));
   await recountSupplierPrice(db, ws, priceId);
@@ -323,6 +354,8 @@ async function savePartnerArticles(db: Db, workspaceId: string, companyId: strin
 
 /** Привязка строк к товарам пакетом: артикулы поставщика и UPDATE … FROM (VALUES …) пачками */
 async function bindLines(db: Db, price: SupplierPrice, binds: { line: SupplierPriceLine; productId: string }[]): Promise<void> {
+  // единица прайса с кратностью — упаковка товара (если её ещё нет)
+  await ensureLinePacks(db, price.workspaceId, binds);
   await savePartnerArticles(db, price.workspaceId, price.companyId, binds.map(b => ({ productId: b.productId, article: b.line.article, name: b.line.name })));
   for (let i = 0; i < binds.length; i += 2000) {
     const part = binds.slice(i, i + 2000);
@@ -428,7 +461,9 @@ export async function createProductsForSupplierLines(db: Db, actor: Actor, price
     let productId = key ? byArticle.get(key) : undefined;
     if (!productId) {
       productId = uuidv7();
-      newRows.push({ id: productId, workspaceId: ws, kind: 'goods', name: name.slice(0, 300), unitCode: l.unitCode ?? '796', price: '0', vatRate });
+      // единица прайса с кратностью > 1 — упаковка, базовая единица тогда штука; иначе единица прайса и есть базовая
+      const packed = !!l.unitCode && l.unitCode !== '796' && !!l.unitFactor && dec(l.unitFactor) > 1_000_000n;
+      newRows.push({ id: productId, workspaceId: ws, kind: 'goods', name: name.slice(0, 300), unitCode: packed ? '796' : (l.unitCode ?? '796'), price: '0', vatRate });
       if (key) byArticle.set(key, productId);
       res.created++;
     }
@@ -456,10 +491,17 @@ export interface SupplierApplyItem {
   article: string;
   /** Цена вида на дату действия до применения; null — цены ещё нет */
   current: string | null;
-  /** Цена, которая будет записана (в базе НДС вида цен); null — строка не пишется (см. warning) */
+  /** Цена, которая будет записана (в базе НДС вида цен), за единицу прайса; null — строка не пишется (см. warning) */
   next: string | null;
-  /** vat_rate_none — ставка товара «без НДС» при разных базах: привести цену нельзя */
-  warning: 'vat_rate_none' | null;
+  /** Единица прайса (null — базовая единица товара) и её коэффициент */
+  unitCode: string | null;
+  unitFactor: string | null;
+  /** Базовая единица товара */
+  baseUnitCode: string;
+  /** Справочно: цена за базовую единицу (1500 за ящик по 100 → 15.00) — с ней сравнивается current */
+  nextBase: string | null;
+  /** vat_rate_none — ставка товара «без НДС» при разных базах: привести цену нельзя; unit_unknown — единица прайса без кратности и упаковки */
+  warning: 'vat_rate_none' | 'unit_unknown' | null;
 }
 
 export interface SupplierApplyPreview {
@@ -484,19 +526,23 @@ async function planApply(db: Db, price: SupplierPrice): Promise<SupplierApplyPre
   for (const l of matched) if (l.productId && hasLinePrice(l)) last.set(l.productId, l);
   const ids = [...last.keys()];
   // пачки по 5000 id — предел параметров запроса; «было» — resolvePrices пачкой на каждые 5000 товаров
-  const info = new Map<string, { id: string; name: string; vatRate: string }>();
+  const info = new Map<string, { id: string; name: string; vatRate: string; unitCode: string }>();
   const current = new Map<string, { price: string | null }>();
   for (let i = 0; i < ids.length; i += 5000) {
     const part = ids.slice(i, i + 5000);
-    for (const p of await db.select({ id: products.id, name: products.name, vatRate: products.vatRate }).from(products).where(and(eq(products.workspaceId, ws), inArray(products.id, part)))) info.set(p.id, p);
+    for (const p of await db.select({ id: products.id, name: products.name, vatRate: products.vatRate, unitCode: products.unitCode }).from(products).where(and(eq(products.workspaceId, ws), inArray(products.id, part)))) info.set(p.id, p);
     for (const [k, v] of await resolvePrices(db, ws, kind.id, part, price.date)) current.set(k, v);
   }
+  const packs = await productUnitsOf(db, ids);
   const items: SupplierApplyItem[] = [];
   for (const l of [...last.values()].sort((a, b) => a.rowNo - b.rowNo)) {
     const p = info.get(l.productId!);
     if (!p) continue;
-    const next = pickSupplierLinePrice(l, kind.includesVat, p.vatRate);
-    items.push({ lineId: l.id, rowNo: l.rowNo, productId: p.id, productName: p.name, article: l.article, current: current.get(p.id)?.price ?? null, next, warning: next === null ? 'vat_rate_none' : null });
+    const u = supplierLineUnit(l, p.unitCode, packs.get(p.id) ?? []);
+    const picked = pickSupplierLinePrice(l, kind.includesVat, p.vatRate);
+    const next = u.factor === null ? null : picked;
+    const warning = picked === null ? 'vat_rate_none' : u.factor === null ? 'unit_unknown' : null;
+    items.push({ lineId: l.id, rowNo: l.rowNo, productId: p.id, productName: p.name, article: l.article, current: current.get(p.id)?.price ?? null, next, unitCode: u.unitCode, unitFactor: u.factor, baseUnitCode: p.unitCode, nextBase: next !== null && u.factor ? basePriceOf(next, u.factor) : null, warning });
   }
   return { priceId: price.id, kindId: kind.id, kindName: kind.name, date: price.date, items };
 }
@@ -516,8 +562,14 @@ export async function applySupplierPrice(db: Db, actor: Actor, priceId: string, 
   const price = opts.date ? { ...current, date: opts.date } : current;
   const plan = await planApply(db, price);
   const skipped = plan.items.filter(i => i.next === null);
-  await recordPriceKindPrices(db, ws, plan.kindId, plan.items.flatMap(i => (i.next !== null ? [{ productId: i.productId, price: i.next }] : [])), price.date);
-  for (let i = 0; i < skipped.length; i += 5000) await db.update(supplierPriceLines).set({ status: 'skipped', note: 'vat_rate_none' }).where(inArray(supplierPriceLines.id, skipped.slice(i, i + 5000).map(s => s.lineId)));
+  // строки, сопоставленные при загрузке по артикулу, упаковку ещё не завели: единица прайса с коэффициентом — упаковка товара
+  await ensureProductUnits(db, ws, plan.items.flatMap(i => (i.next !== null && i.unitCode && i.unitFactor ? [{ productId: i.productId, unitCode: i.unitCode, factor: i.unitFactor }] : [])));
+  // цена пишется за единицу прайса (упаковку) с её коэффициентом
+  await recordPriceKindPrices(db, ws, plan.kindId, plan.items.flatMap(i => (i.next !== null ? [{ productId: i.productId, price: i.next, unitCode: i.unitCode, unitFactor: i.unitFactor }] : [])), price.date);
+  for (const note of ['vat_rate_none', 'unit_unknown'] as const) {
+    const ids = skipped.filter(s => s.warning === note).map(s => s.lineId);
+    for (let i = 0; i < ids.length; i += 5000) await db.update(supplierPriceLines).set({ status: 'skipped', note }).where(inArray(supplierPriceLines.id, ids.slice(i, i + 5000)));
+  }
   await recountSupplierPrice(db, ws, priceId);
   const [done] = await db.update(supplierPrices).set({ status: 'applied', appliedAt: new Date(), date: price.date }).where(and(eq(supplierPrices.workspaceId, ws), eq(supplierPrices.id, priceId))).returning();
   const applied = plan.items.length - skipped.length;
@@ -557,8 +609,12 @@ export interface ProductSupplierRow {
   article: string;
   name: string;
   kindId: string | null;
-  /** Цена вида цен поставщика на дату; null — вида или цены нет */
+  /** Цена вида цен поставщика на дату за базовую единицу; null — вида или цены нет */
   price: string | null;
+  /** Цена последней записи за единицу прайса (упаковку): unitCode null — за базовую */
+  unitPrice: string | null;
+  unitCode: string | null;
+  unitFactor: string | null;
 }
 
 /** Поставщики товара (контрагенты с его артикулом) с ценой вида цен поставщика на дату — блок карточки товара */
@@ -578,7 +634,15 @@ export async function productSupplierPrices(db: Db, workspaceId: string, product
       .orderBy(asc(priceKinds.createdAt))
       .limit(1);
     const price = kind ? ((await resolvePrices(db, workspaceId, kind.id, [productId], date)).get(productId)?.price ?? null) : null;
-    out.push({ ...r, kindId: kind?.id ?? null, price });
+    const [raw] = kind
+      ? await db
+          .select({ price: productPrices.price, unitCode: productPrices.unitCode, unitFactor: productPrices.unitFactor })
+          .from(productPrices)
+          .where(and(eq(productPrices.workspaceId, workspaceId), eq(productPrices.priceKindId, kind.id), eq(productPrices.productId, productId), lte(productPrices.date, date)))
+          .orderBy(desc(productPrices.date), desc(productPrices.id))
+          .limit(1)
+      : [];
+    out.push({ ...r, kindId: kind?.id ?? null, price, unitPrice: raw?.unitCode ? raw.price : null, unitCode: raw?.unitCode ?? null, unitFactor: raw?.unitCode ? fmt(dec(raw.unitFactor), 6) : null });
   }
   return out;
 }

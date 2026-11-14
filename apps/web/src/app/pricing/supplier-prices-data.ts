@@ -16,6 +16,8 @@ export interface SupplierProfile {
   priceNetCol: number | null;
   priceGrossCol: number | null;
   unitCol: number | null;
+  /** Колонка кратности: базовых единиц в единице прайса */
+  factorCol: number | null;
 }
 export type SupplierProfileBody = Omit<SupplierProfile, 'id'> & { id?: string };
 
@@ -46,6 +48,8 @@ export interface SupplierPriceLine {
   article: string;
   name: string;
   unitCode: string | null;
+  /** Кратность из файла; пусто — не задана */
+  unitFactor: string | null;
   priceNet: string | null;
   priceGross: string | null;
   productId: string | null;
@@ -76,8 +80,15 @@ export interface SupplierApplyItem {
   productName: string;
   article: string;
   current: string | null;
+  /** Цена за единицу прайса */
   next: string | null;
-  warning: 'vat_rate_none' | null;
+  /** Единица прайса (null — базовая) и её коэффициент */
+  unitCode: string | null;
+  unitFactor: string | null;
+  baseUnitCode: string;
+  /** Справочно: цена за базовую единицу */
+  nextBase: string | null;
+  warning: 'vat_rate_none' | 'unit_unknown' | null;
 }
 export interface SupplierApplyPreview {
   priceId: string;

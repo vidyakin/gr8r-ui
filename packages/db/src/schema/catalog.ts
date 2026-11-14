@@ -145,3 +145,25 @@ export const products = pgTable(
     index('products_parent_idx').on(t.workspaceId, t.parentProductId),
   ],
 );
+
+/** Упаковки товара (единицы с коэффициентом, как упаковки номенклатуры в 1С; миграция 0121): «ящик = 100 шт».
+    Базовая единица — products.unit_code, здесь её нет. Остатки и движения — в базовых единицах */
+export const productUnits = pgTable(
+  'product_units',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    productId: uuid('product_id').notNull(),
+    unitCode: text('unit_code').notNull(),
+    /** Сколько базовых единиц в одной такой */
+    factor: numeric('factor', { precision: 18, scale: 6 }).notNull(),
+    createdAt: createdAt(),
+  },
+  t => [
+    unique('product_units_ws_id_uq').on(t.workspaceId, t.id),
+    unique('product_units_product_unit_uq').on(t.workspaceId, t.productId, t.unitCode),
+    foreignKey({ columns: [t.workspaceId, t.productId], foreignColumns: [products.workspaceId, products.id], name: 'product_units_product_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.unitCode], foreignColumns: [units.workspaceId, units.code], name: 'product_units_unit_fk' }),
+    check('product_units_factor_chk', sql`${t.factor} > 0`),
+  ],
+);

@@ -136,6 +136,9 @@ export interface VariantLine {
   productId: string;
   name: string;
   unitCode: string;
+  /** Коэффициент единицы строки; в старых снимках нет — 1 */
+  unitFactor?: string;
+  /** В базовых единицах */
   qty: string;
   price: string;
   discountPct: string;
@@ -399,8 +402,12 @@ export const toKop = (v: string | number | null | undefined): bigint => roundDiv
 export const fmtKop = (k: bigint): string => fmt(k * 10_000n, 2);
 
 export interface LineInput {
+  /** Количество в базовых единицах товара */
   qty: string | number;
+  /** Цена за единицу строки */
   price: string | number;
+  /** Базовых единиц в единице строки (упаковка «ящик = 100 шт»); пусто — 1 */
+  unitFactor?: string | number | null;
   /** Скидка, % */
   discountPct?: string | number | null;
   vatRate: VatRate | string;
@@ -418,7 +425,10 @@ function lineKop(l: LineInput, includesVat: boolean): { net: bigint; vat: bigint
   const disc = dec(l.discountPct ?? 0);
   if (disc < 0n || disc > 100n * 1_000_000n) throw new RangeError('Discount must be between 0 and 100 percent');
   // стоимость после скидки в копейках = qty × цена × (100 − скидка) — точное целое до единственного округления
-  const gross = roundDiv(dec(l.qty) * dec(l.price) * (100n * 1_000_000n - disc), 10n ** 18n);
+  // количество единиц строки = qty / unit_factor — делим в той же формуле, без промежуточного округления
+  const f = l.unitFactor === undefined || l.unitFactor === null || l.unitFactor === '' ? 1_000_000n : dec(l.unitFactor);
+  if (f <= 0n) throw new RangeError('Unit factor must be positive');
+  const gross = roundDiv(dec(l.qty) * dec(l.price) * (100n * 1_000_000n - disc) * 1_000_000n, 10n ** 18n * f);
   const r = BigInt(vatPercent(l.vatRate));
   if (includesVat) {
     const vat = roundDiv(gross * r, 100n + r);
@@ -427,6 +437,19 @@ function lineKop(l: LineInput, includesVat: boolean): { net: bigint; vat: bigint
   const vat = roundDiv(gross * r, 100n);
   return { net: gross, vat, total: gross + vat };
 }
+
+/** Количество в единице строки: базовое / коэффициент, до 3 знаков */
+export const unitQtyOf = (qty: string | number, unitFactor: string | number | null | undefined): string => fmt(roundDiv(dec(qty) * 1_000_000n, unitFactor ? dec(unitFactor) || 1_000_000n : 1_000_000n), 3);
+
+/** Количество в базовых единицах по количеству в единице строки; null — не укладывается в 3 знака (дробная упаковка) */
+export function baseQtyOf(unitQty: string | number, unitFactor: string | number | null | undefined): string | null {
+  const raw = dec(unitQty) * (unitFactor ? dec(unitFactor) : 1_000_000n); // масштаб 10^-12
+  if (raw % 1_000_000_000n !== 0n) return null; // точность количества — 3 знака
+  return fmt(raw / 1_000_000n, 3);
+}
+
+/** Цена за базовую единицу по цене за упаковку: 1500 за ящик по 100 → 15.00 */
+export const basePriceOf = (price: string | number, unitFactor: string | number | null | undefined): string => fmt(roundDiv(dec(price) * 1_000_000n, unitFactor ? dec(unitFactor) || 1_000_000n : 1_000_000n), 2);
 
 /** Суммы строки. Цена «НДС в т.ч.»: итог = стоимость после скидки, НДС выделяется из него; «НДС сверху»: НДС добавляется к стоимости.
     Округление — до копейки по каждой строке (половина от нуля), итоги документа — суммы округлённых строк */

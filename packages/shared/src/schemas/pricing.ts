@@ -154,6 +154,8 @@ export const supplierProfileBody = z.object({
   priceNetCol: col.nullish(),
   priceGrossCol: col.nullish(),
   unitCol: col.nullish(),
+  /** Колонка кратности: базовых единиц в единице прайса (упаковка) */
+  factorCol: col.nullish(),
 });
 export const supplierProfilesQuery = z.object({ companyId: uuid });
 export const supplierPricesQuery = z.object({ companyId: uuid });
