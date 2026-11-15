@@ -206,6 +206,10 @@ Dokploy держит 80/443 своим Traefik, поэтому файл — `doc
 10. Проверить X-Forwarded-For — как в п. 8 «Деплой через Coolify», база `futureerp`.
 11. Откат на прежнюю сборку: Environment → `IMAGE_TAG=<sha коммита>` (образы помечены и `latest`, и sha) → Deploy; вернуть — удалить переменную.
 
+12. Публичное демо (по желанию): Environment → `DEMO_RESET_EMAIL` и `DEMO_RESET_PASSWORD` — общий вход для всех; воркер сразу создаст воркспейс
+    с демо-данными по адресу `DEMO_RESET_SLUG` (`demo`) и будет пересоздавать его каждый день в 03:00 по Москве (`DEMO_RESET_HOUR`, `DEMO_RESET_TZ`).
+    Сбросить вручную — терминал контейнера `api`: `bun run tenant demo-reset --force`. Устройство — `docs/architecture/deploy.md`, «Публичное демо».
+
 #### Сборка образов (GitHub Actions)
 
 Сервер только скачивает образы: сборка (`bun install`, `tsc`, `vite build`, Chromium) на маленьком VDS занимает CPU и память на 10+ минут.

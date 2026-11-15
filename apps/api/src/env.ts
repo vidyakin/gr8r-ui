@@ -16,6 +16,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     trustProxy: env.TRUST_PROXY === '1' || env.TRUST_PROXY === 'true',
     yookassaIpCheck: !(env.YOOKASSA_IP_CHECK === '0' || env.YOOKASSA_IP_CHECK === 'false'),
     sessionTtlDays: int(env.SESSION_TTL_DAYS, 30),
+    demoEmail: env.DEMO_RESET_EMAIL?.trim().toLowerCase() || null,
     authRateLimitMax: int(env.AUTH_RATE_LIMIT_MAX, 10),
     authRateLimitWindowMs: int(env.AUTH_RATE_LIMIT_WINDOW_MIN, 15) * 60_000,
     leadHookRateLimitMax: int(env.LEAD_HOOK_RATE_LIMIT_MAX, 30),

@@ -31,6 +31,8 @@ export interface AppConfig {
   /** Принимать вебхук ЮКассы только с официальных адресов (YOOKASSA_IP_CHECK=0 отключает — для песочниц и тестов) */
   yookassaIpCheck: boolean;
   sessionTtlDays: number;
+  /** Общий вход публичного демо (DEMO_RESET_EMAIL): ему нельзя менять пароль и закрывать сессии — им пользуются все посетители */
+  demoEmail?: string | null;
   /** Rate-limit входа/регистрации: попыток на окно */
   authRateLimitMax: number;
   authRateLimitWindowMs: number;

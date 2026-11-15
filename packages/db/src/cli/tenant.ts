@@ -6,8 +6,10 @@
    bun run tenant export <id|адрес> [--out файл.jsonl[.gz]]
    bun run tenant import <файл.jsonl[.gz]>
    bun run tenant purge                      # удалить запрошенные к удалению и просроченные демо
+   bun run tenant demo-reset [--force]       # публичное демо (DEMO_RESET_*): пересоздать, если пора; --force — сейчас
    bun run tenant operator grant|revoke <email> */
 import { adminDatabaseUrl, createSql } from '..';
+import { demoResetConfigFromEnv, resetDemoOnce } from '../demo-reset';
 import { createTenant, deleteTenant, exportTenant, importTenant, listTenants, purgeTenantsOnce, setOperator } from '../tenants';
 
 const args = process.argv.slice(2);
@@ -92,6 +94,14 @@ try {
     case 'purge': {
       const ids = await purgeTenantsOnce(sql, sql);
       console.log(`[tenant] удалено: ${ids.length}`);
+      break;
+    }
+    case 'demo-reset': {
+      const cfg = demoResetConfigFromEnv() ?? fail('Задайте DEMO_RESET_EMAIL и DEMO_RESET_PASSWORD');
+      const r = await resetDemoOnce(sql, sql, cfg, new Date(), rest.includes('--force'));
+      console.log(
+        r ? `[tenant] демо ${cfg.slug}: ${r === 'created' ? 'создано' : 'пересоздано'}, вход ${cfg.email}` : `[tenant] демо ${cfg.slug} свежее, сброс не нужен (--force — сбросить сейчас)`,
+      );
       break;
     }
     case 'operator': {

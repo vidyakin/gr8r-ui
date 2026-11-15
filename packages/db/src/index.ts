@@ -78,6 +78,7 @@ export * from './secrets';
 export * from './integrations';
 export * from './money-print';
 export * from './tenants';
+export * from './demo-reset';
 export * from './quotes';
 export * from './licensing';
 export * from './module-requests';

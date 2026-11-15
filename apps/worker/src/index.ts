@@ -1,5 +1,5 @@
 /* Точка входа воркера: опрос jobs + outbox, ускорение по LISTEN erp_events. */
-import { purgeTenantsOnce, scheduleBankSyncs, createSql, databaseUrl, ddlDatabaseUrl, EVENTS_CHANNEL, listenChannel } from '@erp/db';
+import { demoResetConfigFromEnv, purgeTenantsOnce, resetDemoOnce, scheduleBankSyncs, createSql, databaseUrl, ddlDatabaseUrl, EVENTS_CHANNEL, listenChannel } from '@erp/db';
 import { closeBrowser } from './pdf/render';
 import { runAttachmentGcOnce } from './attachment-gc';
 import { scheduleFlowsOnce } from './flows/triggers';
@@ -18,6 +18,7 @@ const sql = createSql(databaseUrl(), { max: 5 });
 const ddlUrl = ddlDatabaseUrl();
 const ddl = ddlUrl ? createSql(ddlUrl, { max: 2 }) : null;
 const o = defaultOptions({ concurrency: Number(process.env.WORKER_CONCURRENCY ?? 4), ddl });
+const demoReset = demoResetConfigFromEnv(); // публичное демо с ежедневным сбросом; без DEMO_RESET_EMAIL/PASSWORD выключено
 
 let stopping = false;
 let wake: (() => void) | null = null;
@@ -75,6 +76,15 @@ while (!stopping) {
       if (ddl) {
         const purged = await purgeTenantsOnce(sql, ddl);
         if (purged.length) o.log(`deleted ${purged.length} tenant(s): ${purged.join(', ')}`);
+        // публичное демо (DEMO_RESET_*): раз в сутки пересоздаётся из сида, чужие правки пропадают
+        if (demoReset) {
+          try {
+            const r = await resetDemoOnce(sql, ddl, demoReset);
+            if (r) o.log(`demo workspace ${demoReset.slug}: ${r}`);
+          } catch (e) {
+            console.error('[demo-reset] failed, retry in a minute:', e); // сбой сброса не должен останавливать очередь
+          }
+        }
       }
     }
     // биллинг договоров обслуживания: раз в час проверяем, не наступил ли день выставления (по часовому поясу арендатора)

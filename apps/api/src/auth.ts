@@ -12,6 +12,12 @@ import { requireSession, sha256, SESSION_COOKIE } from './middleware';
 import { createWorkspace, listMyWorkspaces } from './workspaces-service';
 import type { AppConfig, AppEnv } from './types';
 
+/** Общий демо-вход (DEMO_RESET_EMAIL): пароль и чужие сессии не трогаем — иначе один посетитель запрёт или выкинет остальных */
+function assertNotDemo(c: Context<AppEnv>) {
+  const demo = c.get('config').demoEmail;
+  if (demo && c.get('user').email.toLowerCase() === demo) throw new AppError(403, 'demo_account_locked', 'The shared demo account cannot change its password or close sessions');
+}
+
 const randomToken = () => Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url');
 
 /** Хеш-пустышка: при неизвестном email проверка пароля занимает столько же времени, сколько при известном */
@@ -108,6 +114,7 @@ export const authRoutes = new Hono<AppEnv>()
   })
   // Смена пароля: нужен текущий; все остальные сессии закрываются (вход, украденный вместе со старым паролем, перестаёт работать)
   .post('/password', requireSession, zValidator('json', passwordChangeBody, validationHook), async c => {
+    assertNotDemo(c);
     const sql = c.get('sql');
     const me = c.get('user');
     const { current, next } = c.req.valid('json');
@@ -132,11 +139,13 @@ export const authRoutes = new Hono<AppEnv>()
   })
   // «Выйти на остальных»: все мои сессии, кроме текущей
   .delete('/sessions', requireSession, async c => {
+    assertNotDemo(c);
     const me = c.get('user');
     const rows = await withContext(c.get('sql'), { userId: me.id }, db => db.delete(sessions).where(and(eq(sessions.userId, me.id), ne(sessions.id, c.get('sessionId')))).returning({ id: sessions.id }));
     return c.json({ closed: rows.length });
   })
   .delete('/sessions/:id', requireSession, async c => {
+    assertNotDemo(c);
     const me = c.get('user');
     const id = c.req.param('id');
     if (id === c.get('sessionId')) throw new AppError(400, 'current_session', 'Use sign out to end the current session');

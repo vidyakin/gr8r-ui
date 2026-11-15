@@ -88,6 +88,7 @@ services:
       API_PORT: 3000
       COOKIE_SECURE: '1'
       TRUST_PROXY: '1' # прокси Coolify → nginx → api: первый адрес X-Forwarded-For ставит прокси Coolify
+      DEMO_RESET_EMAIL: ${DEMO_RESET_EMAIL:-} # общий демо-вход: смена пароля и закрытие сессий запрещены
       CORS_ORIGINS: https://${DOMAIN:?задайте DOMAIN — тот же домен, что у сервиса web}
       SECRETS_KEY: ${SECRETS_KEY:?задайте SECRETS_KEY (openssl rand -hex 32)}
     volumes:
@@ -104,6 +105,12 @@ services:
       DATABASE_URL_DDL: postgres://erp_ddl:${DDL_DB_PASSWORD}@postgres:5432/erp
       SECRETS_KEY: ${SECRETS_KEY}
       OPERATOR_LEAD_HOOK_URL: ${OPERATOR_LEAD_HOOK_URL:-}
+      # Публичное демо с ежедневным сбросом (docs/architecture/deploy.md): без EMAIL и PASSWORD выключено
+      DEMO_RESET_EMAIL: ${DEMO_RESET_EMAIL:-}
+      DEMO_RESET_PASSWORD: ${DEMO_RESET_PASSWORD:-}
+      DEMO_RESET_SLUG: ${DEMO_RESET_SLUG:-demo}
+      DEMO_RESET_HOUR: ${DEMO_RESET_HOUR:-3}
+      DEMO_RESET_TZ: ${DEMO_RESET_TZ:-Europe/Moscow}
     depends_on:
       migrate: { condition: service_completed_successfully }
       minio-init: { condition: service_completed_successfully }

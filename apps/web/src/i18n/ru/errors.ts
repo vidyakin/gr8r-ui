@@ -40,6 +40,7 @@ export const errors: Widen<typeof E> = {
   rate_limited: 'Слишком много попыток. Повторите через {retryAfterSeconds} с.',
   invalid_credentials: 'Неверный email или пароль',
   wrong_password: 'Текущий пароль указан неверно',
+  demo_account_locked: 'Это общий демо-вход: пароль и сессии у него менять нельзя',
   current_session: 'Текущую сессию завершает кнопка «Выйти»',
   email_taken: 'Пользователь с таким email уже есть',
   slug_taken: 'Этот адрес воркспейса уже занят',
