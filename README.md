@@ -183,6 +183,23 @@ curl -s -b jar "$API/tasks?projectId=$P&sort=-priority" -H "X-Workspace-Id: $WS"
    затем в контейнере postgres `psql -U postgres -d erp -c "select key from rate_limits where key like 'signin:ip:%'"` — там должен быть
    ваш настоящий IP, а не 6.6.6.6.
 
+### Деплой через Dokploy
+
+Dokploy держит 80/443 своим Traefik, поэтому файл — `docker-compose.dokploy.yml`: те же сервисы, что в прод-файле, без Caddy.
+Всё, что переживает деплой, лежит в `../files` (на сервере `/etc/dokploy/compose/<app>/files/`): Dokploy клонирует код заново при каждом деплое.
+
+1. Запушить код в репозиторий, подключённый к Dokploy (Settings → Git).
+2. Project → Create Service → **Compose**, тип Docker Compose. Provider — git-репозиторий и ветка `main`, Compose Path `./docker-compose.dokploy.yml`.
+3. Advanced → включить **Isolated Deployments**: у приложения своя сеть, и имена `api`, `postgres` не пересекутся с другими проектами на сервере.
+4. Environment: переменные из `.env.prod.example` — `DOMAIN` (без `https://`), `POSTGRES_PASSWORD`, `APP_DB_PASSWORD`, `DDL_DB_PASSWORD`, `SECRETS_KEY`,
+   `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `UMAMI_DB_PASSWORD`, `UMAMI_APP_SECRET`; без обязательных деплой не стартует.
+5. Domains: сервис **web**, порт 80, хост `$DOMAIN`, HTTPS + Let's Encrypt. По желанию сервис **umami**, порт 3000, свой поддомен.
+6. Deploy. Миграции идут при каждом деплое (`migrate`, `minio-init`, `umami-init` завершаются — это нормально). Автодеплой по push — Webhook из вкладки Deployments в настройках репозитория.
+7. Один раз по SSH: `sudo mkdir -p /etc/dokploy/compose/<app>/files/archives && sudo chown 1000:1000 $_` (CLI пишет под пользователем bun).
+8. CLI оператора — вкладка Docker/Terminal → контейнер `api`: `bun run tenant …` (как в списке выше); файлы для `import` — в `files/archives`.
+9. Дампы — `files/backups/gr8r-*.dump`, восстановление — как в п. 5 «Деплой», база `gr8r`. Тома `pgdata` и `miniodata` — именованные тома Docker.
+10. Проверить X-Forwarded-For — как в п. 8 «Деплой через Coolify», база `gr8r`.
+
 `docker-compose.yml` — для локального запуска всего стека, на сервер его не ставить (порты БД открыты, пароли по умолчанию).
 
 ## Структура

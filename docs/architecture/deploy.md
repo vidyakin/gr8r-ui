@@ -85,6 +85,11 @@
   `docker compose config` на этом ключе падает). CLI — в контейнере `api` (там весь код и `ADMIN_DATABASE_URL`), `./archives` смонтирован в него.
   Цепочка IP: прокси Coolify → nginx → api, `TRUST_PROXY=1`. Что Traefik Coolify не доверяет входящему `X-Forwarded-For` (поведение по
   умолчанию, `forwardedHeaders` без `insecure`), на сервере не проверялось — проверка в README. В Coolify не разворачивался.
+- **Dokploy** — `docker-compose.dokploy.yml`: сервисы прод-файла без `caddy`, имена базы и ролей как в проде (`gr8r`, `gr8r_app`/`gr8r_ddl`).
+  Метки Traefik не пишутся — Dokploy ставит их по вкладке Domains (web:80, umami:3000). Код клонируется заново при каждом деплое, поэтому
+  дампы, `archives` и данные OSRM смонтированы из `../files` (каталог `files` приложения Dokploy). Ключей Coolify (`exclude_from_hc`) нет —
+  обычный `docker compose config` проходит. Включать Isolated Deployments: без неё сервисы с доменом сидят в общей `dokploy-network`,
+  и имя `api` может разрешиться в контейнер другого проекта. Профиль `routing` Dokploy не включает. Инструкция — README. В Dokploy не разворачивался.
 - **Заголовки безопасности** — в `docker/nginx.conf` (отдаёт и HSTS: TLS снимает Caddy или прокси Coolify). У приложения CSP: скрипты
   только свои (`script-src 'self'`), стили свои и inline, шрифты Google, картинки `https:`/`data:`/`blob:`, `frame-ancestors 'none'`;
   плюс `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy` (камера — сканер бейджей, геолокация — экран водителя).

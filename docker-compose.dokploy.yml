@@ -1,0 +1,200 @@
+# Развёртывание через Dokploy (тип «Compose», Docker Compose): то же, что docker-compose.prod.yml, но без Caddy —
+# 80/443 и Let's Encrypt держит Traefik Dokploy. Метки Traefik здесь не пишутся: Dokploy добавляет их сам,
+# когда во вкладке Domains указан домен для сервиса web (порт 80) и umami (порт 3000).
+# Dokploy при каждом деплое заново клонирует репозиторий в …/compose/<app>/code, поэтому всё, что должно пережить
+# деплой (дампы, выгрузки арендаторов, данные OSRM), смонтировано из ../files — это …/compose/<app>/files на сервере.
+# Инструкция — README, «Деплой через Dokploy», устройство — docs/architecture/deploy.md.
+
+x-s3-env: &s3-env
+  S3_ENDPOINT: http://minio:9000
+  S3_REGION: us-east-1
+  S3_BUCKET: gr8r
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY:?задайте S3_ACCESS_KEY}
+  S3_SECRET_KEY: ${S3_SECRET_KEY:?задайте S3_SECRET_KEY}
+  S3_FORCE_PATH_STYLE: '1'
+  FILE_MAX_BYTES: ${FILE_MAX_BYTES:-52428800}
+  STORAGE_QUOTA_BYTES: ${STORAGE_QUOTA_BYTES:-}
+
+x-db-env: &db-env
+  ADMIN_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?задайте POSTGRES_PASSWORD}@postgres:5432/gr8r
+  DATABASE_URL: postgres://gr8r_app:${APP_DB_PASSWORD:?задайте APP_DB_PASSWORD}@postgres:5432/gr8r
+  APP_DB_USER: gr8r_app
+  APP_DB_PASSWORD: ${APP_DB_PASSWORD}
+  NODE_ENV: production
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: gr8r
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d gr8r']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # Хранилище вложений (docs/architecture/attachments.md). Порты наружу не публикуются: файлы отдаёт только API.
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z # на Docker Hub образы MinIO больше не публикуются
+    restart: unless-stopped
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY}
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Разовая задача при каждом деплое: бакет вложений (идемпотентно)
+  minio-init:
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z # mc входит в образ сервера
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - mc alias set local http://minio:9000 "$${S3_ACCESS_KEY}" "$${S3_SECRET_KEY}" && mc mb --ignore-existing local/gr8r
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+    depends_on:
+      minio: { condition: service_healthy }
+    restart: 'no'
+
+  # Разовая задача при каждом деплое: миграции (идемпотентно), роли gr8r_app/gr8r_ddl. Завершается — так и задумано
+  migrate:
+    build: { context: ., target: migrate }
+    environment:
+      <<: *db-env
+      DDL_DB_USER: gr8r_ddl
+      DDL_DB_PASSWORD: ${DDL_DB_PASSWORD:?задайте DDL_DB_PASSWORD}
+      SEED: '0'
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: 'no'
+
+  # CLI оператора — Dokploy → приложение → Logs/Terminal → контейнер api: bun run tenant list
+  api:
+    build: { context: ., target: api }
+    restart: unless-stopped
+    environment:
+      <<: [*db-env, *s3-env]
+      API_PORT: 3000
+      COOKIE_SECURE: '1'
+      TRUST_PROXY: '1' # Traefik Dokploy → nginx → api: первый адрес X-Forwarded-For ставит Traefik
+      CORS_ORIGINS: https://${DOMAIN:?задайте DOMAIN — тот же домен, что у сервиса web во вкладке Domains}
+      SECRETS_KEY: ${SECRETS_KEY:?задайте SECRETS_KEY (openssl rand -hex 32)}
+    volumes:
+      - ../files/archives:/archives # выгрузка и загрузка арендатора: bun run tenant import /archives/x.jsonl.gz
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      minio-init: { condition: service_completed_successfully }
+
+  worker:
+    build: { context: ., target: worker }
+    restart: unless-stopped
+    environment:
+      <<: [*db-env, *s3-env]
+      DATABASE_URL_DDL: postgres://gr8r_ddl:${DDL_DB_PASSWORD}@postgres:5432/gr8r
+      SECRETS_KEY: ${SECRETS_KEY}
+      OPERATOR_LEAD_HOOK_URL: ${OPERATOR_LEAD_HOOK_URL:-}
+      ROUTING_OSRM_URL: ${ROUTING_OSRM_URL:-}
+      ROUTING_VROOM_URL: ${ROUTING_VROOM_URL:-}
+      ROUTING_NOMINATIM_URL: ${ROUTING_NOMINATIM_URL:-}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      minio-init: { condition: service_completed_successfully }
+
+  # Необязательно (задача 1213, docs/architecture/routing.md): Dokploy профили не включает — сервисы osrm и vroom
+  # поднимаются, только если убрать у них profiles. Данные OSRM — в ../files/osrm на сервере.
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend:latest
+    profiles: [routing]
+    restart: unless-stopped
+    command: osrm-routed --algorithm mld --max-table-size 500 /data/region.osrm
+    volumes:
+      - ../files/osrm:/data:ro
+  vroom:
+    image: ghcr.io/vroom-project/vroom-docker:v1.14.0
+    profiles: [routing]
+    restart: unless-stopped
+    environment:
+      VROOM_ROUTER: osrm
+    volumes:
+      - ../files/vroom-conf:/conf
+    depends_on:
+      - osrm
+
+  # Аналитика (docs/architecture/analytics.md): роль и база umami в этом же Postgres (идемпотентно)
+  umami-init:
+    image: postgres:16-alpine
+    entrypoint: ['/bin/sh', '/umami-init.sh']
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      UMAMI_DB_PASSWORD: ${UMAMI_DB_PASSWORD:?задайте UMAMI_DB_PASSWORD (openssl rand -hex 24)}
+    volumes:
+      - ./docker/umami-init.sh:/umami-init.sh:ro # из репозитория — обновляется с каждым деплоем
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: 'no'
+
+  # Панель Umami — домен во вкладке Domains у этого сервиса (порт 3000); трекер приложению отдаёт nginx по /stats/
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-v2.19.0 # версию закрепляем: обновление — осознанно, с чтением changelog
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://umami:${UMAMI_DB_PASSWORD:?задайте UMAMI_DB_PASSWORD (openssl rand -hex 24)}@postgres:5432/umami
+      APP_SECRET: ${UMAMI_APP_SECRET:?задайте UMAMI_APP_SECRET (openssl rand -hex 32)}
+      TRACKER_SCRIPT_NAME: m.js
+      COLLECT_API_ENDPOINT: /api/m
+      DISABLE_TELEMETRY: '1'
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:3000/api/heartbeat || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    depends_on:
+      umami-init: { condition: service_completed_successfully }
+
+  # Домен у web (порт 80): статика и прокси /api + WebSocket на api, /stats/ на umami
+  web:
+    build: { context: ., target: web }
+    restart: unless-stopped
+    environment:
+      UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-} # ID сайта из панели Umami: включает трекер без пересборки
+    expose:
+      - '80'
+    depends_on:
+      - api
+
+  # Полный дамп БД раз в сутки в ../files/backups, хранится BACKUP_KEEP_DAYS дней
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - ../files/backups:/backups
+    entrypoint:
+      - sh
+      - -c
+      - |
+        while true; do
+          f=/backups/gr8r-$$(date +%Y%m%d-%H%M).dump
+          pg_dump -h postgres -U postgres -d gr8r -Fc -f "$$f.tmp" && mv "$$f.tmp" "$$f" && echo "backup: $$f"
+          find /backups -name 'gr8r-*.dump' -mtime +$$KEEP_DAYS -delete
+          sleep 86400
+        done
+    depends_on:
+      postgres: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  miniodata:
