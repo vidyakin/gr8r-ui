@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Package } from 'lucide-react';
 import { Button, Dialog, DialogContent, IconButton, Input } from '@/components/ui';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 import { useT } from '@/i18n';
 
 export interface BatchLine {

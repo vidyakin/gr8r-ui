@@ -2,7 +2,7 @@
    проверка параметров при загрузке, генерация .docx задачей воркера (результат — вложение договора),
    повторная генерация — новая версия вложения, скачивание исходника, изоляция арендаторов. */
 import { beforeAll, afterAll, describe, expect, test } from 'bun:test';
-import { MemoryFileStore, setFileStore } from '@gr8r/db';
+import { MemoryFileStore, setFileStore } from '@erp/db';
 import { Client } from './helpers';
 
 let owner: Client;
@@ -109,7 +109,7 @@ describe('генерация .docx договора', () => {
 
 describe('воркер: заполнение шаблона и вложение договора', () => {
   test('document.docx заполняет параметры и создаёт вложение; повторная генерация — новая версия', async () => {
-    const { docxTemplateTags, renderContractDocx } = await import('@gr8r/shared');
+    const { docxTemplateTags, renderContractDocx } = await import('@erp/shared');
     const tpl = makeDocx(`<w:p>${run('Договор {{Номер договора}} от {{Дата договора}}. {{Организация}} — {{Контрагент}}.')}</w:p>
 <w:tbl><w:tr><w:tc><w:p>${run('{{#Товары}}{{Наименование}} — {{Сумма}}; {{/Товары}}')}</w:p></w:tc></w:tr></w:tbl>`);
     // разорванный прогон тоже склеивается при рендере

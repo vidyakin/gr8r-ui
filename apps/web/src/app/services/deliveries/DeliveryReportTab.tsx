@@ -1,7 +1,7 @@
 /* Отчёт по доставкам (задача 1100): число, выручка и себестоимость доставленных, маржа, доля недоставленных — по способам,
    курьерам и периодам. Себестоимость и маржа приходят только admin и owner: остальным колонок нет. */
 import * as React from 'react';
-import { dec, marginPct } from '@gr8r/shared';
+import { dec, marginPct } from '@erp/shared';
 import { Field, Select } from '@/components/ui';
 import { fmtAmount, fmtNumber, useT } from '@/i18n';
 import { iso, today } from '../../lib/dates';
@@ -10,7 +10,7 @@ import { ReportTable, type ReportColumn } from '../../production/reports/ReportT
 import { ChartPanel, ReportState } from '../../production/reports/shared';
 import { useCanSeeCost } from '../../docs/data';
 import { useDeliveryReport, type DeliveryReportRow } from '../../docs/delivery-data';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 const money = { format: (v: string) => fmtAmount(v), scale: 2 };
 const count = { format: (v: string) => fmtNumber(v, { maximumFractionDigits: 0 }), scale: 0 };

@@ -1,7 +1,7 @@
 /* Задача 1174а: хранилище секретов — шифрование (AES-256-GCM, AAD), ответы API без значений, права admin+, RLS, readSecret,
    понятная ошибка без SECRETS_KEY. */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { decryptSecret, encryptSecret, readSecret, withContext } from '@gr8r/db';
+import { decryptSecret, encryptSecret, readSecret, withContext } from '@erp/db';
 import { Client, admin, sql } from './helpers';
 
 const KEY = 'a'.repeat(64);

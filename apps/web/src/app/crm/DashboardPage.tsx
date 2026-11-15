@@ -3,7 +3,7 @@ import * as React from 'react';
 import { useNavigate } from 'react-router';
 import { Plus, SquareKanban } from 'lucide-react';
 import { Button, Checkbox } from '@/components/ui';
-import { Panel, Stat } from '@/components/gr8r/panel';
+import { Panel, Stat } from '@/components/erp/panel';
 import { MemberAvatar } from '../components/workspace';
 import { diffDays, parse, relDate, today } from '../lib/dates';
 import { useT } from '@/i18n';

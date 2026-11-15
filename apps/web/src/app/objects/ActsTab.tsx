@@ -5,7 +5,7 @@
 import * as React from 'react';
 import { Link } from 'react-router';
 import { CircleAlert, CircleCheck, FileText, Plus, Printer, Receipt, Trash2, Undo2 } from 'lucide-react';
-import { actLineAmount, computeActTotals, type ObjectActKind } from '@gr8r/shared';
+import { actLineAmount, computeActTotals, type ObjectActKind } from '@erp/shared';
 import { Badge, Button, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
 import { fmtAmount, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
@@ -13,7 +13,7 @@ import { fmtDate } from '../lib/dates';
 import { usePrintOpener } from '../money/data';
 import { useObjectMilestones } from './data';
 import { useActSuggestion, useObjectAct, useObjectActApi, useObjectActs, type ActInput, type ObjectAct, type ObjectRevenue } from './acts-data';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const monthStart = (d: string) => `${d.slice(0, 7)}-01`;

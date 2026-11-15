@@ -1,7 +1,7 @@
 /* Планирование продаж (задача 1133): типы ответов и запросы /sales-plan/*. Ключи кэша под ['ws', id, 'docs', 'sales-plan', …]:
    события документов, сделок и планов обновляют их вместе с остальными журналами. */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PlanFactCell, PlanFactReport, PlanFactRow, SalesPlanDimension } from '@gr8r/shared';
+import type { PlanFactCell, PlanFactReport, PlanFactRow, SalesPlanDimension } from '@erp/shared';
 import { call, useWsId } from '../meta/data';
 import { docsKey } from '../docs/data';
 

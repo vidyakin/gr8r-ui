@@ -1,10 +1,10 @@
-/* Сид: демо-воркспейс «FutureERP» со всеми демо-данными фронтенда (генерация живёт в @gr8r/shared/demo —
+/* Сид: демо-воркспейс «FutureERP» со всеми демо-данными фронтенда (генерация живёт в @erp/shared/demo —
    один источник для браузера и БД) и второй воркспейс другого пользователя для проверки изоляции арендаторов.
    Сид идёт тем же путём, что и приложение: под ролью app_user с настройками RLS (политики проверяют и его). */
 import { eq, sql as dsql } from 'drizzle-orm';
-import type { FieldType, LegacyDealStage, Subtask } from '@gr8r/shared';
-import { ALL_INDUSTRY_OPTIONS } from '@gr8r/shared';
-import { seed as demoWorkspace, seedCrm } from '@gr8r/shared/demo';
+import type { FieldType, LegacyDealStage, Subtask } from '@erp/shared';
+import { ALL_INDUSTRY_OPTIONS } from '@erp/shared';
+import { seed as demoWorkspace, seedCrm } from '@erp/shared/demo';
 import type { Db, Sql } from './client';
 import { withContext } from './context';
 import { registerBaseUnits } from './catalog';
@@ -63,7 +63,7 @@ import {
   workspaces,
 } from './schema';
 
-export const DEMO_USER = { email: 'demo@gr8r.dev', password: 'demo1234' } as const;
+export const DEMO_USER = { email: 'demo@future-erp.dev', password: 'demo1234' } as const;
 export const OTHER_USER = { email: 'bob@acme.test', password: 'bob12345', name: 'Bob Marley' } as const;
 
 const hash = (pw: string) => Bun.password.hash(pw, { algorithm: 'argon2id' });
@@ -146,7 +146,7 @@ async function seedMeta(db: Db, wsId: string, sys: Map<string, string>, creator:
 export interface DemoWorkspaceOptions {
   name?: string;
   slug?: string;
-  /** Email владельца (участник m1); без него — demo@gr8r.dev */
+  /** Email владельца (участник m1); без него — demo@future-erp.dev */
   ownerEmail?: string;
   ownerName?: string;
 }

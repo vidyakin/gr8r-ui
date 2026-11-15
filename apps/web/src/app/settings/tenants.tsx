@@ -72,7 +72,7 @@ export function TenantsSection({ title }: { title: string }) {
       const res = await fetch(`${API_BASE()}/admin/tenants/${row.id}/export`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}`);
       const url = URL.createObjectURL(await res.blob());
-      const a = Object.assign(document.createElement('a'), { href: url, download: `tenant-${row.slug}.gr8r.jsonl` });
+      const a = Object.assign(document.createElement('a'), { href: url, download: `tenant-${row.slug}.erp.jsonl` });
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {

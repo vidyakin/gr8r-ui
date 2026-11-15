@@ -1,6 +1,6 @@
 /* Каталог модулей покрывает интерфейс: каждый раздел меню и каждый пункт настроек отнесён к модулю (docs/architecture/licensing.md) */
 import { describe, expect, test } from 'bun:test';
-import { MODULE_IDS, MODULE_OF_SECTION, MODULE_OF_SETTING, moduleOfSectionPath } from '@gr8r/shared';
+import { MODULE_IDS, MODULE_OF_SECTION, MODULE_OF_SETTING, moduleOfSectionPath } from '@erp/shared';
 import { en } from '@/i18n/en';
 import { ru } from '@/i18n/ru';
 import { SET_NAV } from '../settings/nav';

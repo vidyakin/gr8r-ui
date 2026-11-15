@@ -1,7 +1,7 @@
 /* Личные настройки показа дат и времени (Настройки → Дата и время): внешний store, как locale.ts. Форматтеры читают его вне React,
    I18nProvider перемонтирует дерево при смене. Заполняется из session.user.prefs (SessionProvider) */
 import * as React from 'react';
-import { USER_PREFS_DEFAULTS, type UserPrefs } from '@gr8r/shared';
+import { USER_PREFS_DEFAULTS, type UserPrefs } from '@erp/shared';
 
 export type FormatPrefs = Pick<UserPrefs, 'tz' | 'dateFmt' | 'weekStart' | 'timeFmt'>;
 

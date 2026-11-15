@@ -3,12 +3,12 @@
 import * as React from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { CircleAlert, CircleDot, Plus, SquareKanban, Table2, Trash2, User } from 'lucide-react';
-import { plainValue, validateRecord, type FieldType } from '@gr8r/shared';
+import { plainValue, validateRecord, type FieldType } from '@erp/shared';
 import { Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, MenuItem, Segmented, Skeleton, toast } from '@/components/ui';
-import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/gr8r/data-table';
-import { EntityDrawer } from '@/components/gr8r/entity-drawer';
-import { FilterBar, useFilterState, type FilterField } from '@/components/gr8r/filter-bar';
-import { Kanban, type KanbanColumn } from '@/components/gr8r/kanban';
+import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/erp/data-table';
+import { EntityDrawer } from '@/components/erp/entity-drawer';
+import { FilterBar, useFilterState, type FilterField } from '@/components/erp/filter-bar';
+import { Kanban, type KanbanColumn } from '@/components/erp/kanban';
 import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { MemberAvatar } from '../components/workspace';

@@ -41,7 +41,7 @@ describe('mcp', () => {
   test('initialize and tools/list by token', async () => {
     const init = await rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } }, fullToken);
     expect(init.status).toBe(200);
-    expect(init.body.result.serverInfo.name).toBe('gr8r');
+    expect(init.body.result.serverInfo.name).toBe('erp');
     const list = await rpc('tools/list', {}, fullToken);
     expect(list.status).toBe(200);
     const names = list.body.result.tools.map((t: { name: string }) => t.name);

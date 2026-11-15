@@ -40,7 +40,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { EmptyState, toast, usePrefs } from '@/components/ui';
-import { StatusIcon } from '@/components/gr8r/task';
+import { StatusIcon } from '@/components/erp/task';
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
 import { tOEnum } from './enums';
@@ -66,8 +66,8 @@ import { useSectionAccess } from '../positions/access';
 import { useProjectForms } from './project-forms';
 import { useShortcuts } from './shortcuts';
 import { useHelp } from './help';
-import { searchDocs, type Catalog } from '@gr8r/docs';
-import type { ModuleId } from '@gr8r/shared';
+import { searchDocs, type Catalog } from '@erp/docs';
+import type { ModuleId } from '@erp/shared';
 import { useSession } from '../data/session';
 import { useTaskDrawer } from './task-drawer';
 import { useTaskForm } from './task-form';

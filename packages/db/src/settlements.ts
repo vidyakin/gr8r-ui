@@ -19,7 +19,7 @@ import {
   type DocumentType,
   type PaymentState,
   type SettlementMode,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { companies, documents, settlementMoves } from './schema';

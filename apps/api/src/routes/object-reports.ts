@@ -5,8 +5,8 @@
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { objectProgressReportData, objectReportSchedule, saveObjectReportSchedule, sendObjectDigest } from '@gr8r/db';
-import { objectProgressReportQuery, objectReportScheduleSave, renderObjectProgressReport, uuid } from '@gr8r/shared';
+import { objectProgressReportData, objectReportSchedule, saveObjectReportSchedule, sendObjectDigest } from '@erp/db';
+import { objectProgressReportQuery, objectReportScheduleSave, renderObjectProgressReport, uuid } from '@erp/shared';
 import { ctxOf, validationHook } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';

@@ -1,8 +1,8 @@
 /* Платёжный календарь и заявки на расход (задача 1174г). Подача на согласование и отмена — общие маршруты документов
    (`/documents/:id/post|unpost|cancel|restore`), состояния и оплата — здесь. Правила — docs/architecture/payments.md. */
 import { zValidator } from '@hono/zod-validator';
-import { changeDocumentState, createPaymentFromRequest, createRequest, listRequests, paymentCalendar, paymentDetail, requestDetail, updateRequest } from '@gr8r/db';
-import { idParam, paymentCalendarQuery, requestCreate, requestPay, requestQuery, requestState, requestUpdate } from '@gr8r/shared';
+import { changeDocumentState, createPaymentFromRequest, createRequest, listRequests, paymentCalendar, paymentDetail, requestDetail, updateRequest } from '@erp/db';
+import { idParam, paymentCalendarQuery, requestCreate, requestPay, requestQuery, requestState, requestUpdate } from '@erp/shared';
 import { Hono } from 'hono';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { requireRole } from '../middleware';

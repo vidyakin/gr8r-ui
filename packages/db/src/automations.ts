@@ -1,5 +1,5 @@
 /* Автоматизации: создание запуска (общий код API — ручной запуск, и воркера — события и расписание). */
-import type { EventVia } from '@gr8r/shared';
+import type { EventVia } from '@erp/shared';
 import type { Db } from './client';
 import { flowRuns, jobs } from './schema';
 

@@ -16,7 +16,7 @@ import {
   type DiscountCandidate,
   computeLine,
   type VatRate,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import type { Db } from './client';
 import type { DocCtx, DocumentRow } from './documents';
 import { DomainError } from './errors';
@@ -723,7 +723,7 @@ export async function applyLoyaltyOnReturn(db: Db, ctx: DocCtx, returnDoc: Docum
 /* ======================= Сгорание баллов (воркер) ======================= */
 
 /** Сгорание истёкших баллов в порядке FIFO (план, «Сгорание через заданный срок»): для карт с начислениями (лотами),
-    у которых истёк expires_at <= now, сабый старый лот расходуется первым (fifoExpiredPoints из @gr8r/shared);
+    у которых истёк expires_at <= now, сабый старый лот расходуется первым (fifoExpiredPoints из @erp/shared);
     непогашенный остаток просроченных лотов сгорает одним движением 'expiration' на лот (идемпотентно: повторный
     запуск не создаст второй расход, потому что уже списанный лот учитывается в расходе следующего вызова).
     Читается весь журнал карты (не только истёкшие лоты) — расходные движения надвигают от самого раннего лота.

@@ -3,7 +3,7 @@
    таблиц — в колонке custom. См. docs/architecture/metadata.md. */
 import { sql } from 'drizzle-orm';
 import { boolean, check, foreignKey, index, integer, jsonb, pgTable, text, unique, uuid } from 'drizzle-orm/pg-core';
-import type { FieldOptions } from '@gr8r/shared';
+import type { FieldOptions } from '@erp/shared';
 import { archivedAt, createdAt, pk, updatedAt } from './columns';
 import { wsCol } from './people';
 

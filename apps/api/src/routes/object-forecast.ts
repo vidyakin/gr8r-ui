@@ -11,8 +11,8 @@ import {
   objectForecastExecutors,
   objectPortfolio,
   saveForecastOverride,
-} from '@gr8r/db';
-import { forecastExecutorsQuery, forecastOverrideDelete, forecastOverrideInput, uuid } from '@gr8r/shared';
+} from '@erp/db';
+import { forecastExecutorsQuery, forecastOverrideDelete, forecastOverrideInput, uuid } from '@erp/shared';
 import { ctxOf, validationHook } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';

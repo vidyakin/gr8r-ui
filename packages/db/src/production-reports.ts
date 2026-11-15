@@ -17,7 +17,7 @@ import {
   type CostPriceSource,
   type Explosion,
   type MaterialPriceSource,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import type { Db } from './client';
 import { loadLastPurchasePrices, resolveCostPrice } from './calculations';
 import { wipBalance } from './production-wip';

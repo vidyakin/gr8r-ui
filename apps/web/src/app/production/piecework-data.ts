@@ -2,7 +2,7 @@
    с историей расценок и назначения операций исполнителям в заказе на производство. */
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { DocumentStatus } from '@gr8r/shared';
+import type { DocumentStatus } from '@erp/shared';
 import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';

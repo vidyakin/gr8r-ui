@@ -19,7 +19,7 @@ import {
   withContext,
   type Actor,
   type Db,
-} from '@gr8r/db';
+} from '@erp/db';
 import { admin, Client, sql } from './helpers';
 
 let owner: Client;

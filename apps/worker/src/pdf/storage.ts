@@ -1,7 +1,7 @@
 /* Хранилище сформированных PDF. Интерфейс отделён от реализации: сейчас файл лежит в БД (document_files.data), потом — S3/MinIO
    (по ключу storage_key). API читает файл тем же путём, поэтому смена хранилища не меняет ни задачу, ни маршруты. */
 import { eq } from 'drizzle-orm';
-import { documentExports, documentFiles, type Db } from '@gr8r/db';
+import { documentExports, documentFiles, type Db } from '@erp/db';
 
 export interface PdfFileRef {
   id: string;

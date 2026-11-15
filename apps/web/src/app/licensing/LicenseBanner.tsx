@@ -1,7 +1,7 @@
 /* Баннер владельцу и админу арендатора (задача 1206): срок тарифа или модуля заканчивается через неделю или уже кончился
    и модули работают «только для чтения». Участникам и гостям не показывается: продлевает тот, кто управляет воркспейсом. */
 import * as React from 'react';
-import { licenseNotices, type ModuleId } from '@gr8r/shared';
+import { licenseNotices, type ModuleId } from '@erp/shared';
 import { Link } from 'react-router';
 import { Alert } from '@/components/ui';
 import { useT } from '@/i18n';

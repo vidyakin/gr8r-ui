@@ -1,4 +1,4 @@
-/* Типизированный клиент для фронтенда (этап 2): `import { createApiClient } from '@gr8r/api/client'`.
+/* Типизированный клиент для фронтенда (этап 2): `import { createApiClient } from '@erp/api/client'`.
    Типы маршрутов и ответов берутся из AppType — менять API и клиент по отдельности не придётся. */
 import { hc } from 'hono/client';
 import type { AppType } from './app';

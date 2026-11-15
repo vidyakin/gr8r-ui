@@ -3,7 +3,7 @@
    устаревшим (app/data/realtime.ts). Типы описаны здесь по контракту REST — серверной части пока нет. */
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PositionSection } from '@gr8r/shared';
+import type { PositionSection } from '@erp/shared';
 import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';
@@ -12,7 +12,7 @@ import { call, useWsId } from '../meta/data';
 export interface ApiTokenItem {
   id: string;
   name: string;
-  /** Начало токена для показа в списке: gr8r_ab12cd3 */
+  /** Начало токена для показа в списке: erp_ab12cd3 */
   prefix: string;
   memberId: string;
   memberName: string;

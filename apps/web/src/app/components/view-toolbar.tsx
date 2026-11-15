@@ -3,8 +3,8 @@
 import * as React from 'react';
 import { ArrowUpDown, Boxes, Calendar, CircleDot, Columns3, Folder, ListFilter, Minus, Plus, RotateCcw, Rows3, Search, SignalHigh, User, X } from 'lucide-react';
 import { Badge, Button, Input, Menu, MenuCheckboxItem, MenuContent, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger } from '@/components/ui';
-import { PRIORITIES, PriorityIcon, StatusIcon } from '@/components/gr8r/task';
-import { TASK_MODULES, TASK_MODULE_LABELS } from '@gr8r/shared';
+import { PRIORITIES, PriorityIcon, StatusIcon } from '@/components/erp/task';
+import { TASK_MODULES, TASK_MODULE_LABELS } from '@erp/shared';
 import { tEnum, useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { canSee, statusName, visibleProjects, type Filter, type FilterField, type GroupBy, type ListView, type SortField } from '../data/selectors';

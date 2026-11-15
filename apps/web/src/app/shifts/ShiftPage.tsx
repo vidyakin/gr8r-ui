@@ -8,7 +8,7 @@ import * as React from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { CircleAlert, History, Save, ShieldCheck, Undo2 } from 'lucide-react';
 import { Badge, Button, EmptyState, Field, Input, Select, Skeleton, toast } from '@/components/ui';
-import { dec, fmt } from '@gr8r/shared';
+import { dec, fmt } from '@erp/shared';
 import { fmtAmount, fmtNumber } from '@/i18n/format';
 import { fmtDateTime } from '@/i18n/format';
 import { fmtDate, iso, today } from '../lib/dates';
@@ -16,7 +16,7 @@ import { useT } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { useShiftObjects, useShift, useShiftOptions, useShiftApi, type BadgeLookup, type ShiftSaveBody, type ShiftView } from '../objects/shifts-data';
 import { BadgeScanner } from './BadgeScanner';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 /** Часы работника в черновике экрана: одна строка на работника с выбранной позицией сметы */
 interface CrewRow {

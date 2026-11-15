@@ -15,7 +15,7 @@
  * пару «сущность + тип» (последнее, с наибольшим id, и `coalesced` — сколько событий в нём). Пока поток идёт, окно продлевается.
  * Полный поток по записям — в таблице events (GET /events?since=).
  */
-import { EVENTS_CHANNEL, listenChannel, type EventEnvelope } from '@gr8r/db';
+import { EVENTS_CHANNEL, listenChannel, type EventEnvelope } from '@erp/db';
 
 interface Socket {
   send(data: string): void;

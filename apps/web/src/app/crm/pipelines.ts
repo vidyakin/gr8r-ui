@@ -2,7 +2,7 @@
    отчёт-воронка. Ключи кэша ['ws', id, 'pipelines', …]: события deal / deal_pipeline / deal_stage / deal_lost_reason обновляют их (data/realtime.ts). */
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { missingRequiredFields, type DealStageCategory } from '@gr8r/shared';
+import { missingRequiredFields, type DealStageCategory } from '@erp/shared';
 import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';

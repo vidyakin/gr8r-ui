@@ -1,9 +1,9 @@
 /* Транспорт → Рейсы (задача 1211): список рейсов с отбором по периоду, машине, статусу и виду, карточка рейса, настройка контроля вместимости. */
 import * as React from 'react';
 import { Plus, Settings2, Waypoints } from 'lucide-react';
-import { TRIP_KINDS, TRIP_STATUSES } from '@gr8r/shared';
+import { TRIP_KINDS, TRIP_STATUSES } from '@erp/shared';
 import { Badge, Button, EmptyState, Field, Input, Select, Skeleton } from '@/components/ui';
-import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
+import { DataTable, useDataTable, type Column } from '@/components/erp/data-table';
 import { fmtNumber, useT } from '@/i18n';
 import { iso, today, fmtDate, parse } from '../lib/dates';
 import { useIsAdmin } from '../catalog/data';
@@ -12,7 +12,7 @@ import { FleetHead } from '../fleet/parts';
 import { TRIP_TONE, TripDialog, useOverloadText } from './TripDialog';
 import { RoutingSettingsDialog } from './RoutingSettings';
 import { useRouting, useTripApi, useTripSettings, useTrips, type Trip } from './data';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 const ALL = 'all';
 

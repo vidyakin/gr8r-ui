@@ -5,8 +5,8 @@
 import { sql as dsql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { campaignByUtm, enqueueYooPayment, findEnabledForm, insertLead, isUuid, parseFormToken, parsePriceToken, pickRoundRobin, publicPriceList, rateLimits, readMyModules, readMyReadableModules, withContext, type Sql } from '@gr8r/db';
-import { leadWebhookBody, pickUtm, yooWebhookBody } from '@gr8r/shared';
+import { campaignByUtm, enqueueYooPayment, findEnabledForm, insertLead, isUuid, parseFormToken, parsePriceToken, pickRoundRobin, publicPriceList, rateLimits, readMyModules, readMyReadableModules, withContext, type Sql } from '@erp/db';
+import { leadWebhookBody, pickUtm, yooWebhookBody } from '@erp/shared';
 import { AppError } from '../errors';
 import { isYooKassaIp } from '../yookassa-ip';
 import type { AppEnv } from '../types';

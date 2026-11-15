@@ -2,10 +2,10 @@
 import * as React from 'react';
 import { useNavigate } from 'react-router';
 import { CircleAlert, Factory, Layers, Package, Plus } from 'lucide-react';
-import { MANUFACTURED_KINDS } from '@gr8r/shared';
+import { MANUFACTURED_KINDS } from '@erp/shared';
 import { Badge, Button, EmptyState, Skeleton } from '@/components/ui';
-import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/gr8r/data-table';
-import { FilterBar, useFilterState, type FilterField } from '@/components/gr8r/filter-bar';
+import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/erp/data-table';
+import { FilterBar, useFilterState, type FilterField } from '@/components/erp/filter-bar';
 import { t, tEnum } from '@/i18n';
 import { fmtDate } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';

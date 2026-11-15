@@ -1,7 +1,7 @@
 import { and, eq, exists, inArray, max, not, type SQL } from 'drizzle-orm';
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
-import { activity, favorites, members, notifications, resolveAttribution, tasks, users, type AttributionState } from '@gr8r/db';
-import { notifyEnabled } from '@gr8r/shared';
+import { activity, favorites, members, notifications, resolveAttribution, tasks, users, type AttributionState } from '@erp/db';
+import { notifyEnabled } from '@erp/shared';
 import type { Ctx } from '../crud';
 import { AppError } from '../errors';
 

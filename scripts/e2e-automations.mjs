@@ -22,10 +22,10 @@ const ok = (cond, msg) => {
   if (!cond) process.exitCode = 1;
 };
 // Тёмная тема для скриншота редактора: настройка просмотра, как её хранит приложение
-await page.addInitScript(() => localStorage.setItem('gr8r-ui.prefs', JSON.stringify({ theme: window.__light ? 'light' : 'dark' })));
+await page.addInitScript(() => localStorage.setItem('erp-ui.prefs', JSON.stringify({ theme: window.__light ? 'light' : 'dark' })));
 
 await page.goto(`${WEB}/#/signin`);
-await page.fill('#l-email', 'demo@gr8r.dev');
+await page.fill('#l-email', 'demo@future-erp.dev');
 await page.fill('#l-pw', 'demo1234');
 await page.click('#login-btn');
 await page.waitForSelector('.topbar');

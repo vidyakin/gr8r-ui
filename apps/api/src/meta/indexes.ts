@@ -2,7 +2,7 @@
    он ставит задачу `index.create` / `index.drop` в таблицу jobs в той же транзакции, что и изменение поля, а воркер строит
    индекс (CREATE INDEX CONCURRENTLY) через отдельное подключение DATABASE_URL_DDL. Откат запроса отменяет и задачу.
    Индекс — оптимизация: пока он не построен, фильтры работают без него. */
-import { enqueueFieldIndex } from '@gr8r/db';
+import { enqueueFieldIndex } from '@erp/db';
 import type { Ctx } from '../crud';
 
 /** Построить индекс поля (воркер сверится с метаданными: поле должно быть filterable и не удалено) */

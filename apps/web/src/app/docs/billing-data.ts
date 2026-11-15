@@ -2,7 +2,7 @@
    Тексты интерфейса — английские, подпись периода в строке счёта — русская (печатные формы русские). */
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { BillingPeriodicity, ContractKind, ExtraProductPolicy } from '@gr8r/shared';
+import type { BillingPeriodicity, ContractKind, ExtraProductPolicy } from '@erp/shared';
 import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';

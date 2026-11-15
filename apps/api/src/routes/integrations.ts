@@ -2,8 +2,8 @@
    (ставит задачу bank.sync — сеть ходит только воркер) и ссылки на онлайн-оплату счетов. Ключи — в хранилище секретов (/secrets). */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
-import { createPaymentLink, deleteConnection, enqueueBankSync, listConnections, listPaymentLinks, upsertConnection } from '@gr8r/db';
-import { bankConnectionUpsert, connectionIdParam, paymentLinkCreate, paymentLinksQuery } from '@gr8r/shared';
+import { createPaymentLink, deleteConnection, enqueueBankSync, listConnections, listPaymentLinks, upsertConnection } from '@erp/db';
+import { bankConnectionUpsert, connectionIdParam, paymentLinkCreate, paymentLinksQuery } from '@erp/shared';
 import { ctxOf, validationHook } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';

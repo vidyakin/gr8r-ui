@@ -3,9 +3,9 @@
 import * as React from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { CircleAlert, Printer, Truck } from 'lucide-react';
-import { DELIVERY_STATUSES } from '@gr8r/shared';
+import { DELIVERY_STATUSES } from '@erp/shared';
 import { Badge, Button, EmptyState, Field, Input, Select, Skeleton, toast } from '@/components/ui';
-import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
+import { DataTable, useDataTable, type Column } from '@/components/erp/data-table';
 import { fmtAmount, useT } from '@/i18n';
 import { iso, today, fmtDate, parse } from '../../lib/dates';
 import { useDocsApi, useCanSeeCost, typeLabel } from '../../docs/data';
@@ -14,7 +14,7 @@ import { openRouteSheet, useCouriers, useDeliveries, useDeliveryMethods, type De
 import { useWsId } from '../../meta/data';
 import { useWorkspace } from '../../data/store';
 import { DeliveryReportTab } from './DeliveryReportTab';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 const ALL = 'all';
 const NONE = 'none';

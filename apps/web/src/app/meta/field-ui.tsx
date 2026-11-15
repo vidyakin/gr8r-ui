@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { AtSign, Calendar, CalendarClock, CircleDollarSign, Check, CheckSquare, CircleDot, Hash, Link as LinkIcon, ListChecks, Percent, Phone, Text, TextCursorInput, User, X, type LucideIcon } from 'lucide-react';
-import type { FieldChoice, FieldType } from '@gr8r/shared';
+import type { FieldChoice, FieldType } from '@erp/shared';
 import { Checkbox, Input, Label, Popover, PopoverContent, PopoverTrigger, Textarea } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
@@ -13,7 +13,7 @@ import { fmtDate } from '../lib/dates';
 import { useEntities, searchRefs, useRefTitle, useWsId, type MetaField } from './data';
 import { entityIcon } from './icons';
 import { fmtCurrency, fmtDateTime, fmtNumber } from '@/i18n';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 export const FIELD_ICONS: Record<FieldType, LucideIcon> = {
   text: TextCursorInput,

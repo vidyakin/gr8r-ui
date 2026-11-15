@@ -2,7 +2,7 @@
    карточка акта и действия — подпись, отмена подписи, выставление счёта и акта.
    Запросы живут под ['ws', id, 'objects', …]: события object_act.* и document.* сбрасывают их через realtime. */
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ObjectActKind, ObjectActStatus } from '@gr8r/shared';
+import type { ObjectActKind, ObjectActStatus } from '@erp/shared';
 import { call, useWsId } from '../meta/data';
 
 export interface ObjectActLine {

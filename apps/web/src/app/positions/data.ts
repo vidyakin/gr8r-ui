@@ -2,7 +2,7 @@
    Ключи кэша ['ws', id, 'positions', …]: события position / product_kind / member обновляют их. */
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { membersWithFunction, POSITION_SECTIONS, type PositionFunction, type PositionSection, type ProductKindType } from '@gr8r/shared';
+import { membersWithFunction, POSITION_SECTIONS, type PositionFunction, type PositionSection, type ProductKindType } from '@erp/shared';
 import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';

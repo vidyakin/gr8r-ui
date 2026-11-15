@@ -14,7 +14,7 @@ import { LoadTab } from './LoadTab';
 import { ScheduleTab } from './ScheduleTab';
 import { StatesTab } from './StatesTab';
 import type { ServiceReportFilter } from './service-reports-data';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 export interface ServiceTabProps {
   filter: ServiceReportFilter;

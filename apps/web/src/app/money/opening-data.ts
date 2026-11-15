@@ -1,6 +1,6 @@
 /* Ввод начальных остатков на клиенте: журнал, карточка и запись документа. Ключи — под ['ws', id, 'docs', 'money', …]. */
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { DocumentStatus } from '@gr8r/shared';
+import type { DocumentStatus } from '@erp/shared';
 import { call, useWsId } from '../meta/data';
 import { moneyKey } from './data';
 

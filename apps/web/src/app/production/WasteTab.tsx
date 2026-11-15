@@ -2,7 +2,7 @@
    Цену и сумму видят и правят admin и owner (у остальных столбцов нет: сервер их не отдаёт). Правка черновика сохраняется сразу. */
 import * as React from 'react';
 import { Trash2 } from 'lucide-react';
-import { dec, fmt, mul, type WasteValuation } from '@gr8r/shared';
+import { dec, fmt, mul, type WasteValuation } from '@erp/shared';
 import { Field, IconButton, Input, Segmented, Select } from '@/components/ui';
 import { money, type Product } from '../catalog/data';
 import { ProductPicker } from '../docs/pickers';

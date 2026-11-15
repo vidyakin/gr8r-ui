@@ -15,7 +15,7 @@
   Маршрут подключается в `createApp` до `.route('/', tenantApi)`.
 
 ## Вход
-- Только `Authorization: Bearer gr8r_…`. Cookie не принимается (401 `token_required`): MCP — только для токенов.
+- Только `Authorization: Bearer erp_…`. Cookie не принимается (401 `token_required`): MCP — только для токенов.
 - `requireSession` пускает токен на `/mcp` (наряду с `TENANT_PATHS` и `GET /auth/me`).
 - Воркспейс — воркспейс токена; заголовок `X-Workspace-Id` не обязателен, а если передан и не совпадает — 403 `token_forbidden`.
 
@@ -27,7 +27,7 @@
 модуль лицензии, должности (`requireSection`), разделы токена (`TOKEN_PATH_SECTIONS`), роль, `read_only`/`can_post`,
 `maskCost`. Новых правил доступа MCP не вводит.
 
-Внутренний вызов несёт служебный заголовок `x-gr8r-internal` — по нему `requireSession` не считает его в лимит частоты.
+Внутренний вызов несёт служебный заголовок `x-erp-internal` — по нему `requireSession` не считает его в лимит частоты.
 
 Ответ внутреннего API с ошибкой (403, 404, 422) становится результатом инструмента с `isError: true` и текстом
 `<code>: <message>` — агент видит, что раздел ему закрыт, а не пустой список.
@@ -53,8 +53,8 @@
 
 - `post_document` регистрируется только токену с `can_post`: он проводит документ (номер, остатки, финансы). Проверки
   дублирует HTTP: `tenant()` отвечает 403 `token_cannot_post` на `DELETE` и на проведения/оплаты (`isTokenPostingRequest`
-  в `@gr8r/shared`) — поэтому без `can_post` недоступны и `DELETE /documents/:id`, и `POST /documents/:id/post`.
-- Суммы и количества — десятичные числа строкой, как в схемах `@gr8r/shared` (`qty: "2.5"`, `price: "1500.00"`).
+  в `@erp/shared`) — поэтому без `can_post` недоступны и `DELETE /documents/:id`, и `POST /documents/:id/post`.
+- Суммы и количества — десятичные числа строкой, как в схемах `@erp/shared` (`qty: "2.5"`, `price: "1500.00"`).
 - Черновик документа — всегда `draft`: `create_document` не проводит его и не присваивает номер.
 - Аннотации инструментов записи: `readOnlyHint: false`, `destructiveHint: true` только у `post_document`.
 - Удаления через MCP нет: разрушительные действия агент не делает.
@@ -66,7 +66,7 @@
 ## Лимит частоты
 Запросы по токену ограничены `API_TOKEN_RATE_LIMIT` в минуту (по умолчанию 120) — окно в памяти процесса
 (`apps/api/src/token-rate.ts`, `hitTokenRate` в `requireSession`). Сверх лимита — 429 `token_rate_limited` с заголовком
-`Retry-After`. Внутренние вызовы инструментов не считаются: они несут служебный заголовок `x-gr8r-internal` с секретом
+`Retry-After`. Внутренние вызовы инструментов не считаются: они несут служебный заголовок `x-erp-internal` с секретом
 процесса, считается сам запрос к `/mcp`. Окно живёт в памяти одного процесса — при нескольких экземплярах API лимит
 считается по каждому отдельно. Счётчик сбрасывается `resetTokenRate()` (только тесты).
 
@@ -117,17 +117,17 @@
 
 Claude Code:
 ```bash
-claude mcp add --transport http gr8r https://<хост>/api/mcp --header "Authorization: Bearer gr8r_…"
+claude mcp add --transport http erp https://<хост>/api/mcp --header "Authorization: Bearer erp_…"
 ```
 
 Cursor (`~/.cursor/mcp.json` или `.cursor/mcp.json` проекта):
 ```json
-{ "mcpServers": { "gr8r": { "url": "https://<хост>/api/mcp", "headers": { "Authorization": "Bearer gr8r_…" } } } }
+{ "mcpServers": { "erp": { "url": "https://<хост>/api/mcp", "headers": { "Authorization": "Bearer erp_…" } } } }
 ```
 
 Claude Desktop (через `mcp-remote`, `claude_desktop_config.json`):
 ```json
-{ "mcpServers": { "gr8r": { "command": "npx", "args": ["mcp-remote", "https://<хост>/api/mcp", "--header", "Authorization: Bearer gr8r_…"] } } }
+{ "mcpServers": { "erp": { "command": "npx", "args": ["mcp-remote", "https://<хост>/api/mcp", "--header", "Authorization: Bearer erp_…"] } } }
 ```
 
 Интерфейс: в окне с выпущенным токеном («Доступ для агентов») — кроме примера заголовков, адрес MCP и готовая команда

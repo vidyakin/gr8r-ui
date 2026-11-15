@@ -1,7 +1,7 @@
 /* Печать договоров по шаблонам (docs/architecture/contracts.md): данные сторон и договора, шаблон назначения
    (contract, contract_order, contract_invoice, contract_work_order) или встроенный. Рендер — чистая функция в shared/print/contract.ts. */
 import { and, desc, eq, sql } from 'drizzle-orm';
-import { renderContract, renderContractDocx, type ContractPrintData, type DocTemplatePurpose, type PrintOrganization, type PrintParty } from '@gr8r/shared';
+import { renderContract, renderContractDocx, type ContractPrintData, type DocTemplatePurpose, type PrintOrganization, type PrintParty } from '@erp/shared';
 import type { Db } from './client';
 import { buildPrintData, defaultBank } from './documents';
 import { DomainError } from './errors';

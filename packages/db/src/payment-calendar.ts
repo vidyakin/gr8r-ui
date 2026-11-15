@@ -1,7 +1,7 @@
 /* Платёжный календарь (задача 1174г): плановые поступления и платежи по неоплаченным документам, заявки на расход и прогноз
    остатка денег по дням. Ничего не хранит — собирается из долгов (взаиморасчёты) и заявок. Правила — docs/architecture/payments.md. */
 import { and, asc, eq, inArray, isNotNull } from 'drizzle-orm';
-import { addIsoDays, allocateRequest, buildForecast, dec, fmt, type PlanItem } from '@gr8r/shared';
+import { addIsoDays, allocateRequest, buildForecast, dec, fmt, type PlanItem } from '@erp/shared';
 import type { Db } from './client';
 import { cashBalances } from './payments';
 import { requestPaidAmounts } from './request-paid';

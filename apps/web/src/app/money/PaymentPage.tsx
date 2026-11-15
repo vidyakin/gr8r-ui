@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useNavigate, useParams, useSearchParams, Link } from 'react-router';
 import { Plus, Printer, Trash2 } from 'lucide-react';
-import { operationNeedsAccountable, operationNeedsCounterparty, operationSettlement, operationsOfType, PAYABLE_TYPES, type PaymentDocType, type PaymentOperation } from '@gr8r/shared';
+import { operationNeedsAccountable, operationNeedsCounterparty, operationSettlement, operationsOfType, PAYABLE_TYPES, type PaymentDocType, type PaymentOperation } from '@erp/shared';
 import { Alert, Badge, Button, ConfirmDialog, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
 import { fmtAmount, tProductionEnum, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
@@ -15,7 +15,7 @@ import { CounterpartyPicker } from '../docs/pickers';
 import { useBankAccounts } from '../docs/data';
 import { useCashFlowItems, useCashRegisters, usePayment, usePaymentApi, type PaymentBody } from './data';
 import { ObjectSelect, useObjectFieldVisible } from '../objects/fields';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 interface Line {
   id: string;

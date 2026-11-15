@@ -7,7 +7,7 @@
 
    Правила — docs/architecture/piecework.md. */
 import { and, asc, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
-import { dec, div, fmt, mul, type Dec } from '@gr8r/shared';
+import { dec, div, fmt, mul, type Dec } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { DOCUMENT_HOOKS } from './document-hooks';

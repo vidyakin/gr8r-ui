@@ -1,6 +1,6 @@
 /* Статьи справки (docs/user) собираются в бандл при сборке: без сети. Файл грузится лениво (import() из панели справки и палитры),
    поэтому тексты не попадают в основной чанк. Импортировать его статически нельзя. */
-import { buildCatalog } from '@gr8r/docs';
+import { buildCatalog } from '@erp/docs';
 
 const raw = import.meta.glob(['../../../../../docs/user/**/*.md', '!**/README.md', '!**/_templates/**'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 // Скриншоты docs/user/img/<ключ>.png (делает docs:shots); пока папка пуста — картинок нет

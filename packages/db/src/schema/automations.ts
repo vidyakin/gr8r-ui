@@ -2,7 +2,7 @@
    Все таблицы — арендаторские (workspace_id + RLS). См. docs/architecture/automations.md. */
 import { sql } from 'drizzle-orm';
 import { boolean, check, foreignKey, index, integer, jsonb, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import type { FlowGraph } from '@gr8r/shared';
+import type { FlowGraph } from '@erp/shared';
 import { createdAt, pk, ts, updatedAt } from './columns';
 import { wsCol } from './people';
 

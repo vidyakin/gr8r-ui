@@ -20,8 +20,8 @@ import {
   tariffPlans,
   tariffPlanLinesOf,
   archiveAttachmentsOf,
-} from '@gr8r/db';
-import { contractCreate, contractDocxRequest, contractPdfRequest, contractQuery, contractUpdate, idParam, tariffPlanCreate, tariffPlanLinesUpdate, tariffPlanQuery, tariffPlanUpdate } from '@gr8r/shared';
+} from '@erp/db';
+import { contractCreate, contractDocxRequest, contractPdfRequest, contractQuery, contractUpdate, idParam, tariffPlanCreate, tariffPlanLinesUpdate, tariffPlanQuery, tariffPlanUpdate } from '@erp/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError, notFound } from '../errors';
 import { requireRole } from '../middleware';

@@ -5,7 +5,7 @@
 import { existsSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { Glob } from 'bun';
-import { MODULE_IDS } from '@gr8r/shared';
+import { MODULE_IDS } from '@erp/shared';
 import { type Article, DOCS_DIR, EXTRA_FOLDERS, git, listArticles, navGroupIds, readPending, ROOT, sectionIds } from './docs-lib';
 
 const strict = process.argv.includes('--strict');

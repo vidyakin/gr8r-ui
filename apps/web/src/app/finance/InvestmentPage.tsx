@@ -22,7 +22,7 @@ import {
   type InvestmentMetrics,
   type InvestmentPeriodKind,
   type ProjectStatus as ProjectStatusId,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import { Badge, Button, ConfirmDialog, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
 import { fmtAmount, t, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
@@ -34,7 +34,7 @@ import { useCanSeeAmounts, useInvestment, useInvestmentApi, type InvestmentDetai
 import { amount, num, statusTone } from './InvestmentsPage';
 import { PlanFactTab } from './PlanFactTab';
 import { ProjectStatus } from '../components/project';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 type Line = InvestmentInput['lines'][number];
 

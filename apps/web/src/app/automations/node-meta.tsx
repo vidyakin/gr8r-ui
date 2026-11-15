@@ -20,8 +20,8 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react';
-import type { AnyNodeDef, NodeCategory } from '@gr8r/shared';
-import { nodeParamsJsonSchema } from '@gr8r/shared';
+import type { AnyNodeDef, NodeCategory } from '@erp/shared';
+import { nodeParamsJsonSchema } from '@erp/shared';
 import { t } from '@/i18n';
 
 /** Иконки узлов: имя из `icon` описания узла (kebab-case lucide). Неизвестное имя — молния */

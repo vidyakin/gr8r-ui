@@ -1,6 +1,6 @@
 /* Рейсы (задача 1211; docs/architecture/trips.md): рейс = машина + водитель(и) + период + точки в порядке объезда. Контроль вместимости
    (предупреждение или запрет — настройка воркспейса), временные окна, статусы план → в пути → выполнен / отменён, путевой лист из рейса,
-   синхронизация с доставками (курьер, статус), экран диспетчера. Расчёты нагрузки и расстояния — чистые функции из @gr8r/shared (trips.ts). */
+   синхронизация с доставками (курьер, статус), экран диспетчера. Расчёты нагрузки и расстояния — чистые функции из @erp/shared (trips.ts). */
 import { and, asc, desc, eq, gte, inArray, isNotNull, lte, ne, or, sql } from 'drizzle-orm';
 import {
   TRIP_CAPACITY_SETTING,
@@ -18,7 +18,7 @@ import {
   type TripLoad,
   type VehicleLimits,
   type VatRate,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';

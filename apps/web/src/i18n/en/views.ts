@@ -1,9 +1,9 @@
 /* English dictionary — source of keys. New module: own namespace here and in ../ru.
-   Covers app/components/* and components/gr8r/task.tsx. Field labels, actions, drawer chrome,
+   Covers app/components/* and components/erp/task.tsx. Field labels, actions, drawer chrome,
    toolbar/popovers, toasts, empty states, board/timeline/calendar/table/list views. */
 
 export const views = {
-  /* Карточка задачи (TaskCard в components/gr8r/task.tsx — общий блок) */
+  /* Карточка задачи (TaskCard в components/erp/task.tsx — общий блок) */
   task: {
     noPriority: 'No priority',
     timeColumn: 'Time',

@@ -15,7 +15,7 @@ async function call(method: string, path: string, body?: unknown, ws?: string) {
     headers: { 'content-type': 'application/json', ...(cookie ? { cookie } : {}), ...(ws ? { 'x-workspace-id': ws } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  const set = res.headers.getSetCookie().find(c => c.startsWith('gr8r_session='));
+  const set = res.headers.getSetCookie().find(c => c.startsWith('erp_session='));
   if (set) cookie = set.split(';')[0]!;
   const json = (await res.json().catch(() => null)) as any;
   return { status: res.status, json };

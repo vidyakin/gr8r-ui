@@ -18,7 +18,7 @@ import {
   type ObjectSubcontractRejectReason,
   type Role,
   type VatRate,
-} from '@gr8r/shared';import type { Db } from './client';
+} from '@erp/shared';import type { Db } from './client';
 import { actMoneyByAct } from './act-money';
 import { canSeeCost } from './cost';
 import { cancelDocument, createDocument, postDocument, unpostDocument, type DocCtx } from './documents';

@@ -16,8 +16,8 @@ import {
   suggestSubActFromOrder,
   unacceptSubAct,
   updateSubAct,
-} from '@gr8r/db';
-import { idParam, objectSubActCreate, objectSubActQuery, objectSubActReject, objectSubActSuggestionQuery, objectSubActUpdate, uuid } from '@gr8r/shared';
+} from '@erp/db';
+import { idParam, objectSubActCreate, objectSubActQuery, objectSubActReject, objectSubActSuggestionQuery, objectSubActUpdate, uuid } from '@erp/shared';
 import { ctxOf, validationHook } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';

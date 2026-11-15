@@ -29,8 +29,8 @@ import {
   type Db,
   dealLostReasons,
   moveDeal,
-} from '@gr8r/db';
-import { BUILTIN_FIELDS, buildRecordSchema, type EventVia, type FieldDef, type FieldType } from '@gr8r/shared';
+} from '@erp/db';
+import { BUILTIN_FIELDS, buildRecordSchema, type EventVia, type FieldDef, type FieldType } from '@erp/shared';
 
 type AnyTable = PgTable & { id: PgColumn; workspaceId: PgColumn };
 const SYSTEM_TABLES: Record<string, AnyTable> = {

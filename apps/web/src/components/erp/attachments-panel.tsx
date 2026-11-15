@@ -3,7 +3,7 @@
    без права на запись кнопки загрузки скрыты, а отказ сервера показывается тостом. */
 import * as React from 'react';
 import { Archive, ChevronDown, ChevronRight, Download, Ellipsis, History, Pencil, Undo2, Upload, UploadCloud } from 'lucide-react';
-import type { AttachmentEntityType } from '@gr8r/shared';
+import type { AttachmentEntityType } from '@erp/shared';
 import { Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { fmtDateTime } from '@/i18n/format';

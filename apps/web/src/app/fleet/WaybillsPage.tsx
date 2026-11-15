@@ -3,9 +3,9 @@
    будет создавать путевой лист тем же сервисом: поле tripId уже есть. */
 import * as React from 'react';
 import { ClipboardList, Plus, Printer } from 'lucide-react';
-import { WAYBILL_STATUSES, type WaybillStatus } from '@gr8r/shared';
+import { WAYBILL_STATUSES, type WaybillStatus } from '@erp/shared';
 import { Badge, Button, EmptyState, Field, Input, Select, Skeleton, toast } from '@/components/ui';
-import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
+import { DataTable, useDataTable, type Column } from '@/components/erp/data-table';
 import { fmtNumber, useT } from '@/i18n';
 import { iso, today, fmtDate, parse } from '../lib/dates';
 import { useWorkspace } from '../data/store';
@@ -13,7 +13,7 @@ import { useMembersWith } from '../positions/data';
 import { useWsId } from '../meta/data';
 import { openWaybillPrint, useFleetApi, useVehicles, useWaybill, useWaybills, type Waybill } from './data';
 import { FleetHead, FormDialog, fromLocalInput, num, toLocalInput, type FieldDef } from './parts';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 const ALL = 'all';
 export const WAYBILL_TONE: Record<WaybillStatus, 'gray' | 'accent' | 'green' | 'red'> = { draft: 'gray', issued: 'accent', closed: 'green', cancelled: 'red' };

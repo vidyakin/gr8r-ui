@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Landmark, Plus } from 'lucide-react';
-import { CONNECTION_PROVIDERS, PROVIDER_SECRETS, type ConnectionProvider } from '@gr8r/shared';
+import { CONNECTION_PROVIDERS, PROVIDER_SECRETS, type ConnectionProvider } from '@erp/shared';
 import { Alert, Badge, Button, ConfirmDialog, EmptyState, Field, Input, Select, Skeleton, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { fmtDateTime } from '@/i18n/format';
@@ -12,7 +12,7 @@ import { useOrganizations } from '../docs/data';
 import { call, useWsId } from '../meta/data';
 import { useOrgBankAccounts } from '../money/data';
 import { SRow } from './parts';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 type PartKey = 'token' | 'client_id' | 'client_secret' | 'refresh_token' | 'tls_cert' | 'tls_key' | 'shop_id' | 'secret_key';
 

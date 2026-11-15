@@ -1,5 +1,5 @@
 {
-  "name": "@gr8r/api",
+  "name": "@erp/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -14,8 +14,8 @@
   },
   "dependencies": {
     "@firecrawl/pdf-inspector": "^1.25.2",
-    "@gr8r/db": "workspace:*",
-    "@gr8r/shared": "workspace:*",
+    "@erp/db": "workspace:*",
+    "@erp/shared": "workspace:*",
     "@hono/zod-validator": "^0.7.0",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "drizzle-orm": "^0.45.4",

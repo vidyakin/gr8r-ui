@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from 'bun:test';
-import { adminDatabaseUrl, createSql, databaseUrl, recordEvent, uuidv7, withContext } from '@gr8r/db';
+import { adminDatabaseUrl, createSql, databaseUrl, recordEvent, uuidv7, withContext } from '@erp/db';
 import { defaultOptions, processEventsOnce, processJobsOnce } from '../src/worker';
 
 const sql = createSql(databaseUrl(), { max: 10 });

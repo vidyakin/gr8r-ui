@@ -2,9 +2,9 @@
    пробегом и закреплённым водителем; карточка показывает документы со сроками и регламент ТО машины. */
 import * as React from 'react';
 import { Plus, Truck } from 'lucide-react';
-import { FUEL_TYPES, VEHICLE_KINDS, VEHICLE_STATUSES, type FuelType, type VehicleKind, type VehicleStatus } from '@gr8r/shared';
+import { FUEL_TYPES, VEHICLE_KINDS, VEHICLE_STATUSES, type FuelType, type VehicleKind, type VehicleStatus } from '@erp/shared';
 import { Badge, Button, EmptyState, Skeleton, Switch } from '@/components/ui';
-import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
+import { DataTable, useDataTable, type Column } from '@/components/erp/data-table';
 import { fmtNumber, useT } from '@/i18n';
 import { fmtDate, parse } from '../lib/dates';
 import { useWorkspace } from '../data/store';

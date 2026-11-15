@@ -1,5 +1,5 @@
 /* Помощники тестов API: общее приложение на тестовой БД и «браузер» с cookie-банкой. */
-import { adminDatabaseUrl, createSql, databaseUrl, uuidv7 } from '@gr8r/db';
+import { adminDatabaseUrl, createSql, databaseUrl, uuidv7 } from '@erp/db';
 import { defaultOptions, processJobsOnce } from '../../worker/src/worker';
 import { createApp } from '../src/app';
 import type { AppConfig } from '../src/types';
@@ -43,7 +43,7 @@ export class Client {
     const set = res.headers.getSetCookie?.() ?? [];
     for (const c of set) {
       const [pair] = c.split(';');
-      if (pair!.startsWith('gr8r_session=')) this.cookie = /Max-Age=0|=;|expires=Thu, 01 Jan 1970/i.test(c) || pair === 'gr8r_session=' ? '' : pair!;
+      if (pair!.startsWith('erp_session=')) this.cookie = /Max-Age=0|=;|expires=Thu, 01 Jan 1970/i.test(c) || pair === 'erp_session=' ? '' : pair!;
     }
     const bytes = new Uint8Array(await res.arrayBuffer());
     const text = new TextDecoder().decode(bytes);

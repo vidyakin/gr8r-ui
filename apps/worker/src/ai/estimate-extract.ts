@@ -3,7 +3,7 @@
    колонок, rows — очищенные строки с видом позиции и разделом). Числа модель возвращает числами — на выходе
    конвертируются в строки (конвенция API: деньги и количества строками), результат валидируется схемой
    estimateAiResult перед записью в БД. */
-import { ESTIMATE_ITEM_KINDS, estimateAiResult, type EstimateAiResult, type EstimatePdfRegion, type EstimateTableFile } from '@gr8r/shared';
+import { ESTIMATE_ITEM_KINDS, estimateAiResult, type EstimateAiResult, type EstimatePdfRegion, type EstimateTableFile } from '@erp/shared';
 import { z } from 'zod';
 import { chatJson, type JsonSchema, type LlmMessage } from './llm';
 

@@ -3,8 +3,8 @@
 import * as React from 'react';
 import { useLocation } from 'react-router';
 import { ArrowLeft, List, Search, X } from 'lucide-react';
-import { articlesOfSection, renderMarkdown, searchDocs, sectionOfPath, tocOf, type DocArticle } from '@gr8r/docs';
-import type { ModuleId } from '@gr8r/shared';
+import { articlesOfSection, renderMarkdown, searchDocs, sectionOfPath, tocOf, type DocArticle } from '@erp/docs';
+import type { ModuleId } from '@erp/shared';
 import { IconButton } from '@/components/ui';
 import { useT } from '@/i18n';
 import { SECTIONS } from '../routes';

@@ -32,8 +32,8 @@ import {
   updateMaterialAllocation,
   updateOtherCosts,
   workspaces,
-} from '@gr8r/db';
-import { materialAllocationCreate, materialAllocationDistribute, materialAllocationQuery, materialAllocationUpdate, monthKey, monthLabel, monthPeriod, monthRange, otherCostsCreate, otherCostsQuery, otherCostsUpdate, periodCloseInput, periodSettingsInput } from '@gr8r/shared';
+} from '@erp/db';
+import { materialAllocationCreate, materialAllocationDistribute, materialAllocationQuery, materialAllocationUpdate, monthKey, monthLabel, monthPeriod, monthRange, otherCostsCreate, otherCostsQuery, otherCostsUpdate, periodCloseInput, periodSettingsInput } from '@erp/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError } from '../errors';
 import { hasRole, requireRole } from '../middleware';

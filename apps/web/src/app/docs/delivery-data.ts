@@ -2,7 +2,7 @@
    Ключи кэша под ['ws', id, 'docs', 'delivery', …]: события delivery / document обновляют их вместе с журналами. */
 import { withPrintCsp } from '@/lib/print-csp';
 import { useQuery } from '@tanstack/react-query';
-import type { DeliveryKind, DeliveryRateInput, DeliveryStatus } from '@gr8r/shared';
+import type { DeliveryKind, DeliveryRateInput, DeliveryStatus } from '@erp/shared';
 import { API_BASE } from '../data/api';
 import { call, useWsId } from '../meta/data';
 import { docsKey } from './data';

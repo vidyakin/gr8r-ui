@@ -18,7 +18,7 @@ import { WipMovementTab } from './WipMovementTab';
 import { WorkOrderCostTab } from './WorkOrderCostTab';
 import type { ReportFilter } from './reports-data';
 import type { FilterKey, TabProps } from './shared';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 interface ReportTabDef {
   id: string;

@@ -2,7 +2,7 @@
    Сроки — «день N от старта» (день 1 = дата старта), исполнители — должностями (positions), а не людьми. Таблицы арендатора: workspace_id + RLS. */
 import { sql } from 'drizzle-orm';
 import { boolean, check, foreignKey, index, integer, jsonb, numeric, pgTable, smallint, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import type { TemplateMilestone, TemplateSubtask } from '@gr8r/shared';
+import type { TemplateMilestone, TemplateSubtask } from '@erp/shared';
 import { createdAt, pk, updatedAt } from './columns';
 import { members } from './people';
 import { positions } from './positions';

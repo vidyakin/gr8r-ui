@@ -2,8 +2,8 @@
 import { and, eq, gte, inArray, lte } from 'drizzle-orm';
 import type { Db } from './client';
 import { companies, documents, documentLines, stockBatches, workspaces } from './schema';
-import { computeSupplierRating, DEFAULT_SUPPLIER_RATING_WEIGHTS, type SupplierRatingWeights } from '@gr8r/shared';
-import { dec } from '@gr8r/shared';
+import { computeSupplierRating, DEFAULT_SUPPLIER_RATING_WEIGHTS, type SupplierRatingWeights } from '@erp/shared';
+import { dec } from '@erp/shared';
 
 const PURCHASE_TYPES = ['supplier_order', 'receipt', 'supplier_return'] as const;
 

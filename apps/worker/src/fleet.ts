@@ -1,7 +1,7 @@
 /* Проход воркера «сроки документов автопарка» (задача 1210): уведомления и событие fleet_document.expiring / expired для автоматизаций.
    Повтор прохода ничего не создаёт: отметка notified_* ставится в той же транзакции (packages/db/src/fleet.ts). */
-import { modulesByWorkspace, runFleetDocumentReminders, withContext, workspaces, type Sql } from '@gr8r/db';
-import { dateInTimezone } from '@gr8r/shared';
+import { modulesByWorkspace, runFleetDocumentReminders, withContext, workspaces, type Sql } from '@erp/db';
+import { dateInTimezone } from '@erp/shared';
 
 /** Число отправленных напоминаний за проход */
 export async function runFleetOnce(sql: Sql, at: Date = new Date()): Promise<number> {

@@ -6,7 +6,7 @@ import * as React from 'react';
 import { useNavigate } from 'react-router';
 import { Maximize2, Minus, PanelRightOpen, X } from 'lucide-react';
 import { FloatingWindow, IconButton, clampGeometry, toast, type WindowGeometry } from '@/components/ui';
-import { StatusIcon } from '@/components/gr8r/task';
+import { StatusIcon } from '@/components/erp/task';
 import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { canSee, project as findProject } from '../data/selectors';
@@ -47,7 +47,7 @@ interface Internal extends TaskWindowsApi {
 }
 
 const Ctx = React.createContext<Internal | null>(null);
-const KEY = 'gr8r-ui.task-windows';
+const KEY = 'erp-ui.task-windows';
 const CASCADE = 8;
 
 function defaultGeometry(n: number): WindowGeometry {

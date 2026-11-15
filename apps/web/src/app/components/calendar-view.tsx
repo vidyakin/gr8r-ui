@@ -5,7 +5,7 @@ import * as React from 'react';
 import { useNavigate } from 'react-router';
 import { ArrowUpRight, Calendar, ChevronLeft, ChevronRight, Clock, Folder, Plus, Users } from 'lucide-react';
 import { Button, IconButton, Popover, PopoverContent, PopoverTrigger, Segmented, toast } from '@/components/ui';
-import { PriorityIcon, StatusIcon } from '@/components/gr8r/task';
+import { PriorityIcon, StatusIcon } from '@/components/erp/task';
 import { cn } from '@/lib/utils';
 import { useT, weekStartsOn } from '@/i18n';
 import { useWorkspace } from '../data/store';

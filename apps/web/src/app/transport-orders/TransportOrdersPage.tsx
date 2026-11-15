@@ -2,9 +2,9 @@
    груз, ставка), вкладка с точками маршрута и комментарий внизу, действия — статусы, закрепить за рейсом, выставить счёт/акт. */
 import * as React from 'react';
 import { FileSignature, Plus, Trash2 } from 'lucide-react';
-import { TRANSPORT_ORDER_STATUSES, TRANSPORT_RATE_KINDS, computeTransportRateAmount, type TransportOrderStatus } from '@gr8r/shared';
+import { TRANSPORT_ORDER_STATUSES, TRANSPORT_RATE_KINDS, computeTransportRateAmount, type TransportOrderStatus } from '@erp/shared';
 import { Badge, Button, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, Tab, Tabs, TabsList, Textarea, toast } from '@/components/ui';
-import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
+import { DataTable, useDataTable, type Column } from '@/components/erp/data-table';
 import { fmtNumber, useT } from '@/i18n';
 import { fmtDate, iso, parse, today } from '../lib/dates';
 import { useOrganizations } from '../docs/data';
@@ -23,7 +23,7 @@ import {
   type TransportOrder,
   type TransportOrderPoint,
 } from './data';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 const ALL = 'all';
 export const ORDER_TONE: Record<TransportOrderStatus, 'gray' | 'amber' | 'accent' | 'green' | 'red'> = { draft: 'gray', confirmed: 'amber', in_progress: 'accent', done: 'green', cancelled: 'red' };

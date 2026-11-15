@@ -41,7 +41,7 @@ import {
   File as FileIcon,
 } from 'lucide-react';
 import { Button, Dialog, DialogClose, DialogContent, IconButton, Label, Menu, MenuContent, MenuTrigger, Progress, Tab, TabsList, Tabs, TabsContent, toast } from '@/components/ui';
-import { StatusIcon } from '@/components/gr8r/task';
+import { StatusIcon } from '@/components/erp/task';
 import { cn } from '@/lib/utils';
 import { useWorkspace, type TaskPatch } from '../../data/store';
 import { FILE_TYPES, LABELS, commentsOf, isOverdue, member, project, projectColor, task as findTask, fileKind } from '../../data/selectors';
@@ -216,7 +216,7 @@ export function DrawerPanel(p: DrawerPanelProps) {
 }
 
 function actionsCopy(wsUrl: string, t: Task, tt: ReturnType<typeof useT>) {
-  const url = `https://gr8rstudio.com/${wsUrl}/task/${t.key}`;
+  const url = `https://future-erp.com/${wsUrl}/task/${t.key}`;
   Promise.resolve()
     .then(() => navigator.clipboard.writeText(url))
     .then(() => toast(tt('common.linkCopied')))

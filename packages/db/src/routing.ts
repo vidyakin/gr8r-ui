@@ -1,6 +1,6 @@
 /* Маршрутизация (задача 1213; docs/architecture/routing.md): настройки провайдера арендатора, защищённый исходящий fetch,
    сборка адаптера (Яндекс | OSRM + VROOM) с ключами из хранилища секретов, геокодирование адресов доставок и точек в фоне.
-   Расчёты и сами адаптеры — чистый код в @gr8r/shared (routing.ts, routing-adapters.ts). Рейсы и «Распределить» — routing-trips.ts. */
+   Расчёты и сами адаптеры — чистый код в @erp/shared (routing.ts, routing-adapters.ts). Рейсы и «Распределить» — routing-trips.ts. */
 import { lookup } from 'node:dns/promises';
 import { and, eq, inArray, sql as dsql } from 'drizzle-orm';
 import {
@@ -21,7 +21,7 @@ import {
   type RoutingAdapter,
   type RoutingSettings,
   type TileConfig,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import type { Db, Sql } from './client';
 import { withContext } from './context';
 import { recordEvent } from './events';

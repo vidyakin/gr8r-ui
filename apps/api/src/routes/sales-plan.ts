@@ -4,8 +4,8 @@
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { and, eq } from 'drizzle-orm';
-import { createSalesPlan, deleteDocument, documents, listSalesPlans, postDocument, salesPlanAnalysis, salesPlanDetail, salesPlanScenarios, scenarioUsed, unpostDocument, updateSalesPlan } from '@gr8r/db';
-import { idParam, salesPlanAnalysisQuery, salesPlanCreate, salesPlanListQuery, salesPlanScenarioCreate, salesPlanScenarioQuery, salesPlanScenarioUpdate, salesPlanUpdate } from '@gr8r/shared';
+import { createSalesPlan, deleteDocument, documents, listSalesPlans, postDocument, salesPlanAnalysis, salesPlanDetail, salesPlanScenarios, scenarioUsed, unpostDocument, updateSalesPlan } from '@erp/db';
+import { idParam, salesPlanAnalysisQuery, salesPlanCreate, salesPlanListQuery, salesPlanScenarioCreate, salesPlanScenarioQuery, salesPlanScenarioUpdate, salesPlanUpdate } from '@erp/shared';
 import { crud, ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError } from '../errors';
 import { requireRole } from '../middleware';

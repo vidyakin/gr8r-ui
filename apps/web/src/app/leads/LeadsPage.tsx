@@ -2,8 +2,8 @@
 import * as React from 'react';
 import { Plus, SquareKanban, Table2, UserPlus } from 'lucide-react';
 import { Button, EmptyState, Input, Segmented, Select, toast } from '@/components/ui';
-import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
-import { Kanban } from '@/components/gr8r/kanban';
+import { DataTable, useDataTable, type Column } from '@/components/erp/data-table';
+import { Kanban } from '@/components/erp/kanban';
 import { fmtDateTime } from '@/i18n/format';
 import { useT } from '@/i18n';
 import { MemberAvatar } from '../components/workspace';

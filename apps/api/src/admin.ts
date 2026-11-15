@@ -3,8 +3,8 @@
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { createMiddleware } from 'hono/factory';
-import { createTenant, deletePlan, exportTenant, getLicenseLog, getTenantLicense, isOperator, listOperatorRequests, listPlans, setOperatorRequestStatus, listTenantsForOperator, requestTenantDelete, savePlan, setTenantLicense } from '@gr8r/db';
-import { licensePlanBody, moduleRequestStatusBody, REQUEST_STATUSES, tenantCreateBody, tenantLicenseBody, workspaceParam } from '@gr8r/shared';
+import { createTenant, deletePlan, exportTenant, getLicenseLog, getTenantLicense, isOperator, listOperatorRequests, listPlans, setOperatorRequestStatus, listTenantsForOperator, requestTenantDelete, savePlan, setTenantLicense } from '@erp/db';
+import { licensePlanBody, moduleRequestStatusBody, REQUEST_STATUSES, tenantCreateBody, tenantLicenseBody, workspaceParam } from '@erp/shared';
 import { validationHook } from './crud';
 import { forbidden } from './errors';
 import { requireSession } from './middleware';
@@ -58,6 +58,6 @@ export const adminRoutes = new Hono<AppEnv>()
     const archive = await exportTenant(c.get('sql'), id);
     return c.body(archive, 200, {
       'content-type': 'application/x-ndjson; charset=utf-8',
-      'content-disposition': `attachment; filename="tenant-${id}.gr8r.jsonl"`,
+      'content-disposition': `attachment; filename="tenant-${id}.erp.jsonl"`,
     });
   });

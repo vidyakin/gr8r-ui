@@ -6,7 +6,7 @@
    лежат рядом: production_items (что выпускаем), production_components (снимок состава), production_headers (изготовитель и сроки).
    Правила — в docs/architecture/production.md. */
 import { and, asc, desc, eq, inArray, isNull, ne, notInArray, or, sql } from 'drizzle-orm';
-import { allocateDisassembly, checkCostShares, computeBomCost, dec, div, explodeBom, fmt, FULFIL_TYPES, mul, pctOf, resolveMaterialPrice, roundDiv, WASTE_PRICE_SOURCES, WASTE_VALUATION, BomFormulaError, DisassemblyShareError, type BomItemInput, type DefectMode, type SpecParamDef, type Explosion, type MaterialOwner } from '@gr8r/shared';
+import { allocateDisassembly, checkCostShares, computeBomCost, dec, div, explodeBom, fmt, FULFIL_TYPES, mul, pctOf, resolveMaterialPrice, roundDiv, WASTE_PRICE_SOURCES, WASTE_VALUATION, BomFormulaError, DisassemblyShareError, type BomItemInput, type DefectMode, type SpecParamDef, type Explosion, type MaterialOwner } from '@erp/shared';
 import type { Db } from './client';
 import { canSeeCost } from './cost';
 import { DomainError } from './errors';

@@ -21,7 +21,7 @@ import {
   type Fetcher,
   type HttpCall,
   type HttpReply,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import type { Db, Sql } from './client';
 import { withContext } from './context';
 import { commitBankImport, previewBankImport, type BankImportCommitRow } from './bank-import';

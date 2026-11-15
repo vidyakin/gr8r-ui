@@ -235,7 +235,7 @@ export function TaskDrawerProvider({ children }: { children: React.ReactNode }) 
         dispatch({ type: 'task/duplicate', id: task.id, newId: id });
         toast(t('overlays.taskDrawer.duplicated'), { action: { label: t('common.undo'), onClick: () => open(id) } });
       },
-      copyLink: task => copyText(`https://gr8rstudio.com/${dataRef.current.ws.url}/task/${task.key}`),
+      copyLink: task => copyText(`https://future-erp.com/${dataRef.current.ws.url}/task/${task.key}`),
       openWindow: task => {
         if (stRef.current?.taskId === task.id) setSt(null);
         windows.popOut(task.id);

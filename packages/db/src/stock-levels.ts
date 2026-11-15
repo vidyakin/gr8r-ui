@@ -1,7 +1,7 @@
 /* Нормы запаса товара (мин./макс.) — строка по складу или строка без склада (норма по компании).
    Норма читает расчёт потребностей (packages/db/src/replenishment.ts) и карточка товара во вкладке «Stock levels». */
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
-import { dec } from '@gr8r/shared';
+import { dec } from '@erp/shared';
 import type { Db } from './client';
 import { recordEvent } from './events';
 import { DomainError } from './errors';

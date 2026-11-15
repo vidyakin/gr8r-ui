@@ -2,7 +2,7 @@
    и артикулы / наименования товаров у контрагента. Вкладка «Коды» карточки контрагента и блок «Артикулы контрагентов» карточки товара. */
 import * as React from 'react';
 import { Trash2 } from 'lucide-react';
-import { DrawerSection } from '@/components/gr8r/entity-drawer';
+import { DrawerSection } from '@/components/erp/entity-drawer';
 import { IconButton, Input, Skeleton, toast } from '@/components/ui';
 import { fmtAmount, useT } from '@/i18n';
 import { unitSymbol, useIsAdmin, useUnits } from '../catalog/data';

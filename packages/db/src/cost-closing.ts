@@ -14,7 +14,7 @@
    (CHECK stock_moves_qty_chk). Всё, что читает себестоимость, берёт движение вместе с корректировкой.
    Повторное закрытие месяца идемпотентно: своя часть прошлого закрытия обнуляется и считается заново. */
 import { and, asc, desc, eq, gt, gte, inArray, lte, ne, sql } from 'drizzle-orm';
-import { dec, div, fmt, monthOf, monthPeriod, mul, planOverhead, type CostDistribution, type Dec, type OverheadCost, type OverheadTarget } from '@gr8r/shared';
+import { dec, div, fmt, monthOf, monthPeriod, mul, planOverhead, type CostDistribution, type Dec, type OverheadCost, type OverheadTarget } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';

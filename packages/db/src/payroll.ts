@@ -26,7 +26,7 @@ import {
   type PayrollStatementPrintData,
   type PayslipData,
   type StatementLineInput,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import type { Db } from './client';
 import { assertPeriodOpen, clearPeriodCosts } from './cost-closing';
 import { DOCUMENT_HOOKS } from './document-hooks';

@@ -22,7 +22,7 @@ import {
   type EstimateUpdate,
   type Role,
   dec,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import type { Db } from './client';
 import { canSeeCost } from './cost';
 import { createDocument, type DocCtx } from './documents';

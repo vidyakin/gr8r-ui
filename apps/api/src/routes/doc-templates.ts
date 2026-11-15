@@ -3,8 +3,8 @@
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { archiveTemplate, createDocxTemplate, createTemplate, getTemplate, listTemplates, readDocxTemplate, updateTemplate } from '@gr8r/db';
-import { DOC_TEMPLATE_PURPOSES, docTemplateCreate, docTemplateUpdate, idParam, queryBool } from '@gr8r/shared';
+import { archiveTemplate, createDocxTemplate, createTemplate, getTemplate, listTemplates, readDocxTemplate, updateTemplate } from '@erp/db';
+import { DOC_TEMPLATE_PURPOSES, docTemplateCreate, docTemplateUpdate, idParam, queryBool } from '@erp/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError } from '../errors';
 import { requireRole } from '../middleware';

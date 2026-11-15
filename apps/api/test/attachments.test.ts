@@ -1,6 +1,6 @@
 /* Вложения (задача 1191): версии, лимит файла, квота, права «как у объекта», изоляция арендаторов, архив, сборка мусора. */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { collectAttachmentGarbage, drizzleOf, MemoryFileStore, setFileStore, type Tx } from '@gr8r/db';
+import { collectAttachmentGarbage, drizzleOf, MemoryFileStore, setFileStore, type Tx } from '@erp/db';
 import { admin, Client } from './helpers';
 
 const store = new MemoryFileStore();

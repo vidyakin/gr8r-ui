@@ -5,7 +5,7 @@
 import * as React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { FileStack, FileText, Plus, Save, Trash2, Upload } from 'lucide-react';
-import { CONTRACT_TEMPLATE_BLOCKS, CONTRACT_TEMPLATE_PARAMS, DEFAULT_CONTRACT_TEMPLATES, DEFAULT_QUOTE_TEMPLATE, DOC_TEMPLATE_PURPOSES, QUOTE_TEMPLATE_BLOCKS, QUOTE_TEMPLATE_PARAMS, type DocTemplatePurpose } from '@gr8r/shared';
+import { CONTRACT_TEMPLATE_BLOCKS, CONTRACT_TEMPLATE_PARAMS, DEFAULT_CONTRACT_TEMPLATES, DEFAULT_QUOTE_TEMPLATE, DOC_TEMPLATE_PURPOSES, QUOTE_TEMPLATE_BLOCKS, QUOTE_TEMPLATE_PARAMS, type DocTemplatePurpose } from '@erp/shared';
 import { Badge, Button, ConfirmDialog, EmptyState, Field, Input, Select, Skeleton, Switch, Textarea, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { errorMessage, ok, API_BASE } from '../data/api';

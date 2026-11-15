@@ -2,7 +2,7 @@
    Запросы живут под ['ws', id, 'objects', …] — событие object_forecast.* (и любые события объекта, смет,
    документов и смен) сбрасывает их через realtime. Суммы приходят с сервера только owner/admin: остальным — 403. */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ObjectCostCategory } from '@gr8r/shared';
+import type { ObjectCostCategory } from '@erp/shared';
 import { call, useWsId } from '../meta/data';
 import { objectsKey } from './data';
 

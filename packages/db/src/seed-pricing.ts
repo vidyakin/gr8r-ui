@@ -2,7 +2,7 @@
    «Дилерская» = себестоимость + 25 %, цены поставщика Atlas с проведённой установкой цен.
    Вызывается в конце сида, когда все товары уже созданы. */
 import { and, asc, eq, isNull } from 'drizzle-orm';
-import { changeByPercent, NO_ROUNDING } from '@gr8r/shared';
+import { changeByPercent, NO_ROUNDING } from '@erp/shared';
 import type { Db } from './client';
 import { postDocument, type DocCtx } from './documents';
 import { backfillProductPrices, createPriceKind, createPriceSetting, ensurePriceKinds } from './pricing';

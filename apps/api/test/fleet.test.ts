@@ -4,7 +4,7 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
 import { Client, admin } from './helpers';
 import { runFleetOnce } from '../../worker/src/fleet';
-import { parseFuelCsv, serviceDue, waybillFuel, docTermState, fuelNormPer100 } from '@gr8r/shared';
+import { parseFuelCsv, serviceDue, waybillFuel, docTermState, fuelNormPer100 } from '@erp/shared';
 
 let owner: Client;
 let member: Client;

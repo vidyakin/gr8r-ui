@@ -1,6 +1,6 @@
 /* Процент выполнения объекта и вехи (задача 1272, docs/architecture/construction.md).
    Процент не хранится: он считается на лету по способу объекта (`objects.progress_mode`) чистой функцией
-   `computeObjectProgress` из @gr8r/shared — задачи объекта, объёмы согласованной сметы или ручное значение.
+   `computeObjectProgress` из @erp/shared — задачи объекта, объёмы согласованной сметы или ручное значение.
    Вехи — таблица `object_milestones`: этап (выполнение) или аванс (деньги вперёд), сумма или процент стоимости договора.
    Деньги вех (цена заказчику) видят все участники. Всё в транзакции вызывающего; изменение + событие — в одной транзакции. */
 import { and, asc, eq, isNull, or, sql } from 'drizzle-orm';
@@ -15,7 +15,7 @@ import {
   type ObjectMilestonesSummary,
   type ObjectProgressBase,
   type ObjectProgressMode,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import type { Db } from './client';
 import { milestoneActAmounts } from './object-acts';
 import { DomainError } from './errors';

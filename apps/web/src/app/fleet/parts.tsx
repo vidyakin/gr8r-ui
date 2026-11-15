@@ -1,6 +1,6 @@
 /* Общие части экранов автопарка (задача 1210): шапка страницы, метка срока документа, универсальный диалог формы по описанию полей. */
 import * as React from 'react';
-import type { DocTermState } from '@gr8r/shared';
+import type { DocTermState } from '@erp/shared';
 import { Badge, Button, Dialog, DialogContent, Field, Input, Select, Textarea, type SelectOption } from '@/components/ui';
 import { useT } from '@/i18n';
 

@@ -2,7 +2,7 @@
    Таблицы арендатора: workspace_id + составные FK + RLS. */
 import { sql } from 'drizzle-orm';
 import { boolean, check, foreignKey, index, integer, jsonb, pgTable, text, timestamp, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import { LEAD_STATUS_CATEGORIES } from '@gr8r/shared';
+import { LEAD_STATUS_CATEGORIES } from '@erp/shared';
 import { archivedAt, createdAt, pk, updatedAt } from './columns';
 import { adCampaigns, leadSources } from './ad';
 import { companies, contacts, deals } from './crm';

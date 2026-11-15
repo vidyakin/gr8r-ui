@@ -3,7 +3,7 @@
    шла дважды, вложенная транзакция ждала второе соединение, держа первое. При перезагрузке страницы (~20 запросов)
    все соединения стояли `idle in transaction` после запроса members до дедлайна (30 с), браузер получал 503. */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { createSql, type Sql } from '@gr8r/db';
+import { createSql, type Sql } from '@erp/db';
 import { createApp } from '../src/app';
 import { apiSqlOptions, loadConfig } from '../src/env';
 import type { AppConfig } from '../src/types';

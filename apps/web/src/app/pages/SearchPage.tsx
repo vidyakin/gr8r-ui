@@ -3,7 +3,7 @@ import * as React from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { History, Search, SearchX } from 'lucide-react';
 import { Button, EmptyState, Tab, Tabs, TabsList } from '@/components/ui';
-import { StatusIcon } from '@/components/gr8r/task';
+import { StatusIcon } from '@/components/erp/task';
 import { useWorkspace } from '../data/store';
 import { FILE_TYPES, member, project, projectColor, task as findTask } from '../data/selectors';
 import { searchAll, useRecentSearches, type SearchCat } from '../data/search';

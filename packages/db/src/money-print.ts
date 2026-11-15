@@ -21,7 +21,7 @@ import {
   type PrintBankRef,
   type PrintForm,
   type PrintPartyRef,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import type { Db } from './client';
 import { buildPrintData, defaultBank } from './documents';
 import { renderContractHtml, type ContractPurpose } from './contract-print';

@@ -5,7 +5,7 @@
    заказ покупателя с видом операции «Переработка», наши затраты выпуска (свои материалы, работы, накладные) —
    себестоимость услуги переработки. Своё сырьё у переработчика — обычный склад со ссылкой на контрагента. */
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { dec, fmt, DOCUMENT_META, mul, type Dec } from '@gr8r/shared';
+import { dec, fmt, DOCUMENT_META, mul, type Dec } from '@erp/shared';
 import type { Db } from './client';
 import { applyCustomerStockMoves, customerStockRows, revertCustomerStockMoves, type CustomerMoveRequest, type CustomerStockKey } from './customer-stock';
 import { DomainError } from './errors';

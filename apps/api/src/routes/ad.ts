@@ -3,7 +3,7 @@
 import { zValidator } from '@hono/zod-validator';
 import { and, count, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { adCampaignExpenses, adCampaigns, adReportData, clearMismatchedReferrers, companies, contacts, deals, leadForms, leadSources, leads } from '@gr8r/db';
+import { adCampaignExpenses, adCampaigns, adReportData, clearMismatchedReferrers, companies, contacts, deals, leadForms, leadSources, leads } from '@erp/db';
 import {
   adCampaignCreate,
   adCampaignQuery,
@@ -16,7 +16,7 @@ import {
   leadSourceCreate,
   leadSourceQuery,
   leadSourceUpdate,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import { crud, ctxOf, validationHook } from '../crud';
 import { AppError } from '../errors';
 import type { AppEnv } from '../types';

@@ -2,7 +2,7 @@
    (заказ покупателя, реализация, заказ-наряд), статусы, назначение курьера, расход при «доставлена», «мои доставки», отчёт.
    Расчёт цены и себестоимости — чистая computeDeliveryCost из shared. */
 import { and, asc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
-import { computeDeliveryCost, DELIVERY_COST_ITEM_KEY, DELIVERY_DOC_TYPES, deliveryWeight, dec, div, fmt, mul, type DeliveryRateInput, type DeliveryStatus, type DocumentLineInput, type Role } from '@gr8r/shared';
+import { computeDeliveryCost, DELIVERY_COST_ITEM_KEY, DELIVERY_DOC_TYPES, deliveryWeight, dec, div, fmt, mul, type DeliveryRateInput, type DeliveryStatus, type DocumentLineInput, type Role } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';

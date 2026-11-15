@@ -22,7 +22,7 @@ import {
   setHoliday,
   setProductResources,
   workspaceLoad,
-} from '@gr8r/db';
+} from '@erp/db';
 import {
   calendarExceptionInput,
   documentResourcesSet,
@@ -35,7 +35,7 @@ import {
   resourceUpdate,
   workCalendarCreate,
   workCalendarUpdate,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import { z } from 'zod';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { requireRole } from '../middleware';

@@ -3,8 +3,8 @@
    Правила — packages/db/src/production.ts. */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
-import { executeWorkbench, listWorkbench, markOperationDone } from '@gr8r/db';
-import { workbenchExecute, workbenchQuery } from '@gr8r/shared';
+import { executeWorkbench, listWorkbench, markOperationDone } from '@erp/db';
+import { workbenchExecute, workbenchQuery } from '@erp/shared';
 import { ctxOf, validationHook } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';

@@ -1,7 +1,7 @@
 /* Обёртка карты рейсов (задача 1213): ленивая загрузка Leaflet, цвета рейсов, перевод рейсов в линии карты, подпись ETA. */
 import * as React from 'react';
 import { Skeleton } from '@/components/ui';
-import type { TileConfig } from '@gr8r/shared';
+import type { TileConfig } from '@erp/shared';
 import type { MapRoute, MapStop } from './RouteMap';
 import { useRouting } from './data';
 

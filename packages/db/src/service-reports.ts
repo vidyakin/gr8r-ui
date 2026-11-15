@@ -2,7 +2,7 @@
    Состояние заказ-нарядов, отклонения от графика, загрузка специалистов, аналитика по клиентам.
    Отчёты читает любой участник; себестоимость и маржа клиентов маскируются для не-admin (maskClientsReport). */
 import { and, asc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
-import { capacityOf, dateRange, dec, diffDays, div, exceptionsFor, fmt, marginPct, mul, orderOverdue, spreadPlan, zonedParts, type OverdueReason } from '@gr8r/shared';
+import { capacityOf, dateRange, dec, diffDays, div, exceptionsFor, fmt, marginPct, mul, orderOverdue, spreadPlan, zonedParts, type OverdueReason } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { calendarContext, workspaceTimeZone } from './planning';

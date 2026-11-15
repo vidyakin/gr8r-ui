@@ -2,7 +2,7 @@
    «Пересчитать скидки». Всё это — действия над черновиком: сначала сохраняется форма, затем идёт запрос, ответ заменяет форму. */
 import * as React from 'react';
 import { RefreshCw } from 'lucide-react';
-import { redemptionLimit } from '@gr8r/shared';
+import { redemptionLimit } from '@erp/shared';
 import { Button, Field, Input, Select, toast } from '@/components/ui';
 import { fmtAmount, fmtNumber, useT } from '@/i18n';
 import { errorMessage } from '../data/api';

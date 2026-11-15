@@ -50,7 +50,7 @@ import {
   updateVehicle,
   updateWaybill,
   waybillPrintData,
-} from '@gr8r/db';
+} from '@erp/db';
 import {
   driverProfileSave,
   fineQuery,
@@ -79,7 +79,7 @@ import {
   waybillQuery,
   waybillSave,
   waybillUpdate,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import { ctxOf, validationHook } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';

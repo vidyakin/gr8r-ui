@@ -1,5 +1,5 @@
 /* Демо-автоматизации: три опубликованные включённые flow. Граф — тот же формат, что строит редактор. */
-import type { FlowGraph } from '@gr8r/shared';
+import type { FlowGraph } from '@erp/shared';
 import type { Db } from './client';
 import { flows, flowVersions } from './schema';
 

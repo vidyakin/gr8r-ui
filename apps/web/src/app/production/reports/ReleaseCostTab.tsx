@@ -2,7 +2,7 @@
    Изделие → документ выпуска; косвенные расшифрованы по статьям затрат. Стоимостной отчёт: только admin и owner (иначе сервер отвечает 403). */
 import { Alert } from '@/components/ui';
 import { fmtAmount, useT } from '@/i18n';
-import { dec, fmt } from '@gr8r/shared';
+import { dec, fmt } from '@erp/shared';
 import { ApiError } from '../../data/api';
 import { fmtDate } from '../../lib/dates';
 import { BarChart, type BarGroup } from './BarChart';

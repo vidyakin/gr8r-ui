@@ -1,5 +1,5 @@
 {
-  "name": "@gr8r/landing",
+  "name": "@erp/landing",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@astrojs/react": "7.1.8",
-    "@gr8r/docs": "workspace:*",
+    "@erp/docs": "workspace:*",
     "astro": "7.4.11",
     "lucide-react": "^1.59.0",
     "react": "^19.3.1",

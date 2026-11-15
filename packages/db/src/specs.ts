@@ -8,7 +8,7 @@
    иначе спецификация по умолчанию родителя (`product_manufacturing.default_item_id`). Недействительные
    спецификации (`is_invalid`) в новых документах не предлагаются и по умолчанию не выбираются. */
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
-import { buildRecordSchema, paramFields, paramKeyClash, type FieldDef, type FieldType, type SpecParamDef } from '@gr8r/shared';
+import { buildRecordSchema, paramFields, paramKeyClash, type FieldDef, type FieldType, type SpecParamDef } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { attributeDefs, manufacturedItems, productCategories, productManufacturing, products } from './schema';

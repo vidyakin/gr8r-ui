@@ -2,7 +2,7 @@
    (document_lines.production_component_id), «передано» = сумма проведённых перемещений по ссылке, лимит — норма × (1 + допуск, %).
    Правила — docs/architecture/production-materials.md, «Передача материалов». Перемещения без ссылки работают как раньше. */
 import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
-import { dec, fmt, overTransferLimit, type Dec } from '@gr8r/shared';
+import { dec, fmt, overTransferLimit, type Dec } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { documentLines, documents, productionComponents, productionHeaders, workCenters, workspaces } from './schema';

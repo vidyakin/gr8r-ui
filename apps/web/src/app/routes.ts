@@ -81,7 +81,7 @@ import {
   UserPlus,
   Hourglass,
 } from 'lucide-react';
-import type { PositionSection } from '@gr8r/shared';
+import type { PositionSection } from '@erp/shared';
 import { hasKey, t, type TKey } from '@/i18n';
 
 export interface Section {

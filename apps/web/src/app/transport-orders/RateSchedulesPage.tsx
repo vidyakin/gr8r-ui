@@ -2,9 +2,9 @@
    откуда/куда (и типа кузова, если задан). Простой справочник — без шапки документа, как у машин автопарка. */
 import * as React from 'react';
 import { ListChecks, Plus } from 'lucide-react';
-import { TRANSPORT_RATE_KINDS } from '@gr8r/shared';
+import { TRANSPORT_RATE_KINDS } from '@erp/shared';
 import { Badge, Button, EmptyState, Skeleton, Switch } from '@/components/ui';
-import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
+import { DataTable, useDataTable, type Column } from '@/components/erp/data-table';
 import { fmtNumber, useT } from '@/i18n';
 import { FleetHead, FormDialog, num, type FieldDef, type Values } from '../fleet/parts';
 import { useRateSchedules, useTransportApi, type RateSchedule } from './data';

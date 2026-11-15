@@ -2,7 +2,7 @@
    занятость машины и водителя, доставки в рейсе (курьер из рейса, синхронизация статусов), контроль вместимости (предупреждение / запрет),
    междугородний рейс, путевой лист из рейса, события для автоматизаций, диспетчер, печать, права и изоляция. */
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { routeStraightKm, tripOverloads, tripPeakLoad, tripsOverlap, windowOrderConflicts } from '@gr8r/shared';
+import { routeStraightKm, tripOverloads, tripPeakLoad, tripsOverlap, windowOrderConflicts } from '@erp/shared';
 import { Client, admin } from './helpers';
 
 let owner: Client;

@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { BellRing, Ban } from 'lucide-react';
 import { IconButton, Popover, PopoverContent, PopoverTrigger, Tooltip, toast } from '@/components/ui';
-import { PRIORITIES, priorityColor, type Priority } from '@/components/gr8r/task';
+import { PRIORITIES, priorityColor, type Priority } from '@/components/erp/task';
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';

@@ -1,9 +1,9 @@
 /* Производство на клиенте: один снимок воркспейса (продукция со строками спецификаций, участки, материалы, настройки)
-   и мутации с оптимистичным обновлением. Себестоимость считается здесь же чистой функцией computeBomCost из @gr8r/shared
+   и мутации с оптимистичным обновлением. Себестоимость считается здесь же чистой функцией computeBomCost из @erp/shared
    (той же, что на сервере), поэтому любая правка строки пересчитывает дерево и итоги мгновенно, не дожидаясь ответа сервера. */
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BomCycleError, BomFormulaError, computeBomCost, resolveMaterialPrice, withItemParams, wouldCreateCycle, type BomItemInput, type CostNode, type MaterialPriceSource, type ProductKind, type ProductionSettings, type SemiMode, type SpecParamDef } from '@gr8r/shared';
+import { BomCycleError, BomFormulaError, computeBomCost, resolveMaterialPrice, withItemParams, wouldCreateCycle, type BomItemInput, type CostNode, type MaterialPriceSource, type ProductKind, type ProductionSettings, type SemiMode, type SpecParamDef } from '@erp/shared';
 import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';

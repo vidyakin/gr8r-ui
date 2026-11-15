@@ -24,7 +24,7 @@ import {
   type LoyaltyCard,
   type PromoCode,
 } from './data';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 function useRun() {
   const [busy, setBusy] = React.useState(false);

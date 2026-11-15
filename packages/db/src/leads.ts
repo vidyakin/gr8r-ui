@@ -2,7 +2,7 @@
    объединение, конвертация в контрагента / контакт / сделку, распределение ответственных. Всё идёт в транзакции
    вызывающего: данные + события outbox вместе. Права проверяют маршруты. */
 import { and, asc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
-import { membersWithFunction, normalizeEmail, normalizePhone, nextRoundRobin, phoneKey, type LeadStatusCategory, type MemberPositionLink, type PositionDef } from '@gr8r/shared';
+import { membersWithFunction, normalizeEmail, normalizePhone, nextRoundRobin, phoneKey, type LeadStatusCategory, type MemberPositionLink, type PositionDef } from '@erp/shared';
 import { resolveAttribution } from './ad';
 import type { Db } from './client';
 import { DomainError } from './errors';

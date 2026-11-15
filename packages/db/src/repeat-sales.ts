@@ -2,7 +2,7 @@
    Дата следующего контакта ставится при проведении реализации, акта и выполнении заказ-наряда; напоминание создаёт воркер
    (apps/worker/src/next-contacts.ts) через runNextContacts; план продаж — packages/db/src/sales-plan.ts. */
 import { and, asc, eq, inArray, isNull, lte, ne } from 'drizzle-orm';
-import { nextContactAfterSale } from '@gr8r/shared';
+import { nextContactAfterSale } from '@erp/shared';
 import type { Db } from './client';
 import type { DocCtx, DocumentLineRow, DocumentRow } from './documents';
 import { recordEvent } from './events';

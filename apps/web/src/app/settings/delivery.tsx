@@ -2,7 +2,7 @@
    у участников. Цена и себестоимость считаются по тарифу: база + за км + за кг, не меньше минимума; бесплатно от суммы документа. */
 import * as React from 'react';
 import { Plus, Truck } from 'lucide-react';
-import { DELIVERY_KINDS, type DeliveryKind, type DeliveryRateInput } from '@gr8r/shared';
+import { DELIVERY_KINDS, type DeliveryKind, type DeliveryRateInput } from '@erp/shared';
 import { Alert, Badge, Button, EmptyState, Field, Input, Select, Skeleton, Switch, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { useIsAdmin } from '../catalog/data';

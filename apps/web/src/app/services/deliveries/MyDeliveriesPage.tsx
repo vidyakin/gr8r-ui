@@ -11,8 +11,8 @@ import { typeLabel } from '../../docs/data';
 import { DELIVERY_TONE } from '../../docs/DeliveryTab';
 import { openRouteSheet, useMyDeliveries, type DeliveryItem } from '../../docs/delivery-data';
 import { useWsId } from '../../meta/data';
-import { dec, fmt } from '@gr8r/shared';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { dec, fmt } from '@erp/shared';
+import { DateInput } from '@/components/erp/date-picker';
 
 export function MyDeliveriesPage() {
   const t = useT();

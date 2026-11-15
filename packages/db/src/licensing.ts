@@ -1,8 +1,8 @@
 /* Тарифы и модули арендаторов (задача 1205, docs/architecture/licensing.md). Чтение лицензии: арендатор — функция
    app_workspace_license() (контекст app.workspace_id), воркер — app_license_of(ws) под app_worker. Запись — только функции
-   оператора app_operator_* (SECURITY DEFINER, проверяют users.is_operator сами). Правила «какие модули включены» — в @gr8r/shared. */
+   оператора app_operator_* (SECURITY DEFINER, проверяют users.is_operator сами). Правила «какие модули включены» — в @erp/shared. */
 import { sql as dsql } from 'drizzle-orm';
-import { enabledModules, MB, usageOf, type LicenseUsage, type LimitKey, moduleStates, readableModules, type LicenseLogEntry, type LicenseRaw, type LicenseView, licenseView, type ModuleId, type LicensePlanBody, type TenantLicenseBody } from '@gr8r/shared';
+import { enabledModules, MB, usageOf, type LicenseUsage, type LimitKey, moduleStates, readableModules, type LicenseLogEntry, type LicenseRaw, type LicenseView, licenseView, type ModuleId, type LicensePlanBody, type TenantLicenseBody } from '@erp/shared';
 import type { Db, Sql, Tx } from './client';
 import { withContext } from './context';
 import { DomainError } from './errors';

@@ -33,7 +33,7 @@
 ## Заявки арендаторов на модули и `OPERATOR_LEAD_HOOK_URL`
 Страница «Нужно больше?» создаёт заявку (`POST /license/requests`, таблица `module_requests`); оператор видит их в «Настройки → Оператор → Заявки на модули».
 Если у **воркера** задана `OPERATOR_LEAD_HOOK_URL` (полный адрес `…/hooks/leads/<токен>` формы лидов арендатора оператора, `.env.example`), задача
-`module_request.notify` отправляет заявку туда POST-ом JSON (`name`, `company`, `email` или `phone`, `comment`, `utm_source=gr8r-module-request`); не 2xx или сбой сети —
+`module_request.notify` отправляет заявку туда POST-ом JSON (`name`, `company`, `email` или `phone`, `comment`, `utm_source=erp-module-request`); не 2xx или сбой сети —
 повтор с нарастающей паузой (до 5 попыток), успех отмечается в `module_requests.hook_sent_at`. Переменная передаётся сервису `worker` в `docker-compose.prod.yml` и `docker-compose.coolify.yml`.
 
 ## Доступ из API без обхода RLS
@@ -50,7 +50,7 @@
 (`GRANT DELETE ON users TO app_worker`). Пользователь, состоящий ещё где-то, остаётся.
 
 ## Выгрузка и загрузка
-- Формат — текст: первая строка — заголовок JSON (`format: gr8r-tenant`, `version`, `schema` — тег последней миграции, `workspaceId`, `slug`),
+- Формат — текст: первая строка — заголовок JSON (`format: erp-tenant`, `version`, `schema` — тег последней миграции, `workspaceId`, `slug`),
   дальше строки `<таблица>\t<JSON-массив строк>`: `users` (участники арендатора: email, имя, хэш пароля, язык), `workspaces`, затем все таблицы
   с `workspace_id`, кроме очереди `jobs`. Список таблиц берётся из каталога, новые таблицы попадают в выгрузку сами.
 - Строки сериализует и разбирает сам Postgres (`to_jsonb` / `jsonb_populate_recordset`): numeric, даты, jsonb и bytea (PDF в `document_files`)
@@ -65,7 +65,7 @@
 - Архив содержит хэши паролей и все данные клиента — хранить как бэкап.
 
 ## Развёртывание (`docker-compose.prod.yml`)
-- Сервисы: `postgres` (порт наружу не публикуется), `migrate` (миграции и роли `gr8r_app`/`gr8r_ddl` при каждом `up`, через него же CLI),
+- Сервисы: `postgres` (порт наружу не публикуется), `migrate` (миграции и роли `futureerp_app`/`futureerp_ddl` при каждом `up`, через него же CLI),
   `api`, `worker`, `web` (nginx: статика и прокси `/api` + WebSocket), `caddy` (80/443, Let's Encrypt по `DOMAIN`), `backup` (`pg_dump -Fc` раз в сутки в `./backups`).
 - Обязательные переменные (`${VAR:?}` — без них compose не стартует): `DOMAIN`, `POSTGRES_PASSWORD`, `APP_DB_PASSWORD`, `DDL_DB_PASSWORD`, `SECRETS_KEY`.
   `COOKIE_SECURE=1`, `CORS_ORIGINS=https://$DOMAIN`.
@@ -74,7 +74,7 @@
   который видит Caddy, а не с подставленным.
 - **Маршрутизация (1213), по желанию:** профиль `routing` поднимает `osrm` и `vroom` (без публикации портов); оператор готовит данные OSRM из `.osm.pbf` и задаёт `ROUTING_OSRM_URL` / `ROUTING_VROOM_URL` в `.env.prod` — воркер доверяет этим адресам (внутренняя сеть compose). Подробности и проверенность — [routing.md](routing.md).
 - **Хранилище файлов** (`docs/architecture/attachments.md`): в оба прод-файла добавлены `minio` (порты наружу не публикуются, том `miniodata`) и разовый
-  `minio-init` (создаёт бакет `gr8r` / `erp` в Coolify; `mc` входит в образ сервера). Образ — `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z`: на Docker Hub
+  `minio-init` (создаёт бакет `futureerp` / `erp` в Coolify; `mc` входит в образ сервера). Образ — `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z`: на Docker Hub
   `minio/minio` и `minio/mc` больше не публикуются (в том числе в локальном `docker-compose.yml`). Обязательные переменные: `S3_ACCESS_KEY`, `S3_SECRET_KEY`;
   `api` и `worker` получают `S3_*`, `FILE_MAX_BYTES`, `STORAGE_QUOTA_BYTES`. Том `miniodata` в `pg_dump`-бэкап не входит — копировать отдельно
   (`docker run --rm -v <проект>_miniodata:/data -v $PWD/backups:/b alpine tar czf /b/minio.tgz /data`). Для Yandex Object Storage вместо MinIO задайте `S3_ENDPOINT=https://storage.yandexcloud.net`,
@@ -85,7 +85,7 @@
   `docker compose config` на этом ключе падает). CLI — в контейнере `api` (там весь код и `ADMIN_DATABASE_URL`), `./archives` смонтирован в него.
   Цепочка IP: прокси Coolify → nginx → api, `TRUST_PROXY=1`. Что Traefik Coolify не доверяет входящему `X-Forwarded-For` (поведение по
   умолчанию, `forwardedHeaders` без `insecure`), на сервере не проверялось — проверка в README. В Coolify не разворачивался.
-- **Dokploy** — `docker-compose.dokploy.yml`: сервисы прод-файла без `caddy`, имена базы и ролей как в проде (`gr8r`, `gr8r_app`/`gr8r_ddl`).
+- **Dokploy** — `docker-compose.dokploy.yml`: сервисы прод-файла без `caddy`, имена базы и ролей как в проде (`futureerp`, `futureerp_app`/`futureerp_ddl`).
   Метки Traefik не пишутся — Dokploy ставит их по вкладке Domains (web:80, umami:3000). Код клонируется заново при каждом деплое, поэтому
   дампы, `archives` и данные OSRM смонтированы из `../files` (каталог `files` приложения Dokploy). Ключей Coolify (`exclude_from_hc`) нет —
   обычный `docker compose config` проходит. Включать Isolated Deployments: без неё сервисы с доменом сидят в общей `dokploy-network`,

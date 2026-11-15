@@ -6,7 +6,7 @@
    отличаться от стоимости остатка по средней скользящей в «Остатках». Всё считается SQL-запросом по stock_moves
    (движения с moved_at ≤ даты отчёта), стоимость отдаёт API только admin и owner. */
 import { sql } from 'drizzle-orm';
-import { dec, fmt } from '@gr8r/shared';
+import { dec, fmt } from '@erp/shared';
 import type { Db } from './client';
 
 /** Границы корзин возраста, дней: 0–30, 31–60, 61–90, 91–180, >180 */

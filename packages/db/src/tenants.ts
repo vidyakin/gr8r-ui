@@ -2,7 +2,7 @@
    выгрузка в архив и загрузка обратно, очистка просроченных демо. Раздел docs/architecture/deploy.md. */
 import { readFileSync } from 'node:fs';
 import { and, eq, sql as dsql } from 'drizzle-orm';
-import { STATUSES } from '@gr8r/shared';
+import { STATUSES } from '@erp/shared';
 import type { Db, Sql, Tx } from './client';
 import { withContext } from './context';
 import { ensureCostItems, ensureDocumentDefaults } from './documents';
@@ -239,7 +239,7 @@ export async function isOperator(sql: Sql, userId: string): Promise<boolean> {
    Строки таблиц сериализует и разбирает сам Postgres (to_jsonb / jsonb_populate_recordset): numeric, даты, jsonb и bytea
    переносятся без потерь, JS их не разбирает. Таблица jobs не выгружается (это очередь, а не данные). */
 
-export const TENANT_ARCHIVE_FORMAT = 'gr8r-tenant';
+export const TENANT_ARCHIVE_FORMAT = 'erp-tenant';
 const ARCHIVE_VERSION = 1;
 const SKIP_TABLES = new Set(['jobs', 'workspace_licenses', 'workspace_module_grants', 'license_log']); // очередь и лицензия установки (платформенные данные оператора) не выгружаются
 
@@ -305,7 +305,7 @@ export async function exportTenant(sql: Sql, workspaceId: string): Promise<strin
 
 export function readArchiveHeader(archive: string): TenantArchiveHeader {
   const header = JSON.parse(archive.slice(0, archive.indexOf('\n'))) as TenantArchiveHeader;
-  if (header.format !== TENANT_ARCHIVE_FORMAT) throw new Error('Not a gr8r tenant archive');
+  if (header.format !== TENANT_ARCHIVE_FORMAT) throw new Error('Not an erp tenant archive');
   if (header.version !== ARCHIVE_VERSION) throw new Error(`Unsupported archive version ${header.version}`);
   return header;
 }

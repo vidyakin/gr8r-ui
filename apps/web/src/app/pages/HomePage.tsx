@@ -15,7 +15,7 @@ import {
   UserPlus,
 } from 'lucide-react';
 import { Button, EmptyState, IconButton, Progress, Segmented } from '@/components/ui';
-import { PriorityIcon } from '@/components/gr8r/task';
+import { PriorityIcon } from '@/components/erp/task';
 import { useWorkspace } from '../data/store';
 import { DAY, diffDays, fmtDate, parse, today } from '../lib/dates';
 import { allTasks, canSee, isOverdue, me, progressOf, project, sortTasks, visibleProjects } from '../data/selectors';

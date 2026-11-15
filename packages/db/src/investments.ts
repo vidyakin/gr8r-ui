@@ -1,5 +1,5 @@
 /* Инвестпроекты и окупаемость: проект, план денежного потока (период × статья), факт из проведённых документов
-   и показатели (NPV, IRR, PI, окупаемость — чистые функции в @gr8r/shared/investments).
+   и показатели (NPV, IRR, PI, окупаемость — чистые функции в @erp/shared/investments).
 
    Факт — проведённые документы, суммы без НДС, на дату документа. Правило старшинства (без двойного счёта):
    - у документа задано поле «Инвестпроект» → весь документ идёт только в этот проект;
@@ -28,7 +28,7 @@ import {
   type InvestmentStatus,
   type InvestmentUpdate,
   type Role,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import type { Db } from './client';
 import { canSeeCost } from './cost';
 import { DomainError } from './errors';

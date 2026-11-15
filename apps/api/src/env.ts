@@ -1,5 +1,5 @@
-/* Конфигурация API из окружения. Корневой .env подхватывает @gr8r/db (импортируется раньше). */
-import '@gr8r/db';
+/* Конфигурация API из окружения. Корневой .env подхватывает @erp/db (импортируется раньше). */
+import '@erp/db';
 import type { AppConfig } from './types';
 
 const int = (v: string | undefined, def: number) => {
@@ -32,6 +32,6 @@ export function apiSqlOptions(config: Pick<AppConfig, 'txTimeoutMs'>) {
   return {
     max: 10,
     connect_timeout: 5,
-    connection: { application_name: 'gr8r-api', statement_timeout: serverTimeout, idle_in_transaction_session_timeout: serverTimeout },
+    connection: { application_name: 'erp-api', statement_timeout: serverTimeout, idle_in_transaction_session_timeout: serverTimeout },
   };
 }

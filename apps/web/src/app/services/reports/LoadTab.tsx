@@ -1,6 +1,6 @@
 /* Отчёт «Загрузка специалистов»: по исполнителям и дням — доступное время по графику, плановые часы назначений,
    фактические записи времени, процент загрузки, перегрузка; плановые часы без дат — отдельной строкой. */
-import { dec, div, fmt, mul } from '@gr8r/shared';
+import { dec, div, fmt, mul } from '@erp/shared';
 import { fmtNumber, useT } from '@/i18n';
 import { fmtDate } from '../../lib/dates';
 import { BarChart, type BarGroup } from '../../production/reports/BarChart';

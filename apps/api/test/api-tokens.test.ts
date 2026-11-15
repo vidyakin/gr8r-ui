@@ -2,7 +2,7 @@
    read_only, разделы токена, запрет /api-tokens и /auth/* по токену, отзыв и срок, права участников, служебные сотрудники,
    полнота маппингов и изоляция арендаторов. */
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { TOKEN_OPEN_PATHS, TOKEN_PATH_SECTIONS } from '@gr8r/shared';
+import { TOKEN_OPEN_PATHS, TOKEN_PATH_SECTIONS } from '@erp/shared';
 import { TENANT_PATHS } from '../src/app';
 import { addMember, admin, Client } from './helpers';
 
@@ -31,7 +31,7 @@ describe('api tokens', () => {
     const res = await owner.post('/api-tokens', { name: 'Read token' });
     expect(res.status).toBe(201);
     const { token, item } = res.body;
-    expect(token.startsWith('gr8r_')).toBe(true);
+    expect(token.startsWith('erp_')).toBe(true);
     expect(token.length).toBeGreaterThan(12);
     expect(item.prefix).toBe(token.slice(0, 12));
     expect(item.token).toBeUndefined();

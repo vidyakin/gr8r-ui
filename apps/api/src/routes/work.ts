@@ -19,7 +19,7 @@ import {
   tasks,
   teams,
   timeLogs,
-} from '@gr8r/db';
+} from '@erp/db';
 import {
   activityQuery,
   calendarEventCreate,
@@ -54,12 +54,12 @@ import {
   timeLogQuery,
   timeLogUpdate,
   uuid,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import { z } from 'zod';
 import { crud, ctxOf, validationHook } from '../crud';
 import { AppError, forbidden, notFound } from '../errors';
 import { hasRole, requireRole } from '../middleware';
-import { assertObjectRef, sanitizeRichText, withApiTokenNames } from '@gr8r/db';
+import { assertObjectRef, sanitizeRichText, withApiTokenNames } from '@erp/db';
 import { customForCreate, customForUpdate } from '../meta/service';
 import { addActivity, assertTasksExist, favoriteFilter, favoriteSet, nextOrder, notify, setFavorite } from './helpers';
 

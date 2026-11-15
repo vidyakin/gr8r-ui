@@ -2,7 +2,7 @@
    Данные лежат в кэше TanStack Query под ключом ['ws', id, 'production-orders', …]. */
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PRODUCTION_ORDER_STATES, type DefectMode, type DocumentStatus, type MaterialOwner, type WasteValuation } from '@gr8r/shared';
+import { PRODUCTION_ORDER_STATES, type DefectMode, type DocumentStatus, type MaterialOwner, type WasteValuation } from '@erp/shared';
 import { toast } from '@/components/ui';
 import { t } from '@/i18n';
 import { errorMessage } from '../data/api';

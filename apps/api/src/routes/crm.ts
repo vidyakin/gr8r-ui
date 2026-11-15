@@ -2,7 +2,7 @@
 import { zValidator } from '@hono/zod-validator';
 import { desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { companies, contacts, crmActivities, dealContacts, dealStageHistory, deals, loadStage, planStageChange, recalcSettlementMode, recordStageChange } from '@gr8r/db';
+import { companies, contacts, crmActivities, dealContacts, dealStageHistory, deals, loadStage, planStageChange, recalcSettlementMode, recordStageChange } from '@erp/db';
 import {
   companyCreate,
   companyQuery,
@@ -17,7 +17,7 @@ import {
   dealQuery,
   dealUpdate,
   idParam,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import { crud, ctxOf, validationHook, type Ctx } from '../crud';
 import { forbidden, notFound } from '../errors';
 import type { AppEnv } from '../types';

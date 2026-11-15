@@ -1,14 +1,14 @@
 /* Settings → Production: источник цены материалов при расчёте себестоимости (настройка воркспейса, меняет admin и выше). */
 import * as React from 'react';
 import { Link } from 'react-router';
-import { MATERIAL_PRICE_SOURCES, WASTE_PRICE_SOURCES, type MaterialPriceSource, type WastePriceSource } from '@gr8r/shared';
+import { MATERIAL_PRICE_SOURCES, WASTE_PRICE_SOURCES, type MaterialPriceSource, type WastePriceSource } from '@erp/shared';
 import { Alert, Button, Field, Input, Radio, Skeleton, toast } from '@/components/ui';
 import { useIsAdmin } from '../catalog/data';
 import { useProductionApi, useSnapshot } from '../production/data';
 import { usePeriods, usePeriodSettings } from '../production/closing-data';
 import { SettingsHead, Toggle } from './parts';
 import { useT } from '@/i18n';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 export function ProductionSection({ title }: { title: string }) {
   const t = useT();

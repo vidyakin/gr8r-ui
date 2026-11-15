@@ -1,6 +1,6 @@
 /* Реквизиты контрагента: вкладка в карточке компании. */
 import { Skeleton } from '@/components/ui';
-import { COMPANY_KIND_LABELS } from '@gr8r/shared';
+import { COMPANY_KIND_LABELS } from '@erp/shared';
 import { tEnum, useT } from '@/i18n';
 import { useCompanyRequisites } from './data';
 

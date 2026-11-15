@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Calendar as CalendarIcon, Tag, X } from 'lucide-react';
 import { Label, Menu, MenuContent, MenuRadioGroup, MenuRadioItem, MenuTrigger, Popover, PopoverContent, PopoverTrigger, toast } from '@/components/ui';
 import { Calendar } from '@/components/shadcn/calendar';
-import { PriorityIcon, StatusIcon, priorityName, type Status } from '@/components/gr8r/task';
+import { PriorityIcon, StatusIcon, priorityName, type Status } from '@/components/erp/task';
 import { cn } from '@/lib/utils';
 import { useT, weekStartsOn } from '@/i18n';
 import { useWorkspace, type TaskPatch } from '../data/store';

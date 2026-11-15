@@ -17,7 +17,7 @@ import {
   type ForecastPeriod,
   type Role,
   type StockFlow,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import type { Db } from './client';
 import { maskCost } from './cost';
 import { recordEvent } from './events';

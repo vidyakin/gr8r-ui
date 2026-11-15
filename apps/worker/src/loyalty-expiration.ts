@@ -1,7 +1,7 @@
 /* Проход воркера «сгорание баллов» (задача 1179): раз в час по каждому арендатору с модулем «Торговля» (там же лояльность)
    сгорают истёкшие начисления баллов в порядке FIFO (packages/db/src/loyalty.ts, runLoyaltyExpiration). Идемпотентно:
    повтор прохода не списывает уже сгоревшие лоты повторно (сверяется движение 'expiration' с reversesId лота). */
-import { modulesByWorkspace, runLoyaltyExpiration, withContext, workspaces, type Sql } from '@gr8r/db';
+import { modulesByWorkspace, runLoyaltyExpiration, withContext, workspaces, type Sql } from '@erp/db';
 
 /** Число созданных движений 'expiration' за проход */
 export async function runLoyaltyExpirationOnce(sql: Sql, at: Date = new Date()): Promise<number> {

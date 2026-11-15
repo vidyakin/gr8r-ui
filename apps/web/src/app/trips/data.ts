@@ -3,7 +3,7 @@
 import { withPrintCsp } from '@/lib/print-csp';
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Overload, RoutingSettings, TileConfig, StopKind, StopSource, StopStatus, TripCapacityMode, TripKind, TripLoad, TripStatus, VehicleLimits } from '@gr8r/shared';
+import type { Overload, RoutingSettings, TileConfig, StopKind, StopSource, StopStatus, TripCapacityMode, TripKind, TripLoad, TripStatus, VehicleLimits } from '@erp/shared';
 import { API_BASE, errorMessage } from '../data/api';
 import { toast } from '@/components/ui';
 import { call, useWsId } from '../meta/data';

@@ -3,7 +3,7 @@
 import { describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { articleLinks, articlesOfSection, buildCatalog, renderMarkdown, searchDocs, sectionOfPath, tocOf } from '@gr8r/docs';
+import { articleLinks, articlesOfSection, buildCatalog, renderMarkdown, searchDocs, sectionOfPath, tocOf } from '@erp/docs';
 import { SECTIONS } from '../routes';
 import { DOCS_DIR } from '../../../../../scripts/docs-lib';
 

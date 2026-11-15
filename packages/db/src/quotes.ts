@@ -2,7 +2,7 @@
    Строки документа — всегда основной вариант, поэтому резервы, исполнение, калькуляция и «на основании» о вариантах не знают.
    Остальные варианты — снимки строк в document_variants; «Сделать основным» меняет местами снимок и строки документа. */
 import { and, asc, eq, inArray, isNull, max, ne, or } from 'drizzle-orm';
-import { computeLine, computeTotals, hasQuoteVariants, renderQuote, type DocumentTotals, type PrintData, type PrintLine, type Role, type DocumentLineInput, type VariantLine, type VatRate } from '@gr8r/shared';
+import { computeLine, computeTotals, hasQuoteVariants, renderQuote, type DocumentTotals, type PrintData, type PrintLine, type Role, type DocumentLineInput, type VariantLine, type VatRate } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
@@ -115,7 +115,7 @@ export async function activateVariant(db: Db, ctx: DocCtx, id: string, variantId
 /** Загруженный .docx становится шаблоном: вложение (entity doc_template) + запись doc_templates.source='docx'.
     Возвращает шаблон и список найденных в файле параметров (незнакомые фронтенд предупредит). */
 export async function createDocxTemplate(db: Db, ctx: DocCtx, file: { name: string; data: Uint8Array; mime?: string | null }, input: { purpose: TemplateRow['purpose']; name?: string; onlyAuthor?: boolean }): Promise<{ template: TemplateRow; tags: string[] }> {
-  const { docxTemplateTags } = await import('@gr8r/shared');
+  const { docxTemplateTags } = await import('@erp/shared');
   let tags: string[];
   try {
     tags = docxTemplateTags(file.data);

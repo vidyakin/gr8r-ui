@@ -2,7 +2,7 @@
    (вместимость, временные окна), действия: отправить, завершить, отменить, путевой лист, печать маршрутного листа. */
 import * as React from 'react';
 import { ArrowDown, ArrowUp, Plus, Printer, Route, Timer, Trash2 } from 'lucide-react';
-import { STOP_KINDS, TRIP_KINDS } from '@gr8r/shared';
+import { STOP_KINDS, TRIP_KINDS } from '@erp/shared';
 import { Badge, Button, ConfirmDialog, IconButton, toast } from '@/components/ui';
 import { fmtNumber, useT } from '@/i18n';
 import { fmtDate, iso, parse, today } from '../lib/dates';

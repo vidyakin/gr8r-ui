@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { ArrowDown, ArrowUp, Calendar, Plus, SearchX, Timer } from 'lucide-react';
 import { Button, EmptyState, Label, toast } from '@/components/ui';
-import { PriorityIcon, StatusIcon, priorityName } from '@/components/gr8r/task';
+import { PriorityIcon, StatusIcon, priorityName } from '@/components/erp/task';
 import { cn } from '@/lib/utils';
 import { t as tr, useT } from '@/i18n';
 import { useWorkspace } from '../data/store';

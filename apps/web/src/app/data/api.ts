@@ -1,13 +1,13 @@
-/* Клиент API: типизированный hono/client (@gr8r/api/client) на каждый воркспейс + разбор ошибок.
+/* Клиент API: типизированный hono/client (@erp/api/client) на каждый воркспейс + разбор ошибок.
    Фронтенд ходит по тому же origin (`/api/*`, Vite/nginx проксируют без префикса), поэтому cookie сессии идёт без CORS. */
-import { createApiClient } from '@gr8r/api/client';
+import { createApiClient } from '@erp/api/client';
 import { getLocale, hasKey, t, type TParams } from '@/i18n';
 
 export type Api = ReturnType<typeof createApiClient>;
 
 export const API_BASE = () => `${location.origin}/api`;
 
-export const UNAUTHORIZED_EVENT = 'gr8r:unauthorized';
+export const UNAUTHORIZED_EVENT = 'erp:unauthorized';
 
 export class ApiError extends Error {
   constructor(

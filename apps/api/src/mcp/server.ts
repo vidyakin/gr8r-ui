@@ -27,7 +27,7 @@ export function mcpRoutes(getApp: () => Hono<AppEnv>) {
       if (wsHeader && wsHeader.toLowerCase() !== token.workspaceId) throw new AppError(403, 'token_forbidden', 'The token does not belong to this workspace');
       const authorization = c.req.header('authorization')!;
 
-      const server = new McpServer({ name: 'gr8r', version: '1.0.0' }, { capabilities: { tools: {} } });
+      const server = new McpServer({ name: 'erp', version: '1.0.0' }, { capabilities: { tools: {} } });
       const base = { authorization, workspaceId: token.workspaceId };
       registerTools(server, {
         call: (path: string, query: Query = {}) => callApi(getApp(), path, { ...base, query }),

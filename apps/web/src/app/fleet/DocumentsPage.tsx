@@ -2,9 +2,9 @@
    Напоминания приходят уведомлениями и запускают автоматизации (триггер «Срок документа машины истекает») — их шлёт воркер раз в час. */
 import * as React from 'react';
 import { FileText, Plus } from 'lucide-react';
-import { FLEET_DOC_KIND_LIST, FLEET_DOC_KINDS, type FleetDocKind } from '@gr8r/shared';
+import { FLEET_DOC_KIND_LIST, FLEET_DOC_KINDS, type FleetDocKind } from '@erp/shared';
 import { Button, EmptyState, Field, Select, Skeleton } from '@/components/ui';
-import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
+import { DataTable, useDataTable, type Column } from '@/components/erp/data-table';
 import { useT } from '@/i18n';
 import { fmtDate, parse } from '../lib/dates';
 import { useWorkspace } from '../data/store';

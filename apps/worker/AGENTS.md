@@ -4,9 +4,9 @@
 `docs/architecture/billing.md`, `docs/architecture/month-closing.md`, `docs/architecture/metadata.md` (индексы полей).
 
 ## Точки входа
-- `src/index.ts` — процесс: опрос `jobs` и `events` (`WORKER_POLL_MS`), ускорение по LISTEN `gr8r_events`, планировщик flow (`scheduleFlowsOnce`), биллинг (`runBillingOnce`).
-- `src/worker.ts` — `processJobsOnce`, `processEventsOnce`, `requeueStale`, `defaultOptions`. Экспорт `@gr8r/worker`; тесты API вызывают `processJobsOnce` напрямую.
-- `src/handlers.ts` — `jobHandlers` (реестр задач по типу) и `handleEvent`. Экспорт `@gr8r/worker/handlers`.
+- `src/index.ts` — процесс: опрос `jobs` и `events` (`WORKER_POLL_MS`), ускорение по LISTEN `erp_events`, планировщик flow (`scheduleFlowsOnce`), биллинг (`runBillingOnce`).
+- `src/worker.ts` — `processJobsOnce`, `processEventsOnce`, `requeueStale`, `defaultOptions`. Экспорт `@erp/worker`; тесты API вызывают `processJobsOnce` напрямую.
+- `src/handlers.ts` — `jobHandlers` (реестр задач по типу) и `handleEvent`. Экспорт `@erp/worker/handlers`.
 
 ## Задачи `jobs`
 `index.create`/`index.drop` (DDL индексов полей конструктора), `flow.run`, `document.pdf`, `billing.export_zip`,
@@ -44,7 +44,7 @@
 - Chromium для PDF не ходит в сеть: только `data:` и `about:`.
 
 ## Команды
-- Typecheck: `bun run --filter @gr8r/worker typecheck`.
+- Typecheck: `bun run --filter @erp/worker typecheck`.
 - Тесты из корня: `bun test apps/worker/test`. Сквозные проверки задач — в `apps/api/test` (`flows`, `pdf`, `billing-export`, `production-closing`).
 
 ## Частые ошибки

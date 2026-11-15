@@ -1,7 +1,7 @@
 /* Автоматизации на клиенте: flow и журнал запусков живут в кэше TanStack Query под ['ws', id, 'automations', …].
    Realtime (data/realtime.ts) сбрасывает кэш по событиям flow / flow_run, поэтому журнал обновляется без перезагрузки. */
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { FlowGraph, FlowRunStatus, FlowStepStatus } from '@gr8r/shared';
+import type { FlowGraph, FlowRunStatus, FlowStepStatus } from '@erp/shared';
 import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';

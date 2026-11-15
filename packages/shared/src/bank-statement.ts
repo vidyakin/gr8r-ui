@@ -380,7 +380,7 @@ const oneLine = (v: string) => v.replace(/[\r\n]+/g, ' ').trim();
 /** Файл платёжных поручений в формате 1CClientBankExchange (то, что банк-клиент загружает на отправку).
     Возвращает текст; в байты — `encodeBankStatement` (windows-1251 для банк-клиентов) */
 export function renderPaymentOrders(input: { orders: PaymentOrderExport[]; createdAt: string; encoding?: 'windows-1251' | 'utf-8' }): string {
-  const out: string[] = ['1CClientBankExchange', 'ВерсияФормата=1.03', `Кодировка=${input.encoding === 'utf-8' ? 'UTF-8' : 'Windows'}`, 'Отправитель=gr8r', 'Получатель=', `ДатаСоздания=${ruDate(input.createdAt)}`, 'ВремяСоздания=00:00:00'];
+  const out: string[] = ['1CClientBankExchange', 'ВерсияФормата=1.03', `Кодировка=${input.encoding === 'utf-8' ? 'UTF-8' : 'Windows'}`, 'Отправитель=FutureERP', 'Получатель=', `ДатаСоздания=${ruDate(input.createdAt)}`, 'ВремяСоздания=00:00:00'];
   const dates = input.orders.map(o => o.date).sort();
   if (dates.length) out.push(`ДатаНачала=${ruDate(dates[0]!)}`, `ДатаКонца=${ruDate(dates[dates.length - 1]!)}`);
   for (const a of [...new Set(input.orders.map(o => o.payer.account))]) out.push(`РасчСчет=${a}`);

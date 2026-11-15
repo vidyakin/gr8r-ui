@@ -10,7 +10,7 @@ import { useSectionAccess } from '../positions/access';
 import { NAV_GROUPS, SECTIONS, navGroupOf, type NavGroupId, type NavGroupItem } from '../routes';
 import { t, useT } from '@/i18n';
 
-const PANEL_KEY = 'gr8r-ui.side-panel';
+const PANEL_KEY = 'erp-ui.side-panel';
 /** ширина, на которой сайдбар — выезжающее меню (styles/app.css) */
 const MOBILE = '(max-width: 900px)';
 

@@ -25,7 +25,7 @@ import {
   supplierProductPrices,
   unapproveEstimate,
   updateEstimate,
-} from '@gr8r/db';
+} from '@erp/db';
 import {
   estimateChangeCreate,
   estimateContent,
@@ -40,7 +40,7 @@ import {
   estimateUpdate,
   idParam,
   uuid,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { readDocxTables } from '../docx';
 import { AppError } from '../errors';

@@ -3,11 +3,11 @@
 import * as React from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { CircleAlert, CircleDot, ClipboardList, FilePlus, Plus, Trash2 } from 'lucide-react';
-import { WORK_ORDER_BILLING_LABELS, WORK_ORDER_BILLING_MODES, WORK_ORDER_CATEGORY_LABELS, type WorkOrderBillingMode, type WorkOrderStateCategory } from '@gr8r/shared';
+import { WORK_ORDER_BILLING_LABELS, WORK_ORDER_BILLING_MODES, WORK_ORDER_CATEGORY_LABELS, type WorkOrderBillingMode, type WorkOrderStateCategory } from '@erp/shared';
 import type { Tone } from '@/components/ui';
 import { Badge, Button, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
-import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/gr8r/data-table';
-import { FilterBar, useFilterState } from '@/components/gr8r/filter-bar';
+import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/erp/data-table';
+import { FilterBar, useFilterState } from '@/components/erp/filter-bar';
 import { useCanWrite } from '../meta/custom-fields';
 import { money } from '../catalog/data';
 import { fmtDate, parse } from '../lib/dates';

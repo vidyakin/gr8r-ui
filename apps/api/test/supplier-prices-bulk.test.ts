@@ -1,7 +1,7 @@
 /* Объём прайса поставщика: 20 000 строк — загрузка, «найти по названиям», «создать товары», применение укладываются в разумное время
    (операции пакетные, а не по запросу на строку). Порог мягкий: ловит возврат к построчной обработке. */
 import { beforeAll, expect, test } from 'bun:test';
-import { applySupplierPrice, createProductsForSupplierLines, matchSupplierLinesByName, MemoryFileStore, saveSupplierProfile, setFileStore, uploadSupplierPrice, withContext, type Actor, type Db } from '@gr8r/db';
+import { applySupplierPrice, createProductsForSupplierLines, matchSupplierLinesByName, MemoryFileStore, saveSupplierProfile, setFileStore, uploadSupplierPrice, withContext, type Actor, type Db } from '@erp/db';
 import { admin, Client, sql } from './helpers';
 
 const N = 20_000;

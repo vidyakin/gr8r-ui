@@ -3,7 +3,7 @@
    Хуки типа регистрируются в этом файле, чтобы общий сервис документов не знал про эти режимы. */
 import { assertTransferWithinNorm } from './material-transfer';
 import { and, eq, inArray, sql } from 'drizzle-orm';
-import { dec, fmt } from '@gr8r/shared';
+import { dec, fmt } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { DOCUMENT_HOOKS, STATE_HOOKS } from './document-hooks';

@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CircleAlert, Calculator } from 'lucide-react';
-import { CALC_LINE_LABELS, COST_PRICE_SOURCE_LABELS, type CostPriceSource, type SpecParamDef } from '@gr8r/shared';
+import { CALC_LINE_LABELS, COST_PRICE_SOURCE_LABELS, type CostPriceSource, type SpecParamDef } from '@erp/shared';
 import { Alert, Button, Dialog, DialogClose, DialogContent, EmptyState, Field, Input, Skeleton, toast } from '@/components/ui';
 import { call, useWsId } from '../meta/data';
 import { errorMessage } from '../data/api';

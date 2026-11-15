@@ -8,7 +8,7 @@ export const pwWeak = (pw: string) => pw.length < 10 || !/[0-9\W]/.test(pw);
 export const authForm = { email: '', name: '' };
 
 /** Токен приглашения, с которым человека отправили входить или регистрироваться: после входа возвращаем на /join/:token */
-const INVITE_KEY = 'gr8r-ui.pending-invite';
+const INVITE_KEY = 'erp-ui.pending-invite';
 export const pendingInvite = {
   get(): string | null {
     try {

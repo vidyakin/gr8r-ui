@@ -8,7 +8,7 @@
 @import '../../../web/src/styles/app.css' layer(components);
 @import '../../../web/src/styles/task-views.css' layer(components);
 @import '../../../web/src/styles/board-columns.css' layer(components);
-@import '../../../web/src/styles/gr8r-blocks.css' layer(components);
+@import '../../../web/src/styles/erp-blocks.css' layer(components);
 @import '../../../web/src/styles/crm.css' layer(components);
 @import '../../../web/src/styles/docs.css' layer(components);
 @import '../../../web/src/styles/appointments.css' layer(components);

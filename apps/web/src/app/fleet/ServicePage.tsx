@@ -4,18 +4,18 @@
 import * as React from 'react';
 import { Link } from 'react-router';
 import { Plus, Wrench, X } from 'lucide-react';
-import { REPAIR_KINDS, type RepairKind } from '@gr8r/shared';
+import { REPAIR_KINDS, type RepairKind } from '@erp/shared';
 import { Badge, Button, EmptyState, Field, IconButton, Input, Select, Skeleton } from '@/components/ui';
-import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
+import { DataTable, useDataTable, type Column } from '@/components/erp/data-table';
 import { fmtAmount, fmtNumber, useT } from '@/i18n';
-import { dec, add as decAdd, mul as decMul, fmt as decFmt } from '@gr8r/shared';
+import { dec, add as decAdd, mul as decMul, fmt as decFmt } from '@erp/shared';
 import { iso, today, fmtDate, parse } from '../lib/dates';
 import { useProducts } from '../catalog/data';
 import { useWarehouses } from '../docs/data';
 import { ProductField } from '../docs/position-field';
 import { useFleetApi, useRepair, useRepairs, useServicePlans, useVehicles, type Repair, type RepairLine, type ServicePlan } from './data';
 import { FleetHead, FormDialog, intOrNull, num, orNull } from './parts';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 const ALL = 'all';
 const NONE = 'none';

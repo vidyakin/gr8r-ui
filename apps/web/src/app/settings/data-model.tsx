@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Link } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowUpRight, GripVertical, Lock, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react';
-import { CHOICE_COLORS, FIELD_TYPES, FIELD_TYPE_LABELS, fieldCreate, keyFromName, type FieldChoice, type FieldType } from '@gr8r/shared';
+import { CHOICE_COLORS, FIELD_TYPES, FIELD_TYPE_LABELS, fieldCreate, keyFromName, type FieldChoice, type FieldType } from '@erp/shared';
 import { Alert, Badge, Button, Checkbox, Dialog, DialogClose, DialogContent, Field, Input, Radio, toast } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { errorMessage } from '../data/api';

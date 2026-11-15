@@ -2,8 +2,8 @@
    и табель сотрудника — отчёт по времени задач модуля services. Читает любой участник, нормы меняет member и выше. */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
-import { canSeeCost, listWorkNorms, servicesSchedule, servicesTimesheet, setWorkNorm } from '@gr8r/db';
-import { idParam, serviceScheduleQuery, timesheetQuery, workNormSet } from '@gr8r/shared';
+import { canSeeCost, listWorkNorms, servicesSchedule, servicesTimesheet, setWorkNorm } from '@erp/db';
+import { idParam, serviceScheduleQuery, timesheetQuery, workNormSet } from '@erp/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';

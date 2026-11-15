@@ -2,7 +2,7 @@
    Таблицы арендатора. Связи — составные внешние ключи (workspace_id, id). */
 import { sql } from 'drizzle-orm';
 import { boolean, check, date, foreignKey, index, integer, jsonb, numeric, pgTable, primaryKey, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import type { SpecParamDef } from '@gr8r/shared';
+import type { SpecParamDef } from '@erp/shared';
 import { archivedAt, createdAt, money, pk, ts, updatedAt } from './columns';
 import { products, units } from './catalog';
 import { costItems, documentLines, documents, stockBatches, stockMoves, warehouses } from './documents';

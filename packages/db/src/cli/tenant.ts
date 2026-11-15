@@ -75,7 +75,7 @@ try {
     }
     case 'export': {
       const id = await resolve(positional[0]);
-      const out = opt('out') ?? `tenant-${id}.gr8r.jsonl.gz`;
+      const out = opt('out') ?? `tenant-${id}.erp.jsonl.gz`;
       const archive = await exportTenant(sql, id);
       await Bun.write(out, out.endsWith('.gz') ? Bun.gzipSync(Buffer.from(archive)) : archive);
       console.log(`[tenant] выгружен ${id} → ${out}`);

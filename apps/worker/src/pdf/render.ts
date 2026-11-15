@@ -5,7 +5,7 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium, type Browser } from 'playwright-core';
-import { printOrientation, type PrintForm } from '@gr8r/shared';
+import { printOrientation, type PrintForm } from '@erp/shared';
 
 let browser: Promise<Browser> | null = null;
 

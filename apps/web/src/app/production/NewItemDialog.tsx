@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { MANUFACTURED_KINDS } from '@gr8r/shared';
+import { MANUFACTURED_KINDS } from '@erp/shared';
 import { Button, Checkbox, Dialog, DialogClose, DialogContent, Field, Input, Segmented, toast } from '@/components/ui';
 import { t, tEnum } from '@/i18n';
 import { parseNumber } from '@/i18n/format';

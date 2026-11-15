@@ -78,7 +78,7 @@ describe('с ID сайта', () => {
     win.umami = { track: (...a: unknown[]) => calls.push(['track', ...a]), identify: (...a: unknown[]) => calls.push(['identify', ...a]) };
     (added[0] as unknown as { onload: () => void }).onload();
     expect(calls).toEqual([['track'], ['track', 'open', { kind: 'window', name: 'task' }]]);
-    const beforeSend = win.__gr8rUmamiBeforeSend as (t: string, p: Record<string, unknown>) => Record<string, unknown>;
+    const beforeSend = win.__erpUmamiBeforeSend as (t: string, p: Record<string, unknown>) => Record<string, unknown>;
     expect(beforeSend('event', { url: 'https://erp/x?q=Иванов', title: 'Сделка Иванов', referrer: 'https://erp/y' })).toMatchObject({ url: '/documents/:id', title: '', referrer: '' });
   });
 });

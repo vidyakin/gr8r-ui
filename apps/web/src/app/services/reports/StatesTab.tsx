@@ -1,6 +1,6 @@
 /* Отчёт «Состояние заказ-нарядов»: число и сумма по видам и состояниям, просроченные, процент выполнения
    (факт/план часов назначений). Просроченные строки выделены; клик открывает заказ-наряд. */
-import { dec, div, fmt, mul } from '@gr8r/shared';
+import { dec, div, fmt, mul } from '@erp/shared';
 import { fmtAmount, fmtNumber, useT } from '@/i18n';
 import { fmtDate } from '../../lib/dates';
 import { BarChart, type BarGroup } from '../../production/reports/BarChart';

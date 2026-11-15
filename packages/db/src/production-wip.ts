@@ -8,7 +8,7 @@
      с каждого этапа, а этап на нескольких завершающих участках отдаёт НЗП по порядку своих выпусков.
    Суммы маскирует API (себестоимость видят admin и owner). Полное движение НЗП — этап 9 (1091). */
 import { and, eq, inArray, lte, sql } from 'drizzle-orm';
-import { dec, div, fmt, mul } from '@gr8r/shared';
+import { dec, div, fmt, mul } from '@erp/shared';
 import type { Db } from './client';
 import { documentLines, documents, manufacturedItems, productionHeaders, productionItems, productionStages, workCenters } from './schema';
 

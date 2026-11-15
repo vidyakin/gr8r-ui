@@ -12,8 +12,8 @@
 import { zValidator } from '@hono/zod-validator';
 import { and, asc, count, desc, eq, isNotNull, isNull, or, sql, type SQL } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { entities, fieldExprSql, fields, recordEvent, records } from '@gr8r/db';
-import { dataSearchQuery, idParam, isMultiType, isNumericType, recordCreate, recordQuery, recordUpdate, SEARCHABLE_TYPES, type FieldType, type FilterOp, FILTER_OPS } from '@gr8r/shared';
+import { entities, fieldExprSql, fields, recordEvent, records } from '@erp/db';
+import { dataSearchQuery, idParam, isMultiType, isNumericType, recordCreate, recordQuery, recordUpdate, SEARCHABLE_TYPES, type FieldType, type FilterOp, FILTER_OPS } from '@erp/shared';
 import { z } from 'zod';
 import { ctxOf, validationHook } from '../crud';
 import { AppError, badRequest, notFound } from '../errors';

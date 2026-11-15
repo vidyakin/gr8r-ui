@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Sparkles } from 'lucide-react';
-import { MODULES, type ModuleId, type ModuleRequestRow } from '@gr8r/shared';
+import { MODULES, type ModuleId, type ModuleRequestRow } from '@erp/shared';
 import { Alert, Badge, Button, Checkbox, Dialog, DialogContent, Field, Input, Textarea, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { fmtDateTime, fmtDateTimeIntl } from '@/i18n/format';

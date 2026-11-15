@@ -1,5 +1,5 @@
 /* Каталог: общий код API и сидов. */
-import { OKEI_UNITS } from '@gr8r/shared';
+import { OKEI_UNITS } from '@erp/shared';
 import type { Db } from './client';
 import { units } from './schema';
 

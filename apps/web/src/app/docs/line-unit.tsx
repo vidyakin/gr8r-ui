@@ -1,6 +1,6 @@
 /* Единица строки документа (docs/plans/2026-11-14-product-packages.md): базовая единица товара или его упаковка.
    Количество и цена в форме — в единице строки; смена единицы сохраняет количество в базовых и сумму строки. */
-import { dec, fmt, mul, div } from '@gr8r/shared';
+import { dec, fmt, mul, div } from '@erp/shared';
 import { useT } from '@/i18n';
 import { unitSymbol, useProductUnits, type Unit } from '../catalog/data';
 

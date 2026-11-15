@@ -3,14 +3,14 @@
 import * as React from 'react';
 import { Link } from 'react-router';
 import { Badge, Field, Skeleton } from '@/components/ui';
-import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
+import { DataTable, useDataTable, type Column } from '@/components/erp/data-table';
 import { fmtAmount, fmtNumber, useT } from '@/i18n';
 import { iso, today, fmtDate, parse } from '../lib/dates';
 import { useIsAdmin } from '../catalog/data';
 import { SECTIONS } from '../routes';
 import { useFleetCosts, useFleetDocs, useFleetSummary, useServicePlans, type VehicleCost } from './data';
 import { FleetHead, TermBadge } from './parts';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 function Stat({ label, value, tone, to }: { label: string; value: number; tone?: 'red' | 'amber'; to: string }) {
   return (

@@ -1,6 +1,6 @@
 /* Каталог: единицы ОКЕИ, дерево категорий, характеристики с наследованием, товары и услуги, проверка attrs, изоляция арендаторов. */
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { OKEI_UNITS } from '@gr8r/shared';
+import { OKEI_UNITS } from '@erp/shared';
 import { Client, admin, drainJobs } from './helpers';
 
 let owner: Client;

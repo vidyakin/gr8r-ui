@@ -25,7 +25,7 @@ import {
   updateFleetTripCost,
   updateRateSchedule,
   updateTransportOrder,
-} from '@gr8r/db';
+} from '@erp/db';
 import {
   fleetTripCarrierSave,
   fleetTripCarrierUpdate,
@@ -43,7 +43,7 @@ import {
   transportOrderStatusChange,
   transportOrderToTrip,
   transportOrderUpdate,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import { z } from 'zod';
 import { AppError } from '../errors';
 import { ctxOf, validationHook } from '../crud';

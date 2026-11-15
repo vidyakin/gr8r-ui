@@ -1,7 +1,7 @@
 /* Компоненты, которые знают о данных воркспейса: аватар участника, строка задачи, запись активности. */
 import { Link } from 'react-router';
 import { Avatar, AvatarStack, Checkbox, Tooltip, toast, type AvatarSize } from '@/components/ui';
-import { DueDate, PriorityIcon, StatusIcon, priorityName } from '@/components/gr8r/task';
+import { DueDate, PriorityIcon, StatusIcon, priorityName } from '@/components/erp/task';
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
 import { ago, parse, relDate } from '../lib/dates';

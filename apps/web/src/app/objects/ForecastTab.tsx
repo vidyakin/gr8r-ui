@@ -5,7 +5,7 @@
    сменам и справка выручки. Суммы приходят только owner/admin: остальным вкладки нет, сервер отвечает 403. */
 import * as React from 'react';
 import { ChevronDown, ChevronRight, CircleAlert, Pencil, RotateCcw } from 'lucide-react';
-import { dec, fmt, type ObjectCostCategory } from '@gr8r/shared';
+import { dec, fmt, type ObjectCostCategory } from '@erp/shared';
 import { Badge, Button, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Skeleton, toast } from '@/components/ui';
 import { fmtAmount, fmtDateTime, fmtNumber, useT, type TKey } from '@/i18n';
 import { errorMessage } from '../data/api';

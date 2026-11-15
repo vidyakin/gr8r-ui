@@ -2,7 +2,7 @@
    и ячейки таблиц. Значения лежат в колонке custom записи; правка проверяется той же zod-схемой, что и на сервере. */
 import * as React from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { validateRecord } from '@gr8r/shared';
+import { validateRecord } from '@erp/shared';
 import { toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { useSession } from '../data/session';

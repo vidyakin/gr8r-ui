@@ -2,8 +2,8 @@
    стоимость нормативного состава — только admin и owner (maskBomReport). Правила — packages/db/src/production-reports.ts. */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
-import { bomReport, canSeeCost, costPlanFactReport, defectReport, loadReport, maskBomReport, maskCostPlanFact, maskWipMovement, ordersReport, planFactReport, releaseCostReport, releaseReport, wipMovementReport, workOrderCostReport } from '@gr8r/db';
-import { bomReportQuery, costPlanFactReportQuery, defectReportQuery, loadReportQuery, ordersReportQuery, planFactReportQuery, releaseCostReportQuery, releaseReportQuery, wipMovementReportQuery, workOrderCostReportQuery } from '@gr8r/shared';
+import { bomReport, canSeeCost, costPlanFactReport, defectReport, loadReport, maskBomReport, maskCostPlanFact, maskWipMovement, ordersReport, planFactReport, releaseCostReport, releaseReport, wipMovementReport, workOrderCostReport } from '@erp/db';
+import { bomReportQuery, costPlanFactReportQuery, defectReportQuery, loadReportQuery, ordersReportQuery, planFactReportQuery, releaseCostReportQuery, releaseReportQuery, wipMovementReportQuery, workOrderCostReportQuery } from '@erp/shared';
 import { ctxOf, validationHook } from '../crud';
 import { AppError } from '../errors';
 import type { AppEnv } from '../types';

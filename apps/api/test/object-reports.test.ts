@@ -3,7 +3,7 @@
    расписание (dueSchedules: нужный день и время, повтор в том же окне, выключено), задача воркера object.progress_report,
    печатный отчёт для заказчика без себестоимости, права на запись расписания и изоляция арендаторов. */
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { buildObjectDigest, dueSchedules, runScheduledObjectReport, withContext } from '@gr8r/db';
+import { buildObjectDigest, dueSchedules, runScheduledObjectReport, withContext } from '@erp/db';
 import { Client, addMember, admin, drainJobs, sql, uniq } from './helpers';
 import { runObjectReportsOnce } from '../../worker/src/object-reports';
 

@@ -3,8 +3,8 @@
    правят и удаляют шаблоны admin и owner. */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
-import { createProjectFromTemplate, deleteProjectTemplate, getProjectTemplate, listProjectTemplates, saveProjectAsTemplate, updateProjectTemplate } from '@gr8r/db';
-import { idParam, projectFromTemplate, projectTemplateFromProject, projectTemplateQuery, projectTemplateUpdate } from '@gr8r/shared';
+import { createProjectFromTemplate, deleteProjectTemplate, getProjectTemplate, listProjectTemplates, saveProjectAsTemplate, updateProjectTemplate } from '@erp/db';
+import { idParam, projectFromTemplate, projectTemplateFromProject, projectTemplateQuery, projectTemplateUpdate } from '@erp/shared';
 import { ctxOf, validationHook } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';

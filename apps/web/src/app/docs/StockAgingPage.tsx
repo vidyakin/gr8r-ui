@@ -3,10 +3,10 @@
 import * as React from 'react';
 import { CircleAlert, Hourglass } from 'lucide-react';
 import { Button, EmptyState, Skeleton } from '@/components/ui';
-import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/gr8r/data-table';
-import { FilterBar, useFilterState } from '@/components/gr8r/filter-bar';
-import { DateInput } from '@/components/gr8r/date-picker';
-import { Stat } from '@/components/gr8r/panel';
+import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/erp/data-table';
+import { FilterBar, useFilterState } from '@/components/erp/filter-bar';
+import { DateInput } from '@/components/erp/date-picker';
+import { Stat } from '@/components/erp/panel';
 import { useT } from '@/i18n';
 import { fmtAmount, fmtNumber } from '@/i18n/format';
 import { buildCategoryTree, useCategories, type CategoryNode } from '../catalog/data';

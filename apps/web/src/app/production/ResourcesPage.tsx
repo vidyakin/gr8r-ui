@@ -6,7 +6,7 @@ import { Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, Empty
 import { useIsAdmin } from '../catalog/data';
 import { usePlanningApi, useCalendarExceptions, useCalendars, useHolidays, useResources, type WorkCalendar } from './planning-data';
 import { useT } from '@/i18n';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 type Tab = 'resources' | 'calendars' | 'holidays' | 'exceptions';
 

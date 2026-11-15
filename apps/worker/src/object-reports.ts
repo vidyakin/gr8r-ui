@@ -3,8 +3,8 @@
    object.progress_report на каждое расписание. Выключенный модуль trade или опция construction — объект пропускается.
    Повторный проход в том же окне безопасен: отправка отмечает last_sent_at (packages/db/src/object-reports.ts). */
 import { and, eq, inArray } from 'drizzle-orm';
-import { dueSchedules, jobs, modulesByWorkspace, OBJECT_REPORT_JOB, withContext, workspaces, type Sql } from '@gr8r/db';
-import { hasIndustry, resolveIndustryOptions } from '@gr8r/shared';
+import { dueSchedules, jobs, modulesByWorkspace, OBJECT_REPORT_JOB, withContext, workspaces, type Sql } from '@erp/db';
+import { hasIndustry, resolveIndustryOptions } from '@erp/shared';
 
 /** Поставленные задачи за проход (для журнала воркера) */
 export async function runObjectReportsOnce(sql: Sql, at: Date = new Date()): Promise<number> {

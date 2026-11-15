@@ -1,7 +1,7 @@
 /* Демо воронок продаж (задача 1176): основная воронка «Продажи» с русскими этапами (нормативы, обязательные поля, вероятности)
    и вторая — «Сервис»; причины проигрыша; история этапов демо-сделок. */
 import { eq } from 'drizzle-orm';
-import { LEGACY_DEAL_STAGES, type LegacyDealStage, type StageTemplate } from '@gr8r/shared';
+import { LEGACY_DEAL_STAGES, type LegacyDealStage, type StageTemplate } from '@erp/shared';
 import type { Db } from './client';
 import { createPipeline, insertDeal, moveDeal } from './pipelines';
 import { dealLostReasons, dealStageHistory, dealStages, deals } from './schema';

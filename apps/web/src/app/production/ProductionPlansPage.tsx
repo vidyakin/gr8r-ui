@@ -3,7 +3,7 @@
 import { useNavigate, useSearchParams } from 'react-router';
 import { CalendarRange, CircleAlert, ClipboardList, Plus } from 'lucide-react';
 import { Badge, Button, EmptyState, Skeleton, toast } from '@/components/ui';
-import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
+import { DataTable, useDataTable, type Column } from '@/components/erp/data-table';
 import { fmtDate, parse } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';
 import { useWarehouses } from '../docs/data';

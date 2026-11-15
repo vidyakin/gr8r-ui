@@ -1,6 +1,6 @@
 /* Отчёт «Отклонения от графика»: по назначениям — плановые и фактические часы, плановый конец, закрытие задачи,
    отклонение в часах и днях; итоги по исполнителю и заказ-наряду. */
-import { dec, fmt } from '@gr8r/shared';
+import { dec, fmt } from '@erp/shared';
 import { useT } from '@/i18n';
 import { fmtDate } from '../../lib/dates';
 import { BarChart, type BarGroup } from '../../production/reports/BarChart';

@@ -6,8 +6,8 @@
 import { zValidator } from '@hono/zod-validator';
 import { and, asc, eq, isNull, max, ne, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { entities, fields, recordEvent, records, SYSTEM_TABLES } from '@gr8r/db';
-import { destroyQuery, entityCreate, entityQuery, entityUpdate, fieldCreate, fieldsReorder, fieldUpdate, keyFromName, uuid } from '@gr8r/shared';
+import { entities, fields, recordEvent, records, SYSTEM_TABLES } from '@erp/db';
+import { destroyQuery, entityCreate, entityQuery, entityUpdate, fieldCreate, fieldsReorder, fieldUpdate, keyFromName, uuid } from '@erp/shared';
 import { z } from 'zod';
 import { ctxOf, validationHook } from '../crud';
 import { AppError, badRequest, notFound } from '../errors';

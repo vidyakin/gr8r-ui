@@ -2,8 +2,8 @@
    «Оптимизировать порядок», ETA, сброс расчёта при правке, защита адреса сервера (SSRF), права и изоляция.
    Наружу запросов нет: `routingRuntime.fetch` подменён фикстурой (живых ключей Яндекса нет — реальные вызовы не проверялись). */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { routingFetcher, routingRuntime } from '@gr8r/db';
-import type { Fetcher, HttpCall } from '@gr8r/shared';
+import { routingFetcher, routingRuntime } from '@erp/db';
+import type { Fetcher, HttpCall } from '@erp/shared';
 import { defaultOptions, processJobsOnce } from '../../worker/src/worker';
 import { Client, admin, sql } from './helpers';
 

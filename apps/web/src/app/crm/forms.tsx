@@ -13,7 +13,7 @@ import { newCrmId, useCrm } from './store';
 import type { DealDefaults } from './ui-context';
 import { useMembersWith } from '../positions/data';
 import type { StageId } from './types';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 /** Поле формы: подпись, содержимое и ошибка */
 function FormField({ id, label, error, grow, children }: { id: string; label: string; error?: string; grow?: boolean; children: React.ReactNode }) {

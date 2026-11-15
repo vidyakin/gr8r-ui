@@ -2,7 +2,7 @@
    POST /chat/completions со structured output (json_schema) и температурой 0. Внешняя сеть — только из воркера;
    конфигурация из окружения, runtime-объект подменяется в тестах (как requestHookRuntime). Ошибки сети, 429 и 5xx —
    TransientError: задача повторится по расписанию воркера, остальные ошибки не повторяются вслепую. */
-import { TransientError } from '@gr8r/shared';
+import { TransientError } from '@erp/shared';
 
 export interface LlmConfig {
   baseUrl: string;

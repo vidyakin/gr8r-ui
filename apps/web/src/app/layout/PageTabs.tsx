@@ -20,7 +20,7 @@ export interface PageTab {
 
 /** Больше вкладок не держим: при переполнении закрывается самая левая неактивная */
 export const MAX_TABS = 20;
-const STORAGE = 'gr8r-ui.page-tabs.';
+const STORAGE = 'erp-ui.page-tabs.';
 
 function load(ws: string): PageTab[] {
   try {

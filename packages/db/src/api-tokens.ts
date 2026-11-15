@@ -3,7 +3,7 @@
    у сотрудника; read_only и sections ограничивают дополнительно. Хранится только sha256, полный токен отдаётся один раз. */
 import { createHash } from 'node:crypto';
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import type { PositionSection, Role } from '@gr8r/shared';
+import type { PositionSection, Role } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
@@ -74,7 +74,7 @@ export async function listApiTokens(db: Db, ctx: ApiTokenCtx): Promise<ApiTokenI
   return rows.map(r => toItem(r.t, r.memberName));
 }
 
-/** Выпуск токена: генерирует `gr8r_` + 32 байта base64url, хранит sha256 и первые 12 символов */
+/** Выпуск токена: генерирует `erp_` + 32 байта base64url, хранит sha256 и первые 12 символов */
 export async function createApiToken(db: Db, ctx: ApiTokenCtx, input: ApiTokenCreateInput): Promise<{ token: string; item: ApiTokenItem }> {
   const targetMemberId = input.memberId ?? ctx.memberId;
   if (!isAdmin(ctx.role) && targetMemberId !== ctx.memberId) throw new DomainError(403, 'forbidden', 'Only an admin can issue a token for another member');
@@ -93,7 +93,7 @@ export async function createApiToken(db: Db, ctx: ApiTokenCtx, input: ApiTokenCr
     if (bad.length) throw new DomainError(422, 'token_sections_exceed', 'Sections exceed the member positions', { sections: bad });
   }
 
-  const token = 'gr8r_' + Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url');
+  const token = 'erp_' + Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url');
   const [row] = await db
     .insert(apiTokens)
     .values({

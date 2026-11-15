@@ -1,7 +1,7 @@
 /* Процент выполнения объекта и суммы вех (задача 1272): каждый способ расчёта, null без базы,
    вехи — сумма или процент от стоимости договора, аванс отдельно от выполнения. */
 import { describe, expect, test } from 'bun:test';
-import { computeObjectProgress, milestoneAmount, milestonesDonePercent, percentOf, summarizeMilestones } from '@gr8r/shared';
+import { computeObjectProgress, milestoneAmount, milestonesDonePercent, percentOf, summarizeMilestones } from '@erp/shared';
 import { dec } from '../src/decimal';
 
 const closed = { status: 'done' };

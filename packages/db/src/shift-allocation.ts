@@ -6,7 +6,7 @@
    Стоимость доходит до продукции прибавкой к цене прихода (recomputeStockCosts в stock.ts): `production_items.alloc_cost`
    (материалы с накладными) — своя часть позиции, у промежуточного этапа она копится как НЗП и уходит в следующий этап. */
 import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
-import { allocateShiftMaterials, costShares, dec, fmt, mul, pctOf, type Dec, type ShiftTarget } from '@gr8r/shared';
+import { allocateShiftMaterials, costShares, dec, fmt, mul, pctOf, type Dec, type ShiftTarget } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { DOCUMENT_HOOKS } from './document-hooks';

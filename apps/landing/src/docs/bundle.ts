@@ -1,5 +1,5 @@
-/* Статьи docs/user, собранные в страницу /docs при сборке (те же файлы, что и справка в приложении). Рендер и поиск — пакет @gr8r/docs */
-import { buildCatalog } from '@gr8r/docs';
+/* Статьи docs/user, собранные в страницу /docs при сборке (те же файлы, что и справка в приложении). Рендер и поиск — пакет @erp/docs */
+import { buildCatalog } from '@erp/docs';
 
 const raw = import.meta.glob(['../../../../docs/user/**/*.md', '!**/README.md', '!**/_templates/**'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 const images = import.meta.glob('../../../../docs/user/img/*.{png,jpg,jpeg,webp,gif,svg}', { query: '?url', import: 'default', eager: true }) as Record<string, string>;

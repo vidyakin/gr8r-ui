@@ -2,7 +2,7 @@
 import { zValidator } from '@hono/zod-validator';
 import { and, count, eq, ne } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { assignLead, convertLead, findDuplicates, formToken, leadForms, leadStatuses, leads, loadLead, mergeLeads, newFormSecret, statusOfCategory } from '@gr8r/db';
+import { assignLead, convertLead, findDuplicates, formToken, leadForms, leadStatuses, leads, loadLead, mergeLeads, newFormSecret, statusOfCategory } from '@erp/db';
 import {
   idParam,
   leadAssign,
@@ -21,7 +21,7 @@ import {
   leadUpdate,
   normalizeEmail,
   normalizePhone,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import { crud, ctxOf, validationHook } from '../crud';
 import { AppError } from '../errors';
 import { hasRole, requireRole } from '../middleware';

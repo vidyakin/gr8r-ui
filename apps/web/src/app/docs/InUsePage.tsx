@@ -3,8 +3,8 @@
 import * as React from 'react';
 import { CircleAlert, PackageCheck } from 'lucide-react';
 import { Button, EmptyState, Skeleton } from '@/components/ui';
-import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/gr8r/data-table';
-import { FilterBar, useFilterState, type FilterField } from '@/components/gr8r/filter-bar';
+import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/erp/data-table';
+import { FilterBar, useFilterState, type FilterField } from '@/components/erp/filter-bar';
 import { useT } from '@/i18n';
 import { unitSymbol, useUnits } from '../catalog/data';
 import { useInUseBalances, type InUseBalance } from './data';

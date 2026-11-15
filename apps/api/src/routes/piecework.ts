@@ -19,7 +19,7 @@ import {
   pieceworkReport,
   setOperationSpec,
   updatePieceworkOrder,
-} from '@gr8r/db';
+} from '@erp/db';
 import {
   idParam,
   operationDone,
@@ -32,7 +32,7 @@ import {
   pieceworkReportQuery,
   pieceworkUpdate,
   productionAssignments,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';

@@ -1,7 +1,7 @@
 /* Вкладка «План-факт» карточки инвестпроекта: по статьям (план, факт, отклонение), по периодам и документы факта.
    Участник без права видеть суммы получает состав статей и документов без сумм. */
 import { Link } from 'react-router';
-import { dec, fmt } from '@gr8r/shared';
+import { dec, fmt } from '@erp/shared';
 import { Badge, Skeleton } from '@/components/ui';
 import { useT } from '@/i18n';
 import { typeLabel } from '../docs/data';

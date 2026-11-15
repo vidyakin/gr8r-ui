@@ -1,7 +1,7 @@
 /* Смена режима взаиморасчётов контрагента (`companies.settlement_mode`) с уже проведёнными документами: зачёты пересчитываются по новому режиму.
    Правила — docs/architecture/payments.md, «Смена режима расчётов». Вызывается из PATCH /companies/:id в той же транзакции, что и сама смена. */
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
-import { ACCRUAL_TYPES, dec, type DocumentType, type SettlementMode } from '@gr8r/shared';
+import { ACCRUAL_TYPES, dec, type DocumentType, type SettlementMode } from '@erp/shared';
 import type { Db } from './client';
 import { loadPeriodLock } from './cost-closing';
 import type { DocCtx } from './documents';

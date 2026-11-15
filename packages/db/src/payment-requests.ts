@@ -2,7 +2,7 @@
    согласует admin и выше (смена состояния), оплачивается документом РКО или списанием со счёта на основании заявки.
    Правила — docs/architecture/payments.md, «Платёжный календарь». */
 import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
-import { allocateRequest, dec, fmt, REQUEST_STATES, requestTransitions, type PaymentLineInput } from '@gr8r/shared';
+import { allocateRequest, dec, fmt, REQUEST_STATES, requestTransitions, type PaymentLineInput } from '@erp/shared';
 import type { Db } from './client';
 import { DOCUMENT_HOOKS, STATE_PROVIDERS, type DynamicStateDef } from './document-hooks';
 import type { DocCtx } from './documents';

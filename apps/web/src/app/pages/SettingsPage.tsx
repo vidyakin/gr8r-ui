@@ -21,7 +21,7 @@ import { TenantsSection } from '../settings/tenants';
 import { PlansSection } from '../settings/plans';
 import { RequestsSection } from '../settings/requests';
 import { useLicense } from '../licensing/data';
-import { MODULE_OF_SETTING } from '@gr8r/shared';
+import { MODULE_OF_SETTING } from '@erp/shared';
 import { useSession } from '../data/session';
 import { NotificationsSection, PreferencesSection, ProfileSection, ShortcutsSection } from '../settings/personal';
 import { InvoicesSection, PasswordSection, PaymentSection, PlanSection, SessionsSection } from '../settings/account';

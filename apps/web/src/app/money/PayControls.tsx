@@ -1,7 +1,7 @@
 /* «Оплачено / к оплате» и кнопка «Оплатить» в документе расчётов: счёт, заказ, реализация, акт, заказ-наряд, поступление, возвраты */
 import { useNavigate } from 'react-router';
 import { Banknote, ChevronDown, Link2 } from 'lucide-react';
-import { PAYABLE_TYPES } from '@gr8r/shared';
+import { PAYABLE_TYPES } from '@erp/shared';
 import { Badge, Button, Menu, MenuContent, MenuItem, MenuTrigger, toast } from '@/components/ui';
 import { fmtAmount, useT } from '@/i18n';
 import { errorMessage } from '../data/api';

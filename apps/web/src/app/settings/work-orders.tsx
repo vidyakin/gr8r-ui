@@ -3,7 +3,7 @@
    если на нём есть заказ-наряды или оно последнее в своей категории. Меняет admin и выше. */
 import * as React from 'react';
 import { ClipboardList, Plus, Trash2 } from 'lucide-react';
-import { WORK_ORDER_KIND_TYPES, WORK_ORDER_STATE_CATEGORIES, type WorkOrderKindType, type WorkOrderStateCategory } from '@gr8r/shared';
+import { WORK_ORDER_KIND_TYPES, WORK_ORDER_STATE_CATEGORIES, type WorkOrderKindType, type WorkOrderStateCategory } from '@erp/shared';
 import { Alert, Badge, Button, EmptyState, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
 import { useIsAdmin } from '../catalog/data';
 import { useDocsApi, useDocumentStates, useWorkOrderKinds } from '../docs/data';

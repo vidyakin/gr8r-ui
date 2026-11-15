@@ -8,7 +8,7 @@ import { fmtDate } from '../lib/dates';
 import { useCanSeeAmounts as useCanManage } from '../finance/data';
 import { typeLabel, useOrganizations } from '../docs/data';
 import { useBalances, useCashFlowItems, useCashFlowReport, useCashRegisters, useDebtReport, useRefsApi } from './data';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const yearStart = () => `${new Date().getFullYear()}-01-01`;

@@ -1,5 +1,5 @@
 {
-  "name": "@gr8r/web",
+  "name": "@erp/web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,9 +10,9 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "@gr8r/api": "workspace:*",
-    "@gr8r/docs": "workspace:*",
-    "@gr8r/shared": "workspace:*",
+    "@erp/api": "workspace:*",
+    "@erp/docs": "workspace:*",
+    "@erp/shared": "workspace:*",
     "@tanstack/react-query": "^5.104.5",
     "@xyflow/react": "^12.12.0",
     "class-variance-authority": "^0.7.1",

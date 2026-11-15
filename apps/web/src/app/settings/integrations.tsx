@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { KeyRound, Plus } from 'lucide-react';
-import { SECRET_KEY_RE } from '@gr8r/shared';
+import { SECRET_KEY_RE } from '@erp/shared';
 import { Alert, Badge, Button, ConfirmDialog, EmptyState, Field, Input, Skeleton, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { fmtDateTime } from '@/i18n/format';

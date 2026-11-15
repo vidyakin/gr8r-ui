@@ -70,7 +70,7 @@ import {
 } from '@/components/ui';
 import { Calendar } from '@/components/shadcn/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/shadcn/card';
-import { PRIORITIES, PriorityIcon, priorityName, STATUSES, StatusIcon, TaskCard, type Task } from '@/components/gr8r/task';
+import { PRIORITIES, PriorityIcon, priorityName, STATUSES, StatusIcon, TaskCard, type Task } from '@/components/erp/task';
 import { fmtDateTimeIntl, useT } from '@/i18n';
 
 const d = (n: number) => new Date(Date.now() + n * 864e5);

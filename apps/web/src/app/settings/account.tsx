@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useNavigate } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, CircleAlert, CircleCheck, CreditCard, LogOut, Monitor, Smartphone, Sparkles } from 'lucide-react';
-import { LIMIT_KEYS, MODULE_IDS, usageOf, type LimitKey } from '@gr8r/shared';
+import { LIMIT_KEYS, MODULE_IDS, usageOf, type LimitKey } from '@erp/shared';
 import { Badge, Button, toast } from '@/components/ui';
 import { ApiError, apiFor, errorMessage, ok } from '../data/api';
 import { useLicense, useLicenseUsage } from '../licensing/data';
@@ -294,7 +294,7 @@ export function PaymentSection({ title }: { title: string }) {
       </SRow>
       <SRow t={t('settings.payment.billingEmail')} d={t('settings.payment.billingEmailHint')}>
         <span className="muted" style={{ userSelect: 'all' }}>
-          hello@gr8rstudio.com
+          hello@future-erp.com
         </span>
       </SRow>
       <SRow t={t('settings.payment.billingAddress')} d={t('settings.payment.billingAddressValue')}>

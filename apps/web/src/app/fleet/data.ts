@@ -3,7 +3,7 @@
 import { withPrintCsp } from '@/lib/print-csp';
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { DocTermState, FleetDocKind, FineStatus, RepairKind, RepairStatus, ServiceDue, VehicleKind, VehicleStatus, WaybillFuelResult, WaybillStatus, FuelType } from '@gr8r/shared';
+import type { DocTermState, FleetDocKind, FineStatus, RepairKind, RepairStatus, ServiceDue, VehicleKind, VehicleStatus, WaybillFuelResult, WaybillStatus, FuelType } from '@erp/shared';
 import { API_BASE } from '../data/api';
 import { errorMessage } from '../data/api';
 import { toast } from '@/components/ui';

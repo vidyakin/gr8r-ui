@@ -28,7 +28,7 @@
 
 ## Стек и структура
 - Bun workspaces. `apps/web` — React 19 + TS + Vite + Tailwind v4 + Radix (shadcn-совместимо), TanStack Query, @xyflow/react. `apps/api` — Hono + WebSocket. `apps/worker` — очередь jobs/events, автоматизации, PDF. `packages/shared` — zod-схемы, типы, decimal, BOM, узлы автоматизаций. `packages/db` — Drizzle, миграции, RLS.
-- UI-кит: `apps/web/src/components/ui` и `apps/web/src/components/gr8r` — переиспользовать, не дублировать.
+- UI-кит: `apps/web/src/components/ui` и `apps/web/src/components/erp` — переиспользовать, не дублировать.
 - Мультитенантность через RLS по `workspace_id`; запросы API идут под `app_user`, DDL — только воркер (`DATABASE_URL_DDL`).
 
 ## Запуск
@@ -37,7 +37,7 @@ bun install && cp .env.example .env
 docker compose up -d db   # или свой Postgres 16, адреса в .env
 bun run db:reset && bun run dev
 ```
-Демо: `demo@gr8r.dev` / `demo1234`, второй арендатор `bob@acme.test` / `bob12345`.
+Демо: `demo@future-erp.dev` / `demo1234`, второй арендатор `bob@acme.test` / `bob12345`.
 
 ## Состояние и открытые вопросы
 - Прогресс: статусы задач — TaskFlow (сессия 46 — услуги и CRM); что сделано по этапам — `docs/architecture/stages.md`; решения и «Фактическая реализация» каждой задачи — `docs/plans/2026-10-21-unf-*.md`.

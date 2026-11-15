@@ -6,7 +6,7 @@ import { BarChart, type BarGroup } from './BarChart';
 import { useLoadReport, type LoadReportRow } from './reports-data';
 import { ReportTable, type GroupLevel, type ReportColumn } from './ReportTable';
 import { ChartPanel, num, ReportState, type TabProps } from './shared';
-import { dec, div, fmt, mul } from '@gr8r/shared';
+import { dec, div, fmt, mul } from '@erp/shared';
 
 /** Плоская строка: день участка */
 interface DayRow {

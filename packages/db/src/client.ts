@@ -26,7 +26,7 @@ export { schema };
 
 /** Выделенное соединение LISTEN (postgres.js переподключается и подписывается заново). Возвращает функцию остановки */
 export async function listenChannel(url: string, channel: string, onMessage: (payload: string) => void): Promise<() => Promise<void>> {
-  const listener = postgres(url, { max: 1, onnotice: () => {}, idle_timeout: 0, connection: { application_name: 'gr8r-listener' } });
+  const listener = postgres(url, { max: 1, onnotice: () => {}, idle_timeout: 0, connection: { application_name: 'erp-listener' } });
   const sub = await listener.listen(channel, onMessage);
   return async () => {
     await sub.unlisten();

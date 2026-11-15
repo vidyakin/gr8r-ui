@@ -3,7 +3,7 @@
    Остаток блокируется строкой customer_stock_balances (FOR UPDATE, ключи в одном порядке — без взаимных блокировок),
    поэтому две параллельные проводки по одному ключу не могут вместе уйти в минус. */
 import { and, asc, eq, inArray, or, sql } from 'drizzle-orm';
-import { dec, fmt, type Dec } from '@gr8r/shared';
+import { dec, fmt, type Dec } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { companies, customerStockBalances, customerStockMoves, documents, products, warehouses } from './schema';

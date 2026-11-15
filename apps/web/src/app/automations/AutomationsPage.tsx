@@ -2,9 +2,9 @@
 import * as React from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { CircleAlert, Plus, Trash2, Zap } from 'lucide-react';
-import { getNodeDef } from '@gr8r/shared';
+import { getNodeDef } from '@erp/shared';
 import { Badge, Button, ConfirmDialog, EmptyState, Skeleton, Tab, Tabs, TabsList, toast } from '@/components/ui';
-import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
+import { DataTable, useDataTable, type Column } from '@/components/erp/data-table';
 import { useT, type TKey } from '@/i18n';
 import { useIsAdmin } from '../catalog/data';
 import { ago } from '../lib/dates';

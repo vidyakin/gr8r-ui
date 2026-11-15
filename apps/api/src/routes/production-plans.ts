@@ -16,8 +16,8 @@ import {
   productionPlanNeeds,
   removePlanSemi,
   updateProductionPlan,
-} from '@gr8r/db';
-import { idParam, planWorkbenchQuery, productionPlanCreate, productionPlanFill, productionPlanOrders, productionPlanQuery, productionPlanSemi, productionPlanUpdate } from '@gr8r/shared';
+} from '@erp/db';
+import { idParam, planWorkbenchQuery, productionPlanCreate, productionPlanFill, productionPlanOrders, productionPlanQuery, productionPlanSemi, productionPlanUpdate } from '@erp/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';

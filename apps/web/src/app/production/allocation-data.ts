@@ -1,7 +1,7 @@
 /* Документ «Распределение материалов» на клиенте (задача 1135): журнал, карточка и действия.
    Ключи лежат под `production`, поэтому событие документа обновляет их вместе с остальным производством. */
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { DocumentStatus } from '@gr8r/shared';
+import type { DocumentStatus } from '@erp/shared';
 import { call, useWsId } from '../meta/data';
 
 export interface AllocationListItem {

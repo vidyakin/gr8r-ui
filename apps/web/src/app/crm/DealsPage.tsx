@@ -2,9 +2,9 @@
 import * as React from 'react';
 import { Building2, CircleDot, Plus, SquareKanban, Table2, User } from 'lucide-react';
 import { Button, Checkbox, EmptyState, Segmented } from '@/components/ui';
-import { DataTable, columnsMenu, sortRows, useDataTable } from '@/components/gr8r/data-table';
-import { FilterBar, useFilterState, type FilterField } from '@/components/gr8r/filter-bar';
-import { Kanban } from '@/components/gr8r/kanban';
+import { DataTable, columnsMenu, sortRows, useDataTable } from '@/components/erp/data-table';
+import { FilterBar, useFilterState, type FilterField } from '@/components/erp/filter-bar';
+import { Kanban } from '@/components/erp/kanban';
 import { useWorkspace } from '../data/store';
 import { MemberAvatar } from '../components/workspace';
 import { useT } from '@/i18n';

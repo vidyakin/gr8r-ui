@@ -6,7 +6,7 @@
 | HTTP | Hono (`hono/bun`), валидация `@hono/zod-validator`, типизированный клиент `hono/client` |
 | БД | PostgreSQL 16, Drizzle ORM + drizzle-kit (миграции SQL в репозитории) |
 | Схемы | Zod — общие для API и фронтенда (`packages/shared`) |
-| Фронтенд | React 19 + Vite, TanStack Query для серверного состояния; клиент API — `@gr8r/api/client` (hono/client) |
+| Фронтенд | React 19 + Vite, TanStack Query для серверного состояния; клиент API — `@erp/api/client` (hono/client) |
 | Реальное время | WebSocket (`upgradeWebSocket` из `hono/bun`), события по арендатору |
 | Файлы | S3-совместимое хранилище (MinIO локально): вложения к объектам (`attachments.md`); PDF печатных форм лежат в БД (`document_files`), `s3PdfStore` — заготовка |
 | Фоновые задачи | таблица `jobs` + воркер на `FOR UPDATE SKIP LOCKED` (без внешних брокеров) |
@@ -21,7 +21,7 @@ apps/
   worker/     фоновые задачи: outbox событий, очередь jobs (DDL по белому списку — индексы полей конструктора; PDF печатных форм в headless Chromium), движок автоматизаций (`src/flows`); позже — пересчёты
 packages/
   shared/     доменные типы, zod-схемы API, константы (статусы, приоритеты 1–10, роли, ставки НДС, единицы ОКЕИ),
-              демо-данные (`@gr8r/shared/demo`: их используют и фронтенд в локальном режиме, и сид БД)
+              демо-данные (`@erp/shared/demo`: их используют и фронтенд в локальном режиме, и сид БД)
   db/         drizzle-схема, SQL-миграции (`drizzle/`), RLS, uuid v7, сид, утилиты администрирования БД
 docs/
 test/         preload для `bun test` (тестовая БД пересоздаётся при каждом запуске)

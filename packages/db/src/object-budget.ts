@@ -15,7 +15,7 @@ import {
   type BudgetPolicy,
   type ObjectCostCategory,
   type Role,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import type { Db } from './client';
 import { canSeeCost } from './cost';
 import { DomainError } from './errors';

@@ -1,7 +1,7 @@
 /* Сайт документации (/docs): оглавление по группам, статья, поиск. Адрес статьи — в хеше (`#/finance/payments`),
    поэтому серверу хватает одного файла docs/index.html. */
 import * as React from 'react';
-import { renderMarkdown, searchDocs, tocOf } from '@gr8r/docs';
+import { renderMarkdown, searchDocs, tocOf } from '@erp/docs';
 import { Brand } from '../demo/shell';
 import { catalog, imageUrl } from './bundle';
 

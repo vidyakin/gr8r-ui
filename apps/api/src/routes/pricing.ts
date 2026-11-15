@@ -41,7 +41,7 @@ import {
   updatePriceLink,
   updatePriceSetting,
   type ImportRowIn,
-} from '@gr8r/db';
+} from '@erp/db';
 import {
   detectImportColumns,
   idParam,
@@ -71,7 +71,7 @@ import {
   productPricesQuery,
   renderPriceList,
   uuid,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { ctxOf, validationHook, type Ctx } from '../crud';

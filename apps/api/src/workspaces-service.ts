@@ -1,6 +1,6 @@
 /* Операции над воркспейсами, общие для регистрации и /workspaces: создание (создатель — owner), список моих. */
 import { and, eq, isNull, sql as dsql } from 'drizzle-orm';
-import { initWorkspace, memberships, slugify, uuidv7, withContext, workspaces, type Sql } from '@gr8r/db';
+import { initWorkspace, memberships, slugify, uuidv7, withContext, workspaces, type Sql } from '@erp/db';
 import type { SessionUser } from './types';
 
 export { slugify };

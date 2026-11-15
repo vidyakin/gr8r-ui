@@ -9,7 +9,7 @@ import { fmtDate } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';
 import { call, useWsId } from '../meta/data';
 import { moneyKey, usePrintOpener, useSettlementCard } from './data';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 const today = () => new Date().toISOString().slice(0, 10);
 

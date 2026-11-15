@@ -180,10 +180,10 @@ export const catalog = {
   },
 };
 
-/** Подписи значений из @gr8r/shared (VAT_LABELS, FIELD_TYPE_LABELS, …): переводятся по значению, без перевода — подпись из shared */
+/** Подписи значений из @erp/shared (VAT_LABELS, FIELD_TYPE_LABELS, …): переводятся по значению, без перевода — подпись из shared */
 export const enums = {
   vat: { none: 'No VAT' },
-  /** Периодичность биллинга по договору (месяц / квартал / год) — см. BILLING_PERIODICITY_LABELS в @gr8r/shared */
+  /** Периодичность биллинга по договору (месяц / квартал / год) — см. BILLING_PERIODICITY_LABELS в @erp/shared */
   periodicity: { month: 'Monthly', quarter: 'Quarterly', year: 'Yearly' },
   replenishment: { purchase: 'Purchase', production: 'Production', transfer: 'Transfer' },
   docStatus: { draft: 'Draft', posted: 'Posted', cancelled: 'Cancelled' },
@@ -205,7 +205,7 @@ export const enums = {
     email: 'Email',
     phone: 'Phone',
   },
-  /** Подписи из @gr8r/shared: PRINT_FORM_LABELS и др. (печатные формы переводятся только названием, содержимое — русское) */
+  /** Подписи из @erp/shared: PRINT_FORM_LABELS и др. (печатные формы переводятся только названием, содержимое — русское) */
   printForm: {
     quote: 'Commercial proposal',
     invoice: 'Invoice for payment',

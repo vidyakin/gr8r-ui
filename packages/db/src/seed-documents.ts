@@ -1,7 +1,7 @@
 /* Демо документов и склада для демо-воркспейса: организация «ООО «Гр8р Студия»» (ОСН, НДС 20%), два склада, реквизиты у пяти компаний CRM
    и две цепочки документов, проведённые настоящими сервисами (поэтому остатки, резервы и средняя себестоимость — как у живых данных):
    «заказ поставщику → поступление» и «заказ покупателя → счёт → реализация (УПД)» + акт услуг. Данные — на русском, интерфейс английский. */
-import { accountKeyOk, DEFAULT_QUOTE_TEMPLATE, makeInn, makeOgrn, monthPeriod } from '@gr8r/shared';
+import { accountKeyOk, DEFAULT_QUOTE_TEMPLATE, makeInn, makeOgrn, monthPeriod } from '@erp/shared';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { Db } from './client';
 import { changeDocumentState, createBasedOn, createDocument, ensureCostItems, postDocument, updateDocument, type DocCtx } from './documents';
@@ -13,7 +13,7 @@ import { createTemplate, createVariant } from './quotes';
 import './internal-ops';
 import { bankAccounts, companies, costItems, defectReasons, documentLines, organizations, productManufacturing, products, stockLevels, tasks, timeLogs, warehouses, workCenters, workspaces, manufacturedItems } from './schema';
 import { productionPlanLines, productionPlans } from './schema';
-import { planPeriods } from '@gr8r/shared';
+import { planPeriods } from '@erp/shared';
 import { createProductionFromOrder, createProductionOrder, createSupplierOrdersForOrder, fillOrderFromBom, setComponentOwner } from './production';
 import { createProcessorReport, createProcessorTransfer } from './tolling';
 import { createOtherCosts } from './other-costs';
@@ -73,7 +73,7 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
       legalAddress: '125009, г. Москва, ул. Тверская, д. 12, стр. 1, офис 5',
       actualAddress: '125009, г. Москва, ул. Тверская, д. 12, стр. 1, офис 5',
       phone: '+7 (495) 123-45-67',
-      email: 'office@gr8r.example',
+      email: 'office@future-erp.com',
       directorName: 'Соколов Андрей Викторович',
       directorTitle: 'Генеральный директор',
       accountantName: 'Кузнецова Марина Олеговна',

@@ -25,7 +25,7 @@ import {
   workOrderDetail,
   workOrderKinds,
   workOrderTime,
-} from '@gr8r/db';
+} from '@erp/db';
 import {
   documentStateCreate,
   documentStateQuery,
@@ -41,7 +41,7 @@ import {
   workOrderKindQuery,
   workOrderKindUpdate,
   workOrderMaterialInput,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import { crud, ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError, notFound } from '../errors';
 import { notify } from './helpers';

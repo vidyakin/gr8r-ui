@@ -1,5 +1,5 @@
 /* Запись клиентов на приём (задача 1171): /appointments. Читают все, пишут member и выше; график правят admin/owner и сам специалист.
-   Правила — packages/db/src/appointments.ts и @gr8r/shared (appointments). Документ дня — тип service_day, проведение общее (/documents не нужен). */
+   Правила — packages/db/src/appointments.ts и @erp/shared (appointments). Документ дня — тип service_day, проведение общее (/documents не нужен). */
 import { zValidator } from '@hono/zod-validator';
 import { Hono, type Context } from 'hono';
 import { z } from 'zod';
@@ -29,7 +29,7 @@ import {
   updateServiceDay,
   weekBoard,
   workspaceTimeZone,
-} from '@gr8r/db';
+} from '@erp/db';
 import {
   appointmentCancel,
   appointmentClientCreate,
@@ -48,7 +48,7 @@ import {
   unclosedDaysQuery,
   isoDate,
   uuid,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError } from '../errors';
 import { requireRole } from '../middleware';

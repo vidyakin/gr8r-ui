@@ -2,7 +2,7 @@
    записи на текущую неделю во всех статусах и один незакрытый день (визиты «пришёл» без документа дня). Даты — от сегодняшнего дня,
    записи создаёт настоящий сервис (проверка слотов и пересечений). */
 import { and, asc, eq, ne } from 'drizzle-orm';
-import { addDaysIso, weekStartOf, weekdayOf, type AppointmentStatus } from '@gr8r/shared';
+import { addDaysIso, weekStartOf, weekdayOf, type AppointmentStatus } from '@erp/shared';
 import type { Db } from './client';
 import { createAppointment, saveSchedule, setAppointmentStatus } from './appointments';
 import type { DocCtx } from './documents';

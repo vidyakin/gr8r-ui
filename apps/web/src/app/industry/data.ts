@@ -2,7 +2,7 @@
    Набор приходит с GET /workspaces (сессия, ключ ['session']); событие workspace.updated сбрасывает его через realtime.
    Пока список моих воркспейсов грузится, все опции считаются включёнными — чтобы меню и карточки не мигали.
    Это только вид интерфейса: API, правила проведения и данные от опций не зависят. */
-import { hasIndustry, type IndustryOption } from '@gr8r/shared';
+import { hasIndustry, type IndustryOption } from '@erp/shared';
 import { useSession } from '../data/session';
 import { SECTIONS, type SectionId } from '../routes';
 

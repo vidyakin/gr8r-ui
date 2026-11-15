@@ -2,7 +2,7 @@
    Расчёт сервер делает на лету по проведённым документам, поэтому кэш помечается устаревшим событиями
    document / company / workspace (app/data/realtime.ts). */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { SupplierRatingLevel, SupplierRatingWeights } from '@gr8r/shared';
+import type { SupplierRatingLevel, SupplierRatingWeights } from '@erp/shared';
 import { errorMessage } from '../data/api';
 import { iso } from '../lib/dates';
 import { call, useWsId } from '../meta/data';

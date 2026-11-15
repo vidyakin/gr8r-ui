@@ -20,7 +20,7 @@ function loadRootEnv() {
 }
 loadRootEnv();
 
-const DEFAULT_ADMIN = 'postgres://postgres@127.0.0.1:5433/gr8r_dev';
+const DEFAULT_ADMIN = 'postgres://postgres@127.0.0.1:5433/futureerp_dev';
 
 export function databaseUrl(): string {
   return process.env.DATABASE_URL ?? process.env.ADMIN_DATABASE_URL ?? DEFAULT_ADMIN;

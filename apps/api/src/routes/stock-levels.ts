@@ -2,8 +2,8 @@
    Чтение — любой участник; нормы меняет member и выше (как у соседних маршрутов производства). */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
-import { listStockLevels, maskCost, setStockLevels, supplierHistory } from '@gr8r/db';
-import { stockLevelsQuery, stockLevelsSet } from '@gr8r/shared';
+import { listStockLevels, maskCost, setStockLevels, supplierHistory } from '@erp/db';
+import { stockLevelsQuery, stockLevelsSet } from '@erp/shared';
 import { ctxOf, validationHook } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';

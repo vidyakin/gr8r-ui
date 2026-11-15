@@ -4,9 +4,9 @@
 import * as React from 'react';
 import { Link } from 'react-router';
 import { Plus, Printer, Trash2, Truck } from 'lucide-react';
-import { DELIVERY_STATUSES, type DeliveryStatus } from '@gr8r/shared';
+import { DELIVERY_STATUSES, type DeliveryStatus } from '@erp/shared';
 import { Badge, Button, ConfirmDialog, EmptyState, Field, Input, Select, Skeleton, Textarea, toast, type Tone } from '@/components/ui';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 import { fmtAmount, useT } from '@/i18n';
 import { fmtDate, parse } from '../lib/dates';
 import { useWorkspace } from '../data/store';

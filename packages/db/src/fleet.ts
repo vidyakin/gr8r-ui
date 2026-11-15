@@ -1,5 +1,5 @@
 /* Автопарк (задача 1210; docs/architecture/fleet.md): машины, водители, документы со сроками, путевые листы, топливо, регламент ТО,
-   ремонты с запчастями со склада, штрафы, затраты на машину. Расчёты норм и сроков — чистые функции из @gr8r/shared (fleet.ts).
+   ремонты с запчастями со склада, штрафы, затраты на машину. Расчёты норм и сроков — чистые функции из @erp/shared (fleet.ts).
    Затраты не копятся в своей бухгалтерии: каждая запись несёт статью затрат, сумму и день (как доставка), запчасти со склада
    списывает обычный документ «Списание». */
 import { and, asc, desc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
@@ -23,7 +23,7 @@ import {
   type FleetDocKind,
   type FuelCsvRow,
   type WaybillPrintData,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';

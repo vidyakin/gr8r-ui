@@ -8,7 +8,7 @@ import { users, workspaces } from './core';
 import { members } from './people';
 import { wsCol } from './tenant';
 
-/** Справочник тарифов оператора. Модули — идентификаторы каталога в коде (`MODULES` в @gr8r/shared) */
+/** Справочник тарифов оператора. Модули — идентификаторы каталога в коде (`MODULES` в @erp/shared) */
 export const licensePlans = pgTable(
   'license_plans',
   {

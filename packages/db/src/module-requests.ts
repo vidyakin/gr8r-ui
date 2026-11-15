@@ -2,7 +2,7 @@
    (таблица module_requests под RLS), оператор читает все и ведёт статус функциями app_operator_requests / app_operator_set_request.
    Если у установки задан OPERATOR_LEAD_HOOK_URL, воркер дублирует заявку лидом в вебхук лидов (задача module_request.notify, с повтором). */
 import { desc, eq, sql as dsql } from 'drizzle-orm';
-import type { ModuleRequestBody, ModuleRequestRow, OperatorModuleRequest, RequestStatus } from '@gr8r/shared';
+import type { ModuleRequestBody, ModuleRequestRow, OperatorModuleRequest, RequestStatus } from '@erp/shared';
 import type { Db, Sql } from './client';
 import { call } from './licensing';
 import { recordEvent } from './events';

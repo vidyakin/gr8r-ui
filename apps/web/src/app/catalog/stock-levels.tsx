@@ -3,10 +3,10 @@
    Нормы читает общий расчёт потребностей (/production/needs). */
 import * as React from 'react';
 import { Boxes, Plus, Trash2 } from 'lucide-react';
-import type { StockReplenishment } from '@gr8r/shared';
-import { STOCK_REPLENISHMENT_LABELS } from '@gr8r/shared';
+import type { StockReplenishment } from '@erp/shared';
+import { STOCK_REPLENISHMENT_LABELS } from '@erp/shared';
 import { Button, IconButton, Input, toast } from '@/components/ui';
-import { DrawerSection } from '@/components/gr8r/entity-drawer';
+import { DrawerSection } from '@/components/erp/entity-drawer';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';
 import { useQuery, useQueryClient } from '@tanstack/react-query';

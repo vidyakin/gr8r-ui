@@ -1,7 +1,7 @@
 /* Сводный план-факт: вложения и поступления всех неархивных проектов — план, факт, отклонение; NPV плана и прогноза */
 import { Link } from 'react-router';
 import { CircleAlert, Scale } from 'lucide-react';
-import { dec, fmt, type InvestmentMetrics } from '@gr8r/shared';
+import { dec, fmt, type InvestmentMetrics } from '@erp/shared';
 import { Badge, Button, EmptyState, Skeleton } from '@/components/ui';
 import { useT } from '@/i18n';
 import { useCanSeeAmounts, useInvestments } from './data';

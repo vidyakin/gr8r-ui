@@ -1,7 +1,7 @@
 /* Settings → Lead statuses / Lead forms (задача 1175): статусы с категориями и цветом, формы сайта с адресом вебхука. Правят admin и owner. */
 import * as React from 'react';
 import { ArrowDown, ArrowUp, Copy, Globe, ListOrdered, Plus, RefreshCw, Trash2 } from 'lucide-react';
-import { LEAD_STATUS_CATEGORIES, LEAD_STATUS_COLORS, type LeadStatusCategory } from '@gr8r/shared';
+import { LEAD_STATUS_CATEGORIES, LEAD_STATUS_COLORS, type LeadStatusCategory } from '@erp/shared';
 import { Alert, Badge, Button, ConfirmDialog, EmptyState, Field, Input, Select, Skeleton, Switch, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { useIsAdmin } from '../catalog/data';

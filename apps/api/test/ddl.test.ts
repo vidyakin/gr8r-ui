@@ -1,7 +1,7 @@
 /* DDL вынесен из API: логин-роль API не может стать владельцем таблиц, индексы полей конструктора строит воркер
    по задачам из очереди jobs через отдельное подключение (DATABASE_URL_DDL) и только по белому списку операций. */
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { uuidv7 } from '@gr8r/db';
+import { uuidv7 } from '@erp/db';
 import { defaultOptions, processJobsOnce } from '../../worker/src/worker';
 import { Client, admin, ddl, drainJobs, sql } from './helpers';
 
@@ -35,12 +35,12 @@ describe('the API login role has no owner rights', () => {
     expect(e2?.message).toMatch(/permission denied/i);
   });
 
-  test('role memberships: gr8r_app is only in app_user / app_worker; the DDL role inherits app_owner and nothing else', async () => {
+  test('role memberships: futureerp_app is only in app_user / app_worker; the DDL role inherits app_owner and nothing else', async () => {
     const m = (user: string) =>
       admin.unsafe(`select r.rolname, am.inherit_option as inherit, am.set_option as "set" from pg_auth_members am join pg_roles r on r.oid = am.roleid join pg_roles u on u.oid = am.member where u.rolname = '${user}' order by 1`);
-    expect((await m('gr8r_app')).map((r: any) => r.rolname)).toEqual(['app_user', 'app_worker']);
-    expect(JSON.parse(JSON.stringify(await m('gr8r_ddl')))).toEqual([{ rolname: 'app_owner', inherit: true, set: false }]);
-    const [r] = await admin`select rolsuper, rolbypassrls, rolcreatedb, rolcreaterole from pg_roles where rolname = 'gr8r_ddl'`;
+    expect((await m('futureerp_app')).map((r: any) => r.rolname)).toEqual(['app_user', 'app_worker']);
+    expect(JSON.parse(JSON.stringify(await m('futureerp_ddl')))).toEqual([{ rolname: 'app_owner', inherit: true, set: false }]);
+    const [r] = await admin`select rolsuper, rolbypassrls, rolcreatedb, rolcreaterole from pg_roles where rolname = 'futureerp_ddl'`;
     expect(r).toEqual({ rolsuper: false, rolbypassrls: false, rolcreatedb: false, rolcreaterole: false });
   });
 });

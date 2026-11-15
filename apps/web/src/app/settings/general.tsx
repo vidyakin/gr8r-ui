@@ -18,7 +18,7 @@ import { ConfirmModal } from '../overlays/project-dialogs';
 import { SECTIONS } from '../routes';
 import { PermsTable, TeamsGrid } from '../pages/MembersPage';
 import { useBillingApi, useWorkspaceTimezone } from '../docs/billing-data';
-import { INDUSTRY_OPTIONS, type IndustryOption } from '@gr8r/shared';
+import { INDUSTRY_OPTIONS, type IndustryOption } from '@erp/shared';
 import { useIsAdmin } from '../catalog/data';
 import { PrefSelect, SRow, SettingsHead, Toggle } from './parts';
 import { LOCALES, getLocale, isLocale, setLocale, useT, type Locale } from '@/i18n';
@@ -160,7 +160,7 @@ export function WorkspaceSection({ title }: { title: string }) {
               </label>
               <div className="row" style={{ gap: 0 }}>
                 <span className="input" style={{ width: 'auto', background: 'var(--surface-2)', borderRight: 0, borderRadius: '6px 0 0 6px', display: 'flex', alignItems: 'center', color: 'var(--text-2)' }}>
-                  gr8rstudio.com/
+                  future-erp.com/
                 </span>
                 <input className="input" id="ws-url" value={url} onChange={e => setUrl(e.target.value)} style={{ borderRadius: '0 6px 6px 0' }} />
               </div>

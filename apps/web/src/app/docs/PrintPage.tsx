@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ArrowLeft, CircleAlert, Download, Printer } from 'lucide-react';
-import { CONTRACT_FORM_BY_TYPE, DOCUMENT_META, isCashDocType, isContractForm, PRINT_FORMS, usesTemplate, PRINT_FORM_LABELS, printOrientation, type PrintForm } from '@gr8r/shared';
+import { CONTRACT_FORM_BY_TYPE, DOCUMENT_META, isCashDocType, isContractForm, PRINT_FORMS, usesTemplate, PRINT_FORM_LABELS, printOrientation, type PrintForm } from '@erp/shared';
 import { Button, EmptyState, Select, Skeleton, toast } from '@/components/ui';
 import { tEnum, useT } from '@/i18n';
 import { API_BASE } from '../data/api';

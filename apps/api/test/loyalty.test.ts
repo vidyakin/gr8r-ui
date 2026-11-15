@@ -2,7 +2,7 @@
    ручная скидка строки, промокоды (срок/лимит), начисление и списание баллов бонусной карты, сторно при отмене проведения
    и частичное сторно при возврате, изоляция арендаторов. */
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { loyaltyTransactions, runLoyaltyExpiration, withContext } from '@gr8r/db';
+import { loyaltyTransactions, runLoyaltyExpiration, withContext } from '@erp/db';
 import { Client, admin, sql } from './helpers';
 
 let owner: Client;

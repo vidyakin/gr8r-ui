@@ -4,7 +4,7 @@
    Склад, резервы, цены и документы работают по `products.id` и ничего не меняют. Создаётся лениво при первом заказе
    комбинации или заранее генератором «создать все комбинации». Уникальность — (родитель, набор значений). */
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
-import { VARIANT_MAX_COMBINATIONS, variantCombinations, variantName, variantSku, variantValuesOf, type SpecParamDef } from '@gr8r/shared';
+import { VARIANT_MAX_COMBINATIONS, variantCombinations, variantName, variantSku, variantValuesOf, type SpecParamDef } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { manufacturedItems, products } from './schema';

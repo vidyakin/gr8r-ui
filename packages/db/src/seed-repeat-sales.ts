@@ -2,7 +2,7 @@
    сценарии планирования («По менеджерам», «По категориям») и проведённый план продаж на текущий год по менеджерам.
    Даты — относительно сегодняшнего дня; план проводится настоящим сервисом. */
 import { and, asc, eq, isNotNull } from 'drizzle-orm';
-import { addDays } from '@gr8r/shared';
+import { addDays } from '@erp/shared';
 import type { Db } from './client';
 import { postDocument, type DocCtx } from './documents';
 import { createSalesPlan } from './sales-plan';

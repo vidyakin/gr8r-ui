@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button, IconButton, Input, toast } from '@/components/ui';
-import { DrawerSection } from '@/components/gr8r/entity-drawer';
+import { DrawerSection } from '@/components/erp/entity-drawer';
 import { fmtNumber, useT } from '@/i18n';
 import { parseNumber } from '@/i18n/format';
 import { useCanWrite } from '../meta/custom-fields';

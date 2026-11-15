@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Link, useNavigate } from 'react-router';
 import { CircleAlert, ClipboardList, Factory } from 'lucide-react';
 import { Badge, Button, EmptyState, Skeleton, toast } from '@/components/ui';
-import { DocForm, DocHeader } from '@/components/gr8r/doc-form';
+import { DocForm, DocHeader } from '@/components/erp/doc-form';
 import { fmtDate, parse } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';
 import { useWorkCenters } from '../catalog/data';

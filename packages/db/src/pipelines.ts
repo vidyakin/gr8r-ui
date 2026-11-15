@@ -12,7 +12,7 @@ import {
   type DealStageCategory,
   type PipelineTemplate,
   type StageTemplate,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';

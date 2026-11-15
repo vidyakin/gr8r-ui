@@ -2,7 +2,7 @@
    Защита от зацикливания: события, которые порождают действия flow, несут метку `via.chain` (flow цепочки). Flow, уже стоящий в цепочке,
    событием не запускается («сам себя»), а глубина цепочки ограничена MAX_FLOW_CHAIN — запуск фиксируется как skipped с причиной. */
 import { and, eq } from 'drizzle-orm';
-import { allWorkspaceModules, createRun, events, workspaceModules, flowVersions, flows, withContext, workspaces, type Db, type Sql } from '@gr8r/db';
+import { allWorkspaceModules, createRun, events, workspaceModules, flowVersions, flows, withContext, workspaces, type Db, type Sql } from '@erp/db';
 import {
   cronMatches,
   disabledModulesOfNodes,
@@ -19,7 +19,7 @@ import {
   type FlowEvent,
   type ModuleId,
   type TriggerContext,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import { loadProjectOf, loadRecord } from './records';
 
 type EventRow = typeof events.$inferSelect;

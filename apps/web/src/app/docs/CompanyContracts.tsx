@@ -1,9 +1,9 @@
 /* Договоры контрагента: вкладка «Договоры» в карточке компании. */
 import * as React from 'react';
 import { FileSignature, Plus } from 'lucide-react';
-import { BILLING_PERIODICITY_LABELS, CONTRACT_KIND_LABELS } from '@gr8r/shared';
+import { BILLING_PERIODICITY_LABELS, CONTRACT_KIND_LABELS } from '@erp/shared';
 import { Badge, Button, EmptyState, Skeleton } from '@/components/ui';
-import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
+import { DataTable, useDataTable, type Column } from '@/components/erp/data-table';
 import { useT, tEnum } from '@/i18n';
 import { fmtDate, parse } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';

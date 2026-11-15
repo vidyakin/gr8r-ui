@@ -2,7 +2,7 @@
    полуфабрикаты и рабочее место «Заказы по плану». Данные лежат в кэше TanStack Query под ключом ['ws', id, 'production-plans', …]. */
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { NeedsMethod, PlanStatus, PlanStep, StockReplenishment } from '@gr8r/shared';
+import type { NeedsMethod, PlanStatus, PlanStep, StockReplenishment } from '@erp/shared';
 import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';

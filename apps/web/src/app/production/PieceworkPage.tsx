@@ -8,7 +8,7 @@ import { STATUS_LABEL, STATUS_TONE } from '../docs/data';
 import { useOperations, useOperationRates, usePieceworkApi, usePieceworkOrders, usePieceworkReport, type OperationRow } from './piecework-data';
 import { PieceworkOrderDialog } from './PieceworkOrderDialog';
 import { t, useT } from '@/i18n';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 const TABS = [
   { id: 'orders', name: 'piecework.tab.orders' },

@@ -1,6 +1,6 @@
 /* Чистые функции над данными воркспейса — порт «lookups» из core/store.js.
    Не зависят от React: их легко тестировать и переиспользовать на сервере. */
-import { PRIORITIES, priorityName } from '@/components/gr8r/task';
+import { PRIORITIES, priorityName } from '@/components/erp/task';
 import { t, tEnum } from '@/i18n';
 import { diffDays, parse, today } from '../lib/dates';
 import { flattenSubs, subtreeIds } from './subtasks';

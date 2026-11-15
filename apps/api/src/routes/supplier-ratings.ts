@@ -10,8 +10,8 @@ import {
   loadSupplierRatingSettings,
   saveSupplierRatingSettings,
   defaultSupplierRatingPeriod,
-} from '@gr8r/db';
-import { isoDate } from '@gr8r/shared';
+} from '@erp/db';
+import { isoDate } from '@erp/shared';
 
 const admin = requireRole('admin');
 

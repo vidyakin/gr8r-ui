@@ -3,7 +3,7 @@
 import { zValidator } from '@hono/zod-validator';
 import { and, asc, count, eq, ne } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { assertPipelineValid, assertStageSetValid, createPipeline, dealFunnel, dealLostReasons, dealPipelines, dealStages, deals, defaultPipeline, recordEvent, stageDealCount, templateOf } from '@gr8r/db';
+import { assertPipelineValid, assertStageSetValid, createPipeline, dealFunnel, dealLostReasons, dealPipelines, dealStages, deals, defaultPipeline, recordEvent, stageDealCount, templateOf } from '@erp/db';
 import {
   dealFunnelQuery,
   dealLostReasonCreate,
@@ -19,7 +19,7 @@ import {
   dealStageReorder,
   dealStageUpdate,
   idParam,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import { crud, ctxOf, validationHook } from '../crud';
 import { AppError, notFound } from '../errors';
 import { requireRole } from '../middleware';

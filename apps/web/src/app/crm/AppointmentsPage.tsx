@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { CalendarCheck, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
-import { addDaysIso, weekStartOf } from '@gr8r/shared';
+import { addDaysIso, weekStartOf } from '@erp/shared';
 import { Badge, Button, EmptyState, Field, Select, Skeleton, toast } from '@/components/ui';
 import { fmtDateTimeIntl, useT, weekdayShort } from '@/i18n';
 import { cn } from '@/lib/utils';
@@ -16,7 +16,7 @@ import { ScheduleEditor } from './ScheduleEditor';
 import { ApptDialog, BookDialog, Board, isoToday, type BoardCol, type BookPreset } from './appointments-ui';
 import { useMembersWith } from '../positions/data';
 import { useApptMutation, useDayBoard, useSpecialists, useUnclosedDays, useWeekBoard, type Appt, type DayDoc } from './appointments-data';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 const TABS = ['day', 'week', 'unclosed', 'schedules'] as const;
 type Tab = (typeof TABS)[number];

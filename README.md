@@ -21,7 +21,7 @@ bun run typecheck  # tsc во всех пакетах
 bun test           # тесты бэкенда (нужен PostgreSQL, см. «Бэкенд»)
 ```
 
-Фронтенд работает на API: вход, воркспейсы, данные и обновления в реальном времени — с сервера (вход после `bun run db:seed`: `demo@gr8r.dev` / `demo1234`). В браузере остаются только настройки просмотра (тема, плотность, свёрнутый сайдбар, плавающие окна). Как это устроено — в [docs/architecture.md](docs/architecture.md), «Фронтенд на сервере».
+Фронтенд работает на API: вход, воркспейсы, данные и обновления в реальном времени — с сервера (вход после `bun run db:seed`: `demo@future-erp.dev` / `demo1234`). В браузере остаются только настройки просмотра (тема, плотность, свёрнутый сайдбар, плавающие окна). Как это устроено — в [docs/architecture.md](docs/architecture.md), «Фронтенд на сервере».
 
 Стек фронтенда: React 19, TypeScript, Vite, Tailwind CSS v4, Radix UI, lucide-react, sonner (тосты).
 
@@ -52,7 +52,7 @@ SEED=1 docker compose up --build       # то же + демо-данные
 
 Приложение — http://localhost:8080 (nginx отдаёт фронтенд и проксирует `/api/*` в API, включая WebSocket `/api/ws`),
 API — http://localhost:3000, консоль MinIO — http://localhost:9001 (бакет вложений создаёт `minio-init`). Пароли и порты переопределяются в `.env`.
-`migrate` — разовый сервис: применяет миграции, создаёт логин-роль `gr8r_app` и роль для DDL `gr8r_ddl` и (при `SEED=1`) наполняет БД; `api` и `worker` стартуют после него. Подключение `DATABASE_URL_DDL` (роль-владелец) есть только у воркера: DDL — индексы полей конструктора — выполняет он, по задачам из таблицы `jobs`.
+`migrate` — разовый сервис: применяет миграции, создаёт логин-роль `futureerp_app` и роль для DDL `futureerp_ddl` и (при `SEED=1`) наполняет БД; `api` и `worker` стартуют после него. Подключение `DATABASE_URL_DDL` (роль-владелец) есть только у воркера: DDL — индексы полей конструктора — выполняет он, по задачам из таблицы `jobs`.
 
 ### Без Docker
 
@@ -72,11 +72,11 @@ bun run dev          # api (:3000) + worker + web (:5173) параллельно
 | `bun run db:seed` | демо-пользователь, демо-воркспейс и второй воркспейс; повторный запуск ничего не дублирует. Индексы полей конструктора строит воркер из очереди `jobs` — он должен работать (`bun run dev` запускает его) |
 | `bun run db:wipe` | удаляет схемы `public` и `drizzle` (запрещено при `NODE_ENV=production`) |
 | `bun run db:reset` | wipe → migrate → seed: БД с нуля |
-| `bun test` | тесты на отдельной БД `gr8r_test` (пересоздаётся при каждом запуске; URL — `TEST_ADMIN_DATABASE_URL`, по умолчанию `postgres://postgres@127.0.0.1:5433/gr8r_test`) |
+| `bun test` | тесты на отдельной БД `futureerp_test` (пересоздаётся при каждом запуске; URL — `TEST_ADMIN_DATABASE_URL`, по умолчанию `postgres://postgres@127.0.0.1:5433/futureerp_test`) |
 
-**Демо-вход:** `demo@gr8r.dev` / `demo1234` — владелец воркспейса «Gr8r Studio» со всеми демо-данными фронтенда
+**Демо-вход:** `demo@future-erp.dev` / `demo1234` — владелец воркспейса «FutureERP Studio» со всеми демо-данными фронтенда
 (7 проектов, 49 задач, CRM: 12 компаний, 26 контактов, 32 сделки…), сущностью «Suppliers» (8 записей) пользовательскими полями задач «Story points» и «Client», каталогом (категории «Мебель» → «Столы», «Фурнитура», «Материалы» и «Услуги» с характеристиками, 20 товаров и 3 услуги), двумя участками и двумя изделиями со спецификациями в 2–3 уровня («Стол обеденный «Норд»» с полуфабрикатами «столешница» и «подстолье»), организацией «ООО «Гр8р Студия»» (ОСН, НДС 20%), двумя складами, реквизитами и счетами у пяти компаний CRM и проведёнными документами (заказ поставщику → поступление, КП → заказ, заказ покупателя → счёт → реализация (УПД) + акт услуг, прямая отгрузка ИП; остатки ненулевые, один резерв). Остальные участники демо-воркспейса входят с тем же паролем
-(например `sarah@gr8rstudio.com`, роль admin). Второй арендатор: `bob@acme.test` / `bob12345` — воркспейс «Acme Corp»;
+(например `sarah@future-erp.com`, роль admin). Второй арендатор: `bob@acme.test` / `bob12345` — воркспейс «Acme Corp»;
 им удобно проверять изоляцию: Боб не видит данные демо-воркспейса и наоборот.
 
 ### Сквозной сценарий (curl)
@@ -117,7 +117,7 @@ curl -s -b jar "$API/tasks?projectId=$P&sort=-priority" -H "X-Workspace-Id: $WS"
 У каждого ресурса: `GET /` (фильтры, `sort=-field`, `limit`/`offset`, `q`, `archived=exclude|include|only` → `{ items, total, limit, offset }`),
 `GET /:id`, `POST /`, `PATCH /:id`, `DELETE /:id` (архив; `?hard=true` — удаление, только admin+), `POST /:id/restore`. При создании клиент может передать свой `id` (uuid; занятый — 409), для задачи — ещё и прежний `key` (повторное создание при Undo); `PATCH /tasks/:id {projectId}` переносит задачу в другой проект с новым ключом. Даты — `YYYY-MM-DD`
 (`date`) и ISO 8601 (`timestamptz`); деньги и часы — строками (`numeric`). Ошибки: `{ "error": { "code", "message", "details?", "requestId" } }`.
-Типизированный клиент: `createApiClient` из `@gr8r/api/client` (hono/client поверх `AppType`).
+Типизированный клиент: `createApiClient` из `@erp/api/client` (hono/client поверх `AppType`).
 
 ### Как устроена изоляция арендаторов
 
@@ -154,10 +154,10 @@ curl -s -b jar "$API/tasks?projectId=$P&sort=-priority" -H "X-Workspace-Id: $WS"
    $T import /archives/romashka.jsonl.gz
    ```
    Первого оператора можно завести так: `create` с его email (он станет владельцем своего воркспейса), затем `operator grant`.
-5. Бэкапы: сервис `backup` раз в сутки кладёт `backups/gr8r-*.dump` (хранит `BACKUP_KEEP_DAYS`). Восстановление всей БД:
+5. Бэкапы: сервис `backup` раз в сутки кладёт `backups/futureerp-*.dump` (хранит `BACKUP_KEEP_DAYS`). Восстановление всей БД:
    ```bash
    docker compose -f docker-compose.prod.yml --env-file .env.prod stop api worker
-   docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T postgres pg_restore -U postgres -d gr8r --clean --if-exists < backups/gr8r-YYYYMMDD-HHMM.dump
+   docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T postgres pg_restore -U postgres -d futureerp --clean --if-exists < backups/futureerp-YYYYMMDD-HHMM.dump
    docker compose -f docker-compose.prod.yml --env-file .env.prod start api worker
    ```
    Один арендатор восстанавливается из выгрузки (`export` / `import`). `SECRETS_KEY` храните отдельно от дампов — без него секреты воркспейсов не прочитать.
@@ -197,8 +197,8 @@ Dokploy держит 80/443 своим Traefik, поэтому файл — `doc
 6. Deploy. Миграции идут при каждом деплое (`migrate`, `minio-init`, `umami-init` завершаются — это нормально). Автодеплой по push — Webhook из вкладки Deployments в настройках репозитория.
 7. Один раз по SSH: `sudo mkdir -p /etc/dokploy/compose/<app>/files/archives && sudo chown 1000:1000 $_` (CLI пишет под пользователем bun).
 8. CLI оператора — вкладка Docker/Terminal → контейнер `api`: `bun run tenant …` (как в списке выше); файлы для `import` — в `files/archives`.
-9. Дампы — `files/backups/gr8r-*.dump`, восстановление — как в п. 5 «Деплой», база `gr8r`. Тома `pgdata` и `miniodata` — именованные тома Docker.
-10. Проверить X-Forwarded-For — как в п. 8 «Деплой через Coolify», база `gr8r`.
+9. Дампы — `files/backups/futureerp-*.dump`, восстановление — как в п. 5 «Деплой», база `futureerp`. Тома `pgdata` и `miniodata` — именованные тома Docker.
+10. Проверить X-Forwarded-For — как в п. 8 «Деплой через Coolify», база `futureerp`.
 
 `docker-compose.yml` — для локального запуска всего стека, на сервер его не ставить (порты БД открыты, пароли по умолчанию).
 
@@ -216,7 +216,7 @@ apps/web/src/
     domain.css          карточка задачи, срок
   components/
     ui/                 базовые компоненты Gr8r, импорт из '@/components/ui'
-    gr8r/               прикладные компоненты: TaskCard, StatusIcon, PriorityIcon, DueDate
+    erp/                прикладные компоненты: TaskCard, StatusIcon, PriorityIcon, DueDate
     shadcn/             сюда CLI shadcn кладёт добавленные компоненты (сейчас для примера: button, card, calendar)
   lib/utils.ts          cn(): clsx + tailwind-merge
   app/                  приложение Gr8r Studio на этих компонентах
@@ -276,7 +276,7 @@ Ctrl/⌘+K, «/» — поиск, цепочки G + буква — перехо
 хранилище (`store.tsx`: reducer + context, как `app/data/store.tsx`, данные — с API; провайдер стоит над оболочкой, чтобы им пользовались крошки и меню «New»)
 и чистые селекторы (`selectors.ts`). Владельцы сделок — участники основного воркспейса.
 
-Страницы собраны из обобщённых компонентов `apps/web/src/components/gr8r` (они не знают ни о задачах, ни о CRM):
+Страницы собраны из обобщённых компонентов `apps/web/src/components/erp` (они не знают ни о задачах, ни о CRM):
 
 | Компонент | Что принимает |
 | --- | --- |
@@ -287,7 +287,7 @@ Ctrl/⌘+K, «/» — поиск, цепочки G + буква — перехо
 | `Panel`, `Stat` | блоки дашборда |
 
 Новый модуль на этой основе: описать типы и reducer, сделать колонки (`Column<Row>[]`), страницу из `FilterBar` + `DataTable`/`Kanban`,
-карточку из `EntityDrawer`, добавить маршруты в `router.tsx` и пункты в `routes.ts` и сайдбар. CSS — `styles/gr8r-blocks.css` (общий) и `styles/crm.css`.
+карточку из `EntityDrawer`, добавить маршруты в `router.tsx` и пункты в `routes.ts` и сайдбар. CSS — `styles/erp-blocks.css` (общий) и `styles/crm.css`.
 
 ## Компоненты
 
@@ -354,7 +354,7 @@ npx shadcn@latest add calendar      # или dialog, command, sheet, data-table,
    внутри `@layer components`, как сделаны базовые компоненты.
 3. Принимайте `className` и склеивайте его через `cn()`: утилиты Tailwind перекрывают классы компонента.
 
-Пример прикладного компонента, собранного из базовых: `apps/web/src/components/gr8r/task.tsx`.
+Пример прикладного компонента, собранного из базовых: `apps/web/src/components/erp/task.tsx`.
 
 ## Тема
 

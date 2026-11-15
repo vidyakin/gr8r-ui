@@ -2,7 +2,7 @@
    Должность = название + функции (списки выбора) + разделы меню + оказываемые виды номенклатуры (для специалиста записи). */
 import * as React from 'react';
 import { BriefcaseBusiness, Plus, Shapes } from 'lucide-react';
-import { POSITION_FUNCTIONS, POSITION_SECTIONS, PRODUCT_KIND_TYPES, type PositionFunction, type PositionSection, type ProductKindType } from '@gr8r/shared';
+import { POSITION_FUNCTIONS, POSITION_SECTIONS, PRODUCT_KIND_TYPES, type PositionFunction, type PositionSection, type ProductKindType } from '@erp/shared';
 import { Alert, Badge, Button, Checkbox, ConfirmDialog, EmptyState, Field, Input, Select, Skeleton, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { useIsAdmin } from '../catalog/data';

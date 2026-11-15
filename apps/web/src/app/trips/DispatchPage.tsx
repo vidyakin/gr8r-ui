@@ -10,12 +10,12 @@ import { FleetHead } from '../fleet/parts';
 import { STOP_TONE, TRIP_TONE, TripDialog, useOverloadText } from './TripDialog';
 import { RouteMapView, etaText, mapStops, tripColor } from './map';
 import { useDispatch, useRoutingRuns, useTripApi, type Dispatch, type DispatchDelivery, type DispatchTrip } from './data';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 const FROM_H = 6;
 const TO_H = 22;
 const SPAN = (TO_H - FROM_H) * 60;
-const MIME = 'application/x-gr8r-delivery';
+const MIME = 'application/x-erp-delivery';
 const mins = (hhmm: string | null | undefined, dflt: number) => (hhmm ? Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5)) : dflt);
 const pct = (m: number) => Math.max(0, Math.min(100, ((m - FROM_H * 60) / SPAN) * 100));
 

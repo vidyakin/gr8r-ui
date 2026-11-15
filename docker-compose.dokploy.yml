@@ -8,7 +8,7 @@
 x-s3-env: &s3-env
   S3_ENDPOINT: http://minio:9000
   S3_REGION: us-east-1
-  S3_BUCKET: gr8r
+  S3_BUCKET: futureerp
   S3_ACCESS_KEY: ${S3_ACCESS_KEY:?задайте S3_ACCESS_KEY}
   S3_SECRET_KEY: ${S3_SECRET_KEY:?задайте S3_SECRET_KEY}
   S3_FORCE_PATH_STYLE: '1'
@@ -16,9 +16,9 @@ x-s3-env: &s3-env
   STORAGE_QUOTA_BYTES: ${STORAGE_QUOTA_BYTES:-}
 
 x-db-env: &db-env
-  ADMIN_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?задайте POSTGRES_PASSWORD}@postgres:5432/gr8r
-  DATABASE_URL: postgres://gr8r_app:${APP_DB_PASSWORD:?задайте APP_DB_PASSWORD}@postgres:5432/gr8r
-  APP_DB_USER: gr8r_app
+  ADMIN_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?задайте POSTGRES_PASSWORD}@postgres:5432/futureerp
+  DATABASE_URL: postgres://futureerp_app:${APP_DB_PASSWORD:?задайте APP_DB_PASSWORD}@postgres:5432/futureerp
+  APP_DB_USER: futureerp_app
   APP_DB_PASSWORD: ${APP_DB_PASSWORD}
   NODE_ENV: production
 
@@ -28,11 +28,11 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: gr8r
+      POSTGRES_DB: futureerp
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres -d gr8r']
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d futureerp']
       interval: 3s
       timeout: 3s
       retries: 20
@@ -58,7 +58,7 @@ services:
     image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z # mc входит в образ сервера
     entrypoint: ['/bin/sh', '-c']
     command:
-      - mc alias set local http://minio:9000 "$${S3_ACCESS_KEY}" "$${S3_SECRET_KEY}" && mc mb --ignore-existing local/gr8r
+      - mc alias set local http://minio:9000 "$${S3_ACCESS_KEY}" "$${S3_SECRET_KEY}" && mc mb --ignore-existing local/futureerp
     environment:
       S3_ACCESS_KEY: ${S3_ACCESS_KEY}
       S3_SECRET_KEY: ${S3_SECRET_KEY}
@@ -66,12 +66,12 @@ services:
       minio: { condition: service_healthy }
     restart: 'no'
 
-  # Разовая задача при каждом деплое: миграции (идемпотентно), роли gr8r_app/gr8r_ddl. Завершается — так и задумано
+  # Разовая задача при каждом деплое: миграции (идемпотентно), роли futureerp_app/futureerp_ddl. Завершается — так и задумано
   migrate:
     build: { context: ., target: migrate }
     environment:
       <<: *db-env
-      DDL_DB_USER: gr8r_ddl
+      DDL_DB_USER: futureerp_ddl
       DDL_DB_PASSWORD: ${DDL_DB_PASSWORD:?задайте DDL_DB_PASSWORD}
       SEED: '0'
     depends_on:
@@ -100,7 +100,7 @@ services:
     restart: unless-stopped
     environment:
       <<: [*db-env, *s3-env]
-      DATABASE_URL_DDL: postgres://gr8r_ddl:${DDL_DB_PASSWORD}@postgres:5432/gr8r
+      DATABASE_URL_DDL: postgres://futureerp_ddl:${DDL_DB_PASSWORD}@postgres:5432/futureerp
       SECRETS_KEY: ${SECRETS_KEY}
       OPERATOR_LEAD_HOOK_URL: ${OPERATOR_LEAD_HOOK_URL:-}
       ROUTING_OSRM_URL: ${ROUTING_OSRM_URL:-}
@@ -187,9 +187,9 @@ services:
       - -c
       - |
         while true; do
-          f=/backups/gr8r-$$(date +%Y%m%d-%H%M).dump
-          pg_dump -h postgres -U postgres -d gr8r -Fc -f "$$f.tmp" && mv "$$f.tmp" "$$f" && echo "backup: $$f"
-          find /backups -name 'gr8r-*.dump' -mtime +$$KEEP_DAYS -delete
+          f=/backups/futureerp-$$(date +%Y%m%d-%H%M).dump
+          pg_dump -h postgres -U postgres -d futureerp -Fc -f "$$f.tmp" && mv "$$f.tmp" "$$f" && echo "backup: $$f"
+          find /backups -name 'futureerp-*.dump' -mtime +$$KEEP_DAYS -delete
           sleep 86400
         done
     depends_on:

@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Link, useNavigate } from 'react-router';
 import { CircleAlert, FilePlus2 } from 'lucide-react';
-import { INVESTMENT_STATUSES, type InvestmentStatus } from '@gr8r/shared';
+import { INVESTMENT_STATUSES, type InvestmentStatus } from '@erp/shared';
 import { Badge, Button, EmptyState, Field, Input, Select, Skeleton } from '@/components/ui';
 import { fmtAmount, t, useT } from '@/i18n';
 import { fmtDate } from '../lib/dates';

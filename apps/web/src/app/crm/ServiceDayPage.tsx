@@ -4,7 +4,7 @@ import { useResolvePrices } from '../pricing/data';
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
-import { dec, fmt, mul, productFitsSpecialist } from '@gr8r/shared';
+import { dec, fmt, mul, productFitsSpecialist } from '@erp/shared';
 import { Badge, Button, EmptyState, IconButton, Input, Select, Skeleton, Textarea, toast } from '@/components/ui';
 import { fmtAmount, fmtDateTimeIntl, useT } from '@/i18n';
 import { errorMessage } from '../data/api';

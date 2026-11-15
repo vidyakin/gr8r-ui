@@ -2,9 +2,9 @@
    (индексы полей конструктора), PDF печатных форм, ZIP-архив выгрузки счетов, закрытие периода (production.close_period)
    и выполнение запусков автоматизаций (flow.run). */
 import { and, eq, inArray } from 'drizzle-orm';
-import { BANK_SYNC_JOB, buildPrintData, OBJECT_REPORT_JOB, runScheduledObjectReport, renderContractDocxFile, renderContractHtml, renderDocumentHtml, settlementActHtml, transportWaybillPrintData, DISTRIBUTE_JOB, GEOCODE_JOB, OPTIMIZE_JOB, executeRoutingRun, runGeocode, createFieldIndex, integrationRuntime, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, addVersion, createAttachment, contractFiles, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, getEstimateImport, isUuid, jobs, saveEstimateImportAi, withContext, type Db, type Sql } from '@gr8r/db';
-import { FIELD_TYPES, renderPrintForm, renderTransportWaybill, TransientError, type EstimatePdfRegion, type EstimateTableFile, type FieldType, type PrintForm } from '@gr8r/shared';
-import { loadRequestForHook, markRequestHookSent } from '@gr8r/db';
+import { BANK_SYNC_JOB, buildPrintData, OBJECT_REPORT_JOB, runScheduledObjectReport, renderContractDocxFile, renderContractHtml, renderDocumentHtml, settlementActHtml, transportWaybillPrintData, DISTRIBUTE_JOB, GEOCODE_JOB, OPTIMIZE_JOB, executeRoutingRun, runGeocode, createFieldIndex, integrationRuntime, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, addVersion, createAttachment, contractFiles, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, getEstimateImport, isUuid, jobs, saveEstimateImportAi, withContext, type Db, type Sql } from '@erp/db';
+import { FIELD_TYPES, renderPrintForm, renderTransportWaybill, TransientError, type EstimatePdfRegion, type EstimateTableFile, type FieldType, type PrintForm } from '@erp/shared';
+import { loadRequestForHook, markRequestHookSent } from '@erp/db';
 import { extractEstimateRegions, extractEstimateRows } from './ai/estimate-extract';
 import { llmRuntime } from './ai/llm';
 import { runClosePeriod } from './production-closing';
@@ -96,7 +96,7 @@ export const jobHandlers: Record<string, (job: JobRow, h: JobContext) => Promise
       company: r.workspaceName,
       [contact.includes('@') ? 'email' : 'phone']: contact,
       comment: [`Модули: ${r.modules.join(', ')}`, r.comment, `Арендатор: ${r.workspaceSlug}${r.requestedBy ? `, от ${r.requestedBy}` : ''}`].filter(Boolean).join('\n'),
-      utm_source: 'gr8r-module-request',
+      utm_source: 'erp-module-request',
     };
     const res = await requestHookRuntime.fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(10_000) });
     if (!res.ok) throw new Error(`lead hook responded ${res.status}`);

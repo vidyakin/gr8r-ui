@@ -5,7 +5,7 @@ import { BarChart, type BarGroup } from './BarChart';
 import { usePlanFactReport, type PlanFactRow } from './reports-data';
 import { ReportTable, type GroupLevel, type ReportColumn } from './ReportTable';
 import { ChartPanel, num, ReportState, type TabProps } from './shared';
-import { dec, div, fmt, mul } from '@gr8r/shared';
+import { dec, div, fmt, mul } from '@erp/shared';
 
 /** Выполнение плана, % по сумме строк */
 const pctOf = (rows: PlanFactRow[]) => {

@@ -2,7 +2,7 @@
 import * as React from 'react';
 import { CircleAlert, Pencil, Plus, ShieldAlert, Trash2 } from 'lucide-react';
 import { Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, Input, Skeleton, toast } from '@/components/ui';
-import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
+import { DataTable, useDataTable, type Column } from '@/components/erp/data-table';
 import { t, useT } from '@/i18n';
 import { useIsAdmin } from '../catalog/data';
 import { useProductionApi } from './data';

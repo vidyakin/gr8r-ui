@@ -2,7 +2,7 @@
    на встроенном в Bun S3Client (SigV4, MinIO / Yandex Object Storage / AWS) и стор в памяти для тестов.
    Ключ объекта — <workspace>/<attachment>/<version>: имя файла живёт в БД, в ключе его нет. */
 import { createHash } from 'node:crypto';
-import { FILE_MAX_BYTES_DEFAULT } from '@gr8r/shared';
+import { FILE_MAX_BYTES_DEFAULT } from '@erp/shared';
 
 export interface StoredObject {
   key: string;

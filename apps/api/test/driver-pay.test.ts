@@ -2,7 +2,7 @@
    Одна строка документа на сотрудника × вид × рейс (tripId, номер рейса в комментарии); защита от двойного
    начисления того же рейса в другом неотменённом документе; tripDriverPay — для будущей маржи рейса (1223). */
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { tripDriverPay, withContext } from '@gr8r/db';
+import { tripDriverPay, withContext } from '@erp/db';
 import { admin, Client, sql } from './helpers';
 
 let owner: Client;

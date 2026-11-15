@@ -1,7 +1,7 @@
 /* Журнал запусков: список слева, справа — шаги выбранного запуска с входом, выходом и ошибкой каждого. */
 import * as React from 'react';
 import { CircleAlert, History, RefreshCw } from 'lucide-react';
-import { getNodeDef, type FlowRunStatus, type FlowStepStatus } from '@gr8r/shared';
+import { getNodeDef, type FlowRunStatus, type FlowStepStatus } from '@erp/shared';
 import { Alert, Badge, Button, EmptyState, Segmented, Skeleton, type Tone } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { ago } from '../lib/dates';

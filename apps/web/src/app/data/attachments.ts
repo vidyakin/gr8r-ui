@@ -1,7 +1,7 @@
 /* Вложения к объектам на клиенте (docs/architecture/attachments.md): запросы /attachments, загрузка multipart, скачивание.
    Ключи кэша ['ws', id, 'attachments', …]: событие attachment (data/realtime.ts) обновляет их и коллекцию файлов задач и проектов. */
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AttachmentEntityType } from '@gr8r/shared';
+import type { AttachmentEntityType } from '@erp/shared';
 import type { TKey, TParams } from '@/i18n';
 import { fmtNumber } from '@/i18n/format';
 import { toast } from '@/components/ui';

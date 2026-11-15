@@ -14,7 +14,7 @@ import {
   type WorkOrderStateCategory,
   type WorkOrderStateDef,
   zonedParts,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { DOCUMENT_CREATED_HOOKS, DOCUMENT_HOOKS, STATE_HOOKS, STATE_PROVIDERS, type StatePayload } from './document-hooks';

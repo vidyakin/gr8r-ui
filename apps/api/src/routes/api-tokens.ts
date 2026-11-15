@@ -2,8 +2,8 @@
    Только по cookie-сессии: токен агента сам пускается на TENANT_PATHS, но /api-tokens ему закрыт (requireSession → 403). */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
-import { createApiToken, createServiceMember, listApiTokens, revokeApiToken } from '@gr8r/db';
-import { apiTokenCreate, idParam, serviceMemberCreate } from '@gr8r/shared';
+import { createApiToken, createServiceMember, listApiTokens, revokeApiToken } from '@erp/db';
+import { apiTokenCreate, idParam, serviceMemberCreate } from '@erp/shared';
 import { ctxOf, validationHook } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';

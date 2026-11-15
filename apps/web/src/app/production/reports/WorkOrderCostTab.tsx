@@ -2,7 +2,7 @@
    Группировка по заказчику, итоги, CSV, клик по строке открывает заказ-наряд. Только admin и owner (иначе сервер отвечает 403). */
 import { Alert } from '@/components/ui';
 import { fmtAmount, fmtNumber, useT } from '@/i18n';
-import { dec, marginPct } from '@gr8r/shared';
+import { dec, marginPct } from '@erp/shared';
 import { ApiError } from '../../data/api';
 import { fmtDate } from '../../lib/dates';
 import { useWorkOrderCostReport, type WorkOrderCostReportRow } from './reports-data';

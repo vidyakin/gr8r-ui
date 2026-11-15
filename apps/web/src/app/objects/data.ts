@@ -1,7 +1,7 @@
 /* Объекты объектного учёта на клиенте (задача 1268): список, карточка, сводка и действия.
    Запросы живут под ['ws', id, 'objects', …]: событие object.* сбрасывает их через realtime. */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { BudgetPolicy, MilestoneKind, ObjectCostCategory, ObjectProgressMode, ObjectStatus, RevenueMode } from '@gr8r/shared';
+import type { BudgetPolicy, MilestoneKind, ObjectCostCategory, ObjectProgressMode, ObjectStatus, RevenueMode } from '@erp/shared';
 import { call, useWsId } from '../meta/data';
 
 export interface ObjectListItem {

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { sql as dsql } from 'drizzle-orm';
 import { createSql, databaseUrl, adminDatabaseUrl, isUuid, uuidv7, withContext } from '../src';
-import { seed as demoSeed, seedCrm } from '@gr8r/shared/demo';
+import { seed as demoSeed, seedCrm } from '@erp/shared/demo';
 import { DEMO_USER, OTHER_USER, runSeed } from '../src/seed';
 
 const V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -50,7 +50,7 @@ describe('seed', () => {
     const count = async (t: string, where = '') => Number((await admin.unsafe(`select count(*)::int as n from ${t} ${where}`))[0]!.n);
     const src = demoSeed();
     const crm = seedCrm();
-    const [demo] = await admin`select id from workspaces where slug = 'gr8rstudio'`;
+    const [demo] = await admin`select id from workspaces where slug = 'future-erp'`;
     const w = `where workspace_id = '${demo!.id}'`;
     // + трое рабочих без входа бригады демо-объекта (табель прораба, задача 1271)
     expect(await count('members', w)).toBe(src.members.length + 3);
@@ -282,7 +282,7 @@ describe('seed', () => {
     expect(bobsWs).toHaveLength(1);
     expect(bobsWs[0]!.name).toBe('Acme Corp');
     const demoWsList = await withContext(sql, { userId: demoUser!.id }, db => db.execute(dsql`select name from workspaces`));
-    expect(demoWsList.map((r: any) => r.name)).toEqual(['FutureERP']);
+    expect(demoWsList.map((r: any) => r.name)).toEqual(['FutureERP Studio']);
     expect(await Bun.password.verify(DEMO_USER.password, (await admin`select password_hash from users where id = ${demoUser!.id}`)[0]!.password_hash)).toBe(true);
 
     await sql.end();

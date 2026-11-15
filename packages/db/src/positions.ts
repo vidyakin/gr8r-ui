@@ -2,7 +2,7 @@
    участника, контекст для фильтров («участники с функцией», разделы меню, виды специалиста). Права API не меняются —
    разделы меню это видимость интерфейса. Справочники правят admin и owner (проверка в маршрутах). */
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
-import { membersWithFunction, positionsOfMember, specialistProductKindIds, visibleSections, type MemberPositionLink, type PositionDef, type PositionFunction, type PositionSection, type Role } from '@gr8r/shared';
+import { membersWithFunction, positionsOfMember, specialistProductKindIds, visibleSections, type MemberPositionLink, type PositionDef, type PositionFunction, type PositionSection, type Role } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';

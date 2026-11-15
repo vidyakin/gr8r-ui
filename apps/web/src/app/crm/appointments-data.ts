@@ -1,7 +1,7 @@
 /* Запись на приём (задача 1171): типы и запросы /appointments/*. Ключи кэша под ['ws', id, 'docs', 'appointments', …]:
    события appointment, specialist_schedule и document обновляют их вместе с остальными журналами. */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AppointmentStatus, ScheduleDef, ScheduleException } from '@gr8r/shared';
+import type { AppointmentStatus, ScheduleDef, ScheduleException } from '@erp/shared';
 import { call, useWsId } from '../meta/data';
 import { docsKey } from '../docs/data';
 

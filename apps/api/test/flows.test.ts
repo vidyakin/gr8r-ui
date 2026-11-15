@@ -1,7 +1,7 @@
 /* Автоматизации: триггер → условие → действия, задержка, повтор, защита от зацикливания, лимиты, SSRF, изоляция арендаторов.
    Воркер вызывается напрямую (processEventsOnce / processJobsOnce): события и задачи обрабатываются так же, как в проде. */
 import { afterEach, beforeAll, describe, expect, test } from 'bun:test';
-import { TransientError, type HttpRequest, type HttpResult } from '@gr8r/shared';
+import { TransientError, type HttpRequest, type HttpResult } from '@erp/shared';
 import { flowEngine } from '../../worker/src/flows/engine';
 import { scheduleFlowsOnce } from '../../worker/src/flows/triggers';
 import { defaultOptions, processEventsOnce, processJobsOnce } from '../../worker/src/worker';

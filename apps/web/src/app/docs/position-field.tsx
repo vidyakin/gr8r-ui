@@ -7,7 +7,7 @@ import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { Factory, Package, Search, Wrench } from 'lucide-react';
-import type { ProductKind } from '@gr8r/shared';
+import type { ProductKind } from '@erp/shared';
 import { Button, Dialog, DialogContent, EmptyState, IconButton, Input, Skeleton } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { useT, type TKey } from '@/i18n';

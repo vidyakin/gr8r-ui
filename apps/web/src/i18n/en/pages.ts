@@ -443,7 +443,7 @@ export const pages = {
     step1Sub: "A workspace is where your team's projects live.",
     workspaceName: 'Workspace name',
     workspaceUrl: 'Workspace URL',
-    urlAvailable: 'gr8rstudio.com/{url} is available',
+    urlAvailable: 'future-erp.com/{url} is available',
     step2Title: 'How does your team work?',
     step2Sub: "We'll set your default project view.",
     teamSize: 'Team size',

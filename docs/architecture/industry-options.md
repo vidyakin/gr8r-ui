@@ -7,7 +7,7 @@
 
 ## Список и хранение
 
-- Список опций — константа в `@gr8r/shared` (`packages/shared/src/industry.ts`): `INDUSTRY_OPTIONS = ['food','construction']`,
+- Список опций — константа в `@erp/shared` (`packages/shared/src/industry.ts`): `INDUSTRY_OPTIONS = ['food','construction']`,
   тип `IndustryOption`, проверка `industryOptionsSchema` (zod), помощники `hasIndustry(options, option)`, `resolveIndustryOptions(raw)`
   (неизвестное отбрасывает, повторы схлопывает).
 - Хранение — `workspaces.industry_options text[] NOT NULL DEFAULT '{}'` (`packages/db/src/schema/core.ts`) с CHECK
@@ -44,7 +44,7 @@
 
 ## Правило для новой отраслевой фичи
 
-1. Нужна новая отрасль — добавь её в `INDUSTRY_OPTIONS` (`@gr8r/shared`) **и** в CHECK-условие `workspaces_industry_options_chk`
+1. Нужна новая отрасль — добавь её в `INDUSTRY_OPTIONS` (`@erp/shared`) **и** в CHECK-условие `workspaces_industry_options_chk`
    новой миграцией; существующему набору — значение по умолчанию по решению задачи.
 2. Фича регистрирует себя за опцией: раздел меню — строка в `INDUSTRY_OF_SECTION` (`apps/web/src/app/industry/data.ts`),
    поля и колонки — проверка `useIndustry(option)` рядом с ними.

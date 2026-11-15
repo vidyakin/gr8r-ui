@@ -2,8 +2,8 @@
 import * as React from 'react';
 import { Building2, Plus, User, Users } from 'lucide-react';
 import { Button, EmptyState } from '@/components/ui';
-import { DataTable, columnsMenu, useDataTable } from '@/components/gr8r/data-table';
-import { FilterBar, useFilterState, type FilterField } from '@/components/gr8r/filter-bar';
+import { DataTable, columnsMenu, useDataTable } from '@/components/erp/data-table';
+import { FilterBar, useFilterState, type FilterField } from '@/components/erp/filter-bar';
 import { useWorkspace } from '../data/store';
 import { MemberAvatar } from '../components/workspace';
 import { useT } from '@/i18n';

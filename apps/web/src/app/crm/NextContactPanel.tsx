@@ -2,12 +2,12 @@
    в этот день воркер создаёт дело ответственному и очищает поле. Правит любой участник. */
 import * as React from 'react';
 import { Input } from '@/components/ui';
-import { Panel } from '@/components/gr8r/panel';
+import { Panel } from '@/components/erp/panel';
 import { useT } from '@/i18n';
 import { fmtDate } from '../lib/dates';
 import { useCrm } from './store';
 import type { Company } from './types';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 export function NextContactPanel({ company: co }: { company: Company }) {
   const t = useT();

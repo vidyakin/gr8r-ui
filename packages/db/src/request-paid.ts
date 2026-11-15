@@ -1,7 +1,7 @@
 /* Заявка на расход (задача 1174г): сколько по ней оплачено и переход в «оплачена». Отдельный модуль без импорта payments.ts —
    его вызывают хуки проведения оплат (docs/architecture/payments.md, «Платёжный календарь»). */
 import { and, eq, inArray } from 'drizzle-orm';
-import { dec } from '@gr8r/shared';
+import { dec } from '@erp/shared';
 import type { Db } from './client';
 import type { DocCtx } from './documents';
 import { recordEvent } from './events';

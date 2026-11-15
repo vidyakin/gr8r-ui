@@ -1,8 +1,8 @@
 /* Задача воркера crm.next_contacts (задача 1133): раз в сутки по часовому поясу воркспейса компаниям с наступившей датой
    следующего контакта создаётся дело и уведомление, дата очищается. Журнал crm_next_contact_runs делает проход идемпотентным
    (повтор и два воркера не создают второго дела). */
-import { modulesByWorkspace, runNextContacts, withContext, workspaces, type Sql } from '@gr8r/db';
-import { dateInTimezone } from '@gr8r/shared';
+import { modulesByWorkspace, runNextContacts, withContext, workspaces, type Sql } from '@erp/db';
+import { dateInTimezone } from '@erp/shared';
 
 /** Созданные дела за проход (для журнала воркера) */
 export async function runNextContactsOnce(sql: Sql, at: Date = new Date()): Promise<number> {

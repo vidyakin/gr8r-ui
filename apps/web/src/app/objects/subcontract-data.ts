@@ -2,7 +2,7 @@
    предложение строк из заказа и действия — создание черновика, правка, удаление, приёмка, отклонение, отмена приёмки.
    Запросы живут под ['ws', id, 'objects', …]: события object_sub_act.* и document.* сбрасывают их через realtime. */
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ObjectSubActStatus } from '@gr8r/shared';
+import type { ObjectSubActStatus } from '@erp/shared';
 import { call, useWsId } from '../meta/data';
 
 export interface SubActLine {

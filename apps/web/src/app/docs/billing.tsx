@@ -3,8 +3,8 @@
 import * as React from 'react';
 import { CircleAlert, Download, FileDown, ReceiptText } from 'lucide-react';
 import { Badge, Button, EmptyState, Field, Select, Skeleton, toast } from '@/components/ui';
-import { DocForm, DocHeader } from '@/components/gr8r/doc-form';
-import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
+import { DocForm, DocHeader } from '@/components/erp/doc-form';
+import { DataTable, useDataTable, type Column } from '@/components/erp/data-table';
 import { useT } from '@/i18n';
 import { money } from '../catalog/data';
 import { useBillingApi, useBillingPreview, useContractReport, type BillingPreviewItem, type BillingRunItem } from './billing-data';

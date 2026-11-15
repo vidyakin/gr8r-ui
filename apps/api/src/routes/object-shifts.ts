@@ -20,7 +20,7 @@ import {
   shiftOptions,
   shiftView,
   unconfirmShift,
-} from '@gr8r/db';
+} from '@erp/db';
 import {
   badgeCodeParam,
   badgePrintQuery,
@@ -33,7 +33,7 @@ import {
   renderBadges,
   uuid,
   workerCreate,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import { ctxOf, validationHook } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';

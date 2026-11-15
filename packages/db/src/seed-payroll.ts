@@ -2,7 +2,7 @@
    (расчёт из кассы, аванс через банк), черновик начисления за текущий месяц со сдельной.
    Вызывается из seedDocuments до закрытия месяца: после даты запрета проводить документы нельзя. */
 import { and, asc, eq, isNull } from 'drizzle-orm';
-import { periodEndOf, periodStartOf } from '@gr8r/shared';
+import { periodEndOf, periodStartOf } from '@erp/shared';
 import type { Db } from './client';
 import { postDocument, type DocCtx } from './documents';
 import {

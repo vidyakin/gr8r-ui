@@ -21,7 +21,7 @@ export async function flushQueue(actions: QueuedAction[], send: (action: QueuedA
 
 const db = () =>
   new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open('gr8r-driver', 1);
+    const request = indexedDB.open('erp-driver', 1);
     request.onupgradeneeded = () => {
       const store = request.result.createObjectStore('actions', { keyPath: 'sequence', autoIncrement: true });
       store.createIndex('clientId', 'clientId', { unique: true });

@@ -13,7 +13,7 @@ describe('auth', () => {
     expect(res.body.workspaces[0].role).toBe('owner');
     expect(JSON.stringify(res.body)).not.toContain('password');
     const setCookie = res.headers.getSetCookie()[0]!;
-    expect(setCookie).toContain('gr8r_session=');
+    expect(setCookie).toContain('erp_session=');
     expect(setCookie).toMatch(/HttpOnly/i);
     expect(setCookie).toMatch(/SameSite=Lax/i);
     expect((await c.get('/auth/me')).body.user.email).toBe(email);
@@ -76,7 +76,7 @@ describe('auth', () => {
   test('requests without a session or with a garbage / expired session are rejected', async () => {
     expect((await new Client().get('/auth/me')).status).toBe(401);
     const c = new Client();
-    c.cookie = 'gr8r_session=garbage';
+    c.cookie = 'erp_session=garbage';
     expect((await c.get('/auth/me')).status).toBe(401);
 
     const real = new Client();

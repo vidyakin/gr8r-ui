@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
-import { dec, fmt, planDocPeriods } from '@gr8r/shared';
+import { dec, fmt, planDocPeriods } from '@erp/shared';
 import { Badge, Button, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
 import { fmtAmount, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
@@ -14,7 +14,7 @@ import { useOrganizations, useWarehouses } from '../docs/data';
 import { useCanEditPlan, usePeriodLabel } from './SalesPlanPage';
 import { useMembersWith } from '../positions/data';
 import { usePlan, useSalesPlanMutation, useScenarios, type PlanDetail, type PlanLine } from './sales-plan-data';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 const NONE = 'none';
 type Row = { id?: string; periodStart: string; value: string; amount: string; qty: string };

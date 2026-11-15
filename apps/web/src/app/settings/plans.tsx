@@ -3,14 +3,14 @@
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Layers } from 'lucide-react';
-import { LIMIT_KEYS, MODULES, MODULE_IDS, resolveModules, usageOf, type LicenseUsage, type LimitKey, type LicenseLogEntry, type LicenseRaw, type ModuleId } from '@gr8r/shared';
+import { LIMIT_KEYS, MODULES, MODULE_IDS, resolveModules, usageOf, type LicenseUsage, type LimitKey, type LicenseLogEntry, type LicenseRaw, type ModuleId } from '@erp/shared';
 import { fmtDateTime, fmtDateTimeIntl, fmtNumber } from '@/i18n/format';
 import { Alert, Badge, Button, Checkbox, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, Input, Select, Skeleton, Textarea, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';
 import { SettingsHead, SRow } from './parts';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 export interface PlanRow {
   id: string;

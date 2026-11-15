@@ -4,7 +4,7 @@
 import { zValidator } from '@hono/zod-validator';
 import { asc, and, eq, inArray, isNull, max, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { pctFromSettings, bomLines, calculateNeeds, createNeedsDrafts, createNeedsSupplierOrders, listProductionKinds, loadAvgCosts, manufacturedItems, postNeedsDrafts, productCategories, productionKinds, productionNeeds, productionStages, products, recordEvent, stockBalances, stockReservations, warehouses, workCenters, workspaces, writeOffDefects } from '@gr8r/db';
+import { pctFromSettings, bomLines, calculateNeeds, createNeedsDrafts, createNeedsSupplierOrders, listProductionKinds, loadAvgCosts, manufacturedItems, postNeedsDrafts, productCategories, productionKinds, productionNeeds, productionStages, products, recordEvent, stockBalances, stockReservations, warehouses, workCenters, workspaces, writeOffDefects } from '@erp/db';
 import {
   bomLineCreate,
   bomLineUpdate,
@@ -47,12 +47,12 @@ import {
   type MaterialPriceSource,
   type ProductionSettings,
   type WastePriceSource,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import { crud, ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError, notFound } from '../errors';
 import { requireRole } from '../middleware';
 import { assertUnit, effectiveAttributes } from '../catalog/service';
-import { loadSpecParams } from '@gr8r/db';
+import { loadSpecParams } from '@erp/db';
 import type { AppEnv } from '../types';
 
 const admin = requireRole('admin');

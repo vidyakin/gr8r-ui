@@ -16,8 +16,8 @@ import {
   maskInvestmentRow,
   setInvestmentStatus,
   updateInvestment,
-} from '@gr8r/db';
-import { investmentCreate, investmentQuery, investmentStatusAction, investmentUpdate } from '@gr8r/shared';
+} from '@erp/db';
+import { investmentCreate, investmentQuery, investmentStatusAction, investmentUpdate } from '@erp/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';

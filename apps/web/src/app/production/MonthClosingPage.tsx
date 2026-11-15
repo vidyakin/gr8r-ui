@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { Link } from 'react-router';
 import { CalendarCheck, CircleAlert, Lock, RotateCcw } from 'lucide-react';
-import { monthRange } from '@gr8r/shared';
+import { monthRange } from '@erp/shared';
 import { Alert, Badge, Button, ConfirmDialog, EmptyState, Field, Input, Select, Skeleton, toast } from '@/components/ui';
 import { useIsAdmin } from '../catalog/data';
 import { errorMessage } from '../data/api';

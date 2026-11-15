@@ -785,6 +785,13 @@
       "when": 1794020140000,
       "tag": "0121_product_units",
       "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 1794106540000,
+      "tag": "0122_events_channel",
+      "breakpoints": true
     }
   ]
 }

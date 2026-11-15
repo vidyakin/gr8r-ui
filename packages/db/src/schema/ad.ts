@@ -2,7 +2,7 @@
    кампании с кодом utm_campaign, расходы кампаний. Таблицы арендатора: workspace_id + составные FK + RLS. */
 import { sql } from 'drizzle-orm';
 import { check, date, foreignKey, index, integer, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import { LEAD_SOURCE_KINDS } from '@gr8r/shared';
+import { LEAD_SOURCE_KINDS } from '@erp/shared';
 import { archivedAt, createdAt, money, pk, updatedAt } from './columns';
 import { members } from './people';
 import { wsCol } from './tenant';

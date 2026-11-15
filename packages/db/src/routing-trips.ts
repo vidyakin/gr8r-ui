@@ -14,7 +14,7 @@ import {
   type RoutingSettings,
   type VrpJob,
   type VrpVehicle,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import type { Db, Sql } from './client';
 import { withContext } from './context';
 import { DomainError } from './errors';

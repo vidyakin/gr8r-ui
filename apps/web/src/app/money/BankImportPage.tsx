@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Link } from 'react-router';
 import { Download, FileUp } from 'lucide-react';
-import { PAYABLE_TYPES } from '@gr8r/shared';
+import { PAYABLE_TYPES } from '@erp/shared';
 import { Alert, Badge, Button, Checkbox, EmptyState, Field, Input, Select, toast } from '@/components/ui';
 import { fmtAmount, hasKey, t as translate, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
@@ -12,7 +12,7 @@ import { typeLabel, useDocuments, useOrganizations } from '../docs/data';
 import { CounterpartyPicker } from '../docs/pickers';
 import { useCanWrite } from '../meta/custom-fields';
 import { useBankImportApi, useCashFlowItems, useOrgBankAccounts, type BankImportPreview, type BankImportResult, type BankImportRow } from './data';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 const OPERATIONS = { in: ['from_customer', 'supplier_refund', 'other_income'], out: ['to_supplier', 'customer_refund', 'other_expense'] } as const;
 const isOther = (op: string | null) => op === 'other_income' || op === 'other_expense';

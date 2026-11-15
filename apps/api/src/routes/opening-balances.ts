@@ -1,8 +1,8 @@
 /* Ввод начальных остатков денег и расчётов (раздел «Деньги»). Проведение, отмена, удаление — общие маршруты документов
    (`/documents/:id/post|unpost|cancel`). Правила — packages/db/src/opening-balances.ts и docs/architecture/payments.md. */
 import { zValidator } from '@hono/zod-validator';
-import { createOpening, listOpenings, openingDetail, updateOpening } from '@gr8r/db';
-import { idParam, openingCreate, openingQuery, openingUpdate } from '@gr8r/shared';
+import { createOpening, listOpenings, openingDetail, updateOpening } from '@erp/db';
+import { idParam, openingCreate, openingQuery, openingUpdate } from '@erp/shared';
 import { Hono } from 'hono';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { requireRole } from '../middleware';

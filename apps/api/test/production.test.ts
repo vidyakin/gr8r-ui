@@ -1,6 +1,6 @@
 /* Производство: участки, продукция, спецификации, запрет циклов, расчёт себестоимости (тот же, что в интерфейсе), настройки, изоляция. */
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { computeBomCost, resolveMaterialPrice } from '@gr8r/shared';
+import { computeBomCost, resolveMaterialPrice } from '@erp/shared';
 import { Client } from './helpers';
 
 let owner: Client;

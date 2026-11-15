@@ -25,7 +25,7 @@ import {
   settlementActData,
   settlementCard,
   updatePayment,
-} from '@gr8r/db';
+} from '@erp/db';
 import {
   balancesQuery,
   cashFlowItemCreate,
@@ -46,7 +46,7 @@ import {
   settlementQuery,
   settlementStatusQuery,
   uuid,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import { z } from 'zod';
 import { crud, ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError } from '../errors';

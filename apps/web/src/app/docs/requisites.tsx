@@ -2,7 +2,7 @@
    и редактор банковских счетов (БИК, р/с, к/с, банк) компании или организации. */
 import * as React from 'react';
 import { CircleAlert, Plus, Star, Trash2 } from 'lucide-react';
-import { COMPANY_KINDS, COMPANY_KIND_LABELS, isValidAccount, isValidBik, validateRequisites, type CompanyKind } from '@gr8r/shared';
+import { COMPANY_KINDS, COMPANY_KIND_LABELS, isValidAccount, isValidBik, validateRequisites, type CompanyKind } from '@erp/shared';
 import { Badge, Button, Field, IconButton, Input, toast } from '@/components/ui';
 import { tEnum, useT } from '@/i18n';
 import { useDocsApi, useBankAccounts, type BankAccount } from './data';

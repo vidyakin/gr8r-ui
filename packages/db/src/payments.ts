@@ -24,7 +24,7 @@ import {
   type PaymentLineInput,
   type PrintOrganization,
   type SettlementActData,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import type { Db } from './client';
 import { DOCUMENT_HOOKS } from './document-hooks';
 import type { DocCtx } from './documents';

@@ -5,7 +5,7 @@ import * as React from 'react';
 import { useNavigate } from 'react-router';
 import { ChevronDown, ChevronRight, Download } from 'lucide-react';
 import { Button } from '@/components/ui';
-import { dec, fmt } from '@gr8r/shared';
+import { dec, fmt } from '@erp/shared';
 import { useT } from '@/i18n';
 import { downloadCsv } from './csv';
 

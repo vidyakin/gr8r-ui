@@ -1,5 +1,5 @@
 /* Preload для `bun test`: тестовая БД с нуля, переменные окружения для приложения. */
-import { setupTestDatabase } from '@gr8r/db/testing';
+import { setupTestDatabase } from '@erp/db/testing';
 
 const db = await setupTestDatabase();
 process.env.NODE_ENV = 'test';

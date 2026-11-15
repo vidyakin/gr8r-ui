@@ -51,7 +51,7 @@ export function t(key: TKey, params?: TParams): string {
   return interpolate(v, params);
 }
 
-/** Подпись значения из @gr8r/shared (VAT_LABELS и т. п.): enums.<group>.<value>, без перевода — fallback */
+/** Подпись значения из @erp/shared (VAT_LABELS и т. п.): enums.<group>.<value>, без перевода — fallback */
 export function tEnum(group: keyof typeof en.enums, value: string, fallback: string): string {
   const key = `enums.${group}.${value}`;
   return hasKey(key) ? t(key) : fallback;

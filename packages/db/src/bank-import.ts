@@ -1,5 +1,5 @@
 /* Банковская выписка (задача 1174в): предпросмотр импорта, создание документов «Поступление на счёт» / «Списание со счёта»
-   и выгрузка платёжных поручений. Файл разбирает чистая функция из @gr8r/shared (`parseBankStatement`); сюда приходит уже
+   и выгрузка платёжных поручений. Файл разбирает чистая функция из @erp/shared (`parseBankStatement`); сюда приходит уже
    разобранная выписка — так же её отдаст адаптер API банка (1174д). Правила — docs/architecture/payments.md, «Банковская выписка». */
 import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import {
@@ -15,7 +15,7 @@ import {
   type BankStatement,
   type BankTransaction,
   type PaymentOrderExport,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import type { Db } from './client';
 import { postDocument, type DocCtx } from './documents';
 import { DomainError } from './errors';

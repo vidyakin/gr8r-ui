@@ -5,7 +5,7 @@ import * as React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, X } from 'lucide-react';
 import { Button, Field, IconButton, Input, Select, Textarea, toast } from '@/components/ui';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 import { useT } from '@/i18n';
 import { useCompanies, useProduct } from '../catalog/data';
 import { fmtDate, parse } from '../lib/dates';

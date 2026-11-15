@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { CircleAlert, FilePlus2, Plus, Printer, Trash2 } from 'lucide-react';
 import { Badge, Button, ConfirmDialog, EmptyState, Field, IconButton, Input, Select, Skeleton, Tab, Tabs, TabsList, toast } from '@/components/ui';
-import { PAYABLE_TYPES } from '@gr8r/shared';
+import { PAYABLE_TYPES } from '@erp/shared';
 import { fmtAmount, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { useCanWrite } from '../meta/custom-fields';
@@ -15,7 +15,7 @@ import { useContracts } from '../docs/billing-data';
 import { CounterpartyPicker } from '../docs/pickers';
 import { useCashRegisters, useOrgBankAccounts } from './data';
 import { useOpening, useOpeningApi, useOpenings, type OpeningKind } from './opening-data';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const MONEY_KINDS: OpeningKind[] = ['cash', 'bank'];

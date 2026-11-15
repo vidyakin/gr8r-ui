@@ -2,7 +2,7 @@
 import * as React from 'react';
 import { Archive, RotateCcw, Trash2 } from 'lucide-react';
 import { Button, EmptyState, IconButton, Tab, Tabs, TabsList, toast } from '@/components/ui';
-import { StatusIcon } from '@/components/gr8r/task';
+import { StatusIcon } from '@/components/erp/task';
 import { useWorkspace } from '../data/store';
 import { PROJECT_STATUS, canSee, project } from '../data/selectors';
 import type { Project, Task } from '../data/types';

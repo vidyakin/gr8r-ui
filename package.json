@@ -1,5 +1,5 @@
 {
-  "name": "gr8r",
+  "name": "erp",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -24,8 +24,8 @@
     "tenant": "bun packages/db/src/cli/tenant.ts"
   },
   "devDependencies": {
-    "@gr8r/db": "workspace:*",
-    "@gr8r/shared": "workspace:*",
+    "@erp/db": "workspace:*",
+    "@erp/shared": "workspace:*",
     "@types/bun": "^1.4.3",
     "playwright-core": "1.56.1",
     "typescript": "^7.0.2"

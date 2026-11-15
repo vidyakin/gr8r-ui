@@ -2,7 +2,7 @@
    кэш ['ws', id, 'license'] обновляется событием license.changed (realtime). Пока набор грузится, все модули считаются включёнными,
    чтобы меню не мигало; запрет всё равно держит API (403 module_disabled). */
 import { useQuery } from '@tanstack/react-query';
-import type { LicenseUsage, LicenseView, ModuleId } from '@gr8r/shared';
+import type { LicenseUsage, LicenseView, ModuleId } from '@erp/shared';
 import { call, useWsId } from '../meta/data';
 
 export const licenseKey = (ws: string) => ['ws', ws, 'license'] as const;

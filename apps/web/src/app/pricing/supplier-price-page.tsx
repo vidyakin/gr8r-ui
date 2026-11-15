@@ -5,7 +5,7 @@ import { Link, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, CircleAlert, CircleCheck, CircleHelp, CircleMinus, Download, PackagePlus, PackageSearch, Replace, Search, SkipForward, Undo2 } from 'lucide-react';
 import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Menu, MenuContent, MenuItem, MenuTrigger, Segmented, Skeleton, Tooltip, toast, type Tone } from '@/components/ui';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 import { useT } from '@/i18n';
 import { fmtAmount, fmtDateTime, fmtNumber } from '@/i18n/format';
 import { fmtDate } from '../lib/dates';

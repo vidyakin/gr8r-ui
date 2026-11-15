@@ -2,9 +2,9 @@
    автоматизаций; выключенный модуль даёт 403 module_disabled при прямом вызове API; запись только у оператора;
    арендатор читает только свой набор; смена набора пишет событие для realtime; воркер не исполняет задачи выключенного модуля. */
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { MemoryFileStore, setFileStore, setOperator } from '@gr8r/db';
+import { MemoryFileStore, setFileStore, setOperator } from '@erp/db';
 import { defaultOptions, processEventsOnce, processJobsOnce } from '../../worker/src/worker';
-import { disabledModulesOfNodes, enabledModules, licenseNotices, licenseView, moduleStates, readableModules, type LicenseRaw, MODULE_IDS, MODULE_OF_JOB, MODULE_OF_NODE, MODULE_OF_PATH, NODE_LIST, resolveModules } from '@gr8r/shared';
+import { disabledModulesOfNodes, enabledModules, licenseNotices, licenseView, moduleStates, readableModules, type LicenseRaw, MODULE_IDS, MODULE_OF_JOB, MODULE_OF_NODE, MODULE_OF_PATH, NODE_LIST, resolveModules } from '@erp/shared';
 import { jobHandlers, requestHookRuntime } from '../../worker/src/handlers';
 import { TENANT_PATHS } from '../src/app';
 import { admin, Client, ddl, drainJobs, sql, uniq } from './helpers';
@@ -417,7 +417,7 @@ describe('«Нужно больше?»: заявки (1208)', () => {
       await admin`update jobs set run_at = now() where payload->>'requestId' = ${b.body.id}`;
       await drainJobs();
       expect(calls).toHaveLength(2);
-      expect(calls[1]).toMatchObject({ url: 'http://hook.test/hooks/leads/token', body: { email: 'boss@test.dev', utm_source: 'gr8r-module-request' } });
+      expect(calls[1]).toMatchObject({ url: 'http://hook.test/hooks/leads/token', body: { email: 'boss@test.dev', utm_source: 'erp-module-request' } });
       expect(calls[1]!.body.comment).toContain('production, services');
       expect(calls[1]!.body.comment).toContain('Срочно');
       expect((await admin`select hook_sent_at from module_requests where id = ${b.body.id}`)[0]!.hook_sent_at).not.toBeNull();

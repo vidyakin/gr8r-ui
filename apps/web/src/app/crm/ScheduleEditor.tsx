@@ -2,14 +2,14 @@
    и исключения на даты (выходной или свой набор слотов). Правят admin/owner и сам специалист. */
 import * as React from 'react';
 import { Trash2 } from 'lucide-react';
-import { gridStarts, SLOT_MINUTES, weekdayOf } from '@gr8r/shared';
+import { gridStarts, SLOT_MINUTES, weekdayOf } from '@erp/shared';
 import { Button, Field, IconButton, Select, toast } from '@/components/ui';
 import { fmtDateTimeIntl, useT, weekdayShort } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { fmtDate, parse } from '../lib/dates';
 import { useApptMutation, useSchedule, type ScheduleView } from './appointments-data';
 import { fmtMin } from './appointments-ui';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 const DAYS = [1, 2, 3, 4, 5, 6, 7];
 const halfHours = (from: number, to: number) => Array.from({ length: (to - from) / 30 + 1 }, (_, i) => from + i * 30);

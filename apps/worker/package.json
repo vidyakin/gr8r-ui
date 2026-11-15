@@ -1,5 +1,5 @@
 {
-  "name": "@gr8r/worker",
+  "name": "@erp/worker",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -13,8 +13,8 @@
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
-    "@gr8r/db": "workspace:*",
-    "@gr8r/shared": "workspace:*",
+    "@erp/db": "workspace:*",
+    "@erp/shared": "workspace:*",
     "drizzle-orm": "^0.45.4",
     "playwright-core": "1.56.1",
     "zod": "^4.1.0"

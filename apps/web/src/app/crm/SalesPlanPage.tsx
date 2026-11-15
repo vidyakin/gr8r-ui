@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { CircleAlert, FilePlus, FileText, Plus } from 'lucide-react';
-import { dec, fmt, div, mul } from '@gr8r/shared';
+import { dec, fmt, div, mul } from '@erp/shared';
 import { Badge, Button, EmptyState, Field, Input, Select, Skeleton, toast } from '@/components/ui';
 import { fmtAmount, fmtNumber, monthShort, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
@@ -15,7 +15,7 @@ import { BarChart, type BarGroup } from '../production/reports/BarChart';
 import { ReportTable, type GroupLevel, type ReportColumn } from '../production/reports/ReportTable';
 import { ChartPanel, ReportState } from '../production/reports/shared';
 import { useAnalysis, usePlans, useSalesPlanMutation, useScenarios, type PlanDetail, type PlanFactCell, type Periodicity, type SalesPlanDimension, type Scenario } from './sales-plan-data';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 const ALL = 'all';
 

@@ -2,7 +2,7 @@
    Базовая единица — products.unit_code; коэффициент строки документа фиксируется при вводе (document_lines.unit_factor).
    Вызывается под контекстом арендатора (RLS). */
 import { and, asc, eq, inArray } from 'drizzle-orm';
-import { dec, fmt } from '@gr8r/shared';
+import { dec, fmt } from '@erp/shared';
 import type { Db } from './client';
 import type { Actor } from './attachments';
 import { DomainError } from './errors';

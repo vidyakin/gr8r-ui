@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useLocation } from 'react-router';
 import { Lock } from 'lucide-react';
-import { MODULE_OF_SECTION, moduleOfSectionPath, type IndustryOption, type ModuleId, type PositionSection } from '@gr8r/shared';
+import { MODULE_OF_SECTION, moduleOfSectionPath, type IndustryOption, type ModuleId, type PositionSection } from '@erp/shared';
 import { EmptyState } from '@/components/ui';
 import { useT } from '@/i18n';
 import { positionSectionOf, positionSectionOfPath, SECTIONS, type SectionId } from '../routes';

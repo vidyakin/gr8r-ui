@@ -18,7 +18,7 @@ import {
   suggestAct,
   unsignObjectAct,
   updateObjectAct,
-} from '@gr8r/db';
+} from '@erp/db';
 import {
   idParam,
   objectActCreate,
@@ -28,7 +28,7 @@ import {
   renderKs2,
   renderKs3,
   uuid,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import { ctxOf, validationHook } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';

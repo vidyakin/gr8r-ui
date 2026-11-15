@@ -1,7 +1,7 @@
 /* Транспортная накладная (задача 1214; docs/architecture/trips.md, «Транспортная накладная»): номер ТН выдаётся один раз на область
    (рейс / точка рейса / доставка), печатная форма собирается из живых данных (shared/print/transport-waybill.ts). ЭТрН (ГИС ЭПД) не делаем. */
 import { and, asc, desc, eq, isNull, ne, sql } from 'drizzle-orm';
-import { dec, fmt, type TnCargoRow, type TnParty, type TransportWaybillPrintData } from '@gr8r/shared';
+import { dec, fmt, type TnCargoRow, type TnParty, type TransportWaybillPrintData } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';

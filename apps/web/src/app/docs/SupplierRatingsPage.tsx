@@ -3,10 +3,10 @@
    Веса показателей и политику при уровне D меняет владелец и администратор в диалоге настроек. */
 import * as React from 'react';
 import { CircleAlert, Settings2, Star } from 'lucide-react';
-import type { SupplierRatingLevel } from '@gr8r/shared';
+import type { SupplierRatingLevel } from '@erp/shared';
 import { Badge, Button, Dialog, DialogContent, EmptyState, Field, Input, Select, Skeleton, toast, Tooltip, type Tone } from '@/components/ui';
-import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
-import { FilterBar, useFilterState } from '@/components/gr8r/filter-bar';
+import { DataTable, useDataTable, type Column } from '@/components/erp/data-table';
+import { FilterBar, useFilterState } from '@/components/erp/filter-bar';
 import { useT } from '@/i18n';
 import { fmtNumber, parseNumber } from '@/i18n/format';
 import { fmtDate, parse } from '../lib/dates';
@@ -21,7 +21,7 @@ import {
   type SupplierRatingDPolicy,
   type SupplierRatingRow,
 } from './supplier-rating-data';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 const LEVEL_TONE: Record<SupplierRatingLevel, Tone> = { A: 'green', B: 'accent', C: 'amber', D: 'red' };
 

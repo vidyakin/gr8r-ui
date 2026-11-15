@@ -234,14 +234,14 @@ export function OnboardingPage() {
           </label>
           <div className="row" style={{ gap: 0 }}>
             <span className="input input-lg" style={{ width: 'auto', background: 'var(--surface-2)', borderRight: 0, borderRadius: '6px 0 0 6px', display: 'flex', alignItems: 'center', color: 'var(--text-2)' }}>
-              gr8rstudio.com/
+              future-erp.com/
             </span>
             <input
               className="input input-lg"
               id="o-url"
               value={o.url}
               style={{ borderRadius: '0 6px 6px 0' }}
-              placeholder="gr8rstudio"
+              placeholder="future-erp"
               onChange={e => {
                 urlTouched.current = true;
                 set({ url: e.target.value.toLowerCase().replace(/[^a-z0-9-]+/g, '-') });
@@ -322,7 +322,7 @@ export function OnboardingPage() {
     const n = o.invites.filter(x => x.includes('@')).length;
     const tm = TEMPLATES.find(t => t.id === o.tmpl);
     const rows: [React.ReactNode, string, string][] = [
-      [<Building2 size={14} />, tr('pages.onboarding.rowWs', { name: o.ws || 'My Workspace' }), 'gr8rstudio.com/' + (o.url || 'workspace')],
+      [<Building2 size={14} />, tr('pages.onboarding.rowWs', { name: o.ws || 'My Workspace' }), 'future-erp.com/' + (o.url || 'workspace')],
       [<NamedIcon name={tm?.icon || 'folder'} size={14} />, tr('pages.onboarding.rowProject', { name: o.proj }), tr('pages.onboarding.rowProjectSub', { tasks: tm?.tasks.length || 0, view: VIEW_NAME[o.team] })],
       [<UserPlus size={14} />, n ? tr('pages.onboarding.invitesCount', { count: n }) : tr('pages.onboarding.invitesNone'), n ? tr('pages.onboarding.invitesHintSent') : tr('pages.onboarding.invitesHintNone')],
     ];

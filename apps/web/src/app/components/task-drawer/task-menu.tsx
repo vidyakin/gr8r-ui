@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Archive, Check, CircleCheck, CircleDot, Copy, FolderInput, Link2, PanelRightOpen, Pencil, PictureInPicture2, RotateCcw, SignalHigh, Star, Trash2, User } from 'lucide-react';
 import { ContextMenuItem, ContextMenuSeparator, MenuItem, MenuSeparator, toast, useMenuClose } from '@/components/ui';
-import { StatusIcon } from '@/components/gr8r/task';
+import { StatusIcon } from '@/components/erp/task';
 import { PriorityPanel } from '../priority-panel';
 import { useT } from '@/i18n';
 import { useWorkspace, type TaskPatch } from '../../data/store';

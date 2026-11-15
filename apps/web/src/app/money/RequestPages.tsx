@@ -12,7 +12,7 @@ import { useOrganizations, useDocuments, typeLabel } from '../docs/data';
 import { CounterpartyPicker } from '../docs/pickers';
 import { useIsAdmin } from '../catalog/data';
 import { useCashFlowItems, useRequest, useRequestApi, useRequests } from './data';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const TONE = { draft: 'gray', pending: 'amber', approved: 'accent', paid: 'green', rejected: 'red', cancelled: 'neutral' } as const;

@@ -4,7 +4,7 @@
    движения заказ-наряда (факт материалов и товаров после выполнения), средняя себестоимость складов (до выполнения),
    проведённые строки «Прочих затрат» с этим заказ-нарядом, косвенные из итогов закрытия месяца (byWorkOrder). */
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
-import { computeWorkOrderCost, dec, div, fmt, marginPct, mul, type WorkOrderCost, type WorkOrderCostAssignment, type WorkOrderCostInput, type WorkOrderCostItem, type OverheadTarget, type Dec } from '@gr8r/shared';
+import { computeWorkOrderCost, dec, div, fmt, marginPct, mul, type WorkOrderCost, type WorkOrderCostAssignment, type WorkOrderCostInput, type WorkOrderCostItem, type OverheadTarget, type Dec } from '@erp/shared';
 import type { Db } from './client';
 import { companies, documentLines, documents, members, operations, workOrderKinds, otherCostLines, productionCostClosings, products, stockBalances, stockMoves, tasks, timeLogs, workCenters, workOrderAssignments, workOrderMaterials } from './schema';
 import { workspaceTimeZone } from './planning';

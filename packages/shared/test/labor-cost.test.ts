@@ -2,7 +2,7 @@
    плюс страховые взносы; нет ни ставки, ни оклада — стоимости нет (null, не ноль). Деньги — без float.
    Код бейджа: 'W' + 8 символов base32 без 0/O и 1/I, код для сравнения — без пробелов и в верхнем регистре. */
 import { describe, expect, test } from 'bun:test';
-import { badgeCode, BADGE_CODE_ALPHABET, laborCostAmount, laborHourCost, monthNormHours, normalizeBadgeCode } from '@gr8r/shared';
+import { badgeCode, BADGE_CODE_ALPHABET, laborCostAmount, laborHourCost, monthNormHours, normalizeBadgeCode } from '@erp/shared';
 
 describe('норма часов месяца', () => {
   test('рабочие дни × часы в день графика', () => {

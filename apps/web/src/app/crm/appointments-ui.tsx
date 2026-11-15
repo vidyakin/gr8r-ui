@@ -3,14 +3,14 @@
 import { useResolvePrices } from '../pricing/data';
 import * as React from 'react';
 import { Link } from 'react-router';
-import { freeStarts, OCCUPYING_STATUSES, productFitsSpecialist, slotsNeeded, type AppointmentStatus } from '@gr8r/shared';
+import { freeStarts, OCCUPYING_STATUSES, productFitsSpecialist, slotsNeeded, type AppointmentStatus } from '@erp/shared';
 import { Badge, Button, Dialog, DialogContent, Field, Input, Segmented, Select, Textarea, toast } from '@/components/ui';
 import { fmtAmount, fmtDateTimeIntl, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { useProducts } from '../catalog/data';
 import { useCrm } from './store';
 import { useApptMutation, useDayBoard, useFreeSlot, useSpecialists, type Appt, type DayColumn } from './appointments-data';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 /** Время «09:30» по языку интерфейса */
 export const fmtMin = (m: number) => fmtDateTimeIntl(new Date(2000, 0, 1, Math.floor(m / 60), m % 60), { hour: '2-digit', minute: '2-digit' });

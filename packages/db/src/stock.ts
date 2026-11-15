@@ -2,7 +2,7 @@
    Остаток по (склад, товар) блокируется строкой stock_balances (FOR UPDATE, в порядке ключей — без взаимных блокировок),
    поэтому параллельные проведения не могут уйти в минус одновременно и порядок движений (seq) совпадает с порядком блокировок. */
 import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
-import { dec, div, fmt, mul, pctOf, stockIn, stockOut, weightedAvgCost, DOCUMENT_META, DOCUMENT_TYPES, type Dec, type DocumentType, type InventorySettings, type StockState } from '@gr8r/shared';
+import { dec, div, fmt, mul, pctOf, stockIn, stockOut, weightedAvgCost, DOCUMENT_META, DOCUMENT_TYPES, type Dec, type DocumentType, type InventorySettings, type StockState } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { applySerialMoves, revertSerialEvents } from './serials';

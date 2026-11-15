@@ -24,7 +24,7 @@ export interface Article {
   errors: string[];
 }
 
-/** Статья: путь, папка и разбор шапки (сам разбор — пакет @gr8r/docs, его же использует приложение) */
+/** Статья: путь, папка и разбор шапки (сам разбор — пакет @erp/docs, его же использует приложение) */
 export function parseArticle(file: string, text: string): Article {
   const rel = relative(DOCS_DIR, join(ROOT, file)).split('/');
   return { file, folder: rel.length > 1 ? rel[0]! : '', howto: rel[0] === 'howto', ...parseHeader(text) };

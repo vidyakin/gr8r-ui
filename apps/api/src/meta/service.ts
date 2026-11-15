@@ -1,8 +1,8 @@
 /* Конструктор сущностей: загрузка метаданных и проверка значений по полям (типы, ссылки, уникальность).
    Используется маршрутами /entities, /data и записью custom у системных сущностей (задачи, сделки, компании, контакты). */
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { companies, contacts, deals, entities, fields, isUuid, leads, members, products, projects, records, SYSTEM_TABLES, tasks } from '@gr8r/db';
-import { buildRecordSchema, isBlank, type FieldDef, type FieldType, type RecordData, type RecordMode } from '@gr8r/shared';
+import { companies, contacts, deals, entities, fields, isUuid, leads, members, products, projects, records, SYSTEM_TABLES, tasks } from '@erp/db';
+import { buildRecordSchema, isBlank, type FieldDef, type FieldType, type RecordData, type RecordMode } from '@erp/shared';
 import type { Ctx } from '../crud';
 import { AppError, notFound } from '../errors';
 

@@ -1,7 +1,7 @@
 /* Инвестпроекты на клиенте: список, карточка, план-факт, проекты для поля документа и действия.
    Суммы и показатели участнику без права видеть стоимость приходят пустыми (null) — их маскирует сервер. */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CashflowPeriod, InvestmentMetrics, InvestmentPeriodKind, InvestmentStatus } from '@gr8r/shared';
+import type { CashflowPeriod, InvestmentMetrics, InvestmentPeriodKind, InvestmentStatus } from '@erp/shared';
 import { useSession } from '../data/session';
 import { call, useWsId } from '../meta/data';
 

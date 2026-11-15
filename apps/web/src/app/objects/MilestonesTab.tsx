@@ -4,13 +4,13 @@
    Деньги вех (цена заказчику, без НДС) видят все участники. */
 import * as React from 'react';
 import { CircleAlert, CircleCheck, Pencil, Plus, Trash2 } from 'lucide-react';
-import type { MilestoneKind } from '@gr8r/shared';
+import type { MilestoneKind } from '@erp/shared';
 import { Badge, Button, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
 import { fmtAmount, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { fmtDate } from '../lib/dates';
 import { useObjectMilestoneApi, useObjectMilestones, type MilestoneInput, type ObjectMilestone } from './data';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 const trim = (v: string | null | undefined) => (v == null ? '' : v.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1'));
 

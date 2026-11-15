@@ -3,7 +3,7 @@
    (в обороты «Движения денег» она не входит, в остатки — входит). Строки «долг / аванс контрагента» пишут взаиморасчёты.
    Правила — docs/architecture/payments.md, «Ввод начальных остатков». */
 import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, sql } from 'drizzle-orm';
-import { DOCUMENT_LABELS_RU, dec, fmt, isOpeningMoneyKind, openingSettlement, SETTLEMENT_CHAIN_TYPES, type DocumentType, type OpeningLineInput, type OpeningLineKind } from '@gr8r/shared';
+import { DOCUMENT_LABELS_RU, dec, fmt, isOpeningMoneyKind, openingSettlement, SETTLEMENT_CHAIN_TYPES, type DocumentType, type OpeningLineInput, type OpeningLineKind } from '@erp/shared';
 import type { Db } from './client';
 import { DOCUMENT_HOOKS } from './document-hooks';
 import type { DocCtx } from './documents';

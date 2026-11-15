@@ -1,6 +1,6 @@
 /* Конструктор сущностей: общий код API и сидов — регистрация системных сущностей, SQL-выражения по ключам jsonb, индексы полей. */
 import { eq } from 'drizzle-orm';
-import { FIELD_KEY_RE, FIELD_TYPES, SYSTEM_ENTITIES, isNumericType, type FieldType } from '@gr8r/shared';
+import { FIELD_KEY_RE, FIELD_TYPES, SYSTEM_ENTITIES, isNumericType, type FieldType } from '@erp/shared';
 import type { Db, Sql } from './client';
 import { entities, jobs } from './schema';
 import { isUuid } from './uuid';

@@ -22,7 +22,7 @@ import {
   type LoadRowResult,
   type LoadRowType,
   type ScheduleResult,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';

@@ -5,7 +5,7 @@
    строка документа — всегда товар каталога, а косвенной затрате товар не нужен.
    Проведение и нумерация — общие (хук типа в cost-closing.ts), закрытие периода забирает накопленные суммы. */
 import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
-import { dec, fmt } from '@gr8r/shared';
+import { dec, fmt } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';

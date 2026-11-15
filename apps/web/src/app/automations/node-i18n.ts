@@ -1,6 +1,6 @@
 /* Тексты узлов сценария на текущем языке: название, описание и подписи параметров берутся из словаря
-   automations.nodes.<тип> (точка в типе — «_»); нет перевода — английский текст из определения узла в @gr8r/shared */
-import type { AnyNodeDef } from '@gr8r/shared';
+   automations.nodes.<тип> (точка в типе — «_»); нет перевода — английский текст из определения узла в @erp/shared */
+import type { AnyNodeDef } from '@erp/shared';
 import { hasKey, t } from '@/i18n';
 
 const base = (type: string) => `automations.nodes.${type.replace(/\./g, '_')}`;

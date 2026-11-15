@@ -2,7 +2,7 @@
    категории, телефон и документы водителя со сроками (права, медсправка). */
 import * as React from 'react';
 import { Badge, EmptyState, Skeleton } from '@/components/ui';
-import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
+import { DataTable, useDataTable, type Column } from '@/components/erp/data-table';
 import { UserRound } from 'lucide-react';
 import { useT } from '@/i18n';
 import { fmtDate, parse } from '../lib/dates';

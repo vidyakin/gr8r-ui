@@ -5,7 +5,7 @@ import * as React from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './RouteMap.css';
-import type { TileConfig } from '@gr8r/shared';
+import type { TileConfig } from '@erp/shared';
 
 export interface MapStop {
   id: string;

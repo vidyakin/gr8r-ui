@@ -1,7 +1,7 @@
 /* Отчёт «План-факт себестоимости»: по материалам выпусков план (нормы выпуска × фактическая средняя цена списания) против факта.
    Отклонение количества и суммы, перерасход / экономия; изделие → материал → документ. Суммы видят admin и owner, количества — все. */
 import { fmtAmount, useT } from '@/i18n';
-import { dec, fmt } from '@gr8r/shared';
+import { dec, fmt } from '@erp/shared';
 import { fmtDate } from '../../lib/dates';
 import { BarChart, type BarGroup } from './BarChart';
 import { useCostPlanFactReport, type CostPlanFactRow } from './reports-data';

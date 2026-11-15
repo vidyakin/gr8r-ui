@@ -17,7 +17,7 @@ import { contactsOfCompany } from './selectors';
 import { useCrm, type DealPatch } from './store';
 import { CrmUiCtx, type CrmUi, type DealDefaults } from './ui-context';
 import type { StageId } from './types';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 type Drawer = { kind: 'deal' | 'contact'; id: string } | null;
 type Dlg =

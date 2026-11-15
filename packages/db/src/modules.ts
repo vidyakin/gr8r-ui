@@ -2,7 +2,7 @@
    Задача модуля обязана лежать в проекте того же модуля — иначе её не найти ни в одном списке.
    Системный проект создаётся лениво: при первом обращении к модулю (создание задачи, проверка). */
 import { and, eq, sql } from 'drizzle-orm';
-import type { ProjectColor, TaskModule } from '@gr8r/shared';
+import type { ProjectColor, TaskModule } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { projects } from './schema';

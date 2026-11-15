@@ -1,6 +1,6 @@
 /* Отчёт «Клиенты»: выручка без НДС (заказ-наряды + акты и реализации − возвраты), разбивка «работы и услуги / товары»,
    себестоимость и маржа. Себестоимость, маржа и процент — только admin и owner: остальным колонки не показываются. */
-import { dec, marginPct } from '@gr8r/shared';
+import { dec, marginPct } from '@erp/shared';
 import { fmtAmount, fmtNumber, useT } from '@/i18n';
 import { BarChart, type BarGroup } from '../../production/reports/BarChart';
 import { ReportTable, type ReportColumn } from '../../production/reports/ReportTable';

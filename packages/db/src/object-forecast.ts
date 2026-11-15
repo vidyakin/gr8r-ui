@@ -1,5 +1,5 @@
 /* Прогноз прибыли объекта (задача 1275, docs/architecture/construction.md).
-   Собирает вход чистого расчёта (`computeObjectForecast` из @gr8r/shared) из БД и отдаёт отчёт:
+   Собирает вход чистого расчёта (`computeObjectForecast` из @erp/shared) из БД и отдаёт отчёт:
    план по позициям согласованной сметы и согласованных допработ, факт по категориям (objectCostFacts),
    факт труда по позициям — подтверждённые смены с estimate_item_id, принятое по позициям субподряда — принятые акты
    субподрядчика, стоимость договора (objectContractValue) и накладные объекта. Ручные правки остатка живут в
@@ -16,7 +16,7 @@ import {
   type ObjectForecastResult,
   type ObjectRevenueAmounts,
   type Role,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import type { Db } from './client';
 import { canSeeCost } from './cost';
 import { DomainError } from './errors';

@@ -77,14 +77,14 @@ export async function seedCatalog(db: Db, wsId: string) {
   };
 
   // Готовая продукция (изготавливается по спецификациям ниже)
-  await goods('tableNord', { name: 'Стол обеденный «Норд»', sku: 'TBL-001', category: tables.id, price: 38900, purchase: 0, attrs: { brand: 'Gr8r Home', color: 'Натуральный', width: 1400, depth: 800, height: 750, top_material: 'Дуб' } });
-  await goods('tableOffice', { name: 'Стол письменный «Офис»', sku: 'TBL-002', category: tables.id, price: 17900, purchase: 0, attrs: { brand: 'Gr8r Home', color: 'Белый', width: 1200, depth: 600, height: 740, top_material: 'МДФ' } });
+  await goods('tableNord', { name: 'Стол обеденный «Норд»', sku: 'TBL-001', category: tables.id, price: 38900, purchase: 0, attrs: { brand: 'FutureERP Home', color: 'Натуральный', width: 1400, depth: 800, height: 750, top_material: 'Дуб' } });
+  await goods('tableOffice', { name: 'Стол письменный «Офис»', sku: 'TBL-002', category: tables.id, price: 17900, purchase: 0, attrs: { brand: 'FutureERP Home', color: 'Белый', width: 1200, depth: 600, height: 740, top_material: 'МДФ' } });
   await goods('tableLoft', { name: 'Стол журнальный «Лофт» (закупной)', sku: 'TBL-003', category: tables.id, price: 12500, purchase: 7300, attrs: { brand: 'Loft&Co', color: 'Графит', width: 900, depth: 500, height: 420, top_material: 'ЛДСП' }, active: false });
 
   // Готовая мебель, купленная для перепродажи
   await goods('chair', { name: 'Стул обеденный «Классик»', sku: 'FRN-001', category: furniture.id, price: 5900, purchase: 3200, attrs: { brand: 'Loft&Co', color: 'Чёрный' } });
   // Стул собственного производства: из него делается заказ на производство
-  await goods('chairLoft', { name: 'Стул обеденный «Лофт»', sku: 'FRN-003', category: furniture.id, price: 6900, purchase: 0, attrs: { brand: 'Gr8r Home', color: 'Натуральный' } });
+  await goods('chairLoft', { name: 'Стул обеденный «Лофт»', sku: 'FRN-003', category: furniture.id, price: 6900, purchase: 0, attrs: { brand: 'FutureERP Home', color: 'Натуральный' } });
   await goods('stool', { name: 'Табурет «Мини»', sku: 'FRN-002', category: furniture.id, price: 2400, purchase: 1300, attrs: { brand: 'Loft&Co', color: 'Белый' } });
 
   // Фурнитура

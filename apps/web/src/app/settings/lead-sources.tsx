@@ -1,7 +1,7 @@
 /* Settings → Lead sources (задача 1177): справочник источников привлечения — название, цвет, порядок, архив. Правят admin и owner. */
 import * as React from 'react';
 import { Archive, ArrowDown, ArrowUp, Megaphone, Plus, RotateCcw } from 'lucide-react';
-import { LEAD_SOURCE_KINDS, LEAD_STATUS_COLORS, type LeadSourceKind } from '@gr8r/shared';
+import { LEAD_SOURCE_KINDS, LEAD_STATUS_COLORS, type LeadSourceKind } from '@erp/shared';
 import { Alert, Button, EmptyState, Field, Input, Select, Skeleton } from '@/components/ui';
 import { useT } from '@/i18n';
 import { useIsAdmin } from '../catalog/data';

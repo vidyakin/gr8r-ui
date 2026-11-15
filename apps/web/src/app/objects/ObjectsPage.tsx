@@ -2,7 +2,7 @@
 import * as React from 'react';
 import { Link, useNavigate } from 'react-router';
 import { Building2, CircleAlert, FilePlus2 } from 'lucide-react';
-import { OBJECT_STATUSES, type ObjectStatus } from '@gr8r/shared';
+import { OBJECT_STATUSES, type ObjectStatus } from '@erp/shared';
 import { Badge, Button, EmptyState, Field, Input, Select, Skeleton } from '@/components/ui';
 import { useT } from '@/i18n';
 import { fmtDate } from '../lib/dates';

@@ -4,7 +4,7 @@
    DNS rebinding: подключение идёт к уже проверенному адресу (IP подставляется в URL, Host и имя TLS — исходные, сертификат
    проверяется по имени хоста), поэтому второй DNS-запрос в момент подключения ничего не меняет. */
 import { lookup } from 'node:dns/promises';
-import { isForbiddenHostname, isIpLiteral, isPrivateAddress, TransientError, type HttpRequest, type HttpResult } from '@gr8r/shared';
+import { isForbiddenHostname, isIpLiteral, isPrivateAddress, TransientError, type HttpRequest, type HttpResult } from '@erp/shared';
 
 export interface HttpOptions {
   /** Разрешить частные адреса (только для тестов и закрытых установок: FLOW_HTTP_ALLOW_PRIVATE=1) */
@@ -90,7 +90,7 @@ export async function guardedFetch(req: HttpRequest, o: HttpOptions = defaultHtt
   let method = req.method.toUpperCase();
   let body = req.body;
   let { url, address } = await resolvePublic(req.url, o);
-  const headers: Record<string, string> = { 'user-agent': 'gr8r-automation/1.0' };
+  const headers: Record<string, string> = { 'user-agent': 'erp-automation/1.0' };
   for (const [k, v] of Object.entries(req.headers)) if (!DROP_HEADERS.has(k.toLowerCase())) headers[k.toLowerCase()] = v;
 
   for (let hop = 0; ; hop++) {

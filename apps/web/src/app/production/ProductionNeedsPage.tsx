@@ -10,15 +10,15 @@ import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';
 import { useCanWrite } from '../meta/custom-fields';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { NEEDS_METHOD_LABELS, STOCK_REPLENISHMENT_LABELS, type NeedsMethod, type StockReplenishment } from '@gr8r/shared';
+import { NEEDS_METHOD_LABELS, STOCK_REPLENISHMENT_LABELS, type NeedsMethod, type StockReplenishment } from '@erp/shared';
 import { useWarehouses } from '../docs/data';
 import { useWorkCenters } from '../catalog/data';
 import { fmtDate, parse } from '../lib/dates';
 import { needsKey, useProductionNeeds, type NeedsRow as ProductionNeedsRow, type SupplierOrdersResult } from './orders-data';
 import { calcKey, useNeedsCalculation, useNeedsDraftsApi, type NeedsCalcParams, type NeedsCalcRow } from './plans-data';
 import { tEnum, tProductionEnum, useT } from '@/i18n';
-import { NumberField } from '@/components/gr8r/number-field';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { NumberField } from '@/components/erp/number-field';
+import { DateInput } from '@/components/erp/date-picker';
 
 type Step = 'recommendations' | 'planning' | 'orders';
 const STEPS: { id: Step; name: string }[] = [

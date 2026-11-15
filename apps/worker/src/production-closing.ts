@@ -5,8 +5,8 @@
    Месяцы закрываются по порядку, отмена — в обратном; внутри транзакции месяца держится рекомендательная блокировка
    воркспейса, поэтому два закрытия одного воркспейса не идут одновременно. */
 import { and, eq } from 'drizzle-orm';
-import { monthRange } from '@gr8r/shared';
-import { closePeriodMonth, productionCostClosings, reopenPeriodMonth, withContext, type DocCtx, type Sql } from '@gr8r/db';
+import { monthRange } from '@erp/shared';
+import { closePeriodMonth, productionCostClosings, reopenPeriodMonth, withContext, type DocCtx, type Sql } from '@erp/db';
 
 /** payload задачи: месяц «2026-10», необязательный конец периода и признак отмены закрытия */
 export interface ClosePeriodPayload {

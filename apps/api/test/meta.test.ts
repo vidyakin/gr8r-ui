@@ -2,7 +2,7 @@
    фильтры/сортировка/поиск по data, custom у системных сущностей, индексы filterable, удаление с подтверждением. */
 import { beforeAll, describe, expect, test } from 'bun:test';
 import { Client, admin, drainJobs, sql as appSql, stageId } from './helpers';
-import { SYSTEM_ENTITIES } from '@gr8r/shared';
+import { SYSTEM_ENTITIES } from '@erp/shared';
 
 let owner: Client;
 let member: Client;

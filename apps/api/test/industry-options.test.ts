@@ -1,5 +1,5 @@
 /* Отраслевые опции воркспейса (задача 1258, docs/architecture/industry-options.md): читают все участники,
-   меняют owner и admin; значения — только из INDUSTRY_OPTIONS (@gr8r/shared). */
+   меняют owner и admin; значения — только из INDUSTRY_OPTIONS (@erp/shared). */
 import { describe, expect, test } from 'bun:test';
 import { addMember, admin, Client } from './helpers';
 

@@ -1,4 +1,4 @@
-/* Подписи значений из @gr8r/shared, нужные только оверлеям и страницам.
+/* Подписи значений из @erp/shared, нужные только оверлеям и страницам.
    Перевод — overlays.oenums.* (en/overlays.ts, ru/overlays.ts); если ключа нет — fallback из shared.
    Группы общие с каталогом (vat, replenishment, fieldType) — в catalog.enums и достаются через tEnum из @/i18n */
 import { hasKey, t } from '@/i18n';

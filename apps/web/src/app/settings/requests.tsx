@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Inbox } from 'lucide-react';
-import { REQUEST_STATUSES, type ModuleId, type OperatorModuleRequest, type RequestStatus } from '@gr8r/shared';
+import { REQUEST_STATUSES, type ModuleId, type OperatorModuleRequest, type RequestStatus } from '@erp/shared';
 import { Alert, Badge, Button, EmptyState, Input, Select, Skeleton, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { fmtDateTime } from '@/i18n/format';

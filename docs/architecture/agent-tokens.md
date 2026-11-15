@@ -8,7 +8,7 @@
 `api_tokens` (RLS `app_secure_tenant_table`, ссылки составные `(workspace_id, id)`):
 - `id`, `workspace_id`, `member_id` → members (чей токен), `created_by` → members, `name` (до 120 символов);
 - `token_hash text unique` — sha256 (hex) полного токена; сам токен не хранится;
-- `prefix text` — первые 12 символов токена для показа в списке (`gr8r_ab12cd3`);
+- `prefix text` — первые 12 символов токена для показа в списке (`erp_ab12cd3`);
 - `read_only bool not null default true`;
 - `sections text[]` — `null` = все разделы сотрудника; иначе подмножество `POSITION_SECTIONS`;
 - `can_post bool not null default false` — право проводить, оплачивать, удалять (проверяется в `tenant()` для HTTP-запросов,
@@ -26,10 +26,10 @@
 read_only, sections, can_post` для неотозванного и неистёкшего токена и обновляет `last_used_at` не чаще раза в минуту.
 
 ## Формат токена
-`gr8r_` + 32 случайных байта base64url (`crypto.getRandomValues`). Показывается один раз в ответе на создание.
+`erp_` + 32 случайных байта base64url (`crypto.getRandomValues`). Показывается один раз в ответе на создание.
 
 ## Проверка запроса (apps/api)
-1. `requireSession`: заголовок `Authorization: Bearer gr8r_…` → `app_api_token_lookup(sha256)`; нет строки → 401
+1. `requireSession`: заголовок `Authorization: Bearer erp_…` → `app_api_token_lookup(sha256)`; нет строки → 401
    `token_invalid`. Иначе `c.set('user', …)` (пользователь участника) и `c.set('apiToken', { id, workspaceId, memberId,
    readOnly, sections, canPost })`. Cookie и Bearer вместе — приоритет у Bearer.
 2. По токену доступны только пути `TENANT_PATHS` и `GET /auth/me`. Всё остальное (`/auth/*`, `/workspaces/*`, приглашения,
@@ -37,10 +37,10 @@ read_only, sections, can_post` для неотозванного и неистё
 3. `tenant()`: заголовок `X-Workspace-Id` обязан совпасть с воркспейсом токена, участник — с `member_id` токена,
    иначе 403 `token_forbidden`. Выставляет `app.api_token_id`.
 4. `read_only` → любой метод кроме GET/HEAD/OPTIONS → 403 `token_read_only`.
-5. `can_post` (`isTokenPostingRequest` из `@gr8r/shared`): запрос, который проводит, оплачивает или удаляет (`DELETE`,
+5. `can_post` (`isTokenPostingRequest` из `@erp/shared`): запрос, который проводит, оплачивает или удаляет (`DELETE`,
    `POST …/post`, `…/unpost`, `…/cancel`, создание оплаты), без этого права получает 403 `token_cannot_post`. Работает и в
    обход MCP: `DELETE /documents/:id` и `POST /documents/:id/post` по токену без `can_post` тоже отказывают.
-6. Разделы токена: `TOKEN_PATH_SECTIONS` (`@gr8r/shared`) — **каждый** корень `TENANT_PATHS` либо сопоставлен списку
+6. Разделы токена: `TOKEN_PATH_SECTIONS` (`@erp/shared`) — **каждый** корень `TENANT_PATHS` либо сопоставлен списку
    разделов, либо внесён в `TOKEN_OPEN_PATHS` (участники, уведомления, справочники единиц и т. п.). Тест проверяет полноту.
    Путь с разделами пропускается, если пересечение с `sections` токена не пусто (`/documents` → trade, stock, finance,
    services, production…). Иначе 403 `token_section_forbidden`. В отличие от `SECTION_OF_API_PATH` (должности, только пути

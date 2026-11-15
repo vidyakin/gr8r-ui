@@ -3,10 +3,10 @@
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { CalendarRange, CircleAlert, FileText, Plus, Send, Trash2, Undo2, Wand2 } from 'lucide-react';
-import { MATERIAL_OWNERS, MATERIAL_OWNER_LABELS, PRODUCTION_ORDER_STATES } from '@gr8r/shared';
+import { MATERIAL_OWNERS, MATERIAL_OWNER_LABELS, PRODUCTION_ORDER_STATES } from '@erp/shared';
 import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
-import { DocForm } from '@/components/gr8r/doc-form';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DocForm } from '@/components/erp/doc-form';
+import { DateInput } from '@/components/erp/date-picker';
 import { fmtDate } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';
 import { money, useIsAdmin } from '../catalog/data';

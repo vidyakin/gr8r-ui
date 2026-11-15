@@ -3,7 +3,7 @@
    только настройки этого устройства (проверка орфографии) и заготовки прав воркспейса, которые ещё не ходят на сервер.
    Язык — не здесь, а в src/i18n и users.locale; тема, плотность и движение — в Gr8rProvider (usePrefs). */
 import * as React from 'react';
-import { resolveUserPrefs, USER_PREFS_DEFAULTS, type UserPrefs } from '@gr8r/shared';
+import { resolveUserPrefs, USER_PREFS_DEFAULTS, type UserPrefs } from '@erp/shared';
 import { toast } from '@/components/ui';
 import { useSession } from './session';
 import { errorMessage } from './api';
@@ -18,7 +18,7 @@ interface LocalSettings {
 
 export type Settings = LocalSettings & UserPrefs;
 
-const KEY = 'gr8r-ui.settings';
+const KEY = 'erp-ui.settings';
 
 const LOCAL_DEFAULTS: LocalSettings = { spell: true, permCreate: true, permGuests: true, permPublic: false };
 const LOCAL_KEYS = Object.keys(LOCAL_DEFAULTS) as (keyof LocalSettings)[];

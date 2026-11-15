@@ -2,7 +2,7 @@
    Ключи — под ['ws', id, 'docs', 'payroll', …]: события документов инвалидируют их вместе с остальными документами. */
 import { withPrintCsp } from '@/lib/print-csp';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { DocumentStatus } from '@gr8r/shared';
+import type { DocumentStatus } from '@erp/shared';
 import { API_BASE, ok } from '../data/api';
 import { call, useWsId } from '../meta/data';
 

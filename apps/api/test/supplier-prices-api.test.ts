@@ -1,6 +1,6 @@
 /* Загрузка прайсов поставщиков через HTTP (/pricing/supplier-*): профиль → превью → загрузка → разбор → применение → цена товара. */
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { MemoryFileStore, setFileStore } from '@gr8r/db';
+import { MemoryFileStore, setFileStore } from '@erp/db';
 import { buildXlsx } from '../src/xlsx';
 import { addMember, admin, Client } from './helpers';
 

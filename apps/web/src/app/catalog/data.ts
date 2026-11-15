@@ -3,7 +3,7 @@
    unit / product_category / attribute_def / product (см. data/realtime.ts). */
 import * as React from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { FieldOptions, FieldType, ProductKind, VatRate } from '@gr8r/shared';
+import type { FieldOptions, FieldType, ProductKind, VatRate } from '@erp/shared';
 import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId, type MetaField } from '../meta/data';
@@ -101,7 +101,7 @@ export interface ProductParams {
 
 export const catalogKey = (ws: string, ...rest: unknown[]) => ['ws', ws, 'catalog', ...rest] as const;
 
-/** Деньги: «1,234.50» / «1 234,50» по языку — строка из API → число для показа. Расчёты идут на сервере и в @gr8r/shared (BigInt), здесь только вывод */
+/** Деньги: «1,234.50» / «1 234,50» по языку — строка из API → число для показа. Расчёты идут на сервере и в @erp/shared (BigInt), здесь только вывод */
 export const money = fmtAmount;
 
 /** Контрагенты: поставщик по умолчанию для товара */

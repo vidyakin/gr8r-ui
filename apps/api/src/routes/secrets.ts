@@ -2,8 +2,8 @@
    и больше нигде не отдаётся: список — имя, дата, автор + признак, что на сервере задан SECRETS_KEY. */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
-import { deleteSecret, listSecrets, secretsAvailable, setSecret } from '@gr8r/db';
-import { secretKeyParam, secretSet } from '@gr8r/shared';
+import { deleteSecret, listSecrets, secretsAvailable, setSecret } from '@erp/db';
+import { secretKeyParam, secretSet } from '@erp/shared';
 import { ctxOf, validationHook } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';

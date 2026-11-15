@@ -1,12 +1,12 @@
 /* Контроль качества партии (задача 1186): статус входного контроля и анализы партии в диалоге. */
 import * as React from 'react';
 import { FlaskConical, Trash2 } from 'lucide-react';
-import { BATCH_STATUSES, type BatchStatus } from '@gr8r/shared';
+import { BATCH_STATUSES, type BatchStatus } from '@erp/shared';
 import { Badge, Button, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Input, Skeleton, toast, type Tone } from '@/components/ui';
 import { useT } from '@/i18n';
 import { fmtDate, parse } from '../lib/dates';
 import { useBatchAnalyses, useBatchQualityApi, useCanEditBatches } from './data';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 const STATUS_TONE: Record<BatchStatus, Tone> = { ok: 'green', quarantine: 'amber', rejected: 'red' };
 

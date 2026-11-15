@@ -2,8 +2,8 @@
    Чтение — любой участник; правка карточки номера — member и выше. Правила — packages/db/src/serials.ts и repair.ts. */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
-import { listRepairItems, listSerials, lookupSerial, serialCard, updateSerial } from '@gr8r/db';
-import { idParam, repairItemsQuery, serialLookupQuery, serialQuery, serialUpdate } from '@gr8r/shared';
+import { listRepairItems, listSerials, lookupSerial, serialCard, updateSerial } from '@erp/db';
+import { idParam, repairItemsQuery, serialLookupQuery, serialQuery, serialUpdate } from '@erp/shared';
 import { ctxOf, validationHook } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';

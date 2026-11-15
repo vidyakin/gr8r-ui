@@ -2,7 +2,7 @@
    права, RLS, разделы токена и должности проверяет обычная цепочка маршрута. Описания — английский / русский. */
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { DOCUMENT_GROUPS, DOCUMENT_STATUSES, DOCUMENT_TYPES } from '@gr8r/shared';
+import { DOCUMENT_GROUPS, DOCUMENT_STATUSES, DOCUMENT_TYPES } from '@erp/shared';
 import { z } from 'zod';
 import type { CallResult, WriteMethod } from './call';
 import { ENTITY_KIND_NAMES, ENTITY_KINDS, REPORT_NAMES, REPORTS, type EntityKindName } from './kinds';
@@ -27,7 +27,7 @@ const limitArg = z.number().int().min(1).max(MAX_LIMIT).optional().describe(`Pag
 const offsetArg = z.number().int().min(0).optional().describe('Rows to skip / Сколько строк пропустить');
 const uuidArg = (what: string) => z.string().uuid().describe(what);
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-/** Десятичное число строкой, как в схемах @gr8r/shared: "2.5" */
+/** Десятичное число строкой, как в схемах @erp/shared: "2.5" */
 const decimalArg = z.union([z.string().regex(/^-?\d+(\.\d+)?$/), z.number().finite()]);
 /** Типы документов, которые агент создаёт черновиком через MCP (остальные — в своих разделах) */
 const MCP_DOCUMENT_TYPES = ['quote', 'customer_order', 'invoice', 'supplier_order', 'receipt'] as const;

@@ -1,7 +1,7 @@
 /* Инвентаризация: остатки не двигают, документ фиксирует результат сверки. Учётное количество строки — по остаткам склада,
    фактическое — то, что насчитали; разница (недостача или излишек) оформляется списанием и оприходованием на основании. */
 import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
-import { dec, fmt } from '@gr8r/shared';
+import { dec, fmt } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { createDocument, type DocCtx } from './documents';

@@ -2,10 +2,10 @@
    Партия без срока (null) не попадает в истекающие. Количество — производное от движений (сумма по batch_id). */
 import * as React from 'react';
 import { CircleAlert, PackageSearch } from 'lucide-react';
-import type { BatchStatus } from '@gr8r/shared';
+import type { BatchStatus } from '@erp/shared';
 import { Badge, Button, EmptyState, Skeleton, type Tone } from '@/components/ui';
-import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/gr8r/data-table';
-import { FilterBar, useFilterState } from '@/components/gr8r/filter-bar';
+import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/erp/data-table';
+import { FilterBar, useFilterState } from '@/components/erp/filter-bar';
 import { useT } from '@/i18n';
 import { fmtNumber } from '@/i18n/format';
 import { fmtDate, parse } from '../lib/dates';

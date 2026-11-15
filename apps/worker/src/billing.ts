@@ -2,8 +2,8 @@
    день выставления. Счёт за период создаётся один раз (billing_runs), поэтому повторный запуск и два воркера
    не создают двух счетов. */
 import { and, eq, isNull } from 'drizzle-orm';
-import { contracts, modulesByWorkspace, runBilling, withContext, workspaces, type Sql } from '@gr8r/db';
-import { dateInTimezone, periodOf, shiftPeriod } from '@gr8r/shared';
+import { contracts, modulesByWorkspace, runBilling, withContext, workspaces, type Sql } from '@erp/db';
+import { dateInTimezone, periodOf, shiftPeriod } from '@erp/shared';
 
 /** Выставленные счета за этот проход (для журнала воркера) */
 export async function runBillingOnce(sql: Sql, at: Date = new Date()): Promise<number> {

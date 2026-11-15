@@ -1,7 +1,7 @@
 /* Объекты объектного учёта (задача 1268, docs/architecture/construction.md): справочник, прорабы, договоры,
    автосоздание проекта задач, карточка со сводкой. Всё в транзакции вызывающего; деньги карточки видят owner/admin. */
 import { and, asc, count, desc, eq, ilike, inArray, isNotNull, isNull, or, sql, type SQL } from 'drizzle-orm';
-import type { Role } from '@gr8r/shared';
+import type { Role } from '@erp/shared';
 import type { Db } from './client';
 import { canSeeCost } from './cost';
 import { DomainError } from './errors';

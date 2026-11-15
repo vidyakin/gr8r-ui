@@ -1,6 +1,6 @@
 /* Сборка мусора вложений (задача 1191, docs/architecture/attachments.md): раз в час удаляет из S3 объекты вложений,
    архивных дольше ATTACHMENT_RETENTION_DAYS, и осиротевшие ключи незавершённых загрузок. Без настроенного хранилища ничего не делает. */
-import { collectAttachmentGarbage, getFileStore, withContext, type Sql } from '@gr8r/db';
+import { collectAttachmentGarbage, getFileStore, withContext, type Sql } from '@erp/db';
 
 /** Число удалённых объектов за проход */
 export async function runAttachmentGcOnce(sql: Sql): Promise<number> {

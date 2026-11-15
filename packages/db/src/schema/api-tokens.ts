@@ -18,7 +18,7 @@ export const apiTokens = pgTable(
     name: text('name').notNull(),
     /** sha256 (hex) полного токена; сам токен не хранится */
     tokenHash: text('token_hash').notNull(),
-    /** Первые 12 символов токена для показа в списке (gr8r_ab12cd3) */
+    /** Первые 12 символов токена для показа в списке (erp_ab12cd3) */
     prefix: text('prefix').notNull(),
     readOnly: boolean('read_only').notNull().default(true),
     /** null = все разделы сотрудника; иначе подмножество POSITION_SECTIONS */

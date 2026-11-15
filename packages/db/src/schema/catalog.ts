@@ -2,7 +2,7 @@
    Таблицы арендатора (workspace_id + RLS); связи — составные внешние ключи (workspace_id, id). */
 import { sql } from 'drizzle-orm';
 import { boolean, check, foreignKey, index, integer, jsonb, numeric, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import type { FieldOptions } from '@gr8r/shared';
+import type { FieldOptions } from '@erp/shared';
 import { archivedAt, createdAt, money, pk, updatedAt } from './columns';
 import { companies } from './crm';
 import { wsCol } from './people';

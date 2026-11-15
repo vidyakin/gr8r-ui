@@ -4,7 +4,7 @@
    Вызывается из applyStockMoves: приходы помечаются batchId, расходы разбиваются по партиям.
    Себестоимость средняя по складу не меняется — партия задаёт только порядок списания и прослеживаемость. */
 import { and, asc, eq, gt, ilike, inArray, sql } from 'drizzle-orm';
-import { addDays, dec, fmt, type Dec } from '@gr8r/shared';
+import { addDays, dec, fmt, type Dec } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { documentLines, products, stockBatches, stockMoves, warehouses } from './schema';

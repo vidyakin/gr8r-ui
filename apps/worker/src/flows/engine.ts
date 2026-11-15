@@ -7,7 +7,7 @@
    Граф — дерево от триггера (публикация запрещает слияния и циклы). Очередь `state.queue` хранит узлы к выполнению; её голова — текущий узел.
    Задержка и повтор временной ошибки не держат воркер: запуск переходит в waiting, а задача `flow.run` ставится в jobs с run_at. */
 import { and, eq } from 'drizzle-orm';
-import { enqueueRun, readMyModules, flowRunSteps, flowRuns, flowVersions, flows, recordEvent, withContext, type Db, type Sql, type Tx } from '@gr8r/db';
+import { enqueueRun, readMyModules, flowRunSteps, flowRuns, flowVersions, flows, recordEvent, withContext, type Db, type Sql, type Tx } from '@erp/db';
 import {
   getNodeDef,
   MODULE_OF_NODE,
@@ -20,7 +20,7 @@ import {
   type HttpRequest,
   type HttpResult,
   type TriggerContext,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import { defaultHttpOptions } from './http';
 import { loadProjectOf, loadRecord } from './records';
 import { makeRuntime } from './runtime';

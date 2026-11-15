@@ -2,7 +2,7 @@
    Ключи кэша ['ws', id, 'leads', …]: события lead / lead_status / lead_form / crm_activity / company / contact / deal обновляют их (data/realtime.ts). */
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { LeadStatusCategory } from '@gr8r/shared';
+import type { LeadStatusCategory } from '@erp/shared';
 import { toast } from '@/components/ui';
 import { API_BASE, errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';

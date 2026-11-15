@@ -30,7 +30,7 @@ import {
   type AnyNodeDef,
   type FlowGraph,
   type GraphIssue,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import { Alert, Badge, Button, Dialog, DialogClose, DialogContent, EmptyState, Input, Skeleton, Switch, Tab, Tabs, TabsList, Textarea, toast } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
@@ -43,12 +43,12 @@ import { CATEGORY_COLOR, NodeIcon, nodeCategoryName } from './node-meta';
 import { RunsView } from './RunsView';
 import { nodeDescription, nodeLabel } from './node-i18n';
 
-const nodeTypes = { gr8r: FlowNodeView };
-const DRAG_TYPE = 'application/x-gr8r-node';
+const nodeTypes = { erp: FlowNodeView };
+const DRAG_TYPE = 'application/x-erp-node';
 
 /* ---------------- граф ⇄ React Flow ---------------- */
 
-const toRfNodes = (g: FlowGraph): RFNode[] => g.nodes.map(n => ({ id: n.id, type: 'gr8r', position: n.position, data: { nodeType: n.type, params: n.params } }));
+const toRfNodes = (g: FlowGraph): RFNode[] => g.nodes.map(n => ({ id: n.id, type: 'erp', position: n.position, data: { nodeType: n.type, params: n.params } }));
 const toRfEdges = (g: FlowGraph): Edge[] => g.edges.map(e => ({ id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle || 'out' }));
 const toGraph = (nodes: RFNode[], edges: Edge[]): FlowGraph => ({
   nodes: nodes.map(n => ({ id: n.id, type: n.data.nodeType, position: { x: Math.round(n.position.x), y: Math.round(n.position.y) }, params: n.data.params })),
@@ -141,7 +141,7 @@ function Editor({ flow, tab }: { flow: FlowDetail; tab: 'editor' | 'runs' }) {
         else pos = { x: 60, y: 100 };
       }
       while (nodes.some(n => Math.abs(n.position.x - pos!.x) < 60 && Math.abs(n.position.y - pos!.y) < 60)) pos = { x: pos.x, y: pos.y + 130 };
-      const node: RFNode = { id, type: 'gr8r', position: pos, data: { nodeType: def.type, params }, selected: true };
+      const node: RFNode = { id, type: 'erp', position: pos, data: { nodeType: def.type, params }, selected: true };
       setNodes(ns => [...ns.map(n => (n.selected ? { ...n, selected: false } : n)), node]);
       if (src && freeOut && def.category !== 'trigger') setEdges(es => [...es, { id: edgeId(src.id, freeOut.id, id), source: src.id, target: id, sourceHandle: freeOut.id }]);
       setTimeout(() => void rf.fitView({ padding: 0.3, maxZoom: 1, duration: 200 }), 60);

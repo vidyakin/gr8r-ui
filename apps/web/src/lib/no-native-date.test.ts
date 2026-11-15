@@ -1,4 +1,4 @@
-/* Поля дат — только DateInput (components/gr8r/date-picker.tsx) с календарём проекта:
+/* Поля дат — только DateInput (components/erp/date-picker.tsx) с календарём проекта:
    нативный <input type="date"> выглядит по-разному в браузерах и не знает быстрых дат. */
 import { describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync, statSync } from 'node:fs';

@@ -5,11 +5,11 @@
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { CircleAlert, CopyPlus, Layers, Send, SlidersHorizontal, Trash2, TriangleAlert, Wand2, X } from 'lucide-react';
-import { paramsKey } from '@gr8r/shared';
+import { paramsKey } from '@erp/shared';
 import { ParamsDialog } from '../docs/calculation';
 import { Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
-import { DocForm } from '@/components/gr8r/doc-form';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DocForm } from '@/components/erp/doc-form';
+import { DateInput } from '@/components/erp/date-picker';
 import { fmtDate, parse } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';
 import { useWarehouses } from '../docs/data';

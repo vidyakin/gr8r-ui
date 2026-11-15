@@ -69,7 +69,7 @@ import {
   renameVariant,
   getTemplate,
   assertLimit,
-} from '@gr8r/db';
+} from '@erp/db';
 import {
   bankAccountCreate,
   batchQuery,
@@ -113,7 +113,7 @@ import {
   type CompanyKind,
   type DocumentType,
   uuid,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import { crud, ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError, notFound } from '../errors';
 import { hasRole, requireRole } from '../middleware';

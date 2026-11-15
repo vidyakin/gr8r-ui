@@ -1,9 +1,9 @@
 /* Заявки на перевозку, тарифы по направлениям и экспедирование (задача 1223, docs/architecture/transport-orders.md).
    Заявка — документ заказчика (маршрут, груз, ставка клиенту). Из неё: рейс (точки добавляются как source_kind='transport_order',
    см. trips.ts), счёт и акт на услугу «Перевозка» (documents). Экспедирование — наём перевозчика на рейс (fleet_trip_carriers,
-   одна запись на рейс) и прочие затраты рейса (fleet_trip_costs). Маржа рейса и подбор тарифа — чистые функции @gr8r/shared. */
+   одна запись на рейс) и прочие затраты рейса (fleet_trip_costs). Маржа рейса и подбор тарифа — чистые функции @erp/shared. */
 import { and, asc, desc, eq, getTableColumns, gte, isNull, lte, sql } from 'drizzle-orm';
-import { computeForwardingMargin, computeTransportRateAmount, computeTripMargin, dec, findRateSchedule, fmt, type CarrierContractPrintData, type TransportOrderStatus, type TransportRateKind } from '@gr8r/shared';
+import { computeForwardingMargin, computeTransportRateAmount, computeTripMargin, dec, findRateSchedule, fmt, type CarrierContractPrintData, type TransportOrderStatus, type TransportRateKind } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';

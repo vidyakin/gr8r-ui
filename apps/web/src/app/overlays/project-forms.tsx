@@ -60,7 +60,7 @@ export function ProjectFormsProvider({ children }: { children: React.ReactNode }
       const { data: d } = live.current;
       const p = findProject(d, id);
       if (!p) return;
-      const url = `https://gr8rstudio.com/${d.ws.url}/project/${p.key.toLowerCase()}`;
+      const url = `https://future-erp.com/${d.ws.url}/project/${p.key.toLowerCase()}`;
       navigator.clipboard.writeText(url).then(
         () => toast(t('common.linkCopied')),
         () => toast.info(t('overlays.projectForms.copyFallback', { url }), { duration: 6000 }),

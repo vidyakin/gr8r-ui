@@ -1,6 +1,6 @@
 /* WebSocket: события воркспейса приходят после коммита, чужие воркспейсы изолированы, пропущенное догоняется по ?since. */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { recordEvent, recordEvents, withContext, type EventEnvelope } from '@gr8r/db';
+import { recordEvent, recordEvents, withContext, type EventEnvelope } from '@erp/db';
 import { websocket } from '../src/app';
 import { Hub, coalesceEvents } from '../src/realtime';
 import { Client, admin, app, hub } from './helpers';

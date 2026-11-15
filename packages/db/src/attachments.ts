@@ -1,7 +1,7 @@
 /* Вложения к любым объектам: версии, лимиты, квота воркспейса, права «как у объекта» (docs/architecture/attachments.md).
    Содержимое — в FileStore (S3), метаданные — attachments / attachment_versions под RLS арендатора. */
 import { and, desc, eq, ilike, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm';
-import { ATTACHMENT_ENTITY_TYPES, fileKindOf, type AttachmentEntityType, type Role } from '@gr8r/shared';
+import { ATTACHMENT_ENTITY_TYPES, fileKindOf, type AttachmentEntityType, type Role } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';

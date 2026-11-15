@@ -1,7 +1,7 @@
 /* Задачи воркера записи на приём (задача 1171): напоминание накануне («Подтвердите запись») и контроль незакрытых дней
    (вечером и утром по часовому поясу воркспейса). Журналы appointment_reminders и appointment_day_alerts делают проходы идемпотентными. */
-import { modulesByWorkspace, runAppointmentReminders, runUnclosedDayAlerts, withContext, workspaces, type Sql } from '@gr8r/db';
-import { dateInTimezone, wallClock } from '@gr8r/shared';
+import { modulesByWorkspace, runAppointmentReminders, runUnclosedDayAlerts, withContext, workspaces, type Sql } from '@erp/db';
+import { dateInTimezone, wallClock } from '@erp/shared';
 
 export interface AppointmentsRun {
   reminders: number;

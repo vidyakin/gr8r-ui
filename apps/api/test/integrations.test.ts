@@ -1,8 +1,8 @@
 /* Задача 1174д: API банков (Т-Банк на подставном сервере-фикстуре) через общий импорт выписки, задачи bank.sync / yookassa.payment,
    ссылка на оплату и вебхук ЮКассы с перепроверкой статуса, права и изоляция арендаторов. Наружу запросов нет: `integrationRuntime.deps`. */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { integrationRuntime, readSecret, withContext } from '@gr8r/db';
-import type { Fetcher, HttpCall } from '@gr8r/shared';
+import { integrationRuntime, readSecret, withContext } from '@erp/db';
+import type { Fetcher, HttpCall } from '@erp/shared';
 import { defaultOptions, processJobsOnce } from '../../worker/src/worker';
 import { createApp } from '../src/app';
 import { Client, admin, app, sql, testConfig } from './helpers';

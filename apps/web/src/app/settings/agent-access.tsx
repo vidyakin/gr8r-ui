@@ -3,10 +3,10 @@
    его права: роль, должности и разделы остаются сотрудника. */
 import * as React from 'react';
 import { Copy, KeyRound, Plus, UserPlus } from 'lucide-react';
-import { visibleSections, type PositionSection } from '@gr8r/shared';
+import { visibleSections, type PositionSection } from '@erp/shared';
 import { Alert, Badge, Button, Checkbox, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, Input, Select, Skeleton, Switch, toast } from '@/components/ui';
-import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DataTable, useDataTable, type Column } from '@/components/erp/data-table';
+import { DateInput } from '@/components/erp/date-picker';
 import { useT, fmtDateTime } from '@/i18n';
 import { useIsAdmin } from '../catalog/data';
 import { useSession } from '../data/session';
@@ -198,7 +198,7 @@ function IssuedTokenDialog({ token, onClose }: { token: string | null; onClose: 
   const wsId = session.active?.id ?? '';
   // MCP-сервер за тем же прокси, что и API (docs/architecture/mcp.md)
   const mcpUrl = `${window.location.origin}/api/mcp`;
-  const claudeCmd = `claude mcp add --transport http gr8r ${mcpUrl} --header "Authorization: Bearer ${token ?? ''}"`;
+  const claudeCmd = `claude mcp add --transport http erp ${mcpUrl} --header "Authorization: Bearer ${token ?? ''}"`;
   const copyText = async (text: string, done: string) => {
     try {
       await navigator.clipboard.writeText(text);

@@ -3,13 +3,13 @@ import { and, eq, gt } from 'drizzle-orm';
 import { getCookie } from 'hono/cookie';
 import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
-import { drizzleOf, isUuid, memberSections, readMyAccess, memberships, members, sessions, setContext, users, type Tx } from '@gr8r/db';
-import { ROLES, TOKEN_PATH_SECTIONS, isTokenPostingRequest, moduleOfApiPath, tokenApiRoot, type ModuleId, type PositionSection, type Role } from '@gr8r/shared';
+import { drizzleOf, isUuid, memberSections, readMyAccess, memberships, members, sessions, setContext, users, type Tx } from '@erp/db';
+import { ROLES, TOKEN_PATH_SECTIONS, isTokenPostingRequest, moduleOfApiPath, tokenApiRoot, type ModuleId, type PositionSection, type Role } from '@erp/shared';
 import { INTERNAL_HEADER, INTERNAL_SECRET, hitTokenRate } from './token-rate';
 import { AppError, Rollback, dbUnavailable, forbidden, unauthorized } from './errors';
 import type { AppEnv, ModuleAccessSets } from './types';
 
-export const SESSION_COOKIE = 'gr8r_session';
+export const SESSION_COOKIE = 'erp_session';
 
 export const sha256 = (s: string) => new Bun.CryptoHasher('sha256').update(s).digest('hex');
 
@@ -30,7 +30,7 @@ export const requestLogger = createMiddleware<AppEnv>(async (c, next) => {
 /** Токен сессии — только из httpOnly cookie (в теле ответов не отдаётся) */
 const readToken = (c: Context<AppEnv>): string | null => getCookie(c, SESSION_COOKIE) ?? null;
 
-/** Токен доступа агента — заголовок Authorization: Bearer gr8r_… (приоритет над cookie) */
+/** Токен доступа агента — заголовок Authorization: Bearer erp_… (приоритет над cookie) */
 const readBearer = (c: Context<AppEnv>): string | null => {
   const h = c.req.header('authorization');
   if (!h?.startsWith('Bearer ')) return null;
@@ -49,7 +49,7 @@ interface ApiTokenRow {
 
 /** Токен агента → пользователь участника + apiToken в контекст. Поиск идёт без арендатора через SECURITY DEFINER-функцию */
 async function resolveApiToken(c: Context<AppEnv>, raw: string): Promise<void> {
-  if (!raw.startsWith('gr8r_')) throw new AppError(401, 'token_invalid', 'The access token is invalid');
+  if (!raw.startsWith('erp_')) throw new AppError(401, 'token_invalid', 'The access token is invalid');
   const hash = sha256(raw);
   const sql = c.get('sql');
   const row = await sql.begin(async tx => {

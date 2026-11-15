@@ -2,7 +2,7 @@
    созданных из акта (счёт и «Акт оказания услуг»), «оплачено» — оплаты по этим документам из взаиморасчётов.
    Отдельный модуль, чтобы им пользовались и акты, и вехи (object-progress.ts) без кругового импорта. */
 import { and, eq, inArray, sql } from 'drizzle-orm';
-import { dec, fmt, type Dec } from '@gr8r/shared';
+import { dec, fmt, type Dec } from '@erp/shared';
 import type { Db } from './client';
 import { companyMode, paymentStatuses } from './settlements';
 import { documents, settlementMoves } from './schema';

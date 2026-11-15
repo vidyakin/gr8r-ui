@@ -35,7 +35,7 @@ export function seed(): WorkspaceData {
     {
       id: 'm1',
       name: 'Андрей Волков',
-      email: 'hello@gr8rstudio.com',
+      email: 'hello@future-erp.com',
       role: 'Owner',
       team: 'product',
       title: 'Руководитель продукта',
@@ -47,7 +47,7 @@ export function seed(): WorkspaceData {
     {
       id: 'm2',
       name: 'Мария Чернова',
-      email: 'sarah@gr8rstudio.com',
+      email: 'sarah@future-erp.com',
       role: 'Admin',
       team: 'design',
       title: 'Руководитель дизайна',
@@ -59,7 +59,7 @@ export function seed(): WorkspaceData {
     {
       id: 'm3',
       name: 'Иван Карпов',
-      email: 'john@gr8rstudio.com',
+      email: 'john@future-erp.com',
       role: 'Member',
       team: 'eng',
       title: 'Фронтенд-разработчик',
@@ -71,7 +71,7 @@ export function seed(): WorkspaceData {
     {
       id: 'm4',
       name: 'Елена Орлова',
-      email: 'emma@gr8rstudio.com',
+      email: 'emma@future-erp.com',
       role: 'Member',
       team: 'design',
       title: 'Продуктовый дизайнер',
@@ -83,7 +83,7 @@ export function seed(): WorkspaceData {
     {
       id: 'm5',
       name: 'Полина Шацкая',
-      email: 'priya@gr8rstudio.com',
+      email: 'priya@future-erp.com',
       role: 'Member',
       team: 'mkt',
       title: 'Контент-стратег',
@@ -95,7 +95,7 @@ export function seed(): WorkspaceData {
     {
       id: 'm6',
       name: 'Максим Лебедев',
-      email: 'marcus@gr8rstudio.com',
+      email: 'marcus@future-erp.com',
       role: 'Member',
       team: 'eng',
       title: 'Бэкенд-разработчик',
@@ -107,7 +107,7 @@ export function seed(): WorkspaceData {
     {
       id: 'm7',
       name: 'Лариса Фомина',
-      email: 'lena@gr8rstudio.com',
+      email: 'lena@future-erp.com',
       role: 'Admin',
       team: 'product',
       title: 'Руководитель тестирования',
@@ -615,7 +615,7 @@ export function seed(): WorkspaceData {
   const tmp = tk('t3');
   tmp.updated = minsAgo(38);
   return {
-    ws: { name: 'FutureERP', url: 'gr8rstudio', c: '#1D1C1A', brand: true },
+    ws: { name: 'FutureERP Studio', url: 'future-erp', c: '#1D1C1A', brand: true },
     me: 'm1',
     members,
     projects,

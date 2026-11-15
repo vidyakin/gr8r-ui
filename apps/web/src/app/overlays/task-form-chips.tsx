@@ -3,7 +3,7 @@ import * as React from 'react';
 import { Calendar as CalendarIcon, CalendarArrowUp, Check, Repeat, Tag } from 'lucide-react';
 import { Label, Popover, PopoverContent, PopoverTrigger } from '@/components/ui';
 import { Calendar } from '@/components/shadcn/calendar';
-import { PriorityIcon, StatusIcon, priorityName, type Priority, type Status } from '@/components/gr8r/task';
+import { PriorityIcon, StatusIcon, priorityName, type Priority, type Status } from '@/components/erp/task';
 import { cn } from '@/lib/utils';
 import { useT, weekStartsOn } from '@/i18n';
 import { useWorkspace } from '../data/store';

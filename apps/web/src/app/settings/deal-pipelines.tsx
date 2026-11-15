@@ -2,7 +2,7 @@
    обязательные поля, порядок), справочник причин проигрыша. Правят admin и owner; читают все. */
 import * as React from 'react';
 import { ArrowDown, ArrowUp, GitBranch, ListOrdered, Plus, Star, Trash2 } from 'lucide-react';
-import { DEAL_REQUIRED_BUILTINS, DEAL_STAGE_CATEGORIES, LEAD_STATUS_COLORS, PIPELINE_TEMPLATES, type DealStageCategory } from '@gr8r/shared';
+import { DEAL_REQUIRED_BUILTINS, DEAL_STAGE_CATEGORIES, LEAD_STATUS_COLORS, PIPELINE_TEMPLATES, type DealStageCategory } from '@erp/shared';
 import { Alert, Badge, Button, ConfirmDialog, EmptyState, Field, Input, Select, Skeleton } from '@/components/ui';
 import { useT } from '@/i18n';
 import { useIsAdmin } from '../catalog/data';

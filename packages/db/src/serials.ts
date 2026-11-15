@@ -5,7 +5,7 @@
    отмена проведения просто удаляет события документа и пересчитывает номер; если позднейшие события перестают сходиться —
    отмена запрещена (422 serial_conflict). Изделия клиентов в ремонте склад и реестр не меняют. */
 import { and, asc, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
-import { addMonthsISO, applySerialEvent, checkSerialTransition, dec, normalizeSerial, replaySerialEvents, serialStatusAfter, type SerialStatus } from '@gr8r/shared';
+import { addMonthsISO, applySerialEvent, checkSerialTransition, dec, normalizeSerial, replaySerialEvents, serialStatusAfter, type SerialStatus } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { companies, documentLineSerials, documentLines, documents, products, serialEvents, serialNumbers, warehouses, workOrderMaterials, workOrderRepairItems } from './schema';

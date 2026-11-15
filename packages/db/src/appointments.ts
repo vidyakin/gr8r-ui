@@ -1,6 +1,6 @@
 /* Запись клиентов на приём (задача 1171), раздел docs/architecture/appointments.md: график специалиста и исключения, записи с проверкой
    слотов и пересечений, сетки дня и недели, поиск свободного времени, документ «Оказанные услуги за день» (тип service_day) с проведением,
-   контроль незакрытых дней и напоминания воркера. Правила слотов — чистые функции @gr8r/shared/appointments. */
+   контроль незакрытых дней и напоминания воркера. Правила слотов — чистые функции @erp/shared/appointments. */
 import { resolveOne } from './pricing';
 import { and, asc, eq, gte, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import {
@@ -23,7 +23,7 @@ import {
   productFitsSpecialist,
   specialistProductKindIds,
   type HolidayCalendar,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import type { Db } from './client';
 import { DOCUMENT_HOOKS } from './document-hooks';
 import { createWorkOrderAssignment } from './work-orders';

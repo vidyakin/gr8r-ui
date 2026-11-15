@@ -2,7 +2,7 @@
    История этапов сделки — в crm.ts (ссылается на сделки). Таблицы арендатора: workspace_id + составные FK + RLS. */
 import { sql } from 'drizzle-orm';
 import { boolean, check, foreignKey, index, integer, jsonb, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import { DEAL_STAGE_CATEGORIES } from '@gr8r/shared';
+import { DEAL_STAGE_CATEGORIES } from '@erp/shared';
 import { createdAt, pk, updatedAt } from './columns';
 import { wsCol } from './tenant';
 

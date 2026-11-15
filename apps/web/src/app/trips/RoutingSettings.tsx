@@ -1,7 +1,7 @@
 /* Настройки маршрутизации арендатора (задача 1213, docs/architecture/routing.md): провайдер, адреса своих серверов, ключи Яндекса
    (в хранилище секретов — значение только вводится), база машин, время на точке и скорости для расчёта без провайдера. */
 import * as React from 'react';
-import { ROUTING_PROVIDERS, ROUTING_SECRETS, type RoutingProvider, type RoutingSettings as Settings } from '@gr8r/shared';
+import { ROUTING_PROVIDERS, ROUTING_SECRETS, type RoutingProvider, type RoutingSettings as Settings } from '@erp/shared';
 import { Alert, Button, Dialog, DialogContent, Field, Input, Select, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { errorMessage } from '../data/api';

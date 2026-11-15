@@ -1,6 +1,6 @@
 /* Порты узлов (NodeRuntime) на базе транзакции арендатора: роль app_user + app.workspace_id, RLS включён. */
-import type { Db } from '@gr8r/db';
-import type { EventVia, FlowContext, HttpRequest, HttpResult, NodeRuntime } from '@gr8r/shared';
+import type { Db } from '@erp/db';
+import type { EventVia, FlowContext, HttpRequest, HttpResult, NodeRuntime } from '@erp/shared';
 import { guardedFetch, type HttpOptions } from './http';
 import { addComment, assignLead, createLead, createTask, moveDealAction, notifyMember, updateField } from './records';
 

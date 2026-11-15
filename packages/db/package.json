@@ -1,5 +1,5 @@
 {
-  "name": "@gr8r/db",
+  "name": "@erp/db",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -18,7 +18,7 @@
     "tenant": "bun src/cli/tenant.ts"
   },
   "dependencies": {
-    "@gr8r/shared": "workspace:*",
+    "@erp/shared": "workspace:*",
     "drizzle-orm": "^0.45.4",
     "postgres": "^3.4.0",
     "sanitize-html": "2",

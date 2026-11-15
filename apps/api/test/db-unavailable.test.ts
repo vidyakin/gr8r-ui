@@ -1,9 +1,9 @@
 /* Недоступная зависимость внутри транзакции арендатора: запрос не висит, транзакция откатывается, пул остаётся рабочим.
-   Регрессия 2026-10-23: соединения gr8r_app подолгу стояли `idle in transaction` после запроса членства в tenant(),
+   Регрессия 2026-10-23: соединения futureerp_app подолгу стояли `idle in transaction` после запроса членства в tenant(),
    пул (max 10) исчерпался, /health и вход висели. */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { Hono } from 'hono';
-import { createSql, members, type Sql } from '@gr8r/db';
+import { createSql, members, type Sql } from '@erp/db';
 import { createApp } from '../src/app';
 import { apiSqlOptions, loadConfig } from '../src/env';
 import { onError } from '../src/errors';
@@ -16,7 +16,7 @@ const config: AppConfig = { ...loadConfig(), ...testConfig({ txTimeoutMs: 500 })
 
 /* «Чёрная дыра»: принимает TCP и никогда не отвечает — как админская база, до которой не дойти (сеть, фаервол) */
 const blackhole = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
-const deadAdmin = createSql(`postgres://postgres:wrong@127.0.0.1:${blackhole.port}/gr8r`, { max: 1 });
+const deadAdmin = createSql(`postgres://postgres:wrong@127.0.0.1:${blackhole.port}/futureerp`, { max: 1 });
 // Пул API из одного соединения: любое зависшее соединение сразу видно. Опции — как у настоящего API;
 // серверные таймауты (2 × 2 с) длиннее, чем тест держит транзакцию, иначе Postgres оборвёт её раньше
 const opts = apiSqlOptions({ txTimeoutMs: 2000 });

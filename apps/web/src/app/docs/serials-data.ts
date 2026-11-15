@@ -1,7 +1,7 @@
 /* Серийные номера, изделия в ремонте и материалы заказчика на клиенте (задача 1099). Запросы лежат под ключом docs:
    realtime помечает его устаревшим по событиям document / product / company. */
 import { useQuery } from '@tanstack/react-query';
-import type { SerialStatus } from '@gr8r/shared';
+import type { SerialStatus } from '@erp/shared';
 import { call, useWsId } from '../meta/data';
 import { docsKey } from './data';
 

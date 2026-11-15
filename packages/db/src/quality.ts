@@ -3,7 +3,7 @@
    Раздел docs/architecture/quality.md. ОТК выпуска опирается на брак задачи 1136
    (production_items.defect_qty / defect_mode), здесь добавляются причина, виновный и примечание. */
 import { and, asc, desc, eq, gte, lte, sql } from 'drizzle-orm';
-import { dec, div, fmt, mul, type Dec } from '@gr8r/shared';
+import { dec, div, fmt, mul, type Dec } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { batchAnalyses, defectReasons, documents, manufacturedItems, members, productionHeaders, productionItems, stockBatches, workCenters } from './schema';

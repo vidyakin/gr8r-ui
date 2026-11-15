@@ -9,7 +9,7 @@ import { fmtAmount, fmtNumber, useT } from '@/i18n';
 import { fmtDate } from '../lib/dates';
 import { useSnapshot } from './data';
 import { useWipBalance } from './wip-data';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 const ALL = 'all';
 const today = () => new Date().toISOString().slice(0, 10);

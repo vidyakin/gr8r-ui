@@ -2,7 +2,7 @@
 
 Задачи 1191 и 1192 (картинки товаров), решения — `docs/plans/2026-10-29-docflow.md`. Файлы к любым объектам с версиями, лимитом файла и квотой воркспейса.
 Код: `packages/db/src/file-store.ts` (хранилище), `packages/db/src/attachments.ts` (сервис, права, квота, сборка мусора),
-`apps/api/src/routes/attachments.ts`, `apps/worker/src/attachment-gc.ts`, интерфейс — `apps/web/src/components/gr8r/attachments-panel.tsx`.
+`apps/api/src/routes/attachments.ts`, `apps/worker/src/attachment-gc.ts`, интерфейс — `apps/web/src/components/erp/attachments-panel.tsx`.
 
 ## Хранилище
 - Любое S3-совместимое: MinIO из compose, Yandex Object Storage, AWS. Клиент — встроенный в Bun `Bun.S3Client` (подпись SigV4,

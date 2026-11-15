@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { useNavigate } from 'react-router';
 import { CircleAlert, FileText } from 'lucide-react';
-import { DOCUMENT_META, DOCUMENT_TYPES } from '@gr8r/shared';
+import { DOCUMENT_META, DOCUMENT_TYPES } from '@erp/shared';
 import { Badge, Button, EmptyState, Field, Select, Skeleton } from '@/components/ui';
 import { fmtAmount, useT } from '@/i18n';
 import { errorMessage } from '../data/api';

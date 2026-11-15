@@ -1,7 +1,7 @@
 /* Проход воркера «норматив этапа сделки» (задача 1176): по каждой сделке, застрявшей на этапе дольше норматива, один раз за вход
    в этап пишется событие deal.stage_overdue (его слушает триггер автоматизаций). Повтор прохода ничего не создаёт: отметка
    deals.stage_overdue_notified_at ставится в той же транзакции. */
-import { modulesByWorkspace, runDealOverdue, withContext, workspaces, type Sql } from '@gr8r/db';
+import { modulesByWorkspace, runDealOverdue, withContext, workspaces, type Sql } from '@erp/db';
 
 /** Число объявленных просрочек за проход */
 export async function runDealOverdueOnce(sql: Sql, at: Date = new Date()): Promise<number> {

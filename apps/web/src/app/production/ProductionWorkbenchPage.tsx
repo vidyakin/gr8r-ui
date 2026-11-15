@@ -8,7 +8,7 @@ import { useCanWrite } from '../meta/custom-fields';
 import { STATE_LABEL, STATE_TONE } from './orders-data';
 import { useWorkbench, useWorkbenchExecute, type WorkbenchMode, type WorkbenchOrder, type WorkbenchRow } from './workbench-data';
 import { tProductionEnum, useT } from '@/i18n';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 /** Состояние этапа строки: отмечен ли и сколько выпустить */
 interface StageState {

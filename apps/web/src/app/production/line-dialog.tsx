@@ -2,14 +2,14 @@
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Check, Package, Search } from 'lucide-react';
-import { bomLineCreate, compileExpr, ExprError } from '@gr8r/shared';
+import { bomLineCreate, compileExpr, ExprError } from '@erp/shared';
 import { Button, Dialog, DialogClose, DialogContent, Field, Input, toast } from '@/components/ui';
 import { uuidv7 } from '../lib/uuid';
 import { searchProducts, unitSymbol, useUnits, type Product } from '../catalog/data';
 import { useWsId } from '../meta/data';
 import { fmtNumber, useT } from '@/i18n';
-import { NumberField } from '@/components/gr8r/number-field';
-import { MoneyInput } from '@/components/gr8r/money-input';
+import { NumberField } from '@/components/erp/number-field';
+import { MoneyInput } from '@/components/erp/money-input';
 
 /** Быстрые значения часов работы */
 const QUICK_HOURS = [0.5, 1, 1.5, 2];

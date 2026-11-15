@@ -3,8 +3,8 @@
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { addVersion, archiveAttachment, createAttachment, getAttachment, listAttachments, readContent, readThumb, restoreAttachment, renameAttachment, setStorageQuota, storageSettings, storageUsage, type ThumbSize } from '@gr8r/db';
-import { attachmentQuery, attachmentQuotaBody, attachmentUpdate, idParam } from '@gr8r/shared';
+import { addVersion, archiveAttachment, createAttachment, getAttachment, listAttachments, readContent, readThumb, restoreAttachment, renameAttachment, setStorageQuota, storageSettings, storageUsage, type ThumbSize } from '@erp/db';
+import { attachmentQuery, attachmentQuotaBody, attachmentUpdate, idParam } from '@erp/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError, badRequest } from '../errors';
 import { requireRole } from '../middleware';

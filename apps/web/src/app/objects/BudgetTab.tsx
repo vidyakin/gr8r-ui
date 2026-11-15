@@ -2,7 +2,7 @@
    полоса заполнения и перерасход красным. Бюджет — согласованная смета и согласованные допработы,
    факт — проведённые документы и платежи объекта. Суммы видны только owner/admin (сервер отдаёт null). */
 import { CircleAlert } from 'lucide-react';
-import { dec, div, fmt, OBJECT_COST_CATEGORIES, type ObjectCostCategory } from '@gr8r/shared';
+import { dec, div, fmt, OBJECT_COST_CATEGORIES, type ObjectCostCategory } from '@erp/shared';
 import { EmptyState, Progress, Skeleton } from '@/components/ui';
 import { fmtAmount, useT, type TKey } from '@/i18n';
 import { useObjectBudget } from './data';

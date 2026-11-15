@@ -2,16 +2,16 @@
    машины на дату нарушения; «удержать с водителя» — отметка для зарплаты, иначе оплаченный штраф идёт в затраты на машину. */
 import * as React from 'react';
 import { Plus, ReceiptText } from 'lucide-react';
-import { FINE_STATUSES, type FineStatus } from '@gr8r/shared';
+import { FINE_STATUSES, type FineStatus } from '@erp/shared';
 import { Badge, Button, EmptyState, Field, Select, Skeleton } from '@/components/ui';
-import { DataTable, useDataTable, type Column } from '@/components/gr8r/data-table';
+import { DataTable, useDataTable, type Column } from '@/components/erp/data-table';
 import { fmtAmount, useT } from '@/i18n';
 import { iso, today, fmtDate, parse } from '../lib/dates';
 import { useWorkspace } from '../data/store';
 import { useMembersWith } from '../positions/data';
 import { useFines, useFleetApi, useVehicles, type Fine } from './data';
 import { FleetHead, FormDialog, num, orNull } from './parts';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 const ALL = 'all';
 const NONE = 'none';

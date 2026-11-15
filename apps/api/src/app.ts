@@ -4,13 +4,13 @@ import { Hono } from 'hono';
 import { getConnInfo, upgradeWebSocket, websocket } from 'hono/bun';
 import { cors } from 'hono/cors';
 import { createMiddleware } from 'hono/factory';
-import { databaseUrl, events, isUuid, memberships, members, withContext, type Sql } from '@gr8r/db';
+import { databaseUrl, events, isUuid, memberships, members, withContext, type Sql } from '@erp/db';
 import { adminRoutes } from './admin';
 import { authRoutes } from './auth';
 import { loadConfig } from './env';
 import { AppError, dbUnavailable, forbidden, onError, onNotFound } from './errors';
 import { requireModule, requireSection, requireSession, requestLogger, tenant } from './middleware';
-import { MODULE_OF_PATH, SECTION_OF_API_PATH } from '@gr8r/shared';
+import { MODULE_OF_PATH, SECTION_OF_API_PATH } from '@erp/shared';
 import { licenseRoutes } from './routes/license';
 import { objectRoutes } from './routes/objects';
 import { estimateRoutes, objectEstimateRoutes } from './routes/estimates';
@@ -105,7 +105,7 @@ export const TENANT_PATHS = ['/projects', '/statuses', '/tasks', '/comments', '/
 function buildTenantApi() {
   const guarded = new Hono<AppEnv>();
   for (const p of TENANT_PATHS) {
-    // каждый корневой путь принадлежит модулю (@gr8r/shared licensing): путь без модуля — ошибка сборки, а не дыра в запрете
+    // каждый корневой путь принадлежит модулю (@erp/shared licensing): путь без модуля — ошибка сборки, а не дыра в запрете
     const module = MODULE_OF_PATH.get(p);
     if (!module) throw new Error(`Tenant path ${p} does not belong to any module (packages/shared/src/licensing.ts)`);
     const chain = module === 'core' ? [requireSession, tenant()] : [requireSession, tenant(), requireModule(module)];

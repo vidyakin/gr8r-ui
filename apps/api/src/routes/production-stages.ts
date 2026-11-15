@@ -2,8 +2,8 @@
    меняет admin и выше. Правила — packages/db/src/production-stages.ts. */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
-import { archiveProductionKind, canSeeCost, createProductionKind, listProductionKinds, maskWipBalance, updateProductionKind, wipBalance } from '@gr8r/db';
-import { idParam, productionKindCreate, productionKindUpdate, wipBalanceQuery } from '@gr8r/shared';
+import { archiveProductionKind, canSeeCost, createProductionKind, listProductionKinds, maskWipBalance, updateProductionKind, wipBalance } from '@erp/db';
+import { idParam, productionKindCreate, productionKindUpdate, wipBalanceQuery } from '@erp/shared';
 import { ctxOf, validationHook } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';

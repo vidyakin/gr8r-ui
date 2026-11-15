@@ -3,8 +3,8 @@ import * as React from 'react';
 import { Link, useParams } from 'react-router';
 import { Activity, Briefcase, FileSignature, FileText, Files, CircleDollarSign, ExternalLink, Globe, LayoutDashboard, CalendarCheck, Wallet, MapPin, Plus, Ruler, Tags, User, UserPlus, Users, Clock, Megaphone, Paperclip, FileSpreadsheet, type LucideIcon } from 'lucide-react';
 import { Badge, Button, Checkbox, Choice, EmptyState, Tooltip } from '@/components/ui';
-import { DataTable, useDataTable } from '@/components/gr8r/data-table';
-import { Panel, Stat } from '@/components/gr8r/panel';
+import { DataTable, useDataTable } from '@/components/erp/data-table';
+import { Panel, Stat } from '@/components/erp/panel';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { dayBucket } from '../data/selectors';
@@ -31,7 +31,7 @@ import { CompanyPriceKind } from '../pricing/CompanyPriceKind';
 import { RecordAttribution } from './AttributionFields';
 import { industryName, sizeName } from './labels';
 import { stage } from './stages';
-import { AttachmentsPanel } from '@/components/gr8r/attachments-panel';
+import { AttachmentsPanel } from '@/components/erp/attachments-panel';
 import type { Company } from './types';
 
 const TABS: [string, LucideIcon][] = [

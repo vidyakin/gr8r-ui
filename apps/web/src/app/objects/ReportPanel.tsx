@@ -5,7 +5,7 @@
 import * as React from 'react';
 import { Send, Printer } from 'lucide-react';
 import { Button, Checkbox, Field, Input, Select, Skeleton, toast } from '@/components/ui';
-import { EntityDrawer } from '@/components/gr8r/entity-drawer';
+import { EntityDrawer } from '@/components/erp/entity-drawer';
 import { fmtDateTime, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { useWorkspace } from '../data/store';

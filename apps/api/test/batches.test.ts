@@ -1,8 +1,8 @@
 /* Партии и сроки годности (задача 1187): приход создаёт партию (номер, даты, срок из товара), FEFO порядок списания,
    товар без партионного учёта не меняется, отчёт остатков и истекающих, отмена проведения, изоляция арендаторов. */
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { recomputeStockCosts, revalueMove, withContext } from '@gr8r/db';
-import { dec } from '@gr8r/shared';
+import { recomputeStockCosts, revalueMove, withContext } from '@erp/db';
+import { dec } from '@erp/shared';
 import { admin, Client, sql } from './helpers';
 
 let owner: Client;

@@ -9,7 +9,7 @@
 
    Правила — docs/architecture/time-tracking.md. */
 import { and, asc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
-import { dec, fmt, type Dec } from '@gr8r/shared';
+import { dec, fmt, type Dec } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';

@@ -211,7 +211,7 @@ describe('DB: RLS works even if the application code "forgets" the filter', () =
   test('app_user has no BYPASSRLS, is not a superuser, and the login role has no table privileges of its own (no SET ROLE -> denied)', async () => {
     const [r] = await admin`select rolsuper, rolbypassrls from pg_roles where rolname = 'app_user'`;
     expect(r).toEqual({ rolsuper: false, rolbypassrls: false });
-    const [login] = await admin`select rolsuper, rolbypassrls, rolinherit from pg_roles where rolname = 'gr8r_app'`;
+    const [login] = await admin`select rolsuper, rolbypassrls, rolinherit from pg_roles where rolname = 'futureerp_app'`;
     expect(login).toEqual({ rolsuper: false, rolbypassrls: false, rolinherit: false });
     const err = await (async () => {
       try {

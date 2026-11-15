@@ -3,7 +3,7 @@
    `readSecret` для воркера/сервера; список и маршруты API показывают лишь факт наличия и дату. Права записи (admin+) — в маршрутах. */
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { and, asc, eq } from 'drizzle-orm';
-import { SECRET_KEY_RE } from '@gr8r/shared';
+import { SECRET_KEY_RE } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';

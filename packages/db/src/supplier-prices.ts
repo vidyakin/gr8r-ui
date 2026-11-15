@@ -1,9 +1,9 @@
 /* Загрузка прайсов поставщиков (docs/superpowers/specs/2026-11-11-supplier-price-upload-design.md): профили формата файла,
    загрузка строк по профилю, сопоставление по артикулам контрагента, разбор, применение цен в вид цен поставщика.
    Вызывается под контекстом арендатора (RLS). Права (admin+) проверяет маршрут API; файл читает API (readTable) и отдаёт строки сюда.
-   Деньги — строки и decimal из @gr8r/shared. */
+   Деньги — строки и decimal из @erp/shared. */
 import { and, asc, desc, eq, inArray, isNull, lte, sql } from 'drizzle-orm';
-import { basePriceOf, convertPriceVatBase, dec, fmt, parsePriceCell } from '@gr8r/shared';
+import { basePriceOf, convertPriceVatBase, dec, fmt, parsePriceCell } from '@erp/shared';
 import type { Db } from './client';
 import { archiveAttachmentsOf, createAttachment, type Actor } from './attachments';
 import { DomainError } from './errors';

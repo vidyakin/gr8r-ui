@@ -3,7 +3,7 @@ import * as React from 'react';
 import { useNavigate } from 'react-router';
 import { ChartGantt, Plus } from 'lucide-react';
 import { Button, Progress } from '@/components/ui';
-import { StatusIcon } from '@/components/gr8r/task';
+import { StatusIcon } from '@/components/erp/task';
 import { useWorkspace } from '../data/store';
 import { diffDays, fmtDate, parse, relDate, today } from '../lib/dates';
 import { allTasks, canSee, fmtHours, isOverdue, member, progressOf, projectColor, tasksOf, totalTime, visibleProjects } from '../data/selectors';

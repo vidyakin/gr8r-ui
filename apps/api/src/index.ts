@@ -1,5 +1,5 @@
 /* Точка входа API: Bun.serve + WebSocket + слушатель событий. */
-import { createSql, databaseUrl } from '@gr8r/db';
+import { createSql, databaseUrl } from '@erp/db';
 import { createApp, websocket } from './app';
 import { apiSqlOptions, loadConfig } from './env';
 

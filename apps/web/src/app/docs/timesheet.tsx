@@ -7,7 +7,7 @@ import { Button, EmptyState, Field, Select, Skeleton } from '@/components/ui';
 import { useWorkspace } from '../data/store';
 import { useTimesheet } from './data';
 import { useT } from '@/i18n';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 export function TimesheetPage() {
   const t = useT();

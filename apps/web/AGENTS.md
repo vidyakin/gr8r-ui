@@ -11,17 +11,17 @@
 ## Структура `src/`
 - `app/<модуль>/` — экраны по областям: `production`, `docs` (документы и склад), `catalog`, `crm`, `automations`, `meta`, `settings`, `pages`, `overlays`, `layout`.
   Данные модуля — `data.ts` / `*-data.ts` рядом с экранами (хуки TanStack Query).
-- `app/data/` — общий слой: `api.ts` (клиент `@gr8r/api/client` на воркспейс, разбор ошибок), `realtime.ts` (WebSocket и инвалидация кэша),
+- `app/data/` — общий слой: `api.ts` (клиент `@erp/api/client` на воркспейс, разбор ошибок), `realtime.ts` (WebSocket и инвалидация кэша),
   `store.tsx` + `engine.ts` (состояние задач и проектов: reducer, оптимистичная запись в кэш, отправка разницы в API), `session.tsx`.
 - `components/ui/` — базовый кит (button, dialog, select, menu, floating-window…), экспорт через `index.ts`.
-- `components/gr8r/` — составные: `data-table`, `entity-drawer` (боковая карточка: правка записи, настройки), `filter-bar`, `kanban`, `panel`, `task`,
+- `components/erp/` — составные: `data-table`, `entity-drawer` (боковая карточка: правка записи, настройки), `filter-bar`, `kanban`, `panel`, `task`,
   `doc-form`, `date-picker` (`DateInput`), `number-field`.
 - `i18n/` — `t()`, `useT()`, словари `en/*` (источник ключей) и `ru/*`, форматтеры `format.ts`.
 
 ## Правила
-- Сначала искать готовое в `components/ui` и `components/gr8r`, не дублировать.
-- Страница-документ — каркас `DocForm`/`DocHeader` (`components/gr8r/doc-form.tsx`), числа со степпером — `NumberField`.
-- Все поля дат во всех документах, карточках, фильтрах и диалогах — только `DateInput` (`components/gr8r/date-picker.tsx`): календарь проекта
+- Сначала искать готовое в `components/ui` и `components/erp`, не дублировать.
+- Страница-документ — каркас `DocForm`/`DocHeader` (`components/erp/doc-form.tsx`), числа со степпером — `NumberField`.
+- Все поля дат во всех документах, карточках, фильтрах и диалогах — только `DateInput` (`components/erp/date-picker.tsx`): календарь проекта
   с быстрыми датами, `min`/`max`, `size="sm"` для фильтров и строк таблиц, `required` — без кнопки «Очистить». Нативный
   `<input type="date">` запрещён, сторож — `src/lib/no-native-date.test.ts`.
 - Все тексты — `t('ns.key')`. Новый ключ — в `i18n/en/<ns>.ts` и обязательно в `i18n/ru/<ns>.ts` (иначе ошибка типов).
@@ -29,15 +29,15 @@
   Значения `input`, CSV и печать форматтерами не форматируются.
 - Серверные данные — только через TanStack Query, ключи `['ws', workspaceId, …]`. Новая сущность — добавить её событие
   в инвалидацию `app/data/realtime.ts`, иначе другие вкладки не увидят изменений.
-- Суммы документа считать `computeDocument` из `@gr8r/shared`, деньги — `decimal.ts`, без float.
+- Суммы документа считать `computeDocument` из `@erp/shared`, деньги — `decimal.ts`, без float.
 - В браузере хранятся только настройки вида (тема, плотность, свёрнутый сайдбар, окна).
 - Ошибки API показываются по коду (`errors.*` в словаре).
 - Изменил экран или поведение — обнови статью в `docs/user/` (поле `sources` её шапки ищет файлы экрана) и `verified` (`bun run docs:verify <файл>`) в том же коммите. Новый раздел в `SECTIONS` — статья или запись в `docs/user/pending.json`, иначе падает `i18n/docs-coverage.test.ts`. Формат — `docs/user/README.md`.
 
 ## Команды
-- Typecheck: `bun run --filter @gr8r/web typecheck`; сборка `bun run build`.
+- Typecheck: `bun run --filter @erp/web typecheck`; сборка `bun run build`.
 - Тесты из корня: `bun test apps/web/src/i18n/i18n.test.ts`, `bun test apps/web/src/lib` (тесты без БД удобнее гонять из `apps/web`: там нет preload корня), покрытие справки `bun test apps/web/src/i18n/docs-coverage.test.ts` (тесты корня поднимают тестовую БД — задай `TEST_ADMIN_DATABASE_URL` на кластер `./scripts/pgtest.sh`, имя `*_test`).
-- Запуск: `bun run dev` из корня (api + worker + web), вход `demo@gr8r.dev` / `demo1234`.
+- Запуск: `bun run dev` из корня (api + worker + web), вход `demo@future-erp.dev` / `demo1234`.
 
 ## Частые ошибки
 - Строка в JSX без `t()` или ключ только в `en`.

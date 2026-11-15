@@ -2,7 +2,7 @@
    комбинация таких параметров даёт вариант товара. Значения параметров вводятся в строках заказов. */
 import * as React from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { paramKeyFromName, specParams, type SpecParamDef } from '@gr8r/shared';
+import { paramKeyFromName, specParams, type SpecParamDef } from '@erp/shared';
 import { Button, IconButton, Input, toast } from '@/components/ui';
 import { useProductionMutations, type Item } from './data';
 import { useT } from '@/i18n';

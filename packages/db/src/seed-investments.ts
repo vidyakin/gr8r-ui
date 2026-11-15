@@ -2,7 +2,7 @@
    обоими путями — поступление оборудования и акт с полем «Инвестпроект», прочие затраты по статье проекта — и черновик.
    Вызывается из seedDocuments до закрытия месяца: после даты запрета проводить документы уже нельзя. */
 import { and, eq } from 'drizzle-orm';
-import { periodStart } from '@gr8r/shared';
+import { periodStart } from '@erp/shared';
 import type { Db } from './client';
 import { createDocument, postDocument, type DocCtx } from './documents';
 import { createInvestment, setInvestmentStatus } from './investments';

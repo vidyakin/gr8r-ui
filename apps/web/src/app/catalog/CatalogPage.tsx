@@ -3,12 +3,12 @@
 import * as React from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { Factory, CircleAlert, Package, Plus, Shapes, Wrench } from 'lucide-react';
-import { VAT_LABELS, type ProductKind } from '@gr8r/shared';
+import { VAT_LABELS, type ProductKind } from '@erp/shared';
 import { Badge, Button, EmptyState, Skeleton } from '@/components/ui';
 import { fmtNumber } from '@/i18n/format';
-import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/gr8r/data-table';
-import { FilterBar, useFilterState, type FilterField } from '@/components/gr8r/filter-bar';
-import { EntityDrawer } from '@/components/gr8r/entity-drawer';
+import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/erp/data-table';
+import { FilterBar, useFilterState, type FilterField } from '@/components/erp/filter-bar';
+import { EntityDrawer } from '@/components/erp/entity-drawer';
 import { useCanWrite } from '../meta/custom-fields';
 import { fmtDate } from '../lib/dates';
 import { tEnum, useT } from '@/i18n';

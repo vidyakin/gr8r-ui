@@ -2,7 +2,7 @@
    Запросы живут под ['ws', id, 'objects', 'estimates', …]: событие object_estimate.* сбрасывает их через realtime.
    Себестоимость и маржа приходят с сервера как null для участников без права видеть стоимость. */
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { EstimateAiResult, EstimateImportExtract, EstimateItemKind } from '@gr8r/shared';
+import type { EstimateAiResult, EstimateImportExtract, EstimateItemKind } from '@erp/shared';
 import { call, useWsId } from '../meta/data';
 
 export type EstimateKind = 'main' | 'change';

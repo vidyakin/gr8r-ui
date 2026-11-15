@@ -11,7 +11,7 @@ import { dOff, fmtDate, iso } from '../lib/dates';
 import { ReportState } from '../production/reports/shared';
 import { StatusBadge } from '../leads/StatusBadge';
 import { useAdApi, useAdCampaigns, useAdExpenses, useAdReport, useLeadSources, type AdCampaign, type AdGroupBy, type AdReportRow } from './ad-data';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 export function AdsPage() {
   const t = useT();

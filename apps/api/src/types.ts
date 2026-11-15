@@ -1,5 +1,5 @@
-import type { Db, Sql, Tx } from '@gr8r/db';
-import type { ModuleAccess, ModuleId, ModuleState, PositionSection, Role } from '@gr8r/shared';
+import type { Db, Sql, Tx } from '@erp/db';
+import type { ModuleAccess, ModuleId, ModuleState, PositionSection, Role } from '@erp/shared';
 
 /** Модули арендатора на момент запроса: можно писать (active), можно читать (readable) и состояния со сроками */
 export interface ModuleAccessSets {

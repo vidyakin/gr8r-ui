@@ -3,7 +3,7 @@
    фиксирует строки, отмена подписи — admin+ и только без оплат. Из подписанного акта выставляются счёт и документ
    «Акт оказания услуг» (выручка и взаиморасчёты с заказчиком) с объектом и заказчиком объекта.
    Строки документа требуют товар — подставляется служебная услуга «Работы по объекту» воркспейса (одна на воркспейс).
-   Деньги — строки через decimal из @gr8r/shared, без float. Всё в транзакции вызывающего; изменение + событие — вместе. */
+   Деньги — строки через decimal из @erp/shared, без float. Всё в транзакции вызывающего; изменение + событие — вместе. */
 import { and, asc, count, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import {
   actLineAmount,
@@ -18,7 +18,7 @@ import {
   type ObjectRevenueAmounts,
   type Role,
   type VatRate,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import type { Db } from './client';
 import { actMoneyByAct } from './act-money';
 import { canSeeCost } from './cost';
@@ -792,8 +792,8 @@ async function actsTotalsUpTo(db: Db, objectId: string, to: string, from: string
 }
 
 export interface ActPrintData {
-  ks2: import('@gr8r/shared').Ks2Data;
-  ks3: import('@gr8r/shared').Ks3Data;
+  ks2: import('@erp/shared').Ks2Data;
+  ks3: import('@erp/shared').Ks3Data;
 }
 
 /** Данные печати КС-2 и КС-3: стороны, объект, договор, строки и итоги; суммы прописью считает шаблон */

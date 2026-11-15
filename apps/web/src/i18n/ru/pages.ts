@@ -446,7 +446,7 @@ export const pages: Widen<typeof P> = {
     step1Sub: 'В воркспейсе живут проекты вашей команды.',
     workspaceName: 'Название воркспейса',
     workspaceUrl: 'Адрес воркспейса',
-    urlAvailable: 'gr8rstudio.com/{url} свободен',
+    urlAvailable: 'future-erp.com/{url} свободен',
     step2Title: 'Как работает команда?',
     step2Sub: 'Настроим стартовый вид проекта.',
     teamSize: 'Размер команды',

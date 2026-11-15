@@ -9,7 +9,7 @@ import type { Project, ProjectColor, SavedView } from '../data/types';
 import { NamedIcon } from '../components/icons';
 import { MemberAvatar } from '../components/workspace';
 import { Modal, ModalTitle } from './modal-shell';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 import { useProjectTemplates } from '../settings/project-templates-data';
 
 /* ---------- проект: создание и настройки ---------- */

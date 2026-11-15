@@ -4,7 +4,7 @@ import * as React from 'react';
 import { ArrowDownWideNarrow, Check, CheckCheck, Archive, ChevronDown, FoldHorizontal, ListChecks, MessageSquare, Paperclip, Pencil, Plus, Repeat, RotateCcw, Ellipsis, Trash2, X } from 'lucide-react';
 import { Button, Checkbox, ConfirmDialog, IconButton, Input, Label, Menu, Segmented, Switch, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger, Progress, Tooltip, toast } from '@/components/ui';
 import { useT } from '@/i18n';
-import { StatusIcon, type Status } from '@/components/gr8r/task';
+import { StatusIcon, type Status } from '@/components/erp/task';
 import { cn } from '@/lib/utils';
 import { useWorkspace, type TaskPatch } from '../data/store';
 import { useMyPrefs } from '../data/settings';
@@ -33,7 +33,7 @@ export interface BoardViewProps {
 
 export type BoardDensity = 'full' | 'compact';
 
-const SUBTASKS_KEY = 'gr8r-ui.board-subtasks';
+const SUBTASKS_KEY = 'erp-ui.board-subtasks';
 
 /** Состояние переключателя «Show subtasks» — запоминается между заходами */
 export function useBoardSubtasks() {
@@ -54,7 +54,7 @@ export function useBoardSubtasks() {
   return [on, setOn] as const;
 }
 
-const DENSITY_KEY = 'gr8r-ui.board-density';
+const DENSITY_KEY = 'erp-ui.board-density';
 
 /** Режим Full / Compact — общий для всех досок, запоминается между заходами */
 export function useBoardDensity() {

@@ -6,7 +6,7 @@
 ## Точки входа
 - `src/index.ts` — запуск `Bun.serve`.
 - `src/app.ts` — `createApp({ sql, config?, hub? })`: сборка приложения. Тесты поднимают его без порта.
-- `src/client.ts` — типизированный клиент `createApiClient` (`@gr8r/api/client`) для фронтенда, типы из `AppType`.
+- `src/client.ts` — типизированный клиент `createApiClient` (`@erp/api/client`) для фронтенда, типы из `AppType`.
 
 ## Структура `src/`
 - `routes/*.ts` — маршруты по областям (`documents`, `production*`, `work-orders`, `billing`, `flows`, `work` — задачи и проекты…).
@@ -15,7 +15,7 @@
 - `errors.ts` — `AppError`, `notFound`/`forbidden`/`badRequest`, перевод ошибок PostgreSQL в HTTP (`23505` → 409 `conflict` и т. д.).
 - `meta/`, `catalog/` — проверка значений полей конструктора и характеристик товара.
 - `auth.ts`, `workspaces.ts`, `workspaces-service.ts` — вход, сессии, воркспейсы, приглашения.
-- `realtime.ts` — `Hub`: LISTEN `gr8r_events` → рассылка по сокетам воркспейса; `/ws?workspace=&since=`.
+- `realtime.ts` — `Hub`: LISTEN `erp_events` → рассылка по сокетам воркспейса; `/ws?workspace=&since=`.
 
 ## Как добавить маршрут
 1. Схемы запроса — в `packages/shared/src/schemas/*`. Логика с записью в БД — сервис в `packages/db/src/*.ts`, а не в маршруте.
@@ -29,20 +29,20 @@
 - Фильтр по `workspace_id` в запросах — дополнительный пояс, не замена RLS.
 - DDL в API запрещён: индексы полей конструктора ставятся задачей воркера (`enqueueFieldIndex`).
 - Роли: owner > admin > member > guest. guest — только чтение. Себестоимость видят admin и owner (`canSeeCost`, `maskCost`).
-- Деньги и количества в JSON — строками; арифметика — `@gr8r/shared` (`decimal.ts`).
-- Ошибки — `{ error: { code, message, details?, requestId } }`; доменные ошибки сервисов (`DomainError` из `@gr8r/db`) проходят с их статусом и кодом.
+- Деньги и количества в JSON — строками; арифметика — `@erp/shared` (`decimal.ts`).
+- Ошибки — `{ error: { code, message, details?, requestId } }`; доменные ошибки сервисов (`DomainError` из `@erp/db`) проходят с их статусом и кодом.
   Коды переводит фронтенд (`errors.*` в i18n), поэтому новый код добавь в словари `apps/web/src/i18n/{en,ru}/errors.ts`.
 - Изменение данных пишет событие (`recordEvent`) в той же транзакции — по нему работают realtime и автоматизации.
-- Токен сессии — только httpOnly cookie `gr8r_session`, в теле ответов не отдаётся.
+- Токен сессии — только httpOnly cookie `erp_session`, в теле ответов не отдаётся.
 
 ## Команды
-- Typecheck: `bun run --filter @gr8r/api typecheck` (или `bun run typecheck` из корня).
-- Тесты из корня: `bun test apps/api/test/<файл>.test.ts`. Нужен Postgres из `.env`; `test/setup.ts` пересоздаёт `gr8r_test`.
+- Typecheck: `bun run --filter @erp/api typecheck` (или `bun run typecheck` из корня).
+- Тесты из корня: `bun test apps/api/test/<файл>.test.ts`. Нужен Postgres из `.env`; `test/setup.ts` пересоздаёт `futureerp_test`.
 - Тесты изоляции: `tenancy.test.ts` (в том числе проверка, что у каждой таблицы с `workspace_id` есть RLS).
 
 ## Частые ошибки
 - Забыли путь в `TENANT_PATHS` — маршрут отвечает 400 `workspace_required` или работает без контекста.
-- Новый корневой путь, который вызывают только экраны одного раздела должностей, не добавлен в `SECTION_OF_API_PATH` (`@gr8r/shared`) — сотрудник со скрытым разделом достанет его через API.
+- Новый корневой путь, который вызывают только экраны одного раздела должностей, не добавлен в `SECTION_OF_API_PATH` (`@erp/shared`) — сотрудник со скрытым разделом достанет его через API.
 - Запрос через `admin`/суперпользователя в коде приложения — обходит RLS. Только в тестах.
 - `zValidator` без `validationHook` — ответ не в общем формате 400.
 - Маршрут записи без `requireRole('member')` (или выше) — гость (роль только для чтения) сможет писать.

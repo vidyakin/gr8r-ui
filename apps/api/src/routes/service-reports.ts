@@ -2,8 +2,8 @@
    только admin и owner (maskClientsReport). Правила — packages/db/src/service-reports.ts. */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
-import { canSeeCost, clientsReport, maskClientsReport, scheduleReport, serviceLoadReport, statesReport } from '@gr8r/db';
-import { serviceClientsReportQuery, serviceLoadReportQuery, serviceScheduleReportQuery, serviceStatesReportQuery } from '@gr8r/shared';
+import { canSeeCost, clientsReport, maskClientsReport, scheduleReport, serviceLoadReport, statesReport } from '@erp/db';
+import { serviceClientsReportQuery, serviceLoadReportQuery, serviceScheduleReportQuery, serviceStatesReportQuery } from '@erp/shared';
 import { ctxOf, validationHook } from '../crud';
 import type { AppEnv } from '../types';
 

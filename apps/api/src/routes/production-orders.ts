@@ -28,7 +28,7 @@ import {
   setMaterialReservation,
   updateProductionAccounting,
   updateProductionOrder,
-} from '@gr8r/db';
+} from '@erp/db';
 import {
   documentStateChange,
   idParam,
@@ -43,7 +43,7 @@ import {
   productManufacturingSet,
   semiOrdersCreate,
   supplierOrdersCreate,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError } from '../errors';
 import { requireRole } from '../middleware';

@@ -1,7 +1,7 @@
 /* Описания колонок DataTable для сделок, компаний и контактов (фабрики с t) */
 import { Mail } from 'lucide-react';
 import { Badge } from '@/components/ui';
-import type { Column } from '@/components/gr8r/data-table';
+import type { Column } from '@/components/erp/data-table';
 type TFunction = (key: any, params?: Record<string, string | number | null | undefined>) => string;
 import { ago, fmtDate } from '../lib/dates';
 import { isOpen } from './stages';

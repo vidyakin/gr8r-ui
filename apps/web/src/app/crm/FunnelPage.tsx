@@ -7,7 +7,7 @@ import { dOff, iso, today } from '../lib/dates';
 import { ReportState } from '../production/reports/shared';
 import { colorVar } from './stages';
 import { useFunnel, usePipelines } from './pipelines';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 export function FunnelPage() {
   const t = useT();

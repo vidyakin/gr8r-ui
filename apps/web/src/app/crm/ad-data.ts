@@ -3,7 +3,7 @@
    ad_expense / lead / company / deal обновляют их (data/realtime.ts). */
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { LeadSourceKind } from '@gr8r/shared';
+import type { LeadSourceKind } from '@erp/shared';
 import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';

@@ -12,7 +12,7 @@ import {
   type ProjectFromTemplate,
   type TemplateMilestone,
   type TemplateSubtask,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import type { Db } from './client';
 import type { DocCtx } from './documents';
 import { DomainError } from './errors';

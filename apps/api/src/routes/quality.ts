@@ -4,8 +4,8 @@
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { createBatchAnalysis, createReworkOrder, defectReasons, deleteBatchAnalysis, listBatchAnalyses, setBatchStatus, updateBatchAnalysis } from '@gr8r/db';
-import { batchAnalysisCreate, batchAnalysisUpdate, batchStatusUpdate, defectReasonCreate, defectReasonQuery, defectReasonUpdate, idParam, reworkCreate, uuid } from '@gr8r/shared';
+import { createBatchAnalysis, createReworkOrder, defectReasons, deleteBatchAnalysis, listBatchAnalyses, setBatchStatus, updateBatchAnalysis } from '@erp/db';
+import { batchAnalysisCreate, batchAnalysisUpdate, batchStatusUpdate, defectReasonCreate, defectReasonQuery, defectReasonUpdate, idParam, reworkCreate, uuid } from '@erp/shared';
 import { crud, ctxOf, validationHook, type Ctx } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';

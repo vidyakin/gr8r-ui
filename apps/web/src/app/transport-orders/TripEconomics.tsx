@@ -11,7 +11,7 @@ import { errorMessage } from '../data/api';
 import { useFleetTripCarrier, useFleetTripCosts, useTransportApi, useTripMargin, type FleetTripCarrier } from './data';
 import { openCarrierContract } from './print';
 import { useWsId } from '../meta/data';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 /** Блок «наёмный перевозчик, затраты, маржа» в карточке рейса. Показывается только для сохранённого рейса. */
 export function TripEconomics({ tripId, hired }: { tripId: string; hired: boolean }) {

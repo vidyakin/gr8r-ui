@@ -1,7 +1,7 @@
 /* Закрытие периода и прочие затраты на клиенте: журнал закрытых месяцев, предварительный анализ, запуск и отмена
    закрытия, настройки даты запрета и документы «Прочие затраты». */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { COST_DISTRIBUTION_LABELS, type CostDistribution, type DocumentStatus } from '@gr8r/shared';
+import { COST_DISTRIBUTION_LABELS, type CostDistribution, type DocumentStatus } from '@erp/shared';
 import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';

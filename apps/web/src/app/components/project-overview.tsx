@@ -2,7 +2,7 @@
 import { useNavigate } from 'react-router';
 import { Activity, Calendar, CircleCheck, CircleDot, ClockAlert, Flag, Pencil, User, UserPlus, Users } from 'lucide-react';
 import { Badge, Button, EmptyState } from '@/components/ui';
-import { StatusIcon } from '@/components/gr8r/task';
+import { StatusIcon } from '@/components/erp/task';
 import { useT } from '@/i18n';
 import { useWorkspace } from '../data/store';
 import { statusName, dayBucket, fmtHours, isOverdue, member, progressOf, projectColor, sortTasks, task as findTask, taskTime, tasksOf, totalTime } from '../data/selectors';

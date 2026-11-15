@@ -2,7 +2,7 @@
    материалы заказчика, список изделий в ремонте, гарантийный вид без выручки. Изделие клиента склад не трогает:
    у него нет движений и строк документа, поэтому остатки при приёме в ремонт не меняются. */
 import { and, asc, desc, eq, ilike, isNull, or, sql } from 'drizzle-orm';
-import { addMonthsISO, isRepairKind, WARRANTY_COST_ITEM_KEY, type PrintRepair, type WorkOrderKindType } from '@gr8r/shared';
+import { addMonthsISO, isRepairKind, WARRANTY_COST_ITEM_KEY, type PrintRepair, type WorkOrderKindType } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';

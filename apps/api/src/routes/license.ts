@@ -1,8 +1,8 @@
 /* Лицензия текущего арендатора: включённые модули, их сроки и заявки на подключение (docs/architecture/licensing.md). Читают все участники. */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
-import { createModuleRequest, listMyModuleRequests, readMyLicense, readMyUsage } from '@gr8r/db';
-import { licenseView, moduleRequestBody } from '@gr8r/shared';
+import { createModuleRequest, listMyModuleRequests, readMyLicense, readMyUsage } from '@erp/db';
+import { licenseView, moduleRequestBody } from '@erp/shared';
 import { ctxOf, validationHook } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';

@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Badge, Button, ConfirmDialog, Dialog, DialogContent, Field, IconButton, Input, Select, Skeleton, toast } from '@/components/ui';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 import { useWorkspace } from '../data/store';
 import { useWorkCenters } from '../catalog/data';
 import { useCanWrite } from '../meta/custom-fields';

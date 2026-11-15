@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Crosshair, Diamond, Plus, ChartGantt } from 'lucide-react';
 import { Button, EmptyState, Segmented, Select, Tooltip, toast } from '@/components/ui';
-import { StatusIcon } from '@/components/gr8r/task';
+import { StatusIcon } from '@/components/erp/task';
 import { cn } from '@/lib/utils';
 import { monthShort, useT, weekStartsOn } from '@/i18n';
 import { useWorkspace } from '../data/store';

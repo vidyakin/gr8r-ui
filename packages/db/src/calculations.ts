@@ -6,8 +6,8 @@
    исключают ненужные строки из состава. Цена себестоимости — по выбранному источнику; если цены по нему нет,
    берётся следующий по порядку: средняя склада → последняя цена закупки → закупочная цена товара. */
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
-import { computeBomCost, computeLine, computeTotals, dec, explodeBom, fmt, mul, passParams, withPct, type BomItemInput, type Explosion } from '@gr8r/shared';
-import type { CostPriceSource } from '@gr8r/shared';
+import { computeBomCost, computeLine, computeTotals, dec, explodeBom, fmt, mul, passParams, withPct, type BomItemInput, type Explosion } from '@erp/shared';
+import type { CostPriceSource } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { documentLines, documents, orderCalculationLines, orderCalculations } from './schema';

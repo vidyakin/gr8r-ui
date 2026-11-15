@@ -1,5 +1,5 @@
-/* Точка входа воркера: опрос jobs + outbox, ускорение по LISTEN gr8r_events. */
-import { purgeTenantsOnce, scheduleBankSyncs, createSql, databaseUrl, ddlDatabaseUrl, EVENTS_CHANNEL, listenChannel } from '@gr8r/db';
+/* Точка входа воркера: опрос jobs + outbox, ускорение по LISTEN erp_events. */
+import { purgeTenantsOnce, scheduleBankSyncs, createSql, databaseUrl, ddlDatabaseUrl, EVENTS_CHANNEL, listenChannel } from '@erp/db';
 import { closeBrowser } from './pdf/render';
 import { runAttachmentGcOnce } from './attachment-gc';
 import { scheduleFlowsOnce } from './flows/triggers';

@@ -1,6 +1,6 @@
 /* Хуки типа документа: то, что не лезет в общий код проведения (выпуск продукции со списанием материалов и себестоимостьом).
    Реестр живёт отдельно от сервиса документов, чтобы сервис производства мог зарегистрировать свои хуки без цикла импорта. */
-import type { DocumentType } from '@gr8r/shared';
+import type { DocumentType } from '@erp/shared';
 import type { Db } from './client';
 import type { DocCtx, DocumentLineRow, DocumentRow } from './documents';
 

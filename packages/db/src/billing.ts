@@ -23,8 +23,8 @@ import {
   type TariffPlanLine,
   type Dec,
   type VatRate,
-} from '@gr8r/shared';
-import { addDays } from '@gr8r/shared';
+} from '@erp/shared';
+import { addDays } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';

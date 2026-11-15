@@ -21,8 +21,8 @@ import {
   setMilestoneDone,
   updateObject,
   updateObjectMilestone,
-} from '@gr8r/db';
-import { idParam, objectCreate, objectMilestoneAccept, objectMilestoneCreate, objectMilestoneDone, objectMilestoneUpdate, objectQuery, objectUpdate, uuid } from '@gr8r/shared';
+} from '@erp/db';
+import { idParam, objectCreate, objectMilestoneAccept, objectMilestoneCreate, objectMilestoneDone, objectMilestoneUpdate, objectQuery, objectUpdate, uuid } from '@erp/shared';
 import { ctxOf, validationHook } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';

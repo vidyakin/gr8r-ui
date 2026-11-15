@@ -1,6 +1,6 @@
 /* Смета объекта (задача 1269): итоги сметы — сумма заказчику, плановая себестоимость, часы и маржа без float. */
 import { describe, expect, test } from 'bun:test';
-import { computeEstimateTotals, estimateLineTotals, estimatePlanFact, priceFromMarkup } from '@gr8r/shared';
+import { computeEstimateTotals, estimateLineTotals, estimatePlanFact, priceFromMarkup } from '@erp/shared';
 
 const item = (over: Partial<{ id: string; kind: string; qty: string; price: string; costPrice: string; laborHours: string }> = {}) => ({
   kind: 'work',

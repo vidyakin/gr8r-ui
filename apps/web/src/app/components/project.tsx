@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router';
 import { Archive, ArrowDown, BookmarkPlus, ArrowUp, ArrowUpRight, Calendar, CircleCheck, Clock, Copy, Ellipsis, Link2, Lock, Pencil, Share2, Star, Trash2 } from 'lucide-react';
-import { TASK_MODULE_LABELS } from '@gr8r/shared';
+import { TASK_MODULE_LABELS } from '@erp/shared';
 import { IconButton, Menu, MenuContent, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger, Progress, Tooltip, toast } from '@/components/ui';
 import { Badge } from '@/components/ui';
 import { cn } from '@/lib/utils';

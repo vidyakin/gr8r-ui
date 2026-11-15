@@ -1,6 +1,6 @@
 /* Карточка лида (задача 1175): поля, поиск дублей (при вводе и по сохранённому лиду) с кнопкой «Объединить», лента касаний,
    переход к конвертации. Новый лид создаётся здесь же. Пользовательские поля — из конструктора (сущность lead). */
-import { AttachmentsPanel } from '@/components/gr8r/attachments-panel';
+import { AttachmentsPanel } from '@/components/erp/attachments-panel';
 import * as React from 'react';
 import { Link } from 'react-router';
 import { Archive, ArrowRightLeft, Building2, Handshake, User } from 'lucide-react';

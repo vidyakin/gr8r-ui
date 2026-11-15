@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm';
 import type { Db } from './client';
 import { events } from './schema';
 
-export const EVENTS_CHANNEL = 'gr8r_events';
+export const EVENTS_CHANNEL = 'erp_events';
 
 export interface NewEvent {
   workspaceId: string;

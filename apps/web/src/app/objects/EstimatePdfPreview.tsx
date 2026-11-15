@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy, type RenderTask } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import { MAX_ESTIMATE_PDF_REGIONS, MAX_ESTIMATE_PDF_REGION_CHARS, type EstimatePdfRegion } from '@gr8r/shared';
+import { MAX_ESTIMATE_PDF_REGIONS, MAX_ESTIMATE_PDF_REGION_CHARS, type EstimatePdfRegion } from '@erp/shared';
 import { Alert, Button } from '@/components/ui';
 import { useT } from '@/i18n';
 

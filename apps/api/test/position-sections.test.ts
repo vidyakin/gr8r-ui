@@ -1,7 +1,7 @@
 /* Разделы должностей на сервере: путь одного раздела (SECTION_OF_API_PATH) закрыт участнику, которому раздел скрыт
    должностями — 403 section_forbidden; admin, owner и участник без должностей проходят, общие пути не ограничиваются. */
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { SECTION_OF_API_PATH } from '@gr8r/shared';
+import { SECTION_OF_API_PATH } from '@erp/shared';
 import { TENANT_PATHS } from '../src/app';
 import { Client } from './helpers';
 

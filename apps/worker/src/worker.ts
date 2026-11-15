@@ -1,8 +1,8 @@
 /* Цикл воркера: очередь jobs и outbox events на FOR UPDATE SKIP LOCKED — несколько воркеров безопасно работают параллельно.
    Воркер ходит под ролью app_worker (BYPASSRLS): задачи и события относятся ко всем арендаторам. */
 import { sql as dsql } from 'drizzle-orm';
-import { events, modulesOfWorkspace, readableModulesOfWorkspace, withContext, type Sql } from '@gr8r/db';
-import { MODULE_OF_JOB } from '@gr8r/shared';
+import { events, modulesOfWorkspace, readableModulesOfWorkspace, withContext, type Sql } from '@erp/db';
+import { MODULE_OF_JOB } from '@erp/shared';
 import { handleEvent, jobHandlers, makeJobContext, type EventRow, type JobRow } from './handlers';
 
 export interface WorkerOptions {

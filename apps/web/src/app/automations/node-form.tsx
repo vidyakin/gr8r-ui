@@ -3,7 +3,7 @@
    entity, field, value, member, project, textarea, cron, url. */
 import * as React from 'react';
 import { Braces } from 'lucide-react';
-import { AUTOMATION_SYSTEM_ENTITIES, BUILTIN_FIELDS, nodeParamsJsonSchema, type AnyNodeDef, type FieldOptions, type FieldType } from '@gr8r/shared';
+import { AUTOMATION_SYSTEM_ENTITIES, BUILTIN_FIELDS, nodeParamsJsonSchema, type AnyNodeDef, type FieldOptions, type FieldType } from '@erp/shared';
 import { IconButton, Input, Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger, Select, Switch, Textarea } from '@/components/ui';
 import { tEnum, useT } from '@/i18n';
 import { useWorkspace } from '../data/store';

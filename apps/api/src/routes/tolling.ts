@@ -16,8 +16,8 @@ import {
   processingOrderContext,
   productionDetail,
   setComponentOwner,
-} from '@gr8r/db';
-import { customerBalanceQuery, idParam, materialOwnerUpdate, processingOrderQuery, processorReportCreate } from '@gr8r/shared';
+} from '@erp/db';
+import { customerBalanceQuery, idParam, materialOwnerUpdate, processingOrderQuery, processorReportCreate } from '@erp/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';

@@ -20,7 +20,7 @@ import { t } from '@/i18n';
 import { identifyUser, trackPageview } from '@/lib/analytics';
 import { useSession } from '../data/session';
 
-const COLLAPSED_KEY = 'gr8r-ui.sidebar-collapsed';
+const COLLAPSED_KEY = 'erp-ui.sidebar-collapsed';
 
 function BottomNav({ onMore }: { onMore: () => void }) {
   const { data } = useWorkspace();

@@ -3,10 +3,10 @@
 import * as React from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { CircleAlert, FilePlus, FileText, Plus, CircleDot, Building2 } from 'lucide-react';
-import { DOCUMENT_META, documentTypesOf, type DocumentGroup, type DocumentType } from '@gr8r/shared';
+import { DOCUMENT_META, documentTypesOf, type DocumentGroup, type DocumentType } from '@erp/shared';
 import { Badge, Button, EmptyState, Menu, MenuContent, MenuItem, MenuTrigger, Skeleton } from '@/components/ui';
-import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/gr8r/data-table';
-import { FilterBar, useFilterState, type FilterField } from '@/components/gr8r/filter-bar';
+import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/erp/data-table';
+import { FilterBar, useFilterState, type FilterField } from '@/components/erp/filter-bar';
 import { useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { useCanWrite } from '../meta/custom-fields';

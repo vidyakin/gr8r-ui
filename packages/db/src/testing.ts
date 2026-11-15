@@ -1,11 +1,11 @@
 /* Тестовая БД: пересоздаётся с нуля на каждый запуск `bun test`, миграции применяются заново.
-   Подключение рантайма — НЕ суперпользователь (логин-роль gr8r_app в app_user/app_worker), как в проде. */
+   Подключение рантайма — НЕ суперпользователь (логин-роль futureerp_app в app_user/app_worker), как в проде. */
 import { adminDatabaseUrl, ensureTestDatabase, ensureAppLogin, ensureDdlLogin, runMigrations, wipeDatabase } from '.';
 
-const APP_USER = 'gr8r_app';
-const APP_PASSWORD = 'gr8r_app';
-const DDL_USER = 'gr8r_ddl';
-const DDL_PASSWORD = 'gr8r_ddl';
+const APP_USER = 'futureerp_app';
+const APP_PASSWORD = 'futureerp_app';
+const DDL_USER = 'futureerp_ddl';
+const DDL_PASSWORD = 'futureerp_ddl';
 
 export interface TestDb {
   adminUrl: string;
@@ -15,7 +15,7 @@ export interface TestDb {
 }
 
 export async function setupTestDatabase(): Promise<TestDb> {
-  const adminUrl = process.env.TEST_ADMIN_DATABASE_URL ?? 'postgres://postgres@127.0.0.1:5433/gr8r_test';
+  const adminUrl = process.env.TEST_ADMIN_DATABASE_URL ?? 'postgres://postgres@127.0.0.1:5433/futureerp_test';
   const name = new URL(adminUrl).pathname.slice(1);
   if (!name.endsWith('_test')) throw new Error(`Refusing to wipe "${name}": test database name must end with _test`);
   await ensureTestDatabase(adminUrl);

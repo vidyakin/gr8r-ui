@@ -22,7 +22,7 @@ const ok = (cond, msg) => {
 
 // 1. вход
 await page.goto(`${WEB}/#/signin`);
-await page.fill('#l-email', 'demo@gr8r.dev');
+await page.fill('#l-email', 'demo@future-erp.dev');
 await page.fill('#l-pw', 'demo1234');
 await page.click('#login-btn');
 await page.waitForSelector('.topbar');

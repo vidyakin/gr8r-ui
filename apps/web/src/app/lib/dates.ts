@@ -1,6 +1,6 @@
 /* Работа с датами — порт core/utils.js из gr8r-studio */
 import type { IsoDate } from '../data/types';
-import { DAY, dOff, iso, minsAgo, sod, today } from '@gr8r/shared/demo';
+import { DAY, dOff, iso, minsAgo, sod, today } from '@erp/shared/demo';
 import { fmtDateTimeIntl, getFormatPrefs, t, weekdayShort } from '@/i18n';
 
 /* Базовые помощники (DAY, sod, today, iso, dOff, minsAgo) живут в shared — их же используют сиды. */

@@ -18,7 +18,7 @@ export interface Prefs {
 }
 
 const DEFAULTS: Prefs = { theme: 'system', accent: 'indigo', density: 'comfortable', side: 'comfortable', motion: 'system' };
-const KEY = 'gr8r-ui.prefs';
+const KEY = 'erp-ui.prefs';
 
 const Ctx = React.createContext<{ prefs: Prefs; setPrefs: (p: Partial<Prefs>) => void } | null>(null);
 

@@ -1,7 +1,7 @@
 /* Упаковки товара (docs/plans/2026-11-14-product-packages.md): «ящик = 100 шт». Строка документа хранит единицу и коэффициент,
    количество — в базовых единицах: приход 2 ящиков даёт 200 шт, отгрузка ящика уходит 100 шт, себестоимость — за штуку. */
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { MemoryFileStore, setFileStore } from '@gr8r/db';
+import { MemoryFileStore, setFileStore } from '@erp/db';
 import { buildXlsx } from '../src/xlsx';
 import { Client } from './helpers';
 

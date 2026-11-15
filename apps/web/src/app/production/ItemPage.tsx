@@ -6,7 +6,7 @@ import * as React from 'react';
 import { handleNumericArrow } from '@/lib/numeric-step';
 import { Link, useNavigate, useParams } from 'react-router';
 import { ArrowDown, ArrowUp, Boxes, ChevronRight, CircleAlert, Ellipsis, ExternalLink, GripVertical, Layers, Package, Pencil, Plus, Printer, Recycle, Trash2, Wrench } from 'lucide-react';
-import { dec, div, fmt, mul, type CostLine, type CostNode } from '@gr8r/shared';
+import { dec, div, fmt, mul, type CostLine, type CostNode } from '@erp/shared';
 import { Alert, Badge, Button, ConfirmDialog, EmptyState, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Skeleton, toast } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { NotFoundPage } from '../pages/PlaceholderPage';
@@ -20,7 +20,7 @@ import { parseNumber, t, useT } from '@/i18n';
 import { LineDialog } from './line-dialog';
 import { ParamEditor } from './params-editor';
 import { ItemProductField } from './item-product';
-import { NumberField } from '@/components/gr8r/number-field';
+import { NumberField } from '@/components/erp/number-field';
 
 const trimZeros = (s: string) => (s.includes('.') ? s.replace(/\.?0+$/, '') : s);
 const qtyText = (v: string) => trimZeros(Number(v).toFixed(3));

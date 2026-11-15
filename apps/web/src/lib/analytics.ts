@@ -11,7 +11,7 @@ type UmamiApi = {
 declare global {
   interface Window {
     __GR8R_CONFIG__?: { umamiWebsiteId?: string };
-    __gr8rUmamiBeforeSend?: (type: string, payload: Payload) => Payload;
+    __erpUmamiBeforeSend?: (type: string, payload: Payload) => Payload;
     umami?: UmamiApi;
   }
 }
@@ -80,8 +80,8 @@ function start() {
   s.dataset.excludeSearch = 'true';
   s.dataset.excludeHash = 'true';
   // Последний рубеж: любое событие (и identify, который не принимает свой url/title) уходит с нормализованным путём без заголовка
-  window.__gr8rUmamiBeforeSend = (_type, payload) => base(payload);
-  s.dataset.beforeSend = '__gr8rUmamiBeforeSend';
+  window.__erpUmamiBeforeSend = (_type, payload) => base(payload);
+  s.dataset.beforeSend = '__erpUmamiBeforeSend';
   s.onload = flush;
   s.onerror = () => queue.splice(0); // блокировщик или нет сервиса: молча отключаемся
   document.head.appendChild(s);

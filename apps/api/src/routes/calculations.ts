@@ -4,8 +4,8 @@
 import { zValidator } from '@hono/zod-validator';
 import { and, asc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { applyCalculationPrices, canSeeCost, orderCalculationLines, orderCalculations, recalculateOrderCalculation, setCalculationExtra } from '@gr8r/db';
-import { calculationApply, calculationCreate, calculationLinesUpdate, calculationPatch, idParam } from '@gr8r/shared';
+import { applyCalculationPrices, canSeeCost, orderCalculationLines, orderCalculations, recalculateOrderCalculation, setCalculationExtra } from '@erp/db';
+import { calculationApply, calculationCreate, calculationLinesUpdate, calculationPatch, idParam } from '@erp/shared';
 import { z } from 'zod';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError, notFound } from '../errors';

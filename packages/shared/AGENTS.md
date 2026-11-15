@@ -3,8 +3,8 @@
 Используется API, воркером и фронтендом. Правила областей — по оглавлению `docs/architecture.md`.
 
 ## Экспорты
-- `@gr8r/shared` (`src/index.ts`) — всё, кроме демо.
-- `@gr8r/shared/demo` — демо-данные для локального режима фронтенда и сида БД.
+- `@erp/shared` (`src/index.ts`) — всё, кроме демо.
+- `@erp/shared/demo` — демо-данные для локального режима фронтенда и сида БД.
 
 ## Структура `src/`
 - `schemas/*.ts` — zod-схемы запросов и ответов API по областям.
@@ -24,11 +24,11 @@
 - Узел автоматизации — `automations/nodes/<вид>-<имя>.ts` + строка в `nodes/index.ts` (README, «Автоматизации»).
 
 ## Правила
-- Зависимости: `zod` и `qrcode-generator` (чистый JS без своих зависимостей — QR-код в печатных формах, `src/qr.ts`). Не импортировать `@gr8r/db`, `@gr8r/api`, React и Node-API: модуль работает и в браузере.
+- Зависимости: `zod` и `qrcode-generator` (чистый JS без своих зависимостей — QR-код в печатных формах, `src/qr.ts`). Не импортировать `@erp/db`, `@erp/api`, React и Node-API: модуль работает и в браузере.
 - Деньги и количества — строки + `decimal.ts`, без `Number`/float.
 - Подписи для интерфейса — ключи словаря `enums.*` во фронтенде (`apps/web/src/i18n`); `*_LABELS` остаются английскими по умолчанию.
 - Печатные формы и демо-данные — по-русски, без перевода.
 
 ## Команды
-- Typecheck: `bun run --filter @gr8r/shared typecheck`.
+- Typecheck: `bun run --filter @erp/shared typecheck`.
 - Тесты из корня: `bun test packages/shared/test/<файл>.test.ts` (БД не нужна, но preload из `bunfig.toml` всё равно ждёт Postgres).

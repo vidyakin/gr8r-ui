@@ -1,8 +1,8 @@
 /* Банковская выписка (задача 1174в): предпросмотр и импорт файла 1CClientBankExchange, выгрузка платёжных поручений.
-   Разбор файла — чистая функция из @gr8r/shared, правила сопоставления — packages/db/src/bank-import.ts. */
+   Разбор файла — чистая функция из @erp/shared, правила сопоставления — packages/db/src/bank-import.ts. */
 import { zValidator } from '@hono/zod-validator';
-import { commitBankImport, exportPaymentOrders, previewBankImport } from '@gr8r/db';
-import { bankImportCommit, bankImportPreviewQuery, BankStatementFormatError, decodeBankStatement, encodeBankStatement, parseBankStatement, paymentOrdersQuery } from '@gr8r/shared';
+import { commitBankImport, exportPaymentOrders, previewBankImport } from '@erp/db';
+import { bankImportCommit, bankImportPreviewQuery, BankStatementFormatError, decodeBankStatement, encodeBankStatement, parseBankStatement, paymentOrdersQuery } from '@erp/shared';
 import { Hono } from 'hono';
 import { ctxOf, validationHook } from '../crud';
 import { AppError } from '../errors';

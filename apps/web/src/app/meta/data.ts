@@ -3,7 +3,7 @@
    realtime (см. data/realtime.ts) помечает кэш устаревшим по событиям entity / field / record. */
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { SYSTEM_ENTITIES, type FieldOptions, type FieldType } from '@gr8r/shared';
+import { SYSTEM_ENTITIES, type FieldOptions, type FieldType } from '@erp/shared';
 import { tEnum } from '@/i18n';
 import { toast } from '@/components/ui';
 import { API_BASE, errorMessage, ok } from '../data/api';

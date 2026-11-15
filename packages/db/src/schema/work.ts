@@ -20,7 +20,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import type { Subtask } from '@gr8r/shared';
+import type { Subtask } from '@erp/shared';
 import { archivedAt, createdAt, hours, pk, ts, updatedAt } from './columns';
 import { companies } from './crm';
 import { products } from './catalog';

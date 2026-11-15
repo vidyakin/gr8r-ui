@@ -1,7 +1,7 @@
 /* Карточка узла на холсте React Flow: иконка и название, краткие параметры, вход слева, выходы справа (у условия — true / false). */
 import * as React from 'react';
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
-import { getNodeDef, nodeOutputs } from '@gr8r/shared';
+import { getNodeDef, nodeOutputs } from '@erp/shared';
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
 import { CATEGORY_COLOR, NodeIcon, paramSummary } from './node-meta';
@@ -11,7 +11,7 @@ export interface FlowNodeData extends Record<string, unknown> {
   nodeType: string;
   params: Record<string, unknown>;
 }
-export type RFNode = Node<FlowNodeData, 'gr8r'>;
+export type RFNode = Node<FlowNodeData, 'erp'>;
 
 /** Замечания проверки графа по id узла. Лежат в контексте, а не в данных узла: так проверка не зависит от состояния React Flow */
 export const IssuesContext = React.createContext<Map<string, string[]>>(new Map());

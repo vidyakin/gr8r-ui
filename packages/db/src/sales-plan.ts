@@ -2,7 +2,7 @@
    документ «План продаж» (тип sales_plan, свои строки; проведение пишет регистр плановых показателей)
    и «План-фактный анализ продаж» по сценарию. Факт — тот же расчёт, что в отчёте услуг «Клиенты». */
 import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm';
-import { buildPlanFact, dec, div, fmt, mul, periodEnd, periodOf, periodStarts, planDocPeriods, type BillingPeriodicity, type ForecastFigure, type PlanFactReport, type PlanFigure, type SalesPlanDimension } from '@gr8r/shared';
+import { buildPlanFact, dec, div, fmt, mul, periodEnd, periodOf, periodStarts, planDocPeriods, type BillingPeriodicity, type ForecastFigure, type PlanFactReport, type PlanFigure, type SalesPlanDimension } from '@erp/shared';
 import type { Db } from './client';
 import { DOCUMENT_HOOKS } from './document-hooks';
 import { createDocument, updateDocument, type DocCtx, type DocumentPatch } from './documents';

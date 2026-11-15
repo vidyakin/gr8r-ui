@@ -1,13 +1,13 @@
 /* Текущий язык интерфейса — внешний store (как settings.ts): t() и форматтеры читают его вне компонентов,
    а I18nProvider подписывает дерево на смену языка. Порядок выбора: users.locale → язык воркспейса → localStorage → браузер → en */
 import * as React from 'react';
-import { DEFAULT_LOCALE, LOCALES, type Locale } from '@gr8r/shared';
+import { DEFAULT_LOCALE, LOCALES, type Locale } from '@erp/shared';
 
 export type { Locale };
 export { LOCALES };
 
-const KEY = 'gr8r-ui.locale';
-/** Прежняя заглушка Settings → Language хранила подпись языка в gr8r-ui.settings.lang */
+const KEY = 'erp-ui.locale';
+/** Прежняя заглушка Settings → Language хранила подпись языка в erp-ui.settings.lang */
 const LEGACY: Record<string, Locale> = { 'English (US)': 'en', 'English (UK)': 'en', Русский: 'ru' };
 
 export const isLocale = (v: unknown): v is Locale => typeof v === 'string' && (LOCALES as readonly string[]).includes(v);
@@ -17,7 +17,7 @@ function stored(): Locale | null {
   try {
     const v = localStorage.getItem(KEY);
     if (isLocale(v)) return v;
-    const legacy = JSON.parse(localStorage.getItem('gr8r-ui.settings') || '{}').lang;
+    const legacy = JSON.parse(localStorage.getItem('erp-ui.settings') || '{}').lang;
     return LEGACY[legacy] ?? null;
   } catch {
     return null;

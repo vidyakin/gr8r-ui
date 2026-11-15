@@ -2,7 +2,7 @@
    Связи — составные внешние ключи (workspace_id, id): запись одного арендатора не сошлётся на запись другого. */
 import { sql } from 'drizzle-orm';
 import { bigint, boolean, check, customType, date, foreignKey, index, integer, jsonb, numeric, pgTable, primaryKey, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import type { FileRef } from '@gr8r/shared';
+import type { FileRef } from '@erp/shared';
 import { archivedAt, createdAt, money, pk, ts, updatedAt } from './columns';
 import { products, units } from './catalog';
 import { attachments } from './attachments';

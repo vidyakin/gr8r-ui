@@ -8,9 +8,9 @@
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { Archive, CircleAlert, Pencil, Save, Send } from 'lucide-react';
-import { BUDGET_POLICIES, OBJECT_PROGRESS_MODES, OBJECT_STATUSES, REVENUE_MODES, type BudgetPolicy, type ObjectProgressMode, type ObjectStatus, type RevenueMode } from '@gr8r/shared';
+import { BUDGET_POLICIES, OBJECT_PROGRESS_MODES, OBJECT_STATUSES, REVENUE_MODES, type BudgetPolicy, type ObjectProgressMode, type ObjectStatus, type RevenueMode } from '@erp/shared';
 import { Badge, Button, Checkbox, ConfirmDialog, EmptyState, Field, Input, Progress, Select, Skeleton, toast } from '@/components/ui';
-import { EntityDrawer } from '@/components/gr8r/entity-drawer';
+import { EntityDrawer } from '@/components/erp/entity-drawer';
 import { fmtAmount, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { useSession } from '../data/session';
@@ -34,7 +34,7 @@ import { ReportPanel } from './ReportPanel';
 import { useObjectReportSchedule, type ReportSchedule } from './report-data';
 import type { ObjectListItem } from './data';
 import { usePrintOpener } from '../money/data';
-import { DateInput } from '@/components/gr8r/date-picker';
+import { DateInput } from '@/components/erp/date-picker';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const blank = (): ObjectInput => ({ number: '', name: '', customerId: null, address: '', startDate: today(), dueDate: null, status: 'planning', managerId: null, revenueMode: 'acts', overheadPct: '', customerHourRate: '', budgetPolicy: 'warn', progressMode: 'tasks_closed', progressManual: '', projectId: null, warehouseId: null, note: '', foremen: [], contracts: [] });

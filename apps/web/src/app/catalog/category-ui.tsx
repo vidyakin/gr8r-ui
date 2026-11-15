@@ -1,7 +1,7 @@
 /* Дерево категорий и диалоги: категория (создание, переименование, перенос), редактор характеристик с унаследованными. */
 import * as React from 'react';
 import { ChevronRight, Ellipsis, FolderPlus, FolderTree, Lock, Pencil, Plus, Settings2, Trash2, X } from 'lucide-react';
-import { ATTRIBUTE_TYPES, CHOICE_COLORS, FIELD_TYPE_LABELS, attributeCreate, keyFromName, type FieldType } from '@gr8r/shared';
+import { ATTRIBUTE_TYPES, CHOICE_COLORS, FIELD_TYPE_LABELS, attributeCreate, keyFromName, type FieldType } from '@erp/shared';
 import { Badge, Button, Checkbox, Dialog, DialogClose, DialogContent, Field, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, toast } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { ChoiceLabel, FIELD_ICONS } from '../meta/field-ui';

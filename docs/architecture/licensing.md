@@ -45,7 +45,7 @@ id из `SECTIONS`), пункты настроек (`settings`, id из `SET_NAV
 API: `GET/POST /admin/plans`, `PUT/DELETE /admin/plans/:id`, `GET/PUT /admin/tenants/:id/license`. Realtime: событие `license.changed` сбрасывает кэш интерфейса арендатора.
 
 ## Сроки, «только чтение», пробный период (задача 1206)
-Состояние каждого модуля — `moduleStates(license, now)` в `@gr8r/shared`: `active` (действует), `readonly` (срок кончился не более `READONLY_DAYS` = 14 дней назад), `off`. Источники — тариф (`planExpiresAt`) и
+Состояние каждого модуля — `moduleStates(license, now)` в `@erp/shared`: `active` (действует), `readonly` (срок кончился не более `READONLY_DAYS` = 14 дней назад), `off`. Источники — тариф (`planExpiresAt`) и
 каждый доп. модуль (`expiresAt`); модуль действует, пока действует любой источник, который его включает (в том числе как зависимость). Ядро не истекает.
 | Функция | Смысл | Кто использует |
 |---|---|---|

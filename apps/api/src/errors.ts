@@ -1,8 +1,8 @@
 /* Единый формат ошибок: { error: { code, message, details?, requestId } }. Тексты — на английском. */
 import type { ErrorHandler, NotFoundHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { DomainError } from '@gr8r/db';
-import type { ApiError } from '@gr8r/shared';
+import { DomainError } from '@erp/db';
+import type { ApiError } from '@erp/shared';
 import type { AppEnv } from './types';
 
 export class AppError extends Error {

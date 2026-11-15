@@ -34,7 +34,7 @@ import {
   updatePayrollSettings,
   updateReflection,
   updateStatement,
-} from '@gr8r/db';
+} from '@erp/db';
 import {
   renderPayslip,
   renderPaymentStatement,
@@ -57,7 +57,7 @@ import {
   statementQuery,
   statementUpdate,
   uuid,
-} from '@gr8r/shared';
+} from '@erp/shared';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { ctxOf, validationHook, type Ctx } from '../crud';

@@ -2,8 +2,8 @@
 import { zValidator } from '@hono/zod-validator';
 import { and, count, desc, eq, gt, isNull, sql as dsql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { assertLimit, invites, members, memberships, recordEvent, uuidv7, withContext, workspaces } from '@gr8r/db';
-import { inviteAcceptBody, inviteCreateBody, inviteLinkBody, memberParam, roleChangeBody, workspaceCreateBody, workspaceParam, workspaceUpdateBody, idParam } from '@gr8r/shared';
+import { assertLimit, invites, members, memberships, recordEvent, uuidv7, withContext, workspaces } from '@erp/db';
+import { inviteAcceptBody, inviteCreateBody, inviteLinkBody, memberParam, roleChangeBody, workspaceCreateBody, workspaceParam, workspaceUpdateBody, idParam } from '@erp/shared';
 import { AppError, forbidden, notFound } from './errors';
 import { ctxOf, validationHook } from './crud';
 import { requireRole, requireSession, sha256, tenant } from './middleware';

@@ -2,7 +2,7 @@
    Запросы живут под ['ws', id, 'objects', …] — событие object_report.* сбрасывает их через realtime.
    Печать отчёта для заказчика открывается тем же приёмом, что печать актов (usePrintOpener). */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ObjectReportScheduleView, ObjectReportScheduleSave } from '@gr8r/shared';
+import type { ObjectReportScheduleView, ObjectReportScheduleSave } from '@erp/shared';
 import { call, useWsId } from '../meta/data';
 import { objectsKey } from './data';
 

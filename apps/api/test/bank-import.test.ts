@@ -1,7 +1,7 @@
 /* Банковская выписка (1174в): предпросмотр файла 1CClientBankExchange (windows-1251 и UTF-8), сопоставление по ИНН и номеру
    документа, создание документов, защита от повторного импорта, выгрузка платёжных поручений, изоляция арендаторов. */
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { decodeBankStatement, encodeBankStatement, parseBankStatement } from '@gr8r/shared';
+import { decodeBankStatement, encodeBankStatement, parseBankStatement } from '@erp/shared';
 import { Client } from './helpers';
 
 let owner: Client;

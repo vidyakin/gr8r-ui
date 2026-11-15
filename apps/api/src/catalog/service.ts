@@ -1,8 +1,8 @@
 /* Каталог: характеристики категорий с наследованием и проверка attrs товара. Тот же механизм, что у полей конструктора:
    характеристики превращаются в описания полей, а значения проверяет buildRecordSchema (packages/shared/src/fields.ts). */
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
-import { attributeDefs, productCategories, units } from '@gr8r/db';
-import { buildRecordSchema, type FieldDef, type FieldType, type RecordData, type RecordMode } from '@gr8r/shared';
+import { attributeDefs, productCategories, units } from '@erp/db';
+import { buildRecordSchema, type FieldDef, type FieldType, type RecordData, type RecordMode } from '@erp/shared';
 import type { Ctx } from '../crud';
 import { AppError, notFound } from '../errors';
 

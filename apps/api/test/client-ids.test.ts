@@ -1,6 +1,6 @@
 /* Этап 2: то, что нужно фронтенду для оптимистичных обновлений и Undo — id от клиента, прежний ключ задачи, перенос между проектами. */
 import { describe, expect, test } from 'bun:test';
-import { uuidv7 } from '@gr8r/db';
+import { uuidv7 } from '@erp/db';
 import { Client, admin } from './helpers';
 
 describe('client-supplied ids', () => {

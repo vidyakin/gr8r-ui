@@ -4,8 +4,8 @@
 предметные разделы — по оглавлению `docs/architecture.md`. Комментарий в шапке сервиса ссылается на свой раздел.
 
 ## Экспорты
-- `@gr8r/db` (`src/index.ts`) — подключение, контекст, события, схема, сервисы.
-- `@gr8r/db/schema` — только таблицы. `@gr8r/db/testing` — подготовка тестовой БД.
+- `@erp/db` (`src/index.ts`) — подключение, контекст, события, схема, сервисы.
+- `@erp/db/schema` — только таблицы. `@erp/db/testing` — подготовка тестовой БД.
 
 ## Структура
 - `src/schema/*.ts` — таблицы Drizzle по областям; `columns.ts` — общие колонки.
@@ -28,16 +28,16 @@
 ## Правила
 - Все запросы приложения идут через `withContext` (или транзакцию из API) под `app_user`. Фильтр по `workspace_id` в запросах — дополнительный пояс.
 - Изменение + аудит/активность + `recordEvent` — в одной транзакции.
-- Деньги `numeric(18,2)`, количества `numeric(18,3)`, в коде — строки и `@gr8r/shared` decimal, без float.
+- Деньги `numeric(18,2)`, количества `numeric(18,3)`, в коде — строки и `@erp/shared` decimal, без float.
 - Проведение и правка документов с датой в закрытом периоде — `assertPeriodOpen` (422 `period_closed`, `src/cost-closing.ts`).
 - Ошибка правила — `DomainError` с кодом; код добавить в словари ошибок фронтенда.
 - DDL в рантайме — только задачи воркера через `DATABASE_URL_DDL`.
 
 ## Команды (из корня)
 - `bun run db:generate | db:migrate | db:seed | db:wipe | db:reset`.
-- Typecheck: `bun run --filter @gr8r/db typecheck`.
+- Typecheck: `bun run --filter @erp/db typecheck`.
 - Тесты: `bun test packages/db/test`. Большая часть проверок сервисов — тесты API в `apps/api/test`.
-  `test/setup.ts` пересоздаёт `gr8r_test` на каждый запуск, рантайм ходит не суперпользователем (`gr8r_app`).
+  `test/setup.ts` пересоздаёт `futureerp_test` на каждый запуск, рантайм ходит не суперпользователем (`futureerp_app`).
   База создаётся с ICU-локалью (`ensureTestDatabase`), поэтому кириллица в `lower()` и `ILIKE` работает и в кластере с locale C (`scripts/pgtest.sh`).
 
 ## Частые ошибки

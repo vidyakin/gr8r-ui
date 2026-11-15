@@ -3,8 +3,8 @@ import * as React from 'react';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { ApiError, UNAUTHORIZED_EVENT, apiFor, ok } from './api';
 import { resolveLocale, setFormatPrefs, setLocale, type Locale } from '@/i18n';
-import { resolveUserPrefs, type UserPrefs } from '@gr8r/shared';
-import type { IndustryOption } from '@gr8r/shared';
+import { resolveUserPrefs, type UserPrefs } from '@erp/shared';
+import type { IndustryOption } from '@erp/shared';
 
 export interface SessionUser {
   id: string;
@@ -39,7 +39,7 @@ interface SessionData {
 }
 
 const SESSION_KEY = ['session'] as const;
-const ACTIVE_KEY = 'gr8r-ui.workspace';
+const ACTIVE_KEY = 'erp-ui.workspace';
 
 const readActive = () => {
   try {

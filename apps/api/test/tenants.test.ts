@@ -1,7 +1,7 @@
 /* Арендаторы оператора: создание пустого и демо, удаление целиком без следов и без вреда соседям, выгрузка → загрузка
    без потерь, очистка просроченных демо, доступ к /admin/tenants только оператору (docs/architecture/deploy.md). */
 import { describe, expect, test } from 'bun:test';
-import { createTenant, deleteTenant, exportTenant, importTenant, purgeTenantsOnce, setOperator } from '@gr8r/db';
+import { createTenant, deleteTenant, exportTenant, importTenant, purgeTenantsOnce, setOperator } from '@erp/db';
 import { admin, Client, ddl, drainJobs, sql, uniq } from './helpers';
 
 /** Все таблицы с workspace_id, кроме очереди jobs (её архив не переносит) */

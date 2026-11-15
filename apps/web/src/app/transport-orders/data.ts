@@ -2,7 +2,7 @@
    запросы и мутации. Кэш — под ['ws', id, 'transport-orders', …]; инвалидация вручную после мутаций (без realtime-событий). */
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { TransportOrderStatus, TransportRateKind } from '@gr8r/shared';
+import type { TransportOrderStatus, TransportRateKind } from '@erp/shared';
 import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';

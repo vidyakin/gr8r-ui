@@ -3,7 +3,7 @@
    Всё идёт в транзакции вызывающего; права проверяют маршруты. */
 import { and, eq, gte, isNull, lt, lte, sql, type SQL } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
-import type { AdReportInput, LeadSourceKind } from '@gr8r/shared';
+import type { AdReportInput, LeadSourceKind } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { adCampaignExpenses, adCampaigns, companies, contacts, deals, documents, leadSources, leads } from './schema';
