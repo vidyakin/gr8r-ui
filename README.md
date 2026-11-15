@@ -192,9 +192,12 @@ Dokploy держит 80/443 своим Traefik, поэтому файл — `doc
 2. Project → Create Service → **Compose**, тип Docker Compose. Provider — git-репозиторий и ветка `main`, Compose Path `./docker-compose.dokploy.yml`.
 3. Advanced → включить **Isolated Deployments**: у приложения своя сеть, и имена `api`, `postgres` не пересекутся с другими проектами на сервере.
 4. Environment: переменные из `.env.prod.example` — `DOMAIN` (без `https://`), `POSTGRES_PASSWORD`, `APP_DB_PASSWORD`, `DDL_DB_PASSWORD`, `SECRETS_KEY`,
-   `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `UMAMI_DB_PASSWORD`, `UMAMI_APP_SECRET`; без обязательных деплой не стартует.
+   `UMAMI_DB_PASSWORD`, `UMAMI_APP_SECRET`; без обязательных деплой не стартует.
+   Вложения — во внешнем S3 (MinIO в этом файле нет): `S3_BUCKET` — имя бакета, `S3_ACCESS_KEY` / `S3_SECRET_KEY` — статический ключ
+   сервисного аккаунта с ролью `storage.editor` на этот бакет. По умолчанию Yandex Object Storage (`S3_ENDPOINT=https://storage.yandexcloud.net`,
+   `S3_REGION=ru-central1`, `S3_FORCE_PATH_STYLE=0`); для другого S3 — задать эти три переменные. Бакет приватный, CORS не нужен: файлы отдаёт API.
 5. Domains: сервис **web**, порт 80, хост `$DOMAIN`, HTTPS + Let's Encrypt. По желанию сервис **umami**, порт 3000, свой поддомен.
-6. Deploy. Миграции идут при каждом деплое (`migrate`, `minio-init`, `umami-init` завершаются — это нормально). Автодеплой по push — Webhook из вкладки Deployments в настройках репозитория.
+6. Deploy. Миграции идут при каждом деплое (`migrate`, `umami-init` завершаются — это нормально). Автодеплой по push — Webhook из вкладки Deployments в настройках репозитория.
 7. Один раз по SSH: `sudo mkdir -p /etc/dokploy/compose/<app>/files/archives && sudo chown 1000:1000 $_` (CLI пишет под пользователем bun).
 8. CLI оператора — вкладка Docker/Terminal → контейнер `api`: `bun run tenant …` (как в списке выше); файлы для `import` — в `files/archives`.
 9. Дампы — `files/backups/futureerp-*.dump`, восстановление — как в п. 5 «Деплой», база `futureerp`. Тома `pgdata` и `miniodata` — именованные тома Docker.

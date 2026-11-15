@@ -50,11 +50,20 @@ export interface S3Config {
   forcePathStyle: boolean;
 }
 
+/** Адрес для Bun.S3Client. В virtual-hosted стиле Bun не подставляет бакет сам — ждёт его в хосте
+ *  (https://<bucket>.storage.yandexcloud.net), иначе запросы уходят на endpoint/key без бакета. */
+export function s3Endpoint(cfg: Pick<S3Config, 'endpoint' | 'bucket' | 'forcePathStyle'>): string {
+  if (cfg.forcePathStyle) return cfg.endpoint;
+  const u = new URL(cfg.endpoint);
+  if (!u.hostname.startsWith(cfg.bucket + '.')) u.hostname = `${cfg.bucket}.${u.hostname}`;
+  return u.toString().replace(/\/$/, '');
+}
+
 export class S3FileStore implements FileStore {
   private readonly client: Bun.S3Client;
   constructor(cfg: S3Config) {
     this.client = new Bun.S3Client({
-      endpoint: cfg.endpoint,
+      endpoint: s3Endpoint(cfg),
       region: cfg.region,
       bucket: cfg.bucket,
       accessKeyId: cfg.accessKey,

@@ -38,7 +38,7 @@ services:
       retries: 20
 
   minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z # на Docker Hub образы MinIO больше не публикуются
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z # сборка MinIO от Pigsty: официальные образы (quay.io, Docker Hub) закрыты
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
@@ -56,7 +56,7 @@ services:
 
   # Разовая задача: бакет для вложений (MinIO его сам не создаёт)
   minio-init:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z # mc входит в образ сервера
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z # mc входит в образ сервера
     entrypoint: ['/bin/sh', '-c']
     command:
       - mc alias set local http://minio:9000 "$${S3_ACCESS_KEY}" "$${S3_SECRET_KEY}" && mc mb --ignore-existing local/"$${S3_BUCKET}"

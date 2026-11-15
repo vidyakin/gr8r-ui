@@ -5,13 +5,15 @@
 # деплой (дампы, выгрузки арендаторов, данные OSRM), смонтировано из ../files — это …/compose/<app>/files на сервере.
 # Инструкция — README, «Деплой через Dokploy», устройство — docs/architecture/deploy.md.
 
+# Вложения — внешнее S3-хранилище (Yandex Object Storage по умолчанию): открытых образов MinIO больше нет,
+# а облачное хранилище не нужно бэкапить самим. Бакет и сервисный аккаунт с ролью storage.editor создаются заранее.
 x-s3-env: &s3-env
-  S3_ENDPOINT: http://minio:9000
-  S3_REGION: us-east-1
-  S3_BUCKET: futureerp
+  S3_ENDPOINT: ${S3_ENDPOINT:-https://storage.yandexcloud.net}
+  S3_REGION: ${S3_REGION:-ru-central1}
+  S3_BUCKET: ${S3_BUCKET:?задайте S3_BUCKET — имя бакета}
   S3_ACCESS_KEY: ${S3_ACCESS_KEY:?задайте S3_ACCESS_KEY}
   S3_SECRET_KEY: ${S3_SECRET_KEY:?задайте S3_SECRET_KEY}
-  S3_FORCE_PATH_STYLE: '1'
+  S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-0} # Yandex и AWS — адрес вида bucket.endpoint
   FILE_MAX_BYTES: ${FILE_MAX_BYTES:-52428800}
   STORAGE_QUOTA_BYTES: ${STORAGE_QUOTA_BYTES:-}
 
@@ -36,35 +38,6 @@ services:
       interval: 3s
       timeout: 3s
       retries: 20
-
-  # Хранилище вложений (docs/architecture/attachments.md). Порты наружу не публикуются: файлы отдаёт только API.
-  minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z # на Docker Hub образы MinIO больше не публикуются
-    restart: unless-stopped
-    command: server /data
-    environment:
-      MINIO_ROOT_USER: ${S3_ACCESS_KEY}
-      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY}
-    volumes:
-      - miniodata:/data
-    healthcheck:
-      test: ['CMD', 'mc', 'ready', 'local']
-      interval: 5s
-      timeout: 3s
-      retries: 20
-
-  # Разовая задача при каждом деплое: бакет вложений (идемпотентно)
-  minio-init:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z # mc входит в образ сервера
-    entrypoint: ['/bin/sh', '-c']
-    command:
-      - mc alias set local http://minio:9000 "$${S3_ACCESS_KEY}" "$${S3_SECRET_KEY}" && mc mb --ignore-existing local/futureerp
-    environment:
-      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
-      S3_SECRET_KEY: ${S3_SECRET_KEY}
-    depends_on:
-      minio: { condition: service_healthy }
-    restart: 'no'
 
   # Разовая задача при каждом деплое: миграции (идемпотентно), роли futureerp_app/futureerp_ddl. Завершается — так и задумано
   migrate:
@@ -93,7 +66,6 @@ services:
       - ../files/archives:/archives # выгрузка и загрузка арендатора: bun run tenant import /archives/x.jsonl.gz
     depends_on:
       migrate: { condition: service_completed_successfully }
-      minio-init: { condition: service_completed_successfully }
 
   worker:
     build: { context: ., target: worker }
@@ -108,7 +80,6 @@ services:
       ROUTING_NOMINATIM_URL: ${ROUTING_NOMINATIM_URL:-}
     depends_on:
       migrate: { condition: service_completed_successfully }
-      minio-init: { condition: service_completed_successfully }
 
   # Необязательно (задача 1213, docs/architecture/routing.md): Dokploy профили не включает — сервисы osrm и vroom
   # поднимаются, только если убрать у них profiles. Данные OSRM — в ../files/osrm на сервере.
@@ -197,4 +168,3 @@ services:
 
 volumes:
   pgdata:
-  miniodata:

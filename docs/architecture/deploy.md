@@ -73,8 +73,8 @@
   берёт первый — адрес клиента. Проверено на локальном стеке: запрос с подставленным `X-Forwarded-For: 6.6.6.6` попал в `rate_limits` с адресом,
   который видит Caddy, а не с подставленным.
 - **Маршрутизация (1213), по желанию:** профиль `routing` поднимает `osrm` и `vroom` (без публикации портов); оператор готовит данные OSRM из `.osm.pbf` и задаёт `ROUTING_OSRM_URL` / `ROUTING_VROOM_URL` в `.env.prod` — воркер доверяет этим адресам (внутренняя сеть compose). Подробности и проверенность — [routing.md](routing.md).
-- **Хранилище файлов** (`docs/architecture/attachments.md`): в оба прод-файла добавлены `minio` (порты наружу не публикуются, том `miniodata`) и разовый
-  `minio-init` (создаёт бакет `futureerp` / `erp` в Coolify; `mc` входит в образ сервера). Образ — `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z`: на Docker Hub
+- **Хранилище файлов** (`docs/architecture/attachments.md`): в Dokploy-файле MinIO нет — внешний S3, по умолчанию Yandex Object Storage (`S3_BUCKET` и ключи обязательны, бакет приватный: файлы отдаёт API). Официальные образы MinIO закрыты (quay.io отвечает 401, на Docker Hub репозитория нет), в остальных файлах — сборка `pgsty/minio`. В `docker-compose.prod.yml` и `docker-compose.coolify.yml` добавлены `minio` (порты наружу не публикуются, том `miniodata`) и разовый
+  `minio-init` (создаёт бакет `futureerp` / `erp` в Coolify; `mc` входит в образ сервера). Образ — `pgsty/minio:RELEASE.2026-08-04T00-00-00Z` (внутри и `mc`): официальные
   `minio/minio` и `minio/mc` больше не публикуются (в том числе в локальном `docker-compose.yml`). Обязательные переменные: `S3_ACCESS_KEY`, `S3_SECRET_KEY`;
   `api` и `worker` получают `S3_*`, `FILE_MAX_BYTES`, `STORAGE_QUOTA_BYTES`. Том `miniodata` в `pg_dump`-бэкап не входит — копировать отдельно
   (`docker run --rm -v <проект>_miniodata:/data -v $PWD/backups:/b alpine tar czf /b/minio.tgz /data`). Для Yandex Object Storage вместо MinIO задайте `S3_ENDPOINT=https://storage.yandexcloud.net`,
