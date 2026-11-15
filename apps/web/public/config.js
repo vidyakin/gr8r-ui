@@ -1,2 +1,2 @@
 // Рантайм-конфиг. В Docker-образе файл перезаписывает docker/web-config.sh из переменных окружения контейнера.
-window.__GR8R_CONFIG__ = {};
+window.__ERP_CONFIG__ = {};

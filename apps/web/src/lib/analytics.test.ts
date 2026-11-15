@@ -49,7 +49,7 @@ describe('без ID сайта — no-op', () => {
 
   test('window есть, ID пустой: скрипт не добавляется', () => {
     const added: unknown[] = [];
-    g.window = { __GR8R_CONFIG__: {}, location: { origin: 'http://x' } };
+    g.window = { __ERP_CONFIG__: {}, location: { origin: 'http://x' } };
     g.document = { head: { appendChild: (e: unknown) => added.push(e) }, createElement: () => ({ dataset: {} }) };
     expect(isAnalyticsEnabled()).toBe(false);
     trackPageview('/tasks');
@@ -62,7 +62,7 @@ describe('с ID сайта', () => {
   test('скрипт с того же origin, auto-track выключен, события чистятся от заголовка и query', () => {
     const added: Array<{ src?: string; dataset: Record<string, string> }> = [];
     const calls: unknown[][] = [];
-    const win: Record<string, unknown> = { __GR8R_CONFIG__: { umamiWebsiteId: 'a1b2c3d4-0000-4000-8000-000000000000' }, location: { origin: 'https://erp.example.com' } };
+    const win: Record<string, unknown> = { __ERP_CONFIG__: { umamiWebsiteId: 'a1b2c3d4-0000-4000-8000-000000000000' }, location: { origin: 'https://erp.example.com' } };
     g.window = win;
     g.document = {
       head: { appendChild: (e: { src?: string; dataset: Record<string, string> }) => added.push(e) },

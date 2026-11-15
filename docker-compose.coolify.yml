@@ -155,6 +155,8 @@ services:
     restart: unless-stopped
     environment:
       UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-} # ID сайта из панели Umami: включает трекер без пересборки
+      DEMO_RESET_EMAIL: ${DEMO_RESET_EMAIL:-} # публичное демо: вход показывается на форме входа
+      DEMO_RESET_PASSWORD: ${DEMO_RESET_PASSWORD:-}
     expose:
       - '80'
     depends_on:

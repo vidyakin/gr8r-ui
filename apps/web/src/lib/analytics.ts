@@ -10,7 +10,7 @@ type UmamiApi = {
 
 declare global {
   interface Window {
-    __GR8R_CONFIG__?: { umamiWebsiteId?: string };
+    __ERP_CONFIG__?: { umamiWebsiteId?: string; demoEmail?: string; demoPassword?: string };
     __erpUmamiBeforeSend?: (type: string, payload: Payload) => Payload;
     umami?: UmamiApi;
   }
@@ -39,7 +39,7 @@ export function normalizePath(path: string): string {
 
 /** ID сайта: рантайм-конфиг (/config.js, пишет контейнер web) важнее сборочного VITE_UMAMI_WEBSITE_ID */
 export function websiteId(): string | null {
-  const fromRuntime = typeof window === 'undefined' ? undefined : window.__GR8R_CONFIG__?.umamiWebsiteId;
+  const fromRuntime = typeof window === 'undefined' ? undefined : window.__ERP_CONFIG__?.umamiWebsiteId;
   const fromBuild = (import.meta as { env?: Record<string, string | undefined> }).env?.VITE_UMAMI_WEBSITE_ID;
   const id = (fromRuntime || fromBuild || '').trim();
   return id || null;

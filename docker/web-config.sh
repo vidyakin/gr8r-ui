@@ -1,5 +1,5 @@
 #!/bin/sh
-# Рантайм-конфиг веба без пересборки: /config.js читает apps/web/src/lib/analytics.ts.
+# Рантайм-конфиг веба без пересборки: /config.js (window.__ERP_CONFIG__) читают apps/web/src/lib/analytics.ts и форма входа.
 # Запускается стандартным entrypoint nginx (/docker-entrypoint.d) при старте контейнера.
 set -eu
 id="${UMAMI_WEBSITE_ID:-}"
@@ -7,4 +7,14 @@ id="${UMAMI_WEBSITE_ID:-}"
 case "$id" in
   *[!0-9a-fA-F-]*) id="" ;;
 esac
-printf 'window.__GR8R_CONFIG__ = { umamiWebsiteId: "%s" };\n' "$id" > /usr/share/nginx/html/config.js
+# Публичное демо: общий вход показывается на форме входа (он и так раздаётся всем). Только безопасные символы — иначе не показываем
+demo_email="${DEMO_RESET_EMAIL:-}"
+demo_pw="${DEMO_RESET_PASSWORD:-}"
+case "$demo_email" in
+  *[!A-Za-z0-9@._+-]*) demo_email="" ;;
+esac
+case "$demo_pw" in
+  *[!A-Za-z0-9@._+=:,!#%*?~-]*) demo_pw="" ;;
+esac
+[ -n "$demo_email" ] && [ -n "$demo_pw" ] || { demo_email=""; demo_pw=""; }
+printf 'window.__ERP_CONFIG__ = { umamiWebsiteId: "%s", demoEmail: "%s", demoPassword: "%s" };\n' "$id" "$demo_email" "$demo_pw" > /usr/share/nginx/html/config.js

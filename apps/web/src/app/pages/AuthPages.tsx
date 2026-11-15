@@ -21,6 +21,15 @@ const Badge = ({ color, children }: { color: string; children: React.ReactNode }
   </div>
 );
 
+/** Общий вход публичного демо: рантайм-конфиг контейнера web (/config.js из DEMO_RESET_*), в разработке — VITE_DEMO_EMAIL/VITE_DEMO_PASSWORD */
+function demoLogin(): { email: string; password: string } | null {
+  const rt = typeof window === 'undefined' ? undefined : window.__ERP_CONFIG__;
+  const env = (import.meta as { env?: Record<string, string | undefined> }).env;
+  const email = (rt?.demoEmail || env?.VITE_DEMO_EMAIL || '').trim();
+  const password = rt?.demoPassword || env?.VITE_DEMO_PASSWORD || '';
+  return email && password ? { email, password } : null;
+}
+
 /** Вход через внешних провайдеров (OAuth) появится отдельным этапом */
 const useSocialSoon = (tr: ReturnType<typeof useT>) => (name: string) =>
   toast.info(tr('pages.auth.socialSoon', { name }));
@@ -37,6 +46,30 @@ export function SignInPage() {
   const [busy, run] = useBusy();
   const emailRef = React.useRef<HTMLInputElement>(null);
   const pwRef = React.useRef<HTMLInputElement>(null);
+  const demo = React.useMemo(demoLogin, []);
+
+  const signIn = (em: string, password: string) =>
+    run(async () => {
+      try {
+        await session.signIn(em, password);
+        const inv = pendingInvite.get();
+        navigate(inv ? `/join/${inv}` : SECTIONS.home.path, { replace: true });
+        toast(tr('pages.auth.signedIn', { email: em }));
+      } catch (e) {
+        setErr({ pw: errorMessage(e) });
+        pwRef.current?.focus();
+      }
+    });
+
+  // «Войти в демо»: подставляет общий вход в поля (видно, что вводится) и сразу входит
+  const enterDemo = () => {
+    if (!demo) return;
+    setEmail(demo.email);
+    setPw(demo.password);
+    setErr({});
+    authForm.email = demo.email;
+    void signIn(demo.email, demo.password);
+  };
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,17 +84,7 @@ export function SignInPage() {
       (x.email ? emailRef : pwRef).current?.focus();
       return;
     }
-    void run(async () => {
-      try {
-        await session.signIn(em, pw);
-        const inv = pendingInvite.get();
-        navigate(inv ? `/join/${inv}` : SECTIONS.home.path, { replace: true });
-        toast(tr('pages.auth.signedIn', { email: em }));
-      } catch (e) {
-        setErr({ pw: errorMessage(e) });
-        pwRef.current?.focus();
-      }
-    });
+    void signIn(em, pw);
   };
 
   return (
@@ -78,6 +101,21 @@ export function SignInPage() {
         </div>
         <h1>{tr('pages.auth.welcomeBack')}</h1>
         <p className="sub">{tr('pages.auth.signInSub')}</p>
+        {demo && (
+          <div className="alert info auth-demo" id="demo-login">
+            <KeyRound size={16} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <b>{tr('pages.auth.demoTitle')}</b>
+              <div>
+                {tr('pages.auth.demoCreds')} <code>{demo.email}</code> / <code>{demo.password}</code>
+              </div>
+              <div style={{ color: 'var(--text-2)' }}>{tr('pages.auth.demoNote')}</div>
+            </div>
+            <button type="button" className="btn btn-sm" onClick={enterDemo} disabled={busy} id="demo-btn">
+              {tr('pages.auth.demoEnter')}
+            </button>
+          </div>
+        )}
         <div className="field">
           <label className="label" htmlFor="l-email">
             {tr('pages.auth.email')}
