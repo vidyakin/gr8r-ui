@@ -3,6 +3,8 @@
 # когда во вкладке Domains указан домен для сервиса web (порт 80) и umami (порт 3000).
 # Dokploy при каждом деплое заново клонирует репозиторий в …/compose/<app>/code, поэтому всё, что должно пережить
 # деплой (дампы, выгрузки арендаторов, данные OSRM), смонтировано из ../files — это …/compose/<app>/files на сервере.
+# Образы migrate, api, worker, web собирает GitHub Actions и публикует в ghcr.io — сервер их только скачивает
+# (pull_policy: always). IMAGE_TAG=<sha коммита> в Environment — откат на прежнюю сборку.
 # Инструкция — README, «Деплой через Dokploy», устройство — docs/architecture/deploy.md.
 
 # Вложения — внешнее S3-хранилище (Yandex Object Storage по умолчанию): открытых образов MinIO больше нет,
@@ -41,7 +43,8 @@ services:
 
   # Разовая задача при каждом деплое: миграции (идемпотентно), роли futureerp_app/futureerp_ddl. Завершается — так и задумано
   migrate:
-    build: { context: ., target: migrate }
+    image: ${IMAGE_PREFIX:-ghcr.io/vidyakin/futureerp}-migrate:${IMAGE_TAG:-latest} # собирает GitHub Actions (.github/workflows/images.yml)
+    pull_policy: always
     environment:
       <<: *db-env
       DDL_DB_USER: futureerp_ddl
@@ -53,7 +56,8 @@ services:
 
   # CLI оператора — Dokploy → приложение → Logs/Terminal → контейнер api: bun run tenant list
   api:
-    build: { context: ., target: api }
+    image: ${IMAGE_PREFIX:-ghcr.io/vidyakin/futureerp}-api:${IMAGE_TAG:-latest} # собирает GitHub Actions (.github/workflows/images.yml)
+    pull_policy: always
     restart: unless-stopped
     environment:
       <<: [*db-env, *s3-env]
@@ -68,7 +72,8 @@ services:
       migrate: { condition: service_completed_successfully }
 
   worker:
-    build: { context: ., target: worker }
+    image: ${IMAGE_PREFIX:-ghcr.io/vidyakin/futureerp}-worker:${IMAGE_TAG:-latest} # собирает GitHub Actions (.github/workflows/images.yml)
+    pull_policy: always
     restart: unless-stopped
     environment:
       <<: [*db-env, *s3-env]
@@ -135,7 +140,8 @@ services:
 
   # Домен у web (порт 80): статика и прокси /api + WebSocket на api, /stats/ на umami
   web:
-    build: { context: ., target: web }
+    image: ${IMAGE_PREFIX:-ghcr.io/vidyakin/futureerp}-web:${IMAGE_TAG:-latest} # собирает GitHub Actions (.github/workflows/images.yml)
+    pull_policy: always
     restart: unless-stopped
     environment:
       UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-} # ID сайта из панели Umami: включает трекер без пересборки

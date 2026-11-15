@@ -1,0 +1,69 @@
+# Образ лендинга (цель landing в Dockerfile) собирается здесь и публикуется в ghcr.io; деплой — приложения Dokploy через API.
+# Адреса вшиваются при сборке — переменные репозитория (Settings → Secrets and variables → Actions → Variables):
+#   VITE_APP_URL (https://erp.example.com), VITE_LEAD_FORM_URL (полный адрес вебхука формы лидов).
+# Секреты: DOKPLOY_URL, DOKPLOY_API_KEY (общие со стеком), DOKPLOY_LANDING_APP_ID. Без них образ публикуется, деплой пропускается.
+name: landing
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/landing/**
+      - packages/docs/**
+      - docs/user/**
+      - docker/landing-nginx.conf
+      - Dockerfile
+      - .dockerignore
+      - package.json
+      - bun.lock
+      - .github/workflows/landing.yml
+  workflow_dispatch:
+
+concurrency:
+  group: landing
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Префикс образов
+        id: img
+        run: echo "prefix=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/futureerp" >> "$GITHUB_OUTPUT"
+      - name: landing
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: landing
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            VITE_APP_URL=${{ vars.VITE_APP_URL }}
+            VITE_LEAD_FORM_URL=${{ vars.VITE_LEAD_FORM_URL }}
+          tags: ${{ steps.img.outputs.prefix }}-landing:latest,${{ steps.img.outputs.prefix }}-landing:${{ github.sha }}
+          cache-from: type=gha,scope=landing
+          cache-to: type=gha,scope=landing,mode=max
+
+      - name: Деплой в Dokploy
+        env:
+          DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          APP_ID: ${{ secrets.DOKPLOY_LANDING_APP_ID }}
+        run: |
+          if [ -z "$DOKPLOY_URL" ] || [ -z "$DOKPLOY_API_KEY" ] || [ -z "$APP_ID" ]; then
+            echo "::notice::Секреты Dokploy не заданы — образ опубликован, деплой пропущен"; exit 0
+          fi
+          curl -fsS -X POST "${DOKPLOY_URL%/}/api/application.deploy" \
+            -H "x-api-key: $DOKPLOY_API_KEY" -H 'Content-Type: application/json' \
+            -d "{\"applicationId\":\"$APP_ID\"}"

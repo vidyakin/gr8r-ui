@@ -90,6 +90,7 @@
   дампы, `archives` и данные OSRM смонтированы из `../files` (каталог `files` приложения Dokploy). Ключей Coolify (`exclude_from_hc`) нет —
   обычный `docker compose config` проходит. Включать Isolated Deployments: без неё сервисы с доменом сидят в общей `dokploy-network`,
   и имя `api` может разрешиться в контейнер другого проекта. Профиль `routing` Dokploy не включает. Инструкция — README. В Dokploy не разворачивался.
+- **Сборка образов — GitHub Actions** (`.github/workflows/images.yml`, `landing.yml`): образы публикуются в `ghcr.io/<владелец>/futureerp-{migrate,api,worker,web,landing}` с тегами `latest` и sha, затем деплой в Dokploy через API (`POST /api/compose.deploy`, `/api/application.deploy`, заголовок `x-api-key`). В `docker-compose.dokploy.yml` вместо `build:` — `image: ${IMAGE_PREFIX}-<цель>:${IMAGE_TAG:-latest}` и `pull_policy: always`; `IMAGE_TAG=<sha>` — откат. Автодеплой Dokploy по push выключен, иначе он скачает прежние образы до конца сборки. Причина: сборка на VDS 2 vCPU занимала CPU и память на 10+ минут и обрывалась по OOM. Workflow на GitHub не запускались до первого пуша.
 - **Лендинг** — цель `landing` в Dockerfile: сборка Astro (`apps/landing`) и nginx со статикой (`docker/landing-nginx.conf`, без прокси API).
   В compose-файлы не входит: в Dokploy — отдельное приложение со своим доменом и Watch Paths, чтобы правка лендинга не пересобирала стек и наоборот.
   `VITE_APP_URL` и `VITE_LEAD_FORM_URL` — аргументы сборки; форма шлёт заявку на полный адрес вебхука приложения (у `/hooks/*` открытый CORS).

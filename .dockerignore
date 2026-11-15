@@ -6,8 +6,9 @@ node_modules
 *.log
 .dev-pids
 docs
-# статьи справки нужны сборке: бандл справки в web и страницы /docs лендинга
+# статьи справки нужны сборке: бандл справки в web и страницы /docs лендинга; журнал — страница «Что нового» в web
 !docs/user
+!docs/changelog.md
 .claude
 .pgtest
 output

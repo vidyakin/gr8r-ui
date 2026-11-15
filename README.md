@@ -197,13 +197,28 @@ Dokploy держит 80/443 своим Traefik, поэтому файл — `doc
    сервисного аккаунта с ролью `storage.editor` на этот бакет. По умолчанию Yandex Object Storage (`S3_ENDPOINT=https://storage.yandexcloud.net`,
    `S3_REGION=ru-central1`, `S3_FORCE_PATH_STYLE=0`); для другого S3 — задать эти три переменные. Бакет приватный, CORS не нужен: файлы отдаёт API.
 5. Domains: сервис **web**, порт 80, хост `$DOMAIN`, HTTPS + Let's Encrypt. По желанию сервис **umami**, порт 3000, свой поддомен.
-6. Deploy. Миграции идут при каждом деплое (`migrate`, `umami-init` завершаются — это нормально). Автодеплой по push — Webhook из вкладки Deployments в настройках репозитория.
+6. Deploy. Миграции идут при каждом деплое (`migrate`, `umami-init` завершаются — это нормально). Образы `migrate`, `api`, `worker`, `web` сервер
+   не собирает — скачивает готовые `ghcr.io/vidyakin/futureerp-*` (собирает GitHub Actions, см. «Сборка образов» ниже). Автодеплой Dokploy по push
+   **выключить** (General → Autodeploy): деплой запускает workflow после сборки, иначе Dokploy скачает прежние образы раньше, чем готовы новые.
 7. Один раз по SSH: `sudo mkdir -p /etc/dokploy/compose/<app>/files/archives && sudo chown 1000:1000 $_` (CLI пишет под пользователем bun).
 8. CLI оператора — вкладка Docker/Terminal → контейнер `api`: `bun run tenant …` (как в списке выше); файлы для `import` — в `files/archives`.
-9. Дампы — `files/backups/futureerp-*.dump`, восстановление — как в п. 5 «Деплой», база `futureerp`. Тома `pgdata` и `miniodata` — именованные тома Docker.
+9. Дампы — `files/backups/futureerp-*.dump`, восстановление — как в п. 5 «Деплой», база `futureerp`. Том `pgdata` — именованный том Docker, вложения — в бакете S3.
 10. Проверить X-Forwarded-For — как в п. 8 «Деплой через Coolify», база `futureerp`.
-11. General → **Watch Paths** (автодеплой только при изменении этих путей): `apps/api/**`, `apps/worker/**`, `apps/web/**`, `packages/**`,
-    `docker/**`, `Dockerfile`, `docker-compose.dokploy.yml`, `bun.lock`, `docs/user/**`. Правка лендинга стек не пересобирает.
+11. Откат на прежнюю сборку: Environment → `IMAGE_TAG=<sha коммита>` (образы помечены и `latest`, и sha) → Deploy; вернуть — удалить переменную.
+
+#### Сборка образов (GitHub Actions)
+
+Сервер только скачивает образы: сборка (`bun install`, `tsc`, `vite build`, Chromium) на маленьком VDS занимает CPU и память на 10+ минут.
+`.github/workflows/images.yml` собирает стек при push в `main` с изменениями в `apps/api|worker|web`, `packages`, `docs/user`, `docker`, Dockerfile, `bun.lock`;
+`.github/workflows/landing.yml` — лендинг при изменениях в `apps/landing`, `packages/docs`, `docs/user`. Оба публикуют в `ghcr.io/<владелец>/futureerp-*`
+(теги `latest` и sha) и затем вызывают деплой в Dokploy по API. Запустить вручную — Actions → workflow → Run workflow.
+
+1. Dokploy → Settings → Profile → **API/CLI** → создать токен.
+2. GitHub → репозиторий → Settings → Secrets and variables → Actions → **Secrets**: `DOKPLOY_URL` (адрес панели, `https://…`), `DOKPLOY_API_KEY` (токен),
+   `DOKPLOY_COMPOSE_ID` — id сервиса Compose (последняя часть адреса страницы сервиса в Dokploy: `…/services/compose/<id>`),
+   `DOKPLOY_LANDING_APP_ID` — id приложения лендинга (`…/services/application/<id>`). Без секретов образы публикуются, а деплой пропускается.
+3. После первой сборки: GitHub → профиль → Packages → каждый `futureerp-*` → Package settings → **Change visibility → Public**
+   (новые пакеты ghcr приватные). Либо оставить приватными и добавить в Dokploy → Registry: `ghcr.io`, логин GitHub, токен с `read:packages`.
 
 ### Лендинг в Dokploy
 
@@ -211,13 +226,12 @@ Dokploy держит 80/443 своим Traefik, поэтому файл — `doc
 Собирается из того же Dockerfile, цель `landing` (nginx со статикой, `docker/landing-nginx.conf`).
 
 1. Сначала развернуть приложение и завести форму: «Настройки → Формы лидов» → адрес вебхука `https://<домен приложения>/api/hooks/leads/<токен>`.
-2. Project → Create Service → **Application**. Provider — тот же репозиторий и ветка; Build Type **Dockerfile**, Docker File `Dockerfile`,
-   Docker Context Path `.`, Docker Build Stage `landing`.
-3. Environment → Build-time Arguments: `VITE_APP_URL=https://<домен приложения>` (кнопка «Войти»), `VITE_LEAD_FORM_URL=<адрес вебхука из п. 1>`.
-   Адреса вшиваются при сборке: после их смены — Rebuild. Без `VITE_LEAD_FORM_URL` форма заявки не отправляется.
-4. Domains: хост лендинга (например корневой домен), порт 80, HTTPS + Let's Encrypt.
-5. General → Watch Paths: `apps/landing/**`, `packages/docs/**`, `docs/user/**`, `docker/landing-nginx.conf`, `Dockerfile`, `bun.lock`.
-   Статьи справки (`docs/user`) и `bun.lock` общие — их правка пересобирает и стек, и лендинг.
+2. GitHub → Settings → Secrets and variables → Actions → **Variables**: `VITE_APP_URL=https://<домен приложения>` (кнопка «Войти»),
+   `VITE_LEAD_FORM_URL=<адрес вебхука из п. 1>`. Адреса вшиваются при сборке: после их смены — Actions → landing → Run workflow.
+   Без `VITE_LEAD_FORM_URL` форма заявки не отправляется.
+3. Project → Create Service → **Application**, Provider **Docker**: образ `ghcr.io/vidyakin/futureerp-landing:latest` (собирает `landing.yml`).
+4. Domains: хост лендинга (например корневой домен), порт 80, HTTPS + Let's Encrypt. Автодеплой не нужен — деплой вызывает workflow
+   (секрет `DOKPLOY_LANDING_APP_ID`, см. «Сборка образов»).
 
 `docker-compose.yml` — для локального запуска всего стека, на сервер его не ставить (порты БД открыты, пароли по умолчанию).
 
