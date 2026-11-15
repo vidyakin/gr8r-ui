@@ -90,6 +90,10 @@
   дампы, `archives` и данные OSRM смонтированы из `../files` (каталог `files` приложения Dokploy). Ключей Coolify (`exclude_from_hc`) нет —
   обычный `docker compose config` проходит. Включать Isolated Deployments: без неё сервисы с доменом сидят в общей `dokploy-network`,
   и имя `api` может разрешиться в контейнер другого проекта. Профиль `routing` Dokploy не включает. Инструкция — README. В Dokploy не разворачивался.
+- **Лендинг** — цель `landing` в Dockerfile: сборка Astro (`apps/landing`) и nginx со статикой (`docker/landing-nginx.conf`, без прокси API).
+  В compose-файлы не входит: в Dokploy — отдельное приложение со своим доменом и Watch Paths, чтобы правка лендинга не пересобирала стек и наоборот.
+  `VITE_APP_URL` и `VITE_LEAD_FORM_URL` — аргументы сборки; форма шлёт заявку на полный адрес вебхука приложения (у `/hooks/*` открытый CORS).
+  `.dockerignore` исключает `docs`, кроме `docs/user`: статьи нужны сборке справки в web и страниц `/docs` лендинга. Инструкция — README.
 - **Заголовки безопасности** — в `docker/nginx.conf` (отдаёт и HSTS: TLS снимает Caddy или прокси Coolify). У приложения CSP: скрипты
   только свои (`script-src 'self'`), стили свои и inline, шрифты Google, картинки `https:`/`data:`/`blob:`, `frame-ancestors 'none'`;
   плюс `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy` (камера — сканер бейджей, геолокация — экран водителя).

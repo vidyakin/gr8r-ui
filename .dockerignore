@@ -6,6 +6,8 @@ node_modules
 *.log
 .dev-pids
 docs
+# статьи справки нужны сборке: бандл справки в web и страницы /docs лендинга
+!docs/user
 .claude
 .pgtest
 output

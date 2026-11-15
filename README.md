@@ -199,6 +199,22 @@ Dokploy держит 80/443 своим Traefik, поэтому файл — `doc
 8. CLI оператора — вкладка Docker/Terminal → контейнер `api`: `bun run tenant …` (как в списке выше); файлы для `import` — в `files/archives`.
 9. Дампы — `files/backups/futureerp-*.dump`, восстановление — как в п. 5 «Деплой», база `futureerp`. Тома `pgdata` и `miniodata` — именованные тома Docker.
 10. Проверить X-Forwarded-For — как в п. 8 «Деплой через Coolify», база `futureerp`.
+11. General → **Watch Paths** (автодеплой только при изменении этих путей): `apps/api/**`, `apps/worker/**`, `apps/web/**`, `packages/**`,
+    `docker/**`, `Dockerfile`, `docker-compose.dokploy.yml`, `bun.lock`, `docs/user/**`. Правка лендинга стек не пересобирает.
+
+### Лендинг в Dokploy
+
+Лендинг (`apps/landing`, Astro) — статический сайт, отдельное приложение со своим доменом; в стек приложения не входит.
+Собирается из того же Dockerfile, цель `landing` (nginx со статикой, `docker/landing-nginx.conf`).
+
+1. Сначала развернуть приложение и завести форму: «Настройки → Формы лидов» → адрес вебхука `https://<домен приложения>/api/hooks/leads/<токен>`.
+2. Project → Create Service → **Application**. Provider — тот же репозиторий и ветка; Build Type **Dockerfile**, Docker File `Dockerfile`,
+   Docker Context Path `.`, Docker Build Stage `landing`.
+3. Environment → Build-time Arguments: `VITE_APP_URL=https://<домен приложения>` (кнопка «Войти»), `VITE_LEAD_FORM_URL=<адрес вебхука из п. 1>`.
+   Адреса вшиваются при сборке: после их смены — Rebuild. Без `VITE_LEAD_FORM_URL` форма заявки не отправляется.
+4. Domains: хост лендинга (например корневой домен), порт 80, HTTPS + Let's Encrypt.
+5. General → Watch Paths: `apps/landing/**`, `packages/docs/**`, `docs/user/**`, `docker/landing-nginx.conf`, `Dockerfile`, `bun.lock`.
+   Статьи справки (`docs/user`) и `bun.lock` общие — их правка пересобирает и стек, и лендинг.
 
 `docker-compose.yml` — для локального запуска всего стека, на сервер его не ставить (порты БД открыты, пароли по умолчанию).
 

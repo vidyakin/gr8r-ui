@@ -1,4 +1,4 @@
-# Один Dockerfile на все сервисы монорепозитория (цели: api, worker, migrate, web).
+# Один Dockerfile на все сервисы монорепозитория (цели: api, worker, migrate, web, landing).
 # Сборка: docker build --target api -t erp-api .   (docker compose собирает сам)
 
 FROM oven/bun:1 AS base
@@ -50,4 +50,17 @@ FROM nginx:1.27-alpine AS web
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --chmod=755 docker/web-config.sh /docker-entrypoint.d/40-erp-config.sh
 COPY --from=web-build /app/apps/web/dist /usr/share/nginx/html
+EXPOSE 80
+
+# ---- Лендинг (apps/landing): отдельное приложение со своим доменом, деплоится независимо от стека ----
+# Адреса вшиваются при сборке: VITE_APP_URL — приложение (кнопка «Войти»), VITE_LEAD_FORM_URL — полный адрес вебхука
+# формы лидов (Настройки → Формы лидов). Сборка: docker build --target landing --build-arg VITE_APP_URL=… -t erp-landing .
+FROM base AS landing-build
+ARG VITE_APP_URL
+ARG VITE_LEAD_FORM_URL
+RUN bun run --cwd apps/landing build
+
+FROM nginx:1.27-alpine AS landing
+COPY docker/landing-nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=landing-build /app/apps/landing/dist /usr/share/nginx/html
 EXPOSE 80

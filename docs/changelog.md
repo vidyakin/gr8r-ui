@@ -10,6 +10,7 @@
 Записи до 2026-11-07 восстановлены по истории коммитов и сгруппированы по дням.
 
 ## 2026-11-15
+- **Деплой** — лендинг собирается отдельным образом (цель `landing` в Dockerfile, nginx со статикой), в Dokploy — отдельное приложение с Watch Paths; адреса приложения и вебхука формы — аргументы сборки. Исправлено: `.dockerignore` выкидывал `docs/user`, и в докер-сборке справка приложения была пустой.
 - **Платформа** — уход от имени gr8r перед первым продом: база, роли, бакет и дампы — `futureerp` (`futureerp_app`/`futureerp_ddl`, тестовая `futureerp_test`); ключи localStorage `erp-ui.*`, cookie `erp_session`, префикс токенов агентов `erp_`, канал событий `erp_events` (миграция 0122 пересоздаёт `app_license_changed`), IndexedDB водителя и кэш SW `erp-driver*`, формат выгрузки арендатора `erp-tenant`. Пакеты `@gr8r/*` → `@erp/*`, папка `components/gr8r` → `components/erp`, `gr8r-blocks.css` → `erp-blocks.css`, MCP-сервер называется `erp`, отправитель банковской выгрузки — `FutureERP`. Демо: вход `demo@future-erp.dev`, воркспейс «FutureERP Studio» (адрес `future-erp`), почты и ссылки — `future-erp.com`, бренд товаров «FutureERP Home». Совместимости со старыми именами нет: настройки браузера сбросятся, выпущенные токены и старые выгрузки недействительны.
 - **Деплой** — `docker-compose.dokploy.yml` для Dokploy: сервисы прод-файла без Caddy (HTTPS и домены — Traefik Dokploy по вкладке Domains), дампы и выгрузки арендаторов в `../files`, переживающем передеплой; инструкция — README, «Деплой через Dokploy».
 
