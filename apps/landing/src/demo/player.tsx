@@ -183,7 +183,8 @@ export function Recording<S>({ scene, label, caption }: { scene: Scene<S>; label
         <div
           ref={stage}
           className={'stage' + (compact ? ' compact' : '')}
-          style={{ width: designW, height: h, transform: `scale(${scale})` }}
+          // до замера ширины (серверная разметка, остров ещё не ожил) кадр не показываем — иначе мелькает обрезанный кадр 1280px
+          style={{ width: designW, height: h, transform: `scale(${scale})`, visibility: width ? undefined : 'hidden' }}
           inert
           aria-hidden
         >

@@ -26,7 +26,7 @@ const TITLE = 'Передать в работу: {{trigger.record.name}}';
 const PROJECT = 'Заказы клиентов';
 const PROJECT_ID = '0192f4a8-71c3-7e5b-9d20-3a1c5e8b';
 
-const initial: S = { tab: 'editor', nodes: 1, sel: 't', edge: 0, hot: null, project: false, title: 'Follow up', titleFocus: false, published: false, toast: false, run: 0 };
+const initial: S = { tab: 'editor', nodes: 1, sel: 't', edge: 0, hot: null, project: false, title: '', titleFocus: false, published: false, toast: false, run: 0 };
 const final: S = { ...initial, tab: 'runs', nodes: 2, sel: 'a', edge: 2, project: true, title: TITLE, published: true, run: 2 };
 
 const issueCount = (s: S) => (s.nodes === 1 ? 0 : (s.edge === 2 ? 0 : 1) + (s.project ? 0 : 1));
