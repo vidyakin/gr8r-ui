@@ -373,6 +373,20 @@
   border-top: 1px solid var(--border);
 }
 
+/* заголовки h2 страницы главной (.h-sec h2) не должны попадать в разметку записей */
+.stage .modal-h h2,
+.stage .doc-links h2 {
+  max-width: none;
+  line-height: normal;
+  letter-spacing: normal;
+}
+.stage .modal-h h2 {
+  font-size: var(--fs-md);
+}
+.stage .doc-links h2 {
+  font-size: var(--fs);
+}
+
 /* диалог и уведомление внутри кадра: у приложения они fixed к окну */
 .d-modal {
   position: absolute;
