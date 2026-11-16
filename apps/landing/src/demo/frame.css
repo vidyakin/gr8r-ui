@@ -12,4 +12,6 @@
 @import '../../../web/src/styles/crm.css' layer(components);
 @import '../../../web/src/styles/docs.css' layer(components);
 @import '../../../web/src/styles/appointments.css' layer(components);
+@import '../../../web/src/styles/automations.css' layer(components);
 @import './recording.css';
+@import './automations-scene.css';

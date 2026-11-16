@@ -1,7 +1,7 @@
 /* Оболочка приложения в кадре: левая панель, верхняя строка, содержимое. Классы — из apps/web (.sitem, .topbar, .crumbs…),
    раскладка своя (.d-shell): у настоящей .shell медиазапросы по ширине окна, а кадр живёт в своей ширине. */
 import * as React from 'react';
-import { Bell, CalendarCheck, ChartNoAxesCombined, CircleCheck, Factory, Play, Wrench, FileText, FolderKanban, Handshake, House, Inbox, ListChecks, Megaphone, Plus, ReceiptText, Search, UserPlus, Warehouse } from 'lucide-react';
+import { Bell, CalendarCheck, ChartNoAxesCombined, CircleCheck, Factory, Play, Workflow, Wrench, FileText, FolderKanban, Handshake, House, Inbox, ListChecks, Megaphone, Plus, ReceiptText, Search, UserPlus, Warehouse } from 'lucide-react';
 
 const NAV = [
   { group: '', items: [['home', House, 'Главная'], ['inbox', Inbox, 'Входящие'], ['my', CircleCheck, 'Мои задачи']] },
@@ -10,6 +10,7 @@ const NAV = [
   { group: 'Продажи', items: [['sales', ReceiptText, 'Документы продаж'], ['quotes', FileText, 'Коммерческие предложения'], ['stock', Warehouse, 'Склад']] },
   { group: 'Услуги', items: [['appts', CalendarCheck, 'Запись'], ['workorders', Wrench, 'Заказ-наряды']] },
   { group: 'Производство', items: [['prodorders', Factory, 'Заказы на производство'], ['release', Play, 'Выпуск продукции']] },
+  { group: 'Платформа', items: [['automations', Workflow, 'Автоматизации']] },
 ] as const;
 
 export type NavId = (typeof NAV)[number]['items'][number][0];
