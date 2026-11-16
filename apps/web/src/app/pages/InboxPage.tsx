@@ -1,7 +1,7 @@
 /* Входящие — порт pageInbox / inboxItem / inboxPreview из pages/inbox.js */
 import * as React from 'react';
 import { useNavigate } from 'react-router';
-import { ArrowLeft, AtSign, CheckCheck, Inbox, Mail, MailOpen, MessageSquare, PanelRightOpen, RefreshCw, UserPlus } from 'lucide-react';
+import { ArrowLeft, AtSign, CheckCheck, Inbox, Mail, MailOpen, MessageSquare, PanelRightOpen, RefreshCw, Stamp, UserPlus } from 'lucide-react';
 import { Alert, Button, EmptyState, IconButton, Switch, Tab, Tabs, TabsList, toast } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '../data/store';
@@ -16,7 +16,7 @@ import { useT } from '@/i18n';
 
 type Category = 'all' | Notification['type'];
 const CATEGORIES: Category[] = ['all', 'mention', 'assign', 'comment', 'update'];
-const TYPE_ICON = { mention: AtSign, assign: UserPlus, comment: MessageSquare, update: RefreshCw } as const;
+const TYPE_ICON = { mention: AtSign, assign: UserPlus, comment: MessageSquare, update: RefreshCw, approval: Stamp } as const;
 
 function InboxItem({ n, selected, onSelect }: { n: Notification; selected: boolean; onSelect: () => void }) {
   const t = useT();

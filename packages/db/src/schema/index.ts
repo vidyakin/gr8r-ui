@@ -38,3 +38,4 @@ export * from './attachments';
 export * from './objects';
 export * from './api-tokens';
 export * from './supplier-prices';
+export * from './approvals';

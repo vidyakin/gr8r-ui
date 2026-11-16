@@ -792,6 +792,13 @@
       "when": 1794106540000,
       "tag": "0122_events_channel",
       "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1794192940000,
+      "tag": "0123_approvals",
+      "breakpoints": true
     }
   ]
 }

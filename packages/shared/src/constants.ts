@@ -39,7 +39,7 @@ export const TASK_MODULE_LABELS: Record<TaskModule, string> = { general: 'Genera
 
 export const PROJECT_COLORS = ['indigo', 'blue', 'violet', 'teal', 'rose', 'amber', 'green', 'slate'] as const;
 export const MEMBER_STATUSES = ['active', 'invited', 'deactivated'] as const;
-export const NOTIFICATION_TYPES = ['mention', 'assign', 'comment', 'update'] as const;
+export const NOTIFICATION_TYPES = ['mention', 'assign', 'comment', 'update', 'approval'] as const;
 export const VIEW_TYPES = ['list', 'board', 'table', 'calendar', 'timeline'] as const;
 export const FILE_KINDS = ['fig', 'pdf', 'zip', 'img', 'sheet', 'doc', 'code', 'other'] as const;
 export const CRM_ACTIVITY_TYPES = ['call', 'email', 'meeting', 'note', 'task'] as const;

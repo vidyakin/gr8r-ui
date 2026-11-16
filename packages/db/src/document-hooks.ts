@@ -51,6 +51,8 @@ export interface StateProvider {
   states: (db: Db, ctx: DocCtx, doc: DocumentRow) => Promise<DynamicStateDef[]>;
   /** Проверка перехода по правилам воркспейса */
   canTransition: (from: DynamicStateDef | null, to: DynamicStateDef, ctx: DocCtx) => { ok: boolean; message?: string };
+  /** Асинхронная проверка перехода по данным БД (заявка на расход: идёт процесс согласования, задача 1199) */
+  assertTransition?: (db: Db, ctx: DocCtx, doc: DocumentRow, to: DynamicStateDef) => Promise<void>;
 }
 
 export const STATE_PROVIDERS: Partial<Record<DocumentType, StateProvider>> = {};
