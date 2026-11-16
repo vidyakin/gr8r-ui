@@ -106,7 +106,7 @@ body { background: var(--h-page); color: var(--h-ink); font-family: 'Geist', sys
 #modules .h-sec-head h2 { font-size: 48px; }
 
 /* Переключатель модулей */
-.h-switch { display: grid; grid-template-columns: 420px 1fr; gap: 64px; align-items: start; }
+.h-switch { display: grid; grid-template-columns: 280px 1fr; gap: 40px; align-items: start; }
 .h-tabs { display: flex; flex-direction: column; }
 .h-tab { background: none; border: 0; border-left: 3px solid transparent; text-align: left; padding: 10px 0 10px 20px; font: 500 30px/1.2 'Geist', system-ui, sans-serif; letter-spacing: -.02em; color: var(--h-ink-3); cursor: pointer; }
 .h-tab:hover { color: var(--h-ink-2); }
@@ -205,7 +205,7 @@ body { background: var(--h-page); color: var(--h-ink); font-family: 'Geist', sys
 /* Планшет */
 @media (max-width: 1100px) {
   .h-menu { display: none; }
-  .h-switch { grid-template-columns: 300px 1fr; gap: 32px; }
+  .h-switch { grid-template-columns: 240px 1fr; gap: 28px; }
   .h-tab { font-size: 24px; }
   .h-steps { grid-template-columns: repeat(4, 1fr); }
   .h-price-box { grid-template-columns: 1fr; }
