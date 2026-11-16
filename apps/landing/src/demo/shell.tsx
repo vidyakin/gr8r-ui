@@ -1,14 +1,15 @@
 /* Оболочка приложения в кадре: левая панель, верхняя строка, содержимое. Классы — из apps/web (.sitem, .topbar, .crumbs…),
    раскладка своя (.d-shell): у настоящей .shell медиазапросы по ширине окна, а кадр живёт в своей ширине. */
 import * as React from 'react';
-import { Bell, CalendarCheck, ChartNoAxesCombined, CircleCheck, Factory, Play, Wrench, FileText, FolderKanban, Handshake, House, Inbox, ListChecks, Megaphone, Plus, ReceiptText, Search, UserPlus, Warehouse } from 'lucide-react';
+import { Bell, CalendarCheck, CalendarRange, ChartNoAxesCombined, CircleCheck, Factory, Play, Truck, Waypoints, Wrench, FileText, FolderKanban, Handshake, House, Inbox, ListChecks, Megaphone, Plus, ReceiptText, Search, UserPlus, Warehouse } from 'lucide-react';
 
 const NAV = [
   { group: '', items: [['home', House, 'Главная'], ['inbox', Inbox, 'Входящие'], ['my', CircleCheck, 'Мои задачи']] },
   { group: 'Воркспейс', items: [['projects', FolderKanban, 'Проекты'], ['tasks', ListChecks, 'Задачи']] },
   { group: 'CRM', items: [['crm', ChartNoAxesCombined, 'Сводка'], ['leads', UserPlus, 'Лиды'], ['ads', Megaphone, 'Реклама'], ['deals', Handshake, 'Сделки']] },
   { group: 'Продажи', items: [['sales', ReceiptText, 'Документы продаж'], ['quotes', FileText, 'Коммерческие предложения'], ['stock', Warehouse, 'Склад']] },
-  { group: 'Услуги', items: [['appts', CalendarCheck, 'Запись'], ['workorders', Wrench, 'Заказ-наряды']] },
+  { group: 'Услуги', items: [['appts', CalendarCheck, 'Запись'], ['workorders', Wrench, 'Заказ-наряды'], ['deliveries', Truck, 'Доставки']] },
+  { group: 'Транспорт', items: [['dispatch', CalendarRange, 'Диспетчер'], ['trips', Waypoints, 'Рейсы']] },
   { group: 'Производство', items: [['prodorders', Factory, 'Заказы на производство'], ['release', Play, 'Выпуск продукции']] },
 ] as const;
 
@@ -28,6 +29,15 @@ export function Brand({ size = 22 }: { size?: number }) {
 }
 
 export function DemoShell({ compact, active, crumbs, children }: { compact: boolean; active: NavId; crumbs: string[]; children: React.ReactNode }) {
+  const scroll = React.useRef<HTMLDivElement>(null);
+  // Выбранный пункт ниже края панели — прокручиваем, чтобы он был виден
+  React.useLayoutEffect(() => {
+    const box = scroll.current;
+    const el = box?.querySelector<HTMLElement>('.sitem.on');
+    if (!box || !el) return;
+    const over = el.getBoundingClientRect().bottom - box.getBoundingClientRect().bottom;
+    if (over > 0) box.scrollTop += over / (box.getBoundingClientRect().height / box.clientHeight || 1) + 40;
+  }, [active, compact]);
   return (
     <div className="d-shell">
       {!compact && (
@@ -38,7 +48,7 @@ export function DemoShell({ compact, active, crumbs, children }: { compact: bool
               <span className="ws-name trunc">FutureERP</span>
             </div>
           </div>
-          <div className="side-scroll">
+          <div className="side-scroll" ref={scroll}>
             {NAV.map(g => (
               <div key={g.group} className={g.group ? 'sgroup' : undefined}>
                 {g.group && <div className="sgroup-h">{g.group}</div>}
