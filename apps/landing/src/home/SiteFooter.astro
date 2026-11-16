@@ -1,0 +1,11 @@
+---
+/* Подвал главной и страниц модулей */
+import { t } from '../i18n';
+---
+
+<footer class="h-footer">
+  <div class="h-wrap h-footer-in">
+    <span>{t('footer.rights', { year: new Date().getFullYear() })}</span>
+    <span class="h-footer-r"><a href="/docs/">{t('footer.docs')}</a><a href="/privacy/">{t('footer.privacy')}</a><span>{t('footer.langs')}</span></span>
+  </div>
+</footer>

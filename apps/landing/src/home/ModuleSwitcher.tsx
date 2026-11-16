@@ -3,30 +3,14 @@
 import * as React from 'react';
 import { t, type TKey } from '../i18n';
 import { ru } from '../i18n/ru';
-import { Recording, type Scene } from '../demo/player';
-import { tasksScene } from '../demo/TasksScene';
-import { crmScene } from '../demo/CrmScene';
-import { docScene } from '../demo/DocScene';
-import { servicesScene } from '../demo/ServicesScene';
-import { productionScene } from '../demo/ProductionScene';
+import { Recording } from '../demo/player';
+import { SCENES, MODULE_IDS, type ModuleId } from '../demo/registry';
 
-type Id = keyof typeof ru.alternative.modules;
+type Id = ModuleId;
 type FeatId = keyof typeof ru.modules;
 
-const rec = <S,>(scene: Scene<S>) => (label: string, caption: string) => <Recording scene={scene} label={label} caption={caption} />;
-
-/** Порядок — как в макете; feat — ключ возможностей в modules.*, rec — запись экрана */
-const MODULES: { id: Id; feat?: FeatId; rec?: (label: string, caption: string) => React.ReactNode }[] = [
-  { id: 'tasks', feat: 'tasks', rec: rec(tasksScene) },
-  { id: 'crm', feat: 'crm', rec: rec(crmScene) },
-  { id: 'docs', feat: 'docs', rec: rec(docScene) },
-  { id: 'services', feat: 'services', rec: rec(servicesScene) },
-  { id: 'production', feat: 'production', rec: rec(productionScene) },
-  { id: 'sales' },
-  { id: 'logistics' },
-  { id: 'automations', feat: 'automations' },
-  { id: 'payroll' },
-];
+/** Порядок — как в реестре; feat — ключ возможностей в modules.*; запись экрана берётся из реестра SCENES */
+const MODULES: { id: Id; feat?: FeatId }[] = MODULE_IDS.map(id => ({ id, feat: id in ru.modules ? (id as FeatId) : undefined }));
 
 const mt = (id: Id, k: 'name' | 'title' | 'text') => t(`alternative.modules.${id}.${k}` as TKey);
 
@@ -34,6 +18,7 @@ export default function ModuleSwitcher() {
   const [active, setActive] = React.useState<Id>('production');
   const tabs = React.useRef<(HTMLButtonElement | null)[]>([]);
   const mod = MODULES.find(m => m.id === active)!;
+  const scene = SCENES[active];
 
   // На телефоне вкладки — горизонтальная лента: выбранная прокручивается в видимую часть (только сама лента, не страница)
   React.useEffect(() => {
@@ -96,7 +81,8 @@ export default function ModuleSwitcher() {
             ))}
           </dl>
         )}
-        {mod.rec ? <div className="h-rec">{mod.rec(mt(active, 'title'), caption)}</div> : <p className="h-soon">{t('home.modules.soon')}</p>}
+        {scene ? <div className="h-rec"><Recording scene={scene} label={mt(active, 'title')} caption={caption} /></div> : <p className="h-soon">{t('home.modules.soon')}</p>}
+        <a className="h-more-link" href={`/modules/${active}/`}>{t('home.modules.more')} <span aria-hidden="true">→</span></a>
       </div>
     </div>
   );

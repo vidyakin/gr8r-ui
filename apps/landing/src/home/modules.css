@@ -1,0 +1,78 @@
+/* Страницы модулей (/modules/<id>/): поверх home.css, префикс h-mp-; ссылка «Подробнее о модуле» в переключателе главной */
+.h-more-link { align-self: flex-start; font-size: 15px; font-weight: 600; color: var(--h-accent) !important; }
+.h-more-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Первый экран: слева текст, справа запись */
+.h-mp-hero { padding-bottom: 24px; }
+.h-mp-back { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; color: var(--h-ink-2) !important; margin-bottom: 24px; }
+.h-mp-back:hover { color: var(--h-ink) !important; }
+.h-mp-hero-in { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 48px; align-items: center; }
+.h-mp-hero-solo { grid-template-columns: minmax(0, 760px); }
+.h-mp-hero-text { display: flex; flex-direction: column; align-items: flex-start; gap: 24px; }
+.h-mp-hero-text h1 { font-size: 48px; font-weight: 600; line-height: 1.08; letter-spacing: -.03em; }
+.h-mp-hero-text .h-lead { max-width: 520px; }
+.h-mp-hero-text .h-cta { justify-content: flex-start; }
+.h-mp-hero-rec { min-width: 0; background: var(--h-surface); border: 1px solid var(--h-line); border-radius: 16px; box-shadow: 0 8px 40px rgba(20,22,27,.08); overflow: hidden; }
+.h-mp-hero-rec img { display: block; width: 100%; height: auto; }
+
+/* Возможности: текст и скриншот, чередуются */
+.h-mp-feats { margin-top: 72px; }
+.h-mp-feat { padding: 56px 0; }
+.h-mp-feat-in { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 64px; align-items: center; }
+.h-mp-feat:nth-child(even) .h-mp-feat-text { order: 2; }
+.h-mp-feat:nth-child(even) .h-mp-feat-in { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
+.h-mp-feat-text h2 { font-size: 34px; font-weight: 600; line-height: 1.12; letter-spacing: -.025em; }
+.h-mp-feat-text > p { margin-top: 16px; font-size: 17px; line-height: 1.5; color: var(--h-ink-2); }
+.h-mp-feat-text ul { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+.h-mp-feat-text li { position: relative; padding-left: 24px; font-size: 15px; line-height: 1.45; }
+.h-mp-feat-text li::before { content: ''; position: absolute; left: 4px; top: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--h-accent); }
+.h-mp-shot { margin: 0; min-width: 0; background: var(--h-surface); border: 1px solid var(--h-line); border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(20,22,27,.07); }
+.h-mp-shot img { display: block; width: 100%; height: auto; }
+/* Заглушка, пока нет скриншота */
+.h-mp-ph { aspect-ratio: 16 / 10; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; text-align: center; color: var(--h-ink-3);
+  background: repeating-linear-gradient(135deg, var(--h-bg), var(--h-bg) 14px, #eceff5 14px, #eceff5 28px); }
+.h-mp-ph strong { font-size: 16px; font-weight: 600; color: var(--h-ink-2); max-width: 360px; }
+.h-mp-ph span { font-size: 13px; }
+
+/* Связи с другими модулями */
+.h-mp-chain { margin-top: 64px; }
+.h-mp-chain-lead { margin-top: 16px; font-size: 18px; color: rgba(255,255,255,.7); max-width: 640px; }
+.h-mp-steps { margin-top: 48px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; counter-reset: none; }
+.h-mp-step { position: relative; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 8px; }
+.h-mp-step + .h-mp-step::before { content: '→'; position: absolute; left: -12px; top: 22px; width: 12px; text-align: center; color: var(--h-soft-on-dark); font-size: 14px; }
+.h-mp-step-cur { background: var(--h-accent); border-color: var(--h-accent); }
+.h-mp-step-n { font-size: 12px; color: rgba(255,255,255,.5); }
+.h-mp-step h3 { font-size: 20px; font-weight: 600; color: #fff; }
+.h-mp-step h3 a { text-decoration: underline; text-decoration-color: rgba(255,255,255,.35); text-underline-offset: 4px; }
+.h-mp-step h3 a:hover { text-decoration-color: #fff; }
+.h-mp-cur-tag { align-self: flex-start; font-size: 12px; font-weight: 600; background: rgba(255,255,255,.2); border-radius: 999px; padding: 3px 10px; }
+.h-mp-pass-label { margin-top: 10px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--h-soft-on-dark); }
+.h-mp-step-cur .h-mp-pass-label { color: rgba(255,255,255,.8); }
+.h-mp-pass { font-size: 14px; line-height: 1.45; color: rgba(255,255,255,.85); }
+
+/* Другие модули */
+.h-mp-others { margin-top: 56px; }
+.h-mp-others h2 { font-size: 20px; font-weight: 600; margin-bottom: 16px; }
+.h-mp-others ul { display: flex; flex-wrap: wrap; gap: 8px; }
+.h-mp-others a { display: inline-block; padding: 10px 16px; border: 1px solid var(--h-line); border-radius: 999px; background: var(--h-surface); font-size: 14px; font-weight: 500; }
+.h-mp-others a:hover { border-color: var(--h-accent); color: var(--h-accent) !important; }
+
+@media (max-width: 1100px) {
+  .h-mp-hero-in, .h-mp-feat-in, .h-mp-feat:nth-child(even) .h-mp-feat-in { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+  .h-mp-feat:nth-child(even) .h-mp-feat-text { order: 0; }
+  .h-mp-step + .h-mp-step::before { display: none; }
+}
+
+@media (max-width: 760px) {
+  .h-mp-hero-text h1 { font-size: 32px; }
+  .h-mp-hero-text { gap: 20px; }
+  .h-mp-hero-text .h-cta { width: 100%; }
+  .h-mp-hero-rec { border-radius: 12px; }
+  .h-mp-feats { margin-top: 32px; }
+  .h-mp-feat { padding: 28px 0; }
+  .h-mp-feat-text h2 { font-size: 26px; }
+  .h-mp-chain { margin-top: 32px; }
+  .h-mp-chain-lead { font-size: 16px; }
+  .h-mp-steps { grid-template-columns: minmax(0, 1fr); margin-top: 28px; }
+  .h-mp-others { margin-top: 40px; }
+}

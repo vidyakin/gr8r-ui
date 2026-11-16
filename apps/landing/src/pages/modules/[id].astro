@@ -1,0 +1,156 @@
+---
+/* Страница модуля: /modules/<id>/ — первый экран с записью, возможности, связи с соседними модулями, вопросы, заявка */
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import Base from '../../layouts/Base.astro';
+import { ArrowRight, ArrowLeft, Plus, ImageIcon } from 'lucide-react';
+import SiteHeader from '../../home/SiteHeader.astro';
+import SiteFooter from '../../home/SiteFooter.astro';
+import ModuleRecording from '../../home/ModuleRecording';
+import LeadFormIsland from '../../home/LeadFormIsland';
+import { MODULE_IDS, SCENES, type ModuleId } from '../../demo/registry';
+import { t, modulePage, type TKey } from '../../i18n';
+import { ru } from '../../i18n/ru';
+import '../../demo/frame.css';
+import '../../home/home.css';
+import '../../home/modules.css';
+
+export function getStaticPaths() {
+  return MODULE_IDS.map(id => ({ params: { id } }));
+}
+
+const APP_URL = import.meta.env.VITE_APP_URL ?? '/app/';
+const id = Astro.params.id as ModuleId;
+const mt = (m: ModuleId, k: 'name' | 'title' | 'text') => t(`alternative.modules.${m}.${k}` as TKey);
+const page = modulePage(id);
+const name = mt(id, 'name');
+
+// Скриншоты — public/modules/<id>/<n>.jpg; пока файла нет, рисуется заглушка. Проверка — на этапе сборки
+const has = (file: string) => existsSync(join(process.cwd(), 'public', 'modules', id, file));
+const scene = SCENES[id];
+const heroShot = !scene && has('hero.jpg') ? `/modules/${id}/hero.jpg` : null;
+const caption = id in ru.modules && 'caption' in ru.modules[id as keyof typeof ru.modules] ? (ru.modules[id as keyof typeof ru.modules] as { caption: string }).caption : '';
+const features = page.features.map((f, i) => ({ ...f, src: has(`${i + 1}.jpg`) ? `/modules/${id}/${i + 1}.jpg` : null }));
+const chain = page.chain as readonly (readonly [ModuleId, string])[];
+const others = MODULE_IDS.filter(m => m !== id);
+---
+
+<Base title={`${name} — FutureERP`} description={mt(id, 'text')} theme="light">
+  <div class="h-page">
+    <SiteHeader base="/" />
+
+    <main id="main">
+      <section class="h-hero h-mp-hero" aria-labelledby="h-mp-title">
+        <div class="h-wrap">
+          <a class="h-mp-back" href="/#modules"><ArrowLeft size={16} aria-hidden="true" />{t('modulePages.ui.all')}</a>
+          <div class:list={['h-mp-hero-in', !scene && !heroShot && 'h-mp-hero-solo']}>
+            <div class="h-mp-hero-text">
+              <p class="h-pill"><span class="h-dot"></span>{t('modulePages.ui.moduleLabel')} · {name}</p>
+              <h1 id="h-mp-title">{mt(id, 'title')}</h1>
+              <p class="h-lead">{mt(id, 'text')}</p>
+              <div class="h-cta">
+                <a class="h-btn" href={APP_URL}>{t('modulePages.ui.demo')}<ArrowRight size={16} aria-hidden="true" /></a>
+                <a class="h-btn h-btn-2" href="#request">{t('modulePages.ui.request')}</a>
+              </div>
+            </div>
+            {scene && (
+              <div class="h-mp-hero-rec">
+                <ModuleRecording client:visible id={id} label={t('modulePages.ui.recLabel', { name })} caption={caption} />
+              </div>
+            )}
+            {heroShot && (
+              <div class="h-mp-hero-rec">
+                <img src={heroShot} alt={t('modulePages.ui.recLabel', { name })} width="1280" height="800" />
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <div class="h-mp-feats">
+        {features.map((f, i) => (
+          <section class="h-mp-feat" aria-labelledby={`h-mp-f${i}`}>
+            <div class="h-wrap h-mp-feat-in">
+              <div class="h-mp-feat-text">
+                <h2 id={`h-mp-f${i}`}>{f.title}</h2>
+                <p>{f.text}</p>
+                <ul>
+                  {f.list.map(item => <li>{item}</li>)}
+                </ul>
+              </div>
+              <figure class="h-mp-shot">
+                {f.src ? (
+                  <img src={f.src} alt={f.screen} loading="lazy" width="1280" height="800" />
+                ) : (
+                  <div class="h-mp-ph" role="img" aria-label={f.screen}>
+                    <ImageIcon size={28} aria-hidden="true" />
+                    <strong>{f.screen}</strong>
+                    <span>{t('modulePages.ui.shotSoon')}</span>
+                  </div>
+                )}
+              </figure>
+            </div>
+          </section>
+        ))}
+      </div>
+
+      <section class="h-how h-mp-chain" aria-labelledby="h-mp-chain-title">
+        <div class="h-wrap">
+          <h2 id="h-mp-chain-title">{t('modulePages.ui.chainTitle')}</h2>
+          <p class="h-mp-chain-lead">{t('modulePages.ui.chainLead')}</p>
+          <ol class="h-mp-steps">
+            {chain.map(([m, passes], i) => (
+              <li class:list={['h-mp-step', m === id && 'h-mp-step-cur']} aria-current={m === id ? 'step' : undefined}>
+                <span class="h-mp-step-n">{String(i + 1).padStart(2, '0')}</span>
+                <h3>
+                  {m === id ? <span>{mt(m, 'name')}</span> : <a href={`/modules/${m}/`}>{mt(m, 'name')}</a>}
+                </h3>
+                {m === id && <span class="h-mp-cur-tag">{t('modulePages.ui.chainCurrent')}</span>}
+                <p class="h-mp-pass-label">{i === chain.length - 1 ? t('modulePages.ui.chainResult') : t('modulePages.ui.chainPasses')}</p>
+                <p class="h-mp-pass">{passes}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      <section class="h-faq" aria-labelledby="h-mp-faq-title">
+        <div class="h-wrap h-faq-in">
+          <h2 id="h-mp-faq-title">{t('modulePages.ui.faqTitle')}</h2>
+          <div class="h-faq-list">
+            {page.faq.map(([q, a]) => (
+              <details>
+                <summary><span>{q}</span><Plus size={20} class="h-plus" aria-hidden="true" /></summary>
+                <p>{a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section class="h-final-sec" id="request" aria-labelledby="h-final-title">
+        <div class="h-wrap">
+          <div class="h-final">
+            <div class="h-final-text">
+              <h2 id="h-final-title">{t('modulePages.ui.finalTitle', { name })}</h2>
+              <p>{t('modulePages.ui.finalLead')}</p>
+              <a class="h-btn h-btn-white" href={APP_URL}>{t('modulePages.ui.demo')}<ArrowRight size={16} aria-hidden="true" /></a>
+            </div>
+            <div class="h-final-form">
+              <h3>{t('form.title')}</h3>
+              <LeadFormIsland client:visible />
+            </div>
+          </div>
+          <nav class="h-mp-others" aria-labelledby="h-mp-others-title">
+            <h2 id="h-mp-others-title">{t('modulePages.ui.otherTitle')}</h2>
+            <ul>
+              {others.map(m => <li><a href={`/modules/${m}/`}>{mt(m, 'name')}</a></li>)}
+            </ul>
+          </nav>
+        </div>
+      </section>
+    </main>
+
+    <SiteFooter />
+  </div>
+</Base>
