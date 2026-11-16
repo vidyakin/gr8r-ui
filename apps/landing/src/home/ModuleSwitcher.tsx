@@ -1,5 +1,5 @@
 /* Модули главной: список-вкладки (на телефоне — прокручиваемые «чипы») и карточка выбранного модуля с «записью» экрана.
-   Названия и описания — alternative.modules, возможности — modules.<id>.features; записи есть у пяти модулей */
+   Названия и описания — alternative.modules, возможности — modules.<id>.features; записи — из demo/registry.ts */
 import * as React from 'react';
 import { t, type TKey } from '../i18n';
 import { ru } from '../i18n/ru';

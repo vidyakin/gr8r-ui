@@ -1,4 +1,4 @@
-/* Реестр «записей» модулей: id модуля → сцена. Модуль без записи (sales, logistics, automations, payroll пока) не указан —
+/* Реестр «записей» модулей: id модуля → сцена. Модуль без записи не указан —
    страница модуля покажет статичный скриншот, а если его нет, блок не рисуется. Новую запись добавляют одной строкой здесь. */
 import type { Scene } from './player';
 import { tasksScene } from './TasksScene';
@@ -6,6 +6,10 @@ import { crmScene } from './CrmScene';
 import { docScene } from './DocScene';
 import { servicesScene } from './ServicesScene';
 import { productionScene } from './ProductionScene';
+import { salesScene } from './SalesScene';
+import { logisticsScene } from './LogisticsScene';
+import { automationsScene } from './AutomationsScene';
+import { payrollScene } from './PayrollScene';
 
 /** Девять модулей главной — порядок как в переключателе */
 export const MODULE_IDS = ['tasks', 'crm', 'docs', 'services', 'production', 'sales', 'logistics', 'automations', 'payroll'] as const;
@@ -18,4 +22,8 @@ export const SCENES: Partial<Record<ModuleId, Scene<any>>> = {
   docs: docScene,
   services: servicesScene,
   production: productionScene,
+  sales: salesScene,
+  logistics: logisticsScene,
+  automations: automationsScene,
+  payroll: payrollScene,
 };

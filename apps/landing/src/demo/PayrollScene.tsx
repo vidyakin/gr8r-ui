@@ -2,7 +2,7 @@
    затем ведомость на выплату и выплата из кассы. Разметка — как у PayrollPages.tsx (начисление и ведомость) */
 import type * as React from 'react';
 import { ChevronDown, Copy, Plus, Wand2 } from 'lucide-react';
-import { DemoShell, rub, type NavId } from './shell';
+import { DemoShell, rub } from './shell';
 import type { Scene } from './player';
 
 interface Row {
@@ -97,7 +97,7 @@ export const payrollScene: Scene<S> = {
     const ins = ROWS.slice(0, s.n).reduce((a, r) => a + r2(r.amount * INS), 0);
     const payTotal = PEOPLE.reduce((a, p) => a + p.pay, 0);
     return s.screen === 'accrual' ? (
-      <DemoShell compact={compact} active={'payroll' as NavId} crumbs={['Финансы', 'Начисление зарплаты']}>
+      <DemoShell compact={compact} active="payroll" crumbs={['Деньги', 'Начисление зарплаты']}>
         <div className="d-page-in">
           <div className="d-ph">
             <div>
@@ -117,7 +117,7 @@ export const payrollScene: Scene<S> = {
               <>
                 <span className="btn btn-secondary" data-demo="btn-based">
                   <Copy size={14} />
-                  {compact ? 'Ведомость' : 'Создать ведомость'}
+                  {compact ? 'Ведомость' : 'Новая ведомость'}
                 </span>
                 <span className="btn btn-secondary">Отменить проведение</span>
               </>
@@ -233,7 +233,7 @@ export const payrollScene: Scene<S> = {
         </div>
       </DemoShell>
     ) : (
-      <DemoShell compact={compact} active={'payroll' as NavId} crumbs={['Финансы', 'Ведомости на выплату']}>
+      <DemoShell compact={compact} active="payroll" crumbs={['Деньги', 'Ведомости на выплату']}>
         <div className="d-page-in">
           <div className="d-ph">
             <div>
