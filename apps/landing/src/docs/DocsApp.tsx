@@ -2,7 +2,6 @@
    поэтому серверу хватает одного файла docs/index.html. */
 import * as React from 'react';
 import { renderMarkdown, searchDocs, tocOf } from '@erp/docs';
-import { Brand } from '../demo/shell';
 import { catalog, imageUrl } from './bundle';
 
 const idFromHash = () => decodeURIComponent(window.location.hash.replace(/^#\/?/, ''));
@@ -41,7 +40,7 @@ export function DocsApp() {
       <header className="l-head">
         <div className="l-wrap l-head-in">
           <a className="l-brand" href="/">
-            <Brand size={24} />
+            <img className="brand" src="/favicon.svg" width={24} height={24} alt="" />
             <span>
               Future<b>ERP</b>
             </span>

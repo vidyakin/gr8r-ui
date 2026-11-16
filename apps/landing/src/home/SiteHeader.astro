@@ -1,7 +1,6 @@
 ---
 /* Шапка главной и страниц модулей. base — префикс якорей: '' на главной, '/' на остальных страницах */
 import { Menu } from 'lucide-react';
-import { Brand } from '../demo/shell';
 import { t } from '../i18n';
 
 interface Props {
@@ -23,7 +22,7 @@ const links = [
 <header class="h-header">
   <div class="h-bar">
     <a class="h-logo" href="/" aria-label="FutureERP">
-      <Brand size={28} />
+      <img class="brand" src="/favicon.svg" width="28" height="28" alt="" />
       <span class="h-logo-text"><span class="h-logo-a">FUTURE</span><span class="h-logo-b">ERP</span></span>
     </a>
     <nav class="h-menu" aria-label={t('home.nav.label')}>
