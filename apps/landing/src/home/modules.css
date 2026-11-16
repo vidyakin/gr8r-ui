@@ -26,6 +26,26 @@
 .h-mp-feat-text li::before { content: ''; position: absolute; left: 4px; top: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--h-accent); }
 .h-mp-shot { margin: 0; min-width: 0; background: var(--h-surface); border: 1px solid var(--h-line); border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(20,22,27,.07); }
 .h-mp-shot img { display: block; width: 100%; height: auto; }
+/* Скриншот — кнопка «открыть крупно» */
+.h-mp-zoom { position: relative; display: block; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
+.h-mp-zoom img { transition: transform .4s cubic-bezier(.2,.8,.2,1); }
+.h-mp-zoom:hover img { transform: scale(1.015); }
+.h-mp-zoom:focus-visible { outline: 2px solid var(--h-accent); outline-offset: -2px; }
+.h-mp-zoom-hint { position: absolute; right: 14px; bottom: 14px; display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px; background: rgba(20,22,27,.78); color: #fff; font-size: 13px; font-weight: 600; opacity: 0; transform: translateY(4px); transition: opacity .2s, transform .2s; pointer-events: none; }
+.h-mp-zoom:hover .h-mp-zoom-hint, .h-mp-zoom:focus-visible .h-mp-zoom-hint { opacity: 1; transform: none; }
+@media (hover: none) { .h-mp-zoom-hint { opacity: 1; transform: none; } }
+
+/* Окно просмотра крупно */
+html.h-zoom-lock { overflow: hidden; }
+.h-zoom { position: fixed; inset: 0; width: 100vw; height: 100vh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: rgba(14,16,22,.82); }
+.h-zoom::backdrop { background: transparent; }
+.h-zoom[open] { display: flex; align-items: center; justify-content: center; }
+.h-zoom-fig { margin: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 56px 24px 24px; box-sizing: border-box; cursor: zoom-out; }
+.h-zoom-img { display: block; width: auto; height: auto; max-width: min(1440px, 100%); max-height: calc(100vh - 140px); border-radius: 12px; box-shadow: 0 24px 80px rgba(0,0,0,.45); background: #fff; transform-origin: center; cursor: default; }
+.h-zoom-cap { color: rgba(255,255,255,.85); font-size: 15px; text-align: center; max-width: 720px; }
+.h-zoom-close { position: absolute; top: 16px; right: 16px; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.1); color: #fff; cursor: pointer; }
+.h-zoom-close:hover { background: rgba(255,255,255,.2); }
+.h-zoom-close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 /* Заглушка, пока нет скриншота */
 .h-mp-ph { aspect-ratio: 16 / 10; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; text-align: center; color: var(--h-ink-3);
   background: repeating-linear-gradient(135deg, var(--h-bg), var(--h-bg) 14px, #eceff5 14px, #eceff5 28px); }

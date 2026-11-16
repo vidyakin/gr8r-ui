@@ -12,6 +12,8 @@ export const modulePages = {
     moduleLabel: 'Модуль',
     recLabel: 'Запись экрана модуля «{name}»',
     shotSoon: 'Скриншот готовится',
+    zoomOpen: 'Открыть крупно',
+    zoomClose: 'Закрыть',
     chainTitle: 'Как связан с другими модулями',
     chainLead: 'Все модули работают в одной базе: данные передаются дальше без переноса и интеграций.',
     chainCurrent: 'Этот модуль',
