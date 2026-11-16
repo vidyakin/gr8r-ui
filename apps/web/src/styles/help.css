@@ -4,7 +4,7 @@
   top: 0;
   right: 0;
   bottom: 0;
-  width: min(460px, 100vw);
+  width: min(610px, 100vw);
   z-index: 55;
   display: flex;
   flex-direction: column;
