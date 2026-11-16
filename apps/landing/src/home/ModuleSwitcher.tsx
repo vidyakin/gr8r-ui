@@ -67,7 +67,10 @@ export default function ModuleSwitcher() {
       </div>
       <div className="h-panel" role="tabpanel" id="h-mod-panel" aria-labelledby={`h-tab-${active}`} key={active}>
         <div className="h-panel-head">
-          <span className="h-eyebrow">{mt(active, 'name')}</span>
+          <div className="h-panel-top">
+            <span className="h-eyebrow">{mt(active, 'name')}</span>
+            <a className="h-more-link" href={`/modules/${active}/`}>{t('home.modules.more')} <span aria-hidden="true">→</span></a>
+          </div>
           <h3>{mt(active, 'title')}</h3>
           <p>{mt(active, 'text')}</p>
         </div>
@@ -82,7 +85,6 @@ export default function ModuleSwitcher() {
           </dl>
         )}
         {scene ? <div className="h-rec"><Recording scene={scene} label={mt(active, 'title')} caption={caption} /></div> : <p className="h-soon">{t('home.modules.soon')}</p>}
-        <a className="h-more-link" href={`/modules/${active}/`}>{t('home.modules.more')} <span aria-hidden="true">→</span></a>
       </div>
     </div>
   );

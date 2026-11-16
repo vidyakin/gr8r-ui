@@ -1,6 +1,4 @@
-/* Страницы модулей (/modules/<id>/): поверх home.css, префикс h-mp-; ссылка «Подробнее о модуле» в переключателе главной */
-.h-more-link { align-self: flex-start; font-size: 15px; font-weight: 600; color: var(--h-accent) !important; }
-.h-more-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+/* Страницы модулей (/modules/<id>/): поверх home.css, префикс h-mp- */
 
 /* Первый экран: слева текст, справа запись */
 .h-mp-hero { padding-bottom: 24px; }
