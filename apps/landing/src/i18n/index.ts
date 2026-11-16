@@ -27,5 +27,7 @@ export function t(key: TKey, params?: Record<string, string | number>): string {
 export const features = <K extends keyof Dict['modules']>(m: K): readonly (readonly string[])[] => dict.modules[m].features;
 export const moreItems = (): readonly (readonly string[])[] => dict.more.items;
 export const flowSteps = (): readonly (readonly string[])[] => dict.hero.flow.steps;
+/** Тексты страницы модуля: возможности, цепочка, вопросы */
+export const modulePage = <K extends keyof Dict['modulePages'] & keyof Dict['alternative']['modules']>(id: K): Dict['modulePages'][K] => dict.modulePages[id];
 /** Списки главной страницы (факты, сравнение, шаги стоимости, вопросы) */
 export const home = (): Dict['home'] => dict.home;

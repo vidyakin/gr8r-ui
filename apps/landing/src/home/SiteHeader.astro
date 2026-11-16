@@ -1,0 +1,43 @@
+---
+/* Шапка главной и страниц модулей. base — префикс якорей: '' на главной, '/' на остальных страницах */
+import { Menu } from 'lucide-react';
+import { Brand } from '../demo/shell';
+import { t } from '../i18n';
+
+interface Props {
+  base?: string;
+}
+const { base = '' } = Astro.props;
+const APP_URL = import.meta.env.VITE_APP_URL ?? '/app/';
+const links = [
+  [`${base}#modules`, t('home.nav.modules')],
+  [`${base}#how`, t('home.nav.how')],
+  [`${base}#compare`, t('home.nav.compare')],
+  [`${base}#price`, t('home.nav.price')],
+  [`${base}#faq`, t('home.nav.faq')],
+];
+---
+
+<a class="h-skip" href="#main">{t('nav.skip')}</a>
+
+<header class="h-header">
+  <div class="h-bar">
+    <a class="h-logo" href="/" aria-label="FutureERP">
+      <Brand size={28} />
+      <span class="h-logo-text"><span class="h-logo-a">FUTURE</span><span class="h-logo-b">ERP</span></span>
+    </a>
+    <nav class="h-menu" aria-label={t('home.nav.label')}>
+      {links.map(([href, label]) => <a href={href}>{label}</a>)}
+    </nav>
+    <div class="h-bar-actions">
+      <a class="h-link" href={APP_URL}>{t('home.nav.signIn')}</a>
+      <a class="h-btn h-btn-sm" href={APP_URL}>{t('home.nav.openDemo')}</a>
+      <details class="h-burger">
+        <summary aria-label={t('home.nav.menu')}><Menu size={22} /></summary>
+        <nav class="h-burger-list" aria-label={t('home.nav.label')}>
+          {links.map(([href, label]) => <a href={href}>{label}</a>)}
+        </nav>
+      </details>
+    </div>
+  </div>
+</header>
