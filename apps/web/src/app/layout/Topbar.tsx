@@ -81,6 +81,11 @@ export function useCrumbs(): Crumb[] {
     const sub = Object.values(SECTIONS).find(x => x.path === `/production/${b}`);
     return [{ label: S.production.name, to: SECTIONS.production.path }, { label: sub?.name ?? itemName ?? t('nav.crumbs.product') }];
   }
+  // документы зарплаты: начисление /payroll/:id, ведомость /payroll/statements/:id
+  if (a === 'payroll' && b && !Object.values(SECTIONS).some(x => x.path === pathname)) {
+    const list = b === 'statements' ? S.payrollStatements : S.payroll;
+    return [{ label: list.name, to: list.path }, { label: t('nav.crumbs.document') }];
+  }
   if (a === 'settings') return [{ label: S.settings.name }];
   if (a === 'teams' && !b) return [{ label: t('nav.groups.teams') }];
   if (a === 'teams' && b) return [{ label: t('nav.groups.teams'), to: '/teams' },{ label: data.teams.find(x => x.id === b)?.name ?? t('nav.crumbs.team') }];
