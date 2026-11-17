@@ -56,6 +56,7 @@ import {
   CalendarRange,
   CalendarCheck,
   FileSignature,
+  Stamp,
   Store,
   BriefcaseBusiness,
   Landmark,
@@ -184,6 +185,7 @@ export const SECTIONS = {
   // Табель прораба (задача 1271): смены бригады на объекте
   shift: { path: '/shifts', name: 'Foreman shift', icon: ScanBarcode },
   contracts: { path: '/contracts', name: 'Contracts', icon: FileSignature },
+  approvals: { path: '/approvals', name: 'Approvals', icon: Stamp },
   tariffPlans: { path: '/tariff-plans', name: 'Tariff plans', icon: ListChecks },
   billing: { path: '/billing', name: 'Billing', icon: ReceiptText },
   // Виды цен и прайс-листы
@@ -267,6 +269,10 @@ export const NAV_GROUPS = {
   transport: {
     icon: Truck,
     items: [{ id: 'driverWorkplace' }, { id: 'dispatch' }, { id: 'trips' }, { id: 'transportOrders' }, { id: 'rateSchedules' }, { id: 'fleet' }, { id: 'fleetVehicles' }, { id: 'fleetDrivers' }, { id: 'fleetDocuments' }, { id: 'fleetWaybills' }, { id: 'fleetFuel' }, { id: 'fleetService' }, { id: 'fleetFines' }],
+  },
+  docflow: {
+    icon: Stamp,
+    items: [{ id: 'approvals' }],
   },
   finance: {
     icon: Landmark,

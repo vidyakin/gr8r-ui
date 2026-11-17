@@ -18,7 +18,8 @@
 `purgeTenantsOnce`; раз в час — `runBillingOnce`, `runLoyaltyExpirationOnce`, `runNextContactsOnce`, `runAppointmentsOnce`, `runFleetOnce`, `runAttachmentGcOnce`, `runDealOverdueOnce`.
 Раз в минуту — `runObjectReportsOnce` (сводка о ходе объекта, задача 1277): выбирает объекты с наступившим днём и временем
 по часовому поясу воркспейса и ставит задачу `object.progress_report`; выключенный модуль `trade` и опция `construction`
-объект пропускают. Проходы обязаны быть идемпотентными: журналы, `last_sent_at` и отметки `notified_*` пишутся в той же транзакции.
+объект пропускают. Раз в минуту — `runApprovalOverdueOnce` (просрочка согласований, задача 1199): по воркспейсам с модулем `docflow` под `app_user` вызывает `scanOverdue`.
+Проходы обязаны быть идемпотентными: журналы, `last_sent_at` и отметки `notified_*` пишутся в той же транзакции.
 
 ## Структура `src/`
 - `flows/` — движок автоматизаций: `engine.ts` (пошаговый запуск), `triggers.ts` (события и расписание → запуски), `records.ts` (действия над данными), `runtime.ts` (порты `NodeRuntime`), `http.ts` (исходящие запросы с защитой от SSRF).

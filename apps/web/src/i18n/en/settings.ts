@@ -46,6 +46,7 @@ export const settings = {
       departments: 'Departments',
       projectTemplates: 'Project templates',
       productKinds: 'Nomenclature kinds',
+      approvalRoutes: 'Approval routes',
       dealPipelines: 'Deal pipelines',
       lostReasons: 'Lost reasons',
       leadStatuses: 'Lead statuses',

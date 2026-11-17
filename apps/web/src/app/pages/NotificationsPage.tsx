@@ -12,17 +12,20 @@ import { SECTIONS } from '../routes';
 import { MentionText, NotifIcon, NotifText } from '../components/conversation';
 import { useTaskActions } from '../components/workspace';
 import { useT } from '@/i18n';
+import { useOpenApproval } from '../approvals/data';
 
 function NotificationRow({ n }: { n: Notification }) {
   const t = useT();
   const { data, dispatch } = useWorkspace();
   const navigate = useNavigate();
   const { open } = useTaskActions();
+  const openApproval = useOpenApproval();
   const { task, project: proj } = notifTarget(data, n);
   const activate = () => {
     dispatch({ type: 'notif/setRead', id: n.id, read: true });
     // уведомление о сводке о ходе работ открывает карточку объекта (задача 1277)
-    if (n.object) navigate(`/objects/${n.object}`);
+    if (n.approval) void openApproval(n.approval); // согласование открывает документ или договор (задача 1199)
+    else if (n.object) navigate(`/objects/${n.object}`);
     else if (task) open(task);
     else if (proj) navigate(`/projects/${proj.id}`);
   };

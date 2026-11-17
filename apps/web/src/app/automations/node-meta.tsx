@@ -1,5 +1,8 @@
 /* Оформление узлов: иконки по имени из описания узла, цвета категорий, краткое описание параметров для карточки на холсте. */
 import {
+  AlarmClock,
+  BadgeCheck,
+  Send,
   UserPlus,
   UserRoundPlus,
   UserCheck,
@@ -38,6 +41,9 @@ const ICONS: Record<string, LucideIcon> = {
   'list-plus': ListPlus,
   bell: Bell,
   'user-plus': UserPlus,
+  'alarm-clock': AlarmClock,
+  'badge-check': BadgeCheck,
+  send: Send,
   'user-round-plus': UserRoundPlus,
   'user-check': UserCheck,
   'git-compare-arrows': GitCompareArrows,

@@ -13,6 +13,7 @@ import { AssigneeField, DueField, PriorityField, StatusField } from '../componen
 import { ProjectDot } from '../components/project';
 import { useTaskActions } from '../components/workspace';
 import { useT } from '@/i18n';
+import { useOpenApproval } from '../approvals/data';
 
 type Category = 'all' | Notification['type'];
 const CATEGORIES: Category[] = ['all', 'mention', 'assign', 'comment', 'update'];
@@ -74,6 +75,7 @@ function Preview({ n, onBack }: { n: Notification; onBack: () => void }) {
   const navigate = useNavigate();
   const { open } = useTaskActions();
   const { task: task, project: proj } = notifTarget(data, n);
+  const openApproval = useOpenApproval();
 
   if (!task)
     return (
@@ -87,6 +89,11 @@ function Preview({ n, onBack }: { n: Notification; onBack: () => void }) {
             {n.snippet}
           </div>
         </Alert>
+        {n.approval && (
+          <div style={{ marginTop: 14 }}>
+            <Button onClick={() => void openApproval(n.approval!)}>{tr('approvals.panel.open')}</Button>
+          </div>
+        )}
         {proj && (
           <div style={{ marginTop: 14 }}>
             <Button onClick={() => navigate(`/projects/${proj.id}`)}>{tr('pages.inbox.openProject')}</Button>

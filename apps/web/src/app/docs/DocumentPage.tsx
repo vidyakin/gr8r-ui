@@ -43,6 +43,8 @@ import { warningText } from '../data/warnings';
 import { hasKey, t, tEnum, tProductionEnum, useT, type TKey } from '@/i18n';
 import { handleNumericArrow } from '@/lib/numeric-step';
 import { useWsId } from '../meta/data';
+import { ApprovalPanel, approvalTabVisible } from '../approvals/ApprovalPanel';
+import { useApprovalOfObject } from '../approvals/data';
 
 /** Виды перемещения между складами */
 /** Вид операции документа на текущем языке; неизвестный код — как есть */
@@ -259,6 +261,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const costItems = useCostItems();
   const contracts = useContracts({ companyId: doc.counterpartyId ?? undefined });
   const breakdown = useBillingBreakdown(doc.type === 'invoice' ? doc.id : undefined);
+  const approval = useApprovalOfObject('document', doc.id); // согласование по маршруту (1199): вкладка и ворота проведения
   const units = useUnits();
   const members = useWorkspace().data.members;
   const workCenters = useSnapshot().data?.workCenters ?? [];
@@ -1031,6 +1034,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
       count: items.filter(i => Number(i.defectQty) > 0).length,
       content: <QcTab doc={doc} editable={editable} canWrite={canWrite} onSave={qc => saveAccounting({ qc })} onRework={reworkItem} />,
     },
+    approvalTabVisible(approval.data) && { id: 'approval', label: t('approvals.panel.tab'), content: <ApprovalPanel targetKind="document" objectId={doc.id} /> },
     // вложения документа (docs/architecture/attachments.md)
     { id: 'files', label: t('attachments.tab'), content: <AttachmentsPanel entityType="document" entityId={doc.id} /> },
   ];

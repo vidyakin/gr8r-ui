@@ -3,6 +3,7 @@ import { demoResetConfigFromEnv, purgeTenantsOnce, resetDemoOnce, scheduleBankSy
 import { closeBrowser } from './pdf/render';
 import { runAttachmentGcOnce } from './attachment-gc';
 import { scheduleFlowsOnce } from './flows/triggers';
+import { runApprovalOverdueOnce } from './approval-overdue';
 import { runBillingOnce } from './billing';
 import { runLoyaltyExpirationOnce } from './loyalty-expiration';
 import { runDealOverdueOnce } from './deal-overdue';
@@ -67,6 +68,9 @@ while (!stopping) {
       // сводка о ходе объекта по расписанию (задача 1277): окно дня и времени считается по часовому поясу воркспейса
       const digests = await runObjectReportsOnce(sql);
       if (digests) o.log(`queued ${digests} object report job(s)`);
+      // согласование по маршрутам (задача 1199): просроченные задачи — уведомление и событие для автоматизаций
+      const overdueApprovals = await runApprovalOverdueOnce(sql);
+      if (overdueApprovals) o.log(`approvals overdue: ${overdueApprovals} task(s)`);
       // загрузка операций банков по API: подключения, у которых прошёл интервал (BANK_SYNC_INTERVAL_MIN, по умолчанию 60 минут), проверка раз в 5 минут
       if (minute % 5 === 0) {
         const banks = await scheduleBankSyncs(sql);

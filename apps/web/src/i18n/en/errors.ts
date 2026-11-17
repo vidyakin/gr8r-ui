@@ -435,6 +435,7 @@ export const errors = {
   same_warehouse: 'The source warehouse must differ from the target one',
   approval_required: 'This object must be approved by its route first',
   approval_outdated: 'The object was changed after approval: send it for approval again',
+  already_signed: 'The contract is already signed',
   approval_in_progress: 'The approval is in progress',
   route_step_empty: 'A route step has no approvers (a position without holders)',
   route_not_found: 'No approval route matches this object',

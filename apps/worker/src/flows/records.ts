@@ -23,7 +23,10 @@ import {
   records,
   statuses,
   tasks,
+  approvals,
   assignLead as assignLeadService,
+  docflowOn,
+  startApproval,
   insertLead,
   sanitizeRichText,
   type Db,
@@ -42,6 +45,7 @@ const SYSTEM_TABLES: Record<string, AnyTable> = {
   product: products as unknown as AnyTable,
   lead: leads as unknown as AnyTable,
   document: documents as unknown as AnyTable,
+  approval: approvals as unknown as AnyTable, // только чтение: контекст триггеров согласования
 };
 type Row = Record<string, unknown>;
 
@@ -337,6 +341,15 @@ export async function assignLead(db: Db, ws: string, via: EventVia, a: { leadId:
   const leadId = assertUuid(a.leadId, 'Lead');
   if (a.memberId) assertUuid(a.memberId, 'Member');
   return assignLeadService(db, { workspaceId: ws, memberId: null, via: via as unknown as Record<string, unknown> }, leadId, a.mode, a.memberId);
+}
+
+/* ---------------- согласование (задача 1199) ---------------- */
+
+/** Отправить документ или договор на согласование: правила как у POST /approvals (подходящий маршрут, черновик, один процесс) */
+export async function submitApproval(db: Db, ws: string, author: string | null, a: { targetKind: 'document' | 'contract'; objectId: string }): Promise<{ approvalId: string }> {
+  const id = assertUuid(a.objectId, a.targetKind === 'document' ? 'Document' : 'Contract');
+  if (!(await docflowOn(db))) throw new Error('The Document flow module is not enabled');
+  return { approvalId: await startApproval(db, { workspaceId: ws, memberId: author }, { kind: a.targetKind, id }) };
 }
 
 /* ---------------- воронки продаж (задача 1176) ---------------- */

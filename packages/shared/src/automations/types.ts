@@ -73,6 +73,8 @@ export interface NodeRuntime {
   createLead(a: { name: string; companyName?: string; phone?: string; email?: string; comment?: string; source?: string; ownerId?: string | null }): Promise<{ id: string }>;
   /** Назначить ответственного за лид: вручную или по кругу среди сотрудников с функцией sales_manager */
   assignLead(a: { leadId: string; mode: 'manual' | 'round_robin'; memberId?: string | null }): Promise<{ ownerId: string | null; changed: boolean }>;
+  /** Отправить документ или договор на согласование (задача 1199); автор процесса — автор flow */
+  submitApproval(a: { targetKind: 'document' | 'contract'; objectId: string }): Promise<{ approvalId: string }>;
   /** Перевести сделку на этап / в другую воронку (задача 1176): обязательные поля и причина проигрыша проверяются как в API */
   moveDeal(a: { dealId: string; pipelineId?: string | null; stageId?: string | null; lostReason?: string | null }): Promise<{ changed: boolean; stageId: string }>;
 }

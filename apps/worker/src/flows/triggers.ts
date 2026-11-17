@@ -27,7 +27,8 @@ type EventRow = typeof events.$inferSelect;
 /** Вызывается для каждого события outbox (внутри транзакции воркера). Возвращает число созданных запусков */
 export async function startRunsForEvent(db: Db, ev: EventRow): Promise<number> {
   // Служебные события (flow.*, notification.*, member.* …) триггерами не бывают
-  if (ev.entity !== 'record' && !SYSTEM_ENTITY_KEYS.has(ev.entity)) return 0;
+  // approval — сущность только для триггеров согласования (1199), в списках сущностей для полей её нет
+  if (ev.entity !== 'record' && ev.entity !== 'approval' && !SYSTEM_ENTITY_KEYS.has(ev.entity)) return 0;
   const fev: FlowEvent = { id: ev.id, workspaceId: ev.workspaceId, type: ev.type, entity: ev.entity, recordId: ev.recordId, actorId: ev.actorId, payload: ev.payload };
   const entity = eventEntity(fev);
   const action = eventAction(fev);

@@ -151,3 +151,25 @@ API `apps/api/src/routes/approvals.ts`. Тесты: `packages/db/test/approvals.
 - `isTokenPostingRequest` (токены агентов) теперь считает `…/decide` проводящим запросом (нужен `can_post`); три новых корня добавлены в `TOKEN_PATH_SECTIONS`.
 - `docs/architecture/approvals.md`, раздел меню, настройки, узлы автоматизаций и демо-сид — инкременты 3–5.
 - Тест `packages/db/test/db.test.ts` (счёт статей затрат демо: 22 вместо 21) падает на счёте статей затрат демо (22 вместо 21); к задаче 1199 не относится (статьи затрат не менялись), на чистой `dev` отдельно не перепроверялся.
+
+## Фактическая реализация (инкременты 3–4)
+
+Подробности — `docs/architecture/approvals.md`.
+
+### Инкремент 3. Воркер и автоматизации
+- `apps/worker/src/approval-overdue.ts` (`runApprovalOverdueOnce`) раз в минуту в `index.ts`. Идёт под `app_user` по воркспейсам с `docflow`: под `app_worker`
+  `scanOverdue` не ограничен арендатором и обработал бы воркспейсы без модуля.
+- Узлы `trigger.approval_completed` (фильтры: итог, вид объекта), `trigger.approval_step_overdue`, `action.submit_approval`; все в `nodes` модуля `docflow`.
+  Порт `submitApproval` в `NodeRuntime` (проверка `docflowOn`, автор процесса — автор flow). В `startRunsForEvent` пропущена сущность `approval`
+  (`SYSTEM_TABLES.approval` — для `trigger.record`).
+- Не сделано: защита «цепочки flow» для `approval.*` (события согласования не несут метку `via`; зацикливание требует решения человека на каждом круге).
+
+### Инкремент 4. Интерфейс
+- Настройки «Маршруты согласования», раздел «Документооборот → Согласования» (новая группа меню `docflow`), вкладка «Согласование» в документе,
+  раздел в окне договора, блок в заявке на расход; уведомление `approval` открывает объект; просрочка красным («Просрочено на N ч»).
+- В ответ процесса (`approvalDetail`) добавлено `documentType` — по нему уведомление различает заявку на расход.
+- Отклонения от задания: договор открывается как диалог на странице «Договоры», поэтому уведомление ведёт на `/contracts?open=<id>`; типы документов в
+  редакторе маршрута — фиксированный список учётных (`ROUTE_DOC_TYPES`).
+- Рендер-тест: `apps/web/src/app/approvals/approval-body.test.tsx` (статический рендер с подменой `useT`), логика редактора — `routes-settings.test.ts`.
+- Пользовательская статья — `docs/user/docflow/approvals.md`.
+- Демо: `seed-approvals.ts`; в `packages/db/test/db.test.ts` обновлены числа документов (84), должностей (6) и назначений (9).

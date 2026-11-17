@@ -19,6 +19,7 @@ import { seedPricing } from './seed-pricing';
 import { seedRepeatSales } from './seed-repeat-sales';
 import { seedPositions } from './seed-positions';
 import { seedDepartments } from './seed-departments';
+import { seedApprovals } from './seed-approvals';
 import { seedAppointments } from './seed-appointments';
 import { seedLeads } from './seed-leads';
 import { seedAdCampaigns } from './seed-ad';
@@ -380,6 +381,8 @@ export async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: strin
   // Договоры и тарифные планы: договор обслуживания демо-клиента
   const [demoOrg] = await db.select({ id: organizations.id }).from(organizations).where(eq(organizations.workspaceId, wsId)).limit(1);
   await seedContracts(db, wsId, demoOrg!.id, U('co4'), docs.workOrder);
+  // Согласование по маршрутам (1199): маршрут «Заказ поставщику от 100 000 ₽» и процесс в работе — после документов и должностей
+  await seedApprovals(db, { workspaceId: wsId, memberId: U(d.me), role: 'owner' }, { supplier: U('co8') });
   await ensureCostItems(db, wsId);
   // Модули задач: системные проекты производства и услуг
   await ensureModuleProjects(db, wsId);

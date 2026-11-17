@@ -502,6 +502,8 @@ async function viewOf(db: Db, ap: ApprovalRow) {
     documentId: ap.documentId,
     contractId: ap.contractId,
     objectLabel: target?.label ?? '',
+    /** Тип документа (payment_request открывается своей страницей); у договора null */
+    documentType: target?.documentType ?? null,
     routeId: ap.routeId,
     routeName: ap.routeName,
     round: ap.round,

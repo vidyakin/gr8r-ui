@@ -79,6 +79,12 @@ export function useRealtime(ws: string, engine: Engine) {
       if (['position', 'product_kind'].includes(e.entity) || e.type.startsWith('member.')) batch.add(['ws', ws, 'positions']);
       // Подразделения: справочник и состав; смена подразделения участника приходит событием member.updated
       if (e.entity === 'department' || e.type.startsWith('member.')) batch.add(['ws', ws, 'departments']);
+      // Согласование по маршрутам (задача 1199): процессы, задачи и маршруты; решение меняет документ или договор
+      if (e.entity === 'approval' || e.entity === 'approval_route') {
+        batch.add(['ws', ws, 'approvals']);
+        batch.add(['ws', ws, 'docs']);
+        batch.add(['ws', ws, 'billing']);
+      }
       // Лицензия (задача 1205): набор модулей изменился — перечитываем всё, что принадлежит воркспейсу (раздел мог появиться или пропасть)
       if (e.entity === 'attachment') batch.add(['ws', ws, 'attachments']);
       if (e.entity === 'license') batch.add(['ws', ws]);
