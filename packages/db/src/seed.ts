@@ -18,6 +18,7 @@ import { seedLoyalty } from './seed-loyalty';
 import { seedPricing } from './seed-pricing';
 import { seedRepeatSales } from './seed-repeat-sales';
 import { seedPositions } from './seed-positions';
+import { seedDepartments } from './seed-departments';
 import { seedAppointments } from './seed-appointments';
 import { seedLeads } from './seed-leads';
 import { seedAdCampaigns } from './seed-ad';
@@ -370,6 +371,8 @@ export async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: strin
 
   // Должности и виды номенклатуры (до доставки и записи, которые берут из них курьеров и специалистов)
   await seedPositions(db, { workspaceId: wsId, memberId: U(d.me), role: 'owner' });
+  // Подразделения: «Руководство» → «Продажи», «Производство», «Бухгалтерия»; сотрудники по тому же порядку, что и должности
+  await seedDepartments(db, { workspaceId: wsId, memberId: U(d.me), role: 'owner' });
   // Документы и склад: организация, склады, реквизиты, цепочки закупок и продаж (проводятся настоящими сервисами)
   const docs = await seedDocuments(db, wsId, U(d.me), { atlas: U('co8'), northwind: U('co1'), quanta: U('co4'), skyline: U('co10') });
   // Объекты объектного учёта: два демо-объекта, у одного свой склад (задача 1268)
