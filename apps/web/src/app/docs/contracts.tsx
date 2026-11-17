@@ -4,7 +4,7 @@
 import { usePriceKinds } from '../pricing/data';
 import * as React from 'react';
 import { ChevronDown, CircleAlert, ClipboardList, FileSignature, FileText, Plus, Printer, Trash2 } from 'lucide-react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { BILLING_PACKAGE_LABELS, BILLING_PACKAGES, BILLING_PERIODICITIES, BILLING_PERIODICITY_LABELS, CONTRACT_KIND_LABELS, CONTRACT_KINDS, EXTRA_PRODUCT_POLICIES, EXTRA_PRODUCT_POLICY_LABELS, type ContractKind, type ExtraProductPolicy } from '@erp/shared';
 import { AttachmentsPanel } from '@/components/erp/attachments-panel';
 import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Select, Skeleton, Tab, Tabs, TabsList, toast } from '@/components/ui';
@@ -20,6 +20,7 @@ import { useBillingApi, useContracts, useTariffPlans, type Contract, type Tariff
 import { useDocTemplates } from './data';
 import { CounterpartyPicker } from './pickers';
 import { ProductField } from './position-field';
+import { ApprovalSection } from '../approvals/ApprovalPanel';
 
 /* ---------------- contracts ---------------- */
 
@@ -32,6 +33,16 @@ export function ContractsPage() {
   const contracts = useContracts({ q: filters.q || undefined, archived: tab === 'archived' });
   const [creating, setCreating] = React.useState(false);
   const [editing, setEditing] = React.useState<Contract | null>(null);
+  // уведомление о согласовании открывает договор: /contracts?open=<id>
+  const [search, setSearch] = useSearchParams();
+  const openId = search.get('open');
+  React.useEffect(() => {
+    const c = openId ? contracts.data?.items.find(x => x.id === openId) : undefined;
+    if (c) {
+      setEditing(c);
+      setSearch({}, { replace: true });
+    }
+  }, [openId, contracts.data, setSearch]);
 
   const columns: Column<Contract>[] = [
     { id: 'number', header: t('docs.contracts.col.number'), width: 140, value: c => c.number, cell: c => <span className="mono">{c.number || '—'}</span> },
@@ -246,6 +257,7 @@ export function ContractDialog({ api, onClose, contract, companyId, readOnly, ar
               <Field label={t('docs.contracts.partySignerBasis')}>{({ id }) => <Input id={id} value={partySignerBasis} maxLength={300} onChange={e => setPartySignerBasis(e.target.value)} placeholder={t('docs.contracts.orgSignerBasisPlaceholder')} />}</Field>
             </div>
           </div>
+          {contract && <ApprovalSection targetKind="contract" objectId={contract.id} />}
           {contract && <AttachmentsPanel entityType="contract" entityId={contract.id} />}
           <div className="row" style={{ justifyContent: 'flex-end', gap: 8 }}>
             {contract && !readOnly && (

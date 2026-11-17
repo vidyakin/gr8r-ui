@@ -13,6 +13,8 @@ import { CounterpartyPicker } from '../docs/pickers';
 import { useIsAdmin } from '../catalog/data';
 import { useCashFlowItems, useRequest, useRequestApi, useRequests } from './data';
 import { DateInput } from '@/components/erp/date-picker';
+import { ApprovalPanel, approvalTabVisible } from '../approvals/ApprovalPanel';
+import { useApprovalOfObject } from '../approvals/data';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const TONE = { draft: 'gray', pending: 'amber', approved: 'accent', paid: 'green', rejected: 'red', cancelled: 'neutral' } as const;
@@ -123,6 +125,9 @@ export function RequestPage() {
   const api = useRequestApi();
   const req = useRequest(isNew ? undefined : id);
   const detail = isNew ? null : req.data;
+  // согласование по маршруту (1199): пока процесс идёт, ручные «Согласовать / Отклонить» заменены процессом
+  const approval = useApprovalOfObject('document', detail?.id);
+  const inProcess = !!approval.data?.current;
   const orgs = useOrganizations();
   const items = useCashFlowItems('expense');
   const isAdmin = useIsAdmin();
@@ -233,16 +238,16 @@ export function RequestPage() {
           {detail && detail.status === 'draft' && canWrite && (
             <Button disabled={busy || !valid} onClick={() => void submit()}>{tt('money.request.submit')}</Button>
           )}
-          {detail && s === 'pending' && isAdmin && (
+          {detail && s === 'pending' && isAdmin && !inProcess && (
             <>
               <Button variant="primary" disabled={busy} onClick={() => void run(() => api.setState(detail.id, 'approved'))}>{tt('money.request.approve')}</Button>
               <Button disabled={busy} onClick={() => void run(() => api.setState(detail.id, 'rejected'))}>{tt('money.request.reject')}</Button>
             </>
           )}
-          {detail && s === 'approved' && isAdmin && (
+          {detail && s === 'approved' && isAdmin && !inProcess && (
             <Button disabled={busy} onClick={() => void run(() => api.setState(detail.id, 'pending'))}>{tt('money.request.returnToApproval')}</Button>
           )}
-          {detail && s === 'rejected' && canWrite && (
+          {detail && s === 'rejected' && canWrite && !inProcess && (
             <Button disabled={busy} onClick={() => void run(() => api.setState(detail.id, 'pending'))}>{tt('money.request.returnToApproval')}</Button>
           )}
           {detail && s === 'approved' && canWrite && Number(detail.payable) > 0 && (
@@ -370,6 +375,13 @@ export function RequestPage() {
           </div>
         </div>
       </section>
+
+      {detail && approvalTabVisible(approval.data) && (
+        <section className="panel" style={{ padding: 12 }} aria-label={tt('approvals.panel.tab')}>
+          <h2 style={{ fontSize: 14, margin: '0 0 8px' }}>{tt('approvals.panel.tab')}</h2>
+          <ApprovalPanel targetKind="document" objectId={detail.id} paymentRequest />
+        </section>
+      )}
 
       {detail && detail.payments.length > 0 && (
         <section className="panel" style={{ padding: 12 }} aria-label={tt('money.request.payments')}>

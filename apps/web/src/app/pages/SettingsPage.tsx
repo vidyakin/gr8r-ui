@@ -11,6 +11,7 @@ import { CostItemsSection, OrganizationsSection, WarehousesSection } from '../se
 import { WorkOrderKindsSection } from '../settings/work-orders';
 import { DeliveryMethodsSection } from '../settings/delivery';
 import { PositionsSection, ProductKindsSection } from '../settings/positions';
+import { ApprovalRoutesSection } from '../approvals/RoutesSettings';
 import { ProjectTemplatesSection } from '../settings/project-templates';
 import { AgentAccessSection } from '../settings/agent-access';
 import { LeadFormsSection, LeadStatusesSection } from '../settings/leads';
@@ -64,6 +65,8 @@ function Body({ sec, title }: { sec: string; title: string }) {
       return <DeliveryMethodsSection title={title} />;
     case 'positions':
       return <PositionsSection title={title} />;
+    case 'approval-routes':
+      return <ApprovalRoutesSection title={title} />;
     case 'project-templates':
       return <ProjectTemplatesSection title={title} />;
     case 'deal-pipelines':

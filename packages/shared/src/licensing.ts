@@ -125,6 +125,8 @@ export const MODULES: readonly ModuleDef[] = [
   def({
     id: 'docflow',
     paths: ['/approval-routes', '/approvals', '/approval-tasks'],
+    sections: ['approvals'],
+    settings: ['approval-routes'],
     nodes: ['trigger.approval_completed', 'trigger.approval_step_overdue', 'action.submit_approval'],
   }),
 ];

@@ -46,6 +46,7 @@ export const settings: Widen<typeof S> = {
       positions: 'Должности',
       projectTemplates: 'Шаблоны проектов',
       productKinds: 'Виды номенклатуры',
+      approvalRoutes: 'Маршруты согласования',
       dealPipelines: 'Воронки продаж',
       lostReasons: 'Причины проигрыша',
       leadStatuses: 'Статусы лидов',

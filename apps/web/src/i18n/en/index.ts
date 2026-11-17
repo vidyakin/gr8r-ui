@@ -22,6 +22,7 @@ import { delivery } from './delivery';
 import { repeat } from './repeat';
 import { appt } from './appt';
 import { positions } from './positions';
+import { approvals } from './approvals';
 import { projectTemplates } from './project-templates';
 import { leads } from './leads';
 import { ads } from './ads';
@@ -41,5 +42,5 @@ import { supplierPrices } from './supplier-prices';
 import { shifts } from './shifts';
 import { agentTokens } from './agent-tokens';
 
-export const en = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, batches, repeat, appt, delivery, positions, projectTemplates, leads, ads, secrets, money, payroll, pricing, loyalty, licensing, fleet, trips, transport, help, attachments, objects, estimates, supplierRating, supplierPrices, shifts, agentTokens };
+export const en = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, batches, repeat, appt, delivery, positions, approvals, projectTemplates, leads, ads, secrets, money, payroll, pricing, loyalty, licensing, fleet, trips, transport, help, attachments, objects, estimates, supplierRating, supplierPrices, shifts, agentTokens };
 
