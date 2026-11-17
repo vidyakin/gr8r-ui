@@ -8,6 +8,8 @@ import type { ApprovalOfObject, ApprovalTaskView, ApprovalView } from './data';
 // useT подписывается на язык через useSyncExternalStore без серверного снимка — для статического рендера подменяем хук на саму t()
 mock.module('@/i18n', () => ({ ...i18n, useT: () => i18n.t }));
 const { setLocale } = i18n;
+// словари — отдельные чанки: setLocale переключает синхронно, только когда словарь уже загружен
+await Promise.all([i18n.loadLocale('en'), i18n.loadLocale('ru')]);
 const { ApprovalBody } = await import('./approval-body');
 
 const task = (over: Partial<ApprovalTaskView>): ApprovalTaskView => ({

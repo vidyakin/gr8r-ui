@@ -2,9 +2,8 @@
    Английский словарь (./en) — источник ключей; ./ru обязан повторять его форму, иначе ошибка типов.
    t('catalog.title'), t('common.items', { count: 3 }) — плюрализация через Intl.PluralRules, подстановки {name} */
 import * as React from 'react';
-import { en } from './en';
-import { ru } from './ru';
-import { getLocale, intlLocale, useLocale, type Locale } from './locale';
+import type { en } from './en';
+import { getLocale, intlLocale, setLocaleLoader, useLocale, type Locale } from './locale';
 import { useFormatPrefsVersion } from './format-prefs';
 import type { Plural, Widen } from './types';
 
@@ -21,7 +20,35 @@ type Leaves<T, P extends string = ''> = {
 export type TKey = Leaves<typeof en>;
 export type TParams = Record<string, string | number | null | undefined>;
 
-const DICTS: Record<Locale, Widen<typeof en>> = { en, ru };
+type Dict = Widen<typeof en>;
+
+/* Словари грузятся отдельными чанками, в браузер приходит только активный язык (Lighthouse: оба словаря — ~1,8 МБ JS
+   при старте). main.tsx ждёт loadLocale(getLocale()) до первой отрисовки; setLocale на незагруженный язык сначала
+   догружает словарь, потом переключает. Тесты, которые зовут t(), сначала ждут loadLocale нужных языков. */
+const LOADERS: Record<Locale, () => Promise<Dict>> = {
+  en: () => import('./en').then(m => m.en),
+  ru: () => import('./ru').then(m => m.ru),
+};
+const DICTS: Partial<Record<Locale, Dict>> = {};
+const loading = new Map<Locale, Promise<void>>();
+
+/** Загрузить словарь языка (повторный вызов — тот же промис) */
+export function loadLocale(l: Locale): Promise<void> {
+  if (DICTS[l]) return Promise.resolve();
+  let p = loading.get(l);
+  if (!p) {
+    p = LOADERS[l]().then(d => {
+      DICTS[l] = d;
+    });
+    p.catch(() => loading.delete(l));
+    loading.set(l, p);
+  }
+  return p;
+}
+setLocaleLoader(l => (DICTS[l] ? null : loadLocale(l)));
+
+/** Словарь текущего языка; пока он грузится — любой уже загруженный */
+const activeDict = (l: Locale) => DICTS[l] ?? DICTS.en ?? DICTS.ru;
 
 const pluralRules = new Map<Locale, Intl.PluralRules>();
 
@@ -38,7 +65,7 @@ function interpolate(s: string, params?: TParams) {
 /** Перевод по ключу на текущем языке; нет перевода — английский текст, нет и его — сам ключ */
 export function t(key: TKey, params?: TParams): string {
   const l = getLocale();
-  let v = lookup(DICTS[l], key) ?? lookup(en, key);
+  let v = lookup(activeDict(l), key) ?? lookup(DICTS.en, key);
   if (v == null) return key;
   if (typeof v !== 'string') {
     const count = Number(params?.count ?? 0);
@@ -64,7 +91,7 @@ export function tProductionEnum(group: keyof typeof en.productionEnums, value: s
 }
 
 /** Есть ли ключ в словаре (для перевода по динамическим кодам, например кодам ошибок API) */
-export const hasKey = (key: string): key is TKey => lookup(en, key) != null;
+export const hasKey = (key: string): key is TKey => lookup(activeDict(getLocale()), key) != null;
 
 /** t с подпиской на смену языка: компонент перерисуется при переключении */
 export function useT() {

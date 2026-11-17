@@ -2,7 +2,7 @@
    кнопки правки только у admin/owner, пустое состояние. Плюс обход дерева (departmentTree, selfAndDescendants). */
 import { beforeAll, describe, expect, test } from 'bun:test';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { setLocale } from '@/i18n';
+import { loadLocale, setLocale } from '@/i18n';
 import { DepartmentsView } from './DepartmentsView';
 import { departmentTree, selfAndDescendants, type DepartmentItem } from './tree';
 
@@ -25,7 +25,10 @@ const noop = async () => true;
 const render = (props: Partial<Parameters<typeof DepartmentsView>[0]> = {}) =>
   renderToStaticMarkup(<DepartmentsView title="Подразделения" departments={items} members={members} isAdmin onSave={noop} onDelete={noop} onSetMember={noop} {...props} />);
 
-beforeAll(() => setLocale('ru'));
+beforeAll(async () => {
+  await loadLocale('ru');
+  setLocale('ru');
+});
 
 describe('departmentTree', () => {
   test('дети сразу под родителем с глубиной', () => {

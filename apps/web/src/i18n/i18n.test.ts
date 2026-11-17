@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { fmtAmount, fmtDateTimeIntl, hasKey, parseNumber, resolveLocale, setLocale, t, tEnum } from '.';
+import { fmtAmount, fmtDateTimeIntl, hasKey, loadLocale, parseNumber, resolveLocale, setLocale, t, tEnum } from '.';
+
+// словари — отдельные чанки: setLocale переключает синхронно, только когда словарь уже загружен
+await Promise.all([loadLocale('en'), loadLocale('ru')]);
 
 afterEach(() => setLocale('en'));
 

@@ -11,7 +11,7 @@ import './styles/index.css';
 import { Gr8rProvider } from '@/components/ui';
 import { SessionProvider } from '@/app/data/session';
 import { router } from '@/app/router';
-import { I18nProvider } from '@/i18n';
+import { I18nProvider, getLocale, loadLocale } from '@/i18n';
 
 // Данные воркспейса актуальны, пока их не отметит устаревшими событие realtime или своя мутация (staleTime: Infinity).
 // gcTime 30 минут: у скрытой вкладки (layout/TabPages.tsx) нет наблюдателей, её данные не должны пропадать через 5 минут
@@ -19,7 +19,9 @@ const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, sta
 
 if (import.meta.env.DEV) (window as unknown as { __qc: QueryClient }).__qc = queryClient; // для отладки в консоли браузера
 
-createRoot(document.getElementById('root')!).render(
+// Словарь активного языка — отдельный чанк (i18n/index.tsx): ждём его до первой отрисовки, без него t() вернул бы ключи.
+// Не загрузился (сеть) — рисуем всё равно: t() покажет ключи, а не пустой экран
+const renderApp = () => createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <Gr8rProvider>
@@ -32,5 +34,6 @@ createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </StrictMode>,
 );
+loadLocale(getLocale()).then(renderApp, renderApp);
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) void navigator.serviceWorker.register('/driver-sw.js');

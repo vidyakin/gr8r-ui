@@ -43,17 +43,40 @@ apply(current);
 
 export const getLocale = () => current;
 
-/** Сменить язык (и запомнить в браузере для экрана входа) */
+/** Догрузка словаря (регистрирует index.tsx): null — словарь уже есть, иначе промис загрузки */
+let ensureDict: (l: Locale) => Promise<void> | null = () => null;
+export function setLocaleLoader(f: (l: Locale) => Promise<void> | null) {
+  ensureDict = f;
+}
+
+/** Последний запрошенный язык: при быстрых переключениях побеждает он, а не тот, чей словарь догрузился позже */
+let target: Locale = current;
+
+function switchTo(l: Locale) {
+  if (l === current) return;
+  current = l;
+  apply(l);
+  subs.forEach(f => f());
+}
+
+/** Сменить язык (и запомнить в браузере для экрана входа). Словарь загружен — сразу, иначе после его загрузки */
 export function setLocale(l: Locale) {
   try {
     localStorage.setItem(KEY, l);
   } catch {
     /* хранилище недоступно */
   }
-  if (l === current) return;
-  current = l;
-  apply(l);
-  subs.forEach(f => f());
+  target = l;
+  const pending = ensureDict(l);
+  if (!pending) return switchTo(l);
+  pending.then(
+    () => {
+      if (target === l) switchTo(l);
+    },
+    () => {
+      /* чанк словаря не загрузился (сеть) — остаёмся на текущем языке */
+    },
+  );
 }
 
 /** Язык из настроек сервера: личный, иначе воркспейса; если оба пусты — остаётся текущий */
