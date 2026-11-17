@@ -12,10 +12,11 @@ import { requireSession, sha256, SESSION_COOKIE } from './middleware';
 import { createWorkspace, listMyWorkspaces } from './workspaces-service';
 import type { AppConfig, AppEnv } from './types';
 
-/** Общий демо-вход (DEMO_RESET_EMAIL): пароль и чужие сессии не трогаем — иначе один посетитель запрёт или выкинет остальных */
-function assertNotDemo(c: Context<AppEnv>) {
+/** Общий демо-вход (DEMO_RESET_EMAIL): пароль и чужие сессии не трогаем — иначе один посетитель запрёт или выкинет остальных.
+    Свои воркспейсы и приглашения ему тоже нельзя: сброс пересоздаёт только демо, а вход открывает последний выбранный воркспейс */
+export function assertNotDemo(c: Context<AppEnv>) {
   const demo = c.get('config').demoEmail;
-  if (demo && c.get('user').email.toLowerCase() === demo) throw new AppError(403, 'demo_account_locked', 'The shared demo account cannot change its password or close sessions');
+  if (demo && c.get('user').email.toLowerCase() === demo) throw new AppError(403, 'demo_account_locked', 'The shared demo account cannot change its password, close sessions, create workspaces or accept invites');
 }
 
 const randomToken = () => Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url');

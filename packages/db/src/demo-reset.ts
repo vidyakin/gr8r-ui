@@ -75,6 +75,26 @@ export async function resetDemoOnce(sql: Sql, ddl: Sql, cfg: DemoResetConfig, no
     if (e instanceof DomainError && e.code === 'slug_taken') return null;
     throw e;
   }
+  // чужие воркспейсы общего входа (посетитель создал себе свой): вход открывает последний выбранный, и демо «пропадает».
+  // Где общий вход — единственный участник, воркспейс удаляем целиком; из общих с кем-то — только его членство
+  const extra = await withContext(
+    sql,
+    {},
+    async (_db, tx) =>
+      tx`select w.id, w.slug, not exists (select 1 from memberships o where o.workspace_id = w.id and o.user_id <> u.id) as alone
+         from users u join memberships m on m.user_id = u.id join workspaces w on w.id = m.workspace_id
+         where lower(u.email) = ${cfg.email} and w.slug <> ${cfg.slug}`,
+    'app_worker',
+  );
+  for (const w of extra) {
+    if (w.alone) {
+      log?.(`удаляю посторонний воркспейс общего входа «${w.slug as string}»`);
+      await deleteTenant(sql, ddl, w.id as string, log);
+    } else {
+      log?.(`убираю общий вход из воркспейса «${w.slug as string}»`);
+      await withContext(sql, {}, async (_db, tx) => tx`delete from memberships m using users u where m.user_id = u.id and lower(u.email) = ${cfg.email} and m.workspace_id = ${w.id as string}`, 'app_worker');
+    }
+  }
   log?.('сбрасываю пароль общего входа');
   // Пользователь мог пережить удаление (создал себе ещё воркспейс) и сменить пароль — вход на всех должен работать всегда
   const hash = await Bun.password.hash(cfg.password, { algorithm: 'argon2id' });

@@ -304,6 +304,22 @@
 .toast[data-type='error'] [data-icon] {
   color: var(--red);
 }
+/* ошибка: сверху по центру, крупнее, с красной полосой слева */
+.toast[data-type='error'] {
+  min-height: 56px;
+  min-width: min(360px, calc(100vw - 32px));
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 12px 10px 12px 16px;
+  gap: 12px;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.4;
+  border-left: 4px solid var(--red);
+}
+.toast[data-type='error'] [data-icon] svg {
+  width: 20px;
+  height: 20px;
+}
 .toast [data-content] {
   flex: 1;
 }

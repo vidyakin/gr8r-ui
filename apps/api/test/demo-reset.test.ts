@@ -1,7 +1,7 @@
 /* Публичное демо с ежедневным сбросом: создание, идемпотентность в пределах суток, пересоздание после момента сброса
    (чужие данные пропадают, пароль возвращается), расчёт момента сброса по часовому поясу. */
 import { describe, expect, test } from 'bun:test';
-import { deleteTenant, lastDemoResetAt, resetDemoOnce, type DemoResetConfig } from '@erp/db';
+import { createTenant, deleteTenant, lastDemoResetAt, resetDemoOnce, type DemoResetConfig } from '@erp/db';
 import { createApp } from '../src/app';
 import { admin, Client, ddl, sql, uniq } from './helpers';
 
@@ -27,6 +27,7 @@ describe('общий демо-вход', () => {
     expect(pw.status).toBe(403);
     expect(pw.body.error.code).toBe('demo_account_locked');
     expect((await demo.req('DELETE', '/auth/sessions')).status).toBe(403);
+    expect((await demo.post('/workspaces', { name: 'Мой воркспейс' })).status).toBe(403); // свой воркспейс спрятал бы демо после сброса
     expect((await demo.get('/auth/me')).status).toBe(200); // остальное работает
 
     const regular = new Client(demoApp);
@@ -50,7 +51,10 @@ describe('resetDemoOnce', () => {
     await admin`update users set password_hash = 'x' where lower(email) = ${cfg.email}`;
 
     const tomorrow = new Date(Date.now() + 864e5 + 3600e3);
+    // посетитель создал себе воркспейс общим входом (до запрета в API): сброс его удаляет, иначе вход открывает его вместо демо
+    const own = await createTenant(sql, { name: 'т', slug: `own-${uniq()}`, owner: { email: cfg.email } });
     expect(await resetDemoOnce(sql, ddl, cfg, tomorrow)).toBe('reset');
+    expect((await admin`select count(*)::int as n from workspaces where id = ${own.workspaceId}`)[0]!.n).toBe(0);
     const second = await wsOf();
     expect(second!.id).not.toBe(first!.id);
     expect((await admin`select name from workspaces where id = ${second!.id}`)[0]!.name).toBe('Публичное демо');
