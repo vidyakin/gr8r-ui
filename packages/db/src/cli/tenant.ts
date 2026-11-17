@@ -6,9 +6,11 @@
    bun run tenant export <id|адрес> [--out файл.jsonl[.gz]]
    bun run tenant import <файл.jsonl[.gz]>
    bun run tenant purge                      # удалить запрошенные к удалению и просроченные демо
-   bun run tenant demo-reset [--force]       # публичное демо (DEMO_RESET_*): пересоздать, если пора; --force — сейчас
+   bun run tenant demo-reset [--force]       # публичное демо (DEMO_RESET_*): пересоздать, если пора; --force — сейчас; затем проверка учёта
+   bun run tenant check <id|адрес>           # проверка учёта: остатки = движения, деньги, итоги документов (demo-check.ts)
    bun run tenant operator grant|revoke <email> */
-import { adminDatabaseUrl, createSql } from '..';
+import { adminDatabaseUrl, createSql, withContext } from '..';
+import { checkWorkspace, formatReport } from '../demo-check';
 import { demoResetConfigFromEnv, resetDemoOnce } from '../demo-reset';
 import { createTenant, deleteTenant, exportTenant, importTenant, listTenants, purgeTenantsOnce, setOperator } from '../tenants';
 
@@ -25,6 +27,13 @@ const fail = (msg: string): never => {
 };
 
 const sql = createSql(adminDatabaseUrl(), { max: 4 });
+
+/** Проверка учёта арендатора; код выхода 2 при ошибках (warning не валит) */
+async function check(id: string) {
+  const report = await withContext(sql, { workspaceId: id }, (_db, tx) => checkWorkspace(tx, id));
+  console.log(formatReport(report));
+  if (report.issues.some(i => i.level === 'error')) process.exitCode = 2;
+}
 
 /** id или адрес (slug) арендатора → id */
 async function resolve(ref: string | undefined): Promise<string> {
@@ -102,6 +111,11 @@ try {
       console.log(
         r ? `[tenant] демо ${cfg.slug}: ${r === 'created' ? 'создано' : 'пересоздано'}, вход ${cfg.email}` : `[tenant] демо ${cfg.slug} свежее, сброс не нужен (--force — сбросить сейчас)`,
       );
+      await check(await resolve(cfg.slug));
+      break;
+    }
+    case 'check': {
+      await check(await resolve(positional[0]));
       break;
     }
     case 'operator': {
@@ -112,7 +126,7 @@ try {
       break;
     }
     default:
-      fail('Команды: list | create | demo | delete | export | import | purge | operator grant|revoke <email>');
+      fail('Команды: list | create | demo | delete | export | import | purge | demo-reset | check | operator grant|revoke <email>');
   }
 } finally {
   await sql.end();

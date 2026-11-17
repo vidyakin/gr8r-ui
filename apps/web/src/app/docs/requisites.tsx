@@ -69,6 +69,7 @@ export function BankAccountsEditor({ owner, ownerId, canEdit }: { owner: 'compan
   const [busy, setBusy] = React.useState(false);
 
   const add = async () => {
+    if (busy) return;
     const e: Record<string, string> = {};
     if (!isValidBik(f.bik)) e.bik = t('docs.requisites.bikError');
     if (!isValidAccount(f.account)) e.account = t('docs.requisites.accountError');
@@ -127,11 +128,14 @@ export function BankAccountsEditor({ owner, ownerId, canEdit }: { owner: 'compan
       )}
       {canEdit &&
         (adding ? (
-          <form
+          // Не <form>: редактор стоит внутри формы организации (settings/documents.tsx), вложенная form недопустима,
+          // а submit всплывал бы по дереву React во внешнюю форму. Enter в полях — добавить счёт, не сохранить организацию
+          <div
             className="bank-form"
-            noValidate
-            onSubmit={e => {
+            onKeyDown={e => {
+              if (e.key !== 'Enter' || e.nativeEvent.isComposing || !(e.target instanceof HTMLInputElement)) return;
               e.preventDefault();
+              e.stopPropagation();
               void add();
             }}
           >
@@ -155,11 +159,11 @@ export function BankAccountsEditor({ owner, ownerId, canEdit }: { owner: 'compan
               <Button type="button" variant="ghost" onClick={() => (setAdding(false), setErr({}))}>
                 {t('common.cancel')}
               </Button>
-              <Button type="submit" variant="primary" disabled={busy}>
+              <Button type="button" variant="primary" disabled={busy} onClick={() => void add()}>
                 {t('docs.requisites.addAccount')}
               </Button>
             </div>
-          </form>
+          </div>
         ) : (
           <Button size="sm" variant="ghost" onClick={() => setAdding(true)}>
             <Plus size={13} />
