@@ -20,6 +20,7 @@ import {
   tariffPlans,
   tariffPlanLinesOf,
   archiveAttachmentsOf,
+  assertApproved,
 } from '@erp/db';
 import { contractCreate, contractDocxRequest, contractPdfRequest, contractQuery, contractUpdate, idParam, tariffPlanCreate, tariffPlanLinesUpdate, tariffPlanQuery, tariffPlanUpdate } from '@erp/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
@@ -104,6 +105,8 @@ export const contractRoutes = new Hono<AppEnv>()
         partySignerBasis: body.partySignerBasis,
       })
       .returning();
+    // обязательный маршрут согласования (задача 1199): договор нельзя сразу создать подписанным
+    if (row!.isSigned) await assertApproved(ctx.db, { kind: 'contract', id: row!.id });
     return c.json(await decorate(ctx, row!), 201);
   })
   .get('/:id', zValidator('param', idParam, validationHook), async c => {
@@ -121,6 +124,8 @@ export const contractRoutes = new Hono<AppEnv>()
     if (!existing) throw notFound('contract');
     assertContract({ isService: body.isService ?? existing.isService, tariffPlanId: body.tariffPlanId ?? existing.tariffPlanId, periodicity: body.periodicity ?? existing.periodicity, validFrom: body.validFrom ?? existing.validFrom, validTo: body.validTo === undefined ? existing.validTo : body.validTo });
     if (body.isDefault === true) await clearDefault(ctx, existing.companyId, id);
+    // обязательный маршрут согласования (задача 1199): подписанным договор отмечают только после согласования
+    if (body.isSigned === true && !existing.isSigned) await assertApproved(ctx.db, { kind: 'contract', id });
     const patch: Record<string, unknown> = { updatedAt: new Date() };
     for (const key of ['number', 'date', 'kind', 'category', 'isSigned', 'isDefault', 'validFrom', 'validTo', 'paymentDays', 'priceType', 'priceKindId', 'isService', 'tariffPlanId', 'periodicity', 'billingDay', 'documentPackage', 'note', 'orgSignerBasis', 'partySignerName', 'partySignerTitle', 'partySignerBasis'] as const) {
       if (body[key] !== undefined) patch[key] = body[key] === null ? null : body[key];

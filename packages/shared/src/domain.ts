@@ -154,12 +154,14 @@ export interface Activity {
 
 export interface Notification {
   id: string;
-  type: 'mention' | 'assign' | 'comment' | 'update';
+  type: 'mention' | 'assign' | 'comment' | 'update' | 'approval';
   by: string | null;
   task?: string;
   project?: string;
   /** Объект объектного учёта: уведомление открывает карточку объекта (сводка о ходе работ, задача 1277) */
   object?: string;
+  /** Процесс согласования (задача 1199): уведомление открывает объект согласования */
+  approval?: string;
   text: string;
   snippet: string;
   at: number;

@@ -121,8 +121,8 @@ export const MODULES: readonly ModuleDef[] = [
     jobs: ['routing.geocode', 'routing.distribute', 'routing.optimize', 'transport.waybill_pdf'],
     nodes: ['trigger.fleet_document_expiring', 'trigger.trip_status'],
   }),
-  // Документооборот (сессия 48): модуль заведён заранее, разделы, пути и задачи добавит задача 1191+
-  def({ id: 'docflow' }),
+  // Документооборот (сессия 48): согласование по маршрутам (задача 1199, docs/architecture/approvals.md); разделы меню, узлы и задачи добавят следующие инкременты
+  def({ id: 'docflow', paths: ['/approval-routes', '/approvals', '/approval-tasks'] }),
 ];
 
 export const MODULE_BY_ID: Readonly<Record<ModuleId, ModuleDef>> = Object.fromEntries(MODULES.map(m => [m.id, m])) as Record<ModuleId, ModuleDef>;

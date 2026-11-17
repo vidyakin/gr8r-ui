@@ -916,6 +916,7 @@ export async function changeDocumentState(db: Db, ctx: DocCtx, id: string, state
     if (!to) throw new DomainError(422, 'invalid_state', `Unknown state "${state}"`);
     const verdict = provider.canTransition(from, to, ctx);
     if (!verdict.ok) throw new DomainError(422, 'invalid_state', verdict.message ?? `Cannot change the state from "${doc.state ?? 'none'}" to "${state}"`);
+    await provider.assertTransition?.(db, ctx, doc, to);
   }
   const from = doc.state;
   await db.update(documents).set({ state, updatedAt: new Date() }).where(eq(documents.id, id));

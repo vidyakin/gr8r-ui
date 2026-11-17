@@ -39,6 +39,7 @@ import {
   loadInventorySettings,
   organizations,
   postDocument,
+  assertApproved,
   products,
   maskProductionDetail,
   productionDetail,
@@ -545,6 +546,8 @@ export const documentRoutes = new Hono<AppEnv>()
     // заказ-наряд проводит состояние «выполнен», вручную его не проводят
     assertWorkOrderPostingByState((await documentTypeOf(ctx, id)) as DocumentType);
     await payrollGuard(c, ctx, id);
+    // обязательный маршрут согласования (задача 1199); заявка на расход подаётся на согласование самим проведением (хук afterPost)
+    if ((await documentTypeOf(ctx, id)) !== 'payment_request') await assertApproved(ctx.db, { kind: 'document', id });
     const warnings = await postDocument(ctx.db, docCtx(ctx), id);
     return c.json({ ...(await documentDetail(ctx.db, id)), warnings });
   })

@@ -42,6 +42,10 @@ export const TOKEN_PATH_SECTIONS: Map<string, PositionSection[]> = new Map<strin
   ['/sales-plan', ['crm']],
   // Торговля и склад
   ['/documents', ['trade', 'stock', 'finance', 'services', 'production', 'deliveries']],
+  // Согласование по маршрутам (задача 1199): документы и договоры из торговых и финансовых разделов
+  ['/approval-routes', ['trade', 'finance']],
+  ['/approvals', ['trade', 'finance']],
+  ['/approval-tasks', ['trade', 'finance']],
   ['/stock', ['trade', 'stock', 'production']],
   ['/stock-levels', ['trade', 'stock', 'production', 'catalog']],
   ['/pricing', ['trade']],
@@ -134,11 +138,11 @@ export const TOKEN_OPEN_PATHS: Set<string> = new Set<string>([
 ]);
 
 /** Запрос, который проводит, оплачивает или удаляет: токену агента нужен can_post (docs/architecture/mcp.md, «Запись»).
-    DELETE — всегда; POST …/post, …/unpost, …/cancel; создание оплаты (POST /payments, /payments/from-document) */
+    DELETE — всегда; POST …/post, …/unpost, …/cancel, …/decide (решение по согласованию); создание оплаты (POST /payments, /payments/from-document) */
 export function isTokenPostingRequest(method: string, path: string): boolean {
   const m = method.toUpperCase();
   if (m === 'DELETE') return true;
   if (m !== 'POST') return false;
   const p = path.replace(/\/+$/, '');
-  return /\/(post|unpost|cancel)$/.test(p) || p === '/payments' || p === '/payments/from-document';
+  return /\/(post|unpost|cancel|decide)$/.test(p) || p === '/payments' || p === '/payments/from-document';
 }

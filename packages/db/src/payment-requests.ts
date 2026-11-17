@@ -4,6 +4,7 @@
 import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { allocateRequest, dec, fmt, REQUEST_STATES, requestTransitions, type PaymentLineInput } from '@erp/shared';
 import type { Db } from './client';
+import { assertNoActiveApproval, cancelRequestApproval, startRequestApproval } from './approvals';
 import { DOCUMENT_HOOKS, STATE_PROVIDERS, type DynamicStateDef } from './document-hooks';
 import type { DocCtx } from './documents';
 import { DomainError } from './errors';
@@ -109,14 +110,17 @@ DOCUMENT_HOOKS.payment_request = {
     const [t] = await db.select({ s: sql<string>`coalesce(sum(${paymentLines.amount}), 0)::text` }).from(paymentLines).where(eq(paymentLines.documentId, doc.id));
     await db.update(documents).set({ amountNet: fmt(dec(t!.s), 2), vatTotal: '0.00', total: fmt(dec(t!.s), 2) }).where(eq(documents.id, doc.id));
   },
-  afterPost: async (db, _ctx, doc) => {
+  afterPost: async (db, ctx, doc) => {
     await db.update(documents).set({ state: 'pending' }).where(eq(documents.id, doc.id));
+    // подходящий маршрут согласования (задача 1199) запускает процесс; без маршрута или модуля — ручное согласование admin
+    await startRequestApproval(db, ctx, doc.id);
   },
   // снять с согласования можно, пока заявка не согласована
   beforeUnpost: async (_db, _ctx, doc) => {
     if (doc.state !== 'pending' && doc.state !== 'rejected') throw new DomainError(409, 'request_not_editable', 'An approved or paid request cannot be unposted');
   },
-  afterUnpost: async (db, _ctx, doc) => {
+  afterUnpost: async (db, ctx, doc) => {
+    await cancelRequestApproval(db, ctx, doc.id);
     await db.update(documents).set({ state: null }).where(eq(documents.id, doc.id));
   },
 };
@@ -128,6 +132,10 @@ STATE_PROVIDERS.payment_request = {
     if (!from || !requestTransitions(from.key).includes(to.key as never)) return { ok: false, message: `Cannot change the state from "${from?.key ?? 'none'}" to "${to.key}"` };
     if (to.key !== 'pending' && ctx.role !== 'owner' && ctx.role !== 'admin') return { ok: false, message: 'Only an admin can approve or reject a payment request' };
     return { ok: true };
+  },
+  // пока идёт процесс по маршруту, вручную заявку не согласовать и не отклонить
+  assertTransition: async (db, _ctx, doc, to) => {
+    if (to.key === 'approved' || to.key === 'rejected') await assertNoActiveApproval(db, doc.id);
   },
 };
 

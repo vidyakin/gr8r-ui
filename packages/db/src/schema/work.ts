@@ -254,12 +254,14 @@ export const notifications = pgTable(
     workspaceId: wsCol(),
     /** Кому адресовано */
     recipientId: uuid('recipient_id').notNull(),
-    type: text('type', { enum: ['mention', 'assign', 'comment', 'update'] }).notNull(),
+    type: text('type', { enum: ['mention', 'assign', 'comment', 'update', 'approval'] }).notNull(),
     actorId: uuid('actor_id'),
     taskId: uuid('task_id').references(() => tasks.id, { onDelete: 'cascade' }),
     projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
     /** Объект объектного учёта: уведомление открывает карточку объекта (сводка о ходе работ, задача 1277) */
     objectId: uuid('object_id'),
+    /** Процесс согласования (задача 1199): уведомление открывает объект согласования; составной FK ставит миграция 0123 */
+    approvalId: uuid('approval_id'),
     text: text('text').notNull(),
     snippet: text('snippet').notNull().default(''),
     read: boolean('read').notNull().default(false),

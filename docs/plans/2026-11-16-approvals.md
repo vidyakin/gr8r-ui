@@ -104,3 +104,50 @@
 
 Подпись решения простой ЭП (после 1197); условия маршрута сложнее «организация + сумма»; замещение отпуска и
 делегирование; согласование задач, сделок и КП (не учётные документы); эскалация на руководителя (нет оргструктуры).
+
+## Фактическая реализация (инкременты 1–2)
+
+Сделано: миграция `0123_approvals.sql` (5 таблиц под RLS, `notifications.approval_id`, тип уведомления `approval`), сервис `packages/db/src/approvals.ts`,
+`packages/shared/src/approvals.ts` (константы, `routeMatches`, `pickRoute`, `overdueHours`), `schemas/approvals.ts`, печатная форма `print/approval-sheet.ts`,
+API `apps/api/src/routes/approvals.ts`. Тесты: `packages/db/test/approvals.test.ts` (в том числе конкурентное решение двух держателей и RLS),
+`packages/shared/test/approvals.test.ts`, `apps/api/test/approvals.test.ts`.
+
+### API
+- `GET/POST /approval-routes`, `GET/PATCH/DELETE /approval-routes/:id` (DELETE = архив), `POST /approval-routes/:id/restore`; правка — admin и выше.
+- `POST /approvals {targetKind, documentId|contractId}` → 201, процесс; `GET /approvals?box=mine|sent|all&state&targetKind&limit&offset` (`all` — admin);
+  `GET /approvals/by-object?targetKind&documentId|contractId` → `{ enabled, gate, route, canStart, current, rounds[] }`; `GET /approvals/:id`;
+  `GET /approvals/:id/print` (HTML листа); `POST /approvals/:id/cancel {reason}`; `POST /approval-tasks/:id/decide {decision, comment}`.
+- Ворота `gate`: `not_required | required | in_progress | approved | outdated`. Ошибки: `approval_required`, `approval_outdated`, `approval_in_progress`
+  (все 422), `route_step_empty` (422), `route_not_found` (422), `approval_not_applicable` (422, заявку на расход отправляют проведением),
+  `approval_not_in_progress` / `task_not_pending` (409), `comment_required` (422).
+- События (outbox): `approval.started`, `approval.decided`, `approval.completed` (`payload.result` = approved | rejected), `approval.cancelled`,
+  `approval.step_overdue`, `approval_route.created|updated`.
+
+### Пункт 7: HTTP-пути, проводящие документ по кнопке пользователя
+| Путь | Решение |
+|---|---|
+| `POST /documents/:id/post` | проверка `assertApproved`; заявка на расход (`payment_request`) пропускается — её проведение само запускает процесс (хук `afterPost`) |
+| `PATCH /contracts/:id` (`isSigned: false → true`) и `POST /contracts` с `isSigned: true` | проверка `assertApproved` (создание сразу подписанным закрыто тоже) |
+| `POST /sales-plan/plans/:id/post` (admin) | не проверяется: плановый документ, не учётный |
+| `POST /appointments/day-documents/:id/post` | не проверяется: «Оказанные услуги за день» собирает запись на приём |
+| `POST /fleet/repairs/:id/post` | не проверяется: ремонт автопарка, внутренний |
+| `POST /production-closing…/:id/post` (2 пути) | не проверяются: закрытие периода, системные документы |
+| `POST /production/needs/post` | не проверяется: потребности производства |
+| `POST /payments`, `/payments/from-document` | создают черновики; проведение — общий `POST /documents/:id/post` с проверкой |
+Системные проведения (биллинг, выписка, закрытие месяца, запись на приём, рейсы, сиды, предпросмотр) не затронуты — проверка не в `postDocument`.
+
+### Отклонения от плана и решения
+- `required` у маршрута по умолчанию `true`; маршрут с `required = false` подбирается и допускает отправку, но проведение не блокирует.
+- Подбор маршрута — в JS по всем неархивным маршрутам вида (`pickRoute`), порядок `sort_order, created_at`.
+- Строки `approval_tasks` — по одной на сотрудника; держатели должности делят `group_key`, первый решивший закрывает остальных (`skipped`). Решение `comment`
+  кладётся в `approval_tasks.notes`, задача остаётся `pending`.
+- Решает только исполнитель задачи (admin за другого не решает); отзыв — автор или admin и выше.
+- `fingerprint` (при отправке) и `approved_fingerprint` (при итоговом «согласовано») — раздельные колонки; правка во время процесса не блокируется,
+  `changedSinceSubmit` в карточке процесса сообщает об изменении. Проверка при проведении сравнивает текущий отпечаток с `approved_fingerprint` последнего круга.
+- Заявка на расход: если подходящий маршрут есть, но на этапе нет согласующих — проведение заявки откатывается с 422 `route_step_empty`. Отзыв процесса
+  (`/approvals/:id/cancel`) оставляет заявку в `pending`, после чего admin согласует её вручную.
+- В `StateProvider` добавлен `assertTransition` (асинхронная проверка перехода) — по нему закрыты ручные «Согласовать / Отклонить» заявки при идущем процессе.
+- Уведомления: тип `approval`, `notifications.approval_id`; в интерфейсе добавлен значок в `InboxPage` и поле `approval` в `Notification` (минимум для typecheck).
+- `isTokenPostingRequest` (токены агентов) теперь считает `…/decide` проводящим запросом (нужен `can_post`); три новых корня добавлены в `TOKEN_PATH_SECTIONS`.
+- `docs/architecture/approvals.md`, раздел меню, настройки, узлы автоматизаций и демо-сид — инкременты 3–5.
+- Тест `packages/db/test/db.test.ts` (счёт статей затрат демо: 22 вместо 21) падает на счёте статей затрат демо (22 вместо 21); к задаче 1199 не относится (статьи затрат не менялись), на чистой `dev` отдельно не перепроверялся.
