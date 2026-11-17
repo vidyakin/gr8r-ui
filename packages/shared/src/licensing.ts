@@ -122,7 +122,11 @@ export const MODULES: readonly ModuleDef[] = [
     nodes: ['trigger.fleet_document_expiring', 'trigger.trip_status'],
   }),
   // Документооборот (сессия 48): согласование по маршрутам (задача 1199, docs/architecture/approvals.md); разделы меню, узлы и задачи добавят следующие инкременты
-  def({ id: 'docflow', paths: ['/approval-routes', '/approvals', '/approval-tasks'] }),
+  def({
+    id: 'docflow',
+    paths: ['/approval-routes', '/approvals', '/approval-tasks'],
+    nodes: ['trigger.approval_completed', 'trigger.approval_step_overdue', 'action.submit_approval'],
+  }),
 ];
 
 export const MODULE_BY_ID: Readonly<Record<ModuleId, ModuleDef>> = Object.fromEntries(MODULES.map(m => [m.id, m])) as Record<ModuleId, ModuleDef>;

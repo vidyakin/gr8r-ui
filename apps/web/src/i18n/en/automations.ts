@@ -176,6 +176,21 @@ export const automations = {
       description: 'Starts when a trip leaves (status "in transit") or is completed. The payload has the trip number, vehicle and driver.',
       params: { stage: 'When' },
     },
+    trigger_approval_completed: {
+      label: 'Approval completed',
+      description: 'Starts when an approval process of a document or contract finishes: approved or rejected.',
+      params: { result: 'Result', targetKind: 'Object' },
+    },
+    trigger_approval_step_overdue: {
+      label: 'Approval step overdue',
+      description: 'Starts once when an approver misses the deadline of an approval step.',
+      params: { targetKind: 'Object' },
+    },
+    action_submit_approval: {
+      label: 'Submit for approval',
+      description: 'Sends a draft document or a contract to approval along the matching route. Fails if no route matches or the process is already running.',
+      params: { targetKind: 'Object', objectId: 'Document or contract ID' },
+    },
     action_move_deal: {
       label: 'Move deal to a stage',
       description: 'Moves a deal to a stage (or to the first stage of another pipeline). Required fields of the stage are checked.',

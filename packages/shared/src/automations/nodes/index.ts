@@ -1,5 +1,8 @@
 /* Реестр узлов. Новый узел = новый файл в этой папке (описание + схема параметров + исполнитель) и одна строка ниже. */
 import type { AnyNodeDef } from '../types';
+import submitApproval from './action-submit-approval';
+import approvalCompleted from './trigger-approval-completed';
+import approvalStepOverdue from './trigger-approval-step-overdue';
 import addComment from './action-add-comment';
 import assignLead from './action-assign-lead';
 import createLead from './action-create-lead';
@@ -44,6 +47,8 @@ export const NODE_LIST: AnyNodeDef[] = [
   dealStageOverdue,
   fleetDocumentExpiring,
   tripStatus,
+  approvalCompleted,
+  approvalStepOverdue,
   // Условия и управление потоком
   condition,
   delay,
@@ -57,6 +62,7 @@ export const NODE_LIST: AnyNodeDef[] = [
   createLead,
   assignLead,
   moveDeal,
+  submitApproval,
 ];
 
 export const NODE_DEFS: Record<string, AnyNodeDef> = Object.fromEntries(NODE_LIST.map(n => [n.type, n]));
