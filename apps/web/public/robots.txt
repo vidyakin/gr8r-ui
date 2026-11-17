@@ -1,0 +1,6 @@
+# Приложение FutureERP: страница входа открыта, API и аналитика — нет.
+# Без этого файла nginx отдавал index.html (SPA-fallback), и Lighthouse ругался на синтаксис.
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /stats/
