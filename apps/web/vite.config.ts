@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 
-// Предзагрузка основных шрифтов Geist (latin, кириллица, моно latin): без неё браузер узнаёт о woff2 только из CSS,
+// Предзагрузка основных шрифтов Geist (latin, кириллица, моно latin) и словаря ru: без неё браузер узнаёт о woff2 только из CSS,
 // и шрифт стоит третьим в цепочке html → css → woff2 (Lighthouse «Network dependency tree»). Имена с хешем — из бандла
 const FONT_PRELOAD = /^assets\/geist-(latin|cyrillic|mono-latin)-wght-normal-[\w-]+\.woff2$/;
 function preloadFonts(): Plugin {
@@ -11,11 +11,16 @@ function preloadFonts(): Plugin {
     transformIndexHtml: {
       order: 'post',
       handler(_html, ctx) {
-        return Object.keys(ctx.bundle ?? {}).filter(f => FONT_PRELOAD.test(f)).map(f => ({
+        const bundle = ctx.bundle ?? {};
+        const fonts = Object.keys(bundle).filter(f => FONT_PRELOAD.test(f)).map(f => ({
           tag: 'link',
           attrs: { rel: 'preload', href: `/${f}`, as: 'font', type: 'font/woff2', crossorigin: '' },
           injectTo: 'head' as const,
         }));
+        // Словарь ru (язык по умолчанию у аудитории) — сразу с HTML, а не после выполнения main.tsx (i18n/index.tsx, LOADERS)
+        const ru = Object.values(bundle).find(c => c.type === 'chunk' && c.isDynamicEntry && /[\\/]i18n[\\/]ru[\\/]index\.ts$/.test(c.facadeModuleId ?? ''));
+        const dict = ru ? [{ tag: 'link', attrs: { rel: 'modulepreload', href: `/${ru.fileName}`, crossorigin: '' }, injectTo: 'head' as const }] : [];
+        return [...fonts, ...dict];
       },
     },
   };

@@ -9,7 +9,7 @@ import '@fontsource-variable/geist/wght.css';
 import '@fontsource-variable/geist-mono/wght.css';
 import './styles/index.css';
 import { Gr8rProvider } from '@/components/ui';
-import { SessionProvider } from '@/app/data/session';
+import { SessionProvider, prefetchSession } from '@/app/data/session';
 import { router } from '@/app/router';
 import { I18nProvider, getLocale, loadLocale } from '@/i18n';
 
@@ -34,6 +34,8 @@ const renderApp = () => createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </StrictMode>,
 );
+// Сессия запрашивается сразу, параллельно со словарём: SessionProvider возьмёт готовый ответ из кэша
+void prefetchSession(queryClient);
 loadLocale(getLocale()).then(renderApp, renderApp);
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) void navigator.serviceWorker.register('/driver-sw.js');

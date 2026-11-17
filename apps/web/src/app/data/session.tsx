@@ -1,6 +1,6 @@
 /* Сессия: кто вошёл, мои воркспейсы, активный воркспейс (хранится в localStorage — это настройка просмотра, не данные). */
 import * as React from 'react';
-import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { useQueryClient, useQuery, type QueryClient } from '@tanstack/react-query';
 import { ApiError, UNAUTHORIZED_EVENT, apiFor, ok } from './api';
 import { resolveLocale, setFormatPrefs, setLocale, type Locale } from '@/i18n';
 import { resolveUserPrefs, type UserPrefs } from '@erp/shared';
@@ -78,9 +78,14 @@ async function fetchSession(): Promise<SessionData | null> {
   }
 }
 
+const SESSION_QUERY = { queryKey: SESSION_KEY, queryFn: fetchSession, staleTime: Infinity, retry: false } as const;
+
+/** Запрос /auth/me до первой отрисовки (main.tsx): идёт параллельно с загрузкой словаря, а не после неё */
+export const prefetchSession = (qc: QueryClient) => qc.prefetchQuery(SESSION_QUERY);
+
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: SESSION_KEY, queryFn: fetchSession, staleTime: Infinity, retry: false });
+  const q = useQuery(SESSION_QUERY);
   const [stored, setStored] = React.useState<string | null>(readActive);
 
   // Любой запрос вернул «нет сессии» — выходим на экран входа
