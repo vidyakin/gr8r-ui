@@ -68,6 +68,8 @@ export function useLocale(): Locale {
       return () => subs.delete(cb);
     },
     () => current,
+    // снимок для серверного рендера (рендер-тесты экранов через react-dom/server)
+    () => current,
   );
 }
 

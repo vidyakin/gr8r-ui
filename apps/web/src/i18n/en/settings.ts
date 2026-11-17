@@ -43,6 +43,7 @@ export const settings = {
       workOrders: 'Work order kinds',
       deliveryMethods: 'Delivery methods',
       positions: 'Positions',
+      departments: 'Departments',
       projectTemplates: 'Project templates',
       productKinds: 'Nomenclature kinds',
       dealPipelines: 'Deal pipelines',
