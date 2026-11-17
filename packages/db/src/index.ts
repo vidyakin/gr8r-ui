@@ -60,6 +60,7 @@ export * from './sales-plan';
 export * from './appointments';
 export * from './delivery';
 export * from './positions';
+export * from './departments';
 export * from './project-templates';
 export * from './settlements';
 export * from './payments';

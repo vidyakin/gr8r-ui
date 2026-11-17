@@ -792,6 +792,13 @@
       "when": 1794106540000,
       "tag": "0122_events_channel",
       "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1794106560000,
+      "tag": "0124_departments",
+      "breakpoints": true
     }
   ]
 }
