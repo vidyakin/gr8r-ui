@@ -4,6 +4,9 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from 'react-router';
+// Шрифты из бандла вместо Google Fonts: нет блокирующего внешнего CSS (Lighthouse «Render-blocking requests»)
+import '@fontsource-variable/geist/wght.css';
+import '@fontsource-variable/geist-mono/wght.css';
 import './styles/index.css';
 import { Gr8rProvider } from '@/components/ui';
 import { SessionProvider } from '@/app/data/session';

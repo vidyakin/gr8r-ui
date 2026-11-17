@@ -3,17 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="FutureERP — учёт, производство, CRM, финансы и склад в одной системе." />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/driver-192.png" />
     <meta name="theme-color" content="#175b8c" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400&display=swap"
-    />
-    <script src="/config.js"></script>
+    <!-- Шрифты Geist — из бандла (@fontsource-variable, импорт в main.tsx): без блокирующего CSS Google Fonts.
+         config.js с defer выполняется до модуля main.tsx (отложенные скрипты идут по порядку в документе) и не блокирует отрисовку. -->
+    <script src="/config.js" defer></script>
     <title>FutureERP</title>
   </head>
   <body>

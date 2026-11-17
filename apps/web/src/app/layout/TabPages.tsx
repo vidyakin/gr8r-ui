@@ -39,7 +39,10 @@ function Frame() {
   return (
     <PageBoundary resetKey={pathname}>
       <SectionGuard>
-        <Outlet />
+        {/* экраны грузятся чанками по требованию (router.tsx, lazyPage) */}
+        <React.Suspense fallback={null}>
+          <Outlet />
+        </React.Suspense>
       </SectionGuard>
     </PageBoundary>
   );
