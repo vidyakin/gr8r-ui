@@ -122,6 +122,8 @@ export const errors = {
   service_day_exists: 'A document of the day already exists for this specialist',
   product_kind_mismatch: 'The type of the nomenclature kind does not match the product type',
   product_kind_in_use: 'The nomenclature kind is used by products',
+  department_in_use: 'The department has child departments or employees: move them first',
+  department_cycle: 'The parent department is a descendant: the tree would have a cycle',
   lead_use_convert: 'Use conversion to move a lead to a converted status',
   lead_already_converted: 'The lead has already been converted',
   deal_lost_reason_required: 'Choose a lost reason to move the deal to a “lost” stage',
