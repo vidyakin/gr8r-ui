@@ -32,7 +32,7 @@ export function LineUnitCell({ line, editable, units, onChange }: { line: { prod
   return (
     <select
       className="select cell-input"
-      style={{ minWidth: 68 }}
+      style={{ minWidth: 48 }}
       title={hint}
       aria-label={t('catalog.packs.unit')}
       value={line.unitCode}

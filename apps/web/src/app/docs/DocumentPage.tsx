@@ -616,7 +616,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                   <th>{t('docs.document.colProduct')}</th>
                   {hasGroups && <th style={{ width: 150 }}>{t('docs.quotes.colGroup')}</th>}
                   {hasShipBy && <th style={{ width: 150 }}>{t('docs.document.colShipBy')}</th>}
-                  <th style={{ width: 76 }}>{t('docs.document.colUnit')}</th>
+                  <th style={{ width: 52 }}>{t('docs.document.colUnit')}</th>
                   {isCount && (
                     <th style={{ width: 96 }} className="r">
                       {t('docs.document.colBook')}
@@ -696,13 +696,12 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                     <tr key={l.key} data-row={i}>
                       <td className="faint num">{i + 1}</td>
                       <td>
+                        {/* артикул — мелко над названием: вся ширина ячейки остаётся названию */}
+                        {srv?.sku && <div className="mono faint line-sku">{srv.sku}</div>}
                         {editable ? (
                           <ProductField id={l.productId} name={l.name} dataCell={`${i}:0`} price={priceField} counterpartyId={partnerId} partnerArticles={partnerArts} onKeyDown={cellKey(i, 0)} onPick={p => pickProduct(l.key, i, p)} invalid={save === 'invalid' && !l.productId} />
                         ) : (
-                          <div className="row" style={{ gap: 4, minWidth: 0 }}>
-                            <ProductField id={l.productId} name={l.name} disabled onPick={() => undefined} />
-                            {srv?.sku && <span className="mono faint" style={{ fontSize: 11 }}>{srv.sku}</span>}
-                          </div>
+                          <ProductField id={l.productId} name={l.name} disabled onPick={() => undefined} />
                         )}
                         {l.productId && partnerArts.get(l.productId)?.article && (
                           <div className="mono faint" style={{ fontSize: 11 }} title={partnerArts.get(l.productId)?.name || undefined}>
