@@ -3,6 +3,7 @@ import { sql as dsql } from 'drizzle-orm';
 import { createSql, databaseUrl, adminDatabaseUrl, isUuid, uuidv7, withContext } from '../src';
 import { seed as demoSeed, seedCrm } from '@erp/shared/demo';
 import { DEMO_USER, OTHER_USER, runSeed } from '../src/seed';
+import { HISTORY_MONTHS } from '../src/seed-history';
 
 const V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -43,8 +44,9 @@ describe('seed', () => {
     const sql = createSql(databaseUrl(), { max: 4 });
     const admin = createSql(adminDatabaseUrl(), { max: 1 });
     const logs: string[] = [];
-    await runSeed(sql, m => logs.push(m));
-    await runSeed(sql, m => logs.push(m)); // идемпотентно
+    // точные счётчики — без истории прошлых месяцев (её объём зависит от дня месяца; проверяет demo-check.test.ts)
+    await runSeed(sql, m => logs.push(m), { history: false });
+    await runSeed(sql, m => logs.push(m), { history: false }); // идемпотентно
     expect(logs.filter(l => l.includes('already present'))).toHaveLength(1);
 
     const count = async (t: string, where = '') => Number((await admin.unsafe(`select count(*)::int as n from ${t} ${where}`))[0]!.n);
@@ -197,7 +199,7 @@ describe('seed', () => {
     expect(await count('documents', `${w} and type = 'supplier_order' and operation = 'processing'`)).toBe(1);
     expect(await count('customer_stock_balances', w)).toBe(3); // давальческое сырьё и продукция по заказу на переработку
     expect(await count('customer_stock_moves', w)).toBe(8); // приём 2, выпуск 5, отчёт 1
-    expect(await count('processing_service_costs', w)).toBe(2); // себестоимость услуги у отчёта и доля косвенных закрытого месяца на выпуск переработки
+    expect(await count('processing_service_costs', w)).toBe(1); // себестоимость услуги у отчёта; текущий месяц открыт — доли косвенных ещё нет
     expect(await count('warehouses', `${w} and counterparty_id is not null`)).toBe(1); // склад переработчика
     expect(await count('production_components', `${w} and owner_kind = 'customer'`)).toBe(4); // сырьё давальца в снимке заказа и в выпуске
     // этап 7: параметры спецификации, вариант товара и калькуляция заказа
@@ -219,8 +221,8 @@ describe('seed', () => {
     expect(await count('documents', `${w} and type = 'other_costs' and status = 'posted'`)).toBe(2);
     expect(await count('other_cost_lines', w)).toBe(3);
     expect(await count('period_costs', w)).toBe(7); // + затраты на зарплату прошлого месяца по способам отражения; // услуга со статьёй + две строки прочих затрат; + оборудование и монтаж инвестпроекта (в незакрытых месяцах)
-    expect(await count('production_cost_closings', `${w} and status = 'done'`)).toBe(1);
-    expect(await count('stock_cost_adjustments', w)).toBe(5); // + корректировки приходов выходных продуктов разборки, продукции переработчика и брака «на расходы» (на складе брака)
+    expect(await count('production_cost_closings', `${w} and status = 'done'`)).toBe(HISTORY_MONTHS); // закрыты прошлые месяцы, текущий открыт
+    expect(await count('stock_cost_adjustments', w)).toBe(0); // выпуски базового сида — в открытом текущем месяце; корректировки закрытий даёт история (demo-check.test.ts)
     // план производства и нормы запаса: демо-план с недельными периодами и четыре строки норм
     expect(await count('production_plans', w)).toBe(1);
     expect(await count('production_plan_lines', w)).toBe(3);
@@ -251,8 +253,8 @@ describe('seed', () => {
     expect(await count('document_states', w)).toBe(18);
     expect(await count('work_order_materials', w)).toBe(2); // + запчасть гарантийного ремонта
     expect(await count('work_order_assignments', w)).toBe(1);
-    expect(await count('cost_items', w)).toBe(21); // + статья «Оплата труда»; // 11 системных (с «Гарантийный ремонт», «Доставка» и тремя статьями автопарка) + электроэнергия и аренда демо + 6 статей инвестпроектов + статья подотчёта
-    expect(await count('stock_balances', `${w} and qty > 0`)).toBe(29); // + смартфоны на основном складе
+    expect(await count('cost_items', w)).toBe(22); // + статья «Оплата труда»; // 11 системных (с «Гарантийный ремонт», «Доставка» и тремя статьями автопарка) + электроэнергия и аренда демо + 6 статей инвестпроектов + статья подотчёта
+    expect(await count('stock_balances', `${w} and qty > 0`)).toBe(30); // + смартфоны на основном складе
     // резервы: заказ покупателя, продукция под заказ и материалы заказов на производство
     expect(await count('stock_reservations', w)).toBe(11); // + резерв под заказ окна
     expect(await count('stock_reservations', `${w} and production_component_id is not null`)).toBe(8);

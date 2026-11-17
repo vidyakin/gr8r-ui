@@ -28,6 +28,7 @@ import { uuidv7 } from './uuid';
 import { seedRepair } from './seed-repair';
 import { seedDelivery } from './seed-delivery';
 import { seedFleet } from './seed-fleet';
+import { historyMonthStart, HISTORY_MONTHS, seedHistory } from './seed-history';
 
 const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * 864e5).toISOString().slice(0, 10);
 
@@ -56,7 +57,7 @@ export interface DemoCompanyIds {
   skyline: string;
 }
 
-export async function seedDocuments(db: Db, wsId: string, memberId: string, co: DemoCompanyIds) {
+export async function seedDocuments(db: Db, wsId: string, memberId: string, co: DemoCompanyIds, opts: { history?: boolean } = {}) {
   const ctx: DocCtx = { workspaceId: wsId, memberId };
 
   /* ---------- организация и склады ---------- */
@@ -138,6 +139,17 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
   };
   const buy = (sku: string, qty: number) => ({ productId: P(sku).id, qty: String(qty), price: P(sku).purchasePrice, discountPct: '0' });
   const sell = (sku: string, qty: number, extra: { price?: number; discountPct?: number } = {}) => ({ productId: P(sku).id, qty: String(qty), price: String(extra.price ?? P(sku).price), discountPct: String(extra.discountPct ?? 0) });
+
+  // история за прошлые месяцы: справочники, закупки, продажи, оплаты, выпуск — до остальных цепочек, чтобы номера шли по датам
+  const history = opts.history === false ? null : await seedHistory(db, ctx, {
+    organizationId: org!.id,
+    mainWarehouseId: main!.id,
+    fgWarehouseId: fg!.id,
+    shopWarehouseId: shop!.id,
+    materialsSupplierId: co.atlas,
+    furnitureSupplierId: co.northwind,
+    customerIds: [co.quanta, co.skyline, ip!.id],
+  });
 
   /** Дата документа (черновик) и проведение */
   const postAt = async (id: string, daysAgo: number) => {
@@ -624,7 +636,7 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
   await seedInvestments(db, ctx, { organizationId: org!.id, supplierId: co.atlas, customerId: co.quanta, serviceId: P('SV-PNT').id });
 
   // деньги (задача 1174б): оплаты, аванс, подотчёт, инкассация; тоже до даты запрета
-  await seedPayments(db, ctx, { organizationId: org!.id, customerId: co.skyline, serviceId: P('SV-PNT').id });
+  await seedPayments(db, ctx, { organizationId: org!.id, customerId: co.skyline, serviceId: P('SV-PNT').id, cashRegisterId: history?.cashRegisterId });
   // зарплата (задача 1184): оклады, начисление, ведомости, выплаты
   await seedPayroll(db, ctx, { organizationId: org!.id });
 
@@ -635,12 +647,12 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
   await seedDelivery(db, ctx, { carrierId: co.northwind, repairWorkOrderId: repairSeed.repair });
   await seedFleet(db, ctx);
 
-  // закрытый месяц: закрываем месяц выпуска — косвенные затраты распределяются, средняя склада пересчитывается
-  const closedMonth = iso(3).slice(0, 7);
-  await closePeriodMonth(db, ctx, closedMonth);
-  // дата запрета — на конец закрытого месяца: документы этого месяца уже нельзя проводить и править
+  // закрытые месяцы: все месяцы истории до прошлого включительно — косвенные затраты распределяются, средняя пересчитывается.
+  // Текущий месяц открыт: в демо можно проводить документы сегодняшним числом
+  for (let offset = HISTORY_MONTHS; offset >= 1; offset--) await closePeriodMonth(db, ctx, historyMonthStart(offset).slice(0, 7));
+  const closedMonth = historyMonthStart(1).slice(0, 7);
   const { end } = monthPeriod(closedMonth);
   await db.update(workspaces).set({ closedThrough: end, closeMovesLock: false }).where(eq(workspaces.id, wsId));
 
-  return { documents: 34, workOrder, closedMonth, processingOrder };
+  return { documents: 34 + (history?.documents ?? 0), workOrder, closedMonth, processingOrder };
 }

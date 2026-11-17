@@ -151,6 +151,8 @@ export interface DemoWorkspaceOptions {
   /** Email владельца (участник m1); без него — demo@future-erp.dev */
   ownerEmail?: string;
   ownerName?: string;
+  /** История за прошлые месяцы (seed-history.ts); по умолчанию есть, тесты с точными счётчиками её отключают */
+  history?: boolean;
 }
 
 /** Демо-воркспейс: все данные фронтенда (задачи, проекты, комментарии, CRM…). Аккаунты есть только у участников из userIds,
@@ -375,7 +377,7 @@ export async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: strin
   // Подразделения: «Руководство» → «Продажи», «Производство», «Бухгалтерия»; сотрудники по тому же порядку, что и должности
   await seedDepartments(db, { workspaceId: wsId, memberId: U(d.me), role: 'owner' });
   // Документы и склад: организация, склады, реквизиты, цепочки закупок и продаж (проводятся настоящими сервисами)
-  const docs = await seedDocuments(db, wsId, U(d.me), { atlas: U('co8'), northwind: U('co1'), quanta: U('co4'), skyline: U('co10') });
+  const docs = await seedDocuments(db, wsId, U(d.me), { atlas: U('co8'), northwind: U('co1'), quanta: U('co4'), skyline: U('co10') }, { history: opts.history });
   // Объекты объектного учёта: два демо-объекта, у одного свой склад (задача 1268)
   await seedObjects(db, wsId, U(d.me), { north: U('co1'), himki: U('co4'), subcontractor: U('co8') });
   // Договоры и тарифные планы: договор обслуживания демо-клиента
@@ -439,7 +441,7 @@ async function seedOtherWorkspace(db: Db, wsId: string, userId: string) {
   await db.insert(deals).values({ workspaceId: wsId, name: 'Acme secret deal', companyId, ownerId: memberId, amount: '1000000.00', pipelineId: acmePipeline.id, stageId: acmeStage.id });
 }
 
-export async function runSeed(sql: Sql, log: (msg: string) => void = console.log) {
+export async function runSeed(sql: Sql, log: (msg: string) => void = console.log, opts: { history?: boolean } = {}) {
   const exists = await withContext(sql, {}, async db => (await db.select({ id: users.id }).from(users).where(eq(dsql`lower(${users.email})`, DEMO_USER.email)).limit(1))[0]);
   if (exists) {
     log('[seed] demo data already present — run `bun run db:reset` to start from scratch');
@@ -466,7 +468,7 @@ export async function runSeed(sql: Sql, log: (msg: string) => void = console.log
 
   // Каждый воркспейс — в своей транзакции с контекстом арендатора
   const demoWs = uuidv7();
-  const stats = await withContext(sql, { userId: userIds.get('m1'), workspaceId: demoWs }, db => seedDemoWorkspace(db, demoWs, userIds.get('m1')!, userIds, uuidv7()));
+  const stats = await withContext(sql, { userId: userIds.get('m1'), workspaceId: demoWs }, db => seedDemoWorkspace(db, demoWs, userIds.get('m1')!, userIds, uuidv7(), { history: opts.history ?? process.env.SEED_HISTORY !== '0' }));
   const otherWs = uuidv7();
   await withContext(sql, { userId: otherUserId, workspaceId: otherWs }, db => seedOtherWorkspace(db, otherWs, otherUserId));
 

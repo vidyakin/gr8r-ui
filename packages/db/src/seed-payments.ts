@@ -1,11 +1,12 @@
 /* Демо-данные денег (задача 1174б, по-русски): касса «Основная касса», статьи ДДС, оплаты части документов полностью и частично,
    аванс, выдача подотчётному и авансовый отчёт, перемещение денег (инкассация) и физлицо с расчётами «по контрагенту».
    Вызывается из seedDocuments до закрытия месяца: после даты запрета проводить документы уже нельзя. */
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, lte, sql } from 'drizzle-orm';
 import type { Db } from './client';
 import { changeDocumentState, createDocument, postDocument, type DocCtx } from './documents';
 import { createPaymentFromRequest, createRequest } from './payment-requests';
 import { createOpening } from './opening-balances';
+import { paymentStatuses } from './settlements';
 import { createPayment, createPaymentFromDocument, ensureCashFlowItems, updatePayment } from './payments';
 import { bankAccounts, cashFlowItems, cashRegisters, companies, costItems, documents } from './schema';
 
@@ -15,10 +16,11 @@ const OPENING_BANK = '3000000.00';
 
 const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * 864e5).toISOString().slice(0, 10);
 
-export async function seedPayments(db: Db, ctx: DocCtx, refs: { organizationId: string; customerId: string; serviceId: string }) {
+export async function seedPayments(db: Db, ctx: DocCtx, refs: { organizationId: string; customerId: string; serviceId: string; cashRegisterId?: string }) {
   const ws = ctx.workspaceId;
   await ensureCashFlowItems(db, ws);
-  const [register] = await db.insert(cashRegisters).values({ workspaceId: ws, name: 'Основная касса', organizationId: refs.organizationId, responsibleId: ctx.memberId }).returning({ id: cashRegisters.id });
+  // касса и начальные остатки уже созданы историей демо (seed-history.ts) — тогда не повторяем
+  const [register] = refs.cashRegisterId ? [{ id: refs.cashRegisterId }] : await db.insert(cashRegisters).values({ workspaceId: ws, name: 'Основная касса', organizationId: refs.organizationId, responsibleId: ctx.memberId }).returning({ id: cashRegisters.id });
   const [bank] = await db.select({ id: bankAccounts.id }).from(bankAccounts).where(eq(bankAccounts.organizationId, refs.organizationId)).orderBy(desc(bankAccounts.isDefault), asc(bankAccounts.createdAt)).limit(1);
   const item = async (name: string, kind: 'income' | 'expense') => (await db.insert(cashFlowItems).values({ workspaceId: ws, name, kind, flowGroup: 'operating' }).returning({ id: cashFlowItems.id }))[0]!.id;
   const rent = await item('Аренда помещения', 'expense');
@@ -27,16 +29,18 @@ export async function seedPayments(db: Db, ctx: DocCtx, refs: { organizationId: 
   const [costHousehold] = await db.insert(costItems).values({ workspaceId: ws, name: 'Хозяйственные нужды офиса', kind: 'expense' }).returning({ id: costItems.id });
 
   // начальные остатки на начало учёта: раньше всех демо-оплат, чтобы остатки и платёжный календарь не уходили в кассовый разрыв
-  const opening = await createOpening(db, ctx, {
-    organizationId: refs.organizationId,
-    date: iso(45),
-    comment: 'Остатки на начало учёта',
-    lines: [
-      { kind: 'cash', cashRegisterId: register!.id, amount: OPENING_CASH, comment: 'Наличные в основной кассе' },
-      ...(bank ? [{ kind: 'bank' as const, bankAccountId: bank.id, amount: OPENING_BANK, comment: 'Остаток на расчётном счёте' }] : []),
-    ] as never,
-  });
-  await postDocument(db, ctx, opening);
+  if (!refs.cashRegisterId) {
+    const opening = await createOpening(db, ctx, {
+      organizationId: refs.organizationId,
+      date: iso(45),
+      comment: 'Остатки на начало учёта',
+      lines: [
+        { kind: 'cash', cashRegisterId: register!.id, amount: OPENING_CASH, comment: 'Наличные в основной кассе' },
+        ...(bank ? [{ kind: 'bank' as const, bankAccountId: bank.id, amount: OPENING_BANK, comment: 'Остаток на расчётном счёте' }] : []),
+      ] as never,
+    });
+    await postDocument(db, ctx, opening);
+  }
 
   const post = async (id: string, daysAgo: number) => {
     await updatePayment(db, ctx, id, { date: iso(daysAgo) });
@@ -45,28 +49,35 @@ export async function seedPayments(db: Db, ctx: DocCtx, refs: { organizationId: 
 
   // оплаты проведённых документов: первая реализация/акт покупателя — полностью на счёт, вторая — частично наличными
   const sales = await db
-    .select({ id: documents.id, total: documents.total })
+    .select({ id: documents.id, total: documents.total, date: documents.date })
     .from(documents)
     .where(and(eq(documents.workspaceId, ws), inArray(documents.type, ['realization', 'act']), eq(documents.status, 'posted')))
     .orderBy(asc(documents.date), asc(documents.createdAt));
-  const withCp = sales.filter(s => Number(s.total) > 0);
+  // документы истории (seed-history.ts) уже оплачены или оставлены долгом — берём только совсем неоплаченные
+  const unpaid = async <T extends { id: string }>(rows: T[]) => {
+    const st = await paymentStatuses(db, rows.map(r => r.id));
+    return rows.filter(r => st[r.id] && st[r.id]!.paid === '0.00' && Number(st[r.id]!.remaining) > 0);
+  };
+  const withCp = (await unpaid(sales.filter(s => Number(s.total) > 0 && s.date <= iso(6)))).reverse();
   if (withCp[0]) {
     const p = await createPaymentFromDocument(db, ctx, withCp[0].id, 'bank');
     await post(p, 6);
   }
-  if (withCp[1]) {
-    const p = await createPaymentFromDocument(db, ctx, withCp[1].id, 'cash');
-    const half = (Number(withCp[1].total) / 2).toFixed(2);
-    await updatePayment(db, ctx, p, { lines: [{ settlementDocumentId: withCp[1].id, amount: half, comment: 'Предоплата 50%' } as never] });
+  // у реализации и акта по одному заказу общий корень расчётов: после первой оплаты второй мог закрыться
+  const [second] = await unpaid(withCp.slice(1));
+  if (second) {
+    const p = await createPaymentFromDocument(db, ctx, second.id, 'cash');
+    const half = (Number(second.total) / 2).toFixed(2);
+    await updatePayment(db, ctx, p, { lines: [{ settlementDocumentId: second.id, amount: half, comment: 'Предоплата 50%' } as never] });
     await post(p, 5);
   }
   // оплата поставщику: первое поступление
   const [receipt] = await db
     .select({ id: documents.id, total: documents.total })
     .from(documents)
-    .where(and(eq(documents.workspaceId, ws), eq(documents.type, 'receipt'), eq(documents.status, 'posted')))
-    .orderBy(asc(documents.date))
-    .limit(1);
+    .where(and(eq(documents.workspaceId, ws), eq(documents.type, 'receipt'), eq(documents.status, 'posted'), lte(documents.date, iso(4))))
+    .orderBy(desc(documents.date))
+    .then(unpaid);
   if (receipt && Number(receipt.total) > 0) {
     const p = await createPaymentFromDocument(db, ctx, receipt.id, 'bank');
     await post(p, 4);
