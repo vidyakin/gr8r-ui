@@ -90,6 +90,7 @@ import {
 } from './routes/work';
 import type { AppConfig, AppEnv } from './types';
 import { inviteRoutes, workspaceRoutes } from './workspaces';
+import { SessionCache } from './session-cache';
 
 export { websocket };
 
@@ -99,6 +100,7 @@ export interface AppDeps {
   sql: Sql;
   config?: Partial<AppConfig>;
   hub?: Hub;
+  sessionCache?: SessionCache;
 }
 
 /** Ресурсы арендатора: каждый путь защищён цепочкой «сессия → членство → транзакция с RLS» */
@@ -252,6 +254,7 @@ function buildTenantApi() {
 export function createApp(deps: AppDeps) {
   const config: AppConfig = { ...loadConfig(), ...deps.config };
   const hub = deps.hub ?? new Hub(databaseUrl());
+  const sessionCache = deps.sessionCache ?? new SessionCache(config.sessionCacheTtlMs);
   const tenantApi = buildTenantApi();
   // MCP вызывает маршруты всего приложения (apps/api/src/mcp): ссылка ставится после сборки
   let self: Hono<AppEnv> | null = null;
@@ -260,6 +263,7 @@ export function createApp(deps: AppDeps) {
     .use('*', async (c, next) => {
       c.set('sql', deps.sql);
       c.set('config', config);
+      c.set('sessionCache', sessionCache);
       let ip = 'unknown';
       try {
         ip = (config.trustProxy ? c.req.header('x-forwarded-for')?.split(',')[0]?.trim() : undefined) ?? getConnInfo(c).remote.address ?? 'unknown';
@@ -346,7 +350,7 @@ export function createApp(deps: AppDeps) {
     .notFound(onNotFound);
   self = app as unknown as Hono<AppEnv>;
 
-  return { app, hub };
+  return { app, hub, sessionCache };
 }
 
 /** Тип для типизированного клиента: `hc<AppType>(baseUrl)` из hono/client */

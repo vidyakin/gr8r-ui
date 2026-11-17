@@ -8,6 +8,7 @@ import { createApp } from '../src/app';
 import { apiSqlOptions, loadConfig } from '../src/env';
 import { onError } from '../src/errors';
 import { requireSession, tenant } from '../src/middleware';
+import { SessionCache } from '../src/session-cache';
 import type { AppConfig, AppEnv } from '../src/types';
 import { Client, admin, testConfig } from './helpers';
 
@@ -31,6 +32,7 @@ const probe = new Hono<AppEnv>()
   .use('*', async (c, next) => {
     c.set('sql', pool);
     c.set('config', config);
+    c.set('sessionCache', new SessionCache(0));
     c.set('requestId', 'test');
     await next();
   })

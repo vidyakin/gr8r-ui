@@ -167,6 +167,7 @@ describe('auth', () => {
     const { user } = await c.signup({ password: 'password123' });
     const other = new Client();
     await other.post('/auth/signin', { email: user.email, password: 'password123' });
+    expect((await other.get('/auth/me')).status).toBe(200); // сессия попала в кэш — смена пароля обязана её сбросить
     expect((await c.post('/auth/password', { current: 'nope-nope-1', next: 'new-password-1' })).body.error.code).toBe('wrong_password');
     const ok = await c.post('/auth/password', { current: 'password123', next: 'new-password-1' });
     expect(ok.status).toBe(200);
@@ -183,6 +184,8 @@ describe('auth', () => {
     await s2.post('/auth/signin', { email: user.email, password: 'password123' });
     const s3 = new Client();
     await s3.post('/auth/signin', { email: user.email, password: 'password123' });
+    expect((await s2.get('/auth/me')).status).toBe(200);
+    expect((await s3.get('/auth/me')).status).toBe(200);
     const list = (await c.get('/auth/sessions')).body.items as { id: string; current: boolean }[];
     expect(list).toHaveLength(3);
     expect(list.filter(x => x.current)).toHaveLength(1);
@@ -191,6 +194,8 @@ describe('auth', () => {
     const other = list.find(x => !x.current)!;
     expect((await c.del(`/auth/sessions/${other.id}`)).status).toBe(200);
     expect((await c.del('/auth/sessions')).body.closed).toBe(1);
+    expect((await s2.get('/auth/me')).status).toBe(401);
+    expect((await s3.get('/auth/me')).status).toBe(401);
     expect((await c.get('/auth/me')).status).toBe(200);
     // чужую сессию удалить нельзя
     const stranger = new Client();

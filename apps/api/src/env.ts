@@ -23,15 +23,17 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     leadHookRateLimitWindowMs: int(env.LEAD_HOOK_RATE_LIMIT_WINDOW_SEC, 60) * 1000,
     logRequests: env.NODE_ENV !== 'test',
     txTimeoutMs: int(env.API_TX_TIMEOUT_MS, 30_000),
+    dbPoolMax: Math.max(1, int(env.API_DB_POOL_MAX, 10)),
+    sessionCacheTtlMs: Math.max(0, int(env.SESSION_CACHE_TTL_SEC, 30)) * 1000,
   };
 }
 
 /** Опции пула API. Таймауты на стороне сервера — страховка, если процесс завис и сам транзакцию не закроет:
     Postgres оборвёт сессию и освободит соединение. Только для API: у воркера и миграций бывают длинные транзакции */
-export function apiSqlOptions(config: Pick<AppConfig, 'txTimeoutMs'>) {
+export function apiSqlOptions(config: Pick<AppConfig, 'txTimeoutMs'> & Partial<Pick<AppConfig, 'dbPoolMax'>>) {
   const serverTimeout = config.txTimeoutMs * 2;
   return {
-    max: 10,
+    max: config.dbPoolMax ?? 10,
     connect_timeout: 5,
     connection: { application_name: 'erp-api', statement_timeout: serverTimeout, idle_in_transaction_session_timeout: serverTimeout },
   };

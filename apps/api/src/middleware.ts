@@ -92,20 +92,27 @@ export const requireSession = createMiddleware<AppEnv>(async (c, next) => {
     const token = readToken(c);
     if (!token) throw unauthorized();
     const id = sha256(token);
-    const sql = c.get('sql');
-    const row = await sql.begin(async tx => {
-      await setContext(tx as Tx, {});
-      const db = drizzleOf(tx as Tx);
-      const [r] = await db
-        .select({ id: users.id, email: users.email, name: users.name, locale: users.locale, prefs: users.prefs, isOperator: users.isOperator })
-        .from(sessions)
-        .innerJoin(users, eq(users.id, sessions.userId))
-        .where(and(eq(sessions.id, id), gt(sessions.expiresAt, new Date())))
-        .limit(1);
-      return r;
-    });
-    if (!row) throw unauthorized('Session is invalid or expired');
-    c.set('user', row);
+    // Кэш сессий (session-cache.ts): без него каждый запрос открывал бы отдельную транзакцию ради поиска сессии
+    const cache = c.get('sessionCache');
+    let user = cache.get(id);
+    if (!user) {
+      const row = await c.get('sql').begin(async tx => {
+        await setContext(tx as Tx, {});
+        const db = drizzleOf(tx as Tx);
+        const [r] = await db
+          .select({ id: users.id, email: users.email, name: users.name, locale: users.locale, prefs: users.prefs, isOperator: users.isOperator, expiresAt: sessions.expiresAt })
+          .from(sessions)
+          .innerJoin(users, eq(users.id, sessions.userId))
+          .where(and(eq(sessions.id, id), gt(sessions.expiresAt, new Date())))
+          .limit(1);
+        return r;
+      });
+      if (!row) throw unauthorized('Session is invalid or expired');
+      const { expiresAt, ...u } = row;
+      user = u;
+      cache.set(id, user, expiresAt);
+    }
+    c.set('user', user);
     c.set('sessionId', id);
   }
   if (c.get('apiToken')) {

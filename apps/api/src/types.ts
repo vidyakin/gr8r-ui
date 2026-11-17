@@ -1,4 +1,5 @@
 import type { Db, Sql, Tx } from '@erp/db';
+import type { SessionCache } from './session-cache';
 import type { ModuleAccess, ModuleId, ModuleState, PositionSection, Role } from '@erp/shared';
 
 /** Модули арендатора на момент запроса: можно писать (active), можно читать (readable) и состояния со сроками */
@@ -43,6 +44,10 @@ export interface AppConfig {
   logRequests: boolean;
   /** Дедлайн транзакции арендатора, мс: дольше — откат и 503 (защита пула от зависших обработчиков) */
   txTimeoutMs: number;
+  /** Размер пула соединений API (API_DB_POOL_MAX) */
+  dbPoolMax: number;
+  /** Сколько живёт запись кэша сессий, мс (SESSION_CACHE_TTL_SEC); 0 — кэш выключен */
+  sessionCacheTtlMs: number;
 }
 
 /** Переменные контекста Hono. tenant-поля есть только после middleware tenant() */
@@ -50,6 +55,8 @@ export interface AppEnv {
   Variables: {
     sql: Sql;
     config: AppConfig;
+    /** Кэш сессий процесса (session-cache.ts) */
+    sessionCache: SessionCache;
     requestId: string;
     ip: string;
     user: SessionUser;

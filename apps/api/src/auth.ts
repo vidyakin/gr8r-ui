@@ -1,7 +1,7 @@
 /* Аутентификация: регистрация, вход, выход, /auth/me. Argon2id через Bun.password, сессии в БД (id = sha256 токена),
    cookie httpOnly + SameSite=Lax (+ Secure в production). Вход и регистрация ограничены rate-limit'ом в таблице rate_limits. */
 import { zValidator } from '@hono/zod-validator';
-import { and, desc, eq, ne, sql as dsql } from 'drizzle-orm';
+import { and, desc, eq, ne, sql as dsql, type SQL } from 'drizzle-orm';
 import { Hono, type Context } from 'hono';
 import { deleteCookie, setCookie } from 'hono/cookie';
 import { rateLimits, sessions, users, withContext, type Sql } from '@erp/db';
@@ -9,8 +9,20 @@ import { meUpdateBody, passwordChangeBody, signinBody, signupBody } from '@erp/s
 import { AppError } from './errors';
 import { validationHook } from './crud';
 import { requireSession, sha256, SESSION_COOKIE } from './middleware';
+import { notifySessionRevoke } from './session-cache';
 import { createWorkspace, listMyWorkspaces } from './workspaces-service';
 import type { AppConfig, AppEnv } from './types';
+
+/** Удаляет сессии пользователя по условию и сбрасывает их из кэша — в этом процессе сразу, в других через NOTIFY */
+async function closeSessions(c: Context<AppEnv>, userId: string, cond: SQL): Promise<{ id: string }[]> {
+  const rows = await withContext(c.get('sql'), { userId }, async db => {
+    const deleted = await db.delete(sessions).where(and(eq(sessions.userId, userId), cond)).returning({ id: sessions.id });
+    await notifySessionRevoke(db, { sessionIds: deleted.map(r => r.id) });
+    return deleted;
+  });
+  c.get('sessionCache').revoke({ sessionIds: rows.map(r => r.id) });
+  return rows;
+}
 
 /** Общий демо-вход (DEMO_RESET_EMAIL): пароль и чужие сессии не трогаем — иначе один посетитель запрёт или выкинет остальных.
     Свои воркспейсы и приглашения ему тоже нельзя: сброс пересоздаёт только демо, а вход открывает последний выбранный воркспейс */
@@ -92,7 +104,12 @@ export const authRoutes = new Hono<AppEnv>()
     return c.json({ user, workspaces: await listMyWorkspaces(sql, found.id) });
   })
   .post('/signout', requireSession, async c => {
-    await withContext(c.get('sql'), { userId: c.get('user').id }, db => db.delete(sessions).where(eq(sessions.id, c.get('sessionId'))));
+    const revoke = { sessionIds: [c.get('sessionId')] };
+    await withContext(c.get('sql'), { userId: c.get('user').id }, async db => {
+      await db.delete(sessions).where(eq(sessions.id, c.get('sessionId')));
+      await notifySessionRevoke(db, revoke);
+    });
+    c.get('sessionCache').revoke(revoke);
     deleteCookie(c, SESSION_COOKIE, { path: '/' });
     return c.json({ ok: true as const });
   })
@@ -108,9 +125,15 @@ export const authRoutes = new Hono<AppEnv>()
     if (locale !== undefined) set.locale = locale;
     if (prefs && Object.keys(prefs).length) set.prefs = dsql`${users.prefs} || ${JSON.stringify(prefs)}::jsonb`;
     const cols = { id: users.id, email: users.email, name: users.name, locale: users.locale, prefs: users.prefs, isOperator: users.isOperator };
-    const [user] = await withContext(c.get('sql'), { userId: me.id }, db =>
-      Object.keys(set).length ? db.update(users).set(set).where(eq(users.id, me.id)).returning(cols) : db.select(cols).from(users).where(eq(users.id, me.id)),
-    );
+    // Пользователь лежит в кэше сессий вместе с locale и prefs: после правки сбрасываем его сессии везде
+    const revoke = { userId: me.id };
+    const [user] = await withContext(c.get('sql'), { userId: me.id }, async db => {
+      if (!Object.keys(set).length) return db.select(cols).from(users).where(eq(users.id, me.id));
+      const rows = await db.update(users).set(set).where(eq(users.id, me.id)).returning(cols);
+      await notifySessionRevoke(db, revoke);
+      return rows;
+    });
+    if (Object.keys(set).length) c.get('sessionCache').revoke(revoke);
     return c.json({ user: user! });
   })
   // Смена пароля: нужен текущий; все остальные сессии закрываются (вход, украденный вместе со старым паролем, перестаёт работать)
@@ -125,8 +148,11 @@ export const authRoutes = new Hono<AppEnv>()
     const passwordHash = await Bun.password.hash(next, { algorithm: 'argon2id' });
     const closed = await withContext(sql, { userId: me.id }, async db => {
       await db.update(users).set({ passwordHash }).where(eq(users.id, me.id));
-      return db.delete(sessions).where(and(eq(sessions.userId, me.id), ne(sessions.id, c.get('sessionId')))).returning({ id: sessions.id });
+      const rows = await db.delete(sessions).where(and(eq(sessions.userId, me.id), ne(sessions.id, c.get('sessionId')))).returning({ id: sessions.id });
+      await notifySessionRevoke(db, { sessionIds: rows.map(r => r.id) });
+      return rows;
     });
+    c.get('sessionCache').revoke({ sessionIds: closed.map(r => r.id) });
     await clear(sql, `password:user:${me.id}`);
     return c.json({ ok: true as const, closedSessions: closed.length });
   })
@@ -142,7 +168,7 @@ export const authRoutes = new Hono<AppEnv>()
   .delete('/sessions', requireSession, async c => {
     assertNotDemo(c);
     const me = c.get('user');
-    const rows = await withContext(c.get('sql'), { userId: me.id }, db => db.delete(sessions).where(and(eq(sessions.userId, me.id), ne(sessions.id, c.get('sessionId')))).returning({ id: sessions.id }));
+    const rows = await closeSessions(c, me.id, ne(sessions.id, c.get('sessionId')));
     return c.json({ closed: rows.length });
   })
   .delete('/sessions/:id', requireSession, async c => {
@@ -150,7 +176,7 @@ export const authRoutes = new Hono<AppEnv>()
     const me = c.get('user');
     const id = c.req.param('id');
     if (id === c.get('sessionId')) throw new AppError(400, 'current_session', 'Use sign out to end the current session');
-    const rows = await withContext(c.get('sql'), { userId: me.id }, db => db.delete(sessions).where(and(eq(sessions.userId, me.id), eq(sessions.id, id))).returning({ id: sessions.id }));
+    const rows = await closeSessions(c, me.id, eq(sessions.id, id));
     if (!rows.length) throw new AppError(404, 'not_found', 'Session not found');
     return c.json({ ok: true as const });
   });
