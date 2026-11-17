@@ -424,14 +424,18 @@ export const documentRoutes = new Hono<AppEnv>()
     const sortCol = SORTABLE[sortKey as keyof typeof SORTABLE];
     if (!sortCol) throw new AppError(400, 'invalid_sort', `Cannot sort by "${sortKey}". Allowed: ${Object.keys(SORTABLE).join(', ')}`);
     const order = (q.sort ?? '-date').startsWith('-') ? desc(sortCol) : asc(sortCol);
-    const base = ctx.db.select({ n: count() }).from(documents).leftJoin(companies, eq(companies.id, documents.counterpartyId)).where(where);
-    const [{ n }] = await base;
-    // суммы продаж и закупок: внутренние документы в них не входят — у них своя стоимость по себестоимости
-    const [sum] = await ctx.db
-      .select({ net: sql<string>`coalesce(sum(${documents.amountNet}), 0)::text`, vat: sql<string>`coalesce(sum(${documents.vatTotal}), 0)::text`, total: sql<string>`coalesce(sum(${documents.total}), 0)::text` })
-      .from(documents)
-      .leftJoin(companies, eq(companies.id, documents.counterpartyId))
-      .where(and(where, ne(documents.status, 'cancelled'), sql`${documents.type} not in ('stock_transfer','write_off','stock_posting','opening_stock')`));
+    // число документов и суммы выборки — одним проходом. Суммы продаж и закупок: отменённые и внутренние документы в них не входят
+    // (у внутренних своя стоимость по себестоимости). Контрагент нужен только для поиска по его названию
+    const inSum = sql`${documents.status} <> 'cancelled' and ${documents.type} not in ('stock_transfer','write_off','stock_posting','opening_stock')`;
+    const totalsQuery = ctx.db
+      .select({
+        n: count(),
+        net: sql<string>`coalesce(sum(${documents.amountNet}) filter (where ${inSum}), 0)::text`,
+        vat: sql<string>`coalesce(sum(${documents.vatTotal}) filter (where ${inSum}), 0)::text`,
+        total: sql<string>`coalesce(sum(${documents.total}) filter (where ${inSum}), 0)::text`,
+      })
+      .from(documents);
+    const [{ n, ...sum }] = await (q.q ? totalsQuery.leftJoin(companies, eq(companies.id, documents.counterpartyId)) : totalsQuery).where(where);
     const rows = await ctx.db
       .select({ doc: documents, counterpartyName: companies.name, organizationName: organizations.name, warehouseName: warehouses.name, targetWarehouseName: targetWh.name })
       .from(documents)
@@ -471,7 +475,7 @@ export const documentRoutes = new Hono<AppEnv>()
           ) t`)
       : [];
     const costSum = costRows[0]?.cost ?? '0';
-    return c.json({ items: withCost, total: n, limit: q.limit, offset: q.offset, sum: { net: sum!.net, vat: sum!.vat, total: sum!.total, cost: canSeeCost(ctx.role) ? costSum : null } });
+    return c.json({ items: withCost, total: n, limit: q.limit, offset: q.offset, sum: { net: sum.net, vat: sum.vat, total: sum.total, cost: canSeeCost(ctx.role) ? costSum : null } });
   })
   .get('/:id', zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);

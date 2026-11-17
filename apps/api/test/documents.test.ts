@@ -170,6 +170,15 @@ describe('document drafts and totals', () => {
     expect((await owner.get('/documents?group=purchases&q=Покупатель')).body.total).toBe(0);
     const sums = (await owner.get(`/documents?q=особый-комментарий`)).body.sum;
     expect(sums).toMatchObject({ total: '100.00', vat: '16.67', net: '83.33' });
+    // без поиска (итоги без соединения с контрагентом, одним проходом с числом): отменённый в число входит, в суммы — нет
+    const org = await mk(owner, '/organizations', { name: 'Итоги журнала' });
+    const kept = await doc(owner, 'invoice', [line(wood, 1, 200)], { organizationId: org.id });
+    const dropped = await doc(owner, 'invoice', [line(wood, 1, 50)], { organizationId: org.id });
+    expect((await act(owner, dropped.id, 'cancel')).status).toBe(200);
+    const byOrg = (await owner.get(`/documents?organizationId=${org.id}`)).body;
+    expect(byOrg.total).toBe(2);
+    expect(byOrg.sum.total).toBe('200.00');
+    expect(byOrg.items.map((d: any) => d.id)).toEqual([dropped.id, kept.id]); // новые сверху
     expect((await owner.get('/documents?sort=bogus')).status).toBe(400);
     expect((await owner.get(`/documents?from=2000-01-01&to=2000-12-31`)).body.total).toBe(0);
   });

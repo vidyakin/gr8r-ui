@@ -315,6 +315,8 @@ export const documents = pgTable(
     uniqueIndex('documents_bank_import_uq').on(t.workspaceId, t.bankImportKey).where(sql`${t.bankImportKey} is not null`),
     uniqueIndex('documents_number_uq').on(t.workspaceId, t.organizationId, t.type, t.numberYear, t.numberSeq).where(sql`${t.numberSeq} is not null`),
     index('documents_ws_type_date_idx').on(t.workspaceId, t.type, t.date),
+    // журнал по умолчанию (новые сверху): страница берётся из индекса, без сортировки всех документов арендатора
+    index('documents_ws_journal_idx').on(t.workspaceId, t.date.desc(), t.createdAt.desc(), t.id.desc()),
     index('documents_deal_idx').on(t.workspaceId, t.dealId),
     index('documents_counterparty_idx').on(t.counterpartyId),
     index('documents_contract_idx').on(t.workspaceId, t.contractId),
