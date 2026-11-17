@@ -14,3 +14,4 @@ export * from './contract';
 export * from './contract-docx';
 export * from './object-acts';
 export * from './object-reports';
+export * from './approval-sheet';
