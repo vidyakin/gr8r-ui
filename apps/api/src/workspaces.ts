@@ -1,5 +1,6 @@
 /* Воркспейсы: список моих, создание, настройки, приглашения (токен вместо почты — пока), смена роли, принятие приглашения. */
 import { zValidator } from '@hono/zod-validator';
+import { assertNotDemo } from './auth';
 import { and, count, desc, eq, gt, isNull, sql as dsql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { assertLimit, invites, members, memberships, recordEvent, uuidv7, withContext, workspaces } from '@erp/db';
@@ -16,7 +17,10 @@ const newInviteToken = (wsId: string) => `${wsId}.${Buffer.from(crypto.getRandom
 export const workspaceRoutes = new Hono<AppEnv>()
   .use('*', requireSession)
   .get('/', async c => c.json({ items: await listMyWorkspaces(c.get('sql'), c.get('user').id) }))
-  .post('/', zValidator('json', workspaceCreateBody, validationHook), async c => c.json(await createWorkspace(c.get('sql'), c.get('user'), c.req.valid('json')), 201))
+  .post('/', zValidator('json', workspaceCreateBody, validationHook), async c => {
+    assertNotDemo(c);
+    return c.json(await createWorkspace(c.get('sql'), c.get('user'), c.req.valid('json')), 201);
+  })
   // ---- всё, что ниже, выполняется в контексте арендатора :id (членство проверяется) ----
   .use('/:id/*', tenant('param'))
   .get('/:id', zValidator('param', workspaceParam, validationHook), async c => {
@@ -119,6 +123,7 @@ export const workspaceRoutes = new Hono<AppEnv>()
 
 /** Принятие приглашения по токену: `POST /invites/accept`. Не требует X-Workspace-Id — воркспейс зашит в токен */
 export const inviteRoutes = new Hono<AppEnv>().use('*', requireSession).post('/accept', zValidator('json', inviteAcceptBody, validationHook), async c => {
+  assertNotDemo(c);
   const user = c.get('user');
   const { token } = c.req.valid('json');
   const wsId = token.split('.')[0] ?? '';

@@ -50,7 +50,7 @@ export function Toaster() {
       gap={8}
       icons={{
         success: <CircleCheck size={15} />,
-        error: <CircleAlert size={15} />,
+        error: <CircleAlert size={20} />,
         info: <Info size={15} />,
         warning: <TriangleAlert size={15} />,
       }}
@@ -68,7 +68,8 @@ type ToastOpts = ExternalToast & { action?: { label: string; onClick: () => void
 /** toast('Задача создана'), toast.error('Не сохранилось', { action: { label: 'Повторить', onClick } }) */
 export const toast = Object.assign((msg: React.ReactNode, o?: ToastOpts) => sonner.success(msg, o), {
   success: (msg: React.ReactNode, o?: ToastOpts) => sonner.success(msg, o),
-  error: (msg: React.ReactNode, o?: ToastOpts) => sonner.error(msg, o),
+  // ошибка заметнее остальных: крупная, сверху по центру и висит дольше (стиль — .toast[data-type='error'] в overlays.css)
+  error: (msg: React.ReactNode, o?: ToastOpts) => sonner.error(msg, { position: 'top-center', duration: 8000, ...o }),
   info: (msg: React.ReactNode, o?: ToastOpts) => sonner.info(msg, o),
   dismiss: sonner.dismiss,
 });
