@@ -16,8 +16,15 @@ const requireOperator = createMiddleware<AppEnv>(async (c, next) => {
   await next();
 });
 
+/* Правка оператора (тарифы, лицензии, арендаторы) меняет доступ мимо tenant(): кэш доступа этого процесса сбрасываем сразу,
+   остальным экземплярам API его сбросит NOTIFY из триггеров (access-cache.ts). Записи оператора редки — сбрасываем всё */
+const dropAccessCache = createMiddleware<AppEnv>(async (c, next) => {
+  await next();
+  if (c.req.method !== 'GET' && c.res.status < 400) c.get('accessCache').invalidate('*');
+});
+
 export const adminRoutes = new Hono<AppEnv>()
-  .use('*', requireSession, requireOperator)
+  .use('*', requireSession, requireOperator, dropAccessCache)
   .get('/tenants', async c => c.json({ items: await listTenantsForOperator(c.get('sql'), c.get('user').id) }))
   .post('/tenants', zValidator('json', tenantCreateBody, validationHook), async c => {
     const b = c.req.valid('json');

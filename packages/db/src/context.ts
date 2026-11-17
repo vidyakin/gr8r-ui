@@ -17,10 +17,13 @@ export type AppRole = 'app_user' | 'app_worker';
 
 export async function setContext(tx: Tx, ctx: DbContext, role: AppRole = 'app_user'): Promise<void> {
   await tx.unsafe(`set local role ${role}`);
-  if (ctx.userId) await tx`select set_config('app.user_id', ${ctx.userId}, true)`;
-  if (ctx.workspaceId) await tx`select set_config('app.workspace_id', ${ctx.workspaceId}, true)`;
-  if (ctx.apiTokenId) await tx`select set_config('app.api_token_id', ${ctx.apiTokenId}, true)`;
-  if (ctx.system) await tx`select set_config('app.system', 'on', true)`;
+  // все настройки одним запросом: каждый лишний обмен с базой держит соединение пула дольше
+  const pairs: [string, string][] = [];
+  if (ctx.userId) pairs.push(['app.user_id', ctx.userId]);
+  if (ctx.workspaceId) pairs.push(['app.workspace_id', ctx.workspaceId]);
+  if (ctx.apiTokenId) pairs.push(['app.api_token_id', ctx.apiTokenId]);
+  if (ctx.system) pairs.push(['app.system', 'on']);
+  if (pairs.length) await tx.unsafe(`select ${pairs.map((_, i) => `set_config($${2 * i + 1}, $${2 * i + 2}, true)`).join(', ')}`, pairs.flat());
 }
 
 export async function withContext<T>(sql: Sql, ctx: DbContext, fn: (db: Db, tx: Tx) => Promise<T>, role: AppRole = 'app_user'): Promise<T> {

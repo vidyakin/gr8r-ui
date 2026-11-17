@@ -806,6 +806,13 @@
       "when": 1794192950000,
       "tag": "0124_departments",
       "breakpoints": true
+    },
+    {
+      "idx": 120,
+      "version": "7",
+      "when": 1794192960000,
+      "tag": "0125_access_changed_notify",
+      "breakpoints": true
     }
   ]
 }

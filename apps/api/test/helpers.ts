@@ -9,7 +9,7 @@ export const sql = createSql(databaseUrl(), { max: 8 });
 export const admin = createSql(adminDatabaseUrl(), { max: 2 });
 /** Подключение воркера для DDL (роль-владелец): как в проде, им пользуется только воркер, не API */
 export const ddl = createSql(process.env.DATABASE_URL_DDL!, { max: 2 });
-export const { app, hub } = createApp({ sql, config: { logRequests: false } });
+export const { app, hub, accessCache } = createApp({ sql, config: { logRequests: false } });
 
 export const uniq = () => uuidv7().slice(-12);
 

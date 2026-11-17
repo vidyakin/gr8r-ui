@@ -1,4 +1,5 @@
 import type { Db, Sql, Tx } from '@erp/db';
+import type { AccessCache } from './access-cache';
 import type { SessionCache } from './session-cache';
 import type { ModuleAccess, ModuleId, ModuleState, PositionSection, Role } from '@erp/shared';
 
@@ -48,6 +49,8 @@ export interface AppConfig {
   dbPoolMax: number;
   /** Сколько живёт запись кэша сессий, мс (SESSION_CACHE_TTL_SEC); 0 — кэш выключен */
   sessionCacheTtlMs: number;
+  /** Сколько живёт запись кэша доступа, мс (ACCESS_CACHE_TTL_SEC); 0 — кэш выключен */
+  accessCacheTtlMs: number;
 }
 
 /** Переменные контекста Hono. tenant-поля есть только после middleware tenant() */
@@ -57,6 +60,8 @@ export interface AppEnv {
     config: AppConfig;
     /** Пул нумерации документов (numbering.ts в @erp/db): номер — отдельной короткой транзакцией */
     numberingSql: Sql;
+    /** Кэш доступа к воркспейсам: членство, лицензия, разделы (access-cache.ts) */
+    accessCache: AccessCache;
     /** Кэш сессий процесса (session-cache.ts) */
     sessionCache: SessionCache;
     requestId: string;

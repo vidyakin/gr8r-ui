@@ -9,6 +9,7 @@ import { apiSqlOptions, loadConfig } from '../src/env';
 import { onError } from '../src/errors';
 import { requireSession, tenant } from '../src/middleware';
 import { SessionCache } from '../src/session-cache';
+import { AccessCache } from '../src/access-cache';
 import type { AppConfig, AppEnv } from '../src/types';
 import { Client, admin, testConfig } from './helpers';
 
@@ -33,6 +34,7 @@ const probe = new Hono<AppEnv>()
     c.set('sql', pool);
     c.set('config', config);
     c.set('sessionCache', new SessionCache(0));
+    c.set('accessCache', new AccessCache(0));
     c.set('requestId', 'test');
     await next();
   })

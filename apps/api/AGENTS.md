@@ -16,6 +16,7 @@
 - `meta/`, `catalog/` — проверка значений полей конструктора и характеристик товара.
 - `auth.ts`, `workspaces.ts`, `workspaces-service.ts` — вход, сессии, воркспейсы, приглашения.
 - `realtime.ts` — `Hub`: LISTEN `erp_events` → рассылка по сокетам воркспейса; `/ws?workspace=&since=`.
+- `session-cache.ts`, `access-cache.ts` — кэши сессий и доступа к воркспейсу в памяти процесса; сброс по NOTIFY (`erp_session_revoked`, `erp_access_changed`).
 
 ## Как добавить маршрут
 1. Схемы запроса — в `packages/shared/src/schemas/*`. Логика с записью в БД — сервис в `packages/db/src/*.ts`, а не в маршруте.
@@ -47,3 +48,5 @@
 - `zValidator` без `validationHook` — ответ не в общем формате 400.
 - Маршрут записи без `requireRole('member')` (или выше) — гость (роль только для чтения) сможет писать.
 - Поле, которое интерфейс вставляет как HTML, без `sanitizeRichText` на записи — хранимый XSS.
+- Новая таблица, от которой зависит доступ (роль, модули, разделы), без триггера `app_notify_access_changed` — кэш доступа держит старое до 30 с.
+- Тест меняет доступ прямым SQL (`admin`) — сбросить `accessCache` из `helpers.ts`: у тестового приложения нет слушателя NOTIFY.

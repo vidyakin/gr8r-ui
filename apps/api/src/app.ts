@@ -91,6 +91,7 @@ import {
 import type { AppConfig, AppEnv } from './types';
 import { inviteRoutes, workspaceRoutes } from './workspaces';
 import { SessionCache } from './session-cache';
+import { AccessCache } from './access-cache';
 
 export { websocket };
 
@@ -101,6 +102,7 @@ export interface AppDeps {
   config?: Partial<AppConfig>;
   hub?: Hub;
   sessionCache?: SessionCache;
+  accessCache?: AccessCache;
   numberingSql?: Sql;
 }
 
@@ -256,6 +258,7 @@ export function createApp(deps: AppDeps) {
   const config: AppConfig = { ...loadConfig(), ...deps.config };
   const hub = deps.hub ?? new Hub(databaseUrl());
   const sessionCache = deps.sessionCache ?? new SessionCache(config.sessionCacheTtlMs);
+  const accessCache = deps.accessCache ?? new AccessCache(config.accessCacheTtlMs);
   // свой маленький пул: запрос, держащий соединение основного, не ждёт второе из того же пула
   const numberingSql = deps.numberingSql ?? createSql(databaseUrl(), numberingSqlOptions(config));
   const tenantApi = buildTenantApi();
@@ -267,6 +270,7 @@ export function createApp(deps: AppDeps) {
       c.set('sql', deps.sql);
       c.set('config', config);
       c.set('sessionCache', sessionCache);
+      c.set('accessCache', accessCache);
       c.set('numberingSql', numberingSql);
       let ip = 'unknown';
       try {
@@ -354,7 +358,7 @@ export function createApp(deps: AppDeps) {
     .notFound(onNotFound);
   self = app as unknown as Hono<AppEnv>;
 
-  return { app, hub, sessionCache, numberingSql };
+  return { app, hub, sessionCache, accessCache, numberingSql };
 }
 
 /** Тип для типизированного клиента: `hc<AppType>(baseUrl)` из hono/client */

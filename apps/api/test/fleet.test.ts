@@ -2,7 +2,7 @@
    (отметки, просроченное ОСАГО, закрытие: пробег, норма против факта), топливо (привязка к листу, выписка CSV без дублей),
    регламент ТО, ремонт с запчастями со склада (списание и откат), штрафы с водителем по листу, затраты, печать, права и изоляция. */
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { Client, admin } from './helpers';
+import { Client, admin, accessCache } from './helpers';
 import { runFleetOnce } from '../../worker/src/fleet';
 import { parseFuelCsv, serviceDue, waybillFuel, docTermState, fuelNormPer100 } from '@erp/shared';
 
@@ -227,6 +227,8 @@ describe('isolation and license', () => {
     // модуль отключён (тариф без transport) — 403 module_disabled
     await admin.unsafe(`insert into license_plans (key, name, modules, all_modules) values ('no-transport','Без транспорта','{crm}',false) on conflict do nothing`);
     await admin.unsafe(`insert into workspace_licenses (workspace_id, plan_id) select '${ws}', id from license_plans where key='no-transport' on conflict (workspace_id) do update set plan_id = excluded.plan_id`);
+    // правка мимо API: в проде кэш доступа сбросит NOTIFY триггера (access-cache.ts), у тестового приложения слушателя нет
+    accessCache.invalidate(ws);
     const r = await owner.get('/fleet/vehicles');
     expect(r.status).toBe(403);
     expect(r.body.error.code).toBe('module_disabled');

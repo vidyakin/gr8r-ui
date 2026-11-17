@@ -94,6 +94,7 @@ services:
       SECRETS_KEY: ${SECRETS_KEY:?задайте SECRETS_KEY (openssl rand -hex 32)}
       API_DB_POOL_MAX: ${API_DB_POOL_MAX:-10} # соединений с Postgres на экземпляр api (max_connections по умолчанию 100)
       SESSION_CACHE_TTL_SEC: ${SESSION_CACHE_TTL_SEC:-30}
+      ACCESS_CACHE_TTL_SEC: ${ACCESS_CACHE_TTL_SEC:-30}
     depends_on:
       migrate: { condition: service_completed_successfully }
       minio-init: { condition: service_completed_successfully }

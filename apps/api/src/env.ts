@@ -25,6 +25,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     txTimeoutMs: int(env.API_TX_TIMEOUT_MS, 30_000),
     dbPoolMax: Math.max(1, int(env.API_DB_POOL_MAX, 10)),
     sessionCacheTtlMs: Math.max(0, int(env.SESSION_CACHE_TTL_SEC, 30)) * 1000,
+    accessCacheTtlMs: Math.max(0, int(env.ACCESS_CACHE_TTL_SEC, 30)) * 1000,
   };
 }
 

@@ -3,7 +3,7 @@ import { and, eq, gt } from 'drizzle-orm';
 import { getCookie } from 'hono/cookie';
 import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
-import { drizzleOf, withSeparateNumbering, isUuid, memberSections, readMyAccess, memberships, members, sessions, setContext, users, type Tx } from '@erp/db';
+import { accessFromLicense, drizzleOf, withSeparateNumbering, isUuid, memberSections, readMyLicense, memberships, members, sessions, setContext, users, type Tx } from '@erp/db';
 import { ROLES, TOKEN_PATH_SECTIONS, isTokenPostingRequest, moduleOfApiPath, tokenApiRoot, type ModuleId, type PositionSection, type Role } from '@erp/shared';
 import { INTERNAL_HEADER, INTERNAL_SECRET, hitTokenRate } from './token-rate';
 import { AppError, Rollback, dbUnavailable, forbidden, unauthorized } from './errors';
@@ -155,6 +155,7 @@ export const tenant = (source: 'header' | 'param' = 'header') =>
     if (!isUuid(raw)) throw new AppError(400, 'workspace_invalid', 'Workspace id is not a valid UUID');
     const wsId = raw.toLowerCase();
     const user = c.get('user');
+    let accessChanged = false;
     try {
       await c.get('sql').begin(async raw => {
         let open = true;
@@ -172,19 +173,29 @@ export const tenant = (source: 'header' | 'param' = 'header') =>
     } catch (e) {
       if (!(e instanceof Rollback)) throw e;
     }
+    if (accessChanged) c.get('accessCache').invalidate(wsId);
 
     async function inTx(t: Tx) {
       const apiToken = c.get('apiToken');
       if (apiToken && wsId !== apiToken.workspaceId) throw new AppError(403, 'token_forbidden', 'The token does not belong to this workspace');
-      await setContext(t, { userId: user.id, apiTokenId: apiToken?.id });
       const db = drizzleOf(t);
-      // Членство видно по политике memberships (user_id = app.user_id); чужой воркспейс даст пустой результат
-      const [ms] = await db.select({ role: memberships.role }).from(memberships).where(and(eq(memberships.workspaceId, wsId), eq(memberships.userId, user.id))).limit(1);
-      if (!ms) throw forbidden('You are not a member of this workspace');
-      await t`select set_config('app.workspace_id', ${wsId}, true)`;
-      const [me] = await db.select({ id: members.id, status: members.status }).from(members).where(and(eq(members.workspaceId, wsId), eq(members.userId, user.id))).limit(1);
-      if (!me || me.status === 'deactivated') throw forbidden('Your membership in this workspace is deactivated');
-      if (apiToken && me.id !== apiToken.memberId) throw new AppError(403, 'token_forbidden', 'The token member does not match this session');
+      // Кэш доступа (access-cache.ts): членство из кэша — контекст одним запросом, без проверок в базе
+      const cache = c.get('accessCache');
+      let me = cache.membership(wsId, user.id);
+      if (me) await setContext(t, { userId: user.id, workspaceId: wsId, apiTokenId: apiToken?.id });
+      else {
+        await setContext(t, { userId: user.id, apiTokenId: apiToken?.id });
+        // Членство видно по политике memberships (user_id = app.user_id); чужой воркспейс даст пустой результат
+        const [ms] = await db.select({ role: memberships.role }).from(memberships).where(and(eq(memberships.workspaceId, wsId), eq(memberships.userId, user.id))).limit(1);
+        if (!ms) throw forbidden('You are not a member of this workspace');
+        await t`select set_config('app.workspace_id', ${wsId}, true)`;
+        const [row] = await db.select({ id: members.id, status: members.status }).from(members).where(and(eq(members.workspaceId, wsId), eq(members.userId, user.id))).limit(1);
+        if (!row) throw forbidden('Your membership in this workspace is deactivated');
+        me = { role: ms.role, memberId: row.id, status: row.status };
+        cache.setMembership(wsId, user.id, me);
+      }
+      if (me.status === 'deactivated') throw forbidden('Your membership in this workspace is deactivated');
+      if (apiToken && me.memberId !== apiToken.memberId) throw new AppError(403, 'token_forbidden', 'The token member does not match this session');
       // Ограничения токена агента (docs/architecture/agent-tokens.md): только чтение и разделы
       if (apiToken) {
         if (apiToken.readOnly && !SAFE_METHODS.has(c.req.method)) throw new AppError(403, 'token_read_only', 'The access token is read-only');
@@ -198,12 +209,17 @@ export const tenant = (source: 'header' | 'param' = 'header') =>
       c.set('tx', t);
       c.set('db', db);
       c.set('workspaceId', wsId);
-      c.set('memberId', me.id);
-      c.set('role', ms.role);
+      c.set('memberId', me.memberId);
+      c.set('role', me.role);
       // номера документов в этом запросе — отдельной короткой транзакцией: проведения не стоят в очереди на счётчике (пропуски допустимы)
       await withSeparateNumbering(c.get('numberingSql'), () => next());
       // Ошибка обработчика не бросается через next() — Hono превращает её в ответ; откатываем сами
       if (c.error || c.res.status >= 400) throw new Rollback();
+      // запись могла поменять доступ (триггеры миграции 0125 ставят метку): свой кэш сбросим сразу после коммита
+      if (!SAFE_METHODS.has(c.req.method)) {
+        const [f] = await t`select current_setting('app.access_changed', true) as f`;
+        if (f?.f === 'on') accessChanged = true;
+      }
     }
   });
 
@@ -222,7 +238,15 @@ export const hasRole = (c: { get(k: 'role'): Role }, min: Role) => rank(c.get('r
 export async function accessOf(c: Context<AppEnv>): Promise<ModuleAccessSets> {
   let m = c.get('access');
   if (!m) {
-    m = await readMyAccess(c.get('db'));
+    // лицензия — из кэша доступа, модули и сроки считаются на каждый запрос (окончание срока не ждёт сброса кэша)
+    const ws = c.get('workspaceId');
+    const cache = c.get('accessCache');
+    let l = cache.license(ws);
+    if (l === undefined) {
+      l = await readMyLicense(c.get('db'));
+      cache.setLicense(ws, l);
+    }
+    m = accessFromLicense(l);
     c.set('access', m);
   }
   return m;
@@ -237,7 +261,13 @@ export const requireSection = (section: PositionSection) =>
   createMiddleware<AppEnv>(async (c, next) => {
     const role = c.get('role');
     if (role !== 'owner' && role !== 'admin') {
-      const sections = await memberSections(c.get('db'), c.get('memberId'), role);
+      const cache = c.get('accessCache');
+      const ws = c.get('workspaceId');
+      let sections = cache.sections(ws, c.get('memberId'), role);
+      if (!sections) {
+        sections = await memberSections(c.get('db'), c.get('memberId'), role);
+        cache.setSections(ws, c.get('memberId'), role, sections);
+      }
       if (!sections.includes(section)) throw new AppError(403, 'section_forbidden', `Section "${section}" is hidden by your positions`, { section });
     }
     await next();

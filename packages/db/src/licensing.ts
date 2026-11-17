@@ -15,7 +15,11 @@ export async function readMyLicense(db: Db): Promise<LicenseRaw | null> {
 
 /** Модули текущего арендатора: `active` — можно писать, `readable` — можно читать (в том числе «только чтение» после срока) */
 export async function readMyAccess(db: Db, now: Date = new Date()): Promise<{ active: Set<ModuleId>; readable: Set<ModuleId>; states: ReturnType<typeof moduleStates> }> {
-  const l = await readMyLicense(db);
+  return accessFromLicense(await readMyLicense(db), now);
+}
+
+/** Модули по уже прочитанной лицензии на момент now (API кэширует лицензию, а сроки считает на каждый запрос) */
+export function accessFromLicense(l: LicenseRaw | null, now: Date = new Date()): { active: Set<ModuleId>; readable: Set<ModuleId>; states: ReturnType<typeof moduleStates> } {
   return { active: enabledModules(l, now), readable: readableModules(l, now), states: moduleStates(l, now) };
 }
 

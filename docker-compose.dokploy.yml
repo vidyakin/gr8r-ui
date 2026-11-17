@@ -69,6 +69,7 @@ services:
       SECRETS_KEY: ${SECRETS_KEY:?задайте SECRETS_KEY (openssl rand -hex 32)}
       API_DB_POOL_MAX: ${API_DB_POOL_MAX:-10} # соединений с Postgres на экземпляр api (max_connections по умолчанию 100)
       SESSION_CACHE_TTL_SEC: ${SESSION_CACHE_TTL_SEC:-30}
+      ACCESS_CACHE_TTL_SEC: ${ACCESS_CACHE_TTL_SEC:-30}
     volumes:
       - ../files/archives:/archives # выгрузка и загрузка арендатора: bun run tenant import /archives/x.jsonl.gz
     depends_on:
