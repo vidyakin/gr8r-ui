@@ -57,7 +57,7 @@ export interface DemoCompanyIds {
   skyline: string;
 }
 
-export async function seedDocuments(db: Db, wsId: string, memberId: string, co: DemoCompanyIds, opts: { history?: boolean } = {}) {
+export async function seedDocuments(db: Db, wsId: string, memberId: string, co: DemoCompanyIds, opts: { history?: boolean; log?: (msg: string) => void } = {}) {
   const ctx: DocCtx = { workspaceId: wsId, memberId };
 
   /* ---------- организация и склады ---------- */
@@ -142,6 +142,7 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
 
   // история за прошлые месяцы: справочники, закупки, продажи, оплаты, выпуск — до остальных цепочек, чтобы номера шли по датам
   const history = opts.history === false ? null : await seedHistory(db, ctx, {
+    log: opts.log,
     organizationId: org!.id,
     mainWarehouseId: main!.id,
     fgWarehouseId: fg!.id,
@@ -635,6 +636,7 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
   // инвестпроекты: документы факта проводятся до даты запрета
   await seedInvestments(db, ctx, { organizationId: org!.id, supplierId: co.atlas, customerId: co.quanta, serviceId: P('SV-PNT').id });
 
+  opts.log?.('сид: деньги, зарплата, ремонт, доставка, автопарк');
   // деньги (задача 1174б): оплаты, аванс, подотчёт, инкассация; тоже до даты запрета
   await seedPayments(db, ctx, { organizationId: org!.id, customerId: co.skyline, serviceId: P('SV-PNT').id, cashRegisterId: history?.cashRegisterId });
   // зарплата (задача 1184): оклады, начисление, ведомости, выплаты
@@ -649,7 +651,10 @@ export async function seedDocuments(db: Db, wsId: string, memberId: string, co: 
 
   // закрытые месяцы: все месяцы истории до прошлого включительно — косвенные затраты распределяются, средняя пересчитывается.
   // Текущий месяц открыт: в демо можно проводить документы сегодняшним числом
-  for (let offset = HISTORY_MONTHS; offset >= 1; offset--) await closePeriodMonth(db, ctx, historyMonthStart(offset).slice(0, 7));
+  for (let offset = HISTORY_MONTHS; offset >= 1; offset--) {
+    opts.log?.(`сид: закрытие месяца ${historyMonthStart(offset).slice(0, 7)}`);
+    await closePeriodMonth(db, ctx, historyMonthStart(offset).slice(0, 7));
+  }
   const closedMonth = historyMonthStart(1).slice(0, 7);
   const { end } = monthPeriod(closedMonth);
   await db.update(workspaces).set({ closedThrough: end, closeMovesLock: false }).where(eq(workspaces.id, wsId));
