@@ -1,5 +1,25 @@
 import path from 'node:path';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
+
+// Предзагрузка основных шрифтов Geist (latin, кириллица, моно latin): без неё браузер узнаёт о woff2 только из CSS,
+// и шрифт стоит третьим в цепочке html → css → woff2 (Lighthouse «Network dependency tree»). Имена с хешем — из бандла
+const FONT_PRELOAD = /^assets\/geist-(latin|cyrillic|mono-latin)-wght-normal-[\w-]+\.woff2$/;
+function preloadFonts(): Plugin {
+  return {
+    name: 'preload-fonts',
+    apply: 'build',
+    transformIndexHtml: {
+      order: 'post',
+      handler(_html, ctx) {
+        return Object.keys(ctx.bundle ?? {}).filter(f => FONT_PRELOAD.test(f)).map(f => ({
+          tag: 'link',
+          attrs: { rel: 'preload', href: `/${f}`, as: 'font', type: 'font/woff2', crossorigin: '' },
+          injectTo: 'head' as const,
+        }));
+      },
+    },
+  };
+}
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
@@ -7,7 +27,7 @@ const umamiTarget = process.env.VITE_UMAMI_PROXY ?? 'http://localhost:3100';
 const apiTarget = process.env.VITE_API_PROXY ?? 'http://localhost:3000';
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), preloadFonts()],
   resolve: { alias: { '@': path.resolve(import.meta.dirname, 'src') } },
   server: {
     // Этап 2: фронтенд ходит в API по тому же origin (cookie без CORS): /api/* → API без префикса, /api/ws — WebSocket
