@@ -6,7 +6,7 @@ import { SESSION_REVOKED_CHANNEL } from './session-cache';
 
 const config = loadConfig();
 const sql = createSql(databaseUrl(), apiSqlOptions(config));
-const { app, hub, sessionCache } = createApp({ sql, config });
+const { app, hub, sessionCache, numberingSql } = createApp({ sql, config });
 await hub.start();
 // Закрытые на других экземплярах API сессии сбрасываются и из кэша этого процесса
 const stopRevokeListener = await listenChannel(databaseUrl(), SESSION_REVOKED_CHANNEL, p => sessionCache.onNotify(p));
@@ -23,6 +23,7 @@ async function shutdown(signal: string) {
   await hub.stop();
   await stopRevokeListener();
   await sql.end({ timeout: 5 });
+  await numberingSql.end({ timeout: 2 });
   process.exit(0);
 }
 process.on('SIGINT', () => void shutdown('SIGINT'));

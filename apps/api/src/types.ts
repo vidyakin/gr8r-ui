@@ -55,6 +55,8 @@ export interface AppEnv {
   Variables: {
     sql: Sql;
     config: AppConfig;
+    /** Пул нумерации документов (numbering.ts в @erp/db): номер — отдельной короткой транзакцией */
+    numberingSql: Sql;
     /** Кэш сессий процесса (session-cache.ts) */
     sessionCache: SessionCache;
     requestId: string;

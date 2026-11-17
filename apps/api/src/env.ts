@@ -38,3 +38,9 @@ export function apiSqlOptions(config: Pick<AppConfig, 'txTimeoutMs'> & Partial<P
     connection: { application_name: 'erp-api', statement_timeout: serverTimeout, idle_in_transaction_session_timeout: serverTimeout },
   };
 }
+
+/** Пул нумерации документов: две коротких транзакции на счётчике (numbering.ts в @erp/db), простаивающие соединения закрываются */
+export function numberingSqlOptions(config: Pick<AppConfig, 'txTimeoutMs'>) {
+  const o = apiSqlOptions(config);
+  return { ...o, max: 2, idle_timeout: 60, connection: { ...o.connection, application_name: 'erp-api-numbering' } };
+}

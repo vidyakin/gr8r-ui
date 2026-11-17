@@ -4,10 +4,10 @@ import { Hono } from 'hono';
 import { getConnInfo, upgradeWebSocket, websocket } from 'hono/bun';
 import { cors } from 'hono/cors';
 import { createMiddleware } from 'hono/factory';
-import { databaseUrl, events, isUuid, memberships, members, withContext, type Sql } from '@erp/db';
+import { createSql, databaseUrl, events, isUuid, memberships, members, withContext, type Sql } from '@erp/db';
 import { adminRoutes } from './admin';
 import { authRoutes } from './auth';
-import { loadConfig } from './env';
+import { loadConfig, numberingSqlOptions } from './env';
 import { AppError, dbUnavailable, forbidden, onError, onNotFound } from './errors';
 import { requireModule, requireSection, requireSession, requestLogger, tenant } from './middleware';
 import { MODULE_OF_PATH, SECTION_OF_API_PATH } from '@erp/shared';
@@ -101,6 +101,7 @@ export interface AppDeps {
   config?: Partial<AppConfig>;
   hub?: Hub;
   sessionCache?: SessionCache;
+  numberingSql?: Sql;
 }
 
 /** Ресурсы арендатора: каждый путь защищён цепочкой «сессия → членство → транзакция с RLS» */
@@ -255,6 +256,8 @@ export function createApp(deps: AppDeps) {
   const config: AppConfig = { ...loadConfig(), ...deps.config };
   const hub = deps.hub ?? new Hub(databaseUrl());
   const sessionCache = deps.sessionCache ?? new SessionCache(config.sessionCacheTtlMs);
+  // свой маленький пул: запрос, держащий соединение основного, не ждёт второе из того же пула
+  const numberingSql = deps.numberingSql ?? createSql(databaseUrl(), numberingSqlOptions(config));
   const tenantApi = buildTenantApi();
   // MCP вызывает маршруты всего приложения (apps/api/src/mcp): ссылка ставится после сборки
   let self: Hono<AppEnv> | null = null;
@@ -264,6 +267,7 @@ export function createApp(deps: AppDeps) {
       c.set('sql', deps.sql);
       c.set('config', config);
       c.set('sessionCache', sessionCache);
+      c.set('numberingSql', numberingSql);
       let ip = 'unknown';
       try {
         ip = (config.trustProxy ? c.req.header('x-forwarded-for')?.split(',')[0]?.trim() : undefined) ?? getConnInfo(c).remote.address ?? 'unknown';
@@ -350,7 +354,7 @@ export function createApp(deps: AppDeps) {
     .notFound(onNotFound);
   self = app as unknown as Hono<AppEnv>;
 
-  return { app, hub, sessionCache };
+  return { app, hub, sessionCache, numberingSql };
 }
 
 /** Тип для типизированного клиента: `hc<AppType>(baseUrl)` из hono/client */

@@ -38,6 +38,8 @@ import {
   unitQtyOf,
 } from '@erp/shared';
 import type { Db } from './client';
+import { withContext } from './context';
+import { NUMBERING_LOCK_TIMEOUT, separateNumberingSql } from './numbering';
 import { DomainError } from './errors';
 import { DOCUMENT_HOOKS, DOCUMENT_CREATED_HOOKS, STATE_HOOKS, STATE_PROVIDERS, type StatePayload } from './document-hooks';
 import { recordEvent } from './events';
@@ -926,16 +928,34 @@ export async function changeDocumentState(db: Db, ctx: DocCtx, id: string, state
 
 /* ---------------- нумерация ---------------- */
 
-/** Следующий номер по (организация, тип, год). Строка счётчика блокируется до конца транзакции, откат отменяет и приращение:
-    номера идут подряд, без дыр и без повторов даже при параллельном проведении */
+/** Следующий номер по (организация, тип, год), без повторов.
+    В запросе API (режим withSeparateNumbering, numbering.ts) — отдельной транзакцией, сразу закоммиченной: очереди проведений нет,
+    но откат проведения оставляет пропуск. Вне него (воркер, сид) — в транзакции вызывающего: строка счётчика заблокирована
+    до коммита, откат отменяет приращение, номера идут подряд */
 async function nextNumber(db: Db, doc: DocumentRow): Promise<{ number: string; year: number; seq: number }> {
   const year = Number(doc.date.slice(0, 4));
-  const [c] = await db
-    .insert(documentCounters)
-    .values({ workspaceId: doc.workspaceId, organizationId: doc.organizationId, type: doc.type, year, lastNumber: 1 })
-    .onConflictDoUpdate({ target: [documentCounters.organizationId, documentCounters.type, documentCounters.year], set: { lastNumber: sql`${documentCounters.lastNumber} + 1` } })
-    .returning({ n: documentCounters.lastNumber });
-  return { number: formatDocumentNumber(doc.type as DocumentType, year, c!.n), year, seq: c!.n };
+  const bump = (d: Db) =>
+    d
+      .insert(documentCounters)
+      .values({ workspaceId: doc.workspaceId, organizationId: doc.organizationId, type: doc.type, year, lastNumber: 1 })
+      .onConflictDoUpdate({ target: [documentCounters.organizationId, documentCounters.type, documentCounters.year], set: { lastNumber: sql`${documentCounters.lastNumber} + 1` } })
+      .returning({ n: documentCounters.lastNumber });
+  const separate = separateNumberingSql();
+  let n: number;
+  if (separate) {
+    try {
+      n = await withContext(separate, { workspaceId: doc.workspaceId }, async (d, tx) => {
+        await tx.unsafe(`set local lock_timeout = '${NUMBERING_LOCK_TIMEOUT}'`);
+        return (await bump(d))[0]!.n;
+      });
+    } catch (e) {
+      // строку счётчика держит долгая транзакция (проведение воркером): не ждём до дедлайна запроса
+      const err = e as { code?: string; cause?: { code?: string } };
+      if ((err.cause?.code ?? err.code) === '55P03') throw new DomainError(503, 'numbering_busy', 'Document numbering is busy, try again');
+      throw e;
+    }
+  } else n = (await bump(db))[0]!.n;
+  return { number: formatDocumentNumber(doc.type as DocumentType, year, n), year, seq: n };
 }
 
 /** Присваивает номер документу сразу (например, черновику заказа на производство), если его ещё нет; проведение номер не меняет */

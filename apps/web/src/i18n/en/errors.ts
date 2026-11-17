@@ -290,6 +290,7 @@ export const errors = {
   customer_stock_conflict: 'Cannot unpost: the customer materials are already written off or returned. Unpost those documents first',
   cycle_start_required: 'Set the date the cycle starts from',
   db_unavailable: 'The database is unavailable. Try again later',
+  numbering_busy: 'Document numbering is busy with another posting. Try again in a few seconds',
   default_required: 'Make another organization the default instead',
   disassembly_stages: 'A disassembly is done in one stage: remove the production kind',
   document_not_found: 'Some documents do not exist in this workspace',

@@ -6,6 +6,7 @@
 import { and, asc, eq, sql } from 'drizzle-orm';
 import type { Db } from './client';
 import { DomainError } from './errors';
+import { withInTransactionNumbering } from './numbering';
 import { postDocument, type DocCtx } from './documents';
 import { documents, products, stockBatches, stockCostAdjustments, stockMoves, warehouses } from './schema';
 
@@ -64,12 +65,13 @@ export async function readDocumentMoves(db: Db, workspaceId: string, documentId:
     .orderBy(asc(stockMoves.phase), asc(stockMoves.seq));
 }
 
-/** Выполняет fn внутри savepoint и всегда откатывает его (результат fn возвращается) */
+/** Выполняет fn внутри savepoint и всегда откатывает его (результат fn возвращается). Номер документа — в той же транзакции:
+    отдельная транзакция нумерации (numbering.ts) закоммитила бы его, и пробный расчёт оставлял бы пропуск */
 async function withRollback<T>(db: Db, fn: () => Promise<T>): Promise<T> {
   const name = `moves_preview_${Math.random().toString(36).slice(2, 10)}`;
   await db.execute(sql.raw(`savepoint ${name}`));
   try {
-    return await fn();
+    return await withInTransactionNumbering(fn);
   } finally {
     await db.execute(sql.raw(`rollback to savepoint ${name}`));
     await db.execute(sql.raw(`release savepoint ${name}`));

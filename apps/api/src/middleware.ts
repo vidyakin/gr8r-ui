@@ -3,7 +3,7 @@ import { and, eq, gt } from 'drizzle-orm';
 import { getCookie } from 'hono/cookie';
 import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
-import { drizzleOf, isUuid, memberSections, readMyAccess, memberships, members, sessions, setContext, users, type Tx } from '@erp/db';
+import { drizzleOf, withSeparateNumbering, isUuid, memberSections, readMyAccess, memberships, members, sessions, setContext, users, type Tx } from '@erp/db';
 import { ROLES, TOKEN_PATH_SECTIONS, isTokenPostingRequest, moduleOfApiPath, tokenApiRoot, type ModuleId, type PositionSection, type Role } from '@erp/shared';
 import { INTERNAL_HEADER, INTERNAL_SECRET, hitTokenRate } from './token-rate';
 import { AppError, Rollback, dbUnavailable, forbidden, unauthorized } from './errors';
@@ -200,7 +200,8 @@ export const tenant = (source: 'header' | 'param' = 'header') =>
       c.set('workspaceId', wsId);
       c.set('memberId', me.id);
       c.set('role', ms.role);
-      await next();
+      // номера документов в этом запросе — отдельной короткой транзакцией: проведения не стоят в очереди на счётчике (пропуски допустимы)
+      await withSeparateNumbering(c.get('numberingSql'), () => next());
       // Ошибка обработчика не бросается через next() — Hono превращает её в ответ; откатываем сами
       if (c.error || c.res.status >= 400) throw new Rollback();
     }
