@@ -62,17 +62,45 @@ export async function enqueueFieldIndex(db: Db, workspaceId: string, op: 'create
     CONCURRENTLY ждёт завершения таких транзакций, то есть держатель блокировки и ожидающий упёрлись бы друг в друга */
 const DDL_LOCK = 4_700_001;
 
-async function serialDdl(ddl: Sql, fn: (run: (statement: string) => Promise<unknown>) => Promise<void>) {
+/** Журнал долгих операций (CLI оператора печатает шаги, воркер молчит) */
+export type StepLog = (msg: string) => void;
+
+/** Сессии, которые держат DDL-лок или блокируют pid: для журнала ожидания */
+async function describeSessions(q: (s: string) => Promise<unknown>, where: string): Promise<string> {
+  const rows = (await q(
+    `select a.pid, a.application_name as app, a.state, extract(epoch from now() - coalesce(a.xact_start, a.query_start))::int as sec, left(regexp_replace(a.query, '\\s+', ' ', 'g'), 90) as query from pg_stat_activity a where ${where}`,
+  )) as { pid: number; app: string; state: string; sec: number; query: string }[];
+  return rows.length ? rows.map(r => `pid ${r.pid} ${r.app || '-'} ${r.state} ${r.sec}s: ${r.query}`).join(' | ') : 'не найдены';
+}
+
+async function serialDdl(ddl: Sql, fn: (run: (statement: string) => Promise<unknown>) => Promise<void>, log?: StepLog) {
   const conn = await ddl.reserve();
   try {
+    const t0 = Date.now();
+    let next = 5000;
     for (;;) {
       const [r] = (await conn.unsafe(`select pg_try_advisory_lock(${DDL_LOCK}) as ok`)) as unknown as { ok: boolean }[];
       if (r?.ok) break;
+      if (log && Date.now() - t0 >= next) {
+        next += 10_000;
+        log(`  жду DDL-лок ${Math.round((Date.now() - t0) / 1000)} с, держит: ${await describeSessions(s => conn.unsafe(s), `a.pid in (select pid from pg_locks where locktype = 'advisory' and objid = ${DDL_LOCK} and granted)`)}`);
+      }
       await new Promise(res => setTimeout(res, 50));
     }
+    // пока оператор ждёт (CONCURRENTLY ждёт старые транзакции), раз в 10 с пишем, кто его блокирует
+    const [{ pid }] = (await conn.unsafe('select pg_backend_pid() as pid')) as unknown as { pid: number }[];
+    const t1 = Date.now();
+    const timer = log
+      ? setInterval(() => {
+          void describeSessions(s => ddl.unsafe(s), `a.datname = current_database() and a.pid <> ${pid} and (a.pid = any(pg_blocking_pids(${pid})) or (a.backend_xid is not null or a.backend_xmin is not null) and a.xact_start < now() - interval '10 seconds')`)
+            .then(who => log(`  DDL выполняется ${Math.round((Date.now() - t1) / 1000)} с, ждёт транзакции: ${who}`))
+            .catch(() => {});
+        }, 10_000)
+      : null;
     try {
       await fn(s => conn.unsafe(s));
     } finally {
+      if (timer) clearInterval(timer);
       await conn.unsafe(`select pg_advisory_unlock(${DDL_LOCK})`);
     }
   } finally {
@@ -93,7 +121,7 @@ export async function createFieldIndex(ddl: Sql, t: IndexTarget) {
   });
 }
 
-export async function dropFieldIndex(ddl: Sql, fieldId: string) {
+export async function dropFieldIndex(ddl: Sql, fieldId: string, log?: StepLog) {
   if (!isUuid(fieldId)) throw new Error('Invalid field id');
-  await serialDdl(ddl, async run => void (await run(`drop index concurrently if exists ${fieldIndexName(fieldId)}`)));
+  await serialDdl(ddl, async run => void (await run(`drop index concurrently if exists ${fieldIndexName(fieldId)}`)), log);
 }

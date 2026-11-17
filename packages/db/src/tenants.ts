@@ -10,7 +10,7 @@ import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { ensureLeadStatuses } from './leads';
 import { ensureDealPipeline } from './pipelines';
-import { dropFieldIndex, enqueueFieldIndex, registerSystemEntities } from './meta';
+import { dropFieldIndex, enqueueFieldIndex, registerSystemEntities, type StepLog } from './meta';
 import { registerBaseUnits } from './catalog';
 import { ensureModuleProjects } from './modules';
 import { resolvePlanId, startTenantLicense } from './licensing';
@@ -102,7 +102,7 @@ export interface CreatedTenant {
 const isUniqueViolation = (e: unknown) => (e as { code?: string })?.code === '23505';
 
 /** Создаёт арендатора. Владелец — существующий пользователь с этим email или новый (пароль генерируется, если не передан) */
-export async function createTenant(sql: Sql, input: CreateTenantInput): Promise<CreatedTenant> {
+export async function createTenant(sql: Sql, input: CreateTenantInput, log?: StepLog): Promise<CreatedTenant> {
   const planId = input.plan ? await resolvePlanId(sql, input.plan) : null;
   const email = input.owner.email.trim().toLowerCase();
   let password: string | null = null;
@@ -124,7 +124,7 @@ export async function createTenant(sql: Sql, input: CreateTenantInput): Promise<
   try {
     await withContext(sql, { userId: owner.id, workspaceId: id }, async db => {
       if (input.demo) {
-        const stats = await seedDemoWorkspace(db, id, owner.id, new Map([['m1', owner.id]]), uuidv7(), { name: input.name, slug, ownerEmail: owner.email, ownerName: owner.name });
+        const stats = await seedDemoWorkspace(db, id, owner.id, new Map([['m1', owner.id]]), uuidv7(), { name: input.name, slug, ownerEmail: owner.email, ownerName: owner.name, log });
         // Индексы полей с флагом filterable строит воркер (как в runSeed)
         for (const t of stats.metaFields) await enqueueFieldIndex(db, id, 'create', t.fieldId);
       } else {
@@ -150,11 +150,15 @@ export async function requestTenantDelete(sql: Sql, workspaceId: string) {
 
 /** Удаляет арендатора целиком: индексы полей конструктора (DDL), строку воркспейса (все таблицы арендатора удаляются каскадом)
     и пользователей, у которых не осталось членств. `ddl` — подключение владельца таблиц (DATABASE_URL_DDL) или админское */
-export async function deleteTenant(sql: Sql, ddl: Sql, workspaceId: string): Promise<boolean> {
+export async function deleteTenant(sql: Sql, ddl: Sql, workspaceId: string, log?: StepLog): Promise<boolean> {
   const indexed = await withContext(sql, { workspaceId }, db =>
     db.select({ id: fields.id }).from(fields).where(and(eq(fields.workspaceId, workspaceId), eq(fields.filterable, true))),
   );
-  for (const f of indexed) await dropFieldIndex(ddl, f.id);
+  for (const [i, f] of indexed.entries()) {
+    log?.(`удаляю индекс поля ${i + 1}/${indexed.length} (drop index concurrently)`);
+    await dropFieldIndex(ddl, f.id, log);
+  }
+  log?.('удаляю данные воркспейса');
   return withContext(
     sql,
     {},

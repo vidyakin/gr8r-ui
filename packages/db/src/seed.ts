@@ -153,6 +153,8 @@ export interface DemoWorkspaceOptions {
   ownerName?: string;
   /** История за прошлые месяцы (seed-history.ts); по умолчанию есть, тесты с точными счётчиками её отключают */
   history?: boolean;
+  /** Журнал шагов (CLI оператора) */
+  log?: (msg: string) => void;
 }
 
 /** Демо-воркспейс: все данные фронтенда (задачи, проекты, комментарии, CRM…). Аккаунты есть только у участников из userIds,
@@ -376,8 +378,10 @@ export async function seedDemoWorkspace(db: Db, wsId: string, ownerUserId: strin
   await seedPositions(db, { workspaceId: wsId, memberId: U(d.me), role: 'owner' });
   // Подразделения: «Руководство» → «Продажи», «Производство», «Бухгалтерия»; сотрудники по тому же порядку, что и должности
   await seedDepartments(db, { workspaceId: wsId, memberId: U(d.me), role: 'owner' });
+  opts.log?.('сид: документы и склад (с историей прошлых месяцев)');
   // Документы и склад: организация, склады, реквизиты, цепочки закупок и продаж (проводятся настоящими сервисами)
-  const docs = await seedDocuments(db, wsId, U(d.me), { atlas: U('co8'), northwind: U('co1'), quanta: U('co4'), skyline: U('co10') }, { history: opts.history });
+  const docs = await seedDocuments(db, wsId, U(d.me), { atlas: U('co8'), northwind: U('co1'), quanta: U('co4'), skyline: U('co10') }, { history: opts.history, log: opts.log });
+  opts.log?.('сид: объекты, договоры, согласования, цены, лояльность, лиды');
   // Объекты объектного учёта: два демо-объекта, у одного свой склад (задача 1268)
   await seedObjects(db, wsId, U(d.me), { north: U('co1'), himki: U('co4'), subcontractor: U('co8') });
   // Договоры и тарифные планы: договор обслуживания демо-клиента

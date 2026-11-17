@@ -4,6 +4,7 @@
 import type { Sql } from './client';
 import { withContext } from './context';
 import { DomainError } from './errors';
+import type { StepLog } from './meta';
 import { createTenant, deleteTenant } from './tenants';
 
 export interface DemoResetConfig {
@@ -55,19 +56,26 @@ export function lastDemoResetAt(now: Date, hour: number, timeZone: string): Date
 export type DemoResetResult = 'created' | 'reset' | null;
 
 /** Пересоздаёт демо-воркспейс, если он создан раньше последнего момента сброса (или его нет). force — сбросить сейчас */
-export async function resetDemoOnce(sql: Sql, ddl: Sql, cfg: DemoResetConfig, now = new Date(), force = false): Promise<DemoResetResult> {
+/** log — шаги для CLI оператора (`tenant demo-reset`); воркер вызывает без него */
+export async function resetDemoOnce(sql: Sql, ddl: Sql, cfg: DemoResetConfig, now = new Date(), force = false, log?: StepLog): Promise<DemoResetResult> {
+  log?.(`ищу демо-воркспейс «${cfg.slug}»`);
   const [ws] = await withContext(sql, {}, async (_db, tx) => tx`select id, created_at from workspaces where slug = ${cfg.slug}`, 'app_worker');
   const due = lastDemoResetAt(now, cfg.hour, cfg.timeZone);
   if (ws && !force && new Date(ws.created_at as string) >= due) return null;
-  if (ws) await deleteTenant(sql, ddl, ws.id as string);
+  if (ws) {
+    log?.(`удаляю старое демо ${ws.id as string}`);
+    await deleteTenant(sql, ddl, ws.id as string, log);
+  } else log?.('старого демо нет');
   try {
+    log?.('создаю демо из сида (одна транзакция, на слабом сервере — минуты)');
     // Срок жизни с запасом: если сброс перестанет работать, демо само удалится через неделю (purgeTenantsOnce)
-    await createTenant(sql, { name: cfg.name, slug: cfg.slug, owner: { email: cfg.email, name: 'Демо', password: cfg.password }, demo: true, ttlDays: 7 });
+    await createTenant(sql, { name: cfg.name, slug: cfg.slug, owner: { email: cfg.email, name: 'Демо', password: cfg.password }, demo: true, ttlDays: 7 }, log);
   } catch (e) {
     // второй воркер успел пересоздать раньше — это не ошибка
     if (e instanceof DomainError && e.code === 'slug_taken') return null;
     throw e;
   }
+  log?.('сбрасываю пароль общего входа');
   // Пользователь мог пережить удаление (создал себе ещё воркспейс) и сменить пароль — вход на всех должен работать всегда
   const hash = await Bun.password.hash(cfg.password, { algorithm: 'argon2id' });
   await withContext(sql, {}, async (_db, tx) => tx`update users set password_hash = ${hash} where lower(email) = ${cfg.email}`, 'app_worker');

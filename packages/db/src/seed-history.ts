@@ -119,6 +119,8 @@ const BASKETS: { key: string; qty: [number, number] }[][] = [
 ];
 
 export interface HistoryRefs {
+  /** Журнал шагов (CLI оператора) */
+  log?: (msg: string) => void;
   organizationId: string;
   mainWarehouseId: string;
   fgWarehouseId: string;
@@ -273,6 +275,7 @@ export async function seedHistory(db: Db, ctx: DocCtx, refs: HistoryRefs, now = 
     const lastDay = current ? yesterday : addDays(historyMonthStart(offset - 1, now), -1);
     if (lastDay < addDays(m0, 6)) continue;
     months.push(m0.slice(0, 7));
+    refs.log?.(`сид: история ${m0.slice(0, 7)} (${count} документов к этому моменту)`);
     const d = (day: number) => clamp(addDays(m0, day - 1) > lastDay ? lastDay : addDays(m0, day - 1));
 
     /* продажи месяца: план корзин (нужен заранее, чтобы закупить под него) */

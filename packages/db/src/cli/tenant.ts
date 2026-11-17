@@ -107,11 +107,15 @@ try {
     }
     case 'demo-reset': {
       const cfg = demoResetConfigFromEnv() ?? fail('Задайте DEMO_RESET_EMAIL и DEMO_RESET_PASSWORD');
-      const r = await resetDemoOnce(sql, sql, cfg, new Date(), rest.includes('--force'));
+      const t0 = Date.now();
+      const step = (msg: string) => console.log(`[demo-reset +${Math.round((Date.now() - t0) / 1000)}s] ${msg}`);
+      const r = await resetDemoOnce(sql, sql, cfg, new Date(), rest.includes('--force'), step);
       console.log(
         r ? `[tenant] демо ${cfg.slug}: ${r === 'created' ? 'создано' : 'пересоздано'}, вход ${cfg.email}` : `[tenant] демо ${cfg.slug} свежее, сброс не нужен (--force — сбросить сейчас)`,
       );
+      step('проверяю учёт');
       await check(await resolve(cfg.slug));
+      step('готово');
       break;
     }
     case 'check': {
