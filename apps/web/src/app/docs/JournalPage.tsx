@@ -74,7 +74,7 @@ export function JournalPage({ group, type: fixed }: { group: DocumentGroup; type
 
   const columns: Column<DocListItem>[] = [
     // статус — значком в первой узкой колонке без заголовка: двойная галка у проведённых, серый кружок у черновика
-    { id: 'status', header: '', width: 44, resizable: false, icon: true, value: d => STATUS_LABEL[d.status], cell: d => <DocStatusIcon status={d.status} /> },
+    { id: 'status', header: '', width: 32, resizable: false, icon: true, value: d => STATUS_LABEL[d.status], cell: d => <DocStatusIcon status={d.status} /> },
     { id: 'number', header: t('docs.journal.col.number'), width: 150, value: d => d.number ?? '', cell: d => (d.number ? <span className="mono" style={{ fontWeight: 450 }}>{d.number}</span> : <span className="faint">{t('docs.journal.draft')}</span>) },
     { id: 'type', header: t('docs.journal.col.type'), width: 150, value: d => typeLabel(d.type), cell: d => <span className="muted">{typeLabel(d.type)}</span> },
     { id: 'date', header: t('docs.journal.col.date'), width: 112, value: d => d.date, cell: d => <span className="num muted">{fmtDate(parse(d.date))}</span> },

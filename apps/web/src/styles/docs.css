@@ -304,6 +304,27 @@
 .doc-totals .grand dt {
   color: var(--text);
 }
+/* «Итого» и сумма одной строкой в итогах денежных и прочих документов (.trow здесь — не строка списка задач) */
+.doc-totals .trow {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 16px;
+  min-height: 0;
+  border-bottom: 0;
+}
+.doc-totals .trow:hover {
+  background: none;
+}
+/* под таблицей строк линию даёт сама таблица, а не рамка итогов — строка ровно между двумя линиями */
+.doc-totals .trow.grand {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+.doc-lines .dtbl tbody tr:last-child td {
+  border-bottom: 1px solid var(--divider);
+}
 .doc-words {
   margin: 10px 0 0;
   font-size: var(--fs-sm);
