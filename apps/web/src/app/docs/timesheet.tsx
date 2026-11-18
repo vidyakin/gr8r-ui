@@ -6,7 +6,10 @@ import { CalendarClock, CircleAlert, Clock3 } from 'lucide-react';
 import { Button, EmptyState, Field, Select, Skeleton } from '@/components/ui';
 import { useWorkspace } from '../data/store';
 import { useTimesheet } from './data';
-import { useT } from '@/i18n';
+import { fmtNumber, useT } from '@/i18n';
+
+/** Часы — один знак после запятой: 1,5 / 8,0 */
+const fmtHours = (h: string | number | null | undefined) => fmtNumber(h, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 import { DateInput } from '@/components/erp/date-picker';
 
 export function TimesheetPage() {
@@ -73,7 +76,7 @@ export function TimesheetPage() {
                     {r.workName ?? r.title}
                     <span className="mono faint"> {r.taskKey}</span>
                   </td>
-                  <td className="r num">{r.hours}</td>
+                  <td className="r num">{fmtHours(r.hours)}</td>
                 </tr>
               ))}
             </tbody>
@@ -82,7 +85,7 @@ export function TimesheetPage() {
                 <th colSpan={4} className="r">
                   {t('docs.timesheet.total')}
                 </th>
-                <th className="r num">{sheet.data?.totals.hours ?? '0'}</th>
+                <th className="r num">{fmtHours(sheet.data?.totals.hours)}</th>
               </tr>
             </tfoot>
           </table>
@@ -94,7 +97,7 @@ export function TimesheetPage() {
             <span key={m.memberId} className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', fontSize: 14 }}>
               <Clock3 size={15} style={{ flexShrink: 0 }} />
               <span>
-                {m.memberName}: <b className="num" style={{ color: 'var(--text)' }}>{m.hours}</b> {t('docs.timesheet.hoursUnit')}
+                {m.memberName}: <b className="num" style={{ color: 'var(--text)' }}>{fmtHours(m.hours)}</b> {t('docs.timesheet.hoursUnit')}
               </span>
             </span>
           ))}
