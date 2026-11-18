@@ -1,7 +1,7 @@
 /* Settings → Organizations и Warehouses. Организации — собственные юрлица воркспейса (реквизиты, подписанты, налогообложение, печать и подписи
    ссылкой), склады — места хранения; здесь же настройка «разрешить отрицательный остаток». Меняет admin и выше. */
 import * as React from 'react';
-import { Archive, Building2, Pencil, Plus, Star, Tags, Warehouse as WarehouseIcon } from 'lucide-react';
+import { Archive, Building2, Plus, Star, Tags, Warehouse as WarehouseIcon } from 'lucide-react';
 import { COST_DISTRIBUTIONS, COST_DISTRIBUTION_LABELS, TAX_SYSTEMS, TAX_SYSTEM_LABELS, VAT_LABELS, VAT_RATES, type CostDistribution, type CostItemKind, type FileRef, type TaxSystem, type VatRate, type WarehouseKind } from '@erp/shared';
 import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, Tab, Tabs, TabsContent, TabsList, toast } from '@/components/ui';
 import { useCompanies, useIsAdmin } from '../catalog/data';
@@ -53,12 +53,12 @@ export function OrganizationsSection({ title }: { title: string }) {
             {t('settings.organizations.empty.hint')}
           </EmptyState>
         ) : (
-          <div className="stack" style={{ gap: 8 }}>
+          <div className="srows-tight">
             {orgs.map(o => (
               <div key={o.id} className="srow org-row">
                 <div style={{ minWidth: 0 }}>
                   <div className="t">
-                    {o.name} {o.isDefault && <Badge tone="accent">{t('settings.organizations.default')}</Badge>}
+                    <OpenTitle name={o.name} label={t('settings.organizations.edit', { name: o.name })} onOpen={isAdmin ? () => setDialog({ org: o }) : undefined} /> {o.isDefault && <Badge tone="accent">{t('settings.organizations.default')}</Badge>}
                   </div>
                   <div className="d">
                     {o.inn ? t('settings.organizations.innKpp', { inn: o.inn }) : t('settings.organizations.noInn')}
@@ -72,9 +72,6 @@ export function OrganizationsSection({ title }: { title: string }) {
                         <Star size={14} />
                       </IconButton>
                     )}
-                    <IconButton size="xs" label={t('settings.organizations.edit', { name: o.name })} onClick={() => setDialog({ org: o })}>
-                      <Pencil size={14} />
-                    </IconButton>
                     {!o.isDefault && (
                       <IconButton size="xs" label={t('settings.organizations.archiveOne', { name: o.name })} onClick={() => setArchiving(o)}>
                         <Archive size={14} />
