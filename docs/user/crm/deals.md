@@ -11,7 +11,7 @@ sources:
   - apps/web/src/app/crm/pipelines.ts
   - apps/web/src/app/settings/deal-pipelines.tsx
   - apps/api/src/routes/pipelines.ts
-verified: 7126447e39
+verified: 023a9e7776
 screenshots: []
 ---
 
