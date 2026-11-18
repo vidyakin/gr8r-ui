@@ -81,6 +81,8 @@ export const leads = {
   settings: {
     statusesLead: 'Статусы лидов с категориями. Категории задают логику: «новый» ставится новым лидам, «сконвертирован» — конвертацией.',
     statusesAdd: 'Добавить статус',
+    categoryLabel: 'Категория',
+    colorLabel: 'Цвет',
     statusName: 'Название статуса',
     statusEmpty: 'Статусов нет',
     statusDeleteTitle: 'Удалить статус?',

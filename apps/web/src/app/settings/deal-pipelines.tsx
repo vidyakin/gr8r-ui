@@ -7,19 +7,10 @@ import { Alert, Badge, Button, ConfirmDialog, EmptyState, Field, Input, Select, 
 import { useT } from '@/i18n';
 import { NumberField } from '@/components/erp/number-field';
 import { useIsAdmin } from '../catalog/data';
-import { colorVar } from '../crm/stages';
+import { ColorChip } from '@/components/erp/color-chip';
 import { usePipelines, usePipelinesApi, type DealPipeline, type DealStageRow } from '../crm/pipelines';
 import { useAllEntities } from '../meta/data';
 import { SettingsHead, SRow } from './parts';
-
-/** Плашка с фоном цвета этапа (мягкий оттенок) и текстом того же цвета */
-function ColorChip({ color, children }: { color: string; children: React.ReactNode }) {
-  return (
-    <span className="color-chip" style={{ '--chip': colorVar(color) } as React.CSSProperties}>
-      {children}
-    </span>
-  );
-}
 
 function StageRowEditor({ stage, index, count, isAdmin, onMove, customKeys }: { stage: DealStageRow; index: number; count: number; isAdmin: boolean; onMove: (i: number, d: -1 | 1) => void; customKeys: { key: string; name: string }[] }) {
   const t = useT();

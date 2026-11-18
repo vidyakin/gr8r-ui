@@ -344,3 +344,7 @@
   border-bottom: 0;
   padding: 0;
 }
+/* Левая колонка строки не сжимается в ноль, когда справа много полей */
+.srow {
+  grid-template-columns: minmax(130px, 1fr) auto;
+}
