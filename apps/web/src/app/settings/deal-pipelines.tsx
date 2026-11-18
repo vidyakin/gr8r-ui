@@ -28,7 +28,7 @@ function StageRowEditor({ stage, index, count, isAdmin, onMove, customKeys }: { 
   const requiredOptions = [...DEAL_REQUIRED_BUILTINS.map(k => ({ key: k as string, label: t(`crm.pipelines.required.${k}`) })), ...customKeys.map(c => ({ key: `custom:${c.key}`, label: c.name }))];
 
   return (
-    <div className="srow" style={{ display: 'block' }}>
+    <div className="stage-box">
       <SRow t={<><Badge>{t(`crm.pipelines.category.${stage.category}`)}</Badge> {stage.name}</>} d={t('crm.pipelines.stageSummary', { prob: stage.probability, sla: stage.slaDays ?? '—' })}>
         {isAdmin && (
           <div className="row" style={{ gap: 4 }}>
@@ -40,10 +40,12 @@ function StageRowEditor({ stage, index, count, isAdmin, onMove, customKeys }: { 
       </SRow>
       {isAdmin && (
         <div className="stack" style={{ gap: 8, marginTop: 8 }}>
-          <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div className="stage-main">
             <Field label={t('crm.pipelines.stageName')}>{p => <Input {...p} maxLength={200} value={name} onChange={e => setName(e.target.value)} onBlur={() => name.trim() && name !== stage.name && void patch({ name: name.trim() })} />}</Field>
-            <Select value={stage.category} aria-label={t('crm.pipelines.categoryLabel')} onValueChange={v => void patch({ category: v })} options={DEAL_STAGE_CATEGORIES.map(c => ({ value: c, label: t(`crm.pipelines.category.${c}`) }))} />
-            <Select value={stage.color} aria-label={t('crm.pipelines.color')} onValueChange={v => void patch({ color: v })} options={LEAD_STATUS_COLORS.map(c => ({ value: c, label: t(`leads.color.${c}`) }))} />
+            <Field label={t('crm.pipelines.categoryLabel')}>{p => <Select id={p.id} value={stage.category} aria-label={t('crm.pipelines.categoryLabel')} onValueChange={v => void patch({ category: v })} options={DEAL_STAGE_CATEGORIES.map(c => ({ value: c, label: t(`crm.pipelines.category.${c}`) }))} />}</Field>
+            <Field label={t('crm.pipelines.color')}>{p => <Select id={p.id} value={stage.color} aria-label={t('crm.pipelines.color')} onValueChange={v => void patch({ color: v })} options={LEAD_STATUS_COLORS.map(c => ({ value: c, label: t(`leads.color.${c}`) }))} />}</Field>
+          </div>
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <Field label={t('crm.pipelines.probability')}>{p => <Input {...p} type="number" min={0} max={100} style={{ width: 90 }} value={prob} onChange={e => setProb(e.target.value)} onBlur={() => { const v = num(prob); if (v !== null && v <= 100 && v !== stage.probability) void patch({ probability: v }); else setProb(String(stage.probability)); }} />}</Field>
             <Field label={t('crm.pipelines.sla')}>{p => <Input {...p} type="number" min={0} style={{ width: 90 }} value={sla} onChange={e => setSla(e.target.value)} onBlur={() => { const v = num(sla); if (v !== stage.slaDays) void patch({ slaDays: v }); }} />}</Field>
           </div>
@@ -94,7 +96,7 @@ function PipelineBlock({ pipeline, stages, isAdmin, customKeys }: { pipeline: De
   };
 
   return (
-    <div className="sblock">
+    <div className="sblock pipeline-block">
       <SRow t={<>{pipeline.name} {pipeline.isDefault && <Badge tone="accent">{t('crm.pipelines.default')}</Badge>}</>} d={t('crm.pipelines.stagesCount', { count: stages.length })}>
         {isAdmin && (
           <div className="row" style={{ gap: 4 }}>

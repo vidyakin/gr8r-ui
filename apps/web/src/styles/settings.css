@@ -296,3 +296,29 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+/* Воронки продаж: этап — блок с рамкой, без разделительных линий */
+.pipeline-block > .srow {
+  border-bottom: 0;
+  padding-bottom: 6px;
+}
+.stage-box {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 12px 14px;
+  background: var(--surface);
+}
+.stage-box > .srow {
+  border-bottom: 0;
+  padding: 0;
+}
+.stage-main {
+  display: grid;
+  grid-template-columns: minmax(180px, 2fr) minmax(130px, 1fr) minmax(130px, 1fr);
+  gap: 8px;
+  align-items: end;
+}
+@media (max-width: 640px) {
+  .stage-main {
+    grid-template-columns: 1fr;
+  }
+}
