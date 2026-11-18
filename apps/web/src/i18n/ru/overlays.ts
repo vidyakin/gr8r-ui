@@ -203,6 +203,7 @@ export const overlays: Widen<typeof O> = {
       'Toggle sidebar': 'Свернуть боковую панель',
       'Toggle dark mode': 'Переключить тёмную тему',
       'Close panel or dialog': 'Закрыть панель или окно',
+      'Close tab': 'Закрыть вкладку',
       'New task': 'Новая задача',
       'New project': 'Новый проект',
       'Submit form': 'Отправить форму',

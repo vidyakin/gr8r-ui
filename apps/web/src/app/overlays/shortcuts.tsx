@@ -28,6 +28,7 @@ export const SHORTCUTS: [string, [string, string[]][]][] = [
       ['Toggle sidebar', ['[']],
       ['Toggle dark mode', [MOD, 'Shift', 'L']],
       ['Close panel or dialog', ['Esc']],
+      ['Close tab', ['Ctrl', 'W']],
     ],
   ],
   [

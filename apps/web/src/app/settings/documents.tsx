@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Archive, Building2, Pencil, Plus, Star, Tags, Warehouse as WarehouseIcon } from 'lucide-react';
 import { COST_DISTRIBUTIONS, COST_DISTRIBUTION_LABELS, TAX_SYSTEMS, TAX_SYSTEM_LABELS, VAT_LABELS, VAT_RATES, type CostDistribution, type CostItemKind, type FileRef, type TaxSystem, type VatRate, type WarehouseKind } from '@erp/shared';
-import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Input, Skeleton, toast } from '@/components/ui';
+import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, IconButton, Input, Select, Skeleton, Tab, Tabs, TabsContent, TabsList, toast } from '@/components/ui';
 import { useCompanies, useIsAdmin } from '../catalog/data';
 import { BankAccountsEditor, RequisitesFields, checkRequisites, type RequisitesValue } from '../docs/requisites';
 import { useCostItems, useDocsApi, useInventorySettings, useOrganizations, useWarehouses, type CostItem, type Organization, type Warehouse } from '../docs/data';
@@ -139,12 +139,14 @@ function OrganizationDialog({ org, onClose }: { org?: Organization; onClose: () 
   const [accSig, setAccSig] = React.useState(fileOf(org?.accountantSignatureFile ?? null));
   const [err, setErr] = React.useState<Record<string, string>>({});
   const [busy, setBusy] = React.useState(false);
+  const [tab, setTab] = React.useState<'main' | 'files' | 'accounts'>('main');
 
   const submit = async () => {
     const errs: Record<string, string> = { ...checkRequisites(req) };
     if (!f.name.trim()) errs.name = t('settings.organizations.fields.nameRequired');
     setErr(errs);
-    if (Object.keys(errs).length) return;
+    // ошибки только в полях «Основного» — показать вкладку с ними
+    if (Object.keys(errs).length) return setTab('main');
     setBusy(true);
     const body = { ...f, name: f.name.trim(), fullName: f.fullName.trim() || f.name.trim(), ...req, stampFile: fileBody(stamp), directorSignatureFile: fileBody(dirSig), accountantSignatureFile: fileBody(accSig) };
     const r = org ? await api('PATCH', `/organizations/${org.id}`, body) : await api('POST', '/organizations', body);
@@ -179,66 +181,63 @@ function OrganizationDialog({ org, onClose }: { org?: Organization; onClose: () 
             void submit();
           }}
         >
-          <Field label={t('settings.organizations.fields.name')} error={err.name} hint={t('settings.organizations.fields.nameHint')}>
-            {p => <Input {...p} autoFocus value={f.name} onChange={e => (setF({ ...f, name: e.target.value }), setErr(s => ({ ...s, name: '' })))} />}
-          </Field>
-          <Field label={t('settings.organizations.fields.fullName')} hint={t('settings.organizations.fields.fullNameHint')}>
-            {p => <Input {...p} value={f.fullName} placeholder={f.name} onChange={e => setF({ ...f, fullName: e.target.value })} />}
-          </Field>
-          <RequisitesFields value={req} errors={err} onChange={patch => (setReq(r => ({ ...r, ...patch })), setErr({}))} />
-          <div className="row req-row">
-            <Field label={t('settings.organizations.fields.phone')} className="grow">
-              {p => <Input {...p} value={f.phone} onChange={e => setF({ ...f, phone: e.target.value })} />}
-            </Field>
-            <Field label={t('settings.organizations.fields.email')} className="grow">
-              {p => <Input {...p} value={f.email} onChange={e => setF({ ...f, email: e.target.value })} />}
-            </Field>
-          </div>
-          <div className="row req-row">
-            <Field label={t('settings.organizations.fields.director')} className="grow">
-              {p => <Input {...p} value={f.directorName} onChange={e => setF({ ...f, directorName: e.target.value })} />}
-            </Field>
-            <Field label={t('settings.organizations.fields.directorTitle')} className="grow">
-              {p => <Input {...p} value={f.directorTitle} onChange={e => setF({ ...f, directorTitle: e.target.value })} />}
-            </Field>
-            <Field label={t('settings.organizations.fields.accountant')} className="grow">
-              {p => <Input {...p} value={f.accountantName} onChange={e => setF({ ...f, accountantName: e.target.value })} />}
-            </Field>
-          </div>
-          <div className="row req-row">
-            <Field label={t('settings.organizations.fields.taxation')} className="grow">
-              {p => (
-                <select className="select" id={p.id} value={f.taxSystem} onChange={e => setF({ ...f, taxSystem: e.target.value as TaxSystem })}>
-                  {TAX_SYSTEMS.map(ts => (
-                    <option key={ts} value={ts}>
-                      {enumLabel('taxSystem', ts, TAX_SYSTEM_LABELS[ts])}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </Field>
-            <Field label={t('settings.organizations.fields.defaultVat')} className="grow">
-              {p => (
-                <select className="select" id={p.id} value={f.defaultVatRate} onChange={e => setF({ ...f, defaultVatRate: e.target.value as VatRate })}>
-                  {VAT_RATES.map(v => (
-                    <option key={v} value={v}>
-                      {tEnum('vat', v, VAT_LABELS[v])}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </Field>
-          </div>
-          <FileLink label={t('settings.organizations.file.stamp')} value={stamp} onChange={setStamp} />
-          <FileLink label={t('settings.organizations.file.directorSig')} value={dirSig} onChange={setDirSig} />
-          <FileLink label={t('settings.organizations.file.accountantSig')} value={accSig} onChange={setAccSig} />
-          <SRow t={t('settings.organizations.fields.defaultOrg')} d={t('settings.organizations.fields.defaultOrgHint')}>
-            <Toggle checked={f.isDefault} label={t('settings.organizations.fields.defaultOrg')} onChange={v => setF({ ...f, isDefault: v })} />
-          </SRow>
-          <div className="field">
-            <span className="label">{t('settings.organizations.fields.bankAccounts')}</span>
-            {org ? <BankAccountsEditor owner="organizations" ownerId={org.id} canEdit /> : <p className="faint" style={{ margin: 0 }}>{t('settings.organizations.fields.bankAccountsHint')}</p>}
-          </div>
+          <Tabs value={tab} onValueChange={v => setTab(v as typeof tab)}>
+            <TabsList aria-label={t('settings.organizations.tabs.label')}>
+              <Tab value="main">{t('settings.organizations.tabs.main')}</Tab>
+              <Tab value="files">{t('settings.organizations.tabs.files')}</Tab>
+              <Tab value="accounts">{t('settings.organizations.tabs.accounts')}</Tab>
+            </TabsList>
+            <TabsContent value="main" className="stack" style={{ gap: 12, marginTop: 12 }}>
+              <Field label={t('settings.organizations.fields.name')} error={err.name} hint={t('settings.organizations.fields.nameHint')}>
+                {p => <Input {...p} autoFocus value={f.name} onChange={e => (setF({ ...f, name: e.target.value }), setErr(s => ({ ...s, name: '' })))} />}
+              </Field>
+              <Field label={t('settings.organizations.fields.fullName')} hint={t('settings.organizations.fields.fullNameHint')}>
+                {p => <Input {...p} value={f.fullName} placeholder={f.name} onChange={e => setF({ ...f, fullName: e.target.value })} />}
+              </Field>
+              <RequisitesFields value={req} errors={err} onChange={patch => (setReq(r => ({ ...r, ...patch })), setErr({}))} />
+              <div className="row req-row">
+                <Field label={t('settings.organizations.fields.phone')} className="grow">
+                  {p => <Input {...p} value={f.phone} onChange={e => setF({ ...f, phone: e.target.value })} />}
+                </Field>
+                <Field label={t('settings.organizations.fields.email')} className="grow">
+                  {p => <Input {...p} value={f.email} onChange={e => setF({ ...f, email: e.target.value })} />}
+                </Field>
+              </div>
+              <div className="row req-row">
+                <Field label={t('settings.organizations.fields.director')} className="grow">
+                  {p => <Input {...p} value={f.directorName} onChange={e => setF({ ...f, directorName: e.target.value })} />}
+                </Field>
+                <Field label={t('settings.organizations.fields.directorTitle')} className="grow">
+                  {p => <Input {...p} value={f.directorTitle} onChange={e => setF({ ...f, directorTitle: e.target.value })} />}
+                </Field>
+                <Field label={t('settings.organizations.fields.accountant')} className="grow">
+                  {p => <Input {...p} value={f.accountantName} onChange={e => setF({ ...f, accountantName: e.target.value })} />}
+                </Field>
+              </div>
+              <div className="row req-row">
+                <Field label={t('settings.organizations.fields.taxation')} className="grow">
+                  {p => <Select id={p.id} value={f.taxSystem} onValueChange={v => setF({ ...f, taxSystem: v as TaxSystem })} options={TAX_SYSTEMS.map(ts => ({ value: ts, label: enumLabel('taxSystem', ts, TAX_SYSTEM_LABELS[ts]) }))} />}
+                </Field>
+                <Field label={t('settings.organizations.fields.defaultVat')} className="grow">
+                  {p => <Select id={p.id} value={f.defaultVatRate} onValueChange={v => setF({ ...f, defaultVatRate: v as VatRate })} options={VAT_RATES.map(v => ({ value: v, label: tEnum('vat', v, VAT_LABELS[v]) }))} />}
+                </Field>
+              </div>
+              <SRow t={t('settings.organizations.fields.defaultOrg')} d={t('settings.organizations.fields.defaultOrgHint')}>
+                <Toggle checked={f.isDefault} label={t('settings.organizations.fields.defaultOrg')} onChange={v => setF({ ...f, isDefault: v })} />
+              </SRow>
+            </TabsContent>
+            <TabsContent value="files" className="stack" style={{ gap: 12, marginTop: 12 }}>
+              <FileLink label={t('settings.organizations.file.stamp')} value={stamp} onChange={setStamp} />
+              <FileLink label={t('settings.organizations.file.directorSig')} value={dirSig} onChange={setDirSig} />
+              <FileLink label={t('settings.organizations.file.accountantSig')} value={accSig} onChange={setAccSig} />
+            </TabsContent>
+            <TabsContent value="accounts" style={{ marginTop: 12 }}>
+              <div className="field">
+                <span className="label">{t('settings.organizations.fields.bankAccounts')}</span>
+                {org ? <BankAccountsEditor owner="organizations" ownerId={org.id} canEdit /> : <p className="faint" style={{ margin: 0 }}>{t('settings.organizations.fields.bankAccountsHint')}</p>}
+              </div>
+            </TabsContent>
+          </Tabs>
           <button type="submit" hidden />
         </form>
       </DialogContent>

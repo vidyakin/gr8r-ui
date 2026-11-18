@@ -45,7 +45,9 @@ export function NumberField({
   const canonical = (n: number) => (decimal ? String(n).replace('.', ',') : String(n));
   const incoming = parse(String(value));
   const base = incoming ?? (min ?? 0);
-  const bump = (d: number) => onChange(clamp(base + d * step));
+  // шаг 0.1: 0.1 + 0.2 не должно дать 0.30000000000000004 — округляем до знаков шага
+  const stepDigits = (String(step).split('.')[1] ?? '').length;
+  const bump = (d: number) => onChange(clamp(Number((base + d * step).toFixed(stepDigits))));
   const canMinus = disabled || (min != null && base <= min);
   const canPlus = disabled || (max != null && base >= max);
 

@@ -505,8 +505,7 @@ export const crm = {
   funnel: {
     title: 'Sales funnel',
     subtitle: 'Deals and amounts by stage, conversion between stages, time on a stage and the weighted forecast.',
-    from: 'Created from',
-    to: 'to',
+    created: 'Created',
     col: { deals: 'Deals now', reached: 'Reached', conversion: 'Conversion', avgDays: 'Avg days on stage' },
     total: 'Total',
     note: 'Deals created in the period. “Reached” counts deals that were on the stage or later; conversion is against the previous stage. Amounts are summed as entered, without currency conversion.',

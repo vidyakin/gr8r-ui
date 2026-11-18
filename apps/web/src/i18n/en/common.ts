@@ -1,5 +1,6 @@
 /* Общие слова и даты: кнопки, состояния, относительные даты */
 export const common = {
+  period: { from: 'from', to: 'to', fromLabel: 'Period start', toLabel: 'Period end' },
   cancel: 'Cancel',
   save: 'Save',
   done: 'Done',

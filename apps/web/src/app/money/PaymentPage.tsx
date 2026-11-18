@@ -15,6 +15,7 @@ import { CounterpartyPicker } from '../docs/pickers';
 import { useBankAccounts } from '../docs/data';
 import { useCashFlowItems, useCashRegisters, usePayment, usePaymentApi, type PaymentBody } from './data';
 import { ObjectSelect, useObjectFieldVisible } from '../objects/fields';
+import { DocForm, DocHeader } from '@/components/erp/doc-form';
 import { DateInput } from '@/components/erp/date-picker';
 
 interface Line {
@@ -183,13 +184,13 @@ export function PaymentPage() {
   const printForm = PRINT_FORM[docType];
 
   return (
-    <div className="page flush">
-      <div className="ph">
-        <div>
-          <h1>{title}</h1>
-          <p>{tt(`money.types.${docType as 'advance_report'}`)}</p>
-        </div>
-        <div className="acts">
+    <DocForm
+      header={
+        <DocHeader
+          title={title}
+          subtitle={tt(`money.types.${docType as 'advance_report'}`)}
+          actions={
+            <>
           {detail && <Badge tone={detail.status === 'posted' ? 'green' : 'gray'} dot>{tProductionEnum('docStatus', detail.status, detail.status)}</Badge>}
           {editable && (
             <Button variant="primary" disabled={busy || !valid} onClick={() => void save()}>
@@ -217,15 +218,13 @@ export function PaymentPage() {
               {tt('money.common.delete')}
             </Button>
           )}
-        </div>
-      </div>
-
+            </>
+          }
+        />
+      }
+    >
       {detail?.warnings.includes('negative_balance') && (
-        <div style={{ padding: '0 var(--gutter) 8px' }}>
-          <Alert tone="warn">
-            {tt('money.form.negative')}
-          </Alert>
-        </div>
+        <Alert tone="warn">{tt('money.form.negative')}</Alert>
       )}
 
       <section className="panel doc-head" aria-label={tt('money.common.date')}>
@@ -441,6 +440,6 @@ export function PaymentPage() {
           description=""
         />
       )}
-    </div>
+    </DocForm>
   );
 }

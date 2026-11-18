@@ -202,6 +202,7 @@ export const overlays = {
       'Toggle sidebar': 'Toggle sidebar',
       'Toggle dark mode': 'Toggle dark mode',
       'Close panel or dialog': 'Close panel or dialog',
+      'Close tab': 'Close tab',
       'New task': 'New task',
       'New project': 'New project',
       'Submit form': 'Submit form',

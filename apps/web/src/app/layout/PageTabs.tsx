@@ -132,6 +132,20 @@ export function PageTabs({ state }: { state: PageTabsState }) {
   const { tabs, activeKey: pageKey, close } = state;
   const stripRef = React.useRef<HTMLDivElement>(null);
 
+  // Ctrl+W закрывает текущую вкладку (по коду клавиши — работает и в русской раскладке). Открытое окно не трогаем.
+  // В Windows/Linux браузер сам перехватывает Ctrl+W, в установленном приложении и на Mac сочетание доходит сюда
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'KeyW' || !e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      if (document.querySelector('.scrim, [role="alertdialog"]')) return; // модальное окно открыто (поповеры не мешают)
+      if (!tabs.some(x => x.key === pageKey)) return;
+      e.preventDefault();
+      close([pageKey]);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  });
+
   // Активная вкладка всегда видна в полосе
   React.useEffect(() => {
     stripRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });

@@ -5,7 +5,7 @@
 import * as React from 'react';
 import { handleNumericArrow } from '@/lib/numeric-step';
 import { CircleAlert, Factory, PackageSearch, RotateCw, Send, Truck } from 'lucide-react';
-import { Badge, Button, EmptyState, Skeleton, toast } from '@/components/ui';
+import { Badge, Button, Checkbox, EmptyState, Select, Skeleton, toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';
 import { useCanWrite } from '../meta/custom-fields';
@@ -49,6 +49,9 @@ const DEFAULT_PARAMS: NeedsCalcParams = {
   safetyDays: 0,
   historyPeriods: 6,
 };
+
+/** Значение «Все склады» в списке: Radix Select не принимает пустую строку */
+const ALL_WAREHOUSES = '__all__';
 
 export function ProductionNeedsPage() {
   const ws = useWsId();
@@ -182,67 +185,67 @@ export function ProductionNeedsPage() {
             ))}
           </nav>
 
-          <div className="panel" style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', margin: '12px var(--gutter) 0', padding: '12px 14px' }}>
-            <label className="field" style={{ maxWidth: 180 }}>
-              <span className="label">{tt('production.needs.replenishment')}</span>
-              <select className="select" aria-label={tt('production.needs.replenishment')} value={params.replenishment} onChange={e => set({ replenishment: e.target.value as NeedsCalcParams['replenishment'] })}>
-                <option value="all">{tt('production.needs.sourceAll')}</option>
-                {Object.entries(STOCK_REPLENISHMENT_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {tEnum('replenishment', value, label)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field" style={{ maxWidth: 200 }}>
-              <span className="label">{tt('production.needs.method')}</span>
-              <select className="select" aria-label={tt('production.needs.method')} value={params.method} onChange={e => set({ method: e.target.value as NeedsMethod })}>
-                {Object.entries(NEEDS_METHOD_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {tEnum('needsMethod', value, label)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field" style={{ maxWidth: 130 }}>
-              <span className="label">{tt('production.needs.step')}</span>
-              <select className="select" aria-label={tt('production.needs.step')} value={params.step} onChange={e => set({ step: e.target.value as NeedsCalcParams['step'] })}>
-                <option value="day">{tt('production.needs.stepDay')}</option>
-                <option value="week">{tt('production.needs.stepWeek')}</option>
-                <option value="month">{tt('production.needs.stepMonth')}</option>
-              </select>
-            </label>
-            <label className="field" style={{ width: 118 }}>
-              <span className="label">{tt('production.needs.periods')}</span>
-              <NumberField min={1} max={60} value={params.periods} aria-label={tt('production.needs.periods')} onChange={v => set({ periods: Math.max(1, v) })} />
-            </label>
-            <label className="field" style={{ maxWidth: 160 }}>
-              <span className="label">{tt('production.needs.from')}</span>
-              <DateInput aria-label={tt('production.needs.from')} value={from} onChange={v => { setFrom(v); set({ from: v }); }} size="sm" />
-            </label>
-            <label className="field" style={{ maxWidth: 180 }}>
-              <span className="label">{tt('production.needs.warehouseLabel')}</span>
-              <select className="select" aria-label={tt('production.needs.warehouseLabel')} value={params.warehouseId ?? ''} disabled={!params.byWarehouse} onChange={e => set({ warehouseId: e.target.value || undefined })}>
-                <option value="">{tt('production.needs.warehouseAny')}</option>
-                {(warehouses.data ?? []).map(w => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field" style={{ width: 60 }}>
-              <span className="label">{tt('production.needs.byWarehouse')}</span>
-              <input type="checkbox" className="check" aria-label={tt('production.needs.byWarehouse')} checked={params.byWarehouse} onChange={e => set({ byWarehouse: e.target.checked })} />
-            </label>
-            <label className="field" style={{ width: 120 }}>
-              <span className="label">{tt('production.needs.safetyDays')}</span>
-              <input className="inp num" type="number" min="0" max="365" aria-label={tt('production.needs.safetyDays')} value={params.safetyDays} onChange={e => set({ safetyDays: Number(e.target.value) || 0 })} />
-            </label>
-            <label className="field" style={{ width: 120 }}>
-              <span className="label">{tt('production.needs.safetyPct')}</span>
-              <input className="inp num" type="number" min="-100" max="1000" aria-label={tt('production.needs.safetyPct')} value={params.safetyPct ?? ''} placeholder={'0'} onChange={e => set({ safetyPct: e.target.value === '' ? undefined : e.target.value })} />
-            </label>
+          <div className="panel stack" style={{ gap: 10, margin: '12px var(--gutter) 0', padding: '12px 14px' }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <label className="field" style={{ width: 180 }}>
+                <span className="label">{tt('production.needs.replenishment')}</span>
+                <Select
+                  aria-label={tt('production.needs.replenishment')}
+                  value={params.replenishment}
+                  onValueChange={v => set({ replenishment: v as NeedsCalcParams['replenishment'] })}
+                  options={[{ value: 'all', label: tt('production.needs.sourceAll') }, ...Object.entries(STOCK_REPLENISHMENT_LABELS).map(([value, label]) => ({ value, label: tEnum('replenishment', value, label) }))]}
+                />
+              </label>
+              <label className="field" style={{ width: 200 }}>
+                <span className="label">{tt('production.needs.method')}</span>
+                <Select aria-label={tt('production.needs.method')} value={params.method} onValueChange={v => set({ method: v as NeedsMethod })} options={Object.entries(NEEDS_METHOD_LABELS).map(([value, label]) => ({ value, label: tEnum('needsMethod', value, label) }))} />
+              </label>
+              <label className="field" style={{ width: 130 }}>
+                <span className="label">{tt('production.needs.step')}</span>
+                <Select
+                  aria-label={tt('production.needs.step')}
+                  value={params.step}
+                  onValueChange={v => set({ step: v as NeedsCalcParams['step'] })}
+                  options={[
+                    { value: 'day', label: tt('production.needs.stepDay') },
+                    { value: 'week', label: tt('production.needs.stepWeek') },
+                    { value: 'month', label: tt('production.needs.stepMonth') },
+                  ]}
+                />
+              </label>
+              <label className="field" style={{ width: 118 }}>
+                <span className="label">{tt('production.needs.periods')}</span>
+                <NumberField min={1} max={60} value={params.periods} aria-label={tt('production.needs.periods')} onChange={v => set({ periods: Math.max(1, v) })} />
+              </label>
+              <label className="field" style={{ width: 160 }}>
+                <span className="label">{tt('production.needs.from')}</span>
+                <DateInput aria-label={tt('production.needs.from')} placeholder={tt('views.drawer.dateToday')} value={from} onChange={v => { setFrom(v); set({ from: v }); }} style={{ width: '100%' }} />
+              </label>
+              <label className="field" style={{ width: 200 }}>
+                <span className="label">{tt('production.needs.warehouseLabel')}</span>
+                <Select
+                  aria-label={tt('production.needs.warehouseLabel')}
+                  value={params.warehouseId ?? ALL_WAREHOUSES}
+                  disabled={!params.byWarehouse}
+                  onValueChange={v => set({ warehouseId: v === ALL_WAREHOUSES ? undefined : v })}
+                  options={[{ value: ALL_WAREHOUSES, label: tt('production.needs.warehouseAny') }, ...(warehouses.data ?? []).map(w => ({ value: w.id, label: w.name }))]}
+                />
+              </label>
+            </div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <label className="row" style={{ gap: 8, alignItems: 'center', height: 'var(--h-md)', fontSize: 13 }}>
+                <Checkbox aria-label={tt('production.needs.byWarehouse')} checked={params.byWarehouse} onChange={e => set({ byWarehouse: e.target.checked })} />
+                {tt('production.needs.byWarehouse')}
+              </label>
+              <label className="field" style={{ width: 150 }}>
+                <span className="label">{tt('production.needs.safetyDays')}</span>
+                <NumberField decimal step={0.1} min={0} max={365} value={params.safetyDays} aria-label={tt('production.needs.safetyDays')} onChange={v => set({ safetyDays: v || 0 })} />
+              </label>
+              <label className="field" style={{ width: 150 }}>
+                <span className="label">{tt('production.needs.safetyPct')}</span>
+                <NumberField decimal step={0.1} min={-100} max={1000} value={params.safetyPct ?? 0} aria-label={tt('production.needs.safetyPct')} onChange={v => set({ safetyPct: v ? String(v) : undefined })} />
+              </label>
+            </div>
           </div>
 
           {calc.isError ? (

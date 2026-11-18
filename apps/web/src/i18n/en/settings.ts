@@ -440,6 +440,7 @@ export const settings = {
 
   /* ---------------- organizations ---------------- */
   organizations: {
+    tabs: { label: 'Organization card sections', main: 'General', files: 'Files', accounts: 'Accounts' },
     lead: 'Your own legal entities. Documents are issued by an organization, and each organization numbers them separately.',
     title: 'Organizations',
     new: 'New organization',

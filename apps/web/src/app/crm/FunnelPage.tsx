@@ -7,7 +7,7 @@ import { dOff, iso, today } from '../lib/dates';
 import { ReportState } from '../production/reports/shared';
 import { colorVar } from './stages';
 import { useFunnel, usePipelines } from './pipelines';
-import { DateInput } from '@/components/erp/date-picker';
+import { PeriodInput } from '@/components/erp/period-input';
 
 export function FunnelPage() {
   const t = useT();
@@ -28,16 +28,14 @@ export function FunnelPage() {
           <p>{t('crm.funnel.subtitle')}</p>
         </div>
       </div>
-      <div className="row" style={{ gap: 10, flexWrap: 'wrap', padding: '0 var(--gutter, 16px) 12px', alignItems: 'flex-end' }}>
-        <Select value={active?.id ?? ''} aria-label={t('crm.pipelines.pipeline')} onValueChange={setPipelineId} options={list.map(p => ({ value: p.id, label: p.name }))} />
-        <label className="row" style={{ gap: 6, fontSize: 13 }}>
-          {t('crm.funnel.from')}
-          <DateInput value={from} max={to} onChange={v => v && setFrom(v)} required />
-        </label>
-        <label className="row" style={{ gap: 6, fontSize: 13 }}>
-          {t('crm.funnel.to')}
-          <DateInput value={to} min={from} onChange={v => v && setTo(v)} required />
-        </label>
+      <div className="row" style={{ gap: 10, flexWrap: 'wrap', padding: '0 var(--gutter, 16px) 12px', alignItems: 'center' }}>
+        <div style={{ width: 220 }}>
+          <Select value={active?.id ?? ''} aria-label={t('crm.pipelines.pipeline')} onValueChange={setPipelineId} options={list.map(p => ({ value: p.id, label: p.name }))} />
+        </div>
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'nowrap', fontSize: 13 }}>
+          <span>{t('crm.funnel.created')}</span>
+          <PeriodInput from={from} to={to} aria-label={t('crm.funnel.created')} onChange={(f, tt) => (setFrom(f), setTo(tt))} />
+        </div>
       </div>
       <ReportState q={q} isEmpty={d => !d.totals.deals}>
         {d => {

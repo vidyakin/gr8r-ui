@@ -2,6 +2,7 @@ import type { Widen } from '../types';
 import type { common as C, dates as D, ui as U } from '../en/common';
 
 export const common: Widen<typeof C> = {
+  period: { from: 'с', to: 'по', fromLabel: 'Начало периода', toLabel: 'Конец периода' },
   cancel: 'Отмена',
   save: 'Сохранить',
   done: 'Готово',

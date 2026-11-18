@@ -480,7 +480,7 @@ export const needsCalculateQuery = z.object({
     /** Только заданные нормы (по умолчанию — все товары с нормой) */
     productId: uuid.optional(),
     /** Страховой запас по дням поставки (методика «по статистике продаж») */
-    safetyDays: z.coerce.number().int().min(0).max(365).default(0),
+    safetyDays: z.coerce.number().min(0).max(365).default(0),
     /** Страховой запас в процентах от плановой потребности; может быть отрицательным */
     safetyPct: z.coerce.number().min(-100).max(1000).optional(),
     /** Сколько прошлых периодов брать для средних продаж */
