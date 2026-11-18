@@ -14,7 +14,7 @@ import { PeriodInput } from '@/components/erp/period-input';
 
 function Stat({ label, value, tone, to }: { label: string; value: number; tone?: 'red' | 'amber'; to: string }) {
   return (
-    <Link to={to} className="panel plain" style={{ padding: 16, minWidth: 190, flex: '1 1 190px', textDecoration: 'none', color: 'inherit' }}>
+    <Link to={to} className="panel plain" style={{ padding: 16, minWidth: 190, flex: '1 1 190px', textDecoration: 'none', color: 'inherit', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)' }}>
       <div className="muted" style={{ fontSize: 12 }}>{label}</div>
       <div style={{ fontSize: 28, fontWeight: 600, color: value && tone ? `var(--${tone})` : undefined }}>{value}</div>
     </Link>
