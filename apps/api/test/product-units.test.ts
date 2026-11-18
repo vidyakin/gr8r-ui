@@ -144,6 +144,126 @@ describe('документы в упаковках', () => {
   });
 });
 
+describe('инвентаризация, перемещение и выпуск в упаковках', () => {
+  /** Приход в ящиках на склад (остаток — в штуках) */
+  const stockUp = async (p: string, n: number, warehouse = wh) => {
+    const rc = await mk(owner, '/documents', { type: 'receipt', counterpartyId: supplier, warehouseId: warehouse, priceIncludesVat: false, lines: [boxes(p, n, 1500)] });
+    await posted(rc.id);
+  };
+
+  test('инвентаризация: фактическое в ящиках, учётное в штуках; разница и документы на основании — в единице строки', async () => {
+    const wh2 = (await mk(owner, '/warehouses', { name: 'Склад инвентаризации' })).id;
+    const p = await packed('Лоток');
+    await stockUp(p, 3, wh2); // 300 шт
+    const inv = await mk(owner, '/documents', { type: 'inventory_count', warehouseId: wh2 });
+    const filled = (await owner.post(`/documents/${inv.id}/fill-count-sheet`)).body;
+    const l0 = filled.lines.find((l: any) => l.productId === p);
+    expect(l0).toMatchObject({ qty: '300.000', bookQty: '300.000', unitFactor: '1.000000' });
+    // насчитали 2 ящика (200 шт) при учётных 300 шт — недостача 100 шт = 1 ящик
+    const upd = await owner.patch(`/documents/${inv.id}`, { lines: [{ id: l0.id, productId: p, unitCode: '778', unitQty: 2, qty: 2, bookQty: '300', price: 0 }] });
+    expect(upd.status).toBe(200);
+    expect((await detail(inv.id)).lines[0]).toMatchObject({ unitCode: '778', unitFactor: '100.000000', qty: '200.000', unitQty: '2.000', bookQty: '300.000' });
+    // повторное заполнение по остаткам сохраняет единицу и фактическое количество строки
+    const refilled = (await owner.post(`/documents/${inv.id}/fill-count-sheet`)).body.lines.find((l: any) => l.productId === p);
+    expect(refilled).toMatchObject({ unitCode: '778', unitFactor: '100.000000', qty: '200.000', unitQty: '2.000', bookQty: '300.000' });
+    await posted(inv.id);
+    expect((await balance(p))?.qty ?? '0').not.toBe('999'); // остатки инвентаризация не двигает
+    const html = String((await owner.get(`/documents/${inv.id}/print/inv3`)).body);
+    expect(html).not.toMatch(/>\s*(200|300)(,000)?\s*</);
+    expect(html).toMatch(/>\s*3(,000)?\s*</);
+    const off = (await owner.post(`/documents/${inv.id}/based-on`, { type: 'write_off' }));
+    expect(off.status).toBe(201);
+    expect(off.body.lines[0]).toMatchObject({ productId: p, unitCode: '778', unitFactor: '100.000000', qty: '100.000', unitQty: '1.000' });
+    await posted(off.body.id);
+    const bal = (await owner.get(`/stock/balances?productId=${p}&warehouseId=${wh2}`)).body.items[0];
+    expect(bal.qty).toBe('200.000');
+  });
+
+  test('перемещение ящиками: обычное и «в пути» (отправка, частичная приёмка в ящиках, отмена приёмки, отмена проведения)', async () => {
+    const whB = (await mk(owner, '/warehouses', { name: 'Склад получатель' })).id;
+    const p = await packed('Перемещаемая розетка');
+    await stockUp(p, 5); // 500 шт на wh
+    const balOf = async (w: string) => ((await owner.get(`/stock/balances?productId=${p}&warehouseId=${w}`)).body.items[0]?.qty ?? '0.000') as string;
+    // обычное перемещение: 2 ящика
+    const tr = await mk(owner, '/documents', { type: 'stock_transfer', warehouseId: wh, targetWarehouseId: whB, lines: [{ productId: p, unitCode: '778', unitQty: 2, qty: 2, price: 0 }] });
+    expect((await detail(tr.id)).lines[0]).toMatchObject({ qty: '200.000', unitQty: '2.000', unitFactor: '100.000000' });
+    await posted(tr.id);
+    expect(await balOf(wh)).toBe('300.000');
+    expect(await balOf(whB)).toBe('200.000');
+    // «в пути»: 3 ящика отправлены, принято 2 ящика
+    const tt = await mk(owner, '/documents', { type: 'stock_transfer', operation: 'in_transit', warehouseId: wh, targetWarehouseId: whB, lines: [{ productId: p, unitCode: '778', unitQty: 3, qty: 3, price: 0 }] });
+    const posted1 = await act(tt.id, 'post');
+    expect(posted1.status).toBe(200);
+    expect(posted1.body.state).toBe('shipped');
+    expect(await balOf(wh)).toBe('0.000');
+    const transit = (await owner.get('/warehouses?limit=100')).body.items.find((w: any) => w.kind === 'transit');
+    const inTransit = async () => ((await owner.get(`/stock/balances?productId=${p}&warehouseId=${transit.id}`)).body.items[0]?.qty ?? '0.000') as string;
+    expect(await inTransit()).toBe('300.000');
+    const lineId = (await detail(tt.id)).lines[0].id;
+    const rec = await act(tt.id, 'state', { state: 'received', received: [{ id: lineId, unitQty: '2' }] });
+    expect(rec.status).toBe(200);
+    expect(rec.body.lines[0]).toMatchObject({ receivedQty: '200.000', qty: '300.000', unitQty: '3.000' });
+    expect(await balOf(whB)).toBe('400.000');
+    expect(await inTransit()).toBe('100.000');
+    // больше отправленного (4 ящика) принять нельзя
+    const back = await act(tt.id, 'state', { state: 'shipped' });
+    expect(back.status).toBe(200);
+    expect(await balOf(whB)).toBe('200.000');
+    expect(await inTransit()).toBe('300.000');
+    const over = await act(tt.id, 'state', { state: 'received', received: [{ id: lineId, unitQty: '4' }] });
+    expect(over.status).toBe(422);
+    expect(over.body.error.code).toBe('invalid_received_qty');
+    // приёмка без количеств — прежнее принятое (2 ящика); отмена проведения возвращает отправителю в штуках
+    expect((await act(tt.id, 'state', { state: 'received' })).status).toBe(200);
+    expect(await balOf(whB)).toBe('400.000');
+    expect((await act(tt.id, 'unpost')).status).toBe(200);
+    expect(await balOf(wh)).toBe('300.000');
+    expect(await balOf(whB)).toBe('200.000');
+    // обратное перемещение ящиками: 2 ящика назад
+    const rb = await mk(owner, '/documents', { type: 'stock_transfer', warehouseId: whB, targetWarehouseId: wh, lines: [{ productId: p, unitCode: '778', unitQty: 2, qty: 2, price: 0 }] });
+    await posted(rb.id);
+    expect(await balOf(wh)).toBe('500.000');
+    expect(await balOf(whB)).toBe('0.000');
+  });
+
+  test('выпуск: строки выпуска правятся в упаковке, остатки и приход — в штуках', async () => {
+    const out = await packed('Блок питания');
+    const mat = await packed('Корпус');
+    const whMat = (await mk(owner, '/warehouses', { name: 'Склад материалов выпуска', kind: 'workshop' })).id;
+    const whOut = (await mk(owner, '/warehouses', { name: 'Склад выпуска упаковок' })).id;
+    const wc = (await mk(owner, '/work-centers', { name: 'Цех упаковок', hourlyRate: 0, warehouseId: whMat, outputWarehouseId: whOut })).id;
+    const spec = (await mk(owner, '/manufactured-items', { name: 'Блок питания (спец.)', productId: out })).id;
+    await mk(owner, `/manufactured-items/${spec}/lines`, { kind: 'material', productId: mat, qty: 10 });
+    await stockUp(mat, 3, whMat); // 300 шт материала
+    const o = await mk(owner, '/production-orders', { workCenterId: wc, items: [{ itemId: spec, qty: '20' }] });
+    await owner.post(`/production-orders/${o.id}/fill-from-bom`);
+    await posted(o.id);
+    const oi = (await owner.get(`/production-orders/${o.id}`)).body.items[0];
+    const rel = await mk(owner, `/production-orders/${o.id}/production`, { lines: [{ orderItemId: oi.id, qty: '20' }] });
+    const roles = rel.lines.map((l: any) => [l.stockRole, l.qty]);
+    expect(roles).toEqual([['in', '20.000'], ['out', '200.000']]);
+    // правим черновик выпуска: продукция — упаковка (1 ящик = 100 шт, но только 20 нужно — берём 0.2 ящика), материал — 2 ящика (200 шт)
+    const [inLine, outLine] = rel.lines;
+    const upd = await owner.patch(`/documents/${rel.id}`, {
+      lines: [
+        { id: inLine.id, productId: out, unitCode: '778', unitQty: '0.2', qty: '0.2', price: 0, stockRole: 'in' },
+        { id: outLine.id, productId: mat, unitCode: '778', unitQty: '2', qty: '2', price: 0, stockRole: 'out' },
+      ],
+    });
+    expect(upd.status).toBe(200);
+    const d = await detail(rel.id);
+    expect(d.lines.find((l: any) => l.stockRole === 'in')).toMatchObject({ unitCode: '778', unitFactor: '100.000000', qty: '20.000', unitQty: '0.200' });
+    expect(d.lines.find((l: any) => l.stockRole === 'out')).toMatchObject({ unitCode: '778', qty: '200.000', unitQty: '2.000' });
+    await posted(rel.id);
+    const outBal = (await owner.get(`/stock/balances?productId=${out}&warehouseId=${whOut}`)).body.items[0];
+    expect(outBal.qty).toBe('20.000');
+    const matBal = (await owner.get(`/stock/balances?productId=${mat}&warehouseId=${whMat}`)).body.items[0];
+    expect(matBal.qty).toBe('100.000');
+    expect((await act(rel.id, 'unpost')).status).toBe(200);
+    expect((await owner.get(`/stock/balances?productId=${mat}&warehouseId=${whMat}`)).body.items[0].qty).toBe('300.000');
+  });
+});
+
 describe('прайс поставщика с единицей и кратностью', () => {
   test('профиль с колонками единицы и кратности: упаковки заводятся, цена пишется за упаковку, справочно — за штуку', async () => {
     const vendor = (await mk(owner, '/companies', { name: 'ООО «ИЭК-опт»' })).id;
