@@ -12,6 +12,7 @@ import { ReportState } from '../production/reports/shared';
 import { StatusBadge } from '../leads/StatusBadge';
 import { useAdApi, useAdCampaigns, useAdExpenses, useAdReport, useLeadSources, type AdCampaign, type AdGroupBy, type AdReportRow } from './ad-data';
 import { DateInput } from '@/components/erp/date-picker';
+import { PeriodInput } from '@/components/erp/period-input';
 
 export function AdsPage() {
   const t = useT();
@@ -77,10 +78,11 @@ function ReportTab() {
   return (
     <>
       <div className="toolbar" style={{ margin: '0 var(--gutter)', gap: 8, flexWrap: 'wrap' }}>
-        <DateInput aria-label={t('ads.report.from')} value={from} max={to} onChange={v => v && setFrom(v)} style={{ width: 150 }} required />
-        <span className="faint">—</span>
-        <DateInput aria-label={t('ads.report.to')} value={to} min={from} onChange={v => v && setTo(v)} style={{ width: 150 }} required />
-        <Select size="sm" aria-label={t('ads.report.groupBy')} value={groupBy} onValueChange={v => setGroupBy(v as AdGroupBy)} options={[{ value: 'source', label: t('ads.report.bySource') }, { value: 'campaign', label: t('ads.report.byCampaign') }, { value: 'referrer', label: t('ads.report.byReferrer') }]} />
+        <PeriodInput from={from} to={to} onChange={(f, tt) => (setFrom(f), setTo(tt))} />
+        {/* Select растягивается на всю ширину — без обёртки уезжал на вторую строку */}
+        <div style={{ width: 200 }}>
+          <Select aria-label={t('ads.report.groupBy')} value={groupBy} onValueChange={v => setGroupBy(v as AdGroupBy)} options={[{ value: 'source', label: t('ads.report.bySource') }, { value: 'campaign', label: t('ads.report.byCampaign') }, { value: 'referrer', label: t('ads.report.byReferrer') }]} />
+        </div>
       </div>
       <ReportState q={q} isEmpty={d => !d.rows.length}>
         {d => (

@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Link } from 'react-router';
 import { Download, FileUp } from 'lucide-react';
 import { PAYABLE_TYPES } from '@erp/shared';
-import { Alert, Badge, Button, Checkbox, EmptyState, Field, Input, Select, toast } from '@/components/ui';
+import { Alert, Badge, Button, Checkbox, Field, Select, toast } from '@/components/ui';
 import { fmtAmount, hasKey, t as translate, useT } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { fmtDate } from '../lib/dates';
@@ -12,6 +12,7 @@ import { typeLabel, useDocuments, useOrganizations } from '../docs/data';
 import { CounterpartyPicker } from '../docs/pickers';
 import { useCanWrite } from '../meta/custom-fields';
 import { useBankImportApi, useCashFlowItems, useOrgBankAccounts, type BankImportPreview, type BankImportResult, type BankImportRow } from './data';
+import { FileDrop } from '@/components/erp/file-drop';
 import { DateInput } from '@/components/erp/date-picker';
 
 const OPERATIONS = { in: ['from_customer', 'supplier_refund', 'other_income'], out: ['to_supplier', 'customer_refund', 'other_expense'] } as const;
@@ -115,22 +116,22 @@ export function BankImportPage() {
           <p>{tt('money.bankImport.subtitle')}</p>
         </div>
       </div>
-      <div className="row" style={{ gap: 8, padding: '0 var(--gutter) 12px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-        <Field label={tt('money.bankImport.file')}>
-          {p => (
-            <Input
-              {...p}
-              type="file"
-              accept=".txt,.csv,text/plain"
-              onChange={e => {
-                const f = e.target.files?.[0] ?? null;
-                setFile(f);
-                if (f) void load(f);
-              }}
-            />
-          )}
-        </Field>
-        {preview && preview.accounts.length > 1 && (
+      <div style={{ padding: '0 var(--gutter) 12px' }}>
+        <FileDrop
+          accept=".txt,.csv,text/plain"
+          label={tt('money.bankImport.drop')}
+          fileName={file?.name}
+          disabled={busy}
+          onFile={f => {
+            setFile(f);
+            void load(f);
+          }}
+        />
+        {/* пустое состояние — подсказкой под зоной загрузки, без отдельного блока «Выберите файл» */}
+        {!preview && !busy && <p className="faint" style={{ margin: '8px 0 0', fontSize: 13 }}>{tt('money.bankImport.emptyHint')}</p>}
+      </div>
+      {preview && preview.accounts.length > 1 && (
+        <div className="row" style={{ gap: 8, padding: '0 var(--gutter) 12px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <Field label={tt('money.bankImport.account')}>
             {p => (
               <Select
@@ -145,8 +146,8 @@ export function BankImportPage() {
               />
             )}
           </Field>
-        )}
-      </div>
+        </div>
+      )}
 
       {preview && !preview.bankAccount && (
         <div style={{ padding: '0 var(--gutter)' }}>
@@ -270,7 +271,6 @@ export function BankImportPage() {
           )}
         </>
       )}
-      {!preview && !busy && <EmptyState icon={<FileUp size={20} />} title={tt('money.bankImport.emptyTitle')}>{tt('money.bankImport.emptyHint')}</EmptyState>}
 
       {canWrite && <OrdersExport />}
     </div>

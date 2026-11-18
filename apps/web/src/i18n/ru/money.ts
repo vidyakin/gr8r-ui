@@ -301,6 +301,7 @@ export const money: Widen<typeof M> = {
     payments: 'Оплаты (движение денег)',
   },
   bankImport: {
+    drop: 'Перетащите файл выписки сюда (обмен с 1С .txt или CSV) или нажмите, чтобы выбрать',
     title: 'Банковская выписка',
     subtitle: 'Импорт файла 1CClientBankExchange (windows-1251 или UTF-8): поступления и списания становятся банковскими документами',
     file: 'Файл выписки',

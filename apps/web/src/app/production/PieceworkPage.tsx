@@ -29,7 +29,7 @@ export function PieceworkPage() {
           <p>{tt('production.piecework.subtitle')}</p>
         </div>
       </div>
-      <nav className="tabs doc-tabs" aria-label={tt('production.piecework.sectionsAria')}>
+      <nav className="tabs doc-tabs" style={{ marginBottom: 12 }} aria-label={tt('production.piecework.sectionsAria')}>
         {TABS.map(t0 => (
           <button key={t0.id} type="button" className={`tab${tab === t0.id ? ' on' : ''}`} aria-current={tab === t0.id ? 'page' : undefined} onClick={() => setTab(t0.id)}>
             {tt(`production.${t0.name}`)}

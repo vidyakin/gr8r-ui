@@ -204,7 +204,8 @@ export function DebtsPage({ side }: { side: 'customer' | 'supplier' }) {
             <thead>
               <tr>
                 <th>{tt('money.debts.counterparty')}</th>
-                <th style={{ width: 130 }}>{tt('money.debts.mode')}</th>
+                {/* шире: в строках документов здесь «Срок оплаты: 25 нояб. 2026» */}
+                <th style={{ width: 230 }}>{tt('money.debts.mode')}</th>
                 <th style={{ width: 130 }} className="r">{tt('money.debts.debt')}</th>
                 <th style={{ width: 130 }} className="r">{tt('money.debts.overdue')}</th>
                 <th style={{ width: 130 }} className="r">{tt('money.debts.advance')}</th>
@@ -227,7 +228,7 @@ export function DebtsPage({ side }: { side: 'customer' | 'supplier' }) {
                       <td style={{ paddingLeft: 28 }}>
                         <Link to={`/documents/${x.documentId}`} className="crm-link">{typeLabel(x.type)} {x.number ?? ''}</Link> · {fmtDate(x.date)}
                       </td>
-                      <td>{x.dueDate ? `${tt('money.debts.due')}: ${fmtDate(x.dueDate)}` : ''}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{x.dueDate ? `${tt('money.debts.due')}: ${fmtDate(x.dueDate)}` : ''}</td>
                       <td className="r num">{fmtAmount(x.amount)}</td>
                       <td className="r num">{x.overdueDays > 0 ? `${x.overdueDays}` : ''}</td>
                       <td />
