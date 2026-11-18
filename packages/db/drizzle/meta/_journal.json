@@ -820,6 +820,13 @@
       "when": 1794192970000,
       "tag": "0126_documents_journal_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1794192980000,
+      "tag": "0127_email",
+      "breakpoints": true
     }
   ]
 }

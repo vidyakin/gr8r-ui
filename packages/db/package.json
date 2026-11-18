@@ -20,11 +20,13 @@
   "dependencies": {
     "@erp/shared": "workspace:*",
     "drizzle-orm": "^0.45.4",
+    "nodemailer": "^10.6.0",
     "postgres": "^3.4.0",
     "sanitize-html": "2",
     "sharp": "^0.35.5"
   },
   "devDependencies": {
+    "@types/nodemailer": "^8.0.2",
     "@types/sanitize-html": "^2.16.2",
     "drizzle-kit": "^0.31.0"
   }

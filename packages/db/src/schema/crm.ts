@@ -181,6 +181,8 @@ export const crmActivities = pgTable(
     dueDate: date('due_date', { mode: 'string' }),
     done: boolean('done'),
     body: text('body'),
+    /** Письмо, из которого создано касание email (docs/architecture/email.md); составной FK с SET NULL (email_message_id) — в миграции 0127 */
+    emailMessageId: uuid('email_message_id'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

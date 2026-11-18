@@ -71,6 +71,8 @@ export interface NodeRuntime {
   http(req: HttpRequest): Promise<HttpResult>;
   /** Сообщение в Telegram от бота воркспейса (токен — секрет `telegram.bot_token`, в узел не попадает) */
   telegramSend(a: { chatId: string; text: string; parseMode?: string }): Promise<{ messageId: number | null }>;
+  /** Поставить письмо в очередь отправки (задача 1092): ящик общий или личный у ответственного, касание в истории привязанной записи. Отправляет воркер (задача email.send) */
+  sendEmail(a: { mailbox: 'shared' | 'owner'; ownerId?: string | null; to: string[]; subject: string; text: string; link?: { leadId?: string; contactId?: string; companyId?: string; dealId?: string; documentId?: string } }): Promise<{ id: string; mailboxId: string }>;
   /** Создать лид (задача 1175); статус по умолчанию — первый статус категории «new» */
   createLead(a: { name: string; companyName?: string; phone?: string; email?: string; comment?: string; source?: string; ownerId?: string | null }): Promise<{ id: string }>;
   /** Назначить ответственного за лид: вручную или по кругу среди сотрудников с функцией sales_manager */

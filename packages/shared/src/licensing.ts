@@ -35,11 +35,11 @@ export const MODULES: readonly ModuleDef[] = [
     paths: [
       '/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/attachments', '/activity', '/events',
       '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/organizations', '/bank-accounts', '/warehouses', '/cost-items',
-      '/companies', '/contacts', '/positions', '/departments', '/product-kinds', '/secrets', '/license', '/api-tokens', '/project-templates',
+      '/companies', '/contacts', '/positions', '/departments', '/product-kinds', '/secrets', '/license', '/api-tokens', '/project-templates', '/mailboxes', '/emails',
     ],
     sections: ['home', 'inbox', 'mytasks', 'favorites', 'notifications', 'overview', 'projects', 'tasks', 'calendar', 'timeline', 'members', 'activity', 'archive', 'search', 'settings', 'upgrade', 'system', 'catalog', 'crmCompanies', 'crmContacts'],
     settings: ['workspace', 'appearance', 'language', 'datetime', 'members', 'teams', 'projects', 'permissions', 'data-model', 'organizations', 'warehouses', 'cost-items', 'positions', 'departments', 'product-kinds', 'project-templates'],
-    jobs: ['noop', 'index.create', 'index.drop', 'module_request.notify'],
+    jobs: ['noop', 'index.create', 'index.drop', 'module_request.notify', 'email.send'],
   }),
   def({
     id: 'crm',
@@ -100,7 +100,7 @@ export const MODULES: readonly ModuleDef[] = [
     nodes: [
       'trigger.record_created', 'trigger.record_updated', 'trigger.field_changed', 'trigger.schedule', 'trigger.manual',
       'logic.condition', 'flow.delay', 'flow.branch',
-      'action.update_field', 'action.create_task', 'action.notify', 'action.http_request', 'action.telegram_send', 'action.add_comment',
+      'action.update_field', 'action.create_task', 'action.notify', 'action.http_request', 'action.telegram_send', 'action.email_send', 'action.add_comment',
     ],
   }),
   def({

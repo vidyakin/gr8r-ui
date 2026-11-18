@@ -109,6 +109,9 @@ export const TOKEN_PATH_SECTIONS: Map<string, PositionSection[]> = new Map<strin
   // Журнал событий несёт данные записей всех разделов, секреты — интеграции автоматизаций
   ['/events', ['automations']],
   ['/secrets', ['automations']],
+  // Почта: ящики и письма (отправка из карточек CRM)
+  ['/mailboxes', ['crm']],
+  ['/emails', ['crm']],
   // Справочники (номенклатура, контрагенты, организации, склады, статьи затрат, должности)
   ['/companies', REFERENCE_SECTIONS],
   ['/contacts', REFERENCE_SECTIONS],
