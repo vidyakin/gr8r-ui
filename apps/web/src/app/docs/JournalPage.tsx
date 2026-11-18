@@ -2,7 +2,7 @@
    суммы по выборке. Новый документ создаётся черновиком сразу и открывается в форме. */
 import * as React from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { Ban, CheckCheck, CircleAlert, FilePlus, FileText, Plus, CircleDot, Building2 } from 'lucide-react';
+import { Ban, CheckCheck, Circle, CircleAlert, FilePlus, FileText, Plus, CircleDot, Building2 } from 'lucide-react';
 import { DOCUMENT_META, documentTypesOf, type DocumentGroup, type DocumentType } from '@erp/shared';
 import { Button, EmptyState, Menu, MenuContent, MenuItem, MenuTrigger, Skeleton } from '@/components/ui';
 import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/erp/data-table';
@@ -156,6 +156,7 @@ export function JournalPage({ group, type: fixed }: { group: DocumentGroup; type
           <DataTable
             aria-label={t('docs.journal.journalAria', { title: head.title })}
             columns={columns}
+            totalLabelCol={1}
             rows={rows}
             table={table}
             getId={d => d.id}
@@ -182,7 +183,7 @@ export function JournalPage({ group, type: fixed }: { group: DocumentGroup; type
 function DocStatusIcon({ status }: { status: DocListItem['status'] }) {
   const label = STATUS_LABEL[status];
   const icon =
-    status === 'posted' ? <CheckCheck size={15} style={{ color: 'var(--green)' }} /> : status === 'cancelled' ? <Ban size={14} style={{ color: 'var(--red)' }} /> : <span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', background: 'var(--text-3)' }} />;
+    status === 'posted' ? <CheckCheck size={15} style={{ color: 'var(--green)' }} /> : status === 'cancelled' ? <Ban size={14} style={{ color: 'var(--red)' }} /> : <Circle size={12} strokeWidth={2} style={{ color: 'var(--text-3)' }} />;
   return (
     <span role="img" aria-label={label} title={label} style={{ display: 'inline-flex', width: 16, justifyContent: 'center', alignItems: 'center', verticalAlign: 'middle' }}>
       {icon}

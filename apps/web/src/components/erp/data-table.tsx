@@ -106,6 +106,8 @@ export interface DataTableProps<T> {
   /** Строка «Total» внизу (если у колонок есть total) */
   showTotals?: boolean;
   totalLabel?: React.ReactNode;
+  /** Номер колонки для подписи «Итого» и числа строк (по умолчанию 0; 1 — когда первая колонка узкая, со значком) */
+  totalLabelCol?: number;
   /** Строка «+ New …» внизу таблицы */
   onNew?: () => void;
   newLabel?: string;
@@ -167,7 +169,7 @@ function useVirtualRange(enabled: boolean, count: number, el: HTMLDivElement | n
 
 const cellValue = <T,>(c: Column<T>, row: T) => (c.cell ? c.cell(row) : (c.value?.(row) ?? <span className="faint">—</span>));
 
-export function DataTable<T>({ columns, rows, table, getId, onRowClick, groupBy, showTotals = true, totalLabel = t('ui.total'), onNew, newLabel = t('ui.new'), empty, renderCard, manualSort, virtual, onEndReached, footer, ...rest }: DataTableProps<T>) {
+export function DataTable<T>({ columns, rows, table, getId, onRowClick, groupBy, showTotals = true, totalLabel = t('ui.total'), totalLabelCol = 0, onNew, newLabel = t('ui.new'), empty, renderCard, manualSort, virtual, onEndReached, footer, ...rest }: DataTableProps<T>) {
   const cols = columns.filter((c, i) => i === 0 || !table.hidden.includes(c.id));
   const width = (c: Column<T>) => table.colW[c.id] ?? c.width;
   const totalW = cols.reduce((a, c) => a + width(c), 0);
@@ -352,14 +354,14 @@ export function DataTable<T>({ columns, rows, table, getId, onRowClick, groupBy,
               <tr>
                 {cols.map((c, i) => (
                   <td key={c.id} className={cn(i === 0 && 'sticky', c.align === 'right' && 'num')} style={right(c)}>
-                    {i === 0 ? (
+                    {i === totalLabelCol ? (
                       <span className="row" style={{ gap: 6 }}>
                         {totalLabel}
                         <span className="faint" style={{ fontWeight: 500 }}>
                           {rows.length}
                         </span>
                       </span>
-                    ) : (
+                    ) : i < totalLabelCol ? null : (
                       c.total?.(rows)
                     )}
                   </td>
