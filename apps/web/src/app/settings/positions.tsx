@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { BriefcaseBusiness, Plus, Shapes } from 'lucide-react';
 import { POSITION_FUNCTIONS, POSITION_SECTIONS, PRODUCT_KIND_TYPES, type PositionFunction, type PositionSection, type ProductKindType } from '@erp/shared';
-import { Alert, Badge, Button, Checkbox, ConfirmDialog, EmptyState, Field, Input, Select, Skeleton, toast } from '@/components/ui';
+import { Alert, Badge, Button, Checkbox, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, Input, Select, Skeleton, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { useIsAdmin } from '../catalog/data';
 import { usePositions, usePositionsApi, useProductKinds, type PositionItem, type ProductKindItem } from '../positions/data';
@@ -77,17 +77,60 @@ function PositionForm({ draft, onChange, disabled }: { draft: Draft; onChange: (
   );
 }
 
+/** Окно должности: новая или правка существующей; удаление — слева в подвале */
+function PositionDialog({ position, readOnly, onClose, onDelete }: { position?: PositionItem; readOnly: boolean; onClose: () => void; onDelete: (p: PositionItem) => void }) {
+  const t = useT();
+  const api = usePositionsApi();
+  const [draft, setDraft] = React.useState<Draft>(position ? fromPosition(position) : blank());
+  const [busy, setBusy] = React.useState(false);
+  const save = async () => {
+    if (!draft.name.trim() || readOnly) return;
+    setBusy(true);
+    const body = { name: draft.name.trim(), functions: draft.functions, sections: draft.sections, productKindIds: draft.functions.includes('appointments_specialist') ? draft.productKindIds : [] };
+    const ok = position ? await api('PATCH', `/positions/${position.id}`, body) : await api('POST', '/positions', body);
+    setBusy(false);
+    if (!ok) return;
+    toast(t('positions.settings.saved'));
+    onClose();
+  };
+  return (
+    <Dialog open onOpenChange={o => !o && onClose()}>
+      <DialogContent
+        size="lg"
+        title={position ? t('positions.settings.dialogEdit') : t('positions.settings.dialogNew')}
+        footer={
+          <>
+            {position && !readOnly && (
+              <Button variant="ghost" onClick={() => onDelete(position)}>
+                {t('positions.settings.delete')}
+              </Button>
+            )}
+            <span className="sp" />
+            <DialogClose asChild>
+              <Button variant="secondary">{t('positions.settings.cancel')}</Button>
+            </DialogClose>
+            {!readOnly && (
+              <Button variant="primary" disabled={busy || !draft.name.trim()} onClick={() => void save()}>
+                {t('positions.settings.save')}
+              </Button>
+            )}
+          </>
+        }
+      >
+        <PositionForm draft={draft} onChange={setDraft} disabled={readOnly} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function PositionsSection({ title }: { title: string }) {
   const t = useT();
   const isAdmin = useIsAdmin();
   const api = usePositionsApi();
   const positions = usePositions();
-  const [open, setOpen] = React.useState<string | null>(null);
-  const [adding, setAdding] = React.useState(false);
-  const [draft, setDraft] = React.useState<Draft>(blank());
+  const [dialog, setDialog] = React.useState<{ position?: PositionItem } | null>(null);
   const [del, setDel] = React.useState<PositionItem | null>(null);
 
-  const body = (d: Draft) => ({ name: d.name.trim(), functions: d.functions, sections: d.sections, productKindIds: d.functions.includes('appointments_specialist') ? d.productKindIds : [] });
   const summary = (p: PositionItem) =>
     [p.functions.map(f => t(`positions.fn.${f}`)).join(', '), p.sections.length ? p.sections.map(s => t(`positions.section.${s}`)).join(', ') : t('positions.settings.allSections')].filter(Boolean).join(' · ');
 
@@ -99,7 +142,7 @@ export function PositionsSection({ title }: { title: string }) {
         <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
           <h2 style={{ margin: 0 }}>{title}</h2>
           {isAdmin && (
-            <Button size="sm" variant="ghost" onClick={() => { setAdding(true); setOpen(null); setDraft(blank()); }}>
+            <Button size="sm" variant="primary" onClick={() => setDialog({})}>
               <Plus size={13} />
               {t('positions.settings.add')}
             </Button>
@@ -107,64 +150,28 @@ export function PositionsSection({ title }: { title: string }) {
         </div>
         {positions.isPending ? (
           <Skeleton w="100%" h={60} />
-        ) : !(positions.data ?? []).length && !adding ? (
+        ) : !(positions.data ?? []).length ? (
           <EmptyState icon={<BriefcaseBusiness size={20} />} title={t('positions.settings.empty')}>{t('positions.settings.emptyHint')}</EmptyState>
         ) : (
-          <div className="stack" style={{ gap: 8 }}>
-            {adding && (
-              <div className="srow" style={{ display: 'block' }}>
-                <PositionForm draft={draft} onChange={setDraft} disabled={false} />
-                <div className="row" style={{ gap: 8, marginTop: 8 }}>
-                  <Button
-                    size="sm"
-                    disabled={!draft.name.trim()}
-                    onClick={async () => {
-                      if (await api('POST', '/positions', body(draft))) {
-                        toast(t('positions.settings.saved'));
-                        setAdding(false);
-                      }
-                    }}
-                  >
-                    {t('positions.settings.save')}
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setAdding(false)}>{t('positions.settings.cancel')}</Button>
-                </div>
-              </div>
-            )}
+          <div className="srows-tight">
             {(positions.data ?? []).map(p => (
-              <div key={p.id} className="srow" style={{ display: 'block' }}>
-                <SRow t={<>{p.name} <Badge>{t('positions.settings.members', { count: p.memberIds.length })}</Badge></>} d={summary(p)}>
-                  <Button size="sm" variant="ghost" onClick={() => { setAdding(false); setOpen(open === p.id ? null : p.id); setDraft(fromPosition(p)); }}>
-                    {open === p.id ? t('positions.settings.cancel') : t('positions.settings.edit')}
-                  </Button>
-                </SRow>
-                {open === p.id && (
-                  <div style={{ marginTop: 8 }}>
-                    <PositionForm draft={draft} onChange={setDraft} disabled={!isAdmin} />
-                    {isAdmin && (
-                      <div className="row" style={{ gap: 8, marginTop: 8 }}>
-                        <Button
-                          size="sm"
-                          disabled={!draft.name.trim()}
-                          onClick={async () => {
-                            if (await api('PATCH', `/positions/${p.id}`, body(draft))) {
-                              toast(t('positions.settings.saved'));
-                              setOpen(null);
-                            }
-                          }}
-                        >
-                          {t('positions.settings.save')}
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setDel(p)}>{t('positions.settings.delete')}</Button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+              <SRow
+                key={p.id}
+                t={
+                  <>
+                    <button type="button" className="srow-open" aria-label={t('positions.settings.editOne', { name: p.name })} onClick={() => setDialog({ position: p })}>
+                      {p.name}
+                    </button>{' '}
+                    <Badge>{t('positions.settings.members', { count: p.memberIds.length })}</Badge>
+                  </>
+                }
+                d={summary(p)}
+              />
             ))}
           </div>
         )}
       </div>
+      {dialog && <PositionDialog position={dialog.position} readOnly={!isAdmin} onClose={() => setDialog(null)} onDelete={setDel} />}
       <ConfirmDialog
         open={!!del}
         onOpenChange={o => !o && setDel(null)}
@@ -176,7 +183,7 @@ export function PositionsSection({ title }: { title: string }) {
         onConfirm={async () => {
           if (del && (await api('DELETE', `/positions/${del.id}`))) {
             toast(t('positions.settings.deleted'));
-            setOpen(null);
+            setDialog(null);
           }
           setDel(null);
         }}

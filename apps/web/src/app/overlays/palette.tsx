@@ -7,20 +7,15 @@ import { useNavigate } from 'react-router';
 import { Dialog as D } from 'radix-ui';
 import {
   Building2,
-  Calendar,
-  ChartGantt,
   CircleCheck,
   ClockAlert,
   Command,
   CircleHelp,
   ContactRound,
   Folder,
-  FolderKanban,
   FolderPlus,
   Handshake,
   History,
-  House,
-  Inbox,
   Keyboard,
   Layers,
   LogOut,
@@ -43,9 +38,11 @@ import { EmptyState, toast, usePrefs } from '@/components/ui';
 import { StatusIcon } from '@/components/erp/task';
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n';
+import { fmtNumber } from '@/i18n/format';
 import { tOEnum } from './enums';
 import { useWorkspace } from '../data/store';
-import { PROJECT_STATUS, allTasks, project, sortTasks, task as findTask } from '../data/selectors';
+import { PROJECT_STATUS, allTasks, project, sortTasks, task as findTask, visibleProjects } from '../data/selectors';
+import { isOpen } from '../crm/stages';
 import { addRecentSearch, searchAll, useCatalogHits, useDocumentHits, useRecentSearches, useRecordHits, type SearchCat } from '../data/search';
 import { STATUS_LABEL, typeLabel } from '../docs/data';
 import { money as fmtMoney } from '../catalog/data';
@@ -224,6 +221,8 @@ interface Item {
   nav?: boolean;
   /** Раздел меню: пункт скрыт, если должности участника его не открывают (задача 1172) */
   section?: SectionId;
+  /** Крупное число в карточке раздела */
+  count?: number;
   /** CRM-разделы показываются только при вводе, чтобы пустая палитра совпадала с оригиналом */
   quiet?: boolean;
   run(): void;
@@ -231,7 +230,16 @@ interface Item {
 interface Group {
   name: string;
   items: Item[];
+  /** Пункты карточками в сетке (разделы) */
+  tiles?: boolean;
 }
+
+/** Колонок в сетке карточек разделов — совпадает с grid-template-columns в palette.css */
+const TILE_COLS = 4;
+/** Карточки разделов без запроса — основные места работы */
+const NAV_TILES: SectionId[] = ['inbox', 'mytasks', 'projects', 'calendar', 'crmDeals', 'crmCompanies', 'sales', 'purchases', 'inventory', 'production', 'money', 'settings'];
+/** Разделы, которые не ищем: служебные страницы */
+const NAV_SKIP = new Set<SectionId>(['search', 'upgrade']);
 
 const SCOPES: [SearchCat, LucideIcon][] = [
   ['all', Layers],
@@ -311,26 +319,8 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
         setHl(0);
       },
     },
-    { id: 'c-home', name: t('overlays.palette.cmd.goHome'), icon: House, kbd: 'G H', nav: true, section: 'home', run: section('home') },
-    { id: 'c-inbox', name: t('overlays.palette.cmd.goInbox'), icon: Inbox, kbd: 'G I', nav: true, section: 'inbox', run: section('inbox') },
-    { id: 'c-my', name: t('overlays.palette.cmd.goMyTasks'), icon: CircleCheck, kbd: 'G T', nav: true, section: 'mytasks', run: section('mytasks') },
-    { id: 'c-projs', name: t('overlays.palette.cmd.goProjects'), icon: FolderKanban, kbd: 'G P', nav: true, section: 'projects', run: section('projects') },
-    { id: 'c-cal', name: t('overlays.palette.cmd.goCalendar'), icon: Calendar, kbd: 'G C', nav: true, section: 'calendar', run: section('calendar') },
-    { id: 'c-tl', name: t('overlays.palette.cmd.goTimeline'), icon: ChartGantt, nav: true, section: 'timeline', run: section('timeline') },
-    { id: 'c-mem', name: t('overlays.palette.cmd.goMembers'), icon: Users, nav: true, section: 'members', run: section('members') },
     // Разделы CRM (их нет в оригинале)
-    { id: 'c-crm', name: t('overlays.palette.cmd.goCrm'), icon: SECTIONS.crm.icon, nav: true, quiet: true, section: 'crm', run: section('crm') },
-    { id: 'c-deals', name: t('overlays.palette.cmd.goDeals'), icon: Handshake, nav: true, quiet: true, section: 'crmDeals', run: section('crmDeals') },
-    { id: 'c-comps', name: t('overlays.palette.cmd.goCompanies'), icon: Building2, nav: true, quiet: true, section: 'crmCompanies', run: section('crmCompanies') },
-    { id: 'c-conts', name: t('overlays.palette.cmd.goContacts'), icon: ContactRound, nav: true, quiet: true, section: 'crmContacts', run: section('crmContacts') },
-    { id: 'c-acts', name: t('overlays.palette.cmd.goCrmActivities'), icon: SECTIONS.crmActivities.icon, nav: true, quiet: true, section: 'crmActivities', run: section('crmActivities') },
-    { id: 'c-cat', name: t('overlays.palette.cmd.goCatalog'), icon: SECTIONS.catalog.icon, nav: true, quiet: true, section: 'catalog', run: section('catalog') },
-    { id: 'c-prod', name: t('overlays.palette.cmd.goProduction'), icon: SECTIONS.production.icon, nav: true, quiet: true, section: 'production', run: section('production') },
-    { id: 'c-sales', name: t('overlays.palette.cmd.goSales'), icon: SECTIONS.sales.icon, nav: true, quiet: true, section: 'sales', run: section('sales') },
-    { id: 'c-purch', name: t('overlays.palette.cmd.goPurchases'), icon: SECTIONS.purchases.icon, nav: true, quiet: true, section: 'purchases', run: section('purchases') },
-    { id: 'c-stock', name: t('overlays.palette.cmd.goInventory'), icon: SECTIONS.inventory.icon, nav: true, quiet: true, section: 'inventory', run: section('inventory') },
-    { id: 'c-wc', name: t('overlays.palette.cmd.goWorkCenters'), icon: SECTIONS.workCenters.icon, nav: true, quiet: true, section: 'workCenters', run: section('workCenters') },
-    { id: 'c-set', name: t('overlays.palette.cmd.openSettings'), icon: Settings, kbd: 'G S', nav: true, section: 'settings', run: section('settings') },
+    { id: 'c-set', name: t('overlays.palette.cmd.openSettings'), icon: Settings, kbd: 'G S', section: 'settings', run: section('settings') },
     { id: 'c-app', name: t('overlays.palette.cmd.appearance'), icon: Palette, run: () => go(`${SECTIONS.settings.path}/appearance`) },
     { id: 'c-dark', name: t(dark ? 'overlays.palette.cmd.darkOn' : 'overlays.palette.cmd.darkOff'), icon: dark ? Sun : Moon, kbd: `${MOD} ⇧ L`, run: toggleDark },
     { id: 'c-inv', name: t('overlays.palette.cmd.inviteMember'), icon: UserPlus, run: () => invite.open() },
@@ -352,6 +342,21 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
     run: () => drawer.open(t.id),
   });
 
+  // Счётчики на карточках — из данных, которые уже в кэше (как у сайдбара), без лишних запросов
+  const counts: Partial<Record<SectionId, number>> = {
+    inbox: data.notifs.filter(n => !n.read && n.type !== 'update').length,
+    mytasks: allTasks(data).filter(x => x.assignee === data.me && x.status !== 'done').length,
+    projects: visibleProjects(data).filter(p => p.status !== 'complete').length,
+    crmDeals: crm.data.deals.filter(d => isOpen(d.stage)).length,
+    crmCompanies: crm.data.companies.length,
+    crmContacts: crm.data.contacts.length,
+    members: data.members.length,
+  };
+  const sectionTile = (id: SectionId): Item => ({ id: 'sec-' + id, icon: SECTIONS[id].icon, name: SECTIONS[id].name, count: counts[id], run: section(id) });
+  const sectionHits = query
+    ? (Object.keys(SECTIONS) as SectionId[]).filter(id => !NAV_SKIP.has(id) && access.id(id) && SECTIONS[id].name.toLowerCase().includes(ql)).slice(0, TILE_COLS * 2)
+    : [];
+
   const groups: Group[] = [];
   if (mode === 'cmd') {
     const cmds = commands.filter(c => !query || c.name.toLowerCase().includes(ql));
@@ -365,8 +370,11 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
         data,
       ).slice(0, 4);
       groups.push({ name: t('overlays.palette.group.recentTasks'), items: recentTasks.map(taskItem) });
-      groups.push({ name: t('overlays.palette.group.navigation'), items: visible.filter(c => c.nav) });
-    } else if (cmds.length) groups.push({ name: t('overlays.palette.group.commands'), items: cmds.slice(0, 5) });
+      groups.push({ name: t('overlays.palette.group.navigation'), tiles: true, items: NAV_TILES.filter(id => access.id(id)).map(sectionTile) });
+    } else {
+      if (cmds.length) groups.push({ name: t('overlays.palette.group.commands'), items: cmds.slice(0, 5) });
+      if (sectionHits.length) groups.push({ name: t('overlays.palette.group.navigation'), tiles: true, items: sectionHits.map(sectionTile) });
+    }
   }
   const sc = mode === 'search' ? scope : 'all';
   if (!(mode === 'cmd' && !query)) {
@@ -499,6 +507,13 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
     });
 
   const flat = shown.flatMap(g => g.items);
+  // Диапазоны индексов групп-сеток: [первый, последний]
+  const spans: [number, number][] = [];
+  shown.reduce((at, g) => {
+    if (g.tiles && g.items.length) spans.push([at, at + g.items.length - 1]);
+    return at + g.items.length;
+  }, 0);
+  const tileSpan = (i: number) => spans.find(([a, b]) => i >= a && i <= b);
   const cur = Math.min(hl, Math.max(flat.length - 1, 0));
   React.useEffect(() => {
     document.getElementById('pi-' + cur)?.scrollIntoView({ block: 'nearest' });
@@ -514,7 +529,19 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     const n = flat.length;
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    const span = tileSpan(cur);
+    if (span && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      e.preventDefault();
+      setHl(Math.min(Math.max(cur + (e.key === 'ArrowRight' ? 1 : -1), span[0]), span[1]));
+    } else if (span && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      // В сетке — на ряд вверх или вниз; за краем сетки — к соседнему пункту списка
+      e.preventDefault();
+      const down = e.key === 'ArrowDown';
+      const next = cur + (down ? TILE_COLS : -TILE_COLS);
+      if (next >= span[0] && next <= span[1]) setHl(next);
+      else if (down && Math.floor((cur - span[0]) / TILE_COLS) < Math.floor((span[1] - span[0]) / TILE_COLS)) setHl(span[1]);
+      else setHl(((down ? span[1] + 1 : span[0] - 1) + Math.max(n, 1)) % Math.max(n, 1));
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       setHl((cur + (e.key === 'ArrowDown' ? 1 : -1) + Math.max(n, 1)) % Math.max(n, 1));
     } else if (e.key === 'Enter') {
@@ -601,7 +628,33 @@ function PaletteWindow({ init, close }: { init: PaletteState; close: () => void 
             shown.map((g, gi) => (
               <div className="pal-group" key={gi}>
                 {g.name && <div className="pal-sec">{g.name}</div>}
-                {g.items.map(it => {
+                {g.tiles ? (
+                  <div className="pal-tiles">
+                    {g.items.map(it => {
+                      const i = idx++;
+                      const Icon = it.icon;
+                      return (
+                        <div
+                          key={it.id}
+                          className={cn('pal-tile', i === cur && 'hl')}
+                          id={`pi-${i}`}
+                          role="option"
+                          aria-selected={i === cur}
+                          onClick={() => run(it)}
+                          onMouseMove={() => i !== cur && setHl(i)}
+                        >
+                          <div className="top">
+                            {Icon && <Icon size={18} />}
+                            {it.count != null && <span className="num">{fmtNumber(it.count)}</span>}
+                          </div>
+                          <span className="trunc">
+                            <Highlight text={it.name} q={query} />
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : g.items.map(it => {
                   const i = idx++;
                   const Icon = it.icon;
                   return (

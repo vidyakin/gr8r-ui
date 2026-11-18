@@ -8,7 +8,7 @@ sources:
   - apps/web/src/app/catalog/stock-levels.tsx
   - apps/api/src/routes/stock-levels.ts
   - apps/api/src/routes/production.ts
-verified: 4e5d01fff2
+verified: 1d0e0fb47d
 screenshots: []
 ---
 

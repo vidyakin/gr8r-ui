@@ -82,6 +82,8 @@ export const leads = {
   settings: {
     statusesLead: 'Lead statuses with categories. Categories drive the logic: "new" is used for new leads, "converted" is set by conversion.',
     statusesAdd: 'Add status',
+    categoryLabel: 'Category',
+    colorLabel: 'Color',
     statusName: 'Status name',
     statusEmpty: 'No statuses',
     statusDeleteTitle: 'Delete status?',

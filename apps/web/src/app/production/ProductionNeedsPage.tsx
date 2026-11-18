@@ -288,7 +288,7 @@ export function ProductionNeedsPage() {
                     <th style={{ width: 84 }} className="r">
                       {tt('production.needs.col.overdue')}
                     </th>
-                    <th style={{ width: 116 }}>{tt('production.needs.col.due')}</th>
+                    <th style={{ width: step === 'planning' ? 144 : 116 }}>{tt('production.needs.col.due')}</th>
                     <th style={{ width: 80 }} className="r col-aux">
                       {tt('production.needs.col.amount')}
                     </th>

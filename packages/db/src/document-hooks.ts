@@ -27,7 +27,7 @@ export type StateHook = (db: Db, ctx: DocCtx, doc: DocumentRow, from: string | n
 /** Дополнительные данные смены состояния: принятые количества (перемещение «в пути») */
 export interface StatePayload {
   /** Принятое количество по строкам документа */
-  received?: { id: string; qty: string }[];
+  received?: { id: string; qty?: string; unitQty?: string }[];
   /** Причина отмены заказ-наряда (обязательна для состояния категории «cancelled») */
   cancelReason?: string;
 }

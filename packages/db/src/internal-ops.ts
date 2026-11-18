@@ -3,7 +3,7 @@
    Хуки типа регистрируются в этом файле, чтобы общий сервис документов не знал про эти режимы. */
 import { assertTransferWithinNorm } from './material-transfer';
 import { and, eq, inArray, sql } from 'drizzle-orm';
-import { dec, fmt } from '@erp/shared';
+import { baseQtyOf, dec, fmt } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { DOCUMENT_HOOKS, STATE_HOOKS } from './document-hooks';
@@ -79,13 +79,20 @@ async function shipTransfer(db: Db, ctx: DocCtx, doc: DocumentRow, lines: Docume
 }
 
 /** Приёмка: расход со склада «в пути» и приход получателю по принятому количеству (вторая фаза движений) */
-async function receiveTransfer(db: Db, ctx: DocCtx, doc: DocumentRow, lines: DocumentLineRow[], received?: { id: string; qty: string }[]): Promise<void> {
+async function receiveTransfer(db: Db, ctx: DocCtx, doc: DocumentRow, lines: DocumentLineRow[], received?: { id: string; qty?: string; unitQty?: string }[]): Promise<void> {
   const transitId = await ensureTransitWarehouse(db, ctx.workspaceId);
   const goods = await goodsLines(db, lines);
   const reqs: MoveRequest[] = [];
   for (const l of goods) {
     const asked = received?.find(r => r.id === l.id);
-    const qty = asked ? dec(asked.qty) : dec(l.receivedQty || '0') > 0n ? dec(l.receivedQty) : dec(l.qty);
+    // приёмка в единице строки (упаковке): в базовые единицы переводим по коэффициенту строки; остатки и движения — в базовых
+    let askedQty = asked?.qty;
+    if (asked?.unitQty !== undefined) {
+      const base = baseQtyOf(asked.unitQty, l.unitFactor);
+      if (base === null) throw new DomainError(422, 'invalid_qty', `"${l.name}": the quantity in base units must have at most 3 decimal places`);
+      askedQty = base;
+    }
+    const qty = askedQty !== undefined ? dec(askedQty) : dec(l.receivedQty || '0') > 0n ? dec(l.receivedQty) : dec(l.qty);
     if (qty < 0n || qty > dec(l.qty)) throw new DomainError(422, 'invalid_received_qty', `"${l.name}": the accepted quantity must not exceed the shipped one`);
     await db.update(documentLines).set({ receivedQty: fmt(qty, 3) }).where(eq(documentLines.id, l.id));
     if (qty <= 0n) continue;

@@ -8,7 +8,7 @@ sources:
   - apps/web/src/app/crm/ad-data.ts
   - apps/web/src/app/settings/lead-sources.tsx
   - apps/api/src/routes/ad.ts
-verified: ee19a069a0
+verified: 7034e6ef1a
 screenshots: []
 ---
 

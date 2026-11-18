@@ -314,7 +314,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const partnerId = meta.party !== null ? form.counterpartyId : null;
   const partnerArts = useCompanyArticleMap(partnerId);
   /** Принятое количество по строкам (перемещение «в пути»): редактируется при приёмке */
-  const [received, setReceived] = React.useState<Record<string, string>>(() => Object.fromEntries(doc.lines.map(l => [l.id, trimNum(l.receivedQty) || trimNum(l.qty)])));
+  const [received, setReceived] = React.useState<Record<string, string>>(() => Object.fromEntries(doc.lines.map(l => [l.id, trimNum(rescaleQty(l.receivedQty, '1', l.unitFactor ?? '1')) || trimNum(l.unitQty ?? l.qty)])));
   const [save, setSave] = React.useState<SaveState>('saved');
   const [confirm, setConfirm] = React.useState<'cancel' | 'delete' | null>(null);
   // параметры строки заказа и калькуляция заказа покупателя
@@ -541,7 +541,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const receiveGoods = async () => {
     setBusy(true);
     try {
-      const r = await api<DocDetail>('POST', `/documents/${doc.id}/state`, { state: 'received', received: doc.lines.map(l => ({ id: l.id, qty: num(received[l.id] ?? l.qty) })) });
+      const r = await api<DocDetail>('POST', `/documents/${doc.id}/state`, { state: 'received', received: doc.lines.map(l => ({ id: l.id, unitQty: num(received[l.id] ?? l.unitQty ?? l.qty) })) });
       if (r) toast(t('docs.document.toastReceiveGoods'));
     } finally {
       setBusy(false);
@@ -691,7 +691,9 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                   const err = l.productId ? lineErrors(l, isCount) : {};
                   const srv = serverLine.get(l.key);
                   const shipped = Number(srv?.shipped ?? 0);
-                  const diff = Number(num(l.qty || '0')) - Number(num(srv?.bookQty ?? '0'));
+                  // фактическое — в единице строки, учётное хранится в базовых: сравнение и показ — в единице строки
+                  const bookUnit = Number(num(srv?.bookQty ?? '0')) / (Number(l.unitFactor) || 1);
+                  const diff = Math.round((Number(num(l.qty || '0')) - bookUnit) * 1000) / 1000;
                   return (
                     <tr key={l.key} data-row={i}>
                       <td className="faint num">{i + 1}</td>
@@ -726,12 +728,12 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       <td className="muted">
                         <LineUnitCell
                           line={l}
-                          editable={editable && !isCount && !inTransit && !meta.production}
+                          editable={editable}
                           units={units.data}
                           onChange={(unitCode, unitFactor) => patchLine(l.key, { unitCode, unitFactor, qty: rescaleQty(l.qty, l.unitFactor, unitFactor), price: rescalePrice(l.price, l.unitFactor, unitFactor) })}
                         />
                       </td>
-                      {isCount && <td className="r num muted">{trimNum(srv?.bookQty ?? '0') || '0'}</td>}
+                      {isCount && <td className="r num muted">{trimNum(String(Math.round(bookUnit * 1000) / 1000)) || '0'}</td>}
                       <td className="r">
                         <NumCell value={l.qty} disabled={!editable || (shiftMode && srv?.stockRole === 'out')} invalid={!!err.qty} label={t('docs.document.cellQty')} cell={`${i}:1`} onKeyDown={cellKey(i, 1)} onChange={v => patchLine(l.key, { qty: v })} />
                       </td>
@@ -1726,7 +1728,8 @@ function countDiff(lines: FormLine[], server: Map<string, { bookQty: string }>):
   let surplus = 0;
   for (const l of lines) {
     if (!l.productId) continue;
-    const diff = Number(num(l.qty || '0')) - Number(num(server.get(l.key)?.bookQty ?? '0'));
+    // фактическое в единице строки → в базовые; учётное хранится в базовых
+    const diff = Math.round(Number(num(l.qty || '0')) * (Number(l.unitFactor) || 1) * 1000) - Math.round(Number(num(server.get(l.key)?.bookQty ?? '0')) * 1000);
     if (diff < 0) shortage++;
     else if (diff > 0) surplus++;
   }

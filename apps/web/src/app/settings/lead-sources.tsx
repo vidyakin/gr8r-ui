@@ -2,6 +2,7 @@
 import * as React from 'react';
 import { Archive, ArrowDown, ArrowUp, Megaphone, Plus, RotateCcw } from 'lucide-react';
 import { LEAD_SOURCE_KINDS, LEAD_STATUS_COLORS, type LeadSourceKind } from '@erp/shared';
+import { ColorChip } from '@/components/erp/color-chip';
 import { Alert, Button, EmptyState, Field, Input, Select, Skeleton } from '@/components/ui';
 import { useT } from '@/i18n';
 import { useIsAdmin } from '../catalog/data';
@@ -32,16 +33,20 @@ export function LeadSourcesSection({ title }: { title: string }) {
   };
   const row = (s: LeadSource, i: number) => (
     <div key={s.id} className="srow" style={{ display: 'block' }}>
-      <SRow t={<StatusBadge status={s} />} d={t(`ads.kind.${s.kind}`)}>
+      <SRow t={<StatusBadge status={s} />} d={isAdmin && !s.archivedAt ? undefined : t(`ads.kind.${s.kind}`)}>
         {isAdmin && (
           <div className="row" style={{ gap: 4 }}>
             {s.archivedAt ? (
               <Button size="sm" variant="ghost" aria-label={t('ads.source.restore')} onClick={() => void api('POST', `/lead-sources/${s.id}/restore`)}><RotateCcw size={13} /></Button>
             ) : (
               <>
-                <Input style={{ width: 180 }} defaultValue={s.name} aria-label={t('ads.source.name')} maxLength={200} onBlur={e => e.target.value.trim() && e.target.value.trim() !== s.name && void api('PATCH', `/lead-sources/${s.id}`, { name: e.target.value.trim() })} />
-                <Select size="sm" value={s.kind} aria-label={t('ads.source.kind')} onValueChange={v => void api('PATCH', `/lead-sources/${s.id}`, { kind: v })} options={kindOpts} />
-                <Select size="sm" value={s.color} aria-label={t('ads.source.color')} onValueChange={v => void api('PATCH', `/lead-sources/${s.id}`, { color: v })} options={LEAD_STATUS_COLORS.map(c => ({ value: c, label: t(`leads.color.${c}`) }))} />
+                <Input style={{ width: 170 }} defaultValue={s.name} aria-label={t('ads.source.name')} maxLength={200} onBlur={e => e.target.value.trim() && e.target.value.trim() !== s.name && void api('PATCH', `/lead-sources/${s.id}`, { name: e.target.value.trim() })} />
+                <div style={{ width: 160 }}>
+                  <Select size="sm" value={s.kind} aria-label={t('ads.source.kind')} onValueChange={v => void api('PATCH', `/lead-sources/${s.id}`, { kind: v })} options={kindOpts} />
+                </div>
+                <div style={{ width: 140 }}>
+                  <Select size="sm" value={s.color} aria-label={t('ads.source.color')} onValueChange={v => void api('PATCH', `/lead-sources/${s.id}`, { color: v })} options={LEAD_STATUS_COLORS.map(c => ({ value: c, label: <ColorChip color={c}>{t(`leads.color.${c}`)}</ColorChip> }))} />
+                </div>
                 <Button size="sm" variant="ghost" aria-label={t('leads.settings.up')} disabled={i === 0} onClick={() => void move(i, -1)}><ArrowUp size={13} /></Button>
                 <Button size="sm" variant="ghost" aria-label={t('leads.settings.down')} disabled={i === list.length - 1} onClick={() => void move(i, 1)}><ArrowDown size={13} /></Button>
                 <Button size="sm" variant="ghost" aria-label={t('ads.source.archive')} onClick={() => void api('DELETE', `/lead-sources/${s.id}`)}><Archive size={13} /></Button>
@@ -68,8 +73,12 @@ export function LeadSourcesSection({ title }: { title: string }) {
         {isAdmin && (
           <div className="row" style={{ gap: 8, marginTop: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
             <Field label={t('ads.source.name')}>{p => <Input {...p} maxLength={200} value={name} onChange={e => setName(e.target.value)} />}</Field>
-            <Select value={kind} aria-label={t('ads.source.kind')} onValueChange={v => setKind(v as LeadSourceKind)} options={kindOpts} />
-            <Select value={color} aria-label={t('ads.source.color')} onValueChange={setColor} options={LEAD_STATUS_COLORS.map(c => ({ value: c, label: t(`leads.color.${c}`) }))} />
+            <div style={{ width: 180 }}>
+              <Field label={t('ads.source.kind')}>{p => <Select id={p.id} value={kind} aria-label={t('ads.source.kind')} onValueChange={v => setKind(v as LeadSourceKind)} options={kindOpts} />}</Field>
+            </div>
+            <div style={{ width: 160 }}>
+              <Field label={t('ads.source.color')}>{p => <Select id={p.id} value={color} aria-label={t('ads.source.color')} onValueChange={setColor} options={LEAD_STATUS_COLORS.map(c => ({ value: c, label: <ColorChip color={c}>{t(`leads.color.${c}`)}</ColorChip> }))} />}</Field>
+            </div>
             <Button
               size="sm"
               disabled={!name.trim()}

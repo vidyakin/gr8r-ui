@@ -5,6 +5,7 @@ import { LEAD_STATUS_CATEGORIES, LEAD_STATUS_COLORS, type LeadStatusCategory } f
 import { Alert, Badge, Button, ConfirmDialog, EmptyState, Field, Input, Select, Skeleton, Switch, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { useIsAdmin } from '../catalog/data';
+import { ColorChip } from '@/components/erp/color-chip';
 import { AttributionFields } from '../crm/AttributionFields';
 import { useWorkspace } from '../data/store';
 import { useMembersWith } from '../positions/data';
@@ -44,11 +45,15 @@ export function LeadStatusesSection({ title }: { title: string }) {
           <div className="stack" style={{ gap: 8 }}>
             {list.map((s, i) => (
               <div key={s.id} className="srow" style={{ display: 'block' }}>
-                <SRow t={<><StatusBadge status={s} /> <Badge>{t(`leads.category.${s.category}`)}</Badge></>}>
+                <SRow t={isAdmin ? <StatusBadge status={s} /> : <><StatusBadge status={s} /> <Badge>{t(`leads.category.${s.category}`)}</Badge></>}>
                   {isAdmin && (
                     <div className="row" style={{ gap: 4 }}>
-                      <Select size="sm" value={s.category} aria-label={t('leads.col.status')} onValueChange={v => void api('PATCH', `/lead-statuses/${s.id}`, { category: v })} options={LEAD_STATUS_CATEGORIES.map(c => ({ value: c, label: t(`leads.category.${c}`) }))} />
-                      <Select size="sm" value={s.color} aria-label={t('leads.settings.statusName')} onValueChange={v => void api('PATCH', `/lead-statuses/${s.id}`, { color: v })} options={LEAD_STATUS_COLORS.map(c => ({ value: c, label: t(`leads.color.${c}`) }))} />
+                      <div style={{ width: 160 }}>
+                        <Select size="sm" value={s.category} aria-label={t('leads.settings.categoryLabel')} onValueChange={v => void api('PATCH', `/lead-statuses/${s.id}`, { category: v })} options={LEAD_STATUS_CATEGORIES.map(c => ({ value: c, label: t(`leads.category.${c}`) }))} />
+                      </div>
+                      <div style={{ width: 140 }}>
+                        <Select size="sm" value={s.color} aria-label={t('leads.settings.colorLabel')} onValueChange={v => void api('PATCH', `/lead-statuses/${s.id}`, { color: v })} options={LEAD_STATUS_COLORS.map(c => ({ value: c, label: <ColorChip color={c}>{t(`leads.color.${c}`)}</ColorChip> }))} />
+                      </div>
                       <Button size="sm" variant="ghost" aria-label={t('leads.settings.up')} disabled={i === 0} onClick={() => void move(i, -1)}><ArrowUp size={13} /></Button>
                       <Button size="sm" variant="ghost" aria-label={t('leads.settings.down')} disabled={i === list.length - 1} onClick={() => void move(i, 1)}><ArrowDown size={13} /></Button>
                       <Button size="sm" variant="ghost" aria-label={t('leads.settings.statusDeleteTitle')} onClick={() => setDel(s)}><Trash2 size={13} /></Button>
@@ -62,8 +67,12 @@ export function LeadStatusesSection({ title }: { title: string }) {
         {isAdmin && (
           <div className="row" style={{ gap: 8, marginTop: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
             <Field label={t('leads.settings.statusName')}>{p => <Input {...p} maxLength={200} value={name} onChange={e => setName(e.target.value)} />}</Field>
-            <Select value={category} aria-label={t('leads.col.status')} onValueChange={v => setCategory(v as LeadStatusCategory)} options={LEAD_STATUS_CATEGORIES.map(c => ({ value: c, label: t(`leads.category.${c}`) }))} />
-            <Select value={color} aria-label={t('leads.settings.statusName')} onValueChange={setColor} options={LEAD_STATUS_COLORS.map(c => ({ value: c, label: t(`leads.color.${c}`) }))} />
+            <div style={{ width: 170 }}>
+              <Field label={t('leads.settings.categoryLabel')}>{p => <Select id={p.id} value={category} aria-label={t('leads.settings.categoryLabel')} onValueChange={v => setCategory(v as LeadStatusCategory)} options={LEAD_STATUS_CATEGORIES.map(c => ({ value: c, label: t(`leads.category.${c}`) }))} />}</Field>
+            </div>
+            <div style={{ width: 160 }}>
+              <Field label={t('leads.settings.colorLabel')}>{p => <Select id={p.id} value={color} aria-label={t('leads.settings.colorLabel')} onValueChange={setColor} options={LEAD_STATUS_COLORS.map(c => ({ value: c, label: <ColorChip color={c}>{t(`leads.color.${c}`)}</ColorChip> }))} />}</Field>
+            </div>
             <Button
               size="sm"
               disabled={!name.trim()}

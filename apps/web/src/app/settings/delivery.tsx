@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Plus, Truck } from 'lucide-react';
 import { DELIVERY_KINDS, type DeliveryKind, type DeliveryRateInput } from '@erp/shared';
-import { Alert, Badge, Button, EmptyState, Field, Input, Select, Skeleton, Switch, toast } from '@/components/ui';
+import { Alert, Badge, Button, Dialog, DialogClose, DialogContent, EmptyState, Field, Input, Select, Skeleton, Switch, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { useIsAdmin } from '../catalog/data';
 import { useDocsApi } from '../docs/data';
@@ -78,6 +78,46 @@ const body = (d: Draft) => ({
   freeFrom: d.freeFrom.trim() === '' ? null : d.freeFrom,
 });
 
+/** Окно способа доставки: новый или правка существующего */
+function MethodDialog({ method, readOnly, onClose }: { method?: DeliveryMethod; readOnly: boolean; onClose: () => void }) {
+  const t = useT();
+  const api = useDocsApi();
+  const [draft, setDraft] = React.useState<Draft>(method ? fromMethod(method) : blank());
+  const [busy, setBusy] = React.useState(false);
+  const save = async () => {
+    if (!draft.name.trim() || readOnly) return;
+    setBusy(true);
+    const r = method ? await api('PATCH', `/delivery-methods/${method.id}`, body(draft)) : await api('POST', '/delivery-methods', body(draft));
+    setBusy(false);
+    if (!r) return;
+    toast(t('delivery.settings.saved'));
+    onClose();
+  };
+  return (
+    <Dialog open onOpenChange={o => !o && onClose()}>
+      <DialogContent
+        size="lg"
+        title={method ? t('delivery.settings.dialogEdit') : t('delivery.settings.dialogNew')}
+        footer={
+          <>
+            <span className="sp" />
+            <DialogClose asChild>
+              <Button variant="secondary">{t('delivery.mine.cancel')}</Button>
+            </DialogClose>
+            {!readOnly && (
+              <Button variant="primary" disabled={busy || !draft.name.trim()} onClick={() => void save()}>
+                {t('delivery.settings.save')}
+              </Button>
+            )}
+          </>
+        }
+      >
+        <MethodForm draft={draft} onChange={setDraft} disabled={readOnly} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function DeliveryMethodsSection({ title }: { title: string }) {
   const t = useT();
   const isAdmin = useIsAdmin();
@@ -85,9 +125,7 @@ export function DeliveryMethodsSection({ title }: { title: string }) {
   const [showArchived, setShowArchived] = React.useState(false);
   const methods = useDeliveryMethods(showArchived ? 'include' : 'exclude');
   const couriers = useCouriers();
-  const [open, setOpen] = React.useState<string | null>(null);
-  const [draft, setDraft] = React.useState<Draft>(blank());
-  const [adding, setAdding] = React.useState(false);
+  const [dialog, setDialog] = React.useState<{ method?: DeliveryMethod } | null>(null);
 
   return (
     <>
@@ -106,7 +144,7 @@ export function DeliveryMethodsSection({ title }: { title: string }) {
               {t('delivery.settings.showArchived')}
             </label>
             {isAdmin && (
-              <Button size="sm" variant="ghost" onClick={() => { setAdding(true); setOpen(null); setDraft(blank()); }}>
+              <Button size="sm" variant="primary" onClick={() => setDialog({})}>
                 <Plus size={13} />
                 {t('delivery.settings.add')}
               </Button>
@@ -115,84 +153,40 @@ export function DeliveryMethodsSection({ title }: { title: string }) {
         </div>
         {methods.isPending ? (
           <Skeleton w="100%" h={60} />
-        ) : !(methods.data ?? []).length && !adding ? (
+        ) : !(methods.data ?? []).length ? (
           <EmptyState icon={<Truck size={20} />} title={t('delivery.settings.empty')}>
             {t('delivery.settings.emptyHint')}
           </EmptyState>
         ) : (
-          <div className="stack" style={{ gap: 8 }}>
-            {adding && (
-              <div className="srow" style={{ display: 'block' }}>
-                <MethodForm draft={draft} onChange={setDraft} disabled={false} />
-                <div className="row" style={{ gap: 8, marginTop: 8 }}>
-                  <Button
-                    size="sm"
-                    disabled={!draft.name.trim()}
-                    onClick={async () => {
-                      const r = await api('POST', '/delivery-methods', body(draft));
-                      if (r) {
-                        toast(t('delivery.settings.saved'));
-                        setAdding(false);
-                      }
-                    }}
-                  >
-                    {t('delivery.settings.save')}
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setAdding(false)}>
-                    {t('delivery.mine.cancel')}
-                  </Button>
-                </div>
-              </div>
-            )}
+          <div className="srows-tight">
             {(methods.data ?? []).map(m => (
-              <div key={m.id} className="srow" style={{ display: 'block' }}>
-                <SRow
-                  t={
-                    <>
-                      {m.name} {m.archivedAt && <Badge>{t('delivery.settings.archived')}</Badge>}
-                    </>
-                  }
-                  d={`${t(`delivery.kind.${m.kind}`)}${m.productName ? ` · ${m.productName}` : ''}`}
-                >
-                  <Button size="sm" variant="ghost" onClick={() => { setAdding(false); setOpen(open === m.id ? null : m.id); setDraft(fromMethod(m)); }}>
-                    {open === m.id ? t('delivery.mine.cancel') : t('delivery.settings.name')}
+              <SRow
+                key={m.id}
+                t={
+                  <>
+                    <button type="button" className="srow-open" aria-label={t('delivery.settings.edit', { name: m.name })} onClick={() => setDialog({ method: m })}>
+                      {m.name}
+                    </button>{' '}
+                    {m.archivedAt && <Badge>{t('delivery.settings.archived')}</Badge>}
+                  </>
+                }
+                d={`${t(`delivery.kind.${m.kind}`)}${m.productName ? ` · ${m.productName}` : ''}`}
+              >
+                {isAdmin && (
+                  <Button size="sm" variant="ghost" onClick={() => void api('POST', `/delivery-methods/${m.id}/${m.archivedAt ? 'restore' : 'archive'}`)}>
+                    {m.archivedAt ? t('delivery.settings.restore') : t('delivery.settings.archive')}
                   </Button>
-                  {isAdmin && (
-                    <Button size="sm" variant="ghost" onClick={() => void api('POST', `/delivery-methods/${m.id}/${m.archivedAt ? 'restore' : 'archive'}`)}>
-                      {m.archivedAt ? t('delivery.settings.restore') : t('delivery.settings.archive')}
-                    </Button>
-                  )}
-                </SRow>
-                {open === m.id && (
-                  <div style={{ marginTop: 8 }}>
-                    <MethodForm draft={draft} onChange={setDraft} disabled={!isAdmin} />
-                    {isAdmin && (
-                      <Button
-                        size="sm"
-                        style={{ marginTop: 8 }}
-                        disabled={!draft.name.trim()}
-                        onClick={async () => {
-                          const r = await api('PATCH', `/delivery-methods/${m.id}`, body(draft));
-                          if (r) {
-                            toast(t('delivery.settings.saved'));
-                            setOpen(null);
-                          }
-                        }}
-                      >
-                        {t('delivery.settings.save')}
-                      </Button>
-                    )}
-                  </div>
                 )}
-              </div>
+              </SRow>
             ))}
           </div>
         )}
       </div>
+      {dialog && <MethodDialog method={dialog.method} readOnly={!isAdmin} onClose={() => setDialog(null)} />}
       <div className="sblock">
         <h2>{t('delivery.settings.couriers')}</h2>
         <p className="faint" style={{ fontSize: 12 }}>{t('delivery.settings.couriersLead')}</p>
-        <div className="stack" style={{ gap: 8 }}>
+        <div className="srows-tight">
           {(couriers.data ?? []).map(c => (
             <SRow key={c.id} t={c.name} />
           ))}
