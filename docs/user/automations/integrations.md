@@ -5,10 +5,11 @@ module: integrations
 sources:
   - apps/web/src/app/settings/integrations.tsx
   - apps/web/src/app/settings/bank-connections.tsx
+  - apps/web/src/app/settings/telegram-settings.tsx
   - apps/web/src/app/settings/leads.tsx
   - apps/web/src/i18n/ru/secrets.ts
   - apps/api/src/routes/secrets.ts
-verified: ea4561be23
+verified: 524c915ce7
 screenshots: []
 ---
 
@@ -23,6 +24,7 @@ screenshots: []
 Откройте «Настройки» → «Интеграции».
 
 - **«Банки и онлайн-оплата»** — подключения банков и ЮKassa, см. [Подключение банков и онлайн-оплаты](../finance/bank-connections.md).
+- **«Telegram»** — токен бота для шага «Отправить в Telegram»: кнопки «Сохранить» (или «Заменить»), «Проверить» (показывает имя бота) и «Удалить», метка «Задан» / «Не задан». Токен хранится как секрет `telegram.bot_token` и после сохранения не показывается. Бота создают у @BotFather и добавляют в нужный чат; ID чата вводится в параметрах шага.
 - **Хранилище секретов** (блок «Интеграции»): список имён секретов с меткой «Задан» и датой «Обновлён …». Кнопка «Добавить секрет» и у каждого секрета кнопки «Заменить» и «Удалить».
 
 Значения секретов хранятся в зашифрованном виде и после сохранения больше нигде не показываются: их можно только заменить или удалить.

@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { KeyRound, Plus } from 'lucide-react';
-import { SECRET_KEY_RE } from '@erp/shared';
+import { SECRET_KEY_RE, TELEGRAM_TOKEN_SECRET } from '@erp/shared';
 import { Alert, Badge, Button, ConfirmDialog, EmptyState, Field, Input, Skeleton, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { fmtDateTime } from '@/i18n/format';
@@ -12,6 +12,7 @@ import { call, useWsId } from '../meta/data';
 import { useIsAdmin } from '../catalog/data';
 import { BankConnections } from './bank-connections';
 import { SettingsHead, SRow } from './parts';
+import { TelegramSettings } from './telegram-settings';
 
 interface SecretItem {
   key: string;
@@ -82,6 +83,7 @@ export function IntegrationsSection({ title }: { title: string }) {
       ) : (
         <>
         <BankConnections secretsAvailable={available} />
+        <TelegramSettings isSet={items.some(s => s.key === TELEGRAM_TOKEN_SECRET)} available={available} />
         <div className="sblock">
           {!available && <Alert tone="warn" className="mb-3">{t('secrets.unavailable')}</Alert>}
           <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>

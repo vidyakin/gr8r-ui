@@ -156,6 +156,8 @@ export const errors: Widen<typeof E> = {
   not_a_bank: 'У ЮКассы нет выписки для загрузки',
   secret_corrupted: 'Секрет не расшифровывается текущим ключом сервера',
   invalid_secret_key: 'Недопустимое имя секрета',
+  telegram_token_missing: 'Токен бота Telegram не задан',
+  telegram_check_failed: 'Telegram не принял токен или недоступен',
   service_not_provided: 'Этот специалист не оказывает такую услугу',
   work_order_exists: 'Заказ-наряд по этой записи уже создан',
   appointment_sold_in_day: 'Запись уже в документе дня: уберите её оттуда, чтобы оформить заказ-наряд',

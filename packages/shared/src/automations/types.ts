@@ -69,6 +69,8 @@ export interface NodeRuntime {
   addComment(a: { entity: string; recordId: string; body: string }): Promise<{ id: string }>;
   notify(a: { memberId: string; text: string; snippet?: string; taskId?: string | null; projectId?: string | null }): Promise<{ id: string }>;
   http(req: HttpRequest): Promise<HttpResult>;
+  /** Сообщение в Telegram от бота воркспейса (токен — секрет `telegram.bot_token`, в узел не попадает) */
+  telegramSend(a: { chatId: string; text: string; parseMode?: string }): Promise<{ messageId: number | null }>;
   /** Создать лид (задача 1175); статус по умолчанию — первый статус категории «new» */
   createLead(a: { name: string; companyName?: string; phone?: string; email?: string; comment?: string; source?: string; ownerId?: string | null }): Promise<{ id: string }>;
   /** Назначить ответственного за лид: вручную или по кругу среди сотрудников с функцией sales_manager */

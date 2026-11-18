@@ -100,7 +100,7 @@ export const MODULES: readonly ModuleDef[] = [
     nodes: [
       'trigger.record_created', 'trigger.record_updated', 'trigger.field_changed', 'trigger.schedule', 'trigger.manual',
       'logic.condition', 'flow.delay', 'flow.branch',
-      'action.update_field', 'action.create_task', 'action.notify', 'action.http_request', 'action.add_comment',
+      'action.update_field', 'action.create_task', 'action.notify', 'action.http_request', 'action.telegram_send', 'action.add_comment',
     ],
   }),
   def({

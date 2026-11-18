@@ -127,6 +127,11 @@ export const automations = {
         body: 'Body',
       },
     },
+    action_telegram_send: {
+      label: 'Send to Telegram',
+      description: 'Sends a message to a Telegram chat with the bot whose token is stored in Settings → Integrations (telegram.bot_token).',
+      params: { chatId: 'Chat ID', text: 'Message', parseMode: 'Format' },
+    },
     action_add_comment: {
       label: 'Add comment',
       description: 'Writes a comment on a task, or a note on a deal.',
