@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, GitBranch, ListOrdered, Plus, Star, Trash2 } from '
 import { DEAL_REQUIRED_BUILTINS, DEAL_STAGE_CATEGORIES, LEAD_STATUS_COLORS, PIPELINE_TEMPLATES, type DealStageCategory } from '@erp/shared';
 import { Alert, Badge, Button, ConfirmDialog, EmptyState, Field, Input, Select, Skeleton } from '@/components/ui';
 import { useT } from '@/i18n';
+import { NumberField } from '@/components/erp/number-field';
 import { useIsAdmin } from '../catalog/data';
 import { colorVar } from '../crm/stages';
 import { usePipelines, usePipelinesApi, type DealPipeline, type DealStageRow } from '../crm/pipelines';
@@ -20,17 +21,24 @@ function ColorChip({ color, children }: { color: string; children: React.ReactNo
   );
 }
 
-/** Число из поля ввода: пусто — null (без норматива) */
-const num = (s: string): number | null => (s.trim() === '' || Number.isNaN(Number(s)) ? null : Math.max(0, Math.round(Number(s))));
-
 function StageRowEditor({ stage, index, count, isAdmin, onMove, customKeys }: { stage: DealStageRow; index: number; count: number; isAdmin: boolean; onMove: (i: number, d: -1 | 1) => void; customKeys: { key: string; name: string }[] }) {
   const t = useT();
   const api = usePipelinesApi();
   const [name, setName] = React.useState(stage.name);
-  const [prob, setProb] = React.useState(String(stage.probability));
-  const [sla, setSla] = React.useState(stage.slaDays == null ? '' : String(stage.slaDays));
+  const [prob, setProb] = React.useState(stage.probability);
+  // норматив 0 = без норматива (null)
+  const [sla, setSla] = React.useState(stage.slaDays ?? 0);
   const [del, setDel] = React.useState(false);
   const patch = (b: Record<string, unknown>) => api('PATCH', `/deal-stages/${stage.id}`, b);
+  // числа сохраняются с паузой: и после ввода, и после нажатий −/+
+  React.useEffect(() => {
+    const p = Math.min(100, Math.max(0, Math.round(prob)));
+    const d = Math.max(0, Math.round(sla)) || null;
+    if (p === stage.probability && d === stage.slaDays) return;
+    const h = setTimeout(() => void patch({ ...(p !== stage.probability ? { probability: p } : {}), ...(d !== stage.slaDays ? { slaDays: d } : {}) }), 600);
+    return () => clearTimeout(h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prob, sla]);
   const toggleRequired = (key: string) => {
     const has = stage.requiredFields.includes(key);
     void patch({ requiredFields: has ? stage.requiredFields.filter(f => f !== key) : [...stage.requiredFields, key] });
@@ -56,8 +64,8 @@ function StageRowEditor({ stage, index, count, isAdmin, onMove, customKeys }: { 
             <Field label={t('crm.pipelines.color')}>{p => <Select id={p.id} value={stage.color} aria-label={t('crm.pipelines.color')} onValueChange={v => void patch({ color: v })} options={LEAD_STATUS_COLORS.map(c => ({ value: c, label: <ColorChip color={c}>{t(`leads.color.${c}`)}</ColorChip> }))} />}</Field>
           </div>
           <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-            <Field label={t('crm.pipelines.probability')}>{p => <Input {...p} type="number" min={0} max={100} style={{ width: 90 }} value={prob} onChange={e => setProb(e.target.value)} onBlur={() => { const v = num(prob); if (v !== null && v <= 100 && v !== stage.probability) void patch({ probability: v }); else setProb(String(stage.probability)); }} />}</Field>
-            <Field label={t('crm.pipelines.sla')}>{p => <Input {...p} type="number" min={0} style={{ width: 90 }} value={sla} onChange={e => setSla(e.target.value)} onBlur={() => { const v = num(sla); if (v !== stage.slaDays) void patch({ slaDays: v }); }} />}</Field>
+            <Field label={t('crm.pipelines.probability')}>{p => <NumberField id={p.id} min={0} max={100} step={5} style={{ width: 120 }} value={prob} onChange={setProb} />}</Field>
+            <Field label={t('crm.pipelines.sla')}>{p => <NumberField id={p.id} min={0} style={{ width: 120 }} value={sla || ''} placeholder="—" onChange={setSla} />}</Field>
           </div>
           <div>
             <span className="label">{t('crm.pipelines.requiredLabel')}</span>
