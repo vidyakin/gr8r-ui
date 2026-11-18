@@ -66,7 +66,7 @@ export function FleetPage() {
           {/* плитки: машина или водитель крупно, что за документ или ТО, срок и состояние внизу */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
             {[...attention, ...expiring].map(d => (
-              <div key={d.id} className="panel plain stack" style={{ gap: 6, padding: 14 }}>
+              <div key={d.id} className="panel plain stack" style={{ gap: 6, padding: 14, border: "1px solid var(--border)", borderRadius: "var(--r-lg)" }}>
                 <b style={{ fontSize: 15 }}>{d.plate ?? d.memberName}</b>
                 <span className="muted" style={{ fontSize: 13 }}>
                   {t(`fleet.docKind.${d.kind}`)} {d.number}
@@ -78,7 +78,7 @@ export function FleetPage() {
               </div>
             ))}
             {plans.map(p => (
-              <div key={p.id} className="panel plain stack" style={{ gap: 6, padding: 14 }}>
+              <div key={p.id} className="panel plain stack" style={{ gap: 6, padding: 14, border: "1px solid var(--border)", borderRadius: "var(--r-lg)" }}>
                 <b style={{ fontSize: 15 }}>{p.plate}</b>
                 <span className="muted" style={{ fontSize: 13 }}>{p.name}</span>
                 <span className="row" style={{ justifyContent: 'flex-end', marginTop: 'auto' }}>
