@@ -282,12 +282,12 @@ export function CostItemsSection({ title }: { title: string }) {
             {t('settings.costItems.empty.hint')}
           </EmptyState>
         ) : (
-          <div className="stack" style={{ gap: 8 }}>
+          <div className="srows-tight">
             {items.map(c => (
               <div key={c.id} className="srow">
                 <div style={{ minWidth: 0 }}>
                   <div className="t">
-                    {c.name} <Badge tone={c.kind === 'expense' ? 'gray' : 'accent'}>{enumLabel('costItem', c.kind, c.kind === 'expense' ? 'Expense' : 'Income')}</Badge>
+                    <OpenTitle name={c.name} label={t('settings.costItems.edit', { name: c.name })} onOpen={isAdmin ? () => setDialog({ item: c }) : undefined} /> <Badge tone={c.kind === 'expense' ? 'gray' : 'accent'}>{enumLabel('costItem', c.kind, c.kind === 'expense' ? 'Expense' : 'Income')}</Badge>
                     {c.kind === 'expense' && c.distributionMethod !== 'none' && <Badge tone="accent">{enumLabel('costDistribution', c.distributionMethod, COST_DISTRIBUTION_LABELS[c.distributionMethod])}</Badge>}
                   </div>
                   <div className="d">
@@ -300,9 +300,6 @@ export function CostItemsSection({ title }: { title: string }) {
                 </div>
                 {isAdmin && (
                   <div className="row" style={{ gap: 2 }}>
-                    <IconButton size="xs" label={t('settings.costItems.edit', { name: c.name })} onClick={() => setDialog({ item: c })}>
-                      <Pencil size={14} />
-                    </IconButton>
                     <IconButton size="xs" label={t('settings.costItems.archive', { name: c.name })} onClick={() => setArchiving(c)}>
                       <Archive size={14} />
                     </IconButton>
@@ -404,6 +401,16 @@ function CostItemDialog({ item, onClose }: { item?: CostItem; onClose: () => voi
   );
 }
 
+/** Название записи, по клику открывает карточку; без прав — просто текст */
+function OpenTitle({ name, label, onOpen }: { name: string; label: string; onOpen?: () => void }) {
+  if (!onOpen) return <>{name}</>;
+  return (
+    <button type="button" className="srow-open" aria-label={label} onClick={onOpen}>
+      {name}
+    </button>
+  );
+}
+
 /* ---------------- склады ---------------- */
 
 export function WarehousesSection({ title }: { title: string }) {
@@ -436,12 +443,12 @@ export function WarehousesSection({ title }: { title: string }) {
             {t('settings.warehouses.empty.hint')}
           </EmptyState>
         ) : (
-          <div className="stack" style={{ gap: 8 }}>
+          <div className="srows-tight">
             {items.map(w => (
               <div key={w.id} className="srow">
                 <div style={{ minWidth: 0 }}>
                   <div className="t">
-                    {w.name} {w.code && <span className="mono faint">{w.code}</span>} {w.isDefault && <Badge tone="accent">{t('settings.warehouses.default')}</Badge>} {w.kind !== 'warehouse' && <Badge tone="gray">{enumLabel('warehouseKind', w.kind, w.kind === 'workshop' ? 'Workshop' : w.kind === 'quarantine' ? 'Quarantine' : 'In transit')}</Badge>} {w.counterpartyId && <Badge tone="accent">{t('settings.warehouses.counterparty')}</Badge>}
+                    <OpenTitle name={w.name} label={t('settings.warehouses.edit', { name: w.name })} onOpen={isAdmin ? () => setDialog({ wh: w }) : undefined} /> {w.code && <span className="mono faint">{w.code}</span>} {w.isDefault && <Badge tone="accent">{t('settings.warehouses.default')}</Badge>} {w.kind !== 'warehouse' && <Badge tone="gray">{enumLabel('warehouseKind', w.kind, w.kind === 'workshop' ? 'Workshop' : w.kind === 'quarantine' ? 'Quarantine' : 'In transit')}</Badge>} {w.counterpartyId && <Badge tone="accent">{t('settings.warehouses.counterparty')}</Badge>}
                   </div>
                   <div className="d">{w.address || t('settings.warehouses.noAddress')}</div>
                 </div>
@@ -452,9 +459,6 @@ export function WarehousesSection({ title }: { title: string }) {
                         <Star size={14} />
                       </IconButton>
                     )}
-                    <IconButton size="xs" label={t('settings.warehouses.edit', { name: w.name })} onClick={() => setDialog({ wh: w })}>
-                      <Pencil size={14} />
-                    </IconButton>
                     {!w.isDefault && (
                       <IconButton size="xs" label={t('settings.warehouses.archive', { name: w.name })} onClick={() => setArchiving(w)}>
                         <Archive size={14} />

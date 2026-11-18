@@ -279,3 +279,20 @@
   color: var(--text-2);
   line-height: 1.4;
 }
+/* Компактный список записей: без линий между строками, название открывает карточку */
+.srows-tight .srow {
+  border-bottom: 0;
+  padding: 7px 0;
+}
+.srow-open {
+  font: inherit;
+  color: inherit;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+.srow-open:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
