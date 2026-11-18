@@ -8,6 +8,7 @@ import { useProductionApi, useSnapshot } from '../production/data';
 import { usePeriods, usePeriodSettings } from '../production/closing-data';
 import { SettingsHead, Toggle } from './parts';
 import { useT } from '@/i18n';
+import { cn } from '@/lib/utils';
 import { DateInput } from '@/components/erp/date-picker';
 
 export function ProductionSection({ title }: { title: string }) {
@@ -61,7 +62,7 @@ export function ProductionSection({ title }: { title: string }) {
   return (
     <>
       <SettingsHead title={title} lead={t('settings.production.lead')} />
-      <div className="sblock">
+      <div className="sblock boxed">
         <h2>{t('settings.production.priceSource.title')}</h2>
         <p className="muted" style={{ margin: '4px 0 12px' }}>
           {t('settings.production.priceSource.hint')}
@@ -69,22 +70,18 @@ export function ProductionSection({ title }: { title: string }) {
         {snap.isPending ? (
           <Skeleton w="100%" h={90} />
         ) : (
-          <div className="stack" style={{ gap: 8 }} role="radiogroup" aria-label={t('settings.production.priceSource.aria')}>
+          <div className="choice-cards" role="radiogroup" aria-label={t('settings.production.priceSource.aria')}>
             {MATERIAL_PRICE_SOURCES.map(v => (
-              <label key={v} className="srow" style={{ cursor: !isAdmin ? 'default' : 'pointer' }}>
-                <div>
-                  <div className="t">{optTitle(v)}</div>
-                  <div className="d">{optDesc(v)}</div>
-                </div>
-                <div className="row">
-                  <Radio name="price-source" value={v} aria-label={optTitle(v)} checked={currentMat === v} disabled={!isAdmin} onChange={() => void chooseMat(v)} />
-                </div>
+              <label key={v} className={cn('choice-card', currentMat === v && 'on', !isAdmin && 'ro')}>
+                <Radio className="sr-only" name="price-source" value={v} aria-label={optTitle(v)} checked={currentMat === v} disabled={!isAdmin} onChange={() => void chooseMat(v)} />
+                <div className="t">{optTitle(v)}</div>
+                <div className="d">{optDesc(v)}</div>
               </label>
             ))}
           </div>
         )}
       </div>
-      <div className="sblock">
+      <div className="sblock boxed">
         <h2>{t('settings.production.wastePriceSource.title')}</h2>
         <p className="muted" style={{ margin: '4px 0 12px' }}>
           {t('settings.production.wastePriceSource.hint')}
@@ -92,16 +89,12 @@ export function ProductionSection({ title }: { title: string }) {
         {snap.isPending ? (
           <Skeleton w="100%" h={90} />
         ) : (
-          <div className="stack" style={{ gap: 8 }} role="radiogroup" aria-label={t('settings.production.wastePriceSource.aria')}>
+          <div className="choice-cards" role="radiogroup" aria-label={t('settings.production.wastePriceSource.aria')}>
             {WASTE_PRICE_SOURCES.map(v => (
-              <label key={v} className="srow" style={{ cursor: !isAdmin ? 'default' : 'pointer' }}>
-                <div>
-                  <div className="t">{optWasteTitle(v)}</div>
-                  <div className="d">{optWasteDesc(v)}</div>
-                </div>
-                <div className="row">
-                  <Radio name="waste-price-source" value={v} aria-label={optWasteTitle(v)} checked={currentWaste === v} disabled={!isAdmin} onChange={() => void chooseWaste(v)} />
-                </div>
+              <label key={v} className={cn('choice-card', currentWaste === v && 'on', !isAdmin && 'ro')}>
+                <Radio className="sr-only" name="waste-price-source" value={v} aria-label={optWasteTitle(v)} checked={currentWaste === v} disabled={!isAdmin} onChange={() => void chooseWaste(v)} />
+                <div className="t">{optWasteTitle(v)}</div>
+                <div className="d">{optWasteDesc(v)}</div>
               </label>
             ))}
           </div>
@@ -112,7 +105,7 @@ export function ProductionSection({ title }: { title: string }) {
           </Alert>
         )}
       </div>
-      <div className="sblock">
+      <div className="sblock boxed">
         <h2>{t('settings.production.overtransfer.title')}</h2>
         <p className="muted" style={{ margin: '4px 0 12px' }}>
           {t('settings.production.overtransfer.hint')}
@@ -121,7 +114,7 @@ export function ProductionSection({ title }: { title: string }) {
           {p => <Input {...p} inputMode="decimal" disabled={!isAdmin || snap.isPending} value={over ?? String(Number(savedOver ?? 0))} onChange={e => setOver(e.target.value)} onBlur={() => void saveOver()} />}
         </Field>
       </div>
-      <div className="sblock">
+      <div className="sblock boxed">
         <h2>{t('settings.production.periodClosing.title')}</h2>
         <p className="muted" style={{ margin: '4px 0 12px' }}>
           {t('settings.production.periodClosing.hint')}
@@ -156,7 +149,7 @@ export function ProductionSection({ title }: { title: string }) {
           {t('settings.production.periodClosing.openClosingHint')}
         </p>
       </div>
-      <div className="sblock">
+      <div className="sblock boxed">
         <h2>{t('settings.production.workCenters.title')}</h2>
         <p className="muted" style={{ margin: '4px 0 0' }}>
           {t('settings.production.workCenters.hintStart')}
