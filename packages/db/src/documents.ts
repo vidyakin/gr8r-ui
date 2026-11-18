@@ -1506,7 +1506,8 @@ export async function buildPrintData(db: Db, id: string): Promise<PrintData> {
       net: l.net,
       vatAmount: l.vatAmount,
       total: l.total,
-      ...(d.type === 'inventory_count' ? { bookQty: l.bookQty, diffQty: fmt(dec(l.qty) - dec(l.bookQty), 3) } : {}),
+      // учётное и разница — в единице строки, как и количество
+      ...(d.type === 'inventory_count' ? { bookQty: unitQtyOf(l.bookQty, l.unitFactor), diffQty: unitQtyOf(fmt(dec(l.qty) - dec(l.bookQty), 3), l.unitFactor) } : {}),
       ...(lineCosts.has(l.id) ? { cost: lineCosts.get(l.id)! } : {}),
       kind: l.kind,
       ...(serialsByLine.has(l.id) ? { serials: serialsByLine.get(l.id)! } : {}),

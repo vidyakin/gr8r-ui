@@ -46,7 +46,8 @@ export async function fillCountSheet(db: Db, ctx: DocCtx, docId: string): Promis
     const prev = byProduct.get(row.productId);
     const bookQty = fmt(dec(row.qty), 3);
     const factQty = prev ? prev.qty : bookQty;
-    const values = { name: row.name, unitCode: row.unitCode, qty: factQty, price: '0.00', discountPct: '0', vatRate: 'none', net: '0.00', vatAmount: '0.00', total: '0.00', bookQty, receivedQty: '0.000', sortOrder: sort++ };
+    // единица строки (упаковка) сохраняется: учётное и фактическое — в базовых, форма показывает их в единице строки
+    const values = { name: row.name, unitCode: prev ? prev.unitCode : row.unitCode, unitFactor: prev ? prev.unitFactor : '1.000000', qty: factQty, price: '0.00', discountPct: '0', vatRate: 'none', net: '0.00', vatAmount: '0.00', total: '0.00', bookQty, receivedQty: '0.000', sortOrder: sort++ };
     if (prev) await db.update(documentLines).set(values).where(eq(documentLines.id, prev.id));
     else {
       const id = uuidv7();
@@ -92,13 +93,13 @@ export async function createInventoryBasedOn(db: Db, ctx: DocCtx, inventoryId: s
   if (!inv.warehouseId) throw new DomainError(422, 'warehouse_required', 'The inventory count has no warehouse');
   const lines = await db.select().from(documentLines).where(eq(documentLines.documentId, inventoryId)).orderBy(asc(documentLines.sortOrder));
   const shortage = target === 'write_off';
-  const items: { productId: string; name: string; unitCode: string; qty: string; source: string }[] = [];
+  const items: { productId: string; name: string; unitCode: string; unitFactor: string; qty: string; source: string }[] = [];
   for (const l of lines) {
     const diff = dec(l.qty) - dec(l.bookQty);
     if (shortage ? diff >= 0n : diff <= 0n) continue;
     const rest = (shortage ? -diff : diff) - (await usedByLine(db, l.id));
     if (rest <= 0n) continue;
-    items.push({ productId: l.productId, name: l.name, unitCode: l.unitCode, qty: fmt(rest, 3), source: l.id });
+    items.push({ productId: l.productId, name: l.name, unitCode: l.unitCode, unitFactor: l.unitFactor, qty: fmt(rest, 3), source: l.id });
   }
   if (!items.length) throw new DomainError(422, 'nothing_to_create', shortage ? 'There is no shortage left to write off' : 'There is no surplus left to post');
   const costItemId = await systemCostItem(db, ctx.workspaceId, shortage ? 'nedostacha' : 'izlishki');
@@ -109,7 +110,8 @@ export async function createInventoryBasedOn(db: Db, ctx: DocCtx, inventoryId: s
     costItemId,
     date: inv.date,
     comment: `По инвентаризации ${inv.number ?? ''}`.trim(),
-    lines: items.map(i => ({ productId: i.productId, name: i.name, unitCode: i.unitCode, qty: i.qty, price: '0', discountPct: '0' })),
+    // количество — в базовых единицах, единица и коэффициент строки инвентаризации переходят в документ (печать — в упаковках)
+    lines: items.map(i => ({ productId: i.productId, name: i.name, unitCode: i.unitCode, unitFactor: i.unitFactor, qty: i.qty, price: '0', discountPct: '0' })),
   });
   await db.update(documents).set({ basedOnId: inventoryId }).where(eq(documents.id, id));
   const created = await db.select().from(documentLines).where(eq(documentLines.documentId, id)).orderBy(asc(documentLines.sortOrder));

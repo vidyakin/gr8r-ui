@@ -248,9 +248,13 @@ export const basedOnCreate = z.object({
 /** Смена состояния документа (отдельно от проведения) */
 export const documentStateChange = z.object({
   state: z.string().trim().regex(/^[a-z][a-z0-9_]*$/, 'State key: lowercase letters, digits and underscores'),
-  /** Принятые количества по строкам (перемещение «в пути»): не больше отправленного */
+  /** Принятые количества по строкам (перемещение «в пути»): не больше отправленного. qty — в базовых единицах, unitQty — в единице строки (упаковке) */
   received: z
-    .array(z.object({ id: uuid, qty: nonNeg() }))
+    .array(
+      z
+        .object({ id: uuid, qty: nonNeg().optional(), unitQty: nonNeg().optional() })
+        .refine(r => r.qty !== undefined || r.unitQty !== undefined, { message: 'qty or unitQty is required', path: ['qty'] }),
+    )
     .max(500)
     .optional(),
   /** Причина отмены заказ-наряда: обязательна для состояния категории «cancelled» */
