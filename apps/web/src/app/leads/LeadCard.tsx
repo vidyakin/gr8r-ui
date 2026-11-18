@@ -78,8 +78,11 @@ function Feed({ leadId }: { leadId: string }) {
     <div className="stack" style={{ gap: 8 }}>
       <h3 style={{ margin: 0 }}>{t('leads.feed.title')}</h3>
       <div className="row" style={{ gap: 8, alignItems: 'flex-start' }}>
-        <Select size="sm" value={type} onValueChange={v => setType(v as typeof type)} aria-label={t('leads.feed.title')} options={(['note', 'call', 'email', 'meeting'] as const).map(x => ({ value: x, label: t(`leads.feed.type.${x}`) }))} />
-        <Textarea rows={2} value={text} placeholder={t('leads.feed.placeholder')} onChange={e => setText(e.target.value)} style={{ flex: 1 }} />
+        {/* список типа узкий: Select растягивается на всю ширину и сжимал поле текста */}
+        <div style={{ width: 130, flexShrink: 0 }}>
+          <Select size="sm" value={type} onValueChange={v => setType(v as typeof type)} aria-label={t('leads.feed.title')} options={(['note', 'call', 'email', 'meeting'] as const).map(x => ({ value: x, label: t(`leads.feed.type.${x}`) }))} />
+        </div>
+        <Textarea rows={2} value={text} placeholder={t('leads.feed.placeholder')} onChange={e => setText(e.target.value)} style={{ flex: 1, minWidth: 0 }} />
         <Button size="sm" disabled={!text.trim()} onClick={() => void add()}>{t('leads.feed.add')}</Button>
       </div>
       {(acts.data ?? []).length === 0 ? (
