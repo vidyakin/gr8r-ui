@@ -2,10 +2,11 @@
 import * as React from 'react';
 import { Link, useNavigate } from 'react-router';
 import { CircleAlert, FilePlus2 } from 'lucide-react';
-import { Badge, Button, EmptyState, Field, Input, Menu, MenuContent, MenuItem, MenuTrigger, Skeleton, Tab, Tabs, TabsList } from '@/components/ui';
-import { fmtAmount, tProductionEnum, useT } from '@/i18n';
+import { Button, EmptyState, Field, Input, Menu, MenuContent, MenuItem, MenuTrigger, Skeleton, Tab, Tabs, TabsList } from '@/components/ui';
+import { fmtAmount, useT } from '@/i18n';
 import { fmtDate } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';
+import { DocStatusIcon } from '../docs/status-icon';
 import { usePayments } from './data';
 
 const NEW_TYPES = ['bank_receipt', 'bank_payment', 'cash_receipt', 'cash_payment', 'advance_report'] as const;
@@ -77,9 +78,9 @@ export function MoneyPage() {
           <table className="dtbl" aria-label={tt('money.list.table')}>
             <thead>
               <tr>
+                <th style={{ width: 32 }} aria-label={tt('money.common.status')} />
                 <th style={{ width: 150 }}>{tt('money.common.number')}</th>
                 <th style={{ width: 110 }}>{tt('money.common.date')}</th>
-                <th style={{ width: 110 }}>{tt('money.common.status')}</th>
                 <th>{tt('money.list.operation')}</th>
                 <th>{tt('money.list.counterparty')}</th>
                 <th>{tt('money.list.account')}</th>
@@ -91,17 +92,15 @@ export function MoneyPage() {
                 const incoming = r.type === 'cash_receipt' || r.type === 'bank_receipt';
                 return (
                   <tr key={r.id}>
+                    <td style={{ paddingLeft: 8, paddingRight: 8 }}>
+                      <DocStatusIcon status={r.status} />
+                    </td>
                     <td className="mono">
                       <Link to={`/money/${r.id}`} className="crm-link">
                         {r.number ?? tt('money.common.draft')}
                       </Link>
                     </td>
                     <td className="muted">{fmtDate(r.date)}</td>
-                    <td>
-                      <Badge tone={r.status === 'posted' ? 'green' : r.status === 'cancelled' ? 'neutral' : 'gray'} dot>
-                        {tProductionEnum('docStatus', r.status, r.status)}
-                      </Badge>
-                    </td>
                     <td>{r.operation ? tt(`money.operations.${r.operation as 'from_customer'}`) : tt(`money.types.${r.type as 'advance_report'}`)}</td>
                     <td>{r.counterpartyName ?? ''}</td>
                     <td className="muted">{r.accountName ?? ''}</td>

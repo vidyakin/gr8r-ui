@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { CircleAlert, FilePlus, PackageSearch } from 'lucide-react';
-import { Badge, Button, EmptyState, Skeleton } from '@/components/ui';
+import { Button, EmptyState, Skeleton } from '@/components/ui';
 import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/erp/data-table';
 import { FilterBar, useFilterState } from '@/components/erp/filter-bar';
 import { useT } from '@/i18n';
@@ -13,7 +13,8 @@ import { money, unitSymbol, useUnits } from '../catalog/data';
 import { fmtDate, parse } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';
 import { JournalPage } from './JournalPage';
-import { STATUS_LABEL, STATUS_TONE, useCustomerBalances, useDocsApi, useProcessingOrders, type CustomerBalance, type DocDetail, type ProcessingOrderItem } from './data';
+import { useCustomerBalances, useDocsApi, useProcessingOrders, type CustomerBalance, type DocDetail, type ProcessingOrderItem } from './data';
+import { docStatusColumn } from './status-icon';
 
 const TABS = [
   { id: 'orders' },
@@ -88,9 +89,10 @@ function OrdersTab() {
 
   const columns = React.useMemo<Column<ProcessingOrderItem>[]>(
     () => [
+      docStatusColumn<ProcessingOrderItem>(d => d.status),
       { id: 'number', header: t('docs.processing.col.number'), width: 150, value: d => d.number ?? '', cell: d => (d.number ? <span className="mono">{d.number}</span> : <span className="faint">{t('docs.processing.draft')}</span>) },
       { id: 'date', header: t('docs.processing.col.date'), width: 112, value: d => d.date, cell: d => <span className="num muted">{fmtDate(parse(d.date))}</span> },
-      { id: 'owner', header: t('docs.processing.col.customer'), width: 240, value: d => d.counterpartyName ?? '', cell: d => <span className="trunc">{d.counterpartyName ?? d.ownerName ?? '—'}</span> },
+      { id: 'owner', grow: true, header: t('docs.processing.col.customer'), width: 240, value: d => d.counterpartyName ?? '', cell: d => <span className="trunc">{d.counterpartyName ?? d.ownerName ?? '—'}</span> },
       { id: 'total', header: t('docs.processing.col.servicePrice'), width: 140, align: 'right', value: d => Number(d.total), cell: d => <span className="num">{money(d.total)}</span> },
       {
         id: 'cost',
@@ -101,7 +103,6 @@ function OrdersTab() {
         value: d => Number(d.serviceCost ?? 0),
         cell: d => <span className="num muted">{d.serviceCost === null ? '—' : money(d.serviceCost)}</span>,
       },
-      { id: 'status', header: t('common.status'), width: 112, value: d => STATUS_LABEL[d.status], cell: d => <Badge tone={STATUS_TONE[d.status]} dot>{STATUS_LABEL[d.status]}</Badge> },
     ],
     [t],
   );
@@ -128,6 +129,7 @@ function OrdersTab() {
         <DataTable
           aria-label={t('docs.processing.ordersAria')}
           columns={columns}
+          totalLabelCol={1}
           rows={rows}
           table={table}
           getId={d => d.id}

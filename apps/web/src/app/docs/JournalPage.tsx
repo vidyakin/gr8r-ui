@@ -2,7 +2,7 @@
    суммы по выборке. Новый документ создаётся черновиком сразу и открывается в форме. */
 import * as React from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { Ban, CheckCheck, Circle, CircleAlert, FilePlus, FileText, Plus, CircleDot, Building2 } from 'lucide-react';
+import { CircleAlert, FilePlus, FileText, Plus, CircleDot, Building2 } from 'lucide-react';
 import { DOCUMENT_META, documentTypesOf, type DocumentGroup, type DocumentType } from '@erp/shared';
 import { Button, EmptyState, Menu, MenuContent, MenuItem, MenuTrigger, Skeleton } from '@/components/ui';
 import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/erp/data-table';
@@ -12,8 +12,9 @@ import { cn } from '@/lib/utils';
 import { useCanWrite } from '../meta/custom-fields';
 import { money } from '../catalog/data';
 import { PayBadge } from '../money/PayControls';
+import { docStatusColumn } from './status-icon';
 import { fmtDate, parse } from '../lib/dates';
-import { STATUS_LABEL, typeLabel, useDocsApi, useDocuments, useOrganizations, type DocDetail, type DocListItem } from './data';
+import { typeLabel, useDocsApi, useDocuments, useOrganizations, type DocDetail, type DocListItem } from './data';
 
 
 /** Журнал группы документов; `type` открывает сразу один тип (вкладка экрана переработки) */
@@ -73,8 +74,7 @@ export function JournalPage({ group, type: fixed }: { group: DocumentGroup; type
   ];
 
   const columns: Column<DocListItem>[] = [
-    // статус — значком в первой узкой колонке без заголовка: двойная галка у проведённых, серый кружок у черновика
-    { id: 'status', header: '', width: 32, resizable: false, icon: true, value: d => STATUS_LABEL[d.status], cell: d => <DocStatusIcon status={d.status} /> },
+    docStatusColumn<DocListItem>(d => d.status),
     { id: 'number', header: t('docs.journal.col.number'), width: 150, value: d => d.number ?? '', cell: d => (d.number ? <span className="mono" style={{ fontWeight: 450 }}>{d.number}</span> : <span className="faint">{t('docs.journal.draft')}</span>) },
     { id: 'type', header: t('docs.journal.col.type'), width: 150, value: d => typeLabel(d.type), cell: d => <span className="muted">{typeLabel(d.type)}</span> },
     { id: 'date', header: t('docs.journal.col.date'), width: 112, value: d => d.date, cell: d => <span className="num muted">{fmtDate(parse(d.date))}</span> },
@@ -179,14 +179,3 @@ export function JournalPage({ group, type: fixed }: { group: DocumentGroup; type
   );
 }
 
-/** Значок статуса документа в журнале: подпись — во всплывающей подсказке и для экранного диктора */
-function DocStatusIcon({ status }: { status: DocListItem['status'] }) {
-  const label = STATUS_LABEL[status];
-  const icon =
-    status === 'posted' ? <CheckCheck size={15} style={{ color: 'var(--green)' }} /> : status === 'cancelled' ? <Ban size={14} style={{ color: 'var(--red)' }} /> : <Circle size={12} strokeWidth={2} style={{ color: 'var(--text-3)' }} />;
-  return (
-    <span role="img" aria-label={label} title={label} style={{ display: 'inline-flex', width: 16, justifyContent: 'center', alignItems: 'center', verticalAlign: 'middle' }}>
-      {icon}
-    </span>
-  );
-}

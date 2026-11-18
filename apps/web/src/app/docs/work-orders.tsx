@@ -13,7 +13,7 @@ import { money } from '../catalog/data';
 import { fmtDate, parse } from '../lib/dates';
 import { useWorkspace } from '../data/store';
 import { useMembersWith } from '../positions/data';
-import { STATUS_LABEL, STATUS_TONE, docsKey, useDocsApi, useCanSeeCost, useDocumentStates, useWorkOrderKinds, useWorkOrderTime, useWorkOrders, type DocDetail, type WorkOrderAssignment, type WorkOrderListItem } from './data';
+import { docsKey, useDocsApi, useCanSeeCost, useDocumentStates, useWorkOrderKinds, useWorkOrderTime, useWorkOrders, type DocDetail, type WorkOrderAssignment, type WorkOrderListItem } from './data';
 import { useQueryClient } from '@tanstack/react-query';
 import { useWsId } from '../meta/data';
 import { DocumentResourcesPanel } from '../production/ProductionOrderPage';
@@ -22,6 +22,7 @@ import { DocTabs, type DocTab } from './doc-tabs';
 import { WorkOrderCostPanel } from './work-order-cost';
 import { CustomerMaterialsPanel, RepairItemPanel } from './repair-ui';
 import { SerialsButton } from './serials-ui';
+import { docStatusColumn } from './status-icon';
 import { ProductField } from './position-field';
 
 /** Тон бейджа по категории состояния */
@@ -57,12 +58,12 @@ export function WorkOrdersPage() {
   const sum = list.data?.sum;
 
   const columns: Column<WorkOrderListItem>[] = [
+    docStatusColumn<WorkOrderListItem>(d => d.status),
     { id: 'number', header: t('docs.workOrders.col.number'), width: 150, value: d => d.number ?? '', cell: d => (d.number ? <span className="mono" style={{ fontWeight: 450 }}>{d.number}</span> : <span className="faint">{t('docs.status.draft')}</span>) },
     { id: 'state', header: t('docs.workOrders.col.state'), width: 170, value: d => d.stateLabel ?? '', cell: d => (d.stateLabel ? <Badge tone={CATEGORY_TONE[d.category ?? 'new']}>{d.stateLabel}</Badge> : <span className="faint">—</span>) },
     { id: 'kind', header: t('docs.workOrders.col.kind'), width: 150, defaultHidden: true, value: d => d.kindName ?? '', cell: d => <span className="trunc muted">{d.kindName ?? '—'}</span> },
     { id: 'date', header: t('docs.workOrders.col.date'), width: 112, value: d => d.date, cell: d => <span className="num muted">{fmtDate(parse(d.date))}</span> },
-    { id: 'customer', header: t('docs.workOrders.col.customer'), width: 240, value: d => d.counterpartyName ?? '', cell: d => (d.counterpartyName ? <span className="trunc">{d.counterpartyName}</span> : <span className="faint">—</span>) },
-    { id: 'status', header: t('docs.workOrders.col.status'), width: 112, value: d => STATUS_LABEL[d.status], cell: d => <Badge tone={STATUS_TONE[d.status]} dot>{STATUS_LABEL[d.status]}</Badge> },
+    { id: 'customer', grow: true, header: t('docs.workOrders.col.customer'), width: 240, value: d => d.counterpartyName ?? '', cell: d => (d.counterpartyName ? <span className="trunc">{d.counterpartyName}</span> : <span className="faint">—</span>) },
     // себестоимость и маржа — только admin и owner; у невыполненного это план
     ...(canSeeCost
       ? ([
@@ -138,6 +139,7 @@ export function WorkOrdersPage() {
         <DataTable
           aria-label={t('docs.workOrders.ariaList')}
           columns={columns}
+          totalLabelCol={1}
           rows={rows}
           table={table}
           getId={d => d.id}

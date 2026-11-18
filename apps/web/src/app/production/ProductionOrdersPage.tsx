@@ -7,9 +7,9 @@ import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/
 import { FilterBar, useFilterState, type FilterField } from '@/components/erp/filter-bar';
 import { fmtDate, parse } from '../lib/dates';
 import { useCanWrite } from '../meta/custom-fields';
-import { STATUS_LABEL, STATUS_TONE } from '../docs/data';
+import { docStatusColumn } from '../docs/status-icon';
 import { STATE_TONE, useProductionOrderApi, useProductionOrders, type ProductionOrderListItem } from './orders-data';
-import { tEnum, tProductionEnum, useT } from '@/i18n';
+import { tProductionEnum, useT } from '@/i18n';
 
 export function ProductionOrdersPage() {
   const navigate = useNavigate();
@@ -40,13 +40,13 @@ export function ProductionOrdersPage() {
     );
 
   const columns: Column<ProductionOrderListItem>[] = [
+    docStatusColumn<ProductionOrderListItem>(d => d.status),
     { id: 'number', header: tt('production.field.number'), width: 150, value: d => d.number ?? '', cell: d => (d.number ? <span className="mono" style={{ fontWeight: 450 }}>{d.number}</span> : <span className="faint">{tt('production.common.draft')}</span>) },
     { id: 'date', header: tt('production.field.date'), width: 112, value: d => d.date, cell: d => <span className="num muted">{fmtDate(parse(d.date))}</span> },
     { id: 'state', header: tt('production.field.state'), width: 130, value: d => d.state ?? '', cell: d => (d.state ? <Badge tone={STATE_TONE[d.state] ?? 'gray'}>{tProductionEnum('productionOrderState', d.state, d.state)}</Badge> : <span className="faint">—</span>) },
-    { id: 'center', header: tt('production.field.workCenter'), width: 190, value: d => d.workCenterName ?? '', cell: d => <span className="trunc muted">{d.workCenterName ?? '—'}</span> },
+    { id: 'center', grow: true, header: tt('production.field.workCenter'), width: 190, value: d => d.workCenterName ?? '', cell: d => <span className="trunc muted">{d.workCenterName ?? '—'}</span> },
     { id: 'planned', header: tt('production.field.plannedStart'), width: 200, defaultHidden: true, value: d => d.plannedStart ?? '', cell: d => <span className="num muted">{d.plannedStart ? fmtDate(new Date(d.plannedStart)) : '—'}</span> },
     { id: 'items', header: tt('production.orders.col.items'), width: 90, align: 'right', value: d => d.itemCount },
-    { id: 'status', header: tt('production.field.status'), width: 112, value: d => STATUS_LABEL[d.status], cell: d => <Badge tone={STATUS_TONE[d.status]} dot>{tEnum('docStatus', d.status, STATUS_LABEL[d.status])}</Badge> },
   ];
   const table = useDataTable(columns, { sort: { id: 'date', dir: -1 } });
 
