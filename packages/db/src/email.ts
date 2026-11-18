@@ -71,26 +71,22 @@ export async function getMailbox(db: Db, c: MailCtx, id: string): Promise<Mailbo
 }
 
 const secretCtx = (c: MailCtx) => ({ workspaceId: c.workspaceId, memberId: c.memberId, role: c.role });
-const isUniqueViolation = (e: unknown) => (e as { code?: string; cause?: { code?: string } })?.code === '23505' || (e as { cause?: { code?: string } })?.cause?.code === '23505';
 
 export async function createMailbox(db: Db, c: MailCtx, input: MailboxCreate): Promise<MailboxView> {
   if (input.kind === 'shared' ? !isAdmin(c) : !c.memberId || rank[c.role] < rank.member) throw new DomainError(403, 'forbidden', 'No permission to create this mailbox');
   assertMailHostShape(input.smtpHost);
   if (input.imapHost) assertMailHostShape(input.imapHost);
   const { password, ...fields } = input;
-  let row: Mailbox;
-  try {
-    // savepoint: нарушение уникальности не должно ломать транзакцию запроса до ответа
-    [row] = await db.transaction(tx =>
-      tx
-        .insert(mailboxes)
-        .values({ ...fields, workspaceId: c.workspaceId, memberId: input.kind === 'personal' ? c.memberId : null, status: 'unchecked' })
-        .returning(),
-    ) as Mailbox[];
-  } catch (e) {
-    if (isUniqueViolation(e)) throw new DomainError(409, 'mailbox_exists', input.kind === 'shared' ? 'The shared mailbox already exists' : 'You already have a personal mailbox');
-    throw e;
-  }
+  const taken = await db
+    .select({ id: mailboxes.id })
+    .from(mailboxes)
+    .where(and(eq(mailboxes.workspaceId, c.workspaceId), eq(mailboxes.kind, input.kind), input.kind === 'personal' ? eq(mailboxes.memberId, c.memberId!) : undefined))
+    .limit(1);
+  if (taken.length) throw new DomainError(409, 'mailbox_exists', input.kind === 'shared' ? 'The shared mailbox already exists' : 'You already have a personal mailbox');
+  const [row] = await db
+    .insert(mailboxes)
+    .values({ ...fields, workspaceId: c.workspaceId, memberId: input.kind === 'personal' ? c.memberId : null, status: 'unchecked' })
+    .returning();
   if (password) await setSecret(db, secretCtx(c), mailboxPasswordKey(row!.id), password);
   await recordEvent(db, { workspaceId: c.workspaceId, type: 'mailbox.created', entity: 'mailbox', recordId: row!.id, actorId: c.memberId, payload: { kind: row!.kind } });
   return getMailbox(db, c, row!.id);
@@ -116,11 +112,8 @@ export async function updateMailbox(db: Db, c: MailCtx, id: string, patch: Mailb
 export async function deleteMailbox(db: Db, c: MailCtx, id: string): Promise<void> {
   await loadMailbox(db, c, id, 'write');
   await db.delete(mailboxes).where(eq(mailboxes.id, id));
-  try {
-    await db.transaction(tx => deleteSecret(tx as unknown as Db, secretCtx(c), mailboxPasswordKey(id)));
-  } catch (e) {
-    if (!(e instanceof DomainError && e.status === 404)) throw e; // пароля могло не быть
-  }
+  const key = mailboxPasswordKey(id);
+  if ((await db.select({ key: workspaceSecrets.key }).from(workspaceSecrets).where(eq(workspaceSecrets.key, key)).limit(1)).length) await deleteSecret(db, secretCtx(c), key);
   await recordEvent(db, { workspaceId: c.workspaceId, type: 'mailbox.deleted', entity: 'mailbox', recordId: id, actorId: c.memberId, payload: {} });
 }
 

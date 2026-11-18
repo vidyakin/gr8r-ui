@@ -28,6 +28,10 @@
         "hono": "^4.9.0",
         "zod": "^4.1.0",
       },
+      "devDependencies": {
+        "@types/nodemailer": "^8.0.2",
+        "nodemailer": "^10.6.0",
+      },
     },
     "apps/landing": {
       "name": "@erp/landing",

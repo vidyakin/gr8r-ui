@@ -95,8 +95,9 @@ export async function sendQueuedEmail(sql: Sql, workspaceId: string, emailId: st
     }
   }
 
-  // шаг 3: итог
-  return withContext(sql, { workspaceId }, async db => {
+  // шаг 3: итог. Исключение для повтора бросается после коммита: иначе откат стёр бы статус и текст ошибки
+  let retry: MailError | null = null;
+  const result = await withContext(sql, { workspaceId }, async db => {
     if (!error) {
       await db.update(emailMessages).set({ status: 'sent', sentAt: new Date(), lastError: null, updatedAt: new Date() }).where(eq(emailMessages.id, emailId));
       await recordEvent(db, { workspaceId, type: 'email.sent', entity: 'email', recordId: emailId, actorId: null, payload: {} });
@@ -105,11 +106,14 @@ export async function sendQueuedEmail(sql: Sql, workspaceId: string, emailId: st
     if (error.transient && !final) {
       await db.update(emailMessages).set({ status: 'queued', lastError: error.message, updatedAt: new Date() }).where(eq(emailMessages.id, emailId));
       await recordEvent(db, { workspaceId, type: 'email.updated', entity: 'email', recordId: emailId, actorId: null, payload: {} });
-      throw error; // очередь jobs повторит с паузой
+      retry = error; // очередь jobs повторит с паузой
+      return 'failed' as const;
     }
     await fail(db, error.message, prep.mailboxId, error.kind === 'auth');
     return 'failed' as const;
   });
+  if (retry) throw retry;
+  return result;
 }
 
 async function markFailed(db: Db, workspaceId: string, emailId: string, error: string, mailboxId?: string | null, auth = false): Promise<void> {

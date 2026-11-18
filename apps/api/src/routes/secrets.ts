@@ -3,7 +3,7 @@
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { DomainError, deleteSecret, listSecrets, readSecret, secretsAvailable, setSecret } from '@erp/db';
-import { TELEGRAM_TOKEN_SECRET, secretKeyParam, secretSet, telegramGetMe } from '@erp/shared';
+import { MAILBOX_SECRET_PREFIX, TELEGRAM_TOKEN_SECRET, secretKeyParam, secretSet, telegramGetMe } from '@erp/shared';
 import { ctxOf, validationHook } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';
@@ -12,7 +12,8 @@ const admin = requireRole('admin');
 const docCtx = (c: ReturnType<typeof ctxOf>) => ({ workspaceId: c.workspaceId, memberId: c.memberId, role: c.role });
 
 export const secretRoutes = new Hono<AppEnv>()
-  .get('/', admin, async c => c.json({ available: secretsAvailable(), items: await listSecrets(ctxOf(c).db) }))
+  // пароли почтовых ящиков (`mailbox.<id>.password`) — служебные: ими управляет только экран ящиков, в этом списке их нет
+  .get('/', admin, async c => c.json({ available: secretsAvailable(), items: (await listSecrets(ctxOf(c).db)).filter(s => !s.key.startsWith(MAILBOX_SECRET_PREFIX)) }))
   // Проверка токена бота: getMe. В ответе только имя бота, токен не возвращается
   .post('/telegram/check', admin, async c => {
     const ctx = ctxOf(c);
@@ -26,10 +27,12 @@ export const secretRoutes = new Hono<AppEnv>()
   })
   .put('/:key', admin, zValidator('param', secretKeyParam, validationHook), zValidator('json', secretSet, validationHook), async c => {
     const ctx = ctxOf(c);
+    if (c.req.valid('param').key.startsWith(MAILBOX_SECRET_PREFIX)) throw new DomainError(422, 'secret_reserved', 'This secret is managed by the mailbox settings');
     return c.json(await setSecret(ctx.db, docCtx(ctx), c.req.valid('param').key, c.req.valid('json').value));
   })
   .delete('/:key', admin, zValidator('param', secretKeyParam, validationHook), async c => {
     const ctx = ctxOf(c);
+    if (c.req.valid('param').key.startsWith(MAILBOX_SECRET_PREFIX)) throw new DomainError(422, 'secret_reserved', 'This secret is managed by the mailbox settings');
     await deleteSecret(ctx.db, docCtx(ctx), c.req.valid('param').key);
     return c.json({ ok: true });
   });

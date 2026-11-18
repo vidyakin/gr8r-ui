@@ -124,6 +124,7 @@ export const TOKEN_PATH_SECTIONS: Map<string, PositionSection[]> = new Map<strin
   ['/warehouses', REFERENCE_SECTIONS],
   ['/cost-items', ['catalog']],
   ['/positions', ['catalog']],
+  ['/departments', ['catalog']],
   ['/product-kinds', REFERENCE_SECTIONS],
 ]);
 

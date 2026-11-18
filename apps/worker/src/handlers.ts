@@ -2,7 +2,7 @@
    (индексы полей конструктора), PDF печатных форм, ZIP-архив выгрузки счетов, закрытие периода (production.close_period)
    и выполнение запусков автоматизаций (flow.run). */
 import { and, eq, inArray } from 'drizzle-orm';
-import { BANK_SYNC_JOB, buildPrintData, OBJECT_REPORT_JOB, runScheduledObjectReport, renderContractDocxFile, renderContractHtml, renderDocumentHtml, settlementActHtml, transportWaybillPrintData, DISTRIBUTE_JOB, GEOCODE_JOB, OPTIMIZE_JOB, executeRoutingRun, runGeocode, createFieldIndex, integrationRuntime, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, addVersion, createAttachment, contractFiles, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, getEstimateImport, isUuid, jobs, saveEstimateImportAi, withContext, type Db, type Sql } from '@erp/db';
+import { BANK_SYNC_JOB, EMAIL_SEND_JOB, sendQueuedEmail, buildPrintData, OBJECT_REPORT_JOB, runScheduledObjectReport, renderContractDocxFile, renderContractHtml, renderDocumentHtml, settlementActHtml, transportWaybillPrintData, DISTRIBUTE_JOB, GEOCODE_JOB, OPTIMIZE_JOB, executeRoutingRun, runGeocode, createFieldIndex, integrationRuntime, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, addVersion, createAttachment, contractFiles, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, getEstimateImport, isUuid, jobs, saveEstimateImportAi, withContext, type Db, type Sql } from '@erp/db';
 import { FIELD_TYPES, renderPrintForm, renderTransportWaybill, TransientError, type EstimatePdfRegion, type EstimateTableFile, type FieldType, type PrintForm } from '@erp/shared';
 import { loadRequestForHook, markRequestHookSent } from '@erp/db';
 import { extractEstimateRegions, extractEstimateRows } from './ai/estimate-extract';
@@ -82,6 +82,20 @@ export const requestHookRuntime: { fetch: (input: string, init: RequestInit) => 
 export const jobHandlers: Record<string, (job: JobRow, h: JobContext) => Promise<void>> = {
   /** Служебная задача для проверки очереди */
   noop: async () => {},
+  /** Исходящее письмо (задача 1092): SMTP через nodemailer. Временная ошибка — повтор с паузой (до 5 попыток), затем failed;
+      окончательная (пароль, адрес, вложение) — сразу failed без повтора. PDF печатной формы собирается здесь же */
+  [EMAIL_SEND_JOB]: async (job, h) => {
+    const emailId = (job.payload as { emailId?: unknown }).emailId;
+    if (!isUuid(emailId)) throw new Error('email.send job: payload.emailId must be a uuid');
+    await sendQueuedEmail(h.sql, job.workspaceId, emailId, { attempts: job.attempts, maxAttempts: job.maxAttempts }, {
+      renderPrintPdf: async (db, m) => {
+        const html = await renderDocumentHtml(db, m.documentId, m.form, { templateId: m.templateId, memberId: m.memberId });
+        const bytes = await pdfRuntime.render(html, m.form);
+        const [doc] = await db.select({ number: documents.number }).from(documents).where(eq(documents.id, m.documentId)).limit(1);
+        return { filename: `${doc?.number ?? 'document'}-${m.form}.pdf`.replace(/[^\p{L}\p{N}._-]+/gu, '_'), data: bytes };
+      },
+    });
+  },
   /** Заявка арендатора на модули → лид в вебхук лидов оператора. Адрес не задан — ничего не делает; не 2xx или сбой сети — ошибка, задача повторится */
   'module_request.notify': async (job, h) => {
     const url = requestHookRuntime.url();

@@ -1,5 +1,5 @@
 /* Порты узлов (NodeRuntime) на базе транзакции арендатора: роль app_user + app.workspace_id, RLS включён. */
-import { readSecret, type Db } from '@erp/db';
+import { queueAutomationEmail, readSecret, type Db } from '@erp/db';
 import { TELEGRAM_TOKEN_SECRET, telegramSendMessage, type EventVia, FlowContext, HttpRequest, HttpResult, NodeRuntime } from '@erp/shared';
 import { guardedFetch, type HttpOptions } from './http';
 import { addComment, assignLead, createLead, createTask, moveDealAction, notifyMember, submitApproval, updateField } from './records';
@@ -36,6 +36,7 @@ export function makeRuntime(d: RuntimeDeps): NodeRuntime {
       if (!token) throw new Error('Telegram bot token is not set: add the secret telegram.bot_token in Settings → Integrations');
       return telegramSendMessage(token, a, { fetch: d.telegramFetch, timeoutMs: d.http.timeoutMs });
     },
+    sendEmail: a => queueAutomationEmail(d.db, d.workspaceId, d.via, a),
     http: req => (d.httpImpl ? d.httpImpl(req) : guardedFetch(req, d.http)),
   };
 }

@@ -8,10 +8,10 @@ const host = z.string().trim().min(1).max(253);
 const port = z.number().int().min(1).max(65535);
 const address = z.string().trim().max(254).refine(isEmailAddress, 'Expected an email address');
 
-export const mailboxCreate = z.object({
-  kind: z.enum(['shared', 'personal']),
+/** Поля ящика без значений по умолчанию: правка (PATCH) не должна сбрасывать то, что не прислано */
+const mailboxFields = z.object({
   email: address,
-  displayName: z.string().trim().max(200).default(''),
+  displayName: z.string().trim().max(200),
   smtpHost: host,
   smtpPort: port,
   smtpSecure: security,
@@ -20,12 +20,15 @@ export const mailboxCreate = z.object({
   imapPort: port.nullish(),
   imapSecure: security.nullish(),
   imapUser: z.string().trim().min(1).max(254).nullish(),
-  signature: z.string().max(5000).default(''),
+  signature: z.string().max(5000),
   /** Пароль приложения: уходит в хранилище секретов, в ответах не возвращается */
-  password: z.string().min(1).max(512).optional(),
+  password: z.string().min(1).max(512),
 });
 
-export const mailboxUpdate = mailboxCreate.omit({ kind: true }).partial();
+export const mailboxCreate = mailboxFields
+  .extend({ kind: z.enum(['shared', 'personal']), displayName: mailboxFields.shape.displayName.default(''), signature: mailboxFields.shape.signature.default(''), password: mailboxFields.shape.password.optional() });
+
+export const mailboxUpdate = mailboxFields.partial();
 
 export const emailCreate = z.object({
   /** Явный ящик; иначе личный ящик автора, иначе общий */
