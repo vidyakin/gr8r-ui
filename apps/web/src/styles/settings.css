@@ -335,3 +335,12 @@
   color: color-mix(in srgb, var(--chip) 80%, var(--text));
   white-space: nowrap;
 }
+/* Строка-обёртка с SRow внутри (справочники с раскрывающейся правкой): раньше давала две линии подряд — убираем обе */
+.srow:has(> .srow) {
+  border-bottom: 0;
+  padding: 4px 0;
+}
+.srow .srow {
+  border-bottom: 0;
+  padding: 0;
+}
