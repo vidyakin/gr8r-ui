@@ -2,7 +2,7 @@
    перерасход против нормы) — затраты видят admin и owner. */
 import * as React from 'react';
 import { Link } from 'react-router';
-import { Badge, Field, Skeleton } from '@/components/ui';
+import { Badge, Skeleton } from '@/components/ui';
 import { DataTable, useDataTable, type Column } from '@/components/erp/data-table';
 import { fmtAmount, fmtNumber, useT } from '@/i18n';
 import { iso, today, fmtDate, parse } from '../lib/dates';
@@ -10,7 +10,7 @@ import { useIsAdmin } from '../catalog/data';
 import { SECTIONS } from '../routes';
 import { useFleetCosts, useFleetDocs, useFleetSummary, useServicePlans, type VehicleCost } from './data';
 import { FleetHead, TermBadge } from './parts';
-import { DateInput } from '@/components/erp/date-picker';
+import { PeriodInput } from '@/components/erp/period-input';
 
 function Stat({ label, value, tone, to }: { label: string; value: number; tone?: 'red' | 'amber'; to: string }) {
   return (
@@ -61,22 +61,29 @@ export function FleetPage() {
         </div>
       )}
       {(attention.length > 0 || expiring.length > 0 || plans.length > 0) && (
-        <section className="panel plain" style={{ margin: '0 var(--gutter) 16px' }}>
-          <div className="stack" style={{ gap: 6 }}>
-            <h2 style={{ margin: 0 }}>{t('fleet.overview.attention')}</h2>
+        <section style={{ margin: '0 var(--gutter) 16px' }}>
+          <h2 style={{ margin: '0 0 10px' }}>{t('fleet.overview.attention')}</h2>
+          {/* плитки: машина или водитель крупно, что за документ или ТО, срок и состояние внизу */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
             {[...attention, ...expiring].map(d => (
-              <div key={d.id} className="row" style={{ gap: 12, justifyContent: 'space-between' }}>
-                <span><b>{d.plate ?? d.memberName}</b> · {t(`fleet.docKind.${d.kind}`)} {d.number}</span>
-                <span className="row" style={{ gap: 8 }}>
-                  <span className="num muted">{d.validUntil ? fmtDate(parse(d.validUntil)) : ''}</span>
+              <div key={d.id} className="panel plain stack" style={{ gap: 6, padding: 14 }}>
+                <b style={{ fontSize: 15 }}>{d.plate ?? d.memberName}</b>
+                <span className="muted" style={{ fontSize: 13 }}>
+                  {t(`fleet.docKind.${d.kind}`)} {d.number}
+                </span>
+                <span className="row" style={{ gap: 8, justifyContent: 'space-between', marginTop: 'auto' }}>
+                  <span className="num muted" style={{ fontSize: 12 }}>{d.validUntil ? fmtDate(parse(d.validUntil)) : ''}</span>
                   <TermBadge state={d.state} daysLeft={d.daysLeft} />
                 </span>
               </div>
             ))}
             {plans.map(p => (
-              <div key={p.id} className="row" style={{ gap: 12, justifyContent: 'space-between' }}>
-                <span><b>{p.plate}</b> · {p.name}</span>
-                <Badge tone={p.due.overdue ? 'red' : 'amber'}>{p.due.overdue ? t('fleet.service.overdue') : t('fleet.service.soon')}</Badge>
+              <div key={p.id} className="panel plain stack" style={{ gap: 6, padding: 14 }}>
+                <b style={{ fontSize: 15 }}>{p.plate}</b>
+                <span className="muted" style={{ fontSize: 13 }}>{p.name}</span>
+                <span className="row" style={{ justifyContent: 'flex-end', marginTop: 'auto' }}>
+                  <Badge tone={p.due.overdue ? 'red' : 'amber'}>{p.due.overdue ? t('fleet.service.overdue') : t('fleet.service.soon')}</Badge>
+                </span>
               </div>
             ))}
           </div>
@@ -85,11 +92,8 @@ export function FleetPage() {
       {isAdmin && (
         <>
           <section className="panel plain" style={{ margin: '0 var(--gutter) 16px' }}>
-            <div className="row" style={{ gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <h2 style={{ margin: 0 }}>{t('fleet.costs.title')}</h2>
-              <Field label={t('fleet.from')}>{p => <DateInput {...p} value={from} max={to} onChange={v => setFrom(v || from)} required />}</Field>
-              <Field label={t('fleet.to')}>{p => <DateInput {...p} value={to} min={from} onChange={v => setTo(v || to)} required />}</Field>
-            </div>
+            <h2 style={{ margin: '0 0 10px' }}>{t('fleet.costs.title')}</h2>
+            <PeriodInput from={from} to={to} aria-label={t('fleet.costs.title')} onChange={(f, tt) => (setFrom(f), setTo(tt))} />
             <p className="faint" style={{ fontSize: 12, margin: '8px 0 0' }}>{t('fleet.costs.hint')}</p>
           </section>
           <DataTable aria-label={t('fleet.costs.title')} columns={columns} rows={costs.data?.items ?? []} table={table} getId={r => r.vehicleId} />

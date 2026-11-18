@@ -393,16 +393,7 @@ export function TransportOrdersPage() {
   const table = useDataTable(columns, { sort: { id: 'date', dir: -1 } });
   return (
     <div className="page flush">
-      <FleetHead
-        title={t('transport.orders.title')}
-        lead={t('transport.orders.lead')}
-        actions={
-          <Button size="sm" onClick={() => setEdit('new')}>
-            <Plus size={13} />
-            {t('transport.orders.new')}
-          </Button>
-        }
-      />
+      <FleetHead title={t('transport.orders.title')} lead={t('transport.orders.lead')} />
       <section className="panel plain" style={{ margin: '0 var(--gutter) 16px' }}>
         <div className="row" style={{ gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <Field label={t('transport.orders.from')}>{p => <DateInput {...p} value={from} max={to} onChange={v => setFrom(v || from)} required />}</Field>
@@ -411,6 +402,11 @@ export function TransportOrdersPage() {
             {p => <Select id={p.id} aria-label={t('transport.orders.col.status')} value={status} onValueChange={setStatus} options={[{ value: ALL, label: t('transport.orders.all') }, ...TRANSPORT_ORDER_STATUSES.map(s => ({ value: s, label: t(`transport.orders.status.${s}`) }))]} />}
           </Field>
           <Field label={t('transport.orders.search')}>{p => <Input {...p} value={q} onChange={e => setQ(e.target.value)} />}</Field>
+          {/* кнопка создания — в ряду фильтров, прижата вправо */}
+          <Button variant="primary" style={{ marginLeft: 'auto' }} onClick={() => setEdit('new')}>
+            <Plus size={14} />
+            {t('transport.orders.new')}
+          </Button>
         </div>
       </section>
       {list.isPending ? (

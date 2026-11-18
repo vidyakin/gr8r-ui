@@ -83,22 +83,18 @@ export function RateSchedulesPage() {
   const table = useDataTable(columns, { sort: { id: 'name', dir: 1 } });
   return (
     <div className="page flush">
-      <FleetHead
-        title={t('transport.rates.title')}
-        lead={t('transport.rates.lead')}
-        actions={
-          <>
-            <label className="row" style={{ gap: 6, fontSize: 12 }}>
-              <Switch checked={archived} aria-label={t('transport.rates.showArchived')} onChange={e => setArchived(e.target.checked)} />
-              {t('transport.rates.showArchived')}
-            </label>
-            <Button size="sm" onClick={() => setEdit('new')}>
-              <Plus size={13} />
-              {t('transport.rates.new')}
-            </Button>
-          </>
-        }
-      />
+      <FleetHead title={t('transport.rates.title')} lead={t('transport.rates.lead')} />
+      {/* ряд под заголовком: слева кнопка, за ней свич архивных */}
+      <div className="row" style={{ gap: 16, alignItems: 'center', padding: '0 var(--gutter) 12px' }}>
+        <Button variant="primary" onClick={() => setEdit('new')}>
+          <Plus size={14} />
+          {t('transport.rates.new')}
+        </Button>
+        <label className="row" style={{ gap: 6, fontSize: 13 }}>
+          <Switch checked={archived} aria-label={t('transport.rates.showArchived')} onChange={e => setArchived(e.target.checked)} />
+          {t('transport.rates.showArchived')}
+        </label>
+      </div>
       {list.isPending ? (
         <div style={{ padding: 16 }}><Skeleton w="100%" h={36} /></div>
       ) : (
