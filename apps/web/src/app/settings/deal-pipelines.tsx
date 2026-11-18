@@ -6,9 +6,19 @@ import { DEAL_REQUIRED_BUILTINS, DEAL_STAGE_CATEGORIES, LEAD_STATUS_COLORS, PIPE
 import { Alert, Badge, Button, ConfirmDialog, EmptyState, Field, Input, Select, Skeleton } from '@/components/ui';
 import { useT } from '@/i18n';
 import { useIsAdmin } from '../catalog/data';
+import { colorVar } from '../crm/stages';
 import { usePipelines, usePipelinesApi, type DealPipeline, type DealStageRow } from '../crm/pipelines';
 import { useAllEntities } from '../meta/data';
 import { SettingsHead, SRow } from './parts';
+
+/** Плашка с фоном цвета этапа (мягкий оттенок) и текстом того же цвета */
+function ColorChip({ color, children }: { color: string; children: React.ReactNode }) {
+  return (
+    <span className="color-chip" style={{ '--chip': colorVar(color) } as React.CSSProperties}>
+      {children}
+    </span>
+  );
+}
 
 /** Число из поля ввода: пусто — null (без норматива) */
 const num = (s: string): number | null => (s.trim() === '' || Number.isNaN(Number(s)) ? null : Math.max(0, Math.round(Number(s))));
@@ -29,7 +39,7 @@ function StageRowEditor({ stage, index, count, isAdmin, onMove, customKeys }: { 
 
   return (
     <div className="stage-box">
-      <SRow t={<><Badge>{t(`crm.pipelines.category.${stage.category}`)}</Badge> {stage.name}</>} d={t('crm.pipelines.stageSummary', { prob: stage.probability, sla: stage.slaDays ?? '—' })}>
+      <SRow t={<><ColorChip color={stage.color}>{t(`crm.pipelines.category.${stage.category}`)}</ColorChip> {stage.name}</>} d={t('crm.pipelines.stageSummary', { prob: stage.probability, sla: stage.slaDays ?? '—' })}>
         {isAdmin && (
           <div className="row" style={{ gap: 4 }}>
             <Button size="sm" variant="ghost" aria-label={t('crm.pipelines.up')} disabled={index === 0} onClick={() => onMove(index, -1)}><ArrowUp size={13} /></Button>
@@ -43,7 +53,7 @@ function StageRowEditor({ stage, index, count, isAdmin, onMove, customKeys }: { 
           <div className="stage-main">
             <Field label={t('crm.pipelines.stageName')}>{p => <Input {...p} maxLength={200} value={name} onChange={e => setName(e.target.value)} onBlur={() => name.trim() && name !== stage.name && void patch({ name: name.trim() })} />}</Field>
             <Field label={t('crm.pipelines.categoryLabel')}>{p => <Select id={p.id} value={stage.category} aria-label={t('crm.pipelines.categoryLabel')} onValueChange={v => void patch({ category: v })} options={DEAL_STAGE_CATEGORIES.map(c => ({ value: c, label: t(`crm.pipelines.category.${c}`) }))} />}</Field>
-            <Field label={t('crm.pipelines.color')}>{p => <Select id={p.id} value={stage.color} aria-label={t('crm.pipelines.color')} onValueChange={v => void patch({ color: v })} options={LEAD_STATUS_COLORS.map(c => ({ value: c, label: t(`leads.color.${c}`) }))} />}</Field>
+            <Field label={t('crm.pipelines.color')}>{p => <Select id={p.id} value={stage.color} aria-label={t('crm.pipelines.color')} onValueChange={v => void patch({ color: v })} options={LEAD_STATUS_COLORS.map(c => ({ value: c, label: <ColorChip color={c}>{t(`leads.color.${c}`)}</ColorChip> }))} />}</Field>
           </div>
           <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <Field label={t('crm.pipelines.probability')}>{p => <Input {...p} type="number" min={0} max={100} style={{ width: 90 }} value={prob} onChange={e => setProb(e.target.value)} onBlur={() => { const v = num(prob); if (v !== null && v <= 100 && v !== stage.probability) void patch({ probability: v }); else setProb(String(stage.probability)); }} />}</Field>
