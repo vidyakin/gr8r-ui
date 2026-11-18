@@ -2,9 +2,9 @@
    суммы по выборке. Новый документ создаётся черновиком сразу и открывается в форме. */
 import * as React from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { CircleAlert, FilePlus, FileText, Plus, CircleDot, Building2 } from 'lucide-react';
+import { Ban, CheckCheck, CircleAlert, FilePlus, FileText, Plus, CircleDot, Building2 } from 'lucide-react';
 import { DOCUMENT_META, documentTypesOf, type DocumentGroup, type DocumentType } from '@erp/shared';
-import { Badge, Button, EmptyState, Menu, MenuContent, MenuItem, MenuTrigger, Skeleton } from '@/components/ui';
+import { Button, EmptyState, Menu, MenuContent, MenuItem, MenuTrigger, Skeleton } from '@/components/ui';
 import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/erp/data-table';
 import { FilterBar, useFilterState, type FilterField } from '@/components/erp/filter-bar';
 import { useT } from '@/i18n';
@@ -13,7 +13,7 @@ import { useCanWrite } from '../meta/custom-fields';
 import { money } from '../catalog/data';
 import { PayBadge } from '../money/PayControls';
 import { fmtDate, parse } from '../lib/dates';
-import { STATUS_LABEL, STATUS_TONE, typeLabel, useDocsApi, useDocuments, useOrganizations, type DocDetail, type DocListItem } from './data';
+import { STATUS_LABEL, typeLabel, useDocsApi, useDocuments, useOrganizations, type DocDetail, type DocListItem } from './data';
 
 
 /** Журнал группы документов; `type` открывает сразу один тип (вкладка экрана переработки) */
@@ -73,6 +73,8 @@ export function JournalPage({ group, type: fixed }: { group: DocumentGroup; type
   ];
 
   const columns: Column<DocListItem>[] = [
+    // статус — значком в первой узкой колонке без заголовка: двойная галка у проведённых, серый кружок у черновика
+    { id: 'status', header: '', width: 36, value: d => STATUS_LABEL[d.status], cell: d => <DocStatusIcon status={d.status} /> },
     { id: 'number', header: t('docs.journal.col.number'), width: 150, value: d => d.number ?? '', cell: d => (d.number ? <span className="mono" style={{ fontWeight: 450 }}>{d.number}</span> : <span className="faint">{t('docs.journal.draft')}</span>) },
     { id: 'type', header: t('docs.journal.col.type'), width: 150, value: d => typeLabel(d.type), cell: d => <span className="muted">{typeLabel(d.type)}</span> },
     { id: 'date', header: t('docs.journal.col.date'), width: 112, value: d => d.date, cell: d => <span className="num muted">{fmtDate(parse(d.date))}</span> },
@@ -81,7 +83,6 @@ export function JournalPage({ group, type: fixed }: { group: DocumentGroup; type
     ...(group === 'sales' || group === 'purchases'
       ? [{ id: 'payment', header: t('docs.journal.col.payment'), width: 150, value: (d: DocListItem) => (d.payment ? (d.payment.prepaid ? 'prepaid' : d.payment.state) : ''), cell: (d: DocListItem) => (d.payment ? <PayBadge s={d.payment} compact /> : <span className="faint">—</span>) } satisfies Column<DocListItem>]
       : []),
-    { id: 'status', header: t('common.status'), width: 112, value: d => STATUS_LABEL[d.status], cell: d => <Badge tone={STATUS_TONE[d.status]} dot>{STATUS_LABEL[d.status]}</Badge> },
     ...(group === 'stock' ? [costCol] : sumCols),
   ];
   const table = useDataTable(columns, { sort: { id: 'date', dir: -1 } });
@@ -174,5 +175,17 @@ export function JournalPage({ group, type: fixed }: { group: DocumentGroup; type
         </>
       )}
     </div>
+  );
+}
+
+/** Значок статуса документа в журнале: подпись — во всплывающей подсказке и для экранного диктора */
+function DocStatusIcon({ status }: { status: DocListItem['status'] }) {
+  const label = STATUS_LABEL[status];
+  const icon =
+    status === 'posted' ? <CheckCheck size={15} style={{ color: 'var(--green)' }} /> : status === 'cancelled' ? <Ban size={14} style={{ color: 'var(--red)' }} /> : <span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', background: 'var(--text-3)' }} />;
+  return (
+    <span role="img" aria-label={label} title={label} style={{ display: 'inline-flex', width: 16, justifyContent: 'center', alignItems: 'center', verticalAlign: 'middle' }}>
+      {icon}
+    </span>
   );
 }
