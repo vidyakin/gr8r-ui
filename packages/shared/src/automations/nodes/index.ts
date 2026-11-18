@@ -10,6 +10,7 @@ import createTask from './action-create-task';
 import moveDeal from './action-move-deal';
 import httpRequest from './action-http-request';
 import notify from './action-notify';
+import telegramSend from './action-telegram-send';
 import updateField from './action-update-field';
 import branch from './flow-branch';
 import delay from './flow-delay';
@@ -58,6 +59,7 @@ export const NODE_LIST: AnyNodeDef[] = [
   createTask,
   notify,
   httpRequest,
+  telegramSend,
   addComment,
   createLead,
   assignLead,

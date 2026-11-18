@@ -155,6 +155,8 @@ export const errors = {
   not_a_bank: 'YooKassa has no statement to load',
   secret_corrupted: 'The secret cannot be decrypted with the current server key',
   invalid_secret_key: 'Invalid secret name',
+  telegram_token_missing: 'The Telegram bot token is not set',
+  telegram_check_failed: 'Telegram rejected the token or is unreachable',
   service_not_provided: 'This specialist does not provide this service',
   work_order_exists: 'A work order has already been created from this appointment',
   appointment_sold_in_day: 'The appointment is already in a document of the day: remove it there to create a work order',

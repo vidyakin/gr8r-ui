@@ -127,6 +127,11 @@ export const automations = {
         body: 'Тело',
       },
     },
+    action_telegram_send: {
+      label: 'Отправить в Telegram',
+      description: 'Отправляет сообщение в чат Telegram от бота, токен которого задан в «Настройки → Интеграции» (telegram.bot_token).',
+      params: { chatId: 'ID чата', text: 'Сообщение', parseMode: 'Формат' },
+    },
     action_add_comment: {
       label: 'Добавить комментарий',
       description: 'Пишет комментарий к задаче или заметку к сделке.',
