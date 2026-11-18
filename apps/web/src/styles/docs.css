@@ -63,6 +63,34 @@
 .doc-head .doc-wide {
   grid-column: 1 / -1;
 }
+/* шапка документа с контрагентом: первые восемь полей в порядке 1С, остальные — после них */
+.doc-head.ordered > * {
+  order: 20;
+}
+.doc-head.ordered > .o1 {
+  order: 1;
+}
+.doc-head.ordered > .o2 {
+  order: 2;
+}
+.doc-head.ordered > .o3 {
+  order: 3;
+}
+.doc-head.ordered > .o4 {
+  order: 4;
+}
+.doc-head.ordered > .o5 {
+  order: 5;
+}
+.doc-head.ordered > .o6 {
+  order: 6;
+}
+.doc-head.ordered > .o7 {
+  order: 7;
+}
+.doc-head.ordered > .o8 {
+  order: 8;
+}
 .doc-ro {
   min-height: var(--h-md);
   display: flex;

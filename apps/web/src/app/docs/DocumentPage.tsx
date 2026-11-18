@@ -1262,8 +1262,9 @@ function DocumentView({ doc }: { doc: DocDetail }) {
           {t('docs.document.cancelReason')}: {doc.cancelReason}
         </p>
       )}
-      <section className="doc-head panel" aria-label={t('docs.document.headerAria')}>
-        <Field label={t('docs.document.organization')}>
+      {/* у документов с контрагентом порядок шапки как в 1С: Организация, Склад, Вид операции, Дата / Покупатель, Договор, Вид цен, Объект */}
+      <section className={`doc-head panel${internal ? '' : ' ordered'}`} aria-label={t('docs.document.headerAria')}>
+        <Field className="o1" label={t('docs.document.organization')}>
           {p => (
             <Select
               id={p.id}
@@ -1276,7 +1277,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
           )}
         </Field>
         {!internal && (
-          <Field label={meta.party === 'customer' ? t('docs.document.customer') : t('docs.document.supplier')}>
+          <Field className="o5" label={meta.party === 'customer' ? t('docs.document.customer') : t('docs.document.supplier')}>
             {p =>
               editable ? (
                 <CounterpartyPicker id={p.id} value={form.counterpartyName} invalid={save === 'invalid' && !form.counterpartyId} onPick={c => edit(f => ({ ...f, counterpartyId: c.id, counterpartyName: c.name, contractId: null }))} />
@@ -1287,7 +1288,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
           </Field>
         )}
         {!internal && (
-          <Field label={t('docs.header.contract')} hint={t('docs.document.contractHint')}>
+          <Field className="o6" label={t('docs.header.contract')} hint={t('docs.document.contractHint')}>
             {p =>
               editable ? (
                 <Select
@@ -1306,7 +1307,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
           </Field>
         )}
         {!internal && meta.party !== null && (
-          <Field label={t('pricing.doc.kind')}>
+          <Field className="o7" label={t('pricing.doc.kind')}>
             {p =>
               editable ? (
                 <div className="row" style={{ gap: 6 }}>
@@ -1327,7 +1328,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
           </Field>
         )}
         {usesWarehouse && !(isTransfer && form.operation === 'from_operation') && (
-          <Field label={internal ? (meta.production ? t('docs.document.materialsWarehouse') : isCount ? t('docs.header.warehouse') : t('docs.document.fromWarehouse')) : t('docs.header.warehouse')}>
+          <Field className="o2" label={internal ? (meta.production ? t('docs.document.materialsWarehouse') : isCount ? t('docs.header.warehouse') : t('docs.document.fromWarehouse')) : t('docs.header.warehouse')}>
             {p => (
               <Select
                 id={p.id}
@@ -1361,7 +1362,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
           </Field>
         )}
         {(doc.type === 'customer_order' || doc.type === 'supplier_order') && (
-          <Field label={t('docs.document.kindOfOperation')}>
+          <Field className="o3" label={t('docs.document.kindOfOperation')}>
             {p => (
               <Select
                 id={p.id}
@@ -1487,24 +1488,13 @@ function DocumentView({ doc }: { doc: DocDetail }) {
           </Field>
         )}
         {isInvestmentFactType(doc.type) && <DocInvestmentField value={form.investmentProjectId} current={doc.investmentProject} disabled={!editable} onChange={v => edit(f => ({ ...f, investmentProjectId: v }))} />}
-        <ObjectField value={form.objectId} current={doc.object} disabled={!editable} onChange={v => edit(f => ({ ...f, objectId: v }))} />
-        <Field label={t('docs.header.date')}>{p => <DateInput {...p} disabled={!editable} value={form.date} onChange={v => edit(f => ({ ...f, date: v }))} />}</Field>
+        <ObjectField className="o8" value={form.objectId} current={doc.object} disabled={!editable} onChange={v => edit(f => ({ ...f, objectId: v }))} />
+        <Field className="o4" label={t('docs.header.date')}>{p => <DateInput {...p} disabled={!editable} value={form.date} onChange={v => edit(f => ({ ...f, date: v }))} />}</Field>
         {(doc.type === 'invoice' || doc.type === 'quote' || doc.type === 'customer_order') && (
           <Field label={doc.type === 'quote' ? t('docs.document.validUntil') : doc.type === 'invoice' ? t('docs.document.payBy') : t('docs.document.dueDate')}>
             {p => <DateInput {...p} disabled={!editable} value={form.dueDate} onChange={v => edit(f => ({ ...f, dueDate: v }))} />}
           </Field>
         )}
-        {ATTRIBUTION_TYPES.includes(doc.type) && (
-          <>
-            <AttributionFields noReferrer disabled={!editable} value={{ sourceId: form.sourceId, campaignId: form.campaignId }} onChange={v => edit(f => ({ ...f, sourceId: v.sourceId, campaignId: v.campaignId }))} />
-            {(['utmSource', 'utmMedium', 'utmCampaign', 'utmContent'] as const).map(k => (
-              <Field key={k} label={t(`docs.document.${k}`)}>{p => <Input {...p} disabled={!editable} value={form[k]} maxLength={300} onChange={e => edit(f => ({ ...f, [k]: e.target.value }))} />}</Field>
-            ))}
-          </>
-        )}
-        <Field label={t('docs.header.number')} hint={hasNumber ? undefined : t('docs.document.numberHintAuto')}>
-          {p => <Input {...p} readOnly value={doc.number ?? ''} placeholder="—" className="mono" />}
-        </Field>
         {!internal && (
           <Field label={t('docs.document.prices')}>
             {() => (
@@ -1639,6 +1629,15 @@ function DocumentView({ doc }: { doc: DocDetail }) {
           )}
         </section>
       </div>
+
+      {ATTRIBUTION_TYPES.includes(doc.type) && (
+        <section className="doc-head panel" aria-label={t('docs.document.attributionAria')}>
+          <AttributionFields noReferrer disabled={!editable} value={{ sourceId: form.sourceId, campaignId: form.campaignId }} onChange={v => edit(f => ({ ...f, sourceId: v.sourceId, campaignId: v.campaignId }))} />
+          {(['utmSource', 'utmMedium', 'utmCampaign', 'utmContent'] as const).map(k => (
+            <Field key={k} label={t(`docs.document.${k}`)}>{p => <Input {...p} disabled={!editable} value={form[k]} maxLength={300} onChange={e => edit(f => ({ ...f, [k]: e.target.value }))} />}</Field>
+          ))}
+        </section>
+      )}
 
       <section className="doc-comment panel" aria-label={t('docs.comment')}>
         <Field label={t('docs.comment')}>

@@ -494,6 +494,7 @@ export const docs = {
     validUntil: 'Valid until',
     payBy: 'Pay by',
     dueDate: 'Due date',
+    attributionAria: 'Source and UTM tags',
     utmSource: 'utm_source',
     utmMedium: 'utm_medium',
     utmCampaign: 'utm_campaign',

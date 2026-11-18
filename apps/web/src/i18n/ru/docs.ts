@@ -495,6 +495,7 @@ export const docs: Widen<typeof D> = {
     validUntil: 'Действует до',
     payBy: 'Оплатить до',
     dueDate: 'Срок',
+    attributionAria: 'Источник и UTM-метки',
     utmSource: 'utm_source',
     utmMedium: 'utm_medium',
     utmCampaign: 'utm_campaign',

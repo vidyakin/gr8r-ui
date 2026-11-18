@@ -28,11 +28,11 @@ export function ObjectSelect({ id, value, current, disabled, onChange, ariaLabel
   );
 }
 
-export function ObjectField({ value, current, disabled, onChange }: { value: string | null; current?: { id: string; number: string; name: string } | null; disabled: boolean; onChange: (v: string | null) => void }) {
+export function ObjectField({ value, current, disabled, onChange, className }: { value: string | null; current?: { id: string; number: string; name: string } | null; disabled: boolean; onChange: (v: string | null) => void; className?: string }) {
   const tt = useT();
   if (!useObjectFieldVisible(value)) return null;
   return (
-    <Field label={tt('objects.field.object')}>
+    <Field className={className} label={tt('objects.field.object')}>
       {p => <ObjectSelect id={p.id} value={value} current={current} disabled={disabled} onChange={onChange} />}
     </Field>
   );
