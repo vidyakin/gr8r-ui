@@ -65,7 +65,8 @@ export function DateInput({
           id={id}
           disabled={disabled}
           className={cn('input', size === 'sm' && 'search-sm w-full', invalid && 'is-error', className)}
-          style={style}
+          // пустое поле в строке с flex не должно сжиматься до кнопки без текста — ширина под дату «18 нояб. 2026»
+          style={{ minWidth: size === 'sm' ? 120 : 140, ...style }}
           aria-label={ariaLabel}
           aria-describedby={ariaDescribedBy}
         >

@@ -89,11 +89,13 @@ export function TimesheetPage() {
         </div>
       )}
       {!!sheet.data?.totals.byMember.length && (
-        <div className="row" style={{ gap: 12, padding: '0 var(--gutter) 24px' }}>
+        <div className="row" style={{ gap: 16, flexWrap: 'wrap', padding: '0 var(--gutter) 24px' }}>
           {sheet.data.totals.byMember.map(m => (
-            <span key={m.memberId} className="muted" style={{ fontSize: 12.5 }}>
-              <Clock3 size={12} style={{ verticalAlign: -2, marginRight: 4 }} />
-              {m.memberName}: <span className="num">{m.hours}</span> {t('docs.timesheet.hoursUnit')}
+            <span key={m.memberId} className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', fontSize: 14 }}>
+              <Clock3 size={15} style={{ flexShrink: 0 }} />
+              <span>
+                {m.memberName}: <b className="num" style={{ color: 'var(--text)' }}>{m.hours}</b> {t('docs.timesheet.hoursUnit')}
+              </span>
             </span>
           ))}
         </div>
