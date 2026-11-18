@@ -27,6 +27,12 @@ export interface Column<T> {
   defaultHidden?: boolean;
   /** false — не показывать в карточке на телефоне */
   mobile?: boolean;
+  /** false — ширину нельзя менять перетаскиванием */
+  resizable?: boolean;
+  /** Колонка забирает свободную ширину таблицы, остальные не растягиваются (иначе излишек делится между всеми) */
+  grow?: boolean;
+  /** Узкая колонка со значком: без правого отступа ячейки */
+  icon?: boolean;
 }
 
 export interface SortState {
@@ -171,8 +177,10 @@ const cellValue = <T,>(c: Column<T>, row: T) => (c.cell ? c.cell(row) : (c.value
 
 export function DataTable<T>({ columns, rows, table, getId, onRowClick, groupBy, showTotals = true, totalLabel = t('ui.total'), totalLabelCol = 0, onNew, newLabel = t('ui.new'), empty, renderCard, manualSort, virtual, onEndReached, footer, ...rest }: DataTableProps<T>) {
   const cols = columns.filter((c, i) => i === 0 || !table.hidden.includes(c.id));
-  const width = (c: Column<T>) => table.colW[c.id] ?? c.width;
+  // у неизменяемой колонки сохранённая ширина (прежняя колонка с тем же id) не действует
+  const width = (c: Column<T>) => (c.resizable === false ? c.width : (table.colW[c.id] ?? c.width));
   const totalW = cols.reduce((a, c) => a + width(c), 0);
+  const growId = cols.find(c => c.grow)?.id;
   const sorted = React.useMemo(() => (manualSort ? rows : sortRows(rows, columns, table.sort)), [rows, columns, table.sort, manualSort]);
   const [wrapEl, setWrapEl] = React.useState<HTMLDivElement | null>(null);
   const bodyRef = React.useRef<HTMLTableSectionElement>(null);
@@ -238,7 +246,7 @@ export function DataTable<T>({ columns, rows, table, getId, onRowClick, groupBy,
   const bodyRow = (r: T) => (
     <tr key={getId(r)} data-id={getId(r)} className={onRowClick ? 'dt-click' : undefined} {...rowProps(r)}>
       {cols.map((c, i) => (
-        <td key={c.id} className={cn(i === 0 && 'sticky', c.align === 'right' && 'num')} style={right(c)}>
+        <td key={c.id} className={cn(i === 0 && 'sticky', c.align === 'right' && 'num', c.icon && 'dt-icon')} style={right(c)}>
           {cellValue(c, r)}
         </td>
       ))}
@@ -271,7 +279,8 @@ export function DataTable<T>({ columns, rows, table, getId, onRowClick, groupBy,
         <table className="tbl" style={{ width: totalW }} {...rest}>
           <colgroup>
             {cols.map(c => (
-              <col key={c.id} style={{ width: width(c) }} />
+              // у растущей колонки ширина не задана — при table-layout: fixed ей достаётся весь излишек
+              <col key={c.id} style={growId === c.id && !table.colW[c.id] ? undefined : { width: width(c) }} />
             ))}
           </colgroup>
           <thead>
@@ -281,7 +290,7 @@ export function DataTable<T>({ columns, rows, table, getId, onRowClick, groupBy,
                 const SortIcon = table.sort.dir > 0 ? ArrowUp : ArrowDown;
                 const can = sortable(c);
                 return (
-                  <th key={c.id} className={i === 0 ? 'sticky' : undefined} style={{ position: 'sticky' }} scope="col" aria-sort={on ? (table.sort.dir > 0 ? 'ascending' : 'descending') : undefined}>
+                  <th key={c.id} className={cn(i === 0 && 'sticky', c.icon && 'dt-icon')} style={{ position: 'sticky' }} scope="col" aria-sort={on ? (table.sort.dir > 0 ? 'ascending' : 'descending') : undefined}>
                     <div
                       className="thi"
                       style={{ ...(c.align === 'right' ? { justifyContent: 'flex-end' } : null), ...(can ? null : { cursor: 'default' }) }}
@@ -291,7 +300,7 @@ export function DataTable<T>({ columns, rows, table, getId, onRowClick, groupBy,
                       {c.header}
                       {on && c.align !== 'right' && <SortIcon size={11} />}
                     </div>
-                    <span className="rsz" aria-hidden onPointerDown={e => startResize(e, c)} />
+                    {c.resizable !== false && <span className="rsz" aria-hidden onPointerDown={e => startResize(e, c)} />}
                   </th>
                 );
               })}
@@ -308,7 +317,7 @@ export function DataTable<T>({ columns, rows, table, getId, onRowClick, groupBy,
                   <React.Fragment key={g.key}>
                     <tr className="grow-row">
                       {cols.map((c, i) => (
-                        <td key={c.id} className={cn(i === 0 && 'sticky', c.align === 'right' && 'num')} style={right(c)}>
+                        <td key={c.id} className={cn(i === 0 && 'sticky', c.align === 'right' && 'num', c.icon && 'dt-icon')} style={right(c)}>
                           {i === 0 ? (
                             <span className="row" style={{ gap: 6 }}>
                               {groupBy!.label(g.key, g.rows)}
@@ -353,7 +362,7 @@ export function DataTable<T>({ columns, rows, table, getId, onRowClick, groupBy,
             <tfoot>
               <tr>
                 {cols.map((c, i) => (
-                  <td key={c.id} className={cn(i === 0 && 'sticky', c.align === 'right' && 'num')} style={right(c)}>
+                  <td key={c.id} className={cn(i === 0 && 'sticky', c.align === 'right' && 'num', c.icon && 'dt-icon')} style={right(c)}>
                     {i === totalLabelCol ? (
                       <span className="row" style={{ gap: 6 }}>
                         {totalLabel}

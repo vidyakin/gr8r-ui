@@ -280,6 +280,12 @@ table.tbl {
 .tbl td:first-child {
   padding-left: var(--gutter);
 }
+/* колонка со значком (статус в журналах): без правого отступа, ширина = поле + значок */
+.tbl th.dt-icon,
+.tbl td.dt-icon {
+  padding-right: 4px;
+  text-overflow: clip;
+}
 .only-m {
   display: none;
 }

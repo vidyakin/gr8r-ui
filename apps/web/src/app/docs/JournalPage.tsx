@@ -59,10 +59,10 @@ export function JournalPage({ group, type: fixed }: { group: DocumentGroup; type
   // складские документы: вместо контрагента — склады, вместо сумм — стоимость по себестоимости
   const stockCols: Column<DocListItem>[] = [
     { id: 'warehouse', header: t('docs.journal.col.fromWarehouse'), width: 170, value: d => d.warehouseName ?? '', cell: d => <span className="trunc muted">{d.warehouseName ?? '—'}</span> },
-    { id: 'target', header: t('docs.journal.col.toWarehouse'), width: 170, value: d => d.targetWarehouseName ?? '', cell: d => <span className="trunc muted">{d.targetWarehouseName ?? '—'}</span> },
+    { id: 'target', grow: true, header: t('docs.journal.col.toWarehouse'), width: 170, value: d => d.targetWarehouseName ?? '', cell: d => <span className="trunc muted">{d.targetWarehouseName ?? '—'}</span> },
   ];
   const partyCols: Column<DocListItem>[] = [
-    { id: 'counterparty', header: DOCUMENT_META[types[0]!].party === 'customer' ? t('docs.journal.col.customer') : t('docs.journal.col.supplier'), width: 260, value: d => d.counterpartyName ?? '', cell: d => (d.counterpartyName ? <span className="trunc">{d.counterpartyName}</span> : <span className="faint">—</span>) },
+    { id: 'counterparty', grow: true, header: DOCUMENT_META[types[0]!].party === 'customer' ? t('docs.journal.col.customer') : t('docs.journal.col.supplier'), width: 260, value: d => d.counterpartyName ?? '', cell: d => (d.counterpartyName ? <span className="trunc">{d.counterpartyName}</span> : <span className="faint">—</span>) },
     { id: 'warehouse', header: t('docs.journal.col.warehouse'), width: 170, defaultHidden: true, value: d => d.warehouseName ?? '', cell: d => <span className="trunc muted">{d.warehouseName ?? '—'}</span> },
   ];
   const costCol: Column<DocListItem> = { id: 'cost', header: t('docs.journal.col.cost'), width: 140, align: 'right', value: d => Number(d.costTotal ?? 0), cell: d => <span className="num" style={{ fontWeight: 500 }}>{d.costTotal === null || d.costTotal === undefined ? '—' : money(d.costTotal)}</span>, total: () => (sum?.cost ? <span className="num" style={{ fontWeight: 600 }}>{money(sum.cost)}</span> : null) };
@@ -74,7 +74,7 @@ export function JournalPage({ group, type: fixed }: { group: DocumentGroup; type
 
   const columns: Column<DocListItem>[] = [
     // статус — значком в первой узкой колонке без заголовка: двойная галка у проведённых, серый кружок у черновика
-    { id: 'status', header: '', width: 36, value: d => STATUS_LABEL[d.status], cell: d => <DocStatusIcon status={d.status} /> },
+    { id: 'status', header: '', width: 44, resizable: false, icon: true, value: d => STATUS_LABEL[d.status], cell: d => <DocStatusIcon status={d.status} /> },
     { id: 'number', header: t('docs.journal.col.number'), width: 150, value: d => d.number ?? '', cell: d => (d.number ? <span className="mono" style={{ fontWeight: 450 }}>{d.number}</span> : <span className="faint">{t('docs.journal.draft')}</span>) },
     { id: 'type', header: t('docs.journal.col.type'), width: 150, value: d => typeLabel(d.type), cell: d => <span className="muted">{typeLabel(d.type)}</span> },
     { id: 'date', header: t('docs.journal.col.date'), width: 112, value: d => d.date, cell: d => <span className="num muted">{fmtDate(parse(d.date))}</span> },
