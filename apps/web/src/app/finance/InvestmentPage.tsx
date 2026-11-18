@@ -34,6 +34,7 @@ import { useCanSeeAmounts, useInvestment, useInvestmentApi, type InvestmentDetai
 import { amount, num, statusTone } from './InvestmentsPage';
 import { PlanFactTab } from './PlanFactTab';
 import { ProjectStatus } from '../components/project';
+import { DocForm, DocHeader } from '@/components/erp/doc-form';
 import { DateInput } from '@/components/erp/date-picker';
 
 type Line = InvestmentInput['lines'][number];
@@ -190,19 +191,21 @@ export function InvestmentPage() {
   const cashflow = live[scenario].cashflow;
 
   return (
-    <div className="page flush">
-      <div className="ph">
-        <div>
-          <h1>{detail?.name || tt('finance.card.newTitle')}</h1>
-          <p>
-            {detail && (
-              <Badge tone={statusTone(status)} dot>
-                {tt(`finance.status.${status}`)}
-              </Badge>
-            )}
-          </p>
-        </div>
-        <div className="acts">
+    <DocForm
+      header={
+        <DocHeader
+          title={detail?.name || tt('finance.card.newTitle')}
+          subtitle={
+            detail ? (
+              <p>
+                <Badge tone={statusTone(status)} dot>
+                  {tt(`finance.status.${status}`)}
+                </Badge>
+              </p>
+            ) : undefined
+          }
+          actions={
+            <>
           {headEditable && (
             <Button variant="primary" disabled={busy || !valid} onClick={() => void save()}>
               {detail ? tt('finance.common.save') : tt('finance.common.create')}
@@ -238,9 +241,11 @@ export function InvestmentPage() {
           {detail && canManage && archived && (
             <Button onClick={() => void api.archive(detail.id, true)}>{tt('finance.common.restore')}</Button>
           )}
-        </div>
-      </div>
-
+            </>
+          }
+        />
+      }
+    >
       <section className="panel doc-head" aria-label={tt('finance.field.name')}>
         <Field label={tt('finance.field.name')} className="doc-wide">
           {p => <Input {...p} disabled={!headEditable} value={form.name} onChange={e => set('name', e.target.value)} />}
@@ -320,7 +325,7 @@ export function InvestmentPage() {
       </section>
 
       {(archived || status !== 'draft' || (detail?.outsideHorizon ?? 0) > 0) && (
-        <div className="faint" style={{ fontSize: 12, padding: '8px var(--gutter) 0' }}>
+        <div className="faint" style={{ fontSize: 12 }}>
           {archived && <p>{tt('finance.card.archived')}</p>}
           {status === 'approved' && <p>{tt('finance.card.planLocked')}</p>}
           {status === 'closed' && <p>{tt('finance.card.closedHint')}</p>}
@@ -543,7 +548,7 @@ export function InvestmentPage() {
           description=""
         />
       )}
-    </div>
+    </DocForm>
   );
 }
 
