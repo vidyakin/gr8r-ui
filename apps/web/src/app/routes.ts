@@ -29,6 +29,7 @@ import {
   Handshake,
   House,
   Inbox,
+  Mail,
   Layers,
   Sparkles,
   Hammer,
@@ -94,6 +95,7 @@ export interface Section {
 export const SECTIONS = {
   home: { path: '/', name: 'Home', icon: House },
   inbox: { path: '/inbox', name: 'Inbox', icon: Inbox },
+  email: { path: '/email', name: 'Mail', icon: Mail },
   mytasks: { path: '/my-tasks', name: 'My Tasks', icon: CircleCheck },
   favorites: { path: '/favorites', name: 'Favorites', icon: Star },
   notifications: { path: '/notifications', name: 'Notifications', icon: Bell },
@@ -307,6 +309,7 @@ const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
   mytasks: 'projects',
   calendar: 'projects',
   timeline: 'projects',
+  email: 'crm',
   crm: 'crm',
   crmLeads: 'crm',
   crmAds: 'crm',

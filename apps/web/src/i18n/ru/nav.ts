@@ -3,6 +3,7 @@ import type { nav as N, projectTabs as P, sections as S } from '../en/nav';
 
 export const sections: Widen<typeof S> = {
   home: 'Главная',
+  email: 'Почта',
   inbox: 'Входящие',
   mytasks: 'Мои задачи',
   favorites: 'Избранное',

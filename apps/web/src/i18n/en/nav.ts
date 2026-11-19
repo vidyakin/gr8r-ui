@@ -1,6 +1,7 @@
 /* Каркас: названия разделов (SECTIONS из routes.ts), боковая панель, верхняя панель, меню аккаунта */
 export const sections = {
   home: 'Home',
+  email: 'Mail',
   inbox: 'Inbox',
   mytasks: 'My Tasks',
   favorites: 'Favorites',

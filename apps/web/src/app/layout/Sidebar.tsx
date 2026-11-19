@@ -75,7 +75,7 @@ function Item({ to, label, icon, count, dot, collapsed, end }: ItemProps) {
   );
 }
 
-const CRM_IDS = ['crm', 'crmLeads', 'crmAds', 'crmDeals', 'crmFunnel', 'crmCompanies', 'crmContacts', 'crmActivities', 'crmSalesPlan', 'crmAppointments', 'crmQuoteTemplates'] as const;
+const CRM_IDS = ['crm', 'crmLeads', 'crmAds', 'crmDeals', 'crmFunnel', 'crmCompanies', 'crmContacts', 'email', 'crmActivities', 'crmSalesPlan', 'crmAppointments', 'crmQuoteTemplates'] as const;
 
 function SectionItem({ id, collapsed, count, dot }: { id: SectionId; collapsed: boolean; count?: number; dot?: boolean }) {
   const s = SECTIONS[id];

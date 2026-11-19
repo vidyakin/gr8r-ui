@@ -88,6 +88,11 @@ export const automations = {
         dueDate: 'Due date YYYY-MM-DD (optional)',
       },
     },
+    trigger_email_received: {
+      label: 'Email received',
+      description: 'Starts when a new incoming email is saved. Provides its record, mailbox and sender.',
+      params: { mailboxId: 'Mailbox ID (empty for all mailboxes)' },
+    },
     trigger_lead_created: {
       label: 'Lead created',
       description: 'Starts when a lead is created: manually, by a website form or by an automation.',

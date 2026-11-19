@@ -90,7 +90,7 @@ export function useRealtime(ws: string, engine: Engine) {
       if (e.entity === 'license') batch.add(['ws', ws]);
       if (e.entity === 'position' || e.entity === 'product_kind') batch.add(['ws', ws, 'catalog']);
       if (e.entity === 'secret') batch.add(['ws', ws, 'secrets']);
-      // Почта (задача 1092): ящики и письма — ['ws', id, 'email', …]; статус письма меняет ленту касаний лида (ключ 'leads')
+      // Почта (задача 1092): email.received/email.linked и mailbox.synced, ящики и письма — ['ws', id, 'email', …]; статус письма меняет ленту касаний лида (ключ 'leads')
       if (e.entity === 'mailbox' || e.entity === 'email') batch.add(['ws', ws, 'email']);
       if (e.entity === 'email') batch.add(['ws', ws, 'leads']);
       // Токены доступа для агентов (задача 1285): запросы ['ws', id, 'api-tokens']

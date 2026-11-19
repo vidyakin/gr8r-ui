@@ -27,6 +27,12 @@ describe('EmailStatusView', () => {
     expect(f).toContain('550 no such user');
     expect(f).toContain('Повторить');
   });
+  test('входящее показывает отправителя', () => {
+    const html = render(mail({ direction: 'in', status: 'received', fromEmail: 'customer@example.org' }));
+    expect(html).toContain('Получено');
+    expect(html).toContain('от: customer@example.org');
+    expect(html).not.toContain('кому: buyer@client.ru');
+  });
   test('письма нет — пусто', () => {
     expect(render(undefined)).toBe('');
   });

@@ -2,7 +2,7 @@
    Яндекс 360 / Mail.ru / Gmail, проверка подключения. Пароль приложения вводится один раз и больше не показывается. */
 import * as React from 'react';
 import { MAIL_PRESETS, type MailPreset } from '@erp/shared';
-import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogContent, Field, Input, Select, Textarea, toast } from '@/components/ui';
+import { Alert, Badge, Button, Checkbox, Choice, ConfirmDialog, Dialog, DialogContent, Field, Input, Select, Textarea, toast } from '@/components/ui';
 import { useT, type TKey } from '@/i18n';
 import { useIsAdmin } from '../catalog/data';
 import { useEmailApi, useMailboxes, type MailSecurity, type Mailbox } from '../email/data';
@@ -21,9 +21,10 @@ interface Draft {
   imapSecure: MailSecurity;
   imapUser: string;
   signature: string;
+  createLeadFromUnmatched: boolean;
 }
 
-const blank: Draft = { email: '', displayName: '', smtpHost: '', smtpPort: '465', smtpSecure: 'ssl', smtpUser: '', password: '', imapHost: '', imapPort: '993', imapSecure: 'ssl', imapUser: '', signature: '' };
+const blank: Draft = { email: '', displayName: '', smtpHost: '', smtpPort: '465', smtpSecure: 'ssl', smtpUser: '', password: '', imapHost: '', imapPort: '993', imapSecure: 'ssl', imapUser: '', signature: '', createLeadFromUnmatched: false };
 const fromMailbox = (m: Mailbox): Draft => ({
   email: m.email,
   displayName: m.displayName,
@@ -37,6 +38,7 @@ const fromMailbox = (m: Mailbox): Draft => ({
   imapSecure: m.imapSecure ?? 'ssl',
   imapUser: m.imapUser ?? '',
   signature: m.signature,
+  createLeadFromUnmatched: m.createLeadFromUnmatched,
 });
 
 function MailboxForm({ kind, mailbox, onClose }: { kind: 'shared' | 'personal'; mailbox: Mailbox | null; onClose: () => void }) {
@@ -67,6 +69,7 @@ function MailboxForm({ kind, mailbox, onClose }: { kind: 'shared' | 'personal'; 
       smtpSecure: d.smtpSecure,
       smtpUser: d.smtpUser.trim() || d.email.trim(),
       signature: d.signature,
+      ...(kind === 'shared' ? { createLeadFromUnmatched: d.createLeadFromUnmatched } : {}),
       ...imap,
       ...(d.password ? { password: d.password } : {}),
     };
@@ -110,6 +113,7 @@ function MailboxForm({ kind, mailbox, onClose }: { kind: 'shared' | 'personal'; 
             </Field>
           </div>
           <Field label={t('email.settings.signature')}>{p => <Textarea {...p} rows={3} maxLength={5000} value={d.signature} onChange={e => set('signature', e.target.value)} />}</Field>
+          {kind === 'shared' && <Choice><Checkbox checked={d.createLeadFromUnmatched} onChange={e => set('createLeadFromUnmatched', e.target.checked)} />{t('email.settings.createLeadFromUnmatched')}</Choice>}
           <h3 style={{ margin: '4px 0 0' }}>{t('email.settings.imapTitle')}</h3>
           <div className="row" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <Field label={t('email.settings.imapHost')} className="grow">{p => <Input {...p} maxLength={253} value={d.imapHost} onChange={e => set('imapHost', e.target.value)} />}</Field>

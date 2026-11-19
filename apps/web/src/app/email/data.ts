@@ -22,6 +22,9 @@ export interface Mailbox {
   imapSecure: MailSecurity | null;
   imapUser: string | null;
   signature: string;
+  createLeadFromUnmatched: boolean;
+  imapUidValidity: string | null;
+  imapLastUid: number;
   status: 'ok' | 'error' | 'unchecked';
   lastError: string | null;
   checkedAt: string | null;
@@ -40,6 +43,19 @@ export interface EmailMessage {
   lastError: string | null;
   sentAt: string | null;
   createdBy: string | null;
+}
+
+export interface IncomingEmail extends EmailMessage {
+  fromName: string;
+  bodyText: string;
+  bodyHtml: string | null;
+  receivedAt: string | null;
+  leadId: string | null;
+  contactId: string | null;
+  companyId: string | null;
+  dealId: string | null;
+  documentId: string | null;
+  attachmentIds: string[];
 }
 
 export interface EmailLinks {
@@ -94,4 +110,22 @@ export function useEmailApi() {
       return null;
     }
   };
+}
+
+/** Входящие: фильтр и страницы входят в ключ кэша, чтобы realtime перечитывал текущий список. */
+export function useIncomingEmails(unlinked: boolean, offset: number) {
+  const ws = useWsId();
+  return useQuery({
+    queryKey: emailKey(ws, 'incoming', unlinked, offset),
+    staleTime: Infinity,
+    queryFn: async () => (await call<{ items: IncomingEmail[] }>(ws, 'GET', `/emails?direction=in&limit=50&offset=${offset}${unlinked ? '&unlinked=true' : ''}`)).items,
+  });
+}
+
+export function useEmailLinkTargets(kind: 'contact' | 'lead', search: string) {
+  const ws = useWsId();
+  return useQuery({
+    queryKey: ['ws', ws, 'leads', 'email-targets', kind, search],
+    queryFn: async () => (await call<{ items: { id: string; name: string; email: string }[] }>(ws, 'GET', `/${kind === 'contact' ? 'contacts' : 'leads'}?limit=50&q=${encodeURIComponent(search)}`)).items,
+  });
 }

@@ -88,6 +88,11 @@ export const automations = {
         dueDate: 'Срок ГГГГ-ММ-ДД (необязательно)',
       },
     },
+    trigger_email_received: {
+      label: 'Получено письмо',
+      description: 'Запускается при получении нового письма. Передаёт запись, ящик и отправителя.',
+      params: { mailboxId: 'ID ящика (пусто — все ящики)' },
+    },
     trigger_lead_created: {
       label: 'Лид создан',
       description: 'Запускается при создании лида: вручную, формой сайта или автоматизацией.',

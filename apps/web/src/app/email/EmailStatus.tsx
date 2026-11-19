@@ -10,7 +10,7 @@ export function EmailStatusView({ email, onRetry }: { email: EmailMessage | unde
   return (
     <div className="row" style={{ gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
       <Badge>{t(`email.status.${email.status}` as TKey)}</Badge>
-      <span className="faint" style={{ fontSize: 12 }}>{t('email.to', { to: email.to.join(', ') })}</span>
+      <span className="faint" style={{ fontSize: 12 }}>{email.direction === 'in' ? t('email.from', { from: email.fromEmail }) : t('email.to', { to: email.to.join(', ') })}</span>
       {email.lastError && email.status !== 'sent' && <span className="faint" style={{ fontSize: 12 }}>{email.lastError}</span>}
       {email.status === 'failed' && (
         <Button size="sm" variant="ghost" onClick={onRetry}>
