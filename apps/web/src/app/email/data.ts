@@ -23,6 +23,8 @@ export interface Mailbox {
   imapUser: string | null;
   signature: string;
   createLeadFromUnmatched: boolean;
+  createCasesFromMail: boolean;
+  caseOwnerId: string | null;
   imapUidValidity: string | null;
   imapLastUid: number;
   status: 'ok' | 'error' | 'unchecked';

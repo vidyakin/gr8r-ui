@@ -249,7 +249,7 @@ export const enums: Widen<typeof E> = {
   role: { Owner: 'Владелец', Admin: 'Администратор', Member: 'Участник', Guest: 'Гость' },
   projectStatus: { planning: 'Планирование', active: 'В работе', risk: 'Под угрозой', hold: 'На паузе', complete: 'Завершён' },
   taskStatus: { backlog: 'Бэклог', todo: 'К выполнению', progress: 'В работе', review: 'На проверке', done: 'Готово' },
-  systemEntity: { task: 'Задачи', project: 'Проекты', deal: 'Сделки', company: 'Компании', contact: 'Контакты', product: 'Номенклатура', lead: 'Лиды', document: 'Документы' },
+  systemEntity: { task: 'Задачи', project: 'Проекты', deal: 'Сделки', company: 'Компании', contact: 'Контакты', product: 'Номенклатура', lead: 'Лиды', case: 'Обращения', document: 'Документы' },
   /** Подписи этапов CRM */
   stage: { lead: 'Лид', qualified: 'Квалифицирован', proposal: 'Предложение', negotiation: 'Переговоры', won: 'Выиграна', lost: 'Проиграна' },
 };

@@ -8,6 +8,7 @@ export const positions = {
     work_order_executor: 'Work order executor',
     sales_manager: 'Sales manager',
     driver: 'Driver',
+    support_agent: 'Support agent',
   },
   fnHint: {
     appointments_specialist: 'Sees clients by appointment',
@@ -16,6 +17,7 @@ export const positions = {
     work_order_executor: 'Assignee of work orders',
     sales_manager: 'Owner of deals, sales plans',
     driver: 'Drives vehicles: waybills, fleet documents',
+    support_agent: 'Handles customer cases (round-robin assignment)',
   },
   section: {
     crm: 'CRM',

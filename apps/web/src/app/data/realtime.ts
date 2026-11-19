@@ -68,6 +68,8 @@ export function useRealtime(ws: string, engine: Engine) {
       }
       // Лиды (задача 1175): запросы ['ws', id, 'leads', …]; конвертация и объединение меняют лиды, контрагентов, контакты, сделки и касания
       if (['lead', 'lead_status', 'lead_form', 'crm_activity', 'company', 'contact', 'deal'].includes(e.entity)) batch.add(['ws', ws, 'leads']);
+      // Обращения клиентов (docs/architecture/cases.md): запросы ['ws', id, 'cases', …]; письма, касания, клиенты и заказ-наряды входят в ленту и карточку
+      if (['case', 'case_form', 'crm_activity', 'email', 'company', 'contact', 'deal', 'document'].includes(e.entity)) batch.add(['ws', ws, 'cases']);
       // Воронки продаж (задача 1176): ['ws', id, 'pipelines', …] — воронки, этапы, причины, история и отчёт; сделка меняет историю и отчёт
       if (['deal', 'deal_pipeline', 'deal_stage', 'deal_lost_reason'].includes(e.entity)) batch.add(['ws', ws, 'pipelines']);
       // Реклама (задача 1177): ['ws', id, 'ad', …] — справочники, расходы и отчёт по каналам (лиды, клиенты, сделки входят в отчёт)
