@@ -7,7 +7,7 @@ import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { attachmentKey, getFileStore, sha256Hex, storageSettings, type FileStore } from './file-store';
 import { assertLimit } from './licensing';
-import { attachments, attachmentVersions, companies, contacts, contracts, deals, docTemplates, documents, leads, products, projectMembers, projects, supplierPrices, tasks, workspaces } from './schema';
+import { attachments, attachmentVersions, companies, contacts, contracts, deals, docTemplates, documents, emailMessages, mailboxes, leads, products, projectMembers, projects, supplierPrices, tasks, workspaces } from './schema';
 
 export type Attachment = typeof attachments.$inferSelect;
 export type AttachmentVersion = typeof attachmentVersions.$inferSelect;
@@ -50,6 +50,13 @@ const RESOLVERS: Record<AttachmentEntityType, Resolver> = {
   company: (db, a, id) => plain(db, a, db.select({ id: companies.id }).from(companies).where(and(eq(companies.id, id), eq(companies.workspaceId, a.workspaceId)))),
   contact: (db, a, id) => plain(db, a, db.select({ id: contacts.id }).from(contacts).where(and(eq(contacts.id, id), eq(contacts.workspaceId, a.workspaceId)))),
   deal: (db, a, id) => plain(db, a, db.select({ id: deals.id }).from(deals).where(and(eq(deals.id, id), eq(deals.workspaceId, a.workspaceId)))),
+  email: async (db, a, id) => {
+    const [m] = await db.select({ kind: mailboxes.kind, memberId: mailboxes.memberId }).from(emailMessages)
+      .innerJoin(mailboxes, and(eq(mailboxes.id, emailMessages.mailboxId), eq(mailboxes.workspaceId, emailMessages.workspaceId)))
+      .where(and(eq(emailMessages.id, id), eq(emailMessages.workspaceId, a.workspaceId)));
+    if (!m || (m.kind === 'personal' && m.memberId !== a.memberId)) return 'none';
+    return atLeast(a.role, 'member') ? 'write' : 'read';
+  },
   lead: (db, a, id) => plain(db, a, db.select({ id: leads.id }).from(leads).where(and(eq(leads.id, id), eq(leads.workspaceId, a.workspaceId)))),
   product: (db, a, id) => plain(db, a, db.select({ id: products.id }).from(products).where(and(eq(products.id, id), eq(products.workspaceId, a.workspaceId)))),
   /** .docx-шаблон печати (задача 1195): права — как у шаблона, правка — автор или admin+ */
@@ -284,7 +291,7 @@ export interface UploadInput {
 }
 
 /** Сохраняет объект в сторе, затем строку версии; если запись в БД не удалась, объект убирается (иначе его подберёт сборка мусора) */
-async function putVersion(db: Db, a: Actor, attachmentId: string, version: number, input: UploadInput): Promise<AttachmentVersion> {
+async function putVersion(db: Db, a: { workspaceId: string; memberId: string | null }, attachmentId: string, version: number, input: UploadInput): Promise<AttachmentVersion> {
   const store = requireStore();
   const key = attachmentKey(a.workspaceId, attachmentId, version);
   await store.put(key, input.data, input.mime);
@@ -320,6 +327,21 @@ export async function createAttachment(db: Db, a: Actor, entityType: string, ent
       .set({ imageAttachmentId: att!.id, updatedAt: new Date() })
       .where(and(eq(products.id, entityId), eq(products.workspaceId, a.workspaceId), isNull(products.imageAttachmentId)));
   }
+  return { attachment: att!, version };
+}
+
+/** Приём письма воркером: без автора, с теми же ограничениями файла и квоты, что при загрузке пользователем. */
+export async function createInboundAttachment(db: Db, workspaceId: string, emailId: string, input: UploadInput): Promise<{ attachment: Attachment; version: AttachmentVersion }> {
+  const [message] = await db.select({ id: emailMessages.id }).from(emailMessages)
+    .where(and(eq(emailMessages.id, emailId), eq(emailMessages.workspaceId, workspaceId), eq(emailMessages.direction, 'in')));
+  if (!message) throw new DomainError(404, 'not_found', 'Incoming email not found');
+  await assertRoom(db, workspaceId, input.data.length);
+  const [att] = await db.insert(attachments).values({
+    workspaceId, entityType: 'email', entityId: emailId, name: input.name,
+    kind: fileKindOf(input.name), currentVersion: 1, createdBy: null,
+  }).returning();
+  const version = await putVersion(db, { workspaceId, memberId: null }, att!.id, 1, input);
+  await recordEvent(db, { workspaceId, type: 'attachment.created', entity: 'attachment', recordId: att!.id, actorId: null, payload: { entityType: 'email', entityId: emailId, name: input.name, size: input.data.length } });
   return { attachment: att!, version };
 }
 

@@ -109,3 +109,5 @@ export * from './approvals';
 export * from './email';
 export * from './email-send';
 export * from './email-transport';
+
+export * from './email-sync';

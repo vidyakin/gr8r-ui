@@ -12,6 +12,7 @@ import httpRequest from './action-http-request';
 import notify from './action-notify';
 import telegramSend from './action-telegram-send';
 import emailSend from './action-email-send';
+import emailReceived from './trigger-email-received';
 import updateField from './action-update-field';
 import branch from './flow-branch';
 import delay from './flow-delay';
@@ -51,6 +52,7 @@ export const NODE_LIST: AnyNodeDef[] = [
   tripStatus,
   approvalCompleted,
   approvalStepOverdue,
+  emailReceived,
   // Условия и управление потоком
   condition,
   delay,

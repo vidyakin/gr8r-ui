@@ -4,7 +4,7 @@
    фейковым транспортом — сети нет. Пароль в тексты ошибок не попадает. */
 import { lookup } from 'node:dns/promises';
 import net from 'node:net';
-import tls from 'node:tls';
+import { ImapFlow } from 'imapflow';
 import nodemailer from 'nodemailer';
 import { isForbiddenHostname, isIpLiteral, isPrivateAddress, type MailSecurity } from '@erp/shared';
 import { DomainError } from './errors';
@@ -49,7 +49,8 @@ export const emailRuntime: {
   resolve: (host: string) => Promise<string[]>;
   /** Подмена транспорта (тесты); без неё — настоящий nodemailer */
   transportFor?: (s: MailServer) => MailTransport | Promise<MailTransport>;
-  /** Подмена проверки IMAP-приветствия (тесты) */
+  imapFor?: (s: MailServer) => ImapTransport | Promise<ImapTransport>;
+  /** Подмена проверки IMAP (тесты) */
   imapProbe?: (s: { host: string; port: number; secure: MailSecurity }) => Promise<void>;
 } = {
   allowPrivate: () => process.env.EMAIL_ALLOW_PRIVATE === '1' || process.env.FLOW_HTTP_ALLOW_PRIVATE === '1',
@@ -135,19 +136,67 @@ export async function openTransport(s: MailServer): Promise<MailTransport> {
   };
 }
 
-/** Приветствие IMAP-сервера (без входа): проверяет, что адрес, порт и шифрование указаны верно. Сам приём писем — инкремент Б */
-export async function probeImap(s: { host: string; port: number; secure: MailSecurity }): Promise<void> {
-  if (emailRuntime.imapProbe) return emailRuntime.imapProbe(s);
+/** Ограниченный снимок INBOX; транспорт подменяется в тестах без сети. */
+export interface ImapTransport {
+  uidValidity: string;
+  uidNext: number;
+  fetchRange(from: number, to: number): Promise<{ uid: number; source: Uint8Array | null; size: number }[]>;
+  close(): Promise<void>;
+}
+export const EMAIL_MAX_SOURCE_BYTES = 30 * 1024 * 1024;
+
+export async function openImap(s: MailServer): Promise<ImapTransport> {
+  if (emailRuntime.imapFor) return emailRuntime.imapFor(s);
   const address = await resolveMailHost(s.host);
-  await new Promise<void>((resolve, reject) => {
-    const opts = { host: address ?? s.host, port: s.port };
-    const sock: net.Socket = s.secure === 'ssl' ? tls.connect({ ...opts, servername: net.isIP(s.host) ? undefined : s.host }) : net.connect(opts);
-    const done = (err?: Error) => {
-      sock.destroy();
-      err ? reject(err) : resolve();
-    };
-    sock.setTimeout(10_000, () => done(new MailError('IMAP server timed out', true)));
-    sock.once('error', e => done(classifyMailError(e)));
-    sock.once('data', d => (/^\* (OK|PREAUTH)/i.test(d.toString('utf8')) ? done() : done(new MailError('Unexpected IMAP greeting', false))));
+  const client = new ImapFlow({
+    host: address ?? s.host, port: s.port, secure: s.secure === 'ssl',
+    doSTARTTLS: s.secure === 'starttls' ? true : s.secure === 'none' ? false : undefined,
+    auth: { user: s.user, pass: s.password },
+    tls: { servername: net.isIP(s.host) ? undefined : s.host },
+    connectionTimeout: 10_000, greetingTimeout: 10_000, socketTimeout: 30_000,
+    logger: false, disableAutoIdle: true,
   });
+  // Ошибки команд отклоняют их Promise; событие error не должно завершать процесс воркера.
+  client.on('error', () => {});
+  try {
+    await client.connect();
+    const box = await client.mailboxOpen('INBOX', { readOnly: true });
+    return {
+      uidValidity: String(box.uidValidity), uidNext: box.uidNext,
+      async fetchRange(from, to) {
+        if (to < from) return [];
+        // Сначала завершаем FETCH: новая команда внутри его итератора блокировала бы соединение.
+        const rows = await client.fetchAll(`${from}:${to}`, { uid: true, size: true }, { uid: true });
+        const result: { uid: number; source: Uint8Array | null; size: number }[] = [];
+        let batchBytes = 0;
+        for (const r of rows) {
+          let source: Uint8Array | null = null;
+          if ((r.size ?? 0) <= EMAIL_MAX_SOURCE_BYTES) {
+            const { content } = await client.download(r.uid, undefined, { uid: true });
+            if (!content) throw new MailError('Email content is unavailable', true);
+            const chunks: Buffer[] = [];
+            let size = 0;
+            for await (const chunk of content) {
+              size += chunk.length;
+              if (size > EMAIL_MAX_SOURCE_BYTES) throw new MailError('Email source exceeds size limit', false);
+              chunks.push(Buffer.from(chunk));
+            }
+            source = Buffer.concat(chunks);
+          }
+          result.push({ uid: r.uid, size: r.size ?? 0, source });
+          batchBytes += source?.length ?? 0;
+          if (batchBytes >= EMAIL_MAX_SOURCE_BYTES) break;
+        }
+        return result;
+      },
+      async close() { try { await client.logout(); } finally { client.close(); } },
+    };
+  } catch (e) { client.close(); throw classifyMailError(e, s.password); }
+}
+
+/** Полная проверка IMAP: подключение, TLS и вход с паролем приложения. */
+export async function probeImap(s: MailServer): Promise<void> {
+  if (emailRuntime.imapProbe) return emailRuntime.imapProbe(s);
+  const client = await openImap(s);
+  await client.close();
 }

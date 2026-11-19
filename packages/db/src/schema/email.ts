@@ -1,7 +1,7 @@
 /* Почта (задача 1092, docs/architecture/email.md): почтовые ящики (общий и личные) и письма. Таблицы арендатора: workspace_id + RLS.
    Пароль ящика лежит в хранилище секретов (`mailbox.<id>.password`), в таблице его нет. */
 import { sql } from 'drizzle-orm';
-import { check, foreignKey, index, integer, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { bigint, boolean, check, foreignKey, index, integer, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { createdAt, pk, ts, updatedAt } from './columns';
 import { members } from './people';
 import { wsCol } from './tenant';
@@ -29,6 +29,9 @@ export const mailboxes = pgTable(
     imapPort: integer('imap_port'),
     imapSecure: text('imap_secure', { enum: MAIL_SECURITY }),
     imapUser: text('imap_user'),
+    imapUidValidity: text('imap_uid_validity'),
+    imapLastUid: bigint('imap_last_uid', { mode: 'number' }).notNull().default(0),
+    createLeadFromUnmatched: boolean('create_lead_from_unmatched').notNull().default(false),
     signature: text('signature').notNull().default(''),
     status: text('status', { enum: MAILBOX_STATUSES }).notNull().default('unchecked'),
     lastError: text('last_error'),
@@ -62,6 +65,8 @@ export const emailMessages = pgTable(
     bodyText: text('body_text').notNull().default(''),
     /** Очищенный HTML (sanitizeRichText); пусто — письмо только текстом */
     bodyHtml: text('body_html'),
+    imapUidValidity: text('imap_uid_validity'),
+    imapUid: bigint('imap_uid', { mode: 'number' }),
     messageId: text('message_id'),
     inReplyTo: text('in_reply_to'),
     references: text('references'),
@@ -84,6 +89,7 @@ export const emailMessages = pgTable(
     updatedAt: updatedAt(),
   },
   t => [
+    uniqueIndex('email_messages_imap_uid_uq').on(t.workspaceId, t.mailboxId, t.imapUidValidity, t.imapUid),
     unique('email_messages_ws_id_uq').on(t.workspaceId, t.id),
     foreignKey({ columns: [t.workspaceId, t.mailboxId], foreignColumns: [mailboxes.workspaceId, mailboxes.id], name: 'email_messages_mailbox_fk' }).onDelete('set null'),
     index('email_messages_ws_created_idx').on(t.workspaceId, t.createdAt),

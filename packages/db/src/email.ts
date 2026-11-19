@@ -2,7 +2,7 @@
    касание CRM в истории записи. Саму отправку по SMTP делает воркер (email-send.ts, задача `email.send`).
    Пароль ящика — только в хранилище секретов (`mailbox.<id>.password`), в ответах его нет. Права: общий ящик правит admin+,
    личный — только его владелец (даже admin чужой личный ящик не видит). Изменение + касание + событие + задача — в одной транзакции. */
-import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import {
   EMAIL_MAX_ATTACH_BYTES,
   EMAIL_MAX_RECIPIENTS,
@@ -77,6 +77,7 @@ export async function createMailbox(db: Db, c: MailCtx, input: MailboxCreate): P
   assertMailHostShape(input.smtpHost);
   if (input.imapHost) assertMailHostShape(input.imapHost);
   const { password, ...fields } = input;
+  if (input.kind !== 'shared') fields.createLeadFromUnmatched = false;
   const taken = await db
     .select({ id: mailboxes.id })
     .from(mailboxes)
@@ -97,11 +98,13 @@ export async function updateMailbox(db: Db, c: MailCtx, id: string, patch: Mailb
   if (patch.smtpHost) assertMailHostShape(patch.smtpHost);
   if (patch.imapHost) assertMailHostShape(patch.imapHost);
   const { password, ...fields } = patch;
+  if (m.kind !== 'shared' && fields.createLeadFromUnmatched) throw new DomainError(422, 'bad_request', 'Lead creation is available only for shared mailboxes');
   // undefined — «не трогать», null (у необязательных IMAP-полей) — «очистить»
   const set: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(fields)) if (v !== undefined) set[k] = v;
   // подключение изменилось — прежняя проверка неактуальна
-  const connectionChanged = password !== undefined || ['smtpHost', 'smtpPort', 'smtpSecure', 'smtpUser', 'email'].some(k => k in set && set[k] !== (m as Record<string, unknown>)[k]);
+  const connectionChanged = password !== undefined || ['smtpHost', 'smtpPort', 'smtpSecure', 'smtpUser', 'email', 'imapHost', 'imapPort', 'imapSecure', 'imapUser'].some(k => k in set && set[k] !== (m as Record<string, unknown>)[k]);
+  if (['imapHost', 'imapPort', 'imapSecure', 'imapUser'].some(k => k in set && set[k] !== (m as Record<string, unknown>)[k])) Object.assign(set, { imapUidValidity: null, imapLastUid: 0 });
   if (connectionChanged) Object.assign(set, { status: 'unchecked', lastError: null, checkedAt: null });
   if (Object.keys(set).length) await db.update(mailboxes).set({ ...set, updatedAt: new Date() }).where(eq(mailboxes.id, id));
   if (password) await setSecret(db, secretCtx(c), mailboxPasswordKey(id), password);
@@ -289,12 +292,21 @@ export async function retryEmail(db: Db, c: MailCtx, id: string): Promise<EmailM
 export async function getEmail(db: Db, c: MailCtx, id: string): Promise<EmailMessage> {
   const [m] = await db.select().from(emailMessages).where(and(eq(emailMessages.id, id), eq(emailMessages.workspaceId, c.workspaceId)));
   if (!m) throw new DomainError(404, 'not_found', 'Email not found');
+  if (m.direction === 'in') {
+    if (!m.mailboxId) throw new DomainError(404, 'not_found', 'Email not found');
+    await loadMailbox(db, c, m.mailboxId, 'read');
+  }
   return m;
 }
 
 /** Переписка записи (лид, контакт, контрагент, сделка, документ) или указанные письма; без фильтра — свои письма (admin — все) */
-export async function listEmails(db: Db, c: MailCtx, f: Links & { documentId?: string; ids?: string[] }, limit = 50, offset = 0): Promise<EmailMessage[]> {
+export async function listEmails(db: Db, c: MailCtx, f: Links & { documentId?: string; ids?: string[]; direction?: 'in' | 'out'; unlinked?: string }, limit = 50, offset = 0): Promise<EmailMessage[]> {
+  const accessible = (await listMailboxes(db, c)).map(m => m.id);
+  const incomingVisible = and(eq(emailMessages.direction, 'in'), accessible.length ? inArray(emailMessages.mailboxId, accessible) : sql`false`);
   const conds = [
+    or(eq(emailMessages.direction, 'out'), incomingVisible),
+    f.direction ? eq(emailMessages.direction, f.direction) : undefined,
+    f.unlinked === 'true' ? and(isNull(emailMessages.leadId), isNull(emailMessages.contactId), isNull(emailMessages.companyId), isNull(emailMessages.dealId), isNull(emailMessages.documentId)) : undefined,
     eq(emailMessages.workspaceId, c.workspaceId),
     f.leadId ? eq(emailMessages.leadId, f.leadId) : undefined,
     f.contactId ? eq(emailMessages.contactId, f.contactId) : undefined,
@@ -303,7 +315,38 @@ export async function listEmails(db: Db, c: MailCtx, f: Links & { documentId?: s
     f.documentId ? eq(emailMessages.documentId, f.documentId) : undefined,
     f.ids?.length ? inArray(emailMessages.id, f.ids) : undefined,
   ];
-  const filtered = conds.slice(1).some(Boolean);
-  if (!filtered && !isAdmin(c)) conds.push(c.memberId ? eq(emailMessages.createdBy, c.memberId) : isNull(emailMessages.createdBy));
+  const filtered = !!(f.leadId || f.contactId || f.companyId || f.dealId || f.documentId || f.ids?.length);
+  if (!filtered && !isAdmin(c)) conds.push(or(incomingVisible, and(eq(emailMessages.direction, 'out'), c.memberId ? eq(emailMessages.createdBy, c.memberId) : isNull(emailMessages.createdBy))));
   return db.select().from(emailMessages).where(and(...conds)).orderBy(desc(emailMessages.createdAt), desc(emailMessages.id)).limit(limit).offset(offset);
+}
+
+/** Ручная проверка доступного ящика; блокировка общая с планировщиком. */
+export async function enqueueEmailSync(db: Db, c: MailCtx, id: string): Promise<{ queued: boolean }> {
+  const m = await loadMailbox(db, c, id, 'read');
+  if (rank[c.role] < rank.member) throw new DomainError(403, 'forbidden', 'No permission to sync mail');
+  if (!m.imapHost || !m.imapPort || !m.imapSecure || !m.imapUser) throw new DomainError(422, 'bad_request', 'IMAP is not configured');
+  await db.select({ id: mailboxes.id }).from(mailboxes).where(eq(mailboxes.id, id)).for('update');
+  const pending = await db.select({ id: jobs.id }).from(jobs).where(and(eq(jobs.type, 'email.sync'), sql`${jobs.payload}->>'mailboxId' = ${id}`, inArray(jobs.status, ['queued', 'running']))).limit(1);
+  if (pending.length) return { queued: false };
+  await db.insert(jobs).values({ workspaceId: c.workspaceId, type: 'email.sync', payload: { mailboxId: id }, maxAttempts: 5 });
+  return { queued: true };
+}
+
+/** Привязать входящее письмо к контакту или лиду; касание переносится вместе с письмом. */
+export async function linkEmail(db: Db, c: MailCtx, id: string, input: { contactId?: string; leadId?: string }): Promise<EmailMessage> {
+  const m = await getEmail(db, c, id);
+  if (rank[c.role] < rank.member) throw new DomainError(403, 'forbidden', 'No permission to link mail');
+  if (m.direction !== 'in' || !!input.contactId === !!input.leadId) throw new DomainError(422, 'bad_request', 'Choose a contact or lead for an incoming email');
+  await assertExists(db, input);
+  const [contact] = input.contactId ? await db.select().from(contacts).where(eq(contacts.id, input.contactId)) : [];
+  const links = { contactId: input.contactId ?? null, leadId: input.leadId ?? null, companyId: contact?.companyId ?? null, dealId: null, documentId: null };
+  await db.select({ id: emailMessages.id }).from(emailMessages).where(eq(emailMessages.id, id)).for('update');
+  const [row] = await db.update(emailMessages).set({ ...links, updatedAt: new Date() }).where(eq(emailMessages.id, id)).returning();
+  const acts = await db.update(crmActivities).set({ contactId: links.contactId, leadId: links.leadId, companyId: links.companyId, dealId: null }).where(eq(crmActivities.emailMessageId, id)).returning();
+  if (!acts.length) {
+    const [act] = await db.insert(crmActivities).values({ workspaceId: c.workspaceId, type: 'email', subject: m.subject.slice(0, 200), body: m.bodyText.slice(0, 2000), emailMessageId: id, contactId: links.contactId, leadId: links.leadId, companyId: links.companyId }).returning();
+    await recordEvent(db, { workspaceId: c.workspaceId, type: 'crm_activity.created', entity: 'crm_activity', recordId: act!.id, actorId: c.memberId, payload: {} });
+  } else for (const act of acts) await recordEvent(db, { workspaceId: c.workspaceId, type: 'crm_activity.updated', entity: 'crm_activity', recordId: act.id, actorId: c.memberId, payload: {} });
+  await recordEvent(db, { workspaceId: c.workspaceId, type: 'email.updated', entity: 'email', recordId: id, actorId: c.memberId, payload: links });
+  return row!;
 }

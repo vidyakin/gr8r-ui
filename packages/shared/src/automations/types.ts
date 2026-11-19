@@ -35,6 +35,8 @@ export interface TriggerContext {
   record?: Record<string, unknown>;
   /** Изменённые поля события: `{поле: {from, to}}` */
   changes?: Record<string, { from?: unknown; to?: unknown }>;
+  /** Входящее письмо: ящик, отправитель, содержимое и привязки; record — связанная CRM-запись, если найдена */
+  email?: Record<string, unknown>;
   /** Проект задачи — для «владельца проекта» (`{{trigger.project.leadId}}`) */
   project?: Record<string, unknown>;
   actorId?: string | null;

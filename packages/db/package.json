@@ -20,12 +20,15 @@
   "dependencies": {
     "@erp/shared": "workspace:*",
     "drizzle-orm": "^0.45.4",
+    "imapflow": "^2.12.1",
+    "mailparser": "^3.14.5",
     "nodemailer": "^10.6.0",
     "postgres": "^3.4.0",
     "sanitize-html": "2",
     "sharp": "^0.35.5"
   },
   "devDependencies": {
+    "@types/mailparser": "^3.9.0",
     "@types/nodemailer": "^8.0.2",
     "@types/sanitize-html": "^2.16.2",
     "drizzle-kit": "^0.31.0"

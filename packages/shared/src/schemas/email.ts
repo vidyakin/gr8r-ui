@@ -20,6 +20,7 @@ const mailboxFields = z.object({
   imapPort: port.nullish(),
   imapSecure: security.nullish(),
   imapUser: z.string().trim().min(1).max(254).nullish(),
+  createLeadFromUnmatched: z.boolean().optional(),
   signature: z.string().max(5000),
   /** Пароль приложения: уходит в хранилище секретов, в ответах не возвращается */
   password: z.string().min(1).max(512),
@@ -52,7 +53,12 @@ export const emailCreate = z.object({
   templateId: uuid.nullish(),
 });
 
+export const emailLink = z.object({ contactId: uuid.optional(), leadId: uuid.optional() })
+  .refine(v => Boolean(v.contactId) !== Boolean(v.leadId), { message: 'Choose a contact or a lead' });
+
 export const emailQuery = listQuery.pick({ limit: true, offset: true }).extend({
+  direction: z.enum(['in', 'out']).optional(),
+  unlinked: z.enum(['true', 'false']).optional(),
   leadId: uuid.optional(),
   contactId: uuid.optional(),
   companyId: uuid.optional(),
@@ -65,3 +71,5 @@ export const emailQuery = listQuery.pick({ limit: true, offset: true }).extend({
 export type MailboxCreate = z.infer<typeof mailboxCreate>;
 export type MailboxUpdate = z.infer<typeof mailboxUpdate>;
 export type EmailCreate = z.infer<typeof emailCreate>;
+
+export type EmailLink = z.infer<typeof emailLink>;
