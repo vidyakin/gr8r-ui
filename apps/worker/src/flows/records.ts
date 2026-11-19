@@ -11,6 +11,7 @@ import {
   crmActivities,
   deals,
   documents,
+  emailMessages,
   entities,
   fields,
   isUuid,
@@ -45,6 +46,7 @@ const SYSTEM_TABLES: Record<string, AnyTable> = {
   product: products as unknown as AnyTable,
   lead: leads as unknown as AnyTable,
   document: documents as unknown as AnyTable,
+  email: emailMessages as unknown as AnyTable, // только чтение: контекст входящего письма
   approval: approvals as unknown as AnyTable, // только чтение: контекст триггеров согласования
 };
 type Row = Record<string, unknown>;

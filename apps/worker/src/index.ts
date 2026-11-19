@@ -1,5 +1,6 @@
 /* Точка входа воркера: опрос jobs + outbox, ускорение по LISTEN erp_events. */
 import { demoResetConfigFromEnv, purgeTenantsOnce, resetDemoOnce, scheduleBankSyncs, createSql, databaseUrl, ddlDatabaseUrl, EVENTS_CHANNEL, listenChannel } from '@erp/db';
+import { scheduleEmailSyncs } from './email-sync';
 import { closeBrowser } from './pdf/render';
 import { runAttachmentGcOnce } from './attachment-gc';
 import { scheduleFlowsOnce } from './flows/triggers';
@@ -76,6 +77,9 @@ while (!stopping) {
         const banks = await scheduleBankSyncs(sql);
         if (banks) o.log(`queued ${banks} bank sync job(s)`);
       }
+      // почта INBOX: не чаще одного раза за три минуты на ящик
+      const emails = await scheduleEmailSyncs(sql);
+      if (emails) o.log(`queued ${emails} email sync job(s)`);
       // удаление арендаторов: запрошенное оператором и просроченные демо (нужен DDL — индексы полей)
       if (ddl) {
         const purged = await purgeTenantsOnce(sql, ddl);

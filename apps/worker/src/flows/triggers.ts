@@ -28,7 +28,7 @@ type EventRow = typeof events.$inferSelect;
 export async function startRunsForEvent(db: Db, ev: EventRow): Promise<number> {
   // Служебные события (flow.*, notification.*, member.* …) триггерами не бывают
   // approval — сущность только для триггеров согласования (1199), в списках сущностей для полей её нет
-  if (ev.entity !== 'record' && ev.entity !== 'approval' && !SYSTEM_ENTITY_KEYS.has(ev.entity)) return 0;
+  if (ev.entity !== 'record' && ev.entity !== 'approval' && ev.entity !== 'email' && !SYSTEM_ENTITY_KEYS.has(ev.entity)) return 0;
   const fev: FlowEvent = { id: ev.id, workspaceId: ev.workspaceId, type: ev.type, entity: ev.entity, recordId: ev.recordId, actorId: ev.actorId, payload: ev.payload };
   const entity = eventEntity(fev);
   const action = eventAction(fev);
@@ -47,6 +47,9 @@ export async function startRunsForEvent(db: Db, ev: EventRow): Promise<number> {
   if (!modules.has('automations')) return 0;
 
   let record: Record<string, unknown> | null | undefined;
+  let email: Record<string, unknown> | null = null;
+  let contextEntity = entity;
+  let contextRecordId = ev.recordId;
   let project: Record<string, unknown> | null = null;
   let created = 0;
   for (const c of candidates) {
@@ -64,13 +67,28 @@ export async function startRunsForEvent(db: Db, ev: EventRow): Promise<number> {
 
     if (!skipped && record === undefined) {
       record = ev.recordId ? await loadRecord(db, ev.workspaceId, entity, ev.recordId) : null;
+      if (entity === 'email' && ev.type === 'email.received') {
+        email = record;
+        // Привязка письма становится записью триггера; само письмо доступно отдельно через trigger.email.
+        for (const [kind, field] of [['lead', 'leadId'], ['contact', 'contactId'], ['deal', 'dealId'], ['company', 'companyId'], ['document', 'documentId']] as const) {
+          const id = email?.[field];
+          if (typeof id !== 'string') continue;
+          const linked = await loadRecord(db, ev.workspaceId, kind, id);
+          if (!linked) continue;
+          contextEntity = kind;
+          contextRecordId = id;
+          record = linked;
+          break;
+        }
+      }
       project = entity === 'task' ? await loadProjectOf(db, ev.workspaceId, record) : null;
     }
     const trigger: TriggerContext & { enriched: boolean } = {
       kind: 'event',
       event: { id: ev.id, type: ev.type },
-      entity,
-      ...(ev.recordId ? { recordId: ev.recordId } : {}),
+      entity: contextEntity,
+      ...(contextRecordId ? { recordId: contextRecordId } : {}),
+      ...(email ? { email } : {}),
       ...(record ? { record } : {}),
       changes,
       ...(project ? { project } : {}),

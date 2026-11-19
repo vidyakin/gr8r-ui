@@ -1,4 +1,4 @@
-/* Почта, инкремент А (задача 1092, docs/architecture/email.md): ящики и исходящие письма.
+/* Почта (задача 1092, docs/architecture/email.md): ящики, исходящие и входящие письма.
    Общий ящик правит admin+, личный — только владелец; пароль принимается на запись и больше нигде не отдаётся (только `hasPassword`).
    Письмо ставится в очередь, SMTP делает воркер (задача `email.send`). */
 import { zValidator } from '@hono/zod-validator';
@@ -9,8 +9,10 @@ import {
   classifyMailError,
   createMailbox,
   deleteMailbox,
+  enqueueEmailSync,
   getEmail,
   getMailbox,
+  linkEmail,
   listEmails,
   listMailboxes,
   mailboxForCheck,
@@ -21,7 +23,7 @@ import {
   saveMailboxCheck,
   updateMailbox,
 } from '@erp/db';
-import { emailCreate, emailQuery, idParam, mailboxCreate, mailboxUpdate, uuid } from '@erp/shared';
+import { emailCreate, emailLink, emailQuery, idParam, mailboxCreate, mailboxUpdate, uuid } from '@erp/shared';
 import { ctxOf, validationHook } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';
@@ -40,7 +42,11 @@ export const mailboxRoutes = new Hono<AppEnv>()
     await deleteMailbox(ctxOf(c).db, mailCtx(ctxOf(c)), c.req.valid('param').id);
     return c.json({ ok: true });
   })
-  // Проверка подключения: SMTP (проверка входа) и, если заполнен, приветствие IMAP. Результат записывается в ящик; сбой проверки — не ошибка запроса
+  .post('/:id/sync', write, zValidator('param', idParam, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json(await enqueueEmailSync(ctx.db, mailCtx(ctx), c.req.valid('param').id), 202);
+  })
+  // Проверка подключения: вход по SMTP и, если заполнен, по IMAP. Результат записывается в ящик; сбой проверки — не ошибка запроса
   .post('/:id/check', write, zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
     const mc = mailCtx(ctx);
@@ -55,7 +61,7 @@ export const mailboxRoutes = new Hono<AppEnv>()
       } finally {
         t.close();
       }
-      if (mailbox.imapHost && mailbox.imapPort) await probeImap({ host: mailbox.imapHost, port: mailbox.imapPort, secure: mailbox.imapSecure ?? 'ssl' });
+      if (mailbox.imapHost && mailbox.imapPort) await probeImap({ host: mailbox.imapHost, port: mailbox.imapPort, secure: mailbox.imapSecure ?? 'ssl', user: mailbox.imapUser || mailbox.smtpUser, password });
     } catch (e) {
       error = classifyMailError(e, password).message;
     }
@@ -76,4 +82,8 @@ export const emailRoutes = new Hono<AppEnv>()
     return c.json(await queueEmail(ctx.db, mailCtx(ctx), c.req.valid('json')), 202);
   })
   .get('/:id', zValidator('param', idParam, validationHook), async c => c.json(await getEmail(ctxOf(c).db, mailCtx(ctxOf(c)), c.req.valid('param').id)))
+  .post('/:id/link', write, zValidator('param', idParam, validationHook), zValidator('json', emailLink, validationHook), async c => {
+    const ctx = ctxOf(c);
+    return c.json(await linkEmail(ctx.db, mailCtx(ctx), c.req.valid('param').id, c.req.valid('json')));
+  })
   .post('/:id/retry', write, zValidator('param', z.object({ id: uuid }), validationHook), async c => c.json(await retryEmail(ctxOf(c).db, mailCtx(ctxOf(c)), c.req.valid('param').id), 202));

@@ -2,7 +2,7 @@
    (индексы полей конструктора), PDF печатных форм, ZIP-архив выгрузки счетов, закрытие периода (production.close_period)
    и выполнение запусков автоматизаций (flow.run). */
 import { and, eq, inArray } from 'drizzle-orm';
-import { BANK_SYNC_JOB, EMAIL_SEND_JOB, sendQueuedEmail, buildPrintData, OBJECT_REPORT_JOB, runScheduledObjectReport, renderContractDocxFile, renderContractHtml, renderDocumentHtml, settlementActHtml, transportWaybillPrintData, DISTRIBUTE_JOB, GEOCODE_JOB, OPTIMIZE_JOB, executeRoutingRun, runGeocode, createFieldIndex, integrationRuntime, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, addVersion, createAttachment, contractFiles, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, getEstimateImport, isUuid, jobs, saveEstimateImportAi, withContext, type Db, type Sql } from '@erp/db';
+import { BANK_SYNC_JOB, EMAIL_SEND_JOB, syncMailbox, sendQueuedEmail, buildPrintData, OBJECT_REPORT_JOB, runScheduledObjectReport, renderContractDocxFile, renderContractHtml, renderDocumentHtml, settlementActHtml, transportWaybillPrintData, DISTRIBUTE_JOB, GEOCODE_JOB, OPTIMIZE_JOB, executeRoutingRun, runGeocode, createFieldIndex, integrationRuntime, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, addVersion, createAttachment, contractFiles, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, getEstimateImport, isUuid, jobs, saveEstimateImportAi, withContext, type Db, type Sql } from '@erp/db';
 import { FIELD_TYPES, renderPrintForm, renderTransportWaybill, TransientError, type EstimatePdfRegion, type EstimateTableFile, type FieldType, type PrintForm } from '@erp/shared';
 import { loadRequestForHook, markRequestHookSent } from '@erp/db';
 import { extractEstimateRegions, extractEstimateRows } from './ai/estimate-extract';
@@ -95,6 +95,12 @@ export const jobHandlers: Record<string, (job: JobRow, h: JobContext) => Promise
         return { filename: `${doc?.number ?? 'document'}-${m.form}.pdf`.replace(/[^\p{L}\p{N}._-]+/gu, '_'), data: bytes };
       },
     });
+  },
+  /** Входящие письма INBOX: курсор и идемпотентность обеспечивает сервис арендатора */
+  'email.sync': async (job, h) => {
+    const mailboxId = (job.payload as { mailboxId?: unknown }).mailboxId;
+    if (!isUuid(mailboxId)) throw new Error('email.sync job: payload.mailboxId must be a uuid');
+    await syncMailbox(h.sql, job.workspaceId, mailboxId);
   },
   /** Заявка арендатора на модули → лид в вебхук лидов оператора. Адрес не задан — ничего не делает; не 2xx или сбой сети — ошибка, задача повторится */
   'module_request.notify': async (job, h) => {
