@@ -81,6 +81,7 @@ import {
   Waypoints,
   type LucideIcon,
   UserPlus,
+  LifeBuoy,
   Hourglass,
 } from 'lucide-react';
 import type { PositionSection } from '@erp/shared';
@@ -115,6 +116,7 @@ export const SECTIONS = {
   // Демо-модуль CRM (src/app/crm)
   crm: { path: '/crm', name: 'Dashboard', icon: ChartNoAxesCombined },
   crmLeads: { path: '/crm/leads', name: 'Leads', icon: UserPlus },
+  crmCases: { path: '/crm/cases', name: 'Cases', icon: LifeBuoy },
   crmAds: { path: '/crm/ads', name: 'Advertising', icon: Megaphone },
   crmDeals: { path: '/crm/deals', name: 'Deals', icon: Handshake },
   crmFunnel: { path: '/crm/funnel', name: 'Sales funnel', icon: Filter },
@@ -312,6 +314,7 @@ const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
   email: 'crm',
   crm: 'crm',
   crmLeads: 'crm',
+  crmCases: 'crm',
   crmAds: 'crm',
   crmDeals: 'crm',
   crmFunnel: 'crm',

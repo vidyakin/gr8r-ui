@@ -25,6 +25,9 @@ import dealStageOverdue from './trigger-deal-stage-overdue';
 import fleetDocumentExpiring from './trigger-fleet-document-expiring';
 import tripStatus from './trigger-trip-status';
 import dealWon from './trigger-deal-won';
+import caseCreated from './trigger-case-created';
+import caseSlaBreached from './trigger-case-sla-breached';
+import caseStatusChanged from './trigger-case-status-changed';
 import leadCreated from './trigger-lead-created';
 import leadStatusChanged from './trigger-lead-status-changed';
 import manual from './trigger-manual';
@@ -42,6 +45,9 @@ export const NODE_LIST: AnyNodeDef[] = [
   manual,
   paymentPosted,
   documentPaid,
+  caseCreated,
+  caseStatusChanged,
+  caseSlaBreached,
   leadCreated,
   leadStatusChanged,
   dealStageChanged,

@@ -6,6 +6,8 @@ import { Alert, Badge, Button, Checkbox, Choice, ConfirmDialog, Dialog, DialogCo
 import { useT, type TKey } from '@/i18n';
 import { useIsAdmin } from '../catalog/data';
 import { useEmailApi, useMailboxes, type MailSecurity, type Mailbox } from '../email/data';
+import { useWorkspace } from '../data/store';
+import { useMembersWith } from '../positions/data';
 import { SettingsHead, SRow } from './parts';
 
 interface Draft {
@@ -22,9 +24,11 @@ interface Draft {
   imapUser: string;
   signature: string;
   createLeadFromUnmatched: boolean;
+  createCasesFromMail: boolean;
+  caseOwnerId: string;
 }
 
-const blank: Draft = { email: '', displayName: '', smtpHost: '', smtpPort: '465', smtpSecure: 'ssl', smtpUser: '', password: '', imapHost: '', imapPort: '993', imapSecure: 'ssl', imapUser: '', signature: '', createLeadFromUnmatched: false };
+const blank: Draft = { email: '', displayName: '', smtpHost: '', smtpPort: '465', smtpSecure: 'ssl', smtpUser: '', password: '', imapHost: '', imapPort: '993', imapSecure: 'ssl', imapUser: '', signature: '', createLeadFromUnmatched: false, createCasesFromMail: false, caseOwnerId: '' };
 const fromMailbox = (m: Mailbox): Draft => ({
   email: m.email,
   displayName: m.displayName,
@@ -39,6 +43,8 @@ const fromMailbox = (m: Mailbox): Draft => ({
   imapUser: m.imapUser ?? '',
   signature: m.signature,
   createLeadFromUnmatched: m.createLeadFromUnmatched,
+  createCasesFromMail: m.createCasesFromMail,
+  caseOwnerId: m.caseOwnerId ?? '',
 });
 
 function MailboxForm({ kind, mailbox, onClose }: { kind: 'shared' | 'personal'; mailbox: Mailbox | null; onClose: () => void }) {
@@ -48,6 +54,8 @@ function MailboxForm({ kind, mailbox, onClose }: { kind: 'shared' | 'personal'; 
   const [preset, setPreset] = React.useState('none');
   const [busy, setBusy] = React.useState(false);
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD(x => ({ ...x, [k]: v }));
+  const { data: ws } = useWorkspace();
+  const owners = useMembersWith(ws.members.filter(m => m.status === 'active'), 'support_agent', [d.caseOwnerId]);
   const applyPreset = (id: string) => {
     setPreset(id);
     const p: MailPreset | undefined = MAIL_PRESETS.find(x => x.id === id);
@@ -70,6 +78,8 @@ function MailboxForm({ kind, mailbox, onClose }: { kind: 'shared' | 'personal'; 
       smtpUser: d.smtpUser.trim() || d.email.trim(),
       signature: d.signature,
       ...(kind === 'shared' ? { createLeadFromUnmatched: d.createLeadFromUnmatched } : {}),
+      createCasesFromMail: d.createCasesFromMail,
+      caseOwnerId: d.caseOwnerId || null,
       ...imap,
       ...(d.password ? { password: d.password } : {}),
     };
@@ -114,6 +124,12 @@ function MailboxForm({ kind, mailbox, onClose }: { kind: 'shared' | 'personal'; 
           </div>
           <Field label={t('email.settings.signature')}>{p => <Textarea {...p} rows={3} maxLength={5000} value={d.signature} onChange={e => set('signature', e.target.value)} />}</Field>
           {kind === 'shared' && <Choice><Checkbox checked={d.createLeadFromUnmatched} onChange={e => set('createLeadFromUnmatched', e.target.checked)} />{t('email.settings.createLeadFromUnmatched')}</Choice>}
+          <Choice><Checkbox checked={d.createCasesFromMail} onChange={e => set('createCasesFromMail', e.target.checked)} />{t('email.settings.createCasesFromMail')}</Choice>
+          {d.createCasesFromMail && (
+            <Field label={t('email.settings.caseOwner')}>
+              {p => <Select {...p} value={d.caseOwnerId || '__auto'} onValueChange={v => set('caseOwnerId', v === '__auto' ? '' : v)} options={[{ value: '__auto', label: t('email.settings.caseOwnerAuto') }, ...owners.map(m => ({ value: m.id, label: m.name }))]} />}
+            </Field>
+          )}
           <h3 style={{ margin: '4px 0 0' }}>{t('email.settings.imapTitle')}</h3>
           <div className="row" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <Field label={t('email.settings.imapHost')} className="grow">{p => <Input {...p} maxLength={253} value={d.imapHost} onChange={e => set('imapHost', e.target.value)} />}</Field>

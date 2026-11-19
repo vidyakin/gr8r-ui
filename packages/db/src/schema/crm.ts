@@ -183,6 +183,8 @@ export const crmActivities = pgTable(
     body: text('body'),
     /** Письмо, из которого создано касание email (docs/architecture/email.md); составной FK с SET NULL (email_message_id) — в миграции 0127 */
     emailMessageId: uuid('email_message_id'),
+    /** Касание обращения (docs/architecture/cases.md); составной FK с CASCADE — в миграции 0129 */
+    caseId: uuid('case_id'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -194,6 +196,7 @@ export const crmActivities = pgTable(
     foreignKey({ columns: [t.workspaceId, t.authorId], foreignColumns: [members.workspaceId, members.id], name: 'ca_author_fk' }),
     index('crm_activities_ws_created_idx').on(t.workspaceId, t.createdAt),
     index('crm_activities_lead_idx').on(t.leadId),
+    index('crm_activities_case_idx').on(t.caseId),
   ],
 );
 

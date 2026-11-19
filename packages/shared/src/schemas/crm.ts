@@ -96,6 +96,10 @@ export const crmActivityCreate = z.object({
   contactId: uuid.nullish(),
   /** Касание лида (задача 1175) */
   leadId: uuid.nullish(),
+  /** Касание обращения (docs/architecture/cases.md) */
+  caseId: uuid.nullish(),
+  /** Касание «звонок/письмо» — ответ клиенту: фиксирует первый ответ по SLA обращения (в записи не хранится) */
+  response: z.boolean().optional(),
   dueDate: isoDate.nullish(),
   done: z.boolean().nullish(),
   body: z.string().max(20_000).nullish(),
@@ -107,5 +111,6 @@ export const crmActivityQuery = listQuery.extend({
   companyId: uuid.optional(),
   contactId: uuid.optional(),
   leadId: uuid.optional(),
+  caseId: uuid.optional(),
 });
 

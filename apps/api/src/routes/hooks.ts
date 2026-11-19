@@ -3,10 +3,10 @@
    сверяется с активной формой воркспейса. Любая ошибка токена — один и тот же 404, ответ успеха не содержит данных воркспейса.
    Защита: лимит частоты по IP и по форме (таблица rate_limits), размер тела ≤ 32 КБ, CORS для форм любых сайтов. */
 import { sql as dsql } from 'drizzle-orm';
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { cors } from 'hono/cors';
-import { campaignByUtm, enqueueYooPayment, findEnabledForm, insertLead, isUuid, parseFormToken, parsePriceToken, pickRoundRobin, publicPriceList, rateLimits, readMyModules, readMyReadableModules, withContext, type Sql } from '@erp/db';
-import { leadWebhookBody, pickUtm, yooWebhookBody } from '@erp/shared';
+import { campaignByUtm, enqueueYooPayment, findEnabledCaseForm, findEnabledForm, insertLead, isUuid, parseFormToken, parsePriceToken, pickRoundRobin, publicPriceList, rateLimits, readMyModules, readMyReadableModules, submitCaseForm, withContext, type Sql } from '@erp/db';
+import { caseWebhookBody, leadWebhookBody, pickUtm, yooWebhookBody } from '@erp/shared';
 import { AppError } from '../errors';
 import { isYooKassaIp } from '../yookassa-ip';
 import type { AppEnv } from '../types';
@@ -34,6 +34,24 @@ async function allow(sql: Sql, key: string, max: number, windowSec: number): Pro
 
 const notFound = () => new AppError(404, 'not_found', 'Not found');
 
+/** Тело вебхука формы: JSON или form-urlencoded, не больше MAX_BODY */
+async function readHookBody(c: Context<AppEnv>): Promise<Record<string, unknown>> {
+  if (Number(c.req.header('content-length') ?? 0) > MAX_BODY) throw new AppError(400, 'payload_too_large', 'Request body is too large');
+  const ctype = c.req.header('content-type') ?? '';
+  try {
+    if (ctype.includes('application/json')) {
+      const text = await c.req.text();
+      if (text.length > MAX_BODY) throw new Error('large');
+      const j = JSON.parse(text) as unknown;
+      return j && typeof j === 'object' && !Array.isArray(j) ? (j as Record<string, unknown>) : {};
+    }
+    return (await c.req.parseBody()) as Record<string, unknown>;
+  } catch {
+    throw new AppError(400, 'validation_error', 'Request body must be JSON or a form');
+  }
+}
+
+
 export const hookRoutes = new Hono<AppEnv>()
   // Публичный прайс-лист по ссылке (задача 1178): без сессии, данные — только разрешённые ссылкой (виды цен без закупочных, без остатков).
   // Любая причина отказа — один и тот же 404; лимит частоты по IP (до разбора токена) и по ссылке
@@ -57,6 +75,7 @@ export const hookRoutes = new Hono<AppEnv>()
     c.header('X-Content-Type-Options', 'nosniff');
     return c.json(data);
   })
+  .use('/cases/*', cors({ origin: '*', allowMethods: ['POST', 'OPTIONS'], allowHeaders: ['Content-Type'], maxAge: 86400 }))
   .use('/leads/*', cors({ origin: '*', allowMethods: ['POST', 'OPTIONS'], allowHeaders: ['Content-Type'], maxAge: 86400 }))
   .post('/leads/:token', async c => {
     const cfg = c.get('config');
@@ -69,21 +88,7 @@ export const hookRoutes = new Hono<AppEnv>()
     if (!parsed) throw notFound();
     if (!(await allow(sql, `lead-hook:form:${parsed.secret.slice(0, 16)}`, cfg.leadHookRateLimitMax * 10, windowSec))) throw new AppError(429, 'rate_limited', 'Too many requests. Try again later.', { retryAfterSeconds: windowSec });
 
-    if (Number(c.req.header('content-length') ?? 0) > MAX_BODY) throw new AppError(400, 'payload_too_large', 'Request body is too large');
-    const ctype = c.req.header('content-type') ?? '';
-    let raw: Record<string, unknown>;
-    try {
-      if (ctype.includes('application/json')) {
-        const text = await c.req.text();
-        if (text.length > MAX_BODY) throw new Error('large');
-        const j = JSON.parse(text) as unknown;
-        raw = j && typeof j === 'object' && !Array.isArray(j) ? (j as Record<string, unknown>) : {};
-      } else {
-        raw = (await c.req.parseBody()) as Record<string, unknown>;
-      }
-    } catch {
-      throw new AppError(400, 'validation_error', 'Request body must be JSON or a form');
-    }
+    const raw = await readHookBody(c);
     const body = leadWebhookBody.safeParse(raw);
     if (!body.success) throw new AppError(400, 'validation_error', 'Invalid fields');
     const b = body.data;
@@ -103,6 +108,28 @@ export const hookRoutes = new Hono<AppEnv>()
         { workspaceId: parsed.workspaceId, memberId: null },
         { name: b.name || b.phone || b.email, companyName: b.company, phone: b.phone, email: b.email, comment: b.comment, ...attr, ownerId, formId: form.id, custom },
       );
+    });
+    return c.json({ ok: true as const }, 201);
+  })
+  // Форма обращений на сайте (docs/architecture/cases.md): токен и защита те же, что у форм лидов
+  .post('/cases/:token', async c => {
+    const cfg = c.get('config');
+    const sql = c.get('sql');
+    const windowSec = Math.ceil(cfg.leadHookRateLimitWindowMs / 1000);
+    if (!(await allow(sql, `case-hook:ip:${c.get('ip')}`, cfg.leadHookRateLimitMax, windowSec))) throw new AppError(429, 'rate_limited', 'Too many requests. Try again later.', { retryAfterSeconds: windowSec });
+    const parsed = parseFormToken(c.req.param('token'));
+    if (!parsed) throw notFound();
+    if (!(await allow(sql, `case-hook:form:${parsed.secret.slice(0, 16)}`, cfg.leadHookRateLimitMax * 10, windowSec))) throw new AppError(429, 'rate_limited', 'Too many requests. Try again later.', { retryAfterSeconds: windowSec });
+    const body = caseWebhookBody.safeParse(await readHookBody(c));
+    if (!body.success) throw new AppError(400, 'validation_error', 'Invalid fields');
+    const b = body.data;
+    if (!b.subject && !b.message) throw new AppError(422, 'validation_error', 'Provide a subject or a message');
+    if (!b.email && !b.phone && !b.name) throw new AppError(422, 'validation_error', 'Provide a name, an email or a phone');
+    await withContext(sql, { workspaceId: parsed.workspaceId }, async db => {
+      if (!(await readMyModules(db)).has('crm')) throw notFound(); // модуль выключен: как несуществующая форма
+      const form = await findEnabledCaseForm(db, parsed.secret);
+      if (!form) throw notFound();
+      await submitCaseForm(db, parsed.workspaceId, form, b);
     });
     return c.json({ ok: true as const }, 201);
   })

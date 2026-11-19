@@ -32,6 +32,9 @@ export const mailboxes = pgTable(
     imapUidValidity: text('imap_uid_validity'),
     imapLastUid: bigint('imap_last_uid', { mode: 'number' }).notNull().default(0),
     createLeadFromUnmatched: boolean('create_lead_from_unmatched').notNull().default(false),
+    /** Входящие письма создают обращения (docs/architecture/cases.md); ответственный по умолчанию — case_owner_id */
+    createCasesFromMail: boolean('create_cases_from_mail').notNull().default(false),
+    caseOwnerId: uuid('case_owner_id'),
     signature: text('signature').notNull().default(''),
     status: text('status', { enum: MAILBOX_STATUSES }).notNull().default('unchecked'),
     lastError: text('last_error'),
@@ -42,6 +45,7 @@ export const mailboxes = pgTable(
   t => [
     unique('mailboxes_ws_id_uq').on(t.workspaceId, t.id),
     foreignKey({ columns: [t.workspaceId, t.memberId], foreignColumns: [members.workspaceId, members.id], name: 'mailboxes_member_fk' }).onDelete('cascade'),
+    foreignKey({ columns: [t.workspaceId, t.caseOwnerId], foreignColumns: [members.workspaceId, members.id], name: 'mailboxes_case_owner_fk' }).onDelete('set null'),
     check('mailboxes_kind_chk', sql`(${t.kind} = 'shared' and ${t.memberId} is null) or (${t.kind} = 'personal' and ${t.memberId} is not null)`),
     uniqueIndex('mailboxes_shared_uq').on(t.workspaceId).where(sql`${t.kind} = 'shared'`),
     uniqueIndex('mailboxes_personal_uq').on(t.workspaceId, t.memberId).where(sql`${t.kind} = 'personal'`),
@@ -79,6 +83,7 @@ export const emailMessages = pgTable(
     contactId: uuid('contact_id'),
     companyId: uuid('company_id'),
     dealId: uuid('deal_id'),
+    caseId: uuid('case_id'),
     documentId: uuid('document_id'),
     /** Печатная форма документа, которую воркер превращает в PDF-вложение при отправке */
     printForm: text('print_form'),
@@ -97,6 +102,7 @@ export const emailMessages = pgTable(
     index('email_messages_contact_idx').on(t.contactId),
     index('email_messages_company_idx').on(t.companyId),
     index('email_messages_deal_idx').on(t.dealId),
+    index('email_messages_case_idx').on(t.caseId),
     index('email_messages_document_idx').on(t.documentId),
     index('email_messages_message_id_idx').on(t.workspaceId, t.messageId),
   ],

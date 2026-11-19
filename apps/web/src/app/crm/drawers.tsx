@@ -14,6 +14,7 @@ import { stageName } from './labels';
 import { useCrm, type DealPatch } from './store';
 import { useCrmUi } from './ui-context';
 import { ClientAppointments } from './ClientAppointments';
+import { ClientCases } from '../cases/ClientCases';
 import { useCustomRows } from '../meta/custom-fields';
 import { parseNumber, useT } from '@/i18n';
 import { RecordAttribution } from './AttributionFields';
@@ -391,6 +392,7 @@ export function ContactDrawer({ id }: { id: string }) {
           label: t('appt.client.title'),
           content: <ClientAppointments contactId={c.id} />,
         },
+        { id: 'cases', label: t('cases.client.title'), content: <ClientCases contactId={c.id} defaultCompanyId={c.company} /> },
         { id: 'files', label: t('attachments.tab'), content: <AttachmentsPanel entityType="contact" entityId={c.id} /> },
       ]}
     />

@@ -16,6 +16,7 @@ import { ApprovalRoutesSection } from '../approvals/RoutesSettings';
 import { ProjectTemplatesSection } from '../settings/project-templates';
 import { AgentAccessSection } from '../settings/agent-access';
 import { LeadFormsSection, LeadStatusesSection } from '../settings/leads';
+import { CasesSettingsSection } from '../settings/cases';
 import { DealPipelinesSection, LostReasonsSection } from '../settings/deal-pipelines';
 import { LeadSourcesSection } from '../settings/lead-sources';
 import { IntegrationsSection } from '../settings/integrations';
@@ -81,6 +82,8 @@ function Body({ sec, title }: { sec: string; title: string }) {
       return <LeadStatusesSection title={title} />;
     case 'lead-forms':
       return <LeadFormsSection title={title} />;
+    case 'cases':
+      return <CasesSettingsSection title={title} />;
     case 'lead-sources':
       return <LeadSourcesSection title={title} />;
     case 'mail':

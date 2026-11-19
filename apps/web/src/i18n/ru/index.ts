@@ -25,6 +25,7 @@ import { positions } from './positions';
 import { approvals } from './approvals';
 import { projectTemplates } from './project-templates';
 import { leads } from './leads';
+import { cases } from './cases';
 import { ads } from './ads';
 import { secrets } from './secrets';
 import { email } from './email';
@@ -44,5 +45,5 @@ import { shifts } from './shifts';
 import { agentTokens } from './agent-tokens';
 import { departments } from './departments';
 
-export const ru = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, batches, repeat, appt, delivery, positions, departments, approvals, projectTemplates, leads, ads, secrets, email, money, payroll, pricing, loyalty, licensing, fleet, trips, transport, help, attachments, objects, estimates, supplierRating, supplierPrices, shifts, agentTokens };
+export const ru = { common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, batches, repeat, appt, delivery, positions, departments, approvals, projectTemplates, leads, cases, ads, secrets, email, money, payroll, pricing, loyalty, licensing, fleet, trips, transport, help, attachments, objects, estimates, supplierRating, supplierPrices, shifts, agentTokens };
 

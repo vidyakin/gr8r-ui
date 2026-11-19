@@ -2,15 +2,16 @@
    касание, уведомление, событие и курсор атомарно под RLS. IMAP подменяется в тестах. */
 import { and, eq, isNull, sql as sqlExpr } from 'drizzle-orm';
 import { simpleParser } from 'mailparser';
-import { EMAIL_MAX_ATTACH_BYTES, mailboxPasswordKey, normalizeEmail } from '@erp/shared';
+import { EMAIL_MAX_ATTACH_BYTES, caseNumberFromSubject, mailboxPasswordKey, normalizeEmail } from '@erp/shared';
 import type { Db, Sql } from './client';
 import { withContext } from './context';
 import { createInboundAttachment } from './attachments';
+import { applyClientReply, insertCase, type CaseRow } from './cases';
 import { classifyMailError, openImap } from './email-transport';
 import { recordEvent } from './events';
 import { insertLead } from './leads';
 import { sanitizeRichText } from './rich-text';
-import { companies, contacts, crmActivities, deals, emailMessages, leads, mailboxes, notifications } from './schema';
+import { cases, companies, contacts, crmActivities, deals, emailMessages, leads, mailboxes, notifications } from './schema';
 import { readSecret } from './secrets';
 import type { EmailMessage, Mailbox } from './email';
 
@@ -50,8 +51,36 @@ async function matchIncoming(db: Db, m: Incoming, box: Mailbox): Promise<Links> 
   return noLinks();
 }
 
-async function notifyOwner(db: Db, box: Mailbox, m: EmailMessage) {
-  let ownerId: string | null = null;
+/** Приём в обращения (docs/architecture/cases.md): ответ на письмо обращения (In-Reply-To / References) или номер «[ОБ-…]» в теме
+    привязывает письмо к обращению (решённое открывается снова в течение 7 дней, позже и закрытое — новое обращение); иначе создаётся новое */
+async function routeToCase(db: Db, box: Mailbox, m: Incoming, links: Links): Promise<{ caseRow: CaseRow; links: Links; existed: boolean }> {
+  const ctx = { workspaceId: box.workspaceId, memberId: null };
+  const ids = [...new Set([...(m.inReplyTo?.match(/<[^>]+>/g) ?? []), ...(m.references?.match(/<[^>]+>/g) ?? []).reverse()])];
+  let found: CaseRow | undefined;
+  for (const id of ids) {
+    const [msg] = await db.select({ caseId: emailMessages.caseId }).from(emailMessages).where(and(eq(emailMessages.messageId, id), sqlExpr`${emailMessages.caseId} is not null`)).orderBy(emailMessages.createdAt).limit(1);
+    if (!msg?.caseId) continue;
+    [found] = await db.select().from(cases).where(eq(cases.id, msg.caseId)).limit(1);
+    if (found) break;
+  }
+  if (!found) {
+    const number = caseNumberFromSubject(m.subject);
+    if (number) [found] = await db.select().from(cases).where(eq(cases.number, number)).limit(1);
+  }
+  let previous: CaseRow | undefined;
+  if (found) {
+    const after = await applyClientReply(db, ctx, found.id, m.receivedAt);
+    if (after) return { caseRow: after, existed: true, links: { leadId: after.leadId ?? links.leadId, contactId: after.contactId ?? links.contactId, companyId: after.companyId ?? links.companyId, dealId: after.dealId ?? links.dealId, documentId: links.documentId } };
+    previous = found;
+  }
+  const row = await insertCase(db, ctx, { subject: m.subject.trim() || '(no subject)', description: m.bodyText.slice(0, 20_000), channel: 'email', leadId: links.leadId, contactId: links.contactId, companyId: links.companyId, dealId: links.dealId, mailboxId: box.id, defaultOwnerId: box.caseOwnerId, at: m.receivedAt });
+  if (previous) await db.insert(crmActivities).values({ workspaceId: box.workspaceId, type: 'note', subject: `Follows case ${previous.number}`, caseId: row.id, system: true });
+  return { caseRow: row, links, existed: false };
+}
+
+async function notifyOwner(db: Db, box: Mailbox, m: EmailMessage, caseOwnerId: string | null = null) {
+  let ownerId: string | null = caseOwnerId;
+  if (!ownerId)
   for (const [id, table] of [[m.leadId, leads], [m.contactId, contacts], [m.dealId, deals], [m.companyId, companies]] as const) {
     if (!id) continue;
     const [row] = await db.select({ ownerId: table.ownerId }).from(table).where(eq(table.id, id));
@@ -97,9 +126,18 @@ export async function syncMailbox(sql: Sql, workspaceId: string, mailboxId: stri
             const [same] = await db.select({ id: emailMessages.id }).from(emailMessages).where(and(eq(emailMessages.mailboxId, mailboxId), eq(emailMessages.direction, 'in'), eq(emailMessages.messageId, mail.messageId))).limit(1);
             if (same) continue;
           }
-          const links = mail ? await matchIncoming(db, mail, current) : noLinks();
+          let links = mail ? await matchIncoming(db, mail, current) : noLinks();
+          let caseRow: CaseRow | null = null;
+          let caseExisted = false;
+          // свои исходящие и служебные адреса не создают обращений: иначе автоответы зацикливаются
+          if (mail && current.createCasesFromMail && mail.fromEmail && mail.fromEmail !== normalizeEmail(current.email) && !/^(mailer-daemon|postmaster)@/.test(mail.fromEmail)) {
+            const routed = await routeToCase(db, current, mail, links);
+            caseRow = routed.caseRow;
+            caseExisted = routed.existed;
+            links = routed.links;
+          }
           const { attachments: files, ...fields } = mail ?? { fromEmail: '', fromName: '', to: [], cc: [], subject: '', bodyText: '', bodyHtml: null, messageId: null, inReplyTo: null, references: null, receivedAt: new Date(), attachments: [] };
-          const [m] = await db.insert(emailMessages).values({ ...fields, ...links, workspaceId, mailboxId, direction: 'in', status: 'received', imapUidValidity: validity, imapUid: row.uid, lastError: mail ? null : 'Email source exceeds size limit (30 MiB)' }).returning();
+          const [m] = await db.insert(emailMessages).values({ ...fields, ...links, workspaceId, mailboxId, direction: 'in', status: 'received', caseId: caseRow?.id ?? null, imapUidValidity: validity, imapUid: row.uid, lastError: mail ? null : 'Email source exceeds size limit (30 MiB)' }).returning();
           let bytes = 0;
           const attachmentIds: string[] = [];
           const skipped: string[] = [];
@@ -110,12 +148,13 @@ export async function syncMailbox(sql: Sql, workspaceId: string, mailboxId: stri
             attachmentIds.push(attachment.id);
           }
           if (attachmentIds.length || skipped.length) await db.update(emailMessages).set({ attachmentIds, ...(skipped.length ? { lastError: `Attachments exceed 20 MiB: ${skipped.join(', ')}`.slice(0, 1000) } : {}) }).where(eq(emailMessages.id, m!.id));
-          if (links.leadId || links.contactId || links.companyId || links.dealId) {
-            const [act] = await db.insert(crmActivities).values({ workspaceId, type: 'email', subject: m!.subject.slice(0, 200), body: m!.bodyText.slice(0, 2000) || null, leadId: links.leadId, contactId: links.contactId, companyId: links.companyId, dealId: links.dealId, emailMessageId: m!.id }).returning();
+          if (links.leadId || links.contactId || links.companyId || links.dealId || caseRow) {
+            const [act] = await db.insert(crmActivities).values({ workspaceId, type: 'email', subject: m!.subject.slice(0, 200), body: m!.bodyText.slice(0, 2000) || null, leadId: links.leadId, contactId: links.contactId, companyId: links.companyId, dealId: links.dealId, caseId: caseRow?.id ?? null, emailMessageId: m!.id }).returning();
             await recordEvent(db, { workspaceId, type: 'crm_activity.created', entity: 'crm_activity', recordId: act!.id, actorId: null, payload: { direction: 'in' } });
           }
-          await notifyOwner(db, current, m!);
-          await recordEvent(db, { workspaceId, type: 'email.received', entity: 'email', recordId: m!.id, actorId: null, payload: { ...links, mailboxId, fromEmail: m!.fromEmail } });
+          // новое обращение уже уведомило ответственного при создании
+          if (!caseRow || caseExisted) await notifyOwner(db, current, m!, caseRow?.ownerId ?? null);
+          await recordEvent(db, { workspaceId, type: 'email.received', entity: 'email', recordId: m!.id, actorId: null, payload: { ...links, mailboxId, fromEmail: m!.fromEmail, ...(caseRow ? { caseId: caseRow.id } : {}) } });
           count++;
         }
         // FETCH может ограничить объём пачки: продвигаемся только до последнего возвращённого UID.

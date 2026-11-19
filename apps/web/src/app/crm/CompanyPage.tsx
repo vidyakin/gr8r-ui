@@ -1,7 +1,7 @@
 /* Страница компании — шапка как у страницы проекта и вкладки Overview / Deals / Contacts / Activity */
 import * as React from 'react';
 import { Link, useParams } from 'react-router';
-import { Activity, Briefcase, FileSignature, FileText, Files, CircleDollarSign, ExternalLink, Globe, LayoutDashboard, CalendarCheck, Wallet, MapPin, Plus, Ruler, Tags, User, UserPlus, Users, Clock, Megaphone, Paperclip, FileSpreadsheet, type LucideIcon } from 'lucide-react';
+import { Activity, LifeBuoy, Briefcase, FileSignature, FileText, Files, CircleDollarSign, ExternalLink, Globe, LayoutDashboard, CalendarCheck, Wallet, MapPin, Plus, Ruler, Tags, User, UserPlus, Users, Clock, Megaphone, Paperclip, FileSpreadsheet, type LucideIcon } from 'lucide-react';
 import { Badge, Button, Checkbox, Choice, EmptyState, Tooltip } from '@/components/ui';
 import { DataTable, useDataTable } from '@/components/erp/data-table';
 import { Panel, Stat } from '@/components/erp/panel';
@@ -23,6 +23,7 @@ import { CompanySupplierPricesTab } from '../pricing/supplier-prices';
 import { useIsAdmin } from '../catalog/data';
 import { CompanyContractsTab } from '../docs/CompanyContracts';
 import { CompanyDocumentsTab } from '../docs/CompanyDocuments';
+import { ClientCases } from '../cases/ClientCases';
 import { CompanySettlementsTab } from '../money/CompanySettlements';
 import { SupplierRatingBadge } from '../docs/SupplierRatingsPage';
 import { NextContactPanel } from './NextContactPanel';
@@ -46,6 +47,7 @@ const TABS: [string, LucideIcon][] = [
   ['documents', Files],
   ['settlements', Wallet],
   ['appointments', CalendarCheck],
+  ['cases', LifeBuoy],
   ['files', Paperclip],
 ];
 
@@ -153,6 +155,7 @@ function CompanyView({ company: co, tab }: { company: Company; tab: string }) {
   else if (tab === 'documents') body = <CompanyDocumentsTab companyId={co.id} />;
   else if (tab === 'settlements') body = <CompanySettlementsTab companyId={co.id} />;
   else if (tab === 'appointments') body = <ClientAppointments companyId={co.id} />;
+  else if (tab === 'cases') body = <div className="page" style={{ maxWidth: 980, paddingTop: 8 }}><ClientCases companyId={co.id} /></div>;
   else if (tab === 'files')
     body = (
       <div className="page" style={{ maxWidth: 980, paddingTop: 16 }}>

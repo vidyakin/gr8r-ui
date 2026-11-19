@@ -70,7 +70,7 @@ export async function startRunsForEvent(db: Db, ev: EventRow): Promise<number> {
       if (entity === 'email' && ev.type === 'email.received') {
         email = record;
         // Привязка письма становится записью триггера; само письмо доступно отдельно через trigger.email.
-        for (const [kind, field] of [['lead', 'leadId'], ['contact', 'contactId'], ['deal', 'dealId'], ['company', 'companyId'], ['document', 'documentId']] as const) {
+        for (const [kind, field] of [['case', 'caseId'], ['lead', 'leadId'], ['contact', 'contactId'], ['deal', 'dealId'], ['company', 'companyId'], ['document', 'documentId']] as const) {
           const id = email?.[field];
           if (typeof id !== 'string') continue;
           const linked = await loadRecord(db, ev.workspaceId, kind, id);

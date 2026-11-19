@@ -52,6 +52,7 @@ export const settings: Widen<typeof S> = {
       lostReasons: 'Причины проигрыша',
       leadStatuses: 'Статусы лидов',
       leadForms: 'Формы лидов',
+      cases: 'Обращения',
       leadSources: 'Источники привлечения',
       integrations: 'Интеграции',
       mail: 'Почта',

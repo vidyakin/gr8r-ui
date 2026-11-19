@@ -7,6 +7,7 @@ export const positions = {
     work_order_executor: 'Исполнитель заказ-нарядов',
     sales_manager: 'Менеджер продаж',
     driver: 'Водитель',
+    support_agent: 'Сотрудник поддержки',
   },
   fnHint: {
     appointments_specialist: 'Принимает клиентов по записи',
@@ -15,6 +16,7 @@ export const positions = {
     work_order_executor: 'Исполнитель заказ-нарядов',
     sales_manager: 'Ответственный по сделкам, планам продаж',
     driver: 'Водит машины: путевые листы, документы водителя',
+    support_agent: 'Ведёт обращения клиентов (назначение по кругу)',
   },
   section: {
     crm: 'CRM',

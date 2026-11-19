@@ -248,7 +248,7 @@ export const enums = {
   /** Встроенные статусы задач (колонки доски по умолчанию) */
   taskStatus: { backlog: 'Backlog', todo: 'To do', progress: 'In progress', review: 'Review', done: 'Done' },
   /** Встроенные сущности конструктора */
-  systemEntity: { task: 'Tasks', project: 'Projects', deal: 'Deals', company: 'Companies', contact: 'Contacts', product: 'Products', lead: 'Leads', document: 'Documents' },
+  systemEntity: { task: 'Tasks', project: 'Projects', deal: 'Deals', company: 'Companies', contact: 'Contacts', product: 'Products', lead: 'Leads', case: 'Cases', document: 'Documents' },
   /** Подписи этапов CRM */
   stage: { lead: 'Lead', qualified: 'Qualified', proposal: 'Proposal', negotiation: 'Negotiation', won: 'Won', lost: 'Lost' },
 };

@@ -51,6 +51,7 @@ export const settings = {
       lostReasons: 'Lost reasons',
       leadStatuses: 'Lead statuses',
       leadForms: 'Lead forms',
+      cases: 'Cases',
       leadSources: 'Lead sources',
       integrations: 'Integrations',
       mail: 'Mail',

@@ -72,6 +72,11 @@ MIME разбирается `mailparser`, HTML очищается существ
 `trigger.email_received` реагирует только на `email.received`, необязательный фильтр mailboxId. `trigger.entity/recordId/record` — связанная CRM-запись,
 иначе само письмо; `trigger.email` содержит письмо, в том числе mailboxId, fromEmail и subject. Повтор события защищён существующим `(flow_id,event_id)`.
 
+## Обращения из писем
+
+Флажок `mailboxes.create_cases_from_mail` (и `case_owner_id`) включает приём входящих писем в обращения: `routeToCase` в `email-sync.ts`, привязка по In-Reply-To/References и номеру `[ОБ-…]` в теме,
+`email_messages.case_id`; исходящее письмо с `caseId` получает номер в тему. Подробности — [cases.md](cases.md).
+
 ## Экран и доступ к входящим
 
 `GET /emails?direction=in&unlinked=true` и `GET /emails/:id` показывают только общий и собственный личный ящик, включая запросы с фильтром записи или ids.

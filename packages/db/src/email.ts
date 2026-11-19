@@ -13,9 +13,11 @@ import {
   type MailboxCreate,
   type MailboxUpdate,
   type PrintForm,
+  withCaseNumber,
   type Role,
 } from '@erp/shared';
 import { getAttachment } from './attachments';
+import { loadCase, markFirstResponse } from './cases';
 import type { Db } from './client';
 import { assertMailHostShape } from './email-transport';
 import { DomainError } from './errors';
@@ -154,7 +156,7 @@ export async function pickMailbox(db: Db, c: { workspaceId: string; memberId: st
 
 const dailyLimit = () => Number(process.env.EMAIL_DAILY_LIMIT ?? 500);
 
-type Links = { leadId?: string | null; contactId?: string | null; companyId?: string | null; dealId?: string | null };
+type Links = { caseId?: string | null; leadId?: string | null; contactId?: string | null; companyId?: string | null; dealId?: string | null };
 
 async function assertExists(db: Db, links: Links & { documentId?: string | null }): Promise<{ docCompanyId: string | null }> {
   const check = async (id: string | null | undefined, table: typeof leads | typeof contacts | typeof companies | typeof deals, what: string) => {
@@ -202,6 +204,9 @@ export async function queueEmail(db: Db, c: MailCtx, input: EmailCreate, o: Queu
   if (n >= dailyLimit()) throw new DomainError(422, 'email_limit_reached', 'The daily limit of outgoing emails is reached');
 
   const { docCompanyId } = await assertExists(db, input);
+  // обращение: тема получает номер, письмо и касание попадают в его ленту; закрытое обращение не получает писем
+  const caseRow = input.caseId ? await loadCase(db, input.caseId) : null;
+  if (caseRow?.status === 'closed') throw new DomainError(409, 'case_closed', 'A closed case cannot be edited');
   if (input.documentId && input.printForm) {
     const [d] = await db.select({ type: documents.type }).from(documents).where(eq(documents.id, input.documentId)).limit(1);
     if (!formAllowedFor(d!.type, input.printForm as PrintForm)) throw new DomainError(422, 'form_not_available', `The "${input.printForm}" form is not available for this document type`);
@@ -220,7 +225,10 @@ export async function queueEmail(db: Db, c: MailCtx, input: EmailCreate, o: Queu
   const domain = mailbox.email.split('@')[1] ?? 'localhost';
   const messageId = `<${uuidv7()}@${domain}>`;
   const bodyText = o.appendSignature && mailbox.signature.trim() ? `${input.body}\n\n-- \n${mailbox.signature}` : input.body;
-  const companyId = input.companyId ?? docCompanyId;
+  const companyId = input.companyId ?? docCompanyId ?? caseRow?.companyId ?? null;
+  const leadId = input.leadId ?? caseRow?.leadId ?? null;
+  const contactId = input.contactId ?? caseRow?.contactId ?? null;
+  const subject = caseRow ? withCaseNumber(input.subject.trim(), caseRow.number) : input.subject.trim();
   const [msg] = await db
     .insert(emailMessages)
     .values({
@@ -232,16 +240,17 @@ export async function queueEmail(db: Db, c: MailCtx, input: EmailCreate, o: Queu
       fromName: mailbox.displayName,
       to,
       cc,
-      subject: input.subject.trim(),
+      subject,
       bodyText,
       bodyHtml: input.bodyHtml ? sanitizeRichText(input.bodyHtml) : null,
       messageId,
       inReplyTo: input.inReplyTo ?? null,
       createdBy: c.memberId,
-      leadId: input.leadId ?? null,
-      contactId: input.contactId ?? null,
+      leadId,
+      contactId,
       companyId: companyId ?? null,
-      dealId: input.dealId ?? null,
+      dealId: input.dealId ?? caseRow?.dealId ?? null,
+      caseId: caseRow?.id ?? null,
       documentId: input.documentId ?? null,
       printForm: input.documentId ? (input.printForm ?? null) : null,
       printTemplateId: input.documentId && input.printForm ? (input.templateId ?? null) : null,
@@ -250,13 +259,15 @@ export async function queueEmail(db: Db, c: MailCtx, input: EmailCreate, o: Queu
     .returning();
 
   // касание в истории записи (лента лида, контакта, контрагента, сделки)
-  if (input.leadId || input.contactId || companyId || input.dealId) {
+  if (leadId || contactId || companyId || input.dealId || caseRow) {
     const [act] = await db
       .insert(crmActivities)
-      .values({ workspaceId: c.workspaceId, type: 'email', subject: msg!.subject.slice(0, 200), body: bodyText.slice(0, 2000) || null, leadId: input.leadId ?? null, contactId: input.contactId ?? null, companyId: companyId ?? null, dealId: input.dealId ?? null, authorId: c.memberId, emailMessageId: msg!.id })
+      .values({ workspaceId: c.workspaceId, type: 'email', subject: msg!.subject.slice(0, 200), body: bodyText.slice(0, 2000) || null, leadId, contactId, companyId: companyId ?? null, dealId: input.dealId ?? null, caseId: caseRow?.id ?? null, authorId: c.memberId, emailMessageId: msg!.id })
       .returning();
     await recordEvent(db, { workspaceId: c.workspaceId, type: 'crm_activity.created', entity: 'crm_activity', recordId: act!.id, actorId: c.memberId, payload: { via: o.via ?? null } });
   }
+  // ответ сотрудника — первый ответ по SLA; письма автоматизаций не в счёт
+  if (caseRow && c.memberId) await markFirstResponse(db, { workspaceId: c.workspaceId, memberId: c.memberId }, caseRow.id);
   await db.insert(jobs).values({ workspaceId: c.workspaceId, type: EMAIL_SEND_JOB, payload: { emailId: msg!.id }, maxAttempts: 5 });
   await recordEvent(db, { workspaceId: c.workspaceId, type: 'email.queued', entity: 'email', recordId: msg!.id, actorId: c.memberId, payload: { via: o.via ?? null } });
   return msg!;
@@ -275,6 +286,23 @@ export async function queueAutomationEmail(
   if (!mailbox) throw new DomainError(422, 'mailbox_required', 'No mailbox is configured: add a mailbox in Settings → Mail');
   const msg = await queueEmail(db, { workspaceId, memberId: null, role: 'member' }, { to: a.to, cc: [], subject: a.subject, body: a.text, attachmentIds: [], ...a.link }, { mailbox, via, appendSignature: true });
   return { id: msg.id, mailboxId: mailbox.id };
+}
+
+/** Ответ клиенту из обращения: ящик обращения (если доступен), тема с номером, ответ в ветке последнего входящего письма */
+export async function replyToCase(db: Db, c: MailCtx, caseId: string, input: { mailboxId?: string | null; to: string[]; cc?: string[]; subject?: string | undefined; body: string; attachmentIds?: string[] }): Promise<EmailMessage> {
+  const row = await loadCase(db, caseId);
+  let mailboxId = input.mailboxId ?? null;
+  if (!mailboxId && row.mailboxId) {
+    const mine = (await listMailboxes(db, c)).some(m => m.id === row.mailboxId);
+    if (mine) mailboxId = row.mailboxId;
+  }
+  const [last] = await db
+    .select({ messageId: emailMessages.messageId })
+    .from(emailMessages)
+    .where(and(eq(emailMessages.caseId, caseId), eq(emailMessages.direction, 'in')))
+    .orderBy(desc(emailMessages.createdAt), desc(emailMessages.id))
+    .limit(1);
+  return queueEmail(db, c, { mailboxId, to: input.to, cc: input.cc ?? [], subject: input.subject?.trim() || `Re: ${row.subject}`, body: input.body, attachmentIds: input.attachmentIds ?? [], caseId, inReplyTo: last?.messageId ?? null });
 }
 
 /** Повторить отправку письма со статусом failed (автор или admin+) */
@@ -313,9 +341,10 @@ export async function listEmails(db: Db, c: MailCtx, f: Links & { documentId?: s
     f.companyId ? eq(emailMessages.companyId, f.companyId) : undefined,
     f.dealId ? eq(emailMessages.dealId, f.dealId) : undefined,
     f.documentId ? eq(emailMessages.documentId, f.documentId) : undefined,
+    f.caseId ? eq(emailMessages.caseId, f.caseId) : undefined,
     f.ids?.length ? inArray(emailMessages.id, f.ids) : undefined,
   ];
-  const filtered = !!(f.leadId || f.contactId || f.companyId || f.dealId || f.documentId || f.ids?.length);
+  const filtered = !!(f.caseId || f.leadId || f.contactId || f.companyId || f.dealId || f.documentId || f.ids?.length);
   if (!filtered && !isAdmin(c)) conds.push(or(incomingVisible, and(eq(emailMessages.direction, 'out'), c.memberId ? eq(emailMessages.createdBy, c.memberId) : isNull(emailMessages.createdBy))));
   return db.select().from(emailMessages).where(and(...conds)).orderBy(desc(emailMessages.createdAt), desc(emailMessages.id)).limit(limit).offset(offset);
 }
