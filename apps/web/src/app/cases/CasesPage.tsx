@@ -102,11 +102,11 @@ export function CasesPage() {
         ))}
       </div>
       <div className="row" style={{ gap: 8, padding: '0 var(--page-pad, 24px) 12px', flexWrap: 'wrap' }}>
-        <Input size="sm" value={q} onChange={e => setQ(e.target.value)} placeholder={t('cases.searchPlaceholder')} aria-label={t('cases.searchPlaceholder')} style={{ maxWidth: 280 }} />
-        <Select size="sm" value={status} onValueChange={setStatus} aria-label={t('cases.col.status')} options={[{ value: ALL, label: t('cases.allStatuses') }, ...CASE_STATUSES.map(s => ({ value: s, label: t(`cases.status.${s}`) }))]} />
-        <Select size="sm" value={priority} onValueChange={setPriority} aria-label={t('cases.col.priority')} options={[{ value: ALL, label: t('cases.allPriorities') }, ...CASE_PRIORITIES.map(s => ({ value: s, label: t(`cases.priority.${s}`) }))]} />
-        <Select size="sm" value={channel} onValueChange={setChannel} aria-label={t('cases.col.channel')} options={[{ value: ALL, label: t('cases.allChannels') }, ...CASE_CHANNELS.map(s => ({ value: s, label: t(`cases.channel.${s}`) }))]} />
-        <Select size="sm" value={owner} onValueChange={setOwner} aria-label={t('cases.col.owner')} options={[{ value: ALL, label: t('cases.allOwners') }, ...ws.members.filter(m => m.status === 'active').map(m => ({ value: m.id, label: m.name }))]} />
+        <Input size="sm" value={q} onChange={e => setQ(e.target.value)} placeholder={t('cases.searchPlaceholder')} aria-label={t('cases.searchPlaceholder')} style={{ width: 260 }} />
+        <div style={{ width: 170 }}><Select size="sm" value={status} onValueChange={setStatus} aria-label={t('cases.col.status')} options={[{ value: ALL, label: t('cases.allStatuses') }, ...CASE_STATUSES.map(s => ({ value: s, label: t(`cases.status.${s}`) }))]} /></div>
+        <div style={{ width: 170 }}><Select size="sm" value={priority} onValueChange={setPriority} aria-label={t('cases.col.priority')} options={[{ value: ALL, label: t('cases.allPriorities') }, ...CASE_PRIORITIES.map(s => ({ value: s, label: t(`cases.priority.${s}`) }))]} /></div>
+        <div style={{ width: 170 }}><Select size="sm" value={channel} onValueChange={setChannel} aria-label={t('cases.col.channel')} options={[{ value: ALL, label: t('cases.allChannels') }, ...CASE_CHANNELS.map(s => ({ value: s, label: t(`cases.channel.${s}`) }))]} /></div>
+        <div style={{ width: 170 }}><Select size="sm" value={owner} onValueChange={setOwner} aria-label={t('cases.col.owner')} options={[{ value: ALL, label: t('cases.allOwners') }, ...ws.members.filter(m => m.status === 'active').map(m => ({ value: m.id, label: m.name }))]} /></div>
         <Segmented
           value={mode}
           onValueChange={setMode}

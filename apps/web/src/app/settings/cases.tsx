@@ -5,6 +5,7 @@ import { Copy, Globe, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { CASE_PRIORITIES, DEFAULT_CASE_SLA, type CasePriority, type CaseSlaRules } from '@erp/shared';
 import { Alert, Badge, Button, ConfirmDialog, EmptyState, Field, Input, Select, Skeleton, Switch, toast } from '@/components/ui';
 import { useT } from '@/i18n';
+import { NumberField } from '@/components/erp/number-field';
 import { useIsAdmin } from '../catalog/data';
 import { caseWebhookUrl, useCaseForms, useCaseSlaRules, useCasesApi, type CaseForm } from '../cases/data';
 import { useWorkspace } from '../data/store';
@@ -24,13 +25,19 @@ function SlaRules({ isAdmin }: { isAdmin: boolean }) {
   if (rules.isPending) return <Skeleton w="100%" h={80} />;
   return (
     <div className="stack" style={{ gap: 8 }}>
-      {CASE_PRIORITIES.map(p => (
-        <div key={p} className="row" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <span style={{ width: 110, paddingBottom: 8 }}>{t(`cases.priority.${p}`)}</span>
-          <Field label={t('cases.settings.firstResponseHours')}>{x => <Input {...x} inputMode="numeric" style={{ width: 110 }} disabled={!isAdmin} value={String(cur[p].firstResponseHours)} onChange={e => set(p, 'firstResponseHours', e.target.value)} />}</Field>
-          <Field label={t('cases.settings.resolveHours')}>{x => <Input {...x} inputMode="numeric" style={{ width: 110 }} disabled={!isAdmin} value={String(cur[p].resolveHours)} onChange={e => set(p, 'resolveHours', e.target.value)} />}</Field>
-        </div>
-      ))}
+      {/* Таблица сроков: заголовки один раз, часы — числовые поля со степпером */}
+      <div style={{ display: 'grid', gridTemplateColumns: '120px 140px 140px', gap: '6px 12px', alignItems: 'center' }}>
+        <span />
+        <span className="label">{t('cases.settings.firstResponseHours')}</span>
+        <span className="label">{t('cases.settings.resolveHours')}</span>
+        {CASE_PRIORITIES.map(p => (
+          <React.Fragment key={p}>
+            <span>{t(`cases.priority.${p}`)}</span>
+            <NumberField min={1} max={8760} disabled={!isAdmin} aria-label={`${t(`cases.priority.${p}`)}: ${t('cases.settings.firstResponseHours')}`} value={cur[p].firstResponseHours} onChange={v => set(p, 'firstResponseHours', String(v))} />
+            <NumberField min={1} max={8760} disabled={!isAdmin} aria-label={`${t(`cases.priority.${p}`)}: ${t('cases.settings.resolveHours')}`} value={cur[p].resolveHours} onChange={v => set(p, 'resolveHours', String(v))} />
+          </React.Fragment>
+        ))}
+      </div>
       {isAdmin && (
         <div>
           <Button
