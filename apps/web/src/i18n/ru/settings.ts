@@ -54,6 +54,7 @@ export const settings: Widen<typeof S> = {
       leadForms: 'Формы лидов',
       leadSources: 'Источники привлечения',
       integrations: 'Интеграции',
+      mail: 'Почта',
       notifEmail: 'Email',
       notifPush: 'Push',
       notifMentions: 'Упоминания',

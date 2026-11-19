@@ -323,6 +323,8 @@ export interface CrmActivity {
   due?: IsoDate;
   done?: boolean;
   body?: string;
+  /** Письмо, из которого создано касание email (задача 1092) */
+  emailId?: string;
 }
 
 export interface CrmData {

@@ -3,11 +3,14 @@
 import { AttachmentsPanel } from '@/components/erp/attachments-panel';
 import * as React from 'react';
 import { Link } from 'react-router';
-import { Archive, ArrowRightLeft, Building2, Handshake, User } from 'lucide-react';
+import { Archive, ArrowRightLeft, Building2, Handshake, Mail, User } from 'lucide-react';
 import { Alert, Button, ConfirmDialog, Dialog, DialogContent, Field, Input, Select, Textarea, toast } from '@/components/ui';
 import { fmtDateTime } from '@/i18n/format';
 import { useT } from '@/i18n';
 import { AttributionFields } from '../crm/AttributionFields';
+import { ComposeDialog } from '../email/ComposeDialog';
+import { useEmailsByIds } from '../email/data';
+import { EmailStatus } from '../email/EmailStatus';
 import { useWorkspace } from '../data/store';
 import { useCustomRows } from '../meta/custom-fields';
 import { useMembersWith } from '../positions/data';
@@ -66,6 +69,9 @@ function Feed({ leadId }: { leadId: string }) {
   const { data: ws } = useWorkspace();
   const api = useLeadsApi();
   const acts = useLeadActivities(leadId);
+  const lead = useLead(leadId);
+  const [composing, setComposing] = React.useState(false);
+  const emails = useEmailsByIds((acts.data ?? []).map(a => a.emailMessageId).filter((x): x is string => !!x));
   const [type, setType] = React.useState<'note' | 'call' | 'email' | 'meeting'>('note');
   const [text, setText] = React.useState('');
   const add = async () => {
@@ -76,7 +82,14 @@ function Feed({ leadId }: { leadId: string }) {
   };
   return (
     <div className="stack" style={{ gap: 8 }}>
-      <h3 style={{ margin: 0 }}>{t('leads.feed.title')}</h3>
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <h3 style={{ margin: 0 }}>{t('leads.feed.title')}</h3>
+        <Button size="sm" variant="ghost" onClick={() => setComposing(true)}>
+          <Mail size={13} />
+          {t('email.newEmail')}
+        </Button>
+      </div>
+      {composing && <ComposeDialog links={{ leadId }} defaultTo={lead.data?.email ?? ''} onClose={() => setComposing(false)} />}
       <div className="row" style={{ gap: 8, alignItems: 'flex-start' }}>
         {/* список типа узкий: Select растягивается на всю ширину и сжимал поле текста */}
         <div style={{ width: 130, flexShrink: 0 }}>
@@ -93,6 +106,7 @@ function Feed({ leadId }: { leadId: string }) {
             <li key={a.id} style={{ fontSize: 13 }}>
               <span className="faint">{fmtDateTime(a.createdAt)} · {a.system ? t('leads.feed.system') : ws.members.find(m => m.id === a.authorId)?.name ?? ''} · {t(`leads.feed.type.${a.type}`)}</span>
               <div>{a.subject}</div>
+              {a.emailMessageId && <EmailStatus email={emails.data?.get(a.emailMessageId)} />}
               {a.body && a.body !== a.subject && <div className="muted" style={{ whiteSpace: 'pre-wrap' }}>{a.body}</div>}
             </li>
           ))}

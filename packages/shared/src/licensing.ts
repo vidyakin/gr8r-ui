@@ -38,7 +38,7 @@ export const MODULES: readonly ModuleDef[] = [
       '/companies', '/contacts', '/positions', '/departments', '/product-kinds', '/secrets', '/license', '/api-tokens', '/project-templates', '/mailboxes', '/emails',
     ],
     sections: ['home', 'inbox', 'mytasks', 'favorites', 'notifications', 'overview', 'projects', 'tasks', 'calendar', 'timeline', 'members', 'activity', 'archive', 'search', 'settings', 'upgrade', 'system', 'catalog', 'crmCompanies', 'crmContacts'],
-    settings: ['workspace', 'appearance', 'language', 'datetime', 'members', 'teams', 'projects', 'permissions', 'data-model', 'organizations', 'warehouses', 'cost-items', 'positions', 'departments', 'product-kinds', 'project-templates'],
+    settings: ['workspace', 'appearance', 'language', 'datetime', 'members', 'teams', 'projects', 'permissions', 'data-model', 'organizations', 'warehouses', 'cost-items', 'positions', 'departments', 'product-kinds', 'project-templates', 'mail'],
     jobs: ['noop', 'index.create', 'index.drop', 'module_request.notify', 'email.send'],
   }),
   def({

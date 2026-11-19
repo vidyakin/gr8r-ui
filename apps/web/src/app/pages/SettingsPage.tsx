@@ -19,6 +19,7 @@ import { LeadFormsSection, LeadStatusesSection } from '../settings/leads';
 import { DealPipelinesSection, LostReasonsSection } from '../settings/deal-pipelines';
 import { LeadSourcesSection } from '../settings/lead-sources';
 import { IntegrationsSection } from '../settings/integrations';
+import { MailSection } from '../settings/mail';
 import { TenantsSection } from '../settings/tenants';
 import { PlansSection } from '../settings/plans';
 import { RequestsSection } from '../settings/requests';
@@ -82,6 +83,8 @@ function Body({ sec, title }: { sec: string; title: string }) {
       return <LeadFormsSection title={title} />;
     case 'lead-sources':
       return <LeadSourcesSection title={title} />;
+    case 'mail':
+      return <MailSection title={title} />;
     case 'integrations':
       return <IntegrationsSection title={title} />;
     case 'plans':

@@ -7,6 +7,7 @@ import { useSettings } from '../data/settings';
 import { MemberAvatar } from '../components/workspace';
 import { PrefSelect, SRow, SettingsHead, Toggle } from './parts';
 import { Swatches } from './general';
+import { MailboxCard } from './mail';
 import { SHORTCUTS } from './nav';
 import { useT, type TKey } from '@/i18n';
 
@@ -118,6 +119,9 @@ export function ProfileSection({ title }: { title: string }) {
           </Button>
         </div>
       </form>
+      <div style={{ marginTop: 24, maxWidth: 640 }}>
+        <MailboxCard kind="personal" />
+      </div>
     </>
   );
 }

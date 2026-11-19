@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeftRight, Ban, Calculator, ChevronDown, CircleAlert, ClipboardList, Copy, Ellipsis, FileSignature, FileText, PackageCheck, PackageX, Plus, Printer, RotateCcw, Send, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
+import { ArrowLeftRight, Ban, Calculator, ChevronDown, CircleAlert, ClipboardList, Copy, Ellipsis, FileSignature, FileText, PackageCheck, PackageX, Plus, Mail, Printer, RotateCcw, Send, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
 import { amountInWordsRu, basedOnTargets, computeDocument, computeTotals, dec, DEFECT_MODES, DOCUMENT_META, fmt as fmtDec, hasQuoteVariants, isInvestmentFactType, MATERIAL_OWNER_LABELS, PRINT_FORM_LABELS, TOLLING_ROLE_LABELS, TOLLING_ROLES, TRANSFER_OPERATIONS, VAT_LABELS, VAT_RATES, CONTRACT_FORM_BY_TYPE, type DefectMode, type DocTemplatePurpose, type DocumentType, type TollingRole, type VatRate } from '@erp/shared';
 import { Badge, Button, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Segmented, Select, Skeleton, toast } from '@/components/ui';
 import { DocForm } from '@/components/erp/doc-form';
@@ -40,6 +40,7 @@ import { AttachmentsPanel } from '@/components/erp/attachments-panel';
 import { DocInvestmentField } from '../finance/DocInvestmentField';
 import { ObjectField } from '../objects/fields';
 import { warningText } from '../data/warnings';
+import { ComposeDialog } from '../email/ComposeDialog';
 import { hasKey, t, tEnum, tProductionEnum, useT, type TKey } from '@/i18n';
 import { handleNumericArrow } from '@/lib/numeric-step';
 import { useWsId } from '../meta/data';
@@ -320,6 +321,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   // параметры строки заказа и калькуляция заказа покупателя
   const [paramsLine, setParamsLine] = React.useState<string | null>(null);
   const [calcOpen, setCalcOpen] = React.useState(false);
+  const [mailOpen, setMailOpen] = React.useState(false);
   /** Диалог «Отгрузка по дату»: реализация на основании заказа с отбором строк по сроку отгрузки */
   const [shipByOpen, setShipByOpen] = React.useState(false);
   const [shipByDate, setShipByDate] = React.useState('');
@@ -1219,6 +1221,26 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                 )}
               </MenuContent>
             </Menu>
+          )}
+          {!!meta.forms.length && (
+            <Button
+              onClick={() => {
+                void (async () => {
+                  if (await flush()) setMailOpen(true);
+                })();
+              }}
+            >
+              <Mail size={14} />
+              {t('email.sendByEmail')}
+            </Button>
+          )}
+          {mailOpen && (
+            <ComposeDialog
+              links={{ companyId: doc.counterpartyId ?? undefined }}
+              defaultSubject={`${tEnum('printForm', meta.forms[0]!, PRINT_FORM_LABELS[meta.forms[0]!])} ${doc.number ?? ''}`.trim()}
+              document={{ id: doc.id, forms: meta.forms.map(f => ({ value: f, label: f === 'quote' ? t('docs.quotes.standardForm') : tEnum('printForm', f, PRINT_FORM_LABELS[f]) })) }}
+              onClose={() => setMailOpen(false)}
+            />
           )}
           {doc.type === 'customer_order' && (
             <Button

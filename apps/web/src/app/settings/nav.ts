@@ -1,7 +1,7 @@
 /* Разделы настроек — порт SET_NAV и SHORTCUTS из pages/settings.js и overlays/modals.js.
    Строки здесь — ключи словаря, в UI переводятся через t('settings.nav.groups.<group>'|'settings.nav.items.<item>'|'settings.shortcuts.groups.<group>'|'settings.shortcuts.items.<item>').
    id — сегмент URL (routes.ts), оставлены kebab-case и цифры как было. */
-import { Copy, Inbox, Layers, CircleX, GitBranch, Plug, Globe, ListOrdered, BriefcaseBusiness, Network, Shapes, Stamp, Building2, Warehouse, ClipboardList, Database, Factory, Clock, CreditCard, FolderKanban, Gem, Keyboard, KeyRound, Languages, Megaphone, MonitorSmartphone, Palette, Receipt, Server, Shield, SlidersHorizontal, Tags, Truck, User, UserCheck, Users, UsersRound, type LucideIcon } from 'lucide-react';
+import { Copy, Inbox, Mail, Layers, CircleX, GitBranch, Plug, Globe, ListOrdered, BriefcaseBusiness, Network, Shapes, Stamp, Building2, Warehouse, ClipboardList, Database, Factory, Clock, CreditCard, FolderKanban, Gem, Keyboard, KeyRound, Languages, Megaphone, MonitorSmartphone, Palette, Receipt, Server, Shield, SlidersHorizontal, Tags, Truck, User, UserCheck, Users, UsersRound, type LucideIcon } from 'lucide-react';
 import { MOD } from '../lib/platform';
 
 export const SET_NAV: [string, [id: string, nameKey: string, icon: LucideIcon][]][] = [
@@ -39,6 +39,7 @@ export const SET_NAV: [string, [id: string, nameKey: string, icon: LucideIcon][]
       ['lead-statuses', 'leadStatuses', ListOrdered],
       ['lead-forms', 'leadForms', Globe],
       ['lead-sources', 'leadSources', Megaphone],
+      ['mail', 'mail', Mail],
       ['integrations', 'integrations', Plug],
     ],
   ],

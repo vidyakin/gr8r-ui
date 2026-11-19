@@ -61,6 +61,8 @@ export interface LeadActivity {
   body: string | null;
   system: boolean;
   authorId: string | null;
+  /** Письмо, из которого создано касание (задача 1092) */
+  emailMessageId?: string | null;
   createdAt: string;
 }
 

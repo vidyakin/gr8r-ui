@@ -132,6 +132,11 @@ export const automations = {
       description: 'Sends a message to a Telegram chat with the bot whose token is stored in Settings → Integrations (telegram.bot_token).',
       params: { chatId: 'Chat ID', text: 'Message', parseMode: 'Format' },
     },
+    action_email_send: {
+      label: 'Send email',
+      description: 'Queues an email from the workspace mailbox (Settings → Mail). The message is sent by the worker and recorded in the record history.',
+      params: { mailbox: 'Send from', to: 'To', subject: 'Subject', text: 'Message', link: 'Attach to the trigger record' },
+    },
     action_add_comment: {
       label: 'Add comment',
       description: 'Writes a comment on a task, or a note on a deal.',

@@ -53,6 +53,7 @@ export const settings = {
       leadForms: 'Lead forms',
       leadSources: 'Lead sources',
       integrations: 'Integrations',
+      mail: 'Mail',
       notifEmail: 'Email',
       notifPush: 'Push',
       notifMentions: 'Mentions',

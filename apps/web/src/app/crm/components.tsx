@@ -1,7 +1,7 @@
 /* Общие компоненты CRM: значок этапа, логотип компании, поля сделки, карточка воронки, запись активности и её форма */
 import * as React from 'react';
 import { Link } from 'react-router';
-import { ArrowRightLeft, Calendar as CalendarIcon, GitBranch, Plus } from 'lucide-react';
+import { ArrowRightLeft, Calendar as CalendarIcon, GitBranch, Mail, Plus } from 'lucide-react';
 import { Avatar, Button, Checkbox, Popover, PopoverContent, PopoverTrigger, Segmented, toast } from '@/components/ui';
 import { Calendar } from '@/components/shadcn/calendar';
 import { cn } from '@/lib/utils';
@@ -16,6 +16,9 @@ import { money, pct } from './format';
 import { company as findCompany, contact as findContact, deal as findDeal, isOverdueDeal, probability } from './selectors';
 import { activityName, activityVerb, stageName } from './labels';
 import { useCrm } from './store';
+import { ComposeDialog } from '../email/ComposeDialog';
+import { useEmailsByIds } from '../email/data';
+import { EmailStatus } from '../email/EmailStatus';
 import { useCrmUi } from './ui-context';
 import { useMembersWith } from '../positions/data';
 import { fmtDateTime, useT, weekStartsOn } from '@/i18n';
@@ -333,6 +336,7 @@ export function ActivityRow({ a, showDeal, showCompany, showContact = true }: { 
   const { data: ws } = useWorkspace();
   const { dispatch } = useCrm();
   const t = useT();
+  const email = useEmailsByIds(a.emailId ? [a.emailId] : []);
   const m = member(ws, a.by);
   const who = m?.id === ws.me ? t('crm.activities.you') : (m?.name ?? t('crm.activities.someone'));
   const at = activityType(a.type);
@@ -360,6 +364,7 @@ export function ActivityRow({ a, showDeal, showCompany, showContact = true }: { 
         </div>
         <div className={cn('crm-subj', a.done && 'done', a.system && 'muted')}>{a.subject}</div>
         {a.body && <div className="crm-body">{a.body}</div>}
+        {a.emailId && <EmailStatus email={email.data?.get(a.emailId)} />}
         {!!ctx.length && (
           <div className="crm-ctx faint">
             {ctx.map((c, i) => (
@@ -379,8 +384,9 @@ export function ActivityRow({ a, showDeal, showCompany, showContact = true }: { 
 /** Форма добавления активности к сделке, компании или контакту: заметка, звонок, письмо, встреча или follow-up */
 export function ActivityComposer({ deal, company, contact }: { deal?: string; company?: string; contact?: string }) {
   const { data: ws } = useWorkspace();
-  const { dispatch } = useCrm();
+  const { data: crm, dispatch } = useCrm();
   const t = useT();
+  const [composing, setComposing] = React.useState(false);
   const [type, setType] = React.useState<ActivityType>('note');
   const [text, setText] = React.useState('');
   const [due, setDue] = React.useState(dOff(2));
@@ -394,6 +400,7 @@ export function ActivityComposer({ deal, company, contact }: { deal?: string; co
   };
   return (
     <div className="row" style={{ alignItems: 'flex-start', gap: 10, marginTop: 10 }}>
+      {composing && <ComposeDialog links={{ dealId: deal, companyId: company, contactId: contact }} defaultTo={findContact(crm, contact ?? findDeal(crm, deal)?.contacts[0])?.email ?? ''} onClose={() => setComposing(false)} />}
       <MemberAvatar id={ws.me} size="md" tooltip={false} />
       <div className="cbox" style={{ flex: 1, minWidth: 0 }}>
         <textarea
@@ -424,6 +431,10 @@ export function ActivityComposer({ deal, company, contact }: { deal?: string; co
             </span>
           )}
           <span className="sp" />
+          <Button size="sm" onClick={() => setComposing(true)}>
+            <Mail size={13} />
+            {t('email.newEmail')}
+          </Button>
           <Button size="sm" variant="primary" onClick={post}>
             <Plus size={13} />
             {t('crm.activities.add')}

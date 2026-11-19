@@ -422,6 +422,7 @@ export function buildSpecs(ws: string, statusIds: Map<string, string>) {
       due: r.dueDate ?? undefined,
       done: r.done ?? undefined,
       body: r.body ?? undefined,
+      emailId: r.emailMessageId ?? undefined,
     })) as never,
     fields: { type: v => ({ type: v }), subject: v => ({ subject: v }), deal: v => ({ dealId: v ?? null }), company: v => ({ companyId: v ?? null }), contact: v => ({ contactId: v ?? null }), due: v => ({ dueDate: v ?? null }), done: v => ({ done: v ?? null }), body: v => ({ body: v ?? null }) },
     // Служебные записи («Stage changed…») создаёт сервер при смене этапа; локальные копии не отправляются
