@@ -412,7 +412,7 @@ export async function caseCounts(db: Db, at: Date = new Date()): Promise<{ new: 
     .select({
       new: sql<number>`count(*) filter (where ${cases.status} = 'new')::int`,
       open: sql<number>`count(*) filter (where ${cases.status} in ('new','in_progress','waiting'))::int`,
-      overdue: sql<number>`count(*) filter (where ${cases.status} in ('new','in_progress','waiting') and ((${cases.firstRespondedAt} is null and ${cases.firstResponseDueAt} < ${at}) or (${cases.resolvedAt} is null and ${cases.resolveDueAt} < ${at})))::int`,
+      overdue: sql<number>`count(*) filter (where ${cases.status} in ('new','in_progress','waiting') and ((${cases.firstRespondedAt} is null and ${cases.firstResponseDueAt} < ${at.toISOString()}::timestamptz) or (${cases.resolvedAt} is null and ${cases.resolveDueAt} < ${at.toISOString()}::timestamptz)))::int`,
     })
     .from(cases);
   return { new: r?.new ?? 0, open: r?.open ?? 0, overdue: r?.overdue ?? 0 };

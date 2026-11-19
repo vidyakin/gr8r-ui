@@ -33,7 +33,7 @@ const mailCtx = (c: ReturnType<typeof ctxOf>) => ({ workspaceId: c.workspaceId, 
 
 /** Открытое обращение с нарушенным сроком: ответа нет, а срок первого ответа прошёл, либо не решено после срока решения */
 const overdueSql = (now: Date): SQL =>
-  sql`${cases.status} in ('new','in_progress','waiting') and ((${cases.firstRespondedAt} is null and ${cases.firstResponseDueAt} < ${now}) or (${cases.resolvedAt} is null and ${cases.resolveDueAt} < ${now}))`;
+  sql`${cases.status} in ('new','in_progress','waiting') and ((${cases.firstRespondedAt} is null and ${cases.firstResponseDueAt} < ${now.toISOString()}::timestamptz) or (${cases.resolvedAt} is null and ${cases.resolveDueAt} < ${now.toISOString()}::timestamptz))`;
 
 export const caseRoutes = new Hono<AppEnv>()
   .get('/', zValidator('query', caseQuery, validationHook), async c => {

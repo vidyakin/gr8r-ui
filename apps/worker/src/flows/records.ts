@@ -27,6 +27,8 @@ import {
   tasks,
   approvals,
   assignLead as assignLeadService,
+  loadCase,
+  updateCase,
   docflowOn,
   startApproval,
   insertLead,
@@ -168,9 +170,17 @@ export async function updateField(db: Db, ws: string, via: EventVia, a: { entity
   const id = assertUuid(a.recordId, 'Record ID');
   const target = await resolveTarget(db, ws, a.entity, a.field);
   let value = coerceFieldValue(target, a.value);
-  if (target.key === 'priority' && !target.custom && value !== null && !Number.isInteger(value)) throw new Error('Priority must be a whole number');
+  if (a.entity === 'task' && target.key === 'priority' && !target.custom && value !== null && !Number.isInteger(value)) throw new Error('Priority must be a whole number');
   if (!target.custom && target.type === 'user' && value !== null) await assertMember(db, ws, String(value), target.name);
   if (!target.custom && a.entity === 'task' && target.key === 'status' && value !== null) await assertStatus(db, ws, String(value));
+
+  // обращение: статус и приоритет меняет сервис (сроки SLA, resolved_at/closed_at, событие с changes)
+  if (a.entity === 'case' && !target.custom && (a.field === 'status' || a.field === 'priority') && value !== null) {
+    const before = (await loadCase(db, id))[a.field];
+    if (before === value) return { changed: false, before, after: value };
+    await updateCase(db, { workspaceId: ws, memberId: null, via: via as unknown as Record<string, unknown> }, id, { [a.field]: value } as never);
+    return { changed: true, before, after: value };
+  }
 
   const sys = SYSTEM_TABLES[a.entity];
   if (sys) {

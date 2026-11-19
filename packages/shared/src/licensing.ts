@@ -43,12 +43,12 @@ export const MODULES: readonly ModuleDef[] = [
   }),
   def({
     id: 'crm',
-    paths: ['/deals', '/deal-pipelines', '/deal-stages', '/deal-lost-reasons', '/deal-funnel', '/crm-activities', '/leads', '/lead-statuses', '/lead-forms', '/lead-sources', '/ad-campaigns', '/ad-expenses', '/ad-report', '/sales-plan'],
+    paths: ['/deals', '/deal-pipelines', '/deal-stages', '/deal-lost-reasons', '/deal-funnel', '/crm-activities', '/leads', '/lead-statuses', '/lead-forms', '/cases', '/case-forms', '/case-sla-rules', '/lead-sources', '/ad-campaigns', '/ad-expenses', '/ad-report', '/sales-plan'],
     hooks: ['leads'],
     sections: ['crm', 'crmLeads', 'crmAds', 'crmDeals', 'crmFunnel', 'crmActivities', 'crmSalesPlan'],
-    settings: ['deal-pipelines', 'lost-reasons', 'lead-statuses', 'lead-forms', 'lead-sources'],
+    settings: ['deal-pipelines', 'lost-reasons', 'lead-statuses', 'lead-forms', 'lead-sources', 'cases'],
     nodes: [
-      'trigger.lead_created', 'trigger.lead_status_changed', 'trigger.deal_stage_changed', 'trigger.deal_won', 'trigger.deal_lost', 'trigger.deal_stage_overdue',
+      'trigger.lead_created', 'trigger.lead_status_changed', 'trigger.case_created', 'trigger.case_status_changed', 'trigger.case_sla_breached', 'trigger.deal_stage_changed', 'trigger.deal_won', 'trigger.deal_lost', 'trigger.deal_stage_overdue',
       'action.create_lead', 'action.assign_lead', 'action.move_deal',
     ],
   }),
