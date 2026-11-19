@@ -2,7 +2,7 @@
 import { z } from 'zod';
 import { LEAD_STATUS_CATEGORIES, LEAD_STATUS_COLORS } from '../leads';
 import { attribution } from './ad';
-import { clientId, decimal, listQuery, shortText, toPatch, uuid } from './common';
+import { clientId, decimal, honeypotField, listQuery, shortText, toPatch, uuid } from './common';
 import { customData } from './meta';
 
 export const leadCreate = z.object({
@@ -49,6 +49,7 @@ export const leadFormCreate = z.object({
   ...attribution,
   defaultOwnerId: uuid.nullish(),
   enabled: z.boolean().default(true),
+  honeypotField,
 });
 export const leadFormUpdate = toPatch(leadFormCreate);
 export const leadFormQuery = listQuery.extend({});

@@ -1,4 +1,5 @@
 /* Публичные вебхуки без сессии (задача 1175). `POST /hooks/leads/:token` — заявка с формы сайта.
+   Поле-ловушка формы (`honeypot_field`) заполнено — ответ успеха без записи.
    Токен = `<workspace_id>.<секрет формы>`: воркспейс нужен для контекста RLS (данные пишутся под ним, роль app_user), секрет
    сверяется с активной формой воркспейса. Любая ошибка токена — один и тот же 404, ответ успеха не содержит данных воркспейса.
    Защита: лимит частоты по IP и по форме (таблица rate_limits), размер тела ≤ 32 КБ, CORS для форм любых сайтов. */
@@ -6,7 +7,7 @@ import { sql as dsql } from 'drizzle-orm';
 import { Hono, type Context } from 'hono';
 import { cors } from 'hono/cors';
 import { campaignByUtm, enqueueYooPayment, findEnabledCaseForm, findEnabledForm, insertLead, isUuid, parseFormToken, parsePriceToken, pickRoundRobin, publicPriceList, rateLimits, readMyModules, readMyReadableModules, submitCaseForm, withContext, type Sql } from '@erp/db';
-import { caseWebhookBody, leadWebhookBody, pickUtm, yooWebhookBody } from '@erp/shared';
+import { caseWebhookBody, isHoneypotHit, leadWebhookBody, pickUtm, yooWebhookBody } from '@erp/shared';
 import { AppError } from '../errors';
 import { isYooKassaIp } from '../yookassa-ip';
 import type { AppEnv } from '../types';
@@ -89,15 +90,17 @@ export const hookRoutes = new Hono<AppEnv>()
     if (!(await allow(sql, `lead-hook:form:${parsed.secret.slice(0, 16)}`, cfg.leadHookRateLimitMax * 10, windowSec))) throw new AppError(429, 'rate_limited', 'Too many requests. Try again later.', { retryAfterSeconds: windowSec });
 
     const raw = await readHookBody(c);
-    const body = leadWebhookBody.safeParse(raw);
-    if (!body.success) throw new AppError(400, 'validation_error', 'Invalid fields');
-    const b = body.data;
-    if (!b.name && !b.phone && !b.email) throw new AppError(422, 'validation_error', 'Provide at least a name, a phone or an email');
 
     await withContext(sql, { workspaceId: parsed.workspaceId }, async db => {
       if (!(await readMyModules(db)).has('crm')) throw notFound(); // модуль выключен: как несуществующая форма
       const form = await findEnabledForm(db, parsed.secret);
       if (!form) throw notFound();
+      // ловушка для ботов — до проверки полей: бот получает обычный успех и не узнаёт, что заявка отброшена
+      if (isHoneypotHit(raw, form.honeypotField)) return;
+      const body = leadWebhookBody.safeParse(raw);
+      if (!body.success) throw new AppError(400, 'validation_error', 'Invalid fields');
+      const b = body.data;
+      if (!b.name && !b.phone && !b.email) throw new AppError(422, 'validation_error', 'Provide at least a name, a phone or an email');
       const ownerId = form.defaultOwnerId ?? (await pickRoundRobin(db, parsed.workspaceId));
       const custom = pickUtm(b as Record<string, unknown>);
       // атрибуция (задача 1177): кампания по utm_campaign, иначе кампания / источник формы, иначе название источника формы
@@ -120,15 +123,17 @@ export const hookRoutes = new Hono<AppEnv>()
     const parsed = parseFormToken(c.req.param('token'));
     if (!parsed) throw notFound();
     if (!(await allow(sql, `case-hook:form:${parsed.secret.slice(0, 16)}`, cfg.leadHookRateLimitMax * 10, windowSec))) throw new AppError(429, 'rate_limited', 'Too many requests. Try again later.', { retryAfterSeconds: windowSec });
-    const body = caseWebhookBody.safeParse(await readHookBody(c));
-    if (!body.success) throw new AppError(400, 'validation_error', 'Invalid fields');
-    const b = body.data;
-    if (!b.subject && !b.message) throw new AppError(422, 'validation_error', 'Provide a subject or a message');
-    if (!b.email && !b.phone && !b.name) throw new AppError(422, 'validation_error', 'Provide a name, an email or a phone');
+    const raw = await readHookBody(c);
     await withContext(sql, { workspaceId: parsed.workspaceId }, async db => {
       if (!(await readMyModules(db)).has('crm')) throw notFound(); // модуль выключен: как несуществующая форма
       const form = await findEnabledCaseForm(db, parsed.secret);
       if (!form) throw notFound();
+      if (isHoneypotHit(raw, form.honeypotField)) return; // ловушка для ботов: обычный успех без записи
+      const body = caseWebhookBody.safeParse(raw);
+      if (!body.success) throw new AppError(400, 'validation_error', 'Invalid fields');
+      const b = body.data;
+      if (!b.subject && !b.message) throw new AppError(422, 'validation_error', 'Provide a subject or a message');
+      if (!b.email && !b.phone && !b.name) throw new AppError(422, 'validation_error', 'Provide a name, an email or a phone');
       await submitCaseForm(db, parsed.workspaceId, form, b);
     });
     return c.json({ ok: true as const }, 201);

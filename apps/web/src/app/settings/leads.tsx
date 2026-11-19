@@ -11,7 +11,7 @@ import { useWorkspace } from '../data/store';
 import { useMembersWith } from '../positions/data';
 import { StatusBadge } from '../leads/StatusBadge';
 import { useLeadForms, useLeadsApi, useLeadStatuses, webhookUrl, type LeadForm, type LeadStatus } from '../leads/data';
-import { SettingsHead, SRow } from './parts';
+import { HoneypotField, SettingsHead, SRow } from './parts';
 
 export function LeadStatusesSection({ title }: { title: string }) {
   const t = useT();
@@ -149,6 +149,7 @@ function FormRow({ form, isAdmin }: { form: LeadForm; isAdmin: boolean }) {
               </div>
             )}
           </Field>
+          <HoneypotField value={form.honeypotField} onSave={v => void patch({ honeypotField: v })} />
           <div className="row" style={{ gap: 8 }}>
             <Button size="sm" variant="ghost" onClick={() => setRotate(true)}><RefreshCw size={13} />{t('leads.settings.rotate')}</Button>
             <Button size="sm" variant="ghost" onClick={() => setDel(true)}><Trash2 size={13} />{t('leads.card.delete')}</Button>

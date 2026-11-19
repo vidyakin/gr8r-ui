@@ -87,6 +87,8 @@ export const caseForms = pgTable(
     token: text('token').notNull(),
     defaultOwnerId: uuid('default_owner_id'),
     enabled: boolean('enabled').notNull().default(true),
+    /** Имя поля-ловушки для ботов; пусто — проверка выключена */
+    honeypotField: text('honeypot_field').notNull().default(''),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

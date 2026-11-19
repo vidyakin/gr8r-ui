@@ -219,6 +219,24 @@ describe('вебхук формы', () => {
     expect((await hook(form.webhookToken, { name: 'x' })).status).toBe(404);
     await owner.patch(`/lead-forms/${form.id}`, { enabled: true });
   });
+  test('поле-ловушка: заполнена — успех без лида, пусто — лид; недопустимое имя — 400', async () => {
+    const f = await mk(owner, '/lead-forms', { name: 'Ловушка', honeypotField: 'website' });
+    expect(f.honeypotField).toBe('website');
+    const bot = await hook(f.webhookToken, { name: 'Бот-ловушка', website: 'http://spam.example' });
+    expect(bot.status).toBe(201);
+    expect(bot.body).toEqual({ ok: true });
+    // бот без обязательных полей тоже получает успех, а не 422
+    expect((await hook(f.webhookToken, { website: 'x' })).status).toBe(201);
+    expect((await owner.get('/leads?q=Бот-ловушка')).body.total).toBe(0);
+    expect((await hook(f.webhookToken, { name: 'Человек-ловушка', website: '  ' })).status).toBe(201);
+    expect((await owner.get('/leads?q=Человек-ловушка')).body.total).toBe(1);
+    expect((await owner.patch(`/lead-forms/${f.id}`, { honeypotField: 'email' })).status).toBe(400);
+    expect((await owner.patch(`/lead-forms/${f.id}`, { honeypotField: 'utm_x' })).status).toBe(400);
+    expect((await owner.patch(`/lead-forms/${f.id}`, { honeypotField: 'bad name' })).status).toBe(400);
+    expect((await owner.patch(`/lead-forms/${f.id}`, { honeypotField: '' })).status).toBe(200);
+    expect((await hook(f.webhookToken, { name: 'Без-ловушки', website: 'x' })).status).toBe(201);
+    expect((await owner.get('/leads?q=Без-ловушки')).body.total).toBe(1);
+  });
   test('смена секрета отключает старый адрес', async () => {
     const f = await mk(owner, '/lead-forms', { name: 'Ротация' });
     expect((await hook(f.webhookToken, { name: 'до' })).status).toBe(201);

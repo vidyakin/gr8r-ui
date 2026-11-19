@@ -54,6 +54,8 @@ export interface CaseForm {
   name: string;
   defaultOwnerId: string | null;
   enabled: boolean;
+  /** Имя поля-ловушки для ботов; пусто — проверка выключена */
+  honeypotField: string;
   /** Полный токен вебхука `<воркспейс>.<секрет>`; пусто, если у пользователя нет прав admin */
   webhookToken: string;
 }

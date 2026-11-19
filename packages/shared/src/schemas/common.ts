@@ -1,5 +1,6 @@
 /* Общие zod-схемы API: идентификаторы, даты, десятичные числа, список (пагинация/сортировка/архив). */
 import { z } from 'zod';
+import { isValidHoneypotField } from '../leads';
 
 export const uuid = z.uuid();
 export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected date in YYYY-MM-DD format');
@@ -54,3 +55,6 @@ export function toPatch<S extends z.ZodObject>(schema: S): z.ZodType<Partial<z.o
   for (const [k, v] of Object.entries(schema.shape as Record<string, z.ZodType>)) shape[k] = (v instanceof z.ZodDefault ? (v.unwrap() as z.ZodType) : v).optional();
   return z.object(shape) as unknown as z.ZodType<Partial<z.output<S>>, Partial<z.input<S>>>;
 }
+
+/** Имя поля-ловушки формы сайта (honeypot); пусто — проверка выключена */
+export const honeypotField = z.string().trim().max(64).refine(isValidHoneypotField, 'Use latin letters, digits, _ or -; known form fields and utm_* are not allowed').default('');

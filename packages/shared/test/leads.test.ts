@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { NODE_DEFS, nextRoundRobin, normalizeEmail, normalizePhone, phoneKey, pickUtm, leadConvert, leadWebhookBody } from '../src';
+import { NODE_DEFS, isHoneypotHit, isValidHoneypotField, nextRoundRobin, normalizeEmail, normalizePhone, phoneKey, pickUtm, leadConvert, leadWebhookBody } from '../src';
 
 describe('нормализация лидов', () => {
   test('телефон приводится к E.164', () => {
@@ -74,5 +74,26 @@ describe('узлы лидов', () => {
     expect(r.output).toEqual({ leadId: 'L1', ownerId: 'M1', changed: true });
     expect((calls[1] as unknown[])[1]).toMatchObject({ mode: 'round_robin' });
     await expect(a.execute(a.params.parse({ leadId: 'L1', mode: 'manual' }), rt)).rejects.toThrow();
+  });
+});
+
+describe('поле-ловушка форм', () => {
+  test('имя: латиница, цифры, _ и -; известные поля и utm_* заняты', () => {
+    expect(isValidHoneypotField('')).toBe(true);
+    expect(isValidHoneypotField('website')).toBe(true);
+    expect(isValidHoneypotField('_hp-1')).toBe(true);
+    expect(isValidHoneypotField('Email')).toBe(false);
+    expect(isValidHoneypotField('utm_source')).toBe(false);
+    expect(isValidHoneypotField('1abc')).toBe(false);
+    expect(isValidHoneypotField('my field')).toBe(false);
+  });
+  test('срабатывает только на непустое значение заданного поля', () => {
+    expect(isHoneypotHit({ website: 'x' }, 'website')).toBe(true);
+    expect(isHoneypotHit({ website: 0 }, 'website')).toBe(true);
+    expect(isHoneypotHit({ website: ' ' }, 'website')).toBe(false);
+    expect(isHoneypotHit({ website: null }, 'website')).toBe(false);
+    expect(isHoneypotHit({ website: [] }, 'website')).toBe(false);
+    expect(isHoneypotHit({ website: 'x' }, '')).toBe(false);
+    expect(isHoneypotHit({ other: 'x' }, 'website')).toBe(false);
   });
 });
