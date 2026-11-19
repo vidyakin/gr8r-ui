@@ -3,7 +3,7 @@
 import type { Role } from './constants';
 
 /** Функции должности: по ним фильтруются списки выбора сотрудников */
-export const POSITION_FUNCTIONS = ['appointments_specialist', 'courier', 'production_worker', 'work_order_executor', 'sales_manager', 'driver'] as const;
+export const POSITION_FUNCTIONS = ['appointments_specialist', 'courier', 'production_worker', 'work_order_executor', 'sales_manager', 'driver', 'support_agent'] as const;
 export type PositionFunction = (typeof POSITION_FUNCTIONS)[number];
 
 /** Разделы меню, доступные должности (группы навигации). Всегда видны: главная, входящие, уведомления, поиск, участники, настройки */
@@ -29,6 +29,9 @@ export const SECTION_OF_API_PATH: ReadonlyMap<string, PositionSection> = new Map
   ['/ad-expenses', 'crm'],
   ['/ad-report', 'crm'],
   ['/sales-plan', 'crm'],
+  ['/cases', 'crm'],
+  ['/case-forms', 'crm'],
+  ['/case-sla-rules', 'crm'],
   ['/production-plans', 'production'],
   ['/bom-lines', 'production'],
 ]);

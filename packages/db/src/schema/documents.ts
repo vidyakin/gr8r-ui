@@ -249,6 +249,8 @@ export const documents = pgTable(
     investmentProjectId: uuid('investment_project_id'),
     /** Объект объектного учёта (задача 1268): аналитика затрат и выручки */
     objectId: uuid('object_id'),
+    /** Обращение, из которого создан заказ-наряд (docs/architecture/cases.md); составной FK — в миграции 0129 */
+    caseId: uuid('case_id'),
     /** Оплаты (группа cash): касса или банковский счёт организации, «куда» при перемещении денег, подотчётное лицо.
         Внешние ключи (workspace_id, …) на cash_registers / bank_accounts / members добавляет миграция 0041 (схема касс ссылается на документы) */
     cashRegisterId: uuid('cash_register_id'),

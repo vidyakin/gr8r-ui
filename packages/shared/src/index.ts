@@ -37,6 +37,7 @@ export * from './bank-api';
 export * from './telegram';
 export * from './email';
 export * from './leads';
+export * from './cases';
 export * from './ad-report';
 export * from './qr';
 export * from './pipelines';

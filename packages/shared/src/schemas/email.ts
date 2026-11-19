@@ -21,6 +21,10 @@ const mailboxFields = z.object({
   imapSecure: security.nullish(),
   imapUser: z.string().trim().min(1).max(254).nullish(),
   createLeadFromUnmatched: z.boolean().optional(),
+  /** Входящие письма создают обращения (docs/architecture/cases.md) */
+  createCasesFromMail: z.boolean().optional(),
+  /** Ответственный по умолчанию для обращений из этого ящика (пусто — по кругу) */
+  caseOwnerId: uuid.nullish(),
   signature: z.string().max(5000),
   /** Пароль приложения: уходит в хранилище секретов, в ответах не возвращается */
   password: z.string().min(1).max(512),
@@ -47,6 +51,8 @@ export const emailCreate = z.object({
   contactId: uuid.nullish(),
   companyId: uuid.nullish(),
   dealId: uuid.nullish(),
+  /** Обращение: тема получит номер, письмо попадёт в ленту обращения */
+  caseId: uuid.nullish(),
   /** Документ и печатная форма: воркер приложит PDF при отправке */
   documentId: uuid.nullish(),
   printForm: z.string().max(40).nullish(),
@@ -63,6 +69,7 @@ export const emailQuery = listQuery.pick({ limit: true, offset: true }).extend({
   contactId: uuid.optional(),
   companyId: uuid.optional(),
   dealId: uuid.optional(),
+  caseId: uuid.optional(),
   documentId: uuid.optional(),
   /** Только указанные письма (через запятую), для ленты касаний */
   ids: z.string().max(2000).optional(),

@@ -1,6 +1,7 @@
 /* Сущности и встроенные поля для автоматизаций. Пользовательские поля берутся из метаданных конструктора (таблица fields),
    а встроенные колонки системных таблиц описаны здесь: в `fields` они не заводятся. `writable` — колонки, которые узел
    «Обновить поле» может менять (значение проверяется схемой поля того же типа, что и в конструкторе). */
+import { CASE_PRIORITIES, CASE_STATUSES } from '../cases';
 import { PROJECT_STATUSES, SYSTEM_ENTITIES, TASK_MODULES } from '../constants';
 import type { FieldOptions, FieldType } from '../fields';
 
@@ -75,6 +76,16 @@ export const BUILTIN_FIELDS: Record<string, BuiltinField[]> = {
     f('ownerId', 'Owner', 'user'),
     f('statusId', 'Status', 'text', false),
     f('rejectReason', 'Reject reason', 'text'),
+  ],
+  case: [
+    f('subject', 'Subject', 'text'),
+    f('description', 'Description', 'long_text'),
+    f('status', 'Status', 'select', true, choices(CASE_STATUSES)),
+    f('priority', 'Priority', 'select', true, choices(CASE_PRIORITIES)),
+    f('ownerId', 'Owner', 'user'),
+    f('number', 'Number', 'text', false),
+    f('companyId', 'Company', 'ref', false, { refEntity: 'company' }),
+    f('contactId', 'Contact', 'ref', false, { refEntity: 'contact' }),
   ],
   // Документами управляют проведение и отмена: поля только для чтения (триггеры «поле изменилось», условия, подстановки)
   document: [f('status', 'Status', 'select', false, choices(['draft', 'posted', 'cancelled'])), f('state', 'State', 'text', false), f('number', 'Number', 'text', false), f('date', 'Date', 'date', false), f('total', 'Total', 'money', false), f('responsibleId', 'Responsible', 'user', false)],

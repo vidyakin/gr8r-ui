@@ -107,6 +107,7 @@ export { sanitizeRichText } from './rich-text';
 export * from './api-tokens';
 export * from './approvals';
 export * from './email';
+export * from './cases';
 export * from './email-send';
 export * from './email-transport';
 
