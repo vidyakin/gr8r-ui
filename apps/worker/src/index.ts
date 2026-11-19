@@ -5,6 +5,7 @@ import { closeBrowser } from './pdf/render';
 import { runAttachmentGcOnce } from './attachment-gc';
 import { scheduleFlowsOnce } from './flows/triggers';
 import { runApprovalOverdueOnce } from './approval-overdue';
+import { runCaseSlaOnce } from './case-sla';
 import { runBillingOnce } from './billing';
 import { runLoyaltyExpirationOnce } from './loyalty-expiration';
 import { runDealOverdueOnce } from './deal-overdue';
@@ -72,6 +73,9 @@ while (!stopping) {
       // согласование по маршрутам (задача 1199): просроченные задачи — уведомление и событие для автоматизаций
       const overdueApprovals = await runApprovalOverdueOnce(sql);
       if (overdueApprovals) o.log(`approvals overdue: ${overdueApprovals} task(s)`);
+      // обращения клиентов: просрочка SLA — событие case.sla_breached и уведомление ответственному
+      const caseBreaches = await runCaseSlaOnce(sql);
+      if (caseBreaches) o.log(`case SLA breached: ${caseBreaches}`);
       // загрузка операций банков по API: подключения, у которых прошёл интервал (BANK_SYNC_INTERVAL_MIN, по умолчанию 60 минут), проверка раз в 5 минут
       if (minute % 5 === 0) {
         const banks = await scheduleBankSyncs(sql);

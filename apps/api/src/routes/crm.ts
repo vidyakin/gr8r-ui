@@ -2,7 +2,7 @@
 import { zValidator } from '@hono/zod-validator';
 import { desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { companies, contacts, crmActivities, dealContacts, dealStageHistory, deals, loadStage, planStageChange, recalcSettlementMode, recordStageChange } from '@erp/db';
+import { companies, contacts, crmActivities, loadCase, markFirstResponse, dealContacts, dealStageHistory, deals, loadStage, planStageChange, recalcSettlementMode, recordStageChange } from '@erp/db';
 import {
   companyCreate,
   companyQuery,
@@ -19,7 +19,7 @@ import {
   idParam,
 } from '@erp/shared';
 import { crud, ctxOf, validationHook, type Ctx } from '../crud';
-import { forbidden, notFound } from '../errors';
+import { AppError, forbidden, notFound } from '../errors';
 import type { AppEnv } from '../types';
 import { hasRole } from '../middleware';
 import { customForCreate, customForUpdate } from '../meta/service';
@@ -195,12 +195,21 @@ export const crmActivityRoutes = crud({
     q.companyId ? eq(crmActivities.companyId, q.companyId) : undefined,
     q.contactId ? eq(crmActivities.contactId, q.contactId) : undefined,
     q.leadId ? eq(crmActivities.leadId, q.leadId) : undefined,
+    q.caseId ? eq(crmActivities.caseId, q.caseId) : undefined,
   ],
   prepareCreate: async (ctx, body) => {
     // Компания берётся из сделки, если не указана
     let companyId = body.companyId;
     if (!companyId && body.dealId) companyId = (await ctx.db.select({ c: deals.companyId }).from(deals).where(eq(deals.id, body.dealId)).limit(1))[0]?.c ?? null;
+    // закрытое обращение принимает только заметки; ответом клиенту считается звонок или письмо с отметкой response
+    if (body.caseId) {
+      const row = await loadCase(ctx.db, body.caseId);
+      if (row.status === 'closed' && body.type !== 'note') throw new AppError(409, 'case_closed', 'A closed case accepts only notes');
+    }
     return { authorId: ctx.memberId, companyId, done: body.type === 'task' ? (body.done ?? false) : null, system: false };
+  },
+  afterCreate: async (ctx, row, body) => {
+    if (row.caseId && body.response && (row.type === 'call' || row.type === 'email')) await markFirstResponse(ctx.db, { workspaceId: ctx.workspaceId, memberId: ctx.memberId }, row.caseId);
   },
   prepareUpdate: (ctx, existing) => {
     if (existing.system) throw forbidden('System records cannot be edited');
