@@ -25,5 +25,8 @@
 ## Telegram
 Секрет `telegram.bot_token` (экран — `settings/telegram-settings.tsx`), потребитель — узел `action.telegram_send`. `POST /secrets/telegram/check` (admin) вызывает `getMe` и отдаёт `{ username, name }`; нет токена — 422 `telegram_token_missing`, отказ Telegram — 422 `telegram_check_failed`.
 
+## Почта
+Пароль ящика — секрет `mailbox.<id>.password` (`mailboxPasswordKey`), им управляют только маршруты `/mailboxes` (`email.md`). Ключи с префиксом `mailbox.` не попадают в `GET /secrets`, а `PUT`/`DELETE /secrets/mailbox.…` отвечают 422 `secret_reserved`.
+
 ## Дальше
 Потребители секретов — подключения банков и ЮКассы (1174д, `payments.md`, «Интеграции»; части ключа `<префикс>.<часть>`, ввод на том же экране) и отложенные почта/SMS (задача 1092, этап 6 услуг). Подстановка секрета в параметры HTTP-узла автоматизаций (вместо заголовка `Authorization` в параметрах flow) не сделана.

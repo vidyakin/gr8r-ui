@@ -77,6 +77,7 @@
 - [Шаблоны договоров: назначения, параметры сторон, печать и PDF](architecture/contracts.md)
 - [Согласование по маршрутам: маршруты, процессы, просрочка, узлы автоматизаций](architecture/approvals.md)
 - [Хранилище секретов](architecture/secrets.md)
+- [Почта: ящики и отправка](architecture/email.md)
 - [Вложения и хранилище файлов S3: версии, лимит, квота, права как у объекта](architecture/attachments.md)
 - [Запись клиентов на приём](architecture/appointments.md)
 - [Доставка](architecture/delivery.md)
