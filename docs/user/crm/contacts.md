@@ -8,7 +8,7 @@ sources:
   - apps/web/src/app/crm/forms.tsx
   - apps/web/src/app/email/*.tsx
   - apps/api/src/routes/crm.ts
-verified: 1567c08312
+verified: e487399546
 screenshots: []
 ---
 

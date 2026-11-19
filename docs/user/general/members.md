@@ -15,7 +15,7 @@ sources:
   - apps/web/src/app/positions/*.ts*
   - apps/web/src/app/shifts/MemberLabour.tsx
   - packages/shared/src/schemas/work.ts
-verified: bcd57d3522
+verified: e487399546
 screenshots: []
 ---
 

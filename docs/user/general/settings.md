@@ -14,7 +14,7 @@ sources:
   - apps/web/src/app/settings/account.tsx
   - apps/web/src/app/overlays/new-workspace.tsx
   - apps/web/src/app/layout/UserMenu.tsx
-verified: 1567c08312
+verified: e487399546
 screenshots: []
 ---
 

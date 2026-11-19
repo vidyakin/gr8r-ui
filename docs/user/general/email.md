@@ -9,7 +9,7 @@ sources:
   - apps/web/src/i18n/ru/email.ts
   - apps/api/src/routes/email.ts
 screenshots: []
-verified: a711bf880d
+verified: e487399546
 ---
 
 # Почта

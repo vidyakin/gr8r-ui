@@ -10,7 +10,7 @@
 - `members.is_courier` удалён: миграция создаёт в воркспейсах с курьерами должность «Курьер» (`courier`, все разделы) и назначает её отмеченным.
 
 ## Функции и списки выбора
-Функции: `appointments_specialist`, `courier`, `production_worker`, `work_order_executor`, `sales_manager`, `driver` (водитель автопарка, [fleet.md](fleet.md); раздел меню `transport`).
+Функции: `appointments_specialist`, `courier`, `production_worker`, `work_order_executor`, `sales_manager`, `driver` (водитель автопарка, [fleet.md](fleet.md); раздел меню `transport`), `support_agent` (сотрудник поддержки: ответственные за обращения «по кругу», [cases.md](cases.md)).
 `membersWithFunction` (shared): участники с функцией; если ни у одной должности воркспейса её нет — все участники.
 Применено: специалисты записи (`GET /appointments/specialists`, график), курьеры (`GET /deliveries/couriers`, вкладка доставки), исполнители
 заказ-нарядов и производства (в списке остаются уже назначенные), ответственные сделок и менеджеры плана продаж.
