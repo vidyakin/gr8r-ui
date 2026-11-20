@@ -4,7 +4,8 @@
 import { z } from 'zod';
 
 /** Известные отрасли. Новая отраслевая фича регистрирует себя за одной из них (или добавляет сюда опцию) */
-export const INDUSTRY_OPTIONS = ['food', 'construction'] as const;
+/* Строительство (`construction`) было опцией до миграции 0131, теперь это модуль тарифа «Строительство» (licensing.ts) */
+export const INDUSTRY_OPTIONS = ['food'] as const;
 export type IndustryOption = (typeof INDUSTRY_OPTIONS)[number];
 
 /** Все опции включены (миграция существующих воркспейсов и демо-данные) */
@@ -18,6 +19,5 @@ export const hasIndustry = (options: readonly string[] | null | undefined, optio
 /** Сохранённое значение (например, из БД) → набор опций: неизвестное отбрасывается, повторы схлопываются */
 export function resolveIndustryOptions(raw: unknown): IndustryOption[] {
   if (!Array.isArray(raw)) return [];
-  const parsed = industryOptionsSchema.safeParse(raw);
-  return parsed.success ? [...new Set(parsed.data)] : [];
+  return [...new Set(raw.filter((v): v is IndustryOption => (INDUSTRY_OPTIONS as readonly unknown[]).includes(v)))];
 }

@@ -163,10 +163,8 @@ export const settings = {
       ownerOnly: 'Only an owner or admin can change industry options.',
       saved: 'Industry options saved',
       food: 'Food production (batches, shelf life, quarantine)',
-      construction: 'Construction and installation (in development)',
       options: {
         food: 'Food production',
-        construction: 'Construction and installation',
       },
       hiddenTitle: 'Section is hidden',
       hiddenBody: 'The section belongs to the “{option}” industry option, which is off for this workspace. An owner or admin can turn it on in Settings → Workspace.',

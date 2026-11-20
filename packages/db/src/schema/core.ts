@@ -100,7 +100,7 @@ export const workspaces = pgTable(
     uniqueIndex('workspaces_slug_uq').on(sql`lower(${t.slug})`),
     check('workspaces_kind_chk', sql`${t.kind} in ('regular','demo')`),
     // Отраслевые опции — только из известного списка (INDUSTRY_OPTIONS в @erp/shared)
-    check('workspaces_industry_options_chk', sql`${t.industryOptions} <@ ARRAY['food','construction']::text[]`),
+    check('workspaces_industry_options_chk', sql`${t.industryOptions} <@ ARRAY['food']::text[]`),
     check('workspaces_object_overhead_chk', sql`${t.objectOverheadPct} >= 0 and ${t.objectOverheadPct} <= 100`),
     check('workspaces_supplier_rating_d_policy_chk', sql`${t.supplierRatingDPolicy} in ('none','warn','block')`),
   ],
