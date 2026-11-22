@@ -1,51 +1,50 @@
 /* Модули главной: список-вкладки (на телефоне — прокручиваемые «чипы») и карточка выбранного модуля с «записью» экрана.
    Названия и описания — alternative.modules, возможности — modules.<id>.features; записи — из demo/registry.ts */
 import * as React from 'react';
-import { t, type TKey } from '../i18n';
-import { ru } from '../i18n/ru';
+import { DEFAULT_LOCALE, useI18n, type Dict, type Locale, type TKey } from '../i18n';
 import { Recording } from '../demo/player';
 import { SCENES, MODULE_IDS, type ModuleId } from '../demo/registry';
 
 type Id = ModuleId;
-type FeatId = keyof typeof ru.modules;
+type FeatId = keyof Dict['modules'];
 
-/** Порядок — как в реестре; feat — ключ возможностей в modules.*; запись экрана берётся из реестра SCENES */
-const MODULES: { id: Id; feat?: FeatId }[] = MODULE_IDS.map(id => ({ id, feat: id in ru.modules ? (id as FeatId) : undefined }));
-
-const mt = (id: Id, k: 'name' | 'title' | 'text') => t(`alternative.modules.${id}.${k}` as TKey);
-
-export default function ModuleSwitcher() {
+export default function ModuleSwitcher({ locale = DEFAULT_LOCALE }: { locale?: Locale }) {
+  const { t, dict, path } = useI18n(locale);
   const [active, setActive] = React.useState<Id>('production');
   const tabs = React.useRef<(HTMLButtonElement | null)[]>([]);
-  const mod = MODULES.find(m => m.id === active)!;
+  const modules = React.useMemo(
+    () => MODULE_IDS.map(id => ({ id, feat: id in dict.modules ? (id as FeatId) : undefined })),
+    [dict],
+  );
+  const mt = (id: Id, k: 'name' | 'title' | 'text') => t(`alternative.modules.${id}.${k}` as TKey);
+  const mod = modules.find(m => m.id === active)!;
   const scene = SCENES[active];
 
-  // На телефоне вкладки — горизонтальная лента: выбранная прокручивается в видимую часть (только сама лента, не страница)
   React.useEffect(() => {
-    const el = tabs.current[MODULES.findIndex(m => m.id === active)];
+    const el = tabs.current[modules.findIndex(m => m.id === active)];
     const list = el?.parentElement;
     if (!el || !list || list.scrollWidth <= list.clientWidth) return;
     const er = el.getBoundingClientRect();
     const lr = list.getBoundingClientRect();
     list.scrollTo({ left: list.scrollLeft + er.left - lr.left - (lr.width - er.width) / 2, behavior: 'smooth' });
-  }, [active]);
-  const feats = mod.feat ? ru.modules[mod.feat].features : [];
-  const caption = mod.feat && 'caption' in ru.modules[mod.feat] ? (ru.modules[mod.feat] as { caption: string }).caption : '';
+  }, [active, modules]);
 
-  // Стрелки переключают вкладки, как в tablist по WAI-ARIA; вниз/вправо и вверх/влево — список вертикальный на десктопе
+  const feats = mod.feat ? dict.modules[mod.feat].features : [];
+  const caption = mod.feat && 'caption' in dict.modules[mod.feat] ? (dict.modules[mod.feat] as { caption: string }).caption : '';
+
   const onKey = (e: React.KeyboardEvent, i: number) => {
     const d = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
     if (!d) return;
     e.preventDefault();
-    const n = (i + d + MODULES.length) % MODULES.length;
-    setActive(MODULES[n]!.id);
+    const n = (i + d + modules.length) % modules.length;
+    setActive(modules[n]!.id);
     tabs.current[n]?.focus();
   };
 
   return (
     <div className="h-switch">
       <div className="h-tabs" role="tablist" aria-label={t('home.modules.tabs')}>
-        {MODULES.map((m, i) => (
+        {modules.map((m, i) => (
           <button
             key={m.id}
             ref={el => {
@@ -69,7 +68,7 @@ export default function ModuleSwitcher() {
         <div className="h-panel-head">
           <div className="h-panel-top">
             <span className="h-eyebrow">{mt(active, 'name')}</span>
-            <a className="h-more-link" href={`/modules/${active}/`}>{t('home.modules.more')} <span aria-hidden="true">→</span></a>
+            <a className="h-more-link" href={path(`/modules/${active}/`)}>{t('home.modules.more')} <span aria-hidden="true">→</span></a>
           </div>
           <h3>{mt(active, 'title')}</h3>
           <p>{mt(active, 'text')}</p>
@@ -84,7 +83,7 @@ export default function ModuleSwitcher() {
             ))}
           </dl>
         )}
-        {scene ? <div className="h-rec"><Recording scene={scene} label={mt(active, 'title')} caption={caption} /></div> : <p className="h-soon">{t('home.modules.soon')}</p>}
+        {scene ? <div className="h-rec"><Recording scene={scene} label={mt(active, 'title')} caption={caption} locale={locale} /></div> : <p className="h-soon">{t('home.modules.soon')}</p>}
       </div>
     </div>
   );

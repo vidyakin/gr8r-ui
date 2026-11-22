@@ -4,7 +4,7 @@
    Играет только в зоне видимости и при видимой вкладке, у записи есть пауза; при prefers-reduced-motion — сразу конечное состояние. */
 import * as React from 'react';
 import { Pause, Play } from 'lucide-react';
-import { t } from '../i18n';
+import { DEFAULT_LOCALE, t, type Locale } from '../i18n';
 
 export interface Cursor {
   x: number;
@@ -58,7 +58,7 @@ function useReducedMotion() {
   return reduced;
 }
 
-export function Recording<S>({ scene, label, caption }: { scene: Scene<S>; label: string; caption: string }) {
+export function Recording<S>({ scene, label, caption, locale = DEFAULT_LOCALE }: { scene: Scene<S>; label: string; caption: string; locale?: Locale }) {
   const reduced = useReducedMotion();
   const outer = React.useRef<HTMLDivElement>(null);
   const stage = React.useRef<HTMLDivElement>(null);
@@ -204,7 +204,7 @@ export function Recording<S>({ scene, label, caption }: { scene: Scene<S>; label
       </div>
       <figcaption className="rec-bar">
         {!reduced && (
-          <button type="button" className="rec-btn" onClick={() => setUserPaused(p => !p)} aria-label={userPaused ? t('player.play') : t('player.pause')}>
+          <button type="button" className="rec-btn" onClick={() => setUserPaused(p => !p)} aria-label={userPaused ? t('player.play', undefined, locale) : t('player.pause', undefined, locale)}>
             {userPaused ? <Play size={13} /> : <Pause size={13} />}
           </button>
         )}

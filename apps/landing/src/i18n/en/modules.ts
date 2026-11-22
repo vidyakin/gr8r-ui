@@ -1,0 +1,119 @@
+/* English dictionary — modules overview */
+import type { Dict } from '../types';
+
+export const enModules: Dict['modules'] = {
+  tasks: {
+    name: 'Tasks & Projects',
+    title: 'Board, list, timeline, and time tracking',
+    text: 'Manage projects as a board, list, or timeline. Time spent on each task is visible right away.',
+    features: [
+      ['Five views', 'board, list, table, calendar, timeline'],
+      ['Priority & labels', 'priority from 1 to 10, color tags, subtasks'],
+      ['Due dates & recurrence', 'deadline on every task, scheduled repeats'],
+      ['Time tracking', 'log hours against a task and compare against estimates'],
+    ],
+    caption: 'Recording: a task is created on the project board, then an existing task is dragged into the “Done” column.',
+  },
+  crm: {
+    name: 'CRM',
+    title: 'Pipelines, deals, and ad ROI',
+    text: 'Track the full journey from website inquiry to closed-won deal and measure revenue per marketing channel.',
+    features: [
+      ['Website leads', 'captured from web forms with duplicate detection'],
+      ['Deals', 'leads convert into deals with full history preserved'],
+      ['Pipelines', 'multiple pipelines with stage probability and SLA'],
+      ['Ad ROI', 'campaign spend linked to leads via UTM tags'],
+    ],
+    caption: 'Recording: a deal is moved to the “Won” stage, stage totals recalculate, and channel revenue and ROMI rise in the analytics report.',
+  },
+  docs: {
+    name: 'Documents & Quotes',
+    title: 'Invoice, posting, printable PDF',
+    text: 'Sales and purchasing documents follow a consistent structure: header, line items, and totals.',
+    features: [
+      ['Invoices & shipments', 'plus orders, receipts, and purchases'],
+      ['Price tiers & VAT', 'prices fill automatically, totals in words calculated'],
+      ['Posting', 'updates inventory and customer balances'],
+      ['Printing', 'export printable forms directly to PDF'],
+      ['Quotes', 'built from options and grouped line items'],
+    ],
+    caption: 'Recording: a customer is selected on an invoice, a product line is added, price fills from the price tier, totals recalculate, and the document is posted.',
+  },
+  services: {
+    name: 'Services',
+    title: 'Appointments, work orders, and repairs',
+    text: 'For teams selling specialist time: schedule-based booking, visits, work orders, and warranties.',
+    features: [
+      ['Specialist booking', 'all-staff daily grid and single-staff week view with open slots'],
+      ['Visit statuses', 'booked, confirmed, arrived, no-show'],
+      ['Work orders', 'labor and materials in one document'],
+      ['Repairs & warranty', 'intake for repairs and warranty tracking'],
+    ],
+    caption: 'Recording: a client is booked into an open specialist slot, then marked as “Arrived”.',
+  },
+  production: {
+    name: 'Production',
+    title: 'BOMs, orders, and stage-by-stage output',
+    text: 'A customer order becomes a production order; the shop lead logs completed stages and outputs finished goods.',
+    features: [
+      ['Bills of materials', 'materials and operations for every product'],
+      ['Production orders', 'created from customer orders or by schedule'],
+      ['Stage output', 'dedicated output document per shop, date, and stage'],
+      ['Costing', 'calculated automatically at month-end close'],
+    ],
+    caption: 'Recording: in the “Production Output” workspace, the lead checks off order stages and posts output, recalculating produced and remaining quantities.',
+  },
+  sales: {
+    name: 'Sales',
+    title: 'Order, shipment, and balances in one chain',
+    text: 'A customer order turns into a shipment; posting deducts stock and records the customer receivable.',
+    features: [
+      ['Create from source', 'order → invoice, shipment, or act with lines copied'],
+      ['Remaining balance', 'new documents pull only unshipped quantities'],
+      ['Stock reservation', 'posted orders reserve goods in the warehouse'],
+      ['Transactional stock', 'stock movements post atomically; unposting restores stock'],
+      ['Receivables', 'customer balance calculated from posted documents and payments'],
+    ],
+    caption: 'Recording: a customer order is opened from the register, a shipment is created from it and posted, stock is deducted, and the receivable appears on the customer card.',
+  },
+  logistics: {
+    name: 'Logistics',
+    title: 'Deliveries, routes, and couriers',
+    text: 'Assign orders to routes and couriers, track delivery statuses, and monitor every run.',
+    features: [
+      ['Document delivery', 'on orders, shipments, and work orders: address, time window, weight, client price, and cost'],
+      ['Dispatch board', 'drag unassigned deliveries onto a route or available vehicle'],
+      ['Routes', 'ordered stops, time windows, vehicle capacity checks, waybills, and route sheets'],
+      ['Delivery statuses', 'new, assigned, in transit, delivered — synced with route stops'],
+      ['Fleet & freight orders', 'vehicles, drivers, document expirations, freight orders, and route margin'],
+    ],
+    caption: 'Recording: the dispatcher drags today’s deliveries onto a vehicle route and dispatches it, then a delivery updates to “Delivered”.',
+  },
+  payroll: {
+    name: 'Payroll',
+    title: 'Accruals, pay runs, and payouts',
+    text: 'Monthly payroll fills automatically for every employee, and pay sheets are paid via cash desk or bank.',
+    features: [
+      ['Monthly accrual', 'timesheet salary, piecework, sales commission, and bonuses in one click'],
+      ['Piecework from job tickets', 'totals posted job tickets for the month, matching output reports'],
+      ['Taxes & contributions', 'employee tax rates and company payroll contributions booked to expenses'],
+      ['Pay sheets & payouts', 'advance or final pay, cash or bank payout, CSV bank registry'],
+      ['Pay stubs', 'employees view their own stubs; staff payables tracked in reports'],
+    ],
+    caption: 'Recording: “Fill” builds employee lines with salary and piecework, the accrual is posted, and the pay sheet is paid from the cash desk.',
+  },
+  automations: {
+    name: 'Automations',
+    title: 'Event, conditions, actions',
+    text: 'Build rules on a visual canvas: what happened, under what conditions, and what to do next.',
+    features: [
+      ['Triggers', 'record created or updated, field changed, cron schedule, manual run'],
+      ['Conditions & logic', 'conditions, branching, delays up to 30 days'],
+      ['Actions', 'update field, create task, notify member, HTTP request, comment'],
+      ['Templates', '{{trigger.record.name}} and values from triggers and previous steps'],
+      ['Run log', 'every step’s input, output, and error; transient failures retry up to 3 times'],
+    ],
+    caption: 'Recording: a “Create task” step is added to a “Field changed” trigger, the workflow is published, and a successful run appears in the “Runs” tab.',
+    soon: 'Screen recording for this module is coming soon.',
+  },
+};

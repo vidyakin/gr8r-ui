@@ -13,6 +13,11 @@ const env = { ...rootEnv, ...process.env };
 const apiTarget = env.VITE_API_PROXY ?? 'http://localhost:3000';
 
 export default defineConfig({
+  i18n: {
+    defaultLocale: 'ru',
+    locales: ['ru', 'en', 'es'],
+    routing: { prefixDefaultLocale: false },
+  },
   integrations: [react()],
   vite: {
     // Прежние переменные VITE_* (токен формы, адрес приложения) остаются видны в браузере

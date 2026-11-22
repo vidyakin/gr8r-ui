@@ -3,14 +3,15 @@
    у вебхука открытый CORS), или VITE_LEAD_FORM_TOKEN — токен, тогда POST /api/hooks/leads/<токен> на тот же домен.
    Без них форма не отправляется и говорит об этом */
 import * as React from 'react';
-import { t } from './i18n';
+import { DEFAULT_LOCALE, useI18n, type Locale } from './i18n';
 
 const TOKEN = (import.meta.env.VITE_LEAD_FORM_TOKEN as string | undefined)?.trim();
 const ENDPOINT = (import.meta.env.VITE_LEAD_FORM_URL as string | undefined)?.trim() || (TOKEN ? `/api/hooks/leads/${encodeURIComponent(TOKEN)}` : undefined);
 
 type Status = 'idle' | 'sending' | 'done' | 'error';
 
-export function LeadForm() {
+export function LeadForm({ locale = DEFAULT_LOCALE }: { locale?: Locale }) {
+  const { t } = useI18n(locale);
   const [status, setStatus] = React.useState<Status>('idle');
   const [invalid, setInvalid] = React.useState(false);
   // Согласие на обработку персональных данных — отдельной галочкой, по умолчанию снята (152-ФЗ)
