@@ -55,3 +55,25 @@ export function pickUtm(fields: Record<string, unknown>): Record<string, string>
   }
   return out;
 }
+
+/* Поле-ловушка (honeypot) форм сайта: скрытое поле, которое заполняют только боты. Заявка с заполненной ловушкой принимается
+   ответом успеха, но запись не создаётся. Имя — латиница, цифры, `_`, `-`; поля, которые форма понимает, и `utm_*` занимать нельзя. */
+export const HONEYPOT_RESERVED = ['name', 'phone', 'email', 'company', 'comment', 'subject', 'message', 'priority'] as const;
+
+/** Допустимо ли имя поля-ловушки (пустое — проверка выключена, тоже допустимо) */
+export function isValidHoneypotField(field: string): boolean {
+  if (!field) return true;
+  if (!/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/.test(field)) return false;
+  const k = field.toLowerCase();
+  return !k.startsWith('utm_') && !(HONEYPOT_RESERVED as readonly string[]).includes(k);
+}
+
+/** Сработала ли ловушка: поле задано и в теле заявки непустое */
+export function isHoneypotHit(fields: Record<string, unknown>, field: string | null | undefined): boolean {
+  if (!field || !Object.hasOwn(fields, field)) return false;
+  const v = fields[field];
+  if (v == null || v === false) return false;
+  if (typeof v === 'string') return v.trim() !== '';
+  if (Array.isArray(v)) return v.length > 0;
+  return true;
+}

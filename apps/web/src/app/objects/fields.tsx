@@ -1,13 +1,13 @@
-/* Поле «Объект» объектного учёта: видно при включённой опции construction или если значение уже задано
-   (выключение опции только прячет поле, данные не меняются). Используется в шапке документа, строке платежа и задаче. */
+/* Поле «Объект» объектного учёта: видно при подключённом модуле «Строительство» или если значение уже задано
+   (отключение модуля только прячет поле, данные не меняются). Используется в шапке документа, строке платежа и задаче. */
 import { Field, Select } from '@/components/ui';
 import { useT } from '@/i18n';
-import { useIndustry } from '../industry/data';
+import { useSectionAccess } from '../positions/access';
 import { useObjectOptions } from './data';
 
 export function useObjectFieldVisible(value: string | null | undefined): boolean {
-  const industry = useIndustry('construction');
-  return industry || !!value;
+  const access = useSectionAccess();
+  return access.module('construction') || !!value;
 }
 
 export function ObjectSelect({ id, value, current, disabled, onChange, ariaLabel }: { id?: string; value: string | null; current?: { id: string; number: string; name: string } | null; disabled?: boolean; onChange: (v: string | null) => void; ariaLabel?: string }) {

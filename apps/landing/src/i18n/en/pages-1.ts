@@ -76,6 +76,16 @@ export const enPages1: Pick<Dict['modulePages'], 'ui' | 'tasks' | 'crm' | 'docs'
         list: ['Source types: channel, partner, contact person', 'Campaigns match leads automatically via utm_campaign', 'Conversion rate, cost per lead and customer, ROMI', 'Revenue pulled from posted sales shipments'],
         screen: 'Ad channel report: spend, revenue, and ROMI',
       },
+      {
+        title: 'AI consultant on the website',
+        text: 'The website chat widget answers visitor questions from your knowledge base and logs every conversation in CRM. Any chat can be turned into a lead in one click.',
+        list: [
+          'Tone and greeting settings configured per language (RU, EN, ES)',
+          'Full saved chat history with visitor nicknames, search, and filtering',
+          'One-click lead creation with the “AI Chat” source linked to the transcript',
+        ],
+        screen: 'CRM AI Chats screen: conversation list, chat transcript drawer, and bot settings',
+      },
     ],
     chain: [
       ['crm', 'Customer, deal, acquisition source, and campaign.'],
@@ -88,6 +98,7 @@ export const enPages1: Pick<Dict['modulePages'], 'ui' | 'tasks' | 'crm' | 'docs'
       ['Can we customize our own pipeline?', 'Yes. You can create multiple pipelines and configure category, probability, SLA days, and required fields per stage. Each pipeline requires won, lost, and open stages.'],
       ['How is ad ROI calculated?', 'ROMI equals (revenue − spend) / spend. Revenue comes from posted shipments tagged with the source; campaign spend is entered manually.'],
       ['How is a campaign linked to a lead?', 'Via utm_campaign passed from the web form and matched to an active campaign. Archived campaigns are not matched.'],
+      ['How does the website AI chat work with CRM?', 'Every visitor conversation is saved automatically in CRM → AI Chats. Tone and greeting are configured per language right in CRM, and any chat converts into a lead in one click.'],
     ],
   },
   docs: {

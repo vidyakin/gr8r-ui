@@ -4,7 +4,7 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
 import { MemoryFileStore, setFileStore, setOperator } from '@erp/db';
 import { defaultOptions, processEventsOnce, processJobsOnce } from '../../worker/src/worker';
-import { disabledModulesOfNodes, enabledModules, licenseNotices, licenseView, moduleStates, readableModules, type LicenseRaw, MODULE_IDS, MODULE_OF_JOB, MODULE_OF_NODE, MODULE_OF_PATH, NODE_LIST, resolveModules } from '@erp/shared';
+import { disabledModulesOfNodes, enabledModules, licenseNotices, licenseView, moduleStates, moduleTree, readableModules, type LicenseRaw, MODULE_IDS, MODULE_OF_JOB, MODULE_OF_NODE, MODULE_OF_PATH, NODE_LIST, resolveModules } from '@erp/shared';
 import { jobHandlers, requestHookRuntime } from '../../worker/src/handlers';
 import { TENANT_PATHS } from '../src/app';
 import { admin, Client, ddl, drainJobs, sql, uniq } from './helpers';
@@ -53,6 +53,19 @@ describe('каталог модулей', () => {
     expect(MODULE_OF_NODE.get('trigger.trip_status')).toBe('transport');
     expect(MODULE_OF_JOB.get('transport.waybill_pdf')).toBe('transport');
     expect(resolveModules(['transport']).has('trade')).toBe(true);
+  });
+  test('строительство — подмодуль производства: объекты, сметы, смены, отчёт о ходе работ', () => {
+    for (const p of ['/objects', '/estimates', '/shifts', '/object-acts', '/sub-acts', '/objects-forecast']) expect(MODULE_OF_PATH.get(p)).toBe('construction');
+    expect(MODULE_OF_JOB.get('object.progress_report')).toBe('construction');
+    expect([...resolveModules(['construction'])].sort()).toEqual(['construction', 'core', 'production', 'trade']);
+    expect(resolveModules(['production']).has('construction')).toBe(false);
+    // дерево для оператора: строительство сразу под производством, на уровень глубже
+    const tree = moduleTree();
+    const at = (id: string) => tree.findIndex(x => x.id === id);
+    expect(tree[at('construction')]).toEqual({ id: 'construction', depth: 2 });
+    expect(at('construction')).toBe(at('production') + 1);
+    expect(tree.find(x => x.id === 'trade')!.depth).toBe(0);
+    expect(tree.length).toBe(MODULE_IDS.length - 1);
   });
   test('зависимости: production тянет trade, payroll — money и trade', () => {
     expect([...resolveModules(['production'])].sort()).toEqual(['core', 'production', 'trade']);

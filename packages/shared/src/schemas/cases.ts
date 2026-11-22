@@ -2,7 +2,7 @@
 import { z } from 'zod';
 import { CASE_CHANNELS, CASE_PRIORITIES, CASE_STATUSES } from '../cases';
 import { EMAIL_MAX_RECIPIENTS, isEmailAddress } from '../email';
-import { listQuery, queryBool, shortText, toPatch, uuid } from './common';
+import { honeypotField, listQuery, queryBool, shortText, toPatch, uuid } from './common';
 import { customData } from './meta';
 
 export const caseCreate = z.object({
@@ -47,6 +47,7 @@ export const caseFormCreate = z.object({
   name: shortText,
   defaultOwnerId: uuid.nullish(),
   enabled: z.boolean().default(true),
+  honeypotField,
 });
 export const caseFormUpdate = toPatch(caseFormCreate);
 export const caseFormQuery = listQuery.extend({});

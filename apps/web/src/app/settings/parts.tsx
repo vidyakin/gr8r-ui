@@ -1,6 +1,7 @@
 /* Общие части настроек — порт srow, tog, sel и strengthMeter из pages/settings.js */
 import * as React from 'react';
-import { Switch, toast } from '@/components/ui';
+import { isValidHoneypotField } from '@erp/shared';
+import { Field, Input, Switch, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 
 /** Строка «заголовок + пояснение — элемент управления» */
@@ -97,5 +98,18 @@ export function SettingsHead({ title, lead }: { title: string; lead: React.React
       <h1>{title}</h1>
       <p className="lead">{lead}</p>
     </>
+  );
+}
+
+/** Имя поля-ловушки формы сайта: сохраняется при уходе с поля, если имя допустимо */
+export function HoneypotField({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const t = useT();
+  const [v, setV] = React.useState(value);
+  React.useEffect(() => setV(value), [value]);
+  const ok = isValidHoneypotField(v.trim());
+  return (
+    <Field label={t('settings.honeypot.label')} hint={t('settings.honeypot.hint')} error={ok ? undefined : t('settings.honeypot.invalid')}>
+      {p => <Input {...p} maxLength={64} placeholder={t('settings.honeypot.placeholder')} value={v} style={{ fontFamily: 'var(--mono, monospace)' }} onChange={e => setV(e.target.value)} onBlur={() => ok && v.trim() !== value && onSave(v.trim())} />}
+    </Field>
   );
 }

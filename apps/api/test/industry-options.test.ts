@@ -39,13 +39,13 @@ describe('отраслевые опции воркспейса', () => {
     const ws = owner.workspaceId!;
     const adminUser = await addMember(owner, 'admin');
     const member = await addMember(owner, 'member');
-    expect((await adminUser.patch(`/workspaces/${ws}`, { industryOptions: ['food', 'construction'] })).status).toBe(200);
-    expect((await owner.get(`/workspaces/${ws}`)).body.industryOptions).toEqual(['food', 'construction']);
-    const denied = await member.patch(`/workspaces/${ws}`, { industryOptions: ['construction'] });
+    expect((await adminUser.patch(`/workspaces/${ws}`, { industryOptions: ['food'] })).status).toBe(200);
+    expect((await owner.get(`/workspaces/${ws}`)).body.industryOptions).toEqual(['food']);
+    const denied = await member.patch(`/workspaces/${ws}`, { industryOptions: [] });
     expect(denied.status).toBe(403);
-    expect((await owner.get(`/workspaces/${ws}`)).body.industryOptions).toEqual(['food', 'construction']);
+    expect((await owner.get(`/workspaces/${ws}`)).body.industryOptions).toEqual(['food']);
     // участник при этом опции читает (от них зависит вид интерфейса)
-    expect((await member.get('/workspaces')).body.items[0].industryOptions).toEqual(['food', 'construction']);
+    expect((await member.get('/workspaces')).body.items[0].industryOptions).toEqual(['food']);
   });
 
   test('значение не из списка — 400', async () => {
@@ -53,6 +53,8 @@ describe('отраслевые опции воркспейса', () => {
     await owner.signup();
     const ws = owner.workspaceId!;
     expect((await owner.patch(`/workspaces/${ws}`, { industryOptions: ['space'] })).status).toBe(400);
+    // строительство с миграции 0131 — модуль тарифа, а не отраслевая опция
+    expect((await owner.patch(`/workspaces/${ws}`, { industryOptions: ['construction'] })).status).toBe(400);
     expect((await owner.patch(`/workspaces/${ws}`, { industryOptions: 'food' })).status).toBe(400);
     expect((await owner.get(`/workspaces/${ws}`)).body.industryOptions).toEqual([]);
   });

@@ -23,6 +23,7 @@ export const enModules: Dict['modules'] = {
       ['Deals', 'leads convert into deals with full history preserved'],
       ['Pipelines', 'multiple pipelines with stage probability and SLA'],
       ['Ad ROI', 'campaign spend linked to leads via UTM tags'],
+      ['Website AI chat', 'answers from your knowledge base, logs conversations in CRM, and creates leads in one click'],
     ],
     caption: 'Recording: a deal is moved to the “Won” stage, stage totals recalculate, and channel revenue and ROMI rise in the analytics report.',
   },

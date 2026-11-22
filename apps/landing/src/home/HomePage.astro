@@ -7,6 +7,7 @@ import SiteFooter from './SiteFooter.astro';
 import HeroRecording from './HeroRecording';
 import ModuleSwitcher from './ModuleSwitcher';
 import LeadFormIsland from './LeadFormIsland';
+import ChatWidget from './ChatWidget';
 import { DEFAULT_LOCALE, useI18n, type Locale } from '../i18n';
 import '../demo/frame.css';
 import './home.css';
@@ -190,4 +191,5 @@ const jsonLd = [
 
     <SiteFooter locale={locale} />
   </div>
+  <ChatWidget client:idle locale={locale} />
 </Base>

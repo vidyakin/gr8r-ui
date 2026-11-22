@@ -14,6 +14,14 @@ export const settings = {
     spellcheckHint: 'Check spelling in descriptions and comments.',
   },
 
+  /* поле-ловушка (honeypot) форм сайта: лиды и обращения */
+  honeypot: {
+    label: 'Bot trap field',
+    placeholder: 'e.g. website',
+    hint: 'Name of a hidden field on your site form. Requests with it filled in are accepted but dropped. Empty — off.',
+    invalid: 'Latin letters, digits, _ or -. Known form fields and utm_* cannot be used.',
+  },
+
   /* ---------------- боковая навигация настроек ---------------- */
   nav: {
     groups: {
@@ -155,10 +163,8 @@ export const settings = {
       ownerOnly: 'Only an owner or admin can change industry options.',
       saved: 'Industry options saved',
       food: 'Food production (batches, shelf life, quarantine)',
-      construction: 'Construction and installation (in development)',
       options: {
         food: 'Food production',
-        construction: 'Construction and installation',
       },
       hiddenTitle: 'Section is hidden',
       hiddenBody: 'The section belongs to the “{option}” industry option, which is off for this workspace. An owner or admin can turn it on in Settings → Workspace.',

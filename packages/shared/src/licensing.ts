@@ -2,7 +2,7 @@
    у модуля есть корневые пути API, разделы меню, пункты настроек, типы задач воркера и узлы автоматизаций. Какие модули
    включены у арендатора, решает оператор (тариф + докупленные модули); здесь — только чистые правила без БД. */
 
-export const MODULE_IDS = ['core', 'crm', 'trade', 'production', 'services', 'money', 'payroll', 'automations', 'integrations', 'docflow', 'transport'] as const;
+export const MODULE_IDS = ['core', 'crm', 'trade', 'production', 'construction', 'services', 'money', 'payroll', 'automations', 'integrations', 'docflow', 'transport'] as const;
 export type ModuleId = (typeof MODULE_IDS)[number];
 
 /** Модуль, который включён всегда */
@@ -43,9 +43,9 @@ export const MODULES: readonly ModuleDef[] = [
   }),
   def({
     id: 'crm',
-    paths: ['/deals', '/deal-pipelines', '/deal-stages', '/deal-lost-reasons', '/deal-funnel', '/crm-activities', '/leads', '/lead-statuses', '/lead-forms', '/cases', '/case-forms', '/case-sla-rules', '/lead-sources', '/ad-campaigns', '/ad-expenses', '/ad-report', '/sales-plan'],
+    paths: ['/deals', '/deal-pipelines', '/deal-stages', '/deal-lost-reasons', '/deal-funnel', '/crm-activities', '/leads', '/lead-statuses', '/lead-forms', '/cases', '/case-forms', '/case-sla-rules', '/lead-sources', '/ad-campaigns', '/ad-expenses', '/ad-report', '/sales-plan', '/ai-chats'],
     hooks: ['leads'],
-    sections: ['crm', 'crmLeads', 'crmCases', 'crmAds', 'crmDeals', 'crmFunnel', 'crmActivities', 'crmSalesPlan'],
+    sections: ['crm', 'crmLeads', 'crmCases', 'crmAds', 'crmDeals', 'crmFunnel', 'crmActivities', 'crmSalesPlan', 'crmAiChats'],
     settings: ['deal-pipelines', 'lost-reasons', 'lead-statuses', 'lead-forms', 'lead-sources', 'cases'],
     nodes: [
       'trigger.lead_created', 'trigger.lead_status_changed', 'trigger.case_created', 'trigger.case_status_changed', 'trigger.case_sla_breached', 'trigger.deal_stage_changed', 'trigger.deal_won', 'trigger.deal_lost', 'trigger.deal_stage_overdue',
@@ -54,10 +54,10 @@ export const MODULES: readonly ModuleDef[] = [
   }),
   def({
     id: 'trade',
-    paths: ['/documents', '/stock', '/stock-levels', '/pricing', '/loyalty', '/processing', '/processor-reports', '/supplier-orders', '/serials', '/doc-templates', '/objects', '/supplier-ratings', '/estimates', '/shifts', '/object-acts', '/sub-acts', '/objects-forecast'],
+    paths: ['/documents', '/stock', '/stock-levels', '/pricing', '/loyalty', '/processing', '/processor-reports', '/supplier-orders', '/serials', '/doc-templates', '/supplier-ratings'],
     hooks: ['prices'],
-    sections: ['sales', 'purchases', 'stockDocs', 'processingDocs', 'inventory', 'inUse', 'serials', 'batches', 'stockAging', 'objects', 'objectsForecast', 'shift', 'priceList', 'priceSettings', 'priceKinds', 'discountRules', 'promoCodes', 'loyaltyCards', 'loyaltyProgram', 'crmQuoteTemplates', 'supplierRatings'],
-    jobs: ['document.pdf', 'document.docx', 'settlement.act_pdf', 'object.progress_report', 'estimate.ai_extract'],
+    sections: ['sales', 'purchases', 'stockDocs', 'processingDocs', 'inventory', 'inUse', 'serials', 'batches', 'stockAging', 'priceList', 'priceSettings', 'priceKinds', 'discountRules', 'promoCodes', 'loyaltyCards', 'loyaltyProgram', 'crmQuoteTemplates', 'supplierRatings'],
+    jobs: ['document.pdf', 'document.docx', 'settlement.act_pdf'],
   }),
   def({
     id: 'production',
@@ -69,6 +69,14 @@ export const MODULES: readonly ModuleDef[] = [
     ],
     settings: ['production'],
     jobs: ['production.close_period'],
+  }),
+  // Строительство и монтаж — подмодуль производства (docs/architecture/construction.md): объекты, сметы, смены, акты, субподряд, прогноз
+  def({
+    id: 'construction',
+    requires: ['production'],
+    paths: ['/objects', '/estimates', '/shifts', '/object-acts', '/sub-acts', '/objects-forecast'],
+    sections: ['objects', 'objectsForecast', 'shift'],
+    jobs: ['object.progress_report', 'estimate.ai_extract'],
   }),
   def({
     id: 'services',
@@ -168,6 +176,18 @@ export function moduleOfSectionPath(pathname: string, sectionPaths: Readonly<Rec
     if ((pathname === path || pathname.startsWith(path + '/')) && path.length > len) [best, len] = [m, path.length];
   }
   return best === CORE_MODULE ? null : best; // самый длинный путь — раздел ядра (/crm/companies): ограничений нет
+}
+
+/** Модули без ядра деревом для экранов оператора: родитель — первая зависимость (кроме ядра), дети сразу под ним.
+    depth — уровень вложенности (0 — корневой модуль) */
+export function moduleTree(): { id: ModuleId; depth: number }[] {
+  const parentOf = (m: ModuleDef) => m.requires.find(r => r !== CORE_MODULE) ?? null;
+  const out: { id: ModuleId; depth: number }[] = [];
+  const walk = (parent: ModuleId | null, depth: number) => {
+    for (const m of MODULES) if (m.id !== CORE_MODULE && parentOf(m) === parent) out.push({ id: m.id, depth }), walk(m.id, depth + 1);
+  };
+  walk(null, 0);
+  return out;
 }
 
 /** Набор включённых модулей: ядро + перечисленные + их зависимости. `*` включает всё. Неизвестные идентификаторы игнорируются */

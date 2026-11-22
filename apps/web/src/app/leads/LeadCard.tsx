@@ -3,10 +3,12 @@
 import { AttachmentsPanel } from '@/components/erp/attachments-panel';
 import * as React from 'react';
 import { Link } from 'react-router';
-import { Archive, ArrowRightLeft, Building2, Handshake, Mail, User } from 'lucide-react';
-import { Alert, Button, ConfirmDialog, Dialog, DialogContent, Field, Input, Select, Textarea, toast } from '@/components/ui';
+import { Archive, ArrowRightLeft, Building2, Handshake, Mail, MessageSquare, User } from 'lucide-react';
+import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogContent, Field, Input, Select, Textarea, toast } from '@/components/ui';
 import { fmtDateTime } from '@/i18n/format';
 import { useT } from '@/i18n';
+import { useLeadAiChats } from '../crm/ai-chats-data';
+import { AiChatText } from '../crm/AiChatText';
 import { AttributionFields } from '../crm/AttributionFields';
 import { ComposeDialog } from '../email/ComposeDialog';
 import { useEmailsByIds } from '../email/data';
@@ -122,6 +124,9 @@ export function LeadCard({ leadId, onClose, onConvert }: { leadId: string | null
   const api = useLeadsApi();
   const statuses = useLeadStatuses();
   const lead = useLead(leadId);
+  const leadChats = useLeadAiChats(lead.data?.id ?? leadId);
+  const chatSessions = leadChats.data?.items ?? [];
+  const [tab, setTab] = React.useState<'main' | 'chat'>('main');
   const [draft, setDraft] = React.useState<Draft>(blank);
   const [loadedFor, setLoadedFor] = React.useState<string | null>(null);
   const [mergeWith, setMergeWith] = React.useState<DuplicateMatch | null>(null);
@@ -187,7 +192,8 @@ export function LeadCard({ leadId, onClose, onConvert }: { leadId: string | null
   };
 
   return (
-    <Dialog open onOpenChange={o => !o && onClose()}>
+    <>
+      <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent
         size="lg"
         title={leadId ? current?.name ?? '…' : t('leads.card.newTitle')}
@@ -212,6 +218,57 @@ export function LeadCard({ leadId, onClose, onConvert }: { leadId: string | null
           </>
         }
       >
+        {chatSessions.length > 0 && (
+          <div className="row" role="tablist" style={{ gap: 6, marginBottom: 12, borderBottom: '1px solid var(--line)', paddingBottom: 8 }}>
+            <Button size="sm" variant={tab === 'main' ? 'primary' : 'ghost'} role="tab" aria-selected={tab === 'main'} onClick={() => setTab('main')}>
+              {t('aiChats.tabMain')}
+            </Button>
+            <Button size="sm" variant={tab === 'chat' ? 'primary' : 'ghost'} role="tab" aria-selected={tab === 'chat'} onClick={() => setTab('chat')}>
+              <MessageSquare size={13} />
+              {t('aiChats.tabChat')}
+              <Badge tone="neutral">{chatSessions.reduce((sum, s) => sum + s.messageCount, 0)}</Badge>
+            </Button>
+          </div>
+        )}
+        {tab === 'chat' && chatSessions.length > 0 ? (
+          <div className="stack" style={{ gap: 16 }}>
+            {chatSessions.map(s => (
+              <div key={s.id} className="stack" style={{ gap: 10 }}>
+                <div className="row" style={{ gap: 8, flexWrap: 'wrap', fontSize: 12.5 }}>
+                  <span style={{ fontWeight: 600 }}>{s.visitorName || s.botName}</span>
+                  <Badge tone="accent">{s.locale.toUpperCase()}</Badge>
+                  <span className="muted num">{s.ip}</span>
+                  {s.pageUrl && <span className="muted">{s.pageUrl}</span>}
+                  <span className="faint num">{fmtDateTime(s.updatedAt)}</span>
+                </div>
+                <div className="stack" style={{ gap: 8 }}>
+                  {s.messages.map((m, i) => {
+                    const isUser = m.role === 'user';
+                    return (
+                      <div
+                        key={`${s.id}-${m.ts}-${i}`}
+                        style={{
+                          alignSelf: isUser ? 'flex-end' : 'flex-start',
+                          maxWidth: '88%',
+                          padding: '8px 12px',
+                          borderRadius: 10,
+                          border: '1px solid var(--line)',
+                          background: isUser ? 'var(--bg-2)' : 'var(--surf)',
+                        }}
+                      >
+                        <div className="row" style={{ gap: 8, marginBottom: 4, fontSize: 11.5 }}>
+                          <span style={{ fontWeight: 600 }}>{isUser ? t('aiChats.role.visitor') : t('aiChats.role.assistant')}</span>
+                          <span className="faint num">{fmtDateTime(m.ts)}</span>
+                        </div>
+                        <AiChatText text={m.content} />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
         <div className="stack" style={{ gap: 12 }}>
           {/* у сконвертированного лида дубли уже разобраны мастером — вместо них блок «Созданные записи» */}
           {!converted && <Duplicates items={leadId ? dupSaved.data ?? [] : dupNew.data ?? []} current={leadId} onMerge={setMergeWith} />}
@@ -271,9 +328,11 @@ export function LeadCard({ leadId, onClose, onConvert }: { leadId: string | null
           {leadId && <AttachmentsPanel entityType="lead" entityId={leadId} />}
           {leadId && <Feed leadId={leadId} />}
         </div>
+        )}
         <ConfirmDialog open={!!mergeWith} onOpenChange={o => !o && setMergeWith(null)} title={t('leads.dup.mergeConfirmTitle')} description={t('leads.dup.mergeConfirm', { name: mergeWith?.name ?? '' })} confirmLabel={t('leads.dup.merge')} onConfirm={() => void merge()} />
         <ConfirmDialog open={archive} onOpenChange={setArchive} title={t('leads.card.delete')} description={t('leads.card.deleteConfirm')} confirmLabel={t('leads.card.delete')} danger onConfirm={() => void doArchive()} />
       </DialogContent>
-    </Dialog>
+      </Dialog>
+    </>
   );
 }

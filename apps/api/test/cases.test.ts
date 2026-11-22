@@ -298,6 +298,12 @@ describe('форма сайта', () => {
     expect(rotated.webhookToken).not.toBe(form.webhookToken);
     expect((await hook({ message: 'x', name: 'X' })).status).toBe(404);
     expect((await hook({ message: 'x', name: 'X' }, rotated.webhookToken)).status).toBe(201);
+    // поле-ловушка: заполнена — успех без обращения
+    await f.owner.patch(`/case-forms/${form.id}`, { honeypotField: 'fax' });
+    const before = (await casesOf(f.workspaceId)).length;
+    expect((await hook({ message: 'спам', name: 'Бот', fax: '1' }, rotated.webhookToken)).status).toBe(201);
+    expect((await hook({ fax: '1' }, rotated.webhookToken)).status).toBe(201);
+    expect(await casesOf(f.workspaceId)).toHaveLength(before);
   });
 });
 

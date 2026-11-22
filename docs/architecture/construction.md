@@ -4,7 +4,7 @@
 (задача 1270), табель прораба с бейджами и стоимостью часа (задача 1271), процент выполнения и вехи (задача 1272),
 акты КС-2/КС-3 и счёт по выполнению (задача 1273), субподряд с актами субподрядчика (задача 1274), прогноз прибыли (задача 1275)
 и сводка о ходе работ по расписанию с печатным отчётом заказчику (задача 1277) реализованы, сессия 57. Решения пользователя — [docs/plans/2026-11-06-construction.md](../plans/2026-11-06-construction.md).
-Блок включается отраслевой опцией `construction` (задача 1258). Раздел «Объект» ниже описывает фактическую реализацию; остальные разделы — проект.
+Блок — модуль тарифа `construction` «Строительство», подмодуль «Производства» (`requires: ['production']`, миграция 0131; до неё — отраслевая опция `construction` задачи 1258). Раздел «Объект» ниже описывает фактическую реализацию; остальные разделы — проект.
 
 ## Слои
 
@@ -37,7 +37,7 @@
 admin и выше. Деньги карточки (суммы документов и платежей, себестоимость остатков) — owner и admin (`canSeeCost`), остальным
 сервер отдаёт `null`. Прораб ведёт табель только назначенных ему объектов (следующие задачи блока).
 
-Маршруты API (`apps/api/src/routes/objects.ts`, путь `/objects` в TENANT_PATHS и модуле `trade`): `GET/POST /objects`,
+Маршруты API (`apps/api/src/routes/objects.ts`, путь `/objects` в TENANT_PATHS и модуле `construction`): `GET/POST /objects`,
 `GET/PATCH/DELETE /objects/:id`, `GET /objects/:id/summary`, `GET /objects/:id/budget`, `GET /objects/:id/progress`,
 `GET /objects/:id/revenue`, `GET/POST /objects/:id/acts`, `GET /objects/:id/acts/suggestion`,
 `GET/POST /objects/:id/sub-acts`, `GET /objects/:id/sub-acts/suggestion`, `GET /objects/:id/subcontract`,
@@ -46,8 +46,8 @@ CRUD вех `GET/POST /objects/:id/milestones`, `PATCH/DELETE /objects/:id/miles
 `POST …/done` и `…/accept`, сводка о ходе работ `GET/PUT /objects/:id/report-schedule`, `POST /objects/:id/report-now`
 и печать `GET /objects/:id/progress-report`; портфель — `GET /objects-forecast`. Карточка: список, форма и вкладки «Смета», «Акты»,
 «Субподряд», «Вехи», «Бюджет», «Прогноз» (только owner/admin), «Табель», «Задачи», «Документы», «Платежи», «Склад»
-(`apps/web/src/app/objects/`). Раздел скрыт без опции `construction` (`INDUSTRY_OF_SECTION`), поля «Объект» в документе, строке платежа
-и задаче показываются при включённой опции или если значение уже задано.
+(`apps/web/src/app/objects/`). Раздел скрыт без модуля `construction` (`MODULE_OF_SECTION`), поля «Объект» в документе, строке платежа
+и задаче показываются при подключённом модуле или если значение уже задано.
 
 ## Смета
 
@@ -83,7 +83,7 @@ CRUD вех `GET/POST /objects/:id/milestones`, `PATCH/DELETE /objects/:id/miles
   заказ на производство — позиции «щит» с `manufactured_item_id`; у обоих документов `object_id` — объект сметы. Пустой набор позиций — 422 `nothing_to_create`.
 - **Права.** Чтение — участник, запись (смета, позиции, согласование, допработы, импорт, заказы) — member и выше, возврат в черновик — admin и выше.
   Себестоимость, маржа и `cost_price` отдаются только owner/admin (`canSeeCost`), остальным — `null`.
-- **Маршруты API** (`/objects` и `/estimates` — пути в TENANT_PATHS, модуль `trade`): `GET/POST /objects/:id/estimates`,
+- **Маршруты API** (`/objects` и `/estimates` — пути в TENANT_PATHS, модуль `construction`): `GET/POST /objects/:id/estimates`,
   `POST /objects/:id/estimates/copy`, `GET/PATCH/DELETE /estimates/:id`, `PUT /estimates/:id/items` (пакетное сохранение разделов и позиций),
   `POST /estimates/:id/approve|unapprove|changes|import|supplier-order|production-order`, `POST /estimates/import/preview` (разбор файла для сопоставления колонок).
   События outbox: `object_estimate.created|updated|deleted|approved|unapproved|imported`.
@@ -121,7 +121,7 @@ json_schema, температура 0): модель возвращает наз
 запуски сериализуются блокировкой записи импорта. Нет `AI_API_KEY` — сразу `done` без разметки.
 Фронт опрашивает `GET /estimates/import/:id`: с разметкой показывает ревью строк (правка, исключение, колонка страницы),
 без — обычное сопоставление колонок по извлечённой таблице (у pdf заголовок пуст — колонки строятся по ширине строк);
-применение — прежний `POST /estimates/:id/import`. Задача `estimate.ai_extract` — модуль `trade`.
+применение — прежний `POST /estimates/:id/import`. Задача `estimate.ai_extract` — модуль `construction`.
 
 ## Факт затрат
 
@@ -194,7 +194,7 @@ API — `apps/api/src/routes/object-shifts.ts`, интерфейс — экра�
 - **Табель за период.** `GET /objects/:id/timesheet?from&to` — работник × дни по подтверждённым сменам; `GET /objects/:id/shifts` — смены
   объекта за период (статус, часы, сумма только admin/owner, число работников без ставки). `GET /shifts/objects` — объекты, на которых
   участник может вести смену.
-- **Маршруты API.** Пути `/objects` и `/members` (модуль `trade`/`core`) и новый `/shifts` (`TENANT_PATHS`, модуль `trade`):
+- **Маршруты API.** Пути `/objects` и `/members` (модуль `construction`/`core`) и новый `/shifts` (`TENANT_PATHS`, модуль `construction`):
   `GET/POST /objects/:id/shifts`, `GET /objects/:id/shifts/options`, `GET /objects/:id/timesheet`, `GET /shifts/objects`, `GET/PUT /shifts/:id`,
   `POST /shifts/:id/confirm|unconfirm`, `POST /members/workers`, `GET /members/badge/:code`, `GET /members/badges/print`, `POST /members/:id/badge`.
   Коды ошибок: `shift_hours_exceed`, `shift_confirmed`, `shift_not_confirmed`, `shift_reason_required`, `shift_empty`, `badge_not_found`

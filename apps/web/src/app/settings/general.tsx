@@ -95,11 +95,8 @@ function IndustryOptions() {
   return (
     <div className="sblock">
       <h2>{t('settings.workspace.industry.title')}</h2>
-      <SRow t={t('settings.workspace.industry.food')} d={t('settings.workspace.industry.lead')}>
+      <SRow t={t('settings.workspace.industry.food')} d={isAdmin ? t('settings.workspace.industry.lead') : t('settings.workspace.industry.ownerOnly')}>
         <Switch checked={enabled.has('food')} disabled={!isAdmin || busy} aria-label={t('settings.workspace.industry.food')} onChange={e => save('food', e.target.checked)} />
-      </SRow>
-      <SRow t={t('settings.workspace.industry.construction')} d={isAdmin ? undefined : t('settings.workspace.industry.ownerOnly')}>
-        <Switch checked={enabled.has('construction')} disabled={!isAdmin || busy} aria-label={t('settings.workspace.industry.construction')} onChange={e => save('construction', e.target.checked)} />
       </SRow>
     </div>
   );

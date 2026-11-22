@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Layers } from 'lucide-react';
-import { LIMIT_KEYS, MODULES, MODULE_IDS, resolveModules, usageOf, type LicenseUsage, type LimitKey, type LicenseLogEntry, type LicenseRaw, type ModuleId } from '@erp/shared';
+import { LIMIT_KEYS, MODULE_BY_ID, MODULE_IDS, moduleTree, resolveModules, usageOf, type LicenseUsage, type LimitKey, type LicenseLogEntry, type LicenseRaw, type ModuleId } from '@erp/shared';
 import { fmtDateTime, fmtDateTimeIntl, fmtNumber } from '@/i18n/format';
 import { Alert, Badge, Button, Checkbox, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, Input, Select, Skeleton, Textarea, toast } from '@/components/ui';
 import { useT } from '@/i18n';
@@ -39,20 +39,34 @@ function useModuleName() {
   return (id: ModuleId) => t(`licensing.modules.${id}.name` as const);
 }
 
+/** Строка модуля: название крупнее, описание под ним, зависимые модули — со сдвигом под родителем */
+function ModuleLabel({ id, children }: { id: ModuleId; children?: React.ReactNode }) {
+  const t = useT();
+  return (
+    <span className="stack" style={{ gap: 2 }}>
+      <span style={{ fontSize: 14, fontWeight: 600, lineHeight: '20px' }}>{t(`licensing.modules.${id}.name` as const)}</span>
+      <span className="muted" style={{ fontSize: 12, lineHeight: '16px' }}>{t(`licensing.modules.${id}.description` as const)}</span>
+      {children}
+    </span>
+  );
+}
+
+const MODULE_TREE = moduleTree();
+const indent = (depth: number) => ({ paddingLeft: depth * 28 });
+
 function ModuleChecks({ value, onChange }: { value: ModuleId[]; onChange: (v: ModuleId[]) => void }) {
   const t = useT();
   const name = useModuleName();
   return (
-    <div className="stack" style={{ gap: 6 }}>
-      {MODULES.filter(m => m.id !== 'core').map(m => {
-        const missing = m.requires.filter(r => r !== 'core' && !value.includes(r));
+    <div className="stack" style={{ gap: 10 }}>
+      {MODULE_TREE.map(({ id, depth }) => {
+        const missing = MODULE_BY_ID[id].requires.filter(r => r !== 'core' && !value.includes(r));
         return (
-          <label key={m.id} className="row" style={{ gap: 8, alignItems: 'flex-start' }}>
-            <Checkbox checked={value.includes(m.id)} onChange={e => onChange(e.target.checked ? [...value, m.id] : value.filter(x => x !== m.id))} />
-            <span>
-              {name(m.id)} <span className="muted">{t(`licensing.modules.${m.id}.description` as const)}</span>
-              {value.includes(m.id) && missing.length > 0 && <span className="muted"> ({t('licensing.operator.requires', { modules: missing.map(name).join(', ') })})</span>}
-            </span>
+          <label key={id} className="row" style={{ gap: 10, alignItems: 'flex-start', ...indent(depth) }}>
+            <Checkbox style={{ marginTop: 2 }} checked={value.includes(id)} onChange={e => onChange(e.target.checked ? [...value, id] : value.filter(x => x !== id))} />
+            <ModuleLabel id={id}>
+              {value.includes(id) && missing.length > 0 && <span className="muted" style={{ fontSize: 12 }}>{t('licensing.operator.requires', { modules: missing.map(name).join(', ') })}</span>}
+            </ModuleLabel>
           </label>
         );
       })}
@@ -366,19 +380,19 @@ export function TenantLicenseDialog({ tenant, onClose }: { tenant: { id: string;
             <div>
               <div className="t">{t('licensing.operator.addons')}</div>
               <div className="muted" style={{ marginBottom: 6 }}>{t('licensing.operator.addonsHint')}</div>
-              <div className="stack" style={{ gap: 6 }}>
-                {MODULES.filter(m => m.id !== 'core').map(m => {
-                  const g = grants.find(x => x.module === m.id);
+              <div className="stack" style={{ gap: 10 }}>
+                {MODULE_TREE.map(({ id, depth }) => {
+                  const g = grants.find(x => x.module === id);
                   return (
-                    <div key={m.id} className="row" style={{ gap: 10, alignItems: 'center' }}>
-                      <label className="row" style={{ gap: 8, minWidth: 180 }}>
-                        <Checkbox checked={!!g} onChange={e => setGrant(m.id, e.target.checked)} />
-                        {name(m.id)}
+                    <div key={id} className="row" style={{ gap: 10, alignItems: 'flex-start', flexWrap: 'wrap', ...indent(depth) }}>
+                      <label className="row" style={{ gap: 10, alignItems: 'flex-start', flex: '1 1 260px' }}>
+                        <Checkbox style={{ marginTop: 2 }} checked={!!g} onChange={e => setGrant(id, e.target.checked)} />
+                        <ModuleLabel id={id} />
                       </label>
                       {g && (
                         <label className="row muted" style={{ gap: 6 }}>
                           {t('licensing.operator.addonExpires')}
-                          <DateInput size="sm" value={g.expiresAt} aria-label={t('licensing.operator.addonExpires')} onChange={v => setGrants(list => list.map(x => (x.module === m.id ? { ...x, expiresAt: v } : x)))} />
+                          <DateInput size="sm" value={g.expiresAt} aria-label={t('licensing.operator.addonExpires')} onChange={v => setGrants(list => list.map(x => (x.module === id ? { ...x, expiresAt: v } : x)))} />
                         </label>
                       )}
                     </div>

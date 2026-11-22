@@ -22,6 +22,20 @@ export interface SessionUser {
   isOperator: boolean;
 }
 
+/** Настройки ИИ-консультанта лендинга (POST /hooks/chat) */
+export interface LandingAiConfig {
+  baseUrl: string;
+  model: string;
+  apiKey: string;
+  workspaceId: string;
+  origins: string[];
+  rateIp10m: number;
+  rateIpDay: number;
+  rateGlobalDay: number;
+  maxTokens: number;
+  timeoutMs: number;
+}
+
 export interface AppConfig {
   port: number;
   production: boolean;
@@ -51,6 +65,8 @@ export interface AppConfig {
   sessionCacheTtlMs: number;
   /** Сколько живёт запись кэша доступа, мс (ACCESS_CACHE_TTL_SEC); 0 — кэш выключен */
   accessCacheTtlMs: number;
+  /** Конфигурация ИИ-консультанта лендинга */
+  landingAi: LandingAiConfig;
 }
 
 /** Переменные контекста Hono. tenant-поля есть только после middleware tenant() */

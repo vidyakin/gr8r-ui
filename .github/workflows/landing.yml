@@ -51,6 +51,7 @@ jobs:
           build-args: |
             VITE_APP_URL=${{ vars.VITE_APP_URL }}
             VITE_LEAD_FORM_URL=${{ vars.VITE_LEAD_FORM_URL }}
+            VITE_CHAT_URL=${{ vars.VITE_CHAT_URL }}
           tags: ${{ steps.img.outputs.prefix }}-landing:latest,${{ steps.img.outputs.prefix }}-landing:${{ github.sha }}
           cache-from: type=gha,scope=landing
           cache-to: type=gha,scope=landing,mode=max

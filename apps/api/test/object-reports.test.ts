@@ -78,8 +78,7 @@ beforeAll(async () => {
   owner = new Client();
   await owner.signup({ workspaceName: 'Сводки объектов WS' });
   ws = owner.workspaceId!;
-  // отраслевая опция стройки: без неё воркер сводки не рассылает
-  await owner.patch(`/workspaces/${ws}`, { industryOptions: ['construction'] });
+  // без лицензии подключены все модули, в том числе «Строительство»: воркер сводки рассылает
   member = await addMember(owner, 'member');
   adminMember = await addMember(owner, 'admin');
   other = new Client();

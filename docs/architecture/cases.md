@@ -43,7 +43,7 @@ API `apps/api/src/routes/cases.ts` и `routes/hooks.ts` (`POST /hooks/cases/:tok
 
 ## Форма сайта
 `POST /hooks/cases/:token` — как формы лидов (`leads.md`): токен `<workspace_id>.<секрет>`, любая ошибка токена — 404, лимит частоты `case-hook:ip:` / `case-hook:form:`,
-CORS любых сайтов, тело ≤ 32 КБ (JSON или form). Поля `name`, `email`, `phone`, `company`, `subject`, `message`, `priority`; нужны тема или сообщение и имя, email или телефон.
+CORS любых сайтов, тело ≤ 32 КБ (JSON или form). Поля `name`, `email`, `phone`, `company`, `subject`, `message`, `priority`; нужны тема или сообщение и имя, email или телефон. Поле-ловушка `case_forms.honeypot_field` — как у форм лидов (`leads.md`).
 Клиент — контакт по email/телефону, затем лид, иначе создаётся лид (источник — название формы). Ответственный: форма → по кругу.
 
 ## Распределение

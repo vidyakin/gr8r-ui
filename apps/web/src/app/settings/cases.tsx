@@ -10,7 +10,7 @@ import { useIsAdmin } from '../catalog/data';
 import { caseWebhookUrl, useCaseForms, useCaseSlaRules, useCasesApi, type CaseForm } from '../cases/data';
 import { useWorkspace } from '../data/store';
 import { useMembersWith } from '../positions/data';
-import { SettingsHead, SRow } from './parts';
+import { HoneypotField, SettingsHead, SRow } from './parts';
 
 function SlaRules({ isAdmin }: { isAdmin: boolean }) {
   const t = useT();
@@ -95,6 +95,7 @@ function FormRow({ form, isAdmin }: { form: CaseForm; isAdmin: boolean }) {
               </div>
             )}
           </Field>
+          <HoneypotField value={form.honeypotField} onSave={v => void patch({ honeypotField: v })} />
           <div className="row" style={{ gap: 8 }}>
             <Button size="sm" variant="ghost" onClick={() => setRotate(true)}><RefreshCw size={13} />{t('cases.settings.rotate')}</Button>
             <Button size="sm" variant="ghost" onClick={() => setDel(true)}><Trash2 size={13} />{t('cases.settings.delete')}</Button>

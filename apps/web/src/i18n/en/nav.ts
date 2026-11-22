@@ -22,6 +22,7 @@ export const sections = {
   crm: 'Dashboard',
   crmLeads: 'Leads',
   crmCases: 'Cases',
+  crmAiChats: 'AI Chats',
   crmAds: 'Advertising',
   crmDeals: 'Deals',
   crmFunnel: 'Sales funnel',
