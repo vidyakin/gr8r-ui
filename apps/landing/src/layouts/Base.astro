@@ -1,5 +1,5 @@
 ---
-/* Общая оболочка страниц: язык, hreflang, мета-теги, шрифт продукта (Geist), иконка */
+/* Общая оболочка страниц: язык, canonical, абсолютные hreflang, Open Graph, JSON-LD, мета-теги, шрифт продукта */
 import { DEFAULT_LOCALE, LOCALES, localePath, type Locale } from '../i18n';
 
 interface Props {
@@ -9,8 +9,34 @@ interface Props {
   locale?: Locale;
   /** Канонический путь без языкового префикса (например '/' или '/modules/crm/') для hreflang */
   altPath?: string;
+  /** Путь к превью-картинке для Open Graph / Twitter (относительный или абсолютный) */
+  ogImage?: string;
+  /** Скрыть служебную/устаревшую страницу от индексации */
+  noindex?: boolean;
+  /** Структурированные данные schema.org (JSON-LD) */
+  jsonLd?: Record<string, unknown> | Record<string, unknown>[];
 }
-const { title, description, theme, locale = DEFAULT_LOCALE, altPath } = Astro.props;
+
+const OG_LOCALE: Record<Locale, string> = { ru: 'ru_RU', en: 'en_US', es: 'es_ES' };
+const FALLBACK_SITE = 'https://future-erp.ai-solutions-studio.ru';
+
+const {
+  title,
+  description,
+  theme,
+  locale = DEFAULT_LOCALE,
+  altPath,
+  ogImage = '/alternative/crm-dashboard.png',
+  noindex = false,
+  jsonLd,
+} = Astro.props;
+
+const site = Astro.site ?? new URL(FALLBACK_SITE);
+const canonical = new URL(Astro.url.pathname, site).href;
+const imageUrl = new URL(ogImage, site).href;
+const schemas = jsonLd ? (Array.isArray(jsonLd) ? jsonLd : [jsonLd]) : [];
+const googleVerification = import.meta.env.PUBLIC_GOOGLE_VERIFICATION;
+const yandexVerification = import.meta.env.PUBLIC_YANDEX_VERIFICATION;
 ---
 
 <!doctype html>
@@ -19,13 +45,30 @@ const { title, description, theme, locale = DEFAULT_LOCALE, altPath } = Astro.pr
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
-    {altPath && LOCALES.map(l => <link rel="alternate" hreflang={l} href={localePath(l, altPath)} />)}
-    {altPath && <link rel="alternate" hreflang="x-default" href={localePath(DEFAULT_LOCALE, altPath)} />}
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
+    {!noindex && <link rel="canonical" href={canonical} />}
+    {!noindex && altPath && LOCALES.map(l => <link rel="alternate" hreflang={l} href={new URL(localePath(l, altPath), site).href} />)}
+    {!noindex && altPath && <link rel="alternate" hreflang="x-default" href={new URL(localePath(DEFAULT_LOCALE, altPath), site).href} />}
+    {googleVerification && <meta name="google-site-verification" content={googleVerification} />}
+    {yandexVerification && <meta name="yandex-verification" content={yandexVerification} />}
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="FutureERP" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:locale" content={OG_LOCALE[locale]} />
+    {altPath && LOCALES.filter(l => l !== locale).map(l => <meta property="og:locale:alternate" content={OG_LOCALE[l]} />)}
+    <meta property="og:image" content={imageUrl} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={imageUrl} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400&family=Inter+Tight:ital,wght@1,600&display=swap" />
     <title>{title}</title>
+    {schemas.map(s => <script type="application/ld+json" set:html={JSON.stringify(s)} />)}
   </head>
   <body>
     <slot />

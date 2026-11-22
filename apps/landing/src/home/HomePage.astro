@@ -22,9 +22,32 @@ const factIcons = [Blocks, Server, ShieldCheck, FileText];
 const flowIcons = [Phone, Inbox, Briefcase, Factory, Truck, Wallet, TrendingUp];
 const steps = flowSteps();
 const num = (i: number) => String(i + 1).padStart(2, '0');
+const site = Astro.site ?? new URL('https://future-erp.ai-solutions-studio.ru');
+const pageUrl = new URL(Astro.url.pathname, site).href;
+const jsonLd = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'FutureERP',
+    applicationCategory: 'BusinessApplication',
+    operatingSystem: 'Web',
+    inLanguage: ['ru', 'en', 'es'],
+    url: pageUrl,
+    description: t('home.description'),
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: h.faq.items.map(([q, a]) => ({
+      '@type': 'Question',
+      name: q,
+      acceptedAnswer: { '@type': 'Answer', text: a },
+    })),
+  },
+];
 ---
 
-<Base title={t('home.title')} description={t('home.description')} theme="light" locale={locale} altPath="/">
+<Base title={t('home.title')} description={t('home.description')} theme="light" locale={locale} altPath="/" jsonLd={jsonLd}>
   <div class="h-page">
     <SiteHeader locale={locale} altPath="/" />
 
