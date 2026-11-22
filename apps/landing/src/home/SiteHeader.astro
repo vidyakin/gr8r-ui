@@ -1,19 +1,24 @@
 ---
-/* Шапка главной и страниц модулей. base — префикс якорей: '' на главной, '/' на остальных страницах */
+/* Шапка главной и страниц модулей. base — префикс якорей; altPath — путь текущей страницы без языкового префикса */
 import { Menu } from 'lucide-react';
-import { t } from '../i18n';
+import { DEFAULT_LOCALE, LOCALES, LOCALE_LABELS, localePath, useI18n, type Locale } from '../i18n';
 
 interface Props {
   base?: string;
+  locale?: Locale;
+  altPath?: string;
 }
-const { base = '' } = Astro.props;
+const { base = '', locale = DEFAULT_LOCALE, altPath = '/' } = Astro.props;
+const { t, path } = useI18n(locale);
 const APP_URL = import.meta.env.VITE_APP_URL ?? '/app/';
+const homeHref = path('/');
+const anchorBase = base ? homeHref : '';
 const links = [
-  [`${base}#modules`, t('home.nav.modules')],
-  [`${base}#how`, t('home.nav.how')],
-  [`${base}#compare`, t('home.nav.compare')],
-  [`${base}#price`, t('home.nav.price')],
-  [`${base}#faq`, t('home.nav.faq')],
+  [`${anchorBase}#modules`, t('home.nav.modules')],
+  [`${anchorBase}#how`, t('home.nav.how')],
+  [`${anchorBase}#compare`, t('home.nav.compare')],
+  [`${anchorBase}#price`, t('home.nav.price')],
+  [`${anchorBase}#faq`, t('home.nav.faq')],
 ];
 ---
 
@@ -21,7 +26,7 @@ const links = [
 
 <header class="h-header">
   <div class="h-bar">
-    <a class="h-logo" href="/" aria-label="FutureERP">
+    <a class="h-logo" href={homeHref} aria-label="FutureERP">
       <img class="brand" src="/favicon.svg" width="28" height="28" alt="" />
       <span class="h-logo-text"><span class="h-logo-a">FUTURE</span><span class="h-logo-b">ERP</span></span>
     </a>
@@ -29,12 +34,35 @@ const links = [
       {links.map(([href, label]) => <a href={href}>{label}</a>)}
     </nav>
     <div class="h-bar-actions">
+      <nav class="h-lang" aria-label="Language">
+        {LOCALES.map(l => (
+          <a
+            href={localePath(l, altPath)}
+            class:list={['h-lang-item', l === locale && 'is-active']}
+            aria-current={l === locale ? 'page' : undefined}
+            title={LOCALE_LABELS[l].name}
+          >
+            {LOCALE_LABELS[l].short}
+          </a>
+        ))}
+      </nav>
       <a class="h-link" href={APP_URL}>{t('home.nav.signIn')}</a>
       <a class="h-btn h-btn-sm" href={APP_URL}>{t('home.nav.openDemo')}</a>
       <details class="h-burger">
         <summary aria-label={t('home.nav.menu')}><Menu size={22} /></summary>
         <nav class="h-burger-list" aria-label={t('home.nav.label')}>
           {links.map(([href, label]) => <a href={href}>{label}</a>)}
+          <div class="h-burger-langs">
+            {LOCALES.map(l => (
+              <a
+                href={localePath(l, altPath)}
+                class:list={['h-lang-item', l === locale && 'is-active']}
+                aria-current={l === locale ? 'page' : undefined}
+              >
+                {LOCALE_LABELS[l].short}
+              </a>
+            ))}
+          </div>
         </nav>
       </details>
     </div>

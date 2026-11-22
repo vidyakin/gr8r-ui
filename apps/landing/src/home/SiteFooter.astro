@@ -1,6 +1,12 @@
 ---
 /* Подвал главной и страниц модулей */
-import { t } from '../i18n';
+import { DEFAULT_LOCALE, useI18n, type Locale } from '../i18n';
+
+interface Props {
+  locale?: Locale;
+}
+const { locale = DEFAULT_LOCALE } = Astro.props;
+const { t } = useI18n(locale);
 ---
 
 <footer class="h-footer">

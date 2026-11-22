@@ -1,0 +1,119 @@
+/* Diccionario en español — resumen de módulos */
+import type { Dict } from '../types';
+
+export const esModules: Dict['modules'] = {
+  tasks: {
+    name: 'Tareas y proyectos',
+    title: 'Tablero, lista, línea de tiempo y horas',
+    text: 'Gestiona proyectos en tablero, lista o línea de tiempo. El tiempo dedicado a cada tarea se ve al instante.',
+    features: [
+      ['Cinco vistas', 'tablero, lista, tabla, calendario y línea de tiempo'],
+      ['Prioridad y etiquetas', 'prioridad del 1 al 10, etiquetas de color y subtareas'],
+      ['Plazos y recurrencia', 'fecha límite en cada tarea y repetición programada'],
+      ['Registro de tiempo', 'registra horas por tarea y compáralas con lo estimado'],
+    ],
+    caption: 'Grabación: se crea una tarea en el tablero del proyecto y luego otra tarea se arrastra a la columna «Hecho».',
+  },
+  crm: {
+    name: 'CRM',
+    title: 'Embudos, negocios y retorno publicitario',
+    text: 'Sigue el camino completo desde el formulario web hasta la venta ganada y mide ingresos por canal.',
+    features: [
+      ['Leads del sitio web', 'llegan desde formularios con detección de duplicados'],
+      ['Negocios', 'el lead se convierte en negocio conservando el historial'],
+      ['Embudos', 'múltiples embudos con probabilidad y plazo por etapa'],
+      ['Retorno de inversión', 'gastos de campaña vinculados a leads mediante UTM'],
+    ],
+    caption: 'Grabación: un negocio pasa a la etapa «Ganado», los totales se recalculan y suben ingresos y ROMI en el informe de canales.',
+  },
+  docs: {
+    name: 'Documentos y presupuestos',
+    title: 'Factura, contabilización y PDF imprimible',
+    text: 'Los documentos de ventas y compras siguen una misma estructura: encabezado, partidas y totales.',
+    features: [
+      ['Facturas y entregas', 'además de pedidos, recepciones y compras'],
+      ['Tarifas e impuestos', 'el precio se completa solo y calcula el importe en letras'],
+      ['Contabilización', 'actualiza inventario y saldos de clientes'],
+      ['Impresión', 'exporta formularios impresos directamente a PDF'],
+      ['Presupuestos', 'armados con opciones y grupos de partidas'],
+    ],
+    caption: 'Grabación: se elige cliente en la factura, se añade un producto, el precio se toma de la tarifa, se recalculan totales y se contabiliza.',
+  },
+  services: {
+    name: 'Servicios',
+    title: 'Citas, órdenes de trabajo y reparaciones',
+    text: 'Para equipos que venden horas de especialistas: agenda por horarios, visitas, órdenes de trabajo y garantías.',
+    features: [
+      ['Reserva de especialistas', 'vista diaria de todo el equipo y semanal por especialista'],
+      ['Estados de visita', 'agendado, confirmado, asistió, no asistió'],
+      ['Órdenes de trabajo', 'mano de obra y materiales en un solo documento'],
+      ['Reparaciones y garantía', 'recepción de equipos y casos de garantía'],
+    ],
+    caption: 'Grabación: se agenda un cliente en un horario libre y luego se marca como «Asistió».',
+  },
+  production: {
+    name: 'Producción',
+    title: 'Listas de materiales, órdenes y salida por etapas',
+    text: 'El pedido del cliente pasa a orden de producción; el encargado marca etapas completadas y da salida al producto.',
+    features: [
+      ['Listas de materiales', 'insumos y operaciones de cada producto'],
+      ['Órdenes de producción', 'desde pedidos de clientes o por plan'],
+      ['Salida por etapas', 'un documento de salida por taller, fecha y etapa'],
+      ['Costos', 'se calculan automáticamente en el cierre mensual'],
+    ],
+    caption: 'Grabación: en «Salida de producción» el encargado marca etapas del pedido y registra la salida, recalculando producido y pendiente.',
+  },
+  sales: {
+    name: 'Ventas',
+    title: 'Pedido, entrega y saldos en una sola cadena',
+    text: 'El pedido del cliente se convierte en entrega; al contabilizar descuenta stock y registra el saldo por cobrar.',
+    features: [
+      ['Crear a partir de', 'pedido → factura, entrega o acta copiando líneas'],
+      ['Saldo pendiente', 'el nuevo documento solo toma lo que falta entregar'],
+      ['Reserva de stock', 'un pedido contabilizado reserva mercadería en almacén'],
+      ['Stock transaccional', 'los movimientos se registran de forma atómica; anular devuelve stock'],
+      ['Cuentas por cobrar', 'el saldo del cliente se calcula con documentos y cobros'],
+    ],
+    caption: 'Grabación: se abre un pedido de cliente, se crea y contabiliza su entrega, se descuenta el stock y aparece el saldo en el cliente.',
+  },
+  logistics: {
+    name: 'Logística',
+    title: 'Entregas, rutas y mensajeros',
+    text: 'Asigna pedidos a rutas y mensajeros, controla los estados de entrega y el cumplimiento de cada ruta.',
+    features: [
+      ['Entrega en el documento', 'en pedidos, entregas y órdenes: dirección, franja horaria, peso, precio y costo'],
+      ['Despachador', 'arrastra entregas sin asignar a una ruta o vehículo libre'],
+      ['Rutas', 'paradas ordenadas, franjas horarias, control de capacidad y hojas de ruta'],
+      ['Estados de entrega', 'nueva, asignada, en camino, entregada — sincronizados con la ruta'],
+      ['Flota y fletes', 'vehículos, conductores, vencimientos, solicitudes y margen de ruta'],
+    ],
+    caption: 'Grabación: el despachador arrastra las entregas del día a una ruta, la despacha y una entrega cambia a «Entregada».',
+  },
+  payroll: {
+    name: 'Nómina',
+    title: 'Devengos, planillas y pagos',
+    text: 'La nómina mensual se completa automáticamente por empleado y la planilla se paga desde caja o banco.',
+    features: [
+      ['Cálculo mensual', 'salario por horas, destajo, comisión de ventas y bonos en un clic'],
+      ['Destajo desde partes', 'suma los partes contabilizados del mes, igual al informe de producción'],
+      ['Impuestos y aportes', 'retención por empleado y aportes patronales a gastos'],
+      ['Planillas y pagos', 'anticipo o liquidación, pago por caja o banco y archivo CSV'],
+      ['Recibo de sueldo', 'cada empleado ve su recibo; saldos pendientes en informes'],
+    ],
+    caption: 'Grabación: «Completar» genera las líneas de sueldo y destajo, se contabiliza el devengo y se paga la planilla desde caja.',
+  },
+  automations: {
+    name: 'Automatizaciones',
+    title: 'Evento, condiciones y acciones',
+    text: 'Arma reglas en un lienzo visual: qué ocurrió, bajo qué condiciones y qué hacer a continuación.',
+    features: [
+      ['Disparadores', 'registro creado o editado, campo modificado, cron, ejecución manual'],
+      ['Condiciones y lógica', 'condiciones, ramificaciones y esperas de hasta 30 días'],
+      ['Acciones', 'actualizar campo, crear tarea, notificar, petición HTTP, comentario'],
+      ['Plantillas', '{{trigger.record.name}} y valores del disparador o pasos previos'],
+      ['Historial de ejecuciones', 'entrada, salida y error por paso; reintentos automáticos hasta 3 veces'],
+    ],
+    caption: 'Grabación: se añade el paso «Crear tarea» al disparador «Campo modificado», se publica el flujo y aparece la ejecución exitosa.',
+    soon: 'La grabación de este módulo estará disponible pronto.',
+  },
+};

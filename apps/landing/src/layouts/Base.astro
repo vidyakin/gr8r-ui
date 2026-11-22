@@ -1,19 +1,26 @@
 ---
-/* Общая оболочка страниц: язык, мета-теги, шрифт продукта (Geist), иконка */
+/* Общая оболочка страниц: язык, hreflang, мета-теги, шрифт продукта (Geist), иконка */
+import { DEFAULT_LOCALE, LOCALES, localePath, type Locale } from '../i18n';
+
 interface Props {
   title: string;
   description: string;
   theme?: 'light';
+  locale?: Locale;
+  /** Канонический путь без языкового префикса (например '/' или '/modules/crm/') для hreflang */
+  altPath?: string;
 }
-const { title, description, theme } = Astro.props;
+const { title, description, theme, locale = DEFAULT_LOCALE, altPath } = Astro.props;
 ---
 
 <!doctype html>
-<html lang="ru" data-theme={theme}>
+<html lang={locale} data-theme={theme}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
+    {altPath && LOCALES.map(l => <link rel="alternate" hreflang={l} href={localePath(l, altPath)} />)}
+    {altPath && <link rel="alternate" hreflang="x-default" href={localePath(DEFAULT_LOCALE, altPath)} />}
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

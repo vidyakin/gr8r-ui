@@ -1,0 +1,11 @@
+---
+import ModulePage from '../../../home/ModulePage.astro';
+import { MODULE_IDS, type ModuleId } from '../../../demo/registry';
+
+export function getStaticPaths() {
+  return MODULE_IDS.map(id => ({ params: { id } }));
+}
+const id = Astro.params.id as ModuleId;
+---
+
+<ModulePage id={id} locale="en" />

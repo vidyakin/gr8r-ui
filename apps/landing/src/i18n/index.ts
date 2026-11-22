@@ -1,33 +1,49 @@
-/* Лёгкий t() лендинга по образцу apps/web/src/i18n: типизированные ключи, подстановки {name}. Пока один язык — русский */
+/* Лёгкий t() лендинга: типизированные ключи, подстановки {name}, поддержка локалей ru / en / es */
 import { ru } from './ru';
+import { en } from './en';
+import { es } from './es';
+import { DEFAULT_LOCALE, LOCALES, LOCALE_LABELS, localePath, localePrefix, type Dict, type Locale, type TKey } from './types';
 
-export type Dict = typeof ru;
+export { DEFAULT_LOCALE, LOCALES, LOCALE_LABELS, localePath, localePrefix };
+export type { Dict, Locale, TKey };
 
-type Leaves<T, P extends string = ''> = {
-  [K in keyof T & string]: T[K] extends string ? `${P}${K}` : T[K] extends readonly unknown[] ? never : Leaves<T[K], `${P}${K}.`>;
-}[keyof T & string];
+const dicts: Record<Locale, Dict> = { ru, en, es };
 
-export type TKey = Leaves<Dict>;
+export const getDict = (locale: Locale = DEFAULT_LOCALE): Dict => dicts[locale] ?? dicts[DEFAULT_LOCALE];
 
-const dict: Dict = ru;
-
-function lookup(key: string): unknown {
+function lookup(dict: Dict, key: string): unknown {
   let v: unknown = dict;
   for (const part of key.split('.')) v = (v as Record<string, unknown> | undefined)?.[part];
   return v;
 }
 
-export function t(key: TKey, params?: Record<string, string | number>): string {
-  const v = lookup(key);
+export function t(key: TKey, params?: Record<string, string | number>, locale: Locale = DEFAULT_LOCALE): string {
+  const v = lookup(getDict(locale), key);
   if (typeof v !== 'string') return key;
   return params ? v.replace(/\{(\w+)\}/g, (m, k: string) => (params[k] == null ? m : String(params[k]))) : v;
 }
 
-/** Списки словаря (возможности модуля — название и пояснение, пункты «Что ещё есть») */
-export const features = <K extends keyof Dict['modules']>(m: K): readonly (readonly string[])[] => dict.modules[m].features;
-export const moreItems = (): readonly (readonly string[])[] => dict.more.items;
-export const flowSteps = (): readonly (readonly string[])[] => dict.hero.flow.steps;
-/** Тексты страницы модуля: возможности, цепочка, вопросы */
-export const modulePage = <K extends keyof Dict['modulePages'] & keyof Dict['alternative']['modules']>(id: K): Dict['modulePages'][K] => dict.modulePages[id];
-/** Списки главной страницы (факты, сравнение, шаги стоимости, вопросы) */
-export const home = (): Dict['home'] => dict.home;
+/** Привязанный набор хелперов для конкретной локали (удобно в Astro-страницах и React-островах) */
+export function useI18n(locale: Locale = DEFAULT_LOCALE) {
+  const d = getDict(locale);
+  return {
+    locale,
+    dict: d,
+    t: (key: TKey, params?: Record<string, string | number>) => t(key, params, locale),
+    path: (p = '/') => localePath(locale, p),
+    home: () => d.home,
+    flowSteps: () => d.hero.flow.steps,
+    modulePage: <K extends keyof Dict['modulePages'] & keyof Dict['alternative']['modules']>(id: K) => d.modulePages[id],
+  };
+}
+
+/** Списки словаря (обратная совместимость для существующих импортов) */
+export const features = <K extends keyof Dict['modules']>(m: K, locale: Locale = DEFAULT_LOCALE): readonly (readonly string[])[] =>
+  getDict(locale).modules[m].features;
+export const moreItems = (locale: Locale = DEFAULT_LOCALE): readonly (readonly string[])[] => getDict(locale).more.items;
+export const flowSteps = (locale: Locale = DEFAULT_LOCALE): readonly (readonly string[])[] => getDict(locale).hero.flow.steps;
+export const modulePage = <K extends keyof Dict['modulePages'] & keyof Dict['alternative']['modules']>(
+  id: K,
+  locale: Locale = DEFAULT_LOCALE,
+): Dict['modulePages'][K] => getDict(locale).modulePages[id];
+export const home = (locale: Locale = DEFAULT_LOCALE): Dict['home'] => getDict(locale).home;

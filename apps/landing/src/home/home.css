@@ -44,6 +44,12 @@ body { background: var(--h-page); color: var(--h-ink); font-family: 'Geist', sys
 .h-menu { display: flex; gap: 28px; margin-left: 16px; font: 500 15px/1 'Geist', system-ui, sans-serif; color: var(--h-ink-2); }
 .h-menu a:hover { color: var(--h-ink); }
 .h-bar-actions { margin-left: auto; display: flex; align-items: center; gap: 20px; }
+.h-lang { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: 999px; background: rgba(255,255,255,.65); border: 1px solid var(--h-line); }
+.h-lang-item { padding: 5px 9px; border-radius: 999px; font: 600 12px/1 'Geist', system-ui, sans-serif; color: var(--h-ink-2); letter-spacing: .02em; transition: background .15s, color .15s; }
+.h-lang-item:hover { color: var(--h-ink); }
+.h-lang-item.is-active { background: var(--h-ink); color: #fff; }
+.h-burger-langs { display: flex; gap: 6px; padding: 8px 10px 4px; margin-top: 4px; border-top: 1px solid var(--h-line); }
+.h-burger-langs .h-lang-item { flex: 1; text-align: center; padding: 8px 0; border-radius: 8px; }
 .h-link { font: 500 15px/1 'Geist', system-ui, sans-serif; color: var(--h-ink); }
 .h-burger { display: none; position: relative; }
 .h-burger summary { list-style: none; cursor: pointer; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--h-line); background: var(--h-surface); }
@@ -223,6 +229,7 @@ body { background: var(--h-page); color: var(--h-ink); font-family: 'Geist', sys
   .h-bar { padding: 12px var(--h-pad); gap: 12px; }
   .h-bar-actions { gap: 12px; }
   .h-btn-sm { display: none; }
+  .h-lang { display: none; }
   .h-burger { display: block; }
   .h-logo-text { font-size: 20px; }
   .h-hero { padding-top: 32px; }
