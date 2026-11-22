@@ -48,6 +48,12 @@ export const rateLimits = pgTable('rate_limits', {
   windowStart: ts('window_start').notNull().defaultNow(),
 });
 
+export interface LandingChatLogMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  ts: string;
+}
+
 /** Воркспейс = арендатор. Сам является границей RLS (политика по id) */
 export const workspaces = pgTable(
   'workspaces',
@@ -144,4 +150,27 @@ export const invites = pgTable(
     createdAt: createdAt(),
   },
   t => [uniqueIndex('invites_token_uq').on(t.tokenHash), index('invites_ws_idx').on(t.workspaceId)],
+);
+
+/** История диалогов ИИ-консультантов (лендинг и будущие боты): multi-tenant таблица с RLS */
+export const aiChatSessions = pgTable(
+  'ai_chat_sessions',
+  {
+    id: pk(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    botName: text('bot_name').notNull().default('landing'),
+    visitorName: text('visitor_name'),
+    ip: text('ip').notNull(),
+    userAgent: text('user_agent'),
+    locale: text('locale').notNull().default('ru'),
+    pageUrl: text('page_url'),
+    messages: jsonb('messages').$type<LandingChatLogMessage[]>().notNull().default([]),
+    messageCount: integer('message_count').notNull().default(0),
+    leadId: uuid('lead_id'),
+    createdAt: createdAt(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  t => [index('ai_chat_sessions_ws_updated_idx').on(t.workspaceId, t.updatedAt), index('ai_chat_sessions_ws_ip_idx').on(t.workspaceId, t.ip)],
 );

@@ -9,10 +9,14 @@ import { cors } from 'hono/cors';
 import { campaignByUtm, enqueueYooPayment, findEnabledCaseForm, findEnabledForm, insertLead, isUuid, parseFormToken, parsePriceToken, pickRoundRobin, publicPriceList, rateLimits, readMyModules, readMyReadableModules, submitCaseForm, withContext, type Sql } from '@erp/db';
 import { caseWebhookBody, isHoneypotHit, leadWebhookBody, pickUtm, yooWebhookBody } from '@erp/shared';
 import { AppError } from '../errors';
+import { callLandingLlm, honeypotReply, landingChatBody, saveLandingChatTurn } from '../landing-ai/chat';
+import type { LandingLocale } from '../landing-ai/knowledge';
+import { DEFAULT_AI_CHAT_SETTINGS, readWorkspaceAiChatSettings } from '../landing-ai/settings';
 import { isYooKassaIp } from '../yookassa-ip';
 import type { AppEnv } from '../types';
 
 const MAX_BODY = 32 * 1024;
+const CHAT_MAX_BODY = 16 * 1024;
 
 /** Учитывает обращение и возвращает false, если лимит окна исчерпан (счётчик коммитится отдельной транзакцией) */
 async function allow(sql: Sql, key: string, max: number, windowSec: number): Promise<boolean> {
@@ -167,4 +171,103 @@ export const hookRoutes = new Hono<AppEnv>()
       });
     }
     return c.json({ ok: true as const });
+  })
+  // Публичный ИИ-консультант лендинга: строгий CORS, 16 КБ, honeypot, тройной rate-limit (IP 10м/сутки + общий) и OpenAI SSE/JSON
+  .use('/chat/*', async (c, next) => {
+    const allowed = c.get('config').landingAi.origins;
+    return cors({
+      origin: origin => (allowed.includes(origin) ? origin : null),
+      allowMethods: ['GET', 'POST', 'OPTIONS'],
+      allowHeaders: ['Content-Type'],
+      maxAge: 86400,
+    })(c, next);
+  })
+  .get('/chat/config', async c => {
+    const rawLocale = c.req.query('locale');
+    const locale: LandingLocale = rawLocale === 'en' || rawLocale === 'es' ? rawLocale : 'ru';
+    const ai = c.get('config').landingAi;
+    const sql = c.get('sql');
+    let greeting: string | null = null;
+    if (ai.workspaceId && sql) {
+      const settings = await readWorkspaceAiChatSettings(sql, ai.workspaceId).catch(() => DEFAULT_AI_CHAT_SETTINGS);
+      greeting = settings.greeting[locale] || null;
+    }
+    c.header('Cache-Control', 'public, max-age=60');
+    return c.json({ greeting });
+  })
+  .post('/chat', async c => {
+    const cfg = c.get('config');
+    const ai = cfg.landingAi;
+    const origin = c.req.header('origin');
+    if (origin !== undefined && !ai.origins.includes(origin)) {
+      throw new AppError(403, 'forbidden_origin', 'Origin is not allowed');
+    }
+    if (Number(c.req.header('content-length') ?? 0) > CHAT_MAX_BODY) {
+      throw new AppError(413, 'payload_too_large', 'Request body is too large');
+    }
+    let raw: unknown;
+    try {
+      const text = await c.req.text();
+      if (Buffer.byteLength(text, 'utf8') > CHAT_MAX_BODY) {
+        throw new AppError(413, 'payload_too_large', 'Request body is too large');
+      }
+      raw = JSON.parse(text);
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+      throw new AppError(400, 'validation_error', 'Request body must be JSON');
+    }
+    const body = landingChatBody.safeParse(raw);
+    if (!body.success) throw new AppError(400, 'validation_error', 'Invalid chat request');
+    const { sessionId, visitorName, pageUrl, locale, messages, stream, website } = body.data;
+
+    if (website && website.trim().length > 0) {
+      const reply = honeypotReply(locale);
+      if (stream) {
+        return new Response(`data: ${JSON.stringify({ delta: reply })}\n\ndata: [DONE]\n\n`, {
+          headers: { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache, no-transform' },
+        });
+      }
+      return c.json({ reply });
+    }
+
+    if (!ai.baseUrl || !ai.model || !ai.apiKey) {
+      throw new AppError(503, 'ai_not_configured', 'AI assistant is not configured');
+    }
+
+    const sql = c.get('sql');
+    const ip = c.get('ip');
+    if (!(await allow(sql, `chat-hook:ip10m:${ip}`, ai.rateIp10m, 600))) {
+      throw new AppError(429, 'rate_limited', 'Too many requests. Try again later.', { retryAfter: 600, retryAfterSeconds: 600 });
+    }
+    if (!(await allow(sql, `chat-hook:ipday:${ip}`, ai.rateIpDay, 86400))) {
+      throw new AppError(429, 'rate_limited', 'Daily limit reached. Try again tomorrow.', { retryAfter: 86400, retryAfterSeconds: 86400 });
+    }
+    if (!(await allow(sql, 'chat-hook:global:day', ai.rateGlobalDay, 86400))) {
+      throw new AppError(429, 'rate_limited', 'Service daily quota reached. Try again later.', { retryAfter: 86400, retryAfterSeconds: 86400 });
+    }
+
+    const askedAt = new Date().toISOString();
+    const userMessage = messages[messages.length - 1]!.content;
+    const userAgent = c.req.header('user-agent') ?? null;
+    const persist = (assistantReply: string) =>
+      saveLandingChatTurn(sql, { workspaceId: ai.workspaceId, sessionId, visitorName, ip, userAgent, locale, pageUrl, userMessage, assistantReply, askedAt }).catch(err =>
+        console.error('[landing-chat] failed to save history:', err),
+      );
+    const chatSettings = sql
+      ? await readWorkspaceAiChatSettings(sql, ai.workspaceId).catch(() => DEFAULT_AI_CHAT_SETTINGS)
+      : DEFAULT_AI_CHAT_SETTINGS;
+    const style = { tone: chatSettings.tone, customToneNote: chatSettings.customToneNote };
+
+    if (stream) {
+      const sse = await callLandingLlm(ai, locale, messages, true, fetch, persist, style);
+      return new Response(sse, {
+        headers: {
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-cache, no-transform',
+          'X-Accel-Buffering': 'no',
+        },
+      });
+    }
+    const result = await callLandingLlm(ai, locale, messages, false, fetch, persist, style);
+    return c.json(result);
   });

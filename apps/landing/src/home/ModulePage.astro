@@ -8,6 +8,7 @@ import SiteHeader from './SiteHeader.astro';
 import SiteFooter from './SiteFooter.astro';
 import ModuleRecording from './ModuleRecording';
 import LeadFormIsland from './LeadFormIsland';
+import ChatWidget from './ChatWidget';
 import { MODULE_IDS, SCENES, type ModuleId } from '../demo/registry';
 import { DEFAULT_LOCALE, useI18n, type Dict, type Locale, type TKey } from '../i18n';
 import '../demo/frame.css';
@@ -180,6 +181,7 @@ const jsonLd = [
 
     <SiteFooter locale={locale} />
   </div>
+  <ChatWidget client:idle locale={locale} />
 
   <dialog class="h-zoom" aria-label={t('modulePages.ui.zoomOpen')}>
     <figure class="h-zoom-fig">

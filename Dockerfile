@@ -58,6 +58,7 @@ EXPOSE 80
 FROM base AS landing-build
 ARG VITE_APP_URL
 ARG VITE_LEAD_FORM_URL
+ARG VITE_CHAT_URL
 RUN bun run --cwd apps/landing build
 
 FROM nginx:1.27-alpine AS landing

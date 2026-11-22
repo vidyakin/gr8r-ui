@@ -76,6 +76,16 @@ export const esPages1: Pick<Dict['modulePages'], 'ui' | 'tasks' | 'crm' | 'docs'
         list: ['Tipos de fuente: canal, socio, contacto', 'Vinculación automática de campañas por utm_campaign', 'Conversión, costo por lead y por cliente, ROMI', 'Ingresos tomados de entregas contabilizadas'],
         screen: 'Informe de canales publicitarios: gasto, ingresos y ROMI',
       },
+      {
+        title: 'Consultor de IA en el sitio web',
+        text: 'El widget de chat en la web responde preguntas desde la base de conocimiento y guarda cada conversación en el CRM. Cualquier chat se convierte en lead con un clic.',
+        list: [
+          'Configuración de tono y saludo inicial por idioma (RU, EN, ES)',
+          'Historial completo guardado con apodos de visitantes, búsqueda y filtros',
+          'Creación de lead en un clic con fuente «Chat IA» vinculada a la transcripción',
+        ],
+        screen: 'Sección CRM «Chats IA»: lista de conversaciones, historial del chat y ajustes del bot',
+      },
     ],
     chain: [
       ['crm', 'Cliente, negocio, fuente de captación y campaña.'],
@@ -88,6 +98,7 @@ export const esPages1: Pick<Dict['modulePages'], 'ui' | 'tasks' | 'crm' | 'docs'
       ['¿Se puede configurar un embudo propio?', 'Sí. Puedes crear varios embudos y definir categoría, probabilidad, días estándar y campos obligatorios por etapa.'],
       ['¿Cómo se calcula el retorno publicitario?', 'ROMI es (ingresos − gasto) / gasto. Los ingresos vienen de entregas contabilizadas con esa fuente y los gastos se cargan manualmente.'],
       ['¿Cómo se vincula una campaña con un lead?', 'Mediante utm_campaign recibido desde el formulario web y asociado a una campaña activa.'],
+      ['¿Cómo funciona el chat de IA del sitio web con el CRM?', 'Todas las conversaciones se guardan en CRM → Chats IA. El tono y el saludo por idioma se configuran en el CRM, y cualquier chat se convierte en un lead con un clic.'],
     ],
   },
   docs: {

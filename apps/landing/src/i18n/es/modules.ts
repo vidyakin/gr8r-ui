@@ -23,6 +23,7 @@ export const esModules: Dict['modules'] = {
       ['Negocios', 'el lead se convierte en negocio conservando el historial'],
       ['Embudos', 'múltiples embudos con probabilidad y plazo por etapa'],
       ['Retorno de inversión', 'gastos de campaña vinculados a leads mediante UTM'],
+      ['Chat IA en la web', 'responde desde la base de conocimiento, guarda chats en el CRM y crea leads en un clic'],
     ],
     caption: 'Grabación: un negocio pasa a la etapa «Ganado», los totales se recalculan y suben ingresos y ROMI en el informe de canales.',
   },
