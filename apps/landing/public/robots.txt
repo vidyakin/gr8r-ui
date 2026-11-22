@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /old/
+Disallow: /old
+
+Sitemap: https://future-erp.ai-solutions-studio.ru/sitemap.xml

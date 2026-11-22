@@ -10,6 +10,7 @@
 Записи до 2026-11-07 восстановлены по истории коммитов и сгруппированы по дням.
 
 ## 2026-11-22
+- **Платформа** — SEO лендинга (`future-erp.ai-solutions-studio.ru`): `sitemap.xml` с `hreflang`, `robots.txt`, `canonical`, Open Graph / Twitter Card, JSON-LD (`SoftwareApplication`, `BreadcrumbList`, `FAQPage`), `noindex` для `/old/*`.
 - **Платформа** — лендинг переведён на английский (`/en/`) и испанский (`/es/`): главная, все 9 страниц модулей, форма заявки, переключатель `RU / EN / ES` в шапке и мобильном меню, `hreflang`-теги.
 
 ## 2026-11-19
