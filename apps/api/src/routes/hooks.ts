@@ -9,7 +9,7 @@ import { cors } from 'hono/cors';
 import { campaignByUtm, enqueueYooPayment, findEnabledCaseForm, findEnabledForm, insertLead, isUuid, parseFormToken, parsePriceToken, pickRoundRobin, publicPriceList, rateLimits, readMyModules, readMyReadableModules, submitCaseForm, withContext, type Sql } from '@erp/db';
 import { caseWebhookBody, isHoneypotHit, leadWebhookBody, pickUtm, yooWebhookBody } from '@erp/shared';
 import { AppError } from '../errors';
-import { callLandingLlm, honeypotReply, landingChatBody, saveLandingChatTurn } from '../landing-ai/chat';
+import { callLandingLlm, honeypotReply, landingChatBody, parseStageDirective, readSessionScriptState, saveLandingChatTurn } from '../landing-ai/chat';
 import type { LandingLocale } from '../landing-ai/knowledge';
 import { DEFAULT_AI_CHAT_SETTINGS, readWorkspaceAiChatSettings } from '../landing-ai/settings';
 import { isYooKassaIp } from '../yookassa-ip';
@@ -249,17 +249,44 @@ export const hookRoutes = new Hono<AppEnv>()
     const askedAt = new Date().toISOString();
     const userMessage = messages[messages.length - 1]!.content;
     const userAgent = c.req.header('user-agent') ?? null;
-    const persist = (assistantReply: string) =>
-      saveLandingChatTurn(sql, { workspaceId: ai.workspaceId, sessionId, visitorName, ip, userAgent, locale, pageUrl, userMessage, assistantReply, askedAt }).catch(err =>
-        console.error('[landing-chat] failed to save history:', err),
-      );
     const chatSettings = sql
       ? await readWorkspaceAiChatSettings(sql, ai.workspaceId).catch(() => DEFAULT_AI_CHAT_SETTINGS)
       : DEFAULT_AI_CHAT_SETTINGS;
     const style = { tone: chatSettings.tone, customToneNote: chatSettings.customToneNote };
+    const scriptActive = chatSettings.script.enabled && chatSettings.script.nodes.length > 0;
+    const scriptState = scriptActive && Boolean(sql) && sessionId
+      ? await readSessionScriptState(sql, ai.workspaceId, sessionId).catch(() => ({ currentNodeId: null, collectedData: {} }))
+      : { currentNodeId: null, collectedData: {} };
+    const scriptCtx = scriptActive
+      ? { script: chatSettings.script, currentNodeId: scriptState.currentNodeId, collectedData: scriptState.collectedData }
+      : undefined;
+    const validNodeIds = new Set(chatSettings.script.nodes.map(n => n.id));
+    const fallbackNodeId = scriptActive
+      ? (scriptState.currentNodeId ?? chatSettings.script.nodes.find(n => n.kind === 'start')?.id ?? chatSettings.script.nodes[0]?.id ?? null)
+      : null;
+
+    const persist = (rawReply: string) => {
+      const parsed = scriptActive
+        ? parseStageDirective(rawReply, validNodeIds)
+        : { cleanText: rawReply, nextNodeId: null, extracted: {} };
+      return saveLandingChatTurn(sql, {
+        workspaceId: ai.workspaceId,
+        sessionId,
+        visitorName,
+        ip,
+        userAgent,
+        locale,
+        pageUrl,
+        userMessage,
+        assistantReply: parsed.cleanText || rawReply,
+        askedAt,
+        currentNodeId: parsed.nextNodeId ?? fallbackNodeId,
+        collectedData: parsed.extracted,
+      }).catch(err => console.error('[landing-chat] failed to save history:', err));
+    };
 
     if (stream) {
-      const sse = await callLandingLlm(ai, locale, messages, true, fetch, persist, style);
+      const sse = await callLandingLlm(ai, locale, messages, true, fetch, persist, style, scriptCtx);
       return new Response(sse, {
         headers: {
           'Content-Type': 'text/event-stream; charset=utf-8',
@@ -268,6 +295,6 @@ export const hookRoutes = new Hono<AppEnv>()
         },
       });
     }
-    const result = await callLandingLlm(ai, locale, messages, false, fetch, persist, style);
+    const result = await callLandingLlm(ai, locale, messages, false, fetch, persist, style, scriptCtx);
     return c.json(result);
   });

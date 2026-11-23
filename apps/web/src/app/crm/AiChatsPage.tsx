@@ -1,19 +1,23 @@
 /* CRM → ИИ-чаты: список диалогов чат-бота на сайте, поиск по тексту/IP, фильтр по языку и просмотр в карточке. */
 import * as React from 'react';
-import { Bot, RefreshCw, Search, Settings } from 'lucide-react';
-import { Badge, Button, EmptyState, Input, Skeleton } from '@/components/ui';
+import { Bot, GitBranch, MessageSquare, RefreshCw, Search, Settings } from 'lucide-react';
+import { Badge, Button, EmptyState, Input, Skeleton, Tab, Tabs, TabsList } from '@/components/ui';
 import { DataTable, useDataTable, type Column } from '@/components/erp/data-table';
 import { useT } from '@/i18n';
 import { fmtDateTime } from '@/i18n/format';
 import { AiChatDrawer } from './AiChatDrawer';
 import { AiChatSettingsDrawer } from './AiChatSettingsDrawer';
+import { SalesScriptEditor } from './SalesScriptEditor';
 import { firstUserMessage, useAiChats, type AiChatSession } from './ai-chats-data';
 
 const LOCALES = ['all', 'ru', 'en', 'es'] as const;
 type LocaleFilter = (typeof LOCALES)[number];
 
+type AiChatsTab = 'dialogs' | 'script';
+
 export function AiChatsPage() {
   const t = useT();
+  const [tab, setTab] = React.useState<AiChatsTab>('dialogs');
   const [q, setQ] = React.useState('');
   const [locale, setLocale] = React.useState<LocaleFilter>('all');
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
@@ -120,44 +124,67 @@ export function AiChatsPage() {
             <Settings size={14} />
             {t('aiChats.settings.button')}
           </Button>
-          <Button variant="ghost" size="sm" loading={list.isFetching} onClick={() => void list.refetch()}>
-            <RefreshCw size={14} />
-            {t('aiChats.actions.refresh')}
-          </Button>
+          {tab === 'dialogs' && (
+            <Button variant="ghost" size="sm" loading={list.isFetching} onClick={() => void list.refetch()}>
+              <RefreshCw size={14} />
+              {t('aiChats.actions.refresh')}
+            </Button>
+          )}
         </div>
       </div>
 
-      <div className="row" style={{ gap: 8, padding: '0 var(--page-pad, 24px) 12px', flexWrap: 'wrap' }}>
-        <Input
-          size="sm"
-          icon={<Search size={13} />}
-          value={q}
-          onChange={e => setQ(e.target.value)}
-          placeholder={t('aiChats.searchPlaceholder')}
-          aria-label={t('aiChats.searchPlaceholder')}
-          style={{ width: 260 }}
-        />
-        <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-          {LOCALES.map(loc => (
-            <button key={loc} type="button" className={`chip${locale === loc ? ' on' : ''}`} aria-pressed={locale === loc} onClick={() => setLocale(loc)}>
-              {t(`aiChats.localeFilter.${loc}`)}
-            </button>
-          ))}
-        </div>
+      <div style={{ padding: '0 var(--page-pad, 24px)', marginBottom: 14 }}>
+        <Tabs value={tab} onValueChange={v => setTab(v as AiChatsTab)}>
+          <TabsList>
+            <Tab value="dialogs">
+              <MessageSquare size={14} />
+              {t('aiChats.tabs.dialogs')}
+            </Tab>
+            <Tab value="script">
+              <GitBranch size={14} />
+              {t('aiChats.tabs.script')}
+            </Tab>
+          </TabsList>
+        </Tabs>
       </div>
 
-      {list.isPending ? (
-        <div className="stack" style={{ gap: 8, padding: '0 var(--page-pad, 24px)' }}>
-          <Skeleton h={32} w="100%" />
-          <Skeleton h={32} w="100%" />
-          <Skeleton h={32} w="100%" />
-        </div>
-      ) : !rows.length && noFilters ? (
-        <EmptyState icon={<Bot size={20} />} title={t('aiChats.empty')}>
-          {t('aiChats.emptyHint')}
-        </EmptyState>
+      {tab === 'script' ? (
+        <SalesScriptEditor />
       ) : (
-        <DataTable aria-label={t('aiChats.title')} columns={columns} rows={rows} table={table} getId={r => r.id} onRowClick={r => setSelectedId(r.id)} />
+        <>
+          <div className="row" style={{ gap: 8, padding: '0 var(--page-pad, 24px) 12px', flexWrap: 'wrap' }}>
+            <Input
+              size="sm"
+              icon={<Search size={13} />}
+              value={q}
+              onChange={e => setQ(e.target.value)}
+              placeholder={t('aiChats.searchPlaceholder')}
+              aria-label={t('aiChats.searchPlaceholder')}
+              style={{ width: 260 }}
+            />
+            <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+              {LOCALES.map(loc => (
+                <button key={loc} type="button" className={`chip${locale === loc ? ' on' : ''}`} aria-pressed={locale === loc} onClick={() => setLocale(loc)}>
+                  {t(`aiChats.localeFilter.${loc}`)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {list.isPending ? (
+            <div className="stack" style={{ gap: 8, padding: '0 var(--page-pad, 24px)' }}>
+              <Skeleton h={32} w="100%" />
+              <Skeleton h={32} w="100%" />
+              <Skeleton h={32} w="100%" />
+            </div>
+          ) : !rows.length && noFilters ? (
+            <EmptyState icon={<Bot size={20} />} title={t('aiChats.empty')}>
+              {t('aiChats.emptyHint')}
+            </EmptyState>
+          ) : (
+            <DataTable aria-label={t('aiChats.title')} columns={columns} rows={rows} table={table} getId={r => r.id} onRowClick={r => setSelectedId(r.id)} />
+          )}
+        </>
       )}
 
       {selected && <AiChatDrawer session={selected} onClose={() => setSelectedId(null)} />}

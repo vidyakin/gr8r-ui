@@ -2,10 +2,11 @@
    диалог создания и правки (название, родитель, руководитель) и состав. Данные и вызовы API приходят пропсами — экран рендерится в тесте
    без сессии и стора; обёртка с хуками — settings/departments.tsx. Правят admin и owner. */
 import * as React from 'react';
-import { Network, Plus, X } from 'lucide-react';
-import { Alert, Badge, Button, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, Input, Select, Skeleton, toast } from '@/components/ui';
+import { List, Network, Plus, X } from 'lucide-react';
+import { Alert, Badge, Button, Choice, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, Input, Select, Skeleton, Switch, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { SRow } from '../settings/parts';
+import { OrgChart } from './OrgChart';
 import { departmentTree, selfAndDescendants, type DepartmentItem } from './tree';
 
 /** Пустое значение списка выбора (у Radix Select значение не может быть пустой строкой) */
@@ -42,12 +43,19 @@ export function DepartmentsView({ title, departments, members, isAdmin, pending,
   const [draft, setDraft] = React.useState<Draft | null>(null);
   const [del, setDel] = React.useState<DepartmentItem | null>(null);
   const [busy, setBusy] = React.useState(false);
+  const [view, setView] = React.useState<'chart' | 'list'>('chart');
+  const [expandAll, setExpandAll] = React.useState(false);
   const tree = React.useMemo(() => departmentTree(departments), [departments]);
   const nameOf = React.useMemo(() => new Map(members.map(m => [m.id, m.name])), [members]);
   const deptOf = React.useMemo(() => new Map(departments.flatMap(d => d.memberIds.map(id => [id, d] as const))), [departments]);
   const editing = draft?.id ? (departments.find(d => d.id === draft.id) ?? null) : null;
 
-  const open = (d: DepartmentItem | null) => setDraft(d ? { id: d.id, name: d.name, parentId: d.parentId ?? NONE, headMemberId: d.headMemberId ?? NONE } : { id: null, name: '', parentId: NONE, headMemberId: NONE });
+  const open = (d: DepartmentItem | null, defaultParentId?: string) =>
+    setDraft(
+      d
+        ? { id: d.id, name: d.name, parentId: d.parentId ?? NONE, headMemberId: d.headMemberId ?? NONE }
+        : { id: null, name: '', parentId: defaultParentId ?? NONE, headMemberId: NONE },
+    );
   const run = async (fn: () => Promise<boolean>, done: string) => {
     setBusy(true);
     try {
@@ -81,19 +89,48 @@ export function DepartmentsView({ title, departments, members, isAdmin, pending,
     <>
       {!isAdmin && <Alert tone="info" className="mb-3">{t('departments.settings.onlyAdmins')}</Alert>}
       <div className="sblock">
-        <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
+        <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12, gap: 12, flexWrap: 'wrap' }}>
           <h2 style={{ margin: 0 }}>{title}</h2>
-          {isAdmin && (
-            <Button size="sm" variant="ghost" onClick={() => open(null)}>
-              <Plus size={13} />
-              {t('departments.settings.add')}
-            </Button>
-          )}
+          <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
+            {view === 'chart' && tree.length > 0 && (
+              <Choice>
+                <Switch checked={expandAll} onChange={e => setExpandAll(e.target.checked)} />
+                <span>{t('departments.settings.expandAll')}</span>
+              </Choice>
+            )}
+            {tree.length > 0 && (
+              <div className="row" style={{ gap: 2 }}>
+                <Button size="sm" variant={view === 'chart' ? 'primary' : 'ghost'} onClick={() => setView('chart')}>
+                  <Network size={13} />
+                  {t('departments.settings.viewChart')}
+                </Button>
+                <Button size="sm" variant={view === 'list' ? 'primary' : 'ghost'} onClick={() => setView('list')}>
+                  <List size={13} />
+                  {t('departments.settings.viewList')}
+                </Button>
+              </div>
+            )}
+            {isAdmin && (
+              <Button size="sm" variant="ghost" onClick={() => open(null)}>
+                <Plus size={13} />
+                {t('departments.settings.add')}
+              </Button>
+            )}
+          </div>
         </div>
         {pending ? (
           <Skeleton w="100%" h={60} />
         ) : !tree.length ? (
           <EmptyState icon={<Network size={20} />} title={t('departments.settings.empty')}>{t('departments.settings.emptyHint')}</EmptyState>
+        ) : view === 'chart' ? (
+          <OrgChart
+            departments={departments}
+            nameOf={nameOf}
+            isAdmin={isAdmin}
+            expandAll={expandAll}
+            onEdit={d => open(d)}
+            onAddChild={parentId => open(null, parentId)}
+          />
         ) : (
           <div className="stack" style={{ gap: 8 }}>
             {tree.map(({ d, depth }) => (

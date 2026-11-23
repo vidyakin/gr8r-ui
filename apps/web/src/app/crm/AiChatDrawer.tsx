@@ -1,20 +1,31 @@
 /* Боковая карточка сессии ИИ-чата: метаданные, переписка по ролям, создание лида и удаление. */
 import * as React from 'react';
 import { useNavigate } from 'react-router';
-import { Clock, Globe, Languages, Link2, Monitor, Trash2, User, UserPlus } from 'lucide-react';
+import { Clock, Database, GitBranch, Globe, Languages, Link2, Monitor, Trash2, User, UserPlus } from 'lucide-react';
 import { Badge, Button, ConfirmDialog, toast } from '@/components/ui';
 import { DrawerSection, EntityDrawer, type DrawerField } from '@/components/erp/entity-drawer';
 import { useT } from '@/i18n';
 import { fmtDateTime } from '@/i18n/format';
-import { firstUserMessage, useAiChatsApi, type AiChatSession } from './ai-chats-data';
+import { firstUserMessage, useAiChatSettings, useAiChatsApi, type AiChatSession } from './ai-chats-data';
 import { AiChatText } from './AiChatText';
 
 export function AiChatDrawer({ session, onClose }: { session: AiChatSession; onClose: () => void }) {
   const t = useT();
   const nav = useNavigate();
   const api = useAiChatsApi();
+  const settings = useAiChatSettings();
   const [creatingLead, setCreatingLead] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
+
+  const stageTitle = React.useMemo(() => {
+    if (!session.currentNodeId) return null;
+    return settings.data?.script?.nodes.find(n => n.id === session.currentNodeId)?.title ?? session.currentNodeId;
+  }, [session.currentNodeId, settings.data]);
+
+  const collectedEntries = React.useMemo(
+    () => Object.entries(session.collectedData ?? {}).filter(([, v]) => v !== '' && v != null),
+    [session.collectedData],
+  );
 
   const handleCreateLead = async () => {
     setCreatingLead(true);
@@ -30,6 +41,25 @@ export function AiChatDrawer({ session, onClose }: { session: AiChatSession; onC
 
   const fields: DrawerField[] = [
     ...(session.visitorName ? [{ icon: User, label: t('aiChats.meta.visitor'), value: <span style={{ fontWeight: 500 }}>{session.visitorName}</span> }] : []),
+    ...(stageTitle ? [{ icon: GitBranch, label: t('aiChats.meta.stage'), value: <Badge tone="accent">{stageTitle}</Badge> }] : []),
+    ...(collectedEntries.length > 0
+      ? [
+          {
+            icon: Database,
+            label: t('aiChats.meta.collected'),
+            value: (
+              <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                {collectedEntries.map(([k, v]) => (
+                  <Badge key={k} tone="neutral">
+                    <span className="muted">{k}:</span>
+                    <strong>{v}</strong>
+                  </Badge>
+                ))}
+              </div>
+            ),
+          },
+        ]
+      : []),
     { icon: Globe, label: t('aiChats.meta.ip'), value: <span className="num">{session.ip}</span> },
     { icon: Link2, label: t('aiChats.meta.page'), value: <span className="trunc">{session.pageUrl || '—'}</span> },
     { icon: Languages, label: t('aiChats.meta.locale'), value: <Badge tone="accent">{session.locale.toUpperCase()}</Badge> },

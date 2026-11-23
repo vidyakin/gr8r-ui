@@ -168,6 +168,8 @@ export const aiChatSessions = pgTable(
     pageUrl: text('page_url'),
     messages: jsonb('messages').$type<LandingChatLogMessage[]>().notNull().default([]),
     messageCount: integer('message_count').notNull().default(0),
+    currentNodeId: text('current_node_id'),
+    collectedData: jsonb('collected_data').$type<Record<string, string>>().notNull().default({}),
     leadId: uuid('lead_id'),
     createdAt: createdAt(),
     updatedAt: ts('updated_at').notNull().defaultNow(),

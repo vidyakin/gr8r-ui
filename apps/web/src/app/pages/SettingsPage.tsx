@@ -149,7 +149,7 @@ export function SettingsPage() {
         ))}
       </nav>
       <div className="set-body">
-        <div className="set-in">
+        <div className={section === 'departments' ? 'set-in wide' : 'set-in'}>
           <Body sec={section} title={t(`settings.nav.items.${cur[1]}` as TKey)} />
         </div>
       </div>
