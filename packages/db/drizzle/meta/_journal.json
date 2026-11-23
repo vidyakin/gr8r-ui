@@ -869,6 +869,13 @@
       "when": 1794624990000,
       "tag": "0133_ai_chat_visitor_name",
       "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1794711390000,
+      "tag": "0134_ai_chat_script_state",
+      "breakpoints": true
     }
   ]
 }

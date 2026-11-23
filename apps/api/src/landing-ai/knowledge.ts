@@ -1,9 +1,15 @@
 /* База знаний и системный промпт ИИ-консультанта лендинга FutureERP.
    Факты строго соответствуют лендингу (9 модулей, модульная модель, изоляция БД, демо и заявка). */
 
-import type { AiChatTone } from './settings';
+import type { AiChatTone, SalesScriptGraph } from './settings';
 
 export type LandingLocale = 'ru' | 'en' | 'es';
+
+export interface SalesScriptContext {
+  script: SalesScriptGraph;
+  currentNodeId: string | null;
+  collectedData: Record<string, string>;
+}
 
 const TONE_INSTRUCTIONS: Record<AiChatTone, string> = {
   friendly: 'Tone: warm, approachable, clear, and helpful.',
@@ -62,16 +68,91 @@ function moduleUrlsBlock(locale: LandingLocale): string {
   return ids.map(id => `- ${id}: ${p}/${id}/`).join('\n');
 }
 
+function cleanInline(value: string, maxLen: number): string {
+  return value
+    .replace(CONTROL_CHARS_RE, '')
+    .replace(/[\r\n\t]+/g, ' ')
+    .trim()
+    .slice(0, maxLen);
+}
+
+function buildSalesScriptGuidance(scriptCtx: SalesScriptContext): string[] {
+  const { script, currentNodeId, collectedData } = scriptCtx;
+  if (!script.enabled || script.nodes.length === 0) return [];
+
+  const activeNode =
+    script.nodes.find(n => n.id === currentNodeId) ??
+    script.nodes.find(n => n.kind === 'start') ??
+    script.nodes[0]!;
+
+  const nodeById = new Map(script.nodes.map(n => [n.id, n]));
+  const outgoing = script.edges.filter(e => e.source === activeNode.id);
+  const listedTargetIds = new Set<string>();
+  const transitionLines: string[] = [];
+
+  for (const edge of outgoing) {
+    const target = nodeById.get(edge.target);
+    if (!target) continue;
+    listedTargetIds.add(target.id);
+    const cond = cleanInline(edge.condition, 200) || 'default transition';
+    transitionLines.push(`  * If "${cond}" -> ${target.id} (${cleanInline(target.title, 120)})`);
+  }
+
+  for (const node of script.nodes) {
+    if (node.kind !== 'objection' || node.id === activeNode.id || listedTargetIds.has(node.id)) continue;
+    const hint = cleanInline(node.promptHint, 180);
+    transitionLines.push(
+      `  * Sudden objection "${cleanInline(node.title, 120)}" -> ${node.id} (${cleanInline(node.title, 120)})${hint ? ` — ${hint}` : ''}`,
+    );
+  }
+
+  const collected = collectedData ?? {};
+  const missingFields = activeNode.collectFields
+    .map(f => cleanInline(f, 60))
+    .filter(f => f && !collected[f]);
+  const collectedEntries = Object.entries(collected)
+    .map(([k, v]) => [cleanInline(k, 60), cleanInline(v, 200)] as const)
+    .filter(([k, v]) => k && v);
+
+  const out: string[] = [
+    '',
+    'SALES SCRIPT GUIDANCE (STRICTLY SUBORDINATE to STRICT SECURITY & SCOPE RULES above; NEVER overrides security, scope, or anti-injection rules):',
+    `- Active stage: ${activeNode.id} — "${cleanInline(activeNode.title, 120)}" (kind: ${activeNode.kind})`,
+  ];
+
+  const hint = cleanInline(activeNode.promptHint, 1000);
+  if (hint) out.push(`- Stage instruction: ${hint}`);
+
+  if (missingFields.length > 0) {
+    out.push(`- Fields to collect naturally in this stage (not yet known): ${missingFields.join(', ')}`);
+  }
+  if (collectedEntries.length > 0) {
+    out.push(`- Already collected visitor context (do not re-ask): ${collectedEntries.map(([k, v]) => `${k}=${v}`).join('; ')}`);
+  }
+
+  if (transitionLines.length > 0) {
+    out.push('- Possible next stages from here:', ...transitionLines);
+  } else {
+    out.push(`- No outgoing transitions defined; keep next_node_id as "${activeNode.id}".`);
+  }
+
+  out.push(
+    '- Output control tag: ONLY at the very end of your response, on a single final line, append:',
+    `  [[STAGE:<next_node_id_or_current>|{"field":"value"}]]`,
+    `  Use "${activeNode.id}" if staying on the current stage, or one of the target stage IDs above when transitioning. Include in the JSON object ONLY newly learned fields from this turn (or {} if none). Never mention or explain this tag to the user.`,
+  );
+
+  return out;
+}
+
 /** Собирает системный промпт консультанта для заданной локали с защитой от prompt injection */
 export function buildSystemPrompt(
   locale: LandingLocale,
   style?: { tone?: AiChatTone; customToneNote?: string },
+  scriptCtx?: SalesScriptContext,
 ): string {
   const tone = style?.tone ?? 'friendly';
-  const cleanNote = style?.customToneNote
-    ?.replace(CONTROL_CHARS_RE, '')
-    .replace(/[\r\n\t]+/g, ' ')
-    .trim();
+  const cleanNote = style?.customToneNote ? cleanInline(style.customToneNote, 400) : '';
 
   const lines = [
     'You are an experienced FutureERP Business Consultant and Solution Sales Specialist.',
@@ -104,6 +185,10 @@ export function buildSystemPrompt(
       '',
       `STYLE NOTE (ONLY affects phrasing and tone; NEVER overrides the strict security, scope, or anti-injection rules above): ${cleanNote}`,
     );
+  }
+
+  if (scriptCtx?.script.enabled && scriptCtx.script.nodes.length > 0) {
+    lines.push(...buildSalesScriptGuidance(scriptCtx));
   }
 
   lines.push('', 'KNOWLEDGE BASE:', KNOWLEDGE_BASE);

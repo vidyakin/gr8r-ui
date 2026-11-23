@@ -23,6 +23,8 @@ export interface AiChatSession {
   messages: AiChatMessage[];
   messageCount: number;
   leadId: string | null;
+  currentNodeId?: string | null;
+  collectedData?: Record<string, string>;
   createdAt: string;
   updatedAt: string;
 }
@@ -34,6 +36,31 @@ export interface AiChatsResponse {
 
 export type AiChatTone = 'friendly' | 'formal' | 'concise' | 'sales';
 
+export type SalesScriptNodeKind = 'start' | 'stage' | 'branch' | 'objection' | 'action' | 'end';
+
+export interface SalesScriptNode {
+  id: string;
+  kind: SalesScriptNodeKind;
+  title: string;
+  promptHint: string;
+  collectFields: string[];
+  x: number;
+  y: number;
+}
+
+export interface SalesScriptEdge {
+  id: string;
+  source: string;
+  target: string;
+  condition: string;
+}
+
+export interface SalesScriptGraph {
+  enabled: boolean;
+  nodes: SalesScriptNode[];
+  edges: SalesScriptEdge[];
+}
+
 export interface AiChatSettings {
   tone: AiChatTone;
   customToneNote: string;
@@ -42,6 +69,7 @@ export interface AiChatSettings {
     en: string;
     es: string;
   };
+  script?: SalesScriptGraph;
 }
 
 export const aiChatsKey = (ws: string, ...rest: unknown[]) => ['ws', ws, 'ai-chats', ...rest] as const;

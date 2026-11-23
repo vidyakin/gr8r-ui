@@ -3,9 +3,9 @@ import { describe, expect, test } from 'bun:test';
 import { Hono } from 'hono';
 import { loadConfig } from '../src/env';
 import { onError } from '../src/errors';
-import { callLandingLlm, landingChatBody, sanitizeAssistantOutput, sanitizeUserText, type LandingFetch } from '../src/landing-ai/chat';
+import { callLandingLlm, landingChatBody, parseStageDirective, sanitizeAssistantOutput, sanitizeUserText, type LandingFetch } from '../src/landing-ai/chat';
 import { buildSystemPrompt } from '../src/landing-ai/knowledge';
-import { AI_CHAT_TONES, DEFAULT_AI_CHAT_SETTINGS, aiChatSettingsPatch, extractAiChatSettings } from '../src/landing-ai/settings';
+import { AI_CHAT_TONES, DEFAULT_AI_CHAT_SETTINGS, DEFAULT_SALES_SCRIPT, aiChatSettingsPatch, extractAiChatSettings, mergeAiChatSettings, type SalesScriptGraph } from '../src/landing-ai/settings';
 import { hookRoutes } from '../src/routes/hooks';
 import type { AppEnv, LandingAiConfig } from '../src/types';
 
@@ -231,6 +231,7 @@ describe('aiChatSettings', () => {
       tone: 'friendly',
       customToneNote: '',
       greeting: { ru: 'Привет!', en: '', es: '' },
+      script: DEFAULT_SALES_SCRIPT,
     });
   });
 
@@ -247,6 +248,7 @@ describe('aiChatSettings', () => {
         tone,
         customToneNote: 'Speak plainly',
         greeting: { ru: 'Здравствуйте', en: 'Hello', es: 'Hola' },
+        script: DEFAULT_SALES_SCRIPT,
       });
     }
   });
@@ -256,6 +258,109 @@ describe('aiChatSettings', () => {
     expect(aiChatSettingsPatch.safeParse({ tone: 'aggressive' }).success).toBe(false);
     expect(aiChatSettingsPatch.safeParse({ customToneNote: 'a'.repeat(401) }).success).toBe(false);
     expect(aiChatSettingsPatch.safeParse({ greeting: { en: 'b'.repeat(401) } }).success).toBe(false);
+  });
+
+  test('aiChatSettingsPatch and mergeAiChatSettings handle sales script graph constraints', () => {
+    const validScript: SalesScriptGraph = {
+      enabled: true,
+      nodes: [
+        {
+          id: 'start_1',
+          kind: 'start',
+          title: 'Приветствие',
+          promptHint: 'Узнайте отрасль клиента',
+          collectFields: ['industry', 'teamSize'],
+          x: 0,
+          y: 0,
+        },
+        {
+          id: 'stage_2',
+          kind: 'stage',
+          title: 'Квалификация',
+          promptHint: 'Уточните текущие инструменты',
+          collectFields: ['currentTools'],
+          x: 240,
+          y: 0,
+        },
+      ],
+      edges: [{ id: 'e1', source: 'start_1', target: 'stage_2', condition: 'Назвал отрасль' }],
+    };
+
+    const parsed = aiChatSettingsPatch.safeParse({ script: validScript });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      const merged = mergeAiChatSettings(DEFAULT_AI_CHAT_SETTINGS, parsed.data);
+      expect(merged.script).toEqual(validScript);
+      expect(extractAiChatSettings({ aiChat: merged }).script).toEqual(validScript);
+    }
+
+    // Rejects > 40 nodes
+    const tooManyNodes = Array.from({ length: 41 }, (_, i) => ({
+      id: `n${i}`,
+      kind: 'stage' as const,
+      title: `Stage ${i}`,
+      promptHint: '',
+      collectFields: [],
+      x: 0,
+      y: 0,
+    }));
+    expect(aiChatSettingsPatch.safeParse({ script: { enabled: true, nodes: tooManyNodes, edges: [] } }).success).toBe(false);
+
+    // Rejects > 100 edges
+    const tooManyEdges = Array.from({ length: 101 }, (_, i) => ({
+      id: `e${i}`,
+      source: 'n0',
+      target: 'n1',
+      condition: 'go',
+    }));
+    expect(aiChatSettingsPatch.safeParse({ script: { enabled: true, nodes: [], edges: tooManyEdges } }).success).toBe(false);
+
+    // Rejects title > 120, promptHint > 1000, condition > 200, collectFields > 10 or > 60 chars
+    expect(
+      aiChatSettingsPatch.safeParse({
+        script: {
+          enabled: true,
+          nodes: [{ id: 'n1', kind: 'stage', title: 't'.repeat(121), promptHint: '', collectFields: [], x: 0, y: 0 }],
+          edges: [],
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      aiChatSettingsPatch.safeParse({
+        script: {
+          enabled: true,
+          nodes: [{ id: 'n1', kind: 'stage', title: 'ok', promptHint: 'p'.repeat(1001), collectFields: [], x: 0, y: 0 }],
+          edges: [],
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      aiChatSettingsPatch.safeParse({
+        script: {
+          enabled: true,
+          nodes: [{ id: 'n1', kind: 'stage', title: 'ok', promptHint: '', collectFields: Array.from({ length: 11 }, (_, i) => `f${i}`), x: 0, y: 0 }],
+          edges: [],
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      aiChatSettingsPatch.safeParse({
+        script: {
+          enabled: true,
+          nodes: [{ id: 'n1', kind: 'stage', title: 'ok', promptHint: '', collectFields: ['f'.repeat(61)], x: 0, y: 0 }],
+          edges: [],
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      aiChatSettingsPatch.safeParse({
+        script: {
+          enabled: true,
+          nodes: [],
+          edges: [{ id: 'e1', source: 'n1', target: 'n2', condition: 'c'.repeat(201) }],
+        },
+      }).success,
+    ).toBe(false);
   });
 
   test('buildSystemPrompt includes tone instructions and sanitized customToneNote with anti-override guardrail', () => {
@@ -279,5 +384,155 @@ describe('aiChatSettings', () => {
     expect(withNote).toContain('Use short paragraphs please');
     expect(withNote).not.toContain('\x00');
     expect(withNote).not.toContain('\x07');
+  });
+
+  test('buildSystemPrompt includes subordinate SALES SCRIPT GUIDANCE when script is enabled', () => {
+    const script: SalesScriptGraph = {
+      enabled: true,
+      nodes: [
+        {
+          id: 'n_start',
+          kind: 'start',
+          title: 'Знакомство',
+          promptHint: 'Спроси размер команды\nи отрасль',
+          collectFields: ['industry', 'teamSize'],
+          x: 0,
+          y: 0,
+        },
+        {
+          id: 'n_demo',
+          kind: 'action',
+          title: 'Пригласить на демо',
+          promptHint: 'Предложи показать демо',
+          collectFields: [],
+          x: 200,
+          y: 0,
+        },
+        {
+          id: 'n_obj_1c',
+          kind: 'objection',
+          title: 'Уже есть 1С',
+          promptHint: 'Объясни плавную миграцию',
+          collectFields: [],
+          x: 200,
+          y: 150,
+        },
+      ],
+      edges: [{ id: 'e1', source: 'n_start', target: 'n_demo', condition: 'Готов смотреть демо' }],
+    };
+
+    const prompt = buildSystemPrompt('ru', { tone: 'sales' }, {
+      script,
+      currentNodeId: null,
+      collectedData: { industry: 'Производство' },
+    });
+
+    expect(prompt).toContain('SALES SCRIPT GUIDANCE (STRICTLY SUBORDINATE to STRICT SECURITY & SCOPE RULES above');
+    expect(prompt).toContain('Active stage: n_start — "Знакомство"');
+    expect(prompt).toContain('Спроси размер команды и отрасль');
+    expect(prompt).toContain('not yet known): teamSize');
+    expect(prompt).toContain('industry=Производство');
+    expect(prompt).toContain('If "Готов смотреть демо" -> n_demo (Пригласить на демо)');
+    expect(prompt).toContain('Sudden objection "Уже есть 1С" -> n_obj_1c');
+    expect(prompt).toContain('[[STAGE:<next_node_id_or_current>|{"field":"value"}]]');
+
+    const disabledPrompt = buildSystemPrompt('ru', { tone: 'sales' }, {
+      script: { ...script, enabled: false },
+      currentNodeId: null,
+      collectedData: {},
+    });
+    expect(disabledPrompt).not.toContain('SALES SCRIPT GUIDANCE');
+  });
+});
+
+describe('sales script stage directive & SSE filtering', () => {
+  test('parseStageDirective extracts valid nodeId, sanitizes extracted strings, and handles malformed JSON safely', () => {
+    const valid = new Set(['start', 'qualify', 'demo']);
+
+    const ok = parseStageDirective(
+      'Отлично, расскажите о команде.\n[[STAGE:qualify|{"industry":"Производство [металл]","count":50,"long":"' + 'x'.repeat(250) + '"}]]',
+      valid,
+    );
+    expect(ok.cleanText).toBe('Отлично, расскажите о команде.');
+    expect(ok.nextNodeId).toBe('qualify');
+    expect(ok.extracted.industry).toBe('Производство [металл]');
+    expect(ok.extracted.count).toBeUndefined();
+    expect(ok.extracted.long).toBe('x'.repeat(200));
+
+    const badNodeAndJson = parseStageDirective('Ответ.\n[[STAGE:unknown_node|{not valid json]]', valid);
+    expect(badNodeAndJson.cleanText).toBe('Ответ.');
+    expect(badNodeAndJson.nextNodeId).toBeNull();
+    expect(badNodeAndJson.extracted).toEqual({});
+
+    const truncated = parseStageDirective('Часть ответа\n[[STAGE:demo|{"a":"b', valid);
+    expect(truncated.cleanText).toBe('Часть ответа');
+    expect(truncated.nextNodeId).toBeNull();
+    expect(truncated.extracted).toEqual({});
+  });
+
+  test('SSE stream hides [[STAGE:...]] split across chunks while passing full raw reply to onComplete', async () => {
+    const enc = new TextEncoder();
+    const chunks = [
+      'data: {"choices":[{"delta":{"content":"Привет [1]! "}}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"Расскажите ["}}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"[STAGE:qualify|"}}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"{\\"industry\\":\\"Стройка\\"}]]"}}]}\n\ndata: [DONE]\n\n',
+    ];
+    const upstream = new ReadableStream<Uint8Array>({
+      start(ctrl) {
+        for (const c of chunks) ctrl.enqueue(enc.encode(c));
+        ctrl.close();
+      },
+    });
+    const mockFetch: LandingFetch = async () =>
+      new Response(upstream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+
+    let completedRaw = '';
+    const stream = await callLandingLlm(
+      baseAiCfg,
+      'ru',
+      [{ role: 'user', content: 'Привет' }],
+      true,
+      mockFetch,
+      raw => {
+        completedRaw = raw;
+      },
+    );
+    const sseText = await readStreamText(stream);
+    expect(sseText).not.toContain('STAGE');
+    expect(sseText).not.toContain('qualify');
+    expect(sseText).toContain('Привет [1]! ');
+    expect(sseText).toContain('Расскажите ');
+    expect(sseText).toContain('data: [DONE]\n\n');
+    expect(completedRaw).toBe('Привет [1]! Расскажите [[STAGE:qualify|{"industry":"Стройка"}]]');
+  });
+
+  test('non-streaming callLandingLlm strips [[STAGE:...]] from returned reply when script is enabled', async () => {
+    const script: SalesScriptGraph = {
+      enabled: true,
+      nodes: [{ id: 's1', kind: 'start', title: 'Start', promptHint: 'Ask', collectFields: [], x: 0, y: 0 }],
+      edges: [],
+    };
+    const mockFetch: LandingFetch = async () =>
+      new Response(
+        JSON.stringify({ choices: [{ message: { content: 'Мы поможем с этим.\n[[STAGE:s1|{"need":"CRM"}]]' } }] }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+
+    let completedRaw = '';
+    const res = await callLandingLlm(
+      baseAiCfg,
+      'ru',
+      [{ role: 'user', content: 'Нужна CRM' }],
+      false,
+      mockFetch,
+      raw => {
+        completedRaw = raw;
+      },
+      undefined,
+      { script, currentNodeId: null, collectedData: {} },
+    );
+    expect(res).toEqual({ reply: 'Мы поможем с этим.' });
+    expect(completedRaw).toBe('Мы поможем с этим.\n[[STAGE:s1|{"need":"CRM"}]]');
   });
 });
