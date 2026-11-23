@@ -1,0 +1,314 @@
+/* Визуальная оргсхема подразделений: верхний уровень горизонтально, вложенные вертикально с плавным раскрытием */
+.oc-wrap {
+  width: 100%;
+  overflow-x: auto;
+  padding: 16px 12px 22px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-2, #fafafa);
+}
+
+.oc-roots {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 20px;
+  width: max-content;
+  min-width: 100%;
+  margin: 0 auto;
+}
+
+.oc-root-branch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Карточка отдела */
+.oc-card {
+  position: relative;
+  width: 232px;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 3px 10px rgba(15, 23, 42, .03);
+  text-align: left;
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.oc-card.is-clickable {
+  cursor: pointer;
+}
+
+.oc-card.is-clickable:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, .06), 0 8px 20px rgba(59, 130, 246, .08);
+}
+
+.oc-card.is-open {
+  border-color: #7fb8ff;
+}
+
+.oc-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.oc-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(15, 23, 42, .06);
+}
+
+.oc-meta {
+  min-width: 0;
+  flex: 1;
+}
+
+.oc-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oc-head-name {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oc-foot {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 20px;
+}
+
+.oc-foot-left {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.oc-members {
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.oc-actions {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  margin-left: -4px;
+}
+
+.oc-act-btn {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+
+.oc-act-btn:hover {
+  background: var(--bg-2);
+  color: var(--text);
+}
+
+.oc-expand-pill {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.oc-chev {
+  transition: transform .22s cubic-bezier(.22, 1, .36, 1);
+}
+
+.oc-card.is-open .oc-chev {
+  transform: rotate(180deg);
+}
+
+/* Полая синяя точка-якорь на нижней границе родителя */
+.oc-dot {
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid #7fb8ff;
+  background: var(--bg);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.oc-dot-left {
+  left: 18px;
+  transform: none;
+}
+
+/* Плавное раскрытие/сворачивание (CSS grid 0fr -> 1fr) */
+.oc-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows .26s cubic-bezier(.22, 1, .36, 1), opacity .22s ease;
+}
+
+.oc-collapse.is-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.oc-collapse-inner {
+  overflow: hidden;
+}
+
+/* Горизонтальный уровень (дети корня) */
+.oc-h-stem {
+  width: 1.5px;
+  height: 14px;
+  background: #7fb8ff;
+  margin: 0 auto;
+}
+
+.oc-h-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.oc-h-col {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 14px 8px 0;
+}
+
+/* Соединительная горизонтальная шина с плавными углами */
+.oc-h-col::before,
+.oc-h-col::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  height: 14px;
+  pointer-events: none;
+}
+
+/* Левая половина линии */
+.oc-h-col::before {
+  left: 0;
+  width: 50%;
+  border-top: 1.5px solid #7fb8ff;
+}
+
+/* Правая половина линии + вертикальный отвод вниз */
+.oc-h-col::after {
+  left: 50%;
+  width: 50%;
+  border-top: 1.5px solid #7fb8ff;
+  border-left: 1.5px solid #7fb8ff;
+}
+
+.oc-h-col:first-child::before {
+  border-top: 0;
+}
+
+.oc-h-col:first-child::after {
+  border-top-left-radius: 8px;
+}
+
+.oc-h-col:last-child::after {
+  border-top: 0;
+  border-left: 0;
+}
+
+.oc-h-col:last-child::before {
+  border-right: 1.5px solid #7fb8ff;
+  border-top-right-radius: 8px;
+}
+
+/* Единственный ребёнок: просто прямая вертикальная линия по центру */
+.oc-h-col:only-child::before {
+  border-top: 0;
+  border-right: 0;
+}
+
+.oc-h-col:only-child::after {
+  border-top: 0;
+  border-left: 1.5px solid #7fb8ff;
+  border-radius: 0;
+}
+
+/* Вертикальные уровни (глубина >= 2): единый ствол без наложения линий */
+.oc-vlist {
+  display: flex;
+  flex-direction: column;
+  padding-left: 30px;
+}
+
+.oc-vitem {
+  position: relative;
+  padding-top: 8px;
+}
+
+/* Верхний участок + скруглённый L-поворот в карточку ребёнка (y: 0..36px) */
+.oc-vitem::after {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 0;
+  width: 12px;
+  height: 36px;
+  box-sizing: border-box;
+  border-left: 1.5px solid #7fb8ff;
+  border-bottom: 1.5px solid #7fb8ff;
+  border-bottom-left-radius: 8px;
+  pointer-events: none;
+}
+
+/* Продолжение ствола строго НИЖЕ начала дуги (y: 28px..bottom), чтобы линии не накладывались и не двоились */
+.oc-vitem:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 28px;
+  bottom: 0;
+  width: 1.5px;
+  background: #7fb8ff;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oc-card, .oc-chev, .oc-collapse { transition: none; }
+}

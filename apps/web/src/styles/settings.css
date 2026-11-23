@@ -26,8 +26,11 @@
   overflow-y: auto;
 }
 .set-in {
-  max-width: 720px;
+  max-width: 960px;
   padding: 32px 40px 80px;
+}
+.set-in.wide {
+  max-width: 100%;
 }
 .set-in h1 {
   font-size: var(--fs-xl);

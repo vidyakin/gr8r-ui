@@ -44,28 +44,32 @@ describe('departmentTree', () => {
 });
 
 describe('DepartmentsView', () => {
-  test('дерево с отступами, руководитель и число сотрудников', () => {
+  test('оргсхема: верхний уровень горизонтально, вложенные вертикально, руководитель и число сотрудников', () => {
     const html = render();
-    const order = ['Руководство', 'Продажи', 'Отдел А', 'Производство'].map(n => html.indexOf(n));
-    expect(order.every(i => i >= 0)).toBe(true);
-    expect([...order].sort((a, b) => a - b)).toEqual(order);
-    expect(html).toContain('data-depth="2"');
-    expect(html).toContain('padding-left:48px');
-    expect(html).toContain('Руководитель: Анна Владелец');
-    expect(html).toContain('Руководитель: Борис Продажин');
+    expect(html).toContain('oc-roots');
+    expect(html).toContain('oc-h-row');
+    expect(html).toContain('oc-vlist');
+    expect(html).toContain('Раскрыть все');
+    expect(html).toContain('Руководство');
+    expect(html).toContain('Продажи');
+    expect(html).toContain('Отдел А');
+    expect(html).toContain('Производство');
+    expect(html).toContain('Анна Владелец');
+    expect(html).toContain('Борис Продажин');
     expect(html).toContain('Без руководителя');
     expect(html).toContain('3 сотрудника');
     expect(html).toContain('1 сотрудник');
     expect(html).toContain('Добавить подразделение');
-    expect(html.match(/Изменить/g)?.length).toBe(4);
+    expect(html.match(/aria-label="Изменить"/g)?.length).toBe(4);
+    expect(html.match(/aria-label="Добавить дочерний отдел"/g)?.length).toBe(4);
   });
 
-  test('обычный участник видит дерево без кнопок правки', () => {
+  test('обычный участник видит оргсхему без кнопок правки', () => {
     const html = render({ isAdmin: false });
     expect(html).toContain('Продажи');
     expect(html).toContain('только администраторы и владелец');
     expect(html).not.toContain('Добавить подразделение');
-    expect(html).not.toContain('Изменить');
+    expect(html).not.toContain('aria-label="Изменить"');
   });
 
   test('пустой справочник — подсказка', () => {
