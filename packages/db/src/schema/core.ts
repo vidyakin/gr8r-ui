@@ -176,3 +176,23 @@ export const aiChatSessions = pgTable(
   },
   t => [index('ai_chat_sessions_ws_updated_idx').on(t.workspaceId, t.updatedAt), index('ai_chat_sessions_ws_ip_idx').on(t.workspaceId, t.ip)],
 );
+
+/** Интерактивные доски (whiteboards): multi-tenant таблица с RLS */
+export const whiteboards = pgTable(
+  'whiteboards',
+  {
+    id: pk(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    entityType: text('entity_type'),
+    entityId: uuid('entity_id'),
+    elements: jsonb('elements').$type<Record<string, unknown>[]>().notNull().default([]),
+    viewport: jsonb('viewport').$type<{ x: number; y: number; zoom: number }>().notNull().default({ x: 0, y: 0, zoom: 1 }),
+    createdBy: uuid('created_by'),
+    createdAt: createdAt(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  t => [index('whiteboards_ws_updated_idx').on(t.workspaceId, t.updatedAt), index('whiteboards_ws_entity_idx').on(t.workspaceId, t.entityType, t.entityId)],
+);

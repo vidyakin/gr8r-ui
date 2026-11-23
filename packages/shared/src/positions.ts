@@ -35,6 +35,7 @@ export const SECTION_OF_API_PATH: ReadonlyMap<string, PositionSection> = new Map
   ['/ai-chats', 'crm'],
   ['/production-plans', 'production'],
   ['/bom-lines', 'production'],
+  ['/whiteboards', 'projects'],
 ]);
 
 /** Тип вида номенклатуры совпадает с видом товара каталога */

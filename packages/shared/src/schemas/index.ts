@@ -43,3 +43,4 @@ export * from './agent-tokens';
 export * from './approvals';
 export * from './email';
 export * from './cases';
+export * from './whiteboards';
