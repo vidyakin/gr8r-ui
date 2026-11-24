@@ -22,7 +22,7 @@ import { objectReportRoutes } from './routes/object-reports';
 import { memberLaborRoutes, objectShiftObjectRoutes, objectShiftRoutes } from './routes/object-shifts';
 import { attachmentRoutes } from './routes/attachments';
 import { Hub, coalesceEvents, eventMessage } from './realtime';
-import { attributeRoutes, categoryRoutes, productRoutes, unitRoutes, variantRoutes } from './routes/catalog';
+import { attributeRoutes, barcodeRoutes, categoryRoutes, productRoutes, unitRoutes, variantRoutes } from './routes/catalog';
 import { bomLineRoutes, itemRoutes, productionRoutes, workCenterRoutes } from './routes/production';
 import { productionOrderRoutes } from './routes/production-orders';
 import { productionPlanRoutes } from './routes/production-plans';
@@ -173,6 +173,7 @@ function buildTenantApi() {
     .route('/units', unitRoutes)
     .route('/product-categories', categoryRoutes)
     .route('/attribute-defs', attributeRoutes)
+    .route('/products', barcodeRoutes)
     .route('/products', productRoutes)
     .route('/products', variantRoutes)
     .route('/products', productPartnerRoutes)

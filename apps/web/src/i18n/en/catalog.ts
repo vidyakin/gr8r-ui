@@ -1,5 +1,6 @@
 /* Каталог: страница, дерево категорий, характеристики, карточка товара, нормы запаса */
 export const catalog = {
+  labels: {"title": "Labels and price tags", "select": "Select", "format": "Format", "priceKind": "Price kind", "generate": "Generate missing barcodes", "copies": "Copies", "print": "Print", "preview": "Print preview", "hint": "Set copies to zero to exclude an item. Printing requires an EAN-13 barcode and a price for every selected item.", "invalid": "Invalid EAN-13"},
   title: 'Catalog',
   summary: { one: '{count} item', other: '{count} items' },
   summaryMatch: { one: '{count} item match', other: '{count} items match' },
