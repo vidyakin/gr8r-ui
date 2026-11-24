@@ -88,14 +88,25 @@ export const esPages1: Pick<Dict['modulePages'], 'ui' | 'tasks' | 'crm' | 'docs'
         screen: 'Informe de canales publicitarios: gasto, ingresos y ROMI',
       },
       {
-        title: 'Consultor de IA en el sitio web',
-        text: 'El widget de chat en la web responde preguntas desde la base de conocimiento y guarda cada conversación en el CRM. Cualquier chat se convierte en lead con un clic.',
+        title: 'Widget de IA embebible y chats multilingües',
+        text: 'Inserta una sola etiqueta <script> en cualquier sitio web de tu empresa. El bot responde con tu base de conocimiento, opera solo en dominios permitidos, emite un aviso sonoro suave y transfiere el chat a un gestor en un clic con traducción contextual automática.',
         list: [
-          'Configuración de tono y saludo inicial por idioma (RU, EN, ES)',
-          'Historial completo guardado con apodos de visitantes, búsqueda y filtros',
-          'Creación de lead en un clic con fuente «Chat IA» vinculada a la transcripción',
+          'Instalación en cualquier web mediante <script> con lista blanca de dominios y base de conocimiento propia',
+          'Aviso sonoro suave de nuevos mensajes, tono y saludo configurables por idioma (RU, EN, ES)',
+          'Botón «Llamar a un gestor» con pase en un clic a los Chats multilingües integrados y traducción automática',
+          'Historial completo en el CRM y creación de lead en un clic vinculado a la conversación',
         ],
-        screen: 'Sección CRM «Chats IA»: lista de conversaciones, historial del chat y ajustes del bot',
+        screen: 'CRM «Chats IA»: widget embebible, chats multilingües con traducción automática y pase a gestor',
+      },
+      {
+        title: 'Control de acceso por puesto y campos ocultos',
+        text: 'Limita la visibilidad de registros según el puesto directamente en la base de datos (PostgreSQL RLS) y oculta campos sensibles para quienes no los necesitan en su trabajo.',
+        list: [
+          'Alcance de registros por puesto: «Todos», «Departamento y subdepartamentos» o «Solo propios»',
+          'Aislamiento aplicado en PostgreSQL RLS tanto en la interfaz como en la API',
+          'Ocultación a nivel de campo: montos y probabilidades de negocios, teléfonos y correos, datos bancarios, totales de documentos y campos personalizados',
+        ],
+        screen: 'Permisos por puesto: alcance de visibilidad de registros y campos sensibles ocultos',
       },
     ],
     chain: [
@@ -109,7 +120,8 @@ export const esPages1: Pick<Dict['modulePages'], 'ui' | 'tasks' | 'crm' | 'docs'
       ['¿Se puede configurar un embudo propio?', 'Sí. Puedes crear varios embudos y definir categoría, probabilidad, días estándar y campos obligatorios por etapa.'],
       ['¿Cómo se calcula el retorno publicitario?', 'ROMI es (ingresos − gasto) / gasto. Los ingresos vienen de entregas contabilizadas con esa fuente y los gastos se cargan manualmente.'],
       ['¿Cómo se vincula una campaña con un lead?', 'Mediante utm_campaign recibido desde el formulario web y asociado a una campaña activa.'],
-      ['¿Cómo funciona el chat de IA del sitio web con el CRM?', 'Todas las conversaciones se guardan en CRM → Chats IA. El tono y el saludo por idioma se configuran en el CRM, y cualquier chat se convierte en un lead con un clic.'],
+      ['¿Cómo funciona el widget de IA embebible con los gestores?', 'Se instala en cualquier web con una etiqueta <script> y lista blanca de dominios para responder desde la base de conocimiento de tu empresa. Con «Llamar a un gestor» la conversación pasa a los Chats multilingües con traducción contextual automática, y cualquier chat se convierte en lead en un clic.'],
+      ['¿Se pueden ocultar montos de negocios y contactos a ciertos roles?', 'Sí. Cada puesto define el alcance de registros («Todos», «Departamento y subdepartamentos» o «Solo propios» mediante PostgreSQL RLS) y los campos ocultos: montos y probabilidades, teléfonos/correos, datos bancarios, totales de documentos y campos personalizados.'],
     ],
   },
   docs: {

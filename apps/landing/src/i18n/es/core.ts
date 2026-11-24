@@ -59,6 +59,7 @@ export const esCore: Pick<Dict, 'alternative' | 'nav' | 'hero' | 'player' | 'mor
       ['Cierre mensual', 'costo de ventas y resultado financiero'],
       ['Proyectos de inversión', 'inversiones y retorno'],
       ['Pizarras interactivas', 'lienzo infinito, notas, plantillas y tarjetas vivas ERP/CRM en el núcleo'],
+      ['REST API y webhooks', 'API pública v1 (OpenAPI 3.0.3), tokens Bearer y webhooks salientes HMAC-SHA256'],
     ],
     platform: 'Los datos de cada empresa están aislados a nivel de base de datos. Interfaz en ruso, inglés y español. Puede desplegarse en tu propio servidor.',
   },

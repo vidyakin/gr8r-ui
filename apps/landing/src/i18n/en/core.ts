@@ -59,6 +59,7 @@ export const enCore: Pick<Dict, 'alternative' | 'nav' | 'hero' | 'player' | 'mor
       ['Month-end close', 'cost of goods and financial results'],
       ['Projects & ROI', 'investments and payback tracking'],
       ['Whiteboards', 'infinite canvas, sticky notes, templates, and live ERP/CRM cards in core'],
+      ['REST API & webhooks', 'public API v1 (OpenAPI 3.0.3), Bearer tokens, and HMAC-SHA256 outgoing webhooks'],
     ],
     platform: 'Each company’s data is isolated at the database level. Interface available in Russian, English, and Spanish. Can be self-hosted on your own server.',
   },

@@ -68,6 +68,17 @@ export const enPages3: Pick<Dict['modulePages'], 'logistics' | 'automations' | '
         list: ['Run statuses: queued, running, waiting, succeeded, failed', 'Per-step input, output, and error details', 'Duplicate event delivery never triggers a second run'],
         screen: 'Workflow run history with per-step trace',
       },
+      {
+        title: 'Public REST API v1 and outgoing webhooks',
+        text: 'Connect FutureERP to storefronts, portals, and external systems via a versioned REST API v1 with OpenAPI docs and reliable outgoing entity webhooks.',
+        list: [
+          'Versioned REST API v1 (/api/v1) with OpenAPI 3.0.3 schema (/api/v1/openapi.json) and public developer docs (/docs/api)',
+          'Bearer token authentication with granular per-entity permissions',
+          'Outgoing entity webhooks signed with HMAC-SHA256',
+          'Background worker delivery with automatic retries, delivery log, and manual retry',
+        ],
+        screen: 'Public REST API v1 (OpenAPI 3.0.3) documentation and webhook delivery log',
+      },
     ],
     chain: [
       ['crm', 'Event: deal created, updated, or moved to another stage.'],
@@ -77,8 +88,9 @@ export const enPages3: Pick<Dict['modulePages'], 'logistics' | 'automations' | '
     faq: [
       ['Do we need a developer to build a rule?', 'No. Rules are built visually on a canvas with auto-generated parameter forms.'],
       ['What if a rule loops infinitely?', 'Loop protection rejects recursive triggers and marks the run as “skipped”.'],
-      ['Can we send data to an external service?', 'Yes, via the “HTTP request” action, with built-in SSRF protection against internal network requests.'],
+      ['Can we send data to an external service?', 'Yes — either via the “HTTP request” workflow action (with SSRF protection) or through HMAC-SHA256 signed outgoing entity webhooks with automatic retries and a delivery log.'],
       ['Can an action be delayed?', 'Yes. The “Delay” node pauses execution for up to 30 days.'],
+      ['Is there a public API for developers?', 'Yes. FutureERP provides a versioned REST API v1 (/api/v1) with an OpenAPI 3.0.3 schema (/api/v1/openapi.json), public docs at /docs/api, and Bearer tokens with granular permissions.'],
     ],
   },
   payroll: {

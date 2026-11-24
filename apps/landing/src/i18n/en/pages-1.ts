@@ -88,14 +88,25 @@ export const enPages1: Pick<Dict['modulePages'], 'ui' | 'tasks' | 'crm' | 'docs'
         screen: 'Ad channel report: spend, revenue, and ROMI',
       },
       {
-        title: 'AI consultant on the website',
-        text: 'The website chat widget answers visitor questions from your knowledge base and logs every conversation in CRM. Any chat can be turned into a lead in one click.',
+        title: 'Embeddable AI chat widget & multilingual chats',
+        text: 'Drop a single <script> tag onto any company website. The bot answers from your knowledge base, runs only on allowed domains, plays a soft chime, and hands off to a manager in one click inside built-in Chats with automatic contextual translation.',
         list: [
-          'Tone and greeting settings configured per language (RU, EN, ES)',
-          'Full saved chat history with visitor nicknames, search, and filtering',
-          'One-click lead creation with the “AI Chat” source linked to the transcript',
+          'Embed on any website via <script> with a domain allowlist and custom company knowledge base',
+          'Soft message chime plus configurable tone and greeting per language (RU, EN, ES)',
+          'One-click “Call manager” handoff into built-in multilingual Chats with automatic contextual translation',
+          'Full chat history in CRM and one-click lead creation linked to the transcript',
         ],
-        screen: 'CRM AI Chats screen: conversation list, chat transcript drawer, and bot settings',
+        screen: 'CRM AI Chats: embeddable widget, multilingual auto-translated chats, and manager handoff',
+      },
+      {
+        title: 'Position-based access control & hidden fields',
+        text: 'Restrict record visibility by position right at the database layer (PostgreSQL RLS) and hide sensitive fields from team members who do not need to see them.',
+        list: [
+          'Record-level scope by position: “All”, “Department + sub-departments”, or “Own only”',
+          'Enforced via PostgreSQL RLS across both the UI and API',
+          'Field-level hiding for deal amounts and probabilities, phones and emails, bank details, document totals, and custom hidden fields',
+        ],
+        screen: 'Position permissions: record visibility scope and hidden sensitive fields',
       },
     ],
     chain: [
@@ -109,7 +120,8 @@ export const enPages1: Pick<Dict['modulePages'], 'ui' | 'tasks' | 'crm' | 'docs'
       ['Can we customize our own pipeline?', 'Yes. You can create multiple pipelines and configure category, probability, SLA days, and required fields per stage. Each pipeline requires won, lost, and open stages.'],
       ['How is ad ROI calculated?', 'ROMI equals (revenue − spend) / spend. Revenue comes from posted shipments tagged with the source; campaign spend is entered manually.'],
       ['How is a campaign linked to a lead?', 'Via utm_campaign passed from the web form and matched to an active campaign. Archived campaigns are not matched.'],
-      ['How does the website AI chat work with CRM?', 'Every visitor conversation is saved automatically in CRM → AI Chats. Tone and greeting are configured per language right in CRM, and any chat converts into a lead in one click.'],
+      ['How does the embeddable AI widget work with managers?', 'Embed it on any website with a <script> tag and domain allowlist so it answers from your company knowledge base. Clicking “Call manager” hands the chat over to built-in multilingual Chats with automatic contextual translation, and any chat converts into a lead in one click.'],
+      ['Can we hide deal amounts and client contacts from certain roles?', 'Yes. Each position has a record visibility scope (“All”, “Department + sub-departments”, or “Own only”, enforced by PostgreSQL RLS) and a list of hidden fields: deal amounts/probabilities, phones/emails, bank details, document totals, and custom fields.'],
     ],
   },
   docs: {
