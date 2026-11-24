@@ -1,9 +1,9 @@
 import { and, eq, exists, inArray, max, not, type SQL } from 'drizzle-orm';
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
-import { activity, favorites, members, notifications, resolveAttribution, tasks, users, type AttributionState } from '@erp/db';
+import { activity, favorites, memberRecordScope, members, notifications, resolveAttribution, tasks, users, type AttributionState } from '@erp/db';
 import { notifyEnabled } from '@erp/shared';
 import type { Ctx } from '../crud';
-import { AppError } from '../errors';
+import { AppError, forbidden } from '../errors';
 
 /** Запись в ленту активности (в той же транзакции, что и изменение) */
 export async function addActivity(ctx: Ctx, a: { verb: string; taskId?: string | null; projectId?: string | null; extra?: string }) {
@@ -87,4 +87,15 @@ export function favoriteFilter(ctx: Ctx, entity: FavEntity, idCol: PgColumn, wan
   if (want === undefined) return undefined;
   const sub = ctx.db.select({ one: favorites.recordId }).from(favorites).where(and(eq(favorites.memberId, ctx.memberId), eq(favorites.entity, entity), eq(favorites.recordId, idCol)));
   return want ? exists(sub) : not(exists(sub));
+}
+
+/** Запрет переназначения ответственного на другого участника при области видимости записей `own` */
+export async function assertOwnerAssignment(ctx: Ctx, nextOwnerId: string | null | undefined, prevOwnerId?: string | null): Promise<void> {
+  if (nextOwnerId === undefined) return;
+  if (nextOwnerId === null || nextOwnerId === ctx.memberId) return;
+  if (prevOwnerId !== undefined && nextOwnerId === prevOwnerId) return;
+  const scope = await memberRecordScope(ctx.db, ctx.memberId, ctx.role);
+  if (scope === 'own') {
+    throw forbidden('You cannot assign records to another member with your current access scope');
+  }
 }

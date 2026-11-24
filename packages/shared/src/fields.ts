@@ -37,6 +37,7 @@ export interface FieldChoice {
 }
 
 export interface FieldOptions {
+  hidden?: boolean;
   /** select / multi_select */
   choices?: FieldChoice[];
   /** ref / refs: ключ сущности, на записи которой ссылается поле (системная или пользовательская) */

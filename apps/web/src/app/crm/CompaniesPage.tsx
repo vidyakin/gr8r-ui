@@ -1,3 +1,4 @@
+import { useHiddenFields } from '../positions/data';
 /* Companies — таблица компаний (DataTable): отрасль, размер, владелец, открытые сделки, сумма в воронке, последняя активность */
 import * as React from 'react';
 import { useNavigate } from 'react-router';
@@ -33,9 +34,10 @@ export function CompaniesPage({ role }: { role?: 'supplier' } = {}) {
   const navigate = useNavigate();
   const ownerName = useOwnerName();
   const t = useT();
+  const showAmount = !useHiddenFields().includes('deal.amount');
   const filters = useFilterState();
   const [group, setGroup] = React.useState<GroupId>('none');
-  const columns = React.useMemo(() => companyColumns(t), [t]);
+  const columns = React.useMemo(() => companyColumns(t).filter(c => showAmount || c.id !== 'pipeline'), [t, showAmount]);
   const table = useDataTable(columns);
 
   const all = React.useMemo(() => companyRows(data, ownerName), [data, ownerName]);
@@ -74,7 +76,7 @@ export function CompaniesPage({ role }: { role?: 'supplier' } = {}) {
       <div className="ph">
         <div>
           <h1>{role ? t('crm.companies.suppliersTitle') : t('crm.companies.title')}</h1>
-          <p>{role ? t('crm.companies.suppliersSummary', { count: rows.length }) : t('crm.companies.summary', { count: all.length, amount: money(pipelineAll) })}</p>
+          <p>{role || !showAmount ? t('crm.companies.suppliersSummary', { count: rows.length }) : t('crm.companies.summary', { count: all.length, amount: money(pipelineAll) })}</p>
         </div>
         <div className="acts">
           <Button variant="primary" onClick={() => ui.newCompany(role ? { supplier: true } : undefined)}>

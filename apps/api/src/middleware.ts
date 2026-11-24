@@ -116,7 +116,11 @@ export const requireSession = createMiddleware<AppEnv>(async (c, next) => {
     c.set('sessionId', id);
   }
   if (c.get('apiToken')) {
-    const allowed = (c.req.method === 'GET' && c.req.path === '/auth/me') || c.req.path === '/mcp' || (moduleOfApiPath(c.req.path) !== null && tokenApiRoot(c.req.path) !== '/api-tokens');
+    const allowed =
+      (c.req.method === 'GET' && c.req.path === '/auth/me') ||
+      c.req.path === '/mcp' ||
+      c.req.path.startsWith('/v1/') ||
+      (moduleOfApiPath(c.req.path) !== null && tokenApiRoot(c.req.path) !== '/api-tokens');
     if (!allowed) throw new AppError(403, 'token_forbidden', 'The access token cannot use this endpoint');
   }
   await next();
@@ -145,12 +149,17 @@ function closableTx(tx: Tx, isOpen: () => boolean): Tx {
  * Дедлайн config.txTimeoutMs: если обработчик ждёт дольше (недоступная зависимость, очередь пула), транзакция
  * откатывается, соединение возвращается в пул, клиент получает 503 — пул не исчерпывается зависшими запросами.
  */
-export const tenant = (source: 'header' | 'param' = 'header') =>
+export const tenant = (source: 'header' | 'param' | 'token' = 'header') =>
   createMiddleware<AppEnv>(async (c, next) => {
     // Транзакция арендатора уже открыта этим запросом: вложенная ждала бы второе соединение, держа первое, —
     // при пачке параллельных запросов пул исчерпывается и всё стоит до дедлайна
     if (c.get('tx')) return next();
-    const raw = source === 'param' ? c.req.param('id') : c.req.header('x-workspace-id');
+    const raw =
+      source === 'param'
+        ? c.req.param('id')
+        : source === 'token'
+          ? (c.req.header('x-workspace-id') || c.get('apiToken')?.workspaceId)
+          : c.req.header('x-workspace-id');
     if (!raw) throw new AppError(400, 'workspace_required', 'X-Workspace-Id header is required');
     if (!isUuid(raw)) throw new AppError(400, 'workspace_invalid', 'Workspace id is not a valid UUID');
     const wsId = raw.toLowerCase();

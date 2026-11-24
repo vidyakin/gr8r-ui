@@ -4,6 +4,9 @@ import { desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { aiChatSessions, companies, contacts, crmActivities, leads, loadCase, markFirstResponse, dealContacts, dealStageHistory, deals, loadStage, planStageChange, recalcSettlementMode, recordStageChange } from '@erp/db';
 import {
+  assertNoHiddenFieldWrite,
+  maskFields,
+  maskRows,
   companyCreate,
   companyQuery,
   companyUpdate,
@@ -27,7 +30,8 @@ import { hasRole, requireRole } from '../middleware';
 import { analyzeWebsiteWithAi, draftOutreachWithAi } from '../crm/website-ai';
 import { scrapeWebsite } from '../crm/website-scraper';
 import { customForCreate, customForUpdate } from '../meta/service';
-import { attributionPatch } from './helpers';
+import { hiddenFieldsOf, requireVisibleFields } from '../field-access';
+import { assertOwnerAssignment, attributionPatch } from './helpers';
 import { assertRequisites } from './documents';
 
 export const companyRoutes = crud({
@@ -38,7 +42,11 @@ export const companyRoutes = crud({
   query: companyQuery,
   sortable: { name: companies.name, industry: companies.industry, city: companies.city, createdAt: companies.createdAt },
   defaultSort: 'name',
-  search: [companies.name, companies.industry, companies.city, companies.website, companies.inn],
+  search: async ctx => {
+    const hidden = await hiddenFieldsOf(ctx);
+    return [companies.name, companies.industry, companies.city, companies.website, ...(!hidden.includes('company.requisites') ? [companies.inn] : [])];
+  },
+  decorate: async (ctx, rows) => maskRows('company', rows, await hiddenFieldsOf(ctx)),
   filters: q => [
     q.ownerId ? eq(companies.ownerId, q.ownerId) : undefined,
     q.industry ? eq(companies.industry, q.industry) : undefined,
@@ -47,10 +55,14 @@ export const companyRoutes = crud({
     q.role === 'supplier' ? eq(companies.isSupplier, true) : q.role === 'customer' ? eq(companies.isCustomer, true) : undefined,
   ],
   prepareCreate: async (ctx, body) => {
+    requireVisibleFields(assertNoHiddenFieldWrite('company', await ctx.c.req.json(), await hiddenFieldsOf(ctx)));
+    await assertOwnerAssignment(ctx, body.ownerId);
     assertRequisites(body);
     return { ownerId: body.ownerId ?? ctx.memberId, ...pickAttr(await attributionPatch(ctx, body)), ...(await customForCreate(ctx, 'company', body.custom)) };
   },
   prepareUpdate: async (ctx, existing, body) => {
+    requireVisibleFields(assertNoHiddenFieldWrite('company', await ctx.c.req.json(), await hiddenFieldsOf(ctx)));
+    await assertOwnerAssignment(ctx, body.ownerId, existing.ownerId);
     // реквизиты проверяются по итоговому состоянию: тип, ИНН, КПП и ОГРН зависят друг от друга
     assertRequisites({ kind: body.kind ?? existing.kind, inn: body.inn ?? existing.inn, kpp: body.kpp ?? existing.kpp, ogrn: body.ogrn ?? existing.ogrn });
     return { ...(await customForUpdate(ctx, 'company', existing.custom, body.custom, existing.id)), ...pickAttr(await attributionPatch(ctx, body, existing)) };
@@ -69,10 +81,22 @@ export const contactRoutes = crud({
   query: contactQuery,
   sortable: { name: contacts.name, createdAt: contacts.createdAt, title: contacts.title },
   defaultSort: 'name',
-  search: [contacts.name, contacts.email, contacts.phone, contacts.title],
+  search: async ctx => {
+    const hidden = await hiddenFieldsOf(ctx);
+    return [contacts.name, contacts.title, ...(!hidden.includes('contact.email') ? [contacts.email] : []), ...(!hidden.includes('contact.phone') ? [contacts.phone] : [])];
+  },
+  decorate: async (ctx, rows) => maskRows('contact', rows, await hiddenFieldsOf(ctx)),
   filters: q => [q.companyId ? eq(contacts.companyId, q.companyId) : undefined, q.ownerId ? eq(contacts.ownerId, q.ownerId) : undefined],
-  prepareCreate: async (ctx, body) => ({ ownerId: body.ownerId ?? ctx.memberId, ...(await customForCreate(ctx, 'contact', body.custom)) }),
-  prepareUpdate: (ctx, existing, body) => customForUpdate(ctx, 'contact', existing.custom, body.custom, existing.id),
+  prepareCreate: async (ctx, body) => {
+    requireVisibleFields(assertNoHiddenFieldWrite('contact', await ctx.c.req.json(), await hiddenFieldsOf(ctx)));
+    await assertOwnerAssignment(ctx, body.ownerId);
+    return { ownerId: body.ownerId ?? ctx.memberId, ...(await customForCreate(ctx, 'contact', body.custom)) };
+  },
+  prepareUpdate: async (ctx, existing, body) => {
+    requireVisibleFields(assertNoHiddenFieldWrite('contact', await ctx.c.req.json(), await hiddenFieldsOf(ctx)));
+    await assertOwnerAssignment(ctx, body.ownerId, existing.ownerId);
+    return customForUpdate(ctx, 'contact', existing.custom, body.custom, existing.id);
+  },
 });
 
 /** Только колонки атрибуции: у контрагента и сделки нет кэша названия источника */
@@ -109,6 +133,7 @@ const dealBase = crud({
   sortable: { name: deals.name, amount: deals.amount, closeDate: deals.closeDate, sortOrder: deals.sortOrder, stageEnteredAt: deals.stageEnteredAt, createdAt: deals.createdAt, updatedAt: deals.updatedAt },
   defaultSort: 'sortOrder',
   search: [deals.name],
+  hiddenSortKeys: async ctx => (await hiddenFieldsOf(ctx)).includes('deal.amount') ? ['amount'] : [],
   filters: q => [
     q.pipelineId ? eq(deals.pipelineId, q.pipelineId) : undefined,
     q.stageId ? eq(deals.stageId, q.stageId) : undefined,
@@ -121,6 +146,8 @@ const dealBase = crud({
     q.campaignId ? eq(deals.campaignId, q.campaignId) : undefined,
   ],
   prepareCreate: async (ctx, body) => {
+    requireVisibleFields(assertNoHiddenFieldWrite('deal', await ctx.c.req.json(), await hiddenFieldsOf(ctx)));
+    await assertOwnerAssignment(ctx, body.ownerId);
     const attr = await dealAttribution(ctx, body);
     const custom = await customForCreate(ctx, 'deal', body.custom);
     // воронка и этап: проверка принадлежности, обязательные поля, причина проигрыша (задача 1176)
@@ -138,6 +165,8 @@ const dealBase = crud({
     await recordStageChange(ctx.db, { workspaceId: ctx.workspaceId, memberId: ctx.memberId }, row, { to: await loadStage(ctx.db, row.stageId), from: null });
   },
   prepareUpdate: async (ctx, existing, body) => {
+    requireVisibleFields(assertNoHiddenFieldWrite('deal', await ctx.c.req.json(), await hiddenFieldsOf(ctx)));
+    await assertOwnerAssignment(ctx, body.ownerId, existing.ownerId);
     const custom = await customForUpdate(ctx, 'deal', existing.custom, body.custom, existing.id);
     const attr = pickAttr(await attributionPatch(ctx, body, existing));
     const contactIds = body.contactIds ?? (await ctx.db.select({ id: dealContacts.contactId }).from(dealContacts).where(eq(dealContacts.dealId, existing.id))).map(r => r.id);
@@ -168,7 +197,7 @@ const dealBase = crud({
   decorate: async (ctx, rows) => {
     if (!rows.length) return [];
     const dc = await ctx.db.select({ dealId: dealContacts.dealId, contactId: dealContacts.contactId }).from(dealContacts).where(inArray(dealContacts.dealId, rows.map(r => r.id)));
-    return rows.map(r => ({ ...r, contactIds: dc.filter(x => x.dealId === r.id).map(x => x.contactId) }));
+    return maskRows('deal', rows.map(r => ({ ...r, contactIds: dc.filter(x => x.dealId === r.id).map(x => x.contactId) })), await hiddenFieldsOf(ctx));
   },
 });
 
@@ -277,7 +306,7 @@ export const crmAiRoutes = new Hono<AppEnv>()
       channel: body.channel,
       tone: body.tone,
       company: company ?? null,
-      lead: lead ?? null,
+      lead: lead ? maskFields('lead', lead, await hiddenFieldsOf(ctx)) : null,
       chatMessages,
       websiteSummary: body.websiteSummary,
       customContext: body.customContext,

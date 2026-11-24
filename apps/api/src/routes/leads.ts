@@ -2,8 +2,11 @@
 import { zValidator } from '@hono/zod-validator';
 import { and, count, eq, ne } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { assignLead, convertLead, findDuplicates, formToken, leadForms, leadStatuses, leads, loadLead, mergeLeads, newFormSecret, statusOfCategory } from '@erp/db';
+import { assignLead, convertLead, findDuplicates, formToken, leadForms, leadStatuses, leads, loadLead, memberRecordScope, mergeLeads, newFormSecret, statusOfCategory } from '@erp/db';
 import {
+  assertNoHiddenFieldWrite,
+  maskFields,
+  maskRows,
   idParam,
   leadAssign,
   leadConvert,
@@ -23,10 +26,11 @@ import {
   normalizePhone,
 } from '@erp/shared';
 import { crud, ctxOf, validationHook } from '../crud';
-import { AppError } from '../errors';
+import { AppError, forbidden } from '../errors';
 import { hasRole, requireRole } from '../middleware';
 import { customForCreate, customForUpdate } from '../meta/service';
-import { attributionPatch } from './helpers';
+import { hiddenFieldsOf, requireVisibleFields } from '../field-access';
+import { assertOwnerAssignment, attributionPatch } from './helpers';
 import type { AppEnv } from '../types';
 
 const writeLead = requireRole('member');
@@ -45,7 +49,11 @@ const base = crud({
   query: leadQuery,
   sortable: { name: leads.name, createdAt: leads.createdAt, updatedAt: leads.updatedAt, source: leads.source },
   defaultSort: '-createdAt',
-  search: [leads.name, leads.companyName, leads.phone, leads.email, leads.comment],
+  search: async ctx => {
+    const hidden = await hiddenFieldsOf(ctx);
+    return [leads.name, leads.companyName, leads.comment, ...(!hidden.includes('lead.phone') ? [leads.phone] : []), ...(!hidden.includes('lead.email') ? [leads.email] : [])];
+  },
+  decorate: async (ctx, rows) => maskRows('lead', rows, await hiddenFieldsOf(ctx)),
   filters: q => [
     q.statusId ? eq(leads.statusId, q.statusId) : undefined,
     q.ownerId ? eq(leads.ownerId, q.ownerId) : undefined,
@@ -54,6 +62,8 @@ const base = crud({
     q.campaignId ? eq(leads.campaignId, q.campaignId) : undefined,
   ],
   prepareCreate: async (ctx, body) => {
+    requireVisibleFields(assertNoHiddenFieldWrite('lead', await ctx.c.req.json(), await hiddenFieldsOf(ctx)));
+    await assertOwnerAssignment(ctx, body.ownerId);
     const status = body.statusId ? await statusById(ctx, body.statusId) : await statusOfCategory(ctx.db, 'new');
     if (status.category === 'converted') throw new AppError(422, 'lead_use_convert', 'Use conversion to move a lead to a converted status');
     return {
@@ -67,6 +77,8 @@ const base = crud({
     };
   },
   prepareUpdate: async (ctx, existing, body) => {
+    requireVisibleFields(assertNoHiddenFieldWrite('lead', await ctx.c.req.json(), await hiddenFieldsOf(ctx)));
+    await assertOwnerAssignment(ctx, body.ownerId, existing.ownerId);
     const patch: Record<string, unknown> = { ...(await customForUpdate(ctx, 'lead', existing.custom, body.custom, existing.id)), ...(await attributionPatch(ctx, body, existing)) };
     if (body.phone !== undefined) patch.phoneNorm = normalizePhone(body.phone);
     if (body.email !== undefined) patch.emailNorm = normalizeEmail(body.email);
@@ -80,35 +92,53 @@ const base = crud({
   },
 });
 
+async function visibleDuplicates(ctx: ReturnType<typeof ctxOf>, q: Parameters<typeof findDuplicates>[1]) {
+  const hidden = await hiddenFieldsOf(ctx);
+  const items = await findDuplicates(ctx.db, q, hidden);
+  return items.map(item => maskFields(item.kind, item, hidden));
+}
+
 /** Дополнительные маршруты идут ДО crud: иначе `/duplicates` перехватит `GET /:id` */
 export const leadRoutes = new Hono<AppEnv>()
   // ---- поиск дублей (форма нового лида) ----
   .get('/duplicates', zValidator('query', leadDuplicatesQuery, validationHook), async c => {
     const ctx = ctxOf(c);
     const q = c.req.valid('query');
-    return c.json({ items: await findDuplicates(ctx.db, q) });
+    return c.json({ items: await visibleDuplicates(ctx, q) });
   })
   // ---- дубли существующего лида (карточка) ----
   .get('/:id/duplicates', zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
     const lead = await loadLead(ctx.db, c.req.valid('param').id);
-    return c.json({ items: await findDuplicates(ctx.db, { phone: lead.phone, email: lead.email, companyName: lead.companyName, excludeLeadId: lead.id }) });
+    const hidden = await hiddenFieldsOf(ctx);
+    const visible = maskFields('lead', lead, hidden);
+    return c.json({ items: await visibleDuplicates(ctx, { phone: visible.phone, email: visible.email, companyName: lead.companyName, excludeLeadId: lead.id }) });
   })
   // ---- конвертация ----
   .post('/:id/convert', writeLead, zValidator('param', idParam, validationHook), zValidator('json', leadConvert, validationHook), async c => {
     const ctx = ctxOf(c);
     const body = c.req.valid('json');
-    return c.json(await convertLead(ctx.db, { workspaceId: ctx.workspaceId, memberId: ctx.memberId }, c.req.valid('param').id, { company: body.company, contact: body.contact, deal: body.deal ?? null }));
+    const hidden = await hiddenFieldsOf(ctx);
+    requireVisibleFields(assertNoHiddenFieldWrite('deal', body.deal, hidden));
+    const result = await convertLead(ctx.db, { workspaceId: ctx.workspaceId, memberId: ctx.memberId }, c.req.valid('param').id, { company: body.company, contact: body.contact, deal: body.deal ?? null }, hidden);
+    return c.json({ ...result, lead: maskFields('lead', result.lead, hidden) });
   })
   // ---- объединение: этот лид вливается в intoId ----
   .post('/:id/merge', writeLead, zValidator('param', idParam, validationHook), zValidator('json', leadMerge, validationHook), async c => {
     const ctx = ctxOf(c);
-    return c.json(await mergeLeads(ctx.db, { workspaceId: ctx.workspaceId, memberId: ctx.memberId }, c.req.valid('param').id, c.req.valid('json').intoId));
+    const hidden = await hiddenFieldsOf(ctx);
+    const row = await mergeLeads(ctx.db, { workspaceId: ctx.workspaceId, memberId: ctx.memberId }, c.req.valid('param').id, c.req.valid('json').intoId, hidden);
+    return c.json(maskFields('lead', row, hidden));
   })
   // ---- назначение ответственного ----
   .post('/:id/assign', writeLead, zValidator('param', idParam, validationHook), zValidator('json', leadAssign, validationHook), async c => {
     const ctx = ctxOf(c);
     const b = c.req.valid('json');
+    if (b.mode === 'manual') {
+      await assertOwnerAssignment(ctx, b.memberId);
+    } else if ((await memberRecordScope(ctx.db, ctx.memberId, ctx.role)) === 'own') {
+      throw forbidden('You cannot assign records to another member with your current access scope');
+    }
     return c.json(await assignLead(ctx.db, { workspaceId: ctx.workspaceId, memberId: ctx.memberId }, c.req.valid('param').id, b.mode, b.memberId));
   })
   .route('/', base);

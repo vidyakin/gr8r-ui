@@ -169,6 +169,7 @@ export const SECTIONS = {
   serials: { path: '/serials', name: 'Serial numbers', icon: ScanBarcode },
   batches: { path: '/batches', name: 'Batches', icon: Package },
   stockAging: { path: '/stock/aging', name: 'Stock aging', icon: Hourglass },
+  salesProfit: { path: '/sales/profit', name: 'Sales P&L & ABC', icon: TrendingUp },
   repairItems: { path: '/repair-items', name: 'Items in repair', icon: Wrench },
   deliveries: { path: '/deliveries', name: 'Deliveries', icon: Truck },
   myDeliveries: { path: '/deliveries/mine', name: 'My deliveries', icon: PackageCheck },
@@ -272,7 +273,7 @@ export const NAV_GROUPS = {
   trade: {
     icon: Store,
     // расчёт потребностей открывается из закупок и склада — тот же экран, что и в производстве
-    items: [{ id: 'sales' }, { id: 'purchases' }, { id: 'supplierRatings' }, { id: 'stockDocs' }, { id: 'processingDocs' }, { id: 'inventory' }, { id: 'inUse' }, { id: 'serials' }, { id: 'batches' }, { id: 'stockAging' }, { id: 'productionNeeds', label: 'nav.stockNeeds' }, { id: 'priceList' }, { id: 'priceSettings' }, { id: 'priceKinds' }, { id: 'discountRules' }, { id: 'promoCodes' }, { id: 'loyaltyCards' }, { id: 'loyaltyProgram' }],
+    items: [{ id: 'sales' }, { id: 'salesProfit' }, { id: 'purchases' }, { id: 'supplierRatings' }, { id: 'stockDocs' }, { id: 'processingDocs' }, { id: 'inventory' }, { id: 'inUse' }, { id: 'serials' }, { id: 'batches' }, { id: 'stockAging' }, { id: 'productionNeeds', label: 'nav.stockNeeds' }, { id: 'priceList' }, { id: 'priceSettings' }, { id: 'priceKinds' }, { id: 'discountRules' }, { id: 'promoCodes' }, { id: 'loyaltyCards' }, { id: 'loyaltyProgram' }],
   },
   services: {
     icon: BriefcaseBusiness,
@@ -363,6 +364,7 @@ const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
   defectReasons: 'production',
   automations: 'automations',
   sales: 'trade',
+  salesProfit: 'trade',
   purchases: 'trade',
   supplierRatings: 'trade',
   processingDocs: 'trade',

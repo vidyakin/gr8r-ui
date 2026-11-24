@@ -102,6 +102,28 @@ export const esPages2: Pick<Dict['modulePages'], 'services' | 'production' | 'sa
         list: ['Rubro de flujo de caja en cada línea de pago', 'Importación de extractos bancarios desde archivo', 'Indicador de estado de cobro en los listados', 'Saldo negativo en caja avisa sin bloquear el registro'],
         screen: 'Registro de pagos: ingresos, egresos y saldos de caja y banco',
       },
+      {
+        title: 'Informe P&L de ventas y análisis ABC',
+        text: 'Controla el beneficio bruto y el margen sin hojas de cálculo. El costo se fija al contabilizar la entrega para que los períodos cerrados no cambien, y el análisis ABC destaca los productos clave por ingresos y beneficio.',
+        list: [
+          'Informe P&L con 6 agrupaciones: producto, categoría, cliente, gestor, organización y almacén',
+          'Costo fijado al contabilizar la entrega para obtener beneficio bruto y margen exactos',
+          'Análisis ABC del surtido por ingresos y beneficio con umbrales configurables (80/15/5% por defecto)',
+          'Exportación en un clic de los informes P&L y ABC a XLSX',
+        ],
+        screen: 'Informe P&L de ventas y análisis ABC del surtido con exportación a XLSX',
+      },
+      {
+        title: 'Códigos de barras EAN-13, etiquetas y precios',
+        text: 'Genera códigos de barras internos EAN-13 de forma individual o masiva e imprime etiquetas y carteles de precio directamente desde el catálogo o las recepciones con vista previa en PDF.',
+        list: [
+          'Generación individual y masiva de códigos internos EAN-13 con dígito de control',
+          'Etiquetas imprimibles de 58×40 y 43×25 mm para impresoras térmicas',
+          'Carteles de precio en formato A6 y cuadrícula A4 con vista previa en vivo y exportación PDF',
+          'Impresión directa desde el catálogo de productos o desde recepciones contabilizadas',
+        ],
+        screen: 'Vista previa de etiquetas 58×40 mm y carteles de precio A6/A4 con códigos EAN-13',
+      },
     ],
     chain: [
       ['docs', 'Presupuesto, pedido y factura creados en cadena.'],
@@ -114,6 +136,8 @@ export const esPages2: Pick<Dict['modulePages'], 'services' | 'production' | 'sa
       ['¿Qué ocurre si falta stock?', 'La contabilización verifica el stock físico. Las reservas de otros pedidos no bloquean el envío.'],
       ['¿Qué pasa si falta efectivo en caja?', 'El sistema muestra una advertencia de saldo negativo, pero permite contabilizar.'],
       ['¿Cómo se registra una devolución?', 'La devolución de cliente se crea desde la entrega; la de proveedor, desde la recepción.'],
+      ['¿Cómo se calculan el P&L y el análisis ABC?', 'El costo queda fijado al contabilizar la entrega. El P&L muestra beneficio bruto y margen en 6 agrupaciones (producto, categoría, cliente, gestor, organización y almacén), y el análisis ABC clasifica el surtido por ingresos y beneficio con umbrales configurables 80/15/5 y exportación a XLSX.'],
+      ['¿Qué formatos de etiquetas y carteles de precio están disponibles?', 'Puedes generar códigos EAN-13 individuales o masivos y exportar PDF con vista previa para etiquetas de 58×40 y 43×25 mm y carteles de precio A6 o cuadrícula A4 desde el catálogo o las recepciones.'],
     ],
   },
 };

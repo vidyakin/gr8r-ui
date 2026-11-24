@@ -1,6 +1,7 @@
 /* Хранилище CRM — reducer + context, по образцу app/data/store.tsx.
    Данные меняются только через dispatch(action); владельцы — id участников основного воркспейса.
    Данные живут на сервере (кэш TanStack Query, коллекции companies / contacts / deals / crmActivities); dispatch — оптимистичные мутации. */
+import { maskFields } from '@erp/shared';
 import * as React from 'react';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { engineFor, type Domain } from '../data/engine';
@@ -13,7 +14,7 @@ import { stageDefs, usePipelines, type PipelinesData } from './pipelines';
 import type { ActivityType, Company, Contact, CrmActivity, CrmData, Deal, StageId } from './types';
 
 export type DealPatch = Partial<Pick<Deal, 'name' | 'amount' | 'owner' | 'closeDate' | 'company' | 'contacts' | 'custom' | 'sourceId'>>;
-export type NewDeal = Pick<Deal, 'name' | 'company' | 'owner' | 'amount' | 'stage' | 'closeDate'> & Partial<Pick<Deal, 'id' | 'contacts' | 'pipeline'>>;
+export type NewDeal = Pick<Deal, 'name' | 'company' | 'owner' | 'stage' | 'closeDate'> & Partial<Pick<Deal, 'id' | 'amount' | 'contacts' | 'pipeline'>>;
 export type NewActivity = { type: ActivityType; subject: string; by: string; deal?: string; company?: string; contact?: string; due?: string; body?: string };
 
 export type CrmAction =
@@ -25,7 +26,7 @@ export type CrmAction =
   | { type: 'deal/delete'; id: string }
   | { type: 'company/create'; company: Pick<Company, 'name' | 'industry' | 'size' | 'owner'> & Partial<Pick<Company, 'id' | 'website' | 'city' | 'isCustomer' | 'isSupplier'>> }
   | { type: 'company/update'; id: string; patch: Partial<Pick<Company, 'name' | 'industry' | 'size' | 'owner' | 'website' | 'city' | 'isCustomer' | 'isSupplier' | 'custom' | 'nextContactDate' | 'nextContactNote'>> }
-  | { type: 'contact/create'; contact: Pick<Contact, 'name' | 'company' | 'owner'> & Partial<Pick<Contact, 'id' | 'title' | 'email' | 'phone'>> }
+  | { type: 'contact/create'; contact: Pick<Contact, 'name' | 'company' | 'owner'> & Partial<Pick<Contact, 'id' | 'title' | 'email' | 'phone'>>; hiddenFields?: readonly string[] }
   | { type: 'contact/update'; id: string; patch: Partial<Pick<Contact, 'name' | 'title' | 'email' | 'phone' | 'owner' | 'company' | 'custom'>> }
   | { type: 'activity/add'; activity: NewActivity }
   | { type: 'activity/toggle'; id: string };
@@ -42,7 +43,7 @@ export function crmReducer(d: CrmData, a: CrmAction): CrmData {
     case 'deal/create': {
       // Новая сделка встаёт в начало своей колонки
       const order = Math.min(1, ...d.deals.filter(x => x.stage === a.deal.stage).map(x => x.order)) - 1;
-      const x: Deal = { contacts: [], ...a.deal, id: a.deal.id ?? uid('d'), created: Date.now(), order };
+      const x: Deal = maskFields('deal', { contacts: [], ...a.deal, amount: a.deal.amount ?? 0, id: a.deal.id ?? uid('d'), created: Date.now(), order }, a.deal.amount === undefined ? ['deal.amount'] : []);
       const closed = !isOpen(x.stage);
       return { ...d, deals: [...d.deals, { ...x, pipeline: stage(x.stage).pipelineId, stageEnteredAt: Date.now(), ...(closed ? { closedAt: x.closeDate } : {}) }] };
     }
@@ -94,7 +95,7 @@ export function crmReducer(d: CrmData, a: CrmAction): CrmData {
       const co = d.companies.find(x => x.id === a.contact.company);
       const first = a.contact.name.toLowerCase().split(/\s+/);
       const email = a.contact.email ?? (co ? `${first[0]}.${first.slice(1).join('')}@${co.website}`.replace(/[^a-z0-9.@-]/g, '') : '');
-      const c: Contact = { title: '', phone: '', ...a.contact, email, id: a.contact.id ?? uid('ct'), created: Date.now() };
+      const c: Contact = maskFields('contact', { title: '', phone: '', ...a.contact, email, id: a.contact.id ?? uid('ct'), created: Date.now() }, a.hiddenFields ?? []);
       return { ...d, contacts: [...d.contacts, c] };
     }
     case 'contact/update':

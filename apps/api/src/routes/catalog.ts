@@ -4,7 +4,7 @@ import { zValidator } from '@hono/zod-validator';
 import { asc, eq, inArray, max, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { assertProductKind, listProductUnits, saveProductUnits, attributeDefs, attachments, companies, generateVariants, listVariants, productCategories, products, recordEvent, recordProductPrice, specParamsOfProduct, units, uuidv7 } from '@erp/db';
+import { generateProductBarcodes, assertProductKind, listProductUnits, saveProductUnits, attributeDefs, attachments, companies, generateVariants, listVariants, productCategories, products, recordEvent, recordProductPrice, specParamsOfProduct, units, uuidv7 } from '@erp/db';
 import { attributeCreate, attributeUpdate, categoryCreate, categoryQuery, categoryUpdate, destroyQuery, idParam, keyFromName, productCreate, productQuery, productUnitsBody, productUpdate, unitCreate, unitQuery, unitUpdate, type RecordData } from '@erp/shared';
 import { crud, ctxOf, validationHook, type Ctx, escapeLike } from '../crud';
 import { AppError, notFound } from '../errors';
@@ -177,6 +177,11 @@ const assertSupplier = async (ctx: Ctx, id: string) => {
   const [c] = await ctx.db.select({ id: companies.id }).from(companies).where(eq(companies.id, id)).limit(1);
   if (!c) throw new AppError(422, 'invalid_reference', 'The supplier does not exist');
 };
+
+export const barcodeRoutes = new Hono<AppEnv>().post('/generate-barcodes', requireRole('member'), zValidator('json', z.object({ ids: z.array(z.string().uuid()).min(1).max(1000) }), validationHook), async c => {
+  const ctx = ctxOf(c);
+  return c.json({ items: await generateProductBarcodes(ctx.db, ctx.workspaceId, ctx.memberId, [...new Set(c.req.valid('json').ids)]) });
+});
 
 export const productRoutes = crud({
   entity: 'product',

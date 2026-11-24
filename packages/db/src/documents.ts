@@ -73,6 +73,8 @@ export interface DocCtx {
   memberId: string | null;
   /** Роль автора: стоимость видят только admin и owner */
   role?: Role;
+  /** A migration can supply a zero cost for opening stock explicitly. */
+  explicitOpeningStockCost?: boolean;
 }
 
 export type DocumentRow = typeof documents.$inferSelect;
@@ -486,7 +488,7 @@ async function internalPrice(db: Db, ctx: DocCtx, doc: DocumentRow, l: ResolvedL
   const type = doc.type as DocumentType;
   if (type !== 'stock_posting' && type !== 'opening_stock') return '0';
   const canSet = ctx.role === 'owner' || ctx.role === 'admin';
-  if (canSet && dec(l.price) > 0n) return l.price;
+  if (canSet && (dec(l.price) > 0n || type === 'opening_stock' && ctx.explicitOpeningStockCost)) return l.price;
   if (prev !== undefined) return prev;
   const cost = await defaultPostingCost(db, doc.warehouseId, l.productId);
   // себестоимость — за базовую единицу, цена строки — за её единицу (упаковку)

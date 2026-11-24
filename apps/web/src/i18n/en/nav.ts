@@ -55,6 +55,7 @@ export const sections = {
   defectReasons: 'Defect reasons',
   automations: 'Automations',
   sales: 'Sales',
+  salesProfit: 'Sales P&L & ABC',
   workOrders: 'Work orders',
   servicesTimesheet: 'Timesheet',
   servicesPlanner: 'Service planner',

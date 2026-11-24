@@ -18,6 +18,7 @@ import { ProductDrawer, ProductFormDialog, attachmentImageUrl } from './product-
 import { useProductKinds } from '../positions/data';
 import { buildCategoryTree, categoryPath, flattenTree, money, unitSymbol, useCategories, useIsAdmin, useProduct, useProductPages, useProductTotal, useUnits, type CategoryNode, type Product } from './data';
 import { useWsId } from '../meta/data';
+import { LabelDialog } from './LabelDialog';
 import { useSnapshot } from '../production/data';
 
 /** Колонки, сортируемые на сервере: id колонки → ключ ?sort= у GET /products */
@@ -34,6 +35,8 @@ export function CatalogPage() {
   const ws = useWsId();
   const categories = useCategories();
   const units = useUnits();
+  const [labelIds, setLabelIds] = React.useState<string[]>([]);
+  const [labelsOpen, setLabelsOpen] = React.useState(false);
   const [dialog, setDialog] = React.useState<Dialog>(null);
   const filters = useFilterState();
   const t = useT();
@@ -107,6 +110,7 @@ export function CatalogPage() {
 
   const columns = React.useMemo<Column<Product>[]>(
     () => [
+      { id: 'select', header: t('catalog.labels.select'), width: 55, sortable: false, hideable: false, cell: p => <input type="checkbox" aria-label={p.name} checked={labelIds.includes(p.id)} onClick={e => e.stopPropagation()} onChange={e => setLabelIds(ids => e.target.checked ? [...ids, p.id] : ids.filter(id => id !== p.id))} /> },
       {
         id: 'name',
         header: t('catalog.col.name'),
@@ -134,7 +138,7 @@ export function CatalogPage() {
       { id: 'barcode', header: t('catalog.col.barcode'), width: 140, defaultHidden: true, sortable: false, value: p => p.barcode, cell: p => (p.barcode ? <span className="mono">{p.barcode}</span> : <span className="faint">—</span>) },
       { id: 'created', header: t('catalog.col.created'), width: 112, defaultHidden: true, value: p => Date.parse(p.createdAt), cell: p => <span className="muted num">{fmtDate(new Date(p.createdAt))}</span> },
     ],
-    [categories.data, units.data, productKinds.data, t],
+    [categories.data, units.data, productKinds.data, t, labelIds],
   );
 
   const filterFields: FilterField[] = [
@@ -170,7 +174,7 @@ export function CatalogPage() {
             {t(filters.count || q ? 'catalog.summaryMatch' : 'catalog.summary', { count: clientFiltered ? rows.length : list.total })}
           </p>
         </div>
-        <div className="acts">{newProduct}</div>
+        <div className="acts"><Button disabled={!labelIds.length} onClick={() => setLabelsOpen(true)}>{t('catalog.labels.title')}</Button>{newProduct}</div>
       </div>
       <div className="cat-layout">
         <aside className="cat-side">
@@ -245,6 +249,7 @@ export function CatalogPage() {
         </section>
       </div>
 
+      {labelsOpen && <LabelDialog ids={labelIds} onClose={() => setLabelsOpen(false)} />}
       {dialog?.type === 'category' && <CategoryDialog tree={tree} edit={dialog.edit} parent={dialog.parent} onClose={() => setDialog(null)} onSaved={c => !dialog.edit && setSelected(c.id)} />}
       {dialog?.type === 'attributes' && <AttributesDialog category={dialog.category} onClose={() => setDialog(null)} />}
       {dialog?.type === 'delete' && <DeleteCategoryDialog category={dialog.category} onClose={() => setDialog(null)} onDeleted={() => selected === dialog.category.id && setSelected(null)} />}

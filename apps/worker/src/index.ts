@@ -13,6 +13,9 @@ import { runNextContactsOnce } from './next-contacts';
 import { runObjectReportsOnce } from './object-reports';
 import { runAppointmentsOnce } from './appointments';
 import { runFleetOnce } from './fleet';
+import { scheduleIcSyncs } from './integrations-1c-sync';
+import { runIcExportsOnce } from './integrations-1c';
+import { processWebhookDeliveriesOnce } from './webhooks';
 import { defaultOptions, processEventsOnce, processJobsOnce, requeueStale } from './worker';
 
 const pollMs = Number(process.env.WORKER_POLL_MS ?? 1000);
@@ -67,6 +70,10 @@ while (!stopping) {
       lastMinute = minute;
       const n = await scheduleFlowsOnce(sql); // автоматизации по расписанию: раз в минуту, повтор той же минуты ничего не создаёт
       if (n) o.log(`scheduled ${n} flow run(s)`);
+      const icSyncs = await scheduleIcSyncs(sql);
+      if (icSyncs) o.log(`queued ${icSyncs} 1C sync job(s)`);
+      const icExports = await runIcExportsOnce(sql);
+      if (icExports) o.log(`prepared ${icExports} scheduled 1C export(s)`);
       // сводка о ходе объекта по расписанию (задача 1277): окно дня и времени считается по часовому поясу воркспейса
       const digests = await runObjectReportsOnce(sql);
       if (digests) o.log(`queued ${digests} object report job(s)`);
@@ -126,7 +133,8 @@ while (!stopping) {
     }
     const events = await processEventsOnce(sql, o);
     const jobs = await processJobsOnce(sql, o);
-    if (events + jobs > 0) continue; // есть работа — сразу следующий проход
+    const deliveries = await processWebhookDeliveriesOnce(sql, o);
+    if (events + jobs + deliveries > 0) continue; // есть работа — сразу следующий проход
   } catch (e) {
     o.log(`loop error: ${e instanceof Error ? e.message : e}`);
   }

@@ -5,6 +5,8 @@ import { and, asc, count, eq, ne } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { assertPipelineValid, assertStageSetValid, createPipeline, dealFunnel, dealLostReasons, dealPipelines, dealStages, deals, defaultPipeline, recordEvent, stageDealCount, templateOf } from '@erp/db';
 import {
+  maskFields,
+  maskRows,
   dealFunnelQuery,
   dealLostReasonCreate,
   dealLostReasonQuery,
@@ -21,6 +23,7 @@ import {
   idParam,
 } from '@erp/shared';
 import { crud, ctxOf, validationHook } from '../crud';
+import { hiddenFieldsOf } from '../field-access';
 import { AppError, notFound } from '../errors';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';
@@ -93,6 +96,7 @@ const stageBase = crud({
   sortable: { sortOrder: dealStages.sortOrder, name: dealStages.name },
   defaultSort: 'sortOrder',
   search: [dealStages.name],
+  decorate: async (ctx, rows) => maskRows('deal', rows, await hiddenFieldsOf(ctx)),
   writeRole: 'admin',
   filters: q => [q.pipelineId ? eq(dealStages.pipelineId, q.pipelineId) : undefined],
   prepareCreate: async (ctx, body) => {
@@ -162,5 +166,7 @@ export const dealFunnelRoutes = new Hono<AppEnv>().get('/', zValidator('query', 
   const ctx = ctxOf(c);
   const q = c.req.valid('query');
   const pipelineId = q.pipelineId ?? (await defaultPipeline(ctx.db)).id;
-  return c.json(await dealFunnel(ctx.db, { pipelineId, from: q.from, to: q.to }));
+  const report = await dealFunnel(ctx.db, { pipelineId, from: q.from, to: q.to });
+  const hidden = await hiddenFieldsOf(ctx);
+  return c.json({ ...report, rows: maskRows('deal', report.rows, hidden), totals: maskFields('deal', report.totals, hidden) });
 });

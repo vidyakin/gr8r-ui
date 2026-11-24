@@ -57,6 +57,7 @@ export const sections: Widen<typeof S> = {
   defectReasons: 'Motivos de defecto',
   automations: 'Automatizaciones',
   sales: 'Ventas',
+  salesProfit: 'Beneficio de ventas (P&L)',
   workOrders: 'Órdenes de trabajo',
   servicesTimesheet: 'Registro de horas',
   servicesPlanner: 'Planificador de servicios',

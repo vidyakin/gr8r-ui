@@ -6,6 +6,8 @@ import { Hono } from 'hono';
 import { billingBreakdowns, contractReport, documentExports, documents, jobs, previewBilling, runBilling, workspaceTimezone, workspaces } from '@erp/db';
 import { billingExportRequest, billingPreviewQuery, billingReportQuery, billingRunRequest, idParam, isValidTimezone, supportedTimezones } from '@erp/shared';
 import { z } from 'zod';
+import { hiddenFieldsOf } from '../field-access';
+import { maskFields } from '@erp/shared';
 import { AppError } from '../errors';
 import { requireRole } from '../middleware';
 import { ctxOf, validationHook } from '../crud';
@@ -79,7 +81,7 @@ export const billingRoutes = new Hono<AppEnv>()
     const id = c.req.valid('param').id;
     const [row] = await ctx.db.select().from(billingBreakdowns).where(and(eq(billingBreakdowns.documentId, id), eq(billingBreakdowns.workspaceId, ctx.workspaceId))).limit(1);
     if (!row) throw new AppError(404, 'not_found', 'This document has no billing breakdown');
-    return c.json(row.payload);
+    return c.json(maskFields('document', row.payload, await hiddenFieldsOf(ctx)));
   })
   /** Часовой пояс арендатора: в нём считаются период биллинга и расписания автоматизаций */
   .get('/timezone', async c => {

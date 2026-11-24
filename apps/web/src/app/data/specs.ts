@@ -360,7 +360,7 @@ export function buildSpecs(ws: string, statusIds: Map<string, string>) {
   const contacts = list<Contact>({
     name: 'contacts',
     query: { sort: 'name' },
-    from: ((r: Rows['contacts']): Contact => ({ id: r.id, company: r.companyId ?? '', name: r.name, title: r.title, email: r.email, phone: r.phone, owner: r.ownerId ?? '', created: ms(r.createdAt), custom: r.custom as Record<string, unknown> })) as never,
+    from: ((r: Rows['contacts']): Contact => ({ id: r.id, company: r.companyId ?? '', name: r.name, title: r.title, email: r.email ?? '', phone: r.phone ?? '', owner: r.ownerId ?? '', created: ms(r.createdAt), custom: r.custom as Record<string, unknown> })) as never,
     fields: { custom: v => ({ custom: v }), company: v => ({ companyId: orNull(v) }), name: v => ({ name: v }), title: v => ({ title: v }), email: v => ({ email: v }), phone: v => ({ phone: v }), owner: v => ({ ownerId: orNull(v) }) },
     remove: 'soft',
   });
@@ -374,7 +374,7 @@ export function buildSpecs(ws: string, statusIds: Map<string, string>) {
       company: r.companyId ?? '',
       contacts: r.contactIds,
       owner: r.ownerId ?? '',
-      amount: Number(r.amount),
+      amount: Number(r.amount ?? 0),
       stage: r.stageId,
       pipeline: r.pipelineId,
       lostReasonId: r.lostReasonId ?? undefined,

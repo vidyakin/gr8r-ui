@@ -130,6 +130,7 @@
       "name": "@erp/shared",
       "version": "0.1.0",
       "dependencies": {
+        "@xmldom/xmldom": "0.9.12",
         "docxtemplater": "^3.71.1",
         "pizzip": "^3.3.0",
         "qrcode-generator": "^2.0.4",

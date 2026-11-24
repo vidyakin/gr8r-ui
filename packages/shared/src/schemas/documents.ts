@@ -333,6 +333,33 @@ export const stockAgingQuery = z.object({
   asOf: isoDate.optional(),
 });
 
+/** Группировки отчёта P&L (валовая прибыль продаж) и ABC-анализа */
+export const SALES_PROFIT_GROUP_BY = ['product', 'category', 'company', 'owner', 'organization', 'warehouse'] as const;
+export type SalesProfitGroupBy = (typeof SALES_PROFIT_GROUP_BY)[number];
+
+/** Отчёт «Валовая прибыль продаж (P&L)»: период, группировка, склад, организация */
+export const salesProfitQuery = z.object({
+  dateFrom: isoDate.optional(),
+  dateTo: isoDate.optional(),
+  groupBy: z.enum(SALES_PROFIT_GROUP_BY).default('product'),
+  warehouseId: uuid.optional(),
+  organizationId: uuid.optional(),
+});
+
+/** ABC-анализ продаж по выручке или валовой прибыли с настраиваемыми порогами A/B/C */
+export const salesAbcQuery = z
+  .object({
+    dateFrom: isoDate.optional(),
+    dateTo: isoDate.optional(),
+    groupBy: z.enum(SALES_PROFIT_GROUP_BY).default('product'),
+    metric: z.enum(['revenue', 'profit']).default('revenue'),
+    thresholdA: z.coerce.number().min(0).max(100).default(80),
+    thresholdB: z.coerce.number().min(0).max(100).default(15),
+    warehouseId: uuid.optional(),
+    organizationId: uuid.optional(),
+  })
+  .refine(v => v.thresholdA + v.thresholdB <= 100, { message: 'thresholdA + thresholdB must be at most 100' });
+
 /** Настройки склада воркспейса (хранятся в workspaces.settings) */
 export const inventorySettingsUpdate = z.object({ allowNegativeStock: z.boolean() });
 export interface InventorySettings {

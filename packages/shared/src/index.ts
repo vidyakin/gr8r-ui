@@ -25,6 +25,7 @@ export * from './sales-plan';
 export * from './appointments';
 export * from './delivery';
 export * from './positions';
+export * from './field-mask';
 export * from './departments';
 export * from './project-templates';
 export * from './payments';
@@ -61,3 +62,10 @@ export * from './badge';
 export * from './agent-tokens';
 export * from './agent-tokens';
 export * from './approvals';
+export * from './sales-profit';
+export * from './barcode';
+
+export * from './enterprise-data';
+export * from './enterprise-data-parse';
+export * from './integrations-1c';
+export * from './integrations-1c-sync';

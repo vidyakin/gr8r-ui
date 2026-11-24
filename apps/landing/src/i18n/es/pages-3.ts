@@ -68,6 +68,17 @@ export const esPages3: Pick<Dict['modulePages'], 'logistics' | 'automations' | '
         list: ['Estados: en cola, ejecutando, esperando, exitoso, error', 'Entrada, salida y error visibles en cada paso', 'Eventos duplicados nunca crean una segunda ejecución'],
         screen: 'Historial de ejecuciones con detalle por paso',
       },
+      {
+        title: 'REST API v1 pública y webhooks salientes',
+        text: 'Integra FutureERP con tiendas online, portales y servicios externos mediante una REST API v1 versionada con documentación OpenAPI y webhooks salientes fiables.',
+        list: [
+          'REST API v1 versionada (/api/v1) con esquema OpenAPI 3.0.3 (/api/v1/openapi.json) y documentación pública /docs/api',
+          'Autenticación con tokens Bearer y permisos granulares por entidad y operación',
+          'Webhooks salientes por eventos de entidades firmados con HMAC-SHA256',
+          'Entrega en segundo plano mediante worker con reintentos automáticos, registro de entregas y reintento manual',
+        ],
+        screen: 'Documentación de REST API v1 (OpenAPI 3.0.3) y registro de entrega de webhooks',
+      },
     ],
     chain: [
       ['crm', 'Evento: negocio creado, editado o movido de etapa.'],
@@ -77,8 +88,9 @@ export const esPages3: Pick<Dict['modulePages'], 'logistics' | 'automations' | '
     faq: [
       ['¿Necesitamos un programador para crear una regla?', 'No. Las reglas se arman visualmente en el lienzo con formularios generados automáticamente.'],
       ['¿Qué pasa si una regla entra en bucle?', 'La protección contra bucles rechaza la ejecución recursiva y la marca como «omitida».'],
-      ['¿Podemos enviar datos a un servicio externo?', 'Sí, mediante la acción «Petición HTTP», con protección SSRF contra redes internas.'],
+      ['¿Podemos enviar datos a un servicio externo?', 'Sí, mediante la acción «Petición HTTP» (con protección SSRF) o a través de webhooks salientes firmados con HMAC-SHA256 con reintentos automáticos y registro de entregas.'],
       ['¿Se puede retrasar una acción?', 'Sí. El nodo «Espera» pausa la ejecución hasta por 30 días.'],
+      ['¿Existe una API pública para desarrolladores?', 'Sí. FutureERP ofrece una REST API v1 versionada (/api/v1) con esquema OpenAPI 3.0.3 (/api/v1/openapi.json), documentación pública en /docs/api y tokens Bearer con permisos granulares.'],
     ],
   },
   payroll: {

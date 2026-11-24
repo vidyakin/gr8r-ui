@@ -2,11 +2,23 @@
    Должность = название + функции (списки выбора) + разделы меню + оказываемые виды номенклатуры (для специалиста записи). */
 import * as React from 'react';
 import { BriefcaseBusiness, Plus, Shapes } from 'lucide-react';
-import { POSITION_FUNCTIONS, POSITION_SECTIONS, PRODUCT_KIND_TYPES, type PositionFunction, type PositionSection, type ProductKindType } from '@erp/shared';
+import {
+  POSITION_FUNCTIONS,
+  POSITION_SECTIONS,
+  PRODUCT_KIND_TYPES,
+  RECORD_SCOPES,
+  SENSITIVE_FIELD_KEYS,
+  type PositionFunction,
+  type PositionSection,
+  type ProductKindType,
+  type RecordScope,
+  type SensitiveFieldKey,
+} from '@erp/shared';
 import { Alert, Badge, Button, Checkbox, ConfirmDialog, Dialog, DialogClose, DialogContent, EmptyState, Field, Input, Select, Skeleton, toast } from '@/components/ui';
 import { useT } from '@/i18n';
 import { useIsAdmin } from '../catalog/data';
 import { usePositions, usePositionsApi, useProductKinds, type PositionItem, type ProductKindItem } from '../positions/data';
+import { activeFields, useAllEntities } from '../meta/data';
 import { SettingsHead, SRow } from './parts';
 
 interface Draft {
@@ -14,10 +26,31 @@ interface Draft {
   functions: PositionFunction[];
   sections: PositionSection[];
   productKindIds: string[];
+  recordScope: RecordScope;
+  hiddenFields: string[];
 }
 
-const blank = (): Draft => ({ name: '', functions: [], sections: [], productKindIds: [] });
-const fromPosition = (p: PositionItem): Draft => ({ name: p.name, functions: p.functions, sections: p.sections, productKindIds: p.productKindIds });
+const SENSITIVE_FIELD_I18N = {
+  'deal.amount': 'positions.sensitiveField.deal_amount',
+  'deal.probability': 'positions.sensitiveField.deal_probability',
+  'contact.phone': 'positions.sensitiveField.contact_phone',
+  'contact.email': 'positions.sensitiveField.contact_email',
+  'lead.phone': 'positions.sensitiveField.lead_phone',
+  'lead.email': 'positions.sensitiveField.lead_email',
+  'company.requisites': 'positions.sensitiveField.company_requisites',
+  'company.bankAccounts': 'positions.sensitiveField.company_bankAccounts',
+  'document.total': 'positions.sensitiveField.document_total',
+} as const satisfies Record<SensitiveFieldKey, string>;
+
+const blank = (): Draft => ({ name: '', functions: [], sections: [], productKindIds: [], recordScope: 'all', hiddenFields: [] });
+const fromPosition = (p: PositionItem): Draft => ({
+  name: p.name,
+  functions: p.functions,
+  sections: p.sections,
+  productKindIds: p.productKindIds,
+  recordScope: p.recordScope ?? 'all',
+  hiddenFields: p.hiddenFields ?? [],
+});
 const toggle = <T,>(list: T[], v: T): T[] => (list.includes(v) ? list.filter(x => x !== v) : [...list, v]);
 
 function Checks<T extends string>({ label, hint, options, value, onChange, disabled }: { label: string; hint?: string; options: { value: T; label: string }[]; value: T[]; onChange: (v: T[]) => void; disabled: boolean }) {
@@ -40,6 +73,10 @@ function Checks<T extends string>({ label, hint, options, value, onChange, disab
 function PositionForm({ draft, onChange, disabled }: { draft: Draft; onChange: (d: Draft) => void; disabled: boolean }) {
   const t = useT();
   const kinds = useProductKinds();
+  const entities = useAllEntities();
+  const customFields = (entities.data ?? []).filter(e => !e.archivedAt).flatMap(e =>
+    activeFields(e).filter(f => !f.isSystem && !f.options.hidden).map(f => ({ value: `custom:${e.key}.${f.key}`, label: `${e.name} · ${f.name}` })),
+  );
   const isSpecialist = draft.functions.includes('appointments_specialist');
   return (
     <div className="stack" style={{ gap: 12 }}>
@@ -59,6 +96,29 @@ function PositionForm({ draft, onChange, disabled }: { draft: Draft; onChange: (
         options={POSITION_SECTIONS.map(s => ({ value: s, label: t(`positions.section.${s}`) }))}
         value={draft.sections}
         onChange={sections => onChange({ ...draft, sections })}
+      />
+      <div>
+        <Field label={t('positions.settings.recordScope')}>
+          {p => (
+            <Select
+              id={p.id}
+              disabled={disabled}
+              value={draft.recordScope}
+              onValueChange={v => onChange({ ...draft, recordScope: v as RecordScope })}
+              options={RECORD_SCOPES.map(s => ({ value: s, label: t(`positions.recordScope.${s}`) }))}
+              aria-label={t('positions.settings.recordScope')}
+            />
+          )}
+        </Field>
+        <p className="faint" style={{ fontSize: 12, margin: '4px 0 0' }}>{t('positions.settings.recordScopeHint')}</p>
+      </div>
+      <Checks
+        label={t('positions.settings.hiddenFields')}
+        hint={t('positions.settings.hiddenFieldsHint')}
+        disabled={disabled}
+        options={[...SENSITIVE_FIELD_KEYS.map(k => ({ value: k, label: t(SENSITIVE_FIELD_I18N[k]) })), ...customFields]}
+        value={draft.hiddenFields}
+        onChange={hiddenFields => onChange({ ...draft, hiddenFields })}
       />
       {isSpecialist &&
         ((kinds.data ?? []).filter(k => k.type === 'service').length ? (
@@ -86,7 +146,14 @@ function PositionDialog({ position, readOnly, onClose, onDelete }: { position?: 
   const save = async () => {
     if (!draft.name.trim() || readOnly) return;
     setBusy(true);
-    const body = { name: draft.name.trim(), functions: draft.functions, sections: draft.sections, productKindIds: draft.functions.includes('appointments_specialist') ? draft.productKindIds : [] };
+    const body = {
+      name: draft.name.trim(),
+      functions: draft.functions,
+      sections: draft.sections,
+      productKindIds: draft.functions.includes('appointments_specialist') ? draft.productKindIds : [],
+      recordScope: draft.recordScope,
+      hiddenFields: draft.hiddenFields,
+    };
     const ok = position ? await api('PATCH', `/positions/${position.id}`, body) : await api('POST', '/positions', body);
     setBusy(false);
     if (!ok) return;
@@ -132,7 +199,13 @@ export function PositionsSection({ title }: { title: string }) {
   const [del, setDel] = React.useState<PositionItem | null>(null);
 
   const summary = (p: PositionItem) =>
-    [p.functions.map(f => t(`positions.fn.${f}`)).join(', '), p.sections.length ? p.sections.map(s => t(`positions.section.${s}`)).join(', ') : t('positions.settings.allSections')].filter(Boolean).join(' · ');
+    [
+      p.functions.map(f => t(`positions.fn.${f}`)).join(', '),
+      p.sections.length ? p.sections.map(s => t(`positions.section.${s}`)).join(', ') : t('positions.settings.allSections'),
+      p.recordScope && p.recordScope !== 'all' ? t(`positions.recordScope.${p.recordScope}`) : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
 
   return (
     <>

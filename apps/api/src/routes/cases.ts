@@ -19,11 +19,13 @@ import {
   saveSlaRules,
   updateCase,
 } from '@erp/db';
-import { caseCreate, caseFormCreate, caseFormQuery, caseFormUpdate, caseQuery, caseReply, caseSlaRulesUpdate, caseUpdate, idParam } from '@erp/shared';
+import { caseCreate, caseFormCreate, caseFormQuery, caseFormUpdate, caseQuery, caseReply, caseSlaRulesUpdate, caseUpdate, idParam, maskFields, maskRows } from '@erp/shared';
 import { crud, ctxOf, validationHook, escapeLike } from '../crud';
 import { AppError, notFound } from '../errors';
 import { hasRole, requireRole } from '../middleware';
+import { hiddenFieldsOf } from '../field-access';
 import { customForCreate, customForUpdate } from '../meta/service';
+import { assertOwnerAssignment } from './helpers';
 import type { AppEnv } from '../types';
 
 const write = requireRole('member');
@@ -62,16 +64,17 @@ export const caseRoutes = new Hono<AppEnv>()
     order.push(desc(cases.id));
     const items = await ctx.db.select().from(cases).where(where).orderBy(...order).limit(q.limit).offset(q.offset);
     const [{ n }] = await ctx.db.select({ n: count() }).from(cases).where(where);
-    return c.json({ items, total: n, limit: q.limit, offset: q.offset });
+    return c.json({ items: maskRows('case', items, await hiddenFieldsOf(ctx)), total: n, limit: q.limit, offset: q.offset });
   })
   // счётчики плашек списка: новые, открытые, просрочено
   .get('/summary', async c => c.json(await caseCounts(ctxOf(c).db)))
   .post('/', write, zValidator('json', caseCreate, validationHook), async c => {
     const ctx = ctxOf(c);
     const b = c.req.valid('json');
+    await assertOwnerAssignment(ctx, b.ownerId);
     const custom = (await customForCreate(ctx, 'case', b.custom)).custom;
     const row = await insertCase(ctx.db, caseCtx(ctx), { ...b, ...(custom ? { custom } : {}) });
-    return c.json(row, 201);
+    return c.json(maskFields('case', row, await hiddenFieldsOf(ctx)), 201);
   })
   // обращение с лентой: письма (по правам на ящики) и касания
   .get('/:id', zValidator('param', idParam, validationHook), async c => {
@@ -80,15 +83,16 @@ export const caseRoutes = new Hono<AppEnv>()
     const row = await loadCase(ctx.db, id);
     const emails = await listEmails(ctx.db, mailCtx(ctx), { caseId: id }, 200, 0);
     const activities = await ctx.db.select().from(crmActivities).where(eq(crmActivities.caseId, id)).orderBy(desc(crmActivities.createdAt), desc(crmActivities.id)).limit(200);
-    return c.json({ ...row, emails, activities });
+    return c.json({ ...maskFields('case', row, await hiddenFieldsOf(ctx)), emails, activities });
   })
   .patch('/:id', write, zValidator('param', idParam, validationHook), zValidator('json', caseUpdate, validationHook), async c => {
     const ctx = ctxOf(c);
     const { id } = c.req.valid('param');
     const { custom: customIn, ...rest } = c.req.valid('json');
     const existing = await loadCase(ctx.db, id);
+    await assertOwnerAssignment(ctx, rest.ownerId, existing.ownerId);
     const custom = customIn !== undefined ? (await customForUpdate(ctx, 'case', existing.custom, customIn, id)).custom : undefined;
-    return c.json(await updateCase(ctx.db, caseCtx(ctx), id, { ...rest, ...(custom ? { custom } : {}) }));
+    return c.json(maskFields('case', await updateCase(ctx.db, caseCtx(ctx), id, { ...rest, ...(custom ? { custom } : {}) }), await hiddenFieldsOf(ctx)));
   })
   // заказ-наряд из обращения: контрагент и описание из обращения
   .post('/:id/work-order', write, zValidator('param', idParam, validationHook), async c => {

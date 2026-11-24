@@ -61,6 +61,11 @@ export const aiChats = {
     button: 'Bot settings',
     title: 'AI Consultant Settings',
     subtitle: 'Tone and initial greeting for the website chat widget',
+    tabs: {
+      bot: 'Bot',
+      widget: 'Widget',
+      kb: 'Knowledge Base',
+    },
     toneLabel: 'Conversation tone',
     tones: {
       friendly: 'Friendly',

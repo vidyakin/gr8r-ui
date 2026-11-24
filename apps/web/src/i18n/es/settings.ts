@@ -772,6 +772,7 @@ export const settings: Widen<typeof S> = {
       minimum: 'Mínimo',
       maximum: 'Máximo',
       uniqueValues: 'Valores únicos',
+      hidden: 'Campo oculto (solo para roles con acceso)',
       filterable: 'Filtrable',
       filterableHint: '— crea un índice para que filtrar y ordenar siga siendo rápido en listas grandes',
     },

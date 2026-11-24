@@ -1,3 +1,4 @@
+import { useHiddenFields } from '../positions/data';
 /* Журнал документов продаж или закупок: вкладки по типам, фильтры (статус, организация), поиск по номеру, контрагенту и комментарию,
    суммы по выборке. Новый документ создаётся черновиком сразу и открывается в форме. */
 import * as React from 'react';
@@ -26,6 +27,7 @@ export function JournalPage({ group, type: fixed }: { group: DocumentGroup; type
   const orgs = useOrganizations();
   const filters = useFilterState();
   const t = useT();
+  const showTotals = !useHiddenFields().includes('document.total');
   const types = documentTypesOf(group);
   const typeParam = sp.get('type') as DocumentType | null;
   const type = fixed ?? (typeParam && types.includes(typeParam) ? typeParam : null);
@@ -80,10 +82,10 @@ export function JournalPage({ group, type: fixed }: { group: DocumentGroup; type
     { id: 'date', header: t('docs.journal.col.date'), width: 112, value: d => d.date, cell: d => <span className="num muted">{fmtDate(parse(d.date))}</span> },
     ...(group === 'stock' ? stockCols : partyCols),
     { id: 'org', header: t('docs.journal.col.org'), width: 190, defaultHidden: true, value: d => d.organizationName, cell: d => <span className="trunc muted">{d.organizationName}</span> },
-    ...(group === 'sales' || group === 'purchases'
+    ...(showTotals && (group === 'sales' || group === 'purchases')
       ? [{ id: 'payment', header: t('docs.journal.col.payment'), width: 150, value: (d: DocListItem) => (d.payment ? (d.payment.prepaid ? 'prepaid' : d.payment.state) : ''), cell: (d: DocListItem) => (d.payment ? <PayBadge s={d.payment} compact /> : <span className="faint">—</span>) } satisfies Column<DocListItem>]
       : []),
-    ...(group === 'stock' ? [costCol] : sumCols),
+    ...(showTotals ? (group === 'stock' ? [costCol] : sumCols) : []),
   ];
   const table = useDataTable(columns, { sort: { id: 'date', dir: -1 } });
 
@@ -170,7 +172,7 @@ export function JournalPage({ group, type: fixed }: { group: DocumentGroup; type
             }
           />
           <p className="faint" style={{ padding: '8px 16px', fontSize: 12 }}>
-            {group === 'stock' ? t('docs.journal.costHint') : t('docs.journal.totalHint')}
+            {showTotals && (group === 'stock' ? t('docs.journal.costHint') : t('docs.journal.totalHint'))}
             {list.data && list.data.total > rows.length && t('docs.journal.moreHint', { shown: rows.length, total: list.data.total })}
           </p>
         </>

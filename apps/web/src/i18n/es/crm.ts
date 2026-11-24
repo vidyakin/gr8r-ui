@@ -27,6 +27,7 @@ export const crm = {
     openPipelineBtn: 'Abrir embudo',
   },
   deals: {
+    countOnly: '{count} negocios',
     title: 'Negocios',
     summary: '{count} negocios abiertos · {amount} en el embudo · {weighted} ponderado',
     newDeal: 'Nuevo negocio',

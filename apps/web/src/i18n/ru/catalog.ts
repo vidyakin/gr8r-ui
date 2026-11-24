@@ -2,6 +2,18 @@ import type { Widen } from '../types';
 import type { catalog as C, enums as E } from '../en/catalog';
 
 export const catalog: Widen<typeof C> = {
+  labels: {
+    title: 'Этикетки и ценники',
+    select: 'Выбрать',
+    format: 'Формат',
+    priceKind: 'Вид цены',
+    generate: 'Сгенерировать штрихкоды',
+    copies: 'Копии',
+    print: 'Печать',
+    preview: 'Предпросмотр печати',
+    hint: 'Укажите ноль копий, чтобы исключить позицию. Для печати у каждой выбранной позиции должны быть штрихкод EAN-13 и цена.',
+    invalid: 'Неверный EAN-13',
+  },
   title: 'Каталог',
   summary: { one: '{count} позиция', few: '{count} позиции', many: '{count} позиций', other: '{count} позиции' },
   summaryMatch: { one: 'Найдена {count} позиция', few: 'Найдено {count} позиции', many: 'Найдено {count} позиций', other: 'Найдено {count} позиции' },

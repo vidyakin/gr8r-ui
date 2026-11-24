@@ -25,6 +25,7 @@ import {
 } from '@erp/db';
 import { emailCreate, emailLink, emailQuery, idParam, mailboxCreate, mailboxUpdate, uuid } from '@erp/shared';
 import { ctxOf, validationHook } from '../crud';
+import { assertDocumentPrintAccess } from '../field-access';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';
 
@@ -79,11 +80,19 @@ export const emailRoutes = new Hono<AppEnv>()
   })
   .post('/', write, zValidator('json', emailCreate, validationHook), async c => {
     const ctx = ctxOf(c);
-    return c.json(await queueEmail(ctx.db, mailCtx(ctx), c.req.valid('json')), 202);
+    const body = c.req.valid('json');
+    if (body.printForm) await assertDocumentPrintAccess(ctx);
+    return c.json(await queueEmail(ctx.db, mailCtx(ctx), body), 202);
   })
   .get('/:id', zValidator('param', idParam, validationHook), async c => c.json(await getEmail(ctxOf(c).db, mailCtx(ctxOf(c)), c.req.valid('param').id)))
   .post('/:id/link', write, zValidator('param', idParam, validationHook), zValidator('json', emailLink, validationHook), async c => {
     const ctx = ctxOf(c);
     return c.json(await linkEmail(ctx.db, mailCtx(ctx), c.req.valid('param').id, c.req.valid('json')));
   })
-  .post('/:id/retry', write, zValidator('param', z.object({ id: uuid }), validationHook), async c => c.json(await retryEmail(ctxOf(c).db, mailCtx(ctxOf(c)), c.req.valid('param').id), 202));
+  .post('/:id/retry', write, zValidator('param', z.object({ id: uuid }), validationHook), async c => {
+    const ctx = ctxOf(c);
+    const { id } = c.req.valid('param');
+    const message = await getEmail(ctx.db, mailCtx(ctx), id);
+    if (message.printForm) await assertDocumentPrintAccess(ctx);
+    return c.json(await retryEmail(ctx.db, mailCtx(ctx), id), 202);
+  });

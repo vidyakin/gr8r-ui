@@ -2,8 +2,9 @@
    Используется маршрутами /entities, /data и записью custom у системных сущностей (задачи, сделки, компании, контакты). */
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { companies, contacts, deals, entities, fields, isUuid, leads, members, products, projects, records, SYSTEM_TABLES, tasks } from '@erp/db';
-import { buildRecordSchema, isBlank, type FieldDef, type FieldType, type RecordData, type RecordMode } from '@erp/shared';
+import { assertNoHiddenFieldWrite, buildRecordSchema, isBlank, type FieldDef, type FieldType, type RecordData, type RecordMode } from '@erp/shared';
 import type { Ctx } from '../crud';
+import { hiddenFieldsOf, requireVisibleFields } from '../field-access';
 import { AppError, notFound } from '../errors';
 
 export type EntityRow = typeof entities.$inferSelect;
@@ -24,6 +25,11 @@ export const loadFields = (ctx: Ctx, entityId: string, opts: { archived?: boolea
     .from(fields)
     .where(and(eq(fields.entityId, entityId), opts.archived ? undefined : isNull(fields.archivedAt)))
     .orderBy(asc(fields.sortOrder), asc(fields.createdAt));
+
+export async function visibleFieldDefs(ctx: Ctx, entity: EntityRow, opts: { archived?: boolean } = {}) {
+  const hidden = new Set(await hiddenFieldsOf(ctx));
+  return (await loadFields(ctx, entity.id, opts)).filter(f => !hidden.has(`custom:${entity.key}.${f.key}`));
+}
 
 /** Строка поля → описание для схемы */
 export const toDef = (f: FieldRow): FieldDef => ({ id: f.id, key: f.key, name: f.name, type: f.type as FieldType, required: f.required, unique: f.unique, filterable: f.filterable, options: f.options, sortOrder: f.sortOrder });
@@ -104,16 +110,18 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 /** custom новой записи системной сущности (undefined — не задавалось). Значения скрытых полей отбрасываются */
 export async function customForCreate(ctx: Ctx, entityKey: string, input: Record<string, unknown> | undefined): Promise<{ custom?: RecordData }> {
   if (input === undefined) return {};
+  requireVisibleFields(assertNoHiddenFieldWrite(entityKey, { custom: input }, await hiddenFieldsOf(ctx)));
   const entity = await loadEntity(ctx, entityKey);
   const hidden = await archivedKeys(ctx, entity.id);
   const clean = Object.fromEntries(Object.entries(input).filter(([k]) => !hidden.has(k)));
-  return { custom: await validateData(ctx, entity, await loadFields(ctx, entity.id), clean, 'create') };
+  return { custom: await validateData(ctx, entity, await visibleFieldDefs(ctx, entity), clean, 'create') };
 }
 
 /** custom при PATCH: присланные ключи проверяются и сливаются с имеющимися, null удаляет ключ. Неизменённые значения
     (клиент может прислать объект целиком) не проверяются; значения удалённых полей не трогаются */
 export async function customForUpdate(ctx: Ctx, entityKey: string, existing: Record<string, unknown>, input: Record<string, unknown> | undefined, selfId: string): Promise<{ custom?: RecordData }> {
   if (input === undefined) return {};
+  requireVisibleFields(assertNoHiddenFieldWrite(entityKey, { custom: input }, await hiddenFieldsOf(ctx)));
   const entity = await loadEntity(ctx, entityKey);
   const changed = Object.fromEntries(Object.entries(input).filter(([k, v]) => (v === null ? existing[k] !== undefined : !same(v, existing[k]))));
   const patch = await validateData(ctx, entity, await loadFields(ctx, entity.id), changed, 'patch', selfId);

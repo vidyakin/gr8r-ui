@@ -35,7 +35,8 @@ export async function recordEvent(db: Db, e: NewEvent) {
       entity: e.entity,
       recordId: e.recordId ?? null,
       actorId: e.actorId ?? null,
-      payload: e.payload ?? {},
+      payload: sql`cast(${JSON.stringify(e.payload ?? {})} as jsonb) ||
+        case when current_setting('app.ic_sync_import', true) = 'on' then '{"via":"ic_sync"}'::jsonb else '{}'::jsonb end`,
     })
     .returning();
   const envelope: EventEnvelope = {

@@ -1,11 +1,13 @@
 /* Боковая карточка настроек ИИ-консультанта: выбор тона, дополнительные инструкции и приветствие по языкам. */
 import * as React from 'react';
 import { Check } from 'lucide-react';
-import { Button, Field, Skeleton, Textarea, toast } from '@/components/ui';
+import { Button, Field, Segmented, Skeleton, Textarea, toast } from '@/components/ui';
 import { DrawerSection, EntityDrawer } from '@/components/erp/entity-drawer';
 import { useT } from '@/i18n';
 import { useAiChatSettings, useAiChatsApi, type AiChatTone } from './ai-chats-data';
-import { AiChatWidgetSettings, type WidgetFormState } from './AiChatWidgetSettings';
+import { AiChatKnowledgeTab, AiChatWidgetTab, type WidgetFormState } from './AiChatWidgetSettings';
+
+type SettingsTab = 'bot' | 'widget' | 'kb';
 
 const TONES: AiChatTone[] = ['friendly', 'formal', 'concise', 'sales'];
 const GREETING_LOCALES = [
@@ -19,6 +21,7 @@ function AiChatSettingsContent({ onClose }: { onClose: () => void }) {
   const settings = useAiChatSettings();
   const api = useAiChatsApi();
 
+  const [tab, setTab] = React.useState<SettingsTab>('bot');
   const [tone, setTone] = React.useState<AiChatTone>('friendly');
   const [customToneNote, setCustomToneNote] = React.useState('');
   const [greeting, setGreeting] = React.useState({ ru: '', en: '', es: '' });
@@ -124,6 +127,20 @@ function AiChatSettingsContent({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const handleEnableWidget = async () => {
+    setSaving(true);
+    const res = await api.saveSettings({ widgetEnabled: true });
+    setSaving(false);
+    if (res) {
+      setWidget(prev => ({
+        ...prev,
+        widgetEnabled: true,
+        widgetToken: res.widgetToken ?? prev.widgetToken,
+      }));
+      toast.success(t('aiChats.settings.saved'));
+    }
+  };
+
   return (
     <EntityDrawer
       trackName="ai-chat-settings"
@@ -153,77 +170,100 @@ function AiChatSettingsContent({ onClose }: { onClose: () => void }) {
         </div>
       ) : (
         <>
-          <DrawerSection title={t('aiChats.settings.toneLabel')}>
-            <div className="stack" style={{ gap: 12 }}>
-              <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-                {TONES.map(opt => (
-                  <button
-                    key={opt}
-                    type="button"
-                    className={`chip${tone === opt ? ' on' : ''}`}
-                    aria-pressed={tone === opt}
-                    onClick={() => {
+          <div style={{ marginBottom: 12 }}>
+            <Segmented
+              value={tab}
+              onValueChange={setTab}
+              items={[
+                { value: 'bot' as const, label: t('aiChats.settings.tabs.bot') },
+                { value: 'widget' as const, label: t('aiChats.settings.tabs.widget') },
+                { value: 'kb' as const, label: t('aiChats.settings.tabs.kb') },
+              ]}
+            />
+          </div>
+
+          {tab === 'bot' && (
+            <>
+              <DrawerSection title={t('aiChats.settings.toneLabel')}>
+                <div className="stack" style={{ gap: 12 }}>
+                  <Segmented
+                    value={tone}
+                    onValueChange={opt => {
                       setTone(opt);
                       setDirty(true);
                       setSaved(false);
                     }}
-                  >
-                    {t(`aiChats.settings.tones.${opt}`)}
-                  </button>
-                ))}
-              </div>
-              <Field label={t('aiChats.settings.customToneLabel')}>
-                {({ id, invalid }) => (
-                  <Textarea
-                    id={id}
-                    invalid={invalid}
-                    rows={3}
-                    maxLength={400}
-                    value={customToneNote}
-                    placeholder={t('aiChats.settings.customTonePh')}
-                    onChange={e => {
-                      setCustomToneNote(e.target.value);
-                      setDirty(true);
-                      setSaved(false);
-                    }}
+                    items={TONES.map(opt => ({
+                      value: opt,
+                      label: t(`aiChats.settings.tones.${opt}`),
+                    }))}
                   />
-                )}
-              </Field>
-            </div>
-          </DrawerSection>
+                  <Field label={t('aiChats.settings.customToneLabel')}>
+                    {({ id, invalid }) => (
+                      <Textarea
+                        id={id}
+                        invalid={invalid}
+                        rows={3}
+                        maxLength={400}
+                        value={customToneNote}
+                        placeholder={t('aiChats.settings.customTonePh')}
+                        onChange={e => {
+                          setCustomToneNote(e.target.value);
+                          setDirty(true);
+                          setSaved(false);
+                        }}
+                      />
+                    )}
+                  </Field>
+                </div>
+              </DrawerSection>
 
-          <DrawerSection title={t('aiChats.settings.greetingTitle')}>
-            <div className="stack" style={{ gap: 12 }}>
-              <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>{t('aiChats.settings.greetingHint')}</p>
-              {GREETING_LOCALES.map(({ key, labelKey }) => (
-                <Field key={key} label={t(labelKey)}>
-                  {({ id, invalid }) => (
-                    <Textarea
-                      id={id}
-                      invalid={invalid}
-                      rows={2}
-                      maxLength={400}
-                      value={greeting[key]}
-                      onChange={e => {
-                        const value = e.target.value;
-                        setGreeting(prev => ({ ...prev, [key]: value }));
-                        setDirty(true);
-                        setSaved(false);
-                      }}
-                    />
-                  )}
-                </Field>
-              ))}
-            </div>
-          </DrawerSection>
-          <AiChatWidgetSettings
-            state={widget}
-            onChange={updateWidget}
-            onRotateToken={handleRotate}
-            onScrapeWebsite={handleScrape}
-            rotating={rotating}
-            scraping={scraping}
-          />
+              <DrawerSection title={t('aiChats.settings.greetingTitle')}>
+                <div className="stack" style={{ gap: 12 }}>
+                  <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>{t('aiChats.settings.greetingHint')}</p>
+                  {GREETING_LOCALES.map(({ key, labelKey }) => (
+                    <Field key={key} label={t(labelKey)}>
+                      {({ id, invalid }) => (
+                        <Textarea
+                          id={id}
+                          invalid={invalid}
+                          rows={2}
+                          maxLength={400}
+                          value={greeting[key]}
+                          onChange={e => {
+                            const value = e.target.value;
+                            setGreeting(prev => ({ ...prev, [key]: value }));
+                            setDirty(true);
+                            setSaved(false);
+                          }}
+                        />
+                      )}
+                    </Field>
+                  ))}
+                </div>
+              </DrawerSection>
+            </>
+          )}
+
+          {tab === 'widget' && (
+            <AiChatWidgetTab
+              state={widget}
+              onChange={updateWidget}
+              onEnableWidget={handleEnableWidget}
+              onRotateToken={handleRotate}
+              enabling={saving}
+              rotating={rotating}
+            />
+          )}
+
+          {tab === 'kb' && (
+            <AiChatKnowledgeTab
+              knowledgeBase={widget.knowledgeBase}
+              onChange={val => updateWidget({ knowledgeBase: val })}
+              onScrapeWebsite={handleScrape}
+              scraping={scraping}
+            />
+          )}
         </>
       )}
     </EntityDrawer>

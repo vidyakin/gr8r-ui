@@ -35,9 +35,14 @@ const CHAT_URL = resolveChatUrl();
 const isSafeUrl = (url: string): boolean =>
   (url.startsWith('/') && !url.startsWith('//')) || url.startsWith(ALLOWED_ORIGIN);
 
+function trimUrlPunctuation(raw: string): [string, string] {
+  const m = raw.match(/^(.*?)([.,;:!?)]+)?$/);
+  return [m?.[1] || raw, m?.[2] || ''];
+}
+
 function renderInline(line: string, keyPrefix: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
-  const pattern = /\*\*([^*]+)\*\*|\[([^\]]+)\]\(([^)\s]+)\)/g;
+  const pattern = /\*\*([^*]+)\*\*|\[([^\]]+)\]\(([^)\s]+)\)|(https:\/\/future-erp\.ru\/[^\s<>()]+)|((?:^|(?<=[\s(\[«"—:]))\/(?:(?:en|es)\/)?(?:modules|blog|app|docs|privacy|consent)(?:\/[a-z0-9._-]+)*\/?)/gi;
   let last = 0;
   let idx = 0;
   for (const m of line.matchAll(pattern)) {
@@ -57,6 +62,22 @@ function renderInline(line: string, keyPrefix: string): React.ReactNode[] {
       } else {
         nodes.push(m[0]);
       }
+    } else if (m[4]) {
+      const [url, trail] = trimUrlPunctuation(m[4]);
+      nodes.push(
+        <a key={`${keyPrefix}-u${idx++}`} href={url} target="_blank" rel="noopener noreferrer">
+          {url}
+        </a>,
+      );
+      if (trail) nodes.push(trail);
+    } else if (m[5]) {
+      const [url, trail] = trimUrlPunctuation(m[5]);
+      nodes.push(
+        <a key={`${keyPrefix}-p${idx++}`} href={url}>
+          {url}
+        </a>,
+      );
+      if (trail) nodes.push(trail);
     }
     last = start + m[0].length;
   }

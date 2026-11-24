@@ -1,3 +1,4 @@
+import { useHiddenFields } from '../positions/data';
 /* Deals — воронка продаж: доска по этапам (Kanban) и таблица (DataTable) с фильтрами, сортировкой и группировкой */
 import * as React from 'react';
 import { Building2, CircleDot, Plus, SquareKanban, Table2, User } from 'lucide-react';
@@ -35,6 +36,9 @@ export function DealsPage() {
   const ui = useCrmUi();
   const ownerName = useOwnerName();
   const t = useT();
+  const hidden = useHiddenFields();
+  const showAmount = !hidden.includes('deal.amount');
+  const showWeighted = showAmount && !hidden.includes('deal.probability');
   const filters = useFilterState();
   const [mode, setMode] = React.useState<Mode>('board');
   const [group, setGroup] = React.useState<GroupId>('stage');
@@ -58,7 +62,7 @@ export function DealsPage() {
   };
   const [onlyOverdue, setOnlyOverdue] = React.useState(false);
   const stages = activePipeline ? stagesOf(activePipeline.id) : [];
-  const columns = React.useMemo(() => dealColumns(t), [t]);
+  const columns = React.useMemo(() => dealColumns(t, hidden), [t, hidden]);
   const table = useDataTable(columns);
   const ownerCandidates = useMembersWith(ws.members.filter(m => m.status === 'active'), 'sales_manager'); // менеджеры продаж (задача 1172)
 
@@ -93,12 +97,8 @@ export function DealsPage() {
       id: s.id,
       title: s.name,
       icon: <StageIcon stage={s.id} />,
-      subtitle: (
-        <>
-          <b className="num">{money(sumAmount(list))}</b>
-        </>
-      ),
-      footer: open ? (
+      subtitle: showAmount ? <b className="num">{money(sumAmount(list))}</b> : undefined,
+      footer: open && showWeighted ? (
         <>
           <span>
             {t('crm.deals.weightedFoot', { pct: pct(s.p) })}
@@ -116,7 +116,7 @@ export function DealsPage() {
       <div className="ph">
         <div>
           <h1>{t('crm.deals.title')}</h1>
-          <p>{t('crm.deals.summary', { count: total.count, amount: money(total.amount), weighted: money(total.weighted) })}</p>
+          <p>{showWeighted ? t('crm.deals.summary', { count: total.count, amount: money(total.amount), weighted: money(total.weighted) }) : t('crm.deals.countOnly', { count: total.count })}</p>
         </div>
         <div className="acts">
           <Button variant="primary" onClick={() => ui.newDeal({ pipeline: activePipeline?.id })}>
@@ -129,7 +129,7 @@ export function DealsPage() {
         search={{ value: filters.q, onChange: filters.setQ, placeholder: t('crm.deals.searchPlaceholder') }}
         fields={fields}
         filters={filters}
-        sort={{ options: dealSorts(t), value: table.sort.id, dir: table.sort.dir, onChange: table.setSort }}
+        sort={{ options: dealSorts(t, hidden), value: table.sort.id, dir: table.sort.dir, onChange: table.setSort }}
         group={mode === 'table' ? { options: groupOptions, value: group, onChange: g => setGroup(g as GroupId) } : undefined}
         columns={mode === 'table' ? columnsMenu(columns, table) : undefined}
         left={

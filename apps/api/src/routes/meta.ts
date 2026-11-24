@@ -13,7 +13,8 @@ import { ctxOf, validationHook } from '../crud';
 import { AppError, badRequest, notFound } from '../errors';
 import { requireRole } from '../middleware';
 import { buildIndex, dropIndex } from '../meta/indexes';
-import { loadEntity, loadFields } from '../meta/service';
+import { hiddenFieldsOf } from '../field-access';
+import { loadEntity, loadFields, visibleFieldDefs } from '../meta/service';
 import type { AppEnv } from '../types';
 
 const admin = requireRole('admin');
@@ -38,13 +39,14 @@ export const entityRoutes = new Hono<AppEnv>()
       .where(archived === 'only' ? sql`${entities.archivedAt} is not null` : archived === 'include' ? undefined : isNull(entities.archivedAt))
       .orderBy(asc(entities.kind), asc(entities.sortOrder), asc(entities.createdAt));
     const allFields = await ctx.db.select().from(fields).orderBy(asc(fields.sortOrder), asc(fields.createdAt));
-    const items = rows.map(e => ({ ...e, fields: allFields.filter(f => f.entityId === e.id) }));
+    const hidden = new Set(await hiddenFieldsOf(ctx));
+    const items = rows.map(e => ({ ...e, fields: allFields.filter(f => f.entityId === e.id && !hidden.has(`custom:${e.key}.${f.key}`)) }));
     return c.json({ items, total: items.length, limit: items.length, offset: 0 });
   })
   .get('/:ref', zValidator('param', refParam, validationHook), async c => {
     const ctx = ctxOf(c);
     const e = await loadEntity(ctx, c.req.valid('param').ref, { archived: true });
-    return c.json({ ...e, fields: await loadFields(ctx, e.id, { archived: true }) });
+    return c.json({ ...e, fields: await visibleFieldDefs(ctx, e, { archived: true }) });
   })
   // ---- создание пользовательской сущности вместе с полем-заголовком ----
   .post('/', admin, zValidator('json', entityCreate, validationHook), async c => {
@@ -115,7 +117,7 @@ export const entityRoutes = new Hono<AppEnv>()
   .get('/:ref/fields', zValidator('param', refParam, validationHook), async c => {
     const ctx = ctxOf(c);
     const e = await loadEntity(ctx, c.req.valid('param').ref, { archived: true });
-    const items = await loadFields(ctx, e.id, { archived: true });
+    const items = await visibleFieldDefs(ctx, e, { archived: true });
     return c.json({ items, total: items.length, limit: items.length, offset: 0 });
   })
   .post('/:ref/fields', admin, zValidator('param', refParam, validationHook), zValidator('json', fieldCreate, validationHook), async c => {

@@ -46,3 +46,4 @@ export * from './cases';
 export * from './whiteboards';
 export * from './chats';
 export * from './mining';
+export * from './webhooks';

@@ -1,3 +1,4 @@
+import { useHiddenFields } from '../positions/data';
 /* Общие компоненты CRM: значок этапа, логотип компании, поля сделки, карточка воронки, запись активности и её форма */
 import * as React from 'react';
 import { Link } from 'react-router';
@@ -294,6 +295,8 @@ export function CloseDate({ deal: d }: { deal: Deal }) {
 
 /** Карточка сделки в воронке (по образцу KCard задач) */
 export function DealCard({ deal: d }: { deal: Deal }) {
+  const hidden = useHiddenFields();
+  const showAmount = !hidden.includes('deal.amount');
   const { data, pipes } = useCrm();
   const ui = useCrmUi();
   const t = useT();
@@ -304,7 +307,7 @@ export function DealCard({ deal: d }: { deal: Deal }) {
   const reason = pipes.reasons.find(r => r.id === d.lostReasonId)?.name ?? d.lostReason;
   const open = () => ui.openDeal(d.id);
   return (
-    <div className={cn('kcard crm-deal', st.category === 'lost' && 'lost', overdueStage && 'stage-overdue')} role="button" tabIndex={0} aria-label={`${d.name}, ${money(d.amount)}`} onClick={open} onKeyDown={e => e.key === 'Enter' && e.target === e.currentTarget && open()}>
+    <div className={cn('kcard crm-deal', st.category === 'lost' && 'lost', overdueStage && 'stage-overdue')} role="button" tabIndex={0} aria-label={showAmount ? `${d.name}, ${money(d.amount)}` : d.name} onClick={open} onKeyDown={e => e.key === 'Enter' && e.target === e.currentTarget && open()}>
       <div className="top">
         <div className="title">{d.name}</div>
       </div>
@@ -315,8 +318,8 @@ export function DealCard({ deal: d }: { deal: Deal }) {
         </div>
       )}
       <div className="meta">
-        <span className="amt num">{money(d.amount)}</span>
-        {!closed && <span className="m num">{pct(probability(d))}</span>}
+        {showAmount && <span className="amt num">{money(d.amount)}</span>}
+        {!closed && !hidden.includes('deal.probability') && <span className="m num">{pct(probability(d))}</span>}
         <CloseDate deal={d} />
         {st.category === 'lost' && reason && <span className="m trunc">{reason}</span>}
         {overdueStage && <span className="m" style={{ color: 'var(--red)' }}>{t('crm.pipelines.overdueBadge', { days: st.slaDays ?? 0 })}</span>}

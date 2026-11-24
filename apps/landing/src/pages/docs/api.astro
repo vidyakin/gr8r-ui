@@ -1,0 +1,89 @@
+---
+import Base from '../../layouts/Base.astro';
+---
+
+<Base
+  title="REST API v1 & Webhooks — FutureERP"
+  description="Публичный REST API v1, спецификация OpenAPI 3.0 и исходящие вебхуки FutureERP."
+  theme="light"
+>
+  <main class="api-docs">
+    <header class="api-head">
+      <a href="/docs/" class="back-link">← Документация</a>
+      <h1>FutureERP REST API v1 &amp; Webhooks</h1>
+      <p class="lead">
+        Интегрируйте интернет-магазины, маркетплейсы, 1С и внешние сервисы с товарами, остатками,
+        ценами, контрагентами и документами. Спецификация OpenAPI 3.0.3 доступна по адресу
+        <code>GET /api/v1/openapi.json</code>.
+      </p>
+    </header>
+
+    <section>
+      <h2>Аутентификация и лимиты</h2>
+      <p>
+        Выпустите токен в разделе <strong>Настройки → Токены доступа</strong> (префикс <code>erp_</code>)
+        и передавайте его в заголовке <code>Authorization</code>. Воркспейс определяется по токену автоматически.
+      </p>
+      <pre><code>curl -H "Authorization: Bearer erp_your_token" \
+  https://app.future-erp.ru/api/v1/products?limit=20</code></pre>
+      <ul>
+        <li>Права токена: режим «только чтение» (<code>read_only</code>), ограничение по разделам, право проведения (<code>can_post</code>), срок действия.</li>
+        <li>Лимит частоты: <strong>120 запросов в минуту</strong> на один токен (ответ <code>429 token_rate_limited</code>).</li>
+        <li>Пагинация: параметры <code>limit</code> (1–200, по умолчанию 50) и <code>offset</code>.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Эндпоинты REST API v1</h2>
+      <table>
+        <thead>
+          <tr><th>Метод и путь</th><th>Описание</th><th>Основные параметры</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>GET /api/v1/products</code></td><td>Список номенклатуры</td><td><code>q</code>, <code>sku</code>, <code>categoryId</code>, <code>kind</code>, <code>active</code>, <code>updatedSince</code></td></tr>
+          <tr><td><code>GET /api/v1/products/:id</code></td><td>Карточка товара</td><td><code>id</code> (UUID)</td></tr>
+          <tr><td><code>GET /api/v1/stock</code></td><td>Остатки по складам</td><td><code>warehouseId</code>, <code>productId</code>, <code>nonZero</code>, <code>q</code></td></tr>
+          <tr><td><code>GET /api/v1/prices</code></td><td>Актуальный прайс-лист</td><td><code>kindId</code>, <code>categoryId</code>, <code>date</code>, <code>inStock</code>, <code>q</code></td></tr>
+          <tr><td><code>GET /api/v1/companies</code></td><td>Список контрагентов</td><td><code>role</code> (customer/supplier), <code>inn</code>, <code>q</code>, <code>updatedSince</code></td></tr>
+          <tr><td><code>GET /api/v1/companies/:id</code></td><td>Карточка контрагента</td><td><code>id</code> (UUID)</td></tr>
+          <tr><td><code>GET /api/v1/warehouses</code></td><td>Список складов</td><td><code>q</code>, <code>updatedSince</code></td></tr>
+          <tr><td><code>GET /api/v1/documents</code></td><td>Журнал документов</td><td><code>type</code>, <code>status</code>, <code>dateFrom</code>, <code>dateTo</code>, <code>updatedSince</code>, <code>q</code></td></tr>
+          <tr><td><code>GET /api/v1/documents/:id</code></td><td>Карточка документа</td><td><code>id</code> (UUID)</td></tr>
+          <tr><td><code>POST /api/v1/documents</code></td><td>Создать черновик документа</td><td>JSON тело документа (требуется токен на запись)</td></tr>
+          <tr><td><code>PATCH /api/v1/documents/:id</code></td><td>Изменить черновик документа</td><td>JSON поля обновления</td></tr>
+          <tr><td><code>POST /api/v1/documents/:id/post</code></td><td>Провести документ</td><td>Требуется право токена <code>can_post</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Исходящие вебхуки</h2>
+      <p>
+        Настройте подписки в <strong>Настройки → Интеграции → Исходящие вебхуки</strong>.
+        Каждый HTTP POST-запрос подписан HMAC-SHA256 в заголовке <code>X-FutureERP-Signature</code>
+        в формате <code>sha256=&lt;hex&gt;</code>. При ошибке доставки выполняются повторные попытки
+        с экспоненциальной паузой (до 5 попыток), а любую неудачную доставку можно повторить вручную из журнала.
+      </p>
+      <pre><code>import &#123; createHmac, timingSafeEqual &#125; from 'node:crypto';
+
+export function verifySignature(secret: string, rawBody: string, header: string) &#123;
+  const expected = 'sha256=' + createHmac('sha256', secret).update(rawBody, 'utf8').digest('hex');
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(header));
+&#125;</code></pre>
+    </section>
+  </main>
+</Base>
+
+<style>
+  .api-docs { max-width: 920px; margin: 0 auto; padding: 48px 20px 80px; font-family: Geist, system-ui, sans-serif; color: #111827; line-height: 1.6; }
+  .back-link { color: #2563eb; text-decoration: none; font-size: 14px; }
+  .api-head h1 { margin: 12px 0 8px; font-size: 32px; letter-spacing: -0.02em; }
+  .lead { color: #4b5563; font-size: 16px; }
+  section { margin-top: 36px; }
+  h2 { font-size: 20px; margin-bottom: 12px; }
+  pre { background: #0f172a; color: #e2e8f0; padding: 14px 16px; border-radius: 10px; overflow-x: auto; font-size: 13px; }
+  code { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 0.9em; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+  th { font-weight: 600; background: #f9fafb; }
+</style>

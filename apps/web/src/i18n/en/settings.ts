@@ -770,6 +770,7 @@ export const settings = {
       minimum: 'Minimum',
       maximum: 'Maximum',
       uniqueValues: 'Unique values',
+      hidden: 'Hidden field (only for roles with access)',
       filterable: 'Filterable',
       filterableHint: '— builds an index so filtering and sorting stay fast on large lists',
     },

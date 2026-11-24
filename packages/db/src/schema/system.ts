@@ -1,6 +1,6 @@
 /* Журнал событий (outbox) и очередь фоновых задач. */
 import { sql } from 'drizzle-orm';
-import { check, index, integer, jsonb, pgTable, text, uuid } from 'drizzle-orm/pg-core';
+import { check, index, integer, jsonb, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { createdAt, pk, ts } from './columns';
 import { wsCol } from './people';
 
@@ -25,6 +25,7 @@ export const events = pgTable(
   },
   t => [
     index('events_ws_id_idx').on(t.workspaceId, t.id),
+    uniqueIndex('events_ws_id_uq').on(t.workspaceId, t.id),
     index('events_unprocessed_idx').on(t.id).where(sql`${t.processedAt} is null`),
   ],
 );

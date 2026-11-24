@@ -436,6 +436,7 @@ function FieldDialog({ entity: e, field, onClose }: { entity: MetaEntity; field?
   const [type, setType] = React.useState<FieldType>(field?.type ?? 'text');
   const [required, setRequired] = React.useState(field?.required ?? false);
   const [unique, setUnique] = React.useState(field?.unique ?? false);
+  const [hidden, setHidden] = React.useState(field?.options.hidden ?? false);
   const [filterable, setFilterable] = React.useState(field?.filterable ?? false);
   const [choices, setChoices] = React.useState<ChoiceDraft[]>(field?.options.choices?.map(c => ({ ...c })) ?? [{ value: 'option_1', label: '', color: 'blue', isNew: true }]);
   const [refEntity, setRefEntity] = React.useState(field?.options.refEntity ?? '');
@@ -462,7 +463,7 @@ function FieldDialog({ entity: e, field, onClose }: { entity: MetaEntity; field?
     );
 
   const submit = async () => {
-    const options: Record<string, unknown> = {};
+    const options: Record<string, unknown> = { hidden };
     if (type === 'select' || type === 'multi_select') options.choices = choices.filter(c => c.label.trim()).map(({ isNew: _n, ...c }) => ({ ...c, label: c.label.trim() }));
     if (type === 'ref' || type === 'refs') options.refEntity = refEntity || undefined;
     if (['number', 'money', 'percent'].includes(type)) {
@@ -589,6 +590,10 @@ function FieldDialog({ entity: e, field, onClose }: { entity: MetaEntity; field?
             <label className="row" style={{ gap: 8 }}>
               <Checkbox checked={unique} onChange={ev => setUnique(ev.target.checked)} />
               {t('settings.dataModel.fieldDialog.uniqueValues')}
+            </label>
+            <label className="row" style={{ gap: 8 }}>
+              <Checkbox checked={hidden} onChange={ev => setHidden(ev.target.checked)} />
+              {t('settings.dataModel.fieldDialog.hidden')}
             </label>
             <label className="row" style={{ gap: 8 }}>
               <Checkbox checked={filterable} onChange={ev => setFilterable(ev.target.checked)} />

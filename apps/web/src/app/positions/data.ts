@@ -2,7 +2,7 @@
    Ключи кэша ['ws', id, 'positions', …]: события position / product_kind / member обновляют их. */
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { membersWithFunction, POSITION_SECTIONS, type PositionFunction, type PositionSection, type ProductKindType } from '@erp/shared';
+import { membersWithFunction, POSITION_SECTIONS, type PositionFunction, type PositionSection, type ProductKindType, type RecordScope } from '@erp/shared';
 import { toast } from '@/components/ui';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';
@@ -13,6 +13,8 @@ export interface PositionItem {
   functions: PositionFunction[];
   /** Пусто — все разделы */
   sections: PositionSection[];
+  recordScope: RecordScope;
+  hiddenFields: string[];
   sortOrder: number;
   productKindIds: string[];
   memberIds: string[];
@@ -30,6 +32,8 @@ export interface MyAccess {
   positionIds: string[];
   functions: PositionFunction[];
   sections: PositionSection[];
+  recordScope: RecordScope;
+  hiddenFields: string[];
 }
 
 export const positionsKey = (ws: string, ...rest: unknown[]) => ['ws', ws, 'positions', ...rest] as const;
@@ -48,6 +52,12 @@ export function useProductKinds() {
 export function useMyAccess() {
   const ws = useWsId();
   return useQuery({ queryKey: positionsKey(ws, 'me'), queryFn: () => call<MyAccess>(ws, 'GET', '/positions/me'), staleTime: Infinity });
+}
+
+const NO_HIDDEN_FIELDS: readonly string[] = [];
+
+export function useHiddenFields(): readonly string[] {
+  return useMyAccess().data?.hiddenFields ?? NO_HIDDEN_FIELDS;
 }
 
 /** Вызов API справочников с обновлением кэша и тостом об ошибке; null при ошибке */

@@ -57,6 +57,7 @@ export const sections: Widen<typeof S> = {
   workCenters: 'Участки',
   automations: 'Автоматизации',
   sales: 'Продажи',
+  salesProfit: 'Прибыль продаж (P&L)',
   workOrders: 'Заказ-наряды',
   servicesTimesheet: 'Учёт времени',
   servicesPlanner: 'Планирование услуг',

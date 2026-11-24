@@ -44,12 +44,32 @@ export const SECTION_OF_API_PATH: ReadonlyMap<string, PositionSection> = new Map
 export const PRODUCT_KIND_TYPES = ['goods', 'service', 'work'] as const;
 export type ProductKindType = (typeof PRODUCT_KIND_TYPES)[number];
 
+/** Область видимости записей CRM для должности: все / подразделение и дочерние / только свои */
+export const RECORD_SCOPES = ['all', 'department', 'own'] as const;
+export type RecordScope = (typeof RECORD_SCOPES)[number];
+
+/** Ключи чувствительных системных полей, которые можно скрывать на уровне должности */
+export const SENSITIVE_FIELD_KEYS = [
+  'deal.amount',
+  'deal.probability',
+  'contact.phone',
+  'contact.email',
+  'lead.phone',
+  'lead.email',
+  'company.requisites',
+  'company.bankAccounts',
+  'document.total',
+] as const;
+export type SensitiveFieldKey = (typeof SENSITIVE_FIELD_KEYS)[number];
+
 export interface PositionDef {
   id: string;
   functions: readonly string[];
   /** Пусто — все разделы */
   sections: readonly string[];
   productKindIds?: readonly string[];
+  recordScope?: RecordScope;
+  hiddenFields?: readonly string[];
 }
 
 export interface MemberPositionLink {
@@ -94,4 +114,28 @@ export function specialistProductKindIds(memberId: string, positions: readonly P
 /** Подходит ли товар специалисту: без ограничения — любой; иначе его вид должен входить в список (товар без вида не подходит) */
 export function productFitsSpecialist(productKindId: string | null | undefined, allowed: readonly string[] | null): boolean {
   return allowed === null || (!!productKindId && allowed.includes(productKindId));
+}
+
+/** Самая широкая область видимости среди нескольких должностей: all > department > own. Пустой список — all */
+export function widestRecordScope(scopes: readonly (RecordScope | string | undefined)[]): RecordScope {
+  if (!scopes.length) return 'all';
+  if (scopes.includes('all')) return 'all';
+  if (scopes.includes('department')) return 'department';
+  if (scopes.includes('own')) return 'own';
+  return 'all';
+}
+
+/** Итоговая область видимости записей участника: owner/admin и участник без должностей видят всё */
+export function effectiveRecordScope(role: Role | string | undefined, memberPositions: readonly Pick<PositionDef, 'recordScope'>[]): RecordScope {
+  if (isAdminRole(role) || !memberPositions.length) return 'all';
+  return widestRecordScope(memberPositions.map(p => p.recordScope ?? 'all'));
+}
+
+/** Итоговый список скрытых полей участника: owner/admin и участник без должностей видят всё; при нескольких должностях — пересечение (самый широкий доступ) */
+export function effectiveHiddenFields(role: Role | string | undefined, memberPositions: readonly Pick<PositionDef, 'hiddenFields'>[]): string[] {
+  if (isAdminRole(role) || !memberPositions.length) return [];
+  const sets = memberPositions.map(p => new Set(p.hiddenFields ?? []));
+  const first = sets[0];
+  if (!first || !first.size) return [];
+  return [...first].filter(k => sets.every(s => s.has(k)));
 }

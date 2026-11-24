@@ -11,6 +11,8 @@ export interface HttpOptions {
   allowPrivate: boolean;
   timeoutMs: number;
   maxBytes: number;
+  /** Protocol clients require a complete, valid UTF-8 response. */
+  strictBody?: boolean;
   maxRedirects: number;
   resolve: (host: string) => Promise<string[]>;
 }
@@ -68,22 +70,30 @@ export function pinnedRequest(url: URL, address: string | null): { target: URL; 
   return { target, host: url.host, serverName: url.protocol === 'https:' ? url.hostname : null };
 }
 
-async function readLimited(res: Response, max: number): Promise<string> {
+async function readLimited(res: Response, max: number, strict: boolean): Promise<string> {
   if (!res.body) return '';
   const reader = res.body.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    chunks.push(value);
-    if (size >= max) {
-      await reader.cancel();
-      break;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > max && strict) {
+        await reader.cancel();
+        throw new Error('Response exceeds the byte limit');
+      }
+      chunks.push(value);
+      if (size >= max && !strict) {
+        await reader.cancel();
+        break;
+      }
     }
+    return new TextDecoder('utf-8', { fatal: strict }).decode(Buffer.concat(chunks).subarray(0, max));
+  } finally {
+    reader.releaseLock();
   }
-  return new TextDecoder().decode(Buffer.concat(chunks).subarray(0, max));
 }
 
 export async function guardedFetch(req: HttpRequest, o: HttpOptions = defaultHttpOptions()): Promise<HttpResult> {
@@ -119,9 +129,13 @@ export async function guardedFetch(req: HttpRequest, o: HttpOptions = defaultHtt
       }
       continue;
     }
+    if (o.strictBody && !res.ok) {
+      await res.body?.cancel();
+      return { status: res.status, ok: false, headers: Object.fromEntries(res.headers.entries()), body: '' };
+    }
     let text: string;
     try {
-      text = await readLimited(res, o.maxBytes);
+      text = await readLimited(res, o.maxBytes, o.strictBody ?? false);
     } catch (e) {
       throw new TransientError(`Failed to read the response: ${(e as Error).message}`);
     }

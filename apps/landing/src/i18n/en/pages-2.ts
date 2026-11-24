@@ -102,6 +102,28 @@ export const enPages2: Pick<Dict['modulePages'], 'services' | 'production' | 'sa
         list: ['Cash flow category on every payment line', 'Import bank statements from file', 'Payment status indicator in document registers', 'Negative cash balance shows a warning without blocking posting'],
         screen: 'Payments register: inflows, outflows, and cash/bank balances',
       },
+      {
+        title: 'Sales P&L and ABC assortment analysis',
+        text: 'Track gross profit and margin without spreadsheets. Unit cost is locked at posting time so historical periods never drift, and ABC analysis highlights top-performing items by revenue and profit.',
+        list: [
+          'Sales P&L across 6 groupings: product, category, client, manager, organization, and warehouse',
+          'Cost locked at shipment posting time for accurate historical gross profit and margin',
+          'ABC assortment analysis by revenue and profit with configurable thresholds (default 80/15/5%)',
+          'One-click XLSX export for both P&L and ABC reports',
+        ],
+        screen: 'Sales P&L report and ABC assortment analysis with XLSX export',
+      },
+      {
+        title: 'EAN-13 barcodes, labels, and price tags',
+        text: 'Generate internal EAN-13 barcodes individually or in bulk and print barcode labels or price tags directly from the product catalog or goods receipts with live PDF preview.',
+        list: [
+          'Single and bulk internal EAN-13 barcode generation with check digit',
+          'Printable barcode labels in 58×40 and 43×25 mm formats for thermal printers',
+          'Price tags in A6 and A4 grid layouts with live preview and PDF export',
+          'Launch printing straight from the catalog or from posted goods receipts',
+        ],
+        screen: 'Live preview of 58×40 mm barcode labels and A6/A4 price tags with EAN-13',
+      },
     ],
     chain: [
       ['docs', 'Quote, customer order, and invoice created in one chain.'],
@@ -114,6 +136,8 @@ export const enPages2: Pick<Dict['modulePages'], 'services' | 'production' | 'sa
       ['What if stock is insufficient?', 'Posting checks physical on-hand stock. Reservations for other orders do not block posting.'],
       ['What if a cash desk has insufficient funds?', 'The system warns about a negative balance but still allows posting the document.'],
       ['How do we record a return?', 'Create a customer return from a shipment, or a vendor return from a goods receipt.'],
+      ['How are P&L profit and ABC analysis calculated?', 'Cost is locked when a shipment is posted. Sales P&L reports gross profit and margin across 6 groupings (product, category, client, manager, organization, warehouse), while ABC analysis classifies items by revenue and profit with configurable 80/15/5 thresholds and XLSX export.'],
+      ['What barcode label and price tag formats are supported?', 'You can generate internal EAN-13 barcodes singly or in bulk and export PDFs with live preview for 58×40 and 43×25 mm labels as well as A6 and A4 grid price tags directly from the catalog or goods receipts.'],
     ],
   },
 };

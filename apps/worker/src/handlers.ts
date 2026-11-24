@@ -4,12 +4,14 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { BANK_SYNC_JOB, EMAIL_SEND_JOB, syncMailbox, sendQueuedEmail, buildPrintData, OBJECT_REPORT_JOB, runScheduledObjectReport, renderContractDocxFile, renderContractHtml, renderDocumentHtml, settlementActHtml, transportWaybillPrintData, DISTRIBUTE_JOB, GEOCODE_JOB, OPTIMIZE_JOB, executeRoutingRun, runGeocode, createFieldIndex, integrationRuntime, processYooPayment, syncConnection, YOOKASSA_PAYMENT_JOB, addVersion, createAttachment, contractFiles, documentExports, documentFiles, documents, dropFieldIndex, entities, events, fields, getEstimateImport, isUuid, jobs, saveEstimateImportAi, withContext, type Db, type Sql } from '@erp/db';
 import { FIELD_TYPES, renderPrintForm, renderTransportWaybill, TransientError, type EstimatePdfRegion, type EstimateTableFile, type FieldType, type PrintForm } from '@erp/shared';
-import { loadRequestForHook, markRequestHookSent } from '@erp/db';
+import { IC_SYNC_JOB, registerIcChange, loadRequestForHook, markRequestHookSent } from '@erp/db';
 import { extractEstimateRegions, extractEstimateRows } from './ai/estimate-extract';
 import { llmRuntime } from './ai/llm';
+import { sync1cChannel } from './integrations-1c-sync';
 import { runClosePeriod } from './production-closing';
 import { executeRun } from './flows/engine';
 import { startRunsForEvent } from './flows/triggers';
+import { enqueueWebhooksForEvent } from './webhooks';
 import { renderPdf } from './pdf/render';
 import { archiveStoreFromEnv, pdfStoreFromEnv, type PdfStore } from './pdf/storage';
 import { createZip, type ZipEntry } from './pdf/zip';
@@ -21,7 +23,9 @@ export type JobRow = typeof jobs.$inferSelect;
     Подбирает опубликованные включённые flow с подходящим триггером и ставит их запуски в очередь; сами шаги выполняет задача flow.run
     под ролью app_user в контексте арендатора. */
 export async function handleEvent(event: EventRow, db: Db): Promise<void> {
+  await registerIcChange(db, event);
   await startRunsForEvent(db, event);
+  await enqueueWebhooksForEvent(db, event);
 }
 
 /** Что получает обработчик задачи. Транзакцию на время долгой операции держать нельзя (CREATE INDEX CONCURRENTLY ждёт
@@ -82,6 +86,11 @@ export const requestHookRuntime: { fetch: (input: string, init: RequestInit) => 
 export const jobHandlers: Record<string, (job: JobRow, h: JobContext) => Promise<void>> = {
   /** Служебная задача для проверки очереди */
   noop: async () => {},
+  [IC_SYNC_JOB]: async (job, h) => {
+    const channelId = job.payload.channelId;
+    if (!isUuid(channelId)) throw new Error('1c.sync job: payload.channelId must be a uuid');
+    await sync1cChannel(h.sql, job, channelId);
+  },
   /** Исходящее письмо (задача 1092): SMTP через nodemailer. Временная ошибка — повтор с паузой (до 5 попыток), затем failed;
       окончательная (пароль, адрес, вложение) — сразу failed без повтора. PDF печатной формы собирается здесь же */
   [EMAIL_SEND_JOB]: async (job, h) => {

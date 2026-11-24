@@ -53,6 +53,7 @@ export * from './serials';
 export * from './batches';
 export * from './stock-preview';
 export * from './stock-aging';
+export * from './sales-profit';
 export * from './quarantine';
 export * from './quality';
 export * from './repair';
@@ -112,3 +113,12 @@ export * from './email-send';
 export * from './email-transport';
 
 export * from './email-sync';
+
+export * from './barcodes';
+
+export * from './integrations-1c';
+export * from './integrations-1c-export';
+export { apply1cImport, preview1cImport, type IcImportPreview, type IcImportResult } from './integrations-1c-import';
+export * from './integrations-1c-reconcile';
+export * from './integrations-1c-sync';
+export { applyIcPackage } from './integrations-1c-sync-apply';

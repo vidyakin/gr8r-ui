@@ -27,6 +27,7 @@ export const crm = {
     openPipelineBtn: 'Open pipeline',
   },
   deals: {
+    countOnly: '{count} deals',
     title: 'Deals',
     summary: '{count} open deals · {amount} in pipeline · {weighted} weighted',
     newDeal: 'New deal',

@@ -3,6 +3,9 @@ import type { Widen } from '../types';
 import type { errors as E } from '../en/errors';
 
 export const errors: Widen<typeof E> = {
+  invalid_enterprise_data: 'Seleccione un archivo XML válido de EnterpriseData 1.15 o 1.17.',
+  ic_unresolved_balances: 'Revise la fecha, las secciones de saldos seleccionadas y las filas sin resolver.',
+  ic_opening_exists: 'Ya existe un documento de apertura para esta organización o almacén.',
   driver_payment_conflict: 'Este identificador de pago ya se usó para otro pago.',
   driver_return_conflict: 'Este identificador de devolución ya se usó para otra devolución.',
   return_requires_realization: 'Se requiere una expedición contabilizada para realizar una devolución.',
@@ -16,6 +19,7 @@ export const errors: Widen<typeof E> = {
   conflict: 'Ya existe un registro con el mismo valor único',
   module_expired: 'El plazo del módulo ha finalizado: está en modo de solo lectura. Amplía el plan para editar datos',
   limit_exceeded: 'Esta acción superaría el límite del plan. Pide al administrador que amplíe el plan',
+  field_forbidden: 'No tienes permiso para editar un campo oculto',
   section_forbidden: 'Esta sección está oculta según tus cargos. Pide acceso al administrador',
   module_disabled: 'Esta sección no está incluida en tu plan. Pide al administrador que conecte el módulo',
   plan_in_use: 'No se puede eliminar el plan: es el plan predeterminado o está asignado a espacios de trabajo',

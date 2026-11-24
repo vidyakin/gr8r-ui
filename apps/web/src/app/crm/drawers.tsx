@@ -1,3 +1,4 @@
+import { useHiddenFields } from '../positions/data';
 /* Карточки сделки и контакта — EntityDrawer с полями CRM */
 import * as React from 'react';
 import { useNavigate } from 'react-router';
@@ -56,6 +57,8 @@ export function DealDrawer({ id }: { id: string }) {
   const ui = useCrmUi();
   const navigate = useNavigate();
   const t = useT();
+  const hidden = useHiddenFields();
+  const showAmount = !hidden.includes('deal.amount');
   const d = findDeal(data, id);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const quoteCount = useDealQuoteCount(id);
@@ -77,7 +80,7 @@ export function DealDrawer({ id }: { id: string }) {
       <div className="alert ok">
         <CircleCheck size={15} />
         <span>
-          {d.closedAt ? t('crm.deals.drawer.wonBannerDate', { date: fmtDate(d.closedAt), amount: money(d.amount) }) : t('crm.deals.drawer.wonBanner', { amount: money(d.amount) })}{' '}
+          {!showAmount ? t('crm.deals.drawer.probWon') : d.closedAt ? t('crm.deals.drawer.wonBannerDate', { date: fmtDate(d.closedAt), amount: money(d.amount) }) : t('crm.deals.drawer.wonBanner', { amount: money(d.amount) })}{' '}
           <button className="link" onClick={() => ui.moveDealTo(d.id, 'reopen')}>
             {t('crm.deals.drawer.reopen')}
           </button>
@@ -168,22 +171,22 @@ export function DealDrawer({ id }: { id: string }) {
         fields={[
           { icon: GitBranch, label: t('crm.pipelines.pipeline'), value: <PipelineField deal={d} /> },
           { icon: Layers, label: t('crm.deals.col.stage'), value: <StageField deal={d} /> },
-          { icon: CircleDollarSign, label: t('crm.deals.col.amount'), value: <AmountInput value={d.amount} onCommit={amount => update({ amount })} /> },
-          {
+          ...(showAmount ? [{ icon: CircleDollarSign, label: t('crm.deals.col.amount'), value: <AmountInput value={d.amount} onCommit={amount => update({ amount })} /> }] : []),
+          ...(!hidden.includes('deal.probability') ? [{
             icon: Percent,
             label: t('crm.deals.drawer.probability'),
             value: open ? (
               <span className="row" style={{ gap: 8, flex: 1, maxWidth: 280 }}>
                 <span className="num">{pct(probability(d))}</span>
                 <Progress value={probability(d) * 100} aria-label={t('crm.deals.drawer.probabilityAria')} />
-                <span className="faint num" style={{ fontSize: 11.5, whiteSpace: 'nowrap' }}>
+                {showAmount && <span className="faint num" style={{ fontSize: 11.5, whiteSpace: 'nowrap' }}>
                   {t('crm.deals.drawer.weighted', { amount: money(weighted(d)) })}
-                </span>
+                </span>}
               </span>
             ) : (
               <span className="muted">{st.category === 'won' ? t('crm.deals.drawer.probWon') : t('crm.deals.drawer.probLost')}</span>
             ),
-          },
+          }] : []),
           {
             icon: CalendarIcon,
             label: open ? t('crm.deals.drawer.expectedClose') : t('crm.deals.drawer.closedOn'),
@@ -316,6 +319,7 @@ export function ContactDrawer({ id }: { id: string }) {
   const ui = useCrmUi();
   const navigate = useNavigate();
   const t = useT();
+  const hidden = useHiddenFields();
   const c = findContact(data, id);
   if (!c) return null;
   const co = findCompany(data, c.company);
@@ -353,8 +357,8 @@ export function ContactDrawer({ id }: { id: string }) {
       fields={[
         { icon: Building2, label: t('crm.companies.col.company'), value: <CompanyLink id={c.company} logo /> },
         { icon: Briefcase, label: t('crm.contacts.col.title'), value: c.title ? <span>{c.title}</span> : <span className="faint">—</span> },
-        { icon: Mail, label: t('crm.contacts.col.email'), value: c.email ? <a className="crm-link" href={`mailto:${c.email}`}>{c.email}</a> : <span className="faint">—</span> },
-        { icon: Phone, label: t('crm.contacts.col.phone'), value: c.phone ? <span className="num">{c.phone}</span> : <span className="faint">—</span> },
+        ...(!hidden.includes('contact.email') ? [{ icon: Mail, label: t('crm.contacts.col.email'), value: c.email ? <a className="crm-link" href={`mailto:${c.email}`}>{c.email}</a> : <span className="faint">—</span> }] : []),
+        ...(!hidden.includes('contact.phone') ? [{ icon: Phone, label: t('crm.contacts.col.phone'), value: c.phone ? <span className="num">{c.phone}</span> : <span className="faint">—</span> }] : []),
         { icon: User, label: t('crm.deals.col.owner'), value: <OwnerField value={c.owner} onChange={owner => dispatch({ type: 'contact/update', id: c.id, patch: { owner } })} /> },
         ...customRows.map(r => ({ icon: r.icon, label: r.label, value: r.node })),
       ]}
@@ -382,7 +386,7 @@ export function ContactDrawer({ id }: { id: string }) {
                   <span className="grow trunc" style={{ flex: 1 }}>
                     <DealLink id={x.id} />
                   </span>
-                  <span className="num muted">{money(x.amount)}</span>
+                  {!hidden.includes('deal.amount') && <span className="num muted">{money(x.amount)}</span>}
                   <span className="muted hide-m" style={{ width: 84 }}>
                     {stageName(x.stage, stage(x.stage).name)}
                   </span>

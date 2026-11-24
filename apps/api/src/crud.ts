@@ -8,8 +8,9 @@ import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import type { Context } from 'hono';
 import { Hono } from 'hono';
 import { archiveAttachmentsOf, recordEvent, type Db, type Tx } from '@erp/db';
-import { idParam, type ListQuery, type Page, type Role } from '@erp/shared';
+import { idParam, maskRows, type ListQuery, type Page, type Role } from '@erp/shared';
 import type { z } from 'zod';
+import { hiddenFieldsOf } from './field-access';
 import { AppError, badRequest, notFound } from './errors';
 import { hasRole, requireRole } from './middleware';
 import type { AppEnv } from './types';
@@ -41,7 +42,8 @@ export interface CrudOptions<T extends AnyTable, CS extends z.ZodType, US extend
   sortable: Record<string, PgColumn>;
   defaultSort?: string;
   /** Колонки для поиска ?q= */
-  search?: PgColumn[];
+  search?: PgColumn[] | ((ctx: Ctx) => Promise<PgColumn[]>);
+  hiddenSortKeys?: (ctx: Ctx) => Promise<readonly string[]>;
   /** Дополнительное условие поиска ?q=, объединяется с колонками через OR (например, по связанной таблице) */
   searchExtra?: (term: string, q: z.output<QS>) => SQL | undefined;
   /** Фильтры списка из проверенного query */
@@ -91,7 +93,11 @@ export function crud<T extends AnyTable, CS extends z.ZodType, US extends z.ZodT
     if (o.disabled?.includes(op)) throw new AppError(405, 'method_not_allowed', `Operation "${op}" is not supported for ${o.entity}`);
   };
   const write = requireRole(o.writeRole ?? 'member');
-  const decorate = async (ctx: Ctx, rows: Row<T>[]): Promise<(Row<T> & E)[]> => (o.decorate ? o.decorate(ctx, rows) : (rows as (Row<T> & E)[]));
+  const decorate = async (ctx: Ctx, rows: Row<T>[]): Promise<(Row<T> & E)[]> => {
+    const result = o.decorate ? await o.decorate(ctx, rows) : rows as (Row<T> & E)[];
+    if (!('custom' in cols) || !result.length || ['company', 'contact', 'deal', 'lead'].includes(o.entity)) return result;
+    return maskRows(o.entity, result, await hiddenFieldsOf(ctx));
+  };
 
   const parseSort = (sort: string | undefined): SQL[] => {
     const parts = (sort ?? o.defaultSort ?? '-createdAt').split(',').filter(Boolean);
@@ -106,9 +112,12 @@ export function crud<T extends AnyTable, CS extends z.ZodType, US extends z.ZodT
     return out;
   };
 
-  const baseWhere = (ctx: Ctx, q: ListQuery & AnyRec): SQL | undefined => {
+  const baseWhere = async (ctx: Ctx, q: ListQuery & AnyRec): Promise<SQL | undefined> => {
     const conds: (SQL | undefined)[] = [o.scope?.(ctx), ...(o.filters?.(q as z.output<QS>, ctx) ?? [])];
-    if (q.q && o.search?.length) conds.push(or(...o.search.map(col => ilike(col, `%${escapeLike(q.q!)}%`)), o.searchExtra?.(q.q, q as z.output<QS>)));
+    if (q.q) {
+      const columns = typeof o.search === 'function' ? await o.search(ctx) : o.search;
+      if (columns?.length) conds.push(or(...columns.map(col => ilike(col, `%${escapeLike(q.q!)}%`)), o.searchExtra?.(q.q, q as z.output<QS>)));
+    }
     if (hasArchive) {
       if (q.archived === 'exclude') conds.push(isNull(cols.archivedAt));
       else if (q.archived === 'only') conds.push(isNotNull(cols.archivedAt));
@@ -123,8 +132,10 @@ export function crud<T extends AnyTable, CS extends z.ZodType, US extends z.ZodT
     .get('/', zValidator('query', o.query, validationHook), async c => {
       const ctx = ctxOf(c);
       const q = c.req.valid('query' as never) as ListQuery & AnyRec;
-      const where = baseWhere(ctx, q);
-      const rows = (await ctx.db.select().from(table).where(where).orderBy(...parseSort(q.sort)).limit(q.limit).offset(q.offset)) as Row<T>[];
+      const where = await baseWhere(ctx, q);
+      const hiddenSort = await o.hiddenSortKeys?.(ctx);
+      const sort = hiddenSort?.length ? q.sort?.split(',').filter(key => !hiddenSort.includes(key.replace(/^-/, ''))).join(',') || undefined : q.sort;
+      const rows = (await ctx.db.select().from(table).where(where).orderBy(...parseSort(sort)).limit(q.limit).offset(q.offset)) as Row<T>[];
       const [{ n }] = await ctx.db.select({ n: count() }).from(table).where(where);
       const page: Page<Row<T> & E> = { items: await decorate(ctx, rows), total: n, limit: q.limit, offset: q.offset };
       return c.json(page);
