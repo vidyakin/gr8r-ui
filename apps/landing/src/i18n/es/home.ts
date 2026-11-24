@@ -3,7 +3,7 @@ import type { Dict } from '../types';
 
 export const esHome: Dict['home'] = {
   title: 'FutureERP — ventas, producción y finanzas en un solo sistema',
-  description: 'FutureERP reemplaza hojas de cálculo, CRM separados y ERP antiguos: cada pedido avanza desde la consulta hasta el cobro en una sola ficha. Para empresas de producción y servicios.',
+  description: 'FutureERP reemplaza hojas de cálculo, CRM separados y ERP antiguos: cada pedido avanza desde la consulta hasta el cobro en una sola ficha.',
   nav: {
     label: 'Navegación principal',
     modules: 'Módulos',

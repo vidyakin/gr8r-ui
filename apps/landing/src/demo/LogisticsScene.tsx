@@ -146,7 +146,7 @@ function Dispatch({ s, compact, dict, locale }: { s: S; compact: boolean; dict: 
     <>
       <div className="d-ph" style={{ flexWrap: 'wrap' }}>
         <div>
-          <h1>{dict.dispatchTitle}</h1>
+          <div className="d-ph-title">{dict.dispatchTitle}</div>
           <p>{dict.dispatchSubtitle}</p>
         </div>
         <span className="sp" />
@@ -365,7 +365,7 @@ function List({ s, compact, dict, locale }: { s: S; compact: boolean; dict: Logi
     <>
       <div className="d-ph">
         <div>
-          <h1>{dict.listTitle}</h1>
+          <div className="d-ph-title">{dict.listTitle}</div>
           <p>{dict.listSubtitle}</p>
         </div>
       </div>

@@ -28,6 +28,7 @@
   padding: 4px 10px; border-radius: 8px; background: var(--h-bg); border: 1px solid var(--h-line);
   font-size: 12px; font-weight: 500; color: var(--h-ink-2);
 }
+a.h-blog-mod:hover { border-color: var(--h-accent); color: var(--h-accent); }
 .h-blog-read { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--h-accent); margin-top: 4px; }
 
 /* Страница статьи */

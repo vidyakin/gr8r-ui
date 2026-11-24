@@ -54,7 +54,7 @@ function Journal({ compact, hot, locale }: { compact: boolean; hot: boolean; loc
     <div className="d-page-in">
       <div className="d-ph">
         <div>
-          <h1>{ui.title}</h1>
+          <div className="d-ph-title">{ui.title}</div>
           {!compact && <p>{ui.subtitle}</p>}
         </div>
       </div>
@@ -177,13 +177,13 @@ function Doc({ s, compact, kind, locale }: { s: S; compact: boolean; kind: 'orde
           <nav className="muted" style={{ fontSize: 12.5 }}>
             {d.crumbs.sales} / {title}
           </nav>
-          <h1>
+          <div className="d-doc-title">
             {title} {num ? num : <span className="faint">{ui.draftLower}</span>}
             <span className={'badge ' + (posted ? 'green' : 'gray') + (!order && s.posted ? ' d-pop' : '')} key={String(posted)}>
               <span className="dot" />
               {posted ? ui.postedBadge : ui.draftBadge}
             </span>
-          </h1>
+          </div>
           <span className="faint" style={{ fontSize: 12 }}>
             {posted ? ui.postedAt : ui.allSaved}
           </span>
@@ -375,7 +375,7 @@ function Card({ compact, locale }: { compact: boolean; locale: Locale }) {
         <span className="av md" style={{ '--c': '#5A67D8' } as React.CSSProperties}>
           {d.buyerAv}
         </span>
-        <h1>{d.buyer}</h1>
+        <div className="d-ph-title">{d.buyer}</div>
         {!compact && <span className="badge gray">{d.buyerTag}</span>}
       </div>
       <div className="tabs d-tabs">

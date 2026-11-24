@@ -68,6 +68,15 @@ html.h-zoom-lock { overflow: hidden; }
 .h-mp-step-cur .h-mp-pass-label { color: rgba(255,255,255,.8); }
 .h-mp-pass { font-size: 14px; line-height: 1.45; color: rgba(255,255,255,.85); }
 
+/* Статьи по теме (ru) */
+.h-mp-articles { margin-top: 56px; }
+.h-mp-articles h2 { font-size: 20px; font-weight: 600; margin-bottom: 16px; }
+.h-mp-articles-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.h-mp-article-card { background: var(--h-surface); border: 1px solid var(--h-line); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 8px; }
+.h-mp-article-card:hover { border-color: var(--h-accent); }
+.h-mp-article-card span { font-size: 12px; font-weight: 600; color: var(--h-accent); }
+.h-mp-article-card h3 { font-size: 16px; font-weight: 600; line-height: 1.3; }
+
 /* Другие модули */
 .h-mp-others { margin-top: 56px; }
 .h-mp-others h2 { font-size: 20px; font-weight: 600; margin-bottom: 16px; }
@@ -92,5 +101,6 @@ html.h-zoom-lock { overflow: hidden; }
   .h-mp-chain { margin-top: 32px; }
   .h-mp-chain-lead { font-size: 16px; }
   .h-mp-steps { grid-template-columns: minmax(0, 1fr); margin-top: 28px; }
+  .h-mp-articles-grid { grid-template-columns: 1fr; }
   .h-mp-others { margin-top: 40px; }
 }

@@ -151,11 +151,19 @@
   padding: 0 var(--gutter);
   margin-bottom: 14px;
 }
-.d-ph h1 {
+.d-ph h1,
+.d-ph .d-ph-title {
   margin: 0;
   font-size: var(--fs-2xl);
   font-weight: 600;
   letter-spacing: -0.022em;
+  line-height: 1.2;
+}
+.doc-title .d-doc-title {
+  margin: 0;
+  font-size: var(--fs-2xl);
+  font-weight: 600;
+  letter-spacing: -0.02em;
   line-height: 1.2;
 }
 .d-ph p {

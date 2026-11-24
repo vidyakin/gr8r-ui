@@ -3,7 +3,7 @@ import type { Dict } from '../types';
 
 export const enHome: Dict['home'] = {
   title: 'FutureERP — deals, production, and finance in one system',
-  description: 'FutureERP replaces spreadsheets, separate CRMs, and legacy ERPs: every order moves from lead to payment in one place. Built for manufacturing and service businesses.',
+  description: 'FutureERP replaces spreadsheets, separate CRMs, and legacy ERPs: every order moves from lead to payment in one place.',
   nav: {
     label: 'Main navigation',
     modules: 'Modules',

@@ -28,6 +28,13 @@ const pageUrl = new URL(Astro.url.pathname, site).href;
 const jsonLd = [
   {
     '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'FutureERP',
+    url: site.href,
+    logo: new URL('/favicon.svg', site).href,
+  },
+  {
+    '@context': 'https://schema.org',
     '@type': 'SoftwareApplication',
     name: 'FutureERP',
     applicationCategory: 'BusinessApplication',

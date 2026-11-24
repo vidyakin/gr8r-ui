@@ -83,7 +83,7 @@ export const payrollScene: Scene<S> = {
         <div className="d-page-in">
           <div className="d-ph">
             <div>
-              <h1>
+              <div className="d-ph-title">
                 {s.posted ? d.accrualDocNum : d.newAccrualTitle}
                 {s.posted && (
                   <span className="badge green d-pop" style={{ marginLeft: 10, verticalAlign: 'middle' }}>
@@ -91,7 +91,7 @@ export const payrollScene: Scene<S> = {
                     {d.postedBadge}
                   </span>
                 )}
-              </h1>
+              </div>
               <p>{d.accrualSubtitle}</p>
             </div>
             <span className="sp" />
@@ -219,7 +219,7 @@ export const payrollScene: Scene<S> = {
         <div className="d-page-in">
           <div className="d-ph">
             <div>
-              <h1>{d.statementDocNum}</h1>
+              <div className="d-ph-title">{d.statementDocNum}</div>
               <p>{d.statementSubtitle}</p>
             </div>
             <span className="sp" />

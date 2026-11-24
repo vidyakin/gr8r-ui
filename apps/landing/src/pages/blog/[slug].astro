@@ -4,7 +4,7 @@ import { ArrowRight, ChevronRight, Clock } from 'lucide-react';
 import SiteHeader from '../../home/SiteHeader.astro';
 import SiteFooter from '../../home/SiteFooter.astro';
 import ChatWidget from '../../home/ChatWidget';
-import { formatRuDate, getRuArticles, type BlogArticle } from '../../blog';
+import { formatRuDate, getRuArticles, resolveModuleId, type BlogArticle } from '../../blog';
 import '../../home/home.css';
 import '../../blog/blog.css';
 
@@ -27,6 +27,8 @@ const others = getRuArticles()
 
 const site = Astro.site ?? new URL('https://future-erp.ai-solutions-studio.ru');
 const articleUrl = new URL(`/blog/${fm.slug}/`, site).href;
+const imageUrl = new URL('/alternative/crm-dashboard.png', site).href;
+const pageTitle = fm.seoTitle ?? fm.title;
 
 const jsonLd = [
   {
@@ -34,6 +36,7 @@ const jsonLd = [
     '@type': 'Article',
     headline: fm.title,
     description: fm.description,
+    image: imageUrl,
     datePublished: fm.date,
     dateModified: fm.date,
     inLanguage: 'ru',
@@ -53,7 +56,7 @@ const jsonLd = [
 ];
 ---
 
-<Base title={`${fm.title} — Блог FutureERP`} description={fm.description} theme="light" locale="ru" jsonLd={jsonLd}>
+<Base title={pageTitle} description={fm.description} theme="light" locale="ru" ogType="article" publishedTime={fm.date} jsonLd={jsonLd}>
   <div class="h-page">
     <SiteHeader base="/" locale="ru" />
 
@@ -81,7 +84,14 @@ const jsonLd = [
               <p class="h-blog-art-desc">{fm.description}</p>
               {fm.modules?.length > 0 && (
                 <div class="h-blog-mods">
-                  {fm.modules.map(mod => <span class="h-blog-mod">{mod}</span>)}
+                  {fm.modules.map(mod => {
+                    const modId = resolveModuleId(mod);
+                    return modId ? (
+                      <a class="h-blog-mod" href={`/modules/${modId}/`}>{mod}</a>
+                    ) : (
+                      <span class="h-blog-mod">{mod}</span>
+                    );
+                  })}
                 </div>
               )}
             </header>

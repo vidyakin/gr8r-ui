@@ -11,6 +11,7 @@ import LeadFormIsland from './LeadFormIsland';
 import ChatWidget from './ChatWidget';
 import { MODULE_IDS, SCENES, type ModuleId } from '../demo/registry';
 import { DEFAULT_LOCALE, useI18n, type Dict, type Locale, type TKey } from '../i18n';
+import { getRuArticles, resolveModuleId } from '../blog';
 import '../demo/frame.css';
 import './home.css';
 import './modules.css';
@@ -37,6 +38,49 @@ const caption =
 const features = page.features.map((f, i) => ({ ...f, src: has(`${i + 1}.jpg`) ? `/modules/${id}/${i + 1}.jpg` : null }));
 const chain = page.chain as readonly (readonly [ModuleId, string])[];
 const others = MODULE_IDS.filter(m => m !== id);
+const relatedArticles =
+  locale === 'ru'
+    ? getRuArticles()
+        .filter(a => a.frontmatter.modules?.some(m => resolveModuleId(m) === id))
+        .slice(0, 3)
+    : [];
+
+const MODULE_SEO_TITLES: Record<Locale, Record<ModuleId, string>> = {
+  ru: {
+    tasks: 'Задачи и проекты для команды — FutureERP',
+    crm: 'CRM для B2B и производства — FutureERP',
+    docs: 'Документы и база знаний компании — FutureERP',
+    services: 'Учёт услуг, записей и заказ-нарядов — FutureERP',
+    production: 'Управление производством и себестоимостью — FutureERP',
+    sales: 'Складской учёт, закупки и продажи — FutureERP',
+    logistics: 'Логистика, автопарк и путевые листы — FutureERP',
+    automations: 'Автоматизация бизнес-процессов — FutureERP',
+    payroll: 'Расчёт зарплаты, смен и сдельщины — FutureERP',
+  },
+  en: {
+    tasks: 'Tasks & Project Management — FutureERP',
+    crm: 'B2B CRM & Sales Pipeline — FutureERP',
+    docs: 'Team Docs & Knowledge Base — FutureERP',
+    services: 'Service Orders & Scheduling — FutureERP',
+    production: 'Manufacturing & Costing ERP — FutureERP',
+    sales: 'Inventory, Purchasing & Sales — FutureERP',
+    logistics: 'Fleet, Dispatch & Logistics — FutureERP',
+    automations: 'Workflow Automations — FutureERP',
+    payroll: 'Payroll, Shifts & Piecework — FutureERP',
+  },
+  es: {
+    tasks: 'Gestión de tareas y proyectos — FutureERP',
+    crm: 'CRM B2B y embudo de ventas — FutureERP',
+    docs: 'Documentos y base de conocimiento — FutureERP',
+    services: 'Órdenes de servicio y citas — FutureERP',
+    production: 'Gestión de producción y costos — FutureERP',
+    sales: 'Inventario, compras y ventas — FutureERP',
+    logistics: 'Flota, envíos y logística — FutureERP',
+    automations: 'Automatización de procesos — FutureERP',
+    payroll: 'Nómina, turnos y destajo — FutureERP',
+  },
+};
+const seoTitle = MODULE_SEO_TITLES[locale]?.[id] ?? `${name} — FutureERP`;
 const ogImage = has('1.jpg') ? `/modules/${id}/1.jpg` : '/alternative/crm-dashboard.png';
 const site = Astro.site ?? new URL('https://future-erp.ai-solutions-studio.ru');
 const jsonLd = [
@@ -60,7 +104,7 @@ const jsonLd = [
 ];
 ---
 
-<Base title={`${name} — FutureERP`} description={mt(id, 'text')} theme="light" locale={locale} altPath={altPath} ogImage={ogImage} jsonLd={jsonLd}>
+<Base title={seoTitle} description={mt(id, 'text')} theme="light" locale={locale} altPath={altPath} ogImage={ogImage} jsonLd={jsonLd}>
   <div class="h-page">
     <SiteHeader base="/" locale={locale} altPath={altPath} />
 
@@ -169,6 +213,19 @@ const jsonLd = [
               <LeadFormIsland client:visible locale={locale} />
             </div>
           </div>
+          {relatedArticles.length > 0 && (
+            <section class="h-mp-articles" aria-labelledby="h-mp-articles-title">
+              <h2 id="h-mp-articles-title">Статьи по теме</h2>
+              <div class="h-mp-articles-grid">
+                {relatedArticles.map(({ frontmatter: a }) => (
+                  <a class="h-mp-article-card" href={`/blog/${a.slug}/`}>
+                    <span>{a.industry}</span>
+                    <h3>{a.title}</h3>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
           <nav class="h-mp-others" aria-labelledby="h-mp-others-title">
             <h2 id="h-mp-others-title">{t('modulePages.ui.otherTitle')}</h2>
             <ul>

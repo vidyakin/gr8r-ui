@@ -123,7 +123,7 @@ export const servicesScene: Scene<S> = {
       <DemoShell compact={compact} active="appts" crumbs={d.crumbs} locale={locale}>
         <div className="d-ph">
           <div>
-            <h1>{d.title}</h1>
+            <div className="d-ph-title">{d.title}</div>
             <p>{d.subtitle}</p>
           </div>
           <span className="sp" />
