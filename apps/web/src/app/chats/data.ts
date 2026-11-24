@@ -146,4 +146,4 @@ export function useChatActions() {
 }
 
 /* Публичная гостевая ссылка (приложение на hash-роутере) */
-export const guestChatUrl = (token: string) => `${window.location.origin}/#/c/${token}`;
+export const guestChatUrl = (token: string) => `${window.location.origin}${import.meta.env.BASE_URL}#/c/${token}`;

@@ -25,7 +25,7 @@ const others = getRuArticles()
   .filter(a => a.frontmatter.slug !== fm.slug)
   .slice(0, 3);
 
-const site = Astro.site ?? new URL('https://future-erp.ai-solutions-studio.ru');
+const site = Astro.site ?? new URL('https://future-erp.ru');
 const articleUrl = new URL(`/blog/${fm.slug}/`, site).href;
 const imageUrl = new URL('/alternative/crm-dashboard.png', site).href;
 const pageTitle = fm.seoTitle ?? fm.title;

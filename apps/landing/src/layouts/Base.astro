@@ -22,7 +22,7 @@ interface Props {
 }
 
 const OG_LOCALE: Record<Locale, string> = { ru: 'ru_RU', en: 'en_US', es: 'es_ES' };
-const FALLBACK_SITE = 'https://future-erp.ai-solutions-studio.ru';
+const FALLBACK_SITE = 'https://future-erp.ru';
 
 const {
   title,
@@ -49,6 +49,11 @@ const yandexVerification = import.meta.env.PUBLIC_YANDEX_VERIFICATION;
 <html lang={locale} data-theme={theme}>
   <head>
     <meta charset="UTF-8" />
+    <script is:inline>
+      if (window.location.pathname === '/' && window.location.hash.startsWith('#/')) {
+        window.location.replace('/app/' + window.location.hash);
+      }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
     {noindex && <meta name="robots" content="noindex, nofollow" />}

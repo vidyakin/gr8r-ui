@@ -193,7 +193,7 @@ export function ProjectFilesTab({ project }: { project: Project }) {
       setDialog({ kind: 'rename', file: f });
     },
     copyLink: f => {
-      navigator.clipboard?.writeText(`${location.origin}${location.pathname}#/file/${f.id}`).catch(() => {});
+      navigator.clipboard?.writeText(`${location.origin}${import.meta.env.BASE_URL}#/file/${f.id}`).catch(() => {});
       toast.info(tt('common.linkCopied'), { duration: 1800 });
     },
     download: f => void attach.download(f.id, f.name).catch(e => toast.error(errorMessage(e))),
