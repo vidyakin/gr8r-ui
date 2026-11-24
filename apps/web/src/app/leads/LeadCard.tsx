@@ -1,3 +1,4 @@
+import { useHiddenFields } from '../positions/data';
 /* Карточка лида (задача 1175): поля, поиск дублей (при вводе и по сохранённому лиду) с кнопкой «Объединить», лента касаний,
    переход к конвертации. Новый лид создаётся здесь же. Пользовательские поля — из конструктора (сущность lead). */
 import { AttachmentsPanel } from '@/components/erp/attachments-panel';
@@ -36,7 +37,7 @@ interface Draft {
   rejectReason: string;
 }
 
-const fromLead = (l: Lead): Draft => ({ name: l.name, companyName: l.companyName, phone: l.phone, email: l.email, sourceId: l.sourceId, campaignId: l.campaignId, referrerCompanyId: l.referrerCompanyId, referrerContactId: l.referrerContactId, comment: l.comment, ownerId: l.ownerId ?? '', statusId: l.statusId, rejectReason: l.rejectReason });
+const fromLead = (l: Lead): Draft => ({ name: l.name, companyName: l.companyName, phone: l.phone ?? '', email: l.email ?? '', sourceId: l.sourceId, campaignId: l.campaignId, referrerCompanyId: l.referrerCompanyId, referrerContactId: l.referrerContactId, comment: l.comment, ownerId: l.ownerId ?? '', statusId: l.statusId, rejectReason: l.rejectReason });
 const blank: Draft = { name: '', companyName: '', phone: '', email: '', sourceId: null, campaignId: null, referrerCompanyId: null, referrerContactId: null, comment: '', ownerId: '', statusId: '', rejectReason: '' };
 const NO_OWNER = '__none';
 
@@ -124,6 +125,9 @@ export function LeadCard({ leadId, onClose, onConvert }: { leadId: string | null
   const t = useT();
   const { data: ws } = useWorkspace();
   const api = useLeadsApi();
+  const hidden = useHiddenFields();
+  const showPhone = !hidden.includes('lead.phone');
+  const showEmail = !hidden.includes('lead.email');
   const statuses = useLeadStatuses();
   const lead = useLead(leadId);
   const leadChats = useLeadAiChats(lead.data?.id ?? leadId);
@@ -146,7 +150,7 @@ export function LeadCard({ leadId, onClose, onConvert }: { leadId: string | null
     if (!leadId && !draft.statusId && statuses.data) setDraft(d => ({ ...d, statusId: statuses.data!.find(s => s.category === 'new')?.id ?? '' }));
   }, [leadId, draft.statusId, statuses.data]);
 
-  const dupNew = useDuplicatesFor(leadId ? { phone: '', email: '', companyName: '' } : { phone: draft.phone, email: draft.email, companyName: draft.companyName });
+  const dupNew = useDuplicatesFor(leadId ? { phone: '', email: '', companyName: '' } : { phone: showPhone ? draft.phone : '', email: showEmail ? draft.email : '', companyName: draft.companyName });
   const dupSaved = useLeadDuplicates(leadId);
   const members = ws.members.filter(m => m.status === 'active');
   const owners = useMembersWith(members, 'sales_manager', [draft.ownerId]);
@@ -163,8 +167,8 @@ export function LeadCard({ leadId, onClose, onConvert }: { leadId: string | null
     const body = {
       name: draft.name.trim(),
       companyName: draft.companyName,
-      phone: draft.phone,
-      email: draft.email,
+      ...(showPhone ? { phone: draft.phone } : {}),
+      ...(showEmail ? { email: draft.email } : {}),
       sourceId: draft.sourceId,
       campaignId: draft.campaignId,
       referrerCompanyId: draft.referrerCompanyId,
@@ -296,8 +300,8 @@ export function LeadCard({ leadId, onClose, onConvert }: { leadId: string | null
           <div className="grid2" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
             <Field label={t('leads.card.name')} error={err}>{p => <Input {...p} maxLength={200} value={draft.name} onChange={e => set({ name: e.target.value })} />}</Field>
             <Field label={t('leads.card.companyName')}>{p => <Input {...p} maxLength={200} value={draft.companyName} onChange={e => set({ companyName: e.target.value })} />}</Field>
-            <Field label={t('leads.card.phone')}>{p => <Input {...p} maxLength={50} value={draft.phone} onChange={e => set({ phone: e.target.value })} />}</Field>
-            <Field label={t('leads.card.email')}>{p => <Input {...p} maxLength={254} value={draft.email} onChange={e => set({ email: e.target.value })} />}</Field>
+            {showPhone && <Field label={t('leads.card.phone')}>{p => <Input {...p} maxLength={50} value={draft.phone} onChange={e => set({ phone: e.target.value })} />}</Field>}
+            {showEmail && <Field label={t('leads.card.email')}>{p => <Input {...p} maxLength={254} value={draft.email} onChange={e => set({ email: e.target.value })} />}</Field>}
             <AttributionFields value={{ sourceId: draft.sourceId, campaignId: draft.campaignId, referrerCompanyId: draft.referrerCompanyId, referrerContactId: draft.referrerContactId }} onChange={set} />
             <Field label={t('leads.card.owner')}>
               {p => (
@@ -325,7 +329,7 @@ export function LeadCard({ leadId, onClose, onConvert }: { leadId: string | null
             embedded
             leadId={leadId ?? undefined}
             companyId={current?.companyId ?? undefined}
-            email={draft.email}
+            email={showEmail ? draft.email : ''}
             onSaveNote={async text => {
               const next = draft.comment.trim() ? `${draft.comment.trim()}\n\n${text}` : text;
               set({ comment: next });

@@ -16,6 +16,7 @@ export const errors: Widen<typeof E> = {
   conflict: 'Ya existe un registro con el mismo valor único',
   module_expired: 'El plazo del módulo ha finalizado: está en modo de solo lectura. Amplía el plan para editar datos',
   limit_exceeded: 'Esta acción superaría el límite del plan. Pide al administrador que amplíe el plan',
+  field_forbidden: 'No tienes permiso para editar un campo oculto',
   section_forbidden: 'Esta sección está oculta según tus cargos. Pide acceso al administrador',
   module_disabled: 'Esta sección no está incluida en tu plan. Pide al administrador que conecte el módulo',
   plan_in_use: 'No se puede eliminar el plan: es el plan predeterminado o está asignado a espacios de trabajo',

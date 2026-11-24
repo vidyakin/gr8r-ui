@@ -2,7 +2,7 @@
    объединение, конвертация в контрагента / контакт / сделку, распределение ответственных. Всё идёт в транзакции
    вызывающего: данные + события outbox вместе. Права проверяют маршруты. */
 import { and, asc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
-import { membersWithFunction, normalizeEmail, normalizePhone, nextRoundRobin, phoneKey, type LeadStatusCategory, type MemberPositionLink, type PositionDef } from '@erp/shared';
+import { maskFields, membersWithFunction, normalizeEmail, normalizePhone, nextRoundRobin, phoneKey, type LeadStatusCategory, type MemberPositionLink, type PositionDef } from '@erp/shared';
 import { resolveAttribution } from './ad';
 import type { Db } from './client';
 import { DomainError } from './errors';
@@ -182,7 +182,7 @@ export interface DuplicateMatch {
 
 /** Совпадения по телефону (последние 10 цифр) и email среди лидов, контактов и контрагентов.
     У контрагента нет своих телефона и email, поэтому он находится через найденный контакт или по точному названию компании лида. */
-export async function findDuplicates(db: Db, q: { phone?: string | undefined; email?: string | undefined; companyName?: string | undefined; excludeLeadId?: string | undefined }): Promise<DuplicateMatch[]> {
+export async function findDuplicates(db: Db, q: { phone?: string | undefined; email?: string | undefined; companyName?: string | undefined; excludeLeadId?: string | undefined }, hidden: readonly string[] = []): Promise<DuplicateMatch[]> {
   const key = phoneKey(q.phone);
   const email = normalizeEmail(q.email);
   const out: DuplicateMatch[] = [];
@@ -190,22 +190,22 @@ export async function findDuplicates(db: Db, q: { phone?: string | undefined; em
 
   if (key || email) {
     const leadConds = [];
-    if (key) leadConds.push(sql`${phoneExpr('phone')} = ${key}`);
-    if (email) leadConds.push(eq(leads.emailNorm, email));
-    const lrows = await db
+    if (key && !hidden.includes('lead.phone')) leadConds.push(sql`${phoneExpr('phone')} = ${key}`);
+    if (email && !hidden.includes('lead.email')) leadConds.push(eq(leads.emailNorm, email));
+    const lrows = leadConds.length ? await db
       .select()
       .from(leads)
       .where(and(isNull(leads.archivedAt), q.excludeLeadId ? ne(leads.id, q.excludeLeadId) : undefined, or(...leadConds)))
-      .limit(20);
-    for (const l of lrows) out.push({ kind: 'lead', id: l.id, name: l.name, by: key && phoneKey(l.phone) === key ? 'phone' : 'email', phone: l.phone, email: l.email });
+      .limit(20) : [];
+    for (const l of lrows) out.push({ kind: 'lead', id: l.id, name: l.name, by: key && !hidden.includes('lead.phone') && phoneKey(l.phone) === key ? 'phone' : 'email', phone: l.phone, email: l.email });
 
     const contactConds = [];
-    if (key) contactConds.push(sql`${phoneExpr('phone')} = ${key}`);
-    if (email) contactConds.push(sql`lower(${contacts.email}) = ${email}`);
-    const crows = await db.select().from(contacts).where(and(isNull(contacts.archivedAt), or(...contactConds))).limit(20);
+    if (key && !hidden.includes('contact.phone')) contactConds.push(sql`${phoneExpr('phone')} = ${key}`);
+    if (email && !hidden.includes('contact.email')) contactConds.push(sql`lower(${contacts.email}) = ${email}`);
+    const crows = contactConds.length ? await db.select().from(contacts).where(and(isNull(contacts.archivedAt), or(...contactConds))).limit(20) : [];
     const companyIds = new Set<string>();
     for (const c of crows) {
-      out.push({ kind: 'contact', id: c.id, name: c.name, by: key && phoneKey(c.phone) === key ? 'phone' : 'email', companyId: c.companyId, phone: c.phone, email: c.email });
+      out.push({ kind: 'contact', id: c.id, name: c.name, by: key && !hidden.includes('contact.phone') && phoneKey(c.phone) === key ? 'phone' : 'email', companyId: c.companyId, phone: c.phone, email: c.email });
       if (c.companyId) companyIds.add(c.companyId);
     }
     if (companyIds.size) {
@@ -225,7 +225,7 @@ export async function findDuplicates(db: Db, q: { phone?: string | undefined; em
 
 /** Объединить лид `fromId` в `intoId`: касания переезжают, пустые поля целевого лида заполняются, пользовательские поля целевого
     имеют приоритет, комментарий дописывается; исходный лид удаляется. Оба лида не должны быть сконвертированы */
-export async function mergeLeads(db: Db, ctx: LeadCtx, fromId: string, intoId: string): Promise<LeadRow> {
+export async function mergeLeads(db: Db, ctx: LeadCtx, fromId: string, intoId: string, hidden: readonly string[] = []): Promise<LeadRow> {
   if (fromId === intoId) throw new DomainError(422, 'lead_merge_same', 'Cannot merge a lead into itself');
   const [a, b] = fromId < intoId ? [fromId, intoId] : [intoId, fromId];
   await loadLead(db, a, true);
@@ -233,8 +233,9 @@ export async function mergeLeads(db: Db, ctx: LeadCtx, fromId: string, intoId: s
   const from = await loadLead(db, fromId);
   const into = await loadLead(db, intoId);
   if (from.convertedAt || into.convertedAt) throw new DomainError(409, 'lead_already_converted', 'Converted leads cannot be merged');
-  const phone = into.phone || from.phone;
-  const email = into.email || from.email;
+  const visible = maskFields('lead', from, hidden);
+  const phone = into.phone || visible.phone || '';
+  const email = into.email || visible.email || '';
   const patch = {
     companyName: into.companyName || from.companyName,
     phone,
@@ -244,7 +245,7 @@ export async function mergeLeads(db: Db, ctx: LeadCtx, fromId: string, intoId: s
     ...(into.sourceId ? {} : { source: from.source, sourceId: from.sourceId, campaignId: from.campaignId, referrerCompanyId: from.referrerCompanyId, referrerContactId: from.referrerContactId }),
     ownerId: into.ownerId ?? from.ownerId,
     comment: [into.comment, from.comment].filter(Boolean).join('\n\n'),
-    custom: { ...from.custom, ...into.custom },
+    custom: { ...visible.custom, ...into.custom },
     updatedAt: new Date(),
   };
   await db.update(crmActivities).set({ leadId: intoId }).where(eq(crmActivities.leadId, fromId));
@@ -279,7 +280,7 @@ export interface ConvertResult {
 /** Источник, кампания и кто привёл — переносятся из лида в клиента и сделку */
 const leadAttr = (l: LeadRow) => ({ sourceId: l.sourceId, campaignId: l.campaignId, referrerCompanyId: l.referrerCompanyId, referrerContactId: l.referrerContactId });
 
-export async function convertLead(db: Db, ctx: LeadCtx, leadId: string, input: ConvertInput): Promise<ConvertResult> {
+export async function convertLead(db: Db, ctx: LeadCtx, leadId: string, input: ConvertInput, hidden: readonly string[] = []): Promise<ConvertResult> {
   const lead = await loadLead(db, leadId, true);
   if (lead.convertedAt) throw new DomainError(409, 'lead_already_converted', 'The lead has already been converted');
   const owner = lead.ownerId ?? ctx.memberId;
@@ -307,7 +308,9 @@ export async function convertLead(db: Db, ctx: LeadCtx, leadId: string, input: C
     contactId = c.id;
   } else if (input.contact.mode === 'new') {
     const name = input.contact.name.trim() || lead.name;
-    const [c] = await db.insert(contacts).values({ workspaceId: ctx.workspaceId, name, email: lead.email, phone: lead.phone, companyId, ownerId: owner, custom: lead.custom }).returning();
+    const visible = maskFields('lead', lead, hidden);
+    const contact = maskFields('contact', { email: visible.email, phone: visible.phone, custom: visible.custom }, hidden);
+    const [c] = await db.insert(contacts).values({ workspaceId: ctx.workspaceId, name, companyId, ownerId: owner, ...contact }).returning();
     contactId = c!.id;
     await ev('contact.created', 'contact', c!.id, c);
   }

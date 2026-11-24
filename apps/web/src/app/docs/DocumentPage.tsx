@@ -1,3 +1,4 @@
+import { useHiddenFields } from '../positions/data';
 import { LabelDialog } from '../catalog/LabelDialog';
 /* Форма документа: шапка (организация, контрагент, склад, дата, номер, способ указания НДС), табличная часть с подбором из каталога,
    итоги и НДС внизу, кнопки Post / Unpost / Create based on / Print. Черновик сохраняется сам (через паузу после правки); суммы строк и итоги
@@ -166,7 +167,7 @@ function toForm(d: DocDetail): Form {
     dueDate: d.dueDate ?? '',
     priceIncludesVat: d.priceIncludesVat,
     comment: d.comment,
-    lines: d.lines.map(l => ({ key: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, unitFactor: l.unitFactor ?? '1', qty: trimNum(l.unitQty ?? l.qty), price: l.price, discountPct: trimNum(l.discountPct), vatRate: l.vatRate, bookQty: trimNum(l.bookQty), receivedQty: trimNum(l.receivedQty), costItemId: l.costItemId, workCenterId: l.workCenterId, params: (l as { params?: Record<string, unknown> }).params ?? {}, tollingRole: l.tollingRole ?? null, groupName: l.groupName ?? '', shipBy: l.shipBy ?? '', batchNumber: l.batchNumber ?? '', batchProducedAt: l.batchProducedAt ?? '', batchExpiresAt: l.batchExpiresAt ?? '' })),
+    lines: d.lines.map(l => ({ key: l.id, productId: l.productId, name: l.name, unitCode: l.unitCode, unitFactor: l.unitFactor ?? '1', qty: trimNum(l.unitQty ?? l.qty), price: l.price ?? '0', discountPct: trimNum(l.discountPct), vatRate: l.vatRate, bookQty: trimNum(l.bookQty), receivedQty: trimNum(l.receivedQty), costItemId: l.costItemId, workCenterId: l.workCenterId, params: (l as { params?: Record<string, unknown> }).params ?? {}, tollingRole: l.tollingRole ?? null, groupName: l.groupName ?? '', shipBy: l.shipBy ?? '', batchNumber: l.batchNumber ?? '', batchProducedAt: l.batchProducedAt ?? '', batchExpiresAt: l.batchExpiresAt ?? '' })),
   };
 }
 
@@ -239,6 +240,9 @@ type SaveState = 'saved' | 'dirty' | 'saving' | 'invalid' | 'error';
 
 function DocumentView({ doc }: { doc: DocDetail }) {
   const t = useT();
+  const hidden = useHiddenFields();
+  const showTotals = !hidden.includes('document.total');
+  const canPrint = showTotals && !hidden.some(key => key === 'company.requisites' || key === 'company.bankAccounts' || key.startsWith('custom:document.') || key.startsWith('custom:company.'));
   const navigate = useNavigate();
   const qc = useQueryClient();
   const ws = useWsId();
@@ -262,7 +266,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const warehouses = useWarehouses();
   const costItems = useCostItems();
   const contracts = useContracts({ companyId: doc.counterpartyId ?? undefined });
-  const breakdown = useBillingBreakdown(doc.type === 'invoice' ? doc.id : undefined);
+  const breakdown = useBillingBreakdown(showTotals && doc.type === 'invoice' ? doc.id : undefined);
   const approval = useApprovalOfObject('document', doc.id); // согласование по маршруту (1199): вкладка и ворота проведения
   const units = useUnits();
   const members = useWorkspace().data.members;
@@ -272,6 +276,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   /** Договоры контрагента: в документе выбирается один */
   const contractOptions = (contracts.data?.items ?? []).map(c => ({ value: c.id, label: c.number ? `${c.number}${c.isService ? ` · ${t('docs.serviceContract')}` : ''}` : c.companyName }));
   const editable = canWrite && doc.status === 'draft';
+  const linesEditable = editable && showTotals;
   /** Внутренний документ: без контрагента, свой склад и статья затрат */
   const internal = meta.party === null;
   const usesWarehouse = !!meta.stock || !!meta.stockRole || meta.production || doc.type === 'customer_order';
@@ -347,13 +352,14 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     clearTimeout(timer.current);
     if (!dirty.current) return true;
     const f = latest.current;
-    if (!f.organizationId || f.lines.some(l => l.productId && !lineOk(l, isCount))) {
+    if (!f.organizationId || (showTotals && f.lines.some(l => l.productId && !lineOk(l, isCount)))) {
       setSave('invalid');
       return false;
     }
     const v = version.current;
     setSave('saving');
-    const r = await api<DocDetail>('PATCH', `/documents/${doc.id}`, toPayload(f), { quiet: true });
+    const { lines, priceKindId, priceIncludesVat, ...header } = toPayload(f);
+    const r = await api<DocDetail>('PATCH', `/documents/${doc.id}`, showTotals ? { ...header, lines, priceKindId, priceIncludesVat } : header, { quiet: true });
     if (!r) {
       setSave('error');
       toast.error(t('docs.document.saveErrorFix'));
@@ -363,10 +369,10 @@ function DocumentView({ doc }: { doc: DocDetail }) {
       dirty.current = false;
       setSave('saved');
       // автоскидки пересчитаны сервером при сохранении: подтягиваем проценты автоматических строк, флаги ручной правки уже учтены
-      if (DISCOUNT_DOC_TYPES.includes(doc.type)) setForm(cur => ({ ...cur, lines: cur.lines.map(l => { const s = r.lines.find(x => x.id === l.key); return s ? { ...l, discountPct: trimNum(s.discountPct), discountManual: undefined } : l; }) }));
+      if (showTotals && DISCOUNT_DOC_TYPES.includes(doc.type)) setForm(cur => ({ ...cur, lines: cur.lines.map(l => { const s = r.lines.find(x => x.id === l.key); return s ? { ...l, discountPct: trimNum(s.discountPct), discountManual: undefined } : l; }) }));
     }
     return true;
-  }, [api, doc.id]);
+  }, [api, doc.id, showTotals]);
 
   const edit = (fn: (f: Form) => Form) => {
     setForm(f => fn(f));
@@ -376,8 +382,9 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     clearTimeout(timer.current);
     timer.current = setTimeout(() => void flush(), 900);
   };
-  const patchLine = (key: string, patch: Partial<FormLine>) => edit(f => ({ ...f, lines: f.lines.map(l => (l.key === key ? { ...l, ...patch } : l)) }));
+  const patchLine = (key: string, patch: Partial<FormLine>) => showTotals && edit(f => ({ ...f, lines: f.lines.map(l => (l.key === key ? { ...l, ...patch } : l)) }));
   const addLine = (at?: number) => {
+    if (!showTotals) return;
     const line: FormLine = { key: uuidv7(), productId: null, name: '', unitCode: '796', unitFactor: '1', qty: '1', price: '', discountPct: '', vatRate: '20', bookQty: '0', receivedQty: '0', costItemId: null, workCenterId: null, params: {}, tollingRole: defaultTollingRole, groupName: '', shipBy: '', batchNumber: '', batchProducedAt: '', batchExpiresAt: '' };
     const index = at ?? latest.current.lines.length;
     focusReq.current = { row: index, col: 0 };
@@ -385,6 +392,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   };
   const pickProduct = (key: string, row: number, p: Product) => {
     // у внутренних документов цена — себестоимость: её подставляет сервер
+    if (!showTotals) return;
     patchLine(key, { productId: p.id, name: p.name, unitCode: p.unitCode, unitFactor: '1', vatRate: p.vatRate, price: internal ? '0' : trimNum(p[priceField]) || '0', qty: latest.current.lines.find(l => l.key === key)?.qty || '1', costItemId: p.kind === 'service' ? (latest.current.lines.find(l => l.key === key)?.costItemId ?? null) : null, workCenterId: p.kind === 'service' ? (latest.current.lines.find(l => l.key === key)?.workCenterId ?? null) : null });
     focusReq.current = { row, col: 1 };
     // цена по виду цен документа на его дату (договор, контрагент, вид заказ-наряда…); карточка товара — пока ответа нет
@@ -444,7 +452,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const calc = React.useMemo(() => {
     const valid = form.lines.filter(l => l.productId && lineOk(l, isCount));
     // проведённый документ со списанием баллов: суммы строк уменьшены на сервере, из цены и скидки их не получить
-    if (doc.status === 'posted' && dec(doc.loyalty?.pointsRedeemed ?? '0') > 0n) {
+    if (showTotals && doc.status === 'posted' && dec(doc.loyalty?.pointsRedeemed ?? '0') > 0n) {
       const byId = new Map(doc.lines.map(l => [l.id, l]));
       const rows = valid.flatMap(l => { const s = byId.get(l.key); return s ? [{ key: l.key, net: s.net, vatAmount: s.vatAmount, total: s.total, vatRate: s.vatRate }] : []; });
       return { byKey: new Map(rows.map(r => [r.key, r])), totals: computeTotals(rows) };
@@ -455,7 +463,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     } catch {
       return { byKey: new Map(), totals: { net: '0.00', vat: '0.00', total: '0.00', byRate: [] as { rate: string; net: string; vat: string; total: string }[] } };
     }
-  }, [form.lines, form.priceIncludesVat, doc.status, doc.loyalty?.pointsRedeemed, doc.lines]);
+  }, [form.lines, form.priceIncludesVat, doc.status, doc.loyalty?.pointsRedeemed, doc.lines, showTotals]);
   /** Группы строк (КП, заказ, счёт): колонка «Группа» и итоги по группам */
   const hasGroups = !internal && (hasQuoteVariants(doc.type) || doc.type === 'invoice');
   const hasShipBy = doc.type === 'customer_order';
@@ -669,6 +677,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       <th style={{ width: 160 }}>{t('docs.document.colWorkCenter')}</th>
                     </>
                   )}
+                  {showTotals && <>
                   <th style={{ width: 112 }} className="r">
                     {internal ? t('docs.document.colCost') : t('docs.document.colPrice')}
                   </th>
@@ -686,6 +695,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                   <th style={{ width: 120 }} className="r">
                     {internal ? t('docs.document.colAmount') : t('docs.document.colTotal')}
                   </th>
+                  </>}
                   <th style={{ width: 36 }} />
                 </tr>
               </thead>
@@ -704,7 +714,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       <td>
                         {/* артикул — мелко над названием: вся ширина ячейки остаётся названию */}
                         {srv?.sku && <div className="mono faint line-sku">{srv.sku}</div>}
-                        {editable ? (
+                        {linesEditable ? (
                           <ProductField id={l.productId} name={l.name} dataCell={`${i}:0`} price={priceField} counterpartyId={partnerId} partnerArticles={partnerArts} onKeyDown={cellKey(i, 0)} onPick={p => pickProduct(l.key, i, p)} invalid={save === 'invalid' && !l.productId} />
                         ) : (
                           <ProductField id={l.productId} name={l.name} disabled onPick={() => undefined} />
@@ -717,7 +727,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       </td>
                       {hasGroups && (
                         <td>
-                          {editable ? (
+                          {linesEditable ? (
                             <input className="input cell-input" list={`groups-${doc.id}`} aria-label={t('docs.quotes.colGroup')} value={l.groupName} maxLength={200} onChange={e => patchLine(l.key, { groupName: e.target.value })} />
                           ) : (
                             <span className="muted trunc">{l.groupName}</span>
@@ -726,20 +736,20 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       )}
                       {hasShipBy && (
                         <td>
-                          {editable ? <DateInput size="sm" aria-label={t('docs.document.colShipBy')} value={l.shipBy} onChange={v => patchLine(l.key, { shipBy: v })} /> : <span className="muted">{l.shipBy ? fmtDate(l.shipBy) : ''}</span>}
+                          {linesEditable ? <DateInput size="sm" aria-label={t('docs.document.colShipBy')} value={l.shipBy} onChange={v => patchLine(l.key, { shipBy: v })} /> : <span className="muted">{l.shipBy ? fmtDate(l.shipBy) : ''}</span>}
                         </td>
                       )}
                       <td className="muted">
                         <LineUnitCell
                           line={l}
-                          editable={editable}
+                          editable={linesEditable}
                           units={units.data}
                           onChange={(unitCode, unitFactor) => patchLine(l.key, { unitCode, unitFactor, qty: rescaleQty(l.qty, l.unitFactor, unitFactor), price: rescalePrice(l.price, l.unitFactor, unitFactor) })}
                         />
                       </td>
                       {isCount && <td className="r num muted">{trimNum(String(Math.round(bookUnit * 1000) / 1000)) || '0'}</td>}
                       <td className="r">
-                        <NumCell value={l.qty} disabled={!editable || (shiftMode && srv?.stockRole === 'out')} invalid={!!err.qty} label={t('docs.document.cellQty')} cell={`${i}:1`} onKeyDown={cellKey(i, 1)} onChange={v => patchLine(l.key, { qty: v })} />
+                        <NumCell value={l.qty} disabled={!linesEditable || (shiftMode && srv?.stockRole === 'out')} invalid={!!err.qty} label={t('docs.document.cellQty')} cell={`${i}:1`} onKeyDown={cellKey(i, 1)} onChange={v => patchLine(l.key, { qty: v })} />
                       </td>
                       {inTransit && (
                         <td className="r">
@@ -777,7 +787,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                               const it = srv?.stockRole === 'in' ? items.find(x => x.documentLineId === l.key) : undefined;
                               if (!it) return <span className="faint">—</span>;
                               const d = defects[it.id] ?? { qty: '0', mode: '' as const };
-                              return editable ? (
+                              return linesEditable ? (
                                 <Input aria-label={t('production.waste.colDefect')} inputMode="decimal" value={d.qty} onChange={e => setDefects(m => ({ ...m, [it.id]: { ...d, qty: e.target.value } }))} onBlur={() => void commitDefect(it.id, d)} />
                               ) : (
                                 <span className="num">{d.qty}</span>
@@ -791,7 +801,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                               const d = defects[it.id] ?? { qty: '0', mode: '' as const };
                               if (Number(num(d.qty)) <= 0) return <span className="faint">{t('production.waste.defectNone')}</span>;
                               const label = (m: DefectMode) => (m === 'cost' ? t('production.waste.defectModeCost') : t('production.waste.defectModeExpense'));
-                              return editable ? (
+                              return linesEditable ? (
                                 <Select
                                   size="sm"
                                   className="min-w-[140px]"
@@ -812,7 +822,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                         <td>
                           <Select
                             aria-label={t('docs.document.colSection')}
-                            disabled={!editable}
+                            disabled={!linesEditable}
                             value={l.tollingRole ?? 'product'}
                             onValueChange={v => patchLine(l.key, { tollingRole: v as TollingRole })}
                             options={TOLLING_ROLES.map(r => ({ value: r, label: tEnum('tollingRole', r, TOLLING_ROLE_LABELS[r]) }))}
@@ -825,7 +835,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                             {srv?.kind === 'service' ? (
                               <Select
                                 aria-label={t('docs.document.colCostItem')}
-                                disabled={!editable}
+                                disabled={!linesEditable}
                                 value={l.costItemId ?? ''}
                                 onValueChange={v => patchLine(l.key, { costItemId: v || null })}
                                 options={(costItems.data ?? [])
@@ -843,7 +853,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                             {srv?.kind === 'service' ? (
                               <Select
                                 aria-label={t('docs.document.colWorkCenter')}
-                                disabled={!editable}
+                                disabled={!linesEditable}
                                 value={l.workCenterId ?? ''}
                                 onValueChange={v => patchLine(l.key, { workCenterId: v || null })}
                                 options={workCenters.filter(w => !w.archivedAt).map(w => ({ value: w.id, label: w.name }))}
@@ -855,10 +865,11 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                           </td>
                         </>
                       )}
+                      {showTotals && <>
                       <td className="r">
                         <NumCell
                           value={l.price}
-                          disabled={!editable || ((doc.type === 'stock_posting' || doc.type === 'opening_stock') && !isAdmin)}
+                          disabled={!linesEditable || ((doc.type === 'stock_posting' || doc.type === 'opening_stock') && !isAdmin)}
                           invalid={!!err.price}
                           label={internal ? t('docs.document.cellCost') : t('docs.document.cellPrice')}
                           cell={`${i}:2`}
@@ -870,12 +881,12 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                         <>
                           <td className="r">
                             <div className="row" style={{ gap: 4, justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
-                              {discountAuto && <DiscountSource line={l} server={srv} editable={editable} onAuto={() => patchLine(l.key, { discountPct: '0', discountManual: false })} />}
-                              <NumCell value={l.discountPct} disabled={!editable} invalid={!!err.discountPct} label={t('docs.document.cellDiscPct')} cell={`${i}:3`} onKeyDown={cellKey(i, 3)} onChange={v => patchLine(l.key, { discountPct: v, ...(discountAuto ? { discountManual: true } : {}) })} />
+                              {discountAuto && <DiscountSource line={l} server={srv} editable={linesEditable} onAuto={() => patchLine(l.key, { discountPct: '0', discountManual: false })} />}
+                              <NumCell value={l.discountPct} disabled={!linesEditable} invalid={!!err.discountPct} label={t('docs.document.cellDiscPct')} cell={`${i}:3`} onKeyDown={cellKey(i, 3)} onChange={v => patchLine(l.key, { discountPct: v, ...(discountAuto ? { discountManual: true } : {}) })} />
                             </div>
                           </td>
                           <td>
-                            <select className="input cell-input" aria-label={t('docs.document.cellVat')} disabled={!editable} value={l.vatRate} onChange={e => patchLine(l.key, { vatRate: e.target.value as VatRate })}>
+                            <select className="input cell-input" aria-label={t('docs.document.cellVat')} disabled={!linesEditable} value={l.vatRate} onChange={e => patchLine(l.key, { vatRate: e.target.value as VatRate })}>
                               {VAT_RATES.map(r => (
                                 <option key={r} value={r}>
                                   {tEnum('vat', r, VAT_LABELS[r])}
@@ -889,19 +900,20 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                       <td className="r num" style={{ fontWeight: 500 }}>
                         {a ? money(a.total) : '—'}
                       </td>
+                      </>}
                       <td>
                         {srv?.trackSerials && (
-                          <SerialsButton doc={doc} lineId={l.key} productId={l.productId ?? ''} name={l.name} qty={l.qty} serials={doc.serials ?? []} editable={editable} warehouseId={doc.warehouse?.id ?? null} incoming={meta.stock === 'in' || meta.stockRole === 'in' || srv.stockRole === 'in'} />
+                          <SerialsButton doc={doc} lineId={l.key} productId={l.productId ?? ''} name={l.name} qty={l.qty} serials={doc.serials ?? []} editable={linesEditable} warehouseId={doc.warehouse?.id ?? null} incoming={meta.stock === 'in' || meta.stockRole === 'in' || srv.stockRole === 'in'} />
                         )}
-                        {editable && batchField && srv?.trackBatches && (meta.stock === 'in' || meta.stockRole === 'in' || srv.stockRole === 'in') && (
+                        {linesEditable && batchField && srv?.trackBatches && (meta.stock === 'in' || meta.stockRole === 'in' || srv.stockRole === 'in') && (
                           <BatchButton line={l} onChange={patch => patchLine(l.key, patch)} />
                         )}
-                        {editable && doc.type === 'customer_order' && l.productId && (
+                        {linesEditable && doc.type === 'customer_order' && l.productId && (
                           <IconButton size="xs" label={t('docs.document.parameters')} onClick={() => setParamsLine(l.key)}>
                             <SlidersHorizontal size={13} />
                           </IconButton>
                         )}
-                        {editable && (
+                        {linesEditable && (
                           <IconButton size="xs" label={t('docs.lines.removeLineAria')} onClick={() => edit(f => ({ ...f, lines: f.lines.filter(x => x.key !== l.key) }))}>
                             <Trash2 size={13} />
                           </IconButton>
@@ -913,7 +925,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                 {!form.lines.length && (
                   <tr>
                     <td colSpan={12} className="faint" style={{ textAlign: 'center', padding: 22 }}>
-                      {t('docs.document.emptyLines')}{editable ? t('docs.document.emptyLinesAdd') : ''}
+                      {t('docs.document.emptyLines')}{linesEditable ? t('docs.document.emptyLinesAdd') : ''}
                     </td>
                   </tr>
                 )}
@@ -927,7 +939,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
               </datalist>
             )}
           </div>
-          {hasGroups && !!groupTotals.length && (
+          {showTotals && hasGroups && !!groupTotals.length && (
             <div className="doc-group-totals faint" style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12, padding: '6px 10px' }} aria-label={t('docs.quotes.groupTotals')}>
               <span>{t('docs.quotes.groupTotals')}:</span>
               {groupTotals.map(g => (
@@ -951,7 +963,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
         </section>
       ),
     },
-    !!breakdown.data && {
+    showTotals && !!breakdown.data && {
       id: 'billing',
       label: t('docs.tabs.billing'),
       content: breakdown.data && (
@@ -1156,7 +1168,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             </Button>
           )}
           {isReceipt && <Button disabled={!form.lines.some(l => l.productId)} onClick={() => setLabelsOpen(true)}>{t('catalog.labels.title')}</Button>}
-          {!!meta.forms.length && (
+          {canPrint && !!meta.forms.length && (
             <Menu>
               <MenuTrigger asChild>
                 <Button>
@@ -1226,7 +1238,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
               </MenuContent>
             </Menu>
           )}
-          {!!meta.forms.length && (
+          {canPrint && !!meta.forms.length && (
             <Button
               onClick={() => {
                 void (async () => {
@@ -1334,7 +1346,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             }
           </Field>
         )}
-        {!internal && meta.party !== null && (
+        {showTotals && !internal && meta.party !== null && (
           <Field className="o7" label={t('pricing.doc.kind')}>
             {p =>
               editable ? (
@@ -1523,7 +1535,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             {p => <DateInput {...p} disabled={!editable} value={form.dueDate} onChange={v => edit(f => ({ ...f, dueDate: v }))} />}
           </Field>
         )}
-        {!internal && (
+        {showTotals && !internal && (
           <Field label={t('docs.document.prices')}>
             {() => (
               <Segmented
@@ -1538,10 +1550,10 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             )}
           </Field>
         )}
-        {discountAuto && <DocLoyaltyFields doc={doc} customerId={form.counterpartyId} editable={editable} total={calc.totals.total} flush={flush} load={() => api<DocDetail>('GET', `/documents/${doc.id}`)} onApplied={applyServer} />}
+        {showTotals && discountAuto && <DocLoyaltyFields doc={doc} customerId={form.counterpartyId} editable={editable} total={calc.totals.total} flush={flush} load={() => api<DocDetail>('GET', `/documents/${doc.id}`)} onApplied={applyServer} />}
       </section>
 
-      {hasQuoteVariants(doc.type) && <QuoteVariants doc={doc} editable={editable} total={calc.totals.total} flush={flush} api={(m, p, j) => api(m, p, j)} onApplied={applyServer} />}
+      {showTotals && hasQuoteVariants(doc.type) && <QuoteVariants doc={doc} editable={editable} total={calc.totals.total} flush={flush} api={(m, p, j) => api(m, p, j)} onApplied={applyServer} />}
       {isWorkOrder ? <WorkOrderPanel doc={doc} lead={docTabs} /> : <DocTabs label={t('docs.tabsLabel')} tabs={docTabs} />}
 
       <div className="doc-bottom">
@@ -1567,7 +1579,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             <p className="faint">{t('docs.document.noChildren')}</p>
           )}
         </section>
-        <section className="doc-totals panel" aria-label={t('docs.document.totals.total')}>
+        {showTotals && <section className="doc-totals panel" aria-label={t('docs.document.totals.total')}>
           {isCount ? (
             <dl>
               <div>
@@ -1655,7 +1667,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
               {amountInWordsRu(calc.totals.total)}
             </p>
           )}
-        </section>
+        </section>}
       </div>
 
       {ATTRIBUTION_TYPES.includes(doc.type) && (
@@ -1804,6 +1816,7 @@ function NumCell({ value, onChange, disabled, invalid, label, cell, onKeyDown }:
 }
 
 export function DocRef({ d }: { d: DocLink }) {
+  const showTotals = !useHiddenFields().includes('document.total');
   return (
     <span className="doc-ref">
       {/* у распределения материалов своя форма */}
@@ -1811,7 +1824,7 @@ export function DocRef({ d }: { d: DocLink }) {
         {typeLabel(d.type)} {d.number ?? t('docs.document.draftRef')}
       </Link>
       <Badge tone={STATUS_TONE[d.status]}>{STATUS_LABEL[d.status]}</Badge>
-      {d.total !== undefined && <span className="num muted">{money(d.total)}</span>}
+      {showTotals && d.total !== undefined && <span className="num muted">{money(d.total)}</span>}
     </span>
   );
 }

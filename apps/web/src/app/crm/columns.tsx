@@ -12,8 +12,8 @@ import { sumAmount, sumWeighted, type CompanyRow, type ContactRow, type DealRow 
 const dash = <span className="faint">—</span>;
 const lastSeen = (t: number | null) => (t ? ago(t) : dash);
 
-export function dealColumns(t: TFunction): Column<DealRow>[] {
-  return [
+export function dealColumns(t: TFunction, hidden: readonly string[] = []): Column<DealRow>[] {
+  const columns: Column<DealRow>[] = [
     { id: 'name', header: t('crm.deals.col.deal'), width: 260, value: r => r.name, cell: r => <span className="trunc" style={{ fontWeight: 450 }}>{r.name}</span> },
     { id: 'company', header: t('crm.deals.col.company'), width: 180, value: r => r.companyName, cell: r => <CompanyLink id={r.company} logo /> },
     { id: 'stage', header: t('crm.deals.col.stage'), width: 130, value: r => r.stageIndex, cell: r => <StageLabel stage={r.stage} /> },
@@ -24,12 +24,14 @@ export function dealColumns(t: TFunction): Column<DealRow>[] {
     { id: 'owner', header: t('crm.deals.col.owner'), width: 150, value: r => r.ownerName, cell: r => <OwnerCell id={r.owner} /> },
     { id: 'created', header: t('crm.deals.col.created'), width: 112, defaultHidden: true, value: r => r.created, cell: r => <span className="muted num">{fmtDate(new Date(r.created))}</span> },
   ];
+  return columns.filter(c => (c.id !== 'amount' || !hidden.includes('deal.amount'))
+    && (c.id !== 'p' || !hidden.includes('deal.probability'))
+    && (c.id !== 'weighted' || (!hidden.includes('deal.amount') && !hidden.includes('deal.probability'))));
 }
 
 /** Сортировка в меню Sort страницы сделок — колонки с осмысленным порядком */
-export function dealSorts(t: TFunction) {
-  const cols = dealColumns(t);
-  return ['name', 'company', 'stage', 'amount', 'close', 'owner', 'created'].map(id => ({ id, name: cols.find(c => c.id === id)!.header }));
+export function dealSorts(t: TFunction, hidden: readonly string[] = []) {
+  return dealColumns(t, hidden).filter(c => !['p', 'weighted'].includes(c.id)).map(c => ({ id: c.id, name: c.header }));
 }
 
 const roleText = (r: { isCustomer?: boolean; isSupplier?: boolean }, t: TFunction) =>
@@ -73,8 +75,8 @@ export function companyColumns(t: TFunction): Column<CompanyRow>[] {
   ];
 }
 
-export function contactColumns(t: TFunction): Column<ContactRow>[] {
-  return [
+export function contactColumns(t: TFunction, hidden: readonly string[] = []): Column<ContactRow>[] {
+  const columns: Column<ContactRow>[] = [
     { id: 'name', header: t('crm.contacts.col.contact'), width: 230, value: r => r.name, cell: r => <PersonCell name={r.name} /> },
     { id: 'company', header: t('crm.contacts.col.company'), width: 190, value: r => r.companyName, cell: r => <CompanyLink id={r.company} logo /> },
     { id: 'title', header: t('crm.contacts.col.title'), width: 190, value: r => r.title },
@@ -95,12 +97,13 @@ export function contactColumns(t: TFunction): Column<ContactRow>[] {
     { id: 'deals', header: t('crm.contacts.col.deals'), width: 80, align: 'right', value: r => r.deals },
     { id: 'last', header: t('crm.contacts.col.last'), width: 126, value: r => r.lastActivity, cell: r => lastSeen(r.lastActivity) },
   ];
+  return columns.filter(c => !hidden.includes(`contact.${c.id}`));
 }
 
 /** Те же колонки без «Company» — для вкладок страницы компании */
-export function dealColumnsInCompany(t: TFunction): Column<DealRow>[] {
-  return dealColumns(t).filter(c => c.id !== 'company');
+export function dealColumnsInCompany(t: TFunction, hidden: readonly string[] = []): Column<DealRow>[] {
+  return dealColumns(t, hidden).filter(c => c.id !== 'company');
 }
-export function contactColumnsInCompany(t: TFunction): Column<ContactRow>[] {
-  return contactColumns(t).filter(c => c.id !== 'company');
+export function contactColumnsInCompany(t: TFunction, hidden: readonly string[] = []): Column<ContactRow>[] {
+  return contactColumns(t, hidden).filter(c => c.id !== 'company');
 }

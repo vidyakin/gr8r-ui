@@ -38,6 +38,12 @@ export function useRealtime(ws: string, engine: Engine) {
       engine.refresh(collectionsFor(e.entity));
       // Конструктор сущностей: метаданные и записи пользовательских сущностей живут в отдельных запросах
       if (e.entity === 'entity' || e.entity === 'field') batch.add(['ws', ws, 'meta']);
+      if (e.entity === 'field' || e.entity === 'position' || e.type.startsWith('member.')) {
+        engine.refresh(['companies', 'contacts', 'deals', 'tasks', 'projects']);
+        for (const key of ['positions', 'meta', 'records', 'record', 'ref-title', 'ref-search', 'leads', 'pipelines', 'docs', 'catalog', 'cases']) {
+          batch.add(['ws', ws, key]);
+        }
+      }
       if (e.entity === 'record') for (const k of ['records', 'record', 'ref-title', 'ref-search']) batch.add(['ws', ws, k]);
       // Каталог и производство: отдельные запросы ['ws', id, 'catalog' | 'production', …]
       if (['unit', 'product_category', 'attribute_def', 'product'].includes(e.entity)) batch.add(['ws', ws, 'catalog']);

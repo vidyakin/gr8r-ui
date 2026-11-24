@@ -1,6 +1,7 @@
 /* Должности сотрудников и виды номенклатуры (задача 1172, docs/architecture/positions.md). Таблицы арендатора: workspace_id + RLS. */
 import { sql } from 'drizzle-orm';
 import { check, foreignKey, index, integer, pgTable, primaryKey, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { RECORD_SCOPES } from '@erp/shared';
 import { createdAt, pk, updatedAt } from './columns';
 import { members } from './people';
 import { wsCol } from './tenant';
@@ -24,7 +25,8 @@ export const productKinds = pgTable(
   ],
 );
 
-/** Должность: название, функции (для фильтров списков выбора) и разделы меню (пусто — все разделы) */
+/** Должность: название, функции (для фильтров списков выбора), разделы меню (пусто — все разделы),
+    область видимости записей CRM (all | department | own) и скрытые чувствительные поля */
 export const positions = pgTable(
   'positions',
   {
@@ -33,11 +35,17 @@ export const positions = pgTable(
     name: text('name').notNull(),
     functions: text('functions').array().notNull().default(sql`'{}'::text[]`),
     sections: text('sections').array().notNull().default(sql`'{}'::text[]`),
+    recordScope: text('record_scope', { enum: RECORD_SCOPES }).notNull().default('all'),
+    hiddenFields: text('hidden_fields').array().notNull().default(sql`'{}'::text[]`),
     sortOrder: integer('sort_order').notNull().default(0),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  t => [unique('positions_ws_id_uq').on(t.workspaceId, t.id), uniqueIndex('positions_ws_name_uq').on(t.workspaceId, sql`lower(${t.name})`)],
+  t => [
+    unique('positions_ws_id_uq').on(t.workspaceId, t.id),
+    uniqueIndex('positions_ws_name_uq').on(t.workspaceId, sql`lower(${t.name})`),
+    check('positions_record_scope_chk', sql`${t.recordScope} in ('all','department','own')`),
+  ],
 );
 
 /** Должности участника (одна или несколько) */

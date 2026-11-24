@@ -11,6 +11,7 @@ const choice = z.object({
 
 export const fieldOptions = z
   .object({
+    hidden: z.boolean().optional(),
     choices: z.array(choice).max(100).optional(),
     refEntity: z.string().regex(ENTITY_KEY_RE).optional(),
     min: z.number().finite().optional(),

@@ -2,7 +2,7 @@
    Защита от зацикливания: события, которые порождают действия flow, несут метку `via.chain` (flow цепочки). Flow, уже стоящий в цепочке,
    событием не запускается («сам себя»), а глубина цепочки ограничена MAX_FLOW_CHAIN — запуск фиксируется как skipped с причиной. */
 import { and, eq } from 'drizzle-orm';
-import { allWorkspaceModules, createRun, events, workspaceModules, flowVersions, flows, withContext, workspaces, type Db, type Sql } from '@erp/db';
+import { allWorkspaceModules, createRun, events, loadHiddenFields, members, workspaceModules, flowVersions, flows, withContext, workspaces, type Db, type Sql } from '@erp/db';
 import {
   cronMatches,
   disabledModulesOfNodes,
@@ -11,6 +11,8 @@ import {
   eventEntity,
   eventVia,
   getNodeDef,
+  maskEventFields,
+  maskFields,
   MAX_FLOW_CHAIN,
   parseCron,
   SYSTEM_ENTITY_KEYS,
@@ -32,7 +34,6 @@ export async function startRunsForEvent(db: Db, ev: EventRow): Promise<number> {
   const fev: FlowEvent = { id: ev.id, workspaceId: ev.workspaceId, type: ev.type, entity: ev.entity, recordId: ev.recordId, actorId: ev.actorId, payload: ev.payload };
   const entity = eventEntity(fev);
   const action = eventAction(fev);
-  const changes = eventChanges(fev);
   const via = eventVia(fev);
 
   const candidates = await db
@@ -45,6 +46,11 @@ export async function startRunsForEvent(db: Db, ev: EventRow): Promise<number> {
   // Лицензия: без модуля «Автоматизации» события запусков не порождают; flow с узлами выключенного модуля — пропуск с причиной
   const modules = await workspaceModules(db, ev.workspaceId);
   if (!modules.has('automations')) return 0;
+  const [actor] = ev.actorId ? await db.select({ role: members.role }).from(members)
+    .where(and(eq(members.workspaceId, ev.workspaceId), eq(members.id, ev.actorId), eq(members.status, 'active'))) : [];
+  const hidden = ev.actorId ? await loadHiddenFields(db, ev.actorId, actor?.role ?? 'guest', ev.workspaceId) : [];
+  const visibleEvent = { ...fev, payload: maskEventFields(entity, fev.payload, hidden) };
+  const changes = eventChanges(visibleEvent);
 
   let record: Record<string, unknown> | null | undefined;
   let email: Record<string, unknown> | null = null;
@@ -57,7 +63,7 @@ export async function startRunsForEvent(db: Db, ev: EventRow): Promise<number> {
     const def = trig && getNodeDef(trig.type);
     if (!trig || !def?.match) continue;
     const params = def.params.safeParse(trig.params);
-    if (!params.success || !def.match(params.data, fev, { entity, action, changes })) continue;
+    if (!params.success || !def.match(params.data, visibleEvent, { entity, action, changes })) continue;
 
     const chain = [...(via?.chain ?? []), c.id];
     let skipped: string | undefined;
@@ -89,9 +95,11 @@ export async function startRunsForEvent(db: Db, ev: EventRow): Promise<number> {
       entity: contextEntity,
       ...(contextRecordId ? { recordId: contextRecordId } : {}),
       ...(email ? { email } : {}),
-      ...(record ? { record } : {}),
+      ...(record ? { record: ev.entity === 'record'
+        ? maskFields(contextEntity, { data: record }, hidden).data
+        : maskFields(contextEntity, record, hidden) } : {}),
       changes,
-      ...(project ? { project } : {}),
+      ...(project ? { project: maskFields('project', project, hidden) } : {}),
       actorId: ev.actorId,
       firedAt: new Date().toISOString(),
       enriched: true,

@@ -1,3 +1,4 @@
+import { useHiddenFields } from '../positions/data';
 /* Документы контрагента: вкладка «Документы» в карточке компании (задача 1097). Все документы клиента с фильтром по типу;
    у заказ-нарядов — состояние вида; итоги по выборке даёт сервер (журнал /documents, отменённые в сумму не входят).
    Итог только по одному виду: заказ, счёт и акт одной продажи в сумме посчитались бы трижды. */
@@ -17,6 +18,7 @@ const PARTY_TYPES = DOCUMENT_TYPES.filter(x => DOCUMENT_META[x].party !== null);
 
 export function CompanyDocumentsTab({ companyId }: { companyId: string }) {
   const t = useT();
+  const showTotals = !useHiddenFields().includes('document.total');
   const navigate = useNavigate();
   const [type, setType] = React.useState(ALL);
   const docs = useDocuments({ counterpartyId: companyId, ...(type === ALL ? {} : { type }) });
@@ -50,8 +52,8 @@ export function CompanyDocumentsTab({ companyId }: { companyId: string }) {
             <th>{t('serviceReports.companyDocuments.col.date')}</th>
             <th>{t('serviceReports.companyDocuments.col.state')}</th>
             <th>{t('serviceReports.companyDocuments.col.status')}</th>
-            <th className="r">{t('serviceReports.companyDocuments.col.amount')}</th>
-            <th className="r">{t('serviceReports.companyDocuments.col.total')}</th>
+            {showTotals && <th className="r">{t('serviceReports.companyDocuments.col.amount')}</th>}
+            {showTotals && <th className="r">{t('serviceReports.companyDocuments.col.total')}</th>}
           </tr>
         </thead>
         <tbody>
@@ -63,12 +65,12 @@ export function CompanyDocumentsTab({ companyId }: { companyId: string }) {
               <td className="num muted">{fmtDate(parse(d.date))}</td>
               <td>{stateLabel(d) ?? <span className="faint">—</span>}</td>
               <td><Badge tone={STATUS_TONE[d.status]}>{STATUS_LABEL[d.status]}</Badge></td>
-              <td className="r num">{fmtAmount(d.amountNet)}</td>
-              <td className="r num">{fmtAmount(d.total)}</td>
+              {showTotals && <td className="r num">{fmtAmount(d.amountNet)}</td>}
+              {showTotals && <td className="r num">{fmtAmount(d.total)}</td>}
             </tr>
           ))}
         </tbody>
-        <tfoot>
+        {showTotals && <tfoot>
           {type === ALL ? (
             <tr>
               <td colSpan={6} className="faint">{t('serviceReports.companyDocuments.sumHint')}</td>
@@ -80,7 +82,7 @@ export function CompanyDocumentsTab({ companyId }: { companyId: string }) {
               <td className="r num"><strong>{fmtAmount(sum.total)}</strong></td>
             </tr>
           )}
-        </tfoot>
+        </tfoot>}
       </table>
     );
   }

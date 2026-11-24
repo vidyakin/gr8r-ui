@@ -15,8 +15,9 @@ import {
   updateDocument,
   warehouses,
 } from '@erp/db';
-import { documentCreate, documentUpdate, idParam, isCashDocType, type DocumentType } from '@erp/shared';
+import { assertNoHiddenFieldWrite, maskFields, maskRows, documentCreate, documentUpdate, idParam, isCashDocType, type DocumentType } from '@erp/shared';
 import { ctxOf, escapeLike, validationHook, type Ctx } from '../../crud';
+import { hiddenFieldsOf, requireVisibleFields } from '../../field-access';
 import { AppError, notFound } from '../../errors';
 import { requireRole } from '../../middleware';
 import type { AppEnv } from '../../types';
@@ -37,6 +38,7 @@ export const v1DocumentRoutes = new Hono<AppEnv>()
   .get('/documents', zValidator('query', v1DocumentQuery, validationHook), async c => {
     const ctx = ctxOf(c);
     const q = c.req.valid('query');
+    const hidden = await hiddenFieldsOf(ctx);
     const since = parseUpdatedSince(q.updatedSince);
     const conds: (SQL | undefined)[] = [
       q.type ? eq(documents.type, q.type as DocumentType) : undefined,
@@ -67,19 +69,20 @@ export const v1DocumentRoutes = new Hono<AppEnv>()
       .limit(q.limit)
       .offset(q.offset);
     const items = rows.map(({ doc: { custom: _custom, ...doc }, ...r }) => ({ ...doc, ...r }));
-    return c.json({ items, total: n, limit: q.limit, offset: q.offset });
+    return c.json({ items: maskRows('document', items, hidden), total: n, limit: q.limit, offset: q.offset });
   })
   .get('/documents/:id', zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
     const detail = await documentDetail(ctx.db, c.req.valid('param').id);
     if (isInternal(detail.type) && !canSeeCost(ctx.role)) {
-      return c.json({ ...detail, lines: detail.lines.map(l => ({ ...l, price: '0.00' })), costTotal: null });
+      return c.json(maskFields('document', { ...detail, lines: detail.lines.map(l => ({ ...l, price: '0.00' })), costTotal: null }, await hiddenFieldsOf(ctx)));
     }
-    return c.json(detail);
+    return c.json(maskFields('document', detail, await hiddenFieldsOf(ctx)));
   })
   .post('/documents', write, zValidator('json', documentCreate, validationHook), async c => {
     const ctx = ctxOf(c);
     const body = c.req.valid('json');
+    requireVisibleFields(assertNoHiddenFieldWrite('document', await c.req.json(), await hiddenFieldsOf(ctx)));
     if (
       body.type === 'production' ||
       body.type === 'production_order' ||
@@ -93,7 +96,7 @@ export const v1DocumentRoutes = new Hono<AppEnv>()
       throw new AppError(422, 'production_api_only', 'This document type must be created via its dedicated API');
     }
     const id = await createDocument(ctx.db, docCtx(ctx), body);
-    return c.json(await documentDetail(ctx.db, id), 201);
+    return c.json(maskFields('document', await documentDetail(ctx.db, id), await hiddenFieldsOf(ctx)), 201);
   })
   .patch('/documents/:id', write, zValidator('param', idParam, validationHook), zValidator('json', documentUpdate, validationHook), async c => {
     const ctx = ctxOf(c);
@@ -101,8 +104,9 @@ export const v1DocumentRoutes = new Hono<AppEnv>()
     const type = await documentTypeOf(ctx, id);
     if (type === 'price_setting') throw new AppError(422, 'pricing_api_only', 'The price setting is edited through /pricing/settings');
     if (isCashDocType(type)) throw new AppError(422, 'payments_api_only', 'Payment documents are edited through /payments');
+    requireVisibleFields(assertNoHiddenFieldWrite('document', await c.req.json(), await hiddenFieldsOf(ctx)));
     await updateDocument(ctx.db, docCtx(ctx), id, c.req.valid('json'));
-    return c.json(await documentDetail(ctx.db, id));
+    return c.json(maskFields('document', await documentDetail(ctx.db, id), await hiddenFieldsOf(ctx)));
   })
   .post('/documents/:id/post', write, zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
@@ -111,5 +115,5 @@ export const v1DocumentRoutes = new Hono<AppEnv>()
     assertWorkOrderPostingByState(type);
     if (type !== 'payment_request') await assertApproved(ctx.db, { kind: 'document', id });
     const warnings = await postDocument(ctx.db, docCtx(ctx), id);
-    return c.json({ ...(await documentDetail(ctx.db, id)), warnings });
+    return c.json(maskFields('document', { ...(await documentDetail(ctx.db, id)), warnings }, await hiddenFieldsOf(ctx)));
   });

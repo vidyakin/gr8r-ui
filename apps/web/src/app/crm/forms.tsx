@@ -1,3 +1,4 @@
+import { useHiddenFields } from '../positions/data';
 /* Формы CRM «New deal», «New company», «New contact» — Dialog в стиле формы новой задачи (overlays/task-form.tsx) */
 import * as React from 'react';
 import { CircleAlert, DollarSign } from 'lucide-react';
@@ -118,6 +119,7 @@ export function DealFormDialog({ defaults, onClose, onCreated }: { defaults: Dea
     contacts: [] as string[],
   });
   const [err, setErr] = React.useState<{ name?: string; company?: string; amount?: string }>({});
+  const showAmount = !useHiddenFields().includes('deal.amount');
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF(s => ({ ...s, [k]: v }));
   const people = f.company ? contactsOfCompany(data, f.company) : [];
 
@@ -126,11 +128,11 @@ export function DealFormDialog({ defaults, onClose, onCreated }: { defaults: Dea
     if (!f.name.trim()) e.name = t('crm.deals.form.errName');
     if (!f.company) e.company = t('crm.deals.form.errCompany');
     const amount = Number(f.amount);
-    if (!(amount > 0)) e.amount = t('crm.deals.form.errAmount');
+    if (showAmount && !(amount > 0)) e.amount = t('crm.deals.form.errAmount');
     setErr(e);
     if (Object.keys(e).length) return;
     const id = newCrmId('d');
-    dispatch({ type: 'deal/create', deal: { id, name: f.name.trim(), company: f.company, amount, stage: f.stage || openStagesOf(f.pipeline)[0]!.id, pipeline: f.pipeline, closeDate: f.close, owner: f.owner, contacts: f.contacts } });
+    dispatch({ type: 'deal/create', deal: { id, name: f.name.trim(), company: f.company, ...(showAmount ? { amount } : {}), stage: f.stage || openStagesOf(f.pipeline)[0]!.id, pipeline: f.pipeline, closeDate: f.close, owner: f.owner, contacts: f.contacts } });
     onClose();
     onCreated(id);
   };
@@ -158,9 +160,9 @@ export function DealFormDialog({ defaults, onClose, onCreated }: { defaults: Dea
               ))}
           </select>
         </FormField>
-        <FormField id="nd-amount" label={t('crm.deals.form.fieldAmount')} error={err.amount} grow>
+        {showAmount && <FormField id="nd-amount" label={t('crm.deals.form.fieldAmount')} error={err.amount} grow>
           <Input id="nd-amount" type="number" min={0} step={500} icon={<DollarSign size={14} />} invalid={!!err.amount} placeholder={t('crm.deals.form.placeholderAmount')} value={f.amount} onChange={e => set('amount', e.target.value)} />
-        </FormField>
+        </FormField>}
       </div>
       <div className="row" style={{ gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <FormField id="nd-pipeline" label={t('crm.pipelines.pipeline')} grow>
@@ -282,6 +284,7 @@ export function ContactFormDialog({ defaults, onClose, onCreated }: { defaults: 
   const { data: ws } = useWorkspace();
   const { data, dispatch } = useCrm();
   const t = useT();
+  const hidden = useHiddenFields();
   const [f, setF] = React.useState({ name: '', company: defaults.company ?? '', title: '', email: '', phone: '', owner: findCompany(data, defaults.company)?.owner ?? ws.me });
   const [err, setErr] = React.useState<{ name?: string; company?: string }>({});
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF(s => ({ ...s, [k]: v }));
@@ -293,7 +296,7 @@ export function ContactFormDialog({ defaults, onClose, onCreated }: { defaults: 
     setErr(e);
     if (Object.keys(e).length) return;
     const id = newCrmId('ct');
-    dispatch({ type: 'contact/create', contact: { id, name: f.name.trim(), company: f.company, owner: f.owner, title: f.title.trim(), email: f.email.trim() || undefined, phone: f.phone.trim() } });
+    dispatch({ type: 'contact/create', contact: { id, name: f.name.trim(), company: f.company, owner: f.owner, title: f.title.trim(), email: f.email.trim() || undefined, phone: f.phone.trim() }, hiddenFields: hidden });
     onClose();
     onCreated(id);
   };
@@ -326,12 +329,12 @@ export function ContactFormDialog({ defaults, onClose, onCreated }: { defaults: 
         </FormField>
       </div>
       <div className="row" style={{ gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <FormField id="nk-email" label={t('crm.contacts.form.fieldEmail')} grow>
+        {!hidden.includes('contact.email') && <FormField id="nk-email" label={t('crm.contacts.form.fieldEmail')} grow>
           <Input id="nk-email" type="email" placeholder={t('crm.contacts.form.placeholderEmail')} value={f.email} onChange={e => set('email', e.target.value)} />
-        </FormField>
-        <FormField id="nk-phone" label={t('crm.contacts.form.fieldPhone')} grow>
+        </FormField>}
+        {!hidden.includes('contact.phone') && <FormField id="nk-phone" label={t('crm.contacts.form.fieldPhone')} grow>
           <Input id="nk-phone" placeholder={t('crm.contacts.form.placeholderPhone')} value={f.phone} onChange={e => set('phone', e.target.value)} />
-        </FormField>
+        </FormField>}
         <FormField id="nk-owner" label={t('crm.contacts.form.fieldOwner')} grow>
           <OwnerSelect id="nk-owner" value={f.owner} onChange={v => set('owner', v)} />
         </FormField>

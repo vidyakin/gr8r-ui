@@ -6,6 +6,7 @@ import { Hono } from 'hono';
 import { canSeeCost, maskSalesAbcReport, maskSalesProfitReport, salesAbcReport, salesProfitReport } from '@erp/db';
 import { salesAbcQuery, salesProfitQuery } from '@erp/shared';
 import { ctxOf, validationHook } from '../crud';
+import { hiddenFieldsOf, requireVisibleFields } from '../field-access';
 import { AppError } from '../errors';
 import type { AppEnv } from '../types';
 import { buildXlsx, type Cell } from '../xlsx';
@@ -17,11 +18,13 @@ const num = (v: string | null) => (v === null ? null : Number(v));
 export const salesProfitRoutes = new Hono<AppEnv>()
   .get('/reports/sales-profit', zValidator('query', salesProfitQuery, validationHook), async c => {
     const ctx = ctxOf(c);
+    requireVisibleFields((await hiddenFieldsOf(ctx)).filter(key => key === 'document.total'));
     const r = await salesProfitReport(ctx.db, ctx.workspaceId, c.req.valid('query'));
     return c.json(maskSalesProfitReport(r, canSeeCost(ctx.role)));
   })
   .get('/reports/sales-profit/export', zValidator('query', salesProfitQuery, validationHook), async c => {
     const ctx = ctxOf(c);
+    requireVisibleFields((await hiddenFieldsOf(ctx)).filter(key => key === 'document.total'));
     const q = c.req.valid('query');
     const see = canSeeCost(ctx.role);
     const r = await salesProfitReport(ctx.db, ctx.workspaceId, q);
@@ -49,6 +52,7 @@ export const salesProfitRoutes = new Hono<AppEnv>()
   })
   .get('/reports/sales-abc', zValidator('query', salesAbcQuery, validationHook), async c => {
     const ctx = ctxOf(c);
+    requireVisibleFields((await hiddenFieldsOf(ctx)).filter(key => key === 'document.total'));
     const q = c.req.valid('query');
     const see = canSeeCost(ctx.role);
     if (q.metric === 'profit' && !see) throw COST_FORBIDDEN();
@@ -57,6 +61,7 @@ export const salesProfitRoutes = new Hono<AppEnv>()
   })
   .get('/reports/sales-abc/export', zValidator('query', salesAbcQuery, validationHook), async c => {
     const ctx = ctxOf(c);
+    requireVisibleFields((await hiddenFieldsOf(ctx)).filter(key => key === 'document.total'));
     const q = c.req.valid('query');
     const see = canSeeCost(ctx.role);
     if (q.metric === 'profit' && !see) throw COST_FORBIDDEN();

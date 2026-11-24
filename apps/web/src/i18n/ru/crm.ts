@@ -27,6 +27,7 @@ export const crm = {
     openPipelineBtn: 'Открыть воронку',
   },
   deals: {
+    countOnly: 'Сделок: {count}',
     title: 'Сделки',
     summary: '{count} открытых сделок · {amount} в воронке · {weighted} взвешено',
     newDeal: 'Новая сделка',

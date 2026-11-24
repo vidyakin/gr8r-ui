@@ -1,3 +1,4 @@
+import { useHiddenFields } from '../positions/data';
 /* CRM Dashboard — ключевые цифры, воронка по этапам, выручка по месяцам, топ сделок и ближайшие закрытия (в стиле Overview) */
 import * as React from 'react';
 import { useNavigate } from 'react-router';
@@ -21,6 +22,7 @@ import type { Deal } from './types';
 function Funnel({ deals, pipelineId }: { deals: Deal[]; pipelineId: string }) {
   const navigate = useNavigate();
   const t = useT();
+  const showWeighted = !useHiddenFields().includes('deal.probability');
   const rows = stageSummary(deals, pipelineId);
   const max = Math.max(...rows.map(r => r.amount), 1);
   return (
@@ -35,9 +37,9 @@ function Funnel({ deals, pipelineId }: { deals: Deal[]; pipelineId: string }) {
               <StageIcon stage={r.stage.id} />
               <span className="trunc">{name}</span>
             </span>
-            <span className="crm-track" role="img" aria-label={`${name}: ${money(r.amount)}${open ? `, ${t('crm.dashboard.weightedLabel')} ${money(r.weighted)}` : ''}`}>
+            <span className="crm-track" role="img" aria-label={`${name}: ${money(r.amount)}${open && showWeighted ? `, ${t('crm.dashboard.weightedLabel')} ${money(r.weighted)}` : ''}`}>
               <span className={cn('crm-fill', r.stage.category === 'won' && 'solid')} style={{ width: `${w}%`, '--c': r.stage.c } as React.CSSProperties}>
-                {open && <i style={{ width: `${r.amount ? (r.weighted / r.amount) * 100 : 0}%` }} />}
+                {open && showWeighted && <i style={{ width: `${r.amount ? (r.weighted / r.amount) * 100 : 0}%` }} />}
               </span>
             </span>
             <span className="num muted" style={{ width: 24, textAlign: 'right' }}>
@@ -112,6 +114,9 @@ export function DashboardPage() {
   const { data, dispatch, pipes } = useCrm();
   const ui = useCrmUi();
   const t = useT();
+  const hidden = useHiddenFields();
+  const showAmount = !hidden.includes('deal.amount');
+  const showWeighted = showAmount && !hidden.includes('deal.probability');
   const ds = data.deals;
   const mainPipeline = pipes.pipelines.find(p => p.isDefault) ?? pipes.pipelines[0];
   const pl = pipeline(ds);
@@ -147,29 +152,29 @@ export function DashboardPage() {
       </div>
 
       <div className="stats" style={{ marginBottom: 16 }}>
-        <Stat label={t('crm.dashboard.openPipeline')} value={money(pl.amount)} note={t('crm.dashboard.openPipelineNote', { count: pl.count })} />
-        <Stat label={t('crm.dashboard.weighted')} value={money(pl.weighted)} note={t('crm.dashboard.weightedNote', { pct: pct(pl.amount ? pl.weighted / pl.amount : 0) })} />
-        <Stat label={t('crm.dashboard.wonThisMonth')} value={money(sumAmount(won))} note={t('crm.dashboard.wonThisMonthNote', { count: won.length })} tone={won.length ? 'up' : undefined} />
+        {showAmount && <Stat label={t('crm.dashboard.openPipeline')} value={money(pl.amount)} note={t('crm.dashboard.openPipelineNote', { count: pl.count })} />}
+        {showWeighted && <Stat label={t('crm.dashboard.weighted')} value={money(pl.weighted)} note={t('crm.dashboard.weightedNote', { pct: pct(pl.amount ? pl.weighted / pl.amount : 0) })} />}
+        {showAmount && <Stat label={t('crm.dashboard.wonThisMonth')} value={money(sumAmount(won))} note={t('crm.dashboard.wonThisMonthNote', { count: won.length })} tone={won.length ? 'up' : undefined} />}
         <Stat label={t('crm.dashboard.winRate')} value={pct(conv)} note={t('crm.dashboard.winRateNote', { won: wonAll, lost })} />
       </div>
 
       <div className="grid2">
         <div className="stack">
-          <Panel title={t('crm.dashboard.funnel')} actions={<span className="faint" style={{ fontSize: 11.5 }}>{t('crm.dashboard.funnelHint')}</span>}>
+          {showAmount && <Panel title={t('crm.dashboard.funnel')} actions={<span className="faint" style={{ fontSize: 11.5 }}>{t('crm.dashboard.funnelHint')}</span>}>
             {mainPipeline && <Funnel deals={ds.filter(d => stage(d.stage).pipelineId === mainPipeline.id)} pipelineId={mainPipeline.id} />}
-          </Panel>
-          <Panel title={t('crm.dashboard.revenue')} actions={<span className="faint" style={{ fontSize: 11.5 }}>{t('crm.dashboard.revenueHint')}</span>}>
+          </Panel>}
+          {showAmount && <Panel title={t('crm.dashboard.revenue')} actions={<span className="faint" style={{ fontSize: 11.5 }}>{t('crm.dashboard.revenueHint')}</span>}>
             <Revenue deals={ds} />
-          </Panel>
+          </Panel>}
         </div>
         <div className="stack">
-          <Panel title={t('crm.dashboard.topDeals')} actions={<span className="faint" style={{ fontSize: 11.5 }}>{t('crm.dashboard.topDealsHint')}</span>}>
+          {showAmount && <Panel title={t('crm.dashboard.topDeals')} actions={<span className="faint" style={{ fontSize: 11.5 }}>{t('crm.dashboard.topDealsHint')}</span>}>
             <div className="panel-b">
               {top.map(d => (
                 <DealRowLine key={d.id} d={d} right={<span className="num">{money(d.amount)}</span>} />
               ))}
             </div>
-          </Panel>
+          </Panel>}
           <Panel title={t('crm.dashboard.closingSoon')} actions={overdue ? <span style={{ fontSize: 11.5, color: 'var(--red)' }}>{t('crm.dashboard.overdue', { count: overdue })}</span> : undefined}>
             <div className="panel-b">
               {soon.map(d => (

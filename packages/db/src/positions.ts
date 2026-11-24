@@ -2,12 +2,25 @@
    участника, контекст для фильтров («участники с функцией», разделы меню, виды специалиста). Права API не меняются —
    разделы меню это видимость интерфейса. Справочники правят admin и owner (проверка в маршрутах). */
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
-import { membersWithFunction, positionsOfMember, specialistProductKindIds, visibleSections, type MemberPositionLink, type PositionDef, type PositionFunction, type PositionSection, type Role } from '@erp/shared';
+import {
+  effectiveHiddenFields,
+  effectiveRecordScope,
+  membersWithFunction,
+  positionsOfMember,
+  specialistProductKindIds,
+  visibleSections,
+  type MemberPositionLink,
+  type PositionDef,
+  type PositionFunction,
+  type PositionSection,
+  type RecordScope,
+  type Role,
+} from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
 import type { DocCtx } from './documents';
-import { memberPositions, members, positionProductKinds, positions, productKinds, products } from './schema';
+import { entities, fields, memberPositions, members, positionProductKinds, positions, productKinds, products } from './schema';
 
 export type ProductKindRow = typeof productKinds.$inferSelect;
 export type PositionRow = typeof positions.$inferSelect;
@@ -81,6 +94,8 @@ export interface PositionInput {
   functions?: PositionFunction[] | undefined;
   sections?: PositionSection[] | undefined;
   productKindIds?: string[] | undefined;
+  recordScope?: RecordScope | undefined;
+  hiddenFields?: string[] | undefined;
   sortOrder?: number | undefined;
 }
 
@@ -118,7 +133,15 @@ export async function createPosition(db: Db, ctx: DocCtx, input: PositionInput):
   await assertKindsExist(db, input.productKindIds ?? []);
   const [row] = await db
     .insert(positions)
-    .values({ workspaceId: ctx.workspaceId, name: input.name, functions: [...new Set(input.functions ?? [])], sections: [...new Set(input.sections ?? [])], sortOrder: input.sortOrder ?? 0 })
+    .values({
+      workspaceId: ctx.workspaceId,
+      name: input.name,
+      functions: [...new Set(input.functions ?? [])],
+      sections: [...new Set(input.sections ?? [])],
+      recordScope: input.recordScope ?? 'all',
+      hiddenFields: [...new Set(input.hiddenFields ?? [])],
+      sortOrder: input.sortOrder ?? 0,
+    })
     .returning();
   await replaceKinds(db, ctx.workspaceId, row!.id, input.productKindIds ?? []);
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'position.created', entity: 'position', recordId: row!.id, actorId: ctx.memberId, payload: { name: input.name } });
@@ -133,6 +156,8 @@ export async function updatePosition(db: Db, ctx: DocCtx, id: string, input: Par
   if (input.name !== undefined) set.name = input.name;
   if (input.functions !== undefined) set.functions = [...new Set(input.functions)];
   if (input.sections !== undefined) set.sections = [...new Set(input.sections)];
+  if (input.recordScope !== undefined) set.recordScope = input.recordScope;
+  if (input.hiddenFields !== undefined) set.hiddenFields = [...new Set(input.hiddenFields)];
   if (input.sortOrder !== undefined) set.sortOrder = input.sortOrder;
   await db.update(positions).set(set).where(eq(positions.id, id));
   if (input.productKindIds !== undefined) await replaceKinds(db, ctx.workspaceId, id, input.productKindIds);
@@ -172,7 +197,7 @@ export interface PositionContext {
 export async function loadPositionContext(db: Db): Promise<PositionContext> {
   const list = await listPositions(db);
   return {
-    positions: list.map(p => ({ id: p.id, functions: p.functions, sections: p.sections, productKindIds: p.productKindIds })),
+    positions: list.map(p => ({ id: p.id, functions: p.functions, sections: p.sections, productKindIds: p.productKindIds, recordScope: p.recordScope, hiddenFields: p.hiddenFields })),
     links: list.flatMap(p => p.memberIds.map(memberId => ({ memberId, positionId: p.id }))),
   };
 }
@@ -196,7 +221,30 @@ export async function memberSections(db: Db, memberId: string, role: Role): Prom
   return visibleSections(role, positionsOfMember(memberId, cx.positions, cx.links));
 }
 
-/** Должности и видимые разделы текущего участника (для интерфейса) */
+/** Область видимости записей CRM текущего участника */
+export async function memberRecordScope(db: Db, memberId: string, role: Role): Promise<RecordScope> {
+  const cx = await loadPositionContext(db);
+  return effectiveRecordScope(role, positionsOfMember(memberId, cx.positions, cx.links));
+}
+
+/** Флажок конструктора скрывает поле от всех, кроме owner/admin. */
+async function withHiddenDefinitions(db: Db, role: Role, hidden: string[], workspaceId?: string): Promise<string[]> {
+  if (role === 'owner' || role === 'admin') return [];
+  const defs = await db.select({ entity: entities.key, key: fields.key }).from(fields)
+    .innerJoin(entities, eq(fields.entityId, entities.id))
+    .where(and(workspaceId ? eq(fields.workspaceId, workspaceId) : undefined, sql`${fields.options}->'hidden' = 'true'::jsonb`));
+  return [...new Set([...hidden, ...defs.map(f => `custom:${f.entity}.${f.key}`)])];
+}
+
+export async function loadHiddenFields(db: Db, memberId: string, role: Role, workspaceId?: string): Promise<string[]> {
+  if (role === 'owner' || role === 'admin') return [];
+  const mine = await db.select({ hiddenFields: positions.hiddenFields }).from(memberPositions)
+    .innerJoin(positions, eq(positions.id, memberPositions.positionId))
+    .where(and(eq(memberPositions.memberId, memberId), workspaceId ? eq(memberPositions.workspaceId, workspaceId) : undefined));
+  return withHiddenDefinitions(db, role, effectiveHiddenFields(role, mine), workspaceId);
+}
+
+/** Должности, видимые разделы, область видимости записей и скрытые поля текущего участника (для интерфейса) */
 export async function myPositions(db: Db, memberId: string, role: Role) {
   const cx = await loadPositionContext(db);
   const mine = positionsOfMember(memberId, cx.positions, cx.links);
@@ -206,6 +254,8 @@ export async function myPositions(db: Db, memberId: string, role: Role) {
     positionIds: mine.map(p => p.id),
     functions: [...new Set(mine.flatMap(p => [...p.functions]))],
     sections: visibleSections(role, mine),
+    recordScope: effectiveRecordScope(role, mine),
+    hiddenFields: await withHiddenDefinitions(db, role, effectiveHiddenFields(role, mine)),
   };
 }
 

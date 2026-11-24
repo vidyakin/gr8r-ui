@@ -1,3 +1,4 @@
+import { useHiddenFields } from '../positions/data';
 /* КП сделки: вкладка карточки сделки (задача 1252). Список КП со связью deal_id и кнопка «Создать КП»:
    новое КП получает контрагента сделки; у сделки без контрагента кнопка недоступна. */
 import * as React from 'react';
@@ -40,6 +41,7 @@ export function CreateQuoteButton({ dealId, hasCompany }: { dealId: string; hasC
 
 export function DealQuotesTab({ dealId, hasCompany }: { dealId: string; hasCompany: boolean }) {
   const t = useT();
+  const showTotals = !useHiddenFields().includes('document.total');
   const navigate = useNavigate();
   const docs = useDocuments({ type: 'quote', dealId });
   let body: React.ReactNode;
@@ -64,7 +66,7 @@ export function DealQuotesTab({ dealId, hasCompany }: { dealId: string; hasCompa
             <th>{t('crm.deals.drawer.quoteCol')}</th>
             <th>{t('crm.deals.drawer.quoteDate')}</th>
             <th>{t('crm.deals.drawer.quoteStatus')}</th>
-            <th className="r">{t('crm.deals.drawer.quoteTotal')}</th>
+            {showTotals && <th className="r">{t('crm.deals.drawer.quoteTotal')}</th>}
           </tr>
         </thead>
         <tbody>
@@ -73,7 +75,7 @@ export function DealQuotesTab({ dealId, hasCompany }: { dealId: string; hasCompa
               <td className="mono">{d.number ?? t('crm.deals.drawer.quoteDraft')}</td>
               <td className="num muted">{fmtDate(parse(d.date))}</td>
               <td><Badge tone={STATUS_TONE[d.status]}>{STATUS_LABEL[d.status]}</Badge></td>
-              <td className="r num">{fmtAmount(d.total)}</td>
+              {showTotals && <td className="r num">{fmtAmount(d.total)}</td>}
             </tr>
           ))}
         </tbody>

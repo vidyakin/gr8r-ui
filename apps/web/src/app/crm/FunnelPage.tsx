@@ -1,3 +1,4 @@
+import { useHiddenFields } from '../positions/data';
 /* Отчёт «Воронка продаж» (задача 1176): по воронке и периоду — сделки и сумма на каждом этапе, конверсия между этапами,
    среднее время на этапе, взвешенный прогноз. Когорта — сделки воронки, созданные в периоде. */
 import * as React from 'react';
@@ -11,6 +12,10 @@ import { PeriodInput } from '@/components/erp/period-input';
 
 export function FunnelPage() {
   const t = useT();
+  const hidden = useHiddenFields();
+  const showAmount = !hidden.includes('deal.amount');
+  const showProbability = !hidden.includes('deal.probability');
+  const showWeighted = showAmount && showProbability;
   const pipes = usePipelines();
   const [pipelineId, setPipelineId] = React.useState('');
   const [from, setFrom] = React.useState(() => dOff(-90));
@@ -39,7 +44,7 @@ export function FunnelPage() {
       </div>
       <ReportState q={q} isEmpty={d => !d.totals.deals}>
         {d => {
-          const max = Math.max(...d.rows.map(r => Number(r.amount)), 1);
+          const max = showAmount ? Math.max(...d.rows.map(r => Number(r.amount)), 1) : 1;
           return (
             <div style={{ padding: '0 var(--gutter, 16px)', overflowX: 'auto' }}>
               <table className="tbl" aria-label={t('crm.funnel.title')}>
@@ -47,12 +52,12 @@ export function FunnelPage() {
                   <tr>
                     <th>{t('crm.deals.col.stage')}</th>
                     <th className="r">{t('crm.funnel.col.deals')}</th>
-                    <th className="r">{t('crm.deals.col.amount')}</th>
+                    {showAmount && <th className="r">{t('crm.deals.col.amount')}</th>}
                     <th className="r">{t('crm.funnel.col.reached')}</th>
                     <th className="r">{t('crm.funnel.col.conversion')}</th>
                     <th className="r">{t('crm.funnel.col.avgDays')}</th>
-                    <th className="r">{t('crm.deals.col.prob')}</th>
-                    <th className="r">{t('crm.deals.col.weighted')}</th>
+                    {showProbability && <th className="r">{t('crm.deals.col.prob')}</th>}
+                    {showWeighted && <th className="r">{t('crm.deals.col.weighted')}</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -60,32 +65,32 @@ export function FunnelPage() {
                     <tr key={r.stageId}>
                       <td>
                         <span className="row" style={{ gap: 8 }}>
-                          <i style={{ display: 'inline-block', height: 8, width: `${Math.max(4, (Number(r.amount) / max) * 90)}px`, background: colorVar(r.color), borderRadius: 4 }} />
+                          {showAmount && <i style={{ display: 'inline-block', height: 8, width: `${Math.max(4, (Number(r.amount) / max) * 90)}px`, background: colorVar(r.color), borderRadius: 4 }} />}
                           {r.name}
                         </span>
                       </td>
                       <td className="r num">{fmtNumber(r.count)}</td>
-                      <td className="r num">{fmtAmount(r.amount)}</td>
+                      {showAmount && <td className="r num">{fmtAmount(r.amount)}</td>}
                       <td className="r num">{r.category === 'lost' ? dash : fmtNumber(r.reached)}</td>
                       <td className="r num">{r.conversion == null ? dash : `${fmtNumber(r.conversion)}%`}</td>
                       <td className="r num">{r.avgDays == null ? dash : fmtNumber(r.avgDays)}</td>
-                      <td className="r num">{r.category === 'in_progress' ? `${r.probability}%` : dash}</td>
-                      <td className="r num">{r.category === 'in_progress' ? fmtAmount(r.weighted) : dash}</td>
+                      {showProbability && <td className="r num">{r.category === 'in_progress' ? `${r.probability}%` : dash}</td>}
+                      {showWeighted && <td className="r num">{r.category === 'in_progress' ? fmtAmount(r.weighted) : dash}</td>}
                     </tr>
                   ))}
                   <tr style={{ fontWeight: 600 }}>
                     <td>{t('crm.funnel.total')}</td>
                     <td className="r num">{fmtNumber(d.totals.deals)}</td>
-                    <td className="r num">{fmtAmount(d.totals.amount)}</td>
+                    {showAmount && <td className="r num">{fmtAmount(d.totals.amount)}</td>}
                     <td />
                     <td />
                     <td />
-                    <td />
-                    <td className="r num">{fmtAmount(d.totals.weighted)}</td>
+                    {showProbability && <td />}
+                    {showWeighted && <td className="r num">{fmtAmount(d.totals.weighted)}</td>}
                   </tr>
                 </tbody>
               </table>
-              <p className="faint" style={{ fontSize: 12 }}>{t('crm.funnel.note')}</p>
+              {showWeighted && <p className="faint" style={{ fontSize: 12 }}>{t('crm.funnel.note')}</p>}
             </div>
           );
         }}

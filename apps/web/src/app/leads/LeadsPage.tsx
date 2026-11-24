@@ -1,3 +1,4 @@
+import { useHiddenFields } from '../positions/data';
 /* CRM → Leads (задача 1175): таблица и доска по статусам, поиск и фильтр по ответственному; карточка лида — LeadCard */
 import * as React from 'react';
 import { Plus, SquareKanban, Table2, UserPlus } from 'lucide-react';
@@ -15,6 +16,9 @@ import { useLeads, useLeadsApi, useLeadStatuses, type Lead } from './data';
 
 export function LeadsPage() {
   const t = useT();
+  const hidden = useHiddenFields();
+  const showPhone = !hidden.includes('lead.phone');
+  const showEmail = !hidden.includes('lead.email');
   const { data: ws } = useWorkspace();
   const api = useLeadsApi();
   const [q, setQ] = React.useState('');
@@ -31,10 +35,10 @@ export function LeadsPage() {
   const rows = all.filter(l => owner === 'all' || (owner === 'none' ? !l.ownerId : l.ownerId === owner));
 
   const columns = React.useMemo<Column<Lead>[]>(
-    () => [
+    (): Column<Lead>[] => ([
       { id: 'name', header: t('leads.col.name'), width: 240, value: r => r.name, cell: r => <span className="trunc" style={{ fontWeight: 450 }}>{r.name}</span> },
       { id: 'company', header: t('leads.col.company'), width: 190, value: r => r.companyName, cell: r => <span className="trunc">{r.companyName || <span className="faint">—</span>}</span> },
-      { id: 'contact', header: t('leads.col.contact'), width: 190, value: r => `${r.phone} ${r.email}`, cell: r => <span className="trunc muted">{[r.phone, r.email].filter(Boolean).join(' · ') || '—'}</span> },
+      { id: 'contact', header: t('leads.col.contact'), width: 190, value: r => `${showPhone ? r.phone ?? '' : ''} ${showEmail ? r.email ?? '' : ''}`, cell: r => <span className="trunc muted">{[showPhone && r.phone, showEmail && r.email].filter(Boolean).join(' · ') || '—'}</span> },
       { id: 'source', header: t('leads.col.source'), width: 140, value: r => r.source, cell: r => r.source || <span className="faint">—</span> },
       { id: 'status', header: t('leads.col.status'), width: 160, value: r => statusById.get(r.statusId)?.sortOrder ?? 0, cell: r => <StatusBadge status={statusById.get(r.statusId)} /> },
       {
@@ -45,8 +49,8 @@ export function LeadsPage() {
         cell: r => (r.ownerId ? <span className="row" style={{ gap: 6 }}><MemberAvatar id={r.ownerId} size="sm" />{memberName(r.ownerId)}</span> : <span className="faint">{t('leads.noOwner')}</span>),
       },
       { id: 'created', header: t('leads.col.created'), width: 150, defaultHidden: true, value: r => r.createdAt, cell: r => <span className="muted num">{fmtDateTime(r.createdAt)}</span> },
-    ],
-    [t, statusById, ws.members], // eslint-disable-line react-hooks/exhaustive-deps
+    ] satisfies Column<Lead>[]).filter(c => c.id !== 'contact' || showPhone || showEmail),
+    [t, statusById, ws.members, showPhone, showEmail], // eslint-disable-line react-hooks/exhaustive-deps
   );
   const table = useDataTable(columns);
 

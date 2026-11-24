@@ -1,3 +1,4 @@
+import { useHiddenFields } from '../positions/data';
 /* Страница компании — шапка как у страницы проекта и вкладки Overview / Deals / Contacts / Activity */
 import * as React from 'react';
 import { Link, useParams } from 'react-router';
@@ -67,8 +68,12 @@ function CompanyView({ company: co, tab }: { company: Company; tab: string }) {
   const ui = useCrmUi();
   const ownerName = useOwnerName();
   const t = useT();
-  const dealCols = React.useMemo(() => dealColumnsInCompany(t), [t]);
-  const contactCols = React.useMemo(() => contactColumnsInCompany(t), [t]);
+  const hidden = useHiddenFields();
+  const showAmount = !hidden.includes('deal.amount');
+  const showRequisites = !hidden.includes('company.requisites');
+  const showBanks = !hidden.includes('company.bankAccounts');
+  const dealCols = React.useMemo(() => dealColumnsInCompany(t, hidden), [t, hidden]);
+  const contactCols = React.useMemo(() => contactColumnsInCompany(t, hidden), [t, hidden]);
   const dealTable = useDataTable(dealCols);
   const contactTable = useDataTable(contactCols);
   const stats = companyStats(data, co.id);
@@ -83,7 +88,7 @@ function CompanyView({ company: co, tab }: { company: Company; tab: string }) {
       <>
         <div className="toolbar">
           <span className="muted" style={{ fontSize: 12.5 }}>
-            {t('crm.companies.page.dealsCount', { count: deals.length, pipeline: money(stats.pipeline), won: money(stats.won) })}
+            {showAmount ? t('crm.companies.page.dealsCount', { count: deals.length, pipeline: money(stats.pipeline), won: money(stats.won) }) : t('crm.deals.countOnly', { count: deals.length })}
           </span>
           <span className="sp" />
           <Button size="sm" variant="primary" onClick={() => ui.newDeal({ company: co.id, owner: co.owner })}>
@@ -151,7 +156,7 @@ function CompanyView({ company: co, tab }: { company: Company; tab: string }) {
         {!acts.length && <p className="faint" style={{ marginTop: 14 }}>{t('crm.companies.page.noActivity')}</p>}
       </div>
     );
-  } else if (tab === 'requisites') body = <CompanyRequisitesTab companyId={co.id} />;
+  } else if (tab === 'requisites' && (showRequisites || showBanks)) body = <CompanyRequisitesTab companyId={co.id} />;
   else if (tab === 'codes') body = <CompanyPartnerTab companyId={co.id} />;
   else if (tab === 'prices' && isAdmin) body = <CompanySupplierPricesTab companyId={co.id} />;
   else if (tab === 'contracts') body = <CompanyContractsTab companyId={co.id} companyName={co.name} />;
@@ -197,7 +202,7 @@ function CompanyView({ company: co, tab }: { company: Company; tab: string }) {
           </div>
         </div>
         <nav className="tabs" aria-label={t('crm.companies.title')}>
-          {TABS.filter(([k]) => k !== 'prices' || isAdmin).map(([k, Icon]) => (
+          {TABS.filter(([k]) => (k !== 'prices' || isAdmin) && (k !== 'requisites' || showRequisites || showBanks)).map(([k, Icon]) => (
             <Link key={k} to={`/crm/companies/${co.id}/${k}`} className={cn('tab', tab === k && 'on')} aria-current={tab === k ? 'page' : undefined}>
               <Icon size={14} />
               {t(`crm.companies.tabs.${k}` as any)}
@@ -216,6 +221,7 @@ function Overview({ company: co }: { company: Company }) {
   const { data: ws } = useWorkspace();
   const ui = useCrmUi();
   const t = useT();
+  const showAmount = !useHiddenFields().includes('deal.amount');
   const customRows = useCustomRows('company', co.custom, patch => dispatch({ type: 'company/update', id: co.id, patch: { custom: { ...co.custom, ...patch } } }));
   const stats = companyStats(data, co.id);
   const open = openDeals(dealsOfCompany(data, co.id)).sort((a, b) => (a.closeDate > b.closeDate ? 1 : -1));
@@ -226,8 +232,8 @@ function Overview({ company: co }: { company: Company }) {
     <div className="page" style={{ maxWidth: 1160, paddingTop: 22 }}>
       <div className="stats" style={{ marginBottom: 16 }}>
         <Stat label={t('crm.companies.overview.statOpenDeals')} value={stats.open} note={t('crm.companies.overview.statOpenDealsNote', { total: dealsOfCompany(data, co.id).length })} />
-        <Stat label={t('crm.companies.overview.statPipeline')} value={money(stats.pipeline)} note={t('crm.companies.overview.statPipelineNote')} />
-        <Stat label={t('crm.companies.overview.statWon')} value={money(stats.won)} note={t('crm.companies.overview.statWonNote', { count: wonCount })} tone={stats.won ? 'up' : undefined} />
+        {showAmount && <Stat label={t('crm.companies.overview.statPipeline')} value={money(stats.pipeline)} note={t('crm.companies.overview.statPipelineNote')} />}
+        {showAmount && <Stat label={t('crm.companies.overview.statWon')} value={money(stats.won)} note={t('crm.companies.overview.statWonNote', { count: wonCount })} tone={stats.won ? 'up' : undefined} />}
         <Stat label={t('crm.companies.overview.statLastActivity')} value={stats.lastActivity ? ago(stats.lastActivity) : '—'} note={t('crm.companies.overview.statLastActivityNote', { count: stats.contacts })} />
       </div>
       <div className="grid2">
@@ -241,7 +247,7 @@ function Overview({ company: co }: { company: Company }) {
                     <span className="grow trunc">{d.name}</span>
                     <span className="faint hide-m" style={{ width: 84 }}>{stage(d.stage).name}</span>
                     <span className="hide-m" style={{ width: 90 }}><CloseDate deal={d} /></span>
-                    <span className="num" style={{ width: 84, textAlign: 'right' }}>{money(d.amount)}</span>
+                    {showAmount && <span className="num" style={{ width: 84, textAlign: 'right' }}>{money(d.amount)}</span>}
                   </div>
                 ))
               ) : (

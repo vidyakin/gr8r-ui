@@ -129,7 +129,7 @@ export function usePipelinesApi() {
 
 /** Строки сервера → этапы интерфейса */
 export function stageDefs(stages: DealStageRow[]): StageDef[] {
-  return stages.map(s => ({ id: s.id, pipelineId: s.pipelineId, name: s.name, p: s.probability / 100, c: colorVar(s.color), category: s.category, sort: s.sortOrder, slaDays: s.slaDays, required: s.requiredFields }));
+  return stages.map(s => ({ id: s.id, pipelineId: s.pipelineId, name: s.name, p: (s.probability ?? 0) / 100, c: colorVar(s.color), category: s.category, sort: s.sortOrder, slaDays: s.slaDays, required: s.requiredFields }));
 }
 
 /** Какие обязательные поля этапа у сделки не заполнены (та же функция, что на сервере) */

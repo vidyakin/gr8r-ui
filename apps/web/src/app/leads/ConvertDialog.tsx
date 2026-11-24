@@ -1,3 +1,4 @@
+import { useHiddenFields } from '../positions/data';
 /* Мастер конвертации лида (задача 1175): контрагент и контакт — найденные дубли подставляются сами, либо создать нового, либо пропустить;
    галочка «Создать сделку» с названием и суммой. Повторно конвертировать лид нельзя (сервер отвечает 409). */
 import * as React from 'react';
@@ -35,6 +36,7 @@ export function ConvertDialog({ leadId, onClose }: { leadId: string; onClose: ()
   const [contactName, setContactName] = React.useState('');
   const [deal, setDeal] = React.useState(false);
   const [dealName, setDealName] = React.useState('');
+  const showAmount = !useHiddenFields().includes('deal.amount');
   const [amount, setAmount] = React.useState('');
   const [busy, setBusy] = React.useState(false);
 
@@ -50,7 +52,7 @@ export function ConvertDialog({ leadId, onClose }: { leadId: string; onClose: ()
     const body: ConvertBody = {
       company: target(companyMode, foundCompany, cName),
       contact: target(contactMode, foundContact, pName),
-      deal: deal ? { name: dName, ...(amount.trim() ? { amount: amount.trim().replace(',', '.') } : {}) } : null,
+      deal: deal ? { name: dName, ...(showAmount && amount.trim() ? { amount: amount.trim().replace(',', '.') } : {}) } : null,
     };
     setBusy(true);
     const r = await api('POST', `/leads/${leadId}/convert`, body);
@@ -83,7 +85,7 @@ export function ConvertDialog({ leadId, onClose }: { leadId: string; onClose: ()
           {deal && (
             <div className="row" style={{ gap: 12, alignItems: 'flex-end' }}>
               <Field label={t('leads.convert.dealName')} className="grow">{p => <Input {...p} maxLength={200} value={dName} onChange={e => setDealName(e.target.value)} />}</Field>
-              <Field label={t('leads.convert.dealAmount')}>{p => <Input {...p} inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} style={{ width: 140 }} />}</Field>
+              {showAmount && <Field label={t('leads.convert.dealAmount')}>{p => <Input {...p} inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} style={{ width: 140 }} />}</Field>}
             </div>
           )}
         </div>

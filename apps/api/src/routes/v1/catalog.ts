@@ -3,8 +3,9 @@ import { zValidator } from '@hono/zod-validator';
 import { and, asc, count, eq, gte, ilike, isNull, or, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { canSeeCost, companies, priceListKinds, priceListRows, products, stockBalances, stockReservations, warehouses } from '@erp/db';
-import { idParam } from '@erp/shared';
+import { idParam, maskFields, maskRows } from '@erp/shared';
 import { ctxOf, escapeLike, validationHook } from '../../crud';
+import { hiddenFieldsOf } from '../../field-access';
 import { notFound } from '../../errors';
 import type { AppEnv } from '../../types';
 import { parseUpdatedSince, requireV1Scope, v1CompanyQuery, v1PriceQuery, v1ProductQuery, v1StockQuery, v1WarehouseQuery } from './auth';
@@ -28,13 +29,13 @@ export const v1CatalogRoutes = new Hono<AppEnv>()
     );
     const [{ n }] = await ctx.db.select({ n: count() }).from(products).where(where);
     const items = await ctx.db.select().from(products).where(where).orderBy(asc(products.name), asc(products.id)).limit(q.limit).offset(q.offset);
-    return c.json({ items, total: n, limit: q.limit, offset: q.offset });
+    return c.json({ items: maskRows('product', items, await hiddenFieldsOf(ctx)), total: n, limit: q.limit, offset: q.offset });
   })
   .get('/products/:id', requireV1Scope('/products', 'core'), zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
     const [row] = await ctx.db.select().from(products).where(eq(products.id, c.req.valid('param').id)).limit(1);
     if (!row) throw notFound('product');
-    return c.json(row);
+    return c.json(maskFields('product', row, await hiddenFieldsOf(ctx)));
   })
   /* ---------- Stock ---------- */
   .get('/stock', requireV1Scope('/stock', 'trade'), zValidator('query', v1StockQuery, validationHook), async c => {
@@ -86,22 +87,24 @@ export const v1CatalogRoutes = new Hono<AppEnv>()
     const ctx = ctxOf(c);
     const q = c.req.valid('query');
     const since = parseUpdatedSince(q.updatedSince);
+    const hidden = await hiddenFieldsOf(ctx);
+    const seeRequisites = !hidden.includes('company.requisites');
     const where = and(
       isNull(companies.archivedAt),
       q.role === 'customer' ? eq(companies.isCustomer, true) : q.role === 'supplier' ? eq(companies.isSupplier, true) : undefined,
-      q.inn ? eq(companies.inn, q.inn) : undefined,
+      q.inn && seeRequisites ? eq(companies.inn, q.inn) : undefined,
       since ? gte(companies.updatedAt, since) : undefined,
-      q.q ? or(ilike(companies.name, `%${escapeLike(q.q)}%`), ilike(companies.inn, `%${escapeLike(q.q)}%`), ilike(companies.city, `%${escapeLike(q.q)}%`)) : undefined,
+      q.q ? or(ilike(companies.name, `%${escapeLike(q.q)}%`), seeRequisites ? ilike(companies.inn, `%${escapeLike(q.q)}%`) : undefined, ilike(companies.city, `%${escapeLike(q.q)}%`)) : undefined,
     );
     const [{ n }] = await ctx.db.select({ n: count() }).from(companies).where(where);
     const items = await ctx.db.select().from(companies).where(where).orderBy(asc(companies.name), asc(companies.id)).limit(q.limit).offset(q.offset);
-    return c.json({ items, total: n, limit: q.limit, offset: q.offset });
+    return c.json({ items: maskRows('company', items, hidden), total: n, limit: q.limit, offset: q.offset });
   })
   .get('/companies/:id', requireV1Scope('/companies', 'core'), zValidator('param', idParam, validationHook), async c => {
     const ctx = ctxOf(c);
     const [row] = await ctx.db.select().from(companies).where(eq(companies.id, c.req.valid('param').id)).limit(1);
     if (!row) throw notFound('company');
-    return c.json(row);
+    return c.json(maskFields('company', row, await hiddenFieldsOf(ctx)));
   })
   /* ---------- Warehouses ---------- */
   .get('/warehouses', requireV1Scope('/warehouses', 'core'), zValidator('query', v1WarehouseQuery, validationHook), async c => {

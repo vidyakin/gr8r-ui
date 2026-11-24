@@ -30,6 +30,7 @@ import {
   commentUpdate,
   idParam,
   listQuery,
+  maskEventFields,
   memberQuery,
   memberUpdate,
   notificationQuery,
@@ -57,6 +58,7 @@ import {
 } from '@erp/shared';
 import { z } from 'zod';
 import { crud, ctxOf, validationHook } from '../crud';
+import { hiddenFieldsOf } from '../field-access';
 import { AppError, forbidden, notFound } from '../errors';
 import { hasRole, requireRole } from '../middleware';
 import { assertObjectRef, sanitizeRichText, withApiTokenNames } from '@erp/db';
@@ -437,5 +439,13 @@ export const eventRoutes = crud({
   disabled: ['create', 'update', 'delete'],
   // события закрытых проектов (со снимками записей в payload) участнику без доступа не отдаём
   filters: q => [dsql`not app_event_hidden(${events.entity}, ${events.recordId})`, dsql`${events.id} > ${q.since ?? '00000000-0000-0000-0000-000000000000'}::uuid`, q.entity ? eq(events.entity, q.entity) : undefined, q.type ? eq(events.type, q.type) : undefined, q.recordId ? eq(events.recordId, q.recordId) : undefined],
-  decorate: (ctx, rows) => withApiTokenNames(ctx.db, rows),
+  decorate: async (ctx, rows) => {
+    const hidden = await hiddenFieldsOf(ctx);
+    const visible = hidden.length ? rows.map(row => {
+      const entity = row.entity === 'record' && typeof row.payload.entityKey === 'string' ? row.payload.entityKey
+        : row.entity === 'deal_stage' ? 'deal' : row.entity;
+      return { ...row, payload: maskEventFields(entity, row.payload, hidden) };
+    }) : rows;
+    return withApiTokenNames(ctx.db, visible);
+  },
 });

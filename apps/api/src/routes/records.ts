@@ -12,13 +12,14 @@
 import { zValidator } from '@hono/zod-validator';
 import { and, asc, count, desc, eq, isNotNull, isNull, or, sql, type SQL } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { entities, fieldExprSql, fields, recordEvent, records } from '@erp/db';
-import { dataSearchQuery, idParam, isMultiType, isNumericType, recordCreate, recordQuery, recordUpdate, SEARCHABLE_TYPES, type FieldType, type FilterOp, FILTER_OPS } from '@erp/shared';
+import { entities, fieldExprSql, recordEvent, records } from '@erp/db';
+import { assertNoHiddenFieldWrite, maskFields, maskRows, dataSearchQuery, idParam, isMultiType, isNumericType, recordCreate, recordQuery, recordUpdate, SEARCHABLE_TYPES, type FieldType, type FilterOp, FILTER_OPS } from '@erp/shared';
 import { z } from 'zod';
 import { ctxOf, validationHook } from '../crud';
 import { AppError, badRequest, notFound } from '../errors';
 import { hasRole, requireRole } from '../middleware';
-import { loadFields, loadEntity, mergeData, validateData, type EntityRow, type FieldRow } from '../meta/service';
+import { visibleFieldDefs, loadEntity, mergeData, validateData, type EntityRow, type FieldRow } from '../meta/service';
+import { hiddenFieldsOf, requireVisibleFields } from '../field-access';
 import type { AppEnv } from '../types';
 
 const entityParam = z.object({ entity: z.string().min(1).max(64) });
@@ -143,16 +144,20 @@ const recordsRoutes = new Hono<AppEnv>()
     const ctx = ctxOf(c);
     const e = await dataEntity(ctx, c.req.valid('param').entity);
     const q = c.req.valid('query');
-    const defs = await loadFields(ctx, e.id);
+    const hidden = await hiddenFieldsOf(ctx);
+    const defs = await visibleFieldDefs(ctx, e);
     const byKey = new Map(defs.map(f => [f.key, f]));
     const conds: (SQL | undefined)[] = [eq(records.entityId, e.id), ...q.filter.map(s => filterCondition(s, byKey))];
-    if (q.q) conds.push(likeAny(searchCols(e, defs), q.q));
+    if (q.q) {
+      const cols = searchCols(e, defs);
+      conds.push(cols.length ? likeAny(cols, q.q) : sql`false`);
+    }
     if (q.archived === 'exclude') conds.push(isNull(records.archivedAt));
     else if (q.archived === 'only') conds.push(isNotNull(records.archivedAt));
     const where = and(...conds);
     const items = await ctx.db.select().from(records).where(where).orderBy(...orderBy(q.sort, byKey)).limit(q.limit).offset(q.offset);
     const [{ n }] = await ctx.db.select({ n: count() }).from(records).where(where);
-    return c.json({ items, total: n, limit: q.limit, offset: q.offset });
+    return c.json({ items: maskRows(e.key, items, hidden), total: n, limit: q.limit, offset: q.offset });
   })
   .get('/:entity/:id', zValidator('param', recordParam, validationHook), async c => {
     const ctx = ctxOf(c);
@@ -160,20 +165,22 @@ const recordsRoutes = new Hono<AppEnv>()
     const e = await dataEntity(ctx, p.entity);
     const [row] = await ctx.db.select().from(records).where(and(eq(records.id, p.id), eq(records.entityId, e.id))).limit(1);
     if (!row) throw notFound('record');
-    return c.json(row);
+    return c.json(maskFields(e.key, row, await hiddenFieldsOf(ctx)));
   })
   // ---- создание ----
   .post('/:entity', write, zValidator('param', entityParam, validationHook), zValidator('json', recordCreate, validationHook), async c => {
     const ctx = ctxOf(c);
     const e = await dataEntity(ctx, c.req.valid('param').entity);
     const body = c.req.valid('json');
-    const data = await validateData(ctx, e, await loadFields(ctx, e.id), body.data, 'create');
+    const hidden = await hiddenFieldsOf(ctx);
+    requireVisibleFields(assertNoHiddenFieldWrite(e.key, body, hidden));
+    const data = await validateData(ctx, e, await visibleFieldDefs(ctx, e), body.data, 'create');
     const [row] = await ctx.db
       .insert(records)
       .values({ ...(body.id ? { id: body.id } : {}), workspaceId: ctx.workspaceId, entityId: e.id, data, createdBy: ctx.memberId })
       .returning();
     await recordEvent(ctx.db, { workspaceId: ctx.workspaceId, type: 'record.created', entity: 'record', recordId: row!.id, actorId: ctx.memberId, payload: { entityKey: e.key, data } });
-    return c.json(row!, 201);
+    return c.json(maskFields(e.key, row!, hidden), 201);
   })
   // ---- изменение: data сливается с имеющимся, null очищает поле ----
   .patch('/:entity/:id', write, zValidator('param', recordParam, validationHook), zValidator('json', recordUpdate, validationHook), async c => {
@@ -182,11 +189,14 @@ const recordsRoutes = new Hono<AppEnv>()
     const e = await dataEntity(ctx, p.entity);
     const [existing] = await ctx.db.select().from(records).where(and(eq(records.id, p.id), eq(records.entityId, e.id))).limit(1).for('update');
     if (!existing) throw notFound('record');
-    const patch = await validateData(ctx, e, await loadFields(ctx, e.id), c.req.valid('json').data, 'patch', existing.id);
+    const body = c.req.valid('json');
+    const hidden = await hiddenFieldsOf(ctx);
+    requireVisibleFields(assertNoHiddenFieldWrite(e.key, body, hidden));
+    const patch = await validateData(ctx, e, await visibleFieldDefs(ctx, e), body.data, 'patch', existing.id);
     const data = mergeData(existing.data, patch);
     const [row] = await ctx.db.update(records).set({ data, updatedAt: new Date() }).where(eq(records.id, existing.id)).returning();
     await recordEvent(ctx.db, { workspaceId: ctx.workspaceId, type: 'record.updated', entity: 'record', recordId: existing.id, actorId: ctx.memberId, payload: { entityKey: e.key, changes: patch } });
-    return c.json(row!);
+    return c.json(maskFields(e.key, row!, hidden));
   })
   // ---- удаление: архив или ?hard=true (admin) ----
   .delete('/:entity/:id', write, zValidator('param', recordParam, validationHook), async c => {
@@ -215,7 +225,7 @@ const recordsRoutes = new Hono<AppEnv>()
     const [row] = await ctx.db.update(records).set({ archivedAt: null, updatedAt: new Date() }).where(and(eq(records.id, p.id), eq(records.entityId, e.id))).returning();
     if (!row) throw notFound('record');
     await recordEvent(ctx.db, { workspaceId: ctx.workspaceId, type: 'record.restored', entity: 'record', recordId: row.id, actorId: ctx.memberId, payload: { entityKey: e.key } });
-    return c.json(row);
+    return c.json(maskFields(e.key, row, await hiddenFieldsOf(ctx)));
   });
 
 export { recordsRoutes };
@@ -227,11 +237,11 @@ export const dataSearchRoutes = new Hono<AppEnv>().get('/', zValidator('query', 
   const list = await ctx.db.select().from(entities).where(and(eq(entities.kind, 'custom'), isNull(entities.archivedAt))).orderBy(asc(entities.sortOrder), asc(entities.createdAt));
   const items: { entityKey: string; entityName: string; icon: string; id: string; title: string }[] = [];
   for (const e of list) {
-    const defs = await ctx.db.select().from(fields).where(and(eq(fields.entityId, e.id), isNull(fields.archivedAt)));
+    const defs = await visibleFieldDefs(ctx, e);
     const cols = searchCols(e, defs);
     if (!cols.length) continue;
     const rows = await ctx.db
-      .select({ id: records.id, title: sql<string>`coalesce(${sql.raw(`(data->>'${e.titleField}')`)}, '')` })
+      .select({ id: records.id, title: defs.some(f => f.key === e.titleField) ? sql<string>`coalesce(data->>${e.titleField}, '')` : sql<string>`''` })
       .from(records)
       .where(and(eq(records.entityId, e.id), isNull(records.archivedAt), likeAny(cols, q)))
       .orderBy(asc(records.createdAt))

@@ -1,3 +1,4 @@
+import { useHiddenFields } from '../positions/data';
 /* Contacts — таблица контактов (DataTable); клик по строке открывает карточку контакта */
 import * as React from 'react';
 import { Building2, Plus, User, Users } from 'lucide-react';
@@ -27,9 +28,10 @@ export function ContactsPage() {
   const ui = useCrmUi();
   const ownerName = useOwnerName();
   const t = useT();
+  const hidden = useHiddenFields();
   const filters = useFilterState();
   const [group, setGroup] = React.useState<GroupId>('none');
-  const columns = React.useMemo(() => contactColumns(t), [t]);
+  const columns = React.useMemo(() => contactColumns(t, hidden), [t, hidden]);
   const table = useDataTable(columns);
 
   const all = React.useMemo(() => contactRows(data, ownerName), [data, ownerName]);
@@ -37,7 +39,7 @@ export function ContactsPage() {
     const v = filters.values;
     if (v.company?.length && !v.company.includes(r.company)) return false;
     if (v.owner?.length && !v.owner.includes(r.owner)) return false;
-    return !filters.q.trim() || `${r.name} ${r.companyName} ${r.title} ${r.email}`.toLowerCase().includes(filters.q.trim().toLowerCase());
+    return !filters.q.trim() || `${r.name} ${r.companyName} ${r.title} ${hidden.includes('contact.email') ? '' : r.email}`.toLowerCase().includes(filters.q.trim().toLowerCase());
   });
 
   const fields: FilterField[] = [
@@ -95,9 +97,7 @@ export function ContactsPage() {
             <div className="muted" style={{ fontSize: 12.5 }}>
               {r.title} · {r.companyName}
             </div>
-            <div className="faint trunc" style={{ fontSize: 12 }}>
-              {r.email}
-            </div>
+            {!hidden.includes('contact.email') && <div className="faint trunc" style={{ fontSize: 12 }}>{r.email}</div>}
           </div>
         )}
         empty={
