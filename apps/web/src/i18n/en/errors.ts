@@ -257,6 +257,7 @@ export const errors = {
   waybill_closed: 'A closed or cancelled waybill cannot be changed',
   waybill_return_required: 'Enter the odometer and the fuel on return',
   waybill_odometer: 'The odometer on return is below the odometer on departure',
+  waybill_engine_hours: 'The engine hours on return are below the engine hours on departure',
   service_interval_required: 'Set the service interval in km or months',
   repair_not_draft: 'Unpost the repair before changing it',
   repair_work_product: 'A work line cannot take a product from the warehouse',

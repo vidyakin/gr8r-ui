@@ -43,3 +43,4 @@ export * from './approvals';
 export * from './email';
 export * from './cases';
 export * from './chats';
+export * from './mining';

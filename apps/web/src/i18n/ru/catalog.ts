@@ -131,6 +131,7 @@ export const catalog: Widen<typeof C> = {
     salePrice: 'Цена',
     purchasePrice: 'Закупка',
     leadDays: 'Срок, дн.',
+    bulkDensity: 'Насыпная плотность, т/м³',
     defaultSupplier: 'Поставщик',
     noSupplier: 'Не задан',
     active: 'Активна',

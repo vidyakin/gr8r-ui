@@ -24,3 +24,6 @@ export function useModuleReady(module: ModuleId): boolean {
   const view = useLicense().data;
   return !!view && view.modules.includes(module);
 }
+
+/** Включён ли модуль в лицензии (показ его полей и разделов; пока лицензия грузится — false, поля подмодуля не мигают) */
+export const useHasModule = useModuleReady;

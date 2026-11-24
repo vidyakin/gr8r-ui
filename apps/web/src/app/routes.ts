@@ -181,6 +181,7 @@ export const SECTIONS = {
   fleetFuel: { path: '/fleet/fuel', name: 'Fuel', icon: Fuel },
   fleetService: { path: '/fleet/service', name: 'Service and repairs', icon: Wrench },
   fleetFines: { path: '/fleet/fines', name: 'Fines', icon: ReceiptText },
+  weighings: { path: '/weighings', name: 'Weighings', icon: Scale },
   // Транспорт: рейсы и диспетчер (задача 1211)
   trips: { path: '/trips', name: 'Trips', icon: Waypoints },
   driverWorkplace: { path: '/trips/driver', name: 'Driver workplace', icon: UserRound },
@@ -259,6 +260,7 @@ export const NAV_GROUPS = {
         'productionResources',
         'productionWip',
         'productionReports',
+        'weighings',
         'productionClosing',
         'otherCosts',
         'materialAllocation',
@@ -341,6 +343,7 @@ const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
   loyaltyCards: 'catalog',
   loyaltyProgram: 'catalog',
   production: 'production',
+  weighings: 'production',
   suppliers: 'production',
   productionOrders: 'production',
   productionWorkbench: 'production',

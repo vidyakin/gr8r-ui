@@ -2,12 +2,13 @@
    пробегом и закреплённым водителем; карточка показывает документы со сроками и регламент ТО машины. */
 import * as React from 'react';
 import { Plus, Truck } from 'lucide-react';
-import { FUEL_TYPES, VEHICLE_KINDS, VEHICLE_STATUSES, type FuelType, type VehicleKind, type VehicleStatus } from '@erp/shared';
+import { FUEL_TYPES, VEHICLE_KINDS, VEHICLE_STATUSES, type FleetMeterType, type FuelType, type VehicleKind, type VehicleStatus } from '@erp/shared';
 import { Badge, Button, EmptyState, Skeleton, Switch } from '@/components/ui';
 import { DataTable, useDataTable, type Column } from '@/components/erp/data-table';
 import { fmtNumber, useT } from '@/i18n';
 import { fmtDate, parse } from '../lib/dates';
 import { useWorkspace } from '../data/store';
+import { useHasModule } from '../licensing/data';
 import { useMembersWith } from '../positions/data';
 import { useIsAdmin } from '../catalog/data';
 import { useFleetApi, useVehicle, useVehicles, type Vehicle } from './data';
@@ -32,6 +33,8 @@ const toValues = (v: Vehicle | null): Values => ({
   fuelNormWinter: v?.fuelNormWinter ? String(Number(v.fuelNormWinter)) : '',
   tankL: v?.tankL ? String(Number(v.tankL)) : '',
   odometer: v ? String(Number(v.odometer)) : '0',
+  meterType: v?.meterType ?? 'odometer',
+  engineHours: v ? String(Number(v.engineHours ?? 0)) : '0',
   status: v?.status ?? 'active',
   driverMemberId: v?.driverMemberId ?? NONE,
   comment: v?.comment ?? '',
@@ -53,6 +56,8 @@ const body = (v: Values) => ({
   fuelNormWinter: num(v.fuelNormWinter) ?? null,
   tankL: num(v.tankL) ?? null,
   odometer: num(v.odometer) ?? '0',
+  meterType: (v.meterType as FleetMeterType) || 'odometer',
+  engineHours: num(v.engineHours) ?? '0',
   status: v.status as VehicleStatus,
   driverMemberId: v.driverMemberId === NONE ? null : String(v.driverMemberId),
   comment: String(v.comment),
@@ -62,6 +67,7 @@ export function VehicleDialog({ vehicle, onClose }: { vehicle: Vehicle | null; o
   const t = useT();
   const api = useFleetApi();
   const isAdmin = useIsAdmin();
+  const hasMining = useHasModule('mining');
   const members = useMembersWith(useWorkspace().data.members, 'driver', [vehicle?.driverMemberId]);
   const detail = useVehicle(vehicle?.id ?? null);
   const fields: FieldDef[] = [
@@ -80,6 +86,20 @@ export function VehicleDialog({ vehicle, onClose }: { vehicle: Vehicle | null; o
     { key: 'fuelNormWinter', label: t('fleet.vehicle.normWinter'), type: 'number' },
     { key: 'tankL', label: t('fleet.vehicle.tank'), type: 'number' },
     { key: 'odometer', label: t('fleet.vehicle.odometer'), type: 'number' },
+    ...(hasMining
+      ? ([
+          {
+            key: 'meterType',
+            label: t('fleet.vehicle.meterType'),
+            type: 'select',
+            options: [
+              { value: 'odometer', label: t('fleet.meterType.odometer') },
+              { value: 'engine_hours', label: t('fleet.meterType.engine_hours') },
+            ],
+          },
+          { key: 'engineHours', label: t('fleet.vehicle.engineHours'), type: 'number', when: v => v.meterType === 'engine_hours' },
+        ] as FieldDef[])
+      : []),
     { key: 'status', label: t('fleet.vehicle.status'), type: 'select', options: VEHICLE_STATUSES.map(k => ({ value: k, label: t(`fleet.vehicleStatus.${k}`) })) },
     { key: 'driverMemberId', label: t('fleet.vehicle.driver'), type: 'select', options: [{ value: NONE, label: t('fleet.vehicle.noDriver') }, ...members.map(m => ({ value: m.id, label: m.name }))] },
     { key: 'comment', label: t('fleet.comment'), type: 'textarea' },
@@ -144,6 +164,7 @@ export function VehicleDialog({ vehicle, onClose }: { vehicle: Vehicle | null; o
 
 export function VehiclesPage() {
   const t = useT();
+  const hasMining = useHasModule('mining');
   const [archived, setArchived] = React.useState(false);
   const list = useVehicles(archived ? { archived: 'include' } : {});
   const [edit, setEdit] = React.useState<Vehicle | 'new' | null>(null);
@@ -155,7 +176,22 @@ export function VehiclesPage() {
       { id: 'kind', header: t('fleet.vehicle.kind'), width: 120, value: r => r.kind, cell: r => t(`fleet.kind.${r.kind}`) },
       { id: 'cap', header: t('fleet.vehicle.capacity'), width: 180, align: 'right', value: r => Number(r.capacityKg ?? 0), cell: r => <span className="num">{r.capacityKg ? `${fmtNumber(r.capacityKg)} ${t('fleet.unit.kg')}` : '—'}{r.volumeM3 ? ` · ${fmtNumber(r.volumeM3)} ${t('fleet.unit.m3')}` : ''}{r.pallets ? ` · ${r.pallets} ${t('fleet.unit.pal')}` : ''}</span> },
       { id: 'norm', header: t('fleet.vehicle.norm'), width: 130, align: 'right', value: r => Number(r.fuelNormSummer ?? 0), cell: r => <span className="num">{r.fuelNormSummer ? `${fmtNumber(r.fuelNormSummer)} / ${fmtNumber(r.fuelNormWinter ?? r.fuelNormSummer)}` : '—'}</span> },
-      { id: 'odometer', header: t('fleet.vehicle.odometer'), width: 120, align: 'right', value: r => Number(r.odometer), cell: r => <span className="num">{fmtNumber(r.odometer)}</span> },
+      {
+        id: 'odometer',
+        header: t('fleet.vehicle.odometer'),
+        width: 145,
+        align: 'right',
+        value: r => Number(hasMining && r.meterType === 'engine_hours' ? r.engineHours : r.odometer),
+        cell: r =>
+          hasMining && r.meterType === 'engine_hours' ? (
+            <span className="num row" style={{ gap: 6, justifyContent: 'flex-end' }}>
+              {fmtNumber(r.engineHours)}
+              <Badge tone="amber">{t('fleet.unit.mh')}</Badge>
+            </span>
+          ) : (
+            <span className="num">{fmtNumber(r.odometer)}</span>
+          ),
+      },
       { id: 'driver', header: t('fleet.vehicle.driver'), width: 170, value: r => r.driverName ?? '', cell: r => <span className="muted trunc">{r.driverName ?? '—'}</span> },
       {
         id: 'docs',
@@ -166,7 +202,7 @@ export function VehiclesPage() {
       },
       { id: 'status', header: t('fleet.vehicle.status'), width: 120, value: r => r.status, cell: r => <Badge tone={r.archivedAt ? 'gray' : STATUS_TONE[r.status]}>{r.archivedAt ? t('fleet.archived') : t(`fleet.vehicleStatus.${r.status}`)}</Badge> },
     ],
-    [t],
+    [t, hasMining],
   );
   const table = useDataTable(columns, { sort: { id: 'plate', dir: 1 } });
   return (

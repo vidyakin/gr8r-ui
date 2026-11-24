@@ -89,6 +89,8 @@ export const products = pgTable(
     defaultSupplierId: uuid('default_supplier_id'),
     /** Срок поставки, дней (для закупки): дата поступления в расчёте потребностей */
     leadDays: integer('lead_days').notNull().default(0),
+    /** Насыпная плотность, т/м³ */
+    bulkDensity: numeric('bulk_density', { precision: 10, scale: 4 }),
     /** Товар-родитель: вариант товара (комбинация параметров с флажком «разрез склада») — обычная складская позиция */
     parentProductId: uuid('parent_product_id'),
     /** Значения параметров, дающих вариант: { цвет: 'white', размер: 'L' } */

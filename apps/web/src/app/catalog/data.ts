@@ -82,6 +82,8 @@ export interface Product {
   appointmentMinutes: number | null;
   /** Вес, кг (задача 1100) */
   weightKg: string | null;
+  /** Насыпная плотность, т/м³ (модуль «Добыча») */
+  bulkDensity: string | null;
   /** Вид номенклатуры (задача 1172) */
   productKindId: string | null;
   /** Основная картинка: вложение товара (задача 1192); пусто — нет */

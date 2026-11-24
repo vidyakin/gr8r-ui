@@ -12,6 +12,7 @@ import { dec, add as decAdd, mul as decMul, fmt as decFmt } from '@erp/shared';
 import { iso, today, fmtDate, parse } from '../lib/dates';
 import { useProducts } from '../catalog/data';
 import { useWarehouses } from '../docs/data';
+import { useHasModule } from '../licensing/data';
 import { ProductField } from '../docs/position-field';
 import { useFleetApi, useRepair, useRepairs, useServicePlans, useVehicles, type Repair, type RepairLine, type ServicePlan } from './data';
 import { FleetHead, FormDialog, intOrNull, num, orNull } from './parts';
@@ -23,6 +24,7 @@ const NONE = 'none';
 function PlanDialog({ plan, onClose }: { plan: ServicePlan | null; onClose: () => void }) {
   const t = useT();
   const api = useFleetApi();
+  const hasMining = useHasModule('mining');
   const vehicles = useVehicles().data?.items ?? [];
   return (
     <FormDialog
@@ -32,10 +34,11 @@ function PlanDialog({ plan, onClose }: { plan: ServicePlan | null; onClose: () =
         { key: 'name', label: t('fleet.service.planName'), type: 'text', required: true },
         { key: 'everyKm', label: t('fleet.service.everyKm'), type: 'number' },
         { key: 'everyMonths', label: t('fleet.service.everyMonths'), type: 'number' },
+        ...(hasMining ? ([{ key: 'intervalHours', label: t('fleet.service.intervalHours'), type: 'number' }] as const) : []),
         { key: 'lastKm', label: t('fleet.service.lastKm'), type: 'number', hint: t('fleet.service.lastHint') },
         { key: 'lastDate', label: t('fleet.service.lastDate'), type: 'date' },
       ]}
-      initial={{ vehicleId: plan?.vehicleId ?? vehicles[0]?.id ?? '', name: plan?.name ?? '', everyKm: plan?.everyKm ? String(plan.everyKm) : '', everyMonths: plan?.everyMonths ? String(plan.everyMonths) : '', lastKm: plan?.lastKm ? String(Number(plan.lastKm)) : '', lastDate: plan?.lastDate ?? '' }}
+      initial={{ vehicleId: plan?.vehicleId ?? vehicles[0]?.id ?? '', name: plan?.name ?? '', everyKm: plan?.everyKm ? String(plan.everyKm) : '', everyMonths: plan?.everyMonths ? String(plan.everyMonths) : '', intervalHours: plan?.intervalHours ? String(plan.intervalHours) : '', lastKm: plan?.lastKm ? String(Number(plan.lastKm)) : '', lastDate: plan?.lastDate ?? '' }}
       onClose={onClose}
       footerExtra={
         plan ? (
@@ -50,7 +53,8 @@ function PlanDialog({ plan, onClose }: { plan: ServicePlan | null; onClose: () =
         ) : null
       }
       onSubmit={async v => {
-        const data = { vehicleId: String(v.vehicleId), name: String(v.name).trim(), everyKm: intOrNull(v.everyKm), everyMonths: intOrNull(v.everyMonths), lastKm: num(v.lastKm) ?? null, lastDate: orNull(v.lastDate) };
+        const hours = num(v.intervalHours);
+        const data = { vehicleId: String(v.vehicleId), name: String(v.name).trim(), everyKm: intOrNull(v.everyKm), everyMonths: intOrNull(v.everyMonths), ...(hasMining ? { intervalHours: hours ? Number(hours) : null } : {}), lastKm: num(v.lastKm) ?? null, lastDate: orNull(v.lastDate) };
         return !!(plan ? await api('PATCH', `service-plans/${plan.id}`, data) : await api('POST', 'service-plans', data));
       }}
     />
@@ -65,7 +69,7 @@ function PlansTab() {
     () => [
       { id: 'vehicle', header: t('fleet.fuel.vehicle'), width: 120, value: r => r.plate, cell: r => <b>{r.plate}</b> },
       { id: 'name', header: t('fleet.service.planName'), width: 230, value: r => r.name, cell: r => r.name },
-      { id: 'interval', header: t('fleet.service.interval'), width: 190, value: r => r.everyKm ?? 0, cell: r => <span className="muted">{[r.everyKm ? `${fmtNumber(r.everyKm)} ${t('fleet.unit.km')}` : '', r.everyMonths ? `${r.everyMonths} ${t('fleet.unit.months')}` : ''].filter(Boolean).join(' / ')}</span> },
+      { id: 'interval', header: t('fleet.service.interval'), width: 190, value: r => r.everyKm ?? 0, cell: r => <span className="muted">{[r.everyKm ? `${fmtNumber(r.everyKm)} ${t('fleet.unit.km')}` : '', r.intervalHours ? `${fmtNumber(r.intervalHours)} ${t('fleet.unit.mh')}` : '', r.everyMonths ? `${r.everyMonths} ${t('fleet.unit.months')}` : ''].filter(Boolean).join(' / ')}</span> },
       { id: 'last', header: t('fleet.service.last'), width: 190, value: r => r.lastDate ?? '', cell: r => <span className="num muted">{r.lastKm ? `${fmtNumber(r.lastKm)} ${t('fleet.unit.km')}` : ''}{r.lastDate ? ` · ${fmtDate(parse(r.lastDate))}` : ''}</span> },
       { id: 'next', header: t('fleet.service.next'), width: 190, value: r => Number(r.due.leftKm ?? 1e9), cell: r => <span className="num">{r.due.dueKm ? `${fmtNumber(r.due.dueKm)} ${t('fleet.unit.km')}` : ''}{r.due.dueDate ? ` · ${fmtDate(parse(r.due.dueDate))}` : ''}</span> },
       {
