@@ -13,6 +13,7 @@ import { useIsAdmin } from '../catalog/data';
 import { BankConnections } from './bank-connections';
 import { SettingsHead, SRow } from './parts';
 import { TelegramSettings } from './telegram-settings';
+import { WebhooksSettings } from './webhooks-settings';
 
 interface SecretItem {
   key: string;
@@ -84,6 +85,7 @@ export function IntegrationsSection({ title }: { title: string }) {
         <>
         <BankConnections secretsAvailable={available} />
         <TelegramSettings isSet={items.some(s => s.key === TELEGRAM_TOKEN_SECRET)} available={available} />
+        <WebhooksSettings />
         <div className="sblock">
           {!available && <Alert tone="warn" className="mb-3">{t('secrets.unavailable')}</Alert>}
           <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
