@@ -11,6 +11,7 @@ export const enModules: Dict['modules'] = {
       ['Priority & labels', 'priority from 1 to 10, color tags, subtasks'],
       ['Due dates & recurrence', 'deadline on every task, scheduled repeats'],
       ['Time tracking', 'log hours against a task and compare against estimates'],
+      ['Interactive whiteboards', 'infinite canvas included in core at no extra cost: stickies, shapes, templates, live ERP/CRM cards, and 1-click sticky-to-task'],
     ],
     caption: 'Recording: a task is created on the project board, then an existing task is dragged into the “Done” column.',
   },

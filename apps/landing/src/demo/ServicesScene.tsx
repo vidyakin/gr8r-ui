@@ -1,20 +1,11 @@
 /* Запись «Услуги»: день записи к мастерам — клиент записывается на свободный слот, затем пришедшему ставится «Пришёл».
    Разметка — как у appointments-ui.tsx (сетка .appt-grid) и карточки записи в диалоге */
 import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
-import { DemoShell } from './shell';
+import type { Locale } from '../i18n';
+import { DemoShell, money } from './shell';
 import type { Scene } from './player';
+import { SERVICES_DICT, type ApptData as Appt } from './i18n/services';
 
-type St = 'booked' | 'confirmed' | 'came';
-interface Appt {
-  id: string;
-  col: number;
-  /** Начало — номер получасового слота от 9:00 */
-  at: number;
-  len: number;
-  name: string;
-  svc: string;
-  st: St;
-}
 interface S {
   appts: Appt[];
   /** Слот, по которому кликнули: открыт диалог новой записи */
@@ -24,28 +15,19 @@ interface S {
   fresh: string | null;
 }
 
-const COLS = ['Ковалёв Дмитрий', 'Орлова Анна', 'Сафин Ринат'];
 const ROWS = 10;
 const time = (at: number) => `${9 + Math.floor(at / 2)}:${at % 2 ? '30' : '00'}`;
-const STATUS: Record<St, string> = { booked: 'Записан', confirmed: 'Подтверждён', came: 'Пришёл' };
 
-const initial: S = {
-  appts: [
-    { id: 'a1', col: 0, at: 0, len: 2, name: 'Петров Андрей', svc: 'Замер кухни', st: 'came' },
-    { id: 'a2', col: 0, at: 4, len: 3, name: 'Лебедева Ирина', svc: 'Сборка шкафа', st: 'confirmed' },
-    { id: 'a3', col: 1, at: 1, len: 2, name: 'Громов Сергей', svc: 'Ремонт фасада', st: 'confirmed' },
-    { id: 'a4', col: 1, at: 7, len: 2, name: 'Кузнецова Ольга', svc: 'Гарантийный осмотр', st: 'booked' },
-    { id: 'a5', col: 2, at: 2, len: 4, name: 'ООО «Северстрой»', svc: 'Монтаж гардеробной', st: 'confirmed' },
-  ],
+const initial = (locale: Locale): S => ({
+  appts: SERVICES_DICT[locale].initialAppts,
   booking: null,
   card: null,
   fresh: null,
-};
+});
 
-const NEW: Appt = { id: 'a6', col: 1, at: 4, len: 2, name: 'Соколова Мария', svc: 'Замер кухни', st: 'booked' };
-const book = (s: S): S => ({ ...s, booking: null, fresh: NEW.id, appts: [...s.appts, NEW] });
+const book = (newAppt: Appt) => (s: S): S => ({ ...s, booking: null, fresh: newAppt.id, appts: [...s.appts, newAppt] });
 const came = (s: S): S => ({ ...s, card: null, fresh: 'a3', appts: s.appts.map(a => (a.id === 'a3' ? { ...a, st: 'came' } : a)) });
-const final: S = { ...came(book(initial)), fresh: null };
+const final = (locale: Locale): S => ({ ...came(book(SERVICES_DICT[locale].newAppt)(initial(locale))), fresh: null });
 
 const Select = ({ v, ph, focus }: { v: string | null; ph: string; focus?: boolean }) => (
   <span className={'select-btn input d-sel' + (focus ? ' d-focus' : '')}>
@@ -53,9 +35,9 @@ const Select = ({ v, ph, focus }: { v: string | null; ph: string; focus?: boolea
   </span>
 );
 
-function Grid({ s }: { s: S }) {
+function Grid({ s, cols }: { s: S; cols: [string, string, string] }) {
   const cells = [];
-  for (let c = 0; c < COLS.length; c++)
+  for (let c = 0; c < cols.length; c++)
     for (let r = 0; r < ROWS; r++) {
       const busy = s.appts.some(a => a.col === c && r >= a.at && r < a.at + a.len);
       if (!busy)
@@ -72,9 +54,9 @@ function Grid({ s }: { s: S }) {
     }
   return (
     <div className="appt-scroll">
-      <div className="appt-grid" style={{ gridTemplateColumns: `64px repeat(${COLS.length}, minmax(120px, 1fr))`, gridTemplateRows: `auto repeat(${ROWS}, 32px)` }}>
+      <div className="appt-grid" style={{ gridTemplateColumns: `64px repeat(${cols.length}, minmax(120px, 1fr))`, gridTemplateRows: `auto repeat(${ROWS}, 32px)` }}>
         <div className="appt-h corner" style={{ gridColumn: 1, gridRow: 1 }} />
-        {COLS.map((n, i) => (
+        {cols.map((n, i) => (
           <div key={n} className="appt-h" style={{ gridColumn: i + 2, gridRow: 1 }}>
             {n}
           </div>
@@ -107,22 +89,23 @@ export const servicesScene: Scene<S> = {
   initial,
   final,
   height: [580, 580],
-  script: async ({ set, wait, move, click, type }) => {
+  script: async ({ set, wait, move, click, type }, locale) => {
+    const d = SERVICES_DICT[locale];
     await move('slot-1-4');
     await click();
     set(s => ({ ...s, booking: { col: 1, at: 4, client: '', svc: null } }));
     await wait(450);
     await move('bk-client');
     await click();
-    await type(NEW.name, (s, v) => ({ ...s, booking: s.booking && { ...s.booking, client: v } }));
+    await type(d.newAppt.name, (s, v) => ({ ...s, booking: s.booking && { ...s.booking, client: v } }));
     await wait(300);
     await move('bk-svc');
     await click();
-    set(s => ({ ...s, booking: s.booking && { ...s.booking, svc: NEW.svc } }));
+    set(s => ({ ...s, booking: s.booking && { ...s.booking, svc: d.newAppt.svc } }));
     await wait(500);
     await move('bk-submit');
     await click();
-    set(book);
+    set(book(d.newAppt));
     await wait(1500);
     await move('appt-a3', { ay: 0.4 });
     await click();
@@ -133,56 +116,58 @@ export const servicesScene: Scene<S> = {
     set(came);
     await wait(300);
   },
-  render: (s, { compact }) => {
+  render: (s, { compact, locale }) => {
+    const d = SERVICES_DICT[locale];
     const card = s.card ? s.appts.find(a => a.id === s.card)! : null;
     return (
-      <DemoShell compact={compact} active="appts" crumbs={['Услуги', 'Запись']}>
+      <DemoShell compact={compact} active="appts" crumbs={d.crumbs} locale={locale}>
         <div className="d-ph">
           <div>
-            <h1>Запись</h1>
-            <p>Запись клиентов к специалистам: кто свободен, кто пришёл, закрытие дня.</p>
+            <h1>{d.title}</h1>
+            <p>{d.subtitle}</p>
           </div>
           <span className="sp" />
           <span className="btn btn-primary">
             <Plus size={14} />
-            Новая запись
+            {d.newBookingBtn}
           </span>
         </div>
         <div className="tabs d-tabs">
-          <span className="tab on">День</span>
-          <span className="tab">Специалист</span>
-          <span className="tab">Незакрытые дни</span>
-          <span className="tab">Графики</span>
+          {d.tabs.map((tab, i) => (
+            <span key={tab} className={'tab' + (i === 0 ? ' on' : '')}>
+              {tab}
+            </span>
+          ))}
         </div>
         <div className="d-toolbar">
           <span className="ibtn">
             <ChevronLeft size={16} />
           </span>
           <span className="input d-sel" style={{ width: 130 }}>
-            30.10.2026
+            {d.date}
           </span>
           <span className="ibtn">
             <ChevronRight size={16} />
           </span>
-          <span className="btn btn-secondary btn-sm">Сегодня</span>
+          <span className="btn btn-secondary btn-sm">{d.todayBtn}</span>
         </div>
-        <Grid s={s} />
+        <Grid s={s} cols={d.cols} />
 
         {s.booking && (
           <div className="d-modal">
             <div className="modal sm d-pop">
               <div className="modal-h">
-                <h2>Новая запись</h2>
+                <h2>{d.modalNewTitle}</h2>
                 <span className="ibtn ibtn-sm">
                   <X size={14} />
                 </span>
               </div>
               <div className="modal-desc">
-                {COLS[s.booking.col]} · 30.10.2026, {time(s.booking.at)}
+                {d.cols[s.booking.col]} · {d.date}, {time(s.booking.at)}
               </div>
               <div className="modal-b">
                 <div className="field" data-demo="bk-client">
-                  <span className="label">Клиент</span>
+                  <span className="label">{d.clientLabel}</span>
                   <span className={'input d-sel' + (s.booking.client && !s.booking.svc ? ' d-focus' : '')}>
                     {s.booking.client ? (
                       <>
@@ -190,27 +175,27 @@ export const servicesScene: Scene<S> = {
                         {!s.booking.svc && <span className="caret" />}
                       </>
                     ) : (
-                      <span className="d-ph-text">Имя или телефон</span>
+                      <span className="d-ph-text">{d.clientPh}</span>
                     )}
                   </span>
                 </div>
                 <div className="field" data-demo="bk-svc">
-                  <span className="label">Услуга</span>
-                  <Select v={s.booking.svc} ph="Выберите услугу" />
+                  <span className="label">{d.svcLabel}</span>
+                  <Select v={s.booking.svc} ph={d.svcPh} />
                 </div>
                 {s.booking.svc && (
                   <div className="row d-pop" style={{ gap: 8 }}>
-                    <span className="muted">Цена</span>
-                    <span className="num">1 500 ₽</span>
-                    <span className="faint">· 60 мин</span>
+                    <span className="muted">{d.priceLabel}</span>
+                    <span className="num">{money(d.bookingPrice, locale)}</span>
+                    <span className="faint">{d.durationText}</span>
                   </div>
                 )}
               </div>
               <div className="modal-f">
                 <span className="sp" />
-                <span className="btn btn-ghost btn-sm">Отмена</span>
+                <span className="btn btn-ghost btn-sm">{d.cancelBtn}</span>
                 <span className="btn btn-primary btn-sm" data-demo="bk-submit">
-                  Записать
+                  {d.bookBtn}
                 </span>
               </div>
             </div>
@@ -227,24 +212,24 @@ export const servicesScene: Scene<S> = {
                 </span>
               </div>
               <div className="modal-desc">
-                30.10.2026 · {time(card.at)}–{time(card.at + card.len)}
+                {d.date} · {time(card.at)}–{time(card.at + card.len)}
               </div>
               <div className="modal-b">
                 <div className="row" style={{ gap: 8 }}>
                   <span className="badge accent">
                     <span className="dot" />
-                    {STATUS[card.st]}
+                    {d.status[card.st]}
                   </span>
                   <span>{card.svc}</span>
-                  <span className="num muted">2 400 ₽</span>
+                  <span className="num muted">{money(d.cardPrice, locale)}</span>
                 </div>
                 <div className="row" style={{ gap: 8 }}>
                   <span className="btn btn-primary btn-sm" data-demo="card-came">
-                    Пришёл
+                    {d.cameBtn}
                   </span>
-                  <span className="btn btn-secondary btn-sm">Не пришёл</span>
-                  <span className="btn btn-secondary btn-sm">Перенести</span>
-                  <span className="btn btn-ghost btn-sm">Отменить запись</span>
+                  <span className="btn btn-secondary btn-sm">{d.noShowBtn}</span>
+                  <span className="btn btn-secondary btn-sm">{d.rescheduleBtn}</span>
+                  <span className="btn btn-ghost btn-sm">{d.cancelApptBtn}</span>
                 </div>
               </div>
             </div>

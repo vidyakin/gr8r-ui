@@ -1,20 +1,21 @@
 import * as React from 'react';
 import { ArrowRight, Check, GitBranch, Zap } from 'lucide-react';
+import { resolveState } from '../demo/player';
 import { tasksScene } from '../demo/TasksScene';
 import { docScene } from '../demo/DocScene';
 import { servicesScene } from '../demo/ServicesScene';
 import { productionScene } from '../demo/ProductionScene';
 import { DemoShell } from '../demo/shell';
-import { t } from '../i18n';
+import { DEFAULT_LOCALE, t } from '../i18n';
 import type { AlternativeModuleId } from './AlternativeLanding';
 
 // Уже готовые кадры первого лендинга сохраняют внешний вид настоящего приложения.
-const context = { compact: false, cursor: { x: 0, y: 0, dur: 0, down: false, shown: false } };
+const context = { compact: false, cursor: { x: 0, y: 0, dur: 0, down: false, shown: false }, locale: DEFAULT_LOCALE };
 const SCENES = {
-  tasks: () => tasksScene.render(tasksScene.initial, context),
-  docs: () => docScene.render(docScene.final, context),
-  services: () => servicesScene.render(servicesScene.final, context),
-  production: () => productionScene.render(productionScene.initial, context),
+  tasks: () => tasksScene.render(resolveState(tasksScene.initial, DEFAULT_LOCALE), context),
+  docs: () => docScene.render(resolveState(docScene.final, DEFAULT_LOCALE), context),
+  services: () => servicesScene.render(resolveState(servicesScene.final, DEFAULT_LOCALE), context),
+  production: () => productionScene.render(resolveState(productionScene.initial, DEFAULT_LOCALE), context),
 };
 
 export function ModulePreview({ id }: { id: AlternativeModuleId }) {

@@ -42,6 +42,16 @@ export const enPages1: Pick<Dict['modulePages'], 'ui' | 'tasks' | 'crm' | 'docs'
         list: ['Task keys like PROD-1 and SERV-3', 'Task module is inherited from its project', 'Filter by module in lists, boards, and saved views'],
         screen: 'My Tasks: general and module tasks in one unified list',
       },
+      {
+        title: 'Interactive whiteboards in the core',
+        text: 'A Miro/Figma-style infinite canvas is included in the base core at no extra cost: map workflows, brainstorm ideas, and link them straight to live team execution.',
+        list: [
+          'Sticky notes, shapes, sections, connector arrows, freehand drawing, smart alignment, and PNG/SVG export',
+          'Live ERP/CRM cards right on the canvas (tasks, deals, companies) with inline completion checkboxes',
+          'One-click sticky-to-task conversion and ready-made templates: SWOT analysis, customer journey map, roadmap',
+        ],
+        screen: 'Interactive whiteboard: sticky notes, sections, and live task and deal cards on the canvas',
+      },
     ],
     chain: [
       ['crm', 'Deal event: created, updated, or moved to a new stage.'],
@@ -54,6 +64,7 @@ export const enPages1: Pick<Dict['modulePages'], 'ui' | 'tasks' | 'crm' | 'docs'
       ['How is time tracked?', 'Time is logged against a task. Weekly timesheets aggregate those entries by date, employee, customer, work type, task, and hours. Planned hours are based on work time standards.'],
       ['Who can view timesheets?', 'Admins and owners can view any employee’s timesheet; regular members see only their own.'],
       ['What views are available for a project?', 'Board, list, table, calendar, and timeline. Any filter setup can be saved as a reusable view.'],
+      ['Are interactive whiteboards billed separately?', 'No. Whiteboards are included in the base core at no extra cost, complete with an infinite canvas, team templates, live task/deal/company cards, and one-click sticky-to-task conversion.'],
     ],
   },
   crm: {

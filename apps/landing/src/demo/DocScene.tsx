@@ -1,37 +1,39 @@
 /* Запись «Документы и КП»: счёт покупателю — выбор покупателя, строка товара с ценой из вида цен, итоги, проведение. Разметка — как у DocumentPage */
 import type * as React from 'react';
 import { ChevronDown, Copy, Plus, Printer, Trash2 } from 'lucide-react';
-import { DemoShell, rub } from './shell';
+import type { Locale } from '../i18n';
+import { DemoShell, money, moneyFull } from './shell';
+import { DOC_DICT, type DocLineData } from './i18n/doc';
 import type { Scene } from './player';
 
-interface Line {
-  name: string;
-  qty: number;
-  price: number;
-}
 interface S {
   buyer: string;
   /** Подсказки в выпадающем списке: buyer — покупатели, item — товары; null — список закрыт */
   pop: 'buyer' | 'item' | null;
-  lines: Line[];
+  lines: DocLineData[];
   /** Новая строка, пока в ней ищут товар */
   query: string | null;
   posted: boolean;
   hot: boolean;
 }
 
-const BUYERS = ['ООО «Атлас Мебель» · ИНН 7704 512 389', 'ООО «Атлант-Строй» · ИНН 5029 117 640'];
-const ITEMS = ['Стол обеденный «Дуб» 160×90 · 24 900 ₽', 'Стол журнальный «Дуб» · 11 400 ₽'];
-const STOL: Line = { name: 'Стол обеденный «Дуб» 160×90', qty: 1, price: 24900 };
+const makeInitial = (locale: Locale): S => ({
+  buyer: '',
+  pop: null,
+  lines: [DOC_DICT[locale].initialLine],
+  query: null,
+  posted: false,
+  hot: false,
+});
 
-const initial: S = { buyer: '', pop: null, lines: [{ name: 'Стул обеденный «Классик»', qty: 4, price: 5900 }], query: null, posted: false, hot: false };
-const final: S = { ...initial, buyer: 'ООО «Атлас Мебель»', lines: [initial.lines[0]!, { ...STOL, qty: 2 }], posted: true };
-
-/** Сумма прописью для итогов, которые встречаются в записи */
-const WORDS: Record<number, string> = {
-  23600: 'Двадцать три тысячи шестьсот рублей 00 копеек',
-  48500: 'Сорок восемь тысяч пятьсот рублей 00 копеек',
-  73400: 'Семьдесят три тысячи четыреста рублей 00 копеек',
+const makeFinal = (locale: Locale): S => {
+  const d = DOC_DICT[locale];
+  return {
+    ...makeInitial(locale),
+    buyer: d.selectedBuyer,
+    lines: [d.initialLine, { ...d.addedLine, qty: 2 }],
+    posted: true,
+  };
 };
 
 function Field({ label, children, demo, hint }: { label: string; children: React.ReactNode; demo?: string; hint?: string }) {
@@ -54,27 +56,28 @@ const Select = ({ v }: { v: string }) => (
 );
 
 export const docScene: Scene<S> = {
-  initial,
-  final,
+  initial: makeInitial,
+  final: makeFinal,
   height: [680, 820],
-  script: async ({ set, wait, move, click, type }) => {
+  script: async ({ set, wait, move, click, type }, locale) => {
+    const d = DOC_DICT[locale];
     await move('buyer');
     await click();
-    await type('Атл', (s, v) => ({ ...s, buyer: v, pop: 'buyer' }), 110);
+    await type(d.buyerQuery, (s, v) => ({ ...s, buyer: v, pop: 'buyer' }), 110);
     await wait(500);
     await move('opt-0');
     await click();
-    set(s => ({ ...s, buyer: 'ООО «Атлас Мебель»', pop: null }));
+    set(s => ({ ...s, buyer: d.selectedBuyer, pop: null }));
     await wait(700);
     await move('add-line');
     await click();
     set(s => ({ ...s, query: '' }));
     await wait(200);
-    await type('стол об', (s, v) => ({ ...s, query: v, pop: 'item' }), 90);
+    await type(d.itemQuery, (s, v) => ({ ...s, query: v, pop: 'item' }), 90);
     await wait(450);
     await move('opt-0');
     await click();
-    set(s => ({ ...s, query: null, pop: null, hot: true, lines: [...s.lines, STOL] }));
+    set(s => ({ ...s, query: null, pop: null, hot: true, lines: [...s.lines, d.addedLine] }));
     await wait(1100);
     await move('qty-1');
     await click();
@@ -87,88 +90,90 @@ export const docScene: Scene<S> = {
     set(s => ({ ...s, posted: true, hot: false }));
     await wait(600);
   },
-  render: (s, { compact }) => {
+  render: (s, { compact, locale }) => {
+    const d = DOC_DICT[locale];
+    const vatRate = d.totals.vatRate;
     const total = s.lines.reduce((a, l) => a + l.qty * l.price, 0);
-    const vat = Math.round((total * 20) / 120 * 100) / 100;
-    const opts = s.pop === 'buyer' ? BUYERS : ITEMS;
+    const vat = Math.round(((total * vatRate) / (100 + vatRate)) * 100) / 100;
+    const opts = s.pop === 'buyer' ? d.buyers : d.items;
     return (
-      <DemoShell compact={compact} active="sales" crumbs={['Документы', s.posted ? 'Счёт покупателю СЧ-000214' : 'Счёт покупателю (черновик)']}>
+      <DemoShell compact={compact} active="sales" crumbs={s.posted ? d.crumbsPosted : d.crumbsDraft} locale={locale}>
         <div className="d-doc">
           <div className="doc-bar">
             <div className="doc-title">
               <nav className="muted" style={{ fontSize: 12.5 }}>
-                Продажи / Счета покупателям
+                {d.subCrumb}
               </nav>
               <h1>
-                Счёт покупателю {s.posted ? <span className="faint">СЧ-000214</span> : <span className="faint">черновик</span>}
+                {d.docTitlePrefix} {s.posted ? <span className="faint">{d.docNumber}</span> : <span className="faint">{d.draftWord}</span>}
                 {s.posted ? (
                   <span className="badge green d-pop">
                     <span className="dot" />
-                    Проведён
+                    {d.statusPosted}
                   </span>
                 ) : (
                   <span className="badge gray">
                     <span className="dot" />
-                    Черновик
+                    {d.statusDraft}
                   </span>
                 )}
               </h1>
               <span className="faint" style={{ fontSize: 12 }}>
-                Все изменения сохранены
+                {d.savedNote}
               </span>
             </div>
             <div className="doc-actions">
               {!compact && (
                 <span className="btn btn-secondary">
                   <Copy size={14} />
-                  Создать на основании
+                  {d.createFromBtn}
                 </span>
               )}
               <span className="btn btn-secondary">
                 <Printer size={14} />
-                Печать
+                {d.printBtn}
               </span>
               <span className={'btn ' + (s.posted ? 'btn-secondary' : 'btn-primary')} data-demo="btn-post">
-                {s.posted ? 'Отменить проведение' : 'Провести'}
+                {s.posted ? d.unpostBtn : d.postBtn}
               </span>
             </div>
           </div>
 
           <section className="doc-head panel">
-            <Field label="Организация">
-              <Select v="ООО «Мебельная фабрика»" />
+            <Field label={d.fields.org}>
+              <Select v={d.fields.orgValue} />
             </Field>
-            <Field label="Покупатель" demo="buyer">
+            <Field label={d.fields.buyer} demo="buyer">
               <div className="combo">
                 <div className={'input d-sel' + (s.pop === 'buyer' ? ' d-focus' : '')}>
-                  {s.buyer || <span className="d-ph-text">Поиск по названию или ИНН</span>}
+                  {s.buyer || <span className="d-ph-text">{d.fields.buyerPlaceholder}</span>}
                   {s.pop === 'buyer' && <span className="caret" />}
                 </div>
                 {s.pop === 'buyer' && <Pop opts={opts} />}
               </div>
             </Field>
-            <Field label="Вид цен" hint={s.buyer.length > 3 ? 'По договору покупателя' : undefined}>
-              <Select v={s.buyer.length > 3 ? 'Оптовая' : 'Розничная'} />
+            <Field label={d.fields.priceType} hint={s.buyer.length > 3 ? d.fields.priceTypeContractHint : undefined}>
+              <Select v={s.buyer.length > 3 ? d.fields.priceWholesale : d.fields.priceRetail} />
             </Field>
-            <Field label="Склад">
-              <Select v="Основной склад" />
+            <Field label={d.fields.warehouse}>
+              <Select v={d.fields.warehouseValue} />
             </Field>
-            <Field label="Дата">
-              <span className="input d-sel">29.10.2026</span>
+            <Field label={d.fields.date}>
+              <span className="input d-sel">{d.fields.dateValue}</span>
             </Field>
-            <Field label="Номер" hint={s.posted ? undefined : 'Присваивается при проведении'}>
-              <span className="input d-sel">{s.posted ? 'СЧ-000214' : '—'}</span>
+            <Field label={d.fields.number} hint={s.posted ? undefined : d.fields.numberHint}>
+              <span className="input d-sel">{s.posted ? d.docNumber : '—'}</span>
             </Field>
             {!compact && (
-              <Field label="Договор">
-                <Select v={s.buyer.length > 3 ? 'Договор поставки № 41' : 'Выберите договор'} />
+              <Field label={d.fields.contract}>
+                <Select v={s.buyer.length > 3 ? d.fields.contractSigned : d.fields.contractPlaceholder} />
               </Field>
             )}
             {!compact && (
-              <Field label="Цены">
+              <Field label={d.fields.pricesMode}>
                 <span className="seg d-seg">
-                  <span data-state="on">НДС в сумме</span>
-                  <span>НДС сверху</span>
+                  <span data-state="on">{d.fields.vatIncluded}</span>
+                  <span>{d.fields.vatExcluded}</span>
                 </span>
               </Field>
             )}
@@ -176,30 +181,31 @@ export const docScene: Scene<S> = {
 
           <div className="tabs d-tabs">
             <span className="tab on">
-              Товары и услуги<span className="cnt">{s.lines.length}</span>
+              {d.tabs[0]}
+              <span className="cnt">{s.lines.length}</span>
             </span>
-            <span className="tab">Оплата</span>
-            {!compact && <span className="tab">Доставка</span>}
+            <span className="tab">{d.tabs[1]}</span>
+            {!compact && <span className="tab">{d.tabs[2]}</span>}
           </div>
           <section className="doc-lines panel">
             <table className="dtbl">
               <thead>
                 <tr>
-                  <th style={{ width: 30 }}>№</th>
-                  <th>Товар или услуга</th>
+                  <th style={{ width: 30 }}>{d.cols.num}</th>
+                  <th>{d.cols.item}</th>
                   <th className="r" style={{ width: 70 }}>
-                    Кол-во
+                    {d.cols.qty}
                   </th>
                   <th className="r" style={{ width: 96 }}>
-                    Цена
+                    {d.cols.price}
                   </th>
                   {!compact && (
                     <th className="r" style={{ width: 100 }}>
-                      Сумма НДС
+                      {d.cols.vat}
                     </th>
                   )}
                   <th className="r" style={{ width: 110 }}>
-                    Всего
+                    {d.cols.total}
                   </th>
                   {!compact && <th style={{ width: 30 }} />}
                 </tr>
@@ -217,11 +223,11 @@ export const docScene: Scene<S> = {
                       </span>
                     </td>
                     <td className="r">
-                      <span className="input d-sel d-cell r">{rub(l.price, true)}</span>
+                      <span className="input d-sel d-cell r">{money(l.price, locale, true)}</span>
                     </td>
-                    {!compact && <td className="r num muted">{rub(Math.round(((l.qty * l.price * 20) / 120) * 100) / 100, true)}</td>}
+                    {!compact && <td className="r num muted">{money(Math.round(((l.qty * l.price * vatRate) / (100 + vatRate)) * 100) / 100, locale, true)}</td>}
                     <td className="r num" style={{ fontWeight: 600 }}>
-                      {rub(l.qty * l.price, true)}
+                      {money(l.qty * l.price, locale, true)}
                     </td>
                     {!compact && (
                       <td className="faint">
@@ -236,7 +242,7 @@ export const docScene: Scene<S> = {
                     <td colSpan={compact ? 4 : 6}>
                       <div className="combo">
                         <div className="input d-sel d-cell d-focus">
-                          {s.query || <span className="d-ph-text">Поиск по названию, артикулу или штрихкоду</span>}
+                          {s.query || <span className="d-ph-text">{d.itemSearchPlaceholder}</span>}
                           <span className="caret" />
                         </div>
                         {s.pop === 'item' && <Pop opts={opts} />}
@@ -249,7 +255,7 @@ export const docScene: Scene<S> = {
             <div className="d-addline">
               <span className="btn btn-ghost btn-sm" data-demo="add-line">
                 <Plus size={14} />
-                Добавить строку
+                {d.addLineBtn}
               </span>
             </div>
           </section>
@@ -257,28 +263,28 @@ export const docScene: Scene<S> = {
           <div className="doc-bottom">
             {!compact && (
               <section className="doc-links panel">
-                <h2>Связанные документы</h2>
-                <p className="faint">На основании: Заказ покупателя № 118</p>
+                <h2>{d.relatedHeading}</h2>
+                <p className="faint">{d.relatedText}</p>
               </section>
             )}
             <section className="doc-totals panel">
               <dl>
                 <div>
-                  <dt>Сумма без НДС</dt>
-                  <dd className="num">{rub(total - vat, true)}</dd>
+                  <dt>{d.totals.subtotal}</dt>
+                  <dd className="num">{money(total - vat, locale, true)}</dd>
                 </div>
                 <div>
-                  <dt>НДС 20%</dt>
-                  <dd className="num">{rub(vat, true)}</dd>
+                  <dt>{d.totals.vatLabel}</dt>
+                  <dd className="num">{money(vat, locale, true)}</dd>
                 </div>
                 <div className="grand">
-                  <dt>Всего (с НДС)</dt>
+                  <dt>{d.totals.grandTotal}</dt>
                   <dd className={'num' + (s.hot ? ' d-flash' : '')} key={total}>
-                    {rub(total, true)} ₽
+                    {moneyFull(total, locale)}
                   </dd>
                 </div>
               </dl>
-              <p className="doc-words">{WORDS[total]}</p>
+              <p className="doc-words">{d.words[total]}</p>
             </section>
           </div>
         </div>

@@ -28,13 +28,19 @@ export interface Api<S> {
 export interface SceneCtx {
   compact: boolean;
   cursor: Cursor;
+  locale: Locale;
 }
 
+export type StateSource<S> = S | ((locale: Locale) => S);
+
+export const resolveState = <S,>(src: StateSource<S>, locale: Locale): S =>
+  typeof src === 'function' ? (src as (l: Locale) => S)(locale) : src;
+
 export interface Scene<S> {
-  initial: S;
+  initial: StateSource<S>;
   /** Конечное состояние — его видят при prefers-reduced-motion */
-  final: S;
-  script: (api: Api<S>) => Promise<void>;
+  final: StateSource<S>;
+  script: (api: Api<S>, locale: Locale) => Promise<void>;
   render: (s: S, ctx: SceneCtx) => React.ReactNode;
   /** Высота кадра: обычная и узкая (без боковой панели) */
   height: [number, number];
@@ -63,7 +69,7 @@ export function Recording<S>({ scene, label, caption, locale = DEFAULT_LOCALE }:
   const outer = React.useRef<HTMLDivElement>(null);
   const stage = React.useRef<HTMLDivElement>(null);
   const [width, setWidth] = React.useState(0);
-  const [state, setState] = React.useState<S>(reduced ? scene.final : scene.initial);
+  const [state, setState] = React.useState<S>(() => resolveState(reduced ? scene.final : scene.initial, locale));
   const [cursor, setCursor] = React.useState<Cursor>({ x: 0, y: 0, dur: 0, down: false, shown: false });
   const [userPaused, setUserPaused] = React.useState(false);
   const [visible, setVisible] = React.useState(false);
@@ -95,7 +101,7 @@ export function Recording<S>({ scene, label, caption, locale = DEFAULT_LOCALE }:
 
   React.useEffect(() => {
     if (reduced) {
-      setState(scene.final);
+      setState(resolveState(scene.final, locale));
       setCursor(c => ({ ...c, shown: false }));
       return;
     }
@@ -157,12 +163,12 @@ export function Recording<S>({ scene, label, caption, locale = DEFAULT_LOCALE }:
     (async () => {
       try {
         for (;;) {
-          setState(scene.initial);
+          setState(resolveState(scene.initial, locale));
           const start = { x: designW * 0.62, y: h * 0.78 };
           cur = start;
           setCursor({ ...start, dur: 0, down: false, shown: true });
           await wait(700);
-          await scene.script(api);
+          await scene.script(api, locale);
           await wait(2800);
           setCursor(c => ({ ...c, shown: false }));
           await wait(400);
@@ -174,8 +180,8 @@ export function Recording<S>({ scene, label, caption, locale = DEFAULT_LOCALE }:
     return () => {
       aborted = true;
     };
-    // Перезапуск при смене режима: узкий кадр — другая раскладка, координаты прежнего прогона не годятся
-  }, [scene, reduced, compact]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Перезапуск при смене режима или языка: другая раскладка или тексты — координаты прежнего прогона не годятся
+  }, [scene, reduced, compact, locale]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <figure className="rec" aria-label={label}>
@@ -188,7 +194,7 @@ export function Recording<S>({ scene, label, caption, locale = DEFAULT_LOCALE }:
           inert
           aria-hidden
         >
-          {scene.render(state, { compact, cursor })}
+          {scene.render(state, { compact, cursor, locale })}
           {!reduced && (
             <div
               className={'cursor' + (cursor.down ? ' down' : '') + (cursor.shown ? '' : ' gone')}

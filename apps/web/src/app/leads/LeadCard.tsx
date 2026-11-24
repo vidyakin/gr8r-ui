@@ -9,6 +9,7 @@ import { fmtDateTime } from '@/i18n/format';
 import { useT } from '@/i18n';
 import { useLeadAiChats } from '../crm/ai-chats-data';
 import { AiChatText } from '../crm/AiChatText';
+import { WebsiteEnrichPanel } from '../crm/WebsiteEnrichPanel';
 import { AttributionFields } from '../crm/AttributionFields';
 import { ComposeDialog } from '../email/ComposeDialog';
 import { useEmailsByIds } from '../email/data';
@@ -310,6 +311,17 @@ export function LeadCard({ leadId, onClose, onConvert }: { leadId: string | null
             {status?.category === 'rejected' && !converted && <Field label={t('leads.card.rejectReason')}>{p => <Input {...p} maxLength={500} value={draft.rejectReason} onChange={e => set({ rejectReason: e.target.value })} />}</Field>}
           </div>
           <Field label={t('leads.card.comment')}>{p => <Textarea {...p} rows={3} maxLength={5000} value={draft.comment} onChange={e => set({ comment: e.target.value })} />}</Field>
+          <WebsiteEnrichPanel
+            embedded
+            leadId={leadId ?? undefined}
+            companyId={current?.companyId ?? undefined}
+            email={draft.email}
+            onSaveNote={async text => {
+              const next = draft.comment.trim() ? `${draft.comment.trim()}\n\n${text}` : text;
+              set({ comment: next });
+              if (leadId) await api('PATCH', `/leads/${leadId}`, { comment: next });
+            }}
+          />
           {leadId && customRows.length > 0 && (
             <div className="stack" style={{ gap: 6 }}>
               {customRows.map(r => (

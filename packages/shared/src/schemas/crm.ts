@@ -114,3 +114,51 @@ export const crmActivityQuery = listQuery.extend({
   caseId: uuid.optional(),
 });
 
+export const CRM_OUTREACH_CHANNELS = ['email', 'whatsapp', 'linkedin'] as const;
+export const CRM_OUTREACH_TONES = ['friendly', 'formal', 'concise'] as const;
+export type CrmOutreachChannel = (typeof CRM_OUTREACH_CHANNELS)[number];
+export type CrmOutreachTone = (typeof CRM_OUTREACH_TONES)[number];
+
+export const crmAnalyzeWebsiteBody = z
+  .object({
+    url: z.string().trim().max(500).optional(),
+    manualText: z.string().trim().max(15_000).optional(),
+    companyId: uuid.optional(),
+  })
+  .refine(v => Boolean(v.url || v.manualText), {
+    message: 'Either url or manualText must be provided',
+  });
+export type CrmAnalyzeWebsiteBody = z.infer<typeof crmAnalyzeWebsiteBody>;
+
+export const crmDraftOutreachBody = z.object({
+  companyId: uuid.optional(),
+  leadId: uuid.optional(),
+  channel: z.enum(CRM_OUTREACH_CHANNELS),
+  tone: z.enum(CRM_OUTREACH_TONES).optional().default('friendly'),
+  websiteSummary: z.string().trim().max(10_000).optional(),
+  customContext: z.string().trim().max(5_000).optional(),
+});
+export type CrmDraftOutreachBody = z.infer<typeof crmDraftOutreachBody>;
+
+export interface WebsiteAnalysisSuccess {
+  fallbackNeeded: false;
+  summary: string;
+  industry: string;
+  offerings: string[];
+  location: string;
+  potentialPains: string[];
+}
+
+export interface WebsiteAnalysisFallback {
+  fallbackNeeded: true;
+  reason: string;
+  rawTextLength: number;
+}
+
+export type WebsiteAnalysisResponse = WebsiteAnalysisSuccess | WebsiteAnalysisFallback;
+
+export interface OutreachDraftResponse {
+  subject?: string;
+  body: string;
+}
+

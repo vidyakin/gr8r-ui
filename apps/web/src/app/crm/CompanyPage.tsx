@@ -27,6 +27,8 @@ import { ClientCases } from '../cases/ClientCases';
 import { CompanySettlementsTab } from '../money/CompanySettlements';
 import { SupplierRatingBadge } from '../docs/SupplierRatingsPage';
 import { NextContactPanel } from './NextContactPanel';
+import { WebsiteEnrichPanel } from './WebsiteEnrichPanel';
+import { useWorkspace } from '../data/store';
 import { ClientAppointments } from './ClientAppointments';
 import { CompanyPriceKind } from '../pricing/CompanyPriceKind';
 import { RecordAttribution } from './AttributionFields';
@@ -209,6 +211,7 @@ function CompanyView({ company: co, tab }: { company: Company; tab: string }) {
 
 function Overview({ company: co }: { company: Company }) {
   const { data, dispatch } = useCrm();
+  const { data: ws } = useWorkspace();
   const ui = useCrmUi();
   const t = useT();
   const customRows = useCustomRows('company', co.custom, patch => dispatch({ type: 'company/update', id: co.id, patch: { custom: { ...co.custom, ...patch } } }));
@@ -333,6 +336,16 @@ function Overview({ company: co }: { company: Company }) {
             </div>
           </Panel>
           <NextContactPanel company={co} />
+          <WebsiteEnrichPanel
+            companyId={co.id}
+            initialUrl={co.website}
+            onSaveNote={text =>
+              dispatch({
+                type: 'activity/add',
+                activity: { type: 'note', subject: t('crm.aiEnrich.noteSubject'), body: text, company: co.id, by: ws.me },
+              })
+            }
+          />
           <Panel title={t('crm.companies.overview.contacts')} actions={<Button size="sm" variant="ghost" onClick={() => ui.newContact({ company: co.id })}><UserPlus size={13} />{t('crm.companies.header.add')}</Button>}>
             <div className="panel-b">
               {people.length ? (

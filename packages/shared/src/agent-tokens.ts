@@ -42,6 +42,7 @@ export const TOKEN_PATH_SECTIONS: Map<string, PositionSection[]> = new Map<strin
   ['/ad-report', ['crm']],
   ['/sales-plan', ['crm']],
   ['/ai-chats', ['crm']],
+  ['/crm', ['crm']],
   // Торговля и склад
   ['/documents', ['trade', 'stock', 'finance', 'services', 'production', 'deliveries']],
   // Согласование по маршрутам (задача 1199): документы и договоры из торговых и финансовых разделов

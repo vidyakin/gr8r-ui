@@ -1,0 +1,43 @@
+/* Departamentos (estructura organizativa). La forma coincide con ../en */
+import type { departments as E } from '../en/departments';
+import type { Widen } from '../types';
+
+export const departments: Widen<typeof E> = {
+  settings: {
+    lead: 'Los departamentos forman el organigrama: un árbol de unidades con responsables. Un empleado pertenece como máximo a un departamento. El superior de un empleado es el responsable de su departamento; si no hay ninguno o el propio empleado es el responsable, lo es el responsable del departamento superior.',
+    onlyAdmins: 'Solo los administradores y propietarios pueden modificar los departamentos.',
+    add: 'Añadir departamento',
+    addChild: 'Añadir subdepartamento',
+    expandAll: 'Expandir todo',
+    viewChart: 'Organigrama',
+    viewList: 'Lista',
+    newTitle: 'Nuevo departamento',
+    editTitle: 'Editar departamento',
+    name: 'Nombre',
+    parent: 'Departamento superior',
+    noParent: 'Nivel superior',
+    head: 'Responsable',
+    noHead: 'Sin responsable',
+    headOf: 'Responsable: {name}',
+    unknown: 'Empleado desconocido',
+    members: { one: '{count} empleado', other: '{count} empleados' },
+    composition: 'Empleados',
+    compositionEmpty: 'Aún no hay empleados',
+    compositionNew: 'Guarde primero el departamento y luego añada empleados.',
+    compositionHint: 'Un empleado pertenece a un solo departamento: al añadirlo aquí sale de su departamento actual.',
+    addMember: 'Añadir empleado',
+    inOther: '{name} · actualmente en {department}',
+    remove: 'Quitar a {name}',
+    memberAdded: 'Empleado añadido',
+    memberRemoved: 'Empleado quitado',
+    save: 'Guardar',
+    saved: 'Departamento guardado',
+    delete: 'Eliminar',
+    deleted: 'Departamento eliminado',
+    edit: 'Editar',
+    cancel: 'Cancelar',
+    empty: 'Aún no hay departamentos',
+    emptyHint: 'Añada el superior, por ejemplo «Dirección», y después sus departamentos subordinados.',
+    confirmDelete: '¿Eliminar el departamento «{name}»? Solo se puede eliminar un departamento sin subdepartamentos ni empleados.',
+  },
+};

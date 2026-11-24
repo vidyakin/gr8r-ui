@@ -51,9 +51,15 @@ export const fmtDateTime = (d: Date | string | number) => {
   return dateFmt(withTimeFmt({ dateStyle: 'medium', timeStyle: 'short', ...(tz ? { timeZone: tz } : {}) })).format(new Date(d));
 };
 
-/** Разбор числа, введённого по правилам языка: en «50,000.5» → 50000.5, ru «50 000,5» → 50000.5 */
+/** Разбор числа, введённого по правилам языка: en «50,000.5» → 50000.5, ru «50 000,5» → 50000.5, es «50.000,5» → 50000.5 */
 export function parseNumber(s: string): number {
-  const v = getLocale() === 'ru' ? s.replace(/[\s\u00a0\u202f]/g, '').replace(',', '.') : s.replace(/,/g, '');
+  const l = getLocale();
+  const v =
+    l === 'ru'
+      ? s.replace(/[\s\u00a0\u202f]/g, '').replace(',', '.')
+      : l === 'es'
+        ? s.replace(/[\s\u00a0\u202f.]/g, '').replace(',', '.')
+        : s.replace(/,/g, '');
   return Number(v.replace(/[^0-9.-]/g, ''));
 }
 

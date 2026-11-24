@@ -33,6 +33,7 @@ export const SECTION_OF_API_PATH: ReadonlyMap<string, PositionSection> = new Map
   ['/case-forms', 'crm'],
   ['/case-sla-rules', 'crm'],
   ['/ai-chats', 'crm'],
+  ['/crm', 'crm'],
   ['/production-plans', 'production'],
   ['/bom-lines', 'production'],
   ['/whiteboards', 'projects'],

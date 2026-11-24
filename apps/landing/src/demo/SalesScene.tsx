@@ -2,16 +2,13 @@
    движения склада и взаиморасчёты покупателя. Разметка — как у JournalPage, DocumentPage, StockMovesDialog и CompanySettlements */
 import type * as React from 'react';
 import { ArrowLeftRight, CalendarDays, ChevronDown, Copy, FileText, Printer, Search, Trash2, X } from 'lucide-react';
-import { DemoShell, rub } from './shell';
+import type { Locale } from '../i18n';
+import { DemoShell, money, moneyFull } from './shell';
 import type { Scene } from './player';
+import { SALES_DICT } from './i18n/sales';
 
 type View = 'journal' | 'order' | 'real' | 'card';
 
-interface Line {
-  name: string;
-  qty: number;
-  price: number;
-}
 interface S {
   view: View;
   /** Меню «Создать на основании» */
@@ -25,23 +22,7 @@ interface S {
   hot: boolean;
 }
 
-const BUYER = 'ООО «Атлас Мебель»';
-const LINES: Line[] = [
-  { name: 'Стол обеденный «Дуб» 160×90', qty: 2, price: 24900 },
-  { name: 'Стул «Классик»', qty: 8, price: 5900 },
-  { name: 'Тумба под ТВ «Лофт»', qty: 1, price: 14500 },
-];
-const TOTAL = LINES.reduce((a, l) => a + l.qty * l.price, 0); // 111 500
-const WORDS = 'Сто одиннадцать тысяч пятьсот рублей 00 копеек';
 const vatOf = (n: number) => Math.round(((n * 20) / 120) * 100) / 100;
-
-const JOURNAL = [
-  { num: 'ЗК-000118', date: '27.10.2026', who: BUYER, total: TOTAL },
-  { num: 'ЗК-000117', date: '26.10.2026', who: 'ИП Громова Е. В.', total: 38400 },
-  { num: 'ЗК-000116', date: '23.10.2026', who: 'ООО «Атлант-Строй»', total: 214900 },
-  { num: 'ЗК-000115', date: '21.10.2026', who: 'ООО «Северный дом»', total: 67200 },
-];
-const JOURNAL_SUM = JOURNAL.reduce((a, r) => a + r.total, 0);
 
 const initial: S = { view: 'journal', menu: false, ship: false, posted: false, moves: false, hot: false };
 const final: S = { ...initial, view: 'card', posted: true, hot: false };
@@ -65,66 +46,69 @@ function Field({ label, children, demo, hint }: { label: string; children: React
   );
 }
 
-function Journal({ compact, hot }: { compact: boolean; hot: boolean }) {
+function Journal({ compact, hot, locale }: { compact: boolean; hot: boolean; locale: Locale }) {
+  const d = SALES_DICT[locale];
+  const ui = d.journalUi;
+  const journalSum = d.journal.reduce((a, r) => a + r.total, 0);
   return (
     <div className="d-page-in">
       <div className="d-ph">
         <div>
-          <h1>Продажи</h1>
-          {!compact && <p>КП, заказы покупателей, счета, отгрузки (УПД), акты услуг и возвраты.</p>}
+          <h1>{ui.title}</h1>
+          {!compact && <p>{ui.subtitle}</p>}
         </div>
       </div>
       <div className="tabs d-tabs">
-        <span className="tab">Все типы</span>
-        <span className="tab on">Заказ покупателя</span>
-        <span className="tab">Счёт на оплату</span>
-        {!compact && <span className="tab">Реализация (УПД)</span>}
+        <span className="tab">{ui.tabs[0]}</span>
+        <span className="tab on">{ui.tabs[1]}</span>
+        <span className="tab">{ui.tabs[2]}</span>
+        {!compact && <span className="tab">{ui.tabs[3]}</span>}
       </div>
       <div className="d-toolbar">
         <span className="input d-sel" style={{ width: 200, height: 28, flexShrink: 0 }}>
           <Search size={13} />
-          <span className="d-ph-text">Поиск по покупателю</span>
+          <span className="d-ph-text">{ui.searchPh}</span>
         </span>
-        <span className="btn btn-ghost">Фильтр</span>
-        <span className="btn btn-ghost">Сортировка: Дата</span>
+        <span className="btn btn-ghost">{ui.filter}</span>
+        <span className="btn btn-ghost">{ui.sort}</span>
       </div>
       <div className="tbl-wrap" style={{ margin: '0 var(--gutter)' }}>
         <table className="tbl">
           <thead>
             <tr>
               <th>
-                <div className="thi">Номер</div>
+                <div className="thi">{ui.cols.num}</div>
               </th>
               <th>
-                <div className="thi">Дата</div>
+                <div className="thi">{ui.cols.date}</div>
               </th>
               <th>
-                <div className="thi">Покупатель</div>
+                <div className="thi">{ui.cols.buyer}</div>
               </th>
               {!compact && (
                 <th>
-                  <div className="thi">Оплата</div>
+                  <div className="thi">{ui.cols.payment}</div>
                 </th>
               )}
               <th>
-                <div className="thi">Статус</div>
+                <div className="thi">{ui.cols.status}</div>
               </th>
               {!compact && (
                 <th className="num">
                   <div className="thi" style={{ justifyContent: 'flex-end' }}>
-                    НДС
+                    {ui.cols.vat}
                   </div>
                 </th>
               )}
               <th className="num">
                 <div className="thi" style={{ justifyContent: 'flex-end' }}>
-                  Всего
+                  {ui.cols.total}
                 </div>
               </th>
             </tr>
           </thead>
           <tbody>
-            {JOURNAL.map((r, i) => (
+            {d.journal.map((r, i) => (
               <tr key={r.num} className={'dt-click' + (hot && i === 0 ? ' d-row-hot' : '')} data-demo={`row-${i}`}>
                 <td>
                   <span className="mono" style={{ fontWeight: 450 }}>
@@ -139,19 +123,19 @@ function Journal({ compact, hot }: { compact: boolean; hot: boolean }) {
                   <td>
                     <span className="badge gray">
                       <span className="dot" />
-                      Не оплачен
+                      {ui.unpaid}
                     </span>
                   </td>
                 )}
                 <td>
                   <span className="badge green">
                     <span className="dot" />
-                    Проведён
+                    {ui.posted}
                   </span>
                 </td>
-                {!compact && <td className="num muted">{rub(vatOf(r.total), true)}</td>}
+                {!compact && <td className="num muted">{money(vatOf(r.total), locale, true)}</td>}
                 <td className="num" style={{ fontWeight: 500 }}>
-                  {rub(r.total, true)}
+                  {money(r.total, locale, true)}
                 </td>
               </tr>
             ))}
@@ -160,14 +144,14 @@ function Journal({ compact, hot }: { compact: boolean; hot: boolean }) {
             <tr>
               <td colSpan={compact ? 4 : 6}>
                 <span className="row" style={{ gap: 6 }}>
-                  Итого
+                  {ui.total}
                   <span className="faint" style={{ fontWeight: 500 }}>
-                    {JOURNAL.length}
+                    {d.journal.length}
                   </span>
                 </span>
               </td>
               <td className="num" style={{ fontWeight: 600 }}>
-                {rub(JOURNAL_SUM, true)}
+                {money(journalSum, locale, true)}
               </td>
             </tr>
           </tfoot>
@@ -178,52 +162,55 @@ function Journal({ compact, hot }: { compact: boolean; hot: boolean }) {
 }
 
 /** Форма документа: заказ покупателя (проведён) или реализация (черновик → проведена) */
-function Doc({ s, compact, kind }: { s: S; compact: boolean; kind: 'order' | 'real' }) {
+function Doc({ s, compact, kind, locale }: { s: S; compact: boolean; kind: 'order' | 'real'; locale: Locale }) {
+  const d = SALES_DICT[locale];
+  const ui = d.docUi;
   const order = kind === 'order';
   const posted = order || s.posted;
-  const title = order ? 'Заказ покупателя' : 'Реализация (УПД)';
-  const num = order ? 'ЗК-000118' : s.posted ? 'РТ-000063' : null;
+  const title = order ? ui.orderTitle : ui.realTitle;
+  const num = order ? d.orderNum : s.posted ? d.realNum : null;
+  const total = d.lines.reduce((a, l) => a + l.qty * l.price, 0);
   return (
     <div className="d-doc d-page-in">
       <div className="doc-bar">
         <div className="doc-title">
           <nav className="muted" style={{ fontSize: 12.5 }}>
-            Продажи / {title}
+            {d.crumbs.sales} / {title}
           </nav>
           <h1>
-            {title} {num ? num : <span className="faint">черновик</span>}
+            {title} {num ? num : <span className="faint">{ui.draftLower}</span>}
             <span className={'badge ' + (posted ? 'green' : 'gray') + (!order && s.posted ? ' d-pop' : '')} key={String(posted)}>
               <span className="dot" />
-              {posted ? 'Проведён' : 'Черновик'}
+              {posted ? ui.postedBadge : ui.draftBadge}
             </span>
           </h1>
           <span className="faint" style={{ fontSize: 12 }}>
-            {posted ? 'Проведён 29.10.2026' : 'Все изменения сохранены'}
+            {posted ? ui.postedAt : ui.allSaved}
           </span>
         </div>
         <div className="doc-actions" style={{ position: 'relative' }}>
           {!order && (
             <span className="btn btn-secondary" data-demo="btn-moves">
               <ArrowLeftRight size={14} />
-              Движения
+              {ui.movesBtn}
             </span>
           )}
           {order && !compact && (
             <span className="btn btn-secondary">
               <Printer size={14} />
-              Печать
+              {ui.printBtn}
             </span>
           )}
           {(order || s.posted) && (
             <span style={{ position: 'relative', display: 'inline-flex' }}>
               <span className="btn btn-secondary" data-demo="btn-based">
                 <Copy size={14} />
-                Создать на основании
+                {ui.basedBtn}
                 <ChevronDown size={12} />
               </span>
               {s.menu && (
                 <div className="pop d-popover" style={{ left: 'auto', right: 0, minWidth: 230 }}>
-                  {['Счёт на оплату', 'Реализация (УПД)', 'Акт выполненных работ'].map((t, i) => (
+                  {ui.basedItems.map((t, i) => (
                     <span key={t} className={'mi' + (i === 1 ? ' hl' : '')} data-demo={i === 1 ? 'mi-real' : undefined}>
                       <FileText size={15} />
                       <span className="flex-1">{t}</span>
@@ -234,77 +221,77 @@ function Doc({ s, compact, kind }: { s: S; compact: boolean; kind: 'order' | 're
             </span>
           )}
           {order ? (
-            <span className="btn btn-secondary">Отменить проведение</span>
+            <span className="btn btn-secondary">{ui.unpostBtn}</span>
           ) : (
             <span className={'btn ' + (s.posted ? 'btn-secondary' : 'btn-primary')} data-demo="btn-post">
-              {s.posted ? 'Отменить проведение' : 'Провести'}
+              {s.posted ? ui.unpostBtn : ui.postBtn}
             </span>
           )}
         </div>
       </div>
 
       <section className="doc-head panel">
-        <Field label="Организация">
-          <Select v="ООО «Мебельная фабрика»" />
+        <Field label={ui.fields.org}>
+          <Select v={d.org} />
         </Field>
-        <Field label="Покупатель">
+        <Field label={ui.fields.buyer}>
           <div className="doc-ro">
             <span className="crm-link" data-demo="buyer-link">
-              {BUYER}
+              {d.buyer}
             </span>
           </div>
         </Field>
-        <Field label="Склад">
-          <Select v="Основной склад" />
+        <Field label={ui.fields.warehouse}>
+          <Select v={d.warehouse} />
         </Field>
-        <Field label="Дата">
-          <span className="input d-sel">{order ? '27.10.2026' : '29.10.2026'}</span>
+        <Field label={ui.fields.date}>
+          <span className="input d-sel">{order ? d.orderDate : d.realDate}</span>
         </Field>
-        <Field label="Номер" hint={num ? undefined : 'Присваивается при проведении'}>
+        <Field label={ui.fields.number} hint={num ? undefined : ui.fields.numberHint}>
           <span className="input d-sel">{num ?? '—'}</span>
         </Field>
-        <Field label="Вид цен">
-          <Select v="Оптовая" />
+        <Field label={ui.fields.priceType}>
+          <Select v={d.priceType} />
         </Field>
         {!compact && (
-          <Field label="Договор">
-            <Select v="Договор поставки № 41" />
+          <Field label={ui.fields.contract}>
+            <Select v={d.contract} />
           </Field>
         )}
       </section>
 
       <div className="tabs d-tabs">
         <span className="tab on">
-          Товары и услуги<span className="cnt">{LINES.length}</span>
+          {ui.tabs[0]}<span className="cnt">{d.lines.length}</span>
         </span>
-        <span className="tab">Оплата</span>
-        {!compact && <span className="tab">Доставка</span>}
+        <span className="tab">{ui.tabs[1]}</span>
+        {!compact && <span className="tab">{ui.tabs[2]}</span>}
       </div>
       <section className="doc-lines panel">
         <table className="dtbl">
           <thead>
             <tr>
               <th style={{ width: 30 }}>№</th>
-              <th>Товар или услуга</th>
+              <th>{ui.lineCols.item}</th>
               <th className="r" style={{ width: 70 }}>
-                Кол-во
+                {ui.lineCols.qty}
               </th>
               <th className="r" style={{ width: 96 }}>
-                Цена
+                {ui.lineCols.price}
               </th>
               {!compact && (
                 <th className="r" style={{ width: 100 }}>
-                  Сумма НДС
+                  {ui.lineCols.vat}
                 </th>
               )}
               <th className="r" style={{ width: 110 }}>
-                Всего
+                {ui.lineCols.total}
               </th>
               {!compact && <th style={{ width: 30 }} />}
             </tr>
           </thead>
           <tbody>
-            {LINES.map((l, i) => (
+            {d.lines.map((l, i) => (
               <tr key={l.name}>
                 <td className="faint num">{i + 1}</td>
                 <td>
@@ -314,11 +301,11 @@ function Doc({ s, compact, kind }: { s: S; compact: boolean; kind: 'order' | 're
                   <span className="input d-sel d-cell r">{l.qty}</span>
                 </td>
                 <td className="r">
-                  <span className="input d-sel d-cell r">{rub(l.price, true)}</span>
+                  <span className="input d-sel d-cell r">{money(l.price, locale, true)}</span>
                 </td>
-                {!compact && <td className="r num muted">{rub(vatOf(l.qty * l.price), true)}</td>}
+                {!compact && <td className="r num muted">{money(vatOf(l.qty * l.price), locale, true)}</td>}
                 <td className="r num" style={{ fontWeight: 600 }}>
-                  {rub(l.qty * l.price, true)}
+                  {money(l.qty * l.price, locale, true)}
                 </td>
                 {!compact && (
                   <td className="faint">
@@ -334,22 +321,22 @@ function Doc({ s, compact, kind }: { s: S; compact: boolean; kind: 'order' | 're
       <div className="doc-bottom">
         {!compact && (
           <section className="doc-links panel">
-            <h2>Связанные документы</h2>
+            <h2>{ui.linkedTitle}</h2>
             {order ? (
               <>
-                <p className="faint">Не создан на основании другого документа</p>
-                <p className="faint">Созданных документов пока нет.</p>
+                <p className="faint">{ui.noBased}</p>
+                <p className="faint">{ui.noCreated}</p>
               </>
             ) : (
               <p>
-                <span className="muted">На основании </span>
+                <span className="muted">{ui.basedOn}</span>
                 <span className="doc-ref">
-                  <span className="crm-link">Заказ покупателя ЗК-000118</span>
+                  <span className="crm-link">{ui.orderTitle} {d.orderNum}</span>
                   <span className="badge green">
                     <span className="dot" />
-                    Проведён
+                    {ui.postedBadge}
                   </span>
-                  <span className="num muted">{rub(TOTAL, true)}</span>
+                  <span className="num muted">{money(total, locale, true)}</span>
                 </span>
               </p>
             )}
@@ -358,19 +345,19 @@ function Doc({ s, compact, kind }: { s: S; compact: boolean; kind: 'order' | 're
         <section className="doc-totals panel">
           <dl>
             <div>
-              <dt>Сумма без НДС</dt>
-              <dd className="num">{rub(TOTAL - vatOf(TOTAL), true)}</dd>
+              <dt>{ui.subtotal}</dt>
+              <dd className="num">{money(total - vatOf(total), locale, true)}</dd>
             </div>
             <div>
-              <dt>НДС 20%</dt>
-              <dd className="num">{rub(vatOf(TOTAL), true)}</dd>
+              <dt>{ui.vatLabel}</dt>
+              <dd className="num">{money(vatOf(total), locale, true)}</dd>
             </div>
             <div className="grand">
-              <dt>Всего (с НДС)</dt>
-              <dd className="num">{rub(TOTAL, true)} ₽</dd>
+              <dt>{ui.grandTotal}</dt>
+              <dd className="num">{moneyFull(total, locale)}</dd>
             </div>
           </dl>
-          <p className="doc-words">{WORDS}</p>
+          <p className="doc-words">{d.words}</p>
         </section>
       </div>
     </div>
@@ -378,69 +365,72 @@ function Doc({ s, compact, kind }: { s: S; compact: boolean; kind: 'order' | 're
 }
 
 /** Карточка покупателя, вкладка «Взаиморасчёты»: после проведения реализации появилось начисление — долг */
-function Card({ compact }: { compact: boolean }) {
+function Card({ compact, locale }: { compact: boolean; locale: Locale }) {
+  const d = SALES_DICT[locale];
+  const ui = d.cardUi;
+  const total = d.lines.reduce((a, l) => a + l.qty * l.price, 0);
   return (
     <div className="d-page-in">
       <div className="d-ph">
         <span className="av md" style={{ '--c': '#5A67D8' } as React.CSSProperties}>
-          АМ
+          {d.buyerAv}
         </span>
-        <h1>{BUYER}</h1>
-        {!compact && <span className="badge gray">Мебель</span>}
+        <h1>{d.buyer}</h1>
+        {!compact && <span className="badge gray">{d.buyerTag}</span>}
       </div>
       <div className="tabs d-tabs">
-        <span className="tab">Обзор</span>
-        {!compact && <span className="tab">Договоры</span>}
+        <span className="tab">{ui.tabs[0]}</span>
+        {!compact && <span className="tab">{ui.tabs[1]}</span>}
         <span className="tab">
-          Документы<span className="cnt">2</span>
+          {ui.tabs[2]}<span className="cnt">2</span>
         </span>
-        <span className="tab on">Взаиморасчёты</span>
+        <span className="tab on">{ui.tabs[3]}</span>
       </div>
       <div className="d-doc" style={{ paddingTop: 16 }}>
         <div className="row" style={{ gap: 12, alignItems: 'center' }}>
-          <h3 style={{ margin: 0 }}>Покупатель</h3>
+          <h3 style={{ margin: 0 }}>{ui.buyerHeading}</h3>
           <span className="muted">
-            Сальдо: <b className="d-flash" style={{ fontWeight: 600 }}>{rub(TOTAL, true)}</b>
+            {ui.balanceLabel} <b className="d-flash" style={{ fontWeight: 600 }}>{money(total, locale, true)}</b>
           </span>
-          {!compact && <span className="faint" style={{ fontSize: 12 }}>Плюс — долг, минус — аванс</span>}
+          {!compact && <span className="faint" style={{ fontSize: 12 }}>{ui.balanceHint}</span>}
           <span className="sp" />
           <span className="btn btn-secondary btn-sm">
             <Printer size={13} />
-            Акт сверки
+            {ui.reconcileBtn}
           </span>
         </div>
         <table className="dtbl">
           <thead>
             <tr>
-              <th style={{ width: 110 }}>Дата</th>
-              <th>Документ</th>
+              <th style={{ width: 110 }}>{ui.cols.date}</th>
+              <th>{ui.cols.doc}</th>
               <th className="r" style={{ width: 130 }}>
-                Начислено
+                {ui.cols.charged}
               </th>
               <th className="r" style={{ width: 130 }}>
-                Оплачено
+                {ui.cols.paid}
               </th>
             </tr>
           </thead>
           <tbody>
             <tr className="bold">
               <td />
-              <td>Сальдо на начало</td>
+              <td>{ui.opening}</td>
               <td className="r num" colSpan={2}>
-                {rub(0, true)}
+                {money(0, locale, true)}
               </td>
             </tr>
             <tr className="d-row-hot">
-              <td className="muted">29.10.2026</td>
-              <td>Реализация (УПД) РТ-000063</td>
-              <td className="r num">{rub(TOTAL, true)}</td>
+              <td className="muted">{d.realDate}</td>
+              <td>{d.docUi.realTitle} {d.realNum}</td>
+              <td className="r num">{money(total, locale, true)}</td>
               <td className="r num" />
             </tr>
             <tr className="bold">
               <td />
-              <td>Сальдо на конец</td>
+              <td>{ui.closing}</td>
               <td className="r num" colSpan={2}>
-                {rub(TOTAL, true)}
+                {money(total, locale, true)}
               </td>
             </tr>
           </tbody>
@@ -494,95 +484,99 @@ export const salesScene: Scene<S> = {
     set(s => ({ ...s, view: 'card' }));
     await wait(600);
   },
-  render: (s, { compact }) => (
-    <DemoShell
-      compact={compact}
-      active="sales"
-      crumbs={
-        s.view === 'journal'
-          ? ['Продажи', 'Заказы покупателей']
-          : s.view === 'order'
-            ? ['Продажи', 'Заказ покупателя ЗК-000118']
-            : s.view === 'real'
-              ? ['Продажи', s.posted ? 'Реализация РТ-000063' : 'Реализация (черновик)']
-              : ['CRM', BUYER, 'Взаиморасчёты']
-      }
-    >
-      {s.view === 'journal' && <Journal compact={compact} hot={false} />}
-      {s.view === 'order' && <Doc s={s} compact={compact} kind="order" />}
-      {s.view === 'real' && <Doc s={s} compact={compact} kind="real" />}
-      {s.view === 'card' && <Card compact={compact} />}
+  render: (s, { compact, locale }) => {
+    const d = SALES_DICT[locale];
+    return (
+      <DemoShell
+        compact={compact}
+        active="sales"
+        locale={locale}
+        crumbs={
+          s.view === 'journal'
+            ? [d.crumbs.sales, d.crumbs.journal]
+            : s.view === 'order'
+              ? [d.crumbs.sales, d.crumbs.order]
+              : s.view === 'real'
+                ? [d.crumbs.sales, s.posted ? d.crumbs.realPosted : d.crumbs.realDraft]
+                : ['CRM', d.buyer, d.crumbs.settlements]
+        }
+      >
+        {s.view === 'journal' && <Journal compact={compact} hot={false} locale={locale} />}
+        {s.view === 'order' && <Doc s={s} compact={compact} kind="order" locale={locale} />}
+        {s.view === 'real' && <Doc s={s} compact={compact} kind="real" locale={locale} />}
+        {s.view === 'card' && <Card compact={compact} locale={locale} />}
 
-      {s.ship && (
-        <div className="d-modal">
-          <div className="modal sm d-pop">
-            <div className="modal-h">
-              <h2>Создать реализацию</h2>
-              <span className="ibtn ibtn-sm">
-                <X size={14} />
-              </span>
-            </div>
-            <div className="modal-desc">Можно выбрать дату: в реализацию попадут только строки заказа со сроком отгрузки не позже неё. Без даты берутся все строки.</div>
-            <div className="modal-b">
-              <Field label="Отгрузка по дату">
-                <span className="input d-sel">
-                  <span className="d-ph-text">Не выбрана</span>
-                  <span className="chev" style={{ marginLeft: 'auto' }}>
-                    <CalendarDays size={14} />
-                  </span>
+        {s.ship && (
+          <div className="d-modal">
+            <div className="modal sm d-pop">
+              <div className="modal-h">
+                <h2>{d.shipUi.title}</h2>
+                <span className="ibtn ibtn-sm">
+                  <X size={14} />
                 </span>
-              </Field>
-            </div>
-            <div className="modal-f">
-              <span className="sp" />
-              <span className="btn btn-ghost">Оставить</span>
-              <span className="btn btn-primary" data-demo="ship-create">
-                Создать
-              </span>
+              </div>
+              <div className="modal-desc">{d.shipUi.desc}</div>
+              <div className="modal-b">
+                <Field label={d.shipUi.dateLabel}>
+                  <span className="input d-sel">
+                    <span className="d-ph-text">{d.shipUi.datePh}</span>
+                    <span className="chev" style={{ marginLeft: 'auto' }}>
+                      <CalendarDays size={14} />
+                    </span>
+                  </span>
+                </Field>
+              </div>
+              <div className="modal-f">
+                <span className="sp" />
+                <span className="btn btn-ghost">{d.shipUi.keepBtn}</span>
+                <span className="btn btn-primary" data-demo="ship-create">
+                  {d.shipUi.createBtn}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {s.moves && (
-        <div className="d-modal">
-          <div className="modal lg d-pop" style={{ maxWidth: 640 }}>
-            <div className="modal-h">
-              <h2>Движения склада</h2>
-              <span className="ibtn ibtn-sm">
-                <X size={14} />
-              </span>
-            </div>
-            <div className="modal-desc">Движения, записанные проведённым документом.</div>
-            <div className="modal-b">
-              <table className="dtbl">
-                <thead>
-                  <tr>
-                    <th>Склад</th>
-                    <th>Товар</th>
-                    <th className="r">Количество</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {LINES.map(l => (
-                    <tr key={l.name} className="d-row-hot">
-                      <td className="muted">Основной склад</td>
-                      <td>{l.name}</td>
-                      <td className="r num neg">−{l.qty}</td>
+        {s.moves && (
+          <div className="d-modal">
+            <div className="modal lg d-pop" style={{ maxWidth: 640 }}>
+              <div className="modal-h">
+                <h2>{d.movesUi.title}</h2>
+                <span className="ibtn ibtn-sm">
+                  <X size={14} />
+                </span>
+              </div>
+              <div className="modal-desc">{d.movesUi.desc}</div>
+              <div className="modal-b">
+                <table className="dtbl">
+                  <thead>
+                    <tr>
+                      <th>{d.movesUi.cols[0]}</th>
+                      <th>{d.movesUi.cols[1]}</th>
+                      <th className="r">{d.movesUi.cols[2]}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="modal-f">
-              <span className="sp" />
-              <span className="btn btn-secondary" data-demo="moves-close">
-                Закрыть
-              </span>
+                  </thead>
+                  <tbody>
+                    {d.lines.map(l => (
+                      <tr key={l.name} className="d-row-hot">
+                        <td className="muted">{d.warehouse}</td>
+                        <td>{l.name}</td>
+                        <td className="r num neg">−{l.qty}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="modal-f">
+                <span className="sp" />
+                <span className="btn btn-secondary" data-demo="moves-close">
+                  {d.movesUi.closeBtn}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </DemoShell>
-  ),
+        )}
+      </DemoShell>
+    );
+  },
 };

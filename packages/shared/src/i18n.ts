@@ -1,7 +1,7 @@
 /* Языки интерфейса. Тексты переводит клиент (apps/web/src/i18n); сервер хранит только выбор: users.locale и workspaces.settings.locale */
 import { z } from 'zod';
 
-export const LOCALES = ['en', 'ru'] as const;
+export const LOCALES = ['en', 'ru', 'es'] as const;
 export type Locale = (typeof LOCALES)[number];
 export const DEFAULT_LOCALE: Locale = 'en';
 

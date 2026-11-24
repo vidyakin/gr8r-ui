@@ -824,4 +824,5 @@ export const settings: Widen<typeof S> = {
 export const languages: Widen<typeof L> = {
   en: 'English',
   ru: 'Русский',
+  es: 'Español',
 };
