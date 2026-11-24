@@ -19,6 +19,7 @@ import { useCustomRows } from '../meta/custom-fields';
 import { parseNumber, useT } from '@/i18n';
 import { RecordAttribution } from './AttributionFields';
 import { CreateQuoteButton, DealQuotesTab, useDealQuoteCount } from '../docs/DealQuotes';
+import { EntityChatButton } from '../chats/EntityChatButton';
 
 /** Сумма сделки: поле ввода без рамки, сохраняется по Enter или потере фокуса */
 function AmountInput({ value, onCommit }: { value: number; onCommit: (v: number) => void }) {
@@ -124,6 +125,13 @@ export function DealDrawer({ id }: { id: string }) {
         }
         actions={
           <>
+            <EntityChatButton
+              entityType="deal"
+              entityId={d.id}
+              title={d.name}
+              guestName={(people[0] ? findContact(data, people[0])?.name : undefined) ?? co?.name}
+              size="sm"
+            />
             <CreateQuoteButton dealId={d.id} hasCompany={!!d.company} />
             {open ? (
               <Button size="sm" variant="ghost" onClick={() => ui.moveDealTo(d.id, 'won')}>

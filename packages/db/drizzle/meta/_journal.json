@@ -883,6 +883,13 @@
       "when": 1794797790000,
       "tag": "0135_whiteboards",
       "breakpoints": true
+    },
+    {
+      "idx": 131,
+      "version": "7",
+      "when": 1794884190000,
+      "tag": "0136_chats",
+      "breakpoints": true
     }
   ]
 }

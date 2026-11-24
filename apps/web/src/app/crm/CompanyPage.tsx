@@ -35,6 +35,7 @@ import { RecordAttribution } from './AttributionFields';
 import { industryName, sizeName } from './labels';
 import { stage } from './stages';
 import { AttachmentsPanel } from '@/components/erp/attachments-panel';
+import { EntityChatButton } from '../chats/EntityChatButton';
 import type { Company } from './types';
 
 const TABS: [string, LucideIcon][] = [
@@ -184,6 +185,7 @@ function CompanyView({ company: co, tab }: { company: Company; tab: string }) {
                 <ExternalLink size={15} />
               </a>
             </Tooltip>
+            <EntityChatButton entityType="company" entityId={co.id} title={co.name} guestName={co.name} size="sm" />
             <Button size="sm" className="hide-m" onClick={() => ui.newContact({ company: co.id })}>
               <UserPlus size={13} />
               {t('crm.companies.header.newContact')}

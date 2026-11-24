@@ -44,3 +44,4 @@ export * from './approvals';
 export * from './email';
 export * from './cases';
 export * from './whiteboards';
+export * from './chats';

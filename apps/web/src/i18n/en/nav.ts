@@ -10,6 +10,7 @@ export const sections = {
   projects: 'Projects',
   tasks: 'Tasks',
   whiteboards: 'Whiteboards',
+  chats: 'Chats',
   calendar: 'Calendar',
   timeline: 'Timeline',
   members: 'Members',

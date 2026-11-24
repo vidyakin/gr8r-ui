@@ -79,6 +79,8 @@ export function useRealtime(ws: string, engine: Engine) {
       if (e.entity === 'flow' || e.entity === 'flow_run') batch.add(['ws', ws, 'automations']);
       // Интерактивные доски: список и открытая карточка доски
       if (e.type.startsWith('whiteboard.')) batch.add(['ws', ws, 'whiteboards']);
+      // Встроенные чаты с автопереводом: список чатов и ленты сообщений
+      if (e.type.startsWith('chat.')) batch.add(['ws', ws, 'chats']);
       // Должности и виды номенклатуры (задача 1172); смена должностей участника приходит событием member.updated
       if (['position', 'product_kind'].includes(e.entity) || e.type.startsWith('member.')) batch.add(['ws', ws, 'positions']);
       // Подразделения: справочник и состав; смена подразделения участника приходит событием member.updated
