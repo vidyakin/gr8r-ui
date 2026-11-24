@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "bunx --bun astro dev",
-    "build": "bunx --bun astro build",
+    "build": "bunx --bun astro build && bun run build:widget",
+    "build:widget": "bun build src/widget/embed.ts --target=browser --minify --outfile=dist/widget/chat.js",
     "preview": "bunx --bun astro preview",
     "typecheck": "tsc -b"
   },

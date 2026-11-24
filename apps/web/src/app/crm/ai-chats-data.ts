@@ -61,6 +61,8 @@ export interface SalesScriptGraph {
   edges: SalesScriptEdge[];
 }
 
+export type WidgetPosition = 'right' | 'left';
+
 export interface AiChatSettings {
   tone: AiChatTone;
   customToneNote: string;
@@ -70,6 +72,16 @@ export interface AiChatSettings {
     es: string;
   };
   script?: SalesScriptGraph;
+  widgetEnabled?: boolean;
+  widgetToken?: string | null;
+  allowedOrigins?: string[];
+  botName?: string;
+  accentColor?: string;
+  position?: WidgetPosition;
+  handoffEnabled?: boolean;
+  soundEnabled?: boolean;
+  knowledgeBase?: string;
+  dailyLimit?: number;
 }
 
 export const aiChatsKey = (ws: string, ...rest: unknown[]) => ['ws', ws, 'ai-chats', ...rest] as const;
@@ -160,5 +172,28 @@ export function useAiChatsApi() {
     [ws, qc],
   );
 
-  return { createLead, remove, saveSettings };
+  const rotateWidgetToken = React.useCallback(async () => {
+    try {
+      const res = await call<AiChatSettings>(ws, 'POST', '/ai-chats/settings/rotate-token');
+      void qc.invalidateQueries({ queryKey: aiChatsKey(ws, 'settings') });
+      return res;
+    } catch (e) {
+      toast.error(errorMessage(e));
+      return null;
+    }
+  }, [ws, qc]);
+
+  const scrapeKnowledgeBase = React.useCallback(
+    async (url: string) => {
+      try {
+        return await call<{ knowledgeBase: string; pagesScraped: number }>(ws, 'POST', '/ai-chats/settings/scrape-kb', { url });
+      } catch (e) {
+        toast.error(errorMessage(e));
+        return null;
+      }
+    },
+    [ws],
+  );
+
+  return { createLead, remove, saveSettings, rotateWidgetToken, scrapeKnowledgeBase };
 }

@@ -228,6 +228,7 @@ describe('aiChatSettings', () => {
         aiChat: { tone: 'unknown', customToneNote: 123, greeting: { ru: '  Привет!  ', en: null } },
       }),
     ).toEqual({
+      ...DEFAULT_AI_CHAT_SETTINGS,
       tone: 'friendly',
       customToneNote: '',
       greeting: { ru: 'Привет!', en: '', es: '' },
@@ -245,6 +246,7 @@ describe('aiChatSettings', () => {
         },
       });
       expect(res).toEqual({
+        ...DEFAULT_AI_CHAT_SETTINGS,
         tone,
         customToneNote: 'Speak plainly',
         greeting: { ru: 'Здравствуйте', en: 'Hello', es: 'Hola' },

@@ -245,6 +245,7 @@ export async function callLandingLlm(
   onComplete?: (fullReply: string) => void | Promise<void>,
   style?: LandingChatStyle,
   scriptCtx?: SalesScriptContext,
+  systemPromptOverride?: string,
 ): Promise<ReadableStream<Uint8Array>>;
 export async function callLandingLlm(
   cfg: LandingAiConfig,
@@ -255,6 +256,7 @@ export async function callLandingLlm(
   onComplete?: (fullReply: string) => void | Promise<void>,
   style?: LandingChatStyle,
   scriptCtx?: SalesScriptContext,
+  systemPromptOverride?: string,
 ): Promise<{ reply: string }>;
 export async function callLandingLlm(
   cfg: LandingAiConfig,
@@ -265,6 +267,7 @@ export async function callLandingLlm(
   onComplete?: (fullReply: string) => void | Promise<void>,
   style?: LandingChatStyle,
   scriptCtx?: SalesScriptContext,
+  systemPromptOverride?: string,
 ): Promise<ReadableStream<Uint8Array> | { reply: string }>;
 export async function callLandingLlm(
   cfg: LandingAiConfig,
@@ -275,6 +278,7 @@ export async function callLandingLlm(
   onComplete?: (fullReply: string) => void | Promise<void>,
   style?: LandingChatStyle,
   scriptCtx?: SalesScriptContext,
+  systemPromptOverride?: string,
 ): Promise<ReadableStream<Uint8Array> | { reply: string }> {
   const url = `${cfg.baseUrl.replace(/\/$/, '')}/chat/completions`;
   let res: Response;
@@ -285,7 +289,7 @@ export async function callLandingLlm(
       body: JSON.stringify({
         model: cfg.model,
         messages: [
-          { role: 'system', content: buildSystemPrompt(locale, style, scriptCtx) },
+          { role: 'system', content: systemPromptOverride ?? buildSystemPrompt(locale, style, scriptCtx) },
           ...messages.map(m => ({ role: m.role, content: sanitizeUserText(m.content) })),
         ],
         temperature: 0.3,

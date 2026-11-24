@@ -2,13 +2,19 @@
 import { zValidator } from '@hono/zod-validator';
 import { and, count, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm';
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { aiChatSessions, insertLead, isUuid, pickRoundRobin, workspaces } from '@erp/db';
 import { idParam } from '@erp/shared';
 import { escapeLike, validationHook } from '../crud';
-import { notFound } from '../errors';
-import { aiChatSettingsPatch, extractAiChatSettings, mergeAiChatSettings } from '../landing-ai/settings';
+import { AppError, notFound } from '../errors';
+import { aiChatSettingsPatch, extractAiChatSettings, mergeAiChatSettings, toAdminAiChatSettings } from '../landing-ai/settings';
+import { buildKnowledgeDraftFromWebsite, generateWidgetSecret } from '../landing-ai/widget-handoff';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';
+
+const scrapeKbBody = z.object({
+  url: z.string().trim().min(3).max(500),
+});
 
 export const aiChatRoutes = new Hono<AppEnv>()
   .get('/', async c => {
@@ -30,7 +36,7 @@ export const aiChatRoutes = new Hono<AppEnv>()
   })
   .get('/settings', async c => {
     const [ws] = await c.var.db.select({ settings: workspaces.settings }).from(workspaces).where(eq(workspaces.id, c.var.workspaceId)).limit(1);
-    return c.json(extractAiChatSettings(ws?.settings));
+    return c.json(toAdminAiChatSettings(c.var.workspaceId, extractAiChatSettings(ws?.settings)));
   })
   .patch('/settings', requireRole('admin'), zValidator('json', aiChatSettingsPatch, validationHook), async c => {
     const patch = c.req.valid('json');
@@ -40,7 +46,11 @@ export const aiChatRoutes = new Hono<AppEnv>()
       .where(eq(workspaces.id, c.var.workspaceId))
       .limit(1)
       .for('update');
-    const updated = mergeAiChatSettings(extractAiChatSettings(ws?.settings), patch);
+    const current = extractAiChatSettings(ws?.settings);
+    const updated = mergeAiChatSettings(current, patch);
+    if (updated.widgetEnabled && !updated.widgetSecret) {
+      updated.widgetSecret = generateWidgetSecret();
+    }
     await c.var.db
       .update(workspaces)
       .set({
@@ -48,7 +58,36 @@ export const aiChatRoutes = new Hono<AppEnv>()
         updatedAt: new Date(),
       })
       .where(eq(workspaces.id, c.var.workspaceId));
-    return c.json(updated);
+    return c.json(toAdminAiChatSettings(c.var.workspaceId, updated));
+  })
+  .post('/settings/rotate-token', requireRole('admin'), async c => {
+    const [ws] = await c.var.db
+      .select({ settings: workspaces.settings })
+      .from(workspaces)
+      .where(eq(workspaces.id, c.var.workspaceId))
+      .limit(1)
+      .for('update');
+    const current = extractAiChatSettings(ws?.settings);
+    const updated = { ...current, widgetSecret: generateWidgetSecret() };
+    await c.var.db
+      .update(workspaces)
+      .set({
+        settings: sql`coalesce(${workspaces.settings}, '{}'::jsonb) || ${JSON.stringify({ aiChat: updated })}::jsonb`,
+        updatedAt: new Date(),
+      })
+      .where(eq(workspaces.id, c.var.workspaceId));
+    return c.json(toAdminAiChatSettings(c.var.workspaceId, updated));
+  })
+  .post('/settings/scrape-kb', requireRole('admin'), zValidator('json', scrapeKbBody, validationHook), async c => {
+    const { url } = c.req.valid('json');
+    const normalized = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+    try {
+      const draft = await buildKnowledgeDraftFromWebsite(normalized, c.get('config').landingAi);
+      return c.json(draft);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to fetch website';
+      throw new AppError(400, 'invalid_url', msg);
+    }
   })
   .get('/:id', zValidator('param', idParam, validationHook), async c => {
     const { id } = c.req.valid('param');

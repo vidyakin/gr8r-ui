@@ -2,6 +2,7 @@
 import { zValidator } from '@hono/zod-validator';
 import { and, eq, isNull } from 'drizzle-orm';
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import { chats, withContext, workspaces, type Db, type Sql } from '@erp/db';
 import { CHAT_LANGUAGES, publicChatMessageBody, publicChatPatchBody } from '@erp/shared';
 import { validationHook } from '../crud';
@@ -30,6 +31,7 @@ const loadActiveGuestChat = async (db: Db, id: string, token: string) => {
 };
 
 export const publicChatRoutes = new Hono<AppEnv>()
+  .use('*', cors({ origin: '*', allowMethods: ['GET', 'POST', 'PATCH', 'OPTIONS'], allowHeaders: ['Content-Type'], maxAge: 86400 }))
   .get('/:token', async c => {
     const token = c.req.param('token');
     const sql = c.get('sql');
