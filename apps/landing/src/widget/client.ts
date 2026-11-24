@@ -34,8 +34,6 @@ export interface PublicChatMessageDto {
   translations?: Record<string, string>;
 }
 
-const URL_RE = /(https?:\/\/[^\s<>"']+)/g;
-
 export function createSessionId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -78,26 +76,44 @@ export function saveState(token: string, state: WidgetState): void {
   }
 }
 
+const INLINE_RE = /\*\*([^*]+)\*\*|\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s<>"']+)/g;
+
 export function renderSafeText(container: HTMLElement, text: string): void {
   container.textContent = '';
   const lines = text.split('\n');
   lines.forEach((line, lineIdx) => {
     if (lineIdx > 0) container.appendChild(document.createElement('br'));
     let last = 0;
-    URL_RE.lastIndex = 0;
+    INLINE_RE.lastIndex = 0;
     let match: RegExpExecArray | null;
-    while ((match = URL_RE.exec(line)) !== null) {
+    while ((match = INLINE_RE.exec(line)) !== null) {
       if (match.index > last) {
         container.appendChild(document.createTextNode(line.slice(last, match.index)));
       }
-      const rawUrl = match[0];
-      const a = document.createElement('a');
-      a.href = rawUrl;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.textContent = rawUrl;
-      container.appendChild(a);
-      last = match.index + rawUrl.length;
+      if (match[1]) {
+        const strong = document.createElement('strong');
+        strong.textContent = match[1];
+        container.appendChild(strong);
+      } else if (match[2] && match[3]) {
+        const a = document.createElement('a');
+        a.href = match[3];
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = match[2];
+        container.appendChild(a);
+      } else if (match[4]) {
+        const trimmed = match[4].match(/^(.*?)([.,;:!?)]+)?$/);
+        const rawUrl = trimmed?.[1] || match[4];
+        const trail = trimmed?.[2] || '';
+        const a = document.createElement('a');
+        a.href = rawUrl;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = rawUrl;
+        container.appendChild(a);
+        if (trail) container.appendChild(document.createTextNode(trail));
+      }
+      last = match.index + match[0].length;
     }
     if (last < line.length) {
       container.appendChild(document.createTextNode(line.slice(last)));
