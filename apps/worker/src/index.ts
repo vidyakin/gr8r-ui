@@ -13,6 +13,7 @@ import { runNextContactsOnce } from './next-contacts';
 import { runObjectReportsOnce } from './object-reports';
 import { runAppointmentsOnce } from './appointments';
 import { runFleetOnce } from './fleet';
+import { processWebhookDeliveriesOnce } from './webhooks';
 import { defaultOptions, processEventsOnce, processJobsOnce, requeueStale } from './worker';
 
 const pollMs = Number(process.env.WORKER_POLL_MS ?? 1000);
@@ -126,7 +127,8 @@ while (!stopping) {
     }
     const events = await processEventsOnce(sql, o);
     const jobs = await processJobsOnce(sql, o);
-    if (events + jobs > 0) continue; // есть работа — сразу следующий проход
+    const deliveries = await processWebhookDeliveriesOnce(sql, o);
+    if (events + jobs + deliveries > 0) continue; // есть работа — сразу следующий проход
   } catch (e) {
     o.log(`loop error: ${e instanceof Error ? e.message : e}`);
   }

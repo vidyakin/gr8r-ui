@@ -10,6 +10,7 @@ import { llmRuntime } from './ai/llm';
 import { runClosePeriod } from './production-closing';
 import { executeRun } from './flows/engine';
 import { startRunsForEvent } from './flows/triggers';
+import { enqueueWebhooksForEvent } from './webhooks';
 import { renderPdf } from './pdf/render';
 import { archiveStoreFromEnv, pdfStoreFromEnv, type PdfStore } from './pdf/storage';
 import { createZip, type ZipEntry } from './pdf/zip';
@@ -22,6 +23,7 @@ export type JobRow = typeof jobs.$inferSelect;
     под ролью app_user в контексте арендатора. */
 export async function handleEvent(event: EventRow, db: Db): Promise<void> {
   await startRunsForEvent(db, event);
+  await enqueueWebhooksForEvent(db, event);
 }
 
 /** Что получает обработчик задачи. Транзакцию на время долгой операции держать нельзя (CREATE INDEX CONCURRENTLY ждёт
