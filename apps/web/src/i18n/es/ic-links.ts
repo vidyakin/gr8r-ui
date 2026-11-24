@@ -1,0 +1,30 @@
+import type { Widen } from '../types';
+import type { icLinks as En } from '../en/ic-links';
+
+export const icLinks: Widen<typeof En> = {
+  title: 'Correspondencias con 1C',
+  lead: 'Vincula los registros del espacio de trabajo con sus GUID en 1C.',
+  source: 'Configuración',
+  sources: { buh3: '1C:Contabilidad 3.0', ut: '1C:Gestión Comercial' },
+  entityType: 'Tipo de objeto',
+  types: { organization: 'Organización', company: 'Contraparte', product: 'Artículo', bank_account: 'Cuenta bancaria', document: 'Documento', contract: 'Contrato', warehouse: 'Almacén' },
+  count: '{n} correspondencias',
+  add: 'Vincular manualmente',
+  link: 'Vincular',
+  linked: 'Objetos vinculados',
+  ourId: 'ID del registro local',
+  guid: 'GUID de 1C',
+  name1c: 'Nombre en 1C',
+  matchedBy: 'Método de vinculación',
+  manual: 'Manual',
+  auto: 'Automático ({rule})',
+  generated: 'Durante la exportación',
+  refresh: 'Actualizar correspondencias',
+  updated: 'Actualizado',
+  unlink: 'Desvincular',
+  unlinked: 'Correspondencia eliminada',
+  confirmUnlink: '¿Desvincular «{name}»? El próximo intercambio tratará los registros como objetos nuevos.',
+  empty: 'Todavía no hay correspondencias',
+  emptyHint: 'Añade una correspondencia manualmente o guarda los GUID al exportar.',
+  autoHint: 'Si el registro ya existe en 1C, añade su GUID antes de exportar.',
+};

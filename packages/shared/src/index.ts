@@ -64,3 +64,6 @@ export * from './agent-tokens';
 export * from './approvals';
 export * from './sales-profit';
 export * from './barcode';
+
+export * from './enterprise-data';
+export * from './integrations-1c';

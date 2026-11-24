@@ -1,6 +1,7 @@
 /* Интеграции оплат (задача 1174д): подключения банковских счетов к API банков и ЮКассе, ссылки на онлайн-оплату.
    Ключи доступа лежат в хранилище секретов (secrets.ts), здесь — только имя секрета. Правила — docs/architecture/payments.md. */
 import { sql } from 'drizzle-orm';
+import type { EnterpriseDataSchedule } from '@erp/shared';
 import { boolean, check, date, foreignKey, index, jsonb, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { createdAt, money, pk, ts, updatedAt } from './columns';
 import { bankAccounts, documents } from './documents';
@@ -68,3 +69,52 @@ export const paymentLinks = pgTable(
     index('payment_links_document_idx').on(t.documentId),
   ],
 );
+/* Соответствие наших объектов объектам 1С (задача 1226, docs/plans/2026-11-02-1c-exchange.md): основа всех обменов.
+   GUID 1С хранится с конфигурацией-источником (buh3 / ut): базы разные, GUID не совпадают.
+   Полиморфная привязка как у вложений: составного FK на объект нет, допустимые типы — реестр в packages/shared. */
+export const integrations1cLinks = pgTable(
+  'integrations_1c_links',
+  {
+    id: pk(),
+    workspaceId: wsCol(),
+    /** Конфигурация-источник GUID: 1С:Бухгалтерия 3.0 или Управление торговлей */
+    source: text('source', { enum: ['buh3', 'ut'] }).notNull(),
+    /** Тип нашего объекта: organization, company, product, bank_account, document */
+    entityType: text('entity_type', { enum: ['organization', 'company', 'product', 'bank_account', 'document', 'contract', 'warehouse'] }).notNull(),
+    /** Наш id (полиморфная привязка, FK нет — существование проверяет сервис) */
+    entityId: uuid('entity_id').notNull(),
+    /** GUID ссылки объекта в 1С */
+    refUuid: text('ref_uuid').notNull(),
+    /** Имя объекта 1С на момент сопоставления — показывать в интерфейсе без данных 1С */
+    refName: text('ref_name').notNull().default(''),
+    /** Как сопоставлено: вручную (приоритетнее, автопоиск не трогает) или автоматически */
+    matchedBy: text('matched_by', { enum: ['manual', 'auto'] }).notNull().default('manual'),
+    /** Правило автосопоставления (inn_kpp / inn / ogrn / sku / barcode / name / account / doc_number) — отчёт для UI */
+    matchedRule: text('matched_rule'),
+    createdBy: uuid('created_by'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  t => [
+    unique('integrations_1c_links_ws_id_uq').on(t.workspaceId, t.id),
+    // один наш объект ↔ один GUID 1С в пределах конфигурации, и наоборот
+    unique('integrations_1c_links_entity_uq').on(t.workspaceId, t.source, t.entityType, t.entityId),
+    unique('integrations_1c_links_ref_uq').on(t.workspaceId, t.source, t.entityType, t.refUuid),
+    check('integrations_1c_links_source_chk', sql`${t.source} in ('buh3','ut')`),
+    check(
+      'integrations_1c_links_entity_type_chk',
+      sql`${t.entityType} in ('organization','company','product','bank_account','document','contract','warehouse')`,
+    ),
+    index('integrations_1c_links_entity_idx').on(t.workspaceId, t.source, t.entityType),
+    index('integrations_1c_links_ref_idx').on(t.workspaceId, t.refUuid),
+  ],
+);
+
+/** Одно ежедневное расписание и последний готовый файл выгрузки на воркспейс. */
+export const integrations1cSchedules = pgTable('integrations_1c_schedules', {
+  workspaceId: wsCol().primaryKey(),
+  options: jsonb('options').$type<EnterpriseDataSchedule>().notNull(),
+  exportedDate: date('exported_date', { mode: 'string' }),
+  xml: text('xml'),
+  failedAt: ts('failed_at'),
+});

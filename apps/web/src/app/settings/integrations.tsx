@@ -10,6 +10,8 @@ import { fmtDateTime } from '@/i18n/format';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';
 import { useIsAdmin } from '../catalog/data';
+import { Export1c } from './export-1c';
+import { Links1c } from './links-1c';
 import { BankConnections } from './bank-connections';
 import { SettingsHead, SRow } from './parts';
 import { TelegramSettings } from './telegram-settings';
@@ -86,6 +88,8 @@ export function IntegrationsSection({ title }: { title: string }) {
         <BankConnections secretsAvailable={available} />
         <TelegramSettings isSet={items.some(s => s.key === TELEGRAM_TOKEN_SECRET)} available={available} />
         <WebhooksSettings />
+        <Export1c />
+        <Links1c />
         <div className="sblock">
           {!available && <Alert tone="warn" className="mb-3">{t('secrets.unavailable')}</Alert>}
           <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>

@@ -121,7 +121,7 @@ export const MODULES: readonly ModuleDef[] = [
   def({
     id: 'integrations',
     requires: ['money'],
-    paths: ['/bank-connections', '/payment-links'],
+    paths: ['/bank-connections', '/payment-links', '/integrations'],
     hooks: ['yookassa'],
     settings: ['integrations'],
     jobs: ['bank.sync', 'yookassa.payment'],

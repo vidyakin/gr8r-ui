@@ -115,3 +115,6 @@ export * from './email-transport';
 export * from './email-sync';
 
 export * from './barcodes';
+
+export * from './integrations-1c';
+export * from './integrations-1c-export';
