@@ -3,4 +3,4 @@ Allow: /
 Disallow: /old/
 Disallow: /old
 
-Sitemap: https://future-erp.ai-solutions-studio.ru/sitemap.xml
+Sitemap: https://future-erp.ru/sitemap.xml

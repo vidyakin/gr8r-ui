@@ -1,6 +1,6 @@
 /* Кэш только статических ресурсов. Ответы API и данные пользователей сюда не попадают. */
 const CACHE = 'erp-driver-shell-v2';
-self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(['/', '/manifest.webmanifest', '/driver-192.png', '/driver-512.png']))));
+self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(['./', './manifest.webmanifest', './driver-192.png', './driver-512.png']))));
 self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k.startsWith('erp-driver-shell-') && k !== CACHE).map(k => caches.delete(k))))));
 self.addEventListener('fetch', event => {
   const request = event.request;

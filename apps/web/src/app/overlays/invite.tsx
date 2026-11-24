@@ -23,7 +23,7 @@ const INVITE_ROLES: Member['role'][] = ['Member', 'Admin', 'Guest'];
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 
 /** Рабочая ссылка-приглашение: токен привязан к адресу и действует 7 дней (маршрут `/join/:token`, hash-роутинг) */
-export const inviteLink = (token: string) => `${window.location.origin}${window.location.pathname}#/join/${token}`;
+export const inviteLink = (token: string) => `${window.location.origin}${import.meta.env.BASE_URL}#/join/${token}`;
 
 /** Выдаёт новую ссылку для неотвеченного приглашения и копирует её. Писем нет (почта не подключена), ссылку передают вручную */
 export function useCopyInviteLink() {

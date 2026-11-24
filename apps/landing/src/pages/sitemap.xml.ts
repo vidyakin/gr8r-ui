@@ -4,7 +4,7 @@ import { DEFAULT_LOCALE, LOCALES, localePath } from '../i18n';
 import { MODULE_IDS } from '../demo/registry';
 import { getRuArticles } from '../blog';
 
-const FALLBACK_SITE = 'https://future-erp.ai-solutions-studio.ru';
+const FALLBACK_SITE = 'https://future-erp.ru';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 

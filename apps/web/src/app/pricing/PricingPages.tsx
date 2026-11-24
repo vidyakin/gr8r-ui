@@ -666,8 +666,8 @@ function LinksDialog({ kinds, onClose }: { kinds: PriceKind[]; onClose: () => vo
   const create = () =>
     run(async () => {
       const r = await api.createLink({ name: name.trim(), priceKindIds: picked, categoryIds: categoryId ? [categoryId] : [], inStockOnly: inStock, expiresAt: expires || null });
-      // приложение на hash-маршрутах: публичная страница открывается как /#/p/price/<токен>
-      setCreated(`${window.location.origin}/#${r.path}`);
+      // приложение на hash-маршрутах: публичная страница открывается как /app/#/p/price/<токен>
+      setCreated(`${window.location.origin}${import.meta.env.BASE_URL}#${r.path}`);
       setName('');
     });
   return (

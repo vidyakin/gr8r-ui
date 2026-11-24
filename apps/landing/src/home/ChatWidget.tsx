@@ -12,7 +12,7 @@ interface ChatMsg {
   content: string;
 }
 
-const ALLOWED_ORIGIN = 'https://future-erp.ai-solutions-studio.ru/';
+const ALLOWED_ORIGIN = 'https://future-erp.ru/';
 const APP_URL = (import.meta.env.VITE_APP_URL as string | undefined)?.trim() || '/app/';
 
 function resolveChatUrl(): string {

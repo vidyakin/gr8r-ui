@@ -82,7 +82,7 @@ const MODULE_SEO_TITLES: Record<Locale, Record<ModuleId, string>> = {
 };
 const seoTitle = MODULE_SEO_TITLES[locale]?.[id] ?? `${name} — FutureERP`;
 const ogImage = has('1.jpg') ? `/modules/${id}/1.jpg` : '/alternative/crm-dashboard.png';
-const site = Astro.site ?? new URL('https://future-erp.ai-solutions-studio.ru');
+const site = Astro.site ?? new URL('https://future-erp.ru');
 const jsonLd = [
   {
     '@context': 'https://schema.org',

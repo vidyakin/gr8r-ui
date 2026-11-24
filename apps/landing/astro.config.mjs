@@ -13,7 +13,7 @@ const env = { ...rootEnv, ...process.env };
 const apiTarget = env.VITE_API_PROXY ?? 'http://localhost:3000';
 
 export default defineConfig({
-  site: env.SITE_URL ?? 'https://future-erp.ai-solutions-studio.ru',
+  site: env.SITE_URL ?? 'https://future-erp.ru',
   i18n: {
     defaultLocale: 'ru',
     locales: ['ru', 'en', 'es'],

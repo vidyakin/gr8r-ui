@@ -42,25 +42,25 @@ ENV NODE_ENV=production
 USER bun
 CMD ["sh", "-c", "bun run db:migrate && if [ \"$SEED\" = \"1\" ]; then bun run db:seed; fi"]
 
-# ---- Фронтенд: сборка на Bun, раздача nginx с проксированием /api → api ----
+# ---- Фронтенд (лендинг / + ERP /app/): сборка на Bun, раздача единым nginx с проксированием /api → api ----
 FROM base AS web-build
 RUN bun run --cwd apps/web build
+
+FROM base AS landing-build
+ARG VITE_APP_URL=/app/
+ARG VITE_LEAD_FORM_URL
+ARG VITE_CHAT_URL
+ARG SITE_URL
+RUN ASTRO_TELEMETRY_DISABLED=1 bun run --cwd apps/landing build
 
 FROM nginx:1.27-alpine AS web
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --chmod=755 docker/web-config.sh /docker-entrypoint.d/40-erp-config.sh
-COPY --from=web-build /app/apps/web/dist /usr/share/nginx/html
+COPY --from=landing-build /app/apps/landing/dist /usr/share/nginx/html
+COPY --from=web-build /app/apps/web/dist /usr/share/nginx/html/app
 EXPOSE 80
 
-# ---- Лендинг (apps/landing): отдельное приложение со своим доменом, деплоится независимо от стека ----
-# Адреса вшиваются при сборке: VITE_APP_URL — приложение (кнопка «Войти»), VITE_LEAD_FORM_URL — полный адрес вебхука
-# формы лидов (Настройки → Формы лидов). Сборка: docker build --target landing --build-arg VITE_APP_URL=… -t erp-landing .
-FROM base AS landing-build
-ARG VITE_APP_URL
-ARG VITE_LEAD_FORM_URL
-ARG VITE_CHAT_URL
-RUN bun run --cwd apps/landing build
-
+# ---- Отдельный лендинг (apps/landing): оставлен для обратной совместимости ----
 FROM nginx:1.27-alpine AS landing
 COPY docker/landing-nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=landing-build /app/apps/landing/dist /usr/share/nginx/html
