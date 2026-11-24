@@ -3,6 +3,18 @@ import type { Widen } from '../types';
 import type { catalog as C, enums as E } from '../en/catalog';
 
 export const catalog: Widen<typeof C> = {
+  labels: {
+    title: 'Etiquetas y carteles de precio',
+    select: 'Seleccionar',
+    format: 'Formato',
+    priceKind: 'Tipo de precio',
+    generate: 'Generar códigos de barras faltantes',
+    copies: 'Copias',
+    print: 'Imprimir',
+    preview: 'Vista previa de impresión',
+    hint: 'Indique cero copias para excluir un artículo. Para imprimir, cada artículo seleccionado debe tener un código EAN-13 y un precio.',
+    invalid: 'EAN-13 no válido',
+  },
   title: 'Catálogo',
   summary: { one: '{count} artículo', other: '{count} artículos' },
   summaryMatch: { one: 'Coincide {count} artículo', other: 'Coinciden {count} artículos' },

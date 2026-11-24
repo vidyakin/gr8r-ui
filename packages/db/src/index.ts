@@ -113,3 +113,5 @@ export * from './email-send';
 export * from './email-transport';
 
 export * from './email-sync';
+
+export * from './barcodes';

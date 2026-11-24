@@ -1,3 +1,4 @@
+import { LabelDialog } from '../catalog/LabelDialog';
 /* Форма документа: шапка (организация, контрагент, склад, дата, номер, способ указания НДС), табличная часть с подбором из каталога,
    итоги и НДС внизу, кнопки Post / Unpost / Create based on / Print. Черновик сохраняется сам (через паузу после правки); суммы строк и итоги
    считает та же функция, что и сервер при проведении (computeDocument). Проведённый документ только читается — его сначала снимают с проведения. */
@@ -310,6 +311,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const isReceipt = doc.type === 'receipt';
   const whOptions = (warehouses.data ?? []).filter(w => (!w.archivedAt || w.id === form.warehouseId) && w.kind !== 'transit');
 
+  const [labelsOpen, setLabelsOpen] = React.useState(false);
   const [form, setForm] = React.useState<Form>(() => toForm(doc));
   // номенклатура контрагента: артикул контрагента в строках закупок и продаж и подбор товара по нему
   const partnerId = meta.party !== null ? form.counterpartyId : null;
@@ -1044,6 +1046,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
 
   return (
     <DocForm>
+      {labelsOpen && <LabelDialog ids={[...new Set(form.lines.map(l => l.productId).filter((id): id is string => !!id))]} onClose={() => setLabelsOpen(false)} />}
       <div className="doc-bar">
         <div className="doc-title">
           <nav className="muted" style={{ fontSize: 12.5 }} aria-label={t('docs.document.headerAria')}>
@@ -1152,6 +1155,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
               {t('docs.document.createServiceAct')}
             </Button>
           )}
+          {isReceipt && <Button disabled={!form.lines.some(l => l.productId)} onClick={() => setLabelsOpen(true)}>{t('catalog.labels.title')}</Button>}
           {!!meta.forms.length && (
             <Menu>
               <MenuTrigger asChild>
