@@ -4,13 +4,14 @@ import { zValidator } from '@hono/zod-validator';
 import { Hono, type Context } from 'hono';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { apply1cImport, preview1cImport, reconcile1c, autoMatch, DomainError, exportEnterpriseData, integrations1cSchedules, saveIcExportSchedule, linkEntity, linksOf, unlinkEntity, type IcEntityType, type IcSource } from '@erp/db';
-import { ENTERPRISE_DATA_MAX_BYTES, EnterpriseDataParseError, icImportApplyQuery, icReconcileQuery, icUploadSource, parseEnterpriseDataXml, IC_ENTITY_TYPES, IC_SOURCES, icAutoMatchQuery, icLinkCreate, icLinkDelete, icExportRequest, icExportSchedule } from '@erp/shared';
+import { createIcChannel, deleteIcChannel, enqueueIcSync, listIcChannels, listIcRuns, updateIcChannel, apply1cImport, preview1cImport, reconcile1c, autoMatch, DomainError, exportEnterpriseData, integrations1cSchedules, saveIcExportSchedule, linkEntity, linksOf, unlinkEntity, type IcEntityType, type IcSource } from '@erp/db';
+import { icChannelCreate, icChannelPatch, ENTERPRISE_DATA_MAX_BYTES, EnterpriseDataParseError, icImportApplyQuery, icReconcileQuery, icUploadSource, parseEnterpriseDataXml, IC_ENTITY_TYPES, IC_SOURCES, icAutoMatchQuery, icLinkCreate, icLinkDelete, icExportRequest, icExportSchedule } from '@erp/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';
 
 const admin = requireRole('admin');
+const channelParam = z.object({ id: z.uuid() });
 const actorOf = (ctx: Ctx) => ({ workspaceId: ctx.workspaceId, memberId: ctx.memberId, role: ctx.role });
 
 const sourceTypeQuery = z.object({
@@ -79,6 +80,34 @@ async function uploadedEnterpriseData(c: Context<AppEnv>) {
 
 export const integrationsRoutes = new Hono<AppEnv>()
   .use('/1c/*', admin)
+  .get('/1c/channels', async c => {
+    const { db, workspaceId } = ctxOf(c);
+    c.header('Cache-Control', 'no-store');
+    return c.json(await listIcChannels(db, workspaceId));
+  })
+  .post('/1c/channels', zValidator('json', icChannelCreate, validationHook), async c => {
+    const { db, workspaceId, memberId } = ctxOf(c);
+    return c.json(await createIcChannel(db, workspaceId, memberId, c.req.valid('json')), 201);
+  })
+  .patch('/1c/channels/:id', zValidator('param', channelParam, validationHook), zValidator('json', icChannelPatch, validationHook), async c => {
+    const { db, workspaceId, memberId } = ctxOf(c);
+    return c.json(await updateIcChannel(db, workspaceId, memberId, c.req.valid('param').id, c.req.valid('json')));
+  })
+  .delete('/1c/channels/:id', zValidator('param', channelParam, validationHook), async c => {
+    const { db, workspaceId, memberId } = ctxOf(c);
+    await deleteIcChannel(db, workspaceId, memberId, c.req.valid('param').id);
+    return c.json({ ok: true as const });
+  })
+  .post('/1c/channels/:id/sync', zValidator('param', channelParam, validationHook), async c => {
+    const { db, workspaceId } = ctxOf(c);
+    return c.json({ queued: await enqueueIcSync(db, workspaceId, c.req.valid('param').id) }, 202);
+  })
+  .get('/1c/channels/:id/runs', zValidator('param', channelParam, validationHook), async c => {
+    const { db, workspaceId } = ctxOf(c);
+    const runs = await listIcRuns(db, workspaceId, c.req.valid('param').id);
+    c.header('Cache-Control', 'no-store');
+    return c.json(runs.map(run => ({ ...run, startedAt: run.startedAt.toISOString(), finishedAt: run.finishedAt?.toISOString() ?? null })));
+  })
   .post('/1c/import/preview', zValidator('query', icUploadSource, validationHook), async c => {
     const { db, workspaceId } = ctxOf(c);
     const { source } = c.req.valid('query');

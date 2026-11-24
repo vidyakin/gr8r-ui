@@ -13,6 +13,7 @@ import { runNextContactsOnce } from './next-contacts';
 import { runObjectReportsOnce } from './object-reports';
 import { runAppointmentsOnce } from './appointments';
 import { runFleetOnce } from './fleet';
+import { scheduleIcSyncs } from './integrations-1c-sync';
 import { runIcExportsOnce } from './integrations-1c';
 import { processWebhookDeliveriesOnce } from './webhooks';
 import { defaultOptions, processEventsOnce, processJobsOnce, requeueStale } from './worker';
@@ -69,6 +70,8 @@ while (!stopping) {
       lastMinute = minute;
       const n = await scheduleFlowsOnce(sql); // автоматизации по расписанию: раз в минуту, повтор той же минуты ничего не создаёт
       if (n) o.log(`scheduled ${n} flow run(s)`);
+      const icSyncs = await scheduleIcSyncs(sql);
+      if (icSyncs) o.log(`queued ${icSyncs} 1C sync job(s)`);
       const icExports = await runIcExportsOnce(sql);
       if (icExports) o.log(`prepared ${icExports} scheduled 1C export(s)`);
       // сводка о ходе объекта по расписанию (задача 1277): окно дня и времени считается по часовому поясу воркспейса

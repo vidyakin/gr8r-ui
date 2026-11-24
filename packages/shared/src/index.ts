@@ -68,3 +68,4 @@ export * from './barcode';
 export * from './enterprise-data';
 export * from './enterprise-data-parse';
 export * from './integrations-1c';
+export * from './integrations-1c-sync';

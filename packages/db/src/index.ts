@@ -120,3 +120,5 @@ export * from './integrations-1c';
 export * from './integrations-1c-export';
 export { apply1cImport, preview1cImport, type IcImportPreview, type IcImportResult } from './integrations-1c-import';
 export * from './integrations-1c-reconcile';
+export * from './integrations-1c-sync';
+export { applyIcPackage } from './integrations-1c-sync-apply';

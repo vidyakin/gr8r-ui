@@ -124,7 +124,7 @@ export const MODULES: readonly ModuleDef[] = [
     paths: ['/bank-connections', '/payment-links', '/integrations'],
     hooks: ['yookassa'],
     settings: ['integrations'],
-    jobs: ['bank.sync', 'yookassa.payment'],
+    jobs: ['bank.sync', 'yookassa.payment', '1c.sync'],
   }),
   // Транспорт (сессия 50, docs/architecture/fleet.md): автопарк, рейсы и экран диспетчера (1211); заявки на перевозку, тарифы
   // и экспедирование — задача 1223

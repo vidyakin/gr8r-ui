@@ -74,6 +74,7 @@ export function useRealtime(ws: string, engine: Engine) {
       }
       // Лиды (задача 1175): запросы ['ws', id, 'leads', …]; конвертация и объединение меняют лиды, контрагентов, контакты, сделки и касания
       if (['lead', 'lead_status', 'lead_form', 'crm_activity', 'company', 'contact', 'deal'].includes(e.entity)) batch.add(['ws', ws, 'leads']);
+      if (e.entity === 'ic_sync') batch.add(['ws', ws, 'ic-sync']);
       if (e.entity === 'ic_link') batch.add(['ws', ws, 'ic-links']);
       if (e.entity === 'ic_export') batch.add(['ws', ws, 'ic-export-schedule']);
       // Обращения клиентов (docs/architecture/cases.md): запросы ['ws', id, 'cases', …]; письма, касания, клиенты и заказ-наряды входят в ленту и карточку

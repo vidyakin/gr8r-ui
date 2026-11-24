@@ -13,6 +13,7 @@ import { useIsAdmin } from '../catalog/data';
 import { Import1c } from './import-1c';
 import { Reconcile1c } from './reconcile-1c';
 import { Export1c } from './export-1c';
+import { Sync1c } from './sync-1c';
 import { Links1c } from './links-1c';
 import { BankConnections } from './bank-connections';
 import { SettingsHead, SRow } from './parts';
@@ -90,6 +91,7 @@ export function IntegrationsSection({ title }: { title: string }) {
         <BankConnections secretsAvailable={available} />
         <TelegramSettings isSet={items.some(s => s.key === TELEGRAM_TOKEN_SECRET)} available={available} />
         <WebhooksSettings />
+        <Sync1c secretsAvailable={available} />
         <Export1c />
         <Import1c />
         <Reconcile1c />

@@ -86,7 +86,7 @@ async function targetsOf(db: Db, workspaceId: string, type: IcCatalogType, ids: 
 export type Resolve = (type: IcCatalogType, ref?: string) => RefTarget | undefined;
 const identity = (target?: RefTarget) => target?.id ?? target?.ref;
 
-function catalogDependencies(resolve: Resolve, row: IcCatalogObject) {
+export function catalogDependencies(resolve: Resolve, row: IcCatalogObject) {
   return {
     organization: resolve('organization', row.organizationRef ?? (!row.companyRef ? row.ownerRef : undefined)),
     company: resolve('company', row.companyRef ?? (!row.organizationRef ? row.ownerRef : undefined)),
@@ -267,7 +267,7 @@ export async function preview1cImport(db: Db, workspaceId: string, source: IcSou
   };
 }
 
-async function createCatalog(db: Db, ctx: DocCtx, row: IcCatalogObject, resolve: Resolve) {
+export async function createCatalog(db: Db, ctx: DocCtx, row: IcCatalogObject, resolve: Resolve) {
   const { organization, company } = catalogDependencies(resolve, row);
   const base = { workspaceId: ctx.workspaceId, name: row.name };
   const party = { ...base, kind: row.partyKind, inn: row.inn, kpp: row.kpp, ogrn: row.ogrn };

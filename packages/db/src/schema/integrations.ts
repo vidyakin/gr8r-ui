@@ -1,8 +1,8 @@
 /* Интеграции оплат (задача 1174д): подключения банковских счетов к API банков и ЮКассе, ссылки на онлайн-оплату.
    Ключи доступа лежат в хранилище секретов (secrets.ts), здесь — только имя секрета. Правила — docs/architecture/payments.md. */
 import { sql } from 'drizzle-orm';
-import type { EnterpriseDataSchedule } from '@erp/shared';
-import { boolean, check, date, foreignKey, index, jsonb, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import type { EnterpriseDataSchedule, IcSyncIssue } from '@erp/shared';
+import { boolean, check, date, foreignKey, index, integer, jsonb, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { createdAt, money, pk, ts, updatedAt } from './columns';
 import { bankAccounts, documents } from './documents';
 import { wsCol } from './tenant';
@@ -118,3 +118,86 @@ export const integrations1cSchedules = pgTable('integrations_1c_schedules', {
   xml: text('xml'),
   failedAt: ts('failed_at'),
 });
+
+export const integrations1cChannels = pgTable('integrations_1c_channels', {
+  id: pk(),
+  workspaceId: wsCol(),
+  source: text('source', { enum: ['buh3', 'ut', 'unf'] }).notNull(),
+  endpointUrl: text('endpoint_url').notNull(),
+  nodeName: text('node_name').notNull(),
+  localNodeName: text('local_node_name').notNull().default('ERP'),
+  authType: text('auth_type', { enum: ['basic', 'bearer'] }).notNull(),
+  username: text('username'),
+  secretCiphertext: text('secret_ciphertext').notNull(),
+  conflictPolicy: text('conflict_policy', { enum: ['1c_wins', 'erp_wins', 'manual'] }).notNull().default('1c_wins'),
+  version: text('version', { enum: ['1.15', '1.17'] }).notNull().default('1.17'),
+  intervalMinutes: integer('interval_minutes').notNull().default(60),
+  enabled: boolean('enabled').notNull().default(false),
+  registerFrom: ts('register_from').notNull().defaultNow(),
+  lastSentMessageNo: integer('last_sent_message_no').notNull().default(0),
+  lastReceivedMessageNo: integer('last_received_message_no').notNull().default(0),
+  ackedSentMessageNo: integer('acked_sent_message_no').notNull().default(0),
+  sentReceivedNo: integer('sent_received_no').notNull().default(0),
+  lastDataReceivedNo: integer('last_data_received_no').notNull().default(0),
+  pendingBlocked: boolean('pending_blocked').notNull().default(false),
+  pendingXml: text('pending_xml'),
+  pendingObjectCount: integer('pending_object_count').notNull().default(0),
+  lastSyncAt: ts('last_sync_at'),
+  lastError: text('last_error'),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, t => [
+  unique('ic_channels_ws_id_uq').on(t.workspaceId, t.id),
+  unique('ic_channels_ws_source_uq').on(t.workspaceId, t.source),
+  index('ic_channels_enabled_idx').on(t.lastSyncAt).where(sql`${t.enabled}`),
+  check('ic_channels_source_chk', sql`${t.source} in ('buh3','ut','unf')`),
+  check('ic_channels_auth_chk', sql`(${t.authType} = 'basic' and ${t.username} is not null) or (${t.authType} = 'bearer' and ${t.username} is null)`),
+  check('ic_channels_policy_chk', sql`${t.conflictPolicy} in ('1c_wins','erp_wins','manual')`),
+  check('ic_channels_interval_chk', sql`${t.intervalMinutes} between 1 and 1440`),
+  check('ic_channels_version_chk', sql`${t.version} in ('1.15','1.17')`),
+  check('ic_channels_counters_chk', sql`${t.ackedSentMessageNo} between 0 and ${t.lastSentMessageNo} and ${t.sentReceivedNo} between 0 and ${t.lastReceivedMessageNo} and ${t.lastDataReceivedNo} between 0 and ${t.lastReceivedMessageNo}`),
+]);
+
+export const integrations1cChangeQueue = pgTable('integrations_1c_change_queue', {
+  id: pk(),
+  workspaceId: wsCol(),
+  channelId: uuid('channel_id').notNull(),
+  /** Outbox deduplication key. Retained independently from the event log. */
+  eventId: uuid('event_id').notNull(),
+  entityType: text('entity_type', { enum: ['organization', 'company', 'product', 'warehouse', 'document'] }).notNull(),
+  entityId: uuid('entity_id').notNull(),
+  action: text('action', { enum: ['upsert', 'remove'] }).notNull(),
+  documentType: text('document_type'),
+  updatedAt: updatedAt(),
+  sentMessageNo: integer('sent_message_no'),
+  ackedAt: ts('acked_at'),
+  discardedAt: ts('discarded_at'),
+}, t => [
+  foreignKey({ columns: [t.workspaceId, t.channelId], foreignColumns: [integrations1cChannels.workspaceId, integrations1cChannels.id], name: 'ic_queue_channel_fk' }).onDelete('cascade'),
+  unique('ic_queue_event_uq').on(t.workspaceId, t.channelId, t.eventId),
+  index('ic_queue_pending_idx').on(t.workspaceId, t.channelId, t.sentMessageNo, t.updatedAt).where(sql`${t.ackedAt} is null and ${t.discardedAt} is null`),
+  index('ic_queue_entity_idx').on(t.workspaceId, t.channelId, t.entityType, t.entityId).where(sql`${t.ackedAt} is null and ${t.discardedAt} is null`),
+  check('ic_queue_action_chk', sql`${t.action} in ('upsert','remove')`),
+  check('ic_queue_type_chk', sql`${t.entityType} in ('organization','company','product','warehouse','document')`),
+]);
+
+export const integrations1cRuns = pgTable('integrations_1c_runs', {
+  id: pk(),
+  workspaceId: wsCol(),
+  channelId: uuid('channel_id').notNull(),
+  direction: text('direction', { enum: ['push', 'pull', 'both'] }).notNull(),
+  status: text('status', { enum: ['ok', 'partial', 'error'] }).notNull(),
+  sentMessageNo: integer('sent_message_no'),
+  receivedMessageNo: integer('received_message_no'),
+  objectsSent: integer('objects_sent').notNull().default(0),
+  objectsReceived: integer('objects_received').notNull().default(0),
+  conflictsCount: integer('conflicts_count').notNull().default(0),
+  errorsJson: jsonb('errors_json').$type<IcSyncIssue[]>().notNull().default([]),
+  startedAt: ts('started_at').notNull().defaultNow(),
+  finishedAt: ts('finished_at'),
+}, t => [
+  foreignKey({ columns: [t.workspaceId, t.channelId], foreignColumns: [integrations1cChannels.workspaceId, integrations1cChannels.id], name: 'ic_runs_channel_fk' }).onDelete('cascade'),
+  index('ic_runs_channel_idx').on(t.workspaceId, t.channelId, t.startedAt),
+  check('ic_runs_direction_chk', sql`${t.direction} in ('push','pull','both')`),
+  check('ic_runs_status_chk', sql`${t.status} in ('ok','partial','error')`),
+]);

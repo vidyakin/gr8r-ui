@@ -3,6 +3,7 @@ import { DOMParser, onErrorStopParsing, type Element } from '@xmldom/xmldom';
 import { z } from 'zod';
 import { dec, mul, fmt } from './decimal';
 import { IC_DOCUMENT_TYPES } from './enterprise-data';
+import { IC_MESSAGE_NS, type IcMessageHeader } from './integrations-1c-sync';
 import type { IC_ENTITY_TYPES } from './integrations-1c';
 
 export const ENTERPRISE_DATA_MAX_BYTES = 10 * 1024 * 1024;
@@ -54,6 +55,29 @@ export interface IcParsedDocument {
   operation?: string;
   /** EnterpriseData uses the same document tag for sales and service acts. */
   serviceOnly?: boolean;
+  sync?: IcSyncDocumentDetails;
+}
+
+export interface IcSyncDocumentDetails {
+  warehouseRef?: string;
+  contractRef?: string;
+  accountRef?: string;
+  targetAccountRef?: string;
+  cashRegisterRef?: string;
+  targetCashRegisterRef?: string;
+  accountableRef?: string;
+  accountableName?: string;
+  paymentKind?: string;
+  priceIncludesVat: boolean;
+  comment: string;
+  tradeLines: { productRef?: string; unitCode?: string; qty?: string; price?: string; vatRate?: string; amount?: string }[];
+  paymentLines: { contractRef?: string; companyRef?: string; amount?: string; comment?: string }[];
+}
+
+export interface IcRemovedObject {
+  type: IcCatalogType | 'document';
+  refUuid: string;
+  unposted: boolean;
 }
 
 interface BalanceBase {
@@ -81,6 +105,9 @@ export interface IcBalanceSnapshot {
 
 export interface ParsedEnterpriseData {
   version: '1.15' | '1.17';
+  confirmation?: IcMessageHeader;
+  removals?: IcRemovedObject[];
+  unsupported?: { type: string; refUuid?: string }[];
   catalogs: IcCatalogObject[];
   documents: IcParsedDocument[];
   balances: IcBalance[];
@@ -228,6 +255,67 @@ function parseDocument(node: Element, type: IcDocumentType): IcParsedDocument | 
     serviceOnly: type === 'realization' && !element(element(node, 'Товары'), 'Строка') && !!element(element(node, 'Услуги'), 'Строка') };
 }
 
+function syncDocumentDetails(node: Element, tag: string): IcSyncDocumentDetails {
+  const common = element(node, 'ОбщиеДанные');
+  const settlementRef = (row?: Element) => ref(related(row, 'Договор', 'ДоговорКонтрагента')
+    ?? related(element(row, 'ДанныеВзаиморасчетов'), 'Договор', 'ДоговорКонтрагента'));
+  const priceIncludesVat = !['false', '0'].includes(prop(node, 'СуммаВключаетНДС', 'ЦенаВключаетНДС') ?? '');
+  const accountable = related(node, 'ПодотчетноеЛицо', 'ФизическоеЛицо');
+  const rows = (name: string) => [...children(element(node, name))].filter(row => row.localName === 'Строка');
+  const tradeLines = [...rows('Товары'), ...rows('Услуги')].map(row => {
+    const vat = element(row, 'СтавкаНДС');
+    const rate = scalar(vat);
+    const gross = decimal(prop(row, 'СуммаСНДС'));
+    const vatAmount = decimal(prop(row, 'СуммаНДС'));
+    const amount = prop(row, 'СуммаБезНДС', 'Сумма');
+    return {
+      productRef: ref(productReference(row)),
+      unitCode: classification(related(row, 'ЕдиницаИзмерения', 'Единица')),
+      qty: decimal(prop(row, 'Количество')),
+      price: decimal(prop(row, 'Цена')),
+      amount: priceIncludesVat ? gross ?? decimal(amount)
+        : decimal(amount) ?? (gross !== undefined && vatAmount !== undefined ? fmt(dec(gross) - dec(vatAmount), 2) : undefined),
+      vatRate: field(vat, 'НеОблагается') === 'true' || rate === 'БезНДС' ? 'none' : field(vat, 'Ставка') ?? rate?.replace(/^НДС/, ''),
+    };
+  });
+  return {
+    warehouseRef: ref(related(node, 'Склад', 'МестоХранения')),
+    contractRef: settlementRef(node),
+    accountRef: ref(related(common, 'БанковскийСчетОрганизации', 'БанковскийСчет') ?? related(node, 'БанковскийСчетОрганизации', 'БанковскийСчет')),
+    targetAccountRef: ref(related(node, 'БанковскийСчетПолучателя')),
+    cashRegisterRef: ref(related(common, 'Касса') ?? related(node, 'Касса')),
+    targetCashRegisterRef: ref(related(node, 'КассаПолучатель')),
+    accountableRef: ref(accountable),
+    accountableName: prop(accountable, 'ФИО', 'Наименование'),
+    paymentKind: /^(?:ПБДС|СБДС|ПКО|РКО)(.+)$/.exec(tag)?.[1],
+    priceIncludesVat,
+    comment: prop(node, 'Комментарий') ?? field(common, 'Комментарий') ?? '',
+    tradeLines,
+    paymentLines: [...rows('РасшифровкаПлатежа'), ...rows('ПрочиеРасходы')].map(row => ({
+      contractRef: settlementRef(row), companyRef: ref(related(row, 'Контрагент', 'Партнер')),
+      amount: decimal(prop(row, 'Сумма')), comment: prop(row, 'Содержание', 'Комментарий'),
+    })),
+  };
+}
+
+function messageConfirmation(header?: Element): IcMessageHeader | undefined {
+  if (!header || (header.namespaceURI && header.namespaceURI !== IC_MESSAGE_NS)) return undefined;
+  const find = (parent: Element, name: string) => [...children(parent)]
+    .filter(child => child.localName === name && (!child.namespaceURI || child.namespaceURI === IC_MESSAGE_NS));
+  const confirmations = find(header, 'Confirmation');
+  if (confirmations.length !== 1) return undefined;
+  const value = (name: string) => {
+    const fields = find(confirmations[0]!, name);
+    return fields.length === 1 ? scalar(fields[0]) : undefined;
+  };
+  const from = value('From');
+  const to = value('To');
+  const number = value('MessageNo');
+  const received = value('ReceivedNo');
+  if (!from || !to || !number || !received || !/^\d{1,10}$/.test(number) || !/^\d{1,10}$/.test(received)) return undefined;
+  return { from, to, messageNo: Number(number), receivedNo: Number(received) };
+}
+
 type BalanceSection = 'stock' | 'money' | 'bank' | 'cash' | 'settlement';
 const balanceSections = new Map<string, BalanceSection>([
   ['ОстаткиСобственныхТМЦ', 'stock'], ['СобственныеТМЦ', 'stock'], ['Товары', 'stock'], ['Запасы', 'stock'], ['ОстаткиТоваров', 'stock'], ['ТоварыНаСкладах', 'stock'], ['ВводОстатковТоваров', 'stock'],
@@ -297,7 +385,7 @@ function assertSafeXml(xml: string) {
 }
 
 /** Parse UTF-8 XML without a DTD, external entities, schema loads or network I/O. */
-export function parseEnterpriseDataXml(input: string | Uint8Array): ParsedEnterpriseData {
+export function parseEnterpriseDataXml(input: string | Uint8Array, { sync = false } = {}): ParsedEnterpriseData {
   if (input.length > ENTERPRISE_DATA_MAX_BYTES ||
     (typeof input === 'string' && new TextEncoder().encode(input).length > ENTERPRISE_DATA_MAX_BYTES)) {
     throw new EnterpriseDataParseError('payload_too_large');
@@ -316,8 +404,11 @@ export function parseEnterpriseDataXml(input: string | Uint8Array): ParsedEnterp
   const schema = [body?.namespaceURI, ...Array.from(children(body), node => node.namespaceURI)]
     .find(value => value?.startsWith(`${FORMAT}/`)) ?? (format === FORMAT ? `${FORMAT}/${field(header, 'AvailableVersion')}` : format);
   const version = schema && versions.includes(schema) ? schema.slice(-4) : undefined;
-  if (!body || (version !== '1.15' && version !== '1.17')) throw new EnterpriseDataParseError('invalid_enterprise_data');
+  const confirmation = root?.localName === 'Message' ? messageConfirmation(header) : undefined;
+  if ((!body && !(sync && confirmation)) || (version !== '1.15' && version !== '1.17')) throw new EnterpriseDataParseError('invalid_enterprise_data');
 
+  const removals: IcRemovedObject[] = [];
+  const unsupported: { type: string; refUuid?: string }[] = [];
   const catalogs: IcCatalogObject[] = [];
   const documents: IcParsedDocument[] = [];
   const balances: IcBalance[] = [];
@@ -327,7 +418,8 @@ export function parseEnterpriseDataXml(input: string | Uint8Array): ParsedEnterp
     ['Организация', 'organization'], ['Контрагент', 'company'], ['Партнер', 'company'], ['Покупатель', 'company'], ['Поставщик', 'company'],
     ['Договор', 'contract'], ['ДоговорКонтрагента', 'contract'], ['Номенклатура', 'product'], ['Товар', 'product'],
     ['Склад', 'warehouse'], ['МестоХранения', 'warehouse'], ['БанковскийСчет', 'bank_account'], ['БанковскийСчетОрганизации', 'bank_account'],
-    ['РасчетныйСчет', 'bank_account'], ['Касса', 'cash_register'], ['КассаОрганизации', 'cash_register'],
+    ['РасчетныйСчет', 'bank_account'], ['БанковскийСчетПолучателя', 'bank_account'],
+    ['Касса', 'cash_register'], ['КассаОрганизации', 'cash_register'], ['КассаПолучатель', 'cash_register'],
   ]);
   const addReference = (node: Element, type: IcCatalogType, organizationRef?: string) => {
     const record = catalog(node, type);
@@ -391,8 +483,30 @@ export function parseEnterpriseDataXml(input: string | Uint8Array): ParsedEnterp
     const nodeName = lname(node);
     const nameInFormat = nodeName.includes('.') ? nodeName : xsiType ?? nodeName;
     const [prefix, name = prefix] = nameInFormat.split('.', 2);
-    if (prop(node, 'ПометкаУдаления') === 'true') continue;
     const type = prefix === 'Справочник' ? catalogNames.get(name!) : undefined;
+    const docType = prefix === 'Документ' ? documentType(name!) : undefined;
+    if (nameInFormat === 'УдалениеОбъекта') {
+      if (sync) {
+        const outer = element(node, 'СсылкаНаОбъект');
+        const [reference] = children(element(outer, 'СсылкаНаОбъект') ?? outer);
+        const typedName = reference?.localName?.replace(/^(?:Справочник|Документ)Ссылка\./, '').replace(/Ссылка$/, '');
+        const type = typedName && (catalogNames.get(typedName) ?? (documentType(typedName) ? 'document' : undefined));
+        const refUuid = ref(reference);
+        if (type && refUuid) removals.push({ type, refUuid, unposted: false });
+        else unsupported.push({ type: nameInFormat, refUuid });
+      }
+      continue;
+    }
+    const deleted = ['true', '1'].includes(prop(node, 'ПометкаУдаления') ?? '');
+    const unposted = prefix === 'Документ' && ['false', '0'].includes(prop(node, 'Проведен', 'Проведён') ?? '');
+    if (deleted || unposted) {
+      if (sync) {
+        const refUuid = ref(node);
+        if (refUuid && (type || docType)) removals.push({ type: type ?? 'document', refUuid, unposted: !deleted });
+        else unsupported.push({ type: nameInFormat, refUuid });
+      }
+      continue;
+    }
     if (type) {
       const parsed = catalog(node, type);
       const id = `${type}:${parsed?.refUuid}`;
@@ -401,7 +515,6 @@ export function parseEnterpriseDataXml(input: string | Uint8Array): ParsedEnterp
       else { seen.add(id); catalogs.push(parsed); }
       continue;
     }
-    if (prefix === 'Документ' && ['false', '0'].includes(prop(node, 'Проведен', 'Проведён') ?? '')) continue;
     if (openingNames.has(name!)) {
       readReferences(node);
       for (const section of children(node)) {
@@ -416,14 +529,17 @@ export function parseEnterpriseDataXml(input: string | Uint8Array): ParsedEnterp
       collectBalances(node, balance, [], settlement);
       continue;
     }
-    const docType = prefix === 'Документ' ? documentType(name!) : undefined;
-    if (!docType) continue;
+    if (!docType) {
+      if (sync) unsupported.push({ type: nameInFormat, refUuid: ref(node) });
+      continue;
+    }
     const parsed = parseDocument(node, docType);
     const id = `document:${parsed?.refUuid}`;
     if (!parsed) issues.push({ type: docType, refUuid: ref(node), name: prop(node, 'Номер'), reason: 'invalid_document' });
     else if (parsed.refUuid && seen.has(id)) issues.push({ type: docType, refUuid: parsed.refUuid, name: parsed.number, reason: 'duplicate_document' });
     else {
       if (parsed.refUuid) seen.add(id);
+      if (sync) parsed.sync = syncDocumentDetails(node, name!);
       documents.push(parsed);
       readReferences(node, parsed.organizationRef);
     }
@@ -439,5 +555,8 @@ export function parseEnterpriseDataXml(input: string | Uint8Array): ParsedEnterp
       catalogs.push(account);
     }
   }
-  return { version, catalogs, documents, balances, balanceSnapshots, references: [...references.values()], issues };
+  return {
+    version, catalogs, documents, balances, balanceSnapshots, references: [...references.values()], issues,
+    ...(confirmation ? { confirmation } : {}), ...(sync ? { removals, unsupported } : {}),
+  };
 }

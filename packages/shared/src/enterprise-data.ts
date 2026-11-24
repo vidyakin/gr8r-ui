@@ -1,5 +1,6 @@
 /* Файловая выгрузка в 1С. Контракт обмена и ограничения — docs/user/automations/integrations.md. */
 import { z } from 'zod';
+import { IC_EXCHANGE_PLAN, IC_MESSAGE_NS, type IcMessageHeader, type IcSyncEntityType } from './integrations-1c-sync';
 import { uuid, hhmm } from './schemas/common';
 
 export const IC_CATALOG_TYPES = ['organization', 'company', 'contract', 'product', 'warehouse', 'bank_account'] as const;
@@ -103,6 +104,7 @@ export interface EnterpriseDataDocument {
   comment?: string;
   total: string;
   priceIncludesVat: boolean;
+  posted?: boolean;
   lines?: Line[];
   paymentLines?: PaymentLine[];
 }
@@ -188,12 +190,29 @@ function paymentKind(type: keyof typeof paymentPrefixes, doc: EnterpriseDataDocu
 }
 
 /** Warning strings use a stable code followed by a colon and a record name for UI localization. */
-export function generateEnterpriseData(input: EnterpriseDataInput, options: EnterpriseDataOptions): { xml: string; summary: EnterpriseDataSummary } {
+export interface EnterpriseDataDelta {
+  header: IcMessageHeader;
+  createdAt?: string;
+  selectedIds?: Partial<Record<IcSyncEntityType, ReadonlySet<string>>>;
+  deleted?: { type: IcSyncEntityType; refUuid: string; documentType?: ExportDocumentType }[];
+}
+
+export function generateEnterpriseData(input: EnterpriseDataInput, options: EnterpriseDataOptions, delta?: EnterpriseDataDelta): { xml: string; summary: EnterpriseDataSummary } {
   const version = options.version ?? '1.15';
   const namespace = `${FORMAT}/${version}`;
   const namespaceAttribute = escapeXml(namespace);
   const summary: EnterpriseDataSummary = { catalogs: {}, documents: {}, totalObjects: 0, warnings: [] };
   const selected = selectEnterpriseData(input, options);
+  if (delta?.selectedIds) {
+    const ids = delta.selectedIds;
+    selected.organizations = selected.organizations.filter(row => ids.organization?.has(row.id));
+    selected.companies = selected.companies.filter(row => ids.company?.has(row.id));
+    selected.products = selected.products.filter(row => ids.product?.has(row.id));
+    selected.warehouses = selected.warehouses.filter(row => ids.warehouse?.has(row.id));
+    selected.documents = selected.documents.filter(row => ids.document?.has(row.id));
+    selected.contracts = [];
+    selected.bankAccounts = [];
+  }
   const body: string[] = [];
   const orgs = indexById(input.organizations);
   const companies = indexById(input.companies);
@@ -305,17 +324,31 @@ export function generateEnterpriseData(input: EnterpriseDataInput, options: Ente
         + (doc.targetCashRegister ? node('КассаПолучатель', nameKeys(doc.targetCashRegister) + organization(doc.organizationId)) : '')
         + (lines ? node('РасшифровкаПлатежа', lines) : '');
     }
-    body.push(node(`Документ.${name}`, contents));
+    body.push(node(`Документ.${name}`, contents + (delta && doc.posted === false ? field('Проведен', false) : '')));
     summary.documents[doc.type] = (summary.documents[doc.type] ?? 0) + 1;
     summary.totalObjects++;
   }
 
-  // Standalone file import does not use an exchange plan or acknowledgement numbers.
-  const header = node('msg:Header', field('msg:Format', namespace) + field('msg:CreationDate', dateTime(options.dateTo))
-    + field('msg:AvailableVersion', version));
+  const removedCatalogNames = { organization: 'Организации', company: 'Контрагенты', product: 'Номенклатура', warehouse: 'Склады' };
+  for (const row of delta?.deleted ?? []) {
+    const type = row.documentType;
+    const referenceType = row.type !== 'document' ? removedCatalogNames[row.type]
+      : !type ? undefined
+      : type === 'advance_report' ? 'АвансовыйОтчет'
+      : type in tradeDocumentNames ? tradeDocumentNames[type as keyof typeof tradeDocumentNames]
+      : paymentPrefixes[type as keyof typeof paymentPrefixes];
+    if (!referenceType) continue;
+    body.push(node('УдалениеОбъекта', node('СсылкаНаОбъект', node('СсылкаНаОбъект', field(`${referenceType}Ссылка`, row.refUuid)))));
+    summary.totalObjects++;
+  }
+  const confirmation = delta ? node('msg:Confirmation', field('msg:ExchangePlan', IC_EXCHANGE_PLAN)
+    + field('msg:To', delta.header.to) + field('msg:From', delta.header.from)
+    + field('msg:MessageNo', String(delta.header.messageNo)) + field('msg:ReceivedNo', String(delta.header.receivedNo))) : '';
+  const header = node('msg:Header', field('msg:Format', namespace) + field('msg:CreationDate', delta?.createdAt ?? dateTime(options.dateTo))
+    + confirmation + field('msg:AvailableVersion', version));
   const xml = [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    `<Message xmlns:msg="http://www.1c.ru/SSL/Exchange/Message" xmlns:ed="${namespaceAttribute}" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">`,
+    `<Message xmlns:msg="${IC_MESSAGE_NS}" xmlns:ed="${namespaceAttribute}" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">`,
     header, `<Body xmlns="${namespaceAttribute}">`, ...body, '</Body>', '</Message>', '',
   ].join('\n');
   return { xml, summary };

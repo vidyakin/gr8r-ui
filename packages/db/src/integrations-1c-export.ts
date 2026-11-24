@@ -1,14 +1,14 @@
 /* Сборка файловой выгрузки под RLS. Пользовательская справка — docs/user/automations/integrations.md. */
 import { and, asc, eq, gte, isNull, lte, or, sql, type SQL, type SQLWrapper } from 'drizzle-orm';
-import { generateEnterpriseData, IC_DOCUMENT_TYPES, unitQtyOf, type EnterpriseDataDocument, type EnterpriseDataInput, type EnterpriseDataOptions, type EnterpriseDataSchedule } from '@erp/shared';
+import { generateEnterpriseData, IC_DOCUMENT_TYPES, unitQtyOf, type EnterpriseDataDelta, type EnterpriseDataDocument, type EnterpriseDataInput, type EnterpriseDataOptions, type EnterpriseDataSchedule } from '@erp/shared';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
-import { lockIcLinks, type IcEntityType } from './integrations-1c';
+import { lockIcLinks, type IcEntityType, type IcSource } from './integrations-1c';
 import { bankAccounts, cashRegisters, companies, contracts, documentLines, documents, integrations1cLinks, integrations1cSchedules, members, organizations, paymentLines, products, warehouses } from './schema';
 
 type ExportActor = { workspaceId: string; memberId: string | null };
-const source = 'buh3';
+
 const isExportDocument = (type: string): type is EnterpriseDataDocument['type'] =>
   (IC_DOCUMENT_TYPES as readonly string[]).includes(type);
 const ids = (values: (string | null | undefined)[]) => [...new Set(values.filter((value): value is string => !!value))];
@@ -34,20 +34,28 @@ async function assertOrganization(db: Db, workspaceId: string, organizationId: s
   if (!row) throw new DomainError(404, 'not_found', 'Organization not found');
 }
 
-async function loadExportData(db: Db, workspaceId: string, options: EnterpriseDataOptions) {
+async function loadExportData(db: Db, workspaceId: string, options: EnterpriseDataOptions, selection?: EnterpriseDataDelta['selectedIds']) {
   const org = options.organizationId;
   const emit = (type: NonNullable<EnterpriseDataOptions['catalogTypes']>[number]) =>
     options.includeCatalogs !== false && (!options.catalogTypes || options.catalogTypes.includes(type));
+  const catalogFilter = (type: NonNullable<EnterpriseDataOptions['catalogTypes']>[number], column: SQLWrapper, active: SQL | undefined) => {
+    if (!emit(type)) return undefined;
+    if (!selection) return active;
+    if (type === 'contract' || type === 'bank_account') return undefined;
+    return and(active, matchesIds(column, [...(selection[type] ?? [])]));
+  };
   const types = options.includeDocuments === false ? [] : options.documentTypes ?? IC_DOCUMENT_TYPES;
   const docs = types.length ? await db.select({
-    id: documents.id, type: documents.type, number: documents.number, date: documents.date,
+    id: documents.id, type: documents.type, number: documents.number, date: documents.date, status: documents.status,
     organizationId: documents.organizationId, counterpartyId: documents.counterpartyId, contractId: documents.contractId,
     warehouseId: documents.warehouseId, bankAccountId: documents.bankAccountId, targetBankAccountId: documents.targetBankAccountId,
     cashRegisterId: documents.cashRegisterId, targetCashRegisterId: documents.targetCashRegisterId, accountableMemberId: documents.accountableMemberId,
     operation: documents.operation, currency: documents.currency, priceIncludesVat: documents.priceIncludesVat,
     total: documents.total, comment: documents.comment,
   }).from(documents).where(and(
-    eq(documents.workspaceId, workspaceId), eq(documents.status, 'posted'),
+    eq(documents.workspaceId, workspaceId),
+    selection ? or(eq(documents.status, 'posted'), sql`${documents.status} = 'draft' and ${documents.numberSeq} is not null`) : eq(documents.status, 'posted'),
+    selection ? matchesIds(documents.id, [...(selection.document ?? [])]) : undefined,
     gte(documents.date, options.dateFrom), lte(documents.date, options.dateTo),
     sql`${documents.type} = any(${`{${types.join(',')}}`}::text[])`,
     org ? eq(documents.organizationId, org) : undefined,
@@ -62,15 +70,11 @@ async function loadExportData(db: Db, workspaceId: string, options: EnterpriseDa
 
   const contractIds = ids([...docs.map(row => row.contractId), ...payments.map(row => row.contractId)]);
   const contractRows = await db.select().from(contracts).where(and(eq(contracts.workspaceId, workspaceId),
-    or(matchesIds(contracts.id, contractIds), emit('contract')
-      ? and(isNull(contracts.archivedAt), org ? eq(contracts.organizationId, org) : undefined)
-      : undefined)));
+    or(matchesIds(contracts.id, contractIds), catalogFilter('contract', contracts.id, and(isNull(contracts.archivedAt), org ? eq(contracts.organizationId, org) : undefined)))));
 
   const accountIds = ids(docs.flatMap(row => [row.bankAccountId, row.targetBankAccountId]));
   const accountRows = await db.select().from(bankAccounts).where(and(eq(bankAccounts.workspaceId, workspaceId),
-    or(matchesIds(bankAccounts.id, accountIds), emit('bank_account')
-      ? org ? or(eq(bankAccounts.organizationId, org), isNull(bankAccounts.organizationId)) : sql`true`
-      : undefined)));
+    or(matchesIds(bankAccounts.id, accountIds), catalogFilter('bank_account', bankAccounts.id, org ? or(eq(bankAccounts.organizationId, org), isNull(bankAccounts.organizationId)) : sql`true`))));
 
   const activeOrReferenced = (column: SQLWrapper, references: string[], active?: SQL) =>
     or(matchesIds(column, references), active);
@@ -82,13 +86,13 @@ async function loadExportData(db: Db, workspaceId: string, options: EnterpriseDa
   const cashRegisterIds = ids(docs.flatMap(row => [row.cashRegisterId, row.targetCashRegisterId]));
   const [orgRows, companyRows, productRows, warehouseRows, memberRows, cashRegisterRows] = await Promise.all([
     db.select().from(organizations).where(and(eq(organizations.workspaceId, workspaceId), activeOrReferenced(
-      organizations.id, organizationIds, emit('organization') ? (org ? eq(organizations.id, org) : isNull(organizations.archivedAt)) : undefined))),
+      organizations.id, organizationIds, catalogFilter('organization', organizations.id, org ? eq(organizations.id, org) : isNull(organizations.archivedAt))))),
     db.select().from(companies).where(and(eq(companies.workspaceId, workspaceId),
-      activeOrReferenced(companies.id, companyIds, emit('company') ? isNull(companies.archivedAt) : undefined))),
+      activeOrReferenced(companies.id, companyIds, catalogFilter('company', companies.id, isNull(companies.archivedAt))))),
     db.select().from(products).where(and(eq(products.workspaceId, workspaceId),
-      activeOrReferenced(products.id, productIds, emit('product') ? isNull(products.archivedAt) : undefined))),
+      activeOrReferenced(products.id, productIds, catalogFilter('product', products.id, isNull(products.archivedAt))))),
     db.select().from(warehouses).where(and(eq(warehouses.workspaceId, workspaceId),
-      activeOrReferenced(warehouses.id, warehouseIds, emit('warehouse') ? isNull(warehouses.archivedAt) : undefined))),
+      activeOrReferenced(warehouses.id, warehouseIds, catalogFilter('warehouse', warehouses.id, isNull(warehouses.archivedAt))))),
     db.select({ id: members.id, name: members.name }).from(members)
       .where(and(eq(members.workspaceId, workspaceId), matchesIds(members.id, memberIds))),
     db.select({ id: cashRegisters.id, name: cashRegisters.name }).from(cashRegisters)
@@ -111,6 +115,7 @@ async function loadExportData(db: Db, workspaceId: string, options: EnterpriseDa
       ...row,
       type: row.type,
       number: row.number ?? '',
+      posted: row.status === 'posted',
       companyId: row.counterpartyId,
       cashRegister: row.cashRegisterId ? cashRegisterById.get(row.cashRegisterId) : undefined,
       targetCashRegister: row.targetCashRegisterId ? cashRegisterById.get(row.targetCashRegisterId) : undefined,
@@ -123,11 +128,23 @@ async function loadExportData(db: Db, workspaceId: string, options: EnterpriseDa
 }
 
 /** Called in a tenant transaction. Preview passes saveLinks=false and leaves mappings untouched. */
-export async function exportEnterpriseData(db: Db, actor: ExportActor, options: EnterpriseDataOptions) {
+export async function exportEnterpriseData(db: Db, actor: ExportActor, options: EnterpriseDataOptions, delta?: {
+  source: IcSource;
+  header: EnterpriseDataDelta['header'];
+  changes: { entityType: NonNullable<EnterpriseDataDelta['deleted']>[number]['type']; entityId: string; documentType: string | null }[];
+}) {
+  const source = delta?.source ?? 'buh3';
+  const selectedIds = delta && {
+    organization: new Set(delta.changes.filter(row => row.entityType === 'organization').map(row => row.entityId)),
+    company: new Set(delta.changes.filter(row => row.entityType === 'company').map(row => row.entityId)),
+    product: new Set(delta.changes.filter(row => row.entityType === 'product').map(row => row.entityId)),
+    warehouse: new Set(delta.changes.filter(row => row.entityType === 'warehouse').map(row => row.entityId)),
+    document: new Set(delta.changes.filter(row => row.entityType === 'document').map(row => row.entityId)),
+  };
   const { workspaceId, memberId } = actor;
   await assertOrganization(db, workspaceId, options.organizationId);
-  const data = await loadExportData(db, workspaceId, options);
   if (options.saveLinks) await lockIcLinks(db, workspaceId, source);
+  const data = await loadExportData(db, workspaceId, options, selectedIds);
 
   const links = await db.select({ entityType: integrations1cLinks.entityType, entityId: integrations1cLinks.entityId, refUuid: integrations1cLinks.refUuid })
     .from(integrations1cLinks).where(and(eq(integrations1cLinks.workspaceId, workspaceId), eq(integrations1cLinks.source, source)));
@@ -156,7 +173,26 @@ export async function exportEnterpriseData(db: Db, actor: ExportActor, options: 
   applyLinks('bank_account', data.bankAccounts);
   applyLinks('document', data.documents);
 
-  const result = generateEnterpriseData(data, options);
+  const deleted: NonNullable<EnterpriseDataDelta['deleted']> = [];
+  if (delta) {
+    const rowsByType = { organization: data.organizations, company: data.companies, product: data.products, warehouse: data.warehouses, document: data.documents };
+    const activeKeys = new Set(Object.entries(rowsByType).flatMap(([type, rows]) => rows
+      .filter(row => !('archivedAt' in row) || !row.archivedAt).map(row => `${type}:${row.id}`)));
+    for (const row of delta.changes) {
+      const key = `${row.entityType}:${row.entityId}`;
+      const refUuid = byEntity.get(key);
+      if (!refUuid || activeKeys.has(key)) continue;
+      const documentType = row.documentType && isExportDocument(row.documentType) ? row.documentType : undefined;
+      deleted.push({ type: row.entityType, refUuid, documentType });
+    }
+    // Archived dependency rows remain available to the renderer for nested references only.
+    for (const [type, selected] of Object.entries(selectedIds ?? {})) {
+      for (const id of selected) {
+        if (!activeKeys.has(`${type}:${id}`)) selected.delete(id);
+      }
+    }
+  }
+  const result = generateEnterpriseData(data, options, delta && { header: delta.header, createdAt: new Date().toISOString().slice(0, 19), selectedIds, deleted });
   for (let i = 0; i < newLinks.length; i += 1000) {
     await db.insert(integrations1cLinks).values(newLinks.slice(i, i + 1000));
   }

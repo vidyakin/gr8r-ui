@@ -8,6 +8,8 @@ import { recordEvent } from './events';
 import { bankAccounts, cashRegisters, companies, contracts, documents, integrations1cLinks, organizations, products, warehouses } from './schema';
 import type { Actor } from './attachments';
 
+type IcActor = Omit<Actor, 'memberId'> & { memberId: string | null };
+
 export type IcLink = typeof integrations1cLinks.$inferSelect;
 export type IcSource = IcLink['source'];
 export type IcEntityType = IcLink['entityType'];
@@ -37,7 +39,7 @@ export async function linksOf(db: Db, wsId: string, source: IcSource, entityType
 /** Поставить связь (руками или автопоиском). Ручная перезаписывает автоматическую; автопоиск ручную не трогает. */
 export async function linkEntity(
   db: Db,
-  a: Actor,
+  a: IcActor,
   source: IcSource,
   entityType: IcEntityType,
   entityId: string,
@@ -240,7 +242,7 @@ async function matchDocument(db: Db, wsId: string, candidate: IcCandidate): Prom
 /* ---------------- проверка объекта ---------------- */
 
 /** Существует ли наш объект этого типа в нашем воркспейсе (полиморфная привязка без FK) */
-async function assertEntity(db: Db, a: Actor, entityType: IcEntityType, entityId: string): Promise<void> {
+async function assertEntity(db: Db, a: IcActor, entityType: IcEntityType, entityId: string): Promise<void> {
   let rows: unknown[];
   switch (entityType) {
     case 'organization':
