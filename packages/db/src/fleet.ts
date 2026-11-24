@@ -107,6 +107,8 @@ export interface VehicleInput {
   fuelNormWinter?: string | null;
   tankL?: string | null;
   odometer?: string;
+  meterType?: VehicleRow['meterType'];
+  engineHours?: string;
   status?: VehicleRow['status'];
   driverMemberId?: string | null;
   comment?: string;
@@ -363,6 +365,8 @@ export interface WaybillInput {
   fuelOut?: string;
   odometerBack?: string | null;
   fuelBack?: string | null;
+  engineHoursStart?: string | null;
+  engineHoursEnd?: string | null;
   medicalOk?: boolean;
   medicalTime?: string;
   medicalBy?: string;
@@ -444,6 +448,8 @@ export async function createWaybill(db: Db, ctx: DocCtx, input: WaybillInput): P
       returnAt: dt(input.returnAt),
       odometerOut: input.odometerOut ?? v.odometer,
       fuelOut: input.fuelOut ?? '0',
+      engineHoursStart: input.engineHoursStart ?? (v.meterType === 'engine_hours' ? v.engineHours : null),
+      engineHoursEnd: input.engineHoursEnd ?? null,
       normPer100: norm,
       medicalOk: input.medicalOk ?? false,
       medicalTime: input.medicalTime ?? '',
@@ -462,7 +468,7 @@ export async function updateWaybill(db: Db, ctx: DocCtx, id: string, input: Part
   const cur = await loadWaybill(db, id, true);
   if (cur.status === 'closed' || cur.status === 'cancelled') throw new DomainError(409, 'waybill_closed', 'A closed or cancelled waybill cannot be changed');
   const set: Partial<typeof fleetWaybills.$inferInsert> = { updatedAt: new Date() };
-  for (const k of ['route', 'odometerOut', 'fuelOut', 'odometerBack', 'fuelBack', 'medicalOk', 'medicalTime', 'medicalBy', 'techOk', 'techTime', 'techBy', 'tripId', 'comment'] as const) if (input[k] !== undefined) (set as Record<string, unknown>)[k] = input[k];
+  for (const k of ['route', 'odometerOut', 'fuelOut', 'odometerBack', 'fuelBack', 'engineHoursStart', 'engineHoursEnd', 'medicalOk', 'medicalTime', 'medicalBy', 'techOk', 'techTime', 'techBy', 'tripId', 'comment'] as const) if (input[k] !== undefined) (set as Record<string, unknown>)[k] = input[k];
   if (input.departureAt !== undefined) set.departureAt = dt(input.departureAt);
   if (input.returnAt !== undefined) set.returnAt = dt(input.returnAt);
   if (cur.status === 'draft') {
@@ -479,6 +485,9 @@ export async function updateWaybill(db: Db, ctx: DocCtx, id: string, input: Part
   const odoOut = set.odometerOut ?? cur.odometerOut;
   const odoBack = set.odometerBack === undefined ? cur.odometerBack : set.odometerBack;
   if (odoBack !== null && odoBack !== undefined && dec(odoBack) < dec(odoOut)) throw new DomainError(422, 'waybill_odometer', 'The odometer on return is below the odometer on departure');
+  const hStart = set.engineHoursStart === undefined ? cur.engineHoursStart : set.engineHoursStart;
+  const hEnd = set.engineHoursEnd === undefined ? cur.engineHoursEnd : set.engineHoursEnd;
+  if (hStart != null && hEnd != null && dec(hEnd) < dec(hStart)) throw new DomainError(422, 'waybill_engine_hours', 'The engine hours on return are below the engine hours on departure');
   const [row] = await db.update(fleetWaybills).set(set).where(eq(fleetWaybills.id, id)).returning();
   await event(db, ctx, 'fleet_waybill', 'updated', id, { changes: Object.keys(input) });
   return row!;
@@ -509,12 +518,15 @@ export async function issueWaybill(db: Db, ctx: DocCtx, id: string): Promise<Way
 export async function closeWaybill(db: Db, ctx: DocCtx, id: string): Promise<WaybillRow> {
   const w = await loadWaybill(db, id, true);
   if (w.status !== 'issued') throw new DomainError(409, 'invalid_status', 'Only an issued waybill can be closed');
-  if (w.odometerBack === null || w.fuelBack === null) throw new DomainError(422, 'waybill_return_required', 'Enter the odometer and the fuel on return');
+  const veh = await loadVehicle(db, w.vehicleId);
+  const byHours = veh.meterType === 'engine_hours';
+  if (byHours ? w.engineHoursEnd === null || w.fuelBack === null : w.odometerBack === null || w.fuelBack === null) throw new DomainError(422, 'waybill_return_required', byHours ? 'Enter the engine hours and the fuel on return' : 'Enter the odometer and the fuel on return');
+  if (w.engineHoursStart !== null && w.engineHoursEnd !== null && dec(w.engineHoursEnd) < dec(w.engineHoursStart)) throw new DomainError(422, 'waybill_engine_hours', 'The engine hours on return are below the engine hours on departure');
   const filled = await filledLiters(db, id);
-  const f = waybillFuel({ fuelOut: w.fuelOut, fuelBack: w.fuelBack, fuelFilled: filled, odometerOut: w.odometerOut, odometerBack: w.odometerBack, normPer100: w.normPer100 });
+  const f = waybillFuel({ fuelOut: w.fuelOut, fuelBack: w.fuelBack!, fuelFilled: filled, odometerOut: w.odometerOut, odometerBack: byHours ? w.odometerOut : w.odometerBack!, normPer100: w.normPer100 });
   if (!f) throw new DomainError(422, 'waybill_odometer', 'The odometer on return is below the odometer on departure');
   const [row] = await db.update(fleetWaybills).set({ status: 'closed', closedAt: new Date(), distanceKm: f.distanceKm, normLiters: f.normLiters, actualLiters: f.actualLiters, updatedAt: new Date() }).where(eq(fleetWaybills.id, id)).returning();
-  await db.update(fleetVehicles).set({ odometer: sql`greatest(${fleetVehicles.odometer}, ${w.odometerBack})`, updatedAt: new Date() }).where(eq(fleetVehicles.id, w.vehicleId));
+  await db.update(fleetVehicles).set({ odometer: byHours ? fleetVehicles.odometer : sql`greatest(${fleetVehicles.odometer}, ${w.odometerBack})`, ...(byHours && w.engineHoursEnd !== null ? { engineHours: sql`greatest(${fleetVehicles.engineHours}, ${w.engineHoursEnd})` } : {}), updatedAt: new Date() }).where(eq(fleetVehicles.id, w.vehicleId));
   await event(db, ctx, 'fleet_waybill', 'closed', id, { number: w.number, distanceKm: f.distanceKm, deltaLiters: f.deltaLiters });
   return row!;
 }
@@ -734,6 +746,7 @@ export interface ServicePlanInput {
   name: string;
   everyKm?: number | null;
   everyMonths?: number | null;
+  intervalHours?: number | null;
   lastKm?: string | null;
   lastDate?: string | null;
 }
@@ -751,13 +764,13 @@ export async function listServicePlans(db: Db, vehicleId?: string) {
 
 export async function createServicePlan(db: Db, ctx: DocCtx, input: ServicePlanInput) {
   await loadVehicle(db, input.vehicleId);
-  if (!input.everyKm && !input.everyMonths) throw new DomainError(422, 'service_interval_required', 'Set the interval in km or months');
-  const [row] = await db.insert(fleetServicePlans).values({ workspaceId: ctx.workspaceId, ...input }).returning();
+  if (!input.everyKm && !input.everyMonths && !input.intervalHours) throw new DomainError(422, 'service_interval_required', 'Set the interval in km, months or engine hours');
+  const [row] = await db.insert(fleetServicePlans).values({ workspaceId: ctx.workspaceId, ...input, intervalHours: input.intervalHours == null ? null : String(input.intervalHours) }).returning();
   await event(db, ctx, 'fleet_service_plan', 'created', row!.id);
   return row!;
 }
 export async function updateServicePlan(db: Db, ctx: DocCtx, id: string, input: Partial<ServicePlanInput>) {
-  const [row] = await db.update(fleetServicePlans).set({ ...input, updatedAt: new Date() }).where(eq(fleetServicePlans.id, id)).returning();
+  const [row] = await db.update(fleetServicePlans).set({ ...input, intervalHours: input.intervalHours === undefined ? undefined : input.intervalHours === null ? null : String(input.intervalHours), updatedAt: new Date() }).where(eq(fleetServicePlans.id, id)).returning();
   if (!row) throw notFound('service plan');
   await event(db, ctx, 'fleet_service_plan', 'updated', id);
   return row;

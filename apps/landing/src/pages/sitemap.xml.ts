@@ -2,6 +2,7 @@
 import type { APIRoute } from 'astro';
 import { DEFAULT_LOCALE, LOCALES, localePath } from '../i18n';
 import { MODULE_IDS } from '../demo/registry';
+import { getRuArticles } from '../blog';
 
 const FALLBACK_SITE = 'https://future-erp.ai-solutions-studio.ru';
 
@@ -40,6 +41,11 @@ export const GET: APIRoute = ({ site }) => {
   addLocalized('/', '1.0');
   for (const id of MODULE_IDS) {
     addLocalized(`/modules/${id}/`, '0.8');
+  }
+
+  entries.push(urlEntry(abs('/blog/'), '0.8'));
+  for (const article of getRuArticles()) {
+    entries.push(urlEntry(abs(`/blog/${article.frontmatter.slug}/`), '0.7'));
   }
 
   entries.push(urlEntry(abs('/docs/'), '0.6'));

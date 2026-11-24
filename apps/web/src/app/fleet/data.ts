@@ -3,7 +3,7 @@
 import { withPrintCsp } from '@/lib/print-csp';
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { DocTermState, FleetDocKind, FineStatus, RepairKind, RepairStatus, ServiceDue, VehicleKind, VehicleStatus, WaybillFuelResult, WaybillStatus, FuelType } from '@erp/shared';
+import type { DocTermState, FleetDocKind, FleetMeterType, FineStatus, RepairKind, RepairStatus, ServiceDue, VehicleKind, VehicleStatus, WaybillFuelResult, WaybillStatus, FuelType } from '@erp/shared';
 import { API_BASE } from '../data/api';
 import { errorMessage } from '../data/api';
 import { toast } from '@/components/ui';
@@ -28,6 +28,8 @@ export interface Vehicle {
   fuelNormWinter: string | null;
   tankL: string | null;
   odometer: string;
+  meterType: FleetMeterType;
+  engineHours: string;
   status: VehicleStatus;
   driverMemberId: string | null;
   driverName: string | null;
@@ -61,6 +63,7 @@ export interface ServicePlan {
   name: string;
   everyKm: number | null;
   everyMonths: number | null;
+  intervalHours: number | null;
   lastKm: string | null;
   lastDate: string | null;
   odometer: string;
@@ -100,6 +103,8 @@ export interface Waybill {
   returnAt: string | null;
   odometerOut: string;
   odometerBack: string | null;
+  engineHoursStart: string | null;
+  engineHoursEnd: string | null;
   fuelOut: string;
   fuelBack: string | null;
   fuelFilled: string;

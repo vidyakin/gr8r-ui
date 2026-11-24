@@ -9,6 +9,7 @@ import { DataTable, useDataTable, type Column } from '@/components/erp/data-tabl
 import { fmtNumber, useT } from '@/i18n';
 import { iso, today, fmtDate, parse } from '../lib/dates';
 import { useWorkspace } from '../data/store';
+import { useHasModule } from '../licensing/data';
 import { useMembersWith } from '../positions/data';
 import { useWsId } from '../meta/data';
 import { openWaybillPrint, useFleetApi, useVehicles, useWaybill, useWaybills, type Waybill } from './data';
@@ -22,7 +23,9 @@ function WaybillDialog({ id, onClose }: { id: string | null; onClose: () => void
   const t = useT();
   const ws = useWsId();
   const api = useFleetApi();
+  const hasMining = useHasModule('mining');
   const vehicles = useVehicles().data?.items ?? [];
+  const isEngineHours = (vid: unknown) => hasMining && vehicles.find(x => x.id === vid)?.meterType === 'engine_hours';
   const detail = useWaybill(id);
   const w = id ? detail.data : null;
   const drivers = useMembersWith(useWorkspace().data.members, 'driver', [w?.driverMemberId]);
@@ -37,7 +40,8 @@ function WaybillDialog({ id, onClose }: { id: string | null; onClose: () => void
     { key: 'departureAt', label: t('fleet.waybill.departure'), type: 'datetime' },
     { key: 'returnAt', label: t('fleet.waybill.return'), type: 'datetime' },
     { key: 'route', label: t('fleet.waybill.route'), type: 'textarea' },
-    { key: 'odometerOut', label: t('fleet.waybill.odometerOut'), type: 'number' },
+    { key: 'odometerOut', label: t('fleet.waybill.odometerOut'), type: 'number', when: v => !isEngineHours(v.vehicleId) },
+    { key: 'engineHoursStart', label: t('fleet.waybill.engineHoursStart'), type: 'number', when: v => isEngineHours(v.vehicleId) },
     { key: 'fuelOut', label: t('fleet.waybill.fuelOut'), type: 'number' },
     { key: 'medicalOk', label: t('fleet.waybill.medicalOk'), type: 'check' },
     { key: 'medicalTime', label: t('fleet.waybill.medicalTime'), type: 'time' },
@@ -45,7 +49,13 @@ function WaybillDialog({ id, onClose }: { id: string | null; onClose: () => void
     { key: 'techOk', label: t('fleet.waybill.techOk'), type: 'check' },
     { key: 'techTime', label: t('fleet.waybill.techTime'), type: 'time' },
     { key: 'techBy', label: t('fleet.waybill.techBy'), type: 'text' },
-    ...(status !== 'draft' ? ([{ key: 'odometerBack', label: t('fleet.waybill.odometerBack'), type: 'number' }, { key: 'fuelBack', label: t('fleet.waybill.fuelBack'), type: 'number' }] as FieldDef[]) : []),
+    ...(status !== 'draft'
+      ? ([
+          { key: 'odometerBack', label: t('fleet.waybill.odometerBack'), type: 'number', when: v => !isEngineHours(v.vehicleId) },
+          { key: 'engineHoursEnd', label: t('fleet.waybill.engineHoursEnd'), type: 'number', when: v => isEngineHours(v.vehicleId) },
+          { key: 'fuelBack', label: t('fleet.waybill.fuelBack'), type: 'number' },
+        ] as FieldDef[])
+      : []),
     { key: 'comment', label: t('fleet.comment'), type: 'textarea' },
   ];
   const payload = (v: Record<string, string | boolean>) => ({
@@ -54,6 +64,7 @@ function WaybillDialog({ id, onClose }: { id: string | null; onClose: () => void
     departureAt: fromLocalInput(v.departureAt),
     returnAt: fromLocalInput(v.returnAt),
     odometerOut: num(v.odometerOut) ?? '0',
+    ...(isEngineHours(v.vehicleId) ? { engineHoursStart: num(v.engineHoursStart) ?? null } : {}),
     fuelOut: num(v.fuelOut) ?? '0',
     medicalOk: !!v.medicalOk,
     medicalTime: String(v.medicalTime),
@@ -61,7 +72,13 @@ function WaybillDialog({ id, onClose }: { id: string | null; onClose: () => void
     techOk: !!v.techOk,
     techTime: String(v.techTime),
     techBy: String(v.techBy),
-    ...(status !== 'draft' ? { odometerBack: num(v.odometerBack) ?? null, fuelBack: num(v.fuelBack) ?? null } : {}),
+    ...(status !== 'draft'
+      ? {
+          odometerBack: num(v.odometerBack) ?? null,
+          ...(isEngineHours(v.vehicleId) ? { engineHoursEnd: num(v.engineHoursEnd) ?? null } : {}),
+          fuelBack: num(v.fuelBack) ?? null,
+        }
+      : {}),
     comment: String(v.comment),
   });
   const save = async (v: Record<string, string | boolean>) => (id ? api<Waybill>('PATCH', `waybills/${id}`, payload(v)) : api<Waybill>('POST', 'waybills', payload(v)));
@@ -80,6 +97,7 @@ function WaybillDialog({ id, onClose }: { id: string | null; onClose: () => void
         returnAt: toLocalInput(w?.returnAt),
         route: w?.route ?? '',
         odometerOut: w ? String(Number(w.odometerOut)) : '',
+        engineHoursStart: w?.engineHoursStart ? String(Number(w.engineHoursStart)) : '',
         fuelOut: w ? String(Number(w.fuelOut)) : '0',
         medicalOk: w?.medicalOk ?? false,
         medicalTime: w?.medicalTime ?? '',
@@ -88,6 +106,7 @@ function WaybillDialog({ id, onClose }: { id: string | null; onClose: () => void
         techTime: w?.techTime ?? '',
         techBy: w?.techBy ?? '',
         odometerBack: w?.odometerBack ? String(Number(w.odometerBack)) : '',
+        engineHoursEnd: w?.engineHoursEnd ? String(Number(w.engineHoursEnd)) : '',
         fuelBack: w?.fuelBack ? String(Number(w.fuelBack)) : '',
         comment: w?.comment ?? '',
       }}

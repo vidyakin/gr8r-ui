@@ -66,6 +66,8 @@ export const TOKEN_PATH_SECTIONS: Map<string, PositionSection[]> = new Map<strin
   ['/object-acts', ['trade']],
   ['/sub-acts', ['trade']],
   ['/objects-forecast', ['trade']],
+  // Добыча: весовые мосты шлют взвешивания по токену агента
+  ['/weighings', ['production']],
   // Услуги и заказ-наряды
   ['/work-orders', ['services']],
   ['/work-order-assignments', ['services']],

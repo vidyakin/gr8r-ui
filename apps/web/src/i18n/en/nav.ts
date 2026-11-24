@@ -84,6 +84,7 @@ export const sections = {
   approvals: 'Approvals',
   driverWorkplace: 'Driver workplace',
   dispatch: 'Dispatcher',
+  weighings: 'Weighings',
   fleetFines: 'Fines',
   objects: 'Objects',
   objectsForecast: 'Profit forecast',

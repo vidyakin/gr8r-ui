@@ -127,6 +127,7 @@ export const catalog: Widen<typeof C> = {
     salePrice: 'Precio de venta',
     purchasePrice: 'Precio de compra',
     leadDays: 'Plazo de entrega (días)',
+    bulkDensity: 'Densidad aparente, t/m³',
     defaultSupplier: 'Proveedor predeterminado',
     noSupplier: 'Sin proveedor',
     active: 'Activo',

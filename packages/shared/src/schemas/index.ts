@@ -45,3 +45,4 @@ export * from './email';
 export * from './cases';
 export * from './whiteboards';
 export * from './chats';
+export * from './mining';

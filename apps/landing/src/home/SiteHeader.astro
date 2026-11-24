@@ -19,6 +19,7 @@ const links = [
   [`${anchorBase}#compare`, t('home.nav.compare')],
   [`${anchorBase}#price`, t('home.nav.price')],
   [`${anchorBase}#faq`, t('home.nav.faq')],
+  ...(locale === 'ru' ? [['/blog/', 'Блог']] : []),
 ];
 ---
 

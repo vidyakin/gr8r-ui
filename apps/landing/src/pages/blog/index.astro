@@ -1,0 +1,86 @@
+---
+import Base from '../../layouts/Base.astro';
+import { ArrowRight, Clock } from 'lucide-react';
+import SiteHeader from '../../home/SiteHeader.astro';
+import SiteFooter from '../../home/SiteFooter.astro';
+import ChatWidget from '../../home/ChatWidget';
+import { formatRuDate, getRuArticles } from '../../blog';
+import '../../home/home.css';
+import '../../blog/blog.css';
+
+const articles = getRuArticles();
+const title = 'Блог FutureERP — отраслевые разборы учёта и автоматизации';
+const description =
+  'Практические разборы для производства, карьеров, стройки, опта, сервиса и логистики: как заменить таблицы и разрозненные программы единой ERP-системой.';
+const site = Astro.site ?? new URL('https://future-erp.ai-solutions-studio.ru');
+const blogUrl = new URL('/blog/', site).href;
+
+const jsonLd = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'Blog',
+    name: title,
+    description,
+    url: blogUrl,
+    inLanguage: 'ru',
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'FutureERP', item: new URL('/', site).href },
+      { '@type': 'ListItem', position: 2, name: 'Блог', item: blogUrl },
+    ],
+  },
+];
+---
+
+<Base title={title} description={description} theme="light" locale="ru" jsonLd={jsonLd}>
+  <div class="h-page">
+    <SiteHeader base="/" locale="ru" />
+
+    <main id="main">
+      <section class="h-blog-hero" aria-labelledby="h-blog-title">
+        <div class="h-wrap">
+          <div class="h-blog-hero-in">
+            <p class="h-pill"><span class="h-dot"></span>Отраслевые разборы</p>
+            <h1 id="h-blog-title">Блог FutureERP</h1>
+            <p class="h-lead">
+              Реальные процессы производства, карьеров, стройки, оптовой торговли, сервиса и автопарков:
+              где теряются деньги и время в таблицах и как собрать сквозной учёт в одной системе.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="h-blog-list" aria-label="Статьи блога">
+        <div class="h-wrap">
+          <div class="h-blog-grid">
+            {articles.map(({ frontmatter: fm }) => (
+              <a class="h-blog-card" href={`/blog/${fm.slug}/`}>
+                <div class="h-blog-card-top">
+                  <span class="h-blog-industry">{fm.industry}</span>
+                  <span class="h-blog-meta">
+                    <Clock size={14} aria-hidden="true" />
+                    {fm.readTime} · {formatRuDate(fm.date)}
+                  </span>
+                </div>
+                <h2>{fm.title}</h2>
+                <p>{fm.description}</p>
+                {fm.modules?.length > 0 && (
+                  <div class="h-blog-mods">
+                    {fm.modules.map(mod => <span class="h-blog-mod">{mod}</span>)}
+                  </div>
+                )}
+                <span class="h-blog-read">Читать разбор <ArrowRight size={15} aria-hidden="true" /></span>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <SiteFooter locale="ru" />
+  </div>
+  <ChatWidget client:idle locale="ru" />
+</Base>

@@ -1,0 +1,122 @@
+---
+import Base from '../../layouts/Base.astro';
+import { ArrowRight, ChevronRight, Clock } from 'lucide-react';
+import SiteHeader from '../../home/SiteHeader.astro';
+import SiteFooter from '../../home/SiteFooter.astro';
+import ChatWidget from '../../home/ChatWidget';
+import { formatRuDate, getRuArticles, type BlogArticle } from '../../blog';
+import '../../home/home.css';
+import '../../blog/blog.css';
+
+export function getStaticPaths() {
+  return getRuArticles().map(article => ({
+    params: { slug: article.frontmatter.slug },
+    props: { article },
+  }));
+}
+
+interface Props {
+  article: BlogArticle;
+}
+
+const { article } = Astro.props;
+const { frontmatter: fm, Content } = article;
+const others = getRuArticles()
+  .filter(a => a.frontmatter.slug !== fm.slug)
+  .slice(0, 3);
+
+const site = Astro.site ?? new URL('https://future-erp.ai-solutions-studio.ru');
+const articleUrl = new URL(`/blog/${fm.slug}/`, site).href;
+
+const jsonLd = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: fm.title,
+    description: fm.description,
+    datePublished: fm.date,
+    dateModified: fm.date,
+    inLanguage: 'ru',
+    mainEntityOfPage: articleUrl,
+    author: { '@type': 'Organization', name: 'FutureERP' },
+    publisher: { '@type': 'Organization', name: 'FutureERP' },
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'FutureERP', item: new URL('/', site).href },
+      { '@type': 'ListItem', position: 2, name: 'Блог', item: new URL('/blog/', site).href },
+      { '@type': 'ListItem', position: 3, name: fm.title, item: articleUrl },
+    ],
+  },
+];
+---
+
+<Base title={`${fm.title} — Блог FutureERP`} description={fm.description} theme="light" locale="ru" jsonLd={jsonLd}>
+  <div class="h-page">
+    <SiteHeader base="/" locale="ru" />
+
+    <main id="main">
+      <section class="h-blog-article-sec">
+        <div class="h-wrap">
+          <div class="h-blog-article">
+            <nav class="h-blog-crumb" aria-label="Хлебные крошки">
+              <a href="/">Главная</a>
+              <ChevronRight size={14} aria-hidden="true" />
+              <a href="/blog/">Блог</a>
+              <ChevronRight size={14} aria-hidden="true" />
+              <span>{fm.industry}</span>
+            </nav>
+
+            <header class="h-blog-art-head">
+              <div class="h-blog-card-top">
+                <span class="h-blog-industry">{fm.industry}</span>
+                <span class="h-blog-meta">
+                  <Clock size={14} aria-hidden="true" />
+                  {fm.readTime} · {formatRuDate(fm.date)}
+                </span>
+              </div>
+              <h1>{fm.title}</h1>
+              <p class="h-blog-art-desc">{fm.description}</p>
+              {fm.modules?.length > 0 && (
+                <div class="h-blog-mods">
+                  {fm.modules.map(mod => <span class="h-blog-mod">{mod}</span>)}
+                </div>
+              )}
+            </header>
+
+            <div class="h-blog-prose">
+              <Content />
+            </div>
+
+            <aside class="h-blog-cta" aria-label="Запись на демонстрацию">
+              <div>
+                <h2>Попробовать на 3 ваших заказах</h2>
+                <p>Покажем сценарий из статьи на ваших реальных позициях, сменах и документах — без долгого внедрения.</p>
+              </div>
+              <a class="h-btn h-btn-white" href="/#request">Оставить заявку <ArrowRight size={16} aria-hidden="true" /></a>
+            </aside>
+          </div>
+
+          {others.length > 0 && (
+            <section class="h-blog-others" aria-labelledby="h-blog-others-title">
+              <h2 id="h-blog-others-title">Другие статьи</h2>
+              <div class="h-blog-others-grid">
+                {others.map(({ frontmatter: other }) => (
+                  <a class="h-blog-other-card" href={`/blog/${other.slug}/`}>
+                    <span>{other.industry}</span>
+                    <h3>{other.title}</h3>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      </section>
+    </main>
+
+    <SiteFooter locale="ru" />
+  </div>
+  <ChatWidget client:idle locale="ru" />
+</Base>

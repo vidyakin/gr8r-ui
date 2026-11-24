@@ -2,7 +2,7 @@
    у модуля есть корневые пути API, разделы меню, пункты настроек, типы задач воркера и узлы автоматизаций. Какие модули
    включены у арендатора, решает оператор (тариф + докупленные модули); здесь — только чистые правила без БД. */
 
-export const MODULE_IDS = ['core', 'crm', 'trade', 'production', 'construction', 'services', 'money', 'payroll', 'automations', 'integrations', 'docflow', 'transport'] as const;
+export const MODULE_IDS = ['core', 'crm', 'trade', 'production', 'construction', 'mining', 'services', 'money', 'payroll', 'automations', 'integrations', 'docflow', 'transport'] as const;
 export type ModuleId = (typeof MODULE_IDS)[number];
 
 /** Модуль, который включён всегда */
@@ -77,6 +77,13 @@ export const MODULES: readonly ModuleDef[] = [
     paths: ['/objects', '/estimates', '/shifts', '/object-acts', '/sub-acts', '/objects-forecast'],
     sections: ['objects', 'objectsForecast', 'shift'],
     jobs: ['object.progress_report', 'estimate.ai_extract'],
+  }),
+  // Добыча — подмодуль производства: взвешивания (весовая), плотность, моточасы
+  def({
+    id: 'mining',
+    requires: ['production'],
+    paths: ['/weighings'],
+    sections: ['weighings'],
   }),
   def({
     id: 'services',

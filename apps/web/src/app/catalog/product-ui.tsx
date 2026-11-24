@@ -4,12 +4,13 @@ import * as React from 'react';
 import { ProductPricesBlock } from '../pricing/ProductPrices';
 import { useProductKinds } from '../positions/data';
 import { useIndustry } from '../industry/data';
-import { Barcode, Building2, Factory, CircleAlert, CircleDollarSign, FolderTree, Hash, Layers, Package, Percent, Power, Repeat, Ruler, ScanBarcode, Shapes, Star, Tag, Tags, Timer, Trash2, Truck, Upload, Wrench, type LucideIcon } from 'lucide-react';
+import { Barcode, Building2, Factory, CircleAlert, CircleDollarSign, FolderTree, Hash, Layers, Package, Percent, Power, Repeat, Ruler, Scale, ScanBarcode, Shapes, Star, Tag, Tags, Timer, Trash2, Truck, Upload, Wrench, type LucideIcon } from 'lucide-react';
 import { PRODUCT_KINDS, VAT_LABELS, VAT_RATES, validateRecord, type ProductKind } from '@erp/shared';
 import { AttachmentsPanel } from '@/components/erp/attachments-panel';
 import { Button, ConfirmDialog, Dialog, DialogClose, DialogContent, Field, Input, IconButton, MenuItem, Segmented, Switch, toast } from '@/components/ui';
 import { DrawerSection, EntityDrawer } from '@/components/erp/entity-drawer';
 import { fmtDate } from '../lib/dates';
+import { useHasModule } from '../licensing/data';
 import { useCanWrite, useCustomRows } from '../meta/custom-fields';
 import { FieldInput, FieldValue } from '../meta/field-ui';
 import type { MetaField } from '../meta/data';
@@ -54,6 +55,7 @@ const F = {
   get repeatSaleDays() { return col('repeatSaleDays', t('repeat.product.repeatDays'), 'number'); },
   get appointmentMinutes() { return col('appointmentMinutes', t('appt.product.minutes'), 'number'); },
   get weightKg() { return col('weightKg', t('delivery.product.weight'), 'number'); },
+  get bulkDensity() { return col('bulkDensity', t('catalog.product.bulkDensity'), 'number'); },
   get leadDays() { return col('leadDays', t('catalog.product.leadDays'), 'number'); },
 };
 
@@ -254,6 +256,7 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
   // Партии — отраслевая опция «Пищевое производство» (задача 1258): без неё полей нет, но
   // у товара с уже включённым учётом переключатель остаётся, чтобы его можно было выключить
   const batchUi = useIndustry('food') || p.trackBatches;
+  const hasMining = useHasModule('mining');
   const m = useProductMutations();
   const attrs = useAttributes(p.categoryId);
   const [confirm, setConfirm] = React.useState(false);
@@ -387,6 +390,7 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
             : []),
           row(Timer, t('serials.product.warrantyMonths'), <FieldInput field={F.warrantyMonths} value={p.warrantyMonths ?? 0} onChange={v => save({ warrantyMonths: Number(v) ? Math.round(Number(v)) : null })} />, String(p.warrantyMonths ?? '—')),
           ...(p.kind === 'goods' ? [row(Truck, t('delivery.product.weight'), <FieldInput field={F.weightKg} value={Number(p.weightKg ?? 0)} onChange={v => save({ weightKg: Number(v) > 0 ? String(v) : null })} />, p.weightKg ? p.weightKg : '—')] : []),
+          ...(hasMining && p.kind === 'goods' ? [row(Scale, t('catalog.product.bulkDensity'), <FieldInput field={F.bulkDensity} value={Number(p.bulkDensity ?? 0)} onChange={v => save({ bulkDensity: Number(v) > 0 ? Number(v) : null })} />, p.bulkDensity ? p.bulkDensity : '—')] : []),
           row(Repeat, t('repeat.product.repeatDays'), <FieldInput field={F.repeatSaleDays} value={p.repeatSaleDays ?? 0} onChange={v => save({ repeatSaleDays: Number(v) ? Math.round(Number(v)) : null })} />, p.repeatSaleDays ? String(p.repeatSaleDays) : '—'),
           ...(p.kind === 'service'
             ? [row(Timer, t('appt.product.minutes'), <FieldInput field={F.appointmentMinutes} value={p.appointmentMinutes ?? 0} onChange={v => save({ appointmentMinutes: Number(v) ? Math.round(Number(v)) : null })} />, p.appointmentMinutes ? String(p.appointmentMinutes) : '—')]
@@ -519,6 +523,7 @@ export function ProductDrawer({ product: p, tree, onClose, onOpenCategory }: { p
 
 export function ProductFormDialog({ tree, initialCategory, initialName = '', initialUnitCode = '796', onClose, onCreated }: { tree: CategoryNode[]; initialCategory: string | null; initialName?: string; initialUnitCode?: string; onClose: () => void; onCreated: (p: Product) => void }) {
   const m = useProductMutations();
+  const hasMining = useHasModule('mining');
   const [kind, setKind] = React.useState<ProductKind>('goods');
   const [name, setName] = React.useState(initialName);
   const [sku, setSku] = React.useState('');
@@ -528,6 +533,7 @@ export function ProductFormDialog({ tree, initialCategory, initialName = '', ini
   const [vat, setVat] = React.useState('20');
   const [price, setPrice] = React.useState('');
   const [purchase, setPurchase] = React.useState('');
+  const [bulkDensity, setBulkDensity] = React.useState('');
   const [attrs, setAttrs] = React.useState<Record<string, unknown>>({});
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [busy, setBusy] = React.useState(false);
@@ -550,7 +556,7 @@ export function ProductFormDialog({ tree, initialCategory, initialName = '', ini
     if (Object.keys(errs).length || !check.ok) return;
     setBusy(true);
     try {
-      const row = await m.create.mutateAsync({ kind, name: name.trim(), sku: sku.trim(), barcode: barcode.trim(), categoryId, unitCode, vatRate: vat, price: String(num(price)), purchasePrice: String(num(purchase)), attrs: check.data });
+      const row = await m.create.mutateAsync({ kind, name: name.trim(), sku: sku.trim(), barcode: barcode.trim(), categoryId, unitCode, vatRate: vat, price: String(num(price)), purchasePrice: String(num(purchase)), ...(hasMining && kind === 'goods' && num(bulkDensity) > 0 ? { bulkDensity: num(bulkDensity) } : {}), attrs: check.data });
       toast(t('catalog.product.added', { name: row.name }));
       onCreated(row);
     } catch (e) {
@@ -616,6 +622,11 @@ export function ProductFormDialog({ tree, initialCategory, initialName = '', ini
               {p => <Input {...p} inputMode="decimal" placeholder="0.00" value={purchase} onChange={e => setPurchase(e.target.value)} />}
             </Field>
           </div>
+          {hasMining && kind === 'goods' && (
+            <Field label={t('catalog.product.bulkDensity')}>
+              {p => <Input {...p} inputMode="decimal" placeholder="1.6" value={bulkDensity} onChange={e => setBulkDensity(e.target.value)} />}
+            </Field>
+          )}
           {!!fields.length && (
             <fieldset className="attr-fieldset">
               <legend>{t('catalog.product.characteristics')}</legend>

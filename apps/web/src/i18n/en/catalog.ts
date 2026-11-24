@@ -124,6 +124,7 @@ export const catalog = {
     salePrice: 'Sale price',
     purchasePrice: 'Purchase price',
     leadDays: 'Lead days',
+    bulkDensity: 'Bulk density, t/m³',
     defaultSupplier: 'Default supplier',
     noSupplier: 'No supplier',
     active: 'Active',

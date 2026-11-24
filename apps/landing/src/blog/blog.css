@@ -1,0 +1,100 @@
+/* Блог FutureERP (/blog/ и /blog/<slug>/): поверх home.css, префикс h-blog- */
+
+.h-blog-hero { padding: 56px 0 40px; }
+.h-blog-hero-in { max-width: 780px; display: flex; flex-direction: column; align-items: flex-start; gap: 18px; }
+.h-blog-hero h1 { font-size: 48px; font-weight: 600; line-height: 1.08; letter-spacing: -.03em; }
+.h-blog-hero .h-lead { max-width: 640px; }
+
+/* Сетка карточек на /blog/ */
+.h-blog-list { padding: 8px 0 96px; }
+.h-blog-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.h-blog-card {
+  background: var(--h-surface); border: 1px solid var(--h-line); border-radius: 20px;
+  padding: 28px; display: flex; flex-direction: column; gap: 16px;
+  transition: border-color .18s, box-shadow .18s, transform .18s;
+}
+.h-blog-card:hover { border-color: var(--h-accent); box-shadow: 0 12px 32px rgba(20,22,27,.07); transform: translateY(-2px); }
+.h-blog-card-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.h-blog-industry {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
+  background: var(--h-accent-soft); color: var(--h-accent); font-size: 13px; font-weight: 600;
+}
+.h-blog-meta { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--h-ink-3); }
+.h-blog-card h2 { font-size: 24px; font-weight: 600; line-height: 1.2; letter-spacing: -.02em; }
+.h-blog-card:hover h2 { color: var(--h-accent); }
+.h-blog-card p { font-size: 15px; line-height: 1.55; color: var(--h-ink-2); flex: 1; }
+.h-blog-mods { display: flex; flex-wrap: wrap; gap: 6px; }
+.h-blog-mod {
+  padding: 4px 10px; border-radius: 8px; background: var(--h-bg); border: 1px solid var(--h-line);
+  font-size: 12px; font-weight: 500; color: var(--h-ink-2);
+}
+.h-blog-read { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--h-accent); margin-top: 4px; }
+
+/* Страница статьи */
+.h-blog-article-sec { padding: 40px 0 96px; }
+.h-blog-crumb { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; color: var(--h-ink-3); margin-bottom: 24px; }
+.h-blog-crumb a { color: var(--h-ink-2); }
+.h-blog-crumb a:hover { color: var(--h-accent); }
+.h-blog-article {
+  max-width: 860px; margin: 0 auto; background: var(--h-surface); border: 1px solid var(--h-line);
+  border-radius: 24px; padding: 48px 56px; box-shadow: 0 8px 32px rgba(20,22,27,.05);
+}
+.h-blog-art-head { display: flex; flex-direction: column; gap: 16px; padding-bottom: 28px; border-bottom: 1px solid var(--h-line); margin-bottom: 32px; }
+.h-blog-art-head h1 { font-size: 38px; font-weight: 600; line-height: 1.12; letter-spacing: -.03em; }
+.h-blog-art-desc { font-size: 18px; line-height: 1.5; color: var(--h-ink-2); }
+
+/* Редакционная типографика внутри Markdown (перебивает сброс :where(.h-page ...)) */
+.h-blog-prose { font-size: 17px; line-height: 1.68; color: var(--h-ink); }
+.h-blog-prose h2 { font-size: 26px; font-weight: 600; line-height: 1.2; letter-spacing: -.02em; margin: 36px 0 14px; }
+.h-blog-prose h3 { font-size: 20px; font-weight: 600; line-height: 1.3; margin: 26px 0 10px; }
+.h-blog-prose p { margin: 0 0 16px; color: var(--h-ink-2); }
+.h-blog-prose strong { color: var(--h-ink); font-weight: 600; }
+.h-blog-prose a { color: var(--h-accent); text-decoration: underline; text-underline-offset: 3px; }
+.h-blog-prose ul, .h-blog-prose ol { margin: 0 0 20px; padding-left: 24px; color: var(--h-ink-2); }
+.h-blog-prose ul { list-style: disc; }
+.h-blog-prose ol { list-style: decimal; }
+.h-blog-prose li { margin-bottom: 8px; }
+.h-blog-prose blockquote {
+  margin: 24px 0; padding: 16px 20px; border-left: 3px solid var(--h-accent);
+  background: var(--h-bg); border-radius: 0 12px 12px 0; color: var(--h-ink);
+}
+.h-blog-prose code { font-family: 'Geist Mono', monospace; font-size: .9em; background: var(--h-bg); padding: 2px 6px; border-radius: 6px; }
+.h-blog-prose table {
+  width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 15px; line-height: 1.45;
+  border: 1px solid var(--h-line); border-radius: 12px; overflow: hidden; display: block; overflow-x: auto;
+}
+.h-blog-prose thead th { background: var(--h-bg); text-align: left; font-weight: 600; color: var(--h-ink); padding: 12px 16px; border-bottom: 1px solid var(--h-line); }
+.h-blog-prose tbody td { padding: 12px 16px; border-top: 1px solid var(--h-line); color: var(--h-ink-2); vertical-align: top; }
+
+/* CTA-блок внизу статьи */
+.h-blog-cta {
+  margin-top: 40px; padding: 32px; border-radius: 20px;
+  background: linear-gradient(120deg, #3b46cf, #6a74f0); color: #fff;
+  display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
+}
+.h-blog-cta h2 { font-size: 24px; font-weight: 600; line-height: 1.2; margin: 0 0 8px; }
+.h-blog-cta p { font-size: 15px; line-height: 1.5; color: rgba(255,255,255,.85); max-width: 480px; }
+
+/* Другие статьи */
+.h-blog-others { max-width: 860px; margin: 48px auto 0; }
+.h-blog-others h2 { font-size: 22px; font-weight: 600; margin-bottom: 18px; }
+.h-blog-others-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.h-blog-other-card {
+  background: var(--h-surface); border: 1px solid var(--h-line); border-radius: 16px;
+  padding: 20px; display: flex; flex-direction: column; gap: 10px;
+}
+.h-blog-other-card:hover { border-color: var(--h-accent); }
+.h-blog-other-card h3 { font-size: 16px; font-weight: 600; line-height: 1.3; }
+.h-blog-other-card span { font-size: 12px; font-weight: 600; color: var(--h-accent); }
+
+@media (max-width: 900px) {
+  .h-blog-grid, .h-blog-others-grid { grid-template-columns: 1fr; }
+  .h-blog-article { padding: 32px 24px; }
+}
+@media (max-width: 760px) {
+  .h-blog-hero { padding: 32px 0 24px; }
+  .h-blog-hero h1 { font-size: 32px; }
+  .h-blog-art-head h1 { font-size: 28px; }
+  .h-blog-article { padding: 24px 18px; border-radius: 16px; }
+  .h-blog-cta { padding: 24px 20px; }
+}

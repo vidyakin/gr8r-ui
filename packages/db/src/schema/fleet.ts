@@ -34,6 +34,8 @@ export const fleetVehicles = pgTable(
     tankL: numeric('tank_l', { precision: 8, scale: 2 }),
     /** Текущий пробег, км: растёт при закрытии путевого листа и вводе заправки с одометром */
     odometer: km('odometer').notNull().default('0'),
+    meterType: text('meter_type', { enum: ['odometer', 'engine_hours'] }).notNull().default('odometer'),
+    engineHours: numeric('engine_hours', { precision: 12, scale: 2 }).notNull().default('0'),
     status: text('status', { enum: ['active', 'repair', 'inactive'] }).notNull().default('active'),
     /** Закреплённый водитель (по умолчанию в путевом листе) */
     driverMemberId: uuid('driver_member_id'),
@@ -46,6 +48,7 @@ export const fleetVehicles = pgTable(
     unique('fleet_vehicles_ws_id_uq').on(t.workspaceId, t.id),
     uniqueIndex('fleet_vehicles_ws_plate_uq').on(t.workspaceId, sql`lower(${t.plate})`).where(sql`${t.archivedAt} is null`),
     foreignKey({ columns: [t.workspaceId, t.driverMemberId], foreignColumns: [members.workspaceId, members.id], name: 'fleet_vehicles_driver_fk' }),
+    check('fleet_vehicles_meter_type_chk', sql`${t.meterType} in ('odometer','engine_hours')`),
     check('fleet_vehicles_nums_chk', sql`${t.odometer} >= 0 and (${t.capacityKg} is null or ${t.capacityKg} >= 0) and (${t.volumeM3} is null or ${t.volumeM3} >= 0) and (${t.pallets} is null or ${t.pallets} >= 0)`),
   ],
 );
@@ -122,6 +125,8 @@ export const fleetWaybills = pgTable(
     returnAt: ts('return_at'),
     odometerOut: km('odometer_out').notNull().default('0'),
     odometerBack: km('odometer_back'),
+    engineHoursStart: numeric('engine_hours_start', { precision: 12, scale: 2 }),
+    engineHoursEnd: numeric('engine_hours_end', { precision: 12, scale: 2 }),
     fuelOut: liters('fuel_out').notNull().default('0'),
     fuelBack: liters('fuel_back'),
     /** Норма л/100 км, зафиксированная на дату листа, и расчёт при закрытии */
@@ -220,6 +225,7 @@ export const fleetServicePlans = pgTable(
     name: text('name').notNull(),
     everyKm: integer('every_km'),
     everyMonths: integer('every_months'),
+    intervalHours: numeric('interval_hours', { precision: 12, scale: 2 }),
     lastKm: km('last_km'),
     lastDate: date('last_date', { mode: 'string' }),
     createdAt: createdAt(),

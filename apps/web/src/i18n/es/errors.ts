@@ -256,6 +256,7 @@ export const errors: Widen<typeof E> = {
   waybill_closed: 'No se puede modificar una hoja de ruta cerrada o cancelada',
   waybill_return_required: 'Introduce el odómetro y el combustible al regreso',
   waybill_odometer: 'El odómetro al regreso es inferior al odómetro de salida',
+  waybill_engine_hours: 'Las horas motor al regreso son inferiores a las de salida',
   service_interval_required: 'Establece el intervalo de mantenimiento en km o meses',
   repair_not_draft: 'Descontabiliza la reparación antes de modificarla',
   repair_work_product: 'Una línea de trabajo no puede tomar un producto del almacén',

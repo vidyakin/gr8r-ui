@@ -78,6 +78,8 @@ export const productCreate = z.object({
   /** Поставщик по умолчанию: заказы поставщикам по потребности создаются на него */
   defaultSupplierId: uuid.nullish(),
   /** Срок поставки, дней (в расчёте потребностей) */
+  /** Насыпная плотность, т/м³ (добыча: перевод массы в объём) */
+  bulkDensity: z.coerce.number().positive().max(100).nullish(),
   leadDays: z.coerce.number().int().min(0).max(365).default(0),
   /** Товар-родитель: вариант товара (комбинация параметров с флажком «разрез склада») */
   parentProductId: uuid.nullish(),
