@@ -63,6 +63,11 @@ export const aiChats: Widen<typeof en> = {
     button: 'Настройки бота',
     title: 'Настройки ИИ-консультанта',
     subtitle: 'Тон общения и приветствие в виджете чата на сайте',
+    tabs: {
+      bot: 'Бот',
+      widget: 'Виджет',
+      kb: 'База знаний',
+    },
     toneLabel: 'Тон общения',
     tones: {
       friendly: 'Дружелюбный',

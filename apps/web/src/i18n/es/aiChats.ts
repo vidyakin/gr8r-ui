@@ -63,6 +63,11 @@ export const aiChats: Widen<typeof en> = {
     button: 'Ajustes del bot',
     title: 'Configuración del consultor IA',
     subtitle: 'Tono y saludo inicial del widget de chat en el sitio web',
+    tabs: {
+      bot: 'Bot',
+      widget: 'Widget',
+      kb: 'Base de conocimientos',
+    },
     toneLabel: 'Tono de la conversación',
     tones: {
       friendly: 'Amigable',
