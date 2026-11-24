@@ -5,6 +5,7 @@ import { Button, Field, Skeleton, Textarea, toast } from '@/components/ui';
 import { DrawerSection, EntityDrawer } from '@/components/erp/entity-drawer';
 import { useT } from '@/i18n';
 import { useAiChatSettings, useAiChatsApi, type AiChatTone } from './ai-chats-data';
+import { AiChatWidgetSettings, type WidgetFormState } from './AiChatWidgetSettings';
 
 const TONES: AiChatTone[] = ['friendly', 'formal', 'concise', 'sales'];
 const GREETING_LOCALES = [
@@ -21,9 +22,23 @@ function AiChatSettingsContent({ onClose }: { onClose: () => void }) {
   const [tone, setTone] = React.useState<AiChatTone>('friendly');
   const [customToneNote, setCustomToneNote] = React.useState('');
   const [greeting, setGreeting] = React.useState({ ru: '', en: '', es: '' });
+  const [widget, setWidget] = React.useState<WidgetFormState>({
+    widgetEnabled: false,
+    widgetToken: null,
+    allowedOriginsText: '',
+    botName: '',
+    accentColor: '#2563eb',
+    position: 'right',
+    handoffEnabled: true,
+    soundEnabled: true,
+    dailyLimit: 300,
+    knowledgeBase: '',
+  });
   const [dirty, setDirty] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  const [rotating, setRotating] = React.useState(false);
+  const [scraping, setScraping] = React.useState(false);
 
   React.useEffect(() => {
     if (!settings.data || dirty) return;
@@ -34,17 +49,78 @@ function AiChatSettingsContent({ onClose }: { onClose: () => void }) {
       en: settings.data.greeting?.en ?? '',
       es: settings.data.greeting?.es ?? '',
     });
+    setWidget({
+      widgetEnabled: settings.data.widgetEnabled ?? false,
+      widgetToken: settings.data.widgetToken ?? null,
+      allowedOriginsText: (settings.data.allowedOrigins ?? []).join('\n'),
+      botName: settings.data.botName ?? '',
+      accentColor: settings.data.accentColor ?? '#2563eb',
+      position: settings.data.position ?? 'right',
+      handoffEnabled: settings.data.handoffEnabled ?? true,
+      soundEnabled: settings.data.soundEnabled ?? true,
+      dailyLimit: settings.data.dailyLimit ?? 300,
+      knowledgeBase: settings.data.knowledgeBase ?? '',
+    });
   }, [settings.data, dirty]);
+
+  const updateWidget = (patch: Partial<WidgetFormState>) => {
+    setWidget(prev => ({ ...prev, ...patch }));
+    setDirty(true);
+    setSaved(false);
+  };
 
   const handleSave = async () => {
     setSaving(true);
     setSaved(false);
-    const res = await api.saveSettings({ tone, customToneNote, greeting });
+    const allowedOrigins = widget.allowedOriginsText
+      .split(/[\n,]+/)
+      .map(s => s.trim())
+      .filter(Boolean);
+    const accentColor = /^#[0-9a-fA-F]{6}$/.test(widget.accentColor.trim()) ? widget.accentColor.trim() : '#2563eb';
+    const res = await api.saveSettings({
+      tone,
+      customToneNote,
+      greeting,
+      widgetEnabled: widget.widgetEnabled,
+      allowedOrigins,
+      botName: widget.botName,
+      accentColor,
+      position: widget.position,
+      handoffEnabled: widget.handoffEnabled,
+      soundEnabled: widget.soundEnabled,
+      dailyLimit: widget.dailyLimit,
+      knowledgeBase: widget.knowledgeBase,
+    });
     setSaving(false);
     if (res) {
+      setWidget(prev => ({
+        ...prev,
+        widgetToken: res.widgetToken ?? prev.widgetToken,
+        allowedOriginsText: (res.allowedOrigins ?? []).join('\n'),
+      }));
       setDirty(false);
       setSaved(true);
       toast.success(t('aiChats.settings.saved'));
+    }
+  };
+
+  const handleRotate = async () => {
+    setRotating(true);
+    const res = await api.rotateWidgetToken();
+    setRotating(false);
+    if (res) {
+      setWidget(prev => ({ ...prev, widgetToken: res.widgetToken ?? null }));
+      toast.success(t('aiChats.settings.widgetRotated'));
+    }
+  };
+
+  const handleScrape = async (url: string) => {
+    setScraping(true);
+    const res = await api.scrapeKnowledgeBase(url);
+    setScraping(false);
+    if (res?.knowledgeBase) {
+      updateWidget({ knowledgeBase: res.knowledgeBase });
+      toast.success(t('aiChats.settings.kbScraped'));
     }
   };
 
@@ -140,6 +216,14 @@ function AiChatSettingsContent({ onClose }: { onClose: () => void }) {
               ))}
             </div>
           </DrawerSection>
+          <AiChatWidgetSettings
+            state={widget}
+            onChange={updateWidget}
+            onRotateToken={handleRotate}
+            onScrapeWebsite={handleScrape}
+            rotating={rotating}
+            scraping={scraping}
+          />
         </>
       )}
     </EntityDrawer>

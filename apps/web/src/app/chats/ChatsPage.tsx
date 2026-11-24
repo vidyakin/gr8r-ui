@@ -1,7 +1,7 @@
 /* Раздел /chats: двухколоночный мультиязычный мессенджер (список диалогов слева + лента с автопереводом справа) */
 import * as React from 'react';
 import { useNavigate, useParams } from 'react-router';
-import { Globe, MessageSquare, Plus, Search, Users } from 'lucide-react';
+import { Globe, MessageSquare, Plus, Search, Users, Volume2, VolumeX } from 'lucide-react';
 import { Avatar, Badge, Button, EmptyState, Input, Segmented } from '@/components/ui';
 import { fmtDateTime, useT } from '@/i18n';
 import { cn } from '@/lib/utils';
@@ -9,6 +9,7 @@ import { ChatThread } from './ChatThread';
 import { GuestLinkDialog } from './GuestLinkDialog';
 import { NewChatDialog } from './NewChatDialog';
 import { useChats, type ChatFilterKind, type ChatListItem } from './data';
+import { isChatSoundMuted, playChatNotificationSound, setChatSoundMuted } from './sound';
 
 function ChatRow({ chat, active, onClick }: { chat: ChatListItem; active: boolean; onClick: () => void }) {
   const t = useT();
@@ -69,6 +70,8 @@ export function ChatsPage() {
   const [query, setQuery] = React.useState('');
   const [newOpen, setNewOpen] = React.useState(false);
   const [guestOpen, setGuestOpen] = React.useState(false);
+  const [muted, setMuted] = React.useState(() => isChatSoundMuted());
+  const prevUnreadRef = React.useRef<Map<string, number> | null>(null);
 
   React.useEffect(() => {
     const id = window.setTimeout(() => setQuery(search), 220);
@@ -77,6 +80,28 @@ export function ChatsPage() {
 
   const chatsQuery = useChats({ kind: filter, q: query });
   const chats = chatsQuery.data ?? [];
+
+  React.useEffect(() => {
+    if (!chatsQuery.data) return;
+    const prev = prevUnreadRef.current;
+    const next = new Map<string, number>();
+    let hasNewIncoming = false;
+    for (const c of chatsQuery.data) {
+      next.set(c.id, c.unreadCount);
+      if (prev) {
+        const oldCount = prev.get(c.id) ?? 0;
+        if (c.unreadCount > oldCount) hasNewIncoming = true;
+      }
+    }
+    prevUnreadRef.current = next;
+    if (hasNewIncoming) playChatNotificationSound();
+  }, [chatsQuery.data]);
+
+  const toggleSound = () => {
+    const next = !muted;
+    setMuted(next);
+    setChatSoundMuted(next);
+  };
   const activeChat = React.useMemo(
     () => (chatId ? chats.find(c => c.id === chatId) ?? null : null),
     [chats, chatId],
@@ -90,10 +115,15 @@ export function ChatsPage() {
         <div className="p-3 border-b border-border flex flex-col gap-2.5 shrink-0">
           <div className="flex items-center justify-between gap-2">
             <h1 className="text-base font-semibold trunc">{t('chats.title')}</h1>
-            <Button size="sm" variant="primary" onClick={() => setNewOpen(true)}>
-              <Plus size={14} />
-              <span>{t('chats.newChat')}</span>
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button size="sm" variant="ghost" onClick={toggleSound} aria-label={muted ? 'Unmute sound' : 'Mute sound'}>
+                {muted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+              </Button>
+              <Button size="sm" variant="primary" onClick={() => setNewOpen(true)}>
+                <Plus size={14} />
+                <span>{t('chats.newChat')}</span>
+              </Button>
+            </div>
           </div>
           <Input
             size="sm"

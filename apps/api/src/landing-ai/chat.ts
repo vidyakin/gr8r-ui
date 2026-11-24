@@ -245,6 +245,7 @@ export async function callLandingLlm(
   onComplete?: (fullReply: string) => void | Promise<void>,
   style?: LandingChatStyle,
   scriptCtx?: SalesScriptContext,
+  systemPromptOverride?: string,
 ): Promise<ReadableStream<Uint8Array>>;
 export async function callLandingLlm(
   cfg: LandingAiConfig,
@@ -255,6 +256,7 @@ export async function callLandingLlm(
   onComplete?: (fullReply: string) => void | Promise<void>,
   style?: LandingChatStyle,
   scriptCtx?: SalesScriptContext,
+  systemPromptOverride?: string,
 ): Promise<{ reply: string }>;
 export async function callLandingLlm(
   cfg: LandingAiConfig,
@@ -265,6 +267,7 @@ export async function callLandingLlm(
   onComplete?: (fullReply: string) => void | Promise<void>,
   style?: LandingChatStyle,
   scriptCtx?: SalesScriptContext,
+  systemPromptOverride?: string,
 ): Promise<ReadableStream<Uint8Array> | { reply: string }>;
 export async function callLandingLlm(
   cfg: LandingAiConfig,
@@ -275,6 +278,7 @@ export async function callLandingLlm(
   onComplete?: (fullReply: string) => void | Promise<void>,
   style?: LandingChatStyle,
   scriptCtx?: SalesScriptContext,
+  systemPromptOverride?: string,
 ): Promise<ReadableStream<Uint8Array> | { reply: string }> {
   const url = `${cfg.baseUrl.replace(/\/$/, '')}/chat/completions`;
   let res: Response;
@@ -285,7 +289,7 @@ export async function callLandingLlm(
       body: JSON.stringify({
         model: cfg.model,
         messages: [
-          { role: 'system', content: buildSystemPrompt(locale, style, scriptCtx) },
+          { role: 'system', content: systemPromptOverride ?? buildSystemPrompt(locale, style, scriptCtx) },
           ...messages.map(m => ({ role: m.role, content: sanitizeUserText(m.content) })),
         ],
         temperature: 0.3,
@@ -294,11 +298,16 @@ export async function callLandingLlm(
       }),
       signal: AbortSignal.timeout(cfg.timeoutMs),
     });
-  } catch {
+  } catch (err) {
+    console.error('[landing-chat] LLM fetch error:', err instanceof Error ? err.message : err);
     throw aiUnavailable();
   }
 
-  if (!res.ok) throw aiUnavailable();
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => '');
+    console.error(`[landing-chat] LLM HTTP ${res.status} (${cfg.model}):`, errBody.slice(0, 300));
+    throw aiUnavailable();
+  }
 
   if (stream) {
     if (!res.body) throw aiUnavailable();

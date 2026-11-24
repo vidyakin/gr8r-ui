@@ -32,11 +32,24 @@ export interface SalesScriptGraph {
   edges: SalesScriptEdge[];
 }
 
+export const WIDGET_POSITIONS = ['right', 'left'] as const;
+export type WidgetPosition = (typeof WIDGET_POSITIONS)[number];
+
 export interface AiChatSettings {
   tone: AiChatTone;
   customToneNote: string;
   greeting: { ru: string; en: string; es: string };
   script: SalesScriptGraph;
+  widgetEnabled: boolean;
+  widgetSecret: string;
+  allowedOrigins: string[];
+  botName: string;
+  accentColor: string;
+  position: WidgetPosition;
+  handoffEnabled: boolean;
+  soundEnabled: boolean;
+  knowledgeBase: string;
+  dailyLimit: number;
 }
 
 export const DEFAULT_SALES_SCRIPT: SalesScriptGraph = {
@@ -50,9 +63,49 @@ export const DEFAULT_AI_CHAT_SETTINGS: AiChatSettings = {
   customToneNote: '',
   greeting: { ru: '', en: '', es: '' },
   script: DEFAULT_SALES_SCRIPT,
+  widgetEnabled: false,
+  widgetSecret: '',
+  allowedOrigins: [],
+  botName: '',
+  accentColor: '#2563eb',
+  position: 'right',
+  handoffEnabled: true,
+  soundEnabled: true,
+  knowledgeBase: '',
+  dailyLimit: 300,
 };
 
 const noteField = z.string().trim().max(400).optional();
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+
+/** Нормализует origin сайта клиента до схемы + хоста (+ порта), отбрасывая пути и невалидные строки */
+export function normalizeOrigin(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const withProto = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const u = new URL(withProto);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+    return u.origin.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+export function sanitizeAllowedOrigins(list: unknown): string[] {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of list) {
+    if (typeof item !== 'string') continue;
+    const norm = normalizeOrigin(item);
+    if (!norm || seen.has(norm)) continue;
+    seen.add(norm);
+    out.push(norm);
+    if (out.length >= 20) break;
+  }
+  return out;
+}
 
 const salesScriptNodeSchema = z.object({
   id: z.string().trim().min(1).max(80),
@@ -88,6 +141,15 @@ export const aiChatSettingsPatch = z.object({
     })
     .optional(),
   script: salesScriptGraphSchema.optional(),
+  widgetEnabled: z.boolean().optional(),
+  allowedOrigins: z.array(z.string().trim().max(200)).max(20).optional(),
+  botName: z.string().trim().max(60).optional(),
+  accentColor: z.string().trim().regex(HEX_COLOR_RE).optional(),
+  position: z.enum(WIDGET_POSITIONS).optional(),
+  handoffEnabled: z.boolean().optional(),
+  soundEnabled: z.boolean().optional(),
+  knowledgeBase: z.string().max(20_000).optional(),
+  dailyLimit: z.number().int().min(10).max(5000).optional(),
 });
 
 export type AiChatSettingsPatch = z.infer<typeof aiChatSettingsPatch>;
@@ -150,6 +212,15 @@ export function extractAiChatSettings(rawSettings: Record<string, unknown> | nul
     ? (raw.tone as AiChatTone)
     : DEFAULT_AI_CHAT_SETTINGS.tone;
   const g = isRecord(raw.greeting) ? raw.greeting : {};
+  const pos = typeof raw.position === 'string' && (WIDGET_POSITIONS as readonly string[]).includes(raw.position)
+    ? (raw.position as WidgetPosition)
+    : DEFAULT_AI_CHAT_SETTINGS.position;
+  const color = typeof raw.accentColor === 'string' && HEX_COLOR_RE.test(raw.accentColor.trim())
+    ? raw.accentColor.trim()
+    : DEFAULT_AI_CHAT_SETTINGS.accentColor;
+  const rawLimit = typeof raw.dailyLimit === 'number' && Number.isFinite(raw.dailyLimit)
+    ? Math.min(5000, Math.max(10, Math.round(raw.dailyLimit)))
+    : DEFAULT_AI_CHAT_SETTINGS.dailyLimit;
   return {
     tone,
     customToneNote: cleanStr(raw.customToneNote),
@@ -159,6 +230,16 @@ export function extractAiChatSettings(rawSettings: Record<string, unknown> | nul
       es: cleanStr(g.es),
     },
     script: extractSalesScript(raw.script),
+    widgetEnabled: raw.widgetEnabled === true,
+    widgetSecret: cleanStr(raw.widgetSecret, 128),
+    allowedOrigins: sanitizeAllowedOrigins(raw.allowedOrigins),
+    botName: cleanStr(raw.botName, 60),
+    accentColor: color,
+    position: pos,
+    handoffEnabled: raw.handoffEnabled !== false,
+    soundEnabled: raw.soundEnabled !== false,
+    knowledgeBase: typeof raw.knowledgeBase === 'string' ? raw.knowledgeBase.slice(0, 20_000) : '',
+    dailyLimit: rawLimit,
   };
 }
 
@@ -179,6 +260,25 @@ export function mergeAiChatSettings(current: AiChatSettings, patch: AiChatSettin
           edges: patch.script.edges.map(e => ({ ...e })),
         }
       : current.script,
+    widgetEnabled: patch.widgetEnabled ?? current.widgetEnabled,
+    widgetSecret: current.widgetSecret,
+    allowedOrigins: patch.allowedOrigins !== undefined ? sanitizeAllowedOrigins(patch.allowedOrigins) : current.allowedOrigins,
+    botName: patch.botName !== undefined ? cleanStr(patch.botName, 60) : current.botName,
+    accentColor: patch.accentColor ?? current.accentColor,
+    position: patch.position ?? current.position,
+    handoffEnabled: patch.handoffEnabled ?? current.handoffEnabled,
+    soundEnabled: patch.soundEnabled ?? current.soundEnabled,
+    knowledgeBase: patch.knowledgeBase !== undefined ? patch.knowledgeBase.slice(0, 20_000) : current.knowledgeBase,
+    dailyLimit: patch.dailyLimit ?? current.dailyLimit,
+  };
+}
+
+/** Убирает сырой widgetSecret и добавляет готовый widgetToken для ответа API */
+export function toAdminAiChatSettings(workspaceId: string, settings: AiChatSettings) {
+  const { widgetSecret, ...rest } = settings;
+  return {
+    ...rest,
+    widgetToken: widgetSecret ? `${workspaceId}.${widgetSecret}` : null,
   };
 }
 

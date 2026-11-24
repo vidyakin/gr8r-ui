@@ -6,14 +6,32 @@
 import { sql as dsql } from 'drizzle-orm';
 import { Hono, type Context } from 'hono';
 import { cors } from 'hono/cors';
+import { z } from 'zod';
 import { campaignByUtm, enqueueYooPayment, findEnabledCaseForm, findEnabledForm, insertLead, isUuid, parseFormToken, parsePriceToken, pickRoundRobin, publicPriceList, rateLimits, readMyModules, readMyReadableModules, submitCaseForm, withContext, type Sql } from '@erp/db';
 import { caseWebhookBody, isHoneypotHit, leadWebhookBody, pickUtm, yooWebhookBody } from '@erp/shared';
 import { AppError } from '../errors';
 import { callLandingLlm, honeypotReply, landingChatBody, parseStageDirective, readSessionScriptState, saveLandingChatTurn } from '../landing-ai/chat';
-import type { LandingLocale } from '../landing-ai/knowledge';
+import { buildWidgetSystemPrompt, type LandingLocale } from '../landing-ai/knowledge';
 import { DEFAULT_AI_CHAT_SETTINGS, readWorkspaceAiChatSettings } from '../landing-ai/settings';
+import { createWidgetHandoffChat, isOriginAllowed, resolveWidgetWorkspace } from '../landing-ai/widget-handoff';
 import { isYooKassaIp } from '../yookassa-ip';
 import type { AppEnv } from '../types';
+
+const widgetHandoffBody = z.object({
+  sessionId: z.string().uuid().optional(),
+  visitorName: z.string().trim().max(80).optional(),
+  pageUrl: z.string().trim().max(300).optional(),
+  locale: z.enum(['ru', 'en', 'es']).default('ru'),
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(['user', 'assistant']),
+        content: z.string().trim().min(1).max(2000),
+      }),
+    )
+    .max(10)
+    .optional(),
+});
 
 const MAX_BODY = 32 * 1024;
 const CHAT_MAX_BODY = 16 * 1024;
@@ -297,4 +315,178 @@ export const hookRoutes = new Hono<AppEnv>()
     }
     const result = await callLandingLlm(ai, locale, messages, false, fetch, persist, style, scriptCtx);
     return c.json(result);
+  })
+  // Мультитенантный встраиваемый ИИ-виджет для сайтов клиентов:
+  // токен <workspace_id>.<secret>, проверка allowedOrigins, per-workspace rate-limit и handoff в модуль «Чаты»
+  .use('/widget/*', cors({ origin: origin => origin || '*', allowMethods: ['GET', 'POST', 'OPTIONS'], allowHeaders: ['Content-Type'], maxAge: 86400 }))
+  .get('/widget/:token/config', async c => {
+    const parsed = parseFormToken(c.req.param('token'));
+    if (!parsed) throw notFound();
+    const sql = c.get('sql');
+    const widget = await resolveWidgetWorkspace(sql, parsed.workspaceId, parsed.secret);
+    if (!widget) throw notFound();
+    const origin = c.req.header('origin');
+    if (!isOriginAllowed(origin, widget.settings.allowedOrigins)) {
+      throw new AppError(403, 'forbidden_origin', 'Origin is not allowed');
+    }
+    const rawLocale = c.req.query('locale');
+    const locale: LandingLocale = rawLocale === 'en' || rawLocale === 'es' ? rawLocale : 'ru';
+    c.header('Cache-Control', 'no-store');
+    return c.json({
+      botName: widget.settings.botName || widget.workspaceName,
+      accentColor: widget.settings.accentColor,
+      position: widget.settings.position,
+      greeting: widget.settings.greeting[locale] || null,
+      handoffEnabled: widget.settings.handoffEnabled,
+      soundEnabled: widget.settings.soundEnabled,
+    });
+  })
+  .post('/widget/:token/chat', async c => {
+    const parsed = parseFormToken(c.req.param('token'));
+    if (!parsed) throw notFound();
+    const cfg = c.get('config');
+    const ai = cfg.landingAi;
+    const sql = c.get('sql');
+    const widget = await resolveWidgetWorkspace(sql, parsed.workspaceId, parsed.secret);
+    if (!widget) throw notFound();
+
+    const origin = c.req.header('origin');
+    if (!isOriginAllowed(origin, widget.settings.allowedOrigins)) {
+      throw new AppError(403, 'forbidden_origin', 'Origin is not allowed');
+    }
+    if (Number(c.req.header('content-length') ?? 0) > CHAT_MAX_BODY) {
+      throw new AppError(413, 'payload_too_large', 'Request body is too large');
+    }
+    let raw: unknown;
+    try {
+      const text = await c.req.text();
+      if (Buffer.byteLength(text, 'utf8') > CHAT_MAX_BODY) {
+        throw new AppError(413, 'payload_too_large', 'Request body is too large');
+      }
+      raw = JSON.parse(text);
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+      throw new AppError(400, 'validation_error', 'Request body must be JSON');
+    }
+    const body = landingChatBody.safeParse(raw);
+    if (!body.success) throw new AppError(400, 'validation_error', 'Invalid chat request');
+    const { sessionId, visitorName, pageUrl, locale, messages, stream, website } = body.data;
+
+    if (website && website.trim().length > 0) {
+      const reply = honeypotReply(locale);
+      if (stream) {
+        return new Response(`data: ${JSON.stringify({ delta: reply })}\n\ndata: [DONE]\n\n`, {
+          headers: { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache, no-transform' },
+        });
+      }
+      return c.json({ reply });
+    }
+
+    if (!ai.baseUrl || !ai.model || !ai.apiKey) {
+      throw new AppError(503, 'ai_not_configured', 'AI assistant is not configured');
+    }
+
+    const ip = c.get('ip');
+    if (!(await allow(sql, `widget-chat:ip10m:${ip}`, ai.rateIp10m, 600))) {
+      throw new AppError(429, 'rate_limited', 'Too many requests. Try again later.', { retryAfter: 600, retryAfterSeconds: 600 });
+    }
+    if (!(await allow(sql, `widget-chat:ipday:${ip}`, ai.rateIpDay, 86400))) {
+      throw new AppError(429, 'rate_limited', 'Daily limit reached. Try again tomorrow.', { retryAfter: 86400, retryAfterSeconds: 86400 });
+    }
+    if (!(await allow(sql, `widget-chat:wsday:${widget.workspaceId}`, widget.settings.dailyLimit, 86400))) {
+      throw new AppError(429, 'rate_limited', 'Workspace daily quota reached. Try again later.', { retryAfter: 86400, retryAfterSeconds: 86400 });
+    }
+
+    const askedAt = new Date().toISOString();
+    const userMessage = messages[messages.length - 1]!.content;
+    const userAgent = c.req.header('user-agent') ?? null;
+    const chatSettings = widget.settings;
+    const scriptActive = chatSettings.script.enabled && chatSettings.script.nodes.length > 0;
+    const scriptState = scriptActive && sessionId
+      ? await readSessionScriptState(sql, widget.workspaceId, sessionId).catch(() => ({ currentNodeId: null, collectedData: {} }))
+      : { currentNodeId: null, collectedData: {} };
+    const scriptCtx = scriptActive
+      ? { script: chatSettings.script, currentNodeId: scriptState.currentNodeId, collectedData: scriptState.collectedData }
+      : undefined;
+    const validNodeIds = new Set(chatSettings.script.nodes.map(n => n.id));
+    const fallbackNodeId = scriptActive
+      ? (scriptState.currentNodeId ?? chatSettings.script.nodes.find(n => n.kind === 'start')?.id ?? chatSettings.script.nodes[0]?.id ?? null)
+      : null;
+
+    const systemPrompt = buildWidgetSystemPrompt(
+      locale,
+      {
+        botName: chatSettings.botName,
+        workspaceName: widget.workspaceName,
+        knowledgeBase: chatSettings.knowledgeBase,
+        tone: chatSettings.tone,
+        customToneNote: chatSettings.customToneNote,
+        handoffEnabled: chatSettings.handoffEnabled,
+      },
+      scriptCtx,
+    );
+
+    const persist = (rawReply: string) => {
+      const parsedReply = scriptActive
+        ? parseStageDirective(rawReply, validNodeIds)
+        : { cleanText: rawReply, nextNodeId: null, extracted: {} };
+      return saveLandingChatTurn(sql, {
+        workspaceId: widget.workspaceId,
+        sessionId,
+        visitorName,
+        ip,
+        userAgent,
+        locale,
+        pageUrl,
+        userMessage,
+        assistantReply: parsedReply.cleanText || rawReply,
+        askedAt,
+        currentNodeId: parsedReply.nextNodeId ?? fallbackNodeId,
+        collectedData: parsedReply.extracted,
+      }).catch(err => console.error('[widget-chat] failed to save history:', err));
+    };
+
+    if (stream) {
+      const sse = await callLandingLlm(ai, locale, messages, true, fetch, persist, undefined, scriptCtx, systemPrompt);
+      return new Response(sse, {
+        headers: {
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-cache, no-transform',
+          'X-Accel-Buffering': 'no',
+        },
+      });
+    }
+    const result = await callLandingLlm(ai, locale, messages, false, fetch, persist, undefined, scriptCtx, systemPrompt);
+    return c.json(result);
+  })
+  .post('/widget/:token/handoff', async c => {
+    const parsed = parseFormToken(c.req.param('token'));
+    if (!parsed) throw notFound();
+    const sql = c.get('sql');
+    const widget = await resolveWidgetWorkspace(sql, parsed.workspaceId, parsed.secret);
+    if (!widget || !widget.settings.handoffEnabled) throw notFound();
+    const origin = c.req.header('origin');
+    if (!isOriginAllowed(origin, widget.settings.allowedOrigins)) {
+      throw new AppError(403, 'forbidden_origin', 'Origin is not allowed');
+    }
+    const ip = c.get('ip');
+    if (!(await allow(sql, `widget-handoff:ip:${ip}`, 10, 3600))) {
+      throw new AppError(429, 'rate_limited', 'Too many requests. Try again later.', { retryAfter: 3600, retryAfterSeconds: 3600 });
+    }
+    let raw: unknown = {};
+    try {
+      const text = await c.req.text();
+      if (text.length > CHAT_MAX_BODY) throw new AppError(413, 'payload_too_large', 'Request body is too large');
+      if (text.trim()) raw = JSON.parse(text);
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+      throw new AppError(400, 'validation_error', 'Request body must be JSON');
+    }
+    const body = widgetHandoffBody.safeParse(raw);
+    if (!body.success) throw new AppError(400, 'validation_error', 'Invalid handoff request');
+    const created = await createWidgetHandoffChat(sql, c.get('config').landingAi, {
+      workspaceId: widget.workspaceId,
+      ...body.data,
+    });
+    return c.json(created, 201);
   });
