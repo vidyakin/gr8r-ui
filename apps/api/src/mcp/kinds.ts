@@ -39,6 +39,8 @@ export const REPORTS = {
   payment_calendar: '/payment-calendar',
   production_release: '/production/reports/release',
   service_states: '/services/reports/states',
+  sales_profit: '/documents/reports/sales-profit',
+  sales_abc: '/documents/reports/sales-abc',
 } as const satisfies Record<string, string>;
 
 export type ReportName = keyof typeof REPORTS;

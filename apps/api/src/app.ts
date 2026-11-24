@@ -34,6 +34,7 @@ import { planningRoutes } from './routes/planning';
 import { productionWorkbenchRoutes } from './routes/production-workbench';
 import { companyRoutes, contactRoutes, crmActivityRoutes, crmAiRoutes, dealRoutes } from './routes/crm';
 import { bankAccountRoutes, companyBankRoutes, companyPartnerRoutes, productPartnerRoutes, costItemRoutes, documentRoutes, organizationBankRoutes, organizationRoutes, stockRoutes, warehouseRoutes } from './routes/documents';
+import { salesProfitRoutes } from './routes/sales-profit';
 import { supplierRatingRoutes } from './routes/supplier-ratings';
 import { componentOwnerRoutes, processorReportRoutes, processorTransferRoutes, tollingRoutes } from './routes/tolling';
 import { documentStateRoutes, workOrderAssignmentRoutes, workOrderKindRoutes, workOrderRoutes } from './routes/work-orders';
@@ -198,6 +199,7 @@ function buildTenantApi() {
     .route('/bank-accounts', bankAccountRoutes)
     .route('/warehouses', warehouseRoutes)
     .route('/cost-items', costItemRoutes)
+    .route('/documents', salesProfitRoutes)
     .route('/documents', documentRoutes)
     .route('/other-costs', otherCostsRoutes)
     .route('/material-allocations', materialAllocationRoutes)

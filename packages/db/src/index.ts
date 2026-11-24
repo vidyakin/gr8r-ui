@@ -53,6 +53,7 @@ export * from './serials';
 export * from './batches';
 export * from './stock-preview';
 export * from './stock-aging';
+export * from './sales-profit';
 export * from './quarantine';
 export * from './quality';
 export * from './repair';
