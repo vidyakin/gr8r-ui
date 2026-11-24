@@ -1,15 +1,15 @@
 /* Соответствие наших объектов объектам 1С (задача 1226, docs/plans/2026-11-02-1c-exchange.md): основа всех обменов.
    GUID ищется по правилам (ИНН/КПП, артикул, штрихкод, БИК+счёт, номер+дата документа), ссылка ставится руками или автоматически.
    Ручная связь приоритетнее: автопоиск её не трогает. 1С — главный: при загрузке значения из 1С выигрывают. */
-import { and, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or, sql, type SQLWrapper } from 'drizzle-orm';
 import type { Db } from './client';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
-import { bankAccounts, companies, contracts, documents, integrations1cLinks, organizations, products, warehouses } from './schema';
+import { bankAccounts, cashRegisters, companies, contracts, documents, integrations1cLinks, organizations, products, warehouses } from './schema';
 import type { Actor } from './attachments';
 
 export type IcLink = typeof integrations1cLinks.$inferSelect;
-export type IcSource = 'buh3' | 'ut';
+export type IcSource = IcLink['source'];
 export type IcEntityType = IcLink['entityType'];
 
 const notFound = (what: string) => new DomainError(404, 'not_found', `${what} not found`);
@@ -100,6 +100,8 @@ export interface IcCandidate {
   account?: string;
   number?: string;
   date?: string;
+  organizationId?: string;
+  companyId?: string;
 }
 
 /** Найденный наш объект */
@@ -126,91 +128,113 @@ export async function autoMatch(
   source: IcSource,
   entityType: IcEntityType,
   candidates: IcCandidate[],
+  existing?: IcLink[],
 ): Promise<{ candidate: IcCandidate; result: MatchResult }[]> {
-  const existing = await linksOf(db, wsId, source, entityType);
-  const byRef = new Map(existing.map(l => [l.refUuid, l]));
+  const links = existing ?? await linksOf(db, wsId, source, entityType);
+  const byRef = new Map(links.map(l => [l.refUuid, l]));
+  const pending = candidates.filter(candidate => !byRef.has(candidate.refUuid));
+  const matchCatalog = entityType !== 'document' && pending.length ? await catalogMatcher(db, wsId, entityType, pending) : undefined;
   const out: { candidate: IcCandidate; result: MatchResult }[] = [];
-  for (const c of candidates) {
-    const have = byRef.get(c.refUuid);
-    if (have) {
-      out.push({ candidate: c, result: { status: 'matched', entity: { entityId: have.entityId, name: have.refName }, rule: 'existing' } });
-      continue;
-    }
-    out.push({ candidate: c, result: await matchOne(db, wsId, entityType, c) });
+  for (const candidate of candidates) {
+    const have = byRef.get(candidate.refUuid);
+    const result: MatchResult = have
+      ? { status: 'matched', entity: { entityId: have.entityId, name: have.refName }, rule: 'existing' }
+      : entityType === 'document' ? await matchDocument(db, wsId, candidate) : matchCatalog!(candidate);
+    out.push({ candidate, result });
   }
   return out;
 }
 
-/** Правила поиска по типу: первое однозначное совпадение выигрывает */
-async function matchOne(db: Db, wsId: string, entityType: IcEntityType, c: IcCandidate): Promise<MatchResult> {
-  if (entityType === 'organization' || entityType === 'company') {
-    const table = entityType === 'organization' ? organizations : companies;
-    const cols = entityType === 'organization'
-      ? { inn: organizations.inn, kpp: organizations.kpp, ogrn: organizations.ogrn }
-      : { inn: companies.inn, kpp: companies.kpp, ogrn: companies.ogrn };
-    const base = (where?: SQL) => db.select({ id: table.id, name: table.name }).from(table).where(where ? and(eq(table.workspaceId, wsId), where) : eq(table.workspaceId, wsId));
-    if (c.inn && c.kpp) {
-      const rows = await base(and(eq(cols.inn, c.inn), eq(cols.kpp, c.kpp)));
-      if (rows.length === 1) return { status: 'matched', entity: { entityId: rows[0]!.id, name: rows[0]!.name }, rule: 'inn_kpp' };
-      if (rows.length > 1) return { status: 'candidates', candidates: rows.map(r => ({ entityId: r.id, name: r.name })), rule: 'inn_kpp' };
-    }
-    if (c.inn) {
-      const rows = await base(eq(cols.inn, c.inn));
-      if (rows.length === 1) return { status: 'matched', entity: { entityId: rows[0]!.id, name: rows[0]!.name }, rule: 'inn' };
-      if (rows.length > 1) return { status: 'candidates', candidates: rows.map(r => ({ entityId: r.id, name: r.name })), rule: 'inn' };
-    }
-    if (c.ogrn) {
-      const rows = await base(eq(cols.ogrn, c.ogrn));
-      if (rows.length === 1) return { status: 'matched', entity: { entityId: rows[0]!.id, name: rows[0]!.name }, rule: 'ogrn' };
-    }
-    return { status: 'none' };
+const pickMatch = (rows: { id: string; name: string }[], rule: string): MatchResult => {
+  const entities = rows.map(row => ({ entityId: row.id, name: row.name }));
+  if (entities.length === 1) return { status: 'matched', entity: entities[0]!, rule };
+  return entities.length ? { status: 'candidates', candidates: entities, rule } : { status: 'none' };
+};
+
+function indexMatches<Row>(rows: Row[], key: (row: Row) => string) {
+  const index = new Map<string, Row[]>();
+  for (const row of rows) {
+    const k = key(row);
+    const list = index.get(k) ?? [];
+    list.push(row);
+    index.set(k, list);
   }
-  if (entityType === 'product') {
-    const pick = (rows: { id: string; name: string }[], rule: string): MatchResult =>
-      rows.length === 1 ? { status: 'matched', entity: { entityId: rows[0]!.id, name: rows[0]!.name }, rule } : rows.length > 1 ? { status: 'candidates', candidates: rows.map(r => ({ entityId: r.id, name: r.name })), rule } : { status: 'none' };
-    if (c.sku) {
-      const rows = await db.select({ id: products.id, name: products.name }).from(products).where(and(eq(products.workspaceId, wsId), eq(products.sku, c.sku)));
-      const r = pick(rows, 'sku');
-      if (r.status !== 'none') return r;
-    }
-    if (c.barcode) {
-      const rows = await db.select({ id: products.id, name: products.name }).from(products).where(and(eq(products.workspaceId, wsId), eq(products.barcode, c.barcode)));
-      const r = pick(rows, 'barcode');
-      if (r.status !== 'none') return r;
-    }
-    if (c.name) {
-      const rows = await db
-        .select({ id: products.id, name: products.name })
-        .from(products)
-        .where(and(eq(products.workspaceId, wsId), eq(products.name, c.name), c.kind ? eq(products.kind, c.kind) : undefined));
-      return pick(rows, 'name');
-    }
-    return { status: 'none' };
+  return (key?: string) => key ? index.get(key) ?? [] : [];
+}
+
+/** Load candidates by searchable keys in one query per catalog. */
+async function catalogMatcher(db: Db, wsId: string, type: Exclude<IcEntityType, 'document'>, candidates: IcCandidate[]): Promise<(candidate: IcCandidate) => MatchResult> {
+  const values = (column: SQLWrapper, key: keyof IcCandidate, lower = false) => {
+    const keys = [...new Set(candidates.flatMap(candidate => {
+      const value = candidate[key];
+      return value ? [lower ? value.toLowerCase() : value] : [];
+    }))];
+    return keys.length ? sql`${column} in (select jsonb_array_elements_text(${JSON.stringify(keys)}::jsonb))` : sql`false`;
+  };
+  if (type === 'organization' || type === 'company') {
+    const table = type === 'organization' ? organizations : companies;
+    const rows = await db.select({ id: table.id, name: table.name, inn: table.inn, kpp: table.kpp, ogrn: table.ogrn })
+      .from(table).where(and(eq(table.workspaceId, wsId), isNull(table.archivedAt), or(values(table.inn, 'inn'), values(table.ogrn, 'ogrn'))));
+    const byInn = indexMatches(rows, row => row.inn);
+    const byOgrn = indexMatches(rows, row => row.ogrn);
+    return candidate => {
+      const taxId = byInn(candidate.inn);
+      if (candidate.kpp) {
+        const exact = taxId.filter(row => row.kpp === candidate.kpp);
+        if (exact.length) return pickMatch(exact, 'inn_kpp');
+      }
+      const compatible = taxId.filter(row => !candidate.kpp || !row.kpp);
+      if (compatible.length) return pickMatch(compatible, 'inn');
+      return pickMatch(byOgrn(candidate.ogrn).filter(row => !candidate.kpp || !row.kpp || row.kpp === candidate.kpp), 'ogrn');
+    };
   }
-  if (entityType === 'bank_account') {
-    if (c.bik && c.account) {
-      const rows = await db
-        .select({ id: bankAccounts.id, name: bankAccounts.account })
-        .from(bankAccounts)
-        .where(and(eq(bankAccounts.workspaceId, wsId), eq(bankAccounts.bik, c.bik), eq(bankAccounts.account, c.account)));
-      if (rows.length === 1) return { status: 'matched', entity: { entityId: rows[0]!.id, name: rows[0]!.name }, rule: 'account' };
-    }
-    return { status: 'none' };
+  if (type === 'product') {
+    const rows = await db.select({ id: products.id, name: products.name, sku: products.sku, barcode: products.barcode,
+      kind: products.kind, archivedAt: products.archivedAt }).from(products)
+      .where(and(eq(products.workspaceId, wsId), or(values(sql`lower(${products.sku})`, 'sku', true),
+        values(products.barcode, 'barcode'), and(isNull(products.archivedAt), values(products.name, 'name')))));
+    const bySku = indexMatches(rows, row => row.sku.toLowerCase());
+    const byBarcode = indexMatches(rows, row => row.barcode);
+    const byName = indexMatches(rows.filter(row => !row.archivedAt), row => row.name);
+    return candidate => {
+      const sku = bySku(candidate.sku?.toLowerCase());
+      if (sku.length) return pickMatch(sku, 'sku');
+      const barcode = byBarcode(candidate.barcode);
+      if (barcode.length) return pickMatch(barcode, 'barcode');
+      return pickMatch(byName(candidate.name).filter(row => !candidate.kind || row.kind === candidate.kind), 'name');
+    };
   }
-  if (entityType !== 'document') return { status: 'none' };
-  // document: номер + дата ±1 день (documents.date — календарная дата в режиме string)
-  if (c.number && c.date) {
-    const d = new Date(c.date);
-    if (!Number.isNaN(d.getTime())) {
-      const day = (offset: number) => new Date(d.getTime() + offset * 864e5).toISOString().slice(0, 10);
-      const rows = await db
-        .select({ id: documents.id, name: documents.number })
-        .from(documents)
-        .where(and(eq(documents.workspaceId, wsId), eq(documents.number, c.number), sql`${documents.date} between ${day(-1)} and ${day(1)}`));
-      if (rows.length === 1) return { status: 'matched', entity: { entityId: rows[0]!.id, name: rows[0]!.name ?? '' }, rule: 'doc_number' };
-    }
+  if (type === 'bank_account') {
+    const table = bankAccounts;
+    const rows = await db.select({ id: table.id, name: table.account, bik: table.bik, organizationId: table.organizationId, companyId: table.companyId })
+      .from(table).where(and(eq(table.workspaceId, wsId), values(table.account, 'account'), values(table.bik, 'bik')));
+    const byAccount = indexMatches(rows, row => `${row.bik}:${row.name}`);
+    return candidate => pickMatch(byAccount(candidate.bik && candidate.account ? `${candidate.bik}:${candidate.account}` : undefined)
+      .filter(row => (!candidate.organizationId || row.organizationId === candidate.organizationId) && (!candidate.companyId || row.companyId === candidate.companyId)), 'account');
   }
-  return { status: 'none' };
+  if (type === 'contract') {
+    const table = contracts;
+    const rows = await db.select({ id: table.id, name: table.number, organizationId: table.organizationId, companyId: table.companyId, date: table.date })
+      .from(table).where(and(eq(table.workspaceId, wsId), isNull(table.archivedAt), values(table.number, 'number')));
+    const byNumber = indexMatches(rows, row => JSON.stringify([row.organizationId, row.companyId, row.name]));
+    return candidate => pickMatch(byNumber(JSON.stringify([candidate.organizationId, candidate.companyId, candidate.number]))
+      .filter(row => !candidate.date || row.date === candidate.date), 'contract_number');
+  }
+  const table = type === 'warehouse' ? warehouses : cashRegisters;
+  const rows = await db.select({ id: table.id, name: table.name }).from(table)
+    .where(and(eq(table.workspaceId, wsId), isNull(table.archivedAt), values(sql`lower(${table.name})`, 'name', true)));
+  const byName = indexMatches(rows, row => row.name.toLowerCase());
+  return candidate => pickMatch(byName(candidate.name?.toLowerCase()), 'name');
+}
+
+async function matchDocument(db: Db, wsId: string, candidate: IcCandidate): Promise<MatchResult> {
+  if (!candidate.number || !candidate.date) return { status: 'none' };
+  const date = new Date(candidate.date);
+  if (!Number.isFinite(date.getTime())) return { status: 'none' };
+  const day = (offset: number) => new Date(date.getTime() + offset * 864e5).toISOString().slice(0, 10);
+  const rows = await db.select({ id: documents.id, name: documents.number }).from(documents)
+    .where(and(eq(documents.workspaceId, wsId), eq(documents.number, candidate.number), sql`${documents.date} between ${day(-1)} and ${day(1)}`));
+  return pickMatch(rows.map(row => ({ ...row, name: row.name ?? '' })), 'doc_number');
 }
 
 /* ---------------- проверка объекта ---------------- */
@@ -236,6 +260,9 @@ async function assertEntity(db: Db, a: Actor, entityType: IcEntityType, entityId
       break;
     case 'bank_account':
       rows = await db.select({ id: bankAccounts.id }).from(bankAccounts).where(and(eq(bankAccounts.workspaceId, a.workspaceId), eq(bankAccounts.id, entityId)));
+      break;
+    case 'cash_register':
+      rows = await db.select({ id: cashRegisters.id }).from(cashRegisters).where(and(eq(cashRegisters.workspaceId, a.workspaceId), eq(cashRegisters.id, entityId)));
       break;
     case 'document':
       rows = await db.select({ id: documents.id }).from(documents).where(and(eq(documents.workspaceId, a.workspaceId), eq(documents.id, entityId)));

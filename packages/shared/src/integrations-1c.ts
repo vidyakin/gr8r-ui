@@ -3,12 +3,12 @@ import { z } from 'zod';
 import { uuid } from './schemas/common';
 
 /** Конфигурация-источник GUID */
-export const IC_SOURCES = ['buh3', 'ut'] as const;
+export const IC_SOURCES = ['buh3', 'ut', 'unf'] as const;
 /** Типы сопоставляемых объектов */
 const refUuid = z.string().trim().regex(/^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\})$/i)
   .transform(value => value.replace(/[{}]/g, '').toLowerCase());
 
-export const IC_ENTITY_TYPES = ['organization', 'company', 'product', 'bank_account', 'document', 'contract', 'warehouse'] as const;
+export const IC_ENTITY_TYPES = ['organization', 'company', 'product', 'bank_account', 'document', 'contract', 'warehouse', 'cash_register'] as const;
 
 /** Ручное сопоставление: наш объект + ссылка 1С */
 export const icLinkCreate = z
@@ -64,3 +64,22 @@ export const icAutoMatchQuery = z
   })
   .strict();
 export type IcAutoMatchQuery = z.infer<typeof icAutoMatchQuery>;
+
+const exchangeDate = z.iso.date().refine(date => !date.startsWith('0000-'));
+export const icUploadSource = z.object({ source: z.enum(IC_SOURCES) }).strict();
+export const icImportApplyQuery = icUploadSource.extend({
+  catalogTypes: z.string().transform(value => value ? value.split(',') : [])
+    .pipe(z.array(z.enum(IC_ENTITY_TYPES.filter(type => type !== 'document'))).max(IC_ENTITY_TYPES.length - 1)),
+  date: exchangeDate.optional(),
+  stock: z.enum(['true', 'false']).transform(value => value === 'true').optional(),
+  money: z.enum(['true', 'false']).transform(value => value === 'true').optional(),
+  settlements: z.enum(['true', 'false']).transform(value => value === 'true').optional(),
+  post: z.enum(['true', 'false']).transform(value => value === 'true').optional(),
+}).refine(value => !(value.stock || value.money || value.settlements) || value.date, {
+  path: ['date'], message: 'Select the opening date',
+});
+export type IcImportOptions = Omit<z.output<typeof icImportApplyQuery>, 'source'>;
+
+export const icReconcileQuery = icUploadSource.extend({ dateFrom: exchangeDate, dateTo: exchangeDate, organizationId: uuid.optional() })
+  .refine(value => value.dateFrom <= value.dateTo, { path: ['dateTo'], message: 'End date must be on or after start date' });
+export type IcReconcileOptions = Omit<z.output<typeof icReconcileQuery>, 'source'>;

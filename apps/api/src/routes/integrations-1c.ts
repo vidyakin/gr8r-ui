@@ -4,8 +4,8 @@ import { zValidator } from '@hono/zod-validator';
 import { Hono, type Context } from 'hono';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { autoMatch, DomainError, exportEnterpriseData, integrations1cSchedules, saveIcExportSchedule, linkEntity, linksOf, unlinkEntity, type IcEntityType, type IcSource } from '@erp/db';
-import { IC_ENTITY_TYPES, IC_SOURCES, icAutoMatchQuery, icLinkCreate, icLinkDelete, icExportRequest, icExportSchedule } from '@erp/shared';
+import { apply1cImport, preview1cImport, reconcile1c, autoMatch, DomainError, exportEnterpriseData, integrations1cSchedules, saveIcExportSchedule, linkEntity, linksOf, unlinkEntity, type IcEntityType, type IcSource } from '@erp/db';
+import { ENTERPRISE_DATA_MAX_BYTES, EnterpriseDataParseError, icImportApplyQuery, icReconcileQuery, icUploadSource, parseEnterpriseDataXml, IC_ENTITY_TYPES, IC_SOURCES, icAutoMatchQuery, icLinkCreate, icLinkDelete, icExportRequest, icExportSchedule } from '@erp/shared';
 import { ctxOf, validationHook, type Ctx } from '../crud';
 import { requireRole } from '../middleware';
 import type { AppEnv } from '../types';
@@ -40,8 +40,66 @@ function xmlFile(c: Context<AppEnv>, xml: string, date: string) {
   });
 }
 
+async function uploadedEnterpriseData(c: Context<AppEnv>) {
+  const body = c.req.raw.body?.getReader();
+  if (!body) throw new DomainError(400, 'invalid_enterprise_data', 'Upload an EnterpriseData XML file');
+  if (Number(c.req.header('content-length')) > ENTERPRISE_DATA_MAX_BYTES) {
+    await body.cancel();
+    throw new DomainError(413, 'payload_too_large', 'EnterpriseData file exceeds 10 MiB');
+  }
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    for (;;) {
+      const chunk = await body.read();
+      if (chunk.done) break;
+      size += chunk.value.byteLength;
+      if (size > ENTERPRISE_DATA_MAX_BYTES) {
+        await body.cancel();
+        throw new DomainError(413, 'payload_too_large', 'EnterpriseData file exceeds 10 MiB');
+      }
+      chunks.push(chunk.value);
+    }
+  } finally {
+    body.releaseLock();
+  }
+  const xml = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    xml.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return parseEnterpriseDataXml(xml);
+  } catch (error) {
+    if (error instanceof EnterpriseDataParseError) throw new DomainError(400, error.code, error.message);
+    throw error;
+  }
+}
+
 export const integrationsRoutes = new Hono<AppEnv>()
   .use('/1c/*', admin)
+  .post('/1c/import/preview', zValidator('query', icUploadSource, validationHook), async c => {
+    const { db, workspaceId } = ctxOf(c);
+    const { source } = c.req.valid('query');
+    const result = await preview1cImport(db, workspaceId, source, await uploadedEnterpriseData(c));
+    c.header('Cache-Control', 'no-store');
+    return c.json(result);
+  })
+  .post('/1c/import/apply', zValidator('query', icImportApplyQuery, validationHook), async c => {
+    const { db, workspaceId, memberId } = ctxOf(c);
+    const { source, ...options } = c.req.valid('query');
+    const result = await apply1cImport(db, workspaceId, memberId, source, await uploadedEnterpriseData(c), options);
+    c.header('Cache-Control', 'no-store');
+    return c.json(result);
+  })
+  .post('/1c/reconcile', zValidator('query', icReconcileQuery, validationHook), async c => {
+    const { db, workspaceId } = ctxOf(c);
+    const { source, ...options } = c.req.valid('query');
+    const result = await reconcile1c(db, workspaceId, source, await uploadedEnterpriseData(c), options);
+    c.header('Cache-Control', 'no-store');
+    return c.json(result);
+  })
   .post('/1c/export/preview', zValidator('json', icExportRequest, validationHook), async c => {
     const ctx = ctxOf(c);
     const { summary } = await exportEnterpriseData(ctx.db, actorOf(ctx), { ...c.req.valid('json'), saveLinks: false });

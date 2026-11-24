@@ -10,6 +10,8 @@ import { fmtDateTime } from '@/i18n/format';
 import { errorMessage } from '../data/api';
 import { call, useWsId } from '../meta/data';
 import { useIsAdmin } from '../catalog/data';
+import { Import1c } from './import-1c';
+import { Reconcile1c } from './reconcile-1c';
 import { Export1c } from './export-1c';
 import { Links1c } from './links-1c';
 import { BankConnections } from './bank-connections';
@@ -89,6 +91,8 @@ export function IntegrationsSection({ title }: { title: string }) {
         <TelegramSettings isSet={items.some(s => s.key === TELEGRAM_TOKEN_SECRET)} available={available} />
         <WebhooksSettings />
         <Export1c />
+        <Import1c />
+        <Reconcile1c />
         <Links1c />
         <div className="sblock">
           {!available && <Alert tone="warn" className="mb-3">{t('secrets.unavailable')}</Alert>}

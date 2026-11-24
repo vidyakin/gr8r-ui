@@ -51,6 +51,7 @@ import { mining } from './mining';
 
 import { icLinks } from './ic-links';
 import { icExport } from './ic-export';
+import { icExchange } from './ic-exchange';
 
-export const en = { icLinks, icExport, common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, batches, repeat, appt, delivery, positions, departments, approvals, projectTemplates, leads, cases, aiChats, ads, secrets, email, money, payroll, pricing, loyalty, licensing, fleet, trips, transport, help, attachments, objects, estimates, supplierRating, supplierPrices, shifts, agentTokens, whiteboards, chats, mining };
+export const en = { icLinks, icExport, icExchange, common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, batches, repeat, appt, delivery, positions, departments, approvals, projectTemplates, leads, cases, aiChats, ads, secrets, email, money, payroll, pricing, loyalty, licensing, fleet, trips, transport, help, attachments, objects, estimates, supplierRating, supplierPrices, shifts, agentTokens, whiteboards, chats, mining };
 

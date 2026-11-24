@@ -1,6 +1,9 @@
 /* Ошибки API по коду (error.code). Параметры берутся из error.details. На английском приоритет у текста сервера —
    он точнее; ключ здесь нужен, чтобы перевести код на другие языки (см. errorMessage в data/api.ts) */
 export const errors = {
+  invalid_enterprise_data: "Select a valid EnterpriseData 1.15 or 1.17 XML file.",
+  ic_unresolved_balances: "Check the balance date, selected sections and unresolved rows.",
+  ic_opening_exists: "An opening document already exists for this organization or warehouse.",
   driver_payment_conflict: 'This payment identifier was already used for another payment.',
   driver_return_conflict: 'This return identifier was already used for another return.',
   return_requires_realization: 'A posted shipment is required for a return.',

@@ -77,10 +77,10 @@ export const integrations1cLinks = pgTable(
   {
     id: pk(),
     workspaceId: wsCol(),
-    /** Конфигурация-источник GUID: 1С:Бухгалтерия 3.0 или Управление торговлей */
-    source: text('source', { enum: ['buh3', 'ut'] }).notNull(),
+    /** Конфигурация-источник GUID: Бухгалтерия 3.0, Управление торговлей или УНФ */
+    source: text('source', { enum: ['buh3', 'ut', 'unf'] }).notNull(),
     /** Тип нашего объекта: organization, company, product, bank_account, document */
-    entityType: text('entity_type', { enum: ['organization', 'company', 'product', 'bank_account', 'document', 'contract', 'warehouse'] }).notNull(),
+    entityType: text('entity_type', { enum: ['organization', 'company', 'product', 'bank_account', 'document', 'contract', 'warehouse', 'cash_register'] }).notNull(),
     /** Наш id (полиморфная привязка, FK нет — существование проверяет сервис) */
     entityId: uuid('entity_id').notNull(),
     /** GUID ссылки объекта в 1С */
@@ -100,10 +100,10 @@ export const integrations1cLinks = pgTable(
     // один наш объект ↔ один GUID 1С в пределах конфигурации, и наоборот
     unique('integrations_1c_links_entity_uq').on(t.workspaceId, t.source, t.entityType, t.entityId),
     unique('integrations_1c_links_ref_uq').on(t.workspaceId, t.source, t.entityType, t.refUuid),
-    check('integrations_1c_links_source_chk', sql`${t.source} in ('buh3','ut')`),
+    check('integrations_1c_links_source_chk', sql`${t.source} in ('buh3','ut','unf')`),
     check(
       'integrations_1c_links_entity_type_chk',
-      sql`${t.entityType} in ('organization','company','product','bank_account','document','contract','warehouse')`,
+      sql`${t.entityType} in ('organization','company','product','bank_account','document','contract','warehouse','cash_register')`,
     ),
     index('integrations_1c_links_entity_idx').on(t.workspaceId, t.source, t.entityType),
     index('integrations_1c_links_ref_idx').on(t.workspaceId, t.refUuid),
