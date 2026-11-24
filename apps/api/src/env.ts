@@ -8,6 +8,7 @@ const int = (v: string | undefined, def: number) => {
 };
 
 const DEFAULT_LANDING_AI_ORIGINS = [
+  'https://future-erp.ru',
   'https://future-erp.ai-solutions-studio.ru',
   'http://localhost:4321',
   'http://127.0.0.1:4321',
