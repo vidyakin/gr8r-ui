@@ -68,7 +68,7 @@ export const productionScene: Scene<S> = {
       <DemoShell compact={compact} active="release" crumbs={d.crumbs} locale={locale}>
         <div className="d-ph">
           <div>
-            <h1>{d.title}</h1>
+            <div className="d-ph-title">{d.title}</div>
             {!compact && <p>{d.subtitle}</p>}
           </div>
           <span className="sp" />

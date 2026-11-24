@@ -63,7 +63,7 @@ function Board({ s, compact, cursor, locale }: { s: S; compact: boolean; cursor:
     <>
       <div className="d-ph">
         <div>
-          <h1>{d.dealsTitle}</h1>
+          <div className="d-ph-title">{d.dealsTitle}</div>
           <p>{d.openDeals(open.length, openSum)}</p>
         </div>
         <span className="sp" />
@@ -128,7 +128,7 @@ function Report({ compact, fresh, locale }: { compact: boolean; fresh: boolean; 
   return (
     <div className="d-page-in">
       <div className="d-ph">
-        <h1>{d.adsTitle}</h1>
+        <div className="d-ph-title">{d.adsTitle}</div>
       </div>
       <div className="tabs d-tabs">
         <span className="tab on">{d.reportTabs[0]}</span>

@@ -101,7 +101,7 @@ export const tasksScene: Scene<S> = {
     return (
       <DemoShell compact={compact} active="projects" crumbs={d.crumbs} locale={locale}>
         <div className="d-ph">
-          <h1>{d.projectTitle}</h1>
+          <div className="d-ph-title">{d.projectTitle}</div>
           <span className="badge accent">
             <span className="dot" />
             {d.statusInProgress}

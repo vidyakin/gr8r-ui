@@ -104,7 +104,7 @@ export const docScene: Scene<S> = {
               <nav className="muted" style={{ fontSize: 12.5 }}>
                 {d.subCrumb}
               </nav>
-              <h1>
+              <div className="d-doc-title">
                 {d.docTitlePrefix} {s.posted ? <span className="faint">{d.docNumber}</span> : <span className="faint">{d.draftWord}</span>}
                 {s.posted ? (
                   <span className="badge green d-pop">
@@ -117,7 +117,7 @@ export const docScene: Scene<S> = {
                     {d.statusDraft}
                   </span>
                 )}
-              </h1>
+              </div>
               <span className="faint" style={{ fontSize: 12 }}>
                 {d.savedNote}
               </span>
