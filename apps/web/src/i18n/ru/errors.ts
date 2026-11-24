@@ -515,4 +515,6 @@ export const errors: Widen<typeof E> = {
   ai_unavailable: 'ИИ-сервис временно недоступен. Повторите позже',
   forbidden_origin: 'Источник запроса не разрешён',
   invalid_url: 'Укажите корректный публичный адрес сайта (http или https)',
+  invalid_direct_chat: 'Некорректный личный чат: выберите ровно одного участника',
+  invalid_member: 'Некорректный участник чата',
 };

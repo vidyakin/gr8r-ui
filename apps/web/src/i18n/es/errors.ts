@@ -511,4 +511,6 @@ export const errors: Widen<typeof E> = {
   ai_unavailable: 'El servicio de IA no está disponible temporalmente. Inténtalo más tarde',
   forbidden_origin: 'El origen de la solicitud no está permitido',
   invalid_url: 'Introduce una URL pública válida (http o https)',
+  invalid_direct_chat: 'Chat directo no válido: elige exactamente un miembro más',
+  invalid_member: 'Miembro del chat no válido',
 };

@@ -514,4 +514,6 @@ export const errors = {
   ai_unavailable: 'AI service is temporarily unavailable. Try again later',
   forbidden_origin: 'Request origin is not allowed',
   invalid_url: 'Enter a valid public website URL (http or https)',
+  invalid_direct_chat: 'Invalid direct chat: choose exactly one other member',
+  invalid_member: 'Invalid chat member',
 };

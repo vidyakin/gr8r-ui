@@ -85,6 +85,7 @@ import {
   Bot,
   Hourglass,
   PenTool,
+  MessageSquare,
 } from 'lucide-react';
 import type { PositionSection } from '@erp/shared';
 import { hasKey, t, type TKey } from '@/i18n';
@@ -106,6 +107,7 @@ export const SECTIONS = {
   projects: { path: '/projects', name: 'Projects', icon: FolderKanban },
   tasks: { path: '/tasks', name: 'Tasks', icon: ListChecks },
   whiteboards: { path: '/whiteboards', name: 'Whiteboards', icon: PenTool },
+  chats: { path: '/chats', name: 'Chats', icon: MessageSquare },
   calendar: { path: '/calendar', name: 'Calendar', icon: Calendar },
   timeline: { path: '/timeline', name: 'Timeline', icon: ChartGantt },
   members: { path: '/members', name: 'Members', icon: Users },

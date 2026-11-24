@@ -12,6 +12,7 @@ export const sections: Widen<typeof S> = {
   projects: 'Proyectos',
   tasks: 'Tareas',
   whiteboards: 'Pizarras',
+  chats: 'Chats',
   calendar: 'Calendario',
   timeline: 'Cronograma',
   members: 'Miembros',

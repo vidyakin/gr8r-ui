@@ -12,6 +12,7 @@ import { AiChatText } from '../crm/AiChatText';
 import { WebsiteEnrichPanel } from '../crm/WebsiteEnrichPanel';
 import { AttributionFields } from '../crm/AttributionFields';
 import { ComposeDialog } from '../email/ComposeDialog';
+import { EntityChatButton } from '../chats/EntityChatButton';
 import { useEmailsByIds } from '../email/data';
 import { EmailStatus } from '../email/EmailStatus';
 import { useWorkspace } from '../data/store';
@@ -201,6 +202,15 @@ export function LeadCard({ leadId, onClose, onConvert }: { leadId: string | null
         description={current ? (converted ? t('leads.card.converted', { date: fmtDateTime(current.convertedAt!) }) : t('leads.card.created', { date: fmtDateTime(current.createdAt) })) : undefined}
         footer={
           <>
+            {leadId && (
+              <EntityChatButton
+                entityType="lead"
+                entityId={leadId}
+                title={draft.name.trim() || current?.name || t('crm.clientChat.button')}
+                guestName={draft.name.trim() || current?.name || undefined}
+                size="sm"
+              />
+            )}
             {leadId && !converted && (
               <Button variant="ghost" onClick={() => onConvert(leadId)}>
                 <ArrowRightLeft size={14} />

@@ -572,6 +572,12 @@ export const crm = {
     copied: 'Copied to clipboard',
     close: 'Close',
   },
+  clientChat: {
+    button: 'Client chat',
+    copyLink: 'Copy client chat link',
+    linkCopied: 'Client chat link copied',
+    noLink: 'Guest link is unavailable for this chat',
+  },
   enums: {
     stage: {
       lead: 'Lead',

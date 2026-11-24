@@ -572,6 +572,12 @@ export const crm = {
     copied: 'Copiado al portapapeles',
     close: 'Cerrar',
   },
+  clientChat: {
+    button: 'Chat con cliente',
+    copyLink: 'Copiar enlace para el cliente',
+    linkCopied: 'Enlace del chat copiado',
+    noLink: 'El enlace de invitado no está disponible para este chat',
+  },
   enums: {
     stage: {
       lead: 'Lead',

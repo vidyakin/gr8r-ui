@@ -157,10 +157,12 @@ const AutomationsPage = lazyPage(() => import('./automations/AutomationsPage'), 
 const FlowEditorPage = lazyPage(() => import('./automations/FlowEditorPage'), 'FlowEditorPage');
 const WhiteboardsPage = lazyPage(() => import('./whiteboards/WhiteboardsPage'), 'WhiteboardsPage');
 const WhiteboardEditorPage = lazyPage(() => import('./whiteboards/WhiteboardEditorPage'), 'WhiteboardEditorPage');
+const ChatsPage = lazyPage(() => import('./chats/ChatsPage'), 'ChatsPage');
+const PublicChatPage = lazyPage(() => import('./chats/PublicChatPage'), 'PublicChatPage');
 
 /* Hash-роутинг, как в оригинале: работает на любом статическом хостинге без настройки rewrite.
    Чтобы перенести раздел, замените PlaceholderPage на его компонент. */
-const PORTED = new Set([SECTIONS.home, SECTIONS.email, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.whiteboards, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.archive, SECTIONS.crm, SECTIONS.crmLeads, SECTIONS.crmCases, SECTIONS.crmAiChats, SECTIONS.crmAds, SECTIONS.crmDeals, SECTIONS.crmFunnel, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities, SECTIONS.crmSalesPlan, SECTIONS.crmAppointments, SECTIONS.catalog, SECTIONS.production, SECTIONS.productionOrders, SECTIONS.productionWorkbench, SECTIONS.suppliers, SECTIONS.productionStages, SECTIONS.workOrders, SECTIONS.serials, SECTIONS.batches, SECTIONS.stockAging, SECTIONS.repairItems, SECTIONS.servicesTimesheet, SECTIONS.servicesPlanner, SECTIONS.servicesReports, SECTIONS.workCenters, SECTIONS.defectReasons, SECTIONS.sales, SECTIONS.purchases, SECTIONS.supplierRatings, SECTIONS.stockDocs, SECTIONS.processingDocs, SECTIONS.inventory, SECTIONS.inUse, SECTIONS.automations, SECTIONS.settings, SECTIONS.system, SECTIONS.productionPiecework, SECTIONS.productionPlanner, SECTIONS.productionResources, SECTIONS.contracts, SECTIONS.approvals, SECTIONS.tariffPlans, SECTIONS.billing, SECTIONS.productionNeeds, SECTIONS.productionPlans, SECTIONS.productionPlanOrders, SECTIONS.productionClosing, SECTIONS.productionWip, SECTIONS.productionReports, SECTIONS.otherCosts, SECTIONS.deliveries, SECTIONS.myDeliveries, SECTIONS.fleet, SECTIONS.fleetVehicles, SECTIONS.fleetDrivers, SECTIONS.fleetDocuments, SECTIONS.fleetWaybills, SECTIONS.fleetFuel, SECTIONS.fleetService, SECTIONS.fleetFines, SECTIONS.trips, SECTIONS.transportOrders, SECTIONS.rateSchedules, SECTIONS.dispatch, SECTIONS.driverWorkplace, SECTIONS.objects, SECTIONS.objectsForecast, SECTIONS.shift].map(s => s.path));
+const PORTED = new Set([SECTIONS.home, SECTIONS.email, SECTIONS.inbox, SECTIONS.mytasks, SECTIONS.favorites, SECTIONS.notifications, SECTIONS.overview, SECTIONS.calendar, SECTIONS.projects, SECTIONS.tasks, SECTIONS.whiteboards, SECTIONS.chats, SECTIONS.timeline, SECTIONS.activity, SECTIONS.members, SECTIONS.search, SECTIONS.archive, SECTIONS.crm, SECTIONS.crmLeads, SECTIONS.crmCases, SECTIONS.crmAiChats, SECTIONS.crmAds, SECTIONS.crmDeals, SECTIONS.crmFunnel, SECTIONS.crmCompanies, SECTIONS.crmContacts, SECTIONS.crmActivities, SECTIONS.crmSalesPlan, SECTIONS.crmAppointments, SECTIONS.catalog, SECTIONS.production, SECTIONS.productionOrders, SECTIONS.productionWorkbench, SECTIONS.suppliers, SECTIONS.productionStages, SECTIONS.workOrders, SECTIONS.serials, SECTIONS.batches, SECTIONS.stockAging, SECTIONS.repairItems, SECTIONS.servicesTimesheet, SECTIONS.servicesPlanner, SECTIONS.servicesReports, SECTIONS.workCenters, SECTIONS.defectReasons, SECTIONS.sales, SECTIONS.purchases, SECTIONS.supplierRatings, SECTIONS.stockDocs, SECTIONS.processingDocs, SECTIONS.inventory, SECTIONS.inUse, SECTIONS.automations, SECTIONS.settings, SECTIONS.system, SECTIONS.productionPiecework, SECTIONS.productionPlanner, SECTIONS.productionResources, SECTIONS.contracts, SECTIONS.approvals, SECTIONS.tariffPlans, SECTIONS.billing, SECTIONS.productionNeeds, SECTIONS.productionPlans, SECTIONS.productionPlanOrders, SECTIONS.productionClosing, SECTIONS.productionWip, SECTIONS.productionReports, SECTIONS.otherCosts, SECTIONS.deliveries, SECTIONS.myDeliveries, SECTIONS.fleet, SECTIONS.fleetVehicles, SECTIONS.fleetDrivers, SECTIONS.fleetDocuments, SECTIONS.fleetWaybills, SECTIONS.fleetFuel, SECTIONS.fleetService, SECTIONS.fleetFines, SECTIONS.trips, SECTIONS.transportOrders, SECTIONS.rateSchedules, SECTIONS.dispatch, SECTIONS.driverWorkplace, SECTIONS.objects, SECTIONS.objectsForecast, SECTIONS.shift].map(s => s.path));
 
 /** Личная настройка «Открывать при запуске»: один раз за загрузку приложения корень `/` ведёт на выбранный раздел, дальше — обычная «Главная» */
 let startHandled = false;
@@ -189,6 +191,8 @@ const shellPages: RouteObject[] = [
   { path: SECTIONS.tasks.path, element: <TasksPage /> },
   { path: SECTIONS.whiteboards.path, element: <WhiteboardsPage /> },
   { path: `${SECTIONS.whiteboards.path}/:id`, element: <WhiteboardEditorPage /> },
+  { path: SECTIONS.chats.path, element: <ChatsPage /> },
+  { path: `${SECTIONS.chats.path}/:chatId`, element: <ChatsPage />, handle: { pageKey: SECTIONS.chats.path } },
   { path: SECTIONS.timeline.path, element: <TimelinePage /> },
   { path: SECTIONS.activity.path, element: <ActivityPage /> },
   { path: SECTIONS.members.path, element: <MembersPage /> },
@@ -358,6 +362,8 @@ export const router = createHashRouter([
   // Экраны входа и онбординга живут вне оболочки
   // публичный прайс-лист по ссылке: без входа
   { path: '/p/price/:token', element: <React.Suspense fallback={null}><PublicPricePage /></React.Suspense> },
+  // публичный гостевой чат по ссылке: без входа
+  { path: '/c/:token', element: <React.Suspense fallback={null}><PublicChatPage /></React.Suspense> },
   { path: '/signin', element: <SignInPage /> },
   { path: '/signup', element: <SignUpPage /> },
   { path: '/forgot', element: <ForgotPage /> },
