@@ -11,6 +11,7 @@ export const sections: Widen<typeof S> = {
   overview: 'Обзор',
   projects: 'Проекты',
   tasks: 'Задачи',
+  whiteboards: 'Доски',
   calendar: 'Календарь',
   timeline: 'Диаграмма Ганта',
   members: 'Участники',

@@ -84,6 +84,7 @@ import {
   LifeBuoy,
   Bot,
   Hourglass,
+  PenTool,
 } from 'lucide-react';
 import type { PositionSection } from '@erp/shared';
 import { hasKey, t, type TKey } from '@/i18n';
@@ -104,6 +105,7 @@ export const SECTIONS = {
   overview: { path: '/overview', name: 'Overview', icon: LayoutDashboard },
   projects: { path: '/projects', name: 'Projects', icon: FolderKanban },
   tasks: { path: '/tasks', name: 'Tasks', icon: ListChecks },
+  whiteboards: { path: '/whiteboards', name: 'Whiteboards', icon: PenTool },
   calendar: { path: '/calendar', name: 'Calendar', icon: Calendar },
   timeline: { path: '/timeline', name: 'Timeline', icon: ChartGantt },
   members: { path: '/members', name: 'Members', icon: Users },
@@ -310,6 +312,7 @@ const POSITION_SECTION_OF: Partial<Record<SectionId, PositionSection>> = {
   overview: 'projects',
   projects: 'projects',
   tasks: 'projects',
+  whiteboards: 'projects',
   mytasks: 'projects',
   calendar: 'projects',
   timeline: 'projects',

@@ -15,7 +15,7 @@ export const enCore: Pick<Dict, 'alternative' | 'nav' | 'hero' | 'player' | 'mor
     resume: 'Resume section switching',
     crmScreenshot: 'CRM overview: sales pipelines, deals, and ad channel performance',
     modules: {
-      tasks: { name: 'Projects & Tasks', title: 'Board, list, timeline, and time tracking', text: 'Plan your team’s work, assign owners, and track deadlines. All tasks and projects in one place.' },
+      tasks: { name: 'Projects & Tasks', title: 'Board, list, timeline, and time tracking', text: 'Plan your team’s work, assign owners, and track deadlines. Built-in whiteboards with live task and deal cards are included in the core.' },
       crm: { name: 'Deals & Pipelines', title: 'From first inquiry to closed-won deal', text: 'Move leads and deals through pipeline stages. Measure revenue and ROI for every marketing channel.' },
       docs: { name: 'Documents', title: 'Invoices, contracts, and quotes', text: 'Create documents with products and services, post them to accounting, and send printable PDFs to clients.' },
       services: { name: 'Services', title: 'Appointments, work orders, and repairs', text: 'Book clients with specialists, track labor and materials. Every visit’s history is always at hand.' },
@@ -58,6 +58,7 @@ export const enCore: Pick<Dict, 'alternative' | 'nav' | 'hero' | 'player' | 'mor
       ['Payroll', 'accruals, pay sheets, payouts'],
       ['Month-end close', 'cost of goods and financial results'],
       ['Projects & ROI', 'investments and payback tracking'],
+      ['Whiteboards', 'infinite canvas, sticky notes, templates, and live ERP/CRM cards in core'],
     ],
     platform: 'Each company’s data is isolated at the database level. Interface available in Russian, English, and Spanish. Can be self-hosted on your own server.',
   },

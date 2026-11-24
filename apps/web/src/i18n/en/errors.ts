@@ -510,5 +510,8 @@ export const errors = {
   token_expires_past: 'The expiration date is in the past',
   token_cannot_post: 'The token is not allowed to post, pay or delete: issue it with the “Post, pay, delete” permission',
   token_rate_limited: 'Too many requests for this access token. Try again in {retryAfter} s.',
-
+  ai_not_configured: 'AI assistant is not configured on this server',
+  ai_unavailable: 'AI service is temporarily unavailable. Try again later',
+  forbidden_origin: 'Request origin is not allowed',
+  invalid_url: 'Enter a valid public website URL (http or https)',
 };

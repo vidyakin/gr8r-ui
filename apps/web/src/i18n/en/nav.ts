@@ -9,6 +9,7 @@ export const sections = {
   overview: 'Overview',
   projects: 'Projects',
   tasks: 'Tasks',
+  whiteboards: 'Whiteboards',
   calendar: 'Calendar',
   timeline: 'Timeline',
   members: 'Members',

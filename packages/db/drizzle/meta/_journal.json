@@ -876,6 +876,13 @@
       "when": 1794711390000,
       "tag": "0134_ai_chat_script_state",
       "breakpoints": true
+    },
+    {
+      "idx": 130,
+      "version": "7",
+      "when": 1794797790000,
+      "tag": "0135_whiteboards",
+      "breakpoints": true
     }
   ]
 }

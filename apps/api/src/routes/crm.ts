@@ -2,7 +2,7 @@
 import { zValidator } from '@hono/zod-validator';
 import { desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { companies, contacts, crmActivities, loadCase, markFirstResponse, dealContacts, dealStageHistory, deals, loadStage, planStageChange, recalcSettlementMode, recordStageChange } from '@erp/db';
+import { aiChatSessions, companies, contacts, crmActivities, leads, loadCase, markFirstResponse, dealContacts, dealStageHistory, deals, loadStage, planStageChange, recalcSettlementMode, recordStageChange } from '@erp/db';
 import {
   companyCreate,
   companyQuery,
@@ -13,6 +13,8 @@ import {
   crmActivityCreate,
   crmActivityQuery,
   crmActivityUpdate,
+  crmAnalyzeWebsiteBody,
+  crmDraftOutreachBody,
   dealCreate,
   dealQuery,
   dealUpdate,
@@ -21,7 +23,9 @@ import {
 import { crud, ctxOf, validationHook, type Ctx } from '../crud';
 import { AppError, forbidden, notFound } from '../errors';
 import type { AppEnv } from '../types';
-import { hasRole } from '../middleware';
+import { hasRole, requireRole } from '../middleware';
+import { analyzeWebsiteWithAi, draftOutreachWithAi } from '../crm/website-ai';
+import { scrapeWebsite } from '../crm/website-scraper';
 import { customForCreate, customForUpdate } from '../meta/service';
 import { attributionPatch } from './helpers';
 import { assertRequisites } from './documents';
@@ -221,3 +225,62 @@ export const crmActivityRoutes = crud({
     if (row.authorId !== ctx.memberId && !hasRole(ctx.c, 'admin')) throw forbidden('Only the author or an admin can change this record');
   },
 });
+
+/** ИИ-инструменты CRM: анализ сайта клиента и генерация первичного письма (/crm/ai/*) */
+export const crmAiRoutes = new Hono<AppEnv>()
+  .post('/ai/analyze-website', requireRole('member'), zValidator('json', crmAnalyzeWebsiteBody, validationHook), async c => {
+    const body = c.req.valid('json');
+    const cfg = c.get('config').landingAi;
+    if (body.manualText) {
+      const result = await analyzeWebsiteWithAi(cfg, body.manualText);
+      return c.json(result);
+    }
+    let scraped;
+    try {
+      scraped = await scrapeWebsite(body.url!);
+    } catch (e) {
+      throw new AppError(400, 'invalid_url', e instanceof Error ? e.message : 'Invalid or blocked URL');
+    }
+    if (!scraped.ok) {
+      return c.json({ fallbackNeeded: true as const, reason: scraped.reason, rawTextLength: scraped.rawTextLength });
+    }
+    const result = await analyzeWebsiteWithAi(cfg, scraped.text);
+    return c.json(result);
+  })
+  .post('/ai/draft-outreach', requireRole('member'), zValidator('json', crmDraftOutreachBody, validationHook), async c => {
+    const ctx = ctxOf(c);
+    const body = c.req.valid('json');
+    const [company] = body.companyId
+      ? await ctx.db
+          .select({ name: companies.name, industry: companies.industry, website: companies.website, city: companies.city })
+          .from(companies)
+          .where(eq(companies.id, body.companyId))
+          .limit(1)
+      : [];
+    const [lead] = body.leadId
+      ? await ctx.db
+          .select({ name: leads.name, companyName: leads.companyName, email: leads.email, phone: leads.phone, comment: leads.comment, source: leads.source })
+          .from(leads)
+          .where(eq(leads.id, body.leadId))
+          .limit(1)
+      : [];
+    const sessions = body.leadId
+      ? await ctx.db
+          .select({ messages: aiChatSessions.messages })
+          .from(aiChatSessions)
+          .where(eq(aiChatSessions.leadId, body.leadId))
+          .orderBy(desc(aiChatSessions.updatedAt))
+          .limit(3)
+      : [];
+    const chatMessages = sessions.flatMap(s => s.messages);
+    const draft = await draftOutreachWithAi(c.get('config').landingAi, {
+      channel: body.channel,
+      tone: body.tone,
+      company: company ?? null,
+      lead: lead ?? null,
+      chatMessages,
+      websiteSummary: body.websiteSummary,
+      customContext: body.customContext,
+    });
+    return c.json(draft);
+  });

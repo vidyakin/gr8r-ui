@@ -11,6 +11,7 @@ export const esModules: Dict['modules'] = {
       ['Prioridad y etiquetas', 'prioridad del 1 al 10, etiquetas de color y subtareas'],
       ['Plazos y recurrencia', 'fecha límite en cada tarea y repetición programada'],
       ['Registro de tiempo', 'registra horas por tarea y compáralas con lo estimado'],
+      ['Pizarras interactivas', 'lienzo infinito en el núcleo sin costo extra: notas, figuras, plantillas, tarjetas vivas ERP/CRM y nota → tarea en 1 clic'],
     ],
     caption: 'Grabación: se crea una tarea en el tablero del proyecto y luego otra tarea se arrastra a la columna «Hecho».',
   },

@@ -821,4 +821,5 @@ export const settings = {
 export const languages = {
   en: 'English',
   ru: 'Русский',
+  es: 'Español',
 };

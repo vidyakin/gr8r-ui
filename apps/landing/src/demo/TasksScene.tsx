@@ -1,60 +1,38 @@
 /* Запись «Задачи и проекты»: доска проекта — создание задачи в колонке и перенос карточки в «Готово». Разметка — как у board-view.tsx */
 import { Calendar, Ellipsis, Plus } from 'lucide-react';
+import type { Locale } from '../i18n';
 import { Av, DemoShell, Lbl, Prio, StatusIcon } from './shell';
+import { TASKS_DICT, type TaskCardData, type TaskCol } from './i18n/tasks';
 import type { Scene } from './player';
 
-type Col = 'backlog' | 'todo' | 'progress' | 'done';
-interface Card {
-  key: string;
-  title: string;
-  labels: [string, string][];
-  prio: number;
-  due?: string;
-  late?: boolean;
-  av: [string, string];
-}
 interface S {
-  cols: Record<Col, Card[]>;
+  cols: Record<TaskCol, TaskCardData[]>;
   /** Текст новой задачи, пока её набирают; null — формы нет */
   adding: string | null;
   drag: string | null;
-  over: Col | null;
+  over: TaskCol | null;
   fresh: string | null;
 }
 
-const COLS: [Col, string][] = [
-  ['backlog', 'Бэклог'],
-  ['todo', 'К выполнению'],
-  ['progress', 'В работе'],
-  ['done', 'Готово'],
-];
-
-const card = (key: string, title: string, labels: [string, string][], prio: number, av: [string, string], due?: string, late?: boolean): Card => ({ key, title, labels, prio, av, due, late });
-
-const initial: S = {
-  cols: {
-    backlog: [card('WEB-131', 'Тексты для раздела «Доставка»', [['Контент', 'rose']], 3, ['ИВ', '#C48A1E'], '14 нояб.'), card('WEB-133', 'Настроить события аналитики', [['Бэкенд', 'teal']], 5, ['МЛ', '#8662C9'])],
-    todo: [card('WEB-136', 'Проверить доступность шаблонов', [['QA', 'green']], 8, ['ЛФ', '#3D8E5F'], '11 нояб.'), card('WEB-138', 'Фото для карточек товаров', [['Контент', 'rose']], 4, ['ИВ', '#C48A1E'], '20 нояб.')],
-    progress: [card('WEB-128', 'Перенести каталог', [['Бэкенд', 'teal']], 6, ['МЛ', '#8662C9'], 'Сегодня', true), card('WEB-129', 'Форма заявки на замер', [['Фронтенд', 'blue']], 5, ['АК', '#5A67D8'], '6 нояб.')],
-    done: [card('WEB-120', 'Дизайн-токены сайта', [['Дизайн', 'violet']], 3, ['ЕС', '#23918A'], '28 окт.')],
-  },
+const makeInitial = (locale: Locale): S => ({
+  cols: TASKS_DICT[locale].initial,
   adding: null,
   drag: null,
   over: null,
   fresh: null,
+});
+
+const addNew = (s: S, locale: Locale): S => {
+  const card = TASKS_DICT[locale].newCard;
+  return { ...s, adding: null, fresh: card.key, cols: { ...s.cols, todo: [card, ...s.cols.todo] } };
 };
 
-const NEW = card('WEB-142', 'Согласовать макет главной', [['Дизайн', 'violet']], 6, ['АК', '#5A67D8'], '8 нояб.');
-
-const addNew = (s: S): S => ({ ...s, adding: null, fresh: NEW.key, cols: { ...s.cols, todo: [NEW, ...s.cols.todo] } });
 const moveDone = (s: S): S => {
   const c = s.cols.progress.find(x => x.key === 'WEB-128')!;
   return { ...s, drag: null, over: null, fresh: c.key, cols: { ...s.cols, progress: s.cols.progress.filter(x => x !== c), done: [{ ...c, late: false }, ...s.cols.done] } };
 };
 
-const final: S = { ...moveDone(addNew(initial)), fresh: null };
-
-function KCard({ c, done, dragging, fresh }: { c: Card; done?: boolean; dragging?: boolean; fresh?: boolean }) {
+function KCard({ c, done, dragging, fresh }: { c: TaskCardData; done?: boolean; dragging?: boolean; fresh?: boolean }) {
   return (
     <div className={'kcard' + (done ? ' done' : '') + (dragging ? ' dragging' : '') + (fresh ? ' d-fresh' : '')} data-demo={`card-${c.key}`}>
       <div className="labels">
@@ -94,17 +72,17 @@ function KCard({ c, done, dragging, fresh }: { c: Card; done?: boolean; dragging
 }
 
 export const tasksScene: Scene<S> = {
-  initial,
-  final,
+  initial: makeInitial,
+  final: locale => ({ ...moveDone(addNew(makeInitial(locale), locale)), fresh: null }),
   height: [520, 600],
-  script: async ({ set, wait, move, click, type }) => {
+  script: async ({ set, wait, move, click, type }, locale) => {
     await move('add-todo');
     await click();
     set(s => ({ ...s, adding: '' }));
     await wait(250);
-    await type(NEW.title, (s, v) => ({ ...s, adding: v }));
+    await type(TASKS_DICT[locale].newCard.title, (s, v) => ({ ...s, adding: v }));
     await wait(450);
-    set(addNew);
+    set(s => addNew(s, locale));
     await wait(1300);
     await move('card-WEB-128', { ay: 0.35 });
     await wait(150);
@@ -116,24 +94,25 @@ export const tasksScene: Scene<S> = {
     set(moveDone);
     await wait(200);
   },
-  render: (s, { compact, cursor }) => {
-    const cols = compact ? COLS.slice(1) : COLS;
+  render: (s, { compact, cursor, locale }) => {
+    const d = TASKS_DICT[locale];
+    const cols = compact ? d.cols.slice(1) : d.cols;
     const dragged = s.drag ? s.cols.progress.find(c => c.key === s.drag) : null;
     return (
-      <DemoShell compact={compact} active="projects" crumbs={['Проекты', 'Сайт мебельной фабрики']}>
+      <DemoShell compact={compact} active="projects" crumbs={d.crumbs} locale={locale}>
         <div className="d-ph">
-          <h1>Сайт мебельной фабрики</h1>
+          <h1>{d.projectTitle}</h1>
           <span className="badge accent">
             <span className="dot" />
-            В работе
+            {d.statusInProgress}
           </span>
         </div>
         <div className="tabs d-tabs">
-          <span className="tab">Обзор</span>
-          <span className="tab on">Доска</span>
-          <span className="tab">Список</span>
-          <span className="tab">Таймлайн</span>
-          {!compact && <span className="tab">Файлы</span>}
+          <span className="tab">{d.tabs[0]}</span>
+          <span className="tab on">{d.tabs[1]}</span>
+          <span className="tab">{d.tabs[2]}</span>
+          <span className="tab">{d.tabs[3]}</span>
+          {!compact && <span className="tab">{d.tabs[4]}</span>}
         </div>
         <div className="board">
           {cols.map(([id, name]) => {
@@ -157,7 +136,7 @@ export const tasksScene: Scene<S> = {
                 <div className="bcol-b" data-demo={`drop-${id}`}>
                   <span className="addcard" data-demo={`add-${id}`}>
                     <Plus size={14} />
-                    Добавить задачу
+                    {d.addTask}
                   </span>
                   {id === 'todo' && s.adding !== null && (
                     <div className="kcard d-edit">
@@ -165,7 +144,7 @@ export const tasksScene: Scene<S> = {
                         {s.adding}
                         <span className="caret" />
                       </div>
-                      <div className="d-hint">Enter — создать · Esc — отмена</div>
+                      <div className="d-hint">{d.inputHint}</div>
                     </div>
                   )}
                   {over && <div className="drop-line" />}

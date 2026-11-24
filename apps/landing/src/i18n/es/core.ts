@@ -15,7 +15,7 @@ export const esCore: Pick<Dict, 'alternative' | 'nav' | 'hero' | 'player' | 'mor
     resume: 'Reanudar el cambio de secciones',
     crmScreenshot: 'Resumen de CRM: embudos de ventas, negocios y rendimiento de canales',
     modules: {
-      tasks: { name: 'Proyectos y tareas', title: 'Tablero, lista, línea de tiempo y registro de horas', text: 'Planifica el trabajo del equipo, asigna responsables y controla plazos. Todas las tareas y proyectos en un solo lugar.' },
+      tasks: { name: 'Proyectos y tareas', title: 'Tablero, lista, línea de tiempo y registro de horas', text: 'Planifica el trabajo del equipo, asigna responsables y controla plazos. Incluye pizarras interactivas en el núcleo con tarjetas vivas de tareas y negocios.' },
       crm: { name: 'Negocios y embudos', title: 'Desde el primer contacto hasta la venta ganada', text: 'Gestiona leads y negocios por etapas del embudo. Mide los ingresos y el retorno de cada canal publicitario.' },
       docs: { name: 'Documentos', title: 'Facturas, contratos y presupuestos', text: 'Crea documentos con productos y servicios, contabilízalos y envía formularios impresos en PDF a tus clientes.' },
       services: { name: 'Servicios', title: 'Citas de clientes, órdenes de trabajo y reparaciones', text: 'Agenda clientes con especialistas y controla trabajos y materiales. El historial de cada visita siempre a mano.' },
@@ -58,6 +58,7 @@ export const esCore: Pick<Dict, 'alternative' | 'nav' | 'hero' | 'player' | 'mor
       ['Nómina', 'devengos, planillas y pagos'],
       ['Cierre mensual', 'costo de ventas y resultado financiero'],
       ['Proyectos de inversión', 'inversiones y retorno'],
+      ['Pizarras interactivas', 'lienzo infinito, notas, plantillas y tarjetas vivas ERP/CRM en el núcleo'],
     ],
     platform: 'Los datos de cada empresa están aislados a nivel de base de datos. Interfaz en ruso, inglés y español. Puede desplegarse en tu propio servidor.',
   },

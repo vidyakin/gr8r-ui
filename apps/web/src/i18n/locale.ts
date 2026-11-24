@@ -8,7 +8,7 @@ export { LOCALES };
 
 const KEY = 'erp-ui.locale';
 /** Прежняя заглушка Settings → Language хранила подпись языка в erp-ui.settings.lang */
-const LEGACY: Record<string, Locale> = { 'English (US)': 'en', 'English (UK)': 'en', Русский: 'ru' };
+const LEGACY: Record<string, Locale> = { 'English (US)': 'en', 'English (UK)': 'en', Русский: 'ru', Español: 'es' };
 
 export const isLocale = (v: unknown): v is Locale => typeof v === 'string' && (LOCALES as readonly string[]).includes(v);
 
@@ -96,5 +96,5 @@ export function useLocale(): Locale {
   );
 }
 
-/** Локаль для Intl: en → en-US, ru → ru-RU */
-export const intlLocale = (l: Locale = current) => (l === 'ru' ? 'ru-RU' : 'en-US');
+/** Локаль для Intl: en → en-US, ru → ru-RU, es → es-ES */
+export const intlLocale = (l: Locale = current) => (l === 'ru' ? 'ru-RU' : l === 'es' ? 'es-ES' : 'en-US');

@@ -1,23 +1,11 @@
 /* Запись «Логистика»: диспетчер дня — доставки перетаскиваются в рейс машины, рейс уходит «В пути», затем у доставки статус «Доставлена».
    Разметка — как у DispatchPage.tsx (доставки слева, машины с осью времени справа), TripDialog.tsx (карточка рейса) и DeliveriesPage.tsx (список) */
 import { ArrowDown, ArrowUp, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, GripVertical, Plus, Shuffle, Trash2, X } from 'lucide-react';
-import { DemoShell, rub } from './shell';
+import { DemoShell, fmtNum, money } from './shell';
 import type { Scene } from './player';
+import type { Locale } from '../i18n';
+import { LOGISTICS_DICT, type DelData as Del, type DelStatus as Status, type LogisticsDict } from './i18n/logistics';
 
-type Status = 'new' | 'assigned' | 'in_transit' | 'delivered';
-interface Del {
-  id: string;
-  num: string;
-  who: string;
-  addr: string;
-  contact: string;
-  win: [string, string];
-  kg: number;
-  price: number;
-  status: Status;
-  /** t0 — чужой рейс, t1 — рейс сцены, null — не распределена */
-  trip: 't0' | 't1' | null;
-}
 interface S {
   view: 'dispatch' | 'list';
   dels: Del[];
@@ -30,52 +18,31 @@ interface S {
   fresh: string | null;
 }
 
-const TRIP_NUM = 'РС-2026-00024';
-const DRIVER = 'Сафин Ринат';
-const STATUS: Record<Status, string> = { new: 'Новая', assigned: 'Назначена', in_transit: 'В пути', delivered: 'Доставлена' };
-
-const del = (id: string, num: string, who: string, addr: string, contact: string, win: [string, string], kg: number, price: number, status: Status = 'new', trip: Del['trip'] = null): Del => ({
-  id,
-  num,
-  who,
-  addr,
-  contact,
-  win,
-  kg,
-  price,
-  status,
-  trip,
-});
-
-const initial: S = {
+const initial = (locale: Locale): S => ({
   view: 'dispatch',
-  dels: [
-    del('d1', 'ЗК-000131', 'Петров Андрей', 'ул. Лесная, 14, кв. 52', 'Петров А. · +7 916 204-18-30', ['10:00', '12:00'], 86, 600),
-    del('d2', 'ЗК-000132', 'ООО «Атлас Мебель»', 'Ленинградский пр-т, 37к2', 'Фролова Е. · +7 495 120-44-09', ['12:00', '14:00'], 240, 900),
-    del('d3', 'ЗК-000134', 'Кузнецова Ольга', 'ул. Новочерёмушкинская, 21', 'Кузнецова О. · +7 903 551-02-76', ['14:00', '16:00'], 54, 450),
-    del('d4', 'ЗК-000135', 'ИП Громов С. В.', 'Варшавское ш., 125Ж', 'Громов С. · +7 925 707-33-18', ['15:00', '18:00'], 310, 1200),
-    del('d6', 'ЗК-000127', 'ООО «Северстрой»', 'Волгоградский пр-т, 32к5', 'Миронов Д. · +7 495 777-12-50', ['09:00', '11:00'], 420, 1200, 'in_transit', 't0'),
-    del('d7', 'ЗК-000129', 'Орлова Анна', 'ул. Профсоюзная, 56', 'Орлова А. · +7 926 318-90-04', ['11:00', '13:00'], 95, 600, 'in_transit', 't0'),
-  ],
+  dels: LOGISTICS_DICT[locale].initialDels,
   trip: null,
   drag: null,
   hot: null,
   dialog: false,
   toast: null,
   fresh: null,
-};
+});
 
 const place =
-  (id: string) =>
-  (s: S): S => ({
-    ...s,
-    drag: null,
-    hot: null,
-    fresh: id,
-    toast: s.trip ? 'Доставка добавлена в рейс' : `Рейс ${TRIP_NUM} создан`,
-    trip: { status: 'planned', stops: [...(s.trip?.stops ?? []), id] },
-    dels: s.dels.map(d => (d.id === id ? { ...d, trip: 't1', status: 'assigned' } : d)),
-  });
+  (id: string, locale: Locale) =>
+  (s: S): S => {
+    const d = LOGISTICS_DICT[locale];
+    return {
+      ...s,
+      drag: null,
+      hot: null,
+      fresh: id,
+      toast: s.trip ? d.toasts.added : d.toasts.created(d.tripNum),
+      trip: { status: 'planned', stops: [...(s.trip?.stops ?? []), id] },
+      dels: s.dels.map(x => (x.id === id ? { ...x, trip: 't1', status: 'assigned' } : x)),
+    };
+  };
 const start = (s: S): S => ({
   ...s,
   dialog: false,
@@ -84,9 +51,24 @@ const start = (s: S): S => ({
   trip: s.trip && { ...s.trip, status: 'in_transit' },
   dels: s.dels.map(d => (d.trip === 't1' ? { ...d, status: 'in_transit' } : d)),
 });
-const delivered = (s: S): S => ({ ...s, toast: 'Статус изменён', fresh: 'd1', dels: s.dels.map(d => (d.id === 'd1' ? { ...d, status: 'delivered' } : d)) });
+const delivered =
+  (locale: Locale) =>
+  (s: S): S => ({
+    ...s,
+    toast: LOGISTICS_DICT[locale].toasts.statusChanged,
+    fresh: 'd1',
+    dels: s.dels.map(d => (d.id === 'd1' ? { ...d, status: 'delivered' } : d)),
+  });
 
-const final: S = { ...delivered({ ...start([place('d1'), place('d2'), place('d3')].reduce((s, f) => f(s), initial)), view: 'list' }), view: 'list', toast: null, fresh: null };
+const final = (locale: Locale): S => ({
+  ...delivered(locale)({
+    ...start(['d1', 'd2', 'd3'].reduce((s, id) => place(id, locale)(s), initial(locale))),
+    view: 'list',
+  }),
+  view: 'list',
+  toast: null,
+  fresh: null,
+});
 
 const T0 = { from: '08:00', to: '17:00' };
 const FROM_H = 6;
@@ -94,14 +76,7 @@ const SPAN = 16 * 60;
 const mins = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
 const pct = (m: number) => Math.max(0, Math.min(100, ((m - FROM_H * 60) / SPAN) * 100));
 
-const VEHICLES = [
-  { id: 'v1', plate: 'А 482 ВС 77', name: 'ГАЗель NEXT', cap: 1500 },
-  { id: 'v2', plate: 'Е 117 ОК 50', name: 'Ford Transit', cap: 1100 },
-  { id: 'v3', plate: 'М 905 РТ 77', name: 'Hyundai Porter', cap: 900 },
-];
-const num = (n: number) => n.toLocaleString('ru-RU');
-
-function DelCard({ d, grab }: { d: Del; grab?: boolean }) {
+function DelCard({ d, kgUnit, grab }: { d: Del; kgUnit: string; grab?: boolean }) {
   return (
     <div className="panel plain" style={{ padding: '8px 10px', display: 'flex', gap: 8, alignItems: 'flex-start', borderBottom: '1px solid var(--divider)' }} data-demo={grab ? `card-${d.id}` : undefined}>
       <GripVertical size={14} className="faint" style={{ marginTop: 3, flex: 'none' }} />
@@ -113,7 +88,7 @@ function DelCard({ d, grab }: { d: Del; grab?: boolean }) {
         <div className="trunc">{d.addr}</div>
         <div className="row muted" style={{ gap: 8, fontSize: 12, flexWrap: 'wrap' }}>
           <span className="num">{d.win.join('–')}</span>
-          <span className="num">{d.kg} кг</span>
+          <span className="num">{d.kg} {kgUnit}</span>
         </div>
       </div>
     </div>
@@ -121,9 +96,9 @@ function DelCard({ d, grab }: { d: Del; grab?: boolean }) {
 }
 
 /** Полоса рейса на оси дня, как TripBar: номер и статус, водитель, вес / вместимость, номера точек с окнами */
-function TripBar({ num: no, status, driver, stops, left, width, hot, fresh, demo }: { num: string; status: string; driver: string; stops: Del[]; left: number; width: number; hot: boolean; fresh?: boolean; demo?: string }) {
+function TripBar({ num: no, status, inTransit, driver, stops, left, width, hot, fresh, demo, dict, locale }: { num: string; status: string; inTransit: boolean; driver: string; stops: Del[]; left: number; width: number; hot: boolean; fresh?: boolean; demo?: string; dict: LogisticsDict; locale: Locale }) {
   const kg = stops.reduce((a, d) => a + d.kg, 0);
-  const tone = status === 'В пути' ? 'accent' : 'gray';
+  const tone = inTransit ? 'accent' : 'gray';
   return (
     <div style={{ position: 'absolute', left: `${left}%`, width: `${width}%`, top: 6, bottom: 6 }} data-demo={demo}>
       <div
@@ -148,7 +123,7 @@ function TripBar({ num: no, status, driver, stops, left, width, hot, fresh, demo
           </span>
         </span>
         <span className="muted trunc" style={{ fontSize: 12 }}>
-          {driver} · точек: {stops.length} · {num(kg)}
+          {driver} · {dict.stopsLabel(stops.length)} · {fmtNum(kg, locale)}
         </span>
         <span className="row" style={{ gap: 4, flexWrap: 'wrap' }}>
           {stops.map((d, i) => (
@@ -162,7 +137,7 @@ function TripBar({ num: no, status, driver, stops, left, width, hot, fresh, demo
   );
 }
 
-function Dispatch({ s, compact }: { s: S; compact: boolean }) {
+function Dispatch({ s, compact, dict, locale }: { s: S; compact: boolean; dict: LogisticsDict; locale: Locale }) {
   const free = s.dels.filter(d => d.trip === null);
   const mine = (s.trip?.stops ?? []).map(id => s.dels.find(d => d.id === id)!);
   const t0 = s.dels.filter(d => d.trip === 't0');
@@ -171,8 +146,8 @@ function Dispatch({ s, compact }: { s: S; compact: boolean }) {
     <>
       <div className="d-ph" style={{ flexWrap: 'wrap' }}>
         <div>
-          <h1>Диспетчер</h1>
-          <p>Нераспределённые доставки, машины на день и таймлайн. Перетащите доставку на рейс или на машину.</p>
+          <h1>{dict.dispatchTitle}</h1>
+          <p>{dict.dispatchSubtitle}</p>
         </div>
         <span className="sp" />
         <div className="row" style={{ gap: 8 }}>
@@ -180,38 +155,38 @@ function Dispatch({ s, compact }: { s: S; compact: boolean }) {
             <ChevronLeft size={15} />
           </span>
           <span className="input d-sel" style={{ width: 130 }}>
-            05.11.2026
+            {dict.dateStr}
           </span>
           <span className="ibtn">
             <ChevronRight size={15} />
           </span>
-          {!compact && <span className="btn btn-ghost btn-sm">Сегодня</span>}
+          {!compact && <span className="btn btn-ghost btn-sm">{dict.todayBtn}</span>}
           <span className="btn btn-secondary btn-sm">
             <Shuffle size={13} />
-            Распределить
+            {dict.autoAssignBtn}
           </span>
           <span className="btn btn-primary btn-sm">
             <Plus size={13} />
-            {compact ? '' : 'Новый рейс'}
+            {compact ? '' : dict.newTripBtn}
           </span>
         </div>
       </div>
       <div style={{ display: 'flex', gap: 16, padding: '0 var(--gutter) 24px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <section style={{ flex: '0 0 320px', maxWidth: '100%' }} className="stack">
           <div className="label" style={{ marginBottom: 8 }}>
-            Нераспределённые доставки · {free.length}
+            {dict.unassignedHeader(free.length)}
           </div>
           <div className="stack" style={{ gap: 0 }}>
             {free.map(d => (
               <div key={d.id} style={{ opacity: s.drag === d.id ? 0.4 : 1 }}>
-                <DelCard d={d} grab />
+                <DelCard d={d} kgUnit={dict.kgUnit} grab />
               </div>
             ))}
           </div>
         </section>
         <section style={{ flex: '1 1 520px', minWidth: 0 }}>
           <div className="label" style={{ marginBottom: 8 }}>
-            Машины на день · 5 ноября
+            {dict.vehiclesHeader}
           </div>
           <div className="row muted" style={{ marginLeft: 150, position: 'relative', height: 16, fontSize: 11 }} aria-hidden="true">
             {hours.map(h => (
@@ -221,7 +196,7 @@ function Dispatch({ s, compact }: { s: S; compact: boolean }) {
             ))}
           </div>
           <div className="stack" style={{ gap: 6 }}>
-            {VEHICLES.map(v => {
+            {dict.vehicles.map(v => {
               const lane = v.id === 'v1' && !s.trip && s.hot === 'lane';
               return (
                 <div key={v.id} className="row" style={{ gap: 0, alignItems: 'stretch' }}>
@@ -231,7 +206,7 @@ function Dispatch({ s, compact }: { s: S; compact: boolean }) {
                       {v.name}
                     </div>
                     <div className="muted" style={{ fontSize: 11 }}>
-                      до {num(v.cap)} кг
+                      {dict.upToCap(fmtNum(v.cap, locale))}
                     </div>
                   </div>
                   <div
@@ -245,18 +220,44 @@ function Dispatch({ s, compact }: { s: S; compact: boolean }) {
                       backgroundImage: 'repeating-linear-gradient(90deg, transparent 0, transparent calc(12.5% - 1px), var(--divider) calc(12.5% - 1px), var(--divider) 12.5%)',
                     }}
                   >
-                    {v.id === 'v2' && <TripBar num="РС-2026-00023" status="В пути" driver="Ковалёв Дмитрий" stops={t0.map((d, i) => (i ? d : { ...d, status: 'delivered' }))} left={pct(mins(T0.from))} width={pct(mins(T0.to)) - pct(mins(T0.from))} hot={false} />}
+                    {v.id === 'v2' && (
+                      <TripBar
+                        num={dict.otherTripNum}
+                        status={dict.tripStatus.in_transit}
+                        inTransit
+                        driver={dict.otherDriver}
+                        stops={t0.map((d, i) => (i ? d : { ...d, status: 'delivered' }))}
+                        left={pct(mins(T0.from))}
+                        width={pct(mins(T0.to)) - pct(mins(T0.from))}
+                        hot={false}
+                        dict={dict}
+                        locale={locale}
+                      />
+                    )}
                     {v.id === 'v1' && !s.trip && (
                       <span className="muted" style={{ position: 'absolute', left: 10, top: 28, fontSize: 12 }}>
-                        {lane ? 'Бросьте доставку сюда, чтобы создать рейс' : 'Свободна весь день'}
+                        {lane ? dict.dropHereHint : dict.freeAllDay}
                       </span>
                     )}
                     {v.id === 'v1' && s.trip && (
-                      <TripBar num={TRIP_NUM} status={s.trip.status === 'planned' ? 'План' : 'В пути'} driver={DRIVER} stops={mine} left={0} width={100} hot={s.hot === 'bar'} fresh={!!s.fresh} demo="bar-t1" />
+                      <TripBar
+                        num={dict.tripNum}
+                        status={s.trip.status === 'planned' ? dict.tripStatus.planned : dict.tripStatus.in_transit}
+                        inTransit={s.trip.status === 'in_transit'}
+                        driver={dict.driver}
+                        stops={mine}
+                        left={0}
+                        width={100}
+                        hot={s.hot === 'bar'}
+                        fresh={!!s.fresh}
+                        demo="bar-t1"
+                        dict={dict}
+                        locale={locale}
+                      />
                     )}
                     {v.id === 'v3' && (
                       <span className="muted" style={{ position: 'absolute', left: 10, top: 28, fontSize: 12 }}>
-                        Свободна весь день
+                        {dict.freeAllDay}
                       </span>
                     )}
                   </div>
@@ -277,31 +278,32 @@ const Fld = ({ label, v }: { label: string; v: string }) => (
   </div>
 );
 
-function TripCard({ s, compact }: { s: S; compact: boolean }) {
+function TripCard({ s, compact, dict, locale }: { s: S; compact: boolean; dict: LogisticsDict; locale: Locale }) {
   const stops = (s.trip?.stops ?? []).map(id => s.dels.find(d => d.id === id)!);
   const kg = stops.reduce((a, d) => a + d.kg, 0);
+  const v1 = dict.vehicles[0]!;
   return (
     <div className="d-modal" style={{ paddingTop: compact ? 20 : 28 }}>
       <div className="modal lg d-pop" style={{ maxWidth: 720 }}>
         <div className="modal-h">
-          <h2>Рейс {TRIP_NUM}</h2>
+          <h2>{dict.tripHeading(dict.tripNum)}</h2>
           <span className="ibtn ibtn-sm">
             <X size={14} />
           </span>
         </div>
-        <div className="modal-desc">План</div>
+        <div className="modal-desc">{dict.tripStatus.planned}</div>
         <div className="modal-b">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
-            <Fld label="Вид рейса" v="Городской" />
-            <Fld label="Дата" v="05.11.2026" />
-            <Fld label="Машина" v="А 482 ВС 77 · ГАЗель NEXT" />
-            <Fld label="Водитель" v={DRIVER} />
+            <Fld label={dict.tripKindLabel} v={dict.tripKindVal} />
+            <Fld label={dict.dateLabel} v={dict.dateStr} />
+            <Fld label={dict.vehicleLabel} v={`${v1.plate} · ${v1.name}`} />
+            <Fld label={dict.driverLabel} v={dict.driver} />
           </div>
           <div className="stack" style={{ gap: 10 }}>
             <div className="row" style={{ gap: 12, flexWrap: 'wrap' }}>
-              <div className="label">Точки рейса</div>
+              <div className="label">{dict.stopsTitle}</div>
               <span className="muted">
-                Загрузка: <b className="num">{num(kg)}</b> кг / {num(1500)}
+                {dict.loadLabel}: <b className="num">{fmtNum(kg, locale)}</b> {dict.kgUnit} / {fmtNum(v1.cap, locale)}
               </span>
             </div>
             {stops.map((d, i) => (
@@ -311,13 +313,13 @@ function TripCard({ s, compact }: { s: S; compact: boolean }) {
                 </b>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-                    <span className="badge gray">Доставка</span>
+                    <span className="badge gray">{dict.deliveryBadge}</span>
                     <span className="link">{d.addr}</span>
                     <span className="muted">{d.num}</span>
-                    <span className="badge gray">В плане</span>
+                    <span className="badge gray">{dict.plannedBadge}</span>
                   </div>
                   <div className="muted" style={{ fontSize: 12 }}>
-                    {d.win.join('–')} · {d.kg} кг · {d.contact.split(' · ')[0]}
+                    {d.win.join('–')} · {d.kg} {dict.kgUnit} · {d.contact.split(' · ')[0]}
                   </div>
                 </div>
                 <div className="row" style={{ gap: 2 }}>
@@ -336,77 +338,77 @@ function TripCard({ s, compact }: { s: S; compact: boolean }) {
           </div>
         </div>
         <div className="modal-f">
-          <span className="btn btn-ghost btn-sm">Печать маршрутного листа</span>
-          <span className="btn btn-ghost btn-sm">Создать путевой лист</span>
+          <span className="btn btn-ghost btn-sm">{dict.printRoute}</span>
+          <span className="btn btn-ghost btn-sm">{dict.createWaybill}</span>
           <span className="sp" />
-          <span className="btn btn-ghost btn-sm">Отменить рейс</span>
+          <span className="btn btn-ghost btn-sm">{dict.cancelTrip}</span>
           <span className="btn btn-secondary btn-sm" data-demo="dlg-start">
-            Отправить
+            {dict.dispatchBtn}
           </span>
-          <span className="btn btn-primary btn-sm">Сохранить</span>
+          <span className="btn btn-primary btn-sm">{dict.saveBtn}</span>
         </div>
       </div>
     </div>
   );
 }
 
-const StatusSel = ({ st, flash, demo }: { st: Status; flash: boolean; demo: string }) => (
+const StatusSel = ({ st, statusLabels, flash, demo }: { st: Status; statusLabels: Record<Status, string>; flash: boolean; demo: string }) => (
   <span className={'select-btn input d-sel' + (flash ? ' d-flash' : '')} style={{ height: 28, width: 150 }} data-demo={demo} key={st}>
-    <span className="trunc">{STATUS[st]}</span>
+    <span className="trunc">{statusLabels[st]}</span>
     <ChevronDown size={13} className="chev" />
   </span>
 );
 
-function List({ s, compact }: { s: S; compact: boolean }) {
+function List({ s, compact, dict, locale }: { s: S; compact: boolean; dict: LogisticsDict; locale: Locale }) {
   const rows = [...s.dels].sort((a, b) => a.win[0].localeCompare(b.win[0]));
   return (
     <>
       <div className="d-ph">
         <div>
-          <h1>Доставки</h1>
-          <p>Доставки по дням и курьерам: назначение курьеров, смена статусов, отчёт.</p>
+          <h1>{dict.listTitle}</h1>
+          <p>{dict.listSubtitle}</p>
         </div>
       </div>
       <div className="tabs d-tabs">
-        <span className="tab on">Доставки</span>
-        <span className="tab">Отчёт</span>
+        <span className="tab on">{dict.listTabs[0]}</span>
+        <span className="tab">{dict.listTabs[1]}</span>
       </div>
       <section className="panel plain" style={{ margin: '12px var(--gutter) 12px' }}>
         <div className="row" style={{ gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <Fld label="С" v="05.11.2026" />
-          <Fld label="По" v="05.11.2026" />
-          {!compact && <Fld label="Курьер" v="Все курьеры" />}
-          {!compact && <Fld label="Способ" v="Все способы" />}
-          <Fld label="Статус" v="Все статусы" />
+          <Fld label={dict.filters.from} v={dict.dateStr} />
+          <Fld label={dict.filters.to} v={dict.dateStr} />
+          {!compact && <Fld label={dict.filters.courier} v={dict.filters.allCouriers} />}
+          {!compact && <Fld label={dict.filters.method} v={dict.filters.allMethods} />}
+          <Fld label={dict.filters.status} v={dict.filters.allStatuses} />
         </div>
       </section>
       <section className="panel d-report">
         <table className="dtbl">
           <thead>
             <tr>
-              <th>Время</th>
-              <th>Адрес</th>
-              <th>Документ</th>
-              {!compact && <th>Курьер</th>}
-              {!compact && <th className="r">Цена</th>}
-              <th>Статус</th>
+              <th>{dict.tableCols[0]}</th>
+              <th>{dict.tableCols[1]}</th>
+              <th>{dict.tableCols[2]}</th>
+              {!compact && <th>{dict.tableCols[3]}</th>}
+              {!compact && <th className="r">{dict.tableCols[4]}</th>}
+              <th>{dict.tableCols[5]}</th>
             </tr>
           </thead>
           <tbody>
             {rows.map(d => (
               <tr key={d.id} className={s.fresh === d.id ? 'd-row-hot' : undefined}>
                 <td className="num" style={{ whiteSpace: 'nowrap' }}>
-                  {compact ? '' : '05.11.2026 '}
+                  {compact ? '' : `${dict.dateStr} `}
                   {d.win.join('–')}
                 </td>
                 <td>
                   <span className="trunc">{d.addr}</span>
                 </td>
-                <td style={{ whiteSpace: 'nowrap' }}>{compact ? '' : 'Заказ '}{d.num}</td>
-                {!compact && <td className="muted" style={{ whiteSpace: 'nowrap' }}>{d.trip === 't0' ? 'Ковалёв Дмитрий' : d.trip === 't1' ? DRIVER : 'Не назначен'}</td>}
-                {!compact && <td className="r num" style={{ whiteSpace: 'nowrap' }}>{rub(d.price)}</td>}
+                <td style={{ whiteSpace: 'nowrap' }}>{compact ? '' : dict.orderPrefix}{d.num}</td>
+                {!compact && <td className="muted" style={{ whiteSpace: 'nowrap' }}>{d.trip === 't0' ? dict.otherDriver : d.trip === 't1' ? dict.driver : dict.unassignedDriver}</td>}
+                {!compact && <td className="r num" style={{ whiteSpace: 'nowrap' }}>{money(d.price, locale)}</td>}
                 <td>
-                  <StatusSel st={d.status} flash={s.fresh === d.id} demo={`st-${d.id}`} />
+                  <StatusSel st={d.status} statusLabels={dict.statusLabels} flash={s.fresh === d.id} demo={`st-${d.id}`} />
                 </td>
               </tr>
             ))}
@@ -421,7 +423,7 @@ export const logisticsScene: Scene<S> = {
   initial,
   final,
   height: [680, 860],
-  script: async ({ set, wait, move, click }) => {
+  script: async ({ set, wait, move, click }, locale) => {
     const dragTo = async (id: string, target: string, hot: S['hot']) => {
       await move(`card-${id}`, { ax: 0.5, ay: 0.3 });
       await wait(150);
@@ -430,7 +432,7 @@ export const logisticsScene: Scene<S> = {
       await move(target, { ax: 0.5, ay: 0.5, dur: 950 });
       set(s => ({ ...s, hot }));
       await wait(450);
-      set(place(id));
+      set(place(id, locale));
       await wait(900);
     };
     await dragTo('d1', 'lane-v1', 'lane');
@@ -451,22 +453,23 @@ export const logisticsScene: Scene<S> = {
     await wait(1100);
     await move('st-d1');
     await click();
-    set(delivered);
+    set(delivered(locale));
     await wait(300);
   },
-  render: (s, { compact, cursor }) => {
+  render: (s, { compact, cursor, locale }) => {
+    const dict = LOGISTICS_DICT[locale];
     const dragged = s.drag ? s.dels.find(d => d.id === s.drag) : null;
     return (
-      <DemoShell compact={compact} active={s.view === 'list' ? 'deliveries' : 'dispatch'} crumbs={s.view === 'list' ? ['Услуги', 'Доставки'] : ['Транспорт', 'Диспетчер']}>
+      <DemoShell compact={compact} active={s.view === 'list' ? 'deliveries' : 'dispatch'} crumbs={s.view === 'list' ? dict.crumbsList : dict.crumbsDispatch} locale={locale}>
         <div key={s.view} className="d-page-in" style={{ flex: 1, minHeight: 0 }}>
-          {s.view === 'dispatch' ? <Dispatch s={s} compact={compact} /> : <List s={s} compact={compact} />}
+          {s.view === 'dispatch' ? <Dispatch s={s} compact={compact} dict={dict} locale={locale} /> : <List s={s} compact={compact} dict={dict} locale={locale} />}
         </div>
         {dragged && (
           <div className="ghost" style={{ width: 300, background: 'var(--surface)', borderRadius: 8, boxShadow: 'var(--shadow-drag)', transform: `translate(${cursor.x - 60}px, ${cursor.y - 22}px) rotate(1.5deg)`, transitionDuration: `${cursor.dur}ms` }}>
-            <DelCard d={dragged} />
+            <DelCard d={dragged} kgUnit={dict.kgUnit} />
           </div>
         )}
-        {s.dialog && <TripCard s={s} compact={compact} />}
+        {s.dialog && <TripCard s={s} compact={compact} dict={dict} locale={locale} />}
         {s.toast && (
           <div className="toast d-toast">
             <CircleCheck size={15} />

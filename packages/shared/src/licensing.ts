@@ -35,15 +35,15 @@ export const MODULES: readonly ModuleDef[] = [
     paths: [
       '/projects', '/statuses', '/tasks', '/comments', '/time-logs', '/notifications', '/members', '/teams', '/saved-views', '/calendar-events', '/attachments', '/activity', '/events',
       '/entities', '/data', '/data-search', '/units', '/product-categories', '/attribute-defs', '/products', '/organizations', '/bank-accounts', '/warehouses', '/cost-items',
-      '/companies', '/contacts', '/positions', '/departments', '/product-kinds', '/secrets', '/license', '/api-tokens', '/project-templates', '/mailboxes', '/emails',
+      '/companies', '/contacts', '/positions', '/departments', '/product-kinds', '/secrets', '/license', '/api-tokens', '/project-templates', '/mailboxes', '/emails', '/whiteboards',
     ],
-    sections: ['home', 'inbox', 'email', 'mytasks', 'favorites', 'notifications', 'overview', 'projects', 'tasks', 'calendar', 'timeline', 'members', 'activity', 'archive', 'search', 'settings', 'upgrade', 'system', 'catalog', 'crmCompanies', 'crmContacts'],
+    sections: ['home', 'inbox', 'email', 'mytasks', 'favorites', 'notifications', 'overview', 'projects', 'tasks', 'calendar', 'timeline', 'members', 'activity', 'archive', 'search', 'settings', 'upgrade', 'system', 'catalog', 'crmCompanies', 'crmContacts', 'whiteboards'],
     settings: ['workspace', 'appearance', 'language', 'datetime', 'members', 'teams', 'projects', 'permissions', 'data-model', 'organizations', 'warehouses', 'cost-items', 'positions', 'departments', 'product-kinds', 'project-templates', 'mail'],
     jobs: ['noop', 'index.create', 'index.drop', 'module_request.notify', 'email.send', 'email.sync'],
   }),
   def({
     id: 'crm',
-    paths: ['/deals', '/deal-pipelines', '/deal-stages', '/deal-lost-reasons', '/deal-funnel', '/crm-activities', '/leads', '/lead-statuses', '/lead-forms', '/cases', '/case-forms', '/case-sla-rules', '/lead-sources', '/ad-campaigns', '/ad-expenses', '/ad-report', '/sales-plan', '/ai-chats'],
+    paths: ['/deals', '/deal-pipelines', '/deal-stages', '/deal-lost-reasons', '/deal-funnel', '/crm-activities', '/crm', '/leads', '/lead-statuses', '/lead-forms', '/cases', '/case-forms', '/case-sla-rules', '/lead-sources', '/ad-campaigns', '/ad-expenses', '/ad-report', '/sales-plan', '/ai-chats'],
     hooks: ['leads'],
     sections: ['crm', 'crmLeads', 'crmCases', 'crmAds', 'crmDeals', 'crmFunnel', 'crmActivities', 'crmSalesPlan', 'crmAiChats'],
     settings: ['deal-pipelines', 'lost-reasons', 'lead-statuses', 'lead-forms', 'lead-sources', 'cases'],

@@ -1,27 +1,11 @@
 /* Запись «Производство»: рабочее место «Выпуск продукции» — мастер отмечает этапы заказа и выпускает,
    выпущенное и остаток пересчитываются. Разметка — как у ProductionWorkbenchPage.tsx */
 import { PanelRightClose, Play, RefreshCw, CircleCheck } from 'lucide-react';
+import type { Locale } from '../i18n';
 import { DemoShell } from './shell';
 import type { Scene } from './player';
+import { PRODUCTION_DICT, type ProdOrder as Order, type StageId } from './i18n/production';
 
-type StageId = 'cut' | 'build' | 'paint';
-interface Row {
-  id: string;
-  name: string;
-  kind?: string;
-  qty: number;
-  done: number;
-}
-interface Order {
-  id: string;
-  num: string;
-  type: string;
-  state: [string, string];
-  who?: string;
-  center: string;
-  due: string;
-  rows: Row[];
-}
 interface S {
   orders: Order[];
   /** Отмеченные этапы: «строка:этап» */
@@ -30,59 +14,37 @@ interface S {
   fresh: string | null;
 }
 
-const STAGES: [StageId, string][] = [
-  ['cut', 'Раскрой'],
-  ['build', 'Сборка'],
-  ['paint', 'Покраска'],
-];
+const STAGE_IDS: StageId[] = ['cut', 'build', 'paint'];
 
-const initial: S = {
-  orders: [
-    {
-      id: 'o1',
-      num: 'ЗК-000118',
-      type: 'Заказ покупателя',
-      state: ['В работе', 'accent'],
-      who: 'ООО «Атлас Мебель»',
-      center: 'Цех №1',
-      due: '06.11.2026',
-      rows: [
-        { id: 'r1', name: 'Стол обеденный «Дуб» 160×90', qty: 2, done: 0 },
-        { id: 'r2', name: 'Стул «Классик»', kind: 'дуб, лак', qty: 8, done: 0 },
-      ],
-    },
-    {
-      id: 'o2',
-      num: 'ПР-000052',
-      type: 'Заказ на производство',
-      state: ['Запланирован', 'amber'],
-      center: 'Цех №2',
-      due: '12.11.2026',
-      rows: [{ id: 'r3', name: 'Шкаф-купе «Лофт» 2400', qty: 3, done: 1 }],
-    },
-  ],
+const initial = (locale: Locale): S => ({
+  orders: PRODUCTION_DICT[locale].initialOrders,
   checked: [],
   toast: false,
   fresh: null,
-};
+});
 
-const keysOf = (o: Order) => o.rows.flatMap(r => STAGES.map(([st]) => `${r.id}:${st}`));
-const release = (s: S): S => ({
+const keysOf = (o: Order) => o.rows.flatMap(r => STAGE_IDS.map(st => `${r.id}:${st}`));
+const release = (doneState: string) => (s: S): S => ({
   ...s,
   checked: [],
   toast: true,
   fresh: 'o1',
-  orders: s.orders.map(o => (o.id === 'o1' ? { ...o, state: ['Выполнен', 'green'], rows: o.rows.map(r => ({ ...r, done: r.qty })) } : o)),
+  orders: s.orders.map(o => (o.id === 'o1' ? { ...o, state: [doneState, 'green'], rows: o.rows.map(r => ({ ...r, done: r.qty })) } : o)),
 });
-const final: S = { ...release(initial), toast: false, fresh: null };
+const final = (locale: Locale): S => ({
+  ...release(PRODUCTION_DICT[locale].doneState)(initial(locale)),
+  toast: false,
+  fresh: null,
+});
 
 export const productionScene: Scene<S> = {
   initial,
   final,
   height: [400, 380],
-  script: async ({ set, wait, move, click }) => {
+  script: async ({ set, wait, move, click }, locale) => {
+    const d = PRODUCTION_DICT[locale];
     // Сначала по одной галочке — этапы стола, потом «Отметить все» по заказу
-    for (const st of ['cut', 'build', 'paint']) {
+    for (const st of STAGE_IDS) {
       await move(`chk-r1:${st}`);
       await click();
       set(s => ({ ...s, checked: [...s.checked, `r1:${st}`] }));
@@ -95,24 +57,25 @@ export const productionScene: Scene<S> = {
     await wait(700);
     await move('btn-release');
     await click();
-    set(release);
+    set(release(d.doneState));
     await wait(2200);
     set(s => ({ ...s, toast: false }));
   },
-  render: (s, { compact }) => {
+  render: (s, { compact, locale }) => {
+    const d = PRODUCTION_DICT[locale];
     const marked = s.checked.length;
     return (
-      <DemoShell compact={compact} active="release" crumbs={['Производство', 'Выпуск продукции']}>
+      <DemoShell compact={compact} active="release" crumbs={d.crumbs} locale={locale}>
         <div className="d-ph">
           <div>
-            <h1>Выпуск продукции</h1>
-            {!compact && <p>Заказы, ожидающие выпуска. Отметьте строки и этапы, выберите участок.</p>}
+            <h1>{d.title}</h1>
+            {!compact && <p>{d.subtitle}</p>}
           </div>
           <span className="sp" />
           {!compact && (
             <span className="seg d-seg">
-              <span data-state="on">Целиком</span>
-              <span>По количеству</span>
+              <span data-state="on">{d.seg[0]}</span>
+              <span>{d.seg[1]}</span>
             </span>
           )}
           <span className="btn btn-secondary">
@@ -125,7 +88,7 @@ export const productionScene: Scene<S> = {
           )}
           <span className={'btn btn-primary' + (marked ? '' : ' d-off')} data-demo="btn-release">
             <Play size={14} />
-            {marked ? `Выпустить (${marked})` : 'Выпустить'}
+            {marked ? d.releaseBtnCount(marked) : d.releaseBtn}
           </span>
         </div>
         <section className="panel d-wb">
@@ -135,19 +98,19 @@ export const productionScene: Scene<S> = {
                 <th style={{ width: 34 }}>
                   <span className="faint">#</span>
                 </th>
-                <th>Продукция</th>
+                <th>{d.cols.product}</th>
                 <th className="r" style={{ width: 78 }}>
-                  Заказано
+                  {d.cols.ordered}
                 </th>
                 <th className="r" style={{ width: 78 }}>
-                  Выпущено
+                  {d.cols.released}
                 </th>
                 {!compact && (
                   <th className="r" style={{ width: 72 }}>
-                    Остаток
+                    {d.cols.remaining}
                   </th>
                 )}
-                {STAGES.map(([id, n]) => (
+                {d.stages.map(([id, n]) => (
                   <th key={id} style={{ width: compact ? 74 : 96 }}>
                     {n}
                   </th>
@@ -174,7 +137,7 @@ export const productionScene: Scene<S> = {
                         )}
                         {o.rows.some(r => r.done < r.qty) && (
                           <span className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} data-demo={`all-${o.id}`}>
-                            {all ? 'Снять все' : 'Отметить все'}
+                            {all ? d.uncheckAll : d.checkAll}
                           </span>
                         )}
                       </div>
@@ -182,7 +145,7 @@ export const productionScene: Scene<S> = {
                   </tr>,
                   ...o.rows.map(r => {
                     const left = r.qty - r.done;
-                    const rowChecked = STAGES.every(([st]) => s.checked.includes(`${r.id}:${st}`));
+                    const rowChecked = STAGE_IDS.every(st => s.checked.includes(`${r.id}:${st}`));
                     return (
                       <tr key={r.id} className={s.fresh === o.id ? 'd-row-hot' : undefined}>
                         <td>{left > 0 ? <input type="checkbox" className="check" checked={rowChecked} readOnly tabIndex={-1} /> : <CircleCheck size={15} className="d-ok" />}</td>
@@ -197,7 +160,7 @@ export const productionScene: Scene<S> = {
                         <td className="r num">{r.qty}</td>
                         <td className="r num muted">{r.done}</td>
                         {!compact && <td className="r num">{left}</td>}
-                        {STAGES.map(([st]) => (
+                        {STAGE_IDS.map(st => (
                           <td key={st}>
                             {left > 0 ? (
                               <div className="row" style={{ gap: 6 }}>
@@ -220,7 +183,7 @@ export const productionScene: Scene<S> = {
         {s.toast && (
           <div className="toast d-toast">
             <CircleCheck size={15} />
-            <span>Создан выпуск продукции ВП-000087 · Цех №1</span>
+            <span>{d.toast}</span>
           </div>
         )}
       </DemoShell>

@@ -28,6 +28,7 @@ type Dict = Widen<typeof en>;
 const LOADERS: Record<Locale, () => Promise<Dict>> = {
   en: () => import('./en').then(m => m.en),
   ru: () => import('./ru').then(m => m.ru),
+  es: () => import('./es').then(m => m.es),
 };
 const DICTS: Partial<Record<Locale, Dict>> = {};
 const loading = new Map<Locale, Promise<void>>();

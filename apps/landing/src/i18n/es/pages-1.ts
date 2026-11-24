@@ -42,6 +42,16 @@ export const esPages1: Pick<Dict['modulePages'], 'ui' | 'tasks' | 'crm' | 'docs'
         list: ['Claves de tarea como PROD-1 y SERV-3', 'La tarea hereda el módulo de su proyecto', 'Filtro por módulo en listas, tableros y vistas guardadas'],
         screen: 'Mis tareas: tareas generales y de módulos en una sola lista',
       },
+      {
+        title: 'Pizarras interactivas en el núcleo',
+        text: 'Un lienzo infinito al estilo de Miro y Figma viene incluido en el núcleo sin costo adicional: diseña procesos, organiza ideas y conéctalas directo con el trabajo del equipo.',
+        list: [
+          'Notas adhesivas, figuras, secciones, flechas de conexión, dibujo libre, alineación inteligente y exportación a PNG/SVG',
+          'Tarjetas vivas de ERP y CRM en el lienzo (tareas, negocios, empresas) con marca de completado',
+          'Conversión de nota a tarea en 1 clic y plantillas listas: análisis FODA, mapa del cliente y hoja de ruta',
+        ],
+        screen: 'Pizarra interactiva: notas, secciones y tarjetas vivas de tareas y negocios en el lienzo',
+      },
     ],
     chain: [
       ['crm', 'Evento de negocio: creado, modificado o cambió de etapa.'],
@@ -54,6 +64,7 @@ export const esPages1: Pick<Dict['modulePages'], 'ui' | 'tasks' | 'crm' | 'docs'
       ['¿Cómo se registra el tiempo?', 'Las horas se cargan sobre la tarea. El parte semanal agrupa esos registros por fecha, empleado, cliente, tipo de trabajo, tarea y horas.'],
       ['¿Quién puede ver el parte de horas?', 'El administrador y el propietario ven el de cualquier empleado; cada miembro solo ve el suyo.'],
       ['¿Qué vistas tiene un proyecto?', 'Tablero, lista, tabla, calendario y línea de tiempo. Puedes guardar cualquier filtro como vista.'],
+      ['¿Las pizarras interactivas tienen costo adicional?', 'No. Las pizarras interactivas (Whiteboards) están incluidas en el núcleo sin costo extra: ofrecen lienzo infinito, plantillas de equipo, tarjetas vivas de tareas, negocios y empresas, y conversión de nota a tarea en 1 clic.'],
     ],
   },
   crm: {

@@ -59,6 +59,7 @@ export function useCrumbs(): Crumb[] {
   if (a === 'shifts' && b) return [{ label: S.shift.name, to: SECTIONS.shift.path }, { label: t('nav.crumbs.shift') }];
   if (a === 'objects' && b) return [{ label: S.objects.name, to: SECTIONS.objects.path }, { label: t('nav.crumbs.object') }];
   if (a === 'members' && b) return [{ label: S.members.name, to: SECTIONS.members.path }, { label: data.members.find(m => m.id === b)?.name ?? t('nav.crumbs.member') }];
+  if (a === 'whiteboards' && b) return [{ label: S.whiteboards.name, to: S.whiteboards.path }, { label: t('nav.crumbs.editor') }];
   if (a === 'automations') return b === 'flow' ? [{ label: S.automations.name, to: SECTIONS.automations.path }, { label: t('nav.crumbs.editor') }] : [{ label: S.automations.name }];
   if (a === 'catalog') return [{ label: S.catalog.name }];
   if (a === 'pricing') {
