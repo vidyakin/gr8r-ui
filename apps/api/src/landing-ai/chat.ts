@@ -298,11 +298,16 @@ export async function callLandingLlm(
       }),
       signal: AbortSignal.timeout(cfg.timeoutMs),
     });
-  } catch {
+  } catch (err) {
+    console.error('[landing-chat] LLM fetch error:', err instanceof Error ? err.message : err);
     throw aiUnavailable();
   }
 
-  if (!res.ok) throw aiUnavailable();
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => '');
+    console.error(`[landing-chat] LLM HTTP ${res.status} (${cfg.model}):`, errBody.slice(0, 300));
+    throw aiUnavailable();
+  }
 
   if (stream) {
     if (!res.body) throw aiUnavailable();
