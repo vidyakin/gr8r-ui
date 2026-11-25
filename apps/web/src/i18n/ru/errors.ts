@@ -513,6 +513,7 @@ export const errors: Widen<typeof E> = {
   loyalty_card_inactive: 'Карта лояльности не активна',
   loyalty_card_foreign: 'Карта принадлежит другому клиенту',
   promo_code_exhausted: 'Лимит промокода только что исчерпан: уберите код или повторите',
+  supplier_invoice_type: 'Выберите счёт в формате PDF, PNG, JPG или XLSX',
   attachment_too_large: 'Файл больше {maxBytes} байт',
   storage_quota_exceeded: 'Квота хранилища воркспейса исчерпана: уберите ненужные файлы в архив или попросите владельца увеличить квоту',
   storage_unavailable: 'Хранилище файлов на сервере не настроено',

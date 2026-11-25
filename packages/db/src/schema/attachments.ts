@@ -14,6 +14,8 @@ export const attachments = pgTable(
     entityType: text('entity_type').notNull(),
     entityId: uuid('entity_id').notNull(),
     name: text('name').notNull(),
+    /** Происхождение файла, сохраняется при ротации ссылки и смене контрагента заказа. */
+    supplierPortalCompanyId: uuid('supplier_portal_company_id'),
     kind: text('kind', { enum: ['fig', 'pdf', 'zip', 'img', 'sheet', 'doc', 'code', 'other'] }).notNull().default('other'),
     /** Номер текущей версии */
     currentVersion: integer('current_version').notNull().default(1),

@@ -509,6 +509,7 @@ export const errors: Widen<typeof E> = {
   loyalty_card_inactive: 'La tarjeta de fidelización no está activa',
   loyalty_card_foreign: 'La tarjeta de fidelización pertenece a otro cliente',
   promo_code_exhausted: 'Se acaba de alcanzar el límite de uso del código promocional: quita el código o inténtalo de nuevo',
+  supplier_invoice_type: 'Elige una factura en formato PDF, PNG, JPG o XLSX',
   attachment_too_large: 'El archivo supera los {maxBytes} bytes',
   storage_quota_exceeded: 'Se ha superado la cuota de almacenamiento del espacio de trabajo: archiva archivos innecesarios o pide al propietario que amplíe la cuota',
   storage_unavailable: 'El almacenamiento de archivos no está configurado en este servidor',

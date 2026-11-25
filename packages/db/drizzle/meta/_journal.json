@@ -946,6 +946,13 @@
       "when": 1795575600000,
       "tag": "0144_warehouse_bins_gtd",
       "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1795662000000,
+      "tag": "0145_supplier_portal",
+      "breakpoints": true
     }
   ]
 }

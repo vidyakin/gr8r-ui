@@ -109,6 +109,7 @@ export function useRealtime(ws: string, engine: Engine, enabled = true) {
       }
       // Лицензия (задача 1205): набор модулей изменился — перечитываем всё, что принадлежит воркспейсу (раздел мог появиться или пропасть)
       if (e.entity === 'attachment') batch.add(['ws', ws, 'attachments']);
+      if (e.entity === 'supplier_portal_link') batch.add(['ws', ws, 'supplier-portal']);
       if (e.entity === 'license') batch.add(['ws', ws]);
       if (e.entity === 'position' || e.entity === 'product_kind') batch.add(['ws', ws, 'catalog']);
       if (e.entity === 'secret') batch.add(['ws', ws, 'secrets']);

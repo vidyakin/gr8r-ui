@@ -71,3 +71,4 @@ export * from './integrations-1c';
 export * from './integrations-1c-sync';
 export * from './security';
 export * from './schemas/security';
+export * from './schemas/supplier-portal';

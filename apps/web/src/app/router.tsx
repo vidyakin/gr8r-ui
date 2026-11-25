@@ -161,6 +161,7 @@ const WhiteboardsPage = lazyPage(() => import('./whiteboards/WhiteboardsPage'), 
 const WhiteboardEditorPage = lazyPage(() => import('./whiteboards/WhiteboardEditorPage'), 'WhiteboardEditorPage');
 const WeighingsPage = lazyPage(() => import('./mining/WeighingsPage'), 'WeighingsPage');
 const ChatsPage = lazyPage(() => import('./chats/ChatsPage'), 'ChatsPage');
+const SupplierPortalPage = lazyPage(() => import('./portal/SupplierPortalPage'), 'SupplierPortalPage');
 const PublicChatPage = lazyPage(() => import('./chats/PublicChatPage'), 'PublicChatPage');
 
 /* Hash-роутинг, как в оригинале: работает на любом статическом хостинге без настройки rewrite.
@@ -367,6 +368,7 @@ export const router = createHashRouter([
   // Экраны входа и онбординга живут вне оболочки
   // публичный прайс-лист по ссылке: без входа
   { path: '/p/price/:token', element: <React.Suspense fallback={null}><PublicPricePage /></React.Suspense> },
+  { path: '/s/:token', element: <React.Suspense fallback={null}><SupplierPortalPage /></React.Suspense> },
   // публичный гостевой чат по ссылке: без входа
   { path: '/c/:token', element: <React.Suspense fallback={null}><PublicChatPage /></React.Suspense> },
   { path: '/setup-2fa', element: <React.Suspense fallback={null}><TotpEnrollmentPage /></React.Suspense> },

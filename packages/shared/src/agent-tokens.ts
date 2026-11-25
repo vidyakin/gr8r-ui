@@ -57,6 +57,7 @@ export const TOKEN_PATH_SECTIONS: Map<string, PositionSection[]> = new Map<strin
   ['/processing', ['trade']],
   ['/processor-reports', ['trade']],
   ['/supplier-orders', ['trade']],
+  ['/supplier-portal', ['trade']],
   ['/serials', ['stock', 'services']],
   ['/doc-templates', ['trade']],
   ['/objects', ['trade']],

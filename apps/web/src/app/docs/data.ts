@@ -3,7 +3,7 @@
    Суммы строк и итоги документа в форме считает та же чистая функция, что и сервер при проведении (computeDocument из @erp/shared). */
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { DOCUMENT_META, type CompanyKind, type CostDistribution, type CostItemKind, type DefectMode, type DocTemplatePurpose, type DocumentGroup, type DocumentStatus, type DocumentType, type FileRef, type MaterialOwner, type TaxSystem, type TollingRole, type VatRate, type WarehouseKind, type WasteValuation, type WorkOrderBillingMode, type WorkOrderStateCategory } from '@erp/shared';
+import { DOCUMENT_META, type CompanyKind, type CostDistribution, type CostItemKind, type DefectMode, type DocTemplatePurpose, type DocumentGroup, type DocumentStatus, type DocumentType, type FileRef, type MaterialOwner, type SupplierOrderStatus, type TaxSystem, type TollingRole, type VatRate, type WarehouseKind, type WasteValuation, type WorkOrderBillingMode, type WorkOrderStateCategory } from '@erp/shared';
 import { hasKey, t, type TKey } from '@/i18n';
 import { toast } from '@/components/ui';
 import type { Tone } from '@/components/ui';
@@ -195,6 +195,9 @@ export function useDocTemplates(opts: { usedOnly?: boolean; purpose?: DocTemplat
 }
 
 export interface DocDetail extends Omit<DocListItem, 'organizationName' | 'counterpartyName' | 'warehouseName'> {
+  supplierStatus?: SupplierOrderStatus;
+  expectedShipDate?: string | null;
+  supplierComment?: string;
   /** Промокод, карта лояльности и списание баллов документа (задача 1179); нет записи — null */
   loyalty?: { promoCodeId: string | null; promoCode: string | null; loyaltyCardId: string | null; loyaltyCardNumber: string | null; loyaltyCardKind: 'discount' | 'bonus' | 'cumulative' | null; pointsRedeemed: string } | null;
   numberYear: number | null;

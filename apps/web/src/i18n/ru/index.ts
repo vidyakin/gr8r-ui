@@ -41,6 +41,7 @@ import { help } from './help';
 import { objects } from './objects';
 import { estimates } from './estimates';
 import { supplierRating } from './supplier-rating';
+import { supplierPortal } from './supplier-portal';
 import { supplierPrices } from './supplier-prices';
 import { shifts } from './shifts';
 import { agentTokens } from './agent-tokens';
@@ -54,5 +55,5 @@ import { icExport } from './ic-export';
 import { icExchange } from './ic-exchange';
 import { icSync } from './ic-sync';
 
-export const ru = { icLinks, icExport, icExchange, icSync, common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, batches, repeat, appt, delivery, positions, departments, approvals, projectTemplates, leads, cases, aiChats, ads, secrets, email, money, payroll, pricing, loyalty, licensing, fleet, trips, transport, help, attachments, objects, estimates, supplierRating, supplierPrices, shifts, agentTokens, whiteboards, chats, mining };
+export const ru = { icLinks, icExport, icExchange, icSync, common, dates, ui, sections, projectTabs, nav, settings, languages, catalog, enums, production, productionEnums, docs, errors, finance, crm, automations, meta, views, overlays, pages, serviceReports, serials, batches, repeat, appt, delivery, positions, departments, approvals, projectTemplates, leads, cases, aiChats, ads, secrets, email, money, payroll, pricing, loyalty, licensing, fleet, trips, transport, help, attachments, objects, estimates, supplierRating, supplierPortal, supplierPrices, shifts, agentTokens, whiteboards, chats, mining };
 

@@ -3,13 +3,13 @@
    Токен = `<workspace_id>.<секрет формы>`: воркспейс нужен для контекста RLS (данные пишутся под ним, роль app_user), секрет
    сверяется с активной формой воркспейса. Любая ошибка токена — один и тот же 404, ответ успеха не содержит данных воркспейса.
    Защита: лимит частоты по IP и по форме (таблица rate_limits), размер тела ≤ 32 КБ, CORS для форм любых сайтов. */
-import { sql as dsql } from 'drizzle-orm';
 import { Hono, type Context } from 'hono';
 import { cors } from 'hono/cors';
 import { z } from 'zod';
-import { campaignByUtm, enqueueYooPayment, findEnabledCaseForm, findEnabledForm, insertLead, isUuid, parseFormToken, parsePriceToken, pickRoundRobin, publicPriceList, rateLimits, readMyModules, readMyReadableModules, submitCaseForm, withContext, type Sql } from '@erp/db';
+import { campaignByUtm, enqueueYooPayment, findEnabledCaseForm, findEnabledForm, insertLead, isUuid, parseFormToken, parsePriceToken, pickRoundRobin, publicPriceList, readMyModules, readMyReadableModules, submitCaseForm, withContext } from '@erp/db';
 import { caseWebhookBody, isHoneypotHit, leadWebhookBody, pickUtm, yooWebhookBody } from '@erp/shared';
 import { AppError } from '../errors';
+import { allowPublicRequest as allow } from '../public-rate-limit';
 import { callLandingLlm, honeypotReply, landingChatBody, parseStageDirective, readSessionScriptState, saveLandingChatTurn } from '../landing-ai/chat';
 import { buildWidgetSystemPrompt, type LandingLocale } from '../landing-ai/knowledge';
 import { DEFAULT_AI_CHAT_SETTINGS, readWorkspaceAiChatSettings } from '../landing-ai/settings';
@@ -35,25 +35,6 @@ const widgetHandoffBody = z.object({
 
 const MAX_BODY = 32 * 1024;
 const CHAT_MAX_BODY = 16 * 1024;
-
-/** Учитывает обращение и возвращает false, если лимит окна исчерпан (счётчик коммитится отдельной транзакцией) */
-async function allow(sql: Sql, key: string, max: number, windowSec: number): Promise<boolean> {
-  const hits = await withContext(sql, {}, async db => {
-    const [r] = await db
-      .insert(rateLimits)
-      .values({ key, hits: 1 })
-      .onConflictDoUpdate({
-        target: rateLimits.key,
-        set: {
-          hits: dsql`case when ${rateLimits.windowStart} < now() - make_interval(secs => ${windowSec}) then 1 else ${rateLimits.hits} + 1 end`,
-          windowStart: dsql`case when ${rateLimits.windowStart} < now() - make_interval(secs => ${windowSec}) then now() else ${rateLimits.windowStart} end`,
-        },
-      })
-      .returning({ hits: rateLimits.hits });
-    return r!.hits;
-  });
-  return hits <= max;
-}
 
 const notFound = () => new AppError(404, 'not_found', 'Not found');
 

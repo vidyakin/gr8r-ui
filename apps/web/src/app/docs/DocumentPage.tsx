@@ -17,6 +17,7 @@ import { money, useIsAdmin, useUnits, type Product } from '../catalog/data';
 import { uuidv7 } from '../lib/uuid';
 import { fmtDate } from '../lib/dates';
 import { useWorkspace } from '../data/store';
+import { SupplierStatusBadge } from '../portal/SupplierStatusBadge';
 import { PayControls } from '../money/PayControls';
 import { useSnapshot } from '../production/data';
 import { MaterialModeField, WasteHeaderFields, WasteTab } from '../production/WasteTab';
@@ -1091,6 +1092,9 @@ function DocumentView({ doc }: { doc: DocDetail }) {
     { id: 'files', label: t('attachments.tab'), content: <AttachmentsPanel entityType="document" entityId={doc.id} /> },
   ];
 
+  const supplierStatus = doc.supplierStatus ?? 'pending';
+  const hasSupplierResponse = doc.type === 'supplier_order' && (supplierStatus !== 'pending' || !!doc.expectedShipDate || !!doc.supplierComment);
+
   return (
     <DocForm>
       {labelsOpen && <LabelDialog ids={[...new Set(form.lines.map(l => l.productId).filter((id): id is string => !!id))]} onClose={() => setLabelsOpen(false)} />}
@@ -1110,11 +1114,16 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             <Badge tone={STATUS_TONE[doc.status]} dot>
               {STATUS_LABEL[doc.status]}
             </Badge>
+            {hasSupplierResponse && <SupplierStatusBadge status={supplierStatus} showLabel />}
             {doc.state && <Badge tone="violet">{stateLabel(doc.type, doc.state, (doc.states ?? meta.states)?.find(s => s.key === doc.state)?.label)}</Badge>}
           </h1>
           <span className="faint" style={{ fontSize: 12 }} aria-live="polite" data-testid="save-state">
             {doc.status !== 'draft' ? (doc.postedAt ? `${t('docs.status.posted')} ${fmtDate(new Date(doc.postedAt))}` : '') : save === 'saving' ? t('docs.document.save.saving') : save === 'dirty' ? t('docs.document.save.dirty') : save === 'invalid' ? t('docs.document.save.invalid') : save === 'error' ? t('docs.document.save.error') : t('docs.document.save.saved')}
           </span>
+          {hasSupplierResponse && doc.expectedShipDate && <div className="muted">{t('supplierPortal.shipDateLabel', { date: fmtDate(doc.expectedShipDate) })}</div>}
+          {hasSupplierResponse && doc.supplierComment && (
+            <div className="muted whitespace-pre-wrap break-words"><strong>{t('supplierPortal.comment')}</strong><br />{doc.supplierComment}</div>
+          )}
         </div>
         <div className="doc-actions">
           {canWrite && isCount && doc.status === 'draft' && (

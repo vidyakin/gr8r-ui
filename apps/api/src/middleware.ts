@@ -23,7 +23,8 @@ export const requestLogger = createMiddleware<AppEnv>(async (c, next) => {
   if (c.get('config').logRequests) {
     const ms = (performance.now() - t0).toFixed(1);
     const user = c.get('user')?.id.slice(0, 8) ?? '-';
-    console.log(JSON.stringify({ t: new Date().toISOString(), id: requestId, method: c.req.method, path: c.req.path, status: c.res.status, ms: Number(ms), user }));
+    const path = c.req.path.replace(/^\/public\/supplier\/[^/]+/, '/public/supplier/[redacted]');
+    console.log(JSON.stringify({ t: new Date().toISOString(), id: requestId, method: c.req.method, path, status: c.res.status, ms: Number(ms), user }));
   }
 });
 

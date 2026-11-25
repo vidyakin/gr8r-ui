@@ -72,7 +72,8 @@ export const onError: ErrorHandler<AppEnv> = (err, c) => {
   else app = fromPg(err);
 
   if (!app) {
-    console.error(`[${requestId}] unhandled error:`, err);
+    const supplierLink = /^\/(?:public\/supplier|supplier-portal)(?:\/|$)/.test(c.req.path);
+    console.error(`[${requestId}] unhandled error:`, supplierLink ? err.name : err);
     app = new AppError(500, 'internal_error', 'Internal server error');
   }
   // лимит частоты: клиенту подсказка, через сколько секунд повторить
@@ -83,6 +84,7 @@ export const onError: ErrorHandler<AppEnv> = (err, c) => {
 };
 
 export const onNotFound: NotFoundHandler<AppEnv> = c => {
-  const body: ApiError = { error: { code: 'not_found', message: `Route ${c.req.method} ${c.req.path} not found`, requestId: c.get('requestId') } };
+  const path = c.req.path.replace(/^\/public\/supplier\/[^/]+/, '/public/supplier/[redacted]');
+  const body: ApiError = { error: { code: 'not_found', message: `Route ${c.req.method} ${path} not found`, requestId: c.get('requestId') } };
   return c.json(body, 404);
 };

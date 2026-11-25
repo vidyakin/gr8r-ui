@@ -45,3 +45,4 @@ export * from './cases';
 export * from './chats';
 export * from './mining';
 export * from './webhooks';
+export * from './supplier-portal';

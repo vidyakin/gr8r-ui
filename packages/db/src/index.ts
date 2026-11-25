@@ -124,3 +124,4 @@ export * from './integrations-1c-reconcile';
 export * from './integrations-1c-sync';
 export { applyIcPackage } from './integrations-1c-sync-apply';
 export * from './login-security';
+export * from './supplier-portal';
