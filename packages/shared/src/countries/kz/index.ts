@@ -17,9 +17,9 @@ export function isValidBinIin(value: string): boolean {
 
 export const isValidKzIban = (value: string) => /^KZ\d{2}[A-Z0-9]{16}$/.test(value) && ibanChecksumOk(value);
 
-export function amountInWordsKzt(amount: string | number): string {
+export function amountInWordsKzt(amount: string | number, spellMinor = false): string {
   const { major, minor, negative } = splitAmount(amount);
-  return `${negative ? 'минус ' : ''}${numberToWordsRu(major)} тенге ${String(minor).padStart(2, '0')} тиын`;
+  return `${negative ? 'минус ' : ''}${numberToWordsRu(major)} тенге ${spellMinor ? numberToWordsRu(minor) : String(minor).padStart(2, '0')} тиын`;
 }
 
 const requisiteFields = [
@@ -30,6 +30,22 @@ const requisiteFields = [
   { key: 'knp', label: 'KNP', mask: '000', maxLength: 3, numeric: true, validate: (value: string) => /^\d{3}$/.test(value) },
 ] satisfies RequisiteField[];
 
+const KZ_PRINT_FORMS = ['kz_invoice', 'kz_z2', 'kz_r1', 'kz_tax_invoice', 'kz_pko', 'kz_rko', 'kz_payment_order'] as const;
+type KzPrintForm = (typeof KZ_PRINT_FORMS)[number];
+
+const KZ_FORMS_BY_TYPE: Partial<Record<string, readonly KzPrintForm[]>> = {
+  quote: ['kz_invoice'],
+  customer_order: ['kz_invoice'],
+  invoice: ['kz_invoice'],
+  realization: ['kz_z2', 'kz_tax_invoice'],
+  act: ['kz_r1', 'kz_tax_invoice'],
+  work_order: ['kz_invoice', 'kz_r1', 'kz_z2', 'kz_tax_invoice'],
+  tolling_report: ['kz_r1'],
+  cash_receipt: ['kz_pko'],
+  cash_payment: ['kz_rko'],
+  bank_payment: ['kz_payment_order'],
+};
+
 export const kzCountryPack = {
   code: 'KZ',
   currency: 'KZT',
@@ -37,9 +53,11 @@ export const kzCountryPack = {
   vatRates: ['none', '0', '16'],
   defaultVatRate: '16',
   vatRateLabels: { none: 'No VAT', '0': '0%', '16': '16%' },
-  amountInWords: amountInWordsKzt,
+  amountInWords: (amount: string | number) => amountInWordsKzt(amount),
   requisiteFields,
   requisitesSchema: makeRequisitesSchema(requisiteFields),
   taxSystems: ['our', 'simplified'],
-  printFormIds: [],
+  printFormIds: KZ_PRINT_FORMS,
+  printFormsByType: KZ_FORMS_BY_TYPE,
+  bankStatementFormat: '1CClientBankExchange KZ',
 } as const satisfies CountryPack;

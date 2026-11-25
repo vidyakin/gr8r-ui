@@ -11,6 +11,7 @@ export interface PrintBank {
 
 export interface PrintParty {
   name: string;
+  requisites?: import('../countries').CountryRequisites;
   fullName: string;
   inn: string;
   kpp: string;
@@ -110,6 +111,7 @@ export interface PrintData {
   date: string;
   dueDate: string | null;
   priceIncludesVat: boolean;
+  currency?: string;
   organization: PrintOrganization;
   party: PrintParty;
   lines: PrintLine[];

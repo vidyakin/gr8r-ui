@@ -1,6 +1,7 @@
 /* HTML-шаблоны печатных форм: счёт на оплату, УПД, акт оказания услуг, ТОРГ-12. Чистые функции «данные → HTML-строка»:
    одни и те же страницы показываются в браузере (предпросмотр + window.print) и превращаются в PDF в воркере (headless Chromium).
    Формат A4, поля и разрывы страниц заданы в @page и CSS-правилах break-*; шапка таблицы повторяется на каждой странице. */
+import { renderKzTradeForm } from '../countries/kz/print-forms';
 import { dec, div, fmt, mul } from '../decimal';
 import { DOCUMENT_LABELS_RU, type PrintForm } from '../documents';
 import { amountInWordsRu, numberToWordsRu } from '../ru';
@@ -485,7 +486,7 @@ function repairReturnForm(d: PrintData): string {
 }
 
 export function printOrientation(form: PrintForm): 'portrait' | 'landscape' {
-  return form === 'upd' || form === 'vat_invoice' || form === 'torg12' || form === 'torg13' ? 'landscape' : 'portrait';
+  return form === 'upd' || form === 'vat_invoice' || form === 'torg12' || form === 'torg13' || form === 'kz_z2' || form === 'kz_r1' || form === 'kz_tax_invoice' ? 'landscape' : 'portrait';
 }
 
 /* ---------------- ИНВ-3: инвентаризационная опись ---------------- */
@@ -670,6 +671,14 @@ export function renderPrintForm(form: PrintForm, data: PrintData): string {
       return repairReceiptForm(data);
     case 'repair_return':
       return repairReturnForm(data);
+    case 'kz_invoice':
+    case 'kz_z2':
+    case 'kz_r1':
+    case 'kz_tax_invoice':
+      return renderKzTradeForm(form, data);
+    case 'kz_pko':
+    case 'kz_rko':
+    case 'kz_payment_order':
     case 'ko1':
     case 'ko2':
     case 'bank_receipt':

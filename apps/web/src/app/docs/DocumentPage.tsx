@@ -7,7 +7,7 @@ import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeftRight, Ban, Calculator, ChevronDown, CircleAlert, ClipboardList, Copy, Ellipsis, FileSignature, FileText, PackageCheck, PackageX, Plus, Mail, Printer, RotateCcw, Send, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
-import { COUNTRY_CODES, getCountryPack, basedOnTargets, computeDocument, computeTotals, dec, documentCustomsFields, DEFECT_MODES, DOCUMENT_META, fmt as fmtDec, hasQuoteVariants, isInvestmentFactType, MATERIAL_OWNER_LABELS, PRINT_FORM_LABELS, TOLLING_ROLE_LABELS, TOLLING_ROLES, TRANSFER_OPERATIONS, CONTRACT_FORM_BY_TYPE, type DefectMode, type DocTemplatePurpose, type DocumentType, type TollingRole } from '@erp/shared';
+import { COUNTRY_CODES, getCountryPack, basedOnTargets, computeDocument, computeTotals, dec, documentCustomsFields, DEFECT_MODES, DOCUMENT_META, fmt as fmtDec, hasQuoteVariants, isInvestmentFactType, MATERIAL_OWNER_LABELS, PRINT_FORM_LABELS, printFormsFor, TOLLING_ROLE_LABELS, TOLLING_ROLES, TRANSFER_OPERATIONS, CONTRACT_FORM_BY_TYPE, type DefectMode, type DocTemplatePurpose, type DocumentType, type TollingRole } from '@erp/shared';
 import { Badge, Button, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Segmented, Select, Skeleton, toast } from '@/components/ui';
 import { DocForm } from '@/components/erp/doc-form';
 import { LineUnitCell, rescalePrice, rescaleQty } from './line-unit';
@@ -328,7 +328,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const pack = getCountryPack(selectedOrg?.country);
   const currencyPack = COUNTRY_CODES.map(getCountryPack).find(candidate => candidate.currency === doc.currency);
   const defaultVatRate = pack.code === 'RU' ? pack.defaultVatRate : selectedOrg?.defaultVatRate ?? pack.defaultVatRate;
-  const printForms = meta.forms.filter(formId => pack.printFormIds.includes(formId));
+  const printForms = printFormsFor(doc.type, pack.code);
   const whOptions = (warehouses.data ?? []).filter(w => (!w.archivedAt || w.id === form.warehouseId) && w.kind !== 'transit');
   const sourceWithBins = (isReceipt || doc.type === 'realization' || doc.type === 'write_off' || doc.type === 'stock_posting' || doc.type === 'opening_stock' || (isTransfer && form.operation !== 'from_operation'))
     && whOptions.some(w => w.id === form.warehouseId && w.useBins);

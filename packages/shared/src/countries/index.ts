@@ -8,6 +8,7 @@ export { amountInWordsAed, isValidAeIban, isValidTrn } from './ae';
 export { amountInWordsKzt, isValidBinIin, isValidKzIban } from './kz';
 
 const packs = { RU: ruCountryPack, KZ: kzCountryPack, AE: aeCountryPack } satisfies Record<CountryCode, CountryPack>;
+export const COUNTRY_PRINT_FORMS = [...packs.RU.printFormIds, ...packs.KZ.printFormIds, ...packs.AE.printFormIds] as const;
 export type CountryVatRate = (typeof packs)[CountryCode]['vatRates'][number];
 export type CountryTaxSystem = (typeof packs)[CountryCode]['taxSystems'][number];
 

@@ -6,7 +6,8 @@ test('the country registry keeps the RU defaults and print forms', () => {
   expect(getCountryPack()).toBe(getCountryPack('RU'));
   expect(getCountryPack(null)).toBe(getCountryPack('RU'));
   expect(getCountryPack('unknown')).toBe(getCountryPack('RU'));
-  expect(getCountryPack('RU')).toMatchObject({ currency: 'RUB', defaultVatRate: '20', printFormIds: PRINT_FORMS });
+  expect(getCountryPack('RU')).toMatchObject({ currency: 'RUB', defaultVatRate: '20', printFormIds: PRINT_FORMS.filter(form => !form.startsWith('kz_')) });
+  expect(getCountryPack('RU').printFormIds).toHaveLength(24);
   expect(shared.VAT_RATES).toEqual(['none', '0', '5', '7', '10', '20']);
   expect(shared.formAllowedFor('invoice', 'contract_invoice', 'RU')).toBe(true);
   expect(shared.formAllowedFor('invoice', 'invoice', 'KZ')).toBe(false);

@@ -1539,7 +1539,7 @@ export async function buildPrintData(db: Db, id: string): Promise<PrintData> {
   // картинка товара для КП с картинками (задача 1192): относительный URL, инлайнится при рендере PDF
   const imageBy = new Map(warrantyRows.map(w => [w.id, w.img ? `/api/attachments/${w.img}/content?thumb=256` : '']));
   const party: PrintParty = co
-    ? { name: co.name, fullName: co.name, inn: co.inn, kpp: co.kpp, ogrn: co.ogrn, address: co.legalAddress || co.city, phone: '', bank: await defaultBank(db, { companyId: co.id }) }
+    ? { name: co.name, fullName: co.name, inn: co.inn, kpp: co.kpp, ogrn: co.ogrn, address: co.legalAddress || co.city, requisites: co.requisites, phone: '', bank: await defaultBank(db, { companyId: co.id }) }
     : { name: '', fullName: '', inn: '', kpp: '', ogrn: '', address: '', phone: '', bank: null };
   const data: PrintData = {
     type: d.type as DocumentType,
@@ -1547,12 +1547,14 @@ export async function buildPrintData(db: Db, id: string): Promise<PrintData> {
     date: d.date,
     dueDate: d.dueDate,
     priceIncludesVat: d.priceIncludesVat,
+    currency: d.currency,
     organization: {
       name: org.name,
       fullName: org.fullName || org.name,
       inn: org.inn,
       kpp: org.kpp,
       ogrn: org.ogrn,
+      requisites: org.requisites,
       address: org.legalAddress,
       phone: org.phone,
       bank: await defaultBank(db, { organizationId: org.id }),

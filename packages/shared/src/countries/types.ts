@@ -25,6 +25,7 @@ export interface CountryPack {
   requisiteFields: readonly RequisiteField[];
   taxSystems: readonly string[];
   printFormIds: readonly string[];
+  printFormsByType?: Readonly<Partial<Record<string, readonly string[]>>>;
   bankStatementFormat?: string;
 }
 

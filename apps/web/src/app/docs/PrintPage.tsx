@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ArrowLeft, CircleAlert, Download, Printer } from 'lucide-react';
-import { CONTRACT_FORM_BY_TYPE, DOCUMENT_META, isCashDocType, isContractForm, PRINT_FORMS, usesTemplate, PRINT_FORM_LABELS, printOrientation, type PrintForm } from '@erp/shared';
+import { CONTRACT_FORM_BY_TYPE, formAllowedFor, printFormsFor, isCashDocType, isContractForm, PRINT_FORMS, usesTemplate, PRINT_FORM_LABELS, printOrientation, type PrintForm } from '@erp/shared';
 import { Button, EmptyState, Select, Skeleton, toast } from '@/components/ui';
 import { tEnum, useT } from '@/i18n';
 import { API_BASE } from '../data/api';
@@ -103,7 +103,12 @@ export function PrintPage() {
         </EmptyState>
       </div>
     );
-  const forms = doc.data ? [...DOCUMENT_META[doc.data.type].forms, ...(CONTRACT_FORM_BY_TYPE[doc.data.type] && doc.data.contractId ? [CONTRACT_FORM_BY_TYPE[doc.data.type]!] : [])] : [];
+  const country = doc.data?.organization?.country;
+  const contractForm = doc.data?.contractId ? CONTRACT_FORM_BY_TYPE[doc.data.type] : undefined;
+  const forms = doc.data ? [
+    ...printFormsFor(doc.data.type, country),
+    ...(contractForm && formAllowedFor(doc.data.type, contractForm, country) ? [contractForm] : []),
+  ] : [];
   const landscape = printOrientation(form as PrintForm) === 'landscape';
 
   return (

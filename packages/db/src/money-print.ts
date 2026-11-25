@@ -45,7 +45,7 @@ async function bankRef(db: Db, id: string | null): Promise<PrintBankRef | null> 
 
 async function companyRef(db: Db, id: string | null | undefined): Promise<PrintPartyRef | null> {
   if (!id) return null;
-  const [c] = await db.select({ name: companies.name, inn: companies.inn, kpp: companies.kpp }).from(companies).where(eq(companies.id, id)).limit(1);
+  const [c] = await db.select({ name: companies.name, inn: companies.inn, kpp: companies.kpp, requisites: companies.requisites }).from(companies).where(eq(companies.id, id)).limit(1);
   return c ?? null;
 }
 
@@ -66,7 +66,7 @@ async function bankReceiptData(db: Db, id: string): Promise<BankReceiptData> {
   };
 }
 
-async function paymentOrderData(db: Db, id: string): Promise<PaymentOrderData> {
+async function paymentOrderData(db: Db, id: string, form: PaymentOrderData['form']): Promise<PaymentOrderData> {
   const d = await paymentDetail(db, id);
   const org = await printOrg(db, d.organizationId);
   const operation = d.operation ? (PAYMENT_OPERATION_LABELS_RU[d.operation as keyof typeof PAYMENT_OPERATION_LABELS_RU] ?? d.operation) : '';
@@ -74,7 +74,7 @@ async function paymentOrderData(db: Db, id: string): Promise<PaymentOrderData> {
   let payeeBank: PrintBankRef | null;
   if (d.operation === 'money_transfer') {
     // перевод между своими счетами: получатель — мы же, счёт — целевой
-    payee = { name: org.fullName || org.name, inn: org.inn, kpp: org.kpp };
+    payee = { name: org.fullName || org.name, inn: org.inn, kpp: org.kpp, requisites: org.requisites };
     payeeBank = await bankRef(db, d.targetBankAccountId);
   } else if (d.counterparty) {
     payee = (await companyRef(db, d.counterparty.id)) ?? { name: d.counterparty.name, inn: '', kpp: '' };
@@ -86,11 +86,12 @@ async function paymentOrderData(db: Db, id: string): Promise<PaymentOrderData> {
   const docs = [...new Set(d.lines.map(LINE_LABEL).filter(Boolean))];
   const purpose = [operation, docs.length ? `по документам: ${docs.join(', ')}` : '', d.comment].filter(Boolean).join('. ');
   return {
-    form: 'payment_order',
+    form,
+    currency: d.currency,
     number: d.number,
     date: d.date,
     organization: org,
-    payer: { name: org.fullName || org.name, inn: org.inn, kpp: org.kpp },
+    payer: { name: org.fullName || org.name, inn: org.inn, kpp: org.kpp, requisites: org.requisites },
     payerBank: await bankRef(db, d.bankAccountId),
     payee,
     payeeBank,
@@ -144,13 +145,16 @@ async function openingBalanceData(db: Db, id: string): Promise<OpeningBalanceDat
 /** Данные денежной печатной формы документа */
 export async function moneyPrintData(db: Db, id: string, form: PrintForm): Promise<MoneyFormData> {
   switch (form) {
+    case 'kz_pko':
+    case 'kz_rko':
     case 'ko1':
     case 'ko2':
       return cashOrderData(db, id, form);
     case 'bank_receipt':
       return bankReceiptData(db, id);
     case 'payment_order':
-      return paymentOrderData(db, id);
+    case 'kz_payment_order':
+      return paymentOrderData(db, id, form);
     case 'advance_report':
       return advanceReportData(db, id);
     case 'opening_balance':

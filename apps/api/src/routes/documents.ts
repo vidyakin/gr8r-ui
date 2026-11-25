@@ -79,6 +79,7 @@ import {
 } from '@erp/db';
 import {
   bankAccountCreate,
+  bankAccountRequisites,
   batchQuery,
   bankAccountUpdate,
   counterpartyCodeSet,
@@ -266,6 +267,14 @@ async function setDefaultAccount(ctx: Ctx, owner: Owner, id: string) {
   await ctx.db.update(bankAccounts).set({ isDefault: false }).where(and(eq(col, 'companyId' in owner ? owner.companyId : owner.organizationId), ne(bankAccounts.id, id)));
 }
 
+function assertBankAccountRequisites(country: string, input: { account?: string; bik?: string }) {
+  const result = bankAccountRequisites(country).partial().safeParse(input);
+  if (!result.success) {
+    const issues = result.error.issues.map(issue => ({ path: issue.path.join('.'), message: issue.message }));
+    throw new AppError(400, 'validation_error', issues[0]?.message ?? 'Invalid bank account details', { issues });
+  }
+}
+
 /** /companies/:id/bank-accounts (member+) и /organizations/:id/bank-accounts (admin+) */
 function bankAccountList(ownerTable: typeof companies | typeof organizations, kind: 'company' | 'organization', role: 'member' | 'admin') {
   const col = kind === 'company' ? bankAccounts.companyId : bankAccounts.organizationId;
@@ -285,8 +294,9 @@ function bankAccountList(ownerTable: typeof companies | typeof organizations, ki
       const id = c.req.valid('param').id;
       const body = c.req.valid('json');
       if (kind === 'company') requireVisibleFields(assertNoHiddenFieldWrite('company', { bankAccounts: body }, await hiddenFieldsOf(ctx)));
-      const [owner] = await ctx.db.select({ id: ownerTable.id }).from(ownerTable).where(eq(ownerTable.id, id)).limit(1);
+      const [owner] = await ctx.db.select({ id: ownerTable.id, country: ownerTable.country }).from(ownerTable).where(eq(ownerTable.id, id)).limit(1);
       if (!owner) throw notFound(kind);
+      assertBankAccountRequisites(owner.country, body);
       const [first] = await ctx.db.select({ id: bankAccounts.id }).from(bankAccounts).where(eq(col, id)).limit(1);
       const ref: Owner = kind === 'company' ? { companyId: id } : { organizationId: id };
       const isDefault = body.isDefault ?? !first;
@@ -411,6 +421,12 @@ export const bankAccountRoutes = new Hono<AppEnv>()
     if (acc.companyId) requireVisibleFields(assertNoHiddenFieldWrite('company', { bankAccounts: true }, await hiddenFieldsOf(ctx)));
     if (acc.organizationId && ctx.role !== 'owner' && ctx.role !== 'admin') throw new AppError(403, 'forbidden', 'This action requires the admin role or higher');
     const body = c.req.valid('json');
+    if (body.account !== undefined || body.bik !== undefined) {
+      const table = acc.companyId ? companies : organizations;
+      const [owner] = await ctx.db.select({ country: table.country }).from(table).where(eq(table.id, (acc.companyId ?? acc.organizationId)!)).limit(1);
+      if (!owner) throw notFound(acc.companyId ? 'company' : 'organization');
+      assertBankAccountRequisites(owner.country, body);
+    }
     const [row] = await ctx.db.update(bankAccounts).set({ ...body, updatedAt: new Date() }).where(eq(bankAccounts.id, acc.id)).returning();
     if (body.isDefault) await setDefaultAccount(ctx, acc.companyId ? { companyId: acc.companyId } : { organizationId: acc.organizationId! }, acc.id);
     await recordEvent(ctx.db, { workspaceId: ctx.workspaceId, type: 'bank_account.updated', entity: 'bank_account', recordId: acc.id, actorId: ctx.memberId, payload: { changes: Object.keys(body) } });

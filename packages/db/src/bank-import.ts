@@ -8,6 +8,7 @@ import {
   bankDirection,
   bankImportKey,
   extractDocumentRefs,
+  normalizeBankAccount,
   parseBankAmount,
   PAYABLE_TYPES,
   renderPaymentOrders,
@@ -22,8 +23,6 @@ import { DomainError } from './errors';
 import { createPayment, type CashDocType } from './payments';
 import { payableOf } from './settlements';
 import { bankAccounts, companies, documents, organizations } from './schema';
-
-const digits = (v: string) => v.replace(/\D+/g, '');
 
 /** Операции, которые импорт может создать из строки выписки, по направлению */
 export const IMPORT_OPERATIONS: Record<BankDirection, readonly string[]> = {
@@ -43,8 +42,10 @@ export interface BankImportRow {
   /** Дата по счёту: поступило / списано */
   bookedDate: string;
   amount: string;
+  currency?: string;
+  knp?: string;
   purpose: string;
-  party: { name: string; inn: string; kpp: string; account: string; bik: string; bank: string };
+  party: { name: string; inn: string; kpp: string; account: string; bik: string; bank: string; kbe?: string };
   counterpartyId: string | null;
   counterpartyName: string | null;
   candidates: { id: string; name: string }[];
@@ -81,7 +82,7 @@ export function sameDocumentNumber(docNumber: string, token: string): boolean {
 
 async function ownAccounts(db: Db) {
   return db
-    .select({ id: bankAccounts.id, account: bankAccounts.account, bankName: bankAccounts.bankName, organizationId: bankAccounts.organizationId, orgName: organizations.name })
+    .select({ id: bankAccounts.id, account: bankAccounts.account, bankName: bankAccounts.bankName, organizationId: bankAccounts.organizationId, orgName: organizations.name, country: organizations.country })
     .from(bankAccounts)
     .innerJoin(organizations, eq(organizations.id, bankAccounts.organizationId))
     .where(isNotNull(bankAccounts.organizationId))
@@ -92,10 +93,13 @@ async function ownAccounts(db: Db) {
 export async function previewBankImport(db: Db, statement: BankStatement, opts: { bankAccountId?: string | null } = {}): Promise<BankImportPreview> {
   const own = await ownAccounts(db);
   const label = (a: (typeof own)[number]) => `${a.orgName} · ${a.bankName} · ${a.account}`;
-  const stAccounts = new Set([...statement.accounts, ...statement.transactions.flatMap(t => [t.payer.account, t.receiver.account])].map(digits));
-  const matched = own.filter(a => stAccounts.has(digits(a.account)) && (statement.accounts.length === 0 || statement.accounts.includes(digits(a.account))));
+  const stAccounts = new Set([...statement.accounts, ...statement.transactions.flatMap(t => [t.payer.account, t.receiver.account])].map(normalizeBankAccount));
+  const kz = statement.country === 'KZ';
+  const matched = own.filter(a => (!kz || a.country === 'KZ') && stAccounts.has(normalizeBankAccount(a.account)) &&
+    (statement.accounts.length === 0 || statement.accounts.includes(normalizeBankAccount(a.account))));
   const chosen = opts.bankAccountId ? own.find(a => a.id === opts.bankAccountId) : matched[0];
   if (opts.bankAccountId && !chosen) throw new DomainError(422, 'invalid_reference', 'The bank account does not exist');
+  if (kz && chosen && chosen.country !== 'KZ') throw new DomainError(422, 'invalid_reference', 'Select a bank account of a Kazakhstan organization');
   const base = {
     accounts: matched.map(a => ({ id: a.id, label: label(a), account: a.account })),
     statementAccounts: statement.accounts,
@@ -105,7 +109,7 @@ export async function previewBankImport(db: Db, statement: BankStatement, opts: 
   };
   if (!chosen) return { ...base, bankAccount: null, rows: [], summary: { total: 0, incoming: 0, outgoing: 0, duplicates: 0, unmatched: 0 } };
 
-  const ownNumbers = own.map(a => digits(a.account));
+  const ownNumbers = own.map(a => normalizeBankAccount(a.account));
   const ownInns = new Set((await db.select({ inn: organizations.inn }).from(organizations)).map(o => o.inn).filter(Boolean));
   const stRows = statement.transactions.map((tx, index) => ({ tx, index, dir: bankDirection(tx, [chosen.account]), internal: bankDirection(tx, ownNumbers) === 'internal' }));
 
@@ -113,26 +117,39 @@ export async function previewBankImport(db: Db, statement: BankStatement, opts: 
   const parties = stRows.map(r => (r.dir && r.dir !== 'internal' ? bankCounterparty(r.tx, r.dir) : null));
   const inns = [...new Set(parties.map(p => p?.inn).filter((x): x is string => !!x))];
   const partyAccounts = [...new Set(parties.map(p => p?.account).filter((x): x is string => !!x))];
-  const byInn = inns.length ? await db.select({ id: companies.id, name: companies.name, inn: companies.inn, kpp: companies.kpp }).from(companies).where(and(inArray(companies.inn, inns), isNull(companies.archivedAt))) : [];
+  const binIin = sql<string | null>`${companies.requisites}->>'binIin'`;
+  const bin = sql<string | null>`${companies.requisites}->>'bin'`;
+  const iin = sql<string | null>`${companies.requisites}->>'iin'`;
+  const iik = sql<string>`${companies.requisites}->>'iik'`;
+  const byInn = inns.length
+    ? await db.select({ id: companies.id, name: companies.name, inn: companies.inn, kpp: companies.kpp, binIin, bin, iin })
+      .from(companies).where(and(isNull(companies.archivedAt), kz
+        ? or(inArray(companies.inn, inns), inArray(binIin, inns), inArray(bin, inns), inArray(iin, inns))
+        : inArray(companies.inn, inns)))
+    : [];
   const byAccount = partyAccounts.length
     ? await db.select({ id: companies.id, name: companies.name, account: bankAccounts.account }).from(bankAccounts).innerJoin(companies, eq(companies.id, bankAccounts.companyId)).where(and(inArray(bankAccounts.account, partyAccounts), isNull(companies.archivedAt)))
     : [];
+  if (kz && partyAccounts.length) {
+    byAccount.push(...await db.select({ id: companies.id, name: companies.name, account: iik })
+      .from(companies).where(and(inArray(iik, partyAccounts), isNull(companies.archivedAt))));
+  }
   const matchCompany = (p: BankTransaction['payer']): { hit: { id: string; name: string } | null; candidates: { id: string; name: string }[] } => {
-    let list = p.inn ? byInn.filter(c => c.inn === p.inn) : [];
+    let list = p.inn ? byInn.filter(c => kz ? [c.binIin, c.bin, c.iin, c.inn].includes(p.inn) : c.inn === p.inn) : [];
     if (list.length > 1 && p.kpp) {
       const k = list.filter(c => c.kpp === p.kpp);
       if (k.length) list = k;
     }
     if (list.length === 1) return { hit: list[0]!, candidates: [] };
+    const acc = p.account ? byAccount.filter(a => a.account === p.account) : [];
     if (list.length > 1) {
-      const viaAcc = list.filter(c => byAccount.some(a => a.id === c.id && a.account === p.account));
+      const viaAcc = list.filter(c => acc.some(a => a.id === c.id));
       if (viaAcc.length === 1) return { hit: viaAcc[0]!, candidates: [] };
       return { hit: null, candidates: list.map(c => ({ id: c.id, name: c.name })) };
     }
-    const acc = p.account ? byAccount.filter(a => a.account === p.account) : [];
-    const ids = [...new Set(acc.map(a => a.id))];
-    if (ids.length === 1) return { hit: { id: ids[0]!, name: acc[0]!.name }, candidates: [] };
-    return { hit: null, candidates: [] };
+    const candidates = [...new Map(acc.map(a => [a.id, { id: a.id, name: a.name }])).values()];
+    if (candidates.length === 1) return { hit: candidates[0]!, candidates: [] };
+    return { hit: null, candidates: kz ? candidates : [] };
   };
 
   // дубли
@@ -175,8 +192,9 @@ export async function previewBankImport(db: Db, statement: BankStatement, opts: 
       docDate: tx.date,
       bookedDate: dir && dir !== 'internal' ? bankBookedDate(tx, dir) : tx.date,
       amount: tx.amount,
+      ...(kz ? { currency: tx.currency, knp: tx.knp } : {}),
       purpose: tx.purpose,
-      party: p ? { name: p.name, inn: p.inn, kpp: p.kpp, account: p.account, bik: p.bik, bank: p.bank } : { name: '', inn: '', kpp: '', account: '', bik: '', bank: '' },
+      party: p ? { name: p.name, inn: p.inn, kpp: p.kpp, account: p.account, bik: p.bik, bank: p.bank, ...(kz ? { kbe: p.kbe } : {}) } : { name: '', inn: '', kpp: '', account: '', bik: '', bank: '' },
       counterpartyId: null,
       counterpartyName: null,
       candidates: [],
@@ -369,12 +387,13 @@ export interface PaymentOrdersExport {
 /** Платёжные поручения из документов «Списание со счёта» (черновики и проведённые) в формате 1CClientBankExchange */
 export async function exportPaymentOrders(db: Db, input: { bankAccountId: string; from?: string; to?: string; ids?: string[] }): Promise<PaymentOrdersExport> {
   const [acc] = await db
-    .select({ id: bankAccounts.id, account: bankAccounts.account, bik: bankAccounts.bik, bankName: bankAccounts.bankName, corr: bankAccounts.corrAccount, org: organizations.name, orgFull: organizations.fullName, inn: organizations.inn, kpp: organizations.kpp })
+    .select({ id: bankAccounts.id, account: bankAccounts.account, bik: bankAccounts.bik, bankName: bankAccounts.bankName, corr: bankAccounts.corrAccount, org: organizations.name, orgFull: organizations.fullName, inn: organizations.inn, kpp: organizations.kpp, country: organizations.country })
     .from(bankAccounts)
     .innerJoin(organizations, eq(organizations.id, bankAccounts.organizationId))
     .where(eq(bankAccounts.id, input.bankAccountId))
     .limit(1);
   if (!acc) throw new DomainError(422, 'invalid_reference', 'Select a bank account of your organization');
+  if (acc.country === 'KZ') throw new DomainError(422, 'nothing_to_export', 'The payment order file export is available for Russian accounts');
   const where = [eq(documents.type, 'bank_payment'), eq(documents.bankAccountId, input.bankAccountId), ne(documents.status, 'cancelled')];
   if (input.from) where.push(gte(documents.date, input.from));
   if (input.to) where.push(lte(documents.date, input.to));

@@ -1,6 +1,7 @@
 /* zod-схемы документов, организаций, складов, банковских счетов и склада (остатки, движения, настройки). */
 import { z } from 'zod';
-import { getCountryPack } from '../countries';
+import { getCountryPack, isValidKzIban } from '../countries';
+import { isValidSwiftBic } from '../countries/bank';
 import { checkCountryRequisites, countryRequisiteFields, countryTaxSystem, countryVatRate } from './countries';
 import { COST_DISTRIBUTIONS } from '../cost-closing';
 import { COST_ITEM_KINDS, DOCUMENT_GROUPS, DOCUMENT_OPERATIONS, DOCUMENT_STATUSES, DOCUMENT_TYPES, PRINT_FORMS, TOLLING_ROLES, TRANSFER_OPERATIONS, WAREHOUSE_KINDS } from '../documents';
@@ -79,10 +80,22 @@ export const organizationQuery = listQuery;
 
 /* ---------------- банковские счета ---------------- */
 
+const ruBankBik = z.string().trim().regex(/^04\d{7}$/, 'BIK: 9 digits, starts with 04');
+const ruBankAccount = z.string().trim().regex(/^\d{20}$/, 'Account: 20 digits');
+const kzBankBik = z.string().trim().refine(isValidSwiftBic, 'Invalid SWIFT/BIC');
+const kzBankAccount = z.string().trim().refine(isValidKzIban, 'Invalid Kazakhstan IBAN');
+
+export function bankAccountRequisites(country: string) {
+  return z.object({
+    bik: country === 'KZ' ? kzBankBik : ruBankBik,
+    account: country === 'KZ' ? kzBankAccount : ruBankAccount,
+  });
+}
+
 export const bankAccountCreate = z.object({
   id: clientId,
-  bik: z.string().trim().regex(/^04\d{7}$/, 'BIK: 9 digits, starts with 04'),
-  account: z.string().trim().regex(/^\d{20}$/, 'Account: 20 digits'),
+  bik: z.union([ruBankBik, kzBankBik]),
+  account: z.union([ruBankAccount, kzBankAccount]),
   corrAccount: z.string().trim().regex(/^(\d{20})?$/, 'Correspondent account: 20 digits').default(''),
   bankName: shortText,
   isDefault: z.boolean().optional(),

@@ -206,7 +206,7 @@ function OrganizationDialog({ org, onClose }: { org?: Organization; onClose: () 
             <TabsList aria-label={t('settings.organizations.tabs.label')}>
               <Tab value="main">{t('settings.organizations.tabs.main')}</Tab>
               <Tab value="files">{t('settings.organizations.tabs.files')}</Tab>
-              {country === 'RU' && <Tab value="accounts">{t('settings.organizations.tabs.accounts')}</Tab>}
+              {country !== 'AE' && <Tab value="accounts">{t('settings.organizations.tabs.accounts')}</Tab>}
             </TabsList>
             <TabsContent value="main" className="stack" style={{ gap: 12, marginTop: 12 }}>
               <Field label={t('settings.organizations.fields.name')} error={err.name} hint={t('settings.organizations.fields.nameHint')}>
@@ -257,10 +257,10 @@ function OrganizationDialog({ org, onClose }: { org?: Organization; onClose: () 
               <FileLink label={t('settings.organizations.file.directorSig')} value={dirSig} onChange={setDirSig} />
               <FileLink label={t('settings.organizations.file.accountantSig')} value={accSig} onChange={setAccSig} />
             </TabsContent>
-            {country === 'RU' && <TabsContent value="accounts" style={{ marginTop: 12 }}>
+            {country !== 'AE' && <TabsContent value="accounts" style={{ marginTop: 12 }}>
               <div className="field">
                 <span className="label">{t('settings.organizations.fields.bankAccounts')}</span>
-                {org ? <BankAccountsEditor owner="organizations" ownerId={org.id} canEdit /> : <p className="faint" style={{ margin: 0 }}>{t('settings.organizations.fields.bankAccountsHint')}</p>}
+                {org ? <BankAccountsEditor owner="organizations" ownerId={org.id} country={org.country} canEdit /> : <p className="faint" style={{ margin: 0 }}>{t('settings.organizations.fields.bankAccountsHint')}</p>}
               </div>
             </TabsContent>}
           </Tabs>

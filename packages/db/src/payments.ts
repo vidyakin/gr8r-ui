@@ -28,7 +28,7 @@ import {
 import type { Db } from './client';
 import { DOCUMENT_HOOKS } from './document-hooks';
 import { organizationCurrency } from './organizations';
-import type { DocCtx } from './documents';
+import { defaultBank, type DocCtx } from './documents';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { investmentOpen } from './investments';
@@ -490,7 +490,7 @@ export async function accountBalance(db: Db, kind: 'cash' | 'bank', id: string, 
 export async function paymentDetail(db: Db, id: string) {
   const doc = await loadDoc(db, id);
   const lines = await linesOf(db, id);
-  const [org] = await db.select({ id: organizations.id, name: organizations.name }).from(organizations).where(eq(organizations.id, doc.organizationId)).limit(1);
+  const [org] = await db.select({ id: organizations.id, name: organizations.name, country: organizations.country }).from(organizations).where(eq(organizations.id, doc.organizationId)).limit(1);
   const [cp] = doc.counterpartyId ? await db.select({ id: companies.id, name: companies.name, settlementMode: companies.settlementMode }).from(companies).where(eq(companies.id, doc.counterpartyId)).limit(1) : [];
   const [mem] = doc.accountableMemberId ? await db.select({ id: members.id, name: members.name }).from(members).where(eq(members.id, doc.accountableMemberId)).limit(1) : [];
   const acc = await accountLabels(db, { cash: [doc.cashRegisterId, doc.targetCashRegisterId], bank: [doc.bankAccountId, doc.targetBankAccountId] });
@@ -519,6 +519,7 @@ export async function paymentDetail(db: Db, id: string) {
   return {
     ...doc,
     organizationName: org?.name ?? null,
+    organizationCountry: org?.country ?? null,
     counterparty: cp ?? null,
     accountable: mem ?? null,
     cashRegisterName: doc.cashRegisterId ? (acc.cash.get(doc.cashRegisterId) ?? null) : null,
@@ -722,9 +723,10 @@ export async function printOrg(db: Db, organizationId: string): Promise<PrintOrg
     inn: o.inn,
     kpp: o.kpp,
     ogrn: o.ogrn,
+    requisites: o.requisites,
     address: o.legalAddress,
     phone: o.phone,
-    bank: null,
+    bank: o.country === 'KZ' ? await defaultBank(db, { organizationId }) : null,
     kind: o.kind,
     directorName: o.directorName,
     directorTitle: o.directorTitle,
@@ -737,16 +739,23 @@ export async function printOrg(db: Db, organizationId: string): Promise<PrintOrg
 }
 
 /** КО-1 и КО-2: кассовые документы (банковские печатаются платёжным поручением позже) */
-export async function cashOrderData(db: Db, id: string, form: 'ko1' | 'ko2'): Promise<CashOrderData> {
+export async function cashOrderData(db: Db, id: string, form: CashOrderData['form']): Promise<CashOrderData> {
   const d = await paymentDetail(db, id);
   if (d.type !== 'cash_receipt' && d.type !== 'cash_payment') throw new DomainError(422, 'form_not_available', 'Cash orders are printed for cash documents only');
   const docs = d.lines.map(l => (l.settlementDocument ? `${DOCUMENT_LABELS_RU[l.settlementDocument.type as DocumentType] ?? l.settlementDocument.type}${l.settlementDocument.number ? ` ${l.settlementDocument.number}` : ''}` : l.comment || l.cashFlowItemName)).filter(Boolean);
+  const kz = form === 'kz_pko' || form === 'kz_rko';
+  const [party] = kz && d.counterparty
+    ? await db.select({ name: companies.name, inn: companies.inn, kpp: companies.kpp, requisites: companies.requisites })
+      .from(companies).where(eq(companies.id, d.counterparty.id)).limit(1)
+    : [];
   return {
     form,
+    currency: d.currency,
     number: d.number,
     date: d.date,
     organization: await printOrg(db, d.organizationId),
     cashRegisterName: d.cashRegisterName ?? '',
+    party,
     personName: d.operation === 'salary_payment' ? 'Работники по платёжной ведомости' : (d.counterparty?.name ?? d.accountable?.name ?? ''),
     basis: d.operation === 'salary_payment' ? ['Выплата заработной платы', d.comment].filter(Boolean).join(': ') : [...new Set([...docs, d.comment].filter(Boolean))].join('; '),
     amount: d.total,

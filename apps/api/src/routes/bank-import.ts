@@ -22,6 +22,7 @@ export const bankImportRoutes = new Hono<AppEnv>()
     const { text, encoding } = decodeBankStatement(buf);
     let statement;
     try {
+      // Один разбор для RU и KZ. Пакет KZ определяется по заголовку и полям файла.
       statement = parseBankStatement(text);
     } catch (e) {
       if (e instanceof BankStatementFormatError) throw new AppError(422, 'invalid_statement', 'The file is not a bank statement in the 1CClientBankExchange format');
