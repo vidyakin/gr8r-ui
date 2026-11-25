@@ -168,9 +168,13 @@ export interface ViewToolbarProps {
   resetWidths?: boolean;
   /** Доп. контролы после стандартных кнопок (например, масштаб Timeline) */
   extra?: React.ReactNode;
+  /** Скрыть поле поиска в тулбаре (если поиск вынесен в шапку страницы) */
+  hideSearch?: boolean;
+  /** Развести фильтр и сортировку по разным краям тулбара */
+  spreadControls?: boolean;
 }
 
-export function ViewToolbar({ api, left, right, group, columns, resetWidths = true, extra }: ViewToolbarProps) {
+export function ViewToolbar({ api, left, right, group, columns, resetWidths = true, extra, hideSearch, spreadControls }: ViewToolbarProps) {
   const fields = useFields();
   const tt = useT();
   const SORTS = getSorts(tt);
@@ -182,7 +186,9 @@ export function ViewToolbar({ api, left, right, group, columns, resetWidths = tr
     <>
       <div className="toolbar" role="toolbar">
         {left}
-        <Input size="sm" icon={<Search size={13} />} className="!w-[200px]" placeholder={tt('views.toolbar.searchTasks')} aria-label={tt('views.toolbar.searchTasks')} value={view.q} onChange={e => api.setQuery(e.target.value)} />
+        {!hideSearch && (
+          <Input size="sm" icon={<Search size={13} />} className="!w-[200px]" placeholder={tt('views.toolbar.searchTasks')} aria-label={tt('views.toolbar.searchTasks')} value={view.q} onChange={e => api.setQuery(e.target.value)} />
+        )}
         <FilterMenu api={api}>
           <Button variant="ghost" className={view.filters.length ? 'on' : undefined}>
             <ListFilter size={14} />
@@ -194,6 +200,7 @@ export function ViewToolbar({ api, left, right, group, columns, resetWidths = tr
             )}
           </Button>
         </FilterMenu>
+        {spreadControls && <span className="sp" />}
         <Menu>
           <MenuTrigger asChild>
             <Button variant="ghost">
@@ -263,7 +270,7 @@ export function ViewToolbar({ api, left, right, group, columns, resetWidths = tr
           </Menu>
         )}
         {extra}
-        <span className="sp" />
+        {!spreadControls && <span className="sp" />}
         {right}
       </div>
       {!!view.filters.length && (

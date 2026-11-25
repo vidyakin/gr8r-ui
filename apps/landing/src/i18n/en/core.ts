@@ -19,7 +19,7 @@ export const enCore: Pick<Dict, 'alternative' | 'nav' | 'hero' | 'player' | 'mor
       crm: { name: 'Deals & Pipelines', title: 'From first inquiry to closed-won deal', text: 'Move leads and deals through pipeline stages. Measure revenue and ROI for every marketing channel.' },
       docs: { name: 'Documents', title: 'Invoices, contracts, and quotes', text: 'Create documents with products and services, post them to accounting, and send printable PDFs to clients.' },
       services: { name: 'Services', title: 'Appointments, work orders, and repairs', text: 'Book clients with specialists, track labor and materials. Every visit’s history is always at hand.' },
-      production: { name: 'Production', title: 'BOMs, orders, and stage-by-stage output', text: 'A customer order becomes a production order; the shop lead logs completed stages and outputs finished goods.' },
+      production: { name: 'Production', title: 'Parametric BOMs, MRP, output, and costing', text: 'From parametric make-to-order BOMs and MRP planning to equipment load, stage output, WIP, and month-end close.' },
       sales: { name: 'Sales', title: 'Order, shipment, and payment in one chain', text: 'Manage customer orders, issue invoices, and post shipments. Stock and balances update automatically on posting.' },
       logistics: { name: 'Logistics', title: 'Deliveries, routes, and couriers', text: 'Assign orders to routes and couriers, track delivery statuses, and monitor every run.' },
       automations: { name: 'AI & Workflows', title: 'Event, conditions, actions', text: 'Build rules on a visual canvas: deal won — create an order and a shipping task. Routine work runs automatically.' },

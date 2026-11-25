@@ -38,4 +38,11 @@ const renderApp = () => createRoot(document.getElementById('root')!).render(
 void prefetchSession(queryClient);
 loadLocale(getLocale()).then(renderApp, renderApp);
 
-if (import.meta.env.PROD && 'serviceWorker' in navigator) void navigator.serviceWorker.register(`${import.meta.env.BASE_URL}driver-sw.js`);
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  void navigator.serviceWorker.getRegistrations().then(regs =>
+    regs.forEach(r => {
+      if (new URL(r.scope).pathname === '/') void r.unregister();
+    }),
+  );
+  void navigator.serviceWorker.register(`${import.meta.env.BASE_URL}driver-sw.js`);
+}

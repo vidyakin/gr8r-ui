@@ -240,9 +240,14 @@
   border-radius: 12px;
   box-shadow: var(--shadow-pop, 0 10px 28px -8px rgba(0, 0, 0, 0.16));
 }
-.wb-dock { left: 50%; bottom: 16px; transform: translateX(-50%); }
+.wb-dock { left: 50%; bottom: calc(36px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); max-width: calc(100% - 24px); overflow-x: auto; }
 .wb-props-bar { left: 50%; top: 14px; transform: translateX(-50%); }
-.wb-zoom-bar { right: 16px; bottom: 16px; }
+.wb-zoom-bar { right: 16px; bottom: calc(36px + env(safe-area-inset-bottom, 0px)); }
+
+@media (max-width: 960px) {
+  .wb-dock { bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
+  .wb-zoom-bar { top: 14px; right: 14px; bottom: auto; }
+}
 
 .wb-tool-btn {
   height: 30px;
@@ -259,6 +264,13 @@
   justify-content: center;
   gap: 5px;
   cursor: pointer;
+  flex-shrink: 0;
+}
+.wb-icon-btn {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  padding: 0;
 }
 .wb-tool-btn:hover { background: var(--bg-2, var(--surface-2, #f6f5f2)); color: var(--text, #1d1c1a); }
 .wb-tool-btn.is-active { background: var(--accent, #4b5bd6); color: var(--on-accent, #ffffff); }

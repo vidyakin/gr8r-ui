@@ -54,15 +54,18 @@ export function StatusIcon({ status, size = 14 }: { status: Status; size?: numbe
 }
 
 /** Бейдж приоритета: число в скруглённом квадрате цвета приоритета; без приоритета — пунктирный пустой квадрат */
-export function PriorityIcon({ priority, size = 14 }: { priority: Priority; size?: number }) {
-  const px = Math.max(16, size + 2);
+export function PriorityIcon({ priority, size }: { priority: Priority; size?: number }) {
+  const px = size != null ? Math.max(16, size + 2) : undefined;
   return (
     <span
       className={cn('prio', priority == null && 'none')}
       aria-hidden
-      style={{ width: px, height: px, fontSize: px <= 16 ? 10.5 : 11.5, ...(priority != null ? { background: priorityColor(priority) } : null) }}
+      style={{
+        ...(px != null ? { width: px, height: px, fontSize: px <= 16 ? 10.5 : 11.5 } : null),
+        ...(priority != null ? { background: priorityColor(priority) } : null),
+      }}
     >
-      {priority}
+      {priority ?? 0}
     </span>
   );
 }

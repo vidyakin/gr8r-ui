@@ -1,8 +1,8 @@
 /* Раздел /chats: двухколоночный мультиязычный мессенджер (список диалогов слева + лента с автопереводом справа) */
 import * as React from 'react';
 import { useNavigate, useParams } from 'react-router';
-import { Globe, MessageSquare, Plus, Search, Users, Volume2, VolumeX } from 'lucide-react';
-import { Avatar, Badge, Button, EmptyState, Input, Segmented } from '@/components/ui';
+import { Globe, MessageSquare, Plus, Search, Users, Volume2, VolumeX, X } from 'lucide-react';
+import { Avatar, Badge, Button, EmptyState, IconButton, Input, Segmented } from '@/components/ui';
 import { fmtDateTime, useT } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { ChatThread } from './ChatThread';
@@ -68,6 +68,7 @@ export function ChatsPage() {
   const [filter, setFilter] = React.useState<ChatFilterKind>('all');
   const [search, setSearch] = React.useState('');
   const [query, setQuery] = React.useState('');
+  const [mobileSearchOpen, setMobileSearchOpen] = React.useState(false);
   const [newOpen, setNewOpen] = React.useState(false);
   const [guestOpen, setGuestOpen] = React.useState(false);
   const [muted, setMuted] = React.useState(() => isChatSoundMuted());
@@ -108,11 +109,71 @@ export function ChatsPage() {
   );
 
   const openChat = (id: string) => navigate(`/chats/${id}`);
+  const toggleMobileSearch = () => {
+    setMobileSearchOpen(prev => {
+      if (prev) {
+        setSearch('');
+        setQuery('');
+      }
+      return !prev;
+    });
+  };
+
+  const filterItems: { value: ChatFilterKind; label: string }[] = [
+    { value: 'all', label: t('chats.all') },
+    { value: 'team', label: t('chats.team') },
+    { value: 'client', label: t('chats.clients') },
+  ];
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden bg-bg">
-      <aside className="w-[320px] max-w-[42vw] shrink-0 border-r border-border bg-surface flex flex-col min-h-0">
-        <div className="p-3 border-b border-border flex flex-col gap-2.5 shrink-0">
+      <aside
+        className={cn(
+          'relative w-full md:w-[320px] md:max-w-[42vw] shrink-0 md:border-r border-border bg-surface flex-col min-h-0',
+          activeChat ? 'hidden md:flex' : 'flex',
+        )}
+      >
+        {/* Мобильная верхняя панель: переключатель + звук + лупа, выпадающая строка поиска ниже */}
+        <div className="md:hidden px-3 py-2 border-b border-border flex flex-col gap-2 shrink-0 bg-surface">
+          <div className="flex items-center gap-1.5">
+            <Segmented
+              value={filter}
+              onValueChange={setFilter}
+              className="flex-1 min-w-0 [&>button]:flex-1 [&>button]:justify-center [&>button]:px-2 [&>button]:text-xs"
+              items={filterItems}
+            />
+            <IconButton
+              size="sm"
+              label={muted ? 'Unmute sound' : 'Mute sound'}
+              onClick={toggleSound}
+              className="shrink-0"
+            >
+              {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            </IconButton>
+            <IconButton
+              size="sm"
+              label={t('chats.search')}
+              active={mobileSearchOpen || !!search}
+              onClick={toggleMobileSearch}
+              className="shrink-0"
+            >
+              {mobileSearchOpen ? <X size={16} /> : <Search size={16} />}
+            </IconButton>
+          </div>
+          {mobileSearchOpen && (
+            <Input
+              autoFocus
+              size="sm"
+              icon={<Search size={13} />}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={t('chats.search')}
+            />
+          )}
+        </div>
+
+        {/* Десктопная/планшетная шапка списка чатов */}
+        <div className="hidden md:flex p-3 border-b border-border flex-col gap-2.5 shrink-0">
           <div className="flex items-center justify-between gap-2">
             <h1 className="text-base font-semibold trunc">{t('chats.title')}</h1>
             <div className="flex items-center gap-1">
@@ -135,15 +196,11 @@ export function ChatsPage() {
           <Segmented
             value={filter}
             onValueChange={setFilter}
-            items={[
-              { value: 'all', label: t('chats.all') },
-              { value: 'team', label: t('chats.team') },
-              { value: 'client', label: t('chats.clients') },
-            ]}
+            items={filterItems}
           />
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto pb-20 md:pb-0">
           {chatsQuery.isLoading ? (
             <div className="p-4 text-sm muted">{t('common.loading')}</div>
           ) : chats.length === 0 ? (
@@ -175,11 +232,26 @@ export function ChatsPage() {
             ))
           )}
         </div>
+
+        <button
+          type="button"
+          onClick={() => setNewOpen(true)}
+          aria-label={t('chats.newChat')}
+          title={t('chats.newChat')}
+          className="md:hidden absolute right-4 z-10 w-12 h-12 rounded-full bg-brand text-white shadow-lg flex items-center justify-center active:scale-95 transition-transform"
+          style={{ bottom: 'calc(20px + env(safe-area-inset-bottom, 0px))' }}
+        >
+          <Plus size={22} />
+        </button>
       </aside>
 
-      <main className="flex-1 min-w-0 min-h-0 flex flex-col">
+      <main className={cn('flex-1 min-w-0 min-h-0 flex-col', activeChat ? 'flex' : 'hidden md:flex')}>
         {activeChat ? (
-          <ChatThread chat={activeChat} onOpenGuestLink={() => setGuestOpen(true)} />
+          <ChatThread
+            chat={activeChat}
+            onOpenGuestLink={() => setGuestOpen(true)}
+            onBack={() => navigate('/chats')}
+          />
         ) : (
           <div className="flex-1 flex items-center justify-center p-6">
             <EmptyState
