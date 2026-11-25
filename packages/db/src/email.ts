@@ -23,7 +23,7 @@ import { assertMailHostShape } from './email-transport';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
 import { sanitizeRichText } from './rich-text';
-import { companies, contacts, crmActivities, deals, documents, emailMessages, jobs, leads, mailboxes, workspaceSecrets } from './schema';
+import { companies, contacts, crmActivities, deals, documents, emailMessages, jobs, leads, mailboxes, organizations, workspaceSecrets } from './schema';
 import { deleteSecret, readSecret, setSecret } from './secrets';
 import { uuidv7 } from './uuid';
 
@@ -208,8 +208,9 @@ export async function queueEmail(db: Db, c: MailCtx, input: EmailCreate, o: Queu
   const caseRow = input.caseId ? await loadCase(db, input.caseId) : null;
   if (caseRow?.status === 'closed') throw new DomainError(409, 'case_closed', 'A closed case cannot be edited');
   if (input.documentId && input.printForm) {
-    const [d] = await db.select({ type: documents.type }).from(documents).where(eq(documents.id, input.documentId)).limit(1);
-    if (!formAllowedFor(d!.type, input.printForm as PrintForm)) throw new DomainError(422, 'form_not_available', `The "${input.printForm}" form is not available for this document type`);
+    const [d] = await db.select({ type: documents.type, country: organizations.country }).from(documents)
+      .innerJoin(organizations, eq(organizations.id, documents.organizationId)).where(eq(documents.id, input.documentId)).limit(1);
+    if (!d || !formAllowedFor(d.type, input.printForm as PrintForm, d.country)) throw new DomainError(422, 'form_not_available', `The "${input.printForm}" form is not available for this document type`);
   }
 
   // вложения: права как у объекта, суммарный размер ограничен

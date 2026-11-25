@@ -27,6 +27,7 @@ import {
 } from '@erp/shared';
 import type { Db } from './client';
 import { DOCUMENT_HOOKS } from './document-hooks';
+import { organizationCurrency } from './organizations';
 import type { DocCtx } from './documents';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
@@ -208,6 +209,7 @@ export async function createPayment(db: Db, ctx: DocCtx, input: PaymentInput): P
       date,
       operation,
       organizationId,
+      currency: await organizationCurrency(db, organizationId),
       counterpartyId: input.counterpartyId ?? null,
       cashRegisterId,
       bankAccountId,

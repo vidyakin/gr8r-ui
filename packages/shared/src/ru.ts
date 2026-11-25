@@ -1,3 +1,5 @@
+import { splitAmount } from './countries/amount';
+
 /* Российская специфика: реквизиты (ИНН, КПП, ОГРН/ОГРНИП, БИК, счета) и сумма прописью.
    Чистые функции без зависимостей — одни и те же на сервере, в интерфейсе и в печатных формах. */
 
@@ -173,18 +175,7 @@ const capitalize = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
 /** Сумма прописью для документов: «Сто двадцать три рубля 45 копеек». Копейки — цифрами, как принято в счетах и накладных.
     amount — десятичная строка («1234.5», «-10», «0.07»); лишние знаки после копеек округляются */
 export function amountInWordsRu(amount: string | number): string {
-  const s = String(amount).trim();
-  const m = /^(-?)(\d*)(?:\.(\d*))?$/.exec(s);
-  if (!m || (m[2] === '' && !m[3])) throw new RangeError(`Not a decimal amount: "${s}"`);
-  const frac = (m[3] ?? '').padEnd(3, '0');
-  let kop = BigInt(frac.slice(0, 2));
-  let rub = BigInt(m[2] || '0');
-  if (Number(frac[2]) >= 5) kop += 1n;
-  if (kop >= 100n) {
-    kop -= 100n;
-    rub += 1n;
-  }
-  const neg = m[1] === '-' && (rub > 0n || kop > 0n);
+  const { major: rub, minor: kop, negative: neg } = splitAmount(amount);
   const text = `${numberToWordsRu(rub, 'm')} ${pluralRu(rub, ['рубль', 'рубля', 'рублей'])} ${String(kop).padStart(2, '0')} ${pluralRu(kop, ['копейка', 'копейки', 'копеек'])}`;
   return capitalize(neg ? `минус ${text}` : text);
 }

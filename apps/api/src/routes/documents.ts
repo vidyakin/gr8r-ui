@@ -117,6 +117,9 @@ import {
   stockBalanceQuery,
   stockMoveQuery,
   validateRequisites,
+  getCountryPack,
+  type CountryCode,
+  type CountryRequisites,
   warehouseBinCreate,
   warehouseBinUpdate,
   warehouseCreate,
@@ -138,10 +141,16 @@ const escapeLike = (s: string) => s.replace(/[\\%_]/g, m => '\\' + m);
 const docCtx = (ctx: Ctx) => ({ workspaceId: ctx.workspaceId, memberId: ctx.memberId, role: ctx.role });
 
 /** Реквизиты проверяются по итоговому состоянию записи (тип + ИНН + КПП + ОГРН): ошибка — в том же формате, что у zod */
-export function assertRequisites(r: { kind: CompanyKind; inn?: string | null; kpp?: string | null; ogrn?: string | null }) {
-  const errs = validateRequisites(r);
-  const first = Object.entries(errs)[0];
-  if (first) throw new AppError(400, 'validation_error', `${first[0]}: ${first[1]}`, { issues: Object.entries(errs).map(([path, message]) => ({ path, message })) });
+export function assertRequisites(r: { country: CountryCode; requisites: CountryRequisites; kind: CompanyKind; inn?: string | null; kpp?: string | null; ogrn?: string | null }) {
+  const result = getCountryPack(r.country).requisitesSchema.safeParse(r.requisites);
+  const issues = result.success ? [] : result.error.issues.map(issue => ({
+    path: ['requisites', ...issue.path].join('.'),
+    message: issue.message,
+  }));
+  if (r.country === 'RU') {
+    issues.push(...Object.entries(validateRequisites(r)).map(([path, message]) => ({ path, message })));
+  }
+  if (issues[0]) throw new AppError(400, 'validation_error', `${issues[0].path}: ${issues[0].message}`, { issues });
 }
 
 /* ---------------- организации ---------------- */
@@ -169,10 +178,19 @@ export const organizationRoutes = crud({
     return { isDefault };
   },
   prepareUpdate: async (ctx, existing, body) => {
-    assertRequisites({ kind: body.kind ?? existing.kind, inn: body.inn ?? existing.inn, kpp: body.kpp ?? existing.kpp, ogrn: body.ogrn ?? existing.ogrn });
+    const next = { ...existing, ...body };
+    assertRequisites(next);
+    const pack = getCountryPack(next.country);
+    const countryChanged = next.country !== existing.country;
+    const taxSystem = body.taxSystem ?? (countryChanged ? pack.taxSystems[0]! : existing.taxSystem);
+    const defaultVatRate = body.defaultVatRate ?? (countryChanged ? pack.defaultVatRate : existing.defaultVatRate);
+    const issues: { path: string; message: string }[] = [];
+    if (!pack.taxSystems.includes(taxSystem)) issues.push({ path: 'taxSystem', message: 'Tax system is unavailable for this country' });
+    if (!pack.vatRates.includes(defaultVatRate)) issues.push({ path: 'defaultVatRate', message: 'VAT rate is unavailable for this country' });
+    if (issues[0]) throw new AppError(400, 'validation_error', `${issues[0].path}: ${issues[0].message}`, { issues });
     if (body.isDefault === true) await clearDefault(ctx, organizations, existing.id);
     if (body.isDefault === false && existing.isDefault) throw new AppError(422, 'default_required', 'Make another organization the default instead');
-    return {};
+    return countryChanged ? { taxSystem, defaultVatRate } : {};
   },
   beforeDelete: async (ctx, row) => {
     if (row.isDefault) {
@@ -752,9 +770,10 @@ export const documentRoutes = new Hono<AppEnv>()
     const id = c.req.valid('param').id;
     await assertDocumentPrintAccess(ctx);
     const { form, templateId } = c.req.valid('json');
-    const [doc] = await ctx.db.select({ type: documents.type, contractId: documents.contractId }).from(documents).where(eq(documents.id, id)).limit(1);
+    const [doc] = await ctx.db.select({ type: documents.type, contractId: documents.contractId, country: organizations.country })
+      .from(documents).innerJoin(organizations, eq(organizations.id, documents.organizationId)).where(eq(documents.id, id)).limit(1);
     if (!doc) throw notFound('document');
-    if (!formAllowedFor(doc.type, form)) throw new AppError(422, 'form_not_available', `The "${form}" form is not available for this document type`);
+    if (!formAllowedFor(doc.type, form, doc.country)) throw new AppError(422, 'form_not_available', `The "${form}" form is not available for this document type`);
     if (isContractForm(form) && !doc.contractId) throw new AppError(422, 'contract_required', 'The document has no contract to print');
     // шаблон КП или договора проверяется сразу (доступность автору), чтобы не ставить задачу, которая заведомо упадёт
     if (templateId && usesTemplate(form)) await getTemplate(ctx.db, docCtx(ctx), templateId);

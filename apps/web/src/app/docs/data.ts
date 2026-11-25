@@ -3,7 +3,7 @@
    Суммы строк и итоги документа в форме считает та же чистая функция, что и сервер при проведении (computeDocument из @erp/shared). */
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { DOCUMENT_META, type CompanyKind, type CostDistribution, type CostItemKind, type DefectMode, type DocTemplatePurpose, type DocumentGroup, type DocumentStatus, type DocumentType, type FileRef, type MaterialOwner, type SupplierOrderStatus, type TaxSystem, type TollingRole, type VatRate, type WarehouseKind, type WasteValuation, type WorkOrderBillingMode, type WorkOrderStateCategory } from '@erp/shared';
+import { DOCUMENT_META, type CompanyKind, type CountryCode, type CountryRequisites, type CountryTaxSystem, type CostDistribution, type CostItemKind, type DefectMode, type DocTemplatePurpose, type DocumentGroup, type DocumentStatus, type DocumentType, type FileRef, type MaterialOwner, type SupplierOrderStatus, type TollingRole, type VatRate, type WarehouseKind, type WasteValuation, type WorkOrderBillingMode, type WorkOrderStateCategory } from '@erp/shared';
 import { hasKey, t, type TKey } from '@/i18n';
 import { toast } from '@/components/ui';
 import type { Tone } from '@/components/ui';
@@ -205,7 +205,7 @@ export interface DocDetail extends Omit<DocListItem, 'organizationName' | 'count
   /** Причина отмены документа */
   cancelReason?: string | null;
   currency: string;
-  organization: { id: string; name: string } | null;
+  organization: { id: string; name: string; country: CountryCode; defaultVatRate: string } | null;
   counterparty: { id: string; name: string; inn: string } | null;
   /** Вид цен документа (задача 1178) */
   priceKindId: string | null;
@@ -340,6 +340,8 @@ export interface Organization {
   id: string;
   name: string;
   fullName: string;
+  country: CountryCode;
+  requisites: CountryRequisites;
   kind: CompanyKind;
   inn: string;
   kpp: string;
@@ -351,12 +353,13 @@ export interface Organization {
   directorName: string;
   directorTitle: string;
   accountantName: string;
-  taxSystem: TaxSystem;
+  taxSystem: CountryTaxSystem;
   defaultVatRate: VatRate;
   stampFile: FileRef;
   directorSignatureFile: FileRef;
   accountantSignatureFile: FileRef;
   isDefault: boolean;
+  createdAt: string;
   archivedAt: string | null;
 }
 
@@ -439,6 +442,13 @@ export interface BankAccount {
 export function useOrganizations() {
   const ws = useWsId();
   return useQuery({ queryKey: docsKey(ws, 'organizations'), queryFn: async () => (await call<{ items: Organization[] }>(ws, 'GET', '/organizations?limit=100')).items, staleTime: Infinity });
+}
+
+/** Same selection as the server for workspace-wide features such as the catalog. */
+export function useDefaultOrganization() {
+  const list = useOrganizations();
+  const active = list.data?.filter(org => !org.archivedAt);
+  return { organization: active?.find(org => org.isDefault) ?? active?.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))[0], isPending: list.isPending };
 }
 
 export function useWarehouses() {
@@ -525,6 +535,8 @@ export function useProductSupplierPrices(productId: string | undefined, enabled:
 export interface CompanyRequisites {
   id: string;
   name: string;
+  country: CountryCode;
+  requisites: CountryRequisites;
   kind: CompanyKind;
   inn: string;
   kpp: string;

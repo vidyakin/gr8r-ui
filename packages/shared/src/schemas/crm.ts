@@ -5,8 +5,10 @@ import { COMPANY_KINDS } from '../ru';
 import { attribution } from './ad';
 import { clientId, decimal, toPatch, isoDate, listQuery, shortText, uuid } from './common';
 import { customData } from './meta';
+import { checkCountryRequisites, countryRequisiteFields } from './countries';
 
-export const companyCreate = z.object({
+const companyFields = z.object({
+  ...countryRequisiteFields,
   id: clientId,
   name: shortText,
   industry: z.string().max(200).default(''),
@@ -35,7 +37,8 @@ export const companyCreate = z.object({
   ...attribution,
   custom: customData.optional(),
 });
-export const companyUpdate = toPatch(companyCreate.omit({ id: true }));
+export const companyCreate = companyFields.superRefine(checkCountryRequisites);
+export const companyUpdate = toPatch(companyFields.omit({ id: true }));
 export const companyQuery = listQuery.extend({ ownerId: uuid.optional(), industry: z.string().max(200).optional(), sourceId: uuid.optional(), campaignId: uuid.optional(), role: z.enum(['customer', 'supplier']).optional() });
 
 export const contactCreate = z.object({

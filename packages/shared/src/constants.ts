@@ -70,9 +70,9 @@ export const OPERATION_RATE_UNITS = ['per_unit', 'per_hour'] as const;
 export type OperationRateUnit = (typeof OPERATION_RATE_UNITS)[number];
 
 /** Ставки НДС: 'none' — без НДС */
-export const VAT_RATES = ['none', '0', '5', '7', '10', '20'] as const;
-export type VatRate = (typeof VAT_RATES)[number];
-export const VAT_LABELS: Record<VatRate, string> = { none: 'No VAT', '0': '0%', '5': '5%', '7': '7%', '10': '10%', '20': '20%' };
+export { VAT_RATES } from './countries/ru/vat';
+export type VatRate = import('./countries').CountryVatRate;
+export { COUNTRY_VAT_LABELS as VAT_LABELS } from './countries';
 
 /** Базовый набор единиц ОКЕИ (код, название по справочнику, обозначение). Воркспейс получает его при создании и может добавлять свои */
 export const OKEI_UNITS = [

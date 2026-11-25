@@ -5,7 +5,7 @@ const SYSTEM_FIELDS: Readonly<Record<string, readonly string[]>> = {
   'contact.email': ['email'],
   'lead.phone': ['phone', 'phoneNorm'],
   'lead.email': ['email', 'emailNorm'],
-  'company.requisites': ['requisites', 'kind', 'inn', 'kpp', 'ogrn', 'legalAddress', 'actualAddress'],
+  'company.requisites': ['country', 'requisites', 'kind', 'inn', 'kpp', 'ogrn', 'legalAddress', 'actualAddress'],
   'company.bankAccounts': ['bankAccounts'],
   'document.total': ['total', 'amountNet', 'amountVat', 'vatTotal', 'net', 'vat', 'vatAmount', 'price', 'amount', 'cost', 'costTotal', 'serviceCost', 'payment', 'sum', 'totals', 'loyalty', 'discount', 'grossProfit', 'revenue'],
 };

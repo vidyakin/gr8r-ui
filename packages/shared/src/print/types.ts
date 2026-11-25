@@ -25,7 +25,7 @@ export interface PrintOrganization extends PrintParty {
   directorName: string;
   directorTitle: string;
   accountantName: string;
-  taxSystem: 'osn' | 'usn';
+  taxSystem: import('../countries').CountryTaxSystem;
   stampFile: FileRef;
   directorSignatureFile: FileRef;
   accountantSignatureFile: FileRef;

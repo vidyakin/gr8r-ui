@@ -131,7 +131,7 @@ export const products = pgTable(
     check('products_kind_chk', sql`${t.kind} in ('goods','service','work','operation')`),
     // вариант не может быть своим родителем (вложенность вариантов проверяет сервис)
     check('products_parent_chk', sql`${t.parentProductId} is null or ${t.parentProductId} <> ${t.id}`),
-    check('products_vat_chk', sql`${t.vatRate} in ('none','0','5','7','10','20')`),
+    check('products_vat_chk', sql`${t.vatRate} = 'none' OR ${t.vatRate} ~ '^[0-9]+(\\.[0-9]+)?$'`),
     check('products_price_chk', sql`${t.price} >= 0 and ${t.purchasePrice} >= 0`),
     check('products_lead_chk', sql`${t.leadDays} >= 0`),
     check('products_appointment_minutes_chk', sql`${t.appointmentMinutes} is null or ${t.appointmentMinutes} between 5 and 600`),

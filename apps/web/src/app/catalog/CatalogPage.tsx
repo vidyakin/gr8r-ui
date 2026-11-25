@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { Factory, CircleAlert, Package, Plus, Shapes, Wrench } from 'lucide-react';
-import { VAT_LABELS, type ProductKind } from '@erp/shared';
+import { getCountryPack, type ProductKind } from '@erp/shared';
 import { Badge, Button, EmptyState, Skeleton } from '@/components/ui';
 import { fmtNumber } from '@/i18n/format';
 import { DataTable, columnsMenu, useDataTable, type Column } from '@/components/erp/data-table';
@@ -11,7 +11,7 @@ import { FilterBar, useFilterState, type FilterField } from '@/components/erp/fi
 import { EntityDrawer } from '@/components/erp/entity-drawer';
 import { useCanWrite } from '../meta/custom-fields';
 import { fmtDate } from '../lib/dates';
-import { tEnum, useT } from '@/i18n';
+import { useT } from '@/i18n';
 import { errorMessage } from '../data/api';
 import { AttributesDialog, CategoryDialog, CategoryTree, DeleteCategoryDialog } from './category-ui';
 import { ProductDrawer, ProductFormDialog, attachmentImageUrl } from './product-ui';
@@ -19,6 +19,8 @@ import { useProductKinds } from '../positions/data';
 import { buildCategoryTree, categoryPath, flattenTree, money, unitSymbol, useCategories, useIsAdmin, useProduct, useProductPages, useProductTotal, useUnits, type CategoryNode, type Product } from './data';
 import { useWsId } from '../meta/data';
 import { LabelDialog } from './LabelDialog';
+import { useDefaultOrganization } from '../docs/data';
+import { vatLabel } from '../docs/vat';
 import { useSnapshot } from '../production/data';
 
 /** Колонки, сортируемые на сервере: id колонки → ключ ?sort= у GET /products */
@@ -34,6 +36,8 @@ export function CatalogPage() {
   const isAdmin = useIsAdmin();
   const ws = useWsId();
   const categories = useCategories();
+  const { organization } = useDefaultOrganization();
+  const pack = getCountryPack(organization?.country);
   const units = useUnits();
   const [labelIds, setLabelIds] = React.useState<string[]>([]);
   const [labelsOpen, setLabelsOpen] = React.useState(false);
@@ -132,13 +136,13 @@ export function CatalogPage() {
       { id: 'productKind', header: t('positions.product.kind'), width: 150, defaultHidden: true, sortable: false, value: p => p.productKindId ?? '', cell: p => <span className="muted trunc">{(productKinds.data ?? []).find(k => k.id === p.productKindId)?.name ?? '—'}</span> },
       { id: 'category', header: t('catalog.col.category'), width: 190, sortable: false, value: p => categoryPath(categories.data, p.categoryId), cell: p => <span className="trunc muted">{categoryPath(categories.data, p.categoryId).split(' / ').pop() || '—'}</span> },
       { id: 'unit', header: t('catalog.col.unit'), width: 72, sortable: false, value: p => unitSymbol(units.data, p.unitCode) },
-      { id: 'vat', header: t('catalog.col.vat'), width: 84, sortable: false, value: p => tEnum('vat', p.vatRate, VAT_LABELS[p.vatRate]) },
+      { id: 'vat', header: t('catalog.col.vat'), width: 84, sortable: false, value: p => vatLabel(pack, p.vatRate) },
       { id: 'price', header: t('catalog.col.price'), width: 120, align: 'right', value: p => Number(p.price), cell: p => <span className="num">{money(p.price)}</span> },
       { id: 'purchase', header: t('catalog.col.purchase'), width: 120, align: 'right', value: p => Number(p.purchasePrice), cell: p => <span className="num">{money(p.purchasePrice)}</span> },
       { id: 'barcode', header: t('catalog.col.barcode'), width: 140, defaultHidden: true, sortable: false, value: p => p.barcode, cell: p => (p.barcode ? <span className="mono">{p.barcode}</span> : <span className="faint">—</span>) },
       { id: 'created', header: t('catalog.col.created'), width: 112, defaultHidden: true, value: p => Date.parse(p.createdAt), cell: p => <span className="muted num">{fmtDate(new Date(p.createdAt))}</span> },
     ],
-    [categories.data, units.data, productKinds.data, t, labelIds],
+    [categories.data, units.data, productKinds.data, pack, t, labelIds],
   );
 
   const filterFields: FilterField[] = [

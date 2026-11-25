@@ -340,6 +340,12 @@ export const docs: Widen<typeof D> = {
 
   /* ----------- реквизиты контрагента ----------- */
   requisites: {
+    country: 'Страна',
+    countries: { RU: 'Россия (RU)', KZ: 'Казахстан (KZ)', AE: 'ОАЭ (AE)' },
+    countryFields: { binIin: 'БИН / ИИН', iik: 'ИИК (IBAN)', bik: 'БИК / SWIFT', kbe: 'КБе', knp: 'КНП', trn: 'TRN', iban: 'IBAN', bic: 'BIC / SWIFT' },
+    countryFieldInvalid: 'Проверьте формат и контрольную сумму.',
+    edit: 'Изменить реквизиты',
+    saved: 'Реквизиты сохранены',
     kind: 'Вид',
     fullName: 'Полное название',
     inn: 'ИНН',

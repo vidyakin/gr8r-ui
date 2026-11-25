@@ -1,9 +1,10 @@
 /* zod-схемы документов, организаций, складов, банковских счетов и склада (остатки, движения, настройки). */
 import { z } from 'zod';
-import { VAT_RATES } from '../constants';
+import { getCountryPack } from '../countries';
+import { checkCountryRequisites, countryRequisiteFields, countryTaxSystem, countryVatRate } from './countries';
 import { COST_DISTRIBUTIONS } from '../cost-closing';
 import { COST_ITEM_KINDS, DOCUMENT_GROUPS, DOCUMENT_OPERATIONS, DOCUMENT_STATUSES, DOCUMENT_TYPES, PRINT_FORMS, TOLLING_ROLES, TRANSFER_OPERATIONS, WAREHOUSE_KINDS } from '../documents';
-import { COMPANY_KINDS, TAX_SYSTEMS } from '../ru';
+import { COMPANY_KINDS } from '../ru';
 import { clientId, decimal, isoDate, listQuery, queryBool, shortText, toPatch, uuid } from './common';
 import { originCountryDetails } from '../origin-country';
 import { customData } from './meta';
@@ -30,7 +31,8 @@ export type FileRef = z.infer<typeof fileRef>;
 
 /* ---------------- организации воркспейса ---------------- */
 
-export const organizationCreate = z.object({
+const organizationFields = z.object({
+  ...countryRequisiteFields,
   id: clientId,
   /** Краткое название — в списках и шапках: ООО «Гр8р Студия» */
   name: shortText,
@@ -47,15 +49,32 @@ export const organizationCreate = z.object({
   directorName: z.string().trim().max(200).default(''),
   directorTitle: z.string().trim().max(200).default('Генеральный директор'),
   accountantName: z.string().trim().max(200).default(''),
-  taxSystem: z.enum(TAX_SYSTEMS).default('osn'),
+  taxSystem: countryTaxSystem.optional(),
   /** Ставка НДС по умолчанию для новых строк документов организации */
-  defaultVatRate: z.enum(VAT_RATES).default('20'),
+  defaultVatRate: countryVatRate.optional(),
   stampFile: fileRef.default(null),
   directorSignatureFile: fileRef.default(null),
   accountantSignatureFile: fileRef.default(null),
   isDefault: z.boolean().optional(),
 });
-export const organizationUpdate = toPatch(organizationCreate.omit({ id: true }));
+export const organizationCreate = organizationFields.superRefine((value, ctx) => {
+  checkCountryRequisites(value, ctx);
+  const pack = getCountryPack(value.country);
+  if (value.taxSystem !== undefined && !pack.taxSystems.includes(value.taxSystem)) {
+    ctx.addIssue({ code: 'custom', path: ['taxSystem'], message: 'Tax system is unavailable for this country' });
+  }
+  if (value.defaultVatRate !== undefined && !pack.vatRates.includes(value.defaultVatRate)) {
+    ctx.addIssue({ code: 'custom', path: ['defaultVatRate'], message: 'VAT rate is unavailable for this country' });
+  }
+}).transform(value => {
+  const pack = getCountryPack(value.country);
+  return {
+    ...value,
+    taxSystem: value.taxSystem ?? countryTaxSystem.parse(pack.taxSystems[0]),
+    defaultVatRate: value.defaultVatRate ?? countryVatRate.parse(pack.defaultVatRate),
+  };
+});
+export const organizationUpdate = toPatch(organizationFields.omit({ id: true }));
 export const organizationQuery = listQuery;
 
 /* ---------------- банковские счета ---------------- */
@@ -156,7 +175,7 @@ export const documentLineInput = z
         Клиент передаёт true, когда пользователь сам поменял discountPct в форме; иначе источник не трогаем. */
     discountManual: z.boolean().optional(),
     /** Пусто — ставка товара */
-    vatRate: z.enum(VAT_RATES).optional(),
+    vatRate: countryVatRate.optional(),
     /** Учётное количество по остаткам (инвентаризация): разница с qty — недостача или излишек */
     bookQty: nonNeg().optional(),
     /** Принятое количество (перемещение «в пути»): не больше отправленного */
@@ -200,6 +219,8 @@ export const documentCreate = z.object({
   type: z.enum(DOCUMENT_TYPES),
   /** Пусто — организация по умолчанию */
   organizationId: uuid.nullish(),
+  /** Пусто — валюта страны организации. */
+  currency: z.string().trim().regex(/^[A-Z]{3}$/, 'Use a three-letter currency code').optional(),
   counterpartyId: uuid.nullish(),
   /** Договор: пусто — договор по умолчанию контрагента */
   contractId: uuid.nullish(),

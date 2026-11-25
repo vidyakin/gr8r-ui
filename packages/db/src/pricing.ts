@@ -17,6 +17,7 @@ import {
 } from '@erp/shared';
 import type { Db } from './client';
 import { DOCUMENT_HOOKS } from './document-hooks';
+import { organizationCurrency } from './organizations';
 import type { DocCtx } from './documents';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
@@ -441,7 +442,7 @@ export async function createPriceSetting(db: Db, ctx: DocCtx, input: PriceSettin
   const organizationId = input.organizationId ?? (await defaultOrganizationId(db));
   const [row] = await db
     .insert(documents)
-    .values({ ...(input.id ? { id: input.id } : {}), workspaceId: ctx.workspaceId, type: 'price_setting', date: input.date ?? today(), organizationId, comment: input.comment ?? '', responsibleId: ctx.memberId, createdBy: ctx.memberId })
+    .values({ ...(input.id ? { id: input.id } : {}), workspaceId: ctx.workspaceId, type: 'price_setting', date: input.date ?? today(), organizationId, currency: await organizationCurrency(db, organizationId), comment: input.comment ?? '', responsibleId: ctx.memberId, createdBy: ctx.memberId })
     .returning();
   if (input.lines?.length) await saveSettingLines(db, ctx, row!, input.lines);
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.created', entity: 'document', recordId: row!.id, actorId: ctx.memberId, payload: { documentType: 'price_setting' } });

@@ -2,7 +2,7 @@
    Связи — составные внешние ключи (workspace_id, id): запись одного арендатора не сошлётся на запись другого. */
 import { sql } from 'drizzle-orm';
 import { bigint, boolean, check, customType, date, foreignKey, index, integer, jsonb, numeric, pgTable, primaryKey, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import type { FileRef } from '@erp/shared';
+import { COUNTRY_CODES, type CountryRequisites, type FileRef } from '@erp/shared';
 import { archivedAt, createdAt, money, pk, ts, updatedAt } from './columns';
 import { products, units } from './catalog';
 import { attachments } from './attachments';
@@ -22,6 +22,8 @@ export const organizations = pgTable(
     name: text('name').notNull(),
     fullName: text('full_name').notNull().default(''),
     kind: text('kind', { enum: ['legal', 'sole_proprietor', 'individual'] }).notNull().default('legal'),
+    country: text('country', { enum: COUNTRY_CODES }).notNull().default('RU'),
+    requisites: jsonb('requisites').$type<CountryRequisites>().notNull().default({}),
     inn: text('inn').notNull().default(''),
     kpp: text('kpp').notNull().default(''),
     ogrn: text('ogrn').notNull().default(''),
@@ -32,7 +34,7 @@ export const organizations = pgTable(
     directorName: text('director_name').notNull().default(''),
     directorTitle: text('director_title').notNull().default('Генеральный директор'),
     accountantName: text('accountant_name').notNull().default(''),
-    taxSystem: text('tax_system', { enum: ['osn', 'usn'] }).notNull().default('osn'),
+    taxSystem: text('tax_system', { enum: ['osn', 'usn', 'our', 'simplified', 'standard', 'exempt'] }).notNull().default('osn'),
     defaultVatRate: text('default_vat_rate').notNull().default('20'),
     /** Печать и подписи: пока ссылка и метаданные ({ name, url, size?, mimeType? }); загрузка файлов — с хранилищем S3 */
     stampFile: jsonb('stamp_file').$type<FileRef>(),
@@ -45,9 +47,10 @@ export const organizations = pgTable(
   },
   t => [
     unique('organizations_ws_id_uq').on(t.workspaceId, t.id),
+    check('organizations_country_chk', sql`${t.country} IN ('RU', 'KZ', 'AE')`),
     check('organizations_kind_chk', sql`${t.kind} in ('legal','sole_proprietor','individual')`),
-    check('organizations_tax_chk', sql`${t.taxSystem} in ('osn','usn')`),
-    check('organizations_vat_chk', sql`${t.defaultVatRate} in ('none','0','5','7','10','20')`),
+    check('organizations_tax_chk', sql`${t.taxSystem} IN ('osn', 'usn', 'our', 'simplified', 'standard', 'exempt')`),
+    check('organizations_vat_chk', sql`${t.defaultVatRate} = 'none' OR ${t.defaultVatRate} ~ '^[0-9]+(\\.[0-9]+)?$'`),
     // одна организация по умолчанию на воркспейс
     uniqueIndex('organizations_default_uq').on(t.workspaceId).where(sql`${t.isDefault} and ${t.archivedAt} is null`),
   ],
@@ -450,7 +453,7 @@ export const documentLines = pgTable(
     check('document_lines_qty_chk', sql`${t.qty} >= 0 and ${t.price} >= 0 and ${t.discountPct} >= 0 and ${t.discountPct} <= 100`),
     check('document_lines_unit_factor_chk', sql`${t.unitFactor} > 0`),
     check('document_lines_book_qty_chk', sql`${t.bookQty} >= 0 and ${t.receivedQty} >= 0`),
-    check('document_lines_vat_chk', sql`${t.vatRate} in ('none','0','5','7','10','20')`),
+    check('document_lines_vat_chk', sql`${t.vatRate} = 'none' OR ${t.vatRate} ~ '^[0-9]+(\\.[0-9]+)?$'`),
     check('document_lines_stock_role_chk', sql`${t.stockRole} is null or ${t.stockRole} in ('in','out')`),
     check('document_lines_tolling_role_chk', sql`${t.tollingRole} is null or ${t.tollingRole} in ('product','material','waste')`),
     index('document_lines_doc_idx').on(t.documentId, t.sortOrder),

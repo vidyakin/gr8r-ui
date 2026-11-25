@@ -17,8 +17,8 @@ import {
   type ObjectSubcontractAmounts,
   type ObjectSubcontractRejectReason,
   type Role,
-  type VatRate,
 } from '@erp/shared';import type { Db } from './client';
+import { workspaceVatDefaults } from './organizations';
 import { actMoneyByAct } from './act-money';
 import { canSeeCost } from './cost';
 import { cancelDocument, createDocument, postDocument, unpostDocument, type DocCtx } from './documents';
@@ -445,13 +445,14 @@ async function postForAccept(db: Db, ctx: SubActCtx, docId: string): Promise<str
 
 /** Служебная услуга «Субподрядные работы»: строки поступления требуют товар, работ в каталоге нет.
     Одна на воркспейс, создаётся при первой приёмке. */
-async function subWorkProduct(db: Db, ctx: SubActCtx): Promise<{ id: string; vatRate: VatRate }> {
+async function subWorkProduct(db: Db, ctx: SubActCtx): Promise<string> {
   const [existing] = await db
-    .select({ id: products.id, vatRate: products.vatRate })
+    .select({ id: products.id })
     .from(products)
     .where(and(eq(products.kind, 'service'), eq(products.name, SUB_WORK_PRODUCT), isNull(products.archivedAt)))
     .limit(1);
-  if (existing) return { id: existing.id, vatRate: existing.vatRate as VatRate };
+  if (existing) return existing.id;
+  const { defaultVatRate } = await workspaceVatDefaults(db);
   const [created] = await db
     .insert(products)
     .values({
@@ -461,12 +462,12 @@ async function subWorkProduct(db: Db, ctx: SubActCtx): Promise<{ id: string; vat
       name: SUB_WORK_PRODUCT,
       description: 'Служебная позиция для актов субподрядчика: наименование строки берётся из акта',
       unitCode: '796',
-      vatRate: '20',
+      vatRate: defaultVatRate,
       price: '0',
       purchasePrice: '0',
     })
-    .returning({ id: products.id, vatRate: products.vatRate });
-  return { id: created!.id, vatRate: created!.vatRate as VatRate };
+    .returning({ id: products.id });
+  return created!.id;
 }
 
 /** Системная статья затрат «Материалы субподрядчику»: списание материалов со склада объекта */
@@ -546,7 +547,7 @@ export async function acceptSubAct(db: Db, ctx: SubActCtx, id: string): Promise<
 
   let receiptDocumentId: string | null = null;
   if (accepted.length) {
-    const product = await subWorkProduct(db, ctx);
+    const productId = await subWorkProduct(db, ctx);
     receiptDocumentId = await createDocument(db, docCtx, {
       type: 'receipt',
       counterpartyId: row.counterpartyId,
@@ -554,7 +555,7 @@ export async function acceptSubAct(db: Db, ctx: SubActCtx, id: string): Promise<
       date: row.docDate,
       priceIncludesVat: false,
       comment: `${label}: принятые работы`,
-      lines: accepted.map(l => ({ productId: product.id, name: l.name, unitCode: l.unitCode, qty: l.acceptedQty, price: l.price, vatRate: product.vatRate, discountPct: '0' })),
+      lines: accepted.map(l => ({ productId, name: l.name, unitCode: l.unitCode, qty: l.acceptedQty, price: l.price, discountPct: '0' })),
     });
     warnings.push(...(await postForAccept(db, ctx, receiptDocumentId)));
   }

@@ -57,6 +57,7 @@ export const errors: Widen<typeof E> = {
   current_session: 'Usa «Cerrar sesión» para finalizar la sesión actual',
   email_taken: 'Ya existe una cuenta con este correo electrónico',
   slug_taken: 'Esta dirección de espacio de trabajo ya está ocupada',
+  invalid_vat_rate: 'Elige un tipo de IVA disponible para la organización.',
   validation_error: 'Comprueba el valor de «{path}»',
   company_not_allowed: 'Solo se puede establecer un cliente para una tarea del módulo Servicios',
   investment_closed: 'El proyecto de inversión está cerrado: ya no se pueden vincular ni contabilizar documentos en él',

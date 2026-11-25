@@ -2,9 +2,9 @@
    и редактор банковских счетов (БИК, р/с, к/с, банк) компании или организации. */
 import * as React from 'react';
 import { CircleAlert, Plus, Star, Trash2 } from 'lucide-react';
-import { COMPANY_KINDS, COMPANY_KIND_LABELS, isValidAccount, isValidBik, validateRequisites, type CompanyKind } from '@erp/shared';
-import { Badge, Button, Field, IconButton, Input, toast } from '@/components/ui';
-import { tEnum, useT } from '@/i18n';
+import { COMPANY_KINDS, COMPANY_KIND_LABELS, COUNTRY_CODES, getCountryPack, isValidAccount, isValidBik, validateRequisites, type CompanyKind, type CountryCode, type CountryRequisites } from '@erp/shared';
+import { Badge, Button, Field, IconButton, Input, Select, toast } from '@/components/ui';
+import { hasKey, tEnum, useT } from '@/i18n';
 import { useDocsApi, useBankAccounts, type BankAccount } from './data';
 
 export interface RequisitesValue {
@@ -19,7 +19,7 @@ export interface RequisitesValue {
 /** Ошибки реквизитов по полям (пустой объект — всё верно) */
 export const checkRequisites = (v: RequisitesValue) => validateRequisites(v);
 
-export function RequisitesFields({ value, onChange, errors, disabled }: { value: RequisitesValue; onChange: (patch: Partial<RequisitesValue>) => void; errors: Record<string, string>; disabled?: boolean }) {
+export function RequisitesFields({ value, onChange, errors, disabled, country = 'RU' }: { value: RequisitesValue; onChange: (patch: Partial<RequisitesValue>) => void; errors: Record<string, string>; disabled?: boolean; country?: CountryCode }) {
   const t = useT();
   const innLen = value.kind === 'legal' ? 10 : 12;
   return (
@@ -36,15 +36,15 @@ export function RequisitesFields({ value, onChange, errors, disabled }: { value:
             </select>
           )}
         </Field>
-        <Field label={t('docs.requisites.inn')} className="grow" error={errors.inn} hint={t('docs.requisites.innHint', { n: innLen })}>
+        {country === 'RU' && <Field label={t('docs.requisites.inn')} className="grow" error={errors.inn} hint={t('docs.requisites.innHint', { n: innLen })}>
           {p => <Input {...p} inputMode="numeric" disabled={disabled} maxLength={12} value={value.inn} onChange={e => onChange({ inn: e.target.value.replace(/\D/g, '') })} />}
-        </Field>
-        {value.kind === 'legal' && (
+        </Field>}
+        {country === 'RU' && value.kind === 'legal' && (
           <Field label={t('docs.requisites.kpp')} className="grow" error={errors.kpp}>
             {p => <Input {...p} disabled={disabled} maxLength={9} value={value.kpp} onChange={e => onChange({ kpp: e.target.value.toUpperCase() })} />}
           </Field>
         )}
-        {value.kind !== 'individual' && (
+        {country === 'RU' && value.kind !== 'individual' && (
           <Field label={value.kind === 'legal' ? t('docs.requisites.ogrn') : t('docs.requisites.ogrnip')} className="grow" error={errors.ogrn}>
             {p => <Input {...p} inputMode="numeric" disabled={disabled} maxLength={15} value={value.ogrn} onChange={e => onChange({ ogrn: e.target.value.replace(/\D/g, '') })} />}
           </Field>
@@ -54,6 +54,45 @@ export function RequisitesFields({ value, onChange, errors, disabled }: { value:
       <Field label={t('docs.requisites.actualAddress')}>{p => <Input {...p} disabled={disabled} value={value.actualAddress} placeholder={t('docs.requisites.actualAddressPlaceholder')} onChange={e => onChange({ actualAddress: e.target.value })} />}</Field>
     </>
   );
+}
+
+export function CountryField({ value, onChange }: { value: CountryCode; onChange: (country: CountryCode) => void }) {
+  const t = useT();
+  return (
+    <Field label={t('docs.requisites.country')}>
+      {p => <Select id={p.id} value={value} onValueChange={v => onChange(v as CountryCode)} options={COUNTRY_CODES.map(code => ({ value: code, label: t(`docs.requisites.countries.${code}`) }))} />}
+    </Field>
+  );
+}
+
+export function useCountryRequisiteLabel() {
+  const t = useT();
+  return (field: { key: string; label: string }) => {
+    const key = `docs.requisites.countryFields.${field.key}`;
+    return hasKey(key) ? t(key) : field.label;
+  };
+}
+
+export function CountryRequisiteFields({ country, value, errors, onChange }: { country: CountryCode; value: CountryRequisites; errors: Record<string, string>; onChange: (value: CountryRequisites) => void }) {
+  const label = useCountryRequisiteLabel();
+  return (
+    <div className="row req-row">
+      {getCountryPack(country).requisiteFields.map(field => (
+        <Field key={field.key} label={label(field)} className="grow" error={errors[field.key]}>
+          {p => <Input {...p} inputMode={field.numeric ? 'numeric' : 'text'} placeholder={field.mask} maxLength={field.numeric ? field.maxLength : undefined} value={value[field.key] ?? ''} onChange={e => {
+            const raw = e.target.value;
+            const next = field.numeric ? raw.replace(/\D/g, '') : raw.replace(/\s/g, '').toUpperCase();
+            onChange({ ...value, [field.key]: next });
+          }} />}
+        </Field>
+      ))}
+    </div>
+  );
+}
+
+export function checkCountryRequisiteFields(country: CountryCode, value: CountryRequisites, message: string): Record<string, string> {
+  const result = getCountryPack(country).requisitesSchema.safeParse(value);
+  return result.success ? {} : Object.fromEntries(result.error.issues.map(issue => [String(issue.path[0]), message]));
 }
 
 const mask = (acc: string) => `${acc.slice(0, 5)} ${acc.slice(5, 8)} ${acc.slice(8, 9)} ${acc.slice(9, 13)} ${acc.slice(13)}`;

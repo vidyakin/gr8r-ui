@@ -24,6 +24,7 @@ import {
   dec,
 } from '@erp/shared';
 import type { Db } from './client';
+import { workspaceVatDefaults } from './organizations';
 import { canSeeCost } from './cost';
 import { createDocument, type DocCtx } from './documents';
 import { DomainError } from './errors';
@@ -377,6 +378,7 @@ export async function saveEstimateContent(db: Db, ctx: EstimateCtx, id: string, 
   }
 
   const existingItems = await loadItems(db, id);
+  const { pack, defaultVatRate } = await workspaceVatDefaults(db);
   const keepItems = new Set(input.items.map(i => i.id).filter((x): x is string => !!x));
   const dropItems = existingItems.filter(i => !keepItems.has(i.id)).map(i => i.id);
   if (dropItems.length) await db.delete(objectEstimateItems).where(inArray(objectEstimateItems.id, dropItems));
@@ -389,6 +391,9 @@ export async function saveEstimateContent(db: Db, ctx: EstimateCtx, id: string, 
     const internal = showCost
       ? { costPrice: i.costPrice, supplierId: i.supplierId === undefined ? (prev?.supplierId ?? null) : i.supplierId, locked: i.locked ?? prev?.locked ?? false }
       : { costPrice: prev?.costPrice ?? '0', supplierId: prev?.supplierId ?? null, locked: prev?.locked ?? false };
+    if (i.vatRate !== undefined && !pack.vatRates.includes(i.vatRate) && i.vatRate !== prev?.vatRate) {
+      throw new DomainError(422, 'invalid_vat_rate', 'VAT rate is unavailable for the default organization');
+    }
     const values = {
       sectionId: i.sectionId ?? null,
       sortOrder: n,
@@ -398,7 +403,7 @@ export async function saveEstimateContent(db: Db, ctx: EstimateCtx, id: string, 
       unitCode: i.unitCode,
       qty: i.qty,
       price: i.price,
-      vatRate: i.vatRate,
+      vatRate: i.vatRate ?? (pack.code === 'RU' ? defaultVatRate : prev?.vatRate ?? defaultVatRate),
       ...internal,
       laborHours: i.laborHours,
       doneQty,

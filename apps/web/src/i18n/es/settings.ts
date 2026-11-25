@@ -888,7 +888,7 @@ export const settings: Widen<typeof S> = {
       direct_costs: 'Por costes directos',
       work_hours: 'Por horas de trabajo',
     },
-    taxSystem: { osn: 'General (OSN)', usn: 'Simplificado (USN)' },
+    taxSystem: { osn: 'General (OSN)', usn: 'Simplificado (USN)', our: 'General (OUR)', simplified: 'Simplificado (910)', standard: 'Estándar', exempt: 'Exento' },
     materialPriceSource: { purchase: 'Precio de compra', price: 'Precio de venta', avg_cost: 'Coste promedio de almacén' },
     workOrderStateCategory: {
       new: 'Nuevo',

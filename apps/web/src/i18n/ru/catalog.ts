@@ -201,7 +201,7 @@ export const catalog: Widen<typeof C> = {
 };
 
 export const enums: Widen<typeof E> = {
-  vat: { none: 'Без НДС' },
+  vat: { none: 'Без НДС', exempt: 'Освобождено от НДС' },
   periodicity: { month: 'Ежемесячно', quarter: 'Ежеквартально', year: 'Ежегодно' },
   replenishment: { purchase: 'Закупка', production: 'Производство', transfer: 'Перемещение' },
   docStatus: { draft: 'Черновик', posted: 'Проведён', cancelled: 'Отменён' },

@@ -10,6 +10,7 @@ export * from './supply';
 export * from './planning';
 export * from './replenishment';
 export * from './ru';
+export * from './countries';
 export * from './documents';
 export * from './billing';
 export * from './cost-closing';

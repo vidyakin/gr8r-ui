@@ -3,10 +3,13 @@
    фильтров по workspace_id. Правила проведения и склада описаны в docs/architecture/documents.md и stock.md. */
 import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { archiveAttachmentsOf } from './attachments';
+import { organizationVatDefaults } from './organizations';
 import {
   canChangeState,
   computeLine,
   computeTotals,
+  getCountryPack,
+  type CountryPack,
   DOCUMENT_META,
   DOCUMENT_OPERATION_CHOICES,
   FLEET_COST_ITEMS,
@@ -169,7 +172,7 @@ interface ResolvedLine {
   discountPct: string;
   /** Скидка введена вручную в форме (задача 1179): такую строку автоскидка не трогает */
   discountManual: boolean;
-  vatRate: VatRate;
+  vatRate: string;
   /** Роль строки выпуска (производства): приход или расход */
   stockRole?: 'in' | 'out';
   /** Учётное количество по остаткам (инвентаризация) */
@@ -202,7 +205,7 @@ interface ResolvedLine {
 
 /** Подставляет из товара название, единицу и ставку НДС, которых нет в строке; новые строки — только по действующим товарам.
     У инвентаризации количество строки — фактическое (нулевое значит «товара нет»), у остальных типов оно строго положительно */
-async function resolveLines(db: Db, inputs: DocumentLineInput[], existing: Map<string, { unitCode: string; unitFactor: string; productId: string }>, type: DocumentType): Promise<ResolvedLine[]> {
+async function resolveLines(db: Db, inputs: DocumentLineInput[], existing: Map<string, { unitCode: string; unitFactor: string; productId: string; vatRate: string }>, type: DocumentType, pack: CountryPack, defaultVatRate: string, keepHistoricalVat: boolean): Promise<ResolvedLine[]> {
   const ids = [...new Set(inputs.map(l => l.productId))];
   const rows = ids.length ? await db.select().from(products).where(inArray(products.id, ids)) : [];
   const by = new Map(rows.map(p => [p.id, p]));
@@ -231,6 +234,11 @@ async function resolveLines(db: Db, inputs: DocumentLineInput[], existing: Map<s
       qty = base;
     }
     if (type !== 'inventory_count' && dec(qty) <= 0n) throw new DomainError(422, 'invalid_qty', `"${p.name}": the quantity must be greater than zero`);
+    const historicalVat = keepHistoricalVat && prev?.productId === p.id ? prev.vatRate : undefined;
+    if (l.vatRate !== undefined && !pack.vatRates.includes(l.vatRate) && l.vatRate !== historicalVat) {
+      throw new DomainError(422, 'invalid_vat_rate', 'VAT rate is unavailable for this organization');
+    }
+    const vatRate = l.vatRate ?? (pack.vatRates.includes(p.vatRate) ? p.vatRate : historicalVat ?? defaultVatRate);
     return {
       id,
       productId: p.id,
@@ -242,7 +250,7 @@ async function resolveLines(db: Db, inputs: DocumentLineInput[], existing: Map<s
       // discountManual: false — вернуть строку автоскидке: ручной процент сбрасывается
       discountPct: l.discountManual === false ? '0' : (l.discountPct ?? '0'),
       discountManual: l.discountManual ?? false,
-      vatRate: (l.vatRate ?? p.vatRate) as VatRate,
+      vatRate,
       stockRole: l.stockRole,
       bookQty: l.bookQty ?? '0',
       receivedQty: l.receivedQty ?? (type === 'stock_transfer' ? qty : '0'),
@@ -319,11 +327,11 @@ export async function assertProcessingOrder(db: Db, id: string): Promise<Documen
 
 /** Строки документа заменяются списком: существующие (по id) обновляются, новые добавляются, отсутствующие удаляются.
     Ссылки «на основании» у потомков остаются на сохранённых строках */
-async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: DocumentLineInput[], includesVat: boolean): Promise<void> {
+async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: DocumentLineInput[], includesVat: boolean, keepHistoricalVat = true): Promise<void> {
   const type = doc.type as DocumentType;
   const meta = DOCUMENT_META[type];
   const existing = await db
-    .select({ binId: documentLines.binId, toBinId: documentLines.toBinId, id: documentLines.id, productId: documentLines.productId, unitCode: documentLines.unitCode, unitFactor: documentLines.unitFactor, price: documentLines.price, discountPct: documentLines.discountPct, stockRole: documentLines.stockRole, costItemId: documentLines.costItemId, workCenterId: documentLines.workCenterId, groupName: documentLines.groupName, shipBy: documentLines.shipBy, batchNumber: documentLines.batchNumber, batchProducedAt: documentLines.batchProducedAt, batchExpiresAt: documentLines.batchExpiresAt, productionComponentId: documentLines.productionComponentId })
+    .select({ binId: documentLines.binId, toBinId: documentLines.toBinId, id: documentLines.id, productId: documentLines.productId, vatRate: documentLines.vatRate, unitCode: documentLines.unitCode, unitFactor: documentLines.unitFactor, price: documentLines.price, discountPct: documentLines.discountPct, stockRole: documentLines.stockRole, costItemId: documentLines.costItemId, workCenterId: documentLines.workCenterId, groupName: documentLines.groupName, shipBy: documentLines.shipBy, batchNumber: documentLines.batchNumber, batchProducedAt: documentLines.batchProducedAt, batchExpiresAt: documentLines.batchExpiresAt, productionComponentId: documentLines.productionComponentId })
     .from(documentLines)
     .where(eq(documentLines.documentId, doc.id));
   const existingIds = new Set(existing.map(e => e.id));
@@ -339,7 +347,8 @@ async function saveLines(db: Db, ctx: DocCtx, doc: DocumentRow, inputs: Document
   const prevBatchProduced = new Map(existing.map(e => [e.id, e.batchProducedAt]));
   const prevBatchExpires = new Map(existing.map(e => [e.id, e.batchExpiresAt]));
   const prevComponent = new Map(existing.map(e => [e.id, e.productionComponentId]));
-  const resolved = await resolveLines(db, inputs, prevLine, type);
+  const { pack, defaultVatRate } = await organizationVatDefaults(db, doc.organizationId);
+  const resolved = await resolveLines(db, inputs, prevLine, type, pack, defaultVatRate, keepHistoricalVat);
   const selectedBins = resolved.flatMap(l => [
     ...(l.binId && doc.warehouseId ? [{ warehouseId: doc.warehouseId, binId: l.binId }] : []),
     ...(l.toBinId && doc.targetWarehouseId && type === 'stock_transfer' ? [{ warehouseId: doc.targetWarehouseId, binId: l.toBinId }] : []),
@@ -564,6 +573,7 @@ export interface DocumentCreateInput {
   /** Заказ на переработку (приём, отчёт о переработке и возврат): по нему берётся давалец */
   tollingOrderId?: string | null;
   organizationId?: string | null;
+  currency?: string;
   counterpartyId?: string | null;
   /** Договор: пусто — договор по умолчанию контрагента (если он есть) */
   contractId?: string | null;
@@ -652,12 +662,17 @@ async function resolveDeal(db: Db, dealId: string, partyType: boolean, counterpa
 
 export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateInput): Promise<string> {
   const meta = DOCUMENT_META[input.type];
-  let organizationId = input.organizationId ?? null;
-  if (!organizationId) {
-    const [o] = await db.select({ id: organizations.id }).from(organizations).where(isNull(organizations.archivedAt)).orderBy(desc(organizations.isDefault), asc(organizations.createdAt)).limit(1);
-    if (!o) throw new DomainError(422, 'organization_required', 'Add an organization in Settings → Organizations first');
-    organizationId = o.id;
+  const [organization] = await db
+    .select({ id: organizations.id, country: organizations.country, archivedAt: organizations.archivedAt })
+    .from(organizations)
+    .where(input.organizationId ? eq(organizations.id, input.organizationId) : isNull(organizations.archivedAt))
+    .orderBy(desc(organizations.isDefault), asc(organizations.createdAt))
+    .limit(1);
+  if (!organization || organization.archivedAt) {
+    if (input.organizationId) throw new DomainError(422, 'invalid_reference', 'Organization does not exist or is archived');
+    throw new DomainError(422, 'organization_required', 'Add an organization in Settings → Organizations first');
   }
+  const organizationId = organization.id;
   let warehouseId = input.warehouseId ?? null;
   if (input.warehouseId === undefined && (meta.stock || meta.reserves || meta.stockRole)) {
     const [w] = await db.select({ id: warehouses.id }).from(warehouses).where(isNull(warehouses.archivedAt)).orderBy(desc(warehouses.isDefault), asc(warehouses.createdAt)).limit(1);
@@ -696,7 +711,7 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
       contractId = contract?.id ?? null;
     }
   }
-  await assertRefs(db, { organizationId, counterpartyId, warehouseId, targetWarehouseId, costItemId, workCenterId, responsibleId: input.responsibleId });
+  await assertRefs(db, { counterpartyId, warehouseId, targetWarehouseId, costItemId, workCenterId, responsibleId: input.responsibleId });
   const attribution = ATTRIBUTION_TYPES.includes(input.type) ? await newDocAttribution(db, ctx, input, dealId, counterpartyId) : null;
   if (needsTargetWarehouse(operation)) await assertSameWarehouseTransfer(db, ctx.workspaceId, operation, warehouseId, targetWarehouseId);
   if (operation === 'to_operation' || operation === 'from_operation') await assertInUseHolder(db, inUseMemberId, inUseWorkCenterId);
@@ -712,6 +727,7 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
       state: null,
       operation,
       organizationId,
+      currency: input.currency ?? getCountryPack(organization.country).currency,
       counterpartyId,
       dealId,
       contractId,
@@ -745,6 +761,7 @@ export async function createDocument(db: Db, ctx: DocCtx, input: DocumentCreateI
 
 export interface DocumentPatch {
   organizationId?: string | null;
+  currency?: string;
   /** Вид заказ-наряда (только у work_order) */
   workOrderKindId?: string | null;
   /** Заказ на переработку (приём, отчёт о переработке, возврат) */
@@ -817,6 +834,22 @@ export async function updateDocument(db: Db, ctx: DocCtx, id: string, patch: Doc
   if (operation === 'to_operation' || operation === 'from_operation') await assertInUseHolder(db, inUseMemberId, inUseWorkCenterId);
   const set: Partial<typeof documents.$inferInsert> = { updatedAt: new Date() };
   if (patch.organizationId) set.organizationId = patch.organizationId;
+  if (patch.currency !== undefined) set.currency = patch.currency;
+  let countryChanged = false;
+  if (orgChanged && patch.organizationId) {
+    const orgs = await db.select({ id: organizations.id, country: organizations.country })
+      .from(organizations).where(inArray(organizations.id, [doc.organizationId, patch.organizationId]));
+    const previous = getCountryPack(orgs.find(org => org.id === doc.organizationId)?.country);
+    const next = getCountryPack(orgs.find(org => org.id === patch.organizationId)?.country);
+    countryChanged = previous.code !== next.code;
+    if (countryChanged) {
+      const lines = await db.select({ vatRate: documentLines.vatRate }).from(documentLines).where(eq(documentLines.documentId, id));
+      if (!patch.lines && lines.some(line => !next.vatRates.includes(line.vatRate))) {
+        throw new DomainError(422, 'invalid_vat_rate', 'Update the line VAT rates when changing the organization');
+      }
+      if (patch.currency === undefined && !lines.length && doc.currency === previous.currency) set.currency = next.currency;
+    }
+  }
   if (patch.counterpartyId !== undefined) set.counterpartyId = meta.party === null ? null : patch.counterpartyId;
   if (patch.priceKindId !== undefined && meta.party !== null) set.priceKindId = patch.priceKindId;
   if (patch.contractId !== undefined && meta.party !== null) {
@@ -884,7 +917,7 @@ export async function updateDocument(db: Db, ctx: DocCtx, id: string, patch: Doc
     }).where(eq(documentLines.documentId, id));
   }
   if (patch.lines) {
-    await saveLines(db, ctx, after!, patch.lines, after!.priceIncludesVat);
+    await saveLines(db, ctx, after!, patch.lines, after!.priceIncludesVat, !countryChanged);
     // ресурсы строк-работ заказ-наряда подставляются из норматива работ
     if (type === 'work_order') await syncWorkOrderResources(db, ctx, id);
   } else if (patch.priceIncludesVat !== undefined && patch.priceIncludesVat !== doc.priceIncludesVat) await recalcLines(db, after!);
@@ -1268,6 +1301,7 @@ export async function createBasedOn(db: Db, ctx: DocCtx, sourceId: string, targe
   const id = await createDocument(db, ctx, {
     type: target,
     organizationId: src.organizationId,
+    currency: src.currency,
     counterpartyId: src.counterpartyId,
     // документ на основании остаётся в той же сделке
     dealId: src.dealId,
@@ -1339,7 +1373,7 @@ async function documentLoyaltyView(db: Db, id: string) {
 export async function documentDetail(db: Db, id: string) {
   const doc = await loadDoc(db, id);
   const type = doc.type as DocumentType;
-  const [org] = await db.select({ id: organizations.id, name: organizations.name }).from(organizations).where(eq(organizations.id, doc.organizationId)).limit(1);
+  const [org] = await db.select({ id: organizations.id, name: organizations.name, country: organizations.country, defaultVatRate: organizations.defaultVatRate }).from(organizations).where(eq(organizations.id, doc.organizationId)).limit(1);
   const [cp] = doc.counterpartyId ? await db.select({ id: companies.id, name: companies.name, inn: companies.inn }).from(companies).where(eq(companies.id, doc.counterpartyId)).limit(1) : [];
   const [wh] = doc.warehouseId ? await db.select({ id: warehouses.id, name: warehouses.name }).from(warehouses).where(eq(warehouses.id, doc.warehouseId)).limit(1) : [];
   const [contract] = doc.contractId ? await db.select({ id: contracts.id, number: contracts.number, companyId: contracts.companyId, companyName: companies.name, validFrom: contracts.validFrom, validTo: contracts.validTo, isService: contracts.isService }).from(contracts).innerJoin(companies, eq(companies.id, contracts.companyId)).where(eq(contracts.id, doc.contractId)).limit(1) : [];

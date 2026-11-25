@@ -55,6 +55,7 @@ export const errors = {
   current_session: 'Use “Sign out” to end the current session',
   email_taken: 'An account with this email already exists',
   slug_taken: 'This workspace address is already taken',
+  invalid_vat_rate: 'Choose a VAT rate available for the organization.',
   validation_error: 'Check the value of “{path}”',
   company_not_allowed: 'A customer can be set only for a task of the Services module',
   investment_closed: 'The investment project is closed: documents can no longer be linked to it or posted to it',

@@ -6,6 +6,7 @@ import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, sql } from 'drizzle-
 import { DOCUMENT_LABELS_RU, dec, fmt, isOpeningMoneyKind, openingSettlement, SETTLEMENT_CHAIN_TYPES, type DocumentType, type OpeningLineInput, type OpeningLineKind } from '@erp/shared';
 import type { Db } from './client';
 import { DOCUMENT_HOOKS } from './document-hooks';
+import { organizationCurrency } from './organizations';
 import type { DocCtx } from './documents';
 import { DomainError } from './errors';
 import { recordEvent } from './events';
@@ -84,7 +85,7 @@ export async function createOpening(db: Db, ctx: DocCtx, input: OpeningInput): P
   await ensureCashFlowItems(db, ctx.workspaceId);
   const [row] = await db
     .insert(documents)
-    .values({ ...(input.id ? { id: input.id } : {}), workspaceId: ctx.workspaceId, type: 'opening_balance', date: input.date ?? today(), organizationId, comment: input.comment ?? '', responsibleId: ctx.memberId, createdBy: ctx.memberId })
+    .values({ ...(input.id ? { id: input.id } : {}), workspaceId: ctx.workspaceId, type: 'opening_balance', date: input.date ?? today(), organizationId, currency: await organizationCurrency(db, organizationId), comment: input.comment ?? '', responsibleId: ctx.memberId, createdBy: ctx.memberId })
     .returning();
   if (input.lines?.length) await saveOpeningLines(db, ctx, row!, input.lines);
   await recordEvent(db, { workspaceId: ctx.workspaceId, type: 'document.created', entity: 'document', recordId: row!.id, actorId: ctx.memberId, payload: { documentType: 'opening_balance' } });

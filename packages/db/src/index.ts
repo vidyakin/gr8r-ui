@@ -11,6 +11,7 @@ export * from './meta';
 export * from './catalog';
 export * from './errors';
 export * from './documents';
+export { workspaceVatDefaults } from './organizations';
 export * from './partner-articles';
 export * from './product-units';
 export * from './supplier-prices';

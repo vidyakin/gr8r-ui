@@ -7,7 +7,7 @@ import * as React from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeftRight, Ban, Calculator, ChevronDown, CircleAlert, ClipboardList, Copy, Ellipsis, FileSignature, FileText, PackageCheck, PackageX, Plus, Mail, Printer, RotateCcw, Send, SlidersHorizontal, Trash2, Undo2 } from 'lucide-react';
-import { amountInWordsRu, basedOnTargets, computeDocument, computeTotals, dec, documentCustomsFields, DEFECT_MODES, DOCUMENT_META, fmt as fmtDec, hasQuoteVariants, isInvestmentFactType, MATERIAL_OWNER_LABELS, PRINT_FORM_LABELS, TOLLING_ROLE_LABELS, TOLLING_ROLES, TRANSFER_OPERATIONS, VAT_LABELS, VAT_RATES, CONTRACT_FORM_BY_TYPE, type DefectMode, type DocTemplatePurpose, type DocumentType, type TollingRole, type VatRate } from '@erp/shared';
+import { COUNTRY_CODES, getCountryPack, basedOnTargets, computeDocument, computeTotals, dec, documentCustomsFields, DEFECT_MODES, DOCUMENT_META, fmt as fmtDec, hasQuoteVariants, isInvestmentFactType, MATERIAL_OWNER_LABELS, PRINT_FORM_LABELS, TOLLING_ROLE_LABELS, TOLLING_ROLES, TRANSFER_OPERATIONS, CONTRACT_FORM_BY_TYPE, type DefectMode, type DocTemplatePurpose, type DocumentType, type TollingRole } from '@erp/shared';
 import { Badge, Button, ConfirmDialog, Dialog, DialogContent, EmptyState, Field, IconButton, Input, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Segmented, Select, Skeleton, toast } from '@/components/ui';
 import { DocForm } from '@/components/erp/doc-form';
 import { LineUnitCell, rescalePrice, rescaleQty } from './line-unit';
@@ -18,6 +18,7 @@ import { uuidv7 } from '../lib/uuid';
 import { fmtDate } from '../lib/dates';
 import { useWorkspace } from '../data/store';
 import { SupplierStatusBadge } from '../portal/SupplierStatusBadge';
+import { vatLabel } from './vat';
 import { PayControls } from '../money/PayControls';
 import { useSnapshot } from '../production/data';
 import { MaterialModeField, WasteHeaderFields, WasteTab } from '../production/WasteTab';
@@ -66,7 +67,7 @@ interface FormLine {
   /** Цена за единицу строки */
   price: string;
   discountPct: string;
-  vatRate: VatRate;
+  vatRate: string;
   /** Учётное количество по остаткам (инвентаризация) */
   bookQty: string;
   /** Принятое количество (перемещение «в пути») */
@@ -323,6 +324,11 @@ function DocumentView({ doc }: { doc: DocDetail }) {
 
   const [labelsOpen, setLabelsOpen] = React.useState(false);
   const [form, setForm] = React.useState<Form>(() => toForm(doc));
+  const selectedOrg = orgs.data?.find(org => org.id === form.organizationId) ?? (doc.organization?.id === form.organizationId ? doc.organization : null);
+  const pack = getCountryPack(selectedOrg?.country);
+  const currencyPack = COUNTRY_CODES.map(getCountryPack).find(candidate => candidate.currency === doc.currency);
+  const defaultVatRate = pack.code === 'RU' ? pack.defaultVatRate : selectedOrg?.defaultVatRate ?? pack.defaultVatRate;
+  const printForms = meta.forms.filter(formId => pack.printFormIds.includes(formId));
   const whOptions = (warehouses.data ?? []).filter(w => (!w.archivedAt || w.id === form.warehouseId) && w.kind !== 'transit');
   const sourceWithBins = (isReceipt || doc.type === 'realization' || doc.type === 'write_off' || doc.type === 'stock_posting' || doc.type === 'opening_stock' || (isTransfer && form.operation !== 'from_operation'))
     && whOptions.some(w => w.id === form.warehouseId && w.useBins);
@@ -399,7 +405,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const patchLine = (key: string, patch: Partial<FormLine>) => showTotals && edit(f => ({ ...f, lines: f.lines.map(l => (l.key === key ? { ...l, ...patch } : l)) }));
   const addLine = (at?: number) => {
     if (!showTotals) return;
-    const line: FormLine = { key: uuidv7(), productId: null, name: '', unitCode: '796', unitFactor: '1', qty: '1', price: '', discountPct: '', vatRate: '20', bookQty: '0', receivedQty: '0', costItemId: null, workCenterId: null, params: {}, tollingRole: defaultTollingRole, groupName: '', shipBy: '', batchNumber: '', batchProducedAt: '', batchExpiresAt: '' };
+    const line: FormLine = { key: uuidv7(), productId: null, name: '', unitCode: '796', unitFactor: '1', qty: '1', price: '', discountPct: '', vatRate: defaultVatRate, bookQty: '0', receivedQty: '0', costItemId: null, workCenterId: null, params: {}, tollingRole: defaultTollingRole, groupName: '', shipBy: '', batchNumber: '', batchProducedAt: '', batchExpiresAt: '' };
     const index = at ?? latest.current.lines.length;
     focusReq.current = { row: index, col: 0 };
     edit(f => ({ ...f, lines: [...f.lines.slice(0, index), line, ...f.lines.slice(index)] }));
@@ -407,7 +413,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   const pickProduct = (key: string, row: number, p: Product) => {
     // у внутренних документов цена — себестоимость: её подставляет сервер
     if (!showTotals) return;
-    patchLine(key, { ...(latest.current.lines.find(l => l.key === key)?.productId !== p.id ? { binId: null, toBinId: null, gtdNumber: '', originCountry: '' } : {}), productId: p.id, name: p.name, unitCode: p.unitCode, unitFactor: '1', vatRate: p.vatRate, price: internal ? '0' : trimNum(p[priceField]) || '0', qty: latest.current.lines.find(l => l.key === key)?.qty || '1', costItemId: p.kind === 'service' ? (latest.current.lines.find(l => l.key === key)?.costItemId ?? null) : null, workCenterId: p.kind === 'service' ? (latest.current.lines.find(l => l.key === key)?.workCenterId ?? null) : null });
+    patchLine(key, { ...(latest.current.lines.find(l => l.key === key)?.productId !== p.id ? { binId: null, toBinId: null, gtdNumber: '', originCountry: '' } : {}), productId: p.id, name: p.name, unitCode: p.unitCode, unitFactor: '1', vatRate: pack.vatRates.includes(p.vatRate) ? p.vatRate : defaultVatRate, price: internal ? '0' : trimNum(p[priceField]) || '0', qty: latest.current.lines.find(l => l.key === key)?.qty || '1', costItemId: p.kind === 'service' ? (latest.current.lines.find(l => l.key === key)?.costItemId ?? null) : null, workCenterId: p.kind === 'service' ? (latest.current.lines.find(l => l.key === key)?.workCenterId ?? null) : null });
     focusReq.current = { row, col: 1 };
     // цена по виду цен документа на его дату (договор, контрагент, вид заказ-наряда…); карточка товара — пока ответа нет
     if (!internal && meta.party !== null) {
@@ -493,7 +499,8 @@ function DocumentView({ doc }: { doc: DocDetail }) {
   }, [form.lines, calc]);
   const quoteTemplates = useDocTemplates({ usedOnly: true });
   // «Договор + документ»: договор берётся из документа; без договора пункта нет (docs/architecture/contracts.md)
-  const contractForm = CONTRACT_FORM_BY_TYPE[doc.type];
+  const contractFormId = CONTRACT_FORM_BY_TYPE[doc.type];
+  const contractForm = contractFormId && pack.printFormIds.includes(contractFormId) ? contractFormId : undefined;
   const contractTemplates = useDocTemplates({ usedOnly: true, purpose: (contractForm ?? 'contract_order') as DocTemplatePurpose });
   /** Ответ сервера после операции с вариантами заменяет форму: строки документа — уже другой вариант */
   const applyServer = (r: DocDetail) => {
@@ -922,10 +929,11 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                             </div>
                           </td>
                           <td>
-                            <select className="input cell-input" aria-label={t('docs.document.cellVat')} disabled={!linesEditable} value={l.vatRate} onChange={e => patchLine(l.key, { vatRate: e.target.value as VatRate })}>
-                              {VAT_RATES.map(r => (
+                            <select className="input cell-input" aria-label={t('docs.document.cellVat')} disabled={!linesEditable} value={l.vatRate} onChange={e => patchLine(l.key, { vatRate: e.target.value })}>
+                              {!pack.vatRates.includes(l.vatRate) && <option value={l.vatRate} disabled>{vatLabel(pack, l.vatRate)}</option>}
+                              {pack.vatRates.map(r => (
                                 <option key={r} value={r}>
-                                  {tEnum('vat', r, VAT_LABELS[r])}
+                                  {vatLabel(pack, r)}
                                 </option>
                               ))}
                             </select>
@@ -1212,7 +1220,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
             </Button>
           )}
           {isReceipt && <Button disabled={!form.lines.some(l => l.productId)} onClick={() => setLabelsOpen(true)}>{t('catalog.labels.title')}</Button>}
-          {canPrint && !!meta.forms.length && (
+          {canPrint && !!printForms.length && (
             <Menu>
               <MenuTrigger asChild>
                 <Button>
@@ -1222,7 +1230,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                 </Button>
               </MenuTrigger>
               <MenuContent align="end">
-                {meta.forms.map(f => (
+                {printForms.map(f => (
                   <MenuItem
                     key={f}
                     icon={<Printer size={15} />}
@@ -1260,7 +1268,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                     </MenuItem>
                   </>
                 )}
-                {meta.forms.includes('quote') && (
+                {printForms.includes('quote') && (
                   <>
                     <MenuSeparator />
                     {(quoteTemplates.data ?? []).map(tp => (
@@ -1282,7 +1290,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
               </MenuContent>
             </Menu>
           )}
-          {canPrint && !!meta.forms.length && (
+          {canPrint && !!printForms.length && (
             <Button
               onClick={() => {
                 void (async () => {
@@ -1297,8 +1305,8 @@ function DocumentView({ doc }: { doc: DocDetail }) {
           {mailOpen && (
             <ComposeDialog
               links={{ companyId: doc.counterpartyId ?? undefined }}
-              defaultSubject={`${tEnum('printForm', meta.forms[0]!, PRINT_FORM_LABELS[meta.forms[0]!])} ${doc.number ?? ''}`.trim()}
-              document={{ id: doc.id, forms: meta.forms.map(f => ({ value: f, label: f === 'quote' ? t('docs.quotes.standardForm') : tEnum('printForm', f, PRINT_FORM_LABELS[f]) })) }}
+              defaultSubject={`${tEnum('printForm', printForms[0]!, PRINT_FORM_LABELS[printForms[0]!])} ${doc.number ?? ''}`.trim()}
+              document={{ id: doc.id, forms: printForms.map(f => ({ value: f, label: f === 'quote' ? t('docs.quotes.standardForm') : tEnum('printForm', f, PRINT_FORM_LABELS[f]) })) }}
               onClose={() => setMailOpen(false)}
             />
           )}
@@ -1354,7 +1362,17 @@ function DocumentView({ doc }: { doc: DocDetail }) {
               id={p.id}
               disabled={!editable || hasNumber}
               value={form.organizationId}
-              onValueChange={v => edit(f => ({ ...f, organizationId: v }))}
+              onValueChange={v => edit(f => {
+                const org = orgs.data?.find(item => item.id === v);
+                const next = getCountryPack(org?.country);
+                const fallback = next.code === 'RU' ? next.defaultVatRate : org?.defaultVatRate ?? next.defaultVatRate;
+                return {
+                  ...f,
+                  organizationId: v,
+                  lines: next.code === pack.code ? f.lines : f.lines.map(line =>
+                    next.vatRates.includes(line.vatRate) ? line : { ...line, vatRate: fallback }),
+                };
+              })}
               options={(orgs.data ?? []).filter(o => !o.archivedAt || o.id === form.organizationId).map(o => ({ value: o.id, label: o.name }))}
               aria-label={t('docs.document.organization')}
             />
@@ -1696,7 +1714,7 @@ function DocumentView({ doc }: { doc: DocDetail }) {
                   .filter(r => r.rate !== 'none')
                   .map(r => (
                     <div key={r.rate}>
-                      <dt>{t('docs.document.totals.vatRate', { rate: tEnum('vat', r.rate, VAT_LABELS[r.rate as VatRate]) })}</dt>
+                      <dt>{t('docs.document.totals.vatRate', { rate: vatLabel(pack, r.rate) })}</dt>
                       <dd className="num">{money(r.vat)}</dd>
                     </div>
                   ))
@@ -1710,14 +1728,14 @@ function DocumentView({ doc }: { doc: DocDetail }) {
               <div className="grand">
                 <dt>{t('docs.document.totals.total')}{form.priceIncludesVat ? t('docs.document.totals.totalIncluded').replace(t('docs.document.totals.total'), '') : ''}</dt>
                 <dd className="num" data-testid="total-sum">
-                  {money(calc.totals.total)} ₽
+                  {money(calc.totals.total)} {currencyPack?.currencySymbol ?? doc.currency}
                 </dd>
               </div>
             </dl>
           )}
-          {!internal && (
-            <p className="doc-words" lang="ru">
-              {amountInWordsRu(calc.totals.total)}
+          {!internal && currencyPack && (
+            <p className="doc-words" lang={currencyPack.code === 'AE' ? 'en' : 'ru'}>
+              {currencyPack.amountInWords(calc.totals.total)}
             </p>
           )}
         </section>}

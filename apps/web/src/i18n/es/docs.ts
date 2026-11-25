@@ -339,6 +339,12 @@ export const docs: Widen<typeof D> = {
 
   /* ----------- datos bancarios y fiscales de la contraparte ----------- */
   requisites: {
+    country: 'País',
+    countries: { RU: 'Rusia (RU)', KZ: 'Kazajistán (KZ)', AE: 'Emiratos Árabes Unidos (AE)' },
+    countryFields: { binIin: 'BIN / IIN', iik: 'IIK (IBAN)', bik: 'BIC / SWIFT', kbe: 'KBe', knp: 'KNP', trn: 'TRN', iban: 'IBAN', bic: 'BIC / SWIFT' },
+    countryFieldInvalid: 'Comprueba el formato y el dígito de control.',
+    edit: 'Editar datos fiscales',
+    saved: 'Datos fiscales guardados',
     kind: 'Tipo',
     fullName: 'Nombre completo',
     inn: 'INN',

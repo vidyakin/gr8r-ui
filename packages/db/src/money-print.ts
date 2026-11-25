@@ -30,7 +30,7 @@ import { inlineAttachmentImages } from './attachments';
 import { DomainError } from './errors';
 import { openingDetail } from './opening-balances';
 import { cashOrderData, paymentDetail, printOrg, settlementActData } from './payments';
-import { bankAccounts, companies, documents } from './schema';
+import { bankAccounts, companies, documents, organizations } from './schema';
 
 type PaymentView = Awaited<ReturnType<typeof paymentDetail>>;
 
@@ -162,9 +162,10 @@ export async function moneyPrintData(db: Db, id: string, form: PrintForm): Promi
 
 /** Печатная страница документа любого типа: единая точка для предпросмотра (API) и PDF (воркер). Форма должна быть из DOCUMENT_META типа */
 export async function renderDocumentHtml(db: Db, id: string, form: PrintForm, opts: { templateId?: string | null; memberId?: string | null } = {}): Promise<string> {
-  const [doc] = await db.select({ type: documents.type, contractId: documents.contractId }).from(documents).where(eq(documents.id, id)).limit(1);
+  const [doc] = await db.select({ type: documents.type, contractId: documents.contractId, country: organizations.country })
+    .from(documents).innerJoin(organizations, eq(organizations.id, documents.organizationId)).where(eq(documents.id, id)).limit(1);
   if (!doc) throw new DomainError(404, 'not_found', 'document not found');
-  if (!formAllowedFor(doc.type, form)) throw new DomainError(422, 'form_not_available', `The "${form}" form is not available for this document type`);
+  if (!formAllowedFor(doc.type, form, doc.country)) throw new DomainError(422, 'form_not_available', `The "${form}" form is not available for this document type`);
   // «Договор + документ»: договор берётся из документа, шаблон — с назначением формы (docs/architecture/contracts.md)
   if (isContractForm(form)) {
     if (!doc.contractId) throw new DomainError(422, 'contract_required', 'The document has no contract to print');

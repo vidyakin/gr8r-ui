@@ -4,7 +4,7 @@ import { zValidator } from '@hono/zod-validator';
 import { asc, eq, inArray, max, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { generateProductBarcodes, assertProductKind, listProductUnits, saveProductUnits, attributeDefs, attachments, companies, generateVariants, listVariants, productCategories, products, recordEvent, recordProductPrice, specParamsOfProduct, units, uuidv7 } from '@erp/db';
+import { generateProductBarcodes, assertProductKind, listProductUnits, saveProductUnits, attributeDefs, attachments, companies, generateVariants, listVariants, productCategories, products, recordEvent, recordProductPrice, specParamsOfProduct, units, uuidv7, workspaceVatDefaults } from '@erp/db';
 import { attributeCreate, attributeUpdate, categoryCreate, categoryQuery, categoryUpdate, destroyQuery, idParam, keyFromName, productCreate, productQuery, productUnitsBody, productUpdate, unitCreate, unitQuery, unitUpdate, type RecordData } from '@erp/shared';
 import { crud, ctxOf, validationHook, type Ctx, escapeLike } from '../crud';
 import { AppError, notFound } from '../errors';
@@ -183,6 +183,14 @@ export const barcodeRoutes = new Hono<AppEnv>().post('/generate-barcodes', requi
   return c.json({ items: await generateProductBarcodes(ctx.db, ctx.workspaceId, ctx.memberId, [...new Set(c.req.valid('json').ids)]) });
 });
 
+/** Каталог общий для воркспейса, поэтому ставки берутся у его основной организации. */
+async function catalogVatRate(ctx: Ctx, rate?: string): Promise<string> {
+  const { pack, defaultVatRate } = await workspaceVatDefaults(ctx.db);
+  if (rate === undefined) return defaultVatRate;
+  if (!pack.vatRates.includes(rate)) throw new AppError(422, 'invalid_vat_rate', 'VAT rate is unavailable for the default organization');
+  return rate;
+}
+
 export const productRoutes = crud({
   entity: 'product',
   table: products,
@@ -214,9 +222,10 @@ export const productRoutes = crud({
     if (body.parentProductId) await assertVariantParent(ctx, body.parentProductId);
     const cat = body.categoryId ? await loadCategory(ctx, body.categoryId) : null;
     const attrs = validateAttrs(cat ? await effectiveAttributes(ctx, cat) : [], body.attrs, 'create');
-    return { attrs, ...(await customForCreate(ctx, 'product', body.custom)) };
+    return { attrs, vatRate: await catalogVatRate(ctx, body.vatRate), ...(await customForCreate(ctx, 'product', body.custom)) };
   },
   prepareUpdate: async (ctx, existing, body) => {
+    if (body.vatRate !== undefined && body.vatRate !== existing.vatRate) await catalogVatRate(ctx, body.vatRate);
     if (body.unitCode !== undefined && body.unitCode !== existing.unitCode) await assertUnit(ctx, body.unitCode);
     if (body.kind !== undefined || body.productKindId !== undefined) await assertProductKind(ctx.db, body.kind ?? existing.kind, body.productKindId !== undefined ? body.productKindId : existing.productKindId);
     if (body.defaultSupplierId) await assertSupplier(ctx, body.defaultSupplierId);

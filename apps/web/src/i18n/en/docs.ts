@@ -339,6 +339,12 @@ export const docs = {
 
   /* ----------- реквизиты контрагента ----------- */
   requisites: {
+    country: 'Country',
+    countries: { RU: 'Russia (RU)', KZ: 'Kazakhstan (KZ)', AE: 'United Arab Emirates (AE)' },
+    countryFields: { binIin: 'BIN / IIN', iik: 'IIK (IBAN)', bik: 'BIC / SWIFT', kbe: 'KBe', knp: 'KNP', trn: 'TRN', iban: 'IBAN', bic: 'BIC / SWIFT' },
+    countryFieldInvalid: 'Check the format and checksum.',
+    edit: 'Edit requisites',
+    saved: 'Requisites saved',
     kind: 'Type',
     fullName: 'Full name',
     inn: 'INN',

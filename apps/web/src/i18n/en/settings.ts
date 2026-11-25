@@ -886,7 +886,7 @@ export const settings = {
       direct_costs: 'By direct costs',
       work_hours: 'By work hours',
     },
-    taxSystem: { osn: 'General (OSN)', usn: 'Simplified (USN)' },
+    taxSystem: { osn: 'General (OSN)', usn: 'Simplified (USN)', our: 'General (OUR)', simplified: 'Simplified (910)', standard: 'Standard', exempt: 'Exempt' },
     materialPriceSource: { purchase: 'Purchase price', price: 'Sale price', avg_cost: 'Average warehouse cost' },
     workOrderStateCategory: {
       new: 'New',

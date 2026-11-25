@@ -64,7 +64,7 @@ export const companyRoutes = crud({
     requireVisibleFields(assertNoHiddenFieldWrite('company', await ctx.c.req.json(), await hiddenFieldsOf(ctx)));
     await assertOwnerAssignment(ctx, body.ownerId, existing.ownerId);
     // реквизиты проверяются по итоговому состоянию: тип, ИНН, КПП и ОГРН зависят друг от друга
-    assertRequisites({ kind: body.kind ?? existing.kind, inn: body.inn ?? existing.inn, kpp: body.kpp ?? existing.kpp, ogrn: body.ogrn ?? existing.ogrn });
+    assertRequisites({ ...existing, ...body });
     return { ...(await customForUpdate(ctx, 'company', existing.custom, body.custom, existing.id)), ...pickAttr(await attributionPatch(ctx, body, existing)) };
   },
   // смена режима взаиморасчётов пересчитывает зачёты проведённых документов в той же транзакции (закрытый период — 422)

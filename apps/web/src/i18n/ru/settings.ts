@@ -890,7 +890,7 @@ export const settings: Widen<typeof S> = {
       direct_costs: 'По прямым затратам',
       work_hours: 'По часам работ',
     },
-    taxSystem: { osn: 'ОСН', usn: 'УСН' },
+    taxSystem: { osn: 'ОСН', usn: 'УСН', our: 'ОУР', simplified: 'Упрощёнка (910)', standard: 'Стандартный', exempt: 'Освобождение' },
     materialPriceSource: { purchase: 'Цена закупки', price: 'Цена продажи', avg_cost: 'Средняя по складу' },
     workOrderStateCategory: {
       new: 'Новый',
